@@ -23,9 +23,6 @@ export class TransManagementComponent  implements OnInit {
 
   isLoadingConsentLink = signal<boolean>(false);
   isLoadingUserAccounts = signal<boolean>(false);
-  isLoadingBankTransactions = signal<boolean>(false);
-  isLoadingCardTransactions = signal<boolean>(false);
-  isLoadingAllTransactions = signal<boolean>(false);
 
   consentDialogVisible = signal<boolean>(false);
   consentChecked = signal<boolean>(false);
@@ -140,75 +137,6 @@ export class TransManagementComponent  implements OnInit {
       });
   }
 
-  fetchUserBankTransactions(): void {
-    this.isLoadingBankTransactions.set(true);
-    this.feezbackService.getUserBankTransactions('booked')
-      .pipe(
-        catchError(err => {
-          console.error('Error fetching bank transactions:', err);
-          this.messageService.add({ severity: 'error', summary: 'שגיאה', detail: 'לא הצלחנו לטעון תנועות בנק.', life: 5000, key: 'br' });
-          return EMPTY;
-        }),
-        finalize(() => this.isLoadingBankTransactions.set(false))
-      )
-      .subscribe(response => {
-        this.showSyncToast(response?.syncSummary);
-      });
-  }
-
-  fetchUserCardTransactions(): void {
-    this.isLoadingCardTransactions.set(true);
-    this.feezbackService.getUserCardTransactions('booked')
-      .pipe(
-        catchError(err => {
-          console.error('Error fetching card transactions:', err);
-          this.messageService.add({ severity: 'error', summary: 'שגיאה', detail: 'לא הצלחנו לטעון תנועות אשראי.', life: 5000, key: 'br' });
-          return EMPTY;
-        }),
-        finalize(() => this.isLoadingCardTransactions.set(false))
-      )
-      .subscribe(response => {
-        this.showSyncToast(response?.syncSummary);
-      });
-  }
-
-  fetchAllUserTransactions(): void {
-    this.isLoadingAllTransactions.set(true);
-    this.feezbackService.getAllUserTransactions('booked')
-      .pipe(
-        catchError(err => {
-          console.error('Error fetching all transactions:', err);
-          this.messageService.add({ severity: 'error', summary: 'שגיאה', detail: 'לא הצלחנו לטעון תנועות בנק ואשראי.', life: 5000, key: 'br' });
-          return EMPTY;
-        }),
-        finalize(() => this.isLoadingAllTransactions.set(false))
-      )
-      .subscribe(response => {
-        this.showSyncToast(response?.syncSummary);
-      });
-  }
-
-  private showSyncToast(syncSummary: any): void {
-    if (!syncSummary) {
-      this.messageService.add({ severity: 'warn', summary: 'התראה', detail: 'לא נמצאו תנועות.', life: 5000, key: 'br' });
-      return;
-    }
-    const bank = syncSummary.bank;
-    const card = syncSummary.card;
-    const system = syncSummary.system;
-    const hasBank = bank?.transactionsFetched > 0;
-    const hasCard = card?.transactionsFetched > 0;
-    if (!hasBank && !hasCard) {
-      this.messageService.add({ severity: 'warn', summary: 'התראה', detail: 'לא נמצאו תנועות בנק או אשראי.', life: 5000, key: 'br' });
-      return;
-    }
-    const lines: string[] = ['הייבוא הושלם בהצלחה.'];
-    if (hasBank) lines.push(`נטענו ${bank.transactionsFetched} תנועות בנק מ־${bank.banksProcessed} חשבונות.`);
-    if (hasCard) lines.push(`נטענו ${card.transactionsFetched} תנועות כרטיסי אשראי מ־${card.cardsProcessed} כרטיסים.`);
-    lines.push(`בסך הכול עובדו ${system.totalProcessed} תנועות: ${system.savedInCurrentImport} נשמרו, ${system.alreadyExisting} כבר קיימות.`);
-    this.messageService.add({ severity: 'success', summary: 'הצלחה', detail: lines.join('\n'), life: 8000, key: 'br' });
-  }
-
   // ───────────────────────────────────────────────────────────────────────────
   //  Dev-only sync scenario simulator
   // ───────────────────────────────────────────────────────────────────────────
@@ -228,10 +156,11 @@ export class TransManagementComponent  implements OnInit {
         finalize(() => this.isLoadingSim.set(null)),
       )
       .subscribe(() => {
-        // Open the my-account dialog with simulate=true so initFeezbackDialogFromReturnUrl
-        // bypasses the real triggerPostConsentSync and just polls the seeded state.
+        // Open my-account as if the user just returned from Feezback ("סיום").
+        // simulate=true + scenario drives the staged sim: awaiting-webhook →
+        // (15s → simulate-webhook) → prompt → (pull → simulate-pull).
         void this.router.navigate(['/my-account'], {
-          queryParams: { feezbackStatus: 'success', simulate: 'true' },
+          queryParams: { feezbackStatus: 'success', simulate: 'true', scenario },
         });
       });
   }

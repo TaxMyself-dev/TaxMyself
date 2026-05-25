@@ -30,13 +30,21 @@ export class UsersController {
     async signin(@Req() request: AuthenticatedRequest) {
         const userId = request.user?.firebaseId;
         const maskedId = userId?.length >= 8 ? userId.substring(0, 8) + '...' : userId ?? '?';
-        this.logger.log(`signin called, userId=${maskedId}`);
-        const user = await this.userService.signin(userId);
+        // `/auth/signin` is also hit by the auth-guard session-restore, the
+        // settings page, and view-as-client — none of which are a real login.
+        // Only the actual login screen passes ?freshLogin=true, so the
+        // post-login sync (and its LOGIN banner) fires exactly once per login,
+        // not on every page navigation.
+        const isFreshLogin = String(request.query?.freshLogin) === 'true';
+        this.logger.log(`signin called, userId=${maskedId}, freshLogin=${isFreshLogin}`);
+        const user = await this.userService.signin(userId, isFreshLogin);
 
-        // Fire-and-forget — do not block the login response.
-        void this.triggerPostLoginSync(userId, user).catch(err =>
-            this.logger.error(`[Login] post-login sync failed`, err?.stack ?? err),
-        );
+        if (isFreshLogin) {
+            // Fire-and-forget — do not block the login response.
+            void this.triggerPostLoginSync(userId, user).catch(err =>
+                this.logger.error(`[Login] post-login sync failed`, err?.stack ?? err),
+            );
+        }
 
         return user;
     }
@@ -125,36 +133,11 @@ export class UsersController {
 
         if (!hasOpenBanking) return;
 
-        // Structural skip: if the user clicked consent more recently than the
-        // last successful sync, there's an UNPROCESSED consent flow in
-        // progress — the webhook will trigger the sync. Short-circuit here so
-        // we don't waste an API call on refreshUserSources before bailing.
-        // The same gate is applied centrally in feezbackService.triggerFullSync
-        // so other callers (e.g. /sync-status auto-trigger) skip too.
-        const state = await this.feezbackService.getUserSyncState(firebaseId);
-        if (this.feezbackService.hasUnprocessedConsentFlow(state)) {
-            console.log(`  ⏭️  Login sync skipped — unprocessed consent flow, webhook will sync\n`);
-            return;
-        }
-
-        // If our cached Source rows haven't been refreshed against Feezback in 24h+
-        // (or never), refresh them first — otherwise login sync would pull with
-        // stale consentIds and report a generic "sync failed" with no clue that
-        // the user needs to re-authorize. Cheap when fresh: just one DB read.
-        const STALE_AFTER_MS = 24 * 60 * 60_000;
-        try {
-            const lastRefresh = state?.lastSourcesRefreshAt;
-            const isStale = !lastRefresh || (Date.now() - new Date(lastRefresh).getTime()) > STALE_AFTER_MS;
-            if (isStale) {
-                console.log(`  ↻  Sources older than 24h — refreshing before login sync`);
-                await this.feezbackService.refreshUserSources(firebaseId, 'login').catch(err => {
-                    this.logger.error(`[Login] refreshUserSources failed | user=${userName} | error=${err?.message}`, err?.stack ?? err);
-                });
-            }
-        } catch (err: any) {
-            this.logger.error(`[Login] freshness check failed | user=${userName} | error=${err?.message}`, err?.stack ?? err);
-        }
-
+        // NOTE: deliberately NOT gated on hasUnprocessedConsentFlow anymore.
+        // The webhook only runs discovery (refreshUserSources) — it never
+        // triggers a sync — so a login sync over the user's EXISTING sources
+        // can't race anything. A user who stepped out mid-consent should still
+        // get their existing accounts synced on the next real login.
         void this.feezbackService.triggerFullSync(firebaseId, 'login')
             .catch(err => {
                 this.logger.error(`[Login] triggerFullSync failed | user=${userName} | error=${err?.message}`, err?.stack ?? err);

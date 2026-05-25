@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In, Between, Not, Brackets, LessThan, MoreThan, FindOptionsWhere, MoreThanOrEqual, LessThanOrEqual } from 'typeorm';
 import * as XLSX from 'xlsx';
 import { Express } from 'express';
-import { SourceType, VATReportingType } from 'src/enum';
+import { SourceType, VATReportingType, BusinessType, ExpenseReportScope } from 'src/enum';
 
 //Entities
 // TODO_FINTAX_REMOVE_LEGACY_TRANSACTIONS: import kept while legacy flows (file upload, Finsite ingest, classifyTransaction, quickClassify, report reads) still write/read the transactions table.
@@ -33,6 +33,7 @@ import { UserCategory } from 'src/expenses/user-categories.entity';
 import { CreateBillDto } from './dtos/create-bill.dto';
 import * as fs from 'fs';
 import { UserSubCategory } from 'src/expenses/user-sub-categories.entity';
+import { Business } from 'src/business/business.entity';
 import { log } from 'console';
 
 
@@ -71,6 +72,8 @@ export class TransactionsService {
     private slimRepo: Repository<SlimTransaction>,
     @InjectRepository(UserSourceSyncState)
     private userSourceSyncStateRepo: Repository<UserSourceSyncState>,
+    @InjectRepository(Business)
+    private businessRepo: Repository<Business>,
   ) { }
 
 
@@ -391,6 +394,14 @@ export class TransactionsService {
 
   }
 
+
+  async getBusinessNumberByBillId(billId: number, userId: string): Promise<string | null> {
+    const bill = await this.billRepo.findOne({
+      where: { id: billId, userId },
+      select: ['businessNumber'],
+    });
+    return bill?.businessNumber ?? null;
+  }
 
   async getBusinessNumberByBillName(userId: string, billName: string): Promise<string | null> {
     const bill = await this.billRepo.findOne({
@@ -1149,26 +1160,31 @@ export class TransactionsService {
   }
 
   /**
-   * כל אמצעי תשלום של המשתמש מטבלת `source`.
-   * אין FK ל־bill → billName null (בפרונט: «לא משויך»). אחרת → שם החשבון מטבלת החשבונות דרך הקשר `bill`.
-   * hasConsent מבוסס על user_source_sync_state.consentId — non-null = חיבור פעיל
-   * (revoke/expire מאפס את consentId דרך clearConsentOnSources).
+   * Sources list for the settings page. Driven by user_source_sync_state
+   * (refreshed on every discovery → reflects currently-connected accounts).
+   * billName is joined from `source` (sourceName == sourceId); no Bill link →
+   * null (frontend shows «לא משויך»). hasConsent = user_source_sync_state
+   * .consentId non-null (revoke/expire nulls it via clearConsentOnSources).
    */
   async getSourcesWithTypes(
     userId: string,
   ): Promise<{ sourceName: string; sourceType: SourceType; billName: string | null; hasConsent: boolean }[]> {
-    const [rows, syncStates] = await Promise.all([
-      this.sourceRepo.find({ where: { userId }, relations: ['bill'] }),
+    // The list is driven by user_source_sync_state — it's refreshed on every
+    // discovery (getUserAccounts) so it reflects the currently-connected
+    // accounts + their consent validity. `source` is consulted only for the
+    // Bill mapping (billName), joined by sourceName == sourceId.
+    const [syncStates, sourceRows] = await Promise.all([
       this.userSourceSyncStateRepo.find({ where: { userId } }),
+      this.sourceRepo.find({ where: { userId }, relations: ['bill'] }),
     ]);
-    const consentBySourceId = new Map(
-      syncStates.map((s) => [s.sourceId, !!s.consentId]),
+    const billBySourceName = new Map(
+      sourceRows.map((r) => [r.sourceName, r.bill?.billName ?? null]),
     );
-    return rows.map((r) => ({
-      sourceName: r.sourceName,
-      sourceType: r.sourceType,
-      billName: r.bill?.billName ?? null,
-      hasConsent: consentBySourceId.get(r.sourceName) ?? false,
+    return syncStates.map((s) => ({
+      sourceName: s.sourceId,
+      sourceType: s.type === 'card' ? SourceType.CREDIT_CARD : SourceType.BANK_ACCOUNT,
+      billName: billBySourceName.get(s.sourceId) ?? null,
+      hasConsent: !!s.consentId,
     }));
   }
 
@@ -1424,6 +1440,25 @@ export class TransactionsService {
     endDate: Date,
   ): Promise<Record<string, any>[]> {
 
+    // Translate the report's date range into the period labels that span it.
+    // Late stragglers whose `transactionDate` is outside the range but whose
+    // `vatReportingDate` falls inside it (because the user reassigned them
+    // from a locked period) should still surface in the confirm-trans dialog.
+    let periodLabels: string[] = [];
+    if (businessNumber && businessNumber !== 'ALL_BILLS') {
+      const business = await this.businessRepo.findOne({
+        where: { firebaseId: userId, businessNumber },
+      });
+      if (business) {
+        periodLabels = this.sharedService.expandPeriodLabelsInRange(
+          business.businessType ?? BusinessType.EXEMPT,
+          business.vatReportingType ?? VATReportingType.NOT_REQUIRED,
+          startDate,
+          endDate,
+        );
+      }
+    }
+
     // Join slim_transactions only for its confirmed state.
     // Rows with no slim row are treated as confirmed = false (LEFT JOIN IS NULL).
     const qb = this.cacheRepo
@@ -1434,12 +1469,23 @@ export class TransactionsService {
         's.userId = c.userId AND s.externalTransactionId = c.externalTransactionId',
       )
       .where('c.userId = :userId', { userId })
-      .andWhere('DATE(c.transactionDate) BETWEEN :startDate AND :endDate', { startDate, endDate })
       .andWhere('c.isRecognized = true')
       .andWhere('c.amount < 0')
       // slim.confirmed IS NULL  → no slim row yet → treat as unconfirmed
       // slim.confirmed = false  → explicitly not yet confirmed
       .andWhere('(s.confirmed IS NULL OR s.confirmed = false)');
+
+    if (periodLabels.length > 0) {
+      // Period-stamped (classified) rows → match by label. Unclassified rows
+      // (no slim row → vatReportingDate IS NULL on cache too) → match by
+      // transactionDate so the user can still classify+confirm them.
+      qb.andWhere(
+        '(c.vatReportingDate IN (:...labels) OR (c.vatReportingDate IS NULL AND DATE(c.transactionDate) BETWEEN :startDate AND :endDate))',
+        { labels: periodLabels, startDate, endDate },
+      );
+    } else {
+      qb.andWhere('DATE(c.transactionDate) BETWEEN :startDate AND :endDate', { startDate, endDate });
+    }
 
     if (businessNumber && businessNumber !== 'ALL_BILLS') {
       qb.andWhere('c.businessNumber = :businessNumber', { businessNumber });
@@ -1449,29 +1495,43 @@ export class TransactionsService {
 
     const rows = await qb.getMany();
 
-    return rows.map((r) => ({
-      id: r.id,
-      finsiteId: r.externalTransactionId,
-      userId: r.userId,
-      paymentIdentifier: r.paymentIdentifier,
-      billName: r.billName,
-      businessNumber: r.businessNumber,
-      name: r.merchantName,
-      note2: r.note,
-      billDate: r.transactionDate,
-      payDate: r.paymentDate,
-      sum: r.amount,
-      currency: r.currency ?? 'ILS',
-      category: r.category,
-      subCategory: r.subCategory,
-      isRecognized: r.isRecognized,
-      vatPercent: r.vatPercent,
-      taxPercent: r.taxPercent,
-      isEquipment: r.isEquipment,
-      reductionPercent: r.reductionPercent,
-      vatReportingDate: r.vatReportingDate,
-      confirmed: false, // only unconfirmed rows reach here
-    }));
+    return rows.map((r) => {
+      // Same canonical formula used by expenses.service.ts:59,65 when an
+      // expense is saved. Cache amounts are negative for expenses; the
+      // expense formula expects a positive base, so use Math.abs.
+      const absSum = Math.abs(Number(r.amount));
+      const vatRate = this.sharedService.getVatRateByYear(new Date(r.transactionDate));
+      const totalVatPayable =
+        (absSum / (1 + vatRate)) * vatRate * (Number(r.vatPercent) / 100);
+      const totalTaxPayable =
+        (absSum - totalVatPayable) * (Number(r.taxPercent) / 100);
+
+      return {
+        id: r.id,
+        finsiteId: r.externalTransactionId,
+        userId: r.userId,
+        paymentIdentifier: r.paymentIdentifier,
+        billName: r.billName,
+        businessNumber: r.businessNumber,
+        name: r.merchantName,
+        note2: r.note,
+        billDate: r.transactionDate,
+        payDate: r.paymentDate,
+        sum: r.amount,
+        currency: r.currency ?? 'ILS',
+        category: r.category,
+        subCategory: r.subCategory,
+        isRecognized: r.isRecognized,
+        vatPercent: r.vatPercent,
+        taxPercent: r.taxPercent,
+        totalVatPayable,
+        totalTaxPayable,
+        isEquipment: r.isEquipment,
+        reductionPercent: r.reductionPercent,
+        vatReportingDate: r.vatReportingDate,
+        confirmed: false, // only unconfirmed rows reach here
+      };
+    });
   }
 
 
@@ -1544,6 +1604,15 @@ export class TransactionsService {
       throw new Error('No transactions found with the provided IDs.');
     }
 
+    // Load existing slim rows so we can use the period label already stamped
+    // at classification time. Confirm-trans no longer (re)computes the period;
+    // it only flips `confirmed = true`.
+    const externalIds = cacheRows.map((r) => r.externalTransactionId);
+    const slimRows = externalIds.length > 0
+      ? await this.slimRepo.find({ where: { userId, externalTransactionId: In(externalIds) } })
+      : [];
+    const slimByExternalId = new Map(slimRows.map((s) => [s.externalTransactionId, s]));
+
     // ── Build and save Expense entities ───────────────────────────────────────
     const expenses: Expense[] = [];
     let skippedTransactions = 0;
@@ -1552,25 +1621,46 @@ export class TransactionsService {
       const transactionFile = transactionData.find(td => td.id === row.id)?.file || '';
 
       const existingExpense = await this.expenseRepo.findOne({
-        where: {
-          userId: row.userId,
-          date: row.transactionDate,
-          supplier: row.merchantName,
-          sum: Math.abs(Number(row.amount)),
-        },
+        where: [
+          { userId: row.userId, externalTransactionId: row.externalTransactionId },
+          // Fallback for legacy Expenses created before externalTransactionId was linked.
+          {
+            userId: row.userId,
+            date: row.transactionDate,
+            supplier: row.merchantName,
+            sum: Math.abs(Number(row.amount)),
+          },
+        ],
       });
 
       if (existingExpense) {
+        // Backfill the link on legacy rows so future re-classifications can
+        // sync this Expense via the externalTransactionId path.
+        if (!existingExpense.externalTransactionId) {
+          existingExpense.externalTransactionId = row.externalTransactionId;
+          await this.expenseRepo.save(existingExpense);
+        }
         skippedTransactions++;
         continue;
       }
+
+      const slim = slimByExternalId.get(row.externalTransactionId);
+      // Expense.sum is always in ILS. For non-ILS transactions the cache row
+      // carries `ilsAmount` (stamped at sync via FxRateService). Fall back to
+      // `amount` for ILS rows and for rows where FX resolution failed at
+      // sync time — `currency` stays on the source for audit.
+      const sumIls = row.ilsAmount != null
+        ? Math.abs(Number(row.ilsAmount))
+        : Math.abs(Number(row.amount));
+
+      const isForeignCurrency = row.currency != null && row.currency.toUpperCase() !== 'ILS';
 
       const expense = new Expense();
       expense.supplier = row.merchantName;
       expense.supplierID = '';
       expense.category = row.category;
       expense.subCategory = row.subCategory;
-      expense.sum = Math.abs(Number(row.amount));
+      expense.sum = sumIls;
       expense.taxPercent = row.taxPercent;
       expense.vatPercent = row.vatPercent;
       expense.date = row.transactionDate;
@@ -1581,8 +1671,19 @@ export class TransactionsService {
       expense.loadingDate = new Date();
       expense.expenseNumber = '';
       expense.transId = null;
+      expense.externalTransactionId = row.externalTransactionId;
+      // For non-ILS source rows, mirror the original currency + amount onto
+      // the Expense so the expenses table can render "$X (₪Y)".
+      expense.originalCurrency = isForeignCurrency ? row.currency!.toUpperCase() : null;
+      expense.originalSum = isForeignCurrency ? Math.abs(Number(row.amount)) : null;
       expense.reductionPercent = row.reductionPercent;
       expense.businessNumber = row.businessNumber;
+      expense.vatReportingDate = (slim?.vatReportingDate ?? row.vatReportingDate ?? null) as any;
+      // Snapshot the report scope (slim wins, then cache, default PNL).
+      // pnlCategory is intentionally NOT set here — it stays NULL and is
+      // resolved live from the subcategory (with an optional per-expense
+      // override set later via the Edit dialog).
+      expense.reportScope = slim?.reportScope ?? row.reportScope ?? ExpenseReportScope.PNL;
 
       const vatRate = this.sharedService.getVatRateByYear(new Date(expense.date));
       expense.totalVatPayable = (expense.sum / (1 + vatRate)) * vatRate * (expense.vatPercent / 100);
@@ -1605,28 +1706,35 @@ export class TransactionsService {
       await this.expenseRepo.save(expenses);
     }
 
-    // ── Mark confirmed in slim_transactions (source of truth) ─────────────────
-    // Operates on externalTransactionId — the stable identity derived from cache rows.
-    // ON CONFLICT (userId, externalTransactionId): update confirmed = true only.
-    // ON INSERT (no slim row exists yet): create a full slim row with confirmed = true.
-    // Rows without billId are skipped — a valid slim row requires it.
+    // ── Mark confirmed in slim_transactions ───────────────────────────────────
+    // Period is already on the slim row (stamped at classification). Confirm
+    // only flips `confirmed = true`. Rows without billId are skipped — a
+    // valid slim row requires it.
     const slimUpserts = cacheRows
       .filter(r => r.billId != null && r.classificationType != null && r.category != null && r.subCategory != null)
-      .map(r => ({
-        userId: r.userId,
-        externalTransactionId: r.externalTransactionId,
-        billId: r.billId,
-        classificationType: r.classificationType,
-        category: r.category,
-        subCategory: r.subCategory,
-        vatPercent: r.vatPercent,
-        taxPercent: r.taxPercent,
-        reductionPercent: r.reductionPercent,
-        isEquipment: r.isEquipment,
-        isRecognized: r.isRecognized,
-        businessNumber: r.businessNumber,
-        confirmed: true,
-      }));
+      .map((r) => {
+        const slim = slimByExternalId.get(r.externalTransactionId);
+        return {
+          userId: r.userId,
+          externalTransactionId: r.externalTransactionId,
+          billId: r.billId,
+          classificationType: r.classificationType,
+          category: r.category,
+          subCategory: r.subCategory,
+          vatPercent: r.vatPercent,
+          taxPercent: r.taxPercent,
+          reductionPercent: r.reductionPercent,
+          isEquipment: r.isEquipment,
+          isRecognized: r.isRecognized,
+          reportScope: r.reportScope,
+          businessNumber: r.businessNumber,
+          confirmed: true,
+          // Prefer the period label already on the slim row (set at classify).
+          // Fall back to the cache row's stamp for any path that bypassed
+          // classify (legacy / manual ingest).
+          vatReportingDate: slim?.vatReportingDate ?? r.vatReportingDate ?? null,
+        };
+      });
 
     if (slimUpserts.length > 0) {
       await this.slimRepo
@@ -1639,9 +1747,32 @@ export class TransactionsService {
         .execute();
     }
 
+    // Mirror `confirmed = true` onto the cache so the תזרים column renderer
+    // can show the green V immediately.
+    await this.cacheRepo.update(
+      { id: In(cacheRows.map((r) => r.id)), userId },
+      { confirmed: true },
+    );
+
     const message = `Successfully converted ${expenses.length} transactions to expenses. ${skippedTransactions} transactions were skipped because they already exist as expenses.`;
     return { message };
   }
 
+  async getDistinctMerchants(userId: string, billId?: number): Promise<string[]> {
+    const qb = this.cacheRepo
+      .createQueryBuilder('c')
+      .select('DISTINCT TRIM(c.merchantName)', 'merchantName')
+      .where('c.userId = :userId', { userId })
+      .andWhere('c.merchantName IS NOT NULL')
+      .andWhere("TRIM(c.merchantName) != ''");
+
+    if (billId) {
+      qb.andWhere('c.billId = :billId', { billId });
+    }
+
+    qb.orderBy('merchantName', 'ASC');
+    const rows = await qb.getRawMany<{ merchantName: string }>();
+    return rows.map(r => r.merchantName);
+  }
 
 }

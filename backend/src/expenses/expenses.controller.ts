@@ -11,12 +11,15 @@ import { CreateExpenseDto } from './dtos/create-expense.dto';
 import { UpdateSupplierDto } from './dtos/update-supplier.dto';
 import { SupplierResponseDto } from './dtos/response-supplier.dto';
 import { CreateUserCategoryDto } from './dtos/create-user-category.dto';
+import { UpdateUserCategoryDto } from './dtos/update-user-category.dto';
+import { UpdateUserSubCategoryDto } from './dtos/update-user-sub-category.dto';
 //Guards
 import { AdminGuard } from '../guards/admin.guard';
 import { GetExpensesDto } from './dtos/get-expenses.dto';
 import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.interface';
 import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
 import { CreateUserSubCategoryDto } from './dtos/create-user-sub-category.dto';
+import { ExpenseReportScope } from 'src/enum';
 
 
 @Controller('expenses')
@@ -225,9 +228,9 @@ export class ExpensesController {
   async getAllDefaultSubCategories(@Req() request: AuthenticatedRequest) {
     const firebaseId = request.user?.firebaseId;
     const isAdmin = await this.usersService.isAdmin(firebaseId);
-    if (!isAdmin) {
-      throw new ForbiddenException('Admin access required');
-    }
+    // if (!isAdmin) {
+    //   throw new ForbiddenException('Admin access required');
+    // }
     return this.expensesService.getAllDefaultSubCategories();
   }
 
@@ -325,6 +328,113 @@ export class ExpensesController {
     @Body() body: UpdateSupplierDto): Promise<SupplierResponseDto> {
     const firebaseId = request.user?.firebaseId;
     return this.expensesService.getSupplierById(id, firebaseId);
+  }
+
+
+  /**
+   * List the user's custom categories + sub-categories for a single business,
+   * grouped by category name. Powers the "הקטגוריות שלי" tab in Settings.
+   */
+  @Get('user-categories')
+  @UseGuards(FirebaseAuthGuard)
+  async getUserCategoriesGrouped(
+    @Req() request: AuthenticatedRequest,
+    @Query('businessNumber') businessNumber: string,
+  ) {
+    const firebaseId = request.user?.firebaseId;
+    if (!businessNumber) {
+      throw new BadRequestException('businessNumber query param is required');
+    }
+    return this.expensesService.getUserCategoriesGrouped(firebaseId, businessNumber);
+  }
+
+  @Delete('user-category/:id')
+  @UseGuards(FirebaseAuthGuard)
+  async deleteUserCategory(
+    @Req() request: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Query('businessNumber') businessNumber: string,
+  ) {
+    const firebaseId = request.user?.firebaseId;
+    if (!businessNumber) {
+      throw new BadRequestException('businessNumber query param is required');
+    }
+    return this.expensesService.deleteUserCategoryCascade(firebaseId, businessNumber, Number(id));
+  }
+
+  @Delete('user-sub-category/:id')
+  @UseGuards(FirebaseAuthGuard)
+  async deleteUserSubCategory(
+    @Req() request: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Query('businessNumber') businessNumber: string,
+  ) {
+    const firebaseId = request.user?.firebaseId;
+    if (!businessNumber) {
+      throw new BadRequestException('businessNumber query param is required');
+    }
+    return this.expensesService.deleteUserSubCategory(firebaseId, businessNumber, Number(id));
+  }
+
+  @Patch('user-category/:id')
+  @UseGuards(FirebaseAuthGuard)
+  async updateUserCategory(
+    @Req() request: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Query('businessNumber') businessNumber: string,
+    @Body() dto: UpdateUserCategoryDto,
+  ) {
+    const firebaseId = request.user?.firebaseId;
+    if (!businessNumber) {
+      throw new BadRequestException('businessNumber query param is required');
+    }
+    return this.expensesService.updateUserCategory(firebaseId, businessNumber, Number(id), dto);
+  }
+
+  @Patch('user-sub-category/:id')
+  @UseGuards(FirebaseAuthGuard)
+  async updateUserSubCategory(
+    @Req() request: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Query('businessNumber') businessNumber: string,
+    @Body() dto: UpdateUserSubCategoryDto,
+  ) {
+    const firebaseId = request.user?.firebaseId;
+    if (!businessNumber) {
+      throw new BadRequestException('businessNumber query param is required');
+    }
+    return this.expensesService.updateUserSubCategory(firebaseId, businessNumber, Number(id), dto);
+  }
+
+  /**
+   * Subcategory-wide P&L config from the bookkeeping expenses page. Upserts a
+   * UserSubCategory override for (categoryName, subCategoryName). Applies to
+   * ALL of that subcategory's expenses (P&L resolves pnlCategory live).
+   */
+  @Post('sub-category-report-config')
+  @UseGuards(FirebaseAuthGuard)
+  async setSubCategoryReportConfig(
+    @Req() request: AuthenticatedRequest,
+    @Body() body: {
+      businessNumber: string;
+      categoryName: string;
+      subCategoryName: string;
+      reportScope?: ExpenseReportScope;
+      pnlCategory?: string | null;
+    },
+  ) {
+    const firebaseId = request.user?.firebaseId;
+    const businessNumber = body?.businessNumber || request.user?.businessNumber;
+    if (!businessNumber) {
+      throw new BadRequestException('businessNumber is required');
+    }
+    return this.expensesService.setSubCategoryReportConfig(
+      firebaseId,
+      businessNumber,
+      body.categoryName,
+      body.subCategoryName,
+      { reportScope: body.reportScope, pnlCategory: body.pnlCategory },
+    );
   }
 
 

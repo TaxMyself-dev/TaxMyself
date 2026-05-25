@@ -11,6 +11,7 @@ import { Source } from './source.entity';
 import { GetTransactionsDto } from './dtos/get-transactions.dto';
 import { UpdateTransactionsDto } from './dtos/update-transactions.dto';
 import { ClassifyTransactionDto } from './dtos/classify-transaction.dto';
+import { UpdateClassificationRuleDto } from './dtos/update-classification-rule.dto';
 import multer from 'multer';
 import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
 import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.interface';
@@ -18,6 +19,57 @@ import { UserSyncStateService } from './user-sync-state.service';
 import { FeezbackService } from '../feezback/feezback.service';
 import { ModuleName } from '../enum';
 import { SourceResult } from './user-source-sync-state.entity';
+import { FlowAnalysisDto } from './dtos/flow-analysis.dto';
+import { FlowAnalysisResponse } from './interfaces/flow-analysis-response.interface';
+import { ExpensesService } from '../expenses/expenses.service';
+import { UserSubCategory } from '../expenses/user-sub-categories.entity';
+
+// ── Dev simulator scenario specs (shared by the 3 staged dev endpoints) ──────
+type SimSpec = {
+  processStatus: 'completed' | 'failed';
+  resultStatus: 'success' | 'failed' | 'partial_success';
+  rowsWritten: number;
+  sources: SourceResult[];
+};
+const SIM_CONSENT = 'sim-consent-A';
+const SIM_SPECS: Record<string, SimSpec> = {
+  success: {
+    processStatus: 'completed', resultStatus: 'success', rowsWritten: 171,
+    sources: [
+      { type: 'bank', sourceId: '1234567', status: 'success', transactionCount: 76, consentId: SIM_CONSENT },
+      { type: 'bank', sourceId: '7654321', status: 'success', transactionCount: 42, consentId: SIM_CONSENT },
+      { type: 'card', sourceId: '9999',    status: 'success', transactionCount: 35, consentId: SIM_CONSENT, resourceId: 'sim-card-9999' },
+      { type: 'card', sourceId: '8888',    status: 'success', transactionCount: 18, consentId: SIM_CONSENT, resourceId: 'sim-card-8888' },
+    ],
+  },
+  allFailed: {
+    processStatus: 'completed', resultStatus: 'failed', rowsWritten: 0,
+    sources: [
+      { type: 'bank', sourceId: '1234567', status: 'failed', transactionCount: 0, consentId: SIM_CONSENT, error: '503 Service Unavailable' },
+      { type: 'bank', sourceId: '7654321', status: 'failed', transactionCount: 0, consentId: SIM_CONSENT, error: '503 Service Unavailable' },
+      { type: 'card', sourceId: '9999',    status: 'failed', transactionCount: 0, consentId: SIM_CONSENT, resourceId: 'sim-card-9999', error: '403 Forbidden' },
+      { type: 'card', sourceId: '8888',    status: 'failed', transactionCount: 0, consentId: SIM_CONSENT, resourceId: 'sim-card-8888', error: '500 Internal Server Error' },
+    ],
+  },
+  partialSync: {
+    processStatus: 'completed', resultStatus: 'partial_success', rowsWritten: 111,
+    sources: [
+      { type: 'bank', sourceId: '1234567', status: 'success', transactionCount: 76, consentId: SIM_CONSENT },
+      { type: 'bank', sourceId: '7654321', status: 'failed',  transactionCount: 0,  consentId: SIM_CONSENT, error: '503 Service Unavailable' },
+      { type: 'card', sourceId: '9999',    status: 'success', transactionCount: 35, consentId: SIM_CONSENT, resourceId: 'sim-card-9999' },
+      { type: 'card', sourceId: '8888',    status: 'failed',  transactionCount: 0,  consentId: SIM_CONSENT, resourceId: 'sim-card-8888', error: '500 Internal Server Error' },
+    ],
+  },
+  partialConsent: {
+    processStatus: 'completed', resultStatus: 'partial_success', rowsWritten: 111,
+    sources: [
+      { type: 'bank', sourceId: '1234567', status: 'success',    transactionCount: 76, consentId: SIM_CONSENT },
+      { type: 'bank', sourceId: '7654321', status: 'not_synced', transactionCount: 0 },
+      { type: 'card', sourceId: '9999',    status: 'success',    transactionCount: 35, consentId: SIM_CONSENT, resourceId: 'sim-card-9999' },
+      { type: 'card', sourceId: '8888',    status: 'not_synced', transactionCount: 0,  resourceId: 'sim-card-8888' },
+    ],
+  },
+};
 
 
 @Controller('transactions')
@@ -31,6 +83,7 @@ export class TransactionsController {
     private readonly userSyncStateService: UserSyncStateService,
     private readonly usersService: UsersService,
     private readonly feezbackService: FeezbackService,
+    private readonly expensesService: ExpensesService,
   ) {}
 
   /**
@@ -124,6 +177,21 @@ export class TransactionsController {
     return state?.fullProcessStatus === 'completed';
   }
 
+  /**
+   * Backfill `ilsAmount` + `fxRateToIls` on non-ILS cache rows whose FX columns
+   * are null. Use case: rows synced before the FX layer existed (or before BOI
+   * was reachable) won't render the "(₪Y)" parenthesis in תזרים. Hit this
+   * endpoint once to stamp them all. Idempotent — already-stamped rows are
+   * skipped by the WHERE clause.
+   */
+  @Post('backfill-fx')
+  @UseGuards(FirebaseAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async backfillFx(@Req() request: AuthenticatedRequest): Promise<{ updated: number; skipped: number; total: number }> {
+    const userId = request.user?.firebaseId;
+    return this.processingService.backfillFxForUser(userId);
+  }
+
   @Post('trigger-sync')
   @UseGuards(FirebaseAuthGuard)
   @HttpCode(HttpStatus.OK)
@@ -166,6 +234,35 @@ export class TransactionsController {
   //  without going through Feezback. Both endpoints 403 in production.
   // ───────────────────────────────────────────────────────────────────────────
 
+  private resolveSimSpec(scenario: string): SimSpec {
+    const sim = SIM_SPECS[scenario];
+    if (!sim) {
+      throw new BadRequestException(
+        `Unknown scenario "${scenario}". Available: ${Object.keys(SIM_SPECS).join(', ')}`,
+      );
+    }
+    return sim;
+  }
+
+  private maskId(userId: string | undefined): string {
+    return userId?.length >= 8 ? userId.substring(0, 8) + '...' : (userId ?? '?');
+  }
+
+  // ── Dev simulator, STAGED to mirror the real temporal flow ──────────────────
+  //
+  // Stage A: devSimulateSync     — user clicked "סיום" in Feezback & returned.
+  //                                Stamps consent; leaves state "awaiting webhook"
+  //                                so the FE's post-consent-sync poll prints
+  //                                "[PostConsent] user … waiting for data-available webhook".
+  // Stage B: devSimulateWebhook  — the UserDataIsAvailable webhook arrives
+  //                                (FE schedules this ~15s later). Prints the
+  //                                real DATA-AVAILABLE/SOURCE-DISCOVERY block,
+  //                                seeds discovered sources, stamps refreshed.
+  // Stage C: devSimulatePull     — user clicked "למשיכת התנועות". Prints the
+  //                                real SYNC RESULTS [FULL SYNC] block and seeds
+  //                                the finished sync state.
+  // All three are dev-only (NODE_ENV !== production).
+
   @Post('dev/simulate-sync')
   @UseGuards(FirebaseAuthGuard)
   @HttpCode(HttpStatus.OK)
@@ -176,157 +273,114 @@ export class TransactionsController {
     if (process.env.NODE_ENV === 'production') {
       throw new ForbiddenException('Dev simulator is disabled in production');
     }
-
     const userId = request.user?.firebaseId;
-    const masked = userId?.length >= 8 ? userId.substring(0, 8) + '...' : (userId ?? '?');
+    const masked = this.maskId(userId);
+    this.resolveSimSpec(scenario); // validate early
 
-    type SimSpec = {
-      processStatus: 'completed' | 'failed';
-      resultStatus: 'success' | 'failed' | 'partial_success';
-      rowsWritten: number;
-      sources: SourceResult[];
-    };
-
-    const C = 'sim-consent-A';
-    const sims: Record<string, SimSpec> = {
-      success: {
-        processStatus: 'completed', resultStatus: 'success', rowsWritten: 171,
-        sources: [
-          { type: 'bank', sourceId: '1234567', status: 'success', transactionCount: 76, consentId: C },
-          { type: 'bank', sourceId: '7654321', status: 'success', transactionCount: 42, consentId: C },
-          { type: 'card', sourceId: '9999',    status: 'success', transactionCount: 35, consentId: C, resourceId: 'sim-card-9999' },
-          { type: 'card', sourceId: '8888',    status: 'success', transactionCount: 18, consentId: C, resourceId: 'sim-card-8888' },
-        ],
-      },
-      allFailed: {
-        processStatus: 'completed', resultStatus: 'failed', rowsWritten: 0,
-        sources: [
-          { type: 'bank', sourceId: '1234567', status: 'failed', transactionCount: 0, consentId: C, error: '503 Service Unavailable' },
-          { type: 'bank', sourceId: '7654321', status: 'failed', transactionCount: 0, consentId: C, error: '503 Service Unavailable' },
-          { type: 'card', sourceId: '9999',    status: 'failed', transactionCount: 0, consentId: C, resourceId: 'sim-card-9999', error: '403 Forbidden' },
-          { type: 'card', sourceId: '8888',    status: 'failed', transactionCount: 0, consentId: C, resourceId: 'sim-card-8888', error: '500 Internal Server Error' },
-        ],
-      },
-      partialSync: {
-        processStatus: 'completed', resultStatus: 'partial_success', rowsWritten: 111,
-        sources: [
-          { type: 'bank', sourceId: '1234567', status: 'success', transactionCount: 76, consentId: C },
-          { type: 'bank', sourceId: '7654321', status: 'failed',  transactionCount: 0,  consentId: C, error: '503 Service Unavailable' },
-          { type: 'card', sourceId: '9999',    status: 'success', transactionCount: 35, consentId: C, resourceId: 'sim-card-9999' },
-          { type: 'card', sourceId: '8888',    status: 'failed',  transactionCount: 0,  consentId: C, resourceId: 'sim-card-8888', error: '500 Internal Server Error' },
-        ],
-      },
-      partialConsent: {
-        processStatus: 'completed', resultStatus: 'partial_success', rowsWritten: 111,
-        sources: [
-          { type: 'bank', sourceId: '1234567', status: 'success',    transactionCount: 76, consentId: C },
-          { type: 'bank', sourceId: '7654321', status: 'not_synced', transactionCount: 0 },
-          { type: 'card', sourceId: '9999',    status: 'success',    transactionCount: 35, consentId: C, resourceId: 'sim-card-9999' },
-          { type: 'card', sourceId: '8888',    status: 'not_synced', transactionCount: 0,  resourceId: 'sim-card-8888' },
-        ],
-      },
-    };
-
-    const sim = sims[scenario];
-    if (!sim) {
-      throw new BadRequestException(
-        `Unknown scenario "${scenario}". Available: ${Object.keys(sims).join(', ')}`,
-      );
-    }
-
-    // Wipe per-source rows, then seed the new scenario.
+    // Fresh start: wipe per-source rows and coerce out of any 'running' state.
     console.log(`[DEV SIM] Resetting prior sync state for user=${masked}`);
     await this.userSyncStateService.clearSourceResults(userId);
-
-    // ── Stage 1 — user clicks "Connect Open Banking" ───────────────────────
-    // Real flow: consent-link controller stamps `lastConsentInitiatedAt`
-    // before redirecting to Feezback.
-    await this.feezbackService.markConsentInitiated(userId);
-    const consentTs = new Date().toISOString();
-    console.log(`\n════════════════════════════════════`);
-    console.log(`  CONSENT INITIATED (DEV SIM — scenario=${scenario})`);
-    console.log(`  User                   : ${masked}`);
-    console.log(`  lastConsentInitiatedAt : ${consentTs}`);
-    console.log(`════════════════════════════════════\n`);
-
-    // ── Stage 2 — Feezback's ConsentStatusChanged webhook ──────────────────
-    // Real flow: handleConsentStatusChanged updates feezback_consent row.
-    // (We don't insert a real consent row here — the simulator focuses on
-    // the sync-state path; consent-row plumbing is webhook-controller territory.)
-    console.log(
-      `[DEV SIM] WEBHOOK ConsentStatusChanged consentId=${C} status=AUTHORIZED user=${masked}\n`,
-    );
-
-    // Seed user_sync_state via the existing helpers so finishedAt/timestamps are real.
-    // markSyncRunning is no-op if a sync is already running, so coerce out of running first.
     await this.userSyncStateService.markSyncFailed(userId, '__dev_sim_reset__').catch(() => { /* row may not exist */ });
-    await this.userSyncStateService.markSyncRunning(userId, 'manual');
 
-    // ── Stage 3 — UserDataIsAvailable webhook → SOURCE DISCOVERY ───────────
-    // Real flow: refreshUserSources fetches accounts/cards from Feezback API
-    // and upserts Source rows.
+    // Stage A — user returned from Feezback after success. Stamp consent so
+    // hasUnprocessedConsentFlow() is true → post-consent-sync returns 'pending'
+    // and the FE poll prints the real "waiting for data-available webhook" line.
+    await this.feezbackService.markConsentInitiated(userId);
+    console.log(
+      `[DEV SIM][Stage A] user ${masked} returned from Feezback (scenario=${scenario}) — consent stamped, awaiting data-available webhook`,
+    );
+    return { status: 'simulated', scenario };
+  }
+
+  @Post('dev/simulate-webhook')
+  @UseGuards(FirebaseAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async devSimulateWebhook(
+    @Req() request: AuthenticatedRequest,
+    @Query('scenario') scenario: string,
+  ): Promise<{ status: 'webhook-simulated'; scenario: string }> {
+    if (process.env.NODE_ENV === 'production') {
+      throw new ForbiddenException('Dev simulator is disabled in production');
+    }
+    const userId = request.user?.firebaseId;
+    const masked = this.maskId(userId);
+    const sim = this.resolveSimSpec(scenario);
+
+    // Stage B — simulate the UserDataIsAvailable webhook: print the SAME block
+    // refreshUserSources prints in the real flow (print #2).
     const banks = sim.sources.filter(s => s.type === 'bank');
     const cards = sim.sources.filter(s => s.type === 'card');
-    console.log(`════════════════════════════════════`);
-    console.log(`  SOURCE DISCOVERY  (UserDataIsAvailable, DEV SIM)`);
+    console.log(`\n════════════════════════════════════`);
+    console.log(`  DATA AVAILABLE WEBHOOK ARRIVED`);
+    console.log(`  Arrived at: ${new Date().toISOString()}`);
+    console.log(`  SOURCE DISCOVERY  (UserDataIsAvailable)`);
     console.log(`  User: ${masked}`);
+    console.log(`  (valid accounts below)`);
     console.log(`════════════════════════════════════`);
     console.log(`  Bank (${banks.length}):`);
-    for (const s of banks) {
-      console.log(`    ~  ${s.sourceId}   consentId=${s.consentId ?? '—'}`);
-    }
+    for (const s of banks) console.log(`    •  ${s.sourceId}   consentId=${s.consentId ?? '—'}`);
     console.log(`  Cards (${cards.length}):`);
-    for (const s of cards) {
-      console.log(`    ~  ${s.sourceId}   consentId=${s.consentId ?? '—'}`);
-    }
+    for (const s of cards) console.log(`    •  ${s.sourceId}   consentId=${s.consentId ?? '—'}`);
     console.log(`════════════════════════════════════\n`);
 
-    // ── Stage 4 — webhook triggers full sync (cache-skip override) ─────────
-    console.log(`🔁 [FullSync] Forcing sync — webhook override (DEV SIM) | firebaseId=${masked}\n`);
+    // Register discovered sources as 'not_synced' (discovered, not yet pulled)
+    // and stamp the freshness marker so hasUnprocessedConsentFlow() → false
+    // (post-consent-sync flips to 'completed' → FE enables the pull button).
+    await this.userSyncStateService.updateSourceResults(
+      userId,
+      sim.sources.map(s => ({ ...s, status: 'not_synced' as const, transactionCount: 0, error: undefined })),
+    );
+    await this.userSyncStateService.markSourcesRefreshed(userId);
+    return { status: 'webhook-simulated', scenario };
+  }
 
-    // ── Stage 5 — WEBHOOK SYNC pull + process (mocked) ─────────────────────
+  @Post('dev/simulate-pull')
+  @UseGuards(FirebaseAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async devSimulatePull(
+    @Req() request: AuthenticatedRequest,
+    @Query('scenario') scenario: string,
+  ): Promise<{ status: 'pull-simulated'; scenario: string }> {
+    if (process.env.NODE_ENV === 'production') {
+      throw new ForbiddenException('Dev simulator is disabled in production');
+    }
+    const userId = request.user?.firebaseId;
+    const masked = this.maskId(userId);
+    const sim = this.resolveSimSpec(scenario);
+
+    // Stage C — user clicked "למשיכת התנועות". Print the SAME SYNC RESULTS
+    // block doFullSync prints for a manual pull (print #3).
     const today = new Date();
     const fmt = (d: Date) => d.toISOString().slice(0, 10);
     const yearBack = fmt(new Date(today.getFullYear() - 1, today.getMonth(), today.getDate()));
-    const todayStr = fmt(today);
+    console.log(`🔁 [FullSync] Forcing sync — manual pull (DEV SIM) | firebaseId=${masked}\n`);
     console.log(`════════════════════════════════════`);
-    console.log(`  WEBHOOK SYNC (DEV SIM)`);
+    console.log(`  FULL SYNC`);
     console.log(`  User : ${masked}`);
-    console.log(`  Dates: ${yearBack} → ${todayStr}`);
+    console.log(`  Dates: ${yearBack} → ${fmt(today)}`);
     console.log(`════════════════════════════════════`);
-    console.log(`  Pull — bank=N/A card=N/A total=0s (mocked)\n`);
-    if (sim.rowsWritten > 0) {
-      console.log(`════════════════════════════════════`);
-      console.log(`  WEBHOOK SYNC — Process transactions (DEV SIM)`);
-      console.log(`  Valid (after consent filter): ${sim.rowsWritten}`);
-      console.log(`════════════════════════════════════`);
-      console.log(`  ✓ Process done — 0s | saved=${sim.rowsWritten} | cached=0 (mocked)\n`);
-    }
+    console.log(`  Pull — (mocked)\n`);
 
-    // Now seed the terminal sync state, mirroring what a real
-    // markSyncFinished writes.
-    await this.userSyncStateService.markSyncFinished(userId, sim.processStatus, sim.resultStatus, sim.rowsWritten);
-    await this.userSyncStateService.updateSourceResults(userId, sim.sources);
-
-    // ── Stage 6 — SYNC RESULTS banner (the existing simulator banner, but
-    // with the result symbol the real flow uses). ─────────────────────────
     const allOk = sim.sources.every(s => s.status === 'success');
     console.log(`════════════════════════════════════`);
-    console.log(`  SYNC RESULTS — ${allOk ? '✅ OK' : '⚠️  ERRORS'} (DEV SIM)`);
+    console.log(`  SYNC RESULTS [FULL SYNC] — ${allOk ? '✅ OK' : '⚠️  ERRORS'}`);
     console.log(`════════════════════════════════════`);
     for (const s of sim.sources) {
       const icon = s.status === 'success' ? '✓' : s.status === 'failed' ? '✗' : '○';
       const label = s.type === 'bank' ? 'Bank' : 'Card';
       const id = s.type === 'bank' ? s.sourceId : `*${s.sourceId}`;
       const detail = s.status === 'success'
-        ? `${s.transactionCount} valid`
-        : s.status === 'failed' ? `ERROR: ${s.error}` : 'no consent';
+        ? `SUCCESS — ${s.transactionCount} transactions`
+        : s.status === 'failed' ? `FAILED — ${s.error}` : 'not synced (no consent)';
       console.log(`  ${icon}  ${label.padEnd(4)} ${id.padEnd(20)} ${detail}`);
     }
-    console.log(`════════════════════════════════════\n`);
+    console.log(`════════════════════════════════════`);
     console.log(`  DONE | ${sim.rowsWritten} saved | total=0s (mocked)\n`);
 
-    return { status: 'simulated', scenario };
+    // Seed the finished sync state with the scenario's per-source results.
+    await this.userSyncStateService.markSyncFinished(userId, sim.processStatus, sim.resultStatus, sim.rowsWritten);
+    await this.userSyncStateService.updateSourceResults(userId, sim.sources);
+    return { status: 'pull-simulated', scenario };
   }
 
   @Post('dev/reset-sim')
@@ -389,7 +443,7 @@ export class TransactionsController {
     // source of truth, no timestamp tolerance.
     if (this.feezbackService.hasUnprocessedConsentFlow(state)) {
       this.logger.log(
-        `[PostConsentSync] Awaiting webhook-triggered sync — frontend will poll | firebaseId=${masked}`,
+        `[PostConsent] user ${masked} back from feezback success consent flow — waiting for data-available webhook`,
       );
       return { status: 'pending' };
     }
@@ -415,6 +469,65 @@ export class TransactionsController {
     await this.processingService.clearUserCache(targetFirebaseId);
     this.logger.log(`[AdminClearCache] Cache cleared | targetUser=${targetFirebaseId} | by=${adminId}`);
     return { status: 'cleared' };
+  }
+
+  @Get('flow-analysis')
+  @UseGuards(FirebaseAuthGuard)
+  @UsePipes(new ValidationPipe({ transform: true }))
+  async getFlowAnalysis(
+    @Req() request: AuthenticatedRequest,
+    @Query() query: FlowAnalysisDto,
+  ): Promise<FlowAnalysisResponse | { totalExpenses: 0; totalIncomes: 0; monthlyFlow: []; expensesByCategory: []; hasMoreCategories: false }> {
+    const userId = request.user?.firebaseId;
+
+    const billId = Number(query.billId);
+    if (!Number.isFinite(billId) || billId <= 0) {
+      throw new BadRequestException('billId must be a valid positive number');
+    }
+
+    if (!await this.syncStateAllowsFetch(userId)) {
+      return { totalExpenses: 0, totalIncomes: 0, monthlyFlow: [], expensesByCategory: [], hasMoreCategories: false };
+    }
+
+    return this.processingService.getFlowAnalysis(
+      userId,
+      query.startDate,
+      query.endDate,
+      billId,
+      query.lineFilterType,
+      query.lineFilterValue,
+    );
+  }
+
+  @Get('flow-analysis-merchants')
+  @UseGuards(FirebaseAuthGuard)
+  async getFlowAnalysisMerchants(
+    @Req() request: AuthenticatedRequest,
+    @Query('billId') billId?: string,
+  ): Promise<string[]> {
+    const userId = request.user?.firebaseId;
+    const numericBillId = billId ? Number(billId) : undefined;
+    return this.transactionsService.getDistinctMerchants(
+      userId,
+      numericBillId && Number.isFinite(numericBillId) ? numericBillId : undefined,
+    );
+  }
+
+  @Get('get-all-user-sub-categories')
+  @UseGuards(FirebaseAuthGuard)
+  async getAllUserSubCategories(
+    @Req() request: AuthenticatedRequest,
+    @Query('billId') billId?: string,
+  ): Promise<UserSubCategory[]> {
+    const userId = request.user?.firebaseId;
+    let businessNumber: string | undefined;
+    if (billId) {
+      const numericBillId = Number(billId);
+      if (Number.isFinite(numericBillId) && numericBillId > 0) {
+        businessNumber = await this.transactionsService.getBusinessNumberByBillId(numericBillId, userId) ?? undefined;
+      }
+    }
+    return this.expensesService.getAllUserSubCategories(userId, businessNumber);
   }
 
   // TODO_FINTAX_REMOVE_LEGACY_TRANSACTIONS: endpoint that triggers the legacy Finsite ingest flow writing to the transactions table. Remove when Feezback pipeline fully replaces it.
@@ -515,9 +628,9 @@ export class TransactionsController {
     const endDate = this.sharedService.convertStringToDateObject(query.endDate);
     const userId = request.user?.firebaseId;
 
-    const billIds = parseCsvParam(query.billId);
-    const categories = parseCsvParam(query.categories);
-    const sources = parseCsvParam(query.sources);
+    const billIds = parseListParam(query.billId);
+    const categories = parseListParam(query.categories);
+    const sources = parseListParam(query.sources);
 
     if (!await this.syncStateAllowsFetch(userId)) {
       return [];
@@ -540,9 +653,9 @@ export class TransactionsController {
     const endDate = this.sharedService.convertStringToDateObject(query.endDate);
     const userId = request.user?.firebaseId;
 
-    const billIds = parseCsvParam(query.billId);
-    const categories = parseCsvParam(query.categories);
-    const sources = parseCsvParam(query.sources);
+    const billIds = parseListParam(query.billId);
+    const categories = parseListParam(query.categories);
+    const sources = parseListParam(query.sources);
 
     if (!await this.syncStateAllowsFetch(userId)) {
       return [];
@@ -578,7 +691,6 @@ export class TransactionsController {
     @Req() request: AuthenticatedRequest,
     @Body() dto: ClassifyTransactionDto,
   ): Promise<any> {
-    console.log("🚀 ~ TransactionsController ~ classifyTransaction ~ dto:", dto)
     const userId = request.user?.firebaseId;
 
     // Resolve cache row using the stable externalTransactionId (= finsiteId).
@@ -604,6 +716,10 @@ export class TransactionsController {
         reductionPercent: dto.reductionPercent ?? 0,
         isEquipment: dto.isEquipment ?? false,
         isRecognized: dto.isRecognized ?? false,
+        businessNumber: dto.businessNumber ?? null,
+        // Late-arrival reassignment — set by the frontend after the user
+        // picks an alternative from the "natural period locked" dialog.
+        targetPeriodLabel: dto.targetPeriodLabel,
       });
       return;
     }
@@ -626,10 +742,21 @@ export class TransactionsController {
       commentPattern: dto.comment ?? null,
       commentMatchType: dto.matchType ?? 'equals',
       confirmOverride: dto.confirmOverride,
+      businessNumber: dto.businessNumber ?? null,
+      targetPeriodLabel: dto.targetPeriodLabel,
     });
 
     if (result.status === 'blocked_vat_reported') {
-      throw new BadRequestException(result.message);
+      // 423 Locked + typed payload — keeps parity with the classifyManually
+      // guard so the frontend can show the dedicated "report submitted" dialog
+      // regardless of which classification path the user took.
+      throw new HttpException(
+        {
+          type: 'blocked_report_submitted',
+          message: 'התנועה שייכת לדוח שכבר דווח לרשויות המס ולא ניתן לשנות את הסיווג שלה.',
+        },
+        423,
+      );
     }
 
     if (result.status === 'confirm_override') {
@@ -767,13 +894,63 @@ export class TransactionsController {
     return this.transactionsService.saveTransactionsToExpenses(transactionData, userId);
   }
 
+  /**
+   * List the user's classification rules for a single business. The result
+   * powers the "הקטגוריות שלי" tab in the Settings page.
+   */
+  @Get('rules')
+  @UseGuards(FirebaseAuthGuard)
+  async getUserRules(
+    @Req() request: AuthenticatedRequest,
+    @Query('businessNumber') businessNumber: string,
+  ) {
+    const userId = request.user?.firebaseId;
+    if (!businessNumber) {
+      throw new BadRequestException('businessNumber query param is required');
+    }
+    return this.processingService.listRulesForUser(userId, businessNumber);
+  }
+
+  @Delete('rules/:id')
+  @UseGuards(FirebaseAuthGuard)
+  async deleteUserRule(
+    @Req() request: AuthenticatedRequest,
+    @Param('id') id: string,
+  ) {
+    const userId = request.user?.firebaseId;
+    return this.processingService.deleteRuleForUser(userId, Number(id));
+  }
+
+  @Patch('rules/:id')
+  @UseGuards(FirebaseAuthGuard)
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
+  async updateUserRule(
+    @Req() request: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Body() dto: UpdateClassificationRuleDto,
+  ) {
+    const userId = request.user?.firebaseId;
+    return this.processingService.updateRuleForUser(userId, Number(id), dto);
+  }
+
 }
 
 /**
- * Parses a comma-separated query-param string into a string array.
- * Returns null when the param is absent, empty, or the literal "null".
+ * Parses a list query-param into a string array.
+ *
+ * Accepts:
+ *   - string[]  → repeated query params (?categories=A&categories=B). Preferred.
+ *   - string    → single value, or legacy comma-joined CSV. The CSV branch is
+ *                 a fallback for old callers; it cannot represent values that
+ *                 themselves contain a comma (e.g. "בנק, אשראי ותנועות").
+ *
+ * Returns null when absent/empty or the literal "null" sentinel.
  */
-function parseCsvParam(value: string | undefined | null): string[] | null {
+function parseListParam(value: string | string[] | undefined | null): string[] | null {
+  if (Array.isArray(value)) {
+    const cleaned = value.filter(v => v && v !== 'null' && v.trim() !== '');
+    return cleaned.length ? cleaned : null;
+  }
   if (!value || value === 'null' || value.trim() === '') return null;
   return value.split(',');
 }

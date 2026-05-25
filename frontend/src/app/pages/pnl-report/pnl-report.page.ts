@@ -1,15 +1,18 @@
-import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { PnLReportService } from './pnl-report.service';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
-import { ICreateDataDoc, IPnlReportData, ISelectItem, IUserData } from 'src/app/shared/interface';
+import { ICreateDataDoc, IPnlReportData, IRowDataTable, ISelectItem, IUserData } from 'src/app/shared/interface';
 import { GenericService } from 'src/app/services/generic.service';
 import { AuthService } from 'src/app/services/auth.service';
-import { catchError, EMPTY, finalize, map, tap } from 'rxjs';
+import { catchError, EMPTY, finalize, map, Observable, of, switchMap, tap } from 'rxjs';
 import { FilesService } from 'src/app/services/files.service';
 import { BusinessStatus, ReportingPeriodType } from 'src/app/shared/enums';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 import { FilterField } from 'src/app/components/filter-tab/filter-fields-model.component';
 import { format as formatDateFns } from 'date-fns';
+import { TransactionsService } from '../transactions/transactions.page.service';
+import { ConfirmationService, MessageService } from 'primeng/api';
 
 
 @Component({
@@ -23,6 +26,7 @@ export class PnLReportPage implements OnInit {
   // Services
   private gs = inject(GenericService);
   private fb = inject(FormBuilder);
+  private destroyRef = inject(DestroyRef);
 
   // Business related
   businessNumber = signal<string>("");
@@ -42,14 +46,39 @@ export class PnLReportPage implements OnInit {
   pnlReport: IPnlReportData;
   userData: IUserData;
   displayExpenses: boolean = false;
-  isLoading: boolean = false;
   totalExpense: number = 0;
   reportingPeriodType = ReportingPeriodType;
 
   buttonSize = ButtonSize;
   buttonColor = ButtonColor;
 
-  constructor(public pnlReportService: PnLReportService, private formBuilder: FormBuilder, public authService: AuthService, private genericService: GenericService, private fileService: FilesService) {
+  // ── Unconfirmed-expenses gate (mirrors VAT report) ──
+  visibleConfirmTransDialog = signal<boolean>(false);
+
+  /** True when the report for the currently-selected period has already been
+   *  marked as submitted. Swaps the "סמן כדווח" button for "הדוח הוגש". */
+  reportSubmitted = signal<boolean>(false);
+  transToConfirm: Observable<IRowDataTable[]>;
+  arrayLength = signal<number>(0);
+  isLoadingButtonConfirmDialog = signal<boolean>(false);
+  isRequestSent = signal<boolean>(false);
+  /** Visibility for the redirect-expenses prompt (`<p-dialog>` in the template). */
+  redirectPromptVisible = signal<boolean>(false);
+  /** Re-entry guard so the prompt isn't scheduled twice when close events fire. */
+  private redirectPromptOpen = false;
+
+  isLoadingPDF = signal<boolean>(false);
+
+  constructor(
+    public pnlReportService: PnLReportService,
+    private formBuilder: FormBuilder,
+    public authService: AuthService,
+    private genericService: GenericService,
+    private fileService: FilesService,
+    private transactionService: TransactionsService,
+    private messageService: MessageService,
+    private confirmationService: ConfirmationService,
+  ) {
   }
 
 
@@ -103,6 +132,18 @@ export class PnLReportPage implements OnInit {
       },
     ];
 
+    // Clear any previously-rendered report when the user changes business or
+    // period — same hygiene VAT applies so a stale report isn't confused with
+    // the new selection before the next "הצג" click.
+    this.form.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        this.pnlReport = undefined;
+        this.totalExpense = 0;
+        this.isRequestSent.set(false);
+        this.arrayLength.set(0);
+        this.reportSubmitted.set(false);
+      });
   }
 
 
@@ -118,7 +159,167 @@ export class PnLReportPage implements OnInit {
 
     this.startDate.set(startDate);
     this.endDate.set(endDate);
-    this.getPnLReportData(startDate, endDate, effectiveBusiness);
+    this.isRequestSent.set(true);
+    // Gate the report on unconfirmed expenses, same as VAT. If none → falls
+    // through to getPnLReportData inside closeDialogWithoutConfirm.
+    this.getTransToConfirm();
+  }
+
+
+  getTransToConfirm(): void {
+    this.visibleConfirmTransDialog.set(true);
+    this.transToConfirm = this.transactionService.getTransToConfirm(
+      this.startDate(),
+      this.endDate(),
+      this.businessNumber()
+    ).pipe(
+      catchError((err) => {
+        console.error("Error in getTransToConfirm:", err);
+        return EMPTY;
+      }),
+      tap((data: IRowDataTable[]) => {
+        // Set arrayLength FIRST so closeDialogWithoutConfirm sees the correct
+        // value when it decides whether to prompt for pending expenses.
+        this.arrayLength.set(data?.length ?? 0);
+        if (!data?.length) {
+          this.closeDialogWithoutConfirm(false);
+        }
+      }),
+      map((data) => {
+        return data?.map((row) => ({
+          ...row,
+          sum: this.genericService.addComma(Math.abs(row.sum as number)),
+          isRecognized: row.isRecognized ? 'כן' : 'לא',
+          businessNumber: row?.businessNumber === this.userData.businessNumber
+            ? this.userData.businessName
+            : this.userData.spouseBusinessName,
+        }));
+      }),
+    );
+  }
+
+
+  /** Two-way model for `[(visible)]` on the inline p-dialog (X button sync). */
+  get redirectPromptVisibleModel(): boolean {
+    return this.redirectPromptVisible();
+  }
+  set redirectPromptVisibleModel(value: boolean) {
+    this.redirectPromptVisible.set(value);
+    if (!value) this.redirectPromptOpen = false;
+  }
+
+
+  closeDialogWithoutConfirm(event: boolean): void {
+    this.visibleConfirmTransDialog.set(event);
+
+    // User cancelled the confirm dialog while expenses are still pending.
+    // Block the empty report and prompt them to re-open the confirm flow.
+    // 250ms gives the confirm-trans dialog and its overlay portal time to
+    // fully unmount before the new dialog opens.
+    if (!event && this.arrayLength() > 0 && !this.redirectPromptOpen) {
+      this.redirectPromptOpen = true;
+      setTimeout(() => this.openPendingExpensesPrompt(), 250);
+      return;
+    }
+
+    this.getPnLReportData(this.startDate(), this.endDate(), this.businessNumber());
+  }
+
+
+  private openPendingExpensesPrompt(): void {
+    this.redirectPromptVisible.set(true);
+  }
+
+
+  onRedirectPromptCancel(): void {
+    this.redirectPromptVisible.set(false);
+    this.redirectPromptOpen = false;
+  }
+
+
+  onRedirectPromptAccept(): void {
+    this.redirectPromptVisible.set(false);
+    this.redirectPromptOpen = false;
+    setTimeout(() => this.getTransToConfirm(), 0);
+  }
+
+
+  confirmTrans(event: { transactions: IRowDataTable[], files: { id: number, file: File }[] }): void {
+    if (!event.transactions.length) {
+      this.messageService.add({
+        severity: 'error',
+        summary: 'Error',
+        sticky: true,
+        detail: "לא נבחרה אף תנועה",
+        life: 3000,
+        key: 'br',
+      });
+      return;
+    }
+    this.isLoadingButtonConfirmDialog.set(true);
+
+    this.transactionService.addTransToExpense(event.transactions)
+      .pipe(
+        catchError((err) => {
+          console.error("Error in confirmTrans: ", err);
+          this.messageService.add({
+            severity: 'error',
+            summary: 'Error',
+            sticky: true,
+            detail: "אירעה שגיאה באישור התנועות, נא לנסות שוב מאוחר יותר",
+            life: 3000,
+            key: 'br',
+          });
+          this.isLoadingButtonConfirmDialog.set(false);
+          return EMPTY;
+        }),
+        switchMap((res) => {
+          if (event.files && event.files.length > 0) {
+            return this.fileService.uploadAndSaveMultipleFilesToServer(
+              event.files,
+              this.businessNumber(),
+              (uploadedFiles) => this.pnlReportService.addFileToExpenses(uploadedFiles, true),
+            ).pipe(
+              tap(() => {
+                this.messageService.add({
+                  severity: 'success',
+                  summary: 'Success',
+                  detail: `אושרו ${event.transactions.length} תנועות והועלו ${event.files.length} קבצים בהצלחה`,
+                  life: 3000,
+                  key: 'br',
+                });
+              }),
+              catchError((fileErr) => {
+                console.error("Error uploading files:", fileErr);
+                this.messageService.add({
+                  severity: 'error',
+                  summary: 'Error',
+                  detail: `אושרו ${event.transactions.length} תנועות אך העלאת הקבצים נכשלה`,
+                  life: 5000,
+                  key: 'br',
+                });
+                return of(res);
+              }),
+            );
+          }
+          this.messageService.add({
+            severity: 'success',
+            summary: 'Success',
+            detail: `אושרו ${event.transactions.length} תנועות בהצלחה`,
+            life: 3000,
+            key: 'br',
+          });
+          return of(res);
+        }),
+        finalize(() => {
+          this.isLoadingButtonConfirmDialog.set(false);
+          this.visibleConfirmTransDialog.set(false);
+        }),
+      )
+      .subscribe(() => {
+        // After confirming, render the PnL report with the now-up-to-date data.
+        this.getPnLReportData(this.startDate(), this.endDate(), this.businessNumber());
+      });
   }
 
 
@@ -139,6 +340,9 @@ export class PnLReportPage implements OnInit {
         }),
         tap((data) => {
           this.pnlReport = data;
+          // Reset before accumulating — this method now runs again after the
+          // confirm-trans flow, so a stale accumulator would double-count.
+          this.totalExpense = 0;
           for (const expense of this.pnlReport.expenses) {
             this.totalExpense += expense.total;
           }
@@ -146,6 +350,11 @@ export class PnLReportPage implements OnInit {
       )
       .subscribe();
 
+    // Fire alongside the report fetch — drives the "סמן כדווח" vs
+    // "הדוח הוגש" button swap once the response lands.
+    this.pnlReportService.getReportSubmissionStatus(businessNumber, startDate)
+      .pipe(catchError(() => EMPTY))
+      .subscribe((status) => this.reportSubmitted.set(status.isSubmitted));
   }
 
   updateIncome(event: any) {
@@ -166,9 +375,55 @@ export class PnLReportPage implements OnInit {
   }
 
 
+  /**
+   * "סמן כדווח" — user confirms they've submitted the annual / PnL report.
+   * Locks all transactions stamped with the matching period label.
+   */
+  onMarkAsSubmitted(): void {
+    if (!this.startDate() || !this.businessNumber()) return;
+    this.confirmationService.confirm({
+      key: 'markSubmitted',
+      message: 'פעולה זו תנעל את כל ההוצאות בתקופה ולא ניתן יהיה לשנותן. להמשיך?',
+      header: 'סימון דוח כדווח',
+      icon: 'pi pi-exclamation-triangle',
+      acceptButtonProps: { severity: 'contrast', label: 'סמן כדווח' },
+      rejectButtonProps: { severity: 'secondary', outlined: true, label: 'ביטול' },
+      accept: () => {
+        this.pnlReportService.markReportAsSubmitted(this.businessNumber(), this.startDate())
+          .pipe(
+            catchError((err) => {
+              this.messageService.add({
+                severity: 'error',
+                summary: 'Error',
+                detail: 'סימון הדוח כדווח נכשל',
+                life: 5000,
+                key: 'br',
+              });
+              console.error('markReportAsSubmitted failed:', err);
+              return EMPTY;
+            }),
+          )
+          .subscribe((res) => {
+            this.messageService.add({
+              severity: 'success',
+              summary: 'הדוח סומן כדווח',
+              detail: `${res.count} תנועות ננעלו לתקופה ${res.periodLabel}`,
+              life: 4000,
+              key: 'br',
+            });
+            this.reportSubmitted.set(true);
+            // Re-fetch so cached lock state in pnlReport reflects the change.
+            this.getPnLReportData(this.startDate(), this.endDate(), this.businessNumber());
+          });
+      },
+      reject: () => {},
+    });
+  }
+
+
   createPnlReportPDFfile(): void {
 
-    this.isLoading = true;
+    this.isLoadingPDF.set(true);
     let dataTable: (string | number)[][] = [];
     this.pnlReport.expenses.forEach((expense) => {
       // טבלת הוצאות לפילפאסטר: אותו פורמט כמו הכותרות (ש"ח + 2 ספרות אחרי נקודה)
@@ -197,11 +452,11 @@ export class PnLReportPage implements OnInit {
       .pipe(
         catchError((err) => {
           console.log("error in create pdf: ", err);
-          this.isLoading = false;
+          this.isLoadingPDF.set(false);
           return EMPTY;
         }),
         finalize(() =>{
-          this.isLoading = false;
+          this.isLoadingPDF.set(false);
         })
       )
       .subscribe((res) => {

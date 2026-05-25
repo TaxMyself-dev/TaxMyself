@@ -1,4 +1,42 @@
 <p-confirmDialog></p-confirmDialog>
+<p-confirmDialog key="classifyTranLocked"></p-confirmDialog>
+
+<!-- Late-arrival period selector: the transaction's natural report period
+     has already been submitted. Offer the next few open periods so the
+     user can reassign without contaminating the closed report. -->
+<p-dialog
+  [(visible)]="lockedPeriodDialogVisible"
+  header="התקופה הטבעית של התנועה נעולה"
+  [modal]="true"
+  [closable]="true"
+  [draggable]="false"
+  [style]="{ width: '480px' }">
+  <div class="locked-period-body">
+    <i class="pi pi-exclamation-triangle locked-period-icon"></i>
+    <div>
+      <p>הדוח לתקופה <strong>{{ lockedPeriodNatural() }}</strong> כבר הוגש לרשויות המס.</p>
+      <p>בחר תקופה אחרת לשיוך התנועה:</p>
+      <select class="locked-period-select" [ngModel]="lockedPeriodPicked()" (ngModelChange)="lockedPeriodPicked.set($event)">
+        @for (opt of lockedPeriodOptions(); track opt) {
+          <option [value]="opt">{{ opt }}</option>
+        }
+      </select>
+    </div>
+  </div>
+  <ng-template pTemplate="footer">
+    <app-p-button
+      buttonText="ביטול"
+      [buttonSize]="buttonSize.BETWEEN"
+      (onButtonClicked)="onLockedPeriodCancel()">
+    </app-p-button>
+    <app-p-button
+      buttonText="אישור"
+      [buttonSize]="buttonSize.BETWEEN"
+      (onButtonClicked)="onLockedPeriodConfirm()">
+    </app-p-button>
+  </ng-template>
+</p-dialog>
+
 <app-left-panel
   headerText="סיווג תנועה"
   [subHeaderText]="classifyPanelSubtitle()"
@@ -46,13 +84,27 @@
       </div>
 
       <div class="buttons">
-        <app-p-button
-          [buttonText]="'הוסף קטגוריה חדשה'"
-          [variant]="'text'"
-          [severity]="'info'"
-          [buttonSize]="buttonSize.AUTO"
-          (onButtonClicked)="openAddCategory()">
-        </app-p-button>
+        <!-- Once a recognized-expense subcategory is selected, replace the
+             "Add new category" button with the no-VAT shortcut so the next
+             likely action sits in the same spot. -->
+        @if (selectedSubCategory()?.isRecognized) {
+          <div class="no-vat-toggle">
+            <p-checkbox
+              formControlName="noVat"
+              inputId="noVat"
+              [binary]="true"
+              (onChange)="onNoVatToggle($event)" />
+            <label for="noVat" class="ml-2">ללא מע״מ</label>
+          </div>
+        } @else {
+          <app-p-button
+            [buttonText]="'הוסף קטגוריה חדשה'"
+            [variant]="'text'"
+            [severity]="'info'"
+            [buttonSize]="buttonSize.AUTO"
+            (onButtonClicked)="openAddCategory()">
+          </app-p-button>
+        }
       </div>
     </div>
 
@@ -72,25 +124,29 @@
                 @if (typeof item.value === 'boolean') {
                   <span>{{ item.value ? 'כן' : 'לא' }}</span>
                 } @else {
-                  <span>{{ item.value }}</span>
+                  <!-- When the no-VAT toggle is on, show 0 for vatPercent regardless
+                       of the subcategory's default. -->
+                  <span>{{ item.key === 'vatPercent' && myForm.get('noVat')?.value ? 0 : item.value }}</span>
                 }
               }
             </div>
           }
+
         </div>
       }
     </div>
 
     <!-- ADVANCED CLASSIFICATION SECTION -->
-    @if (!myForm.get('isSingleUpdate')?.value) {
-      <div class="advanced-section">
-        <div class="advanced-header" (click)="showAdvancedSection.set(!showAdvancedSection())">
-          <h4 class="title">סיווג מתקדם</h4>
-          <i class="pi" [ngClass]="showAdvancedSection() ? 'pi-chevron-up' : 'pi-chevron-down'"></i>
-        </div>
+    <div class="advanced-section">
+      <div class="advanced-header" (click)="showAdvancedSection.set(!showAdvancedSection())">
+        <h4 class="title">סיווג מתקדם</h4>
+        <i class="pi" [ngClass]="showAdvancedSection() ? 'pi-chevron-up' : 'pi-chevron-down'"></i>
+      </div>
 
-        @if (showAdvancedSection()) {
-          <div class="advanced-fields">
+      @if (showAdvancedSection()) {
+        <div class="advanced-fields">
+          @if (!myForm.get('isSingleUpdate')?.value) {
+            <!-- Row 1: start/end date -->
             <app-input-date
               [parentForm]="myForm"
               [controlName]="'startDate'"
@@ -105,6 +161,7 @@
               [size]="inputsSize.SMALL">
             </app-input-date>
 
+            <!-- Row 2: min/max sum -->
             <app-input-text
               [parentForm]="myForm"
               [controlName]="'minSum'"
@@ -121,11 +178,12 @@
               [type]="'number'">
             </app-input-text>
 
+            <!-- Row 3: comment + match type -->
             <app-input-text
               [parentForm]="myForm"
               [controlName]="'comment'"
               [labelText]="'הערה'"
-              [size]="inputsSize.MEDIUM">
+              [size]="inputsSize.SMALL">
             </app-input-text>
 
             <app-input-select
@@ -137,13 +195,27 @@
               ]"
               [placeholder]="'סוג התאמה'"
               [labelText]="'התאמת הערה'"
-              [size]="inputsSize.SMALL">
+              [size]="inputsSize.SMALL"
+              [showClear]="false">
             </app-input-select>
-            
-          </div>
-        }
-      </div>
-    }
+          }
+
+          <!-- Row 4: businessNumber (applies to both ONE_TIME and RULE).
+               Hidden when the user has only one business — no meaningful choice. -->
+          @if (businessOptions().length > 1) {
+            <app-input-select
+              [ariaLabel]="'בחר עסק'"
+              [placeholder]="'בחר עסק'"
+              [labelText]="'שייך לעסק'"
+              [controlName]="'businessNumber'"
+              [parentForm]="myForm"
+              [size]="inputsSize.MEDIUM"
+              [items]="businessOptions()">
+            </app-input-select>
+          }
+        </div>
+      }
+    </div>
   </div>
 
   <div class="footer" footer>

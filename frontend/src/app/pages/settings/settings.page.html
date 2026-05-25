@@ -334,6 +334,12 @@
   </div>
   }
 
+  @if (selectedTab === 'categories') {
+    <div class="section-block">
+      <app-my-categories-tab [businesses]="businesses()"></app-my-categories-tab>
+    </div>
+  }
+
   @if (selectedTab === 'permissions') {
   <!-- ההרשאות שלי -->
   <div class="section-block section-permissions">
@@ -385,6 +391,17 @@
 
                 <div class="detail-field">
                   <span class="detail-value-box">{{ s.billName || 'לא משויך' }}</span>
+                </div>
+
+                <div class="detail-field">
+                  <app-p-button
+                    [buttonText]="'משוך תנועות'"
+                    [buttonColor]="buttonColor.WHITE_BORDER"
+                    [buttonSize]="buttonSize.SMALL"
+                    [disabled]="!!retryingSourceId() && retryingSourceId() !== s.sourceName"
+                    [isLoading]="retryingSourceId() === s.sourceName"
+                    (onButtonClicked)="onPullSource(s)">
+                  </app-p-button>
                 </div>
               </div>
             }

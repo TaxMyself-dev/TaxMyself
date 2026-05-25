@@ -58,4 +58,19 @@ export class CreateExpenseDto {
     @IsOptional()
     @IsNumber()
     reductionPercent: number;
+
+    /**
+     * Optional currency override for foreign-currency manual entries.
+     * When supplied (and != 'ILS'), the backend converts `originalSum`
+     * using the BOI rate on `date` and stores the result in `sum` (ILS).
+     * `sum` should NOT be sent in this case — server-side trust is the
+     * conversion path only.
+     */
+    @IsOptional()
+    @IsString()
+    originalCurrency?: string;
+
+    @IsOptional()
+    @IsNumber()
+    originalSum?: number;
 }

@@ -47,6 +47,13 @@
               [labelText]="'% פחת'" [size]="inputsSize.SMALL" [type]="'number'" placeholder="אחוז פחת">
             </app-input-text>
 
+            <!-- Optional P&L presentation category (e.g. חשמל → הוצאות משרד).
+                 Blank = roll up under the bookkeeping category, same as today. -->
+            <app-input-text [parentForm]="getSubCategoryFormByIndex(i)" [controlName]="'pnlCategory'"
+              [labelText]="'קטגוריה לדוח רווח והפסד (אופציונלי)'" [size]="inputsSize.MEDIUM" [type]="'text'"
+              placeholder="ריק = לפי הקטגוריה">
+            </app-input-text>
+
             }
             @else {
             <!-- Unrecognized -->

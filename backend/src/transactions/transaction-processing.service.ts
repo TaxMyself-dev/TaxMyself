@@ -1,5 +1,7 @@
 import {
   BadRequestException,
+  ConflictException,
+  HttpException,
   Injectable,
   Logger,
   NotFoundException,
@@ -16,12 +18,19 @@ import { DefaultCategory } from '../expenses/default-categories.entity';
 import { UserCategory } from '../expenses/user-categories.entity';
 import { Bill } from './bill.entity';
 import { Source } from './source.entity';
+import { Business } from 'src/business/business.entity';
+import { Expense } from 'src/expenses/expenses.entity';
+import { SharedService } from 'src/shared/shared.service';
+import { FxRateService } from 'src/shared/fx-rate.service';
+import { BusinessType, VATReportingType, ExpenseReportScope } from 'src/enum';
 
 import { NormalizedTransaction } from './interfaces/normalized-transaction.interface';
 import { ProcessingResult } from './interfaces/processing-result.interface';
 import { ClassifyManuallyDto } from './dtos/classify-manually.dto';
 import { ClassifyWithRuleDto } from './dtos/classify-with-rule.dto';
+import { UpdateClassificationRuleDto } from './dtos/update-classification-rule.dto';
 import { ClassifyWithRuleResult } from './interfaces/classify-with-rule-result.interface';
+import { FlowAnalysisResponse, MonthlyFlowPoint } from './interfaces/flow-analysis-response.interface';
 import { ClassificationType } from './enums/classification-type.enum';
 import { UserSyncStateService } from './user-sync-state.service';
 import { UserSyncState } from './user-sync-state.entity';
@@ -78,7 +87,15 @@ export class TransactionProcessingService {
     @InjectRepository(Bill)
     private readonly billRepo: Repository<Bill>,
 
+    @InjectRepository(Business)
+    private readonly businessRepo: Repository<Business>,
+
+    @InjectRepository(Expense)
+    private readonly expenseRepo: Repository<Expense>,
+
     private readonly userSyncStateService: UserSyncStateService,
+    private readonly sharedService: SharedService,
+    private readonly fxRateService: FxRateService,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -103,6 +120,128 @@ export class TransactionProcessingService {
       .updateEntity(false)
       .execute();
   }
+
+  /**
+   * Resolves which period label to stamp on `slim.vatReportingDate` for a
+   * classification operation. Decision tree:
+   *
+   *   1. If the slim row already exists with a non-null `vatReportingDate`,
+   *      keep it — re-classification shouldn't shuffle the period the user/
+   *      system already committed to.
+   *   2. Else if `explicitPeriod` is supplied (user picked from the locked-
+   *      period dialog), use that.
+   *   3. Else compute the natural period from the business's cadence + the
+   *      transaction's date. If that period is already submitted (any sibling
+   *      row in same business + period has `isLocked = true`), throw 423 with
+   *      the next 3 candidate periods so the frontend can prompt.
+   *
+   * Returns the resolved label OR throws an HttpException 423.
+   */
+  private async resolveStampPeriod(
+    userId: string,
+    cacheRow: FullTransactionCache,
+    explicitPeriod: string | null | undefined,
+    /** Business number override from the classify DTO. When the user
+     *  re-attributes a transaction to a different business (e.g. spouse's
+     *  EXEMPT business), the period cadence must come from THAT business,
+     *  not the cache row's original (pre-override) businessNumber. */
+    effectiveBusinessNumber?: string | null,
+  ): Promise<string | null> {
+    const existing = await this.slimRepo.findOne({
+      where: { userId, externalTransactionId: cacheRow.externalTransactionId },
+    });
+    if (existing?.vatReportingDate) return existing.vatReportingDate;
+    if (explicitPeriod) return explicitPeriod;
+
+    const businessNumber = effectiveBusinessNumber ?? cacheRow.businessNumber;
+    if (!businessNumber) return null;
+    const business = await this.businessRepo.findOne({
+      where: { firebaseId: userId, businessNumber },
+    });
+    if (!business) return null;
+
+    const businessType = business.businessType ?? BusinessType.EXEMPT;
+    const vatReportingType = business.vatReportingType ?? VATReportingType.NOT_REQUIRED;
+    const naturalLabel = this.sharedService.buildReportPeriodLabel(
+      businessType,
+      vatReportingType,
+      new Date(cacheRow.transactionDate),
+    );
+
+    // Locked-sibling check uses the SAME resolved business number — when the
+    // user reattributes a row from a locked-period business to a different
+    // (open-period) business, we must not raise 423 against the original.
+    const lockedSibling = await this.slimRepo.findOne({
+      where: {
+        userId,
+        businessNumber,
+        vatReportingDate: naturalLabel,
+        isLocked: true,
+      },
+    });
+    if (!lockedSibling) return naturalLabel;
+
+    // Natural period is locked — surface the next 3 cadence-step labels so
+    // the user can pick one. Filtering out also-locked ones is best done on
+    // the frontend after the dialog opens (rare to hit two consecutive locked
+    // periods), so we keep the backend response simple here.
+    const next3 = this.sharedService.nextOpenPeriodLabels(
+      businessType,
+      vatReportingType,
+      new Date(cacheRow.transactionDate),
+      3,
+    );
+    throw new HttpException(
+      {
+        type: 'natural_period_locked',
+        message: `הדוח לתקופה ${naturalLabel} כבר הוגש לרשויות המס. בחר תקופה אחרת לשיוך התנועה:`,
+        naturalPeriod: naturalLabel,
+        availablePeriods: next3,
+      },
+      423,
+    );
+  }
+
+
+  /**
+   * After re-classifying a confirmed (V-stamped) transaction, propagate the
+   * fresh classification into the Expense row so reports stay correct.
+   * No-op when no Expense exists for this externalTransactionId — e.g. the
+   * transaction hasn't been confirmed yet, or the Expense was created from
+   * a different source (manual entry).
+   */
+  private async syncExpenseFromSlim(
+    userId: string,
+    cacheRow: FullTransactionCache,
+    slim: Pick<
+      SlimTransaction,
+      'category' | 'subCategory' | 'vatPercent' | 'taxPercent' | 'reductionPercent' | 'isEquipment' | 'isRecognized' | 'reportScope' | 'businessNumber' | 'vatReportingDate'
+    >,
+  ): Promise<void> {
+    const expense = await this.expenseRepo.findOne({
+      where: { userId, externalTransactionId: cacheRow.externalTransactionId },
+    });
+    if (!expense) return;
+
+    const absSum = Math.abs(Number(cacheRow.amount));
+    const vatRate = this.sharedService.getVatRateByYear(new Date(cacheRow.transactionDate));
+    const totalVatPayable = (absSum / (1 + vatRate)) * vatRate * (slim.vatPercent / 100);
+    const totalTaxPayable = (absSum - totalVatPayable) * (slim.taxPercent / 100);
+
+    expense.category = slim.category;
+    expense.subCategory = slim.subCategory;
+    expense.vatPercent = slim.vatPercent;
+    expense.taxPercent = slim.taxPercent;
+    expense.reductionPercent = slim.reductionPercent;
+    expense.isEquipment = slim.isEquipment;
+    expense.reportScope = slim.reportScope ?? expense.reportScope;
+    expense.businessNumber = slim.businessNumber ?? expense.businessNumber;
+    expense.vatReportingDate = (slim.vatReportingDate as any) ?? expense.vatReportingDate;
+    expense.totalVatPayable = totalVatPayable;
+    expense.totalTaxPayable = totalTaxPayable;
+    await this.expenseRepo.save(expense);
+  }
+
 
   // ---------------------------------------------------------------------------
   // Public API
@@ -175,14 +314,44 @@ export class TransactionProcessingService {
         ? await this.rulesRepo.find({ where: { userId, billId: In(billIds) } })
         : [];
 
+    // Prefetch FX stamps for every non-ILS transaction in the batch.
+    // Resolved sequentially so the FxRateService's in-memory cache + DB cache
+    // handle repeat (date, currency) pairs in O(1) after the first hit, and
+    // we don't hammer BOI in parallel. Failures degrade gracefully — the row
+    // gets a null stamp and the column renderer falls back to the raw amount.
+    const fxStampByExternalId = new Map<string, { ilsAmount: number; fxRateToIls: number } | null>();
+    for (const tx of enriched) {
+      const currency = (tx.currency ?? 'ILS').toUpperCase();
+      if (currency === 'ILS') {
+        fxStampByExternalId.set(tx.externalTransactionId, null);
+        continue;
+      }
+      try {
+        const rate = await this.fxRateService.getRate(tx.transactionDate, currency);
+        if (rate == null) {
+          fxStampByExternalId.set(tx.externalTransactionId, null);
+          continue;
+        }
+        const ilsAmount = Number((tx.amount * rate).toFixed(2));
+        fxStampByExternalId.set(tx.externalTransactionId, { ilsAmount, fxRateToIls: rate });
+      } catch (err) {
+        this.logger.warn(
+          `FX resolution failed for ${tx.externalTransactionId} (${currency} on ${tx.transactionDate}): ${(err as Error)?.message ?? err}`,
+        );
+        fxStampByExternalId.set(tx.externalTransactionId, null);
+      }
+    }
+
     const cacheUpserts: Partial<FullTransactionCache>[] = [];
     const slimInserts: Partial<SlimTransaction>[] = [];
 
     for (const tx of enriched) {
+      const fxStamp = fxStampByExternalId.get(tx.externalTransactionId) ?? null;
+
       // STEP 0 – no billId → cache only, classification blocked.
       if (tx.billId === null) {
         result.skippedNoBillId++;
-        cacheUpserts.push(this.buildCacheRow(userId, tx));
+        cacheUpserts.push(this.buildCacheRow(userId, tx, fxStamp));
         result.savedToCacheOnly++;
         continue;
       }
@@ -191,7 +360,7 @@ export class TransactionProcessingService {
 
       // STEP 1 – slim exists → overlay and skip rule matching.
       if (slim) {
-        cacheUpserts.push(this.buildCacheRowWithSlim(userId, tx, slim));
+        cacheUpserts.push(this.buildCacheRowWithSlim(userId, tx, slim, fxStamp));
         continue;
       }
 
@@ -211,18 +380,19 @@ export class TransactionProcessingService {
           reductionPercent: matchedRule.reductionPercent,
           isEquipment: matchedRule.isEquipment,
           isRecognized: matchedRule.isRecognized,
+          reportScope: matchedRule.reportScope,
           confirmed: false,
           vatReportingDate: null,
-          businessNumber: null,
+          businessNumber: matchedRule.businessNumber ?? null,
         });
         result.savedToSlim++;
         result.ruleMatched++;
-        cacheUpserts.push(this.buildCacheRowWithRule(userId, tx, matchedRule));
+        cacheUpserts.push(this.buildCacheRowWithRule(userId, tx, matchedRule, fxStamp));
         continue;
       }
 
       // STEP 3 – no rule match → cache only.
-      cacheUpserts.push(this.buildCacheRow(userId, tx));
+      cacheUpserts.push(this.buildCacheRow(userId, tx, fxStamp));
       result.savedToCacheOnly++;
     }
 
@@ -238,8 +408,7 @@ export class TransactionProcessingService {
       console.log(`  ⚠️  Duplicate transactions (${duplicates.length}):`);
       for (const tx of duplicates) {
         const date = tx.transactionDate instanceof Date ? tx.transactionDate.toISOString().slice(0, 10) : '—';
-        const rawId = tx.rawTransactionId ?? tx.externalTransactionId;
-        console.log(`    rawId=${rawId}  normalizedId=${tx.externalTransactionId}  date=${date}  amount=${tx.amount}`);
+        console.log(`    id=${tx.externalTransactionId}  date=${date}  amount=${tx.amount}`);
       }
     }
 
@@ -312,11 +481,12 @@ export class TransactionProcessingService {
    * Guards:
    *  - Transaction must exist in full_transactions_cache.
    *  - Cache row must have a billId (no billId → classification blocked).
-   *  - If slim row exists with vatReportingDate != null → blocked (VAT lock).
+   *  - If slim row exists with isLocked = true → blocked (report submitted).
    *
    * ONE_TIME classifications can be updated manually again as long as the
-   * VAT lock is not set.  Rules will never override a ONE_TIME slim row
-   * (STEP 1 short-circuits rule matching when a slim row exists).
+   * report has not been submitted (isLocked = false). Rules will never
+   * override a ONE_TIME slim row (STEP 1 short-circuits rule matching when
+   * a slim row exists).
    */
   async classifyManually(
     userId: string,
@@ -343,11 +513,29 @@ export class TransactionProcessingService {
     const slim = await this.slimRepo.findOne({
       where: { userId, externalTransactionId: dto.externalTransactionId },
     });
-    if (slim?.vatReportingDate != null) {
-      throw new BadRequestException(
-        `Transaction "${dto.externalTransactionId}" is locked: vatReportingDate is already set.`,
+    if (slim?.isLocked) {
+      // Typed 423 (Locked) — frontend distinguishes this from generic 400s and
+      // surfaces a dedicated "report submitted" info dialog instead of a toast.
+      throw new HttpException(
+        {
+          type: 'blocked_report_submitted',
+          message: 'התנועה שייכת לדוח שכבר דווח לרשויות המס ולא ניתן לשנות את הסיווג שלה.',
+        },
+        423, // HTTP 423 Locked — NestJS HttpStatus enum doesn't include this constant.
       );
     }
+
+    // 3b. Resolve the report period to stamp. May throw 423 if the
+    //     natural period is locked and the caller didn't pre-select one.
+    //     Use the EFFECTIVE business number (override if supplied) so the
+    //     cadence + locked-sibling check come from the destination business.
+    const businessNumberFinal = dto.businessNumber ?? slim?.businessNumber ?? cacheRow.businessNumber ?? null;
+    const periodLabel = await this.resolveStampPeriod(
+      userId,
+      cacheRow,
+      dto.targetPeriodLabel,
+      businessNumberFinal,
+    );
 
     // 4. Upsert slim with ONE_TIME.
     await this.upsertSlimTransactions([
@@ -364,9 +552,10 @@ export class TransactionProcessingService {
         reductionPercent: dto.reductionPercent,
         isEquipment: dto.isEquipment,
         isRecognized: dto.isRecognized,
+        reportScope: dto.reportScope ?? ExpenseReportScope.PNL,
         confirmed: slim?.confirmed ?? false,
-        vatReportingDate: null,
-        businessNumber: slim?.businessNumber ?? null,
+        vatReportingDate: periodLabel,
+        businessNumber: businessNumberFinal,
       },
     ]);
 
@@ -381,9 +570,31 @@ export class TransactionProcessingService {
         reductionPercent: dto.reductionPercent,
         isEquipment: dto.isEquipment,
         isRecognized: dto.isRecognized,
+        reportScope: dto.reportScope ?? ExpenseReportScope.PNL,
         classificationType: ClassificationType.ONE_TIME,
+        vatReportingDate: periodLabel,
+        // Only override the bill's default attribution when the caller
+        // explicitly sent a businessNumber. Undefined leaves the column alone.
+        ...(dto.businessNumber !== undefined && { businessNumber: dto.businessNumber }),
       },
     );
+
+    // 6. If this transaction was previously confirmed, mirror the new
+    //    classification onto its Expense row so reports stay in sync.
+    if (slim?.confirmed) {
+      await this.syncExpenseFromSlim(userId, cacheRow, {
+        category: dto.category,
+        subCategory: dto.subCategory,
+        vatPercent: dto.vatPercent,
+        taxPercent: dto.taxPercent,
+        reductionPercent: dto.reductionPercent,
+        isEquipment: dto.isEquipment,
+        isRecognized: dto.isRecognized,
+        reportScope: dto.reportScope ?? ExpenseReportScope.PNL,
+        businessNumber: businessNumberFinal,
+        vatReportingDate: periodLabel,
+      });
+    }
   }
 
   /**
@@ -393,7 +604,7 @@ export class TransactionProcessingService {
    *
    *  1. billId must not be null.
    *
-   *  2. vatReportingDate != null → HARD STOP.
+   *  2. isLocked = true → HARD STOP.
    *     Nothing is written. Returns status = 'blocked_vat_reported'.
    *
    *  3. classificationType = ONE_TIME (without confirmOverride) →
@@ -438,12 +649,12 @@ export class TransactionProcessingService {
       where: { userId, externalTransactionId: dto.externalTransactionId },
     });
 
-    // Guard: VAT-reported → absolute stop. No writes at all.
-    if (slim?.vatReportingDate != null) {
+    // Guard: report has been submitted → absolute stop. No writes at all.
+    if (slim?.isLocked) {
       return {
         status: 'blocked_vat_reported',
         message:
-          'Transaction was already VAT-reported and cannot be changed.',
+          'Transaction belongs to a submitted report and cannot be changed.',
       };
     }
 
@@ -495,7 +706,9 @@ export class TransactionProcessingService {
       reductionPercent: dto.reductionPercent,
       isEquipment: dto.isEquipment,
       isRecognized: dto.isRecognized,
+      reportScope: dto.reportScope ?? ExpenseReportScope.PNL,
       isExpense: dto.isExpense ?? false,
+      businessNumber: dto.businessNumber ?? null,
     };
 
     if (rule) {
@@ -508,6 +721,17 @@ export class TransactionProcessingService {
     }
 
     const savedRule = await this.rulesRepo.save(rule);
+
+    // 4b. Resolve the period for the FOCUS transaction. May throw 423.
+    //     Use the EFFECTIVE business number so the cadence comes from the
+    //     destination business when the user reattributes.
+    const focusBusinessNumber = dto.businessNumber ?? slim?.businessNumber ?? cacheRow.businessNumber ?? null;
+    const focusPeriodLabel = await this.resolveStampPeriod(
+      userId,
+      cacheRow,
+      dto.targetPeriodLabel,
+      focusBusinessNumber,
+    );
 
     // 5. Upsert slim row with RULE classification.
     await this.upsertSlimTransactions([
@@ -524,9 +748,10 @@ export class TransactionProcessingService {
         reductionPercent: dto.reductionPercent,
         isEquipment: dto.isEquipment,
         isRecognized: dto.isRecognized,
+        reportScope: dto.reportScope ?? ExpenseReportScope.PNL,
         confirmed: slim?.confirmed ?? false,
-        vatReportingDate: null,
-        businessNumber: slim?.businessNumber ?? null,
+        vatReportingDate: focusPeriodLabel,
+        businessNumber: focusBusinessNumber,
       },
     ]);
 
@@ -541,9 +766,31 @@ export class TransactionProcessingService {
         reductionPercent: dto.reductionPercent,
         isEquipment: dto.isEquipment,
         isRecognized: dto.isRecognized,
+        reportScope: dto.reportScope ?? ExpenseReportScope.PNL,
         classificationType: ClassificationType.RULE,
+        vatReportingDate: focusPeriodLabel,
+        // Only override the bill's default attribution when the caller
+        // explicitly sent a businessNumber. Undefined leaves the column alone.
+        ...(dto.businessNumber !== undefined && { businessNumber: dto.businessNumber }),
       },
     );
+
+    // 6b. If the focus transaction was already confirmed, sync its Expense
+    //     row so reports stay correct after re-classification.
+    if (slim?.confirmed) {
+      await this.syncExpenseFromSlim(userId, cacheRow, {
+        category: dto.category,
+        subCategory: dto.subCategory,
+        vatPercent: dto.vatPercent,
+        taxPercent: dto.taxPercent,
+        reductionPercent: dto.reductionPercent,
+        isEquipment: dto.isEquipment,
+        isRecognized: dto.isRecognized,
+        reportScope: dto.reportScope ?? ExpenseReportScope.PNL,
+        businessNumber: focusBusinessNumber,
+        vatReportingDate: focusPeriodLabel,
+      });
+    }
 
     // 7. Backfill: apply rule to all other existing matching transactions.
     const backfillCount = await this.applyRuleToExistingTransactions(
@@ -797,6 +1044,52 @@ export class TransactionProcessingService {
     await this.userSyncStateService.markSyncEmpty(userId);
   }
 
+
+  /**
+   * One-shot backfill of `ilsAmount` + `fxRateToIls` for the user's existing
+   * non-ILS cache rows whose FX columns are null (e.g. rows synced before
+   * the FX layer existed). For each unique (date, currency) we hit
+   * FxRateService once — its in-memory + DB caches make N rows touching K
+   * distinct (date, currency) pairs cost K BOI fetches max.
+   *
+   * Returns counts so the caller can surface useful feedback. Rows that
+   * can't be resolved (unsupported currency, persistent BOI failure) stay
+   * null and are counted in `skipped`.
+   */
+  async backfillFxForUser(userId: string): Promise<{ updated: number; skipped: number; total: number }> {
+    const rows = await this.cacheRepo
+      .createQueryBuilder('c')
+      .where('c.userId = :userId', { userId })
+      .andWhere('c.currency IS NOT NULL')
+      .andWhere('c.currency <> :ils', { ils: 'ILS' })
+      .andWhere('c.ilsAmount IS NULL')
+      .getMany();
+
+    let updated = 0;
+    let skipped = 0;
+    for (const row of rows) {
+      try {
+        const rate = await this.fxRateService.getRate(row.transactionDate, row.currency);
+        if (rate == null) {
+          skipped++;
+          continue;
+        }
+        const ils = Number((Math.abs(Number(row.amount)) * rate).toFixed(2));
+        await this.cacheRepo.update(
+          { id: row.id },
+          { ilsAmount: ils, fxRateToIls: rate },
+        );
+        updated++;
+      } catch (err) {
+        this.logger.warn(
+          `backfillFxForUser: failed for cache id ${row.id} (${row.currency} on ${row.transactionDate}): ${(err as Error)?.message ?? err}`,
+        );
+        skipped++;
+      }
+    }
+    return { updated, skipped, total: rows.length };
+  }
+
   // ---------------------------------------------------------------------------
   // Private helpers
   // ---------------------------------------------------------------------------
@@ -867,7 +1160,7 @@ export class TransactionProcessingService {
    *
    * Skips rows where the slim row has:
    *   - classificationType = ONE_TIME
-   *   - vatReportingDate   != null
+   *   - isLocked          = true
    *
    * Also post-filters by the rule's optional constraints (commentPattern,
    * minAbsSum, maxAbsSum) so that only genuinely matching rows are updated.
@@ -936,12 +1229,12 @@ export class TransactionProcessingService {
       slimRows.map((s) => [s.externalTransactionId, s]),
     );
 
-    // 4. Exclude protected rows (ONE_TIME or VAT-reported).
+    // 4. Exclude protected rows (ONE_TIME or report already submitted).
     const eligible = filtered.filter((row) => {
       const slim = slimByExternalId.get(row.externalTransactionId);
       if (!slim) return true;
       if (slim.classificationType === ClassificationType.ONE_TIME) return false;
-      if (slim.vatReportingDate != null) return false;
+      if (slim.isLocked) return false;
       return true;
     });
 
@@ -956,9 +1249,62 @@ export class TransactionProcessingService {
       reductionPercent: dto.reductionPercent,
       isEquipment: dto.isEquipment,
       isRecognized: dto.isRecognized,
+      reportScope: savedRule.reportScope ?? ExpenseReportScope.PNL,
     };
 
-    const slimUpserts: Partial<SlimTransaction>[] = eligible.map((row) => {
+    // Resolve each backfilled row's report period. Stamp the existing one
+    // (re-classification preserves it), then the row's natural period — if
+    // that period is already locked for the row's effective business, skip
+    // the row so we don't quietly file it under a submitted report. Late
+    // arrivals into a locked period need explicit user attention via the
+    // single-tx classify flow's natural_period_locked dialog.
+    // "Effective business" = rule-level override if set, else the row's own.
+    const businessNumbersForLookup = eligible
+      .map((r) => savedRule.businessNumber ?? r.businessNumber)
+      .filter((bn): bn is string => bn != null);
+    const businessByNumber = await this.loadBusinessMap(userId, businessNumbersForLookup);
+    const lockedNaturalPeriodsByBusiness = await this.loadLockedPeriodsByBusiness(
+      userId,
+      Array.from(businessByNumber.keys()),
+    );
+
+    const periodLabelByRow = new Map<string, string | null>();
+    const rowsSkippedDueToLockedPeriod: string[] = [];
+    for (const row of eligible) {
+      const existingSlim = slimByExternalId.get(row.externalTransactionId);
+      if (existingSlim?.vatReportingDate) {
+        periodLabelByRow.set(row.externalTransactionId, existingSlim.vatReportingDate);
+        continue;
+      }
+      const effectiveBn = savedRule.businessNumber ?? row.businessNumber;
+      if (!effectiveBn) {
+        periodLabelByRow.set(row.externalTransactionId, null);
+        continue;
+      }
+      const business = businessByNumber.get(effectiveBn);
+      if (!business) {
+        periodLabelByRow.set(row.externalTransactionId, null);
+        continue;
+      }
+      const naturalLabel = this.sharedService.buildReportPeriodLabel(
+        business.businessType ?? BusinessType.EXEMPT,
+        business.vatReportingType ?? VATReportingType.NOT_REQUIRED,
+        new Date(row.transactionDate),
+      );
+      const lockedSet = lockedNaturalPeriodsByBusiness.get(effectiveBn);
+      if (lockedSet?.has(naturalLabel)) {
+        rowsSkippedDueToLockedPeriod.push(row.externalTransactionId);
+        continue;
+      }
+      periodLabelByRow.set(row.externalTransactionId, naturalLabel);
+    }
+
+    const writable = eligible.filter(
+      (r) => !rowsSkippedDueToLockedPeriod.includes(r.externalTransactionId),
+    );
+    if (writable.length === 0) return 0;
+
+    const slimUpserts: Partial<SlimTransaction>[] = writable.map((row) => {
       const existingSlim = slimByExternalId.get(row.externalTransactionId);
       return {
         userId,
@@ -968,27 +1314,105 @@ export class TransactionProcessingService {
         classificationRuleId: savedRule.id,
         ...classificationPayload,
         confirmed: existingSlim?.confirmed ?? false,
-        vatReportingDate: null,
-        businessNumber: existingSlim?.businessNumber ?? null,
+        vatReportingDate: periodLabelByRow.get(row.externalTransactionId) ?? null,
+        // Rule-level businessNumber wins; otherwise preserve whatever the slim
+        // row already had (which itself may be the bill default or a prior override).
+        businessNumber: savedRule.businessNumber ?? existingSlim?.businessNumber ?? null,
       };
     });
 
     await this.upsertSlimTransactions(slimUpserts);
 
-    // 6. Bulk-update cache overlay.
-    const eligibleIds = eligible.map((r) => r.externalTransactionId);
-    await this.cacheRepo
-      .createQueryBuilder()
-      .update(FullTransactionCache)
-      .set({
-        ...classificationPayload,
-        classificationType: ClassificationType.RULE,
-      })
-      .where('userId = :userId', { userId })
-      .andWhere('externalTransactionId IN (:...ids)', { ids: eligibleIds })
-      .execute();
+    // 6. Bulk-update cache overlay — group by period label to keep the
+    //    update count small.
+    const periodLabelToIds = new Map<string | null, string[]>();
+    for (const row of writable) {
+      const label = periodLabelByRow.get(row.externalTransactionId) ?? null;
+      if (!periodLabelToIds.has(label)) periodLabelToIds.set(label, []);
+      periodLabelToIds.get(label)!.push(row.externalTransactionId);
+    }
+    for (const [label, ids] of periodLabelToIds.entries()) {
+      await this.cacheRepo
+        .createQueryBuilder()
+        .update(FullTransactionCache)
+        .set({
+          ...classificationPayload,
+          classificationType: ClassificationType.RULE,
+          vatReportingDate: label,
+          // Only override the bill's default attribution when the rule carries
+          // an explicit businessNumber. When null, leave each row's column alone.
+          ...(savedRule.businessNumber !== null && { businessNumber: savedRule.businessNumber }),
+        })
+        .where('userId = :userId', { userId })
+        .andWhere('externalTransactionId IN (:...ids)', { ids })
+        .execute();
+    }
 
-    return eligible.length;
+    // 7. Sync Expense rows for any of the backfilled transactions that were
+    //    already confirmed. Skipped (locked-natural-period) rows are not
+    //    touched — their classifications stay as-is.
+    const confirmedConfirmedIds = writable
+      .map((r) => r.externalTransactionId)
+      .filter((id) => slimByExternalId.get(id)?.confirmed);
+    for (const id of confirmedConfirmedIds) {
+      const row = writable.find((r) => r.externalTransactionId === id)!;
+      await this.syncExpenseFromSlim(userId, row, {
+        ...classificationPayload,
+        businessNumber: savedRule.businessNumber ?? row.businessNumber ?? null,
+        vatReportingDate: periodLabelByRow.get(id) ?? null,
+      });
+    }
+
+    if (rowsSkippedDueToLockedPeriod.length > 0) {
+      this.logger.log(
+        `applyRuleToExistingTransactions: skipped ${rowsSkippedDueToLockedPeriod.length} backfill row(s) whose natural period was locked.`,
+      );
+    }
+
+    return writable.length;
+  }
+
+
+  /** Loads businesses by number, keyed by businessNumber. */
+  private async loadBusinessMap(
+    userId: string,
+    businessNumbers: string[],
+  ): Promise<Map<string, Business>> {
+    if (businessNumbers.length === 0) return new Map();
+    const unique = Array.from(new Set(businessNumbers));
+    const rows = await this.businessRepo.find({
+      where: { firebaseId: userId, businessNumber: In(unique) },
+    });
+    return new Map(rows.map((b) => [b.businessNumber!, b]));
+  }
+
+
+  /**
+   * For each business, returns the set of period labels that have at least
+   * one locked transaction — used during backfill to skip writing into a
+   * report that was already submitted.
+   */
+  private async loadLockedPeriodsByBusiness(
+    userId: string,
+    businessNumbers: string[],
+  ): Promise<Map<string, Set<string>>> {
+    const result = new Map<string, Set<string>>();
+    if (businessNumbers.length === 0) return result;
+    const rows = await this.slimRepo
+      .createQueryBuilder('slim')
+      .select('slim.businessNumber', 'businessNumber')
+      .addSelect('slim.vatReportingDate', 'periodLabel')
+      .where('slim.userId = :userId', { userId })
+      .andWhere('slim.businessNumber IN (:...bns)', { bns: businessNumbers })
+      .andWhere('slim.isLocked = TRUE')
+      .andWhere('slim.vatReportingDate IS NOT NULL')
+      .distinct(true)
+      .getRawMany<{ businessNumber: string; periodLabel: string }>();
+    for (const r of rows) {
+      if (!result.has(r.businessNumber)) result.set(r.businessNumber, new Set());
+      result.get(r.businessNumber)!.add(r.periodLabel);
+    }
+    return result;
   }
 
   /**
@@ -1072,6 +1496,8 @@ export class TransactionProcessingService {
   private buildCacheRow(
     userId: string,
     tx: NormalizedTransaction,
+    /** Per-batch resolved FX stamp. Caller pre-fetches and passes in. */
+    fxStamp?: { ilsAmount: number; fxRateToIls: number } | null,
   ): Partial<FullTransactionCache> {
     return {
       userId,
@@ -1081,6 +1507,8 @@ export class TransactionProcessingService {
       merchantName: tx.merchantName,
       amount: tx.amount,
       currency: tx.currency ?? 'ILS',
+      ilsAmount: fxStamp?.ilsAmount ?? null,
+      fxRateToIls: fxStamp?.fxRateToIls ?? null,
       transactionDate: tx.transactionDate,
       paymentDate: tx.paymentDate,
       paymentIdentifier: tx.paymentIdentifier,
@@ -1093,6 +1521,7 @@ export class TransactionProcessingService {
       reductionPercent: 0,
       isEquipment: false,
       isRecognized: false,
+      reportScope: ExpenseReportScope.PNL,
       confirmed: false,
       vatReportingDate: null,
       classificationType: null,
@@ -1103,9 +1532,10 @@ export class TransactionProcessingService {
     userId: string,
     tx: NormalizedTransaction,
     slim: SlimTransaction,
+    fxStamp?: { ilsAmount: number; fxRateToIls: number } | null,
   ): Partial<FullTransactionCache> {
     return {
-      ...this.buildCacheRow(userId, tx),
+      ...this.buildCacheRow(userId, tx, fxStamp),
       category: slim.category,
       subCategory: slim.subCategory,
       vatPercent: slim.vatPercent,
@@ -1113,9 +1543,13 @@ export class TransactionProcessingService {
       reductionPercent: slim.reductionPercent,
       isEquipment: slim.isEquipment,
       isRecognized: slim.isRecognized,
+      reportScope: slim.reportScope,
       confirmed: slim.confirmed,
       vatReportingDate: slim.vatReportingDate,
       classificationType: slim.classificationType,
+      // Preserve the user's per-row override if one is set; otherwise fall
+      // back to the bill default already present on the base cache row.
+      ...(slim.businessNumber != null && { businessNumber: slim.businessNumber }),
     };
   }
 
@@ -1123,9 +1557,10 @@ export class TransactionProcessingService {
     userId: string,
     tx: NormalizedTransaction,
     rule: ClassifiedTransactions,
+    fxStamp?: { ilsAmount: number; fxRateToIls: number } | null,
   ): Partial<FullTransactionCache> {
     return {
-      ...this.buildCacheRow(userId, tx),
+      ...this.buildCacheRow(userId, tx, fxStamp),
       category: rule.category,
       subCategory: rule.subCategory,
       vatPercent: rule.vatPercent,
@@ -1133,7 +1568,10 @@ export class TransactionProcessingService {
       reductionPercent: rule.reductionPercent,
       isEquipment: rule.isEquipment,
       isRecognized: rule.isRecognized,
+      reportScope: rule.reportScope,
       classificationType: ClassificationType.RULE,
+      // Rule-level override wins over the bill default on the base cache row.
+      ...(rule.businessNumber != null && { businessNumber: rule.businessNumber }),
     };
   }
 
@@ -1158,12 +1596,18 @@ export class TransactionProcessingService {
       category: row.category,
       subCategory: row.subCategory,
       isRecognized: row.isRecognized,
+      reportScope: row.reportScope,
       vatPercent: row.vatPercent,
       taxPercent: row.taxPercent,
       isEquipment: row.isEquipment,
       reductionPercent: row.reductionPercent,
       vatReportingDate: row.vatReportingDate,
+      isLocked: row.isLocked,
       confirmed: row.confirmed,
+      // FX: original currency + ILS-converted amount. The תזרים column
+      // renderer shows `$X` on top and `(₪Y)` underneath when non-ILS.
+      ilsAmount: row.ilsAmount,
+      fxRateToIls: row.fxRateToIls,
     };
   }
 
@@ -1202,6 +1646,84 @@ export class TransactionProcessingService {
    * Israel Standard Time = UTC+2 → 03:00 fires at 01:00 UTC in winter.
    * Israel Daylight Time = UTC+3 → 03:00 fires at 00:00 UTC in summer.
    */
+  async getFlowAnalysis(
+    userId: string,
+    startDate: string,
+    endDate: string,
+    billId: number,
+    lineFilterType: 'all' | 'category' | 'subCategory' | 'merchant' | 'paymentMethod',
+    lineFilterValue?: string,
+  ): Promise<FlowAnalysisResponse> {
+    // ── Monthly flow query (affected by lineFilter) ──────────────────────────
+    const monthlyQb = this.cacheRepo
+      .createQueryBuilder('c')
+      .select("DATE_FORMAT(c.transactionDate, '%Y-%m')", 'month')
+      .addSelect('SUM(CASE WHEN c.amount > 0 THEN c.amount ELSE 0 END)', 'incomes')
+      .addSelect('SUM(CASE WHEN c.amount < 0 THEN ABS(c.amount) ELSE 0 END)', 'expenses')
+      .where('c.userId = :userId', { userId })
+      .andWhere('c.billId = :billId', { billId })
+      .andWhere('c.transactionDate BETWEEN :startDate AND :endDate', { startDate, endDate })
+      .groupBy("DATE_FORMAT(c.transactionDate, '%Y-%m')")
+      .orderBy("DATE_FORMAT(c.transactionDate, '%Y-%m')", 'ASC');
+
+    if (lineFilterType !== 'all' && lineFilterValue) {
+      const columnMap: Record<string, string> = {
+        category:      'c.category',
+        subCategory:   'c.subCategory',
+        merchant:      'c.merchantName',
+        paymentMethod: 'c.paymentIdentifier',
+      };
+      monthlyQb.andWhere(`${columnMap[lineFilterType]} = :lineFilterValue`, { lineFilterValue });
+    }
+
+    const monthlyRaw = await monthlyQb.getRawMany<{ month: string; incomes: string; expenses: string }>();
+
+    // Fill every month in range so there are no gaps in the chart
+    const monthlyMap = new Map(monthlyRaw.map(r => [r.month, r]));
+    const monthlyFlow: MonthlyFlowPoint[] = [];
+    const cursor = new Date(`${startDate}T00:00:00`);
+    const endMonth = endDate.substring(0, 7);
+    cursor.setDate(1);
+    while (true) {
+      const key = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}`;
+      const raw = monthlyMap.get(key);
+      monthlyFlow.push({
+        month: key,
+        expenses: raw ? Math.round(parseFloat(raw.expenses) * 100) / 100 : 0,
+        incomes:  raw ? Math.round(parseFloat(raw.incomes)  * 100) / 100 : 0,
+      });
+      if (key === endMonth) break;
+      cursor.setMonth(cursor.getMonth() + 1);
+    }
+
+    const totalExpenses = monthlyFlow.reduce((s, m) => s + m.expenses, 0);
+    const totalIncomes  = monthlyFlow.reduce((s, m) => s + m.incomes,  0);
+
+    // ── Category breakdown query (NOT affected by lineFilter) ────────────────
+    const categoryRaw = await this.cacheRepo
+      .createQueryBuilder('c')
+      .select('c.category', 'label')
+      .addSelect('SUM(ABS(c.amount))', 'amount')
+      .where('c.userId = :userId', { userId })
+      .andWhere('c.billId = :billId', { billId })
+      .andWhere('c.transactionDate BETWEEN :startDate AND :endDate', { startDate, endDate })
+      .andWhere('c.amount < 0')
+      .groupBy('c.category')
+      .orderBy('SUM(ABS(c.amount))', 'DESC')
+      .getRawMany<{ label: string | null; amount: string }>();
+
+    const categoryTotal = categoryRaw.reduce((s, r) => s + parseFloat(r.amount), 0);
+    const toPercent = (amount: number) =>
+      categoryTotal > 0 ? Math.round((amount / categoryTotal) * 1000) / 10 : 0;
+
+    const expensesByCategory = categoryRaw.map(r => {
+      const amount = Math.round(parseFloat(r.amount) * 100) / 100;
+      return { label: r.label ?? null, amount, percentage: toPercent(amount) };
+    });
+
+    return { totalExpenses, totalIncomes, monthlyFlow, expensesByCategory };
+  }
+
   private async runDailyCacheCleanup(label: string): Promise<void> {
     this.logger.log(`Daily cache cleanup started (${label} Asia/Jerusalem)`);
     try {
@@ -1254,5 +1776,177 @@ export class TransactionProcessingService {
     } catch (err: any) {
       this.logger.error(`Daily cache cleanup (${label}) failed`, err?.stack ?? err);
     }
+  }
+
+  /**
+   * List classification rules for a user, scoped to a single business.
+   *
+   * A rule's effective business is its own `businessNumber` override when
+   * set, otherwise the bill's `businessNumber`. Each returned row is
+   * augmented with `billName` so the UI can render the bill column without
+   * a second round-trip.
+   */
+  async listRulesForUser(
+    userId: string,
+    businessNumber: string,
+  ): Promise<(ClassifiedTransactions & { billName: string | null })[]> {
+    const result = await this.rulesRepo
+      .createQueryBuilder('r')
+      .leftJoin(Bill, 'b', 'b.id = r.billId')
+      .addSelect('b.billName', 'r_billName')
+      .where('r.userId = :userId', { userId })
+      .andWhere(
+        new Brackets(qb => {
+          qb.where('r.businessNumber = :bn', { bn: businessNumber })
+            .orWhere('r.businessNumber IS NULL AND b.businessNumber = :bn', { bn: businessNumber });
+        }),
+      )
+      .orderBy('r.updatedAt', 'DESC')
+      .getRawAndEntities();
+
+    return result.entities.map((rule, i) => ({
+      ...rule,
+      billName: (result.raw[i]?.r_billName as string | null) ?? null,
+    }));
+  }
+
+  /**
+   * Delete a classification rule for the user. Slim rows that reference the
+   * rule are deleted (so the transactions reappear in the "to classify"
+   * list) and their cache rows are reverted to "unclassified". Locked slim
+   * rows belong to a submitted report and block the delete with a 409.
+   */
+  async deleteRuleForUser(
+    userId: string,
+    ruleId: number,
+  ): Promise<{ deleted: true; unclassifiedCount: number }> {
+    const rule = await this.rulesRepo.findOne({ where: { id: ruleId, userId } });
+    if (!rule) {
+      throw new NotFoundException(`Rule ${ruleId} not found.`);
+    }
+
+    return this.dataSource.transaction(async (manager) => {
+      const slimRows = await manager.find(SlimTransaction, {
+        where: { userId, classificationRuleId: ruleId },
+      });
+
+      const lockedCount = slimRows.filter(s => s.isLocked).length;
+      if (lockedCount > 0) {
+        throw new ConflictException(
+          `Cannot delete rule: ${lockedCount} classified transaction(s) belong to a submitted report.`,
+        );
+      }
+
+      const externalIds = slimRows.map(s => s.externalTransactionId);
+      if (externalIds.length > 0) {
+        await manager.update(
+          FullTransactionCache,
+          { userId, externalTransactionId: In(externalIds) },
+          {
+            category: null,
+            subCategory: null,
+            classificationType: null,
+            isRecognized: false,
+            reportScope: ExpenseReportScope.PNL,
+            vatPercent: 0,
+            taxPercent: 0,
+            isEquipment: false,
+            reductionPercent: 0,
+            vatReportingDate: null,
+          },
+        );
+
+        await manager.delete(SlimTransaction, {
+          userId,
+          classificationRuleId: ruleId,
+        });
+      }
+
+      await manager.delete(ClassifiedTransactions, { id: ruleId, userId });
+
+      return { deleted: true as const, unclassifiedCount: slimRows.length };
+    });
+  }
+
+  /**
+   * Update a classification rule. When classification fields change
+   * (category/subCategory/percents/flags), the new values are propagated to
+   * slim_transactions and full_transactions_cache rows that reference this
+   * rule (locked rows are skipped). Constraint changes (min/max/dates/comment)
+   * affect future matches only — existing classifications are not
+   * re-evaluated.
+   */
+  async updateRuleForUser(
+    userId: string,
+    ruleId: number,
+    dto: UpdateClassificationRuleDto,
+  ): Promise<ClassifiedTransactions> {
+    const rule = await this.rulesRepo.findOne({ where: { id: ruleId, userId } });
+    if (!rule) {
+      throw new NotFoundException(`Rule ${ruleId} not found.`);
+    }
+
+    const classificationChanged =
+      (dto.category !== undefined && dto.category !== rule.category) ||
+      (dto.subCategory !== undefined && dto.subCategory !== rule.subCategory) ||
+      (dto.vatPercent !== undefined && dto.vatPercent !== rule.vatPercent) ||
+      (dto.taxPercent !== undefined && dto.taxPercent !== rule.taxPercent) ||
+      (dto.reductionPercent !== undefined && dto.reductionPercent !== rule.reductionPercent) ||
+      (dto.isEquipment !== undefined && dto.isEquipment !== rule.isEquipment) ||
+      (dto.isRecognized !== undefined && dto.isRecognized !== rule.isRecognized) ||
+      (dto.reportScope !== undefined && dto.reportScope !== rule.reportScope);
+
+    Object.assign(rule, dto);
+    const saved = await this.rulesRepo.save(rule);
+
+    if (classificationChanged) {
+      await this.propagateRuleUpdate(userId, ruleId, {
+        category: saved.category,
+        subCategory: saved.subCategory,
+        vatPercent: saved.vatPercent,
+        taxPercent: saved.taxPercent,
+        reductionPercent: saved.reductionPercent,
+        isEquipment: saved.isEquipment,
+        isRecognized: saved.isRecognized,
+        reportScope: saved.reportScope,
+      });
+    }
+
+    return saved;
+  }
+
+  private async propagateRuleUpdate(
+    userId: string,
+    ruleId: number,
+    fields: {
+      category: string;
+      subCategory: string;
+      vatPercent: number;
+      taxPercent: number;
+      reductionPercent: number;
+      isEquipment: boolean;
+      isRecognized: boolean;
+      reportScope: ExpenseReportScope;
+    },
+  ): Promise<void> {
+    const slimRows = await this.slimRepo.find({
+      where: { userId, classificationRuleId: ruleId, isLocked: false },
+    });
+    if (slimRows.length === 0) return;
+
+    const externalIds = slimRows.map(s => s.externalTransactionId);
+
+    await this.dataSource.transaction(async (manager) => {
+      await manager.update(
+        SlimTransaction,
+        { userId, classificationRuleId: ruleId, isLocked: false },
+        fields,
+      );
+      await manager.update(
+        FullTransactionCache,
+        { userId, externalTransactionId: In(externalIds) },
+        fields,
+      );
+    });
   }
 }

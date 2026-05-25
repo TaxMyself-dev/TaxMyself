@@ -6,7 +6,7 @@ import {
   UpdateDateColumn,
   Index,
 } from 'typeorm';
-import { DualMonthReport, SingleMonthReport } from 'src/enum';
+import { ReportPeriodLabel, ExpenseReportScope } from 'src/enum';
 import { ClassificationType } from './enums/classification-type.enum';
 
 @Entity('slim_transactions')
@@ -59,12 +59,30 @@ export class SlimTransaction {
   @Column({ type: 'int', default: 0 })
   vatPercent: number;
 
+  /**
+   * Period label for the report this transaction belongs to.
+   * Set on confirm-trans (saveTransactionsToExpenses) — represents "this
+   * transaction was reported under report period X". On its own this does
+   * NOT lock the transaction; the user/accountant can still re-classify.
+   * Format: "M/YYYY", "M1-M2/YYYY", or "YYYY" — see ReportPeriodLabel.
+   */
   @Column({
     type: 'varchar',
     nullable: true,
     default: null,
   })
-  vatReportingDate: SingleMonthReport | DualMonthReport | null;
+  vatReportingDate: ReportPeriodLabel | null;
+
+  /**
+   * Hard lock flag — true once the report covering this transaction has
+   * been officially submitted (self-employed: "סמן כדווח" button on the
+   * VAT/PnL page; accountant: setReported workflow action). When true the
+   * classification guard in TransactionProcessingService blocks further
+   * edits. Independent of vatReportingDate so the period stamp can show
+   * before the lock icon does.
+   */
+  @Column({ type: 'boolean', default: false })
+  isLocked: boolean;
 
   @Column({ type: 'int', default: 0 })
   reductionPercent: number;
@@ -74,6 +92,10 @@ export class SlimTransaction {
 
   @Column({ type: 'boolean', default: false })
   isRecognized: boolean;
+
+  /** Report scope carried from rule/manual classification → snapshot to Expense. */
+  @Column({ type: 'enum', enum: ExpenseReportScope, default: ExpenseReportScope.PNL })
+  reportScope: ExpenseReportScope;
 
   @Column({ type: 'varchar', nullable: true, default: null })
   businessNumber: string | null;

@@ -21,6 +21,25 @@ export class FeezbackService {
   private readonly logger = new Logger(FeezbackService.name);
   private readonly tppId: string;
 
+  /** Currency-symbol map for human-readable sourceName suffixes. Unknown codes fall back to `-CODE`. */
+  private static readonly CURRENCY_SYMBOLS: Record<string, string> = {
+    USD: '$', EUR: '€', GBP: '£', JPY: '¥',
+  };
+
+  /**
+   * Derive the canonical sourceName / paymentIdentifier from a raw IBAN-last-7
+   * or PAN-last-4 plus the source's currency. ILS keeps the raw id unchanged;
+   * non-ILS gets a currency-symbol suffix (or `-CODE` fallback). This is the
+   * single source of truth — every site that names a Source must route through here.
+   */
+  private deriveSourceName(rawId: string, currency: string | null | undefined): string {
+    if (!rawId) return rawId;
+    const c = (currency ?? 'ILS').toUpperCase();
+    if (c === 'ILS') return rawId;
+    const symbol = FeezbackService.CURRENCY_SYMBOLS[c];
+    return symbol ? `${rawId}${symbol}` : `${rawId}-${c}`;
+  }
+
   constructor(
     private readonly feezbackJwtService: FeezbackJwtService,
     private readonly authService: FeezbackAuthService,
@@ -36,69 +55,45 @@ export class FeezbackService {
   }
 
   /**
-   * Ensures all Feezback accounts and cards are saved as Source rows.
-   * Same upsert logic as the webhook — safe to call repeatedly.
+   * Admin diagnostic: fetch live accounts + cards from Feezback for a target user.
+   * No DB writes. Uses the same options as the internal sync paths so the response
+   * matches what the sync would actually see (only valid consents).
    */
-  async ensureSources(firebaseId: string): Promise<{ created: number; updated: number }> {
+  async adminGetAccountsAndCards(
+    firebaseId: string,
+  ): Promise<{ accounts: any; cards: any }> {
     const sub = `${firebaseId}_sub`;
-    let created = 0;
-    let updated = 0;
-
-    // Bank accounts
-    try {
-      const accountsResponse = await this.feezbackApiService.getUserAccounts(sub, { preventUpdate: true });
-      for (const account of accountsResponse?.accounts ?? []) {
-        const iban: string | undefined = account?.iban;
-        if (!iban?.trim()) continue;
-        const sourceName = iban.trim().slice(-7);
-        const feezbackResourceId: string | null = account?.resourceId ?? null;
-        const existing = await this.sourceRepository.findOne({ where: { userId: firebaseId, sourceName } });
-        if (existing) {
-          existing.feezbackResourceId = feezbackResourceId;
-          existing.sourceType = SourceType.BANK_ACCOUNT;
-          await this.sourceRepository.save(existing);
-          updated++;
-        } else {
-          await this.sourceRepository.save(
-            this.sourceRepository.create({ userId: firebaseId, sourceName, sourceType: SourceType.BANK_ACCOUNT, feezbackResourceId, bill: null }),
-          );
-          created++;
-        }
-      }
-    } catch (e: any) {
-      this.logger.warn(`[EnsureSources] Bank accounts fetch failed | firebaseId=${firebaseId?.substring(0, 8)}... | ${e?.message}`);
-    }
-
-    // Credit cards
-    try {
-      const cardsResponse = await this.feezbackApiService.getUserCards(sub, { withBalances: false });
-      for (const card of cardsResponse?.cards ?? []) {
-        const maskedPan: string | undefined = card?.maskedPan;
-        const last4Match = typeof maskedPan === 'string' ? maskedPan.match(/(\d{4})$/) : null;
-        if (!last4Match) continue;
-        const sourceName = last4Match[1];
-        const feezbackResourceId: string | null = card?.resourceId ?? null;
-        const existing = await this.sourceRepository.findOne({ where: { userId: firebaseId, sourceName } });
-        if (existing) {
-          existing.feezbackResourceId = feezbackResourceId;
-          existing.sourceType = SourceType.CREDIT_CARD;
-          await this.sourceRepository.save(existing);
-          updated++;
-        } else {
-          await this.sourceRepository.save(
-            this.sourceRepository.create({ userId: firebaseId, sourceName, sourceType: SourceType.CREDIT_CARD, feezbackResourceId, bill: null }),
-          );
-          created++;
-        }
-      }
-    } catch (e: any) {
-      this.logger.warn(`[EnsureSources] Cards fetch failed | firebaseId=${firebaseId?.substring(0, 8)}... | ${e?.message}`);
-    }
-
-    this.logger.log(`[EnsureSources] Done | firebaseId=${firebaseId?.substring(0, 8)}... | created=${created} updated=${updated}`);
-    return { created, updated };
+    const [accountsResponse, cardsResponse] = await Promise.all([
+      this.feezbackApiService.getUserAccounts(sub, { preventUpdate: true, withInvalid: false }),
+      this.feezbackApiService.getUserCards(sub, { withBalances: false, withInvalid: false, preventUpdate: true }),
+    ]);
+    return { accounts: accountsResponse, cards: cardsResponse };
   }
 
+  /**
+   * Upsert Source rows using the (userId, sourceName) unique index.
+   * Race-safe and idempotent. Falsy sourceName entries are skipped.
+   * The `bill` FK column is omitted so an existing linkage isn't clobbered.
+   * `resourceId` is preserved on update via COALESCE — never overwritten with NULL.
+   */
+  private async upsertSources(
+    userId: string,
+    sourceType: SourceType,
+    items: Array<{ sourceName: string; resourceId: string | null }>,
+  ): Promise<void> {
+    // resourceId is intentionally not persisted here — the Feezback resourceId
+    // lives in user_source_sync_state (used by pullOneSource/retrySource). The
+    // `source` table only maps an account/card to a Bill for bookkeeping.
+    for (const { sourceName } of items) {
+      if (!sourceName) continue;
+      await this.sourceRepository.query(
+        `INSERT INTO source (\`userId\`, \`sourceName\`, \`sourceType\`)
+         VALUES (?, ?, ?)
+         ON DUPLICATE KEY UPDATE \`sourceType\` = VALUES(\`sourceType\`)`,
+        [userId, sourceName, sourceType],
+      );
+    }
+  }
 
   /**
    * Refresh `Source` rows from the live Feezback API (accounts + cards),
@@ -128,8 +123,17 @@ export class FeezbackService {
     }
     const userName = user ? [user.fName, user.lName].filter(Boolean).join(' ') : masked;
 
-    const bankResults: { sourceName: string; action: 'created' | 'updated' }[] = [];
-    const cardResults: { sourceName: string; action: 'created' | 'updated' }[] = [];
+    // NOTE: this method is only called from the consent-completion webhook
+    // (UserDataIsAvailable) and the admin-trigger endpoint — both intentional
+    // "grant OB access" contexts. We previously gated on modulesAccess here to
+    // prevent demo users from hitting Feezback on every login, but the login
+    // path goes through doFullSync (which has its own gate) and never reaches
+    // refreshUserSources. The gate here created a chicken-and-egg for first-
+    // time consenters: they don't yet have OPEN_BANKING in modulesAccess, so
+    // the gate blocked the very block (below) that grants it. If a caller
+    // does reach here without a real Feezback consent, the API calls below
+    // 404 and the BadGatewayException prevents the user from being updated.
+
     let bankError: string | null = null;
     let cardError: string | null = null;
     let moduleAccessUpdated = false;
@@ -138,36 +142,17 @@ export class FeezbackService {
     try {
       const accountsResponse = await this.feezbackApiService.getUserAccounts(sub, { preventUpdate: true });
       accounts = accountsResponse?.accounts ?? [];
-
-      for (const account of accounts) {
-        const resourceId: string = account?.resourceId ?? 'unknown';
-        const iban: string | undefined = account?.iban;
-        if (!iban || iban.trim() === '') {
-          this.logger.warn(`${prefix}[Account] Skipping account — no IBAN resourceId=${resourceId}`);
-          continue;
-        }
-        const sourceName = iban.trim().slice(-7);
-        const feezbackResourceId: string | null = account?.resourceId ?? null;
-        // Atomic INSERT … ON DUPLICATE KEY UPDATE via the (userId, sourceName)
-        // unique index. Race-safe under concurrent webhook + post-consent calls.
-        // The `bill` FK column is omitted so an existing linkage isn't clobbered
-        // on update.
-        //
-        // Using raw SQL (not repository.upsert / QueryBuilder.orUpdate) because
-        // both of those run TypeORM's entity-hydration step on the returning
-        // row, which intermittently throws "Cannot update entity because entity
-        // id is not set in the entity" on entities that combine
-        // @PrimaryGeneratedColumn with @ManyToOne (Source has both — `bill`).
-        const existing = await this.sourceRepository.findOne({ where: { userId: firebaseId, sourceName } });
-        await this.sourceRepository.query(
-          `INSERT INTO source (\`userId\`, \`sourceName\`, \`sourceType\`, \`feezback_resource_id\`)
-           VALUES (?, ?, ?, ?)
-           ON DUPLICATE KEY UPDATE \`feezback_resource_id\` = VALUES(\`feezback_resource_id\`),
-                                   \`sourceType\` = VALUES(\`sourceType\`)`,
-          [firebaseId, sourceName, SourceType.BANK_ACCOUNT, feezbackResourceId],
-        );
-        bankResults.push({ sourceName, action: existing ? 'updated' : 'created' });
-      }
+      const bankItems = accounts
+        .map((acc: any) => {
+          const rawId = acc?.iban?.trim().slice(-7);
+          if (!rawId) return null;
+          return {
+            sourceName: this.deriveSourceName(rawId, acc?.currency),
+            resourceId: acc?.resourceId ?? null,
+          };
+        })
+        .filter((x): x is { sourceName: string; resourceId: string | null } => x !== null);
+      await this.upsertSources(firebaseId, SourceType.BANK_ACCOUNT, bankItems);
     } catch (error: any) {
       bankError = error?.message ?? 'unknown';
       this.logger.error(`${prefix}[Account] Sync failed firebaseId=${masked}: ${bankError}`, error?.stack);
@@ -177,28 +162,17 @@ export class FeezbackService {
     try {
       const cardsResponse = await this.feezbackApiService.getUserCards(sub, { withBalances: false });
       cards = cardsResponse?.cards ?? [];
-
-      for (const card of cards) {
-        const resourceId: string = card?.resourceId ?? 'unknown';
-        const maskedPan: string | undefined = card?.maskedPan;
-        const last4Match = typeof maskedPan === 'string' ? maskedPan.match(/(\d{4})$/) : null;
-        if (!last4Match) {
-          this.logger.warn(`${prefix}[Card] Skipping card — cannot extract last-4 resourceId=${resourceId} maskedPan=${maskedPan ?? 'none'}`);
-          continue;
-        }
-        const sourceName = last4Match[1];
-        const feezbackResourceId: string | null = card?.resourceId ?? null;
-        // Same raw-SQL upsert pattern as the bank loop — see comment there.
-        const existing = await this.sourceRepository.findOne({ where: { userId: firebaseId, sourceName } });
-        await this.sourceRepository.query(
-          `INSERT INTO source (\`userId\`, \`sourceName\`, \`sourceType\`, \`feezback_resource_id\`)
-           VALUES (?, ?, ?, ?)
-           ON DUPLICATE KEY UPDATE \`feezback_resource_id\` = VALUES(\`feezback_resource_id\`),
-                                   \`sourceType\` = VALUES(\`sourceType\`)`,
-          [firebaseId, sourceName, SourceType.CREDIT_CARD, feezbackResourceId],
-        );
-        cardResults.push({ sourceName, action: existing ? 'updated' : 'created' });
-      }
+      const cardItems = cards
+        .map((card: any) => {
+          const rawId = card?.maskedPan?.match(/(\d{4})$/)?.[1];
+          if (!rawId) return null;
+          return {
+            sourceName: this.deriveSourceName(rawId, card?.currency),
+            resourceId: card?.resourceId ?? null,
+          };
+        })
+        .filter((x): x is { sourceName: string; resourceId: string | null } => x !== null);
+      await this.upsertSources(firebaseId, SourceType.CREDIT_CARD, cardItems);
     } catch (error: any) {
       cardError = error?.message ?? 'unknown';
       this.logger.error(`${prefix}[Card] Sync failed firebaseId=${masked}: ${cardError}`, error?.stack);
@@ -249,231 +223,120 @@ export class FeezbackService {
     }
 
     console.log(`\n════════════════════════════════════`);
+    if (eventLabel === 'UserDataIsAvailable') {
+      console.log(`  DATA AVAILABLE WEBHOOK ARRIVED`);
+      console.log(`  Arrived at: ${new Date().toISOString()}`);
+    }
     console.log(`  SOURCE DISCOVERY  (${eventLabel})`);
     console.log(`  User: ${userName}`);
+    console.log(`  (valid accounts below)`);
     console.log(`════════════════════════════════════`);
     if (bankError) {
       console.log(`  ✗ Bank — ERROR: ${bankError}`);
     } else {
-      const uniqueBankResults = bankResults.reduce<typeof bankResults>((acc, r) => {
-        if (!acc.some(x => x.sourceName === r.sourceName)) acc.push(r);
-        return acc;
-      }, []);
-      console.log(`  Bank (${uniqueBankResults.length}):`);
-      for (const r of uniqueBankResults) {
-        const acc = accounts.find(a => a?.iban?.trim().slice(-7) === r.sourceName);
+      const seenBank = new Set<string>();
+      const uniqueAccounts = accounts.filter((acc: any) => {
+        const rawId = acc?.iban?.trim().slice(-7);
+        const sn = rawId ? this.deriveSourceName(rawId, acc?.currency) : null;
+        if (!sn || seenBank.has(sn)) return false;
+        seenBank.add(sn);
+        return true;
+      });
+      console.log(`  Bank (${uniqueAccounts.length}):`);
+      for (const acc of uniqueAccounts) {
+        const rawId = acc?.iban?.trim().slice(-7);
+        const sn = this.deriveSourceName(rawId, acc?.currency);
         const cid = acc?.consentId ?? acc?.relatedConsents?.[0]?.resourceId ?? '—';
-        console.log(`    ${r.action === 'created' ? '+' : '~'}  ${r.sourceName}   consentId=${cid}`);
+        console.log(`    •  ${sn}   consentId=${cid}`);
       }
     }
     if (cardError) {
       console.log(`  ✗ Cards — ERROR: ${cardError}`);
     } else {
-      console.log(`  Cards (${cardResults.length}):`);
-      for (const r of cardResults) {
-        const card = cards.find(c => c?.maskedPan?.slice(-4) === r.sourceName);
+      const seenCard = new Set<string>();
+      const uniqueCards = cards.filter((card: any) => {
+        const rawId = card?.maskedPan?.match(/(\d{4})$/)?.[1];
+        const sn = rawId ? this.deriveSourceName(rawId, card?.currency) : null;
+        if (!sn || seenCard.has(sn)) return false;
+        seenCard.add(sn);
+        return true;
+      });
+      console.log(`  Cards (${uniqueCards.length}):`);
+      for (const card of uniqueCards) {
+        const rawId = card?.maskedPan?.match(/(\d{4})$/)?.[1];
+        const sn = this.deriveSourceName(rawId, card?.currency);
         const cid = card?.consentId ?? card?.relatedConsents?.[0]?.resourceId ?? '—';
-        console.log(`    ${r.action === 'created' ? '+' : '~'}  ${r.sourceName}   consentId=${cid}`);
+        console.log(`    •  ${sn}   consentId=${cid}`);
       }
     }
     if (moduleAccessUpdated) console.log(`  ✓ Module access enabled`);
     console.log(`════════════════════════════════════\n`);
 
-    void this.prePopulateSourceResults(firebaseId, accounts, cards)
+    // Awaited (not fire-and-forget): callers that await refreshUserSources —
+    // notably the admin pull-source self-heal — read user_source_sync_state
+    // immediately after. If this stayed `void`, refreshUserSources would
+    // resolve before resourceId/consentId are written, and the follow-up
+    // retrySource would wrongly see "resourceId not found in DB" (a race).
+    // .catch keeps a write failure non-fatal, same as before.
+    await this.prePopulateSourceResults(firebaseId, accounts, cards)
       .catch(err => this.logger.warn(`${prefix} prePopulateSourceResults failed | ${err?.message}`));
 
     // Stamp the freshness marker — at least one of bank/card succeeded, so the
     // login path can trust the Source rows for the next 24h.
     if (!bankError || !cardError) {
-      void this.userSyncStateService.markSourcesRefreshed(firebaseId)
+      await this.userSyncStateService.markSourcesRefreshed(firebaseId)
         .catch(err => this.logger.warn(`${prefix} markSourcesRefreshed failed | ${err?.message}`));
     }
   }
 
 
   /**
-   * Save transactions to JSON files for inspection
-   * Creates two files: raw response and simplified transactions
-   * @returns File paths if successful, null if failed
+   * Write per-source debug files for inspection. For each bank account or card,
+   * emits two files in src/feezback/transactions-data:
+   *   - <type>-full-<paymentIdentifier>-<timestamp>.json   (raw Feezback transactions)
+   *   - <type>-simple-<paymentIdentifier>-<timestamp>.json (normalized rows we persist)
+   *
+   * Best-effort — errors are swallowed since this is a dev/debug aid.
    */
-  saveTransactionsToFile(
+  private saveSourceTransactionsToFile(
+    type: 'bank' | 'card',
+    paymentIdentifier: string,
     firebaseId: string,
-    transactions: any[],
-    transactionsByAccount: { [accountName: string]: any[] },
-    accountInfoMap: { [accountName: string]: any } = {},
-  ): { raw: string | null; simplified: string | null } {
-    const result = { raw: null, simplified: null };
+    rawTransactions: any[],
+    normalizedTransactions: NormalizedTransaction[],
+    timestamp: string,
+  ): { paymentIdentifier: string; full: string | null; simple: string | null } {
+    const result = { paymentIdentifier, full: null as string | null, simple: null as string | null };
+    if (!paymentIdentifier) return result;
 
     try {
-      // Use __dirname relative path or process.cwd()
       const baseDir = process.cwd();
       const outputDir = path.join(baseDir, 'src', 'feezback', 'transactions-data');
-
-      // this.logger.log(`Attempting to save transactions to: ${outputDir}`);
-      // this.logger.log(`Current working directory: ${baseDir}`);
-
-      // Create directory if it doesn't exist
       if (!fs.existsSync(outputDir)) {
-        // this.logger.log(`Creating directory: ${outputDir}`);
         fs.mkdirSync(outputDir, { recursive: true });
       }
 
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-
-      // ===== FILE 1: Raw response as-is =====
-      const rawFileName = `transactions-raw-${firebaseId}-${timestamp}.json`;
-      const rawFilePath = path.join(outputDir, rawFileName);
-
-      const rawOutput = {
-        transactions: transactions,
-        transactionsByAccount: transactionsByAccount,
-        accountInfoMap: accountInfoMap,
-        metadata: {
-          totalTransactions: transactions.length,
-          accountsProcessed: Object.keys(transactionsByAccount).length,
-          dateGenerated: new Date().toISOString(),
-          firebaseId,
-        },
+      const metadata = {
+        type,
+        paymentIdentifier,
+        firebaseId,
+        dateGenerated: new Date().toISOString(),
+        rawTransactionCount: rawTransactions.length,
+        normalizedTransactionCount: normalizedTransactions.length,
       };
 
-      fs.writeFileSync(rawFilePath, JSON.stringify(rawOutput, null, 2), 'utf8');
+      const fullFilePath = path.join(outputDir, `${type}-full-${paymentIdentifier}-${timestamp}.json`);
+      fs.writeFileSync(fullFilePath, JSON.stringify({ metadata, transactions: rawTransactions }, null, 2), 'utf8');
+      if (fs.existsSync(fullFilePath)) result.full = fullFilePath;
 
-      if (fs.existsSync(rawFilePath)) {
-        const stats = fs.statSync(rawFilePath);
-        // this.logger.log(`✅ Raw transactions saved to: ${rawFilePath}`);
-        // this.logger.log(`   File size: ${(stats.size / 1024).toFixed(2)} KB`);
-        result.raw = rawFilePath;
-      }
-
-      // ===== FILE 2: Simplified transactions with only essential fields =====
-      const simplifiedFileName = `transactions-simplified-${firebaseId}-${timestamp}.json`;
-      const simplifiedFilePath = path.join(outputDir, simplifiedFileName);
-
-      // Create a map to find which account a transaction belongs to
-      const transactionToAccountMap: { [transactionId: string]: string } = {};
-      Object.keys(transactionsByAccount).forEach(accountName => {
-        const accountTxs = transactionsByAccount[accountName] || [];
-        accountTxs.forEach((tx: any) => {
-          const txId = tx.transactionId;
-          if (txId) {
-            transactionToAccountMap[txId] = accountName;
-          }
-        });
-      });
-
-      const simplifiedTransactions = transactions.map(tx => {
-        const txId = tx.transactionId;
-        const accountName = transactionToAccountMap[txId];
-        const accountInfo = accountName ? accountInfoMap[accountName] : null;
-
-        // Determine source account identifier
-        let sourceAccount: string | null = null;
-        if (accountInfo) {
-          // For bank accounts, use IBAN
-          if (accountInfo.iban) {
-            sourceAccount = accountInfo.iban;
-          }
-          // For credit cards, use maskedPan
-          else if (accountInfo.maskedPan) {
-            sourceAccount = accountInfo.maskedPan;
-          }
-          // Fallback to account name
-          else if (accountInfo.name) {
-            sourceAccount = accountInfo.name;
-          }
-        }
-
-        return {
-          // Unique identifier
-          transactionId: txId || null,
-
-          // Dates
-          bookingDate: tx.bookingDate || null,
-          valueDate: tx.valueDate || null,
-          referenceTime: tx.referenceTime || null,
-
-          // Amount
-          amount: tx.transactionAmount?.amount || null,
-          currency: tx.transactionAmount?.currency || null,
-
-          // Category and description
-          // category: tx._aggregate?.category || null,
-          standardName: tx._aggregate?.standardName || null,
-          description: tx.remittanceInformationUnstructured || tx.remittanceInformationStructured || null,
-
-          // Parties
-          creditorName: tx.creditorName || null,
-          debtorName: tx.debtorName || null,
-
-          // Source account (where transaction comes from)
-          sourceAccount: sourceAccount,
-          sourceAccountName: accountName || null,
-          sourceAccountType: accountInfo?.cashAccountType || null, // CACC for bank, CARD for credit card
-
-          // Raw account objects from Feezback — shows which fields are actually present
-          debtorAccount: tx?.debtorAccount || null,
-          creditorAccount: tx?.creditorAccount || null,
-
-          // Computed paymentIdentifier preview (what would be saved to DB, last 7 chars)
-          paymentIdentifierPreview: (
-            tx?.debtorAccount?.iban      ||
-            tx?.creditorAccount?.iban    ||
-            tx?.debtorAccount?.maskedPan ||
-            tx?.creditorAccount?.maskedPan ||
-            sourceAccount                 ||
-            tx?.entryReference            ||
-            null
-          )?.slice(-7) ?? null,
-
-          // Additional info
-          additionalInformation: tx.additionalInformation || null,
-          entryReference: tx.entryReference || null,
-          consentId: tx.consentId || null,
-        };
-      });
-
-      const simplifiedOutput = {
-        metadata: {
-          totalTransactions: simplifiedTransactions.length,
-          accountsProcessed: Object.keys(transactionsByAccount).length,
-          dateGenerated: new Date().toISOString(),
-          firebaseId,
-        },
-        transactions: simplifiedTransactions,
-        transactionsByAccount: Object.keys(transactionsByAccount).reduce((acc, accountName) => {
-          const accountTxs = transactionsByAccount[accountName] || [];
-          acc[accountName] = accountTxs.map(tx => {
-            return {
-              transactionId: tx.transactionId || null,
-              bookingDate: tx.bookingDate || null,
-              valueDate: tx.valueDate || null,
-              amount: tx.transactionAmount?.amount || null,
-              currency: tx.transactionAmount?.currency || null,
-              // category: tx._aggregate?.category || null,
-              standardName: tx._aggregate?.standardName || null,
-              description: tx.remittanceInformationUnstructured || null,
-            };
-          });
-          return acc;
-        }, {} as { [key: string]: any[] }),
-      };
-
-      fs.writeFileSync(simplifiedFilePath, JSON.stringify(simplifiedOutput, null, 2), 'utf8');
-
-      if (fs.existsSync(simplifiedFilePath)) {
-        const stats = fs.statSync(simplifiedFilePath);
-        // this.logger.log(`✅ Simplified transactions saved to: ${simplifiedFilePath}`);
-        // this.logger.log(`   File size: ${(stats.size / 1024).toFixed(2)} KB`);
-        result.simplified = simplifiedFilePath;
-      }
-
-      return result;
-    } catch (error: any) {
-      // this.logger.error(`❌ Failed to save transactions to file: ${error.message}`, error.stack);
-      // this.logger.error(`   Error code: ${error.code}`);
-      // this.logger.error(`   Error path: ${error.path}`);
-      return result;
+      const simpleFilePath = path.join(outputDir, `${type}-simple-${paymentIdentifier}-${timestamp}.json`);
+      fs.writeFileSync(simpleFilePath, JSON.stringify({ metadata, transactions: normalizedTransactions }, null, 2), 'utf8');
+      if (fs.existsSync(simpleFilePath)) result.simple = simpleFilePath;
+    } catch {
+      /* best-effort debug aid; ignore failures */
     }
+
+    return result;
   }
 
   getTppId(): string {
@@ -639,6 +502,17 @@ export class FeezbackService {
     });
     const cards = this.dedupeCardsPreferActive(cardsResponse?.cards);
     // const cards = cardsResponse?.cards || [];
+    const cardUpsertItems = (cards ?? [])
+      .map((card: any) => {
+        const rawId = card?.maskedPan?.match(/(\d{4})$/)?.[1];
+        if (!rawId) return null;
+        return {
+          sourceName: this.deriveSourceName(rawId, card?.currency),
+          resourceId: card?.resourceId ?? null,
+        };
+      })
+      .filter((x): x is { sourceName: string; resourceId: string | null } => x !== null);
+    await this.upsertSources(userId, SourceType.CREDIT_CARD, cardUpsertItems);
     const filteredCards = cardResourceId
       ? cards.filter(card => card?.resourceId === cardResourceId)
       : cards;
@@ -646,11 +520,11 @@ export class FeezbackService {
     const cardInfoMap: Record<string, any> = {};
     const cardsResult: any[] = [];
 
-    // ✅ נשמור טרנזקציות עם מטא (רק לקובץ/דיבוג) + רגילות ל-DB
+    // ✅ נשמור טרנזקציות עם מטא — משמש גם ל-DB וגם לפיצול לקובץ דיבוג לפי כרטיס
     const allTransactionsForDb: any[] = [];
-    const allTransactionsForFile: any[] = [];
 
-    // ✅ חלוקה לפי כרטיס לקובץ
+    // ✅ חלוקה לפי כרטיס לקובץ — keyed by card.resourceId (cardId), not name.
+    // displayName/maskedPan are still preserved inside __cardMeta for human-friendly logs.
     const transactionsByCard: Record<string, any[]> = {};
 
     const cardErrors: Array<{
@@ -658,6 +532,7 @@ export class FeezbackService {
       consentId: string | null;
       displayName: string;
       maskedPan: string | null;
+      currency: string | null;
       status?: number;
       code?: string;
       message: string;
@@ -704,6 +579,7 @@ export class FeezbackService {
             cardResourceId: cardId,
             displayName: cardName,
             maskedPan: card?.maskedPan ?? null,
+            currency: card?.currency ?? null,
             consentId,
           };
           const transactionsWithMeta = transactions.map((tx: any) => ({ ...tx, __cardMeta: cardMeta }));
@@ -735,26 +611,17 @@ export class FeezbackService {
 
       if (failed) {
         const { status, code, message, responseData } = (result as any).err;
-        cardErrors.push({ cardResourceId: cardId, consentId, displayName: cardName, maskedPan: card?.maskedPan ?? null, status, code, message, responseData });
-        if (!(cardName in transactionsByCard)) {
-          transactionsByCard[cardName] = [{ __cardMeta: { cardResourceId: cardId, displayName: cardName, maskedPan: card?.maskedPan ?? null, consentId }, __error: { status, code, message } }];
+        cardErrors.push({ cardResourceId: cardId, consentId, displayName: cardName, maskedPan: card?.maskedPan ?? null, currency: card?.currency ?? null, status, code, message, responseData });
+        if (!(cardId in transactionsByCard)) {
+          transactionsByCard[cardId] = [{ __cardMeta: { cardResourceId: cardId, displayName: cardName, maskedPan: card?.maskedPan ?? null, currency: card?.currency ?? null, consentId }, __error: { status, code, message } }];
         }
       } else {
-        transactionsByCard[cardName] = transactionsWithMeta;
-        allTransactionsForFile.push(...transactionsWithMeta);
+        transactionsByCard[cardId] = transactionsWithMeta;
         allTransactionsForDb.push(...transactionsWithMeta);
         cardsResult.push({ cardResourceId: cardId, displayName: cardName, maskedPan: card?.maskedPan, consentId, transactions });
       }
     }
 
-
-    // ✅ שמירה לקובץ פעם אחת בסוף (עם __cardMeta)
-    const savedFilePaths = this.saveTransactionsToFile(
-      userId,
-      allTransactionsForFile,
-      transactionsByCard,
-      cardInfoMap,
-    );
 
     // Build valid-card set from cards successfully fetched (withInvalid=false already filters at API level).
     // Filtering by cardResourceId keeps historical transactions after consent renewal, where old
@@ -774,6 +641,24 @@ export class FeezbackService {
     } catch (err: any) {
       this.logger.error(`[CardFetch] Normalize failed | userId=${userId?.substring(0, 8)}... | error=${err.message}`, err.stack);
       processingError = err.message;
+    }
+
+    // Per-card debug files: one full + one simple per card. paymentIdentifier
+    // includes the currency suffix so multi-currency cards (rare) get distinct files.
+    // transactionsByCard is keyed by cardId; we read display info from __cardMeta.
+    const fileTimestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const savedFiles: Array<{ paymentIdentifier: string; full: string | null; simple: string | null }> = [];
+    for (const cardId of Object.keys(transactionsByCard)) {
+      const txs = transactionsByCard[cardId] || [];
+      const maskedPan: string | undefined = txs[0]?.__cardMeta?.maskedPan ?? undefined;
+      const cardCurrency: string | null = txs[0]?.__cardMeta?.currency ?? null;
+      const rawId = typeof maskedPan === 'string' ? maskedPan.match(/(\d{4})$/)?.[1] : undefined;
+      if (!rawId) continue;
+      const paymentIdentifier = this.deriveSourceName(rawId, cardCurrency);
+      const normalizedForSource = normalizedTransactions.filter(n => n.paymentIdentifier === paymentIdentifier);
+      savedFiles.push(
+        this.saveSourceTransactionsToFile('card', paymentIdentifier, userId, txs, normalizedForSource, fileTimestamp),
+      );
     }
 
     const cardNormalizedCount = normalizedTransactions.length;
@@ -807,7 +692,7 @@ export class FeezbackService {
       cardsSucceeded: cardsResult.length,
       cardsFailed: cardErrors.length,
 
-      savedFilePaths,
+      savedFiles,
       normalizedTransactions,
       processingError,
       cards: cardsResult,
@@ -816,17 +701,37 @@ export class FeezbackService {
       syncSummary,
     };
 
-    // Fire-and-forget: ensure all cards are persisted as Source rows.
-    void this.ensureSources(userId).catch(e =>
-      this.logger.warn(`[CardFetch] ensureSources failed | ${e?.message}`),
-    );
-
     return { ...result, __durationMs: Date.now() - tCard };
   }
 
-  // private sleep(ms: number) {
-  //   return new Promise(resolve => setTimeout(resolve, ms));
-  // }
+  private sleep(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Runs `fn` over `items` with at most `limit` concurrent executions,
+   * preserving input order in the returned array. Used to cap how many
+   * per-account Feezback calls fire at once (unbounded Promise.all over many
+   * accounts can trip Feezback rate-limits and cause spurious failures).
+   */
+  private async mapWithConcurrency<T, R>(
+    items: T[],
+    limit: number,
+    fn: (item: T, index: number) => Promise<R>,
+  ): Promise<R[]> {
+    const results: R[] = new Array(items.length);
+    let next = 0;
+    const worker = async (): Promise<void> => {
+      while (true) {
+        const i = next++;
+        if (i >= items.length) return;
+        results[i] = await fn(items[i], i);
+      }
+    };
+    const workerCount = Math.max(1, Math.min(limit, items.length));
+    await Promise.all(Array.from({ length: workerCount }, () => worker()));
+    return results;
+  }
 
   async getAndSaveUserCardTransactions(
     userId: string,
@@ -940,6 +845,18 @@ export class FeezbackService {
       return true;
     });
 
+    const bankUpsertItems = accounts
+      .map((acc: any) => {
+        const rawId = acc?.iban?.trim().slice(-7);
+        if (!rawId) return null;
+        return {
+          sourceName: this.deriveSourceName(rawId, acc?.currency),
+          resourceId: acc?.resourceId ?? null,
+        };
+      })
+      .filter((x): x is { sourceName: string; resourceId: string | null } => x !== null);
+    await this.upsertSources(firebaseId, SourceType.BANK_ACCOUNT, bankUpsertItems);
+
     if (!accounts || accounts.length === 0) {
       // No bank accounts linked yet (card-only user or pending consent) — not an error.
       return {
@@ -952,9 +869,13 @@ export class FeezbackService {
       };
     }
 
-    // Step 2: Fetch transactions per account — all accounts in parallel
-    const accountFetchResults = await Promise.all(
-      accounts.map(async (account: any) => {
+    // Step 2: Fetch transactions per account — bounded parallelism so a user
+    // with many accounts doesn't fire one unbounded burst at Feezback (429s).
+    const ACCOUNT_FETCH_CONCURRENCY = 4;
+    const accountFetchResults = await this.mapWithConcurrency(
+      accounts,
+      ACCOUNT_FETCH_CONCURRENCY,
+      async (account: any) => {
         try {
           if (!account._links?.transactions?.href) {
             this.logger.warn(`[BankFetch] Account "${account.iban?.slice(-7) ?? account.name}" has no transactions link — skipping (not yet provisioned)`);
@@ -968,11 +889,14 @@ export class FeezbackService {
             dateTo,
           );
           const rawTransactions = this.extractBankTransactions(transactionsResponse);
-          // Stamp the account's IBAN directly onto each transaction so normalization
-          // can read it without relying on the transactionToAccountMap lookup.
+          // Stamp the account's IBAN + currency directly onto each transaction so
+          // normalization can attribute the tx to the right Source row without relying
+          // on the transactionToAccountMap lookup (which collides when two sub-accounts
+          // share the same `name`, e.g., ILS + USD on the same IBAN).
           const transactions = rawTransactions.map((tx: any) => ({
             ...tx,
             __accountIban: account.iban ?? null,
+            __accountCurrency: account.currency ?? null,
           }));
           return { account, transactions, failed: false, error: null };
         } catch (error: any) {
@@ -982,29 +906,35 @@ export class FeezbackService {
           );
           return { account, transactions: [] as any[], failed: true, error };
         }
-      }),
+      },
     );
 
+    // All maps below are keyed by account.resourceId — Feezback's unique per-account
+    // identifier. Previously they were keyed by account.name, which collides when two
+    // sub-accounts (e.g., ILS + USD on the same IBAN) share the same name. resourceId
+    // is always unique per fetched account, eliminating that whole class of bugs.
     const allTransactions: any[] = [];
-    const accountTransactionsMap: { [accountName: string]: any[] } = {};
+    const accountTransactionsMap: { [accountResourceId: string]: any[] } = {};
     let accountsFailed = 0;
-    const bankErrors: Array<{ sourceId: string; displayName: string; iban?: string; status?: number; message: string }> = [];
+    const bankErrors: Array<{ sourceId: string; displayName: string; iban?: string; currency?: string; status?: number; message: string }> = [];
 
     for (const { account, transactions, failed, error } of accountFetchResults as any[]) {
+      const accId: string | undefined = account?.resourceId ?? account?.iban ?? account?.name;
       if (failed) {
         accountsFailed++;
         bankErrors.push({
-          sourceId: account.resourceId ?? account.iban ?? account.name,
+          sourceId: accId ?? 'unknown',
           displayName: account.name,
           iban: account.iban,
+          currency: account.currency,
           status: error?.status,
           message: error?.message || 'Unknown error',
         });
-      } else {
-        if (accountTransactionsMap[account.name]) {
-          accountTransactionsMap[account.name].push(...transactions);
+      } else if (accId) {
+        if (accountTransactionsMap[accId]) {
+          accountTransactionsMap[accId].push(...transactions);
         } else {
-          accountTransactionsMap[account.name] = transactions;
+          accountTransactionsMap[accId] = transactions;
         }
         if (transactions.length > 0) {
           allTransactions.push(...transactions);
@@ -1012,26 +942,21 @@ export class FeezbackService {
       }
     }
 
-    // Build account info/mapping for legacy save + normalization
-    const accountInfoMap: { [accountName: string]: any } = {};
+    // Build account info/mapping for legacy save + normalization (keyed by resourceId).
+    const accountInfoMap: { [accountResourceId: string]: any } = {};
     (accountsResponse?.accounts || []).forEach((acc: any) => {
-      accountInfoMap[acc.name] = acc;
+      const id = acc?.resourceId ?? acc?.iban ?? acc?.name;
+      if (id) accountInfoMap[id] = acc;
     });
 
     const transactionToAccountMap: { [transactionId: string]: string } = {};
-    Object.keys(accountTransactionsMap).forEach(accountName => {
-      (accountTransactionsMap[accountName] || []).forEach((tx: any) => {
+    Object.keys(accountTransactionsMap).forEach(accResourceId => {
+      (accountTransactionsMap[accResourceId] || []).forEach((tx: any) => {
         if (tx.transactionId) {
-          transactionToAccountMap[tx.transactionId] = accountName;
+          transactionToAccountMap[tx.transactionId] = accResourceId;
         }
       });
     });
-
-    // Save to file for inspection
-    let savedFilePaths: { raw: string | null; simplified: string | null } = { raw: null, simplified: null };
-    if (allTransactions.length > 0) {
-      savedFilePaths = this.saveTransactionsToFile(firebaseId, allTransactions, accountTransactionsMap, accountInfoMap);
-    }
 
     const response: any = {
       transactions: allTransactions,
@@ -1041,7 +966,7 @@ export class FeezbackService {
       totalTransactions: allTransactions.length,
       transactionsByAccount: accountTransactionsMap,
       accountInfoMap,
-      savedFilePaths,
+      savedFiles: [],
     };
 
     if (allTransactions.length === 0) {
@@ -1078,7 +1003,26 @@ export class FeezbackService {
       response.normalizedTransactions = [];
     }
 
-    const bankNormalizedCount = (response.normalizedTransactions as NormalizedTransaction[]).length;
+    // Per-account debug files: one full + one simple per bank account. We iterate
+    // accountFetchResults (not accountTransactionsMap) because the map is keyed by
+    // account.name — when two sub-accounts share a name (e.g., ILS + USD on the
+    // same IBAN), the map merges them. The fetch-results array preserves each
+    // sub-account's own transactions distinctly.
+    const fileTimestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const normalizedRows = response.normalizedTransactions as NormalizedTransaction[];
+    for (const { account, transactions, failed } of accountFetchResults as any[]) {
+      if (failed) continue;
+      const iban: string | undefined = account?.iban;
+      const rawId = iban?.trim().slice(-7);
+      if (!rawId) continue;
+      const paymentIdentifier = this.deriveSourceName(rawId, account?.currency);
+      const normalizedForSource = normalizedRows.filter(n => n.paymentIdentifier === paymentIdentifier);
+      response.savedFiles.push(
+        this.saveSourceTransactionsToFile('bank', paymentIdentifier, firebaseId, transactions, normalizedForSource, fileTimestamp),
+      );
+    }
+
+    const bankNormalizedCount = normalizedRows.length;
     response.syncSummary = {
       bank: {
         banksProcessed: response.accountsProcessed,
@@ -1092,11 +1036,6 @@ export class FeezbackService {
       },
     };
 
-    // Fire-and-forget: ensure all bank accounts are persisted as Source rows.
-    void this.ensureSources(firebaseId).catch(e =>
-      this.logger.warn(`[BankFetch] ensureSources failed | ${e?.message}`),
-    );
-
     return { ...response, __durationMs: Date.now() - tBank };
   }
 
@@ -1106,9 +1045,14 @@ export class FeezbackService {
 
   private normalizeBankTransactions(
     transactions: any[],
-    accountInfoMap: { [accountName: string]: any },
+    accountInfoMap: { [accountResourceId: string]: any },
     transactionToAccountMap: { [transactionId: string]: string },
     validIbans: Set<string>,
+    // Single-account pull knows every tx belongs to one account and overrides
+    // paymentIdentifier itself, so a missing IBAN is expected — not an anomaly
+    // worth alarming on (unlike the multi-account full sync, where it means a
+    // tx couldn't be attributed). When true, suppress the missing-IBAN log.
+    singleAccountMode = false,
   ): NormalizedTransaction[] {
     // Filter by account IBAN — keeps all transactions for accounts with a valid consent,
     // including historical transactions that carry an older consentId after consent renewal.
@@ -1123,12 +1067,11 @@ export class FeezbackService {
       return true;
     });
 
-    // Deduplicate by aspspOriginalId — Feezback may return the same physical transaction
-    // multiple times with different transactionId values.
-    // Keep the entry with the latest referenceTime.
+    // In-response dedup by transactionId — cheap safety net in case Feezback ever
+    // returns the same tx twice in one payload. Keep the entry with the latest referenceTime.
     const deduped = new Map<string, any>();
     for (const tx of validTxs) {
-      const key = tx?.aspspOriginalId || tx?.transactionId;
+      const key = tx?.transactionId;
       if (!key) continue;
       const existing = deduped.get(key);
       if (!existing) {
@@ -1149,10 +1092,9 @@ export class FeezbackService {
     let droppedInvalidAmount = 0;
 
     for (const tx of dedupedTransactions) {
-      // Use aspspOriginalId as the stable key when available — Feezback may return
-      // different transactionId values for the same physical transaction across calls
-      // (e.g. Quick sync vs Full sync). aspspOriginalId is the bank's own stable ID.
-      const externalId = tx?.aspspOriginalId || tx?.transactionId;
+      // Feezback's transactionId is now guaranteed unique + stable per physical tx
+      // across sync calls, so we use it directly as the external id.
+      const externalId = tx?.transactionId;
       if (!externalId || typeof externalId !== 'string' || externalId.trim() === '') {
         droppedMissingId++;
         continue;
@@ -1164,13 +1106,16 @@ export class FeezbackService {
       const amount = this.parseTxAmount(tx, 'BANK');
       if (amount === null) { droppedInvalidAmount++; continue; }
 
-      const accountName = transactionToAccountMap[externalId] || null;
-      const accountInfo = accountName ? accountInfoMap[accountName] : null;
+      const accountResourceId = transactionToAccountMap[externalId] || null;
+      const accountInfo = accountResourceId ? accountInfoMap[accountResourceId] : null;
 
       // .slice(-7) matches the format stored in Source.sourceName for bank accounts.
       // TransactionProcessingService.buildBillMap() looks up paymentIdentifier
       // against source.sourceName, so the format must be identical.
-      const fullIdentifier = this.resolveBankPaymentIdentifier(tx, accountInfo);
+      // Currency suffix is appended via deriveSourceName so multi-currency sub-accounts
+      // sharing the same IBAN (e.g., ILS + USD) get distinct paymentIdentifiers.
+      const fullIdentifier = this.resolveBankPaymentIdentifier(tx, accountInfo, singleAccountMode);
+      const accountCurrency = tx?.__accountCurrency ?? accountInfo?.currency ?? null;
 
       result.push({
         externalTransactionId: externalId,
@@ -1179,12 +1124,11 @@ export class FeezbackService {
         currency: tx?.transactionAmount?.currency ?? 'ILS',
         transactionDate,
         paymentDate: this.parseDateCandidate(tx?.valueDate),
-        paymentIdentifier: fullIdentifier.slice(-7),
+        paymentIdentifier: this.deriveSourceName(fullIdentifier.slice(-7), accountCurrency),
         billId: null,
         billName: null,
         businessNumber: null,
         note: tx?.remittanceInformationUnstructured || tx?.additionalInformation || null,
-        rawTransactionId: tx?.aspspOriginalId || tx?.transactionId,
       });
     }
 
@@ -1211,11 +1155,15 @@ export class FeezbackService {
         continue;
       }
 
-      const externalId = this.extractCardExternalId(tx);
-      if (!externalId) { droppedMissingId++; continue; }
+      // Feezback's cardTransactionId is now guaranteed unique + stable per physical tx
+      // across sync calls, so we use it directly as the external id.
+      const externalId = tx?.cardTransactionId;
+      if (!externalId || typeof externalId !== 'string' || externalId.trim() === '') {
+        droppedMissingId++;
+        continue;
+      }
       if (seenCardIds.has(externalId)) continue;
       seenCardIds.add(externalId);
-      const rawCardId: string | undefined = tx?.aspspOriginalId || tx?.cardTransactionId || tx?.transactionId;
 
       const transactionDate = this.parseTxDate(tx, 'CARD');
       if (!transactionDate) { droppedInvalidDate++; continue; }
@@ -1228,6 +1176,9 @@ export class FeezbackService {
       const cardMeta = tx?.__cardMeta || null;
       const cardInfo = cardMeta?.cardResourceId ? cardInfoMap[cardMeta.cardResourceId] : null;
       const { identifier: paymentIdentifier } = this.resolveCardPaymentIdentifier(tx, cardMeta, cardInfo);
+      // Apply currency suffix so a card with non-ILS currency gets a distinct sourceName.
+      const cardCurrency = cardMeta?.currency ?? cardInfo?.currency ?? null;
+      const finalPaymentIdentifier = paymentIdentifier ? this.deriveSourceName(paymentIdentifier, cardCurrency) : paymentIdentifier;
 
       result.push({
         externalTransactionId: externalId,
@@ -1236,12 +1187,11 @@ export class FeezbackService {
         currency,
         transactionDate,
         paymentDate: null,
-        paymentIdentifier,
+        paymentIdentifier: finalPaymentIdentifier,
         billId: null,
         billName: null,
         businessNumber: null,
         note: tx?.transactionDetails || null,
-        rawTransactionId: rawCardId,
       });
     }
 
@@ -1307,28 +1257,6 @@ export class FeezbackService {
 
     return Array.isArray(response) ? response : [];
   }
-
-  private extractCardExternalId(tx: any): string | null {
-    // Prefer aspspOriginalId — the bank's own stable identifier.
-    if (tx?.aspspOriginalId && typeof tx.aspspOriginalId === 'string' && tx.aspspOriginalId.trim() !== '') {
-      return tx.aspspOriginalId;
-    }
-
-    const rawId: string | undefined = tx?.cardTransactionId || tx?.transactionId;
-    if (!rawId || typeof rawId !== 'string' || rawId.trim() === '') return null;
-
-    // Feezback card IDs: feez-{uuid}-{stableNumber}
-    // The UUID changes per API call; only the trailing number is stable.
-    // e.g. feez-ea279d7a-...-358945402  →  feez-card-358945402
-    //      feez-6fd6efba-...-358945402  →  feez-card-358945402  (same tx, different UUID)
-    if (rawId.startsWith('feez-')) {
-      const match = rawId.match(/-(-?\d+)$/);
-      if (match) return `feez-card-${match[1]}`;
-    }
-
-    return rawId;
-  }
-
 
   private parseTxDate(tx: any, source: 'BANK' | 'CARD'): Date | null {
     const candidates = source === 'CARD'
@@ -1397,8 +1325,8 @@ export class FeezbackService {
     return Number.isNaN(parsed) ? null : parsed;
   }
 
-  private resolveBankPaymentIdentifier(tx: any, accountInfo: any): string {
-    const accountReference = this.extractBankAccountReference(tx, accountInfo);
+  private resolveBankPaymentIdentifier(tx: any, accountInfo: any, singleAccountMode = false): string {
+    const accountReference = this.extractBankAccountReference(tx, accountInfo, singleAccountMode);
     if (accountReference) {
       return accountReference;
     }
@@ -1411,7 +1339,7 @@ export class FeezbackService {
     return `feezback-${txId.substring(0, 8)}`;
   }
 
-  private extractBankAccountReference(tx: any, accountInfo: any): string | null {
+  private extractBankAccountReference(tx: any, accountInfo: any, singleAccountMode = false): string | null {
     // Prefer the IBAN stamped directly onto the transaction at fetch time.
     // Fall back to accountInfo (indirect map lookup) and maskedPan.
     const candidates = [
@@ -1426,7 +1354,11 @@ export class FeezbackService {
       }
     }
 
-    console.error(`[extractBankAccountReference] ❌ No IBAN found for transaction | transactionId=${tx?.transactionId} | aspspOriginalId=${tx?.aspspOriginalId}`);
+    // In single-account pull mode a missing IBAN is expected (caller overrides
+    // paymentIdentifier with the known sourceId) — don't alarm on it.
+    if (!singleAccountMode) {
+      console.error(`[extractBankAccountReference] ❌ No IBAN found for transaction | transactionId=${tx?.transactionId} | aspspOriginalId=${tx?.aspspOriginalId}`);
+    }
     return null;
   }
 
@@ -1562,12 +1494,24 @@ export class FeezbackService {
 
   /**
    * True iff the user clicked "Connect Open Banking" within the last
-   * MAX_CONSENT_AGE_MS and no sync has finished AFTER that click — meaning
-   * the webhook-driven sync hasn't fired yet and a login sync would race it.
+   * MAX_CONSENT_AGE_MS and the `UserDataIsAvailable` webhook hasn't completed
+   * discovery for it yet (i.e. `refreshUserSources` hasn't stamped
+   * `lastSourcesRefreshAt` after the consent click).
    *
-   * The max-age guard prevents permanent lockout: if the user abandoned the
-   * Feezback tab or the webhook was lost, lastConsentInitiatedAt would point
-   * at a flow that never completes, and login sync would skip forever.
+   * Discovery — NOT a finished sync — is the "consent processed" signal: since
+   * the webhook no longer triggers a transaction sync (the user pulls manually),
+   * `fullFinishedAt` may never advance. Once discovery runs, Source rows
+   * (consentId + resourceId) exist and a pull can succeed, so the consent flow
+   * is no longer "pending".
+   *
+   * SCOPE: this is ONLY a post-consent dialog-readiness signal — it tells the
+   * post-consent endpoint / dialog whether to keep showing the "waiting for
+   * data-available webhook" loader or enable the manual pull button. It must
+   * NOT gate login/manual sync: the webhook does discovery only and never a
+   * sync, so there is nothing for a login sync to race.
+   *
+   * The max-age guard prevents permanent lockout if the user abandoned the
+   * Feezback tab or the webhook was lost.
    */
   hasUnprocessedConsentFlow(state: UserSyncState | null): boolean {
     const MAX_CONSENT_AGE_MS = 30 * 60_000;
@@ -1575,9 +1519,9 @@ export class FeezbackService {
     if (!consentAt) return false;
     const consentMs = new Date(consentAt).getTime();
     if (Date.now() - consentMs >= MAX_CONSENT_AGE_MS) return false;
-    const syncedAt = state?.fullFinishedAt;
-    if (!syncedAt) return true;
-    return consentMs > new Date(syncedAt).getTime();
+    const discoveredAt = state?.lastSourcesRefreshAt;
+    if (!discoveredAt) return true;
+    return consentMs > new Date(discoveredAt).getTime();
   }
 
   /**
@@ -1613,17 +1557,21 @@ export class FeezbackService {
     for (const acc of accounts) {
       const iban = acc?.iban?.trim();
       if (!iban) continue;
-      const sourceId  = iban.slice(-7);
+      const rawId = iban.slice(-7);
+      const sourceId = this.deriveSourceName(rawId, acc?.currency);
       const consentId = acc?.consentId ?? acc?.relatedConsents?.[0]?.resourceId ?? undefined;
-      sources.push({ type: 'bank', sourceId, consentId });
+      // consentId + resourceId are enough to reconstruct the per-account
+      // transactions URL on demand (see pullOneSource) — no href is stored.
+      sources.push({ type: 'bank', sourceId, resourceId: acc?.resourceId, consentId });
     }
 
     for (const card of cards) {
       const pan  = card?.maskedPan ?? '';
       const last4 = pan.slice(-4);
       if (!last4) continue;
+      const sourceId = this.deriveSourceName(last4, card?.currency);
       const consentId = card?.consentId ?? card?.relatedConsents?.[0]?.resourceId ?? undefined;
-      sources.push({ type: 'card', sourceId: last4, resourceId: card?.resourceId, consentId });
+      sources.push({ type: 'card', sourceId, resourceId: card?.resourceId, consentId });
     }
 
     if (sources.length > 0) {
@@ -1668,17 +1616,11 @@ export class FeezbackService {
       return null;
     });
 
-    // Consent-flow gate (login only): if the user clicked "Connect Open Banking"
-    // within the last 30 min and no sync has finished after that click, the
-    // webhook-driven sync hasn't fired yet — skip the login sync to avoid
-    // racing it. Webhook syncs are exempt (the webhook IS the trigger).
-    // Manual syncs are exempt (explicit user intent).
-    // Centralized here so /sync-status auto-trigger and triggerPostLoginSync
-    // both benefit from the same gate.
-    if (triggeredBy === 'login' && this.hasUnprocessedConsentFlow(preSyncState)) {
-      console.log(`⏭️  [FullSync] Skipped — unprocessed consent flow, webhook will sync | firebaseId=${masked}\n`);
-      return;
-    }
+    // NOTE: there is intentionally NO unprocessed-consent gate here. The
+    // webhook only runs discovery (refreshUserSources), never a sync, so a
+    // login/manual sync over the user's existing sources can't race it.
+    // hasUnprocessedConsentFlow is now used solely for post-consent dialog
+    // readiness (see postConsentSync) — do NOT re-add a sync gate on it.
 
     // Atomically acquire the DB-level "sync running" lock. This is the
     // multi-replica safety net — the in-memory Map above only dedupes within
@@ -1712,44 +1654,52 @@ export class FeezbackService {
   private buildSourceResults(bankRes: any, cardRes: any): SourceResult[] {
     const results: SourceResult[] = [];
 
-    // Bank accounts — success entries (grouped by IBAN to handle duplicate account names)
+    // Bank accounts — one SourceResult per sub-account. Both maps are now keyed by
+    // account.resourceId, so multi-currency sub-accounts on the same IBAN
+    // (e.g., ILS + USD) get distinct entries.
     if (bankRes && bankRes !== null) {
-      const byAccount = bankRes.transactionsByAccount ?? {};
-      const accountInfoMap: { [name: string]: any } = bankRes.accountInfoMap ?? {};
+      const byAccount: { [accResourceId: string]: any[] } = bankRes.transactionsByAccount ?? {};
+      const accountInfoMap: { [accResourceId: string]: any } = bankRes.accountInfoMap ?? {};
 
-      const ibanBuckets = new Map<string, number>();
-      const ibanConsentMap = new Map<string, string | undefined>();
-      for (const [accountName, txs] of Object.entries<any[]>(byAccount)) {
-        const acc = accountInfoMap[accountName];
+      const sourceBuckets = new Map<string, { count: number; consentId: string | undefined; resourceId: string | undefined }>();
+      for (const [accResourceId, txs] of Object.entries<any[]>(byAccount)) {
+        const acc = accountInfoMap[accResourceId];
         const iban: string | undefined = acc?.iban;
-        const key = iban ? iban.slice(-7) : accountName;
-        ibanBuckets.set(key, (ibanBuckets.get(key) ?? 0) + (Array.isArray(txs) ? txs.length : 0));
-        if (!ibanConsentMap.has(key)) {
-          ibanConsentMap.set(key, acc?.consentId ?? acc?.relatedConsents?.[0]?.resourceId ?? undefined);
-        }
-      }
-
-      // Scale raw per-IBAN counts to post-consent-filter total so SYNC RESULTS shows valid counts.
-      const bankRawTotal = Array.from(ibanBuckets.values()).reduce((a, b) => a + b, 0);
-      const bankValidTotal = (bankRes.normalizedTransactions as any[] ?? []).length;
-      const scale = bankRawTotal > 0 ? bankValidTotal / bankRawTotal : 0;
-
-      for (const [ibanKey, rawCount] of ibanBuckets) {
-        results.push({
-          type: 'bank',
-          sourceId: ibanKey,
-          consentId: ibanConsentMap.get(ibanKey),
-          status: 'success',
-          transactionCount: Math.round(rawCount * scale),
+        const rawKey = iban ? iban.slice(-7) : accResourceId;
+        const sourceId = iban ? this.deriveSourceName(rawKey, acc?.currency) : rawKey;
+        const existing = sourceBuckets.get(sourceId);
+        const count = (existing?.count ?? 0) + (Array.isArray(txs) ? txs.length : 0);
+        sourceBuckets.set(sourceId, {
+          count,
+          consentId: existing?.consentId ?? acc?.consentId ?? acc?.relatedConsents?.[0]?.resourceId ?? undefined,
+          resourceId: existing?.resourceId ?? acc?.resourceId ?? undefined,
         });
       }
 
-      // Bank accounts — failed entries (use IBAN last-7 as sourceId for consistency with success)
-      for (const err of bankRes.bankErrors ?? []) {
-        const ibanKey = err.iban ? err.iban.slice(-7) : null;
+      // Scale raw per-source counts to post-consent-filter total so SYNC RESULTS shows valid counts.
+      const bankRawTotal = Array.from(sourceBuckets.values()).reduce((sum, b) => sum + b.count, 0);
+      const bankValidTotal = (bankRes.normalizedTransactions as any[] ?? []).length;
+      const scale = bankRawTotal > 0 ? bankValidTotal / bankRawTotal : 0;
+
+      for (const [sourceId, bucket] of sourceBuckets) {
         results.push({
           type: 'bank',
-          sourceId: ibanKey ?? err.sourceId,
+          sourceId,
+          resourceId: bucket.resourceId,
+          consentId: bucket.consentId,
+          status: 'success',
+          transactionCount: Math.round(bucket.count * scale),
+        });
+      }
+
+      // Bank accounts — failed entries. err.currency is now propagated from the fetcher,
+      // so the failed sourceId can include the currency suffix to match the right Source row.
+      for (const err of bankRes.bankErrors ?? []) {
+        const ibanRaw = err.iban ? err.iban.slice(-7) : null;
+        const sourceId = ibanRaw ? this.deriveSourceName(ibanRaw, err.currency ?? null) : (err.sourceId ?? 'unknown');
+        results.push({
+          type: 'bank',
+          sourceId,
           status: 'failed',
           transactionCount: 0,
           error: err.message,
@@ -1769,10 +1719,11 @@ export class FeezbackService {
       for (const card of cardRes.cards ?? []) {
         const pan   = card.maskedPan ?? '';
         const last4 = pan.slice(-4) || card.cardResourceId;
+        const sourceId = pan ? this.deriveSourceName(last4, card.currency) : last4;
         const rawCardCount = Array.isArray(card.transactions) ? card.transactions.length : 0;
         results.push({
           type: 'card',
-          sourceId:   last4,
+          sourceId,
           resourceId: card.cardResourceId,
           consentId:  card.consentId ?? undefined,
           status: 'success',
@@ -1783,9 +1734,12 @@ export class FeezbackService {
       for (const err of cardRes.cardErrors ?? []) {
         const pan   = err.maskedPan ?? '';
         const last4 = pan.slice(-4) || err.cardResourceId;
+        // err.currency is propagated by the fetcher, so the failed sourceId carries the
+        // suffix and matches the corresponding Source row correctly.
+        const sourceId = pan ? this.deriveSourceName(last4, err.currency ?? null) : last4;
         results.push({
           type: 'card',
-          sourceId:   last4,
+          sourceId,
           resourceId: err.cardResourceId,
           consentId:  err.consentId ?? undefined,
           status: 'failed',
@@ -1913,8 +1867,11 @@ export class FeezbackService {
       const NON_FRESH_STATUSES = ['completed', 'running', 'failed'];
       const syncHasRun = !!syncState &&
         NON_FRESH_STATUSES.includes(syncState.fullProcessStatus as string);
-      // Webhook always forces a sync — Feezback signaled new data is ready.
-      if (syncHasRun && triggeredBy !== 'webhook') {
+      // Only LOGIN respects the cache: if a prior sync exists it either retries
+      // pending sources or skips. MANUAL always runs a fresh full sync
+      // regardless of cache (explicit user intent). WEBHOOK always forces a
+      // fresh sync (Feezback signaled new data is ready).
+      if (syncHasRun && triggeredBy === 'login') {
         const sourceRows = await this.userSyncStateService.getSourceResults(firebaseId);
         const pendingSources = sourceRows.filter(
           s => s.status === 'failed' || s.status === 'not_synced',
@@ -1988,15 +1945,15 @@ export class FeezbackService {
         await this.userSyncStateService.updateSourceResults(firebaseId, sourceResults).catch(() => {});
 
         console.log(`════════════════════════════════════`);
-        console.log(`  SYNC RESULTS — ${processStatus === 'completed' ? '✅ OK' : '⚠️  ERRORS'}`);
+        console.log(`  SYNC RESULTS [${label}] — ${processStatus === 'completed' ? '✅ OK' : '⚠️  ERRORS'}`);
         console.log(`════════════════════════════════════`);
         for (const r of sourceResults) {
           const icon = r.status === 'success' ? '✓' : '✗';
           const typeLabel = r.type === 'bank' ? 'Bank' : 'Card';
           const id = r.type === 'bank' ? r.sourceId : `*${r.sourceId}`;
           const detail = r.status === 'success'
-            ? `${r.transactionCount} valid`
-            : `ERROR: ${r.error ?? 'unknown'}`;
+            ? `SUCCESS — ${r.transactionCount} transactions`
+            : `FAILED — ${r.error ?? 'unknown'}`;
           console.log(`  ${icon}  ${typeLabel.padEnd(4)} ${id.padEnd(20)} ${detail}`);
         }
         if (sourceResults.length === 0) console.log(`  (no sources)`);
@@ -2012,10 +1969,43 @@ export class FeezbackService {
           : 'FULL SYNC';
 
       const result = await runPass(window.from, window.to, syncLabel);
+
+      // ── Auto-retry sources that failed in the initial pass ──────────────
+      // 5s between attempts, up to 2 retries (3 attempts total per source).
+      let finalProcessStatus = result.processStatus;
+      let finalResultStatus: 'success' | 'partial_success' | 'failed' = result.phase.resultStatus;
+      let finalFailureReason = result.phase.hasErrors
+        ? result.phase.diagnostics.errors.join(', ')
+        : undefined;
+
+      const afterPass = await this.userSyncStateService
+        .getSourceResults(firebaseId)
+        .catch(() => [] as SourceResult[]);
+      const failedAfterPass = afterPass.filter(s => s.status === 'failed');
+      if (failedAfterPass.length > 0) {
+        await this.autoRetryFailedSources(firebaseId, failedAfterPass, masked);
+        const afterRetry = await this.userSyncStateService
+          .getSourceResults(firebaseId)
+          .catch(() => afterPass);
+        const stillFailed = afterRetry.filter(s => s.status === 'failed');
+        if (stillFailed.length === 0 && afterRetry.length > 0) {
+          // Every previously-failed source recovered on retry.
+          finalProcessStatus = 'completed';
+          finalResultStatus = 'success';
+          finalFailureReason = undefined;
+          console.log(`  ✓ [AutoRetry] all previously-failed sources recovered | firebaseId=${masked}`);
+        } else if (stillFailed.length > 0) {
+          finalFailureReason = stillFailed
+            .map(s => `${s.type}:${s.sourceId} ${s.error ?? 'unknown'}`)
+            .join(', ');
+          console.log(`  ✗ [AutoRetry] ${stillFailed.length} source(s) still failed after retries | firebaseId=${masked}`);
+        }
+      }
+
       console.log(`  DONE | ${result.rowsWritten} saved | total=${((Date.now() - tTotal) / 1000).toFixed(2)}s\n`);
       await this.userSyncStateService.markSyncFinished(
-        firebaseId, result.processStatus, result.phase.resultStatus, result.rowsWritten,
-        result.phase.hasErrors ? result.phase.diagnostics.errors.join(', ') : undefined,
+        firebaseId, finalProcessStatus, finalResultStatus, result.rowsWritten,
+        finalFailureReason,
       ).catch(err => this.logger.error(`[${syncLabel}] Failed to write finished state | firebaseId=${masked} | error=${err?.message}`));
 
     } catch (err: any) {
@@ -2061,8 +2051,156 @@ export class FeezbackService {
   }
 
   /**
+   * Auto-retry sources that failed in the initial sync pass.
+   *
+   * For each failed source: waits AUTO_RETRY_DELAY_MS then re-fetches it via
+   * retrySource(), up to AUTO_RETRY_MAX extra attempts. Combined with the
+   * initial pass this gives AUTO_RETRY_MAX + 1 attempts total per source
+   * (default: 1 initial + 2 retries = 3). Stops early once a source succeeds.
+   * retrySource() itself persists the per-source state and processes the
+   * fetched transactions, so the DB is authoritative after this returns.
+   */
+  private async autoRetryFailedSources(
+    firebaseId: string,
+    failedSources: SourceResult[],
+    masked: string,
+  ): Promise<void> {
+    const AUTO_RETRY_MAX = 2;        // extra attempts after the initial pass
+    const AUTO_RETRY_DELAY_MS = 5000; // 5s between attempts
+    const totalAttempts = AUTO_RETRY_MAX + 1;
+
+    for (const source of failedSources) {
+      const typeLabel = source.type === 'bank' ? 'Bank' : 'Card';
+      const id = source.type === 'bank' ? source.sourceId : `*${source.sourceId}`;
+      let current = source;
+
+      // attempt #1 was the initial pass; retries are attempts 2..totalAttempts
+      for (let attempt = 2; attempt <= totalAttempts; attempt++) {
+        await this.sleep(AUTO_RETRY_DELAY_MS);
+        console.log(
+          `\n🔁 [AutoRetry] ${typeLabel} ${id} — attempt ${attempt}/${totalAttempts} | firebaseId=${masked}`,
+        );
+        current = await this.retrySource(firebaseId, source.type, source.sourceId).catch(
+          (err: any) => {
+            console.error(
+              `  ✗ [AutoRetry] ${typeLabel} ${id} attempt ${attempt}/${totalAttempts} threw: ${err?.message ?? err}`,
+            );
+            return { ...source, status: 'failed' as const, error: err?.message ?? 'unknown' };
+          },
+        );
+        console.log(
+          `  ${current.status === 'success' ? '✓' : '✗'} [AutoRetry] ${typeLabel} ${id} attempt ${attempt}/${totalAttempts} → ${current.status}`,
+        );
+        if (current.status === 'success') break;
+      }
+    }
+  }
+
+  /**
+   * Per-account primitive — pulls transactions for ONE source without calling
+   * getUserAccounts.
+   *
+   *  - bank: reconstructs the per-account transactions URL from the stored
+   *    consentId + resourceId (same URL Feezback returns in
+   *    _links.transactions.href; mirrors how cards are fetched). It is per
+   *    sub-account so every returned tx belongs to this one `sourceId`. The
+   *    normalizer's IBAN-based account attribution is irrelevant here — we
+   *    simply overwrite `paymentIdentifier = sourceId` on every normalized row,
+   *    then process + persist. No iban/currency/href needed.
+   *  - card: delegates to the existing single-card path (already an efficient
+   *    resourceId-based single fetch).
+   *
+   * On ANY failure (missing stored ref, fetch/normalize error) it returns a
+   * failed SourceResult and persists it. It NEVER falls back to
+   * getUserAccounts — discovery is the only place that refreshes the stored
+   * href/consentId. Uses the full one-year sync window.
+   */
+  /** Human-readable label for sync logs: "First Last" or masked firebaseId. */
+  private async resolveUserLabel(firebaseId: string): Promise<string> {
+    const masked = firebaseId?.length >= 8 ? firebaseId.substring(0, 8) + '...' : (firebaseId ?? '?');
+    const user = await this.userRepository
+      .findOne({ where: { firebaseId }, select: ['fName', 'lName'] })
+      .catch(() => null);
+    return [user?.fName, user?.lName].filter(Boolean).join(' ') || masked;
+  }
+
+  async pullOneSource(
+    firebaseId: string,
+    type: 'bank' | 'card',
+    sourceId: string,
+  ): Promise<SourceResult> {
+    const sub = `${firebaseId}_sub`;
+    const { from: dateFrom, to: dateTo } = this.getSyncWindow();
+
+    // Card: reuse the proven single-card path (resourceId-based, no re-pull-all).
+    if (type === 'card') {
+      return this.retrySource(firebaseId, 'card', sourceId);
+    }
+
+    const userName = await this.resolveUserLabel(firebaseId);
+
+    const rows = await this.userSyncStateService.getSourceResults(firebaseId);
+    const row = rows.find(r => r.sourceId === sourceId && r.type === 'bank');
+
+    const fail = async (error: string): Promise<SourceResult> => {
+      const result: SourceResult = { type: 'bank', sourceId, status: 'failed', transactionCount: 0, error };
+      await this.userSyncStateService.updateSourceResults(firebaseId, [result]).catch(() => {});
+      return result;
+    };
+
+    if (!row) return fail('source not found in user_source_sync_state — run discovery first');
+    if (!row.consentId) return fail('no consentId stored — run discovery (getUserAccounts) first');
+    if (!row.resourceId) return fail('no resourceId stored — run discovery (getUserAccounts) first');
+
+    console.log(`\n[PullOneSource] Bank | user=${userName} | sourceId=${sourceId} | dates=${dateFrom}→${dateTo}`);
+    try {
+      // Reconstruct the per-account URL from sub + consentId + resourceId
+      // (same shape Feezback returns in _links.transactions.href; mirrors how
+      // card transactions are fetched). No stored href / no getUserAccounts.
+      const resp = await this.feezbackConsentApiService.getAccountTransactionsByConsent(
+        sub, row.consentId, row.resourceId, 'booked', dateFrom, dateTo,
+      );
+      const rawTransactions = this.extractBankTransactions(resp);
+
+      // This endpoint is per sub-account, so every tx here belongs to this
+      // exact `sourceId`. We don't stamp __accountIban (the normalizer keeps
+      // txs with no IBAN stamp and we don't want its consent-IBAN drop), and we
+      // override paymentIdentifier directly below — so account maps can be empty.
+      const normalized = this.normalizeBankTransactions(
+        rawTransactions,
+        {},
+        {},
+        new Set<string>(),
+        true, // single-account mode → suppress expected missing-IBAN log
+      );
+      for (const n of normalized) {
+        n.paymentIdentifier = sourceId;
+      }
+
+      if (normalized.length > 0) {
+        await this.processingService.process(firebaseId, normalized);
+      }
+
+      const result: SourceResult = {
+        type: 'bank',
+        sourceId,
+        resourceId: row.resourceId ?? undefined,
+        consentId: row.consentId ?? undefined,
+        status: 'success',
+        transactionCount: normalized.length,
+      };
+      await this.userSyncStateService.updateSourceResults(firebaseId, [result]).catch(() => {});
+      console.log(`  ✓ Bank ${sourceId} (${userName}) — success | count=${normalized.length}`);
+      return result;
+    } catch (err: any) {
+      console.log(`  ✗ Bank ${sourceId} (${userName}) — failed | error=${err?.message ?? err}`);
+      return fail(err?.message ?? 'unknown');
+    }
+  }
+
+  /**
    * Retries a single bank account or credit card fetch.
-   * Uses the quick-sync date window (current + 3 months back).
+   * Uses the full one-year sync window (same as a full sync).
    */
   async retrySource(
     firebaseId: string,
@@ -2070,22 +2208,28 @@ export class FeezbackService {
     sourceId: string,
   ): Promise<SourceResult> {
     const sub = `${firebaseId}_sub`;
-    const today = new Date();
-    const fmt = (d: Date): string => d.toISOString().split('T')[0];
-    const dateFrom = fmt(new Date(today.getFullYear(), today.getMonth() - 2, 1));
-    const dateTo = fmt(today);
+    const { from: dateFrom, to: dateTo } = this.getSyncWindow();
 
     if (type === 'card') {
+      const userName = await this.resolveUserLabel(firebaseId);
       const dbSources = await this.userSyncStateService.getSourceResults(firebaseId);
       const dbSource = dbSources.find(s => s.sourceId === sourceId && s.type === 'card');
       const cardResourceId = dbSource?.resourceId;
       if (!cardResourceId) {
-        const result: SourceResult = { type: 'card', sourceId, status: 'failed', transactionCount: 0, error: 'resourceId not found in DB' };
+        // Disambiguate the failure so the cause is unmistakable in logs/JSON:
+        //  - no row at all for this sourceId (sourceId mismatch or never discovered)
+        //  - row exists but resourceId is still null (discovery hasn't filled it)
+        const knownCardIds = dbSources.filter(s => s.type === 'card').map(s => s.sourceId);
+        const error = !dbSource
+          ? `no card row for sourceId='${sourceId}' (known card sourceIds: [${knownCardIds.join(', ')}]) — sourceId mismatch or not discovered`
+          : `card row exists for sourceId='${sourceId}' but resourceId is null — discovery has not populated it yet`;
+        console.log(`  ✗ Card *${sourceId} (${userName}) — failed | ${error}`);
+        const result: SourceResult = { type: 'card', sourceId, status: 'failed', transactionCount: 0, error };
         await this.userSyncStateService.updateSourceResults(firebaseId, [result]).catch(() => {});
         return result;
       }
 
-      console.log(`\n[RetrySource] Card | sourceId=${sourceId} | resourceId=${cardResourceId} | dates=${dateFrom}→${dateTo}`);
+      console.log(`\n[RetrySource] Card | user=${userName} | sourceId=${sourceId} | resourceId=${cardResourceId} | dates=${dateFrom}→${dateTo}`);
       try {
         const cardRes = await this.getAndSaveUserCardTransactionsInternal(
           firebaseId, sub, 'booked', dateFrom, dateTo, cardResourceId,
@@ -2097,48 +2241,32 @@ export class FeezbackService {
           ? { type: 'card', sourceId, resourceId: cardResourceId, status: 'success', transactionCount: succeeded.transactions?.length ?? 0 }
           : { type: 'card', sourceId, resourceId: cardResourceId, status: 'failed', transactionCount: 0, error: failed?.message };
 
-        console.log(`  ${result.status === 'success' ? '✓' : '✗'} Card *${sourceId} — ${result.status} | count=${result.transactionCount}`);
+        console.log(`  ${result.status === 'success' ? '✓' : '✗'} Card *${sourceId} (${userName}) — ${result.status} | count=${result.transactionCount}`);
 
         if (result.status === 'success' && cardRes.normalizedTransactions?.length > 0) {
           await this.processingService.process(firebaseId, cardRes.normalizedTransactions);
         }
         await this.userSyncStateService.updateSourceResults(firebaseId, [result]).catch(() => {});
+        if (result.status === 'success') {
+          // Open the fetch gate so the user sees what they just pulled.
+          await this.userSyncStateService.markCacheReadyAfterSourcePull(firebaseId).catch(() => {});
+        }
         return result;
       } catch (err: any) {
         const result: SourceResult = { type: 'card', sourceId, status: 'failed', transactionCount: 0, error: err?.message };
         await this.userSyncStateService.updateSourceResults(firebaseId, [result]).catch(() => {});
         return result;
       }
-    } else {
-      console.log(`\n[RetrySource] Bank | sourceId=${sourceId} | dates=${dateFrom}→${dateTo}`);
-      try {
-        const bankRes = await this.getAndSaveBankTransactions(firebaseId, sub, 'booked', dateFrom, dateTo);
-        const retryAccountInfoMap: { [name: string]: any } = bankRes.accountInfoMap ?? {};
-        const txCount = Object.entries(bankRes.transactionsByAccount ?? {})
-          .filter(([name]) => (retryAccountInfoMap[name]?.iban ?? '').slice(-7) === sourceId || name === sourceId)
-          .reduce((sum, [, txs]) => sum + (Array.isArray(txs) ? (txs as any[]).length : 0), 0);
-        const failed = (bankRes.bankErrors ?? []).find((e: any) => {
-          const ibanKey = e.iban ? e.iban.slice(-7) : null;
-          return (ibanKey ?? e.sourceId) === sourceId;
-        });
-
-        const result: SourceResult = failed
-          ? { type: 'bank', sourceId, status: 'failed', transactionCount: 0, error: failed.message }
-          : { type: 'bank', sourceId, status: 'success', transactionCount: txCount };
-
-        console.log(`  ${result.status === 'success' ? '✓' : '✗'} Bank ${sourceId} — ${result.status} | count=${result.transactionCount}`);
-
-        if (result.status === 'success' && bankRes.normalizedTransactions?.length > 0) {
-          await this.processingService.process(firebaseId, bankRes.normalizedTransactions);
-        }
-        await this.userSyncStateService.updateSourceResults(firebaseId, [result]).catch(() => {});
-        return result;
-      } catch (err: any) {
-        const result: SourceResult = { type: 'bank', sourceId, status: 'failed', transactionCount: 0, error: err?.message };
-        await this.userSyncStateService.updateSourceResults(firebaseId, [result]).catch(() => {});
-        return result;
-      }
     }
+
+    // Bank: route through the per-account primitive — fetches ONLY this one
+    // account via stored consentId + resourceId (no getUserAccounts re-pull).
+    const bankResult = await this.pullOneSource(firebaseId, 'bank', sourceId);
+    if (bankResult.status === 'success') {
+      // Open the fetch gate so the user sees what they just pulled.
+      await this.userSyncStateService.markCacheReadyAfterSourcePull(firebaseId).catch(() => {});
+    }
+    return bankResult;
   }
 
 }

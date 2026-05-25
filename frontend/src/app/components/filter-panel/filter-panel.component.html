@@ -79,7 +79,8 @@
   <div class="header">
     <span class="title">קטגוריה</span>
     <app-input-select [controlName]="'category'" [multiSelect]="true" [placeholder]="'בחר'" [items]="categoryList()"
-      [parentForm]="form" [size]="inputsSize.MOBILE" (onChangeInputSelect)="onChangeSelection($event, 'category')">
+      [parentForm]="form" [size]="inputsSize.MOBILE"
+      (onChangeInputSelect)="onChangeSelection($event, 'category')">
     </app-input-select>
   </div>
   <div class="apply-filters-button">

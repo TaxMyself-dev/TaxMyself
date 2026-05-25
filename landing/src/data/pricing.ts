@@ -17,47 +17,56 @@ export interface PricingPlan {
   featured: boolean;
   featuredLabel?: string;
   features: PricingFeature[];
+  /** Small caption shown above the VAT disclaimer (used for asterisk explanations). */
+  footnote?: string;
 }
 
 // Array order = RTL visual order: first item → rightmost column on desktop
 export const pricingPlans: PricingPlan[] = [
   {
     id: 'lite',
-    name: 'לייט',
+    name: 'בקטנה',
     subtitle: 'תוכנית בסיסית למתחילים',
     priceLines: [{ amount: '18', suffix: '/לחודש' }],
     featured: false,
     features: [
       { label: 'הפקת מסמכים', included: true },
-      { label: 'סנכרון בין החשבונות', included: false },
-      { label: 'ייצוג על ידי רואה חשבון', included: false },
+      { label: 'ניהול הוצאות', included: true },
+      { label: 'סנכרון לחשבונות הבנק', included: false },
+      { label: 'צ׳אט תמיכה לשאלות מקצועיות', included: false },
     ],
   },
   {
     id: 'basic',
-    name: 'בייסיק',
+    name: 'עצמאי בעצמי',
     subtitle: 'תוכנית לניהול עצמי',
-    priceLines: [{ amount: '45', suffix: '/לחודש' }],
+    priceLines: [
+      { amount: '49', suffix: '/לחודש לעוסק פטור' },
+      { amount: '159', suffix: '/לחודש לעוסק מורשה' },
+    ],
     featured: true,
     featuredLabel: 'מומלץ!',
     features: [
       { label: 'הפקת מסמכים', included: true },
-      { label: 'סנכרון בין החשבונות', included: true },
-      { label: 'ייצוג על ידי רואה חשבון', included: false },
+      { label: 'ניהול הוצאות', included: true },
+      { label: 'סנכרון לחשבונות הבנק', included: true },
+      { label: 'צ׳אט תמיכה לשאלות מקצועיות', included: true },
     ],
+    footnote: '*הגשת דוח שנתי דרכנו בעלות של 500 ש״ח (לעסק ללא מורכבויות נוספות)',
   },
   {
     id: 'pro',
-    name: 'פרו',
+    name: 'ליווי מלא',
     subtitle: 'תוכנית לעסקים מקצועיים',
     priceLines: [
-      { amount: '195', suffix: '/לחודש לעוסק פטור' },
-      { amount: '475', suffix: '/לחודש לא כולל מע״מ לעוסק מורשה' },
+      { amount: '179', suffix: '/לחודש לעוסק פטור' },
+      { amount: '480', suffix: '/לחודש לעוסק מורשה' },
     ],
     featured: false,
     features: [
       { label: 'הפקת מסמכים', included: true },
-      { label: 'סנכרון בין החשבונות', included: true },
+      { label: 'ניהול הוצאות', included: true },
+      { label: 'סנכרון לחשבונות הבנק', included: true },
       { label: 'ייצוג על ידי רואה חשבון', included: true },
     ],
   },

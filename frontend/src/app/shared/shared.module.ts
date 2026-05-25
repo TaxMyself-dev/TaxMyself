@@ -39,6 +39,7 @@ import { ToastComponent } from './toast/toast.component';
 import { PopupMessageComponent } from './popup-message/popup-message.component';
 import { SelectClientComponent } from './select-client/select-client.component';
 import { ButtonComponent } from '../components/button/button.component';
+import { FilterTabComponent } from '../components/filter-tab/filter-tab.component';
 import { InputSelectComponent } from '../components/input-select/input-select.component';
 // import { ButtonComponentIonic } from '../shared/button/button.component';
 import {InputTextComponent} from '../components/input-text/input-text.component';
@@ -63,6 +64,7 @@ import { SelectModule } from 'primeng/select';
     NgArrayPipesModule,
     ScrollingModule,
     ButtonComponent,
+    FilterTabComponent,
     InputSelectComponent,
     InputTextComponent,
     DateFormatPipe,

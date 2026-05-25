@@ -7,7 +7,7 @@ import { parse, format, getDayOfYear } from 'date-fns';
 import { Expense } from '../expenses/expenses.entity';
 // TODO_FINTAX_REMOVE_LEGACY_TRANSACTIONS: Transactions is injected into SharedService solely to power the generic getRepository() helper. Remove the import, the @InjectRepository injection, and the Transactions case in getRepository() when the legacy table is dropped.
 import { Transactions } from '../transactions/transactions.entity';
-import { VATReportingType, SingleMonthReport, DualMonthReport, VAT_RATES } from 'src/enum';
+import { VATReportingType, SingleMonthReport, DualMonthReport, VAT_RATES, BusinessType, ReportPeriodLabel } from 'src/enum';
 import * as annualParams from 'src/annual.params.json';
 import { SettingDocuments } from '../documents/settingDocuments.entity';
 import { DocumentType } from 'src/enum';
@@ -133,15 +133,99 @@ export class SharedService {
                 12: `11-12/${year}`,
             };
             result = dualMonthPairs[month] as DualMonthReport;
-            console.log("DualMonthReport - result is ", result);
         }
         else {
             result = null;
-            console.log("null - result is ", result);
         }
 
         return result;
 
+    }
+
+
+    /**
+     * Period label stamped on a transaction's `vatReportingDate` at
+     * classification time. Format depends on the business:
+     *   - EXEMPT (no VAT filing)            → single month "M/YYYY", e.g. "1/2024"
+     *   - LICENSED + monthly VAT            → "M/YYYY", e.g. "1/2024"
+     *   - LICENSED + bimonthly VAT          → "M1-M2/YYYY", e.g. "1-2/2024"
+     *   - LICENSED + VAT not required       → fall back to month/year only
+     *
+     * EXEMPT users think in single months even though they file annually
+     * (PnL/annual reports aggregate all 12 months for the tax year). For
+     * LICENSED this delegates to `getVATReportingDate` so accountant-workflow
+     * and confirm-time stamps stay in lockstep.
+     */
+    buildReportPeriodLabel(
+        businessType: BusinessType,
+        vatReportingType: VATReportingType,
+        date: Date,
+    ): ReportPeriodLabel {
+        if (businessType === BusinessType.EXEMPT) {
+            return `${date.getMonth() + 1}/${date.getFullYear()}`;
+        }
+        const vatLabel = this.getVATReportingDate(date, vatReportingType);
+        if (vatLabel) return vatLabel;
+        return `${date.getMonth() + 1}/${date.getFullYear()}`;
+    }
+
+
+    /**
+     * Returns every period label that overlaps [startDate, endDate] for the
+     * given business cadence. Used by report queries to translate a date
+     * range into the set of `vatReportingDate` values to include — late
+     * stragglers carry the period stamp even when their `date` falls
+     * outside the range, so date-only filtering misses them.
+     */
+    expandPeriodLabelsInRange(
+        businessType: BusinessType,
+        vatReportingType: VATReportingType,
+        startDate: Date,
+        endDate: Date,
+    ): ReportPeriodLabel[] {
+        const labels = new Set<ReportPeriodLabel>();
+        // Walk one month at a time and dedupe by label — bimonthly cadences
+        // emit the same label for two adjacent months, so the Set collapses
+        // them automatically.
+        let cursor = new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth(), 1));
+        const limit = new Date(Date.UTC(endDate.getUTCFullYear(), endDate.getUTCMonth(), 1));
+        while (cursor.getTime() <= limit.getTime()) {
+            labels.add(this.buildReportPeriodLabel(businessType, vatReportingType, cursor));
+            cursor = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth() + 1, 1));
+        }
+        return Array.from(labels);
+    }
+
+
+    /**
+     * Returns the next N "open" period labels after the given (locked) one
+     * for the supplied business cadence. Used when a user tries to classify
+     * a transaction into an already-submitted period — the frontend offers
+     * these as alternatives in a dropdown.
+     *
+     * "Open" here is purely the next periods in the cadence sequence — the
+     * caller is responsible for filtering out any that may also be locked.
+     */
+    nextOpenPeriodLabels(
+        businessType: BusinessType,
+        vatReportingType: VATReportingType,
+        anchorDate: Date,
+        count: number,
+    ): ReportPeriodLabel[] {
+        const labels: ReportPeriodLabel[] = [];
+        const stepDays: Record<string, number> = {};
+        const isBimonthly =
+            businessType !== BusinessType.EXEMPT &&
+            vatReportingType === VATReportingType.DUAL_MONTH_REPORT;
+        const monthsPerStep = isBimonthly ? 2 : 1;
+
+        let cursor = new Date(Date.UTC(anchorDate.getFullYear(), anchorDate.getMonth(), 1));
+        for (let i = 0; i < count; i++) {
+            cursor = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth() + monthsPerStep, 1));
+            const label = this.buildReportPeriodLabel(businessType, vatReportingType, cursor);
+            labels.push(label);
+        }
+        return labels;
     }
 
 

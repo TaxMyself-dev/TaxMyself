@@ -4,10 +4,10 @@ import { catchError, EMPTY, map, tap } from 'rxjs';
 import { TransactionsService } from 'src/app/pages/transactions/transactions.page.service';
 import { AuthService } from 'src/app/services/auth.service';
 import { GenericService } from 'src/app/services/generic.service';
-import { IColumnDataTable, IRowDataTable, IUserData } from 'src/app/shared/interface';
+import { IColumnDataTable, IMobileCardConfig, IRowDataTable, IUserData } from 'src/app/shared/interface';
 import { GenericTableComponent } from "../generic-table/generic-table.component";
 import { AsyncPipe, NgStyle } from '@angular/common';
-import { TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns } from 'src/app/shared/enums';
+import { ICellRenderer, TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns } from 'src/app/shared/enums';
 import { ButtonComponent } from "../button/button.component";
 import { ButtonColor, ButtonSize } from '../button/button.enum';
 
@@ -43,6 +43,29 @@ export class ConfirmTransDialogComponent implements OnInit {
   buttonColor = ButtonColor;
   buttonSize = ButtonSize;
 
+  readonly isMobile = computed(() => this.genericService.isMobile());
+
+  readonly footerButtonSize = computed(() =>
+    this.isMobile() ? ButtonSize.SMALL : ButtonSize.BETWEEN
+  );
+
+  readonly dialogStyle = computed(() => ({
+    width: this.isMobile() ? '95vw' : '90vw',
+    height: '90dvh',
+    'max-height': '90dvh',
+  }));
+
+  readonly mobileCardConfig: IMobileCardConfig = {
+    primaryFields: [TransactionsOutcomesColumns.NAME],
+    highlightedField: TransactionsOutcomesColumns.SUM,
+    dateField: TransactionsOutcomesColumns.BILL_DATE,
+    hiddenFields: [
+      TransactionsOutcomesColumns.TOTAL_VAT,
+      TransactionsOutcomesColumns.TOTAL_TAX,
+      TransactionsOutcomesColumns.MONTH_REPORT,
+    ],
+  };
+
     fieldsNamesExpenses: IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>[] = [
       { name: TransactionsOutcomesColumns.NAME, value: TransactionsOutcomesHebrewColumns.name},
       { name: TransactionsOutcomesColumns.BILL_NUMBER, value: TransactionsOutcomesHebrewColumns.paymentIdentifier},
@@ -50,12 +73,15 @@ export class ConfirmTransDialogComponent implements OnInit {
       { name: TransactionsOutcomesColumns.CATEGORY, value: TransactionsOutcomesHebrewColumns.category},
       { name: TransactionsOutcomesColumns.SUBCATEGORY, value: TransactionsOutcomesHebrewColumns.subCategory},
       { name: TransactionsOutcomesColumns.SUM, value: TransactionsOutcomesHebrewColumns.sum},
+      // Computed shekel amount + recognition % shown together via cellRenderer.
+      // The renderer reads totalVatPayable / vatPercent (and totalTaxPayable / taxPercent)
+      // from the row by column-name convention.
+      { name: TransactionsOutcomesColumns.TOTAL_VAT, value: TransactionsOutcomesHebrewColumns.totalVat, cellRenderer: ICellRenderer.AMOUNT_WITH_PERCENT },
+      { name: TransactionsOutcomesColumns.TOTAL_TAX, value: TransactionsOutcomesHebrewColumns.totalTax, cellRenderer: ICellRenderer.AMOUNT_WITH_PERCENT },
       { name: TransactionsOutcomesColumns.BILL_DATE, value: TransactionsOutcomesHebrewColumns.billDate},
       // { name: TransactionsOutcomesColumns.PAY_DATE, value: TransactionsOutcomesHebrewColumns.payDate, type: FormTypes.DATE, cellRenderer: ICellRenderer.DATE },
-      { name: TransactionsOutcomesColumns.IS_RECOGNIZED, value: TransactionsOutcomesHebrewColumns.isRecognized},
       // { name: TransactionsOutcomesColumns.BUSINESS_NUMBER, value: TransactionsOutcomesHebrewColumns.businessNumber, type: FormTypes.TEXT },
       { name: TransactionsOutcomesColumns.MONTH_REPORT, value: TransactionsOutcomesHebrewColumns.monthReport},
-      { name: TransactionsOutcomesColumns.NOTE, value: TransactionsOutcomesHebrewColumns.note},
     ];
 
   get dialogVisible(): boolean {

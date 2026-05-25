@@ -33,4 +33,24 @@ export class VatReportService {
     return this.http.patch<any>(url, {})
   }
 
+
+  /**
+   * Marks the VAT report as submitted at the tax authority — locks every
+   * transaction stamped with the matching period label.
+   */
+  markReportAsSubmitted(businessNumber: string, startDate: string): Observable<{ count: number; periodLabel: string }> {
+    const url = `${environment.apiUrl}reports/mark-submitted`;
+    return this.http.post<{ count: number; periodLabel: string }>(url, { businessNumber, startDate });
+  }
+
+
+  /** Returns whether the report for this period has already been marked as submitted. */
+  getReportSubmissionStatus(businessNumber: string, startDate: string): Observable<{ isSubmitted: boolean; periodLabel: string }> {
+    const url = `${environment.apiUrl}reports/submission-status`;
+    const params = new HttpParams()
+      .set('businessNumber', businessNumber)
+      .set('startDate', startDate);
+    return this.http.get<{ isSubmitted: boolean; periodLabel: string }>(url, { params });
+  }
+
 }

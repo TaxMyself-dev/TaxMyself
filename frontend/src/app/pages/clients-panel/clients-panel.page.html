@@ -97,87 +97,375 @@
   </ng-template>
 </p-dialog>
 
-<div class="clients-panel-page">
-  <header class="page-header">
-    <h1 class="page-title">הלקוחות שלי</h1>
-    <div class="panel-actions">
-      <app-p-button
-        [buttonText]="'הקמת לקוח'"
-        [buttonColor]="ButtonColor.BLACK"
-        [buttonSize]="ButtonSize.SMALL"
-        (onButtonClicked)="openCreateClientModal()"
+<!-- מודל הוספת משימה -->
+<p-dialog
+  header="הוסף משימה"
+  [visible]="addTaskModalVisible()"
+  [modal]="true"
+  [style]="{ width: '420px' }"
+  [rtl]="true"
+  (onHide)="closeAddTaskModal()"
+  [draggable]="false"
+  [resizable]="false"
+>
+  <div class="create-client-form">
+    <div class="form-field">
+      <label class="form-label">עסק <span class="required">*</span></label>
+      <select
+        class="form-input form-select"
+        [(ngModel)]="addTaskFormData.businessNumber"
+      >
+        <option value="">בחר/י עסק</option>
+        @for (biz of businessOptions(); track biz.businessNumber) {
+          <option [value]="biz.businessNumber">
+            {{ biz.businessName }} — {{ biz.clientName }}
+          </option>
+        }
+      </select>
+      @if (addTaskErrors()['businessNumber']) {
+        <span class="form-error">{{ addTaskErrors()['businessNumber'] }}</span>
+      }
+    </div>
+    <div class="form-field">
+      <label class="form-label">סוג משימה</label>
+      <select
+        class="form-input form-select"
+        [(ngModel)]="addTaskFormData.taskTypePreset"
+        (ngModelChange)="onAddTaskTypePresetChange()"
+      >
+        @for (preset of taskTypePresets; track preset.value) {
+          <option [value]="preset.value">{{ preset.label }}</option>
+        }
+      </select>
+    </div>
+    <div class="form-field">
+      <label class="form-label">כותרת <span class="required">*</span></label>
+      <input
+        type="text"
+        class="form-input"
+        [(ngModel)]="addTaskFormData.title"
+        placeholder="כותרת המשימה"
+        maxlength="255"
+      />
+      @if (addTaskErrors()['title']) {
+        <span class="form-error">{{ addTaskErrors()['title'] }}</span>
+      }
+    </div>
+    <div class="form-field">
+      <label class="form-label">תיאור</label>
+      <textarea
+        class="form-input"
+        [(ngModel)]="addTaskFormData.description"
+        rows="3"
+        placeholder="תיאור (לא חובה)"
+      ></textarea>
+    </div>
+    <div class="form-field">
+      <label class="form-label">תאריך יעד</label>
+      <input
+        type="date"
+        class="form-input"
+        [(ngModel)]="addTaskFormData.dueDate"
       />
     </div>
-  </header>
+  </div>
+  <ng-template pTemplate="footer">
+    <app-p-button
+      [buttonText]="'ביטול'"
+      [buttonColor]="ButtonColor.WHITE_BORDER"
+      [buttonSize]="ButtonSize.SMALL"
+      (onButtonClicked)="closeAddTaskModal()"
+    />
+    <app-p-button
+      [buttonText]="'הוסף משימה'"
+      [buttonColor]="ButtonColor.BLACK"
+      [buttonSize]="ButtonSize.SMALL"
+      (onButtonClicked)="submitAddTask()"
+      [disabled]="addingTask()"
+      [isLoading]="addingTask()"
+    />
+  </ng-template>
+</p-dialog>
 
-  <section class="clients-list-section">
-    @if (loadingClients()) {
-      <p class="loading-text">טוען לקוחות...</p>
-    } @else if (myClients().length === 0) {
-      <p class="empty-text">אין עדיין לקוחות. השתמש ב״הקמת לקוח״ כדי להוסיף.</p>
-    } @else {
-      <div class="clients-table-wrap">
-        <table class="clients-table">
-          <thead>
-            <tr>
-              <th>שם</th>
-              <th>שם משפחה</th>
-              <th>ת.ז.</th>
-              <th>אימייל</th>
-              <th>שם העסק</th>
-              <th>סוג העסק</th>
-              <th>ביטוח לאומי</th>
-              <th>דיווח מעמ</th>
-              <th>מקדמות מס הכנסה</th>
-              <th class="cell-actions"></th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (group of groupedClients(); track group.user.id) {
-              <!-- First business row — also carries user info and actions -->
-              @if (group.businesses.length === 0) {
-                <tr class="user-row">
-                  <td>{{ group.user.fName }}</td>
-                  <td>{{ group.user.lName }}</td>
-                  <td>{{ group.user.idNumber }}</td>
-                  <td>{{ group.user.email }}</td>
-                  <td>—</td>
-                  <td>—</td>
-                  <td>—</td>
-                  <td>—</td>
-                  <td>—</td>
-                  <td class="cell-actions">
-                    <button type="button" class="btn-enter-client" (click)="enterClient(group.user)" title="כניסה לחשבון הלקוח" aria-label="כניסה לחשבון הלקוח"><i class="pi pi-arrow-left"></i></button>
-                    <button type="button" class="btn-delete-client" (click)="confirmDeleteClient(group.user)" title="מחיקת לקוח" aria-label="מחיקת לקוח"><i class="pi pi-trash"></i></button>
-                  </td>
+<div class="clients-panel-page">
+  <p-tabView [activeIndex]="activeTabIndex()" (activeIndexChange)="onTabChange($event)">
+    <p-tabPanel header="הלקוחות שלי">
+      <header class="tab-header">
+        <div class="panel-actions">
+          <app-p-button
+            [buttonText]="'הקמת לקוח'"
+            [buttonColor]="ButtonColor.BLACK"
+            [buttonSize]="ButtonSize.SMALL"
+            (onButtonClicked)="openCreateClientModal()"
+          />
+        </div>
+      </header>
+
+      <section class="clients-list-section">
+        @if (loadingClients()) {
+          <p class="loading-text">טוען לקוחות...</p>
+        } @else if (myClients().length === 0) {
+          <p class="empty-text">אין עדיין לקוחות. השתמש ב״הקמת לקוח״ כדי להוסיף.</p>
+        } @else {
+          <div class="clients-table-wrap">
+            <table class="clients-table">
+              <thead>
+                <tr>
+                  <th>שם</th>
+                  <th>שם משפחה</th>
+                  <th>ת.ז.</th>
+                  <th>אימייל</th>
+                  <th>שם העסק</th>
+                  <th>סוג העסק</th>
+                  <th>ביטוח לאומי</th>
+                  <th>דיווח מעמ</th>
+                  <th>מקדמות מס הכנסה</th>
+                  <th class="cell-actions"></th>
                 </tr>
-              } @else {
-                @for (biz of group.businesses; track biz.rowId; let first = $first) {
-                  <tr [class.user-row]="first" [class.business-row]="!first">
-                    @if (first) {
-                      <td [attr.rowspan]="group.businesses.length">{{ group.user.fName }}</td>
-                      <td [attr.rowspan]="group.businesses.length">{{ group.user.lName }}</td>
-                      <td [attr.rowspan]="group.businesses.length">{{ group.user.idNumber }}</td>
-                      <td [attr.rowspan]="group.businesses.length">{{ group.user.email }}</td>
-                    }
-                    <td>{{ biz.businessName || '—' }}</td>
-                    <td>{{ businessTypeLabel(biz.businessType) }}</td>
-                    <td>{{ biz.nationalInsRequired ? 'חייב' : 'לא חייב' }}</td>
-                    <td>{{ vatReportingTypeLabel(biz.vatReportingType) }}</td>
-                    <td>{{ taxReportingTypeLabel(biz.taxReportingType) }}</td>
-                    @if (first) {
-                      <td class="cell-actions" [attr.rowspan]="group.businesses.length">
+              </thead>
+              <tbody>
+                @for (group of groupedClients(); track group.user.id) {
+                  <!-- First business row — also carries user info and actions -->
+                  @if (group.businesses.length === 0) {
+                    <tr class="user-row">
+                      <td>{{ group.user.fName }}</td>
+                      <td>{{ group.user.lName }}</td>
+                      <td>{{ group.user.idNumber }}</td>
+                      <td>{{ group.user.email }}</td>
+                      <td>—</td>
+                      <td>—</td>
+                      <td>—</td>
+                      <td>—</td>
+                      <td>—</td>
+                      <td class="cell-actions">
                         <button type="button" class="btn-enter-client" (click)="enterClient(group.user)" title="כניסה לחשבון הלקוח" aria-label="כניסה לחשבון הלקוח"><i class="pi pi-arrow-left"></i></button>
                         <button type="button" class="btn-delete-client" (click)="confirmDeleteClient(group.user)" title="מחיקת לקוח" aria-label="מחיקת לקוח"><i class="pi pi-trash"></i></button>
                       </td>
+                    </tr>
+                  } @else {
+                    @for (biz of group.businesses; track biz.rowId; let first = $first) {
+                      <tr [class.user-row]="first" [class.business-row]="!first">
+                        @if (first) {
+                          <td [attr.rowspan]="group.businesses.length">{{ group.user.fName }}</td>
+                          <td [attr.rowspan]="group.businesses.length">{{ group.user.lName }}</td>
+                          <td [attr.rowspan]="group.businesses.length">{{ group.user.idNumber }}</td>
+                          <td [attr.rowspan]="group.businesses.length">{{ group.user.email }}</td>
+                        }
+                        <td>{{ biz.businessName || '—' }}</td>
+                        <td>{{ businessTypeLabel(biz.businessType) }}</td>
+                        <td>{{ biz.nationalInsRequired ? 'חייב' : 'לא חייב' }}</td>
+                        <td>{{ vatReportingTypeLabel(biz.vatReportingType) }}</td>
+                        <td>{{ taxReportingTypeLabel(biz.taxReportingType) }}</td>
+                        @if (first) {
+                          <td class="cell-actions" [attr.rowspan]="group.businesses.length">
+                            <button type="button" class="btn-enter-client" (click)="enterClient(group.user)" title="כניסה לחשבון הלקוח" aria-label="כניסה לחשבון הלקוח"><i class="pi pi-arrow-left"></i></button>
+                            <button type="button" class="btn-delete-client" (click)="confirmDeleteClient(group.user)" title="מחיקת לקוח" aria-label="מחיקת לקוח"><i class="pi pi-trash"></i></button>
+                          </td>
+                        }
+                      </tr>
                     }
+                  }
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </section>
+    </p-tabPanel>
+
+    <p-tabPanel header="משימות">
+      <header class="tab-header tasks-toolbar">
+        <div class="tasks-filters">
+          <div class="filter-group">
+            <label class="filter-label">סטטוס</label>
+            <select
+              class="form-input form-select"
+              [ngModel]="statusFilter()"
+              (ngModelChange)="onStatusFilterChange($event)"
+            >
+              <option value="open">פתוחות</option>
+              <option value="done">הושלמו</option>
+              <option value="all">הכל</option>
+            </select>
+          </div>
+          @if (businessOptions().length > 1) {
+            <div class="filter-group">
+              <label class="filter-label">עסק</label>
+              <select
+                class="form-input form-select"
+                [ngModel]="businessFilter()"
+                (ngModelChange)="onBusinessFilterChange($event)"
+              >
+                <option value="">כל העסקים</option>
+                @for (biz of businessOptions(); track biz.businessNumber) {
+                  <option [value]="biz.businessNumber">
+                    {{ biz.businessName }} — {{ biz.clientName }}
+                  </option>
+                }
+              </select>
+            </div>
+          }
+          <div class="filter-group">
+            <label class="filter-label">סוג משימה</label>
+            <select
+              class="form-input form-select"
+              [ngModel]="taskTypeFilter()"
+              (ngModelChange)="onTaskTypeFilterChange($event)"
+            >
+              <option value="">כל הסוגים</option>
+              @for (opt of taskTypeFilterOptions; track opt.value) {
+                <option [value]="opt.value">{{ opt.label }}</option>
+              }
+            </select>
+          </div>
+          @if (taskYearOptions().length > 1) {
+            <div class="filter-group">
+              <label class="filter-label">שנה</label>
+              <select
+                class="form-input form-select"
+                [ngModel]="yearFilter()"
+                (ngModelChange)="onYearFilterChange($event)"
+              >
+                <option value="">כל השנים</option>
+                @for (year of taskYearOptions(); track year) {
+                  <option [value]="year">{{ year }}</option>
+                }
+              </select>
+            </div>
+          }
+        </div>
+        <div class="panel-actions">
+          <app-p-button
+            [buttonText]="'רענן משימות אוטומטיות'"
+            [buttonColor]="ButtonColor.WHITE_BORDER"
+            [buttonSize]="ButtonSize.SMALL"
+            [disabled]="runningGeneration()"
+            [isLoading]="runningGeneration()"
+            (onButtonClicked)="runGeneration()"
+          />
+          <app-p-button
+            [buttonText]="'הוסף משימה'"
+            [buttonColor]="ButtonColor.BLACK"
+            [buttonSize]="ButtonSize.SMALL"
+            (onButtonClicked)="openAddTaskModal()"
+          />
+        </div>
+      </header>
+
+      <section class="clients-list-section">
+        @if (tasksLoading()) {
+          <p class="loading-text">טוען משימות...</p>
+        } @else if (tasks().length === 0) {
+          <p class="empty-text">אין משימות להצגה</p>
+        } @else if (filteredTasks().length === 0) {
+          <p class="empty-text">אין משימות תואמות לסינון הנוכחי</p>
+        } @else {
+          <div class="clients-table-wrap">
+            <table class="clients-table tasks-table">
+              <thead>
+                <tr>
+                  <th>לקוח</th>
+                  <th>עסק</th>
+                  <th>סוג משימה</th>
+                  <th>כותרת</th>
+                  <th>תאריך יעד</th>
+                  <th>סטטוס</th>
+                  <th class="cell-actions"></th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (task of filteredTasks(); track task.id) {
+                  <tr
+                    [class.task-overdue]="isTaskOverdue(task)"
+                    [class.task-due-soon]="isTaskDueSoon(task)"
+                    [class.task-done]="task.isComplete"
+                  >
+                    <td>{{ task.clientName || '—' }}</td>
+                    <td>{{ task.businessName || task.businessNumber }}</td>
+                    <td>{{ taskTypeLabel(task.type) }}</td>
+                    <td>{{ task.title }}</td>
+                    <td>{{ task.dueDate ? (task.dueDate | date: 'dd/MM/yyyy') : '—' }}</td>
+                    <td>
+                      @if (task.type === AccountantTaskType.ANNUAL_REPORT && task.annualReportStatus) {
+                        <span class="task-badge" [class]="'annual-status-' + task.annualReportStatus">
+                          {{ annualReportStatusLabel(task.annualReportStatus) }}
+                        </span>
+                      } @else if ((task.type === AccountantTaskType.VAT_REPORT || task.type === AccountantTaskType.ADVANCE_TAX) && task.workflowStatus) {
+                        <span class="task-badge" [class]="'workflow-status-' + task.workflowStatus">
+                          {{ workflowStatusLabel(task.workflowStatus) }}
+                        </span>
+                      } @else if (task.isComplete) {
+                        <span class="task-badge task-badge-done">הושלמה</span>
+                      } @else if (isTaskOverdue(task)) {
+                        <span class="task-badge task-badge-overdue">באיחור</span>
+                      } @else if (isTaskDueSoon(task)) {
+                        <span class="task-badge task-badge-soon">קרוב לתאריך היעד</span>
+                      } @else {
+                        <span class="task-badge task-badge-open">פתוחה</span>
+                      }
+                    </td>
+                    <td class="cell-actions">
+                      @if (task.type === AccountantTaskType.ANNUAL_REPORT) {
+                        <button
+                          type="button"
+                          class="btn-enter-client"
+                          (click)="openAnnualReport(task)"
+                          title="פתיחת הדוח השנתי"
+                          aria-label="פתיחת הדוח השנתי"
+                        >
+                          <i class="pi pi-arrow-left"></i>
+                        </button>
+                      }
+                      @if (canMarkReported(task)) {
+                        <button
+                          type="button"
+                          class="btn-enter-client btn-mark-reported"
+                          (click)="markWorkflowReported(task)"
+                          title="סמן כדווח"
+                          aria-label="סמן כדווח"
+                        >
+                          <i class="pi pi-send"></i>
+                        </button>
+                      }
+                      @if (canRevertReported(task)) {
+                        <button
+                          type="button"
+                          class="btn-enter-client"
+                          (click)="unmarkWorkflowReported(task)"
+                          title="בטל סימון דווח"
+                          aria-label="בטל סימון דווח"
+                        >
+                          <i class="pi pi-undo"></i>
+                        </button>
+                      }
+                      @if (task.type === AccountantTaskType.CUSTOM) {
+                        <button
+                          type="button"
+                          class="btn-enter-client"
+                          (click)="toggleTaskComplete(task)"
+                          [title]="task.isComplete ? 'בטל סימון' : 'סמן כהושלם'"
+                          [attr.aria-label]="task.isComplete ? 'בטל סימון' : 'סמן כהושלם'"
+                        >
+                          <i [class]="task.isComplete ? 'pi pi-replay' : 'pi pi-check'"></i>
+                        </button>
+                      }
+                      <button
+                        type="button"
+                        class="btn-delete-client"
+                        (click)="confirmDeleteTask(task)"
+                        title="מחק משימה"
+                        aria-label="מחק משימה"
+                      >
+                        <i class="pi pi-trash"></i>
+                      </button>
+                    </td>
                   </tr>
                 }
-              }
-            }
-          </tbody>
-        </table>
-      </div>
-    }
-  </section>
+              </tbody>
+            </table>
+          </div>
+        }
+      </section>
+    </p-tabPanel>
+  </p-tabView>
 </div>

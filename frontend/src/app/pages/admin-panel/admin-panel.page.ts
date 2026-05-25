@@ -6,7 +6,7 @@ import { ButtonSize as ComponentButtonSize, ButtonColor } from 'src/app/componen
 import { CategoryManagementComponent } from 'src/app/shared/category-management/category-management.component';
 import { TransManagementComponent } from 'src/app/shared/trans-management/trans-management.component';
 import { ClientsDashboardComponent } from 'src/app/shared/clients-dashboard/clients-dashboard.component';
-import { AgentManagementComponent } from 'src/app/shared/agent-management/agent-management.component';
+import { DemoDataComponent } from 'src/app/shared/demo-data/demo-data.component';
 import { MessageService } from 'primeng/api';
 import { IShaamApprovalResponse } from 'src/app/shared/interface';
 
@@ -24,7 +24,7 @@ export class AdminPanelPage implements OnInit {
     { label: 'לוח בקרה - לקוחות', value: 'clients-dashboard', component: ClientsDashboardComponent },
     { label: 'ניהול קטגוריות', value: 'category-management', component: CategoryManagementComponent },
     { label: 'ניהול תנועות', value: 'trans-management', component: TransManagementComponent },
-    { label: 'ניהול סוכנים', value: 'agent-management', component: AgentManagementComponent },
+    { label: 'נתוני דמו', value: 'demo-data', component: DemoDataComponent },
   ];
 
   selectedTab: string = 'clients-dashboard'; // Set default tab value

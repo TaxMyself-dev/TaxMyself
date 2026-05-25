@@ -58,6 +58,8 @@ export enum ExpenseFormHebrewColumns {
   supplierID = 'ח.פ. ספק',
   file = 'קובץ',
   note = 'הערה / פירוט',
+  totalVat = 'מוכר למע"מ',
+  totalTax = 'מוכר למס',
   totalVatPayable = 'מוכר למעמ(₪)',
   totalTaxPayable = 'מוכר למס(₪)',
   isEquipment = 'האם ההוצאה הינה עבור רכוש קבוע?',
@@ -65,7 +67,9 @@ export enum ExpenseFormHebrewColumns {
   reductionPercent = 'פחת',
   checkbox = 'בחר',
   actions = 'פעולות',
-  businessNumber = 'שייך לעסק'
+  businessNumber = 'שייך לעסק',
+  reportScope = 'סוג דוח',
+  pnlCategory = 'קטגוריה לדוח רווח והפסד'
 
 }
 
@@ -88,7 +92,9 @@ export enum ExpenseFormColumns {
   REDUCTION_PERCENT = 'reductionPercent',
   LOADING_DATE = 'loadingDate',
   ACTIONS = 'actions',
-  CHECKBOX = 'checkbox'
+  CHECKBOX = 'checkbox',
+  REPORT_SCOPE = 'reportScope',
+  PNL_CATEGORY = 'pnlCategory'
 }
 
 export enum ClientsTableColumns {
@@ -148,7 +154,7 @@ export enum TransactionsOutcomesHebrewColumns {
   sum = 'סכום',
   category = 'קטגוריה',
   subCategory = 'תת-קטגוריה',
-  monthReport = 'דווח לחודש',
+  monthReport = 'תקופת דיווח',
   billName = 'חשבון',
   isRecognized = 'הוצאה מוכרת',
   isEquipment = 'מוכר כציוד',
@@ -381,7 +387,12 @@ export enum ICellRenderer {
   SUBCATEGORY = 'subCategory',
   BILL = 'billName',
   CHECKBOX = 'checkbox',
-  DATE = 'date'
+  DATE = 'date',
+  AMOUNT_WITH_PERCENT = 'amountWithPercent',
+  /** Report-period stamp ("M/YYYY", "M1-M2/YYYY", or "YYYY") with optional lock icon. */
+  MONTH_REPORT = 'monthReport',
+  /** Sum cell: shows the original currency amount, with an ILS conversion in parentheses below for non-ILS rows. */
+  SUM_WITH_FX = 'sumWithFx',
 }
 
 export enum NavigationItemClass {
@@ -543,7 +554,156 @@ export const TaxReportingTypeLabels: Record<string, string> = {
 };
 
 /**
- * Threshold amount (in NIS) above which an allocation number is required for tax invoices
- * When a tax invoice amount exceeds this threshold, the system must request an allocation number from SHAAM
+ * Israeli VAT-reform allocation-number thresholds (sum before VAT, in ILS).
+ * A tax invoice / tax-invoice-receipt above the threshold *for its doc date*
+ * needs an allocation number from the Tax Authority so the recipient can
+ * reclaim VAT. The threshold steps down over time per the reform schedule —
+ * add a new entry at the top of the list each time a future range is published.
+ *
+ * Entries must be kept sorted by `from` DESC (newest first); the lookup
+ * picks the first range whose `from` is ≤ the doc date.
  */
-export const ALLOCATION_NUMBER_THRESHOLD = 10000;
+const ALLOCATION_NUMBER_THRESHOLDS: ReadonlyArray<{ from: string; threshold: number }> = [
+  { from: '2026-06-01', threshold: 5000 },
+  { from: '2026-01-01', threshold: 10000 },
+];
+
+/** Threshold (ILS, before VAT) above which an allocation number is required for the given doc date. */
+export function getAllocationNumberThreshold(docDate?: Date | string | null): number {
+  const date = docDate ?? new Date();
+  const iso = typeof date === 'string'
+    ? (date.length >= 10 ? date.slice(0, 10) : date)
+    : date.toISOString().slice(0, 10);
+  const match = ALLOCATION_NUMBER_THRESHOLDS.find(r => r.from <= iso);
+  // Pre-reform date → no allocation requirement.
+  return match?.threshold ?? Infinity;
+}
+
+/** סוג משימה ברשימת המשימות של רואה החשבון */
+export enum AccountantTaskType {
+  VAT_REPORT = 'VAT_REPORT',
+  ADVANCE_TAX = 'ADVANCE_TAX',
+  ANNUAL_REPORT = 'ANNUAL_REPORT',
+  CUSTOM = 'CUSTOM',
+}
+
+export enum AccountantTaskSource {
+  AUTO = 'AUTO',
+  MANUAL = 'MANUAL',
+}
+
+export const AccountantTaskTypeLabels: Record<string, string> = {
+  [AccountantTaskType.VAT_REPORT]: 'דוח מע"מ',
+  [AccountantTaskType.ADVANCE_TAX]: 'מקדמת מס',
+  [AccountantTaskType.ANNUAL_REPORT]: 'דוח שנתי',
+  [AccountantTaskType.CUSTOM]: 'משימה מותאמת אישית',
+};
+
+/** סטטוס דוח שנתי */
+export enum AnnualReportStatus {
+  WAITING_FOR_DOCS = 'WAITING_FOR_DOCS',
+  READY_TO_PREPARE = 'READY_TO_PREPARE',
+  REPORTED = 'REPORTED',
+}
+
+/** סטטוס תהליך דיווח (מע"מ / מקדמת מס) */
+export enum ReportWorkflowStatus {
+  WAITING_FOR_CLIENT = 'WAITING_FOR_CLIENT',
+  READY_TO_PREPARE = 'READY_TO_PREPARE',
+  REPORTED = 'REPORTED',
+}
+
+export const ReportWorkflowStatusLabels: Record<string, string> = {
+  [ReportWorkflowStatus.WAITING_FOR_CLIENT]: 'ממתין לאישור לקוח',
+  [ReportWorkflowStatus.READY_TO_PREPARE]: 'מוכן להכנה',
+  [ReportWorkflowStatus.REPORTED]: 'דווח',
+};
+
+/** סוג תהליך דיווח */
+export enum ReportWorkflowType {
+  VAT_REPORT = 'VAT_REPORT',
+  ADVANCE_TAX = 'ADVANCE_TAX',
+}
+
+export const ReportWorkflowTypeLabels: Record<string, string> = {
+  [ReportWorkflowType.VAT_REPORT]: 'דוח מע"מ',
+  [ReportWorkflowType.ADVANCE_TAX]: 'מקדמת מס',
+};
+
+export const AnnualReportStatusLabels: Record<string, string> = {
+  [AnnualReportStatus.WAITING_FOR_DOCS]: 'ממתין למסמכים',
+  [AnnualReportStatus.READY_TO_PREPARE]: 'מוכן להכנה',
+  [AnnualReportStatus.REPORTED]: 'דווח',
+};
+
+/** קטגוריות מסמכים בדוח השנתי */
+export enum AnnualReportDocCategory {
+  FORM_106 = 'FORM_106',
+  SPOUSE_FORM_106 = 'SPOUSE_FORM_106',
+  DONATION_RECEIPT = 'DONATION_RECEIPT',
+  PENSION_867 = 'PENSION_867',
+  LIFE_INSURANCE = 'LIFE_INSURANCE',
+  RENTAL_INCOME = 'RENTAL_INCOME',
+  INVESTMENT_867 = 'INVESTMENT_867',
+  OTHER = 'OTHER',
+}
+
+export const AnnualReportDocCategoryLabels: Record<string, string> = {
+  [AnnualReportDocCategory.FORM_106]: 'טופס 106',
+  [AnnualReportDocCategory.SPOUSE_FORM_106]: 'טופס 106 של בן/בת הזוג',
+  [AnnualReportDocCategory.DONATION_RECEIPT]: 'קבלות תרומה',
+  [AnnualReportDocCategory.PENSION_867]: 'אישור הפרשות פנסיה / קרן השתלמות (867)',
+  [AnnualReportDocCategory.LIFE_INSURANCE]: 'אישור הפקדה לביטוח חיים / אובדן כושר עבודה',
+  [AnnualReportDocCategory.RENTAL_INCOME]: 'אישור הכנסות מדמי שכירות',
+  [AnnualReportDocCategory.INVESTMENT_867]: 'טופס 867 השקעות',
+  [AnnualReportDocCategory.OTHER]: 'אחר',
+};
+
+/** רשומה ב-requiredCategories – קטגוריה ומינימום קבצים נדרש */
+export interface RequiredCategoryEntry {
+  category: string;
+  minCount: number;
+}
+
+/** שאלות לטופס השאלון של הדוח השנתי – הסדר משפיע על תצוגת ה-UI */
+export type AnnualReportQuestionType = 'boolean' | 'number';
+
+export interface AnnualReportQuestionDef {
+  id: string;
+  label: string;
+  type: AnnualReportQuestionType;
+  /** הצג את השאלה רק כאשר תשובת השאלה התלויה זהה לערך הצפוי */
+  dependsOn?: { questionId: string; equals: boolean };
+}
+
+export const ANNUAL_REPORT_QUESTIONS: AnnualReportQuestionDef[] = [
+  { id: 'employed', label: 'האם אתה שכיר?', type: 'boolean' },
+  {
+    id: 'employerCount',
+    label: 'בכמה מקומות עבודה עבדת השנה?',
+    type: 'number',
+    dependsOn: { questionId: 'employed', equals: true },
+  },
+  { id: 'married', label: 'נשוי/אה?', type: 'boolean' },
+  {
+    id: 'spouseEmployed',
+    label: 'בן/בת זוג עובד/ת?',
+    type: 'boolean',
+    dependsOn: { questionId: 'married', equals: true },
+  },
+  {
+    id: 'spouseEmployerCount',
+    label: 'בכמה מקומות עבודה עבד/ה בן/בת הזוג השנה?',
+    type: 'number',
+    dependsOn: { questionId: 'spouseEmployed', equals: true },
+  },
+  { id: 'donations', label: 'תרמת השנה למוסד מוכר?', type: 'boolean' },
+  { id: 'pension', label: 'הפרשת לקרן השתלמות / פנסיה השנה?', type: 'boolean' },
+  {
+    id: 'lifeInsurance',
+    label: 'האם הפקדתם לביטוח חיים או אובדן כושר עבודה באופן עצמאי?',
+    type: 'boolean',
+  },
+  { id: 'rentalIncome', label: 'יש לך הכנסה מהשכרת נכס?', type: 'boolean' },
+  { id: 'investments', label: 'יש לך חשבון השקעות / ני"ע?', type: 'boolean' },
+];

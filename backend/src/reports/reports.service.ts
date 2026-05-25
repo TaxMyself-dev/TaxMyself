@@ -25,6 +25,9 @@ import { JournalLine } from 'src/bookkeeping/jouranl-line.entity';
 import { DefaultBookingAccount } from 'src/bookkeeping/account.entity';
 import { DocPayments } from 'src/documents/doc-payments.entity';
 import { Business } from 'src/business/business.entity';
+import { SlimTransaction } from 'src/transactions/slim-transaction.entity';
+import { FullTransactionCache } from 'src/transactions/full-transaction-cache.entity';
+import { VATReportingType, ExpenseReportScope } from 'src/enum';
 
 
 @Injectable()
@@ -57,12 +60,87 @@ export class ReportsService {
     private JournalEntryRepo: Repository<JournalEntry>,
     @InjectRepository(JournalLine) 
     private JournalLineRepo: Repository<JournalLine>,
-    @InjectRepository(DefaultBookingAccount) 
+    @InjectRepository(DefaultBookingAccount)
     private defaultBookingAccountRepo: Repository<DefaultBookingAccount>,
+    @InjectRepository(SlimTransaction)
+    private slimRepo: Repository<SlimTransaction>,
+    @InjectRepository(FullTransactionCache)
+    private cacheRepo: Repository<FullTransactionCache>,
   ) {
     if (!fs.existsSync(this.debugFolder)) {
       fs.mkdirSync(this.debugFolder, { recursive: true });
     }
+  }
+
+
+  /**
+   * Returns whether the report covering `(businessNumber, startDate)` has been
+   * marked as submitted yet. Drives the VAT/PnL page UI — when true, the
+   * "סמן כדווח" button is replaced with a "הדוח הוגש" success indicator.
+   *
+   * A period is considered submitted if at least one transaction in the slim
+   * table is stamped with the period label AND has `isLocked = true`.
+   */
+  async getReportSubmissionStatus(
+    userId: string,
+    businessNumber: string,
+    startDate: Date,
+  ): Promise<{ isSubmitted: boolean; periodLabel: string }> {
+    const business = await this.businessRepo.findOne({
+      where: { firebaseId: userId, businessNumber },
+    });
+    if (!business) {
+      throw new NotFoundException(`Business ${businessNumber} not found`);
+    }
+    const periodLabel = this.sharedService.buildReportPeriodLabel(
+      business.businessType ?? BusinessType.EXEMPT,
+      business.vatReportingType ?? VATReportingType.NOT_REQUIRED,
+      startDate,
+    );
+    const lockedCount = await this.slimRepo.count({
+      where: { userId, businessNumber, vatReportingDate: periodLabel, isLocked: true },
+    });
+    return { isSubmitted: lockedCount > 0, periodLabel };
+  }
+
+
+  /**
+   * Marks every transaction in the given report period as `isLocked = true`
+   * — i.e. the user clicked "סמן כדווח" after submitting the report at the
+   * tax authority. Matches by the period label that confirm-trans already
+   * stamped on `vatReportingDate`. Self-employed equivalent of the
+   * accountant-workflow lock at ReportWorkflowService.setReported.
+   */
+  async markReportAsSubmitted(
+    userId: string,
+    businessNumber: string,
+    startDate: Date,
+  ): Promise<{ count: number; periodLabel: string }> {
+    const business = await this.businessRepo.findOne({
+      where: { firebaseId: userId, businessNumber },
+    });
+    if (!business) {
+      throw new NotFoundException(`Business ${businessNumber} not found`);
+    }
+    const periodLabel = this.sharedService.buildReportPeriodLabel(
+      business.businessType ?? BusinessType.EXEMPT,
+      business.vatReportingType ?? VATReportingType.NOT_REQUIRED,
+      startDate,
+    );
+
+    const slimResult = await this.slimRepo.update(
+      { userId, businessNumber, vatReportingDate: periodLabel, isLocked: false },
+      { isLocked: true },
+    );
+    await this.cacheRepo.update(
+      { userId, businessNumber, vatReportingDate: periodLabel, isLocked: false },
+      { isLocked: true },
+    );
+
+    this.logger.log(
+      `markReportAsSubmitted: locked ${slimResult.affected ?? 0} transactions for ${businessNumber} / ${periodLabel}`,
+    );
+    return { count: slimResult.affected ?? 0, periodLabel };
   }
 
 
@@ -351,15 +429,24 @@ export class ReportsService {
       ));
       const expenses = await this.expensesService.getExpensesByDates(firebaseId, businessNumber, startDate, endDateEndOfDay);
 
-      // Separate expenses into equipment and non-equipment categories
-      const nonEquipmentExpenses = expenses.filter(expense => !expense.isEquipment);
+      // Subcategory → P&L-presentation-category map (resolved live, user wins).
+      const pnlCategoryMap = await this.expensesService.getPnlCategoryMap(firebaseId, businessNumber);
 
-      // Initialize an object to hold the expense sums by category
+      // Exclude equipment (→ depreciation) AND annual-report-only expenses
+      // (תרומות מוכרות / מקדמות) — they are not P&L operating expenses.
+      const nonEquipmentExpenses = expenses.filter(
+        expense => !expense.isEquipment && expense.reportScope !== ExpenseReportScope.ANNUAL,
+      );
+
+      // Initialize an object to hold the expense sums by P&L category
       const expenseSumByCategory: { [category: string]: number } = {};
 
-      // Loop through each non-equipment expense – סכום לפי totalTaxPayable השמור בטבלת ההוצאות
+      // Loop through each non-equipment expense – סכום לפי totalTaxPayable השמור בטבלת ההוצאות.
+      // P&L grouping precedence: per-expense override → subcategory map → bookkeeping category.
       for (const expense of nonEquipmentExpenses) {
-          const category = String(expense.category);
+          const category = String(
+            expense.pnlCategory ?? pnlCategoryMap.get(expense.subCategory) ?? expense.category,
+          );
           if (!expenseSumByCategory[category]) {
               expenseSumByCategory[category] = 0;
           }
@@ -781,7 +868,14 @@ export class ReportsService {
     private async generateDataFileContent(userId: string, businessNumber: string, startDate: string, endDate: string, uniqueId: string): Promise<{ content: string; summary: any[] }> {
 
       let content = "";
-      const documents = await this.fetchDocuments(businessNumber, startDate, endDate);
+      const allDocuments = await this.fetchDocuments(businessNumber, startDate, endDate);
+      // Filter out doc types that don't participate in the uniform file
+      // (e.g. PRICE_QUOTE — no code in UniformFileTypeCodeMap). Filtering here
+      // keeps C100/D110/D120 consistent: a doc, its lines, and its payments
+      // are all dropped together — no orphan D110/D120 rows.
+      const documents = allDocuments.filter(
+        (d) => d.docType != null && (d.docType as string) in UniformFileTypeCodeMap,
+      );
       const journalEntries = await this.fetchJournalEntries(userId, businessNumber, startDate, endDate);
     
       // Add A100 section first

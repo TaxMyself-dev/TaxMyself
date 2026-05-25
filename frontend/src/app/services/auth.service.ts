@@ -118,6 +118,15 @@ export class AuthService {
     if (this.viewAsUserData != null) {
       return this.viewAsUserData;
     }
+    return this.getRealUserDataFromLocalStorage();
+  }
+
+  /**
+   * Returns the *real* logged-in user from localStorage, bypassing any view-as
+   * overlay. Use this when you need to know who actually holds the session —
+   * e.g., to decide where the "exit client view" button should navigate.
+   */
+  getRealUserDataFromLocalStorage(): IUserData | null {
     const tempA = localStorage.getItem('userData');
     if (!tempA) {
       return null;
@@ -171,8 +180,15 @@ export class AuthService {
   }
 
 
-  signIn(): any {
-    return this.http.get(`${environment.apiUrl}auth/signin`);
+  /**
+   * @param freshLogin pass `true` ONLY from the actual login screen. The
+   * backend triggers the post-login Feezback sync (and prints the LOGIN
+   * banner) only when this flag is set, so session-restore / view-as /
+   * page-navigation calls to /auth/signin don't re-trigger a sync.
+   */
+  signIn(freshLogin = false): any {
+    const url = `${environment.apiUrl}auth/signin${freshLogin ? '?freshLogin=true' : ''}`;
+    return this.http.get(url);
   }
 
   getSignupErrorMessage(err: string): string {
@@ -318,7 +334,8 @@ export class AuthService {
       displayName: result.user.displayName,
     };
     try {
-      const userData = await firstValueFrom(this.signIn());
+      // Real login (Google SSO) → freshLogin=true so the post-login sync runs.
+      const userData = await firstValueFrom(this.signIn(true));
       return { isNewUser: false, userData, googleUser };
     } catch (err: any) {
       // ONLY treat an explicit 404 (user not found in our DB) as "new user".

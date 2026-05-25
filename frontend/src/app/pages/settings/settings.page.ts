@@ -15,7 +15,10 @@ import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { SelectModule } from 'primeng/select';
 import { familyStatusOptionsList, employmentTypeOptionsList, businessTypeOptionsList, paymentIdentifierType, VATReportingType, TaxReportingType } from 'src/app/shared/enums';
 import { TransactionsService } from 'src/app/pages/transactions/transactions.page.service';
+import { SyncStatusService } from 'src/app/services/sync-status.service';
+import { catchError, EMPTY, finalize } from 'rxjs';
 import { SharedModule } from 'src/app/shared/shared.module';
+import { MyCategoriesTabComponent } from './my-categories-tab/my-categories-tab.component';
 
 @Component({
   selector: 'app-settings',
@@ -31,7 +34,8 @@ import { SharedModule } from 'src/app/shared/shared.module';
     DialogModule,
     ConfirmDialogModule,
     SelectModule,
-    SharedModule
+    SharedModule,
+    MyCategoriesTabComponent
   ],
   providers: [MessageService, ConfirmationService]
 })
@@ -42,6 +46,10 @@ export class SettingsPage implements OnInit {
   confirmationService = inject(ConfirmationService);
   myPermissionsService = inject(MyPermissionsService);
   transactionsService = inject(TransactionsService);
+  syncStatusService = inject(SyncStatusService);
+
+  /** sourceName of the account whose single-account pull is in flight (disables that row's button). */
+  retryingSourceId = signal<string | null>(null);
 
   userData: IUserData | null = null;
   businesses = signal<Business[]>([]);
@@ -74,6 +82,7 @@ export class SettingsPage implements OnInit {
   tabs = [
     { label: 'פרטים אישיים', value: 'personal' },
     { label: 'העסקים שלי', value: 'businesses' },
+    { label: 'הקטגוריות שלי', value: 'categories' },
     { label: 'ניהול הרשאות וחשבונות', value: 'permissions' },
   ];
   selectedTab: string = 'personal';
@@ -178,6 +187,45 @@ export class SettingsPage implements OnInit {
         this.accountSourcesLoading.set(false);
       },
     });
+  }
+
+  /**
+   * Pull transactions for ONE account/card (single attempt). The source's
+   * `sourceName` is exactly the `sourceId` the backend expects, and
+   * `sourceType` maps to bank/card. Routes to POST /transactions/retry-source
+   * → feezbackService.retrySource → pullOneSource (no getUserAccounts re-pull).
+   */
+  onPullSource(s: { sourceName: string; sourceType: paymentIdentifierType }): void {
+    if (this.retryingSourceId()) return; // one at a time
+    const type: 'bank' | 'card' =
+      s.sourceType === paymentIdentifierType.CREDIT_CARD ? 'card' : 'bank';
+    this.retryingSourceId.set(s.sourceName);
+    this.syncStatusService
+      .retrySource(type, s.sourceName)
+      .pipe(
+        catchError((err) => {
+          const detail =
+            err?.status === 409
+              ? 'סנכרון כבר רץ — נסה שוב בעוד מספר רגעים'
+              : 'משיכת התנועות נכשלה, אנא נסה שוב';
+          this.messageService.add({ severity: 'error', summary: 'שגיאה', detail, life: 5000, key: 'br' });
+          return EMPTY;
+        }),
+        finalize(() => this.retryingSourceId.set(null)),
+      )
+      .subscribe((result) => {
+        const ok = result?.status === 'success';
+        this.messageService.add({
+          severity: ok ? 'success' : 'warn',
+          summary: ok ? 'הסתיים' : 'לא הושלם',
+          detail: ok
+            ? `נמשכו ${result.transactionCount} תנועות עבור ${s.sourceName}`
+            : `לא ניתן היה למשוך את ${s.sourceName}${result?.error ? ` (${result.error})` : ''}`,
+          life: 6000,
+          key: 'br',
+        });
+        this.fetchAccountSources();
+      });
   }
 
   getSourceTypeLabel(sourceType: paymentIdentifierType): string {

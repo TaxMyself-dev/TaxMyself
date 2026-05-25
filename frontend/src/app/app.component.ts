@@ -51,6 +51,8 @@ export class AppComponent implements OnInit {
     // { label: 'פרופיל אישי' },
     { label: 'תזרים', routerLink: '/transactions' },
     { label: 'דוחות', routerLink: '/reports' },
+    { label: 'הנהלת חשבונות', routerLink: '/book-keeping' },
+    { label: 'ניתוח הוצאות', routerLink: '/flow-analysis' },
     // { label: 'צור קשר' },
   ]
 
@@ -59,6 +61,13 @@ export class AppComponent implements OnInit {
   showMenu: boolean = false;
   columns: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[]; // Titles of expense // TODO: remove?
   userData: IUserData;
+  /**
+   * The *real* logged-in user (admin or accountant), independent of any view-as
+   * overlay. `userData` above may temporarily reflect the demo user / client
+   * being viewed; `realUserData` always reflects who actually holds the session.
+   * Used by the top banner so it labels things from the real user's perspective.
+   */
+  realUserData: IUserData | null = null;
   isUserAdmin: boolean = false;
   isAccountant: boolean = false;
   destroy$ = new Subject<void>();
@@ -94,8 +103,14 @@ export class AppComponent implements OnInit {
 
   restartData(): void {
     this.userData = this.authService.getUserDataFromLocalStorage();
+    this.realUserData = this.authService.getRealUserDataFromLocalStorage();
     this.updateAdminMenuItems();
     this.getRoleUser();
+  }
+
+  /** True when the *real* logged-in user is an admin (regardless of view-as state). */
+  realUserIsAdmin(): boolean {
+    return !!this.realUserData?.role?.includes('ADMIN');
   }
 
   hideTopNav(): void {
@@ -109,8 +124,20 @@ export class AppComponent implements OnInit {
       const userFromStorage = this.authService.getUserDataFromLocalStorage();
       if (userFromStorage) {
         this.userData = userFromStorage;
+        this.realUserData = this.authService.getRealUserDataFromLocalStorage();
         this.updateAdminMenuItems();
         this.getRoleUser();
+      }
+      // Re-sync banner state with sessionStorage (source of truth). Defensive
+      // against missed BehaviorSubject emissions / race conditions when entering
+      // a view-as user (e.g. demo-data flow).
+      const persistedClientId = this.clientPanelService.getSelectedClientId();
+      if (persistedClientId !== this.selectedClientId) {
+        console.log('[AppComponent] re-syncing selectedClientId from sessionStorage:', { previous: this.selectedClientId, next: persistedClientId, url });
+        this.selectedClientId = persistedClientId;
+        this.selectedClientName = persistedClientId
+          ? this.clientPanelService.getSelectedClientName()
+          : null;
       }
     });
   }
@@ -169,14 +196,20 @@ export class AppComponent implements OnInit {
     this.router.navigate(["/login"]);
   }
 
-  /** יציאה מחשבון הלקוח – חזרה למשרד */
+  /**
+   * Exit the "acting as another user" view. Admins go back to /admin-panel,
+   * accountants go back to /client-panel.
+   */
   exitClientView(): void {
     this.clientPanelService.clearSelectedClient();
-    this.router.navigate(['/client-panel']);
+    const realUser = this.authService.getRealUserDataFromLocalStorage();
+    const destination = realUser?.role?.includes('ADMIN') ? '/admin-panel' : '/client-panel';
+    this.router.navigate([destination]);
   }
 
   private subscribeToSelectedClient(): void {
     this.clientPanelService.selectedClientId$.pipe(takeUntil(this.destroy$)).subscribe((id) => {
+      console.log('[AppComponent] selectedClientId$ emission:', { id, persisted: this.clientPanelService.getSelectedClientId() });
       this.selectedClientId = id;
       this.selectedClientName = id ? this.clientPanelService.getSelectedClientName() : null;
       if (id) {
@@ -187,10 +220,10 @@ export class AppComponent implements OnInit {
             this.getRoleUser();
           }
         });
-        this.genericService.loadBusinessesFromServer();
+        this.genericService.loadBusinessesFromServer().then(() => this.updateAdminMenuItems());
       } else {
         this.authService.clearViewAsUserData();
-        this.genericService.loadBusinessesFromServer();
+        this.genericService.loadBusinessesFromServer().then(() => this.updateAdminMenuItems());
         this.userData = this.authService.getUserDataFromLocalStorage();
         this.updateAdminMenuItems();
         this.getRoleUser();
@@ -219,6 +252,7 @@ export class AppComponent implements OnInit {
     const userData = this.authService.getUserDataFromLocalStorage();
     if (userData) {
       this.userData = userData;
+      this.realUserData = this.authService.getRealUserDataFromLocalStorage();
       // Update admin menu items after userData is set
       this.updateAdminMenuItems();
       // await this.genericService.loadBusinesses();
@@ -228,10 +262,26 @@ export class AppComponent implements OnInit {
   updateAdminMenuItems(): void {
     const role = this.userData?.role;
 
-    // Remove role-based items so we can re-add according to current user
+    // Remove role-based items so we can re-add according to current user.
+    // Also drop "הנהלת חשבונות" — it's re-added below only when the user
+    // has at least one business (no business → hide the tab).
     this.menuItems = this.menuItems.filter(
-      (item) => item.label !== 'פאנל ניהול' && item.label !== 'משרד',
+      (item) => item.label !== 'פאנל ניהול'
+             && item.label !== 'משרד'
+             && item.label !== 'הנהלת חשבונות',
     );
+
+    // "הנהלת חשבונות" — visible only when the user has ≥1 business.
+    // Insert between "דוחות" and "ניתוח הוצאות" to preserve the menu order.
+    if (this.genericService.businesses().length > 0) {
+      const flowAnalysisIdx = this.menuItems.findIndex((i) => i.label === 'ניתוח הוצאות');
+      const bookKeepingItem = { label: 'הנהלת חשבונות', routerLink: '/book-keeping' };
+      if (flowAnalysisIdx >= 0) {
+        this.menuItems.splice(flowAnalysisIdx, 0, bookKeepingItem);
+      } else {
+        this.menuItems.push(bookKeepingItem);
+      }
+    }
 
     if (role && (role[0] === 'ADMIN' || role.includes('ADMIN'))) {
       if (!this.menuItems.some((item) => item.label === 'פאנל ניהול')) {

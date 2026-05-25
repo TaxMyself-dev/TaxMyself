@@ -132,8 +132,9 @@ export class LoginPage implements OnInit {
           return res?.user?.emailVerified;
         }),
 
-        // 2️⃣ Call your backend signIn()
-        switchMap(() => this.authService.signIn()),
+        // 2️⃣ Call your backend signIn() — freshLogin=true so the backend
+        // runs the post-login sync (this is the only real-login call site).
+        switchMap(() => this.authService.signIn(true)),
 
         catchError((err) => {
           if (err.status === 0) {

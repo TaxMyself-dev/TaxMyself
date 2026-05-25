@@ -580,6 +580,10 @@ export class MannualExpenseComponent implements OnDestroy {
         businessNumber: [this.mannualExpenseService.showBusinessSelector() ? null : null, Validators.required],
         date: ["", Validators.required],
         sum: ["", [Validators.required, Validators.min(0)]],
+        // Currency of the entered sum. Default ILS — the existing flow. When
+        // non-ILS, the payload maps `sum` → `originalSum` and lets the backend
+        // convert via the BOI rate on `date`. `Expense.sum` is always stored ILS.
+        currency: ["ILS"],
         supplier: ["", Validators.required],
         supplierId: ["", Validators.pattern("^[0-9]*$")],
         expenseNumber: ["", Validators.pattern("^[0-9]*$")],
@@ -591,7 +595,28 @@ export class MannualExpenseComponent implements OnDestroy {
         reductionPercent: [0, [Validators.required, Validators.min(0), Validators.max(100)]],
         note: ["",],
         file: [null],
+        // P&L vs annual-report-only scope (per expense).
+        reportScope: ['pnl' as 'pnl' | 'annual'],
+        // Optional per-expense P&L-category override ("" / null = use default).
+        pnlCategory: [null as string | null],
+        // When checked (edit mode), also apply the P&L category to the WHOLE
+        // subcategory (not just this one expense).
+        applyPnlToSubcategory: [false],
     })
+
+    /** Report-scope dropdown options (ISelectItem shape: { name, value }). */
+    readonly reportScopeOptions = [
+        { name: 'רווח והפסד', value: 'pnl' },
+        { name: 'דוח שנתי בלבד', value: 'annual' },
+    ];
+
+    /** Dropdown options for the currency picker next to the sum field. */
+    currencyOptions: { value: string; name: string }[] = [
+        { value: 'ILS', name: 'שקל ₪' },
+        { value: 'USD', name: 'דולר $' },
+        { value: 'EUR', name: 'יורו €' },
+        { value: 'GBP', name: 'פאונד £' },
+    ];
 
     constructor() {
         // Initialize selectedBusinessType from active business (if available)
@@ -721,7 +746,10 @@ export class MannualExpenseComponent implements OnDestroy {
                 vatPercent: vatVal ?? 0,
                 taxPercent: taxVal ?? 0,
                 reductionPercent: this.parsePercentFromDisplay(row.reductionPercent) ?? 0,
-                note: row.note ?? ''
+                note: row.note ?? '',
+                reportScope: (row.reportScopeRaw ?? row.reportScope ?? 'pnl') === 'annual' ? 'annual' : 'pnl',
+                pnlCategory: row.pnlCategoryOverrideRaw ?? null,
+                applyPnlToSubcategory: false,
             }, { emitEvent: false });
             this.isEquipmentChecked.set(this.mannualExpenseForm.get('isEquipment')?.value === true);
             if (row.category) {
@@ -859,10 +887,27 @@ export class MannualExpenseComponent implements OnDestroy {
                 }),
                 switchMap((filePath) => {
                     const payload = this.buildExpensePayload(filePath);
-                    if (this.editMode && this.expenseId != null) {
-                        return this.expenseDataService.updateExpenseData(payload, this.expenseId);
+                    const raw = this.mannualExpenseForm.value;
+                    const save$ = (this.editMode && this.expenseId != null)
+                        ? this.expenseDataService.updateExpenseData(payload, this.expenseId)
+                        : this.expenseDataService.addExpenseData(payload);
+
+                    // "Apply to whole subcategory" → also upsert the
+                    // subcategory-level P&L config (subcategory-wide).
+                    if (raw.applyPnlToSubcategory && raw.category && raw.subCategory) {
+                        return save$.pipe(
+                            switchMap((res) =>
+                                this.expenseDataService.setSubCategoryReportConfig({
+                                    businessNumber: String(raw.businessNumber ?? this.mannualExpenseService.$selectedBusinessNumber() ?? ''),
+                                    categoryName: String(raw.category),
+                                    subCategoryName: String(raw.subCategory),
+                                    reportScope: (raw.reportScope as 'pnl' | 'annual') ?? 'pnl',
+                                    pnlCategory: (payload.pnlCategory ?? null) as string | null,
+                                }).pipe(map(() => res)),
+                            ),
+                        );
                     }
-                    return this.expenseDataService.addExpenseData(payload);
+                    return save$;
                 }),
                 catchError((error) => this.handleAddExpenseError(error, uploadedPath)),
                 finalize(() => this.isLoadingAddExpense.set(false))
@@ -921,10 +966,37 @@ export class MannualExpenseComponent implements OnDestroy {
         );
     }
 
-    /** Convert display date (dd-mm-yy) to API format (yyyy-mm-dd). */
-    private toApiDateString(displayDate: string | null | undefined): string | undefined {
+    /**
+     * Normalize whatever the date control hands us to MySQL's DATE format
+     * (`yyyy-mm-dd`). Three shapes the picker can emit:
+     *   1. Date object — extract LOCAL components (user-picked-date semantics:
+     *      picking May 1 in Israel must not become April 30 after UTC shift).
+     *   2. ISO string `yyyy-mm-ddTHH:MM:SS.sssZ` — parse to Date, then same.
+     *   3. Display string `dd-mm-yy(yy)` or `dd/mm/yy(yy)` — split + reorder.
+     *
+     * Returns undefined for anything we can't parse; callers can decide to
+     * surface a validation error rather than send garbage to MySQL.
+     */
+    private toApiDateString(displayDate: string | Date | null | undefined): string | undefined {
         if (displayDate == null || displayDate === '') return undefined;
+
+        // 1+2: Date instance OR ISO datetime string → parse + extract local components.
+        const isIsoString = typeof displayDate === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(displayDate);
+        if (displayDate instanceof Date || isIsoString) {
+            const d = displayDate instanceof Date ? displayDate : new Date(displayDate);
+            if (isNaN(d.getTime())) return undefined;
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${y}-${m}-${day}`;
+        }
+
         const s = String(displayDate).trim();
+
+        // Plain yyyy-mm-dd (already API format) — pass through.
+        if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+
+        // 3: dd-mm-yy(yy) or dd/mm/yy(yy)
         const parts = s.split(/[-/]/);
         if (parts.length !== 3) return undefined;
         const [d, m, y] = parts;
@@ -935,17 +1007,37 @@ export class MannualExpenseComponent implements OnDestroy {
     private buildExpensePayload(filePath: string | null): any {
         const raw = this.mannualExpenseForm.value;
         const dateForApi = this.toApiDateString(raw.date) ?? raw.date;
+        const enteredSum = this.toNumberOrNull(raw.sum);
+        const currency = (raw.currency ?? 'ILS').toUpperCase();
+        const isForeign = currency !== 'ILS' && enteredSum != null;
 
-        return {
+        // Foreign-currency mode: backend converts via BOI rate. Send the value
+        // as `originalSum` + `originalCurrency`; omit `sum` so the server is
+        // the single source of truth for the stored ILS amount.
+        const payload: any = {
             ...raw,
             date: dateForApi,
             file: filePath,
-            sum: this.toNumberOrNull(raw.sum),
             taxPercent: this.toNumberOrNull(raw.taxPercent),
             vatPercent: this.toNumberOrNull(raw.vatPercent),
             reductionPercent: this.toNumberOrNull(raw.reductionPercent),
             isEquipment: raw.isEquipment || false,
         };
+        if (isForeign) {
+            payload.originalSum = enteredSum;
+            payload.originalCurrency = currency;
+            // Send a placeholder sum so the DTO's @IsNumber doesn't reject —
+            // the backend overwrites it with the converted value.
+            payload.sum = enteredSum;
+        } else {
+            payload.sum = enteredSum;
+        }
+        // Form-only fields — don't leak to the backend.
+        delete payload.currency;
+        delete payload.applyPnlToSubcategory;
+        // Normalise empty override to null (clears it back to the default).
+        if (payload.pnlCategory === '' || payload.pnlCategory === '—') payload.pnlCategory = null;
+        return payload;
     }
 
     private handleAddExpenseError(error: any, uploadedPath: string | null): Observable<never> {

@@ -3,6 +3,11 @@ import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from 'src/environments/environment';
 
+export interface AdminAccountsAndCardsResponse {
+  accounts: any;
+  cards: any;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -31,43 +36,45 @@ export class FeezbackService {
   }
 
   /**
-   * Gets all transactions for all user accounts from Feezback
-   * @param bookingStatus - Optional booking status filter (default: "booked")
-   * @returns Observable with all user transactions data
+   * Admin: fetch live accounts + cards JSON for a specific client (no DB writes),
+   * along with the user's per-source sync state (status / transactionCount per source).
    */
-  getUserBankTransactions(bookingStatus?: string): Observable<any> {
-    let url = `${environment.apiUrl}feezback/user-bank-transactions`;
-    if (bookingStatus) {
-      url += `?bookingStatus=${bookingStatus}`;
-    }
-    // The Authorization header is automatically added by AuthInterceptor
-    return this.http.get<any>(url);
-  }
-
-  getUserCardTransactions(bookingStatus?: string): Observable<any> {
-    let url = `${environment.apiUrl}feezback/user-card-transactions`;
-    if (bookingStatus) {
-      url += `?bookingStatus=${bookingStatus}`;
-    }
-    // The Authorization header is automatically added by AuthInterceptor
-    return this.http.get<any>(url);
+  adminGetAccountsAndCards(firebaseId: string): Observable<AdminAccountsAndCardsResponse> {
+    return this.http.get<AdminAccountsAndCardsResponse>(
+      `${environment.apiUrl}feezback/admin/accounts/${firebaseId}`,
+    );
   }
 
   /**
-   * Gets both bank and card transactions in one call (dev use).
-   * @param bookingStatus - Optional booking status filter (default: "booked")
-   * @returns Observable with { bankTransactions, cardTransactions }
+   * Admin: trigger refreshUserSources for a specific client.
    */
-  getAllUserTransactions(bookingStatus?: string): Observable<{ bankTransactions: any; cardTransactions: any; syncSummary?: any }> {
-    let url = `${environment.apiUrl}feezback/user-all-transactions`;
-    if (bookingStatus) {
-      url += `?bookingStatus=${bookingStatus}`;
-    }
-    return this.http.get<{ bankTransactions: any; cardTransactions: any; syncSummary?: any }>(url);
+  adminRefreshUserSources(firebaseId: string): Observable<{ status: string }> {
+    return this.http.post<{ status: string }>(
+      `${environment.apiUrl}feezback/admin/refresh-sources/${firebaseId}`,
+      {},
+    );
   }
 
-  ensureSources(): Observable<{ created: number; updated: number }> {
-    return this.http.post<{ created: number; updated: number }>(`${environment.apiUrl}feezback/ensure-sources`, {});
+  /**
+   * Admin: pull transactions for one specific source (bank account / card) of
+   * a client. Returns the per-source result (status + transactionCount/error).
+   */
+  adminPullSource(
+    firebaseId: string,
+    type: 'bank' | 'card',
+    sourceId: string,
+  ): Observable<AdminPullSourceResult> {
+    return this.http.post<AdminPullSourceResult>(
+      `${environment.apiUrl}feezback/admin/pull-source/${firebaseId}`,
+      { type, sourceId },
+    );
   }
 }
 
+export interface AdminPullSourceResult {
+  type: 'bank' | 'card';
+  sourceId: string;
+  status: 'not_synced' | 'success' | 'failed';
+  transactionCount: number;
+  error?: string;
+}

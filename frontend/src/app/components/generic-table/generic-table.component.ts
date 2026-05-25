@@ -14,7 +14,7 @@ import { ButtonComponent } from "../button/button.component";
 import { ButtonColor, ButtonSize } from '../button/button.enum';
 import { GenericService } from 'src/app/services/generic.service';
 import { IColumnDataTable, IMobileCardConfig, IRowDataTable, ITableRowAction } from 'src/app/shared/interface';
-import { FormTypes } from 'src/app/shared/enums';
+import { FormTypes, ICellRenderer } from 'src/app/shared/enums';
 import { DateFormatPipe } from 'src/app/pipes/date-format.pipe';
 import { TruncatePointerDirective } from '../../directives/truncate-pointer.directive';
 import { HighlightPipe } from "../../pipes/high-light.pipe";
@@ -102,6 +102,35 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   isHovering = signal<number>(null);
   selectedTrans: IRowDataTable[] = [];
 
+  // ─── Mobile checkbox selection (parallel to selectedTrans for desktop) ────
+  mobileSelectedRows = signal<IRowDataTable[]>([]);
+
+  mobileAllChecked = computed(() => {
+    const total = this.dataTable().length;
+    return total > 0 && this.mobileSelectedRows().length === total;
+  });
+
+  isMobileRowChecked(row: IRowDataTable): boolean {
+    return this.mobileSelectedRows().some(r => r['id'] === row['id']);
+  }
+
+  onMobileRowChecked(row: IRowDataTable, checked: boolean): void {
+    this.mobileSelectedRows.update(rows =>
+      checked
+        ? rows.some(r => r['id'] === row['id']) ? rows : [...rows, row]
+        : rows.filter(r => r['id'] !== row['id'])
+    );
+    this.isAllChecked.emit(this.mobileAllChecked());
+    this.rowsChecked.emit(this.mobileSelectedRows());
+  }
+
+  onMobileSelectAll(checked: boolean): void {
+    const rows = checked ? [...this.dataTable()] : [];
+    this.mobileSelectedRows.set(rows);
+    this.isAllChecked.emit(checked && rows.length > 0);
+    this.rowsChecked.emit(rows);
+  }
+
 
 
 
@@ -109,6 +138,46 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   readonly ButtonColor = ButtonColor;
   /** Exposed for template: `col.type === FormTypes.DATE` alongside name-based date detection */
   readonly FormTypes = FormTypes;
+  /** Exposed for template: enables `col.cellRenderer === ICellRenderer.X` checks. */
+  readonly ICellRenderer = ICellRenderer;
+
+  /**
+   * Picks the matching percent-field name for an AMOUNT_WITH_PERCENT cell.
+   * Convention: `totalVatPayable` → `vatPercent`, `totalTaxPayable` → `taxPercent`.
+   * Returns null when the column isn't one of those — caller falls back to plain text.
+   */
+  amountPercentField(colName: unknown): 'vatPercent' | 'taxPercent' | null {
+    if (colName === 'totalVatPayable') return 'vatPercent';
+    if (colName === 'totalTaxPayable') return 'taxPercent';
+    return null;
+  }
+
+  /**
+   * Display symbol for a currency code. Used by the SUM_WITH_FX renderer to
+   * suffix the original amount (e.g. "100 $"). Falls back to the raw code
+   * for currencies outside the supported set so the user still sees what
+   * was synced even if we don't have a glyph for it.
+   */
+  currencySymbol(code: string | null | undefined): string {
+    switch ((code ?? '').toUpperCase()) {
+      case 'USD': return '$';
+      case 'EUR': return '€';
+      case 'GBP': return '£';
+      case 'ILS': return '₪';
+      default:    return code ?? '';
+    }
+  }
+
+  /**
+   * Absolute value of `ilsAmount` for the SUM_WITH_FX renderer. The original
+   * amount (`row.sum`) is already displayed via `Math.abs` upstream and the
+   * sign is conveyed via row color, so the ILS parenthesis should match —
+   * showing the minus would be redundant.
+   */
+  absIls(value: number | string | null | undefined): number {
+    const n = value == null ? 0 : Number(value);
+    return isFinite(n) ? Math.abs(n) : 0;
+  }
 
 
   expandedRows = new Set<number>();
@@ -204,10 +273,11 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   }
 
   ngOnInit() {
-
     if (this.defaultSelectedValue()) {
-      this.selectedTrans = [...this.dataTable()];
-      this.rowsChecked.emit(this.selectedTrans);
+      const allRows = [...this.dataTable()];
+      this.selectedTrans = allRows;
+      this.mobileSelectedRows.set(allRows);
+      this.rowsChecked.emit(allRows);
     }
   }
 
@@ -482,8 +552,9 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
 
   shouldShowAction(action: ITableRowAction): boolean {
     if (!action.alwaysShow) return false;
+    const row = this.hoveredRowInfo()?.row;
+    if (action.showWhen && row && !action.showWhen(row)) return false;
     if (action.name === 'close') {
-      const row = this.hoveredRowInfo()?.row;
       if (row && row['docStatus']?.toUpperCase() === 'CLOSE') {
         return false;
       }
@@ -493,8 +564,9 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
 
   shouldShowFileAction(action: ITableRowAction): boolean {
     if (action.alwaysShow) return false;
+    const row = this.hoveredRowInfo()?.row;
+    if (action.showWhen && row && !action.showWhen(row)) return false;
     if (action.name === 'close') {
-      const row = this.hoveredRowInfo()?.row;
       if (row && row['docStatus']?.toUpperCase() === 'CLOSE') {
         return false;
       }

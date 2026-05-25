@@ -15,6 +15,13 @@
   [parentForm]="mannualExpenseForm" [size]="isMobile() ? inputSize.MOBILE : inputSize.BETWEEN" [type]="'number'">
 </app-input-text>
 
+<!-- Currency picker — when non-ILS, the backend converts via the BOI rate
+     on `date` and stores ILS in `Expense.sum`. -->
+<app-input-select [customStyle]="'register'" [controlName]="'currency'" [labelText]="'מטבע'"
+  [placeholder]="'בחר מטבע'" [items]="currencyOptions" [parentForm]="mannualExpenseForm"
+  [size]="isMobile() ? inputSize.MOBILE : inputSize.BETWEEN">
+</app-input-select>
+
 <app-input-autocomplete 
   [customStyle]="'rounded-border'" 
   [controlName]="'supplier'" 
@@ -95,6 +102,29 @@
   [parentForm]="mannualExpenseForm" [size]="isMobile() ? inputSize.MOBILE : inputSize.LARGE" [type]="'text'">
 </app-input-text>
 
+<!-- Report scope + P&L-category: shown ONLY in edit mode. On manual creation
+     they are taken automatically from the chosen subcategory. -->
+@if (editMode) {
+  <app-input-select [customStyle]="'register'" [controlName]="'reportScope'" [labelText]="'סוג דוח'"
+    [placeholder]="'בחר סוג דוח'" [items]="reportScopeOptions" [parentForm]="mannualExpenseForm"
+    [size]="isMobile() ? inputSize.MOBILE : inputSize.BETWEEN">
+  </app-input-select>
+
+  <app-input-text [customStyle]="'rounded-border'" [controlName]="'pnlCategory'"
+    [labelText]="'קטגוריה לדוח רווח והפסד (אופציונלי)'" [placeholder]="'ריק = לפי תת הקטגוריה'"
+    [parentForm]="mannualExpenseForm" [size]="isMobile() ? inputSize.MOBILE : inputSize.LARGE" [type]="'text'">
+  </app-input-text>
+
+  <div class="checkbox-row">
+    <form [formGroup]="mannualExpenseForm">
+      <div class="checkbox-field">
+        <p-checkbox formControlName="applyPnlToSubcategory" inputId="applyPnlToSubcategory" [binary]="true"></p-checkbox>
+        <label [for]="'applyPnlToSubcategory'" class="checkbox-label">החל על כל תת־הקטגוריה (לא רק על הוצאה זו)</label>
+      </div>
+    </form>
+  </div>
+}
+
 <div class="wrap-file-uploader">
   <app-file-uploader-gpt (selectedFiles)="selectedFiles($event)"></app-file-uploader-gpt>
   
@@ -133,6 +163,6 @@
 
 <div class="wrap-add-button">
   <app-p-button [disabled]="mannualExpenseForm.invalid" (onButtonClicked)="addExpense()"
-    [isLoading]="isLoadingAddExpense()" [buttonText]="'הוסף'" [buttonSize]="buttonSize.SMALL"
+    [isLoading]="isLoadingAddExpense()" [buttonText]="editMode ? 'עדכן' : 'הוסף'" [buttonSize]="buttonSize.SMALL"
     [buttonColor]="buttonColor.BLACK"></app-p-button>
 </div>

@@ -2,15 +2,45 @@ p {
     margin-top: 0;
 }
 
+// ─── Footer (rendered via pTemplate="footer") ────────────────────────────────
+
 .footer {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-top: 10px;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.footer-warning {
+    color: red;
+    margin: 0;
+    font-size: 14px;
 }
 
 .footer-buttons {
     display: flex;
-    justify-content: space-between;
-    width: 35%;
+    gap: 12px;
+}
+
+// ─── Mobile ──────────────────────────────────────────────────────────────────
+
+@media (max-width: 768px) {
+    .footer {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+        padding-inline: 4px;
+    }
+
+    .footer-warning {
+        text-align: center;
+    }
+
+    .footer-buttons {
+        display: flex;
+        justify-content: center;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
 }

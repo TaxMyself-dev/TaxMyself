@@ -12,6 +12,12 @@ export interface TransactionColumnOptions {
   isOnlyEmployer: boolean;
   /** My Account — unclassified table: slimmer columns (no category, business, month report, etc.). */
   myAccountUnclassified?: boolean;
+  /**
+   * Income table: hide the "תקופת דיווח" (MONTH_REPORT) column. The
+   * report-period stamp is an expense concept (VAT/PnL filing of expenses);
+   * income rows don't carry it, so the column would always be empty there.
+   */
+  incomeTable?: boolean;
 }
 
 /**
@@ -26,11 +32,10 @@ export const BASE_TRANSACTION_COLUMNS: IColumnDataTable<
   { name: TransactionsOutcomesColumns.BILL_NAME, value: TransactionsOutcomesHebrewColumns.billName, type: FormTypes.TEXT, cellRenderer: ICellRenderer.BILL },
   { name: TransactionsOutcomesColumns.BILL_NUMBER, value: TransactionsOutcomesHebrewColumns.paymentIdentifier, type: FormTypes.NUMBER },
   { name: TransactionsOutcomesColumns.BILL_DATE, value: TransactionsOutcomesHebrewColumns.billDate, type: FormTypes.DATE, cellRenderer: ICellRenderer.DATE },
-  { name: TransactionsOutcomesColumns.SUM, value: TransactionsOutcomesHebrewColumns.sum, type: FormTypes.NUMBER },
+  { name: TransactionsOutcomesColumns.SUM, value: TransactionsOutcomesHebrewColumns.sum, type: FormTypes.NUMBER, cellRenderer: ICellRenderer.SUM_WITH_FX },
   { name: TransactionsOutcomesColumns.CATEGORY, value: TransactionsOutcomesHebrewColumns.category, type: FormTypes.TEXT, cellRenderer: ICellRenderer.CATEGORY },
   { name: TransactionsOutcomesColumns.SUBCATEGORY, value: TransactionsOutcomesHebrewColumns.subCategory, type: FormTypes.TEXT, cellRenderer: ICellRenderer.SUBCATEGORY },
-  { name: TransactionsOutcomesColumns.IS_RECOGNIZED, value: TransactionsOutcomesHebrewColumns.isRecognized, type: FormTypes.TEXT, hide: true },
-  { name: TransactionsOutcomesColumns.MONTH_REPORT, value: TransactionsOutcomesHebrewColumns.monthReport, type: FormTypes.TEXT, hide: true },
+  { name: TransactionsOutcomesColumns.MONTH_REPORT, value: TransactionsOutcomesHebrewColumns.monthReport, type: FormTypes.TEXT, cellRenderer: ICellRenderer.MONTH_REPORT },
   { name: TransactionsOutcomesColumns.NOTE, value: TransactionsOutcomesHebrewColumns.note, type: FormTypes.TEXT },
 ];
 
@@ -62,11 +67,14 @@ export function buildTransactionColumns(
     const omit = new Set([
       TransactionsOutcomesColumns.CATEGORY,
       TransactionsOutcomesColumns.SUBCATEGORY,
-      TransactionsOutcomesColumns.IS_RECOGNIZED,
       TransactionsOutcomesColumns.MONTH_REPORT,
       TransactionsOutcomesColumns.BUSINESS_NUMBER,
     ]);
     cols = cols.filter(c => !omit.has(c.name));
+  }
+
+  if (options.incomeTable) {
+    cols = cols.filter(c => c.name !== TransactionsOutcomesColumns.MONTH_REPORT);
   }
 
   return cols;

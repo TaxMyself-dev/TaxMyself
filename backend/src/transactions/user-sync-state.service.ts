@@ -9,7 +9,7 @@ import { UserSourceSyncState, SourceResult } from './user-source-sync-state.enti
  * abandoned (process crashed / pod killed mid-sync) and let the next caller
  * take the lock over. Keeps stuck rows from blocking a user forever.
  */
-const STALE_LOCK_AFTER_MS = 30 * 60_000;
+const STALE_LOCK_AFTER_MS = 5 * 60_000;
 
 @Injectable()
 export class UserSyncStateService {
@@ -112,6 +112,9 @@ export class UserSyncStateService {
     for (const src of sources) {
       const existing = await this.sourceRepo.findOne({ where: { userId, sourceId: src.sourceId } });
       if (existing) {
+        // Discovery (getUserAccounts) is the source of truth — when it provides
+        // a fresh consentId / resourceId, overwrite the stored ones (consent
+        // rotation changes consentId).
         await this.sourceRepo.update({ userId, sourceId: src.sourceId }, {
           consentId: src.consentId ?? existing.consentId,
           resourceId: src.resourceId ?? existing.resourceId,
@@ -186,6 +189,33 @@ export class UserSyncStateService {
     );
   }
 
+  /**
+   * After a successful user-initiated single-source pull (retry-source /
+   * settings per-account button), the cache now has data but the overall
+   * `fullProcessStatus` may still be 'empty'/'failed'/null — which keeps
+   * syncStateAllowsFetch closed, so the user can't see what they just pulled.
+   * Promote the row to 'completed' so the fetch gate opens.
+   *
+   * Guard: never touch a 'running' row — a full sync owns the lifecycle then
+   * and will set the terminal status itself; clobbering it would corrupt the
+   * lock/lifecycle. Upsert so a user with no prior sync-state row still gets one.
+   */
+  async markCacheReadyAfterSourcePull(userId: string): Promise<void> {
+    const state = await this.repo.findOne({ where: { userId } });
+    if (state?.fullProcessStatus === 'running') return;
+    await this.repo.upsert(
+      {
+        userId,
+        fullProcessStatus: 'completed',
+        fullResultStatus: 'success',
+        fullFinishedAt: new Date(),
+        fullSkipReason: null,
+        fullFailureReason: null,
+      } as UserSyncState,
+      ['userId'],
+    );
+  }
+
   async getSyncState(userId: string): Promise<UserSyncState | null> {
     return this.repo.findOne({ where: { userId } });
   }
@@ -196,17 +226,24 @@ export class UserSyncStateService {
 
   /**
    * Merges new source results into the user_source_sync_state table.
-   * Sources with the same sourceId are overwritten; new sources are inserted.
+   *
+   * status/transactionCount/error are always overwritten with the incoming
+   * result. resourceId/consentId are NEVER nulled by a result that lacks them
+   * — they're owned by discovery (getUserAccounts) and a successful fetch, and
+   * pullOneSource/retrySource depend on them. A failed bank SourceResult, for
+   * example, carries no ids; without this guard it would wipe the ids and
+   * break the subsequent per-account retry.
    */
   async updateSourceResults(userId: string, incoming: SourceResult[]): Promise<void> {
     for (const src of incoming) {
+      const existing = await this.sourceRepo.findOne({ where: { userId, sourceId: src.sourceId } });
       await this.sourceRepo.upsert(
         {
           userId,
           sourceId: src.sourceId,
           type: src.type,
-          resourceId: src.resourceId ?? null,
-          consentId: src.consentId ?? null,
+          resourceId: src.resourceId ?? existing?.resourceId ?? null,
+          consentId: src.consentId ?? existing?.consentId ?? null,
           status: src.status,
           transactionCount: src.transactionCount,
           error: src.error ?? null,

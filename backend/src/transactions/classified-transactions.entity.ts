@@ -1,4 +1,4 @@
-import { ExpenseNecessity } from 'src/enum';
+import { ExpenseNecessity, ExpenseReportScope } from 'src/enum';
 import {
     Entity,
     Column,
@@ -65,6 +65,10 @@ export class ClassifiedTransactions {
   @Column()
   reductionPercent: number;
 
+  /** Carried onto slim/cache/Expense so rule-classified txs get the right scope. */
+  @Column({ type: 'enum', enum: ExpenseReportScope, default: ExpenseReportScope.PNL })
+  reportScope: ExpenseReportScope;
+
   @Column({ type: 'date', nullable: true, default: null })
   startDate: Date | null;
 
@@ -86,6 +90,14 @@ export class ClassifiedTransactions {
     default: 'equals',
   })
   commentMatchType: 'equals' | 'contains';
+
+  /**
+   * Optional override of the bill's default business attribution. When set,
+   * matching transactions are attributed to this business instead of the one
+   * derived from the bill's source. Null = no override (use bill default).
+   */
+  @Column({ type: 'varchar', nullable: true, default: null })
+  businessNumber: string | null;
 
   /** Used as tie-breaker in rule selection: newest updatedAt wins. */
   @CreateDateColumn()

@@ -1,5 +1,6 @@
 import {
   IsBoolean,
+  IsEnum,
   IsIn,
   IsInt,
   IsNotEmpty,
@@ -9,6 +10,7 @@ import {
   Max,
   Min,
 } from 'class-validator';
+import { ExpenseReportScope } from 'src/enum';
 
 /**
  * DTO for classifyWithRule() — rule-based classification.
@@ -55,6 +57,11 @@ export class ClassifyWithRuleDto {
   @IsBoolean()
   isRecognized: boolean;
 
+  /** P&L vs annual-report-only scope, taken from the chosen subcategory. */
+  @IsOptional()
+  @IsEnum(ExpenseReportScope)
+  reportScope?: ExpenseReportScope;
+
   // -- Rule metadata --
 
   @IsOptional()
@@ -95,4 +102,23 @@ export class ClassifyWithRuleDto {
   @IsOptional()
   @IsBoolean()
   confirmOverride?: boolean;
+
+  /**
+   * Optional business attribution override. When provided, both the rule
+   * and matching slim/cache rows are written with this businessNumber
+   * instead of the bill's default.
+   */
+  @IsOptional()
+  @IsString()
+  businessNumber?: string | null;
+
+  /**
+   * Explicit period label for the FOCUS transaction when its natural period
+   * is locked. Frontend supplies this after the user picks from the locked-
+   * period dialog. Backfilled rows always use their own natural period (or
+   * are skipped if locked).
+   */
+  @IsOptional()
+  @IsString()
+  targetPeriodLabel?: string;
 }

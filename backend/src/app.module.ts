@@ -18,7 +18,11 @@ import { BookkeepingModule } from './bookkeeping/bookkeeping.module';
 import { FeezbackModule } from './feezback/feezback.module';
 import { FeezbackWebhookModule } from './feezback/webhook/feezback-webhook.module';
 import { ShaamModule } from './shaam/shaam.module';
-import { AgentsModule } from './agents/agents.module';
+import { AccountantTasksModule } from './accountant-tasks/accountant-tasks.module';
+import { AnnualReportModule } from './annual-report/annual-report.module';
+import { ReportWorkflowModule } from './report-workflow/report-workflow.module';
+import { NotificationsModule } from './notifications/notifications.module';
+import { DemoDataModule } from './demo-data/demo-data.module';
 //Entities
 import { Expense } from './expenses/expenses.entity';
 import { Income } from './expenses/incomes.entity';
@@ -41,7 +45,6 @@ import { UserSyncState } from './transactions/user-sync-state.entity';
 import { UserSourceSyncState } from './transactions/user-source-sync-state.entity';
 import { Finsite } from './finsite/finsite.entity';
 import { Delegation } from './delegation/delegation.entity';
-import { Agents } from './delegation/agents.entity';
 import { Clients } from './clients/clients.entity';
 import { Documents } from './documents/documents.entity';
 import { DocLines } from './documents/doc-lines.entity';
@@ -49,6 +52,11 @@ import { DocPayments } from './documents/doc-payments.entity';
 import { Business } from './business/business.entity';
 import { FeezbackWebhookEvent } from './feezback/webhook/entities/feezback-webhook-event.entity';
 import { UserModuleSubscription } from './users/user-module-subscription.entity';
+import { AccountantTask } from './accountant-tasks/accountant-task.entity';
+import { AnnualReport } from './annual-report/annual-report.entity';
+import { AnnualReportFile } from './annual-report/annual-report-file.entity';
+import { ReportWorkflow } from './report-workflow/report-workflow.entity';
+import { FxRate } from './shared/fx-rate.entity';
 
 import 'dotenv/config'
 import * as admin from 'firebase-admin';
@@ -83,8 +91,9 @@ import { BusinessService } from './business/business.service';
         SlimTransaction, FullTransactionCache, UserTransactionCacheState, UserSyncState, UserSourceSyncState,
         Bill, Source,
         DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory, Finsite, Delegation, SettingDocuments,
-        Clients, Documents, DocLines, DocPayments, JournalEntry, JournalLine, DefaultBookingAccount, Agents,
-        FeezbackWebhookEvent, UserModuleSubscription],
+        Clients, Documents, DocLines, DocPayments, JournalEntry, JournalLine, DefaultBookingAccount,
+        FeezbackWebhookEvent, UserModuleSubscription, AccountantTask, AnnualReport, AnnualReportFile, ReportWorkflow,
+        FxRate],
       synchronize: process.env.NODE_ENV !== 'production',
       timezone: 'Z',
       //logging: true
@@ -119,7 +128,7 @@ import { BusinessService } from './business/business.service';
       FeezbackWebhookEvent
     ]),
     ScheduleModule.forRoot(),
-    HttpModule, UsersModule, ReportsModule, ExpensesModule, TransactionsModule, BusinessModule, CloudModule, SharedModule, FinsiteModule, MailModule, DelegationModule, DocumentsModule, ClientsModule, BookkeepingModule, FeezbackModule, ShaamModule, AgentsModule, FeezbackWebhookModule],
+    HttpModule, UsersModule, ReportsModule, ExpensesModule, TransactionsModule, BusinessModule, CloudModule, SharedModule, FinsiteModule, MailModule, DelegationModule, DocumentsModule, ClientsModule, BookkeepingModule, FeezbackModule, ShaamModule, FeezbackWebhookModule, AccountantTasksModule, AnnualReportModule, ReportWorkflowModule, NotificationsModule, DemoDataModule],
   controllers: [AppController],
   providers: [AppService, FinsiteService, ExpensesService, MailService, DocumentsService, ClientsService, BookkeepingService, BusinessService],
 })

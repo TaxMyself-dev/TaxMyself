@@ -1,6 +1,6 @@
 import { IsNotEmpty, IsString, IsOptional, IsNumber, IsEnum, IsDateString, IsBoolean } from 'class-validator';
 import { Type } from 'class-transformer';
-import { BusinessType, DocumentType } from 'src/enum';
+import { BusinessType, DocumentType, DocumentStatusType } from 'src/enum';
 
 export class DocDataDto {
 
@@ -38,6 +38,10 @@ export class DocDataDto {
   @IsOptional()
   @IsString()
   allocationNum?: string;
+
+  @IsOptional()
+  @IsEnum(DocumentStatusType)
+  docStatus?: DocumentStatusType;
 
   @IsOptional()
   @IsString()

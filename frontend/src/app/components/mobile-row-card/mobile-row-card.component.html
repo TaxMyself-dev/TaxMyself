@@ -3,7 +3,7 @@
   <!-- ─── Hero section ──────────────────────────────────────────────────── -->
   <div class="mrc__hero">
 
-    <!-- Row 1: date + menu -->
+    <!-- Row 1: date + (checkbox and/or menu) -->
     <div class="mrc__hero-top">
       <span class="mrc__date">
         @if (dateColumn()) {
@@ -11,28 +11,42 @@
         }
       </span>
 
-      @if (actions().length) {
-        <div class="mrc__menu-wrap">
-          <app-p-button
-            [icon]="'pi pi-ellipsis-v'"
-            [iconOnly]="true"
-            [buttonSize]="ButtonSize.ICON"
-            [buttonColor]="ButtonColor.WHITE_BORDER_LIGHT"
-            (onButtonClicked)="toggleMenu($event)">
-          </app-p-button>
+      <div class="mrc__hero-end">
+        @if (showCheckbox()) {
+          <label class="mrc__checkbox-label">
+            <input
+              type="checkbox"
+              class="mrc__checkbox"
+              [checked]="checked()"
+              (change)="onCheckboxChange($event)"
+              (click)="$event.stopPropagation()"
+              aria-label="בחר שורה">
+          </label>
+        }
 
-          @if (menuOpen()) {
-            <ul class="mrc__menu-dropdown" (click)="$event.stopPropagation()">
-              @for (action of actions(); track action.name) {
-                <li class="mrc__menu-item" (click)="onActionClick(action)">
-                  <i [class]="action.icon"></i>
-                  <span>{{ action.title ?? action.name }}</span>
-                </li>
-              }
-            </ul>
-          }
-        </div>
-      }
+        @if (actions().length) {
+          <div class="mrc__menu-wrap">
+            <app-p-button
+              [icon]="'pi pi-ellipsis-v'"
+              [iconOnly]="true"
+              [buttonSize]="ButtonSize.ICON"
+              [buttonColor]="ButtonColor.WHITE_BORDER_LIGHT"
+              (onButtonClicked)="toggleMenu($event)">
+            </app-p-button>
+
+            @if (menuOpen()) {
+              <ul class="mrc__menu-dropdown" (click)="$event.stopPropagation()">
+                @for (action of actions(); track action.name) {
+                  <li class="mrc__menu-item" (click)="onActionClick(action)">
+                    <i [class]="action.icon"></i>
+                    <span>{{ action.title ?? action.name }}</span>
+                  </li>
+                }
+              </ul>
+            }
+          </div>
+        }
+      </div>
     </div>
 
     <!-- Row 2: title + highlighted value -->

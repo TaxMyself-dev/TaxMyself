@@ -1,3 +1,33 @@
+<p-confirmDialog></p-confirmDialog>
+<p-confirmDialog key="markSubmitted"></p-confirmDialog>
+
+<p-dialog
+  [(visible)]="redirectPromptVisibleModel"
+  header="הוצאות לא מאושרות"
+  [modal]="true"
+  [closable]="true"
+  [draggable]="false"
+  [style]="{ width: '370px' }">
+  <div class="redirect-prompt-body">
+    <i class="pi pi-exclamation-triangle redirect-prompt-icon"></i>
+    <span>יש לך {{ arrayLength() }} הוצאות שעוד לא אושרו. עליך לאשרן לפני הפקת דו"ח רווח והפסד.</span>
+  </div>
+  <ng-template pTemplate="footer">
+    <app-p-button
+      buttonText="ביטול"
+      [buttonColor]="buttonColor.WHITE_BORDER"
+      [buttonSize]="buttonSize.SMALL"
+      (onButtonClicked)="onRedirectPromptCancel()">
+    </app-p-button>
+    <app-p-button
+      buttonText="מעבר לאישור הוצאות"
+      [buttonColor]="buttonColor.BLACK"
+      [buttonSize]="buttonSize.AUTO"
+      (onButtonClicked)="onRedirectPromptAccept()">
+    </app-p-button>
+  </ng-template>
+</p-dialog>
+
 <div class="pnl-report-wrap-screen">
 
     <div class="pnl-report-header">
@@ -50,11 +80,43 @@
           <div class="profit-field" dir="ltr">{{ pnlReport.netProfitBeforeTax }}</div>
         </div>
       </div>
-      <app-p-button class="pnl-pdf-button" 
-        [buttonText]="'ייצא כ-PDF'" 
-        [buttonColor]="buttonColor.BLACK"
-        [buttonSize]="buttonSize.AUTO"
-        (onButtonClicked)="createPnlReportPDFfile()">
-    </app-p-button>
+      <div class="report-action-row">
+        <app-p-button
+          [buttonText]="'ייצא כ-PDF'"
+          [buttonColor]="buttonColor.BLACK"
+          [buttonSize]="buttonSize.SMALL"
+          [isLoading]="isLoadingPDF()"
+          (onButtonClicked)="createPnlReportPDFfile()">
+        </app-p-button>
+
+        @if (reportSubmitted()) {
+          <div class="report-submitted-badge" aria-live="polite">
+            <i class="pi pi-check-circle"></i>
+            <span>הדוח הוגש</span>
+          </div>
+        } @else {
+          <app-p-button
+            [buttonText]="'סמן כדווח'"
+            [buttonColor]="buttonColor.WHITE_BORDER"
+            [buttonSize]="buttonSize.SMALL"
+            (onButtonClicked)="onMarkAsSubmitted()">
+          </app-p-button>
+        }
+      </div>
     </ng-container>
   </div>
+
+@let transToConfirmData = transToConfirm | async;
+@if (transToConfirmData?.length > 0 && visibleConfirmTransDialog()) {
+  <app-confirm-trans-dialog
+    (confirmArraySelected)="confirmTrans($event)"
+    (isVisibleChange)="closeDialogWithoutConfirm($event)"
+    [isLoadingButton]="isLoadingButtonConfirmDialog()"
+    [isVisible]="visibleConfirmTransDialog()"
+    [data]="transToConfirmData"
+    [businessNumber]="businessNumber()"
+    [startDate]="startDate()"
+    [endDate]="endDate()"
+    [arrayLength]="arrayLength()">
+  </app-confirm-trans-dialog>
+}

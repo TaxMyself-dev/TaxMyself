@@ -1,0 +1,142 @@
+<header>
+  <div class="select">
+    <span class="title">בחר חשבון</span>
+    <app-input-select
+      [controlName]="'account'"
+      [placeholder]="'בחר חשבון'"
+      [items]="accountsList()"
+      [parentForm]="myForm"
+      [size]="inputsSize.MOBILE">
+    </app-input-select>
+  </div>
+
+  <form [formGroup]="myForm">
+    <div cdkOverlayOrigin #trigger="cdkOverlayOrigin">
+      <app-segmented-control [options]="periodOptions" [formControlName]="'period'">
+      </app-segmented-control>
+    </div>
+  </form>
+
+  
+</header>
+
+<ng-template
+  cdkConnectedOverlay
+  [cdkConnectedOverlayOrigin]="trigger"
+  [cdkConnectedOverlayOpen]="showCustomRange()"
+  [cdkConnectedOverlayPositions]="overlayPositions"
+  (overlayOutsideClick)="closeCustomRange()">
+  <div class="custom-date-popover">
+    <app-custom-date-range
+      [startControl]="myForm.controls.dateFrom"
+      [endControl]="myForm.controls.dateTo"
+      (closed)="closeCustomRange()" />
+  </div>
+</ng-template>
+
+<main>
+  <!-- Line chart -->
+  <div class="chart-card">
+    <div class="chart-card__header">
+      <h3 class="chart-title">גרף ההוצאות שלי</h3>
+      <div class="filter-row">
+        <app-input-select
+          [controlName]="'filterType'"
+          [parentForm]="myForm"
+          [items]="filterTypeItems"
+          [placeholder]="'סוג סינון'"
+          [disabled]="isFilterDisabled()"
+          >
+        </app-input-select>
+    
+        @if (showCategorySelect()) {
+          <app-input-select
+            [controlName]="'category'"
+            [parentForm]="myForm"
+            [items]="categoryItems()"
+            [placeholder]="'קטגוריה'">
+          </app-input-select>
+        }
+    
+        @if (showSubCategorySelect()) {
+          <app-input-select
+            [controlName]="'subCategory'"
+            [parentForm]="myForm"
+            [items]="subCategoryItems()"
+            [placeholder]="'תת קטגוריה'"
+            [disabled]="isSubCategoryDisabled()">
+          </app-input-select>
+        }
+    
+        @if (showMerchantSelect()) {
+          <app-input-select
+            [controlName]="'merchant'"
+            [parentForm]="myForm"
+            [items]="merchantItems()"
+            [placeholder]="'בית עסק'">
+          </app-input-select>
+        }
+    
+        @if (showPaymentMethodSelect()) {
+          <app-input-select
+            [controlName]="'paymentMethod'"
+            [parentForm]="myForm"
+            [items]="paymentMethodItems()"
+            [placeholder]="'אמצעי תשלום'">
+          </app-input-select>
+        }
+    
+        <!-- <button class="submit-btn" [disabled]="!canSubmit() || loading()" (click)="submit()">
+          הצג
+        </button> -->
+        <app-p-button [disabled]="!canSubmit() || loading()" (onButtonClicked)="submit()" [buttonText]="'הצג'" [buttonSize]="buttonSize.SMALL" [buttonColor]="buttonColor.BLACK"></app-p-button>
+      </div>
+      <!-- <app-p-button (onButtonClicked)="openFilterDialod()" [class]="visibleFilterPannel() ? 'clicked' : ''"
+            [iconOnly]="true" [icon]="'pi pi-filter-fill'" variant="outlined" [buttonText]="'תצוגת טבלה'"
+            [buttonColor]="buttonColor.WHITE" [buttonSize]="buttonSize.ICON"></app-p-button> -->
+      <form [formGroup]="lineDisplayForm">
+        <app-segmented-control [options]="lineDisplayOptions" formControlName="mode">
+        </app-segmented-control>
+      </form>
+      <form [formGroup]="chartTypeForm">
+        <app-segmented-control [options]="chartTypeOptions" formControlName="type">
+        </app-segmented-control>
+      </form>
+    </div>
+
+    @if (submittedFilterChips().length > 0) {
+      <div class="show-filters-container" dir="rtl">
+        @for (chip of submittedFilterChips(); track $index) {
+          <div class="filter-header">
+            <p class="filter-header-text">{{ chip.label }}: {{ chip.value }}</p>
+          </div>
+        }
+      </div>
+    }
+
+    @if (loading()) {
+      <div class="state-message">טוען נתונים...</div>
+    } @else if (hasError()) {
+      <div class="state-message state-message--error">שגיאה בטעינת הנתונים. אנא נסה שנית.</div>
+    } @else {
+      <app-line-chart [series]="cashflowSeries()" [chartType]="chartType()"></app-line-chart>
+    }
+  </div>
+
+  <!-- Donut chart -->
+  <div class="donut-chart-card">
+    <h3 class="donut-chart-title">התפלגות הוצאות לפי קטגוריות</h3>
+
+    @if (loading()) {
+      <div class="state-message">טוען נתונים...</div>
+    } @else if (hasError()) {
+      <div class="state-message state-message--error">שגיאה בטעינת הנתונים.</div>
+    } @else if (apiData() === null) {
+      <div class="state-message">יש לבחור חשבון ותאריכים וללחוץ על "הצג"</div>
+    } @else if (isDonutEmpty()) {
+      <div class="state-message">אין הוצאות בתקופה זו</div>
+    } @else {
+      <app-donut-chart [data]="categoryExpensesData()" [total]="donutTotalExpenses()"></app-donut-chart>
+    }
+  </div>
+</main>

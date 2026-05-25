@@ -23,36 +23,36 @@
             <div class="section-one">
               <!---------first name----->
               <app-input-text [controlName]="registerFormControls.FIRSTNAME" labelText="שם פרטי"
-                [placeholder]="'כתוב כאן'" [parentForm]="personalForm" [size]="inputsSize.BETWEEN"
+                [placeholder]="'כתוב כאן'" [parentForm]="personalForm" [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"
                 [customStyle]="'rounded-border'" [errorText]="'אנא הכנס תווים בלבד'"></app-input-text>
               <!--------last name------->
               <app-input-text [controlName]="registerFormControls.LASTNAME" labelText="שם משפחה"
-                [placeholder]="'כתוב כאן'" [parentForm]="personalForm" [size]="inputsSize.BETWEEN"
+                [placeholder]="'כתוב כאן'" [parentForm]="personalForm" [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"
                 [customStyle]="'rounded-border'" [errorText]="'אנא הכנס תווים בלבד'"></app-input-text>
               <!-------id number------->
               <app-input-text [controlName]="registerFormControls.ID" labelText="תעודת זהות" [placeholder]="'000000000'"
-                [parentForm]="personalForm" [size]="inputsSize.BETWEEN" [customStyle]="'rounded-border'"
+                [parentForm]="personalForm" [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN" [customStyle]="'rounded-border'"
                 [errorText]="'נא הכנס מספר באורך 9 ספרות'"></app-input-text>
             </div>
             <!-- Second line -->
             <div class="section-one">
               <!-----email ---->
               <app-input-text [controlName]="registerFormControls.EMAIL" labelText="כתובת אימייל"
-                [placeholder]="'example@gmail.com'" [parentForm]="personalForm" [size]="inputsSize.BETWEEN"
+                [placeholder]="'example@gmail.com'" [parentForm]="personalForm" [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"
                 [customStyle]="'rounded-border'" [errorText]="'כתובת המייל אינה חוקית'"></app-input-text>
               <!-----date of birth----->
               <app-input-date [controlName]="registerFormControls.DATEOFBIRTH" labelText="תאריך לידה"
-                placeholder="00/00/0000" [parentForm]="personalForm" [customStyle]="'register'"></app-input-date>
+                placeholder="00/00/0000" [parentForm]="personalForm" [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN" [customStyle]="'register'"></app-input-date>
               <!----phone ----->
               <app-input-text [controlName]="registerFormControls.PHONE" labelText="מספר פלאפון"
-                [placeholder]="'050-0011223'" [parentForm]="personalForm" [size]="inputsSize.BETWEEN"
+                [placeholder]="'050-0011223'" [parentForm]="personalForm" [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"
                 [customStyle]="'rounded-border'" [errorText]="'מספר פלאפון לא חוקי'"></app-input-text>
             </div>
             <!-- Third line -->
             <div class="section-one">
               <!-- city -->
               <app-input-select [controlName]="registerFormControls.CITY" labelText="ישוב" [placeholder]="'בחר ישוב'"
-                [items]="cities()" [parentForm]="personalForm" [size]="inputsSize.BETWEEN" [customStyle]="'register'"
+                [items]="cities()" [parentForm]="personalForm" [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN" [customStyle]="'register'"
                 [virtualScroll]="true"></app-input-select>
               <!-- gender -->
               <form [formGroup]="personalForm" class="gender-selection">
@@ -75,19 +75,19 @@
               <!---------------- family status -------------->
               <app-input-select [controlName]="registerFormControls.FAMILYSTATUS" labelText="מצב משפחתי"
                 [placeholder]="'בחר/י'" [items]="familyStatusOptionsList" [parentForm]="personalForm"
-                [size]="inputsSize.BETWEEN" [customStyle]="'register'"></app-input-select>
+                [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN" [customStyle]="'register'"></app-input-select>
               <!--------------- employee status ------------->
               <app-input-select [controlName]="registerFormControls.EMPLOYEMENTSTATUS" labelText="סטטוס תעסוקתי"
                 [placeholder]="'בחר/י'" [items]="employmentTypeOptionsList" [parentForm]="personalForm"
-                [size]="inputsSize.BETWEEN" [customStyle]="'register'"></app-input-select>
+                [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN" [customStyle]="'register'"></app-input-select>
             </div>
             <!-- Fifth line -->
             <div class="section-one">
               <app-input-text [controlName]="registerFormControls.PASSWORD" labelText="סיסמה"
-                [placeholder]="'בחר 8 תווים'" [parentForm]="personalForm" [size]="inputsSize.BETWEEN"
+                [placeholder]="'בחר 8 תווים'" [parentForm]="personalForm" [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"
                 [customStyle]="'rounded-border'" [errorText]="'סיסמא לא חוקית'"></app-input-text>
               <app-input-text [controlName]="registerFormControls.CONFIRM_PASSWORD" labelText="אימות סיסמה"
-                [placeholder]="'בחר 8 תווים'" [parentForm]="personalForm" [size]="inputsSize.BETWEEN"
+                [placeholder]="'בחר 8 תווים'" [parentForm]="personalForm" [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"
                 [customStyle]="'rounded-border'" [errorText]="'אימות סיסמא לא תקין'"></app-input-text>
               <span class="password-instracions">על הסיסמה להכיל שמונה תווים<br>המורכבים מאותיות באנגלית
                 ומספרים</span>
@@ -105,29 +105,29 @@
             <div class="section-one">
               <!---------first name----->
               <app-input-text [controlName]="registerFormControls.SPOUSEFIRSTNAME" labelText="שם פרטי"
-                [placeholder]="'כתוב כאן'" [parentForm]="spouseForm" [size]="inputsSize.BETWEEN"
+                [placeholder]="'כתוב כאן'" [parentForm]="spouseForm" [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"
                 [customStyle]="'rounded-border'" [errorText]="'אנא הכנס תווים בלבד'"></app-input-text>
               <!--------last name------->
               <app-input-text [controlName]="registerFormControls.SPOUSELASTNAME" labelText="שם משפחה"
-                [placeholder]="'כתוב כאן'" [parentForm]="spouseForm" [size]="inputsSize.BETWEEN"
+                [placeholder]="'כתוב כאן'" [parentForm]="spouseForm" [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"
                 [customStyle]="'rounded-border'" [errorText]="'אנא הכנס תווים בלבד'"></app-input-text>
               <!-------id number------->
               <app-input-text [controlName]="registerFormControls.SPOUSEID" labelText="תעודת זהות"
-                [placeholder]="'000000000'" [parentForm]="spouseForm" [size]="inputsSize.BETWEEN"
+                [placeholder]="'000000000'" [parentForm]="spouseForm" [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"
                 [customStyle]="'rounded-border'" [errorText]="'נא הכנס מספר באורך 9 ספרות'"></app-input-text>
             </div>
             <!-- Second line -->
             <div class="section-one">
               <!-----email ---->
               <app-input-text [controlName]="registerFormControls.SPOUSEEMAIL" labelText="כתובת אימייל"
-                [placeholder]="'example@gmail.com'" [parentForm]="spouseForm" [size]="inputsSize.BETWEEN"
+                [placeholder]="'example@gmail.com'" [parentForm]="spouseForm" [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"
                 [customStyle]="'rounded-border'" [errorText]="'כתובת המייל אינה חוקית'"></app-input-text>
               <!-----date of birth----->
               <app-input-date [controlName]="registerFormControls.SPOUSEDATEOFBIRTH" labelText="תאריך לידה"
-                placeholder="00/00/0000" [parentForm]="spouseForm" [customStyle]="'register'"></app-input-date>
+                placeholder="00/00/0000" [parentForm]="spouseForm" [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN" [customStyle]="'register'"></app-input-date>
               <!----phone ----->
               <app-input-text [controlName]="registerFormControls.SPOUSEPHONE" labelText="מספר פלאפון"
-                [placeholder]="'050-0011223'" [parentForm]="spouseForm" [size]="inputsSize.BETWEEN"
+                [placeholder]="'050-0011223'" [parentForm]="spouseForm" [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"
                 [customStyle]="'rounded-border'" [errorText]="'מספר פלאפון לא חוקי'"></app-input-text>
             </div>
             <!-- Third line -->
@@ -135,7 +135,7 @@
               <!--------------- employee ------------->
               <app-input-select [controlName]="registerFormControls.SPOUSEEMPLOYEMENTSTATUS" labelText="סטטוס תעסוקתי"
                 [placeholder]="'בחר/י'" [items]="employmentTypeOptionsList" [parentForm]="spouseForm"
-                [size]="inputsSize.BETWEEN"></app-input-select>
+                [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"></app-input-select>
               <!-- gender -->
               <form [formGroup]="spouseForm" class="gender-selection">
                 <label class="gender-label">מגדר</label>
@@ -172,14 +172,14 @@
                 <div [formGroupName]="i" class="child-row">
                   <div class="child-row">
                     <app-input-text [controlName]="registerFormControls.CHILD_FIRST_NAME" labelText="שם פרטי"
-                      [placeholder]="'כתוב כאן'" [parentForm]="getChildFormByIndex(i)" [size]="inputsSize.BETWEEN"
+                      [placeholder]="'כתוב כאן'" [parentForm]="getChildFormByIndex(i)" [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"
                       [customStyle]="'rounded-border'" [errorText]="'אנא הכנס תווים בלבד'"></app-input-text>
                     <app-input-text [controlName]="registerFormControls.CHILD_LAST_NAME" labelText="שם משפחה"
-                      [placeholder]="'כתוב כאן'" [parentForm]="getChildFormByIndex(i)" [size]="inputsSize.BETWEEN"
+                      [placeholder]="'כתוב כאן'" [parentForm]="getChildFormByIndex(i)" [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"
                       [customStyle]="'rounded-border'" [errorText]="'אנא הכנס תווים בלבד'"></app-input-text>
                     <app-input-date [controlName]="registerFormControls.CHILD_DATE_OF_BIRTH" labelText="תאריך לידה"
                       placeholder="00/00/0000" [parentForm]="getChildFormByIndex(i)"
-                      [customStyle]="'register'"></app-input-date>
+                      [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN" [customStyle]="'register'"></app-input-date>
 
                     <div class="wrap-add-remove-child-button">
                       @if (canDeleteChild(i)) {
@@ -213,18 +213,18 @@
                   <!-- ✅ Inputs row -->
                   <div class="business-row">
                     <app-input-text [controlName]="registerFormControls.BUSINESSNAME" labelText="שם העסק"
-                      [placeholder]="'כתוב כאן'" [parentForm]="getBusinessFormByIndex(i)" [size]="inputsSize.BETWEEN"
+                      [placeholder]="'כתוב כאן'" [parentForm]="getBusinessFormByIndex(i)" [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"
                       [customStyle]="'rounded-border'">
                     </app-input-text>
 
                     <app-input-text [controlName]="registerFormControls.BUSINESSNUMBER" labelText="מספר העסק"
-                      [placeholder]="'כתוב כאן'" [parentForm]="getBusinessFormByIndex(i)" [size]="inputsSize.BETWEEN"
+                      [placeholder]="'כתוב כאן'" [parentForm]="getBusinessFormByIndex(i)" [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"
                       [customStyle]="'rounded-border'" [errorText]="'אנא הכנס מספרים בלבד'">
                     </app-input-text>
 
                     <app-input-select [controlName]="registerFormControls.BUSINESSTYPE" labelText="סוג העסק"
                       [placeholder]="'בחר/י'" [items]="businessTypeOptionsList" [parentForm]="getBusinessFormByIndex(i)"
-                      [size]="inputsSize.BETWEEN">
+                      [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN">
                     </app-input-select>
                   </div>
                 </div>

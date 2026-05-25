@@ -47,6 +47,93 @@
     [clientName]="selectedClient()?.name || ''"
     (visibleChange)="closeFeezbackDialog($event)">
   </app-feezback-transactions-dialog>
+
+  <p-dialog
+    [header]="'חשבונות וכרטיסים — ' + accountsDialogClientName()"
+    [visible]="accountsDialogVisible()"
+    (visibleChange)="onAccountsDialogVisibleChange($event)"
+    [modal]="true"
+    [style]="{ width: '720px', maxWidth: '95vw' }"
+    [rtl]="true"
+    [draggable]="false"
+    [resizable]="false">
+    <p *ngIf="accountsDialogLoading()">טוען נתונים מ-Feezback...</p>
+
+    <ng-container *ngIf="!accountsDialogLoading() && accountsDialogData()">
+      <div *ngIf="accountsDialogSources().length > 0" style="margin-bottom: 16px; padding: 12px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px;">
+        <div style="font-weight: 600; margin-bottom: 8px;">חשבונות וכרטיסים פעילים ({{ accountsDialogSources().length }})</div>
+        <div *ngFor="let src of accountsDialogSources()" style="padding: 6px 0; border-top: 1px solid #f1f5f9;">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <i [class]="src.type === 'bank' ? 'pi pi-building' : 'pi pi-credit-card'" style="font-size: 1.1rem; color: #475569;"></i>
+            <span style="font-weight: 600; min-width: 90px; font-family: monospace;">{{ src.paymentIdentifier }}</span>
+            <span style="color: #6b7280; min-width: 50px;">{{ src.type === 'bank' ? 'בנק' : 'אשראי' }}</span>
+            <i [class]="src.consentStatus === 'valid' ? 'pi pi-check-circle' : 'pi pi-times-circle'"
+               [style.color]="consentStatusColor(src.consentStatus)"
+               [title]="src.consentStatus"
+               style="font-size: 1.1rem;"></i>
+            <span *ngIf="src.ownerName" style="color: #6b7280; flex: 1; text-align: start;">{{ src.ownerName }}</span>
+            <span *ngIf="!src.ownerName" style="flex: 1;"></span>
+
+            <span *ngIf="pullResultByKey()[sourceKey(src)] as res"
+                  [style.color]="res.status === 'success' ? '#16a34a' : '#dc2626'"
+                  style="font-size: 0.85rem; font-weight: 500; white-space: nowrap;">
+              <ng-container *ngIf="res.status === 'success'">✓ {{ res.transactionCount }} תנועות</ng-container>
+              <ng-container *ngIf="res.status !== 'success'">✗ נכשל</ng-container>
+            </span>
+
+            <app-p-button
+              [buttonText]="'משוך תנועות'"
+              [buttonColor]="ButtonColor.BLACK"
+              [buttonSize]="ButtonSize.SMALL"
+              [isLoading]="pullingSourceKey() === sourceKey(src)"
+              [disabled]="pullingSourceKey() !== null && pullingSourceKey() !== sourceKey(src)"
+              (onButtonClicked)="onPullSource(src)">
+            </app-p-button>
+          </div>
+
+          <div style="margin-top: 4px; font-size: 11px; color: #6b7280; font-family: monospace; direction: ltr; text-align: left; word-break: break-all;">
+            consentId: {{ src.consentId ?? '—' }}&nbsp; | &nbsp;resourceId: {{ src.resourceId ?? '—' }}
+          </div>
+
+          <pre *ngIf="pullResultByKey()[sourceKey(src)] as res"
+               style="margin: 8px 0 2px; max-height: 30vh; overflow: auto; direction: ltr; text-align: left; font-size: 12px; padding: 10px; border-radius: 6px; white-space: pre-wrap; word-break: break-word;"
+               [style.background]="res.status === 'success' ? '#f0fdf4' : '#fef2f2'"
+               [style.border]="res.status === 'success' ? '1px solid #bbf7d0' : '1px solid #fecaca'">{{ res | json }}</pre>
+        </div>
+      </div>
+      <div *ngIf="accountsDialogSources().length === 0" style="margin-bottom: 16px; color: #6b7280; font-style: italic;">
+        אין חשבונות או כרטיסים פעילים.
+      </div>
+
+      <details>
+        <summary style="cursor: pointer; color: #6b7280; font-size: 0.9rem; margin-bottom: 6px;">הצג JSON מלא</summary>
+        <pre style="max-height: 50vh; overflow: auto; direction: ltr; text-align: left; font-size: 12px; background: #f6f8fa; padding: 12px; border-radius: 6px;">{{ accountsDialogData() | json }}</pre>
+      </details>
+    </ng-container>
+
+    <p *ngIf="!accountsDialogLoading() && !accountsDialogData()">אין נתונים להצגה.</p>
+  </p-dialog>
+
+  <!-- Modal loader: shown while refreshUserSources is in flight. Mask blocks interaction. -->
+  <p-dialog
+    [visible]="refreshingSourcesFor() !== null"
+    [closable]="false"
+    [modal]="true"
+    [draggable]="false"
+    [resizable]="false"
+    [closeOnEscape]="false"
+    [dismissableMask]="false"
+    [showHeader]="false"
+    [rtl]="true"
+    [style]="{ width: '420px', maxWidth: '95vw' }">
+    <div style="display: flex; align-items: center; gap: 16px; padding: 8px;">
+      <i class="pi pi-spin pi-spinner" style="font-size: 2.2rem; color: #2563eb;"></i>
+      <div>
+        <div style="font-weight: 600; margin-bottom: 4px;">מעדכן את החשבונות של {{ refreshingSourcesName() }}</div>
+        <div style="color: #6b7280; font-size: 0.9rem;">פנייה ל-Feezback ועדכון מסד הנתונים — לא לסגור...</div>
+      </div>
+    </div>
+  </p-dialog>
 </div>
 
 <p-confirmDialog></p-confirmDialog>
