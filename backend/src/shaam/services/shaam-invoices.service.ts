@@ -3,6 +3,7 @@ import { HttpService } from '@nestjs/axios';
 import { firstValueFrom, timeout } from 'rxjs';
 import { getShaamUrls, REQUEST_TIMEOUT_MS } from '../shaam.constants';
 import { ShaamApprovalDto } from '../dto/shaam-approval.dto';
+import { ShaamApprovalResponseDto } from '../dto/shaam-approval-response.dto';
 
 @Injectable()
 export class ShaamInvoicesService {
@@ -18,12 +19,12 @@ export class ShaamInvoicesService {
    * Submits invoice approval to SHAAM
    * @param accessToken - OAuth2 access token
    * @param approvalData - Invoice approval data
-   * @returns Response from SHAAM API
+   * @returns Response from SHAAM API with confirmation_number (allocation number)
    */
   async submitApproval(
     accessToken: string,
     approvalData: ShaamApprovalDto,
-  ): Promise<any> {
+  ): Promise<ShaamApprovalResponseDto> {
     if (!accessToken) {
       throw new BadRequestException('Access token is required');
     }
@@ -42,34 +43,73 @@ export class ShaamInvoicesService {
     }
 
     const approvalUrl = this.urls.invoicesApproval;
+    const clientId = process.env.SHAAM_CLIENT_ID || '';
 
     try {
+      const maskedToken = accessToken.substring(0, 10) + '...';
       this.logger.log('Submitting invoice approval to SHAAM', {
         invoice_id: approvalData.invoice_id,
         invoice_reference_number: approvalData.invoice_reference_number,
+        token: maskedToken,
+        tokenLength: accessToken.length,
+        url: approvalUrl,
       });
+
+      // Log token details before building CURL
+      this.logger.log('=== TOKEN DETAILS ===');
+      this.logger.log(`Token length: ${accessToken.length}`);
+      this.logger.log(`Token starts with: ${accessToken.substring(0, 30)}`);
+      this.logger.log(`Token ends with: ...${accessToken.substring(accessToken.length - 20)}`);
+      this.logger.log(`Token preview (first 50 chars): ${accessToken.substring(0, 50)}`);
+      
+      // Build CURL command for logging
+      const requestBody = JSON.stringify(approvalData, null, 2);
+      const curlCommand = `curl -X POST "${approvalUrl}" \\\n` +
+        `  -H "Authorization: Bearer ${accessToken}" \\\n` +
+        `  -H "X-IBM-Client-Id: ${clientId}" \\\n` +
+        `  -H "Content-Type: application/json" \\\n` +
+        `  -H "Accept: application/json" \\\n` +
+        `  -d '${requestBody.replace(/'/g, "'\\''")}'`;
+      
+      this.logger.log('=== SHAAM REQUEST (CURL FORMAT) ===');
+      this.logger.log(curlCommand);
+      this.logger.log('=== END CURL REQUEST ===');
 
       const response = await firstValueFrom(
         this.httpService.post(approvalUrl, approvalData, {
           headers: {
             Authorization: `Bearer ${accessToken}`,
             'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'X-IBM-Client-Id': clientId,
           },
           timeout: REQUEST_TIMEOUT_MS,
         }).pipe(timeout(REQUEST_TIMEOUT_MS)),
       );
 
+      // Log response from SHAAM
+      this.logger.log('=== SHAAM RESPONSE ===');
+      this.logger.log(JSON.stringify(response.data, null, 2));
+      this.logger.log('=== END SHAAM RESPONSE ===');
+
       this.logger.log('Successfully submitted invoice approval', {
         invoice_id: approvalData.invoice_id,
         status: response.status,
+        confirmation_number: response.data?.confirmation_number,
+        approved: response.data?.approved,
       });
 
-      return response.data;
+      return response.data as ShaamApprovalResponseDto;
     } catch (error: any) {
+      const maskedToken = accessToken.substring(0, 10) + '...';
       this.logger.error('Failed to submit invoice approval', {
         invoice_id: approvalData.invoice_id,
         status: error.response?.status,
+        statusText: error.response?.statusText,
         message: error.message,
+        token: maskedToken,
+        tokenLength: accessToken.length,
+        responseData: error.response?.data,
       });
 
       throw this.handleError(error);

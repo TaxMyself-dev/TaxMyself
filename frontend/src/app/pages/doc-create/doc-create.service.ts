@@ -44,6 +44,11 @@ export class DocCreateService {
   }
 
   
+  updateClient(clientRowId: number, data: Partial<IClient>): Observable<any> {
+    const url = `${environment.apiUrl}clients/update-client/${clientRowId}`;
+    return this.http.patch<any>(url, data);
+  }
+
   deleteClient(clientId: number): Observable<any> {
     const url = `${environment.apiUrl}clients/delete-client/${clientId}`;
     return this.http.delete<any>(url);
@@ -144,5 +149,26 @@ export class DocCreateService {
   addDoc(data: any): Observable<any> {
     const url = `${environment.apiUrl}documents/add-doc`;
     return this.http.post<any>(url, data);
+  }
+
+  saveDraft(draftData: any): Observable<any> {
+    const url = `${environment.apiUrl}documents/save-draft`;
+    return this.http.post<any>(url, draftData);
+  }
+
+  loadDraft(issuerBusinessNumber: string, docType: string): Observable<{ exists: boolean; draft?: any }> {
+    const url = `${environment.apiUrl}documents/load-draft`;
+    const params = new HttpParams()
+      .set('issuerBusinessNumber', issuerBusinessNumber)
+      .set('docType', docType);
+    return this.http.get<{ exists: boolean; draft?: any }>(url, { params });
+  }
+
+  deleteDraft(issuerBusinessNumber: string, docType: string): Observable<any> {
+    const url = `${environment.apiUrl}documents/delete-draft`;
+    const params = new HttpParams()
+      .set('issuerBusinessNumber', issuerBusinessNumber)
+      .set('docType', docType);
+    return this.http.delete<any>(url, { params });
   }
 }

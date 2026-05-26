@@ -17,8 +17,8 @@ export class Supplier {
     @Column()
     category: string;
 
-    @Column()
-    supplierID: string;
+    @Column({ nullable: true })
+    supplierID: string | null;
 
     @Column()
     subCategory: string;

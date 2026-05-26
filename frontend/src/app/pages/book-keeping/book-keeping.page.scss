@@ -4,5 +4,7 @@
   min-height: 100%;
   width: 100%;
   overflow: auto;
-  align-items: center;
+  // `stretch` lets each tab page fill the full bookkeeping content width.
+  // Per-page styles control internal alignment (RTL handles right-anchoring).
+  align-items: stretch;
 }

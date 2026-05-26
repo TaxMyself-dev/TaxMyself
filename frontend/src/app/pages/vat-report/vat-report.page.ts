@@ -1,4 +1,5 @@
-import { Component, computed, inject, Input, OnInit, signal } from '@angular/core';
+import { Component, computed, DestroyRef, inject, Input, OnInit, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { VatReportService } from './vat-report.service';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
@@ -31,6 +32,7 @@ export class VatReportPage implements OnInit {
 
   private gs = inject(GenericService);
   private fb = inject(FormBuilder);
+  private destroyRef = inject(DestroyRef);
 
   confirmationService = inject(ConfirmationService);
 
@@ -47,6 +49,11 @@ export class VatReportPage implements OnInit {
   endDate = signal<string>("");
 
   visibleConfirmTransDialog = signal<boolean>(false);
+
+  /** True when the report for the currently-selected period has already been
+   *  marked as submitted (any transaction in the period has `isLocked = true`).
+   *  Drives the swap between the "סמן כדווח" button and the "הדוח הוגש" badge. */
+  reportSubmitted = signal<boolean>(false);
 
   readonly ButtonSize = ButtonSize;
   readonly reportingPeriodType = ReportingPeriodType;
@@ -86,10 +93,9 @@ export class VatReportPage implements OnInit {
     { name: ExpenseFormColumns.SUM, value: ExpenseFormHebrewColumns.sum, type: FormTypes.NUMBER },
     { name: ExpenseFormColumns.CATEGORY, value: ExpenseFormHebrewColumns.category, type: FormTypes.DDL },
     { name: ExpenseFormColumns.SUB_CATEGORY, value: ExpenseFormHebrewColumns.subCategory, type: FormTypes.DDL },
-    { name: ExpenseFormColumns.VAT_PERCENT, value: ExpenseFormHebrewColumns.vatPercent, type: FormTypes.TEXT },
-    { name: ExpenseFormColumns.TAX_PERCENT, value: ExpenseFormHebrewColumns.taxPercent, type: FormTypes.TEXT },
-    { name: ExpenseFormColumns.TOTAL_TAX, value: ExpenseFormHebrewColumns.totalTaxPayable, type: FormTypes.NUMBER },
-    { name: ExpenseFormColumns.TOTAL_VAT, value: ExpenseFormHebrewColumns.totalVatPayable, type: FormTypes.NUMBER },
+    // Combined amount + recognition % (same renderer the confirm-expense dialog uses).
+    { name: ExpenseFormColumns.TOTAL_VAT, value: ExpenseFormHebrewColumns.totalVat, cellRenderer: ICellRenderer.AMOUNT_WITH_PERCENT },
+    { name: ExpenseFormColumns.TOTAL_TAX, value: ExpenseFormHebrewColumns.totalTax, cellRenderer: ICellRenderer.AMOUNT_WITH_PERCENT },
   ];
 
   reportOrder: string[] = [
@@ -125,13 +131,10 @@ export class VatReportPage implements OnInit {
     const businesses = this.gs.businesses();
     this.businessNumber.set(businesses[0].businessNumber);
 
-    // Now config can be set safely
-    const currentDate = new Date();
-    const currentYear = currentDate.getFullYear();
-    const currentMonth = currentDate.getMonth() + 1; // getMonth() returns 0-11
-    const defaultPeriodMode = ReportingPeriodType.BIMONTHLY;
-    const defaultMonthValue = this.gs.getDefaultMonthValue(currentMonth, defaultPeriodMode);
-    
+    const currentYear = new Date().getFullYear();
+    const currentMonth = new Date().getMonth() + 1;
+    const defaultMonthValue = this.gs.getDefaultMonthValue(currentMonth, ReportingPeriodType.BIMONTHLY);
+
     this.filterConfig = [
       {
         type: 'select',
@@ -146,14 +149,30 @@ export class VatReportPage implements OnInit {
         controlName: 'period',
         required: true,
         allowedPeriodModes: [ReportingPeriodType.MONTHLY, ReportingPeriodType.BIMONTHLY],
-        periodDefaults: {
+        periodDefaults: this.gs.getDefaultPeriodConfig({
           periodMode: ReportingPeriodType.BIMONTHLY,
           year: currentYear,
           month: defaultMonthValue
-        }
+        })
       },
     ];
 
+    // Clear any previously-rendered report when the user changes the business
+    // or period. Prevents confusing a stale report with the new selection
+    // before the user clicks "הצג". Also resets arrayLength so the empty-state
+    // message is gated on a fresh count, not a stale one from a previous run.
+    this.form.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        this.vatReportData.set(null);
+        this.dataTable = of([]);
+        this.rows = [];
+        this.isRequestSent.set(false);
+        this.arrayLength.set(0);
+        // New period selected — submission state is unknown until the next
+        // report fetch resolves it.
+        this.reportSubmitted.set(false);
+      });
   }
 
   beforeSelectFile(event): void {
@@ -243,29 +262,15 @@ export class VatReportPage implements OnInit {
   }
 
   onSubmit(formValues: any): void {
-
-    console.log("Submitted filter:", formValues);
-    const periodMode = this.form.get('periodMode')?.value;
-    const year = this.form.get('year')?.value;
-    const month = this.form.get('month')?.value;
-    const localStartDate = this.form.get('startDate')?.value;
-    const localEndDate = this.form.get('endDate')?.value;
-
-    const { startDate, endDate } = this.dateService.getStartAndEndDates(
-      periodMode,
-      year,
-      month,
-      localStartDate,
-      localEndDate
-    );
+    const effectiveBusiness = this.gs.getEffectiveBusinessNumber(this.form, formValues.businessNumber, this.userData);
+    const { startDate, endDate } = this.gs.getPeriodDatesFromForm(this.form);
 
     this.isLoadingStatePeryodSelectButton.set(true);
-    this.businessNumber.set(this.form?.get('businessNumber')?.value);
+    this.businessNumber.set(effectiveBusiness);
     this.startDate.set(startDate);
     this.endDate.set(endDate);
     this.getTransToConfirm();
     this.isRequestSent.set(true);
-
   }
 
   
@@ -281,11 +286,13 @@ export class VatReportPage implements OnInit {
         return EMPTY;
       }),
       tap((data: IRowDataTable[]) => {
+        // Set arrayLength FIRST so closeDialogWithoutConfirm sees the correct
+        // value (used to decide whether to prompt for pending expenses).
+        this.arrayLength.set(data?.length ?? 0);
         if (!data?.length) {
           this.closeDialogWithoutConfirm(false);
         }
         console.log("🚀 ~ tap ~ data:", data)
-        this.arrayLength.set(data?.length);
       }),
       map(data => {
         return data?.map(row => ({
@@ -335,6 +342,11 @@ export class VatReportPage implements OnInit {
         console.log("🚀 ~ VatReportPage ~ .subscribe ~ this.vatReportData in subscribe:", this.vatReportData())
       });
 
+    // Fire alongside the report fetch — drives the "סמן כדווח" vs
+    // "הדוח הוגש" button swap once the response lands.
+    this.vatReportService.getReportSubmissionStatus(businessNumber, startDate)
+      .pipe(catchError(() => EMPTY))
+      .subscribe((status) => this.reportSubmitted.set(status.isSubmitted));
   }
 
   updateIncome(event: any) {
@@ -399,11 +411,62 @@ export class VatReportPage implements OnInit {
     // }
   }
 
+  /** Visibility for the redirect-expenses prompt (`<p-dialog>` in the template). */
+  redirectPromptVisible = signal<boolean>(false);
+
+  /** Re-entry guard — confirm-trans-dialog can fire its close event twice
+   *  (button click + inner p-dialog onHide); without this we'd schedule the
+   *  prompt twice and could end up with stacked dialogs. */
+  private redirectPromptOpen = false;
+
+  /** Two-way model used by `[(visible)]` on the inline p-dialog so the X
+   *  close button keeps state in sync. */
+  get redirectPromptVisibleModel(): boolean {
+    return this.redirectPromptVisible();
+  }
+  set redirectPromptVisibleModel(value: boolean) {
+    this.redirectPromptVisible.set(value);
+    if (!value) this.redirectPromptOpen = false;
+  }
+
   closeDialogWithoutConfirm(event: boolean): void {
     console.log("🚀 ~ VatReportPage ~ closeDialogWithoutConfirm ~ event:", event)
     this.visibleConfirmTransDialog.set(event);
+
+    // User cancelled the confirm dialog while expenses are still pending.
+    // Block the empty report and prompt them to re-open the confirm flow.
+    // 250ms gives the confirm-trans dialog and its overlay portal time to
+    // fully unmount before the new dialog opens — keeps overlays from stacking.
+    if (!event && this.arrayLength() > 0 && !this.redirectPromptOpen) {
+      this.redirectPromptOpen = true;
+      setTimeout(() => this.openPendingExpensesPrompt(), 250);
+      return;
+    }
+
     this.getVatReportData(this.startDate(), this.endDate(), this.businessNumber());
     this.getDataTable(this.startDate(), this.endDate(), this.businessNumber());
+  }
+
+  /** Show the redirect prompt (driven by an inline <p-dialog>, not
+   *  ConfirmationService — direct click handlers, no first-click-no-op). */
+  private openPendingExpensesPrompt(): void {
+    this.redirectPromptVisible.set(true);
+  }
+
+  /** "ביטול" inside the redirect prompt — close it and stay on this page. */
+  onRedirectPromptCancel(): void {
+    this.redirectPromptVisible.set(false);
+    this.redirectPromptOpen = false;
+  }
+
+  /** "מעבר לאישור הוצאות" inside the redirect prompt — close it and re-open
+   *  the confirm-trans dialog so the user can confirm the pending expenses. */
+  onRedirectPromptAccept(): void {
+    this.redirectPromptVisible.set(false);
+    this.redirectPromptOpen = false;
+    // Defer one tick so p-dialog's hide animation finishes before the
+    // confirm-trans dialog opens — prevents brief overlay stacking.
+    setTimeout(() => this.getTransToConfirm(), 0);
   }
 
   confirmTrans(event: { transactions: IRowDataTable[], files: { id: number, file: File }[] }): void {
@@ -527,13 +590,17 @@ export class VatReportPage implements OnInit {
           const rows = [];
           console.log("data of table in vat report: ", data);
 
-          data.forEach(row => {
+          // Hide rows with zero VAT — they don't belong in the VAT report
+          // table (totals stay accurate since 0 contributes nothing anyway).
+          const visible = data.filter(row => Number(row.totalVatPayable ?? 0) !== 0);
+
+          visible.forEach(row => {
             const { reductionDone, reductionPercent, expenseNumber, isEquipment, loadingDate, note, supplierID, userId, isReported, monthReport, ...tableData } = row;
             if (row.file != undefined && row.file != null && row.file != "") {
-              tableData[this.UPLOAD_FILE_FIELD_NAME] = row.file; // to show that this expense already has a file 
+              tableData[this.UPLOAD_FILE_FIELD_NAME] = row.file; // to show that this expense already has a file
             }
-            tableData.totalTaxPayable = this.genericService.addComma(tableData.totalTaxPayable as string);
-            tableData.totalVatPayable = this.genericService.addComma(tableData.totalVatPayable as string);
+            // totalVatPayable / totalTaxPayable stay as raw numbers — the
+            // AMOUNT_WITH_PERCENT cell renderer formats them via the number pipe.
             tableData.sum = this.genericService.addComma(tableData.sum as string);
             rows.push(tableData);
           })
@@ -626,6 +693,61 @@ export class VatReportPage implements OnInit {
     console.log("in show");
 
     this.visibleConfirmTransDialog.set(true);
+  }
+
+
+  /**
+   * "סמן כדווח" — user confirms they've submitted the report at the tax
+   * authority. Locks all transactions stamped with this period so they
+   * become read-only (lock icon shows in the תזרים table). Two-step
+   * confirm via ConfirmationService to avoid accidental locks.
+   */
+  onMarkAsSubmitted(): void {
+    if (!this.startDate() || !this.businessNumber()) return;
+    this.confirmationService.confirm({
+      // Scoped key — other ConfirmDialog consumers on this page (file delete /
+      // replace) caused the first accept click to be swallowed because the
+      // unkeyed dialog instance was receiving the request twice.
+      key: 'markSubmitted',
+      message: 'פעולה זו תנעל את כל ההוצאות בתקופה ולא ניתן יהיה לשנותן. להמשיך?',
+      header: 'סימון דוח כדווח',
+      icon: 'pi pi-exclamation-triangle',
+      acceptButtonProps: { severity: 'contrast', label: 'סמן כדווח' },
+      rejectButtonProps: { severity: 'secondary', outlined: true, label: 'ביטול' },
+      accept: () => {
+        this.vatReportService.markReportAsSubmitted(this.businessNumber(), this.startDate())
+          .pipe(
+            catchError((err) => {
+              this.messageService.add({
+                severity: 'error',
+                summary: 'Error',
+                detail: 'סימון הדוח כדווח נכשל',
+                life: 5000,
+                key: 'br',
+              });
+              console.error('markReportAsSubmitted failed:', err);
+              return EMPTY;
+            }),
+          )
+          .subscribe((res) => {
+            this.messageService.add({
+              severity: 'success',
+              summary: 'הדוח סומן כדווח',
+              detail: `${res.count} תנועות ננעלו לתקופה ${res.periodLabel}`,
+              life: 4000,
+              key: 'br',
+            });
+            // Flip the local flag so the button swaps to the success indicator
+            // without waiting for the round-trip on the next getVatReportData.
+            this.reportSubmitted.set(true);
+            // Re-fetch the report so dataTable rows reflect the new lock state
+            // when the user navigates to the תזרים page.
+            this.getVatReportData(this.startDate(), this.endDate(), this.businessNumber());
+            this.getDataTable(this.startDate(), this.endDate(), this.businessNumber());
+          });
+      },
+      reject: () => {},
+    });
   }
 
   onDeleteFile(row: IRowDataTable): void {

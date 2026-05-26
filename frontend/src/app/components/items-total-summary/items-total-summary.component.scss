@@ -1,0 +1,110 @@
+// ════════════════════════════════════════════════════════════
+// items-total-summary — collapsible mobile totals bar
+// Collapsed : dark gray bar with label + total
+// Expanded  : light gray breakdown panel slides in above bar
+// ════════════════════════════════════════════════════════════
+
+:host {
+  display: contents; // take no space — element is fixed-positioned
+}
+
+.summary-wrapper {
+  position: fixed;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  // Sits just above .buttons-container; account for system safe area the same way
+  bottom: calc(50px + env(safe-area-inset-bottom, 0px));
+  left: 0;
+  right: 0;
+  z-index: 14;
+  box-sizing: border-box;
+}
+
+// ── Expanded breakdown panel ───────────────────────────────
+.breakdown-panel {
+  background: #f5f5f5;
+  border: 1px solid #e0e0e0;
+  border-bottom: 1px solid #b0b0b0; // divider line above the total bar
+  border-radius: 0;
+  width: 88%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow: hidden;
+
+  // Collapsed state (default)
+  max-height: 0;
+  padding-block: 0;
+  padding-inline: 20px;
+  opacity: 0;
+  transition:
+    max-height 0.35s ease,
+    padding-block 0.35s ease,
+    opacity 0.25s ease;
+
+  // Expanded state
+  &--open {
+    max-height: 500px;
+    padding-block: 16px;
+    opacity: 1;
+  }
+}
+
+.breakdown-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.breakdown-label {
+  font-size: 14px;
+  color: #666666;
+}
+
+.breakdown-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: #363636;
+}
+
+// ── Total bar ──────────────────────────────────────────────
+.total-bar {
+  background: #363636;
+  border-radius: 4px;
+  width: 88%;
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  user-select: none;
+}
+
+.total-label {
+  font-size: 14px;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.handle-icon {
+  color: #aaaaaa;
+  font-size: 13px;
+  transition: transform 0.35s ease, color 0.15s;
+
+  &--open {
+    transform: rotate(180deg);
+  }
+
+  .total-bar:hover & {
+    color: #ffffff;
+  }
+}
+
+.total-amount {
+  font-size: 18px;
+  color: #ffffff;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}

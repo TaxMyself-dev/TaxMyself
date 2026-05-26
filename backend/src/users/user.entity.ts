@@ -47,6 +47,9 @@ export class User {
     @Column()
     city: string;
 
+    @Column({ type: 'varchar', nullable: true, default: null })
+    address: string | null;
+
     @Column({
       type: 'enum',
       enum: EmploymentType,
@@ -99,6 +102,14 @@ export class User {
     @Column({ type: 'date', nullable: true, default: null })
     createdAt: Date;
 
+    /** Timestamp of the current session's sign-in. Updated on every successful signin. */
+    @Column({ type: 'datetime', nullable: true, default: null })
+    lastLoginAt: Date | null;
+
+    /** Timestamp of the sign-in BEFORE the current one. Used to show "last login was on ..." in the UI. */
+    @Column({ type: 'datetime', nullable: true, default: null })
+    previousLoginAt: Date | null;
+
     @Column({ type: 'int', default: 0 })
     userCount: number; // Number of users under an accountant or financial advisor 
 
@@ -107,6 +118,15 @@ export class User {
 
     @Column({ type: 'varchar', nullable: true, default: null })
     finsiteId: string | null;
+
+    @Column({ default: false })
+    hasOpenBanking: boolean;
+
+    @Column({ type: 'decimal', precision: 5, scale: 2, default: 0 })
+    discountPercent: number;
+
+    @Column({ type: 'varchar', nullable: true, default: null })
+    discountLabel: string | null;
 
     ////////////////////////////////////
     /////////   Spouse details  ////////

@@ -1,9 +1,10 @@
 import { IsNumber, IsString, IsOptional, IsBoolean, ValidateIf, IsDate, IsIn } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class ClassifyTransactionDto {
 
-  @IsNumber()
-  id: number;
+  @IsString()
+  finsiteId: string;
 
   @IsBoolean()
   isSingleUpdate: boolean;
@@ -27,47 +28,68 @@ export class ClassifyTransactionDto {
 
   @ValidateIf((o) => o.isSingleUpdate === true)
   @IsNumber()
-  vatPercent: number;
+  vatPercent?: number;
 
   @ValidateIf((o) => o.isSingleUpdate === true)
   @IsNumber()
-  taxPercent: number;
+  taxPercent?: number;
 
   @ValidateIf((o) => o.isSingleUpdate === true)
   @IsBoolean()
-  isEquipment: boolean;
+  isEquipment?: boolean;
 
   @ValidateIf((o) => o.isSingleUpdate === true)
   @IsNumber()
-  reductionPercent: number;
+  reductionPercent?: number;
 
   @ValidateIf((o) => o.isSingleUpdate === true)
   @IsBoolean()
   isExpense?: boolean;
 
-  @ValidateIf((o) => o.isSingleUpdate === true)
+  @IsOptional()
+  @Type(() => Date)
   @IsDate()
-  startDate: Date;
+  startDate?: Date;
 
-  @ValidateIf((o) => o.isSingleUpdate === true)
+  @IsOptional()
+  @Type(() => Date)
   @IsDate()
-  endDate: Date;
+  endDate?: Date;
 
-  @ValidateIf((o) => o.isSingleUpdate === true)
+  @IsOptional()
+  @Type(() => Number)
   @IsNumber()
-  minSum: number;
+  minSum?: number;
 
-  @ValidateIf((o) => o.isSingleUpdate === true)
+  @IsOptional()
+  @Type(() => Number)
   @IsNumber()
-  maxSum: number;
+  maxSum?: number;
 
-  @ValidateIf((o) => o.isSingleUpdate === true)
+  @IsOptional()
   @IsString()
-  comment: string;
+  comment?: string;
 
   @IsOptional()
   @IsIn(['equals', 'contains'])
   @IsString()
   matchType?: 'equals' | 'contains';
+
+  @IsOptional()
+  @IsBoolean()
+  confirmOverride?: boolean;
+
+  @IsOptional()
+  @IsString()
+  businessNumber?: string | null;
+
+  /**
+   * Optional explicit period label (e.g. "3-4/2026") to stamp on the slim row.
+   * Sent by the frontend after the user picks an alternative period from the
+   * "natural period locked" dialog. Skips the natural-period lock check.
+   */
+  @IsOptional()
+  @IsString()
+  targetPeriodLabel?: string;
 
 }

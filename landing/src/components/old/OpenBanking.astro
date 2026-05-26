@@ -1,0 +1,96 @@
+---
+---
+
+<section class="open-banking section section-soft" id="how-it-works" aria-labelledby="open-banking-title">
+	<div class="container">
+		<h2 class="open-banking-title" id="open-banking-title">חיבור ישיר לבנקאות פתוחה ולכרטיסי אשראי</h2>
+		<p class="open-banking-lead">
+			KeepInTax מתחבר לבנקאות הפתוחה ולכרטיסי האשראי שלכם. ההכנסות וההוצאות נעקבות אוטומטית, הדוחות נבנים מנתונים אמיתיים — ואתם לא מפספסים הוצאות חשובות.
+		</p>
+		<ul class="open-banking-benefits">
+			<li class="open-banking-item">
+				<span class="open-banking-item-title">חיבור לבנקים ולכרטיסי אשראי</span>
+				<span class="open-banking-item-desc">חיבור מאובטח דרך בנקאות פתוחה וספקי כרטיסים.</span>
+			</li>
+			<li class="open-banking-item">
+				<span class="open-banking-item-title">מעקב אוטומטי</span>
+				<span class="open-banking-item-desc">הכנסות והוצאות מתעדכנות אוטומטית מהחשבון.</span>
+			</li>
+			<li class="open-banking-item">
+				<span class="open-banking-item-title">דוחות מדויקים</span>
+				<span class="open-banking-item-desc">דוחות כספיים ומס מבוססי נתונים אמיתיים.</span>
+			</li>
+			<li class="open-banking-item">
+				<span class="open-banking-item-title">בלי להחמיץ הוצאות</span>
+				<span class="open-banking-item-desc">כל התנועות במקום אחד — לא נשכח כלום.</span>
+			</li>
+		</ul>
+	</div>
+</section>
+
+<style>
+	.open-banking-title {
+		text-align: center;
+		margin-bottom: 1rem;
+		font-size: clamp(1.375rem, 3vw, 1.75rem);
+	}
+
+	.open-banking-lead {
+		max-inline-size: 38rem;
+		margin: 0 auto 2.5rem;
+		font-size: clamp(0.9375rem, 2vw, 1.0625rem);
+		line-height: 1.65;
+		color: var(--color-text-secondary);
+		text-align: center;
+	}
+
+	.open-banking-benefits {
+		display: grid;
+		grid-template-columns: repeat(2, 1fr);
+		gap: 1.25rem;
+		margin: 0;
+		padding: 0;
+		list-style: none;
+	}
+
+	.open-banking-item {
+		background: #fff;
+		border-radius: var(--radius);
+		box-shadow: var(--shadow-soft);
+		padding: 1.25rem 1.5rem;
+	}
+
+	.open-banking-item-title {
+		display: block;
+		font-weight: 600;
+		font-size: 1rem;
+		color: var(--color-text);
+		margin-bottom: 0.25rem;
+	}
+
+	.open-banking-item-desc {
+		display: block;
+		font-size: 0.875rem;
+		color: var(--color-text-secondary);
+		line-height: 1.45;
+	}
+
+	@media (max-width: 768px) {
+		.open-banking-lead {
+			margin-bottom: 2rem;
+		}
+	}
+
+	@media (max-width: 600px) {
+		.open-banking-benefits {
+			grid-template-columns: 1fr;
+			gap: 1rem;
+		}
+	}
+
+	@media (max-width: 390px) {
+		.open-banking-item {
+			padding: 1rem 1.25rem;
+		}
+	}
+</style>

@@ -1,0 +1,132 @@
+:host {
+  display: block;
+  width: 100%;
+}
+
+.client-tasks-page {
+  direction: rtl;
+  width: 100%;
+  padding: 16px 24px;
+  // No max-width / no centering — the page should hug the right edge of the
+  // bookkeeping content area. RTL takes care of "right-alignment" automatically
+  // when content fills its container.
+  box-sizing: border-box;
+}
+
+.page-header {
+  margin-bottom: 24px;
+}
+
+.page-title {
+  margin: 0 0 6px;
+  font-size: 1.4rem;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.page-subtitle {
+  margin: 0;
+  color: #666;
+  font-size: 0.95rem;
+}
+
+.task-section {
+  margin-bottom: 28px;
+}
+
+.section-title {
+  margin: 0 0 12px;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.section-count {
+  margin-inline-start: 6px;
+  color: #666;
+  font-weight: 400;
+}
+
+.loading-text,
+.empty-text {
+  margin: 0;
+  color: #666;
+  padding: 12px 0;
+  font-size: 0.95rem;
+}
+
+.task-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.task-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px;
+  background: #fff;
+  border: 1px solid #e8e8e8;
+  border-radius: 12px;
+  flex-wrap: wrap;
+
+  &.task-card-recent {
+    background: #fafafa;
+    border-color: #ececec;
+  }
+}
+
+.task-card-info {
+  flex: 1 1 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 240px;
+}
+
+.task-card-title {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.task-card-meta {
+  font-size: 0.85rem;
+  color: #666;
+}
+
+.task-card-hint {
+  font-size: 0.9rem;
+  color: #444;
+  margin-top: 6px;
+}
+
+.task-card-actions {
+  flex-shrink: 0;
+}
+
+.task-status {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.task-status-WAITING_FOR_CLIENT {
+  background: #fff4e0;
+  color: #b07a00;
+}
+.task-status-READY_TO_PREPARE {
+  background: #e8f4ff;
+  color: #1565c0;
+}
+.task-status-REPORTED {
+  background: #e8f5e9;
+  color: #2e7d32;
+}

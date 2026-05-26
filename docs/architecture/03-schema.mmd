@@ -1,0 +1,106 @@
+erDiagram
+    BUSINESS ||--o{ BILL : "businessNumber"
+    BUSINESS ||--o{ REPORT_WORKFLOW : "businessNumber"
+    BUSINESS ||--o{ EXPENSES : "businessNumber"
+    BILL ||--o{ FULL_TRANSACTIONS_CACHE : "billId"
+    FULL_TRANSACTIONS_CACHE ||--o| SLIM_TRANSACTIONS : "userId+externalTransactionId"
+    FULL_TRANSACTIONS_CACHE ||--o| EXPENSES : "transId"
+    SLIM_TRANSACTIONS }o--o| CLASSIFIED_TRANSACTIONS : "classificationRuleId"
+    BILL ||--o{ CLASSIFIED_TRANSACTIONS : "billId"
+
+    BUSINESS {
+        int id PK
+        string firebaseId
+        string businessNumber
+        enum businessType "EXEMPT/LICENSED/COMPANY"
+        enum vatReportingType "NOT_REQUIRED/MONTHLY/DUAL"
+        enum taxReportingType
+    }
+
+    BILL {
+        int id PK
+        string userId
+        string businessNumber
+        string billName
+    }
+
+    FULL_TRANSACTIONS_CACHE {
+        int id PK
+        string externalTransactionId UK
+        string userId UK
+        int billId FK
+        string merchantName
+        date transactionDate
+        decimal amount
+        string category "filled if classified"
+        string subCategory
+        boolean isRecognized
+        string vatReportingDate "currently unused"
+        boolean confirmed "in expense ledger"
+        enum classificationType "ONE_TIME/RULE/null"
+        string businessNumber
+    }
+
+    SLIM_TRANSACTIONS {
+        int id PK
+        string externalTransactionId UK
+        string userId UK
+        int billId
+        enum classificationType "ONE_TIME/RULE"
+        int classificationRuleId FK "null for ONE_TIME"
+        string category
+        string subCategory
+        decimal vatPercent
+        decimal taxPercent
+        boolean confirmed "in expense ledger"
+        string vatReportingDate "lock signal"
+        string businessNumber "per-row override"
+    }
+
+    CLASSIFIED_TRANSACTIONS {
+        int id PK
+        string userId
+        string transactionName "merchant key"
+        int billId
+        string category
+        decimal vatPercent
+        decimal taxPercent
+        string businessNumber "rule-level override"
+        date startDate
+        date endDate
+        decimal minAbsSum
+        decimal maxAbsSum
+        string commentPattern
+        enum commentMatchType
+    }
+
+    EXPENSES {
+        int id PK
+        int transId FK "to cache.id"
+        string userId
+        string businessNumber
+        date date
+        decimal sum
+        string category
+        string subCategory
+        decimal vatPercent
+        decimal taxPercent
+        decimal totalVatPayable "computed at save"
+        decimal totalTaxPayable
+        string vatReportingDate "report period when filed"
+        boolean isReported "filed lock"
+    }
+
+    REPORT_WORKFLOW {
+        int id PK
+        string clientFirebaseId
+        string businessNumber
+        enum type "VAT_REPORT/ADVANCE_TAX"
+        date periodStart
+        date periodEnd
+        enum status "WAITING/READY/REPORTED"
+        datetime clientConfirmedAt
+        datetime reportedAt
+        string reportedByAccountantFirebaseId
+        enum reportedSource "MANUAL_ACCOUNTANT/SHAAM_WEBHOOK"
+    }

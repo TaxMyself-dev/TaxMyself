@@ -1,0 +1,179 @@
+---
+import { faqItems } from '../data/faq';
+---
+
+<section class="faq section" id="faq">
+  <div class="container">
+    <h2 class="faq__title animate-on-scroll">שאלות נפוצות</h2>
+
+    <div class="faq__list">
+      {faqItems.map((item, i) => (
+        <details class={`faq__item animate-on-scroll delay-${i + 1}`}>
+          <summary class="faq__question">
+            <span class="faq__icon" aria-hidden="true"></span>
+            <span class="faq__question-text">{item.question}</span>
+          </summary>
+          <div class="faq__panel">
+            <div class="faq__panel-inner">
+              <p class="faq__answer">{item.answer}</p>
+            </div>
+          </div>
+        </details>
+      ))}
+    </div>
+  </div>
+</section>
+
+<style>
+  .faq__title {
+    text-align: center;
+    margin-bottom: 2rem;
+  }
+
+  .faq__list {
+    max-width: 860px;
+    margin-inline: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .faq__item {
+    background: #fff;
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-soft);
+    overflow: hidden;
+  }
+
+  .faq__question {
+    cursor: pointer;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    padding: 1.25rem 1.5rem;
+    font-weight: 600;
+    font-size: 1rem;
+    color: var(--color-text);
+    gap: 1rem;
+    /* RTL: first flex item (+) is at inline-start = visually on the right */
+  }
+
+  .faq__question-text {
+    flex: 1;
+    min-width: 0;
+    text-align: start;
+  }
+
+  .faq__question::-webkit-details-marker {
+    display: none;
+  }
+
+  .faq__icon {
+    flex-shrink: 0;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--color-primary);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    font-weight: 300;
+    transition: background 0.2s;
+  }
+
+  .faq__icon::before {
+    content: '+';
+    display: block;
+    line-height: 1;
+    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  details[open]:not(.is-closing) .faq__icon {
+    background: var(--color-pricing-featured-bg);
+  }
+
+  details[open]:not(.is-closing) .faq__icon::before {
+    transform: rotate(45deg);
+  }
+
+  .faq__panel {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  details[open]:not(.is-closing) .faq__panel {
+    grid-template-rows: 1fr;
+  }
+
+  details[open].is-closing .faq__panel {
+    grid-template-rows: 0fr;
+  }
+
+  details[open].is-closing .faq__icon {
+    background: var(--color-primary);
+  }
+
+  details[open].is-closing .faq__icon::before {
+    transform: none;
+  }
+
+  .faq__panel-inner {
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .faq__answer {
+    padding: 0 1.5rem 1.25rem;
+    color: var(--color-text-secondary);
+    font-size: 0.95rem;
+    line-height: 1.6;
+    margin: 0;
+  }
+</style>
+
+<script>
+  function initFaqAccordion() {
+    document.querySelectorAll<HTMLDetailsElement>('.faq__item').forEach((details) => {
+      const summary = details.querySelector('summary');
+      const panel = details.querySelector<HTMLElement>('.faq__panel');
+      if (!summary || !panel) return;
+
+      summary.addEventListener('click', (e) => {
+        e.preventDefault();
+        const isOpen = details.hasAttribute('open');
+
+        if (isOpen) {
+          details.classList.add('is-closing');
+          let finished = false;
+          const done = () => {
+            if (finished) return;
+            finished = true;
+            details.removeAttribute('open');
+            details.classList.remove('is-closing');
+            panel.removeEventListener('transitionend', onTransitionEnd);
+          };
+          const onTransitionEnd = (ev: TransitionEvent) => {
+            if (ev.target !== panel || ev.propertyName !== 'grid-template-rows') return;
+            done();
+          };
+          panel.addEventListener('transitionend', onTransitionEnd);
+          window.setTimeout(done, 480);
+        } else {
+          details.classList.remove('is-closing');
+          details.setAttribute('open', '');
+          // Same-frame 0fr → 1fr skips transition; prime start state then let CSS take over next frame.
+          panel.style.gridTemplateRows = '0fr';
+          void panel.offsetHeight;
+          requestAnimationFrame(() => {
+            panel.style.removeProperty('grid-template-rows');
+          });
+        }
+      });
+    });
+  }
+
+  initFaqAccordion();
+</script>

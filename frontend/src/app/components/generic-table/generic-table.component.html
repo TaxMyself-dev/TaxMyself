@@ -1,4 +1,4 @@
-<div class="table-container">
+<div class="table-container" [class.table-container--cards]="isMobile() && mobileCardConfig()">
   <div class="table-header">
 
     <div class="input-title-container">
@@ -12,10 +12,30 @@
         <p-inputicon styleClass="pi pi-search" />
       </p-iconfield>
       }
+      <!-- Mobile-only section toggle -->
+      @if (isMobile() && mobileCardConfig()) {
+      <button
+        class="mobile-section-toggle"
+        type="button"
+        [attr.aria-expanded]="mobileTableExpanded()"
+        [attr.aria-label]="mobileTableExpanded() ? 'כווץ טבלה' : 'הרחב טבלה'"
+        (click)="toggleMobileSection()">
+        <span class="mobile-section-icon-wrap">
+          <!-- expand icon: visible when table is collapsed -->
+          <i class="pi pi-arrow-up-right-and-arrow-down-left-from-center mobile-section-icon"
+             [class.mobile-section-icon--hidden]="mobileTableExpanded()"></i>
+          <!-- collapse icon: visible when table is expanded -->
+          <i class="pi pi-arrow-down-left-and-arrow-up-right-to-center mobile-section-icon"
+             [class.mobile-section-icon--hidden]="!mobileTableExpanded()"></i>
+        </span>
+      </button>
+      }
     </div>
     <!-- @for (filter of iterableArrayFilter(); track filter.periodType + filter.year) { -->
     <!-- <div> -->
     @if(arrayFilters()) {
+
+    <!-- Desktop chips (hidden on mobile via CSS) -->
     <div class="show-filters-container">
       @if(arrayFilters()?.periodType) {
       <div class="filter-header">
@@ -42,14 +62,147 @@
       </div>
       }
     </div>
+
+    <!-- Mobile filter summary (hidden on desktop via CSS) -->
+    <div class="mobile-fs-container" dir="rtl">
+
+      <!-- ── Single unified expandable block ── -->
+      <div class="mobile-fs__block"
+           [class.mobile-fs__block--open]="filterSummaryExpanded()"
+           (click)="toggleFilterSummary()">
+
+        <!-- 3-line summary grid (collapsed state) -->
+        <div class="mobile-fs">
+          @if (mobileTimeLabel()) {
+            <span class="mobile-fs__label">זמן:</span>
+            <span class="mobile-fs__value">{{ mobileTimeLabel() }}</span>
+          }
+          <span class="mobile-fs__label">חשבונות:</span>
+          <span class="mobile-fs__value">{{ mobileAccountLabel() }}</span>
+          <span class="mobile-fs__label">קטגוריות:</span>
+          <span class="mobile-fs__value">{{ mobileCategoryLabel() }}</span>
+          @if (mobileSourcesLabel()) {
+            <span class="mobile-fs__label">אמצעי תשלום:</span>
+            <span class="mobile-fs__value">{{ mobileSourcesLabel() }}</span>
+          }
+        </div>
+
+        <!-- Chevron inside the block -->
+        <i class="mobile-fs__chevron"
+           [class.pi-chevron-down]="!filterSummaryExpanded()"
+           [class.pi-chevron-up]="filterSummaryExpanded()"
+           class="pi"></i>
+
+      </div>
+
+      <!-- ── Expanded details ── -->
+      @if (filterSummaryExpanded()) {
+        <div class="mobile-fs__details">
+          @if (arrayFilters()?.periodType) {
+            <div class="mobile-fs__details-item">
+              <span class="mobile-fs__label">זמן:</span>
+              <span class="mobile-fs__value">{{ getFullPeriodDisplay(arrayFilters()) }}</span>
+            </div>
+          }
+          @if ((arrayFilters()?.account?.length ?? 0) > 0) {
+            <div class="mobile-fs__details-item">
+              <span class="mobile-fs__label">חשבונות:</span>
+              <span class="mobile-fs__value">{{ formatNames(arrayFilters()?.account) }}</span>
+            </div>
+          }
+          @if ((arrayFilters()?.category?.length ?? 0) > 0) {
+            <div class="mobile-fs__details-item">
+              <span class="mobile-fs__label">קטגוריות:</span>
+              <span class="mobile-fs__value">{{ formatNames(arrayFilters()?.category) }}</span>
+            </div>
+          }
+          @if ((arrayFilters()?.sources?.length ?? 0) > 0) {
+            <div class="mobile-fs__details-item">
+              <span class="mobile-fs__label">אמצעי תשלום:</span>
+              <span class="mobile-fs__value">{{ formatNames(arrayFilters()?.sources) }}</span>
+            </div>
+          }
+        </div>
+      }
+
+    </div>
+
     }
   </div>
+  @if (isMobile() && mobileCardConfig()) {
+    <div class="mobile-section-wrapper"
+         [@slideToggle]="mobileTableExpanded() ? 'expanded' : 'collapsed'">
+      <div class="mobile-cards">
+        @if (effectiveIsLoading()) {
+          <div class="mobile-cards__loading">
+            <i class="pi pi-spin pi-spinner"></i>
+          </div>
+          @if (useSyncState() && processStatus() === 'running') {
+            <div class="sync-loading-overlay">
+              <i class="pi pi-spin pi-spinner-dotted sync-loading-icon"></i>
+              <p class="sync-loading-text">נתונים נמשכים מהבנק, בקרוב ממש הם יופיעו</p>
+            </div>
+          }
+        } @else if (useSyncState() && processStatus() === 'failed') {
+          <div class="empty-data-container">
+            <img class="empty-data-img" src="../../../assets/not_data.svg" alt="No Data" />
+            <p class="sync-error-text">נראה שהייתה שגיאה במשיכת הנתונים. כדאי לנסות שוב</p>
+            <app-p-button [icon]="'pi pi-refresh'" (onButtonClicked)="triggerFullSync()" [buttonText]="'נסה שוב'" [buttonColor]="ButtonColor.BLACK" [buttonSize]="buttonSize.AUTO"></app-p-button>
+          </div>
+        } @else if (filteredDataTable()?.length) {
+          @if (showCheckbox()) {
+            <label class="mobile-select-all">
+              <input
+                type="checkbox"
+                class="mobile-select-all__checkbox"
+                [checked]="mobileAllChecked()"
+                (change)="onMobileSelectAll($any($event.target).checked)"
+                aria-label="בחר הכל">
+              <span class="mobile-select-all__label">בחר הכל</span>
+            </label>
+          }
+          @for (row of filteredDataTable(); track row['id']) {
+            <app-mobile-row-card
+              [row]="row"
+              [columns]="$any(columnsTitle())"
+              [config]="mobileCardConfig()!"
+              [actions]="mobileActionsForRow(row)"
+              [searchTerm]="searchTerm()"
+              [sumSignColors]="sumSignColors()"
+              [unassignedBillRed]="unassignedBillRed()"
+              [showCheckbox]="showCheckbox()"
+              [checked]="isMobileRowChecked(row)"
+              (checkedChange)="onMobileRowChecked(row, $event)"
+              (actionClicked)="onCardActionClicked($event)">
+            </app-mobile-row-card>
+          }
+        } @else {
+          <div class="empty-data-container">
+            <img class="empty-data-img" src="../../../assets/not_data.svg" alt="No Data" />
+            <p class="empty-data-text">אויש, לא מצאנו את מה שחיפשת</p>
+          </div>
+        }
+      </div>
+    </div>
+  }
+
+  @if (!isMobile() || !mobileCardConfig()) {
   <div class="table">
     <p-table [(selection)]="selectedTrans" [selectionMode]="selectionModeCheckBox()"
       (onRowUnselect)="onSelectionChange($event)" (onRowSelect)="onSelectionChange($event)"
-      (onHeaderCheckboxToggle)="onSelectionChange($event)" dataKey="id" [loading]="isLoadingState()"
+      (onHeaderCheckboxToggle)="onSelectionChange($event)" dataKey="id"
+      [loading]="effectiveIsLoading()"
       loadingIcon="pi pi-spin pi-spinner-dotted" [columns]="columnsTitle()" [value]="filteredDataTable()"
       [scrollable]="false" [scrollHeight]="tableHeight()" [virtualScroll]="false" [virtualScrollItemSize]="76">
+      <ng-template pTemplate="loadingbody">
+        @if (useSyncState() && processStatus() === 'running') {
+          <tr>
+            <td [attr.colspan]="columnsTitle()?.length || 1" style="border: none; padding: 60px 0; text-align: center;">
+              <p class="sync-loading-text">נתונים נמשכים מהבנק, בקרוב ממש הם יופיעו</p>
+            </td>
+          </tr>
+        }
+      </ng-template>
       <ng-template pTemplate="header" let-columns>
         <tr>
           @if (showCheckbox()) {
@@ -87,9 +240,64 @@
               @else if (col.name === 'parentDoc' && row[col.name]) {
               <span [innerHTML]="row[col.name]"></span>
               }
-              <!-- Default row -->
-              @else if (col.name?.toLowerCase().includes('date')) {
+              <!-- Report-period stamp (must come BEFORE the date-name catch-all
+                   since the column name is 'vatReportingDate' but its value is
+                   a label like "01/2024", not a real date).
+                   Three states layered on the same period text:
+                     classified, not confirmed → period only
+                     confirmed, not locked     → green ✓ + period
+                     locked (report submitted) → lock + period -->
+              @else if (col.cellRenderer === ICellRenderer.MONTH_REPORT) {
+                @if (row[col.name]) {
+                  @if (row.isLocked) {
+                    <i class="pi pi-lock month-report-lock" title="הדוח הוגש – התנועה נעולה"></i>
+                  } @else if (row.confirmed) {
+                    <i class="pi pi-check-circle month-report-confirmed" title="ההוצאה אושרה"></i>
+                  }
+                  {{ row[col.name] }}
+                } @else {
+                  <span class="month-report-pending">טרם דווח</span>
+                }
+              }
+              <!-- Sum + FX: non-ILS rows show the original amount with the
+                   BOI-converted ILS underneath in parentheses. The page
+                   preprocessor (`transactions.page.ts`) already prefixes the
+                   currency symbol onto `row.sum`, so we DON'T add it again
+                   here. ILS rows fall through to the existing sum rendering
+                   (sign colors etc.). -->
+              @else if (col.cellRenderer === ICellRenderer.SUM_WITH_FX && row.currency && row.currency !== 'ILS') {
+                <span class="sum-with-fx">
+                  <span class="sum-original"
+                    [class.sum-sign--expense]="sumSignColors() && (row['__sumNumeric'] ?? 0) < 0"
+                    [class.sum-sign--income]="sumSignColors() && (row['__sumNumeric'] ?? 0) > 0">
+                    {{ row[col.name] }}
+                  </span>
+                  @if (row.ilsAmount != null) {
+                    <span class="sum-ils">({{ absIls(row.ilsAmount) | number:'1.0-2' }} ₪)</span>
+                  }
+                </span>
+              }
+              <!-- Default row: format dates by column name *or* explicit FormTypes.DATE -->
+              @else if (col.name?.toLowerCase().includes('date') || col.type === FormTypes.DATE) {
                 {{ row[col.name] | dateFormat }}
+              }
+              @else if (col.name === 'billName' && unassignedBillRed() && rowBillUnassigned(row)) {
+              <span class="bill-unassigned">לא משוייך</span>
+              }
+              @else if (col.name === 'sum' && sumSignColors()) {
+              <span
+                [class.sum-sign--expense]="(row['__sumNumeric'] ?? 0) < 0"
+                [class.sum-sign--income]="(row['__sumNumeric'] ?? 0) > 0">
+                {{ row[col.name] }}
+              </span>
+              }
+              <!-- Amount + recognition % stacked on two lines (used by the
+                   confirm-expense dialog for "מוכר למע״מ" / "מוכר למס"). -->
+              @else if (col.cellRenderer === ICellRenderer.AMOUNT_WITH_PERCENT) {
+                <span class="amount-with-percent">
+                  <span class="amount">{{ (row[col.name] | number:'1.0-2') ?? 0 }} ש״ח</span>
+                  <span class="percent">({{ row[amountPercentField(col.name)] ?? 0 }}%)</span>
+                </span>
               }
               @else {
               {{ row[col.name] }}
@@ -103,13 +311,24 @@
       <ng-template pTemplate="emptymessage">
         <tr>
           <td colspan="100%" style="text-align: center; padding: 2rem;">
-            <img src="../../../assets/not_data.svg" alt="No Data" style="width: 300px; height: 300px;" />
+            <!-- @else { -->
+              <div class="empty-data-container">
+                <img src="../../../assets/not_data.svg" alt="No Data" style="width: 300px; height: 300px;" />
+                @if (useSyncState() && processStatus() === 'failed') {
+                  <p class="sync-error-text">נראה שהייתה שגיאה במשיכת הנתונים. כדאי לנסות שוב</p>
+                  <app-p-button [icon]="'pi pi-refresh'" (onButtonClicked)="triggerFullSync()" [buttonText]="'נסה שוב'" [buttonColor]="ButtonColor.BLACK" [buttonSize]="buttonSize.AUTO"></app-p-button>
+                } 
+                @else {
+                  <p class="empty-data-text">אויש, לא מצאנו את מה שחיפשת</p>
+                }
+              </div>
+            <!-- } -->
           </td>
         </tr>
       </ng-template>
     </p-table>
 
-    @if (hoveredRowInfo() && (showButtons() || fileActions().length > 0)) {
+    @if (hoveredRowInfo() && (getRowActions(hoveredRowInfo()?.row).length > 0 || fileActions().length > 0)) {
     <div [@slideInFromLeft]="isSlideIn() ? 'visible' : 'void'" class="floating-buttons"
       [style.top.px]="hoveredRowInfo()?.top" (mouseenter)="onFloatingEnter()"
       (mouseleave)="onFloatingLeave()">
@@ -120,34 +339,34 @@
         accept=".pdf,.jpg,.jpeg,.png" />
       }
 
-      <!-- File Actions Section -->
+      <!-- File Actions Section (untouched) -->
       @if (fileActions().length > 0) {
-      <!-- Check if any action should always show (doesn't require file) -->
       @if (hasAlwaysShowAction()) {
-      <!-- Show actions that should always be visible -->
       @for (action of fileActions(); track action.name) {
       @if (shouldShowAction(action)) {
       <app-p-button [icon]="action.icon" [iconOnly]="true"
         (onButtonClicked)="executeAction(action, getCurrentRow())" [buttonText]="action.title || action.name"
-        [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO">
+        [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO"
+        [isLoading]="action.isLoading ? action.isLoading() : false"
+        [pTooltip]="action.title || action.name" tooltipPosition="top">
       </app-p-button>
       }
       }
       }
-      <!-- If file exists on server: show action buttons -->
       @if (hoveredRowInfo()?.row?.['file'] && hoveredRowInfo()?.row?.['file'] !== '' && hoveredRowInfo()?.row?.['file']
       !== null) {
       @for (action of fileActions(); track action.name) {
       @if (shouldShowFileAction(action)) {
       <app-p-button [icon]="action.icon" [iconOnly]="true"
         (onButtonClicked)="executeAction(action, getCurrentRow())" [buttonText]="action.title || action.name"
-        [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO">
+        [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO"
+        [isLoading]="action.isLoading ? action.isLoading() : false"
+        [pTooltip]="action.title || action.name" tooltipPosition="top">
       </app-p-button>
       }
       }
       }
       @else if (!hasAlwaysShowAction()) {
-      <!-- No file exists and no alwaysShow actions: show attach button -->
       <app-p-button [iconOnly]="true" [icon]="'pi pi-paperclip'" (onButtonClicked)="triggerFileInput()"
         [buttonText]="hasFileAttached(hoveredRowInfo()?.row) ? 'שנה קובץ: ' + getFileName(hoveredRowInfo()?.row) : 'צרף קובץ'"
         [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO">
@@ -155,23 +374,20 @@
       }
       }
 
-      <!-- Classification Buttons Section -->
-      @if (showButtons()) {
-      @if (isBillNotAssociated(hoveredRowInfo()?.row)) {
-      <app-p-button (onButtonClicked)="onVisibleAccountAssociationClicked(getCurrentRow())" [buttonText]="'שייך לחשבון'" [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO">
+      <!-- Row Actions Section — rendered from rowActions filtered by showWhen(row) -->
+      @for (action of getRowActions(hoveredRowInfo()?.row); track action.name) {
+      <app-p-button
+        (onButtonClicked)="action.action(null, getCurrentRow())"
+        [buttonText]="action.title || action.name"
+        [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO"
+        [isLoading]="action.isLoading ? action.isLoading() : false"
+        [pTooltip]="action.title || action.name" tooltipPosition="top">
       </app-p-button>
-      }
-      @if (isBillAssociated(hoveredRowInfo()?.row)) {
-      <app-p-button (onButtonClicked)="onVisibleClassifyTranClicked(getCurrentRow())" [buttonText]="'סיווג תנועה'" [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO">
-      </app-p-button>
-      }
-      @if (isBillAssociated(hoveredRowInfo()?.row)) {
-      <app-p-button (onButtonClicked)="quickClassify(getCurrentRow())" [buttonText]="'סיווג מהיר'" [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO" [isLoading]="isLoadingQuickClassify()">
-      </app-p-button>
-      }
       }
     </div>
     }
 
   </div>
+  }
+
 </div>

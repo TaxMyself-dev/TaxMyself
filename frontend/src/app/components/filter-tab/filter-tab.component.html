@@ -1,44 +1,51 @@
 <form [formGroup]="parentForm()" class="filter-tab">
 
-  <ng-container *ngFor="let field of config()">
+  <div class="filter-tab__fields">
 
-    <!-- =======================
-         SELECT FIELD
-    ======================== -->
+    <ng-container *ngFor="let field of config()">
 
-    <!-- if businessNumber is the only option, don't show the select -->
-    @if (field.type === 'select' && !(field.controlName === 'businessNumber' && resolveOptions(field)?.length === 1)) {
-    <app-input-select [parentForm]="parentForm()" [controlName]="field.controlName" [size]="inputSize.MEDIUM"
-      [placeholder]="field.label || field.placeholder" [items]="resolveOptions(field)">
-    </app-input-select>
-    }
+      <!-- =======================
+           SELECT FIELD
+      ======================== -->
 
-    <!-- =======================
-         PERIOD FIELD
-    ======================== -->
-    @if (field.type === 'period') {
-    <app-period-select [parentForm]="parentForm()" [allowedPeriodModes]="field.allowedPeriodModes" [periodDefaults]="field.periodDefaults">
-    </app-period-select>
-    }
+      <!-- if businessNumber is the only option, don't show the select -->
+      @if (field.type === 'select' && !(field.controlName === 'businessNumber' && resolveOptions(field)?.length === 1)) {
+      <app-input-select [parentForm]="parentForm()" [controlName]="field.controlName"
+        [size]="isMobile() ? inputSize.MOBILE : inputSize.MEDIUM"
+        [labelText]="field.label || ''"
+        [placeholder]="field.placeholder || field.label || ''" [items]="resolveOptions(field)">
+      </app-input-select>
+      }
 
-
-    <!-- =======================
-         TEXT FIELD
-    ======================== -->
-    @if (field.type === 'text') {
-    <input class="txt-input" [placeholder]="field.label || field.placeholder" [formControlName]="field.controlName" />
-    }
+      <!-- =======================
+           PERIOD FIELD
+      ======================== -->
+      @if (field.type === 'period') {
+      <app-period-select [parentForm]="parentForm()" [allowedPeriodModes]="field.allowedPeriodModes" [periodDefaults]="field.periodDefaults"
+        [size]="isMobile() ? inputSize.MOBILE : inputSize.MEDIUM">
+      </app-period-select>
+      }
 
 
-    <!-- =======================
-         NUMBER FIELD
-    ======================== -->
-    @if (field.type === 'number') {
-    <input type="number" class="num-input" [placeholder]="field.label || field.placeholder"
-      [formControlName]="field.controlName" />
-    }
+      <!-- =======================
+           TEXT FIELD
+      ======================== -->
+      @if (field.type === 'text') {
+      <input class="txt-input" [placeholder]="field.label || field.placeholder" [formControlName]="field.controlName" />
+      }
 
-  </ng-container>
+
+      <!-- =======================
+           NUMBER FIELD
+      ======================== -->
+      @if (field.type === 'number') {
+      <input type="number" class="num-input" [placeholder]="field.label || field.placeholder"
+        [formControlName]="field.controlName" />
+      }
+
+    </ng-container>
+
+  </div>
 
   <!-- =======================
        APPLY BUTTON

@@ -1,0 +1,53 @@
+# Integration ENVIRONMENT: lgs-integ01
+# Production ENVIRONMENT: lgs-prod
+# curl --location --request POST 'https://{ENVIRONMENT}.feezback.cloud/link' \
+# --header 'Content-Type: application/json' \
+# --data-raw '{"token":
+# "{GENERATED_TOKEN_FROM_PREVIOUS_STEP}"
+# }'
+
+
+###
+
+curl -X POST "https://openapi.taxes.gov.il/shaam/tsandbox/Invoices/v2/Approval" \
+  -H "Authorization: Bearer AAIgODhmYjM4MmNjMmUxOGUwMTdmZGEyMGNlZDMwMTNiN2L1JBA1211W2ke-7i1mf5qn9JaMqnua-1SdgGxWmvRW-fL9Fz1bzBZ-p9PAuShflcD5S0BFhqw3EolE5wbjFDZF9zLvt5so2oKmMy30Xd_nkg" \
+  -H "X-IBM-Client-Id: 88fb382cc2e18e017fda20ced3013b7b" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json" \
+  -d '{
+    "user_id": 304902133,
+    "accounting_software_number": 123456,
+    "amount_before_discount": 1000,
+    "customer_vat_number": 204245724,
+    "discount": 0,
+    "invoice_date": "2026-01-29",
+    "invoice_id": "DEMO-1769719015748",
+    "invoice_issuance_date": "2026-01-29",
+    "invoice_reference_number": "REF-1769719015748",
+    "invoice_type": 305,
+    "payment_amount": 1000,
+    "vat_amount": 180,
+    "payment_amount_including_vat": 1180,
+    "vat_number": 777777715
+  }'
+
+
+
+###
+POST  http://localhost:3000/transactions/get-trans
+content-type: application/json
+
+###
+POST http://localhost:3000/transactions/load-default-categories
+Content-Type: multipart/form-data; boundary=your-boundary
+
+--your-boundary
+Content-Disposition: form-data; name="file"; filename="categories.xlsx"
+Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+
+< categories.xlsx
+--your-boundary--
+
+
+
+

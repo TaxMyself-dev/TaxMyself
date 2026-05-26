@@ -7,6 +7,7 @@ import { SharedService } from '../shared/shared.service';
 import { UsersService } from '../users/users.service';
 import { VatReportRequestDto } from './dtos/vat-report-request.dto';
 import { VatReportDto } from './dtos/vat-report.dto';
+import { AdvanceIncomeTaxReportDto } from './dtos/advance-income-tax-report.dto';
 import { PnLReportDto } from './dtos/pnl-report.dto';
 import { PnLReportRequestDto } from './dtos/pnl-report-request.dto';
 import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
@@ -57,6 +58,31 @@ export class ReportsController {
         }
     }
 
+    @Get('advance-income-tax-report')
+    @UseGuards(FirebaseAuthGuard)
+    @UsePipes(new ValidationPipe({ transform: true }))
+    async getAdvanceIncomeTaxReport(
+        @Req() request: AuthenticatedRequest,
+        @Query() query: VatReportRequestDto,
+    ): Promise<AdvanceIncomeTaxReportDto> {
+        try {
+            const firebaseId = request.user?.firebaseId;
+            if (!firebaseId) {
+                throw new BadRequestException('Firebase ID is missing');
+            }
+            const startDate = this.sharedService.convertStringToDateObject(query.startDate);
+            const endDate = this.sharedService.convertStringToDateObject(query.endDate);
+            return await this.reportsService.getAdvanceIncomeTaxReportData(
+                firebaseId,
+                query.businessNumber,
+                startDate,
+                endDate,
+            );
+        } catch (error) {
+            console.error("❌ Error in getAdvanceIncomeTaxReport controller:", error);
+            throw error;
+        }
+    }
 
     @Get('pnl-report')
     @UseGuards(FirebaseAuthGuard)
@@ -69,6 +95,58 @@ export class ReportsController {
         const endDate = this.sharedService.convertStringToDateObject(query.endDate);
         const pnlReport = await this.reportsService.createPnLReport(firebaseId, query.businessNumber, startDate, endDate);
         return pnlReport;
+    }
+
+    @Post('pnl-report-pdf')
+    @UseGuards(FirebaseAuthGuard)
+    async generatePnLReportPDF(
+        @Body() body: any,
+        @Res() res: Response,
+        @Req() request: AuthenticatedRequest
+    ) {
+        const pdfBuffer = await this.reportsService.generatePnLReportPDF(body);
+        res.setHeader('Content-Type', 'application/pdf');
+        return res.send(pdfBuffer);
+    }
+
+
+    /**
+     * Self-employed user clicks "סמן כדווח" on the VAT/PnL report page after
+     * submitting at the tax authority. Locks every transaction stamped with
+     * the matching period label. Idempotent — already-locked rows stay locked.
+     */
+    @Post('mark-submitted')
+    @UseGuards(FirebaseAuthGuard)
+    async markSubmitted(
+        @Req() request: AuthenticatedRequest,
+        @Body() body: { businessNumber: string; startDate: string },
+    ): Promise<{ count: number; periodLabel: string }> {
+        const firebaseId = request.user?.firebaseId;
+        if (!firebaseId) throw new BadRequestException('Firebase ID is missing');
+        if (!body?.businessNumber) throw new BadRequestException('businessNumber is required');
+        if (!body?.startDate) throw new BadRequestException('startDate is required');
+        const startDate = this.sharedService.convertStringToDateObject(body.startDate);
+        return this.reportsService.markReportAsSubmitted(firebaseId, body.businessNumber, startDate);
+    }
+
+
+    /**
+     * Was the report for `(businessNumber, startDate)` already marked as
+     * submitted? Frontend swaps the "סמן כדווח" button for a "הדוח הוגש"
+     * success indicator when true.
+     */
+    @Get('submission-status')
+    @UseGuards(FirebaseAuthGuard)
+    async submissionStatus(
+        @Req() request: AuthenticatedRequest,
+        @Query() query: { businessNumber: string; startDate: string },
+    ): Promise<{ isSubmitted: boolean; periodLabel: string }> {
+        const firebaseId = request.user?.firebaseId;
+        if (!firebaseId) throw new BadRequestException('Firebase ID is missing');
+        if (!query?.businessNumber) throw new BadRequestException('businessNumber is required');
+        if (!query?.startDate) throw new BadRequestException('startDate is required');
+        const startDate = this.sharedService.convertStringToDateObject(query.startDate);
+        return this.reportsService.getReportSubmissionStatus(firebaseId, query.businessNumber, startDate);
     }
 
 

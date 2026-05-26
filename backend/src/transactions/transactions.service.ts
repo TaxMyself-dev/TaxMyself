@@ -3,15 +3,19 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In, Between, Not, Brackets, LessThan, MoreThan, FindOptionsWhere, MoreThanOrEqual, LessThanOrEqual } from 'typeorm';
 import * as XLSX from 'xlsx';
 import { Express } from 'express';
-import { SourceType, VATReportingType } from 'src/enum';
+import { SourceType, VATReportingType, BusinessType, ExpenseReportScope } from 'src/enum';
 
 //Entities
+// TODO_FINTAX_REMOVE_LEGACY_TRANSACTIONS: import kept while legacy flows (file upload, Finsite ingest, classifyTransaction, quickClassify, report reads) still write/read the transactions table.
 import { Transactions } from './transactions.entity';
 import { Bill } from './bill.entity';
 import { Source } from './source.entity';
 import { ClassifiedTransactions } from './classified-transactions.entity';
 import { Expense } from '../expenses/expenses.entity';
 import { Finsite } from 'src/finsite/finsite.entity';
+import { FullTransactionCache } from './full-transaction-cache.entity';
+import { SlimTransaction } from './slim-transaction.entity';
+import { UserSourceSyncState } from './user-source-sync-state.entity';
 
 //Services
 import { SharedService } from '../shared/shared.service';
@@ -29,6 +33,7 @@ import { UserCategory } from 'src/expenses/user-categories.entity';
 import { CreateBillDto } from './dtos/create-bill.dto';
 import * as fs from 'fs';
 import { UserSubCategory } from 'src/expenses/user-sub-categories.entity';
+import { Business } from 'src/business/business.entity';
 import { log } from 'console';
 
 
@@ -40,6 +45,7 @@ export class TransactionsService {
     private readonly finsiteService: FinsiteService,
     @InjectRepository(User)
     private userRepo: Repository<User>,
+    // TODO_FINTAX_REMOVE_LEGACY_TRANSACTIONS: repo injection required by all remaining legacy flows. Remove together with those methods.
     @InjectRepository(Transactions)
     private transactionsRepo: Repository<Transactions>,
     @InjectRepository(Finsite)
@@ -59,10 +65,20 @@ export class TransactionsService {
     @InjectRepository(UserCategory)
     private userCategoryRepo: Repository<UserCategory>,
     @InjectRepository(UserSubCategory)
-    private userSubCategoryRepo: Repository<UserSubCategory>
+    private userSubCategoryRepo: Repository<UserSubCategory>,
+    @InjectRepository(FullTransactionCache)
+    private cacheRepo: Repository<FullTransactionCache>,
+    @InjectRepository(SlimTransaction)
+    private slimRepo: Repository<SlimTransaction>,
+    @InjectRepository(UserSourceSyncState)
+    private userSourceSyncStateRepo: Repository<UserSourceSyncState>,
+    @InjectRepository(Business)
+    private businessRepo: Repository<Business>,
   ) { }
 
 
+  // TODO_FINTAX_REMOVE_LEGACY_TRANSACTIONS: active Finsite ingest that writes directly to the legacy transactions table.
+  // Replace with a pipeline that writes to full_transactions_cache instead, then remove this method.
   async getTransactionsFromFinsite(
     startDate: string,
     endDate: string,
@@ -152,14 +168,24 @@ export class TransactionsService {
 
                 const billName = await this.getBillNameBySourceName(firebaseId, method.paymentId);
                 const businessNumber = await this.getBusinessNumberByBillName(firebaseId, billName);
+                const billId = await this.getBillIdByBillName(firebaseId, billName);
 
-                const classifiedTransaction = await this.classifiedTransactionsRepo.findOne({
-                  where: {
-                    userId: firebaseId,
-                    transactionName: transaction.Notes1,
-                    billName: billName,
-                  },
-                });
+                const txSum = transaction.Debit ? -transaction.Debit : transaction.Credit;
+
+                const classifiedTransactionRaw = billId
+                  ? await this.classifiedTransactionsRepo.findOne({
+                      where: {
+                        userId: firebaseId,
+                        transactionName: transaction.Notes1,
+                        billId,
+                      },
+                    })
+                  : null;
+
+                const classifiedTransaction =
+                  classifiedTransactionRaw && this.ruleMatchesSum(classifiedTransactionRaw, txSum)
+                    ? classifiedTransactionRaw
+                    : null;
 
                 const newTransaction: Partial<Transactions> = {
                   userId: firebaseId,
@@ -171,7 +197,7 @@ export class TransactionsService {
                   note2: transaction.Notes2,
                   billDate: transaction.Date,
                   payDate: null,
-                  sum: transaction.Debit ? -transaction.Debit : transaction.Credit,
+                  sum: txSum,
                 };
 
                 // Merge fields if classifiedTransaction exists
@@ -223,6 +249,8 @@ export class TransactionsService {
   }
 
 
+  // TODO_FINTAX_REMOVE_LEGACY_TRANSACTIONS: file-upload ingestion flow that writes parsed Excel rows to the legacy transactions table.
+  // Replace with a flow that writes to full_transactions_cache, then remove this method.
   async saveTransactions(file: Express.Multer.File, userId: string): Promise<{ message: string }> {
 
     if (!file) {
@@ -260,13 +288,15 @@ export class TransactionsService {
 
     const classifiedTransactions = await this.classifiedTransactionsRepo.find({ where: { userId } });
 
-    // Fetch user's bills and create a mapping from paymentIdentifier to billName
+    // Fetch user's bills and create mappings from paymentIdentifier to billName and billId
     const userBills = await this.billRepo.find({ where: { userId }, relations: ['sources'] });
     const paymentIdentifierToBillName = new Map<string, string>();
+    const paymentIdentifierToBillId = new Map<string, number>();
 
     userBills.forEach(bill => {
       bill.sources.forEach(source => {
         paymentIdentifierToBillName.set(source.sourceName, bill.billName);
+        paymentIdentifierToBillId.set(source.sourceName, bill.id);
       });
     });
 
@@ -330,7 +360,10 @@ export class TransactionsService {
       }
 
       // Check if there's a matching classified transaction
-      const matchingClassifiedTransaction = classifiedTransactions.find(ct => ct.transactionName === transaction.name && ct.billName === transaction.billName);
+      const billId = paymentIdentifierToBillId?.get(transaction.paymentIdentifier);
+      const matchingClassifiedTransaction = classifiedTransactions.find(
+        ct => ct.transactionName === transaction.name && ct.billId === billId && this.ruleMatchesSum(ct, transaction.sum),
+      );
       // If a match is found, update the transaction fields with the classified values
       if (matchingClassifiedTransaction) {
         console.log("matchingClassifiedTransaction is ", matchingClassifiedTransaction);
@@ -362,6 +395,14 @@ export class TransactionsService {
   }
 
 
+  async getBusinessNumberByBillId(billId: number, userId: string): Promise<string | null> {
+    const bill = await this.billRepo.findOne({
+      where: { id: billId, userId },
+      select: ['businessNumber'],
+    });
+    return bill?.businessNumber ?? null;
+  }
+
   async getBusinessNumberByBillName(userId: string, billName: string): Promise<string | null> {
     const bill = await this.billRepo.findOne({
       where: {
@@ -373,6 +414,24 @@ export class TransactionsService {
     return bill ? bill.businessNumber : null; // Return the businessNumber if found, otherwise null
   }
 
+
+  async getBillIdByBillName(userId: string, billName: string): Promise<number | null> {
+    if (!billName) return null;
+    const bill = await this.billRepo.findOne({
+      where: { userId, billName },
+      select: ['id'],
+    });
+    return bill ? bill.id : null;
+  }
+
+  async getBillNameByBillId(userId: string, billId: number): Promise<string | null> {
+    if (!billId) return null;
+    const bill = await this.billRepo.findOne({
+      where: { userId, id: billId },
+      select: ['billName'],
+    });
+    return bill ? bill.billName : null;
+  }
 
   async getBillNameBySourceName(userId: string, sourceName: string): Promise<string | null> {
     const source = await this.sourceRepo.findOne({
@@ -458,17 +517,21 @@ export class TransactionsService {
   }
 
 
+  // TODO_FINTAX_REMOVE_LEGACY_TRANSACTIONS: reads all legacy transactions for a user. No known active caller; likely dead code. Remove when legacy table is dropped.
   async getTransactionsByUserID(userId: string) {
     return await this.transactionsRepo.find({ where: { userId: userId } });
   }
 
 
+  // TODO_FINTAX_REMOVE_LEGACY_TRANSACTIONS: legacy classify flow that writes classification back to the transactions table.
+  // The new pipeline (TransactionProcessingService.classifyManually / classifyWithRule) is now the canonical path.
+  // This method is kept temporarily; remove once all classify-trans callers are confirmed migrated.
   async classifyTransaction(
     classifyDto: ClassifyTransactionDto,
     userId: string,
   ): Promise<void> {
     const {
-      id,
+      finsiteId,
       isSingleUpdate,
       name,
       billName,
@@ -489,14 +552,17 @@ export class TransactionsService {
 
     console.log('classifyDto is ', classifyDto);
 
+    // Resolve billId from billName
+    const billId = await this.getBillIdByBillName(userId, billName);
+
     // ✅ Case 1: Single update
     if (isSingleUpdate) {
       const transaction = await this.transactionsRepo.findOne({
-        where: { id, userId },
+        where: { finsiteId, userId },
       });
 
       if (!transaction) {
-        throw new NotFoundException(`Transaction with ID ${id} not found`);
+        throw new NotFoundException(`Transaction with finsiteId ${finsiteId} not found`);
       }
 
       transaction.category = category;
@@ -562,7 +628,7 @@ export class TransactionsService {
 
     if (!transactions.length) {
       throw new NotFoundException(
-        `No matching transactions found for "${name}" (${billName})`,
+        `No matching transactions found for "${name}" (billId: ${billId})`,
       );
     }
 
@@ -584,7 +650,7 @@ export class TransactionsService {
       where: {
         userId,
         transactionName: name,
-        billName,
+        billId,
         isExpense: subCategoryDetails.isExpense ?? false,
         startDate: startDate ?? null,
         endDate: endDate ?? null,
@@ -599,7 +665,7 @@ export class TransactionsService {
       classified = this.classifiedTransactionsRepo.create({
         userId,
         transactionName: name,
-        billName,
+        billId,
         category: subCategoryDetails.categoryName,
         subCategory: subCategoryDetails.subCategoryName,
         taxPercent: subCategoryDetails.taxPercent,
@@ -637,6 +703,7 @@ export class TransactionsService {
 
 
 
+  // TODO_FINTAX_REMOVE_LEGACY_TRANSACTIONS: dead commented-out version of the old classifyTransaction method. Remove when legacy table is dropped.
   // async classifyTransaction(
   //   classifyDto: ClassifyTransactionDto,
   //   userId: string,
@@ -806,6 +873,17 @@ export class TransactionsService {
 
 
 
+  // TODO_FINTAX_REMOVE_LEGACY_TRANSACTIONS: legacy quickClassify that operates on the transactions table by numeric id.
+  // The new path is TransactionsController → TransactionProcessingService.classifyManually() via finsiteId.
+  // This method is no longer called from the controller; remove when legacy table is dropped.
+  /** Returns true when the transaction's absolute sum falls within the rule's defined range (or no range is set). */
+  private ruleMatchesSum(rule: ClassifiedTransactions, sum: number): boolean {
+    const absSum = Math.abs(sum);
+    if (rule.minAbsSum != null && absSum < Number(rule.minAbsSum)) return false;
+    if (rule.maxAbsSum != null && absSum > Number(rule.maxAbsSum)) return false;
+    return true;
+  }
+
   async quickClassify(transactionId: number, userId: string): Promise<void> {
 
     const transaction = await this.transactionsRepo.findOne({
@@ -876,46 +954,76 @@ export class TransactionsService {
       taxPercent,
       isEquipment,
       reductionPercent,
-      businessNumber
+      businessNumber,
     } = updateDto;
 
-    let transactions: Transactions[];
+    // ── 1. Resolve the target cache rows ────────────────────────────────────
+    // `id` is a full_transactions_cache PK (the frontend receives cache rows
+    // from getExpenses/getIncomes which map cache.id → id in the response).
+    let cacheRows: FullTransactionCache[];
 
-    // Fetch the relevant transactions based on isSingleUpdate flag
     if (isSingleUpdate) {
-      // Update only the specific transaction
-      transactions = await this.transactionsRepo.find({
-        where: {
-          id,
-          userId
-        },
-      });
+      const row = await this.cacheRepo.findOne({ where: { id, userId } });
+      if (!row) {
+        throw new NotFoundException(`Transaction with id ${id} not found.`);
+      }
+      cacheRows = [row];
     } else {
-      // Update all transactions with the same name and billName within the specified date range
-      transactions = await this.transactionsRepo.find({
+      // Multi-update: find all cache rows for the same merchant + bill.
+      // DTO.name maps to merchantName; DTO.billName maps to billName.
+      cacheRows = await this.cacheRepo.find({
         where: {
           userId,
-          name: updateDto.name,
+          merchantName: updateDto.name,
           billName: updateDto.billName,
-          //billDate: Between(startDate, endDate)
         },
       });
     }
 
-    // Update the specified fields in each transaction
-    transactions.forEach(transaction => {
-      transaction.category = category;
-      transaction.subCategory = subCategory;
-      transaction.isRecognized = isRecognized;
-      transaction.vatPercent = vatPercent;
-      transaction.taxPercent = taxPercent;
-      transaction.isEquipment = isEquipment;
-      transaction.reductionPercent = reductionPercent;
-      transaction.businessNumber = businessNumber;
-    });
+    if (cacheRows.length === 0) return;
 
-    // Save the updated transactions
-    await this.transactionsRepo.save(transactions);
+    // ── 2. Bulk-load the corresponding slim rows in one query ────────────────
+    const externalIds = cacheRows.map((r) => r.externalTransactionId);
+    const slimRows = await this.slimRepo.find({
+      where: { userId, externalTransactionId: In(externalIds) },
+    });
+    const slimMap = new Map(slimRows.map((s) => [s.externalTransactionId, s]));
+
+    // ── 3. Apply updates to cache rows (read model / display data) ───────────
+    for (const row of cacheRows) {
+      if (category !== undefined)        row.category = category;
+      if (subCategory !== undefined)     row.subCategory = subCategory;
+      if (isRecognized !== undefined)    row.isRecognized = isRecognized;
+      if (vatPercent !== undefined)      row.vatPercent = vatPercent;
+      if (taxPercent !== undefined)      row.taxPercent = taxPercent;
+      if (isEquipment !== undefined)     row.isEquipment = isEquipment;
+      if (reductionPercent !== undefined) row.reductionPercent = reductionPercent;
+      if (businessNumber !== undefined)  row.businessNumber = businessNumber;
+    }
+    await this.cacheRepo.save(cacheRows);
+
+    // ── 4. Apply updates to slim rows (application state) ───────────────────
+    // Only update slim rows that already exist. If no slim row exists for a
+    // cache row, the transaction has not been classified yet — skip it here;
+    // the classification flow will create the slim row when it runs.
+    const slimToSave: SlimTransaction[] = [];
+    for (const row of cacheRows) {
+      const slim = slimMap.get(row.externalTransactionId);
+      if (!slim) continue;
+
+      if (category !== undefined)        slim.category = category;
+      if (subCategory !== undefined)     slim.subCategory = subCategory;
+      if (isRecognized !== undefined)    slim.isRecognized = isRecognized;
+      if (vatPercent !== undefined)      slim.vatPercent = vatPercent;
+      if (taxPercent !== undefined)      slim.taxPercent = taxPercent;
+      if (isEquipment !== undefined)     slim.isEquipment = isEquipment;
+      if (reductionPercent !== undefined) slim.reductionPercent = reductionPercent;
+      if (businessNumber !== undefined)  slim.businessNumber = businessNumber;
+      slimToSave.push(slim);
+    }
+    if (slimToSave.length > 0) {
+      await this.slimRepo.save(slimToSave);
+    }
   }
 
 
@@ -961,35 +1069,49 @@ export class TransactionsService {
 
   async addSourceToBill(billId: number, sourceName: string, sourceType: SourceType, userId: string): Promise<Source> {
 
-    const bill = await this.billRepo.findOne({ where: { id: billId, userId }, relations: ['sources'] });
-    if (!bill) {
-      throw new Error('Bill not found');
+    if (!sourceType || !Object.values(SourceType).includes(sourceType)) {
+      throw new BadRequestException(
+        `sourceType is required and must be one of: ${Object.values(SourceType).join(', ')}`,
+      );
     }
 
-    console.log("bill is ", bill);
+    const bill = await this.billRepo.findOne({ where: { id: billId, userId }, relations: ['sources'] });
+    if (!bill) {
+      throw new NotFoundException('Bill not found');
+    }
 
-    // Create and save the new source
-    const newSource = this.sourceRepo.create({
-      userId,
-      sourceName,
-      sourceType,  // Assuming sourceType is a valid column in your Source entity
-      bill
+    const existing = await this.sourceRepo.findOne({
+      where: { userId, sourceName },
     });
-    await this.sourceRepo.save(newSource);
+    if (!existing) {
+      throw new NotFoundException(
+        `אמצעי התשלום "${sourceName}" לא נמצא בטבלת המקורות (source). ` +
+          'רק מקורות שכבר קיימים במערכת (למשל לאחר סנכרון בנקאות פתוחה) ניתן לשייך לחשבון.',
+      );
+    }
 
-    // Update the billName in all transactions of the user with the new source
-    await this.updateBillNameInTransactions(sourceName, bill.billName, userId);
+    if (existing.sourceType !== sourceType) {
+      throw new BadRequestException(
+        `סוג אמצעי התשלום לא תואם לרשומה השמורה (שמור: ${existing.sourceType}, התקבל: ${sourceType}).`,
+      );
+    }
 
-    return newSource;
-  }
+    existing.bill = bill;
+    await this.sourceRepo.save(existing);
 
-
-  private async updateBillNameInTransactions(sourceName: string, billName: string, userId: string): Promise<void> {
-    const businessNumber = await this.getBusinessNumberByBillName(userId, billName);
-    await this.transactionsRepo.update(
+    // Backfill: update all full_transactions_cache rows that already carry this
+    // paymentIdentifier so they become linked to the bill immediately.
+    // Does NOT touch the legacy transactions table or slim_transactions.
+    await this.cacheRepo.update(
       { userId, paymentIdentifier: sourceName },
-      { billName, businessNumber }
+      {
+        billId: bill.id,
+        billName: bill.billName,
+        businessNumber: bill.businessNumber ?? null,
+      },
     );
+
+    return existing;
   }
 
 
@@ -1037,7 +1159,38 @@ export class TransactionsService {
     return sources;
   }
 
+  /**
+   * Sources list for the settings page. Driven by user_source_sync_state
+   * (refreshed on every discovery → reflects currently-connected accounts).
+   * billName is joined from `source` (sourceName == sourceId); no Bill link →
+   * null (frontend shows «לא משויך»). hasConsent = user_source_sync_state
+   * .consentId non-null (revoke/expire nulls it via clearConsentOnSources).
+   */
+  async getSourcesWithTypes(
+    userId: string,
+  ): Promise<{ sourceName: string; sourceType: SourceType; billName: string | null; hasConsent: boolean }[]> {
+    // The list is driven by user_source_sync_state — it's refreshed on every
+    // discovery (getUserAccounts) so it reflects the currently-connected
+    // accounts + their consent validity. `source` is consulted only for the
+    // Bill mapping (billName), joined by sourceName == sourceId.
+    const [syncStates, sourceRows] = await Promise.all([
+      this.userSourceSyncStateRepo.find({ where: { userId } }),
+      this.sourceRepo.find({ where: { userId }, relations: ['bill'] }),
+    ]);
+    const billBySourceName = new Map(
+      sourceRows.map((r) => [r.sourceName, r.bill?.billName ?? null]),
+    );
+    return syncStates.map((s) => ({
+      sourceName: s.sourceId,
+      sourceType: s.type === 'card' ? SourceType.CREDIT_CARD : SourceType.BANK_ACCOUNT,
+      billName: billBySourceName.get(s.sourceId) ?? null,
+      hasConsent: !!s.consentId,
+    }));
+  }
 
+
+  // TODO_FINTAX_REMOVE_LEGACY_TRANSACTIONS: core read query against the legacy transactions table. Feeds getIncomesTransactions, getExpensesTransactions, and tax-income calculations.
+  // Replace with equivalent queries against full_transactions_cache, then remove this method and all callers below.
   async getTransactionsByBillAndUserId(
     userId: string,
     startDate: Date,
@@ -1188,6 +1341,7 @@ export class TransactionsService {
   }
 
 
+  // TODO_FINTAX_REMOVE_LEGACY_TRANSACTIONS: reads income/expense rows from the legacy transactions table via getTransactionsByBillAndUserId. Remove once reports are migrated to full_transactions_cache.
   async getIncomesTransactions(userId: string, startDate: Date, endDate: Date, billId: string[] | null, categories: string[] | null, sources: string[] | null): Promise<Transactions[]> {
 
     const transactions = await this.getTransactionsByBillAndUserId(userId, startDate, endDate, billId, categories, sources);
@@ -1199,6 +1353,7 @@ export class TransactionsService {
   }
 
 
+  // TODO_FINTAX_REMOVE_LEGACY_TRANSACTIONS: same as getIncomesTransactions — legacy table read. Remove together.
   async getExpensesTransactions(userId: string, startDate: Date, endDate: Date, billId: string[] | null, categories: string[] | null, sources: string[] | null): Promise<Transactions[]> {
     console.log("🚀 ~ TransactionsService ~ getExpensesTransactions ~ billId:", billId)
 
@@ -1211,6 +1366,8 @@ export class TransactionsService {
   }
 
 
+  // TODO_FINTAX_REMOVE_LEGACY_TRANSACTIONS: income-tax and VAT-report calculations that depend on legacy table reads via getIncomesTransactions.
+  // Migrate to full_transactions_cache reads, then remove getTaxableIncomefromTransactions and getTaxableIncomefromTransactionsForVatReport.
   async getTaxableIncomefromTransactions(userId: string, businessNumber: string, startDate: Date, endDate: Date): Promise<number> {
 
     const incomeTransactions = await this.getIncomesTransactions(userId, startDate, endDate, null, null, null);
@@ -1276,39 +1433,109 @@ export class TransactionsService {
 
 
 
-  // async getExpensesToBuildReport(
   async getTransactionToConfirmAndAddToExpenses(
     userId: string,
     businessNumber: string,
     startDate: Date,
-    endDate: Date
-  ): Promise<Transactions[]> {
+    endDate: Date,
+  ): Promise<Record<string, any>[]> {
 
-    console.log("userId is ", userId);
-    console.log("businessNumber is ", businessNumber);
+    // Translate the report's date range into the period labels that span it.
+    // Late stragglers whose `transactionDate` is outside the range but whose
+    // `vatReportingDate` falls inside it (because the user reassigned them
+    // from a locked period) should still surface in the confirm-trans dialog.
+    let periodLabels: string[] = [];
+    if (businessNumber && businessNumber !== 'ALL_BILLS') {
+      const business = await this.businessRepo.findOne({
+        where: { firebaseId: userId, businessNumber },
+      });
+      if (business) {
+        periodLabels = this.sharedService.expandPeriodLabelsInRange(
+          business.businessType ?? BusinessType.EXEMPT,
+          business.vatReportingType ?? VATReportingType.NOT_REQUIRED,
+          startDate,
+          endDate,
+        );
+      }
+    }
 
-    const expenses = await this.transactionsRepo.find({
-      where: [
-        {
-          userId,
-          billDate: Between(startDate, endDate),
-          isRecognized: true,
-          sum: LessThan(0),
-          businessNumber: businessNumber,
-          confirmed: false
-        },
-      ]
+    // Join slim_transactions only for its confirmed state.
+    // Rows with no slim row are treated as confirmed = false (LEFT JOIN IS NULL).
+    const qb = this.cacheRepo
+      .createQueryBuilder('c')
+      .leftJoin(
+        SlimTransaction,
+        's',
+        's.userId = c.userId AND s.externalTransactionId = c.externalTransactionId',
+      )
+      .where('c.userId = :userId', { userId })
+      .andWhere('c.isRecognized = true')
+      .andWhere('c.amount < 0')
+      // slim.confirmed IS NULL  → no slim row yet → treat as unconfirmed
+      // slim.confirmed = false  → explicitly not yet confirmed
+      .andWhere('(s.confirmed IS NULL OR s.confirmed = false)');
+
+    if (periodLabels.length > 0) {
+      // Period-stamped (classified) rows → match by label. Unclassified rows
+      // (no slim row → vatReportingDate IS NULL on cache too) → match by
+      // transactionDate so the user can still classify+confirm them.
+      qb.andWhere(
+        '(c.vatReportingDate IN (:...labels) OR (c.vatReportingDate IS NULL AND DATE(c.transactionDate) BETWEEN :startDate AND :endDate))',
+        { labels: periodLabels, startDate, endDate },
+      );
+    } else {
+      qb.andWhere('DATE(c.transactionDate) BETWEEN :startDate AND :endDate', { startDate, endDate });
+    }
+
+    if (businessNumber && businessNumber !== 'ALL_BILLS') {
+      qb.andWhere('c.businessNumber = :businessNumber', { businessNumber });
+    }
+
+    qb.orderBy('c.transactionDate', 'DESC');
+
+    const rows = await qb.getMany();
+
+    return rows.map((r) => {
+      // Same canonical formula used by expenses.service.ts:59,65 when an
+      // expense is saved. Cache amounts are negative for expenses; the
+      // expense formula expects a positive base, so use Math.abs.
+      const absSum = Math.abs(Number(r.amount));
+      const vatRate = this.sharedService.getVatRateByYear(new Date(r.transactionDate));
+      const totalVatPayable =
+        (absSum / (1 + vatRate)) * vatRate * (Number(r.vatPercent) / 100);
+      const totalTaxPayable =
+        (absSum - totalVatPayable) * (Number(r.taxPercent) / 100);
+
+      return {
+        id: r.id,
+        finsiteId: r.externalTransactionId,
+        userId: r.userId,
+        paymentIdentifier: r.paymentIdentifier,
+        billName: r.billName,
+        businessNumber: r.businessNumber,
+        name: r.merchantName,
+        note2: r.note,
+        billDate: r.transactionDate,
+        payDate: r.paymentDate,
+        sum: r.amount,
+        currency: r.currency ?? 'ILS',
+        category: r.category,
+        subCategory: r.subCategory,
+        isRecognized: r.isRecognized,
+        vatPercent: r.vatPercent,
+        taxPercent: r.taxPercent,
+        totalVatPayable,
+        totalTaxPayable,
+        isEquipment: r.isEquipment,
+        reductionPercent: r.reductionPercent,
+        vatReportingDate: r.vatReportingDate,
+        confirmed: false, // only unconfirmed rows reach here
+      };
     });
-
-    console.log("expenses are ", expenses);
-
-
-    return expenses;
-
-    //TODO: need to add here the expenses that were not reported yet but they in the range of the last half year.
   }
 
 
+  // TODO_FINTAX_REMOVE_LEGACY_TRANSACTIONS: reads unclassified rows from the legacy transactions table. Not used by the current classify flow (which uses TransactionProcessingService.getTransactionsToClassify against full_transactions_cache). Remove when legacy table is dropped.
   async getTransactionToClassify(
     userId: string,
     startDate?: Date,
@@ -1339,6 +1566,7 @@ export class TransactionsService {
   }
 
 
+  // TODO_FINTAX_REMOVE_LEGACY_TRANSACTIONS: reads recognised income rows from the legacy transactions table for the confirm-to-expenses report. Replace with a full_transactions_cache read, then remove.
   async getIncomesToBuildReport(
     userId: string,
     startDate: Date,
@@ -1363,89 +1591,106 @@ export class TransactionsService {
 
   async saveTransactionsToExpenses(transactionData: { id: number, file?: string | null }[], userId: string): Promise<{ message: string }> {
 
-    console.log("saveTransactionsToExpenses - start");
+    // Frontend sends cache row `id`. Resolve to full cache rows first,
+    // then derive externalTransactionId for all slim state operations.
+    const cacheIds = transactionData.map(td => td.id);
 
-    const user = await this.userRepo.findOne({ where: { firebaseId: userId } });
-
-    // const business = await this.businessRepo.findOne({
-    //   where: { businessNumber, firebaseId }
-    // });
-
-    // if (!business) {
-    //   throw new BadRequestException("Business not found or not owned by user");
-    // }
-
-    // Extract IDs from the transactionData array
-    const transactionIds = transactionData.map(td => td.id);
-
-    // Fetch transactions with the given IDs and matching userId
-    const transactions = await this.transactionsRepo.findBy({
-      id: In(transactionIds),
-      userId: userId  // Ensuring that only transactions belonging to the user are fetched
+    const cacheRows = await this.cacheRepo.findBy({
+      id: In(cacheIds),
+      userId,
     });
 
-    if (!transactions || transactions.length === 0) {
+    if (!cacheRows || cacheRows.length === 0) {
       throw new Error('No transactions found with the provided IDs.');
     }
 
+    // Load existing slim rows so we can use the period label already stamped
+    // at classification time. Confirm-trans no longer (re)computes the period;
+    // it only flips `confirmed = true`.
+    const externalIds = cacheRows.map((r) => r.externalTransactionId);
+    const slimRows = externalIds.length > 0
+      ? await this.slimRepo.find({ where: { userId, externalTransactionId: In(externalIds) } })
+      : [];
+    const slimByExternalId = new Map(slimRows.map((s) => [s.externalTransactionId, s]));
+
+    // ── Build and save Expense entities ───────────────────────────────────────
     const expenses: Expense[] = [];
     let skippedTransactions = 0;
 
-    for (const transaction of transactions) {
+    for (const row of cacheRows) {
+      const transactionFile = transactionData.find(td => td.id === row.id)?.file || '';
 
-      if (transaction.userId !== userId) {
-        throw new Error(`Error: Transaction with ID ${transaction.id} does not belong to the user.`);
-      }
-
-      // Find the corresponding file from the input data
-      const transactionFile = transactionData.find(td => td.id === transaction.id)?.file || '';
-
-      // Check if an expense with the same date, supplier, and sum already exists
       const existingExpense = await this.expenseRepo.findOne({
-        where: {
-          userId: transaction.userId,
-          date: transaction.billDate,
-          supplier: transaction.name,
-          sum: Math.abs(transaction.sum)
-        }
+        where: [
+          { userId: row.userId, externalTransactionId: row.externalTransactionId },
+          // Fallback for legacy Expenses created before externalTransactionId was linked.
+          {
+            userId: row.userId,
+            date: row.transactionDate,
+            supplier: row.merchantName,
+            sum: Math.abs(Number(row.amount)),
+          },
+        ],
       });
 
-      console.log("existingExpense is ", existingExpense);
-
       if (existingExpense) {
+        // Backfill the link on legacy rows so future re-classifications can
+        // sync this Expense via the externalTransactionId path.
+        if (!existingExpense.externalTransactionId) {
+          existingExpense.externalTransactionId = row.externalTransactionId;
+          await this.expenseRepo.save(existingExpense);
+        }
         skippedTransactions++;
         continue;
       }
 
+      const slim = slimByExternalId.get(row.externalTransactionId);
+      // Expense.sum is always in ILS. For non-ILS transactions the cache row
+      // carries `ilsAmount` (stamped at sync via FxRateService). Fall back to
+      // `amount` for ILS rows and for rows where FX resolution failed at
+      // sync time — `currency` stays on the source for audit.
+      const sumIls = row.ilsAmount != null
+        ? Math.abs(Number(row.ilsAmount))
+        : Math.abs(Number(row.amount));
+
+      const isForeignCurrency = row.currency != null && row.currency.toUpperCase() !== 'ILS';
+
       const expense = new Expense();
-      expense.supplier = transaction.name;
+      expense.supplier = row.merchantName;
       expense.supplierID = '';
-      expense.category = transaction.category;
-      expense.subCategory = transaction.subCategory;
-      expense.sum = Math.abs(transaction.sum);
-      expense.taxPercent = transaction.taxPercent;
-      expense.vatPercent = transaction.vatPercent;
-      expense.date = transaction.billDate;
-      //expense.vatReportingDate = this.sharedService.getVATReportingDate(new Date(expense.date), user.vatReportingType);
+      expense.category = row.category;
+      expense.subCategory = row.subCategory;
+      expense.sum = sumIls;
+      expense.taxPercent = row.taxPercent;
+      expense.vatPercent = row.vatPercent;
+      expense.date = row.transactionDate;
       expense.note = '';
-      expense.file = transactionFile;
-      expense.isEquipment = transaction.isEquipment;
-      expense.userId = transaction.userId;
+      expense.file = transactionFile as string;
+      expense.isEquipment = row.isEquipment;
+      expense.userId = row.userId;
       expense.loadingDate = new Date();
       expense.expenseNumber = '';
-      expense.transId = transaction.id;
-      expense.reductionPercent = transaction.reductionPercent;
-      expense.businessNumber = transaction.businessNumber;
+      expense.transId = null;
+      expense.externalTransactionId = row.externalTransactionId;
+      // For non-ILS source rows, mirror the original currency + amount onto
+      // the Expense so the expenses table can render "$X (₪Y)".
+      expense.originalCurrency = isForeignCurrency ? row.currency!.toUpperCase() : null;
+      expense.originalSum = isForeignCurrency ? Math.abs(Number(row.amount)) : null;
+      expense.reductionPercent = row.reductionPercent;
+      expense.businessNumber = row.businessNumber;
+      expense.vatReportingDate = (slim?.vatReportingDate ?? row.vatReportingDate ?? null) as any;
+      // Snapshot the report scope (slim wins, then cache, default PNL).
+      // pnlCategory is intentionally NOT set here — it stays NULL and is
+      // resolved live from the subcategory (with an optional per-expense
+      // override set later via the Edit dialog).
+      expense.reportScope = slim?.reportScope ?? row.reportScope ?? ExpenseReportScope.PNL;
 
-      // Retrieve the correct VAT rate based on the expense year
       const vatRate = this.sharedService.getVatRateByYear(new Date(expense.date));
       expense.totalVatPayable = (expense.sum / (1 + vatRate)) * vatRate * (expense.vatPercent / 100);
       expense.totalTaxPayable = (expense.sum - expense.totalVatPayable) * (expense.taxPercent / 100);
 
-      // Determine the last year for expense reduction
       const purchaseYear = new Date(expense.date).getFullYear();
       const purchaseMonth = new Date(expense.date).getMonth() + 1;
-
       if (expense.reductionPercent) {
         const fullReductionYears = Math.ceil(100 / expense.reductionPercent);
         const isPartialYear = purchaseMonth > 1 || new Date(expense.date).getDate() > 1;
@@ -1454,28 +1699,80 @@ export class TransactionsService {
         expense.reductionDone = 0;
       }
 
-      // Save the updated transaction
-      // transaction.vatReportingDate = expense.vatReportingDate;
-      // await this.transactionsRepo.save(transaction);
-
       expenses.push(expense);
     }
 
-    // Save new expenses to the database
     if (expenses.length > 0) {
       await this.expenseRepo.save(expenses);
     }
 
-    await this.transactionsRepo.update(
-      { id: In(transactionIds), userId },
-      { confirmed: true }
+    // ── Mark confirmed in slim_transactions ───────────────────────────────────
+    // Period is already on the slim row (stamped at classification). Confirm
+    // only flips `confirmed = true`. Rows without billId are skipped — a
+    // valid slim row requires it.
+    const slimUpserts = cacheRows
+      .filter(r => r.billId != null && r.classificationType != null && r.category != null && r.subCategory != null)
+      .map((r) => {
+        const slim = slimByExternalId.get(r.externalTransactionId);
+        return {
+          userId: r.userId,
+          externalTransactionId: r.externalTransactionId,
+          billId: r.billId,
+          classificationType: r.classificationType,
+          category: r.category,
+          subCategory: r.subCategory,
+          vatPercent: r.vatPercent,
+          taxPercent: r.taxPercent,
+          reductionPercent: r.reductionPercent,
+          isEquipment: r.isEquipment,
+          isRecognized: r.isRecognized,
+          reportScope: r.reportScope,
+          businessNumber: r.businessNumber,
+          confirmed: true,
+          // Prefer the period label already on the slim row (set at classify).
+          // Fall back to the cache row's stamp for any path that bypassed
+          // classify (legacy / manual ingest).
+          vatReportingDate: slim?.vatReportingDate ?? r.vatReportingDate ?? null,
+        };
+      });
+
+    if (slimUpserts.length > 0) {
+      await this.slimRepo
+        .createQueryBuilder()
+        .insert()
+        .into(SlimTransaction)
+        .values(slimUpserts as SlimTransaction[])
+        .orUpdate(['confirmed'], ['userId', 'externalTransactionId'])
+        .updateEntity(false)
+        .execute();
+    }
+
+    // Mirror `confirmed = true` onto the cache so the תזרים column renderer
+    // can show the green V immediately.
+    await this.cacheRepo.update(
+      { id: In(cacheRows.map((r) => r.id)), userId },
+      { confirmed: true },
     );
 
     const message = `Successfully converted ${expenses.length} transactions to expenses. ${skippedTransactions} transactions were skipped because they already exist as expenses.`;
-
     return { message };
-
   }
 
+  async getDistinctMerchants(userId: string, billId?: number): Promise<string[]> {
+    const qb = this.cacheRepo
+      .createQueryBuilder('c')
+      .select('DISTINCT TRIM(c.merchantName)', 'merchantName')
+      .where('c.userId = :userId', { userId })
+      .andWhere('c.merchantName IS NOT NULL')
+      .andWhere("TRIM(c.merchantName) != ''");
+
+    if (billId) {
+      qb.andWhere('c.billId = :billId', { billId });
+    }
+
+    qb.orderBy('merchantName', 'ASC');
+    const rows = await qb.getRawMany<{ merchantName: string }>();
+    return rows.map(r => r.merchantName);
+  }
 
 }

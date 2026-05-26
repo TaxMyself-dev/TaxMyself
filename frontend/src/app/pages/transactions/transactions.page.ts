@@ -1,8 +1,11 @@
-import { Component, ElementRef, HostListener, OnInit, Signal, ViewChild, WritableSignal, computed, inject, signal } from '@angular/core';
+import { Component, DestroyRef, ElementRef, HostListener, OnInit, Signal, ViewChild, WritableSignal, computed, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { MessageService } from 'primeng/api';
 import { TransactionsService } from './transactions.page.service';
-import { BehaviorSubject, EMPTY, catchError, from, map, switchMap, tap, zip, Subject, takeUntil, finalize } from 'rxjs';
-import { IColumnDataTable, IGetSubCategory, IRowDataTable, ISelectItem, ITableRowAction, ITransactionData, IUserData } from 'src/app/shared/interface';
-import { bunnerImagePosition, BusinessStatus, FormTypes, ICellRenderer, TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns } from 'src/app/shared/enums';
+import { BehaviorSubject, EMPTY, catchError, from, map, switchMap, tap, zip, Subject, take, takeUntil, takeWhile, finalize, forkJoin } from 'rxjs';
+import { IColumnDataTable, IMobileCardConfig, IRowDataTable, ISelectItem, ISubCategory, ITableRowAction, ITransactionData, IUserData } from 'src/app/shared/interface';
+import { bunnerImagePosition, BusinessStatus, TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns } from 'src/app/shared/enums';
+import { buildTransactionColumns } from 'src/app/shared/transaction-columns.config';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 import { ModalController } from '@ionic/angular';
 import { AddTransactionComponent } from 'src/app/shared/add-transaction/add-transaction.component';
@@ -14,7 +17,7 @@ import { GenericService } from 'src/app/services/generic.service';
 import { ReportingPeriodType } from 'src/app/shared/enums';
 import { AuthService } from 'src/app/services/auth.service';
 import { ButtonClass } from 'src/app/shared/button/button.enum';
-import { log } from 'console';
+import { SyncStatusService } from 'src/app/services/sync-status.service';
 
 @Component({
   selector: 'app-transactions',
@@ -26,26 +29,42 @@ import { log } from 'console';
 export class TransactionsPage implements OnInit {
 
   @ViewChild('filterPanelRef') filterPanelRef!: ElementRef;
-  private readonly OVERLAY_SEL =
-  '.p-datepicker, [data-pc-name="calendar"], .p-overlaypanel, .p-dropdown-panel, .p-autocomplete-panel, .p-multiselect-panel';
+  // PrimeNG 19 uses data-pc-section="panel" on every overlay panel appended to body.
+  // Also include legacy class names for PrimeNG 17/18 and named classes for belt-and-suspenders.
+  private readonly OVERLAY_SEL = [
+    '[data-pc-section="panel"]',      // PrimeNG 19: all overlay panels
+    '[data-pc-section="overlay"]',    // PrimeNG 19: p-overlay wrapper
+    '.p-select-overlay',              // PrimeNG 19: p-select
+    '.p-multiselect-overlay',         // PrimeNG 19: p-multiselect
+    '.p-datepicker-panel',            // PrimeNG 19: p-datepicker
+    '.p-dropdown-panel',              // PrimeNG 17/18 compat
+    '.p-multiselect-panel',           // PrimeNG 17/18 compat
+    '.p-datepicker',                  // PrimeNG 17/18 compat
+    '.p-overlaypanel',
+    '.p-autocomplete-panel',
+  ].join(', ');
 
-isInPrimeOverlay(e: Event): boolean {
-  const path = (e as any).composedPath?.() as (HTMLElement | EventTarget)[] | undefined;
-  if (path?.length) {
-    for (const n of path) {
-      const el = n as HTMLElement;
-      if (el?.closest?.(this.OVERLAY_SEL)) return true;
+  isInPrimeOverlay(e: Event): boolean {
+    // composedPath() captures the live event path at dispatch time — elements retain
+    // their attributes even if PrimeNG removes the overlay from the DOM during bubbling.
+    // Use matches() (not closest()) so we test each node in the path exactly once
+    // without re-walking ancestors that are already covered by the iteration.
+    const path = (e as any).composedPath?.() as (HTMLElement | EventTarget)[] | undefined;
+    if (path?.length) {
+      return path.some(n => {
+        const el = n as HTMLElement;
+        return typeof el?.matches === 'function' && el.matches(this.OVERLAY_SEL);
+      });
     }
+    // Fallback for browsers without composedPath
+    const t = e.target as HTMLElement | null;
+    return !!t?.closest?.(this.OVERLAY_SEL);
   }
-  // Fallback
-  const t = e.target as HTMLElement | null;
-  return !!t?.closest?.(this.OVERLAY_SEL);
-}
   @HostListener('document:click', ['$event'])
   onDocumentClick(event: MouseEvent) {
     const clickedInside = this.filterPanelRef?.nativeElement.contains(event.target);
     const clickedFilterButton = (event.target as HTMLElement).closest('.sort-button');
-    if (!clickedInside && !clickedFilterButton && !this.isInPrimeOverlay(event) && this.visibleFilterPannel() ) {
+    if (!clickedInside && !clickedFilterButton && !this.isInPrimeOverlay(event) && this.visibleFilterPannel()) {
       this.visibleFilterPannel.set(false); // 👈 close the panel
     }
   }
@@ -57,7 +76,73 @@ isInPrimeOverlay(e: Event): boolean {
   reportingPeriodType = ReportingPeriodType;
   bussinesesList: ISelectItem[] = [];
 
+  mobileCardConfig: IMobileCardConfig = {
+    primaryFields:    [TransactionsOutcomesColumns.NAME],
+    highlightedField:  TransactionsOutcomesColumns.SUM,
+    dateField:         TransactionsOutcomesColumns.BILL_DATE,
+    hiddenFields:      [],
+  };
 
+  // ─── Sync status table state ─────────────────────────────────────────────────
+  /** Passed to generic-table via [processStatus]. null = normal rendering. */
+  readonly syncProcessStatus = signal<'running' | 'failed' | null>(null);
+  /** Emitting on this Subject cancels the current polling session so a new one can start cleanly. */
+  private readonly restartPolling$ = new Subject<void>();
+
+  // ─── Row-level action loading state ─────────────────────────────────────────
+  isLoadingQuickClassify = signal<boolean>(false);
+
+  // ─── Row actions: expenses (incomeMode = false) ──────────────────────────────
+  expenseRowActions: ITableRowAction[] = [
+    {
+      name: 'associate',
+      icon: 'pi pi-link',
+      title: 'שייך לחשבון',
+      showWhen: (row) => row['billName'] === 'לא שוייך',
+      action: (_, row) => row && this.onAssociateAccount(row),
+    },
+    {
+      name: 'classify',
+      icon: 'pi pi-tag',
+      title: 'סיווג תנועה',
+      showWhen: (row) => row['billName'] !== 'לא שוייך',
+      action: (_, row) => row && this.onClassifyTransaction(row, false),
+    },
+    {
+      name: 'quickClassify',
+      icon: 'pi pi-bolt',
+      title: 'סיווג מהיר',
+      showWhen: (row) => row['billName'] !== 'לא שוייך',
+      isLoading: () => this.isLoadingQuickClassify(),
+      action: (_, row) => row && this.onQuickClassify(row),
+    },
+  ];
+
+  // ─── Row actions: incomes (incomeMode = true) ────────────────────────────────
+  incomeRowActions: ITableRowAction[] = [
+    {
+      name: 'associate',
+      icon: 'pi pi-link',
+      title: 'שייך לחשבון',
+      showWhen: (row) => row['billName'] === 'לא שוייך',
+      action: (_, row) => row && this.onAssociateAccount(row),
+    },
+    {
+      name: 'classify',
+      icon: 'pi pi-tag',
+      title: 'סיווג תנועה',
+      showWhen: (row) => row['billName'] !== 'לא שוייך',
+      action: (_, row) => row && this.onClassifyTransaction(row, true),
+    },
+    {
+      name: 'quickClassify',
+      icon: 'pi pi-bolt',
+      title: 'סיווג מהיר',
+      showWhen: (row) => row['billName'] !== 'לא שוייך',
+      isLoading: () => this.isLoadingQuickClassify(),
+      action: (_, row) => row && this.onQuickClassify(row),
+    },
+  ];
 
 
   // editFieldsNamesExpenses: IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>[] = [
@@ -76,94 +161,14 @@ isInPrimeOverlay(e: Event): boolean {
   //   { name: TransactionsOutcomesColumns.BILL_DATE, value: TransactionsOutcomesHebrewColumns.billDate, type: FormTypes.DATE },
   // ];
 
-  allFieldsNamesIncome: IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>[] = [
-    { name: TransactionsOutcomesColumns.NAME, value: TransactionsOutcomesHebrewColumns.name, type: FormTypes.TEXT },
-    { name: TransactionsOutcomesColumns.BILL_NUMBER, value: TransactionsOutcomesHebrewColumns.paymentIdentifier, type: FormTypes.NUMBER, },
-    { name: TransactionsOutcomesColumns.BILL_NAME, value: TransactionsOutcomesHebrewColumns.billName, type: FormTypes.TEXT, cellRenderer: ICellRenderer.BILL },
-    { name: TransactionsOutcomesColumns.CATEGORY, value: TransactionsOutcomesHebrewColumns.category, type: FormTypes.TEXT, cellRenderer: ICellRenderer.CATEGORY },
-    { name: TransactionsOutcomesColumns.SUBCATEGORY, value: TransactionsOutcomesHebrewColumns.subCategory, type: FormTypes.DDL },
-    { name: TransactionsOutcomesColumns.SUM, value: TransactionsOutcomesHebrewColumns.sum, type: FormTypes.TEXT },
-    { name: TransactionsOutcomesColumns.BILL_DATE, value: TransactionsOutcomesHebrewColumns.billDate, type: FormTypes.DATE },
-    { name: TransactionsOutcomesColumns.MONTH_REPORT, value: TransactionsOutcomesHebrewColumns.monthReport, type: FormTypes.TEXT },
-    { name: TransactionsOutcomesColumns.NOTE, value: TransactionsOutcomesHebrewColumns.note, type: FormTypes.TEXT },
-  ];
+  // ─── Column definitions: single source of truth is BASE_TRANSACTION_COLUMNS ──
+  fieldsNamesExpenses = computed<IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>[]>(() =>
+    buildTransactionColumns({ businessStatus: this.businessStatus(), isOnlyEmployer: this.isOnlyEmployer() })
+  );
 
-  allFieldsNamesExpenses: IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>[] = [
-    { name: TransactionsOutcomesColumns.NAME, value: TransactionsOutcomesHebrewColumns.name, type: FormTypes.TEXT },
-    { name: TransactionsOutcomesColumns.BILL_NUMBER, value: TransactionsOutcomesHebrewColumns.paymentIdentifier, type: FormTypes.NUMBER },
-    { name: TransactionsOutcomesColumns.BILL_NAME, value: TransactionsOutcomesHebrewColumns.billName, type: FormTypes.TEXT, cellRenderer: ICellRenderer.BILL },
-    { name: TransactionsOutcomesColumns.CATEGORY, value: TransactionsOutcomesHebrewColumns.category, type: FormTypes.TEXT, cellRenderer: ICellRenderer.CATEGORY },
-    { name: TransactionsOutcomesColumns.SUBCATEGORY, value: TransactionsOutcomesHebrewColumns.subCategory, type: FormTypes.TEXT, cellRenderer: ICellRenderer.SUBCATEGORY },
-    { name: TransactionsOutcomesColumns.SUM, value: TransactionsOutcomesHebrewColumns.sum, type: FormTypes.NUMBER },
-    { name: TransactionsOutcomesColumns.BILL_DATE, value: TransactionsOutcomesHebrewColumns.billDate, type: FormTypes.DATE, cellRenderer: ICellRenderer.DATE },
-    // { name: TransactionsOutcomesColumns.PAY_DATE, value: TransactionsOutcomesHebrewColumns.payDate, type: FormTypes.DATE, cellRenderer: ICellRenderer.DATE },
-    { name: TransactionsOutcomesColumns.IS_RECOGNIZED, value: TransactionsOutcomesHebrewColumns.isRecognized, type: FormTypes.TEXT, hide: true },
-    // { name: TransactionsOutcomesColumns.BUSINESS_NUMBER, value: TransactionsOutcomesHebrewColumns.businessNumber, type: FormTypes.TEXT },
-    { name: TransactionsOutcomesColumns.MONTH_REPORT, value: TransactionsOutcomesHebrewColumns.monthReport, type: FormTypes.TEXT, hide: true },
-    { name: TransactionsOutcomesColumns.NOTE, value: TransactionsOutcomesHebrewColumns.note, type: FormTypes.TEXT },
-  ];
-
-  fieldsNamesExpenses = computed<IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>[]>(() => {
-    const onlyHide = this.isOnlyEmployer();
-    const addBiz = this.businessStatus();
-
-    // start from a fresh copy
-    let cols = [...this.allFieldsNamesExpenses];
-
-    // add BUSINESS_NUMBER when needed (insert before NOTE, keep NOTE last)
-    if (addBiz && !cols.some(c => c.name === TransactionsOutcomesColumns.BUSINESS_NUMBER)) {
-      const businessCol: IColumnDataTable<
-        TransactionsOutcomesColumns,
-        TransactionsOutcomesHebrewColumns
-      > = {
-        name: TransactionsOutcomesColumns.BUSINESS_NUMBER,
-        value: TransactionsOutcomesHebrewColumns.businessNumber,
-        type: FormTypes.TEXT
-      };
-
-      const noteIdx = cols.findIndex(c => c.name === TransactionsOutcomesColumns.NOTE);
-      const insertAt = noteIdx >= 0 ? noteIdx : cols.length;
-      cols.splice(insertAt, 0, businessCol);
-    }
-
-    // filter out hidden columns when onlyHide = true
-    if (onlyHide) {
-      cols = cols.filter(c => !c.hide);
-    }
-
-    return cols;
-  });
-
-  fieldsNamesIncome = computed<IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>[]>(() => {
-    const onlyHide = this.isOnlyEmployer();
-    const addBiz = this.businessStatus();
-
-    // start from a fresh copy
-    let cols = [...this.allFieldsNamesExpenses];
-
-    // add BUSINESS_NUMBER when needed (insert before NOTE, keep NOTE last)
-    if (addBiz && !cols.some(c => c.name === TransactionsOutcomesColumns.BUSINESS_NUMBER)) {
-      const businessCol: IColumnDataTable<
-        TransactionsOutcomesColumns,
-        TransactionsOutcomesHebrewColumns
-      > = {
-        name: TransactionsOutcomesColumns.BUSINESS_NUMBER,
-        value: TransactionsOutcomesHebrewColumns.businessNumber,
-        type: FormTypes.TEXT
-      };
-
-      const noteIdx = cols.findIndex(c => c.name === TransactionsOutcomesColumns.NOTE);
-      const insertAt = noteIdx >= 0 ? noteIdx : cols.length;
-      cols.splice(insertAt, 0, businessCol);
-    }
-
-    // filter out hidden columns when onlyHide = true
-    if (onlyHide) {
-      cols = cols.filter(c => !c.hide);
-    }
-
-    return cols;
-  });
+  fieldsNamesIncome = computed<IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>[]>(() =>
+    buildTransactionColumns({ businessStatus: this.businessStatus(), isOnlyEmployer: this.isOnlyEmployer(), incomeTable: true })
+  );
 
 
 
@@ -216,7 +221,7 @@ isInPrimeOverlay(e: Event): boolean {
   checkClassifyBill: boolean = true;
   listCategory: ISelectItem[];
   listFilterCategory: ISelectItem[] = [{ value: null, name: 'הכל' }];
-  originalSubCategoryList: IGetSubCategory[];
+  originalSubCategoryList: ISubCategory[];
   expenseDataService = inject(ExpenseDataService);
   myIcon: string;
   filterByExpense: string = "";
@@ -224,6 +229,10 @@ isInPrimeOverlay(e: Event): boolean {
   userData: IUserData;
   businessSelect: string = "";
 
+
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly syncStatusService = inject(SyncStatusService);
+  private messageService = inject(MessageService);
 
   constructor(private router: Router, private formBuilder: FormBuilder, private modalController: ModalController, private dateService: DateService, private transactionService: TransactionsService, private authService: AuthService, private genericService: GenericService) {
 
@@ -298,7 +307,7 @@ isInPrimeOverlay(e: Event): boolean {
 
   async ngOnInit(): Promise<void> {
     this.filterData = this.transactionService.filterData;
-    this.getTransactions(null);
+    this.startSyncStatusPolling();
     this.userData = this.authService.getUserDataFromLocalStorage();
     this.bussinesesList.push({ name: this.userData?.businessName, value: this.userData?.businessNumber });
     this.bussinesesList.push({ name: this.userData?.spouseBusinessName, value: this.userData?.spouseBusinessNumber });
@@ -319,9 +328,97 @@ isInPrimeOverlay(e: Event): boolean {
     this.getCategory();
   }
 
+  /**
+   * Sole gatekeeper for when data may be fetched.
+   *
+   * Reacts immediately to the first emitted status — no seenRunning guard needed
+   * because the backend never returns 'empty' to the frontend.
+   *
+   * running   → show loading state, keep polling
+   * completed → fetch data once, clear loading state, stop polling
+   * failed    → show error state, clear current data, stop polling
+   * error     → treat as failed, stop polling
+   *
+   * hasFetched prevents a duplicate fetch if 'completed' is somehow emitted twice.
+   * takeWhile(..., inclusive=true) ensures the terminal emission is processed before
+   * the stream completes.
+   */
+  private startSyncStatusPolling(): void {
+    // Cancels any previous polling session before starting a new one.
+    // takeUntil(restartPolling$) in the pipe completes the old stream on this signal.
+    this.restartPolling$.next();
+
+    let hasFetched = false;
+
+    this.syncStatusService.getSyncStageStream()
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        takeUntil(this.restartPolling$),
+        takeWhile(
+          ({ stageState }) => stageState?.processStatus === 'running',
+          /* inclusive */ true,
+        ),
+        catchError(err => {
+          console.warn('[Transactions] Sync status stream error — treating as failed', err);
+          this.syncProcessStatus.set('failed');
+          this.filteredExpensesData.set(null);
+          this.filteredIncomesData.set(null);
+          return EMPTY;
+        }),
+      )
+      .subscribe(({ stageState }) => {
+        if (!stageState) {
+          this.syncProcessStatus.set('failed');
+          this.filteredExpensesData.set(null);
+          this.filteredIncomesData.set(null);
+          return;
+        }
+
+        const status = stageState.processStatus;
+
+        if (status === 'running') {
+          this.syncProcessStatus.set('running');
+        } else if (status === 'completed') {
+          this.syncProcessStatus.set(null);
+          if (!hasFetched) {
+            hasFetched = true;
+            this.getTransactions(null);
+          }
+        } else if (status === 'failed') {
+          this.syncProcessStatus.set('failed');
+          this.filteredExpensesData.set(null);
+          this.filteredIncomesData.set(null);
+        }
+      });
+  }
+
+  /**
+   * Called when the generic-table retry button is clicked.
+   * Explicitly triggers a backend sync, shows the loading state immediately,
+   * then restarts the polling/fetch orchestration.
+   *
+   * Both 'started' and 'running' (was 'already_running') responses are treated
+   * identically — a sync is in progress, so we poll for it.
+   */
+  onSyncTriggered(): void {
+    this.syncProcessStatus.set('running');
+    this.syncStatusService.triggerSync()
+      .pipe(take(1))
+      .subscribe({
+        next: () => this.startSyncStatusPolling(),
+        error: (err) => {
+          console.error('[Transactions] triggerSync failed during retry:', err);
+          this.syncProcessStatus.set('failed');
+          this.filteredExpensesData.set(null);
+          this.filteredIncomesData.set(null);
+        },
+      });
+  }
+
   ngOnDestroy() {
     this.destroy$.next();
     this.destroy$.complete();
+    this.transactionService.filterData.set(null);
   }
 
   setFormValidators(event): void {
@@ -465,12 +562,7 @@ isInPrimeOverlay(e: Event): boolean {
       .subscribe((data: { incomes: IRowDataTable[]; expenses: IRowDataTable[] }) => {
         this.incomesData = data.incomes;
         this.expensesData = data.expenses;
-        // this.classifyDataFilter();
-        // this.filteredExpensesData.set(this.expensesData);
-        // this.filteredIncomesData.set(this.incomesData);
         this.classifyDataFilter();
-        console.log("income: ", this.incomesData);
-        console.log("expense: ", this.expensesData);
       });
   }
 
@@ -527,6 +619,7 @@ isInPrimeOverlay(e: Event): boolean {
     const rows = [];
     //const businesses = this.genericService.businesses();
     const businesses = this.genericService.businessSelectItems();
+    console.log("🚀 ~ TransactionsPage ~ handleTableData ~ businesses:", businesses)
 
     if (data.length) {
 
@@ -535,12 +628,22 @@ isInPrimeOverlay(e: Event): boolean {
         data.billName ? null : (data.billName = "לא שוייך", this.checkClassifyBill = false);
         data.category ? null : data.category = "טרם סווג";
         data.subCategory ? null : data.subCategory = "טרם סווג";
+        // Resolve "תקופת דיווח" display BEFORE transforming isRecognized to a Hebrew string,
+        // so we can still read the underlying boolean.
+        if (!data.isRecognized) {
+          data.vatReportingDate = "לא מוכר";
+        } else if (!data.vatReportingDate) {
+          data.vatReportingDate = "טרם דווח";
+        }
         data.isRecognized ? data.isRecognized = "כן" : data.isRecognized = "לא"
         data.isEquipment ? data.isEquipment = "כן" : data.isEquipment = "לא"
-        data.sum = String(Math.abs(Number(data.sum)));
-        data.sum = this.genericService.addComma(data.sum);
-        data.vatReportingDate ? null : data.vatReportingDate = "טרם דווח";
+        data.sum = `${this.getCurrencySymbol((data as any).currency)}${this.genericService.addComma(Math.abs(Number(data.sum)))}`;
         data.note2 ? null : data.note2 = "--";
+        const rawBusinessNumber = data.businessNumber;
+        (data as IRowDataTable & { __businessNumberRaw?: string }).__businessNumberRaw =
+          rawBusinessNumber != null && rawBusinessNumber !== ''
+            ? String(rawBusinessNumber)
+            : undefined;
         const matchedBusiness = businesses.find(b => b.value === data.businessNumber);
         data.businessNumber = String(matchedBusiness ? matchedBusiness.name : "לא משוייך");
         rows.push(data);
@@ -551,27 +654,78 @@ isInPrimeOverlay(e: Event): boolean {
   }
 
   getCategory(): void {
-    this.expenseDataService.getcategry(null)
+    // The transactions page hosts both income and expense tables and sends the
+    // same `categories` filter to both endpoints. Load income + expense
+    // categories so the user can filter rows on either side.
+    forkJoin([
+      this.expenseDataService.getcategry(null, true),
+      this.expenseDataService.getcategry(null, false),
+    ])
       .pipe(
         takeUntil(this.destroy$),
-        map((res) => {
-          return res.map((item: any) => ({
-            name: item.categoryName,
-            value: item.categoryName
-          })
-          )
-        }))
+        map(([expenses, incomes]) => [...expenses, ...incomes].map((item: any) => ({
+          name: item.categoryName,
+          value: item.categoryName,
+        })))
+      )
       .subscribe((res) => {
         this.listCategory = res;
         this.listFilterCategory.push(...res);
-        // this.editFieldsNamesExpenses.map((field: IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>) => {
-        //   if (field.name === TransactionsOutcomesColumns.CATEGORY) {
-        //     field.listItems = res;
-        //   }
-        // });
       })
   }
 
+
+  // ─── Row-action handlers (moved from GenericTable) ───────────────────────────
+
+  onAssociateAccount(row: IRowDataTable): void {
+    this.visibleAccountAssociationDialog.set(true);
+    this.leftPanelData.set(row);
+  }
+
+  onClassifyTransaction(row: IRowDataTable, incomeMode: boolean): void {
+    console.log("🚀 ~ TransactionsPage ~ onClassifyTransaction ~ row:", row)
+    const rawBn = row?.['__businessNumberRaw'];
+    if (rawBn != null && String(rawBn).trim() !== '') {
+      this.authService.setActiveBusinessNumber(String(rawBn));
+    } else {
+      this.authService.setActiveBusinessNumberByName(row.businessNumber as string);
+    }
+    this.visibleClassifyTran.set(true);
+    this.leftPanelData.set(row);
+    this.incomeMode.set(incomeMode);
+  }
+
+  onQuickClassify(row: IRowDataTable): void {
+    this.isLoadingQuickClassify.set(true);
+    this.transactionService.quickClassify(row.finsiteId as string)
+      .pipe(
+        catchError((err) => {
+          console.log('error in quick classify', err);
+          this.messageService.add({
+            severity: 'error',
+            summary: 'Error',
+            detail: 'סיווג ההוצאה נכשל אנא נסה/י שנית',
+            sticky: true,
+            life: 3000,
+            key: 'br',
+          });
+          return EMPTY;
+        }),
+        finalize(() => this.isLoadingQuickClassify.set(false))
+      )
+      .subscribe(() => {
+        this.getTransactions(this.filterData());
+        this.messageService.add({
+          severity: 'success',
+          summary: 'Success',
+          detail: 'סיווג מהיר הצליח',
+          life: 3000,
+          key: 'br',
+        });
+      });
+  }
+
+  // ─── GenericTable output handlers (kept for dialog responses) ────────────────
 
   openAccountAssociation(event: { state: boolean, data: IRowDataTable }): void {
     this.visibleAccountAssociationDialog.set(event.state);
@@ -588,9 +742,11 @@ isInPrimeOverlay(e: Event): boolean {
     this.incomeMode.set(event.incomeMode);
   }
 
-  openAddCategory(event: { state: boolean, subCategoryMode: boolean, category?: string }): void {
+  openAddCategory(event: { state: boolean, subCategoryMode: boolean, data: IRowDataTable, category?: string }): void {
+    console.log("🚀 ~ TransactionsPage ~ openAddCategory ~ event:", event.data)
     this.visibleAddCategory.set(event.state);
     this.subCategoryMode.set(event.subCategoryMode);
+    this.leftPanelData.set(event.data);
     this.categoryName.set(event.category);
   }
 
@@ -610,7 +766,9 @@ isInPrimeOverlay(e: Event): boolean {
 
   closeAddCategory(event: { visible: boolean, data?: boolean }): void {
     this.visibleAddCategory.set(event.visible);
-    event.data ? this.transactionService.getCategories().subscribe() : null;
+    if (event.data) {
+      this.transactionService.getCategories(null, !this.incomeMode()).subscribe();
+    }
   }
 
   onAddBill(event: FormGroup): void {
@@ -625,6 +783,24 @@ isInPrimeOverlay(e: Event): boolean {
         finalize(() => this.genericService.dismissLoader()),
         catchError((err) => {
           console.log('err in add bill: ', err);
+          const isConflict = err?.status === 409 || err?.error?.status === 409;
+          if (isConflict) {
+            this.messageService.add({
+              severity: 'error',
+              summary: 'שגיאה',
+              detail: 'חשבון בשם הזה כבר קיים במערכת.',
+              life: 5000,
+              key: 'br'
+            });
+          } else {
+            this.messageService.add({
+              severity: 'error',
+              summary: 'שגיאה',
+              detail: 'אירעה שגיאה בהוספת החשבון. אנא נסה שנית.',
+              life: 5000,
+              key: 'br'
+            });
+          }
           return EMPTY;
         })
       )
@@ -689,26 +865,14 @@ isInPrimeOverlay(e: Event): boolean {
   }
 
   selectOption(value: string) {
-    console.log("🚀 ~ selectOption ~ value:", value)
     const valueExist = this.selectedValue.some(v => v === value);
 
-    console.log("🚀 ~ selectOption ~ valueExist:", valueExist);
     if (valueExist) {
       this.selectedValue = this.selectedValue.filter(item => item !== value);
     } else {
       this.selectedValue.push(value);
     }
-    console.log("🚀 ~ selectOption ~ this.selectedValue:", this.selectedValue);
 
-    // const filteredExpenses = this.expensesData.filter(row => {
-    //   const hasClassification = this.selectedValue.includes('classification');
-    //   const hasNotClassification = this.selectedValue.includes('notClassification');
-
-    //   if (hasClassification && hasNotClassification) return true; // show all
-    //   if (hasClassification) return row.category !== 'לא שוייך';
-    //   if (hasNotClassification) return row.category === 'לא שוייך';
-    //   return true; // default is display all
-    // });
     this.classifyDataFilter();
   }
 
@@ -733,11 +897,17 @@ isInPrimeOverlay(e: Event): boolean {
       if (hasNotClassification) return row.category === 'טרם סווג';
       return true; // default is display all
     }));
-    console.log("🚀 ~ selectOption ~ filteredExpenses:", this.filteredIncomesData())
 
-    // return this.expensesData = filteredExpenses;
   }
 
-
+  private getCurrencySymbol(currency: string | null | undefined): string {
+    switch (currency) {
+      case 'USD': return '$';
+      case 'EUR': return '€';
+      case 'GBP': return '£';
+      case 'ILS':
+      default: return '₪';
+    }
+  }
 
 }

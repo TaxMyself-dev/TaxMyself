@@ -144,8 +144,8 @@ export class FlowReportPage implements OnInit {
           console.log(data);
 
           data.map((row) => {
-            row.sum = Math.abs(row.sum);
-            row.sum = this.genericService.addComma(row.sum)
+            const currencySymbol = this.getCurrencySymbol(row.currency);
+            row.sum = `${currencySymbol}${this.genericService.addComma(Math.abs(row.sum))}`;
             row?.businessNumber === this.userData.businessNumber ? row.businessNumber = this.userData.businessName : row.businessNumber = this.userData.spouseBusinessName;
             //if (row.vatReportingDate) {
             if (row.vatReportingDate !== undefined && row.vatReportingDate !== null && row.vatReportingDate !== "0") {
@@ -168,6 +168,16 @@ export class FlowReportPage implements OnInit {
         this.expensesData$.next(res);
         this.expensesData = res;
       })
+  }
+
+  private getCurrencySymbol(currency: string | null | undefined): string {
+    switch (currency) {
+      case 'USD': return '$';
+      case 'EUR': return '€';
+      case 'GBP': return '£';
+      case 'ILS':
+      default: return '₪';
+    }
   }
 
   columnsOrderByFunc(a, b): number {

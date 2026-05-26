@@ -1,6 +1,11 @@
-import { IsString, IsNumber, IsBoolean, IsOptional } from 'class-validator';
+import { IsString, IsNumber, IsBoolean, IsEnum, IsOptional } from 'class-validator';
+import { ExpenseReportScope } from 'src/enum';
 
 export class CreateUserSubCategoryDto {
+
+  @IsString()
+  @IsOptional()
+  categoryName: string;
 
   @IsString()
   subCategoryName: string;
@@ -27,6 +32,14 @@ export class CreateUserSubCategoryDto {
 
   @IsBoolean()
   @IsOptional()
-  isExpense?: boolean;
+  isExpense: boolean;
+
+  @IsEnum(ExpenseReportScope)
+  @IsOptional()
+  reportScope?: ExpenseReportScope;
+
+  @IsString()
+  @IsOptional()
+  pnlCategory?: string | null;
 
 }

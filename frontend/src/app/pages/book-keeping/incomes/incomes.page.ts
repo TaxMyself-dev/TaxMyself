@@ -3,23 +3,31 @@ import { EMPTY, of } from 'rxjs';
 import { catchError, finalize, map, take } from 'rxjs/operators';
 import { DocumentsService } from 'src/app/services/documents.service';
 import { GenericService } from 'src/app/services/generic.service';
-import { IColumnDataTable, IRowDataTable, ITableRowAction, IUserData } from 'src/app/shared/interface';
+import { IColumnDataTable, IMobileCardConfig, IRowDataTable, ITableRowAction, IUserData } from 'src/app/shared/interface';
 import {
   BusinessStatus,
   BusinessType,
   DocumentsTableColumns,
   DocumentsTableHebrewColumns,
   FormTypes,
-  ReportingPeriodType
+  ReportingPeriodType,
+  getAllocationNumberThreshold,
 } from 'src/app/shared/enums';
 import { AuthService } from 'src/app/services/auth.service';
-import { DateService } from 'src/app/services/date.service';
 import { FilesService } from 'src/app/services/files.service';
 import { DocTypeDisplayName, DocumentType } from '../../doc-create/doc-cerate.enum';
 import { FilterField } from 'src/app/components/filter-tab/filter-fields-model.component';
 import { FormBuilder, FormGroup } from '@angular/forms';
-import { ConfirmationService } from 'primeng/api';
+import { ConfirmationService, MessageService } from 'primeng/api';
 import { Router } from '@angular/router';
+import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
+import { DialogService } from 'primeng/dynamicdialog';
+import { DocSuccessDialogComponent } from 'src/app/components/create-doc-success-dialog/create-doc-success-dialog.component';
+
+// Israeli Tax Authority page where the user manually requests an allocation number.
+const TAX_AUTHORITY_ALLOCATION_URL = 'https://www.gov.il/he/service/request-assignment-number-for-tax-invoice';
+
+const PENDING_ALLOCATION_STATUS = 'PENDING_ALLOCATION';
 
 @Component({
   selector: 'app-incomes',
@@ -34,12 +42,23 @@ export class IncomesPage implements OnInit {
   // ===========================
   private gs = inject(GenericService);
   private authService = inject(AuthService);
-  private dateService = inject(DateService);
   private documentsService = inject(DocumentsService);
   private filesService = inject(FilesService);
   private confirmationService = inject(ConfirmationService);
+  private messageService = inject(MessageService);
   private fb = inject(FormBuilder);
   private router = inject(Router);
+  private dialogService = inject(DialogService);
+
+  // For the allocation-number entry dialog
+  readonly buttonSize = ButtonSize;
+  readonly buttonColor = ButtonColor;
+  showAllocationInputDialog = signal<boolean>(false);
+  allocationInputValue = '';
+  // Exposed as a signal so the dialog template can show the doc's details
+  // (recipient id, sum before VAT, date, doc #/type) — they're what the user
+  // needs to paste into the Tax Authority site to fetch the allocation #.
+  pendingFinalizeRow = signal<IRowDataTable | null>(null);
 
   // ===========================
   // Global state
@@ -59,6 +78,14 @@ export class IncomesPage implements OnInit {
   isLoadingDataTable = signal<boolean>(false);
   myDocuments: any;
   fileActions = signal<ITableRowAction[]>([]);
+
+  mobileCardConfig: IMobileCardConfig = {
+    primaryFields: [DocumentsTableColumns.DOC_TYPE],
+    highlightedField: DocumentsTableColumns.DOC_SUM,
+    dateField: DocumentsTableColumns.DOC_DATE,
+    hiddenFields: [],
+  };
+
 
   // ===========================
   // Table config
@@ -130,8 +157,7 @@ export class IncomesPage implements OnInit {
       this.fetchDocuments(this.selectedBusinessNumber());
     });
 
-    const currentDate = new Date();
-    const currentYear = currentDate.getFullYear();
+    const currentYear = new Date().getFullYear();
 
     this.filterConfig = [
       {
@@ -147,50 +173,62 @@ export class IncomesPage implements OnInit {
         controlName: 'period',
         required: true,
         allowedPeriodModes: [ReportingPeriodType.MONTHLY, ReportingPeriodType.BIMONTHLY, ReportingPeriodType.ANNUAL, ReportingPeriodType.DATE_RANGE],
-        periodDefaults: {
-          year: currentYear,
-        }
+        periodDefaults: this.gs.getDefaultPeriodConfig({ year: currentYear })
       },
       {
         type: 'select',
         controlName: 'docType',
         label: 'סוג מסמך',
-        options: [
-          { name: 'חשבונית מס', value: DocumentType.TAX_INVOICE },
-          { name: 'קבלה', value: DocumentType.RECEIPT },
-          { name: 'חשבונית זיכוי', value: DocumentType.CREDIT_INVOICE }
-        ]
+        // Derived from the enum so every issued document type is filterable —
+        // the hardcoded subset omitted חשבונית מס קבלה / חשבון עסקה, which made
+        // the filter return nothing for documents of those (very common) types.
+        options: Object.values(DocumentType).map((t) => ({
+          name: DocTypeDisplayName[t] ?? t,
+          value: t,,
+          { name: 'חשבון עסקה', value: DocumentType.TRANSACTION_INVOICE },
+          { name: 'חשבונית מס קבלה', value: DocumentType.TAX_INVOICE_RECEIPT },
+          { name: 'הצעת מחיר', value: DocumentType.PRICE_QUOTE },
+          { name: 'הזמנת עבודה', value: DocumentType.WORK_ORDER },
+        }))
       }
     ];
 
     // 5️⃣ Fetch initial data
     this.fetchDocuments(this.selectedBusinessNumber());
+
+    // 6️⃣ If we got here from the doc-create "Get from tax authority" flow,
+    // auto-open the allocation-input dialog populated with the just-saved
+    // doc's details. (Snapshot is passed via navigation state.)
+    const nav = this.router.getCurrentNavigation();
+    const fromHistory = (history.state ?? {}) as { autoOpenAllocationFor?: any };
+    const autoOpenRow = nav?.extras?.state?.['autoOpenAllocationFor'] ?? fromHistory.autoOpenAllocationFor;
+    if (autoOpenRow) {
+      this.pendingFinalizeRow.set(autoOpenRow as IRowDataTable);
+      this.allocationInputValue = '';
+      this.showAllocationInputDialog.set(true);
+      // Clear it so a normal refresh of this page doesn't reopen the dialog.
+      if (history.replaceState) {
+        const { autoOpenAllocationFor, ...rest } = history.state ?? {};
+        history.replaceState(rest, '');
+      }
+    }
   }
+
+  // Exposed to the template for the "Open Tax Authority site" link.
+  readonly taxAuthorityUrl = TAX_AUTHORITY_ALLOCATION_URL;
 
 
   // ===========================
   // Handle filter submit
   // ===========================
   onSubmit(formValues: any): void {
+    const effectiveBusiness = this.gs.getEffectiveBusinessNumber(this.form, formValues.businessNumber, this.userData);
+    const { startDate, endDate } = this.gs.getPeriodDatesFromForm(this.form);
 
-    console.log("Submitted filter:", formValues);
-
-    this.selectedBusinessNumber.set(formValues.businessNumber);
-
-    const docType = formValues.docType;
-
-    const { startDate, endDate } = this.dateService.getStartAndEndDates(
-      formValues.periodMode,
-      formValues.year,
-      formValues.month,
-      formValues.startDate,
-      formValues.endDate
-    );
-
+    this.selectedBusinessNumber.set(effectiveBusiness);
     this.startDate = startDate;
     this.endDate = endDate;
-
-    this.fetchDocuments(this.selectedBusinessNumber(), startDate, endDate, docType);
+    this.fetchDocuments(effectiveBusiness, startDate, endDate, formValues.docType);
   }
 
 
@@ -230,14 +268,21 @@ export class IncomesPage implements OnInit {
         const formattedSum = this.gs.addComma(absValue);
         // For negative numbers in RTL: put minus on the right, e.g., "123- ש"ח"
         const sumWithCurrency = isNegative 
-          ? `${formattedSum}- ש"ח`
-          : `${formattedSum} ש"ח`;
+          ? `${formattedSum}-`
+          : `${formattedSum}`;
         
+        const rawStatus = row.docStatus?.toUpperCase();
+        let statusLabel = '';
+        if (rawStatus === 'OPEN') statusLabel = 'פתוח';
+        else if (rawStatus === 'CLOSE') statusLabel = 'סגור';
+        else if (rawStatus === PENDING_ALLOCATION_STATUS) statusLabel = '⚠️ ממתין למספר הקצאה';
+
         return {
         ...row,
         sumAftDisWithVAT: sumWithCurrency, // Update the field that matches the column name
         docType: DocTypeDisplayName[row.docType] ?? row.docType,
-        docStatus: row.docStatus?.toUpperCase() === 'OPEN'  ? 'פתוח' : row.docStatus?.toUpperCase() === 'CLOSE' ? 'סגור' : '',
+        docTypeOriginal: row.docType, // raw enum, preserved for action handlers
+        docStatus: statusLabel,
           docStatusOriginal: row.docStatus, // Keep original value for conditional checks
           parentDoc: parentDoc, // Add parent doc formatted string with HTML
         };
@@ -271,6 +316,42 @@ export class IncomesPage implements OnInit {
 
 
   private setFileActions(): void {
+    const isTaxInvoiceType = (row: IRowDataTable) => {
+      const rawType = (row as any)?.docTypeOriginal ?? (row as any)?.docType;
+      return rawType === DocumentType.TAX_INVOICE
+          || rawType === DocumentType.TAX_INVOICE_RECEIPT;
+    };
+
+    const isPending = (row: IRowDataTable) => {
+      const rawStatus = (row as any)?.docStatusOriginal ?? (row as any)?.docStatus;
+      return rawStatus === PENDING_ALLOCATION_STATUS;
+    };
+
+    // "Get allocation # from tax authority" should appear whenever a tax
+    // invoice / tax-invoice-receipt needs an allocation number — either it
+    // was explicitly saved as PENDING_ALLOCATION, OR it was issued above the
+    // threshold without one (so the recipient currently can't reclaim VAT
+    // and the user might want to attach one retroactively).
+    const needsAllocationNumber = (row: IRowDataTable) => {
+      if (!isTaxInvoiceType(row)) return false;
+      if (isPending(row)) return true;
+      const r = row as any;
+      const sumBeforeVat = Number(r?.sumAftDisBefVAT ?? 0);
+      const hasAllocationNum = !!(r?.allocationNum && String(r.allocationNum).trim());
+      // Threshold depends on the doc's date (steps down over time per the
+      // VAT-reform schedule in getAllocationNumberThreshold).
+      return sumBeforeVat > getAllocationNumberThreshold(r?.docDate) && !hasAllocationNum;
+    };
+
+    // "Issue without allocation #" only makes sense while the doc is still
+    // pending — once it's already issued (OPEN/CLOSE), this action is a no-op.
+    const canFinalizeWithoutAllocation = (row: IRowDataTable) =>
+      isTaxInvoiceType(row) && isPending(row);
+
+    // Original actions — always visible (behavior unchanged by the allocation
+    // feature). On pending-allocation rows the PDF doesn't exist yet, so the
+    // download/preview buttons will surface a "file missing" path; that's
+    // acceptable per product decision.
     this.fileActions.set([
       {
         name: 'preview',
@@ -304,7 +385,162 @@ export class IncomesPage implements OnInit {
           this.closeDoc(row);
         }
       },
+
+      // ── Pending-allocation actions (visible only when the doc is awaiting
+      // a decision about its allocation number). ──
+      {
+        name: 'get-allocation-from-tax',
+        icon: 'pi pi-external-link',
+        title: 'קבל מספר הקצאה מרשות המיסים',
+        alwaysShow: true,
+        showWhen: needsAllocationNumber,
+        // Opens the Tax Authority page in a new tab AND surfaces the input
+        // dialog so the user can paste the number when they come back.
+        action: (_event: any, row: IRowDataTable) => this.getAllocationFromTaxAuthority(row),
+      },
+      {
+        name: 'finalize-no-allocation',
+        icon: 'pi pi-check',
+        title: 'הפק ללא מספר הקצאה',
+        alwaysShow: true,
+        showWhen: canFinalizeWithoutAllocation,
+        action: (_event: any, row: IRowDataTable) => this.finalizeWithoutAllocation(row),
+      },
+      // TODO: re-enable when SHAAM auto-flow is wired up.
+      // {
+      //   name: 'request-allocation-auto',
+      //   icon: 'pi pi-bolt',
+      //   title: 'בקש מספר הקצאה אוטומטית (שעמ)',
+      //   alwaysShow: true,
+      //   showWhen: isPending,
+      //   action: (_event: any, row: IRowDataTable) => this.requestAllocationAutomatically(row),
+      // },
     ]);
+  }
+
+
+  // -----------------------------------------------------
+  // Allocation-number finalize handlers
+  // -----------------------------------------------------
+
+  /** Resolve the raw DocumentType enum from a row (handles Hebrew-display case). */
+  private resolveDocType(row: IRowDataTable): DocumentType | null {
+    const preserved = (row as any).docTypeOriginal;
+    if (preserved && Object.values(DocumentType).includes(preserved)) {
+      return preserved as DocumentType;
+    }
+    const hebrewDocType = row.docType as string;
+    if (Object.values(DocumentType).includes(hebrewDocType as DocumentType)) {
+      return hebrewDocType as DocumentType;
+    }
+    const entry = Object.entries(DocTypeDisplayName).find(([, name]) => name === hebrewDocType);
+    return entry ? (entry[0] as DocumentType) : null;
+  }
+
+  /**
+   * Opens the Tax Authority allocation-request page in a new tab and, in the
+   * same step, surfaces the input dialog so the user can paste the number
+   * back into our app once they have it.
+   */
+  getAllocationFromTaxAuthority(row: IRowDataTable): void {
+    // Don't redirect to the Tax Authority automatically — the dialog opens
+    // with a clickable link the user follows on their own pace.
+    this.pendingFinalizeRow.set(row);
+    this.allocationInputValue = '';
+    this.showAllocationInputDialog.set(true);
+  }
+
+  // TODO: re-enable when SHAAM auto-flow is wired up.
+  // private requestAllocationAutomatically(row: IRowDataTable): void {
+  //   // Will call the SHAAM service to request an allocation number on the
+  //   // user's behalf, then call finalizeAllocation with the returned number.
+  // }
+
+  cancelAllocationInputDialog(): void {
+    this.pendingFinalizeRow.set(null);
+    this.allocationInputValue = '';
+    this.showAllocationInputDialog.set(false);
+  }
+
+  submitAllocationInputDialog(): void {
+    const value = this.allocationInputValue?.trim();
+    const row = this.pendingFinalizeRow();
+    if (!value || !row) return;
+    this.showAllocationInputDialog.set(false);
+    this.callFinalize(row, value);
+  }
+
+  finalizeWithoutAllocation(row: IRowDataTable): void {
+    this.confirmationService.confirm({
+      message: 'האם אתה בטוח שברצונך להפיק את המסמך ללא מספר הקצאה?<br>הלקוח שלך לא יוכל לקזז את המע״מ.',
+      header: 'אישור הפקה ללא מספר הקצאה',
+      icon: 'pi pi-exclamation-triangle',
+      acceptLabel: 'כן, הפק ללא מספר הקצאה',
+      rejectLabel: 'ביטול',
+      acceptVisible: true,
+      rejectVisible: true,
+      // Match the project's design system (BLACK buttons) instead of PrimeNG's
+      // default green/danger. `p-button-contrast` is the dark variant in v19.
+      acceptButtonStyleClass: 'p-button-contrast',
+      rejectButtonStyleClass: 'p-button-contrast',
+      accept: () => this.callFinalize(row, null),
+    });
+  }
+
+  private callFinalize(row: IRowDataTable, allocationNum: string | null): void {
+    // Prefer the row's own issuerBusinessNumber when present — it survives
+    // navigations (e.g. coming from doc-create with another business
+    // selected) better than the page-level selectedBusinessNumber.
+    const businessNumber = ((row as any).issuerBusinessNumber as string) || this.selectedBusinessNumber();
+    const docNumber = ((row as any).docNumber ?? (row as any).doc_number)?.toString();
+    const docType = this.resolveDocType(row);
+    if (!businessNumber || !docNumber || !docType) {
+      console.error('finalizeAllocation: missing identifiers', { businessNumber, docNumber, docType });
+      this.messageService.add({ severity: 'error', summary: 'שגיאה', detail: 'לא ניתן לזהות את המסמך', life: 4000, key: 'br' });
+      return;
+    }
+
+    // Show the global loader (same UX as the regular create flow).
+    this.gs.getLoader().subscribe();
+    this.gs.updateLoaderMessage('מפיק את המסמך, אנא המתן...');
+
+    this.documentsService.finalizeAllocation(businessNumber, docNumber, docType, allocationNum)
+      .pipe(
+        take(1),
+        finalize(() => this.gs.dismissLoader()),
+        catchError(err => {
+          console.error('finalizeAllocation failed', err);
+          this.messageService.add({
+            severity: 'error',
+            summary: 'שגיאה',
+            detail: err?.error?.message || 'הפקת המסמך נכשלה. נסה שנית.',
+            life: 5000,
+            key: 'br',
+          });
+          return EMPTY;
+        }),
+      )
+      .subscribe((response: any) => {
+        this.pendingFinalizeRow.set(null);
+        this.allocationInputValue = '';
+
+        // Same success dialog as the regular create flow — gives the user the
+        // doc number + download links for the freshly-generated PDFs.
+        if (response?.docNumber) {
+          this.dialogService.open(DocSuccessDialogComponent, {
+            header: '',
+            width: '400px',
+            data: {
+              docNumber: response.docNumber,
+              file: response.file,
+              copyFile: response.copyFile,
+              docType: DocTypeDisplayName[response.docType as DocumentType] ?? response.docType,
+            },
+          });
+        }
+
+        this.fetchDocuments(businessNumber, this.startDate, this.endDate);
+      });
   }
 
 

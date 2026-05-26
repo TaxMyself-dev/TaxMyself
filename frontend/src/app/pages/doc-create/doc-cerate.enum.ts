@@ -6,6 +6,8 @@ export enum DocumentType {
   TAX_INVOICE_RECEIPT = 'TAX_INVOICE_RECEIPT',
   TRANSACTION_INVOICE = 'TRANSACTION_INVOICE',
   CREDIT_INVOICE = 'CREDIT_INVOICE',
+  PRICE_QUOTE = 'PRICE_QUOTE',
+  WORK_ORDER = 'WORK_ORDER',
 }
 
 export const DocTypeDisplayName = {
@@ -14,6 +16,8 @@ export const DocTypeDisplayName = {
   [DocumentType.TAX_INVOICE_RECEIPT]: 'חשבונית מס קבלה',
   [DocumentType.TRANSACTION_INVOICE]: 'חשבון עסקה',
   [DocumentType.CREDIT_INVOICE]: 'חשבונית זיכוי',
+  [DocumentType.PRICE_QUOTE]: 'הצעת מחיר',
+  [DocumentType.WORK_ORDER]: 'הזמנת עבודה',
 };
 
 export const DocTypeDefaultStart: Record<DocumentType, number> = {
@@ -22,6 +26,8 @@ export const DocTypeDefaultStart: Record<DocumentType, number> = {
   [DocumentType.TAX_INVOICE_RECEIPT]: 50001,
   [DocumentType.TRANSACTION_INVOICE]: 90001,
   [DocumentType.CREDIT_INVOICE]: 80001,
+  [DocumentType.PRICE_QUOTE]: 40001,
+  [DocumentType.WORK_ORDER]: 20001,
 };
 
 

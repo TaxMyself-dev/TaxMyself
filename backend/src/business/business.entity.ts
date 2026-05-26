@@ -1,8 +1,8 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, BeforeInsert } from 'typeorm';
-import { BusinessType, Currency, DocumentType, TaxReportingType, VATReportingType } from 'src/enum';
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn } from 'typeorm';
+import { BusinessType, TaxReportingType, VATReportingType } from 'src/enum';
 
 
-@Entity()
+@Entity('business')
 export class Business {
 
   @PrimaryGeneratedColumn()
@@ -58,9 +58,37 @@ export class Business {
     enum: TaxReportingType,
     enumName: 'TaxReportingType',
     nullable: true,
-    default: TaxReportingType.NOT_REQUIRED
+    default: TaxReportingType.DUAL_MONTH_REPORT
   })
   taxReportingType: TaxReportingType | null;
+
+  @Column({ type: 'boolean', nullable: true, default: false })
+  nationalInsRequired: boolean | null;
+
+  /** אחוז מקדמות מס הכנסה (משתנה בין עסק לעסק) */
+  @Column({ type: 'decimal', precision: 5, scale: 2, nullable: true, default: null })
+  advanceTaxPercent: number | null;
+
+  // SHAAM OAuth tokens (encrypted with AES-256)
+  @Column({ type: 'varchar', nullable: true, default: null })
+  shaamAccessToken: string | null;
+
+  @Column({ type: 'varchar', nullable: true, default: null })
+  shaamAccessTokenExp: string | null; // Unix timestamp as string (encrypted)
+
+  @Column({ type: 'varchar', nullable: true, default: null })
+  shaamRefreshToken: string | null;
+
+  /**
+   * When this business was added to the app. Used as the lower bound for
+   * auto-generating recurring tasks/workflows so historical periods don't
+   * appear before the business existed in the system.
+   * Existing rows get NOW() at schema-apply time (TypeORM default for
+   * @CreateDateColumn) — they won't auto-backfill historical periods. To
+   * backfill an existing business, set this column to a past date.
+   */
+  @CreateDateColumn()
+  createdAt: Date;
 
   // @Column({ type: 'varchar', nullable: true, default: null })
   // bankBeneficiary: string | null;

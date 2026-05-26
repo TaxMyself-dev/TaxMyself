@@ -1,0 +1,260 @@
+import { Component, computed, effect, inject, signal } from '@angular/core';
+import { ReactiveFormsModule, Validators } from '@angular/forms';
+import { ConfirmationService, MessageService } from 'primeng/api';
+import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
+import { catchError, EMPTY } from 'rxjs';
+import { ExpenseDataService } from 'src/app/services/expense-data.service';
+import { FormTypes, inputsSize } from 'src/app/shared/enums';
+import { IColumnDataTable, ISelectItem, ISubCategory, ISupplier } from 'src/app/shared/interface';
+import { SupplierKeys, SupplierValues } from 'src/app/shared/types';
+import { ButtonComponent } from "../button/button.component";
+import { ButtonColor, ButtonSize } from '../button/button.enum';
+import { GenericTableComponent } from "../generic-table/generic-table.component";
+import { InputSelectComponent } from '../input-select/input-select.component';
+import { InputTextComponent } from "../input-text/input-text.component";
+import { AddSupplierService } from './add-supplier.service';
+import { CheckboxModule } from 'primeng/checkbox';
+
+// !! ATTENTION !!
+// We have stopped development of this feature near completion. 
+// We need to decide on the logic of which fields must be added when saving a new supplier
+// and the ability to edit a supplier.
+
+
+@Component({
+  selector: 'app-add-supplier',
+  templateUrl: './add-supplier.component.html',
+  styleUrls: ['./add-supplier.component.scss'],
+  standalone: true,
+  imports: [GenericTableComponent, InputTextComponent, ReactiveFormsModule, ButtonComponent, InputSelectComponent, CheckboxModule],
+  providers: [AddSupplierService]
+})
+export class AddSupplierComponent {
+  addSupplierService = inject(AddSupplierService);
+  messageService = inject(MessageService);
+  confirmationService = inject(ConfirmationService);
+  expenseDataService = inject(ExpenseDataService);
+  dialogRef = inject(DynamicDialogRef);
+  dialogConfig = inject(DynamicDialogConfig);
+
+  editMode = this.dialogConfig.data?.editMode === true;
+  supplierId: number | null = this.dialogConfig.data?.supplier?.id != null ? Number(this.dialogConfig.data.supplier.id) : null;
+  businessNumber = this.dialogConfig.data?.businessNumber ?? '';
+
+  categories = signal<ISelectItem[]>(this.dialogConfig.data?.categories ?? []);
+
+  inputSize = inputsSize;
+  buttonColor = ButtonColor;
+  buttonSize = ButtonSize;
+  formTypes = FormTypes;
+
+  addSupplierForm = this.addSupplierService.createSupplierForm();
+
+  subCategories = computed(() => this.addSupplierService.$subCategoriesOptions());
+  
+  // Signal to track isEquipment checkbox state
+  isEquipmentChecked = signal<boolean>(false);
+
+  // Preserve original order for keyvalue pipe (prevents alphabetical sorting)
+  preserveOrder = () => 0;
+
+  suppliersTableFields: IColumnDataTable<SupplierKeys, SupplierValues>[] = [
+    { name: 'supplier', value: 'שם הספק', type: FormTypes.TEXT },
+    { name: 'supplierID', value: 'מספר ספק', type: FormTypes.TEXT },
+    { name: 'category', value: 'קטגוריה', type: FormTypes.TEXT },
+    { name: 'subCategory', value: 'תת קטגוריה', type: FormTypes.TEXT },
+    { name: 'taxPercent', value: 'אחוז מס', type: FormTypes.TEXT },
+    { name: 'vatPercent', value: 'אחוז מע"מ', type: FormTypes.TEXT },
+  ];
+
+  suppliers = signal<ISupplier[]>(this.dialogConfig.data?.suppliers ?? []);
+
+  constructor() {
+    this.addSupplierService.setCategoryEnumValues(this.categories());
+    if (this.editMode && this.dialogConfig.data?.supplier) {
+      const row = this.dialogConfig.data.supplier as any;
+      const parsePercent = (v: any): number => {
+        if (v == null || v === '') return 0;
+        if (typeof v === 'number') return v;
+        const s = String(v).replace(/%/g, '').trim();
+        const n = parseInt(s, 10);
+        return isNaN(n) ? 0 : n;
+      };
+      this.addSupplierForm.patchValue({
+        name: row.supplier ?? '',
+        supplierID: row.supplierID ?? '',
+        category: row.category ?? null,
+        subCategory: row.subCategory ?? null,
+        taxPercent: parsePercent(row.taxPercent),
+        vatPercent: parsePercent(row.vatPercent),
+        reductionPercent: parsePercent(row.reductionPercent),
+        isEquipment: row.isEquipment === 'כן' || row.isEquipment === true
+      });
+      this.addSupplierService.$selectedCategory.set(row.category ?? '');
+    }
+    // Initialize isEquipmentChecked signal with form value
+    this.isEquipmentChecked.set(this.addSupplierForm.get('isEquipment')?.value === true);
+    
+    // Listen to isEquipment form control changes
+    this.addSupplierForm.get('isEquipment')?.valueChanges.subscribe((value) => {
+      this.isEquipmentChecked.set(value === true);
+      
+      if (value) {
+        // When checked (רכוש קבוע):
+        // - Set taxPercent to 0 and clear validators
+        this.addSupplierForm.patchValue({ taxPercent: 0 }, { emitEvent: false });
+        this.addSupplierForm.get('taxPercent')?.clearValidators();
+        this.addSupplierForm.get('taxPercent')?.updateValueAndValidity({ emitEvent: false });
+        
+        // - Make reductionPercent required
+        this.addSupplierForm.get('reductionPercent')?.setValidators([Validators.required, Validators.min(0), Validators.max(100)]);
+        this.addSupplierForm.get('reductionPercent')?.updateValueAndValidity();
+      } else {
+        // When unchecked:
+        // - Set reductionPercent to 0 and remove required validator
+        this.addSupplierForm.patchValue({ reductionPercent: 0 }, { emitEvent: false });
+        this.addSupplierForm.get('reductionPercent')?.clearValidators();
+        this.addSupplierForm.get('reductionPercent')?.setValidators([Validators.min(0), Validators.max(100)]);
+        this.addSupplierForm.get('reductionPercent')?.updateValueAndValidity({ emitEvent: false });
+        
+        // - Restore taxPercent validators
+        this.addSupplierForm.get('taxPercent')?.setValidators([Validators.required, Validators.min(0), Validators.max(100)]);
+        this.addSupplierForm.get('taxPercent')?.updateValueAndValidity();
+      }
+    });
+  }
+
+  saveSupplier() {
+    const raw = this.addSupplierForm.getRawValue() as Partial<ISupplier>;
+    const supplierData = Object.entries(raw).reduce((acc, [key, value]) => {
+      if (key === 'name') {
+        const trimmed = typeof value === 'string' ? value.trim() : value;
+        (acc as any)['supplier'] = trimmed === '' ? null : trimmed;
+        return acc;
+      }
+      if (key === 'supplier') return acc;
+      if (typeof value === 'string') {
+        const trimmed = value.trim();
+        (acc as any)[key] = trimmed === '' ? null : trimmed;
+        return acc;
+      }
+      if (key === 'taxPercent' && raw.isEquipment) {
+        (acc as any)[key] = 0;
+        return acc;
+      }
+      if (key === 'reductionPercent' && !raw.isEquipment) {
+        (acc as any)[key] = 0;
+        return acc;
+      }
+      (acc as any)[key] = value ?? null;
+      return acc;
+    }, {} as Partial<ISupplier>);
+
+    if (this.editMode && this.supplierId != null) {
+      this.confirmationService.confirm({
+        message: 'האם אתה בטוח שברצונך לעדכן את פרטי הספק?',
+        header: 'עדכון ספק',
+        icon: 'pi pi-exclamation-triangle',
+        acceptLabel: 'כן, עדכן',
+        rejectLabel: 'ביטול',
+        accept: () => this.doUpdateSupplier(supplierData),
+        reject: () => {}
+      });
+      return;
+    }
+
+    this.addSupplierService.saveSupplierDetails(supplierData)
+      .pipe(
+        catchError((err) => {
+          if (err.status === 409) {
+            this.messageService.add({
+              severity: 'error',
+              summary: 'Error',
+              detail: "כבר קיים ספק בשם זה, אנא בחר שם שונה. אם ברצונך לערוך ספק זה אנא  לחץ על כפתור עריכה דרך הרשימה .",
+              life: 3000,
+              sticky: true,
+              key: 'br'
+            });
+          } else {
+            this.messageService.add({
+              severity: 'error',
+              summary: 'Error',
+              detail: "אירעה שגיאה לא ניתן לשמור ספק אנא נסה מאוחר יותר!",
+              life: 3000,
+              sticky: true,
+              key: 'br'
+            });
+          }
+          return EMPTY;
+        })
+      )
+      .subscribe(() => {
+        this.messageService.add({
+          severity: 'success',
+          summary: 'הצלחה',
+          detail: 'הספק נוסף בהצלחה',
+          life: 3000,
+          key: 'br'
+        });
+        this.cancel(supplierData);
+      });
+  }
+
+  private doUpdateSupplier(supplierData: Partial<ISupplier>): void {
+    if (this.supplierId == null) return;
+    const payload = { ...supplierData, businessNumber: this.businessNumber };
+    this.expenseDataService.editSupplier(payload, this.supplierId)
+      .pipe(
+        catchError((err) => {
+          this.messageService.add({
+            severity: 'error',
+            summary: 'שגיאה',
+            detail: 'לא הצלחנו לעדכן את הספק',
+            life: 3000,
+            key: 'br'
+          });
+          return EMPTY;
+        })
+      )
+      .subscribe(() => {
+        this.messageService.add({
+          severity: 'success',
+          summary: 'הצלחה',
+          detail: 'הספק עודכן בהצלחה',
+          life: 3000,
+          key: 'br'
+        });
+        this.cancel(supplierData);
+      });
+  }
+
+  cancel(data?: Partial<ISupplier>) {
+    this.dialogRef.close(data);
+  }
+
+  onSelectionChange(event: string | boolean, key: string) {
+    if (key === 'category') {
+      this.addSupplierService.$selectedCategory.set(event as string);
+      this.addSupplierForm.patchValue({ subCategory: null }, { emitEvent: false });
+    }
+    if (key === 'subCategory') {
+      this.fillPercentagesFromSubCategory(event);
+    }
+  }
+
+  /** ממלא אחוז מוכר למס, אחוז מוכר למע"מ ואחוז פחת לפי התת־קטגוריה שנבחרה (כמו בדיאלוג הוספת הוצאה) */
+  private fillPercentagesFromSubCategory(event: string | boolean): void {
+    const selectedName = event != null ? String(event) : '';
+    const list = this.addSupplierService.subCategoriesResource.value();
+    const subCategory = list?.find((item: ISubCategory) => item.subCategoryName === selectedName);
+    if (!subCategory) return;
+    const vat = subCategory.vatPercent != null ? Number(subCategory.vatPercent) : 0;
+    const tax = subCategory.taxPercent != null ? Number(subCategory.taxPercent) : 0;
+    const reduction = subCategory.reductionPercent != null ? Number(subCategory.reductionPercent) : 0;
+    this.addSupplierForm.patchValue({
+      vatPercent: vat,
+      taxPercent: tax,
+      reductionPercent: reduction,
+    });
+  }
+}

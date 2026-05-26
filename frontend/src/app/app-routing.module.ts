@@ -2,6 +2,7 @@ import { NgModule } from '@angular/core';
 import { PreloadAllModules, RouterModule, Routes } from '@angular/router';
 // route guard
 import { AuthGuard } from './shared/guard/auth.guard';
+import { ViewOnlyBlockDocGuard } from './shared/guard/view-only-block-doc.guard';
 const routes: Routes = [
   {
     path: '',
@@ -34,17 +35,17 @@ const routes: Routes = [
     canActivate: [AuthGuard] 
   },
   {
+    path: 'settings',
+    loadComponent: () => import('./pages/settings/settings.page').then( m => m.SettingsPage),
+    canActivate: [AuthGuard] 
+  },
+  {
     path: 'login',
     loadChildren: () => import('./pages/login/login.module').then( m => m.LoginPageModule)
   },
   {
     path: 'transactions',
     loadChildren: () => import('./pages/transactions/transactions.module').then( m => m.TransactionsPageModule),
-    canActivate: [AuthGuard] 
-  },
-  {
-    path: 'my-status',
-    loadChildren: () => import('./pages/my-status/my-status.module').then( m => m.MyStatusPageModule),
     canActivate: [AuthGuard] 
   },
   {
@@ -86,27 +87,20 @@ const routes: Routes = [
   },
   {
     path: 'doc-create',
-    loadChildren: () => import('./pages/doc-create/doc-create.module').then( m => m.DocCreatePageModule)
+    loadChildren: () => import('./pages/doc-create/doc-create.module').then( m => m.DocCreatePageModule),
+    canActivate: [AuthGuard, ViewOnlyBlockDocGuard]
   },
   {
     path: 'add-expense',
     loadComponent: () => import('./pages/add-expense/add-expense.component').then( m => m.AddExpenseComponent)
   },
   {
-    path: 'feezback/success/:flowId',
-    loadChildren: () => import('./pages/feezback-success/feezback-success.module').then(m => m.FeezbackSuccessPageModule)
-  },
-  {
-    path: 'feezback/failure/:flowId',
-    loadChildren: () => import('./pages/feezback-failure/feezback-failure.module').then(m => m.FeezbackFailurePageModule)
-  },
-  {
-    path: 'feezback/expired/:flowId',
-    loadChildren: () => import('./pages/feezback-expired/feezback-expired.module').then(m => m.FeezbackExpiredPageModule)
-  },
-  {
     path: 'shaam/callback',
     loadChildren: () => import('./pages/shaam-callback/shaam-callback.module').then(m => m.ShaamCallbackPageModule)
+  },
+  {
+    path: 'flow-analysis',
+    loadComponent: () => import('./pages/flow-analysis/flow-analysis.component').then( m => m.FlowAnalysisComponent)
   },
  
 ];

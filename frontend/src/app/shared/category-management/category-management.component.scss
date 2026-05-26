@@ -1,7 +1,193 @@
+.category-management {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 16px;
+  width: 100%;
+}
+
+/* בחירת והעלאת קובץ – צד ימין (ב-RTL ה-start הוא ימין) */
+.upload-section {
+  display: flex;
+  justify-content: flex-start;
+  width: 100%;
+  direction: rtl;
+}
+
 .load-category-file {
-    width: 250px;
-    display: flex;
-    position: fixed;
-    left: 30px;
-    top: 130px;
+  width: auto;
+  max-width: 100%;
+  position: static !important;
+  left: auto !important;
+  top: auto !important;
+  align-self: flex-start;
+}
+
+/* טבלה – כמו בעמוד הנהלת חשבונות (הכנסות/הוצאות) */
+.table-wrap {
+  width: 98%;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
+  border-radius: 5px;
+  margin-bottom: 24px;
+}
+
+.table-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding: 8px 0;
+}
+
+.table-title {
+  font-size: x-large;
+  margin: 18px;
+}
+
+.table-container-inner {
+  width: 100%;
+  overflow: auto;
+  min-height: 120px;
+}
+
+.table-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 2rem;
+  color: #666;
+
+  .pi {
+    font-size: 1.5rem;
+  }
+}
+
+.categories-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 1rem;
+
+  thead {
+    tr {
+      background-color: #f5f5f5;
+      border-bottom: 1px solid #dee2e6;
+    }
+    th {
+      padding: 12px 14px;
+      text-align: right;
+      font-weight: 600;
+      color: #363636;
+    }
+  }
+  tbody {
+    tr {
+      border-bottom: 1px solid #eee;
+    }
+    td {
+      padding: 12px 14px;
+      text-align: right;
+    }
+  }
+}
+
+.table-row:hover {
+  background-color: rgb(248, 243, 243);
+}
+
+.columns-header {
+  min-width: 100px;
+}
+
+.actions-col {
+  min-width: 90px;
+}
+
+.actions-cell {
+  white-space: nowrap;
+}
+
+.empty-message {
+  text-align: center;
+  padding: 2rem;
+}
+
+.empty-data-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.empty-data-text {
+  color: #808080;
+  margin: 0;
+}
+
+.table-footer {
+  display: flex;
+  justify-content: flex-start;
+  padding: 12px 18px;
+  border-top: 1px solid #ebebeb;
+}
+
+/* דיאלוגים – טופס */
+.dialog-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+
+  label {
+    font-weight: 600;
+    color: #363636;
+  }
+}
+
+.form-row.check-row {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .table-wrap {
+    box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.4), 0 6px 20px 0 rgba(0, 0, 0, 0.3);
+  }
+
+  .table-loading {
+    color: #aaa;
+  }
+
+  .categories-table {
+    thead tr {
+      background-color: #2f2f2f;
+      border-bottom-color: #404040;
+    }
+    thead th {
+      color: #f4f4f5;
+    }
+    tbody tr {
+      border-bottom-color: #404040;
+    }
+  }
+
+  .table-row:hover {
+    background-color: rgb(40, 40, 40);
+  }
+
+  .table-title,
+  .form-row label {
+    color: #f4f4f5;
+  }
+
+  .table-footer {
+    border-top-color: #2f2f2f;
+  }
 }

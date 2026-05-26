@@ -1,0 +1,22 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Navbar from '../components/Navbar.astro';
+import Hero from '../components/Hero.astro';
+import HowItWorks from '../components/HowItWorks.astro';
+import AudienceSection from '../components/AudienceSection.astro';
+import Pricing from '../components/Pricing.astro';
+import FAQ from '../components/FAQ.astro';
+import Footer from '../components/Footer.astro';
+---
+
+<BaseLayout>
+  <Navbar />
+  <main id="main-content">
+    <Hero />
+    <HowItWorks />
+    <AudienceSection />
+    <Pricing />
+    <FAQ />
+  </main>
+  <Footer />
+</BaseLayout>

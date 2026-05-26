@@ -1,0 +1,30 @@
+<div class="summary-wrapper" dir="rtl">
+
+  <!-- ── Breakdown panel — always in DOM, animated via max-height ── -->
+  <div class="breakdown-panel" [class.breakdown-panel--open]="isExpanded()">
+    @for (item of breakdownItems(); track item.key) {
+      <div class="breakdown-row">
+        <span class="breakdown-label">{{ item.label }}</span>
+        <span class="breakdown-value" dir="ltr">
+          ₪ {{ item.valueGetter(documentSummary()) | number:'1.2-2' }}
+        </span>
+      </div>
+    }
+  </div>
+
+  <!-- ── Total bar — always visible ── -->
+  <div class="total-bar" (click)="toggle()">
+
+    <span class="total-label">סך הכל לתשלום</span>
+
+    <span class="handle-icon pi pi-chevron-up"
+          [class.handle-icon--open]="isExpanded()">
+    </span>
+
+    <span class="total-amount" dir="ltr">
+      ₪ {{ totalAmount() | number:'1.2-2' }}
+    </span>
+
+  </div>
+
+</div>

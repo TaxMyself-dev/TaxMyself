@@ -1,0 +1,105 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  width: 100%;
+  overflow: auto;
+  align-items: center;
+}
+
+.advance-report-wrap-screen {
+  width: 100%;
+  height: 95%;
+  display: flex;
+  flex-direction: column;
+  align-items: left;
+  padding-right: 50px;
+}
+
+.advance-report-header {
+  display: flex;
+  flex-direction: column;
+  text-align: right;
+  margin-top: 100px;
+}
+
+.icon-title {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.icon {
+  width: 40px;
+  height: 40px;
+}
+
+.title {
+  font-size: 2rem;
+  font-weight: 500;
+  position: relative;
+}
+
+.text-header {
+  font-size: 1.2rem;
+  color: #666;
+  margin-top: 0.5rem;
+}
+
+.wrap-output-report {
+  width: 50%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  border: 1px solid;
+  border-color: #f8e7e7;
+  border-radius: 15px;
+  margin-top: 15px;
+}
+
+.output-report {
+  display: flex;
+  justify-content: space-between;
+  border-bottom: #f8e7e7 1px solid;
+  padding: 10px;
+  margin-left: 15px;
+  margin-right: 15px;
+}
+
+.field-report {
+  font-weight: 500;
+}
+
+// ─── Mobile ──────────────────────────────────────────────────────────────────
+
+@media (max-width: 768px) {
+  // Replace the RTL-only right padding with symmetric inline padding so
+  // content is centred and doesn't touch either screen edge.
+  .advance-report-wrap-screen {
+    padding-right: 16px;
+    padding-left: 16px;
+    // Let height follow content so the page scrolls naturally
+    // instead of being clipped at 95% of the parent height.
+    height: auto;
+    align-items: center;
+  }
+
+  // Reduce the large desktop gap (sized for a fixed topnav) to something
+  // suitable for mobile where the nav is shorter or not fixed.
+  .advance-report-header {
+    margin-top: 32px;
+    align-items: center;
+    text-align: center;
+    width: 100%;
+  }
+
+  // Centre the SVG icon + title row.
+  .icon-title {
+    justify-content: center;
+  }
+
+  // Expand the report summary card to the full available width —
+  // 50% of a 375px viewport (~187px) is too narrow for Hebrew labels.
+  .wrap-output-report {
+    width: 100%;
+  }
+}

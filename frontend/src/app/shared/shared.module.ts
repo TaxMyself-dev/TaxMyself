@@ -39,12 +39,20 @@ import { ToastComponent } from './toast/toast.component';
 import { PopupMessageComponent } from './popup-message/popup-message.component';
 import { SelectClientComponent } from './select-client/select-client.component';
 import { ButtonComponent } from '../components/button/button.component';
+import { FilterTabComponent } from '../components/filter-tab/filter-tab.component';
 import { InputSelectComponent } from '../components/input-select/input-select.component';
 // import { ButtonComponentIonic } from '../shared/button/button.component';
 import {InputTextComponent} from '../components/input-text/input-text.component';
 import { ClientsDashboardComponent } from './clients-dashboard/clients-dashboard.component';
 import { GenericTableComponent } from '../components/generic-table/generic-table.component';
 import { FeezbackTransactionsDialogComponent } from '../components/feezback-transactions-dialog/feezback-transactions-dialog.component';
+import { TableModule } from 'primeng/table';
+import { DialogModule } from 'primeng/dialog';
+import { ConfirmDialogModule } from 'primeng/confirmdialog';
+import { InputNumberModule } from 'primeng/inputnumber';
+import { InputTextModule } from 'primeng/inputtext';
+import { CheckboxModule } from 'primeng/checkbox';
+import { SelectModule } from 'primeng/select';
 
 @NgModule({
   declarations: [CustomToolbarComponent,ModalExpensesComponent,TableComponent,SortDateComponent,SelectMonthComponent,SelectYearComponent,PopupConfirmComponent,selectSupplierComponent,addSupplierComponent,ItemNavigateComponent, SearchBarComponent, GenericSelectComponent, SelectMonthFormatComponent, GenericInputComponent,collapseComponent, AddBillComponent,AddTransactionComponent, CustomInputComponent,editRowComponent, TabBarComponent, UpdateDataComponent, LoadFileComponent, CategoryManagementComponent, FilterInputComponent, PopupSelectComponent, MultiInputComponent, TransManagementComponent,ToastComponent, PopupMessageComponent, SelectClientComponent, ButtonComponentIonic, ClientsDashboardComponent],
@@ -56,11 +64,19 @@ import { FeezbackTransactionsDialogComponent } from '../components/feezback-tran
     NgArrayPipesModule,
     ScrollingModule,
     ButtonComponent,
+    FilterTabComponent,
     InputSelectComponent,
     InputTextComponent,
     DateFormatPipe,
     GenericTableComponent,
-    FeezbackTransactionsDialogComponent
+    FeezbackTransactionsDialogComponent,
+    TableModule,
+    DialogModule,
+    ConfirmDialogModule,
+    InputNumberModule,
+    InputTextModule,
+    CheckboxModule,
+    SelectModule
     // ButtonComponentIonic
 ],
   exports: [DateFormatPipe, CustomToolbarComponent,ModalExpensesComponent,TableComponent,SortDateComponent,SelectMonthComponent,SelectYearComponent,PopupConfirmComponent,selectSupplierComponent,addSupplierComponent,ItemNavigateComponent, SearchBarComponent, GenericSelectComponent, SelectMonthFormatComponent, GenericInputComponent,collapseComponent,AddBillComponent, AddTransactionComponent, CustomInputComponent,editRowComponent, TabBarComponent, UpdateDataComponent, LoadFileComponent, CategoryManagementComponent, FilterInputComponent, PopupSelectComponent, MultiInputComponent, TransManagementComponent, ToastComponent, PopupMessageComponent, SelectClientComponent, ButtonComponentIonic, ClientsDashboardComponent]

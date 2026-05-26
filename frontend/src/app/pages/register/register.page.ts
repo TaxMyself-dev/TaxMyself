@@ -5,6 +5,7 @@ import { IonicModule } from '@ionic/angular';
 import { RegisterService } from './register.service';
 import { IRegisterLoginImage, ISelectItem } from 'src/app/shared/interface';
 import { AuthService } from 'src/app/services/auth.service';
+import { GenericService } from 'src/app/services/generic.service';
 import { Router } from '@angular/router';
 import { RegisterFormControls, RegisterFormModules } from './regiater.enum';
 import { catchError, EMPTY, finalize, map, startWith, Subject, takeUntil, tap } from 'rxjs';
@@ -47,6 +48,7 @@ export class RegisterPage implements OnInit, OnDestroy {
   readonly inputsSize = inputsSize;
   readonly buttonSize = ButtonSize;
   readonly buttonColor = ButtonColor;
+  readonly isMobile = computed(() => this.genericService.isMobile());
   readonly registerFormModules = RegisterFormModules;
   readonly registerFormControls = RegisterFormControls;
   readonly formTypes = FormTypes;
@@ -118,7 +120,7 @@ matchRegisterImage = computed(() => {
   return this.registerImages.find(image => image.page === currentModule);
 })
 
-  constructor(private router: Router, public authService: AuthService, private formBuilder: FormBuilder, private registerService: RegisterService, private messageService: MessageService) {
+  constructor(private router: Router, public authService: AuthService, private formBuilder: FormBuilder, private registerService: RegisterService, private messageService: MessageService, private genericService: GenericService) {
     effect(() => {
       const currentModule = this.selectedFormModule();
       switch (currentModule) {
@@ -451,37 +453,39 @@ matchRegisterImage = computed(() => {
       });
     }
     
+    // Convert dates from DD-MM-YYYY (datepicker display format) to YYYY-MM-DD (MySQL format)
+    if (formData.personal?.dateOfBirth) {
+      formData.personal.dateOfBirth = this.toDbDate(formData.personal.dateOfBirth);
+    }
+    if (formData.spouse?.spouseDateOfBirth) {
+      formData.spouse.spouseDateOfBirth = this.toDbDate(formData.spouse.spouseDateOfBirth);
+    }
+    if (formData.children?.childrenArray) {
+      formData.children.childrenArray = formData.children.childrenArray.map((child: any) => ({
+        ...child,
+        childDate: child.childDate ? this.toDbDate(child.childDate) : child.childDate,
+      }));
+    }
+
     formData.validation = { password: formData?.personal?.password };
     console.log("formData is :::: ", formData);
     this.isLoading.set(true);
+
     this.authService.SignUp(formData)
-    .pipe(
-      catchError((error) => {
-        console.log("🚀 ~ RegisterPage ~ handleFormRegister ~ error:", error);
-        const errMessage = this.authService.getSignupErrorMessage(error.code);
-        this.messageService.add({
-          severity: 'error',
-          summary: 'Error',
-          detail: errMessage,
-          sticky: true,
-          key: 'br'
-        })
-        return EMPTY;
-      }),
-      finalize(() => {
-        this.isLoading.set(false);
-      })
-    )
-    .subscribe(() => {
-      // this.router.navigate(['login'], { queryParams: { from: 'register', user: formData?.personal?.password } })
-      this.router.navigate(['/login'], {
-        state: {
-          from: 'register',
-          email: formData?.personal?.email,
-          password: formData?.personal?.password
-        }
+      .pipe(
+        catchError((error) => {
+          console.log("🚀 ~ RegisterPage ~ handleFormRegister ~ error:", error);
+          const errMessage = this.authService.getSignupErrorMessage(error.code);
+          this.messageService.add({ severity: 'error', summary: 'Error', detail: errMessage, sticky: true, key: 'br' });
+          return EMPTY;
+        }),
+        finalize(() => this.isLoading.set(false))
+      )
+      .subscribe(() => {
+        this.router.navigate(['/login'], {
+          state: { from: 'register', email: formData?.personal?.email, password: formData?.personal?.password }
+        });
       });
-    })
   }
 
   onBackBtnClicked(): void {
@@ -639,6 +643,21 @@ matchRegisterImage = computed(() => {
   }
 
 
+  /** Converts DD-MM-YYYY or Date object → YYYY-MM-DD for MySQL. */
+  private toDbDate(value: string | Date): string {
+    if (!value) return value as string;
+    if (value instanceof Date) {
+      const day = String(value.getDate()).padStart(2, '0');
+      const month = String(value.getMonth() + 1).padStart(2, '0');
+      return `${value.getFullYear()}-${month}-${day}`;
+    }
+    const parts = value.split('-');
+    if (parts.length === 3 && parts[0].length === 2) {
+      return `${parts[2]}-${parts[1]}-${parts[0]}`;
+    }
+    return value;
+  }
+
   private fillDevDefaults(): void {
 
     if (process.env.NODE_ENV == 'production') return;
@@ -661,31 +680,31 @@ matchRegisterImage = computed(() => {
       confirmPassword: 'Test1234',
     });
 
-    // Spouse (optional)
-    this.spouseForm.patchValue({
-      spouseFName: 'Uriah',
-      spouseLName: 'Harel',
-      spouseId: '987654321',
-      spouseEmail: 'spouse@example.com',
-      spousePhone: '0509876543',
-      spouseGender: 'female',
-    });
+    // // Spouse (optional)
+    // this.spouseForm.patchValue({
+    //   spouseFName: 'Uriah',
+    //   spouseLName: 'Harel',
+    //   spouseId: '987654321',
+    //   spouseEmail: 'spouse@example.com',
+    //   spousePhone: '0509876543',
+    //   spouseGender: 'female',
+    // });
 
-    // Children example
-    this.addChild(); // ensure at least one child form exists
-    this.childrenArray.at(0).patchValue({
-      childFName: 'Noam',
-      childLName: 'Harel',
-      childDate: '2020-01-01',
-    });
+    // // Children example
+    // this.addChild(); // ensure at least one child form exists
+    // this.childrenArray.at(0).patchValue({
+    //   childFName: 'Noam',
+    //   childLName: 'Harel',
+    //   childDate: '2020-01-01',
+    // });
 
-    // Business array example (if you use dynamic businesses)
-    if (this.businessArray && this.businessArray.length === 0) this.addBusiness();
-    this.businessArray.at(0).patchValue({
-      businessName: 'KeepInTax',
-      businessNumber: '555555555',
-      businessType: 'LICENSED',
-    });
+    // // Business array example (if you use dynamic businesses)
+    // if (this.businessArray && this.businessArray.length === 0) this.addBusiness();
+    // this.businessArray.at(0).patchValue({
+    //   businessName: 'KeepInTax',
+    //   businessNumber: '555555555',
+    //   businessType: 'LICENSED',
+    // });
   }
 
 }

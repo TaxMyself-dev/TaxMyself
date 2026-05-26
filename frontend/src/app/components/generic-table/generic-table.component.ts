@@ -1,5 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, effect, ElementRef, HostListener, inject, input, OnInit, output, signal, ViewChild, WritableSignal } from '@angular/core';
+import { MobileRowCardComponent } from 'src/app/components/mobile-row-card/mobile-row-card.component';
 import { ButtonModule } from 'primeng/button';
 import { ButtonGroupModule } from 'primeng/buttongroup';
 import { InputIcon } from 'primeng/inputicon';
@@ -11,14 +12,13 @@ import { InputGroupAddonModule } from 'primeng/inputgroupaddon';
 import { InputTextModule } from 'primeng/inputtext';
 import { ButtonComponent } from "../button/button.component";
 import { ButtonColor, ButtonSize } from '../button/button.enum';
-import { IColumnDataTable, IRowDataTable, ITableRowAction } from 'src/app/shared/interface';
+import { GenericService } from 'src/app/services/generic.service';
+import { IColumnDataTable, IMobileCardConfig, IRowDataTable, ITableRowAction } from 'src/app/shared/interface';
+import { FormTypes, ICellRenderer } from 'src/app/shared/enums';
 import { DateFormatPipe } from 'src/app/pipes/date-format.pipe';
 import { TruncatePointerDirective } from '../../directives/truncate-pointer.directive';
 import { HighlightPipe } from "../../pipes/high-light.pipe";
 import { animate, state, style, transition, trigger } from '@angular/animations';
-import { TransactionsService } from 'src/app/pages/transactions/transactions.page.service';
-import { catchError, EMPTY, finalize } from 'rxjs';
-import { ConfirmationService, MessageService } from 'primeng/api';
 
 
 @Component({
@@ -31,10 +31,16 @@ import { ConfirmationService, MessageService } from 'primeng/api';
       transition('void => visible', animate('400ms ease-out')),
       transition('visible => void', animate('200ms ease-in')),
     ]),
+    trigger('slideToggle', [
+      state('expanded', style({ height: '*', opacity: 1, overflow: 'hidden' })),
+      state('collapsed', style({ height: '0px', opacity: 0, overflow: 'hidden' })),
+      transition('expanded => collapsed', animate('300ms ease-in-out')),
+      transition('collapsed => expanded', animate('300ms ease-in-out')),
+    ]),
   ],
   templateUrl: './generic-table.component.html',
   styleUrls: ['./generic-table.component.scss'],
-  imports: [CommonModule, InputIcon, IconField, InputGroupModule, InputGroupAddonModule, InputTextModule, ButtonComponent, TableModule, TooltipModule, TruncatePointerDirective, HighlightPipe, ButtonModule, ButtonGroupModule, DateFormatPipe],
+  imports: [CommonModule, InputIcon, IconField, InputGroupModule, InputGroupAddonModule, InputTextModule, ButtonComponent, TableModule, TooltipModule, TruncatePointerDirective, HighlightPipe, ButtonModule, ButtonGroupModule, DateFormatPipe, MobileRowCardComponent],
   providers: [],
   changeDetection: ChangeDetectionStrategy.OnPush,
 
@@ -55,19 +61,18 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
     }
   }
 
-  messageService = inject(MessageService);
-  transactionService = inject(TransactionsService);
-  confirmationService = inject(ConfirmationService);
+  genericService = inject(GenericService);
   title = input<string>();
   fileActions = input<ITableRowAction[]>([]);
+  rowActions = input<ITableRowAction[]>([]);
   immediateActions = input<boolean>(true);
   filesAttached = input<Map<number, File>>(new Map());
-  immediateFileOperation = input<boolean>(false); // If true, file operations happen immediately
+  immediateFileOperation = input<boolean>(false);
   arrayFilters = input<any>();
   isLoadingState = input<boolean>(false);
+  useSyncState = input<boolean>(false);
+  processStatus = input<'running' | 'completed' | 'failed' | null>(null);
   incomeMode = input<boolean>(false);
-  // filterButtonDisplay = input<boolean>(false);
-  showButtons = input<boolean>(false);
   showCheckbox = input<boolean>(false);
   defaultSelectedValue = input<boolean>(false);
   columnSearch = input<string>('name');
@@ -76,37 +81,117 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   placeholderSearch = input<string>();
   dataTable = input<IRowDataTable[]>([]);
   columnsTitle = input<IColumnDataTable<TFormColumns, TFormHebrewColumns>[]>([]);
-  visibleAccountAssociationClicked = output<{ state: boolean, data: IRowDataTable }>();
-  visibleClassifyTranClicked = output<{ state: boolean, data: IRowDataTable, incomeMode: boolean }>();
-  // filters = output<FormGroup>();
+  mobileCardConfig = input<IMobileCardConfig>();
+  mobileCardActions = input<ITableRowAction[]>();
+  /** When true, negative `sum` (expenses) renders red and positive (income) green; expects `__sumNumeric` on rows. */
+  sumSignColors = input<boolean>(false);
+  /** When true, unlinked account column shows fixed "לא משוייך" in red (My Account unclassified). */
+  unassignedBillRed = input<boolean>(false);
+
+  rowBillUnassigned(row: IRowDataTable): boolean {
+    const b = row?.['billName'];
+    return !b || String(b).trim() === '' || b === 'לא שוייך';
+  }
   isAllChecked = output<boolean>();
   resetFilters = output<string>();
   rowsChecked = output<IRowDataTable[]>();
+  syncTriggered = output<void>();
   visibleFilterPannel = signal(false);
   visibleAccountAssociationDialog = signal(false);
   searchTerm = signal<string>('');
   isHovering = signal<number>(null);
   selectedTrans: IRowDataTable[] = [];
-  // isAllChecked = signal<boolean>(false);
+
+  // ─── Mobile checkbox selection (parallel to selectedTrans for desktop) ────
+  mobileSelectedRows = signal<IRowDataTable[]>([]);
+
+  mobileAllChecked = computed(() => {
+    const total = this.dataTable().length;
+    return total > 0 && this.mobileSelectedRows().length === total;
+  });
+
+  isMobileRowChecked(row: IRowDataTable): boolean {
+    return this.mobileSelectedRows().some(r => r['id'] === row['id']);
+  }
+
+  onMobileRowChecked(row: IRowDataTable, checked: boolean): void {
+    this.mobileSelectedRows.update(rows =>
+      checked
+        ? rows.some(r => r['id'] === row['id']) ? rows : [...rows, row]
+        : rows.filter(r => r['id'] !== row['id'])
+    );
+    this.isAllChecked.emit(this.mobileAllChecked());
+    this.rowsChecked.emit(this.mobileSelectedRows());
+  }
+
+  onMobileSelectAll(checked: boolean): void {
+    const rows = checked ? [...this.dataTable()] : [];
+    this.mobileSelectedRows.set(rows);
+    this.isAllChecked.emit(checked && rows.length > 0);
+    this.rowsChecked.emit(rows);
+  }
 
 
 
 
   readonly buttonSize = ButtonSize;
   readonly ButtonColor = ButtonColor;
+  /** Exposed for template: `col.type === FormTypes.DATE` alongside name-based date detection */
+  readonly FormTypes = FormTypes;
+  /** Exposed for template: enables `col.cellRenderer === ICellRenderer.X` checks. */
+  readonly ICellRenderer = ICellRenderer;
+
+  /**
+   * Picks the matching percent-field name for an AMOUNT_WITH_PERCENT cell.
+   * Convention: `totalVatPayable` → `vatPercent`, `totalTaxPayable` → `taxPercent`.
+   * Returns null when the column isn't one of those — caller falls back to plain text.
+   */
+  amountPercentField(colName: unknown): 'vatPercent' | 'taxPercent' | null {
+    if (colName === 'totalVatPayable') return 'vatPercent';
+    if (colName === 'totalTaxPayable') return 'taxPercent';
+    return null;
+  }
+
+  /**
+   * Display symbol for a currency code. Used by the SUM_WITH_FX renderer to
+   * suffix the original amount (e.g. "100 $"). Falls back to the raw code
+   * for currencies outside the supported set so the user still sees what
+   * was synced even if we don't have a glyph for it.
+   */
+  currencySymbol(code: string | null | undefined): string {
+    switch ((code ?? '').toUpperCase()) {
+      case 'USD': return '$';
+      case 'EUR': return '€';
+      case 'GBP': return '£';
+      case 'ILS': return '₪';
+      default:    return code ?? '';
+    }
+  }
+
+  /**
+   * Absolute value of `ilsAmount` for the SUM_WITH_FX renderer. The original
+   * amount (`row.sum`) is already displayed via `Math.abs` upstream and the
+   * sign is conveyed via row color, so the ILS parenthesis should match —
+   * showing the minus would be redundant.
+   */
+  absIls(value: number | string | null | undefined): number {
+    const n = value == null ? 0 : Number(value);
+    return isFinite(n) ? Math.abs(n) : 0;
+  }
 
 
   expandedRows = new Set<number>();
   hoverTimeout: any;
   hoveredRowInfo = signal<{ row: any, top: number } | null>(null);
   isRowHovered = signal<boolean>(false);
-  isLoadingQuickClassify = signal<boolean>(false);
   isFloatingHovered = signal<boolean>(false);
   isSlideIn = signal<boolean>(false);
 
-  onQuickClassifyClicked = output<boolean>();
+  fileChange = output<{ row: IRowDataTable, file?: File }>(); 
 
-  fileChange = output<{ row: IRowDataTable, file?: File }>();
+  effectiveIsLoading = computed(() =>
+    this.isLoadingState() || (this.useSyncState() && this.processStatus() === 'running')
+  );
 
   filteredDataTable = computed(() => {
     const data = this.dataTable();
@@ -120,6 +205,64 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
     return filter ? [filter] : [];
   });
 
+  isMobile = computed(() => this.genericService.isMobile());
+
+  // ─── Mobile filter summary ────────────────────────────────────────────────
+  filterSummaryExpanded = signal(false);
+
+  // ─── Mobile table section collapse/expand ────────────────────────────────
+  mobileTableExpanded = signal(true);
+
+  mobileTimeLabel = computed((): string => {
+    const f = this.arrayFilters();
+    if (!f?.periodType) return '';
+    const labels: Record<string, string> = {
+      MONTHLY:    'חודשי',
+      BIMONTHLY:  'דו חודשי',
+      ANNUAL:     'שנתי',
+      DATE_RANGE: 'טווח תאריכים',
+    };
+    return labels[f.periodType] ?? '';
+  });
+
+  mobileAccountLabel = computed((): string => {
+    const count = this.arrayFilters()?.account?.length ?? 0;
+    return count === 0 ? 'הכל' : `${count}`;
+  });
+
+  mobileCategoryLabel = computed((): string => {
+    const count = this.arrayFilters()?.category?.length ?? 0;
+    return count === 0 ? 'הכל' : `${count}`;
+  });
+
+  // null = field not present / no sources selected → hidden from summary
+  mobileSourcesLabel = computed((): string | null => {
+    const count = this.arrayFilters()?.sources?.length ?? 0;
+    return count === 0 ? null : `${count}`;
+  });
+
+  toggleFilterSummary(): void {
+    this.filterSummaryExpanded.update(v => !v);
+  }
+
+  toggleMobileSection(): void {
+    this.mobileTableExpanded.update(v => !v);
+  }
+
+  /** Returns rowActions filtered by showWhen for the given row. */
+  getRowActions(row: IRowDataTable): ITableRowAction[] {
+    if (!row) return [];
+    return this.rowActions().filter(a => !a.showWhen || a.showWhen(row));
+  }
+
+  /** Actions passed to a mobile card: mobileCardActions override takes priority,
+   *  otherwise use the row-filtered rowActions. */
+  mobileActionsForRow(row: IRowDataTable): ITableRowAction[] {
+    const override = this.mobileCardActions();
+    if (override?.length) return override;
+    return this.getRowActions(row);
+  }
+
 
 
   constructor() {
@@ -130,10 +273,11 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   }
 
   ngOnInit() {
-
     if (this.defaultSelectedValue()) {
-      this.selectedTrans = [...this.dataTable()];
-      this.rowsChecked.emit(this.selectedTrans);
+      const allRows = [...this.dataTable()];
+      this.selectedTrans = allRows;
+      this.mobileSelectedRows.set(allRows);
+      this.rowsChecked.emit(allRows);
     }
   }
 
@@ -230,6 +374,11 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
     this.resetFilters.emit(event);
   }
 
+  triggerFullSync(): void {
+    // Delegate: emit to parent, who owns the sync trigger and polling lifecycle.
+    this.syncTriggered.emit();
+  }
+
   onSelectionChange(event: any) {
     this.isAllChecked.emit(this.selectedTrans.length === this.dataTable().length);
     this.rowsChecked.emit(this.selectedTrans);
@@ -319,22 +468,8 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   //   this.visibleAccountAssociationDialog.set(true);
   // }
 
-  close(): void {
-    console.log('close');
-    this.visibleAccountAssociationDialog.set(false);
-
-  }
-
-  onVisibleAccountAssociationClicked(row: IRowDataTable): void {
-    console.log('row in onVisibleAccountAssociationClicked:', row);
-    console.log('event in onVisibleAccountAssociationClicked:', true);
-
-    console.log('onVisibleAccountAssociationClicked');
-    this.visibleAccountAssociationClicked.emit({ state: true, data: row });
-  }
-
-  onVisibleClassifyTranClicked(row: IRowDataTable): void {
-    this.visibleClassifyTranClicked.emit({ state: true, data: row, incomeMode: this.incomeMode() });
+  onCardActionClicked(event: { action: ITableRowAction; row: IRowDataTable }): void {
+    event.action.action(undefined, event.row);
   }
 
   // applyFilters(filters: FormGroup): void {
@@ -342,38 +477,6 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   //   this.visibleFilterPannel.set(false);
   //   this.filters.emit(filters);
   // }
-
-  quickClassify(row: IRowDataTable): void {
-    this.isLoadingQuickClassify.set(true);
-    this.transactionService.quickClassify(row.id as number)
-      .pipe(
-        catchError((err) => {
-          console.log("error in quick classify", err);
-          this.messageService.add({
-            severity: 'error',
-            summary: 'Error',
-            detail: "סיווג ההוצאה נכשל אנא נסה/י שנית",
-            sticky: true,
-            life: 3000,
-            key: 'br'
-          })
-          return EMPTY;
-        }),
-        finalize(() => {
-          this.isLoadingQuickClassify.set(false);
-        })
-      )
-      .subscribe(() => {
-        this.onQuickClassifyClicked.emit(true);
-        this.messageService.add({
-          severity: 'success',
-          summary: 'Success',
-          detail: "סיווג מהיר הצליח",
-          life: 3000,
-          key: 'br'
-        })
-      });
-  }
 
   onFileChange(event: Event, row?: IRowDataTable) {
     const input = event.target as HTMLInputElement;
@@ -395,7 +498,7 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
 
   getFileName(row?: IRowDataTable): string {
     if (!row) return 'קובץ מצורף';
-    
+
     // First check if there's a newly attached file in the map
     const attachedFile = this.filesAttached().get(row.id as number);
     if (attachedFile) {
@@ -431,22 +534,12 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
 
   hasFileAttached(row?: IRowDataTable): boolean {
     if (!row) return false;
-    
+
     const hasInMap = this.filesAttached().has(row.id as number);
     const hasCount = row['attachmentCount'] && Number(row['attachmentCount']) > 0;
     const result = hasInMap || hasCount;
     // console.log(`hasFileAttached for row ${row.id}:`, { hasInMap, hasCount, result, mapSize: this.filesAttached().size });
     return result;
-  }
-
-  isBillNotAssociated(row?: IRowDataTable): boolean {
-    if (!row) return false;
-    return row['billName'] === 'לא שוייך';
-  }
-
-  isBillAssociated(row?: IRowDataTable): boolean {
-    if (!row) return false;
-    return row['billName'] !== 'לא שוייך';
   }
 
   getCurrentRow(): IRowDataTable | undefined {
@@ -459,8 +552,9 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
 
   shouldShowAction(action: ITableRowAction): boolean {
     if (!action.alwaysShow) return false;
+    const row = this.hoveredRowInfo()?.row;
+    if (action.showWhen && row && !action.showWhen(row)) return false;
     if (action.name === 'close') {
-      const row = this.hoveredRowInfo()?.row;
       if (row && row['docStatus']?.toUpperCase() === 'CLOSE') {
         return false;
       }
@@ -470,8 +564,9 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
 
   shouldShowFileAction(action: ITableRowAction): boolean {
     if (action.alwaysShow) return false;
+    const row = this.hoveredRowInfo()?.row;
+    if (action.showWhen && row && !action.showWhen(row)) return false;
     if (action.name === 'close') {
-      const row = this.hoveredRowInfo()?.row;
       if (row && row['docStatus']?.toUpperCase() === 'CLOSE') {
         return false;
       }

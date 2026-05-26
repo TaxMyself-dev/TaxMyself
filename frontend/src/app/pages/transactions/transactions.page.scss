@@ -20,6 +20,7 @@
   overflow-y: auto;
   /* vertical scroll when needed */
   padding-bottom: 75px;
+  padding-top: 50px;
   align-items: center;
 }
 
@@ -29,7 +30,7 @@
   color: #363636;
   margin: 0;
   align-self: baseline;
-  margin-right: 16px;
+  margin-right: 48px;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -46,7 +47,7 @@
 }
 
 .table-wrap {
-  width: 98%;
+  width: 94%;
 }
 
 .image-bunner {
@@ -66,8 +67,18 @@
 
 .filter-panel-container {
   position: absolute;
-  left: 450px;
+  right: 0;
+  left: auto;
   top: 54px;
+}
+
+@media (max-width: 768px) {
+  // RTL: anchor container to right so the panel opens leftward into the screen.
+  .filter-panel-container {
+    right: 0;
+    left: auto;
+    top: 44px;
+  }
 }
 
 .open-filter-panel {

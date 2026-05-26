@@ -1,0 +1,48 @@
+flowchart TB
+    Start([Synced transaction in cache<br/>not classified yet])
+
+    Start ==> S1
+    S1[/"Screen: Transactions page<br/>row → 'סווג תנועה' → classify dialog opens"/]
+
+    S1 ==> Q1
+    Q1{"Junction 1<br/>Classify as ONE_TIME or as RULE?<br/>(isSingleUpdate checkbox)"}
+
+    Q1 -->|ONE_TIME| W1A[slim row written<br/>classificationType=ONE_TIME<br/>applies to this row only]
+    Q1 -->|RULE| W1B[slim row + classified_transactions rule<br/>classificationType=RULE<br/>+ backfill to other matching rows]
+
+    W1A ==> Q2
+    W1B ==> Q2
+    Q2{"Junction 2<br/>isRecognized?<br/>default from subcategory<br/>user can toggle in ONE_TIME"}
+
+    Q2 -->|no| T1([Classified, NOT recognized<br/>won't enter any tax/VAT report<br/>STAYS HERE])
+    Q2 -->|yes| W2[Eligible for the expense ledger]
+
+    W2 ==> S2
+    S2[/"Screen: VAT Report page<br/>click 'הצג' → confirm-trans-dialog appears"/]
+
+    S2 ==> Q3
+    Q3{"Junction 3<br/>Confirm by clicking 'אישור והמשך'?"}
+
+    Q3 -->|no| T2([Row stays in confirm queue<br/>reappears next time the user clicks 'הצג'<br/>STAYS HERE])
+    Q3 -->|yes| W3[Expense row INSERTED into expenses table<br/>slim.confirmed = true<br/>row included in VAT report totals]
+
+    W3 ==> S3
+    S3[/"Screen: Tasks page<br/>workflow task card"/]
+
+    S3 ==> Q4
+    Q4{"Junction 4<br/>Mark the task as REPORTED?"}
+
+    Q4 -->|no| T3([In ledger, in calculations<br/>still editable<br/>STAYS HERE])
+    Q4 -->|yes| W4[LOCKED<br/>Expense.isReported = true<br/>slim.vatReportingDate = period<br/>row cannot be edited anymore]
+
+    classDef screen fill:#cfe2ff,stroke:#084298,color:#000,stroke-width:2px
+    classDef junction fill:#fff3cd,stroke:#856404,color:#000
+    classDef write fill:#d1e7dd,stroke:#0f5132,color:#000
+    classDef terminal fill:#f5f5f5,stroke:#808080,color:#666
+    classDef locked fill:#f8d7da,stroke:#842029,color:#000,stroke-width:2px
+
+    class S1,S2,S3 screen
+    class Q1,Q2,Q3,Q4 junction
+    class W1A,W1B,W2,W3 write
+    class T1,T2,T3 terminal
+    class W4 locked

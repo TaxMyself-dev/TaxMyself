@@ -6,13 +6,13 @@ export interface ICreateDocSectionData {
     key: SectionKeysEnum;
     baseFields: FieldsCreateDocValue[] | fieldLineDocValue[];
     expandable: boolean;
-    expandedFields: FieldsCreateDocValue[] | fieldLineDocValue[]; 
+    expandedFields: FieldsCreateDocValue[] | fieldLineDocValue[];
 }
 
-export type SectionKeysEnum = 'GeneralDetails' | 'ReceiptPaymentDetails' | 'TaxInvoicePaymentDetails' | 'UserDetails' | 'Document Summary' | 'LineDetails' | 'BANK_TRANSFER' | 'CREDIT_CARD' | 'APP' | 'CHECK' | 'CASH' ;
+export type SectionKeysEnum = 'GeneralDetails' | 'ReceiptPaymentDetails' | 'TaxInvoicePaymentDetails' | 'UserDetails' | 'Document Summary' | 'LineDetails' | 'BANK_TRANSFER' | 'CREDIT_CARD' | 'APP' | 'CHECK' | 'CASH';
 
 export interface IDocCreateFieldData extends IBaseFieldData {
-    editFormBasedOnValue: { [key: string]: FieldsCreateDocName[] | fieldLineDocValue[]};  
+    editFormBasedOnValue: { [key: string]: FieldsCreateDocName[] | fieldLineDocValue[] };
 }
 
 export interface ILineItemColumn {
@@ -20,6 +20,7 @@ export interface ILineItemColumn {
     dataField: string;      // Field name in line item data (e.g., 'vatOpts')
     header: string;         // Display header
     excludeForReceipt?: boolean; // If true, this column is hidden for receipts
+    required?: boolean; // If true, this column is required
 }
 
 export interface ISummaryItem {
@@ -29,7 +30,7 @@ export interface ISummaryItem {
     excludeForReceipt?: boolean; // If true, this item is hidden for receipts
 }
 
-export interface IClient extends IRowDataTable{
+export interface IClient extends IRowDataTable {
     name: string;
     phone?: string;
     email?: string;

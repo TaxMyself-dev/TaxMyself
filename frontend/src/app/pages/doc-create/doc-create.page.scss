@@ -5,16 +5,158 @@
   width: 100%;
   overflow: auto;
   align-items: center;
+  padding-right: 20px;
+}
+
+.withholding-tax-container {
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+}
+
+.withholding-tax-link {
+  color: #007bff;
+  cursor: pointer;
+  text-decoration: none;
+  font-size: 1rem;
+  display: inline-block;
+  transition: color 0.2s ease;
+
+  &:hover {
+    color: #0056b3;
+    text-decoration: underline;
+  }
+
+  &.expanded {
+    margin-bottom: 1rem;
+  }
+}
+
+.withholding-tax-input {
+  margin-top: 1rem;
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.allocation-loading-content {
+  text-align: center;
+  padding: 2rem;
+}
+
+.allocation-loading-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.allocation-spinner {
+  width: 50px;
+  height: 50px;
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid #007bff;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  display: block;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+// Ensure animation works inside PrimeNG dialog (using ::ng-deep to penetrate view encapsulation)
+::ng-deep .p-dialog-content {
+  .allocation-loading-content {
+    text-align: center;
+    padding: 2rem;
+  }
+
+  .allocation-loading-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.5rem;
+  }
+
+  .allocation-spinner {
+    width: 50px !important;
+    height: 50px !important;
+    border: 4px solid #f3f3f3 !important;
+    border-top: 4px solid #007bff !important;
+    border-radius: 50% !important;
+    animation: spin 1s linear infinite !important;
+    display: block !important;
+    flex-shrink: 0;
+    box-sizing: border-box;
+  }
+
+  .allocation-loading-text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .allocation-loading-title {
+    font-size: 1.1rem;
+    color: #333;
+    margin: 0;
+  }
+
+  .allocation-loading-subtitle {
+    font-size: 0.9rem;
+    color: #666;
+    margin: 0;
+  }
+}
+
+.allocation-loading-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.allocation-loading-title {
+  font-size: 1.1rem;
+  color: #333;
+  margin: 0;
+}
+
+.allocation-loading-subtitle {
+  font-size: 0.9rem;
+  color: #666;
+  margin: 0;
 }
 
 .page-wrapper {
   flex: 1 1 auto;
   height: 100%;
   width: 98%;
-  // display: flex;
-  // flex-direction: column;
-  // justify-content: flex-start;
 }
+
+.header-content {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-top: 20px;
+  align-self: baseline;
+}
+
+.text h3 {
+  margin: 0;
+  font-weight: 700;
+}
+
+.text p {
+  margin: 0;
+  // color: var(--text-color-secondary);
+  color: #898585;
+}
+
 
 .section {
   display: flex;
@@ -29,6 +171,7 @@
 
 .general-fields {
   display: flex;
+  flex-wrap: wrap;
   flex-direction: column;
   width: 100%;
   gap: 10px;
@@ -49,6 +192,12 @@
   row-gap: 30px;
 }
 
+.line-details-header {
+  width: 100%;
+  padding-right: 20px;
+  margin-bottom: 16px;
+}
+
 .table-wrapper {
   width: 100%;
 }
@@ -60,10 +209,10 @@
   align-items: center;
 }
 
-.fields-header {
-  font-size: 14px;
-  font-weight: 400;
-  color: #666;
+.header-payment-table {
+  font-size: 16px;
+  font-weight: 600;
+  color: gray;
   margin-bottom: 0;
   margin-top: 3px;
 }
@@ -82,6 +231,14 @@
 .plus-minus {
   border: solid 1px #ccc;
 }
+
+.sum-input {
+  border: solid 1px #ccc;
+}
+
+// ::ng-deep .p-inputtext {
+//   padding-inline: 1rem !important;
+// }
 
 .gender-options-row {
   display: flex;
@@ -167,7 +324,7 @@
   position: relative;
 }
 
-.text-header {
+.sub-title {
   font-size: 18px;
   color: #666;
   margin-top: 3px;
@@ -193,12 +350,35 @@
   flex-direction: column;
 }
 
+.required {
+  color: red;
+}
+
 .inputs-container {
   display: flex;
 }
 
 .wrap-amount {
   display: flex;
+}
+
+.email-checkbox-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+
+  .checkbox-label {
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .email-warning {
+    color: #f44336;
+    font-size: 12px;
+    margin-right: 8px;
+  }
 }
 
 .buttons-container {
@@ -221,7 +401,7 @@
 
 .values-summary {
   margin-left: 50px;
-  
+
   // Fix minus sign position in summary values
   .content-summary {
     direction: ltr;
@@ -231,20 +411,30 @@
 
 .error-text {
   color: red;
-}// Fix minus sign position in line items table
+}
+
+.error-difference,
+.error-difference * {
+  color: red;
+}
+
+// Fix minus sign position in line items table
 .line-items-table {
+
   // Target cells that contain currency/number values
   ::ng-deep td {
+
     // For cells containing sum or total values
     &:has(span:contains('₪')) {
       direction: ltr;
       text-align: right;
     }
   }
-  
+
   // Alternative: target specific columns by their content
   ::ng-deep p-table {
     td {
+
       // Apply LTR direction to numeric columns (sum, total, discount)
       &:nth-child(n) {
         // Check if content starts with minus or contains currency
@@ -269,7 +459,7 @@
   }
 
   .fields-header,
-  .text-header {
+  .sub-title {
     color: #d1d5db;
   }
 
@@ -311,14 +501,16 @@
     }
   }
 }
+
 // Better approach: add a class to numeric cells in the template
 // Or use this CSS to target cells with currency pipe output
 .line-items-table ::ng-deep {
+
   // PrimeNG table cells with currency values
   td {
     direction: ltr;
     text-align: right;
-    
+
     // Keep RTL for description and actions columns
     &:first-child,
     &:last-child {
@@ -328,3 +520,174 @@
   }
 }
 
+
+
+
+// ====================================================================
+
+/* Container של שורת ההזנה */
+.line-entry {
+  width: 100%;
+}
+
+/* "כותרת" לדסקטופ */
+.line-entry__header {
+  display: grid;
+  grid-template-columns: 1.9fr 0.9fr 0.9fr 1.6fr 0.9fr 0.9fr;
+  /* תתאים לפי העמודות אצלך */
+  gap: 0.75rem;
+  align-items: center;
+  color: gray;
+  border-bottom: 1px solid #EBEBEB;
+  padding-bottom: 5px;
+  margin-bottom: 10px;
+}
+
+.line-entry__row {
+  display: grid;
+  grid-template-columns: 1.9fr 0.9fr 0.9fr 1.6fr 0.9fr 0.9fr;
+  /* חייב להיות זהה ל-header */
+  gap: 0.75rem;
+  align-items: center;
+  border-bottom: 1px solid #EBEBEB;
+  padding-bottom: 10px;
+}
+
+.line-entry__cell {
+  min-width: 0;
+  /* חשוב כדי למנוע overflow */
+}
+
+.line-entry__cell--head {
+  font-weight: 600;
+}
+
+.req {
+  color: red;
+  margin-right: 4px;
+}
+
+/* label במובייל בלבד */
+.line-entry__label {
+  display: none;
+  font-weight: 600;
+  opacity: 0.85;
+  margin-bottom: 6px;
+  width: fit-content;
+
+}
+
+/* פעולות */
+.line-entry__actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+/* כוחות רוחב מלא לאינפוטים */
+.line-entry app-input-text,
+.line-entry app-input-select,
+.line-entry app-input-date {
+  display: block;
+  width: 100%;
+}
+
+// .line-entry :where(.p-inputnumber, .p-inputtext, .p-dropdown) {
+//   width: 100%;
+// }
+
+/* ------ מובייל ------ */
+@media (max-width: 768px) {
+
+  .wrapper-sections {
+    align-items: center;
+    display: flex;
+    flex-direction: column;
+    margin-top: 30px;
+    // Account for fixed bars + system safe area at bottom
+    padding-bottom: calc(140px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .section {
+    border: solid 1px #EBEBEB;
+    padding-right: 16px;
+    padding-top: 16px;
+    border-radius: 4px;
+    width: 90%;
+  }
+
+  :host {
+    padding-right: 0px;
+  }
+
+  .buttons-container {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    // Extend height to cover the system safe area below
+    height: calc(50px + env(safe-area-inset-bottom, 0px));
+    // Push button content up, above the system gesture/nav bar
+    padding: 0 0 env(safe-area-inset-bottom, 0px) 20px;
+    box-sizing: border-box;
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.08);
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-direction: row;
+    gap: 12px;
+    z-index: 15;
+  }
+
+  .buttons-container app-p-button {
+    width: 100%;
+  }
+
+  /* אין כותרת במובייל */
+  .line-entry__header {
+    display: none;
+  }
+
+  /* הופכים את השורה לכרטיס/stack */
+  .line-entry__row {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+
+    // border: 1px solid #ebebeb;
+    // border-radius: 8px;
+    padding: 12px;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .line-entry__cell {
+    width: 100%;
+  }
+
+  .line-entry__label {
+    display: block;
+  }
+
+  /* רדיו מע״מ לרוב עדיף שיהיה שורה-שורה במובייל */
+  .gender-options-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  /* כפתורי action נוחים במובייל */
+  .line-entry__actions {
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  /* מונע overflow אופקי מכל דבר בפנים */
+  .line-entry,
+  .line-entry * {
+    max-width: 100%;
+  }
+}

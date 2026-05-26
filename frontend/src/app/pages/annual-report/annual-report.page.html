@@ -1,6 +1,278 @@
-<!-- <app-custom-toolbar></app-custom-toolbar> -->
+<p-toast key="br"></p-toast>
+<p-confirmDialog></p-confirmDialog>
 
+<div class="annual-report-page">
+  <header class="page-header">
+    <div class="header-left">
+      <h1 class="page-title">דוח שנתי</h1>
+      @if (report()) {
+        <span class="status-pill" [class]="'status-' + report()!.status">
+          {{ statusLabel(report()!.status) }}
+        </span>
+      }
+    </div>
+    <div class="year-selector">
+      <label class="filter-label">שנת מס</label>
+      <select
+        class="form-input form-select"
+        [ngModel]="taxYear()"
+        (ngModelChange)="onYearChange($event)"
+      >
+        @for (y of availableYears(); track y) {
+          <option [ngValue]="y">{{ y }}</option>
+        }
+      </select>
+    </div>
+  </header>
 
-<ion-content [fullscreen]="true">
-  
-</ion-content>
+  @if (loading()) {
+    <p class="loading-text">טוען...</p>
+  } @else if (!report()) {
+    <p class="empty-text">לא ניתן לטעון את הדוח</p>
+  } @else {
+    <!-- ============== WAITING_FOR_DOCS — wizard ============== -->
+    @if (report()!.status === AnnualReportStatus.WAITING_FOR_DOCS) {
+      <nav class="wizard-tabs">
+        <button
+          type="button"
+          class="wizard-tab"
+          [class.active]="currentStep() === 'questions'"
+          (click)="goToStep('questions')"
+        >
+          1. שאלון
+        </button>
+        <button
+          type="button"
+          class="wizard-tab"
+          [class.active]="currentStep() === 'docs'"
+          [disabled]="!allAnswered()"
+          (click)="goToStep('docs')"
+        >
+          2. מסמכים
+        </button>
+      </nav>
+
+      @if (currentStep() === 'questions') {
+        <section class="wizard-section">
+          <p class="section-intro">ענו על השאלות הבאות כדי שנדע אילו מסמכים צריך להעלות.</p>
+          @for (q of visibleQuestions(); track q.id) {
+            <div class="question-row">
+              <p class="question-label">{{ q.label }}</p>
+              @if (q.type === 'boolean') {
+                <div class="answer-buttons">
+                  <button
+                    type="button"
+                    class="answer-btn"
+                    [class.selected]="answers()[q.id] === true"
+                    (click)="setAnswer(q.id, true)"
+                  >
+                    כן
+                  </button>
+                  <button
+                    type="button"
+                    class="answer-btn"
+                    [class.selected]="answers()[q.id] === false"
+                    (click)="setAnswer(q.id, false)"
+                  >
+                    לא
+                  </button>
+                </div>
+              } @else {
+                <input
+                  type="number"
+                  class="form-input numeric-answer"
+                  min="1"
+                  step="1"
+                  [ngModel]="answerOf(q.id)"
+                  (ngModelChange)="setNumericAnswer(q.id, $event)"
+                  placeholder="הזן מספר"
+                />
+              }
+            </div>
+          }
+          <div class="step-actions">
+            <app-p-button
+              [buttonText]="'המשך לשלב המסמכים'"
+              [buttonColor]="ButtonColor.BLACK"
+              [buttonSize]="ButtonSize.SMALL"
+              [disabled]="!allAnswered() || busy()"
+              [isLoading]="busy()"
+              (onButtonClicked)="saveAnswersAndProceed()"
+            />
+          </div>
+        </section>
+      }
+
+      @if (currentStep() === 'docs') {
+        <section class="wizard-section">
+          @if (requiredCategories().length === 0) {
+            <p class="empty-text">לא נדרשים מסמכים נוספים על סמך תשובותיך.</p>
+          } @else {
+            <p class="section-intro">העלו את המסמכים הבאים. כשסיימתם, לחצו על "סיום".</p>
+            @for (req of requiredCategories(); track req.category) {
+              <div class="doc-row">
+                <div class="doc-row-header">
+                  <span class="doc-category">
+                    {{ categoryLabel(req.category) }}
+                    @if (req.minCount > 1) {
+                      <span class="doc-required-count">(נדרש {{ req.minCount }})</span>
+                    }
+                  </span>
+                  @if ((filesByCategory()[req.category]?.length ?? 0) >= req.minCount) {
+                    <span class="doc-status doc-status-uploaded">
+                      הועלה {{ filesByCategory()[req.category]?.length ?? 0 }} / {{ req.minCount }}
+                    </span>
+                  } @else {
+                    <span class="doc-status doc-status-missing">
+                      חסר {{ filesByCategory()[req.category]?.length ?? 0 }} / {{ req.minCount }}
+                    </span>
+                  }
+                </div>
+                @if (filesByCategory()[req.category]?.length) {
+                  <ul class="doc-files">
+                    @for (f of filesByCategory()[req.category]; track f.id) {
+                      <li class="doc-file-item">
+                        <button type="button" class="link-btn" (click)="previewFile(f)" title="תצוגה מקדימה">
+                          <i class="pi pi-file"></i>
+                          {{ f.fileName }}
+                        </button>
+                        <div class="file-actions">
+                          <button
+                            type="button"
+                            class="btn-file-action"
+                            (click)="downloadFile(f)"
+                            title="הורד"
+                            aria-label="הורד"
+                          >
+                            <i class="pi pi-download"></i>
+                          </button>
+                          <button
+                            type="button"
+                            class="btn-delete-file"
+                            (click)="confirmRemoveFile(f)"
+                            title="הסר"
+                            aria-label="הסר"
+                          >
+                            <i class="pi pi-trash"></i>
+                          </button>
+                        </div>
+                      </li>
+                    }
+                  </ul>
+                }
+                <label class="upload-label">
+                  <input
+                    type="file"
+                    accept=".pdf,.png,.jpg,.jpeg"
+                    (change)="onFilePicked($event, req.category)"
+                    [disabled]="busy()"
+                  />
+                  <span class="upload-cta">
+                    <i class="pi pi-upload"></i>
+                    בחר קובץ
+                  </span>
+                </label>
+              </div>
+            }
+          }
+
+          <div class="step-actions step-actions-row">
+            <app-p-button
+              [buttonText]="'חזור לשאלון'"
+              [buttonColor]="ButtonColor.WHITE_BORDER"
+              [buttonSize]="ButtonSize.SMALL"
+              (onButtonClicked)="goToStep('questions')"
+            />
+            <app-p-button
+              [buttonText]="'סיום ושליחה להכנה'"
+              [buttonColor]="ButtonColor.BLACK"
+              [buttonSize]="ButtonSize.SMALL"
+              [disabled]="!canFinish() || busy()"
+              [isLoading]="busy()"
+              (onButtonClicked)="finish()"
+            />
+          </div>
+
+          @if (missingCategories().length > 0) {
+            <p class="missing-hint">
+              חסרים מסמכים: {{ missingCategories().length }}
+            </p>
+          }
+        </section>
+      }
+    }
+
+    <!-- ============== READY_TO_PREPARE / REPORTED — review ============== -->
+    @if (report()!.status !== AnnualReportStatus.WAITING_FOR_DOCS) {
+      <section class="wizard-section">
+        @if (report()!.status === AnnualReportStatus.READY_TO_PREPARE) {
+          <p class="section-intro">
+            הדוח נשלח להכנה{{ report()!.finishedAt ? ' בתאריך ' + (report()!.finishedAt | date:'dd/MM/yyyy') : '' }}.
+            @if (isAccountantView()) {
+              לאחר ההגשה לרשות המסים יש לסמן את הדוח כדווח.
+            } @else {
+              רואה החשבון יקבל את כל המסמכים ויטפל בדוח.
+            }
+          </p>
+        } @else if (report()!.status === AnnualReportStatus.REPORTED) {
+          <p class="section-intro success-intro">
+            <i class="pi pi-check-circle"></i>
+            הדוח דווח{{ report()!.reportedAt ? ' בתאריך ' + (report()!.reportedAt | date:'dd/MM/yyyy') : '' }}.
+          </p>
+        }
+
+        <h3 class="files-section-title">מסמכים שהועלו</h3>
+        @if ((report()!.files?.length ?? 0) === 0) {
+          <p class="empty-text">לא הועלו מסמכים</p>
+        } @else {
+          <ul class="doc-files">
+            @for (f of report()!.files; track f.id) {
+              <li class="doc-file-item">
+                <span class="doc-file-cat">{{ categoryLabel(f.category) }}</span>
+                <button type="button" class="link-btn" (click)="previewFile(f)" title="תצוגה מקדימה">
+                  <i class="pi pi-file"></i>
+                  {{ f.fileName }}
+                </button>
+                <div class="file-actions">
+                  <button
+                    type="button"
+                    class="btn-file-action"
+                    (click)="downloadFile(f)"
+                    title="הורד"
+                    aria-label="הורד"
+                  >
+                    <i class="pi pi-download"></i>
+                  </button>
+                </div>
+              </li>
+            }
+          </ul>
+        }
+
+        @if (isAccountantView()) {
+          <div class="step-actions step-actions-row">
+            @if (report()!.status === AnnualReportStatus.READY_TO_PREPARE) {
+              <app-p-button
+                [buttonText]="'סמן כדווח'"
+                [buttonColor]="ButtonColor.BLACK"
+                [buttonSize]="ButtonSize.SMALL"
+                [disabled]="busy()"
+                [isLoading]="busy()"
+                (onButtonClicked)="setReported(true)"
+              />
+            } @else {
+              <app-p-button
+                [buttonText]="'בטל סימון דווח'"
+                [buttonColor]="ButtonColor.WHITE_BORDER"
+                [buttonSize]="ButtonSize.SMALL"
+                [disabled]="busy()"
+                [isLoading]="busy()"
+                (onButtonClicked)="setReported(false)"
+              />
+            }
+          </div>
+        }
+      </section>
+    }
+  }
+</div>

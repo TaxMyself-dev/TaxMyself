@@ -23,6 +23,18 @@ import { TabMenuModule } from 'primeng/tabmenu';
 import { TableModule } from 'primeng/table';
 import { DocSuccessDialogComponent } from 'src/app/components/create-doc-success-dialog/create-doc-success-dialog.component';
 import { InputAutoCompleteComponent } from "src/app/components/input-autoComplete/input-autoComplete.component";
+import { ShaamInvoiceApprovalDialogComponent } from 'src/app/components/shaam-invoice-approval-dialog/shaam-invoice-approval-dialog.component';
+import { ToastModule } from 'primeng/toast';
+import { ConfirmationService, MessageService } from 'primeng/api';
+import { ConfirmDialog } from 'primeng/confirmdialog';
+import { CheckboxModule } from 'primeng/checkbox';
+import { Card } from "primeng/card";
+import { Avatar } from "primeng/avatar";
+import { SelectButton } from "primeng/selectbutton";
+import { DocCreateItemsMobileComponent } from 'src/app/components/doc-create-items-mobile/doc-create-items-mobile.component';
+import { SegmentedControlComponent } from 'src/app/components/segmented-control/segmented-control.component';
+import { ItemsTotalSummaryComponent } from 'src/app/components/items-total-summary/items-total-summary.component';
+import { DocCreatePaymentsMobileComponent } from 'src/app/components/doc-create-payments-mobile/doc-create-payments-mobile.component';
 
 
 @NgModule({
@@ -45,10 +57,21 @@ import { InputAutoCompleteComponent } from "src/app/components/input-autoComplet
     TabMenuModule,
     TableModule,
     DocSuccessDialogComponent,
-    InputAutoCompleteComponent
-],
-  declarations: [DocCreatePage, ],
-  providers: [DialogService]
+    InputAutoCompleteComponent,
+    ShaamInvoiceApprovalDialogComponent,
+    ToastModule,
+    ConfirmDialog,
+    CheckboxModule,
+    Card,
+    Avatar,
+    SelectButton,
+    DocCreateItemsMobileComponent,
+    SegmentedControlComponent,
+    ItemsTotalSummaryComponent,
+    DocCreatePaymentsMobileComponent,
+  ],
+  declarations: [DocCreatePage,],
+  providers: [DialogService, ConfirmationService, MessageService]
 })
-export class DocCreatePageModule {}
+export class DocCreatePageModule { }
 

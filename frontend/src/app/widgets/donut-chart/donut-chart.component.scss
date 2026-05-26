@@ -1,0 +1,99 @@
+.donut-widget {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 72px;
+  }
+  
+  .legend {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 34px;
+  }
+
+  .legend-column {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+  
+//   .legend-item {
+//     display: grid;
+//     grid-template-columns: auto 2px 1fr;
+//     align-items: center;
+//     column-gap: 10px;
+//   }
+  
+//   .legend-value {
+//     font-size: 20px;
+//     color: #8b8b8b;
+//     text-align: left;
+//   }
+
+.legend-item {
+    display: grid;
+    grid-template-columns: 120px 2px 1fr;
+    align-items: center;
+    column-gap: 10px;
+    height: 54px;
+  }
+
+  .legend-value {
+    width: 120px;
+    text-align: left;
+    font-size: 16px;
+    color: #8b8b8b;
+    direction: ltr;
+    unicode-bidi: isolate;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  .legend-line {
+    width: 2px;
+    height: 32px;
+    border-radius: 8px;
+  }
+  
+  .legend-label {
+    font-size: 16px;
+    color: #8b8b8b;
+    white-space: nowrap;
+    font-weight: 600;
+  }
+  
+  .chart-wrap {
+    position: relative;
+    width: 260px;
+    height: 260px;
+  }
+  
+  .donut-chart {
+    width: 100%;
+    height: 100%;
+  }
+  
+  .center-label {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+  }
+  
+  .total {
+    font-size: 30px;
+    font-weight: 500;
+    color: #333;
+  }
+  
+  .subtitle {
+    margin-top: 6px;
+    font-size: 13px;
+    color: #777;
+  }

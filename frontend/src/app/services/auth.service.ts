@@ -2,10 +2,10 @@ import { Injectable, NgZone, signal } from '@angular/core';
 import { AngularFirestore } from '@angular/fire/compat/firestore';
 import { AngularFireAuth } from '@angular/fire/compat/auth';
 import { Router } from '@angular/router';
-import { Observable, catchError, from, switchMap, EMPTY, tap, BehaviorSubject, finalize, throwError } from 'rxjs';
+import { Observable, catchError, firstValueFrom, from, switchMap, EMPTY, tap, BehaviorSubject, finalize, throwError } from 'rxjs';
 import { HttpClient } from '@angular/common/http';
 import { UserCredential } from '@firebase/auth-types';
-import { sendEmailVerification } from '@angular/fire/auth';
+import { GoogleAuthProvider, sendEmailVerification } from '@angular/fire/auth';
 import { environment } from 'src/environments/environment';
 import { ExpenseDataService } from './expense-data.service';
 import { GenericService } from './generic.service';
@@ -18,6 +18,8 @@ export class AuthService {
 
   token: string;
   private userDetails: IUserData = null;
+  /** כשהרואה חשבון צופה בלקוח – נתוני הלקוח (לא נשמר ב-localStorage) */
+  private viewAsUserData: IUserData | null = null;
   private refreshInterval: any;
   private tokenListenerInitialized = false; // Ensure the listener is initialized only once
 
@@ -37,7 +39,7 @@ export class AuthService {
   public isToastOpen$ = new BehaviorSubject<boolean>(false);
   public tokenRefreshed$ = new BehaviorSubject<string | null>(null);
 
-private activeBusinessNumberSig = signal<string | null>(null);
+  private activeBusinessNumberSig = signal<string | null>(null);
 
   setActiveBusinessNumber(bn: string | null) {
     this.activeBusinessNumberSig.set(bn);
@@ -46,12 +48,58 @@ private activeBusinessNumberSig = signal<string | null>(null);
   getActiveBusinessNumber(): string | null {
     return this.activeBusinessNumberSig();
   }
-  
+
+  setActiveBusinessNumberByName(businessName: string | null): void {
+    console.log("🚀 ~ AuthService ~ setActiveBusinessNumberByName ~ businessName:", businessName)
+    if (!businessName) {
+      this.setActiveBusinessNumber(null);
+      return;
+    }
+
+    const match = this.genericService.businessSelectItems().find((item) => item.name === businessName);
+    const value = match?.value;
+
+    if (typeof value === 'string') {
+      this.setActiveBusinessNumber(value);
+      return;
+    }
+
+    if (value !== undefined && value !== null) {
+      this.setActiveBusinessNumber(String(value));
+      return;
+    }
+
+    this.setActiveBusinessNumber(null);
+  }
+
   logout(): void {
+    this.viewAsUserData = null;
     this.afAuth.signOut().then(() => {
       localStorage.clear();
       sessionStorage.clear();
     });
+  }
+
+  /** טעינת נתוני המשתמש "האפקטיבי" – כשהרואה חשבון צופה בלקוח מחזיר נתוני הלקוח */
+  loadViewAsUserData(): Observable<IUserData | null> {
+    return this.signIn().pipe(
+      tap((data: unknown) => {
+        this.viewAsUserData = (data as IUserData) ?? null;
+      }),
+      catchError(() => {
+        this.viewAsUserData = null;
+        return [null];
+      })
+    );
+  }
+
+  clearViewAsUserData(): void {
+    this.viewAsUserData = null;
+  }
+
+  /** האם כרגע במצב צפייה כרואה חשבון (לא יכול לערוך/להפיק) */
+  isViewingAsClient(): boolean {
+    return this.viewAsUserData != null;
   }
 
 
@@ -59,12 +107,26 @@ private activeBusinessNumberSig = signal<string | null>(null);
     const userBusinesses = this.getUserBusinessesFromLocalStorage();
     console.log("🚀 ~ AuthService ~ getUserBussinesNumber ~ userBusinesses:", userBusinesses)
     const businessNumber = userBusinesses.businessNumber;
+    console.log("🚀 ~ AuthService ~ getUserBussinesNumber ~ businessNumber:", businessNumber)
+    console.log('%c special log', 'color: red; font-size: 20px; font-weight: bold; background-color: black; ', businessNumber)
     return businessNumber;
   }
 
 
 
   getUserDataFromLocalStorage(): IUserData | null {
+    if (this.viewAsUserData != null) {
+      return this.viewAsUserData;
+    }
+    return this.getRealUserDataFromLocalStorage();
+  }
+
+  /**
+   * Returns the *real* logged-in user from localStorage, bypassing any view-as
+   * overlay. Use this when you need to know who actually holds the session —
+   * e.g., to decide where the "exit client view" button should navigate.
+   */
+  getRealUserDataFromLocalStorage(): IUserData | null {
     const tempA = localStorage.getItem('userData');
     if (!tempA) {
       return null;
@@ -77,7 +139,7 @@ private activeBusinessNumberSig = signal<string | null>(null);
     }
   }
 
-    getUserBusinessesFromLocalStorage(): IUserData | null {
+  getUserBusinessesFromLocalStorage(): IUserData | null {
     const tempA = localStorage.getItem('businesses');
     if (!tempA) {
       return null;
@@ -99,7 +161,7 @@ private activeBusinessNumberSig = signal<string | null>(null);
       tap((userData: IUserData) => {
         if (userData) {
           localStorage.setItem('userData', JSON.stringify(userData));
-          console.log('✅ userData restored from backend');
+          // console.log('✅ userData restored from backend');
         }
       }),
       catchError((error) => {
@@ -118,39 +180,45 @@ private activeBusinessNumberSig = signal<string | null>(null);
   }
 
 
-  signIn(): any {
-    const url = `${environment.apiUrl}auth/signin`;
+  /**
+   * @param freshLogin pass `true` ONLY from the actual login screen. The
+   * backend triggers the post-login Feezback sync (and prints the LOGIN
+   * banner) only when this flag is set, so session-restore / view-as /
+   * page-navigation calls to /auth/signin don't re-trigger a sync.
+   */
+  signIn(freshLogin = false): any {
+    const url = `${environment.apiUrl}auth/signin${freshLogin ? '?freshLogin=true' : ''}`;
     return this.http.get(url);
   }
 
   getSignupErrorMessage(err: string): string {
-  switch (err) {
+    switch (err) {
 
-    case 'auth/email-already-in-use':
-      return 'כתובת האימייל כבר רשומה במערכת. נסה להתחבר או להשתמש באימייל אחר.';
+      case 'auth/email-already-in-use':
+        return 'כתובת האימייל כבר רשומה במערכת. נסה להתחבר או להשתמש באימייל אחר.';
 
-    case 'auth/invalid-email':
-      return 'כתובת האימייל אינה תקינה. אנא בדוק והזן כתובת נכונה.';
+      case 'auth/invalid-email':
+        return 'כתובת האימייל אינה תקינה. אנא בדוק והזן כתובת נכונה.';
 
-    case 'auth/network-request-failed':
-      return 'בעיה בחיבור לאינטרנט. אנא בדוק את החיבור ונסה שוב.';
+      case 'auth/network-request-failed':
+        return 'בעיה בחיבור לאינטרנט. אנא בדוק את החיבור ונסה שוב.';
 
-    case 'auth/user-disabled':
-      return 'החשבון שלך הושבת. לפרטים נוספים פנה לתמיכה.';
+      case 'auth/user-disabled':
+        return 'החשבון שלך הושבת. לפרטים נוספים פנה לתמיכה.';
 
-    case 'auth/user-not-found':
-      return 'לא נמצא חשבון עם כתובת האימייל שהוזנה.';
+      case 'auth/user-not-found':
+        return 'לא נמצא חשבון עם כתובת האימייל שהוזנה.';
 
-    case 'auth/missing-email':
-      return 'יש להזין כתובת אימייל כדי להמשיך.';
+      case 'auth/missing-email':
+        return 'יש להזין כתובת אימייל כדי להמשיך.';
 
-    case 'auth/too-many-requests':
-      return 'בוצעו יותר מדי ניסיונות בזמן קצר. אנא נסה שוב בעוד מספר דקות.';
+      case 'auth/too-many-requests':
+        return 'בוצעו יותר מדי ניסיונות בזמן קצר. אנא נסה שוב בעוד מספר דקות.';
 
-    default:
-      return 'אירעה שגיאה לא צפויה. אנא נסה שוב מאוחר יותר.';
+      default:
+        return 'אירעה שגיאה לא צפויה. אנא נסה שוב מאוחר יותר.';
+    }
   }
-}
 
 
 
@@ -161,7 +229,7 @@ private activeBusinessNumberSig = signal<string | null>(null);
         catchError((err) => {
           console.log("err in create user: ", err);
           return throwError(() => err);
-          
+
         }),
         tap((userCredentialData: UserCredential) => uid = userCredentialData.user.uid),
         switchMap((userCredentialData: UserCredential) => from(sendEmailVerification(userCredentialData.user))),
@@ -195,7 +263,7 @@ private activeBusinessNumberSig = signal<string | null>(null);
           // משתמש מחובר – שלח מייל אימות
           return from(user.sendEmailVerification());
         }
-  
+
         // אם המשתמש לא מחובר אבל יש אימייל וסיסמה – ננסה להתחבר ואז לשלוח מייל
         if (mailAddress && password) {
           return from(this.afAuth.signInWithEmailAndPassword(mailAddress, password)).pipe(
@@ -208,7 +276,7 @@ private activeBusinessNumberSig = signal<string | null>(null);
             })
           );
         }
-  
+
         // אין משתמש ואין פרטי התחברות
         return throwError(() => {
           const err: any = new Error('No user signed in, and no credentials provided');
@@ -222,7 +290,7 @@ private activeBusinessNumberSig = signal<string | null>(null);
       })
     );
   }
-  
+
 
 
 
@@ -237,13 +305,50 @@ private activeBusinessNumberSig = signal<string | null>(null);
 
 
   updateUser(updatedData: any): Observable<any> {
-    console.log("updatedData is ", updatedData);
-    const token = localStorage.getItem('token');  // Assuming you have a token stored
-    const headers = { 'token': token };  // Add the token to the headers
-    const url = `${environment.apiUrl}auth/update-user`;  // Backend endpoint for updating user
-    return this.http.patch(url, updatedData, { headers });
+    const url = `${environment.apiUrl}auth/update-user`;
+    return this.http.patch(url, updatedData);
   }
 
+  getChildren(): Observable<any[]> {
+    const url = `${environment.apiUrl}auth/children`;
+    return this.http.get<any[]>(url);
+  }
+
+  updateChildren(children: Array<{ childFName: string; childLName: string; childDate: string }>): Observable<any[]> {
+    const url = `${environment.apiUrl}auth/children`;
+    return this.http.patch<any[]>(url, { children });
+  }
+
+  deleteChild(childIndex: number): Observable<void> {
+    const url = `${environment.apiUrl}auth/children/${childIndex}`;
+    return this.http.delete<void>(url);
+  }
+
+
+  async signInWithGoogle(): Promise<{ isNewUser: boolean; userData?: any; googleUser: { email: string; displayName: string } }> {
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ hl: 'iw' });
+    const result = await this.afAuth.signInWithPopup(provider);
+    const googleUser = {
+      email: result.user.email,
+      displayName: result.user.displayName,
+    };
+    try {
+      // Real login (Google SSO) → freshLogin=true so the post-login sync runs.
+      const userData = await firstValueFrom(this.signIn(true));
+      return { isNewUser: false, userData, googleUser };
+    } catch (err: any) {
+      // ONLY treat an explicit 404 (user not found in our DB) as "new user".
+      // Any other error (network blip, 500, timeout, auth issue) means "we
+      // don't know" — re-throw so the caller surfaces a real error instead of
+      // assuming the user is new and (potentially) deleting their Firebase
+      // account.
+      if (err?.status === 404) {
+        return { isNewUser: true, googleUser };
+      }
+      throw err;
+    }
+  }
 
   async SignOut() {
     return this.afAuth.signOut().then(() => {

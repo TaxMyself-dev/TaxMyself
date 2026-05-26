@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from 'src/environments/environment';
+import { IShaamApprovalRequest, IShaamApprovalResponse } from 'src/app/shared/interface';
 
 @Injectable({
   providedIn: 'root'
@@ -22,9 +23,13 @@ export class ShaamService {
   /**
    * Initiates SHAAM OAuth flow by redirecting to authorization URL
    * This method redirects the browser to the SHAAM login page
+   * @param businessNumber - Optional business number to associate tokens with
    */
-  initiateOAuthFlow(): void {
-    const redirectUrl = `${environment.apiUrl}shaam/oauth/redirect`;
+  initiateOAuthFlow(businessNumber?: string): void {
+    let redirectUrl = `${environment.apiUrl}shaam/oauth/redirect`;
+    if (businessNumber) {
+      redirectUrl += `?businessNumber=${encodeURIComponent(businessNumber)}`;
+    }
     window.location.href = redirectUrl;
   }
 
@@ -52,14 +57,35 @@ export class ShaamService {
   }
 
   /**
+   * Gets a valid access token for a business
+   * Checks if token exists and is valid, refreshes if expired
+   * @param businessNumber - Business number
+   * @returns Observable with access token and expiresIn, or null if no connection exists
+   */
+  getValidAccessToken(businessNumber: string): Observable<{
+    accessToken: string;
+    expiresIn: number;
+  } | null> {
+    const url = `${environment.apiUrl}shaam/access-token?businessNumber=${encodeURIComponent(businessNumber)}`;
+    return this.http.get<{
+      accessToken: string;
+      expiresIn: number;
+    } | null>(url);
+  }
+
+  /**
    * Submits invoice approval to SHAAM
    * @param accessToken - OAuth2 access token
    * @param approvalData - Invoice approval data
-   * @returns Observable with approval response
+   * @param businessNumber - Business number to get token from backend if accessToken is not provided
+   * @returns Observable with approval response containing confirmation_number (allocation number)
    */
-  submitInvoiceApproval(accessToken: string, approvalData: any): Observable<any> {
-    const url = `${environment.apiUrl}shaam/invoices/approval`;
-    return this.http.post<any>(url, approvalData, {
+  submitInvoiceApproval(accessToken: string, approvalData: IShaamApprovalRequest, businessNumber?: string): Observable<IShaamApprovalResponse> {
+    let url = `${environment.apiUrl}shaam/invoices/approval`;
+    if (businessNumber) {
+      url += `?businessNumber=${encodeURIComponent(businessNumber)}`;
+    }
+    return this.http.post<IShaamApprovalResponse>(url, approvalData, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
       },

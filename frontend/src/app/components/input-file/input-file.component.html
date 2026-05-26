@@ -1,0 +1,36 @@
+<!-- PrimeNG as an engine only (no UI templates rendered) -->
+<p-fileUpload #fu [mode]="'advanced'" [customUpload]="true" [auto]="false" [multiple]="multiple()"
+  [showUploadButton]="false" [showCancelButton]="false" [accept]="accept()" [maxFileSize]="maxFileSize()"
+  (onSelect)="onSelect($event)" (onClear)="onClearFromPrime()" styleClass="ud-engine"></p-fileUpload>
+
+<div class="ud-dropzone" (click)="openPicker()">
+  <div class="ud-head" (click)="$event.stopPropagation()">
+    <div class="ud-title">
+      <span class="ud-titleText">{{ label() }}</span>
+      <button type="button" class="ud-browse" (click)="openPicker()">
+        {{ browseLabel() }}
+      </button>
+    </div>
+
+    <div class="ud-supported">
+      <span class="ud-supportedLabel">קבצים נתמכים: </span>
+      <span class="ud-supportedTypes">{{ supportedText() }}</span>
+    </div>
+  </div>
+
+  @if (files().length > 0) {
+  <div class="ud-list">
+    @for (file of files(); track file.id; let i = $index) {
+    <div class="ud-row" (click)="$event.stopPropagation()">
+      <button type="button" class="ud-remove" (click)="removeFile($event, file.id)" aria-label="Remove file">
+        ×
+      </button>
+
+      <div class="ud-fileName" [title]="file.file.name">
+        {{ file.file.name }}
+      </div>
+    </div>
+    }
+  </div>
+  }
+</div>

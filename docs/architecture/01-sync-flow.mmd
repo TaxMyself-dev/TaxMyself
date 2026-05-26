@@ -1,0 +1,53 @@
+flowchart TB
+    %% Three sync entry points
+    T1[Auth signin<br/>triggerPostLoginSync]
+    T2[Manual button<br/>POST /transactions/trigger-sync]
+    T3[Feezback consent webhook<br/>UserDataIsAvailable]
+
+    T1 --> FS
+    T2 --> FS
+    T3 --> FS
+
+    FS[FeezbackService.triggerFullSync<br/>userId, source]
+    FS --> Lock[UserSyncState set running<br/>fullProcessStatus + perSourceStatus]
+
+    Lock --> Banks[Fetch banks per source<br/>Feezback REST]
+    Lock --> Cards[Fetch cards per source<br/>Feezback REST]
+
+    Banks --> Norm
+    Cards --> Norm
+    Norm[normalizeBank/CardTransactions<br/>NormalizedTransaction list]
+
+    Norm --> Dedup[In-memory dedup per source<br/>by aspspOriginalId<br/>keep newest referenceTime]
+    Dedup --> Process[TransactionProcessingService.process<br/>per-tx STEP routing]
+
+    Process --> S0
+    Process --> S1
+    Process --> S2
+    Process --> S3
+
+    S0[STEP 0: tx.billId is null<br/>cache only<br/>buildCacheRow]
+    S1[STEP 1: slim row exists<br/>overlay slim onto cache<br/>buildCacheRowWithSlim]
+    S2[STEP 2: no slim and rule matches<br/>INSERT slim with classificationType=RULE<br/>buildCacheRowWithRule]
+    S3[STEP 3: no slim, no rule match<br/>cache only<br/>buildCacheRow]
+
+    S0 --> Cache
+    S1 --> Cache
+    S2 --> Slim
+    S2 --> Cache
+    S3 --> Cache
+
+    Slim[Bulk INSERT/UPSERT<br/>slim_transactions]
+    Cache[Bulk UPSERT<br/>full_transactions_cache<br/>UNIQUE userId, externalTransactionId]
+
+    Slim --> Done
+    Cache --> Done
+
+    Done[UserSyncState set completed<br/>+ perSourceStatus + rowsWritten]
+
+    classDef step fill:#fff3cd,stroke:#856404,color:#000
+    class S0,S1,S2,S3 step
+    classDef trigger fill:#cfe2ff,stroke:#084298,color:#000
+    class T1,T2,T3 trigger
+    classDef io fill:#d1e7dd,stroke:#0f5132,color:#000
+    class Slim,Cache,Lock,Done io

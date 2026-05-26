@@ -21,10 +21,62 @@
         [dataTable]="myDocuments | async"
         [fileActions]="fileActions()"
         [selectionModeCheckBox]="null"
+        [mobileCardConfig]="mobileCardConfig"
         [tableHeight]="'500px'">
     </app-generic-table>
 
 </div>
+
+<!-- Allocation-number entry dialog (for PENDING_ALLOCATION rows) -->
+<p-dialog header="הזנת מספר הקצאה" [visible]="showAllocationInputDialog()" [modal]="true" [rtl]="true"
+    [style]="{ width: '460px' }" (onHide)="cancelAllocationInputDialog()" [closable]="true">
+    <div class="p-fluid">
+        <!-- Step 1: prominent link to the Tax Authority site (top of dialog). -->
+        <p style="margin: 0 0 0.5rem 0;">
+            לקבלת מספר הקצאה מרשות המיסים
+            <a [href]="taxAuthorityUrl" target="_blank" rel="noopener"
+               style="color: #1976d2; text-decoration: underline; font-weight: 600; margin-inline-start: 0.25rem;">
+                לחץ כאן
+                <i class="pi pi-external-link" style="font-size: 0.8rem; margin-inline-start: 0.25rem;"></i>
+            </a>
+        </p>
+
+        @if (pendingFinalizeRow(); as row) {
+          <!-- Step 2: doc details the user needs to enter on the Tax Authority site. -->
+          <div style="margin: 0.75rem 0; padding: 0.75rem 1rem; background: #f5f7fb; border-radius: 6px; font-size: 0.9rem; line-height: 1.7;">
+            <div style="font-weight: 600; margin-bottom: 0.35rem;">פרטי המסמך למילוי באתר רשות המיסים:</div>
+            <div><span style="color: #666;">סוג מסמך:</span> {{ row.docType }} {{ row.docNumber }}</div>
+            <div><span style="color: #666;">ת.ז / ח.פ של הלקוח:</span> {{ row.recipientId || '—' }}</div>
+            <div><span style="color: #666;">סכום לפני מע״מ:</span> ₪{{ $any(row.sumAftDisBefVAT) | number:'1.0-2' }}</div>
+            <div><span style="color: #666;">תאריך המסמך:</span> {{ $any(row.docDate) | date:'dd/MM/yyyy' }}</div>
+          </div>
+        }
+
+        <!-- Step 3: paste the number you got and create the doc. -->
+        <p style="margin: 0.5rem 0 1.5rem 0; color: #555;">
+            לאחר שקיבלת את המספר, הזן אותו בשדה הבא והפק את המסמך:
+        </p>
+        <div class="p-field">
+            <label for="allocationInput"
+                   style="display: block; font-weight: 700; font-size: 1rem; color: #111; margin-bottom: 0.4rem;">
+                מספר הקצאה
+            </label>
+            <input id="allocationInput" type="text" class="p-inputtext p-component"
+                [(ngModel)]="allocationInputValue" placeholder="הזן מספר הקצאה" style="width: 100%;">
+        </div>
+        <div style="margin-top: 1rem; display: flex; gap: 0.5rem; justify-content: flex-end;">
+            <app-p-button [buttonText]="'ביטול'" [buttonSize]="buttonSize.AUTO" [buttonColor]="buttonColor.WHITE"
+                (onButtonClicked)="cancelAllocationInputDialog()">
+            </app-p-button>
+            <app-p-button [buttonText]="'הפק'" [buttonSize]="buttonSize.AUTO" [buttonColor]="buttonColor.BLACK"
+                [disabled]="!allocationInputValue || !allocationInputValue.trim()"
+                (onButtonClicked)="submitAllocationInputDialog()">
+            </app-p-button>
+        </div>
+    </div>
+</p-dialog>
+
+<!-- p-confirmDialog & p-toast are rendered globally in app.component.html — no need to duplicate here -->
 
 @if (showMiniMenu()) {
   <div class="mini-menu-wrapper">

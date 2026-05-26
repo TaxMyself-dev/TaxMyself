@@ -1,29 +1,33 @@
 import { computed, Injectable, signal } from '@angular/core';
-import { LoadingController, PopoverController } from '@ionic/angular';
-import { BehaviorSubject, EMPTY, Observable, Subject, catchError, firstValueFrom, from, map, switchMap, tap } from 'rxjs';
+import { FormGroup } from '@angular/forms';
+import { PopoverController } from '@ionic/angular';
+import { EMPTY, Observable, of, Subject, catchError, firstValueFrom, from, fromEvent, map, startWith, switchMap, tap } from 'rxjs';
 import { Business, BusinessInfo, ISelectItem, IToastData, IUserData, User } from '../shared/interface';
 import { PopupMessageComponent } from '../shared/popup-message/popup-message.component';
 import { PopupConfirmComponent } from '../shared/popup-confirm/popup-confirm.component';
 import { environment } from 'src/environments/environment';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { BusinessStatus, doubleMonthsList, ReportingPeriodType, singleMonthsList } from '../shared/enums';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { DateService } from './date.service';
+import { PeriodDefaults } from '../components/filter-tab/filter-fields-model.component';
 
 
-@Injectable( {providedIn: 'root'})
+@Injectable({ providedIn: 'root' })
 export class GenericService {
 
-  private loaderMessage$ = new BehaviorSubject<string>("Please wait...");
-  private loaderInstance: HTMLIonLoadingElement | null = null; // Keep a reference to the loader instance
+  readonly isLoading = signal(false);
+  readonly loaderMessage = signal("אנא המתן...");
   private toastSubject = new Subject<IToastData>();
 
   toast$ = this.toastSubject.asObservable();
 
   constructor(
-    private loader: LoadingController, 
     private popoverController: PopoverController,
     private http: HttpClient,
-  ) { 
-     // Load from localStorage on app refresh
+    private dateService: DateService,
+  ) {
+    // Load from localStorage on app refresh
     const saved = localStorage.getItem('businesses');
     if (saved) {
       this._businesses.set(JSON.parse(saved));
@@ -45,8 +49,35 @@ export class GenericService {
   readonly bills = computed(() => this._bills() ?? []);
   readonly isLoadingBills = signal(false);
 
+  private readonly viewportWidthSignal = typeof window !== 'undefined'
+    ? toSignal(
+      fromEvent(window, 'resize').pipe(
+        startWith(null),
+        map(() => window.innerWidth)
+      ),
+      { initialValue: window.innerWidth }
+    )
+    : signal(1024);
+
+  private readonly isMobileSignal = computed(() => this.viewportWidthSignal() <= 768);
+
+  isMobile(): boolean {
+    return this.isMobileSignal();
+  }
+
+  mapLabelToName(
+    options: ISelectItem[]
+  ): Array<{ value: string | number | boolean | Date; label: string | number }> {
+    return options.map(o => ({
+      value: o.value,
+      label: o.name
+    }));
+  }
+
 
   async loadBusinessesFromServer(): Promise<void> {
+    // Skip if no user is logged in — avoids unauthenticated request during Firebase init
+    if (!localStorage.getItem('userData')) return;
 
     try {
       const res = await firstValueFrom(
@@ -67,8 +98,59 @@ export class GenericService {
     localStorage.setItem('businesses', JSON.stringify(data));
   }
 
+  /** עדכון אחוז מקדמות מס לעסק */
+  async updateBusinessAdvanceTaxPercent(businessNumber: string, advanceTaxPercent: number): Promise<void> {
+    await this.updateBusiness({ businessNumber, advanceTaxPercent });
+  }
 
-  getBusinessData(user: IUserData): { mode: BusinessStatus; uiList: { name: string; value: string }[]; fullList: BusinessInfo[]; showSelector: boolean;
+  /** עדכון פרטי עסק (תמיכה בעדכון לפי id לעסק חדש או לפי businessNumber) */
+  async updateBusiness(payload: {
+    id?: number;
+    businessNumber?: string;
+    advanceTaxPercent?: number;
+    businessName?: string;
+    businessAddress?: string;
+    businessPhone?: string;
+    businessEmail?: string;
+    businessType?: string;
+    vatReportingType?: string;
+    taxReportingType?: string;
+    nationalInsRequired?: boolean;
+  }): Promise<Business> {
+    const business = await firstValueFrom(
+      this.http.patch<Business>(`${environment.apiUrl}business/update`, payload)
+    );
+    await this.loadBusinessesFromServer();
+    return business;
+  }
+
+  /** יצירת עסק חדש למשתמש המחובר (עם פרטים אופציונליים מהמודל) */
+  async createBusiness(payload?: {
+    businessName?: string;
+    businessNumber?: string;
+    businessAddress?: string;
+    businessPhone?: string;
+    businessEmail?: string;
+    businessType?: string;
+    advanceTaxPercent?: number;
+  }): Promise<Business> {
+    const business = await firstValueFrom(
+      this.http.post<Business>(`${environment.apiUrl}business/create`, payload ?? {})
+    );
+    await this.loadBusinessesFromServer();
+    return business;
+  }
+
+  /** מחיקת עסק לפי id */
+  async deleteBusiness(id: number): Promise<void> {
+    await firstValueFrom(
+      this.http.delete(`${environment.apiUrl}business/${id}`)
+    );
+    await this.loadBusinessesFromServer();
+  }
+
+  getBusinessData(user: IUserData): {
+    mode: BusinessStatus; uiList: { name: string; value: string }[]; fullList: BusinessInfo[]; showSelector: boolean;
   } {
 
     const fullList: BusinessInfo[] = [];
@@ -130,54 +212,17 @@ export class GenericService {
   }
 
   getLoader(): Observable<any> {
-    return from(this.loader.create({
-      message: this.loaderMessage$.getValue(),
-      spinner: 'crescent'
-    }))
-      .pipe(
-        catchError((err) => {
-          console.log("Error in creating loader", err);
-          return EMPTY;
-        }),
-        switchMap((loader) => {
-          if (loader) {
-            this.loaderInstance = loader;  // Store the loader instance
-            return from(loader.present())
-              .pipe(
-                // Listen to changes in the message and update the loader's message in real time
-                switchMap(() => this.loaderMessage$.asObservable()
-                  .pipe(
-                    tap((message) => {
-                      if (this.loaderInstance) {
-                        this.loaderInstance.message = message;  // Update loader message dynamically
-                      }
-                    })
-                  )
-                )
-              );
-          }
-          return EMPTY;
-        }),
-        catchError((err) => {
-          console.log("Error in presenting loader", err);
-          return EMPTY;
-        })
-      );
+    this.isLoading.set(true);
+    return of(null);
   }
 
-  // Method to update the loader's message dynamically
   updateLoaderMessage(message: string): void {
-    this.loaderMessage$.next(message);  // Trigger message update
+    this.loaderMessage.set(message);
   }
 
   dismissLoader(): void {
-    if (this.loaderInstance) {
-      this.loaderInstance.dismiss();
-      this.loaderInstance = null; // Reset the reference after dismissing
-    }
-    else {
-      console.log("in else dissmis");
-    }
+    this.isLoading.set(false);
+    this.loaderMessage.set("אנא המתן...");
   }
 
   addComma(number: number | string): string {
@@ -246,7 +291,7 @@ export class GenericService {
       .subscribe()
   }
 
-  openPopupConfirm(message: string, buttonTextConfirm: string, buttonTextCancel: string ): Observable<any> {
+  openPopupConfirm(message: string, buttonTextConfirm: string, buttonTextCancel: string): Observable<any> {
     return from(this.popoverController.create({
       component: PopupConfirmComponent,
       componentProps: {
@@ -298,5 +343,59 @@ export class GenericService {
     return '11'; // fallback for Nov–Dec
   }
 
+  // --- פילטר דוחות והנהלת חשבונות (מספר עסק + תאריכים) ---
 
+  /**
+   * מחזיר מספר עסק לשימוש בבקשות API.
+   * כשהשדה "בחר עסק" מוסתר (עסק יחיד) – משתמש ב-userData או בעסק הראשון.
+   * @param userData – יש להעביר מ-AuthService.getUserDataFromLocalStorage() (נדרש כדי למנוע תלות מעגלית)
+   */
+  getEffectiveBusinessNumber(form: FormGroup | null, formBusinessNumber?: string, userData?: IUserData | null): string {
+    const fromForm = formBusinessNumber ?? form?.get('businessNumber')?.value;
+    if (fromForm) return fromForm;
+
+    if (userData?.businessStatus === BusinessStatus.SINGLE_BUSINESS && userData?.businessNumber) {
+      return userData.businessNumber;
+    }
+
+    const businesses = this.businesses();
+    return businesses[0]?.businessNumber ?? '';
+  }
+
+  /**
+   * קורא מהטופס את ערכי התקופה ומחזיר startDate, endDate.
+   * תומך: חודשי, דו-חודשי, שנתי, טווח תאריכים.
+   */
+  getPeriodDatesFromForm(form: FormGroup): { startDate: string; endDate: string } {
+    const periodMode = form.get('periodMode')?.value;
+    const year = Number(form.get('year')?.value) || new Date().getFullYear();
+    const month = Number(form.get('month')?.value);
+    const localStartDate = form.get('startDate')?.value ?? '';
+    const localEndDate = form.get('endDate')?.value ?? '';
+
+    return this.dateService.getStartAndEndDates(
+      periodMode,
+      year,
+      month,
+      localStartDate,
+      localEndDate
+    );
+  }
+
+  /**
+   * ברירת מחדל אחידה לתקופה: חודש נוכחי, דו-חודשי עם ינואר-פברואר כברירת מחדל.
+   * לשימוש ב-filterConfig.periodDefaults בכל עמודי הדוחות והנהלת חשבונות.
+   */
+  getDefaultPeriodConfig(overrides?: Partial<PeriodDefaults>): PeriodDefaults {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1;
+    const defaults: PeriodDefaults = {
+      periodMode: ReportingPeriodType.MONTHLY,
+      year: currentYear,
+      month: String(currentMonth),
+      bimonthlyDefaultMonth: '1',
+    };
+    return overrides ? { ...defaults, ...overrides } : defaults;
+  }
 }

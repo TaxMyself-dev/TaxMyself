@@ -1,19 +1,23 @@
 import { Body, Controller, Post, Get, Patch, Delete, Headers,
-         Param, Query, NotFoundException, Session, UseGuards, Req, HttpException, HttpStatus} from '@nestjs/common';
+         Param, ParseIntPipe, NotFoundException, Session, UseGuards, Req, HttpException, HttpStatus, Logger,
+         Inject, forwardRef } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { AuthService } from './auth.service';
 import { FirebaseAuthGuard } from '../guards/firebase-auth.guard';
 import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.interface';
+import { FeezbackService } from '../feezback/feezback.service';
 
 @Controller('auth')
 export class UsersController {
+    private readonly logger = new Logger(UsersController.name);
 
     constructor(
         private userService: UsersService,
-        private authService: AuthService
+        private authService: AuthService,
+        @Inject(forwardRef(() => FeezbackService)) private readonly feezbackService: FeezbackService,
     ) {}
 
-    
+
     @Post('/signup')
     async createUser(@Body() body: any) {
         const user = await this.userService.signup(body);
@@ -23,33 +27,79 @@ export class UsersController {
 
     @Get('/signin')
     @UseGuards(FirebaseAuthGuard)
-    async signin(@Req() request: AuthenticatedRequest) { 
-        const userId = request.user?.firebaseId;    
-        const user = await this.userService.signin(userId);  
+    async signin(@Req() request: AuthenticatedRequest) {
+        const userId = request.user?.firebaseId;
+        const maskedId = userId?.length >= 8 ? userId.substring(0, 8) + '...' : userId ?? '?';
+        // `/auth/signin` is also hit by the auth-guard session-restore, the
+        // settings page, and view-as-client — none of which are a real login.
+        // Only the actual login screen passes ?freshLogin=true, so the
+        // post-login sync (and its LOGIN banner) fires exactly once per login,
+        // not on every page navigation.
+        const isFreshLogin = String(request.query?.freshLogin) === 'true';
+        this.logger.log(`signin called, userId=${maskedId}, freshLogin=${isFreshLogin}`);
+        const user = await this.userService.signin(userId, isFreshLogin);
+
+        if (isFreshLogin) {
+            // Fire-and-forget — do not block the login response.
+            void this.triggerPostLoginSync(userId, user).catch(err =>
+                this.logger.error(`[Login] post-login sync failed`, err?.stack ?? err),
+            );
+        }
+
         return user;
     }
 
 
+    @Get('/billing-status')
+    @UseGuards(FirebaseAuthGuard)
+    async getBillingStatus(@Req() request: AuthenticatedRequest) {
+        const userId = request.user?.firebaseId;
+        if (!userId) throw new NotFoundException('user not exist');
+        return this.userService.getBillingStatus(userId);
+    }
+
+
     @Get('/get-user')
-    async getUser(@Headers('token') token: string) {
-        try {
-            const userId = await this.userService.getFirbsaeIdByToken(token);
-            const user = await this.userService.findFireUser(userId);
-            if (user) {                
-                return user;
-            }
-            throw new NotFoundException("user not exist");
-        } 
-        catch (error) { 
-        }
+    @UseGuards(FirebaseAuthGuard)
+    async getUser(@Req() request: AuthenticatedRequest) {
+        const userId = request.user?.firebaseId;
+        if (!userId) throw new NotFoundException("user not exist");
+        const user = await this.userService.findFireUser(userId);
+        if (user) return user;
+        throw new NotFoundException("user not exist");
     }
 
 
     @Patch('update-user')
-    async updateUser(@Headers('token') token: string, @Body() body: any) {  
-        //console.log("update-user - data is ", body);
-        const userId = await this.userService.getFirbsaeIdByToken(token)
-        return this.userService.updateUser (userId, body);
+    @UseGuards(FirebaseAuthGuard)
+    async updateUser(@Req() request: AuthenticatedRequest, @Body() body: any) {
+        if (request.user?.role === 'agent') {
+            throw new HttpException('לרואה חשבון הרשאה לצפייה בלבד', HttpStatus.FORBIDDEN);
+        }
+        const userId = request.user?.firebaseId;
+        return this.userService.updateUser(userId, body);
+    }
+
+    @Get('children')
+    @UseGuards(FirebaseAuthGuard)
+    async getChildren(@Req() request: AuthenticatedRequest) {
+        const firebaseId = request.user?.firebaseId;
+        return this.userService.getChildren(firebaseId);
+    }
+
+    @Patch('children')
+    @UseGuards(FirebaseAuthGuard)
+    async updateChildren(@Req() request: AuthenticatedRequest, @Body() body: { children: Array<{ childFName: string; childLName: string; childDate: string }> }) {
+        const firebaseId = request.user?.firebaseId;
+        const list = Array.isArray(body?.children) ? body.children : [];
+        return this.userService.updateChildren(firebaseId, list);
+    }
+
+    @Delete('children/:index')
+    @UseGuards(FirebaseAuthGuard)
+    async deleteChild(@Req() request: AuthenticatedRequest, @Param('index', ParseIntPipe) index: number) {
+        const firebaseId = request.user?.firebaseId;
+        await this.userService.deleteChild(firebaseId, index);
     }
 
     @Get('get-cities')
@@ -71,4 +121,26 @@ export class UsersController {
       return this.userService.getAllUsers();
     }
 
+    private async triggerPostLoginSync(firebaseId: string, user?: any): Promise<void> {
+        const userName = [user?.fName, user?.lName].filter(Boolean).join(' ') || firebaseId?.substring(0, 8) + '...';
+        const hasOpenBanking = !!user?.hasOpenBanking;
+
+        console.log(`\n════════════════════════════════════`);
+        console.log(`  LOGIN`);
+        console.log(`  User         : ${userName}`);
+        console.log(`  Open Banking : ${hasOpenBanking ? '✓ connected' : '✗ not connected'}`);
+        console.log(`════════════════════════════════════\n`);
+
+        if (!hasOpenBanking) return;
+
+        // NOTE: deliberately NOT gated on hasUnprocessedConsentFlow anymore.
+        // The webhook only runs discovery (refreshUserSources) — it never
+        // triggers a sync — so a login sync over the user's EXISTING sources
+        // can't race anything. A user who stepped out mid-consent should still
+        // get their existing accounts synced on the next real login.
+        void this.feezbackService.triggerFullSync(firebaseId, 'login')
+            .catch(err => {
+                this.logger.error(`[Login] triggerFullSync failed | user=${userName} | error=${err?.message}`, err?.stack ?? err);
+            });
+    }
 }

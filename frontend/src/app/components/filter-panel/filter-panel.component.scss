@@ -8,8 +8,8 @@
   align-items: center;
   justify-content: space-between;
   position: absolute;
-  // top: 254px;
-  // left: 40px;
+  right: 0;
+  left: auto;
   z-index: 9999;
   background: white;
 }
@@ -77,4 +77,59 @@
   width: 98%;
   display: flex;
   justify-content: end;
+
+  // Nudge the "סנן" button larger than the shared AUTO size.
+  // ::ng-deep reaches the PrimeNG button inside <app-p-button>; scoped to
+  // .apply-filters-button so nothing else is affected. PrimeNG v19 puts
+  // the text-variant font-size on the label span via layered/token styles,
+  // so we override both the button and its label with !important to beat
+  // the @layer primeng rules.
+  ::ng-deep .p-button {
+    padding: 0.55rem 1.5rem !important;
+
+    .p-button-label,
+    &.p-button-label {
+      font-size: 1.15rem !important;
+      font-weight: 600 !important;
+    }
+  }
+}
+
+// ─── Mobile layout ────────────────────────────────────────────────────────────
+@media (max-width: 768px) {
+  // RTL: panel anchored to right so it extends LEFTWARD into the viewport.
+  .filter-panel {
+    right: 0;
+    left: auto;
+    width: min(300px, calc(100vw - 32px));
+    height: auto;
+    max-height: 70vh;
+    overflow-y: auto;
+  }
+
+  // Only filter rows (those with a .title label) stack label above input.
+  // The top bar keeps its horizontal layout.
+  .header:has(.title) {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    padding: 6px 0;
+  }
+
+  .title {
+    width: auto;
+    font-size: large;
+  }
+
+  // Keep time-options as absolute (preserve the open/close animation),
+  // but widen it to use the available panel width instead of the desktop 175px.
+  .time-options-container {
+    left: 10px;
+    width: calc(100% - 20px);
+  }
+
+  .wrap-inner-inputs {
+    padding-right: 0;
+    width: 100%;
+  }
 }

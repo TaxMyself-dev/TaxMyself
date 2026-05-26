@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://keepintax.co.il/sitemap-index.xml

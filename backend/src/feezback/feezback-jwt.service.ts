@@ -10,16 +10,11 @@ import { User } from '../users/user.entity';
 export class FeezbackJwtService {
   private readonly logger = new Logger(FeezbackJwtService.name);
   private privateKey: string | null = null;
-  private readonly baseRedirectUrl: string;
 
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
   ) {
-    // Base URL for redirects - should be your frontend URL
-    this.baseRedirectUrl = process.env.FEEZBACK_REDIRECT_BASE_URL || 
-      process.env.FRONTEND_URL || 
-      'http://localhost:4200';
   }
 
   /**
@@ -33,26 +28,26 @@ export class FeezbackJwtService {
 
     // Priority 1: Use the private key directly from environment variable (for production)
     const privateKeyFromEnv = process.env.FEEZBACK_PRIVATE_KEY;
-    
+
     // Priority 2: Read from file path (for local development)
     const keyPath = process.env.FEEZBACK_PRIVATE_KEY_PATH;
-    
+
     if (privateKeyFromEnv) {
       // Use the key directly from environment variable
-      this.privateKey = privateKeyFromEnv;
-      this.logger.log('✅ Feezback private key loaded from FEEZBACK_PRIVATE_KEY environment variable');
+      this.privateKey = privateKeyFromEnv.replace(/\\n/g, '\n').trim();
+      // this.logger.log('✅ Feezback private key loaded from FEEZBACK_PRIVATE_KEY environment variable');
     } else if (keyPath) {
       // Read from file
       try {
         this.privateKey = fs.readFileSync(keyPath, 'utf8');
-        this.logger.log(`✅ Feezback private key loaded from file: ${keyPath}`);
+        // this.logger.log(`✅ Feezback private key loaded from file: ${keyPath}`);
       } catch (error) {
-        this.logger.error(`❌ Failed to read private key from ${keyPath}:`, error.message);
+        // this.logger.error(`❌ Failed to read private key from ${keyPath}:`, error.message);
         throw new Error(`Failed to load Feezback private key from file: ${error.message}`);
       }
     } else {
       // Neither is set - throw error
-      this.logger.error('❌ Neither FEEZBACK_PRIVATE_KEY nor FEEZBACK_PRIVATE_KEY_PATH is set');
+      // this.logger.error('❌ Neither FEEZBACK_PRIVATE_KEY nor FEEZBACK_PRIVATE_KEY_PATH is set');
       throw new Error('FEEZBACK_PRIVATE_KEY or FEEZBACK_PRIVATE_KEY_PATH environment variable is required');
     }
 
@@ -70,14 +65,20 @@ export class FeezbackJwtService {
     failure: string;
     ttlExpired: string;
   } {
-    const baseUrl = this.baseRedirectUrl.endsWith('/') 
-      ? this.baseRedirectUrl.slice(0, -1) 
-      : this.baseRedirectUrl;
+
+    const qs = (status: 'success' | 'failure') => {
+      const p = new URLSearchParams({
+        feezbackStatus: status,
+        context,
+        flowId,
+      });
+      return p.toString();
+    };
 
     return {
-      success: `${baseUrl}/feezback/success/${flowId}?context=${context}`,
-      failure: `${baseUrl}/feezback/failure/${flowId}?context=${context}`,
-      ttlExpired: `${baseUrl}/feezback/expired/${flowId}?context=${context}`,
+      success: `${process.env.FEEZBACK_REDIRECT}/my-account?${qs('success')}`,
+      failure: `${process.env.FEEZBACK_REDIRECT}/my-account?${qs('failure')}`,
+      ttlExpired: `${process.env.FEEZBACK_REDIRECT}/my-account?${qs('failure')}`,
     };
   }
 
@@ -87,8 +88,8 @@ export class FeezbackJwtService {
     const redirects = this.buildRedirectUrls(flowId, context);
 
     // Get user from database to retrieve the ID
-    const user = await this.userRepository.findOne({ 
-      where: { firebaseId } 
+    const user = await this.userRepository.findOne({
+      where: { firebaseId }
     });
 
     if (!user) {
@@ -132,11 +133,11 @@ export class FeezbackJwtService {
           "SIX_MONTHS",
           "TWELVE_MONTHS"
         ],
-        "defaultTimePeriod": "ONE_DAY",
+        "defaultTimePeriod": "TWELVE_MONTHS",
         "userIdentifier": {
           "type": "ID",
           "value": userId,
-          "editable": false
+          "editable": true
         },
         "context": firebaseId + "_context",
         "redirects": redirects,
@@ -150,7 +151,7 @@ export class FeezbackJwtService {
     // console.log(`User ID for firebaseId ${firebaseId}: ${userId}`);
 
     const token = jwt.sign(payload, this.getPrivateKey(), {
-      algorithm: 'RS512', 
+      algorithm: 'RS512',
     });
 
     // console.log(`Generated Feezback JWT for user ${firebaseId}`);

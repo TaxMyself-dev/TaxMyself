@@ -101,3 +101,7 @@ content-type: application/json
 GET  http://localhost:3000/transactions/try-2
 
 
+###
+POST http://localhost:3000/cron/daily-task
+content-type: application/json
+

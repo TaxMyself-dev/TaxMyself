@@ -1,5 +1,6 @@
 import {
   Component,
+  computed,
   input,
   inject
 } from '@angular/core';
@@ -53,11 +54,16 @@ export class PeriodSelectComponent {
   /** Default values for period fields */
   periodDefaults = input<PeriodDefaults>();
 
+  /** Size class forwarded from the parent (e.g. 'mobile', 'normal'). Defaults to MEDIUM. */
+  size = input<string>('');
+
   private fb = inject(FormBuilder);
 
   ButtonColor = ButtonColor;
   ButtonSize = ButtonSize;
-  inputSize = inputsSize
+  inputSize = inputsSize;
+
+  readonly effectiveSize = computed(() => this.size() || this.inputSize.MEDIUM);
 
   get form(): FormGroup {
     return this.parentForm();
@@ -86,8 +92,21 @@ export class PeriodSelectComponent {
     });
   }
 
+  /** לדו-חודשי הרשימה היא רק 1,3,5,7,9,11 – ממירים חודש נוכחי לתקופה דו-חודשית תקינה */
+  private getDefaultMonthForMode(mode: ReportingPeriodType, defaultMonth: string | number | undefined): string | null {
+    const num = defaultMonth != null ? Number(defaultMonth) : new Date().getMonth() + 1;
+    if (mode === ReportingPeriodType.BIMONTHLY) {
+      if (num <= 2) return '1';
+      if (num <= 4) return '3';
+      if (num <= 6) return '5';
+      if (num <= 8) return '7';
+      if (num <= 10) return '9';
+      return '11';
+    }
+    return defaultMonth != null ? String(defaultMonth) : null;
+  }
+
   private updateFormControls(mode: ReportingPeriodType) {
-    console.log("this.parentForm()", this.parentForm());
     const form = this.parentForm();
     const defaults = this.periodDefaults();
 
@@ -100,8 +119,12 @@ export class PeriodSelectComponent {
 
     // Add controls based on selected mode with default values
     if (mode === ReportingPeriodType.MONTHLY || mode === ReportingPeriodType.BIMONTHLY) {
-      form.addControl('year', this.fb.control(defaults?.year || null, Validators.required));
-      form.addControl('month', this.fb.control(defaults?.month || null, Validators.required));
+      form.addControl('year', this.fb.control(defaults?.year ?? null, Validators.required));
+      const monthForDefault = mode === ReportingPeriodType.BIMONTHLY && defaults?.bimonthlyDefaultMonth != null
+        ? defaults.bimonthlyDefaultMonth
+        : defaults?.month;
+      const monthDefault = this.getDefaultMonthForMode(mode, monthForDefault);
+      form.addControl('month', this.fb.control(monthDefault, Validators.required));
     } else if (mode === ReportingPeriodType.ANNUAL) {
       form.addControl('year', this.fb.control(defaults?.year || null, Validators.required));
     } else if (mode === ReportingPeriodType.DATE_RANGE) {

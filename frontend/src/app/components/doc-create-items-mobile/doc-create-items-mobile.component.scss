@@ -1,0 +1,203 @@
+// ════════════════════════════════════════════════════════════
+// doc-create-items-mobile — component-own element styles only
+// PrimeNG internal elements are styled in global.scss
+// ════════════════════════════════════════════════════════════
+
+:host {
+  display: block;
+  width: 100%;
+}
+
+// ── Wrapper ──────────────────────────────────────────────────
+.items-mobile {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 95%;
+  padding-right: 16px;
+  margin-bottom: 30px;
+  box-sizing: border-box;
+}
+
+// ── Card base ─────────────────────────────────────────────────
+.item-card {
+  border: 1px solid #ebebeb;
+  border-radius: 4px;
+  width: 100%;
+  box-sizing: border-box;
+  background: #ffffff;
+}
+
+// ── EDIT card ─────────────────────────────────────────────────
+.item-card--edit {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 20px 20px 20px 30px;
+  align-items: stretch;
+}
+
+// ── Card title ────────────────────────────────────────────────
+.item-card__title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #363636;
+  text-align: right;
+  width: 100%;
+}
+
+// ── Field label ───────────────────────────────────────────────
+.field-label {
+  display: block;
+  font-size: 16px;
+  color: #363636;
+  text-align: right;
+  margin-bottom: 4px;
+}
+
+// ── Field wrapper ─────────────────────────────────────────────
+.item-card__field {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+// ── Amount + Quantity row ─────────────────────────────────────
+.item-card__row {
+  display: flex;
+  justify-content: space-between;
+  width: 98%;
+  gap: 16px;
+
+  .item-card__field {
+    flex: 1;
+    row-gap: 7px;
+  }
+
+  .item-card__field--qty {
+    flex: none;
+    width: 120px;
+  }
+}
+
+// ── Discount row (when % toggle is visible) ───────────────────
+.discount-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  justify-content: flex-end;
+}
+
+// ── Action buttons ────────────────────────────────────────────
+.item-card__actions {
+  // padding-left: 18px;
+  // padding-bottom: 18px;
+  display: flex;
+  gap: 18px;
+  justify-content: flex-end;
+  width: 100%;
+}
+
+// ── SUMMARY card ──────────────────────────────────────────────
+.item-card--summary {
+  padding: 20px 20px 20px 30px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: stretch;
+}
+
+.item-card__summary-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.item-card__icons {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+}
+
+// Icon-only action buttons (edit / delete)
+.icon-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px;
+  color: #363636;
+  font-size: 18px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  transition: opacity 0.15s;
+
+  &:hover {
+    opacity: 0.65;
+  }
+}
+
+.item-card__description {
+  font-size: 16px;
+  font-weight: 700;
+  color: #363636;
+  text-align: right;
+  width: 100%;
+}
+
+// VAT badge pill
+.vat-badge {
+  display: flex;
+  width: fit-content;
+  background: #363636;
+  color: #ebebeb;
+  border-radius: 40px;
+  padding: 6px 16px;
+  font-size: 14px;
+}
+
+// ── Summary amount row ────────────────────────────────────────
+.item-card__summary-row {
+  margin-top: 20px;
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  direction: ltr;
+}
+
+.summary-col {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  direction: rtl;
+}
+
+.summary-label {
+  font-size: 14px;
+  color: #808080;
+}
+
+.summary-value {
+  font-size: 16px;
+  font-weight: 700;
+  color: #363636;
+  direction: ltr;
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+}
+
+.currency-sym {
+  font-size: 14px;
+}
+
+// ── "Add Item" button wrapper ─────────────────────────────────
+.add-item-wrapper {
+  display: flex;
+  justify-content: center;
+  padding: 4px 0;
+}

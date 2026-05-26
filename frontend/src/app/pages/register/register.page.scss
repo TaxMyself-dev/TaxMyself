@@ -386,14 +386,14 @@ width: 220px;
     margin-top: 20px;
   }
 
-  ::ng-deep {
+  // ::ng-deep {
 
-    .p-inputtext,
-    .p-select,
-    .p-multiselect {
-      width: 300px !important;
-    }
-  }
+  //   .p-inputtext,
+  //   .p-select,
+  //   .p-multiselect {
+  //     width: 300px !important;
+  //   }
+  // }
 }
 
 @media (prefers-color-scheme: dark) {

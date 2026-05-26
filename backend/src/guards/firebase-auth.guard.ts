@@ -2,11 +2,14 @@ import {
   Injectable,
   CanActivate,
   ExecutionContext,
+  Logger,
   UnauthorizedException,
   ForbiddenException,
 } from '@nestjs/common';
 import * as admin from 'firebase-admin';
 import { Delegation } from '../delegation/delegation.entity';
+import { User } from '../users/user.entity';
+import { UserRole } from '../enum';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.interface';
@@ -14,9 +17,13 @@ import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.inter
 
 @Injectable()
 export class FirebaseAuthGuard implements CanActivate {
+  private readonly logger = new Logger(FirebaseAuthGuard.name);
+
   constructor(
     @InjectRepository(Delegation)
     private readonly delegationRepository: Repository<Delegation>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -45,6 +52,7 @@ export class FirebaseAuthGuard implements CanActivate {
     // ✅ Attach the authenticated user (agent) info
     request.user = { firebaseId: authenticatedFirebaseId, role: 'user', businessNumber: businessNumberHeader, }; // ✅ Now TypeScript recognizes `request.user`
 
+    const maskedId = authenticatedFirebaseId?.length >= 8 ? authenticatedFirebaseId.substring(0, 8) + '...' : '?';
 
     //TODO: If this agent need to update the business number to client, not of agent.
     // ✅ Extract `x-client-user-id` from headers (if exists)
@@ -56,7 +64,24 @@ export class FirebaseAuthGuard implements CanActivate {
       return true; // ✅ If no client ID is provided, it's a regular user request
     }
 
-    // ✅ Check if the authenticated agent has delegation permission for this client
+    const maskedClient = clientUserId?.length >= 8 ? clientUserId.substring(0, 8) + '...' : '?';
+
+    // ✅ Admin bypass — admins can act on behalf of any user (e.g., entering a
+    // demo user from the admin panel) without needing an explicit delegation row.
+    const authUser = await this.userRepository.findOne({ where: { firebaseId: authenticatedFirebaseId } });
+    // Verbose diagnostic — remove once admin-acting-as is confirmed working in all flows.
+    this.logger.log(
+      `[GuardDiag] path=${request.method} ${request.url} | authFid=${maskedId} | clientFid=${maskedClient} | authUserFound=${!!authUser} | authUserRole=${JSON.stringify(authUser?.role ?? null)}`,
+    );
+    if (authUser?.role?.includes(UserRole.ADMIN)) {
+      request.user.firebaseId = clientUserId;
+      request.user.role = 'agent'; // same downstream semantics as an agent acting on behalf of a client
+      this.logger.warn(`[GuardDiag] BYPASS taken — request.user.firebaseId is now ${maskedClient}`);
+      return true;
+    }
+    this.logger.warn(`[GuardDiag] Admin bypass NOT taken (role check failed) — falling through to delegation check`);
+
+    // ✅ Otherwise, check if the authenticated agent has delegation permission for this client
     const hasPermission = await this.delegationRepository.findOne({
       where: { userId: clientUserId, agentId: authenticatedFirebaseId },
     });
@@ -70,7 +95,8 @@ export class FirebaseAuthGuard implements CanActivate {
     // ✅ Modify `request.user` to represent the client
     request.user.firebaseId = clientUserId; // ✅ Switch Firebase ID to client
     request.user.role = 'agent'; // ✅ Mark that the request is on behalf of a client
-    
+    this.logger.log(`Acting as client, firebaseId=${maskedClient}`);
+
     return true;
   }
 

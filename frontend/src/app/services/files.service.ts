@@ -483,15 +483,11 @@ export class FilesService {
       return of(null);
     }
     else {
-      const token = localStorage.getItem('token');
       const url = `${environment.apiUrl}${relativeUrl}`;
       const formData = new FormData();
       formData.append('file', file, file.name);
-      const headers = {
-        'token': token
-      }
-
-      return this.http.post<any>(url, formData, { headers })
+      // AuthInterceptor will automatically add Authorization header with Firebase token
+      return this.http.post<any>(url, formData)
     }
   }
 

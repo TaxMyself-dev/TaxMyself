@@ -4,9 +4,9 @@
   <app-input-select
     [parentForm]="form"
     controlName="periodMode"
-    placeholder="בחר תקופת דיווח"
+    placeholder="בחר תקופה"
     [items]="getPeriodModeOptions()"
-    [size]="inputSize.MEDIUM">
+    [size]="effectiveSize()">
   </app-input-select>
 
   <!-- MONTHLY + BIMONTHLY -->
@@ -16,7 +16,7 @@
       controlName="year"
       placeholder="בחר שנה"
       [items]="generateYears()"
-       [size]="inputSize.MEDIUM">
+       [size]="effectiveSize()">
     </app-input-select>
 
     <app-input-select
@@ -24,7 +24,7 @@
       controlName="month"
       placeholder="בחר חודש"
       [items]="monthList"
-       [size]="inputSize.MEDIUM">
+       [size]="effectiveSize()">
     </app-input-select>
   }
 
@@ -35,7 +35,7 @@
       controlName="year"
       placeholder="בחר שנה"
       [items]="generateYears()"
-       [size]="inputSize.MEDIUM">
+       [size]="effectiveSize()">
     </app-input-select>
   }
 
@@ -45,14 +45,14 @@
       [parentForm]="form"
       controlName="startDate"
       placeholder="מתאריך"
-      [size]="inputSize.MEDIUM">
+      [size]="effectiveSize()">
     </app-input-date>
 
     <app-input-date
       [parentForm]="form"
       controlName="endDate"
       placeholder="עד תאריך"
-      [size]="inputSize.MEDIUM">
+      [size]="effectiveSize()">
     </app-input-date>
   }
 

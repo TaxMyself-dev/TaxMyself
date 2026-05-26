@@ -1,20 +1,24 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input, OnInit, output, signal, WritableSignal } from '@angular/core';
-import { LeftPanelComponent } from "../left-panel/left-panel.component";
-import { InputSelectComponent } from "../input-select/input-select.component";
-import { ButtonComponent } from "../button/button.component";
-import { ToastModule } from 'primeng/toast';
-import { MessageService } from 'primeng/api';
-import { FormBuilder, FormControl, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
-import { IClassifyTrans, IGetSubCategory, IRowDataTable, ISelectItem } from 'src/app/shared/interface';
-import { ButtonSize } from '../button/button.enum';
-import { displayColumnsExpense, inputsSize } from 'src/app/shared/enums';
-import { ExpenseDataService } from 'src/app/services/expense-data.service';
-import { catchError, EMPTY, finalize, map, takeUntil, tap, zip } from 'rxjs';
-import { TransactionsService } from 'src/app/pages/transactions/transactions.page.service';
-import { CheckboxModule } from 'primeng/checkbox';
 import { CommonModule } from '@angular/common';
-import { InputTextComponent } from '../input-text/input-text.component';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, input, OnInit, output, signal } from '@angular/core';
+import { FormBuilder, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
+import { ConfirmationService, MessageService } from 'primeng/api';
+import { ConfirmDialogModule } from 'primeng/confirmdialog';
+import { DialogModule } from 'primeng/dialog';
+import { CheckboxModule } from 'primeng/checkbox';
+import { ToastModule } from 'primeng/toast';
+import { catchError, EMPTY, finalize, map, tap, zip } from 'rxjs';
+import { TransactionsService } from 'src/app/pages/transactions/transactions.page.service';
+import { AuthService } from 'src/app/services/auth.service';
+import { ExpenseDataService } from 'src/app/services/expense-data.service';
+import { GenericService } from 'src/app/services/generic.service';
+import { displayColumnsExpense, inputsSize } from 'src/app/shared/enums';
+import { IRowDataTable, ISelectItem, ISubCategory } from 'src/app/shared/interface';
+import { ButtonComponent } from "../button/button.component";
+import { ButtonSize } from '../button/button.enum';
 import { InputDateComponent } from '../input-date/input-date.component';
+import { InputSelectComponent } from "../input-select/input-select.component";
+import { InputTextComponent } from '../input-text/input-text.component';
+import { LeftPanelComponent } from "../left-panel/left-panel.component";
 
 
 @Component({
@@ -30,32 +34,61 @@ import { InputDateComponent } from '../input-date/input-date.component';
     ToastModule,
     CheckboxModule,
     CommonModule,
+    FormsModule,
     ReactiveFormsModule,
+    ConfirmDialogModule,
+    DialogModule,
   ],
   standalone: true,
+  providers: [ConfirmationService],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ClassifyTranComponent implements OnInit {
   messageService = inject(MessageService);
+  confirmationService = inject(ConfirmationService);
   transactionService = inject(TransactionsService);
   expenseDataService = inject(ExpenseDataService);
+  authService = inject(AuthService);
+  genericService = inject(GenericService);
   formBuilder = inject(FormBuilder);
 
   // Inputs / Outputs
   isVisible = input<boolean>(false);
   incomeMode = input<boolean>(false);
   visibleChange = output<{ visible: boolean; data: boolean }>();
-  openAddCategoryClicked = output<{ state: boolean; subCategoryMode: boolean }>();
-  openAddSubCategoryClicked = output<{ state: boolean; subCategoryMode: boolean; category: string }>();
+  openAddCategoryClicked = output<{ state: boolean; subCategoryMode: boolean; data: IRowDataTable }>();
+  openAddSubCategoryClicked = output<{ state: boolean; subCategoryMode: boolean; data: IRowDataTable; category: string }>();
   rowData = input<IRowDataTable>();
 
+  /** Subtitle: business name in quotes when classifying a row, else default description. */
+  classifyPanelSubtitle = computed(() => {
+    const name = this.rowData()?.['name'];
+    return name ? `"${name}"` : 'מיפוי העסקאות שלך מאפשר סדר והפקת דוחות תקינים למע\'\'מ ומס הכנסה';
+  });
+
   // Signals
-  isLoading: WritableSignal<boolean> = signal(false);
+  isLoading = signal<boolean>(false);
   categoryList = signal<ISelectItem[]>([]);
   groupedSubCategory = signal([{ label: '', items: [] }]);
-  originalSubCategoryList = signal<IGetSubCategory[]>([]);
-  selectedSubCategory = signal<IGetSubCategory | null>(null);
+  originalSubCategoryList = signal<ISubCategory[]>([]);
+  selectedSubCategory = signal<ISubCategory | null>(null);
+  /** Toggle to force subcategory select to re-create after list refresh (fixes selection of newly added subcategory). */
+  showSubCategorySelect = signal(true);
   showAdvancedSection = signal(false);
+
+  // ── Late-arrival period dialog (natural period locked) ─────────────────
+  lockedPeriodDialogVisible = signal<boolean>(false);
+  lockedPeriodNatural = signal<string>('');
+  lockedPeriodOptions = signal<string[]>([]);
+  lockedPeriodPicked = signal<string>('');
+  /** Form payload we paused mid-flight when the 423 came back — re-sent
+   *  with `targetPeriodLabel` once the user picks an alternative. */
+  private pendingClassifyFormData: any = null;
+
+  /** Dropdown options for the businessNumber override. Reuses the canonical
+   *  businesses list from GenericService, which carries the human-readable
+   *  businessName (display) paired with the businessNumber (form value). */
+  businessOptions = this.genericService.businessSelectItems;
 
   // UI constants
   buttonSize = ButtonSize;
@@ -89,7 +122,7 @@ export class ClassifyTranComponent implements OnInit {
       })
       .map((key) => ({
         key,
-        value: subCat[key as keyof IGetSubCategory],
+        value: subCat[key as keyof ISubCategory],
       }));
   });
 
@@ -111,8 +144,31 @@ export class ClassifyTranComponent implements OnInit {
       maxSum: [null],
       comment: [null],
       commentMatchType: ['equals'],
+      // Business attribution override. Defaults to the row's current value
+      // (synced from the bill); user may switch to another of their businesses.
+      businessNumber: [null],
+      // UX shortcut: marks the transaction as VAT-exempt by forcing vatPercent
+      // to 0 on submit. Not sent to the backend — the resulting vatPercent is.
+      noVat: [false],
     });
     this.toggleDetailControls(false);
+    // When categories/subcategories were added (e.g. after closing add-category), refresh subcategory list for current category.
+    effect(() => {
+      this.transactionService.categoryListRefreshTrigger();
+      const categoryName = this.myForm?.get('categoryName')?.value;
+      if (categoryName) {
+        this.getSubCategory(categoryName, true); // forceRecreateSelect so newly added subcategory can be selected
+      }
+    });
+    // Pre-fill the businessNumber dropdown whenever a new row is loaded into
+    // the dialog. Uses the raw value the parent stashes before the display-name
+    // lookup overwrites it (transactions.page.ts:620-626).
+    effect(() => {
+      const row = this.rowData();
+      const raw = row?.['__businessNumberRaw'];
+      const value = raw != null && String(raw).trim() !== '' ? String(raw) : null;
+      this.myForm?.patchValue({ businessNumber: value }, { emitEvent: false });
+    });
   }
 
   ngOnInit() {
@@ -131,13 +187,17 @@ export class ClassifyTranComponent implements OnInit {
     const raw = this.myForm.getRawValue() as any;
     const isSingle = !!raw.isSingleUpdate;
     const formData: any = {
-      id: this.rowData().id,
+      finsiteId: this.rowData().finsiteId,
       name: this.rowData().name,
       billName: this.rowData().billName,
       category: raw.categoryName,
       subCategory: raw.subCategoryName,
       isSingleUpdate: isSingle,
+      businessNumber: raw.businessNumber ?? null,
     };
+
+    // Report scope comes from the chosen subcategory (P&L vs annual-only).
+    const reportScope = this.selectedSubCategory()?.reportScope ?? 'pnl';
 
     if (isSingle) {
       Object.assign(formData, {
@@ -147,6 +207,7 @@ export class ClassifyTranComponent implements OnInit {
         isEquipment: !!raw.isEquipment,
         reductionPercent: +(raw.reductionPercent ?? 0),
         isExpense: !!raw.isExpense,
+        reportScope,
       });
     } else {
       Object.assign(formData, {
@@ -156,21 +217,80 @@ export class ClassifyTranComponent implements OnInit {
         maxSum: raw.maxSum,
         comment: raw.comment,
         matchType: raw.commentMatchType,
+        isRecognized: !!raw.isRecognized,
+        vatPercent: +(raw.vatPercent ?? 0),
+        taxPercent: +(raw.taxPercent ?? 0),
+        isEquipment: !!raw.isEquipment,
+        reductionPercent: +(raw.reductionPercent ?? 0),
+        isExpense: !!raw.isExpense,
+        reportScope,
       });
     }
 
     console.log('🚀 classifyTransaction formData:', formData);
 
+    this.sendClassification(formData);
+  }
+
+  private sendClassification(formData: any): void {
     this.transactionService
       .addClassifiction(formData)
       .pipe(
         catchError((err) => {
+          // 423 Locked — backend distinguishes two locked-report cases via
+          // the `type` field on the error body:
+          //   blocked_report_submitted → existing classified transaction whose
+          //       report has already been submitted (immutable). Single info
+          //       dialog, no accept action.
+          //   natural_period_locked    → a NEW classification attempt whose
+          //       natural period is already submitted. We offer the next few
+          //       open periods so the user can reassign.
+          if (err.status === 423 && err.error?.type === 'natural_period_locked') {
+            this.isLoading.set(false);
+            this.lockedPeriodNatural.set(err.error?.naturalPeriod ?? '');
+            this.lockedPeriodOptions.set(Array.isArray(err.error?.availablePeriods) ? err.error.availablePeriods : []);
+            this.lockedPeriodPicked.set(this.lockedPeriodOptions()[0] ?? '');
+            this.pendingClassifyFormData = formData;
+            this.lockedPeriodDialogVisible.set(true);
+            return EMPTY;
+          }
+          if (err.status === 423 || err.error?.type === 'blocked_report_submitted') {
+            this.isLoading.set(false);
+            this.confirmationService.confirm({
+              key: 'classifyTranLocked',
+              message: err.error?.message ?? 'התנועה שייכת לדוח שכבר דווח לרשויות המס ולא ניתן לשנות את הסיווג שלה.',
+              header: 'התנועה נעולה',
+              icon: 'pi pi-lock',
+              rejectVisible: false,
+              acceptButtonProps: { severity: 'contrast', label: 'הבנתי' },
+              accept: () => {},
+            });
+            return EMPTY;
+          }
+          if (err.status === 409) {
+            this.isLoading.set(false);
+            const isRuleOverride = err.error?.type === 'confirm_rule_override';
+            this.confirmationService.confirm({
+              message: isRuleOverride
+                ? (err.error?.message ?? 'קיים כלל סיווג למוסד זה. האם ברצונך לדרוס אותו?')
+                : 'עסקה זו כבר סווגה באופן חד פעמי. האם ברצונך לדרוס את הסיווג הקיים?',
+              header: isRuleOverride ? 'אישור דריסת כלל סיווג' : 'אישור דריסת סיווג',
+              acceptLabel: 'כן, דרוס',
+              rejectLabel: 'ביטול',
+              accept: () => {
+                this.isLoading.set(true);
+                this.sendClassification({ ...formData, confirmOverride: true });
+              },
+            });
+            return EMPTY;
+          }
           console.error('Error classify transaction', err);
+          const errorDetail = err.error?.message ?? 'מיפוי התנועה נכשל';
           this.messageService.add({
             severity: 'error',
-            summary: 'Error',
-            detail: 'מיפוי התנועה נכשל',
-            life: 3000,
+            summary: 'שגיאה',
+            detail: errorDetail,
+            life: 5000,
             key: 'br',
           });
           return EMPTY;
@@ -189,16 +309,64 @@ export class ClassifyTranComponent implements OnInit {
       });
   }
 
+
+  /** "אישור" inside the locked-period dialog — resend the paused
+   *  classification with the chosen period as `targetPeriodLabel`. */
+  onLockedPeriodConfirm(): void {
+    const picked = this.lockedPeriodPicked();
+    if (!picked || !this.pendingClassifyFormData) {
+      this.lockedPeriodDialogVisible.set(false);
+      return;
+    }
+    const retryPayload = { ...this.pendingClassifyFormData, targetPeriodLabel: picked };
+    this.lockedPeriodDialogVisible.set(false);
+    this.pendingClassifyFormData = null;
+    this.isLoading.set(true);
+    this.sendClassification(retryPayload);
+  }
+
+
+  /** "ביטול" — drop the paused payload, close the dialog, return to form. */
+  onLockedPeriodCancel(): void {
+    this.lockedPeriodDialogVisible.set(false);
+    this.pendingClassifyFormData = null;
+  }
+
+
   // =========================== CATEGORY LOGIC ===========================
   getCategories(): void {
     this.transactionService.getCategories(null, !this.incomeMode()).subscribe();
   }
 
-  getSubCategory(event: string): void {
+  /** Resolves business number for API (header / query); prefers active context then row cache. */
+  private resolveBusinessNumberForSubcategories(): string | null {
+    const fromAuth = this.authService.getActiveBusinessNumber();
+    if (fromAuth && String(fromAuth).trim() !== '') {
+      return fromAuth;
+    }
+    const raw = this.rowData()?.['__businessNumberRaw'];
+    if (raw != null && String(raw).trim() !== '') {
+      return String(raw);
+    }
+    return null;
+  }
+
+  getSubCategory(event: string | boolean, forceRecreateSelect = false): void {
     this.myForm.patchValue({ subCategoryName: '' });
     this.selectedSubCategory.set(null);
-    const isEq = this.expenseDataService.getSubCategory(event, true, !this.incomeMode());
-    const notEq = this.expenseDataService.getSubCategory(event, false, !this.incomeMode());
+    const bn = this.resolveBusinessNumberForSubcategories();
+    const isEq = this.expenseDataService.getSubCategory(
+      event as string,
+      true,
+      !this.incomeMode(),
+      bn,
+    );
+    const notEq = this.expenseDataService.getSubCategory(
+      event as string,
+      false,
+      !this.incomeMode(),
+      bn,
+    );
 
     zip(isEq, notEq)
       .pipe(
@@ -209,19 +377,25 @@ export class ClassifyTranComponent implements OnInit {
             eq.length ? { label: 'רכוש קבוע', items: eq.map((x: any) => ({ name: x.subCategoryName, value: x.subCategoryName })) } : null,
           ].filter(Boolean);
           this.groupedSubCategory.set(group);
+          // After adding a subcategory, re-create the dropdown so the new option can be selected (PrimeNG group select quirk).
+          if (forceRecreateSelect) {
+            this.showSubCategorySelect.set(false);
+            setTimeout(() => this.showSubCategorySelect.set(true), 0);
+          }
         })
       )
       .subscribe();
   }
 
   openAddCategory(): void {
-    this.openAddCategoryClicked.emit({ state: true, subCategoryMode: false });
+    this.openAddCategoryClicked.emit({ state: true, subCategoryMode: false, data: this.rowData() });
   }
 
   openAddSubCategory(event: { state: true; subCategoryMode: true }): void {
     this.openAddSubCategoryClicked.emit({
       state: event.state,
       subCategoryMode: event.subCategoryMode,
+      data: this.rowData(),
       category: this.myForm.get('categoryName')?.value,
     });
   }
@@ -231,7 +405,7 @@ export class ClassifyTranComponent implements OnInit {
     this.toggleDetailControls(!!event.checked);
   }
 
-  subCategorySelected(event: string): void {
+  subCategorySelected(event: string | boolean): void {
     this.selectedSubCategory.set(this.originalSubCategoryList().find((item) => item.subCategoryName === event) || null);
     const sub = this.selectedSubCategory();
     if (sub) {
@@ -241,8 +415,24 @@ export class ClassifyTranComponent implements OnInit {
         taxPercent: sub.taxPercent ?? null,
         vatPercent: sub.vatPercent ?? null,
         reductionPercent: sub.reductionPercent ?? null,
+        // Picking a new subcategory loads its defaults — clear any prior no-VAT toggle.
+        noVat: false,
       });
       this.toggleDetailControls(!!this.myForm.get('isSingleUpdate')?.value);
+    }
+  }
+
+  /**
+   * Toggling "ללא מע״מ" forces vatPercent to 0; unchecking restores the
+   * subcategory's default VAT. The submitted DTO reads vatPercent directly,
+   * so no backend change is needed beyond what already happens on classify.
+   */
+  onNoVatToggle(event: { checked?: boolean }): void {
+    if (event?.checked) {
+      this.myForm.patchValue({ vatPercent: 0 });
+    } else {
+      const sub = this.selectedSubCategory();
+      this.myForm.patchValue({ vatPercent: sub?.vatPercent ?? null });
     }
   }
 

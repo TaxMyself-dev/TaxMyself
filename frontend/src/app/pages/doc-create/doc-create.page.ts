@@ -1,28 +1,29 @@
-import { Component, computed, inject, OnDestroy, OnInit, Signal, signal } from '@angular/core';
-import { FormArray, FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
-import { EMPTY, Observable, Subject, catchError, finalize, firstValueFrom, forkJoin, from, map, of, startWith, switchMap, tap, throwError } from 'rxjs';
-import { BusinessStatus, BusinessType, fieldLineDocName, fieldLineDocValue, FieldsCreateDocName, FieldsCreateDocValue, FormTypes, PaymentMethodName, paymentMethodOptions, UnitOfMeasure, vatOptions, VatType } from 'src/app/shared/enums';
+import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
+import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
-import { Business, BusinessInfo, ICreateDataDoc, ICreateDocField, ICreateLineDoc, IDataDocFormat, IDocIndexes, ISelectItem, ISettingDoc, ITotals, IUserData, } from 'src/app/shared/interface';
-import { DocCreateService } from './doc-create.service';
 import { ModalController } from '@ionic/angular';
-import { SelectClientComponent } from 'src/app/shared/select-client/select-client.component';
-import { GenericService } from 'src/app/services/generic.service';
-import { FilesService } from 'src/app/services/files.service';
+import { ConfirmationService, MenuItem, MessageService } from 'primeng/api';
+import { DialogService, DynamicDialogRef } from 'primeng/dynamicdialog';
+import { catchError, EMPTY, finalize, firstValueFrom, from, of, switchMap, tap } from 'rxjs';
+import { AddClientComponent } from 'src/app/components/add-client/add-client.component';
+import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
+import { DocSuccessDialogComponent } from 'src/app/components/create-doc-success-dialog/create-doc-success-dialog.component';
 import { AuthService } from 'src/app/services/auth.service';
 import { DocumentsService } from 'src/app/services/documents.service';
+import { FilesService } from 'src/app/services/files.service';
+import { GenericService } from 'src/app/services/generic.service';
+import { ShaamService } from 'src/app/services/shaam.service';
+import { BusinessStatus, BusinessType, fieldLineDocName, fieldLineDocValue, FieldsCreateDocName, FieldsCreateDocValue, FormTypes, getAllocationNumberThreshold, inputsSize, paymentMethodOptions, vatOptions, VatType } from 'src/app/shared/enums';
+import { Business, ICreateDocField, IDocIndexes, ISettingDoc, IShaamApprovalRequest, IShaamApprovalResponse, ITotals, IUserData } from 'src/app/shared/interface';
+import { SelectClientComponent } from 'src/app/shared/select-client/select-client.component';
+import { bankOptionsList, DocCreateFields, DocTypeDefaultStart, DocTypeDisplayName, DocumentSummary, DocumentTotals, DocumentTotalsLabels, DocumentType, PartialLineItem } from './doc-cerate.enum';
 import { DocCreateBuilderService } from './doc-create-builder.service';
 import { IClient, IDocCreateFieldData, SectionKeysEnum } from './doc-create.interface';
-import { inputsSize } from 'src/app/shared/enums';
-import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
-import { bankOptionsList, DocCreateFields, DocTypeDefaultStart, DocTypeDisplayName, DocumentSummary, DocumentTotals, DocumentTotalsLabels, LineItem, PartialLineItem } from './doc-cerate.enum';
-import { ConfirmationService, MenuItem } from 'primeng/api';
-import { DocumentType } from './doc-cerate.enum';
-import { toSignal } from '@angular/core/rxjs-interop';
-import { DialogService, DynamicDialogRef } from 'primeng/dynamicdialog';
-import { DocSuccessDialogComponent } from 'src/app/components/create-doc-success-dialog/create-doc-success-dialog.component';
-import { log } from 'console';
-import { AddClientComponent } from 'src/app/components/add-client/add-client.component';
+import { DocCreateService } from './doc-create.service';
+
+// Israeli Tax Authority page where the user manually requests an allocation number.
+// SHAAM auto-flow is intentionally disabled for now — only manual flow is used.
+const TAX_AUTHORITY_ALLOCATION_URL = 'https://www.gov.il/he/service/request-assignment-number-for-tax-invoice';
 
 interface DocPayload {
   docData: any[];
@@ -58,7 +59,9 @@ export class DocCreatePage implements OnInit, OnDestroy {
   private gs = inject(GenericService);
   private documentsService = inject(DocumentsService);
   confirmationService = inject(ConfirmationService);
-  
+  private shaamService = inject(ShaamService);
+  private messageService = inject(MessageService);
+
 
   // Business-related properties
   // businesses = this.gs.businesses;
@@ -76,6 +79,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
   DocCreateFields = DocCreateFields;
   isFileSelected = signal(false); // For HTML template
   generalFormIsValidSignal = signal(false);
+  isMobile = computed(() => this.genericService.isMobile());
   userFormIsValidSignal = signal(false);
   // fileSelected: DocumentType; // For get type of file
   fileSelected = signal<DocumentType>(DocumentType.RECEIPT); // For get type of file
@@ -84,10 +88,13 @@ export class DocCreatePage implements OnInit, OnDestroy {
   docIndexes: IDocIndexes = { docIndex: 0, generalIndex: 0, isInitial: false };
   createPDFIsLoading = signal(false);
   createPreviewPDFIsLoading = signal(false);
+  showCreateDocErrorDialog = signal(false); // Error dialog when document creation fails
+  allocationNumberLoading = signal(false); // Loading state for allocation number request
   clients = signal<IClient[]>([]);
   filteredClients = signal<IClient[]>([]);
   selectedClientData: IClient = null; // Store selected client data for expanded fields
   addPDFIsLoading: boolean = false;
+  sendEmailToRecipient = signal(false); // Checkbox state for sending email to recipient
   userData: IUserData
   amountBeforeVat: number = 0;
   overallTotals: ITotals;
@@ -96,6 +103,9 @@ export class DocCreatePage implements OnInit, OnDestroy {
   isUserExpanded = signal<boolean>(false);
   isPaymentExpanded: boolean = false;
   morePaymentDetails: boolean = false;
+  isWithholdingTaxExpanded = signal<boolean>(false);
+  withholdingTaxForm: FormGroup;
+  withholdingTaxAmount = signal<number>(0);
   generalArray: IDocCreateFieldData[] = [];
   userArray: IDocCreateFieldData[] = [];
   paymentsArray: IDocCreateFieldData[] = [];
@@ -117,6 +127,13 @@ export class DocCreatePage implements OnInit, OnDestroy {
   allocationNum: string | null = null;
   shouldCloseParentDoc: boolean = false; // Flag to indicate if parent document should be closed after creation
   parentBusinessNumber: string | null = null; // Business number of parent document
+
+  // Allocation number related properties
+  allocationNumber = signal<string | null>(null);
+  showAllocationNumberInput = signal<boolean>(false);
+  showShaamDialog = signal<boolean>(false);
+  showAllocationDecisionDialog = signal<boolean>(false); // 3-button manual flow
+  manualAllocationNumber: string = '';
   // selectedBankBeneficiary: string;
   // selectedBankName: string;
   // selectedBankBranch: string;
@@ -147,7 +164,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
   showInitialIndexDialog = true;
   editingLineIndex = signal<number | null>(null); // Track which line is being edited
 
-  activePaymentMethod: MenuItem = this.paymentMethodOptions[0]; // default selected
+  activePaymentMethod: MenuItem = this.paymentMethodOptions.find(m => m.id === 'BANK_TRANSFER') ?? this.paymentMethodOptions[0];
 
   paymentInputForm: FormGroup;  // Holds the active entry row
   paymentsDraft = signal([]);     // Stores all added payments
@@ -155,7 +172,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
   private dialogRef: DynamicDialogRef | undefined;
 
   readonly vatOptions = vatOptions;
-
+  readonly vatOptionsToPrimeng = this.gs.mapLabelToName(vatOptions);
   documentTotals = signal<DocumentTotals>({
     sumBefDisBefVat: 0,
     disSum: 0,
@@ -173,20 +190,21 @@ export class DocCreatePage implements OnInit, OnDestroy {
     totalVat: 0,
     // totalIncludingVat: 0,
   });
-
+  log = console.log
   // Computed signals for filtered arrays based on document type
   isReceiptDocument = computed(() => this.fileSelected() === DocumentType.RECEIPT);
   isExemptBusiness = computed(() => this.selectedBusinessType() === BusinessType.EXEMPT);
-  
-  filteredLineDetailsColumns = computed(() => 
+  showWithholdingTaxSection = computed(() => this.fileSelected() === DocumentType.RECEIPT || this.fileSelected() === DocumentType.TAX_INVOICE_RECEIPT);
+
+  filteredLineDetailsColumns = computed(() =>
     this.docCreateBuilderService.getLineDetailsColumns(this.isReceiptDocument() || this.isExemptBusiness())
   );
-  
-  filteredLineItemsDisplayColumns = computed(() => 
+
+  filteredLineItemsDisplayColumns = computed(() =>
     this.docCreateBuilderService.getLineItemsDisplayColumns(this.isReceiptDocument() || this.isExemptBusiness())
   );
-  
-  filteredSummaryItems = computed(() => 
+
+  filteredSummaryItems = computed(() =>
     this.docCreateBuilderService.getSummaryItems(this.isReceiptDocument() || this.isExemptBusiness())
   );
 
@@ -206,15 +224,41 @@ export class DocCreatePage implements OnInit, OnDestroy {
     return this.totalAmount() - this.totalPayments();
   })
 
+  // Check if allocation number is required. Threshold depends on the doc's
+  // date — the VAT reform steps it down over time (see getAllocationNumberThreshold).
+  requiresAllocationNumber = computed(() => {
+    const docType = this.fileSelected();
+    const isTaxInvoice = docType === DocumentType.TAX_INVOICE || docType === DocumentType.TAX_INVOICE_RECEIPT;
+
+    if (!isTaxInvoice) {
+      return false;
+    }
+
+    const sumBeforeVat = this.documentTotals().sumAftDisBefVat;
+    const docDate = this.generalDetailsForm?.get(FieldsCreateDocValue.DOC_DATE)?.value;
+    return sumBeforeVat > getAllocationNumberThreshold(docDate);
+  });
+
   createDocIsValid = computed(() => {
     return (
       this.generalFormIsValidSignal() &&
       this.userFormIsValidSignal() &&
       this.lineItemsDraft().length > 0 &&
       (!this.isDocWithPayments() || this.paymentsDraft().length > 0) &&
-      (!this.isDocWithPayments() || this.chargesPaymentsDifference() === 0)
+      (!this.isDocWithPayments() || this.chargesPaymentsDifference() === 0) &&
+      !(this.sendEmailToRecipient() && !this.canSendEmail())
     );
   });
+
+  // Check if recipient email is valid for sending (updated via valueChanges subscription below)
+  canSendEmail = signal(false);
+
+  // Simple email validation
+  private isValidEmail(email: string): boolean {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  }
+
 
 
   constructor(private authService: AuthService, private fileService: FilesService, private genericService: GenericService, private modalController: ModalController, private router: Router, public docCreateService: DocCreateService, private formBuilder: FormBuilder, private docCreateBuilderService: DocCreateBuilderService, private dialogService: DialogService) {
@@ -250,11 +294,15 @@ export class DocCreatePage implements OnInit, OnDestroy {
       console.log("ngoninit selected is ", selected);
       this.setSelectedBusiness(selected);
       if (allBusinesses.length === 1) {
-      this.showBusinessSelector = false;
-    } else {
-      this.showBusinessSelector = true;
+        this.showBusinessSelector = false;
+      } else {
+        this.showBusinessSelector = true;
       }
     }
+
+    // Re-create payment form now that docDate is set in generalDetailsForm
+    const initDocDate = this.generalDetailsForm.get(FieldsCreateDocValue.DOC_DATE)?.value ?? new Date();
+    this.createPaymentInputForm(this.activePaymentMethod.id as string, initDocDate);
 
     this.generalDetailsForm.statusChanges.subscribe(() => {
       this.generalFormIsValidSignal.set(this.generalDetailsForm.valid);
@@ -263,8 +311,17 @@ export class DocCreatePage implements OnInit, OnDestroy {
     this.userDetailsForm.statusChanges.subscribe(() => {
       this.userFormIsValidSignal.set(this.userDetailsForm.valid);
     });
-           // Load clients for autocomplete
+
+    this.userDetailsForm.get(FieldsCreateDocValue.RECIPIENT_EMAIL)?.valueChanges.subscribe((email: string) => {
+      this.canSendEmail.set(!!email && email.trim() !== '' && this.isValidEmail(email));
+    });
+    // Load clients for autocomplete
     this.loadClients();
+
+    // Check if returning from SHAAM OAuth and restore draft
+    setTimeout(() => {
+      this.restoreDraftFromDatabase();
+    }, 500); // Wait a bit for forms to be initialized
   }
 
 
@@ -274,7 +331,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
     }
   }
 
-   loadClients(): void {
+  loadClients(): void {
     this.docCreateService.getClients(this.selectedBusinessNumber)
       .pipe(
         catchError((err) => {
@@ -291,7 +348,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
 
   filterClients(event: any): void {
     const query = event.query?.toLowerCase() || '';
-    
+
     if (!query) {
       this.filteredClients.set([...this.clients()]);
     } else {
@@ -312,26 +369,26 @@ export class DocCreatePage implements OnInit, OnDestroy {
     this.userDetailsForm.patchValue({
       [FieldsCreateDocValue.RECIPIENT_NAME]: name
     });
-    
-          this.dialogRef = this.dialogService.open(AddClientComponent, {
-          header: 'יצירת לקוח חדש',       
-          width: '90%',
-          rtl: true,
-          closable: true,
-          dismissableMask: true,
-          modal: true,
-          data: {
-            businessNumber: this.selectedBusinessNumber,
-            clients: this.clients()
-          }
-        });
 
-        this.dialogRef.onClose.subscribe((res) => {
-          if (res) {
-            this.fillClientDetails(res);
-          }
-          this.loadClients();
-        })
+    this.dialogRef = this.dialogService.open(AddClientComponent, {
+      header: 'יצירת לקוח חדש',
+      width: '90%',
+      rtl: true,
+      closable: true,
+      dismissableMask: true,
+      modal: true,
+      data: {
+        businessNumber: this.selectedBusinessNumber,
+        clients: this.clients()
+      }
+    });
+
+    this.dialogRef.onClose.subscribe((res) => {
+      if (res) {
+        this.fillClientDetails(res);
+      }
+      this.loadClients();
+    })
     // Optionally: Open a dialog or modal to add full client details
     // For now, just allow the user to continue filling the form
     console.log('Adding new client:', name);
@@ -359,7 +416,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
 
 
   onBusinessSelection(selectedBusinessNumber: string): void {
-    
+
     const selected = this.genericService.businesses().find(
       b => b.businessNumber === selectedBusinessNumber
     );
@@ -370,7 +427,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
     }
 
     console.log("selected is ", selected);
-    
+
 
     this.setSelectedBusiness(selected);
   }
@@ -383,11 +440,41 @@ export class DocCreatePage implements OnInit, OnDestroy {
     this.selectedBusinessType.set(business.businessType);
     this.selectedBusinessPhone = business.businessPhone;
     this.selectedBusinessEmail = business.businessEmail;
+    this.applyDocTypeFilterForBusiness();
     // this.selectedBankBeneficiary = business.bankBeneficiary;
     // this.selectedBankName = business.bankName;
     // this.selectedBankBranch = business.bankBranch;
     // this.selectedBankAccount = business.bankAccount;
     // this.selectedBankIban = business.bankIban;
+  }
+
+  /**
+   * Restrict the DOC_TYPE dropdown options based on the selected business type:
+   * EXEMPT businesses (עוסק פטור) may only issue RECEIPT (קבלה) or
+   * TRANSACTION_INVOICE (חשבון עסקה). All other business types see the full list.
+   * If the currently-selected doc type is no longer allowed, the form value is cleared.
+   */
+  private applyDocTypeFilterForBusiness(): void {
+    if (!this.generalArray?.length) return;
+
+    const docTypeField = this.generalArray.find(
+      (f) => f.value === FieldsCreateDocValue.DOC_TYPE,
+    );
+    if (!docTypeField) return;
+
+    const allowedTypes: DocumentType[] =
+      this.selectedBusinessType() === BusinessType.EXEMPT
+        ? [DocumentType.RECEIPT, DocumentType.TRANSACTION_INVOICE, DocumentType.PRICE_QUOTE, DocumentType.WORK_ORDER]
+        : (Object.values(DocumentType) as DocumentType[]);
+
+    docTypeField.enumValues = Object.entries(DocTypeDisplayName)
+      .filter(([value]) => allowedTypes.includes(value as DocumentType))
+      .map(([value, name]) => ({ value, name }));
+
+    const currentDocType = this.generalDetailsForm?.get(FieldsCreateDocValue.DOC_TYPE)?.value;
+    if (currentDocType && !allowedTypes.includes(currentDocType as DocumentType)) {
+      this.generalDetailsForm.get(FieldsCreateDocValue.DOC_TYPE)?.setValue('');
+    }
   }
 
 
@@ -397,13 +484,13 @@ export class DocCreatePage implements OnInit, OnDestroy {
     this.fileSelected.set(event);
     this.HebrewNameFileSelected = this.getHebrewNameDoc(this.fileSelected());
     this.handleDocIndexes(this.fileSelected());
-    
+
     // For receipts, automatically set VAT to 'WITHOUT' and remove VAT control from form
-    const defaultValues: any = { 
-      [FieldsCreateDocValue.UNIT_AMOUNT]: 1, 
+    const defaultValues: any = {
+      [FieldsCreateDocValue.UNIT_AMOUNT]: 1,
       // [FieldsCreateDocValue.DISCOUNT]: 0 
     };
-    
+
     if (this.selectedBusinessType() === BusinessType.EXEMPT || this.fileSelected() === DocumentType.RECEIPT) {
       if (this.lineDetailsForm?.get(FieldsCreateDocValue.VAT_OPTIONS)) {
         this.lineDetailsForm.removeControl(FieldsCreateDocValue.VAT_OPTIONS);
@@ -413,20 +500,26 @@ export class DocCreatePage implements OnInit, OnDestroy {
       // For other document types, ensure VAT_OPTIONS control exists
       if (!this.lineDetailsForm?.get(FieldsCreateDocValue.VAT_OPTIONS)) {
         this.lineDetailsForm?.addControl(
-          FieldsCreateDocValue.VAT_OPTIONS, 
+          FieldsCreateDocValue.VAT_OPTIONS,
           new FormControl('', [Validators.required])
         );
       }
       defaultValues[FieldsCreateDocValue.VAT_OPTIONS] = '';
     }
-    
+
     this.lineDetailsForm?.reset(defaultValues);
     this.paymentInputForm?.reset();
     this.paymentInputForm?.get('paymentDate')?.setValue(this.generalDetailsForm?.get('docDate')?.value);
     this.paymentsDraft.set([]);
     this.lineItemsDraft.set([]);
+
+    // Reset withholding tax amount when document type changes
+    this.withholdingTaxAmount.set(0);
+    if (this.withholdingTaxForm) {
+      this.withholdingTaxForm.get('withholdingTaxAmount')?.setValue(0);
+    }
   }
-  
+
 
   onSelectionChange(field: string, event: any): void {
     switch (field) {
@@ -451,113 +544,254 @@ export class DocCreatePage implements OnInit, OnDestroy {
 
 
   confirmCreateDoc(): void {
-   this.confirmationService.confirm({
-            message: 'האם אתה בטוח שברצונך להפיק את המסמך?\nהמסמך שיופק הוא מסמך רשמי המחייב על-פי חוק, ולא ניתן לעריכה לאחר ההפקה.',
-            header: 'אישור הפקת מסמך',
-            icon: 'pi pi-exclamation-triangle',
-            acceptLabel: 'הפק',
-            rejectLabel: 'ביטול',
-      acceptVisible: true,
-      rejectVisible: true,
-            accept: () => {
-              this.createDoc();
-            },
-            reject: () => {
-              this.createPDFIsLoading.set(false);
-            }
-          });
+
+    const requiresAlloc = this.requiresAllocationNumber();
+    const hasAllocNumber = this.allocationNumber();
+
+    if (requiresAlloc) {
+      // Above-threshold docs legally require the recipient's tax ID — both for
+      // requesting an allocation # from the Tax Authority and for the invoice
+      // itself. Block the create flow here and tell the user what to add.
+      const recipientId = this.userDetailsForm.get(FieldsCreateDocValue.RECIPIENT_ID)?.value;
+      if (!recipientId || !String(recipientId).trim()) {
+        this.confirmationService.confirm({
+          message: 'מסמך זה מחייב מספר הקצאה ולכן חובה למלא את מספר ת.ז / ח.פ של הלקוח.',
+          header: 'נדרש מספר עוסק של הלקוח',
+          icon: 'pi pi-exclamation-triangle',
+          acceptLabel: 'אישור',
+          acceptVisible: true,
+          rejectVisible: false,
+          // Match the project's design system (BLACK button).
+          acceptButtonStyleClass: 'p-button-contrast',
+        });
+        return;
+      }
+
+      if (!hasAllocNumber) {
+        // Manual allocation flow. SHAAM auto-flow infrastructure exists
+        // (openShaamDialog/sendAllocationNumberRequest) but is intentionally
+        // bypassed for now — every above-threshold doc goes through the
+        // 3-button manual decision dialog.
+        this.showAllocationNumberDialog();
+        return;
+      }
+    }
+
+    // No allocation required, or one was already supplied — proceed normally.
+    this.showDocumentCreationConfirmation();
   }
 
+  // Show confirmation dialog before creating document
+  private showDocumentCreationConfirmation(): void {
+    this.confirmationService.confirm({
+      message: 'האם אתה בטוח שברצונך להפיק את המסמך?<br>המסמך שיופק הוא מסמך רשמי המחייב על-פי חוק, ולא ניתן לעריכה לאחר ההפקה.',
+      header: 'אישור הפקת מסמך',
+      icon: 'pi pi-exclamation-triangle',
+      acceptLabel: 'הפק',
+      rejectLabel: 'ביטול',
+      acceptVisible: true,
+      rejectVisible: true,
+      // Match the project's design system (BLACK buttons) instead of PrimeNG's
+      // default green/danger.
+      acceptButtonStyleClass: 'p-button-contrast',
+      rejectButtonStyleClass: 'p-button-contrast',
+      accept: () => {
+        this.proceedWithDocumentCreation();
+      },
+      reject: () => {
+        this.createPDFIsLoading.set(false);
+      }
+    });
+  }
 
   createDoc(): void {
-  this.createPDFIsLoading.set(true);
+    // Always call confirmCreateDoc() for validation
+    this.confirmCreateDoc();
+  }
 
-  const payload = this.buildDocPayload();
+  // Actual document creation logic (called after all validations pass)
+  private proceedWithDocumentCreation(): void {
+    this.createPDFIsLoading.set(true);
 
-  this.docCreateService.createDoc(payload).pipe(
-    // Backend now handles: DB transaction + PDF generation + Firebase upload + save paths
-    tap((response) => {
-      console.log('✅ Document created successfully:', response);
-      
-      // If this is a closing document, update the parent document status to CLOSE
-      if (this.shouldCloseParentDoc && this.parentDocType && this.parentDocNumber && this.parentBusinessNumber) {
-        console.log('Updating parent document status to CLOSE:', {
-          businessNumber: this.parentBusinessNumber,
-          docNumber: this.parentDocNumber,
-          docType: this.parentDocType
+    const payload = this.buildDocPayload();
+
+    // Ensure docStatus is not DRAFT when creating actual document
+    // Remove any DRAFT status that might have been set from draft restoration
+    const docData = (payload as any).docData;
+    if (docData && docData.docStatus === 'DRAFT') {
+      console.log('⚠️ Removing DRAFT status from payload before document creation');
+      delete docData.docStatus;
+    }
+
+    console.log('Document creation payload:', {
+      docType: docData?.docType,
+      docNumber: docData?.docNumber,
+      docStatus: docData?.docStatus,
+      linesCount: (payload as any).linesData?.length,
+      paymentsCount: (payload as any).paymentData?.length
+    });
+
+    this.docCreateService.createDoc(payload).pipe(
+      // Backend now handles: DB transaction + PDF generation + Firebase upload + save paths
+      tap((response) => {
+        console.log('✅ Document created successfully:', response);
+        console.log('Response structure:', {
+          success: response.success,
+          docNumber: response.docNumber,
+          docType: response.docType,
+          file: response.file,
+          copyFile: response.copyFile,
+          generalDocIndex: response.generalDocIndex
         });
-        
-        this.documentsService.updateDocStatus(
-          this.parentBusinessNumber,
-          this.parentDocNumber,
-          this.parentDocType,
-          'CLOSE'
-        ).pipe(
-          catchError(err => {
-            console.error('Failed to update parent document status:', err);
-            // Don't block the success flow if status update fails
-            return EMPTY;
-          })
-        ).subscribe(() => {
-          console.log('✅ Parent document status updated to CLOSE');
-        });
-      }
-      
-      // Show success dialog
-      this.dialogRef = this.dialogService.open(DocSuccessDialogComponent, {
-        header: '',
-        width: '400px',
-        rtl: true,
-        data: {
+
+        // Validate response has required fields
+        if (!response || !response.docNumber) {
+          console.error('❌ Invalid response from backend:', response);
+          this.messageService.add({
+            severity: 'error',
+            summary: 'שגיאה',
+            detail: 'המסמך נוצר אך התקבלה תשובה לא תקינה מהשרת',
+            life: 5000,
+            key: 'br'
+          });
+          return;
+        }
+
+        // If this is a closing document, update the parent document status to CLOSE
+        if (this.shouldCloseParentDoc && this.parentDocType && this.parentDocNumber && this.parentBusinessNumber) {
+          console.log('Updating parent document status to CLOSE:', {
+            businessNumber: this.parentBusinessNumber,
+            docNumber: this.parentDocNumber,
+            docType: this.parentDocType
+          });
+
+          this.documentsService.updateDocStatus(
+            this.parentBusinessNumber,
+            this.parentDocNumber,
+            this.parentDocType,
+            'CLOSE'
+          ).pipe(
+            catchError(err => {
+              console.error('Failed to update parent document status:', err);
+              // Don't block the success flow if status update fails
+              return EMPTY;
+            })
+          ).subscribe(() => {
+            console.log('✅ Parent document status updated to CLOSE');
+          });
+        }
+
+        // Delete draft from database before showing success dialog
+        if (this.selectedBusinessNumber && this.fileSelected()) {
+          console.log('Deleting draft after successful document creation...');
+          this.docCreateService.deleteDraft(this.selectedBusinessNumber, this.fileSelected()).subscribe({
+            next: () => {
+              console.log('✅ Draft deleted successfully');
+            },
+            error: (error) => {
+              console.error('Error deleting draft:', error);
+              // Don't block success flow if draft deletion fails
+            }
+          });
+        }
+
+        // Show success dialog
+        console.log('Opening success dialog with data:', {
           docNumber: response.docNumber,
           file: response.file,
           copyFile: response.copyFile,
-          docType: this.getHebrewNameDoc(response.docType)
+          docType: response.docType
+        });
+
+        try {
+          this.dialogRef = this.dialogService.open(DocSuccessDialogComponent, {
+            header: '',
+            width: '400px',
+            rtl: true,
+            data: {
+              docNumber: response.docNumber,
+              file: response.file,
+              copyFile: response.copyFile,
+              docType: this.getHebrewNameDoc(response.docType)
+            }
+          });
+          console.log('✅ Success dialog opened');
+        } catch (error) {
+          console.error('❌ Error opening success dialog:', error);
+          this.messageService.add({
+            severity: 'error',
+            summary: 'שגיאה',
+            detail: 'שגיאה בפתיחת דיאלוג הצלחה',
+            life: 5000,
+            key: 'br'
+          });
         }
-      });
-      
-      this.resetDocFormsAndDrafts();
-    }),
 
-    // Handle errors
-    catchError((err) => {
-      console.error('❌ Error creating document:', err);
-      // Backend automatically rolls back the transaction if anything fails
-      return EMPTY; // swallow to allow finalize to run
-    }),
+        this.resetDocFormsAndDrafts();
+      }),
 
-    // Turn off loader no matter what
-    finalize(() => {
-      this.createPDFIsLoading.set(false);
-    })
-  ).subscribe();
-}
+      // Handle errors – דיאלוג שגיאה למשתמש
+      catchError((err) => {
+        console.error('❌ Error creating document:', err);
+        console.error('Error details:', {
+          message: err.message,
+          error: err.error,
+          status: err.status,
+          statusText: err.statusText
+        });
+
+        this.showCreateDocErrorDialog.set(true);
+
+        this.messageService.add({
+          severity: 'error',
+          summary: 'שגיאה',
+          detail: 'שגיאה בהפקת המסמך. אנא נסה שנית.',
+          life: 5000,
+          key: 'br'
+        });
+
+        return EMPTY;
+      }),
+
+      // Turn off loader no matter what
+      finalize(() => {
+        this.createPDFIsLoading.set(false);
+      })
+    ).subscribe();
+  }
+
+  closeCreateDocErrorDialog(): void {
+    this.showCreateDocErrorDialog.set(false);
+  }
 
   private resetDocFormsAndDrafts(): void {
-  this.generalDetailsForm.reset({
-    [DocCreateFields.DOC_VAT_RATE]: 18,
-    [FieldsCreateDocValue.DOC_DATE]: new Date()
-  });
+    this.generalDetailsForm.reset({
+      [DocCreateFields.DOC_VAT_RATE]: 18,
+      [FieldsCreateDocValue.DOC_DATE]: new Date(),
+      businessNumber: this.selectedBusinessNumber ?? null,
+    });
 
-  this.userDetailsForm.reset();
+    this.userDetailsForm.reset();
 
-  this.lineDetailsForm.reset({
-    [FieldsCreateDocValue.UNIT_AMOUNT]: 1,
-    // [FieldsCreateDocValue.DISCOUNT]: 0
-  });
+    this.lineDetailsForm.reset({
+      [FieldsCreateDocValue.UNIT_AMOUNT]: 1,
+      // [FieldsCreateDocValue.DISCOUNT]: 0
+    });
 
-  this.initialIndexForm.reset();
+    this.initialIndexForm.reset();
 
-  // Use the cached date so we don't read from a reset control
-  this.paymentInputForm.reset({
-    [fieldLineDocValue.PAYMENT_DATE]: this.generalDetailsForm?.get('docDate')?.value
-  });
+    // Reset payment method to default and re-create form with today's date
+    this.activePaymentMethod = this.paymentMethodOptions.find(m => m.id === 'BANK_TRANSFER') ?? this.paymentMethodOptions[0];
+    const resetDocDate = this.generalDetailsForm?.get('docDate')?.value ?? new Date();
+    this.createPaymentInputForm(this.activePaymentMethod.id as string, resetDocDate);
 
-  this.lineItemsDraft.set([]);
-  this.paymentsDraft.set([]);
+    this.lineItemsDraft.set([]);
+    this.paymentsDraft.set([]);
+    this.totalPayments.set(0);
+    this.totalAmount.set(0);
 
-  this.isFileSelected.set(false);
-  // this.HebrewNameFileSelected = null;
+    this.isFileSelected.set(false);
+    // this.HebrewNameFileSelected = null;
 
     // Reset parent document info
     this.parentDocType = null;
@@ -566,11 +800,28 @@ export class DocCreatePage implements OnInit, OnDestroy {
     this.allocationNum = null;
     this.shouldCloseParentDoc = false;
     this.parentBusinessNumber = null;
-}
+
+    // Reset allocation number
+    this.allocationNumber.set(null);
+    this.manualAllocationNumber = '';
+
+    // Reset withholding tax
+    this.withholdingTaxAmount.set(0);
+    if (this.withholdingTaxForm) {
+      this.withholdingTaxForm.get('withholdingTaxAmount')?.setValue(0);
+    }
+    this.isWithholdingTaxExpanded.set(false);
+  }
 
 
   previewDoc(): void {
-    console.log(this.myForm);
+    // Store original allocation number if exists
+    const originalAllocationNumber = this.allocationNumber();
+
+    // If allocation number is required but not set, use example value for preview
+    if (this.requiresAllocationNumber() && !this.allocationNumber()) {
+      this.allocationNumber.set('23425576908765532'); // Example value for preview
+    }
 
     this.createPreviewPDFIsLoading.set(true);
     const data = this.buildDocPayload();
@@ -579,8 +830,12 @@ export class DocCreatePage implements OnInit, OnDestroy {
       .pipe(
         finalize(() => {
           this.createPreviewPDFIsLoading.set(false);
+          // After preview, restore original value (clear example if it was set)
+          this.allocationNumber.set(originalAllocationNumber);
         }),
         catchError((err) => {
+          // Restore original allocation number even on error
+          this.allocationNumber.set(originalAllocationNumber);
           console.error("Error in createPDF (Preview):", err);
           // Log the error message if it's a string
           if (err.message) {
@@ -601,6 +856,17 @@ export class DocCreatePage implements OnInit, OnDestroy {
   }
 
 
+  /** Formats a Date to YYYY-MM-DD using local timezone (avoids UTC-shift bug in prod). */
+  private toLocalDateString(d: Date | string | null | undefined): string | null {
+    if (!d) return null;
+    const date = d instanceof Date ? d : new Date(d);
+    if (isNaN(date.getTime())) return null;
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const dd = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${dd}`;
+  }
+
   buildDocPayload(): DocPayload {
     if (!this.createDocIsValid()) {
       throw new Error('Cannot collect document data: forms are invalid or incomplete.');
@@ -614,11 +880,12 @@ export class DocCreatePage implements OnInit, OnDestroy {
     const generalDocIndex = this.docIndexes.generalIndex;
     const issuerBusinessNumber = this.selectedBusinessNumber;
     const docDescription = this.generalDetailsForm.get(FieldsCreateDocValue.DOC_DESCRIPTION)?.value;
-    const docDate = this.generalDetailsForm.get(FieldsCreateDocValue.DOC_DATE)?.value ?? null;
-    const allocationNum = this.allocationNum?? null;
-    const docSubtitle = this.docSubtitle?? null;
-    const parentDocType = this.parentDocType?? null;
-    const parentDocNumber = this.parentDocNumber?? null;
+    const docDate = this.toLocalDateString(this.generalDetailsForm.get(FieldsCreateDocValue.DOC_DATE)?.value ?? null);
+    // Use allocationNumber from signal if available, otherwise fall back to allocationNum
+    const allocationNum = this.allocationNumber() ?? this.allocationNum ?? null;
+    const docSubtitle = this.docSubtitle ?? null;
+    const parentDocType = this.parentDocType ?? null;
+    const parentDocNumber = this.parentDocNumber ?? null;
     const docVatRate = this.generalDetailsForm.get(FieldsCreateDocValue.DOC_VAT_RATE)?.value;
     const currency = this.generalDetailsForm.get(FieldsCreateDocValue.CURRENCY)?.value;
     const recipientName = this.userDetailsForm.get(FieldsCreateDocValue.RECIPIENT_NAME)?.value;
@@ -651,15 +918,15 @@ export class DocCreatePage implements OnInit, OnDestroy {
       totalWithoutVat: Number(this.documentSummary().totalWithoutVat.toFixed(2)),
       totalDiscount: Number(this.documentSummary().totalDiscount.toFixed(2)),
       totalVat: Number(this.documentSummary().totalVat.toFixed(2)),
+      sendEmailToRecipient: this.sendEmailToRecipient() && this.canSendEmail(),
+      withholdingTaxAmount: this.withholdingTaxAmount() ?? 0,
     };
 
     docPayload = {
       docData,
       linesData: this.lineItemsDraft(),
-      paymentData: this.paymentsDraft(),
+      paymentData: this.paymentsDraft().map(p => ({ ...p, paymentDate: this.toLocalDateString(p.paymentDate) })),
     };
-
-    console.log("🚀 ~ DocCreatePage ~ buildDocPayload ~ docPayload", docPayload);
 
     return docPayload;
 
@@ -669,7 +936,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
   addLineDetails(): void {
     const formData = this.lineDetailsForm.value;
     const editingIndex = this.editingLineIndex();
-    
+
     if (editingIndex !== null) {
       // Update existing line
       console.log("Updating line at index:", editingIndex);
@@ -682,7 +949,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
       console.log("Adding new line with form value:", formData);
       this.addNewLine(formData);
     }
-    
+
     this.lineDetailsForm.reset({
       [FieldsCreateDocValue.UNIT_AMOUNT]: 1,
     });
@@ -704,55 +971,55 @@ export class DocCreatePage implements OnInit, OnDestroy {
   private addNewLine(formData: any): void {
     const lineIndex = this.lineItemsDraft().length;
     const transType = "3";
-    
+
     // For receipts or EXEMPT businesses, vatOptions won't exist in the form, so set it to 'WITHOUT'
     const isExempt = this.selectedBusinessType() === BusinessType.EXEMPT;
     const isReceipt = this.fileSelected() === DocumentType.RECEIPT;
     const isTaxInvoiceReceipt = this.fileSelected() === DocumentType.TAX_INVOICE_RECEIPT;
-    
-      // Handle vatOptions - it might be a number (index) or string (value)
-      let vatOpts: VatType = 'WITHOUT';
-      // For TAX_INVOICE_RECEIPT, we also need to handle VAT options (not just RECEIPT)
-      if (!isExempt && !isReceipt) {
-        const vatOptionsValue = formData.vatOptions;
-        console.log("🚀 ~ addNewLine ~ vatOptionsValue:", vatOptionsValue, "type:", typeof vatOptionsValue);
-        
-        if (vatOptionsValue !== undefined && vatOptionsValue !== null) {
-          if (typeof vatOptionsValue === 'number') {
-            // If it's a number, it's probably an index - convert to value
-            const vatOptionsArray = this.vatOptions;
-            if (vatOptionsArray && vatOptionsArray[vatOptionsValue]) {
-              vatOpts = vatOptionsArray[vatOptionsValue].value;
-            } else {
-              vatOpts = 'WITHOUT';
-            }
+
+    // Handle vatOptions - it might be a number (index) or string (value)
+    let vatOpts: VatType = 'WITHOUT';
+    // For TAX_INVOICE_RECEIPT, we also need to handle VAT options (not just RECEIPT)
+    if (!isExempt && !isReceipt) {
+      const vatOptionsValue = formData.vatOptions;
+      console.log("🚀 ~ addNewLine ~ vatOptionsValue:", vatOptionsValue, "type:", typeof vatOptionsValue);
+
+      if (vatOptionsValue !== undefined && vatOptionsValue !== null) {
+        if (typeof vatOptionsValue === 'number') {
+          // If it's a number, it's probably an index - convert to value
+          const vatOptionsArray = this.vatOptions;
+          if (vatOptionsArray && vatOptionsArray[vatOptionsValue]) {
+            vatOpts = vatOptionsArray[vatOptionsValue].value;
+          } else {
+            vatOpts = 'WITHOUT';
+          }
         } else if (typeof vatOptionsValue === 'string') {
           vatOpts = vatOptionsValue as VatType;
-          } else {
-            vatOpts = 'WITHOUT';
-          }
-        }
-      } else if (isTaxInvoiceReceipt && !isExempt) {
-        // For TAX_INVOICE_RECEIPT, handle VAT options like regular tax invoices
-        const vatOptionsValue = formData.vatOptions;
-        
-        if (vatOptionsValue !== undefined && vatOptionsValue !== null) {
-          if (typeof vatOptionsValue === 'number') {
-            const vatOptionsArray = this.vatOptions;
-            if (vatOptionsArray && vatOptionsArray[vatOptionsValue]) {
-              vatOpts = vatOptionsArray[vatOptionsValue].value;
-            } else {
-              vatOpts = 'WITHOUT';
-            }
-          } else if (typeof vatOptionsValue === 'string') {
-            vatOpts = vatOptionsValue as VatType;
-          } else {
-            vatOpts = 'WITHOUT';
-          }
+        } else {
+          vatOpts = 'WITHOUT';
         }
       }
-      
-      console.log("🚀 ~ addNewLine ~ final vatOpts:", vatOpts);
+    } else if (isTaxInvoiceReceipt && !isExempt) {
+      // For TAX_INVOICE_RECEIPT, handle VAT options like regular tax invoices
+      const vatOptionsValue = formData.vatOptions;
+
+      if (vatOptionsValue !== undefined && vatOptionsValue !== null) {
+        if (typeof vatOptionsValue === 'number') {
+          const vatOptionsArray = this.vatOptions;
+          if (vatOptionsArray && vatOptionsArray[vatOptionsValue]) {
+            vatOpts = vatOptionsArray[vatOptionsValue].value;
+          } else {
+            vatOpts = 'WITHOUT';
+          }
+        } else if (typeof vatOptionsValue === 'string') {
+          vatOpts = vatOptionsValue as VatType;
+        } else {
+          vatOpts = 'WITHOUT';
+        }
+      }
+    }
+
+    console.log("🚀 ~ addNewLine ~ final vatOpts:", vatOpts);
 
     const newLine: PartialLineItem = {
       // issuerBusinessNumber: this.selectedBusinessNumber,
@@ -779,7 +1046,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
     const isExempt = this.selectedBusinessType() === BusinessType.EXEMPT;
     const isReceipt = this.fileSelected() === DocumentType.RECEIPT;
     const isTaxInvoiceReceipt = this.fileSelected() === DocumentType.TAX_INVOICE_RECEIPT;
-    
+
     // Handle vatOptions - it might be a number (index) or string (value)
     let vatOpts: VatType = 'WITHOUT';
     if (!isExempt && !isReceipt) {
@@ -828,10 +1095,10 @@ export class DocCreatePage implements OnInit, OnDestroy {
       vatRate: this.generalDetailsForm.get(FieldsCreateDocValue.DOC_VAT_RATE)?.value,
     };
 
-    this.lineItemsDraft.update(items => 
+    this.lineItemsDraft.update(items =>
       items.map((item, i) => i === index ? updatedLine : item)
     );
-    
+
     this.calculateVatFieldsForLine(index);
     console.log("🚀 ~ DocCreatePage ~ updateLine ~ updated line", this.lineItemsDraft()[index]);
   }
@@ -845,13 +1112,13 @@ export class DocCreatePage implements OnInit, OnDestroy {
       console.error("⚠️ calculateVatFieldsForLine: lineIndex out of bounds", lineIndex, "lines.length:", lines.length);
       return;
     }
-    
+
     const line = lines[lineIndex]; //Get the line by reference
     console.log("🚀 ~ calculateVatFieldsForLine ~ line before calculation:", line);
     const quantity = Number(line.unitQuantity ?? 1);
     const unitSum = Number(line.sum ?? 0);
     const discount = Number(line.discount ?? 0);
-    
+
     // Convert vatOpts to string if it's a number (index)
     let vatOption: VatType = 'WITHOUT';
     if (typeof line.vatOpts === 'number') {
@@ -865,9 +1132,9 @@ export class DocCreatePage implements OnInit, OnDestroy {
     } else if (typeof line.vatOpts === 'string') {
       vatOption = line.vatOpts as VatType;
     }
-    
+
     console.log("🚀 ~ calculateVatFieldsForLine ~ vatOpts:", line.vatOpts, "converted to vatOption:", vatOption);
-    
+
     const vatRate = Number(line.vatRate ?? 0);
 
     const lineGross = unitSum * quantity;
@@ -919,13 +1186,13 @@ export class DocCreatePage implements OnInit, OnDestroy {
       vatPerLine: Number(vatPerLine.toFixed(2)),
       sumAftDisWithVat: Number(sumAftDisWithVat.toFixed(2)),
     };
-    
+
     // Update the signal with the new line
     this.lineItemsDraft.update(items =>
       items.map((item, i) => i === lineIndex ? updatedLine : item)
     );
     console.log("🚀 ~ DocCreatePage ~ calculateVatFieldsForLine ~ line after calaulate", updatedLine);
-    
+
     // Update totals after calculating VAT fields
     this.updateDocumentTotalsFromLines();
     this.calcTotals();
@@ -934,43 +1201,53 @@ export class DocCreatePage implements OnInit, OnDestroy {
 
   updateDocumentTotalsFromLines(): void {
 
-    this.documentSummary.set({
+    // Build a fresh summary object — mutating the existing signal value in
+    // place doesn't trigger reactivity (computeds like `requiresAllocationNumber`
+    // depend on identity, not deep changes).
+    const summary: DocumentSummary = {
       totalVatApplicable: 0,
       totalWithoutVat: 0,
       totalDiscount: 0,
       totalVat: 0,
-    });
+    };
 
-    const lines = this.lineItemsDraft();
-
-    for (const line of lines) {       
+    for (const line of this.lineItemsDraft()) {
+      const lineSum = Number((line.sumBefVatPerUnit ?? 0) * (line.unitQuantity ?? 1));
       if (line.vatOpts === 'WITHOUT') {
-        this.documentSummary().totalWithoutVat += Number((line.sumBefVatPerUnit ?? 0) * (line.unitQuantity ?? 1));
+        summary.totalWithoutVat += lineSum;
+      } else {
+        summary.totalVatApplicable += lineSum;
+        summary.totalVat += Number(line.vatPerLine ?? 0);
       }
-      else {
-        this.documentSummary().totalVatApplicable += Number((line.sumBefVatPerUnit ?? 0) * (line.unitQuantity ?? 1));
-        this.documentSummary().totalVat += Number(line.vatPerLine ?? 0);
-      }
-      this.documentSummary().totalDiscount += Number(line.discount ?? 0);
+      summary.totalDiscount += Number(line.discount ?? 0);
     }
 
-    console.log("🚀 ~ updateDocumentTotalsFromLines ~ this.documentSummary():", this.documentSummary());
+    this.documentSummary.set(summary);
+    console.log("🚀 ~ updateDocumentTotalsFromLines ~ this.documentSummary():", summary);
 
-    if (this.isExemptBusiness()) {
-      this.documentTotals().sumBefDisBefVat = this.documentSummary().totalWithoutVat;
-      this.documentTotals().disSum = this.documentSummary().totalDiscount;
-      this.documentTotals().sumAftDisBefVat = this.documentSummary().totalWithoutVat - this.documentSummary().totalDiscount;
-      this.documentTotals().vatSum = 0;
-      this.documentTotals().sumAftDisWithVat = this.documentTotals().sumAftDisBefVat;
-    }
-    else {
-      this.documentTotals().sumBefDisBefVat = this.documentSummary().totalVatApplicable + this.documentSummary().totalWithoutVat;
-      this.documentTotals().disSum = this.documentSummary().totalDiscount;
-      this.documentTotals().sumAftDisBefVat = this.documentTotals().sumBefDisBefVat - this.documentTotals().disSum;
-      this.documentTotals().vatSum = this.documentSummary().totalVat;
-      this.documentTotals().sumAftDisWithVat = this.documentTotals().sumAftDisBefVat + this.documentTotals().vatSum;
-    }
+    // Same here: assemble a new totals object and `.set()` it so computeds
+    // (including requiresAllocationNumber) actually re-evaluate.
+    const totals: DocumentTotals = this.isExemptBusiness()
+      ? {
+          sumBefDisBefVat: summary.totalWithoutVat,
+          disSum: summary.totalDiscount,
+          sumAftDisBefVat: summary.totalWithoutVat - summary.totalDiscount,
+          vatSum: 0,
+          sumAftDisWithVat: summary.totalWithoutVat - summary.totalDiscount,
+        }
+      : (() => {
+          const sumBefDisBefVat = summary.totalVatApplicable + summary.totalWithoutVat;
+          const sumAftDisBefVat = sumBefDisBefVat - summary.totalDiscount;
+          return {
+            sumBefDisBefVat,
+            disSum: summary.totalDiscount,
+            sumAftDisBefVat,
+            vatSum: summary.totalVat,
+            sumAftDisWithVat: sumAftDisBefVat + summary.totalVat,
+          };
+        })();
 
+    this.documentTotals.set(totals);
   }
 
 
@@ -986,7 +1263,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
         console.warn("⚠️ calcTotals: Line missing calculated fields, skipping:", line);
         continue;
       }
-      
+
       if (line.vatOpts === 'WITHOUT') {
         this.totalNonVATAmount += Number((line.sumBefVatPerUnit ?? 0) * (line.unitQuantity ?? 1));
       }
@@ -1016,7 +1293,9 @@ export class DocCreatePage implements OnInit, OnDestroy {
 
     // Apply default values based on current doc context
     if (this.paymentInputForm.get('paymentDate')) {
-      this.paymentInputForm.get('paymentDate')?.setValue(docDate);
+      // Normalize to Date object — dataType="date" requires a Date, not a string
+      const dateValue = docDate instanceof Date ? docDate : (docDate ? new Date(docDate) : new Date());
+      this.paymentInputForm.get('paymentDate')?.setValue(isNaN(dateValue.getTime()) ? new Date() : dateValue);
     }
     if (this.paymentInputForm.get('sum')) {
       this.paymentInputForm.get('sum')?.setValue(sum);
@@ -1034,6 +1313,34 @@ export class DocCreatePage implements OnInit, OnDestroy {
     this.activePaymentMethod = paymentMethod;
     const docDate = this.generalDetailsForm.get(FieldsCreateDocValue.DOC_DATE)?.value ?? null;
     this.createPaymentInputForm(this.activePaymentMethod.id as string, docDate);
+    this.setSumInPaymentForm();
+  }
+
+  /** Mobile-only: receives a method id string and delegates to onPaymentMethodChange */
+  onMobilePaymentMethodChange(methodId: string): void {
+    const method = this.paymentMethodOptions.find(m => m.id === methodId);
+    if (method) this.onPaymentMethodChange(method as MenuItem);
+  }
+
+  onMobileUpdatePayment(event: { index: number; formValue: any; method: string }): void {
+    const { index, formValue, method } = event;
+    const selectedBank = bankOptionsList.find(bank => bank.value === (formValue.bankNumber ?? formValue.bankName));
+    const hebrewBankName = selectedBank ? selectedBank.name : '';
+    const bankNumber = selectedBank?.value ?? '';
+
+    const updatedPayment = {
+      ...formValue,
+      paymentSum: formValue.paymentSum
+        ? Number(formValue.paymentSum.toString().replace(/^0+(?!\.)/, ''))
+        : null,
+      paymentLineNumber: index + 1,
+      paymentMethod: method,
+      hebrewBankName,
+      bankNumber,
+    };
+
+    this.paymentsDraft.update(items => items.map((p, i) => i === index ? updatedPayment : p));
+    this.totalPayments.set(this.paymentsDraft().reduce((total, payment) => total + Number(payment.paymentSum), 0));
     this.setSumInPaymentForm();
   }
 
@@ -1057,8 +1364,8 @@ export class DocCreatePage implements OnInit, OnDestroy {
     const paymentEntry = {
       ...paymentFormValue,
       paymentSum: paymentFormValue.paymentSum
-    ? Number(paymentFormValue.paymentSum.toString().replace(/^0+(?!\.)/, ''))
-    : null,
+        ? Number(paymentFormValue.paymentSum.toString().replace(/^0+(?!\.)/, ''))
+        : null,
       // issuerBusinessNumber: this.selectedBusinessNumber,
       // generalDocIndex: String(this.docIndexes.generalIndex),
       paymentLineNumber: paymentLineIndex + 1,
@@ -1084,7 +1391,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
   editLine(index: number): void {
     const line = this.lineItemsDraft()[index];
     console.log("Editing line at index:", index, line);
-    
+
     // Populate the form with the line data
     this.lineDetailsForm.patchValue({
       [FieldsCreateDocValue.LINE_DESCRIPTION]: line.description,
@@ -1095,10 +1402,10 @@ export class DocCreatePage implements OnInit, OnDestroy {
         [FieldsCreateDocValue.VAT_OPTIONS]: line.vatOpts
       })
     });
-    
+
     // Set the editing index
     this.editingLineIndex.set(index);
-    
+
     // Optional: scroll to the form for better UX
     setTimeout(() => {
       const formElement = document.querySelector('.line-details-form');
@@ -1123,16 +1430,31 @@ export class DocCreatePage implements OnInit, OnDestroy {
       // Adjust the editing index if we're deleting a line before it
       this.editingLineIndex.set(this.editingLineIndex()! - 1);
     }
-    
+
     this.lineItemsDraft.update(items => items.filter((_, i) => i !== index));
     this.updateDocumentTotalsFromLines();
     this.calcTotals();
     this.setSumInPaymentForm();
   }
 
+  /** Mobile-only: delete with a confirmation dialog before removing the line. */
+  deleteLineWithConfirm(index: number): void {
+    this.confirmationService.confirm({
+      message: 'האם אתה בטוח שברצונך למחוק את הפריט?',
+      header: 'מחיקת פריט',
+      icon: 'pi pi-exclamation-triangle',
+      acceptLabel: 'מחק',
+      rejectLabel: 'ביטול',
+      acceptButtonStyleClass: 'p-button-danger',
+      accept: () => this.deleteLine(index),
+    });
+  }
+
   deletePayment(index: number): void {
     this.paymentsDraft.update(items => items.filter((_, i) => i !== index));
     this.totalPayments.set(this.paymentsDraft().reduce((total, payment) => total + Number(payment.paymentSum), 0));
+    const docDate = this.generalDetailsForm?.get(FieldsCreateDocValue.DOC_DATE)?.value ?? new Date();
+    this.createPaymentInputForm(this.activePaymentMethod.id as string, docDate);
     this.setSumInPaymentForm();
   }
 
@@ -1164,7 +1486,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
     // Reset docIndexes to ensure we don't use stale values from parent document
     // The handleDocIndexes call inside onSelectedDoc will fetch fresh indexes from backend
     this.docIndexes = { docIndex: 0, generalIndex: 0, isInitial: false };
-    
+
     // Set doc type and trigger existing doc-type setup
     this.generalDetailsForm.patchValue({ docType: targetDocType });
     this.onSelectedDoc(targetDocType);
@@ -1294,7 +1616,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
       // Fallback to a single aggregate line (gross sum)
       const rawSum = payload.sourceDoc?.sumAftDisWithVAT ?? payload.sourceDoc?.sum ?? 0;
       let numericSum = Number(String(rawSum).replace(/,/g, '')) || 0;
-      
+
       // If this is a negative receipt, make the sum negative
       if (isNegativeReceipt) {
         numericSum = -Math.abs(numericSum);
@@ -1406,17 +1728,17 @@ export class DocCreatePage implements OnInit, OnDestroy {
     } else {
       // For tax invoices and tax invoice receipts: always extract the price BEFORE VAT from source
       // We'll calculate the final price based on the selected VAT option later
-      
+
       // First, determine the source line's VAT option to know how to extract the price
       const sourceVatOpts = line?.vatOpts ?? line?.vatOptions;
       console.log("🚀 ~ mapSourceLineToForm ~ sourceVatOpts:", sourceVatOpts, "type:", typeof sourceVatOpts, "line:", line);
       let priceBeforeVat = 0;
       const vatRate = Number(line?.vatRate ?? this.generalDetailsForm.get(FieldsCreateDocValue.DOC_VAT_RATE)?.value ?? 18);
-      
+
       // Determine the default VAT option from source line
       // Default to EXCLUDE (price before VAT) - this is the most common case
       defaultVatOption = 'EXCLUDE';
-      
+
       // Convert sourceVatOpts to string if it's a number (index)
       // Backend enum: INCLUDE=1, EXCLUDE=2, WITHOUT=3
       // Frontend array: [0]=INCLUDE, [1]=EXCLUDE, [2]=WITHOUT
@@ -1436,7 +1758,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
       } else if (typeof sourceVatOpts === 'string') {
         sourceVatOptsString = sourceVatOpts as VatType;
       }
-      
+
       // First priority: use sourceVatOpts if available
       if (sourceVatOptsString && (sourceVatOptsString === 'INCLUDE' || sourceVatOptsString === 'EXCLUDE' || sourceVatOptsString === 'WITHOUT')) {
         defaultVatOption = sourceVatOptsString;
@@ -1446,14 +1768,14 @@ export class DocCreatePage implements OnInit, OnDestroy {
         const vatPerLine = Number(line?.vatPerLine ?? 0);
         const sumAftDisWithVat = Number(line?.sumAftDisWithVat ?? line?.sumAftDisWithVAT ?? 0);
         const sumAftDisBefVatPerLine = Number(line?.sumAftDisBefVatPerLine ?? 0);
-        
+
         if (vatPerLine === 0 && sumAftDisWithVat === sumAftDisBefVatPerLine && sumAftDisBefVatPerLine > 0) {
           // If vatPerLine is 0 and sumAftDisWithVat equals sumAftDisBefVatPerLine, it's WITHOUT VAT
           defaultVatOption = 'WITHOUT';
           console.log("🚀 ~ mapSourceLineToForm ~ Detected WITHOUT VAT from vatPerLine === 0 (fallback)");
         }
       }
-      
+
       // Extract price based on source VAT option (use defaultVatOption which is already converted)
       // First, always extract the base price before VAT from the source line
       if (line?.sumBefVatPerUnit != null) {
@@ -1466,7 +1788,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
         // Fallback: try to calculate from total with VAT
         const sumAftDisWithVat = Number(line?.sumAftDisWithVat ?? line?.sumAftDisWithVAT ?? 0);
         const vatPerLine = Number(line?.vatPerLine ?? 0);
-        
+
         if (sumAftDisWithVat > 0 && vatPerLine > 0) {
           // If we have total with VAT and VAT amount, calculate price before VAT
           priceBeforeVat = (sumAftDisWithVat - vatPerLine) / qty;
@@ -1482,7 +1804,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
           priceBeforeVat = qty > 0 ? rawSum / qty : rawSum;
         }
       }
-      
+
       // Calculate unitPrice based on the selected VAT option
       // If INCLUDE: user enters total with VAT, so we need to use the total with VAT from source
       // If EXCLUDE: user enters price before VAT, so we use priceBeforeVat
@@ -1501,11 +1823,11 @@ export class DocCreatePage implements OnInit, OnDestroy {
         // For EXCLUDE or WITHOUT, use price before VAT
         unitPrice = priceBeforeVat;
       }
-      
+
       // Store selectedVatOption for later use in formData
       selectedVatOption = defaultVatOption;
     }
-    
+
     // Determine VAT options for the form (for receipts, set here)
     if (isReceipt) {
       selectedVatOption = 'WITHOUT';
@@ -1556,7 +1878,8 @@ export class DocCreatePage implements OnInit, OnDestroy {
     this.generalArray = this.docCreateBuilderService.getBaseFieldsBySection('GeneralDetails');
     this.userArray = this.docCreateBuilderService.getBaseFieldsBySection('UserDetails');
     this.paymentsArray = this.docCreateBuilderService.getBaseFieldsBySection(this.paymentSectionName);
-    // this.paymentsArray[0] = this.docCreateBuilderService.getBaseFieldsBySection(this.paymentSectionName);    
+    // this.paymentsArray[0] = this.docCreateBuilderService.getBaseFieldsBySection(this.paymentSectionName);
+    this.initializeWithholdingTaxForm();
   }
 
 
@@ -1597,11 +1920,11 @@ export class DocCreatePage implements OnInit, OnDestroy {
 
   handleDocIndexes(docType: DocumentType): void {
     console.log("selectedBusinessNumber is ", this.selectedBusinessNumber);
-    
+
     // Reset indexes first to ensure we don't use stale values
     // This is especially important when creating documents from opposite-doc flow
     this.docIndexes = { docIndex: 0, generalIndex: 0, isInitial: false };
-    
+
     this.docCreateService.getDocIndexes(docType, this.selectedBusinessNumber)
       .pipe(
         catchError(err => {
@@ -1667,13 +1990,13 @@ export class DocCreatePage implements OnInit, OnDestroy {
 
   fillClientDetails(client: any) {
     console.log("🚀 ~ DocCreatePage ~ fillClientDetails ~ client:", client)
-    
+
     // Handle both cases: autocomplete (client.value) and modal (direct client object)
     const clientData = client.value || client;
-    
+
     // Save client data for later use when expanding fields
     this.selectedClientData = clientData;
-    
+
     // Fill only the base fields that currently exist in the form
     this.userDetailsForm.patchValue({
       [FieldsCreateDocValue.RECIPIENT_NAME]: clientData.name || '',
@@ -1681,7 +2004,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
       [FieldsCreateDocValue.RECIPIENT_PHONE]: clientData.phone || '',
       [FieldsCreateDocValue.RECIPIENT_ID]: clientData.id || '',
     });
-    
+
     // If user details are already expanded, fill the expanded fields too
     if (this.isUserExpanded()) {
       this.fillExpandedClientFields(clientData);
@@ -1755,7 +2078,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
 
     }
   }
-  
+
   private fillExpandedClientFields(clientData: IClient): void {
     const expandField = {
       [FieldsCreateDocValue.RECIPIENT_ADDRESS]: clientData.address,
@@ -1765,5 +2088,634 @@ export class DocCreatePage implements OnInit, OnDestroy {
     }
   }
 
+  expandWithholdingTax(): void {
+    this.isWithholdingTaxExpanded.set(!this.isWithholdingTaxExpanded());
+  }
+
+  initializeWithholdingTaxForm(): void {
+    this.withholdingTaxForm = this.formBuilder.group({
+      withholdingTaxAmount: new FormControl(0, [Validators.min(0)])
+    });
+
+    // Subscribe to form value changes to update the signal
+    this.withholdingTaxForm.get('withholdingTaxAmount')?.valueChanges.subscribe(value => {
+      const numValue = value !== null && value !== undefined && value !== '' ? Number(value) : 0;
+      this.withholdingTaxAmount.set(numValue);
+      console.log('🔄 withholdingTaxAmount updated:', numValue, 'from form value:', value);
+    });
+
+    // Also set initial value from form
+    const initialValue = this.withholdingTaxForm.get('withholdingTaxAmount')?.value;
+    if (initialValue !== null && initialValue !== undefined && initialValue !== '') {
+      this.withholdingTaxAmount.set(Number(initialValue));
+    }
+  }
+
+  // Manual allocation-number dialog: 3 buttons (Cancel / Get number / Create without).
+  // Opens a signal-controlled <p-dialog> in the template since PrimeNG's
+  // ConfirmDialog only supports 2 buttons.
+  showAllocationNumberDialog(): void {
+    this.showAllocationDecisionDialog.set(true);
+  }
+
+  /**
+   * Button 1: Cancel — save the document with status PENDING_ALLOCATION (no PDF
+   * yet). The user will see a "needs action" indicator on the incomes page and
+   * can later either enter an allocation number or finalize without one.
+   */
+  onCancelAllocationDecision(): void {
+    this.showAllocationDecisionDialog.set(false);
+    this.createPendingAllocationDoc({ openAllocationDialog: false });
+  }
+
+  /**
+   * Button 2: Get allocation number — save as pending and navigate to the
+   * incomes page where the allocation-input dialog auto-opens with the doc's
+   * details and a link to the Tax Authority site (no auto-redirect).
+   */
+  onGetAllocationFromTaxAuthority(): void {
+    this.showAllocationDecisionDialog.set(false);
+    this.createPendingAllocationDoc({ openAllocationDialog: true });
+  }
+
+  /**
+   * Button 3: Create without allocation number — confirm, then issue the doc
+   * normally (full PDF, journal entry, etc.) without an allocation #.
+   */
+  onCreateWithoutAllocation(): void {
+    this.showAllocationDecisionDialog.set(false);
+    setTimeout(() => {
+      this.confirmationService.confirm({
+        message:
+          'האם אתה בטוח שברצונך להפיק את המסמך ללא מספר הקצאה?<br>' +
+          'הלקוח שלך לא יוכל לקזז את המע״מ על מסמך זה.',
+        header: 'אישור הפקה ללא מספר הקצאה',
+        icon: 'pi pi-exclamation-triangle',
+        acceptLabel: 'כן, הפק ללא מספר הקצאה',
+        rejectLabel: 'ביטול',
+        acceptVisible: true,
+        rejectVisible: true,
+        // Match the project's design system (BLACK buttons).
+        acceptButtonStyleClass: 'p-button-contrast',
+        rejectButtonStyleClass: 'p-button-contrast',
+        accept: () => {
+          this.allocationNumber.set(null);
+          this.proceedWithDocumentCreation();
+        },
+      });
+    }, 150);
+  }
+
+  /**
+   * Sends the doc to the backend with docStatus=PENDING_ALLOCATION so the
+   * server skips PDF generation / journal entry. After success, navigates to
+   * the incomes page. If `openAllocationDialog` is true, the dialog will
+   * auto-open there for this freshly-saved doc (no auto-redirect to the Tax
+   * Authority — the link lives inside the dialog).
+   */
+  private createPendingAllocationDoc(opts: { openAllocationDialog: boolean }): void {
+    this.createPDFIsLoading.set(true);
+
+    const payload = this.buildDocPayload() as any;
+    payload.docData.docStatus = 'PENDING_ALLOCATION';
+    payload.docData.allocationNum = null;
+
+    // Snapshot the form fields we need for the allocation-input dialog
+    // BEFORE resetting the form on success.
+    const dialogRowSnapshot = {
+      issuerBusinessNumber: payload.docData.issuerBusinessNumber,
+      docNumber: String(payload.docData.docNumber),
+      docTypeOriginal: payload.docData.docType,
+      docType: this.getHebrewNameDoc(payload.docData.docType),
+      recipientId: payload.docData.recipientId,
+      sumAftDisBefVAT: payload.docData.totalVatApplicable + payload.docData.totalWithoutVat - payload.docData.totalDiscount,
+      docDate: payload.docData.docDate,
+      docStatusOriginal: 'PENDING_ALLOCATION',
+    };
+
+    this.docCreateService.createDoc(payload).pipe(
+      finalize(() => this.createPDFIsLoading.set(false)),
+      catchError((err) => {
+        console.error('Error saving pending-allocation doc:', err);
+        this.messageService.add({
+          severity: 'error',
+          summary: 'שגיאה',
+          detail: 'שמירת המסמך נכשלה. נסה שנית.',
+          life: 5000,
+          key: 'br',
+        });
+        return EMPTY;
+      }),
+    ).subscribe((response) => {
+      if (!response?.docNumber) return;
+
+      // Best-effort: delete any draft (matches the normal createDoc path).
+      if (this.selectedBusinessNumber && this.fileSelected()) {
+        this.docCreateService.deleteDraft(this.selectedBusinessNumber, this.fileSelected())
+          .subscribe({ error: () => {/* non-fatal */} });
+      }
+
+      this.messageService.add({
+        severity: 'info',
+        summary: 'המסמך נשמר',
+        detail: 'המסמך נשמר וממתין למספר הקצאה.',
+        life: 5000,
+        key: 'br',
+      });
+
+      this.resetDocFormsAndDrafts();
+
+      // For the "get number from tax authority" path, navigate with state so
+      // the incomes page auto-opens the input dialog populated with this
+      // doc's details (and a link to the Tax Authority site).
+      this.router.navigate(['/book-keeping/incomes'], {
+        state: opts.openAllocationDialog
+          ? { autoOpenAllocationFor: dialogRowSnapshot }
+          : undefined,
+      });
+    });
+  }
+
+  // Open SHAAM dialog and send automatic request
+  openShaamDialog(): void {
+    // Check if businessNumber is available
+    if (!this.selectedBusinessNumber) {
+      this.messageService.add({
+        severity: 'error',
+        summary: 'שגיאה',
+        detail: 'מספר עסק לא זוהה. אנא נסה שוב',
+        life: 3000,
+        key: 'br'
+      });
+      return;
+    }
+
+    // Check for valid SHAAM connection
+    firstValueFrom(
+      this.shaamService.getValidAccessToken(this.selectedBusinessNumber).pipe(
+        catchError((error) => {
+          // On error, return null to indicate no connection
+          return of(null);
+        })
+      )
+    ).then((tokenData) => {
+      if (!tokenData || !tokenData.accessToken) {
+        // No valid connection exists, show confirmation dialog
+        this.showShaamConnectionRequiredDialog();
+        return;
+      }
+      // Valid connection exists, send automatic request with document data
+      this.sendAllocationNumberRequest(tokenData.accessToken);
+    });
+  }
+
+  // Send allocation number request automatically with document data
+  private sendAllocationNumberRequest(accessToken: string): void {
+    // Set loading state
+    console.log('🔵 Setting allocationNumberLoading to true');
+    this.allocationNumberLoading.set(true);
+    console.log('🔵 allocationNumberLoading value:', this.allocationNumberLoading());
+
+    // Log token details
+    console.log('=== SENDING ALLOCATION NUMBER REQUEST ===');
+    // console.log('Access token length:', accessToken.length);
+    // console.log('Access token starts with:', accessToken.substring(0, 30));
+    // console.log('Access token ends with:', '...' + accessToken.substring(accessToken.length - 20));
+
+    // Build request data from document
+    const docDate = this.generalDetailsForm.get(FieldsCreateDocValue.DOC_DATE)?.value;
+    const docNumber = this.docIndexes.docIndex;
+    const recipientId = this.userDetailsForm.get(FieldsCreateDocValue.RECIPIENT_ID)?.value;
+    const totals = this.documentTotals();
+    const docType = this.generalDetailsForm.get(FieldsCreateDocValue.DOC_TYPE)?.value;
+
+    // Format date to YYYY-MM-DD using local timezone (avoids UTC-shift in prod)
+    const formattedDate = this.toLocalDateString(docDate) ?? this.toLocalDateString(new Date());
+
+    // Map document type to invoice_type (you may need to adjust this mapping)
+    const invoiceType = this.mapDocTypeToInvoiceType(docType);
+
+    // Build approval request
+    const approvalData: IShaamApprovalRequest = {
+      user_id: parseInt(this.selectedBusinessNumber),
+      accounting_software_number: 258001, // Fixed company number
+      amount_before_discount: totals.sumBefDisBefVat || totals.sumAftDisBefVat,
+      customer_vat_number: parseInt(recipientId) || 204245724,
+      discount: totals.disSum || 0,
+      invoice_date: formattedDate,
+      invoice_id: `INV-${docNumber}-${Date.now()}`,
+      invoice_issuance_date: formattedDate,
+      invoice_reference_number: docNumber?.toString() || `REF-${Date.now()}`,
+      invoice_type: invoiceType,
+      payment_amount: totals.sumAftDisBefVat,
+      payment_amount_including_vat: totals.sumAftDisWithVat,
+      vat_amount: totals.vatSum,
+      vat_number: parseInt(this.selectedBusinessNumber) || 777777715,
+    };
+
+    // console.log('Approval data:', JSON.stringify(approvalData, null, 2));
+    // console.log('Business number:', this.selectedBusinessNumber);
+    console.log('=== END ALLOCATION NUMBER REQUEST DATA ===');
+
+    // Send request with businessNumber so backend can verify token
+    this.shaamService.submitInvoiceApproval(accessToken, approvalData, this.selectedBusinessNumber)
+      .pipe(
+        finalize(() => {
+          // Always turn off loading when request completes (success or error)
+          this.allocationNumberLoading.set(false);
+        }),
+        catchError((error) => {
+          const errorMessage = error.error?.message || error.message || 'שגיאה בשליחת הבקשה';
+          this.messageService.add({
+            severity: 'error',
+            summary: 'שגיאה',
+            detail: errorMessage,
+            life: 5000,
+            key: 'br'
+          });
+          return EMPTY;
+        })
+      )
+      .subscribe((response: IShaamApprovalResponse) => {
+        if (response.approved && response.confirmation_number) {
+          this.allocationNumber.set(response.confirmation_number);
+          this.messageService.add({
+            severity: 'success',
+            summary: 'הצלחה',
+            detail: `מספר הקצאה התקבל: ${response.confirmation_number}`,
+            life: 5000,
+            key: 'br'
+          });
+          // After getting allocation number, show confirmation dialog
+          this.showDocumentCreationConfirmation();
+        } else {
+          this.messageService.add({
+            severity: 'warn',
+            summary: 'החשבונית לא אושרה',
+            detail: response.message || 'החשבונית לא אושרה על ידי שעמ',
+            life: 5000,
+            key: 'br'
+          });
+        }
+      });
+  }
+
+  // Map document type to SHAAM invoice type
+  private mapDocTypeToInvoiceType(docType: DocumentType): number {
+    // Map your document types to SHAAM invoice types
+    // You may need to adjust this mapping based on your business logic
+    switch (docType) {
+      case DocumentType.TAX_INVOICE:
+        return 305; // Example: tax invoice
+      case DocumentType.TAX_INVOICE_RECEIPT:
+        return 305; // Example: tax invoice receipt
+      default:
+        return 305; // Default invoice type
+    }
+  }
+
+  // Show dialog when SHAAM connection is required
+  showShaamConnectionRequiredDialog(): void {
+    // Wait a bit to ensure any previous dialog is fully closed
+    setTimeout(() => {
+      this.confirmationService.confirm({
+        message: 'על מנת להמשיך בתהליך יש לבצע התחברות לאיזור האישי ברשות המיסים ולתת הרשאה למערכת לבצע עבורך את הפעולה',
+        header: 'התחברות נדרשת',
+        icon: 'pi pi-info-circle',
+        acceptLabel: 'מעבר לאתר רשות המיסים',
+        rejectLabel: 'ביטול',
+        acceptVisible: true,
+        rejectVisible: true,
+        accept: () => {
+          // Save draft to database before redirecting
+          console.log('=== FRONTEND: Saving draft before SHAAM redirect ===');
+          console.log('Business Number:', this.selectedBusinessNumber);
+          console.log('Document Type:', this.fileSelected());
+          console.log('Lines Count:', this.lineItemsDraft().length);
+          console.log('Payments Count:', this.paymentsDraft().length);
+
+          const draftPayload = this.buildDocPayload();
+          console.log('Draft payload built, sending to backend...');
+          console.log('Payload issuerBusinessNumber:', (draftPayload as any).docData?.issuerBusinessNumber);
+          console.log('Current selectedBusinessNumber:', this.selectedBusinessNumber);
+
+          // Save businessNumber to sessionStorage before redirecting
+          const businessNumberToSave = (draftPayload as any).docData?.issuerBusinessNumber || this.selectedBusinessNumber;
+          const docTypeToSave = this.fileSelected();
+          sessionStorage.setItem('draft_businessNumber', businessNumberToSave);
+          sessionStorage.setItem('draft_docType', docTypeToSave);
+          console.log('Saved to sessionStorage - businessNumber:', businessNumberToSave, 'docType:', docTypeToSave);
+
+          this.docCreateService.saveDraft(draftPayload).subscribe({
+            next: (response) => {
+              console.log('✅ FRONTEND: Draft saved successfully!', response);
+              // Redirect to SHAAM OAuth flow
+              this.shaamService.initiateOAuthFlow(this.selectedBusinessNumber);
+            },
+            error: (error) => {
+              console.error('❌ FRONTEND: Error saving draft:', error);
+              // Still redirect even if draft save fails
+              this.shaamService.initiateOAuthFlow(this.selectedBusinessNumber);
+            }
+          });
+        },
+        reject: () => {
+          // User cancelled, do nothing
+        }
+      });
+    }, 150);
+  }
+
+  // Handle SHAAM dialog close
+  onShaamDialogClose(event: { visible: boolean }): void {
+    this.showShaamDialog.set(event.visible);
+  }
+
+  // Handle SHAAM approval success
+  onShaamApprovalSuccess(event: { response: IShaamApprovalResponse }): void {
+    if (event.response.confirmation_number) {
+      this.allocationNumber.set(event.response.confirmation_number);
+      this.messageService.add({
+        severity: 'success',
+        summary: 'הצלחה',
+        detail: `מספר הקצאה התקבל: ${event.response.confirmation_number}`,
+        life: 3000,
+        key: 'br'
+      });
+      // After getting allocation number, show confirmation dialog
+      this.showDocumentCreationConfirmation();
+    }
+  }
+
+  // Handle manual allocation number input
+  onAllocationNumberSubmit(allocationNumber: string): void {
+    if (allocationNumber && allocationNumber.trim()) {
+      this.allocationNumber.set(allocationNumber.trim());
+      this.manualAllocationNumber = '';
+      this.showAllocationNumberInput.set(false);
+      // Continue with the standard document creation flow
+      // This will show the standard confirmation dialog and then create the document
+      this.showDocumentCreationConfirmation();
+    }
+  }
+
+  // Cancel manual allocation number input
+  cancelAllocationNumberInput(): void {
+    this.manualAllocationNumber = '';
+    this.showAllocationNumberInput.set(false);
+  }
+
+  // Restore draft from database after returning from SHAAM
+  private restoreDraftFromDatabase(): void {
+    console.log('=== FRONTEND: Restoring draft from database ===');
+
+    // Try to get businessNumber from sessionStorage first (saved before SHAAM redirect)
+    const savedBusinessNumber = sessionStorage.getItem('draft_businessNumber');
+    const savedDocType = sessionStorage.getItem('draft_docType') as DocumentType | null;
+
+    console.log('Business Number from sessionStorage:', savedBusinessNumber);
+    console.log('Business Number from component:', this.selectedBusinessNumber);
+    console.log('DocType from sessionStorage:', savedDocType);
+    console.log('DocType from component:', this.fileSelected());
+    console.log('All businesses:', this.gs.businesses());
+
+    // Use saved businessNumber if available, otherwise use current selectedBusinessNumber
+    const businessNumberToUse = savedBusinessNumber || this.selectedBusinessNumber;
+
+    if (!businessNumberToUse) {
+      console.log('❌ No business number available, skipping draft restore');
+      console.log('Available businesses:', this.gs.businesses().map(b => b.businessNumber));
+      return;
+    }
+
+    // If we have a saved businessNumber but it's different from selectedBusinessNumber, update it
+    if (savedBusinessNumber && savedBusinessNumber !== this.selectedBusinessNumber) {
+      console.log('⚠️ BusinessNumber mismatch! Updating selectedBusinessNumber from', this.selectedBusinessNumber, 'to', savedBusinessNumber);
+      const businessToSelect = this.gs.businesses().find(b => b.businessNumber === savedBusinessNumber);
+      if (businessToSelect) {
+        this.setSelectedBusiness(businessToSelect);
+        this.generalDetailsForm.patchValue({
+          businessNumber: savedBusinessNumber
+        });
+      }
+    }
+
+    // Try to load draft for all possible document types if fileSelected is not set
+    const docTypesToTry = savedDocType || this.fileSelected()
+      ? [savedDocType || this.fileSelected()].filter(Boolean) as DocumentType[]
+      : [DocumentType.TAX_INVOICE, DocumentType.TAX_INVOICE_RECEIPT, DocumentType.RECEIPT, DocumentType.TRANSACTION_INVOICE, DocumentType.CREDIT_INVOICE, DocumentType.PRICE_QUOTE, DocumentType.WORK_ORDER];
+
+    console.log('Document types to try:', docTypesToTry);
+
+    // Try loading draft for each document type until we find one
+    let attempts = 0;
+    const tryLoadDraft = (docType: DocumentType) => {
+      console.log(`Attempting to load draft for document type: ${docType} (attempt ${attempts + 1}/${docTypesToTry.length})`);
+      console.log(`Using businessNumber: ${businessNumberToUse}`);
+      this.docCreateService.loadDraft(businessNumberToUse, docType).subscribe({
+        next: (response) => {
+          console.log('Backend response:', response);
+          if (response.exists && response.draft) {
+            console.log('✅ FRONTEND: Draft found! Restoring data...');
+            const { docData, linesData, paymentData } = response.draft;
+            console.log('DocData:', docData);
+            console.log('Lines Count:', linesData?.length || 0);
+            console.log('Payments Count:', paymentData?.length || 0);
+
+            // Set fileSelected from draft if not already set, and initialize form
+            if (docData?.docType) {
+              const docType = docData.docType;
+              if (!this.fileSelected() || this.fileSelected() !== docType) {
+                console.log('Setting fileSelected to:', docType);
+                this.onSelectedDoc(docType); // This initializes the form properly
+              }
+            }
+
+            // Restore document data to forms
+            if (docData) {
+              console.log('Restoring form values from docData:', docData);
+
+              // Restore general details using correct field names from enum
+              const generalFormValues: any = {
+                [FieldsCreateDocValue.DOC_TYPE]: docData.docType,
+                [FieldsCreateDocValue.DOC_DESCRIPTION]: docData.docDescription || null,
+                [FieldsCreateDocValue.DOC_DATE]: docData.docDate ? new Date(docData.docDate) : new Date(),
+                [FieldsCreateDocValue.DOC_VAT_RATE]: docData.docVatRate || 18,
+                [FieldsCreateDocValue.CURRENCY]: docData.currency || 'ILS',
+              };
+
+              // Add docSubtitle if field exists in form
+              if (this.generalDetailsForm.get('docSubtitle')) {
+                generalFormValues['docSubtitle'] = docData.docSubtitle || null;
+              }
+
+              // Add allocationNum if field exists in form
+              if (this.generalDetailsForm.get('allocationNum')) {
+                generalFormValues['allocationNum'] = docData.allocationNum || null;
+              }
+
+              console.log('Patching generalDetailsForm with:', generalFormValues);
+              this.generalDetailsForm.patchValue(generalFormValues);
+
+              // Restore user details using correct field names from enum
+              const recipientAddress = docData.recipientStreet
+                ? `${docData.recipientStreet}${docData.recipientHomeNumber ? ' ' + docData.recipientHomeNumber : ''}${docData.recipientCity ? ', ' + docData.recipientCity : ''}`
+                : null;
+
+              const userFormValues: any = {
+                [FieldsCreateDocValue.RECIPIENT_NAME]: docData.recipientName || null,
+                [FieldsCreateDocValue.RECIPIENT_ID]: docData.recipientId || null,
+                [FieldsCreateDocValue.RECIPIENT_PHONE]: docData.recipientPhone || null,
+                [FieldsCreateDocValue.RECIPIENT_EMAIL]: docData.recipientEmail || null,
+                [FieldsCreateDocValue.RECIPIENT_ADDRESS]: recipientAddress || null,
+              };
+
+              console.log('Patching userDetailsForm with:', userFormValues);
+              this.userDetailsForm.patchValue(userFormValues);
+
+              // Restore parent document info
+              this.parentDocType = docData.parentDocType || null;
+              this.parentDocNumber = docData.parentDocNumber || null;
+              this.docSubtitle = docData.docSubtitle || null;
+              this.allocationNum = docData.allocationNum || null;
+              if (docData.allocationNum) {
+                this.allocationNumber.set(docData.allocationNum);
+              }
+
+              // Restore withholding tax amount
+              if (docData.withholdingTaxAmount !== undefined && docData.withholdingTaxAmount !== null) {
+                const withholdingAmount = Number(docData.withholdingTaxAmount) || 0;
+                this.withholdingTaxAmount.set(withholdingAmount);
+                if (this.withholdingTaxForm) {
+                  this.withholdingTaxForm.get('withholdingTaxAmount')?.setValue(withholdingAmount);
+                }
+              }
+
+              console.log('✅ General and user forms patched');
+            }
+
+            // Restore lines
+            if (linesData && linesData.length > 0) {
+              console.log('Restoring lines:', linesData);
+              const restoredLines = linesData.map((line, index) => {
+                // Calculate discount from disBefVatPerLine if needed
+                // The discount field in the UI is the total discount, which equals disBefVatPerLine for most cases
+                const discount = line.disBefVatPerLine || 0;
+
+                // Calculate sum (unit price) from sumBefVatPerUnit
+                // We need to reverse the calculation based on vatOpts
+                let sum = 0;
+                const vatRate = line.vatRate || 0;
+                const quantity = line.unitQuantity || 1;
+
+                if (line.vatOpts === 'INCLUDE') {
+                  // If VAT is included, sumBefVatPerUnit = sum / (1 + vatRate/100)
+                  // So sum = sumBefVatPerUnit * (1 + vatRate/100)
+                  sum = line.sumBefVatPerUnit * (1 + vatRate / 100);
+                } else {
+                  // For EXCLUDE or WITHOUT, sum = sumBefVatPerUnit
+                  sum = line.sumBefVatPerUnit;
+                }
+
+                return {
+                  description: line.description,
+                  unitQuantity: line.unitQuantity,
+                  sum: sum,
+                  discount: discount,
+                  sumBefVatPerUnit: line.sumBefVatPerUnit,
+                  disBefVatPerLine: line.disBefVatPerLine || 0,
+                  sumAftDisBefVatPerLine: line.sumAftDisBefVatPerLine || 0,
+                  vatPerLine: line.vatPerLine || 0,
+                  sumAftDisWithVat: (line.sumAftDisBefVatPerLine || 0) + (line.vatPerLine || 0),
+                  vatOpts: line.vatOpts,
+                  vatRate: line.vatRate,
+                  unitType: line.unitType,
+                  internalNumber: line.internalNumber || null,
+                  manufacturerName: line.manufacturerName || null,
+                  productSerialNumber: line.productSerialNumber || null,
+                  lineNumber: index + 1,
+                  docType: docData?.docType || this.fileSelected(),
+                  transType: '3',
+                };
+              });
+              console.log('Setting lineItemsDraft with', restoredLines.length, 'lines');
+              console.log('Restored lines with calculated fields:', restoredLines);
+              this.lineItemsDraft.set(restoredLines);
+
+              // Update totals after restoring lines
+              console.log('Updating document totals from restored lines...');
+              this.updateDocumentTotalsFromLines();
+              this.calcTotals();
+              console.log('✅ Lines restored and totals updated');
+            }
+
+            // Restore payments
+            if (paymentData && paymentData.length > 0) {
+              console.log('Restoring payments:', paymentData);
+              const restoredPayments = paymentData.map(payment => ({
+                paymentMethod: payment.paymentMethod,
+                paymentAmount: payment.paymentAmount,
+                paymentDate: payment.paymentDate ? new Date(payment.paymentDate) : new Date(),
+                hebrewBankName: payment.hebrewBankName || null,
+                bankNumber: payment.bankNumber || null,
+                branchNumber: payment.branchNumber || null,
+                accountNumber: payment.accountNumber || null,
+                checkNumber: payment.checkNumber || null,
+                cardCompany: payment.cardCompany || null,
+                creditCardName: payment.creditCardName || null,
+                creditTransType: payment.creditTransType || null,
+                card4Number: payment.card4Number || null,
+                creditPayNumber: payment.creditPayNumber || null,
+                appName: payment.appName || null,
+              }));
+              console.log('Setting paymentsDraft with', restoredPayments.length, 'payments');
+              this.paymentsDraft.set(restoredPayments);
+              console.log('✅ Payments restored');
+            }
+
+            // Clear sessionStorage after successful restore
+            sessionStorage.removeItem('draft_businessNumber');
+            sessionStorage.removeItem('draft_docType');
+
+            // Show success message
+            console.log('✅ FRONTEND: Draft restored successfully!');
+            this.messageService.add({
+              severity: 'info',
+              summary: 'נתונים שוחזרו',
+              detail: 'הנתונים שמילאת לפני ההתחברות לרשות המיסים שוחזרו',
+              life: 3000,
+              key: 'br'
+            });
+          } else {
+            console.log(`❌ No draft found for document type: ${docType}`);
+            // Try next document type if this one didn't have a draft
+            attempts++;
+            if (attempts < docTypesToTry.length) {
+              tryLoadDraft(docTypesToTry[attempts]);
+            } else {
+              console.log('❌ FRONTEND: No draft found for any document type');
+            }
+          }
+        },
+        error: (error) => {
+          console.error(`❌ FRONTEND: Error loading draft for ${docType}:`, error);
+          // Try next document type on error
+          attempts++;
+          if (attempts < docTypesToTry.length) {
+            tryLoadDraft(docTypesToTry[attempts]);
+          } else {
+            console.log('❌ FRONTEND: Failed to load draft for all document types');
+          }
+        }
+      });
+    };
+
+    // Start trying to load draft
+    if (docTypesToTry.length > 0) {
+      tryLoadDraft(docTypesToTry[0]);
+    } else {
+      console.log('❌ FRONTEND: No document types to try');
+    }
+  }
 
 }

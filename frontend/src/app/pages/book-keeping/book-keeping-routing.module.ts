@@ -12,16 +12,26 @@ const routes: Routes = [
         loadChildren: () =>
           import('./incomes/incomes.module').then(m => m.IncomesPageModule)
       },
-      // {
-      //   path: 'expenses',
-      //   loadChildren: () =>
-      //     import('./expenses/expenses.module').then(m => m.ExpensesPageModule)
-      // },
-      // {
-      //   path: 'clients',
-      //   loadChildren: () =>
-      //     import('./clients/clients.module').then(m => m.ClientsPageModule)
-      // },
+      {
+        path: 'expenses',
+        loadChildren: () =>
+          import('./expenses/expenses.module').then(m => m.ExpensesPageModule)
+      },
+      {
+        path: 'clients',
+        loadChildren: () =>
+          import('./clients/clients.module').then(m => m.ClientsPageModule)
+      },
+      {
+        path: 'suppliers',
+        loadChildren: () =>
+          import('./suppliers/suppliers.module').then(m => m.SuppliersPageModule)
+      },
+      {
+        path: 'tasks',
+        loadChildren: () =>
+          import('./client-tasks/client-tasks.module').then(m => m.ClientTasksPageModule)
+      },
       { path: '', redirectTo: 'incomes', pathMatch: 'full' }
     ]
   }

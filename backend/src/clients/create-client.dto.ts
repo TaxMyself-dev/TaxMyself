@@ -1,8 +1,5 @@
 import {
     IsString,
-    IsNumber,
-    IsDateString,
-    IsBoolean,
     IsOptional,
 } from 'class-validator'
 
@@ -29,17 +26,5 @@ export class CreateClientDto {
 
     @IsString()
     @IsOptional()
-    city: string;
-
-    @IsString()
-    @IsOptional()
-    state: string;
-
-    @IsString()
-    @IsOptional()
-    street: string;
-
-    @IsString()
-    @IsOptional()
-    homeNumber: string;
+    address: string;
 }

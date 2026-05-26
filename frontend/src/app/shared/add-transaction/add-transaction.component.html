@@ -37,7 +37,7 @@
             <ion-card-title>פרטי קטגוריה נבחרת</ion-card-title>
           </ion-card-header>
           <ion-card-content class="content-card">
-            <ng-container *ngIf="categoryDetails.isRecognized === 'כן'; else notRecognized ">
+            <ng-container *ngIf="categoryDetails.isRecognized; else notRecognized ">
               <ng-container *ngFor="let item of categoryDetails | keyvalue: categoryDetailsOrderByFunc">
                 <div *ngIf="item.key !== 'id'" class="data-card">
                   <p class="headers-table">{{displayHebrew[item.key]}} :&nbsp;&nbsp;</p>
@@ -74,26 +74,31 @@
           [checked]="isRecognize"
           (ionChange)="onCheckboxRecognize($event, true)">{{isBussinesCategoryTitle}}</ion-checkbox>
         <form class="form-is-recognized" [formGroup]="newCategoryIsRecognizeForm">
-          <app-generic-select   class="default-input-add-transaction" [items]="equipmentList" [controlName]="'isSingleUpdate'"
-            [title]="'לסווג תנועה באופן חד-פעמי?'" [parentForm]="newCategoryIsRecognizeForm" [disabled]="!isRecognize">
-          </app-generic-select>
-          <app-generic-select *ngIf="!incomeMode"   class="default-input-add-transaction" [items]="equipmentList" [controlName]="'isEquipment'"
-            [parentForm]="newCategoryIsRecognizeForm" [title]="'האם ההוצאה היא רכוש קבוע?'"
-            (selectionChanged)="setValueEquipment($event)" [disabled]="!isRecognize">
-          </app-generic-select>
-          <app-multi-input  class="default-input-add-transaction" [controlName]="'category'" [items]="categoryList"
-          [parentForm]="newCategoryIsRecognizeForm" [title]="incomeMode ? 'הכנסה מעסק(לא ניתן לשנות)' : 'בחר/הכנס קטגוריה'" [disabled]="incomeMode || !isRecognize"></app-multi-input>
-          <app-generic-input  class="default-input-add-transaction" [controlName]="'subCategory'" [inputLabel]="'תת-קטגוריה'"
+          <app-generic-select class="default-input-add-transaction" [items]="equipmentList"
+            [controlName]="'isSingleUpdate'" [title]="'לסווג תנועה באופן חד-פעמי?'"
             [parentForm]="newCategoryIsRecognizeForm" [disabled]="!isRecognize">
+          </app-generic-select>
+          <app-generic-select *ngIf="!incomeMode" class="default-input-add-transaction" [items]="equipmentList"
+            [controlName]="'isEquipment'" [parentForm]="newCategoryIsRecognizeForm"
+            [title]="'האם ההוצאה היא רכוש קבוע?'" (selectionChanged)="setValueEquipment($event)"
+            [disabled]="!isRecognize">
+          </app-generic-select>
+          <app-multi-input class="default-input-add-transaction" [controlName]="'category'" [items]="categoryList"
+            [parentForm]="newCategoryIsRecognizeForm"
+            [title]="incomeMode ? 'הכנסה מעסק(לא ניתן לשנות)' : 'בחר/הכנס קטגוריה'"
+            [disabled]="incomeMode || !isRecognize"></app-multi-input>
+          <app-generic-input class="default-input-add-transaction" [controlName]="'subCategory'"
+            [inputLabel]="'תת-קטגוריה'" [parentForm]="newCategoryIsRecognizeForm" [disabled]="!isRecognize">
           </app-generic-input>
-          <app-generic-input *ngIf="!incomeMode"   class="default-input-add-transaction" [controlName]="'taxPercent'"
+          <app-generic-input *ngIf="!incomeMode" class="default-input-add-transaction" [controlName]="'taxPercent'"
             [inputLabel]="'אחוז מוכר למס'" [parentForm]="newCategoryIsRecognizeForm" [disabled]="!isRecognize">
           </app-generic-input>
           <app-generic-input *ngIf="!incomeMode" class="default-input-add-transaction" [inputLabel]="'אחוז מוכר למעמ'"
             [parentForm]="newCategoryIsRecognizeForm" [controlName]="'vatPercent'" [disabled]="!isRecognize">
           </app-generic-input>
-          <app-generic-input *ngIf="!incomeMode"  class="default-input-add-transaction" [controlName]="'reductionPercent'"
-            [inputLabel]="'אחוז פחת'" [parentForm]="newCategoryIsRecognizeForm" [disabled]="!isRecognize || !newCategoryIsRecognizeForm.get('isEquipment').value">
+          <app-generic-input *ngIf="!incomeMode" class="default-input-add-transaction"
+            [controlName]="'reductionPercent'" [inputLabel]="'אחוז פחת'" [parentForm]="newCategoryIsRecognizeForm"
+            [disabled]="!isRecognize || !newCategoryIsRecognizeForm.get('isEquipment').value">
           </app-generic-input>
         </form>
       </div>
@@ -104,17 +109,21 @@
           [checked]="!isRecognize"
           (ionChange)="onCheckboxRecognize($event, false)">{{notBussinesCategoryTitle}}</ion-checkbox>
         <form class="form-not-recognized" [formGroup]="newCategoryNotRecognizedForm">
-          <app-generic-select   class="default-input-add-transaction" [items]="equipmentList" [controlName]="'isSingleUpdate'"
-            [title]="'לסווג תנועה באופן חד-פעמי?'" [disabled]="isRecognize"
+          <app-generic-select class="default-input-add-transaction" [items]="equipmentList"
+            [controlName]="'isSingleUpdate'" [title]="'לסווג תנועה באופן חד-פעמי?'" [disabled]="isRecognize"
             [parentForm]="newCategoryNotRecognizedForm"></app-generic-select>
-          <app-multi-input   class="default-input-add-transaction" [controlName]="'category'" [items]="categoryList"
-            [parentForm]="newCategoryNotRecognizedForm" [title]="'בחר/הכנס קטגוריה'" [disabled]="isRecognize"></app-multi-input>
-          <app-generic-input   class="default-input-add-transaction" [controlName]="'subCategory'" [inputLabel]="'הכנס תת-קטגוריה'"
-            [parentForm]="newCategoryNotRecognizedForm" [disabled]="isRecognize"></app-generic-input>
+          <app-multi-input class="default-input-add-transaction" [controlName]="'category'" [items]="categoryList"
+            [parentForm]="newCategoryNotRecognizedForm" [title]="'בחר/הכנס קטגוריה'"
+            [disabled]="isRecognize"></app-multi-input>
+          <app-generic-input class="default-input-add-transaction" [controlName]="'subCategory'"
+            [inputLabel]="'הכנס תת-קטגוריה'" [parentForm]="newCategoryNotRecognizedForm"
+            [disabled]="isRecognize"></app-generic-input>
         </form>
       </div>
 
     </div>
-    <app-button [buttonText]="'הוסף וסווג תנועה'" [disabled]="isRecognize ? newCategoryIsRecognizeForm.invalid : newCategoryNotRecognizedForm.invalid" (onButtonClicked)="addClasssificationNewCategory()"></app-button>
+    <app-button [buttonText]="'הוסף וסווג תנועה'"
+      [disabled]="isRecognize ? newCategoryIsRecognizeForm.invalid : newCategoryNotRecognizedForm.invalid"
+      (onButtonClicked)="addClasssificationNewCategory()"></app-button>
   </div>
   <ion-toast message="התנועה סווגה בהצלחה" [isOpen]="isOpenToast" [duration]="5000"></ion-toast>

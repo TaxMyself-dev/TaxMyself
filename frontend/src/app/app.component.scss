@@ -133,10 +133,80 @@ ion-item.selected {
   overflow:hidden;
 }
 
-/* Critical: routed element directly under .app-content */
-.app-content > * {
-  display:flex;
-  flex-direction:column;
-  flex:1 1 auto;
-  min-height:0;
+/* router-outlet לא תופס מקום – הקומפוננטה המוצגת היא האחות שלו */
+.app-content > router-outlet {
+  flex: 0 0 0;
+  overflow: hidden;
+  display: block;
+}
+
+/* רק הקומפוננטה המודרת (אחות ל-router-outlet) תופסת את השטח */
+.app-content > *:not(router-outlet) {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* p-confirmdialog is always in the DOM but should never take flex space */
+.app-content > p-confirmdialog {
+  flex: 0 0 auto;
+  min-height: 0;
+}
+
+/* Global loading overlay */
+.global-loader-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.loader-box {
+  background: #fff;
+  border-radius: 12px;
+  padding: 32px 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.18);
+}
+
+.loader-message {
+  margin: 0;
+  font-size: 16px;
+  color: #363636;
+  direction: rtl;
+}
+
+/* פס כשהרואה חשבון נכנס לחשבון לקוח */
+.accountant-context-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 10px 16px;
+  background: #1a1a1a;
+  color: #fff;
+  font-size: 0.95rem;
+  .banner-text {
+    font-weight: 500;
+  }
+  .banner-exit-btn {
+    padding: 6px 14px;
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    border-radius: 8px;
+    background: transparent;
+    color: #fff;
+    cursor: pointer;
+    font-size: 0.9rem;
+    &:hover {
+      background: rgba(255, 255, 255, 0.15);
+    }
+  }
 }

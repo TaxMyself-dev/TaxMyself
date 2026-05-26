@@ -37,5 +37,13 @@ lerna-debug.log*
 
 .env.prod
 .env
+.env.test
 .env.production
 .tmp
+
+results_*.txt
+
+bank-full-*.json
+bank-simple-*.json
+card-full-*.json
+card-simple-*.json

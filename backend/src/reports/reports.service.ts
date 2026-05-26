@@ -3,16 +3,16 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Between, Not, Repository } from 'typeorm';
 import { Expense } from '../expenses/expenses.entity';
 import { VatReportDto } from './dtos/vat-report.dto';
+import { buildVatReportPdf } from './vat-report-pdf';
+import { AdvanceIncomeTaxReportDto } from './dtos/advance-income-tax-report.dto';
 import { ExpensePnlDto, PnLReportDto } from './dtos/pnl-report.dto';
 import { DepreciationReportDto } from './dtos/reduction-report.dto';
 import { ExpensesService } from '../expenses/expenses.service';
 import { SharedService } from 'src/shared/shared.service';
 import { User } from '../users/user.entity';
 import { BusinessType, DOC_TYPE_INFO, DocumentSummaryRow, DocumentType, FIELD_MAP, JournalReferenceType, ListSummaryRow, PaymentMethodType, UniformFileTypeCodeMap, UniformSummaries} from 'src/enum';
-import { TransactionsService } from 'src/transactions/transactions.service';
 import { Documents } from 'src/documents/documents.entity';
 import { DocLines } from 'src/documents/doc-lines.entity';
-import { Transactions } from 'src/transactions/transactions.entity';
 import axios from 'axios';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -26,6 +26,9 @@ import { JournalLine } from 'src/bookkeeping/jouranl-line.entity';
 import { DefaultBookingAccount } from 'src/bookkeeping/account.entity';
 import { DocPayments } from 'src/documents/doc-payments.entity';
 import { Business } from 'src/business/business.entity';
+import { SlimTransaction } from 'src/transactions/slim-transaction.entity';
+import { FullTransactionCache } from 'src/transactions/full-transaction-cache.entity';
+import { VATReportingType, ExpenseReportScope } from 'src/enum';
 
 
 @Injectable()
@@ -41,12 +44,9 @@ export class ReportsService {
 
   constructor(
     private expensesService: ExpensesService,
-    private transactionsService: TransactionsService,
     private sharedService: SharedService,
     @InjectRepository(Expense)
     private expenseRepo: Repository<Expense>,
-    @InjectRepository(Transactions)
-    private transactionsRepo: Repository<Transactions>,
     @InjectRepository(Business)
     private businessRepo: Repository<Business>,
     @InjectRepository(Documents)
@@ -61,8 +61,12 @@ export class ReportsService {
     private JournalEntryRepo: Repository<JournalEntry>,
     @InjectRepository(JournalLine) 
     private JournalLineRepo: Repository<JournalLine>,
-    @InjectRepository(DefaultBookingAccount) 
+    @InjectRepository(DefaultBookingAccount)
     private defaultBookingAccountRepo: Repository<DefaultBookingAccount>,
+    @InjectRepository(SlimTransaction)
+    private slimRepo: Repository<SlimTransaction>,
+    @InjectRepository(FullTransactionCache)
+    private cacheRepo: Repository<FullTransactionCache>,
   ) {
     if (!fs.existsSync(this.debugFolder)) {
       fs.mkdirSync(this.debugFolder, { recursive: true });
@@ -70,28 +74,123 @@ export class ReportsService {
   }
 
 
-  async createPDF(data: any): Promise<Blob | undefined> {
-    console.log('in createPDF function');
-    
+  /**
+   * Returns whether the report covering `(businessNumber, startDate)` has been
+   * marked as submitted yet. Drives the VAT/PnL page UI — when true, the
+   * "סמן כדווח" button is replaced with a "הדוח הוגש" success indicator.
+   *
+   * A period is considered submitted if at least one transaction in the slim
+   * table is stamped with the period label AND has `isLocked = true`.
+   */
+  async getReportSubmissionStatus(
+    userId: string,
+    businessNumber: string,
+    startDate: Date,
+  ): Promise<{ isSubmitted: boolean; periodLabel: string }> {
+    const business = await this.businessRepo.findOne({
+      where: { firebaseId: userId, businessNumber },
+    });
+    if (!business) {
+      throw new NotFoundException(`Business ${businessNumber} not found`);
+    }
+    const periodLabel = this.sharedService.buildReportPeriodLabel(
+      business.businessType ?? BusinessType.EXEMPT,
+      business.vatReportingType ?? VATReportingType.NOT_REQUIRED,
+      startDate,
+    );
+    const lockedCount = await this.slimRepo.count({
+      where: { userId, businessNumber, vatReportingDate: periodLabel, isLocked: true },
+    });
+    return { isSubmitted: lockedCount > 0, periodLabel };
+  }
+
+
+  /**
+   * Marks every transaction in the given report period as `isLocked = true`
+   * — i.e. the user clicked "סמן כדווח" after submitting the report at the
+   * tax authority. Matches by the period label that confirm-trans already
+   * stamped on `vatReportingDate`. Self-employed equivalent of the
+   * accountant-workflow lock at ReportWorkflowService.setReported.
+   */
+  async markReportAsSubmitted(
+    userId: string,
+    businessNumber: string,
+    startDate: Date,
+  ): Promise<{ count: number; periodLabel: string }> {
+    const business = await this.businessRepo.findOne({
+      where: { firebaseId: userId, businessNumber },
+    });
+    if (!business) {
+      throw new NotFoundException(`Business ${businessNumber} not found`);
+    }
+    const periodLabel = this.sharedService.buildReportPeriodLabel(
+      business.businessType ?? BusinessType.EXEMPT,
+      business.vatReportingType ?? VATReportingType.NOT_REQUIRED,
+      startDate,
+    );
+
+    const slimResult = await this.slimRepo.update(
+      { userId, businessNumber, vatReportingDate: periodLabel, isLocked: false },
+      { isLocked: true },
+    );
+    await this.cacheRepo.update(
+      { userId, businessNumber, vatReportingDate: periodLabel, isLocked: false },
+      { isLocked: true },
+    );
+
+    this.logger.log(
+      `markReportAsSubmitted: locked ${slimResult.affected ?? 0} transactions for ${businessNumber} / ${periodLabel}`,
+    );
+    return { count: slimResult.affected ?? 0, periodLabel };
+  }
+
+
+  async generatePnLReportPDF(data: any): Promise<Blob> {
+    const fid = 'ydAEQsvSbC';
     const url = 'https://api.fillfaster.com/v1/generatePDF';
     const token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6ImluZm9AdGF4bXlzZWxmLmNvLmlsIiwic3ViIjo5ODUsInJlYXNvbiI6IkFQSSIsImlhdCI6MTczODIzODAxMSwiaXNzIjoiaHR0cHM6Ly9maWxsZmFzdGVyLmNvbSJ9.DdKFDTxNWEXOVkEF2TJHCX0Mu2AbezUBeWOWbpYB2zM';
-  
-    const headers = {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json'
+
+    const payload = {
+      fid,
+      digitallySign: false,
+      prefill_data: data.prefill_data,
     };
-  
+
+    const headers = {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    };
+
     try {
-      const response = await axios.post<Blob>(url, data, {
-        headers: headers,
-        responseType: 'arraybuffer', // ensures the response is treated as a Blob
+      const response = await axios.post<Blob>(url, payload, {
+        headers,
+        responseType: 'arraybuffer',
       });
-      
+
+      if (!response.data) {
+        throw new Error('Failed to generate PDF');
+      }
+
       return response.data;
-    } 
-    catch (error) {
-      console.error('Error in createPDF:', error);
-      throw new InternalServerErrorException("something went wrong in create PDF");
+    } catch (error: any) {
+      console.error('❌ FillFaster API Error for PnL Report:');
+      console.error('   Status:', error.response?.status);
+      console.error('   Status Text:', error.response?.statusText);
+      console.error('   URL:', url);
+      console.error('   FID:', fid);
+      
+      if (error.response?.data) {
+        try {
+          const errorText = Buffer.from(error.response.data).toString('utf-8');
+          console.error('   Error Response Body:', errorText);
+        } catch (bufferError) {
+          console.error('   Could not parse error response body');
+        }
+      }
+      
+      throw new InternalServerErrorException(
+        `FillFaster API error: ${error.response?.status || 'Unknown'} - ${error.response?.statusText || error.message}`
+      );
     }
   }
     
@@ -104,12 +203,6 @@ export class ReportsService {
   ): Promise<VatReportDto> {
 
     try {
-      console.log("createVatReport - start");
-      console.log("firebaseId is ", firebaseId);
-      console.log("businessNumber is ", businessNumber);
-      console.log("startDate is ", startDate);
-      console.log("endDate is ", endDate);
-        
       const vatReport: VatReportDto = {
           vatableTurnover: 0,
           nonVatableTurnover: 0,
@@ -121,50 +214,219 @@ export class ReportsService {
 
       const year = startDate.getFullYear();
 
-      console.log("Step 1: Getting VAT income from lines...");
       ({ vatableIncome: vatReport.vatableTurnover, nonVatableIncome: vatReport.nonVatableTurnover } =
-        await this.getVatIncomeFromLines(
-          businessNumber,
-          startDate,
-          endDate
-      ));
-      console.log("Step 1 complete - vatableTurnover:", vatReport.vatableTurnover, "nonVatableTurnover:", vatReport.nonVatableTurnover);
+        await this.getVatIncomeFromDocuments(businessNumber, startDate, endDate));
 
-      // Step 1: Fetch expenses using the function we wrote based on monthReport
-      console.log("Step 2: Fetching expenses...");
       const expenses = await this.expensesService.getExpensesForVatReport(firebaseId, businessNumber, startDate, endDate);
-      console.log("Step 2 complete - expenses count:", expenses?.length || 0);
-  
-      // Step 2: Filter expenses into regular (non-equipment) and assets (equipment)
-      console.log("Step 3: Filtering expenses...");
       const regularExpenses = expenses.filter(expense => !expense.isEquipment);
       const assetsExpenses = expenses.filter(expense => expense.isEquipment);
-      console.log("Step 3 complete - regularExpenses:", regularExpenses.length, "assetsExpenses:", assetsExpenses.length);
-  
-      // Step 3: Calculate VAT for regular expenses
-      console.log("Step 4: Calculating VAT refunds...");
+
       vatReport.vatRefundOnExpenses = regularExpenses.reduce((sum, expense) => sum + Number(expense.totalVatPayable || 0), 0);
-      
-      // Step 4: Calculate VAT for assets (equipment)
       vatReport.vatRefundOnAssets = assetsExpenses.reduce((sum, expense) => sum + Number(expense.totalVatPayable || 0), 0);
-      console.log("Step 4 complete - vatRefundOnExpenses:", vatReport.vatRefundOnExpenses, "vatRefundOnAssets:", vatReport.vatRefundOnAssets);
 
-      // Step 5: Calculate VAT payment
-      console.log("Step 5: Calculating VAT payment...");
       const vatPercent = this.sharedService.getVatPercent(year);
-      console.log("vatPercent for year", year, "is", vatPercent);
       vatReport.vatPayment = Math.round(vatReport.vatableTurnover * vatPercent) - vatReport.vatRefundOnExpenses - vatReport.vatRefundOnAssets;
-
       vatReport.vatRate = this.sharedService.getVatRateByYear(startDate);
-      console.log("Step 5 complete - vatPayment:", vatReport.vatPayment, "vatRate:", vatReport.vatRate);
-  
-      console.log("createVatReport - success, returning report");
+
       return vatReport;
     } catch (error) {
-      console.error("❌ Error in createVatReport:", error);
-      console.error("Error stack:", error.stack);
       throw error;
     }
+  }
+
+  /**
+   * Compute the VAT report for a business+period and render it as a PDF buffer.
+   * Used when a VAT report workflow is marked submitted, to snapshot the
+   * as-filed figures. Returns the PDF bytes; storage is the caller's concern.
+   */
+  async generateVatReportPdfBuffer(
+    firebaseId: string,
+    businessNumber: string,
+    startDate: Date,
+    endDate: Date,
+    submittedAt: Date = new Date(),
+  ): Promise<Buffer> {
+    const data = await this.createVatReport(
+      firebaseId,
+      businessNumber,
+      startDate,
+      endDate,
+    );
+    const business = await this.businessRepo.findOne({
+      where: { businessNumber, firebaseId },
+    });
+    return buildVatReportPdf(data, {
+      businessName: business?.businessName ?? businessNumber,
+      businessNumber,
+      periodStart: startDate,
+      periodEnd: endDate,
+      submittedAt,
+    });
+  }
+
+  async getAdvanceIncomeTaxReportData(
+    firebaseId: string,
+    businessNumber: string,
+    startDate: Date,
+    endDate: Date,
+  ): Promise<AdvanceIncomeTaxReportDto> {
+    try {
+      const business = await this.businessRepo.findOne({
+        where: { businessNumber, firebaseId },
+      });
+      const businessType = business?.businessType ?? null;
+
+      if (businessType === BusinessType.EXEMPT) {
+        return this.getAdvanceIncomeTaxReportDataForExempt(
+          businessNumber,
+          startDate,
+          endDate,
+          business,
+        );
+      }
+      return this.getAdvanceIncomeTaxReportDataForLicensed(
+        businessNumber,
+        startDate,
+        endDate,
+        business,
+      );
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  /** דוח מקדמות מס – עוסק מורשה/חברה: עסקאות חייבות, עסקאות פטורות, מע"מ עסקאות */
+  private async getAdvanceIncomeTaxReportDataForLicensed(
+    businessNumber: string,
+    startDate: Date,
+    endDate: Date,
+    business: { advanceTaxPercent?: number | null; businessType?: BusinessType | null } | null,
+  ): Promise<AdvanceIncomeTaxReportDto> {
+    const advanceTaxPercent = business?.advanceTaxPercent != null ? Number(business.advanceTaxPercent) : 0;
+
+    const { vatableIncome: vatableTurnover, nonVatableIncome: nonVatableTurnover } =
+      await this.getVatIncomeFromDocuments(businessNumber, startDate, endDate);
+    const totalIncome = await this.getIncomeBeforeVat(businessNumber, startDate, endDate);
+
+    const { vatOnTurnover } = await this.getTotalTurnoverIncludingVatAndVatOnTurnover(
+      businessNumber,
+      startDate,
+      endDate,
+      business?.businessType ?? null,
+    );
+    const taxWithholdingAtSource = await this.getWithholdingAtSourceSum(businessNumber, startDate, endDate);
+    const totalAdvanceTax = Math.round(totalIncome * (advanceTaxPercent / 100));
+    const totalToPay = totalAdvanceTax - taxWithholdingAtSource;
+
+    return {
+      businessType: business?.businessType ?? 'LICENSED',
+      vatableTurnover,
+      nonVatableTurnover,
+      vatOnTurnover,
+      totalIncome,
+      advanceTaxPercent,
+      totalAdvanceTax,
+      taxWithholdingAtSource,
+      totalToPay,
+    };
+  }
+
+  /** דוח מקדמות מס – עוסק פטור: רק סך עסקאות (ללא פירוט מע"מ) */
+  private async getAdvanceIncomeTaxReportDataForExempt(
+    businessNumber: string,
+    startDate: Date,
+    endDate: Date,
+    business: { advanceTaxPercent?: number | null; businessType?: BusinessType | null } | null,
+  ): Promise<AdvanceIncomeTaxReportDto> {
+    const advanceTaxPercent = business?.advanceTaxPercent != null ? Number(business.advanceTaxPercent) : 0;
+
+    const { totalTurnoverIncludingVat } = await this.getTotalTurnoverIncludingVatAndVatOnTurnover(
+      businessNumber,
+      startDate,
+      endDate,
+      BusinessType.EXEMPT,
+    );
+    const totalIncome = totalTurnoverIncludingVat;
+    const taxWithholdingAtSource = await this.getWithholdingAtSourceSum(businessNumber, startDate, endDate);
+    const totalAdvanceTax = Math.round(totalTurnoverIncludingVat * (advanceTaxPercent / 100));
+    const totalToPay = totalAdvanceTax - taxWithholdingAtSource;
+
+    return {
+      businessType: 'EXEMPT',
+      vatableTurnover: 0,
+      nonVatableTurnover: 0,
+      vatOnTurnover: 0,
+      totalIncome,
+      advanceTaxPercent,
+      totalAdvanceTax,
+      taxWithholdingAtSource,
+      totalToPay,
+    };
+  }
+
+  /** סה"כ עסקאות כולל מע"מ + סך מע"מ עסקאות לתקופה (לפי סוג עסק) */
+  private async getTotalTurnoverIncludingVatAndVatOnTurnover(
+    businessNumber: string,
+    startDate: Date,
+    endDate: Date,
+    businessType: BusinessType | null,
+  ): Promise<{ totalTurnoverIncludingVat: number; vatOnTurnover: number }> {
+    const base = this.documentsRepo
+      .createQueryBuilder('doc')
+      .where('doc.issuerBusinessNumber = :businessNumber', { businessNumber })
+      .andWhere('doc.isCancelled = false');
+
+    if (businessType === BusinessType.EXEMPT) {
+      const res = await base
+        .clone()
+        .andWhere('doc.docType = :type', { type: 'RECEIPT' })
+        .andWhere('doc.valueDate BETWEEN :start AND :end', { start: startDate, end: endDate })
+        .select('COALESCE(SUM(doc.sumAftDisWithVAT), 0)', 'totalInclVat')
+        .addSelect('COALESCE(SUM(doc.vatSum), 0)', 'vat')
+        .getRawOne<{ totalInclVat: string; vat: string }>();
+      return {
+        totalTurnoverIncludingVat: Number(res?.totalInclVat ?? 0),
+        vatOnTurnover: Number(res?.vat ?? 0),
+      };
+    }
+
+    const regular = await base
+      .clone()
+      .andWhere('doc.docType IN (:...types)', { types: ['TAX_INVOICE', 'TAX_INVOICE_RECEIPT'] })
+      .andWhere('doc.docDate BETWEEN :start AND :end', { start: startDate, end: endDate })
+      .select('COALESCE(SUM(doc.sumAftDisWithVAT), 0)', 'totalInclVat')
+      .addSelect('COALESCE(SUM(doc.vatSum), 0)', 'vat')
+      .getRawOne<{ totalInclVat: string; vat: string }>();
+
+    const credit = await this.documentsRepo
+      .createQueryBuilder('doc')
+      .where('doc.issuerBusinessNumber = :businessNumber', { businessNumber })
+      .andWhere('doc.isCancelled = false')
+      .andWhere('doc.docType = :type', { type: 'CREDIT_INVOICE' })
+      .andWhere('doc.docDate BETWEEN :start AND :end', { start: startDate, end: endDate })
+      .select('COALESCE(SUM(doc.sumAftDisWithVAT), 0)', 'totalInclVat')
+      .addSelect('COALESCE(SUM(doc.vatSum), 0)', 'vat')
+      .getRawOne<{ totalInclVat: string; vat: string }>();
+
+    const totalInclVat = Number(regular?.totalInclVat ?? 0) - Number(credit?.totalInclVat ?? 0);
+    const vatSum = Number(regular?.vat ?? 0) - Number(credit?.vat ?? 0);
+    return { totalTurnoverIncludingVat: totalInclVat, vatOnTurnover: vatSum };
+  }
+
+  /** סך ניכוי מס במקור ממסמכים בתקופה */
+  private async getWithholdingAtSourceSum(
+    businessNumber: string,
+    startDate: Date,
+    endDate: Date,
+  ): Promise<number> {
+    const res = await this.documentsRepo
+      .createQueryBuilder('doc')
+      .where('doc.issuerBusinessNumber = :businessNumber', { businessNumber })
+      .andWhere('doc.isCancelled = false')
+      .andWhere('doc.docDate BETWEEN :start AND :end', { start: startDate, end: endDate })
+      .select('COALESCE(SUM(doc.withholdingTaxAmount), 0)', 'total')
+      .getRawOne<{ total: string }>();
+    return Number(res?.total ?? 0);
   }
 
 
@@ -175,9 +437,7 @@ export class ReportsService {
       endDate: Date
   ): Promise<PnLReportDto> {
 
-      const user = await this.userRepo.findOne({ where: { firebaseId } });
       const year = startDate.getFullYear();
-      const vatPercent = this.sharedService.getVatPercent(year);
 
       const business = await this.businessRepo.findOne({
         where: { businessNumber, firebaseId }
@@ -191,32 +451,41 @@ export class ReportsService {
       let totalIncome : number = 0;
       totalIncome = await this.getIncomeBeforeVat(businessNumber, startDate, endDate);
 
-      console.log("totalIncome is ", totalIncome);
-      
-      // if ([BusinessType.LICENSED, BusinessType.COMPANY].includes(business.businessType)) {
-      //   totalIncome = totalIncome / (1 + vatPercent);
-      // }
-      
-      //Get expenses
-      const expenses = await this.expensesService.getExpensesByDates(firebaseId, businessNumber, startDate, endDate);
+      // סוף יום עבור endDate כדי לכלול את כל ההוצאות בתאריך האחרון
+      const endDateEndOfDay = new Date(Date.UTC(
+        endDate.getUTCFullYear(),
+        endDate.getUTCMonth(),
+        endDate.getUTCDate(),
+        23, 59, 59, 999
+      ));
+      const expenses = await this.expensesService.getExpensesByDates(firebaseId, businessNumber, startDate, endDateEndOfDay);
 
-      // Separate expenses into equipment and non-equipment categories
-      const nonEquipmentExpenses = expenses.filter(expense => !expense.isEquipment);
+      // Subcategory → P&L-presentation-category map (resolved live, user wins).
+      const pnlCategoryMap = await this.expensesService.getPnlCategoryMap(firebaseId, businessNumber);
 
-      // Initialize an object to hold the totalTaxPayable sums by category
-      const totalTaxPayableByCategory: { [category: string]: number } = {};
+      // Exclude equipment (→ depreciation) AND annual-report-only expenses
+      // (תרומות מוכרות / מקדמות) — they are not P&L operating expenses.
+      const nonEquipmentExpenses = expenses.filter(
+        expense => !expense.isEquipment && expense.reportScope !== ExpenseReportScope.ANNUAL,
+      );
 
-      // Loop through each non-equipment expense
+      // Initialize an object to hold the expense sums by P&L category
+      const expenseSumByCategory: { [category: string]: number } = {};
+
+      // Loop through each non-equipment expense – סכום לפי totalTaxPayable השמור בטבלת ההוצאות.
+      // P&L grouping precedence: per-expense override → subcategory map → bookkeeping category.
       for (const expense of nonEquipmentExpenses) {
-          const category = String(expense.category); // Ensure category is treated as a string
-          if (!totalTaxPayableByCategory[category]) {
-              totalTaxPayableByCategory[category] = 0; // Initialize category sum if not already done
+          const category = String(
+            expense.pnlCategory ?? pnlCategoryMap.get(expense.subCategory) ?? expense.category,
+          );
+          if (!expenseSumByCategory[category]) {
+              expenseSumByCategory[category] = 0;
           }
-          totalTaxPayableByCategory[category] += Number(expense.totalTaxPayable); // Sum up the totalTaxPayable
+          expenseSumByCategory[category] += Number(expense.totalTaxPayable ?? 0);
       }
 
         // Map the totals by category into an array of ExpenseDto
-      const expenseDtos: ExpensePnlDto[] = Object.entries(totalTaxPayableByCategory).map(
+      const expenseDtos: ExpensePnlDto[] = Object.entries(expenseSumByCategory).map(
           ([category, total]) => ({
               category,
               total,
@@ -265,61 +534,43 @@ export class ReportsService {
 
 
 
-  async getVatIncomeFromLines(
-  businessNumber: string,
-  startDate: Date,
-  endDate: Date,
-): Promise<{
-  vatableIncome: number;
-  nonVatableIncome: number;
-}> {
+  private async getVatIncomeFromDocuments(
+    businessNumber: string,
+    startDate: Date,
+    endDate: Date,
+  ): Promise<{ vatableIncome: number; nonVatableIncome: number }> {
+    const base = this.documentsRepo
+      .createQueryBuilder('doc')
+      .where('doc.issuerBusinessNumber = :businessNumber', { businessNumber })
+      .andWhere('doc.isCancelled = false')
+      .andWhere('doc.docDate BETWEEN :start AND :end', { start: startDate, end: endDate });
 
-  const qb = this.docLinesRepo
-    .createQueryBuilder('dl')
-    .innerJoin(Documents, 'd', 'dl.generalDocIndex = d.generalDocIndex')
-    .where('dl.issuerBusinessNumber = :businessNumber', { businessNumber })
-    .andWhere('d.isCancelled = false')
-    .andWhere('d.docDate BETWEEN :start AND :end', {
-      start: startDate,
-      end: endDate,
-    });
+    const vatable = await base.clone()
+      .andWhere('doc.docType IN (:...types)', {
+        types: ['TAX_INVOICE', 'TAX_INVOICE_RECEIPT', 'CREDIT_INVOICE'],
+      })
+      .andWhere('doc.docVatRate > 0')
+      .select(`COALESCE(SUM(
+        CASE WHEN doc.docType = 'CREDIT_INVOICE'
+             THEN -doc.sumAftDisBefVAT
+             ELSE  doc.sumAftDisBefVAT
+        END
+      ), 0)`, 'total')
+      .getRawOne<{ total: string }>();
 
-  // 1️⃣ VATABLE Income (vatRate > 0) AND only taxable doc types
-  const vatable = await qb
-    .clone()
-    .andWhere('dl.vatRate > 0')
-    .andWhere('dl.docType IN (:...types)', {
-      types: ['TAX_INVOICE', 'TAX_INVOICE_RECEIPT', 'CREDIT_INVOICE'],
-    })
-    .select(`
-    COALESCE(SUM(
-      CASE 
-        WHEN dl.docType = 'CREDIT_INVOICE' 
-        THEN -dl.sumAftDisBefVatPerLine 
-        ELSE dl.sumAftDisBefVatPerLine 
-      END
-    ), 0)
-    `, 'total')
-    .getRawOne<{ total: string }>();
+    const nonVatable = await base.clone()
+      .andWhere('doc.docType IN (:...types)', {
+        types: ['TAX_INVOICE', 'TAX_INVOICE_RECEIPT', 'CREDIT_INVOICE'],
+      })
+      .andWhere('doc.docVatRate = 0')
+      .select('COALESCE(SUM(doc.sumAftDisBefVAT), 0)', 'total')
+      .getRawOne<{ total: string }>();
 
-    // .select('COALESCE(SUM(dl.sumAftDisBefVatPerLine), 0)', 'total')
-    // .getRawOne<{ total: string }>();
-
-  // 2️⃣ NON-VATABLE Income (vatRate = 0)
-  // includes RECEIPT with 0 VAT (e.g., grants)
-  const nonVatable = await qb
-    .clone()
-    .andWhere('dl.vatRate = 0')
-    .select('COALESCE(SUM(dl.sumAftDisBefVatPerLine), 0)', 'total')
-    .getRawOne<{ total: string }>();
-
-  return {
-    vatableIncome: Number(vatable.total),
-    nonVatableIncome: Number(nonVatable.total),
-  };
-}
-
-
+    return {
+      vatableIncome: Number(vatable?.total ?? 0),
+      nonVatableIncome: Number(nonVatable?.total ?? 0),
+    };
+  }
 
   async getIncomeBeforeVat(
     businessNumber: string,
@@ -327,12 +578,6 @@ export class ReportsService {
     endDate: Date,
   ): Promise<number> {
 
-    // 1️⃣ Get the business and its type
-
-    console.log("startDate is ", startDate);
-    console.log("endDate is ", endDate);
-    console.log("businessNumber is ", businessNumber);
-    
     const business = await this.businessRepo.findOne({
       where: { businessNumber },
     });
@@ -360,17 +605,17 @@ export class ReportsService {
           start: startDate,
           end: endDate,
         })
-        .select('COALESCE(SUM(doc.sumAftDisWithVAT), 0)', 'total')
+        .select('COALESCE(SUM(doc.sumAftDisBefVAT), 0)', 'total')
         .getRawOne<{ total: string }>();
 
       return Number(result.total);
     }
 
     // 🟣 Licensed / Company (עוסק מורשה / חברה)
-    // Income before VAT = (TAX_INVOICE + TAX_INVOICE_RECEIPT) - CREDIT_INVOICE
+    // Income before VAT = (TAX_INVOICE + TAX_INVOICE_RECEIPT + RECEIPT) - CREDIT_INVOICE
     const regularInvoices = await baseQb
       .andWhere('doc.docType IN (:...types)', {
-        types: ['TAX_INVOICE', 'TAX_INVOICE_RECEIPT'],
+        types: ['TAX_INVOICE', 'TAX_INVOICE_RECEIPT', 'RECEIPT'],
       })
       .andWhere('doc.docDate BETWEEN :start AND :end', {
         start: startDate,
@@ -582,8 +827,6 @@ export class ReportsService {
 
     private async generateIniFileContent(businessNumber: string, uniqueId: string, filePath: string, startDate: string, endDate: string): Promise<string> {
 
-      console.log("startDate is ");
-
       const startDateObj = this.sharedService.convertStringToDateObject(startDate);
       const endDateObj = this.sharedService.convertStringToDateObject(endDate);
       
@@ -634,17 +877,9 @@ export class ReportsService {
       const b110 = `B110${this.formatField(this.recordSummary[`B110`], 15, '0')}`;
       const m100 = `M100${this.formatField(this.recordSummary[`M100`], 15, '0')}`;
 
-      console.log("c100 records:", this.recordSummary[`C100`]);
-      
-
-      result += `A000${f_1001}${f_1002}${f_1003}${f_1004}${f_1005}${f_1006}${f_1007}${f_1008}${f_1009}${f_1010}${f_1011}${f_1012}${f_1013}${f_1014}${f_1015}${f_1016}${f_1017}${f_1018}${f_1019}${f_1020}${f_1021}${f_1022}${f_1023}${f_1024}${f_1025}${f_1026}${f_1027}${f_1028}${f_1029}${f_1030}${f_1032}${f_1034}${f_1035}\n${c100}\n${d110}\n${d120}\n${b100}\n${b110}\n${m100}\n`;
+      result +=`A000${f_1001}${f_1002}${f_1003}${f_1004}${f_1005}${f_1006}${f_1007}${f_1008}${f_1009}${f_1010}${f_1011}${f_1012}${f_1013}${f_1014}${f_1015}${f_1016}${f_1017}${f_1018}${f_1019}${f_1020}${f_1021}${f_1022}${f_1023}${f_1024}${f_1025}${f_1026}${f_1027}${f_1028}${f_1029}${f_1030}${f_1032}${f_1034}${f_1035}\n${c100}\n${d110}\n${d120}\n${b100}\n${b110}\n${m100}\n`;
      
       return result;
-    }
-
-
-    private removeDateSeparators(dateString: string): string {
-      return dateString.replace(/[-\/]/g, "");
     }
 
 
@@ -664,10 +899,15 @@ export class ReportsService {
     private async generateDataFileContent(userId: string, businessNumber: string, startDate: string, endDate: string, uniqueId: string): Promise<{ content: string; summary: any[] }> {
 
       let content = "";
-      const documents = await this.fetchDocuments(businessNumber, startDate, endDate);
-      console.log(`📄 Total documents fetched: ${documents.length}`);
+      const allDocuments = await this.fetchDocuments(businessNumber, startDate, endDate);
+      // Filter out doc types that don't participate in the uniform file
+      // (e.g. PRICE_QUOTE — no code in UniformFileTypeCodeMap). Filtering here
+      // keeps C100/D110/D120 consistent: a doc, its lines, and its payments
+      // are all dropped together — no orphan D110/D120 rows.
+      const documents = allDocuments.filter(
+        (d) => d.docType != null && (d.docType as string) in UniformFileTypeCodeMap,
+      );
       const journalEntries = await this.fetchJournalEntries(userId, businessNumber, startDate, endDate);
-      console.log(`📄 Total journalEntries fetched: ${journalEntries.length}`);
     
       // Add A100 section first
       content += this.generateA100Section(businessNumber, uniqueId);
@@ -1217,17 +1457,10 @@ export class ReportsService {
       return this.documentsRepo.find({
         where: {
           issuerBusinessNumber: businessNumber,
-          docDate: Between(startDateObj, endDateObj), // ✅ Use properly converted Date objects
+          docDate: Between(startDateObj, endDateObj),
         },
         order: { docDate: 'ASC' },
       });
-      // return this.documentsRepo.find({
-      //   where: {
-      //     issuerBusinessNumber: businessNumber, // Only fetch documents issued by this business
-      //     docDate: Between(new Date(startDate), new Date(endDate)),
-      //   },
-      //   order: { docDate: 'ASC' },
-      // });
     }
 
     

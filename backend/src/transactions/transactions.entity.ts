@@ -17,8 +17,8 @@ export class Transactions {
   @Column()
   userId: string;
 
-  @Column()
-  paymentIdentifier: string;
+  @Column({ type: 'varchar', nullable: true, default: null })
+  paymentIdentifier: string | null;
 
   @Column({ nullable: true })
   billName: string | null;

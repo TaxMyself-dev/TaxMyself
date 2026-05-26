@@ -1,40 +1,67 @@
 import { Injectable, OnInit, signal } from '@angular/core';
-import { BehaviorSubject, EMPTY, Observable, catchError, map, tap } from 'rxjs';
+import { BehaviorSubject, EMPTY, Observable, catchError, finalize, map, tap } from 'rxjs';
 import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { environment } from 'src/environments/environment';
 import { IClassifyTrans, IClassifyTransMinimal, IRowDataTable, ISelectItem, ITransactionData } from 'src/app/shared/interface';
 import * as XLSX from 'xlsx';
 import { ca } from 'date-fns/locale';
+import { paymentIdentifierType } from 'src/app/shared/enums';
+
+
+// Appends each value as a repeated query param so values containing ',' survive
+// transit. The literal 'null' is sent when the list is empty so the backend's
+// parseListParam treats it as "no filter".
+function appendList(params: HttpParams, key: string, values: string[] | null | undefined): HttpParams {
+  if (!values?.length) return params.set(key, 'null');
+  return values.reduce((acc, v) => acc.append(key, v), params);
+}
 
 
 @Injectable({
   providedIn: 'root'
 })
-export class TransactionsService implements OnInit{
+export class TransactionsService implements OnInit {
 
   accountsList = signal<ISelectItem[]>([]);
   filterData = signal<any>(null);
-  
-  businessList: [{businessName: string, businessNumber: string}];
-  categories = signal<ISelectItem[]>([]);
+  readonly billBusinessNumberMap = signal<Map<string, string>>(new Map());
+  private readonly accountsLoading = signal(false);
+  private readonly accountsLoaded = signal(false);
+  readonly isAccountsLoading = this.accountsLoading.asReadonly();
 
-  constructor(private http: HttpClient) { 
-    console.log("in transaction service");
+  businessList: [{ businessName: string, businessNumber: string }];
+  categories = signal<ISelectItem[]>([]);
+  /** Bump when categories/subcategories were added so dropdowns can refresh (e.g. classify-tran subcategory list). */
+  categoryListRefreshTrigger = signal(0);
+
+  constructor(private http: HttpClient) {
   };
+  
 
   ngOnInit(): void {
-    console.log("in on init trans service");
+    if (this.accountsList().length === 0) {
+      this.getAllBills();
+    }
   }
 
+  ensureAccountsLoaded(): void {
+    if (this.accountsLoaded() || this.accountsLoading()) {
+      return;
+    }
+  
+    this.accountsLoading.set(true);
+  
+    this.getAllBills();
+  }
 
   getTransToConfirm(startDate: string, endDate: string, businessNumber: string): Observable<IRowDataTable[]> {
     const url = `${environment.apiUrl}transactions/get-transaction-to-confirm-and-add-to-expenses`;
     const params = new HttpParams()
-    .set('startDate', startDate)
-    .set('endDate', endDate)
-    .set('businessNumber', businessNumber);
-    
-    return this.http.get<IRowDataTable[]>(url, {params:params});
+      .set('startDate', startDate)
+      .set('endDate', endDate)
+      .set('businessNumber', businessNumber);
+
+    return this.http.get<IRowDataTable[]>(url, { params: params });
   }
 
 
@@ -47,8 +74,8 @@ export class TransactionsService implements OnInit{
     const url = `${environment.apiUrl}transactions/get-trans-to-classify`;
 
     let params = new HttpParams();
-    if (startDate)      { params = params.set('startDate', startDate); }
-    if (endDate)        { params = params.set('endDate',   endDate);   }
+    if (startDate) { params = params.set('startDate', startDate); }
+    if (endDate) { params = params.set('endDate', endDate); }
     if (businessNumber) { params = params.set('businessNumber', businessNumber); }
 
     return this.http.get<IRowDataTable[]>(url, { params });
@@ -57,51 +84,94 @@ export class TransactionsService implements OnInit{
 
   getIncomeTransactionsData(startDate: string, endDate: string, billId: string[], categories: string[], sources: string[]): Observable<ITransactionData[]> {
     const url = `${environment.apiUrl}transactions/get-incomes`;
-    const param = new HttpParams()
-    .set('billId', billId?.length ? billId.join(',') : 'null' )
-    .set('categories', categories?.length ? categories.join(',') : 'null' )
-    .set('sources', sources?.length ? sources.join(',') : 'null' )
-    .set('startDate', startDate)
-    .set('endDate', endDate)
-    return this.http.get<ITransactionData[]>(url, {params: param})
+    let param = new HttpParams()
+      .set('startDate', startDate)
+      .set('endDate', endDate);
+    param = appendList(param, 'billId', billId);
+    param = appendList(param, 'categories', categories);
+    param = appendList(param, 'sources', sources);
+    return this.http.get<ITransactionData[]>(url, { params: param })
   }
-  
+
 
   getExpenseTransactionsData(startDate: string, endDate: string, billId: string[], categories: string[], sources: string[]): Observable<ITransactionData[]> {
     console.log("billId: ", billId);
-    
+
     const url = `${environment.apiUrl}transactions/get-expenses`;
-    const param = new HttpParams()
-    .set('billId', billId?.length ? billId.join(',') : 'null' )
-    .set('categories', categories?.length ? categories.join(',') : 'null' )
-    .set('sources', sources?.length ? sources.join(',') : 'null' )
-    .set('startDate', startDate)
-    .set('endDate', endDate)
-    return this.http.get<ITransactionData[]>(url, {params: param})
-  } 
+    let param = new HttpParams()
+      .set('startDate', startDate)
+      .set('endDate', endDate);
+    param = appendList(param, 'billId', billId);
+    param = appendList(param, 'categories', categories);
+    param = appendList(param, 'sources', sources);
+    return this.http.get<ITransactionData[]>(url, { params: param })
+  }
+
+  // getAllBills(): void {
+  //   const url = `${environment.apiUrl}transactions/get-bills`;
+  //   this.http.get<any[]>(url)
+  //     .pipe(
+  //       catchError((err) => {
+  //         if (err.error.status === 404) {
+  //           this.accountsList.set([{ value: undefined, name: 'לא קיימים חשבונות עבור משתמש זה' }]);
+  //         }
+  //         this.accountsList.set([{ value: undefined, name: 'אירעה שגיאה לא ניתן להציג חשבונות קיימים' }]);
+  //         return EMPTY;
+  //       }),
+  //       map((data) => {
+  //         return data.map((bill) => {
+  //           const { userId, ...bills } = bill;
+  //           const newfields = this.renameFields(bills);
+  //           return newfields;
+  //         })
+  //       }),
+  //     )
+  //     .subscribe((bills) => {
+  //       this.updateAccountList(bills);
+  //     })
+  // }
 
   getAllBills(): void {
     const url = `${environment.apiUrl}transactions/get-bills`;
+
     this.http.get<any[]>(url)
-    .pipe(
-      catchError((err) => {        
-        if (err.error.status === 404) {
-          this.accountsList.set([{ value: undefined, name: 'לא קיימים חשבונות עבור משתמש זה' }]);
-        }
-        this.accountsList.set([{ value: undefined, name: 'אירעה שגיאה לא ניתן להציג חשבונות קיימים' }]);
-        return EMPTY;
-      }),
-      map((data) => {
-        return data.map((bill) => {
-          const { userId, ...bills } = bill;
-          const newfields = this.renameFields(bills);
-          return newfields;
+      .pipe(
+        catchError((err) => {
+          if (err.error?.status === 404) {
+            this.accountsList.set([
+              { value: undefined, name: 'לא קיימים חשבונות עבור משתמש זה' }
+            ]);
+          } else {
+            this.accountsList.set([
+              { value: undefined, name: 'אירעה שגיאה לא ניתן להציג חשבונות קיימים' }
+            ]);
+          }
+
+          return EMPTY;
+        }),
+        tap((data: any[]) => {
+          const map = new Map<string, string>();
+          data.forEach(bill => {
+            if (bill.id != null && bill.businessNumber != null) {
+              map.set(String(bill.id), String(bill.businessNumber));
+            }
+          });
+          this.billBusinessNumberMap.set(map);
+        }),
+        map((data) => {
+          return data.map((bill) => {
+            const { userId, ...bills } = bill;
+            return this.renameFields(bills);
+          });
+        }),
+        finalize(() => {
+          this.accountsLoading.set(false);
         })
-      }),
-    )
-    .subscribe((bills) => {
-      this.updateAccountList(bills);
-    })
+      )
+      .subscribe((bills) => {
+        this.updateAccountList(bills);
+        this.accountsLoaded.set(true);
+      });
   }
 
   getAllSources(): Observable<string[]> {
@@ -109,7 +179,22 @@ export class TransactionsService implements OnInit{
     return this.http.get<any[]>(url)
   }
 
-  getSourcesByBillId(billId:number): Observable<string[]> {
+  getSourcesWithTypes(): Observable<{ sourceName: string; sourceType: paymentIdentifierType; billName: string | null; hasConsent: boolean }[]> {
+    const url = `${environment.apiUrl}transactions/get-sources-with-types`;
+    console.log('[TransactionsService] get-sources-with-types — בקשה:', { method: 'GET', url });
+    return this.http.get<any[]>(url).pipe(
+      tap((body) => {
+        console.log('[TransactionsService] get-sources-with-types — גוף תגובה גולמי:', body);
+      }),
+      map((rows) => rows ?? []),
+      catchError((err) => {
+        console.error('[TransactionsService] get-sources-with-types — שגיאה:', err);
+        return EMPTY;
+      }),
+    );
+  }
+
+  getSourcesByBillId(billId: number): Observable<string[]> {
     const url = `${environment.apiUrl}transactions/get-sources-by-bill/${billId}`;
     return this.http.get<any[]>(url)
   }
@@ -124,17 +209,17 @@ export class TransactionsService implements OnInit{
       name: obj.billName,
     };
   }
-  
+
   addSource(billId: number, source: string, type: string): Observable<any> {
     const url = `${environment.apiUrl}transactions/${billId}/sources`;
-    return this.http.post<any[]>(url,{sourceName: source, sourceType: type});
+    return this.http.post<any[]>(url, { sourceName: source, sourceType: type });
   }
 
   addBill(billName: string, businessNumber: string): Observable<any> {
     const url = `${environment.apiUrl}transactions/add-bill`;
-    return this.http.post<any[]>(url,{billName, businessNumber});
+    return this.http.post<any[]>(url, { billName, businessNumber });
   }
-  
+
   uploadFile(fileBuffer: ArrayBuffer): Observable<any> {
     console.log("file buffer in service: ", fileBuffer);
     const url = `${environment.apiUrl}transactions/load-file`;
@@ -145,17 +230,24 @@ export class TransactionsService implements OnInit{
     console.log("form data: ", formData.get('file'));
     return this.http.post<any>(url, formData);
   }
- 
+
   addClassifiction(formData: IClassifyTrans | IClassifyTransMinimal, date?: any): Observable<any> {
-    console.log("form data of classify trans: ",formData);
+    console.log("form data of classify trans: ", formData);
     const url = `${environment.apiUrl}transactions/classify-trans`;
-    return this.http.post<any>(url,formData);
+    return this.http.post<any>(url, formData);
   }
 
   addCategory(formData: any): Observable<any> {
     console.log("in add category");
     console.log("🚀 ~ addCategory ~ formData:", formData)
     const url = `${environment.apiUrl}expenses/add-user-category`;
+    return this.http.post<any>(url, formData)
+  }
+
+  addSubCategory(formData: any, categoryName: string): Observable<any> {
+    console.log("in add sub category");
+    console.log("🚀 ~ addSubCategory ~ formData:", formData)
+    const url = `${environment.apiUrl}expenses/add-user-sub-categories`;
     return this.http.post<any>(url, formData)
   }
 
@@ -177,34 +269,51 @@ export class TransactionsService implements OnInit{
       .set('isDefault', isDefault)
       .set('isExpense', isExpense)
     return this.http.get<ISelectItem[]>(url, { params: param })
-    .pipe(
-      catchError((err) => {
-        console.log("error in get category", err);
-        return EMPTY;
-      }),
-      map((res) => {
-        return res.map((item: any) => ({
-          name: item.categoryName,
-          value: item.categoryName
+      .pipe(
+        catchError((err) => {
+          console.log("error in get category", err);
+          return EMPTY;
+        }),
+        map((res) => {
+          return res.map((item: any) => ({
+            name: item.categoryName,
+            value: item.categoryName
+          })
+          )
+        }),
+        tap((res: ISelectItem[]) => {
+          console.log("category", res);
+          this.categories.set(res);
+          this.categoryListRefreshTrigger.update((v) => v + 1);
+          console.log("categories", this.categories());
         })
-        )
-      }),
-      tap((res: ISelectItem[]) => {
-        console.log("category", res);
-        this.categories.set(res);
-        console.log("categories", this.categories());
-      })
-    )
+      )
   }
 
-     
+
   addTransToExpense(IDs: IRowDataTable[]): Observable<string> {
-      const url = `${environment.apiUrl}transactions/save-trans-to-expenses`;
-      return this.http.post<string>(url, IDs)
+    const url = `${environment.apiUrl}transactions/save-trans-to-expenses`;
+    return this.http.post<string>(url, IDs)
   }
 
-  quickClassify(transactionId: number): Observable<any> {
+  getUserRules(businessNumber: string): Observable<any[]> {
+    const url = `${environment.apiUrl}transactions/rules`;
+    const params = new HttpParams().set('businessNumber', businessNumber);
+    return this.http.get<any[]>(url, { params });
+  }
+
+  deleteUserRule(id: number): Observable<{ deleted: true; unclassifiedCount: number }> {
+    const url = `${environment.apiUrl}transactions/rules/${id}`;
+    return this.http.delete<{ deleted: true; unclassifiedCount: number }>(url);
+  }
+
+  updateUserRule(id: number, dto: any): Observable<any> {
+    const url = `${environment.apiUrl}transactions/rules/${id}`;
+    return this.http.patch<any>(url, dto);
+  }
+
+  quickClassify(finsiteId: string): Observable<any> {
     const url = `${environment.apiUrl}transactions/quick-classify`;
-    return this.http.post<any>(url, { transactionId });
+    return this.http.post<any>(url, { finsiteId });
   }
 }

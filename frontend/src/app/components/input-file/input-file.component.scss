@@ -1,0 +1,320 @@
+// :host {
+//   display: block;
+//   direction: rtl; // remove if RTL is global
+// }
+
+// /* Remove PrimeNG default bars */
+// :host ::ng-deep .ud-fileupload {
+
+//   .p-fileupload-buttonbar,
+//   .p-fileupload-content {
+//     padding: 0;
+//     border: 0;
+//     background: transparent;
+//   }
+// }
+
+// .none-header {
+//   display: none;
+// }
+
+// /* Dropzone */
+// .ud-dropzone {
+//   width: 100%;
+//   border: 2px dashed rgba(0, 0, 0, 0.18);
+//   border-radius: 12px;
+//   background: rgba(0, 0, 0, 0.02);
+//   padding: clamp(14px, 2.2vw, 22px);
+//   transition: 0.15s ease;
+
+//   &:hover {
+//     border-color: rgba(0, 0, 0, 0.28);
+//     background: rgba(0, 0, 0, 0.03);
+//   }
+// }
+
+// .ud-head {
+//   display: flex;
+//   align-items: center;
+//   justify-content: center;
+//   gap: clamp(10px, 1.8vw, 16px);
+// }
+
+// .ud-cloud {
+//   flex: 0 0 auto;
+//   width: 44px;
+//   height: 44px;
+//   border-radius: 999px;
+//   display: flex;
+//   align-items: center;
+//   justify-content: center;
+
+//   background: rgba(20, 184, 166, 0.08);
+//   color: rgba(20, 184, 166, 0.95);
+// }
+
+// .ud-cloudIcon {
+//   font-size: 22px;
+// }
+
+// .ud-text {
+//   // flex: 1 1 auto;
+//   min-width: 0;
+//   display: flex;
+//   flex-direction: column;
+//   align-items: center;
+// }
+
+// .ud-title {
+//   display: flex;
+//   flex-wrap: wrap;
+//   /* allow wrapping on narrow */
+//   align-items: baseline;
+//   gap: 6px;
+
+//   font-size: clamp(14px, 1.2vw, 16px);
+//   font-weight: 600;
+//   color: rgba(0, 0, 0, 0.75);
+//   line-height: 1.2;
+// }
+
+// .ud-titleText {
+//   white-space: normal;
+// }
+
+// .ud-browse {
+//   border: 0;
+//   background: transparent;
+//   padding: 0;
+//   cursor: pointer;
+//   font: inherit;
+//   font-weight: 700;
+//   color: rgba(20, 184, 166, 1);
+//   text-decoration: underline;
+// }
+
+// .ud-supported {
+//   margin-top: 6px;
+//   display: flex;
+//   flex-wrap: wrap;
+//   /* wraps nicely on narrow */
+//   gap: 6px;
+
+//   font-size: clamp(12px, 1.05vw, 13px);
+//   color: rgba(0, 0, 0, 0.55);
+//   line-height: 1.2;
+// }
+
+// .ud-supportedLabel {
+//   white-space: nowrap;
+// }
+
+// .ud-supportedTypes {
+//   white-space: normal;
+//   word-break: break-word;
+// }
+
+// /* Selected list */
+// .ud-list {
+//   margin-top: clamp(10px, 2vw, 16px);
+//   display: flex;
+//   flex-direction: column;
+//   gap: 10px;
+// }
+
+// .ud-row {
+//   display: flex;
+//   align-items: center;
+//   gap: 10px;
+
+//   padding: 8px 10px;
+//   border-radius: 10px;
+//   background: rgba(0, 0, 0, 0.03);
+//   border: 1px solid rgba(0, 0, 0, 0.08);
+// }
+
+// .ud-fileIcon {
+//   flex: 0 0 auto;
+//   width: 34px;
+//   height: 34px;
+//   border-radius: 8px;
+//   display: flex;
+//   align-items: center;
+//   justify-content: center;
+//   background: rgba(0, 0, 0, 0.06);
+// }
+
+// .ud-ext {
+//   font-size: 10px;
+//   font-weight: 800;
+//   color: rgba(0, 0, 0, 0.6);
+// }
+
+// .ud-fileName {
+//   flex: 1 1 auto;
+//   min-width: 0;
+//   font-size: 13px;
+//   color: rgba(0, 0, 0, 0.7);
+//   overflow: hidden;
+//   text-overflow: ellipsis;
+//   white-space: nowrap;
+// }
+
+// /* Remove button */
+// :host ::ng-deep .ud-remove.p-button {
+//   width: 34px;
+//   height: 34px;
+//   padding: 0;
+//   color: rgba(0, 0, 0, 0.55);
+
+//   &:hover {
+//     background: rgba(0, 0, 0, 0.06);
+//   }
+// }
+
+// /* Make file input clickable cursor */
+// :host ::ng-deep .ud-fileupload input[type='file'] {
+//   cursor: pointer;
+// }
+
+// /* Responsive */
+// @media (max-width: 520px) {
+//   .ud-row {
+//     align-items: flex-start;
+//   }
+// }
+
+
+
+
+:host {
+  display: block;
+  direction: rtl;
+}
+
+/* PrimeNG engine: hide its entire UI */
+:host ::ng-deep .ud-engine {
+
+  .p-fileupload-buttonbar,
+  .p-fileupload-content,
+  .p-fileupload-choose {
+    display: none !important;
+  }
+
+  /* Still keep the hidden input available for click() */
+  input[type='file'] {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+  }
+}
+
+/* Your dropzone (Flex only) */
+.ud-dropzone {
+  width: 100%;
+  border: 2px dashed rgba(0, 0, 0, 0.18);
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.02);
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  cursor: pointer;
+
+  &:hover {
+    border-color: rgba(0, 0, 0, 0.28);
+    background: rgba(0, 0, 0, 0.03);
+  }
+}
+
+.ud-head {
+  display: flex;
+  flex-direction: column;
+  cursor: default;
+  align-items: center;
+  gap: clamp(10px, 1.8vw, 16px);
+  justify-content: center;
+}
+
+.ud-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.75);
+}
+
+
+.ud-browse {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  color: #14b8a6;
+  text-decoration: underline;
+}
+
+.ud-supported {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 13px;
+  color: rgba(0, 0, 0, 0.55);
+}
+
+.ud-supportedLabel {
+  white-space: nowrap;
+}
+
+.ud-supportedTypes {
+  white-space: normal;
+  word-break: break-word;
+}
+
+.ud-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ud-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.03);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  cursor: default;
+}
+
+.ud-remove {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 0;
+  background: transparent;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  color: rgba(0, 0, 0, 0.65);
+
+  &:hover {
+    background: rgba(0, 0, 0, 0.06);
+  }
+}
+
+.ud-fileName {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 14px;
+  color: rgba(0, 0, 0, 0.7);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

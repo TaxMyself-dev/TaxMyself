@@ -1,63 +1,456 @@
-
 <div class="page-wrapper">
+    @if (feezbackDialogVisible()) {
+      <div class="feezback-dialog-backdrop" (click)="closeFeezbackDialog()">
+        <div class="feezback-dialog" (click)="$event.stopPropagation()">
+          <div class="feezback-dialog-header">
+            <h2 class="feezback-dialog-title"
+                [class.feezback-dialog-title--success]="feezbackDialogIcon() === 'success'"
+                [class.feezback-dialog-title--warning]="feezbackDialogIcon() === 'warning'"
+                [class.feezback-dialog-title--error]="feezbackDialogIcon() === 'error'">
+              @if (feezbackDialogIcon() === 'success') { <i class="pi pi-check-circle feezback-dialog-title__icon"></i> }
+              @else if (feezbackDialogIcon() === 'warning') { <i class="pi pi-exclamation-triangle feezback-dialog-title__icon"></i> }
+              @else if (feezbackDialogIcon() === 'error') { <i class="pi pi-times-circle feezback-dialog-title__icon"></i> }
+              <span>{{ feezbackDialogTitle() }}</span>
+            </h2>
+            @if (feezbackDialogStatus() !== 'loading') {
+              <button class="feezback-dialog-close" (click)="closeFeezbackDialog()" aria-label="סגור">
+                <i class="pi pi-times"></i>
+              </button>
+            }
+          </div>
+
+          @if (feezbackDialogStatus() === 'awaiting-webhook') {
+            <div class="feezback-confetti" aria-hidden="true">
+              <span class="feezback-confetti__piece"></span><span class="feezback-confetti__piece"></span>
+              <span class="feezback-confetti__piece"></span><span class="feezback-confetti__piece"></span>
+              <span class="feezback-confetti__piece"></span><span class="feezback-confetti__piece"></span>
+              <span class="feezback-confetti__piece"></span><span class="feezback-confetti__piece"></span>
+              <span class="feezback-confetti__piece"></span><span class="feezback-confetti__piece"></span>
+              <span class="feezback-confetti__piece"></span><span class="feezback-confetti__piece"></span>
+              <span class="feezback-confetti__piece"></span><span class="feezback-confetti__piece"></span>
+              <span class="feezback-confetti__piece"></span><span class="feezback-confetti__piece"></span>
+            </div>
+            <p class="feezback-dialog-message feezback-dialog-message--center">
+              עובדים על השלמת התהליך, משהו כמו דקה ויש לנו את זה 🙂
+            </p>
+            <div class="feezback-dialog-spinner">
+              <p-progressSpinner strokeWidth="4" styleClass="feezback-spinner"></p-progressSpinner>
+            </div>
+          }
+
+          @if (feezbackDialogStatus() === 'prompt') {
+            <p class="feezback-dialog-message">
+              החיבור לבנקאות הפתוחה הושלם בהצלחה.<br>
+              כעת ניתן למשוך את התנועות מכל החשבונות שחיברת.
+            </p>
+            <div class="feezback-dialog-footer feezback-dialog-footer--center">
+              <app-p-button
+                [buttonText]="'למשיכת התנועות לחץ כאן'"
+                [buttonSize]="buttonSize.BIG"
+                [buttonColor]="buttonColor.BLACK"
+                (onButtonClicked)="onPullTransactionsClick()">
+              </app-p-button>
+            </div>
+          }
+
+          @if (feezbackDialogStatus() === 'loading') {
+            <p class="feezback-dialog-message feezback-dialog-message--center">
+              <i class="pi pi-dollar feezback-dialog-message__icon"></i>
+              מושכים את התנועות שלך, אוטוטו תוכל לראות אותם במערכת
+            </p>
+            <div class="feezback-dialog-spinner">
+              <p-progressSpinner strokeWidth="4" styleClass="feezback-spinner"></p-progressSpinner>
+            </div>
+          }
+
+          @if (feezbackDialogStatus() === 'success') {
+            @if (syncSourceResults().length > 0) {
+              <div class="source-results-panel source-results-panel--dialog">
+                <div class="source-results-panel__list">
+                  @for (source of syncSourceResults(); track source.type + '_' + source.sourceId + '_' + source.status) {
+                    <div class="source-result-item"
+                         [class.source-result-item--success]="source.status === 'success'"
+                         [class.source-result-item--failed]="source.status === 'failed'">
+                      <i class="pi"
+                         [class.pi-check-circle]="source.status === 'success'"
+                         [class.pi-times-circle]="source.status === 'failed'"
+                         [class.pi-clock]="source.status === 'not_synced'">
+                      </i>
+                      <span class="source-result-item__name">
+                        {{ source.sourceId }}
+                      </span>
+                      @if (source.status === 'success') {
+                        <span class="source-result-item__count">{{ source.transactionCount }} תנועות</span>
+                      }
+                      @if (source.status === 'failed' && source.consentId) {
+                        <app-p-button
+                          [buttonText]="'נסה שוב'"
+                          [buttonColor]="buttonColor.YELLOW"
+                          [buttonSize]="buttonSize.SMALL"
+                          [isLoading]="isRetryingSource() === source.sourceId"
+                          (onButtonClicked)="onRetrySource(source.type, source.sourceId)">
+                        </app-p-button>
+                      }
+                      @if ((source.status === 'failed' && !source.consentId) || source.status === 'not_synced') {
+                        <app-p-button
+                          [buttonText]="'בצע חיבור מחדש'"
+                          [buttonColor]="buttonColor.YELLOW"
+                          [buttonSize]="buttonSize.SMALL"
+                          [isLoading]="isLoadingFeezback()"
+                          (onButtonClicked)="onRenewConsent()">
+                        </app-p-button>
+                      }
+                    </div>
+                  }
+                </div>
+              </div>
+            } @else {
+              <p class="feezback-dialog-message">הנתונים שלך מוכנים לצפייה</p>
+            }
+            <div class="feezback-dialog-footer">
+              <app-p-button
+                [buttonText]="'סגור'"
+                [buttonSize]="buttonSize.SMALL"
+                [buttonColor]="buttonColor.BLACK"
+                (onButtonClicked)="closeFeezbackDialog()">
+              </app-p-button>
+            </div>
+          }
+
+          @if (feezbackDialogStatus() === 'failure') {
+            @if (syncSourceResults().length > 0) {
+              <div class="source-results-panel source-results-panel--dialog">
+                <div class="source-results-panel__list">
+                  @for (source of syncSourceResults(); track source.type + '_' + source.sourceId + '_' + source.status) {
+                    <div class="source-result-item"
+                         [class.source-result-item--success]="source.status === 'success'"
+                         [class.source-result-item--failed]="source.status === 'failed'">
+                      <i class="pi"
+                         [class.pi-check-circle]="source.status === 'success'"
+                         [class.pi-times-circle]="source.status === 'failed'"
+                         [class.pi-clock]="source.status === 'not_synced'">
+                      </i>
+                      <span class="source-result-item__name">
+                        {{ source.sourceId }}
+                      </span>
+                      @if (source.status === 'success') {
+                        <span class="source-result-item__count">{{ source.transactionCount }} תנועות</span>
+                      }
+                      @if (source.status === 'failed' && source.consentId && !dialogAllSyncFailed()) {
+                        <app-p-button
+                          [buttonText]="'נסה שוב'"
+                          [buttonColor]="buttonColor.YELLOW"
+                          [buttonSize]="buttonSize.SMALL"
+                          [isLoading]="isRetryingSource() === source.sourceId"
+                          (onButtonClicked)="onRetrySource(source.type, source.sourceId)">
+                        </app-p-button>
+                      }
+                      @if ((source.status === 'failed' && !source.consentId) || source.status === 'not_synced') {
+                        <app-p-button
+                          [buttonText]="'בצע חיבור מחדש'"
+                          [buttonColor]="buttonColor.YELLOW"
+                          [buttonSize]="buttonSize.SMALL"
+                          [isLoading]="isLoadingFeezback()"
+                          (onButtonClicked)="onRenewConsent()">
+                        </app-p-button>
+                      }
+                    </div>
+                  }
+                </div>
+              </div>
+            } @else {
+              <p class="feezback-dialog-message">
+                החיבור לבנקאות הפתוחה הצליח, אך לא הצלחנו למשוך את הנתונים.<br>
+                אנא נסה שוב.
+              </p>
+              <app-p-button
+                [buttonText]="'נסה שוב'"
+                [buttonSize]="buttonSize.BIG"
+                [buttonColor]="buttonColor.YELLOW"
+                (onButtonClicked)="tryAgainFromDialog()">
+              </app-p-button>
+            }
+            @if (dialogAllSyncFailed()) {
+              <div class="feezback-dialog-retry-all">
+                <app-p-button
+                  [buttonText]="'נסה שוב'"
+                  [buttonSize]="buttonSize.BIG"
+                  [buttonColor]="buttonColor.YELLOW"
+                  (onButtonClicked)="tryAgainFromDialog()">
+                </app-p-button>
+              </div>
+            }
+            <div class="feezback-dialog-footer">
+              <app-p-button
+                [buttonText]="'סגור'"
+                [buttonSize]="buttonSize.SMALL"
+                [buttonColor]="buttonColor.BLACK"
+                (onButtonClicked)="closeFeezbackDialog()">
+              </app-p-button>
+            </div>
+          }
+        </div>
+      </div>
+    }
+
+    <!-- ─── Consent dialog — shown before redirecting to Feezback portal ─── -->
+    @if (consentDialogVisible()) {
+      <div class="feezback-dialog-backdrop" (click)="consentDialogVisible.set(false)">
+        <div class="feezback-dialog consent-dialog" (click)="$event.stopPropagation()">
+          <button class="feezback-dialog-close consent-dialog-close-top" (click)="consentDialogVisible.set(false)" aria-label="סגור">
+            <i class="pi pi-times"></i>
+          </button>
+
+          <div class="consent-dialog-body">
+            <div class="consent-dialog-icon">🏦</div>
+            <h2 class="consent-dialog-title">חיבור לבנקאות פתוחה</h2>
+            <p class="consent-dialog-subtitle">רק רגע לפני שממשיכים — הנה מה שהולך לקרות</p>
+
+            <div class="consent-dialog-points">
+              <div class="consent-point">
+                <span class="consent-point__icon">⬅️</span>
+                <span>תועבר/י לממשק הבנקאות הפתוחה של <strong>Feezback</strong>, שם תוכל/י לבחור לאילו חשבונות בנק וכרטיסי אשראי הנך מאפשר/ת גישה <strong>לצפייה בלבד</strong> למייצגים מטעם חברת <strong>KeepInTax</strong></span>
+              </div>
+              <div class="consent-point">
+                <span class="consent-point__icon">🔄</span>
+                <span>הנתונים הפיננסיים <strong>אינם נשמרים אצלנו</strong> — הם נמשכים מ-Feezback בכל כניסה למערכת</span>
+              </div>
+              <div class="consent-point">
+                <span class="consent-point__icon">🔒</span>
+                <span>המידע משמש אך ורק לצורך הצגת התנועות בתוך המערכת לצרכי הנהלת חשבונות וניהול ומעקב אחר התזרים</span>
+              </div>
+            </div>
+
+            <label class="consent-checkbox-label">
+              <input
+                type="checkbox"
+                class="consent-checkbox"
+                [checked]="consentChecked()"
+                (change)="consentChecked.set($any($event.target).checked)"
+              />
+              <span>הבנתי ואני מאשר/ת את החיבור לבנקאות הפתוחה</span>
+            </label>
+          </div>
+
+          <div class="consent-dialog-actions">
+            <app-p-button
+              [buttonText]="'המשך לחיבור'"
+              [buttonColor]="buttonColor.BLACK"
+              [buttonSize]="buttonSize.SMALL"
+              [disabled]="!consentChecked()"
+              (onButtonClicked)="confirmConsentAndConnect()">
+            </app-p-button>
+            <app-p-button
+              [buttonText]="'ביטול'"
+              [buttonColor]="buttonColor.WHITE"
+              [buttonSize]="buttonSize.SMALL"
+              (onButtonClicked)="consentDialogVisible.set(false)">
+            </app-p-button>
+          </div>
+        </div>
+      </div>
+    }
+
+    <!-- ─── MOBILE HEADER (display:none on desktop via CSS) ─── -->
+    <!-- ─── MOBILE SIDE MENU OVERLAY (display:none on desktop via CSS) ─── -->
+    <!-- <div class="mobile-header">
+        <div class="mobile-header__start">
+            <button class="mobile-header__hamburger" (click)="openMobileMenu()" aria-label="פתח תפריט">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+            <button class="mobile-header__bell" aria-label="התראות">
+                <i class="pi pi-bell"></i>
+            </button>
+        </div>
+        <div class="mobile-header__logo" aria-label="Keep In Tax">KIT</div>
+    </div>
+
+    <div class="mobile-menu-overlay"
+         [class.mobile-menu--open]="mobileMenuOpen()"
+         (click)="closeMobileMenu()">
+        <nav class="mobile-menu-panel" (click)="$event.stopPropagation()">
+            <div class="mobile-menu-panel__top">
+                <button class="mobile-menu-panel__close" (click)="closeMobileMenu()" aria-label="סגור תפריט">
+                    <i class="pi pi-times"></i>
+                </button>
+                <div class="mobile-menu-panel__user">
+                    <div class="mobile-menu-panel__user-text">
+                        <span class="mobile-menu-panel__name">{{ userData?.fName }} {{ userData?.lName }}</span>
+                    </div>
+                    <p-avatar icon="pi pi-user" size="large" shape="circle"></p-avatar>
+                </div>
+            </div>
+            <hr class="mobile-menu-panel__divider" />
+            <ul class="mobile-menu-panel__links">
+                @for (item of itemsNavigate; track $index) {
+                    <li>
+                        <a [routerLink]="item.link" (click)="closeMobileMenu()">{{ item.name }}</a>
+                    </li>
+                }
+                <li>הגדרות</li>
+                <li>צור קשר</li>
+            </ul>
+        </nav>
+    </div> -->
 
     <div class="user-info-block">
-        <div class="avatar-with-name">
-            <!-- <p-avatar icon="pi pi-user" [style]="{ backgroundColor: '#dee9fc', color: '#1a2551' }" shape="circle"></p-avatar> -->
-            <p-avatar icon="pi pi-user" size="large" shape="circle"></p-avatar>
-            <span class="avatar-text">שלום {{ userData?.fName }} {{ userData?.lName }}</span>
+        <div class="user-info-row">
+            <p-avatar class="my-account-avatar" [label]="(userData?.fName?.charAt(0) || '') + (userData?.lName?.charAt(0) || '')" size="xlarge" shape="circle"></p-avatar>
+            <div class="user-info-text">
+                <span class="avatar-text">שלום {{ userData?.fName }} {{ userData?.lName }}</span>
+                @if (userData?.previousLoginAt) {
+                <span class="last-login">כניסתך האחרונה היתה בתאריך {{ userData.previousLoginAt | date: 'd/M/yyyy' }}</span>
+                }
+                @if (hasOpenBanking()) {
+                <app-p-button [buttonText]="'+ חבר חשבון נוסף'" [buttonColor]="buttonColor.WHITE_BORDER_LIGHT" [buttonSize]="buttonSize.BETWEEN"
+                    (onButtonClicked)="connectToOpenBanking()" [isLoading]="isLoadingFeezback()">
+                </app-p-button>
+                }
+                <!-- Users without Open Banking already get the big "רוצה לראות את התנועות" CTA banner below, so no extra header button is needed here. -->
+            </div>
         </div>
-        <div class="user-actions">
-            <!-- <app-p-button 
-                class="feezback-connect-button" 
-                [buttonText]="'התחבר לבנקאות פתוחה'" 
-                [buttonColor]="buttonColor.YELLOW" 
-                [buttonSize]="buttonSize.AUTO"
-                [isLoading]="isLoadingFeezback()"
-                (onButtonClicked)="connectToOpenBanking()">
-                <i class="pi pi-link"></i>
-            </app-p-button> -->
-            <!-- <app-p-button 
-                class="feezback-fetch-button" 
-                [buttonText]="'טען נתוני חשבונות'" 
-                [buttonColor]="buttonColor.BLACK" 
-                [buttonSize]="buttonSize.AUTO"
-                [isLoading]="isLoadingUserAccounts()"
-                (onButtonClicked)="fetchUserAccounts()">
-                <i class="pi pi-download"></i>
-            </app-p-button> -->
-            <!-- <app-p-button 
-                class="feezback-transactions-button" 
-                [buttonText]="'טען תנועות'" 
-                [buttonColor]="buttonColor.BLACK" 
-                [buttonSize]="buttonSize.AUTO"
-                [isLoading]="isLoadingTransactions()"
-                (onButtonClicked)="fetchUserTransactions()">
-                <i class="pi pi-list"></i>
-            </app-p-button> -->
-        </div>
-        <app-p-button class="vat-report-payment-button" [buttonText]="'+ הוספת הוצאה'" [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.AUTO"
-      (onButtonClicked)="openMannualExpenses()">
+        <app-p-button class="vat-report-payment-button" [buttonText]="'+ הוספת הוצאה'" [buttonColor]="buttonColor.BLACK"
+            [buttonSize]="buttonSize.AUTO" (onButtonClicked)="openMannualExpenses()">
             <i class="pi pi-plus"></i>
         </app-p-button>
-</div>
+    </div>
+     <!-- ─── Open Banking CTA Banner (Figma nodes 2520:53911 → 2520:53930) ─── -->
+     @if (!hasOpenBanking()) {
+     <div class="banking-banner">
+
+        <div class="banking-banner__text">
+            <p class="banking-banner__title">רוצה לראות את התנועות בחשבון שלך?</p>
+            <p class="banking-banner__body">
+                באמצעות חיבור לבנקאות פתוחה תוכל לקבל תמונה רחבה יותר על החשבון שלך,
+                גישה ליכולות נוספות ושליטה טובה יותר בניהול הכסף
+            </p>
+        </div>
+        <app-p-button
+            [buttonText]="'אני רוצה'"
+            [buttonColor]="buttonColor.BLACK"
+            [buttonSize]="buttonSize.SMALL"
+            (onButtonClicked)="connectToOpenBanking()"
+            [isLoading]="isLoadingFeezback()">
+        </app-p-button>
+    </div>
+    }
+    @if (businessStatus() !== BusinessStatus.NO_BUSINESS) {
     <div class="nevigation-block">
         <span class="block-title">פעולות מומלצות</span>
         <div class="cards-container">
             @for (item of itemsNavigate; track $index) {
-                <app-dashboard-navigate [cardItem]="item"></app-dashboard-navigate>
-                <!-- <app-card-navigate [cardItem]="item"></app-card-navigate> -->
+            <app-dashboard-navigate [cardItem]="item"></app-dashboard-navigate>
+            <!-- <app-card-navigate [cardItem]="item"></app-card-navigate> -->
             }
         </div>
     </div>
+    }
 
-    <div class="table-block">
-        <p class="block-title">התנועות הלא מסווגות שלי</p>
-        <app-generic-table [isLoadingState]="isLoadingDataTable()" class="table" [columnsTitle]="fieldsNamesExpenses" [dataTable]="transToClassify | async" [selectionModeCheckBox]="null" [tableHeight]="'500px'"></app-generic-table>
+@if (hasOpenBanking()) {
+
+@if (syncRanThisSession() && syncSourceResults().length > 0 && !feezbackDialogVisible()) {
+  <div class="source-results-panel">
+    <h3 class="source-results-panel__title">סטטוס סנכרון לפי מקור</h3>
+    <div class="source-results-panel__list">
+      @for (source of syncSourceResults(); track source.sourceId) {
+        <div class="source-result-item"
+             [class.source-result-item--success]="source.status === 'success'"
+             [class.source-result-item--failed]="source.status === 'failed'">
+          <i class="pi"
+             [class.pi-check-circle]="source.status === 'success'"
+             [class.pi-times-circle]="source.status === 'failed'"
+             [class.pi-clock]="source.status === 'not_synced'">
+          </i>
+          <span class="source-result-item__name">{{ source.sourceId }}</span>
+          @if (source.status === 'success') {
+            <span class="source-result-item__count">{{ source.transactionCount }} תנועות</span>
+          }
+          @if (source.status === 'failed' && source.consentId) {
+            <app-p-button
+              [buttonText]="'נסה שוב'"
+              [buttonColor]="buttonColor.YELLOW"
+              [buttonSize]="buttonSize.SMALL"
+              [isLoading]="isRetryingSource() === source.sourceId"
+              (onButtonClicked)="onRetrySource(source.type, source.sourceId)">
+            </app-p-button>
+          }
+          @if ((source.status === 'failed' && !source.consentId) || source.status === 'not_synced') {
+            <app-p-button
+              [buttonText]="'בצע חיבור מחדש'"
+              [buttonColor]="buttonColor.YELLOW"
+              [buttonSize]="buttonSize.SMALL"
+              [isLoading]="isLoadingFeezback()"
+              (onButtonClicked)="onRenewConsent()">
+            </app-p-button>
+          }
+        </div>
+      }
     </div>
+  </div>
+}
 
+<div class="table-block">
+    @if (!isMobile()) {
+        <p class="block-title">התנועות הלא מסווגות שלי</p>
+    }
+    <app-generic-table
+        [title]="isMobile() ? 'התנועות הלא מסווגות שלי' : null"
+        class="table"
+        [rowActions]="rowActions"
+        [isLoadingState]="isLoadingDataTable()"
+        [columnsTitle]="fieldsNamesExpenses()"
+        [dataTable]="$any(transToClassify | async)"
+        [selectionModeCheckBox]="null"
+        [tableHeight]="'500px'"
+        [useSyncState]="true" [processStatus]="syncProcessStatus()"
+        (syncTriggered)="onSyncTriggered()"
+        [mobileCardConfig]="mobileCardConfig"
+        [sumSignColors]="true"
+        [unassignedBillRed]="true">
+    </app-generic-table>
 </div>
 
+}
+
+@if (visibleAccountAssociationDialog()) {
+    <app-account-association-dialog
+        (visibleChange)="closeAccountAssociation($event)"
+        [isVisible]="visibleAccountAssociationDialog()"
+        [accounts]="accountsList()"
+        [rowData]="leftPanelData()"
+        (openAddBillClicked)="openAddBill($event)">
+    </app-account-association-dialog>
+}
+
+@if (visibleAddBill()) {
+    <app-add-bill2 [isVisible]="visibleAddBill()" (visibleChange)="closeAddBill($event)"></app-add-bill2>
+}
+
+@if (visibleClassifyTran()) {
+    <app-classify-tran
+        (openAddCategoryClicked)="openAddCategory($event)"
+        (openAddSubCategoryClicked)="openAddCategory($event)"
+        [isVisible]="visibleClassifyTran()"
+        (visibleChange)="closeClassifyTran($event)"
+        [rowData]="leftPanelData()"
+        [incomeMode]="incomeMode()">
+    </app-classify-tran>
+}
+
+@if (visibleAddCategory()) {
+    <app-add-category
+        [isVisible]="visibleAddCategory()"
+        (visibleChange)="closeAddCategory($event)"
+        [subCategoryMode]="subCategoryMode()"
+        [categoryName]="categoryName()"
+        [incomeMode]="incomeMode()"
+        [rowData]="leftPanelData()">
+    </app-add-category>
+}
+
+</div>
 <!-- <ion-content>
     <div class="my-account-screen">
         <app-item-navigate [navigationItems]="itemsNavigate" navigationItemStyle="button-item-navigate-my-account"></app-item-navigate>

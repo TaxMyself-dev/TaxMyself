@@ -8,5 +8,5 @@
       "src/*": ["src/*"]
     }
   },
-  "include": ["src/**/*.spec.ts", "src/**/*.e2e-spec.ts"]
+  "include": ["src/**/*.spec.ts", "src/**/*.e2e-spec.ts", "test/**/*.ts"]
 }

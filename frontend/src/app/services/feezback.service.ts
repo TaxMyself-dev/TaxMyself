@@ -3,12 +3,17 @@ import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from 'src/environments/environment';
 
+export interface AdminAccountsAndCardsResponse {
+  accounts: any;
+  cards: any;
+}
+
 @Injectable({
   providedIn: 'root'
 })
 export class FeezbackService {
 
-  constructor(private http: HttpClient) {}
+  constructor(private http: HttpClient) { }
 
   /**
    * Creates a consent link for Feezback open banking
@@ -31,17 +36,45 @@ export class FeezbackService {
   }
 
   /**
-   * Gets all transactions for all user accounts from Feezback
-   * @param bookingStatus - Optional booking status filter (default: "booked")
-   * @returns Observable with all user transactions data
+   * Admin: fetch live accounts + cards JSON for a specific client (no DB writes),
+   * along with the user's per-source sync state (status / transactionCount per source).
    */
-  getUserTransactions(bookingStatus?: string): Observable<any> {
-    let url = `${environment.apiUrl}feezback/user-transactions`;
-    if (bookingStatus) {
-      url += `?bookingStatus=${bookingStatus}`;
-    }
-    // The Authorization header is automatically added by AuthInterceptor
-    return this.http.get<any>(url);
+  adminGetAccountsAndCards(firebaseId: string): Observable<AdminAccountsAndCardsResponse> {
+    return this.http.get<AdminAccountsAndCardsResponse>(
+      `${environment.apiUrl}feezback/admin/accounts/${firebaseId}`,
+    );
+  }
+
+  /**
+   * Admin: trigger refreshUserSources for a specific client.
+   */
+  adminRefreshUserSources(firebaseId: string): Observable<{ status: string }> {
+    return this.http.post<{ status: string }>(
+      `${environment.apiUrl}feezback/admin/refresh-sources/${firebaseId}`,
+      {},
+    );
+  }
+
+  /**
+   * Admin: pull transactions for one specific source (bank account / card) of
+   * a client. Returns the per-source result (status + transactionCount/error).
+   */
+  adminPullSource(
+    firebaseId: string,
+    type: 'bank' | 'card',
+    sourceId: string,
+  ): Observable<AdminPullSourceResult> {
+    return this.http.post<AdminPullSourceResult>(
+      `${environment.apiUrl}feezback/admin/pull-source/${firebaseId}`,
+      { type, sourceId },
+    );
   }
 }
 
+export interface AdminPullSourceResult {
+  type: 'bank' | 'card';
+  sourceId: string;
+  status: 'not_synced' | 'success' | 'failed';
+  transactionCount: number;
+  error?: string;
+}

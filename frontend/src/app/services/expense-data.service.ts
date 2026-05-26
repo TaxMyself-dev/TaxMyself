@@ -113,13 +113,51 @@ export class ExpenseDataService {
   }
 
   
-  getSubCategory(categoryName: string, isEquipment: boolean, isExpense: boolean): Observable<any> {
+  getSubCategory(
+    categoryName: string,
+    isEquipment: boolean,
+    isExpense: boolean,
+    businessNumber?: string | null,
+  ): Observable<any> {
     const url = `${environment.apiUrl}expenses/get-sub-categories`;
-    const params = new HttpParams()
+    let params = new HttpParams()
       .set('isEquipment', isEquipment)
       .set('isExpense', isExpense)
       .set('categoryName', categoryName);
+    if (businessNumber != null && String(businessNumber).trim() !== '') {
+      params = params.set('businessNumber', String(businessNumber));
+    }
     return this.http.get<any>(url, { params: params });
+  }
+
+  /** Admin: get all default sub-categories for category management. */
+  getAllDefaultSubCategories(): Observable<any[]> {
+    const url = `${environment.apiUrl}expenses/get-all-default-sub-categories`;
+    return this.http.get<any[]>(url);
+  }
+
+  /** Get all user-specific sub-categories for the authenticated user, scoped to the given bill. */
+  getAllUserSubCategories(billId: string): Observable<any[]> {
+    const params = new HttpParams().set('billId', billId);
+    return this.http.get<any[]>(`${environment.apiUrl}transactions/get-all-user-sub-categories`, { params });
+  }
+
+  /** Admin: update a default sub-category. */
+  updateDefaultSubCategory(id: number, body: any): Observable<any> {
+    const url = `${environment.apiUrl}expenses/update-default-sub-category/${id}`;
+    return this.http.patch(url, body);
+  }
+
+  /** Admin: add a new default sub-category. */
+  addDefaultSubCategory(body: any): Observable<any> {
+    const url = `${environment.apiUrl}expenses/add-default-sub-category`;
+    return this.http.post(url, body);
+  }
+
+  /** Admin: delete a default sub-category by id. */
+  deleteDefaultSubCategory(id: number): Observable<any> {
+    const url = `${environment.apiUrl}expenses/delete-default-sub-category/${id}`;
+    return this.http.delete(url);
   }
 
 
@@ -174,6 +212,21 @@ export class ExpenseDataService {
     return this.http.patch(url, data);
   }
 
+  /**
+   * Subcategory-wide P&L config (applies to ALL expenses of that subcategory).
+   * Upserts a UserSubCategory override on the backend.
+   */
+  setSubCategoryReportConfig(body: {
+    businessNumber: string;
+    categoryName: string;
+    subCategoryName: string;
+    reportScope?: 'pnl' | 'annual';
+    pnlCategory?: string | null;
+  }): Observable<any> {
+    const url = `${environment.apiUrl}expenses/sub-category-report-config`;
+    return this.http.post(url, body);
+  }
+
 
   openModalAddExpense(data?: IRowDataTable, editMode: boolean = false): Observable<any> {
     return from(this.modalController.create({
@@ -198,5 +251,39 @@ export class ExpenseDataService {
       //.subscribe();
   }
 
+
+  getUserCategoriesGrouped(businessNumber: string): Observable<{
+    categoryName: string;
+    userCategory: any | null;
+    subCategories: any[];
+  }[]> {
+    const url = `${environment.apiUrl}expenses/user-categories`;
+    const params = new HttpParams().set('businessNumber', businessNumber);
+    return this.http.get<any[]>(url, { params });
+  }
+
+  deleteUserCategory(id: number, businessNumber: string): Observable<{ deleted: true }> {
+    const url = `${environment.apiUrl}expenses/user-category/${id}`;
+    const params = new HttpParams().set('businessNumber', businessNumber);
+    return this.http.delete<{ deleted: true }>(url, { params });
+  }
+
+  deleteUserSubCategory(id: number, businessNumber: string): Observable<{ deleted: true }> {
+    const url = `${environment.apiUrl}expenses/user-sub-category/${id}`;
+    const params = new HttpParams().set('businessNumber', businessNumber);
+    return this.http.delete<{ deleted: true }>(url, { params });
+  }
+
+  updateUserCategory(id: number, businessNumber: string, dto: any): Observable<any> {
+    const url = `${environment.apiUrl}expenses/user-category/${id}`;
+    const params = new HttpParams().set('businessNumber', businessNumber);
+    return this.http.patch<any>(url, dto, { params });
+  }
+
+  updateUserSubCategory(id: number, businessNumber: string, dto: any): Observable<any> {
+    const url = `${environment.apiUrl}expenses/user-sub-category/${id}`;
+    const params = new HttpParams().set('businessNumber', businessNumber);
+    return this.http.patch<any>(url, dto, { params });
+  }
 
 }

@@ -18,7 +18,7 @@
     "test:watch": "jest --watch --maxWorkers=1",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:e2e": "jest --config ./test/jest-e2e.json",
+    "test:e2e": "jest --config ./test/jest-e2e.json --runInBand",
     "clear:dev": "ts-node scripts/clear-dev-data.ts"
   },
   "dependencies": {
@@ -47,6 +47,7 @@
     "multer": "^1.4.5-lts.1",
     "mysql2": "^3.9.7",
     "nodemailer": "^6.9.16",
+    "pdfkit": "^0.15.2",
     "reflect-metadata": "^0.1.13",
     "rxjs": "^7.2.0",
     "sib-api-v3-sdk": "^8.5.0",
@@ -59,6 +60,7 @@
     "@types/jest": "^29.5.1",
     "@types/multer": "^1.4.12",
     "@types/node": "^18.16.12",
+    "@types/pdfkit": "^0.17.6",
     "@types/supertest": "^2.0.11",
     "@typescript-eslint/eslint-plugin": "^5.0.0",
     "@typescript-eslint/parser": "^5.0.0",
@@ -86,6 +88,9 @@
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
+    },
+    "moduleNameMapper": {
+      "^src/(.*)$": "<rootDir>/$1"
     },
     "collectCoverageFrom": [
       "**/*.(t|j)s"

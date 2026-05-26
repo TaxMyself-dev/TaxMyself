@@ -4,7 +4,7 @@ import { BehaviorSubject, EMPTY, Observable, catchError, delay, finalize, from, 
 import { addSupplierComponent } from '../add-supplier/add-supplier.component';
 import { cloneDeep } from 'lodash';
 import { FilesService } from 'src/app/services/files.service';
-import { IColumnDataTable, IGetSupplier, IRowDataTable, ISelectItem, ISuppliers, ITableRowAction } from '../interface';
+import { IColumnDataTable, IGetSupplier, IRowDataTable, ISelectItem, ISupplier, ITableRowAction } from '../interface';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { ButtonSize } from '../button/button.enum';
 import { ExpenseFormColumns, ExpenseFormHebrewColumns, FormTypes, TransactionsOutcomesColumns } from '../enums';
@@ -12,10 +12,10 @@ import { GenericService } from 'src/app/services/generic.service';
 
 
 @Component({
-    selector: 'app-select-supplier',
-    templateUrl: './select-supplier.component.html',
-    styleUrls: ['./select-supplier.component.scss'],
-    standalone: false
+  selector: 'app-select-supplier',
+  templateUrl: './select-supplier.component.html',
+  styleUrls: ['./select-supplier.component.scss'],
+  standalone: false
 })
 
 
@@ -46,7 +46,7 @@ export class selectSupplierComponent implements OnInit {
   message: string = "האם אתה בטוח שברצונך למחוק ספק זה?";
   checkedSupplier: any;
 
-  constructor(private genericService: GenericService,  private expenseDataService: ExpenseDataService, private modalCtrl: ModalController) { }
+  constructor(private genericService: GenericService, private expenseDataService: ExpenseDataService, private modalCtrl: ModalController) { }
 
   ngOnInit() {
     this.getSuppliers();
@@ -95,10 +95,10 @@ export class selectSupplierComponent implements OnInit {
           } as IRowDataTable
           )) : null;
         }),
-      tap((data: IRowDataTable[]) => {
-        this.supplierList = data;
-        this.suppliersList$.next(data);
-      }))
+        tap((data: IRowDataTable[]) => {
+          this.supplierList = data;
+          this.suppliersList$.next(data);
+        }))
       .subscribe();
 
   }
@@ -173,11 +173,11 @@ export class selectSupplierComponent implements OnInit {
   confirmDel(id: number): void {
     console.log("event in confirm ", id);
     this.genericService.openPopupConfirm(this.message, "מחק", "בטל")
-    .subscribe((res) => {
-       if (res.data) {
-         this.deleteSupplier(id);
-       }
-     })
+      .subscribe((res) => {
+        if (res.data) {
+          this.deleteSupplier(id);
+        }
+      })
   }
 
   onChecked(event: any): void {

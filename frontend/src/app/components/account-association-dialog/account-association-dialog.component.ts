@@ -53,9 +53,31 @@ export class AccountAssociationDialogComponent implements OnInit {
 
   associationPaymentMethod(event: any): void {
     this.isLoading.set(true);
-    const len = this.rowData()?.paymentIdentifier.toString().length;
-    const paymentMethodType = len === 6 ? 'BANK_ACCOUNT' : len === 4 ? 'CREDIT_CARD' : undefined; // Setting paymentMethodType based on the length of paymentIdentifier
-    this.addSource(this.myForm.get('account').value, this.rowData()?.paymentIdentifier.toString(), paymentMethodType);
+    const paymentIdentifierRaw = this.rowData()?.paymentIdentifier?.toString() ?? '';
+    const paymentIdentifierDigits = paymentIdentifierRaw.replace(/\D/g, '');
+
+    // Heuristic: CREDIT_CARD ids are shorter; BANK_ACCOUNT ids are longer.
+    // Previously we required exact lengths (4/6) which breaks when ids come without leading zeros.
+    const paymentMethodType =
+      paymentIdentifierDigits.length === 0
+        ? undefined
+        : paymentIdentifierDigits.length >= 5
+          ? 'BANK_ACCOUNT'
+          : 'CREDIT_CARD';
+
+    if (!paymentMethodType) {
+      this.isLoading.set(false);
+      this.messageService.add({
+        severity: 'error',
+        summary: 'שגיאה',
+        detail: 'לא הצלחנו לזהות אוטומטית את סוג אמצעי התשלום עבור אמצעי התשלום שבחרת.',
+        life: 5000,
+        key: 'br',
+      });
+      return;
+    }
+
+    this.addSource(this.myForm.get('account').value, paymentIdentifierRaw, paymentMethodType);
   }
 
   addSource(bill: number, paymentIdentifier: string, paymentMethodType: string ): void {

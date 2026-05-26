@@ -40,20 +40,20 @@ export class LoginPage implements OnInit {
   mailAddressForResendAuthMail: string = "";
   passwordForResendAuthMail: string = "";
   isVisibleDialogRegisterMessage: boolean = false;
-  showModal = false;
+  showModal = signal<boolean>(false);
   resendCountdown = signal(0);
   isVerificationButtonDisabled = computed(() => this.resendCountdown() > 0);
   private destroyRef = inject(DestroyRef);
 
   constructor(
-    private location: Location, 
-    private messageService: MessageService, 
-    private route: ActivatedRoute, 
-    private genericService: GenericService, 
+    private location: Location,
+    private messageService: MessageService,
+    private route: ActivatedRoute,
+    private genericService: GenericService,
     private router: Router,
     public afAuth: AngularFireAuth,
-    private formBuilder: FormBuilder, 
-    public authService: AuthService, 
+    private formBuilder: FormBuilder,
+    public authService: AuthService,
     private loadingController: LoadingController
   ) {
 
@@ -92,12 +92,13 @@ export class LoginPage implements OnInit {
     }
 
     if (state?.from === 'register') {
-      this.showModal = true;
+      console.log('Navigated to Login Page from Register Page');
+      this.showModal.set(true);
     }
   }
 
   closeModal() {
-    this.showModal = false;
+    this.showModal.set(false);
   }
 
   togglePassword() {
@@ -111,44 +112,45 @@ export class LoginPage implements OnInit {
 
   login(): void {
 
-  this.isLoading.set(true);
-  this.authService.error.set(null);
-  const formData = this.loginForm.value;
+    this.isLoading.set(true);
+    this.authService.error.set(null);
+    const formData = this.loginForm.value;
 
-  from(this.afAuth.signInWithEmailAndPassword(formData.userName, formData.password))
-    .pipe(
-      catchError((err) => {
-        this.authService.handleErrorLogin(err.code);
-        console.log("❌ Firebase login error:", err);
-        return EMPTY;
-      }),
+    from(this.afAuth.signInWithEmailAndPassword(formData.userName, formData.password))
+      .pipe(
+        catchError((err) => {
+          this.authService.handleErrorLogin(err.code);
+          console.log("❌ Firebase login error:", err);
+          return EMPTY;
+        }),
 
-      // 1️⃣ Validate email
-      filter((res) => {
-        if (!res?.user?.emailVerified) {
-          this.authService.error.set("email");
-        }
-        return res?.user?.emailVerified;
-      }),
+        // 1️⃣ Validate email
+        filter((res) => {
+          if (!res?.user?.emailVerified) {
+            this.authService.error.set("email");
+          }
+          return res?.user?.emailVerified;
+        }),
 
-      // 2️⃣ Call your backend signIn()
-      switchMap(() => this.authService.signIn()),
+        // 2️⃣ Call your backend signIn() — freshLogin=true so the backend
+        // runs the post-login sync (this is the only real-login call site).
+        switchMap(() => this.authService.signIn(true)),
 
-      catchError((err) => {
-        if (err.status === 0) {
-          this.authService.error.set("net");
-          
-        }
-        else if (err.status === 404) {
-          this.authService.error.set("user");
-        }
-        else {
-          this.authService.error.set("error");
-        }
+        catchError((err) => {
+          if (err.status === 0) {
+            this.authService.error.set("net");
 
-        console.log("❌ Backend sign-in error:", err);
-        return EMPTY;
-      }),
+          }
+          else if (err.status === 404) {
+            this.authService.error.set("user");
+          }
+          else {
+            this.authService.error.set("error");
+          }
+
+          console.log("❌ Backend sign-in error:", err);
+          return EMPTY;
+        }),
 
       // 3️⃣ Save user data
       tap((res: any) => {
@@ -156,20 +158,70 @@ export class LoginPage implements OnInit {
         localStorage.setItem('userData', JSON.stringify(res));
       }),
 
-      // 4️⃣ Load businesses from server
-      switchMap(() =>
-        from(this.genericService.loadBusinessesFromServer())
-      ),
+        // 4️⃣ Load businesses from server
+        switchMap(() =>
+          from(this.genericService.loadBusinessesFromServer())
+        ),
 
       // 5️⃣ After businesses loaded → navigate
       tap(() => {
         this.router.navigate(['my-account']);
       }),
 
-      finalize(() => this.isLoading.set(false))
-    )
-    .subscribe();
-}
+        finalize(() => this.isLoading.set(false))
+      )
+      .subscribe();
+  }
+
+
+
+
+  //   async login(): Promise<void> {
+
+
+  //   this.isLoading.set(true);
+  //   this.authService.error.set(null);
+  //   const formData = this.loginForm.value;
+
+  //   from(this.afAuth.signInWithEmailAndPassword(formData.userName, formData.password))
+  //     .pipe(
+  //       catchError((err) => {
+  //         console.log("err in user verify in sign in", err);
+  //         return EMPTY;
+  //       }),
+  //       filter((res) => {
+  //         if (!res?.user?.emailVerified) {
+  //           console.log("res in email error", res);
+  //           this.authService.error.set("email");
+  //         }
+  //         return res?.user?.emailVerified;
+  //       }),
+  //       switchMap((res) => this.authService.signIn()),
+  //       catchError((err) => {
+  //         console.log("error in sign-in of login page: ", err);
+  //         return EMPTY;
+  //       }),
+  //       tap((res: any) => {
+  //         sessionStorage.setItem('isLoggedIn', 'true');
+  //         localStorage.setItem('userData', JSON.stringify(res));
+  //         console.log('Sign-in response:', res);
+
+  //          // 🚀 Load businesses immediately after login
+  //         await this.genericService.loadBusinessesFromServer();
+  //         // 🔥 Load businesses right after successful login
+  //         //this.genericService.clearBusinesses
+  //         //this.genericService.loadBusinesses();
+  //         console.log("after login");
+
+  //         this.router.navigate(['my-account']);
+  //       }),
+  //       finalize(() => {
+  //         console.log("Finalize called - Dismissing loader");
+  //         this.isLoading.set(false);
+  //       })
+  //     )
+  //     .subscribe()
+  // }
 
 
   sendVerficaitonEmail(): void {
@@ -232,6 +284,52 @@ export class LoginPage implements OnInit {
   }
 
 
+
+  async googleSignIn(): Promise<void> {
+    this.isLoading.set(true);
+    this.authService.error.set(null);
+    try {
+      const { isNewUser, userData } = await this.authService.signInWithGoogle();
+      if (isNewUser) {
+        // Sign out only — DO NOT call firebaseUser.delete() here. Even though
+        // signInWithGoogle() now returns isNewUser=true only on a real 404
+        // from /auth/signin, hard-deleting the Firebase account on any
+        // transient race is unrecoverable. Worst case after this change is an
+        // orphan Firebase auth record for a never-registered user — harmless,
+        // and they can recover via password-reset if they later register.
+        await this.afAuth.signOut();
+        this.messageService.add({
+          severity: 'warn',
+          summary: 'משתמש לא רשום',
+          detail: 'אין חשבון רשום עם כתובת האימייל הזו. יש להירשם תחילה.',
+          sticky: true,
+          key: 'br',
+        });
+        return;
+      }
+      sessionStorage.setItem('isLoggedIn', 'true');
+      localStorage.setItem('userData', JSON.stringify(userData));
+      await this.genericService.loadBusinessesFromServer();
+      this.router.navigate(['my-account']);
+    } catch (err: any) {
+      console.error('❌ Google sign-in error code:', err?.code, err);
+      switch (err?.code) {
+        case 'auth/popup-closed-by-user':
+        case 'auth/cancelled-popup-request':
+          break;
+        case 'auth/network-request-failed':
+          this.authService.error.set('net');
+          break;
+        case 'auth/popup-blocked':
+          this.messageService.add({ severity: 'warn', summary: 'חסימת חלון', detail: 'הדפדפן חסם את חלון הכניסה. אנא אפשר חלונות קופצים לאתר זה.', sticky: true, key: 'br' });
+          break;
+        default:
+          this.authService.error.set('error');
+      }
+    } finally {
+      this.isLoading.set(false);
+    }
+  }
 
   navigateToRegister(): void {
     this.router.navigate(['register'])

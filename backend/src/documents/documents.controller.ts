@@ -1,11 +1,10 @@
-import { BadRequestException, Body, Controller, Get, Headers, Param, Patch, Post, Query, Req, Res, UseGuards, UsePipes, ValidationPipe, } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Headers, Param, Patch, Post, Query, Req, Res, UseGuards, UsePipes, ValidationPipe, } from '@nestjs/common';
 import { Response } from 'express';
 import { DocumentType, DocumentStatusType } from 'src/enum';
 import { DocumentsService } from './documents.service';
 import { UsersService } from 'src/users/users.service';
 import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.interface';
 import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
-import { log } from 'node:console';
 import { CreateDocDto } from './dtos/create-doc.dto';
 
 
@@ -79,7 +78,6 @@ export class DocumentsController {
     const userId = request.user?.firebaseId;
     const initialIndex = Number(body.initialIndex);
     const issuerBusinessNumber: string = body.issuerBusinessNumber;
-    console.log("🚀 ~ DocumentsController ~ setInitialDocDetails ~ issuerBusinessNumber:", issuerBusinessNumber)
 
     if (typeof initialIndex !== 'number' || isNaN(initialIndex)) {
       throw new BadRequestException('initialIndex must be a valid number');
@@ -144,11 +142,7 @@ export class DocumentsController {
     }
   }))
   async createDoc(@Body() createDocDto: CreateDocDto, @Req() request: AuthenticatedRequest) {
-    console.log("createDoc in controller - start");
-    console.log("📦 Received and validated DTO");
     const userId = request.user?.firebaseId;
-
-    console.log("🚀 ~ DocumentsController ~ createDoc ~ createDocDto:", createDocDto);
     
     // Transform the DTO data before passing to service
     const transformedData = await this.documentsService.transformDocumentData(createDocDto);
@@ -209,8 +203,6 @@ export class DocumentsController {
     }
   }))
   async previewDoc(@Body() createDocDto: CreateDocDto, @Res() res: Response, @Req() request: AuthenticatedRequest) {
-    console.log("previewDoc in controller - start");
-    console.log("📦 Received and validated DTO");
     const userId = request.user?.firebaseId;
     
     // Transform the DTO data before passing to service
@@ -230,18 +222,30 @@ export class DocumentsController {
   }
 
 
-  @Post('generate-pdf')
-  @UseGuards(FirebaseAuthGuard)
-  async generatePDF(@Body() body: any, @Res() res: Response, @Req() request: AuthenticatedRequest) {    
-    const pdfBuffer = await this.documentsService.generatePDF(body, "pnlReport");
-    res.setHeader('Content-Type', 'application/pdf');
-    return res.send(pdfBuffer);
-  }
 
   
   @Post('generate-multiple')
   async generateMultipleDocuments(@Body() body: { userId: string }) {
     return this.documentsService.generateMultipleDocs(body.userId);
+  }
+
+  @Post('finalize-allocation')
+  @UseGuards(FirebaseAuthGuard)
+  async finalizeAllocation(
+    @Body() body: { issuerBusinessNumber: string; docNumber: string; docType: DocumentType; allocationNum?: string | null },
+    @Req() request: AuthenticatedRequest,
+  ) {
+    const userId = request.user?.firebaseId;
+    const { issuerBusinessNumber, docNumber, docType } = body;
+    if (!issuerBusinessNumber || !docNumber || !docType) {
+      throw new BadRequestException('issuerBusinessNumber, docNumber and docType are required');
+    }
+    return this.documentsService.finalizeAllocation(userId, {
+      issuerBusinessNumber,
+      docNumber,
+      docType,
+      allocationNum: body.allocationNum ?? null,
+    });
   }
 
   @Patch('update-status')
@@ -257,5 +261,50 @@ export class DocumentsController {
     return this.documentsService.updateDocStatus(issuerBusinessNumber, docNumber, docType, status);
   }
 
+  @Post('save-draft')
+  @UseGuards(FirebaseAuthGuard)
+  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+  async saveDraft(
+    @Body() createDocDto: CreateDocDto,
+    @Req() request: AuthenticatedRequest
+  ) {
+    const userId = request.user?.firebaseId;
+    const transformedData = await this.documentsService.transformDocumentData(createDocDto);
+    const draft = await this.documentsService.saveDraft(userId, transformedData);
+    return { success: true, draftId: draft.id };
+  }
+
+  @Get('load-draft')
+  @UseGuards(FirebaseAuthGuard)
+  async loadDraft(
+    @Query('issuerBusinessNumber') issuerBusinessNumber: string,
+    @Query('docType') docType: DocumentType,
+    @Req() request: AuthenticatedRequest
+  ) {
+    const userId = request.user?.firebaseId;
+    if (!issuerBusinessNumber || !docType) {
+      throw new BadRequestException('issuerBusinessNumber and docType are required');
+    }
+    const draft = await this.documentsService.loadDraft(userId, issuerBusinessNumber, docType);
+    if (!draft) {
+      return { exists: false };
+    }
+    return { exists: true, draft };
+  }
+
+  @Delete('delete-draft')
+  @UseGuards(FirebaseAuthGuard)
+  async deleteDraft(
+    @Query('issuerBusinessNumber') issuerBusinessNumber: string,
+    @Query('docType') docType: DocumentType,
+    @Req() request: AuthenticatedRequest
+  ) {
+    const userId = request.user?.firebaseId;
+    if (!issuerBusinessNumber || !docType) {
+      throw new BadRequestException('issuerBusinessNumber and docType are required');
+    }
+    await this.documentsService.deleteDraft(userId, issuerBusinessNumber, docType);
+    return { success: true };
+  }
 
 }

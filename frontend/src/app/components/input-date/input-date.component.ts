@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, input, OnInit, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, OnInit, signal } from '@angular/core';
 import { AbstractControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { DatePickerModule } from 'primeng/datepicker';
 
@@ -10,7 +10,7 @@ import { DatePickerModule } from 'primeng/datepicker';
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class InputDateComponent implements OnInit {
+export class InputDateComponent {
   parentForm = input<FormGroup>(null);
   controlName = input<string>("");
   placeholder = input<string>("");
@@ -21,18 +21,18 @@ export class InputDateComponent implements OnInit {
   customStyle = input<string>("");
   disabled = input<boolean>(false);
   showIcon = input<boolean>(true);
-  inputClasses = signal<string>("");
 
-  // style = signal<{}>({});
+  readonly selectValue = signal<any>(null);
 
-  constructor() { }
+  readonly hasValue = computed(() => {
+    const v = this.selectValue();
+    return v !== '' && v !== null && v !== undefined;
+  });
 
-  ngOnInit() {}
-
-  ngAfterViewInit(): void {
-    this.getinputClasses();
-  }
-
+  readonly inputClasses = computed(() => {
+    const base = [this.size(), this.customStyle()].filter(Boolean).join(' ');
+    return this.hasValue() ? `${base} dirty` : base;
+  });
   get isRequired(): boolean {
     const ctrl: AbstractControl | null = this.parentForm()?.get(this.controlName());
     if (!ctrl) return false;
@@ -42,27 +42,12 @@ export class InputDateComponent implements OnInit {
     return false;
   }
 
-  getinputClasses(): void {
-    const classes = [
-      this.size(),
-      this.customStyle()
-    ]
-      .filter(c => !!c)                // remove empty strings
-      .join(' ');
-
-    this.inputClasses.set(classes);
+  onInput(event: any): void {
+    const value = event;
+    this.selectValue.set(value);
   }
 
-  onInput(): void {
-    const ctrl: AbstractControl | null = this.parentForm()?.get(this.controlName());
-    if (ctrl.value != "" && ctrl.value != null && ctrl.value != undefined) {
-      this.inputClasses.update(current => current + ' dirty');
-    }
-    else {
-      this.inputClasses.update(current => current.replace('dirty', ''));
-    }
-    // this.onInputText.emit(event.target.value);
+  onClearClick(): void {
+    this.selectValue.set(null);
   }
-
-
 }

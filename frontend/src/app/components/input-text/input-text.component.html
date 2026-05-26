@@ -2,34 +2,35 @@
 <form [formGroup]="parentForm()">
   @let ctrl = parentForm().get(controlName())!;
 
- 
+
   <div class="input-text-wrapper">
     @if (labelText()) {
     <label class="input-label" [for]="controlName()">{{labelText()}}
       @if (isRequired) {
-        <span class="required">*</span>
+      <span class="required">*</span>
       }
     </label>
     }
-    <input [type]="type()" [dir]="type() === 'number' ? 'ltr' : 'rtl'" pInputText [formControlName]="controlName()"  [placeholder]="labelText() ? placeholder() : placeholder() + (isRequired ? ' *' : '')"
-      [class]="inputClasses()" (input)="onInput($event)" [min]="type() === 'number' ? min() : null" [max]="type() === 'number' ? max() : null"/>
+    <input [type]="type()" [dir]="type() === 'number' ? 'ltr' : 'rtl'" pInputText [formControlName]="controlName()"
+      [placeholder]="labelText() ? placeholder() : placeholder() + (isRequired ? ' *' : '')" [class]="inputClasses()"
+      (input)="onInput($event)" [min]="type() === 'number' ? min() : null" [max]="type() === 'number' ? max() : null" />
   </div>
 
   @if (ctrl.invalid && (ctrl.dirty || ctrl.touched)) {
-    <span class="error-text" style="color: red;">
-      @if (ctrl.hasError('required')) {
-      שדה חובה
-      } @else if (ctrl.hasError('pattern')) {
-      {{ errorText() || (labelText()) }}
-      } @else {
-      {{ errorText() }}
-      }
-    </span>
+  <span class="error-text" style="color: red;">
+    @if (ctrl.hasError('required')) {
+    שדה חובה
+    } @else if (ctrl.hasError('pattern')) {
+    {{ errorText() || (labelText()) }}
+    } @else {
+    {{ errorText() }}
+    }
+  </span>
   }
 </form>
 }
 @else {
-  <input [type]="type()" pInputText  [placeholder]="labelText() ? placeholder() : placeholder() + (isRequired ? ' *' : '')"
-  [class]="inputClasses()" (input)="onInput($event)" [value]="value()"   [attr.size]="value()?.length || 1">
-  
+<input [type]="type()" pInputText [placeholder]="labelText() ? placeholder() : placeholder() + (isRequired ? ' *' : '')"
+  [class]="inputClasses()" (input)="onInput($event)" [value]="value()" [attr.size]="value()?.length || 1">
+
 }

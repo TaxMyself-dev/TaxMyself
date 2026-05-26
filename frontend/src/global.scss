@@ -10,6 +10,7 @@
   font-style: normal;
 }
 
+
 .p-button.transparent:not(.p-button-text):not(.p-button-outlined):enabled:hover,
 .p-button.transparent:not(.p-button-text):not(.p-button-outlined):enabled:focus,
 .p-button.p-button-icon-only.transparent:enabled:hover,
@@ -107,7 +108,9 @@ body {
 }
 
 body {
-  min-height: 100vh;
+  // 100dvh = dynamic viewport height — shrinks/grows as browser UI shows/hides.
+  // Avoids the classic "100vh is too tall" bug on Android Chrome / iOS Safari.
+  min-height: 100dvh;
 }
 
 app-root {
@@ -208,7 +211,7 @@ app-root {
   }
 
   &.btn_select {
-    width: 264px;
+    width: 275px;
   }
 
   &.icon {
@@ -271,13 +274,23 @@ app-root {
   &.white-border {
     background-color: white;
     border-color: black;
-    // border-color: white;
     color: black;
 
     &.white-border:hover {
       background-color: white;
       border-color: black;
-      // border-color: white;
+      color: black;
+    }
+  }
+
+  &.white-border-light {
+    background-color: white;
+    border-color: #ebebeb;
+    color: black;
+
+    &.white-border-light:hover {
+      background-color: white;
+      border-color: #ebebeb;
       color: black;
     }
   }
@@ -403,7 +416,11 @@ app-root {
   }
 
   &.between {
-    width: 264px;
+    width: 175px;
+  }
+
+  &.mobile {
+    width: 255px;
   }
 
   &.narrow {
@@ -429,6 +446,52 @@ app-root {
   overflow: visible !important;
 }
 
+// Mirror the same size classes used on p-select so that app-input-date
+// (which sets styleClass on the outer p-datepicker span) renders at the
+// same width as a same-size p-select.
+.p-datepicker {
+  &.wide   { width: 420px !important; }
+  &.normal { width: 215px; }
+  &.between { width: 175px; }
+  &.mobile { width: 255px; }
+  &.narrow { width: 120px; }
+
+  // When the outer container has an explicit size, let the inner input
+  // fill the remaining space (PrimeNG datepicker uses inline-flex internally).
+  &:is(.wide, .normal, .between, .mobile, .narrow) {
+    .p-datepicker-input {
+      width: 100%;
+      min-width: 0;
+    }
+  }
+}
+
+// In .filter-tab toolbars, long values (e.g. business names like
+// "משה ברנשטיין - חשמלאי מוסמך") overflow the fixed 215px `.normal` chip.
+// Let the chip grow to fit, capped at 360px, and truncate with an ellipsis past that.
+.filter-tab {
+  .p-select.normal,
+  .p-multiselect.normal {
+    width: auto !important;
+    min-width: 215px;
+    max-width: 360px;
+  }
+
+  // Same auto-grow treatment for date pickers in the filter toolbar.
+  .p-datepicker.normal {
+    width: auto !important;
+    min-width: 215px;
+    max-width: 360px;
+  }
+
+  .p-select-label,
+  .p-multiselect-label {
+    overflow: hidden !important;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
 .p-multiselect-option,
 .p-select-option {
   font-size: large;
@@ -450,6 +513,13 @@ app-root {
   border-bottom: 1px solid #ebe8e8 !important;
   border-radius: 0px !important;
 
+  &.square-border {
+    border: 1px solid #ebe8e8 !important;
+    padding-inline: var(--p-inputtext-padding-x) !important;
+    border-radius: 5px !important;
+    // background-color: #e0e0e054;
+  }
+
   &.wide {
     width: 420px !important;
   }
@@ -466,15 +536,23 @@ app-root {
     width: 215px;
   }
 
+  &.mobile {
+    width: 255px;
+  }
+
   &.narrow {
     width: 120px;
   }
 
-  &.fill-border {
+  &.rounded-border {
     border: 1px solid #ebe8e8 !important;
     padding-inline: var(--p-inputtext-padding-x) !important;
     border-radius: 26px !important;
     background-color: #e0e0e054;
+
+    &.transparent {
+      background-color: transparent !important;
+    }
 
     &.dirty {
       border: 1px solid #204F56 !important;
@@ -522,10 +600,6 @@ input.p-inputtext::placeholder {
 }
 
 .p-autocomplete-input {
-  // padding-inline: var(--p-inputtext-padding-x) !important;
-  // border-radius: 26px !important;
-  // // background-color: #e0e0e054 !important;
-  // border: 1px solid #ebe8e8 !important;
   border-color: rgb(245 242 242) !important;
   border: none !important;
   padding-inline: 0 !important;
@@ -783,7 +857,7 @@ ion-content,
     border-color: #3d3d3d !important;
     color: #f4f4f5 !important;
 
-    &.fill-border,
+    &.rounded-border,
     &.white-style,
     &.p-datepicker-input {
       background-color: #111 !important;
@@ -836,12 +910,64 @@ ion-content,
   }
 }
 
-
 @media (max-width: 768px) {
   .p-toast {
     width: calc(100vw - 24px) !important;
     left: 12px !important;
     right: 12px !important;
     bottom: calc(env(safe-area-inset-bottom, 0px) + 80px) !important;
+  }
+}
+
+.p-fileupload-header {
+  display: none !important;
+}
+
+.p-fileupload.p-fileupload-advanced {
+  display: none !important;
+}
+
+.p-avatar.my-account-avatar .p-avatar-text {
+  padding-bottom: 4px;
+}
+
+// ── doc-create-items-mobile: quantity stepper ─────────────────
+.qty-stepper {
+  direction: ltr;
+  border: 1px solid #cccccc;
+  border-radius: 4px;
+  overflow: hidden;
+  display: flex;
+  width: 100%;
+
+  .p-inputnumber-button {
+    border: none !important;
+    background: transparent !important;
+    color: #0075ff !important;
+    border-radius: 0 !important;
+    flex-shrink: 0;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  .p-inputnumber-input {
+    flex: 1;
+    min-width: 0;
+    width: auto !important;
+    border: none !important;
+    box-shadow: none !important;
+    text-align: center;
+  }
+}
+
+// ── doc-create-items-mobile: discount input ───────────────────
+.discount-input {
+  width: 130px !important;
+
+  .p-inputnumber-input {
+    border: 1px solid #cccccc !important;
+    border-radius: 4px !important;
+    width: 100% !important;
   }
 }

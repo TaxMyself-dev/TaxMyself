@@ -46,8 +46,60 @@ export class AdminPanelService {
     return this.http.get<any>(url, { params });
   }
 
-  addAgent(name: string): Observable<any> {
-    const url = `${environment.apiUrl}agent/admin/add`;
-    return this.http.post<any>(url, { name });
+  clearUserCache(firebaseId: string): Observable<any> {
+    const url = `${environment.apiUrl}transactions/admin/clear-cache/${firebaseId}`;
+    return this.http.delete<any>(url);
   }
+
+  // ----- Demo data -----
+
+  listDemoProfiles(): Observable<DemoProfileListItem[]> {
+    return this.http.get<DemoProfileListItem[]>(`${environment.apiUrl}demo-data/profiles`);
+  }
+
+  seedDemoProfile(id: string): Observable<DemoSeedResult> {
+    return this.http.post<DemoSeedResult>(
+      `${environment.apiUrl}demo-data/profiles/${id}/seed`,
+      {},
+    );
+  }
+
+  resetDemoProfile(id: string): Observable<DemoResetResult> {
+    return this.http.post<DemoResetResult>(
+      `${environment.apiUrl}demo-data/profiles/${id}/reset`,
+      {},
+    );
+  }
+}
+
+export interface DemoSubUser {
+  firebaseId?: string;
+  email: string;
+  password: string;
+  label: string;
+}
+
+export interface DemoProfileListItem {
+  id: string;
+  label: string;
+  description: string;
+  email: string;
+  password: string;
+  exists: boolean;
+  /** firebaseId of the primary demo user (when `exists === true`). */
+  firebaseId?: string;
+  /** Delegated clients (for accountant profiles). Empty/undefined for solo profiles. */
+  clients?: DemoSubUser[];
+}
+
+export interface DemoSeedResult {
+  firebaseId: string;
+  email: string;
+  password: string;
+  clients?: DemoSubUser[];
+}
+
+export interface DemoResetResult {
+  existed: boolean;
+  deletedRows: Record<string, number>;
 }
