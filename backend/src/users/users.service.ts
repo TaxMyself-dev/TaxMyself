@@ -208,14 +208,18 @@ export class UsersService {
   }
 
 
-  async signin(firebaseId: string) {
-    // Shift lastLoginAt → previousLoginAt and stamp the new lastLoginAt before
-    // returning userData, so the frontend can show "last login was on ...".
-    const raw = await this.user_repo.findOne({ where: { firebaseId } });
-    if (raw) {
-      raw.previousLoginAt = raw.lastLoginAt;
-      raw.lastLoginAt = new Date();
-      await this.user_repo.save(raw);
+  async signin(firebaseId: string, freshLogin = false) {
+    // Shift lastLoginAt → previousLoginAt and stamp the new lastLoginAt so the
+    // frontend can show "last login was on ...". Only on a REAL login —
+    // /auth/signin is also hit by session-restore / view-as / navigation, and
+    // shifting on those would churn the timestamps every page change.
+    if (freshLogin) {
+      const raw = await this.user_repo.findOne({ where: { firebaseId } });
+      if (raw) {
+        raw.previousLoginAt = raw.lastLoginAt;
+        raw.lastLoginAt = new Date();
+        await this.user_repo.save(raw);
+      }
     }
     const user = await this.findFireUser(firebaseId);
     return user;

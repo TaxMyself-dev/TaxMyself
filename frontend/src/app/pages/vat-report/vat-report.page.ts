@@ -590,7 +590,11 @@ export class VatReportPage implements OnInit {
           const rows = [];
           console.log("data of table in vat report: ", data);
 
-          data.forEach(row => {
+          // Hide rows with zero VAT — they don't belong in the VAT report
+          // table (totals stay accurate since 0 contributes nothing anyway).
+          const visible = data.filter(row => Number(row.totalVatPayable ?? 0) !== 0);
+
+          visible.forEach(row => {
             const { reductionDone, reductionPercent, expenseNumber, isEquipment, loadingDate, note, supplierID, userId, isReported, monthReport, ...tableData } = row;
             if (row.file != undefined && row.file != null && row.file != "") {
               tableData[this.UPLOAD_FILE_FIELD_NAME] = row.file; // to show that this expense already has a file

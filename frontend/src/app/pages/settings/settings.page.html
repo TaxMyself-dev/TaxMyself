@@ -392,6 +392,17 @@
                 <div class="detail-field">
                   <span class="detail-value-box">{{ s.billName || 'לא משויך' }}</span>
                 </div>
+
+                <div class="detail-field">
+                  <app-p-button
+                    [buttonText]="'משוך תנועות'"
+                    [buttonColor]="buttonColor.WHITE_BORDER"
+                    [buttonSize]="buttonSize.SMALL"
+                    [disabled]="!!retryingSourceId() && retryingSourceId() !== s.sourceName"
+                    [isLoading]="retryingSourceId() === s.sourceName"
+                    (onButtonClicked)="onPullSource(s)">
+                  </app-p-button>
+                </div>
               </div>
             }
           </div>

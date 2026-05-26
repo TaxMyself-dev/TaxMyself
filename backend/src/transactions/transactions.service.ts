@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In, Between, Not, Brackets, LessThan, MoreThan, FindOptionsWhere, MoreThanOrEqual, LessThanOrEqual } from 'typeorm';
 import * as XLSX from 'xlsx';
 import { Express } from 'express';
-import { SourceType, VATReportingType, BusinessType } from 'src/enum';
+import { SourceType, VATReportingType, BusinessType, ExpenseReportScope } from 'src/enum';
 
 //Entities
 // TODO_FINTAX_REMOVE_LEGACY_TRANSACTIONS: import kept while legacy flows (file upload, Finsite ingest, classifyTransaction, quickClassify, report reads) still write/read the transactions table.
@@ -1160,26 +1160,31 @@ export class TransactionsService {
   }
 
   /**
-   * כל אמצעי תשלום של המשתמש מטבלת `source`.
-   * אין FK ל־bill → billName null (בפרונט: «לא משויך»). אחרת → שם החשבון מטבלת החשבונות דרך הקשר `bill`.
-   * hasConsent מבוסס על user_source_sync_state.consentId — non-null = חיבור פעיל
-   * (revoke/expire מאפס את consentId דרך clearConsentOnSources).
+   * Sources list for the settings page. Driven by user_source_sync_state
+   * (refreshed on every discovery → reflects currently-connected accounts).
+   * billName is joined from `source` (sourceName == sourceId); no Bill link →
+   * null (frontend shows «לא משויך»). hasConsent = user_source_sync_state
+   * .consentId non-null (revoke/expire nulls it via clearConsentOnSources).
    */
   async getSourcesWithTypes(
     userId: string,
   ): Promise<{ sourceName: string; sourceType: SourceType; billName: string | null; hasConsent: boolean }[]> {
-    const [rows, syncStates] = await Promise.all([
-      this.sourceRepo.find({ where: { userId }, relations: ['bill'] }),
+    // The list is driven by user_source_sync_state — it's refreshed on every
+    // discovery (getUserAccounts) so it reflects the currently-connected
+    // accounts + their consent validity. `source` is consulted only for the
+    // Bill mapping (billName), joined by sourceName == sourceId.
+    const [syncStates, sourceRows] = await Promise.all([
       this.userSourceSyncStateRepo.find({ where: { userId } }),
+      this.sourceRepo.find({ where: { userId }, relations: ['bill'] }),
     ]);
-    const consentBySourceId = new Map(
-      syncStates.map((s) => [s.sourceId, !!s.consentId]),
+    const billBySourceName = new Map(
+      sourceRows.map((r) => [r.sourceName, r.bill?.billName ?? null]),
     );
-    return rows.map((r) => ({
-      sourceName: r.sourceName,
-      sourceType: r.sourceType,
-      billName: r.bill?.billName ?? null,
-      hasConsent: consentBySourceId.get(r.sourceName) ?? false,
+    return syncStates.map((s) => ({
+      sourceName: s.sourceId,
+      sourceType: s.type === 'card' ? SourceType.CREDIT_CARD : SourceType.BANK_ACCOUNT,
+      billName: billBySourceName.get(s.sourceId) ?? null,
+      hasConsent: !!s.consentId,
     }));
   }
 
@@ -1674,6 +1679,11 @@ export class TransactionsService {
       expense.reductionPercent = row.reductionPercent;
       expense.businessNumber = row.businessNumber;
       expense.vatReportingDate = (slim?.vatReportingDate ?? row.vatReportingDate ?? null) as any;
+      // Snapshot the report scope (slim wins, then cache, default PNL).
+      // pnlCategory is intentionally NOT set here — it stays NULL and is
+      // resolved live from the subcategory (with an optional per-expense
+      // override set later via the Edit dialog).
+      expense.reportScope = slim?.reportScope ?? row.reportScope ?? ExpenseReportScope.PNL;
 
       const vatRate = this.sharedService.getVatRateByYear(new Date(expense.date));
       expense.totalVatPayable = (expense.sum / (1 + vatRate)) * vatRate * (expense.vatPercent / 100);
@@ -1716,6 +1726,7 @@ export class TransactionsService {
           reductionPercent: r.reductionPercent,
           isEquipment: r.isEquipment,
           isRecognized: r.isRecognized,
+          reportScope: r.reportScope,
           businessNumber: r.businessNumber,
           confirmed: true,
           // Prefer the period label already on the slim row (set at classify).

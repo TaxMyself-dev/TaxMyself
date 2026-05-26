@@ -123,6 +123,8 @@ export interface ISubCategory {
     isRecognized: boolean;
     isExpense: boolean;
     necessity: string;
+    reportScope?: 'pnl' | 'annual';
+    pnlCategory?: string | null;
 }
 
 export interface IUserData {

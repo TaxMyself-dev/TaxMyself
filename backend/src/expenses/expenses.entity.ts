@@ -1,4 +1,4 @@
-import { SingleMonthReport, DualMonthReport } from 'src/enum';
+import { SingleMonthReport, DualMonthReport, ExpenseReportScope } from 'src/enum';
 import {
   Entity,
   Column,
@@ -116,5 +116,21 @@ export class Expense {
     default: null,
   })
   isReported: boolean;
+
+  /**
+   * Snapshot of the subcategory's report scope at classify/confirm time.
+   * Default 'pnl' (forward-only — existing rows behave as today). ANNUAL
+   * expenses are excluded from the P&L and shown in the annual section.
+   */
+  @Column({ type: 'enum', enum: ExpenseReportScope, default: ExpenseReportScope.PNL })
+  reportScope: ExpenseReportScope;
+
+  /**
+   * Optional per-expense P&L-category override (rare). Resolution precedence
+   * in the P&L: this → subcategory.pnlCategory → bookkeeping category.
+   * NULL for all legacy/most rows.
+   */
+  @Column({ type: 'varchar', nullable: true, default: null })
+  pnlCategory: string | null;
 
 }

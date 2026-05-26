@@ -595,7 +595,20 @@ export class MannualExpenseComponent implements OnDestroy {
         reductionPercent: [0, [Validators.required, Validators.min(0), Validators.max(100)]],
         note: ["",],
         file: [null],
+        // P&L vs annual-report-only scope (per expense).
+        reportScope: ['pnl' as 'pnl' | 'annual'],
+        // Optional per-expense P&L-category override ("" / null = use default).
+        pnlCategory: [null as string | null],
+        // When checked (edit mode), also apply the P&L category to the WHOLE
+        // subcategory (not just this one expense).
+        applyPnlToSubcategory: [false],
     })
+
+    /** Report-scope dropdown options (ISelectItem shape: { name, value }). */
+    readonly reportScopeOptions = [
+        { name: 'רווח והפסד', value: 'pnl' },
+        { name: 'דוח שנתי בלבד', value: 'annual' },
+    ];
 
     /** Dropdown options for the currency picker next to the sum field. */
     currencyOptions: { value: string; name: string }[] = [
@@ -733,7 +746,10 @@ export class MannualExpenseComponent implements OnDestroy {
                 vatPercent: vatVal ?? 0,
                 taxPercent: taxVal ?? 0,
                 reductionPercent: this.parsePercentFromDisplay(row.reductionPercent) ?? 0,
-                note: row.note ?? ''
+                note: row.note ?? '',
+                reportScope: (row.reportScopeRaw ?? row.reportScope ?? 'pnl') === 'annual' ? 'annual' : 'pnl',
+                pnlCategory: row.pnlCategoryOverrideRaw ?? null,
+                applyPnlToSubcategory: false,
             }, { emitEvent: false });
             this.isEquipmentChecked.set(this.mannualExpenseForm.get('isEquipment')?.value === true);
             if (row.category) {
@@ -871,10 +887,27 @@ export class MannualExpenseComponent implements OnDestroy {
                 }),
                 switchMap((filePath) => {
                     const payload = this.buildExpensePayload(filePath);
-                    if (this.editMode && this.expenseId != null) {
-                        return this.expenseDataService.updateExpenseData(payload, this.expenseId);
+                    const raw = this.mannualExpenseForm.value;
+                    const save$ = (this.editMode && this.expenseId != null)
+                        ? this.expenseDataService.updateExpenseData(payload, this.expenseId)
+                        : this.expenseDataService.addExpenseData(payload);
+
+                    // "Apply to whole subcategory" → also upsert the
+                    // subcategory-level P&L config (subcategory-wide).
+                    if (raw.applyPnlToSubcategory && raw.category && raw.subCategory) {
+                        return save$.pipe(
+                            switchMap((res) =>
+                                this.expenseDataService.setSubCategoryReportConfig({
+                                    businessNumber: String(raw.businessNumber ?? this.mannualExpenseService.$selectedBusinessNumber() ?? ''),
+                                    categoryName: String(raw.category),
+                                    subCategoryName: String(raw.subCategory),
+                                    reportScope: (raw.reportScope as 'pnl' | 'annual') ?? 'pnl',
+                                    pnlCategory: (payload.pnlCategory ?? null) as string | null,
+                                }).pipe(map(() => res)),
+                            ),
+                        );
                     }
-                    return this.expenseDataService.addExpenseData(payload);
+                    return save$;
                 }),
                 catchError((error) => this.handleAddExpenseError(error, uploadedPath)),
                 finalize(() => this.isLoadingAddExpense.set(false))
@@ -999,9 +1032,11 @@ export class MannualExpenseComponent implements OnDestroy {
         } else {
             payload.sum = enteredSum;
         }
-        // Form-only field — don't leak to the backend (no column for it on
-        // the Expense entity, and the backend only reads originalCurrency).
+        // Form-only fields — don't leak to the backend.
         delete payload.currency;
+        delete payload.applyPnlToSubcategory;
+        // Normalise empty override to null (clears it back to the default).
+        if (payload.pnlCategory === '' || payload.pnlCategory === '—') payload.pnlCategory = null;
         return payload;
     }
 

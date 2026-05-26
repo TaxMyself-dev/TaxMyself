@@ -420,7 +420,7 @@ app-root {
   }
 
   &.mobile {
-    width: 275px;
+    width: 255px;
   }
 
   &.narrow {
@@ -446,12 +446,39 @@ app-root {
   overflow: visible !important;
 }
 
+// Mirror the same size classes used on p-select so that app-input-date
+// (which sets styleClass on the outer p-datepicker span) renders at the
+// same width as a same-size p-select.
+.p-datepicker {
+  &.wide   { width: 420px !important; }
+  &.normal { width: 215px; }
+  &.between { width: 175px; }
+  &.mobile { width: 255px; }
+  &.narrow { width: 120px; }
+
+  // When the outer container has an explicit size, let the inner input
+  // fill the remaining space (PrimeNG datepicker uses inline-flex internally).
+  &:is(.wide, .normal, .between, .mobile, .narrow) {
+    .p-datepicker-input {
+      width: 100%;
+      min-width: 0;
+    }
+  }
+}
+
 // In .filter-tab toolbars, long values (e.g. business names like
 // "משה ברנשטיין - חשמלאי מוסמך") overflow the fixed 215px `.normal` chip.
 // Let the chip grow to fit, capped at 360px, and truncate with an ellipsis past that.
 .filter-tab {
   .p-select.normal,
   .p-multiselect.normal {
+    width: auto !important;
+    min-width: 215px;
+    max-width: 360px;
+  }
+
+  // Same auto-grow treatment for date pickers in the filter toolbar.
+  .p-datepicker.normal {
     width: auto !important;
     min-width: 215px;
     max-width: 360px;
@@ -510,7 +537,7 @@ app-root {
   }
 
   &.mobile {
-    width: 275px;
+    width: 255px;
   }
 
   &.narrow {

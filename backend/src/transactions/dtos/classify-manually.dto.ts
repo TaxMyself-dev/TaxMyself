@@ -1,4 +1,5 @@
-import { IsBoolean, IsInt, IsNotEmpty, IsOptional, IsString, Max, Min } from 'class-validator';
+import { IsBoolean, IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, Max, Min } from 'class-validator';
+import { ExpenseReportScope } from 'src/enum';
 
 /**
  * DTO for the classifyManually() operation.
@@ -40,6 +41,11 @@ export class ClassifyManuallyDto {
 
   @IsBoolean()
   isRecognized: boolean;
+
+  /** P&L vs annual-report-only scope, taken from the chosen subcategory. */
+  @IsOptional()
+  @IsEnum(ExpenseReportScope)
+  reportScope?: ExpenseReportScope;
 
   @IsOptional()
   @IsString()

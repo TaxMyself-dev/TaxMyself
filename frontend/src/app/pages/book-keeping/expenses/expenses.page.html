@@ -13,7 +13,7 @@
         <span class="business-name">{{ selectedBusinessName() }}</span>
     </h2>
 
-    <!-- EXPENSES TABLE -->
+    <!-- EXPENSES TABLE (P&L / regular) -->
     <app-generic-table
         class="table"
         [isLoadingState]="isLoadingDataTable()"
@@ -24,6 +24,21 @@
         [mobileCardConfig]="mobileCardConfig"
         [tableHeight]="'500px'">
     </app-generic-table>
+
+    <!-- ANNUAL-REPORT-ONLY EXPENSES (separate section, below the regular ones) -->
+    @if ($any(myAnnualExpenses | async)?.length) {
+      <h2 class="business-title" style="margin-top: 28px;">הוצאות לדוח שנתי בלבד</h2>
+      <app-generic-table
+          class="table"
+          [isLoadingState]="isLoadingDataTable()"
+          [columnsTitle]="annualExpensesTableFields"
+          [dataTable]="myAnnualExpenses | async"
+          [fileActions]="fileActions()"
+          [selectionModeCheckBox]="null"
+          [mobileCardConfig]="mobileCardConfig"
+          [tableHeight]="'400px'">
+      </app-generic-table>
+    }
 
 </div>
 

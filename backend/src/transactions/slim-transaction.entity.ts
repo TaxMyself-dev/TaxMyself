@@ -6,7 +6,7 @@ import {
   UpdateDateColumn,
   Index,
 } from 'typeorm';
-import { ReportPeriodLabel } from 'src/enum';
+import { ReportPeriodLabel, ExpenseReportScope } from 'src/enum';
 import { ClassificationType } from './enums/classification-type.enum';
 
 @Entity('slim_transactions')
@@ -92,6 +92,10 @@ export class SlimTransaction {
 
   @Column({ type: 'boolean', default: false })
   isRecognized: boolean;
+
+  /** Report scope carried from rule/manual classification → snapshot to Expense. */
+  @Column({ type: 'enum', enum: ExpenseReportScope, default: ExpenseReportScope.PNL })
+  reportScope: ExpenseReportScope;
 
   @Column({ type: 'varchar', nullable: true, default: null })
   businessNumber: string | null;

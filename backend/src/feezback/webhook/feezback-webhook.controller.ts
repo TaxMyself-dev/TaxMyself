@@ -22,9 +22,12 @@ export class FeezbackWebhookController {
     const eventType = body?.event ?? 'unknown';
     const payloadTimestamp = body?.timestamp ?? body?.payload?.timestamp ?? null;
     const secretPresent = !!(providedSecret && providedSecret.trim() !== '');
+    // Server-side arrival time (when we received the webhook), distinct from
+    // payloadTimestamp which is Feezback's own timestamp inside the payload.
+    const receivedAt = new Date().toISOString();
 
     this.logger.log(
-      `[FeezbackWebhook] Received event=${eventType} timestamp=${payloadTimestamp ?? 'none'} secretHeader=${secretPresent ? 'present' : 'missing'}`,
+      `[FeezbackWebhook] Received event=${eventType} receivedAt=${receivedAt} timestamp=${payloadTimestamp ?? 'none'} secretHeader=${secretPresent ? 'present' : 'missing'}`,
     );
 
     // Secret validation is synchronous — must complete before ACK is sent.

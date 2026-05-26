@@ -4,7 +4,7 @@ import {
   PrimaryGeneratedColumn,
   Index,
 } from 'typeorm';
-import { ReportPeriodLabel } from 'src/enum';
+import { ReportPeriodLabel, ExpenseReportScope } from 'src/enum';
 import { ClassificationType } from './enums/classification-type.enum';
 
 @Entity('full_transactions_cache')
@@ -35,7 +35,10 @@ export class FullTransactionCache {
   @Column({ type: 'varchar' })
   merchantName: string;
 
-  @Column({ type: 'varchar', nullable: true, default: null })
+  // TEXT (not varchar/255): Feezback card transactionDetails / bank
+  // remittanceInformationUnstructured can exceed 255 chars. MySQL TEXT
+  // columns cannot have an explicit DEFAULT, so only `nullable` is set.
+  @Column({ type: 'text', nullable: true })
   note: string | null;
 
   @Column('date')
@@ -109,4 +112,8 @@ export class FullTransactionCache {
     default: null,
   })
   classificationType: ClassificationType | null;
+
+  /** Mirror of the slim/rule report scope — surfaced for the read path. */
+  @Column({ type: 'enum', enum: ExpenseReportScope, default: ExpenseReportScope.PNL })
+  reportScope: ExpenseReportScope;
 }

@@ -11,6 +11,9 @@ import { PeriodSelectComponent } from "src/app/components/period-select/period-s
 import { FilterTabComponent } from "src/app/components/filter-tab/filter-tab.component";
 // import { Overlay } from "../../../../../node_modules/primeng/overlay/overlay";
 import { PopoverModule } from 'primeng/popover';
+import { DialogModule } from 'primeng/dialog';
+import { DialogService } from 'primeng/dynamicdialog';
+import { ButtonComponent } from 'src/app/components/button/button.component';
 
 
 @NgModule({
@@ -26,8 +29,11 @@ import { PopoverModule } from 'primeng/popover';
     PeriodSelectComponent,
     FilterTabComponent,
     // Overlay,
-    PopoverModule
-],
-  declarations: [IncomesPage]
+    PopoverModule,
+    DialogModule,
+    ButtonComponent,
+  ],
+  declarations: [IncomesPage],
+  providers: [DialogService],
 })
 export class IncomesPageModule {}

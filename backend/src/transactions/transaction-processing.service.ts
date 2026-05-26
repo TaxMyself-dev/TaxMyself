@@ -22,7 +22,7 @@ import { Business } from 'src/business/business.entity';
 import { Expense } from 'src/expenses/expenses.entity';
 import { SharedService } from 'src/shared/shared.service';
 import { FxRateService } from 'src/shared/fx-rate.service';
-import { BusinessType, VATReportingType } from 'src/enum';
+import { BusinessType, VATReportingType, ExpenseReportScope } from 'src/enum';
 
 import { NormalizedTransaction } from './interfaces/normalized-transaction.interface';
 import { ProcessingResult } from './interfaces/processing-result.interface';
@@ -215,7 +215,7 @@ export class TransactionProcessingService {
     cacheRow: FullTransactionCache,
     slim: Pick<
       SlimTransaction,
-      'category' | 'subCategory' | 'vatPercent' | 'taxPercent' | 'reductionPercent' | 'isEquipment' | 'isRecognized' | 'businessNumber' | 'vatReportingDate'
+      'category' | 'subCategory' | 'vatPercent' | 'taxPercent' | 'reductionPercent' | 'isEquipment' | 'isRecognized' | 'reportScope' | 'businessNumber' | 'vatReportingDate'
     >,
   ): Promise<void> {
     const expense = await this.expenseRepo.findOne({
@@ -234,6 +234,7 @@ export class TransactionProcessingService {
     expense.taxPercent = slim.taxPercent;
     expense.reductionPercent = slim.reductionPercent;
     expense.isEquipment = slim.isEquipment;
+    expense.reportScope = slim.reportScope ?? expense.reportScope;
     expense.businessNumber = slim.businessNumber ?? expense.businessNumber;
     expense.vatReportingDate = (slim.vatReportingDate as any) ?? expense.vatReportingDate;
     expense.totalVatPayable = totalVatPayable;
@@ -379,6 +380,7 @@ export class TransactionProcessingService {
           reductionPercent: matchedRule.reductionPercent,
           isEquipment: matchedRule.isEquipment,
           isRecognized: matchedRule.isRecognized,
+          reportScope: matchedRule.reportScope,
           confirmed: false,
           vatReportingDate: null,
           businessNumber: matchedRule.businessNumber ?? null,
@@ -550,6 +552,7 @@ export class TransactionProcessingService {
         reductionPercent: dto.reductionPercent,
         isEquipment: dto.isEquipment,
         isRecognized: dto.isRecognized,
+        reportScope: dto.reportScope ?? ExpenseReportScope.PNL,
         confirmed: slim?.confirmed ?? false,
         vatReportingDate: periodLabel,
         businessNumber: businessNumberFinal,
@@ -567,6 +570,7 @@ export class TransactionProcessingService {
         reductionPercent: dto.reductionPercent,
         isEquipment: dto.isEquipment,
         isRecognized: dto.isRecognized,
+        reportScope: dto.reportScope ?? ExpenseReportScope.PNL,
         classificationType: ClassificationType.ONE_TIME,
         vatReportingDate: periodLabel,
         // Only override the bill's default attribution when the caller
@@ -586,6 +590,7 @@ export class TransactionProcessingService {
         reductionPercent: dto.reductionPercent,
         isEquipment: dto.isEquipment,
         isRecognized: dto.isRecognized,
+        reportScope: dto.reportScope ?? ExpenseReportScope.PNL,
         businessNumber: businessNumberFinal,
         vatReportingDate: periodLabel,
       });
@@ -701,6 +706,7 @@ export class TransactionProcessingService {
       reductionPercent: dto.reductionPercent,
       isEquipment: dto.isEquipment,
       isRecognized: dto.isRecognized,
+      reportScope: dto.reportScope ?? ExpenseReportScope.PNL,
       isExpense: dto.isExpense ?? false,
       businessNumber: dto.businessNumber ?? null,
     };
@@ -742,6 +748,7 @@ export class TransactionProcessingService {
         reductionPercent: dto.reductionPercent,
         isEquipment: dto.isEquipment,
         isRecognized: dto.isRecognized,
+        reportScope: dto.reportScope ?? ExpenseReportScope.PNL,
         confirmed: slim?.confirmed ?? false,
         vatReportingDate: focusPeriodLabel,
         businessNumber: focusBusinessNumber,
@@ -759,6 +766,7 @@ export class TransactionProcessingService {
         reductionPercent: dto.reductionPercent,
         isEquipment: dto.isEquipment,
         isRecognized: dto.isRecognized,
+        reportScope: dto.reportScope ?? ExpenseReportScope.PNL,
         classificationType: ClassificationType.RULE,
         vatReportingDate: focusPeriodLabel,
         // Only override the bill's default attribution when the caller
@@ -778,6 +786,7 @@ export class TransactionProcessingService {
         reductionPercent: dto.reductionPercent,
         isEquipment: dto.isEquipment,
         isRecognized: dto.isRecognized,
+        reportScope: dto.reportScope ?? ExpenseReportScope.PNL,
         businessNumber: focusBusinessNumber,
         vatReportingDate: focusPeriodLabel,
       });
@@ -1240,6 +1249,7 @@ export class TransactionProcessingService {
       reductionPercent: dto.reductionPercent,
       isEquipment: dto.isEquipment,
       isRecognized: dto.isRecognized,
+      reportScope: savedRule.reportScope ?? ExpenseReportScope.PNL,
     };
 
     // Resolve each backfilled row's report period. Stamp the existing one
@@ -1511,6 +1521,7 @@ export class TransactionProcessingService {
       reductionPercent: 0,
       isEquipment: false,
       isRecognized: false,
+      reportScope: ExpenseReportScope.PNL,
       confirmed: false,
       vatReportingDate: null,
       classificationType: null,
@@ -1532,6 +1543,7 @@ export class TransactionProcessingService {
       reductionPercent: slim.reductionPercent,
       isEquipment: slim.isEquipment,
       isRecognized: slim.isRecognized,
+      reportScope: slim.reportScope,
       confirmed: slim.confirmed,
       vatReportingDate: slim.vatReportingDate,
       classificationType: slim.classificationType,
@@ -1556,6 +1568,7 @@ export class TransactionProcessingService {
       reductionPercent: rule.reductionPercent,
       isEquipment: rule.isEquipment,
       isRecognized: rule.isRecognized,
+      reportScope: rule.reportScope,
       classificationType: ClassificationType.RULE,
       // Rule-level override wins over the bill default on the base cache row.
       ...(rule.businessNumber != null && { businessNumber: rule.businessNumber }),
@@ -1583,6 +1596,7 @@ export class TransactionProcessingService {
       category: row.category,
       subCategory: row.subCategory,
       isRecognized: row.isRecognized,
+      reportScope: row.reportScope,
       vatPercent: row.vatPercent,
       taxPercent: row.taxPercent,
       isEquipment: row.isEquipment,
@@ -1833,6 +1847,7 @@ export class TransactionProcessingService {
             subCategory: null,
             classificationType: null,
             isRecognized: false,
+            reportScope: ExpenseReportScope.PNL,
             vatPercent: 0,
             taxPercent: 0,
             isEquipment: false,
@@ -1878,7 +1893,8 @@ export class TransactionProcessingService {
       (dto.taxPercent !== undefined && dto.taxPercent !== rule.taxPercent) ||
       (dto.reductionPercent !== undefined && dto.reductionPercent !== rule.reductionPercent) ||
       (dto.isEquipment !== undefined && dto.isEquipment !== rule.isEquipment) ||
-      (dto.isRecognized !== undefined && dto.isRecognized !== rule.isRecognized);
+      (dto.isRecognized !== undefined && dto.isRecognized !== rule.isRecognized) ||
+      (dto.reportScope !== undefined && dto.reportScope !== rule.reportScope);
 
     Object.assign(rule, dto);
     const saved = await this.rulesRepo.save(rule);
@@ -1892,6 +1908,7 @@ export class TransactionProcessingService {
         reductionPercent: saved.reductionPercent,
         isEquipment: saved.isEquipment,
         isRecognized: saved.isRecognized,
+        reportScope: saved.reportScope,
       });
     }
 
@@ -1909,6 +1926,7 @@ export class TransactionProcessingService {
       reductionPercent: number;
       isEquipment: boolean;
       isRecognized: boolean;
+      reportScope: ExpenseReportScope;
     },
   ): Promise<void> {
     const slimRows = await this.slimRepo.find({

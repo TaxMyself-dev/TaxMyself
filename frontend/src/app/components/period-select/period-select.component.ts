@@ -1,5 +1,6 @@
 import {
   Component,
+  computed,
   input,
   inject
 } from '@angular/core';
@@ -53,11 +54,16 @@ export class PeriodSelectComponent {
   /** Default values for period fields */
   periodDefaults = input<PeriodDefaults>();
 
+  /** Size class forwarded from the parent (e.g. 'mobile', 'normal'). Defaults to MEDIUM. */
+  size = input<string>('');
+
   private fb = inject(FormBuilder);
 
   ButtonColor = ButtonColor;
   ButtonSize = ButtonSize;
-  inputSize = inputsSize
+  inputSize = inputsSize;
+
+  readonly effectiveSize = computed(() => this.size() || this.inputSize.MEDIUM);
 
   get form(): FormGroup {
     return this.parentForm();

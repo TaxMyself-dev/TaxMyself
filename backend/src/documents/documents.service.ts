@@ -8,7 +8,7 @@ import { DocLines } from './doc-lines.entity';
 import { JournalEntry } from 'src/bookkeeping/jouranl-entry.entity';
 import { JournalLine } from 'src/bookkeeping/jouranl-line.entity';
 import { DefaultBookingAccount } from 'src/bookkeeping/account.entity'
-import { DocumentType, DocumentStatusType, PaymentMethodType, VatOptions, Currency, UnitOfMeasure, CardCompany, CreditTransactionType, BusinessType } from 'src/enum';
+import { DocumentType, DocumentStatusType, JournalReferenceType, PaymentMethodType, VatOptions, Currency, UnitOfMeasure, CardCompany, CreditTransactionType, BusinessType } from 'src/enum';
 import { Business } from 'src/business/business.entity';
 import { SharedService } from 'src/shared/shared.service';
 import { BookkeepingService } from 'src/bookkeeping/bookkeeping.service';
@@ -460,23 +460,27 @@ export class DocumentsService {
         const envFids = isProduction ? fidMap.prod : fidMap.dev;
         if (['RECEIPT', 'TAX_INVOICE_RECEIPT'].includes(docType)) {
           fid = envFids.receipt;
-        } else if (['TAX_INVOICE', 'TRANSACTION_INVOICE', 'CREDIT_INVOICE'].includes(docType)) {
+        } else if (['TAX_INVOICE', 'TRANSACTION_INVOICE', 'CREDIT_INVOICE', 'PRICE_QUOTE', 'WORK_ORDER'].includes(docType)) {
+          // PRICE_QUOTE and WORK_ORDER share the invoice template — same
+          // layout, no payment section.
           fid = envFids.invoice;
         } else {
           fid = 'UNKNOWN FID';
         }
 
-        const hebrewNameDoc = data.docData.docType === DocumentType.RECEIPT ? 'קבלה' : 
+        const hebrewNameDoc = data.docData.docType === DocumentType.RECEIPT ? 'קבלה' :
                               data.docData.docType === DocumentType.TAX_INVOICE ? 'חשבונית מס' :
                               data.docData.docType === DocumentType.TAX_INVOICE_RECEIPT ? 'חשבונית מס קבלה' :
                               data.docData.docType === DocumentType.TRANSACTION_INVOICE ? 'חשבון עסקה' :
-                              data.docData.docType === DocumentType.CREDIT_INVOICE ? 'חשבונית זיכוי' : '';
+                              data.docData.docType === DocumentType.CREDIT_INVOICE ? 'חשבונית זיכוי' :
+                              data.docData.docType === DocumentType.PRICE_QUOTE ? 'הצעת מחיר' :
+                              data.docData.docType === DocumentType.WORK_ORDER ? 'הזמנת עבודה' : '';
         prefill_data = {
           recipientName: data.docData.recipientName,
           recipientTaxNumber: data.docData.recipientId ? `מ.ע. / ח.פ.:  ${data.docData.recipientId}` : null,
           docTitle: `${hebrewNameDoc} מספר ${data.docData.docNumber}`,
           docSubtitle: data.docData.docSubtitle ?? null,
-          allocationNum: data.docData.allocationNum ?? null,
+          allocationNum: data.docData.allocationNum ? `מספר הקצאה: ${data.docData.allocationNum}` : null,
           docDate: this.formatDateToDDMMYYYY(data.docData.docDate),
           issuerName: data.docData.issuerName ? `שם העסק: ${data.docData.issuerName}` : null,
           issuerDetails: [
@@ -635,7 +639,7 @@ export class DocumentsService {
       // For LICENSED (עוסק מורשה) or COMPANY (חברה)
       // For TAX_INVOICE and TAX_INVOICE_RECEIPT
       
-      if (docType === DocumentType.TAX_INVOICE || docType === DocumentType.TAX_INVOICE_RECEIPT || docType === DocumentType.TRANSACTION_INVOICE) {
+      if (docType === DocumentType.TAX_INVOICE || docType === DocumentType.TAX_INVOICE_RECEIPT || docType === DocumentType.TRANSACTION_INVOICE || docType === DocumentType.PRICE_QUOTE || docType === DocumentType.WORK_ORDER) {
         // סה"כ חייב במע"מ
         sumTable.push({
           'תיאור': 'סה"כ חייב במע"מ:',
@@ -832,6 +836,9 @@ export class DocumentsService {
       docType: docData.docType,
       generalDocIndex: String(docData.generalDocIndex),
       allocationNum: docData.allocationNum || null,
+      // Preserve client-supplied docStatus so PENDING_ALLOCATION (and DRAFT) survive
+      // the transform — saveDocInfo only sets a default when this is undefined.
+      ...(docData.docStatus ? { docStatus: docData.docStatus } : {}),
       docDescription: docData.docDescription || null,
       docSubtitle: docData.docSubtitle || null,
       docNumber: String(docData.docNumber),
@@ -985,6 +992,14 @@ export class DocumentsService {
       delete data.docData.docStatus;
     }
 
+    // PENDING_ALLOCATION: client explicitly chose to defer PDF (no allocation number yet).
+    // We persist the doc (so it shows up in "המסמכים שהפקתי" with a needs-action indicator),
+    // but skip PDF generation, Firebase upload, and recipient email.
+    const isPendingAllocation = data.docData?.docStatus === DocumentStatusType.PENDING_ALLOCATION;
+    if (isPendingAllocation) {
+      generatePdf = false;
+    }
+
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -1042,7 +1057,7 @@ export class DocumentsService {
         DocumentType.CREDIT_INVOICE,        // חשבונית זיכוי
       ];
 
-      if (docTypesWithJournalEntry.includes(data.docData.docType)) {
+      if (docTypesWithJournalEntry.includes(data.docData.docType) && !isPendingAllocation) {
         await this.bookkeepingService.createJournalEntry({
           issuerBusinessNumber: data.docData.issuerBusinessNumber,
           date: this.sharedService.normalizeToMySqlDate(data.docData.docDate),
@@ -1159,6 +1174,8 @@ export class DocumentsService {
                 [DocumentType.TAX_INVOICE_RECEIPT]: 'חשבונית מס קבלה',
                 [DocumentType.CREDIT_INVOICE]: 'חשבונית זיכוי',
                 [DocumentType.TRANSACTION_INVOICE]: 'חשבון עסקה',
+                [DocumentType.PRICE_QUOTE]: 'הצעת מחיר',
+                [DocumentType.WORK_ORDER]: 'הזמנת עבודה',
                 [DocumentType.GENERAL]: 'מסמך כללי',
               };
               const docTypeName = docTypeNames[data.docData.docType] || data.docData.docType;
@@ -1276,6 +1293,182 @@ ${finalOwnerName}`;
     }
 
   }
+
+
+  /**
+   * Finalizes a PENDING_ALLOCATION document: optionally attaches an allocation
+   * number, generates the original + copy PDFs, uploads them to Firebase,
+   * records the journal entry, and flips status to OPEN/CLOSE.
+   *
+   * Called from "the docs I issued" page when the user decides how to handle
+   * a doc that was saved without a PDF because it required an allocation #.
+   */
+  async finalizeAllocation(
+    userId: string,
+    params: {
+      issuerBusinessNumber: string;
+      docNumber: string;
+      docType: DocumentType;
+      allocationNum?: string | null;
+    }
+  ): Promise<any> {
+    const { issuerBusinessNumber, docNumber, docType, allocationNum } = params;
+
+    const doc = await this.documentsRepo.findOne({
+      where: { issuerBusinessNumber, docNumber, docType },
+    });
+
+    if (!doc) {
+      throw new NotFoundException('Document not found');
+    }
+
+    // PENDING means the doc was never finalized — full PDF generation + journal
+    // entry needed. ISSUED (OPEN/CLOSE) means it's already on file and we're
+    // just attaching an allocation # after the fact: regenerate the PDFs (so
+    // the new allocation # shows on them) but skip the journal entry.
+    const wasPending = doc.docStatus === DocumentStatusType.PENDING_ALLOCATION;
+    if (!wasPending && doc.allocationNum) {
+      throw new BadRequestException('Document already has an allocation number');
+    }
+
+    // Load lines & payments scoped to THIS doc. generalDocIndex is the
+    // per-business counter and is unique per doc, so it's a safe key.
+    // Lines also carry docType (existing entity field) — keeping that filter
+    // is essentially free and gives a defense-in-depth check; payments don't
+    // have it (intentional — see DocPayments entity).
+    const lines = await this.docLinesRepo.find({
+      where: { issuerBusinessNumber, generalDocIndex: doc.generalDocIndex, docType: doc.docType },
+      order: { lineNumber: 'ASC' },
+    });
+    const payments = await this.docPaymentsRepo.find({
+      where: { issuerBusinessNumber, generalDocIndex: doc.generalDocIndex },
+      order: { paymentLineNumber: 'ASC' },
+    });
+
+    // Issuer details aren't stored on the entity — rebuild from Business.
+    const business = await this.businessService.getBusinessByNumber(issuerBusinessNumber);
+
+    // Compute sumWithoutVat from lines (not persisted on the entity).
+    const sumWithoutVat = lines
+      .filter(l => l.vatOpts === VatOptions.WITHOUT)
+      .reduce((s, l) => s + Number(l.sumAftDisBefVatPerLine || 0), 0);
+
+    const dataForPdf: any = {
+      docData: {
+        ...doc,
+        allocationNum: allocationNum ?? doc.allocationNum ?? null,
+        issuerName: business?.businessName,
+        issuerAddress: business?.businessAddress,
+        issuerPhone: business?.businessPhone,
+        issuerEmail: business?.businessEmail,
+        businessType: business?.businessType ?? null,
+        sumWithoutVat,
+      },
+      linesData: lines,
+      paymentData: payments,
+    };
+
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    let originalFilePath: string | null = null;
+    let copyFilePath: string | null = null;
+
+    try {
+      // Generate PDFs
+      const originalPdfBlob = await this.generatePDF(dataForPdf, 'createDoc');
+      if (!originalPdfBlob) throw new Error('Original PDF generation failed');
+      const originalBuffer = Buffer.from(originalPdfBlob as any);
+
+      const copyPdfBlob = await this.generatePDF(dataForPdf, 'createDoc', true);
+      if (!copyPdfBlob) throw new Error('Copy PDF generation failed');
+      const copyBuffer = Buffer.from(copyPdfBlob as any);
+
+      // Upload both
+      originalFilePath = await this.uploadToFirebase(
+        originalBuffer,
+        issuerBusinessNumber,
+        doc.generalDocIndex,
+        doc.docType,
+        doc.docDescription,
+        'original',
+      );
+      copyFilePath = await this.uploadToFirebase(
+        copyBuffer,
+        issuerBusinessNumber,
+        doc.generalDocIndex,
+        doc.docType,
+        doc.docDescription,
+        'copy',
+      );
+
+      // Persist file paths, allocation #. For pending docs flip status to
+      // OPEN/CLOSE; for already-issued docs leave the existing status alone.
+      const autoClosedTypes = [
+        DocumentType.RECEIPT,
+        DocumentType.TAX_INVOICE_RECEIPT,
+        DocumentType.CREDIT_INVOICE,
+      ];
+      const docsRepo = queryRunner.manager.getRepository(Documents);
+      doc.file = originalFilePath;
+      doc.copyFile = copyFilePath;
+      if (allocationNum !== undefined) {
+        doc.allocationNum = allocationNum ?? null;
+      }
+      if (wasPending) {
+        doc.docStatus = autoClosedTypes.includes(doc.docType)
+          ? DocumentStatusType.CLOSE
+          : DocumentStatusType.OPEN;
+      }
+      await docsRepo.save(doc);
+
+      // Journal entry was deferred at create time for pending docs — record it
+      // now. Already-issued docs already have one.
+      const docTypesWithJournalEntry = [
+        DocumentType.TAX_INVOICE,
+        DocumentType.TAX_INVOICE_RECEIPT,
+        DocumentType.RECEIPT,
+        DocumentType.CREDIT_INVOICE,
+      ];
+      if (wasPending && docTypesWithJournalEntry.includes(doc.docType)) {
+        await this.bookkeepingService.createJournalEntry({
+          issuerBusinessNumber,
+          date: this.sharedService.normalizeToMySqlDate(doc.docDate),
+          // DocumentType and JournalReferenceType share string values for the
+          // subset checked above; cast across the parallel enums.
+          referenceType: doc.docType as unknown as JournalReferenceType,
+          referenceId: parseInt(doc.docNumber),
+          description: `${doc.docType} #${doc.docNumber} for ${doc.recipientName}`,
+          lines: [
+            { accountCode: '4000', credit: doc.sumAftDisBefVAT },
+            { accountCode: '2400', credit: doc.vatSum },
+          ],
+        }, queryRunner.manager);
+      }
+
+      await queryRunner.commitTransaction();
+
+      return {
+        success: true,
+        docType: doc.docType,
+        docNumber: doc.docNumber,
+        generalDocIndex: doc.generalDocIndex,
+        allocationNum: doc.allocationNum,
+        file: originalFilePath,
+        copyFile: copyFilePath,
+        docStatus: doc.docStatus,
+      };
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      if (originalFilePath) await this.deleteFromFirebase(originalFilePath);
+      if (copyFilePath) await this.deleteFromFirebase(copyFilePath);
+      console.error('❌ Error in finalizeAllocation:', error);
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
+  }
   
 
   convertPaymentMethod(paymentMethod: string): string {
@@ -1376,7 +1569,7 @@ ${finalOwnerName}`;
         docNumber: data.docNumber.toString(),
       };
 
-      // Only set docStatus if it's not already set (e.g., not DRAFT)
+      // Only set docStatus if it's not already set (e.g., not DRAFT / PENDING_ALLOCATION)
       if (!data.docStatus) {
         serverGeneratedValues.docStatus = autoClosedTypes.includes(data.docType) ? 'CLOSE' : 'OPEN';
       }
@@ -1728,6 +1921,8 @@ ${finalOwnerName}`;
       DocumentType.TAX_INVOICE_RECEIPT,
       DocumentType.TRANSACTION_INVOICE,
       DocumentType.CREDIT_INVOICE,
+      DocumentType.PRICE_QUOTE,
+      DocumentType.WORK_ORDER,
       DocumentType.GENERAL,
       DocumentType.JOURNAL_ENTRY,
     ];
@@ -1738,6 +1933,8 @@ ${finalOwnerName}`;
       [DocumentType.TAX_INVOICE_RECEIPT]: 30000,
       [DocumentType.TRANSACTION_INVOICE]: 40000,
       [DocumentType.CREDIT_INVOICE]: 50000,
+      [DocumentType.PRICE_QUOTE]: 60000,
+      [DocumentType.WORK_ORDER]: 70000,
       [DocumentType.GENERAL]: 1000000,
       [DocumentType.JOURNAL_ENTRY]: 10000000,
     };

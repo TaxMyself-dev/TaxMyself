@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject, input, ViewChild } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, computed, inject, input, ViewChild } from '@angular/core';
 import { Menubar, MenubarModule } from 'primeng/menubar';
 import { ButtonModule } from 'primeng/button';
 import { IMenuItem } from './topNav-interface';
@@ -6,8 +6,8 @@ import { ImageModule } from 'primeng/image';
 import { ButtonComponent } from '../button/button.component';
 import { ButtonColor, ButtonSize } from '../button/button.enum';
 import { NavigationEnd, Router } from '@angular/router';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { filter } from 'rxjs/operators';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { filter, map } from 'rxjs/operators';
 
 @Component({
     selector: 'app-p-topNav',
@@ -27,6 +27,16 @@ export class TopNavComponent {
 
     readonly ButtonColor = ButtonColor;
     readonly ButtonSize = ButtonSize;
+
+    private readonly currentUrl = toSignal(
+        this.router.events.pipe(
+            filter(e => e instanceof NavigationEnd),
+            map(e => (e as NavigationEnd).urlAfterRedirects),
+        ),
+        { initialValue: this.router.url },
+    );
+
+    readonly isOnDocCreate = computed(() => this.currentUrl().startsWith('/doc-create'));
 
     constructor() {
         this.router.events.pipe(

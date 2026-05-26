@@ -1,22 +1,24 @@
 <ion-content [fullscreen]="true">
   <p-toast position="bottom-right" key="br"></p-toast>
-  <div class="wrap-screen">
-    <div class="uniform-file-header">
-      <div class="icon-title">
-        <img src="../../../assets/uniform_structure.svg" alt="Uniform File" class="icon" />
-        <span class="title">הפקת קבצים במבנה אחיד</span>
+  <div class="wrap-screen" [class.has-results]="!!reportDetails">
+    <div class="pre-results">
+      <div class="uniform-file-header">
+        <div class="icon-title">
+          <img src="../../../assets/uniform_structure.svg" alt="Uniform File" class="icon" />
+          <span class="title">הפקת קבצים במבנה אחיד</span>
+        </div>
+        <p class="text-header">
+          הפקת קבצים במבנה אחיד בקלות ובמהירות
+        </p>
       </div>
-      <p class="text-header">
-        הפקת קבצים במבנה אחיד בקלות ובמהירות
-      </p>
-    </div>
 
-    <!-- FILTER TAB -->
-    <app-filter-tab
-      [config]="filterConfig"
-      [parentForm]="form"
-      (apply)="onSubmit($event)">
-    </app-filter-tab>
+      <!-- FILTER TAB -->
+      <app-filter-tab
+        [config]="filterConfig"
+        [parentForm]="form"
+        (apply)="onSubmit($event)">
+      </app-filter-tab>
+    </div>
 
     @if (reportDetails) {
       <div class="report-details-card">
@@ -33,13 +35,11 @@
       </div>
 
       <div class="table-block">
-        <p class="block-title">פירוט סוגי המסמכים</p>
-        <app-generic-table class="table" [columnsTitle]="uniformFileDocumentSummaryTitles" [dataTable]="uniformFileDocumentSummary" [selectionModeCheckBox]="null" [tableHeight]="'500px'"></app-generic-table>
+        <app-generic-table class="table" [title]="'פירוט סוגי המסמכים'" [columnsTitle]="uniformFileDocumentSummaryTitles" [dataTable]="uniformFileDocumentSummary" [selectionModeCheckBox]="null" [tableHeight]="'500px'" [mobileCardConfig]="documentSummaryMobileConfig"></app-generic-table>
       </div>
 
       <div class="table-block">
-        <p class="block-title">פירוט סוגי הרשומות </p>
-        <app-generic-table class="table" [columnsTitle]="uniformFileListSummaryTitles" [dataTable]="uniformFileListSummary" [selectionModeCheckBox]="null" [tableHeight]="'500px'"></app-generic-table>
+        <app-generic-table class="table" [title]="'פירוט סוגי הרשומות'" [columnsTitle]="uniformFileListSummaryTitles" [dataTable]="uniformFileListSummary" [selectionModeCheckBox]="null" [tableHeight]="'500px'" [mobileCardConfig]="listSummaryMobileConfig"></app-generic-table>
       </div>
 
       <div>

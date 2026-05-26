@@ -150,6 +150,17 @@
             <app-p-button [icon]="'pi pi-refresh'" (onButtonClicked)="triggerFullSync()" [buttonText]="'נסה שוב'" [buttonColor]="ButtonColor.BLACK" [buttonSize]="buttonSize.AUTO"></app-p-button>
           </div>
         } @else if (filteredDataTable()?.length) {
+          @if (showCheckbox()) {
+            <label class="mobile-select-all">
+              <input
+                type="checkbox"
+                class="mobile-select-all__checkbox"
+                [checked]="mobileAllChecked()"
+                (change)="onMobileSelectAll($any($event.target).checked)"
+                aria-label="בחר הכל">
+              <span class="mobile-select-all__label">בחר הכל</span>
+            </label>
+          }
           @for (row of filteredDataTable(); track row['id']) {
             <app-mobile-row-card
               [row]="row"
@@ -159,6 +170,9 @@
               [searchTerm]="searchTerm()"
               [sumSignColors]="sumSignColors()"
               [unassignedBillRed]="unassignedBillRed()"
+              [showCheckbox]="showCheckbox()"
+              [checked]="isMobileRowChecked(row)"
+              (checkedChange)="onMobileRowChecked(row, $event)"
               (actionClicked)="onCardActionClicked($event)">
             </app-mobile-row-card>
           }

@@ -229,6 +229,25 @@ export class DocumentsController {
     return this.documentsService.generateMultipleDocs(body.userId);
   }
 
+  @Post('finalize-allocation')
+  @UseGuards(FirebaseAuthGuard)
+  async finalizeAllocation(
+    @Body() body: { issuerBusinessNumber: string; docNumber: string; docType: DocumentType; allocationNum?: string | null },
+    @Req() request: AuthenticatedRequest,
+  ) {
+    const userId = request.user?.firebaseId;
+    const { issuerBusinessNumber, docNumber, docType } = body;
+    if (!issuerBusinessNumber || !docNumber || !docType) {
+      throw new BadRequestException('issuerBusinessNumber, docNumber and docType are required');
+    }
+    return this.documentsService.finalizeAllocation(userId, {
+      issuerBusinessNumber,
+      docNumber,
+      docType,
+      allocationNum: body.allocationNum ?? null,
+    });
+  }
+
   @Patch('update-status')
   @UseGuards(FirebaseAuthGuard)
   async updateDocStatus(

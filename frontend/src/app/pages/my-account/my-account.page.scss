@@ -487,6 +487,8 @@ p.block-title {
   border-radius: 16px;
   box-shadow: 0 16px 60px rgba(0, 0, 0, 0.25);
   padding: 22px 22px 18px 22px;
+  position: relative;
+  overflow: hidden;
 }
 
 .feezback-dialog-header {
@@ -494,6 +496,8 @@ p.block-title {
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
+  position: relative;
+  z-index: 2;
 }
 
 .feezback-dialog-title {
@@ -536,6 +540,12 @@ p.block-title {
   display: flex;
   justify-content: flex-end;
   margin-top: 16px;
+  position: relative;
+  z-index: 2;
+
+  &--center {
+    justify-content: center;
+  }
 }
 
 .feezback-dialog-message {
@@ -544,12 +554,72 @@ p.block-title {
   line-height: 1.6;
   color: #4b5563;
   white-space: pre-wrap;
+  position: relative;
+  z-index: 2;
+
+  &--center {
+    text-align: center;
+  }
+
+  &__icon {
+    color: #16a34a;
+    font-size: 20px;
+    margin-inline-end: 8px;
+    vertical-align: middle;
+  }
 }
 
 .feezback-dialog-spinner {
   display: flex;
   justify-content: center;
   margin: 8px 0 16px;
+  position: relative;
+  z-index: 2;
+}
+
+// CSS-only confetti burst — no extra dependency. Pieces fall from the top of
+// the dialog when the post-consent "שמחים שהצטרפת" state is shown.
+.feezback-confetti {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 1;
+
+  &__piece {
+    position: absolute;
+    top: -16px;
+    width: 8px;
+    height: 14px;
+    opacity: 0;
+    border-radius: 1px;
+    animation: feezback-confetti-fall 2.6s linear infinite;
+  }
+
+  // 16 pieces — spread across the width, varied color / delay / drift.
+  @for $i from 1 through 16 {
+    &__piece:nth-child(#{$i}) {
+      left: ($i - 0.5) * 6.25%; // 100% across 16 pieces
+      animation-delay: ($i % 8) * 0.18s;
+      animation-duration: 2.2s + ($i % 5) * 0.22s;
+    }
+  }
+  &__piece:nth-child(4n + 1) { background: #f59e0b; }
+  &__piece:nth-child(4n + 2) { background: #16a34a; }
+  &__piece:nth-child(4n + 3) { background: #3b82f6; }
+  &__piece:nth-child(4n)     { background: #ec4899; }
+}
+
+@keyframes feezback-confetti-fall {
+  0% {
+    transform: translateY(0) rotateZ(0deg);
+    opacity: 0;
+  }
+  10% { opacity: 1; }
+  100% {
+    transform: translateY(360px) rotateZ(520deg);
+    opacity: 0;
+  }
 }
 
 .consent-dialog {

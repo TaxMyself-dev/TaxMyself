@@ -39,6 +39,9 @@ export class InputSelectComponent implements OnInit {
   virtualScroll = input<boolean>(false);
   ariaLabel = input<string>("");
   showClear = input<boolean>(true);
+  appendTo = input<string | HTMLElement | null>("body");
+  autoZIndex = input<boolean>(true);
+  baseZIndex = input<number>(1000);
 
   onChangeInputSelect = output<string | boolean>();
   onClickInputSelect = output<string>();

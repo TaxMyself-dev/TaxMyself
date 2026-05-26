@@ -1,5 +1,6 @@
 import {
   IsBoolean,
+  IsEnum,
   IsIn,
   IsInt,
   IsNumber,
@@ -8,6 +9,7 @@ import {
   Max,
   Min,
 } from 'class-validator';
+import { ExpenseReportScope } from 'src/enum';
 
 /**
  * Body for PATCH /transactions/rules/:id. All fields are optional — only the
@@ -26,6 +28,7 @@ export class UpdateClassificationRuleDto {
   @IsOptional() @IsBoolean() isEquipment?: boolean;
   @IsOptional() @IsBoolean() isRecognized?: boolean;
   @IsOptional() @IsBoolean() isExpense?: boolean;
+  @IsOptional() @IsEnum(ExpenseReportScope) reportScope?: ExpenseReportScope;
 
   @IsOptional() startDate?: Date | null;
   @IsOptional() endDate?: Date | null;

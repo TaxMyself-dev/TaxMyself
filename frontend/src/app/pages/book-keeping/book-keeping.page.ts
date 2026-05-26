@@ -17,7 +17,7 @@ export class BookKeepingPage implements OnInit, OnDestroy {
   private readonly workflowService = inject(ReportWorkflowService);
 
   items: MenuItem[] = [
-    { label: 'הכנסות', icon: 'pi pi-wallet', routerLink: 'incomes' },
+    { label: 'מסמכים שהפקתי', icon: 'pi pi-wallet', routerLink: 'incomes' },
     { label: 'הוצאות', icon: 'pi pi-arrow-down', routerLink: 'expenses' },
     { label: 'לקוחות', icon: 'pi pi-users', routerLink: 'clients' },
     { label: 'ספקים', icon: 'pi pi-building', routerLink: 'suppliers' },

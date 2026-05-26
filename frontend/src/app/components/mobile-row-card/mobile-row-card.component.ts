@@ -38,9 +38,12 @@ export class MobileRowCardComponent {
   /** Color highlighted `sum` by sign when row has `__sumNumeric` (My Account unclassified). */
   sumSignColors = input<boolean>(false);
   unassignedBillRed = input<boolean>(false);
+  showCheckbox = input<boolean>(false);
+  checked = input<boolean>(false);
 
   // ─── Outputs ─────────────────────────────────────────────────────────────
   actionClicked = output<{ action: ITableRowAction; row: IRowDataTable }>();
+  checkedChange = output<boolean>();
 
   // ─── Internal signals ────────────────────────────────────────────────────
   expanded = signal(false);
@@ -128,6 +131,11 @@ export class MobileRowCardComponent {
   onActionClick(action: ITableRowAction): void {
     this.menuOpen.set(false);
     this.actionClicked.emit({ action, row: this.row() });
+  }
+
+  onCheckboxChange(event: Event): void {
+    event.stopPropagation();
+    this.checkedChange.emit((event.target as HTMLInputElement).checked);
   }
 
   billUnassigned(): boolean {

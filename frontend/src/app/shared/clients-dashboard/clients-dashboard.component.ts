@@ -1,10 +1,11 @@
 import { Component, OnInit, computed, signal } from '@angular/core';
 import { AdminPanelService } from 'src/app/services/admin-panel.service';
-import { FeezbackService, AdminAccountsAndCardsResponse } from 'src/app/services/feezback.service';
+import { FeezbackService, AdminAccountsAndCardsResponse, AdminPullSourceResult } from 'src/app/services/feezback.service';
 import { catchError, EMPTY, finalize } from 'rxjs';
 import { IColumnDataTable, IRowDataTable, ITableRowAction } from 'src/app/shared/interface';
 import { FormTypes } from 'src/app/shared/enums';
 import { ConfirmationService, MessageService } from 'primeng/api';
+import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 
 interface AdminSourceRow {
   type: 'bank' | 'card';
@@ -12,6 +13,8 @@ interface AdminSourceRow {
   consentStatus: string;
   ownerName: string | null;
   product: string | null;
+  consentId: string | null;
+  resourceId: string | null;
 }
 
 @Component({
@@ -33,8 +36,21 @@ export class ClientsDashboardComponent implements OnInit {
   accountsDialogLoading = signal<boolean>(false);
   accountsDialogClientName = signal<string>('');
   accountsDialogData = signal<AdminAccountsAndCardsResponse | null>(null);
+  accountsDialogClientFirebaseId = signal<string>('');
   refreshingSourcesFor = signal<string | null>(null);
   refreshingSourcesName = signal<string>('');
+
+  // Per-source pull (admin "הצגת חשבונות" dialog): which source is in-flight,
+  // and the last result keyed by `${type}_${paymentIdentifier}`.
+  pullingSourceKey = signal<string | null>(null);
+  pullResultByKey = signal<Record<string, AdminPullSourceResult>>({});
+
+  readonly ButtonColor = ButtonColor;
+  readonly ButtonSize = ButtonSize;
+
+  sourceKey(src: AdminSourceRow): string {
+    return `${src.type}_${src.paymentIdentifier}`;
+  }
 
   /**
    * Mirror of the backend's deriveSourceName: ILS → no suffix; non-ILS gets a
@@ -69,6 +85,8 @@ export class ClientsDashboardComponent implements OnInit {
         consentStatus: acc?.consentStatus ?? '—',
         ownerName: acc?.ownerName ?? acc?.name ?? null,
         product: acc?.product ?? null,
+        consentId: acc?.consentId ?? acc?.relatedConsents?.[0]?.resourceId ?? null,
+        resourceId: acc?.resourceId ?? null,
       });
     }
     const cards = data.cards?.cards ?? [];
@@ -82,6 +100,8 @@ export class ClientsDashboardComponent implements OnInit {
         consentStatus: card?.consentStatus ?? '—',
         ownerName: card?.ownerName ?? card?.name ?? null,
         product: card?.product ?? null,
+        consentId: card?.consentId ?? card?.relatedConsents?.[0]?.resourceId ?? null,
+        resourceId: card?.resourceId ?? null,
       });
     }
     return rows;
@@ -308,7 +328,10 @@ export class ClientsDashboardComponent implements OnInit {
 
   private runGetAccountsAndCards(firebaseId: string, name: string): void {
     this.accountsDialogClientName.set(name || firebaseId);
+    this.accountsDialogClientFirebaseId.set(firebaseId);
     this.accountsDialogData.set(null);
+    this.pullResultByKey.set({});
+    this.pullingSourceKey.set(null);
     this.accountsDialogLoading.set(true);
     this.accountsDialogVisible.set(true);
     this.feezbackService.adminGetAccountsAndCards(firebaseId).subscribe({
@@ -342,6 +365,39 @@ export class ClientsDashboardComponent implements OnInit {
   closeClientAccountsDialog(): void {
     this.accountsDialogVisible.set(false);
     this.accountsDialogData.set(null);
+    this.pullResultByKey.set({});
+    this.pullingSourceKey.set(null);
+  }
+
+  /**
+   * Pull transactions for one specific account/card of the client whose
+   * accounts dialog is open. Reuses the admin pull-source endpoint (which
+   * self-heals by running discovery if the source isn't registered yet).
+   */
+  onPullSource(src: AdminSourceRow): void {
+    const firebaseId = this.accountsDialogClientFirebaseId();
+    if (!firebaseId || this.pullingSourceKey()) return;
+    const key = this.sourceKey(src);
+    this.pullingSourceKey.set(key);
+
+    this.feezbackService.adminPullSource(firebaseId, src.type, src.paymentIdentifier)
+      .pipe(
+        catchError(err => {
+          const error = err?.error?.message ?? err?.message ?? 'משיכת התנועות נכשלה';
+          this.pullResultByKey.update(m => ({ ...m, [key]: { type: src.type, sourceId: src.paymentIdentifier, status: 'failed', transactionCount: 0, error } }));
+          this.messageService.add({ severity: 'error', summary: 'שגיאה', detail: `${src.paymentIdentifier}: ${error}`, life: 5000, key: 'br' });
+          return EMPTY;
+        }),
+        finalize(() => this.pullingSourceKey.set(null)),
+      )
+      .subscribe(result => {
+        this.pullResultByKey.update(m => ({ ...m, [key]: result }));
+        if (result.status === 'success') {
+          this.messageService.add({ severity: 'success', summary: 'הצלחה', detail: `${src.paymentIdentifier}: נמשכו ${result.transactionCount} תנועות`, life: 4000, key: 'br' });
+        } else {
+          this.messageService.add({ severity: 'warn', summary: 'משיכה נכשלה', detail: `${src.paymentIdentifier}: ${result.error ?? 'שגיאה לא ידועה'}`, life: 6000, key: 'br' });
+        }
+      });
   }
 
   confirmRefreshSources(row: IRowDataTable): void {

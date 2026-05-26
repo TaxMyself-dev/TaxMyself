@@ -14,7 +14,7 @@ import { ClassifiedTransactions } from '../transactions/classified-transactions.
 import { SharedService } from '../shared/shared.service';
 import { FxRateService } from '../shared/fx-rate.service';
 import { Business } from 'src/business/business.entity';
-import { BusinessType, VATReportingType } from 'src/enum';
+import { BusinessType, VATReportingType, ExpenseReportScope } from 'src/enum';
 //DTOs
 import { UpdateExpenseDto } from './dtos/update-expense.dto';
 import { UpdateSupplierDto } from './dtos/update-supplier.dto';
@@ -84,6 +84,13 @@ export class ExpensesService {
         const currentDate = (new Date()).toISOString();
         newExpense.loadingDate = new Date();
         newExpense.businessNumber = businessNumber;
+
+        // Manual entry bypasses slim/cache — snapshot the report scope straight
+        // from the chosen subcategory (user override wins, default PNL).
+        // pnlCategory stays NULL (resolved live; overridable via Edit dialog).
+        newExpense.reportScope = await this.getSubCategoryReportScope(
+            expense.category, expense.subCategory, userId, businessNumber,
+        );
 
         // Calculate totalVatPayable and totalTaxPayable
         // Get VAT rate for the expense date year
@@ -299,6 +306,8 @@ export class ExpensesService {
                 reductionPercent: subDto.reductionPercent ?? 0,
                 isEquipment: subDto.isEquipment ?? false,
                 isRecognized: subDto.isRecognized ?? false,
+                reportScope: subDto.reportScope ?? ExpenseReportScope.PNL,
+                pnlCategory: subDto.pnlCategory ?? null,
                 firebaseId,
                 businessNumber,
                 categoryName,
@@ -598,6 +607,75 @@ export class ExpensesService {
         return defaultMatch?.isEquipment ?? null;
     }
 
+    /**
+     * Resolve a subcategory's report scope (user override wins over default),
+     * mirroring getSubCategoryIsEquipment. Returns PNL when the subcategory is
+     * unknown — so untagged data behaves exactly as today.
+     */
+    async getSubCategoryReportScope(
+        categoryName: string,
+        subCategoryName: string,
+        firebaseId?: string | null,
+        businessNumber?: string | null,
+    ): Promise<ExpenseReportScope> {
+        categoryName = categoryName?.trim();
+        subCategoryName = subCategoryName?.trim();
+        if (!categoryName || !subCategoryName) {
+            return ExpenseReportScope.PNL;
+        }
+
+        if (firebaseId && businessNumber) {
+            const userMatch = await this.userSubCategoryRepo.findOne({
+                where: { categoryName, subCategoryName, firebaseId, businessNumber },
+                select: { reportScope: true },
+            });
+            if (userMatch) {
+                return userMatch.reportScope ?? ExpenseReportScope.PNL;
+            }
+        }
+
+        const defaultMatch = await this.defaultSubCategoryRepo.findOne({
+            where: { categoryName, subCategoryName },
+            select: { reportScope: true },
+        });
+        return defaultMatch?.reportScope ?? ExpenseReportScope.PNL;
+    }
+
+    /**
+     * Map of subCategoryName → pnlCategory (user override wins over default),
+     * for a given user+business. Used by the P&L report to remap a
+     * subcategory's expenses to a different presentation category. Entries
+     * with a null/empty pnlCategory are omitted (caller falls back to the
+     * bookkeeping category). Mirrors the getSubCategories merge.
+     */
+    async getPnlCategoryMap(
+        firebaseId: string,
+        businessNumber: string,
+    ): Promise<Map<string, string>> {
+        const [userSubs, defaultSubs] = await Promise.all([
+            this.userSubCategoryRepo.find({
+                where: { firebaseId, businessNumber },
+                select: { subCategoryName: true, pnlCategory: true },
+            }),
+            this.defaultSubCategoryRepo.find({
+                select: { subCategoryName: true, pnlCategory: true },
+            }),
+        ]);
+
+        const map = new Map<string, string>();
+        // Defaults first, user overrides win.
+        for (const s of defaultSubs) {
+            const v = s.pnlCategory?.trim();
+            if (v) map.set(s.subCategoryName, v);
+        }
+        for (const s of userSubs) {
+            const v = s.pnlCategory?.trim();
+            if (v) map.set(s.subCategoryName, v);
+            else map.delete(s.subCategoryName); // user explicitly cleared it
+        }
+        return map;
+    }
+
     /** Admin: get all default sub-categories (for category management). */
     async getAllDefaultSubCategories(): Promise<DefaultSubCategory[]> {
         return this.defaultSubCategoryRepo.find({ order: { categoryName: 'ASC', subCategoryName: 'ASC' } });
@@ -777,6 +855,15 @@ export class ExpensesService {
         // IMPORTANT: await the promise!
         const reportedExpenses = await this.getExpensesByDates(userId, businessNumber, startDate, endDate);
 
+        // Attach the RESOLVED P&L category per row so the bookkeeping table can
+        // show it without a per-row query. Precedence: per-expense override →
+        // subcategory map → null (UI shows "—" = uses bookkeeping category).
+        const pnlCategoryMap = await this.getPnlCategoryMap(userId, businessNumber);
+        for (const e of reportedExpenses) {
+            (e as any).resolvedPnlCategory =
+                e.pnlCategory ?? pnlCategoryMap.get(e.subCategory) ?? null;
+        }
+
         // // Valid months when isSingleMonth is false
         // const validMonths = [1, 3, 5, 7, 9, 11];        
 
@@ -938,6 +1025,62 @@ export class ExpensesService {
             throw new NotFoundException(`User sub-category ${id} not found`);
         }
         Object.assign(sub, dto);
+        return this.userSubCategoryRepo.save(sub);
+    }
+
+    /**
+     * Subcategory-wide P&L config, set from the bookkeeping expenses page
+     * (applies to ALL of that subcategory's expenses, current and future,
+     * since the P&L resolves pnlCategory live from the subcategory).
+     *
+     * Upserts a UserSubCategory override: if the user already has a row for
+     * this (category, subCategory) it is updated; otherwise we clone the
+     * matching DefaultSubCategory's attributes into a new user row carrying
+     * the override (so the default stays untouched and shared).
+     */
+    async setSubCategoryReportConfig(
+        firebaseId: string,
+        businessNumber: string,
+        categoryName: string,
+        subCategoryName: string,
+        config: { reportScope?: ExpenseReportScope; pnlCategory?: string | null },
+    ): Promise<UserSubCategory> {
+        categoryName = categoryName?.trim();
+        subCategoryName = subCategoryName?.trim();
+        if (!categoryName || !subCategoryName) {
+            throw new NotFoundException('categoryName and subCategoryName are required');
+        }
+
+        let sub = await this.userSubCategoryRepo.findOne({
+            where: { firebaseId, businessNumber, categoryName, subCategoryName },
+        });
+
+        if (!sub) {
+            const def = await this.defaultSubCategoryRepo.findOne({
+                where: { categoryName, subCategoryName },
+            });
+            sub = this.userSubCategoryRepo.create({
+                firebaseId,
+                businessNumber,
+                categoryName,
+                subCategoryName,
+                taxPercent: def?.taxPercent ?? 0,
+                vatPercent: def?.vatPercent ?? 0,
+                reductionPercent: def?.reductionPercent ?? 0,
+                isEquipment: def?.isEquipment ?? false,
+                isRecognized: def?.isRecognized ?? false,
+                isExpense: def?.isExpense ?? true,
+                necessity: def?.necessity,
+                reportScope: def?.reportScope ?? ExpenseReportScope.PNL,
+                pnlCategory: def?.pnlCategory ?? null,
+            });
+        }
+
+        if (config.reportScope !== undefined) sub.reportScope = config.reportScope;
+        if (config.pnlCategory !== undefined) {
+            const v = config.pnlCategory?.trim();
+            sub.pnlCategory = v ? v : null;
+        }
         return this.userSubCategoryRepo.save(sub);
     }
 

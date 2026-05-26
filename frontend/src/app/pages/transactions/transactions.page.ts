@@ -29,18 +29,34 @@ import { SyncStatusService } from 'src/app/services/sync-status.service';
 export class TransactionsPage implements OnInit {
 
   @ViewChild('filterPanelRef') filterPanelRef!: ElementRef;
-  private readonly OVERLAY_SEL =
-    '.p-datepicker, [data-pc-name="calendar"], .p-overlaypanel, .p-dropdown-panel, .p-autocomplete-panel, .p-multiselect-panel';
+  // PrimeNG 19 uses data-pc-section="panel" on every overlay panel appended to body.
+  // Also include legacy class names for PrimeNG 17/18 and named classes for belt-and-suspenders.
+  private readonly OVERLAY_SEL = [
+    '[data-pc-section="panel"]',      // PrimeNG 19: all overlay panels
+    '[data-pc-section="overlay"]',    // PrimeNG 19: p-overlay wrapper
+    '.p-select-overlay',              // PrimeNG 19: p-select
+    '.p-multiselect-overlay',         // PrimeNG 19: p-multiselect
+    '.p-datepicker-panel',            // PrimeNG 19: p-datepicker
+    '.p-dropdown-panel',              // PrimeNG 17/18 compat
+    '.p-multiselect-panel',           // PrimeNG 17/18 compat
+    '.p-datepicker',                  // PrimeNG 17/18 compat
+    '.p-overlaypanel',
+    '.p-autocomplete-panel',
+  ].join(', ');
 
   isInPrimeOverlay(e: Event): boolean {
+    // composedPath() captures the live event path at dispatch time — elements retain
+    // their attributes even if PrimeNG removes the overlay from the DOM during bubbling.
+    // Use matches() (not closest()) so we test each node in the path exactly once
+    // without re-walking ancestors that are already covered by the iteration.
     const path = (e as any).composedPath?.() as (HTMLElement | EventTarget)[] | undefined;
     if (path?.length) {
-      for (const n of path) {
+      return path.some(n => {
         const el = n as HTMLElement;
-        if (el?.closest?.(this.OVERLAY_SEL)) return true;
-      }
+        return typeof el?.matches === 'function' && el.matches(this.OVERLAY_SEL);
+      });
     }
-    // Fallback
+    // Fallback for browsers without composedPath
     const t = e.target as HTMLElement | null;
     return !!t?.closest?.(this.OVERLAY_SEL);
   }
@@ -151,7 +167,7 @@ export class TransactionsPage implements OnInit {
   );
 
   fieldsNamesIncome = computed<IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>[]>(() =>
-    buildTransactionColumns({ businessStatus: this.businessStatus(), isOnlyEmployer: this.isOnlyEmployer() })
+    buildTransactionColumns({ businessStatus: this.businessStatus(), isOnlyEmployer: this.isOnlyEmployer(), incomeTable: true })
   );
 
 

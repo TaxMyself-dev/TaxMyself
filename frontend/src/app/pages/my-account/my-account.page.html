@@ -19,9 +19,44 @@
             }
           </div>
 
-          @if (feezbackDialogStatus() === 'loading') {
+          @if (feezbackDialogStatus() === 'awaiting-webhook') {
+            <div class="feezback-confetti" aria-hidden="true">
+              <span class="feezback-confetti__piece"></span><span class="feezback-confetti__piece"></span>
+              <span class="feezback-confetti__piece"></span><span class="feezback-confetti__piece"></span>
+              <span class="feezback-confetti__piece"></span><span class="feezback-confetti__piece"></span>
+              <span class="feezback-confetti__piece"></span><span class="feezback-confetti__piece"></span>
+              <span class="feezback-confetti__piece"></span><span class="feezback-confetti__piece"></span>
+              <span class="feezback-confetti__piece"></span><span class="feezback-confetti__piece"></span>
+              <span class="feezback-confetti__piece"></span><span class="feezback-confetti__piece"></span>
+              <span class="feezback-confetti__piece"></span><span class="feezback-confetti__piece"></span>
+            </div>
+            <p class="feezback-dialog-message feezback-dialog-message--center">
+              עובדים על השלמת התהליך, משהו כמו דקה ויש לנו את זה 🙂
+            </p>
+            <div class="feezback-dialog-spinner">
+              <p-progressSpinner strokeWidth="4" styleClass="feezback-spinner"></p-progressSpinner>
+            </div>
+          }
+
+          @if (feezbackDialogStatus() === 'prompt') {
             <p class="feezback-dialog-message">
-              אנו מסנכרנים את הנתונים שלך, הפעולה עשויה לקחת עד דקה...
+              החיבור לבנקאות הפתוחה הושלם בהצלחה.<br>
+              כעת ניתן למשוך את התנועות מכל החשבונות שחיברת.
+            </p>
+            <div class="feezback-dialog-footer feezback-dialog-footer--center">
+              <app-p-button
+                [buttonText]="'למשיכת התנועות לחץ כאן'"
+                [buttonSize]="buttonSize.BIG"
+                [buttonColor]="buttonColor.BLACK"
+                (onButtonClicked)="onPullTransactionsClick()">
+              </app-p-button>
+            </div>
+          }
+
+          @if (feezbackDialogStatus() === 'loading') {
+            <p class="feezback-dialog-message feezback-dialog-message--center">
+              <i class="pi pi-dollar feezback-dialog-message__icon"></i>
+              מושכים את התנועות שלך, אוטוטו תוכל לראות אותם במערכת
             </p>
             <div class="feezback-dialog-spinner">
               <p-progressSpinner strokeWidth="4" styleClass="feezback-spinner"></p-progressSpinner>
@@ -268,16 +303,12 @@
                 @if (userData?.previousLoginAt) {
                 <span class="last-login">כניסתך האחרונה היתה בתאריך {{ userData.previousLoginAt | date: 'd/M/yyyy' }}</span>
                 }
-                @if (!hasOpenBanking()) {
-                <app-p-button [buttonText]="'הוסף הרשאה'" [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.BETWEEN"
-                    (onButtonClicked)="connectToOpenBanking()" [isLoading]="isLoadingFeezback()">
-                </app-p-button>
-                }
                 @if (hasOpenBanking()) {
                 <app-p-button [buttonText]="'+ חבר חשבון נוסף'" [buttonColor]="buttonColor.WHITE_BORDER_LIGHT" [buttonSize]="buttonSize.BETWEEN"
                     (onButtonClicked)="connectToOpenBanking()" [isLoading]="isLoadingFeezback()">
                 </app-p-button>
                 }
+                <!-- Users without Open Banking already get the big "רוצה לראות את התנועות" CTA banner below, so no extra header button is needed here. -->
             </div>
         </div>
         <app-p-button class="vat-report-payment-button" [buttonText]="'+ הוספת הוצאה'" [buttonColor]="buttonColor.BLACK"
@@ -319,7 +350,7 @@
 
 @if (hasOpenBanking()) {
 
-@if (syncRanThisSession() && syncSourceResults().length > 0) {
+@if (syncRanThisSession() && syncSourceResults().length > 0 && !feezbackDialogVisible()) {
   <div class="source-results-panel">
     <h3 class="source-results-panel__title">סטטוס סנכרון לפי מקור</h3>
     <div class="source-results-panel__list">

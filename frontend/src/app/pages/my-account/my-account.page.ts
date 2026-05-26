@@ -88,9 +88,18 @@ export class MyAccountPage implements OnInit {
   isMobile = computed(() => this.genericService.isMobile());
 
   // Feezback onboarding dialog (shown only when arriving from Feezback URL)
+  // 'awaiting-webhook' = consent OK, waiting for the UserDataIsAvailable webhook
+  //   (discovery) before the pull button can be enabled.
+  // 'prompt'           = discovery done; waiting for the user to click "pull".
   feezbackDialogVisible = signal<boolean>(false);
-  feezbackDialogStatus = signal<'loading' | 'success' | 'failure' | null>(null);
+  feezbackDialogStatus = signal<'awaiting-webhook' | 'prompt' | 'loading' | 'success' | 'failure' | null>(null);
+  /** Cancels the post-consent webhook-readiness poll when it resolves / dialog closes. */
+  private readonly stopWebhookPoll$ = new Subject<void>();
   feezbackDialogTitle = signal<string>('');
+  /** Remembers the dev `?simulate=true` flag across the prompt → pull click (query params are cleared on return). */
+  private pendingPostConsentSimulate = false;
+  /** Dev sim scenario (?scenario=) — drives Stage B/C simulate-webhook / simulate-pull calls. */
+  private pendingPostConsentScenario = 'success';
   /** Decorative status indicator next to the dialog title. null = no icon. */
   feezbackDialogIcon = signal<'success' | 'warning' | 'error' | null>(null);
 
@@ -137,8 +146,15 @@ export class MyAccountPage implements OnInit {
 
   /** במצב צפייה כרואה חשבון – לא מציגים הפקת מסמך (צפייה בלבד) */
   get itemsNavigate(): IItemNavigate[] {
+    // Hide /doc-create when an ACCOUNTANT is viewing as a client (accountants
+    // shouldn't issue docs on the client's behalf). Admins keep the card so
+    // they can use doc-create on the demo user for QA/testing.
     if (this.authService.isViewingAsClient()) {
-      return this.allItemsNavigate.filter((item) => item.link !== '/doc-create');
+      const realUser = this.authService.getRealUserDataFromLocalStorage();
+      const realUserIsAdmin = !!realUser?.role?.includes('ADMIN');
+      if (!realUserIsAdmin) {
+        return this.allItemsNavigate.filter((item) => item.link !== '/doc-create');
+      }
     }
     return this.allItemsNavigate;
   }
@@ -247,7 +263,9 @@ export class MyAccountPage implements OnInit {
   private initFeezbackDialogFromReturnUrl(): void {
     const status = this.route.snapshot.queryParamMap.get('feezbackStatus');
     const simulate = this.route.snapshot.queryParamMap.get('simulate') === 'true';
+    const scenario = this.route.snapshot.queryParamMap.get('scenario') ?? 'success';
     if (status !== 'success' && status !== 'failure') return;
+    this.pendingPostConsentScenario = scenario;
 
     void this.router.navigate(['/my-account'], {
       replaceUrl: true,
@@ -256,10 +274,16 @@ export class MyAccountPage implements OnInit {
     });
 
     if (status === 'success') {
-      this.feezbackDialogStatus.set('loading');
-      this.feezbackDialogTitle.set('שמחים שהצטרפת לבנקאות הפתוחה!');
+      // Consent succeeded, but the user can only pull AFTER the
+      // UserDataIsAvailable webhook has run discovery (Source rows with
+      // consentId + resourceId). Show the dialog immediately in
+      // 'awaiting-webhook' (loader) and poll until discovery completes,
+      // then flip to 'prompt'.
+      this.feezbackDialogStatus.set('awaiting-webhook');
+      this.feezbackDialogTitle.set('שמחים שהצטרפת לבנקאות הפתוחה');
       this.feezbackDialogIcon.set(null);
       this.feezbackDialogVisible.set(true);
+      this.pendingPostConsentSimulate = simulate;
 
       // Optimistically mark user as connected so the UI updates immediately
       this.hasOpenBanking.set(true);
@@ -270,60 +294,25 @@ export class MyAccountPage implements OnInit {
       }
 
       if (simulate) {
-        // Dev simulator path — sync state has already been seeded in the DB by the
-        // dev/simulate-sync endpoint. Skip triggerPostConsentSync (which would refresh
-        // Source rows from the real Feezback API and overwrite the seeded data) and
-        // jump straight to polling — the first poll reads the seeded state.
-        console.log('[MyAccount] simulate=true — bypassing triggerPostConsentSync, starting polling against seeded state');
-        this.startSyncStatusPolling(true);
-        return;
+        // Dev: drive the SAME temporal flow as production. The real
+        // post-consent-sync poll runs (prints "[PostConsent] … waiting for
+        // data-available webhook"); after 15s we fire dev/simulate-webhook
+        // (prints the real DATA-AVAILABLE/SOURCE-DISCOVERY block + flips the
+        // backend to 'completed') so the same poll then advances to 'prompt'.
+        console.log('[MyAccount][DevSim] awaiting-webhook — real poll running; simulating data-available webhook in 15s');
+        this.pollForWebhookReady();
+        setTimeout(() => {
+          if (this.feezbackDialogStatus() !== 'awaiting-webhook') return;
+          this.syncStatusService.simulateWebhook(this.pendingPostConsentScenario)
+            .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+            .subscribe({
+              next: () => console.log('[MyAccount][DevSim] simulated data-available webhook fired'),
+              error: (e) => console.error('[MyAccount][DevSim] simulateWebhook failed', e),
+            });
+        }, 15_000);
+      } else {
+        this.pollForWebhookReady();
       }
-
-      // Refresh Source rows from Feezback API on the server, then start polling.
-      // This is the ONLY sync path used after a consent return — the webhook no longer
-      // triggers a transaction sync, so we must initiate it here.
-      this.syncStatusService.triggerPostConsentSync()
-        .pipe(take(1))
-        .subscribe({
-          next: (res) => {
-            if (res.status === 'completed') {
-              // Webhook-triggered sync already ran for this consent flow.
-              // Skip polling; just read the existing sync state once and
-              // flip the dialog into its terminal display.
-              console.log('[MyAccount] post-consent: completed — skipping polling');
-              this.syncStatusService.getSyncStageStream()
-                .pipe(take(1))
-                .subscribe(({ stageState, sourceResults }) => {
-                  this.syncSourceResults.set(sourceResults);
-                  if (stageState && this.feezbackDialogVisible()) {
-                    this.applyTerminalDialogState();
-                  }
-                  this.getTransToClassify();
-                });
-              return;
-            }
-            // 'pending' — webhook hasn't run yet (or is mid-flight).
-            // Poll /sync-status until it does.
-            this.startSyncStatusPolling(true);
-          },
-          error: (err) => {
-            console.error('[MyAccount] triggerPostConsentSync failed:', err);
-            // Cancel any background polling started in ngOnInit so it can't
-            // race with this failure handler and override 'failure' with
-            // 'success' based on a different sync's terminal state.
-            this.restartPolling$.next();
-            // Backend returns 502 with body { code: 'feezback_unavailable' } when
-            // both bank and card fetches against the Feezback API failed.
-            const code = err?.error?.code;
-            this.feezbackDialogStatus.set('failure');
-            this.feezbackDialogIcon.set('error');
-            this.feezbackDialogTitle.set(
-              code === 'feezback_unavailable'
-                ? 'שירות הבנקאות הפתוחה אינו זמין כעת. אנא נסה שוב בעוד מספר דקות.'
-                : 'משהו בטעינת הנתונים השתבש בדרך',
-            );
-          },
-        });
     } else if (status === 'failure') {
       this.feezbackDialogStatus.set('failure');
       this.feezbackDialogTitle.set('משהו בדרך השתבש והחיבור לבנקאות פתוחה לא הצליח...');
@@ -332,8 +321,103 @@ export class MyAccountPage implements OnInit {
     }
   }
 
+  /**
+   * Polls POST /transactions/post-consent-sync until the UserDataIsAvailable
+   * webhook has completed discovery ('completed'), then enables the pull button
+   * by flipping the dialog from 'awaiting-webhook' to 'prompt'. Bounded so a
+   * lost webhook doesn't spin forever — after MAX_ATTEMPTS we show a failure.
+   */
+  private pollForWebhookReady(): void {
+    this.stopWebhookPoll$.next(); // cancel any previous poll
+    const INTERVAL_MS = 4000;
+    const MAX_ATTEMPTS = 45; // ~3 min
+    let attempt = 0;
+
+    const tick = (): void => {
+      attempt++;
+      this.syncStatusService.triggerPostConsentSync()
+        .pipe(take(1), takeUntil(this.stopWebhookPoll$), takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: (res) => {
+            if (this.feezbackDialogStatus() !== 'awaiting-webhook') return; // dialog moved on
+            if (res.status === 'completed') {
+              this.feezbackDialogStatus.set('prompt');
+              return;
+            }
+            if (attempt >= MAX_ATTEMPTS) {
+              this.feezbackDialogStatus.set('failure');
+              this.feezbackDialogIcon.set('error');
+              this.feezbackDialogTitle.set('משיכת הנתונים מתעכבת. נסה לרענן בעוד מספר דקות.');
+              return;
+            }
+            setTimeout(tick, INTERVAL_MS);
+          },
+          error: () => {
+            // Transient — keep polling within the attempt budget.
+            if (attempt >= MAX_ATTEMPTS || this.feezbackDialogStatus() !== 'awaiting-webhook') {
+              return;
+            }
+            setTimeout(tick, INTERVAL_MS);
+          },
+        });
+    };
+    tick();
+  }
+
+  /**
+   * User clicked "למשיכת התנועות לחץ כאן" in the post-consent prompt dialog.
+   * This is now the SOLE entry point for the post-consent transaction pull
+   * (the webhook no longer triggers a sync). Flips the dialog to 'loading',
+   * fires POST /transactions/trigger-sync, then polls /sync-status until terminal.
+   */
+  onPullTransactionsClick(): void {
+    this.feezbackDialogStatus.set('loading');
+    this.feezbackDialogTitle.set('שמחים שהצטרפת לבנקאות הפתוחה!');
+    this.feezbackDialogIcon.set(null);
+
+    if (this.pendingPostConsentSimulate) {
+      // Dev simulator path — fire Stage C (dev/simulate-pull): prints the real
+      // SYNC RESULTS [FULL SYNC] block + seeds the finished sync state, then
+      // poll the seeded state to render the terminal dialog.
+      console.log('[MyAccount][DevSim] pull clicked — firing simulate-pull then polling seeded state');
+      this.syncStatusService.simulatePull(this.pendingPostConsentScenario)
+        .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: () => this.startSyncStatusPolling(true),
+          error: (e) => {
+            console.error('[MyAccount][DevSim] simulatePull failed', e);
+            this.startSyncStatusPolling(true); // fall back to whatever state exists
+          },
+        });
+      return;
+    }
+
+    this.syncStatusService.triggerSync()
+      .pipe(take(1))
+      .subscribe({
+        next: () => {
+          // 'started' or 'running' — either way poll /sync-status until terminal.
+          this.startSyncStatusPolling(true);
+        },
+        error: (err) => {
+          console.error('[MyAccount] post-consent triggerSync failed:', err);
+          // Cancel any background polling so it can't race and override 'failure'.
+          this.restartPolling$.next();
+          const code = err?.error?.code;
+          this.feezbackDialogStatus.set('failure');
+          this.feezbackDialogIcon.set('error');
+          this.feezbackDialogTitle.set(
+            code === 'feezback_unavailable'
+              ? 'שירות הבנקאות הפתוחה אינו זמין כעת. אנא נסה שוב בעוד מספר דקות.'
+              : 'משהו בטעינת הנתונים השתבש בדרך',
+          );
+        },
+      });
+  }
+
   closeFeezbackDialog(): void {
     if (this.feezbackDialogStatus() === 'loading') return;
+    this.stopWebhookPoll$.next(); // stop the awaiting-webhook poll if active
     this.feezbackDialogVisible.set(false);
     this.feezbackDialogStatus.set(null);
     this.feezbackDialogTitle.set('');

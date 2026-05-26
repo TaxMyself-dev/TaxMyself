@@ -1,6 +1,6 @@
 import { Component, inject, OnInit, signal } from '@angular/core';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
-import { BusinessInfo, IColumnDataTable, IPnlReportData, ISelectItem, IUserData } from 'src/app/shared/interface';
+import { BusinessInfo, IColumnDataTable, IMobileCardConfig, IPnlReportData, ISelectItem, IUserData } from 'src/app/shared/interface';
 import { DateService } from 'src/app/services/date.service';
 import { AuthService } from 'src/app/services/auth.service';
 import { catchError, EMPTY, finalize, firstValueFrom, map, tap, throwError } from 'rxjs';
@@ -74,6 +74,20 @@ export class UniformFilePage implements OnInit {
     { name: UniformFileListSummaryColumns.LIST_DESCRIPION, value: UniformFileListSummaryHebrewColumns.listDescription, type: FormTypes.TEXT },
     { name: UniformFileListSummaryColumns.LIST_TOTAL, value: UniformFileListSummaryHebrewColumns.listTotal, type: FormTypes.TEXT },
   ];
+
+  documentSummaryMobileConfig: IMobileCardConfig = {
+    primaryFields: [UniformFileDocumentSummaryColumns.DOC_DESCRIPTION],
+    highlightedField: UniformFileDocumentSummaryColumns.TOTAL_SUM,
+    dateField: '',
+    hiddenFields: [],
+  };
+
+  listSummaryMobileConfig: IMobileCardConfig = {
+    primaryFields: [UniformFileListSummaryColumns.LIST_DESCRIPION],
+    highlightedField: '',
+    dateField: '',
+    hiddenFields: [],
+  };
 
   constructor(
     private formBuilder: FormBuilder,

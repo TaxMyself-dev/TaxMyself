@@ -71,5 +71,20 @@ export class DocumentsService implements OnInit{
         });
     }
 
+    finalizeAllocation(
+        issuerBusinessNumber: string,
+        docNumber: string,
+        docType: string,
+        allocationNum?: string | null,
+    ): Observable<any> {
+        const url = `${environment.apiUrl}documents/finalize-allocation`;
+        return this.http.post(url, {
+            issuerBusinessNumber,
+            docNumber,
+            docType,
+            allocationNum: allocationNum ?? null,
+        });
+    }
+
 
 }

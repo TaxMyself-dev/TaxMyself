@@ -116,14 +116,17 @@ export enum DocumentType {
   TAX_INVOICE_RECEIPT = 'TAX_INVOICE_RECEIPT', // חשבונית מס קבלה
   TRANSACTION_INVOICE = 'TRANSACTION_INVOICE', // חשבון עסקה
   CREDIT_INVOICE = 'CREDIT_INVOICE', // חשבונית זיכוי
+  PRICE_QUOTE = 'PRICE_QUOTE', // הצעת מחיר — standalone, not in uniform file
+  WORK_ORDER = 'WORK_ORDER', // הזמנת עבודה — standalone; uniform file code 100
   JOURNAL_ENTRY = 'JOURNAL_ENTRY', //  פקודת יומן
 }
 
 export enum DocumentStatusType {
-  OPEN = 'OPEN', 
+  OPEN = 'OPEN',
   CLOSE = 'CLOSE',
   DRAFT = 'DRAFT',
   CANCELLED = 'CANCELLED',
+  PENDING_ALLOCATION = 'PENDING_ALLOCATION', // doc saved, PDF deferred until allocation-number decision
 }
 
 export enum JournalReferenceType {
@@ -142,6 +145,7 @@ export enum JournalReferenceType {
 export const UniformFileTypeCodeMap: Partial<Record<DocumentType | JournalReferenceType, number>> = {
 
   // DocumentType mappings
+  [DocumentType.WORK_ORDER as string]: 100,
   [DocumentType.TRANSACTION_INVOICE as string]: 300,
   [DocumentType.TAX_INVOICE as string]: 305,
   [DocumentType.TAX_INVOICE_RECEIPT as string]: 320,
@@ -159,6 +163,7 @@ export const UniformFileTypeCodeMap: Partial<Record<DocumentType | JournalRefere
 };
 
 export const DOC_TYPE_INFO: Partial<Record<DocumentType, { docNumber: number; docDescription: string }>> = {
+  [DocumentType.WORK_ORDER]:          { docNumber: 100, docDescription: 'הזמנת עבודה' },
   [DocumentType.TRANSACTION_INVOICE]: { docNumber: 300, docDescription: 'חשבון עסקה' },
   [DocumentType.TAX_INVOICE]:         { docNumber: 305, docDescription: 'חשבונית מס' },
   [DocumentType.TAX_INVOICE_RECEIPT]: { docNumber: 320, docDescription: 'חשבונית מס קבלה' },
@@ -220,6 +225,17 @@ export enum ExpenseNecessity {
   MANDATORY = 'MANDATORY', // הכרחי (למשל: חשבונות, מיסים)
   IMPORTANT = 'IMPORTANT', // חשוב אבל אפשר להסתדר בלעדיו
   OPTIONAL = 'OPTIONAL', // רשות (למשל: בילויים, מותרות)
+}
+
+/**
+ * Whether an expense participates in the P&L (רווח והפסד) report or is
+ * relevant only to the annual report (e.g. תרומות מוכרות, מקדמות מס הכנסה,
+ * מקדמות ביטוח לאומי). ANNUAL items are excluded from P&L totals and shown
+ * in a separate bookkeeping section. Extensible — more scopes may be added.
+ */
+export enum ExpenseReportScope {
+  PNL = 'pnl',       // רווח והפסד (ברירת מחדל)
+  ANNUAL = 'annual', // דוח שנתי בלבד
 }
 
 

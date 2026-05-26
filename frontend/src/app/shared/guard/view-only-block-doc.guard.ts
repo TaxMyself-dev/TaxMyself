@@ -4,6 +4,8 @@ import { AuthService } from '../../services/auth.service';
 
 /**
  * חוסם כניסה להפקת מסמכים כאשר רואה חשבון צופה בלקוח (צפייה בלבד).
+ * Admins are exempt — they may issue docs on behalf of demo/client users
+ * for QA/testing while in view-as mode.
  */
 @Injectable({ providedIn: 'root' })
 export class ViewOnlyBlockDocGuard implements CanActivate {
@@ -14,7 +16,11 @@ export class ViewOnlyBlockDocGuard implements CanActivate {
 
   canActivate(): boolean | UrlTree {
     if (this.authService.isViewingAsClient()) {
-      return this.router.createUrlTree(['/my-account']);
+      const realUser = this.authService.getRealUserDataFromLocalStorage();
+      const realUserIsAdmin = !!realUser?.role?.includes('ADMIN');
+      if (!realUserIsAdmin) {
+        return this.router.createUrlTree(['/my-account']);
+      }
     }
     return true;
   }

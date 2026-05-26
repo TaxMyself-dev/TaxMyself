@@ -1,6 +1,6 @@
 import { Component, OnInit, signal, inject } from '@angular/core';
 import { EMPTY } from 'rxjs';
-import { catchError, finalize, map } from 'rxjs/operators';
+import { catchError, finalize, map, shareReplay } from 'rxjs/operators';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { GenericService } from 'src/app/services/generic.service';
 import { IColumnDataTable, IMobileCardConfig, IRowDataTable, ITableRowAction, IUserData } from 'src/app/shared/interface';
@@ -58,7 +58,8 @@ export class ExpensesPage implements OnInit {
   endDate!: string;
 
   isLoadingDataTable = signal<boolean>(false);
-  myExpenses: any;
+  myExpenses: any;          // P&L (regular) expenses — bound to the main table
+  myAnnualExpenses: any;    // annual-report-only expenses — separate section
   fileActions = signal<ITableRowAction[]>([]);
 
   // ===========================
@@ -77,7 +78,15 @@ export class ExpensesPage implements OnInit {
     { name: ExpenseFormColumns.DATE, value: ExpenseFormHebrewColumns.date, type: FormTypes.DATE, cellRenderer: ICellRenderer.DATE },
     { name: ExpenseFormColumns.TOTAL_VAT, value: ExpenseFormHebrewColumns.totalVat, type: FormTypes.NUMBER, cellRenderer: ICellRenderer.AMOUNT_WITH_PERCENT },
     { name: ExpenseFormColumns.TOTAL_TAX, value: ExpenseFormHebrewColumns.totalTax, type: FormTypes.NUMBER, cellRenderer: ICellRenderer.AMOUNT_WITH_PERCENT },
+    // No "סוג דוח" column — annual-report expenses are shown in a SEPARATE
+    // table below the regular ones instead. P&L-category stays visible.
+    { name: ExpenseFormColumns.PNL_CATEGORY, value: ExpenseFormHebrewColumns.pnlCategory, type: FormTypes.TEXT },
   ];
+
+  /** Annual-report table reuses the same columns minus PNL_CATEGORY
+   *  (it's meaningless for rows that don't go to the P&L). */
+  annualExpensesTableFields: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[] =
+    this.expensesTableFields.filter(c => c.name !== ExpenseFormColumns.PNL_CATEGORY);
 
   mobileCardConfig: IMobileCardConfig = {
     primaryFields: [ExpenseFormColumns.SUPPLIER],
@@ -199,7 +208,7 @@ export class ExpensesPage implements OnInit {
 
     this.isLoadingDataTable.set(true);
 
-    this.myExpenses = this.expenseDataService
+    const base$ = this.expenseDataService
       .getExpenseForVatReport(finalStartDate, finalEndDate, businessNumber)
       .pipe(
         map((rows: any[]) => {
@@ -220,6 +229,12 @@ export class ExpensesPage implements OnInit {
               ? `${this.currencySymbol(oc)}${this.gs.addComma(Math.abs(Number(row.originalSum)))}`
               : `${this.gs.addComma(Math.abs(ilsSum))} ש"ח`;
 
+            // reportScope: keep the raw value for filtering, show Hebrew in
+            // the column. pnlCategory: backend attached `resolvedPnlCategory`
+            // (per-expense override → subcategory default → null); "—" means
+            // it uses the bookkeeping category.
+            const rawScope = (row.reportScope ?? 'pnl') as string;
+
             return {
               ...row,
               sum: sumDisplay,
@@ -235,6 +250,12 @@ export class ExpensesPage implements OnInit {
               totalVatPayable: row.totalVatPayable ?? 0,
               taxPercent: row.taxPercent ?? 0,
               vatPercent: row.vatPercent ?? 0,
+              reportScopeRaw: rawScope,
+              reportScope: rawScope === 'annual' ? 'דוח שנתי' : 'רווח והפסד',
+              // Raw per-expense override (for the Edit dialog prefill) vs the
+              // resolved value shown in the table column.
+              pnlCategoryOverrideRaw: row.pnlCategory ?? null,
+              pnlCategory: row.resolvedPnlCategory ?? '—',
             };
           });
         }),
@@ -249,8 +270,17 @@ export class ExpensesPage implements OnInit {
           });
           return EMPTY;
         }),
-        finalize(() => this.isLoadingDataTable.set(false))
+        finalize(() => this.isLoadingDataTable.set(false)),
+        shareReplay(1),
       );
+
+    // Regular (P&L) expenses → main table; annual-report-only → separate section.
+    this.myExpenses = base$.pipe(
+      map((rows: any[]) => rows.filter(r => r.reportScopeRaw !== 'annual')),
+    );
+    this.myAnnualExpenses = base$.pipe(
+      map((rows: any[]) => rows.filter(r => r.reportScopeRaw === 'annual')),
+    );
   }
 
   // ===========================

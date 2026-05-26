@@ -16,6 +16,69 @@
     align-items: center;
   }
 
+  .wrap-screen {
+    width: 100%;
+    padding: 0 20px;
+    box-sizing: border-box;
+    // Fill ion-content scroll area so flexbox centering has space to work
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+
+    // Empty state: center the pre-results block vertically
+    &:not(.has-results) {
+      padding-top: 100px;
+      align-items: center;
+      // justify-content: center;
+
+      .uniform-file-header {
+        margin-top: 0; // centering replaces the fixed top offset
+      }
+    }
+  }
+
+  .pre-results {
+    width: 100%;
+  }
+
+  .block-title {
+    font-size: 1.2rem;
+    font-weight: 600;
+    text-align: right;
+    margin-bottom: 8px;
+  }
+
+  .table-block {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 30px;
+  }
+
+  .table {
+    width: 100%;
+  }
+
+  .report-details-card {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin-bottom: 20px;
+    text-align: right;
+    direction: rtl;
+
+    h3 {
+      margin: 4px 0;
+      font-size: 1rem;
+    }
+
+    p {
+      margin: 4px 0;
+      font-size: 0.95rem;
+    }
+  }
+
   .uniform-file-header {
     display: flex;
     flex-direction: column;
@@ -127,6 +190,62 @@
   }
   
   
+  @media (max-width: 768px) {
+    // .pre-results is a plain block on desktop. On mobile we turn it into a
+    // flex column so that app-filter-tab (whose host is display:inline by
+    // default) becomes a flex item and can be centred on the cross axis.
+    .pre-results {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 100%;
+    }
+
+    // Ensure the host element fills the flex row so its inner form's
+    // width:100% resolves against the full container width, not a collapsed
+    // inline box.
+    app-filter-tab {
+      width: 100%;
+    }
+
+    .uniform-file-header {
+      margin-top: 20px;
+      padding-right: 16px;
+      padding-left: 16px;
+      align-items: center;
+      text-align: center;
+    }
+
+    .icon-title {
+      justify-content: center;
+    }
+
+    .icon-title .title {
+      font-size: 1.4rem;
+    }
+
+    .wrap-screen {
+      padding: 0 12px;
+      overflow-x: hidden;
+    }
+
+    .report-details-card {
+      padding: 12px 14px;
+
+      h3 {
+        font-size: 0.95rem;
+      }
+
+      p {
+        font-size: 0.9rem;
+      }
+    }
+
+    .block-title {
+      font-size: 1rem;
+    }
+  }
+
   @media only screen and (max-width:640px) {
     .wrap-screen {
       width: 100%;

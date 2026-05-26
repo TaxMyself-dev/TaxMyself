@@ -212,6 +212,21 @@ export class ExpenseDataService {
     return this.http.patch(url, data);
   }
 
+  /**
+   * Subcategory-wide P&L config (applies to ALL expenses of that subcategory).
+   * Upserts a UserSubCategory override on the backend.
+   */
+  setSubCategoryReportConfig(body: {
+    businessNumber: string;
+    categoryName: string;
+    subCategoryName: string;
+    reportScope?: 'pnl' | 'annual';
+    pnlCategory?: string | null;
+  }): Observable<any> {
+    const url = `${environment.apiUrl}expenses/sub-category-report-config`;
+    return this.http.post(url, body);
+  }
+
 
   openModalAddExpense(data?: IRowDataTable, editMode: boolean = false): Observable<any> {
     return from(this.modalController.create({

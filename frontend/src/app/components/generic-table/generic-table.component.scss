@@ -463,6 +463,32 @@
     width: 100%;
 }
 
+// ─── Mobile select-all row (only shown when showCheckbox is true) ─────────────
+
+.mobile-select-all {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 4px;
+    border-bottom: 1px solid #ebebeb;
+    cursor: pointer;
+    user-select: none;
+}
+
+.mobile-select-all__checkbox {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+    accent-color: #1a2641;
+    flex-shrink: 0;
+}
+
+.mobile-select-all__label {
+    font-size: 15px;
+    font-weight: 600;
+    color: #363636;
+}
+
 .sync-loading-text {
     margin: 0;
     font-size: 18px;

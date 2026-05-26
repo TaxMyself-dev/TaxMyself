@@ -19,6 +19,7 @@ import { GetExpensesDto } from './dtos/get-expenses.dto';
 import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.interface';
 import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
 import { CreateUserSubCategoryDto } from './dtos/create-user-sub-category.dto';
+import { ExpenseReportScope } from 'src/enum';
 
 
 @Controller('expenses')
@@ -403,6 +404,37 @@ export class ExpensesController {
       throw new BadRequestException('businessNumber query param is required');
     }
     return this.expensesService.updateUserSubCategory(firebaseId, businessNumber, Number(id), dto);
+  }
+
+  /**
+   * Subcategory-wide P&L config from the bookkeeping expenses page. Upserts a
+   * UserSubCategory override for (categoryName, subCategoryName). Applies to
+   * ALL of that subcategory's expenses (P&L resolves pnlCategory live).
+   */
+  @Post('sub-category-report-config')
+  @UseGuards(FirebaseAuthGuard)
+  async setSubCategoryReportConfig(
+    @Req() request: AuthenticatedRequest,
+    @Body() body: {
+      businessNumber: string;
+      categoryName: string;
+      subCategoryName: string;
+      reportScope?: ExpenseReportScope;
+      pnlCategory?: string | null;
+    },
+  ) {
+    const firebaseId = request.user?.firebaseId;
+    const businessNumber = body?.businessNumber || request.user?.businessNumber;
+    if (!businessNumber) {
+      throw new BadRequestException('businessNumber is required');
+    }
+    return this.expensesService.setSubCategoryReportConfig(
+      firebaseId,
+      businessNumber,
+      body.categoryName,
+      body.subCategoryName,
+      { reportScope: body.reportScope, pnlCategory: body.pnlCategory },
+    );
   }
 
 
