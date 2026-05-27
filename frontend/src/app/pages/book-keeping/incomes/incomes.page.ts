@@ -178,8 +178,9 @@ export class IncomesPage implements OnInit {
       {
         type: 'select',
         controlName: 'docType',
-        label: 'סוג מסמך',
+        placeholder: 'סוג מסמך',
         options: [
+          { name: 'כל המסמכים', value: null },
           { name: 'חשבונית מס', value: DocumentType.TAX_INVOICE },
           { name: 'קבלה', value: DocumentType.RECEIPT },
           { name: 'חשבונית זיכוי', value: DocumentType.CREDIT_INVOICE },

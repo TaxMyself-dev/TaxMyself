@@ -13,6 +13,7 @@ import { CdkConnectedOverlay, CdkOverlayOrigin, ConnectedPosition } from '@angul
 import { catchError, EMPTY, filter, forkJoin, map, of, Subject, switchMap, take, tap } from 'rxjs';
 import { SegmentedControlComponent, SegmentedOption } from 'src/app/components/segmented-control/segmented-control.component';
 import { CustomDateRangeComponent } from '../../components/custom-date-range/custom-date-range.component';
+import { GraphViewSettingsComponent } from 'src/app/components/graph-view-settings/graph-view-settings.component';
 import { LineChartComponent, LineChartSeries } from 'src/app/widgets/line-chart/line-chart.component';
 import { DonutChartComponent, DonutChartItem } from 'src/app/widgets/donut-chart/donut-chart.component';
 import { InputSelectComponent } from 'src/app/components/input-select/input-select.component';
@@ -26,7 +27,6 @@ import { ButtonComponent } from "src/app/components/button/button.component";
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 
 type ApiFilterType = 'all' | 'category' | 'subCategory' | 'merchant' | 'paymentMethod';
-type LineDisplayMode = 'expenses' | 'incomes' | 'incomes-vs-expenses';
 
 interface FilterChip { label: string; value: string; }
 
@@ -124,7 +124,8 @@ function isSameDate(a: Date, b: Date): boolean {
     InputSelectComponent,
     CdkConnectedOverlay,
     CdkOverlayOrigin,
-    ButtonComponent
+    ButtonComponent,
+    GraphViewSettingsComponent,
 ],
 })
 export class FlowAnalysisComponent {
@@ -143,7 +144,22 @@ export class FlowAnalysisComponent {
     { originX: 'start', originY: 'bottom', overlayX: 'start', overlayY: 'top', offsetY: 8 },
   ];
 
-  readonly showCustomRange = signal(false);
+  readonly graphSettingsPositions: ConnectedPosition[] = [
+    // Primary: right-edge-aligned → popup opens leftward (prevents right-side clipping)
+    { originX: 'end', originY: 'bottom', overlayX: 'end', overlayY: 'top',    offsetY:  8 },
+    // Fallback: open above trigger if bottom is clipped
+    { originX: 'end', originY: 'top',    overlayX: 'end', overlayY: 'bottom', offsetY: -8 },
+    // Last resort: left-edge-aligned (if trigger is near left edge)
+    { originX: 'start', originY: 'bottom', overlayX: 'start', overlayY: 'top', offsetY: 8 },
+  ];
+
+  readonly showCustomRange    = signal(false);
+  readonly showGraphSettings  = signal(false);
+
+  // ── Graph presentation state (pure UI — does not affect backend queries) ──
+  readonly graphChartType  = signal<'line' | 'bar'>('line');
+  readonly showExpenses    = signal(true);
+  readonly showIncomes     = signal(true);
 
   // ── Single form: all request + filter state ────────────────────────────────
   readonly myForm = new FormGroup(
@@ -168,35 +184,6 @@ export class FlowAnalysisComponent {
     { value: 'CUSTOM',   label: 'אחר' },
   ];
 
-  readonly lineDisplayOptions: SegmentedOption[] = [
-    { value: 'expenses',            label: 'הוצאות' },
-    { value: 'incomes',             label: 'הכנסות' },
-    { value: 'incomes-vs-expenses', label: 'הוצאות מול הכנסות' },
-  ];
-
-  readonly lineDisplayForm = new FormGroup({
-    mode: new FormControl<LineDisplayMode>('expenses'),
-  });
-
-  readonly lineDisplayMode = toSignal(
-    this.lineDisplayForm.controls.mode.valueChanges,
-    { initialValue: 'expenses' as LineDisplayMode },
-  );
-
-  readonly chartTypeOptions: SegmentedOption[] = [
-    { value: 'line', label: 'קו' },
-    { value: 'bar',  label: 'עמודות' },
-  ];
-
-  readonly chartTypeForm = new FormGroup({
-    type: new FormControl<'line' | 'bar'>('line'),
-  });
-
-  readonly chartType = toSignal(
-    this.chartTypeForm.controls.type.valueChanges,
-    { initialValue: 'line' as 'line' | 'bar' },
-  );
-
   readonly loading  = signal(false);
   readonly hasError = signal(false);
 
@@ -215,7 +202,7 @@ export class FlowAnalysisComponent {
 
     // Date — always show actual date range
     if (v.dateFrom && v.dateTo) {
-      chips.push({ label: 'זמן', value: `${formatDateHebrew(v.dateFrom)} - ${formatDateHebrew(v.dateTo)}` });
+      chips.push({ label: 'זמן', value: `${formatDateHebrew(v.dateTo)} - ${formatDateHebrew(v.dateFrom)}` });
     }
 
     // Filter type + value
@@ -357,19 +344,21 @@ export class FlowAnalysisComponent {
   readonly cashflowSeries = computed<LineChartSeries[]>(() => {
     const data = this.apiData();
     if (!data?.monthlyFlow?.length) return [];
-    const mode   = this.lineDisplayMode();
     const labels = data.monthlyFlow.map(m => monthLabel(m.month));
-    const expensesSeries: LineChartSeries = {
-      name: 'הוצאות', color: '#6C63FF',
-      data: data.monthlyFlow.map((m, i) => ({ label: labels[i], value: m.expenses })),
-    };
-    const incomesSeries: LineChartSeries = {
-      name: 'הכנסות', color: '#45C486',
-      data: data.monthlyFlow.map((m, i) => ({ label: labels[i], value: m.incomes })),
-    };
-    if (mode === 'expenses') return [expensesSeries];
-    if (mode === 'incomes')  return [incomesSeries];
-    return [expensesSeries, incomesSeries];
+    const result: LineChartSeries[] = [];
+    if (this.showExpenses()) {
+      result.push({
+        name: 'הוצאות', color: '#6C63FF',
+        data: data.monthlyFlow.map((m, i) => ({ label: labels[i], value: m.expenses })),
+      });
+    }
+    if (this.showIncomes()) {
+      result.push({
+        name: 'הכנסות', color: '#45C486',
+        data: data.monthlyFlow.map((m, i) => ({ label: labels[i], value: m.incomes })),
+      });
+    }
+    return result;
   });
 
   readonly isLineChartEmpty = computed(() => {
@@ -492,6 +481,13 @@ export class FlowAnalysisComponent {
   submit(): void { this.submit$.next(); }
 
   closeCustomRange(): void { this.showCustomRange.set(false); }
+
+  toggleGraphSettings(): void { this.showGraphSettings.update(v => !v); }
+  closeGraphSettings():  void { this.showGraphSettings.set(false); }
+
+  onChartTypeChange(type: 'line' | 'bar'): void { this.graphChartType.set(type); }
+  onExpensesChange(value: boolean):        void { this.showExpenses.set(value); }
+  onIncomesChange(value: boolean):         void { this.showIncomes.set(value); }
 
   // ── Private helpers ────────────────────────────────────────────────────────
 
