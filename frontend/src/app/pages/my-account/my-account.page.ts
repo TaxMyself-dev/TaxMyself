@@ -253,10 +253,28 @@ export class MyAccountPage implements OnInit {
     this.accountsList = this.transactionService.accountsList;
 
     if (this.hasOpenBanking()) {
-      this.startSyncStatusPolling();
+      if (this.consumeDemoBankLoaderFlag()) {
+        // Demo entrance: hold the "נתונים נמשכים מהבנק" loader for 5s
+        // before letting the real sync polling resolve (which would
+        // instantly flip to 'completed' for seeded demo data).
+        this.syncProcessStatus.set('running');
+        setTimeout(() => this.startSyncStatusPolling(), 5000);
+      } else {
+        this.startSyncStatusPolling();
+      }
     }
 
     this.initFeezbackDialogFromReturnUrl();
+  }
+
+  /** Reads and clears the one-shot flag set by the admin demo-data panel when
+   *  it routed into this page on behalf of a demo user. */
+  private consumeDemoBankLoaderFlag(): boolean {
+    if (typeof sessionStorage === 'undefined') return false;
+    const flag = sessionStorage.getItem('tm.demoSimulateBankLoader');
+    if (!flag) return false;
+    sessionStorage.removeItem('tm.demoSimulateBankLoader');
+    return true;
   }
 
   /** Feezback consent redirect lands on `/my-account?feezbackStatus=...` (see backend JWT redirects). */

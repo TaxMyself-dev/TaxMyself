@@ -128,6 +128,11 @@ export class DemoDataComponent implements OnInit {
 
   private enterAsUser(firebaseId: string, label: string): void {
     this.clientPanelService.setSelectedClient(firebaseId, label);
+    // Signal to /my-account that this is a fresh demo entrance — it should
+    // show the "נתונים נמשכים מהבנק" loader for ~5s to simulate a real
+    // user pulling their transactions, before falling through to the
+    // normal sync polling.
+    sessionStorage.setItem('tm.demoSimulateBankLoader', '1');
     // Await the view-as user data fetch BEFORE navigating, otherwise pages like
     // /my-account read userData in their ngOnInit before AuthService's
     // viewAsUserData is populated — and they'd render with the admin's name.
