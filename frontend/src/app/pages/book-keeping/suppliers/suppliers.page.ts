@@ -44,7 +44,7 @@ export class SuppliersPage implements OnInit {
   selectedBusinessName = signal<string>("");
   BusinessStatus = BusinessStatus;
   businessStatus: BusinessStatus = BusinessStatus.SINGLE_BUSINESS;
-  businessOptions = this.gs.businessSelectItems;
+  businessOptions = this.gs.businessSelectItems();
 
   isLoadingDataTable = signal<boolean>(false);
   mySuppliers: any;
@@ -67,7 +67,6 @@ export class SuppliersPage implements OnInit {
   // ===========================
   form: FormGroup = this.fb.group({});
   filterConfig: FilterField[] = [];
-
   // ===========================
   // Init
   // ===========================
@@ -105,7 +104,7 @@ export class SuppliersPage implements OnInit {
         controlName: 'businessNumber',
         label: 'בחר עסק',
         required: true,
-        options: this.gs.businessSelectItems,
+        options: this.businessOptions,
         defaultValue: this.selectedBusinessNumber()
       },
     ];

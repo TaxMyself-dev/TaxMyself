@@ -46,7 +46,7 @@ export class ClientsPage implements OnInit {
   selectedBusinessName = signal<string>("");
   BusinessStatus = BusinessStatus;
   businessStatus: BusinessStatus = BusinessStatus.SINGLE_BUSINESS;
-  businessOptions = this.gs.businessSelectItems;
+  businessOptions = this.gs.businessSelectItems();
 
   isLoadingDataTable = signal<boolean>(false);
   myClients: any;
@@ -74,7 +74,6 @@ export class ClientsPage implements OnInit {
   // ===========================
   async ngOnInit() {
     this.setFileActions();
-
     this.userData = this.authService.getUserDataFromLocalStorage();
     this.businessStatus = this.userData.businessStatus;
     const businesses = this.gs.businesses();
@@ -106,7 +105,7 @@ export class ClientsPage implements OnInit {
         controlName: 'businessNumber',
         label: 'בחר עסק',
         required: true,
-        options: this.gs.businessSelectItems,
+        options: this.businessOptions,
         defaultValue: this.selectedBusinessNumber()
       },
     ];
