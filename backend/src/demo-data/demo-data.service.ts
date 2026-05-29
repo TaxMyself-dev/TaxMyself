@@ -456,6 +456,21 @@ export class DemoDataService {
       }
     }
 
+    // 3b. Standalone sources — orphan Source rows (bill: null) for the
+    //     "OB-connected, no bills yet" profile. Without these, the
+    //     associate-to-bill endpoint (POST /transactions/:billId/sources)
+    //     refuses to attach because it expects the Source row to already
+    //     exist from a prior OB sync.
+    for (const s of data.standaloneSources ?? []) {
+      await m.save(
+        m.create(Source, {
+          userId: firebaseId,
+          sourceName: s.sourceName,
+          sourceType: s.sourceType,
+        }),
+      );
+    }
+
     // 4. FullTransactionCache rows — all unclassified for v1.
     const today = new Date();
     const todayUtc = new Date(
@@ -464,12 +479,24 @@ export class DemoDataService {
     const cacheRows = data.transactions.map((t, i) => {
       const txDate = new Date(todayUtc);
       txDate.setUTCDate(txDate.getUTCDate() - t.daysAgo);
-      const billId = billIdByKey[t.billKey];
-      if (billId === undefined) {
-        throw new Error(
-          `Transaction at index ${i} (user ${data.email}) references unknown billKey "${t.billKey}"`,
-        );
+
+      // billKey omitted → unassigned transaction (billId/billName null);
+      // billKey set → resolve to that bill and inherit its paymentIdentifier.
+      let billId: number | null = null;
+      let billName: string | null = null;
+      let paymentIdentifier: string | null = t.paymentIdentifier ?? null;
+      if (t.billKey) {
+        const resolved = billIdByKey[t.billKey];
+        if (resolved === undefined) {
+          throw new Error(
+            `Transaction at index ${i} (user ${data.email}) references unknown billKey "${t.billKey}"`,
+          );
+        }
+        billId = resolved;
+        billName = billNameByKey[t.billKey] ?? null;
+        paymentIdentifier = paymentIdentifierByBillKey[t.billKey] ?? null;
       }
+
       const currency = t.currency ?? 'ILS';
       // Hardcoded demo FX rates so seeding has zero external dependency.
       // Real syncs go through FxRateService → BOI; the demo just needs
@@ -481,10 +508,10 @@ export class DemoDataService {
         externalTransactionId: `${externalIdPrefix}-${i}`,
         userId: firebaseId,
         billId,
-        billName: billNameByKey[t.billKey] ?? null,
+        billName,
         businessNumber: t.businessNumberRef,
         merchantName: t.merchantName,
-        paymentIdentifier: paymentIdentifierByBillKey[t.billKey] ?? null,
+        paymentIdentifier,
         transactionDate: txDate,
         amount: t.amount,
         currency,
@@ -502,10 +529,12 @@ export class DemoDataService {
       await m.insert(FullTransactionCache, cacheRows);
     }
 
-    // 5. UserSyncState — seed a "completed" row for users with bank data so the
-    //    dashboard's transactions endpoint passes its sync-state gate. Skip
-    //    for users without bills (e.g. an accountant with no personal banking).
-    if (data.bills.length > 0) {
+    // 5. UserSyncState — seed a "completed" row for every Open-Banking user
+    //    so the dashboard's transactions endpoint passes its sync-state gate.
+    //    Includes profiles that have transactions but no bills yet (the user
+    //    is expected to create the bills as part of the demo). Skip only for
+    //    users who opted out of OB (e.g. an accountant with no personal banking).
+    if (data.hasOpenBanking ?? true) {
       await m.insert(UserSyncState, {
         userId: firebaseId,
         triggeredBy: 'manual',

@@ -41,6 +41,14 @@ export interface DemoProfile {
   transactions: DemoTransactionTemplate[];
 
   /**
+   * Orphan Source rows seeded with no parent Bill — needed when transactions
+   * carry a `paymentIdentifier` but no `billKey`, so the user can later
+   * associate them via POST /transactions/:billId/sources (which refuses to
+   * invent sources). Mirrors the real OB post-sync state.
+   */
+  standaloneSources?: DemoStandaloneSource[];
+
+  /**
    * Role override for the primary user. Default is `[REGULAR]`.
    * Use `[ACCOUNTANT]` (optionally + `REGULAR`) for accountant profiles —
    * the "משרד" tab on the frontend is gated by the `ACCOUNTANT` role.
@@ -77,6 +85,7 @@ export interface DemoClient {
   businesses: DemoBusiness[];
   bills: DemoBill[];
   transactions: DemoTransactionTemplate[];
+  standaloneSources?: DemoStandaloneSource[];
 }
 
 export interface DemoUser {
@@ -127,9 +136,36 @@ export interface DemoBill {
   sources: Array<{ sourceName: string; sourceType: SourceType }>;
 }
 
+/**
+ * A Source row created without a parent Bill — mirrors the state after a
+ * real Open-Banking sync but before the user has created bills. Required so
+ * the demo's "associate to bill" flow can find a matching Source row by
+ * `(userId, sourceName)` — the attach endpoint refuses to invent sources.
+ */
+export interface DemoStandaloneSource {
+  /** Payment identifier (bank account digits / card last-4). Must match what
+   *  the corresponding DemoTransactionTemplate carries on `paymentIdentifier`. */
+  sourceName: string;
+  sourceType: SourceType;
+}
+
 export interface DemoTransactionTemplate {
-  /** → DemoBill.key */
-  billKey: string;
+  /**
+   * Optional. When present, must match a DemoBill.key — transaction is
+   * seeded onto that bill (billId + billName + paymentIdentifier inherited
+   * from the bill). When omitted, the transaction is "unassigned": billId
+   * and billName are stored as null and the row shows up in the UI under
+   * the "לא שוייך" state, ready for the user to associate to a bill.
+   */
+  billKey?: string;
+  /**
+   * Optional payment identifier (bank account number / card last digits).
+   * Used when `billKey` is omitted — mirrors what Feezback would stamp on
+   * the cache row in production so the future bill-association flow can
+   * group rows by source. Ignored when `billKey` is set (the bill's first
+   * source provides the identifier).
+   */
+  paymentIdentifier?: string;
   /** → DemoBusiness.businessNumber */
   businessNumberRef: string;
   /** Hebrew or Latin merchant name (whatever fits the merchant). */
@@ -155,6 +191,8 @@ export type DemoSeedable = {
   businesses: DemoBusiness[];
   bills: DemoBill[];
   transactions: DemoTransactionTemplate[];
+  /** Orphan sources (no parent bill) — see DemoStandaloneSource. */
+  standaloneSources?: DemoStandaloneSource[];
   role?: UserRole[];
   hasOpenBanking?: boolean;
 };
