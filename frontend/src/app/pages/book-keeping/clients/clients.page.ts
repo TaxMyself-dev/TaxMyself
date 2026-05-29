@@ -60,6 +60,7 @@ export class ClientsPage implements OnInit {
     highlightedField: ClientsTableColumns.PHONE,
     dateField: ClientsTableColumns.ID,
     hiddenFields: [],
+    highlightedValueFormat: 'plain'
   };
 
   clientsTableFields: IColumnDataTable<ClientsTableColumns, ClientsTableHebrewColumns>[] = [

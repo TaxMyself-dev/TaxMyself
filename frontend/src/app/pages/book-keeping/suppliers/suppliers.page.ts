@@ -55,9 +55,10 @@ export class SuppliersPage implements OnInit {
   // ===========================
   mobileCardConfig: IMobileCardConfig = {
     primaryFields: ['supplier'],
-    highlightedField: 'vatPercent',
+    highlightedField: 'supplierID',
     dateField: 'category',
     hiddenFields: [],
+    highlightedValueFormat: 'plain'
   };
 
   suppliersTableFields: IColumnDataTable<string, string>[] = [

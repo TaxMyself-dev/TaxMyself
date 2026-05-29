@@ -410,6 +410,8 @@ export interface ITableRowAction {
     isLoading?: () => boolean;
 }
 
+export type MobileHighlightedValueFormat = 'currencyIls' | 'percent' | 'plain';
+
 export interface IMobileCardConfig {
     /** Column name(s) used as the card's primary title (hero section) */
     primaryFields: string[];
@@ -419,6 +421,8 @@ export interface IMobileCardConfig {
     dateField: string;
     /** Column names to hide entirely from the card (not rendered anywhere) */
     hiddenFields?: string[];
+    /** How to format the highlighted value. Defaults to 'currencyIls' (appends ₪). */
+    highlightedValueFormat?: MobileHighlightedValueFormat;
 }
 
 export interface IButtons {
