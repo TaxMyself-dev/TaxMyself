@@ -206,7 +206,7 @@ export class SuppliersPage implements OnInit {
       const ref = this.dialogService.open(AddSupplierComponent, {
         header: 'עריכת ספק',
         width: 'min(1100px, 95vw)',
-        contentStyle: { minHeight: '400px', overflow: 'visible' },
+        contentStyle: { minHeight: '400px', overflow: 'auto' },
         rtl: true,
         closable: true,
         dismissableMask: true,
