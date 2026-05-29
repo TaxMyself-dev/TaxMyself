@@ -79,10 +79,11 @@
     }
   </div>
   <ng-template pTemplate="footer">
-    <button type="button" class="p-button p-button-text" (click)="closeAddPermissionDialog()">ביטול</button>
-    <button type="button" class="p-button" (click)="submitAddPermission()" [disabled]="addingPermission()">
-      {{ addingPermission() ? 'שולח...' : 'הוסף' }}
-    </button>
+    <app-p-button [buttonText]="'ביטול'" [variant]="'text'" [buttonSize]="buttonSize.SMALL"
+      (onButtonClicked)="closeAddPermissionDialog()"></app-p-button>
+    <app-p-button [buttonText]="'הוסף'" [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.SMALL"
+      [isLoading]="addingPermission()" [disabled]="addingPermission()"
+      (onButtonClicked)="submitAddPermission()"></app-p-button>
   </ng-template>
 </p-dialog>
 

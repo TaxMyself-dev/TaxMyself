@@ -217,6 +217,7 @@
       </ng-template>
       <ng-template pTemplate="body" let-row let-columns="columns" let-rowIndex="rowIndex">
         <tr [style.height]="isExpanded(row) ? 'auto' : '76px'" class="table-row"
+          [ngClass]="rowClass()?.(row)"
           (mouseenter)="onRowEnter(rowIndex, row, $event)" (mouseleave)="onRowLeave()">
           @if (showCheckbox()) {
           <td>
