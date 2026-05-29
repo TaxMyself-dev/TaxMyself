@@ -3,7 +3,7 @@ import { EMPTY, of } from 'rxjs';
 import { catchError, finalize, map } from 'rxjs/operators';
 import { DocCreateService } from 'src/app/pages/doc-create/doc-create.service';
 import { GenericService } from 'src/app/services/generic.service';
-import { IColumnDataTable, IRowDataTable, ITableRowAction, IUserData } from 'src/app/shared/interface';
+import { IColumnDataTable, IMobileCardConfig, IRowDataTable, ITableRowAction, IUserData } from 'src/app/shared/interface';
 import { DialogService } from 'primeng/dynamicdialog';
 import { AddClientComponent } from 'src/app/components/add-client/add-client.component';
 import {
@@ -55,6 +55,13 @@ export class ClientsPage implements OnInit {
   // ===========================
   // Table config
   // ===========================
+  mobileCardConfig: IMobileCardConfig = {
+    primaryFields: [ClientsTableColumns.NAME],
+    highlightedField: ClientsTableColumns.PHONE,
+    dateField: ClientsTableColumns.ID,
+    hiddenFields: [],
+  };
+
   clientsTableFields: IColumnDataTable<ClientsTableColumns, ClientsTableHebrewColumns>[] = [
     { name: ClientsTableColumns.NAME, value: ClientsTableHebrewColumns.name, type: FormTypes.TEXT },
     { name: ClientsTableColumns.ID, value: ClientsTableHebrewColumns.id, type: FormTypes.TEXT },

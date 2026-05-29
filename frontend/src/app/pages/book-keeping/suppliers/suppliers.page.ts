@@ -3,7 +3,7 @@ import { EMPTY, of } from 'rxjs';
 import { catchError, finalize, map } from 'rxjs/operators';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { GenericService } from 'src/app/services/generic.service';
-import { IColumnDataTable, IRowDataTable, ITableRowAction, IUserData } from 'src/app/shared/interface';
+import { IColumnDataTable, IMobileCardConfig, IRowDataTable, ITableRowAction, IUserData } from 'src/app/shared/interface';
 import {
   BusinessStatus,
   FormTypes,
@@ -53,6 +53,13 @@ export class SuppliersPage implements OnInit {
   // ===========================
   // Table config
   // ===========================
+  mobileCardConfig: IMobileCardConfig = {
+    primaryFields: ['supplier'],
+    highlightedField: 'vatPercent',
+    dateField: 'category',
+    hiddenFields: [],
+  };
+
   suppliersTableFields: IColumnDataTable<string, string>[] = [
     { name: 'supplier', value: 'שם הספק', type: FormTypes.TEXT },
     { name: 'supplierID', value: 'מספר ספק', type: FormTypes.TEXT },
