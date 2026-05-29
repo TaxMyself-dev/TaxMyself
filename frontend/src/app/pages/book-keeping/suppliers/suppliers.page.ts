@@ -226,13 +226,16 @@ export class SuppliersPage implements OnInit {
   }
 
   onDeleteSupplier(supplier: IRowDataTable): void {
-    const supplierId = (supplier as any).id;
+    console.log("hsdgush");
+    
+    const supplierId = supplier.id;
+    console.log("🚀 ~ SuppliersPage ~ onDeleteSupplier ~ supplierId:", supplierId)
     if (!supplierId) {
       console.error('Supplier ID not found');
       return;
     }
 
-    const supplierName = (supplier as any).supplier || 'הספק';
+    const supplierName = supplier.supplier || 'הספק';
     
     this.confirmationService.confirm({
       message: `האם אתה בטוח שברצונך למחוק את הספק "${supplierName}"?`,
@@ -241,7 +244,7 @@ export class SuppliersPage implements OnInit {
       acceptLabel: 'כן, מחק',
       rejectLabel: 'ביטול',
       accept: () => {
-        this.expenseDataService.deleteSupplier(supplierId)
+        this.expenseDataService.deleteSupplier(supplierId as number)
           .pipe(
             catchError(err => {
               console.error('Error deleting supplier:', err);
