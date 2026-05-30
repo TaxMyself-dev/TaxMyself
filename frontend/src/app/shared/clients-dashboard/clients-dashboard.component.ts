@@ -1,7 +1,7 @@
 import { Component, OnInit, computed, signal } from '@angular/core';
-import { AdminPanelService } from 'src/app/services/admin-panel.service';
+import { AdminPanelService, DriveSyncResult, ExtractedDocRow } from 'src/app/services/admin-panel.service';
 import { FeezbackService, AdminAccountsAndCardsResponse, AdminPullSourceResult } from 'src/app/services/feezback.service';
-import { catchError, EMPTY, finalize } from 'rxjs';
+import { catchError, EMPTY, finalize, forkJoin } from 'rxjs';
 import { IColumnDataTable, IRowDataTable, ITableRowAction } from 'src/app/shared/interface';
 import { FormTypes } from 'src/app/shared/enums';
 import { ConfirmationService, MessageService } from 'primeng/api';
@@ -44,6 +44,22 @@ export class ClientsDashboardComponent implements OnInit {
   // and the last result keyed by `${type}_${paymentIdentifier}`.
   pullingSourceKey = signal<string | null>(null);
   pullResultByKey = signal<Record<string, AdminPullSourceResult>>({});
+
+  // Drive OCR sync dialog state
+  driveDialogVisible = signal<boolean>(false);
+  driveDialogLoading = signal<boolean>(false);
+  driveDialogClient = signal<{ index: number; name: string } | null>(null);
+  driveDialogYear = signal<number>(new Date().getFullYear());
+  driveDialogMonth = signal<number>(new Date().getMonth() + 1);
+  driveDialogBusinessNumber = signal<string>('');
+  driveSyncSummary = signal<DriveSyncResult | null>(null);
+  driveExtractedDocs = signal<ExtractedDocRow[]>([]);
+
+  readonly driveYearOptions = [
+    new Date().getFullYear(),
+    new Date().getFullYear() - 1,
+  ];
+  readonly driveMonthOptions = Array.from({ length: 12 }, (_, i) => i + 1);
 
   readonly ButtonColor = ButtonColor;
   readonly ButtonSize = ButtonSize;
@@ -161,6 +177,15 @@ export class ClientsDashboardComponent implements OnInit {
       isLoading: () => this.isClearingCache(),
       action: (event: any, row: IRowDataTable) => {
         this.confirmClearCache(row);
+      }
+    },
+    {
+      name: 'pullDriveDocs',
+      icon: 'pi pi-google',
+      title: 'משוך מסמכים מ-Drive',
+      alwaysShow: true,
+      action: (event: any, row: IRowDataTable) => {
+        this.openDriveDataDialog(row);
       }
     }
   ];
@@ -411,6 +436,105 @@ export class ClientsDashboardComponent implements OnInit {
       rejectLabel: 'ביטול',
       accept: () => this.runRefreshSources(firebaseId, name),
     });
+  }
+
+  // ------------------------------------------------------------
+  // Drive OCR sync dialog
+  // ------------------------------------------------------------
+
+  openDriveDataDialog(row: IRowDataTable): void {
+    const index = Number(row['index']);
+    if (!Number.isFinite(index) || index <= 0) {
+      this.messageService.add({
+        severity: 'error',
+        summary: 'שגיאה',
+        detail: 'מזהה משתמש לא תקין',
+        life: 4000,
+        key: 'br',
+      });
+      return;
+    }
+    const name = (row['fullName'] as string) || `${row['fName'] || ''} ${row['lName'] || ''}`.trim();
+    this.driveDialogClient.set({ index, name });
+    this.driveDialogYear.set(new Date().getFullYear());
+    this.driveDialogMonth.set(new Date().getMonth() + 1);
+    this.driveDialogBusinessNumber.set('');
+    this.driveSyncSummary.set(null);
+    this.driveExtractedDocs.set([]);
+    this.driveDialogVisible.set(true);
+  }
+
+  onDriveDialogVisibleChange(visible: boolean): void {
+    if (!visible) this.closeDriveDataDialog();
+  }
+
+  closeDriveDataDialog(): void {
+    this.driveDialogVisible.set(false);
+    this.driveDialogClient.set(null);
+    this.driveSyncSummary.set(null);
+    this.driveExtractedDocs.set([]);
+  }
+
+  private formatYearMonth(year: number, month: number): string {
+    return `${year}-${String(month).padStart(2, '0')}`;
+  }
+
+  onSubmitDriveSync(): void {
+    const client = this.driveDialogClient();
+    if (!client || this.driveDialogLoading()) return;
+    const businessNumber = this.driveDialogBusinessNumber().trim();
+    if (!businessNumber) {
+      this.messageService.add({
+        severity: 'warn', summary: 'מס׳ עוסק חסר', detail: 'יש להזין מספר עוסק', life: 4000, key: 'br',
+      });
+      return;
+    }
+    const yearMonth = this.formatYearMonth(this.driveDialogYear(), this.driveDialogMonth());
+
+    this.driveDialogLoading.set(true);
+    this.driveSyncSummary.set(null);
+    this.driveExtractedDocs.set([]);
+
+    // Run sync first, then fetch the full month list. Sync is idempotent, so
+    // listing afterwards gives us "everything ever extracted for this month".
+    this.adminPanelService.syncUserDriveMonth(client.index, businessNumber, yearMonth)
+      .pipe(
+        catchError(err => {
+          const detail = err?.error?.message ?? err?.message ?? 'סינכרון נכשל';
+          this.messageService.add({
+            severity: 'error', summary: 'שגיאה', detail, life: 5000, key: 'br',
+          });
+          this.driveDialogLoading.set(false);
+          return EMPTY;
+        }),
+      )
+      .subscribe(summary => {
+        this.driveSyncSummary.set(summary);
+        this.adminPanelService.getUserExtractedDocs(client.index, businessNumber, yearMonth)
+          .pipe(
+            catchError(err => {
+              const detail = err?.error?.message ?? err?.message ?? 'טעינת המסמכים נכשלה';
+              this.messageService.add({
+                severity: 'error', summary: 'שגיאה', detail, life: 5000, key: 'br',
+              });
+              return EMPTY;
+            }),
+            finalize(() => this.driveDialogLoading.set(false)),
+          )
+          .subscribe(rows => this.driveExtractedDocs.set(rows));
+      });
+  }
+
+  driveStatusColor(status: string): string {
+    if (status === 'processed') return '#16a34a';
+    if (status === 'error') return '#dc2626';
+    return '#6b7280';
+  }
+
+  driveStatusLabel(status: string): string {
+    if (status === 'processed') return 'הצליח';
+    if (status === 'error') return 'נכשל';
+    return 'ממתין';
   }
 
   private runRefreshSources(firebaseId: string, name: string): void {

@@ -299,6 +299,23 @@
                   <span class="percent">({{ row[amountPercentField(col.name)] ?? 0 }}%)</span>
                 </span>
               }
+              <!-- Same as AMOUNT_WITH_PERCENT but adds the desktop equipment
+                   icon (purple) next to the percent value when the row is
+                   flagged as equipment. Used on the "% מס" column so users
+                   know at a glance whether the tax line will be treated as
+                   depreciation. -->
+              @else if (col.cellRenderer === ICellRenderer.TAX_WITH_EQUIPMENT) {
+                <span class="amount-with-percent">
+                  <span class="amount">{{ (row[col.name] | number:'1.0-2') ?? 0 }} ש״ח</span>
+                  <span class="percent">
+                    ({{ row[amountPercentField(col.name)] ?? 0 }}%)
+                    @if (row.isEquipment) {
+                      <i class="pi pi-desktop supplier-equipment-icon"
+                         title="ציוד (רכוש קבוע) — פחת"></i>
+                    }
+                  </span>
+                </span>
+              }
               @else {
               {{ row[col.name] }}
               }

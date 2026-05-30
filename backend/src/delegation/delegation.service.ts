@@ -1,5 +1,6 @@
 import {
   Injectable,
+  Logger,
   NotFoundException,
   UnauthorizedException,
   ConflictException,
@@ -13,6 +14,7 @@ import { Delegation, DelegationStatus } from './delegation.entity';
 import { User } from 'src/users/user.entity';
 import { Business } from 'src/business/business.entity';
 import { MailService } from 'src/mail/mail.service';
+import { UsersService } from 'src/users/users.service';
 import { CreateClientByAccountantDto } from './dtos/create-client-by-accountant.dto';
 import {
   UserRole,
@@ -28,6 +30,7 @@ import {
 
 @Injectable()
 export class DelegationService {
+  private readonly logger = new Logger(DelegationService.name);
   private readonly firebaseAuth: admin.auth.Auth;
 
   constructor(
@@ -38,6 +41,7 @@ export class DelegationService {
     @InjectRepository(Business)
     private readonly businessRepository: Repository<Business>,
     private readonly mailService: MailService,
+    private readonly usersService: UsersService,
   ) {
     this.firebaseAuth = admin.auth();
   }
@@ -461,7 +465,29 @@ export class DelegationService {
     });
     await this.delegationRepository.save(delegation);
 
+    // 5. Fire-and-forget Drive provisioning for the new client, plus share with
+    //    the accountant's email so the folders show up in their "Shared with me".
+    //    Looks up the accountant's email and passes it to provisionDriveStructure.
+    void this.provisionClientDriveForAccountant(newUser, accountantFirebaseId).catch(err =>
+      this.logger.error(
+        `[createClientByAccountant] background Drive provisioning failed for client ${firebaseId}: ${err?.message ?? err}`,
+        err?.stack,
+      ),
+    );
+
     const fullName = `${newUser.fName} ${newUser.lName}`.trim() || dto.email;
     return { firebaseId, fullName };
+  }
+
+  private async provisionClientDriveForAccountant(
+    clientUser: User,
+    accountantFirebaseId: string,
+  ): Promise<void> {
+    const accountant = await this.userRepository.findOne({
+      where: { firebaseId: accountantFirebaseId },
+      select: ['email'],
+    });
+    const extraEmails = accountant?.email ? [accountant.email] : [];
+    await this.usersService.provisionDriveStructure(clientUser, extraEmails);
   }
 }

@@ -23,6 +23,7 @@ import { AnnualReportModule } from './annual-report/annual-report.module';
 import { ReportWorkflowModule } from './report-workflow/report-workflow.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { DemoDataModule } from './demo-data/demo-data.module';
+import { GoogleDriveModule } from './google-drive/google-drive.module';
 //Entities
 import { Expense } from './expenses/expenses.entity';
 import { Income } from './expenses/incomes.entity';
@@ -49,6 +50,7 @@ import { Clients } from './clients/clients.entity';
 import { Documents } from './documents/documents.entity';
 import { DocLines } from './documents/doc-lines.entity';
 import { DocPayments } from './documents/doc-payments.entity';
+import { ExtractedDocument } from './documents/extracted-document.entity';
 import { Business } from './business/business.entity';
 import { FeezbackWebhookEvent } from './feezback/webhook/entities/feezback-webhook-event.entity';
 import { UserModuleSubscription } from './users/user-module-subscription.entity';
@@ -91,7 +93,7 @@ import { BusinessService } from './business/business.service';
         SlimTransaction, FullTransactionCache, UserTransactionCacheState, UserSyncState, UserSourceSyncState,
         Bill, Source,
         DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory, Finsite, Delegation, SettingDocuments,
-        Clients, Documents, DocLines, DocPayments, JournalEntry, JournalLine, DefaultBookingAccount,
+        Clients, Documents, DocLines, DocPayments, ExtractedDocument, JournalEntry, JournalLine, DefaultBookingAccount,
         FeezbackWebhookEvent, UserModuleSubscription, AccountantTask, AnnualReport, AnnualReportFile, ReportWorkflow,
         FxRate],
       synchronize: process.env.NODE_ENV !== 'production',
@@ -125,10 +127,11 @@ import { BusinessService } from './business/business.service';
       JournalLine,
       DefaultBookingAccount,
       Child,
-      FeezbackWebhookEvent
+      FeezbackWebhookEvent,
+      ExtractedDocument,
     ]),
     ScheduleModule.forRoot(),
-    HttpModule, UsersModule, ReportsModule, ExpensesModule, TransactionsModule, BusinessModule, CloudModule, SharedModule, FinsiteModule, MailModule, DelegationModule, DocumentsModule, ClientsModule, BookkeepingModule, FeezbackModule, ShaamModule, FeezbackWebhookModule, AccountantTasksModule, AnnualReportModule, ReportWorkflowModule, NotificationsModule, DemoDataModule],
+    HttpModule, UsersModule, ReportsModule, ExpensesModule, TransactionsModule, BusinessModule, CloudModule, SharedModule, FinsiteModule, MailModule, DelegationModule, DocumentsModule, ClientsModule, BookkeepingModule, FeezbackModule, ShaamModule, FeezbackWebhookModule, AccountantTasksModule, AnnualReportModule, ReportWorkflowModule, NotificationsModule, DemoDataModule, GoogleDriveModule],
   controllers: [AppController],
   providers: [AppService, FinsiteService, ExpensesService, MailService, DocumentsService, ClientsService, BookkeepingService, BusinessService],
 })

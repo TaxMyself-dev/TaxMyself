@@ -47,9 +47,9 @@ export class CreateExpenseDto {
     @IsString()
     file: string;
 
-    // @IsOptional()
-    // @IsBoolean()
-    // isEquipment: boolean;
+    @IsOptional()
+    @IsBoolean()
+    isEquipment?: boolean;
 
     // @IsOptional()
     // @IsString()

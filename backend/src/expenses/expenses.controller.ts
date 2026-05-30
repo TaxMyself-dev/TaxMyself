@@ -3,7 +3,7 @@ import { Controller, Post, Patch, Get, Delete, Query, Param, Body, Req, Headers,
 //Entities
 import { Expense } from './expenses.entity';
 //Services
-import { ExpensesService } from './expenses.service';
+import { ExpensesService, BulkConfirmFromDriveItem } from './expenses.service';
 import { UsersService } from '../users/users.service';
 import { SharedService } from '../shared/shared.service';
 //DTOs
@@ -40,6 +40,26 @@ export class ExpensesController {
     const businessNumber = request.user?.businessNumber;
     const res = await this.expensesService.addExpense(body, firebaseId, businessNumber);
     return res;
+  }
+
+
+  @Post('bulk-confirm-from-drive')
+  @UseGuards(FirebaseAuthGuard)
+  async bulkConfirmFromDrive(
+    @Req() request: AuthenticatedRequest,
+    @Body() body: { businessNumber?: string; items: BulkConfirmFromDriveItem[] },
+  ) {
+    const firebaseId = request.user?.firebaseId;
+    // Prefer body.businessNumber (dialog sends it explicitly) and fall back to
+    // the businessnumber header set by AuthInterceptor (legacy contract).
+    const businessNumber = body?.businessNumber?.trim() || request.user?.businessNumber;
+    if (!firebaseId) throw new HttpException('Not authenticated', HttpStatus.UNAUTHORIZED);
+    if (!businessNumber) throw new HttpException('businessNumber is required (body or header)', HttpStatus.BAD_REQUEST);
+    const items = Array.isArray(body?.items) ? body.items : [];
+    if (items.length === 0) {
+      throw new BadRequestException('items[] is required');
+    }
+    return this.expensesService.bulkConfirmFromDrive(firebaseId, businessNumber, items);
   }
 
 

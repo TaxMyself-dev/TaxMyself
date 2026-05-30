@@ -1,0 +1,214 @@
+<p-dialog
+  header="משיכת מסמכים מ-Drive"
+  [visible]="visible()"
+  (visibleChange)="$event ? null : onClose()"
+  [modal]="true"
+  [style]="{ width: '96vw' }"
+  [rtl]="true"
+  [draggable]="false"
+  [resizable]="false">
+
+  <form [formGroup]="form" class="period-row">
+    <app-period-select
+      [parentForm]="form"
+      [allowedPeriodModes]="allowedPeriodModes"
+      [periodDefaults]="periodDefaults">
+    </app-period-select>
+
+    <app-p-button
+      [buttonText]="'משוך נתונים'"
+      [buttonColor]="ButtonColor.BLACK"
+      [buttonSize]="ButtonSize.AUTO"
+      [isLoading]="isLoading()"
+      [disabled]="form.invalid"
+      (onButtonClicked)="onSubmit()">
+    </app-p-button>
+  </form>
+
+  <div *ngIf="syncSummary() as totals" class="summary-chip">
+    סה"כ בתיקיות: {{ totals.total }} &nbsp;|&nbsp;
+    <span style="color:#16a34a;">עובדו כעת: {{ totals.processed }}</span> &nbsp;|&nbsp;
+    <span style="color:#6b7280;">קיימים (דולגו): {{ totals.skipped }}</span> &nbsp;|&nbsp;
+    <span style="color:#dc2626;">נכשלו: {{ totals.failed }}</span>
+  </div>
+
+  <div *ngIf="isLoading() && !syncSummary()" class="loading-line">
+    <i class="pi pi-spin pi-spinner"></i>
+    מסנכרן עם Drive ושולח ל-Claude OCR — זה יכול לקחת מספר שניות לכל קובץ...
+  </div>
+
+  <div *ngIf="syncSummary() as totals" class="empty-state">
+    <ng-container *ngIf="rows().length === 0">
+      <ng-container *ngIf="totals.total === 0">
+        אין קבצים בתיקיות Drive לתקופה הזו. יש להעלות מסמכים ולנסות שוב.
+      </ng-container>
+      <ng-container *ngIf="totals.total > 0 && totals.processed === 0 && totals.failed === 0">
+        כל המסמכים שכבר חולצו אושרו כהוצאות — אין מה לאשר כעת.
+      </ng-container>
+      <ng-container *ngIf="totals.total > 0 && totals.failed > 0 && totals.processed === 0">
+        כל המסמכים בתיקייה נכשלו ב-OCR. בדוק את הלוגים בשרת.
+      </ng-container>
+    </ng-container>
+  </div>
+
+  <div *ngIf="rows().length > 0" class="split-area" [class.with-preview]="previewRow()">
+    <div class="results-wrap">
+    <table class="results-table">
+      <thead>
+        <tr>
+          <th style="width: 36px;">
+            <input type="checkbox"
+                   [checked]="selectedCount() === rows().length"
+                   (change)="toggleAll($any($event.target).checked)" />
+          </th>
+          <th style="width: 36px;"></th>
+          <th>קובץ</th>
+          <th>שם ספק *</th>
+          <th>מס׳ עוסק</th>
+          <th>מס׳ הקצאה</th>
+          <th>תאריך *</th>
+          <th style="text-align:end;">סכום *</th>
+          <th>קטגוריה *</th>
+          <th>תת קטגוריה *</th>
+          <th style="text-align:end;">% מע״מ</th>
+          <th style="text-align:end;">% מס</th>
+          <th>שמור כספק</th>
+          <th>סטטוס</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let row of rows()"
+            [class.matched]="row.isMatched && !isRowProblematic(row)"
+            [class.problematic]="isRowProblematic(row) && row.saveStatus !== 'failed'"
+            [class.equipment]="row.isEquipment"
+            [class.row-failed]="row.saveStatus === 'failed'">
+          <td>
+            <input type="checkbox"
+                   [(ngModel)]="row.selected"
+                   (ngModelChange)="onRowFieldChange()" />
+          </td>
+          <td style="text-align:center;">
+            <button type="button"
+                    class="preview-btn"
+                    [class.active]="previewRow()?.documentId === row.documentId"
+                    [title]="previewRow()?.documentId === row.documentId ? 'סגור תצוגה' : 'הצג קובץ'"
+                    (click)="togglePreview(row)">
+              <i class="pi pi-eye"></i>
+            </button>
+          </td>
+          <td class="filename" [title]="row.driveFileName">{{ row.driveFileName }}</td>
+          <td>
+            <input class="cell-input" type="text" [(ngModel)]="row.supplier" />
+          </td>
+          <td>
+            <input class="cell-input num" type="text" [(ngModel)]="row.supplierID" />
+          </td>
+          <td>
+            <input class="cell-input num" type="text" [(ngModel)]="row.allocationNumber" />
+          </td>
+          <td>
+            <input class="cell-input" type="date" [(ngModel)]="row.date" />
+          </td>
+          <td class="right">
+            <input class="cell-input num right" type="number" step="0.01" [(ngModel)]="row.sum" />
+          </td>
+          <td>
+            <select class="cell-input"
+                    [ngModel]="row.category"
+                    (ngModelChange)="onCategoryChange(row, $event)">
+              <option value="">— בחר —</option>
+              <option *ngFor="let cat of categoryOptions()" [value]="cat">{{ cat }}</option>
+            </select>
+          </td>
+          <td>
+            <select class="cell-input"
+                    [ngModel]="row.subCategory"
+                    (ngModelChange)="onSubCategoryChange(row, $event)"
+                    [disabled]="!row.category"
+                    [title]="!row.category ? 'בחר קטגוריה תחילה' : ''">
+              <option value="">— בחר —</option>
+              <option *ngFor="let sub of subCategoriesForCategory(row.category)"
+                      [value]="sub.subCategoryName">
+                {{ sub.subCategoryName }}
+              </option>
+            </select>
+          </td>
+          <td class="right">
+            <input class="cell-input num right" type="number" step="0.01" [(ngModel)]="row.vatPercent" />
+          </td>
+          <td class="right">
+            <input class="cell-input num right" type="number" step="0.01" [(ngModel)]="row.taxPercent" />
+          </td>
+          <td style="text-align:center;">
+            <input type="checkbox"
+                   [(ngModel)]="row.saveAsSupplier"
+                   [disabled]="row.isMatched"
+                   [title]="row.isMatched ? 'הספק כבר קיים' : ''" />
+          </td>
+          <td>
+            <div style="display:flex; flex-direction:column; gap:2px; align-items:flex-start;">
+              <span *ngIf="!row.saveStatus && row.isMatched" style="color:#16a34a; font-weight:500;">
+                <i class="pi pi-check"></i> מוכר
+              </span>
+              <span *ngIf="!row.saveStatus && !row.isMatched" style="color:#9ca3af;">חדש</span>
+              <span *ngIf="row.saveStatus === 'pending'" style="color:#2563eb;">
+                <i class="pi pi-spin pi-spinner"></i> שומר...
+              </span>
+              <span *ngIf="row.saveStatus === 'failed'"
+                    style="color:#dc2626; font-weight:500;"
+                    [title]="row.saveError || ''">
+                <i class="pi pi-times"></i> נכשל
+              </span>
+              <span *ngIf="row.isEquipment" class="equipment-badge" title="סוג ההוצאה: ציוד (רכוש קבוע) — פחת">
+                <i class="pi pi-desktop"></i> ציוד
+              </span>
+              <span *ngIf="isRowProblematic(row) && !row.saveStatus"
+                    style="color:#b45309; font-size:0.8rem;"
+                    title="שדות חיוניים חסרים — לא ניתן לאשר עד שיתמלאו">
+                ⚠ חסר מידע
+              </span>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+
+    <div *ngIf="previewRow() as preview" class="preview-panel">
+      <div class="preview-header">
+        <span class="preview-title" [title]="preview.driveFileName">
+          <i class="pi pi-file"></i>
+          {{ preview.driveFileName }}
+        </span>
+        <div class="preview-actions">
+          <button type="button" class="icon-btn" title="פתח בחלון חדש"
+                  (click)="openInNewTab(preview.driveFileId)">
+            <i class="pi pi-external-link"></i>
+          </button>
+          <button type="button" class="icon-btn" title="סגור"
+                  (click)="closePreview()">
+            <i class="pi pi-times"></i>
+          </button>
+        </div>
+      </div>
+      <iframe *ngIf="previewSafeUrl() as safe"
+              [src]="safe"
+              class="preview-iframe"
+              allow="autoplay"></iframe>
+    </div>
+  </div>
+
+  <div *ngIf="rows().length > 0" class="footer-bar">
+    <div class="select-info">
+      נבחרו {{ selectedCount() }} מתוך {{ rows().length }}
+    </div>
+    <app-p-button
+      [buttonText]="'אשר הוצאות נבחרות'"
+      [buttonColor]="ButtonColor.BLACK"
+      [buttonSize]="ButtonSize.AUTO"
+      [isLoading]="isConfirming()"
+      [disabled]="selectedCount() === 0"
+      (onButtonClicked)="confirmSelected()">
+    </app-p-button>
+  </div>
+</p-dialog>

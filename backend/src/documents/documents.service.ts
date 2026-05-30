@@ -1,4 +1,4 @@
-import { Injectable, HttpException, HttpStatus, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, HttpException, HttpStatus, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import axios, { AxiosInstance } from 'axios';
 import { EntityManager, Repository, In } from 'typeorm';
@@ -22,9 +22,17 @@ import { CreateDocDto } from './dtos/create-doc.dto';
 import { BusinessService } from 'src/business/business.service';
 import { MailService } from 'src/mail/mail.service';
 import { User } from 'src/users/user.entity';
+import { ExtractedDocument, ExtractedDocStatus } from './extracted-document.entity';
+import { DocumentProcessorService, CatalogEntry } from './document-processor.service';
+import { GoogleDriveService } from '../google-drive/google-drive.service';
+import { Supplier } from '../expenses/suppliers.entity';
+import { DefaultSubCategory } from '../expenses/default-sub-categories.entity';
+import { UserSubCategory } from '../expenses/user-sub-categories.entity';
+// Business is already imported above as part of Bookkeeping/Issued-Documents logic.
 
 @Injectable()
 export class DocumentsService {
+  private readonly logger = new Logger(DocumentsService.name);
 
   private readonly apiClient: AxiosInstance;
   sessionID: string;
@@ -52,6 +60,16 @@ export class DocumentsService {
     private businessRepo: Repository<Business>,
     @InjectRepository(User)
     private userRepo: Repository<User>,
+    @InjectRepository(ExtractedDocument)
+    private extractedDocRepo: Repository<ExtractedDocument>,
+    @InjectRepository(Supplier)
+    private supplierRepo: Repository<Supplier>,
+    @InjectRepository(DefaultSubCategory)
+    private defaultSubCategoryRepo: Repository<DefaultSubCategory>,
+    @InjectRepository(UserSubCategory)
+    private userSubCategoryRepo: Repository<UserSubCategory>,
+    private readonly documentProcessor: DocumentProcessorService,
+    private readonly googleDriveService: GoogleDriveService,
     private dataSource: DataSource
   ) { }
 
@@ -2121,5 +2139,417 @@ ${finalOwnerName}`;
     };
   }
 
+
+  // =====================================================================
+  // Drive-folder sync + Claude OCR extraction
+  // (separate domain from the invoice-issuing logic above; consider splitting
+  // out into its own service if this grows beyond a few methods.)
+  // =====================================================================
+
+  async syncUserMonth(
+    userIndex: number,
+    businessNumber: string,
+    yearMonth: string,
+  ): Promise<{
+    processed: number;
+    failed: number;
+    skipped: number;
+    total: number;
+    monthFolderId: string;
+  }> {
+    if (!/^\d{4}-\d{2}$/.test(yearMonth)) {
+      throw new BadRequestException(`yearMonth must be YYYY-MM, got "${yearMonth}"`);
+    }
+    if (!businessNumber) {
+      throw new BadRequestException('businessNumber is required');
+    }
+
+    const user = await this.userRepo.findOne({ where: { index: userIndex } });
+    if (!user) throw new NotFoundException(`User #${userIndex} not found`);
+
+    // Resolve the business folder (lazily create the user folder, then the
+    // per-business sub-folder with its 2-year scaffold).
+    const businessFolderId = await this.ensureBusinessFolderForUser(user, businessNumber);
+
+    const monthFolderId = await this.googleDriveService.getOrCreateMonthFolder(
+      businessFolderId,
+      yearMonth,
+    );
+    const files = await this.googleDriveService.listFolderFiles(monthFolderId);
+    this.logger.log(
+      `syncUserMonth: user=${userIndex} biz=${businessNumber} month=${yearMonth} folder=${monthFolderId} files=${files.length}`,
+    );
+
+    // Build the catalog once for this sync run. Claude uses it to pre-fill
+    // category / sub_category / tax% / vat% / is_equipment per extracted
+    // invoice. User sub-categories override defaults with the same name so
+    // the user's overrides win.
+    const catalog = await this.buildExtractionCatalog(user.firebaseId, businessNumber);
+
+    // Group existing rows by drive_file_id — a file can now produce multiple
+    // rows (one per invoice in a multi-invoice file).
+    const existingRows = files.length
+      ? await this.extractedDocRepo.find({
+          where: { driveFileId: In(files.map(f => f.id)) },
+        })
+      : [];
+    const existingByDriveId = new Map<string, ExtractedDocument[]>();
+    for (const row of existingRows) {
+      const list = existingByDriveId.get(row.driveFileId) ?? [];
+      list.push(row);
+      existingByDriveId.set(row.driveFileId, list);
+    }
+
+    let processed = 0;  // files for which extraction succeeded this run
+    let failed = 0;     // files that errored out
+    let skipped = 0;    // files we didn't process (unsupported, or already done)
+
+    for (const file of files) {
+      const priorRows = existingByDriveId.get(file.id) ?? [];
+
+      // If ANY prior row is already processed (regardless of confirmation
+      // status), treat the file as done — confirmed-or-not, the user has
+      // already paid for the Claude call. They can manually delete rows in
+      // DB to force a re-extract.
+      const anyProcessed = priorRows.some(r => r.status === ExtractedDocStatus.PROCESSED);
+      if (anyProcessed) {
+        skipped++;
+        continue;
+      }
+
+      if (!this.documentProcessor.isSupportedMimeType(file.mimeType)) {
+        this.logger.warn(
+          `Skipping unsupported file ${file.name} (${file.mimeType})`,
+        );
+        skipped++;
+        continue;
+      }
+
+      // Wipe any prior unprocessed rows (status=error/pending) before re-running.
+      // We'll replace them with the fresh extraction result.
+      if (priorRows.length > 0) {
+        await this.extractedDocRepo.remove(priorRows);
+      }
+
+      try {
+        const buffer = await this.googleDriveService.downloadFile(file.id);
+        const { invoices, rawResponse } = await this.documentProcessor.extract(
+          buffer,
+          file.mimeType,
+          catalog,
+        );
+
+        if (!invoices) {
+          // Claude returned something we couldn't parse as JSON.
+          await this.saveErrorRow(userIndex, businessNumber, file, yearMonth, rawResponse);
+          failed++;
+          continue;
+        }
+
+        if (invoices.length === 0) {
+          // Claude ran successfully but found no invoices. Save a single
+          // error row so the file isn't silently dropped and the user can
+          // see something happened.
+          await this.saveErrorRow(
+            userIndex, businessNumber, file, yearMonth,
+            rawResponse || 'Claude returned 0 invoices for this file',
+          );
+          failed++;
+          continue;
+        }
+
+        // One row per invoice. Raw Claude response saved only on the first
+        // row to avoid duplicating a potentially-large blob.
+        for (let i = 0; i < invoices.length; i++) {
+          const inv = invoices[i];
+          await this.extractedDocRepo.save(
+            this.extractedDocRepo.create({
+              userId: userIndex,
+              businessNumber,
+              driveFileId: file.id,
+              driveFileName: file.name,
+              month: yearMonth,
+              subIndex: i,
+              supplier: inv.supplier ?? null,
+              supplierId: inv.supplier_id ?? null,
+              date: inv.date ?? null,
+              invoiceNumber: inv.invoice_number ?? null,
+              allocationNumber: inv.allocation_number ?? null,
+              amount: inv.amount != null ? String(inv.amount) : null,
+              vat: inv.vat != null ? String(inv.vat) : null,
+              amountBeforeVat:
+                inv.amount_before_vat != null ? String(inv.amount_before_vat) : null,
+              category: inv.category ?? null,
+              subCategory: inv.sub_category ?? null,
+              taxPercent: inv.tax_percent != null ? String(inv.tax_percent) : null,
+              vatPercent: inv.vat_percent != null ? String(inv.vat_percent) : null,
+              isEquipment: typeof inv.is_equipment === 'boolean' ? inv.is_equipment : null,
+              description: inv.description ?? null,
+              status: ExtractedDocStatus.PROCESSED,
+              rawResponse: i === 0 ? rawResponse : null,
+            }),
+          );
+        }
+        processed++;
+        this.logger.log(
+          `Extracted ${file.name} (id=${file.id}) → ${invoices.length} invoice row(s)`,
+        );
+      } catch (err: any) {
+        await this.saveErrorRow(
+          userIndex, businessNumber, file, yearMonth,
+          err?.message ?? String(err),
+        );
+        failed++;
+        this.logger.error(
+          `Failed to process ${file.name} (id=${file.id}): ${err?.message ?? err}`,
+          err?.stack,
+        );
+      }
+    }
+
+    return {
+      processed,
+      failed,
+      skipped,
+      total: files.length,
+      monthFolderId,
+    };
+  }
+
+  async listByUserMonth(
+    userIndex: number,
+    businessNumber: string,
+    yearMonth: string,
+  ): Promise<ExtractedDocument[]> {
+    if (!/^\d{4}-\d{2}$/.test(yearMonth)) {
+      throw new BadRequestException(`yearMonth must be YYYY-MM, got "${yearMonth}"`);
+    }
+    return this.extractedDocRepo.find({
+      where: { userId: userIndex, businessNumber, month: yearMonth },
+      order: { date: 'DESC', id: 'DESC' },
+    });
+  }
+
+  /**
+   * Build the sub-category catalog passed to Claude for classification AND
+   * served to the frontend so the review dialog can render dropdowns sourced
+   * from the same list. Combines system defaults (DefaultSubCategory) with
+   * this user/business's overrides (UserSubCategory). Overrides win on
+   * duplicate subCategoryName. Filters out non-expense entries.
+   */
+  async buildExtractionCatalog(
+    firebaseId: string,
+    businessNumber: string,
+  ): Promise<CatalogEntry[]> {
+    const [defaults, userOverrides] = await Promise.all([
+      this.defaultSubCategoryRepo.find({ where: { isExpense: true } }),
+      this.userSubCategoryRepo.find({
+        where: { firebaseId, businessNumber, isExpense: true },
+      }),
+    ]);
+
+    const byName = new Map<string, CatalogEntry>();
+    for (const d of defaults) {
+      byName.set(d.subCategoryName, {
+        subCategoryName: d.subCategoryName,
+        categoryName: d.categoryName,
+        taxPercent: Number(d.taxPercent),
+        vatPercent: Number(d.vatPercent),
+        isEquipment: !!d.isEquipment,
+      });
+    }
+    for (const u of userOverrides) {
+      byName.set(u.subCategoryName, {
+        subCategoryName: u.subCategoryName,
+        categoryName: u.categoryName,
+        taxPercent: Number(u.taxPercent),
+        vatPercent: Number(u.vatPercent),
+        isEquipment: !!u.isEquipment,
+      });
+    }
+    return Array.from(byName.values());
+  }
+
+  private async saveErrorRow(
+    userIndex: number,
+    businessNumber: string,
+    file: { id: string; name: string },
+    yearMonth: string,
+    rawResponse: string,
+  ): Promise<void> {
+    await this.extractedDocRepo.save(
+      this.extractedDocRepo.create({
+        userId: userIndex,
+        businessNumber,
+        driveFileId: file.id,
+        driveFileName: file.name,
+        month: yearMonth,
+        subIndex: 0,
+        status: ExtractedDocStatus.ERROR,
+        rawResponse,
+      }),
+    );
+  }
+
+  /**
+   * Sync multiple months sequentially for the current user. Months come from
+   * the frontend as YYYY-MM strings — the frontend's PeriodSelect already
+   * expands MONTHLY/BIMONTHLY/ANNUAL into a concrete month list, so the
+   * backend just iterates.
+   */
+  async syncMonthsForUser(
+    firebaseId: string,
+    businessNumber: string,
+    months: string[],
+  ): Promise<{
+    months: Array<{ month: string; result: any }>;
+    totals: { processed: number; failed: number; skipped: number; total: number };
+  }> {
+    const user = await this.userRepo.findOne({ where: { firebaseId } });
+    if (!user) throw new NotFoundException(`User not found for firebaseId`);
+
+    const perMonth: Array<{ month: string; result: any }> = [];
+    let processed = 0, failed = 0, skipped = 0, total = 0;
+
+    for (const ym of months) {
+      try {
+        const result = await this.syncUserMonth(user.index, businessNumber, ym);
+        perMonth.push({ month: ym, result });
+        processed += result.processed;
+        failed += result.failed;
+        skipped += result.skipped;
+        total += result.total;
+      } catch (err: any) {
+        this.logger.error(
+          `syncMonthsForUser: month=${ym} failed: ${err?.message ?? err}`,
+          err?.stack,
+        );
+        perMonth.push({ month: ym, result: { error: err?.message ?? String(err) } });
+      }
+    }
+
+    return { months: perMonth, totals: { processed, failed, skipped, total } };
+  }
+
+  /**
+   * Ensure (a) the user has a Drive root folder, (b) the business has a
+   * sub-folder under it. Auto-provisions any missing pieces, verifies stored
+   * ids still exist in Drive (and re-creates if they don't), and persists.
+   * Returns the business folder id, which becomes the parent of YYYY/MM.
+   */
+  private async ensureBusinessFolderForUser(user: User, businessNumber: string): Promise<string> {
+    // 1) User root folder — verify stored id is still alive in Drive
+    if (user.driveFolderId) {
+      try {
+        const stillThere = await this.googleDriveService.folderExists(user.driveFolderId);
+        if (!stillThere) {
+          this.logger.warn(
+            `[Drive] stored user folder ${user.driveFolderId} no longer exists — re-creating for user.index=${user.index}`,
+          );
+          user.driveFolderId = null;
+          await this.userRepo.save(user);
+        }
+      } catch (err: any) {
+        this.logger.error(
+          `[Drive] folderExists check failed for user folder ${user.driveFolderId}: ${err?.message ?? err}`,
+        );
+        // continue — if the check itself failed, fall through and try to use the id
+      }
+    }
+    if (!user.driveFolderId) {
+      const folderName = [user.fName, user.lName].filter(Boolean).join(' ').trim()
+        || user.email
+        || `user-${user.firebaseId}`;
+      const folderId = await this.googleDriveService.createUserFolder(folderName, user.email);
+      user.driveFolderId = folderId;
+      await this.userRepo.save(user);
+      this.logger.log(`Auto-provisioned user Drive folder ${folderId} for user.index=${user.index}`);
+    }
+
+    // 2) Business sub-folder
+    const business = await this.businessRepo.findOne({
+      where: { firebaseId: user.firebaseId, businessNumber },
+    });
+    if (!business) {
+      throw new BadRequestException(
+        `Business ${businessNumber} not found for this user`,
+      );
+    }
+
+    // Verify stored business folder id is still alive in Drive
+    if (business.driveFolderId) {
+      try {
+        const stillThere = await this.googleDriveService.folderExists(business.driveFolderId);
+        if (!stillThere) {
+          this.logger.warn(
+            `[Drive] stored business folder ${business.driveFolderId} (biz=${businessNumber}) no longer exists — re-creating`,
+          );
+          business.driveFolderId = null;
+        }
+      } catch (err: any) {
+        this.logger.error(
+          `[Drive] folderExists check failed for business folder ${business.driveFolderId}: ${err?.message ?? err}`,
+        );
+      }
+    }
+
+    if (!business.driveFolderId) {
+      const displayName = business.businessName?.trim() || `business-${businessNumber}`;
+      const businessFolderId = await this.googleDriveService.ensureBusinessFolder(
+        user.driveFolderId,
+        displayName,
+      );
+      business.driveFolderId = businessFolderId;
+      await this.businessRepo.save(business);
+      this.logger.log(
+        `Auto-provisioned business Drive folder ${businessFolderId} for business=${businessNumber}`,
+      );
+    }
+
+    return business.driveFolderId;
+  }
+
+  /**
+   * Returns extracted docs across a list of months, enriched with the matching
+   * Supplier row (if any) so the frontend can pre-fill category / sub-category /
+   * VAT% / tax% for known suppliers.
+   */
+  async getReviewableForUser(
+    firebaseId: string,
+    businessNumber: string,
+    months: string[],
+  ): Promise<Array<ExtractedDocument & { matchedSupplier: Supplier | null }>> {
+    const user = await this.userRepo.findOne({ where: { firebaseId } });
+    if (!user) throw new NotFoundException(`User not found for firebaseId`);
+
+    if (months.length === 0) return [];
+
+    const docs = await this.extractedDocRepo
+      .createQueryBuilder('d')
+      .where('d.userId = :uid', { uid: user.index })
+      .andWhere('d.businessNumber = :bn', { bn: businessNumber })
+      .andWhere('d.month IN (:...months)', { months })
+      .andWhere('d.status = :st', { st: ExtractedDocStatus.PROCESSED })
+      .andWhere('d.confirmedExpenseId IS NULL')
+      .orderBy('d.date', 'DESC')
+      .addOrderBy('d.id', 'DESC')
+      .getMany();
+
+    const supplierIds = Array.from(
+      new Set(docs.map(d => d.supplierId).filter((v): v is string => !!v)),
+    );
+
+    const suppliers = supplierIds.length
+      ? await this.supplierRepo.find({
+          where: { userId: firebaseId, supplierID: In(supplierIds) },
+        })
+      : [];
+    const supplierById = new Map(suppliers.map(s => [s.supplierID, s]));
+
+    return docs.map(d => ({
+      ...d,
+      matchedSupplier: d.supplierId ? (supplierById.get(d.supplierId) ?? null) : null,
+    }));
+  }
 
 }

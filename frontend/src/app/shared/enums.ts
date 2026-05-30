@@ -393,6 +393,8 @@ export enum ICellRenderer {
   MONTH_REPORT = 'monthReport',
   /** Sum cell: shows the original currency amount, with an ILS conversion in parentheses below for non-ILS rows. */
   SUM_WITH_FX = 'sumWithFx',
+  /** Same as AMOUNT_WITH_PERCENT but adds a small equipment icon when row.isEquipment is true. */
+  TAX_WITH_EQUIPMENT = 'taxWithEquipment',
 }
 
 export enum NavigationItemClass {

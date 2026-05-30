@@ -13,6 +13,23 @@
         <span class="business-name">{{ selectedBusinessName() }}</span>
     </h2>
 
+    <!-- Pull docs from Google Drive (OCR via Claude → review table) -->
+    <div style="margin: 8px 0 12px;">
+      <app-p-button
+        [buttonText]="'משוך מסמכים מ-Drive'"
+        [buttonColor]="ButtonColor.BLACK"
+        [buttonSize]="ButtonSize.AUTO"
+        (onButtonClicked)="openPullDriveDialog()">
+      </app-p-button>
+    </div>
+
+    <app-pull-drive-docs-dialog
+      *ngIf="pullDriveDialogVisible()"
+      [visible]="pullDriveDialogVisible()"
+      [businessNumber]="selectedBusinessNumber()"
+      (visibleChange)="onPullDriveDialogVisibleChange($event)">
+    </app-pull-drive-docs-dialog>
+
     <!-- EXPENSES TABLE (P&L / regular) -->
     <app-generic-table
         class="table"

@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { SharedModule } from '../shared/shared.module';
 //Entities
 import { Expense } from '../expenses/expenses.entity';
+import { ExtractedDocument } from '../documents/extracted-document.entity';
 import { DefaultSubCategory } from '../expenses/default-sub-categories.entity';
 import { UserSubCategory } from '../expenses/user-sub-categories.entity';
 import { ClassifiedTransactions } from 'src/transactions/classified-transactions.entity';
@@ -38,7 +39,7 @@ import { FullTransactionCache } from 'src/transactions/full-transaction-cache.en
     TypeOrmModule.forFeature([Business, Expense, DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory,
                                       ClassifiedTransactions, Bill, Source, Supplier, User, Child, Finsite, Documents, DocLines, DocPayments,
                                       Delegation, JournalEntry, JournalLine, DefaultBookingAccount,
-                                      SlimTransaction, FullTransactionCache]),
+                                      SlimTransaction, FullTransactionCache, ExtractedDocument]),
     SharedModule,
     UsersModule,
   ],

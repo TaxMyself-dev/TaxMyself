@@ -184,11 +184,7 @@ export class IncomesPage implements OnInit {
         // the filter return nothing for documents of those (very common) types.
         options: Object.values(DocumentType).map((t) => ({
           name: DocTypeDisplayName[t] ?? t,
-          value: t,,
-          { name: 'חשבון עסקה', value: DocumentType.TRANSACTION_INVOICE },
-          { name: 'חשבונית מס קבלה', value: DocumentType.TAX_INVOICE_RECEIPT },
-          { name: 'הצעת מחיר', value: DocumentType.PRICE_QUOTE },
-          { name: 'הזמנת עבודה', value: DocumentType.WORK_ORDER },
+          value: t,
         }))
       }
     ];
