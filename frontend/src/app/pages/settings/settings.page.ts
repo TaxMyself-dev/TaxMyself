@@ -1,6 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
-import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
+import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators, AbstractControl, ValidationErrors } from '@angular/forms';
 import { ButtonComponent } from 'src/app/components/button/button.component';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 import { AuthService } from 'src/app/services/auth.service';
@@ -62,27 +62,12 @@ export class SettingsPage implements OnInit {
   userData: IUserData | null = null;
   businesses = signal<Business[]>([]);
   children = signal<IChild[]>([]);
-  /** ערך בזמן עריכה לפני שמירה */
-  advanceTaxEdit: Record<string, number | null> = {};
-  savingBusinessNumber = signal<string | null>(null);
-  /** מזהה איזה עסק כרגע בעדכון (למניעת כפתור loading תקוע בעסק חדש עם businessNumber null) */
   savingBusinessId = signal<number | null>(null);
   savingPersonal = signal<boolean>(false);
   savingSpouse = signal<boolean>(false);
   savingChildren = signal<boolean>(false);
   addingBusiness = signal<boolean>(false);
   addBusinessModalVisible = signal<boolean>(false);
-  /** הודעות שגיאה לדיאלוג הוספת עסק */
-  addBusinessErrors = signal<Record<string, string>>({});
-  newBusinessForm = {
-    businessName: '',
-    businessNumber: '',
-    businessAddress: '',
-    businessPhone: '',
-    businessEmail: '',
-    businessType: '' as string,
-    advanceTaxPercent: null as number | null
-  };
 
   buttonSize = ButtonSize;
   buttonColor = ButtonColor;
@@ -441,81 +426,35 @@ export class SettingsPage implements OnInit {
     });
   }
 
-  private readonly emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  /** טלפון ישראלי: 05X-XXXXXXX (10 ספרות) */
-  private readonly phonePattern = /^05\d{8}$/;
-
   openAddBusinessModal(): void {
-    this.newBusinessForm = {
-      businessName: '',
-      businessNumber: '',
-      businessAddress: '',
-      businessPhone: '',
-      businessEmail: '',
-      businessType: '',
-      advanceTaxPercent: null
-    };
-    this.addBusinessErrors.set({});
     this.patchAddBusinessForm();
     this.addBusinessModalVisible.set(true);
   }
 
-  private validateAddBusinessForm(): boolean {
-    const err: Record<string, string> = {};
-    const name = this.newBusinessForm.businessName?.trim() ?? '';
-    const number = this.newBusinessForm.businessNumber?.trim() ?? '';
-    const type = this.newBusinessForm.businessType?.trim() ?? '';
-    const email = this.newBusinessForm.businessEmail?.trim() ?? '';
-    const phone = this.newBusinessForm.businessPhone?.trim() ?? '';
-
-    if (!name) err['businessName'] = 'שם העסק חובה';
-    if (!number) err['businessNumber'] = 'מספר עסק חובה';
-    if (!type) err['businessType'] = 'סוג עסק חובה';
-    if (!email) err['businessEmail'] = 'אימייל חובה';
-    else if (!this.emailPattern.test(email)) err['businessEmail'] = 'כתובת אימייל לא חוקית';
-    if (!phone) err['businessPhone'] = 'פלאפון חובה';
-    else {
-      const digits = phone.replace(/\D/g, '');
-      const normalized = digits.startsWith('972') ? '0' + digits.slice(3) : digits.startsWith('0') ? digits : '0' + digits;
-      if (normalized.length !== 10 || !this.phonePattern.test(normalized)) err['businessPhone'] = 'מספר פלאפון לא חוקי';
-    }
-
-    this.addBusinessErrors.set(err);
-    return Object.keys(err).length === 0;
-  }
-
   submitAddBusiness(): void {
-    if (!this.validateAddBusinessForm()) return;
+    this.addBusinessFormGroup.markAllAsTouched();
+    if (this.addBusinessFormGroup.invalid) return;
     this.addingBusiness.set(true);
+    const v = this.addBusinessFormGroup.getRawValue();
     const payload = {
-      businessName: this.newBusinessForm.businessName?.trim() || undefined,
-      businessNumber: this.newBusinessForm.businessNumber?.trim() || undefined,
-      businessAddress: this.newBusinessForm.businessAddress?.trim() || undefined,
-      businessPhone: this.newBusinessForm.businessPhone?.trim() || undefined,
-      businessEmail: this.newBusinessForm.businessEmail?.trim() || undefined,
-      businessType: this.newBusinessForm.businessType || undefined,
-      advanceTaxPercent: this.newBusinessForm.advanceTaxPercent ?? undefined
+      businessName:      v.businessName?.trim() || undefined,
+      businessNumber:    v.businessNumber?.trim() || undefined,
+      businessAddress:   v.businessAddress?.trim() || undefined,
+      businessPhone:     v.businessPhone?.trim() || undefined,
+      businessEmail:     v.businessEmail?.trim() || undefined,
+      businessType:      v.businessType || undefined,
+      advanceTaxPercent: v.advanceTaxPercent ?? undefined,
     };
     this.genericService.createBusiness(payload)
       .then(() => {
+        const updated = this.genericService.businesses();
+        this.businesses.set(updated);
+        this.patchBusinessesFormArray(updated);
         this.addBusinessModalVisible.set(false);
-        this.businesses.set(this.genericService.businesses());
-        this.messageService.add({
-          severity: 'success',
-          summary: 'הצלחה',
-          detail: 'העסק נוסף בהצלחה',
-          life: 3000,
-          key: 'br'
-        });
+        this.messageService.add({ severity: 'success', summary: 'הצלחה', detail: 'העסק נוסף בהצלחה', life: 3000, key: 'br' });
       })
       .catch(() => {
-        this.messageService.add({
-          severity: 'error',
-          summary: 'שגיאה',
-          detail: 'לא ניתן להוסיף עסק. נסה שוב מאוחר יותר.',
-          life: 3000,
-          key: 'br'
-        });
+        this.messageService.add({ severity: 'error', summary: 'שגיאה', detail: 'לא ניתן להוסיף עסק. נסה שוב מאוחר יותר.', life: 3000, key: 'br' });
       })
       .finally(() => this.addingBusiness.set(false));
   }
@@ -531,23 +470,13 @@ export class SettingsPage implements OnInit {
       accept: () => {
         this.genericService.deleteBusiness(business.id!)
           .then(() => {
-            this.businesses.set(this.genericService.businesses());
-            this.messageService.add({
-              severity: 'success',
-              summary: 'הצלחה',
-              detail: 'העסק נמחק',
-              life: 3000,
-              key: 'br'
-            });
+            const updated = this.genericService.businesses();
+            this.businesses.set(updated);
+            this.patchBusinessesFormArray(updated);
+            this.messageService.add({ severity: 'success', summary: 'הצלחה', detail: 'העסק נמחק', life: 3000, key: 'br' });
           })
           .catch(() => {
-            this.messageService.add({
-              severity: 'error',
-              summary: 'שגיאה',
-              detail: 'לא ניתן למחוק את העסק.',
-              life: 3000,
-              key: 'br'
-            });
+            this.messageService.add({ severity: 'error', summary: 'שגיאה', detail: 'לא ניתן למחוק את העסק.', life: 3000, key: 'br' });
           });
       }
     });
@@ -645,72 +574,41 @@ export class SettingsPage implements OnInit {
     });
   }
 
-  getBusinessKey(business: Business): string | number {
-    if (business.id != null) return `id-${business.id}`;
-    return business.businessNumber ?? '';
-  }
+  async saveBusiness(index: number): Promise<void> {
+    const ctrl = this.businessesFormArray.at(index) as FormGroup;
+    const v = ctrl.getRawValue();
+    const biz = this.businesses()[index];
 
-  getAdvanceTaxDisplay(business: Business): string | number {
-    const key = this.getBusinessKey(business);
-    if (this.advanceTaxEdit[key as string] !== undefined && this.advanceTaxEdit[key as string] !== null) {
-      const v = this.advanceTaxEdit[key as string] as number;
-      return (v === 0 || v === null) ? 0 : v;
-    }
-    const p = business.advanceTaxPercent;
-    return (p == null || p === 0) ? 0 : p;
-  }
+    const advanceTaxPercent = v.advanceTaxPercent == null ? 0 : Number(v.advanceTaxPercent);
+    if (isNaN(advanceTaxPercent) || advanceTaxPercent < 0 || advanceTaxPercent > 100) return;
 
-  setAdvanceTaxEdit(business: Business, event: Event): void {
-    const key = this.getBusinessKey(business);
-    const val = (event.target as HTMLInputElement).value;
-    const num = val === '' ? null : Number(val);
-    this.advanceTaxEdit[key as string] = num;
-  }
+    const id = biz?.id ?? undefined;
+    const businessNumber = (v.businessNumber as string)?.trim() || biz?.businessNumber || undefined;
+    if (id == null && !businessNumber) return;
 
-  async saveBusiness(business: Business): Promise<void> {
-    const key = this.getBusinessKey(business);
-    const advanceValue = this.advanceTaxEdit[key as string] ?? business.advanceTaxPercent;
-    const percent = advanceValue == null ? 0 : Number(advanceValue);
-    if (isNaN(percent) || percent < 0 || percent > 100) return;
-    const id = business.id ?? undefined;
-    const businessNumber = business.businessNumber ?? undefined;
-    if (id == null && (businessNumber == null || businessNumber === '')) return;
-    this.savingBusinessId.set(business.id ?? null);
-    this.savingBusinessNumber.set(business.businessNumber ?? null);
+    this.savingBusinessId.set(id ?? null);
     try {
       await this.genericService.updateBusiness({
         id,
-        businessNumber: businessNumber || undefined,
-        advanceTaxPercent: percent,
-        businessName: business.businessName ?? undefined,
-        businessAddress: business.businessAddress ?? undefined,
-        businessPhone: business.businessPhone ?? undefined,
-        businessEmail: business.businessEmail ?? undefined,
-        businessType: business.businessType ?? undefined,
-        vatReportingType: business.vatReportingType ?? undefined,
-        taxReportingType: business.taxReportingType ?? undefined,
-        nationalInsRequired: business.nationalInsRequired ?? undefined,
+        businessNumber:      businessNumber || undefined,
+        advanceTaxPercent,
+        businessName:        (v.businessName as string)?.trim()    || biz?.businessName    || undefined,
+        businessAddress:     (v.businessAddress as string)?.trim() || undefined,
+        businessPhone:       (v.businessPhone as string)?.trim()   || undefined,
+        businessEmail:       (v.businessEmail as string)?.trim()   || undefined,
+        businessType:        (v.businessType as string)            || undefined,
+        vatReportingType:    (v.vatReportingType as string)        || undefined,
+        taxReportingType:    (v.taxReportingType as string)        || undefined,
+        nationalInsRequired: (v.nationalInsRequired as boolean | null) ?? undefined,
       });
-      delete this.advanceTaxEdit[key as string];
-      this.businesses.set(this.genericService.businesses());
-      this.messageService.add({
-        severity: 'success',
-        summary: 'הצלחה',
-        detail: 'פרטי העסק עודכנו בהצלחה',
-        life: 3000,
-        key: 'br'
-      });
+      const updated = this.genericService.businesses();
+      this.businesses.set(updated);
+      this.patchBusinessesFormArray(updated);
+      this.messageService.add({ severity: 'success', summary: 'הצלחה', detail: 'פרטי העסק עודכנו בהצלחה', life: 3000, key: 'br' });
     } catch {
-      this.messageService.add({
-        severity: 'error',
-        summary: 'שגיאה',
-        detail: 'לא ניתן לעדכן את העסק. נסה שוב.',
-        life: 3000,
-        key: 'br'
-      });
+      this.messageService.add({ severity: 'error', summary: 'שגיאה', detail: 'לא ניתן לעדכן את העסק. נסה שוב.', life: 3000, key: 'br' });
     } finally {
       this.savingBusinessId.set(null);
-      this.savingBusinessNumber.set(null);
     }
   }
 
@@ -799,13 +697,25 @@ export class SettingsPage implements OnInit {
       businessName:      this.fb.nonNullable.control('', Validators.required),
       businessNumber:    this.fb.nonNullable.control('', Validators.required),
       businessAddress:   this.fb.nonNullable.control(''),
-      // TODO(migration): replace validateAddBusinessForm() phone normalization
-      //   with a custom ValidatorFn that applies the same 05X-XXXXXXX logic.
-      businessPhone:     this.fb.nonNullable.control('', Validators.required),
+      businessPhone:     this.fb.nonNullable.control('', [
+        Validators.required,
+        (c: AbstractControl) => this.israeliPhoneValidatorFn(c),
+      ]),
       businessEmail:     this.fb.nonNullable.control('', [Validators.required, Validators.email]),
       businessType:      this.fb.nonNullable.control('', Validators.required),
       advanceTaxPercent: this.fb.control<number | null>(null, [Validators.min(0), Validators.max(100)]),
     });
+  }
+
+  /** Israeli mobile phone: 05X-XXXXXXX (10 digits after normalising +972 prefix). */
+  private israeliPhoneValidatorFn(control: AbstractControl): ValidationErrors | null {
+    const phone = (control.value as string) ?? '';
+    if (!phone) return null;
+    const digits = phone.replace(/\D/g, '');
+    const normalized = digits.startsWith('972') ? '0' + digits.slice(3)
+      : digits.startsWith('0') ? digits : '0' + digits;
+    return normalized.length === 10 && /^05\d{8}$/.test(normalized)
+      ? null : { israeliPhone: true };
   }
 
   buildAddPermissionForm() {

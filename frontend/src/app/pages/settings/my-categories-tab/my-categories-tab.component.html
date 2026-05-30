@@ -31,13 +31,15 @@
     @if (rulesTableData().length === 0 && !loading()) {
       <div class="empty-row">אין כללי סיווג עבור העסק הזה.</div>
     } @else {
-      <app-generic-table
-        [dataTable]="rulesTableData()"
-        [columnsTitle]="$any(rulesColumns)"
-        [rowActions]="rulesRowActions"
-        [mobileCardConfig]="rulesMobileCardConfig"
-        [isLoadingState]="loading()">
-      </app-generic-table>
+      <!-- <div class="table-wrap"> -->
+        <app-generic-table
+          [dataTable]="rulesTableData()"
+          [columnsTitle]="$any(rulesColumns)"
+          [rowActions]="rulesRowActions"
+          [mobileCardConfig]="rulesMobileCardConfig"
+          [isLoadingState]="loading()">
+        </app-generic-table>
+      <!-- </div> -->
     }
   </section>
 
@@ -48,14 +50,16 @@
     @if (categoriesTableData().length === 0 && !loading()) {
       <div class="empty-row">לא הוספת עדיין קטגוריות מותאמות.</div>
     } @else {
-      <app-generic-table
-        [dataTable]="categoriesTableData()"
-        [columnsTitle]="$any(categoriesColumns)"
-        [rowActions]="categoriesRowActions"
-        [mobileCardConfig]="categoriesMobileCardConfig"
-        [rowClass]="categoriesRowClass"
-        [isLoadingState]="loading()">
-      </app-generic-table>
+      <div class="table-wrap">
+        <app-generic-table
+          [dataTable]="categoriesTableData()"
+          [columnsTitle]="$any(categoriesColumns)"
+          [rowActions]="categoriesRowActions"
+          [mobileCardConfig]="categoriesMobileCardConfig"
+          [rowClass]="categoriesRowClass"
+          [isLoadingState]="loading()">
+        </app-generic-table>
+      </div>
     }
   </section>
 

@@ -17,6 +17,7 @@
   flex-direction: column;
   gap: 40px;
   justify-content: flex-start;
+  align-items: center;
   box-sizing: border-box;
 }
 
@@ -752,6 +753,20 @@
   /* Tighten children row gap on small phones */
   .child-row {
     gap: 6px 8px;
+  }
+}
+
+/* ===================================================================
+   BUSINESSES TAB — MOBILE RESPONSIVE
+   Scoped to .section-businesses-wrapper so the other tabs are untouched.
+   =================================================================== */
+@media (max-width: 768px) {
+  .section-businesses-wrapper {
+    .detail-row.three-fields,
+    .detail-row.two-fields {
+      flex-direction: column;
+      align-items: flex-start;
+    }
   }
 }
 
