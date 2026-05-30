@@ -349,60 +349,12 @@
         } @else if (accountSources().length === 0) {
           <p class="permissions-empty">אין אמצעי תשלום</p>
         } @else {
-          <div class="details-container details-container-fixed accounts-sources-container">
-            <div class="detail-row three-fields accounts-sources-header">
-              <div class="detail-field consent-status-cell" aria-hidden="true"></div>
-              <div class="detail-field">
-                <span class="detail-label">מספר מזהה</span>
-              </div>
-              <div class="detail-field">
-                <span class="detail-label">סוג</span>
-              </div>
-              <div class="detail-field">
-                <span class="detail-label">משויך לחשבון במערכת</span>
-              </div>
-            </div>
-
-            @for (s of accountSources(); track s.sourceName) {
-              <div class="detail-row three-fields">
-                <div class="detail-field consent-status-cell">
-                  <span class="consent-status"
-                        [class.consent-status--ok]="s.hasConsent"
-                        [class.consent-status--missing]="!s.hasConsent"
-                        [title]="s.hasConsent ? 'חיבור פעיל' : 'אין הרשאה פעילה'">
-                    @if (s.hasConsent) {
-                      <i class="pi pi-check-circle"></i>
-                    } @else {
-                      <i class="pi pi-times-circle"></i>
-                    }
-                  </span>
-                </div>
-
-                <div class="detail-field">
-                  <span class="detail-value-box">{{ s.sourceName }}</span>
-                </div>
-
-                <div class="detail-field">
-                  <span class="detail-value-box">{{ getSourceTypeLabel(s.sourceType) }}</span>
-                </div>
-
-                <div class="detail-field">
-                  <span class="detail-value-box">{{ s.billName || 'לא משויך' }}</span>
-                </div>
-
-                <div class="detail-field">
-                  <app-p-button
-                    [buttonText]="'משוך תנועות'"
-                    [buttonColor]="buttonColor.WHITE_BORDER"
-                    [buttonSize]="buttonSize.SMALL"
-                    [disabled]="!!retryingSourceId() && retryingSourceId() !== s.sourceName"
-                    [isLoading]="retryingSourceId() === s.sourceName"
-                    (onButtonClicked)="onPullSource(s)">
-                  </app-p-button>
-                </div>
-              </div>
-            }
-          </div>
+          <app-generic-table
+            [dataTable]="accountSourcesTableData()"
+            [columnsTitle]="$any(accountSourcesColumns)"
+            [rowActions]="accountSourcesRowActions"
+            [mobileCardConfig]="accountSourcesMobileCardConfig">
+          </app-generic-table>
         }
       </div>
 

@@ -6,7 +6,8 @@ import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 import { AuthService } from 'src/app/services/auth.service';
 import { GenericService } from 'src/app/services/generic.service';
 import { MyPermissionsService } from 'src/app/services/my-permissions.service';
-import { IUserData, Business, IChild } from 'src/app/shared/interface';
+import { IUserData, Business, IChild, IColumnDataTable, IMobileCardConfig, IRowDataTable, ITableRowAction } from 'src/app/shared/interface';
+import { GenericTableComponent } from 'src/app/components/generic-table/generic-table.component';
 import { AvatarModule } from 'primeng/avatar';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { ToastModule } from 'primeng/toast';
@@ -40,6 +41,7 @@ import { InputSelectComponent } from 'src/app/components/input-select/input-sele
     SelectModule,
     SharedModule,
     MyCategoriesTabComponent,
+    GenericTableComponent,
     InputTextComponent,
     InputDateComponent,
     InputSelectComponent,
@@ -117,6 +119,48 @@ export class SettingsPage implements OnInit {
   accountSources = signal<
     { sourceName: string; sourceType: paymentIdentifierType; billName: string | null; hasConsent: boolean }[]
   >([]);
+
+  /** Flat IRowDataTable rows derived from accountSources for GenericTable. */
+  accountSourcesTableData = computed<IRowDataTable[]>(() =>
+    this.accountSources().map(s => ({
+      id: s.sourceName,
+      sourceName: s.sourceName,
+      sourceTypeLabel: this.getSourceTypeLabel(s.sourceType),
+      billName: s.billName || 'לא משויך',
+      consentStatus: s.hasConsent ? '✓ פעיל' : '✗ ללא הרשאה',
+      
+    }))
+  );
+
+  accountSourcesColumns: IColumnDataTable<string, string>[] = [
+    { name: 'consentStatus',   value: 'סטטוס' },
+    { name: 'sourceName',      value: 'מספר מזהה' },
+    { name: 'sourceTypeLabel', value: 'סוג' },
+    { name: 'billName',        value: 'משויך לחשבון' },
+  ];
+
+  readonly accountSourcesMobileCardConfig: IMobileCardConfig = {
+    primaryFields: ['sourceName'],
+    highlightedField: 'consentStatus',
+    dateField: 'sourceTypeLabel',
+    hiddenFields: [],
+    highlightedValueFormat: 'plain',
+  };
+
+  accountSourcesRowActions: ITableRowAction[] = [
+    {
+      name: 'pullSource',
+      icon: 'pi pi-refresh',
+      title: 'משוך תנועות',
+      showWhen: (row) => !this.retryingSourceId() || this.retryingSourceId() === row['sourceName'],
+      isLoading: () => !!this.retryingSourceId(),
+      action: (_, row) => {
+        const source = this.accountSources().find(s => s.sourceName === row!['sourceName']);
+        if (source) this.onPullSource(source);
+      },
+    },
+  ];
+
   addPermissionDialogVisible = false;
   addPermissionEmail = '';
   addingPermission = signal(false);
