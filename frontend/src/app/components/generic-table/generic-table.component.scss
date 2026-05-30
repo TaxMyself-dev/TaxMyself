@@ -106,6 +106,23 @@
     background-color: rgb(248, 243, 243);
 }
 
+// Generic group-header row variant.
+// Consumers request this via the rowClass input; no consumer-specific logic lives here.
+.gt-row--group-header {
+    td {
+        background-color: #f0f1f4;
+    }
+
+    td .data-text {
+        font-weight: 600;
+        color: #1a1a2e;
+    }
+
+    &:hover td {
+        background-color: #e8eaee;
+    }
+}
+
 .columns-header {
     min-width: 170px;
     // width: 170px;

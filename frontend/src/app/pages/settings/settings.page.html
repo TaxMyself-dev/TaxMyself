@@ -1,8 +1,6 @@
-<p-toast key="br"></p-toast>
-<p-confirmDialog></p-confirmDialog>
 
 <!-- מודל הוספת עסק -->
-<p-dialog header="הוספת עסק" [visible]="addBusinessModalVisible()" [modal]="true" [style]="{ width: '500px' }" [rtl]="true"
+<p-dialog header="הוספת עסק" [visible]="addBusinessModalVisible()" [modal]="true" [style]="{ width: 'min(500px, 95vw)' }" [rtl]="true"
   (onHide)="addBusinessModalVisible.set(false)" [draggable]="false" [resizable]="false">
   <div class="add-business-form">
     <div class="detail-field">
@@ -64,7 +62,7 @@
   header="הוספת הרשאה"
   [(visible)]="addPermissionDialogVisible"
   [modal]="true"
-  [style]="{ width: '380px' }"
+  [style]="{ width: 'min(380px, 95vw)' }"
   [rtl]="true"
   [draggable]="false"
   [resizable]="false"
@@ -81,10 +79,11 @@
     }
   </div>
   <ng-template pTemplate="footer">
-    <button type="button" class="p-button p-button-text" (click)="closeAddPermissionDialog()">ביטול</button>
-    <button type="button" class="p-button" (click)="submitAddPermission()" [disabled]="addingPermission()">
-      {{ addingPermission() ? 'שולח...' : 'הוסף' }}
-    </button>
+    <app-p-button [buttonText]="'ביטול'" [variant]="'text'" [buttonSize]="buttonSize.SMALL"
+      (onButtonClicked)="closeAddPermissionDialog()"></app-p-button>
+    <app-p-button [buttonText]="'הוסף'" [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.SMALL"
+      [isLoading]="addingPermission()" [disabled]="addingPermission()"
+      (onButtonClicked)="submitAddPermission()"></app-p-button>
   </ng-template>
 </p-dialog>
 
@@ -94,10 +93,8 @@
   </div>
 
   @if (selectedTab === 'personal') {
-  <!-- Personal + Spouse + Children – מסגרת אחת כמו עסקים -->
   <div class="section-block section-personal-wrapper">
     <div class="personal-frame">
-      <!-- פרטי היוזר -->
       <div class="personal-subsection">
         <h3 class="subsection-title">פרטי משתמש ראשי</h3>
         <div class="details-container details-container-fixed">
@@ -126,7 +123,7 @@
             </div>
             <div class="detail-field">
               <span class="detail-label">תאריך לידה:</span>
-              <input type="text" class="detail-input" [(ngModel)]="personalForm.dateOfBirth" placeholder="dd-mm-yyyy" />
+              <input type="date" class="detail-input" [(ngModel)]="personalForm.dateOfBirth" placeholder="dd-mm-yyyy" />
             </div>
           </div>
           <div class="detail-row three-fields">

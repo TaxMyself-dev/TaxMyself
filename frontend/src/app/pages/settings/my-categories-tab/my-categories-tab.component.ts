@@ -11,7 +11,10 @@ import { InputTextModule } from 'primeng/inputtext';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { TransactionsService } from 'src/app/pages/transactions/transactions.page.service';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
-import { Business, ISelectItem } from 'src/app/shared/interface';
+import { Business, IColumnDataTable, IRowDataTable, ISelectItem, ITableRowAction } from 'src/app/shared/interface';
+import { ButtonComponent } from 'src/app/components/button/button.component';
+import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
+import { GenericTableComponent } from 'src/app/components/generic-table/generic-table.component';
 
 export interface UserRuleRow {
   id: number;
@@ -51,6 +54,7 @@ export interface UserCategoryGroup {
     isRecognized: boolean;
     isExpense: boolean;
     necessity: string;
+    isDefault?: boolean;
   }>;
 }
 
@@ -67,6 +71,8 @@ export interface UserCategoryGroup {
     CheckboxModule,
     InputNumberModule,
     InputTextModule,
+    ButtonComponent,
+    GenericTableComponent,
   ],
   templateUrl: './my-categories-tab.component.html',
   styleUrls: ['./my-categories-tab.component.scss'],
@@ -78,14 +84,59 @@ export class MyCategoriesTabComponent {
   private confirmationService = inject(ConfirmationService);
   private messageService = inject(MessageService);
 
+  readonly buttonColor = ButtonColor;
+  readonly buttonSize = ButtonSize;
+
   businesses = input<Business[]>([]);
 
   selectedBusinessNumber = signal<string | null>(null);
   rules = signal<UserRuleRow[]>([]);
-  categoryGroups = signal<UserCategoryGroup[]>([]);
+  categoriesTableData = signal<IRowDataTable[]>([]);
   loading = signal(false);
   errorText = signal<string | null>(null);
-  expandedCategories = signal<Set<string>>(new Set());
+
+  // Lookup map for the edit-sub dialog: sub id → raw sub-category object
+  private readonly subCategoryRawById = new Map<number, UserCategoryGroup['subCategories'][number]>();
+
+  categoriesColumns: IColumnDataTable<string, string>[] = [
+    { name: 'categoryName',    value: 'קטגוריה' },
+    { name: 'subCategoryName', value: 'תת-קטגוריה' },
+    { name: 'badge',           value: 'סוג' },
+    { name: 'vatPercent',       value: 'מע"מ %' },
+    { name: 'taxPercent',       value: 'מס %' },
+    { name: 'reductionPercent', value: 'הפחתה %' },
+    { name: 'isEquipment',  value: 'ציוד' },
+    { name: 'isRecognized', value: 'מוכרת' },
+    { name: 'isExpense',    value: 'הוצאה' },
+    { name: 'necessity',    value: 'הכרחיות' },
+  ];
+
+  readonly categoriesRowClass = (row: IRowDataTable): string =>
+    row['rowType'] === 'category' ? 'gt-row--group-header' : '';
+
+  categoriesRowActions: ITableRowAction[] = [
+    {
+      name: 'deleteCategory',
+      icon: 'pi pi-trash',
+      title: 'מחק קטגוריה',
+      showWhen: (row) => row['rowType'] === 'category' && !!row['userCategoryId'],
+      action: (_, row) => row && this.confirmDeleteCategory(row),
+    },
+    {
+      name: 'editSub',
+      icon: 'pi pi-pencil',
+      title: 'ערוך',
+      showWhen: (row) => row['rowType'] === 'subCategory',
+      action: (_, row) => row && this.openEditSub(row),
+    },
+    {
+      name: 'deleteSub',
+      icon: 'pi pi-trash',
+      title: 'מחק',
+      showWhen: (row) => row['rowType'] === 'subCategory',
+      action: (_, row) => row && this.confirmDeleteSubCategory(row),
+    },
+  ];
 
   // Rule edit modal state
   editRuleVisible = signal(false);
@@ -156,20 +207,6 @@ export class MyCategoriesTabComponent {
 
   onBusinessChange(value: string): void {
     this.selectedBusinessNumber.set(value);
-  }
-
-  toggleCategory(name: string): void {
-    const next = new Set(this.expandedCategories());
-    if (next.has(name)) {
-      next.delete(name);
-    } else {
-      next.add(name);
-    }
-    this.expandedCategories.set(next);
-  }
-
-  isExpanded(name: string): boolean {
-    return this.expandedCategories().has(name);
   }
 
   formatAmountRange(min: number | null, max: number | null): string {
@@ -246,7 +283,9 @@ export class MyCategoriesTabComponent {
   // -----------------------------
   // Edit sub-category modal
   // -----------------------------
-  openEditSub(sub: UserCategoryGroup['subCategories'][number]): void {
+  openEditSub(row: IRowDataTable): void {
+    const sub = this.subCategoryRawById.get(row['id'] as number);
+    if (!sub) return;
     this.editSubOriginal.set(sub);
     this.editSubForm.set({
       vatPercent: Number(sub.vatPercent ?? 0),
@@ -323,26 +362,31 @@ export class MyCategoriesTabComponent {
     });
   }
 
-  confirmDeleteCategory(group: UserCategoryGroup): void {
-    if (!group.userCategory) return;
+  confirmDeleteCategory(row: IRowDataTable): void {
+    const catId = row['userCategoryId'] as number;
+    const catName = row['categoryName'] as string;
+    const subCount = row['subCategoryCount'] as number;
+    if (!catId) return;
     this.confirmationService.confirm({
-      message: `למחוק את הקטגוריה "${group.categoryName}" וכל תתי-הקטגוריות שלה (${group.subCategories.length})?`,
+      message: `למחוק את הקטגוריה "${catName}" וכל תתי-הקטגוריות שלה (${subCount})?`,
       header: 'מחיקת קטגוריה',
       icon: 'pi pi-exclamation-triangle',
       acceptLabel: 'מחק',
       rejectLabel: 'ביטול',
-      accept: () => this.deleteCategory(group.userCategory!.id),
+      accept: () => this.deleteCategory(catId),
     });
   }
 
-  confirmDeleteSubCategory(sub: UserCategoryGroup['subCategories'][number]): void {
+  confirmDeleteSubCategory(row: IRowDataTable): void {
+    const subId = row['id'] as number;
+    const subName = row['subCategoryName'] as string;
     this.confirmationService.confirm({
-      message: `למחוק את תת-הקטגוריה "${sub.subCategoryName}"?`,
+      message: `למחוק את תת-הקטגוריה "${subName}"?`,
       header: 'מחיקת תת-קטגוריה',
       icon: 'pi pi-exclamation-triangle',
       acceptLabel: 'מחק',
       rejectLabel: 'ביטול',
-      accept: () => this.deleteSubCategory(sub.id),
+      accept: () => this.deleteSubCategory(subId),
     });
   }
 
@@ -405,6 +449,57 @@ export class MyCategoriesTabComponent {
     this.messageService.add({ severity: 'error', summary: 'שגיאה', detail: fallback });
   }
 
+  private buildCategoriesTable(groups: UserCategoryGroup[]): void {
+    this.subCategoryRawById.clear();
+    const rows: IRowDataTable[] = [];
+
+    for (const group of groups) {
+      const userSubs = (group.subCategories ?? []).filter(sc => !sc.isDefault);
+
+      // Skip groups that have no user involvement at all
+      if (!group.userCategory && userSubs.length === 0) continue;
+
+      rows.push({
+        id: `cat_${group.categoryName}`,
+        rowType: 'category',
+        categoryName: group.categoryName,
+        subCategoryName: '—',
+        badge: group.userCategory ? 'מותאם' : 'מובנה',
+        userCategoryId: group.userCategory?.id ?? 0,
+        subCategoryCount: userSubs.length,
+        vatPercent: '',
+        taxPercent: '',
+        reductionPercent: '',
+        isEquipment: '',
+        isRecognized: '',
+        isExpense: '',
+        necessity: '',
+      });
+
+      for (const sub of userSubs) {
+        this.subCategoryRawById.set(sub.id, sub);
+        rows.push({
+          id: sub.id,
+          rowType: 'subCategory',
+          categoryName: group.categoryName,
+          subCategoryName: sub.subCategoryName,
+          badge: '',
+          userCategoryId: 0,
+          subCategoryCount: 0,
+          vatPercent: sub.vatPercent,
+          taxPercent: sub.taxPercent,
+          reductionPercent: sub.reductionPercent,
+          isEquipment: sub.isEquipment ? 'כן' : 'לא',
+          isRecognized: sub.isRecognized ? 'כן' : 'לא',
+          isExpense: sub.isExpense ? 'כן' : 'לא',
+          necessity: sub.necessity,
+        });
+      }
+    }
+
+    this.categoriesTableData.set(rows);
+  }
+
   private loadData(businessNumber: string): void {
     this.loading.set(true);
     this.errorText.set(null);
@@ -431,7 +526,7 @@ export class MyCategoriesTabComponent {
 
     this.expenseDataService.getUserCategoriesGrouped(businessNumber).subscribe({
       next: (groups) => {
-        this.categoryGroups.set((groups ?? []) as UserCategoryGroup[]);
+        this.buildCategoriesTable((groups ?? []) as UserCategoryGroup[]);
         categoriesDone = true;
         settle();
       },

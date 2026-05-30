@@ -1,7 +1,6 @@
+<p-confirmDialog></p-confirmDialog>
+<p-toast></p-toast>
 <div class="my-categories-tab">
-
-  <p-confirmDialog></p-confirmDialog>
-  <p-toast></p-toast>
 
   <!-- Business selector -->
   <div class="biz-selector-row">
@@ -76,67 +75,16 @@
   <section class="cat-section">
     <h3 class="cat-section-title">קטגוריות ותתי-קטגוריות שלי</h3>
 
-    @if (categoryGroups().length === 0 && !loading()) {
+    @if (categoriesTableData().length === 0 && !loading()) {
       <div class="empty-row">לא הוספת עדיין קטגוריות מותאמות.</div>
     } @else {
-      <div class="cat-groups">
-        @for (group of categoryGroups(); track group.categoryName) {
-          <div class="cat-group">
-            <div class="cat-group-header">
-              <span class="cat-group-toggle" (click)="toggleCategory(group.categoryName)">{{ isExpanded(group.categoryName) ? '−' : '+' }}</span>
-              <span class="cat-group-name" (click)="toggleCategory(group.categoryName)">{{ group.categoryName }}</span>
-              <span class="cat-group-badge">
-                {{ group.userCategory ? 'מותאם' : 'מובנה (תתי-קטגוריות מותאמות)' }}
-              </span>
-              <span class="cat-group-count">{{ group.subCategories.length }} תתי-קטגוריות</span>
-              @if (group.userCategory) {
-                <button type="button" class="row-btn row-btn-danger cat-group-delete"
-                        (click)="confirmDeleteCategory(group); $event.stopPropagation()" title="מחק קטגוריה">מחק</button>
-              }
-            </div>
-
-            @if (isExpanded(group.categoryName)) {
-              <div class="cat-table-wrapper">
-                <table class="cat-table cat-subtable">
-                  <thead>
-                    <tr>
-                      <th>שם</th>
-                      <th>מע"מ %</th>
-                      <th>מס %</th>
-                      <th>הפחתה %</th>
-                      <th>ציוד</th>
-                      <th>מוכרת</th>
-                      <th>הוצאה</th>
-                      <th>הכרחיות</th>
-                      <th class="actions-col">פעולות</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    @for (sub of group.subCategories; track sub.id) {
-                      <tr>
-                        <td>{{ sub.subCategoryName }}</td>
-                        <td>{{ sub.vatPercent }}</td>
-                        <td>{{ sub.taxPercent }}</td>
-                        <td>{{ sub.reductionPercent }}</td>
-                        <td>{{ sub.isEquipment ? 'כן' : 'לא' }}</td>
-                        <td>{{ sub.isRecognized ? 'כן' : 'לא' }}</td>
-                        <td>{{ sub.isExpense ? 'כן' : 'לא' }}</td>
-                        <td>{{ sub.necessity }}</td>
-                        <td class="actions-cell">
-                          <button type="button" class="row-btn"
-                                  (click)="openEditSub(sub)" title="ערוך">ערוך</button>
-                          <button type="button" class="row-btn row-btn-danger"
-                                  (click)="confirmDeleteSubCategory(sub)" title="מחק">מחק</button>
-                        </td>
-                      </tr>
-                    }
-                  </tbody>
-                </table>
-              </div>
-            }
-          </div>
-        }
-      </div>
+      <app-generic-table
+        [dataTable]="categoriesTableData()"
+        [columnsTitle]="$any(categoriesColumns)"
+        [rowActions]="categoriesRowActions"
+        [rowClass]="categoriesRowClass"
+        [isLoadingState]="loading()">
+      </app-generic-table>
     }
   </section>
 
@@ -228,14 +176,12 @@
       </div>
     }
     <ng-template pTemplate="footer">
-      <button type="button" class="p-button p-button-text"
-              [disabled]="editRuleSaving()"
-              (click)="editRuleVisible.set(false)">ביטול</button>
-      <button type="button" class="p-button"
-              [disabled]="editRuleSaving()"
-              (click)="saveEditRule()">
-        {{ editRuleSaving() ? 'שומר...' : 'שמור' }}
-      </button>
+      <app-p-button [buttonText]="'ביטול'" [variant]="'text'" [buttonSize]="buttonSize.SMALL"
+        [disabled]="editRuleSaving()"
+        (onButtonClicked)="editRuleVisible.set(false)"></app-p-button>
+      <app-p-button [buttonText]="'שמור'" [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.SMALL"
+        [isLoading]="editRuleSaving()" [disabled]="editRuleSaving()"
+        (onButtonClicked)="saveEditRule()"></app-p-button>
     </ng-template>
   </p-dialog>
 
@@ -303,14 +249,12 @@
       </div>
     }
     <ng-template pTemplate="footer">
-      <button type="button" class="p-button p-button-text"
-              [disabled]="editSubSaving()"
-              (click)="editSubVisible.set(false)">ביטול</button>
-      <button type="button" class="p-button"
-              [disabled]="editSubSaving()"
-              (click)="saveEditSub()">
-        {{ editSubSaving() ? 'שומר...' : 'שמור' }}
-      </button>
+      <app-p-button [buttonText]="'ביטול'" [variant]="'text'" [buttonSize]="buttonSize.SMALL"
+        [disabled]="editSubSaving()"
+        (onButtonClicked)="editSubVisible.set(false)"></app-p-button>
+      <app-p-button [buttonText]="'שמור'" [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.SMALL"
+        [isLoading]="editSubSaving()" [disabled]="editSubSaving()"
+        (onButtonClicked)="saveEditSub()"></app-p-button>
     </ng-template>
   </p-dialog>
 

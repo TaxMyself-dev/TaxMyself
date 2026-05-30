@@ -81,6 +81,7 @@ export class TransactionsPage implements OnInit {
     highlightedField:  TransactionsOutcomesColumns.SUM,
     dateField:         TransactionsOutcomesColumns.BILL_DATE,
     hiddenFields:      [],
+    highlightedValueFormat: 'plain'
   };
 
   // ─── Sync status table state ─────────────────────────────────────────────────

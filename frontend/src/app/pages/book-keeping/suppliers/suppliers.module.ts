@@ -8,7 +8,6 @@ import { GenericTableComponent } from "src/app/components/generic-table/generic-
 import { FilterTabComponent } from "src/app/components/filter-tab/filter-tab.component";
 import { ToastModule } from 'primeng/toast';
 import { ConfirmDialog } from 'primeng/confirmdialog';
-import { ConfirmationService, MessageService } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
 import { DynamicDialogModule } from 'primeng/dynamicdialog';
 
@@ -26,7 +25,7 @@ import { DynamicDialogModule } from 'primeng/dynamicdialog';
     DynamicDialogModule
   ],
   declarations: [SuppliersPage],
-  providers: [ConfirmationService, MessageService, DialogService]
+  providers: [DialogService]
 })
 export class SuppliersPageModule {}
 
