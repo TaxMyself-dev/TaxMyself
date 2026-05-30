@@ -1,24 +1,28 @@
 import { CommonModule } from '@angular/common';
-import { Component, inject, OnInit, signal } from '@angular/core';
-import { FormsModule } from '@angular/forms';
+import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators, AbstractControl, ValidationErrors } from '@angular/forms';
 import { ButtonComponent } from 'src/app/components/button/button.component';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 import { AuthService } from 'src/app/services/auth.service';
 import { GenericService } from 'src/app/services/generic.service';
 import { MyPermissionsService } from 'src/app/services/my-permissions.service';
-import { IUserData, Business, IChild } from 'src/app/shared/interface';
+import { IUserData, Business, IChild, IColumnDataTable, IMobileCardConfig, IRowDataTable, ITableRowAction } from 'src/app/shared/interface';
+import { GenericTableComponent } from 'src/app/components/generic-table/generic-table.component';
 import { AvatarModule } from 'primeng/avatar';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { ToastModule } from 'primeng/toast';
 import { DialogModule } from 'primeng/dialog';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { SelectModule } from 'primeng/select';
-import { familyStatusOptionsList, employmentTypeOptionsList, businessTypeOptionsList, paymentIdentifierType, VATReportingType, TaxReportingType } from 'src/app/shared/enums';
+import { familyStatusOptionsList, employmentTypeOptionsList, businessTypeOptionsList, paymentIdentifierType, VATReportingType, TaxReportingType, inputsSize } from 'src/app/shared/enums';
 import { TransactionsService } from 'src/app/pages/transactions/transactions.page.service';
 import { SyncStatusService } from 'src/app/services/sync-status.service';
 import { catchError, EMPTY, finalize } from 'rxjs';
 import { SharedModule } from 'src/app/shared/shared.module';
 import { MyCategoriesTabComponent } from './my-categories-tab/my-categories-tab.component';
+import { InputTextComponent } from 'src/app/components/input-text/input-text.component';
+import { InputDateComponent } from 'src/app/components/input-date/input-date.component';
+import { InputSelectComponent } from 'src/app/components/input-select/input-select.component';
 
 @Component({
   selector: 'app-settings',
@@ -28,6 +32,7 @@ import { MyCategoriesTabComponent } from './my-categories-tab/my-categories-tab.
   imports: [
     CommonModule,
     FormsModule,
+    ReactiveFormsModule,
     ButtonComponent,
     AvatarModule,
     ToastModule,
@@ -35,9 +40,13 @@ import { MyCategoriesTabComponent } from './my-categories-tab/my-categories-tab.
     ConfirmDialogModule,
     SelectModule,
     SharedModule,
-    MyCategoriesTabComponent
+    MyCategoriesTabComponent,
+    GenericTableComponent,
+    InputTextComponent,
+    InputDateComponent,
+    InputSelectComponent,
   ],
-  providers: [MessageService, ConfirmationService]
+  providers: []
 })
 export class SettingsPage implements OnInit {
   authService = inject(AuthService);
@@ -47,6 +56,7 @@ export class SettingsPage implements OnInit {
   myPermissionsService = inject(MyPermissionsService);
   transactionsService = inject(TransactionsService);
   syncStatusService = inject(SyncStatusService);
+  private readonly fb = inject(FormBuilder);
 
   /** sourceName of the account whose single-account pull is in flight (disables that row's button). */
   retryingSourceId = signal<string | null>(null);
@@ -54,30 +64,17 @@ export class SettingsPage implements OnInit {
   userData: IUserData | null = null;
   businesses = signal<Business[]>([]);
   children = signal<IChild[]>([]);
-  /** ערך בזמן עריכה לפני שמירה */
-  advanceTaxEdit: Record<string, number | null> = {};
-  savingBusinessNumber = signal<string | null>(null);
-  /** מזהה איזה עסק כרגע בעדכון (למניעת כפתור loading תקוע בעסק חדש עם businessNumber null) */
   savingBusinessId = signal<number | null>(null);
   savingPersonal = signal<boolean>(false);
   savingSpouse = signal<boolean>(false);
   savingChildren = signal<boolean>(false);
   addingBusiness = signal<boolean>(false);
   addBusinessModalVisible = signal<boolean>(false);
-  /** הודעות שגיאה לדיאלוג הוספת עסק */
-  addBusinessErrors = signal<Record<string, string>>({});
-  newBusinessForm = {
-    businessName: '',
-    businessNumber: '',
-    businessAddress: '',
-    businessPhone: '',
-    businessEmail: '',
-    businessType: '' as string,
-    advanceTaxPercent: null as number | null
-  };
 
   buttonSize = ButtonSize;
   buttonColor = ButtonColor;
+  readonly inputsSize = inputsSize;
+  isMobile = computed(() => this.genericService.isMobile());
 
   tabs = [
     { label: 'פרטים אישיים', value: 'personal' },
@@ -105,27 +102,13 @@ export class SettingsPage implements OnInit {
     { name: 'דו חודשי', value: TaxReportingType.DUAL_MONTH_REPORT },
   ];
 
-  personalForm = {
-    fName: '',
-    lName: '',
-    id: '',
-    email: '',
-    phone: '',
-    dateOfBirth: '' as string,
-    city: '',
-    familyStatus: '' as string,
-    employmentStatus: '' as string
-  };
-
-  spouseForm = {
-    spouseFName: '',
-    spouseLName: '',
-    spouseId: '',
-    spouseEmail: '',
-    spousePhone: '',
-    spouseDateOfBirth: '' as string,
-    spouseEmploymentStatus: '' as string
-  };
+  // ─── Reactive Forms ───
+  personalFormGroup  = this.buildPersonalForm();
+  spouseFormGroup    = this.buildSpouseForm();
+  addBusinessFormGroup  = this.buildAddBusinessForm();
+  addPermissionFormGroup = this.buildAddPermissionForm();
+  childrenFormArray  = this.fb.array<FormGroup>([]);
+  businessesFormArray = this.fb.array<FormGroup>([]);
 
   /** ההרשאות שלי */
   myPermissions = signal<{ agentId: string; email: string; fullName: string; scopes: string[] }[]>([]);
@@ -136,6 +119,48 @@ export class SettingsPage implements OnInit {
   accountSources = signal<
     { sourceName: string; sourceType: paymentIdentifierType; billName: string | null; hasConsent: boolean }[]
   >([]);
+
+  /** Flat IRowDataTable rows derived from accountSources for GenericTable. */
+  accountSourcesTableData = computed<IRowDataTable[]>(() =>
+    this.accountSources().map(s => ({
+      id: s.sourceName,
+      sourceName: s.sourceName,
+      sourceTypeLabel: this.getSourceTypeLabel(s.sourceType),
+      billName: s.billName || 'לא משויך',
+      consentStatus: s.hasConsent ? '✓ פעיל' : '✗ ללא הרשאה',
+      
+    }))
+  );
+
+  accountSourcesColumns: IColumnDataTable<string, string>[] = [
+    { name: 'consentStatus',   value: 'סטטוס' },
+    { name: 'sourceName',      value: 'מספר מזהה' },
+    { name: 'sourceTypeLabel', value: 'סוג' },
+    { name: 'billName',        value: 'משויך לחשבון' },
+  ];
+
+  readonly accountSourcesMobileCardConfig: IMobileCardConfig = {
+    primaryFields: ['sourceName'],
+    highlightedField: 'consentStatus',
+    dateField: 'sourceTypeLabel',
+    hiddenFields: [],
+    highlightedValueFormat: 'plain',
+  };
+
+  accountSourcesRowActions: ITableRowAction[] = [
+    {
+      name: 'pullSource',
+      icon: 'pi pi-refresh',
+      title: 'משוך תנועות',
+      showWhen: (row) => !this.retryingSourceId() || this.retryingSourceId() === row['sourceName'],
+      isLoading: () => !!this.retryingSourceId(),
+      action: (_, row) => {
+        const source = this.accountSources().find(s => s.sourceName === row!['sourceName']);
+        if (source) this.onPullSource(source);
+      },
+    },
+  ];
+
   addPermissionDialogVisible = false;
   addPermissionEmail = '';
   addingPermission = signal(false);
@@ -233,30 +258,11 @@ export class SettingsPage implements OnInit {
   }
 
   private initPersonalFormFromUserData(): void {
-    const u = this.userData;
-    if (!u) return;
-    this.personalForm.fName = u.fName ?? '';
-    this.personalForm.lName = u.lName ?? '';
-    this.personalForm.id = u.id ?? '';
-    this.personalForm.email = u.email ?? '';
-    this.personalForm.phone = u.phone ?? '';
-    this.personalForm.dateOfBirth = this.toDisplayDate(u.dateOfBirth);
-    this.personalForm.city = u.city ?? '';
-    this.personalForm.familyStatus = u.familyStatus ?? '';
-    this.personalForm.employmentStatus = u.employmentStatus ?? '';
+    if (this.userData) this.patchPersonalForm(this.userData);
   }
 
   private initSpouseFormFromUserData(): void {
-    const u = this.userData;
-    if (!u) return;
-    this.spouseForm.spouseFName = u.spouseFName ?? '';
-    this.spouseForm.spouseLName = u.spouseLName ?? '';
-    this.spouseForm.spouseId = u.spouseId ?? '';
-    this.spouseForm.spouseEmail = u.spouseEmail ?? '';
-    this.spouseForm.spousePhone = u.spousePhone ?? '';
-    const rawDate = u.spouseDateOfBirth ?? (u as any).spouse_date_of_birth;
-    this.spouseForm.spouseDateOfBirth = this.toDisplayDate(rawDate);
-    this.spouseForm.spouseEmploymentStatus = u.spouseEmploymentStatus ?? '';
+    if (this.userData) this.patchSpouseForm(this.userData);
   }
 
   /** Convert any date to dd-mm-yyyy for display in the form */
@@ -275,6 +281,15 @@ export class SettingsPage implements OnInit {
     const month = String(d.getMonth() + 1).padStart(2, '0');
     const year = d.getFullYear();
     return `${day}-${month}-${year}`;
+  }
+
+  /** Convert a Date object to yyyy-mm-dd string for API. Avoids UTC-shift by using local parts. */
+  private dateToApiString(date: Date | null | undefined): string | undefined {
+    if (!date) return undefined;
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
   }
 
   /** Convert dd-mm-yyyy or yyyy-mm-dd to yyyy-mm-dd for API */
@@ -296,41 +311,47 @@ export class SettingsPage implements OnInit {
 
   updatePersonalDetails(): void {
     this.savingPersonal.set(true);
+    const v = this.personalFormGroup.getRawValue();
     const payload = {
-      fName: this.personalForm.fName?.trim() || undefined,
-      lName: this.personalForm.lName?.trim() || undefined,
-      id: this.personalForm.id?.trim() || undefined,
-      email: this.personalForm.email?.trim() || undefined,
-      phone: this.personalForm.phone?.trim() || undefined,
-      dateOfBirth: this.personalForm.dateOfBirth || undefined,
-      city: this.personalForm.city?.trim() || undefined,
-      familyStatus: this.personalForm.familyStatus || undefined,
-      employmentStatus: this.personalForm.employmentStatus || undefined
+      fName:            v.fName?.trim() || undefined,
+      lName:            v.lName?.trim() || undefined,
+      id:               v.id?.trim() || undefined,
+      email:            v.email?.trim() || undefined,
+      phone:            v.phone?.trim() || undefined,
+      dateOfBirth:      this.dateToApiString(v.dateOfBirth) || undefined,
+      city:             v.city?.trim() || undefined,
+      familyStatus:     v.familyStatus || undefined,
+      employmentStatus: v.employmentStatus || undefined,
     };
     this.authService.updateUser(payload).subscribe({
       next: () => this.onUpdateSuccess(false),
-      error: () => this.onUpdateError(false)
+      error: (err) => this.onUpdateError(false, err)
     });
   }
 
   updateSpouseDetails(): void {
     this.savingSpouse.set(true);
+    const v = this.spouseFormGroup.getRawValue();
     const payload = {
-      spouseFName: this.spouseForm.spouseFName?.trim() || undefined,
-      spouseLName: this.spouseForm.spouseLName?.trim() || undefined,
-      spouseId: this.spouseForm.spouseId?.trim() || undefined,
-      spouseEmail: this.spouseForm.spouseEmail?.trim() || undefined,
-      spousePhone: this.spouseForm.spousePhone?.trim() || undefined,
-      spouseDateOfBirth: this.toApiDate(this.spouseForm.spouseDateOfBirth) || undefined,
-      spouseEmploymentStatus: this.spouseForm.spouseEmploymentStatus || undefined
+      spouseFName:            v.spouseFName?.trim() || undefined,
+      spouseLName:            v.spouseLName?.trim() || undefined,
+      spouseId:               v.spouseId?.trim() || undefined,
+      spouseEmail:            v.spouseEmail?.trim() || undefined,
+      spousePhone:            v.spousePhone?.trim() || undefined,
+      spouseDateOfBirth:      this.dateToApiString(v.spouseDateOfBirth) || undefined,
+      spouseEmploymentStatus: v.spouseEmploymentStatus || undefined,
     };
     this.authService.updateUser(payload).subscribe({
       next: () => this.onUpdateSuccess(true),
-      error: () => this.onUpdateError(true)
+      error: (err) => this.onUpdateError(true, err)
     });
   }
 
-  private onUpdateSuccess(_isSpouse: boolean): void {
+  private onUpdateSuccess(isSpouse: boolean): void {
+    const successDetail = isSpouse
+      ? 'פרטי בן/בת זוג עודכנו בהצלחה'
+      : 'הפרטים האישיים עודכנו בהצלחה';
+
     const setDone = () => {
       this.savingPersonal.set(false);
       this.savingSpouse.set(false);
@@ -340,7 +361,7 @@ export class SettingsPage implements OnInit {
       this.messageService.add({
         severity: 'success',
         summary: 'הצלחה',
-        detail: 'הפרטים עודכנו בהצלחה',
+        detail: successDetail,
         life: 3000,
         key: 'br'
       });
@@ -361,13 +382,17 @@ export class SettingsPage implements OnInit {
     });
   }
 
-  private onUpdateError(isSpouse: boolean): void {
+  private onUpdateError(isSpouse: boolean, err?: any): void {
     this.savingPersonal.set(false);
     this.savingSpouse.set(false);
+    const apiMessage: string | undefined = err?.error?.message ?? err?.message;
+    const fallback = isSpouse
+      ? 'לא ניתן לעדכן את פרטי בן/בת זוג. נסה שוב מאוחר יותר.'
+      : 'לא ניתן לעדכן את הפרטים האישיים. נסה שוב מאוחר יותר.';
     this.messageService.add({
       severity: 'error',
       summary: 'שגיאה',
-      detail: 'לא ניתן לעדכן את הפרטים. נסה שוב מאוחר יותר.',
+      detail: apiMessage || fallback,
       life: 3000,
       key: 'br'
     });
@@ -375,12 +400,15 @@ export class SettingsPage implements OnInit {
 
   loadBusinesses(): void {
     this.genericService.loadBusinessesFromServer().then(() => {
-      this.businesses.set(this.genericService.businesses());
+      const list = this.genericService.businesses();
+      this.businesses.set(list);
+      this.patchBusinessesFormArray(list);
     });
   }
 
   addChild(): void {
     this.children.set([...this.children(), { childFName: '', childLName: '', childDate: '' }]);
+    this.childrenFormArray.push(this.buildChildForm(), { emitEvent: false });
   }
 
   fetchMyPermissions(): void {
@@ -400,6 +428,7 @@ export class SettingsPage implements OnInit {
   openAddPermissionDialog(): void {
     this.addPermissionError.set('');
     this.addPermissionEmail = '';
+    this.addPermissionFormGroup.reset({ email: '' });
     this.addPermissionDialogVisible = true;
   }
 
@@ -441,80 +470,35 @@ export class SettingsPage implements OnInit {
     });
   }
 
-  private readonly emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  /** טלפון ישראלי: 05X-XXXXXXX (10 ספרות) */
-  private readonly phonePattern = /^05\d{8}$/;
-
   openAddBusinessModal(): void {
-    this.newBusinessForm = {
-      businessName: '',
-      businessNumber: '',
-      businessAddress: '',
-      businessPhone: '',
-      businessEmail: '',
-      businessType: '',
-      advanceTaxPercent: null
-    };
-    this.addBusinessErrors.set({});
+    this.patchAddBusinessForm();
     this.addBusinessModalVisible.set(true);
   }
 
-  private validateAddBusinessForm(): boolean {
-    const err: Record<string, string> = {};
-    const name = this.newBusinessForm.businessName?.trim() ?? '';
-    const number = this.newBusinessForm.businessNumber?.trim() ?? '';
-    const type = this.newBusinessForm.businessType?.trim() ?? '';
-    const email = this.newBusinessForm.businessEmail?.trim() ?? '';
-    const phone = this.newBusinessForm.businessPhone?.trim() ?? '';
-
-    if (!name) err['businessName'] = 'שם העסק חובה';
-    if (!number) err['businessNumber'] = 'מספר עסק חובה';
-    if (!type) err['businessType'] = 'סוג עסק חובה';
-    if (!email) err['businessEmail'] = 'אימייל חובה';
-    else if (!this.emailPattern.test(email)) err['businessEmail'] = 'כתובת אימייל לא חוקית';
-    if (!phone) err['businessPhone'] = 'פלאפון חובה';
-    else {
-      const digits = phone.replace(/\D/g, '');
-      const normalized = digits.startsWith('972') ? '0' + digits.slice(3) : digits.startsWith('0') ? digits : '0' + digits;
-      if (normalized.length !== 10 || !this.phonePattern.test(normalized)) err['businessPhone'] = 'מספר פלאפון לא חוקי';
-    }
-
-    this.addBusinessErrors.set(err);
-    return Object.keys(err).length === 0;
-  }
-
   submitAddBusiness(): void {
-    if (!this.validateAddBusinessForm()) return;
+    this.addBusinessFormGroup.markAllAsTouched();
+    if (this.addBusinessFormGroup.invalid) return;
     this.addingBusiness.set(true);
+    const v = this.addBusinessFormGroup.getRawValue();
     const payload = {
-      businessName: this.newBusinessForm.businessName?.trim() || undefined,
-      businessNumber: this.newBusinessForm.businessNumber?.trim() || undefined,
-      businessAddress: this.newBusinessForm.businessAddress?.trim() || undefined,
-      businessPhone: this.newBusinessForm.businessPhone?.trim() || undefined,
-      businessEmail: this.newBusinessForm.businessEmail?.trim() || undefined,
-      businessType: this.newBusinessForm.businessType || undefined,
-      advanceTaxPercent: this.newBusinessForm.advanceTaxPercent ?? undefined
+      businessName:      v.businessName?.trim() || undefined,
+      businessNumber:    v.businessNumber?.trim() || undefined,
+      businessAddress:   v.businessAddress?.trim() || undefined,
+      businessPhone:     v.businessPhone?.trim() || undefined,
+      businessEmail:     v.businessEmail?.trim() || undefined,
+      businessType:      v.businessType || undefined,
+      advanceTaxPercent: v.advanceTaxPercent ?? undefined,
     };
     this.genericService.createBusiness(payload)
       .then(() => {
+        const updated = this.genericService.businesses();
+        this.businesses.set(updated);
+        this.patchBusinessesFormArray(updated);
         this.addBusinessModalVisible.set(false);
-        this.businesses.set(this.genericService.businesses());
-        this.messageService.add({
-          severity: 'success',
-          summary: 'הצלחה',
-          detail: 'העסק נוסף בהצלחה',
-          life: 3000,
-          key: 'br'
-        });
+        this.messageService.add({ severity: 'success', summary: 'הצלחה', detail: 'העסק נוסף בהצלחה', life: 3000, key: 'br' });
       })
       .catch(() => {
-        this.messageService.add({
-          severity: 'error',
-          summary: 'שגיאה',
-          detail: 'לא ניתן להוסיף עסק. נסה שוב מאוחר יותר.',
-          life: 3000,
-          key: 'br'
-        });
+        this.messageService.add({ severity: 'error', summary: 'שגיאה', detail: 'לא ניתן להוסיף עסק. נסה שוב מאוחר יותר.', life: 3000, key: 'br' });
       })
       .finally(() => this.addingBusiness.set(false));
   }
@@ -530,23 +514,13 @@ export class SettingsPage implements OnInit {
       accept: () => {
         this.genericService.deleteBusiness(business.id!)
           .then(() => {
-            this.businesses.set(this.genericService.businesses());
-            this.messageService.add({
-              severity: 'success',
-              summary: 'הצלחה',
-              detail: 'העסק נמחק',
-              life: 3000,
-              key: 'br'
-            });
+            const updated = this.genericService.businesses();
+            this.businesses.set(updated);
+            this.patchBusinessesFormArray(updated);
+            this.messageService.add({ severity: 'success', summary: 'הצלחה', detail: 'העסק נמחק', life: 3000, key: 'br' });
           })
           .catch(() => {
-            this.messageService.add({
-              severity: 'error',
-              summary: 'שגיאה',
-              detail: 'לא ניתן למחוק את העסק.',
-              life: 3000,
-              key: 'br'
-            });
+            this.messageService.add({ severity: 'error', summary: 'שגיאה', detail: 'לא ניתן למחוק את העסק.', life: 3000, key: 'br' });
           });
       }
     });
@@ -597,17 +571,21 @@ export class SettingsPage implements OnInit {
           if (c.childDate) c.childDate = this.toDisplayDate(c.childDate);
         });
         this.children.set(arr);
+        this.patchChildrenFormArray(arr);
       },
       error: () => this.children.set([])
     });
   }
 
   updateChildrenDetails(): void {
-    const list = this.children().map(c => ({
-      childFName: c.childFName?.trim() ?? '',
-      childLName: c.childLName?.trim() ?? '',
-      childDate: this.toApiDate(c.childDate) ?? ''
-    }));
+    const list = (this.childrenFormArray.controls as FormGroup[]).map(ctrl => {
+      const v = ctrl.getRawValue();
+      return {
+        childFName: (v.childFName as string)?.trim() ?? '',
+        childLName: (v.childLName as string)?.trim() ?? '',
+        childDate:  this.dateToApiString(v.childDate as Date | null) ?? '',
+      };
+    });
     this.savingChildren.set(true);
     this.authService.updateChildren(list).subscribe({
       next: (saved) => {
@@ -616,6 +594,7 @@ export class SettingsPage implements OnInit {
           if (c.childDate) c.childDate = this.toDisplayDate(c.childDate);
         });
         this.children.set(arr);
+        this.patchChildrenFormArray(arr);
         this.savingChildren.set(false);
         this.messageService.add({
           severity: 'success',
@@ -625,12 +604,13 @@ export class SettingsPage implements OnInit {
           key: 'br'
         });
       },
-      error: () => {
+      error: (err) => {
         this.savingChildren.set(false);
+        const apiMessage: string | undefined = err?.error?.message ?? err?.message;
         this.messageService.add({
           severity: 'error',
           summary: 'שגיאה',
-          detail: 'לא ניתן לעדכן את פרטי הילדים. נסה שוב מאוחר יותר.',
+          detail: apiMessage || 'לא ניתן לעדכן את פרטי הילדים. נסה שוב מאוחר יותר.',
           life: 3000,
           key: 'br'
         });
@@ -638,72 +618,41 @@ export class SettingsPage implements OnInit {
     });
   }
 
-  getBusinessKey(business: Business): string | number {
-    if (business.id != null) return `id-${business.id}`;
-    return business.businessNumber ?? '';
-  }
+  async saveBusiness(index: number): Promise<void> {
+    const ctrl = this.businessesFormArray.at(index) as FormGroup;
+    const v = ctrl.getRawValue();
+    const biz = this.businesses()[index];
 
-  getAdvanceTaxDisplay(business: Business): string | number {
-    const key = this.getBusinessKey(business);
-    if (this.advanceTaxEdit[key as string] !== undefined && this.advanceTaxEdit[key as string] !== null) {
-      const v = this.advanceTaxEdit[key as string] as number;
-      return (v === 0 || v === null) ? 0 : v;
-    }
-    const p = business.advanceTaxPercent;
-    return (p == null || p === 0) ? 0 : p;
-  }
+    const advanceTaxPercent = v.advanceTaxPercent == null ? 0 : Number(v.advanceTaxPercent);
+    if (isNaN(advanceTaxPercent) || advanceTaxPercent < 0 || advanceTaxPercent > 100) return;
 
-  setAdvanceTaxEdit(business: Business, event: Event): void {
-    const key = this.getBusinessKey(business);
-    const val = (event.target as HTMLInputElement).value;
-    const num = val === '' ? null : Number(val);
-    this.advanceTaxEdit[key as string] = num;
-  }
+    const id = biz?.id ?? undefined;
+    const businessNumber = (v.businessNumber as string)?.trim() || biz?.businessNumber || undefined;
+    if (id == null && !businessNumber) return;
 
-  async saveBusiness(business: Business): Promise<void> {
-    const key = this.getBusinessKey(business);
-    const advanceValue = this.advanceTaxEdit[key as string] ?? business.advanceTaxPercent;
-    const percent = advanceValue == null ? 0 : Number(advanceValue);
-    if (isNaN(percent) || percent < 0 || percent > 100) return;
-    const id = business.id ?? undefined;
-    const businessNumber = business.businessNumber ?? undefined;
-    if (id == null && (businessNumber == null || businessNumber === '')) return;
-    this.savingBusinessId.set(business.id ?? null);
-    this.savingBusinessNumber.set(business.businessNumber ?? null);
+    this.savingBusinessId.set(id ?? null);
     try {
       await this.genericService.updateBusiness({
         id,
-        businessNumber: businessNumber || undefined,
-        advanceTaxPercent: percent,
-        businessName: business.businessName ?? undefined,
-        businessAddress: business.businessAddress ?? undefined,
-        businessPhone: business.businessPhone ?? undefined,
-        businessEmail: business.businessEmail ?? undefined,
-        businessType: business.businessType ?? undefined,
-        vatReportingType: business.vatReportingType ?? undefined,
-        taxReportingType: business.taxReportingType ?? undefined,
-        nationalInsRequired: business.nationalInsRequired ?? undefined,
+        businessNumber:      businessNumber || undefined,
+        advanceTaxPercent,
+        businessName:        (v.businessName as string)?.trim()    || biz?.businessName    || undefined,
+        businessAddress:     (v.businessAddress as string)?.trim() || undefined,
+        businessPhone:       (v.businessPhone as string)?.trim()   || undefined,
+        businessEmail:       (v.businessEmail as string)?.trim()   || undefined,
+        businessType:        (v.businessType as string)            || undefined,
+        vatReportingType:    (v.vatReportingType as string)        || undefined,
+        taxReportingType:    (v.taxReportingType as string)        || undefined,
+        nationalInsRequired: (v.nationalInsRequired as boolean | null) ?? undefined,
       });
-      delete this.advanceTaxEdit[key as string];
-      this.businesses.set(this.genericService.businesses());
-      this.messageService.add({
-        severity: 'success',
-        summary: 'הצלחה',
-        detail: 'פרטי העסק עודכנו בהצלחה',
-        life: 3000,
-        key: 'br'
-      });
+      const updated = this.genericService.businesses();
+      this.businesses.set(updated);
+      this.patchBusinessesFormArray(updated);
+      this.messageService.add({ severity: 'success', summary: 'הצלחה', detail: 'פרטי העסק עודכנו בהצלחה', life: 3000, key: 'br' });
     } catch {
-      this.messageService.add({
-        severity: 'error',
-        summary: 'שגיאה',
-        detail: 'לא ניתן לעדכן את העסק. נסה שוב.',
-        life: 3000,
-        key: 'br'
-      });
+      this.messageService.add({ severity: 'error', summary: 'שגיאה', detail: 'לא ניתן לעדכן את העסק. נסה שוב.', life: 3000, key: 'br' });
     } finally {
       this.savingBusinessId.set(null);
-      this.savingBusinessNumber.set(null);
     }
   }
 
@@ -724,10 +673,10 @@ export class SettingsPage implements OnInit {
 
   formatDateOfBirth(dateOfBirth: string | null | undefined): string {
     if (!dateOfBirth) return '-';
-    
+
     // Handle different date formats
     let date: Date;
-    
+
     // Check if it's already in YYYY-MM-DD format
     if (typeof dateOfBirth === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth)) {
       const [year, month, day] = dateOfBirth.split('-');
@@ -736,18 +685,216 @@ export class SettingsPage implements OnInit {
       // Try to parse as Date
       date = new Date(dateOfBirth);
     }
-    
+
     // Check if date is valid
     if (isNaN(date.getTime())) {
       return dateOfBirth; // Return original if parsing failed
     }
-    
+
     // Format as dd-mm-yyyy
     const day = String(date.getDate()).padStart(2, '0');
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const year = date.getFullYear();
-    
+
     return `${day}-${month}-${year}`;
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Reactive Forms — builder methods
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  buildPersonalForm() {
+    return this.fb.group({
+      fName:            this.fb.nonNullable.control(''),
+      lName:            this.fb.nonNullable.control(''),
+      id:               this.fb.nonNullable.control(''),
+      email:            this.fb.nonNullable.control('', Validators.email),
+      phone:            this.fb.nonNullable.control(''),
+      // Stored as Date for future app-input-date migration.
+      // TODO(migration): when template switches to app-input-date,
+      //   remove toDisplayDate() and read Date directly from this control.
+      dateOfBirth:      this.fb.control<Date | null>(null),
+      city:             this.fb.nonNullable.control(''),
+      familyStatus:     this.fb.nonNullable.control(''),
+      employmentStatus: this.fb.nonNullable.control(''),
+    });
+  }
+
+  buildSpouseForm() {
+    return this.fb.group({
+      spouseFName:            this.fb.nonNullable.control(''),
+      spouseLName:            this.fb.nonNullable.control(''),
+      spouseId:               this.fb.nonNullable.control(''),
+      spouseEmail:            this.fb.nonNullable.control('', Validators.email),
+      spousePhone:            this.fb.nonNullable.control(''),
+      // Stored as Date for future app-input-date migration.
+      // TODO(migration): spouse date is currently stored as a freeform text string
+      //   (dd-mm-yyyy typed by the user). When the template switches to
+      //   app-input-date, remove toDisplayDate() and read Date directly from here.
+      spouseDateOfBirth:      this.fb.control<Date | null>(null),
+      spouseEmploymentStatus: this.fb.nonNullable.control(''),
+    });
+  }
+
+  buildAddBusinessForm() {
+    return this.fb.group({
+      businessName:      this.fb.nonNullable.control('', Validators.required),
+      businessNumber:    this.fb.nonNullable.control('', Validators.required),
+      businessAddress:   this.fb.nonNullable.control(''),
+      businessPhone:     this.fb.nonNullable.control('', [
+        Validators.required,
+        (c: AbstractControl) => this.israeliPhoneValidatorFn(c),
+      ]),
+      businessEmail:     this.fb.nonNullable.control('', [Validators.required, Validators.email]),
+      businessType:      this.fb.nonNullable.control('', Validators.required),
+      advanceTaxPercent: this.fb.control<number | null>(null, [Validators.min(0), Validators.max(100)]),
+    });
+  }
+
+  /** Israeli mobile phone: 05X-XXXXXXX (10 digits after normalising +972 prefix). */
+  private israeliPhoneValidatorFn(control: AbstractControl): ValidationErrors | null {
+    const phone = (control.value as string) ?? '';
+    if (!phone) return null;
+    const digits = phone.replace(/\D/g, '');
+    const normalized = digits.startsWith('972') ? '0' + digits.slice(3)
+      : digits.startsWith('0') ? digits : '0' + digits;
+    return normalized.length === 10 && /^05\d{8}$/.test(normalized)
+      ? null : { israeliPhone: true };
+  }
+
+  buildAddPermissionForm() {
+    return this.fb.group({
+      email: this.fb.nonNullable.control('', [Validators.required, Validators.email]),
+    });
+  }
+
+  /** Builds a single-child FormGroup. Pass no argument for an empty (new) child row. */
+  buildChildForm(child?: Partial<IChild>) {
+    return this.fb.group({
+      childFName: this.fb.nonNullable.control(child?.childFName ?? ''),
+      childLName: this.fb.nonNullable.control(child?.childLName ?? ''),
+      // Stored as Date for future app-input-date migration.
+      // TODO(migration): child.childDate arrives as a dd-mm-yyyy string from
+      //   the API (after toDisplayDate). When the template switches to
+      //   app-input-date, read Date directly and remove the toApiDate() call
+      //   in updateChildrenDetails().
+      childDate:  this.fb.control<Date | null>(
+        child?.childDate ? this.stringToDate(child.childDate) : null
+      ),
+    });
+  }
+
+  /** Builds a single-business FormGroup. Pass no argument for an empty (new) business row. */
+  buildBusinessForm(business?: Partial<Business>) {
+    return this.fb.group({
+      businessNumber:      this.fb.nonNullable.control(business?.businessNumber ?? ''),
+      businessName:        this.fb.nonNullable.control(business?.businessName ?? ''),
+      businessEmail:       this.fb.nonNullable.control(business?.businessEmail ?? '', Validators.email),
+      businessAddress:     this.fb.nonNullable.control(business?.businessAddress ?? ''),
+      businessPhone:       this.fb.nonNullable.control(business?.businessPhone ?? ''),
+      businessType:        this.fb.nonNullable.control<string>(business?.businessType ?? ''),
+      nationalInsRequired: this.fb.control<boolean | null>(business?.nationalInsRequired ?? null),
+      vatReportingType:    this.fb.nonNullable.control<string>(business?.vatReportingType ?? ''),
+      taxReportingType:    this.fb.nonNullable.control<string>(business?.taxReportingType ?? ''),
+      advanceTaxPercent:   this.fb.control<number | null>(
+        business?.advanceTaxPercent ?? null,
+        [Validators.min(0), Validators.max(100)]
+      ),
+    });
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Reactive Forms — patch methods (sync FormGroup/FormArray from data model)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  private patchPersonalForm(u: IUserData): void {
+    this.personalFormGroup.patchValue({
+      fName:            u.fName ?? '',
+      lName:            u.lName ?? '',
+      id:               u.id ?? '',
+      email:            u.email ?? '',
+      phone:            u.phone ?? '',
+      dateOfBirth:      this.stringToDate(u.dateOfBirth),
+      city:             u.city ?? '',
+      familyStatus:     u.familyStatus ?? '',
+      employmentStatus: u.employmentStatus ?? '',
+    }, { emitEvent: false });
+  }
+
+  private patchSpouseForm(u: IUserData): void {
+    const rawDate = u.spouseDateOfBirth ?? (u as any).spouse_date_of_birth;
+    this.spouseFormGroup.patchValue({
+      spouseFName:            u.spouseFName ?? '',
+      spouseLName:            u.spouseLName ?? '',
+      spouseId:               u.spouseId ?? '',
+      spouseEmail:            u.spouseEmail ?? '',
+      spousePhone:            u.spousePhone ?? '',
+      spouseDateOfBirth:      this.stringToDate(rawDate),
+      spouseEmploymentStatus: u.spouseEmploymentStatus ?? '',
+    }, { emitEvent: false });
+  }
+
+  /** Resets the add-business form to empty state (called on modal open). */
+  private patchAddBusinessForm(): void {
+    this.addBusinessFormGroup.reset({
+      businessName:      '',
+      businessNumber:    '',
+      businessAddress:   '',
+      businessPhone:     '',
+      businessEmail:     '',
+      businessType:      '',
+      advanceTaxPercent: null,
+    });
+  }
+
+  /** Resets the permission form to empty state (called on dialog open). */
+  private patchAddPermissionForm(): void {
+    this.addPermissionFormGroup.reset({ email: '' });
+  }
+
+  /** Rebuilds childrenFormArray to match the current children signal. */
+  private patchChildrenFormArray(children: IChild[]): void {
+    this.childrenFormArray.clear({ emitEvent: false });
+    for (const child of children) {
+      this.childrenFormArray.push(this.buildChildForm(child), { emitEvent: false });
+    }
+  }
+
+  /** Rebuilds businessesFormArray to match the current businesses signal. */
+  private patchBusinessesFormArray(businesses: Business[]): void {
+    this.businessesFormArray.clear({ emitEvent: false });
+    for (const biz of businesses) {
+      this.businessesFormArray.push(this.buildBusinessForm(biz), { emitEvent: false });
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Reactive Forms — shared helpers
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Converts a date string in dd-mm-yyyy, yyyy-mm-dd, or ISO format to a
+   * local-midnight Date object. Returns null for empty / unparseable input.
+   *
+   * Uses explicit year/month/day construction to avoid UTC-midnight timezone
+   * shifts that `new Date('yyyy-mm-dd')` would produce.
+   */
+  private stringToDate(val: string | Date | null | undefined): Date | null {
+    if (!val) return null;
+    if (val instanceof Date) return isNaN(val.getTime()) ? null : val;
+    const s = String(val).trim();
+    if (/^\d{2}-\d{2}-\d{4}$/.test(s)) {
+      const [d, m, y] = s.split('-');
+      const date = new Date(+y, +m - 1, +d);
+      return isNaN(date.getTime()) ? null : date;
+    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+      const [y, m, d] = s.split('-');
+      const date = new Date(+y, +m - 1, +d);
+      return isNaN(date.getTime()) ? null : date;
+    }
+    const date = new Date(s);
+    return isNaN(date.getTime()) ? null : date;
   }
 }
 

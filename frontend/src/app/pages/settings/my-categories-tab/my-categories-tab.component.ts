@@ -11,7 +11,7 @@ import { InputTextModule } from 'primeng/inputtext';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { TransactionsService } from 'src/app/pages/transactions/transactions.page.service';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
-import { Business, IColumnDataTable, IRowDataTable, ISelectItem, ITableRowAction } from 'src/app/shared/interface';
+import { Business, IColumnDataTable, IMobileCardConfig, IRowDataTable, ISelectItem, ITableRowAction } from 'src/app/shared/interface';
 import { ButtonComponent } from 'src/app/components/button/button.component';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 import { GenericTableComponent } from 'src/app/components/generic-table/generic-table.component';
@@ -90,13 +90,54 @@ export class MyCategoriesTabComponent {
   businesses = input<Business[]>([]);
 
   selectedBusinessNumber = signal<string | null>(null);
-  rules = signal<UserRuleRow[]>([]);
+  rulesTableData = signal<IRowDataTable[]>([]);
   categoriesTableData = signal<IRowDataTable[]>([]);
   loading = signal(false);
   errorText = signal<string | null>(null);
 
-  // Lookup map for the edit-sub dialog: sub id → raw sub-category object
+  // Lookup maps: id → raw object, used by action callbacks
+  private readonly rulesRawById = new Map<number, UserRuleRow>();
   private readonly subCategoryRawById = new Map<number, UserCategoryGroup['subCategories'][number]>();
+
+  rulesColumns: IColumnDataTable<string, string>[] = [
+    { name: 'transactionName', value: 'שם עסק (בתנועה)' },
+    { name: 'billName',        value: 'חשבון' },
+    { name: 'category',        value: 'קטגוריה' },
+    { name: 'subCategory',     value: 'תת-קטגוריה' },
+    { name: 'amountRange',     value: 'טווח סכום' },
+    { name: 'dateRange',       value: 'טווח תאריך' },
+    { name: 'comment',         value: 'הערה' },
+    { name: 'updatedDate',     value: 'עודכן' },
+  ];
+
+  readonly rulesMobileCardConfig: IMobileCardConfig = {
+    primaryFields: ['transactionName'],
+    highlightedField: 'amountRange',
+    dateField: 'updatedDate',
+    hiddenFields: [],
+    highlightedValueFormat: 'plain',
+  };
+
+  rulesRowActions: ITableRowAction[] = [
+    {
+      name: 'editRule',
+      icon: 'pi pi-pencil',
+      title: 'ערוך',
+      action: (_, row) => {
+        const rule = this.rulesRawById.get(row!['id'] as number);
+        if (rule) this.openEditRule(rule);
+      },
+    },
+    {
+      name: 'deleteRule',
+      icon: 'pi pi-trash',
+      title: 'מחק',
+      action: (_, row) => {
+        const rule = this.rulesRawById.get(row!['id'] as number);
+        if (rule) this.confirmDeleteRule(rule);
+      },
+    },
+  ];
 
   categoriesColumns: IColumnDataTable<string, string>[] = [
     { name: 'categoryName',    value: 'קטגוריה' },
@@ -109,7 +150,17 @@ export class MyCategoriesTabComponent {
     { name: 'isRecognized', value: 'מוכרת' },
     { name: 'isExpense',    value: 'הוצאה' },
     { name: 'necessity',    value: 'הכרחיות' },
+    // Desktop-hidden column used as the mobile card title via mobileCardConfig.primaryFields.
+    { name: 'mobilePrimary', value: 'שם', hide: true },
   ];
+
+  readonly categoriesMobileCardConfig: IMobileCardConfig = {
+    primaryFields: ['mobilePrimary'],   // categoryName for category rows, subCategoryName for sub-cat rows
+    highlightedField: 'badge',          // "מותאם"/"מובנה" for categories; "" (not shown) for sub-cats
+    dateField: 'categoryName',          // parent category — provides context in sub-cat cards
+    hiddenFields: ['subCategoryName', 'rowType', 'userCategoryId', 'subCategoryCount'],
+    highlightedValueFormat: 'plain',
+  };
 
   readonly categoriesRowClass = (row: IRowDataTable): string =>
     row['rowType'] === 'category' ? 'gt-row--group-header' : '';
@@ -449,6 +500,24 @@ export class MyCategoriesTabComponent {
     this.messageService.add({ severity: 'error', summary: 'שגיאה', detail: fallback });
   }
 
+  private buildRulesTable(rules: UserRuleRow[]): void {
+    this.rulesRawById.clear();
+    this.rulesTableData.set(rules.map(rule => {
+      this.rulesRawById.set(rule.id, rule);
+      return {
+        id: rule.id,
+        transactionName: rule.transactionName,
+        billName: rule.billName ?? '—',
+        category: rule.category,
+        subCategory: rule.subCategory,
+        amountRange: this.formatAmountRange(rule.minAbsSum, rule.maxAbsSum),
+        dateRange: this.formatDateRange(rule.startDate, rule.endDate),
+        comment: rule.commentPattern || '—',
+        updatedDate: rule.updatedAt,
+      };
+    }));
+  }
+
   private buildCategoriesTable(groups: UserCategoryGroup[]): void {
     this.subCategoryRawById.clear();
     const rows: IRowDataTable[] = [];
@@ -467,6 +536,7 @@ export class MyCategoriesTabComponent {
         badge: group.userCategory ? 'מותאם' : 'מובנה',
         userCategoryId: group.userCategory?.id ?? 0,
         subCategoryCount: userSubs.length,
+        mobilePrimary: group.categoryName,
         vatPercent: '',
         taxPercent: '',
         reductionPercent: '',
@@ -486,6 +556,7 @@ export class MyCategoriesTabComponent {
           badge: '',
           userCategoryId: 0,
           subCategoryCount: 0,
+          mobilePrimary: sub.subCategoryName,
           vatPercent: sub.vatPercent,
           taxPercent: sub.taxPercent,
           reductionPercent: sub.reductionPercent,
@@ -512,7 +583,7 @@ export class MyCategoriesTabComponent {
 
     this.transactionsService.getUserRules(businessNumber).subscribe({
       next: (rows) => {
-        this.rules.set((rows ?? []) as UserRuleRow[]);
+        this.buildRulesTable((rows ?? []) as UserRuleRow[]);
         rulesDone = true;
         settle();
       },
