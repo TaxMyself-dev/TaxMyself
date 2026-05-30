@@ -90,13 +90,54 @@ export class MyCategoriesTabComponent {
   businesses = input<Business[]>([]);
 
   selectedBusinessNumber = signal<string | null>(null);
-  rules = signal<UserRuleRow[]>([]);
+  rulesTableData = signal<IRowDataTable[]>([]);
   categoriesTableData = signal<IRowDataTable[]>([]);
   loading = signal(false);
   errorText = signal<string | null>(null);
 
-  // Lookup map for the edit-sub dialog: sub id → raw sub-category object
+  // Lookup maps: id → raw object, used by action callbacks
+  private readonly rulesRawById = new Map<number, UserRuleRow>();
   private readonly subCategoryRawById = new Map<number, UserCategoryGroup['subCategories'][number]>();
+
+  rulesColumns: IColumnDataTable<string, string>[] = [
+    { name: 'transactionName', value: 'שם עסק (בתנועה)' },
+    { name: 'billName',        value: 'חשבון' },
+    { name: 'category',        value: 'קטגוריה' },
+    { name: 'subCategory',     value: 'תת-קטגוריה' },
+    { name: 'amountRange',     value: 'טווח סכום' },
+    { name: 'dateRange',       value: 'טווח תאריך' },
+    { name: 'comment',         value: 'הערה' },
+    { name: 'updatedDate',     value: 'עודכן' },
+  ];
+
+  readonly rulesMobileCardConfig: IMobileCardConfig = {
+    primaryFields: ['transactionName'],
+    highlightedField: 'amountRange',
+    dateField: 'updatedDate',
+    hiddenFields: [],
+    highlightedValueFormat: 'plain',
+  };
+
+  rulesRowActions: ITableRowAction[] = [
+    {
+      name: 'editRule',
+      icon: 'pi pi-pencil',
+      title: 'ערוך',
+      action: (_, row) => {
+        const rule = this.rulesRawById.get(row!['id'] as number);
+        if (rule) this.openEditRule(rule);
+      },
+    },
+    {
+      name: 'deleteRule',
+      icon: 'pi pi-trash',
+      title: 'מחק',
+      action: (_, row) => {
+        const rule = this.rulesRawById.get(row!['id'] as number);
+        if (rule) this.confirmDeleteRule(rule);
+      },
+    },
+  ];
 
   categoriesColumns: IColumnDataTable<string, string>[] = [
     { name: 'categoryName',    value: 'קטגוריה' },
@@ -459,6 +500,24 @@ export class MyCategoriesTabComponent {
     this.messageService.add({ severity: 'error', summary: 'שגיאה', detail: fallback });
   }
 
+  private buildRulesTable(rules: UserRuleRow[]): void {
+    this.rulesRawById.clear();
+    this.rulesTableData.set(rules.map(rule => {
+      this.rulesRawById.set(rule.id, rule);
+      return {
+        id: rule.id,
+        transactionName: rule.transactionName,
+        billName: rule.billName ?? '—',
+        category: rule.category,
+        subCategory: rule.subCategory,
+        amountRange: this.formatAmountRange(rule.minAbsSum, rule.maxAbsSum),
+        dateRange: this.formatDateRange(rule.startDate, rule.endDate),
+        comment: rule.commentPattern || '—',
+        updatedDate: rule.updatedAt,
+      };
+    }));
+  }
+
   private buildCategoriesTable(groups: UserCategoryGroup[]): void {
     this.subCategoryRawById.clear();
     const rows: IRowDataTable[] = [];
@@ -524,7 +583,7 @@ export class MyCategoriesTabComponent {
 
     this.transactionsService.getUserRules(businessNumber).subscribe({
       next: (rows) => {
-        this.rules.set((rows ?? []) as UserRuleRow[]);
+        this.buildRulesTable((rows ?? []) as UserRuleRow[]);
         rulesDone = true;
         settle();
       },

@@ -28,46 +28,16 @@
   <section class="cat-section">
     <h3 class="cat-section-title">כללי סיווג</h3>
 
-    @if (rules().length === 0 && !loading()) {
+    @if (rulesTableData().length === 0 && !loading()) {
       <div class="empty-row">אין כללי סיווג עבור העסק הזה.</div>
     } @else {
-      <div class="cat-table-wrapper">
-        <table class="cat-table">
-          <thead>
-            <tr>
-              <th>שם עסק (בתנועה)</th>
-              <th>חשבון</th>
-              <th>קטגוריה</th>
-              <th>תת-קטגוריה</th>
-              <th>טווח סכום</th>
-              <th>טווח תאריך</th>
-              <th>הערה</th>
-              <th>עודכן</th>
-              <th class="actions-col">פעולות</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (rule of rules(); track rule.id) {
-              <tr>
-                <td>{{ rule.transactionName }}</td>
-                <td>{{ rule.billName ?? '—' }}</td>
-                <td>{{ rule.category }}</td>
-                <td>{{ rule.subCategory }}</td>
-                <td>{{ formatAmountRange(rule.minAbsSum, rule.maxAbsSum) }}</td>
-                <td>{{ formatDateRange(rule.startDate, rule.endDate) }}</td>
-                <td>{{ rule.commentPattern || '—' }}</td>
-                <td>{{ rule.updatedAt | date:'dd/MM/yyyy' }}</td>
-                <td class="actions-cell">
-                  <button type="button" class="row-btn"
-                          (click)="openEditRule(rule)" title="ערוך">ערוך</button>
-                  <button type="button" class="row-btn row-btn-danger"
-                          (click)="confirmDeleteRule(rule)" title="מחק">מחק</button>
-                </td>
-              </tr>
-            }
-          </tbody>
-        </table>
-      </div>
+      <app-generic-table
+        [dataTable]="rulesTableData()"
+        [columnsTitle]="$any(rulesColumns)"
+        [rowActions]="rulesRowActions"
+        [mobileCardConfig]="rulesMobileCardConfig"
+        [isLoadingState]="loading()">
+      </app-generic-table>
     }
   </section>
 
