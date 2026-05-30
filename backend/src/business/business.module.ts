@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm'
 import { BusinessController } from './business.controller';
 import { SharedService } from 'src/shared/shared.service';
@@ -10,9 +10,13 @@ import { Transactions } from 'src/transactions/transactions.entity';
 import { SettingDocuments } from 'src/documents/settingDocuments.entity';
 import { Delegation } from 'src/delegation/delegation.entity';
 import { User } from 'src/users/user.entity';
+import { UsersModule } from 'src/users/users.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Business, Transactions, Expense, SettingDocuments, Delegation, User])],
+  imports: [
+    TypeOrmModule.forFeature([Business, Transactions, Expense, SettingDocuments, Delegation, User]),
+    forwardRef(() => UsersModule),
+  ],
   controllers: [BusinessController],
   providers: [
     BusinessService,

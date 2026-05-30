@@ -31,6 +31,8 @@ export interface IAccountantTask {
     workflowId?: number;
     /** סטטוס תהליך הדיווח (ממתין לאישור לקוח / מוכן להכנה / דווח) */
     workflowStatus?: string;
+    /** קיים קובץ דוח שמור (PDF) למשימה זו */
+    hasReportFile?: boolean;
 }
 
 /** תהליך דיווח (מע"מ / מקדמת מס) – הסטטוס המשותף בין הלקוח והרואה חשבון */
@@ -52,6 +54,8 @@ export interface IReportWorkflow {
     updatedAt: string;
     /** האם המשתמש הנוכחי (לקוח) רשאי לסמן בעצמו את הדוח כדווח – true כאשר אין לו רואה חשבון פעיל */
     canSelfMark?: boolean;
+    /** נתיב קובץ הדוח השמור (PDF) – קיים לאחר שהדוח סומן כהוגש */
+    reportFilePath?: string | null;
 }
 
 /** Payload להוספת משימה ידנית */

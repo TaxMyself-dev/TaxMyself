@@ -11,6 +11,7 @@ import { ReportWorkflowController } from './report-workflow.controller';
 import { ReportWorkflowService } from './report-workflow.service';
 import { NotificationsModule } from 'src/notifications/notifications.module';
 import { AccountantTasksModule } from 'src/accountant-tasks/accountant-tasks.module';
+import { ReportsModule } from 'src/reports/reports.module';
 import { SharedModule } from 'src/shared/shared.module';
 
 @Module({
@@ -27,6 +28,8 @@ import { SharedModule } from 'src/shared/shared.module';
     NotificationsModule,
     // For TasksGeneratorService injected into ReportWorkflowService.listForClient.
     AccountantTasksModule,
+    // For ReportsService.generateVatReportPdfBuffer used on submit.
+    ReportsModule,
     // For SharedService.getVATReportingDate used to label locked transactions.
     SharedModule,
   ],

@@ -22,6 +22,8 @@ import {
 import { ListWorkflowsDto } from './dtos/list-workflows.dto';
 import { NotificationService } from 'src/notifications/notification.service';
 import { TasksGeneratorService } from 'src/accountant-tasks/tasks-generator.service';
+import { ReportsService } from 'src/reports/reports.service';
+import * as admin from 'firebase-admin';
 import { SlimTransaction } from 'src/transactions/slim-transaction.entity';
 import { FullTransactionCache } from 'src/transactions/full-transaction-cache.entity';
 import { SharedService } from 'src/shared/shared.service';
@@ -55,6 +57,7 @@ export class ReportWorkflowService {
     private readonly cacheRepo: Repository<FullTransactionCache>,
     private readonly notifications: NotificationService,
     private readonly tasksGenerator: TasksGeneratorService,
+    private readonly reportsService: ReportsService,
     private readonly sharedService: SharedService,
   ) {}
 
@@ -215,9 +218,85 @@ export class ReportWorkflowService {
 
     if (reported) {
       this.notifications.notifyClientWorkflowReported({ workflow: saved }).catch(() => {});
+      // Snapshot the as-filed VAT report as a PDF. Best-effort: a failure here
+      // must not undo the submission the user just confirmed.
+      if (
+        saved.type === ReportWorkflowType.VAT_REPORT &&
+        !saved.reportFilePath
+      ) {
+        try {
+          await this.snapshotVatReportPdf(saved);
+        } catch (err: any) {
+          this.logger.error(
+            `VAT report PDF snapshot failed for workflow ${saved.id}: ${err?.message ?? err}`,
+          );
+        }
+      }
+    } else {
+      // Un-submitting clears the stale snapshot — the figures may change before
+      // the next submission, so a regenerated file will replace it.
+      if (saved.reportFilePath) {
+        saved.reportFilePath = null;
+        await this.workflowRepo.save(saved);
+      }
     }
     const canSelfMark = !(await this.hasAccountant(saved.clientFirebaseId));
     return { ...saved, canSelfMark };
+  }
+
+  /**
+   * Compute the VAT report for the workflow's business+period, render it to a
+   * PDF, upload it to Firebase Storage, and persist the path on the workflow.
+   */
+  private async snapshotVatReportPdf(workflow: ReportWorkflow): Promise<void> {
+    const pdf = await this.reportsService.generateVatReportPdfBuffer(
+      workflow.clientFirebaseId,
+      workflow.businessNumber,
+      new Date(workflow.periodStart),
+      new Date(workflow.periodEnd),
+      workflow.reportedAt ? new Date(workflow.reportedAt) : new Date(),
+    );
+
+    const periodKey = `${this.dateKey(workflow.periodStart)}_${this.dateKey(workflow.periodEnd)}`;
+    const storagePath = `reportFiles/${workflow.businessNumber}/VAT_REPORT/${periodKey}/vat-report-${workflow.id}.pdf`;
+
+    const bucket = admin.storage().bucket(process.env.FIREBASE_STORAGE_BUCKET);
+    await bucket.file(storagePath).save(pdf, {
+      metadata: { contentType: 'application/pdf' },
+      resumable: false,
+    });
+
+    workflow.reportFilePath = storagePath;
+    await this.workflowRepo.save(workflow);
+    this.logger.log(
+      `VAT report PDF stored for workflow ${workflow.id} at ${storagePath}`,
+    );
+  }
+
+  /** YYYY-MM-DD key for stable storage paths. */
+  private dateKey(d: Date | string): string {
+    return new Date(d).toISOString().slice(0, 10);
+  }
+
+  /**
+   * Fetch the stored report PDF for a workflow. Access is allowed to the
+   * client themselves or an accountant with an active delegation (same rule
+   * as getById). Returns the bytes + a download filename.
+   */
+  async getReportFile(
+    requesterFirebaseId: string,
+    id: number,
+  ): Promise<{ buffer: Buffer; filename: string }> {
+    const workflow = await this.workflowRepo.findOne({ where: { id } });
+    if (!workflow) throw new NotFoundException('המשימה לא נמצאה');
+    await this.assertAccess(requesterFirebaseId, workflow);
+    if (!workflow.reportFilePath) {
+      throw new NotFoundException('לא נמצא קובץ דוח למשימה זו');
+    }
+    const bucket = admin.storage().bucket(process.env.FIREBASE_STORAGE_BUCKET);
+    const [buffer] = await bucket.file(workflow.reportFilePath).download();
+    const filename = `vat-report-${this.dateKey(workflow.periodStart)}-${this.dateKey(workflow.periodEnd)}.pdf`;
+    return { buffer, filename };
   }
 
   // ----- Internal -----

@@ -12,12 +12,14 @@ import { FirebaseAuthGuard } from '../guards/firebase-auth.guard';
 import { FeezbackModule } from '../feezback/feezback.module';
 import { SettingDocuments } from 'src/documents/settingDocuments.entity';
 import { UserModuleSubscription } from './user-module-subscription.entity';
+import { GoogleDriveModule } from '../google-drive/google-drive.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([User, Child, Business, Delegation, SettingDocuments, UserModuleSubscription]),
     SharedModule,
     forwardRef(() => FeezbackModule),
+    GoogleDriveModule,
   ],
   controllers: [UsersController],
   providers: [

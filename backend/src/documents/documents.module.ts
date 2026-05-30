@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm'
 import { DocumentsService,  } from './documents.service';
 import { DocumentsController } from './documents.controller';
@@ -19,20 +19,30 @@ import { Business } from 'src/business/business.entity';
 import { BusinessService } from 'src/business/business.service';
 import { MailModule } from 'src/mail/mail.module';
 import { User } from 'src/users/user.entity';
+import { ExtractedDocument } from './extracted-document.entity';
+import { DocumentProcessorService } from './document-processor.service';
+import { GoogleDriveModule } from '../google-drive/google-drive.module';
+import { Supplier } from '../expenses/suppliers.entity';
+import { DefaultSubCategory } from '../expenses/default-sub-categories.entity';
+import { UserSubCategory } from '../expenses/user-sub-categories.entity';
+import { UsersModule } from '../users/users.module';
 
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([SettingDocuments, Documents, Expense, Transactions, DocLines, DocPayments, Business, Delegation, JournalEntry, JournalLine, DefaultBookingAccount, User]),
-    MailModule
+    TypeOrmModule.forFeature([SettingDocuments, Documents, Expense, Transactions, DocLines, DocPayments, Business, Delegation, JournalEntry, JournalLine, DefaultBookingAccount, User, ExtractedDocument, Supplier, DefaultSubCategory, UserSubCategory]),
+    MailModule,
+    GoogleDriveModule,
+    forwardRef(() => UsersModule),
   ],
   controllers: [DocumentsController],
   providers: [
     DocumentsService,
     SharedService,
     BookkeepingService,
-    BusinessService
+    BusinessService,
+    DocumentProcessorService,
   ],
-  exports: [DocumentsService], // Export DocumentsService for use in other modules
+  exports: [DocumentsService, DocumentProcessorService], // Export for use in other modules
 })
 export class DocumentsModule {}

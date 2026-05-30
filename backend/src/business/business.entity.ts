@@ -104,5 +104,9 @@ export class Business {
 
   // @Column({ type: 'varchar', nullable: true, default: null })
   // bankIban: string | null;
-  
+
+  // Google Drive folder id for this business — created lazily on first sync.
+  // Parent folder is the user's root Drive folder (user.drive_folder_id).
+  @Column({ name: 'drive_folder_id', type: 'varchar', length: 255, nullable: true, default: null })
+  driveFolderId: string | null;
 }

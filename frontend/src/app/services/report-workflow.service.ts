@@ -61,4 +61,11 @@ export class ReportWorkflowService {
   dismiss(id: number): Observable<void> {
     return this.http.delete<void>(`${this.baseUrl}/${id}`);
   }
+
+  /** Fetch the stored as-filed report PDF as a blob (auth header added by interceptor). */
+  getReportFile(id: number): Observable<Blob> {
+    return this.http.get(`${this.baseUrl}/${id}/report-file`, {
+      responseType: 'blob',
+    });
+  }
 }

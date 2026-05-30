@@ -279,6 +279,31 @@ export class ClientTasksPage implements OnInit {
     });
   }
 
+  /** Open the stored as-filed report PDF in a new browser tab. */
+  openReportFile(workflow: IReportWorkflow): void {
+    this.busyId.set(workflow.id);
+    this.workflowService.getReportFile(workflow.id).subscribe({
+      next: (blob) => {
+        this.busyId.set(null);
+        const url = URL.createObjectURL(blob);
+        window.open(url, '_blank');
+        // Revoke after the tab has had time to load the blob.
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+      },
+      error: (err) => {
+        this.busyId.set(null);
+        const detail = err?.error?.message ?? err?.message ?? 'פתיחת הדוח נכשלה';
+        this.messageService.add({
+          severity: 'error',
+          summary: 'שגיאה',
+          detail,
+          life: 4000,
+          key: 'br',
+        });
+      },
+    });
+  }
+
   private runMarkReported(workflow: IReportWorkflow): void {
     this.busyId.set(workflow.id);
     this.workflowService.setReported(workflow.id, true).subscribe({

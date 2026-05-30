@@ -128,6 +128,9 @@ export class User {
     @Column({ type: 'varchar', nullable: true, default: null })
     discountLabel: string | null;
 
+    @Column({ name: 'drive_folder_id', type: 'varchar', length: 255, nullable: true, default: null })
+    driveFolderId: string | null;
+
     ////////////////////////////////////
     /////////   Spouse details  ////////
     ////////////////////////////////////

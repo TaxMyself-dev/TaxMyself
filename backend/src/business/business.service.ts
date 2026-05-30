@@ -1,15 +1,19 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { forwardRef, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Business } from './business.entity';
 import { Repository } from 'typeorm';
+import { UsersService } from 'src/users/users.service';
 
 
 @Injectable()
 export class BusinessService {
+  private readonly logger = new Logger(BusinessService.name);
 
   constructor(
     @InjectRepository(Business)
     private businessRepo: Repository<Business>,
+    @Inject(forwardRef(() => UsersService))
+    private readonly usersService: UsersService,
   ) { }
 
 
@@ -88,7 +92,31 @@ export class BusinessService {
       businessType: (dto?.businessType as any) ?? null,
       advanceTaxPercent: dto?.advanceTaxPercent ?? null,
     });
-    return this.businessRepo.save(business);
+    const saved = await this.businessRepo.save(business);
+
+    // Fire-and-forget Drive folder provisioning for the new business so the
+    // request returns immediately. provisionDriveStructure iterates all the
+    // user's businesses and skips any that already have a driveFolderId, so
+    // calling it again only creates the new folder.
+    void this.provisionDriveForNewBusiness(firebaseId);
+
+    return saved;
+  }
+
+  private async provisionDriveForNewBusiness(firebaseId: string): Promise<void> {
+    try {
+      const user = await this.usersService.findByFirebaseId(firebaseId);
+      if (!user) return;
+      // Include delegated accountants so the new business folder shows up in
+      // their "Shared with me" automatically.
+      const accountantEmails = await this.usersService.getActiveAccountantEmailsForUser(firebaseId);
+      await this.usersService.provisionDriveStructure(user, accountantEmails);
+    } catch (err: any) {
+      this.logger.error(
+        `provisionDriveForNewBusiness failed for firebaseId=${firebaseId}: ${err?.message ?? err}`,
+        err?.stack,
+      );
+    }
   }
 
   async deleteBusiness(firebaseId: string, id: number): Promise<void> {

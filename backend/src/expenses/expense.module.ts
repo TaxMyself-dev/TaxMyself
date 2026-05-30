@@ -20,10 +20,11 @@ import { UserCategory } from './user-categories.entity';
 import { Delegation } from 'src/delegation/delegation.entity';
 import { Business } from 'src/business/business.entity';
 import { ClassifiedTransactions } from '../transactions/classified-transactions.entity';
+import { ExtractedDocument } from '../documents/extracted-document.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Expense, User, Business, DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory, Supplier, Child, Delegation, ClassifiedTransactions ]),
+    TypeOrmModule.forFeature([Expense, User, Business, DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory, Supplier, Child, Delegation, ClassifiedTransactions, ExtractedDocument]),
     SharedModule,
     UsersModule
   ],

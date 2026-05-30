@@ -1,5 +1,5 @@
 //General
-import { HttpException, HttpStatus, Injectable, NotFoundException, UnauthorizedException, ConflictException, ForbiddenException } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable, Logger, NotFoundException, UnauthorizedException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Between, DataSource, In, LessThanOrEqual, MoreThan, MoreThanOrEqual, Repository } from 'typeorm';
 //Entities
@@ -11,6 +11,7 @@ import { DefaultSubCategory } from './default-sub-categories.entity';
 import { UserCategory } from './user-categories.entity';
 import { UserSubCategory } from './user-sub-categories.entity';
 import { ClassifiedTransactions } from '../transactions/classified-transactions.entity';
+import { ExtractedDocument } from '../documents/extracted-document.entity';
 import { SharedService } from '../shared/shared.service';
 import { FxRateService } from '../shared/fx-rate.service';
 import { Business } from 'src/business/business.entity';
@@ -28,6 +29,7 @@ import { UpdateUserSubCategoryDto } from './dtos/update-user-sub-category.dto';
 
 @Injectable()
 export class ExpensesService {
+    private readonly logger = new Logger(ExpensesService.name);
 
     constructor
         (
@@ -41,6 +43,7 @@ export class ExpensesService {
             @InjectRepository(Supplier) private supplier_repo: Repository<Supplier>,
             @InjectRepository(Business) private businessRepo: Repository<Business>,
             @InjectRepository(ClassifiedTransactions) private rulesRepo: Repository<ClassifiedTransactions>,
+            @InjectRepository(ExtractedDocument) private extractedDocRepo: Repository<ExtractedDocument>,
             private readonly fxRateService: FxRateService,
             private readonly dataSource: DataSource,
         ) { }
@@ -72,8 +75,16 @@ export class ExpensesService {
             newExpense.originalSum = null;
         }
 
-        // isEquipment should be true only if category is "רכוש קבוע", otherwise always false
-        if (expense.category === 'רכוש קבוע') {
+        // isEquipment resolution:
+        //   1) Trust an explicit value from the DTO (the OCR bulk-confirm flow
+        //      sends it from the catalog match — sub-categories tagged
+        //      isEquipment=true should win regardless of parent category name).
+        //   2) Otherwise fall back to the legacy behavior: only the parent
+        //      category "רכוש קבוע" triggers an isEquipment lookup; everything
+        //      else stays false (preserves the existing manual-entry contract).
+        if (typeof (expense as any).isEquipment === 'boolean') {
+            newExpense.isEquipment = (expense as any).isEquipment;
+        } else if (expense.category === 'רכוש קבוע') {
             const isEquipment = await this.getSubCategoryIsEquipment(expense.category, expense.subCategory, userId, businessNumber);
             newExpense.isEquipment = isEquipment ?? false;
         } else {
@@ -1196,4 +1207,102 @@ export class ExpensesService {
         }));
     }
 
+    /**
+     * Bulk-confirm a batch of OCR-extracted documents as Expenses. For each item:
+     *   1) create an Expense row (reuses addExpense for currency/percent logic)
+     *   2) optionally create a Supplier row (if saveAsSupplier && supplierID
+     *      isn't already in this user's supplier table)
+     *   3) mark the source extracted_document.confirmed_expense_id so it falls
+     *      out of the review list and can't be confirmed twice.
+     * Per-row best-effort: one failure doesn't abort the batch.
+     */
+    async bulkConfirmFromDrive(
+        firebaseId: string,
+        businessNumber: string,
+        items: BulkConfirmFromDriveItem[],
+    ): Promise<{
+        results: Array<{ documentId: number; ok: boolean; expenseId?: number; supplierCreated?: boolean; error?: string }>;
+        summary: { total: number; succeeded: number; failed: number };
+    }> {
+        const results: Array<{ documentId: number; ok: boolean; expenseId?: number; supplierCreated?: boolean; error?: string }> = [];
+
+        for (const item of items) {
+            try {
+                const dto: CreateExpenseDto = {
+                    supplier: item.supplier,
+                    supplierID: item.supplierID ?? '',
+                    expenseNumber: undefined as any,
+                    category: item.category,
+                    subCategory: item.subCategory,
+                    sum: item.sum,
+                    taxPercent: item.taxPercent,
+                    vatPercent: item.vatPercent,
+                    date: new Date(item.date) as any,
+                    note: undefined as any,
+                    file: undefined as any,
+                    reductionPercent: 0,
+                    isEquipment: !!item.isEquipment,
+                };
+
+                const expense = await this.addExpense(dto, firebaseId, businessNumber);
+
+                let supplierCreated = false;
+                if (item.saveAsSupplier && item.supplierID) {
+                    const existing = await this.supplier_repo.findOne({
+                        where: { userId: firebaseId, supplierID: item.supplierID },
+                    });
+                    if (!existing) {
+                        await this.supplier_repo.save(
+                            this.supplier_repo.create({
+                                supplier: item.supplier,
+                                supplierID: item.supplierID,
+                                category: item.category,
+                                subCategory: item.subCategory,
+                                taxPercent: item.taxPercent,
+                                vatPercent: item.vatPercent,
+                                userId: firebaseId,
+                                businessNumber,
+                                isEquipment: !!item.isEquipment,
+                                reductionPercent: 0,
+                            }),
+                        );
+                        supplierCreated = true;
+                    }
+                }
+
+                await this.extractedDocRepo.update(item.documentId, {
+                    confirmedExpenseId: expense.id,
+                });
+
+                results.push({ documentId: item.documentId, ok: true, expenseId: expense.id, supplierCreated });
+            } catch (err: any) {
+                this.logger.error(
+                    `bulkConfirmFromDrive: documentId=${item.documentId} failed: ${err?.message ?? err}`,
+                    err?.stack,
+                );
+                results.push({ documentId: item.documentId, ok: false, error: err?.message ?? String(err) });
+            }
+        }
+
+        const succeeded = results.filter(r => r.ok).length;
+        return {
+            results,
+            summary: { total: items.length, succeeded, failed: items.length - succeeded },
+        };
+    }
+
+}
+
+export interface BulkConfirmFromDriveItem {
+    documentId: number;
+    supplier: string;
+    supplierID: string | null;
+    date: string;          // YYYY-MM-DD
+    sum: number;
+    category: string;
+    subCategory: string;
+    vatPercent: number;
+    taxPercent: number;
+    isEquipment: boolean;
+    saveAsSupplier: boolean;
 }

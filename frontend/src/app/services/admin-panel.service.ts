@@ -51,6 +51,18 @@ export class AdminPanelService {
     return this.http.delete<any>(url);
   }
 
+  // ----- Drive OCR sync (admin) -----
+
+  syncUserDriveMonth(userIndex: number, businessNumber: string, yearMonth: string): Observable<DriveSyncResult> {
+    const url = `${environment.apiUrl}documents/sync/${userIndex}/${businessNumber}/${yearMonth}`;
+    return this.http.post<DriveSyncResult>(url, {});
+  }
+
+  getUserExtractedDocs(userIndex: number, businessNumber: string, yearMonth: string): Observable<ExtractedDocRow[]> {
+    const url = `${environment.apiUrl}documents/${userIndex}/${businessNumber}/${yearMonth}`;
+    return this.http.get<ExtractedDocRow[]>(url);
+  }
+
   // ----- Demo data -----
 
   listDemoProfiles(): Observable<DemoProfileListItem[]> {
@@ -102,4 +114,33 @@ export interface DemoSeedResult {
 export interface DemoResetResult {
   existed: boolean;
   deletedRows: Record<string, number>;
+}
+
+export interface DriveSyncResult {
+  processed: number;
+  failed: number;
+  skipped: number;
+  total: number;
+  monthFolderId: string;
+}
+
+export interface ExtractedDocRow {
+  id: number;
+  userId: number;
+  driveFileId: string;
+  driveFileName: string;
+  month: string;
+  supplier: string | null;
+  supplierId: string | null;
+  date: string | null;
+  invoiceNumber: string | null;
+  amount: string | null;
+  vat: string | null;
+  amountBeforeVat: string | null;
+  category: string | null;
+  description: string | null;
+  status: 'pending' | 'processed' | 'error';
+  rawResponse: string | null;
+  createdAt: string;
+  updatedAt: string;
 }

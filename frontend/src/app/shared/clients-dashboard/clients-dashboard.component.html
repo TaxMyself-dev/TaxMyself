@@ -18,6 +18,10 @@
         <div class="stat-value">{{ getUsersByStatus('נדרש תשלום') }}</div>
         <div class="stat-label">נדרש תשלום</div>
       </div>
+      <div class="stat-card">
+        <div class="stat-value">{{ getOpenBankingUsersCount() }}</div>
+        <div class="stat-label">מחוברים לבנקאות פתוחה</div>
+      </div>
     </div>
   </div>
 
@@ -25,7 +29,7 @@
     <input 
       type="text" 
       class="search-input" 
-      placeholder="חפש לפי שם, אימייל, טלפון או עיר..."
+      placeholder="חפש לפי שם, אימייל או טלפון..."
       (input)="onSearch($event)"
     />
   </div>
@@ -135,6 +139,114 @@
     </div>
   </p-dialog>
 </div>
+
+<p-dialog
+  [header]="'משיכת מסמכים מ-Drive — ' + (driveDialogClient()?.name || '')"
+  [visible]="driveDialogVisible()"
+  (visibleChange)="onDriveDialogVisibleChange($event)"
+  [modal]="true"
+  [style]="{ width: '900px', maxWidth: '95vw' }"
+  [rtl]="true"
+  [draggable]="false"
+  [resizable]="false">
+
+  <div style="display: flex; gap: 12px; align-items: end; margin-bottom: 16px; flex-wrap: wrap;">
+    <div>
+      <label style="display: block; font-size: 0.85rem; color: #6b7280; margin-bottom: 4px;">מס׳ עוסק</label>
+      <input type="text"
+             [ngModel]="driveDialogBusinessNumber()"
+             (ngModelChange)="driveDialogBusinessNumber.set($event)"
+             [disabled]="driveDialogLoading()"
+             placeholder="ח.פ. / עוסק מורשה"
+             style="padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 6px; min-width: 160px;" />
+    </div>
+    <div>
+      <label style="display: block; font-size: 0.85rem; color: #6b7280; margin-bottom: 4px;">שנה</label>
+      <select
+        [ngModel]="driveDialogYear()"
+        (ngModelChange)="driveDialogYear.set($event)"
+        [disabled]="driveDialogLoading()"
+        style="padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 6px; min-width: 100px;">
+        <option *ngFor="let y of driveYearOptions" [ngValue]="y">{{ y }}</option>
+      </select>
+    </div>
+
+    <div>
+      <label style="display: block; font-size: 0.85rem; color: #6b7280; margin-bottom: 4px;">חודש</label>
+      <select
+        [ngModel]="driveDialogMonth()"
+        (ngModelChange)="driveDialogMonth.set($event)"
+        [disabled]="driveDialogLoading()"
+        style="padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 6px; min-width: 80px;">
+        <option *ngFor="let m of driveMonthOptions" [ngValue]="m">{{ m | number:'2.0-0' }}</option>
+      </select>
+    </div>
+
+    <app-p-button
+      [buttonText]="'משוך נתונים'"
+      [buttonColor]="ButtonColor.BLACK"
+      [buttonSize]="ButtonSize.SMALL"
+      [isLoading]="driveDialogLoading()"
+      (onButtonClicked)="onSubmitDriveSync()">
+    </app-p-button>
+  </div>
+
+  <div *ngIf="driveSyncSummary() as summary" style="margin-bottom: 12px; padding: 10px 12px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 0.9rem;">
+    סה"כ בתיקייה: {{ summary.total }} &nbsp;|&nbsp;
+    <span style="color: #16a34a;">עובדו כעת: {{ summary.processed }}</span> &nbsp;|&nbsp;
+    <span style="color: #6b7280;">דולגו (קיימים): {{ summary.skipped }}</span> &nbsp;|&nbsp;
+    <span style="color: #dc2626;">נכשלו: {{ summary.failed }}</span>
+  </div>
+
+  <div *ngIf="driveDialogLoading() && !driveSyncSummary()" style="color: #6b7280;">
+    <i class="pi pi-spin pi-spinner" style="margin-left: 8px;"></i>
+    מסנכרן עם Drive ושולח ל-Claude OCR — זה יכול לקחת מספר שניות לכל קובץ...
+  </div>
+
+  <div *ngIf="driveSyncSummary() && driveExtractedDocs().length === 0" style="color: #6b7280; font-style: italic;">
+    אין מסמכים מחולצים לחודש זה.
+  </div>
+
+  <div *ngIf="driveExtractedDocs().length > 0" style="max-height: 60vh; overflow: auto; border: 1px solid #e5e7eb; border-radius: 6px;">
+    <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
+      <thead style="background: #f3f4f6; position: sticky; top: 0;">
+        <tr>
+          <th style="padding: 8px; text-align: start; border-bottom: 1px solid #e5e7eb;">קובץ</th>
+          <th style="padding: 8px; text-align: start; border-bottom: 1px solid #e5e7eb;">ספק</th>
+          <th style="padding: 8px; text-align: start; border-bottom: 1px solid #e5e7eb;">מס׳ עוסק</th>
+          <th style="padding: 8px; text-align: start; border-bottom: 1px solid #e5e7eb;">תאריך</th>
+          <th style="padding: 8px; text-align: start; border-bottom: 1px solid #e5e7eb;">מס׳ חשבונית</th>
+          <th style="padding: 8px; text-align: end; border-bottom: 1px solid #e5e7eb;">סכום</th>
+          <th style="padding: 8px; text-align: end; border-bottom: 1px solid #e5e7eb;">מע״מ</th>
+          <th style="padding: 8px; text-align: start; border-bottom: 1px solid #e5e7eb;">קטגוריה</th>
+          <th style="padding: 8px; text-align: start; border-bottom: 1px solid #e5e7eb;">סטטוס</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let doc of driveExtractedDocs()" style="border-bottom: 1px solid #f1f5f9;">
+          <td style="padding: 8px; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" [title]="doc.driveFileName">{{ doc.driveFileName }}</td>
+          <td style="padding: 8px;">{{ doc.supplier || '—' }}</td>
+          <td style="padding: 8px; font-variant-numeric: tabular-nums;">{{ doc.supplierId || '—' }}</td>
+          <td style="padding: 8px;">{{ doc.date || '—' }}</td>
+          <td style="padding: 8px;">{{ doc.invoiceNumber || '—' }}</td>
+          <td style="padding: 8px; text-align: end; font-variant-numeric: tabular-nums;">{{ doc.amount || '—' }}</td>
+          <td style="padding: 8px; text-align: end; font-variant-numeric: tabular-nums;">{{ doc.vat || '—' }}</td>
+          <td style="padding: 8px;">{{ doc.category || '—' }}</td>
+          <td style="padding: 8px;">
+            <span [style.color]="driveStatusColor(doc.status)" style="font-weight: 500;">
+              {{ driveStatusLabel(doc.status) }}
+            </span>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <details *ngIf="driveExtractedDocs().length > 0" style="margin-top: 12px;">
+    <summary style="cursor: pointer; color: #6b7280; font-size: 0.85rem;">הצג JSON מלא</summary>
+    <pre style="max-height: 40vh; overflow: auto; direction: ltr; text-align: left; font-size: 11px; background: #f6f8fa; padding: 10px; border-radius: 6px; margin-top: 6px;">{{ driveExtractedDocs() | json }}</pre>
+  </details>
+</p-dialog>
 
 <p-confirmDialog></p-confirmDialog>
 

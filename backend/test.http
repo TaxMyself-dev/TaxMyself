@@ -1,0 +1,36 @@
+### Trigger Drive-folder provisioning for an existing user.
+### Replace `1` with an existing user.index from the DB.
+POST http://localhost:3000/auth/dev/drive/create-folder/6
+
+###
+
+### Auto-provision via signup flow: create a brand-new user and confirm that
+### `drive_folder_id` is filled in the DB.
+### Bump the email / firebaseId / id between runs to avoid collisions.
+POST http://localhost:3000/auth/signup
+Content-Type: application/json
+
+{
+  "personal": {
+    "fName": "Drive",
+    "lName": "Test",
+    "id": "999000001",
+    "dateOfBirth": "1990-01-01",
+    "phone": "0500000001",
+    "email": "drive-test-001@example.com",
+    "city": "Tel Aviv",
+    "firebaseId": "drive-test-uid-001"
+  }
+}
+
+###
+
+### Sync a (user, business, month) folder → downloads new files, runs Claude OCR,
+### stores rows in `extracted_document`. Replace <BUSINESS_NUMBER> with the
+### Israeli business / tax id you provisioned the business under.
+POST http://localhost:3000/documents/sync/6/<BUSINESS_NUMBER>/2026-05
+
+###
+
+### List extracted rows for that (user, business, month).
+GET http://localhost:3000/documents/6/<BUSINESS_NUMBER>/2026-05

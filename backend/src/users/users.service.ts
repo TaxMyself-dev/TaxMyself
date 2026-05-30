@@ -13,6 +13,8 @@ import { cities } from '../cities/cities.data';
 import { Business } from 'src/business/business.entity';
 import { SettingDocuments } from 'src/documents/settingDocuments.entity';
 import { UserModuleSubscription } from './user-module-subscription.entity';
+import { GoogleDriveService } from '../google-drive/google-drive.service';
+import { Delegation, DelegationStatus } from '../delegation/delegation.entity';
 
 
 @Injectable()
@@ -32,8 +34,31 @@ export class UsersService {
       private readonly settingDocumentsRepo: Repository<SettingDocuments>,
       @InjectRepository(UserModuleSubscription)
       private readonly moduleSubRepo: Repository<UserModuleSubscription>,
+      @InjectRepository(Delegation)
+      private readonly delegationRepo: Repository<Delegation>,
+      private readonly googleDriveService: GoogleDriveService,
     ) {
     this.firebaseAuth = admin.auth();
+  }
+
+  /**
+   * Returns the email addresses of every active accountant delegated to this
+   * client. Used as `additionalShareEmails` when provisioning Drive folders,
+   * so each accountant gets the client's folder in their own "Shared with me".
+   */
+  async getActiveAccountantEmailsForUser(clientFirebaseId: string): Promise<string[]> {
+    const delegations = await this.delegationRepo.find({
+      where: { userId: clientFirebaseId, status: DelegationStatus.ACTIVE },
+      select: ['agentId'],
+    });
+    if (delegations.length === 0) return [];
+    const agentIds = Array.from(new Set(delegations.map(d => d.agentId).filter(Boolean)));
+    if (agentIds.length === 0) return [];
+    const accountants = await this.user_repo.find({
+      where: agentIds.map(id => ({ firebaseId: id })),
+      select: ['email'],
+    });
+    return accountants.map(a => a.email).filter((e): e is string => !!e);
   }
 
 
@@ -204,6 +229,21 @@ export class UsersService {
       await this.business_repo.save(newBusiness);
     }
 
+    // -------------------------------------------------------
+    // 9️⃣  Provision Google Drive structure: user root + a folder per business
+    //     with 2-year × 12-month scaffold. Fired-and-forgotten so signup
+    //     returns immediately — the scaffold takes ~5-30s per user depending
+    //     on business count, and Drive failures shouldn't block the response.
+    //     If anything here drops on the floor, DocumentsService.syncMonthsForUser
+    //     lazily fills gaps on first sync.
+    // -------------------------------------------------------
+    void this.provisionDriveStructure(savedUser).catch(err =>
+      this.logger.error(
+        `[signup] background Drive provisioning failed for firebaseId=${savedUser.firebaseId}: ${err?.message ?? err}`,
+        err?.stack,
+      ),
+    );
+
     return savedUser;
   }
 
@@ -219,6 +259,20 @@ export class UsersService {
         raw.previousLoginAt = raw.lastLoginAt;
         raw.lastLoginAt = new Date();
         await this.user_repo.save(raw);
+
+        // Backfill Drive folders for users registered before the per-business
+        // layout existed, AND backfill accountant Drive shares for clients
+        // whose delegation existed before the share-on-provision feature.
+        // Fire-and-forget; provisionDriveStructure is idempotent end-to-end.
+        void (async () => {
+          const accountantEmails = await this.getActiveAccountantEmailsForUser(firebaseId);
+          await this.provisionDriveStructure(raw, accountantEmails);
+        })().catch(err =>
+          this.logger.error(
+            `[signin] background Drive provisioning failed for firebaseId=${firebaseId}: ${err?.message ?? err}`,
+            err?.stack,
+          ),
+        );
       }
     }
     const user = await this.findFireUser(firebaseId);
@@ -527,6 +581,199 @@ export class UsersService {
     } catch (error) {
       throw new InternalServerErrorException('Failed to fetch users');
     }
+  }
+
+  /**
+   * Provision the full Drive folder structure for a user:
+   *   user-root/
+   *     business-A/  2024..2025  (months + דוח שנתי)
+   *     business-B/  ...
+   *
+   * Best-effort everywhere — Drive failure leaves null IDs that the lazy
+   * auto-provision in DocumentsService.syncMonthsForUser fills in later.
+   *
+   * Called after businesses are saved in signup() so we already know their
+   * names. Idempotent: skips anything that already has a folder id.
+   */
+  async provisionDriveStructure(
+    user: User,
+    additionalShareEmails: string[] = [],
+  ): Promise<void> {
+    if (!user.firebaseId) return;
+
+    // Dedupe + drop falsy entries and the user's own email (already shared).
+    const extraEmails = Array.from(new Set(
+      additionalShareEmails.filter(e => !!e && e !== user.email),
+    ));
+
+    const userTag = `index=${user.index}, fid=${user.firebaseId?.substring(0, 8)}...`;
+    this.logger.log(
+      `[Drive] provisionDriveStructure START | ${userTag} | userFolderId=${user.driveFolderId ?? '∅'}`,
+    );
+
+    // Verify the stored user folder still exists in Drive. If someone deleted
+    // it manually (common during dev), the stored id is dead and any business
+    // folder we try to create under it will 404. Null the dead id so the
+    // create-new branch fires below.
+    if (user.driveFolderId) {
+      try {
+        const stillThere = await this.googleDriveService.folderExists(user.driveFolderId);
+        if (!stillThere) {
+          this.logger.warn(
+            `[Drive] stored user folder ${user.driveFolderId} no longer exists in Drive — will re-create | ${userTag}`,
+          );
+          user.driveFolderId = null;
+          await this.user_repo.save(user);
+        }
+      } catch (err: any) {
+        this.logger.error(
+          `[Drive] folderExists check failed for user folder ${user.driveFolderId} | ${userTag}: ${err?.message ?? err}`,
+        );
+      }
+    }
+
+    let createdUserFolder = false;
+    let createdBusinessFolders = 0;
+    let skippedBusinessFolders = 0;
+    let failedBusinessFolders = 0;
+
+    // 1) User root folder
+    if (!user.driveFolderId) {
+      try {
+        const folderId = await this.googleDriveService.createUserFolder(
+          this.buildDriveFolderName(user),
+          user.email,
+        );
+        user.driveFolderId = folderId;
+        await this.user_repo.save(user);
+        createdUserFolder = true;
+        this.logger.log(`[Drive] ✓ created user folder ${folderId} for ${userTag}`);
+      } catch (error) {
+        this.logger.error(
+          `[Drive] ✗ user folder FAILED for ${userTag}: ${(error as Error)?.message ?? error}`,
+          (error as Error)?.stack,
+        );
+        return; // can't create business folders without a parent
+      }
+    }
+
+    // Share the user root with any additional emails (typically the
+    // delegated accountants). shareFolder is idempotent — repeated calls
+    // are 409-swallowed — so this is safe on every backfill.
+    if (extraEmails.length > 0) {
+      await this.shareFolderWithMany(user.driveFolderId, extraEmails, `user folder | ${userTag}`);
+    }
+
+    // 2) Per-business sub-folders
+    const businesses = await this.business_repo.find({
+      where: { firebaseId: user.firebaseId },
+    });
+    for (const business of businesses) {
+      // Stale-id check for business folders too.
+      if (business.driveFolderId) {
+        try {
+          const stillThere = await this.googleDriveService.folderExists(business.driveFolderId);
+          if (!stillThere) {
+            this.logger.warn(
+              `[Drive] stored business folder ${business.driveFolderId} (biz=${business.businessNumber}) gone — re-creating | ${userTag}`,
+            );
+            business.driveFolderId = null;
+          }
+        } catch {
+          // best-effort; if the check fails we still attempt creation below
+        }
+      }
+      if (business.driveFolderId) {
+        skippedBusinessFolders++;
+        // Existing folder — still re-apply shares (idempotent) so a delegation
+        // added AFTER the folder was created gets backfilled.
+        if (extraEmails.length > 0) {
+          await this.shareFolderWithMany(
+            business.driveFolderId,
+            extraEmails,
+            `business folder biz=${business.businessNumber} (existed) | ${userTag}`,
+          );
+        }
+        continue;
+      }
+      try {
+        const displayName =
+          business.businessName?.trim() || `business-${business.businessNumber ?? business.id}`;
+        const businessFolderId = await this.googleDriveService.ensureBusinessFolder(
+          user.driveFolderId,
+          displayName,
+        );
+        business.driveFolderId = businessFolderId;
+        await this.business_repo.save(business);
+        createdBusinessFolders++;
+        this.logger.log(
+          `[Drive] ✓ created business folder ${businessFolderId} ("${displayName}", biz=${business.businessNumber}) for ${userTag}`,
+        );
+      } catch (error) {
+        failedBusinessFolders++;
+        this.logger.error(
+          `[Drive] ✗ business folder FAILED for biz=${business.businessNumber} (${userTag}): ${(error as Error)?.message ?? error}`,
+          (error as Error)?.stack,
+        );
+        continue; // can't share what we couldn't create
+      }
+
+      // Share the business folder with extra emails too (created OR existed).
+      if (extraEmails.length > 0 && business.driveFolderId) {
+        await this.shareFolderWithMany(
+          business.driveFolderId,
+          extraEmails,
+          `business folder biz=${business.businessNumber} | ${userTag}`,
+        );
+      }
+    }
+
+    this.logger.log(
+      `[Drive] provisionDriveStructure DONE | ${userTag} | ` +
+      `userFolder=${createdUserFolder ? 'created' : 'existed'} | ` +
+      `businesses: ${createdBusinessFolders} created, ${skippedBusinessFolders} skipped, ${failedBusinessFolders} failed`,
+    );
+  }
+
+  /**
+   * Best-effort share of a folder with multiple emails. Per-email failures are
+   * logged and don't break the batch — Drive shares are idempotent (409 is
+   * swallowed inside shareFolder) so this is safe to call repeatedly.
+   */
+  private async shareFolderWithMany(folderId: string, emails: string[], context: string): Promise<void> {
+    for (const email of emails) {
+      try {
+        await this.googleDriveService.shareFolder(folderId, email, 'writer');
+      } catch (err: any) {
+        this.logger.warn(`[Drive] share with ${email} failed (${context}): ${err?.message ?? err}`);
+      }
+    }
+  }
+
+  buildDriveFolderName(user: User): string {
+    const fullName = [user.fName, user.lName].filter(Boolean).join(' ').trim();
+    return fullName || user.email || `user-${user.firebaseId}`;
+  }
+
+  /**
+   * Snapshot of which Drive folders this user already has — used by the login
+   * banner so the dev can see at a glance whether the lazy backfill is needed.
+   */
+  async getDriveProvisioningStatus(firebaseId: string): Promise<{
+    hasUserFolder: boolean;
+    businessesTotal: number;
+    businessesWithFolder: number;
+  }> {
+    const user = await this.user_repo.findOne({ where: { firebaseId } });
+    if (!user) {
+      return { hasUserFolder: false, businessesTotal: 0, businessesWithFolder: 0 };
+    }
+    const businesses = await this.business_repo.find({ where: { firebaseId } });
+    return {
+      hasUserFolder: !!user.driveFolderId,
+      businessesTotal: businesses.length,
+      businessesWithFolder: businesses.filter(b => !!b.driveFolderId).length,
+    };
   }
 
 }

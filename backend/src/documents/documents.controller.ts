@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Delete, Get, Headers, Param, Patch, Post, Query, Req, Res, UseGuards, UsePipes, ValidationPipe, } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Headers, Param, ParseIntPipe, Patch, Post, Query, Req, Res, UseGuards, UsePipes, ValidationPipe, } from '@nestjs/common';
 import { Response } from 'express';
 import { DocumentType, DocumentStatusType } from 'src/enum';
 import { DocumentsService } from './documents.service';
@@ -305,6 +305,91 @@ export class DocumentsController {
     }
     await this.documentsService.deleteDraft(userId, issuerBusinessNumber, docType);
     return { success: true };
+  }
+
+  // =====================================================================
+  // Drive-folder sync + OCR-extracted documents (Claude)
+  // =====================================================================
+
+  // -----------------------------------------------------------------
+  // User-facing (bookkeeping → expenses → "pull docs from Drive")
+  // Declared BEFORE the param routes below so '/me/sync' and '/me/review'
+  // don't get swallowed by ':userId/:yearMonth' (Nest matches top-to-bottom).
+  // -----------------------------------------------------------------
+
+  @Post('me/sync')
+  @UseGuards(FirebaseAuthGuard)
+  async syncMyDriveMonths(
+    @Req() request: AuthenticatedRequest,
+    @Body() body: { businessNumber: string; months: string[] },
+  ) {
+    const firebaseId = request.user?.firebaseId;
+    if (!firebaseId) throw new BadRequestException('Not authenticated');
+    const businessNumber = body?.businessNumber?.trim();
+    if (!businessNumber) throw new BadRequestException('businessNumber is required');
+    const months = Array.isArray(body?.months) ? body.months.filter(m => /^\d{4}-\d{2}$/.test(m)) : [];
+    if (months.length === 0) {
+      throw new BadRequestException('months[] is required (YYYY-MM strings)');
+    }
+    return this.documentsService.syncMonthsForUser(firebaseId, businessNumber, months);
+  }
+
+  @Get('me/catalog')
+  @UseGuards(FirebaseAuthGuard)
+  async getMyCatalog(
+    @Req() request: AuthenticatedRequest,
+    @Query('businessNumber') businessNumber: string,
+  ) {
+    const firebaseId = request.user?.firebaseId;
+    if (!firebaseId) throw new BadRequestException('Not authenticated');
+    if (!businessNumber?.trim()) {
+      throw new BadRequestException('businessNumber query param required');
+    }
+    return this.documentsService.buildExtractionCatalog(firebaseId, businessNumber.trim());
+  }
+
+  @Get('me/review')
+  @UseGuards(FirebaseAuthGuard)
+  async listMyReviewable(
+    @Req() request: AuthenticatedRequest,
+    @Query('businessNumber') businessNumber: string,
+    @Query('months') monthsCsv: string,
+  ) {
+    const firebaseId = request.user?.firebaseId;
+    if (!firebaseId) throw new BadRequestException('Not authenticated');
+    if (!businessNumber?.trim()) {
+      throw new BadRequestException('businessNumber query param required');
+    }
+    const months = (monthsCsv ?? '')
+      .split(',')
+      .map(s => s.trim())
+      .filter(m => /^\d{4}-\d{2}$/.test(m));
+    if (months.length === 0) {
+      throw new BadRequestException('months query param required (CSV of YYYY-MM)');
+    }
+    return this.documentsService.getReviewableForUser(firebaseId, businessNumber.trim(), months);
+  }
+
+  // -----------------------------------------------------------------
+  // Admin/dev (param-based — must stay below /me/* routes)
+  // -----------------------------------------------------------------
+
+  @Post('sync/:userId/:businessNumber/:yearMonth')
+  async syncUserMonth(
+    @Param('userId', ParseIntPipe) userId: number,
+    @Param('businessNumber') businessNumber: string,
+    @Param('yearMonth') yearMonth: string,
+  ) {
+    return this.documentsService.syncUserMonth(userId, businessNumber, yearMonth);
+  }
+
+  @Get(':userId/:businessNumber/:yearMonth')
+  async listExtractedDocs(
+    @Param('userId', ParseIntPipe) userId: number,
+    @Param('businessNumber') businessNumber: string,
+    @Param('yearMonth') yearMonth: string,
+  ) {
+    return this.documentsService.listByUserMonth(userId, businessNumber, yearMonth);
   }
 
 }

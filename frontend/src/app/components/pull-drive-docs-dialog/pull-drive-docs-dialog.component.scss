@@ -1,0 +1,266 @@
+.period-row {
+  display: flex;
+  gap: 12px;
+  align-items: end;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.summary-chip {
+  padding: 10px 12px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  margin-bottom: 12px;
+}
+
+.loading-line {
+  color: #6b7280;
+  i { margin-inline-end: 8px; }
+}
+
+.empty-state {
+  color: #6b7280;
+  font-style: italic;
+}
+
+.split-area {
+  display: flex;
+  gap: 12px;
+  align-items: stretch;
+
+  .results-wrap {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  // When preview is open the dialog widens to 96vw, so even at 65/35 the
+  // table has plenty of room (typically ~900-1100px) and the preview pane
+  // is wide enough to read the invoice content.
+  &.with-preview .results-wrap {
+    flex: 1 1 65%;
+  }
+}
+
+.results-wrap {
+  max-height: 70vh;
+  overflow: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+}
+
+.preview-panel {
+  flex: 0 0 40%;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #fafafa;
+  min-width: 360px;
+  max-height: 70vh;
+}
+
+.preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  background: #f3f4f6;
+  border-bottom: 1px solid #e5e7eb;
+  font-size: 0.85rem;
+}
+
+.preview-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.preview-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.icon-btn {
+  background: transparent;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  padding: 4px 8px;
+  cursor: pointer;
+  color: #374151;
+
+  &:hover { background: #e5e7eb; }
+}
+
+.preview-iframe {
+  flex: 1 1 auto;
+  width: 100%;
+  border: 0;
+  background: white;
+  min-height: 480px;
+}
+
+.preview-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 2px 6px;
+  cursor: pointer;
+  color: #6b7280;
+
+  &:hover {
+    background: #e5e7eb;
+    color: #2563eb;
+  }
+
+  &.active {
+    background: #dbeafe;
+    color: #1d4ed8;
+    border-color: #93c5fd;
+  }
+}
+
+.results-table {
+  width: 100%;
+  // Keep cells readable even when the dialog is in narrow viewports —
+  // .results-wrap is overflow:auto so a horizontal scrollbar appears below
+  // this minimum.
+  min-width: 1400px;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+
+  thead {
+    background: #f3f4f6;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+  }
+
+  th, td {
+    padding: 6px 8px;
+    text-align: start;
+    border-bottom: 1px solid #f1f5f9;
+    vertical-align: middle;
+  }
+
+  th {
+    font-weight: 600;
+    border-bottom-color: #e5e7eb;
+  }
+
+  td.filename {
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .file-link {
+    color: #2563eb;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+
+    i { font-size: 0.85em; }
+
+    &:hover {
+      text-decoration: underline;
+      color: #1d4ed8;
+    }
+  }
+
+  td.right { text-align: end; }
+
+  // Row tinting precedence (later wins for !important):
+  //   matched (supplier known + complete data) → soft green
+  //   problematic (missing critical fields)    → amber
+  //   equipment (capital purchase)             → soft purple (border-side)
+  //   failed (save errored)                    → red (always wins)
+  tr.matched     { background: #f0fdf4; }
+  tr.problematic { background: #fef3c7; }
+  tr.equipment   {
+    box-shadow: inset 4px 0 0 #a78bfa;
+  }
+  tr.row-failed {
+    background: #fef2f2 !important;
+  }
+}
+
+.equipment-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: #ede9fe;
+  color: #6d28d9;
+  font-size: 0.75rem;
+  font-weight: 500;
+
+  .emoji {
+    // Emojis pick up the surrounding text color via OS rendering — keep them
+    // at their native size and not the wrapper's accent color.
+    font-size: 0.95rem;
+    line-height: 1;
+  }
+}
+
+.cell-input {
+  width: 100%;
+  padding: 4px 6px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  background: white;
+  font-size: 0.85rem;
+  font-family: inherit;
+
+  &.num { font-variant-numeric: tabular-nums; }
+  &.right { text-align: end; }
+
+  // Native <select> rendering — keep consistent with the text inputs.
+  &:where(select) {
+    appearance: auto;
+    background-color: white;
+  }
+
+  &:focus {
+    outline: none;
+    border-color: #2563eb;
+    box-shadow: 0 0 0 2px rgba(37,99,235,0.15);
+  }
+}
+
+.cell-readonly {
+  display: inline-block;
+  padding: 4px 6px;
+  color: #374151;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.footer-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.select-info {
+  color: #6b7280;
+  font-size: 0.9rem;
+}

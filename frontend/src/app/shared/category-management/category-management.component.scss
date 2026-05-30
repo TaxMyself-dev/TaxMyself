@@ -156,6 +156,21 @@
   gap: 8px;
 }
 
+// Inline group of 3 boolean flags (ציוד / מוכר / הוצאה) on one row under the
+// category field. Each .check-item is its own [checkbox + label] pair.
+.form-row.check-row-group {
+  flex-direction: row;
+  align-items: center;
+  gap: 24px;
+  padding: 4px 0;
+
+  .check-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+}
+
 @media (prefers-color-scheme: dark) {
   .table-wrap {
     box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.4), 0 6px 20px 0 rgba(0, 0, 0, 0.3);
