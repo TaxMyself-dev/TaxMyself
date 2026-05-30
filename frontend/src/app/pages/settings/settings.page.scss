@@ -3,7 +3,6 @@
   width: 100%;
   height: 100%;
   min-height: 100vh;
-  max-height: 100vh;
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
@@ -44,6 +43,21 @@
   flex-direction: column;
   gap: 20px;
   width: 100%;
+}
+
+@media (max-width: 768px) {
+  .page-wrapper {
+    padding: 12px 16px;
+    padding-bottom: 60px;
+  }
+
+  .settings-tabs {
+    margin-left: -16px;
+    margin-right: -16px;
+    padding-left: 16px;
+    padding-right: 16px;
+    margin-top: -12px;
+  }
 }
 
 .section-title {
@@ -738,5 +752,47 @@
   /* Tighten children row gap on small phones */
   .child-row {
     gap: 6px 8px;
+  }
+}
+
+/* ===================================================================
+   PERSONAL TAB — MOBILE RESPONSIVE
+   Scoped to .section-personal-wrapper so the other tabs are untouched.
+   =================================================================== */
+
+/* ≤768 px  (isMobile() threshold — same breakpoint GenericService uses)
+   - One field per row (single column)
+   - Input width is controlled by inputsSize.MOBILE (255px) from global.scss
+   -------------------------------------------------------------------- */
+@media (max-width: 768px) {
+  .section-personal-wrapper {
+    /* Force every detail-row to stack vertically — one field per row */
+    .detail-row.three-fields,
+    .detail-row.two-fields {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    /* Children: override the global repeat(3,1fr) 28px grid.
+       Stack the three inputs in one column; delete button sits
+       top-right, aligned with the first input field. */
+    .child-row {
+      grid-template-columns: auto 28px;
+      gap: 8px;
+    }
+
+    .child-row app-input-text,
+    .child-row app-input-date {
+      grid-column: 1 / 2;
+    }
+
+    .child-row .child-remove-btn {
+      grid-column: 2 / 3;
+      grid-row: 1 / 2;
+      align-self: start;
+      /* ~label height (16px font + 10px padding-bottom) so the button
+         aligns visually with the input field beneath the label */
+      margin-top: 26px;
+    }
   }
 }

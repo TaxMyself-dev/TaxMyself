@@ -95,136 +95,159 @@
   @if (selectedTab === 'personal') {
   <div class="section-block section-personal-wrapper">
     <div class="personal-frame">
+
+      <!-- ─── פרטי משתמש ראשי ─── -->
       <div class="personal-subsection">
         <h3 class="subsection-title">פרטי משתמש ראשי</h3>
         <div class="details-container details-container-fixed">
           <div class="detail-row three-fields">
             <div class="detail-field">
-              <span class="detail-label">שם פרטי:</span>
-              <input type="text" class="detail-input" [(ngModel)]="personalForm.fName" placeholder="שם פרטי" />
+              <app-input-text [parentForm]="personalFormGroup" [controlName]="'fName'"
+                [labelText]="'שם פרטי'" [placeholder]="'שם פרטי'"
+                [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"></app-input-text>
             </div>
             <div class="detail-field">
-              <span class="detail-label">שם משפחה:</span>
-              <input type="text" class="detail-input" [(ngModel)]="personalForm.lName" placeholder="שם משפחה" />
+              <app-input-text [parentForm]="personalFormGroup" [controlName]="'lName'"
+                [labelText]="'שם משפחה'" [placeholder]="'שם משפחה'"
+                [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"></app-input-text>
             </div>
             <div class="detail-field">
-              <span class="detail-label">תעודת זהות:</span>
-              <input type="text" class="detail-input" [(ngModel)]="personalForm.id" placeholder="ת.ז." />
-            </div>
-          </div>
-          <div class="detail-row three-fields">
-            <div class="detail-field">
-              <span class="detail-label">אימייל:</span>
-              <input type="email" class="detail-input" [(ngModel)]="personalForm.email" placeholder="אימייל" />
-            </div>
-            <div class="detail-field">
-              <span class="detail-label">פלאפון:</span>
-              <input type="tel" class="detail-input" [(ngModel)]="personalForm.phone" placeholder="פלאפון" />
-            </div>
-            <div class="detail-field">
-              <span class="detail-label">תאריך לידה:</span>
-              <input type="date" class="detail-input" [(ngModel)]="personalForm.dateOfBirth" placeholder="dd-mm-yyyy" />
+              <app-input-text [parentForm]="personalFormGroup" [controlName]="'id'"
+                [labelText]="'תעודת זהות'" [placeholder]="'ת.ז.'"
+                [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"></app-input-text>
             </div>
           </div>
           <div class="detail-row three-fields">
             <div class="detail-field">
-              <span class="detail-label">עיר:</span>
-              <input type="text" class="detail-input" [(ngModel)]="personalForm.city" placeholder="עיר" />
+              <app-input-text [parentForm]="personalFormGroup" [controlName]="'email'"
+                [labelText]="'אימייל'" [placeholder]="'אימייל'"
+                [type]="'email'" [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"></app-input-text>
             </div>
             <div class="detail-field">
-              <span class="detail-label">סטטוס משפחתי:</span>
-              <p-select [options]="familyStatusOptions" optionLabel="name" optionValue="value"
-                [(ngModel)]="personalForm.familyStatus" [placeholder]="'בחר/י'" styleClass="register settings-select-width" />
+              <app-input-text [parentForm]="personalFormGroup" [controlName]="'phone'"
+                [labelText]="'פלאפון'" [placeholder]="'פלאפון'"
+                [type]="'tel'" [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"></app-input-text>
             </div>
             <div class="detail-field">
-              <span class="detail-label">סטטוס תעסוקתי:</span>
-              <p-select [options]="employmentTypeOptions" optionLabel="name" optionValue="value"
-                [(ngModel)]="personalForm.employmentStatus" [placeholder]="'בחר/י'" styleClass="register settings-select-width" />
+              <app-input-date [parentForm]="personalFormGroup" [controlName]="'dateOfBirth'"
+                [labelText]="'תאריך לידה'" [placeholder]="'dd/mm/yyyy'"
+                [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"></app-input-date>
+            </div>
+          </div>
+          <div class="detail-row three-fields">
+            <div class="detail-field">
+              <app-input-text [parentForm]="personalFormGroup" [controlName]="'city'"
+                [labelText]="'עיר'" [placeholder]="'עיר'"
+                [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"></app-input-text>
+            </div>
+            <div class="detail-field">
+              <app-input-select [parentForm]="personalFormGroup" [controlName]="'familyStatus'"
+                [items]="familyStatusOptions" [labelText]="'סטטוס משפחתי'" [placeholder]="'בחר/י'"
+                [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"></app-input-select>
+            </div>
+            <div class="detail-field">
+              <app-input-select [parentForm]="personalFormGroup" [controlName]="'employmentStatus'"
+                [items]="employmentTypeOptions" [labelText]="'סטטוס תעסוקתי'" [placeholder]="'בחר/י'"
+                [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"></app-input-select>
             </div>
           </div>
           <div class="section-actions">
             <app-p-button [buttonText]="'עדכן'" [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.SMALL"
-              (onButtonClicked)="updatePersonalDetails()" [disabled]="savingPersonal()"></app-p-button>
+              (onButtonClicked)="updatePersonalDetails()"
+              [disabled]="savingPersonal()" [isLoading]="savingPersonal()"></app-p-button>
           </div>
         </div>
       </div>
 
-      <!-- פרטי בן/בת זוג -->
+      <!-- ─── פרטי בן/בת זוג ─── -->
       <div class="personal-subsection">
         <h3 class="subsection-title">פרטי בן/בת זוג</h3>
         <div class="details-container details-container-fixed">
           <div class="detail-row three-fields">
             <div class="detail-field">
-              <span class="detail-label">שם פרטי:</span>
-              <input type="text" class="detail-input" [(ngModel)]="spouseForm.spouseFName" placeholder="שם פרטי" />
+              <app-input-text [parentForm]="spouseFormGroup" [controlName]="'spouseFName'"
+                [labelText]="'שם פרטי'" [placeholder]="'שם פרטי'"
+                [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"></app-input-text>
             </div>
             <div class="detail-field">
-              <span class="detail-label">שם משפחה:</span>
-              <input type="text" class="detail-input" [(ngModel)]="spouseForm.spouseLName" placeholder="שם משפחה" />
+              <app-input-text [parentForm]="spouseFormGroup" [controlName]="'spouseLName'"
+                [labelText]="'שם משפחה'" [placeholder]="'שם משפחה'"
+                [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"></app-input-text>
             </div>
             <div class="detail-field">
-              <span class="detail-label">תעודת זהות:</span>
-              <input type="text" class="detail-input" [(ngModel)]="spouseForm.spouseId" placeholder="ת.ז." />
-            </div>
-          </div>
-          <div class="detail-row three-fields">
-            <div class="detail-field">
-              <span class="detail-label">אימייל:</span>
-              <input type="email" class="detail-input" [(ngModel)]="spouseForm.spouseEmail" placeholder="אימייל" />
-            </div>
-            <div class="detail-field">
-              <span class="detail-label">פלאפון:</span>
-              <input type="tel" class="detail-input" [(ngModel)]="spouseForm.spousePhone" placeholder="פלאפון" />
-            </div>
-            <div class="detail-field">
-              <span class="detail-label">תאריך לידה:</span>
-              <input type="text" class="detail-input" [(ngModel)]="spouseForm.spouseDateOfBirth" placeholder="dd-mm-yyyy" />
+              <app-input-text [parentForm]="spouseFormGroup" [controlName]="'spouseId'"
+                [labelText]="'תעודת זהות'" [placeholder]="'ת.ז.'"
+                [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"></app-input-text>
             </div>
           </div>
           <div class="detail-row three-fields">
             <div class="detail-field">
-              <span class="detail-label">סטטוס תעסוקתי:</span>
-              <p-select [options]="employmentTypeOptions" optionLabel="name" optionValue="value"
-                [(ngModel)]="spouseForm.spouseEmploymentStatus" [placeholder]="'בחר/י'" styleClass="register settings-select-width" />
+              <app-input-text [parentForm]="spouseFormGroup" [controlName]="'spouseEmail'"
+                [labelText]="'אימייל'" [placeholder]="'אימייל'"
+                [type]="'email'" [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"></app-input-text>
+            </div>
+            <div class="detail-field">
+              <app-input-text [parentForm]="spouseFormGroup" [controlName]="'spousePhone'"
+                [labelText]="'פלאפון'" [placeholder]="'פלאפון'"
+                [type]="'tel'" [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"></app-input-text>
+            </div>
+            <div class="detail-field">
+              <app-input-date [parentForm]="spouseFormGroup" [controlName]="'spouseDateOfBirth'"
+                [labelText]="'תאריך לידה'" [placeholder]="'dd/mm/yyyy'"
+                [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"></app-input-date>
+            </div>
+          </div>
+          <div class="detail-row three-fields">
+            <div class="detail-field">
+              <app-input-select [parentForm]="spouseFormGroup" [controlName]="'spouseEmploymentStatus'"
+                [items]="employmentTypeOptions" [labelText]="'סטטוס תעסוקתי'" [placeholder]="'בחר/י'"
+                [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"></app-input-select>
             </div>
             <div class="detail-field"></div>
             <div class="detail-field"></div>
           </div>
           <div class="section-actions">
             <app-p-button [buttonText]="'עדכן'" [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.SMALL"
-              (onButtonClicked)="updateSpouseDetails()" [disabled]="savingSpouse()"></app-p-button>
+              (onButtonClicked)="updateSpouseDetails()"
+              [disabled]="savingSpouse()" [isLoading]="savingSpouse()"></app-p-button>
           </div>
         </div>
       </div>
 
-      <!-- פרטי הילדים – שם, שם משפחה, תאריך לידה + הוסף ילד/ה + עדכן -->
+      <!-- ─── פרטי הילדים ─── -->
       <div class="personal-subsection">
         <h3 class="subsection-title">פרטי הילדים</h3>
         <div class="details-container details-container-fixed">
-          @if (children().length > 0) {
-            @for (child of children(); track child.index ?? $index) {
+          @if (childrenFormArray.controls.length > 0) {
+            @for (ctrl of childrenFormArray.controls; track $index) {
               <div class="child-row">
-                <span class="detail-label">שם פרטי:</span>
-                <span class="detail-label">שם משפחה:</span>
-                <span class="detail-label">תאריך לידה:</span>
-                <span class="child-row-spacer" aria-hidden="true"></span>
-                <input type="text" class="detail-input" [(ngModel)]="child.childFName" placeholder="שם פרטי" />
-                <input type="text" class="detail-input" [(ngModel)]="child.childLName" placeholder="שם משפחה" />
-                <input type="text" class="detail-input" [(ngModel)]="child.childDate" placeholder="dd-mm-yyyy" />
-                <button type="button" class="child-remove-btn" (click)="confirmDeleteChild(child)" aria-label="הסר ילד" title="הסר ילד">−</button>
+                <app-input-text [parentForm]="$any(ctrl)" [controlName]="'childFName'"
+                  [labelText]="'שם פרטי'" [placeholder]="'שם פרטי'"
+                  [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"></app-input-text>
+                <app-input-text [parentForm]="$any(ctrl)" [controlName]="'childLName'"
+                  [labelText]="'שם משפחה'" [placeholder]="'שם משפחה'"
+                  [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"></app-input-text>
+                <app-input-date [parentForm]="$any(ctrl)" [controlName]="'childDate'"
+                  [labelText]="'תאריך לידה'" [placeholder]="'dd/mm/yyyy'"
+                  [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"></app-input-date>
+                <button type="button" class="child-remove-btn"
+                  (click)="confirmDeleteChild(children()[$index])"
+                  aria-label="הסר ילד" title="הסר ילד">−</button>
               </div>
             }
           }
           <div class="section-actions section-actions-multiple">
             <app-p-button [buttonText]="'הוסף ילד/ה'" [buttonColor]="buttonColor.WHITE_BORDER" [buttonSize]="buttonSize.SMALL"
               (onButtonClicked)="addChild()"></app-p-button>
-            @if (children().length > 0) {
+            @if (childrenFormArray.controls.length > 0) {
               <app-p-button [buttonText]="'עדכן'" [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.SMALL"
-                (onButtonClicked)="updateChildrenDetails()" [disabled]="savingChildren()"></app-p-button>
+                (onButtonClicked)="updateChildrenDetails()"
+                [disabled]="savingChildren()" [isLoading]="savingChildren()"></app-p-button>
             }
           </div>
         </div>
       </div>
+
     </div>
   </div>
   }

@@ -192,7 +192,7 @@
       (onRowUnselect)="onSelectionChange($event)" (onRowSelect)="onSelectionChange($event)"
       (onHeaderCheckboxToggle)="onSelectionChange($event)" dataKey="id"
       [loading]="effectiveIsLoading()"
-      loadingIcon="pi pi-spin pi-spinner-dotted" [columns]="columnsTitle()" [value]="filteredDataTable()"
+      loadingIcon="pi pi-spin pi-spinner-dotted" [columns]="visibleColumns()" [value]="filteredDataTable()"
       [scrollable]="false" [scrollHeight]="tableHeight()" [virtualScroll]="false" [virtualScrollItemSize]="76">
       <ng-template pTemplate="loadingbody">
         @if (useSyncState() && processStatus() === 'running') {

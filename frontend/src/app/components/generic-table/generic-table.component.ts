@@ -101,6 +101,9 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   visibleFilterPannel = signal(false);
   visibleAccountAssociationDialog = signal(false);
   searchTerm = signal<string>('');
+
+  /** Desktop table columns: same as columnsTitle but with hide:true entries removed. */
+  visibleColumns = computed(() => this.columnsTitle().filter(col => !col.hide));
   isHovering = signal<number>(null);
   selectedTrans: IRowDataTable[] = [];
 

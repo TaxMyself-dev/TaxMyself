@@ -11,7 +11,7 @@ import { InputTextModule } from 'primeng/inputtext';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { TransactionsService } from 'src/app/pages/transactions/transactions.page.service';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
-import { Business, IColumnDataTable, IRowDataTable, ISelectItem, ITableRowAction } from 'src/app/shared/interface';
+import { Business, IColumnDataTable, IMobileCardConfig, IRowDataTable, ISelectItem, ITableRowAction } from 'src/app/shared/interface';
 import { ButtonComponent } from 'src/app/components/button/button.component';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 import { GenericTableComponent } from 'src/app/components/generic-table/generic-table.component';
@@ -109,7 +109,17 @@ export class MyCategoriesTabComponent {
     { name: 'isRecognized', value: 'מוכרת' },
     { name: 'isExpense',    value: 'הוצאה' },
     { name: 'necessity',    value: 'הכרחיות' },
+    // Desktop-hidden column used as the mobile card title via mobileCardConfig.primaryFields.
+    { name: 'mobilePrimary', value: 'שם', hide: true },
   ];
+
+  readonly categoriesMobileCardConfig: IMobileCardConfig = {
+    primaryFields: ['mobilePrimary'],   // categoryName for category rows, subCategoryName for sub-cat rows
+    highlightedField: 'badge',          // "מותאם"/"מובנה" for categories; "" (not shown) for sub-cats
+    dateField: 'categoryName',          // parent category — provides context in sub-cat cards
+    hiddenFields: ['subCategoryName', 'rowType', 'userCategoryId', 'subCategoryCount'],
+    highlightedValueFormat: 'plain',
+  };
 
   readonly categoriesRowClass = (row: IRowDataTable): string =>
     row['rowType'] === 'category' ? 'gt-row--group-header' : '';
@@ -467,6 +477,7 @@ export class MyCategoriesTabComponent {
         badge: group.userCategory ? 'מותאם' : 'מובנה',
         userCategoryId: group.userCategory?.id ?? 0,
         subCategoryCount: userSubs.length,
+        mobilePrimary: group.categoryName,
         vatPercent: '',
         taxPercent: '',
         reductionPercent: '',
@@ -486,6 +497,7 @@ export class MyCategoriesTabComponent {
           badge: '',
           userCategoryId: 0,
           subCategoryCount: 0,
+          mobilePrimary: sub.subCategoryName,
           vatPercent: sub.vatPercent,
           taxPercent: sub.taxPercent,
           reductionPercent: sub.reductionPercent,
