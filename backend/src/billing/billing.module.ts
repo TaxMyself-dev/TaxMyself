@@ -1,5 +1,11 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+
+// External entities needed for FirebaseAuthGuard dependencies
+import { User } from 'src/users/user.entity';
+import { Delegation } from 'src/delegation/delegation.entity';
+
+// Billing entities
 import { SubscriptionPlan } from './entities/subscription-plan.entity';
 import { Subscription } from './entities/subscription.entity';
 import { PaymentMethod } from './entities/payment-method.entity';
@@ -15,25 +21,53 @@ import { SubscriptionDiscount } from './entities/subscription-discount.entity';
 import { SubscriptionCancellation } from './entities/subscription-cancellation.entity';
 import { SubscriptionPlanChange } from './entities/subscription-plan-change.entity';
 
-const BILLING_ENTITIES = [
-  SubscriptionPlan,
-  Subscription,
-  PaymentMethod,
-  CardcomCheckoutSession,
-  CardcomWebhookLog,
-  BillingEvent,
-  Promotion,
-  PromotionPlan,
-  Coupon,
-  CouponPlan,
-  CouponRedemption,
-  SubscriptionDiscount,
-  SubscriptionCancellation,
-  SubscriptionPlanChange,
-];
+// Guards
+import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
+
+// Controller
+import { BillingController } from './billing.controller';
+
+// Services
+import { BillingService } from './services/billing.service';
+import { BillingEventService } from './services/billing-event.service';
+import { CouponService } from './services/coupon.service';
+import { PromotionService } from './services/promotion.service';
+import { PricingService } from './services/pricing.service';
+import { SubscriptionAccessService } from './services/subscription-access.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature(BILLING_ENTITIES)],
-  exports: [TypeOrmModule],
+  imports: [
+    TypeOrmModule.forFeature([
+      // Billing entities
+      SubscriptionPlan,
+      Subscription,
+      PaymentMethod,
+      CardcomCheckoutSession,
+      CardcomWebhookLog,
+      BillingEvent,
+      Promotion,
+      PromotionPlan,
+      Coupon,
+      CouponPlan,
+      CouponRedemption,
+      SubscriptionDiscount,
+      SubscriptionCancellation,
+      SubscriptionPlanChange,
+      // External entities required by FirebaseAuthGuard
+      User,
+      Delegation,
+    ]),
+  ],
+  controllers: [BillingController],
+  providers: [
+    FirebaseAuthGuard,
+    BillingService,
+    BillingEventService,
+    CouponService,
+    PromotionService,
+    PricingService,
+    SubscriptionAccessService,
+  ],
+  exports: [BillingService, SubscriptionAccessService],
 })
 export class BillingModule {}
