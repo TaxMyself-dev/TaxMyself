@@ -260,13 +260,19 @@ export class UsersService {
         raw.lastLoginAt = new Date();
         await this.user_repo.save(raw);
 
-        // Backfill Drive folders for users registered before the per-business
-        // layout existed, AND backfill accountant Drive shares for clients
-        // whose delegation existed before the share-on-provision feature.
-        // Fire-and-forget; provisionDriveStructure is idempotent end-to-end.
+        // Backfill Drive folders for the logged-in user, AND if they're an
+        // accountant with active delegations, also backfill folders + shares
+        // for every one of their clients. Fire-and-forget; everything below
+        // is idempotent end-to-end.
         void (async () => {
+          // 1) The user's own folders (no-op if already provisioned)
           const accountantEmails = await this.getActiveAccountantEmailsForUser(firebaseId);
           await this.provisionDriveStructure(raw, accountantEmails);
+
+          // 2) If this user IS an accountant, walk their clients and provision
+          //    each one — sharing with this accountant's email. Handles existing
+          //    accountants whose clients haven't logged in since the feature shipped.
+          await this.backfillDelegatedClients(raw);
         })().catch(err =>
           this.logger.error(
             `[signin] background Drive provisioning failed for firebaseId=${firebaseId}: ${err?.message ?? err}`,
@@ -733,6 +739,45 @@ export class UsersService {
       `userFolder=${createdUserFolder ? 'created' : 'existed'} | ` +
       `businesses: ${createdBusinessFolders} created, ${skippedBusinessFolders} skipped, ${failedBusinessFolders} failed`,
     );
+  }
+
+  /**
+   * If the logged-in user is an accountant (has active Delegation rows where
+   * agentId = themselves), provision Drive structure for each of their clients
+   * AND share each folder with this accountant's email. Sequential to avoid
+   * Drive API bursts. Per-client errors are logged and don't block the others.
+   *
+   * Effectively "one-time backfill on first accountant login after deploy" —
+   * subsequent logins are a no-op since everything's idempotent.
+   */
+  private async backfillDelegatedClients(accountant: User): Promise<void> {
+    if (!accountant.firebaseId || !accountant.email) return;
+
+    const delegations = await this.delegationRepo.find({
+      where: { agentId: accountant.firebaseId, status: DelegationStatus.ACTIVE },
+      select: ['userId'],
+    });
+    if (delegations.length === 0) return;
+
+    this.logger.log(
+      `[Drive] accountant=${accountant.email} has ${delegations.length} delegated client(s) — backfilling`,
+    );
+
+    for (const d of delegations) {
+      try {
+        const client = await this.user_repo.findOne({ where: { firebaseId: d.userId } });
+        if (!client) {
+          this.logger.warn(`[Drive] delegated client ${d.userId} not found — skipping`);
+          continue;
+        }
+        await this.provisionDriveStructure(client, [accountant.email]);
+      } catch (err: any) {
+        this.logger.error(
+          `[Drive] backfill failed for client ${d.userId}: ${err?.message ?? err}`,
+          err?.stack,
+        );
+      }
+    }
   }
 
   /**
