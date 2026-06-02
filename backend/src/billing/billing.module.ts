@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { HttpModule } from '@nestjs/axios';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 // External entities needed for FirebaseAuthGuard dependencies
@@ -30,6 +31,7 @@ import { BillingController } from './billing.controller';
 // Services
 import { BillingService } from './services/billing.service';
 import { BillingEventService } from './services/billing-event.service';
+import { CardcomService } from './services/cardcom.service';
 import { CouponService } from './services/coupon.service';
 import { PromotionService } from './services/promotion.service';
 import { PricingService } from './services/pricing.service';
@@ -37,6 +39,8 @@ import { SubscriptionAccessService } from './services/subscription-access.servic
 
 @Module({
   imports: [
+    // 30-second timeout matches CardcomService; longer for slow Israeli payment gateway.
+    HttpModule.register({ timeout: 30_000, maxRedirects: 3 }),
     TypeOrmModule.forFeature([
       // Billing entities
       SubscriptionPlan,
@@ -63,6 +67,7 @@ import { SubscriptionAccessService } from './services/subscription-access.servic
     FirebaseAuthGuard,
     BillingService,
     BillingEventService,
+    CardcomService,
     CouponService,
     PromotionService,
     PricingService,

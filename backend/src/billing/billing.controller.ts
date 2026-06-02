@@ -4,6 +4,8 @@ import {
   Get,
   Logger,
   NotFoundException,
+  Param,
+  ParseIntPipe,
   Post,
   Req,
   UseGuards,
@@ -25,8 +27,7 @@ export class BillingController {
   /**
    * GET /billing/plans
    *
-   * Public — no auth required. Returns all active, public subscription plans
-   * sorted by displayOrder. Soft-deleted plans are excluded automatically.
+   * Public. Returns all active, public subscription plans sorted by displayOrder.
    */
   @Get('plans')
   getPlans() {
@@ -36,10 +37,8 @@ export class BillingController {
   /**
    * GET /billing/me
    *
-   * Protected. Returns the current user's full billing state:
-   * subscription status, trial dates, plan details, module access flags.
-   * Returns a clear "no subscription" shape if the user has not called
-   * POST /billing/trial yet — frontend should show a "Start Trial" CTA.
+   * Protected. Returns the current user's full billing state.
+   * Returns a "no subscription" shape if the user has not started a trial yet.
    */
   @Get('me')
   @UseGuards(FirebaseAuthGuard)
@@ -52,11 +51,7 @@ export class BillingController {
   /**
    * POST /billing/trial
    *
-   * Protected. Idempotent — creates a trial subscription for the current user
-   * if one does not exist yet. If one already exists, returns it unchanged.
-   *
-   * Also syncs legacy User fields (payStatus, modulesAccess, subscriptionEndDate)
-   * to keep the existing SubscriptionGuard working during the migration period.
+   * Protected. Idempotent — creates a trial subscription if one does not exist.
    */
   @Post('trial')
   @UseGuards(FirebaseAuthGuard)
@@ -69,9 +64,7 @@ export class BillingController {
   /**
    * POST /billing/checkout/preview
    *
-   * Protected. Calculates the final price for a plan + optional coupon without
-   * creating any session or charging anything. Safe to call multiple times.
-   *
+   * Protected. Calculates the final price without creating a session or charging.
    * Body: { planId: number, couponCode?: string }
    */
   @Post('checkout/preview')
@@ -89,15 +82,13 @@ export class BillingController {
   /**
    * POST /billing/checkout
    *
-   * Protected. Creates a PENDING cardcom_checkout_session and logs a
-   * CHECKOUT_CREATED billing event.
+   * Protected. Creates a PENDING checkout session, calls CardCom LowProfile/Create,
+   * and returns the hosted payment page URL.
    *
-   * The subscription must already exist (call POST /billing/trial first).
+   * The subscription is NOT activated here. Activation happens exclusively through
+   * the CardCom webhook handler (POST /billing/cardcom/webhook — next step).
    *
-   * TODO: CardCom LowProfile creation will be wired here in the next step.
-   *       The response will then include `cardcomCheckoutUrl` for the frontend
-   *       to redirect the user to the hosted payment page.
-   *
+   * Returns: { checkoutSessionId, paymentUrl, finalAmountAgorot, currency, expiresAt }
    * Body: { planId: number, couponCode?: string }
    */
   @Post('checkout')
@@ -110,5 +101,25 @@ export class BillingController {
     const firebaseId = request.user?.firebaseId;
     if (!firebaseId) throw new NotFoundException('User not found in request');
     return this.billingService.createCheckout(firebaseId, dto);
+  }
+
+  /**
+   * GET /billing/checkout/:sessionId/status
+   *
+   * Protected. Returns the current status of a checkout session.
+   * Used by the Angular payment-result page to confirm payment outcome
+   * (the webhook may have already processed before the redirect).
+   *
+   * Ownership is enforced — returns 404 if the session belongs to another user.
+   */
+  @Get('checkout/:sessionId/status')
+  @UseGuards(FirebaseAuthGuard)
+  getCheckoutStatus(
+    @Req() request: AuthenticatedRequest,
+    @Param('sessionId', ParseIntPipe) sessionId: number,
+  ) {
+    const firebaseId = request.user?.firebaseId;
+    if (!firebaseId) throw new NotFoundException('User not found in request');
+    return this.billingService.getCheckoutStatus(firebaseId, sessionId);
   }
 }
