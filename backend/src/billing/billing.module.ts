@@ -25,13 +25,15 @@ import { SubscriptionPlanChange } from './entities/subscription-plan-change.enti
 // Guards
 import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
 
-// Controller
+// Controllers
 import { BillingController } from './billing.controller';
+import { CardcomWebhookController } from './cardcom-webhook.controller';
 
 // Services
 import { BillingService } from './services/billing.service';
 import { BillingEventService } from './services/billing-event.service';
 import { CardcomService } from './services/cardcom.service';
+import { CardcomWebhookService } from './services/cardcom-webhook.service';
 import { CouponService } from './services/coupon.service';
 import { PromotionService } from './services/promotion.service';
 import { PricingService } from './services/pricing.service';
@@ -62,12 +64,13 @@ import { SubscriptionAccessService } from './services/subscription-access.servic
       Delegation,
     ]),
   ],
-  controllers: [BillingController],
+  controllers: [BillingController, CardcomWebhookController],
   providers: [
     FirebaseAuthGuard,
     BillingService,
     BillingEventService,
     CardcomService,
+    CardcomWebhookService,
     CouponService,
     PromotionService,
     PricingService,

@@ -88,8 +88,8 @@ export class CardcomService implements OnModuleInit {
     this.terminalNumber = required.CARDCOM_TERMINAL_NUMBER!;
     this.apiName = required.CARDCOM_API_NAME!;
     this.apiPassword = required.CARDCOM_API_PASSWORD!;
-    this.successUrl = required.APP_PAYMENT_SUCCESS_URL!;
-    this.failedUrl = required.APP_PAYMENT_FAILED_URL!;
+    this.successUrl = required.CARDCOM_SUCCESS_URL!;
+    this.failedUrl = required.CARDCOM_FAILED_URL!;
     this.webhookUrl = required.CARDCOM_WEBHOOK_URL!;
     this.createUrl =
       process.env.CARDCOM_LOW_PROFILE_CREATE_URL ?? CardcomService.DEFAULT_CREATE_URL;
@@ -209,6 +209,44 @@ export class CardcomService implements OnModuleInit {
     );
 
     return { lowProfileId, paymentUrl, rawResponse };
+  }
+
+  /**
+   * Calls CardCom LowProfile/GetLpResult to independently verify a payment.
+   * Used by the webhook handler to confirm the charge before activating the subscription.
+   *
+   * Request schema (GetLowProfileResult): TerminalNumber, ApiName, LowProfileId.
+   * No ApiPassword required (verified against Swagger v11).
+   * Response schema: LowProfileResult — same shape as the webhook payload.
+   */
+  async getLowProfileResult(lowProfileId: string): Promise<Record<string, any>> {
+    const resultUrl =
+      process.env.CARDCOM_LOW_PROFILE_RESULT_URL ??
+      'https://secure.cardcom.solutions/api/v11/LowProfile/GetLpResult';
+
+    const payload = {
+      TerminalNumber: parseInt(this.terminalNumber, 10),
+      ApiName: this.apiName,
+      LowProfileId: lowProfileId,
+    };
+
+    this.logger.log(`CardCom GetLpResult → lowProfileId=${lowProfileId}`);
+
+    try {
+      const response = await firstValueFrom(
+        this.http.post<Record<string, any>>(resultUrl, payload, {
+          headers: { 'Content-Type': 'application/json' },
+          timeout: 30_000,
+        }),
+      );
+      return response.data ?? {};
+    } catch (err: any) {
+      const detail: string = err?.response?.data
+        ? JSON.stringify(err.response.data).slice(0, 500)
+        : (err?.message ?? 'HTTP request failed');
+      this.logger.error(`CardCom GetLpResult HTTP error for ${lowProfileId}: ${detail}`);
+      throw new CardcomApiError(`CardCom GetLpResult failed: ${detail}`);
+    }
   }
 
   /**
