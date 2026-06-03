@@ -1,4 +1,5 @@
-import { Injectable, NgZone, signal } from '@angular/core';
+import { Injectable, Injector, NgZone, signal } from '@angular/core';
+import { ClientPanelService } from './clients-panel.service';
 import { AngularFirestore } from '@angular/fire/compat/firestore';
 import { AngularFireAuth } from '@angular/fire/compat/auth';
 import { Router } from '@angular/router';
@@ -31,7 +32,19 @@ export class AuthService {
     public router: Router,
     private http: HttpClient,
     public ngZone: NgZone,
+    private injector: Injector,
   ) { }
+
+  /** Reset any persisted view-as / x-client-user-id state. Called from
+   *  logout() and the start of a fresh login so a stale delegated-client id
+   *  from a previous session can't ride along on the next request (which
+   *  would 403 once the new logged-in user lacks delegation to that client).
+   *  Lazy-resolved via Injector to break the circular import with
+   *  ClientPanelService (which depends on AuthService). */
+  private clearDelegationState(): void {
+    this.viewAsUserData = null;
+    this.injector.get(ClientPanelService).clearSelectedClient();
+  }
 
   public isLoggedIn$ = new BehaviorSubject<string>("");
   public error = signal<string>("");
@@ -73,7 +86,7 @@ export class AuthService {
   }
 
   logout(): void {
-    this.viewAsUserData = null;
+    this.clearDelegationState();
     this.afAuth.signOut().then(() => {
       localStorage.clear();
       sessionStorage.clear();
@@ -100,6 +113,14 @@ export class AuthService {
   /** האם כרגע במצב צפייה כרואה חשבון (לא יכול לערוך/להפיק) */
   isViewingAsClient(): boolean {
     return this.viewAsUserData != null;
+  }
+
+  /** True when the currently impersonated user is a demo user. Used to relax
+   *  view-as restrictions so a presenter can show all features (including
+   *  doc-create) during a live demo, even without ADMIN role. */
+  isViewingDemoUser(): boolean {
+    const email = this.viewAsUserData?.email ?? '';
+    return email.startsWith('demo+') && email.endsWith('@taxmyself.local');
   }
 
 
@@ -187,6 +208,13 @@ export class AuthService {
    * page-navigation calls to /auth/signin don't re-trigger a sync.
    */
   signIn(freshLogin = false): any {
+    if (freshLogin) {
+      // Fresh login: drop any leftover delegated-client id before the
+      // request fires, otherwise the AuthInterceptor will attach
+      // x-client-user-id from a previous session and the new user
+      // (no delegation, no admin role) will get a 403.
+      this.clearDelegationState();
+    }
     const url = `${environment.apiUrl}auth/signin${freshLogin ? '?freshLogin=true' : ''}`;
     return this.http.get(url);
   }

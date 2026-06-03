@@ -40,28 +40,23 @@ export class GoogleDriveService {
   async createUserFolder(folderName: string, userEmail: string): Promise<string> {
     const safeName = this.sanitizeFolderName(folderName);
     try {
-      const { drive, rootFolderId } = this.getDrive();
-      const res = await drive.files.create({
-        requestBody: {
-          name: safeName,
-          mimeType: 'application/vnd.google-apps.folder',
-          parents: [rootFolderId],
-        },
-        fields: 'id',
-        supportsAllDrives: true,
-      });
+      const { rootFolderId } = this.getDrive();
+      // Find-or-create under the Drive root. The caller (provisionDriveStructure)
+      // already gates on user.driveFolderId, but if that field was wiped
+      // (demo re-seed, failed save, manual delete of the User row while the
+      // Drive folder survived) we'd otherwise create a duplicate every login.
+      // getOrCreateChildFolder searches by name+parent and returns the
+      // existing id when present.
+      const folderId = await this.getOrCreateChildFolder(rootFolderId, safeName);
 
-      const folderId = res.data.id;
-      if (!folderId) {
-        throw new Error('Drive API returned no folder id');
-      }
-
+      // shareFolder is idempotent (409 swallowed), so re-applying on every
+      // call is safe and ensures the share survives if it was manually revoked.
       if (userEmail) {
         await this.shareFolder(folderId, userEmail, 'writer');
       }
 
       this.logger.log(
-        `Created Drive folder ${folderId} ("${safeName}") for ${userEmail || 'no email'}`,
+        `Resolved Drive folder ${folderId} ("${safeName}") for ${userEmail || 'no email'}`,
       );
 
       // No year-scaffold here — years live inside per-business sub-folders now.

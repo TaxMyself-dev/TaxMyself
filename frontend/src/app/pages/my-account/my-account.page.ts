@@ -147,12 +147,13 @@ export class MyAccountPage implements OnInit {
   /** במצב צפייה כרואה חשבון – לא מציגים הפקת מסמך (צפייה בלבד) */
   get itemsNavigate(): IItemNavigate[] {
     // Hide /doc-create when an ACCOUNTANT is viewing as a client (accountants
-    // shouldn't issue docs on the client's behalf). Admins keep the card so
-    // they can use doc-create on the demo user for QA/testing.
+    // shouldn't issue docs on the client's behalf). Admins and demo
+    // presenters keep the card so they can showcase doc-create during demos
+    // or use it for QA/testing on demo users.
     if (this.authService.isViewingAsClient()) {
       const realUser = this.authService.getRealUserDataFromLocalStorage();
       const realUserIsAdmin = !!realUser?.role?.includes('ADMIN');
-      if (!realUserIsAdmin) {
+      if (!realUserIsAdmin && !this.authService.isViewingDemoUser()) {
         return this.allItemsNavigate.filter((item) => item.link !== '/doc-create');
       }
     }
