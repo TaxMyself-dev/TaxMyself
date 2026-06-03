@@ -132,6 +132,8 @@ export class CardcomService implements OnModuleInit {
       // ChargeAndCreateToken charges the card and returns a token for recurring billing.
       Operation: 'ChargeAndCreateToken',
     };
+    console.log("🚀 ~ CardcomService ~ createLowProfileCheckout ~ payload:", payload)
+    
 
     // Fix 7: Customer fields are not top-level. They go inside UIDefinition.
     const uiDefinition: Record<string, string> = {};

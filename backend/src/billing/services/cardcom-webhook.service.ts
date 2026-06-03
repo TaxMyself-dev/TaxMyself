@@ -58,6 +58,8 @@ interface CardcomWebhookPayload {
     Token?: string;
     CardName?: string;
     Brand?: string;
+    CardMonth?: number;
+    CardYear?: number;
     DocumentNumber?: number;
     DocumentType?: string;
     DocumentUrl?: string;
@@ -284,6 +286,15 @@ export class CardcomWebhookService implements OnModuleInit {
       }
 
       // ── 2. Create or update payment_method ────────────────────────────────
+      const cardExpiryMonth =
+        verified.TokenInfo?.CardMonth ??
+        verified.TranzactionInfo?.CardMonth ??
+        null;
+      const cardExpiryYear =
+        verified.TokenInfo?.CardYear ??
+        verified.TranzactionInfo?.CardYear ??
+        null;
+
       let paymentMethod: PaymentMethod | null = null;
       if (token) {
         // Encrypt the token before persistence. A CardCom token is a bearer
@@ -296,6 +307,8 @@ export class CardcomWebhookService implements OnModuleInit {
           cardcomToken: encryptedToken,
           last4,
           cardBrand: typeof cardBrand === 'string' ? cardBrand : null,
+          cardExpiryMonth,
+          cardExpiryYear,
         });
         paymentMethod = await qr.manager.save(PaymentMethod, paymentMethod);
       }
