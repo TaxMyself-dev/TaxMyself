@@ -537,3 +537,32 @@
     font-size: 24px;
     color: #808080;
 }
+/* Inline editors used when a column declares `editable: true`. Minimal style
+   that picks up the surrounding row height — consumers can override by
+   pulling .cell-editable in their own scoped styles via ::ng-deep. */
+.cell-editable {
+  width: 100%;
+  padding: 6px 8px;
+  font: inherit;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  background: #fff;
+  color: inherit;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.cell-editable:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.25);
+}
+
+.cell-editable--num {
+  text-align: end;
+}
+
+.cell-editable[disabled] {
+  background: #f3f4f6;
+  color: #6b7280;
+  cursor: not-allowed;
+}

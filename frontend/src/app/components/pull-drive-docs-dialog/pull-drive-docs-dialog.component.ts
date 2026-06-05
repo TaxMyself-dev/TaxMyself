@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, computed, inject, input, output, signal } from '@angular/core';
+import { Component, computed, inject, input, output, signal, TemplateRef } from '@angular/core';
 import { FormBuilder, FormGroup, FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { DialogModule } from 'primeng/dialog';
@@ -9,11 +9,15 @@ import { catchError, EMPTY, finalize } from 'rxjs';
 import { PeriodSelectComponent } from '../period-select/period-select.component';
 import { ButtonComponent } from '../button/button.component';
 import { ButtonColor, ButtonSize } from '../button/button.enum';
-import { ReportingPeriodType } from 'src/app/shared/enums';
+import { GenericTableComponent } from '../generic-table/generic-table.component';
+import { FormTypes, ReportingPeriodType, VATReportingType } from 'src/app/shared/enums';
+import { IColumnDataTable, IRowDataTable } from 'src/app/shared/interface';
+import { GenericService } from 'src/app/services/generic.service';
 import {
   ConfirmFromDriveItem,
   DriveDocsService,
   DriveSyncRangeResult,
+  DuplicateExpenseMatch,
   ReviewableExtractedDoc,
   SubCategoryCatalogEntry,
 } from 'src/app/services/drive-docs.service';
@@ -40,6 +44,10 @@ interface EditableRow {
   saveStatus: null | 'pending' | 'ok' | 'failed';
   saveError: string | null;
   supplierCreated: boolean;
+  /** When non-null, overrides the auto-derived period for this row. Sent as
+   *  ConfirmFromDriveItem.reportPeriod so the backend stamps vatReportingDate
+   *  with the user's choice instead of computing from date. */
+  reportPeriodOverride: string | null;
 }
 
 @Component({
@@ -54,6 +62,7 @@ interface EditableRow {
     DialogModule,
     PeriodSelectComponent,
     ButtonComponent,
+    GenericTableComponent,
   ],
 })
 export class PullDriveDocsDialogComponent {
@@ -65,6 +74,16 @@ export class PullDriveDocsDialogComponent {
   private driveDocsService = inject(DriveDocsService);
   private messageService = inject(MessageService);
   private sanitizer = inject(DomSanitizer);
+  private genericService = inject(GenericService);
+
+  /** VAT reporting type of the business this dialog is operating on — drives
+   *  how each row's date is formatted into a report-period label. Falls back
+   *  to monthly when the business profile hasn't set one. */
+  private vatReportingType = computed<VATReportingType>(() => {
+    const bn = this.businessNumber();
+    const biz = this.genericService.businesses().find(b => b.businessNumber === bn);
+    return biz?.vatReportingType ?? VATReportingType.MONTHLY_REPORT;
+  });
 
   readonly ButtonColor = ButtonColor;
   readonly ButtonSize = ButtonSize;
@@ -81,6 +100,11 @@ export class PullDriveDocsDialogComponent {
   syncSummary = signal<DriveSyncRangeResult['totals'] | null>(null);
   rows = signal<EditableRow[]>([]);
   previewRow = signal<EditableRow | null>(null);
+  /** Post-save summary — drives the "X expenses added" dialog. */
+  savedSummary = signal<{ succeeded: number; failed: number } | null>(null);
+  /** Pre-save duplicate matches — drives the "expense already exists" dialog
+   *  that blocks confirmSelected() until the user deselects the dupes. */
+  duplicateMatches = signal<DuplicateExpenseMatch[] | null>(null);
 
   /** Sub-category options for the dropdowns — loaded once on submit. */
   catalog = signal<SubCategoryCatalogEntry[]>([]);
@@ -146,6 +170,8 @@ export class PullDriveDocsDialogComponent {
     this.syncSummary.set(null);
     this.rows.set([]);
     this.previewRow.set(null);
+    this.savedSummary.set(null);
+    this.duplicateMatches.set(null);
   }
 
   onSubmit(): void {
@@ -162,6 +188,9 @@ export class PullDriveDocsDialogComponent {
       return;
     }
     const months = this.periodToMonths();
+    // Diagnostic so we can spot UI-vs-form mismatches (e.g. dropdown shows
+    // one period but form.value holds another). Remove once stable.
+    console.log('[DriveSync] submit', { formValue: this.form.value, months });
     if (months.length === 0) {
       this.messageService.add({
         severity: 'warn',
@@ -204,7 +233,7 @@ export class PullDriveDocsDialogComponent {
             }),
             finalize(() => this.isLoading.set(false)),
           )
-          .subscribe(docs => this.rows.set(docs.map(d => this.toEditableRow(d))));
+          .subscribe(docs => this.rows.set(this.sortBySupplier(docs.map(d => this.toEditableRow(d)))));
       });
   }
 
@@ -247,6 +276,7 @@ export class PullDriveDocsDialogComponent {
       saveStatus: null,
       saveError: null,
       supplierCreated: false,
+      reportPeriodOverride: null,
     };
   }
 
@@ -261,6 +291,7 @@ export class PullDriveDocsDialogComponent {
     row.vatPercent = 0;
     row.taxPercent = 0;
     row.isEquipment = false;
+    this.propagateClassificationToSameSupplier(row);
     this.onRowFieldChange();
   }
 
@@ -290,6 +321,108 @@ export class PullDriveDocsDialogComponent {
     row.vatPercent = Number(entry.vatPercent);
     row.taxPercent = Number(entry.taxPercent);
     row.isEquipment = !!entry.isEquipment;
+    this.propagateClassificationToSameSupplier(row);
+    this.onRowFieldChange();
+  }
+
+  /**
+   * When a row's classification (category / sub-category and the derived
+   * vat%/tax%/isEquipment) changes, mirror it onto every other row that shares
+   * the same supplier — typing the category once for "ספק X" should fill in
+   * the rest of "ספק X"'s invoices in the same batch. Matched first by
+   * supplierID (tax-id is canonical), then by trimmed supplier name as a
+   * fallback for un-IDed suppliers.
+   */
+  private propagateClassificationToSameSupplier(source: EditableRow): void {
+    const key = this.supplierKey(source);
+    if (!key) return;
+    this.rows.update(rs => rs.map(r => {
+      if (r.documentId === source.documentId) return r;
+      if (this.supplierKey(r) !== key) return r;
+      r.category = source.category;
+      r.subCategory = source.subCategory;
+      r.vatPercent = source.vatPercent;
+      r.taxPercent = source.taxPercent;
+      r.isEquipment = source.isEquipment;
+      return r;
+    }));
+  }
+
+  private supplierKey(row: EditableRow): string {
+    const id = row.supplierID?.trim();
+    if (id) return `id:${id}`;
+    const name = row.supplier?.trim().toLowerCase();
+    if (name) return `name:${name}`;
+    return '';
+  }
+
+  /** Group rows so all invoices from the same supplier appear together. */
+  private sortBySupplier(rows: EditableRow[]): EditableRow[] {
+    return [...rows].sort((a, b) =>
+      (a.supplier || '').localeCompare(b.supplier || '', 'he'));
+  }
+
+  /**
+   * Format a row's `YYYY-MM-DD` date into the business's VAT report-period
+   * label. Mirrors the backend's `buildReportPeriodLabel()` so what's shown
+   * here matches what gets stamped on the saved expense:
+   *   MONTHLY_REPORT     → "M/YYYY"           e.g. "3/2026"
+   *   DUAL_MONTH_REPORT  → "M1-M2/YYYY"       e.g. "3-4/2026" (pair starts on
+   *                                            the odd month)
+   * Returns "—" when the date is missing/unparseable.
+   */
+  formatReportPeriod(date: string | null | undefined): string {
+    if (!date) return '—';
+    const [yStr, mStr] = date.split('-');
+    const year = Number(yStr);
+    const month = Number(mStr);
+    if (!year || !month || month < 1 || month > 12) return '—';
+
+    if (this.vatReportingType() === VATReportingType.DUAL_MONTH_REPORT) {
+      const start = month % 2 === 1 ? month : month - 1;
+      return `${start}-${start + 1}/${year}`;
+    }
+    return `${month}/${year}`;
+  }
+
+  /** The effective period for a row — manual override wins, else derived. */
+  effectiveReportPeriod(row: EditableRow): string {
+    return row.reportPeriodOverride?.trim() || this.formatReportPeriod(row.date);
+  }
+
+  /**
+   * Dropdown options for the period column. Lists all 12 (monthly) or 6
+   * (bi-monthly) labels for the row's year, so the user can pick any
+   * in-year period — typical case is shifting a late-arriving invoice into
+   * the previous period. Cross-year corrections still require editing the
+   * date field (deliberately scoped to keep the dropdown short).
+   */
+  periodOptionsForRow(row: EditableRow): string[] {
+    const year = this.yearOfRow(row);
+    const dual = this.vatReportingType() === VATReportingType.DUAL_MONTH_REPORT;
+    if (dual) {
+      return [1, 3, 5, 7, 9, 11].map(m => `${m}-${m + 1}/${year}`);
+    }
+    return Array.from({ length: 12 }, (_, i) => `${i + 1}/${year}`);
+  }
+
+  /** Pull the row's year off the date, falling back to the current calendar
+   *  year so the dropdown still has sane options for date-less rows. */
+  private yearOfRow(row: EditableRow): number {
+    const fromDate = Number((row.date || '').split('-')[0]);
+    if (fromDate) return fromDate;
+    const fromOverride = Number((row.reportPeriodOverride || '').split('/').pop());
+    if (fromOverride) return fromOverride;
+    return new Date().getFullYear();
+  }
+
+  /** User picked a period from the dropdown. Store as override only when it
+   *  differs from the auto-derived value — that way unchanged rows omit the
+   *  override field from the payload and the backend keeps its date-driven
+   *  default behavior. */
+  onReportPeriodChange(row: EditableRow, picked: string): void {
+    const derived = this.formatReportPeriod(row.date);
+    row.reportPeriodOverride = picked && picked !== derived ? picked : null;
     this.onRowFieldChange();
   }
 
@@ -340,6 +473,45 @@ export class PullDriveDocsDialogComponent {
       return;
     }
 
+    // Pre-flight: ask the backend whether any of the selected rows already
+    // exist as expenses (same supplier+sum+date). Block the save and show a
+    // dialog if so — user must deselect the duplicates and re-submit. This is
+    // a deliberate hard-stop rather than a "save anyway" toggle because the
+    // typical cause is a user re-running extraction over a folder they already
+    // confirmed once.
+    this.isConfirming.set(true);
+    this.driveDocsService.checkDuplicatesFromDrive(
+      this.businessNumber(),
+      selected.map(r => ({
+        documentId: r.documentId,
+        supplier: r.supplier.trim(),
+        sum: Number(r.sum),
+        date: r.date,
+      })),
+    )
+      .pipe(
+        catchError(err => {
+          const detail = err?.error?.message ?? err?.message ?? 'בדיקת כפילויות נכשלה';
+          this.messageService.add({ severity: 'error', summary: 'שגיאה', detail, life: 5000, key: 'br' });
+          this.isConfirming.set(false);
+          return EMPTY;
+        }),
+      )
+      .subscribe(matches => {
+        if (matches.length > 0) {
+          this.duplicateMatches.set(matches);
+          this.isConfirming.set(false);
+          return;
+        }
+        this.submitSelected(selected);
+      });
+  }
+
+  /**
+   * Actual bulk-confirm call. Split out from confirmSelected() so the
+   * duplicate-check pre-flight can short-circuit before we mark rows pending.
+   */
+  private submitSelected(selected: EditableRow[]): void {
     const items: ConfirmFromDriveItem[] = selected.map(r => ({
       documentId: r.documentId,
       supplier: r.supplier.trim(),
@@ -352,6 +524,9 @@ export class PullDriveDocsDialogComponent {
       taxPercent: Number(r.taxPercent),
       isEquipment: !!r.isEquipment,
       saveAsSupplier: !!r.saveAsSupplier && !!r.supplierID?.trim(),
+      // Only send override when the user actually picked a non-default value;
+      // otherwise let the backend derive it from date + business cadence.
+      reportPeriod: r.reportPeriodOverride?.trim() || null,
     }));
 
     // Mark selected rows as pending
@@ -397,13 +572,10 @@ export class PullDriveDocsDialogComponent {
 
         const { succeeded, failed } = response.summary;
         if (succeeded > 0) {
-          this.messageService.add({
-            severity: 'success',
-            summary: 'הצלחה',
-            detail: `נשמרו ${succeeded} הוצאות${failed > 0 ? `, ${failed} נכשלו` : ''}`,
-            life: 5000,
-            key: 'br',
-          });
+          // Persistent dialog (instead of a toast) so the user sees exactly
+          // how many expenses landed — toast can be missed mid-scroll on a
+          // long list.
+          this.savedSummary.set({ succeeded, failed });
         } else if (failed > 0) {
           this.messageService.add({
             severity: 'error',
@@ -414,6 +586,31 @@ export class PullDriveDocsDialogComponent {
           });
         }
       });
+  }
+
+  closeSavedSummary(): void {
+    // Dismiss the count dialog AND the parent Drive-docs dialog — once the
+    // user has acknowledged how many expenses were saved, they expect to land
+    // back on the expenses tab, not on the (now-emptier) extraction list.
+    this.savedSummary.set(null);
+    this.onClose();
+  }
+
+  closeDuplicates(): void {
+    this.duplicateMatches.set(null);
+  }
+
+  /** Convenience action from the duplicate dialog — uncheck every selected
+   *  row that the backend flagged as already existing, so the user can hit
+   *  "confirm" again without having to find them in the table. */
+  deselectDuplicates(): void {
+    const matches = this.duplicateMatches();
+    if (!matches?.length) return;
+    const dupeIds = new Set(matches.map(m => m.documentId));
+    this.rows.update(rs => rs.map(r =>
+      dupeIds.has(r.documentId) ? { ...r, selected: false } : r,
+    ));
+    this.duplicateMatches.set(null);
   }
 
   togglePreview(row: EditableRow): void {
@@ -430,6 +627,88 @@ export class PullDriveDocsDialogComponent {
   // (e.g. user logged into Drive with the wrong Google account).
   openInNewTab(fileId: string): void {
     window.open(`https://drive.google.com/file/d/${fileId}/view`, '_blank', 'noopener');
+  }
+
+  // ============================================================
+  // Generic-table integration
+  // ============================================================
+
+  /** Single shared handler so every editable column can opt into re-emitting
+   *  the rows signal — needed for `selectedCount`, `isRowProblematic`-driven
+   *  row classes, etc. to recompute when an inline edit changes a field. */
+  private readonly fieldChangeHandler = (): void => this.onRowFieldChange();
+
+  /** Per-row CSS class callback for <app-generic-table [rowClass]="rowClassFn">.
+   *  Drives the row background: red for any actionable issue (missing required
+   *  fields or save-failed), green for a known/matched supplier, yellow for a
+   *  brand-new supplier the user is about to create. Error wins over
+   *  known/new so the user's eye lands on the rows that block confirmation. */
+  rowClassFn = (row: IRowDataTable): string => {
+    const r = row as unknown as EditableRow;
+    const classes: string[] = [];
+    const hasError = r.saveStatus === 'failed' || this.isRowProblematic(r);
+    if (hasError) classes.push('row-error');
+    else if (r.isMatched) classes.push('row-known');
+    else classes.push('row-new');
+    if (r.isEquipment) classes.push('equipment');
+    return classes.join(' ');
+  };
+
+  /** Built once per pair of (template refs, catalog) changes and cached so
+   *  generic-table doesn't see a new array reference on every CD cycle
+   *  (which would churn its inputs and re-run downstream computeds). */
+  private columnsCache: { tpls: TemplateRef<any>[]; cols: IColumnDataTable<string, string>[] } | null = null;
+
+  buildColumns(
+    previewCellTpl: TemplateRef<any>,
+    categoryCellTpl: TemplateRef<any>,
+    subCategoryCellTpl: TemplateRef<any>,
+    statusCellTpl: TemplateRef<any>,
+    reportPeriodCellTpl: TemplateRef<any>,
+  ): IColumnDataTable<string, string>[] {
+    const tpls = [previewCellTpl, categoryCellTpl, subCategoryCellTpl, statusCellTpl, reportPeriodCellTpl];
+    if (this.columnsCache && tpls.every((t, i) => this.columnsCache!.tpls[i] === t)) {
+      return this.columnsCache.cols;
+    }
+    const cols: IColumnDataTable<string, string>[] = [
+      // 1) row selection — built-in editable checkbox, fires onChange so the
+      //    `selectedCount` computed re-evaluates.
+      { name: 'selected', value: '', type: FormTypes.CHECKBOX, editable: true,
+        width: '36px', onChange: this.fieldChangeHandler },
+      // 2) preview button — cellTemplate keeps the button visible inline
+      //    (rowActions would render as floating hover-actions instead).
+      { name: 'preview', value: '', cellTemplate: previewCellTpl, width: '36px' },
+      // 3) read-only filename
+      { name: 'driveFileName', value: 'קובץ' },
+      // 4–6) plain text editors
+      { name: 'supplier', value: 'שם ספק *', type: FormTypes.TEXT, editable: true,
+        onChange: this.fieldChangeHandler },
+      { name: 'supplierID', value: 'מס׳ עוסק', type: FormTypes.TEXT, editable: true,
+        onChange: this.fieldChangeHandler },
+      { name: 'allocationNumber', value: 'מס׳ הקצאה', type: FormTypes.TEXT, editable: true },
+      // 7) date editor
+      { name: 'date', value: 'תאריך *', type: FormTypes.DATE, editable: true,
+        onChange: this.fieldChangeHandler },
+      // 7b) derived VAT report period — read-only, computed from row.date via
+      //     formatReportPeriod() so it re-evaluates whenever the date is edited.
+      { name: 'reportPeriod', value: 'תקופת דיווח', cellTemplate: reportPeriodCellTpl, width: '90px' },
+      // 8) sum editor (right-aligned via .cell-editable--num)
+      { name: 'sum', value: 'סכום *', type: FormTypes.NUMBER, editable: true,
+        onChange: this.fieldChangeHandler },
+      // 9–10) cascading category/sub-category — need cellTemplate because the
+      //       built-in DDL editor doesn't support cascading or per-row option lists.
+      { name: 'category', value: 'קטגוריה *', cellTemplate: categoryCellTpl },
+      { name: 'subCategory', value: 'תת קטגוריה *', cellTemplate: subCategoryCellTpl },
+      // 11–12) plain number editors
+      { name: 'vatPercent', value: '% מע״מ', type: FormTypes.NUMBER, editable: true },
+      { name: 'taxPercent', value: '% מס', type: FormTypes.NUMBER, editable: true },
+      // 13) supplier-status column — known/new badge + (new only) save-supplier
+      //     checkbox + equipment icon. Save-time states (pending/failed) take
+      //     over the cell entirely. Standalone שמור-כספק column folded in here.
+      { name: 'status', value: 'סטטוס ספק', cellTemplate: statusCellTpl, width: '150px' },
+    ];
+    this.columnsCache = { tpls, cols };
+    return cols;
   }
 
   private periodToMonths(): string[] {

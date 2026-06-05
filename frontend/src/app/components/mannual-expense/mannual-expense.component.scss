@@ -223,6 +223,28 @@
     width: 97%;
 }
 
+.ocr-loading {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 12px;
+    padding: 10px 14px;
+    background: #fff8e1;
+    border: 1px solid #f0d27a;
+    border-radius: 8px;
+    color: #6b5200;
+    font-size: 14px;
+
+    &__spinner {
+        width: 22px;
+        height: 22px;
+    }
+
+    &__text {
+        line-height: 1.2;
+    }
+}
+
 .wrap-add-button {
     width: 97%;
     display: flex;

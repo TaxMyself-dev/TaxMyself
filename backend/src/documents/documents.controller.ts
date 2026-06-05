@@ -1,4 +1,5 @@
-import { BadRequestException, Body, Controller, Delete, Get, Headers, Param, ParseIntPipe, Patch, Post, Query, Req, Res, UseGuards, UsePipes, ValidationPipe, } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Headers, Param, ParseIntPipe, Patch, Post, Query, Req, Res, UploadedFile, UseGuards, UseInterceptors, UsePipes, ValidationPipe, } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
 import { DocumentType, DocumentStatusType } from 'src/enum';
 import { DocumentsService } from './documents.service';
@@ -332,6 +333,30 @@ export class DocumentsController {
       throw new BadRequestException('months[] is required (YYYY-MM strings)');
     }
     return this.documentsService.syncMonthsForUser(firebaseId, businessNumber, months);
+  }
+
+  // One-shot OCR for a single uploaded file (manual-expense dialog
+  // auto-fill). Does NOT persist anything — runs Claude and returns the
+  // first invoice's fields so the form can prefill.
+  @Post('me/ocr-file')
+  @UseGuards(FirebaseAuthGuard)
+  @UseInterceptors(FileInterceptor('file'))
+  async ocrSingleFile(
+    @Req() request: AuthenticatedRequest,
+    @UploadedFile() file: Express.Multer.File,
+    @Body() body: { businessNumber?: string },
+  ) {
+    const firebaseId = request.user?.firebaseId;
+    if (!firebaseId) throw new BadRequestException('Not authenticated');
+    if (!file?.buffer) throw new BadRequestException('file is required');
+    const businessNumber = body?.businessNumber?.trim();
+    if (!businessNumber) throw new BadRequestException('businessNumber is required');
+    return this.documentsService.ocrSingleFile(
+      firebaseId,
+      businessNumber,
+      file.buffer,
+      file.mimetype,
+    );
   }
 
   @Get('me/catalog')

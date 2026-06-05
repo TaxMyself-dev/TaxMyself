@@ -70,6 +70,26 @@ export interface ConfirmFromDriveItem {
   taxPercent: number;
   isEquipment: boolean;
   saveAsSupplier: boolean;
+  /** Period label ("M/YYYY" or "M1-M2/YYYY"). Optional — backend derives
+   *  from `date` + business cadence when omitted. UI sends it when the user
+   *  manually overrode the auto-derived period in the table. */
+  reportPeriod?: string | null;
+}
+
+export interface DuplicateCheckItem {
+  documentId: number;
+  supplier: string;
+  sum: number;
+  date: string;          // YYYY-MM-DD
+}
+
+export interface DuplicateExpenseMatch {
+  documentId: number;
+  existingExpenseId: number;
+  existingPeriod: string | null;
+  supplier: string;
+  sum: number;
+  date: string;
 }
 
 export interface SubCategoryCatalogEntry {
@@ -78,6 +98,30 @@ export interface SubCategoryCatalogEntry {
   taxPercent: number;
   vatPercent: number;
   isEquipment: boolean;
+}
+
+/** Raw shape of a single invoice returned by the OCR endpoint. Matches
+ *  Claude's `ExtractedFields` shape on the backend. */
+export interface OcrInvoiceFields {
+  supplier: string | null;
+  supplier_id: string | null;
+  date: string | null;          // YYYY-MM-DD
+  invoice_number: string | null;
+  allocation_number: string | null;
+  amount: number | null;
+  vat: number | null;
+  amount_before_vat: number | null;
+  category: string | null;
+  sub_category: string | null;
+  tax_percent: number | null;
+  vat_percent: number | null;
+  is_equipment: boolean | null;
+  description: string | null;
+}
+
+export interface OcrSingleFileResponse {
+  invoice: OcrInvoiceFields | null;
+  invoicesCount: number;
 }
 
 export interface BulkConfirmResponse {
@@ -116,9 +160,30 @@ export class DriveDocsService {
     return this.http.post<BulkConfirmResponse>(url, { businessNumber, items });
   }
 
+  checkDuplicatesFromDrive(
+    businessNumber: string,
+    items: DuplicateCheckItem[],
+  ): Observable<DuplicateExpenseMatch[]> {
+    const url = `${environment.apiUrl}expenses/check-duplicates-from-drive`;
+    return this.http.post<DuplicateExpenseMatch[]>(url, { businessNumber, items });
+  }
+
   getMySubCategoryCatalog(businessNumber: string): Observable<SubCategoryCatalogEntry[]> {
     const url = `${environment.apiUrl}documents/me/catalog`;
     const params = new HttpParams().set('businessNumber', businessNumber);
     return this.http.get<SubCategoryCatalogEntry[]>(url, { params });
+  }
+
+  /**
+   * Runs Claude OCR on a single uploaded file (PDF/JPEG/PNG/etc) and returns
+   * the extracted invoice fields for the manual-expense form to prefill.
+   * Does NOT persist anything on the backend.
+   */
+  ocrSingleFile(file: File, businessNumber: string): Observable<OcrSingleFileResponse> {
+    const url = `${environment.apiUrl}documents/me/ocr-file`;
+    const form = new FormData();
+    form.append('file', file, file.name);
+    form.append('businessNumber', businessNumber);
+    return this.http.post<OcrSingleFileResponse>(url, form);
   }
 }

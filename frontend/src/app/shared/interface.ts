@@ -1,3 +1,4 @@
+import { TemplateRef } from "@angular/core";
 import { ValidatorFn } from "@angular/forms";
 import { RegisterFormModules } from "../pages/register/regiater.enum";
 import { AccountantTaskSource, AccountantTaskType, BusinessStatus, BusinessType, ExpenseFormColumns, ExpenseFormHebrewColumns, FormTypes, ICellRenderer, TaxReportingType, VATReportingType } from "./enums";
@@ -236,6 +237,19 @@ export interface IColumnDataTable<TFormColumns, TFormHebrewColumns> {
     errorText?: string;
     hide?: boolean;
     onChange?: (event?: any, parent?: any) => void;
+    /** Opt-in: render this cell as an inline editor based on `type`
+     *  (TEXT/NUMBER/DATE → input, DDL + listItems → select, CHECKBOX → checkbox).
+     *  Writes `[(ngModel)]` directly into `row[name]` and fires `onChange` on each change.
+     *  Omitted / false → cell renders read-only (existing behavior). */
+    editable?: boolean;
+    /** Opt-in: render this cell via a custom `<ng-template>`. Overrides `editable`
+     *  and all built-in renderers. The template receives `{ $implicit: row, row, col }`
+     *  so consumers can use either `let-row` or `let-row="row"`. */
+    cellTemplate?: TemplateRef<any>;
+    /** Optional CSS width hint applied to the `<th>` via `[style.width]`. Lets the
+     *  consumer keep icon-only columns narrow (e.g. `'36px'`) without restyling
+     *  generic-table globally. */
+    width?: string;
 }
 
 export interface ISettingDoc {

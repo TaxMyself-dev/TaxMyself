@@ -2334,6 +2334,37 @@ ${finalOwnerName}`;
   }
 
   /**
+   * One-shot OCR for a single file uploaded directly from the UI (manual
+   * expense dialog). Unlike `syncMonthsForUser` this does NOT persist anything
+   * — it just runs Claude on the buffer and returns the first invoice's
+   * extracted fields so the form can prefill. Returns null for `invoice` if
+   * Claude found nothing or returned unparseable output (caller surfaces a
+   * soft warning rather than treating it as a hard error).
+   */
+  async ocrSingleFile(
+    firebaseId: string,
+    businessNumber: string,
+    fileBuffer: Buffer,
+    mimeType: string,
+  ): Promise<{ invoice: any | null; invoicesCount: number }> {
+    if (!this.documentProcessor.isSupportedMimeType(mimeType)) {
+      throw new BadRequestException(
+        `Unsupported file type: ${mimeType}. Supported: PDF, JPEG, PNG, GIF, WEBP.`,
+      );
+    }
+    const catalog = await this.buildExtractionCatalog(firebaseId, businessNumber);
+    const { invoices } = await this.documentProcessor.extract(
+      fileBuffer,
+      mimeType,
+      catalog,
+    );
+    if (!invoices || invoices.length === 0) {
+      return { invoice: null, invoicesCount: 0 };
+    }
+    return { invoice: invoices[0], invoicesCount: invoices.length };
+  }
+
+  /**
    * Build the sub-category catalog passed to Claude for classification AND
    * served to the frontend so the review dialog can render dropdowns sourced
    * from the same list. Combines system defaults (DefaultSubCategory) with
@@ -2410,6 +2441,33 @@ ${finalOwnerName}`;
   }> {
     const user = await this.userRepo.findOne({ where: { firebaseId } });
     if (!user) throw new NotFoundException(`User not found for firebaseId`);
+
+    // Start-of-sync banner so it's obvious in the server log which folder is
+    // being pulled and over which date range. The per-month line printed by
+    // syncUserMonth (`folder=<monthFolderId> files=N`) gives the detail; this
+    // banner is the header that ties them together.
+    const business = await this.businessRepo.findOne({
+      where: { firebaseId: user.firebaseId, businessNumber },
+    });
+    const businessName = business?.businessName?.trim() || '(no name)';
+    const businessFolderId = business?.driveFolderId ?? null;
+    const folderUrl = businessFolderId
+      ? this.googleDriveService.getFolderUrl(businessFolderId)
+      : '(will be provisioned on first month)';
+    const sortedMonths = [...months].sort();
+    const monthRange = sortedMonths.length === 1
+      ? sortedMonths[0]
+      : `${sortedMonths[0]} → ${sortedMonths[sortedMonths.length - 1]}`;
+    const userName = [user.fName, user.lName].filter(Boolean).join(' ').trim() || user.email || '(unknown)';
+
+    console.log(`\n════════════════════════════════════`);
+    console.log(`  DRIVE SYNC START`);
+    console.log(`  User        : ${userName} (fid=${firebaseId.substring(0, 8)}...)`);
+    console.log(`  Business    : ${businessName} (#${businessNumber})`);
+    console.log(`  Folder      : ${businessFolderId ?? '∅'}`);
+    console.log(`  Folder URL  : ${folderUrl}`);
+    console.log(`  Months (${sortedMonths.length})  : ${monthRange}`);
+    console.log(`════════════════════════════════════\n`);
 
     const perMonth: Array<{ month: string; result: any }> = [];
     let processed = 0, failed = 0, skipped = 0, total = 0;

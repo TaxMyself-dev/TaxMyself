@@ -110,26 +110,68 @@ export class PeriodSelectComponent {
     const form = this.parentForm();
     const defaults = this.periodDefaults();
 
-    // Remove all period-related controls first
-    ['year', 'month', 'startDate', 'endDate'].forEach(controlName => {
-      if (form.get(controlName)) {
-        form.removeControl(controlName);
-      }
-    });
+    // CRITICAL: do NOT removeControl + addControl on a control that both the
+    // old and new mode need (e.g. 'month' across MONTHLY ↔ BIMONTHLY). The
+    // <p-select formControlName="month"> directive inside <app-input-select>
+    // binds to the FormControl *instance* at template-render time; when we
+    // remove and re-add a control with the same name, the directive keeps
+    // pointing at the orphaned instance, so the user's next click writes the
+    // value into a control that's no longer in the form. The form keeps
+    // whatever default we put on the new instance, the submit reads the wrong
+    // value, and the period gets pulled for the wrong months.
+    // Mutate in place via setValue when the control already exists.
+    const needsYearMonth = mode === ReportingPeriodType.MONTHLY || mode === ReportingPeriodType.BIMONTHLY;
+    const needsYearOnly = mode === ReportingPeriodType.ANNUAL;
+    const needsDateRange = mode === ReportingPeriodType.DATE_RANGE;
 
-    // Add controls based on selected mode with default values
-    if (mode === ReportingPeriodType.MONTHLY || mode === ReportingPeriodType.BIMONTHLY) {
-      form.addControl('year', this.fb.control(defaults?.year ?? null, Validators.required));
-      const monthForDefault = mode === ReportingPeriodType.BIMONTHLY && defaults?.bimonthlyDefaultMonth != null
-        ? defaults.bimonthlyDefaultMonth
-        : defaults?.month;
-      const monthDefault = this.getDefaultMonthForMode(mode, monthForDefault);
-      form.addControl('month', this.fb.control(monthDefault, Validators.required));
-    } else if (mode === ReportingPeriodType.ANNUAL) {
-      form.addControl('year', this.fb.control(defaults?.year || null, Validators.required));
-    } else if (mode === ReportingPeriodType.DATE_RANGE) {
-      form.addControl('startDate', this.fb.control(defaults?.startDate || null, Validators.required));
-      form.addControl('endDate', this.fb.control(defaults?.endDate || null, Validators.required));
+    // 1) Drop controls the new mode genuinely doesn't need.
+    if (!needsYearMonth && !needsYearOnly && form.get('year')) {
+      form.removeControl('year');
+    }
+    if (!needsYearMonth && form.get('month')) {
+      form.removeControl('month');
+    }
+    if (!needsDateRange) {
+      if (form.get('startDate')) form.removeControl('startDate');
+      if (form.get('endDate')) form.removeControl('endDate');
+    }
+
+    // 2) Add or reconcile year.
+    if (needsYearMonth || needsYearOnly) {
+      if (!form.get('year')) {
+        form.addControl('year', this.fb.control(defaults?.year ?? null, Validators.required));
+      }
+      // else: keep whatever the user already chose.
+    }
+
+    // 3) Add or reconcile month. When switching MONTHLY → BIMONTHLY, the
+    //    existing month may not be a valid bimonthly anchor (1,3,5,7,9,11) —
+    //    convert it via setValue on the SAME control instance.
+    if (needsYearMonth) {
+      if (!form.get('month')) {
+        const seed = mode === ReportingPeriodType.BIMONTHLY && defaults?.bimonthlyDefaultMonth != null
+          ? defaults.bimonthlyDefaultMonth
+          : defaults?.month;
+        form.addControl('month', this.fb.control(this.getDefaultMonthForMode(mode, seed), Validators.required));
+      } else if (mode === ReportingPeriodType.BIMONTHLY) {
+        const validBimonthly = ['1', '3', '5', '7', '9', '11'];
+        const current = form.get('month')?.value;
+        if (current == null || !validBimonthly.includes(String(current))) {
+          const seed = current ?? defaults?.bimonthlyDefaultMonth ?? defaults?.month;
+          form.get('month')?.setValue(this.getDefaultMonthForMode(mode, seed));
+        }
+      }
+      // For MONTHLY: any 1–12 is valid, so preserve existing as-is.
+    }
+
+    // 4) Add date-range controls if needed.
+    if (needsDateRange) {
+      if (!form.get('startDate')) {
+        form.addControl('startDate', this.fb.control(defaults?.startDate ?? null, Validators.required));
+      }
+      if (!form.get('endDate')) {
+        form.addControl('endDate', this.fb.control(defaults?.endDate ?? null, Validators.required));
+      }
     }
   }
 

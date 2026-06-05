@@ -127,7 +127,14 @@
 
 <div class="wrap-file-uploader">
   <app-file-uploader-gpt (selectedFiles)="selectedFiles($event)"></app-file-uploader-gpt>
-  
+
+  @if (isOcrLoading()) {
+    <div class="ocr-loading" role="status" aria-live="polite">
+      <p-progressSpinner strokeWidth="4" styleClass="ocr-loading__spinner"></p-progressSpinner>
+      <span class="ocr-loading__text">מחלצים נתונים מהקובץ, רגע אחד…</span>
+    </div>
+  }
+
   @if (previewFileUrl() && previewFileType()) {
     <div class="file-preview-section" style="margin-top: 1rem; border: 1px solid #ddd; border-radius: 8px; padding: 1rem; background: #f9f9f9;">
       @if (previewFileType() === 'pdf' && pdfUrlWithParams()) {
