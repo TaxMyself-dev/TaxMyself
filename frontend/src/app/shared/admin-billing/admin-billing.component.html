@@ -1,0 +1,19 @@
+<div class="admin-billing">
+  <app-tab-bar
+    [tabs]="subTabs"
+    [selectedTab]="selectedSubTab()"
+    (selectedTabChange)="onSubTabChange($event)">
+  </app-tab-bar>
+
+  <div class="admin-billing__content">
+    @if (selectedSubTab() === 'plans') {
+      <app-billing-plans></app-billing-plans>
+    }
+    @if (selectedSubTab() === 'promotions') {
+      <app-billing-promotions></app-billing-promotions>
+    }
+    @if (selectedSubTab() === 'coupons') {
+      <app-billing-coupons></app-billing-coupons>
+    }
+  </div>
+</div>

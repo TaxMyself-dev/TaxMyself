@@ -24,6 +24,22 @@ import { ReportWorkflowModule } from './report-workflow/report-workflow.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { DemoDataModule } from './demo-data/demo-data.module';
 import { GoogleDriveModule } from './google-drive/google-drive.module';
+import { BillingModule } from './billing/billing.module';
+//Billing entities
+import { SubscriptionPlan } from './billing/entities/subscription-plan.entity';
+import { Subscription } from './billing/entities/subscription.entity';
+import { PaymentMethod } from './billing/entities/payment-method.entity';
+import { CardcomCheckoutSession } from './billing/entities/cardcom-checkout-session.entity';
+import { CardcomWebhookLog } from './billing/entities/cardcom-webhook-log.entity';
+import { BillingEvent } from './billing/entities/billing-event.entity';
+import { Promotion } from './billing/entities/promotion.entity';
+import { PromotionPlan } from './billing/entities/promotion-plan.entity';
+import { Coupon } from './billing/entities/coupon.entity';
+import { CouponPlan } from './billing/entities/coupon-plan.entity';
+import { CouponRedemption } from './billing/entities/coupon-redemption.entity';
+import { SubscriptionDiscount } from './billing/entities/subscription-discount.entity';
+import { SubscriptionCancellation } from './billing/entities/subscription-cancellation.entity';
+import { SubscriptionPlanChange } from './billing/entities/subscription-plan-change.entity';
 //Entities
 import { Expense } from './expenses/expenses.entity';
 import { Income } from './expenses/incomes.entity';
@@ -95,7 +111,10 @@ import { BusinessService } from './business/business.service';
         DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory, Finsite, Delegation, SettingDocuments,
         Clients, Documents, DocLines, DocPayments, ExtractedDocument, JournalEntry, JournalLine, DefaultBookingAccount,
         FeezbackWebhookEvent, UserModuleSubscription, AccountantTask, AnnualReport, AnnualReportFile, ReportWorkflow,
-        FxRate],
+        FxRate,
+        SubscriptionPlan, Subscription, PaymentMethod, CardcomCheckoutSession, CardcomWebhookLog,
+        BillingEvent, Promotion, PromotionPlan, Coupon, CouponPlan, CouponRedemption,
+        SubscriptionDiscount, SubscriptionCancellation, SubscriptionPlanChange],
       synchronize: process.env.NODE_ENV !== 'production',
       timezone: 'Z',
       //logging: true
@@ -131,7 +150,7 @@ import { BusinessService } from './business/business.service';
       ExtractedDocument,
     ]),
     ScheduleModule.forRoot(),
-    HttpModule, UsersModule, ReportsModule, ExpensesModule, TransactionsModule, BusinessModule, CloudModule, SharedModule, FinsiteModule, MailModule, DelegationModule, DocumentsModule, ClientsModule, BookkeepingModule, FeezbackModule, ShaamModule, FeezbackWebhookModule, AccountantTasksModule, AnnualReportModule, ReportWorkflowModule, NotificationsModule, DemoDataModule, GoogleDriveModule],
+    HttpModule, UsersModule, ReportsModule, ExpensesModule, TransactionsModule, BusinessModule, CloudModule, SharedModule, FinsiteModule, MailModule, DelegationModule, DocumentsModule, ClientsModule, BookkeepingModule, FeezbackModule, ShaamModule, FeezbackWebhookModule, AccountantTasksModule, AnnualReportModule, ReportWorkflowModule, NotificationsModule, DemoDataModule, GoogleDriveModule, BillingModule],
   controllers: [AppController],
   providers: [AppService, FinsiteService, ExpensesService, MailService, DocumentsService, ClientsService, BookkeepingService, BusinessService],
 })
