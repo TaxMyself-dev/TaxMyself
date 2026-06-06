@@ -1,4 +1,4 @@
-import { Injectable, HttpException, HttpStatus, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
+import { forwardRef, Inject, Injectable, HttpException, HttpStatus, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import axios, { AxiosInstance } from 'axios';
 import { EntityManager, Repository, In } from 'typeorm';
@@ -28,6 +28,7 @@ import { GoogleDriveService } from '../google-drive/google-drive.service';
 import { Supplier } from '../expenses/suppliers.entity';
 import { DefaultSubCategory } from '../expenses/default-sub-categories.entity';
 import { UserSubCategory } from '../expenses/user-sub-categories.entity';
+import { UsersService } from '../users/users.service';
 // Business is already imported above as part of Bookkeeping/Issued-Documents logic.
 
 @Injectable()
@@ -70,6 +71,8 @@ export class DocumentsService {
     private userSubCategoryRepo: Repository<UserSubCategory>,
     private readonly documentProcessor: DocumentProcessorService,
     private readonly googleDriveService: GoogleDriveService,
+    @Inject(forwardRef(() => UsersService))
+    private readonly usersService: UsersService,
     private dataSource: DataSource
   ) { }
 
@@ -2331,6 +2334,37 @@ ${finalOwnerName}`;
   }
 
   /**
+   * One-shot OCR for a single file uploaded directly from the UI (manual
+   * expense dialog). Unlike `syncMonthsForUser` this does NOT persist anything
+   * — it just runs Claude on the buffer and returns the first invoice's
+   * extracted fields so the form can prefill. Returns null for `invoice` if
+   * Claude found nothing or returned unparseable output (caller surfaces a
+   * soft warning rather than treating it as a hard error).
+   */
+  async ocrSingleFile(
+    firebaseId: string,
+    businessNumber: string,
+    fileBuffer: Buffer,
+    mimeType: string,
+  ): Promise<{ invoice: any | null; invoicesCount: number }> {
+    if (!this.documentProcessor.isSupportedMimeType(mimeType)) {
+      throw new BadRequestException(
+        `Unsupported file type: ${mimeType}. Supported: PDF, JPEG, PNG, GIF, WEBP.`,
+      );
+    }
+    const catalog = await this.buildExtractionCatalog(firebaseId, businessNumber);
+    const { invoices } = await this.documentProcessor.extract(
+      fileBuffer,
+      mimeType,
+      catalog,
+    );
+    if (!invoices || invoices.length === 0) {
+      return { invoice: null, invoicesCount: 0 };
+    }
+    return { invoice: invoices[0], invoicesCount: invoices.length };
+  }
+
+  /**
    * Build the sub-category catalog passed to Claude for classification AND
    * served to the frontend so the review dialog can render dropdowns sourced
    * from the same list. Combines system defaults (DefaultSubCategory) with
@@ -2408,6 +2442,33 @@ ${finalOwnerName}`;
     const user = await this.userRepo.findOne({ where: { firebaseId } });
     if (!user) throw new NotFoundException(`User not found for firebaseId`);
 
+    // Start-of-sync banner so it's obvious in the server log which folder is
+    // being pulled and over which date range. The per-month line printed by
+    // syncUserMonth (`folder=<monthFolderId> files=N`) gives the detail; this
+    // banner is the header that ties them together.
+    const business = await this.businessRepo.findOne({
+      where: { firebaseId: user.firebaseId, businessNumber },
+    });
+    const businessName = business?.businessName?.trim() || '(no name)';
+    const businessFolderId = business?.driveFolderId ?? null;
+    const folderUrl = businessFolderId
+      ? this.googleDriveService.getFolderUrl(businessFolderId)
+      : '(will be provisioned on first month)';
+    const sortedMonths = [...months].sort();
+    const monthRange = sortedMonths.length === 1
+      ? sortedMonths[0]
+      : `${sortedMonths[0]} → ${sortedMonths[sortedMonths.length - 1]}`;
+    const userName = [user.fName, user.lName].filter(Boolean).join(' ').trim() || user.email || '(unknown)';
+
+    console.log(`\n════════════════════════════════════`);
+    console.log(`  DRIVE SYNC START`);
+    console.log(`  User        : ${userName} (fid=${firebaseId.substring(0, 8)}...)`);
+    console.log(`  Business    : ${businessName} (#${businessNumber})`);
+    console.log(`  Folder      : ${businessFolderId ?? '∅'}`);
+    console.log(`  Folder URL  : ${folderUrl}`);
+    console.log(`  Months (${sortedMonths.length})  : ${monthRange}`);
+    console.log(`════════════════════════════════════\n`);
+
     const perMonth: Array<{ month: string; result: any }> = [];
     let processed = 0, failed = 0, skipped = 0, total = 0;
 
@@ -2432,80 +2493,35 @@ ${finalOwnerName}`;
   }
 
   /**
-   * Ensure (a) the user has a Drive root folder, (b) the business has a
-   * sub-folder under it. Auto-provisions any missing pieces, verifies stored
-   * ids still exist in Drive (and re-creates if they don't), and persists.
-   * Returns the business folder id, which becomes the parent of YYYY/MM.
+   * Ensure the user has a Drive root folder AND the requested business has
+   * a sub-folder under it. Delegates to UsersService.provisionDriveStructure
+   * so the same code path handles:
+   *   - stale-id detection + recreation (folderExists check)
+   *   - sharing with the user themselves
+   *   - sharing with every delegated accountant
+   *   - 2-year × 12-month scaffold
+   *
+   * Idempotent: if everything's already provisioned, this is a couple of
+   * Drive existence checks and one DB read. Cheap to call on every sync.
    */
   private async ensureBusinessFolderForUser(user: User, businessNumber: string): Promise<string> {
-    // 1) User root folder — verify stored id is still alive in Drive
-    if (user.driveFolderId) {
-      try {
-        const stillThere = await this.googleDriveService.folderExists(user.driveFolderId);
-        if (!stillThere) {
-          this.logger.warn(
-            `[Drive] stored user folder ${user.driveFolderId} no longer exists — re-creating for user.index=${user.index}`,
-          );
-          user.driveFolderId = null;
-          await this.userRepo.save(user);
-        }
-      } catch (err: any) {
-        this.logger.error(
-          `[Drive] folderExists check failed for user folder ${user.driveFolderId}: ${err?.message ?? err}`,
-        );
-        // continue — if the check itself failed, fall through and try to use the id
-      }
-    }
-    if (!user.driveFolderId) {
-      const folderName = [user.fName, user.lName].filter(Boolean).join(' ').trim()
-        || user.email
-        || `user-${user.firebaseId}`;
-      const folderId = await this.googleDriveService.createUserFolder(folderName, user.email);
-      user.driveFolderId = folderId;
-      await this.userRepo.save(user);
-      this.logger.log(`Auto-provisioned user Drive folder ${folderId} for user.index=${user.index}`);
-    }
+    const accountantEmails = await this.usersService.getActiveAccountantEmailsForUser(user.firebaseId);
+    await this.usersService.provisionDriveStructure(user, accountantEmails);
 
-    // 2) Business sub-folder
     const business = await this.businessRepo.findOne({
       where: { firebaseId: user.firebaseId, businessNumber },
     });
     if (!business) {
-      throw new BadRequestException(
-        `Business ${businessNumber} not found for this user`,
-      );
+      throw new BadRequestException(`Business ${businessNumber} not found for this user`);
     }
-
-    // Verify stored business folder id is still alive in Drive
-    if (business.driveFolderId) {
-      try {
-        const stillThere = await this.googleDriveService.folderExists(business.driveFolderId);
-        if (!stillThere) {
-          this.logger.warn(
-            `[Drive] stored business folder ${business.driveFolderId} (biz=${businessNumber}) no longer exists — re-creating`,
-          );
-          business.driveFolderId = null;
-        }
-      } catch (err: any) {
-        this.logger.error(
-          `[Drive] folderExists check failed for business folder ${business.driveFolderId}: ${err?.message ?? err}`,
-        );
-      }
-    }
-
     if (!business.driveFolderId) {
-      const displayName = business.businessName?.trim() || `business-${businessNumber}`;
-      const businessFolderId = await this.googleDriveService.ensureBusinessFolder(
-        user.driveFolderId,
-        displayName,
-      );
-      business.driveFolderId = businessFolderId;
-      await this.businessRepo.save(business);
-      this.logger.log(
-        `Auto-provisioned business Drive folder ${businessFolderId} for business=${businessNumber}`,
+      // Should be unreachable after provisionDriveStructure ran successfully —
+      // but guard so callers get a clear error instead of a downstream 404.
+      throw new HttpException(
+        `Business ${businessNumber} has no drive_folder_id after provisioning. Check the [Drive] logs above.`,
+        HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
-
     return business.driveFolderId;
   }
 

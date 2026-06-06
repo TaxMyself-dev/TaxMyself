@@ -2,7 +2,7 @@ import { Component, inject, input, OnInit, output, signal, WritableSignal } from
 import { LeftPanelComponent } from "../left-panel/left-panel.component";
 import { InputSelectComponent } from "../input-select/input-select.component";
 import { ButtonComponent } from "../button/button.component";
-import { ButtonSize } from '../button/button.enum';
+import { ButtonColor, ButtonSize } from '../button/button.enum';
 import { inputsSize } from 'src/app/shared/enums';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 import { InputTextComponent } from "../input-text/input-text.component";
@@ -46,6 +46,7 @@ export class AddBillComponent implements OnInit {
   BusinessStatus = BusinessStatus;
 
   buttonSize = ButtonSize;
+  buttonColor = ButtonColor;
   inputsSize = inputsSize;
   myForm: FormGroup;
 

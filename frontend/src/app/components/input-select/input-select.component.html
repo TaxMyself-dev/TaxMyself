@@ -16,6 +16,7 @@
       [tooltip]="'good'" [panelStyle]="{ 'width': 'auto', 'min-width': '170px' }" [options]="items()"
       [styleClass]="inputClasses()" [filter]="true" optionLabel="name" [placeholder]="placeholder()"
       [maxSelectedLabels]="0" [formControlName]="controlName()" [showToggleAll]="true"
+      [emptyMessage]="emptyMessage()" [emptyFilterMessage]="emptyFilterMessage()"
       [appendTo]="appendTo()" [autoZIndex]="autoZIndex()" [baseZIndex]="baseZIndex()">
       <ng-template #footer>
         <div class="multiselect-footer">
@@ -48,6 +49,7 @@
       [placeholder]="labelText() ? placeholder() : placeholder() + (isRequired ? ' *' : '')" [filter]="filter()"
       [virtualScroll]="virtualScroll()" [disabled]="disabled()" [styleClass]="inputClasses()"
       (onChange)="onChange($event)" [virtualScroll]="virtualScroll()" [virtualScrollItemSize]="virtualScrollItemSize()"
+      [emptyMessage]="emptyMessage()" [emptyFilterMessage]="emptyFilterMessage()"
       [appendTo]="appendTo()" [autoZIndex]="autoZIndex()" [baseZIndex]="baseZIndex()">
       <ng-template #dropdownicon>
         <i class="pi pi-sort-down-fill" style="font-size: 0.8rem"></i>

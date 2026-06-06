@@ -1246,6 +1246,17 @@ export class ExpensesService {
 
                 const expense = await this.addExpense(dto, firebaseId, businessNumber);
 
+                // Stamp the report-period label. The drive-extract flow is the
+                // only path that pre-computes vatReportingDate at confirm-time
+                // — manual addExpense leaves it NULL and falls back to the
+                // date-range filter in queries. Honor an explicit override
+                // from the UI (user-edited period dropdown) over the date.
+                const periodLabel = item.reportPeriod?.trim()
+                  || await this.derivePeriodLabelForBusiness(businessNumber, item.date);
+                if (periodLabel) {
+                    await this.expense_repo.update(expense.id, { vatReportingDate: periodLabel as any });
+                }
+
                 let supplierCreated = false;
                 if (item.saveAsSupplier && item.supplierID) {
                     const existing = await this.supplier_repo.findOne({
@@ -1291,6 +1302,77 @@ export class ExpensesService {
         };
     }
 
+    /**
+     * Compute the VAT report-period label for `dateString` using the
+     * business's cadence — single ("M/YYYY") or dual-month ("M1-M2/YYYY").
+     * Returns null when the business or date can't be resolved (caller then
+     * leaves vatReportingDate untouched and relies on the date-range
+     * fallback in the report query).
+     */
+    private async derivePeriodLabelForBusiness(
+        businessNumber: string,
+        dateString: string,
+    ): Promise<string | null> {
+        if (!dateString) return null;
+        const dt = new Date(dateString);
+        if (Number.isNaN(dt.getTime())) return null;
+        const business = await this.businessRepo.findOne({ where: { businessNumber } });
+        const businessType = business?.businessType ?? BusinessType.LICENSED;
+        const vatReportingType = business?.vatReportingType ?? VATReportingType.MONTHLY_REPORT;
+        return this.sharedService.buildReportPeriodLabel(businessType, vatReportingType, dt);
+    }
+
+    /**
+     * Pre-flight duplicate detection for the drive-extract flow. For each
+     * candidate (supplier + sum + date), check whether the user already has
+     * a matching expense in this business. Returns one entry per duplicate,
+     * including the existing expense's period label so the UI can tell the
+     * user *which* report they previously filed it under.
+     *
+     * Exact match on date (date-only column), supplier name, and numeric sum
+     * — keep it strict so accidental re-uploads are caught but legitimate
+     * same-day repeat payments (e.g., two ₪50 fuel receipts) aren't blocked.
+     * (Same-supplier, same-sum, same-day is rare enough in practice that the
+     * occasional false positive is preferable to silently double-booking.)
+     */
+    async checkDuplicateExpensesFromDrive(
+        firebaseId: string,
+        businessNumber: string,
+        items: DuplicateExpenseCheckItem[],
+    ): Promise<DuplicateExpenseMatch[]> {
+        if (!items?.length) return [];
+
+        const business = await this.businessRepo.findOne({ where: { businessNumber } });
+        const businessType = business?.businessType ?? BusinessType.LICENSED;
+        const vatReportingType = business?.vatReportingType ?? VATReportingType.MONTHLY_REPORT;
+
+        const matches: DuplicateExpenseMatch[] = [];
+        for (const item of items) {
+            if (!item.supplier?.trim() || !item.date || !(Number(item.sum) > 0)) continue;
+            const existing = await this.expense_repo.findOne({
+                where: {
+                    userId: firebaseId,
+                    businessNumber,
+                    supplier: item.supplier.trim(),
+                    sum: Number(item.sum),
+                    date: new Date(item.date) as any,
+                },
+            });
+            if (!existing) continue;
+            const existingPeriod = existing.vatReportingDate
+              ?? this.sharedService.buildReportPeriodLabel(businessType, vatReportingType, new Date(existing.date));
+            matches.push({
+                documentId: item.documentId,
+                existingExpenseId: existing.id,
+                existingPeriod: existingPeriod ?? null,
+                supplier: item.supplier,
+                sum: Number(item.sum),
+                date: item.date,
+            });
+        }
+        return matches;
+    }
+
 }
 
 export interface BulkConfirmFromDriveItem {
@@ -1305,4 +1387,23 @@ export interface BulkConfirmFromDriveItem {
     taxPercent: number;
     isEquipment: boolean;
     saveAsSupplier: boolean;
+    /** Period label override ("M/YYYY" or "M1-M2/YYYY"). When omitted the
+     *  service derives the label from `date` + the business's VAT cadence. */
+    reportPeriod?: string | null;
+}
+
+export interface DuplicateExpenseCheckItem {
+    documentId: number;
+    supplier: string;
+    sum: number;
+    date: string;          // YYYY-MM-DD
+}
+
+export interface DuplicateExpenseMatch {
+    documentId: number;
+    existingExpenseId: number;
+    existingPeriod: string | null;
+    supplier: string;
+    sum: number;
+    date: string;
 }

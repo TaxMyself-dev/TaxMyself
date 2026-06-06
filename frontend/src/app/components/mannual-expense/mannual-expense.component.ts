@@ -17,10 +17,12 @@ import { ButtonComponent } from "../button/button.component";
 import { ButtonColor, ButtonSize } from "../button/button.enum";
 import { MannualExpenseService } from "./mannual-expense.service";
 import { ExpenseDataService } from "src/app/services/expense-data.service";
+import { DriveDocsService, OcrInvoiceFields } from "src/app/services/drive-docs.service";
 import { MessageService } from "primeng/api";
 import { Observable, EMPTY, catchError, finalize, map, of, switchMap, tap, throwError } from "rxjs";
 import { AddSupplierComponent } from "../add-supplier/add-supplier.component";
 import { CheckboxModule } from "primeng/checkbox";
+import { ProgressSpinnerModule } from "primeng/progressspinner";
 
 @Component({
     selector: 'app-mannual-expense',
@@ -28,7 +30,7 @@ import { CheckboxModule } from "primeng/checkbox";
     styleUrls: ['./mannual-expense.component.scss'],
     standalone: true,
     changeDetection: ChangeDetectionStrategy.Default,
-    imports: [ReactiveFormsModule, InputSelectComponent, InputTextComponent, InputDateComponent, appFileUploadGptComponent, ButtonComponent, InputAutoCompleteComponent, CheckboxModule],
+    imports: [ReactiveFormsModule, InputSelectComponent, InputTextComponent, InputDateComponent, appFileUploadGptComponent, ButtonComponent, InputAutoCompleteComponent, CheckboxModule, ProgressSpinnerModule],
     providers: [FormBuilder]
 })
 export class MannualExpenseComponent implements OnDestroy {
@@ -533,6 +535,7 @@ export class MannualExpenseComponent implements OnDestroy {
     dialogRef = inject(DynamicDialogRef);
     dialogConfig = inject(DynamicDialogConfig);
     fileService = inject(FilesService);
+    driveDocsService = inject(DriveDocsService);
 
     editMode = false;
     expenseId: number | null = null;
@@ -545,6 +548,7 @@ export class MannualExpenseComponent implements OnDestroy {
     files = signal<File[]>([]);
     isDirty = signal<boolean>(false);
     isLoadingAddExpense = signal<boolean>(false);
+    isOcrLoading = signal<boolean>(false);
     previewFileUrl = signal<string | null>(null);
     previewFileType = signal<'pdf' | 'image' | null>(null);
     safePreviewUrl = signal<SafeResourceUrl | null>(null);
@@ -807,7 +811,7 @@ export class MannualExpenseComponent implements OnDestroy {
 
     selectedFiles(event: File[]): void {
         this.files.set(event);
-        
+
         // Clean up previous preview URL
         if (this.previewFileUrl()) {
             const url = this.previewFileUrl();
@@ -816,14 +820,94 @@ export class MannualExpenseComponent implements OnDestroy {
             }
         }
         this.safePreviewUrl.set(null);
-        
+
         // Auto-preview the first file
         if (event.length > 0) {
             this.loadPreview(event[0]);
+            // OCR auto-fill — runs only on add (not edit, to avoid clobbering
+            // existing data the user is editing).
+            if (!this.editMode) {
+                this.runOcrAutoFill(event[0]);
+            }
         } else {
             this.previewFileUrl.set(null);
             this.previewFileType.set(null);
         }
+    }
+
+    /**
+     * Sends the uploaded file to the Claude-OCR endpoint and prefills the form
+     * with the extracted invoice fields. Best-effort: any failure surfaces a
+     * soft toast so the user can still fill the form manually.
+     */
+    private runOcrAutoFill(file: File): void {
+        const businessNumber =
+            this.mannualExpenseService.$selectedBusinessNumber() ??
+            this.authService.getActiveBusinessNumber() ?? '';
+        if (!businessNumber) {
+            // No business selected (multi-business + nothing chosen yet) —
+            // skip OCR silently; the user will pick a business and can
+            // re-upload to trigger OCR.
+            return;
+        }
+        this.isOcrLoading.set(true);
+        this.driveDocsService.ocrSingleFile(file, businessNumber)
+            .pipe(
+                catchError((err) => {
+                    console.error('[MannualExpense] OCR failed:', err);
+                    this.showToast({
+                        severity: 'warn',
+                        summary: 'מילוי אוטומטי נכשל',
+                        detail: 'לא הצלחנו לחלץ נתונים מהקובץ — ניתן למלא ידנית',
+                        sticky: false,
+                    });
+                    return EMPTY;
+                }),
+                finalize(() => this.isOcrLoading.set(false)),
+            )
+            .subscribe((res) => {
+                if (!res?.invoice) {
+                    this.showToast({
+                        severity: 'info',
+                        summary: 'לא זוהו נתונים',
+                        detail: 'לא נמצאו נתוני חשבונית בקובץ — ניתן למלא ידנית',
+                        sticky: false,
+                    });
+                    return;
+                }
+                this.applyOcrResult(res.invoice);
+                this.showToast({
+                    severity: 'success',
+                    summary: 'הצלחה',
+                    detail: 'הטופס מולא אוטומטית מהקובץ',
+                    sticky: false,
+                });
+            });
+    }
+
+    private applyOcrResult(inv: OcrInvoiceFields): void {
+        const dateDisplay = this.apiDateToDisplay(inv.date);
+        const patch: Record<string, any> = {};
+        if (inv.supplier) patch['supplier'] = inv.supplier;
+        if (inv.supplier_id) patch['supplierId'] = inv.supplier_id;
+        if (dateDisplay) patch['date'] = dateDisplay;
+        if (inv.invoice_number) patch['expenseNumber'] = inv.invoice_number;
+        if (inv.amount != null) patch['sum'] = String(inv.amount);
+        if (inv.category) patch['category'] = inv.category;
+        if (inv.sub_category) patch['subCategory'] = inv.sub_category;
+        if (inv.vat_percent != null) patch['vatPercent'] = Number(inv.vat_percent);
+        if (inv.tax_percent != null) patch['taxPercent'] = Number(inv.tax_percent);
+        if (typeof inv.is_equipment === 'boolean') patch['isEquipment'] = inv.is_equipment;
+        // emitEvent: false — skip the isEquipment valueChanges subscription so
+        // it doesn't overwrite category/taxPercent we just set from OCR.
+        this.mannualExpenseForm.patchValue(patch, { emitEvent: false });
+        this.isEquipmentChecked.set(this.mannualExpenseForm.get('isEquipment')?.value === true);
+        // Populate the subcategory dropdown options for the chosen category
+        // without clearing the subCategory we just patched in.
+        if (inv.category) {
+            this.getSubCategory(inv.category, true);
+        }
+        this.isDirty.set(true);
     }
 
     loadPreview(file: File): void {

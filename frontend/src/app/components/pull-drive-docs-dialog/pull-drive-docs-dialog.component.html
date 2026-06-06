@@ -51,127 +51,110 @@
     </ng-container>
   </div>
 
+  <!-- Cell templates for the generic-table refactor. Declared once outside
+       the conditional so they're available whenever the table renders. The
+       built-in editable cells (supplier/sum/date/etc.) live inside generic-table;
+       only the cells that need cascading logic, conditional disable, or
+       multi-state badges are projected via cellTemplate. -->
+  <ng-template #previewCell let-row>
+    <button type="button"
+            class="preview-btn"
+            [class.active]="previewRow()?.documentId === row.documentId"
+            [title]="previewRow()?.documentId === row.documentId ? 'סגור תצוגה' : 'הצג קובץ'"
+            (click)="togglePreview(row)">
+      <i class="pi pi-eye"></i>
+    </button>
+  </ng-template>
+
+  <ng-template #categoryCell let-row>
+    <select class="cell-editable"
+            [ngModel]="row.category"
+            (ngModelChange)="onCategoryChange(row, $event)">
+      <option [ngValue]="''">— בחר —</option>
+      <option *ngFor="let cat of categoryOptions()" [ngValue]="cat">{{ cat }}</option>
+    </select>
+  </ng-template>
+
+  <ng-template #subCategoryCell let-row>
+    <select class="cell-editable"
+            [ngModel]="row.subCategory"
+            (ngModelChange)="onSubCategoryChange(row, $event)"
+            [disabled]="!row.category"
+            [title]="!row.category ? 'בחר קטגוריה תחילה' : ''">
+      <option [ngValue]="''">— בחר —</option>
+      <option *ngFor="let sub of subCategoriesForCategory(row.category)"
+              [ngValue]="sub.subCategoryName">
+        {{ sub.subCategoryName }}
+      </option>
+    </select>
+  </ng-template>
+
+  <ng-template #reportPeriodCell let-row>
+    <select class="cell-editable report-period-select"
+            [class.overridden]="!!row.reportPeriodOverride"
+            [ngModel]="effectiveReportPeriod(row)"
+            (ngModelChange)="onReportPeriodChange(row, $event)"
+            [disabled]="!row.date"
+            [title]="row.reportPeriodOverride ? 'תקופה הוגדרה ידנית — לא נגזרת מהתאריך' : ''">
+      <option *ngFor="let opt of periodOptionsForRow(row)" [ngValue]="opt">{{ opt }}</option>
+    </select>
+  </ng-template>
+
+  <ng-template #statusCell let-row>
+    <div class="supplier-status-cell">
+      <!-- Save-time states take over the cell entirely — supplier identity is
+           irrelevant while the row is mid-save or after a failure. Failure
+           text moves to the title attribute so the user can hover for the
+           actual backend error. -->
+      <ng-container *ngIf="row.saveStatus === 'pending'">
+        <span class="status-badge status-badge--pending">
+          <i class="pi pi-spin pi-spinner"></i> שומר...
+        </span>
+      </ng-container>
+
+      <ng-container *ngIf="row.saveStatus === 'failed'">
+        <span class="status-badge status-badge--failed" [title]="row.saveError || ''">
+          <i class="pi pi-times"></i> נכשל
+        </span>
+      </ng-container>
+
+      <!-- Default state: supplier-status badge (known/new) plus the
+           save-as-supplier checkbox under it for new suppliers. Equipment
+           icon sits inline next to the badge when the picked sub-category
+           is a fixed asset. -->
+      <ng-container *ngIf="!row.saveStatus">
+        <div class="supplier-status-top">
+          <span *ngIf="row.isMatched"
+                class="supplier-status-badge supplier-status-badge--known">
+            <i class="pi pi-check"></i> ספק מוכר
+          </span>
+          <span *ngIf="!row.isMatched"
+                class="supplier-status-badge supplier-status-badge--new">
+            ספק חדש
+          </span>
+          <span *ngIf="row.isEquipment"
+                class="equipment-icon"
+                title="סוג ההוצאה: ציוד (רכוש קבוע) — פחת">
+            <i class="pi pi-desktop"></i>
+          </span>
+        </div>
+        <label *ngIf="!row.isMatched" class="save-supplier-toggle">
+          <input type="checkbox" [(ngModel)]="row.saveAsSupplier" />
+          שמור ספק
+        </label>
+      </ng-container>
+    </div>
+  </ng-template>
+
   <div *ngIf="rows().length > 0" class="split-area" [class.with-preview]="previewRow()">
     <div class="results-wrap">
-    <table class="results-table">
-      <thead>
-        <tr>
-          <th style="width: 36px;">
-            <input type="checkbox"
-                   [checked]="selectedCount() === rows().length"
-                   (change)="toggleAll($any($event.target).checked)" />
-          </th>
-          <th style="width: 36px;"></th>
-          <th>קובץ</th>
-          <th>שם ספק *</th>
-          <th>מס׳ עוסק</th>
-          <th>מס׳ הקצאה</th>
-          <th>תאריך *</th>
-          <th style="text-align:end;">סכום *</th>
-          <th>קטגוריה *</th>
-          <th>תת קטגוריה *</th>
-          <th style="text-align:end;">% מע״מ</th>
-          <th style="text-align:end;">% מס</th>
-          <th>שמור כספק</th>
-          <th>סטטוס</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr *ngFor="let row of rows()"
-            [class.matched]="row.isMatched && !isRowProblematic(row)"
-            [class.problematic]="isRowProblematic(row) && row.saveStatus !== 'failed'"
-            [class.equipment]="row.isEquipment"
-            [class.row-failed]="row.saveStatus === 'failed'">
-          <td>
-            <input type="checkbox"
-                   [(ngModel)]="row.selected"
-                   (ngModelChange)="onRowFieldChange()" />
-          </td>
-          <td style="text-align:center;">
-            <button type="button"
-                    class="preview-btn"
-                    [class.active]="previewRow()?.documentId === row.documentId"
-                    [title]="previewRow()?.documentId === row.documentId ? 'סגור תצוגה' : 'הצג קובץ'"
-                    (click)="togglePreview(row)">
-              <i class="pi pi-eye"></i>
-            </button>
-          </td>
-          <td class="filename" [title]="row.driveFileName">{{ row.driveFileName }}</td>
-          <td>
-            <input class="cell-input" type="text" [(ngModel)]="row.supplier" />
-          </td>
-          <td>
-            <input class="cell-input num" type="text" [(ngModel)]="row.supplierID" />
-          </td>
-          <td>
-            <input class="cell-input num" type="text" [(ngModel)]="row.allocationNumber" />
-          </td>
-          <td>
-            <input class="cell-input" type="date" [(ngModel)]="row.date" />
-          </td>
-          <td class="right">
-            <input class="cell-input num right" type="number" step="0.01" [(ngModel)]="row.sum" />
-          </td>
-          <td>
-            <select class="cell-input"
-                    [ngModel]="row.category"
-                    (ngModelChange)="onCategoryChange(row, $event)">
-              <option value="">— בחר —</option>
-              <option *ngFor="let cat of categoryOptions()" [value]="cat">{{ cat }}</option>
-            </select>
-          </td>
-          <td>
-            <select class="cell-input"
-                    [ngModel]="row.subCategory"
-                    (ngModelChange)="onSubCategoryChange(row, $event)"
-                    [disabled]="!row.category"
-                    [title]="!row.category ? 'בחר קטגוריה תחילה' : ''">
-              <option value="">— בחר —</option>
-              <option *ngFor="let sub of subCategoriesForCategory(row.category)"
-                      [value]="sub.subCategoryName">
-                {{ sub.subCategoryName }}
-              </option>
-            </select>
-          </td>
-          <td class="right">
-            <input class="cell-input num right" type="number" step="0.01" [(ngModel)]="row.vatPercent" />
-          </td>
-          <td class="right">
-            <input class="cell-input num right" type="number" step="0.01" [(ngModel)]="row.taxPercent" />
-          </td>
-          <td style="text-align:center;">
-            <input type="checkbox"
-                   [(ngModel)]="row.saveAsSupplier"
-                   [disabled]="row.isMatched"
-                   [title]="row.isMatched ? 'הספק כבר קיים' : ''" />
-          </td>
-          <td>
-            <div style="display:flex; flex-direction:column; gap:2px; align-items:flex-start;">
-              <span *ngIf="!row.saveStatus && row.isMatched" style="color:#16a34a; font-weight:500;">
-                <i class="pi pi-check"></i> מוכר
-              </span>
-              <span *ngIf="!row.saveStatus && !row.isMatched" style="color:#9ca3af;">חדש</span>
-              <span *ngIf="row.saveStatus === 'pending'" style="color:#2563eb;">
-                <i class="pi pi-spin pi-spinner"></i> שומר...
-              </span>
-              <span *ngIf="row.saveStatus === 'failed'"
-                    style="color:#dc2626; font-weight:500;"
-                    [title]="row.saveError || ''">
-                <i class="pi pi-times"></i> נכשל
-              </span>
-              <span *ngIf="row.isEquipment" class="equipment-badge" title="סוג ההוצאה: ציוד (רכוש קבוע) — פחת">
-                <i class="pi pi-desktop"></i> ציוד
-              </span>
-              <span *ngIf="isRowProblematic(row) && !row.saveStatus"
-                    style="color:#b45309; font-size:0.8rem;"
-                    title="שדות חיוניים חסרים — לא ניתן לאשר עד שיתמלאו">
-                ⚠ חסר מידע
-              </span>
-            </div>
-          </td>
-        </tr>
-      </tbody>
-    </table>
+      <app-generic-table
+        class="extracted-docs-table"
+        [columnsTitle]="buildColumns(previewCell, categoryCell, subCategoryCell, statusCell, reportPeriodCell)"
+        [dataTable]="$any(rows())"
+        [rowClass]="rowClassFn"
+        [tableHeight]="'500px'">
+      </app-generic-table>
     </div>
 
     <div *ngIf="previewRow() as preview" class="preview-panel">
@@ -200,7 +183,16 @@
 
   <div *ngIf="rows().length > 0" class="footer-bar">
     <div class="select-info">
-      נבחרו {{ selectedCount() }} מתוך {{ rows().length }}
+      <!-- "Select all" used to live in a table header cell; with the generic
+           table swap it moves down here so the column header stays uniform
+           with the rest of the app. -->
+      <label class="select-all-toggle">
+        <input type="checkbox"
+               [checked]="selectedCount() === rows().length"
+               (change)="toggleAll($any($event.target).checked)" />
+        בחר הכל
+      </label>
+      <span>נבחרו {{ selectedCount() }} מתוך {{ rows().length }}</span>
     </div>
     <app-p-button
       [buttonText]="'אשר הוצאות נבחרות'"
@@ -211,4 +203,80 @@
       (onButtonClicked)="confirmSelected()">
     </app-p-button>
   </div>
+</p-dialog>
+
+<p-dialog
+  *ngIf="duplicateMatches() as dupes"
+  header="הוצאות כפולות"
+  [visible]="true"
+  (visibleChange)="$event ? null : closeDuplicates()"
+  [modal]="true"
+  [style]="{ width: '540px' }"
+  [rtl]="true"
+  [draggable]="false"
+  [resizable]="false">
+  <div class="duplicates-body">
+    <p class="duplicates-intro">
+      <strong>{{ dupes.length }}</strong>
+      {{ dupes.length === 1 ? 'הוצאה כבר קיימת' : 'הוצאות כבר קיימות' }} במערכת —
+      הסר את הסימון מהשורות הכפולות וצור אישור מחדש.
+    </p>
+    <ul class="duplicates-list">
+      <li *ngFor="let m of dupes">
+        <span class="dup-supplier">{{ m.supplier }}</span>
+        <span class="dup-sep">·</span>
+        <span class="dup-sum">₪{{ m.sum }}</span>
+        <span class="dup-sep">·</span>
+        <span class="dup-date">{{ m.date }}</span>
+        <span class="dup-period">
+          קיימת בתקופה
+          <strong>{{ m.existingPeriod || '—' }}</strong>
+        </span>
+      </li>
+    </ul>
+  </div>
+  <ng-template pTemplate="footer">
+    <app-p-button
+      [buttonText]="'בטל סימון מהכפולות'"
+      [buttonColor]="ButtonColor.BLACK"
+      [buttonSize]="ButtonSize.AUTO"
+      (onButtonClicked)="deselectDuplicates()">
+    </app-p-button>
+    <app-p-button
+      [buttonText]="'סגור'"
+      [buttonColor]="ButtonColor.BLACK"
+      [buttonSize]="ButtonSize.AUTO"
+      [variant]="'outlined'"
+      (onButtonClicked)="closeDuplicates()">
+    </app-p-button>
+  </ng-template>
+</p-dialog>
+
+<p-dialog
+  *ngIf="savedSummary() as summary"
+  header="הוצאות נשמרו"
+  [visible]="true"
+  (visibleChange)="$event ? null : closeSavedSummary()"
+  [modal]="true"
+  [style]="{ width: '380px' }"
+  [rtl]="true"
+  [draggable]="false"
+  [resizable]="false">
+  <div class="saved-summary-body">
+    <p class="saved-summary-count">
+      נוספו <strong>{{ summary.succeeded }}</strong>
+      {{ summary.succeeded === 1 ? 'הוצאה' : 'הוצאות' }}
+    </p>
+    <p *ngIf="summary.failed > 0" class="saved-summary-failed">
+      {{ summary.failed }} שורות נכשלו — ראה פירוט בטבלה
+    </p>
+  </div>
+  <ng-template pTemplate="footer">
+    <app-p-button
+      [buttonText]="'סגור'"
+      [buttonColor]="ButtonColor.BLACK"
+      [buttonSize]="ButtonSize.AUTO"
+      (onButtonClicked)="closeSavedSummary()">
+    </app-p-button>
+  </ng-template>
 </p-dialog>

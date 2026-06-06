@@ -6,6 +6,27 @@
   margin-bottom: 14px;
 }
 
+.saved-summary-body {
+  padding: 8px 4px 4px;
+  text-align: center;
+
+  .saved-summary-count {
+    font-size: 1.05rem;
+    margin: 0 0 8px;
+
+    strong {
+      color: #16a34a;
+      font-size: 1.4rem;
+    }
+  }
+
+  .saved-summary-failed {
+    color: #dc2626;
+    font-size: 0.9rem;
+    margin: 0;
+  }
+}
+
 .summary-chip {
   padding: 10px 12px;
   background: #f9fafb;
@@ -129,126 +150,168 @@
   }
 }
 
-.results-table {
-  width: 100%;
-  // Keep cells readable even when the dialog is in narrow viewports —
-  // .results-wrap is overflow:auto so a horizontal scrollbar appears below
-  // this minimum.
-  min-width: 1400px;
-  border-collapse: collapse;
-  font-size: 0.85rem;
+// Row-tinting for the extracted-docs table. The <tr> elements live inside
+// <app-generic-table>'s view encapsulation, so we pierce with ::ng-deep
+// scoped to .extracted-docs-table (the class we put on the host) — this
+// keeps the tints local to this dialog instead of leaking globally.
+//
+// Three-state coloring driven by rowClassFn:
+//   row-known  (known/matched supplier, all fields valid)  → green
+//   row-new    (new supplier, all fields valid)            → yellow
+//   row-error  (missing required fields OR save failed)    → red
+//   equipment  (capital purchase)                          → purple side-bar
+:host ::ng-deep .extracted-docs-table {
+  tr.row-known { background: #dcfce7; }
+  tr.row-new   { background: #fef9c3; }
+  tr.row-error { background: #fee2e2 !important; }
+  tr.equipment { box-shadow: inset 4px 0 0 #a78bfa; }
+}
 
-  thead {
-    background: #f3f4f6;
-    position: sticky;
-    top: 0;
-    z-index: 1;
-  }
+.report-period-cell {
+  // Derived from row.date — show it as data, not as something editable.
+  font-variant-numeric: tabular-nums;
+  color: #374151;
+  font-size: 0.88rem;
+}
 
-  th, td {
-    padding: 6px 8px;
-    text-align: start;
-    border-bottom: 1px solid #f1f5f9;
-    vertical-align: middle;
-  }
+// When the user manually overrides the period dropdown we want to give them
+// a visual confirmation that this row no longer auto-tracks the date — a
+// thin amber border + bold text.
+:host ::ng-deep .extracted-docs-table select.report-period-select {
+  font-variant-numeric: tabular-nums;
 
-  th {
+  &.overridden {
+    border: 1px solid #f59e0b;
+    background: #fffbeb;
     font-weight: 600;
-    border-bottom-color: #e5e7eb;
-  }
-
-  td.filename {
-    max-width: 180px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .file-link {
-    color: #2563eb;
-    text-decoration: none;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-
-    i { font-size: 0.85em; }
-
-    &:hover {
-      text-decoration: underline;
-      color: #1d4ed8;
-    }
-  }
-
-  td.right { text-align: end; }
-
-  // Row tinting precedence (later wins for !important):
-  //   matched (supplier known + complete data) → soft green
-  //   problematic (missing critical fields)    → amber
-  //   equipment (capital purchase)             → soft purple (border-side)
-  //   failed (save errored)                    → red (always wins)
-  tr.matched     { background: #f0fdf4; }
-  tr.problematic { background: #fef3c7; }
-  tr.equipment   {
-    box-shadow: inset 4px 0 0 #a78bfa;
-  }
-  tr.row-failed {
-    background: #fef2f2 !important;
+    color: #92400e;
   }
 }
 
-.equipment-badge {
+.duplicates-body {
+  padding: 4px 0;
+
+  .duplicates-intro {
+    margin: 0 0 12px;
+    font-size: 0.95rem;
+    color: #374151;
+    strong { color: #dc2626; font-size: 1.1rem; }
+  }
+
+  .duplicates-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-height: 260px;
+    overflow: auto;
+
+    li {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+      padding: 8px 10px;
+      border: 1px solid #fecaca;
+      background: #fef2f2;
+      border-radius: 6px;
+      margin-bottom: 6px;
+      font-size: 0.88rem;
+      color: #374151;
+
+      .dup-supplier { font-weight: 600; }
+      .dup-sep      { color: #9ca3af; }
+      .dup-period   {
+        margin-inline-start: auto;
+        color: #6b7280;
+        strong { color: #b91c1c; }
+      }
+    }
+  }
+}
+
+// Supplier-status cell: known/new badge stacked above the save-supplier
+// checkbox (new suppliers only), with the equipment icon sitting inline with
+// the badge. Save-in-progress / save-failed states replace the whole cell.
+.supplier-status-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+}
+
+.supplier-status-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.supplier-status-badge {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 1px 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border: 1px solid transparent;
+
+  &--known {
+    color: #15803d;
+    background: #dcfce7;
+    border-color: #86efac;
+  }
+
+  &--new {
+    color: #92400e;
+    background: #fef3c7;
+    border-color: #fcd34d;
+  }
+}
+
+// Equipment indicator — small purple chip with the desktop glyph. Sits
+// inline next to the supplier badge; the row's purple side-bar still
+// signals equipment from the row edge.
+.equipment-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
   border-radius: 4px;
   background: #ede9fe;
   color: #6d28d9;
-  font-size: 0.75rem;
-  font-weight: 500;
-
-  .emoji {
-    // Emojis pick up the surrounding text color via OS rendering — keep them
-    // at their native size and not the wrapper's accent color.
-    font-size: 0.95rem;
-    line-height: 1;
-  }
-}
-
-.cell-input {
-  width: 100%;
-  padding: 4px 6px;
-  border: 1px solid #d1d5db;
-  border-radius: 4px;
-  background: white;
   font-size: 0.85rem;
-  font-family: inherit;
-
-  &.num { font-variant-numeric: tabular-nums; }
-  &.right { text-align: end; }
-
-  // Native <select> rendering — keep consistent with the text inputs.
-  &:where(select) {
-    appearance: auto;
-    background-color: white;
-  }
-
-  &:focus {
-    outline: none;
-    border-color: #2563eb;
-    box-shadow: 0 0 0 2px rgba(37,99,235,0.15);
-  }
 }
 
-.cell-readonly {
-  display: inline-block;
-  padding: 4px 6px;
+.save-supplier-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  user-select: none;
+  font-size: 0.78rem;
   color: #374151;
+
+  input { margin: 0; }
+}
+
+// Save-state badges — only used when the row is mid-save or after a
+// failure. Pre-save the cell is the supplier-status layout above.
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-size: 0.85rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 100%;
+
+  &--pending  { color: #2563eb; }
+  &--failed   { color: #dc2626; font-weight: 500; }
+}
+
+// Native selects inside generic-table's cellTemplate cells: pick up the
+// .cell-editable base styling but make the dropdown chevron visible.
+:host ::ng-deep .extracted-docs-table select.cell-editable {
+  appearance: auto;
+  background-color: white;
 }
 
 .footer-bar {
@@ -261,6 +324,17 @@
 }
 
 .select-info {
+  display: flex;
+  align-items: center;
+  gap: 16px;
   color: #6b7280;
   font-size: 0.9rem;
+}
+
+.select-all-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
 }
