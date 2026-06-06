@@ -22,6 +22,8 @@ import { CreatePlanDto } from './dtos/admin/create-plan.dto';
 import { UpdatePlanDto } from './dtos/admin/update-plan.dto';
 import { CreatePromotionDto } from './dtos/admin/create-promotion.dto';
 import { UpdatePromotionDto } from './dtos/admin/update-promotion.dto';
+import { CreateCouponDto } from './dtos/admin/create-coupon.dto';
+import { UpdateCouponDto } from './dtos/admin/update-coupon.dto';
 
 @Controller('admin/billing')
 @UseGuards(FirebaseAuthGuard)
@@ -127,6 +129,55 @@ export class AdminBillingController {
   ) {
     await this.assertAdmin(request);
     return this.adminBillingService.activatePromotion(id);
+  }
+
+  // ─── Coupons ─────────────────────────────────────────────────────────────────
+
+  @Get('coupons')
+  async getCoupons(@Req() request: AuthenticatedRequest) {
+    await this.assertAdmin(request);
+    return this.adminBillingService.findAllCoupons();
+  }
+
+  @Post('coupons')
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  async createCoupon(
+    @Req() request: AuthenticatedRequest,
+    @Body() dto: CreateCouponDto,
+  ) {
+    await this.assertAdmin(request);
+    return this.adminBillingService.createCoupon(dto);
+  }
+
+  @Patch('coupons/:id')
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  async updateCoupon(
+    @Req() request: AuthenticatedRequest,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateCouponDto,
+  ) {
+    await this.assertAdmin(request);
+    return this.adminBillingService.updateCoupon(id, dto);
+  }
+
+  @Patch('coupons/:id/deactivate')
+  @HttpCode(HttpStatus.OK)
+  async deactivateCoupon(
+    @Req() request: AuthenticatedRequest,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    await this.assertAdmin(request);
+    return this.adminBillingService.deactivateCoupon(id);
+  }
+
+  @Patch('coupons/:id/activate')
+  @HttpCode(HttpStatus.OK)
+  async activateCoupon(
+    @Req() request: AuthenticatedRequest,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    await this.assertAdmin(request);
+    return this.adminBillingService.activateCoupon(id);
   }
 
   // ─── Admin guard ────────────────────────────────────────────────────────────

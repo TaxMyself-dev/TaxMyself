@@ -1,13 +1,38 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, Repository } from 'typeorm';
 import { SubscriptionPlan } from '../entities/subscription-plan.entity';
 import { Promotion } from '../entities/promotion.entity';
 import { PromotionPlan } from '../entities/promotion-plan.entity';
+import { Coupon } from '../entities/coupon.entity';
+import { CouponPlan } from '../entities/coupon-plan.entity';
 import { CreatePlanDto } from '../dtos/admin/create-plan.dto';
 import { UpdatePlanDto } from '../dtos/admin/update-plan.dto';
 import { CreatePromotionDto } from '../dtos/admin/create-promotion.dto';
 import { UpdatePromotionDto } from '../dtos/admin/update-promotion.dto';
+import { CreateCouponDto } from '../dtos/admin/create-coupon.dto';
+import { UpdateCouponDto } from '../dtos/admin/update-coupon.dto';
+
+export interface AdminCouponResponse {
+  id: number;
+  code: string;
+  name: string;
+  description: string | null;
+  discountType: string;
+  discountPercent: number | null;
+  discountValueAgorot: number | null;
+  durationType: string;
+  durationMonths: number | null;
+  startsAt: Date | null;
+  endsAt: Date | null;
+  maxRedemptions: number | null;
+  currentRedemptions: number;
+  maxRedemptionsPerUser: number;
+  isActive: boolean;
+  appliesToPlanIds: number[];
+  createdAt: Date;
+  updatedAt: Date;
+}
 
 export interface AdminPromotionResponse {
   id: number;
@@ -38,6 +63,10 @@ export class AdminBillingService {
     private readonly promotionRepo: Repository<Promotion>,
     @InjectRepository(PromotionPlan)
     private readonly promotionPlanRepo: Repository<PromotionPlan>,
+    @InjectRepository(Coupon)
+    private readonly couponRepo: Repository<Coupon>,
+    @InjectRepository(CouponPlan)
+    private readonly couponPlanRepo: Repository<CouponPlan>,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -160,6 +189,93 @@ export class AdminBillingService {
     return this.toPromotionResponse(saved);
   }
 
+  // ─── Coupons ─────────────────────────────────────────────────────────────────
+
+  async findAllCoupons(): Promise<AdminCouponResponse[]> {
+    const coupons = await this.couponRepo.find({ order: { id: 'ASC' } });
+    return Promise.all(coupons.map(c => this.toCouponResponse(c)));
+  }
+
+  async createCoupon(dto: CreateCouponDto): Promise<AdminCouponResponse> {
+    const normalizedCode = dto.code.toUpperCase().trim();
+    const saved = await this.dataSource.transaction(async (manager) => {
+      const existing = await manager.findOneBy(Coupon, { code: normalizedCode });
+      if (existing) throw new ConflictException(`קוד קופון "${normalizedCode}" כבר קיים`);
+      const coupon = manager.create(Coupon, {
+        code: normalizedCode,
+        name: dto.name,
+        description: dto.description ?? null,
+        discountType: dto.discountType,
+        discountPercent: dto.discountPercent ?? null,
+        discountValueAgorot: dto.discountValueAgorot ?? null,
+        durationType: dto.durationType,
+        durationMonths: dto.durationMonths ?? null,
+        startsAt: dto.startsAt ? new Date(dto.startsAt) : null,
+        endsAt: dto.endsAt ? new Date(dto.endsAt) : null,
+        maxRedemptions: dto.maxRedemptions ?? null,
+        maxRedemptionsPerUser: dto.maxRedemptionsPerUser ?? 1,
+        isActive: dto.isActive ?? true,
+      });
+      const c = await manager.save(Coupon, coupon);
+      await this.syncCouponPlansInTx(manager, c.id, dto.appliesToPlanIds ?? []);
+      return c;
+    });
+    return this.toCouponResponse(saved);
+  }
+
+  async updateCoupon(id: number, dto: UpdateCouponDto): Promise<AdminCouponResponse> {
+    const saved = await this.dataSource.transaction(async (manager) => {
+      const coupon = await manager.findOneBy(Coupon, { id });
+      if (!coupon) throw new NotFoundException(`קופון ${id} לא נמצא`);
+
+      if (dto.code !== undefined) {
+        const normalizedCode = dto.code.toUpperCase().trim();
+        const existing = await manager.findOneBy(Coupon, { code: normalizedCode });
+        if (existing && existing.id !== id) {
+          throw new ConflictException(`קוד קופון "${normalizedCode}" כבר קיים`);
+        }
+        coupon.code = normalizedCode;
+      }
+      if (dto.name !== undefined) coupon.name = dto.name;
+      if (dto.description !== undefined) coupon.description = dto.description ?? null;
+      if (dto.discountType !== undefined) coupon.discountType = dto.discountType;
+      if (dto.discountPercent !== undefined) coupon.discountPercent = dto.discountPercent ?? null;
+      if (dto.discountValueAgorot !== undefined) coupon.discountValueAgorot = dto.discountValueAgorot ?? null;
+      if (dto.durationType !== undefined) coupon.durationType = dto.durationType;
+      if (dto.durationMonths !== undefined) coupon.durationMonths = dto.durationMonths ?? null;
+      if (dto.startsAt !== undefined) coupon.startsAt = dto.startsAt ? new Date(dto.startsAt) : null;
+      if (dto.endsAt !== undefined) coupon.endsAt = dto.endsAt ? new Date(dto.endsAt) : null;
+      if (dto.maxRedemptions !== undefined) coupon.maxRedemptions = dto.maxRedemptions ?? null;
+      if (dto.maxRedemptionsPerUser !== undefined) coupon.maxRedemptionsPerUser = dto.maxRedemptionsPerUser ?? 1;
+      if (dto.isActive !== undefined) coupon.isActive = dto.isActive;
+
+      const c = await manager.save(Coupon, coupon);
+
+      if (dto.appliesToPlanIds !== undefined) {
+        await this.syncCouponPlansInTx(manager, id, dto.appliesToPlanIds);
+      }
+
+      return c;
+    });
+    return this.toCouponResponse(saved);
+  }
+
+  async deactivateCoupon(id: number): Promise<AdminCouponResponse> {
+    const coupon = await this.couponRepo.findOneBy({ id });
+    if (!coupon) throw new NotFoundException(`קופון ${id} לא נמצא`);
+    coupon.isActive = false;
+    const saved = await this.couponRepo.save(coupon);
+    return this.toCouponResponse(saved);
+  }
+
+  async activateCoupon(id: number): Promise<AdminCouponResponse> {
+    const coupon = await this.couponRepo.findOneBy({ id });
+    if (!coupon) throw new NotFoundException(`קופון ${id} לא נמצא`);
+    coupon.isActive = true;
+    const saved = await this.couponRepo.save(coupon);
+    return this.toCouponResponse(saved);
+  }
+
   // ─── Private helpers ────────────────────────────────────────────────────────
 
   /**
@@ -187,6 +303,48 @@ export class AdminBillingService {
   private async loadPlanIds(promotionId: number): Promise<number[]> {
     const rows = await this.promotionPlanRepo.find({ where: { promotionId } });
     return rows.map(r => r.planId);
+  }
+
+  private async syncCouponPlansInTx(
+    manager: EntityManager,
+    couponId: number,
+    planIds: number[],
+  ): Promise<void> {
+    await manager.delete(CouponPlan, { couponId });
+    if (planIds.length > 0) {
+      await manager.insert(
+        CouponPlan,
+        planIds.map(planId => ({ couponId, planId })),
+      );
+    }
+  }
+
+  private async loadCouponPlanIds(couponId: number): Promise<number[]> {
+    const rows = await this.couponPlanRepo.find({ where: { couponId } });
+    return rows.map(r => r.planId);
+  }
+
+  private async toCouponResponse(c: Coupon): Promise<AdminCouponResponse> {
+    return {
+      id: c.id,
+      code: c.code,
+      name: c.name,
+      description: c.description,
+      discountType: c.discountType,
+      discountPercent: c.discountPercent,
+      discountValueAgorot: c.discountValueAgorot,
+      durationType: c.durationType,
+      durationMonths: c.durationMonths,
+      startsAt: c.startsAt,
+      endsAt: c.endsAt,
+      maxRedemptions: c.maxRedemptions,
+      currentRedemptions: c.currentRedemptions,
+      maxRedemptionsPerUser: c.maxRedemptionsPerUser,
+      isActive: c.isActive,
+      appliesToPlanIds: await this.loadCouponPlanIds(c.id),
+      createdAt: c.createdAt,
+      updatedAt: c.updatedAt,
+    };
   }
 
   private async toPromotionResponse(p: Promotion): Promise<AdminPromotionResponse> {

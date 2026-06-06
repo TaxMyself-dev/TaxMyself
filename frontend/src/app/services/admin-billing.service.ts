@@ -82,6 +82,49 @@ export interface CreatePromotionPayload {
 
 export type UpdatePromotionPayload = Partial<CreatePromotionPayload>;
 
+// ─── Coupons ─────────────────────────────────────────────────────────────────
+
+export interface AdminCoupon {
+  id: number;
+  code: string;
+  name: string;
+  description: string | null;
+  discountType: DiscountType;
+  discountPercent: number | null;
+  discountValueAgorot: number | null;
+  durationType: DurationType;
+  durationMonths: number | null;
+  startsAt: string | null;
+  endsAt: string | null;
+  maxRedemptions: number | null;
+  /** Read-only — server managed. */
+  currentRedemptions: number;
+  maxRedemptionsPerUser: number;
+  isActive: boolean;
+  appliesToPlanIds: number[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateCouponPayload {
+  code: string;
+  name: string;
+  description?: string | null;
+  discountType: DiscountType;
+  discountPercent?: number | null;
+  discountValueAgorot?: number | null;
+  durationType: DurationType;
+  durationMonths?: number | null;
+  startsAt?: string | null;
+  endsAt?: string | null;
+  maxRedemptions?: number | null;
+  maxRedemptionsPerUser?: number;
+  isActive?: boolean;
+  appliesToPlanIds?: number[];
+}
+
+export type UpdateCouponPayload = Partial<CreateCouponPayload>;
+
 // ─── Service ─────────────────────────────────────────────────────────────────
 
 @Injectable({ providedIn: 'root' })
@@ -132,5 +175,27 @@ export class AdminBillingService {
 
   activatePromotion(id: number): Observable<AdminPromotion> {
     return this.http.patch<AdminPromotion>(`${this.base}/promotions/${id}/activate`, {});
+  }
+
+  // ─── Coupons ─────────────────────────────────────────────────────────────────
+
+  getCoupons(): Observable<AdminCoupon[]> {
+    return this.http.get<AdminCoupon[]>(`${this.base}/coupons`);
+  }
+
+  createCoupon(payload: CreateCouponPayload): Observable<AdminCoupon> {
+    return this.http.post<AdminCoupon>(`${this.base}/coupons`, payload);
+  }
+
+  updateCoupon(id: number, payload: UpdateCouponPayload): Observable<AdminCoupon> {
+    return this.http.patch<AdminCoupon>(`${this.base}/coupons/${id}`, payload);
+  }
+
+  deactivateCoupon(id: number): Observable<AdminCoupon> {
+    return this.http.patch<AdminCoupon>(`${this.base}/coupons/${id}/deactivate`, {});
+  }
+
+  activateCoupon(id: number): Observable<AdminCoupon> {
+    return this.http.patch<AdminCoupon>(`${this.base}/coupons/${id}/activate`, {});
   }
 }
