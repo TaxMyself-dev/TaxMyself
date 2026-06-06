@@ -1,0 +1,136 @@
+import { Injectable } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { Observable } from 'rxjs';
+import { environment } from 'src/environments/environment';
+
+// ─── Plans ─────────────────────────────────────────────────────────────────
+
+export interface AdminPlan {
+  id: number;
+  slug: string;
+  name: string;
+  description: string | null;
+  priceMonthlyAgorot: number;
+  currency: string;
+  modules: string[] | null;
+  trialDays: number;
+  isActive: boolean;
+  isPublic: boolean;
+  displayOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreatePlanPayload {
+  slug: string;
+  name: string;
+  description?: string | null;
+  priceMonthlyAgorot: number;
+  currency?: string;
+  modules?: string[];
+  trialDays?: number;
+  isActive?: boolean;
+  isPublic?: boolean;
+  displayOrder?: number;
+}
+
+export type UpdatePlanPayload = Partial<CreatePlanPayload>;
+
+// ─── Promotions ─────────────────────────────────────────────────────────────
+
+export type DiscountType = 'PERCENT' | 'FIXED_AMOUNT' | 'FIXED_PRICE';
+export type DurationType = 'ONCE' | 'REPEATING' | 'FOREVER';
+
+export interface AdminPromotion {
+  id: number;
+  name: string;
+  description: string | null;
+  discountType: DiscountType;
+  /** Used when discountType = PERCENT (0–100). Entity field: discountPercent. */
+  discountPercent: number | null;
+  /** Used when discountType = FIXED_AMOUNT or FIXED_PRICE. Value in agorot. */
+  discountValueAgorot: number | null;
+  durationType: DurationType;
+  durationMonths: number | null;
+  startsAt: string | null;
+  endsAt: string | null;
+  priority: number;
+  maxRedemptions: number | null;
+  /** Read-only — server managed. */
+  currentRedemptions: number;
+  isActive: boolean;
+  appliesToPlanIds: number[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreatePromotionPayload {
+  name: string;
+  description?: string | null;
+  discountType: DiscountType;
+  discountPercent?: number | null;
+  discountValueAgorot?: number | null;
+  durationType: DurationType;
+  durationMonths?: number | null;
+  startsAt?: string | null;
+  endsAt?: string | null;
+  priority?: number;
+  maxRedemptions?: number | null;
+  isActive?: boolean;
+  appliesToPlanIds?: number[];
+}
+
+export type UpdatePromotionPayload = Partial<CreatePromotionPayload>;
+
+// ─── Service ─────────────────────────────────────────────────────────────────
+
+@Injectable({ providedIn: 'root' })
+export class AdminBillingService {
+  private readonly base = `${environment.apiUrl}admin/billing`;
+
+  constructor(private readonly http: HttpClient) {}
+
+  // ─── Plans ──────────────────────────────────────────────────────────────────
+
+  getPlans(): Observable<AdminPlan[]> {
+    return this.http.get<AdminPlan[]>(`${this.base}/plans`);
+  }
+
+  createPlan(payload: CreatePlanPayload): Observable<AdminPlan> {
+    return this.http.post<AdminPlan>(`${this.base}/plans`, payload);
+  }
+
+  updatePlan(id: number, payload: UpdatePlanPayload): Observable<AdminPlan> {
+    return this.http.patch<AdminPlan>(`${this.base}/plans/${id}`, payload);
+  }
+
+  deactivatePlan(id: number): Observable<AdminPlan> {
+    return this.http.patch<AdminPlan>(`${this.base}/plans/${id}/deactivate`, {});
+  }
+
+  activatePlan(id: number): Observable<AdminPlan> {
+    return this.http.patch<AdminPlan>(`${this.base}/plans/${id}/activate`, {});
+  }
+
+  // ─── Promotions ─────────────────────────────────────────────────────────────
+
+  getPromotions(): Observable<AdminPromotion[]> {
+    return this.http.get<AdminPromotion[]>(`${this.base}/promotions`);
+  }
+
+  createPromotion(payload: CreatePromotionPayload): Observable<AdminPromotion> {
+    return this.http.post<AdminPromotion>(`${this.base}/promotions`, payload);
+  }
+
+  updatePromotion(id: number, payload: UpdatePromotionPayload): Observable<AdminPromotion> {
+    return this.http.patch<AdminPromotion>(`${this.base}/promotions/${id}`, payload);
+  }
+
+  deactivatePromotion(id: number): Observable<AdminPromotion> {
+    return this.http.patch<AdminPromotion>(`${this.base}/promotions/${id}/deactivate`, {});
+  }
+
+  activatePromotion(id: number): Observable<AdminPromotion> {
+    return this.http.patch<AdminPromotion>(`${this.base}/promotions/${id}/activate`, {});
+  }
+}

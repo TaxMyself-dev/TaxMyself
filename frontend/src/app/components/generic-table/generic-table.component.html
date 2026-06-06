@@ -317,6 +317,13 @@
                   </span>
                 </span>
               }
+              @else if (col.cellRenderer === ICellRenderer.CHECKBOX) {
+                @if (row[col.name]) {
+                  <i class="pi pi-check-circle" style="color: #16a34a; font-size: 1.1rem;"></i>
+                } @else {
+                  <i class="pi pi-times-circle" style="color: #dc2626; font-size: 1.1rem;"></i>
+                }
+              }
               @else {
               {{ row[col.name] }}
               }
