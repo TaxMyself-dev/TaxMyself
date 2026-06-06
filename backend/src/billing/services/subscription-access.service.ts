@@ -27,6 +27,9 @@ export class SubscriptionAccessService {
 
     switch (subscription.status) {
       case SubscriptionStatus.TRIAL:
+        if (subscription.trialEnd !== null && subscription.trialEnd < now) {
+          return [];
+        }
         return allModules;
 
       case SubscriptionStatus.ACTIVE:

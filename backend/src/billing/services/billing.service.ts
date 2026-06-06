@@ -69,12 +69,14 @@ export class BillingService {
       return this.buildNoSubscriptionResponse();
     }
 
+    const current = await this.enforceSubscriptionLifecycle(firebaseId, subscription);
+
     let plan: SubscriptionPlan | null = null;
-    if (subscription.planId) {
-      plan = await this.planRepo.findOne({ where: { id: subscription.planId } });
+    if (current.planId) {
+      plan = await this.planRepo.findOne({ where: { id: current.planId } });
     }
 
-    return this.buildBillingStateResponse(subscription, plan);
+    return this.buildBillingStateResponse(current, plan);
   }
 
   // ─── Trial ───────────────────────────────────────────────────────────────────
@@ -463,6 +465,36 @@ export class BillingService {
    * SubscriptionGuard and getBillingStatus are replaced.
    * Best-effort — failures are logged but never break the main flow.
    */
+  /**
+   * Evaluates and enforces subscription lifecycle transitions.
+   * Persists any state changes and keeps legacy User fields in sync.
+   * Returns the subscription with its current (possibly updated) status.
+   *
+   * Current rules:
+   *   TRIAL + trialEnd < now → TRIAL_EXPIRED
+   */
+  private async enforceSubscriptionLifecycle(
+    firebaseId: string,
+    subscription: Subscription,
+  ): Promise<Subscription> {
+    if (
+      subscription.status === SubscriptionStatus.TRIAL &&
+      subscription.trialEnd !== null &&
+      subscription.trialEnd < new Date()
+    ) {
+      subscription.status = SubscriptionStatus.TRIAL_EXPIRED;
+      await this.subscriptionRepo.save(subscription);
+      await this.syncLegacyUserFields(firebaseId, {
+        payStatus: PayStatus.PAYMENT_REQUIRED,
+        modulesAccess: [],
+        subscriptionEndDate: subscription.trialEnd,
+        nextBillingDate: null,
+      });
+    }
+
+    return subscription;
+  }
+
   private async syncLegacyUserFields(
     firebaseId: string,
     fields: {
