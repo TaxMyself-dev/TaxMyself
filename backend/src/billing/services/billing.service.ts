@@ -51,11 +51,25 @@ export class BillingService {
 
   // ─── Plans ──────────────────────────────────────────────────────────────────
 
-  async getPlans(): Promise<SubscriptionPlan[]> {
-    return this.planRepo.find({
+  async getPlans() {
+    const plans = await this.planRepo.find({
       where: { isActive: true, isPublic: true },
       order: { displayOrder: 'ASC' },
     });
+    return plans.map(p => ({
+      id: p.id,
+      name: p.name,
+      slug: p.slug,
+      priceMonthlyAgorot: p.priceMonthlyAgorot,
+      licensedDealerPriceMonthlyAgorot: p.licensedDealerPriceMonthlyAgorot,
+      notes: p.notes,
+      badge: p.badge,
+      features: p.features,
+      modules: p.modules ?? [],
+      trialDays: p.trialDays,
+      displayOrder: p.displayOrder,
+      active: p.isActive,
+    }));
   }
 
   // ─── Billing state ───────────────────────────────────────────────────────────
@@ -66,7 +80,9 @@ export class BillingService {
     });
 
     if (!subscription) {
-      return this.buildNoSubscriptionResponse();
+      // Auto-provision a trial so new users always land in TRIAL state.
+      // ensureTrialSubscription is idempotent and handles the unique-constraint race.
+      return this.ensureTrialSubscription(firebaseId);
     }
 
     const current = await this.enforceSubscriptionLifecycle(firebaseId, subscription);
@@ -401,21 +417,6 @@ export class BillingService {
     }
   }
 
-  private buildNoSubscriptionResponse() {
-    return {
-      hasSubscription: false,
-      subscription: null,
-      plan: null,
-      access: {
-        modulesAccess: [] as ModuleName[],
-        isTrialActive: false,
-        isPaymentRequired: false,
-        isPastDue: false,
-        gracePeriodActive: false,
-      },
-    };
-  }
-
   private buildBillingStateResponse(
     subscription: Subscription,
     plan: SubscriptionPlan | null,
@@ -445,8 +446,12 @@ export class BillingService {
             slug: plan.slug,
             name: plan.name,
             priceMonthlyAgorot: plan.priceMonthlyAgorot,
+            licensedDealerPriceMonthlyAgorot: plan.licensedDealerPriceMonthlyAgorot,
             currency: plan.currency,
             modules: plan.modules ?? [],
+            features: plan.features,
+            badge: plan.badge,
+            notes: plan.notes,
             trialDays: plan.trialDays,
           }
         : null,

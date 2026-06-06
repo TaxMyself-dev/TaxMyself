@@ -36,6 +36,22 @@ export class SubscriptionPlan {
   @Column({ name: 'modules', type: 'simple-json', nullable: true, default: null })
   modules: ModuleName[] | null;
 
+  /** Licensed dealer monthly price in agorot. NULL means use priceMonthlyAgorot. */
+  @Column({ name: 'licensed_dealer_price_monthly_agorot', type: 'int', nullable: true, default: null })
+  licensedDealerPriceMonthlyAgorot: number | null;
+
+  /** Marketing/display feature keys shown on pricing cards. Separate from access-control modules. */
+  @Column({ name: 'features', type: 'simple-json', nullable: true, default: null })
+  features: string[] | null;
+
+  /** Short badge text shown on the pricing card (e.g. "מומלץ!"). NULL = no badge. */
+  @Column({ name: 'badge', type: 'varchar', length: 100, nullable: true, default: null })
+  badge: string | null;
+
+  /** Optional footnote displayed below the price on the pricing card. */
+  @Column({ name: 'notes', type: 'text', nullable: true, default: null })
+  notes: string | null;
+
   @Column({ name: 'trial_days', type: 'int', default: 14 })
   trialDays: number;
 

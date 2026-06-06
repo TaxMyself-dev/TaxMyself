@@ -154,6 +154,59 @@ ion-item.selected {
   min-height: 0;
 }
 
+/* Billing blocked dialog — rendered via PrimeNG portal outside the component tree */
+::ng-deep .billing-blocked-dialog {
+  direction: rtl;
+
+  .p-dialog-header {
+    justify-content: flex-end;
+    font-size: 1.2rem;
+    font-weight: 600;
+    padding: 1.25rem 1.5rem 0.75rem;
+  }
+
+  .p-dialog-content {
+    padding: 0.5rem 1.5rem 1rem;
+  }
+
+  .p-dialog-footer {
+    padding: 0.75rem 1.5rem 1.25rem;
+    display: flex;
+    justify-content: flex-end;
+  }
+}
+
+.billing-dialog-message {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: #444;
+  white-space: pre-line;
+  text-align: right;
+}
+
+.billing-dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  width: 100%;
+}
+
+.billing-cta-btn {
+  padding: 0.6rem 1.5rem;
+  background: #2563eb;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+
+  &:hover {
+    background: #1d4ed8;
+  }
+}
+
 /* Global loading overlay */
 .global-loader-overlay {
   position: fixed;
