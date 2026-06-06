@@ -1,0 +1,87 @@
+.billing-plans {
+  display: flex;
+  flex-direction: column;
+}
+
+.table-header-row {
+  display: flex;
+  align-items: center;
+  flex-direction: row-reverse;
+  justify-content: space-between;
+  padding: 0 8px 12px;
+}
+
+.table-title {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+  color: #1f2937;
+}
+
+// ── Dialog form ─────────────────────────────────────────────────────────────
+
+.dialog-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 8px 0;
+}
+
+.form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+
+  label {
+    font-size: 14px;
+    font-weight: 500;
+    color: #374151;
+  }
+
+  input[pInputText],
+  textarea[pTextarea] {
+    width: 100%;
+  }
+
+  p-inputNumber,
+  p-multiselect {
+    width: 100%;
+
+    ::ng-deep .p-component {
+      width: 100%;
+    }
+  }
+}
+
+.form-row-inline {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.check-row-group {
+  flex-direction: row;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.check-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  label {
+    font-size: 14px;
+    color: #374151;
+    cursor: pointer;
+  }
+}
+
+.required {
+  color: #dc2626;
+}
+
+.field-error {
+  color: #dc2626;
+  font-size: 12px;
+}

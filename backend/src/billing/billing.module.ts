@@ -28,6 +28,7 @@ import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
 // Controllers
 import { BillingController } from './billing.controller';
 import { CardcomWebhookController } from './cardcom-webhook.controller';
+import { AdminBillingController } from './admin-billing.controller';
 
 // Services
 import { BillingService } from './services/billing.service';
@@ -38,11 +39,16 @@ import { CouponService } from './services/coupon.service';
 import { PromotionService } from './services/promotion.service';
 import { PricingService } from './services/pricing.service';
 import { SubscriptionAccessService } from './services/subscription-access.service';
+import { AdminBillingService } from './services/admin-billing.service';
+
+// Modules
+import { UsersModule } from 'src/users/users.module';
 
 @Module({
   imports: [
     // 30-second timeout matches CardcomService; longer for slow Israeli payment gateway.
     HttpModule.register({ timeout: 30_000, maxRedirects: 3 }),
+    UsersModule,
     TypeOrmModule.forFeature([
       // Billing entities
       SubscriptionPlan,
@@ -64,7 +70,7 @@ import { SubscriptionAccessService } from './services/subscription-access.servic
       Delegation,
     ]),
   ],
-  controllers: [BillingController, CardcomWebhookController],
+  controllers: [BillingController, CardcomWebhookController, AdminBillingController],
   providers: [
     FirebaseAuthGuard,
     BillingService,
@@ -75,6 +81,7 @@ import { SubscriptionAccessService } from './services/subscription-access.servic
     PromotionService,
     PricingService,
     SubscriptionAccessService,
+    AdminBillingService,
   ],
   exports: [BillingService, SubscriptionAccessService],
 })
