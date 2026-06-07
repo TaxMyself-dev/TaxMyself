@@ -2,10 +2,15 @@ import { ConflictException, Injectable, NotFoundException } from '@nestjs/common
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, Repository } from 'typeorm';
 import { SubscriptionPlan } from '../entities/subscription-plan.entity';
+import { Subscription } from '../entities/subscription.entity';
+import { PaymentMethod } from '../entities/payment-method.entity';
 import { Promotion } from '../entities/promotion.entity';
 import { PromotionPlan } from '../entities/promotion-plan.entity';
 import { Coupon } from '../entities/coupon.entity';
 import { CouponPlan } from '../entities/coupon-plan.entity';
+import { CouponRedemption } from '../entities/coupon-redemption.entity';
+import { User } from 'src/users/user.entity';
+import { Business } from 'src/business/business.entity';
 import { CreatePlanDto } from '../dtos/admin/create-plan.dto';
 import { UpdatePlanDto } from '../dtos/admin/update-plan.dto';
 import { CreatePromotionDto } from '../dtos/admin/create-promotion.dto';
@@ -32,6 +37,35 @@ export interface AdminCouponResponse {
   appliesToPlanIds: number[];
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface AdminSubscriptionResponse {
+  subscriptionId: number;
+  firebaseId: string;
+  status: string;
+  userId: number | null;
+  userName: string | null;
+  userEmail: string | null;
+  businessId: number | null;
+  businessName: string | null;
+  planId: number | null;
+  planName: string | null;
+  planSlug: string | null;
+  planPriceAgorot: number | null;
+  trialEnd: Date | null;
+  currentPeriodStart: Date | null;
+  currentPeriodEnd: Date | null;
+  nextBillingDate: Date | null;
+  gracePeriodEndsAt: Date | null;
+  canceledAt: Date | null;
+  endedAt: Date | null;
+  createdAt: Date;
+  cardTokenExists: boolean;
+  cardLast4: string | null;
+  cardBrand: string | null;
+  cardExpiryMonth: number | null;
+  cardExpiryYear: number | null;
+  couponCode: string | null;
 }
 
 export interface AdminPromotionResponse {
@@ -110,6 +144,127 @@ export class AdminBillingService {
     if (!plan) throw new NotFoundException(`תוכנית ${id} לא נמצאה`);
     plan.isActive = true;
     return this.planRepo.save(plan);
+  }
+
+  // ─── Subscriptions ───────────────────────────────────────────────────────────
+
+  async findAllSubscriptions(): Promise<AdminSubscriptionResponse[]> {
+    // Q1: subscriptions + plan + payment method (all billing entities with explicit column names)
+    const raw: any[] = await this.dataSource
+      .createQueryBuilder()
+      .select('s.id',                    'subscriptionId')
+      .addSelect('s.firebaseId',          'firebaseId')
+      .addSelect('s.planId',              'planId')
+      .addSelect('s.status',              'status')
+      .addSelect('s.trialEnd',            'trialEnd')
+      .addSelect('s.currentPeriodStart',  'currentPeriodStart')
+      .addSelect('s.currentPeriodEnd',    'currentPeriodEnd')
+      .addSelect('s.nextBillingDate',     'nextBillingDate')
+      .addSelect('s.gracePeriodEndsAt',   'gracePeriodEndsAt')
+      .addSelect('s.canceledAt',          'canceledAt')
+      .addSelect('s.endedAt',             'endedAt')
+      .addSelect('s.createdAt',           'createdAt')
+      .addSelect('p.name',                'planName')
+      .addSelect('p.slug',                'planSlug')
+      .addSelect('p.priceMonthlyAgorot',  'planPriceAgorot')
+      .addSelect('pm.last4',              'cardLast4')
+      .addSelect('pm.cardBrand',          'cardBrand')
+      .addSelect('pm.cardExpiryMonth',    'cardExpiryMonth')
+      .addSelect('pm.cardExpiryYear',     'cardExpiryYear')
+      .from(Subscription, 's')
+      .leftJoin(SubscriptionPlan, 'p', 'p.id = s.planId')
+      .leftJoin(PaymentMethod, 'pm', 'pm.id = s.paymentMethodId')
+      .orderBy('s.createdAt', 'DESC')
+      .getRawMany();
+
+    if (raw.length === 0) return [];
+
+    const firebaseIds = [...new Set(raw.map(r => r.firebaseId as string))].filter(Boolean);
+
+    // Q2: users keyed by firebaseId
+    const userMap = new Map<string, { userId: number; fName: string; lName: string; email: string }>();
+    if (firebaseIds.length > 0) {
+      const users: any[] = await this.dataSource
+        .createQueryBuilder()
+        .select('u.index',      'userId')
+        .addSelect('u.firebaseId', 'firebaseId')
+        .addSelect('u.fName',   'fName')
+        .addSelect('u.lName',   'lName')
+        .addSelect('u.email',   'email')
+        .from(User, 'u')
+        .where('u.firebaseId IN (:...ids)', { ids: firebaseIds })
+        .getRawMany();
+      for (const u of users) userMap.set(u.firebaseId, u);
+    }
+
+    // Q3: businesses keyed by firebaseId (latest per user)
+    const businessMap = new Map<string, { id: number; businessName: string | null }>();
+    if (firebaseIds.length > 0) {
+      const businesses: any[] = await this.dataSource
+        .createQueryBuilder()
+        .select('b.id',            'id')
+        .addSelect('b.firebaseId', 'firebaseId')
+        .addSelect('b.businessName', 'businessName')
+        .from(Business, 'b')
+        .where('b.firebaseId IN (:...ids)', { ids: firebaseIds })
+        .orderBy('b.id', 'ASC')
+        .getRawMany();
+      // Keep the last-seen (highest id) per firebaseId
+      for (const b of businesses) businessMap.set(b.firebaseId, { id: Number(b.id), businessName: b.businessName });
+    }
+
+    // Q4: latest coupon code per subscription
+    const subIds = raw.map(r => Number(r.subscriptionId));
+    const couponMap = new Map<number, string>();
+    if (subIds.length > 0) {
+      const redemptions: any[] = await this.dataSource
+        .createQueryBuilder()
+        .select('cr.subscriptionId', 'subscriptionId')
+        .addSelect('c.code',         'couponCode')
+        .from(CouponRedemption, 'cr')
+        .innerJoin(Coupon, 'c', 'c.id = cr.couponId')
+        .where('cr.subscriptionId IN (:...ids)', { ids: subIds })
+        .orderBy('cr.id', 'DESC')
+        .getRawMany();
+      for (const row of redemptions) {
+        const sid = Number(row.subscriptionId);
+        if (!couponMap.has(sid)) couponMap.set(sid, row.couponCode);
+      }
+    }
+
+    return raw.map((r): AdminSubscriptionResponse => {
+      const user = userMap.get(r.firebaseId);
+      const biz  = businessMap.get(r.firebaseId);
+      const sid  = Number(r.subscriptionId);
+      return {
+        subscriptionId:     sid,
+        firebaseId:         r.firebaseId,
+        status:             r.status,
+        userId:             user ? Number(user.userId) : null,
+        userName:           user ? `${user.fName ?? ''} ${user.lName ?? ''}`.trim() || null : null,
+        userEmail:          user?.email ?? null,
+        businessId:         biz ? Number(biz.id) : null,
+        businessName:       biz?.businessName ?? null,
+        planId:             r.planId != null ? Number(r.planId) : null,
+        planName:           r.planName ?? null,
+        planSlug:           r.planSlug ?? null,
+        planPriceAgorot:    r.planPriceAgorot != null ? Number(r.planPriceAgorot) : null,
+        trialEnd:           r.trialEnd ?? null,
+        currentPeriodStart: r.currentPeriodStart ?? null,
+        currentPeriodEnd:   r.currentPeriodEnd ?? null,
+        nextBillingDate:    r.nextBillingDate ?? null,
+        gracePeriodEndsAt:  r.gracePeriodEndsAt ?? null,
+        canceledAt:         r.canceledAt ?? null,
+        endedAt:            r.endedAt ?? null,
+        createdAt:          r.createdAt,
+        cardTokenExists:    r.cardLast4 != null,
+        cardLast4:          r.cardLast4 ?? null,
+        cardBrand:          r.cardBrand ?? null,
+        cardExpiryMonth:    r.cardExpiryMonth != null ? Number(r.cardExpiryMonth) : null,
+        cardExpiryYear:     r.cardExpiryYear != null ? Number(r.cardExpiryYear) : null,
+        couponCode:         couponMap.get(sid) ?? null,
+      };
+    });
   }
 
   // ─── Promotions ─────────────────────────────────────────────────────────────
