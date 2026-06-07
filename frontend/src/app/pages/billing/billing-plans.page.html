@@ -1,0 +1,119 @@
+<div class="plans-page" dir="rtl">
+  <div class="plans-container">
+
+    <header class="plans-header">
+      <h1 class="plans-title">בחירת תוכנית</h1>
+    </header>
+
+    @if (isLoading()) {
+      <div class="plans-loading">
+        <p-progressSpinner strokeWidth="3" styleClass="plans-spinner" />
+      </div>
+    } @else if (plans().length === 0) {
+      <div class="plans-empty">
+        <p>לא נמצאו תוכניות זמינות. אנא נסה שוב מאוחר יותר.</p>
+      </div>
+    } @else {
+      <div class="pricing__grid">
+        @for (plan of plans(); track plan.id) {
+
+          <div
+            class="pricing-card"
+            [class.pricing-card--featured]="plan.recommended"
+            [attr.aria-label]="'תוכנית ' + plan.name">
+
+            @if (plan.badge) {
+              <div class="pricing-card__badge-row">
+                <span class="pricing-card__badge">{{ plan.badge }}</span>
+              </div>
+            }
+
+            <h3 class="pricing-card__name">{{ plan.name }}</h3>
+            <hr class="pricing-card__divider" />
+
+            <ul class="pricing-card__features" role="list">
+              @for (feature of plan.features; track feature.key) {
+                <li
+                  class="pricing-card__feature"
+                  [class.excluded]="!feature.included">
+                  <span
+                    class="pricing-card__check"
+                    [class.pricing-card__check--included]="feature.included"
+                    [class.pricing-card__check--excluded]="!feature.included"
+                    aria-hidden="true">
+                    @if (feature.included) {
+                      <!-- check-V: green checkmark -->
+                      <svg viewBox="0 0 17 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M0.702 6.742L5.702 11.673L15.702 0.673"
+                              stroke="#57BC97" stroke-width="2"
+                              stroke-linecap="round" stroke-linejoin="round"/>
+                      </svg>
+                    } @else {
+                      <!-- X: red cross -->
+                      <svg viewBox="0 0 12 13" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M1 1L11 12" stroke="#FD7171" stroke-width="2" stroke-linecap="round"/>
+                        <path d="M11 1L1 12" stroke="#FD7171" stroke-width="2" stroke-linecap="round"/>
+                      </svg>
+                    }
+                  </span>
+                  <span
+                    class="pricing-card__feature-label"
+                    [attr.aria-label]="feature.label + ' — ' + (feature.included ? 'כלול' : 'לא כלול')">
+                    {{ feature.label }}
+                  </span>
+                </li>
+              }
+            </ul>
+
+            <div class="pricing-card__prices">
+              <div class="pricing-card__price-line">
+                <span class="pricing-card__amount">{{ plan.displayPrice }}</span>
+                <span class="pricing-card__price-tail">
+                  <span class="pricing-card__currency" aria-label="שקלים חדשים">&#8362;</span>
+                  <span class="pricing-card__period">/לחודש</span>
+                </span>
+                @if (plan.licensedDealerDisplayPrice) {
+                  <span class="pricing-card__price-role">עוסק פטור</span>
+                }
+              </div>
+
+              @if (plan.licensedDealerDisplayPrice) {
+                <div class="pricing-card__price-line pricing-card__price-line--secondary">
+                  <span class="pricing-card__amount pricing-card__amount--secondary">
+                    {{ plan.licensedDealerDisplayPrice }}
+                  </span>
+                  <span class="pricing-card__price-tail">
+                    <span class="pricing-card__currency pricing-card__currency--secondary" aria-label="שקלים חדשים">&#8362;</span>
+                    <span class="pricing-card__period">/לחודש</span>
+                  </span>
+                  <span class="pricing-card__price-role">עוסק מורשה</span>
+                </div>
+              }
+
+              @if (plan.notes) {
+                <p class="pricing-card__notes">{{ plan.notes }}</p>
+              }
+            </div>
+
+            <button
+              class="pricing-card__cta"
+              (click)="checkout(plan.id)"
+              [disabled]="checkingOutPlanId() !== null"
+              [attr.aria-busy]="checkingOutPlanId() === plan.id ? 'true' : null">
+              @if (checkingOutPlanId() === plan.id) {
+                <span class="cta-spinner" aria-hidden="true"></span>
+                מעבד...
+              } @else {
+                התחל עכשיו
+              }
+            </button>
+
+          </div>
+        }
+      </div>
+
+      <p class="pricing__vat-note">המחירים אינם כוללים מע״מ</p>
+    }
+
+  </div>
+</div>
