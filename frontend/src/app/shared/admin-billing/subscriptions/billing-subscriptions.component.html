@@ -1,0 +1,164 @@
+<div class="billing-subscriptions">
+
+  <div class="table-header-row">
+    <p class="table-title">מנויים</p>
+  </div>
+
+  <!-- Status badge template — wired into columnsTitle via viewChild() signal -->
+  <ng-template #statusTpl let-row>
+    <span class="sub-status-badge sub-status-badge--{{ row['status'] }}">
+      {{ statusLabels[row['status']] ?? row['status'] }}
+    </span>
+  </ng-template>
+
+  <app-generic-table
+    [title]="''"
+    [columnsTitle]="columnsTitle()"
+    [dataTable]="tableRows()"
+    [rowActions]="rowActions"
+    [isLoadingState]="isLoading()"
+    [placeholderSearch]="'חיפוש לפי שם משתמש'"
+    columnSearch="userName"
+    tableHeight="520px">
+  </app-generic-table>
+
+</div>
+
+<!-- ── Detail Drawer ──────────────────────────────────────────────────── -->
+<p-drawer
+  [visible]="showDrawer()"
+  (visibleChange)="showDrawer.set($event)"
+  position="right"
+  [style]="{ width: '480px' }"
+  [modal]="true"
+  (onHide)="onDrawerHide()">
+
+  <ng-template #header>
+    <div class="drawer-header" dir="rtl">
+      <span class="drawer-title">פרטי מנוי</span>
+      @if (selectedSub(); as sub) {
+        <span class="sub-status-badge sub-status-badge--{{ sub.status }}">
+          {{ statusLabels[sub.status] ?? sub.status }}
+        </span>
+      }
+    </div>
+  </ng-template>
+
+  @if (selectedSub(); as sub) {
+  <div class="drawer-content" dir="rtl">
+
+    <!-- User -->
+    <section class="detail-section">
+      <h3 class="section-title">פרטי משתמש</h3>
+      <div class="detail-grid">
+        <span class="detail-label">שם</span>
+        <span class="detail-value">{{ sub.userName ?? '—' }}</span>
+        <span class="detail-label">אימייל</span>
+        <span class="detail-value">{{ sub.userEmail ?? '—' }}</span>
+        <span class="detail-label">Firebase ID</span>
+        <span class="detail-value detail-value--mono">{{ sub.firebaseId }}</span>
+      </div>
+    </section>
+
+    <!-- Business -->
+    <section class="detail-section">
+      <h3 class="section-title">פרטי עסק</h3>
+      <div class="detail-grid">
+        <span class="detail-label">שם עסק</span>
+        <span class="detail-value">{{ sub.businessName ?? '—' }}</span>
+        <span class="detail-label">מזהה עסק</span>
+        <span class="detail-value">{{ sub.businessId ?? '—' }}</span>
+      </div>
+    </section>
+
+    <!-- Subscription & Plan -->
+    <section class="detail-section">
+      <h3 class="section-title">מנוי ותוכנית</h3>
+      <div class="detail-grid">
+        <span class="detail-label">מזהה מנוי</span>
+        <span class="detail-value">#{{ sub.subscriptionId }}</span>
+        <span class="detail-label">סטטוס</span>
+        <span class="detail-value">
+          <span class="sub-status-badge sub-status-badge--{{ sub.status }}">
+            {{ statusLabels[sub.status] ?? sub.status }}
+          </span>
+        </span>
+        <span class="detail-label">תוכנית</span>
+        <span class="detail-value">{{ sub.planName ?? '—' }}</span>
+        @if (sub.planSlug) {
+          <span class="detail-label">Slug</span>
+          <span class="detail-value detail-value--mono">{{ sub.planSlug }}</span>
+        }
+        <span class="detail-label">מחיר חודשי</span>
+        <span class="detail-value">{{ formatAmount(sub.planPriceAgorot) }}</span>
+      </div>
+    </section>
+
+    <!-- Billing Dates -->
+    <section class="detail-section">
+      <h3 class="section-title">תאריכי חיוב</h3>
+      <div class="detail-grid">
+        <span class="detail-label">סיום ניסיון</span>
+        <span class="detail-value">{{ formatDate(sub.trialEnd) }}</span>
+        <span class="detail-label">תחילת תקופה</span>
+        <span class="detail-value">{{ formatDate(sub.currentPeriodStart) }}</span>
+        <span class="detail-label">סיום תקופה</span>
+        <span class="detail-value">{{ formatDate(sub.currentPeriodEnd) }}</span>
+        <span class="detail-label">חיוב הבא</span>
+        <span class="detail-value">{{ formatDate(sub.nextBillingDate) }}</span>
+        @if (sub.gracePeriodEndsAt) {
+          <span class="detail-label">סיום חסד</span>
+          <span class="detail-value">{{ formatDate(sub.gracePeriodEndsAt) }}</span>
+        }
+        @if (sub.canceledAt) {
+          <span class="detail-label">בוטל</span>
+          <span class="detail-value">{{ formatDate(sub.canceledAt) }}</span>
+        }
+        @if (sub.endedAt) {
+          <span class="detail-label">הסתיים</span>
+          <span class="detail-value">{{ formatDate(sub.endedAt) }}</span>
+        }
+        <span class="detail-label">נוצר</span>
+        <span class="detail-value">{{ formatDate(sub.createdAt) }}</span>
+      </div>
+    </section>
+
+    <!-- Payment -->
+    <section class="detail-section">
+      <h3 class="section-title">אמצעי תשלום</h3>
+      <div class="detail-grid">
+        @if (sub.cardTokenExists && sub.cardLast4) {
+          <span class="detail-label">כרטיס</span>
+          <span class="detail-value">{{ sub.cardBrand ?? '' }} •••• {{ sub.cardLast4 }}</span>
+          <span class="detail-label">תפוגה</span>
+          <span class="detail-value">
+            @if (sub.cardExpiryMonth && sub.cardExpiryYear) {
+              {{ sub.cardExpiryMonth.toString().padStart(2, '0') }}/{{ sub.cardExpiryYear }}
+            } @else {
+              —
+            }
+          </span>
+        } @else {
+          <span class="detail-label">כרטיס</span>
+          <span class="detail-value detail-value--muted">אין כרטיס מוגדר</span>
+        }
+      </div>
+    </section>
+
+    <!-- Coupon -->
+    <section class="detail-section">
+      <h3 class="section-title">קופון</h3>
+      <div class="detail-grid">
+        <span class="detail-label">קוד קופון</span>
+        @if (sub.couponCode) {
+          <span class="coupon-code">{{ sub.couponCode }}</span>
+        } @else {
+          <span class="detail-value detail-value--muted">אין</span>
+        }
+      </div>
+    </section>
+
+  </div>
+  }
+
+</p-drawer>
