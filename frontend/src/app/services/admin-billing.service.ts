@@ -125,6 +125,37 @@ export interface CreateCouponPayload {
 
 export type UpdateCouponPayload = Partial<CreateCouponPayload>;
 
+// ─── Subscriptions ────────────────────────────────────────────────────────────
+
+export interface AdminSubscription {
+  subscriptionId: number;
+  firebaseId: string;
+  status: string;
+  userId: number | null;
+  userName: string | null;
+  userEmail: string | null;
+  businessId: number | null;
+  businessName: string | null;
+  planId: number | null;
+  planName: string | null;
+  planSlug: string | null;
+  planPriceAgorot: number | null;
+  trialEnd: string | null;
+  currentPeriodStart: string | null;
+  currentPeriodEnd: string | null;
+  nextBillingDate: string | null;
+  gracePeriodEndsAt: string | null;
+  canceledAt: string | null;
+  endedAt: string | null;
+  createdAt: string;
+  cardTokenExists: boolean;
+  cardLast4: string | null;
+  cardBrand: string | null;
+  cardExpiryMonth: number | null;
+  cardExpiryYear: number | null;
+  couponCode: string | null;
+}
+
 // ─── Service ─────────────────────────────────────────────────────────────────
 
 @Injectable({ providedIn: 'root' })
@@ -197,5 +228,11 @@ export class AdminBillingService {
 
   activateCoupon(id: number): Observable<AdminCoupon> {
     return this.http.patch<AdminCoupon>(`${this.base}/coupons/${id}/activate`, {});
+  }
+
+  // ─── Subscriptions ─────────────────────────────────────────────────────────
+
+  getSubscriptions(): Observable<AdminSubscription[]> {
+    return this.http.get<AdminSubscription[]>(`${this.base}/subscriptions`);
   }
 }

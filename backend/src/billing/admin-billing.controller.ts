@@ -82,6 +82,14 @@ export class AdminBillingController {
     return this.adminBillingService.activatePlan(id);
   }
 
+  // ─── Subscriptions ───────────────────────────────────────────────────────────
+
+  @Get('subscriptions')
+  async getSubscriptions(@Req() request: AuthenticatedRequest) {
+    await this.assertAdmin(request);
+    return this.adminBillingService.findAllSubscriptions();
+  }
+
   // ─── Promotions ─────────────────────────────────────────────────────────────
 
   @Get('promotions')

@@ -4,6 +4,7 @@ import { SharedModule } from '../shared.module';
 import { BillingPlansComponent } from './plans/billing-plans.component';
 import { BillingPromotionsComponent } from './promotions/billing-promotions.component';
 import { BillingCouponsComponent } from './coupons/billing-coupons.component';
+import { BillingSubscriptionsComponent } from './subscriptions/billing-subscriptions.component';
 
 interface SubTab {
   label: string;
@@ -15,14 +16,15 @@ interface SubTab {
   standalone: true,
   templateUrl: './admin-billing.component.html',
   styleUrls: ['./admin-billing.component.scss'],
-  imports: [CommonModule, SharedModule, BillingPlansComponent, BillingPromotionsComponent, BillingCouponsComponent],
+  imports: [CommonModule, SharedModule, BillingPlansComponent, BillingPromotionsComponent, BillingCouponsComponent, BillingSubscriptionsComponent],
 })
 export class AdminBillingComponent {
   readonly subTabs: SubTab[] = [
     { label: 'תוכניות',  value: 'plans' },
     { label: 'מבצעים',  value: 'promotions' },
     { label: 'קופונים',  value: 'coupons' },
-    // Future phases: user-discounts, users, logs
+    { label: 'מנויים',   value: 'subscriptions' },
+    // Future phases: user-discounts, logs
   ];
 
   selectedSubTab = signal<string>('plans');
