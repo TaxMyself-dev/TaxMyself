@@ -160,6 +160,7 @@ export class CardcomService implements OnModuleInit {
         }),
       );
       rawResponse = response.data ?? {};
+      console.log("🚀 ~ CardcomService ~ createLowProfileCheckout ~ rawResponse:", rawResponse)
     } catch (err: any) {
       const detail: string = err?.response?.data
         ? JSON.stringify(err.response.data).slice(0, 500)
