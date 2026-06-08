@@ -236,48 +236,44 @@
               <ng-container *ngTemplateOutlet="col.cellTemplate; context: { $implicit: row, row: row, col: col }"></ng-container>
             }
             <!-- Opt-in: built-in inline editors. Consumer sets editable=true
-                 plus a `type`. Writes `[(ngModel)]` straight into row[col.name]
-                 and fires `col.onChange?.(newValue, row)` on each change so the
-                 parent can hook validations / cascading logic. Non-editable
-                 columns (the existing default) skip both branches and fall
-                 through to the read-only `<span class="data-text">` below. -->
+                 plus a `type`. Uses native DOM property/event bindings so
+                 FormsModule is not required in this shared component. -->
             @else if (col.editable) {
               @switch (col.type) {
                 @case (FormTypes.TEXT) {
                   <input class="cell-editable" type="text"
-                         [ngModel]="row[col.name]"
-                         (ngModelChange)="row[col.name] = $event; col.onChange?.($event, row)" />
+                         [value]="row[col.name] ?? ''"
+                         (input)="row[col.name] = $any($event).target.value; col.onChange?.($any($event).target.value, row)" />
                 }
                 @case (FormTypes.NUMBER) {
                   <input class="cell-editable cell-editable--num" type="number" step="0.01"
-                         [ngModel]="row[col.name]"
-                         (ngModelChange)="row[col.name] = $event; col.onChange?.($event, row)" />
+                         [value]="row[col.name] ?? ''"
+                         (input)="row[col.name] = +$any($event).target.value; col.onChange?.(+$any($event).target.value, row)" />
                 }
                 @case (FormTypes.DATE) {
                   <input class="cell-editable" type="date"
-                         [ngModel]="row[col.name]"
-                         (ngModelChange)="row[col.name] = $event; col.onChange?.($event, row)" />
+                         [value]="row[col.name] ?? ''"
+                         (input)="row[col.name] = $any($event).target.value; col.onChange?.($any($event).target.value, row)" />
                 }
                 @case (FormTypes.DDL) {
                   <select class="cell-editable"
-                          [ngModel]="row[col.name]"
-                          (ngModelChange)="row[col.name] = $event; col.onChange?.($event, row)">
-                    <option [ngValue]="null">— בחר —</option>
+                          [value]="row[col.name] ?? ''"
+                          (change)="row[col.name] = $any($event).target.value; col.onChange?.($any($event).target.value, row)">
+                    <option value="">— בחר —</option>
                     @for (item of col.listItems ?? []; track item.value) {
-                      <option [ngValue]="item.value">{{ item.name }}</option>
+                      <option [value]="item.value">{{ item.name }}</option>
                     }
                   </select>
                 }
                 @case (FormTypes.CHECKBOX) {
                   <input type="checkbox"
-                         [ngModel]="row[col.name]"
-                         (ngModelChange)="row[col.name] = $event; col.onChange?.($event, row)" />
+                         [checked]="!!row[col.name]"
+                         (change)="row[col.name] = $any($event).target.checked; col.onChange?.($any($event).target.checked, row)" />
                 }
                 @default {
-                  <!-- editable=true but unsupported type → fall back to text input. -->
                   <input class="cell-editable" type="text"
-                         [ngModel]="row[col.name]"
-                         (ngModelChange)="row[col.name] = $event; col.onChange?.($event, row)" />
+                         [value]="row[col.name] ?? ''"
+                         (input)="row[col.name] = $any($event).target.value; col.onChange?.($any($event).target.value, row)" />
                 }
               }
             }
