@@ -7,6 +7,23 @@
   align-items: center;
 }
 
+// Loader for the submit → next-visible-UI gap. Mirrors the VAT page so
+// both report flows look the same while previewCheck is running.
+.report-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 48px 24px;
+  font-size: 1rem;
+  color: #4b5563;
+
+  i {
+    font-size: 1.4rem;
+    color: #1d4ed8;
+  }
+}
+
 .redirect-prompt-body {
   display: flex;
   align-items: center;

@@ -172,6 +172,10 @@ export interface IUserData {
     previousLoginAt: string | null;
     /** Timestamp of the current session's sign-in. */
     lastLoginAt: string | null;
+    /** True when the signed-in user's email matches a DEMO_PROFILES entry —
+     *  enables the "אפס נתוני בדיקה" button on the dashboard. Stamped by
+     *  the backend on every sign-in (users.service.findFireUser). */
+    isDemo: boolean;
 }
 
 export interface IChild {

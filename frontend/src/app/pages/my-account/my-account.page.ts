@@ -30,6 +30,7 @@ import { TransactionsService } from '../transactions/transactions.page.service';
 import { FeezbackService } from 'src/app/services/feezback.service';
 import { SourceResult, SyncStatusService } from 'src/app/services/sync-status.service';
 import { MessageService } from 'primeng/api';
+import { AdminPanelService } from 'src/app/services/admin-panel.service';
 
 @Component({
   selector: 'app-my-account',
@@ -79,6 +80,10 @@ export class MyAccountPage implements OnInit {
   isLoadingFeezback = signal<boolean>(false);
   isLoadingUserAccounts = signal<boolean>(false);
   isProd = signal<boolean>(environment.production);
+  /** Spinner state for the dashboard's "אפס נתוני בדיקה" button (demo users only). */
+  isResettingDemo = signal<boolean>(false);
+
+  private readonly adminPanelService = inject(AdminPanelService);
 
   userData: IUserData;
   transToClassify: Observable<ITransactionData[]>;
@@ -920,6 +925,61 @@ export class MyAccountPage implements OnInit {
   //   this.mobileMenuOpen.set(false);
   // }
 
+
+  /**
+   * Wipes the demo user's Drive inbox/processed/archive folders, deletes
+   * all OCR/expense/transaction rows derived from prior testing, then
+   * re-uploads the canned sample PDFs and re-seeds the OB cache rows from
+   * the profile. Visible only when `userData.isDemo` is true. After the
+   * server confirms, force a full reload so every cached signal/state in
+   * the SPA picks up the fresh DB.
+   */
+  onResetTestData(): void {
+    if (this.isResettingDemo()) return;
+    const confirmed = confirm(
+      'פעולה זו תמחק את כל קבצי הדרייב והנתונים שנוצרו במהלך הבדיקות ותעלה מחדש את קבצי הדוגמה. להמשיך?',
+    );
+    if (!confirmed) return;
+    this.isResettingDemo.set(true);
+    this.adminPanelService.resetDemoTestData().subscribe({
+      next: (res) => {
+        if (res.driveInbox?.needsManualUpload) {
+          // Drive's service account couldn't upload (no storage quota on
+          // personal Google accounts). Tell the admin to drag the PDFs in
+          // by hand and open the inbox folder in a new tab so they can.
+          this.messageService.add({
+            severity: 'warn',
+            summary: 'איפוס בוצע - יש לעלות קבצים ידנית',
+            detail: `נמחקו ${res.filesDeleted} קבצים. יש לגרור את קבצי הדוגמה לתיקיית ה-inbox בדרייב (נפתחה בכרטיסיה חדשה).`,
+            life: 8000,
+          });
+          window.open(res.driveInbox.inboxFolderUrl, '_blank');
+          // Don't reload — give the admin time to drop the files first.
+          this.isResettingDemo.set(false);
+          return;
+        }
+        this.messageService.add({
+          severity: 'success',
+          summary: 'אופס נתוני הבדיקה',
+          detail: `נמחקו ${res.filesDeleted} קבצים, הועלו ${res.filesUploaded} מחדש`,
+          life: 3000,
+        });
+        // Full reload so userData, signals, OCR cache, transactions table
+        // all re-fetch from the now-clean backend.
+        setTimeout(() => window.location.reload(), 600);
+      },
+      error: (err) => {
+        console.error('resetDemoTestData failed', err);
+        this.isResettingDemo.set(false);
+        this.messageService.add({
+          severity: 'error',
+          summary: 'איפוס נתוני בדיקה נכשל',
+          detail: err?.error?.message ?? 'שגיאה לא צפויה',
+          life: 4000,
+        });
+      },
+    });
+  }
 
   openMannualExpenses(): void {
     // this.dialogRef = 

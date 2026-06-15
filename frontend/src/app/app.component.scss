@@ -181,6 +181,9 @@ ion-item.selected {
   font-size: 16px;
   color: #363636;
   direction: rtl;
+  // Honor \n in multi-line loader messages (e.g. the report-review preload).
+  white-space: pre-line;
+  text-align: center;
 }
 
 /* פס כשהרואה חשבון נכנס לחשבון לקוח */

@@ -7,6 +7,47 @@ import { drive_v3, google } from 'googleapis';
 
 export type DriveRole = 'reader' | 'writer' | 'commenter';
 
+/**
+ * Thrown by `uploadFile` when Drive rejects the create because the service
+ * account has no storage quota. This is a known Google limitation: service
+ * accounts can only upload to **Shared Drives** (Workspace) or via OAuth
+ * delegation — not to a regular Drive folder under a personal account.
+ *
+ * The demo seeder catches this specifically and continues without failing
+ * the whole seed (folders are created, just files need to be dropped
+ * manually). Production code that actually depends on uploads working
+ * should let it bubble.
+ */
+export class ServiceAccountQuotaError extends Error {
+  constructor(originalMessage: string) {
+    super(originalMessage);
+    this.name = 'ServiceAccountQuotaError';
+  }
+}
+
+/** Folder IDs returned by ensureBusinessFolder(): the parent business
+ *  folder plus inbox/ and processed/ children. `archiveFolderId` was
+ *  removed when we stopped using Drive layout to signal archived state
+ *  (the DB `extracted_document.status` column is the source of truth).
+ *  Older Business rows may still have a non-null `drive_archive_folder_id`
+ *  on the DB column — left in place but no new files ever get put there. */
+export interface DriveBusinessFolders {
+  folderId: string;
+  inboxFolderId: string;
+  processedFolderId: string;
+}
+
+export interface DriveFileMeta {
+  id: string;
+  name: string;
+  mimeType: string;
+  size: number | null;
+  /** Drive's `createdTime` — when the file was uploaded to Drive. ISO-8601
+   *  string from the API; the caller usually wraps it in `new Date()` for
+   *  the `upload_date` column. */
+  createdTime: string | null;
+}
+
 @Injectable()
 export class GoogleDriveService {
   private readonly logger = new Logger(GoogleDriveService.name);
@@ -75,38 +116,42 @@ export class GoogleDriveService {
   }
 
   /**
-   * Build the current-year + previous-year layout (months 01-12 + "דוח שנתי")
-   * under any parent folder. Sequential — Drive throttles fast bursts.
+   * Find-or-create a business sub-folder under the user's root folder,
+   * scaffolded with the two operational sub-folders (inbox/, processed/).
+   * Returns all three IDs so the caller can persist them on the Business
+   * row in one shot.
+   *
+   * Idempotent at every step — safe to call on every login / report-page
+   * visit / backfill run.
+   *
+   * Note: archive/ used to be a third child here. Since we now keep all
+   * files in processed/ regardless of approve/archive/reject status (the
+   * DB column is the source of truth), the archive folder is no longer
+   * created. Legacy Business rows may still have a `driveArchiveFolderId`
+   * pointing at an old folder — that's harmless, nothing reads it now.
    */
-  private async scaffoldRecentYears(parentFolderId: string): Promise<void> {
-    const currentYear = new Date().getFullYear();
-    for (const year of [currentYear, currentYear - 1]) {
-      const yearFolderId = await this.getOrCreateChildFolder(parentFolderId, String(year));
-      for (let m = 1; m <= 12; m++) {
-        await this.getOrCreateChildFolder(yearFolderId, String(m).padStart(2, '0'));
-      }
-      await this.getOrCreateChildFolder(yearFolderId, 'דוח שנתי');
-    }
+  async ensureBusinessFolder(
+    userFolderId: string,
+    businessName: string,
+  ): Promise<DriveBusinessFolders> {
+    const safeName = this.sanitizeFolderName(businessName) || 'business';
+    const folderId = await this.getOrCreateChildFolder(userFolderId, safeName);
+    const subFolders = await this.ensureInboxAndProcessed(folderId);
+    return { folderId, ...subFolders };
   }
 
   /**
-   * Find-or-create a business sub-folder under the user's root folder. Returns
-   * the folder id. Best-effort scaffolding of 2 years × 12 months + דוח שנתי
-   * happens after creation — failures are logged but don't fail the call,
-   * because getOrCreateMonthFolder will fill any gap later.
+   * Create the inbox/processed pair under a business folder. Pulled out
+   * as its own method so the backfill admin endpoint (which already has
+   * `business.driveFolderId`) can re-provision the children without
+   * touching the parent.
    */
-  async ensureBusinessFolder(userFolderId: string, businessName: string): Promise<string> {
-    const safeName = this.sanitizeFolderName(businessName) || 'business';
-    const folderId = await this.getOrCreateChildFolder(userFolderId, safeName);
-    try {
-      await this.scaffoldRecentYears(folderId);
-    } catch (err: any) {
-      this.logger.error(
-        `ensureBusinessFolder: scaffold failed for folderId=${folderId}: ${err?.message ?? err}`,
-        err?.stack,
-      );
-    }
-    return folderId;
+  async ensureInboxAndProcessed(
+    businessFolderId: string,
+  ): Promise<{ inboxFolderId: string; processedFolderId: string }> {
+    const inboxFolderId     = await this.getOrCreateChildFolder(businessFolderId, 'inbox');
+    const processedFolderId = await this.getOrCreateChildFolder(businessFolderId, 'processed');
+    return { inboxFolderId, processedFolderId };
   }
 
   private sanitizeFolderName(raw: string): string {
@@ -115,29 +160,69 @@ export class GoogleDriveService {
     return cleaned || 'user';
   }
 
-  async getOrCreateMonthFolder(
-    userFolderId: string,
-    yearMonth: string,
-  ): Promise<string> {
-    const match = /^(\d{4})-(\d{2})$/.exec(yearMonth);
-    if (!match) {
-      throw new InternalServerErrorException(
-        `getOrCreateMonthFolder: yearMonth must be YYYY-MM, got "${yearMonth}"`,
-      );
-    }
-    const [, year, month] = match;
+  /**
+   * Move a file from one parent folder to another. Drive's API requires
+   * both `addParents` and `removeParents` in one `update` call — there's no
+   * dedicated "move" verb. Used by the inbox → processed (OCR success) and
+   * processed → archive (user-archive action) transitions.
+   *
+   * Idempotent in the spec sense: if the file is already in `toParentId`
+   * (and not in `fromParentId`), removeParents silently no-ops and addParents
+   * returns the existing parent. Caller doesn't need to pre-check.
+   */
+  async moveFile(
+    fileId: string,
+    fromParentId: string | null,
+    toParentId: string,
+  ): Promise<void> {
     try {
-      const yearFolderId = await this.getOrCreateChildFolder(userFolderId, year);
-      return await this.getOrCreateChildFolder(yearFolderId, month);
+      const { drive } = this.getDrive();
+      await drive.files.update({
+        fileId,
+        addParents: toParentId,
+        removeParents: fromParentId ?? undefined,
+        fields: 'id, parents',
+        supportsAllDrives: true,
+      });
     } catch (error) {
       this.logger.error(
-        `getOrCreateMonthFolder failed (parent=${userFolderId}, ym=${yearMonth}): ${error?.message ?? error}`,
+        `moveFile failed (fileId=${fileId}, from=${fromParentId}, to=${toParentId}): ${error?.message ?? error}`,
         (error as Error)?.stack,
       );
-      throw new InternalServerErrorException(
-        'Failed to get or create month folder',
-      );
+      throw new InternalServerErrorException('Failed to move Drive file');
     }
+  }
+
+  /**
+   * Read-only sibling of `getOrCreateChildFolder` — returns the folder id if
+   * a folder with this name+parent exists, or null. Lets diagnostic code
+   * (e.g. the login-banner Drive snapshot) tell the user "folder exists in
+   * Drive but no ID is stored in the DB" without side-effects.
+   */
+  async findChildFolder(parentId: string, name: string): Promise<string | null> {
+    const { drive } = this.getDrive();
+    const safeName = name.replace(/'/g, "\\'");
+    const q = [
+      `name = '${safeName}'`,
+      `mimeType = 'application/vnd.google-apps.folder'`,
+      `'${parentId}' in parents`,
+      `trashed = false`,
+    ].join(' and ');
+    const list = await drive.files.list({
+      q,
+      fields: 'files(id, name)',
+      spaces: 'drive',
+      supportsAllDrives: true,
+      includeItemsFromAllDrives: true,
+    });
+    return list.data.files?.[0]?.id ?? null;
+  }
+
+  /** The cached Drive root folder ID (KeepInTax-Clients-Dev / -Prod) — exposed
+   *  for diagnostics that need to look up a folder under root by name. */
+  getRootFolderId(): string {
+    const { rootFolderId } = this.getDrive();
+    return rootFolderId;
   }
 
   private async getOrCreateChildFolder(
@@ -185,12 +270,7 @@ export class GoogleDriveService {
     return `https://drive.google.com/drive/folders/${folderId}`;
   }
 
-  async listFolderFiles(folderId: string): Promise<Array<{
-    id: string;
-    name: string;
-    mimeType: string;
-    size: number | null;
-  }>> {
+  async listFolderFiles(folderId: string): Promise<DriveFileMeta[]> {
     try {
       const { drive } = this.getDrive();
       const q = [
@@ -199,12 +279,14 @@ export class GoogleDriveService {
         `trashed = false`,
       ].join(' and ');
 
-      const out: Array<{ id: string; name: string; mimeType: string; size: number | null }> = [];
+      const out: DriveFileMeta[] = [];
       let pageToken: string | undefined = undefined;
       do {
         const res = await drive.files.list({
           q,
-          fields: 'nextPageToken, files(id, name, mimeType, size)',
+          // createdTime feeds extracted_document.upload_date — the timestamp
+          // we show the user as "when this invoice arrived in the inbox".
+          fields: 'nextPageToken, files(id, name, mimeType, size, createdTime)',
           spaces: 'drive',
           pageSize: 100,
           pageToken,
@@ -218,6 +300,7 @@ export class GoogleDriveService {
             name: f.name,
             mimeType: f.mimeType,
             size: f.size ? Number(f.size) : null,
+            createdTime: f.createdTime ?? null,
           });
         }
         pageToken = res.data.nextPageToken ?? undefined;
@@ -229,6 +312,89 @@ export class GoogleDriveService {
         (error as Error)?.stack,
       );
       throw new InternalServerErrorException('Failed to list Drive folder');
+    }
+  }
+
+  /**
+   * Upload an in-memory buffer as a new Drive file under `parentFolderId`.
+   * Used by the demo-data seeder/reset to drop the test-samples PDFs into
+   * a demo user's inbox. Returns the new Drive file id.
+   *
+   * `mimeType` defaults to application/pdf since every current caller is
+   * pushing PDFs; pass through explicitly when uploading anything else.
+   *
+   * Throws `ServiceAccountQuotaError` when the underlying Drive call fails
+   * with "Service Accounts do not have storage quota" — a known Google
+   * limitation when the root folder lives on a personal (non-Workspace)
+   * Drive. Callers that just want best-effort uploads (demo seeder) can
+   * catch this specific class and continue; everyone else can let it
+   * bubble.
+   */
+  async uploadFile(
+    parentFolderId: string,
+    name: string,
+    body: Buffer,
+    mimeType: string = 'application/pdf',
+  ): Promise<string> {
+    try {
+      const { drive } = this.getDrive();
+      const { Readable } = await import('stream');
+      const res = await drive.files.create({
+        requestBody: {
+          name,
+          parents: [parentFolderId],
+          mimeType,
+        },
+        // googleapis wants a Readable for `media.body`; wrap the buffer.
+        media: {
+          mimeType,
+          body: Readable.from(body),
+        },
+        fields: 'id',
+        supportsAllDrives: true,
+      });
+      const id = res.data.id;
+      if (!id) {
+        throw new Error(`Drive API returned no id for uploaded file "${name}"`);
+      }
+      return id;
+    } catch (error: any) {
+      const message = error?.message ?? '';
+      if (/Service Accounts do not have storage quota|storageQuotaExceeded/i.test(message)) {
+        // Don't log the full stack — every demo upload hits this same wall
+        // and would flood the log with identical traces. Single concise
+        // line is enough; the calling code knows to expect it.
+        this.logger.warn(
+          `uploadFile: service account has no storage quota (parent=${parentFolderId}, name="${name}") — files must be dropped manually via Drive UI, or migrate the root to a Shared Drive`,
+        );
+        throw new ServiceAccountQuotaError(message);
+      }
+      this.logger.error(
+        `uploadFile failed (parent=${parentFolderId}, name="${name}"): ${error?.message ?? error}`,
+        (error as Error)?.stack,
+      );
+      throw new InternalServerErrorException('Failed to upload Drive file');
+    }
+  }
+
+  /**
+   * Permanently delete a Drive file. Used by the demo-data reset endpoint
+   * to wipe a demo user's Drive folders before re-uploading the canned
+   * test samples. Idempotent against 404 — if Drive can't find the file
+   * we treat it as already-gone.
+   */
+  async deleteFile(fileId: string): Promise<void> {
+    try {
+      const { drive } = this.getDrive();
+      await drive.files.delete({ fileId, supportsAllDrives: true });
+    } catch (error: any) {
+      const status = error?.code ?? error?.response?.status;
+      if (status === 404) return;
+      this.logger.error(
+        `deleteFile failed for fileId=${fileId}: ${error?.message ?? error}`,
+        (error as Error)?.stack,
+      );
+      throw new InternalServerErrorException('Failed to delete Drive file');
     }
   }
 
@@ -246,6 +412,36 @@ export class GoogleDriveService {
         (error as Error)?.stack,
       );
       throw new InternalServerErrorException('Failed to download Drive file');
+    }
+  }
+
+  /**
+   * Returns the parent folder IDs of `folderId`, or null if Drive can't
+   * resolve the file at all (404 / trashed). Used by the stale-id check
+   * to verify a stored business-folder ID is actually parented under the
+   * current user root — `folderExists` alone returns true even for folders
+   * orphaned under a deleted ancestor, which leaves users staring at empty
+   * folders while the DB insists everything is fine.
+   */
+  async getFolderParents(folderId: string): Promise<string[] | null> {
+    try {
+      const { drive } = this.getDrive();
+      const res = await drive.files.get({
+        fileId: folderId,
+        fields: 'id, trashed, parents',
+        supportsAllDrives: true,
+      });
+      if (!res.data.id || res.data.trashed === true) return null;
+      return res.data.parents ?? [];
+    } catch (error: any) {
+      if (error?.code === 404 || error?.response?.status === 404) {
+        return null;
+      }
+      this.logger.error(
+        `getFolderParents failed for folderId=${folderId}: ${error?.message ?? error}`,
+        (error as Error)?.stack,
+      );
+      throw new InternalServerErrorException('Failed to read Drive folder parents');
     }
   }
 
@@ -296,6 +492,32 @@ export class GoogleDriveService {
       if (code === 409 || /already exists|duplicate/i.test(message)) {
         this.logger.debug(
           `shareFolder: ${email} already has access to ${folderId} — skipping`,
+        );
+        return;
+      }
+      // Soft failure: the target email isn't a real Google account, so
+      // Drive can't grant access (e.g. demo profiles seeded with fake
+      // @taxmyself.local addresses). The folder itself was already
+      // created — propagating the failure up would orphan it. Log + move
+      // on so business sub-folders + uploads still happen.
+      //
+      // Drive returns DIFFERENT errors for the same root cause depending on
+      // whether the parent is My Drive vs a Shared Drive:
+      //   - My Drive: 403 + "do not have a Google Account" (helpful)
+      //   - Shared Drive: 400 + "Sorry, an internal error has occurred and
+      //     your request was not completed" (vague). Same situation, no
+      //     other useful signal — match the phrasing exactly so we don't
+      //     accidentally swallow unrelated 400s from this call.
+      if (/do not have a Google Account|not a Google account/i.test(message)) {
+        this.logger.warn(
+          `shareFolder: ${email} isn't a Google account — folder ${folderId} created but not shared with this email`,
+        );
+        return;
+      }
+      if (/internal error has occurred and your request was not completed/i.test(message)) {
+        this.logger.warn(
+          `shareFolder: Drive rejected share to ${email} on folder ${folderId} with generic 400 ` +
+            `(common when adding a non-Google-account email to a Shared Drive folder) — folder created, share skipped`,
         );
         return;
       }

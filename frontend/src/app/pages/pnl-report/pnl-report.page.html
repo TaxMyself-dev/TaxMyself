@@ -1,5 +1,6 @@
 <p-confirmDialog></p-confirmDialog>
 <p-confirmDialog key="markSubmitted"></p-confirmDialog>
+<p-confirmDialog key="reviewBeforeReport"></p-confirmDialog>
 
 <p-dialog
   [(visible)]="redirectPromptVisibleModel"
@@ -106,17 +107,26 @@
     </ng-container>
   </div>
 
-@let transToConfirmData = transToConfirm | async;
-@if (transToConfirmData?.length > 0 && visibleConfirmTransDialog()) {
-  <app-confirm-trans-dialog
-    (confirmArraySelected)="confirmTrans($event)"
-    (isVisibleChange)="closeDialogWithoutConfirm($event)"
-    [isLoadingButton]="isLoadingButtonConfirmDialog()"
-    [isVisible]="visibleConfirmTransDialog()"
-    [data]="transToConfirmData"
+<!-- Unified report-review pre-flight: opened from onSubmit() before the
+     report renders. Handles inbox OCR, doc↔tx matching, and all three
+     row types (matched/doc-only/tx-only) in one modal. Replaces the
+     legacy two-step chain (PullDriveDocsDialog + ConfirmTransDialog). -->
+@if (visibleReviewDialog()) {
+  <app-report-review-dialog
+    [visible]="visibleReviewDialog()"
     [businessNumber]="businessNumber()"
     [startDate]="startDate()"
     [endDate]="endDate()"
-    [arrayLength]="arrayLength()">
-  </app-confirm-trans-dialog>
+    (visibleChange)="onReviewDialogVisibleChange($event)">
+  </app-report-review-dialog>
+}
+
+<!-- In-flight loader for the previewCheck + prompt window. The
+     getPnLReportData step has its own genericService loader, so we
+     clear this signal as soon as we hand off (see proceedDirectlyToReport). -->
+@if (isReportLoading() && !visibleReviewDialog()) {
+  <div class="report-loading">
+    <i class="pi pi-spin pi-spinner"></i>
+    <span>טוען נתוני דוח...</span>
+  </div>
 }

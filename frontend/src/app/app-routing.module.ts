@@ -71,7 +71,12 @@ const routes: Routes = [
   {
     path: 'pnl-report',
     loadChildren: () => import('./pages/pnl-report/pnl-report.module').then( m => m.PnLReportPageModule),
-    canActivate: [AuthGuard] 
+    canActivate: [AuthGuard]
+  },
+  {
+    path: 'depreciation-report',
+    loadChildren: () => import('./pages/depreciation-report/depreciation-report.module').then( m => m.DepreciationReportPageModule),
+    canActivate: [AuthGuard]
   },
   {
     path: 'flow-report',

@@ -311,10 +311,19 @@
                 <!-- Users without Open Banking already get the big "רוצה לראות את התנועות" CTA banner below, so no extra header button is needed here. -->
             </div>
         </div>
-        <app-p-button class="vat-report-payment-button" [buttonText]="'+ הוספת הוצאה'" [buttonColor]="buttonColor.BLACK"
-            [buttonSize]="buttonSize.AUTO" (onButtonClicked)="openMannualExpenses()">
-            <i class="pi pi-plus"></i>
-        </app-p-button>
+        <div class="dashboard-actions">
+            <app-p-button class="vat-report-payment-button" [buttonText]="'+ הוספת הוצאה'" [buttonColor]="buttonColor.BLACK"
+                [buttonSize]="buttonSize.AUTO" (onButtonClicked)="openMannualExpenses()">
+                <i class="pi pi-plus"></i>
+            </app-p-button>
+            @if (userData?.isDemo) {
+                <app-p-button class="demo-reset-button" [buttonText]="'אפס נתוני בדיקה'"
+                    [buttonColor]="buttonColor.WHITE_BORDER_LIGHT" [buttonSize]="buttonSize.AUTO"
+                    [isLoading]="isResettingDemo()" (onButtonClicked)="onResetTestData()">
+                    <i class="pi pi-refresh"></i>
+                </app-p-button>
+            }
+        </div>
     </div>
      <!-- ─── Open Banking CTA Banner (Figma nodes 2520:53911 → 2520:53930) ─── -->
      @if (!hasOpenBanking()) {

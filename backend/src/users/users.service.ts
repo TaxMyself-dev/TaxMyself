@@ -15,6 +15,7 @@ import { SettingDocuments } from 'src/documents/settingDocuments.entity';
 import { UserModuleSubscription } from './user-module-subscription.entity';
 import { GoogleDriveService } from '../google-drive/google-drive.service';
 import { Delegation, DelegationStatus } from '../delegation/delegation.entity';
+import { isDemoEmail } from '../demo-data/profiles';
 
 
 @Injectable()
@@ -231,11 +232,12 @@ export class UsersService {
 
     // -------------------------------------------------------
     // 9️⃣  Provision Google Drive structure: user root + a folder per business
-    //     with 2-year × 12-month scaffold. Fired-and-forgotten so signup
-    //     returns immediately — the scaffold takes ~5-30s per user depending
-    //     on business count, and Drive failures shouldn't block the response.
-    //     If anything here drops on the floor, DocumentsService.syncMonthsForUser
-    //     lazily fills gaps on first sync.
+    //     with the inbox/processed/archive sub-folder trio. Fire-and-forget so
+    //     signup returns immediately — the scaffold takes a few Drive API
+    //     calls per business, and Drive outages shouldn't block the response.
+    //     If anything drops on the floor, DocumentsService.processInboxForUser
+    //     calls provisionDriveStructure again on first report-page visit and
+    //     fills the gap.
     // -------------------------------------------------------
     void this.provisionDriveStructure(savedUser).catch(err =>
       this.logger.error(
@@ -349,6 +351,12 @@ export class UsersService {
         ...user,
         businessNumber: primary?.businessNumber ?? null,
         spouseBusinessNumber: spouse?.businessNumber ?? null,
+        // Gates the dashboard's "אפס נתוני בדיקה" button. True when the
+        // signed-in user's email matches a DEMO_PROFILES entry — see
+        // demo-data/profiles/index.ts. Persisted into IUserData on the
+        // frontend (localStorage) on every sign-in so the button shows up
+        // immediately after a demo seed without a full reload.
+        isDemo: isDemoEmail(user.email),
       };
     } catch (error) {
       if (error instanceof NotFoundException) {
@@ -592,14 +600,16 @@ export class UsersService {
   /**
    * Provision the full Drive folder structure for a user:
    *   user-root/
-   *     business-A/  2024..2025  (months + דוח שנתי)
-   *     business-B/  ...
+   *     business-A/
+   *       inbox/  processed/  archive/
+   *     business-B/
+   *       inbox/  processed/  archive/
    *
    * Best-effort everywhere — Drive failure leaves null IDs that the lazy
-   * auto-provision in DocumentsService.syncMonthsForUser fills in later.
+   * auto-provision in DocumentsService.processInboxForUser fills in later.
    *
    * Called after businesses are saved in signup() so we already know their
-   * names. Idempotent: skips anything that already has a folder id.
+   * names. Idempotent: skips anything that already has all four folder ids.
    */
   async provisionDriveStructure(
     user: User,
@@ -617,23 +627,53 @@ export class UsersService {
       `[Drive] provisionDriveStructure START | ${userTag} | userFolderId=${user.driveFolderId ?? '∅'}`,
     );
 
-    // Verify the stored user folder still exists in Drive. If someone deleted
-    // it manually (common during dev), the stored id is dead and any business
-    // folder we try to create under it will 404. Null the dead id so the
-    // create-new branch fires below.
+    // Verify the stored user folder is BOTH (a) still alive in Drive AND
+    // (b) parented under the currently-configured root folder. The second
+    // check catches the case where the root moved (typical: My Drive →
+    // Shared Drive migration): the old user folder still exists in the
+    // old location, `folderExists` happily returns true, and without the
+    // parent check we'd keep creating business sub-folders under the
+    // stale parent forever. Wipe the id when either check fails so the
+    // create-new branch below provisions fresh under the new root.
     if (user.driveFolderId) {
       try {
-        const stillThere = await this.googleDriveService.folderExists(user.driveFolderId);
-        if (!stillThere) {
+        const parents = await this.googleDriveService.getFolderParents(user.driveFolderId);
+        const currentRoot = this.googleDriveService.getRootFolderId();
+        if (parents === null) {
           this.logger.warn(
-            `[Drive] stored user folder ${user.driveFolderId} no longer exists in Drive — will re-create | ${userTag}`,
+            `[Drive] stored user folder ${user.driveFolderId} is 404/trashed — will re-create | ${userTag}`,
           );
           user.driveFolderId = null;
           await this.user_repo.save(user);
+        } else if (!parents.includes(currentRoot)) {
+          this.logger.warn(
+            `[Drive] stored user folder ${user.driveFolderId} is parented under ` +
+            `[${parents.join(',')}] but current root is ${currentRoot} — wiping user + business folder ids ` +
+            `so they re-create under the new root | ${userTag}`,
+          );
+          user.driveFolderId = null;
+          await this.user_repo.save(user);
+          // Old business folders sit under the old user folder. Wipe their
+          // IDs proactively here so the business-loop below treats them as
+          // brand-new and creates fresh ones under the new user folder.
+          // (The loop's own parent check would catch this too, but doing
+          // it up-front keeps the loop's log noise consistent: "created"
+          // instead of "wiped + created".)
+          await this.business_repo.update(
+            { firebaseId: user.firebaseId },
+            {
+              driveFolderId: null,
+              driveInboxFolderId: null,
+              driveProcessedFolderId: null,
+              // driveArchiveFolderId not wiped — column is deprecated
+              // and may still hold a stale id from before the archive
+              // folder went away. Harmless either way.
+            },
+          );
         }
       } catch (err: any) {
         this.logger.error(
-          `[Drive] folderExists check failed for user folder ${user.driveFolderId} | ${userTag}: ${err?.message ?? err}`,
+          `[Drive] parent-check failed for user folder ${user.driveFolderId} | ${userTag}: ${err?.message ?? err}`,
         );
       }
     }
@@ -675,24 +715,58 @@ export class UsersService {
       where: { firebaseId: user.firebaseId },
     });
     for (const business of businesses) {
-      // Stale-id check for business folders too.
+      // Stale-id check for the business parent. Two failure modes both
+      // require wiping all 4 IDs so the create branch runs cleanly:
+      //   (1) the folder ID is dead in Drive (404 / trashed)
+      //   (2) the folder ID resolves to a real folder but it's NOT a child
+      //       of the current user root — typically because the previous user
+      //       root was deleted and getOrCreateChildFolder created a fresh
+      //       one, orphaning all the businesses under the old (now-dead)
+      //       parent. `folderExists` returns true in this case, so the
+      //       previous version of this check silently kept the dead IDs.
+      // Also wipe on uncertainty (folderExists throws) — better to re-create
+      // than leave the user pointing at unreachable folders. Drive's
+      // find-or-create dedupe means we won't accidentally double up.
       if (business.driveFolderId) {
+        let parentLikelyDead = false;
+        let reason = '';
         try {
-          const stillThere = await this.googleDriveService.folderExists(business.driveFolderId);
-          if (!stillThere) {
-            this.logger.warn(
-              `[Drive] stored business folder ${business.driveFolderId} (biz=${business.businessNumber}) gone — re-creating | ${userTag}`,
-            );
-            business.driveFolderId = null;
+          const parents = await this.googleDriveService.getFolderParents(business.driveFolderId);
+          if (parents === null) {
+            parentLikelyDead = true;
+            reason = 'folder is 404/trashed in Drive';
+          } else if (user.driveFolderId && !parents.includes(user.driveFolderId)) {
+            parentLikelyDead = true;
+            reason = `folder exists but isn't parented under user root ${user.driveFolderId} (actual parents=[${parents.join(',')}])`;
           }
-        } catch {
-          // best-effort; if the check fails we still attempt creation below
+        } catch (err: any) {
+          parentLikelyDead = true;
+          reason = `getFolderParents threw: ${err?.message ?? err}`;
+        }
+        if (parentLikelyDead) {
+          this.logger.warn(
+            `[Drive] business folder ${business.driveFolderId} (biz=${business.businessNumber}) ${reason} — wiping all folder IDs and re-creating | ${userTag}`,
+          );
+          business.driveFolderId          = null;
+          business.driveInboxFolderId     = null;
+          business.driveProcessedFolderId = null;
+          // driveArchiveFolderId no longer used — left untouched. Old
+          // rows that have it set keep their value; nothing reads it.
         }
       }
-      if (business.driveFolderId) {
+      // Three states per business:
+      //   (a) no parent folder yet         → create parent + inbox + processed
+      //   (b) parent exists, sub-folders missing  → backfill sub-folders
+      //   (c) parent + inbox + processed  → skip (still re-share)
+      // Archive sub-folder isn't checked any more — see ensureBusinessFolder
+      // / ensureInboxAndProcessed: archive/ stopped being created when we
+      // moved to "DB status is the source of truth, files stay in processed/".
+      const subFoldersMissing =
+        !business.driveInboxFolderId
+        || !business.driveProcessedFolderId;
+
+      if (business.driveFolderId && !subFoldersMissing) {
         skippedBusinessFolders++;
-        // Existing folder — still re-apply shares (idempotent) so a delegation
-        // added AFTER the folder was created gets backfilled.
         if (extraEmails.length > 0) {
           await this.shareFolderWithMany(
             business.driveFolderId,
@@ -702,19 +776,42 @@ export class UsersService {
         }
         continue;
       }
+
       try {
         const displayName =
           business.businessName?.trim() || `business-${business.businessNumber ?? business.id}`;
-        const businessFolderId = await this.googleDriveService.ensureBusinessFolder(
-          user.driveFolderId,
-          displayName,
-        );
-        business.driveFolderId = businessFolderId;
+
+        if (!business.driveFolderId) {
+          // (a) Brand-new business: create parent + inbox + processed in
+          // one shot via ensureBusinessFolder.
+          const folders = await this.googleDriveService.ensureBusinessFolder(
+            user.driveFolderId,
+            displayName,
+          );
+          business.driveFolderId          = folders.folderId;
+          business.driveInboxFolderId     = folders.inboxFolderId;
+          business.driveProcessedFolderId = folders.processedFolderId;
+          createdBusinessFolders++;
+          this.logger.log(
+            `[Drive] ✓ created business folder ${folders.folderId} + inbox/processed ("${displayName}", biz=${business.businessNumber}) for ${userTag}`,
+          );
+        } else {
+          // (b) Existing business folder, but the sub-folder ids on the row
+          // are NULL — typical for businesses created before this refactor.
+          // ensureInboxAndProcessed is find-or-create so this is safe
+          // even if the folders were partially created in a previous run.
+          const subFolders = await this.googleDriveService.ensureInboxAndProcessed(
+            business.driveFolderId,
+          );
+          business.driveInboxFolderId     = subFolders.inboxFolderId;
+          business.driveProcessedFolderId = subFolders.processedFolderId;
+          createdBusinessFolders++;
+          this.logger.log(
+            `[Drive] ✓ backfilled inbox/processed under existing folder ${business.driveFolderId} ("${displayName}", biz=${business.businessNumber}) for ${userTag}`,
+          );
+        }
+
         await this.business_repo.save(business);
-        createdBusinessFolders++;
-        this.logger.log(
-          `[Drive] ✓ created business folder ${businessFolderId} ("${displayName}", biz=${business.businessNumber}) for ${userTag}`,
-        );
       } catch (error) {
         failedBusinessFolders++;
         this.logger.error(
@@ -804,20 +901,127 @@ export class UsersService {
    * Snapshot of which Drive folders this user already has — used by the login
    * banner so the dev can see at a glance whether the lazy backfill is needed.
    */
+  /**
+   * Snapshot for the login banner. For each folder we want to track, return
+   * BOTH the DB state (is the ID stored?) AND the Drive reality (does a
+   * folder with that name/id actually exist in Drive?). The two can diverge
+   * — most commonly when the demo-data wipe nullifies DB columns but leaves
+   * Drive folders alone. The banner uses both to print accurate "will
+   * link to existing" vs "will create new" actions.
+   *
+   * Drive checks are best-effort: a Drive outage falls back to "unknown"
+   * (`driveExists: null`) rather than failing the whole login.
+   */
   async getDriveProvisioningStatus(firebaseId: string): Promise<{
-    hasUserFolder: boolean;
-    businessesTotal: number;
-    businessesWithFolder: number;
+    userRoot: {
+      expectedName: string;
+      hasDbId: boolean;
+      driveExists: boolean | null;   // null = couldn't check
+    };
+    businesses: Array<{
+      businessNumber: string | null;
+      businessName: string | null;
+      hasParent: boolean;
+      hasInbox: boolean;
+      hasProcessed: boolean;
+      complete: boolean;
+      /** Drive-side reality check for the business parent folder.
+       *    'ok'       — folder exists AND is a child of the current user root
+       *    'orphaned' — folder exists in Drive but isn't under the user root
+       *                 (typical after the previous user folder was deleted)
+       *    'dead'     — folder ID resolves to 404/trashed in Drive, OR no
+       *                 stored ID and no folder with the expected name found
+       *    'unknown'  — Drive check failed (auth/transient) */
+      parentDriveState: 'ok' | 'orphaned' | 'dead' | 'unknown';
+    }>;
   }> {
     const user = await this.user_repo.findOne({ where: { firebaseId } });
     if (!user) {
-      return { hasUserFolder: false, businessesTotal: 0, businessesWithFolder: 0 };
+      return {
+        userRoot: { expectedName: '(no user)', hasDbId: false, driveExists: null },
+        businesses: [],
+      };
     }
+
+    const expectedUserFolderName = this.buildDriveFolderName(user);
+    let userDriveExists: boolean | null = null;
+
+    if (user.driveFolderId) {
+      // We have an ID — does Drive still know about it?
+      try {
+        userDriveExists = await this.googleDriveService.folderExists(user.driveFolderId);
+      } catch {
+        userDriveExists = null;
+      }
+    } else {
+      // No DB ID — does a folder with the expected name already live under
+      // the Drive root? Tells the user "will LINK to existing" rather than
+      // the misleading "will create" when re-running after a demo wipe.
+      try {
+        const rootId = this.googleDriveService.getRootFolderId();
+        const found = await this.googleDriveService.findChildFolder(rootId, expectedUserFolderName);
+        userDriveExists = !!found;
+      } catch {
+        userDriveExists = null;
+      }
+    }
+
     const businesses = await this.business_repo.find({ where: { firebaseId } });
+
+    // Probe Drive for each business's parent. We resolve to three states
+    // (not two) — "ok / orphaned / dead" — so the banner can tell the user
+    // why their folders aren't visible even though the DB has IDs. Most
+    // common confusing case: ID resolves (folderExists=true) but the folder
+    // is parented under a now-dead user root, so the user never sees it.
+    const businessRows = await Promise.all(businesses.map(async b => {
+      const hasParent    = !!b.driveFolderId;
+      const hasInbox     = !!b.driveInboxFolderId;
+      const hasProcessed = !!b.driveProcessedFolderId;
+      // archive folder no longer used — see DriveBusinessFolders comment.
+
+      let parentDriveState: 'ok' | 'orphaned' | 'dead' | 'unknown' = 'unknown';
+      if (b.driveFolderId) {
+        try {
+          const parents = await this.googleDriveService.getFolderParents(b.driveFolderId);
+          if (parents === null) {
+            parentDriveState = 'dead';
+          } else if (user.driveFolderId && !parents.includes(user.driveFolderId)) {
+            parentDriveState = 'orphaned';
+          } else {
+            parentDriveState = 'ok';
+          }
+        } catch {
+          parentDriveState = 'unknown';
+        }
+      } else if (b.businessName && user.driveFolderId) {
+        // No stored parent — see if a folder with the expected name already
+        // exists under the user root (find-or-create will link to it).
+        try {
+          const found = await this.googleDriveService.findChildFolder(user.driveFolderId, b.businessName);
+          parentDriveState = found ? 'ok' : 'dead';
+        } catch {
+          parentDriveState = 'unknown';
+        }
+      }
+
+      return {
+        businessNumber: b.businessNumber,
+        businessName: b.businessName,
+        hasParent,
+        hasInbox,
+        hasProcessed,
+        complete: hasParent && hasInbox && hasProcessed,
+        parentDriveState,
+      };
+    }));
+
     return {
-      hasUserFolder: !!user.driveFolderId,
-      businessesTotal: businesses.length,
-      businessesWithFolder: businesses.filter(b => !!b.driveFolderId).length,
+      userRoot: {
+        expectedName: expectedUserFolderName,
+        hasDbId: !!user.driveFolderId,
+        driveExists: userDriveExists,
+      },
+      businesses: businessRows,
     };
   }
 

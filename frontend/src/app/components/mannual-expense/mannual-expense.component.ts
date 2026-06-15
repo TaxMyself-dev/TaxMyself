@@ -526,6 +526,11 @@ export class MannualExpenseComponent implements OnDestroy {
 
 
 
+    /** Exact category name the equipment checkbox auto-fills. Must match a
+     *  category seeded in the DB; otherwise the locked select renders empty
+     *  because PrimeNG's p-select needs the value to exist in [items]. */
+    private readonly EQUIPMENT_CATEGORY_NAME = "רכוש קבוע (פחת)";
+
     mode = input<'add' | 'edit'>("add");
 
     formBuilder = inject(FormBuilder);
@@ -672,10 +677,13 @@ export class MannualExpenseComponent implements OnDestroy {
             this.isEquipmentChecked.set(isChecked || false);
             
             if (isChecked) {
-                // Set category to "רכוש קבוע" automatically
-                this.mannualExpenseForm.patchValue({ category: "רכוש קבוע" }, { emitEvent: true });
-                // Trigger subcategory load
-                this.getSubCategory("רכוש קבוע");
+                // Set category to the equipment category automatically.
+                // The subcategory fetch (via $selectedCategory) is deferred to
+                // the effect below — it waits until $categoriesOptions has
+                // loaded, which implies a business is selected. Otherwise the
+                // resource would fetch without a businessNumber header and the
+                // backend rejects with 500.
+                this.mannualExpenseForm.patchValue({ category: this.EQUIPMENT_CATEGORY_NAME }, { emitEvent: true });
                 // Set taxPercent to 0 and clear validators
                 this.mannualExpenseForm.patchValue({ taxPercent: 0 }, { emitEvent: false });
                 const taxPercentControl = this.mannualExpenseForm.get('taxPercent');
@@ -686,9 +694,9 @@ export class MannualExpenseComponent implements OnDestroy {
                 reductionPercentControl?.setValidators([Validators.required, Validators.min(0), Validators.max(100)]);
                 reductionPercentControl?.updateValueAndValidity({ emitEvent: false });
             } else {
-                // Clear category only if it was "רכוש קבוע"
+                // Clear category only if it was the equipment category
                 const currentCategory = this.mannualExpenseForm.get('category')?.value;
-                if (currentCategory === "רכוש קבוע") {
+                if (currentCategory === this.EQUIPMENT_CATEGORY_NAME) {
                     this.mannualExpenseForm.patchValue({ category: null as any }, { emitEvent: true });
                 }
                 // Restore taxPercent validators
@@ -701,6 +709,30 @@ export class MannualExpenseComponent implements OnDestroy {
                 reductionPercentControl?.clearValidators();
                 reductionPercentControl?.setValidators([Validators.min(0), Validators.max(100)]);
                 reductionPercentControl?.updateValueAndValidity({ emitEvent: false });
+            }
+        });
+
+        // Re-sync the equipment category when the categories list finishes
+        // loading. The user can tick "רכוש קבוע" before selecting a business,
+        // which means the patchValue above runs while $categoriesOptions() is
+        // still empty — PrimeNG's p-select then has no matching item to
+        // display and shows the "בחר קטגוריה" placeholder. Once the categories
+        // list arrives (after business is picked, or on initial load for
+        // single-business users), this effect re-patches so the locked select
+        // renders the value.
+        effect(() => {
+            if (!this.isEquipmentChecked()) return;
+            const options = this.mannualExpenseService.$categoriesOptions();
+            if (!options || options.length === 0) return;
+            const ctrl = this.mannualExpenseForm.get('category');
+            if (ctrl && ctrl.value !== this.EQUIPMENT_CATEGORY_NAME) {
+                ctrl.setValue(this.EQUIPMENT_CATEGORY_NAME, { emitEvent: false });
+            }
+            // Ensure subcategories also load (the resource keys off
+            // $selectedCategory, which we set here in case the initial
+            // valueChanges fired before the business was chosen).
+            if (this.mannualExpenseService.$selectedCategory() !== this.EQUIPMENT_CATEGORY_NAME) {
+                this.mannualExpenseService.$selectedCategory.set(this.EQUIPMENT_CATEGORY_NAME);
             }
         });
 
@@ -971,7 +1003,10 @@ export class MannualExpenseComponent implements OnDestroy {
                 }),
                 switchMap((filePath) => {
                     const payload = this.buildExpensePayload(filePath);
-                    const raw = this.mannualExpenseForm.value;
+                    // getRawValue — see buildExpensePayload for the disabled-
+                    // control rationale. Otherwise raw.category is undefined
+                    // when "רכוש קבוע" is checked.
+                    const raw = this.mannualExpenseForm.getRawValue();
                     const save$ = (this.editMode && this.expenseId != null)
                         ? this.expenseDataService.updateExpenseData(payload, this.expenseId)
                         : this.expenseDataService.addExpenseData(payload);
@@ -1089,7 +1124,11 @@ export class MannualExpenseComponent implements OnDestroy {
     }
 
     private buildExpensePayload(filePath: string | null): any {
-        const raw = this.mannualExpenseForm.value;
+        // getRawValue (not .value) so disabled controls are included. The
+        // category control is disabled via UI when "רכוש קבוע" is checked, and
+        // Angular's FormGroup.value strips disabled fields — which sent
+        // category: undefined to the backend and tripped @IsString().
+        const raw = this.mannualExpenseForm.getRawValue();
         const dateForApi = this.toApiDateString(raw.date) ?? raw.date;
         const enteredSum = this.toNumberOrNull(raw.sum);
         const currency = (raw.currency ?? 'ILS').toUpperCase();

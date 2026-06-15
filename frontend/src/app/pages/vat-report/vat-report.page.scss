@@ -7,6 +7,24 @@
   align-items: center;
 }
 
+// Loader shown between submit ("הצג") and the next visible UI (review
+// dialog OR report rows). Centered on a generous block so the user
+// can't miss it during the 1-3s previewCheck + report fetch chain.
+.report-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 48px 24px;
+  font-size: 1rem;
+  color: #4b5563;
+
+  i {
+    font-size: 1.4rem;
+    color: #1d4ed8;
+  }
+}
+
 .redirect-prompt-body {
   display: flex;
   align-items: center;

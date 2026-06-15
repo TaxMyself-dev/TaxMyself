@@ -20,7 +20,6 @@ import { FormBuilder, FormGroup } from '@angular/forms';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
 import { MannualExpenseComponent } from 'src/app/components/mannual-expense/mannual-expense.component';
-import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 
 @Component({
   selector: 'app-expenses',
@@ -62,19 +61,6 @@ export class ExpensesPage implements OnInit {
   myExpenses: any;          // P&L (regular) expenses — bound to the main table
   myAnnualExpenses: any;    // annual-report-only expenses — separate section
   fileActions = signal<ITableRowAction[]>([]);
-
-  // "משוך מסמכים מ-Drive" dialog
-  pullDriveDialogVisible = signal<boolean>(false);
-  readonly ButtonColor = ButtonColor;
-  readonly ButtonSize = ButtonSize;
-
-  openPullDriveDialog(): void {
-    this.pullDriveDialogVisible.set(true);
-  }
-
-  onPullDriveDialogVisibleChange(visible: boolean): void {
-    this.pullDriveDialogVisible.set(visible);
-  }
 
   // ===========================
   // Table config

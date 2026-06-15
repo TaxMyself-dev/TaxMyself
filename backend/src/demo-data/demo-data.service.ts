@@ -1,5 +1,6 @@
 import {
   ConflictException,
+  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
@@ -7,6 +8,8 @@ import {
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, EntityManager, In } from 'typeorm';
 import * as admin from 'firebase-admin';
+import * as fs from 'fs/promises';
+import * as path from 'path';
 import {
   BusinessStatus,
   BusinessType,
@@ -36,6 +39,7 @@ import { Documents } from 'src/documents/documents.entity';
 import { DocLines } from 'src/documents/doc-lines.entity';
 import { DocPayments } from 'src/documents/doc-payments.entity';
 import { SettingDocuments } from 'src/documents/settingDocuments.entity';
+import { ExtractedDocument } from 'src/documents/extracted-document.entity';
 import { Clients } from 'src/clients/clients.entity';
 import { JournalEntry } from 'src/bookkeeping/jouranl-entry.entity';
 import { JournalLine } from 'src/bookkeeping/jouranl-line.entity';
@@ -45,8 +49,10 @@ import { Child } from 'src/users/child.entity';
 import { AccountantTask } from 'src/accountant-tasks/accountant-task.entity';
 import { ReportWorkflow } from 'src/report-workflow/report-workflow.entity';
 import { AnnualReport } from 'src/annual-report/annual-report.entity';
-import { DEMO_PROFILES } from './profiles';
+import { DEMO_PROFILES, findDemoProfileByEmail } from './profiles';
 import { DemoClient, DemoProfile, DemoSeedable } from './demo-profile.types';
+import { GoogleDriveService, ServiceAccountQuotaError } from 'src/google-drive/google-drive.service';
+import { FxRateService } from 'src/shared/fx-rate.service';
 
 export interface DemoSubUser {
   firebaseId?: string;
@@ -74,6 +80,10 @@ export interface DemoSeedResult {
   password: string;
   /** firebaseId + creds for each delegated client created. */
   clients?: DemoSubUser[];
+  /** Set when the profile opted into Drive sample uploads via
+   *  `seedDriveFiles`. Includes the inbox folder URL so the admin can
+   *  jump straight to it if manual drop is needed. */
+  driveInbox?: DriveSeedInfo;
 }
 
 export interface DemoResetResult {
@@ -81,11 +91,41 @@ export interface DemoResetResult {
   deletedRows: Record<string, number>;
 }
 
+export interface DemoTestResetResult {
+  /** Files removed from inbox/processed/archive across every business. */
+  filesDeleted: number;
+  /** Per-table row counts that were purged or reset. */
+  dbRowsReset: Record<string, number>;
+  /** Number of sample PDFs re-uploaded to the demo user's inbox/. */
+  filesUploaded: number;
+  /** Populated when the profile has `seedDriveFiles` — points at the
+   *  inbox folder the admin/user might need to drag files into. */
+  driveInbox?: DriveSeedInfo;
+}
+
+/**
+ * Info about the demo user's inbox/ folder after seed/reset — surfaced
+ * so the admin (or the demo user via the dashboard reset toast) knows
+ * where to drop files when the service account can't upload them itself.
+ */
+export interface DriveSeedInfo {
+  inboxFolderId: string;
+  inboxFolderUrl: string;
+  filesUploaded: number;
+  /** True when uploads were blocked by the service-account quota wall.
+   *  Caller should tell the admin to drag the PDFs in manually. */
+  needsManualUpload: boolean;
+}
+
 @Injectable()
 export class DemoDataService {
   private readonly logger = new Logger(DemoDataService.name);
 
-  constructor(@InjectDataSource() private readonly dataSource: DataSource) {}
+  constructor(
+    @InjectDataSource() private readonly dataSource: DataSource,
+    private readonly driveService: GoogleDriveService,
+    private readonly fxRateService: FxRateService,
+  ) {}
 
   // ---------------- Public API ----------------
 
@@ -213,6 +253,28 @@ export class DemoDataService {
       throw dbErr;
     }
 
+    // 4. Drive provisioning + sample-file upload (opt-in per profile).
+    //    Runs OUTSIDE the DB transaction so a Drive outage doesn't roll back
+    //    the seed. Errors are caught and logged at ERROR level WITH the
+    //    stack trace — the admin keeps a valid demo user even if Drive is
+    //    down, and clicking "אפס נתוני בדיקה" from the dashboard re-runs
+    //    this same code path to fill the gap.
+    let driveInbox: DriveSeedInfo | undefined = undefined;
+    if (profile.seedDriveFiles) {
+      try {
+        const result = await this.provisionDriveAndSamplesForProfile(primaryFirebaseId, profile);
+        if (result) driveInbox = result;
+      } catch (driveErr) {
+        this.logger.error(
+          `[demo-data] Drive provisioning FAILED for ${profile.id} ` +
+            `(DB seed still committed — click "אפס נתוני בדיקה" to retry): ${
+              (driveErr as Error)?.message ?? driveErr
+            }`,
+          (driveErr as Error)?.stack,
+        );
+      }
+    }
+
     return {
       firebaseId: primaryFirebaseId,
       email: profile.email,
@@ -225,7 +287,194 @@ export class DemoDataService {
             label: `${client.user.fName} ${client.user.lName}`,
           }))
         : undefined,
+      driveInbox,
     };
+  }
+
+  /**
+   * In-app reset endpoint backing the "אפס נתוני בדיקה" dashboard button.
+   * Called by a demo user logged in as themselves (NOT an admin). Wipes
+   * every file out of Drive (inbox/processed/archive) for every business,
+   * purges OCR/expense/document rows, then re-creates the OB cache rows
+   * from the profile and re-uploads the sample PDFs.
+   *
+   * Distinct from `resetProfile`, which destroys the user entirely
+   * (Firebase + every DB row) — testReset preserves the user identity so
+   * the caller's session stays valid; only the test-state derived data is
+   * rewound.
+   */
+  async testReset(firebaseId: string): Promise<DemoTestResetResult> {
+    console.log(`[test-reset] ENTRY fid=${firebaseId.substring(0, 8)}...`);
+
+    const userRepo = this.dataSource.getRepository(User);
+    const user = await userRepo.findOne({ where: { firebaseId } });
+    if (!user) {
+      console.log(`[test-reset] ABORT — user not found in DB for fid=${firebaseId.substring(0, 8)}...`);
+      throw new NotFoundException('User not found');
+    }
+    console.log(`[test-reset] loaded user email=${user.email} index=${user.index}`);
+
+    const profile = findDemoProfileByEmail(user.email);
+    if (!profile) {
+      console.log(`[test-reset] ABORT — email "${user.email}" not in DEMO_PROFILES`);
+      throw new ForbiddenException(
+        'אפס נתוני בדיקה זמין רק למשתמשי דמו',
+      );
+    }
+    console.log(`[test-reset] resolved profile=${profile.id}`);
+
+    const businessRepo = this.dataSource.getRepository(Business);
+    const businesses = await businessRepo.find({ where: { firebaseId } });
+    const businessNumbers = businesses
+      .map((b) => b.businessNumber)
+      .filter((n): n is string => !!n);
+    console.log(`[test-reset] loaded ${businesses.length} business(es), businessNumbers=[${businessNumbers.join(',')}]`);
+
+    // 1. Wipe every file from every demo Drive folder (inbox, processed,
+    //    archive). Per-folder + per-file errors are logged but never abort
+    //    the wider reset — partial cleanup is better than no cleanup. Logs
+    //    use console.error so they bypass NestJS log-level filtering during
+    //    debugging; revert to logger.log once we trust the flow.
+    console.log(`[test-reset] START drive cleanup for ${businesses.length} business(es)`);
+    let filesDeleted = 0;
+    for (const b of businesses) {
+      // archive/ entry kept here so legacy Business rows that still have a
+      // non-null driveArchiveFolderId from before the simplification get
+      // their old archive folder wiped on testReset too. New rows have it
+      // null and the loop just skips. Once the column is dropped via
+      // migration this entry can go.
+      const folderEntries: Array<{ name: 'inbox' | 'processed' | 'archive'; id: string | null }> = [
+        { name: 'inbox',     id: b.driveInboxFolderId },
+        { name: 'processed', id: b.driveProcessedFolderId },
+        { name: 'archive',   id: b.driveArchiveFolderId },
+      ];
+      for (const { name, id: folderId } of folderEntries) {
+        if (!folderId) {
+          console.log(`[test-reset] biz=${b.businessNumber} ${name}: no folderId on Business row — skipping`);
+          continue;
+        }
+        try {
+          const files = await this.driveService.listFolderFiles(folderId);
+          let deletedHere = 0;
+          let failedHere = 0;
+          for (const f of files) {
+            try {
+              await this.driveService.deleteFile(f.id);
+              deletedHere++;
+              filesDeleted++;
+            } catch (delErr) {
+              failedHere++;
+              console.log(
+                `[test-reset] biz=${b.businessNumber} ${name}: FAILED to delete "${f.name}" (${f.id}): ${
+                  (delErr as Error)?.message ?? delErr
+                }`,
+              );
+            }
+          }
+          console.log(
+            `[test-reset] biz=${b.businessNumber} ${name}: listed=${files.length} deleted=${deletedHere} failed=${failedHere}`,
+          );
+        } catch (listErr) {
+          console.log(
+            `[test-reset] biz=${b.businessNumber} ${name}: list FAILED for folderId=${folderId}: ${
+              (listErr as Error)?.message ?? listErr
+            }`,
+          );
+        }
+      }
+    }
+
+    // 2. Purge derived rows. Same FK-checks-off pattern as resetProfile so
+    //    we don't trip over the document → expense chain.
+    const dbRowsReset: Record<string, number> = {};
+    await this.dataSource.transaction(async (m) => {
+      await m.query('SET FOREIGN_KEY_CHECKS = 0');
+      try {
+        // Documents (issued by the user) — scoped by issuerBusinessNumber.
+        if (businessNumbers.length > 0) {
+          dbRowsReset.docLines =
+            (await m.delete(DocLines, {
+              issuerBusinessNumber: In(businessNumbers),
+            })).affected ?? 0;
+          dbRowsReset.docPayments =
+            (await m.delete(DocPayments, {
+              issuerBusinessNumber: In(businessNumbers),
+            })).affected ?? 0;
+          dbRowsReset.documents =
+            (await m.delete(Documents, {
+              issuerBusinessNumber: In(businessNumbers),
+            })).affected ?? 0;
+        }
+
+        // ExtractedDocument is keyed by `userId = user.index` (an int) but
+        // we wipe by `businessNumber` here. Every reseed of a demo profile
+        // creates a new Firebase user with a fresh `index`; old rows from
+        // previous incarnations stay behind and get re-paired by the matcher
+        // (which queries by businessNumber), leaving the current user's
+        // brand-new rows showing as doc_only in the review UI. Scoping by
+        // businessNumber catches all those orphans at once.
+        if (businessNumbers.length > 0) {
+          dbRowsReset.extractedDocuments =
+            (await m.delete(ExtractedDocument, {
+              businessNumber: In(businessNumbers),
+            })).affected ?? 0;
+        }
+
+        // Bookkeeping rows derived from the test data.
+        dbRowsReset.expenses =
+          (await m.delete(Expense, { userId: firebaseId })).affected ?? 0;
+        dbRowsReset.incomes =
+          (await m.delete(Income, { userId: firebaseId })).affected ?? 0;
+        dbRowsReset.suppliers =
+          (await m.delete(Supplier, { userId: firebaseId })).affected ?? 0;
+
+        // Transaction chain — wipe then re-insert from profile.transactions
+        // so daysAgo offsets get recomputed relative to today.
+        dbRowsReset.slimTransactions =
+          (await m.delete(SlimTransaction, { userId: firebaseId })).affected ?? 0;
+        dbRowsReset.classifiedRules =
+          (await m.delete(ClassifiedTransactions, { userId: firebaseId })).affected ?? 0;
+        dbRowsReset.fullCache =
+          (await m.delete(FullTransactionCache, { userId: firebaseId })).affected ?? 0;
+
+        // Rebuild full_transaction_cache from the profile template — uses
+        // the same shape as seedUserAndData's step 4 so dates anchor to
+        // "today" again, and looks up live bill ids by name so the
+        // pre-association survives the wipe.
+        const rebuiltCacheRows = await this.buildCacheRowsFromProfile(m, firebaseId, profile);
+        if (rebuiltCacheRows.length > 0) {
+          await m.insert(FullTransactionCache, rebuiltCacheRows);
+        }
+        dbRowsReset.fullCacheReseeded = rebuiltCacheRows.length;
+      } finally {
+        await m.query('SET FOREIGN_KEY_CHECKS = 1');
+      }
+    });
+
+    // 3. Re-upload sample PDFs into the first business's inbox/. If the
+    //    folder isn't provisioned yet (e.g. user signed in once without
+    //    triggering provisioning), run the Drive provisioning now too.
+    let driveInbox: DriveSeedInfo | undefined = undefined;
+    if (profile.seedDriveFiles) {
+      try {
+        const result = await this.provisionDriveAndSamplesForProfile(firebaseId, profile);
+        if (result) driveInbox = result;
+      } catch (driveErr) {
+        this.logger.warn(
+          `[demo-data] testReset Drive upload failed for ${profile.id}: ${
+            (driveErr as Error)?.message ?? driveErr
+          }`,
+        );
+      }
+    }
+
+    const filesUploaded = driveInbox?.filesUploaded ?? 0;
+    console.log(
+      `[test-reset] DONE ${profile.id} fid=${firebaseId.substring(0, 8)}... | ` +
+        `filesDeleted=${filesDeleted} filesUploaded=${filesUploaded} | dbRowsReset=${JSON.stringify(dbRowsReset)}`,
+    );
+
+    return { filesDeleted, dbRowsReset, filesUploaded, driveInbox };
   }
 
   async resetProfile(profileId: string): Promise<DemoResetResult> {
@@ -476,12 +725,27 @@ export class DemoDataService {
     const todayUtc = new Date(
       Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()),
     );
-    const cacheRows = data.transactions.map((t, i) => {
+    // Build rows sequentially with await — FX rate lookups go through
+    // FxRateService which caches per (date, currency), so repeat calls
+    // are cheap. Using the SAME rate source the OCR pipeline uses means
+    // a demo USD transaction and an OCR'd USD invoice on the same date
+    // end up with identical ilsAmount values — without this, the matcher
+    // can't pair foreign-currency rows because both sides disagree by
+    // whatever gap exists between the BOI live rate and any hardcoded
+    // fallback we'd otherwise have used here.
+    const cacheRows: Array<Partial<FullTransactionCache>> = [];
+    for (let i = 0; i < data.transactions.length; i++) {
+      const t = data.transactions[i];
       const txDate = new Date(todayUtc);
       txDate.setUTCDate(txDate.getUTCDate() - t.daysAgo);
 
-      // billKey omitted → unassigned transaction (billId/billName null);
-      // billKey set → resolve to that bill and inherit its paymentIdentifier.
+      // billKey omitted → unassigned transaction (billId/billName null).
+      // billKey set → pre-associate to that bill. The transaction's own
+      // `paymentIdentifier` wins when explicitly set (so a single bill can
+      // back multiple sources — typical: one bill with BANK + CARD sources,
+      // each transaction tagged with the matching identifier). Only fall
+      // back to the bill's first source when the transaction didn't carry
+      // its own identifier.
       let billId: number | null = null;
       let billName: string | null = null;
       let paymentIdentifier: string | null = t.paymentIdentifier ?? null;
@@ -494,17 +758,16 @@ export class DemoDataService {
         }
         billId = resolved;
         billName = billNameByKey[t.billKey] ?? null;
-        paymentIdentifier = paymentIdentifierByBillKey[t.billKey] ?? null;
+        if (paymentIdentifier == null) {
+          paymentIdentifier = paymentIdentifierByBillKey[t.billKey] ?? null;
+        }
       }
 
       const currency = t.currency ?? 'ILS';
-      // Hardcoded demo FX rates so seeding has zero external dependency.
-      // Real syncs go through FxRateService → BOI; the demo just needs
-      // believable values for the תזרים "₪Y" parenthesis to render.
-      const DEMO_FX_RATES: Record<string, number> = { USD: 3.7, EUR: 4.0, GBP: 4.7 };
-      const fxRate = currency === 'ILS' ? null : (DEMO_FX_RATES[currency] ?? null);
+      const fxRate =
+        currency === 'ILS' ? null : await this.fxRateService.getRate(txDate, currency);
       const ilsAmount = fxRate != null ? Number((t.amount * fxRate).toFixed(2)) : null;
-      return {
+      cacheRows.push({
         externalTransactionId: `${externalIdPrefix}-${i}`,
         userId: firebaseId,
         billId,
@@ -523,8 +786,8 @@ export class DemoDataService {
         taxPercent: 0,
         reductionPercent: 0,
         isEquipment: false,
-      };
-    });
+      });
+    }
     if (cacheRows.length > 0) {
       await m.insert(FullTransactionCache, cacheRows);
     }
@@ -597,6 +860,12 @@ export class DemoDataService {
       await inc('documents', this.deleteAndCount(m, Documents, { issuerBusinessNumber: In(businessNumbers) }));
       await inc('journalLines', this.deleteAndCount(m, JournalLine, { issuerBusinessNumber: In(businessNumbers) }));
       await inc('journalEntries', this.deleteAndCount(m, JournalEntry, { issuerBusinessNumber: In(businessNumbers) }));
+      // ExtractedDocument is OCR output keyed by businessNumber. Scoping by
+      // businessNumber (not user.index) so re-seeds of a demo profile don't
+      // leave orphans tied to the previous Firebase user's index — the
+      // matcher reads by businessNumber and would otherwise pair stale
+      // orphans with the new user's slim transactions.
+      await inc('extractedDocuments', this.deleteAndCount(m, ExtractedDocument, { businessNumber: In(businessNumbers) }));
     }
 
     // Workflow / collaboration side.
@@ -636,6 +905,309 @@ export class DemoDataService {
       if (e?.code === 'ER_NO_SUCH_TABLE') return 0;
       throw e;
     }
+  }
+
+  /**
+   * Provision Drive folders for the profile's primary user (idempotent
+   * find-or-create) and upload every PDF in `profile.seedDriveFiles.sourceDir`
+   * into the first business's inbox/. Returns the number of files uploaded.
+   *
+   * Called from both the initial seed (post-DB-commit) and the test-reset
+   * endpoint (post-DB-wipe). Idempotent — re-running it on an already-
+   * provisioned user just refreshes the inbox.
+   *
+   * Each step logs with `[demo-data][drive]` so a partial failure is easy
+   * to trace from the backend log. An unrecoverable step (no user found,
+   * no businesses, business-folder create throws, sample dir missing)
+   * throws here and the caller decides whether to surface or swallow.
+   */
+  private async provisionDriveAndSamplesForProfile(
+    firebaseId: string,
+    profile: DemoProfile,
+  ): Promise<DriveSeedInfo | null> {
+    if (!profile.seedDriveFiles) {
+      this.logger.log(
+        `[demo-data][drive] profile ${profile.id} has no seedDriveFiles — skipping`,
+      );
+      return null;
+    }
+
+    const tag = `profile=${profile.id} fid=${firebaseId.substring(0, 8)}...`;
+    this.logger.log(`[demo-data][drive] START ${tag}`);
+
+    // ── Step 1: locate the User row written by the DB transaction. ──
+    const userRepo = this.dataSource.getRepository(User);
+    const user = await userRepo.findOne({ where: { firebaseId } });
+    if (!user) {
+      throw new Error(
+        `[demo-data][drive] user ${firebaseId} not found in DB after seed — txn might not have committed`,
+      );
+    }
+    this.logger.log(
+      `[demo-data][drive] step 1: loaded User index=${user.index} email=${user.email} (existing driveFolderId=${user.driveFolderId ?? '∅'}) ${tag}`,
+    );
+
+    // ── Step 2: user-root Drive folder (find-or-create). ──
+    const folderName = `${user.fName ?? ''} ${user.lName ?? ''}`.trim() || user.email;
+    this.logger.log(
+      `[demo-data][drive] step 2: createUserFolder name="${folderName}" share=${user.email} ${tag}`,
+    );
+    let userFolderId: string;
+    try {
+      userFolderId = await this.driveService.createUserFolder(folderName, user.email);
+    } catch (err) {
+      this.logger.error(
+        `[demo-data][drive] step 2 FAILED ${tag}: ${(err as Error)?.message ?? err}`,
+        (err as Error)?.stack,
+      );
+      throw err;
+    }
+    this.logger.log(`[demo-data][drive] step 2 OK userFolderId=${userFolderId} ${tag}`);
+
+    if (user.driveFolderId !== userFolderId) {
+      await userRepo.update({ firebaseId }, { driveFolderId: userFolderId });
+      this.logger.log(`[demo-data][drive] persisted user.driveFolderId=${userFolderId} ${tag}`);
+    }
+
+    // ── Step 3: load Businesses written by the same DB transaction. ──
+    const businessRepo = this.dataSource.getRepository(Business);
+    const businesses = await businessRepo.find({ where: { firebaseId } });
+    this.logger.log(
+      `[demo-data][drive] step 3: loaded ${businesses.length} business(es) for ${tag}`,
+    );
+    if (businesses.length === 0) {
+      throw new Error(
+        `[demo-data][drive] no Business rows for firebaseId=${firebaseId} — profile/seed bug, can't provision inbox`,
+      );
+    }
+
+    // ── Step 4: per-business folder + inbox/processed/archive trio. ──
+    let firstInboxFolderId: string | null = null;
+    for (const b of businesses) {
+      this.logger.log(
+        `[demo-data][drive] step 4: ensureBusinessFolder biz=${b.businessNumber} name="${b.businessName}" under userFolderId=${userFolderId} ${tag}`,
+      );
+      let folders;
+      try {
+        folders = await this.driveService.ensureBusinessFolder(
+          userFolderId,
+          b.businessName,
+        );
+      } catch (err) {
+        this.logger.error(
+          `[demo-data][drive] step 4 FAILED for biz=${b.businessNumber} ("${b.businessName}") ${tag}: ${(err as Error)?.message ?? err}`,
+          (err as Error)?.stack,
+        );
+        throw err;
+      }
+      this.logger.log(
+        `[demo-data][drive] step 4 OK biz=${b.businessNumber} folderId=${folders.folderId} inbox=${folders.inboxFolderId} processed=${folders.processedFolderId} ${tag}`,
+      );
+
+      // Persist with a targeted update — avoids touching unrelated columns
+      // (createdAt audit columns, etc.) that a full `.save(entity)` might.
+      // driveArchiveFolderId is no longer written by the provisioner; old
+      // values stay in place on legacy rows but nothing reads them.
+      await businessRepo.update(
+        { id: b.id },
+        {
+          driveFolderId: folders.folderId,
+          driveInboxFolderId: folders.inboxFolderId,
+          driveProcessedFolderId: folders.processedFolderId,
+        },
+      );
+
+      if (firstInboxFolderId == null) firstInboxFolderId = folders.inboxFolderId;
+    }
+
+    if (!firstInboxFolderId) {
+      throw new Error(
+        `[demo-data][drive] no inbox folder resolved for ${firebaseId} after ensureBusinessFolder loop`,
+      );
+    }
+
+    // ── Step 5: upload sample PDFs. ──
+    this.logger.log(
+      `[demo-data][drive] step 5: uploadSampleFiles inbox=${firstInboxFolderId} sourceDir=${profile.seedDriveFiles.sourceDir} ${tag}`,
+    );
+    const result = await this.uploadSampleFiles(
+      firstInboxFolderId,
+      profile.seedDriveFiles.sourceDir,
+    );
+    this.logger.log(
+      `[demo-data][drive] step 5 OK uploaded=${result.uploaded} quotaBlocked=${result.quotaBlocked} ${tag}`,
+    );
+    this.logger.log(`[demo-data][drive] DONE ${tag}`);
+    return {
+      inboxFolderId: firstInboxFolderId,
+      inboxFolderUrl: this.driveService.getFolderUrl(firstInboxFolderId),
+      filesUploaded: result.uploaded,
+      needsManualUpload: result.quotaBlocked,
+    };
+  }
+
+  /**
+   * Read every .pdf in `sourceDir` and upload it to `inboxFolderId`.
+   * Resolves `sourceDir` against the current working directory first, then
+   * one level up (covers both `backend/` and repo-root cwd in dev) and the
+   * dist-relative fallback for prod. Skips silently if the directory can't
+   * be found anywhere — the seed shouldn't blow up on a missing sample dir.
+   */
+  private async uploadSampleFiles(
+    inboxFolderId: string,
+    sourceDir: string,
+  ): Promise<{ uploaded: number; quotaBlocked: boolean }> {
+    const candidates = [
+      path.resolve(process.cwd(), sourceDir),
+      path.resolve(process.cwd(), '..', sourceDir),
+      path.resolve(__dirname, '..', '..', '..', sourceDir),
+    ];
+
+    let resolvedDir: string | null = null;
+    for (const c of candidates) {
+      try {
+        const stat = await fs.stat(c);
+        if (stat.isDirectory()) { resolvedDir = c; break; }
+      } catch {
+        // not present — try the next candidate
+      }
+    }
+
+    if (!resolvedDir) {
+      this.logger.warn(
+        `[demo-data] sample dir not found at any of: ${candidates.join(' | ')}`,
+      );
+      return { uploaded: 0, quotaBlocked: false };
+    }
+
+    const files = await fs.readdir(resolvedDir);
+    let uploaded = 0;
+    let quotaBlocked = false;
+    for (const name of files) {
+      if (!name.toLowerCase().endsWith('.pdf')) continue;
+      try {
+        const buf = await fs.readFile(path.join(resolvedDir, name));
+        await this.driveService.uploadFile(inboxFolderId, name, buf, 'application/pdf');
+        uploaded++;
+      } catch (e) {
+        if (e instanceof ServiceAccountQuotaError) {
+          // First file hit the quota wall — every subsequent file will hit
+          // the same error. Bail the loop instead of spamming the same
+          // warning N times; the higher-level provisioning code surfaces a
+          // single "drop them manually" message via the seed response.
+          quotaBlocked = true;
+          break;
+        }
+        this.logger.warn(
+          `[demo-data] failed to upload sample "${name}": ${(e as Error)?.message ?? e}`,
+        );
+      }
+    }
+    if (quotaBlocked) {
+      this.logger.warn(
+        `[demo-data] sample upload skipped — service-account quota wall. ` +
+          `Open the inbox folder in your Drive UI and drag the PDFs from ${resolvedDir} ` +
+          `manually. (Folder id: ${inboxFolderId})`,
+      );
+      return { uploaded: 0, quotaBlocked: true };
+    }
+    this.logger.log(
+      `[demo-data] uploaded ${uploaded} sample file(s) from ${resolvedDir} → ${inboxFolderId}`,
+    );
+    return { uploaded, quotaBlocked: false };
+  }
+
+  /**
+   * Mirror of seedUserAndData step 4 — rebuild the FullTransactionCache
+   * insert payload from a profile's `transactions` array. Shared between
+   * the initial seed (called inline) and the test-reset endpoint (called
+   * after wiping cache rows so daysAgo re-anchors to today). Mutating
+   * either site means mutating both.
+   */
+  private async buildCacheRowsFromProfile(
+    m: EntityManager,
+    firebaseId: string,
+    profile: DemoProfile,
+  ): Promise<Array<Partial<FullTransactionCache>>> {
+    const today = new Date();
+    const todayUtc = new Date(
+      Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()),
+    );
+    const externalIdPrefix = `demo-${profile.id}`;
+
+    // Resolve profile bill keys → live DB ids by billName (the only field
+    // shared between the profile template and the DB row). The bills
+    // survive testReset, so this lookup succeeds without re-creating them.
+    const billIdByKey: Record<string, number> = {};
+    const billNameByKey: Record<string, string> = {};
+    const firstSourceByKey: Record<string, string> = {};
+    if (profile.bills.length > 0) {
+      const billNames = profile.bills.map((b) => b.billName);
+      const dbBills = await m.find(Bill, {
+        where: { userId: firebaseId, billName: In(billNames) },
+      });
+      const idByName = new Map(dbBills.map((b) => [b.billName, b.id]));
+      for (const b of profile.bills) {
+        const dbId = idByName.get(b.billName);
+        if (dbId !== undefined) {
+          billIdByKey[b.key] = dbId;
+          billNameByKey[b.key] = b.billName;
+          if (b.sources[0]) firstSourceByKey[b.key] = b.sources[0].sourceName;
+        }
+      }
+    }
+
+    // Sequential await — FX rates come from the same BOI-backed service
+    // the OCR pipeline uses, so a USD demo tx on 2026-05-20 and a USD
+    // OCR'd doc on 2026-05-20 land on the IDENTICAL ilsAmount. Without
+    // matching rate sources, the matcher's ±1 NIS tolerance can't bridge
+    // the gap between a hardcoded fallback and the live BOI rate.
+    const out: Array<Partial<FullTransactionCache>> = [];
+    for (let i = 0; i < profile.transactions.length; i++) {
+      const t = profile.transactions[i];
+      const txDate = new Date(todayUtc);
+      txDate.setUTCDate(txDate.getUTCDate() - t.daysAgo);
+      const currency = t.currency ?? 'ILS';
+      const fxRate =
+        currency === 'ILS' ? null : await this.fxRateService.getRate(txDate, currency);
+      const ilsAmount = fxRate != null ? Number((t.amount * fxRate).toFixed(2)) : null;
+
+      // Same precedence rule as seedUserAndData step 4: when billKey is
+      // set, resolve to billId; transaction's own paymentIdentifier wins
+      // over the bill's first source.
+      let billId: number | null = null;
+      let billName: string | null = null;
+      let paymentIdentifier: string | null = t.paymentIdentifier ?? null;
+      if (t.billKey && billIdByKey[t.billKey] !== undefined) {
+        billId = billIdByKey[t.billKey];
+        billName = billNameByKey[t.billKey] ?? null;
+        if (paymentIdentifier == null) {
+          paymentIdentifier = firstSourceByKey[t.billKey] ?? null;
+        }
+      }
+
+      out.push({
+        externalTransactionId: `${externalIdPrefix}-${i}`,
+        userId: firebaseId,
+        billId,
+        billName,
+        businessNumber: t.businessNumberRef,
+        merchantName: t.merchantName,
+        paymentIdentifier,
+        transactionDate: txDate,
+        amount: t.amount,
+        currency,
+        ilsAmount,
+        fxRateToIls: fxRate,
+        confirmed: false,
+        isRecognized: false,
+        vatPercent: 0,
+        taxPercent: 0,
+        reductionPercent: 0,
+        isEquipment: false,
+      } as Partial<FullTransactionCache>);
+    }
+    return out;
   }
 
   private async deleteFirebaseUserByEmail(email: string): Promise<void> {

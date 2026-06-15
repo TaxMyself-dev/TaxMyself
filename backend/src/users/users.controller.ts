@@ -161,6 +161,44 @@ export class UsersController {
         };
     }
 
+    /**
+     * One-off backfill: walk every user and re-run provisionDriveStructure.
+     * For businesses whose Drive parent folder exists but the
+     * inbox/processed/archive sub-folder ids are NULL (typical for businesses
+     * created before the 2026-06-08 refactor), the service-layer logic
+     * creates the three sub-folders and persists their ids.
+     *
+     * Idempotent. Intended to be called once after deploy. Unauthenticated
+     * for curl convenience during dev — keep this gated behind something
+     * stricter before exposing publicly.
+     */
+    @Post('dev/drive/backfill-inbox-folders')
+    async devBackfillInboxFolders() {
+        const users = await this.userRepo.find();
+        const out = {
+            usersProcessed: 0,
+            usersFailed: 0,
+            failures: [] as Array<{ userIndex: number; error: string }>,
+        };
+        for (const user of users) {
+            try {
+                await this.userService.provisionDriveStructure(user);
+                out.usersProcessed++;
+            } catch (err: any) {
+                out.usersFailed++;
+                out.failures.push({
+                    userIndex: user.index,
+                    error: err?.message ?? String(err),
+                });
+                this.logger.error(
+                    `[Drive backfill] user.index=${user.index} failed: ${err?.message ?? err}`,
+                    err?.stack,
+                );
+            }
+        }
+        return out;
+    }
+
     private async triggerPostLoginSync(firebaseId: string, user?: any): Promise<void> {
         const userName = [user?.fName, user?.lName].filter(Boolean).join(' ') || firebaseId?.substring(0, 8) + '...';
         const hasOpenBanking = !!user?.hasOpenBanking;
@@ -169,22 +207,79 @@ export class UsersController {
         // backfill in UsersService.signin runs in the background — the next
         // login will reflect the new state here.
         const drive = await this.userService.getDriveProvisioningStatus(firebaseId);
-        let driveLine: string;
-        if (!drive.hasUserFolder && drive.businessesTotal === 0) {
-            driveLine = '✗ no folders';
-        } else if (drive.hasUserFolder && drive.businessesWithFolder === drive.businessesTotal) {
-            driveLine = `✓ provisioned (user + ${drive.businessesWithFolder}/${drive.businessesTotal} businesses)`;
-        } else if (drive.hasUserFolder) {
-            driveLine = `⚠ partial (user OK, ${drive.businessesWithFolder}/${drive.businessesTotal} businesses) — backfilling`;
-        } else {
-            driveLine = `✗ none (0/${drive.businessesTotal} businesses) — backfilling in background`;
-        }
 
         console.log(`\n════════════════════════════════════`);
         console.log(`  LOGIN`);
         console.log(`  User         : ${userName}`);
         console.log(`  Open Banking : ${hasOpenBanking ? '✓ connected' : '✗ not connected'}`);
-        console.log(`  Drive folders: ${driveLine}`);
+        console.log(`  Drive folders:  (DB = id stored in our DB, Drive = folder actually present in Google Drive)`);
+
+        // User root — both DB and Drive state, so the user can see whether
+        // the next provision pass will LINK to an existing Drive folder or
+        // CREATE a new one. Most common confusion: DB column got wiped but
+        // the Drive folder is still there.
+        const ur = drive.userRoot;
+        const ddDrive = ur.driveExists === null ? '? drive-check failed' : (ur.driveExists ? '✓ in Drive' : '✗ not in Drive');
+        const ddDb    = ur.hasDbId ? '✓ in DB' : '✗ no DB id';
+        const userAction = (() => {
+            if (ur.hasDbId && ur.driveExists === true)  return '— complete';
+            if (ur.hasDbId && ur.driveExists === false) return '— stored ID is dead → will null + re-create';
+            if (!ur.hasDbId && ur.driveExists === true) return '— will link to existing Drive folder';
+            if (!ur.hasDbId && ur.driveExists === false) return '— will create new in Drive';
+            return '— Drive check unavailable → will find-or-create';
+        })();
+        console.log(`    User root "${ur.expectedName}"`);
+        console.log(`      ${ddDb}, ${ddDrive}  ${userAction}`);
+
+        if (drive.businesses.length === 0) {
+            console.log(`    (no businesses yet)`);
+        } else {
+            for (const b of drive.businesses) {
+                const label = `"${b.businessName ?? '(no name)'}" (#${b.businessNumber ?? '?'})`;
+                const dbState = [
+                    `parent ${b.hasParent ? '✓' : '✗'}`,
+                    `inbox ${b.hasInbox ? '✓' : '✗'}`,
+                    `processed ${b.hasProcessed ? '✓' : '✗'}`,
+                ].join(', ');
+                const driveLine = (() => {
+                    switch (b.parentDriveState) {
+                        case 'ok':       return 'parent ✓ in Drive, correctly under user root';
+                        case 'orphaned': return 'parent EXISTS in Drive but NOT under user root (orphaned)';
+                        case 'dead':     return b.hasParent ? 'parent ID is 404/trashed in Drive' : 'no folder of expected name in Drive';
+                        case 'unknown':  return 'drive-check failed';
+                    }
+                })();
+
+                // Decide what's actually going to happen on the next pass.
+                // The key call-outs: "complete in DB" but parent is orphaned
+                // or dead means the user can't see the folders even though
+                // we think they're fine. Surface that explicitly so it's not
+                // a mystery.
+                let action: string;
+                if (b.hasParent && b.parentDriveState === 'orphaned') {
+                    action = '⚠ DB has IDs but the folder is orphaned (under a deleted/wrong user root) → next pass will wipe all IDs and re-create under the current user root';
+                } else if (b.hasParent && b.parentDriveState === 'dead') {
+                    action = '⚠ DB has IDs but parent folder is GONE in Drive → next pass will wipe all IDs and re-create';
+                } else if (!b.hasParent && b.parentDriveState === 'ok') {
+                    action = '— parent exists in Drive (no DB id) → will link to existing + create sub-folders';
+                } else if (!b.hasParent) {
+                    action = '— will create parent + inbox/processed';
+                } else if (b.complete) {
+                    action = '— complete';
+                } else {
+                    const missing = [
+                        !b.hasInbox && 'inbox',
+                        !b.hasProcessed && 'processed',
+                    ].filter(Boolean) as string[];
+                    action = `— will find-or-create sub-folders: ${missing.join(', ')}`;
+                }
+
+                console.log(`    ${label}`);
+                console.log(`      DB: ${dbState}`);
+                console.log(`      Drive: ${driveLine}`);
+                console.log(`      ${action}`);
+            }
+        }
         console.log(`════════════════════════════════════\n`);
 
         if (!hasOpenBanking) return;
