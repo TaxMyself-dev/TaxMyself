@@ -1,0 +1,125 @@
+import {
+  Body,
+  Controller,
+  Get,
+  Logger,
+  NotFoundException,
+  Param,
+  ParseIntPipe,
+  Post,
+  Req,
+  UseGuards,
+  UsePipes,
+  ValidationPipe,
+} from '@nestjs/common';
+import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
+import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.interface';
+import { BillingService } from './services/billing.service';
+import { CheckoutPreviewDto } from './dtos/checkout-preview.dto';
+import { CreateCheckoutDto } from './dtos/create-checkout.dto';
+
+@Controller('billing')
+export class BillingController {
+  private readonly logger = new Logger(BillingController.name);
+
+  constructor(private readonly billingService: BillingService) {}
+
+  /**
+   * GET /billing/plans
+   *
+   * Public. Returns all active, public subscription plans sorted by displayOrder.
+   */
+  @Get('plans')
+  getPlans() {
+    return this.billingService.getPlans();
+  }
+
+  /**
+   * GET /billing/me
+   *
+   * Protected. Returns the current user's full billing state.
+   * Returns a "no subscription" shape if the user has not started a trial yet.
+   */
+  @Get('me')
+  @UseGuards(FirebaseAuthGuard)
+  async getMyBillingState(@Req() request: AuthenticatedRequest) {
+    const firebaseId = request.user?.firebaseId;
+    if (!firebaseId) throw new NotFoundException('User not found in request');
+    return this.billingService.getMyBillingState(firebaseId);
+  }
+
+  /**
+   * POST /billing/trial
+   *
+   * Protected. Idempotent — creates a trial subscription if one does not exist.
+   */
+  @Post('trial')
+  @UseGuards(FirebaseAuthGuard)
+  async ensureTrial(@Req() request: AuthenticatedRequest) {
+    const firebaseId = request.user?.firebaseId;
+    if (!firebaseId) throw new NotFoundException('User not found in request');
+    return this.billingService.ensureTrialSubscription(firebaseId);
+  }
+
+  /**
+   * POST /billing/checkout/preview
+   *
+   * Protected. Calculates the final price without creating a session or charging.
+   * Body: { planId: number, couponCode?: string }
+   */
+  @Post('checkout/preview')
+  @UseGuards(FirebaseAuthGuard)
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  previewCheckout(
+    @Req() request: AuthenticatedRequest,
+    @Body() dto: CheckoutPreviewDto,
+  ) {
+    const firebaseId = request.user?.firebaseId;
+    if (!firebaseId) throw new NotFoundException('User not found in request');
+    return this.billingService.previewCheckout(firebaseId, dto);
+  }
+
+  /**
+   * POST /billing/checkout
+   *
+   * Protected. Creates a PENDING checkout session, calls CardCom LowProfile/Create,
+   * and returns the hosted payment page URL.
+   *
+   * The subscription is NOT activated here. Activation happens exclusively through
+   * the CardCom webhook handler (POST /billing/cardcom/webhook — next step).
+   *
+   * Returns: { checkoutSessionId, paymentUrl, finalAmountAgorot, currency, expiresAt }
+   * Body: { planId: number, couponCode?: string }
+   */
+  @Post('checkout')
+  @UseGuards(FirebaseAuthGuard)
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  createCheckout(
+    @Req() request: AuthenticatedRequest,
+    @Body() dto: CreateCheckoutDto,
+  ) {
+    const firebaseId = request.user?.firebaseId;
+    if (!firebaseId) throw new NotFoundException('User not found in request');
+    return this.billingService.createCheckout(firebaseId, dto);
+  }
+
+  /**
+   * GET /billing/checkout/:sessionId/status
+   *
+   * Protected. Returns the current status of a checkout session.
+   * Used by the Angular payment-result page to confirm payment outcome
+   * (the webhook may have already processed before the redirect).
+   *
+   * Ownership is enforced — returns 404 if the session belongs to another user.
+   */
+  @Get('checkout/:sessionId/status')
+  @UseGuards(FirebaseAuthGuard)
+  getCheckoutStatus(
+    @Req() request: AuthenticatedRequest,
+    @Param('sessionId', ParseIntPipe) sessionId: number,
+  ) {
+    const firebaseId = request.user?.firebaseId;
+    if (!firebaseId) throw new NotFoundException('User not found in request');
+    return this.billingService.getCheckoutStatus(firebaseId, sessionId);
+  }
+}

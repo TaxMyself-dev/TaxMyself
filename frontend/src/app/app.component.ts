@@ -1,4 +1,4 @@
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { ActivatedRoute, Router, NavigationEnd } from '@angular/router';
 import { IColumnDataTable, IRowDataTable, IUserData } from './shared/interface';
 import { Location } from '@angular/common';
@@ -12,6 +12,7 @@ import { catchError, EMPTY, finalize, from, map, Observable, Subject, switchMap 
 import { filter, pairwise, takeUntil } from 'rxjs/operators';
 import { MessageService } from 'primeng/api';
 import { GenericService } from './services/generic.service';
+import { BillingStateService, BILLING_BLOCKING_STATUSES } from './services/billing-state.service';
 
 
 
@@ -25,6 +26,51 @@ import { GenericService } from './services/generic.service';
 export class AppComponent implements OnInit {
 
   protected genericService = inject(GenericService);
+  protected billingStateService = inject(BillingStateService);
+
+  // Tracks the settled URL after each navigation — drives billing dialog visibility.
+  private readonly currentUrl = signal<string>('');
+
+  // Show the blocking billing dialog when the backend reports a blocking status,
+  // but never on auth or billing routes (avoids dialog-loop when navigating to /billing/plans).
+  protected readonly showBillingDialog = computed(() => {
+    const url = this.currentUrl();
+    if (!url || ['/login', '/register'].includes(url) || url.startsWith('/billing')) {
+      return false;
+    }
+    if (
+      !this.billingStateService.billingState() ||
+      this.billingStateService.isLoading() ||
+      this.billingStateService.error()
+    ) {
+      return false;
+    }
+    const status = this.billingStateService.billingState()?.subscription?.status;
+    return !!status && BILLING_BLOCKING_STATUSES.includes(status);
+  });
+
+  // Dialog copy — driven by the subscription status returned from the backend.
+  protected readonly billingDialogContent = computed(() => {
+    const status = this.billingStateService.billingState()?.subscription?.status;
+    const map: Record<string, { title: string; message: string; buttonLabel: string }> = {
+      TRIAL_EXPIRED: {
+        title: 'תקופת הניסיון הסתיימה',
+        message: 'תקופת הניסיון שלך הסתיימה.\nכדי להמשיך להשתמש במערכת יש לבחור תוכנית ולהסדיר תשלום.',
+        buttonLabel: 'בחירת תוכנית',
+      },
+      PAST_DUE: {
+        title: 'קיימת בעיה בתשלום',
+        message: 'לא הצלחנו לחייב את אמצעי התשלום שלך.\nיש לעדכן תשלום כדי להמשיך להשתמש במערכת.',
+        buttonLabel: 'עדכון תשלום',
+      },
+      CANCELED: {
+        title: 'המנוי אינו פעיל',
+        message: 'המנוי שלך אינו פעיל כרגע.\nבחר תוכנית חדשה כדי להמשיך להשתמש במערכת.',
+        buttonLabel: 'בחירת תוכנית',
+      },
+    };
+    return map[status!] ?? { title: '', message: '', buttonLabel: '' };
+  });
 
   public appPages = [
     //{ title: 'דף-הבית', url: 'home', icon: 'home' },
@@ -86,6 +132,7 @@ export class AppComponent implements OnInit {
   showTopNav = signal(true);
 
   ngOnInit() {
+    this.currentUrl.set(this.router.url);
     this.hideTopNav();
     this.subscribeToSelectedClient();
     this.restoreSessionAfterRefresh();
@@ -119,6 +166,7 @@ export class AppComponent implements OnInit {
       takeUntil(this.destroy$)
     ).subscribe((e: NavigationEnd) => {
       const url = e.urlAfterRedirects || e.url;
+      this.currentUrl.set(url);
       this.showTopNav.set(!(['/login', '/register'].includes(url)));
       // עדכון תפריט (כולל משרד לרואה חשבון) בכל ניווט – כך שהטאב יופיע גם אחרי כניסה מהדף לוגין
       const userFromStorage = this.authService.getUserDataFromLocalStorage();
@@ -162,8 +210,8 @@ export class AppComponent implements OnInit {
 
   onAppEntryFromLogin() {
     if (this.fromLoginPage) {
-      // this.ngOnInit();
       this.restartData();
+      this.triggerBillingLoad();
     }
   }
 
@@ -256,7 +304,23 @@ export class AppComponent implements OnInit {
       // Update admin menu items after userData is set
       this.updateAdminMenuItems();
       // await this.genericService.loadBusinesses();
+      this.triggerBillingLoad();
     }
+  }
+
+  navigateToBillingPlans(): void {
+    this.router.navigate(['/billing/plans']);
+  }
+
+  // Fire-and-forget billing state load. Shows a toast on network errors.
+  // The `isLoading` guard inside loadBillingState prevents duplicate requests.
+  private triggerBillingLoad(): void {
+    this.billingStateService.loadBillingState().then(() => {
+      const err = this.billingStateService.error();
+      if (err) {
+        this.genericService.showToast(err, 'error');
+      }
+    });
   }
 
   updateAdminMenuItems(): void {

@@ -1,6 +1,5 @@
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, effect, ElementRef, HostListener, inject, input, OnInit, output, signal, ViewChild, WritableSignal } from '@angular/core';
-import { FormsModule } from '@angular/forms';
 import { MobileRowCardComponent } from 'src/app/components/mobile-row-card/mobile-row-card.component';
 import { ButtonModule } from 'primeng/button';
 import { ButtonGroupModule } from 'primeng/buttongroup';
@@ -41,7 +40,7 @@ import { animate, state, style, transition, trigger } from '@angular/animations'
   ],
   templateUrl: './generic-table.component.html',
   styleUrls: ['./generic-table.component.scss'],
-  imports: [CommonModule, FormsModule, InputIcon, IconField, InputGroupModule, InputGroupAddonModule, InputTextModule, ButtonComponent, TableModule, TooltipModule, TruncatePointerDirective, HighlightPipe, ButtonModule, ButtonGroupModule, DateFormatPipe, MobileRowCardComponent],
+  imports: [CommonModule, InputIcon, IconField, InputGroupModule, InputGroupAddonModule, InputTextModule, ButtonComponent, TableModule, TooltipModule, TruncatePointerDirective, HighlightPipe, ButtonModule, ButtonGroupModule, DateFormatPipe, MobileRowCardComponent],
   providers: [],
   changeDetection: ChangeDetectionStrategy.OnPush,
 

@@ -390,6 +390,9 @@ app-root {
 .p-drawer-footer {
   // for footer of left panel
   box-shadow: 0 -4px 8px -4px rgba(0, 0, 0, 0.2);
+  // iOS home-indicator clearance (left-panel SCSS adds the same for the
+  // structural layout; this rule keeps it for any other drawer usage too).
+  padding-bottom: max(env(safe-area-inset-bottom, 0px), 4px);
 }
 
 .p-overlay {
