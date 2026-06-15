@@ -15,6 +15,12 @@
 --   - User identity via firebase_id (varchar) — no FK to user table
 --   - No TypeORM migrations runner; dev uses synchronize:true
 --   - This file is for production ALTER/CREATE only
+--
+-- `subscription` includes per-subscription discount fields
+-- (discount_percent, discount_amount_agorot, discount_start_date,
+-- discount_end_date) — added during Phase 1 of the billing
+-- simplification effort, folded directly into this base schema since
+-- the billing system has not yet gone live.
 -- ============================================================
 
 -- ------------------------------------------------------------
@@ -58,6 +64,10 @@ CREATE TABLE IF NOT EXISTS `subscription` (
   `grace_period_ends_at`   DATETIME     NULL     DEFAULT NULL,
   `canceled_at`            DATETIME     NULL     DEFAULT NULL,
   `ended_at`               DATETIME     NULL     DEFAULT NULL,
+  `discount_percent`       INT          NULL     DEFAULT NULL COMMENT 'Percentage discount 0-100, mutually exclusive with discount_amount_agorot',
+  `discount_amount_agorot` INT          NULL     DEFAULT NULL COMMENT 'Fixed discount in agorot, mutually exclusive with discount_percent',
+  `discount_start_date`    DATE         NULL     DEFAULT NULL,
+  `discount_end_date`      DATE         NULL     DEFAULT NULL,
   `created_at`             DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
   `updated_at`             DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
   PRIMARY KEY (`id`),

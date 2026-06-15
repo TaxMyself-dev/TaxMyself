@@ -158,7 +158,76 @@
       </div>
     </section>
 
+    <!-- Discount -->
+    <section class="detail-section">
+      <h3 class="section-title">הנחה למנוי</h3>
+      <form [formGroup]="discountForm" class="discount-form">
+
+        <app-input-select
+          [parentForm]="discountForm"
+          controlName="discountKind"
+          labelText="סוג הנחה"
+          placeholder="בחר סוג הנחה"
+          [items]="discountKindOptions"
+          [showClear]="false"
+          [filter]="false">
+        </app-input-select>
+
+        @if (discountForm.get('discountKind')?.value === 'PERCENT') {
+          <app-input-text
+            [parentForm]="discountForm"
+            controlName="discountPercent"
+            type="number"
+            [min]="0"
+            [max]="100"
+            labelText="אחוז הנחה (%)"
+            placeholder="לדוגמה: 10"
+            errorText="אחוז ההנחה חייב להיות בין 0 ל-100">
+          </app-input-text>
+        }
+
+        @if (discountForm.get('discountKind')?.value === 'AMOUNT') {
+          <app-input-text
+            [parentForm]="discountForm"
+            controlName="discountAmountShekels"
+            type="number"
+            [min]="0"
+            labelText="סכום הנחה (₪)"
+            placeholder="לדוגמה: 50"
+            errorText="סכום ההנחה חייב להיות גדול או שווה ל-0">
+          </app-input-text>
+        }
+
+        <div class="form-row-inline">
+          <app-input-date
+            [parentForm]="discountForm"
+            controlName="discountStartDate"
+            labelText="תחילת הנחה"
+            placeholder="dd/mm/yyyy">
+          </app-input-date>
+          <app-input-date
+            [parentForm]="discountForm"
+            controlName="discountEndDate"
+            labelText="סיום הנחה"
+            placeholder="dd/mm/yyyy"
+            errorText="תאריך הסיום חייב להיות אחרי תאריך ההתחלה">
+          </app-input-date>
+        </div>
+
+        <div class="form-row discount-save-row">
+          <app-p-button
+            [buttonText]="'שמור הנחה'"
+            [buttonSize]="buttonSize.SMALL"
+            [isLoading]="savingDiscount()"
+            (onButtonClicked)="saveDiscount()">
+          </app-p-button>
+        </div>
+      </form>
+    </section>
+
   </div>
   }
 
 </p-drawer>
+
+<!-- p-toast (key="br") is provided globally in app.component.html -->

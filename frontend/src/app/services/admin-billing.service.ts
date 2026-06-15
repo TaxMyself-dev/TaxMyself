@@ -154,6 +154,25 @@ export interface AdminSubscription {
   cardExpiryMonth: number | null;
   cardExpiryYear: number | null;
   couponCode: string | null;
+  discountPercent: number | null;
+  discountAmountAgorot: number | null;
+  discountStartDate: string | null;
+  discountEndDate: string | null;
+}
+
+export interface UpdateSubscriptionDiscountPayload {
+  discountPercent?: number | null;
+  discountAmountAgorot?: number | null;
+  discountStartDate?: string | null;
+  discountEndDate?: string | null;
+}
+
+export interface AdminSubscriptionDiscountResponse {
+  subscriptionId: number;
+  discountPercent: number | null;
+  discountAmountAgorot: number | null;
+  discountStartDate: string | null;
+  discountEndDate: string | null;
 }
 
 // ─── Service ─────────────────────────────────────────────────────────────────
@@ -234,5 +253,12 @@ export class AdminBillingService {
 
   getSubscriptions(): Observable<AdminSubscription[]> {
     return this.http.get<AdminSubscription[]>(`${this.base}/subscriptions`);
+  }
+
+  updateSubscriptionDiscount(
+    id: number,
+    payload: UpdateSubscriptionDiscountPayload,
+  ): Observable<AdminSubscriptionDiscountResponse> {
+    return this.http.patch<AdminSubscriptionDiscountResponse>(`${this.base}/subscriptions/${id}/discount`, payload);
   }
 }

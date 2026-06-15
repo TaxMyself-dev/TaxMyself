@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, Repository } from 'typeorm';
 import { SubscriptionPlan } from '../entities/subscription-plan.entity';
@@ -17,6 +17,7 @@ import { CreatePromotionDto } from '../dtos/admin/create-promotion.dto';
 import { UpdatePromotionDto } from '../dtos/admin/update-promotion.dto';
 import { CreateCouponDto } from '../dtos/admin/create-coupon.dto';
 import { UpdateCouponDto } from '../dtos/admin/update-coupon.dto';
+import { UpdateSubscriptionDiscountDto } from '../dtos/admin/update-subscription-discount.dto';
 
 export interface AdminCouponResponse {
   id: number;
@@ -66,6 +67,18 @@ export interface AdminSubscriptionResponse {
   cardExpiryMonth: number | null;
   cardExpiryYear: number | null;
   couponCode: string | null;
+  discountPercent: number | null;
+  discountAmountAgorot: number | null;
+  discountStartDate: Date | null;
+  discountEndDate: Date | null;
+}
+
+export interface AdminSubscriptionDiscountResponse {
+  subscriptionId: number;
+  discountPercent: number | null;
+  discountAmountAgorot: number | null;
+  discountStartDate: Date | null;
+  discountEndDate: Date | null;
 }
 
 export interface AdminPromotionResponse {
@@ -93,6 +106,8 @@ export class AdminBillingService {
   constructor(
     @InjectRepository(SubscriptionPlan)
     private readonly planRepo: Repository<SubscriptionPlan>,
+    @InjectRepository(Subscription)
+    private readonly subscriptionRepo: Repository<Subscription>,
     @InjectRepository(Promotion)
     private readonly promotionRepo: Repository<Promotion>,
     @InjectRepository(PromotionPlan)
@@ -164,6 +179,10 @@ export class AdminBillingService {
       .addSelect('s.canceledAt',          'canceledAt')
       .addSelect('s.endedAt',             'endedAt')
       .addSelect('s.createdAt',           'createdAt')
+      .addSelect('s.discountPercent',     'discountPercent')
+      .addSelect('s.discountAmountAgorot', 'discountAmountAgorot')
+      .addSelect('s.discountStartDate',   'discountStartDate')
+      .addSelect('s.discountEndDate',     'discountEndDate')
       .addSelect('p.name',                'planName')
       .addSelect('p.slug',                'planSlug')
       .addSelect('p.priceMonthlyAgorot',  'planPriceAgorot')
@@ -263,8 +282,58 @@ export class AdminBillingService {
         cardExpiryMonth:    r.cardExpiryMonth != null ? Number(r.cardExpiryMonth) : null,
         cardExpiryYear:     r.cardExpiryYear != null ? Number(r.cardExpiryYear) : null,
         couponCode:         couponMap.get(sid) ?? null,
+        discountPercent:      r.discountPercent != null ? Number(r.discountPercent) : null,
+        discountAmountAgorot: r.discountAmountAgorot != null ? Number(r.discountAmountAgorot) : null,
+        discountStartDate:    r.discountStartDate ?? null,
+        discountEndDate:      r.discountEndDate ?? null,
       };
     });
+  }
+
+  /**
+   * Updates the per-subscription discount fields. Enforces:
+   *  - discountPercent and discountAmountAgorot are mutually exclusive
+   *  - discountPercent in [0, 100]  (also enforced by DTO)
+   *  - discountAmountAgorot >= 0    (also enforced by DTO)
+   *  - discountStartDate <= discountEndDate when both are set
+   */
+  async updateSubscriptionDiscount(
+    subscriptionId: number,
+    dto: UpdateSubscriptionDiscountDto,
+  ): Promise<AdminSubscriptionDiscountResponse> {
+    const subscription = await this.subscriptionRepo.findOneBy({ id: subscriptionId });
+    if (!subscription) throw new NotFoundException(`מנוי ${subscriptionId} לא נמצא`);
+
+    const nextPercent = dto.discountPercent !== undefined ? dto.discountPercent : subscription.discountPercent;
+    const nextAmount = dto.discountAmountAgorot !== undefined ? dto.discountAmountAgorot : subscription.discountAmountAgorot;
+    const nextStart = dto.discountStartDate !== undefined
+      ? (dto.discountStartDate ? new Date(dto.discountStartDate) : null)
+      : subscription.discountStartDate;
+    const nextEnd = dto.discountEndDate !== undefined
+      ? (dto.discountEndDate ? new Date(dto.discountEndDate) : null)
+      : subscription.discountEndDate;
+
+    if (nextPercent != null && nextAmount != null) {
+      throw new BadRequestException('ניתן להגדיר אחוז הנחה או סכום הנחה, לא את שניהם');
+    }
+    if (nextStart != null && nextEnd != null && nextStart > nextEnd) {
+      throw new BadRequestException('תאריך התחלת ההנחה חייב להיות לפני או שווה לתאריך הסיום');
+    }
+
+    subscription.discountPercent = nextPercent ?? null;
+    subscription.discountAmountAgorot = nextAmount ?? null;
+    subscription.discountStartDate = nextStart ?? null;
+    subscription.discountEndDate = nextEnd ?? null;
+
+    await this.subscriptionRepo.save(subscription);
+
+    return {
+      subscriptionId: subscription.id,
+      discountPercent: subscription.discountPercent,
+      discountAmountAgorot: subscription.discountAmountAgorot,
+      discountStartDate: subscription.discountStartDate,
+      discountEndDate: subscription.discountEndDate,
+    };
   }
 
   // ─── Promotions ─────────────────────────────────────────────────────────────

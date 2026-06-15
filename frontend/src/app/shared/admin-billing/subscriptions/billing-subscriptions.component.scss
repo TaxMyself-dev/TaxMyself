@@ -117,3 +117,29 @@
   border: 1px solid #bbf7d0;
   letter-spacing: 1px;
 }
+
+// ── Discount form ─────────────────────────────────────────────────────────────
+
+.discount-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-row-inline {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.discount-save-row {
+  flex-direction: row;
+  justify-content: flex-start;
+  margin-top: 4px;
+}

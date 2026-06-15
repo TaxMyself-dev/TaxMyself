@@ -24,6 +24,7 @@ import { CreatePromotionDto } from './dtos/admin/create-promotion.dto';
 import { UpdatePromotionDto } from './dtos/admin/update-promotion.dto';
 import { CreateCouponDto } from './dtos/admin/create-coupon.dto';
 import { UpdateCouponDto } from './dtos/admin/update-coupon.dto';
+import { UpdateSubscriptionDiscountDto } from './dtos/admin/update-subscription-discount.dto';
 
 @Controller('admin/billing')
 @UseGuards(FirebaseAuthGuard)
@@ -88,6 +89,17 @@ export class AdminBillingController {
   async getSubscriptions(@Req() request: AuthenticatedRequest) {
     await this.assertAdmin(request);
     return this.adminBillingService.findAllSubscriptions();
+  }
+
+  @Patch('subscriptions/:id/discount')
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  async updateSubscriptionDiscount(
+    @Req() request: AuthenticatedRequest,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateSubscriptionDiscountDto,
+  ) {
+    await this.assertAdmin(request);
+    return this.adminBillingService.updateSubscriptionDiscount(id, dto);
   }
 
   // ─── Promotions ─────────────────────────────────────────────────────────────

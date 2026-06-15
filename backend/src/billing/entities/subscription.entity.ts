@@ -63,6 +63,27 @@ export class Subscription {
   @Column({ name: 'ended_at', type: 'datetime', nullable: true, default: null })
   endedAt: Date | null;
 
+  /**
+   * Per-subscription discount. Mutually exclusive with discountAmountAgorot
+   * (enforced in AdminBillingService) — 0-100.
+   */
+  @Column({ name: 'discount_percent', type: 'int', nullable: true, default: null })
+  discountPercent: number | null;
+
+  /**
+   * Per-subscription fixed discount in agorot. Mutually exclusive with
+   * discountPercent (enforced in AdminBillingService).
+   */
+  @Column({ name: 'discount_amount_agorot', type: 'int', nullable: true, default: null })
+  discountAmountAgorot: number | null;
+
+  /** Discount applies only while NOW() is within [discountStartDate, discountEndDate]. */
+  @Column({ name: 'discount_start_date', type: 'date', nullable: true, default: null })
+  discountStartDate: Date | null;
+
+  @Column({ name: 'discount_end_date', type: 'date', nullable: true, default: null })
+  discountEndDate: Date | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 
