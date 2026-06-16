@@ -8,13 +8,15 @@ import {
 import { BillingEventType } from '../enums/billing.enums';
 
 /**
- * Immutable internal audit trail of everything the billing system does.
- * Append-only — no update, no soft delete.
+ * Internal audit trail of billing system actions. Rows are append-only except
+ * for the receipt columns on PAYMENT_SUCCESS events, which are updated once
+ * when BillingReceiptService creates the receipt after the payment commits.
  */
 @Entity('billing_event')
 @Index('ix_billing_event_subscription', ['subscriptionId', 'createdAt'])
 @Index('ix_billing_event_user', ['firebaseId', 'createdAt'])
 @Index('ix_billing_event_type', ['eventType'])
+@Index('ix_billing_event_receipt_lookup', ['eventType', 'cardcomDealNumber'])
 export class BillingEvent {
   @PrimaryGeneratedColumn()
   id: number;
@@ -44,17 +46,21 @@ export class BillingEvent {
   @Column({ type: 'varchar', length: 3, default: 'ILS' })
   currency: string;
 
+  /** CardCom transaction/deal ID. Primary idempotency anchor for receipt creation. */
   @Column({ name: 'cardcom_deal_number', type: 'varchar', length: 255, nullable: true, default: null })
   cardcomDealNumber: string | null;
 
-  @Column({ name: 'cardcom_document_number', type: 'varchar', length: 255, nullable: true, default: null })
-  cardcomDocumentNumber: string | null;
+  /**
+   * FK → documents.id. Set by BillingReceiptService after a receipt is created
+   * for this payment. Non-null means receipt already exists — skip re-creation.
+   * Join to documents to get docNumber, file paths, and all other receipt fields.
+   */
+  @Column({ name: 'receipt_doc_id', type: 'int', nullable: true, default: null })
+  receiptDocId: number | null;
 
-  @Column({ name: 'cardcom_document_type', type: 'varchar', length: 100, nullable: true, default: null })
-  cardcomDocumentType: string | null;
-
-  @Column({ name: 'cardcom_document_url', type: 'varchar', length: 2048, nullable: true, default: null })
-  cardcomDocumentUrl: string | null;
+  /** Timestamp of successful receipt email delivery. Null means not yet sent or failed. */
+  @Column({ name: 'receipt_email_sent_at', type: 'datetime', nullable: true, default: null })
+  receiptEmailSentAt: Date | null;
 
   /** Arbitrary extra data relevant to this specific event type. */
   @Column({ type: 'json', nullable: true, default: null })

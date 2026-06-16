@@ -340,7 +340,7 @@ export class CardcomWebhookService implements OnModuleInit {
         }
       }
 
-      // ── 3. Extract transaction + document refs ────────────────────────────
+      // ── 3. Extract transaction refs ───────────────────────────────────────
       const tranzactionId =
         verified.TranzactionId ?? verified.TranzactionInfo?.TranzactionId ?? null;
 
@@ -349,19 +349,6 @@ export class CardcomWebhookService implements OnModuleInit {
         verified.TranzactionInfo?.Amount != null
           ? Math.round(verified.TranzactionInfo.Amount * 100)
           : null;
-
-      const documentNumber =
-        verified.DocumentInfo?.DocumentNumber?.toString() ??
-        verified.TranzactionInfo?.DocumentNumber?.toString() ??
-        null;
-      const documentType =
-        verified.DocumentInfo?.DocumentType?.toString() ??
-        verified.TranzactionInfo?.DocumentType?.toString() ??
-        null;
-      const documentUrl =
-        verified.DocumentInfo?.DocumentUrl ??
-        verified.TranzactionInfo?.DocumentUrl ??
-        null;
 
       // ── 4. Activate subscription ──────────────────────────────────────────
       const periodEnd = new Date(now);
@@ -406,9 +393,6 @@ export class CardcomWebhookService implements OnModuleInit {
         amountAgorot: chargedAmountAgorot,
         currency: 'ILS',
         cardcomDealNumber: tranzactionId != null ? String(tranzactionId) : null,
-        cardcomDocumentNumber: documentNumber,
-        cardcomDocumentType: documentType,
-        cardcomDocumentUrl: documentUrl,
         metadata: { planId },
       });
       await this.billingEventService.logEvent({

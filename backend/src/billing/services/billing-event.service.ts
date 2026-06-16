@@ -12,9 +12,6 @@ export interface LogBillingEventInput {
   amountAgorot?: number | null;
   currency?: string;
   cardcomDealNumber?: string | null;
-  cardcomDocumentNumber?: string | null;
-  cardcomDocumentType?: string | null;
-  cardcomDocumentUrl?: string | null;
   metadata?: Record<string, any> | null;
 }
 
@@ -42,9 +39,6 @@ export class BillingEventService {
         amountAgorot: input.amountAgorot ?? null,
         currency: input.currency ?? 'ILS',
         cardcomDealNumber: input.cardcomDealNumber ?? null,
-        cardcomDocumentNumber: input.cardcomDocumentNumber ?? null,
-        cardcomDocumentType: input.cardcomDocumentType ?? null,
-        cardcomDocumentUrl: input.cardcomDocumentUrl ?? null,
         metadata: input.metadata ?? null,
       });
       await this.billingEventRepo.save(event);
