@@ -6,17 +6,17 @@ import { Subscription } from '../entities/subscription.entity';
 import { SubscriptionDiscount } from '../entities/subscription-discount.entity';
 import { Coupon } from '../entities/coupon.entity';
 import { Promotion } from '../entities/promotion.entity';
-import { DiscountType } from '../enums/billing.enums';
-import { CouponService } from './coupon.service';
-import { PromotionService } from './promotion.service';
 
 export interface CheckoutPricingResult {
   originalAmountAgorot: number;
   discountAmountAgorot: number;
   finalAmountAgorot: number;
   currency: string;
+  /** Always null — kept for backward compatibility with BillingService session storage. */
   appliedSubscriptionDiscount: SubscriptionDiscount | null;
+  /** Always null — kept for backward compatibility with BillingService session storage. */
   appliedPromotion: Promotion | null;
+  /** Always null — kept for backward compatibility with BillingService session storage. */
   appliedCoupon: Coupon | null;
   /** Human-readable breakdown for the UI / debugging. */
   explanation: string[];
@@ -31,22 +31,17 @@ export class PricingService {
     private readonly planRepo: Repository<SubscriptionPlan>,
     @InjectRepository(Subscription)
     private readonly subscriptionRepo: Repository<Subscription>,
-    @InjectRepository(SubscriptionDiscount)
-    private readonly subscriptionDiscountRepo: Repository<SubscriptionDiscount>,
-    private readonly couponService: CouponService,
-    private readonly promotionService: PromotionService,
   ) {}
 
   /**
-   * Calculates the final checkout price for a given user, plan, and optional
-   * coupon code.
+   * Calculates the final checkout price for a given user and plan.
    *
-   * Discount priority (highest → lowest):
-   *   1. subscription_discount (private, manual, tied to this subscription)
-   *   2. best active promotion for the plan (if no subscription_discount)
-   *   3. coupon code (always stacked on top of whichever of the above applied)
+   * Single discount source: subscription.discountPercent or discountAmountAgorot,
+   * active only when today falls within [discountStartDate, discountEndDate] (inclusive,
+   * DATE semantics — not DATETIME).
    *
-   * Final amount is always clamped to ≥ 0.
+   * couponCode is accepted for backward compatibility but is no longer applied.
+   * Coupons and promotions no longer participate in pricing (Phase 2).
    */
   async calculateCheckoutPrice(
     firebaseId: string,
@@ -62,88 +57,34 @@ export class PricingService {
     }
 
     const baseAmount = plan.priceMonthlyAgorot;
-    let workingAmount = baseAmount;
     const explanation: string[] = [
       `Base price: ${baseAmount} agorot (${plan.name})`,
     ];
 
-    let appliedSubscriptionDiscount: SubscriptionDiscount | null = null;
-    let appliedPromotion: Promotion | null = null;
-    let appliedCoupon: Coupon | null = null;
+    if (couponCode?.trim()) {
+      explanation.push(
+        `Coupon code "${couponCode}" received but coupon discounts are no longer applied.`,
+      );
+    }
 
-    // 1. Check for a private subscription_discount (highest priority).
     const subscription = await this.subscriptionRepo.findOne({
       where: { firebaseId },
     });
 
+    const today = this.getTodayDateString();
+    let workingAmount = baseAmount;
+
     if (subscription) {
-      appliedSubscriptionDiscount = await this.findActiveSubscriptionDiscount(
-        subscription.id,
-      );
+      const result = this.applySubscriptionDiscount(baseAmount, subscription, today);
+      workingAmount = result.finalAmountAgorot;
+      if (result.explanation) explanation.push(result.explanation);
     }
 
-    if (appliedSubscriptionDiscount) {
-      const after = this.applyDiscountToAmount(
-        workingAmount,
-        appliedSubscriptionDiscount.discountType,
-        appliedSubscriptionDiscount.discountValueAgorot,
-        appliedSubscriptionDiscount.discountPercent,
-      );
-      explanation.push(
-        `Subscription discount applied (${appliedSubscriptionDiscount.discountType}): ${workingAmount} → ${after} agorot`,
-      );
-      workingAmount = after;
-    } else {
-      // 2. No subscription_discount — try the best active promotion.
-      appliedPromotion =
-        await this.promotionService.getBestActivePromotionForPlan(planId);
-
-      if (appliedPromotion) {
-        const after = this.applyDiscountToAmount(
-          workingAmount,
-          appliedPromotion.discountType,
-          appliedPromotion.discountValueAgorot,
-          appliedPromotion.discountPercent,
-        );
-        explanation.push(
-          `Promotion "${appliedPromotion.name}" applied (${appliedPromotion.discountType}): ${workingAmount} → ${after} agorot`,
-        );
-        workingAmount = after;
-      }
-    }
-
-    // 3. Apply coupon on top of whatever discount was applied above.
-    if (couponCode?.trim()) {
-      const { coupon, validationError } =
-        await this.couponService.validateCouponForUser(
-          firebaseId,
-          planId,
-          couponCode,
-        );
-
-      if (coupon) {
-        const after = this.applyDiscountToAmount(
-          workingAmount,
-          coupon.discountType,
-          coupon.discountValueAgorot,
-          coupon.discountPercent,
-        );
-        explanation.push(
-          `Coupon "${coupon.code}" applied (${coupon.discountType}): ${workingAmount} → ${after} agorot`,
-        );
-        workingAmount = after;
-        appliedCoupon = coupon;
-      } else {
-        explanation.push(
-          `Coupon "${couponCode}" rejected: ${validationError}`,
-        );
-      }
-    }
-
-    const finalAmountAgorot = Math.max(0, Math.round(workingAmount));
+    const unclamped = Math.round(workingAmount);
+    const finalAmountAgorot = Math.max(0, unclamped);
     const discountAmountAgorot = baseAmount - finalAmountAgorot;
 
-    if (finalAmountAgorot < workingAmount) {
+    if (unclamped < 0) {
       explanation.push('Final amount clamped to 0 agorot (cannot go negative)');
     }
 
@@ -152,57 +93,79 @@ export class PricingService {
       discountAmountAgorot,
       finalAmountAgorot,
       currency: plan.currency,
-      appliedSubscriptionDiscount,
-      appliedPromotion,
-      appliedCoupon,
+      appliedSubscriptionDiscount: null,
+      appliedPromotion: null,
+      appliedCoupon: null,
       explanation,
     };
   }
 
   /**
-   * Finds the most recently created active subscription_discount for a
-   * subscription that is currently within its valid date window.
+   * Computes the discounted amount using the subscription's direct discount fields.
+   *
+   * Date window is checked using DATE semantics (string comparison on 'YYYY-MM-DD').
+   * TypeORM hydrates 'date' columns as 'YYYY-MM-DD' strings at runtime despite the
+   * Date | null TS type, so String() normalisation is intentional.
+   *
+   * discountAmountAgorot takes precedence over discountPercent; mutual exclusivity is
+   * enforced at the admin write path (AdminBillingService).
    */
-  async findActiveSubscriptionDiscount(
-    subscriptionId: number,
-  ): Promise<SubscriptionDiscount | null> {
-    const now = new Date();
+  private applySubscriptionDiscount(
+    baseAmount: number,
+    subscription: Pick<
+      Subscription,
+      'discountPercent' | 'discountAmountAgorot' | 'discountStartDate' | 'discountEndDate'
+    >,
+    today: string,
+  ): { finalAmountAgorot: number; discountAmountAgorot: number; explanation: string } {
+    const { discountPercent, discountAmountAgorot, discountStartDate, discountEndDate } =
+      subscription;
 
-    const discounts = await this.subscriptionDiscountRepo.find({
-      where: { subscriptionId, isActive: true },
-      order: { createdAt: 'DESC' },
-    });
+    if (discountPercent == null && discountAmountAgorot == null) {
+      return { finalAmountAgorot: baseAmount, discountAmountAgorot: 0, explanation: '' };
+    }
 
-    const inWindow = discounts.filter((d) => {
-      if (d.startsAt && d.startsAt > now) return false;
-      if (d.endsAt && d.endsAt < now) return false;
-      return true;
-    });
+    // TypeORM returns 'YYYY-MM-DD' strings for type:'date' columns — cast defensively.
+    const start = discountStartDate ? String(discountStartDate) : null;
+    const end = discountEndDate ? String(discountEndDate) : null;
 
-    return inWindow[0] ?? null;
+    const inWindow = (!start || today >= start) && (!end || today <= end);
+    if (!inWindow) {
+      return {
+        finalAmountAgorot: baseAmount,
+        discountAmountAgorot: 0,
+        explanation: `Subscription discount not active on ${today} (window: ${start ?? '∞'} – ${end ?? '∞'})`,
+      };
+    }
+
+    let finalAmountAgorot: number;
+    let explanation: string;
+
+    if (discountAmountAgorot != null) {
+      finalAmountAgorot = baseAmount - discountAmountAgorot;
+      explanation = `Subscription discount applied (AMOUNT): ${baseAmount} − ${discountAmountAgorot} = ${finalAmountAgorot} agorot`;
+    } else {
+      const pct = Math.min(100, Math.max(0, discountPercent!));
+      finalAmountAgorot = Math.round(baseAmount * (1 - pct / 100));
+      explanation = `Subscription discount applied (PERCENT ${pct}%): ${baseAmount} → ${finalAmountAgorot} agorot`;
+    }
+
+    return {
+      finalAmountAgorot,
+      discountAmountAgorot: baseAmount - finalAmountAgorot,
+      explanation,
+    };
   }
 
   /**
-   * Applies a single discount rule to an amount and returns the new amount.
-   * Does NOT clamp to 0 — clamping is the caller's responsibility.
+   * Returns today's date as 'YYYY-MM-DD' using local time getters, consistent
+   * with Israel timezone (UTC+3) and the DATE columns in the subscription table.
    */
-  private applyDiscountToAmount(
-    baseAmount: number,
-    discountType: DiscountType,
-    discountValueAgorot: number | null,
-    discountPercent: number | null,
-  ): number {
-    switch (discountType) {
-      case DiscountType.PERCENT: {
-        const pct = Math.min(100, Math.max(0, discountPercent ?? 0));
-        return Math.round(baseAmount * (1 - pct / 100));
-      }
-      case DiscountType.FIXED_AMOUNT:
-        return baseAmount - (discountValueAgorot ?? 0);
-      case DiscountType.FIXED_PRICE:
-        return discountValueAgorot ?? 0;
-      default:
-        return baseAmount;
-    }
+  private getTodayDateString(): string {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
   }
 }
