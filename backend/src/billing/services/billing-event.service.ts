@@ -34,7 +34,7 @@ export class BillingEventService {
     private readonly billingEventRepo: Repository<BillingEvent>,
   ) {}
 
-  async logEvent(input: LogBillingEventInput): Promise<void> {
+  async logEvent(input: LogBillingEventInput): Promise<BillingEvent | null> {
     try {
       const event = this.billingEventRepo.create({
         firebaseId: input.firebaseId,
@@ -48,7 +48,7 @@ export class BillingEventService {
         cardcomDealNumber: input.cardcomDealNumber ?? null,
         metadata: input.metadata ?? null,
       });
-      await this.billingEventRepo.save(event);
+      return await this.billingEventRepo.save(event);
     } catch (error) {
       // Intentionally swallowed — billing event logging must never disrupt the
       // main payment flow. Errors are only surfaced in logs.
@@ -56,6 +56,7 @@ export class BillingEventService {
         `Failed to persist billing event [${input.eventType}] for firebaseId=${input.firebaseId}: ${(error as Error)?.message ?? error}`,
         (error as Error)?.stack,
       );
+      return null;
     }
   }
 
@@ -98,6 +99,30 @@ export class BillingEventService {
     } catch (error) {
       this.logger.error(
         `findCheckoutBreakdown failed for subscriptionId=${subscriptionId}: ${(error as Error)?.message ?? error}`,
+      );
+      return null;
+    }
+  }
+
+  /**
+   * Returns the most recent PAYMENT_SUCCESS event for the given subscription.
+   * Filters by cardcomDealNumber when provided for a tighter match.
+   * Used by the webhook handler to check idempotency and to link the receipt.
+   */
+  async findPaymentSuccessEvent(
+    subscriptionId: number,
+    cardcomDealNumber: string | null,
+  ): Promise<BillingEvent | null> {
+    try {
+      return await this.billingEventRepo.findOne({
+        where: cardcomDealNumber
+          ? { subscriptionId, eventType: BillingEventType.PAYMENT_SUCCESS, cardcomDealNumber }
+          : { subscriptionId, eventType: BillingEventType.PAYMENT_SUCCESS },
+        order: { createdAt: 'DESC' },
+      });
+    } catch (error) {
+      this.logger.error(
+        `findPaymentSuccessEvent failed for subscriptionId=${subscriptionId}: ${(error as Error)?.message ?? error}`,
       );
       return null;
     }

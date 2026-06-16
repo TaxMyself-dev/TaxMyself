@@ -1,9 +1,10 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, QueryRunner, Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import * as crypto from 'crypto';
 import { encryptCardcomToken } from '../utils/billing-token-encryption.util';
 
+import { BillingEvent } from '../entities/billing-event.entity';
 import { CardcomWebhookLog } from '../entities/cardcom-webhook-log.entity';
 import { Subscription } from '../entities/subscription.entity';
 import { SubscriptionPlan } from '../entities/subscription-plan.entity';
@@ -18,6 +19,7 @@ import {
 import { PayStatus, ModuleName } from 'src/enum';
 import { CardcomService } from './cardcom.service';
 import { BillingEventService } from './billing-event.service';
+import { BillingReceiptService } from './billing-receipt.service';
 
 // ── Swagger-verified field names from LowProfileResult / TransactionInfo / TokenInfo ─
 
@@ -84,6 +86,7 @@ export class CardcomWebhookService implements OnModuleInit {
     private readonly userRepo: Repository<User>,
     private readonly cardcomService: CardcomService,
     private readonly billingEventService: BillingEventService,
+    private readonly billingReceiptService: BillingReceiptService,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -228,6 +231,16 @@ export class CardcomWebhookService implements OnModuleInit {
     verified: CardcomWebhookPayload,
     webhookLog: CardcomWebhookLog,
   ): Promise<void> {
+    // Values extracted during the transaction and needed after commit.
+    let postCommitData: {
+      planName: string;
+      planSlug: string;
+      planModules: ModuleName[];
+      periodEnd: Date;
+      chargedAmountAgorot: number | null;
+      cardcomDealNumber: string | null;
+    } | null = null;
+
     const qr = this.dataSource.createQueryRunner();
     await qr.connect();
     await qr.startTransaction();
@@ -343,6 +356,7 @@ export class CardcomWebhookService implements OnModuleInit {
       // ── 3. Extract transaction refs ───────────────────────────────────────
       const tranzactionId =
         verified.TranzactionId ?? verified.TranzactionInfo?.TranzactionId ?? null;
+      const cardcomDealNumber = tranzactionId != null ? String(tranzactionId) : null;
 
       // TranzactionInfo.Amount is in NIS (shekels); convert to agorot for storage.
       const chargedAmountAgorot =
@@ -368,54 +382,15 @@ export class CardcomWebhookService implements OnModuleInit {
 
       await qr.commitTransaction();
 
-      // ── 5. Mark webhook processed ─────────────────────────────────────────
-      await this.markWebhookStatus(webhookLog.id, WebhookLogStatus.PROCESSED);
-
-      // ── 6. Billing events (fire-and-forget outside transaction) ───────────
-      await this.billingEventService.logEvent({
-        firebaseId,
-        eventType: BillingEventType.WEBHOOK_RECEIVED,
-        subscriptionId: subscription.id,
-        metadata: { idempotencyKey: webhookLog.idempotencyKey },
-      });
-      await this.billingEventService.logEvent({
-        firebaseId,
-        eventType: BillingEventType.PAYMENT_VERIFIED,
-        subscriptionId: subscription.id,
-        amountAgorot: chargedAmountAgorot,
-        currency: 'ILS',
-        metadata: { lowProfileId: verified.LowProfileId },
-      });
-      await this.billingEventService.logEvent({
-        firebaseId,
-        eventType: BillingEventType.PAYMENT_SUCCESS,
-        subscriptionId: subscription.id,
-        amountAgorot: chargedAmountAgorot,
-        currency: 'ILS',
-        cardcomDealNumber: tranzactionId != null ? String(tranzactionId) : null,
-        metadata: { planId },
-      });
-      await this.billingEventService.logEvent({
-        firebaseId,
-        eventType: BillingEventType.SUBSCRIPTION_ACTIVATED,
-        subscriptionId: subscription.id,
-        metadata: {
-          planId,
-          planSlug: plan.slug,
-          currentPeriodEnd: periodEnd.toISOString(),
-        },
-      });
-
-      // ── 7. Sync legacy User fields ────────────────────────────────────────
-      await this.syncLegacyUserFields(
-        firebaseId,
-        plan.modules ?? Object.values(ModuleName),
+      // Capture context needed post-commit — only set when commit succeeds.
+      postCommitData = {
+        planName: plan.name,
+        planSlug: plan.slug,
+        planModules: (plan.modules ?? Object.values(ModuleName)) as ModuleName[],
         periodEnd,
-      );
-
-      this.logger.log(
-        `Payment processed: subscription #${subscription.id} ACTIVE, plan=${plan.slug}`,
-      );
+        chargedAmountAgorot,
+        cardcomDealNumber,
+      };
     } catch (err) {
       await qr.rollbackTransaction();
       this.logger.error(
@@ -430,6 +405,170 @@ export class CardcomWebhookService implements OnModuleInit {
       // Do not re-throw — we must return 200 to CardCom.
     } finally {
       await qr.release();
+    }
+
+    // Only proceed if the DB transaction committed successfully.
+    if (!postCommitData) return;
+
+    const { planName, planSlug, planModules, periodEnd, chargedAmountAgorot, cardcomDealNumber } =
+      postCommitData;
+
+    // ── 5. Mark webhook processed ─────────────────────────────────────────
+    await this.markWebhookStatus(webhookLog.id, WebhookLogStatus.PROCESSED);
+
+    // ── 6. Billing events (fire-and-forget, outside transaction) ─────────
+    await this.billingEventService.logEvent({
+      firebaseId,
+      eventType: BillingEventType.WEBHOOK_RECEIVED,
+      subscriptionId,
+      metadata: { idempotencyKey: webhookLog.idempotencyKey },
+    });
+    await this.billingEventService.logEvent({
+      firebaseId,
+      eventType: BillingEventType.PAYMENT_VERIFIED,
+      subscriptionId,
+      amountAgorot: chargedAmountAgorot,
+      currency: 'ILS',
+      metadata: { lowProfileId: verified.LowProfileId },
+    });
+    const paymentSuccessEvent = await this.billingEventService.logEvent({
+      firebaseId,
+      eventType: BillingEventType.PAYMENT_SUCCESS,
+      subscriptionId,
+      amountAgorot: chargedAmountAgorot,
+      currency: 'ILS',
+      cardcomDealNumber,
+      metadata: { planId },
+    });
+    await this.billingEventService.logEvent({
+      firebaseId,
+      eventType: BillingEventType.SUBSCRIPTION_ACTIVATED,
+      subscriptionId,
+      metadata: {
+        planId,
+        planSlug,
+        currentPeriodEnd: periodEnd.toISOString(),
+      },
+    });
+
+    // ── 7. Sync legacy User fields ────────────────────────────────────────
+    await this.syncLegacyUserFields(firebaseId, planModules, periodEnd);
+
+    this.logger.log(
+      `Payment processed: subscription #${subscriptionId} ACTIVE, plan=${planSlug}`,
+    );
+
+    // ── 8. Generate receipt (outside transaction — never affects payment) ─
+    await this.generateReceiptAfterPayment({
+      firebaseId,
+      subscriptionId,
+      planName,
+      cardcomDealNumber,
+      paymentSuccessEvent,
+    });
+  }
+
+  // ─── Receipt generation ───────────────────────────────────────────────────
+
+  private async generateReceiptAfterPayment(params: {
+    firebaseId: string;
+    subscriptionId: number;
+    planName: string;
+    cardcomDealNumber: string | null;
+    paymentSuccessEvent: BillingEvent | null;
+  }): Promise<void> {
+    const { firebaseId, subscriptionId, planName, cardcomDealNumber, paymentSuccessEvent } = params;
+
+    this.logger.log(
+      `Receipt generation started: subscriptionId=${subscriptionId} dealNumber=${cardcomDealNumber ?? 'null'}`,
+    );
+
+    try {
+      // 1. Verify the PAYMENT_SUCCESS event was persisted — needed to link the receipt.
+      if (!paymentSuccessEvent) {
+        this.logger.error(
+          `Receipt generation failed: PAYMENT_SUCCESS event failed to persist for ` +
+            `subscriptionId=${subscriptionId} dealNumber=${cardcomDealNumber ?? 'null'}`,
+        );
+        await this.billingEventService.logEvent({
+          firebaseId,
+          eventType: BillingEventType.RECEIPT_FAILED,
+          subscriptionId,
+          metadata: {
+            reason: 'PAYMENT_SUCCESS event failed to persist',
+            cardcomDealNumber,
+          },
+        });
+        return;
+      }
+
+      // 2. Idempotency: receipt was already created for this payment event.
+      if (paymentSuccessEvent.receiptDocId != null) {
+        this.logger.log(
+          `Receipt generation skipped — already exists: receiptDocId=${paymentSuccessEvent.receiptDocId} ` +
+            `subscriptionId=${subscriptionId}`,
+        );
+        return;
+      }
+
+      // 3. Retrieve canonical VAT breakdown from CHECKOUT_CREATED — never recalculate.
+      const breakdown = await this.billingEventService.findCheckoutBreakdown(subscriptionId);
+
+      if (!breakdown) {
+        this.logger.error(
+          `Receipt generation failed: no CHECKOUT_CREATED breakdown found for ` +
+            `subscriptionId=${subscriptionId}. Cannot create receipt without canonical VAT amounts.`,
+        );
+        await this.billingEventService.logEvent({
+          firebaseId,
+          eventType: BillingEventType.RECEIPT_FAILED,
+          subscriptionId,
+          metadata: {
+            reason: 'CHECKOUT_CREATED VAT breakdown not found',
+            cardcomDealNumber,
+          },
+        });
+        return;
+      }
+
+      // 4. Create the TAX_INVOICE_RECEIPT document.
+      const receipt = await this.billingReceiptService.createReceiptForPayment({
+        firebaseId,
+        subscriptionId,
+        amountBeforeVatAgorot: breakdown.amountBeforeVatAgorot,
+        vatAmountAgorot: breakdown.vatAmountAgorot,
+        amountIncludingVatAgorot: breakdown.amountIncludingVatAgorot,
+        planName,
+        cardcomDealNumber,
+      });
+
+      // 5. Link receipt to the PAYMENT_SUCCESS event for future idempotency and lookup.
+      await this.billingEventService.updatePaymentEventWithReceipt(
+        paymentSuccessEvent.id,
+        receipt.receiptDocId,
+      );
+
+      this.logger.log(
+        `Receipt generated successfully: receiptDocId=${receipt.receiptDocId} ` +
+          `docNumber=${receipt.docNumber} subscriptionId=${subscriptionId} ` +
+          `dealNumber=${cardcomDealNumber ?? 'null'}`,
+      );
+    } catch (err) {
+      // Receipt failure must never affect the subscription or payment result.
+      this.logger.error(
+        `Receipt generation failed for subscriptionId=${subscriptionId}: ${(err as Error).message}`,
+        (err as Error).stack,
+      );
+      await this.billingEventService.logEvent({
+        firebaseId,
+        eventType: BillingEventType.RECEIPT_FAILED,
+        subscriptionId,
+        metadata: {
+          error: (err as Error).message,
+          stack: (err as Error).stack,
+          cardcomDealNumber,
+        },
+      });
     }
   }
 
