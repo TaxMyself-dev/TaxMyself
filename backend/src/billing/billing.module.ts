@@ -10,7 +10,6 @@ import { Delegation } from 'src/delegation/delegation.entity';
 import { SubscriptionPlan } from './entities/subscription-plan.entity';
 import { Subscription } from './entities/subscription.entity';
 import { PaymentMethod } from './entities/payment-method.entity';
-import { CardcomCheckoutSession } from './entities/cardcom-checkout-session.entity';
 import { CardcomWebhookLog } from './entities/cardcom-webhook-log.entity';
 import { BillingEvent } from './entities/billing-event.entity';
 import { SubscriptionCancellation } from './entities/subscription-cancellation.entity';
@@ -46,7 +45,6 @@ import { UsersModule } from 'src/users/users.module';
       SubscriptionPlan,
       Subscription,
       PaymentMethod,
-      CardcomCheckoutSession,
       CardcomWebhookLog,
       BillingEvent,
       SubscriptionCancellation,

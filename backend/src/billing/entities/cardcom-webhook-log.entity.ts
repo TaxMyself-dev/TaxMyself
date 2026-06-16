@@ -26,9 +26,33 @@ export class CardcomWebhookLog {
   @PrimaryGeneratedColumn()
   id: number;
 
-  /** FK → cardcom_checkout_session.id. Nullable — may not be resolvable from every event. */
+  /** FK → cardcom_checkout_session.id. Legacy — null for all events after Phase 4 refactor. */
   @Column({ name: 'checkout_session_id', type: 'int', nullable: true, default: null })
   checkoutSessionId: number | null;
+
+  /** Extracted from ReturnValue JSON — firebase user identifier. */
+  @Column({ name: 'firebase_id', type: 'varchar', length: 255, nullable: true, default: null })
+  firebaseId: string | null;
+
+  /** Extracted from ReturnValue JSON — subscription plan id. */
+  @Column({ name: 'plan_id', type: 'int', nullable: true, default: null })
+  planId: number | null;
+
+  /** Extracted from ReturnValue JSON — subscription row id. */
+  @Column({ name: 'subscription_id', type: 'int', nullable: true, default: null })
+  subscriptionId: number | null;
+
+  /** CardCom LowProfileId from webhook payload — used for GetLpResult verification. */
+  @Column({ name: 'cardcom_low_profile_id', type: 'varchar', length: 255, nullable: true, default: null })
+  cardcomLowProfileId: string | null;
+
+  /** CardCom TranzactionId from webhook payload — deal identifier. */
+  @Column({ name: 'cardcom_transaction_id', type: 'varchar', length: 128, nullable: true, default: null })
+  cardcomTransactionId: string | null;
+
+  /** Top-level ResponseCode from the webhook payload. */
+  @Column({ name: 'response_code', type: 'int', nullable: true, default: null })
+  responseCode: number | null;
 
   @Column({ name: 'idempotency_key', type: 'varchar', length: 512 })
   idempotencyKey: string;

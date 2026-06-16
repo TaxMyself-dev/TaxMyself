@@ -3,8 +3,9 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { firstValueFrom } from 'rxjs';
 
 export interface CardcomLowProfileInput {
-  checkoutSessionId: number;
   firebaseId: string;
+  planId: number;
+  subscriptionId: number;
   amountAgorot: number;
   planName: string;
   customerName?: string | null;
@@ -124,8 +125,8 @@ export class CardcomService implements OnModuleInit {
       // ── Optional top-level fields ──────────────────────────────────────────
       ProductName: input.planName,
       // ReturnValue is echoed back in webhook + redirect URLs.
-      // Used as idempotency key: maps CardCom callback back to our session.
-      ReturnValue: String(input.checkoutSessionId),
+      // Contains the routing context needed to activate the subscription without a session table.
+      ReturnValue: JSON.stringify({ firebaseId: input.firebaseId, planId: input.planId, subscriptionId: input.subscriptionId }),
       // Fix 4: ISOCoinId is the documented field name (not CoinID). 1 = ILS.
       ISOCoinId: 1,
       // Fix 5: Operation enum replaces non-existent TokenizationMode.
@@ -146,7 +147,7 @@ export class CardcomService implements OnModuleInit {
 
     // Log safe fields only — credentials and customer PII never appear here.
     this.logger.log(
-      `CardCom LowProfile/Create → sessionId=${input.checkoutSessionId} ` +
+      `CardCom LowProfile/Create → subscriptionId=${input.subscriptionId} planId=${input.planId} ` +
         `amount=${amountNis} NIS terminal=***${this.terminalNumber.slice(-4)}`,
     );
 
@@ -166,7 +167,7 @@ export class CardcomService implements OnModuleInit {
         ? JSON.stringify(err.response.data).slice(0, 500)
         : (err?.message ?? 'HTTP request failed');
       this.logger.error(
-        `CardCom HTTP error for session ${input.checkoutSessionId}: ${detail}`,
+        `CardCom HTTP error for subscriptionId=${input.subscriptionId}: ${detail}`,
       );
       throw new CardcomApiError(`CardCom HTTP request failed: ${detail}`);
     }
@@ -179,7 +180,7 @@ export class CardcomService implements OnModuleInit {
 
     if (responseCode !== 0) {
       this.logger.error(
-        `CardCom rejected session ${input.checkoutSessionId}: code=${responseCode} desc=${description}`,
+        `CardCom rejected subscriptionId=${input.subscriptionId}: code=${responseCode} desc=${description}`,
       );
       throw new CardcomApiError(
         `CardCom error (code ${responseCode}): ${description || 'Unknown error'}`,
@@ -208,7 +209,7 @@ export class CardcomService implements OnModuleInit {
     }
 
     this.logger.log(
-      `CardCom LowProfile created: sessionId=${input.checkoutSessionId} lowProfileId=${lowProfileId}`,
+      `CardCom LowProfile created: subscriptionId=${input.subscriptionId} lowProfileId=${lowProfileId}`,
     );
 
     return { lowProfileId, paymentUrl, rawResponse };

@@ -4,8 +4,6 @@ import {
   Get,
   Logger,
   NotFoundException,
-  Param,
-  ParseIntPipe,
   Post,
   Req,
   UseGuards,
@@ -103,23 +101,4 @@ export class BillingController {
     return this.billingService.createCheckout(firebaseId, dto);
   }
 
-  /**
-   * GET /billing/checkout/:sessionId/status
-   *
-   * Protected. Returns the current status of a checkout session.
-   * Used by the Angular payment-result page to confirm payment outcome
-   * (the webhook may have already processed before the redirect).
-   *
-   * Ownership is enforced — returns 404 if the session belongs to another user.
-   */
-  @Get('checkout/:sessionId/status')
-  @UseGuards(FirebaseAuthGuard)
-  getCheckoutStatus(
-    @Req() request: AuthenticatedRequest,
-    @Param('sessionId', ParseIntPipe) sessionId: number,
-  ) {
-    const firebaseId = request.user?.firebaseId;
-    if (!firebaseId) throw new NotFoundException('User not found in request');
-    return this.billingService.getCheckoutStatus(firebaseId, sessionId);
-  }
 }
