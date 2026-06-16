@@ -26,10 +26,6 @@ export class CardcomWebhookLog {
   @PrimaryGeneratedColumn()
   id: number;
 
-  /** FK → cardcom_checkout_session.id. Legacy — null for all events after Phase 4 refactor. */
-  @Column({ name: 'checkout_session_id', type: 'int', nullable: true, default: null })
-  checkoutSessionId: number | null;
-
   /** Extracted from ReturnValue JSON — firebase user identifier. */
   @Column({ name: 'firebase_id', type: 'varchar', length: 255, nullable: true, default: null })
   firebaseId: string | null;

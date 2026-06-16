@@ -8,7 +8,6 @@ export interface LogBillingEventInput {
   firebaseId: string;
   eventType: BillingEventType;
   subscriptionId?: number | null;
-  checkoutSessionId?: number | null;
   paymentMethodId?: number | null;
   amountAgorot?: number | null;
   currency?: string;
@@ -39,7 +38,6 @@ export class BillingEventService {
         firebaseId: input.firebaseId,
         eventType: input.eventType,
         subscriptionId: input.subscriptionId ?? null,
-        checkoutSessionId: input.checkoutSessionId ?? null,
         paymentMethodId: input.paymentMethodId ?? null,
         amountAgorot: input.amountAgorot ?? null,
         currency: input.currency ?? 'ILS',

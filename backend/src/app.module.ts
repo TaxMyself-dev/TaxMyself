@@ -29,17 +29,8 @@ import { BillingModule } from './billing/billing.module';
 import { SubscriptionPlan } from './billing/entities/subscription-plan.entity';
 import { Subscription } from './billing/entities/subscription.entity';
 import { PaymentMethod } from './billing/entities/payment-method.entity';
-import { CardcomCheckoutSession } from './billing/entities/cardcom-checkout-session.entity';
 import { CardcomWebhookLog } from './billing/entities/cardcom-webhook-log.entity';
 import { BillingEvent } from './billing/entities/billing-event.entity';
-import { Promotion } from './billing/entities/promotion.entity';
-import { PromotionPlan } from './billing/entities/promotion-plan.entity';
-import { Coupon } from './billing/entities/coupon.entity';
-import { CouponPlan } from './billing/entities/coupon-plan.entity';
-import { CouponRedemption } from './billing/entities/coupon-redemption.entity';
-import { SubscriptionDiscount } from './billing/entities/subscription-discount.entity';
-import { SubscriptionCancellation } from './billing/entities/subscription-cancellation.entity';
-import { SubscriptionPlanChange } from './billing/entities/subscription-plan-change.entity';
 //Entities
 import { Expense } from './expenses/expenses.entity';
 import { Income } from './expenses/incomes.entity';
@@ -112,9 +103,7 @@ import { BusinessService } from './business/business.service';
         Clients, Documents, DocLines, DocPayments, ExtractedDocument, JournalEntry, JournalLine, DefaultBookingAccount,
         FeezbackWebhookEvent, UserModuleSubscription, AccountantTask, AnnualReport, AnnualReportFile, ReportWorkflow,
         FxRate,
-        SubscriptionPlan, Subscription, PaymentMethod, CardcomCheckoutSession, CardcomWebhookLog,
-        BillingEvent, Promotion, PromotionPlan, Coupon, CouponPlan, CouponRedemption,
-        SubscriptionDiscount, SubscriptionCancellation, SubscriptionPlanChange],
+        SubscriptionPlan, Subscription, PaymentMethod, CardcomWebhookLog, BillingEvent],
       synchronize: process.env.NODE_ENV !== 'production',
       timezone: 'Z',
       //logging: true

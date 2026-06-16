@@ -26,10 +26,6 @@ export class BillingEvent {
   @Column({ name: 'subscription_id', type: 'int', nullable: true, default: null })
   subscriptionId: number | null;
 
-  /** FK → cardcom_checkout_session.id. */
-  @Column({ name: 'checkout_session_id', type: 'int', nullable: true, default: null })
-  checkoutSessionId: number | null;
-
   /** FK → payment_method.id. */
   @Column({ name: 'payment_method_id', type: 'int', nullable: true, default: null })
   paymentMethodId: number | null;

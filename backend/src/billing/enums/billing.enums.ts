@@ -6,13 +6,6 @@ export enum SubscriptionStatus {
   CANCELED = 'CANCELED',
 }
 
-export enum CheckoutSessionStatus {
-  PENDING = 'PENDING',
-  COMPLETED = 'COMPLETED',
-  FAILED = 'FAILED',
-  EXPIRED = 'EXPIRED',
-}
-
 export enum WebhookLogStatus {
   RECEIVED = 'RECEIVED',
   PROCESSED = 'PROCESSED',
@@ -36,39 +29,4 @@ export enum BillingEventType {
   COUPON_REDEEMED = 'COUPON_REDEEMED',
   PROMOTION_APPLIED = 'PROMOTION_APPLIED',
   DISCOUNT_APPLIED = 'DISCOUNT_APPLIED',
-}
-
-/** Shared across Promotion, Coupon, and SubscriptionDiscount. */
-export enum DiscountType {
-  PERCENT = 'PERCENT',
-  FIXED_AMOUNT = 'FIXED_AMOUNT',
-  FIXED_PRICE = 'FIXED_PRICE',
-}
-
-/** Shared across Promotion, Coupon, and SubscriptionDiscount. */
-export enum DurationType {
-  ONCE = 'ONCE',
-  REPEATING = 'REPEATING',
-  FOREVER = 'FOREVER',
-}
-
-export enum CancellationReason {
-  TOO_EXPENSIVE = 'TOO_EXPENSIVE',
-  MISSING_FEATURE = 'MISSING_FEATURE',
-  NOT_USING_ENOUGH = 'NOT_USING_ENOUGH',
-  FOUND_ALTERNATIVE = 'FOUND_ALTERNATIVE',
-  TECHNICAL_ISSUES = 'TECHNICAL_ISSUES',
-  OTHER = 'OTHER',
-}
-
-export enum PlanChangeType {
-  UPGRADE = 'UPGRADE',
-  DOWNGRADE = 'DOWNGRADE',
-}
-
-export enum PlanChangeStatus {
-  PENDING = 'PENDING',
-  APPLIED = 'APPLIED',
-  CANCELED = 'CANCELED',
-  FAILED = 'FAILED',
 }

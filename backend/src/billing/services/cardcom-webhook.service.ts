@@ -532,7 +532,6 @@ export class CardcomWebhookService implements OnModuleInit {
         payload: rawPayload,
         status: WebhookLogStatus.RECEIVED,
         receivedAt: new Date(),
-        checkoutSessionId: null,
         cardcomLowProfileId,
         firebaseId,
         planId,

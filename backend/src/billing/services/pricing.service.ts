@@ -30,14 +30,10 @@ export class PricingService {
    * Single discount source: subscription.discountPercent or discountAmountAgorot,
    * active only when today falls within [discountStartDate, discountEndDate] (inclusive,
    * DATE semantics — not DATETIME).
-   *
-   * couponCode is accepted for backward compatibility but is no longer applied.
-   * Coupons and promotions no longer participate in pricing (Phase 2).
    */
   async calculateCheckoutPrice(
     firebaseId: string,
     planId: number,
-    couponCode?: string,
   ): Promise<CheckoutPricingResult> {
     const plan = await this.planRepo.findOne({
       where: { id: planId, isActive: true },
@@ -51,12 +47,6 @@ export class PricingService {
     const explanation: string[] = [
       `Base price: ${baseAmount} agorot (${plan.name})`,
     ];
-
-    if (couponCode?.trim()) {
-      explanation.push(
-        `Coupon code "${couponCode}" received but coupon discounts are no longer applied.`,
-      );
-    }
 
     const subscription = await this.subscriptionRepo.findOne({
       where: { firebaseId },

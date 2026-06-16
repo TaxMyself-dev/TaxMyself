@@ -63,7 +63,7 @@ export class BillingController {
    * POST /billing/checkout/preview
    *
    * Protected. Calculates the final price without creating a session or charging.
-   * Body: { planId: number, couponCode?: string }
+   * Body: { planId: number }
    */
   @Post('checkout/preview')
   @UseGuards(FirebaseAuthGuard)
@@ -80,14 +80,11 @@ export class BillingController {
   /**
    * POST /billing/checkout
    *
-   * Protected. Creates a PENDING checkout session, calls CardCom LowProfile/Create,
-   * and returns the hosted payment page URL.
+   * Protected. Calls CardCom LowProfile/Create and returns the hosted payment page URL.
+   * Subscription activation happens exclusively via the CardCom webhook handler.
    *
-   * The subscription is NOT activated here. Activation happens exclusively through
-   * the CardCom webhook handler (POST /billing/cardcom/webhook — next step).
-   *
-   * Returns: { checkoutSessionId, paymentUrl, finalAmountAgorot, currency, expiresAt }
-   * Body: { planId: number, couponCode?: string }
+   * Returns: { paymentUrl, finalAmountAgorot, currency }
+   * Body: { planId: number }
    */
   @Post('checkout')
   @UseGuards(FirebaseAuthGuard)
