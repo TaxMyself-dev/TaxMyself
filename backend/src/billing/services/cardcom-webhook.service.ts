@@ -316,15 +316,28 @@ export class CardcomWebhookService implements OnModuleInit {
       let paymentMethod: PaymentMethod | null = null;
       if (token) {
         const encryptedToken = encryptCardcomToken(token);
-        paymentMethod = qr.manager.create(PaymentMethod, {
-          firebaseId,
-          cardcomToken: encryptedToken,
-          last4,
-          cardBrand: typeof cardBrand === 'string' ? cardBrand : null,
-          cardExpiryMonth,
-          cardExpiryYear,
-        });
-        paymentMethod = await qr.manager.save(PaymentMethod, paymentMethod);
+        if (subscription.paymentMethodId != null) {
+          // Subscription already has a payment method — update it in place.
+          paymentMethod = await qr.manager.findOneOrFail(PaymentMethod, {
+            where: { id: subscription.paymentMethodId },
+          });
+          paymentMethod.cardcomToken = encryptedToken;
+          paymentMethod.last4 = last4;
+          paymentMethod.cardBrand = typeof cardBrand === 'string' ? cardBrand : null;
+          paymentMethod.cardExpiryMonth = cardExpiryMonth;
+          paymentMethod.cardExpiryYear = cardExpiryYear;
+          paymentMethod = await qr.manager.save(PaymentMethod, paymentMethod);
+        } else {
+          paymentMethod = qr.manager.create(PaymentMethod, {
+            firebaseId,
+            cardcomToken: encryptedToken,
+            last4,
+            cardBrand: typeof cardBrand === 'string' ? cardBrand : null,
+            cardExpiryMonth,
+            cardExpiryYear,
+          });
+          paymentMethod = await qr.manager.save(PaymentMethod, paymentMethod);
+        }
       }
 
       // ── 3. Extract transaction + document refs ────────────────────────────
