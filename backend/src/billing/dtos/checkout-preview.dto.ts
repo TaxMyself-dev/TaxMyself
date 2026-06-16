@@ -1,4 +1,4 @@
-import { IsInt, IsNotEmpty, IsOptional, IsString, Min } from 'class-validator';
+import { IsInt, IsNotEmpty, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CheckoutPreviewDto {
@@ -7,8 +7,4 @@ export class CheckoutPreviewDto {
   @Min(1)
   @Type(() => Number)
   planId: number;
-
-  @IsOptional()
-  @IsString()
-  couponCode?: string;
 }

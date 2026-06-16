@@ -3,21 +3,12 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SubscriptionPlan } from '../entities/subscription-plan.entity';
 import { Subscription } from '../entities/subscription.entity';
-import { SubscriptionDiscount } from '../entities/subscription-discount.entity';
-import { Coupon } from '../entities/coupon.entity';
-import { Promotion } from '../entities/promotion.entity';
 
 export interface CheckoutPricingResult {
   originalAmountAgorot: number;
   discountAmountAgorot: number;
   finalAmountAgorot: number;
   currency: string;
-  /** Always null — kept for backward compatibility with BillingService session storage. */
-  appliedSubscriptionDiscount: SubscriptionDiscount | null;
-  /** Always null — kept for backward compatibility with BillingService session storage. */
-  appliedPromotion: Promotion | null;
-  /** Always null — kept for backward compatibility with BillingService session storage. */
-  appliedCoupon: Coupon | null;
   /** Human-readable breakdown for the UI / debugging. */
   explanation: string[];
 }
@@ -93,9 +84,6 @@ export class PricingService {
       discountAmountAgorot,
       finalAmountAgorot,
       currency: plan.currency,
-      appliedSubscriptionDiscount: null,
-      appliedPromotion: null,
-      appliedCoupon: null,
       explanation,
     };
   }

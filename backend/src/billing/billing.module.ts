@@ -13,12 +13,6 @@ import { PaymentMethod } from './entities/payment-method.entity';
 import { CardcomCheckoutSession } from './entities/cardcom-checkout-session.entity';
 import { CardcomWebhookLog } from './entities/cardcom-webhook-log.entity';
 import { BillingEvent } from './entities/billing-event.entity';
-import { Promotion } from './entities/promotion.entity';
-import { PromotionPlan } from './entities/promotion-plan.entity';
-import { Coupon } from './entities/coupon.entity';
-import { CouponPlan } from './entities/coupon-plan.entity';
-import { CouponRedemption } from './entities/coupon-redemption.entity';
-import { SubscriptionDiscount } from './entities/subscription-discount.entity';
 import { SubscriptionCancellation } from './entities/subscription-cancellation.entity';
 import { SubscriptionPlanChange } from './entities/subscription-plan-change.entity';
 
@@ -35,8 +29,6 @@ import { BillingService } from './services/billing.service';
 import { BillingEventService } from './services/billing-event.service';
 import { CardcomService } from './services/cardcom.service';
 import { CardcomWebhookService } from './services/cardcom-webhook.service';
-import { CouponService } from './services/coupon.service';
-import { PromotionService } from './services/promotion.service';
 import { PricingService } from './services/pricing.service';
 import { SubscriptionAccessService } from './services/subscription-access.service';
 import { AdminBillingService } from './services/admin-billing.service';
@@ -57,12 +49,6 @@ import { UsersModule } from 'src/users/users.module';
       CardcomCheckoutSession,
       CardcomWebhookLog,
       BillingEvent,
-      Promotion,
-      PromotionPlan,
-      Coupon,
-      CouponPlan,
-      CouponRedemption,
-      SubscriptionDiscount,
       SubscriptionCancellation,
       SubscriptionPlanChange,
       // External entities required by FirebaseAuthGuard
@@ -77,8 +63,6 @@ import { UsersModule } from 'src/users/users.module';
     BillingEventService,
     CardcomService,
     CardcomWebhookService,
-    CouponService,
-    PromotionService,
     PricingService,
     SubscriptionAccessService,
     AdminBillingService,

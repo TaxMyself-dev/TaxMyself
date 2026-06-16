@@ -145,7 +145,6 @@ export class BillingService {
     const pricing = await this.pricingService.calculateCheckoutPrice(
       firebaseId,
       dto.planId,
-      dto.couponCode,
     );
 
     return {
@@ -153,36 +152,6 @@ export class BillingService {
       discountAmountAgorot: pricing.discountAmountAgorot,
       finalAmountAgorot: pricing.finalAmountAgorot,
       currency: pricing.currency,
-      appliedSubscriptionDiscount: pricing.appliedSubscriptionDiscount
-        ? {
-            id: pricing.appliedSubscriptionDiscount.id,
-            discountType: pricing.appliedSubscriptionDiscount.discountType,
-            discountValueAgorot: pricing.appliedSubscriptionDiscount.discountValueAgorot,
-            discountPercent: pricing.appliedSubscriptionDiscount.discountPercent,
-            durationType: pricing.appliedSubscriptionDiscount.durationType,
-            reasonCode: pricing.appliedSubscriptionDiscount.reasonCode,
-          }
-        : null,
-      appliedPromotion: pricing.appliedPromotion
-        ? {
-            id: pricing.appliedPromotion.id,
-            name: pricing.appliedPromotion.name,
-            discountType: pricing.appliedPromotion.discountType,
-            discountValueAgorot: pricing.appliedPromotion.discountValueAgorot,
-            discountPercent: pricing.appliedPromotion.discountPercent,
-            durationType: pricing.appliedPromotion.durationType,
-          }
-        : null,
-      appliedCoupon: pricing.appliedCoupon
-        ? {
-            id: pricing.appliedCoupon.id,
-            code: pricing.appliedCoupon.code,
-            discountType: pricing.appliedCoupon.discountType,
-            discountValueAgorot: pricing.appliedCoupon.discountValueAgorot,
-            discountPercent: pricing.appliedCoupon.discountPercent,
-            durationType: pricing.appliedCoupon.durationType,
-          }
-        : null,
       explanation: pricing.explanation,
     };
   }
@@ -232,7 +201,6 @@ export class BillingService {
     const pricing = await this.pricingService.calculateCheckoutPrice(
       firebaseId,
       dto.planId,
-      dto.couponCode,
     );
 
     const now = new Date();
@@ -248,9 +216,6 @@ export class BillingService {
       discountAmountAgorot: pricing.discountAmountAgorot,
       finalAmountAgorot: pricing.finalAmountAgorot,
       currency: pricing.currency,
-      couponId: pricing.appliedCoupon?.id ?? null,
-      promotionId: pricing.appliedPromotion?.id ?? null,
-      subscriptionDiscountId: pricing.appliedSubscriptionDiscount?.id ?? null,
       expiresAt,
     });
 
@@ -339,7 +304,6 @@ export class BillingService {
       metadata: {
         planId: plan.id,
         planSlug: plan.slug,
-        couponCode: dto.couponCode ?? null,
         pricingExplanation: pricing.explanation,
         cardcomLowProfileId: cardcomResult.lowProfileId,
       },

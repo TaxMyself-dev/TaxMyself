@@ -9,9 +9,6 @@ import { CardcomWebhookLog } from '../entities/cardcom-webhook-log.entity';
 import { Subscription } from '../entities/subscription.entity';
 import { SubscriptionPlan } from '../entities/subscription-plan.entity';
 import { PaymentMethod } from '../entities/payment-method.entity';
-import { Coupon } from '../entities/coupon.entity';
-import { CouponRedemption } from '../entities/coupon-redemption.entity';
-import { Promotion } from '../entities/promotion.entity';
 import { User } from 'src/users/user.entity';
 
 import {
@@ -81,12 +78,6 @@ export class CardcomWebhookService implements OnModuleInit {
     private readonly planRepo: Repository<SubscriptionPlan>,
     @InjectRepository(PaymentMethod)
     private readonly paymentMethodRepo: Repository<PaymentMethod>,
-    @InjectRepository(Coupon)
-    private readonly couponRepo: Repository<Coupon>,
-    @InjectRepository(CouponRedemption)
-    private readonly couponRedemptionRepo: Repository<CouponRedemption>,
-    @InjectRepository(Promotion)
-    private readonly promotionRepo: Repository<Promotion>,
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
     private readonly cardcomService: CardcomService,
@@ -361,30 +352,6 @@ export class CardcomWebhookService implements OnModuleInit {
         endedAt: null,
       });
 
-      // ── 6. Coupon redemption ──────────────────────────────────────────────
-      if (lockedSession.couponId) {
-        const redemption = qr.manager.create(CouponRedemption, {
-          couponId: lockedSession.couponId,
-          firebaseId: session.firebaseId,
-          subscriptionId: subscription.id,
-          checkoutSessionId: session.id,
-          redeemedAmountAgorot: lockedSession.discountAmountAgorot,
-          redeemedAt: now,
-        });
-        await qr.manager.save(CouponRedemption, redemption);
-        await qr.manager.increment(Coupon, { id: lockedSession.couponId }, 'currentRedemptions', 1);
-      }
-
-      // ── 7. Promotion redemption count ─────────────────────────────────────
-      if (lockedSession.promotionId) {
-        await qr.manager.increment(
-          Promotion,
-          { id: lockedSession.promotionId },
-          'currentRedemptions',
-          1,
-        );
-      }
-
       await qr.commitTransaction();
 
       // ── 8. Mark webhook processed ─────────────────────────────────────────
@@ -431,27 +398,6 @@ export class CardcomWebhookService implements OnModuleInit {
           currentPeriodEnd: periodEnd.toISOString(),
         },
       });
-      if (lockedSession.couponId) {
-        await this.billingEventService.logEvent({
-          firebaseId: session.firebaseId,
-          eventType: BillingEventType.COUPON_REDEEMED,
-          subscriptionId: subscription.id,
-          checkoutSessionId: session.id,
-          amountAgorot: lockedSession.discountAmountAgorot,
-          metadata: { couponId: lockedSession.couponId },
-        });
-      }
-      if (lockedSession.promotionId) {
-        await this.billingEventService.logEvent({
-          firebaseId: session.firebaseId,
-          eventType: BillingEventType.PROMOTION_APPLIED,
-          subscriptionId: subscription.id,
-          checkoutSessionId: session.id,
-          amountAgorot: lockedSession.discountAmountAgorot,
-          metadata: { promotionId: lockedSession.promotionId },
-        });
-      }
-
       // ── 10. Sync legacy User fields ───────────────────────────────────────
       await this.syncLegacyUserFields(
         session.firebaseId,
