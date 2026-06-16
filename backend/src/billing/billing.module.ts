@@ -24,6 +24,7 @@ import { AdminBillingController } from './admin-billing.controller';
 // Services
 import { BillingService } from './services/billing.service';
 import { BillingEventService } from './services/billing-event.service';
+import { BillingReceiptService } from './services/billing-receipt.service';
 import { CardcomService } from './services/cardcom.service';
 import { CardcomWebhookService } from './services/cardcom-webhook.service';
 import { PricingService } from './services/pricing.service';
@@ -32,12 +33,14 @@ import { AdminBillingService } from './services/admin-billing.service';
 
 // Modules
 import { UsersModule } from 'src/users/users.module';
+import { DocumentsModule } from 'src/documents/documents.module';
 
 @Module({
   imports: [
     // 30-second timeout matches CardcomService; longer for slow Israeli payment gateway.
     HttpModule.register({ timeout: 30_000, maxRedirects: 3 }),
     UsersModule,
+    DocumentsModule,
     TypeOrmModule.forFeature([
       // Billing entities
       SubscriptionPlan,
@@ -55,6 +58,7 @@ import { UsersModule } from 'src/users/users.module';
     FirebaseAuthGuard,
     BillingService,
     BillingEventService,
+    BillingReceiptService,
     CardcomService,
     CardcomWebhookService,
     PricingService,

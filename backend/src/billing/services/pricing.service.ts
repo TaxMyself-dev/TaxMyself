@@ -3,11 +3,24 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SubscriptionPlan } from '../entities/subscription-plan.entity';
 import { Subscription } from '../entities/subscription.entity';
+import { VAT_RATES } from 'src/enum';
+
+export interface BillingAmounts {
+  amountBeforeVatAgorot: number;
+  /** VAT rate as a whole-number percentage, e.g. 18. */
+  vatRate: number;
+  vatAmountAgorot: number;
+  amountIncludingVatAgorot: number;
+}
 
 export interface CheckoutPricingResult {
   originalAmountAgorot: number;
   discountAmountAgorot: number;
+  /** VAT-inclusive total — the amount CardCom will charge. */
   finalAmountAgorot: number;
+  amountBeforeVatAgorot: number;
+  vatRate: number;
+  vatAmountAgorot: number;
   currency: string;
   /** Human-readable breakdown for the UI / debugging. */
   explanation: string[];
@@ -62,19 +75,47 @@ export class PricingService {
     }
 
     const unclamped = Math.round(workingAmount);
-    const finalAmountAgorot = Math.max(0, unclamped);
-    const discountAmountAgorot = baseAmount - finalAmountAgorot;
+    const amountBeforeVatAgorot = Math.max(0, unclamped);
+    const discountAmountAgorot = baseAmount - amountBeforeVatAgorot;
 
     if (unclamped < 0) {
       explanation.push('Final amount clamped to 0 agorot (cannot go negative)');
     }
 
+    const vat = this.calculateBillingAmounts(amountBeforeVatAgorot);
+    explanation.push(
+      `VAT ${vat.vatRate}%: ${amountBeforeVatAgorot} + ${vat.vatAmountAgorot} = ${vat.amountIncludingVatAgorot} agorot`,
+    );
+
     return {
       originalAmountAgorot: baseAmount,
       discountAmountAgorot,
-      finalAmountAgorot,
+      finalAmountAgorot: vat.amountIncludingVatAgorot,
+      amountBeforeVatAgorot: vat.amountBeforeVatAgorot,
+      vatRate: vat.vatRate,
+      vatAmountAgorot: vat.vatAmountAgorot,
       currency: plan.currency,
       explanation,
+    };
+  }
+
+  /**
+   * Canonical VAT calculation for all billing flows.
+   * VAT is computed from the base price — never back-calculated from a total —
+   * so base + vatAmount === total always holds without rounding drift.
+   *
+   * VAT rate is resolved from the current calendar year via VAT_RATES.
+   */
+  calculateBillingAmounts(priceBeforeVatAgorot: number): BillingAmounts {
+    const year = new Date().getFullYear();
+    const vatDecimal = VAT_RATES[year] ?? 0.18;
+    const vatRate = Math.round(vatDecimal * 100); // e.g. 18
+    const vatAmountAgorot = Math.round(priceBeforeVatAgorot * vatDecimal);
+    return {
+      amountBeforeVatAgorot: priceBeforeVatAgorot,
+      vatRate,
+      vatAmountAgorot,
+      amountIncludingVatAgorot: priceBeforeVatAgorot + vatAmountAgorot,
     };
   }
 

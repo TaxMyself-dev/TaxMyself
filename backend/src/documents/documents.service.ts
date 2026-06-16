@@ -1703,6 +1703,135 @@ ${finalOwnerName}`;
   }
 
 
+  /**
+   * Creates a billing receipt for a KeepInTax subscription payment without
+   * creating journal entries, generating PDFs, or uploading to Firebase.
+   * Issuer details come from the caller — no Business entity lookup required.
+   * Returns the DB document id, doc number, and general doc index for storage
+   * on the corresponding PAYMENT_SUCCESS billing_event row.
+   */
+  async createBillingSystemReceipt(params: {
+    systemUserId: string;
+    issuerBusinessNumber: string;
+    issuerBusinessType: BusinessType;
+    recipientName: string;
+    recipientEmail: string | null;
+    amountBeforeVatAgorot: number;
+    vatAmountAgorot: number;
+    amountIncludingVatAgorot: number;
+    planName: string;
+    docDate: Date;
+    initialReceiptIndex: number;
+  }): Promise<{ receiptDocId: number; docNumber: string; generalDocIndex: string }> {
+    const {
+      systemUserId, issuerBusinessNumber, issuerBusinessType,
+      recipientName, recipientEmail,
+      amountBeforeVatAgorot, vatAmountAgorot, amountIncludingVatAgorot,
+      planName, docDate, initialReceiptIndex,
+    } = params;
+
+    const amountBeforeVatShekels = +(amountBeforeVatAgorot / 100).toFixed(2);
+    const vatAmountShekels = +(vatAmountAgorot / 100).toFixed(2);
+    const amountIncludingVatShekels = +(amountIncludingVatAgorot / 100).toFixed(2);
+
+    const qr = this.dataSource.createQueryRunner();
+    await qr.connect();
+    await qr.startTransaction();
+
+    try {
+      // 1. Increment the shared generalDocIndex counter for this business
+      const generalIndexResult = await this.incrementGeneralIndex(
+        systemUserId, issuerBusinessNumber, qr.manager,
+      );
+      const generalDocIndex = String(generalIndexResult.currentIndex);
+
+      // 2. Determine the next TAX_INVOICE_RECEIPT doc number from the per-type counter
+      const settingRepo = qr.manager.getRepository(SettingDocuments);
+      let docSetting = await settingRepo.findOne({
+        where: { userId: systemUserId, issuerBusinessNumber, docType: DocumentType.TAX_INVOICE_RECEIPT },
+      });
+
+      let docNumber: string;
+      if (!docSetting) {
+        // First billing receipt — initialize counter at configured starting index
+        docSetting = settingRepo.create({
+          userId: systemUserId,
+          issuerBusinessNumber,
+          docType: DocumentType.TAX_INVOICE_RECEIPT,
+          initialIndex: initialReceiptIndex,
+          currentIndex: initialReceiptIndex + 1,
+        });
+        await settingRepo.save(docSetting);
+        docNumber = String(initialReceiptIndex);
+      } else {
+        docNumber = String(docSetting.currentIndex);
+        docSetting.currentIndex += 1;
+        await settingRepo.save(docSetting);
+      }
+
+      // 3. Persist the Documents row (no PDF, no Firebase, no journal entry)
+      const docData = {
+        issuerBusinessNumber,
+        businessType: issuerBusinessType,
+        docType: DocumentType.TAX_INVOICE_RECEIPT,
+        docNumber,
+        generalDocIndex,
+        docVatRate: 18,
+        currency: Currency.ILS,
+        sumBefDisBefVat: amountBeforeVatShekels,
+        disSum: 0,
+        sumAftDisBefVAT: amountBeforeVatShekels,
+        vatSum: vatAmountShekels,
+        sumAftDisWithVAT: amountIncludingVatShekels,
+        withholdingTaxAmount: 0,
+        recipientName,
+        recipientEmail,
+        docDate,
+      };
+      const savedDoc = await this.saveDocInfo(systemUserId, docData, qr.manager);
+
+      // 4. Persist one DocLines row
+      const lineData = [{
+        issuerBusinessNumber,
+        generalDocIndex,
+        docType: DocumentType.TAX_INVOICE_RECEIPT,
+        lineNumber: '1',
+        transType: '3',
+        description: planName,
+        unitType: UnitOfMeasure.UNIT,
+        unitQuantity: 1,
+        sumBefVatPerUnit: amountBeforeVatShekels,
+        disBefVatPerLine: 0,
+        sumAftDisBefVatPerLine: amountBeforeVatShekels,
+        vatOpts: VatOptions.EXCLUDE,
+        vatRate: 18,
+        vatPerLine: vatAmountShekels,
+      }];
+      await this.saveLinesInfo(systemUserId, lineData, qr.manager);
+
+      // 5. Persist one DocPayments row (VAT-inclusive total — what was actually charged)
+      const paymentData = [{
+        issuerBusinessNumber,
+        generalDocIndex,
+        paymentLineNumber: '1',
+        paymentMethod: 'CREDIT_CARD',
+        paymentDate: docDate,
+        paymentAmount: amountIncludingVatShekels,
+      }];
+      await this.savePaymentsInfo(systemUserId, paymentData, qr.manager);
+
+      await qr.commitTransaction();
+
+      return { receiptDocId: savedDoc.id, docNumber, generalDocIndex };
+    } catch (error) {
+      await qr.rollbackTransaction();
+      throw error;
+    } finally {
+      await qr.release();
+    }
+  }
+
+
   // Save draft before SHAAM redirect
   async saveDraft(userId: string, data: any): Promise<Documents> {
     console.log('=== SAVING DRAFT TO DATABASE ===');

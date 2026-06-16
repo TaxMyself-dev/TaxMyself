@@ -39,9 +39,25 @@ export class BillingEvent {
   })
   eventType: BillingEventType;
 
-  /** Amount involved in this event, in agorot. */
+  /**
+   * Total charged amount in agorot, VAT-inclusive.
+   * This is the canonical "what the customer paid" figure and matches CardCom's
+   * TranzactionInfo.Amount × 100 on PAYMENT_SUCCESS rows.
+   */
   @Column({ name: 'amount_agorot', type: 'int', nullable: true, default: null })
   amountAgorot: number | null;
+
+  /**
+   * Pre-VAT base amount in agorot (plan price after discounts, before VAT).
+   * Set at CHECKOUT_CREATED time from PricingService.calculateBillingAmounts().
+   * Copied to PAYMENT_SUCCESS so receipt generation never needs to recalculate.
+   */
+  @Column({ name: 'amount_before_vat_agorot', type: 'int', nullable: true, default: null })
+  amountBeforeVatAgorot: number | null;
+
+  /** VAT component in agorot. amountBeforeVatAgorot + vatAmountAgorot === amountAgorot. */
+  @Column({ name: 'vat_amount_agorot', type: 'int', nullable: true, default: null })
+  vatAmountAgorot: number | null;
 
   @Column({ type: 'varchar', length: 3, default: 'ILS' })
   currency: string;

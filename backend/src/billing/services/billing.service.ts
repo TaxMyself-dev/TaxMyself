@@ -141,6 +141,9 @@ export class BillingService {
       originalAmountAgorot: pricing.originalAmountAgorot,
       discountAmountAgorot: pricing.discountAmountAgorot,
       finalAmountAgorot: pricing.finalAmountAgorot,
+      amountBeforeVatAgorot: pricing.amountBeforeVatAgorot,
+      vatRate: pricing.vatRate,
+      vatAmountAgorot: pricing.vatAmountAgorot,
       currency: pricing.currency,
       explanation: pricing.explanation,
     };
@@ -230,6 +233,8 @@ export class BillingService {
       eventType: BillingEventType.CHECKOUT_CREATED,
       subscriptionId: subscription.id,
       amountAgorot: pricing.finalAmountAgorot,
+      amountBeforeVatAgorot: pricing.amountBeforeVatAgorot,
+      vatAmountAgorot: pricing.vatAmountAgorot,
       currency: pricing.currency,
       metadata: {
         planId: plan.id,
