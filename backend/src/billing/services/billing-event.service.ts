@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { BillingEvent } from '../entities/billing-event.entity';
 import { BillingEventType } from '../enums/billing.enums';
 
@@ -170,6 +170,29 @@ export class BillingEventService {
         `Failed to record receipt email failure on event ${eventId}: ${(error as Error)?.message ?? error}`,
         (error as Error)?.stack,
       );
+    }
+  }
+
+  /**
+   * Returns the most recent PAYMENT_SUCCESS or PAYMENT_FAILED event for the
+   * given user, regardless of subscription. Used by the billing/me endpoint
+   * to report CardCom payment/invoice outcome to the frontend after a return
+   * from the hosted payment page.
+   */
+  async findLatestPaymentResultEvent(firebaseId: string): Promise<BillingEvent | null> {
+    try {
+      return await this.billingEventRepo.findOne({
+        where: {
+          firebaseId,
+          eventType: In([BillingEventType.PAYMENT_SUCCESS, BillingEventType.PAYMENT_FAILED]),
+        },
+        order: { createdAt: 'DESC' },
+      });
+    } catch (error) {
+      this.logger.error(
+        `findLatestPaymentResultEvent failed for firebaseId=${firebaseId}: ${(error as Error)?.message ?? error}`,
+      );
+      return null;
     }
   }
 

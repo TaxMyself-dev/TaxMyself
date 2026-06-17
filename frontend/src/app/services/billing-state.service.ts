@@ -52,11 +52,23 @@ export interface BillingAccess {
   gracePeriodActive: boolean;
 }
 
+/** Latest CardCom payment/invoice outcome, used to render the post-return-from-CardCom banner. */
+export interface BillingPaymentResult {
+  latestPaymentEventId: number;
+  paymentStatus: 'SUCCESS' | 'FAILED';
+  receiptDocId: number | null;
+  receiptEmailSent: boolean | null;
+  receiptEmail: string | null;
+  failureReason: string | null;
+  createdAt: string;
+}
+
 export interface BillingStateResponse {
   hasSubscription: boolean;
   subscription: BillingSubscription | null;
   plan: BillingPlan | null;
   access: BillingAccess;
+  billingPaymentResult: BillingPaymentResult | null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -79,6 +91,9 @@ export class BillingStateService {
   );
   readonly isCanceled = computed(
     () => this.billingState()?.subscription?.status === 'CANCELED'
+  );
+  readonly billingPaymentResult = computed(
+    () => this.billingState()?.billingPaymentResult ?? null
   );
 
   // Shared promise for any in-flight load. Multiple callers receive the same
@@ -131,5 +146,33 @@ export class BillingStateService {
     return (
       this.billingState()?.access?.modulesAccess?.includes(moduleName) ?? false
     );
+  }
+
+  /**
+   * Retries sending the receipt email for a PAYMENT_SUCCESS event the user owns.
+   * On success, patches the local billingPaymentResult so the UI flips to the
+   * success message without a full billing/me refetch.
+   */
+  async resendReceiptEmail(eventId: number): Promise<{ sent: boolean; error?: string }> {
+    try {
+      const result = await firstValueFrom(
+        this.http.post<{ sent: boolean; error?: string }>(
+          `${environment.apiUrl}billing/events/${eventId}/receipt/resend-email`,
+          {}
+        )
+      );
+      if (result.sent) {
+        const current = this.billingState();
+        if (current?.billingPaymentResult) {
+          this.billingState.set({
+            ...current,
+            billingPaymentResult: { ...current.billingPaymentResult, receiptEmailSent: true },
+          });
+        }
+      }
+      return result;
+    } catch (err: any) {
+      return { sent: false, error: err?.error?.message ?? 'שליחת החשבונית במייל נכשלה' };
+    }
   }
 }

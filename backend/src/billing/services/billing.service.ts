@@ -84,7 +84,7 @@ export class BillingService {
       plan = await this.planRepo.findOne({ where: { id: current.planId } });
     }
 
-    return this.buildBillingStateResponse(current, plan);
+    return this.buildBillingStateResponse(current, plan, firebaseId);
   }
 
   // ─── Trial ───────────────────────────────────────────────────────────────────
@@ -99,7 +99,7 @@ export class BillingService {
       if (existing.planId) {
         plan = await this.planRepo.findOne({ where: { id: existing.planId } });
       }
-      return this.buildBillingStateResponse(existing, plan);
+      return this.buildBillingStateResponse(existing, plan, firebaseId);
     }
 
     const now = new Date();
@@ -128,7 +128,7 @@ export class BillingService {
       `Trial subscription created for firebaseId=${firebaseId.substring(0, 8)}... trialEnd=${trialEnd.toISOString()}`,
     );
 
-    return this.buildBillingStateResponse(saved, null);
+    return this.buildBillingStateResponse(saved, null, firebaseId);
   }
 
   // ─── Checkout preview ────────────────────────────────────────────────────────
@@ -291,14 +291,17 @@ export class BillingService {
 
   // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-  private buildBillingStateResponse(
+  private async buildBillingStateResponse(
     subscription: Subscription,
     plan: SubscriptionPlan | null,
+    firebaseId: string,
   ) {
     const modulesAccess = this.subscriptionAccessService.resolveModulesAccess(
       subscription,
       plan,
     );
+
+    const billingPaymentResult = await this.buildPaymentResultPayload(firebaseId);
 
     return {
       hasSubscription: true,
@@ -336,6 +339,44 @@ export class BillingService {
         isPastDue: subscription.status === SubscriptionStatus.PAST_DUE,
         gracePeriodActive: this.subscriptionAccessService.gracePeriodActive(subscription),
       },
+      billingPaymentResult,
+    };
+  }
+
+  /**
+   * Builds the latest CardCom payment/invoice outcome for the frontend's
+   * post-return-from-CardCom UI (success / email-failed / failed / processing).
+   * Returns null when the user has never had a PAYMENT_SUCCESS or PAYMENT_FAILED
+   * event — the frontend treats that as "still processing" right after a redirect.
+   */
+  private async buildPaymentResultPayload(firebaseId: string): Promise<{
+    latestPaymentEventId: number;
+    paymentStatus: 'SUCCESS' | 'FAILED';
+    receiptDocId: number | null;
+    receiptEmailSent: boolean | null;
+    receiptEmail: string | null;
+    failureReason: string | null;
+    createdAt: Date;
+  } | null> {
+    const event = await this.billingEventService.findLatestPaymentResultEvent(firebaseId);
+    if (!event) return null;
+
+    const isSuccess = event.eventType === BillingEventType.PAYMENT_SUCCESS;
+
+    let receiptEmail: string | null = null;
+    if (isSuccess) {
+      const user = await this.userRepo.findOne({ where: { firebaseId } });
+      receiptEmail = user?.email ?? null;
+    }
+
+    return {
+      latestPaymentEventId: event.id,
+      paymentStatus: isSuccess ? 'SUCCESS' : 'FAILED',
+      receiptDocId: isSuccess ? event.receiptDocId : null,
+      receiptEmailSent: isSuccess ? event.receiptEmailSent : null,
+      receiptEmail,
+      failureReason: !isSuccess ? ((event.metadata?.reason as string) ?? null) : null,
+      createdAt: event.createdAt,
     };
   }
 

@@ -30,6 +30,7 @@ import { TransactionsService } from '../transactions/transactions.page.service';
 import { FeezbackService } from 'src/app/services/feezback.service';
 import { SourceResult, SyncStatusService } from 'src/app/services/sync-status.service';
 import { MessageService } from 'primeng/api';
+import { BillingStateService } from 'src/app/services/billing-state.service';
 
 @Component({
   selector: 'app-my-account',
@@ -62,6 +63,7 @@ export class MyAccountPage implements OnInit {
   feezbackService = inject(FeezbackService);
   messageService = inject(MessageService);
   private readonly syncStatusService = inject(SyncStatusService);
+  private readonly billingStateService = inject(BillingStateService);
   private readonly destroyRef = inject(DestroyRef);
 
   dialogService = inject(DialogService);
@@ -134,6 +136,67 @@ export class MyAccountPage implements OnInit {
   // Consent dialog — shown before redirecting to Feezback portal
   consentDialogVisible = signal<boolean>(false);
   consentChecked = signal<boolean>(false);
+
+  // ─── CardCom payment result banner ───────────────────────────────────────
+  // Shown after the user returns from the CardCom hosted payment page.
+  // Query params only mark "the user returned" — billing/me is the source of truth.
+  readonly cardcomReturnDetected = signal(false);
+  readonly paymentBannerDismissed = signal(false);
+  readonly paymentPolling = signal(false);
+  readonly resendingReceiptEmail = signal(false);
+  private readonly cardcomRedirectFailure = signal<{ responseCode: string | null; status: string | null } | null>(null);
+  private paymentReturnDetectedAt = 0;
+  private paymentPollAttempts = 0;
+  private readonly PAYMENT_POLL_MAX_ATTEMPTS = 5;
+  private readonly PAYMENT_POLL_INTERVAL_MS = 3000;
+  /** Accept a billingPaymentResult as "for this return" if created up to this long before detection (clock skew / webhook racing the redirect). */
+  private readonly PAYMENT_FRESHNESS_WINDOW_MS = 2 * 60_000;
+
+  readonly paymentResultBanner = computed<
+    | { kind: 'success'; message: string }
+    | { kind: 'email-failed'; message: string; eventId: number }
+    | { kind: 'failed'; message: string; detail?: string }
+    | { kind: 'processing'; message: string }
+    | null
+  >(() => {
+    if (!this.cardcomReturnDetected() || this.paymentBannerDismissed()) return null;
+
+    const redirectFailure = this.cardcomRedirectFailure();
+    if (redirectFailure) {
+      return {
+        kind: 'failed',
+        message: 'התשלום נכשל',
+        detail: redirectFailure.responseCode ? `קוד שגיאה: ${redirectFailure.responseCode}` : undefined,
+      };
+    }
+
+    const result = this.billingStateService.billingPaymentResult();
+    const isFresh =
+      !!result &&
+      new Date(result.createdAt).getTime() >= this.paymentReturnDetectedAt - this.PAYMENT_FRESHNESS_WINDOW_MS;
+
+    if (isFresh && result) {
+      if (result.paymentStatus === 'FAILED') {
+        return { kind: 'failed', message: 'התשלום נכשל', detail: result.failureReason ?? undefined };
+      }
+      if (result.receiptDocId != null) {
+        if (result.receiptEmailSent === false) {
+          return {
+            kind: 'email-failed',
+            message: 'התשלום בוצע בהצלחה והחשבונית נוצרה, אבל השליחה למייל נכשלה.',
+            eventId: result.latestPaymentEventId,
+          };
+        }
+        return {
+          kind: 'success',
+          message: `התשלום בוצע בהצלחה.${result.receiptEmail ? ` חשבונית מס קבלה נשלחה למייל: ${result.receiptEmail}` : ' חשבונית מס קבלה נשלחה למייל שלך.'}`,
+        };
+      }
+      // Payment succeeded but the receipt document hasn't been created yet — keep "processing".
+    }
+
+    return { kind: 'processing', message: 'התשלום התקבל. אנחנו מעדכנים את המנוי ומפיקים את החשבונית.' };
+  });
 
 
 
@@ -266,6 +329,7 @@ export class MyAccountPage implements OnInit {
     }
 
     this.initFeezbackDialogFromReturnUrl();
+    this.initPaymentResultFromReturnUrl();
   }
 
   /** Reads and clears the one-shot flag set by the admin demo-data panel when
@@ -338,6 +402,89 @@ export class MyAccountPage implements OnInit {
       this.feezbackDialogIcon.set('error');
       this.feezbackDialogVisible.set(true);
     }
+  }
+
+  /**
+   * CardCom redirects back to /my-account with hosted-page params after checkout.
+   * These params only mark "the user returned from CardCom" — billing/me (the
+   * webhook's result) is the source of truth for payment/invoice/email status.
+   */
+  private initPaymentResultFromReturnUrl(): void {
+    const params = this.route.snapshot.queryParamMap;
+    const responseCode = params.get('ResponseCode') ?? params.get('responsecode');
+    const status = params.get('Status') ?? params.get('status');
+    const lowProfileCode = params.get('lowprofilecode') ?? params.get('LowProfileCode');
+    const internalDealNumber = params.get('internalDealNumber') ?? params.get('internaldealnumber');
+
+    const cardcomReturned = !!(responseCode || status || lowProfileCode || internalDealNumber);
+    if (!cardcomReturned) return;
+
+    this.cardcomReturnDetected.set(true);
+    this.paymentBannerDismissed.set(false);
+    this.paymentReturnDetectedAt = Date.now();
+
+    // CardCom convention: ResponseCode/Status === '0' means success.
+    const redirectIndicatesFailure =
+      (responseCode != null && responseCode !== '0') || (status != null && status !== '0');
+    this.cardcomRedirectFailure.set(redirectIndicatesFailure ? { responseCode, status } : null);
+
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: {},
+      replaceUrl: true,
+    });
+
+    this.billingStateService.refreshBillingState().then(() => {
+      if (!redirectIndicatesFailure) {
+        this.startPaymentResultPolling();
+      }
+    });
+  }
+
+  /** Bounded poll — webhook may still be finishing receipt generation when the user lands back. */
+  private startPaymentResultPolling(): void {
+    this.paymentPollAttempts = 0;
+    this.pollPaymentResultTick();
+  }
+
+  private pollPaymentResultTick(): void {
+    const result = this.billingStateService.billingPaymentResult();
+    const isFresh =
+      !!result &&
+      new Date(result.createdAt).getTime() >= this.paymentReturnDetectedAt - this.PAYMENT_FRESHNESS_WINDOW_MS;
+    const isDone = isFresh && result && (result.paymentStatus === 'FAILED' || result.receiptDocId != null);
+
+    if (isDone || this.paymentPollAttempts >= this.PAYMENT_POLL_MAX_ATTEMPTS) {
+      this.paymentPolling.set(false);
+      return;
+    }
+
+    this.paymentPolling.set(true);
+    this.paymentPollAttempts++;
+    setTimeout(() => {
+      this.billingStateService.refreshBillingState().finally(() => this.pollPaymentResultTick());
+    }, this.PAYMENT_POLL_INTERVAL_MS);
+  }
+
+  resendReceiptEmailClick(eventId: number): void {
+    this.resendingReceiptEmail.set(true);
+    this.billingStateService.resendReceiptEmail(eventId)
+      .then(result => {
+        if (!result.sent) {
+          this.messageService.add({
+            severity: 'error',
+            summary: 'שגיאה',
+            detail: result.error ?? 'שליחת החשבונית במייל נכשלה. נסה שוב.',
+            life: 5000,
+            key: 'br',
+          });
+        }
+      })
+      .finally(() => this.resendingReceiptEmail.set(false));
+  }
+
+  dismissPaymentResultBanner(): void {
+    this.paymentBannerDismissed.set(true);
   }
 
   /**
