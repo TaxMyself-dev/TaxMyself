@@ -74,9 +74,9 @@ export class BillingEvent {
   @Column({ name: 'receipt_doc_id', type: 'int', nullable: true, default: null })
   receiptDocId: number | null;
 
-  /** Timestamp of successful receipt email delivery. Null means not yet sent or failed. */
-  @Column({ name: 'receipt_email_sent_at', type: 'datetime', nullable: true, default: null })
-  receiptEmailSentAt: Date | null;
+  /** True once the receipt email was successfully delivered to the customer. */
+  @Column({ name: 'receipt_email_sent', type: 'boolean', default: false })
+  receiptEmailSent: boolean;
 
   /** Arbitrary extra data relevant to this specific event type. */
   @Column({ type: 'json', nullable: true, default: null })

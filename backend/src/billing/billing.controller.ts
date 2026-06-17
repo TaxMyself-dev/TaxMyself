@@ -4,6 +4,8 @@ import {
   Get,
   Logger,
   NotFoundException,
+  Param,
+  ParseIntPipe,
   Post,
   Req,
   UseGuards,
@@ -96,6 +98,26 @@ export class BillingController {
     const firebaseId = request.user?.firebaseId;
     if (!firebaseId) throw new NotFoundException('User not found in request');
     return this.billingService.createCheckout(firebaseId, dto);
+  }
+
+  /**
+   * POST /billing/events/:eventId/receipt/resend-email
+   *
+   * Protected. Re-sends the receipt email for a PAYMENT_SUCCESS event that
+   * the authenticated user owns. Reuses the existing Firebase PDF — no
+   * regeneration. Returns { sent, error? }.
+   *
+   * Frontend: show [שלח שוב] when receiptDocId != null && receiptEmailSent === false.
+   */
+  @Post('events/:eventId/receipt/resend-email')
+  @UseGuards(FirebaseAuthGuard)
+  resendReceiptEmail(
+    @Req() request: AuthenticatedRequest,
+    @Param('eventId', ParseIntPipe) eventId: number,
+  ) {
+    const firebaseId = request.user?.firebaseId;
+    if (!firebaseId) throw new NotFoundException('User not found in request');
+    return this.billingService.resendReceiptEmail(firebaseId, eventId);
   }
 
 }

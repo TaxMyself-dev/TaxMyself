@@ -12,6 +12,7 @@ import { Subscription } from '../entities/subscription.entity';
 import { User } from 'src/users/user.entity';
 import { ModuleName, PayStatus } from 'src/enum';
 import { BillingEventService } from './billing-event.service';
+import { BillingReceiptService } from './billing-receipt.service';
 import { PricingService } from './pricing.service';
 import { SubscriptionAccessService } from './subscription-access.service';
 import { CardcomService, CardcomApiError } from './cardcom.service';
@@ -35,6 +36,7 @@ export class BillingService {
     private readonly userRepo: Repository<User>,
     private readonly pricingService: PricingService,
     private readonly billingEventService: BillingEventService,
+    private readonly billingReceiptService: BillingReceiptService,
     private readonly subscriptionAccessService: SubscriptionAccessService,
     private readonly cardcomService: CardcomService,
   ) {}
@@ -254,6 +256,37 @@ export class BillingService {
       finalAmountAgorot: pricing.finalAmountAgorot,
       currency: pricing.currency,
     };
+  }
+
+  // ─── Receipt email retry ─────────────────────────────────────────────────────
+
+  /**
+   * Re-sends the receipt email for an existing PAYMENT_SUCCESS billing event.
+   * Validates that the authenticated user owns the event and that a receipt
+   * document has already been created, then delegates to BillingReceiptService.
+   */
+  async resendReceiptEmail(
+    firebaseId: string,
+    eventId: number,
+  ): Promise<{ sent: boolean; error?: string }> {
+    const event = await this.billingEventService.findPaymentEventById(eventId);
+
+    if (!event || event.firebaseId !== firebaseId) {
+      throw new NotFoundException('Payment event not found');
+    }
+
+    if (event.eventType !== BillingEventType.PAYMENT_SUCCESS) {
+      throw new BadRequestException('Only PAYMENT_SUCCESS events have receipt emails');
+    }
+
+    if (!event.receiptDocId) {
+      throw new BadRequestException(
+        'Receipt document not yet created for this payment event. ' +
+          'Wait for the webhook to complete or contact support.',
+      );
+    }
+
+    return this.billingReceiptService.sendReceiptEmailForPaymentEvent(eventId);
   }
 
   // ─── Helpers ─────────────────────────────────────────────────────────────────

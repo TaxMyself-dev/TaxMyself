@@ -34,6 +34,7 @@ import { AdminBillingService } from './services/admin-billing.service';
 // Modules
 import { UsersModule } from 'src/users/users.module';
 import { DocumentsModule } from 'src/documents/documents.module';
+import { MailModule } from 'src/mail/mail.module';
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import { DocumentsModule } from 'src/documents/documents.module';
     HttpModule.register({ timeout: 30_000, maxRedirects: 3 }),
     UsersModule,
     DocumentsModule,
+    MailModule,
     TypeOrmModule.forFeature([
       // Billing entities
       SubscriptionPlan,

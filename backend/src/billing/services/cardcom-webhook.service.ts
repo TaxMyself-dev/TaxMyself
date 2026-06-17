@@ -531,7 +531,7 @@ export class CardcomWebhookService implements OnModuleInit {
         return;
       }
 
-      // 4. Create the TAX_INVOICE_RECEIPT document.
+      // 4. Create the TAX_INVOICE_RECEIPT document (DB rows only — no PDF yet).
       const receipt = await this.billingReceiptService.createReceiptForPayment({
         firebaseId,
         subscriptionId,
@@ -542,14 +542,20 @@ export class CardcomWebhookService implements OnModuleInit {
         cardcomDealNumber,
       });
 
-      // 5. Link receipt to the PAYMENT_SUCCESS event for future idempotency and lookup.
+      // 5. Link receipt to PAYMENT_SUCCESS — idempotency anchor for subsequent steps.
       await this.billingEventService.updatePaymentEventWithReceipt(
         paymentSuccessEvent.id,
         receipt.receiptDocId,
       );
 
+      // 6. Generate PDFs and upload to Firebase (original + copy).
+      await this.billingReceiptService.finalizeBillingReceiptPdfs(receipt.receiptDocId, firebaseId);
+
+      // 7. Send receipt email (self-contained — updates metadata on failure, never throws).
+      await this.billingReceiptService.sendReceiptEmailForPaymentEvent(paymentSuccessEvent.id);
+
       this.logger.log(
-        `Receipt generated successfully: receiptDocId=${receipt.receiptDocId} ` +
+        `Receipt lifecycle complete: receiptDocId=${receipt.receiptDocId} ` +
           `docNumber=${receipt.docNumber} subscriptionId=${subscriptionId} ` +
           `dealNumber=${cardcomDealNumber ?? 'null'}`,
       );

@@ -139,14 +139,48 @@ export class BillingEventService {
     }
   }
 
-  async updatePaymentEventEmailSent(eventId: number, sentAt: Date): Promise<void> {
+  async markReceiptEmailSent(eventId: number): Promise<void> {
     try {
-      await this.billingEventRepo.update({ id: eventId }, { receiptEmailSentAt: sentAt });
+      await this.billingEventRepo.update({ id: eventId }, { receiptEmailSent: true });
     } catch (error) {
       this.logger.error(
-        `Failed to update billing event ${eventId} receiptEmailSentAt: ${(error as Error)?.message ?? error}`,
+        `Failed to mark receipt email sent on event ${eventId}: ${(error as Error)?.message ?? error}`,
         (error as Error)?.stack,
       );
+    }
+  }
+
+  async incrementReceiptEmailFailure(eventId: number, errorMessage: string): Promise<void> {
+    try {
+      const event = await this.billingEventRepo.findOne({ where: { id: eventId } });
+      if (!event) return;
+      const prev = (event.metadata?.receiptEmail as Record<string, any>) ?? {};
+      event.metadata = {
+        ...(event.metadata ?? {}),
+        receiptEmail: {
+          sent: false,
+          attempts: ((prev.attempts as number) ?? 0) + 1,
+          lastError: errorMessage,
+          lastAttemptAt: new Date().toISOString(),
+        },
+      };
+      await this.billingEventRepo.save(event);
+    } catch (error) {
+      this.logger.error(
+        `Failed to record receipt email failure on event ${eventId}: ${(error as Error)?.message ?? error}`,
+        (error as Error)?.stack,
+      );
+    }
+  }
+
+  async findPaymentEventById(eventId: number): Promise<BillingEvent | null> {
+    try {
+      return await this.billingEventRepo.findOne({ where: { id: eventId } });
+    } catch (error) {
+      this.logger.error(
+        `findPaymentEventById failed for eventId=${eventId}: ${(error as Error)?.message ?? error}`,
+      );
+      return null;
     }
   }
 }
