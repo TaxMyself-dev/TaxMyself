@@ -57,6 +57,10 @@ export class Subscription {
   @Column({ name: 'grace_period_ends_at', type: 'datetime', nullable: true, default: null })
   gracePeriodEndsAt: Date | null;
 
+  /** Consecutive failed renewal charge attempts for the current billing cycle. Reset to 0 on success. */
+  @Column({ name: 'renewal_attempts', type: 'int', default: 0 })
+  renewalAttempts: number;
+
   @Column({ name: 'canceled_at', type: 'datetime', nullable: true, default: null })
   canceledAt: Date | null;
 

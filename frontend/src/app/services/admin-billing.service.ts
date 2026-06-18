@@ -85,6 +85,18 @@ export interface AdminSubscriptionDiscountResponse {
   discountEndDate: string | null;
 }
 
+export type RenewalOutcome = 'success' | 'retry_scheduled' | 'past_due' | 'skipped' | 'error';
+
+export interface RenewalResult {
+  subscriptionId: number;
+  outcome: RenewalOutcome;
+  attemptNumber?: number;
+  billingPeriod?: string;
+  cardcomResponseCode?: number;
+  nextBillingDate?: string | null;
+  message?: string;
+}
+
 // ─── Service ─────────────────────────────────────────────────────────────────
 
 @Injectable({ providedIn: 'root' })
@@ -126,5 +138,10 @@ export class AdminBillingService {
     payload: UpdateSubscriptionDiscountPayload,
   ): Observable<AdminSubscriptionDiscountResponse> {
     return this.http.patch<AdminSubscriptionDiscountResponse>(`${this.base}/subscriptions/${id}/discount`, payload);
+  }
+
+  /** Manual test trigger for the renewal cron's charge-by-token flow, for one subscription. */
+  triggerSubscriptionRenewal(id: number): Observable<RenewalResult> {
+    return this.http.post<RenewalResult>(`${this.base}/subscriptions/${id}/renew`, {});
   }
 }

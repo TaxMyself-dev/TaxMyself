@@ -9,6 +9,7 @@ import { Business } from 'src/business/business.entity';
 import { CreatePlanDto } from '../dtos/admin/create-plan.dto';
 import { UpdatePlanDto } from '../dtos/admin/update-plan.dto';
 import { UpdateSubscriptionDiscountDto } from '../dtos/admin/update-subscription-discount.dto';
+import { RenewalResult, SubscriptionRenewalService } from './subscription-renewal.service';
 
 export interface AdminSubscriptionResponse {
   subscriptionId: number;
@@ -58,6 +59,7 @@ export class AdminBillingService {
     @InjectRepository(Subscription)
     private readonly subscriptionRepo: Repository<Subscription>,
     private readonly dataSource: DataSource,
+    private readonly subscriptionRenewalService: SubscriptionRenewalService,
   ) {}
 
   // ─── Plans ──────────────────────────────────────────────────────────────────
@@ -254,5 +256,20 @@ export class AdminBillingService {
       discountStartDate: subscription.discountStartDate,
       discountEndDate: subscription.discountEndDate,
     };
+  }
+
+  // ─── Renewal (manual trigger, for testing) ───────────────────────────────────
+
+  /**
+   * Manually runs the renewal flow for a single subscription, bypassing the
+   * daily cron schedule. Same row-lock + idempotency guarantees as the cron —
+   * safe to call on a subscription that isn't actually due (it will just be
+   * skipped) or one already being processed by the cron concurrently.
+   */
+  async triggerSubscriptionRenewal(subscriptionId: number): Promise<RenewalResult> {
+    const subscription = await this.subscriptionRepo.findOneBy({ id: subscriptionId });
+    if (!subscription) throw new NotFoundException(`מנוי ${subscriptionId} לא נמצא`);
+
+    return this.subscriptionRenewalService.processSubscriptionById(subscriptionId);
   }
 }

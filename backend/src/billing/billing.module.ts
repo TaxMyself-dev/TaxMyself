@@ -30,6 +30,7 @@ import { CardcomWebhookService } from './services/cardcom-webhook.service';
 import { PricingService } from './services/pricing.service';
 import { SubscriptionAccessService } from './services/subscription-access.service';
 import { AdminBillingService } from './services/admin-billing.service';
+import { SubscriptionRenewalService } from './services/subscription-renewal.service';
 
 // Modules
 import { UsersModule } from 'src/users/users.module';
@@ -66,6 +67,7 @@ import { MailModule } from 'src/mail/mail.module';
     PricingService,
     SubscriptionAccessService,
     AdminBillingService,
+    SubscriptionRenewalService,
   ],
   exports: [BillingService, SubscriptionAccessService],
 })

@@ -13,14 +13,21 @@ import { AbstractControl, FormBuilder, ReactiveFormsModule, ValidationErrors, Va
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { finalize } from 'rxjs/operators';
 import { DrawerModule } from 'primeng/drawer';
-import { MessageService } from 'primeng/api';
+import { ConfirmationService, MessageService } from 'primeng/api';
+import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { GenericTableComponent } from 'src/app/components/generic-table/generic-table.component';
 import { ButtonComponent } from 'src/app/components/button/button.component';
 import { ButtonSize } from 'src/app/components/button/button.enum';
 import { InputTextComponent } from 'src/app/components/input-text/input-text.component';
 import { InputDateComponent } from 'src/app/components/input-date/input-date.component';
 import { InputSelectComponent } from 'src/app/components/input-select/input-select.component';
-import { AdminBillingService, AdminSubscription, UpdateSubscriptionDiscountPayload } from 'src/app/services/admin-billing.service';
+import {
+  AdminBillingService,
+  AdminSubscription,
+  RenewalOutcome,
+  RenewalResult,
+  UpdateSubscriptionDiscountPayload,
+} from 'src/app/services/admin-billing.service';
 import { IColumnDataTable, IRowDataTable, ISelectItem, ITableRowAction } from 'src/app/shared/interface';
 import { FormTypes, ICellRenderer } from 'src/app/shared/enums';
 
@@ -60,6 +67,7 @@ export const STATUS_LABELS: Record<string, string> = {
     CommonModule,
     ReactiveFormsModule,
     DrawerModule,
+    ConfirmDialogModule,
     GenericTableComponent,
     ButtonComponent,
     InputTextComponent,
@@ -73,6 +81,7 @@ export class BillingSubscriptionsComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
   private readonly datePipe = inject(DatePipe);
   private readonly messageService = inject(MessageService);
+  private readonly confirmationService = inject(ConfirmationService);
   private readonly fb = inject(FormBuilder);
 
   readonly buttonSize = ButtonSize;
@@ -87,6 +96,10 @@ export class BillingSubscriptionsComponent implements OnInit {
   selectedSub = signal<AdminSubscription | null>(null);
   showDrawer = signal(false);
   savingDiscount = signal(false);
+  /** subscriptionId currently being charged, or null. Mirrors the isClearingCache
+   *  pattern used elsewhere — disables the "charge now" action across all rows
+   *  while any one charge is in flight. */
+  chargingSubscriptionId = signal<number | null>(null);
 
   readonly discountForm = this.fb.group({
     discountKind:          ['NONE' as DiscountKind],
@@ -128,6 +141,14 @@ export class BillingSubscriptionsComponent implements OnInit {
       icon: 'pi pi-eye',
       title: 'פרטים',
       action: (_: any, row: IRowDataTable) => this.openDetails(row['subscriptionId'] as number),
+    },
+    {
+      name: 'chargeNow',
+      icon: 'pi pi-credit-card',
+      title: 'חיוב ידני',
+      alwaysShow: true,
+      isLoading: () => this.chargingSubscriptionId() !== null,
+      action: (_: any, row: IRowDataTable) => this.confirmChargeNow(row),
     },
   ];
 
@@ -274,5 +295,84 @@ export class BillingSubscriptionsComponent implements OnInit {
           });
         },
       });
+  }
+
+  // ─── Manual renewal charge ─────────────────────────────────────────────────
+
+  confirmChargeNow(row: IRowDataTable): void {
+    const subscriptionId = row['subscriptionId'] as number;
+    this.confirmationService.confirm({
+      header: 'חיוב מנוי',
+      message:
+        'האם אתה בטוח שברצונך לבצע חיוב ידני עבור מנוי זה?<br><br>' +
+        'הפעולה תנסה לחייב את אמצעי התשלום השמור של הלקוח באמצעות CardCom.',
+      icon: 'pi pi-exclamation-triangle',
+      acceptLabel: 'אישור',
+      rejectLabel: 'ביטול',
+      accept: () => this.runChargeNow(subscriptionId),
+    });
+  }
+
+  private runChargeNow(subscriptionId: number): void {
+    this.chargingSubscriptionId.set(subscriptionId);
+    this.adminBillingService.triggerSubscriptionRenewal(subscriptionId)
+      .pipe(
+        finalize(() => this.chargingSubscriptionId.set(null)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: result => {
+          const { severity, summary, detail } = this.describeRenewalResult(result);
+          this.messageService.add({ key: 'br', severity, summary, detail, life: 5000 });
+          this.loadSubscriptions();
+        },
+        error: err => {
+          this.messageService.add({
+            key: 'br',
+            severity: 'error',
+            summary: 'שגיאה',
+            detail: `מנוי #${subscriptionId}: ${err?.error?.message ?? 'שגיאה בביצוע החיוב הידני'}`,
+            life: 5000,
+          });
+        },
+      });
+  }
+
+  /** Maps the backend's RenewalResult outcome to a toast — the endpoint always
+   *  resolves with HTTP 200, so the real success/failure signal is `outcome`. */
+  private describeRenewalResult(result: RenewalResult): {
+    severity: 'success' | 'warn' | 'info' | 'error';
+    summary: string;
+    detail: string;
+  } {
+    const id = result.subscriptionId;
+    const outcomeMessages: Record<RenewalOutcome, { severity: 'success' | 'warn' | 'info' | 'error'; summary: string; detail: string }> = {
+      success: {
+        severity: 'success',
+        summary: 'הצלחה',
+        detail: `מנוי #${id} חויב בהצלחה`,
+      },
+      retry_scheduled: {
+        severity: 'warn',
+        summary: 'החיוב נכשל',
+        detail: `מנוי #${id}: החיוב נכשל, ינוסה חיוב חוזר במועד הבא`,
+      },
+      past_due: {
+        severity: 'warn',
+        summary: 'המנוי הועבר לפיגור',
+        detail: `מנוי #${id}: כל ניסיונות החיוב נכשלו, המנוי הועבר לסטטוס "בפיגור"`,
+      },
+      skipped: {
+        severity: 'info',
+        summary: 'לא בוצע חיוב',
+        detail: `מנוי #${id}: ${result.message ?? 'המנוי אינו זכאי לחיוב כרגע'}`,
+      },
+      error: {
+        severity: 'error',
+        summary: 'שגיאה',
+        detail: `מנוי #${id}: ${result.message ?? 'שגיאה בביצוע החיוב הידני'}`,
+      },
+    };
+    return outcomeMessages[result.outcome];
   }
 }

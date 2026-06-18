@@ -98,6 +98,23 @@ export class AdminBillingController {
     return this.adminBillingService.updateSubscriptionDiscount(id, dto);
   }
 
+  /**
+   * POST /admin/billing/subscriptions/:id/renew
+   *
+   * Manual test trigger for the monthly renewal flow — runs the exact same
+   * row-locked charge-by-token logic the daily cron uses, for one subscription.
+   * Safe to call on a subscription that isn't due yet (returns outcome:'skipped').
+   */
+  @Post('subscriptions/:id/renew')
+  @HttpCode(HttpStatus.OK)
+  async triggerSubscriptionRenewal(
+    @Req() request: AuthenticatedRequest,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    await this.assertAdmin(request);
+    return this.adminBillingService.triggerSubscriptionRenewal(id);
+  }
+
   // ─── Admin guard ────────────────────────────────────────────────────────────
 
   private async assertAdmin(request: AuthenticatedRequest): Promise<void> {

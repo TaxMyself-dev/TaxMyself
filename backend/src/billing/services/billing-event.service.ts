@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { EntityManager, In, Repository } from 'typeorm';
 import { BillingEvent } from '../entities/billing-event.entity';
 import { BillingEventType } from '../enums/billing.enums';
 
@@ -204,6 +204,37 @@ export class BillingEventService {
         `findPaymentEventById failed for eventId=${eventId}: ${(error as Error)?.message ?? error}`,
       );
       return null;
+    }
+  }
+
+  /**
+   * Renewal idempotency check: true if a RENEWAL_SUCCESS event already exists
+   * for this subscription + idempotency key (renewal:{subscriptionId}:{billingPeriod}).
+   * Runs against the given EntityManager so it participates in the caller's
+   * row-locked transaction (the renewal flow checks this before charging).
+   */
+  async hasSuccessfulRenewal(
+    manager: EntityManager,
+    subscriptionId: number,
+    idempotencyKey: string,
+  ): Promise<boolean> {
+    try {
+      const rows: Array<{ id: number }> = await manager.query(
+        `SELECT id FROM billing_event
+         WHERE subscription_id = ?
+           AND event_type = ?
+           AND JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.idempotencyKey')) = ?
+         LIMIT 1`,
+        [subscriptionId, BillingEventType.RENEWAL_SUCCESS, idempotencyKey],
+      );
+      return rows.length > 0;
+    } catch (error) {
+      this.logger.error(
+        `hasSuccessfulRenewal failed for subscriptionId=${subscriptionId} idempotencyKey=${idempotencyKey}: ${(error as Error)?.message ?? error}`,
+      );
+      // Fail closed would risk double-charging; fail open here and rely on
+      // CardCom's own ExternalUniqTranId idempotency as the backstop.
+      return false;
     }
   }
 }
