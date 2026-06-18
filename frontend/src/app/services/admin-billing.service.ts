@@ -97,6 +97,17 @@ export interface RenewalResult {
   message?: string;
 }
 
+export interface RenewalBatchResult {
+  totalDue: number;
+  processed: number;
+  succeeded: number;
+  retryScheduled: number;
+  pastDue: number;
+  skipped: number;
+  errors: number;
+  results: RenewalResult[];
+}
+
 // ─── Service ─────────────────────────────────────────────────────────────────
 
 @Injectable({ providedIn: 'root' })
@@ -143,5 +154,10 @@ export class AdminBillingService {
   /** Manual test trigger for the renewal cron's charge-by-token flow, for one subscription. */
   triggerSubscriptionRenewal(id: number): Observable<RenewalResult> {
     return this.http.post<RenewalResult>(`${this.base}/subscriptions/${id}/renew`, {});
+  }
+
+  /** Manual test trigger for the full daily renewal batch — same logic as the 03:00 cron. */
+  runDueRenewals(): Observable<RenewalBatchResult> {
+    return this.http.post<RenewalBatchResult>(`${this.base}/renewals/run-due`, {});
   }
 }

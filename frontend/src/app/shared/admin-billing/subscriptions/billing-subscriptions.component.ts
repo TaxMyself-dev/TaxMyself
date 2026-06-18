@@ -24,6 +24,7 @@ import { InputSelectComponent } from 'src/app/components/input-select/input-sele
 import {
   AdminBillingService,
   AdminSubscription,
+  RenewalBatchResult,
   RenewalOutcome,
   RenewalResult,
   UpdateSubscriptionDiscountPayload,
@@ -100,6 +101,8 @@ export class BillingSubscriptionsComponent implements OnInit {
    *  pattern used elsewhere — disables the "charge now" action across all rows
    *  while any one charge is in flight. */
   chargingSubscriptionId = signal<number | null>(null);
+  /** True while the manual "run cron now" batch request is in flight. */
+  runningDueRenewals = signal(false);
 
   readonly discountForm = this.fb.group({
     discountKind:          ['NONE' as DiscountKind],
@@ -374,5 +377,71 @@ export class BillingSubscriptionsComponent implements OnInit {
       },
     };
     return outcomeMessages[result.outcome];
+  }
+
+  // ─── Manual batch run ("הרצת קרון חיובים") ─────────────────────────────────
+
+  confirmRunDueRenewals(): void {
+    if (this.runningDueRenewals()) return; // guard against double-clicks/double-confirms
+    this.confirmationService.confirm({
+      header: 'הרצת קרון חיובים',
+      message:
+        'האם אתה בטוח שברצונך להריץ ידנית את קרון החיובים עבור כל המנויים שמועד החיוב שלהם הגיע?<br><br>' +
+        'הפעולה עשויה לבצע חיובים אמיתיים דרך CardCom עבור מנויים פעילים שמועד החיוב שלהם הגיע.',
+      icon: 'pi pi-exclamation-triangle',
+      acceptLabel: 'אישור',
+      rejectLabel: 'ביטול',
+      accept: () => this.runDueRenewalsBatch(),
+    });
+  }
+
+  private runDueRenewalsBatch(): void {
+    if (this.runningDueRenewals()) return;
+    this.runningDueRenewals.set(true);
+    this.adminBillingService.runDueRenewals()
+      .pipe(
+        finalize(() => this.runningDueRenewals.set(false)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: summary => {
+          const { severity, detail } = this.describeBatchResult(summary);
+          this.messageService.add({
+            key: 'br',
+            severity,
+            summary: 'הקרון הסתיים',
+            detail,
+            life: 7000,
+          });
+          this.loadSubscriptions();
+        },
+        error: err => {
+          this.messageService.add({
+            key: 'br',
+            severity: 'error',
+            summary: 'שגיאה',
+            detail: err?.error?.message ?? 'שגיאה בהרצת קרון החיובים',
+            life: 6000,
+          });
+        },
+      });
+  }
+
+  private describeBatchResult(summary: RenewalBatchResult): {
+    severity: 'success' | 'warn' | 'info';
+    detail: string;
+  } {
+    if (summary.totalDue === 0) {
+      return { severity: 'info', detail: 'לא נמצאו מנויים שמועד החיוב שלהם הגיע.' };
+    }
+    const detail =
+      `נמצאו ${summary.totalDue} מנויים לחיוב, ` +
+      `${summary.succeeded} חויבו בהצלחה, ` +
+      `${summary.retryScheduled} נקבעו לניסיון חוזר, ` +
+      `${summary.pastDue} עברו לפיגור, ` +
+      `${summary.skipped} דולגו, ` +
+      `${summary.errors} נכשלו בשגיאה.`;
+    const severity = summary.errors > 0 || summary.pastDue > 0 ? 'warn' : 'success';
+    return { severity, detail };
   }
 }

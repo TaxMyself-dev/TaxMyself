@@ -42,6 +42,17 @@ export interface RenewalResult {
   message?: string;
 }
 
+export interface RenewalBatchResult {
+  totalDue: number;
+  processed: number;
+  succeeded: number;
+  retryScheduled: number;
+  pastDue: number;
+  skipped: number;
+  errors: number;
+  results: RenewalResult[];
+}
+
 @Injectable()
 export class SubscriptionRenewalService {
   private readonly logger = new Logger(SubscriptionRenewalService.name);
@@ -66,14 +77,17 @@ export class SubscriptionRenewalService {
    * `nextBillingDate <= NOW()` rather than an exact-date match, so a subscription
    * due on a day the server/job was down is picked up on the next run instead of
    * being skipped — without re-scanning the table more often than necessary.
+   *
+   * Thin wrapper — all batch logic lives in processDueRenewals() so the admin
+   * manual "run cron now" endpoint exercises the exact same code path.
    */
   @Cron('0 3 * * *', { name: 'subscriptionRenewalCron', timeZone: 'Asia/Jerusalem' })
   async runDailyRenewalCron(): Promise<void> {
     this.logger.log('Subscription renewal cron starting');
-    const summary = await this.processDueSubscriptions();
+    const summary = await this.processDueRenewals();
     this.logger.log(
-      `Subscription renewal cron complete: processed=${summary.processed} ` +
-        `succeeded=${summary.succeeded} retried=${summary.retried} ` +
+      `Subscription renewal cron complete: totalDue=${summary.totalDue} ` +
+        `succeeded=${summary.succeeded} retryScheduled=${summary.retryScheduled} ` +
         `pastDue=${summary.pastDue} skipped=${summary.skipped} errors=${summary.errors}`,
     );
   }
@@ -85,15 +99,12 @@ export class SubscriptionRenewalService {
    * and processes them in bounded-concurrency batches. Never throws — every
    * subscription is handled independently via processSubscriptionById, which
    * catches its own errors.
+   *
+   * Public so it can be called from both the daily cron and the admin manual
+   * "run cron now" endpoint — there is exactly one implementation of the batch
+   * logic, no idempotency/retry/charge behavior is duplicated or bypassed.
    */
-  async processDueSubscriptions(): Promise<{
-    processed: number;
-    succeeded: number;
-    retried: number;
-    pastDue: number;
-    skipped: number;
-    errors: number;
-  }> {
+  async processDueRenewals(): Promise<RenewalBatchResult> {
     const due = await this.subscriptionRepo.find({
       where: {
         status: SubscriptionStatus.ACTIVE,
@@ -102,24 +113,26 @@ export class SubscriptionRenewalService {
       select: ['id'],
     });
 
+    const results: RenewalResult[] = [];
     let succeeded = 0;
-    let retried = 0;
+    let retryScheduled = 0;
     let pastDue = 0;
     let skipped = 0;
     let errors = 0;
 
     for (let i = 0; i < due.length; i += BATCH_SIZE) {
       const batch = due.slice(i, i + BATCH_SIZE);
-      const results = await Promise.all(
+      const batchResults = await Promise.all(
         batch.map((s) => this.processSubscriptionById(s.id)),
       );
-      for (const r of results) {
+      for (const r of batchResults) {
+        results.push(r);
         switch (r.outcome) {
           case 'success':
             succeeded++;
             break;
           case 'retry_scheduled':
-            retried++;
+            retryScheduled++;
             break;
           case 'past_due':
             pastDue++;
@@ -134,7 +147,16 @@ export class SubscriptionRenewalService {
       }
     }
 
-    return { processed: due.length, succeeded, retried, pastDue, skipped, errors };
+    return {
+      totalDue: due.length,
+      processed: results.length,
+      succeeded,
+      retryScheduled,
+      pastDue,
+      skipped,
+      errors,
+      results,
+    };
   }
 
   // ─── Single-subscription processing (used by cron and the admin manual trigger) ──

@@ -115,6 +115,22 @@ export class AdminBillingController {
     return this.adminBillingService.triggerSubscriptionRenewal(id);
   }
 
+  /**
+   * POST /admin/billing/renewals/run-due
+   *
+   * Manual test trigger for the full daily renewal batch — runs
+   * SubscriptionRenewalService.processDueRenewals(), the exact same method the
+   * 03:00 Asia/Jerusalem cron calls. Finds every subscription with
+   * status=ACTIVE AND nextBillingDate<=NOW() and charges each one through the
+   * same row-locked, idempotent flow. May trigger real CardCom charges.
+   */
+  @Post('renewals/run-due')
+  @HttpCode(HttpStatus.OK)
+  async runDueRenewals(@Req() request: AuthenticatedRequest) {
+    await this.assertAdmin(request);
+    return this.adminBillingService.triggerDueRenewalsRun();
+  }
+
   // ─── Admin guard ────────────────────────────────────────────────────────────
 
   private async assertAdmin(request: AuthenticatedRequest): Promise<void> {

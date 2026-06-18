@@ -1,6 +1,13 @@
 <div class="billing-subscriptions">
 
   <div class="table-header-row">
+    <app-p-button
+      [icon]="'pi pi-refresh'"
+      [buttonText]="'הרצת קרון חיובים'"
+      [buttonSize]="buttonSize.SMALL"
+      [isLoading]="runningDueRenewals()"
+      (onButtonClicked)="confirmRunDueRenewals()">
+    </app-p-button>
     <p class="table-title">מנויים</p>
   </div>
 

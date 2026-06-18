@@ -9,7 +9,7 @@ import { Business } from 'src/business/business.entity';
 import { CreatePlanDto } from '../dtos/admin/create-plan.dto';
 import { UpdatePlanDto } from '../dtos/admin/update-plan.dto';
 import { UpdateSubscriptionDiscountDto } from '../dtos/admin/update-subscription-discount.dto';
-import { RenewalResult, SubscriptionRenewalService } from './subscription-renewal.service';
+import { RenewalBatchResult, RenewalResult, SubscriptionRenewalService } from './subscription-renewal.service';
 
 export interface AdminSubscriptionResponse {
   subscriptionId: number;
@@ -271,5 +271,16 @@ export class AdminBillingService {
     if (!subscription) throw new NotFoundException(`מנוי ${subscriptionId} לא נמצא`);
 
     return this.subscriptionRenewalService.processSubscriptionById(subscriptionId);
+  }
+
+  /**
+   * Manually runs the exact same daily-cron batch logic on demand — finds every
+   * subscription with status=ACTIVE AND nextBillingDate<=NOW() and processes it
+   * through processDueRenewals(). Same row-lock, idempotency, retry policy and
+   * CardCom charge behavior as the scheduled cron — this calls the identical
+   * method, not a parallel implementation.
+   */
+  async triggerDueRenewalsRun(): Promise<RenewalBatchResult> {
+    return this.subscriptionRenewalService.processDueRenewals();
   }
 }
