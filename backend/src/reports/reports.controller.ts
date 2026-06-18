@@ -1,8 +1,9 @@
 //General
 import { Response } from 'express';
 import { Controller, Post, Patch, Get, Query, Param, Body, Headers, UseGuards, ValidationPipe, Res, Req, UploadedFile, UseInterceptors, HttpException, HttpStatus, SetMetadata, UsePipes, BadRequestException} from '@nestjs/common';
-//Services 
+//Services
 import { ReportsService } from './reports.service';
+import { ReportReviewService, ReviewOverrides } from './report-review.service';
 import { SharedService } from '../shared/shared.service';
 import { UsersService } from '../users/users.service';
 import { VatReportRequestDto } from './dtos/vat-report-request.dto';
@@ -10,6 +11,8 @@ import { VatReportDto } from './dtos/vat-report.dto';
 import { AdvanceIncomeTaxReportDto } from './dtos/advance-income-tax-report.dto';
 import { PnLReportDto } from './dtos/pnl-report.dto';
 import { PnLReportRequestDto } from './dtos/pnl-report-request.dto';
+import { DepreciationReportRequestDto } from './dtos/depreciation-report-request.dto';
+import { Form1342ReportDto } from './dtos/depreciation-report.dto';
 import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
 import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.interface';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -24,8 +27,212 @@ export class ReportsController {
 
     constructor(
       private reportsService: ReportsService,
+      private reviewService: ReportReviewService,
       private sharedService: SharedService,
       private usersService: UsersService) { }
+
+
+    // =====================================================================
+    // UNIFIED REVIEW PRE-FLIGHT
+    // =====================================================================
+    // All endpoints here are called by the new ReportReviewDialogComponent
+    // on the VAT and P&L report pages — replaces the two-step chain
+    // (PullDriveDocsDialog → ConfirmTransDialog) that ran before.
+
+    /** Cheap pre-flight (no OCR, no matcher) — does the user have anything
+     *  worth reviewing before the report? Returns booleans for inbox files
+     *  + unconfirmed-expense slim rows. The frontend uses this to decide
+     *  whether to open the review modal at all. */
+    @Get('me/preview-check')
+    @UseGuards(FirebaseAuthGuard)
+    async previewCheck(
+      @Req() request: AuthenticatedRequest,
+      @Query() query: { businessNumber: string },
+    ): Promise<{ hasPendingDocs: boolean; hasUnconfirmedExpenses: boolean }> {
+      const firebaseId = request.user?.firebaseId;
+      if (!firebaseId) throw new BadRequestException('Not authenticated');
+      const bn = query?.businessNumber?.trim();
+      if (!bn) throw new BadRequestException('businessNumber is required');
+      return this.reviewService.previewCheck(firebaseId, bn);
+    }
+
+    /** Preview: process inbox, run matching (if Open Banking), return the
+     *  unified review rows. Body: { businessNumber, startDate, endDate }. */
+    @Post('me/preview')
+    @UseGuards(FirebaseAuthGuard)
+    async getReportPreview(
+      @Req() request: AuthenticatedRequest,
+      @Body() body: { businessNumber: string; startDate: string; endDate: string },
+    ) {
+      const firebaseId = request.user?.firebaseId;
+      if (!firebaseId) throw new BadRequestException('Not authenticated');
+      const bn = body?.businessNumber?.trim();
+      if (!bn) throw new BadRequestException('businessNumber is required');
+      const from = this.sharedService.convertStringToDateObject(body.startDate);
+      const to = this.sharedService.convertStringToDateObject(body.endDate);
+      if (!from || !to) throw new BadRequestException('startDate/endDate are required ISO dates');
+      return this.reviewService.getReportPreview(firebaseId, bn, { from, to });
+    }
+
+    /** Approve a "matched" row — creates one Expense linked to both the
+     *  document and the transaction; flips both source rows. Inline edits
+     *  made in the review modal (category/sub-category/vat%/tax%/period)
+     *  ride along in `overrides` and win over the source row's values. */
+    @Post('me/review/approve-matched')
+    @UseGuards(FirebaseAuthGuard)
+    async approveMatched(
+      @Req() request: AuthenticatedRequest,
+      @Body() body: { businessNumber: string; documentId: number; transactionId: number; overrides?: ReviewOverrides },
+    ) {
+      const firebaseId = request.user?.firebaseId;
+      if (!firebaseId) throw new BadRequestException('Not authenticated');
+      const bn = body?.businessNumber?.trim();
+      if (!bn) throw new BadRequestException('businessNumber is required');
+      if (!body?.documentId || !body?.transactionId) {
+        throw new BadRequestException('documentId and transactionId are required');
+      }
+      return this.reviewService.approveMatched(
+        firebaseId, bn, Number(body.documentId), Number(body.transactionId), body.overrides ?? {},
+      );
+    }
+
+    /** Approve a "doc_only" row — creates an Expense from the document
+     *  alone (typical cash-receipt path). Overrides as above. */
+    @Post('me/review/approve-doc-cash')
+    @UseGuards(FirebaseAuthGuard)
+    async approveDocCash(
+      @Req() request: AuthenticatedRequest,
+      @Body() body: { businessNumber: string; documentId: number; overrides?: ReviewOverrides },
+    ) {
+      const firebaseId = request.user?.firebaseId;
+      if (!firebaseId) throw new BadRequestException('Not authenticated');
+      const bn = body?.businessNumber?.trim();
+      if (!bn) throw new BadRequestException('businessNumber is required');
+      if (!body?.documentId) throw new BadRequestException('documentId is required');
+      return this.reviewService.approveDocCash(firebaseId, bn, Number(body.documentId), body.overrides ?? {});
+    }
+
+    /** Approve a "tx_only" row — creates an Expense from the transaction
+     *  alone ("mark as no-doc-needed"). Overrides as above. */
+    @Post('me/review/approve-tx-no-doc')
+    @UseGuards(FirebaseAuthGuard)
+    async approveTxNoDoc(
+      @Req() request: AuthenticatedRequest,
+      @Body() body: { businessNumber: string; transactionId: number; overrides?: ReviewOverrides },
+    ) {
+      const firebaseId = request.user?.firebaseId;
+      if (!firebaseId) throw new BadRequestException('Not authenticated');
+      const bn = body?.businessNumber?.trim();
+      if (!bn) throw new BadRequestException('businessNumber is required');
+      if (!body?.transactionId) throw new BadRequestException('transactionId is required');
+      return this.reviewService.approveTxNoDoc(firebaseId, bn, Number(body.transactionId), body.overrides ?? {});
+    }
+
+    /** Manual link from a tx_only row to an existing doc_only document. */
+    @Post('me/review/link-doc-to-tx')
+    @UseGuards(FirebaseAuthGuard)
+    async linkDocToTx(
+      @Req() request: AuthenticatedRequest,
+      @Body() body: { businessNumber: string; documentId: number; transactionId: number },
+    ) {
+      const firebaseId = request.user?.firebaseId;
+      if (!firebaseId) throw new BadRequestException('Not authenticated');
+      const bn = body?.businessNumber?.trim();
+      if (!bn) throw new BadRequestException('businessNumber is required');
+      if (!body?.documentId || !body?.transactionId) {
+        throw new BadRequestException('documentId and transactionId are required');
+      }
+      return this.reviewService.linkDocToTx(
+        firebaseId, bn, Number(body.documentId), Number(body.transactionId),
+      );
+    }
+
+    /** Archive a document row — delegates to the existing per-row archive
+     *  in DocumentsService (file move processed/ → archive/, status flip). */
+    @Post('me/review/archive-doc/:documentId')
+    @UseGuards(FirebaseAuthGuard)
+    async archiveDoc(
+      @Req() request: AuthenticatedRequest,
+      @Param('documentId') documentId: string,
+    ) {
+      const firebaseId = request.user?.firebaseId;
+      if (!firebaseId) throw new BadRequestException('Not authenticated');
+      return this.reviewService.archiveDoc(firebaseId, Number(documentId));
+    }
+
+    /** Hard-delete a document row — DB row is removed, Drive file moves to
+     *  archive/ as a safety net. See ReportReviewService.deleteDoc for the
+     *  semantic distinction vs archive. */
+    @Post('me/review/delete-doc/:documentId')
+    @UseGuards(FirebaseAuthGuard)
+    async deleteDoc(
+      @Req() request: AuthenticatedRequest,
+      @Param('documentId') documentId: string,
+    ) {
+      const firebaseId = request.user?.firebaseId;
+      if (!firebaseId) throw new BadRequestException('Not authenticated');
+      return this.reviewService.deleteDoc(firebaseId, Number(documentId));
+    }
+
+    /** Unpair an invoice↔receipt pair set by DocumentPairingService.
+     *  Either side of the pair can be the entry point — the service
+     *  follows the back-pointer to find the partner. */
+    @Post('me/review/unpair/:documentId')
+    @UseGuards(FirebaseAuthGuard)
+    async unpair(
+      @Req() request: AuthenticatedRequest,
+      @Param('documentId') documentId: string,
+    ) {
+      const firebaseId = request.user?.firebaseId;
+      if (!firebaseId) throw new BadRequestException('Not authenticated');
+      if (!documentId) throw new BadRequestException('documentId is required');
+      return this.reviewService.unpair(firebaseId, Number(documentId));
+    }
+
+    /** Upload a PDF/image as the source doc for a tx_only row and auto-
+     *  link the new extracted_document to the slim transaction. multipart/
+     *  form-data with `file` (required) + `businessNumber` form field.
+     *  Synchronous OCR — caller waits on the Claude call. Returns the
+     *  new documentId so the frontend can refresh the row in-place. */
+    @Post('me/review/upload-doc-to-tx/:transactionId')
+    @UseGuards(FirebaseAuthGuard)
+    @UseInterceptors(
+      FileInterceptor('file', {
+        limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB cap — generous for invoice PDFs
+      }),
+    )
+    async uploadDocToTx(
+      @Req() request: AuthenticatedRequest,
+      @Param('transactionId') transactionId: string,
+      @Body() body: { businessNumber: string },
+      @UploadedFile() file: Express.Multer.File,
+    ) {
+      const firebaseId = request.user?.firebaseId;
+      if (!firebaseId) throw new BadRequestException('Not authenticated');
+      const bn = body?.businessNumber?.trim();
+      if (!bn) throw new BadRequestException('businessNumber is required');
+      if (!transactionId) throw new BadRequestException('transactionId is required');
+      if (!file) throw new BadRequestException('file is required');
+      return this.reviewService.uploadDocAndLinkToTx(
+        firebaseId, bn, Number(transactionId), file,
+      );
+    }
+
+    /** Reject a tx_only row — marks the slim transaction not-an-expense
+     *  and locks it to the current period so it doesn't re-surface. */
+    @Post('me/review/reject-tx')
+    @UseGuards(FirebaseAuthGuard)
+    async rejectTx(
+      @Req() request: AuthenticatedRequest,
+      @Body() body: { businessNumber: string; transactionId: number },
+    ) {
+      const firebaseId = request.user?.firebaseId;
+      if (!firebaseId) throw new BadRequestException('Not authenticated');
+      const bn = body?.businessNumber?.trim();
+      if (!bn) throw new BadRequestException('businessNumber is required');
+      if (!body?.transactionId) throw new BadRequestException('transactionId is required');
+      return this.reviewService.rejectTx(firebaseId, bn, Number(body.transactionId));
+    }
 
 
     @Get('vat-report')
@@ -36,19 +243,13 @@ export class ReportsController {
         @Query() query: VatReportRequestDto,
     ): Promise<VatReportDto> {
         try {
-            console.log("getVatReport - controller start");
-            console.log("query:", query);
             const firebaseId = request.user?.firebaseId;
             if (!firebaseId) {
                 throw new BadRequestException('Firebase ID is missing');
             }
-            console.log("Converting dates...");
             const startDate = this.sharedService.convertStringToDateObject(query.startDate);
             const endDate = this.sharedService.convertStringToDateObject(query.endDate);
-            console.log("Converted dates - startDate:", startDate, "endDate:", endDate);
-            console.log("Calling createVatReport...");
             const vatReport = await this.reportsService.createVatReport(firebaseId, query.businessNumber, startDate, endDate);
-            console.log("getVatReport - controller success");
             return vatReport;
         } catch (error) {
             console.error("❌ Error in getVatReport controller:", error);
@@ -56,6 +257,30 @@ export class ReportsController {
             console.error("Error stack:", error.stack);
             throw error;
         }
+    }
+
+    /**
+     * Form 1342 (Israeli Tax Authority) — equipment depreciation report.
+     * Returns one row per equipment asset purchased on or before `year`,
+     * with the columns 1..11 already computed (see Form1342ReportRowDto).
+     */
+    @Get('depreciation-report')
+    @UseGuards(FirebaseAuthGuard)
+    @UsePipes(new ValidationPipe({ transform: true }))
+    async getDepreciationReport(
+        @Req() request: AuthenticatedRequest,
+        @Query() query: DepreciationReportRequestDto,
+    ): Promise<Form1342ReportDto> {
+        const firebaseId = request.user?.firebaseId;
+        if (!firebaseId) {
+            throw new BadRequestException('Firebase ID is missing');
+        }
+        const year = Number(query.year);
+        return this.reportsService.createForm1342Report(
+            firebaseId,
+            query.businessNumber,
+            year,
+        );
     }
 
     @Get('advance-income-tax-report')

@@ -90,6 +90,17 @@ export class Expense {
   externalTransactionId: string | null;
 
   /**
+   * The extracted_document.id this Expense was approved from. Set by the
+   * unified review-modal approve paths (doc-cash, matched). Used to:
+   *   • un-approve a row (drop the Expense, flip doc back to pending_review)
+   *   • audit which expenses came from a given PDF
+   * For rows approved from a "matched" review row this is set ALONGSIDE
+   * externalTransactionId — one Expense, two source pointers.
+   */
+  @Column({ name: 'source_document_id', type: 'int', nullable: true, default: null })
+  sourceDocumentId: number | null;
+
+  /**
    * Original currency code if the underlying transaction wasn't in ILS.
    * `sum` is always ILS (already converted via BOI rate), but the תזרים /
    * expenses tables show "$X (₪Y)" for foreign-currency rows — so we need

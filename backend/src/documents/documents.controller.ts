@@ -318,21 +318,40 @@ export class DocumentsController {
   // don't get swallowed by ':userId/:yearMonth' (Nest matches top-to-bottom).
   // -----------------------------------------------------------------
 
-  @Post('me/sync')
+  /**
+   * Trigger for the new inbox-driven flow: walk the business's `inbox/`
+   * folder on Drive, OCR every file we haven't seen, move processed files
+   * to `processed/`. Called automatically from the VAT/P&L report-page
+   * pre-flight before the report renders.
+   */
+  @Post('me/process-inbox')
   @UseGuards(FirebaseAuthGuard)
-  async syncMyDriveMonths(
+  async processMyInbox(
     @Req() request: AuthenticatedRequest,
-    @Body() body: { businessNumber: string; months: string[] },
+    @Body() body: { businessNumber: string },
   ) {
     const firebaseId = request.user?.firebaseId;
     if (!firebaseId) throw new BadRequestException('Not authenticated');
     const businessNumber = body?.businessNumber?.trim();
     if (!businessNumber) throw new BadRequestException('businessNumber is required');
-    const months = Array.isArray(body?.months) ? body.months.filter(m => /^\d{4}-\d{2}$/.test(m)) : [];
-    if (months.length === 0) {
-      throw new BadRequestException('months[] is required (YYYY-MM strings)');
-    }
-    return this.documentsService.syncMonthsForUser(firebaseId, businessNumber, months);
+    return this.documentsService.processInboxForUser(firebaseId, businessNumber);
+  }
+
+  /**
+   * User chose not to keep an extracted doc — flip its status to `archived`
+   * and move the file in Drive from `processed/` to `archive/`. Best-effort
+   * on the Drive move: the DB status flips regardless so a Drive outage
+   * doesn't strand the row in the review list.
+   */
+  @Post('me/archive/:documentId')
+  @UseGuards(FirebaseAuthGuard)
+  async archiveExtractedDoc(
+    @Req() request: AuthenticatedRequest,
+    @Param('documentId', ParseIntPipe) documentId: number,
+  ) {
+    const firebaseId = request.user?.firebaseId;
+    if (!firebaseId) throw new BadRequestException('Not authenticated');
+    return this.documentsService.archiveDocument(firebaseId, documentId);
   }
 
   // One-shot OCR for a single uploaded file (manual-expense dialog
@@ -378,43 +397,13 @@ export class DocumentsController {
   async listMyReviewable(
     @Req() request: AuthenticatedRequest,
     @Query('businessNumber') businessNumber: string,
-    @Query('months') monthsCsv: string,
   ) {
     const firebaseId = request.user?.firebaseId;
     if (!firebaseId) throw new BadRequestException('Not authenticated');
     if (!businessNumber?.trim()) {
       throw new BadRequestException('businessNumber query param required');
     }
-    const months = (monthsCsv ?? '')
-      .split(',')
-      .map(s => s.trim())
-      .filter(m => /^\d{4}-\d{2}$/.test(m));
-    if (months.length === 0) {
-      throw new BadRequestException('months query param required (CSV of YYYY-MM)');
-    }
-    return this.documentsService.getReviewableForUser(firebaseId, businessNumber.trim(), months);
-  }
-
-  // -----------------------------------------------------------------
-  // Admin/dev (param-based — must stay below /me/* routes)
-  // -----------------------------------------------------------------
-
-  @Post('sync/:userId/:businessNumber/:yearMonth')
-  async syncUserMonth(
-    @Param('userId', ParseIntPipe) userId: number,
-    @Param('businessNumber') businessNumber: string,
-    @Param('yearMonth') yearMonth: string,
-  ) {
-    return this.documentsService.syncUserMonth(userId, businessNumber, yearMonth);
-  }
-
-  @Get(':userId/:businessNumber/:yearMonth')
-  async listExtractedDocs(
-    @Param('userId', ParseIntPipe) userId: number,
-    @Param('businessNumber') businessNumber: string,
-    @Param('yearMonth') yearMonth: string,
-  ) {
-    return this.documentsService.listByUserMonth(userId, businessNumber, yearMonth);
+    return this.documentsService.getReviewableForUser(firebaseId, businessNumber.trim());
   }
 
 }

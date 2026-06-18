@@ -66,6 +66,20 @@ p.block-title {
   align-items: center;
 }
 
+// Container for the dashboard's primary action buttons ("+ הוספת הוצאה" and,
+// for demo users, "אפס נתוני בדיקה"). Stays vertical so the two buttons
+// stack on the right side of the user-info-block without crowding the avatar.
+.dashboard-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+
+  app-p-button {
+    white-space: nowrap;
+  }
+}
+
 .hidden {
   display: none;
 }

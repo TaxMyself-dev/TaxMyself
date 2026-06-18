@@ -22,7 +22,8 @@ export class ReportsPage implements OnInit {
     { name:  'דו"ח רווח והפסד', link: "/pnl-report", image: "../../../assets/p&l_report.svg", id: '1', index: 'one', content: 'צפייה בהכנסות והוצאות העסק לפי תקופה'},
     { name: 'דו"ח שנתי', link: "/annual-report", image: "../../../assets/annual_report.svg", id:'2', index: 'two', content: 'הגשת דו"ח שנתי למס הכנסה'},
     { name: 'דו"ח מקדמות למס הכנסה', link: "/advance-income-tax-report", image: "../../../assets/advance_report.svg", id: '3', index: 'three', content: 'דיווח ותשלום מקדמות למס הכנסה'},
-    { name: 'מבנה קבצים אחיד', link: "/uniform-file", image: "../../../assets/uniform_structure.svg", id: '4', index: 'four', content: 'הפקת קובץ לפי דרישות רשות המיסים'}
+    { name: 'מבנה קבצים אחיד', link: "/uniform-file", image: "../../../assets/uniform_structure.svg", id: '4', index: 'four', content: 'הפקת קובץ לפי דרישות רשות המיסים'},
+    { name: 'דו"ח פחת (טופס 1342)', link: "/depreciation-report", image: "../../../assets/annual_report.svg", id: '5', index: 'five', content: 'הפקת דוח פחת על נכסי הציוד של העסק'}
   ];
 
   }

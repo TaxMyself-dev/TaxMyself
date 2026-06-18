@@ -344,6 +344,12 @@
                 {{ row[col.name] }}
               </span>
               }
+              <!-- Plain ILS amount with " ש״ח" suffix. Used by report-
+                   summary cells where the value is always in ILS and the
+                   percent line from AMOUNT_WITH_PERCENT isn't useful. -->
+              @else if (col.cellRenderer === ICellRenderer.AMOUNT_ILS) {
+                <span class="amount-ils">{{ (row[col.name] | number:'1.0-2') ?? 0 }} ש״ח</span>
+              }
               <!-- Amount + recognition % stacked on two lines (used by the
                    confirm-expense dialog for "מוכר למע״מ" / "מוכר למס"). -->
               @else if (col.cellRenderer === ICellRenderer.AMOUNT_WITH_PERCENT) {

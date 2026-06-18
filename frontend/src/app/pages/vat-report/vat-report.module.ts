@@ -14,7 +14,7 @@ import { GenericTableComponent } from 'src/app/components/generic-table/generic-
 import { ButtonComponent } from 'src/app/components/button/button.component';
 import { InputTextModule } from 'primeng/inputtext';
 import { InputTextComponent } from "../../components/input-text/input-text.component";
-import { ConfirmTransDialogComponent } from "../../components/confirm-trans-dialog/confirm-trans-dialog.component";
+import { ReportReviewDialogComponent } from "../../components/report-review-dialog/report-review-dialog.component";
 import { FilterTabComponent } from "src/app/components/filter-tab/filter-tab.component";
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { DialogModule } from 'primeng/dialog';
@@ -33,7 +33,7 @@ import { DialogModule } from 'primeng/dialog';
     GenericTableComponent,
     InputTextModule,
     InputTextComponent,
-    ConfirmTransDialogComponent,
+    ReportReviewDialogComponent,
     FilterTabComponent,
     ConfirmDialogModule,
     DialogModule

@@ -395,6 +395,11 @@ export enum ICellRenderer {
   SUM_WITH_FX = 'sumWithFx',
   /** Same as AMOUNT_WITH_PERCENT but adds a small equipment icon when row.isEquipment is true. */
   TAX_WITH_EQUIPMENT = 'taxWithEquipment',
+  /** Plain ILS amount with " ש״ח" suffix. Lighter than AMOUNT_WITH_PERCENT
+   *  (no percent line, no two-line layout) — used for report-summary cells
+   *  where the row is already known to be in ILS and the percent context
+   *  doesn't apply. */
+  AMOUNT_ILS = 'amountIls',
 }
 
 export enum NavigationItemClass {

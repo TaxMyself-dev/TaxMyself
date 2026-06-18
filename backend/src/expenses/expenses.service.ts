@@ -11,7 +11,7 @@ import { DefaultSubCategory } from './default-sub-categories.entity';
 import { UserCategory } from './user-categories.entity';
 import { UserSubCategory } from './user-sub-categories.entity';
 import { ClassifiedTransactions } from '../transactions/classified-transactions.entity';
-import { ExtractedDocument } from '../documents/extracted-document.entity';
+import { ExtractedDocument, ExtractedDocStatus } from '../documents/extracted-document.entity';
 import { SharedService } from '../shared/shared.service';
 import { FxRateService } from '../shared/fx-rate.service';
 import { Business } from 'src/business/business.entity';
@@ -49,7 +49,17 @@ export class ExpensesService {
         ) { }
 
 
-    async addExpense(expense: CreateExpenseDto, userId: string, businessNumber: string): Promise<Expense> {
+    async addExpense(
+        expense: CreateExpenseDto,
+        userId: string,
+        businessNumber: string,
+        /** Opt-out flag for the Supplier-table auto-create below. Default
+         *  true (preserves current behavior for every caller that doesn't
+         *  pass it). The report-review modal sets this to `false` when the
+         *  user clicked the red flag icon on a row to dismiss adding that
+         *  one-off vendor to their master list. */
+        saveAsSupplier: boolean = true,
+    ): Promise<Expense> {
         console.log("addExpense - start");
         const newExpense = this.expense_repo.create(expense);
 
@@ -115,10 +125,78 @@ export class ExpensesService {
         // This calculates the tax amount based on the amount after VAT
         newExpense.totalTaxPayable = (newExpense.sum - newExpense.totalVatPayable) * (newExpense.taxPercent / 100);
 
+        // Duplicate guard — hard block any new Expense that exactly matches
+        // an existing row on (userId, businessNumber, supplier, sum, date).
+        // Run AFTER the FX conversion so the `sum` comparison is ILS-on-
+        // both-sides (the foreign-currency manual entry block above may have
+        // rewritten newExpense.sum from the foreign-currency originalSum).
+        // Same strictness as checkDuplicateExpensesFromDrive — keep it tight
+        // so legitimate same-day repeat purchases (two ₪50 fuel receipts)
+        // still go through; only exact (supplier, sum, date) matches block.
+        const trimmedSupplier = newExpense.supplier?.trim();
+        if (trimmedSupplier) {
+            const existing = await this.expense_repo.findOne({
+                where: {
+                    userId,
+                    businessNumber,
+                    supplier: trimmedSupplier,
+                    sum: newExpense.sum,
+                    date: newExpense.date as any,
+                },
+            });
+            if (existing) {
+                throw new ConflictException({
+                    message: `כבר קיימת הוצאה זהה במערכת (ספק: ${trimmedSupplier}, סכום: ${newExpense.sum}, תאריך: ${newExpense.date}). ההוצאה לא נשמרה.`,
+                    existingExpenseId: existing.id,
+                    existingPeriod: existing.vatReportingDate ?? null,
+                });
+            }
+        }
+
         const resAddExpense = await this.expense_repo.save(newExpense);
         if (!resAddExpense || Object.keys(resAddExpense).length === 0) {
             throw new Error("expense not saved");
         }
+
+        // Auto-register the supplier in the user's master list. Runs AFTER
+        // the Expense save so a Supplier row never lands without its
+        // triggering Expense. Idempotent via the supplierID find-or-create
+        // — a user with 100 monthly Bezeq invoices ends up with one
+        // `supplier` row, not 100. supplierID is the unique key (within a
+        // user); empty IDs (foreign vendors like Anthropic that have no
+        // Israeli tax ID) get skipped here since there's nothing reliable
+        // to deduplicate against. saveAsSupplier=false skips the whole
+        // block — the review modal sets this when the user dismissed the
+        // red flag on the row. Best-effort: a failed Supplier save logs
+        // and continues — the Expense is already committed and the user
+        // shouldn't lose their action because of master-list bookkeeping.
+        const supplierIdTrimmed = newExpense.supplierID?.trim();
+        if (saveAsSupplier && supplierIdTrimmed) {
+            try {
+                const existing = await this.supplier_repo.findOne({
+                    where: { userId, supplierID: supplierIdTrimmed },
+                });
+                if (!existing) {
+                    await this.supplier_repo.save(this.supplier_repo.create({
+                        userId,
+                        businessNumber,
+                        supplier: newExpense.supplier ?? '',
+                        supplierID: supplierIdTrimmed,
+                        category: newExpense.category ?? '',
+                        subCategory: newExpense.subCategory ?? '',
+                        vatPercent: newExpense.vatPercent ?? 0,
+                        taxPercent: newExpense.taxPercent ?? 0,
+                        isEquipment: !!newExpense.isEquipment,
+                        reductionPercent: 0,
+                    }));
+                }
+            } catch (err: any) {
+                this.logger.warn(
+                    `addExpense: auto-create Supplier failed (supplierID=${supplierIdTrimmed}, expense=${resAddExpense.id}): ${err?.message ?? err}`,
+                );
+            }
+        }
+
         return resAddExpense;
     }
 
@@ -1281,8 +1359,12 @@ export class ExpensesService {
                     }
                 }
 
+                // Mark the source row as approved so it falls out of the
+                // pending_review query AND records the resulting expense id
+                // for traceability.
                 await this.extractedDocRepo.update(item.documentId, {
                     confirmedExpenseId: expense.id,
+                    status: ExtractedDocStatus.APPROVED,
                 });
 
                 results.push({ documentId: item.documentId, ok: true, expenseId: expense.id, supplierCreated });

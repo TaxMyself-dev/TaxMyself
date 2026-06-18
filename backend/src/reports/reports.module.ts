@@ -21,8 +21,12 @@ import { Delegation } from 'src/delegation/delegation.entity';
 import { ReportsController } from './reports.controller';
 //Services
 import { ReportsService } from './reports.service';
+import { ReportReviewService } from './report-review.service';
+import { MatchingService } from './matching.service';
 import { ExpensesService } from '../expenses/expenses.service';
 import { UsersModule } from '../users/users.module';
+import { DocumentsModule } from '../documents/documents.module';
+import { GoogleDriveModule } from '../google-drive/google-drive.module';
 import { DefaultCategory } from '../expenses/default-categories.entity';
 import { UserCategory } from '../expenses/user-categories.entity';
 import { FinsiteService } from 'src/finsite/finsite.service';
@@ -42,9 +46,23 @@ import { FullTransactionCache } from 'src/transactions/full-transaction-cache.en
                                       SlimTransaction, FullTransactionCache, ExtractedDocument]),
     SharedModule,
     UsersModule,
+    // DocumentsService is needed by ReportReviewService to trigger inbox
+    // processing + per-row archive. Imported (not re-provided) so we share
+    // the same instance as DocumentsModule consumers.
+    DocumentsModule,
+    // GoogleDriveModule for the per-row delete action — moves the Drive
+    // file from processed/ → archive/ as a safety net after hard-deleting
+    // the extracted_document row.
+    GoogleDriveModule,
   ],
   controllers: [ReportsController],
-  providers: [ReportsService, ExpensesService, FinsiteService],
-  exports: [ReportsService],
+  providers: [
+    ReportsService,
+    ReportReviewService,
+    MatchingService,
+    ExpensesService,
+    FinsiteService,
+  ],
+  exports: [ReportsService, ReportReviewService],
 })
 export class ReportsModule {}

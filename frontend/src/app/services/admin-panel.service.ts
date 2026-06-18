@@ -82,6 +82,21 @@ export class AdminPanelService {
       {},
     );
   }
+
+  /**
+   * In-app reset for the signed-in demo user. Backs the "אפס נתוני בדיקה"
+   * button on the dashboard — wipes Drive files + OCR/expense/transaction
+   * derived rows and re-uploads the canned sample PDFs in one shot. The
+   * backend gates this on the caller's email matching a DEMO_PROFILES
+   * entry, so it's safe to expose without admin auth (but is naturally
+   * hidden from non-demo users via `userData.isDemo`).
+   */
+  resetDemoTestData(): Observable<DemoTestResetResult> {
+    return this.http.post<DemoTestResetResult>(
+      `${environment.apiUrl}demo-data/test-reset`,
+      {},
+    );
+  }
 }
 
 export interface DemoSubUser {
@@ -114,6 +129,23 @@ export interface DemoSeedResult {
 export interface DemoResetResult {
   existed: boolean;
   deletedRows: Record<string, number>;
+}
+
+export interface DemoTestResetResult {
+  filesDeleted: number;
+  dbRowsReset: Record<string, number>;
+  filesUploaded: number;
+  /** Inbox-folder metadata for profiles that opted into Drive sample
+   *  uploads via `seedDriveFiles`. `needsManualUpload` is true when the
+   *  Drive service-account hit its quota wall — in that case the toast
+   *  should prompt the admin to drag the sample PDFs into `inboxFolderUrl`
+   *  themselves. */
+  driveInbox?: {
+    inboxFolderId: string;
+    inboxFolderUrl: string;
+    filesUploaded: number;
+    needsManualUpload: boolean;
+  };
 }
 
 export interface DriveSyncResult {

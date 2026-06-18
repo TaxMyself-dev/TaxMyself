@@ -52,8 +52,6 @@ export class FirebaseAuthGuard implements CanActivate {
     // ✅ Attach the authenticated user (agent) info
     request.user = { firebaseId: authenticatedFirebaseId, role: 'user', businessNumber: businessNumberHeader, }; // ✅ Now TypeScript recognizes `request.user`
 
-    const maskedId = authenticatedFirebaseId?.length >= 8 ? authenticatedFirebaseId.substring(0, 8) + '...' : '?';
-
     //TODO: If this agent need to update the business number to client, not of agent.
     // ✅ Extract `x-client-user-id` from headers (if exists)
     const clientUserId = Array.isArray(request.headers['x-client-user-id'])
@@ -69,17 +67,11 @@ export class FirebaseAuthGuard implements CanActivate {
     // ✅ Admin bypass — admins can act on behalf of any user (e.g., entering a
     // demo user from the admin panel) without needing an explicit delegation row.
     const authUser = await this.userRepository.findOne({ where: { firebaseId: authenticatedFirebaseId } });
-    // Verbose diagnostic — remove once admin-acting-as is confirmed working in all flows.
-    this.logger.log(
-      `[GuardDiag] path=${request.method} ${request.url} | authFid=${maskedId} | clientFid=${maskedClient} | authUserFound=${!!authUser} | authUserRole=${JSON.stringify(authUser?.role ?? null)}`,
-    );
     if (authUser?.role?.includes(UserRole.ADMIN)) {
       request.user.firebaseId = clientUserId;
       request.user.role = 'agent'; // same downstream semantics as an agent acting on behalf of a client
-      this.logger.warn(`[GuardDiag] BYPASS taken — request.user.firebaseId is now ${maskedClient}`);
       return true;
     }
-    this.logger.warn(`[GuardDiag] Admin bypass NOT taken (role check failed) — falling through to delegation check`);
 
     // ✅ Otherwise, check if the authenticated agent has delegation permission for this client
     const hasPermission = await this.delegationRepository.findOne({
