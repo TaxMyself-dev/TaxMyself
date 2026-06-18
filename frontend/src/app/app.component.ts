@@ -211,7 +211,13 @@ export class AppComponent implements OnInit {
   onAppEntryFromLogin() {
     if (this.fromLoginPage) {
       this.restartData();
-      this.triggerBillingLoad();
+      // Only fetch billing state for an authenticated user — navigating from
+      // /login to a public route (e.g. /register) leaves no Firebase user,
+      // so billing/me would 401 and the AuthErrorInterceptor would bounce
+      // the user straight back to /login.
+      if (this.authService.isLoggedIn) {
+        this.triggerBillingLoad();
+      }
     }
   }
 
