@@ -146,12 +146,11 @@
 
   // Row backgrounds are no longer type-driven (the status-column icon
   // tells the user "matched / doc-only / tx-only" now). The only
-  // background-based signal is .row-highlighted, set when the user has
-  // touched a category/sub-category on any row sharing this row's
-  // supplierId — helps track which suppliers are mid-classification
-  // across a long table. var() falls back to amber-100 when the project
-  // hasn't defined --color-background-warning.
-  tr.row-highlighted { background: var(--color-background-warning, #fef3c7); }
+  // background-based signal is .row-highlighted, set when the user
+  // touches a category/sub-category on any row — that row plus every
+  // sibling sharing its supplierId picks up the blue tint, so the user
+  // sees at a glance which rows were just updated by the cascade.
+  tr.row-highlighted { background: #dbeafe; }   // blue-100
   tr.row-pending     { opacity: 0.6; }
   tr.row-error       { background: #fee2e2 !important; }
 }
@@ -269,6 +268,112 @@
 // programmatically via #docFileInput.click().
 .hidden-file-input {
   display: none;
+}
+
+// "אחר" (custom period) dialog — opened from the period dropdown when
+// the user wants a value outside the 6-month auto-generated list.
+.custom-period-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 6px 4px 12px;
+}
+.custom-period-explanation {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: #4b5563;
+  background: #eff6ff;        // blue-50 — informational tone
+  border: 1px solid #bfdbfe;  // blue-200
+  border-right: 3px solid #1d4ed8; // RTL accent stripe
+  border-radius: 6px;
+  padding: 10px 14px;
+  strong { color: #1e3a8a; }  // blue-900 — anchors the "up to 6 months" callout
+}
+.custom-period-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #374151;
+}
+.custom-period-input {
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 0.95rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  &:focus {
+    outline: none;
+    border-color: #1d4ed8;
+    box-shadow: 0 0 0 3px #bfdbfe66;
+  }
+}
+.custom-period-footer {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+// Supplier-conflict pre-flight dialog — same visual idiom as the
+// custom-period dialog (informational blue accent stripe + rounded card).
+// Amber tone instead of blue so it reads as a warning rather than info.
+.supplier-conflict-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 6px 4px 12px;
+}
+.supplier-conflict-explanation {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: #4b5563;
+  background: #fffbeb;        // amber-50 — warning tone
+  border: 1px solid #fde68a;  // amber-200
+  border-right: 3px solid #b45309; // RTL accent stripe (amber-700)
+  border-radius: 6px;
+  padding: 10px 14px;
+  strong { color: #78350f; }  // amber-900
+}
+.supplier-conflict-list {
+  margin: 0;
+  padding: 0 18px 0 0;        // RTL: indent on the right
+  list-style: disc;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 0.9rem;
+  color: #374151;
+}
+.supplier-conflict-name {
+  font-weight: 600;
+  color: #111827;
+}
+.supplier-conflict-meta {
+  margin-right: 6px;
+  color: #6b7280;
+  font-size: 0.85rem;
+}
+.supplier-conflict-fields {
+  margin-top: 2px;
+  color: #4b5563;
+  font-size: 0.85rem;
+}
+.supplier-conflict-howto {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.55;
+  color: #374151;
+  strong { color: #111827; }
+}
+.supplier-conflict-flag-icon {
+  color: #dc2626; // red-600 — matches the in-table flag
+  font-size: 0.85rem;
+  margin: 0 2px;
+}
+.supplier-conflict-footer {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
 }
 
 // Supplier-name cell — name on the right (RTL), info icon hugging the

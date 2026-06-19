@@ -110,26 +110,14 @@ export class Business {
   @Column({ name: 'drive_folder_id', type: 'varchar', length: 255, nullable: true, default: null })
   driveFolderId: string | null;
 
-  // Three fixed sub-folders under driveFolderId. Populated by
+  // Two fixed sub-folders under driveFolderId. Populated by
   // UsersService.provisionDriveStructure() on signup/business-create, and by
   // the admin backfill endpoint for existing businesses. Files dropped into
   // `inbox/` get OCR'd on the next report-page visit; OK files move to
-  // `processed/`; user-archived files move to `archive/`.
+  // `processed/`.
   @Column({ name: 'drive_inbox_folder_id', type: 'varchar', length: 255, nullable: true, default: null })
   driveInboxFolderId: string | null;
 
   @Column({ name: 'drive_processed_folder_id', type: 'varchar', length: 255, nullable: true, default: null })
   driveProcessedFolderId: string | null;
-
-  /**
-   * @deprecated The archive/ sub-folder was retired when the DB
-   * `extracted_document.status` column became the source of truth for
-   * archived/rejected rows. Files now stay in processed/ regardless of
-   * lifecycle. Column kept for legacy rows that still hold an old folder
-   * id — nothing in code reads it any more. Safe to drop via migration:
-   *   ALTER TABLE business DROP COLUMN drive_archive_folder_id;
-   * (do that once you're sure no external consumers reference it).
-   */
-  @Column({ name: 'drive_archive_folder_id', type: 'varchar', length: 255, nullable: true, default: null })
-  driveArchiveFolderId: string | null;
 }

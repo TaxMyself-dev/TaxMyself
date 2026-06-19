@@ -75,7 +75,9 @@
             (ngModelChange)="onPeriodChange(row, $event)"
             [disabled]="!row.date"
             [title]="row.reportPeriodOverridden ? 'תקופה הוגדרה ידנית' : ''">
-      <option *ngFor="let opt of periodOptionsForRow(row)" [ngValue]="opt">{{ opt }}</option>
+      <option *ngFor="let opt of periodOptionsForRow(row)" [ngValue]="opt">
+        {{ periodOptionLabel(opt) }}
+      </option>
     </select>
   </ng-template>
 
@@ -248,4 +250,107 @@
 
     </div><!-- /.dialog-main -->
   </div><!-- /.dialog-body -->
+</p-dialog>
+
+<!-- Custom-period entry dialog. Opened when the user picks "אחר" in the
+     period dropdown (see onPeriodChange → openCustomPeriod). Styled to
+     match the rest of the app's modals instead of using window.prompt. -->
+<p-dialog
+  header="הזנת תקופת דיווח ידנית"
+  [visible]="customPeriodVisible()"
+  (visibleChange)="$event ? null : cancelCustomPeriod()"
+  [modal]="true"
+  [style]="{ width: '460px', maxWidth: '95vw' }"
+  [rtl]="true"
+  [draggable]="false"
+  [resizable]="false">
+
+  <div class="custom-period-body">
+    <p class="custom-period-explanation">
+      לפי הוראות רשות המיסים, ניתן לדווח הוצאות במע״מ
+      <strong>עד 6 חודשים אחורה</strong> ממועד הפקת המסמך.
+      במקרים חריגים ניתן להזין כאן תקופת דיווח אחרת ידנית.
+    </p>
+    <label class="custom-period-label" for="customPeriodInput">תקופת דיווח</label>
+    <input
+      id="customPeriodInput"
+      type="text"
+      class="custom-period-input"
+      [ngModel]="customPeriodValue()"
+      (ngModelChange)="customPeriodValue.set($event)"
+      (keydown.enter)="confirmCustomPeriod()"
+      placeholder="לדוגמה: 5-6/2026 או 5/2026"
+      autocomplete="off" />
+  </div>
+
+  <ng-template pTemplate="footer">
+    <div class="custom-period-footer">
+      <app-p-button
+        [buttonText]="'ביטול'"
+        [buttonColor]="ButtonColor.BLACK"
+        [buttonSize]="ButtonSize.AUTO"
+        [variant]="'outlined'"
+        (onButtonClicked)="cancelCustomPeriod()">
+      </app-p-button>
+      <app-p-button
+        [buttonText]="'אישור'"
+        [buttonColor]="ButtonColor.BLACK"
+        [buttonSize]="ButtonSize.AUTO"
+        [disabled]="!customPeriodValue().trim()"
+        (onButtonClicked)="confirmCustomPeriod()">
+      </app-p-button>
+    </div>
+  </ng-template>
+
+</p-dialog>
+
+<!-- Supplier-conflict pre-flight dialog. Opens when the bulk approve
+     queue has multiple rows for the same NEW supplier with divergent
+     classification fields (only the first row's values would land in the
+     Supplier master). User must close + resolve before approve runs. -->
+<p-dialog
+  header="התאמת נתוני ספק"
+  [visible]="supplierConflictsVisible()"
+  (visibleChange)="$event ? null : closeSupplierConflicts()"
+  [modal]="true"
+  [style]="{ width: '520px', maxWidth: '95vw' }"
+  [rtl]="true"
+  [draggable]="false"
+  [resizable]="false">
+
+  <div class="supplier-conflict-body">
+    <p class="supplier-conflict-explanation">
+      איתרנו ספקים חדשים שמופיעים במספר שורות עם <strong>נתונים שונים</strong>.
+      רק שורה אחת תישמר לרשימת הספקים שלך, כך שהערכים בשורות האחרות
+      <strong>לא ייכנסו לכרטיס הספק</strong>.
+    </p>
+
+    <ul class="supplier-conflict-list">
+      <li *ngFor="let c of supplierConflicts()">
+        <span class="supplier-conflict-name">{{ c.supplierName }}</span>
+        <span class="supplier-conflict-meta">({{ c.rowCount }} שורות)</span>
+        <div class="supplier-conflict-fields">
+          שדות שונים: {{ c.conflictingFields.join(', ') }}
+        </div>
+      </li>
+    </ul>
+
+    <p class="supplier-conflict-howto">
+      כדי להמשיך: השוו את הערכים בין השורות, או לחצו על דגל הספק
+      (<i class="pi pi-flag-fill supplier-conflict-flag-icon"></i>)
+      בשורות שאתם <strong>לא</strong> רוצים שיישמרו לכרטיס הספק.
+    </p>
+  </div>
+
+  <ng-template pTemplate="footer">
+    <div class="supplier-conflict-footer">
+      <app-p-button
+        [buttonText]="'סגור'"
+        [buttonColor]="ButtonColor.BLACK"
+        [buttonSize]="ButtonSize.AUTO"
+        (onButtonClicked)="closeSupplierConflicts()">
+      </app-p-button>
+    </div>
+  </ng-template>
+
 </p-dialog>

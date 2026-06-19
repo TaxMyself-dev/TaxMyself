@@ -92,7 +92,7 @@ export interface DemoResetResult {
 }
 
 export interface DemoTestResetResult {
-  /** Files removed from inbox/processed/archive across every business. */
+  /** Files removed from inbox/processed across every business. */
   filesDeleted: number;
   /** Per-table row counts that were purged or reset. */
   dbRowsReset: Record<string, number>;
@@ -294,7 +294,7 @@ export class DemoDataService {
   /**
    * In-app reset endpoint backing the "אפס נתוני בדיקה" dashboard button.
    * Called by a demo user logged in as themselves (NOT an admin). Wipes
-   * every file out of Drive (inbox/processed/archive) for every business,
+   * every file out of Drive (inbox/processed) for every business,
    * purges OCR/expense/document rows, then re-creates the OB cache rows
    * from the profile and re-uploads the sample PDFs.
    *
@@ -330,23 +330,17 @@ export class DemoDataService {
       .filter((n): n is string => !!n);
     console.log(`[test-reset] loaded ${businesses.length} business(es), businessNumbers=[${businessNumbers.join(',')}]`);
 
-    // 1. Wipe every file from every demo Drive folder (inbox, processed,
-    //    archive). Per-folder + per-file errors are logged but never abort
-    //    the wider reset — partial cleanup is better than no cleanup. Logs
+    // 1. Wipe every file from every demo Drive folder (inbox, processed).
+    //    Per-folder + per-file errors are logged but never abort the wider
+    //    reset — partial cleanup is better than no cleanup. Logs
     //    use console.error so they bypass NestJS log-level filtering during
     //    debugging; revert to logger.log once we trust the flow.
     console.log(`[test-reset] START drive cleanup for ${businesses.length} business(es)`);
     let filesDeleted = 0;
     for (const b of businesses) {
-      // archive/ entry kept here so legacy Business rows that still have a
-      // non-null driveArchiveFolderId from before the simplification get
-      // their old archive folder wiped on testReset too. New rows have it
-      // null and the loop just skips. Once the column is dropped via
-      // migration this entry can go.
-      const folderEntries: Array<{ name: 'inbox' | 'processed' | 'archive'; id: string | null }> = [
+      const folderEntries: Array<{ name: 'inbox' | 'processed'; id: string | null }> = [
         { name: 'inbox',     id: b.driveInboxFolderId },
         { name: 'processed', id: b.driveProcessedFolderId },
-        { name: 'archive',   id: b.driveArchiveFolderId },
       ];
       for (const { name, id: folderId } of folderEntries) {
         if (!folderId) {
@@ -981,7 +975,7 @@ export class DemoDataService {
       );
     }
 
-    // ── Step 4: per-business folder + inbox/processed/archive trio. ──
+    // ── Step 4: per-business folder + inbox/processed sub-folders. ──
     let firstInboxFolderId: string | null = null;
     for (const b of businesses) {
       this.logger.log(
@@ -1006,8 +1000,6 @@ export class DemoDataService {
 
       // Persist with a targeted update — avoids touching unrelated columns
       // (createdAt audit columns, etc.) that a full `.save(entity)` might.
-      // driveArchiveFolderId is no longer written by the provisioner; old
-      // values stay in place on legacy rows but nothing reads them.
       await businessRepo.update(
         { id: b.id },
         {

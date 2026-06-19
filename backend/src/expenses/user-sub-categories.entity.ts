@@ -19,13 +19,13 @@ export class UserSubCategory {
   @Column()
   categoryName: string;
 
-  @Column('decimal')
+  @Column('decimal', { precision: 5, scale: 2 })
   taxPercent: number;
 
-  @Column('decimal')
+  @Column('decimal', { precision: 5, scale: 2 })
   vatPercent: number;
 
-  @Column('decimal')
+  @Column('decimal', { precision: 5, scale: 2 })
   reductionPercent: number;
 
   @Column('boolean')

@@ -164,9 +164,9 @@ export class UsersController {
     /**
      * One-off backfill: walk every user and re-run provisionDriveStructure.
      * For businesses whose Drive parent folder exists but the
-     * inbox/processed/archive sub-folder ids are NULL (typical for businesses
+     * inbox/processed sub-folder ids are NULL (typical for businesses
      * created before the 2026-06-08 refactor), the service-layer logic
-     * creates the three sub-folders and persists their ids.
+     * creates the sub-folders and persists their ids.
      *
      * Idempotent. Intended to be called once after deploy. Unauthenticated
      * for curl convenience during dev — keep this gated behind something

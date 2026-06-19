@@ -122,6 +122,23 @@ interface EditableReviewRow {
   saveError: string | null;
 }
 
+/**
+ * One supplier group in the bulk-approve queue whose rows disagree on at
+ * least one field that would be persisted to the Supplier master row.
+ * Only the first row processed per supplierId actually writes to the
+ * master (the backend's find-or-create skips the rest), so divergent
+ * values on the others would be silently dropped. We surface this to the
+ * user before the approve runs so they can either align the values or
+ * opt the divergent rows out of supplier-save via the per-row flag.
+ */
+interface SupplierConflict {
+  supplierId: string;
+  supplierName: string;
+  rowCount: number;
+  /** Hebrew field labels that differ across the group's rows. */
+  conflictingFields: string[];
+}
+
 @Component({
   selector: 'app-report-review-dialog',
   standalone: true,
@@ -188,6 +205,22 @@ export class ReportReviewDialogComponent {
    *  space. Cleared by closePreview() or onClose(). */
   previewDriveFileId = signal<string | null>(null);
   previewDriveFileName = signal<string>('');
+
+  // Custom-period entry dialog state. Replaces the browser's native
+  // `window.prompt` so it matches the rest of the app's modal styling.
+  // `customPeriodRow` is the row we'll write the typed value back to
+  // (null = dialog closed). `customPeriodValue` is the text the user is
+  // typing right now; bound via [ngModel].
+  customPeriodVisible = signal<boolean>(false);
+  customPeriodValue = signal<string>('');
+  private customPeriodRow: EditableReviewRow | null = null;
+
+  // Supplier-conflict pre-flight dialog state. Opened by bulkApproveSelected
+  // when the queue contains multiple rows for the same NEW supplier with
+  // divergent classification — the user has to resolve before approval can
+  // proceed (either align the values or click the flag on divergent rows).
+  supplierConflictsVisible = signal<boolean>(false);
+  supplierConflicts = signal<SupplierConflict[]>([]);
 
   /** SafeResourceUrl for the iframe — Angular's default sanitizer refuses
    *  to render any src on <iframe> without explicit trust. Recomputes
@@ -265,6 +298,9 @@ export class ReportReviewDialogComponent {
     this.highlightedSupplierIds.set(new Set<string>());
     this.previewDriveFileId.set(null);
     this.previewDriveFileName.set('');
+    this.customPeriodVisible.set(false);
+    this.customPeriodValue.set('');
+    this.customPeriodRow = null;
   }
 
   /** Open the Drive preview side panel for a doc-side row. tx_only rows
@@ -327,6 +363,15 @@ export class ReportReviewDialogComponent {
         this.mode.set(preview.mode);
         this.counts.set(preview.counts);
         const editable = preview.rows.map(r => this.toEditableRow(r));
+        // Sort alphabetically by supplier name so rows from the same vendor
+        // group together — easier to spot duplicates, easier to bulk-edit
+        // category/sub-category across siblings. Hebrew collation handles
+        // mixed Hebrew/Latin names correctly (e.g. "Anthropic" sorts under
+        // 'A' while "בזק" sorts in Hebrew alpha order). Empty supplier
+        // names (rare; tx_only with a merchant that OCR'd blank) sort first.
+        editable.sort((a, b) =>
+          (a.supplier || '').localeCompare(b.supplier || '', 'he'),
+        );
         this.rows.set(editable);
         if (editable.length === 0) {
           this.processComplete.emit({ hasRows: false });
@@ -488,23 +533,38 @@ export class ReportReviewDialogComponent {
 
   /** Category changed — clear sub-category + derived fields. The user
    *  must repick a sub-category (which then cascades VAT%/tax%/isEquipment
-   *  back onto the row). Matches PullDriveDocsDialog behavior. */
+   *  back onto the row). Matches PullDriveDocsDialog behavior.
+   *  Cascade: every other row sharing this supplierId picks up the same
+   *  category change. User's stated intent — "all my Bezeq invoices are
+   *  the same category". Touched siblings are visually highlighted (blue)
+   *  via the existing markSupplierTouched + row-highlighted class. */
   onCategoryChange(row: EditableReviewRow, picked: string): void {
     row.category = picked;
     row.subCategory = '';
     row.vatPercent = 0;
     row.taxPercent = 0;
     row.isEquipment = false;
+    this.cascadeToSupplierSiblings(row, (s) => {
+      s.category = picked;
+      s.subCategory = '';
+      s.vatPercent = 0;
+      s.taxPercent = 0;
+      s.isEquipment = false;
+    });
     this.markSupplierTouched(row);
     this.bumpRows();
   }
 
   /** Sub-category changed — cascade the catalog's canonical values onto
    *  the row so the resulting Expense gets consistent VAT/tax/equipment
-   *  values from the same catalog entry. */
+   *  values from the same catalog entry. Same supplier-sibling cascade
+   *  as onCategoryChange: change one Bezeq invoice's sub-category, every
+   *  Bezeq invoice in the table picks it up. */
   onSubCategoryChange(row: EditableReviewRow, picked: string): void {
     if (!picked) {
       row.subCategory = '';
+      this.cascadeToSupplierSiblings(row, (s) => { s.subCategory = ''; });
+      this.markSupplierTouched(row);
       this.bumpRows();
       return;
     }
@@ -516,11 +576,53 @@ export class ReportReviewDialogComponent {
       row.vatPercent = Number(entry.vatPercent);
       row.taxPercent = Number(entry.taxPercent);
       row.isEquipment = !!entry.isEquipment;
+      this.cascadeToSupplierSiblings(row, (s) => {
+        s.subCategory = entry.subCategoryName;
+        s.category = entry.categoryName;
+        s.vatPercent = Number(entry.vatPercent);
+        s.taxPercent = Number(entry.taxPercent);
+        s.isEquipment = !!entry.isEquipment;
+      });
     } else {
       row.subCategory = picked;
+      this.cascadeToSupplierSiblings(row, (s) => { s.subCategory = picked; });
     }
     this.markSupplierTouched(row);
     this.bumpRows();
+  }
+
+  /** Apply `mutate` to every row that represents the same supplier as
+   *  `source` (other than `source` itself).
+   *
+   *  Primary match: trimmed supplierId — the strongest identity signal.
+   *  Fallback: when both source AND sibling have an empty supplierId,
+   *  match by trimmed supplier name. Covers receipt-only vendors (דואר
+   *  ישראל, supermarkets, anything without an Israeli tax ID printed on
+   *  the document) — without this, every קבלה row stayed un-cascadable.
+   *  The "both empty" guard prevents leaking edits between two rows
+   *  with the same name but different tax IDs (those ARE different
+   *  legal entities — e.g. two stores sharing a chain brand). */
+  private cascadeToSupplierSiblings(
+    source: EditableReviewRow,
+    mutate: (sibling: EditableReviewRow) => void,
+  ): void {
+    const sid = source.supplierId?.trim();
+    const sname = source.supplier?.trim();
+    if (!sid && !sname) return; // tx_only rows with no merchant info
+    for (const r of this.rows()) {
+      if (r === source) continue;
+      const rsid = r.supplierId?.trim();
+      const rsname = r.supplier?.trim();
+      if (sid) {
+        if (rsid !== sid) continue;
+      } else {
+        // source has no supplierId → only match siblings that ALSO have
+        // no supplierId AND share the trimmed name.
+        if (rsid) continue;
+        if (!rsname || rsname !== sname) continue;
+      }
+      mutate(r);
+    }
   }
 
   /** Click handler for the red flag icon — toggles the per-row choice
@@ -535,27 +637,38 @@ export class ReportReviewDialogComponent {
     this.bumpRows();
   }
 
-  /** Add the row's supplierId to the highlighted set so every row that
-   *  shares the same supplier picks up the warning-background tint. Empty
-   *  supplierIds (typical for tx_only rows) are skipped — adding "" would
-   *  paint every other tx_only row regardless of merchant. */
-  private markSupplierTouched(row: EditableReviewRow): void {
+  /** Derive the identity key used for the blue-highlight grouping.
+   *  Matches the cascade rule: supplierId when present, otherwise the
+   *  trimmed supplier name. Tagged so an empty-id row named "123" can't
+   *  collide with a real supplierId "123". Returns null for tx-only rows
+   *  with no merchant info at all (nothing to group by). */
+  private supplierGroupKey(row: EditableReviewRow): string | null {
     const sid = row.supplierId?.trim();
-    if (!sid) return;
+    if (sid) return `id:${sid}`;
+    const sname = row.supplier?.trim();
+    if (sname) return `name:${sname}`;
+    return null;
+  }
+
+  /** Add the row's supplier identity to the highlighted set so every row
+   *  sharing the same supplier picks up the warning-background tint. */
+  private markSupplierTouched(row: EditableReviewRow): void {
+    const key = this.supplierGroupKey(row);
+    if (!key) return;
     this.highlightedSupplierIds.update(set => {
-      if (set.has(sid)) return set;
+      if (set.has(key)) return set;
       const next = new Set(set);
-      next.add(sid);
+      next.add(key);
       return next;
     });
   }
 
-  /** True when at least one row sharing this row's supplierId has been
-   *  touched. Drives the per-row .row-highlighted class. */
+  /** True when at least one row sharing this row's supplier identity has
+   *  been touched. Drives the per-row .row-highlighted class. */
   isSupplierHighlighted(row: EditableReviewRow): boolean {
-    const sid = row.supplierId?.trim();
-    if (!sid) return false;
-    return this.highlightedSupplierIds().has(sid);
+    const key = this.supplierGroupKey(row);
+    if (!key) return false;
+    return this.highlightedSupplierIds().has(key);
   }
 
   /** Icon class for the status column — three buckets aligned with the
@@ -580,26 +693,138 @@ export class ReportReviewDialogComponent {
 
   // ---- Period dropdown -------------------------------------------------
 
-  /** Period options for the row's year. Single-month → 12 options;
-   *  bi-monthly → 6 options. Cross-year overrides are not supported here
-   *  (deliberately — keeps the dropdown short; rare case can be fixed by
-   *  editing the underlying date upstream). */
+  /** Special sentinel value for the "אחר" (other) option. Picking it
+   *  pops a prompt where the user types a custom period label, instead
+   *  of selecting from the predefined list. */
+  private static readonly CUSTOM_PERIOD_SENTINEL = '__custom__';
+
+  /**
+   * Period options scoped to the row's date — 6 months forward from
+   * the doc's date:
+   *   - DUAL_MONTH_REPORT (bi-monthly): the bi-monthly period the date
+   *     falls in, plus the next two bi-monthly periods. Year suffix
+   *     auto-rolls when crossing December (e.g. row dated 23/12/2025
+   *     → "11-12/2025", "1-2/2026", "3-4/2026").
+   *   - MONTHLY_REPORT: 6 individual months starting from the date's
+   *     month, same year wraparound rule.
+   * Plus an "אחר" sentinel at the bottom so the user can type a custom
+   * period for periods that don't fit the 6-month forward window
+   * (back-fill into an earlier closed period, for example).
+   * If row.reportPeriod was set previously to something outside the
+   * generated list (manual edit on a prior open of this dialog), we
+   * also include it at the top so the dropdown can re-display it.
+   */
   periodOptionsForRow(row: EditableReviewRow): string[] {
-    const year = this.yearOfRow(row);
-    if (this.vatReportingType() === VATReportingType.DUAL_MONTH_REPORT) {
-      return [1, 3, 5, 7, 9, 11].map(m => `${m}-${m + 1}/${year}`);
+    const opts: string[] = [];
+    const date = this.parseRowDate(row.date);
+    const isDual = this.vatReportingType() === VATReportingType.DUAL_MONTH_REPORT;
+
+    if (date) {
+      let month = date.getUTCMonth() + 1;
+      let year = date.getUTCFullYear();
+      if (isDual) {
+        // Align to bi-monthly bucket start (1, 3, 5, 7, 9, 11).
+        let start = month % 2 === 1 ? month : month - 1;
+        for (let i = 0; i < 3; i++) {
+          opts.push(`${start}-${start + 1}/${year}`);
+          start += 2;
+          if (start > 12) { start = 1; year++; }
+        }
+      } else {
+        for (let i = 0; i < 6; i++) {
+          opts.push(`${month}/${year}`);
+          month++;
+          if (month > 12) { month = 1; year++; }
+        }
+      }
+    } else {
+      // No date — fall back to the current calendar year's first period
+      // so the dropdown still has something to pick. Edge case (tx_only
+      // rows with a missing cache.transactionDate).
+      const year = new Date().getFullYear();
+      opts.push(isDual ? `1-2/${year}` : `1/${year}`);
     }
-    return Array.from({ length: 12 }, (_, i) => `${i + 1}/${year}`);
+
+    // Preserve any prior custom period that isn't in the generated set
+    // so the select still has a valid selected value to render.
+    if (row.reportPeriod && !opts.includes(row.reportPeriod)) {
+      opts.unshift(row.reportPeriod);
+    }
+    opts.push(ReportReviewDialogComponent.CUSTOM_PERIOD_SENTINEL);
+    return opts;
+  }
+
+  /** Display label for an option — "אחר" for the sentinel, the option
+   *  string verbatim for everything else. Template binds via this so
+   *  the underlying value stays a sentinel until the user picks it. */
+  periodOptionLabel(opt: string): string {
+    return opt === ReportReviewDialogComponent.CUSTOM_PERIOD_SENTINEL ? 'אחר' : opt;
   }
 
   /** User picked from the period dropdown — flag as overridden only if
    *  the choice differs from what we'd derive automatically, so unchanged
-   *  rows still let the backend compute the period from the date. */
+   *  rows still let the backend compute the period from the date.
+   *  "אחר" branches to a window.prompt for free-form entry. */
   onPeriodChange(row: EditableReviewRow, picked: string): void {
+    if (picked === ReportReviewDialogComponent.CUSTOM_PERIOD_SENTINEL) {
+      // Open the styled custom-period dialog instead of window.prompt
+      // so the look matches the rest of the modal stack. The <select>
+      // briefly shows the sentinel as its value; bumpRows() inside
+      // confirmCustomPeriod/cancelCustomPeriod resets the display.
+      this.openCustomPeriod(row);
+      return;
+    }
     const derived = this.derivePeriod(row.date);
     row.reportPeriod = picked;
     row.reportPeriodOverridden = picked !== derived;
     this.bumpRows();
+  }
+
+  /** Open the "אחר" dialog for the given row, prefilled with the row's
+   *  current period (so the user can edit instead of retyping). */
+  openCustomPeriod(row: EditableReviewRow): void {
+    this.customPeriodRow = row;
+    this.customPeriodValue.set(row.reportPeriod ?? '');
+    this.customPeriodVisible.set(true);
+  }
+
+  /** User pressed cancel / clicked X / pressed Escape on the custom-period
+   *  dialog. Discard input and rewind the <select>'s display from the
+   *  sentinel back to the row's previous period. */
+  cancelCustomPeriod(): void {
+    this.customPeriodVisible.set(false);
+    this.customPeriodRow = null;
+    this.customPeriodValue.set('');
+    this.bumpRows();
+  }
+
+  /** User confirmed — write the typed period onto the row, mark it as
+   *  overridden so the approve call passes it through, then close. Empty
+   *  / whitespace-only input is treated as cancel. */
+  confirmCustomPeriod(): void {
+    const value = this.customPeriodValue().trim();
+    const row = this.customPeriodRow;
+    if (!row || !value) {
+      this.cancelCustomPeriod();
+      return;
+    }
+    row.reportPeriod = value;
+    row.reportPeriodOverridden = true;
+    this.customPeriodVisible.set(false);
+    this.customPeriodRow = null;
+    this.customPeriodValue.set('');
+    this.bumpRows();
+  }
+
+  /** YYYY-MM-DD → Date in UTC. Returns null on bad/missing input. */
+  private parseRowDate(date: string): Date | null {
+    if (!date) return null;
+    const [yStr, mStr, dStr] = date.split('-');
+    const y = Number(yStr);
+    const m = Number(mStr);
+    const d = Number(dStr);
+    if (!y || !m || !d) return null;
+    return new Date(Date.UTC(y, m - 1, d));
   }
 
   private yearOfRow(row: EditableReviewRow): number {
@@ -903,8 +1128,10 @@ export class ReportReviewDialogComponent {
       // New column: Israeli tax allocation number (מספר הקצאה / Confirmation
       // Number). Surfaced separately so the user can see at a glance whether
       // a high-value invoice carries the legally-required allocation number
-      // before approving it.
-      { name: 'allocationNumber', value: 'מס׳ הקצאה', width: '140px' },
+      // before approving it. 120px is comfortable for the canonical 9-digit
+      // value (normalizeAllocationNumber in documents.service.ts truncates
+      // anything longer to the rightmost 9 digits).
+      { name: 'allocationNumber', value: 'מס׳ הקצאה', width: '120px' },
       { name: 'date', value: 'תאריך', width: '115px' },
       { name: 'sumLabel', value: 'סכום', cellRenderer: ICellRenderer.SUM_WITH_FX, width: '110px' },
       { name: 'category', value: 'קטגוריה', cellTemplate: categoryCellTpl, width: '125px' },
@@ -965,7 +1192,66 @@ export class ReportReviewDialogComponent {
       return;
     }
     if (this.isActioning()) return;
+
+    // Pre-flight: catch the "multiple rows for the same new supplier with
+    // different classification" case before any DB writes happen. Only one
+    // row per supplierId ever reaches the Supplier master (find-or-create
+    // — see expenses.service.ts:1340-1359) so divergent rows would lose
+    // their edits silently. Surface the conflict and let the user resolve.
+    const conflicts = this.findSupplierConflicts(queue);
+    if (conflicts.length > 0) {
+      this.supplierConflicts.set(conflicts);
+      this.supplierConflictsVisible.set(true);
+      return;
+    }
+
     this.runBulkQueue(queue, 0);
+  }
+
+  /**
+   * Group the queue's "ספק חדש" rows by supplierId. A supplier with 2+
+   * rows is a conflict when any of the fields persisted to the Supplier
+   * master differ across the group — those edits would be silently dropped
+   * by the backend's find-or-create. Returns one entry per conflicting
+   * supplier with the list of diverging field labels. Tx-only rows and
+   * rows the user already opted out via the flag (saveAsSupplier=false)
+   * are excluded — they don't try to write to the master.
+   */
+  private findSupplierConflicts(queue: EditableReviewRow[]): SupplierConflict[] {
+    const candidates = queue.filter(r =>
+      r.saveAsSupplier
+      && r.supplierId?.trim()
+      && r.supplierStatusLabel === 'ספק חדש',
+    );
+    const byId = new Map<string, EditableReviewRow[]>();
+    for (const r of candidates) {
+      const sid = r.supplierId.trim();
+      const list = byId.get(sid) ?? [];
+      list.push(r);
+      byId.set(sid, list);
+    }
+    const conflicts: SupplierConflict[] = [];
+    for (const [sid, rows] of byId) {
+      if (rows.length < 2) continue;
+      const fields: string[] = [];
+      if (new Set(rows.map(r => (r.category ?? '').trim())).size > 1) fields.push('קטגוריה');
+      if (new Set(rows.map(r => (r.subCategory ?? '').trim())).size > 1) fields.push('תת קטגוריה');
+      if (new Set(rows.map(r => String(r.vatPercent ?? ''))).size > 1) fields.push('מע״מ %');
+      if (new Set(rows.map(r => String(r.taxPercent ?? ''))).size > 1) fields.push('מס %');
+      if (new Set(rows.map(r => r.isEquipment === true)).size > 1) fields.push('ציוד');
+      if (fields.length === 0) continue;
+      conflicts.push({
+        supplierId: sid,
+        supplierName: rows[0].supplier?.trim() || sid,
+        rowCount: rows.length,
+        conflictingFields: fields,
+      });
+    }
+    return conflicts;
+  }
+
+  closeSupplierConflicts(): void {
+    this.supplierConflictsVisible.set(false);
   }
 
   private runBulkQueue(queue: EditableReviewRow[], idx: number): void {

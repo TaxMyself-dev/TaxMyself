@@ -186,6 +186,7 @@ export class MyAccountPage implements OnInit {
     highlightedField:  TransactionsOutcomesColumns.SUM,
     dateField:         TransactionsOutcomesColumns.BILL_DATE,
     hiddenFields:      [],
+    highlightedValueFormat: 'plain',   // sum is pre-formatted with the currency symbol (₪/$/€/£)
   };
 
   // ─── Dialog visibility signals ────────────────────────────────────────────

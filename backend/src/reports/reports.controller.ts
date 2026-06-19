@@ -148,7 +148,7 @@ export class ReportsController {
     }
 
     /** Archive a document row — delegates to the existing per-row archive
-     *  in DocumentsService (file move processed/ → archive/, status flip). */
+     *  in DocumentsService (status flip; file stays in processed/). */
     @Post('me/review/archive-doc/:documentId')
     @UseGuards(FirebaseAuthGuard)
     async archiveDoc(
@@ -160,8 +160,8 @@ export class ReportsController {
       return this.reviewService.archiveDoc(firebaseId, Number(documentId));
     }
 
-    /** Hard-delete a document row — DB row is removed, Drive file moves to
-     *  archive/ as a safety net. See ReportReviewService.deleteDoc for the
+    /** Delete a document row — flips status to REJECTED; the Drive file
+     *  stays in processed/. See ReportReviewService.deleteDoc for the
      *  semantic distinction vs archive. */
     @Post('me/review/delete-doc/:documentId')
     @UseGuards(FirebaseAuthGuard)

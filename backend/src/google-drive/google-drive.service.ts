@@ -26,11 +26,7 @@ export class ServiceAccountQuotaError extends Error {
 }
 
 /** Folder IDs returned by ensureBusinessFolder(): the parent business
- *  folder plus inbox/ and processed/ children. `archiveFolderId` was
- *  removed when we stopped using Drive layout to signal archived state
- *  (the DB `extracted_document.status` column is the source of truth).
- *  Older Business rows may still have a non-null `drive_archive_folder_id`
- *  on the DB column — left in place but no new files ever get put there. */
+ *  folder plus inbox/ and processed/ children. */
 export interface DriveBusinessFolders {
   folderId: string;
   inboxFolderId: string;
@@ -123,12 +119,6 @@ export class GoogleDriveService {
    *
    * Idempotent at every step — safe to call on every login / report-page
    * visit / backfill run.
-   *
-   * Note: archive/ used to be a third child here. Since we now keep all
-   * files in processed/ regardless of approve/archive/reject status (the
-   * DB column is the source of truth), the archive folder is no longer
-   * created. Legacy Business rows may still have a `driveArchiveFolderId`
-   * pointing at an old folder — that's harmless, nothing reads it now.
    */
   async ensureBusinessFolder(
     userFolderId: string,
@@ -163,8 +153,8 @@ export class GoogleDriveService {
   /**
    * Move a file from one parent folder to another. Drive's API requires
    * both `addParents` and `removeParents` in one `update` call — there's no
-   * dedicated "move" verb. Used by the inbox → processed (OCR success) and
-   * processed → archive (user-archive action) transitions.
+   * dedicated "move" verb. Used by the inbox → processed (OCR success)
+   * transition.
    *
    * Idempotent in the spec sense: if the file is already in `toParentId`
    * (and not in `fromParentId`), removeParents silently no-ops and addParents

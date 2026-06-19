@@ -73,7 +73,7 @@ export interface DemoProfile {
 
   /**
    * When set, the seeder also provisions the primary user's Drive folders
-   * (user root + business folder + inbox/processed/archive) and uploads
+   * (user root + business folder + inbox/processed) and uploads
    * every file from `sourceDir` into the first business's inbox/. Same
    * directory is re-uploaded by the `/demo-data/test-reset` endpoint after
    * the inbox is wiped, so the demo user can re-run OCR end-to-end from

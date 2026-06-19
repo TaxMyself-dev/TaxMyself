@@ -338,10 +338,9 @@ export class DocumentsController {
   }
 
   /**
-   * User chose not to keep an extracted doc — flip its status to `archived`
-   * and move the file in Drive from `processed/` to `archive/`. Best-effort
-   * on the Drive move: the DB status flips regardless so a Drive outage
-   * doesn't strand the row in the review list.
+   * User chose not to keep an extracted doc — flip its status to `archived`.
+   * The Drive file stays in processed/; the DB status is the source of truth
+   * for what shows in the review list.
    */
   @Post('me/archive/:documentId')
   @UseGuards(FirebaseAuthGuard)

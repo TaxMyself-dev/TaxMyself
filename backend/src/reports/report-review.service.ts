@@ -770,9 +770,9 @@ export class ReportReviewService {
   // ====================================================================
 
   /**
-   * "מחק" on a doc-side row. Same Drive layout as archive (file moves to
-   * archive/, sibling sweep applies, slim matched row gets reset) — the
-   * only difference vs archive is `status = REJECTED` instead of ARCHIVED.
+   * "מחק" on a doc-side row. Same handling as archive (file stays in
+   * processed/, slim matched row gets reset) — the only difference vs
+   * archive is `status = REJECTED` instead of ARCHIVED.
    *
    *   ARCHIVED — "I'm not claiming it now but the doc is real, keep for audit."
    *   REJECTED — "This isn't a real expense doc — OCR junk, duplicate, etc."
@@ -781,8 +781,8 @@ export class ReportReviewService {
    * UI can re-surface rejected docs if needed.
    *
    * Implementation: delegates to documentsService.archiveDocument with the
-   * REJECTED target status — the file-move + sibling sweep + matched-slim
-   * reset logic is single-sourced there.
+   * REJECTED target status — the matched-slim reset logic is single-sourced
+   * there.
    */
   async deleteDoc(
     firebaseId: string,

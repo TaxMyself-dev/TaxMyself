@@ -232,7 +232,7 @@ export class UsersService {
 
     // -------------------------------------------------------
     // 9️⃣  Provision Google Drive structure: user root + a folder per business
-    //     with the inbox/processed/archive sub-folder trio. Fire-and-forget so
+    //     with the inbox/processed sub-folders. Fire-and-forget so
     //     signup returns immediately — the scaffold takes a few Drive API
     //     calls per business, and Drive outages shouldn't block the response.
     //     If anything drops on the floor, DocumentsService.processInboxForUser
@@ -601,9 +601,9 @@ export class UsersService {
    * Provision the full Drive folder structure for a user:
    *   user-root/
    *     business-A/
-   *       inbox/  processed/  archive/
+   *       inbox/  processed/
    *     business-B/
-   *       inbox/  processed/  archive/
+   *       inbox/  processed/
    *
    * Best-effort everywhere — Drive failure leaves null IDs that the lazy
    * auto-provision in DocumentsService.processInboxForUser fills in later.
@@ -633,8 +633,15 @@ export class UsersService {
     // Shared Drive migration): the old user folder still exists in the
     // old location, `folderExists` happily returns true, and without the
     // parent check we'd keep creating business sub-folders under the
-    // stale parent forever. Wipe the id when either check fails so the
-    // create-new branch below provisions fresh under the new root.
+    // stale parent forever.
+    //
+    // Deferred-wipe: only flag the row as stale here. The DB still holds the
+    // old ID until we successfully create the replacement below — that way a
+    // create failure leaves the row pointing at the (stale-but-real) old
+    // folder instead of nulling it out. The business loop further down also
+    // uses this pattern: it mutates `business` in memory and only saves after
+    // the new folder ID is in hand.
+    let userFolderIsStale = false;
     if (user.driveFolderId) {
       try {
         const parents = await this.googleDriveService.getFolderParents(user.driveFolderId);
@@ -643,33 +650,13 @@ export class UsersService {
           this.logger.warn(
             `[Drive] stored user folder ${user.driveFolderId} is 404/trashed — will re-create | ${userTag}`,
           );
-          user.driveFolderId = null;
-          await this.user_repo.save(user);
+          userFolderIsStale = true;
         } else if (!parents.includes(currentRoot)) {
           this.logger.warn(
             `[Drive] stored user folder ${user.driveFolderId} is parented under ` +
-            `[${parents.join(',')}] but current root is ${currentRoot} — wiping user + business folder ids ` +
-            `so they re-create under the new root | ${userTag}`,
+            `[${parents.join(',')}] but current root is ${currentRoot} — will re-create under the new root | ${userTag}`,
           );
-          user.driveFolderId = null;
-          await this.user_repo.save(user);
-          // Old business folders sit under the old user folder. Wipe their
-          // IDs proactively here so the business-loop below treats them as
-          // brand-new and creates fresh ones under the new user folder.
-          // (The loop's own parent check would catch this too, but doing
-          // it up-front keeps the loop's log noise consistent: "created"
-          // instead of "wiped + created".)
-          await this.business_repo.update(
-            { firebaseId: user.firebaseId },
-            {
-              driveFolderId: null,
-              driveInboxFolderId: null,
-              driveProcessedFolderId: null,
-              // driveArchiveFolderId not wiped — column is deprecated
-              // and may still hold a stale id from before the archive
-              // folder went away. Harmless either way.
-            },
-          );
+          userFolderIsStale = true;
         }
       } catch (err: any) {
         this.logger.error(
@@ -683,8 +670,11 @@ export class UsersService {
     let skippedBusinessFolders = 0;
     let failedBusinessFolders = 0;
 
-    // 1) User root folder
-    if (!user.driveFolderId) {
+    // 1) User root folder. createUserFolder is find-or-create by (name, parent)
+    // so a stale row whose folder still exists under the NEW root just resolves
+    // back to the same ID — no duplicate folders.
+    if (!user.driveFolderId || userFolderIsStale) {
+      const previousId = user.driveFolderId;
       try {
         const folderId = await this.googleDriveService.createUserFolder(
           this.buildDriveFolderName(user),
@@ -693,7 +683,9 @@ export class UsersService {
         user.driveFolderId = folderId;
         await this.user_repo.save(user);
         createdUserFolder = true;
-        this.logger.log(`[Drive] ✓ created user folder ${folderId} for ${userTag}`);
+        this.logger.log(
+          `[Drive] ✓ ${previousId ? `replaced stale user folder ${previousId} with` : 'created user folder'} ${folderId} for ${userTag}`,
+        );
       } catch (error) {
         this.logger.error(
           `[Drive] ✗ user folder FAILED for ${userTag}: ${(error as Error)?.message ?? error}`,
@@ -750,17 +742,12 @@ export class UsersService {
           business.driveFolderId          = null;
           business.driveInboxFolderId     = null;
           business.driveProcessedFolderId = null;
-          // driveArchiveFolderId no longer used — left untouched. Old
-          // rows that have it set keep their value; nothing reads it.
         }
       }
       // Three states per business:
       //   (a) no parent folder yet         → create parent + inbox + processed
       //   (b) parent exists, sub-folders missing  → backfill sub-folders
       //   (c) parent + inbox + processed  → skip (still re-share)
-      // Archive sub-folder isn't checked any more — see ensureBusinessFolder
-      // / ensureInboxAndProcessed: archive/ stopped being created when we
-      // moved to "DB status is the source of truth, files stay in processed/".
       const subFoldersMissing =
         !business.driveInboxFolderId
         || !business.driveProcessedFolderId;
@@ -977,7 +964,6 @@ export class UsersService {
       const hasParent    = !!b.driveFolderId;
       const hasInbox     = !!b.driveInboxFolderId;
       const hasProcessed = !!b.driveProcessedFolderId;
-      // archive folder no longer used — see DriveBusinessFolders comment.
 
       let parentDriveState: 'ok' | 'orphaned' | 'dead' | 'unknown' = 'unknown';
       if (b.driveFolderId) {
