@@ -388,7 +388,11 @@ export class ReportReviewService {
         {
           supplier: doc.supplier ?? cache.merchantName,
           supplierID: doc.supplierId ?? '',
-          expenseNumber: undefined as any,
+          // expenseNumber is misnamed — it carries the invoice number from
+          // the OCR'd document, NOT a separate user-entered reference. Pass
+          // through whatever the OCR captured; null when the doc has no
+          // printed number (rare for invoices, common for cash receipts).
+          expenseNumber: doc.invoiceNumber ?? undefined as any,
           category: finalCategory,
           subCategory: finalSubCategory,
           sum: amounts.sum,
@@ -497,7 +501,11 @@ export class ReportReviewService {
         {
           supplier: doc.supplier ?? '',
           supplierID: doc.supplierId ?? '',
-          expenseNumber: undefined as any,
+          // expenseNumber is misnamed — it carries the invoice number from
+          // the OCR'd document, NOT a separate user-entered reference. Pass
+          // through whatever the OCR captured; null when the doc has no
+          // printed number (rare for invoices, common for cash receipts).
+          expenseNumber: doc.invoiceNumber ?? undefined as any,
           category: finalCategory,
           subCategory: finalSubCategory,
           sum: amounts.sum,
