@@ -983,11 +983,13 @@ export class ExpensesService {
 
         // Attach the RESOLVED P&L category per row so the bookkeeping table can
         // show it without a per-row query. Precedence: per-expense override →
-        // subcategory map → null (UI shows "—" = uses bookkeeping category).
+        // subcategory map → bookkeeping category. This mirrors the actual P&L
+        // report grouping (reports.service.ts), so the column shows the real
+        // category the expense rolls up under instead of a bare "—".
         const pnlCategoryMap = await this.getPnlCategoryMap(userId, businessNumber);
         for (const e of reportedExpenses) {
             (e as any).resolvedPnlCategory =
-                e.pnlCategory ?? pnlCategoryMap.get(e.subCategory) ?? null;
+                e.pnlCategory ?? pnlCategoryMap.get(e.subCategory) ?? e.category;
         }
 
         // // Valid months when isSingleMonth is false

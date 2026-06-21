@@ -885,6 +885,139 @@ export class UsersService {
   }
 
   /**
+   * The set of emails (lower-cased) that are legitimately entitled to a given
+   * Drive folder: every user the folder belongs to (its owner — or owners, if
+   * a name-collision made two users share one folder), plus those users'
+   * currently-active delegated accountants.
+   *
+   * This is the authority used both to decide what to revoke when a delegation
+   * ends and to flag orphaned shares in the audit. Being owner-set-aware keeps
+   * us from yanking an accountant who still has a live delegation to *another*
+   * user that happens to share the same folder.
+   */
+  private async allowedEmailsForFolder(folderId: string): Promise<Set<string>> {
+    const ownerFids = new Set<string>();
+    const usersWithRoot = await this.user_repo.find({ where: { driveFolderId: folderId }, select: ['firebaseId'] });
+    usersWithRoot.forEach(u => u.firebaseId && ownerFids.add(u.firebaseId));
+    const bizWithFolder = await this.business_repo.find({ where: { driveFolderId: folderId }, select: ['firebaseId'] });
+    bizWithFolder.forEach(b => b.firebaseId && ownerFids.add(b.firebaseId));
+
+    const allowed = new Set<string>();
+    for (const fid of ownerFids) {
+      const owner = await this.user_repo.findOne({ where: { firebaseId: fid }, select: ['email'] });
+      if (owner?.email) allowed.add(owner.email.toLowerCase());
+      const accEmails = await this.getActiveAccountantEmailsForUser(fid);
+      accEmails.forEach(e => allowed.add(e.toLowerCase()));
+    }
+    return allowed;
+  }
+
+  /**
+   * Inverse of the accountant share: when a delegation ends, drop the
+   * accountant's Drive access to the client's user-root and business folders.
+   *
+   * Collision-safe — skips any folder where the accountant is STILL entitled
+   * (e.g. they hold a live delegation to another user sharing that folder).
+   * Must be called AFTER the Delegation row has been removed/deactivated so
+   * allowedEmailsForFolder reflects the post-removal state. Best-effort:
+   * per-folder failures are logged, never thrown.
+   */
+  async revokeAccountantDriveAccess(clientFirebaseId: string, accountantEmail: string): Promise<void> {
+    const email = accountantEmail.trim().toLowerCase();
+    if (!email) return;
+
+    const client = await this.user_repo.findOne({ where: { firebaseId: clientFirebaseId }, select: ['driveFolderId'] });
+    const businesses = await this.business_repo.find({ where: { firebaseId: clientFirebaseId }, select: ['driveFolderId'] });
+
+    const folderIds = new Set<string>();
+    if (client?.driveFolderId) folderIds.add(client.driveFolderId);
+    businesses.forEach(b => b.driveFolderId && folderIds.add(b.driveFolderId));
+
+    for (const folderId of folderIds) {
+      try {
+        const allowed = await this.allowedEmailsForFolder(folderId);
+        if (allowed.has(email)) {
+          this.logger.log(
+            `[Drive] keeping ${accountantEmail} on folder ${folderId} — still entitled via another active delegation/owner`,
+          );
+          continue;
+        }
+        const removed = await this.googleDriveService.revokeFolderAccess(folderId, accountantEmail);
+        if (removed) {
+          this.logger.log(`[Drive] revoked ${accountantEmail} from folder ${folderId} (delegation ended)`);
+        }
+      } catch (err: any) {
+        this.logger.warn(`[Drive] revoke ${accountantEmail} from ${folderId} failed: ${err?.message ?? err}`);
+      }
+    }
+  }
+
+  /**
+   * One-off audit/cleanup: scan every shared Drive folder (user-root + business
+   * folders) and find `type: 'user'` grants that no longer map to the folder's
+   * owner(s) or any active delegated accountant — i.e. shares orphaned by a
+   * delegation that was removed before revoke-on-undelegate existed.
+   *
+   * Dry-run by default (`apply = false`): returns the list of orphaned grants
+   * without touching Drive. Pass `apply = true` to actually revoke them.
+   */
+  async auditDriveShares(apply = false): Promise<{
+    apply: boolean;
+    foldersScanned: number;
+    orphans: Array<{ folderId: string; email: string; role: string }>;
+    revoked: number;
+    errors: Array<{ folderId: string; email?: string; error: string }>;
+  }> {
+    const result = {
+      apply,
+      foldersScanned: 0,
+      orphans: [] as Array<{ folderId: string; email: string; role: string }>,
+      revoked: 0,
+      errors: [] as Array<{ folderId: string; email?: string; error: string }>,
+    };
+
+    // Distinct set of folders we ever share (children inherit, so they aren't
+    // shared directly and don't need scanning).
+    const folderSet = new Set<string>();
+    const users = await this.user_repo.find({ select: ['firebaseId', 'driveFolderId'] });
+    users.forEach(u => u.driveFolderId && folderSet.add(u.driveFolderId));
+    const businesses = await this.business_repo.find({ select: ['firebaseId', 'driveFolderId'] });
+    businesses.forEach(b => b.driveFolderId && folderSet.add(b.driveFolderId));
+
+    for (const folderId of folderSet) {
+      result.foldersScanned++;
+      let allowed: Set<string>;
+      try {
+        allowed = await this.allowedEmailsForFolder(folderId);
+      } catch (err: any) {
+        result.errors.push({ folderId, error: `allowed-emails lookup failed: ${err?.message ?? err}` });
+        continue;
+      }
+      let perms: Array<{ id: string; emailAddress: string; role: string }>;
+      try {
+        perms = await this.googleDriveService.listFolderPermissions(folderId);
+      } catch (err: any) {
+        result.errors.push({ folderId, error: `list permissions failed: ${err?.message ?? err}` });
+        continue;
+      }
+      for (const p of perms) {
+        if (p.role === 'owner') continue; // never touch the service-account owner
+        if (allowed.has(p.emailAddress.toLowerCase())) continue;
+        result.orphans.push({ folderId, email: p.emailAddress, role: p.role });
+        if (apply) {
+          try {
+            const removed = await this.googleDriveService.revokeFolderAccess(folderId, p.emailAddress);
+            if (removed) result.revoked++;
+          } catch (err: any) {
+            result.errors.push({ folderId, email: p.emailAddress, error: err?.message ?? String(err) });
+          }
+        }
+      }
+    }
+    return result;
+  }
+
+  /**
    * Snapshot of which Drive folders this user already has — used by the login
    * banner so the dev can see at a glance whether the lazy backfill is needed.
    */

@@ -207,9 +207,21 @@ All three:
 2. Compute ILS amount via `buildExpenseAmountFromDoc` (uses doc's
    `ilsAmount` for foreign currency, signs based on amount).
 3. Call `expensesService.addExpense(dto, firebaseId, businessNumber, saveAsSupplier)`.
-4. Update `expense.sourceDocumentId` + optional `vatReportingDate`.
+4. Update `expense.sourceDocumentId` and **always** stamp `vatReportingDate`
+   (override `?? buildReportPeriodLabel(businessType, vatReportingType, date)`).
+   `addExpense` does NOT compute the period itself — see gotcha #8.
 5. Mark the source doc as `APPROVED` with `confirmedExpenseId`.
 6. Cascade the same to `pairedWithDocumentId` if set.
+
+**`pnlCategory` is NOT stamped on approve — it's an override-only slot.**
+It stays NULL at creation and is resolved live everywhere it's read:
+`expense.pnlCategory ?? subCategoryMap ?? bookkeeping category` — both the P&L
+report (`reports.service.ts`) and the bookkeeping display
+(`expenses.service.ts:getExpensesForVatReport`). NULL therefore means "inherit"
+and automatically tracks later subcategory→P&L map edits; a non-null value
+means the user explicitly chose a P&L category for that one expense via the
+expenses page Edit dialog. Stamping a resolved default at approve time would
+freeze the value and defeat the live mapping, so we don't.
 
 `addExpense` ([expenses.service.ts:~50-210](./expenses.service.ts)):
 - Saves Expense row.
@@ -282,6 +294,15 @@ existing folder IDs, never duplicates.
    `expenses.service.ts` is legacy / no longer called by the
    frontend — the active flow goes through `report-review.service.ts`.
    Don't add features to the legacy path.
+
+8. **`addExpense` does not stamp `vatReportingDate`**. It computes
+   totals, scope, supplier — but NOT the period. The approve paths in
+   `report-review.service.ts` own that: each resolves
+   `overrides.reportPeriod ?? buildReportPeriodLabel(...)` and writes it
+   on the Expense (and the slim row, when there is one) right after
+   `addExpense` returns. If you add a new approve/save path, replicate
+   this or the row lands with a NULL period and only date-range
+   filtering will find it.
 
 ---
 

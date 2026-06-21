@@ -69,7 +69,8 @@ export enum ExpenseFormHebrewColumns {
   actions = 'פעולות',
   businessNumber = 'שייך לעסק',
   reportScope = 'סוג דוח',
-  pnlCategory = 'קטגוריה לדוח רווח והפסד'
+  pnlCategory = 'קטגוריה לדוח רווח והפסד',
+  vatReportingDate = 'תקופת דיווח מע"מ'
 
 }
 
@@ -94,7 +95,8 @@ export enum ExpenseFormColumns {
   ACTIONS = 'actions',
   CHECKBOX = 'checkbox',
   REPORT_SCOPE = 'reportScope',
-  PNL_CATEGORY = 'pnlCategory'
+  PNL_CATEGORY = 'pnlCategory',
+  VAT_REPORT_PERIOD = 'vatReportingDate'
 }
 
 export enum ClientsTableColumns {

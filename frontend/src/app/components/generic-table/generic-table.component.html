@@ -355,7 +355,7 @@
               @else if (col.cellRenderer === ICellRenderer.AMOUNT_WITH_PERCENT) {
                 <span class="amount-with-percent">
                   <span class="amount">{{ (row[col.name] | number:'1.0-2') ?? 0 }} ש״ח</span>
-                  <span class="percent">({{ row[amountPercentField(col.name)] ?? 0 }}%)</span>
+                  <span class="percent">({{ (row[amountPercentField(col.name)] ?? 0) | number:'1.2-2' }}%)</span>
                 </span>
               }
               <!-- Same as AMOUNT_WITH_PERCENT but adds the desktop equipment
@@ -367,7 +367,7 @@
                 <span class="amount-with-percent">
                   <span class="amount">{{ (row[col.name] | number:'1.0-2') ?? 0 }} ש״ח</span>
                   <span class="percent">
-                    ({{ row[amountPercentField(col.name)] ?? 0 }}%)
+                    ({{ (row[amountPercentField(col.name)] ?? 0) | number:'1.2-2' }}%)
                     @if (row.isEquipment) {
                       <i class="pi pi-desktop supplier-equipment-icon"
                          title="ציוד (רכוש קבוע) — פחת"></i>

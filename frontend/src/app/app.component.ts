@@ -1,5 +1,5 @@
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
-import { ActivatedRoute, Router, NavigationEnd } from '@angular/router';
+import { ActivatedRoute, Router, NavigationEnd, NavigationError } from '@angular/router';
 import { IColumnDataTable, IRowDataTable, IUserData } from './shared/interface';
 import { Location } from '@angular/common';
 import { LoadingController, ModalController, PopoverController } from '@ionic/angular';
@@ -133,6 +133,7 @@ export class AppComponent implements OnInit {
 
   ngOnInit() {
     this.currentUrl.set(this.router.url);
+    this.handleChunkLoadErrors();
     this.hideTopNav();
     this.subscribeToSelectedClient();
     this.restoreSessionAfterRefresh();
@@ -140,6 +141,49 @@ export class AppComponent implements OnInit {
     this.updateAdminMenuItems();
     this.getRoute();
     this.getRoleUser();
+  }
+
+  /**
+   * Recover from stale lazy-chunk failures after a deploy. Every page is a
+   * content-hashed `loadChildren` chunk; when a new build ships, the old chunk
+   * filenames are gone. A browser still running the previous app then fails to
+   * load the chunk for a not-yet-visited route (e.g. הנהלת חשבונות) and the
+   * navigation errors out. We detect that specific NavigationError and do ONE
+   * full reload to the target URL — which now fetches a fresh, no-cache
+   * index.html plus the current chunk hashes (see firebase.json Cache-Control).
+   * A sessionStorage guard prevents reload loops when the failure is NOT
+   * deploy-related (e.g. genuinely offline).
+   */
+  private handleChunkLoadErrors(): void {
+    const GUARD_KEY = 'chunkReloadFor';
+
+    this.router.events
+      .pipe(
+        filter(e => e instanceof NavigationError),
+        takeUntil(this.destroy$),
+      )
+      .subscribe((e: NavigationError) => {
+        const message = String((e.error as any)?.message ?? e.error ?? '');
+        const isChunkError = /ChunkLoadError|Loading chunk [\w-]+ failed|dynamically imported module|Importing a module script failed/i.test(message);
+        if (!isChunkError) return;
+
+        // Already reloaded once for this URL and it still failed → stop, so we
+        // don't loop forever (the real problem is something else).
+        if (sessionStorage.getItem(GUARD_KEY) === e.url) return;
+
+        sessionStorage.setItem(GUARD_KEY, e.url);
+        // Full reload to the intended route — pulls the fresh shell + chunks.
+        window.location.assign(e.url);
+      });
+
+    // Clear the guard once any navigation succeeds, so a future deploy can
+    // trigger a fresh recovery reload.
+    this.router.events
+      .pipe(
+        filter(e => e instanceof NavigationEnd),
+        takeUntil(this.destroy$),
+      )
+      .subscribe(() => sessionStorage.removeItem(GUARD_KEY));
   }
 
   ngOnDestroy(): void {

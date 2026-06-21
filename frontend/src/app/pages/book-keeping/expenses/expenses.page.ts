@@ -10,7 +10,8 @@ import {
   ExpenseFormHebrewColumns,
   FormTypes,
   ReportingPeriodType,
-  ICellRenderer
+  ICellRenderer,
+  VATReportingType
 } from 'src/app/shared/enums';
 import { AuthService } from 'src/app/services/auth.service';
 import { DateService } from 'src/app/services/date.service';
@@ -70,7 +71,9 @@ export class ExpensesPage implements OnInit {
   // the VAT-report expenses table). The renderer reads the matching
   // percent field automatically (`totalVatPayable` → `vatPercent`,
   // `totalTaxPayable` → `taxPercent`); no separate column needed.
-  expensesTableFields: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[] = [
+  /** Base P&L columns. The VAT-report-period column is NOT here — it's
+   *  inserted by `updateExpensesColumns()` only for VAT-licensed businesses. */
+  private readonly baseExpensesTableFields: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[] = [
     { name: ExpenseFormColumns.SUPPLIER, value: ExpenseFormHebrewColumns.supplier, type: FormTypes.TEXT },
     { name: ExpenseFormColumns.CATEGORY, value: ExpenseFormHebrewColumns.category, type: FormTypes.TEXT },
     { name: ExpenseFormColumns.SUB_CATEGORY, value: ExpenseFormHebrewColumns.subCategory, type: FormTypes.TEXT },
@@ -83,10 +86,25 @@ export class ExpensesPage implements OnInit {
     { name: ExpenseFormColumns.PNL_CATEGORY, value: ExpenseFormHebrewColumns.pnlCategory, type: FormTypes.TEXT },
   ];
 
-  /** Annual-report table reuses the same columns minus PNL_CATEGORY
-   *  (it's meaningless for rows that don't go to the P&L). */
+  /** VAT-report-period column. Shown only for VAT-licensed businesses; the
+   *  value is the period label already stamped on the expense, so it reads as
+   *  a single month ("1/2024") or a dual month ("1-2/2024") exactly as the
+   *  business reports. MUST use the MONTH_REPORT renderer — the column name
+   *  contains "date", which would otherwise hit the generic table's date-name
+   *  catch-all and run the label through the dateFormat pipe (turning
+   *  "1-2/2026" into "02/01/2026"). */
+  private readonly vatReportPeriodField: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns> =
+    { name: ExpenseFormColumns.VAT_REPORT_PERIOD, value: ExpenseFormHebrewColumns.vatReportingDate, type: FormTypes.TEXT, cellRenderer: ICellRenderer.MONTH_REPORT };
+
+  /** Main table columns — recomputed per selected business by
+   *  `updateExpensesColumns()`. Starts as the base set. */
+  expensesTableFields: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[] = [...this.baseExpensesTableFields];
+
+  /** Annual-report table reuses the base columns minus PNL_CATEGORY
+   *  (it's meaningless for rows that don't go to the P&L). Annual-only
+   *  expenses aren't VAT-reported, so they never get the period column. */
   annualExpensesTableFields: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[] =
-    this.expensesTableFields.filter(c => c.name !== ExpenseFormColumns.PNL_CATEGORY);
+    this.baseExpensesTableFields.filter(c => c.name !== ExpenseFormColumns.PNL_CATEGORY);
 
   mobileCardConfig: IMobileCardConfig = {
     primaryFields: [ExpenseFormColumns.SUPPLIER],
@@ -132,6 +150,7 @@ export class ExpensesPage implements OnInit {
       console.log("Change: business number is ", this.selectedBusinessNumber());
 
       // Auto-fetch only when business changes
+      this.updateExpensesColumns(this.selectedBusinessNumber());
       this.fetchExpenses(this.selectedBusinessNumber());
     });
 
@@ -172,6 +191,7 @@ export class ExpensesPage implements OnInit {
     if (initialBusinessObj) {
       this.selectedBusinessName.set(initialBusinessObj.businessName);
     }
+    this.updateExpensesColumns(initialBusiness);
     this.fetchExpenses(initialBusiness, defaultStart, defaultEnd);
   }
 
@@ -187,11 +207,39 @@ export class ExpensesPage implements OnInit {
       this.selectedBusinessName.set(business.businessName);
     }
 
+    this.updateExpensesColumns(effectiveBusiness);
+
     const { startDate, endDate } = this.gs.getPeriodDatesFromForm(this.form);
     this.startDate = startDate;
     this.endDate = endDate;
 
     this.fetchExpenses(effectiveBusiness, startDate, endDate);
+  }
+
+  // ===========================
+  // Rebuild main-table columns for the selected business
+  // ===========================
+  /**
+   * A VAT-licensed business (monthly / bimonthly filer) gets the
+   * "תקופת דיווח מע"מ" column inserted right after the date; exempt
+   * businesses don't file VAT reports, so the period is meaningless and the
+   * column is left out.
+   */
+  private updateExpensesColumns(businessNumber: string): void {
+    const business = this.gs.businesses().find(b => b.businessNumber === businessNumber);
+    const vatLicensed =
+      business?.vatReportingType === VATReportingType.MONTHLY_REPORT ||
+      business?.vatReportingType === VATReportingType.DUAL_MONTH_REPORT;
+
+    if (!vatLicensed) {
+      this.expensesTableFields = [...this.baseExpensesTableFields];
+      return;
+    }
+
+    const cols = [...this.baseExpensesTableFields];
+    const dateIdx = cols.findIndex(c => c.name === ExpenseFormColumns.DATE);
+    cols.splice(dateIdx + 1, 0, this.vatReportPeriodField);
+    this.expensesTableFields = cols;
   }
 
   // ===========================
@@ -256,6 +304,10 @@ export class ExpensesPage implements OnInit {
               // resolved value shown in the table column.
               pnlCategoryOverrideRaw: row.pnlCategory ?? null,
               pnlCategory: row.resolvedPnlCategory ?? '—',
+              // VAT report period as stamped on the expense — single month
+              // ("1/2024") or dual month ("1-2/2024") per the business's
+              // cadence. Legacy rows without a stamp show "—".
+              vatReportingDate: row.vatReportingDate ?? '—',
             };
           });
         }),

@@ -518,4 +518,73 @@ export class GoogleDriveService {
       throw new InternalServerErrorException('Failed to share Drive folder');
     }
   }
+
+  /**
+   * List the user-type permissions on a folder. Used by the share-audit /
+   * cleanup job to detect grants that no longer correspond to an active
+   * delegation. Only returns `type === 'user'` grants (the only kind this
+   * codebase creates); the service-account `owner` grant is included so
+   * callers can recognise and skip it.
+   */
+  async listFolderPermissions(
+    folderId: string,
+  ): Promise<Array<{ id: string; emailAddress: string; role: string }>> {
+    const { drive } = this.getDrive();
+    const out: Array<{ id: string; emailAddress: string; role: string }> = [];
+    let pageToken: string | undefined = undefined;
+    do {
+      const res = await drive.permissions.list({
+        fileId: folderId,
+        fields: 'nextPageToken, permissions(id, type, emailAddress, role)',
+        pageSize: 100,
+        pageToken,
+        supportsAllDrives: true,
+      });
+      for (const p of res.data.permissions ?? []) {
+        if (p.type === 'user' && p.id && p.emailAddress) {
+          out.push({ id: p.id, emailAddress: p.emailAddress, role: p.role ?? '' });
+        }
+      }
+      pageToken = res.data.nextPageToken ?? undefined;
+    } while (pageToken);
+    return out;
+  }
+
+  /**
+   * Remove a single user's access to a folder, looked up by email. The
+   * inverse of `shareFolder` — called when a delegation ends so an
+   * accountant stops seeing a client's folder. Returns true if a matching
+   * grant was found and deleted, false if the email had no access (or the
+   * folder is already gone). Never deletes an `owner` grant.
+   *
+   * Idempotent: safe to call when no share exists (returns false).
+   */
+  async revokeFolderAccess(folderId: string, email: string): Promise<boolean> {
+    const target = email.trim().toLowerCase();
+    if (!target) return false;
+    try {
+      const { drive } = this.getDrive();
+      const perms = await this.listFolderPermissions(folderId);
+      const match = perms.find(
+        p => p.emailAddress.toLowerCase() === target && p.role !== 'owner',
+      );
+      if (!match) return false;
+      await drive.permissions.delete({
+        fileId: folderId,
+        permissionId: match.id,
+        supportsAllDrives: true,
+      });
+      this.logger.log(`revokeFolderAccess: removed ${email} from folder ${folderId}`);
+      return true;
+    } catch (error: any) {
+      const status = error?.code ?? error?.response?.status;
+      // Folder or permission already gone — treat as already-revoked.
+      if (status === 404) return false;
+      this.logger.error(
+        `revokeFolderAccess failed (folderId=${folderId}, email=${email}): ${error?.message ?? error}`,
+        (error as Error)?.stack,
+      );
+      throw new InternalServerErrorException('Failed to revoke Drive folder access');
+    }
+  }
 }
