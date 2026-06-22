@@ -77,6 +77,9 @@
                     <span class="pricing-card__period">/לחודש</span>
                   }
                 </span>
+                @if (plan.licensedDealerDisplayPrice) {
+                  <span class="pricing-card__price-role">לעוסק פטור</span>
+                }
               </div>
 
               @if (plan.licensedDealerDisplayPrice) {
@@ -88,6 +91,7 @@
                     <span class="pricing-card__currency pricing-card__currency--secondary" aria-label="שקלים חדשים">&#8362;</span>
                     <span class="pricing-card__period">/לחודש לעוסק מורשה</span>
                   </span>
+                  <span class="pricing-card__price-role">לעוסק מורשה</span>
                 </div>
               }
 

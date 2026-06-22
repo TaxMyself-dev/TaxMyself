@@ -1,9 +1,9 @@
-import { HttpException, HttpStatus, Injectable, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
-import { Any, LessThan, Repository } from 'typeorm';
+import { forwardRef, HttpException, HttpStatus, Inject, Injectable, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
+import { Any, Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from './user.entity';
 import { Child } from './child.entity';
-import { UserRole, BusinessType, VATReportingType, TaxReportingType, FamilyStatus, EmploymentType, PayStatus, ModuleName, BusinessStatus, DocumentType } from '../enum';
+import { UserRole, BusinessType, VATReportingType, TaxReportingType, FamilyStatus, EmploymentType, BusinessStatus, DocumentType } from '../enum';
 import { AuthService } from './auth.service';
 import * as admin from 'firebase-admin';
 import { UpdateUserDto } from './dtos/update-user.dto';
@@ -12,10 +12,10 @@ import { CityDto } from '../cities/city.dto';
 import { cities } from '../cities/cities.data';
 import { Business } from 'src/business/business.entity';
 import { SettingDocuments } from 'src/documents/settingDocuments.entity';
-import { UserModuleSubscription } from './user-module-subscription.entity';
 import { GoogleDriveService } from '../google-drive/google-drive.service';
 import { Delegation, DelegationStatus } from '../delegation/delegation.entity';
 import { isDemoEmail } from '../demo-data/profiles';
+import { BillingService } from '../billing/services/billing.service';
 
 
 @Injectable()
@@ -33,11 +33,11 @@ export class UsersService {
       @InjectRepository(Child) private child_repo: Repository<Child>,
       @InjectRepository(SettingDocuments)
       private readonly settingDocumentsRepo: Repository<SettingDocuments>,
-      @InjectRepository(UserModuleSubscription)
-      private readonly moduleSubRepo: Repository<UserModuleSubscription>,
       @InjectRepository(Delegation)
       private readonly delegationRepo: Repository<Delegation>,
       private readonly googleDriveService: GoogleDriveService,
+      @Inject(forwardRef(() => BillingService))
+      private readonly billingService: BillingService,
     ) {
     this.firebaseAuth = admin.auth();
   }
@@ -62,6 +62,16 @@ export class UsersService {
     return accountants.map(a => a.email).filter((e): e is string => !!e);
   }
 
+
+  /**
+   * Provisions a Subscription row (TRIAL, all modules) for a newly created
+   * User — the single trial-creation path shared by signup, delegated-client
+   * creation, and demo-data seeding. Delegates entirely to BillingService so
+   * there is exactly one trial definition in the codebase.
+   */
+  async ensureTrialSubscription(firebaseId: string): Promise<void> {
+    await this.billingService.ensureTrialSubscription(firebaseId);
+  }
 
   async signup({ personal, spouse, children, business }: any) {
 
@@ -93,14 +103,7 @@ export class UsersService {
       role: [UserRole.REGULAR],
       finsiteId: 0,
       createdAt: new Date(),
-      subscriptionEndDate: new Date(),
-      payStatus: PayStatus.TRIAL,
-      modulesAccess: [ModuleName.INVOICES],
     };
-
-    newUser.subscriptionEndDate.setMonth(
-      newUser.subscriptionEndDate.getMonth() + 2,
-    );
 
     // -------------------------------------------------------
     // 3️⃣ Business status logic
@@ -120,24 +123,9 @@ export class UsersService {
     const savedUser = (await this.user_repo.save(user)) as unknown as User;
 
     // -------------------------------------------------------
-    // 5️⃣ Create INVOICES module subscription (for users with a business)
+    // 4️⃣b Create the Subscription row — single source of truth for trial state.
     // -------------------------------------------------------
-    if (savedUser.businessStatus !== BusinessStatus.NO_BUSINESS) {
-      const trialStart = new Date();
-      const trialEnd = new Date();
-      trialEnd.setDate(trialEnd.getDate() + 45);
-      await this.moduleSubRepo.save(
-        this.moduleSubRepo.create({
-          firebaseId: savedUser.firebaseId,
-          moduleName: ModuleName.INVOICES,
-          trialStartDate: trialStart,
-          trialEndDate: trialEnd,
-          payStatus: PayStatus.TRIAL,
-          monthlyPriceNis: 15,
-          createdAt: new Date(),
-        }),
-      );
-    }
+    await this.ensureTrialSubscription(savedUser.firebaseId);
 
     // -------------------------------------------------------
     // 7️⃣ Save children
@@ -454,103 +442,6 @@ export class UsersService {
     return user?.role?.includes(UserRole.ACCOUNTANT) || false;
   }
 
-
-  async updateExpiredTrials(): Promise<void> {
-    const today = new Date();
-
-    // Legacy: update users with expired subscriptionEndDate
-    const expiredUsers = await this.user_repo.find({
-      where: {
-        payStatus: PayStatus.TRIAL,
-        subscriptionEndDate: LessThan(today),
-      },
-    });
-
-    for (const user of expiredUsers) {
-      user.payStatus = PayStatus.PAYMENT_REQUIRED;
-      await this.user_repo.save(user);
-      console.log(`Updated user ${user.id} from TRIAL to PAYMENT_REQUIRED`);
-    }
-
-    // Per-module: update UserModuleSubscription records with expired trial
-    const expiredSubs = await this.moduleSubRepo.find({
-      where: {
-        payStatus: PayStatus.TRIAL,
-        trialEndDate: LessThan(today),
-      },
-    });
-
-    for (const sub of expiredSubs) {
-      sub.payStatus = PayStatus.PAYMENT_REQUIRED;
-      await this.moduleSubRepo.save(sub);
-      console.log(`Updated module subscription id=${sub.id} (${sub.moduleName}) for firebaseId=${sub.firebaseId} from TRIAL to PAYMENT_REQUIRED`);
-
-      // Remove module from user's modulesAccess so SubscriptionGuard blocks access
-      const user = await this.user_repo.findOne({ where: { firebaseId: sub.firebaseId } });
-      if (user?.modulesAccess?.includes(sub.moduleName)) {
-        user.modulesAccess = user.modulesAccess.filter(m => m !== sub.moduleName);
-        await this.user_repo.save(user);
-        console.log(`Removed ${sub.moduleName} from modulesAccess for firebaseId=${sub.firebaseId}`);
-      }
-    }
-  }
-
-  async getModuleSubscription(firebaseId: string, moduleName: ModuleName): Promise<UserModuleSubscription | null> {
-    return this.moduleSubRepo.findOne({ where: { firebaseId, moduleName } });
-  }
-
-  async getBillingStatus(firebaseId: string): Promise<{
-    modules: { moduleName: ModuleName; payStatus: PayStatus; trialEndDate: Date; monthlyPriceNis: number }[];
-    monthlyTotalNis: number;
-    hasCombinedDiscount: boolean;
-    discountPercent: number;
-    discountLabel: string | null;
-    finalAmountNis: number;
-  }> {
-    const [subs, user] = await Promise.all([
-      this.moduleSubRepo.find({ where: { firebaseId } }),
-      this.user_repo.findOne({ where: { firebaseId }, select: ['discountPercent', 'discountLabel'] }),
-    ]);
-
-    const activeStatuses = [PayStatus.TRIAL, PayStatus.PAID];
-    const activeSubs = subs.filter(s => activeStatuses.includes(s.payStatus));
-
-    const hasInvoices = activeSubs.some(s => s.moduleName === ModuleName.INVOICES);
-    const hasOB = activeSubs.some(s => s.moduleName === ModuleName.OPEN_BANKING);
-
-    let monthlyTotalNis: number;
-    const hasCombinedDiscount = hasInvoices && hasOB;
-
-    if (hasCombinedDiscount) {
-      monthlyTotalNis = 54;
-    } else if (hasInvoices) {
-      monthlyTotalNis = 15;
-    } else if (hasOB) {
-      monthlyTotalNis = 45;
-    } else {
-      monthlyTotalNis = 0;
-    }
-
-    const discountPercent = Number(user?.discountPercent ?? 0);
-    const discountLabel = user?.discountLabel ?? null;
-    const finalAmountNis = monthlyTotalNis > 0
-      ? Math.round(monthlyTotalNis * (1 - discountPercent / 100) * 100) / 100
-      : 0;
-
-    return {
-      modules: subs.map(s => ({
-        moduleName: s.moduleName,
-        payStatus: s.payStatus,
-        trialEndDate: s.trialEndDate,
-        monthlyPriceNis: Number(s.monthlyPriceNis),
-      })),
-      monthlyTotalNis,
-      hasCombinedDiscount,
-      discountPercent,
-      discountLabel,
-      finalAmountNis,
-    };
-  }
 
   getCities(): CityDto[] {
     return cities;

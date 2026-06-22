@@ -6,11 +6,11 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { LessThan, Repository } from 'typeorm';
 import { SubscriptionPlan } from '../entities/subscription-plan.entity';
 import { Subscription } from '../entities/subscription.entity';
 import { User } from 'src/users/user.entity';
-import { ModuleName, PayStatus } from 'src/enum';
+import { ModuleName } from 'src/enum';
 import { BillingEventService } from './billing-event.service';
 import { BillingReceiptService } from './billing-receipt.service';
 import { PricingService } from './pricing.service';
@@ -19,9 +19,6 @@ import { CardcomService, CardcomApiError } from './cardcom.service';
 import { BillingEventType, SubscriptionStatus } from '../enums/billing.enums';
 import { CheckoutPreviewDto } from '../dtos/checkout-preview.dto';
 import { CreateCheckoutDto } from '../dtos/create-checkout.dto';
-
-/** Default trial length when no plan is selected yet. */
-const TRIAL_DURATION_DAYS = 14;
 
 @Injectable()
 export class BillingService {
@@ -104,7 +101,7 @@ export class BillingService {
 
     const now = new Date();
     const trialEnd = new Date(now);
-    trialEnd.setDate(trialEnd.getDate() + TRIAL_DURATION_DAYS);
+    trialEnd.setDate(trialEnd.getDate() + Number(process.env.TRIAL_DAYS));
 
     const subscription = this.subscriptionRepo.create({
       firebaseId,
@@ -117,18 +114,30 @@ export class BillingService {
 
     const saved = await this.subscriptionRepo.save(subscription);
 
-    await this.syncLegacyUserFields(firebaseId, {
-      payStatus: PayStatus.TRIAL,
-      modulesAccess: Object.values(ModuleName),
-      subscriptionEndDate: trialEnd,
-      nextBillingDate: null,
-    });
-
     this.logger.log(
       `Trial subscription created for firebaseId=${firebaseId.substring(0, 8)}... trialEnd=${trialEnd.toISOString()}`,
     );
 
     return this.buildBillingStateResponse(saved, null, firebaseId);
+  }
+
+  // ─── Access ──────────────────────────────────────────────────────────────────
+
+  /**
+   * Single source of truth for module access checks. Resolves the user's
+   * Subscription + SubscriptionPlan and delegates to SubscriptionAccessService.
+   */
+  async hasModuleAccess(firebaseId: string, module: ModuleName): Promise<boolean> {
+    const subscription = await this.subscriptionRepo.findOne({ where: { firebaseId } });
+    if (!subscription) return false;
+
+    let plan: SubscriptionPlan | null = null;
+    if (subscription.planId) {
+      plan = await this.planRepo.findOne({ where: { id: subscription.planId } });
+    }
+
+    const modulesAccess = this.subscriptionAccessService.resolveModulesAccess(subscription, plan);
+    return modulesAccess.includes(module);
   }
 
   // ─── Checkout preview ────────────────────────────────────────────────────────
@@ -383,6 +392,8 @@ export class BillingService {
   /**
    * Evaluates and enforces subscription lifecycle transitions.
    * Persists any state changes and keeps legacy User fields in sync.
+   * Evaluates and enforces subscription lifecycle transitions for a single
+   * subscription, on access (e.g. when the user opens the billing page).
    * Returns the subscription with its current (possibly updated) status.
    *
    * Current rules:
@@ -397,43 +408,43 @@ export class BillingService {
       subscription.trialEnd !== null &&
       subscription.trialEnd < new Date()
     ) {
-      subscription.status = SubscriptionStatus.TRIAL_EXPIRED;
-      await this.subscriptionRepo.save(subscription);
-      await this.syncLegacyUserFields(firebaseId, {
-        payStatus: PayStatus.PAYMENT_REQUIRED,
-        modulesAccess: [],
-        subscriptionEndDate: subscription.trialEnd,
-        nextBillingDate: null,
-      });
+      await this.expireTrialSubscription(subscription);
     }
 
     return subscription;
   }
 
-  private async syncLegacyUserFields(
-    firebaseId: string,
-    fields: {
-      payStatus: PayStatus;
-      modulesAccess: ModuleName[];
-      subscriptionEndDate: Date | null;
-      nextBillingDate: Date | null;
-    },
-  ): Promise<void> {
-    try {
-      const user = await this.userRepo.findOne({ where: { firebaseId } });
-      if (!user) return;
+  /**
+   * Daily lifecycle job: transitions every TRIAL subscription whose
+   * trialEnd has passed to TRIAL_EXPIRED. Subscription.status/trialEnd is
+   * the only input — no legacy User fields are read. Intended to be called
+   * once a day (see AppService.handleDailyTask).
+   */
+  async expireOverdueTrials(): Promise<number> {
+    const overdueTrials = await this.subscriptionRepo.find({
+      where: {
+        status: SubscriptionStatus.TRIAL,
+        trialEnd: LessThan(new Date()),
+      },
+    });
 
-      user.payStatus = fields.payStatus;
-      user.modulesAccess = fields.modulesAccess;
-      user.subscriptionEndDate = fields.subscriptionEndDate as Date;
-      user.nextBillingDate = fields.nextBillingDate as Date;
-
-      await this.userRepo.save(user);
-    } catch (error) {
-      this.logger.error(
-        `Failed to sync legacy User fields for firebaseId=${firebaseId}: ${(error as Error)?.message ?? error}`,
-        (error as Error)?.stack,
-      );
+    for (const subscription of overdueTrials) {
+      await this.expireTrialSubscription(subscription);
     }
+
+    if (overdueTrials.length > 0) {
+      this.logger.log(`expireOverdueTrials: expired ${overdueTrials.length} trial subscription(s)`);
+    }
+
+    return overdueTrials.length;
+  }
+
+  /**
+   * Temporary bridge: keeps legacy User fields in sync until they're
+   * dropped. Best-effort — failures are logged but never break the main flow.
+   */
+  private async expireTrialSubscription(subscription: Subscription): Promise<void> {
+    subscription.status = SubscriptionStatus.TRIAL_EXPIRED;
+    await this.subscriptionRepo.save(subscription);
   }
 }

@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { HttpModule } from '@nestjs/axios';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
@@ -41,7 +41,7 @@ import { MailModule } from 'src/mail/mail.module';
   imports: [
     // 30-second timeout matches CardcomService; longer for slow Israeli payment gateway.
     HttpModule.register({ timeout: 30_000, maxRedirects: 3 }),
-    UsersModule,
+    forwardRef(() => UsersModule),
     DocumentsModule,
     MailModule,
     TypeOrmModule.forFeature([

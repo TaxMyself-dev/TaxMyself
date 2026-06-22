@@ -16,10 +16,10 @@ import {
   SubscriptionStatus,
   WebhookLogStatus,
 } from '../enums/billing.enums';
-import { PayStatus, ModuleName } from 'src/enum';
 import { CardcomService } from './cardcom.service';
 import { BillingEventService } from './billing-event.service';
 import { BillingReceiptService } from './billing-receipt.service';
+import { ModuleName } from 'src/enum';
 
 // ── Swagger-verified field names from LowProfileResult / TransactionInfo / TokenInfo ─
 
@@ -451,9 +451,6 @@ export class CardcomWebhookService implements OnModuleInit {
       },
     });
 
-    // ── 7. Sync legacy User fields ────────────────────────────────────────
-    await this.syncLegacyUserFields(firebaseId, planModules, periodEnd);
-
     this.logger.log(
       `Payment processed: subscription #${subscriptionId} ACTIVE, plan=${planSlug}`,
     );
@@ -709,23 +706,9 @@ export class CardcomWebhookService implements OnModuleInit {
     }
   }
 
-  private async syncLegacyUserFields(
-    firebaseId: string,
-    modules: ModuleName[],
-    subscriptionEndDate: Date,
-  ): Promise<void> {
-    try {
-      const user = await this.userRepo.findOne({ where: { firebaseId } });
-      if (!user) return;
-      user.payStatus = PayStatus.PAID;
-      user.modulesAccess = modules;
-      user.subscriptionEndDate = subscriptionEndDate;
-      user.nextBillingDate = subscriptionEndDate;
-      await this.userRepo.save(user);
-    } catch (err) {
-      this.logger.error(
-        `Failed to sync legacy User fields for firebaseId=${firebaseId}: ${(err as Error).message}`,
-      );
-    }
-  }
+  /**
+   * Temporary bridge to keep legacy User fields in sync.
+   * Best-effort — never throws.
+   */
+
 }
