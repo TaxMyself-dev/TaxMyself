@@ -6,29 +6,19 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { LessThan, Repository } from 'typeorm';
 import { SubscriptionPlan } from '../entities/subscription-plan.entity';
 import { Subscription } from '../entities/subscription.entity';
-import { CardcomCheckoutSession } from '../entities/cardcom-checkout-session.entity';
 import { User } from 'src/users/user.entity';
-import { ModuleName, PayStatus } from 'src/enum';
+import { ModuleName } from 'src/enum';
 import { BillingEventService } from './billing-event.service';
+import { BillingReceiptService } from './billing-receipt.service';
 import { PricingService } from './pricing.service';
 import { SubscriptionAccessService } from './subscription-access.service';
 import { CardcomService, CardcomApiError } from './cardcom.service';
-import {
-  BillingEventType,
-  CheckoutSessionStatus,
-  SubscriptionStatus,
-} from '../enums/billing.enums';
+import { BillingEventType, SubscriptionStatus } from '../enums/billing.enums';
 import { CheckoutPreviewDto } from '../dtos/checkout-preview.dto';
 import { CreateCheckoutDto } from '../dtos/create-checkout.dto';
-
-/** Default trial length when no plan is selected yet. */
-const TRIAL_DURATION_DAYS = 14;
-
-/** How long a checkout session stays valid. */
-const CHECKOUT_SESSION_TTL_MINUTES = 60;
 
 @Injectable()
 export class BillingService {
@@ -39,12 +29,11 @@ export class BillingService {
     private readonly planRepo: Repository<SubscriptionPlan>,
     @InjectRepository(Subscription)
     private readonly subscriptionRepo: Repository<Subscription>,
-    @InjectRepository(CardcomCheckoutSession)
-    private readonly checkoutSessionRepo: Repository<CardcomCheckoutSession>,
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
     private readonly pricingService: PricingService,
     private readonly billingEventService: BillingEventService,
+    private readonly billingReceiptService: BillingReceiptService,
     private readonly subscriptionAccessService: SubscriptionAccessService,
     private readonly cardcomService: CardcomService,
   ) {}
@@ -92,7 +81,7 @@ export class BillingService {
       plan = await this.planRepo.findOne({ where: { id: current.planId } });
     }
 
-    return this.buildBillingStateResponse(current, plan);
+    return this.buildBillingStateResponse(current, plan, firebaseId);
   }
 
   // ─── Trial ───────────────────────────────────────────────────────────────────
@@ -107,12 +96,12 @@ export class BillingService {
       if (existing.planId) {
         plan = await this.planRepo.findOne({ where: { id: existing.planId } });
       }
-      return this.buildBillingStateResponse(existing, plan);
+      return this.buildBillingStateResponse(existing, plan, firebaseId);
     }
 
     const now = new Date();
     const trialEnd = new Date(now);
-    trialEnd.setDate(trialEnd.getDate() + TRIAL_DURATION_DAYS);
+    trialEnd.setDate(trialEnd.getDate() + Number(process.env.TRIAL_DAYS));
 
     const subscription = this.subscriptionRepo.create({
       firebaseId,
@@ -125,18 +114,30 @@ export class BillingService {
 
     const saved = await this.subscriptionRepo.save(subscription);
 
-    await this.syncLegacyUserFields(firebaseId, {
-      payStatus: PayStatus.TRIAL,
-      modulesAccess: Object.values(ModuleName),
-      subscriptionEndDate: trialEnd,
-      nextBillingDate: null,
-    });
-
     this.logger.log(
       `Trial subscription created for firebaseId=${firebaseId.substring(0, 8)}... trialEnd=${trialEnd.toISOString()}`,
     );
 
-    return this.buildBillingStateResponse(saved, null);
+    return this.buildBillingStateResponse(saved, null, firebaseId);
+  }
+
+  // ─── Access ──────────────────────────────────────────────────────────────────
+
+  /**
+   * Single source of truth for module access checks. Resolves the user's
+   * Subscription + SubscriptionPlan and delegates to SubscriptionAccessService.
+   */
+  async hasModuleAccess(firebaseId: string, module: ModuleName): Promise<boolean> {
+    const subscription = await this.subscriptionRepo.findOne({ where: { firebaseId } });
+    if (!subscription) return false;
+
+    let plan: SubscriptionPlan | null = null;
+    if (subscription.planId) {
+      plan = await this.planRepo.findOne({ where: { id: subscription.planId } });
+    }
+
+    const modulesAccess = this.subscriptionAccessService.resolveModulesAccess(subscription, plan);
+    return modulesAccess.includes(module);
   }
 
   // ─── Checkout preview ────────────────────────────────────────────────────────
@@ -145,44 +146,16 @@ export class BillingService {
     const pricing = await this.pricingService.calculateCheckoutPrice(
       firebaseId,
       dto.planId,
-      dto.couponCode,
     );
 
     return {
       originalAmountAgorot: pricing.originalAmountAgorot,
       discountAmountAgorot: pricing.discountAmountAgorot,
       finalAmountAgorot: pricing.finalAmountAgorot,
+      amountBeforeVatAgorot: pricing.amountBeforeVatAgorot,
+      vatRate: pricing.vatRate,
+      vatAmountAgorot: pricing.vatAmountAgorot,
       currency: pricing.currency,
-      appliedSubscriptionDiscount: pricing.appliedSubscriptionDiscount
-        ? {
-            id: pricing.appliedSubscriptionDiscount.id,
-            discountType: pricing.appliedSubscriptionDiscount.discountType,
-            discountValueAgorot: pricing.appliedSubscriptionDiscount.discountValueAgorot,
-            discountPercent: pricing.appliedSubscriptionDiscount.discountPercent,
-            durationType: pricing.appliedSubscriptionDiscount.durationType,
-            reasonCode: pricing.appliedSubscriptionDiscount.reasonCode,
-          }
-        : null,
-      appliedPromotion: pricing.appliedPromotion
-        ? {
-            id: pricing.appliedPromotion.id,
-            name: pricing.appliedPromotion.name,
-            discountType: pricing.appliedPromotion.discountType,
-            discountValueAgorot: pricing.appliedPromotion.discountValueAgorot,
-            discountPercent: pricing.appliedPromotion.discountPercent,
-            durationType: pricing.appliedPromotion.durationType,
-          }
-        : null,
-      appliedCoupon: pricing.appliedCoupon
-        ? {
-            id: pricing.appliedCoupon.id,
-            code: pricing.appliedCoupon.code,
-            discountType: pricing.appliedCoupon.discountType,
-            discountValueAgorot: pricing.appliedCoupon.discountValueAgorot,
-            discountPercent: pricing.appliedCoupon.discountPercent,
-            durationType: pricing.appliedCoupon.durationType,
-          }
-        : null,
       explanation: pricing.explanation,
     };
   }
@@ -190,25 +163,12 @@ export class BillingService {
   // ─── Checkout ────────────────────────────────────────────────────────────────
 
   /**
-   * Creates a PENDING checkout session, calls CardCom LowProfile/Create to
-   * obtain a hosted payment page URL, stores the LowProfileId, and returns
-   * the payment URL to the frontend.
+   * Calls CardCom LowProfile/Create to obtain a hosted payment page URL.
+   * Passes firebaseId, planId, subscriptionId as JSON in ReturnValue so the
+   * webhook handler can activate the subscription without a session table.
    *
    * Subscription activation happens later, exclusively via the CardCom webhook
-   * handler (POST /billing/cardcom/webhook — not yet implemented).
-   *
-   * Error handling:
-   * - If CardCom fails: session is marked FAILED, PAYMENT_FAILED event is logged,
-   *   and a 502 is returned to the frontend.
-   * - If the DB update after CardCom succeeds fails: the payment URL is still
-   *   returned (see risk note below), but the failure is logged at CRITICAL level.
-   *
-   * Risk: if the DB update of cardcomLowProfileId fails, the session row will not
-   * have the LowProfileId stored. The webhook handler uses ReturnValue (=sessionId)
-   * to look up the session, so payment processing will still work. However,
-   * operator visibility into which session maps to which LowProfileId is lost
-   * for that session. Monitoring for sessions with status=PENDING and
-   * cardcomLowProfileId=NULL that are past expiresAt is recommended.
+   * handler (POST /billing/cardcom/webhook).
    */
   async createCheckout(firebaseId: string, dto: CreateCheckoutDto) {
     const subscription = await this.subscriptionRepo.findOne({
@@ -232,41 +192,18 @@ export class BillingService {
     const pricing = await this.pricingService.calculateCheckoutPrice(
       firebaseId,
       dto.planId,
-      dto.couponCode,
     );
 
-    const now = new Date();
-    const expiresAt = new Date(now.getTime() + CHECKOUT_SESSION_TTL_MINUTES * 60 * 1000);
-
-    // Persist the session first so we have a stable ID to pass to CardCom as ReturnValue.
-    const session = this.checkoutSessionRepo.create({
-      firebaseId,
-      subscriptionId: subscription.id,
-      planId: plan.id,
-      status: CheckoutSessionStatus.PENDING,
-      originalAmountAgorot: pricing.originalAmountAgorot,
-      discountAmountAgorot: pricing.discountAmountAgorot,
-      finalAmountAgorot: pricing.finalAmountAgorot,
-      currency: pricing.currency,
-      couponId: pricing.appliedCoupon?.id ?? null,
-      promotionId: pricing.appliedPromotion?.id ?? null,
-      subscriptionDiscountId: pricing.appliedSubscriptionDiscount?.id ?? null,
-      expiresAt,
-    });
-
-    const savedSession = await this.checkoutSessionRepo.save(session);
-
-    // ── CardCom LowProfile/Create ─────────────────────────────────────────────
+    // Fetch user profile for customer info (best-effort — optional fields).
+    const user = await this.userRepo.findOne({ where: { firebaseId } }).catch(() => null);
 
     let cardcomResult: { lowProfileId: string; paymentUrl: string; rawResponse: Record<string, any> };
 
     try {
-      // Fetch user profile for customer info (best-effort — optional fields).
-      const user = await this.userRepo.findOne({ where: { firebaseId } }).catch(() => null);
-
       cardcomResult = await this.cardcomService.createLowProfileCheckout({
-        checkoutSessionId: savedSession.id,
         firebaseId,
+        planId: plan.id,
+        subscriptionId: subscription.id,
         amountAgorot: pricing.finalAmountAgorot,
         planName: plan.name,
         customerEmail: user?.email ?? null,
@@ -274,13 +211,10 @@ export class BillingService {
         customerPhone: user?.phone ?? null,
       });
     } catch (err) {
-      // CardCom call failed — mark session as FAILED and surface a clean error.
-      await this.markSessionFailed(savedSession.id);
       await this.billingEventService.logEvent({
         firebaseId,
         eventType: BillingEventType.PAYMENT_FAILED,
         subscriptionId: subscription.id,
-        checkoutSessionId: savedSession.id,
         amountAgorot: pricing.finalAmountAgorot,
         currency: pricing.currency,
         metadata: {
@@ -298,133 +232,85 @@ export class BillingService {
       });
 
       this.logger.error(
-        `CardCom LowProfile/Create failed for session #${savedSession.id}: ${(err as Error)?.message}`,
+        `CardCom LowProfile/Create failed for plan=${plan.slug} subscription=${subscription.id}: ${(err as Error)?.message}`,
       );
       throw new BadGatewayException(
         'Payment gateway unavailable. Please try again in a few minutes.',
       );
     }
 
-    // ── Persist CardCom data on the session ───────────────────────────────────
-
-    let paymentUrlToReturn = cardcomResult.paymentUrl;
-
-    try {
-      await this.checkoutSessionRepo.update(savedSession.id, {
-        cardcomLowProfileId: cardcomResult.lowProfileId,
-        rawCardcomResponse: cardcomResult.rawResponse,
-      });
-    } catch (dbErr) {
-      // DB update failed AFTER CardCom already created the payment page.
-      // Risk: session row lacks LowProfileId, but webhook handler uses ReturnValue
-      // (=sessionId) so payment processing is still possible.
-      // The CHECKOUT_CREATED event below still includes lowProfileId in metadata.
-      this.logger.error(
-        `CRITICAL: CardCom payment page created (lowProfileId=${cardcomResult.lowProfileId}) ` +
-          `but DB update for session #${savedSession.id} failed. ` +
-          `Session will stay PENDING without LowProfileId. Webhook can still process via ReturnValue. ` +
-          `Error: ${(dbErr as Error)?.message}`,
-      );
-    }
-
-    // ── Audit event ───────────────────────────────────────────────────────────
-
     await this.billingEventService.logEvent({
       firebaseId,
       eventType: BillingEventType.CHECKOUT_CREATED,
       subscriptionId: subscription.id,
-      checkoutSessionId: savedSession.id,
       amountAgorot: pricing.finalAmountAgorot,
+      amountBeforeVatAgorot: pricing.amountBeforeVatAgorot,
+      vatAmountAgorot: pricing.vatAmountAgorot,
       currency: pricing.currency,
       metadata: {
         planId: plan.id,
         planSlug: plan.slug,
-        couponCode: dto.couponCode ?? null,
         pricingExplanation: pricing.explanation,
         cardcomLowProfileId: cardcomResult.lowProfileId,
       },
     });
 
     this.logger.log(
-      `Checkout session #${savedSession.id} ready: plan=${plan.slug} ` +
+      `Checkout ready: plan=${plan.slug} subscription=${subscription.id} ` +
         `amount=${pricing.finalAmountAgorot} agorot lowProfileId=${cardcomResult.lowProfileId}`,
     );
 
     return {
-      checkoutSessionId: savedSession.id,
-      paymentUrl: paymentUrlToReturn,
-      finalAmountAgorot: savedSession.finalAmountAgorot,
-      currency: savedSession.currency,
-      expiresAt: savedSession.expiresAt,
+      paymentUrl: cardcomResult.paymentUrl,
+      finalAmountAgorot: pricing.finalAmountAgorot,
+      currency: pricing.currency,
     };
   }
 
-  // ─── Checkout status ─────────────────────────────────────────────────────────
+  // ─── Receipt email retry ─────────────────────────────────────────────────────
 
   /**
-   * Returns the current status of a checkout session.
-   * Used by the Angular success/failed page to confirm payment outcome before
-   * showing confirmation UI — the webhook may have processed before the user
-   * is redirected back.
+   * Re-sends the receipt email for an existing PAYMENT_SUCCESS billing event.
+   * Validates that the authenticated user owns the event and that a receipt
+   * document has already been created, then delegates to BillingReceiptService.
    */
-  async getCheckoutStatus(firebaseId: string, sessionId: number) {
-    const session = await this.checkoutSessionRepo.findOne({
-      where: { id: sessionId },
-    });
+  async resendReceiptEmail(
+    firebaseId: string,
+    eventId: number,
+  ): Promise<{ sent: boolean; error?: string }> {
+    const event = await this.billingEventService.findPaymentEventById(eventId);
 
-    if (!session || session.firebaseId !== firebaseId) {
-      throw new NotFoundException(`Checkout session #${sessionId} not found`);
+    if (!event || event.firebaseId !== firebaseId) {
+      throw new NotFoundException('Payment event not found');
     }
 
-    const subscription = await this.subscriptionRepo.findOne({
-      where: { id: session.subscriptionId },
-    });
+    if (event.eventType !== BillingEventType.PAYMENT_SUCCESS) {
+      throw new BadRequestException('Only PAYMENT_SUCCESS events have receipt emails');
+    }
 
-    const isCompleted = session.status === CheckoutSessionStatus.COMPLETED;
-    const isSubscriptionActive = subscription?.status === SubscriptionStatus.ACTIVE;
+    if (!event.receiptDocId) {
+      throw new BadRequestException(
+        'Receipt document not yet created for this payment event. ' +
+          'Wait for the webhook to complete or contact support.',
+      );
+    }
 
-    return {
-      checkoutSessionId: session.id,
-      status: session.status,
-      finalAmountAgorot: session.finalAmountAgorot,
-      currency: session.currency,
-      cardcomLowProfileId: session.cardcomLowProfileId,
-      expiresAt: session.expiresAt,
-      paidAt: session.paidAt,
-      isCompleted,
-      subscription: subscription
-        ? {
-            id: subscription.id,
-            status: subscription.status,
-            isActive: isSubscriptionActive,
-            currentPeriodEnd: subscription.currentPeriodEnd,
-          }
-        : null,
-    };
+    return this.billingReceiptService.sendReceiptEmailForPaymentEvent(eventId);
   }
 
   // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-  private async markSessionFailed(sessionId: number): Promise<void> {
-    try {
-      await this.checkoutSessionRepo.update(sessionId, {
-        status: CheckoutSessionStatus.FAILED,
-      });
-    } catch (err) {
-      this.logger.error(
-        `Failed to mark checkout session #${sessionId} as FAILED: ${(err as Error)?.message}`,
-      );
-    }
-  }
-
-  private buildBillingStateResponse(
+  private async buildBillingStateResponse(
     subscription: Subscription,
     plan: SubscriptionPlan | null,
+    firebaseId: string,
   ) {
     const modulesAccess = this.subscriptionAccessService.resolveModulesAccess(
       subscription,
       plan,
     );
+
+    const billingPaymentResult = await this.buildPaymentResultPayload(firebaseId);
 
     return {
       hasSubscription: true,
@@ -462,17 +348,52 @@ export class BillingService {
         isPastDue: subscription.status === SubscriptionStatus.PAST_DUE,
         gracePeriodActive: this.subscriptionAccessService.gracePeriodActive(subscription),
       },
+      billingPaymentResult,
     };
   }
 
   /**
-   * Temporary bridge: keeps legacy User fields in sync until the old
-   * SubscriptionGuard and getBillingStatus are replaced.
-   * Best-effort — failures are logged but never break the main flow.
+   * Builds the latest CardCom payment/invoice outcome for the frontend's
+   * post-return-from-CardCom UI (success / email-failed / failed / processing).
+   * Returns null when the user has never had a PAYMENT_SUCCESS or PAYMENT_FAILED
+   * event — the frontend treats that as "still processing" right after a redirect.
    */
+  private async buildPaymentResultPayload(firebaseId: string): Promise<{
+    latestPaymentEventId: number;
+    paymentStatus: 'SUCCESS' | 'FAILED';
+    receiptDocId: number | null;
+    receiptEmailSent: boolean | null;
+    receiptEmail: string | null;
+    failureReason: string | null;
+    createdAt: Date;
+  } | null> {
+    const event = await this.billingEventService.findLatestPaymentResultEvent(firebaseId);
+    if (!event) return null;
+
+    const isSuccess = event.eventType === BillingEventType.PAYMENT_SUCCESS;
+
+    let receiptEmail: string | null = null;
+    if (isSuccess) {
+      const user = await this.userRepo.findOne({ where: { firebaseId } });
+      receiptEmail = user?.email ?? null;
+    }
+
+    return {
+      latestPaymentEventId: event.id,
+      paymentStatus: isSuccess ? 'SUCCESS' : 'FAILED',
+      receiptDocId: isSuccess ? event.receiptDocId : null,
+      receiptEmailSent: isSuccess ? event.receiptEmailSent : null,
+      receiptEmail,
+      failureReason: !isSuccess ? ((event.metadata?.reason as string) ?? null) : null,
+      createdAt: event.createdAt,
+    };
+  }
+
   /**
    * Evaluates and enforces subscription lifecycle transitions.
    * Persists any state changes and keeps legacy User fields in sync.
+   * Evaluates and enforces subscription lifecycle transitions for a single
+   * subscription, on access (e.g. when the user opens the billing page).
    * Returns the subscription with its current (possibly updated) status.
    *
    * Current rules:
@@ -487,43 +408,43 @@ export class BillingService {
       subscription.trialEnd !== null &&
       subscription.trialEnd < new Date()
     ) {
-      subscription.status = SubscriptionStatus.TRIAL_EXPIRED;
-      await this.subscriptionRepo.save(subscription);
-      await this.syncLegacyUserFields(firebaseId, {
-        payStatus: PayStatus.PAYMENT_REQUIRED,
-        modulesAccess: [],
-        subscriptionEndDate: subscription.trialEnd,
-        nextBillingDate: null,
-      });
+      await this.expireTrialSubscription(subscription);
     }
 
     return subscription;
   }
 
-  private async syncLegacyUserFields(
-    firebaseId: string,
-    fields: {
-      payStatus: PayStatus;
-      modulesAccess: ModuleName[];
-      subscriptionEndDate: Date | null;
-      nextBillingDate: Date | null;
-    },
-  ): Promise<void> {
-    try {
-      const user = await this.userRepo.findOne({ where: { firebaseId } });
-      if (!user) return;
+  /**
+   * Daily lifecycle job: transitions every TRIAL subscription whose
+   * trialEnd has passed to TRIAL_EXPIRED. Subscription.status/trialEnd is
+   * the only input — no legacy User fields are read. Intended to be called
+   * once a day (see AppService.handleDailyTask).
+   */
+  async expireOverdueTrials(): Promise<number> {
+    const overdueTrials = await this.subscriptionRepo.find({
+      where: {
+        status: SubscriptionStatus.TRIAL,
+        trialEnd: LessThan(new Date()),
+      },
+    });
 
-      user.payStatus = fields.payStatus;
-      user.modulesAccess = fields.modulesAccess;
-      user.subscriptionEndDate = fields.subscriptionEndDate as Date;
-      user.nextBillingDate = fields.nextBillingDate as Date;
-
-      await this.userRepo.save(user);
-    } catch (error) {
-      this.logger.error(
-        `Failed to sync legacy User fields for firebaseId=${firebaseId}: ${(error as Error)?.message ?? error}`,
-        (error as Error)?.stack,
-      );
+    for (const subscription of overdueTrials) {
+      await this.expireTrialSubscription(subscription);
     }
+
+    if (overdueTrials.length > 0) {
+      this.logger.log(`expireOverdueTrials: expired ${overdueTrials.length} trial subscription(s)`);
+    }
+
+    return overdueTrials.length;
+  }
+
+  /**
+   * Temporary bridge: keeps legacy User fields in sync until they're
+   * dropped. Best-effort — failures are logged but never break the main flow.
+   */
+  private async expireTrialSubscription(subscription: Subscription): Promise<void> {
+    subscription.status = SubscriptionStatus.TRIAL_EXPIRED;
+    await this.subscriptionRepo.save(subscription);
   }
 }

@@ -8,13 +8,15 @@ import {
 import { BillingEventType } from '../enums/billing.enums';
 
 /**
- * Immutable internal audit trail of everything the billing system does.
- * Append-only — no update, no soft delete.
+ * Internal audit trail of billing system actions. Rows are append-only except
+ * for the receipt columns on PAYMENT_SUCCESS events, which are updated once
+ * when BillingReceiptService creates the receipt after the payment commits.
  */
 @Entity('billing_event')
 @Index('ix_billing_event_subscription', ['subscriptionId', 'createdAt'])
 @Index('ix_billing_event_user', ['firebaseId', 'createdAt'])
 @Index('ix_billing_event_type', ['eventType'])
+@Index('ix_billing_event_receipt_lookup', ['eventType', 'cardcomDealNumber'])
 export class BillingEvent {
   @PrimaryGeneratedColumn()
   id: number;
@@ -25,10 +27,6 @@ export class BillingEvent {
   /** FK → subscription.id. */
   @Column({ name: 'subscription_id', type: 'int', nullable: true, default: null })
   subscriptionId: number | null;
-
-  /** FK → cardcom_checkout_session.id. */
-  @Column({ name: 'checkout_session_id', type: 'int', nullable: true, default: null })
-  checkoutSessionId: number | null;
 
   /** FK → payment_method.id. */
   @Column({ name: 'payment_method_id', type: 'int', nullable: true, default: null })
@@ -41,24 +39,44 @@ export class BillingEvent {
   })
   eventType: BillingEventType;
 
-  /** Amount involved in this event, in agorot. */
+  /**
+   * Total charged amount in agorot, VAT-inclusive.
+   * This is the canonical "what the customer paid" figure and matches CardCom's
+   * TranzactionInfo.Amount × 100 on PAYMENT_SUCCESS rows.
+   */
   @Column({ name: 'amount_agorot', type: 'int', nullable: true, default: null })
   amountAgorot: number | null;
+
+  /**
+   * Pre-VAT base amount in agorot (plan price after discounts, before VAT).
+   * Set at CHECKOUT_CREATED time from PricingService.calculateBillingAmounts().
+   * Copied to PAYMENT_SUCCESS so receipt generation never needs to recalculate.
+   */
+  @Column({ name: 'amount_before_vat_agorot', type: 'int', nullable: true, default: null })
+  amountBeforeVatAgorot: number | null;
+
+  /** VAT component in agorot. amountBeforeVatAgorot + vatAmountAgorot === amountAgorot. */
+  @Column({ name: 'vat_amount_agorot', type: 'int', nullable: true, default: null })
+  vatAmountAgorot: number | null;
 
   @Column({ type: 'varchar', length: 3, default: 'ILS' })
   currency: string;
 
+  /** CardCom transaction/deal ID. Primary idempotency anchor for receipt creation. */
   @Column({ name: 'cardcom_deal_number', type: 'varchar', length: 255, nullable: true, default: null })
   cardcomDealNumber: string | null;
 
-  @Column({ name: 'cardcom_document_number', type: 'varchar', length: 255, nullable: true, default: null })
-  cardcomDocumentNumber: string | null;
+  /**
+   * FK → documents.id. Set by BillingReceiptService after a receipt is created
+   * for this payment. Non-null means receipt already exists — skip re-creation.
+   * Join to documents to get docNumber, file paths, and all other receipt fields.
+   */
+  @Column({ name: 'receipt_doc_id', type: 'int', nullable: true, default: null })
+  receiptDocId: number | null;
 
-  @Column({ name: 'cardcom_document_type', type: 'varchar', length: 100, nullable: true, default: null })
-  cardcomDocumentType: string | null;
-
-  @Column({ name: 'cardcom_document_url', type: 'varchar', length: 2048, nullable: true, default: null })
-  cardcomDocumentUrl: string | null;
+  /** True once the receipt email was successfully delivered to the customer. */
+  @Column({ name: 'receipt_email_sent', type: 'boolean', default: false })
+  receiptEmailSent: boolean;
 
   /** Arbitrary extra data relevant to this specific event type. */
   @Column({ type: 'json', nullable: true, default: null })

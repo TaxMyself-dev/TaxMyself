@@ -33,6 +33,7 @@ import { Finsite } from 'src/finsite/finsite.entity';
 import { Delegation } from 'src/delegation/delegation.entity';
 import { SettingDocuments } from 'src/documents/settingDocuments.entity';
 import { Business } from 'src/business/business.entity';
+import { BillingModule } from '../billing/billing.module';
 
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { Business } from 'src/business/business.entity';
     SharedModule,
     forwardRef(() => UsersModule),
     forwardRef(() => FeezbackModule),
+    forwardRef(() => BillingModule),
   ],
   controllers: [TransactionsController],
   providers: [

@@ -246,12 +246,12 @@
   flex-wrap: nowrap;
   align-items: baseline;
   gap: 0.15rem 0.35rem;
-  padding-bottom: 0.12em;
+  // padding-bottom: 0.12em;
 }
 
 // Primary price
 .pricing-card__amount {
-  font-size: 52px;
+  font-size: 36px;
   font-weight: 400;
   line-height: 1;
   color: var(--color-primary);
@@ -264,7 +264,8 @@
 
 // Dealer-type role label next to price ("עוסק פטור" / "עוסק מורשה")
 .pricing-card__price-role {
-  align-self: center;
+  // align-self: center;
+  align-items: baseline;
   font-size: 0.75rem;
   font-weight: 500;
   color: var(--color-text-secondary);

@@ -36,95 +36,6 @@ export interface CreatePlanPayload {
 
 export type UpdatePlanPayload = Partial<CreatePlanPayload>;
 
-// ─── Promotions ─────────────────────────────────────────────────────────────
-
-export type DiscountType = 'PERCENT' | 'FIXED_AMOUNT' | 'FIXED_PRICE';
-export type DurationType = 'ONCE' | 'REPEATING' | 'FOREVER';
-
-export interface AdminPromotion {
-  id: number;
-  name: string;
-  description: string | null;
-  discountType: DiscountType;
-  /** Used when discountType = PERCENT (0–100). Entity field: discountPercent. */
-  discountPercent: number | null;
-  /** Used when discountType = FIXED_AMOUNT or FIXED_PRICE. Value in agorot. */
-  discountValueAgorot: number | null;
-  durationType: DurationType;
-  durationMonths: number | null;
-  startsAt: string | null;
-  endsAt: string | null;
-  priority: number;
-  maxRedemptions: number | null;
-  /** Read-only — server managed. */
-  currentRedemptions: number;
-  isActive: boolean;
-  appliesToPlanIds: number[];
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface CreatePromotionPayload {
-  name: string;
-  description?: string | null;
-  discountType: DiscountType;
-  discountPercent?: number | null;
-  discountValueAgorot?: number | null;
-  durationType: DurationType;
-  durationMonths?: number | null;
-  startsAt?: string | null;
-  endsAt?: string | null;
-  priority?: number;
-  maxRedemptions?: number | null;
-  isActive?: boolean;
-  appliesToPlanIds?: number[];
-}
-
-export type UpdatePromotionPayload = Partial<CreatePromotionPayload>;
-
-// ─── Coupons ─────────────────────────────────────────────────────────────────
-
-export interface AdminCoupon {
-  id: number;
-  code: string;
-  name: string;
-  description: string | null;
-  discountType: DiscountType;
-  discountPercent: number | null;
-  discountValueAgorot: number | null;
-  durationType: DurationType;
-  durationMonths: number | null;
-  startsAt: string | null;
-  endsAt: string | null;
-  maxRedemptions: number | null;
-  /** Read-only — server managed. */
-  currentRedemptions: number;
-  maxRedemptionsPerUser: number;
-  isActive: boolean;
-  appliesToPlanIds: number[];
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface CreateCouponPayload {
-  code: string;
-  name: string;
-  description?: string | null;
-  discountType: DiscountType;
-  discountPercent?: number | null;
-  discountValueAgorot?: number | null;
-  durationType: DurationType;
-  durationMonths?: number | null;
-  startsAt?: string | null;
-  endsAt?: string | null;
-  maxRedemptions?: number | null;
-  maxRedemptionsPerUser?: number;
-  isActive?: boolean;
-  appliesToPlanIds?: number[];
-}
-
-export type UpdateCouponPayload = Partial<CreateCouponPayload>;
-
 // ─── Subscriptions ────────────────────────────────────────────────────────────
 
 export interface AdminSubscription {
@@ -153,7 +64,48 @@ export interface AdminSubscription {
   cardBrand: string | null;
   cardExpiryMonth: number | null;
   cardExpiryYear: number | null;
-  couponCode: string | null;
+  discountPercent: number | null;
+  discountAmountAgorot: number | null;
+  discountStartDate: string | null;
+  discountEndDate: string | null;
+}
+
+export interface UpdateSubscriptionDiscountPayload {
+  discountPercent?: number | null;
+  discountAmountAgorot?: number | null;
+  discountStartDate?: string | null;
+  discountEndDate?: string | null;
+}
+
+export interface AdminSubscriptionDiscountResponse {
+  subscriptionId: number;
+  discountPercent: number | null;
+  discountAmountAgorot: number | null;
+  discountStartDate: string | null;
+  discountEndDate: string | null;
+}
+
+export type RenewalOutcome = 'success' | 'retry_scheduled' | 'past_due' | 'skipped' | 'error';
+
+export interface RenewalResult {
+  subscriptionId: number;
+  outcome: RenewalOutcome;
+  attemptNumber?: number;
+  billingPeriod?: string;
+  cardcomResponseCode?: number;
+  nextBillingDate?: string | null;
+  message?: string;
+}
+
+export interface RenewalBatchResult {
+  totalDue: number;
+  processed: number;
+  succeeded: number;
+  retryScheduled: number;
+  pastDue: number;
+  skipped: number;
+  errors: number;
+  results: RenewalResult[];
 }
 
 // ─── Service ─────────────────────────────────────────────────────────────────
@@ -186,53 +138,26 @@ export class AdminBillingService {
     return this.http.patch<AdminPlan>(`${this.base}/plans/${id}/activate`, {});
   }
 
-  // ─── Promotions ─────────────────────────────────────────────────────────────
-
-  getPromotions(): Observable<AdminPromotion[]> {
-    return this.http.get<AdminPromotion[]>(`${this.base}/promotions`);
-  }
-
-  createPromotion(payload: CreatePromotionPayload): Observable<AdminPromotion> {
-    return this.http.post<AdminPromotion>(`${this.base}/promotions`, payload);
-  }
-
-  updatePromotion(id: number, payload: UpdatePromotionPayload): Observable<AdminPromotion> {
-    return this.http.patch<AdminPromotion>(`${this.base}/promotions/${id}`, payload);
-  }
-
-  deactivatePromotion(id: number): Observable<AdminPromotion> {
-    return this.http.patch<AdminPromotion>(`${this.base}/promotions/${id}/deactivate`, {});
-  }
-
-  activatePromotion(id: number): Observable<AdminPromotion> {
-    return this.http.patch<AdminPromotion>(`${this.base}/promotions/${id}/activate`, {});
-  }
-
-  // ─── Coupons ─────────────────────────────────────────────────────────────────
-
-  getCoupons(): Observable<AdminCoupon[]> {
-    return this.http.get<AdminCoupon[]>(`${this.base}/coupons`);
-  }
-
-  createCoupon(payload: CreateCouponPayload): Observable<AdminCoupon> {
-    return this.http.post<AdminCoupon>(`${this.base}/coupons`, payload);
-  }
-
-  updateCoupon(id: number, payload: UpdateCouponPayload): Observable<AdminCoupon> {
-    return this.http.patch<AdminCoupon>(`${this.base}/coupons/${id}`, payload);
-  }
-
-  deactivateCoupon(id: number): Observable<AdminCoupon> {
-    return this.http.patch<AdminCoupon>(`${this.base}/coupons/${id}/deactivate`, {});
-  }
-
-  activateCoupon(id: number): Observable<AdminCoupon> {
-    return this.http.patch<AdminCoupon>(`${this.base}/coupons/${id}/activate`, {});
-  }
-
   // ─── Subscriptions ─────────────────────────────────────────────────────────
 
   getSubscriptions(): Observable<AdminSubscription[]> {
     return this.http.get<AdminSubscription[]>(`${this.base}/subscriptions`);
+  }
+
+  updateSubscriptionDiscount(
+    id: number,
+    payload: UpdateSubscriptionDiscountPayload,
+  ): Observable<AdminSubscriptionDiscountResponse> {
+    return this.http.patch<AdminSubscriptionDiscountResponse>(`${this.base}/subscriptions/${id}/discount`, payload);
+  }
+
+  /** Manual test trigger for the renewal cron's charge-by-token flow, for one subscription. */
+  triggerSubscriptionRenewal(id: number): Observable<RenewalResult> {
+    return this.http.post<RenewalResult>(`${this.base}/subscriptions/${id}/renew`, {});
+  }
+
+  /** Manual test trigger for the full daily renewal batch — same logic as the 03:00 cron. */
+  runDueRenewals(): Observable<RenewalBatchResult> {
+    return this.http.post<RenewalBatchResult>(`${this.base}/renewals/run-due`, {});
   }
 }

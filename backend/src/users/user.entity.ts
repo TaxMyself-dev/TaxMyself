@@ -5,7 +5,7 @@ import {
     OneToMany
  } from 'typeorm';
 import { Bill } from '../transactions/bill.entity';
-import { UserRole, TaxReportingType, VATReportingType, BusinessType, FamilyStatus, EmploymentType, PayStatus, ModuleName, Gender, BusinessStatus } from '../enum';
+import { UserRole, TaxReportingType, VATReportingType, BusinessType, FamilyStatus, EmploymentType, Gender, BusinessStatus } from '../enum';
 
 
 @Entity()
@@ -82,23 +82,6 @@ export class User {
     })
     role: UserRole[];
 
-    @Column({
-      type: 'enum',
-      enum: PayStatus,
-      enumName: 'PayStatus',
-      default: PayStatus.TRIAL
-    })
-    payStatus: PayStatus;
-
-    @Column({ type: 'simple-array', nullable: true })
-    modulesAccess: ModuleName[];
-  
-    @Column({ type: 'date', nullable: true, default: null })
-    subscriptionEndDate: Date;
-  
-    @Column({ type: 'date', nullable: true, default: null })
-    nextBillingDate: Date;
-
     @Column({ type: 'date', nullable: true, default: null })
     createdAt: Date;
 
@@ -121,13 +104,7 @@ export class User {
 
     @Column({ default: false })
     hasOpenBanking: boolean;
-
-    @Column({ type: 'decimal', precision: 5, scale: 2, default: 0 })
-    discountPercent: number;
-
-    @Column({ type: 'varchar', nullable: true, default: null })
-    discountLabel: string | null;
-
+    
     @Column({ name: 'drive_folder_id', type: 'varchar', length: 255, nullable: true, default: null })
     driveFolderId: string | null;
 

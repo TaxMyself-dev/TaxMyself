@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, Query, UploadedFile, UseInterceptors, Headers, BadRequestException, ConflictException, ForbiddenException, UsePipes, ValidationPipe, Put, UseGuards, Req, HttpCode, HttpStatus, HttpException, Logger } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Body, Query, UploadedFile, UseInterceptors, Headers, BadRequestException, ConflictException, ForbiddenException, UsePipes, ValidationPipe, Put, UseGuards, Req, HttpCode, HttpStatus, HttpException, Logger, Inject, forwardRef } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { TransactionsService } from './transactions.service';
 import { TransactionProcessingService } from './transaction-processing.service';
@@ -23,6 +23,7 @@ import { FlowAnalysisDto } from './dtos/flow-analysis.dto';
 import { FlowAnalysisResponse } from './interfaces/flow-analysis-response.interface';
 import { ExpensesService } from '../expenses/expenses.service';
 import { UserSubCategory } from '../expenses/user-sub-categories.entity';
+import { BillingService } from '../billing/services/billing.service';
 
 // ── Dev simulator scenario specs (shared by the 3 staged dev endpoints) ──────
 type SimSpec = {
@@ -84,6 +85,8 @@ export class TransactionsController {
     private readonly usersService: UsersService,
     private readonly feezbackService: FeezbackService,
     private readonly expensesService: ExpensesService,
+    @Inject(forwardRef(() => BillingService))
+    private readonly billingService: BillingService,
   ) {}
 
   /**
@@ -202,8 +205,8 @@ export class TransactionsController {
     this.logger.log(`[TriggerSync] Manual sync requested | firebaseId=${masked}`);
 
     // Gate 1 — OPEN_BANKING module access
-    const user = await this.usersService.findByFirebaseId(userId);
-    if (!user?.modulesAccess?.includes(ModuleName.OPEN_BANKING)) {
+    const hasAccess = await this.billingService.hasModuleAccess(userId, ModuleName.OPEN_BANKING);
+    if (!hasAccess) {
       this.logger.log(`[TriggerSync] Rejected — no OPEN_BANKING access | firebaseId=${masked}`);
       throw new ForbiddenException('User does not have Open Banking access');
     }

@@ -21,7 +21,6 @@ import {
   Gender,
   FamilyStatus,
   EmploymentType,
-  PayStatus,
   BusinessStatus,
   BusinessType,
   VATReportingType,
@@ -445,15 +444,14 @@ export class DelegationService {
       familyStatus: FamilyStatus.SINGLE,
       role: [UserRole.REGULAR],
       businessStatus: BusinessStatus.SINGLE_BUSINESS,
-      payStatus: PayStatus.TRIAL,
-      modulesAccess: null,
       createdAt: new Date(),
-      subscriptionEndDate: new Date(),
     });
-    newUser.subscriptionEndDate.setMonth(
-      newUser.subscriptionEndDate.getMonth() + 2,
-    );
     await this.userRepository.save(newUser);
+
+    // Subscription row — same trial-creation path as signup(), so delegated
+    // clients get identical TRIAL/all-modules access instead of a
+    // hand-rolled (and previously inconsistent) legacy state.
+    await this.usersService.ensureTrialSubscription(firebaseId);
 
     // 3b. יוצרים תמיד עסק בטבלת העסקים לפי השדות הרלוונטיים
     const resolvedBusinessType = dto.businessType ?? BusinessType.EXEMPT;

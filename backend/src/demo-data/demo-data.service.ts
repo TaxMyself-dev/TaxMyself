@@ -13,13 +13,12 @@ import * as path from 'path';
 import {
   BusinessStatus,
   BusinessType,
-  ModuleName,
-  PayStatus,
   TaxReportingType,
   UserRole,
   VATReportingType,
 } from 'src/enum';
 import { User } from 'src/users/user.entity';
+import { UsersService } from 'src/users/users.service';
 import { Business } from 'src/business/business.entity';
 import { Bill } from 'src/transactions/bill.entity';
 import { Source } from 'src/transactions/source.entity';
@@ -125,6 +124,7 @@ export class DemoDataService {
     @InjectDataSource() private readonly dataSource: DataSource,
     private readonly driveService: GoogleDriveService,
     private readonly fxRateService: FxRateService,
+    private readonly usersService: UsersService,
   ) {}
 
   // ---------------- Public API ----------------
@@ -611,13 +611,6 @@ export class DemoDataService {
         employmentStatus: data.user.employmentStatus,
         familyStatus: data.user.familyStatus,
         role: data.role ?? [UserRole.REGULAR],
-        payStatus: PayStatus.TRIAL,
-        // Keep modulesAccess consistent with hasOpenBanking — otherwise the
-        // frontend sees hasOpenBanking=true and tries to poll OB-gated
-        // endpoints that fail because modulesAccess lacks OPEN_BANKING.
-        modulesAccess: (data.hasOpenBanking ?? true)
-          ? [ModuleName.INVOICES, ModuleName.OPEN_BANKING]
-          : [ModuleName.INVOICES],
         businessStatus:
           data.businesses.length >= 2
             ? BusinessStatus.MULTI_BUSINESS
@@ -640,6 +633,13 @@ export class DemoDataService {
         spouseEmploymentStatus: data.spouse?.employmentStatus ?? null,
       }),
     );
+
+    // Subscription row — same trial-creation path as signup()/delegation, so
+    // demo users get identical TRIAL/all-modules access to real users instead
+    // of a hand-rolled modulesAccess list. Runs outside the `m` transaction
+    // (BillingService manages its own repos) but is idempotent by firebaseId,
+    // so a retry after a partial failure is safe.
+    await this.usersService.ensureTrialSubscription(firebaseId);
 
     // 2. Businesses — apply VAT/tax defaults the way users.service.signup() does.
     for (const b of data.businesses) {

@@ -20,10 +20,7 @@ import { UsersService } from 'src/users/users.service';
 import { AdminBillingService } from './services/admin-billing.service';
 import { CreatePlanDto } from './dtos/admin/create-plan.dto';
 import { UpdatePlanDto } from './dtos/admin/update-plan.dto';
-import { CreatePromotionDto } from './dtos/admin/create-promotion.dto';
-import { UpdatePromotionDto } from './dtos/admin/update-promotion.dto';
-import { CreateCouponDto } from './dtos/admin/create-coupon.dto';
-import { UpdateCouponDto } from './dtos/admin/update-coupon.dto';
+import { UpdateSubscriptionDiscountDto } from './dtos/admin/update-subscription-discount.dto';
 
 @Controller('admin/billing')
 @UseGuards(FirebaseAuthGuard)
@@ -90,102 +87,48 @@ export class AdminBillingController {
     return this.adminBillingService.findAllSubscriptions();
   }
 
-  // ─── Promotions ─────────────────────────────────────────────────────────────
-
-  @Get('promotions')
-  async getPromotions(@Req() request: AuthenticatedRequest) {
-    await this.assertAdmin(request);
-    return this.adminBillingService.findAllPromotions();
-  }
-
-  @Post('promotions')
+  @Patch('subscriptions/:id/discount')
   @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
-  async createPromotion(
-    @Req() request: AuthenticatedRequest,
-    @Body() dto: CreatePromotionDto,
-  ) {
-    await this.assertAdmin(request);
-    return this.adminBillingService.createPromotion(dto);
-  }
-
-  @Patch('promotions/:id')
-  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
-  async updatePromotion(
+  async updateSubscriptionDiscount(
     @Req() request: AuthenticatedRequest,
     @Param('id', ParseIntPipe) id: number,
-    @Body() dto: UpdatePromotionDto,
+    @Body() dto: UpdateSubscriptionDiscountDto,
   ) {
     await this.assertAdmin(request);
-    return this.adminBillingService.updatePromotion(id, dto);
+    return this.adminBillingService.updateSubscriptionDiscount(id, dto);
   }
 
-  @Patch('promotions/:id/deactivate')
+  /**
+   * POST /admin/billing/subscriptions/:id/renew
+   *
+   * Manual test trigger for the monthly renewal flow — runs the exact same
+   * row-locked charge-by-token logic the daily cron uses, for one subscription.
+   * Safe to call on a subscription that isn't due yet (returns outcome:'skipped').
+   */
+  @Post('subscriptions/:id/renew')
   @HttpCode(HttpStatus.OK)
-  async deactivatePromotion(
+  async triggerSubscriptionRenewal(
     @Req() request: AuthenticatedRequest,
     @Param('id', ParseIntPipe) id: number,
   ) {
     await this.assertAdmin(request);
-    return this.adminBillingService.deactivatePromotion(id);
+    return this.adminBillingService.triggerSubscriptionRenewal(id);
   }
 
-  @Patch('promotions/:id/activate')
+  /**
+   * POST /admin/billing/renewals/run-due
+   *
+   * Manual test trigger for the full daily renewal batch — runs
+   * SubscriptionRenewalService.processDueRenewals(), the exact same method the
+   * 03:00 Asia/Jerusalem cron calls. Finds every subscription with
+   * status=ACTIVE AND nextBillingDate<=NOW() and charges each one through the
+   * same row-locked, idempotent flow. May trigger real CardCom charges.
+   */
+  @Post('renewals/run-due')
   @HttpCode(HttpStatus.OK)
-  async activatePromotion(
-    @Req() request: AuthenticatedRequest,
-    @Param('id', ParseIntPipe) id: number,
-  ) {
+  async runDueRenewals(@Req() request: AuthenticatedRequest) {
     await this.assertAdmin(request);
-    return this.adminBillingService.activatePromotion(id);
-  }
-
-  // ─── Coupons ─────────────────────────────────────────────────────────────────
-
-  @Get('coupons')
-  async getCoupons(@Req() request: AuthenticatedRequest) {
-    await this.assertAdmin(request);
-    return this.adminBillingService.findAllCoupons();
-  }
-
-  @Post('coupons')
-  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
-  async createCoupon(
-    @Req() request: AuthenticatedRequest,
-    @Body() dto: CreateCouponDto,
-  ) {
-    await this.assertAdmin(request);
-    return this.adminBillingService.createCoupon(dto);
-  }
-
-  @Patch('coupons/:id')
-  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
-  async updateCoupon(
-    @Req() request: AuthenticatedRequest,
-    @Param('id', ParseIntPipe) id: number,
-    @Body() dto: UpdateCouponDto,
-  ) {
-    await this.assertAdmin(request);
-    return this.adminBillingService.updateCoupon(id, dto);
-  }
-
-  @Patch('coupons/:id/deactivate')
-  @HttpCode(HttpStatus.OK)
-  async deactivateCoupon(
-    @Req() request: AuthenticatedRequest,
-    @Param('id', ParseIntPipe) id: number,
-  ) {
-    await this.assertAdmin(request);
-    return this.adminBillingService.deactivateCoupon(id);
-  }
-
-  @Patch('coupons/:id/activate')
-  @HttpCode(HttpStatus.OK)
-  async activateCoupon(
-    @Req() request: AuthenticatedRequest,
-    @Param('id', ParseIntPipe) id: number,
-  ) {
-    await this.assertAdmin(request);
-    return this.adminBillingService.activateCoupon(id);
+    return this.adminBillingService.triggerDueRenewalsRun();
   }
 
   // ─── Admin guard ────────────────────────────────────────────────────────────

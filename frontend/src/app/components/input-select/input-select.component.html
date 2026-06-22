@@ -50,7 +50,7 @@
       [virtualScroll]="virtualScroll()" [disabled]="disabled()" [styleClass]="inputClasses()"
       (onChange)="onChange($event)" [virtualScroll]="virtualScroll()" [virtualScrollItemSize]="virtualScrollItemSize()"
       [emptyMessage]="emptyMessage()" [emptyFilterMessage]="emptyFilterMessage()"
-      [appendTo]="appendTo()" [autoZIndex]="autoZIndex()" [baseZIndex]="baseZIndex()">
+      [appendTo]="appendTo()" [overlayOptions]="{ autoZIndex: autoZIndex(), baseZIndex: baseZIndex() }">
       <ng-template #dropdownicon>
         <i class="pi pi-sort-down-fill" style="font-size: 0.8rem"></i>
       </ng-template>

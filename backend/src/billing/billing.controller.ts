@@ -65,7 +65,7 @@ export class BillingController {
    * POST /billing/checkout/preview
    *
    * Protected. Calculates the final price without creating a session or charging.
-   * Body: { planId: number, couponCode?: string }
+   * Body: { planId: number }
    */
   @Post('checkout/preview')
   @UseGuards(FirebaseAuthGuard)
@@ -82,14 +82,11 @@ export class BillingController {
   /**
    * POST /billing/checkout
    *
-   * Protected. Creates a PENDING checkout session, calls CardCom LowProfile/Create,
-   * and returns the hosted payment page URL.
+   * Protected. Calls CardCom LowProfile/Create and returns the hosted payment page URL.
+   * Subscription activation happens exclusively via the CardCom webhook handler.
    *
-   * The subscription is NOT activated here. Activation happens exclusively through
-   * the CardCom webhook handler (POST /billing/cardcom/webhook — next step).
-   *
-   * Returns: { checkoutSessionId, paymentUrl, finalAmountAgorot, currency, expiresAt }
-   * Body: { planId: number, couponCode?: string }
+   * Returns: { paymentUrl, finalAmountAgorot, currency }
+   * Body: { planId: number }
    */
   @Post('checkout')
   @UseGuards(FirebaseAuthGuard)
@@ -104,22 +101,23 @@ export class BillingController {
   }
 
   /**
-   * GET /billing/checkout/:sessionId/status
+   * POST /billing/events/:eventId/receipt/resend-email
    *
-   * Protected. Returns the current status of a checkout session.
-   * Used by the Angular payment-result page to confirm payment outcome
-   * (the webhook may have already processed before the redirect).
+   * Protected. Re-sends the receipt email for a PAYMENT_SUCCESS event that
+   * the authenticated user owns. Reuses the existing Firebase PDF — no
+   * regeneration. Returns { sent, error? }.
    *
-   * Ownership is enforced — returns 404 if the session belongs to another user.
+   * Frontend: show [שלח שוב] when receiptDocId != null && receiptEmailSent === false.
    */
-  @Get('checkout/:sessionId/status')
+  @Post('events/:eventId/receipt/resend-email')
   @UseGuards(FirebaseAuthGuard)
-  getCheckoutStatus(
+  resendReceiptEmail(
     @Req() request: AuthenticatedRequest,
-    @Param('sessionId', ParseIntPipe) sessionId: number,
+    @Param('eventId', ParseIntPipe) eventId: number,
   ) {
     const firebaseId = request.user?.firebaseId;
     if (!firebaseId) throw new NotFoundException('User not found in request');
-    return this.billingService.getCheckoutStatus(firebaseId, sessionId);
+    return this.billingService.resendReceiptEmail(firebaseId, eventId);
   }
+
 }

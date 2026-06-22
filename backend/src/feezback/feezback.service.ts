@@ -1,4 +1,4 @@
-import { BadGatewayException, Injectable, Logger } from '@nestjs/common';
+import { BadGatewayException, forwardRef, Inject, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { FeezbackJwtService } from './feezback-jwt.service';
@@ -10,9 +10,9 @@ import { UserSyncStateService } from '../transactions/user-sync-state.service';
 import { UserSyncState, SourceResult } from '../transactions/user-sync-state.entity';
 import { NormalizedTransaction } from '../transactions/interfaces/normalized-transaction.interface';
 import { User } from '../users/user.entity';
-import { UserModuleSubscription } from '../users/user-module-subscription.entity';
 import { Source } from '../transactions/source.entity';
-import { ModuleName, PayStatus, SourceType } from '../enum';
+import { ModuleName, SourceType } from '../enum';
+import { BillingService } from '../billing/services/billing.service';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -48,8 +48,9 @@ export class FeezbackService {
     private readonly processingService: TransactionProcessingService,
     private readonly userSyncStateService: UserSyncStateService,
     @InjectRepository(User) private readonly userRepository: Repository<User>,
-    @InjectRepository(UserModuleSubscription) private readonly moduleSubRepo: Repository<UserModuleSubscription>,
     @InjectRepository(Source) private readonly sourceRepository: Repository<Source>,
+    @Inject(forwardRef(() => BillingService))
+    private readonly billingService: BillingService,
   ) {
     this.tppId = this.authService.getTppId();
   }
@@ -124,15 +125,14 @@ export class FeezbackService {
     const userName = user ? [user.fName, user.lName].filter(Boolean).join(' ') : masked;
 
     // NOTE: this method is only called from the consent-completion webhook
-    // (UserDataIsAvailable) and the admin-trigger endpoint — both intentional
-    // "grant OB access" contexts. We previously gated on modulesAccess here to
-    // prevent demo users from hitting Feezback on every login, but the login
-    // path goes through doFullSync (which has its own gate) and never reaches
-    // refreshUserSources. The gate here created a chicken-and-egg for first-
-    // time consenters: they don't yet have OPEN_BANKING in modulesAccess, so
-    // the gate blocked the very block (below) that grants it. If a caller
-    // does reach here without a real Feezback consent, the API calls below
-    // 404 and the BadGatewayException prevents the user from being updated.
+    // (UserDataIsAvailable) and the admin-trigger endpoint. OPEN_BANKING
+    // *permission* is governed entirely by the subscription plan (see
+    // BillingService.hasModuleAccess) — this method does not grant access.
+    // It only flips User.hasOpenBanking, which records that the user
+    // completed OB onboarding (connected a bank account), independent of
+    // whether their plan currently includes the module. If a caller does
+    // reach here without a real Feezback consent, the API calls below 404
+    // and the BadGatewayException prevents the user from being updated.
 
     let bankError: string | null = null;
     let cardError: string | null = null;
@@ -192,34 +192,13 @@ export class FeezbackService {
     }
 
     try {
-      if (user) {
-        let dirty = false;
-        if (!user.modulesAccess?.includes(ModuleName.OPEN_BANKING)) {
-          user.modulesAccess = [...(user.modulesAccess ?? []), ModuleName.OPEN_BANKING];
-          dirty = true;
-        }
-        if (!user.hasOpenBanking) {
-          user.hasOpenBanking = true;
-          dirty = true;
-        }
-        if (dirty) {
-          await this.userRepository.save(user);
-          moduleAccessUpdated = true;
-        }
-        const existingOBSub = await this.moduleSubRepo.findOne({ where: { firebaseId, moduleName: ModuleName.OPEN_BANKING } });
-        if (!existingOBSub) {
-          const trialStart = new Date();
-          const trialEnd = new Date();
-          trialEnd.setDate(trialEnd.getDate() + 45);
-          await this.moduleSubRepo.save(this.moduleSubRepo.create({
-            firebaseId, moduleName: ModuleName.OPEN_BANKING,
-            trialStartDate: trialStart, trialEndDate: trialEnd,
-            payStatus: PayStatus.TRIAL, monthlyPriceNis: 45, createdAt: new Date(),
-          }));
-        }
+      if (user && !user.hasOpenBanking) {
+        user.hasOpenBanking = true;
+        await this.userRepository.save(user);
+        moduleAccessUpdated = true;
       }
     } catch (error: any) {
-      this.logger.error(`${prefix} Failed to update modulesAccess/hasOpenBanking firebaseId=${masked}: ${error?.message}`, error?.stack);
+      this.logger.error(`${prefix} Failed to update hasOpenBanking firebaseId=${masked}: ${error?.message}`, error?.stack);
     }
 
     console.log(`\n════════════════════════════════════`);
@@ -1849,10 +1828,14 @@ export class FeezbackService {
 
   private async doFullSync(firebaseId: string, triggeredBy: 'login' | 'webhook' | 'manual', masked: string, preSyncState?: UserSyncState | null): Promise<void> {
     try {
-      // Gate — only proceed for users who have OPEN_BANKING module access.
-      const user = await this.userRepository.findOne({ where: { firebaseId }, select: ['modulesAccess', 'fName', 'lName'] });
-      if (!user?.modulesAccess?.includes(ModuleName.OPEN_BANKING)) {
-        console.log(`⏭️  [FullSync] Skipped — OPEN_BANKING not in modulesAccess | modulesAccess=${JSON.stringify(user?.modulesAccess)} | triggeredBy=${triggeredBy} | firebaseId=${masked}\n`);
+      // Gate — requires BOTH: subscription plan includes OPEN_BANKING, AND
+      // the user has actually completed OB onboarding (connected a bank
+      // account). Plan access alone isn't enough — there's nothing to sync
+      // until hasOpenBanking is true.
+      const user = await this.userRepository.findOne({ where: { firebaseId }, select: ['fName', 'lName', 'hasOpenBanking'] });
+      const hasPlanAccess = await this.billingService.hasModuleAccess(firebaseId, ModuleName.OPEN_BANKING);
+      if (!hasPlanAccess || !user?.hasOpenBanking) {
+        console.log(`⏭️  [FullSync] Skipped — no OPEN_BANKING access | planAccess=${hasPlanAccess} | hasOpenBanking=${user?.hasOpenBanking} | triggeredBy=${triggeredBy} | firebaseId=${masked}\n`);
         await this.userSyncStateService.markSyncSkipped(firebaseId, 'no_access').catch(err => {
           this.logger.error(`[FullSync] Failed to write skipped(no_access) state | firebaseId=${masked} | error=${err?.message}`);
         });

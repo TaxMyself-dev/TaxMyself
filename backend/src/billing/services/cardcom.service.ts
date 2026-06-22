@@ -3,8 +3,9 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { firstValueFrom } from 'rxjs';
 
 export interface CardcomLowProfileInput {
-  checkoutSessionId: number;
   firebaseId: string;
+  planId: number;
+  subscriptionId: number;
   amountAgorot: number;
   planName: string;
   customerName?: string | null;
@@ -16,6 +17,35 @@ export interface CardcomLowProfileResult {
   lowProfileId: string;
   paymentUrl: string;
   rawResponse: Record<string, any>;
+}
+
+export interface CardcomChargeByTokenInput {
+  /** Decrypted CardCom token GUID. Never logged. */
+  token: string;
+  /** Card expiry as MMYY, e.g. month=12 year=2026 → "1226". */
+  cardExpirationMMYY: string;
+  /** Charge amount in agorot — converted to NIS internally, same convention as createLowProfileCheckout. */
+  amountAgorot: number;
+  /** Idempotency key sent to CardCom as ExternalUniqTranId, e.g. "renewal:123:2026-07". */
+  externalUniqTranId: string;
+}
+
+/**
+ * Response shape for POST /api/v11/Transactions/Transaction (schema: TransactionInfo).
+ * Field names verified against the spec supplied for the renewal feature — not the
+ * full CardCom OpenAPI doc, since that isn't available in this environment.
+ */
+export interface CardcomTransactionInfo {
+  ResponseCode: number;
+  Description?: string;
+  TranzactionId?: number;
+  Amount?: number;
+  ApprovalNumber?: string;
+  Last4CardDigits?: number;
+  Last4CardDigitsString?: string;
+  CardMonth?: number;
+  CardYear?: number;
+  [key: string]: any;
 }
 
 export class CardcomApiError extends Error {
@@ -49,6 +79,8 @@ export class CardcomService implements OnModuleInit {
 
   private static readonly DEFAULT_CREATE_URL =
     'https://secure.cardcom.solutions/api/v11/LowProfile/Create';
+  private static readonly DEFAULT_TRANSACTION_URL =
+    'https://secure.cardcom.solutions/api/v11/Transactions/Transaction';
 
   private terminalNumber!: string;
   private apiName!: string;
@@ -58,6 +90,7 @@ export class CardcomService implements OnModuleInit {
   private successUrl!: string;
   private failedUrl!: string;
   private webhookUrl!: string;
+  private transactionUrl!: string;
 
   constructor(private readonly http: HttpService) {}
 
@@ -93,6 +126,8 @@ export class CardcomService implements OnModuleInit {
     this.webhookUrl = required.CARDCOM_WEBHOOK_URL!;
     this.createUrl =
       process.env.CARDCOM_LOW_PROFILE_CREATE_URL ?? CardcomService.DEFAULT_CREATE_URL;
+    this.transactionUrl =
+      process.env.CARDCOM_TRANSACTION_URL ?? CardcomService.DEFAULT_TRANSACTION_URL;
 
     this.logger.log(
       `CardCom configured: terminal=***${this.terminalNumber.slice(-4)} ` +
@@ -124,8 +159,8 @@ export class CardcomService implements OnModuleInit {
       // ── Optional top-level fields ──────────────────────────────────────────
       ProductName: input.planName,
       // ReturnValue is echoed back in webhook + redirect URLs.
-      // Used as idempotency key: maps CardCom callback back to our session.
-      ReturnValue: String(input.checkoutSessionId),
+      // Contains the routing context needed to activate the subscription without a session table.
+      ReturnValue: JSON.stringify({ firebaseId: input.firebaseId, planId: input.planId, subscriptionId: input.subscriptionId }),
       // Fix 4: ISOCoinId is the documented field name (not CoinID). 1 = ILS.
       ISOCoinId: 1,
       // Fix 5: Operation enum replaces non-existent TokenizationMode.
@@ -146,7 +181,7 @@ export class CardcomService implements OnModuleInit {
 
     // Log safe fields only — credentials and customer PII never appear here.
     this.logger.log(
-      `CardCom LowProfile/Create → sessionId=${input.checkoutSessionId} ` +
+      `CardCom LowProfile/Create → subscriptionId=${input.subscriptionId} planId=${input.planId} ` +
         `amount=${amountNis} NIS terminal=***${this.terminalNumber.slice(-4)}`,
     );
 
@@ -160,12 +195,13 @@ export class CardcomService implements OnModuleInit {
         }),
       );
       rawResponse = response.data ?? {};
+      console.log("🚀 ~ CardcomService ~ createLowProfileCheckout ~ rawResponse:", rawResponse)
     } catch (err: any) {
       const detail: string = err?.response?.data
         ? JSON.stringify(err.response.data).slice(0, 500)
         : (err?.message ?? 'HTTP request failed');
       this.logger.error(
-        `CardCom HTTP error for session ${input.checkoutSessionId}: ${detail}`,
+        `CardCom HTTP error for subscriptionId=${input.subscriptionId}: ${detail}`,
       );
       throw new CardcomApiError(`CardCom HTTP request failed: ${detail}`);
     }
@@ -178,7 +214,7 @@ export class CardcomService implements OnModuleInit {
 
     if (responseCode !== 0) {
       this.logger.error(
-        `CardCom rejected session ${input.checkoutSessionId}: code=${responseCode} desc=${description}`,
+        `CardCom rejected subscriptionId=${input.subscriptionId}: code=${responseCode} desc=${description}`,
       );
       throw new CardcomApiError(
         `CardCom error (code ${responseCode}): ${description || 'Unknown error'}`,
@@ -207,7 +243,7 @@ export class CardcomService implements OnModuleInit {
     }
 
     this.logger.log(
-      `CardCom LowProfile created: sessionId=${input.checkoutSessionId} lowProfileId=${lowProfileId}`,
+      `CardCom LowProfile created: subscriptionId=${input.subscriptionId} lowProfileId=${lowProfileId}`,
     );
 
     return { lowProfileId, paymentUrl, rawResponse };
@@ -249,6 +285,70 @@ export class CardcomService implements OnModuleInit {
       this.logger.error(`CardCom GetLpResult HTTP error for ${lowProfileId}: ${detail}`);
       throw new CardcomApiError(`CardCom GetLpResult failed: ${detail}`);
     }
+  }
+
+  /**
+   * Calls CardCom Transactions/Transaction to charge a stored token directly —
+   * the monthly renewal flow (no LowProfile/hosted-page involved).
+   *
+   * Request schema (TransactionReq), per the spec supplied for this feature:
+   *   TerminalNumber, ApiName, Amount, Token, CardExpirationMMYY, ISOCoinId,
+   *   ExternalUniqTranId, ExternalUniqUniqTranIdResponse.
+   * No ApiPassword and no CVV — neither is part of this request shape.
+   *
+   * Does NOT throw on a CardCom-level decline (ResponseCode !== 0) — the raw
+   * response is returned so the caller can log/branch on the failure details.
+   * Only throws CardcomApiError on a transport-level failure (no response at all).
+   *
+   * Never logs params.token.
+   */
+  async chargeByToken(input: CardcomChargeByTokenInput): Promise<CardcomTransactionInfo> {
+    const amountNis = input.amountAgorot / 100;
+    const terminalNumberInt = parseInt(this.terminalNumber, 10);
+
+    const payload: Record<string, any> = {
+      TerminalNumber: terminalNumberInt,
+      ApiName: this.apiName,
+      Amount: amountNis,
+      Token: input.token,
+      CardExpirationMMYY: input.cardExpirationMMYY,
+      ISOCoinId: 1,
+      ExternalUniqTranId: input.externalUniqTranId,
+      ExternalUniqUniqTranIdResponse: true,
+    };
+
+    this.logger.log(
+      `CardCom Transactions/Transaction → externalUniqTranId=${input.externalUniqTranId} ` +
+        `amount=${amountNis} NIS terminal=***${this.terminalNumber.slice(-4)}`,
+    );
+
+    let rawResponse: Record<string, any>;
+
+    try {
+      const response = await firstValueFrom(
+        this.http.post<Record<string, any>>(this.transactionUrl, payload, {
+          headers: { 'Content-Type': 'application/json' },
+          timeout: 30_000,
+        }),
+      );
+      rawResponse = response.data ?? {};
+    } catch (err: any) {
+      const detail: string = err?.response?.data
+        ? JSON.stringify(err.response.data).slice(0, 500)
+        : (err?.message ?? 'HTTP request failed');
+      this.logger.error(
+        `CardCom Transaction HTTP error for externalUniqTranId=${input.externalUniqTranId}: ${detail}`,
+      );
+      throw new CardcomApiError(`CardCom Transaction HTTP request failed: ${detail}`);
+    }
+
+    const responseCode: number = rawResponse['ResponseCode'] ?? -1;
+    this.logger.log(
+      `CardCom Transaction result: externalUniqTranId=${input.externalUniqTranId} ` +
+        `responseCode=${responseCode} tranzactionId=${rawResponse['TranzactionId'] ?? 'none'}`,
+    );
+
+    return rawResponse as CardcomTransactionInfo;
   }
 
   /**

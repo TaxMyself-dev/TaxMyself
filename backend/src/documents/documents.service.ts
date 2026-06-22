@@ -224,13 +224,18 @@ export class DocumentsService {
     generalDocIndex: string,
     docType: string,
     fileName: string,
-    fileType: 'original' | 'copy'
+    fileType: 'original' | 'copy',
+    customerFirebaseId?: string | null
   ): Promise<string> {
 
     try {
       const bucket = admin.storage().bucket(process.env.FIREBASE_STORAGE_BUCKET);
       const uniqueId = randomUUID();
-      const filePath = `systemDocs/${issuerBusinessNumber}/${docType}/${fileType}/${uniqueId}/${fileName}.pdf`;
+      // Billing receipts pass customerFirebaseId so Firebase folders group by
+      // the paying user, even though the document is issued under the company.
+      const filePath = customerFirebaseId
+        ? `systemDocs/${issuerBusinessNumber}/${customerFirebaseId}/${docType}/${fileType}/${uniqueId}/${fileName}.pdf`
+        : `systemDocs/${issuerBusinessNumber}/${docType}/${fileType}/${uniqueId}/${fileName}.pdf`;
       const file = bucket.file(filePath);
       await file.save(pdfBuffer, {
         metadata: {
@@ -1704,6 +1709,285 @@ ${finalOwnerName}`;
     } catch (error) {
       console.error("❌ Error in savePaymentsInfo:", error);
       throw new HttpException(error.message, error.status || HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+
+  /**
+   * Generates original and copy PDFs for a billing receipt document already
+   * persisted by createBillingSystemReceipt(), uploads both to Firebase, and
+   * updates Documents.file / Documents.copyFile.
+   *
+   * Idempotent: if Documents.file is already set, skips generation and
+   * returns existing paths with the original PDF re-downloaded from Firebase.
+   *
+   * Issuer details are supplied by the caller — no Business entity lookup.
+   * generatePDF() and uploadToFirebase() remain private; this method is the
+   * single public entry point for the billing PDF lifecycle.
+   */
+  async finalizeBillingReceipt(params: {
+    docId: number;
+    issuerName: string;
+    issuerPhone: string | null;
+    issuerEmail: string | null;
+    issuerAddress: string | null;
+    businessType: BusinessType;
+    customerFirebaseId?: string | null;
+  }): Promise<{
+    originalPath: string;
+    copyPath: string;
+    originalBuffer: Buffer;
+    recipientEmail: string | null;
+    recipientName: string;
+    docNumber: string;
+  }> {
+    const { docId, issuerName, issuerPhone, issuerEmail, issuerAddress, businessType, customerFirebaseId } = params;
+
+    const doc = await this.documentsRepo.findOneOrFail({ where: { id: docId } });
+
+    // Idempotency: PDFs already generated and uploaded on a prior attempt.
+    if (doc.file && doc.copyFile) {
+      const originalBuffer = await this.downloadFromFirebase(doc.file);
+      return {
+        originalPath: doc.file,
+        copyPath: doc.copyFile,
+        originalBuffer,
+        recipientEmail: doc.recipientEmail ?? null,
+        recipientName: doc.recipientName,
+        docNumber: doc.docNumber,
+      };
+    }
+
+    const [lines, payments] = await Promise.all([
+      this.docLinesRepo.find({
+        where: { issuerBusinessNumber: doc.issuerBusinessNumber, generalDocIndex: doc.generalDocIndex },
+        order: { lineNumber: 'ASC' },
+      }),
+      this.docPaymentsRepo.find({
+        where: { issuerBusinessNumber: doc.issuerBusinessNumber, generalDocIndex: doc.generalDocIndex },
+        order: { paymentLineNumber: 'ASC' },
+      }),
+    ]);
+
+    // sumWithoutVat = lines with VatOptions.WITHOUT; always 0 for billing receipts
+    // (all lines use VatOptions.EXCLUDE), computed for correctness.
+    const sumWithoutVat = lines
+      .filter(l => l.vatOpts === VatOptions.WITHOUT)
+      .reduce((s, l) => s + Number(l.sumAftDisBefVatPerLine || 0), 0);
+
+    const data = {
+      docData: {
+        ...doc,
+        issuerName,
+        issuerPhone,
+        issuerEmail,
+        issuerAddress,
+        businessType,
+        sumWithoutVat,
+        paymentMethod: null,
+      },
+      linesData: lines,
+      paymentData: payments,
+    };
+
+    // Generate both PDFs (same path as createDoc step 7)
+    const originalPdfBlob = await this.generatePDF(data, 'createDoc');
+    const originalBuffer = Buffer.from(originalPdfBlob as any);
+
+    const copyPdfBlob = await this.generatePDF(data, 'createDoc', true);
+    const copyBuffer = Buffer.from(copyPdfBlob as any);
+
+    // Upload both to Firebase (same path as createDoc step 8)
+    const docFileName = `${doc.docType}_${doc.docNumber}`;
+    const originalPath = await this.uploadToFirebase(
+      originalBuffer,
+      doc.issuerBusinessNumber,
+      doc.generalDocIndex,
+      doc.docType,
+      docFileName,
+      'original',
+      customerFirebaseId,
+    );
+    const copyPath = await this.uploadToFirebase(
+      copyBuffer,
+      doc.issuerBusinessNumber,
+      doc.generalDocIndex,
+      doc.docType,
+      docFileName,
+      'copy',
+      customerFirebaseId,
+    );
+
+    // Update Documents.file and Documents.copyFile (same as createDoc step 9)
+    doc.file = originalPath;
+    doc.copyFile = copyPath;
+    await this.documentsRepo.save(doc);
+
+    return {
+      originalPath,
+      copyPath,
+      originalBuffer,
+      recipientEmail: doc.recipientEmail ?? null,
+      recipientName: doc.recipientName,
+      docNumber: doc.docNumber,
+    };
+  }
+
+  /**
+   * Downloads the original PDF for a billing receipt from Firebase Storage and
+   * returns it together with the document fields needed to compose an email.
+   * Throws if the document has no file path (finalizeBillingReceipt not yet run).
+   */
+  async getBillingReceiptPdf(docId: number): Promise<{
+    buffer: Buffer;
+    recipientEmail: string | null;
+    recipientName: string;
+    docNumber: string;
+    docType: string;
+    generalDocIndex: string;
+  }> {
+    const doc = await this.documentsRepo.findOneOrFail({ where: { id: docId } });
+    if (!doc.file) {
+      throw new Error(
+        `Billing receipt docId=${docId} has no PDF path — finalizeBillingReceipt may not have completed`,
+      );
+    }
+    const buffer = await this.downloadFromFirebase(doc.file);
+    return {
+      buffer,
+      recipientEmail: doc.recipientEmail ?? null,
+      recipientName: doc.recipientName,
+      docNumber: doc.docNumber,
+      docType: doc.docType,
+      generalDocIndex: doc.generalDocIndex,
+    };
+  }
+
+  /**
+   * Creates a billing receipt for a KeepInTax subscription payment without
+   * creating journal entries, generating PDFs, or uploading to Firebase.
+   * Issuer details come from the caller — no Business entity lookup required.
+   * Returns the DB document id, doc number, and general doc index for storage
+   * on the corresponding PAYMENT_SUCCESS billing_event row.
+   */
+  async createBillingSystemReceipt(params: {
+    systemUserId: string;
+    issuerBusinessNumber: string;
+    issuerBusinessType: BusinessType;
+    recipientName: string;
+    recipientEmail: string | null;
+    amountBeforeVatAgorot: number;
+    vatAmountAgorot: number;
+    amountIncludingVatAgorot: number;
+    planName: string;
+    docDate: Date;
+    initialReceiptIndex: number;
+  }): Promise<{ receiptDocId: number; docNumber: string; generalDocIndex: string }> {
+    const {
+      systemUserId, issuerBusinessNumber, issuerBusinessType,
+      recipientName, recipientEmail,
+      amountBeforeVatAgorot, vatAmountAgorot, amountIncludingVatAgorot,
+      planName, docDate, initialReceiptIndex,
+    } = params;
+
+    const amountBeforeVatShekels = +(amountBeforeVatAgorot / 100).toFixed(2);
+    const vatAmountShekels = +(vatAmountAgorot / 100).toFixed(2);
+    const amountIncludingVatShekels = +(amountIncludingVatAgorot / 100).toFixed(2);
+
+    const qr = this.dataSource.createQueryRunner();
+    await qr.connect();
+    await qr.startTransaction();
+
+    try {
+      // 1. Increment the shared generalDocIndex counter for this business
+      const generalIndexResult = await this.incrementGeneralIndex(
+        systemUserId, issuerBusinessNumber, qr.manager,
+      );
+      const generalDocIndex = String(generalIndexResult.currentIndex);
+
+      // 2. Determine the next TAX_INVOICE_RECEIPT doc number from the per-type counter
+      const settingRepo = qr.manager.getRepository(SettingDocuments);
+      let docSetting = await settingRepo.findOne({
+        where: { userId: systemUserId, issuerBusinessNumber, docType: DocumentType.TAX_INVOICE_RECEIPT },
+      });
+
+      let docNumber: string;
+      if (!docSetting) {
+        // First billing receipt — initialize counter at configured starting index
+        docSetting = settingRepo.create({
+          userId: systemUserId,
+          issuerBusinessNumber,
+          docType: DocumentType.TAX_INVOICE_RECEIPT,
+          initialIndex: initialReceiptIndex,
+          currentIndex: initialReceiptIndex + 1,
+        });
+        await settingRepo.save(docSetting);
+        docNumber = String(initialReceiptIndex);
+      } else {
+        docNumber = String(docSetting.currentIndex);
+        docSetting.currentIndex += 1;
+        await settingRepo.save(docSetting);
+      }
+
+      // 3. Persist the Documents row (no PDF, no Firebase, no journal entry)
+      const docData = {
+        issuerBusinessNumber,
+        businessType: issuerBusinessType,
+        docType: DocumentType.TAX_INVOICE_RECEIPT,
+        docNumber,
+        generalDocIndex,
+        docVatRate: 18,
+        currency: Currency.ILS,
+        sumBefDisBefVat: amountBeforeVatShekels,
+        disSum: 0,
+        sumAftDisBefVAT: amountBeforeVatShekels,
+        vatSum: vatAmountShekels,
+        sumAftDisWithVAT: amountIncludingVatShekels,
+        withholdingTaxAmount: 0,
+        recipientName,
+        recipientEmail,
+        docDate,
+      };
+      const savedDoc = await this.saveDocInfo(systemUserId, docData, qr.manager);
+
+      // 4. Persist one DocLines row
+      const lineData = [{
+        issuerBusinessNumber,
+        generalDocIndex,
+        docType: DocumentType.TAX_INVOICE_RECEIPT,
+        lineNumber: '1',
+        transType: '3',
+        description: planName,
+        unitType: UnitOfMeasure.UNIT,
+        unitQuantity: 1,
+        sumBefVatPerUnit: amountBeforeVatShekels,
+        disBefVatPerLine: 0,
+        sumAftDisBefVatPerLine: amountBeforeVatShekels,
+        vatOpts: VatOptions.EXCLUDE,
+        vatRate: 18,
+        vatPerLine: vatAmountShekels,
+      }];
+      await this.saveLinesInfo(systemUserId, lineData, qr.manager);
+
+      // 5. Persist one DocPayments row (VAT-inclusive total — what was actually charged)
+      const paymentData = [{
+        issuerBusinessNumber,
+        generalDocIndex,
+        paymentLineNumber: '1',
+        paymentMethod: 'CREDIT_CARD',
+        paymentDate: docDate,
+        paymentAmount: amountIncludingVatShekels,
+      }];
+      await this.savePaymentsInfo(systemUserId, paymentData, qr.manager);
+
+      await qr.commitTransaction();
+
+      return { receiptDocId: savedDoc.id, docNumber, generalDocIndex };
+    } catch (error) {
+      await qr.rollbackTransaction();
+      throw error;
+    } finally {
+      await qr.release();
     }
   }
 
