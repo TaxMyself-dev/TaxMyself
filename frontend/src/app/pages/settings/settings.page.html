@@ -300,6 +300,14 @@
                     [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"></app-input-text>
                 </div>
               </div>
+              @if (getInboxFolderUrl(biz); as inboxUrl) {
+                <div class="detail-row inbox-folder-row">
+                  <a class="inbox-folder-link" [href]="inboxUrl" target="_blank" rel="noopener noreferrer">
+                    <i class="pi pi-folder-open"></i>
+                    <span>תיקיית מסמכים נכנסים (Drive)</span>
+                  </a>
+                </div>
+              }
               <div class="section-actions section-actions-multiple">
                 <app-p-button
                   [buttonText]="'עדכן'"

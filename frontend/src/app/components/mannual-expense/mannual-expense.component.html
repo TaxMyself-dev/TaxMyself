@@ -110,6 +110,17 @@
     [size]="isMobile() ? inputSize.MOBILE : inputSize.BETWEEN">
   </app-input-select>
 
+  <!-- VAT report period — only for VAT-licensed businesses (monthly / dual).
+       Exempt businesses don't file VAT reports, so the field is hidden and
+       the period stays null. -->
+  @if (isVatLicensed()) {
+    <app-input-select [customStyle]="'register'" [controlName]="'vatReportingDate'"
+      [labelText]="'תקופת דיווח מע&quot;מ'" [placeholder]="'בחר תקופה'" [items]="vatPeriodOptions()"
+      [parentForm]="mannualExpenseForm" [size]="isMobile() ? inputSize.MOBILE : inputSize.BETWEEN"
+      (onChangeInputSelect)="onVatPeriodChange($event)">
+    </app-input-select>
+  }
+
   <app-input-text [customStyle]="'rounded-border'" [controlName]="'pnlCategory'"
     [labelText]="'קטגוריה לדוח רווח והפסד (אופציונלי)'" [placeholder]="'ריק = לפי תת הקטגוריה'"
     [parentForm]="mannualExpenseForm" [size]="isMobile() ? inputSize.MOBILE : inputSize.LARGE" [type]="'text'">
@@ -173,3 +184,39 @@
     [isLoading]="isLoadingAddExpense()" [buttonText]="editMode ? 'עדכן' : 'הוסף'" [buttonSize]="buttonSize.SMALL"
     [buttonColor]="buttonColor.BLACK"></app-p-button>
 </div>
+
+<!-- Manual VAT-report-period entry (the "אחר" option). Lets the user type a
+     specific period outside the 6-month-forward window (e.g. back-dated
+     reporting), matching the extracted-documents review modal. -->
+<p-dialog
+  header="הזנת תקופת דיווח ידנית"
+  [visible]="customVatPeriodVisible()"
+  (visibleChange)="$event ? null : cancelCustomVatPeriod()"
+  [modal]="true"
+  [style]="{ width: '460px', maxWidth: '95vw' }"
+  [draggable]="false"
+  [resizable]="false">
+
+  <div class="custom-vat-period-body">
+    <p>
+      ניתן לבחור תקופת דיווח מהרשימה, או להזין כאן תקופה אחרת ידנית.
+    </p>
+    <label for="customVatPeriodInput">תקופת דיווח</label>
+    <input
+      id="customVatPeriodInput"
+      type="text"
+      class="custom-vat-period-input"
+      [ngModel]="customVatPeriodValue()"
+      (ngModelChange)="customVatPeriodValue.set($event)"
+      (keydown.enter)="confirmCustomVatPeriod()"
+      placeholder="לדוגמה: 5-6/2026 או 5/2026"
+      autocomplete="off" />
+  </div>
+
+  <ng-template pTemplate="footer">
+    <app-p-button [buttonText]="'ביטול'" [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.SMALL"
+      (onButtonClicked)="cancelCustomVatPeriod()"></app-p-button>
+    <app-p-button [buttonText]="'אישור'" [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.SMALL"
+      [disabled]="!customVatPeriodValue().trim()" (onButtonClicked)="confirmCustomVatPeriod()"></app-p-button>
+  </ng-template>
+</p-dialog>

@@ -47,12 +47,11 @@ import { FullTransactionCache } from 'src/transactions/full-transaction-cache.en
     SharedModule,
     UsersModule,
     // DocumentsService is needed by ReportReviewService to trigger inbox
-    // processing + per-row archive. Imported (not re-provided) so we share
-    // the same instance as DocumentsModule consumers.
+    // processing + per-row archive/reject. Imported (not re-provided) so we
+    // share the same instance as DocumentsModule consumers.
     DocumentsModule,
-    // GoogleDriveModule for the per-row delete action — moves the Drive
-    // file from processed/ → archive/ as a safety net after hard-deleting
-    // the extracted_document row.
+    // GoogleDriveModule for Drive reads in the review flow (e.g. listing
+    // the inbox folder's files).
     GoogleDriveModule,
   ],
   controllers: [ReportsController],

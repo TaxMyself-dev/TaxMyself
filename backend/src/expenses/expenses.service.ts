@@ -60,7 +60,6 @@ export class ExpensesService {
          *  one-off vendor to their master list. */
         saveAsSupplier: boolean = true,
     ): Promise<Expense> {
-        console.log("addExpense - start");
         const newExpense = this.expense_repo.create(expense);
 
         // Foreign-currency manual entry: when the form sends originalCurrency
@@ -158,23 +157,26 @@ export class ExpensesService {
             throw new Error("expense not saved");
         }
 
-        // Auto-register the supplier in the user's master list. Runs AFTER
-        // the Expense save so a Supplier row never lands without its
-        // triggering Expense. Idempotent via the supplierID find-or-create
-        // — a user with 100 monthly Bezeq invoices ends up with one
-        // `supplier` row, not 100. supplierID is the unique key (within a
-        // user); empty IDs (foreign vendors like Anthropic that have no
-        // Israeli tax ID) get skipped here since there's nothing reliable
-        // to deduplicate against. saveAsSupplier=false skips the whole
-        // block — the review modal sets this when the user dismissed the
-        // red flag on the row. Best-effort: a failed Supplier save logs
-        // and continues — the Expense is already committed and the user
-        // shouldn't lose their action because of master-list bookkeeping.
+        // Auto-register the supplier in this business's master list. Runs
+        // AFTER the Expense save so a Supplier row never lands without its
+        // triggering Expense. Idempotent via the (businessNumber, supplierID)
+        // find-or-create — a business with 100 monthly Bezeq invoices ends
+        // up with one `supplier` row, not 100. Scoped by businessNumber (NOT
+        // userId) because the suppliers list endpoint is per-business: with
+        // a user-scoped check, biz A's auto-create would block biz B from
+        // ever getting its own row. Empty supplierIDs (foreign vendors with
+        // no Israeli tax ID) get skipped — there's nothing reliable to
+        // deduplicate against, and downstream listings tolerate the absent
+        // master row. saveAsSupplier=false skips the whole block — the
+        // review modal sets this when the user dismissed the red flag on
+        // the row. Best-effort: a failed Supplier save logs and continues
+        // — the Expense is already committed and the user shouldn't lose
+        // their action because of master-list bookkeeping.
         const supplierIdTrimmed = newExpense.supplierID?.trim();
         if (saveAsSupplier && supplierIdTrimmed) {
             try {
                 const existing = await this.supplier_repo.findOne({
-                    where: { userId, supplierID: supplierIdTrimmed },
+                    where: { businessNumber, supplierID: supplierIdTrimmed },
                 });
                 if (!existing) {
                     await this.supplier_repo.save(this.supplier_repo.create({
@@ -191,9 +193,20 @@ export class ExpensesService {
                     }));
                 }
             } catch (err: any) {
-                this.logger.warn(
-                    `addExpense: auto-create Supplier failed (supplierID=${supplierIdTrimmed}, expense=${resAddExpense.id}): ${err?.message ?? err}`,
-                );
+                // ER_DUP_ENTRY = the DB's uq_supplier_business_supplierid
+                // index caught a race (concurrent tabs / double-click). The
+                // sibling request already created the row, so this is a
+                // no-op success — log at debug, not warn.
+                if (err?.code === 'ER_DUP_ENTRY') {
+                    this.logger.debug(
+                        `addExpense: Supplier auto-create lost a race for ` +
+                        `(biz=${businessNumber}, supplierID=${supplierIdTrimmed}) — sibling won, OK`,
+                    );
+                } else {
+                    this.logger.warn(
+                        `addExpense: auto-create Supplier failed (supplierID=${supplierIdTrimmed}, expense=${resAddExpense.id}): ${err?.message ?? err}`,
+                    );
+                }
             }
         }
 
@@ -827,27 +840,51 @@ export class ExpensesService {
 
 
     async addSupplier(supplier: Partial<Supplier>, userId: string, businessNumber: string) {
-        console.log("addSupplier - start");
-        console.log("addSupplier - businessNumber:", businessNumber);
-
-        // Check if supplier already exists for this business (not globally)
-        const isAlreadyExist = await this.supplier_repo.findOne({ 
-            where: { 
-                supplier: supplier.supplier,
-                businessNumber: businessNumber 
-            } 
-        });
-        console.log("is allready: ", isAlreadyExist);
-        if (isAlreadyExist) {
+        // Dedup priority: supplierID is the legal identity (tax ID), so
+        // when present it's the conflict key — two suppliers with the same
+        // display name but different tax IDs are different real entities
+        // (e.g. two stores under the same chain brand) and BOTH should be
+        // allowed. When supplierID is empty (cash vendor, foreign merchant)
+        // fall back to name-uniqueness so users don't accidentally create
+        // "אנונימי" twice.
+        const supplierIdTrimmed = supplier.supplierID?.trim();
+        const existing = supplierIdTrimmed
+            ? await this.supplier_repo.findOne({
+                  where: { businessNumber, supplierID: supplierIdTrimmed },
+              })
+            : await this.supplier_repo.findOne({
+                  where: { businessNumber, supplier: supplier.supplier },
+              });
+        if (existing) {
+            const reason = supplierIdTrimmed
+                ? `supplierID "${supplierIdTrimmed}"`
+                : `name "${supplier.supplier}"`;
             throw new HttpException({
                 status: HttpStatus.CONFLICT,
-                error: `Supplier with this name: "${supplier.supplier}" already exists for this business`
+                error: `Supplier with ${reason} already exists for this business`
             }, HttpStatus.CONFLICT);
         }
         const newSupplier = this.supplier_repo.create(supplier);
         newSupplier.userId = userId;
         newSupplier.businessNumber = businessNumber;
-        return await this.supplier_repo.save(newSupplier);
+        if (supplierIdTrimmed) newSupplier.supplierID = supplierIdTrimmed;
+        try {
+            return await this.supplier_repo.save(newSupplier);
+        } catch (err: any) {
+            // The pre-check above resolves the common case, but a concurrent
+            // request can still race past it. The DB's uq_supplier_business_
+            // supplierid index turns that race into ER_DUP_ENTRY — surface as
+            // a 409 instead of letting it bubble up as a 500.
+            if (err?.code === 'ER_DUP_ENTRY') {
+                throw new HttpException({
+                    status: HttpStatus.CONFLICT,
+                    error: supplierIdTrimmed
+                        ? `Supplier with supplierID "${supplierIdTrimmed}" already exists for this business`
+                        : `Supplier with name "${supplier.supplier}" already exists for this business`,
+                }, HttpStatus.CONFLICT);
+            }
+            throw err;
+        }
     }
 
 
@@ -946,11 +983,13 @@ export class ExpensesService {
 
         // Attach the RESOLVED P&L category per row so the bookkeeping table can
         // show it without a per-row query. Precedence: per-expense override →
-        // subcategory map → null (UI shows "—" = uses bookkeeping category).
+        // subcategory map → bookkeeping category. This mirrors the actual P&L
+        // report grouping (reports.service.ts), so the column shows the real
+        // category the expense rolls up under instead of a bare "—".
         const pnlCategoryMap = await this.getPnlCategoryMap(userId, businessNumber);
         for (const e of reportedExpenses) {
             (e as any).resolvedPnlCategory =
-                e.pnlCategory ?? pnlCategoryMap.get(e.subCategory) ?? null;
+                e.pnlCategory ?? pnlCategoryMap.get(e.subCategory) ?? e.category;
         }
 
         // // Valid months when isSingleMonth is false
@@ -1337,25 +1376,45 @@ export class ExpensesService {
 
                 let supplierCreated = false;
                 if (item.saveAsSupplier && item.supplierID) {
-                    const existing = await this.supplier_repo.findOne({
-                        where: { userId: firebaseId, supplierID: item.supplierID },
-                    });
-                    if (!existing) {
-                        await this.supplier_repo.save(
-                            this.supplier_repo.create({
-                                supplier: item.supplier,
-                                supplierID: item.supplierID,
-                                category: item.category,
-                                subCategory: item.subCategory,
-                                taxPercent: item.taxPercent,
-                                vatPercent: item.vatPercent,
-                                userId: firebaseId,
-                                businessNumber,
-                                isEquipment: !!item.isEquipment,
-                                reductionPercent: 0,
-                            }),
+                    // Per-business dedup — matches addExpense's auto-create
+                    // and the suppliers-list endpoint (both scope by
+                    // businessNumber). userId-scoped lookup would block biz
+                    // B from getting a Bezeq row if biz A already had one.
+                    try {
+                        const existing = await this.supplier_repo.findOne({
+                            where: { businessNumber, supplierID: item.supplierID },
+                        });
+                        if (!existing) {
+                            await this.supplier_repo.save(
+                                this.supplier_repo.create({
+                                    supplier: item.supplier,
+                                    supplierID: item.supplierID,
+                                    category: item.category,
+                                    subCategory: item.subCategory,
+                                    taxPercent: item.taxPercent,
+                                    vatPercent: item.vatPercent,
+                                    userId: firebaseId,
+                                    businessNumber,
+                                    isEquipment: !!item.isEquipment,
+                                    reductionPercent: 0,
+                                }),
+                            );
+                            supplierCreated = true;
+                        }
+                    } catch (sErr: any) {
+                        // Race with a sibling create (e.g. user double-
+                        // clicked approve, two tabs, parallel rows in the
+                        // same bulk). The DB index already enforces the
+                        // invariant — treat ER_DUP_ENTRY as "sibling won",
+                        // not a failure. The Expense above is already
+                        // committed and the doc is about to be marked
+                        // APPROVED — losing this supplier-master write
+                        // shouldn't fail the row.
+                        if (sErr?.code !== 'ER_DUP_ENTRY') throw sErr;
+                        this.logger.debug(
+                            `bulkConfirm: Supplier auto-create lost a race for ` +
+                            `(biz=${businessNumber}, supplierID=${item.supplierID}) — sibling won, OK`,
                         );
-                        supplierCreated = true;
                     }
                 }
 

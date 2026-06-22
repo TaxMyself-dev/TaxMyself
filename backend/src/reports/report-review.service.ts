@@ -279,9 +279,16 @@ export class ReportReviewService {
           where: { userId: firebaseId, supplierID: In(docSupplierIds) },
         })
       : [];
-    const knownSupplierIds = new Set(
-      knownSuppliers.map(s => s.supplierID).filter((v): v is string => !!v),
-    );
+    // Index by supplierID so toDocSummary can both flag a known supplier
+    // AND hydrate the row's classification (category/sub/vat/tax/isEquipment)
+    // from the user's saved master record. The saved supplier is the
+    // authoritative classification for that vendor — it wins over whatever
+    // the OCR guessed on this particular invoice.
+    const knownSupplierById = new Map<string, Supplier>();
+    for (const s of knownSuppliers) {
+      const key = s.supplierID?.trim();
+      if (key) knownSupplierById.set(key, s);
+    }
 
     // Step 4 — assemble rows.
     const matchedDocIds = new Set<number>();
@@ -300,7 +307,7 @@ export class ReportReviewService {
       if (!tx) continue;
       rows.push({
         type: 'matched',
-        document: this.toDocSummary(doc, knownSupplierIds),
+        document: this.toDocSummary(doc, knownSupplierById),
         transaction: this.toTxSummary(tx.slim, tx.cache),
       });
       matchedDocIds.add(doc.id);
@@ -310,7 +317,7 @@ export class ReportReviewService {
     // Second pass: doc_only — every pending doc not consumed above.
     for (const doc of docs) {
       if (matchedDocIds.has(doc.id)) continue;
-      rows.push({ type: 'doc_only', document: this.toDocSummary(doc, knownSupplierIds) });
+      rows.push({ type: 'doc_only', document: this.toDocSummary(doc, knownSupplierById) });
     }
 
     // Third pass: tx_only — every eligible tx not consumed above (only in
@@ -388,7 +395,11 @@ export class ReportReviewService {
         {
           supplier: doc.supplier ?? cache.merchantName,
           supplierID: doc.supplierId ?? '',
-          expenseNumber: undefined as any,
+          // expenseNumber is misnamed — it carries the invoice number from
+          // the OCR'd document, NOT a separate user-entered reference. Pass
+          // through whatever the OCR captured; null when the doc has no
+          // printed number (rare for invoices, common for cash receipts).
+          expenseNumber: doc.invoiceNumber ?? undefined as any,
           category: finalCategory,
           subCategory: finalSubCategory,
           sum: amounts.sum,
@@ -410,15 +421,39 @@ export class ReportReviewService {
         overrides.saveAsSupplier ?? true,
       );
 
-      // Stamp document-side provenance + optional period override on the
-      // fresh Expense. When the user picked a period in the modal it wins;
-      // otherwise the period derived from the date (set by addExpense
-      // downstream) stays in place — we don't touch vatReportingDate.
-      const expenseUpdate: Partial<Expense> = { sourceDocumentId: doc.id };
-      if (overrides.reportPeriod) {
-        expenseUpdate.vatReportingDate = overrides.reportPeriod as any;
-      }
-      await manager.getRepository(Expense).update({ id: expense.id }, expenseUpdate);
+      // Resolve the VAT report period once and stamp it on BOTH the Expense
+      // and the slim transaction so neither side is left with a NULL period.
+      // The bookkeeping table's period column and the period-stamped report
+      // queries both rely on expense.vatReportingDate — and addExpense does
+      // NOT compute it, so without this the Expense would carry NULL and fall
+      // back to date-only filtering. User override wins; otherwise derive
+      // from the business cadence. The Expense uses its own date (the doc
+      // date when present); the slim keeps the bank-transaction date.
+      const business = await this.businessRepo.findOne({
+        where: { firebaseId, businessNumber },
+      });
+      const businessType = business?.businessType ?? BusinessType.LICENSED;
+      const vatReportingType = business?.vatReportingType ?? VATReportingType.MONTHLY_REPORT;
+      const expensePeriod = overrides.reportPeriod
+        ?? this.sharedService.buildReportPeriodLabel(
+          businessType,
+          vatReportingType,
+          // doc.date / cache.transactionDate are typed Date but TypeORM may
+          // hand them back as strings for MySQL DATE columns depending on
+          // driver version. Wrap unconditionally — `new Date(Date)` clones.
+          doc.date ? new Date(doc.date) : new Date(cache.transactionDate as any),
+        );
+
+      // Stamp document-side provenance + the resolved period on the fresh
+      // Expense. The period is ALWAYS written now (not only on override).
+      // pnlCategory is intentionally left NULL — it's an override-only slot
+      // resolved live (expense.pnlCategory ?? subcategory map ?? category) by
+      // both the P&L report and the bookkeeping display, so storing it here
+      // would only freeze a value that should track the live mapping.
+      await manager.getRepository(Expense).update(
+        { id: expense.id },
+        { sourceDocumentId: doc.id, vatReportingDate: expensePeriod as any },
+      );
 
       await manager.getRepository(ExtractedDocument).update(
         { id: doc.id },
@@ -439,18 +474,12 @@ export class ReportReviewService {
         );
       }
 
-      // Slim-side period: use the explicit override too if provided, so
-      // both sides agree. Otherwise compute from the business cadence.
-      const business = await this.businessRepo.findOne({
-        where: { firebaseId, businessNumber },
-      });
+      // Slim-side period: override wins, otherwise derive from the bank
+      // transaction date (kept separate from the Expense date above).
       const slimPeriod = overrides.reportPeriod
         ?? this.sharedService.buildReportPeriodLabel(
-          business?.businessType ?? BusinessType.LICENSED,
-          business?.vatReportingType ?? VATReportingType.MONTHLY_REPORT,
-          // cache.transactionDate is typed Date but TypeORM may hand it
-          // back as a string for MySQL DATE columns depending on driver
-          // version. Wrap unconditionally — `new Date(Date)` clones safely.
+          businessType,
+          vatReportingType,
           new Date(cache.transactionDate as any),
         );
       await manager.getRepository(SlimTransaction).update(
@@ -497,7 +526,11 @@ export class ReportReviewService {
         {
           supplier: doc.supplier ?? '',
           supplierID: doc.supplierId ?? '',
-          expenseNumber: undefined as any,
+          // expenseNumber is misnamed — it carries the invoice number from
+          // the OCR'd document, NOT a separate user-entered reference. Pass
+          // through whatever the OCR captured; null when the doc has no
+          // printed number (rare for invoices, common for cash receipts).
+          expenseNumber: doc.invoiceNumber ?? undefined as any,
           category: finalCategory,
           subCategory: finalSubCategory,
           sum: amounts.sum,
@@ -516,11 +549,26 @@ export class ReportReviewService {
         overrides.saveAsSupplier ?? true,
       );
 
-      const expenseUpdate: Partial<Expense> = { sourceDocumentId: doc.id };
-      if (overrides.reportPeriod) {
-        expenseUpdate.vatReportingDate = overrides.reportPeriod as any;
-      }
-      await manager.getRepository(Expense).update({ id: expense.id }, expenseUpdate);
+      // Resolve + stamp the VAT report period on the Expense — ALWAYS, not
+      // just on override. addExpense doesn't compute it, so without this the
+      // row would carry a NULL vatReportingDate. User override wins; else
+      // derive from the business cadence + the document date.
+      const business = await this.businessRepo.findOne({
+        where: { firebaseId, businessNumber },
+      });
+      const reportPeriod = overrides.reportPeriod
+        ?? this.sharedService.buildReportPeriodLabel(
+          business?.businessType ?? BusinessType.LICENSED,
+          business?.vatReportingType ?? VATReportingType.MONTHLY_REPORT,
+          // doc.date may come back as a string from MySQL DATE — wrap it.
+          doc.date ? new Date(doc.date) : new Date(),
+        );
+
+      // pnlCategory left NULL — override-only, resolved live downstream.
+      await manager.getRepository(Expense).update(
+        { id: expense.id },
+        { sourceDocumentId: doc.id, vatReportingDate: reportPeriod as any },
+      );
 
       await manager.getRepository(ExtractedDocument).update(
         { id: doc.id },
@@ -596,17 +644,14 @@ export class ReportReviewService {
         overrides.saveAsSupplier ?? true,
       );
 
-      if (overrides.reportPeriod) {
-        await manager.getRepository(Expense).update(
-          { id: expense.id },
-          { vatReportingDate: overrides.reportPeriod as any },
-        );
-      }
-
+      // Resolve the VAT report period once and stamp it on BOTH the Expense
+      // and the slim transaction. tx_only rows share the bank-transaction
+      // date, so one period covers both. ALWAYS written (not just on
+      // override) — addExpense doesn't compute the Expense period.
       const business = await this.businessRepo.findOne({
         where: { firebaseId, businessNumber },
       });
-      const slimPeriod = overrides.reportPeriod
+      const reportPeriod = overrides.reportPeriod
         ?? this.sharedService.buildReportPeriodLabel(
           business?.businessType ?? BusinessType.LICENSED,
           business?.vatReportingType ?? VATReportingType.MONTHLY_REPORT,
@@ -615,9 +660,15 @@ export class ReportReviewService {
           // version. Wrap unconditionally — `new Date(Date)` clones safely.
           new Date(cache.transactionDate as any),
         );
+
+      // pnlCategory left NULL — override-only, resolved live downstream.
+      await manager.getRepository(Expense).update(
+        { id: expense.id },
+        { vatReportingDate: reportPeriod as any },
+      );
       await manager.getRepository(SlimTransaction).update(
         { id: slim.id },
-        { confirmed: true, vatReportingDate: slimPeriod as any },
+        { confirmed: true, vatReportingDate: reportPeriod as any },
       );
 
       this.logger.log(
@@ -770,9 +821,9 @@ export class ReportReviewService {
   // ====================================================================
 
   /**
-   * "מחק" on a doc-side row. Same Drive layout as archive (file moves to
-   * archive/, sibling sweep applies, slim matched row gets reset) — the
-   * only difference vs archive is `status = REJECTED` instead of ARCHIVED.
+   * "מחק" on a doc-side row. Same handling as archive (file stays in
+   * processed/, slim matched row gets reset) — the only difference vs
+   * archive is `status = REJECTED` instead of ARCHIVED.
    *
    *   ARCHIVED — "I'm not claiming it now but the doc is real, keep for audit."
    *   REJECTED — "This isn't a real expense doc — OCR junk, duplicate, etc."
@@ -781,8 +832,8 @@ export class ReportReviewService {
    * UI can re-surface rejected docs if needed.
    *
    * Implementation: delegates to documentsService.archiveDocument with the
-   * REJECTED target status — the file-move + sibling sweep + matched-slim
-   * reset logic is single-sourced there.
+   * REJECTED target status — the matched-slim reset logic is single-sourced
+   * there.
    */
   async deleteDoc(
     firebaseId: string,
@@ -951,14 +1002,24 @@ export class ReportReviewService {
   }
 
   /** Document row → wire shape. Number casts protect against TypeORM
-   *  returning decimals as strings from MySQL. `knownSupplierIds` is the
-   *  pre-computed set of supplierIDs the user already has in their
-   *  Supplier table — supplied by the caller so we don't run an extra
-   *  query per document. */
+   *  returning decimals as strings from MySQL. `knownSupplierById` maps
+   *  supplierID → the user's saved Supplier master row, pre-computed by the
+   *  caller so we don't run an extra query per document.
+   *
+   *  When the doc's supplier is in that map, the row's classification
+   *  (category / sub-category / vat% / tax% / isEquipment) is hydrated from
+   *  the saved supplier rather than from the OCR guess — the master record
+   *  is the user's authoritative classification for that vendor, so a known
+   *  supplier should land in the review modal already filled in. The OCR
+   *  values remain the fallback when the doc has no known supplier (or the
+   *  saved field is blank). */
   private toDocSummary(
     d: ExtractedDocument,
-    knownSupplierIds: Set<string>,
+    knownSupplierById: Map<string, Supplier>,
   ): ReviewDocSummary {
+    const supplierKey = d.supplierId?.trim();
+    const savedSupplier = supplierKey ? knownSupplierById.get(supplierKey) : undefined;
+
     return {
       documentId: d.id,
       driveFileId: d.driveFileId,
@@ -969,17 +1030,22 @@ export class ReportReviewService {
       invoiceNumber: d.invoiceNumber,
       allocationNumber: d.allocationNumber,
       amount: d.amount != null ? Number(d.amount) : null,
-      category: d.category,
-      subCategory: d.subCategory,
-      vatPercent: d.vatPercent != null ? Number(d.vatPercent) : null,
-      taxPercent: d.taxPercent != null ? Number(d.taxPercent) : null,
-      isEquipment: d.isEquipment,
+      // Saved-supplier classification wins over the OCR guess for known
+      // vendors; fall back to the OCR'd value when no master row exists.
+      category: savedSupplier?.category || d.category,
+      subCategory: savedSupplier?.subCategory || d.subCategory,
+      vatPercent: savedSupplier?.vatPercent != null
+        ? Number(savedSupplier.vatPercent)
+        : (d.vatPercent != null ? Number(d.vatPercent) : null),
+      taxPercent: savedSupplier?.taxPercent != null
+        ? Number(savedSupplier.taxPercent)
+        : (d.taxPercent != null ? Number(d.taxPercent) : null),
+      isEquipment: savedSupplier?.isEquipment ?? d.isEquipment,
       uploadDate: d.uploadDate ? d.uploadDate.toISOString() : null,
       documentType: d.documentType,
       currency: d.currency ?? 'ILS',
       ilsAmount: d.ilsAmount != null ? Number(d.ilsAmount) : null,
-      matchedSupplierKnown:
-        d.supplierId?.trim() ? knownSupplierIds.has(d.supplierId.trim()) : false,
+      matchedSupplierKnown: !!savedSupplier,
     };
   }
 

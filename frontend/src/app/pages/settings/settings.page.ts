@@ -656,6 +656,13 @@ export class SettingsPage implements OnInit {
     }
   }
 
+  /** בונה קישור לתיקיית ה-Inbox של העסק ב-Google Drive (null אם עדיין לא הוקצתה) */
+  getInboxFolderUrl(biz: Business | undefined): string | null {
+    return biz?.driveInboxFolderId
+      ? `https://drive.google.com/drive/folders/${biz.driveInboxFolderId}`
+      : null;
+  }
+
   formatChildDate(childDate: string | null | undefined): string {
     if (!childDate) return '-';
     const s = String(childDate).trim();

@@ -5,7 +5,7 @@ import { AngularFireAuth } from '@angular/fire/compat/auth';
 import { Router } from '@angular/router';
 import { Observable, catchError, firstValueFrom, from, switchMap, EMPTY, tap, BehaviorSubject, finalize, throwError } from 'rxjs';
 import { HttpClient } from '@angular/common/http';
-import { UserCredential } from '@firebase/auth-types';
+import { User, UserCredential } from '@firebase/auth-types';
 import { GoogleAuthProvider, sendEmailVerification } from '@angular/fire/auth';
 import { environment } from 'src/environments/environment';
 import { ExpenseDataService } from './expense-data.service';
@@ -369,12 +369,33 @@ export class AuthService {
       // ONLY treat an explicit 404 (user not found in our DB) as "new user".
       // Any other error (network blip, 500, timeout, auth issue) means "we
       // don't know" — re-throw so the caller surfaces a real error instead of
-      // assuming the user is new and (potentially) deleting their Firebase
-      // account.
+      // assuming the user is new and deleting their Firebase account.
       if (err?.status === 404) {
+        // signInWithPopup() just created this Firebase Auth user, but our DB
+        // confirms they were never registered. Remove it now so the email
+        // doesn't stay stuck as a ghost account (which later causes
+        // "email already in use" when they try to register for real).
+        await this.deleteUnregisteredGoogleUser(result.user);
         return { isNewUser: true, googleUser };
       }
       throw err;
+    }
+  }
+
+  /** Best-effort cleanup for the ghost Firebase user created by
+   *  signInWithPopup() when the backend reports the account isn't
+   *  registered. Never throws — a freshly-created sign-in is "recent" so
+   *  delete() should not need re-authentication, but if it ever fails we log
+   *  and let the caller fall through to its existing signOut() + "please
+   *  register" handling rather than blocking the user. */
+  private async deleteUnregisteredGoogleUser(user: User | null): Promise<void> {
+    if (!user) {
+      return;
+    }
+    try {
+      await user.delete();
+    } catch (deleteErr) {
+      console.error('Failed to delete unregistered Google Firebase user:', deleteErr);
     }
   }
 

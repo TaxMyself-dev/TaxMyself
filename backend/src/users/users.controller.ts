@@ -1,4 +1,4 @@
-import { Body, Controller, Post, Get, Patch, Delete, Headers,
+import { Body, Controller, Post, Get, Patch, Delete, Headers, Query,
          Param, ParseIntPipe, NotFoundException, Session, UseGuards, Req, HttpException, HttpStatus, Logger,
          Inject, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -155,9 +155,9 @@ export class UsersController {
     /**
      * One-off backfill: walk every user and re-run provisionDriveStructure.
      * For businesses whose Drive parent folder exists but the
-     * inbox/processed/archive sub-folder ids are NULL (typical for businesses
+     * inbox/processed sub-folder ids are NULL (typical for businesses
      * created before the 2026-06-08 refactor), the service-layer logic
-     * creates the three sub-folders and persists their ids.
+     * creates the sub-folders and persists their ids.
      *
      * Idempotent. Intended to be called once after deploy. Unauthenticated
      * for curl convenience during dev — keep this gated behind something
@@ -188,6 +188,27 @@ export class UsersController {
             }
         }
         return out;
+    }
+
+    /**
+     * Audit (and optionally clean up) orphaned Google Drive shares — folders
+     * still shared with an accountant who no longer has an active delegation
+     * to the owner. Dry-run by default; pass ?apply=true to actually revoke.
+     *
+     * Admin-only. Run the dry-run first, review the `orphans` list, then
+     * re-run with apply=true.
+     */
+    @Post('drive/audit-shares')
+    @UseGuards(FirebaseAuthGuard)
+    async auditDriveShares(
+        @Req() request: AuthenticatedRequest,
+        @Query('apply') apply?: string,
+    ) {
+        const isAdmin = await this.userService.isAdmin(request.user?.firebaseId);
+        if (!isAdmin) {
+            throw new HttpException('Admin access required', HttpStatus.FORBIDDEN);
+        }
+        return this.userService.auditDriveShares(apply === 'true');
     }
 
     private async triggerPostLoginSync(firebaseId: string, user?: any): Promise<void> {

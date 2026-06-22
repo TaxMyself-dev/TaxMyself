@@ -357,6 +357,25 @@ export class DelegationService {
       throw new NotFoundException('לא נמצא קישור ללקוח זה');
     }
     await this.delegationRepository.remove(delegation);
+
+    // Revoke the accountant's Google Drive access to this client's folders.
+    // Done AFTER removing the delegation so the collision-safe check inside
+    // revokeAccountantDriveAccess sees the post-removal entitlement state.
+    // Fire-and-forget: a Drive hiccup must not fail the un-delegation itself.
+    const accountant = await this.userRepository.findOne({
+      where: { firebaseId: accountantFirebaseId },
+      select: ['email'],
+    });
+    if (accountant?.email) {
+      void this.usersService
+        .revokeAccountantDriveAccess(clientFirebaseId, accountant.email)
+        .catch(err =>
+          this.logger.error(
+            `[deleteClientByAccountant] Drive revoke failed for accountant=${accountant.email}, client=${clientFirebaseId}: ${err?.message ?? err}`,
+            err?.stack,
+          ),
+        );
+    }
   }
 
   /**

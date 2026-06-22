@@ -634,6 +634,8 @@ export interface Business {
     nationalInsRequired: boolean | null;
     /** אחוז מקדמות מס הכנסה (משתנה בין עסק לעסק) */
     advanceTaxPercent: number | null;
+    /** מזהה תיקיית ה-Inbox ב-Google Drive של העסק (נוצר אוטומטית ב-provisioning) */
+    driveInboxFolderId?: string | null;
     //   bankBeneficiary: string | null;
     //   bankName: string | null;
     //   bankBranch: string | null;

@@ -26,11 +26,7 @@ export class ServiceAccountQuotaError extends Error {
 }
 
 /** Folder IDs returned by ensureBusinessFolder(): the parent business
- *  folder plus inbox/ and processed/ children. `archiveFolderId` was
- *  removed when we stopped using Drive layout to signal archived state
- *  (the DB `extracted_document.status` column is the source of truth).
- *  Older Business rows may still have a non-null `drive_archive_folder_id`
- *  on the DB column — left in place but no new files ever get put there. */
+ *  folder plus inbox/ and processed/ children. */
 export interface DriveBusinessFolders {
   folderId: string;
   inboxFolderId: string;
@@ -123,12 +119,6 @@ export class GoogleDriveService {
    *
    * Idempotent at every step — safe to call on every login / report-page
    * visit / backfill run.
-   *
-   * Note: archive/ used to be a third child here. Since we now keep all
-   * files in processed/ regardless of approve/archive/reject status (the
-   * DB column is the source of truth), the archive folder is no longer
-   * created. Legacy Business rows may still have a `driveArchiveFolderId`
-   * pointing at an old folder — that's harmless, nothing reads it now.
    */
   async ensureBusinessFolder(
     userFolderId: string,
@@ -163,8 +153,8 @@ export class GoogleDriveService {
   /**
    * Move a file from one parent folder to another. Drive's API requires
    * both `addParents` and `removeParents` in one `update` call — there's no
-   * dedicated "move" verb. Used by the inbox → processed (OCR success) and
-   * processed → archive (user-archive action) transitions.
+   * dedicated "move" verb. Used by the inbox → processed (OCR success)
+   * transition.
    *
    * Idempotent in the spec sense: if the file is already in `toParentId`
    * (and not in `fromParentId`), removeParents silently no-ops and addParents
@@ -526,6 +516,75 @@ export class GoogleDriveService {
         (error as Error)?.stack,
       );
       throw new InternalServerErrorException('Failed to share Drive folder');
+    }
+  }
+
+  /**
+   * List the user-type permissions on a folder. Used by the share-audit /
+   * cleanup job to detect grants that no longer correspond to an active
+   * delegation. Only returns `type === 'user'` grants (the only kind this
+   * codebase creates); the service-account `owner` grant is included so
+   * callers can recognise and skip it.
+   */
+  async listFolderPermissions(
+    folderId: string,
+  ): Promise<Array<{ id: string; emailAddress: string; role: string }>> {
+    const { drive } = this.getDrive();
+    const out: Array<{ id: string; emailAddress: string; role: string }> = [];
+    let pageToken: string | undefined = undefined;
+    do {
+      const res = await drive.permissions.list({
+        fileId: folderId,
+        fields: 'nextPageToken, permissions(id, type, emailAddress, role)',
+        pageSize: 100,
+        pageToken,
+        supportsAllDrives: true,
+      });
+      for (const p of res.data.permissions ?? []) {
+        if (p.type === 'user' && p.id && p.emailAddress) {
+          out.push({ id: p.id, emailAddress: p.emailAddress, role: p.role ?? '' });
+        }
+      }
+      pageToken = res.data.nextPageToken ?? undefined;
+    } while (pageToken);
+    return out;
+  }
+
+  /**
+   * Remove a single user's access to a folder, looked up by email. The
+   * inverse of `shareFolder` — called when a delegation ends so an
+   * accountant stops seeing a client's folder. Returns true if a matching
+   * grant was found and deleted, false if the email had no access (or the
+   * folder is already gone). Never deletes an `owner` grant.
+   *
+   * Idempotent: safe to call when no share exists (returns false).
+   */
+  async revokeFolderAccess(folderId: string, email: string): Promise<boolean> {
+    const target = email.trim().toLowerCase();
+    if (!target) return false;
+    try {
+      const { drive } = this.getDrive();
+      const perms = await this.listFolderPermissions(folderId);
+      const match = perms.find(
+        p => p.emailAddress.toLowerCase() === target && p.role !== 'owner',
+      );
+      if (!match) return false;
+      await drive.permissions.delete({
+        fileId: folderId,
+        permissionId: match.id,
+        supportsAllDrives: true,
+      });
+      this.logger.log(`revokeFolderAccess: removed ${email} from folder ${folderId}`);
+      return true;
+    } catch (error: any) {
+      const status = error?.code ?? error?.response?.status;
+      // Folder or permission already gone — treat as already-revoked.
+      if (status === 404) return false;
+      this.logger.error(
+        `revokeFolderAccess failed (folderId=${folderId}, email=${email}): ${error?.message ?? error}`,
+        (error as Error)?.stack,
+      );
+      throw new InternalServerErrorException('Failed to revoke Drive folder access');
     }
   }
 }

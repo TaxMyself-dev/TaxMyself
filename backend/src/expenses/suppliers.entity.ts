@@ -1,10 +1,21 @@
-import { 
-    Entity, 
-    Column, 
+import {
+    Entity,
+    Column,
     PrimaryGeneratedColumn,
-    ManyToOne 
+    ManyToOne,
+    Index
 } from 'typeorm'
 
+/**
+ * Per-business uniqueness: at most one supplier row per
+ * (businessNumber, supplierID). MySQL treats NULL as distinct in a
+ * composite UNIQUE, so foreign vendors / cash receipts without an
+ * Israeli tax ID (supplierID IS NULL) can coexist without colliding.
+ * The application-level dedup in expenses.service.ts mirrors this key
+ * — the index is the safety net against races (double-click,
+ * concurrent tabs) where two find-or-create checks both miss.
+ */
+@Index('uq_supplier_business_supplierid', ['businessNumber', 'supplierID'], { unique: true })
 @Entity()
 export class Supplier {
     

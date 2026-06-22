@@ -2442,7 +2442,7 @@ ${finalOwnerName}`;
    * Walk the business's `inbox/` folder, OCR every file we haven't seen
    * before, and move successfully-processed files to `processed/`. Files
    * that fail OCR get an `error` row and stay in `inbox/` so the user (or
-   * a retry) can see them. The inbox/processed/archive trio is provisioned
+   * a retry) can see them. The inbox/processed sub-folders are provisioned
    * lazily via UsersService.provisionDriveStructure — backfilled if missing.
    *
    * Called from the VAT/P&L report-page pre-flight. Idempotent: re-running
@@ -2469,8 +2469,8 @@ ${finalOwnerName}`;
     const user = await this.userRepo.findOne({ where: { firebaseId } });
     if (!user) throw new NotFoundException(`User not found for firebaseId`);
 
-    // Ensure the 3 sub-folder ids exist on the business row (backfills the
-    // inbox/processed/archive trio for businesses created pre-refactor).
+    // Ensure the sub-folder ids exist on the business row (backfills the
+    // inbox/processed sub-folders for businesses created pre-refactor).
     const business = await this.ensureBusinessAndSubFolders(user, businessNumber);
 
     const inboxFolderId     = business.driveInboxFolderId!;
@@ -2590,7 +2590,7 @@ ${finalOwnerName}`;
               supplierId: inv.supplier_id ?? null,
               date: inv.date ?? null,
               invoiceNumber: inv.invoice_number ?? null,
-              allocationNumber: inv.allocation_number ?? null,
+              allocationNumber: this.normalizeAllocationNumber(inv.allocation_number),
               amount: inv.amount != null ? String(inv.amount) : null,
               vat: inv.vat != null ? String(inv.vat) : null,
               amountBeforeVat:
@@ -2680,6 +2680,21 @@ ${finalOwnerName}`;
   }
 
   /**
+   * Israeli tax-authority allocation numbers (מספר הקצאה) are exactly 9
+   * digits. OCR sometimes returns them with surrounding noise — a leading
+   * confirmation prefix, an embedded dash, the full barcode line — so the
+   * raw value can be longer than 9 chars. Strip non-digits and, when more
+   * than 9 digits remain, keep the rightmost 9 (the suffix is the actual
+   * allocation; any extra leading digits are header/sequence noise).
+   */
+  private normalizeAllocationNumber(raw: string | null | undefined): string | null {
+    if (!raw) return null;
+    const digits = String(raw).replace(/\D/g, '');
+    if (!digits) return null;
+    return digits.length > 9 ? digits.slice(-9) : digits;
+  }
+
+  /**
    * Normalize Claude's `currency` extraction to a canonical ISO-4217
    * uppercase code, defaulting to "ILS" when the value is missing or
    * unrecognized. Downstream code treats null as "legacy/unknown" and the
@@ -2697,9 +2712,9 @@ ${finalOwnerName}`;
   }
 
   /**
-   * Resolve the business + ensure the inbox/processed/archive sub-folders
-   * exist on it. Returns the refreshed business row with all three
-   * folder ids populated. Throws if provisioning didn't produce them
+   * Resolve the business + ensure the inbox/processed sub-folders
+   * exist on it. Returns the refreshed business row with the folder ids
+   * populated. Throws if provisioning didn't produce them
    * (means Drive is down or the user lacks permissions).
    */
   private async ensureBusinessAndSubFolders(
@@ -2738,21 +2753,15 @@ ${finalOwnerName}`;
    *
    * The underlying Drive file STAYS in processed/ in both cases. The DB
    * `status` column is the only signal — file location no longer reflects
-   * the row's lifecycle. (Used to: the file moved to archive/ when every
-   * sibling was terminal. Dropped the sweep + move when we decided the DB
-   * column is authoritative on its own.)
+   * the row's lifecycle.
    *
    * If the doc was matched to a slim transaction, that slim row gets reset
    * too (matchedDocumentId=null, isRecognized=false) so the bank tx returns
    * to "unclassified" on the dashboard rather than disappearing into a
    * dangling matched-to-a-gone-doc state.
    *
-   * Sibling sweep: the underlying Drive file moves to archive/ only when
-   * EVERY sibling (other extracted_document rows sharing the same
-   * driveFileId) is itself archived or rejected — never when one is still
-   * pending_review and never when one is already approved (that file is
-   * the source receipt of an active Expense). Idempotent: re-running on
-   * an already-terminal doc returns { movedFile: false } without DB churn.
+   * Idempotent: re-running on an already-terminal doc returns
+   * { movedFile: false } without DB churn.
    */
   async archiveDocument(
     firebaseId: string,
@@ -2809,11 +2818,8 @@ ${finalOwnerName}`;
     // No Drive move on archive/reject: the file stays in processed/
     // forever. The DB `status` column is the source of truth for what
     // shows in the review modal; file location is no longer a signal
-    // anyone reads. Keeps the inbox/processed/archive structure simple
-    // (just inbox + processed now in practice) and avoids the sibling-
-    // sweep complexity that the old "move when all siblings terminal AND
-    // none approved" rule introduced. `movedFile` stays in the response
-    // shape for callers that still read it (will always be false now).
+    // anyone reads. `movedFile` stays in the response shape for callers
+    // that still read it (will always be false now).
     return { ok: true, documentId, movedFile: false };
   }
 
@@ -2905,7 +2911,7 @@ ${finalOwnerName}`;
           supplierId: inv.supplier_id ?? null,
           date: inv.date ?? null,
           invoiceNumber: inv.invoice_number ?? null,
-          allocationNumber: inv.allocation_number ?? null,
+          allocationNumber: this.normalizeAllocationNumber(inv.allocation_number),
           amount: inv.amount != null ? String(inv.amount) : null,
           vat: inv.vat != null ? String(inv.vat) : null,
           amountBeforeVat:

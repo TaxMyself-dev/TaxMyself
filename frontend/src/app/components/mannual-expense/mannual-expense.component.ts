@@ -1,11 +1,11 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, input, OnDestroy, signal } from "@angular/core";
-import { FormBuilder, ReactiveFormsModule, Validators } from "@angular/forms";
+import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from "@angular/forms";
 import { DynamicDialogConfig, DialogService, DynamicDialogRef } from "primeng/dynamicdialog";
 import { DomSanitizer, SafeResourceUrl } from "@angular/platform-browser";
 import { FilesService } from "src/app/services/files.service";
 import { GenericService } from "src/app/services/generic.service";
 import { AuthService } from "src/app/services/auth.service";
-import { inputsSize, BusinessType } from "src/app/shared/enums";
+import { inputsSize, BusinessType, VATReportingType } from "src/app/shared/enums";
 import { Business } from "src/app/shared/interface";
 import { IGetSupplier, ISelectItem, ISubCategory, ISupplier } from "src/app/shared/interface";
 import { InputDateComponent } from "../input-date/input-date.component";
@@ -23,6 +23,7 @@ import { Observable, EMPTY, catchError, finalize, map, of, switchMap, tap, throw
 import { AddSupplierComponent } from "../add-supplier/add-supplier.component";
 import { CheckboxModule } from "primeng/checkbox";
 import { ProgressSpinnerModule } from "primeng/progressspinner";
+import { DialogModule } from "primeng/dialog";
 
 @Component({
     selector: 'app-mannual-expense',
@@ -30,7 +31,7 @@ import { ProgressSpinnerModule } from "primeng/progressspinner";
     styleUrls: ['./mannual-expense.component.scss'],
     standalone: true,
     changeDetection: ChangeDetectionStrategy.Default,
-    imports: [ReactiveFormsModule, InputSelectComponent, InputTextComponent, InputDateComponent, appFileUploadGptComponent, ButtonComponent, InputAutoCompleteComponent, CheckboxModule, ProgressSpinnerModule],
+    imports: [ReactiveFormsModule, FormsModule, InputSelectComponent, InputTextComponent, InputDateComponent, appFileUploadGptComponent, ButtonComponent, InputAutoCompleteComponent, CheckboxModule, ProgressSpinnerModule, DialogModule],
     providers: [FormBuilder]
 })
 export class MannualExpenseComponent implements OnDestroy {
@@ -575,15 +576,43 @@ export class MannualExpenseComponent implements OnDestroy {
 
     // Track selected business type (similar to doc-create.page.ts)
     selectedBusinessType = signal<BusinessType>(BusinessType.EXEMPT);
+    // VAT reporting cadence of the selected business — drives the VAT-report-
+    // period field (single vs dual month) and whether it shows at all.
+    selectedVatReportingType = signal<VATReportingType>(VATReportingType.NOT_REQUIRED);
 
     // Check if the selected business is exempt from VAT
     isExemptBusiness = computed(() => this.selectedBusinessType() === BusinessType.EXEMPT);
+
+    /** VAT-licensed = files monthly or bi-monthly VAT reports. Only then does
+     *  an expense carry a VAT-report period, so the field shows only here;
+     *  for exempt businesses the period stays null. */
+    isVatLicensed = computed(() =>
+        this.selectedVatReportingType() === VATReportingType.MONTHLY_REPORT ||
+        this.selectedVatReportingType() === VATReportingType.DUAL_MONTH_REPORT);
+
+    /** Period options for the VAT-report-period select: a 6-month-forward
+     *  window from the expense date + the business cadence ("M/YYYY" or
+     *  "M1-M2/YYYY"), plus an "אחר" entry for a manual period. */
+    vatPeriodOptions = signal<ISelectItem[]>([]);
+
+    /** Sentinel value for the "אחר" (other) option — picking it opens the
+     *  manual-period dialog instead of selecting a real period. */
+    private static readonly CUSTOM_VAT_PERIOD = '__custom_vat_period__';
+
+    /** Manual-period ("אחר") dialog state. */
+    customVatPeriodVisible = signal<boolean>(false);
+    customVatPeriodValue = signal<string>('');
+    /** Last real period selected — used to revert the select when the user
+     *  opens (and possibly cancels) the "אחר" dialog. */
+    private lastValidVatPeriod: string | null = null;
     
     // Signal to track isEquipment checkbox state
     isEquipmentChecked = signal<boolean>(false);
     
     // Subscription for isEquipment valueChanges
     private isEquipmentSubscription?: any;
+    // Subscription for date valueChanges (rebuilds VAT-period options)
+    private dateSubscription?: any;
 
     mannualExpenseForm = this.formBuilder.group({
         businessNumber: [this.mannualExpenseService.showBusinessSelector() ? null : null, Validators.required],
@@ -611,6 +640,9 @@ export class MannualExpenseComponent implements OnDestroy {
         // When checked (edit mode), also apply the P&L category to the WHOLE
         // subcategory (not just this one expense).
         applyPnlToSubcategory: [false],
+        // VAT report period stamp ("M/YYYY" or "M1-M2/YYYY"). Editable only
+        // for VAT-licensed businesses; null for exempt.
+        vatReportingDate: [null as string | null],
     })
 
     /** Report-scope dropdown options (ISelectItem shape: { name, value }). */
@@ -636,6 +668,7 @@ export class MannualExpenseComponent implements OnDestroy {
             const business = this.genericService.businesses().find(b => b.businessNumber === activeBusinessNumber);
             if (business) {
                 this.selectedBusinessType.set(business.businessType ?? BusinessType.EXEMPT);
+                this.selectedVatReportingType.set(business.vatReportingType ?? VATReportingType.NOT_REQUIRED);
                 this.mannualExpenseService.$selectedBusinessNumber.set(activeBusinessNumber);
                 // Ensure AuthService is synced for interceptor
                 this.authService.setActiveBusinessNumber(activeBusinessNumber);
@@ -647,6 +680,7 @@ export class MannualExpenseComponent implements OnDestroy {
                 const singleBusiness = businesses[0];
                 this.mannualExpenseService.$selectedBusinessNumber.set(singleBusiness.businessNumber);
                 this.selectedBusinessType.set(singleBusiness.businessType ?? BusinessType.EXEMPT);
+                this.selectedVatReportingType.set(singleBusiness.vatReportingType ?? VATReportingType.NOT_REQUIRED);
                 // Ensure AuthService is synced for interceptor
                 this.authService.setActiveBusinessNumber(singleBusiness.businessNumber);
             }
@@ -758,6 +792,13 @@ export class MannualExpenseComponent implements OnDestroy {
             }
         });
 
+        // Rebuild the VAT-report-period options when the date changes (its
+        // year drives the option set). Only relevant for VAT-licensed
+        // businesses; cheap no-op otherwise.
+        this.dateSubscription = this.mannualExpenseForm.get('date')?.valueChanges.subscribe(() => {
+            if (this.isVatLicensed()) this.buildVatPeriodOptions();
+        });
+
         // Edit mode: prefill form from expense row (when opened from expenses table)
         const data = this.dialogConfig.data as { editMode?: boolean; expense?: any } | undefined;
         if (data?.editMode && data?.expense) {
@@ -786,8 +827,21 @@ export class MannualExpenseComponent implements OnDestroy {
                 reportScope: (row.reportScopeRaw ?? row.reportScope ?? 'pnl') === 'annual' ? 'annual' : 'pnl',
                 pnlCategory: row.pnlCategoryOverrideRaw ?? null,
                 applyPnlToSubcategory: false,
+                // Bookkeeping table renders an empty period as "—"; treat that
+                // (and blanks) as no period.
+                vatReportingDate: (row.vatReportingDate && row.vatReportingDate !== '—')
+                    ? row.vatReportingDate : null,
             }, { emitEvent: false });
             this.isEquipmentChecked.set(this.mannualExpenseForm.get('isEquipment')?.value === true);
+            // Resolve the edited expense's business cadence so the VAT-period
+            // field shows with the right (single/dual) options.
+            const editBiz = this.genericService.businesses().find(b => b.businessNumber === row.businessNumber);
+            if (editBiz) {
+                this.selectedBusinessType.set(editBiz.businessType ?? BusinessType.EXEMPT);
+                this.selectedVatReportingType.set(editBiz.vatReportingType ?? VATReportingType.NOT_REQUIRED);
+            }
+            this.lastValidVatPeriod = this.mannualExpenseForm.get('vatReportingDate')?.value ?? null;
+            this.buildVatPeriodOptions();
             if (row.category) {
                 this.getSubCategory(row.category, true);
             }
@@ -1123,6 +1177,117 @@ export class MannualExpenseComponent implements OnDestroy {
         return `${year}-${m!.padStart(2, '0')}-${d!.padStart(2, '0')}`;
     }
 
+    /** Year (yyyy) from whatever shape the date control holds, or null. */
+    private yearFromDate(dateVal: unknown): number | null {
+        const api = this.toApiDateString(dateVal as any);
+        if (!api) return null;
+        const y = Number(api.slice(0, 4));
+        return Number.isNaN(y) ? null : y;
+    }
+
+    /**
+     * Rebuild the VAT-report-period select options as a 6-month-forward window
+     * from the expense date, matching the extracted-documents review modal:
+     *   - DUAL_MONTH_REPORT: the bi-monthly bucket the date falls in + the next
+     *     two (3 buckets), year rolling over December.
+     *   - MONTHLY_REPORT: 6 individual months from the date's month, same roll.
+     * The currently-selected period is preserved at the top if it's outside the
+     * window (e.g. a back-fill), and an "אחר" entry is appended for a manual
+     * period. No-op for non-licensed businesses (the field is hidden anyway).
+     */
+    private buildVatPeriodOptions(): void {
+        if (!this.isVatLicensed()) {
+            this.vatPeriodOptions.set([]);
+            return;
+        }
+        const isDual = this.selectedVatReportingType() === VATReportingType.DUAL_MONTH_REPORT;
+        const api = this.toApiDateString(this.mannualExpenseForm.get('date')?.value);
+        const opts: ISelectItem[] = [];
+
+        if (api) {
+            let month = Number(api.slice(5, 7)); // 1-12
+            let year = Number(api.slice(0, 4));
+            if (isDual) {
+                // Align to the bi-monthly bucket start (1, 3, 5, 7, 9, 11).
+                let start = month % 2 === 1 ? month : month - 1;
+                for (let i = 0; i < 3; i++) {
+                    const label = `${start}-${start + 1}/${year}`;
+                    opts.push({ name: label, value: label });
+                    start += 2;
+                    if (start > 12) { start = 1; year++; }
+                }
+            } else {
+                for (let i = 0; i < 6; i++) {
+                    const label = `${month}/${year}`;
+                    opts.push({ name: label, value: label });
+                    month++;
+                    if (month > 12) { month = 1; year++; }
+                }
+            }
+        } else {
+            const year = new Date().getFullYear();
+            const label = isDual ? `1-2/${year}` : `1/${year}`;
+            opts.push({ name: label, value: label });
+        }
+
+        // Keep the currently-selected period visible even if it's outside the
+        // forward window (e.g. a back-filled expense reported to an earlier
+        // period).
+        const current = this.mannualExpenseForm.get('vatReportingDate')?.value;
+        if (current
+            && current !== MannualExpenseComponent.CUSTOM_VAT_PERIOD
+            && !opts.some(o => o.value === current)) {
+            opts.unshift({ name: current, value: current });
+        }
+
+        // "אחר" — opens the manual-period dialog.
+        opts.push({ name: 'אחר', value: MannualExpenseComponent.CUSTOM_VAT_PERIOD });
+
+        this.vatPeriodOptions.set(opts);
+    }
+
+    /** Period select changed. Picking "אחר" opens the manual-entry dialog and
+     *  reverts the select to the last real period; any other pick is recorded
+     *  as the new "last valid" period. */
+    onVatPeriodChange(value: string | boolean): void {
+        if (value === MannualExpenseComponent.CUSTOM_VAT_PERIOD) {
+            this.mannualExpenseForm.get('vatReportingDate')
+                ?.setValue(this.lastValidVatPeriod ?? null, { emitEvent: false });
+            this.customVatPeriodValue.set(this.lastValidVatPeriod ?? '');
+            this.customVatPeriodVisible.set(true);
+            return;
+        }
+        this.lastValidVatPeriod = (value as string) || null;
+    }
+
+    /** Confirm the manually-typed period: add it to the options (before "אחר"),
+     *  select it, and close. Empty input is treated as cancel. */
+    confirmCustomVatPeriod(): void {
+        const value = this.customVatPeriodValue().trim();
+        if (!value) {
+            this.cancelCustomVatPeriod();
+            return;
+        }
+        if (!this.vatPeriodOptions().some(o => o.value === value)) {
+            this.vatPeriodOptions.update(opts => {
+                const next = [...opts];
+                const sentinelIdx = next.findIndex(o => o.value === MannualExpenseComponent.CUSTOM_VAT_PERIOD);
+                next.splice(sentinelIdx < 0 ? next.length : sentinelIdx, 0, { name: value, value });
+                return next;
+            });
+        }
+        this.lastValidVatPeriod = value;
+        this.mannualExpenseForm.get('vatReportingDate')?.setValue(value, { emitEvent: false });
+        this.customVatPeriodVisible.set(false);
+        this.customVatPeriodValue.set('');
+    }
+
+    /** Cancel the manual-period dialog — the select keeps its prior value. */
+    cancelCustomVatPeriod(): void {
+        this.customVatPeriodVisible.set(false);
+        this.customVatPeriodValue.set('');
+    }
+
     private buildExpensePayload(filePath: string | null): any {
         // getRawValue (not .value) so disabled controls are included. The
         // category control is disabled via UI when "רכוש קבוע" is checked, and
@@ -1160,6 +1325,15 @@ export class MannualExpenseComponent implements OnDestroy {
         delete payload.applyPnlToSubcategory;
         // Normalise empty override to null (clears it back to the default).
         if (payload.pnlCategory === '' || payload.pnlCategory === '—') payload.pnlCategory = null;
+        // VAT report period: only VAT-licensed businesses carry one, and the
+        // field is edit-only. For exempt businesses or the add flow, force it
+        // to null so we never stamp a period where it doesn't belong.
+        if (!this.editMode || !this.isVatLicensed()) {
+            payload.vatReportingDate = null;
+        } else if (payload.vatReportingDate === '' || payload.vatReportingDate === '—'
+            || payload.vatReportingDate === MannualExpenseComponent.CUSTOM_VAT_PERIOD) {
+            payload.vatReportingDate = null;
+        }
         return payload;
     }
 
@@ -1219,6 +1393,8 @@ export class MannualExpenseComponent implements OnDestroy {
             const business = this.genericService.businesses().find(b => b.businessNumber === businessNumber);
             if (business) {
                 this.selectedBusinessType.set(business.businessType ?? BusinessType.EXEMPT);
+                this.selectedVatReportingType.set(business.vatReportingType ?? VATReportingType.NOT_REQUIRED);
+                this.buildVatPeriodOptions();
             }
         }
 
@@ -1334,6 +1510,10 @@ export class MannualExpenseComponent implements OnDestroy {
         // Unsubscribe from isEquipment valueChanges
         if (this.isEquipmentSubscription) {
             this.isEquipmentSubscription.unsubscribe();
+        }
+        // Unsubscribe from date valueChanges
+        if (this.dateSubscription) {
+            this.dateSubscription.unsubscribe();
         }
     }
 

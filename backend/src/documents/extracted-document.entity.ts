@@ -13,12 +13,12 @@ export enum ExtractedDocStatus {
   /** User confirmed the row → became an Expense; file already in processed/. */
   APPROVED = 'approved',
   /** User reviewed, doesn't want to claim now but it's a real doc — keep
-   *  for future reference / audit. File moves to archive/. */
+   *  for future reference / audit. File stays in processed/. */
   ARCHIVED = 'archived',
   /** User reviewed, decided this isn't an expense doc (OCR error, junk,
-   *  duplicate). File also moves to archive/ — same Drive layout as
-   *  ARCHIVED, distinguished only in the DB status so future filters
-   *  can tell them apart. */
+   *  duplicate). Distinguished from ARCHIVED only in the DB status so
+   *  future filters can tell them apart; the file stays in processed/
+   *  either way. */
   REJECTED = 'rejected',
   /** Auto-set by the pairing service: this row is the SECONDARY half of
    *  an invoice↔receipt pair (typically the invoice). The PRIMARY half

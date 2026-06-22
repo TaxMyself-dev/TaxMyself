@@ -4,6 +4,11 @@ import { Observable, from, of, throwError } from 'rxjs';
 import { catchError, switchMap, take } from 'rxjs/operators';
 import { AngularFireAuth } from '@angular/fire/compat/auth';
 import { Router } from '@angular/router';
+
+// Public routes where an unauthenticated 401 is expected and must not force
+// a redirect to /login (the user is already on/headed to a public page).
+const PUBLIC_ROUTES = ['/login', '/register'];
+
 @Injectable()
 export class AuthErrorInterceptor implements HttpInterceptor {
 
@@ -20,7 +25,7 @@ export class AuthErrorInterceptor implements HttpInterceptor {
             switchMap(user => {
 
               // 🔴 אין משתמש באמת → logout
-              if (!user) {
+              if (!user && !PUBLIC_ROUTES.includes(this.router.url)) {
                 this.afAuth.signOut();
                 this.router.navigate(['/login']);
               }

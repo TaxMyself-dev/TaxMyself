@@ -220,7 +220,7 @@ export class UsersService {
 
     // -------------------------------------------------------
     // 9️⃣  Provision Google Drive structure: user root + a folder per business
-    //     with the inbox/processed/archive sub-folder trio. Fire-and-forget so
+    //     with the inbox/processed sub-folders. Fire-and-forget so
     //     signup returns immediately — the scaffold takes a few Drive API
     //     calls per business, and Drive outages shouldn't block the response.
     //     If anything drops on the floor, DocumentsService.processInboxForUser
@@ -492,9 +492,9 @@ export class UsersService {
    * Provision the full Drive folder structure for a user:
    *   user-root/
    *     business-A/
-   *       inbox/  processed/  archive/
+   *       inbox/  processed/
    *     business-B/
-   *       inbox/  processed/  archive/
+   *       inbox/  processed/
    *
    * Best-effort everywhere — Drive failure leaves null IDs that the lazy
    * auto-provision in DocumentsService.processInboxForUser fills in later.
@@ -524,8 +524,15 @@ export class UsersService {
     // Shared Drive migration): the old user folder still exists in the
     // old location, `folderExists` happily returns true, and without the
     // parent check we'd keep creating business sub-folders under the
-    // stale parent forever. Wipe the id when either check fails so the
-    // create-new branch below provisions fresh under the new root.
+    // stale parent forever.
+    //
+    // Deferred-wipe: only flag the row as stale here. The DB still holds the
+    // old ID until we successfully create the replacement below — that way a
+    // create failure leaves the row pointing at the (stale-but-real) old
+    // folder instead of nulling it out. The business loop further down also
+    // uses this pattern: it mutates `business` in memory and only saves after
+    // the new folder ID is in hand.
+    let userFolderIsStale = false;
     if (user.driveFolderId) {
       try {
         const parents = await this.googleDriveService.getFolderParents(user.driveFolderId);
@@ -534,33 +541,13 @@ export class UsersService {
           this.logger.warn(
             `[Drive] stored user folder ${user.driveFolderId} is 404/trashed — will re-create | ${userTag}`,
           );
-          user.driveFolderId = null;
-          await this.user_repo.save(user);
+          userFolderIsStale = true;
         } else if (!parents.includes(currentRoot)) {
           this.logger.warn(
             `[Drive] stored user folder ${user.driveFolderId} is parented under ` +
-            `[${parents.join(',')}] but current root is ${currentRoot} — wiping user + business folder ids ` +
-            `so they re-create under the new root | ${userTag}`,
+            `[${parents.join(',')}] but current root is ${currentRoot} — will re-create under the new root | ${userTag}`,
           );
-          user.driveFolderId = null;
-          await this.user_repo.save(user);
-          // Old business folders sit under the old user folder. Wipe their
-          // IDs proactively here so the business-loop below treats them as
-          // brand-new and creates fresh ones under the new user folder.
-          // (The loop's own parent check would catch this too, but doing
-          // it up-front keeps the loop's log noise consistent: "created"
-          // instead of "wiped + created".)
-          await this.business_repo.update(
-            { firebaseId: user.firebaseId },
-            {
-              driveFolderId: null,
-              driveInboxFolderId: null,
-              driveProcessedFolderId: null,
-              // driveArchiveFolderId not wiped — column is deprecated
-              // and may still hold a stale id from before the archive
-              // folder went away. Harmless either way.
-            },
-          );
+          userFolderIsStale = true;
         }
       } catch (err: any) {
         this.logger.error(
@@ -574,8 +561,11 @@ export class UsersService {
     let skippedBusinessFolders = 0;
     let failedBusinessFolders = 0;
 
-    // 1) User root folder
-    if (!user.driveFolderId) {
+    // 1) User root folder. createUserFolder is find-or-create by (name, parent)
+    // so a stale row whose folder still exists under the NEW root just resolves
+    // back to the same ID — no duplicate folders.
+    if (!user.driveFolderId || userFolderIsStale) {
+      const previousId = user.driveFolderId;
       try {
         const folderId = await this.googleDriveService.createUserFolder(
           this.buildDriveFolderName(user),
@@ -584,7 +574,9 @@ export class UsersService {
         user.driveFolderId = folderId;
         await this.user_repo.save(user);
         createdUserFolder = true;
-        this.logger.log(`[Drive] ✓ created user folder ${folderId} for ${userTag}`);
+        this.logger.log(
+          `[Drive] ✓ ${previousId ? `replaced stale user folder ${previousId} with` : 'created user folder'} ${folderId} for ${userTag}`,
+        );
       } catch (error) {
         this.logger.error(
           `[Drive] ✗ user folder FAILED for ${userTag}: ${(error as Error)?.message ?? error}`,
@@ -641,17 +633,12 @@ export class UsersService {
           business.driveFolderId          = null;
           business.driveInboxFolderId     = null;
           business.driveProcessedFolderId = null;
-          // driveArchiveFolderId no longer used — left untouched. Old
-          // rows that have it set keep their value; nothing reads it.
         }
       }
       // Three states per business:
       //   (a) no parent folder yet         → create parent + inbox + processed
       //   (b) parent exists, sub-folders missing  → backfill sub-folders
       //   (c) parent + inbox + processed  → skip (still re-share)
-      // Archive sub-folder isn't checked any more — see ensureBusinessFolder
-      // / ensureInboxAndProcessed: archive/ stopped being created when we
-      // moved to "DB status is the source of truth, files stay in processed/".
       const subFoldersMissing =
         !business.driveInboxFolderId
         || !business.driveProcessedFolderId;
@@ -789,6 +776,139 @@ export class UsersService {
   }
 
   /**
+   * The set of emails (lower-cased) that are legitimately entitled to a given
+   * Drive folder: every user the folder belongs to (its owner — or owners, if
+   * a name-collision made two users share one folder), plus those users'
+   * currently-active delegated accountants.
+   *
+   * This is the authority used both to decide what to revoke when a delegation
+   * ends and to flag orphaned shares in the audit. Being owner-set-aware keeps
+   * us from yanking an accountant who still has a live delegation to *another*
+   * user that happens to share the same folder.
+   */
+  private async allowedEmailsForFolder(folderId: string): Promise<Set<string>> {
+    const ownerFids = new Set<string>();
+    const usersWithRoot = await this.user_repo.find({ where: { driveFolderId: folderId }, select: ['firebaseId'] });
+    usersWithRoot.forEach(u => u.firebaseId && ownerFids.add(u.firebaseId));
+    const bizWithFolder = await this.business_repo.find({ where: { driveFolderId: folderId }, select: ['firebaseId'] });
+    bizWithFolder.forEach(b => b.firebaseId && ownerFids.add(b.firebaseId));
+
+    const allowed = new Set<string>();
+    for (const fid of ownerFids) {
+      const owner = await this.user_repo.findOne({ where: { firebaseId: fid }, select: ['email'] });
+      if (owner?.email) allowed.add(owner.email.toLowerCase());
+      const accEmails = await this.getActiveAccountantEmailsForUser(fid);
+      accEmails.forEach(e => allowed.add(e.toLowerCase()));
+    }
+    return allowed;
+  }
+
+  /**
+   * Inverse of the accountant share: when a delegation ends, drop the
+   * accountant's Drive access to the client's user-root and business folders.
+   *
+   * Collision-safe — skips any folder where the accountant is STILL entitled
+   * (e.g. they hold a live delegation to another user sharing that folder).
+   * Must be called AFTER the Delegation row has been removed/deactivated so
+   * allowedEmailsForFolder reflects the post-removal state. Best-effort:
+   * per-folder failures are logged, never thrown.
+   */
+  async revokeAccountantDriveAccess(clientFirebaseId: string, accountantEmail: string): Promise<void> {
+    const email = accountantEmail.trim().toLowerCase();
+    if (!email) return;
+
+    const client = await this.user_repo.findOne({ where: { firebaseId: clientFirebaseId }, select: ['driveFolderId'] });
+    const businesses = await this.business_repo.find({ where: { firebaseId: clientFirebaseId }, select: ['driveFolderId'] });
+
+    const folderIds = new Set<string>();
+    if (client?.driveFolderId) folderIds.add(client.driveFolderId);
+    businesses.forEach(b => b.driveFolderId && folderIds.add(b.driveFolderId));
+
+    for (const folderId of folderIds) {
+      try {
+        const allowed = await this.allowedEmailsForFolder(folderId);
+        if (allowed.has(email)) {
+          this.logger.log(
+            `[Drive] keeping ${accountantEmail} on folder ${folderId} — still entitled via another active delegation/owner`,
+          );
+          continue;
+        }
+        const removed = await this.googleDriveService.revokeFolderAccess(folderId, accountantEmail);
+        if (removed) {
+          this.logger.log(`[Drive] revoked ${accountantEmail} from folder ${folderId} (delegation ended)`);
+        }
+      } catch (err: any) {
+        this.logger.warn(`[Drive] revoke ${accountantEmail} from ${folderId} failed: ${err?.message ?? err}`);
+      }
+    }
+  }
+
+  /**
+   * One-off audit/cleanup: scan every shared Drive folder (user-root + business
+   * folders) and find `type: 'user'` grants that no longer map to the folder's
+   * owner(s) or any active delegated accountant — i.e. shares orphaned by a
+   * delegation that was removed before revoke-on-undelegate existed.
+   *
+   * Dry-run by default (`apply = false`): returns the list of orphaned grants
+   * without touching Drive. Pass `apply = true` to actually revoke them.
+   */
+  async auditDriveShares(apply = false): Promise<{
+    apply: boolean;
+    foldersScanned: number;
+    orphans: Array<{ folderId: string; email: string; role: string }>;
+    revoked: number;
+    errors: Array<{ folderId: string; email?: string; error: string }>;
+  }> {
+    const result = {
+      apply,
+      foldersScanned: 0,
+      orphans: [] as Array<{ folderId: string; email: string; role: string }>,
+      revoked: 0,
+      errors: [] as Array<{ folderId: string; email?: string; error: string }>,
+    };
+
+    // Distinct set of folders we ever share (children inherit, so they aren't
+    // shared directly and don't need scanning).
+    const folderSet = new Set<string>();
+    const users = await this.user_repo.find({ select: ['firebaseId', 'driveFolderId'] });
+    users.forEach(u => u.driveFolderId && folderSet.add(u.driveFolderId));
+    const businesses = await this.business_repo.find({ select: ['firebaseId', 'driveFolderId'] });
+    businesses.forEach(b => b.driveFolderId && folderSet.add(b.driveFolderId));
+
+    for (const folderId of folderSet) {
+      result.foldersScanned++;
+      let allowed: Set<string>;
+      try {
+        allowed = await this.allowedEmailsForFolder(folderId);
+      } catch (err: any) {
+        result.errors.push({ folderId, error: `allowed-emails lookup failed: ${err?.message ?? err}` });
+        continue;
+      }
+      let perms: Array<{ id: string; emailAddress: string; role: string }>;
+      try {
+        perms = await this.googleDriveService.listFolderPermissions(folderId);
+      } catch (err: any) {
+        result.errors.push({ folderId, error: `list permissions failed: ${err?.message ?? err}` });
+        continue;
+      }
+      for (const p of perms) {
+        if (p.role === 'owner') continue; // never touch the service-account owner
+        if (allowed.has(p.emailAddress.toLowerCase())) continue;
+        result.orphans.push({ folderId, email: p.emailAddress, role: p.role });
+        if (apply) {
+          try {
+            const removed = await this.googleDriveService.revokeFolderAccess(folderId, p.emailAddress);
+            if (removed) result.revoked++;
+          } catch (err: any) {
+            result.errors.push({ folderId, email: p.emailAddress, error: err?.message ?? String(err) });
+          }
+        }
+      }
+    }
+    return result;
+  }
+
+  /**
    * Snapshot of which Drive folders this user already has — used by the login
    * banner so the dev can see at a glance whether the lazy backfill is needed.
    */
@@ -868,7 +988,6 @@ export class UsersService {
       const hasParent    = !!b.driveFolderId;
       const hasInbox     = !!b.driveInboxFolderId;
       const hasProcessed = !!b.driveProcessedFolderId;
-      // archive folder no longer used — see DriveBusinessFolders comment.
 
       let parentDriveState: 'ok' | 'orphaned' | 'dead' | 'unknown' = 'unknown';
       if (b.driveFolderId) {
