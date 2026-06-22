@@ -7,10 +7,9 @@ import { decryptCardcomToken } from '../utils/billing-token-encryption.util';
 import { Subscription } from '../entities/subscription.entity';
 import { SubscriptionPlan } from '../entities/subscription-plan.entity';
 import { PaymentMethod } from '../entities/payment-method.entity';
-import { User } from 'src/users/user.entity';
 
 import { BillingEventType, SubscriptionStatus } from '../enums/billing.enums';
-import { PayStatus, ModuleName } from 'src/enum';
+import { ModuleName } from 'src/enum';
 import { CardcomService, CardcomApiError, CardcomTransactionInfo } from './cardcom.service';
 import { BillingEventService } from './billing-event.service';
 import { BillingReceiptService } from './billing-receipt.service';
@@ -60,8 +59,6 @@ export class SubscriptionRenewalService {
   constructor(
     @InjectRepository(Subscription)
     private readonly subscriptionRepo: Repository<Subscription>,
-    @InjectRepository(User)
-    private readonly userRepo: Repository<User>,
     private readonly cardcomService: CardcomService,
     private readonly billingEventService: BillingEventService,
     private readonly billingReceiptService: BillingReceiptService,
@@ -420,7 +417,7 @@ export class SubscriptionRenewalService {
       await qr.release();
     }
 
-    // ── Post-commit: billing events, receipt, legacy sync (never affects the charge) ──
+    // ── Post-commit: billing events, receipt (never affects the charge) ──
     if (postCommit?.outcome === 'success') {
       await this.afterRenewalSuccess(postCommit);
     }
@@ -511,7 +508,7 @@ export class SubscriptionRenewalService {
     };
   }
 
-  // ─── Post-success: billing event, receipt, legacy sync ───────────────────────
+  // ─── Post-success: billing event, receipt ────────────────────────────────────
 
   private async afterRenewalSuccess(data: {
     subscriptionId: number;
@@ -569,9 +566,6 @@ export class SubscriptionRenewalService {
         `billingPeriod=${billingPeriod} attempt=${attemptNumber}/${MAX_RENEWAL_ATTEMPTS} ` +
         `dealNumber=${cardcomDealNumber ?? 'n/a'} nextBillingDate=${currentPeriodEnd.toISOString()}`,
     );
-
-    // Sync legacy User fields — same fields/values the webhook sets on checkout success.
-    await this.syncLegacyUserFields(firebaseId, planModules, currentPeriodEnd);
 
     // Reuse the existing receipt generation flow (same three BillingReceiptService
     // calls the webhook uses after a successful checkout payment).
@@ -693,23 +687,4 @@ export class SubscriptionRenewalService {
     return `${mm}${yy}`;
   }
 
-  private async syncLegacyUserFields(
-    firebaseId: string,
-    modules: ModuleName[],
-    subscriptionEndDate: Date,
-  ): Promise<void> {
-    try {
-      const user = await this.userRepo.findOne({ where: { firebaseId } });
-      if (!user) return;
-      user.payStatus = PayStatus.PAID;
-      user.modulesAccess = modules;
-      user.subscriptionEndDate = subscriptionEndDate;
-      user.nextBillingDate = subscriptionEndDate;
-      await this.userRepo.save(user);
-    } catch (err) {
-      this.logger.error(
-        `Failed to sync legacy User fields for firebaseId=${firebaseId}: ${(err as Error).message}`,
-      );
-    }
-  }
 }
