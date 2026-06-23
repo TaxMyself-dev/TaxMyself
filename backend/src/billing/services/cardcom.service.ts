@@ -124,10 +124,8 @@ export class CardcomService implements OnModuleInit {
     this.successUrl = required.CARDCOM_SUCCESS_URL!;
     this.failedUrl = required.CARDCOM_FAILED_URL!;
     this.webhookUrl = required.CARDCOM_WEBHOOK_URL!;
-    this.createUrl =
-      process.env.CARDCOM_LOW_PROFILE_CREATE_URL ?? CardcomService.DEFAULT_CREATE_URL;
-    this.transactionUrl =
-      process.env.CARDCOM_TRANSACTION_URL ?? CardcomService.DEFAULT_TRANSACTION_URL;
+    this.createUrl = CardcomService.DEFAULT_CREATE_URL;
+    this.transactionUrl = CardcomService.DEFAULT_TRANSACTION_URL;
 
     this.logger.log(
       `CardCom configured: terminal=***${this.terminalNumber.slice(-4)} ` +
@@ -258,9 +256,7 @@ export class CardcomService implements OnModuleInit {
    * Response schema: LowProfileResult — same shape as the webhook payload.
    */
   async getLowProfileResult(lowProfileId: string): Promise<Record<string, any>> {
-    const resultUrl =
-      process.env.CARDCOM_LOW_PROFILE_RESULT_URL ??
-      'https://secure.cardcom.solutions/api/v11/LowProfile/GetLpResult';
+    const resultUrl = 'https://secure.cardcom.solutions/api/v11/LowProfile/GetLpResult';
 
     const payload = {
       TerminalNumber: parseInt(this.terminalNumber, 10),
