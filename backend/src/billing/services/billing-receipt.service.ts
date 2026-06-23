@@ -54,7 +54,7 @@ export class BillingReceiptService implements OnModuleInit {
     this.issuerEmail = process.env.COMPANY_BILLING_EMAIL || null;
     this.issuerAddress = process.env.COMPANY_BILLING_ADDRESS || null;
     this.initialReceiptIndex = parseInt(
-      process.env.COMPANY_BILLING_RECEIPT_INITIAL_INDEX ?? '1',
+      process.env.COMPANY_BILLING_RECEIPT_INITIAL_INDEX ?? '50001',
       10,
     );
   }
