@@ -350,6 +350,22 @@
     }
 }
 
+.duplicate-confirm-body {
+    text-align: right;
+
+    p {
+        margin: 0 0 8px;
+        font-size: 0.95rem;
+        color: #555;
+
+        &:last-child {
+            margin-bottom: 0;
+            font-weight: 600;
+            color: #333;
+        }
+    }
+}
+
 .custom-vat-period-input {
     width: 100%;
     padding: 10px 12px;

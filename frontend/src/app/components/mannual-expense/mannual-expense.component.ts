@@ -602,6 +602,19 @@ export class MannualExpenseComponent implements OnDestroy {
     /** Manual-period ("אחר") dialog state. */
     customVatPeriodVisible = signal<boolean>(false);
     customVatPeriodValue = signal<string>('');
+
+    /** Duplicate dialog. Two flavors share one dialog:
+     *   - SOFT (DUPLICATE_WARNING): same supplier/sum/date, different/missing
+     *     document number. Offers "save anyway"; the already-uploaded Firebase
+     *     file is held in `pendingDuplicatePath` for the retry (canceling
+     *     rolls it back).
+     *   - HARD (DUPLICATE_EXACT): same document number too — truly the same
+     *     row. `duplicateIsHardBlock` flips the dialog to an informational
+     *     "can't save" with only a close button; the upload is rolled back. */
+    duplicateConfirmVisible = signal<boolean>(false);
+    duplicateMessage = signal<string>('');
+    duplicateIsHardBlock = signal<boolean>(false);
+    private pendingDuplicatePath: string | null = null;
     /** Last real period selected — used to revert the select when the user
      *  opens (and possibly cancels) the "אחר" dialog. */
     private lastValidVatPeriod: string | null = null;
@@ -616,7 +629,9 @@ export class MannualExpenseComponent implements OnDestroy {
 
     mannualExpenseForm = this.formBuilder.group({
         businessNumber: [this.mannualExpenseService.showBusinessSelector() ? null : null, Validators.required],
-        date: ["", Validators.required],
+        // Holds a Date at runtime (p-datepicker uses dataType="date"); typed as
+        // string | Date so edit/OCR can patch a Date object into it.
+        date: ["" as string | Date, Validators.required],
         sum: ["", [Validators.required, Validators.min(0)]],
         // Currency of the entered sum. Default ILS — the existing flow. When
         // non-ILS, the payload maps `sum` → `originalSum` and lets the backend
@@ -809,10 +824,10 @@ export class MannualExpenseComponent implements OnDestroy {
             const sumVal = this.parseSumFromDisplay(row.sum);
             const taxVal = this.parsePercentFromDisplay(row.taxPercent);
             const vatVal = this.parsePercentFromDisplay(row.vatPercent);
-            const dateDisplay = this.apiDateToDisplay(row.date);
+            const dateValue = this.apiDateToDateObject(row.date);
             this.mannualExpenseForm.patchValue({
                 businessNumber: row.businessNumber ?? this.mannualExpenseService.$selectedBusinessNumber(),
-                date: dateDisplay ?? '',
+                date: dateValue ?? '',
                 sum: sumVal != null ? String(sumVal) : '',
                 supplier: row.supplier ?? '',
                 supplierId: row.supplierID ?? row.supplierId ?? '',
@@ -866,15 +881,19 @@ export class MannualExpenseComponent implements OnDestroy {
         return isNaN(n) ? null : n;
     }
 
-    /** Convert API date (yyyy-mm-dd) to display (dd-mm-yy) */
-    private apiDateToDisplay(apiDate: string | null | undefined): string | null {
-        if (apiDate == null || apiDate === '') return null;
-        const s = String(apiDate).trim();
-        const parts = s.split(/[-/]/);
-        if (parts.length !== 3) return null;
-        const [y, m, d] = parts;
-        const yearShort = y!.length === 4 ? y!.slice(-2) : y;
-        return `${d!.padStart(2, '0')}-${m!.padStart(2, '0')}-${yearShort}`;
+    /**
+     * Convert whatever date shape the expense row carries (yyyy-mm-dd, ISO,
+     * dd/mm/yyyy, Date) into a local `Date` object. The p-datepicker uses
+     * `dataType="date"`, so the form control must hold a Date — binding a
+     * string leaves the field blank ("00/00/0000"). Normalizes through
+     * `toApiDateString` then builds a local-midnight Date to avoid TZ shifts.
+     */
+    private apiDateToDateObject(rawDate: unknown): Date | null {
+        const api = this.toApiDateString(rawDate as any);
+        if (!api) return null;
+        const [y, m, d] = api.split('-').map(Number);
+        if (!y || !m || !d) return null;
+        return new Date(y, m - 1, d);
     }
 
     /**
@@ -972,11 +991,11 @@ export class MannualExpenseComponent implements OnDestroy {
     }
 
     private applyOcrResult(inv: OcrInvoiceFields): void {
-        const dateDisplay = this.apiDateToDisplay(inv.date);
+        const dateValue = this.apiDateToDateObject(inv.date);
         const patch: Record<string, any> = {};
         if (inv.supplier) patch['supplier'] = inv.supplier;
         if (inv.supplier_id) patch['supplierId'] = inv.supplier_id;
-        if (dateDisplay) patch['date'] = dateDisplay;
+        if (dateValue) patch['date'] = dateValue;
         if (inv.invoice_number) patch['expenseNumber'] = inv.invoice_number;
         if (inv.amount != null) patch['sum'] = String(inv.amount);
         if (inv.category) patch['category'] = inv.category;
@@ -1055,45 +1074,86 @@ export class MannualExpenseComponent implements OnDestroy {
                 tap((filePath) => {
                     if (filePath) uploadedPath = filePath;
                 }),
-                switchMap((filePath) => {
-                    const payload = this.buildExpensePayload(filePath);
-                    // getRawValue — see buildExpensePayload for the disabled-
-                    // control rationale. Otherwise raw.category is undefined
-                    // when "רכוש קבוע" is checked.
-                    const raw = this.mannualExpenseForm.getRawValue();
-                    const save$ = (this.editMode && this.expenseId != null)
-                        ? this.expenseDataService.updateExpenseData(payload, this.expenseId)
-                        : this.expenseDataService.addExpenseData(payload);
-
-                    // "Apply to whole subcategory" → also upsert the
-                    // subcategory-level P&L config (subcategory-wide).
-                    if (raw.applyPnlToSubcategory && raw.category && raw.subCategory) {
-                        return save$.pipe(
-                            switchMap((res) =>
-                                this.expenseDataService.setSubCategoryReportConfig({
-                                    businessNumber: String(raw.businessNumber ?? this.mannualExpenseService.$selectedBusinessNumber() ?? ''),
-                                    categoryName: String(raw.category),
-                                    subCategoryName: String(raw.subCategory),
-                                    reportScope: (raw.reportScope as 'pnl' | 'annual') ?? 'pnl',
-                                    pnlCategory: (payload.pnlCategory ?? null) as string | null,
-                                }).pipe(map(() => res)),
-                            ),
-                        );
-                    }
-                    return save$;
-                }),
-                catchError((error) => this.handleAddExpenseError(error, uploadedPath)),
+                switchMap((filePath) => this.buildSave$(filePath, false)),
+                catchError((error) => this.handleAddExpenseError(error, uploadedPath, false)),
                 finalize(() => this.isLoadingAddExpense.set(false))
             )
-            .subscribe((res) => {
-                this.dialogRef.close(res);
-                this.showToast({
-                    severity: "success",
-                    summary: "הצלחה",
-                    detail: this.editMode ? "ההוצאה עודכנה בהצלחה" : "ההוצאה נשמרה בהצלחה",
-                    sticky: false
-                });
-            });
+            .subscribe((res) => this.onSaveSuccess(res));
+    }
+
+    /**
+     * Build the save observable for a given (already-resolved) file path.
+     * `acknowledgeDuplicate` is set on the payload when the user chose to
+     * save through a soft-duplicate warning — the backend then skips the
+     * DUPLICATE_WARNING guard (the hard DUPLICATE_EXACT block still applies).
+     */
+    private buildSave$(filePath: string | null, acknowledgeDuplicate: boolean): Observable<any> {
+        const payload = this.buildExpensePayload(filePath);
+        if (acknowledgeDuplicate) payload.acknowledgeDuplicate = true;
+        // getRawValue — see buildExpensePayload for the disabled-control
+        // rationale. Otherwise raw.category is undefined when "רכוש קבוע"
+        // is checked.
+        const raw = this.mannualExpenseForm.getRawValue();
+        const save$ = (this.editMode && this.expenseId != null)
+            ? this.expenseDataService.updateExpenseData(payload, this.expenseId)
+            : this.expenseDataService.addExpenseData(payload);
+
+        // "Apply to whole subcategory" → also upsert the subcategory-level
+        // P&L config (subcategory-wide).
+        if (raw.applyPnlToSubcategory && raw.category && raw.subCategory) {
+            return save$.pipe(
+                switchMap((res) =>
+                    this.expenseDataService.setSubCategoryReportConfig({
+                        businessNumber: String(raw.businessNumber ?? this.mannualExpenseService.$selectedBusinessNumber() ?? ''),
+                        categoryName: String(raw.category),
+                        subCategoryName: String(raw.subCategory),
+                        reportScope: (raw.reportScope as 'pnl' | 'annual') ?? 'pnl',
+                        pnlCategory: (payload.pnlCategory ?? null) as string | null,
+                    }).pipe(map(() => res)),
+                ),
+            );
+        }
+        return save$;
+    }
+
+    private onSaveSuccess(res: any): void {
+        this.dialogRef.close(res);
+        this.showToast({
+            severity: "success",
+            summary: "הצלחה",
+            detail: this.editMode ? "ההוצאה עודכנה בהצלחה" : "ההוצאה נשמרה בהצלחה",
+            sticky: false
+        });
+    }
+
+    /** "שמור בכל זאת" in the duplicate-confirm dialog — retry the save with
+     *  the warning acknowledged, reusing the already-uploaded file (no
+     *  re-upload). */
+    confirmDuplicateSave(): void {
+        if (this.isLoadingAddExpense()) return;
+        this.duplicateConfirmVisible.set(false);
+        const filePath = this.pendingDuplicatePath;
+        this.pendingDuplicatePath = null;
+        this.isLoadingAddExpense.set(true);
+        this.buildSave$(filePath, true)
+            .pipe(
+                // alreadyAcknowledged=true: a second DUPLICATE_WARNING can't
+                // happen here, so treat any error as a plain failure (and
+                // roll back the file we were holding).
+                catchError((error) => this.handleAddExpenseError(error, filePath, true)),
+                finalize(() => this.isLoadingAddExpense.set(false)),
+            )
+            .subscribe((res) => this.onSaveSuccess(res));
+    }
+
+    /** "ביטול" in the duplicate-confirm dialog — abandon this save and roll
+     *  back the orphaned upload (the local file is retained, so a later
+     *  submit re-uploads as usual). */
+    cancelDuplicateSave(): void {
+        this.duplicateConfirmVisible.set(false);
+        const filePath = this.pendingDuplicatePath;
+        this.pendingDuplicatePath = null;
+        if (filePath) this.rollbackFirebaseUpload(filePath).subscribe();
     }
 
     uploadFileToFirebase(): Observable<string | null> {
@@ -1337,7 +1397,35 @@ export class MannualExpenseComponent implements OnDestroy {
         return payload;
     }
 
-    private handleAddExpenseError(error: any, uploadedPath: string | null): Observable<never> {
+    private handleAddExpenseError(
+        error: any,
+        uploadedPath: string | null,
+        alreadyAcknowledged: boolean,
+    ): Observable<never> {
+        const code = error?.error?.code;
+
+        // Hard duplicate — same document number; never savable. Show an
+        // informational dialog (not the generic error toast) and roll back
+        // the orphaned upload, since there's no retry.
+        if (code === 'DUPLICATE_EXACT') {
+            this.pendingDuplicatePath = null;
+            this.duplicateIsHardBlock.set(true);
+            this.duplicateMessage.set(error?.error?.message ?? 'הוצאה זו כבר קיימת במערכת, לא ניתן לשמור אותה.');
+            this.duplicateConfirmVisible.set(true);
+            return (uploadedPath ? this.rollbackFirebaseUpload(uploadedPath) : of(void 0)).pipe(
+                switchMap(() => EMPTY)
+            );
+        }
+
+        // Soft duplicate (first attempt only) — keep the uploaded file and
+        // ask the user whether to save anyway. The retry reuses the file.
+        if (!alreadyAcknowledged && code === 'DUPLICATE_WARNING') {
+            this.pendingDuplicatePath = uploadedPath;
+            this.duplicateIsHardBlock.set(false);
+            this.duplicateMessage.set(error?.error?.message ?? 'ייתכן שזו הוצאה כפולה');
+            this.duplicateConfirmVisible.set(true);
+            return EMPTY;
+        }
         return (uploadedPath ? this.rollbackFirebaseUpload(uploadedPath) : of(void 0)).pipe(
             tap(() => this.presentAddExpenseError(error)),
             switchMap(() => EMPTY)

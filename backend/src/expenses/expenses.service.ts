@@ -124,17 +124,24 @@ export class ExpensesService {
         // This calculates the tax amount based on the amount after VAT
         newExpense.totalTaxPayable = (newExpense.sum - newExpense.totalVatPayable) * (newExpense.taxPercent / 100);
 
-        // Duplicate guard — hard block any new Expense that exactly matches
-        // an existing row on (userId, businessNumber, supplier, sum, date).
-        // Run AFTER the FX conversion so the `sum` comparison is ILS-on-
-        // both-sides (the foreign-currency manual entry block above may have
-        // rewritten newExpense.sum from the foreign-currency originalSum).
-        // Same strictness as checkDuplicateExpensesFromDrive — keep it tight
-        // so legitimate same-day repeat purchases (two ₪50 fuel receipts)
-        // still go through; only exact (supplier, sum, date) matches block.
+        // Duplicate guard — two tiers, both keyed on (userId, businessNumber,
+        // supplier, sum, date). Run AFTER the FX conversion so the `sum`
+        // comparison is ILS-on-both-sides (the foreign-currency manual entry
+        // block above may have rewritten newExpense.sum from originalSum).
+        //
+        //   HARD block (DUPLICATE_EXACT) — a match that ALSO shares the
+        //     document number (expenseNumber, present on both sides). That's
+        //     the literal same invoice; never savable.
+        //   SOFT warn (DUPLICATE_WARNING) — same supplier/sum/date but a
+        //     different or missing document number. Could be a genuine
+        //     same-day repeat purchase (two ₪50 fuel receipts) OR a real
+        //     duplicate the user didn't notice. We reject so the UI can ask
+        //     "save anyway?"; re-sending with acknowledgeDuplicate=true lets
+        //     it through. A missing number on either side stays SOFT — we
+        //     can't prove it's the same physical document.
         const trimmedSupplier = newExpense.supplier?.trim();
         if (trimmedSupplier) {
-            const existing = await this.expense_repo.findOne({
+            const matches = await this.expense_repo.find({
                 where: {
                     userId,
                     businessNumber,
@@ -143,12 +150,28 @@ export class ExpensesService {
                     date: newExpense.date as any,
                 },
             });
-            if (existing) {
-                throw new ConflictException({
-                    message: `כבר קיימת הוצאה זהה במערכת (ספק: ${trimmedSupplier}, סכום: ${newExpense.sum}, תאריך: ${newExpense.date}). ההוצאה לא נשמרה.`,
-                    existingExpenseId: existing.id,
-                    existingPeriod: existing.vatReportingDate ?? null,
-                });
+            if (matches.length) {
+                const newNumber = newExpense.expenseNumber?.trim();
+                const exact = newNumber
+                    ? matches.find(m => m.expenseNumber?.trim() === newNumber)
+                    : undefined;
+                if (exact) {
+                    throw new ConflictException({
+                        code: 'DUPLICATE_EXACT',
+                        message: `הוצאה זו כבר קיימת במערכת, לא ניתן לשמור אותה.`,
+                        existingExpenseId: exact.id,
+                        existingPeriod: exact.vatReportingDate ?? null,
+                    });
+                }
+                if (!expense.acknowledgeDuplicate) {
+                    throw new ConflictException({
+                        code: 'DUPLICATE_WARNING',
+                        message: `קיימת הוצאה דומה (אותו ספק, סכום ותאריך) — ייתכן שזו כפילות.`,
+                        existingExpenseId: matches[0].id,
+                        existingPeriod: matches[0].vatReportingDate ?? null,
+                    });
+                }
+                // acknowledgeDuplicate === true → user confirmed; fall through.
             }
         }
 

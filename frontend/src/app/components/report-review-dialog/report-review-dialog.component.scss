@@ -245,6 +245,15 @@
     color: #1d4ed8;
     border-color: #93c5fd;
   }
+  // Drive preview (eye) — blue hover, matching the preview panel accent.
+  &.icon-preview {
+    color: #1d4ed8;
+    &:hover:not(:disabled) {
+      background: #dbeafe;
+      color: #1e40af;
+      border-color: #93c5fd;
+    }
+  }
   // Upload (tx_only "העלה מסמך") — green hover hints the constructive
   // intent (creating a new doc), distinct from the blue link icon which
   // pairs with something existing.
@@ -420,16 +429,6 @@
   }
 }
 
-// Eye icon for the in-dialog Drive preview. Click-cursor (vs the
-// new-supplier flag which is a hover-only tooltip indicator).
-:host ::ng-deep .review-table .supplier-eye-icon {
-  color: #1d4ed8;
-  font-size: 0.95rem;
-  cursor: pointer;
-  flex-shrink: 0;
-  &:hover { color: #1e40af; }
-}
-
 // Status icon column — one icon per row.type, color-coded so the
 // at-a-glance signal that used to come from row backgrounds now lives
 // here. Hover gives the Hebrew description via PrimeNG tooltip.
@@ -491,4 +490,27 @@
   border: 1px solid #93c5fd;
   border-radius: 4px;
   select { flex: 1 1 auto; min-width: 180px; }
+}
+
+// Soft-duplicate inline prompt — amber (warning, not error) to set it
+// apart from the red hard-failure ⚠. Sits under the row's action icons.
+.dup-warning {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  padding: 4px 6px;
+  background: #fffbeb;          // amber-50
+  border: 1px solid #fcd34d;    // amber-300
+  border-radius: 4px;
+
+  &__text {
+    flex: 1 1 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.76rem;
+    color: #92400e;             // amber-800
+    i { color: #d97706; }       // amber-600
+  }
 }

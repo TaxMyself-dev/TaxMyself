@@ -56,6 +56,12 @@ export interface ReviewOverrides {
    *  name — useful for one-off vendors the user doesn't want polluting
    *  their master list. */
   saveAsSupplier?: boolean;
+  /** Acknowledges a soft duplicate (same supplier/sum/date, different or
+   *  missing document number). When true, addExpense saves despite the
+   *  match instead of throwing DUPLICATE_WARNING. Set by the review modal
+   *  after the user confirms "save anyway" on a flagged row. Never
+   *  overrides the hard DUPLICATE_EXACT block. */
+  acknowledgeDuplicate?: boolean;
 }
 
 /**
@@ -200,8 +206,13 @@ export class ReportReviewService {
     // retry next time. Wrapping the whole preview in a try would mask
     // genuine bugs in matching / row assembly, so we let processInboxForUser
     // surface its own errors but tolerate them.
+    // Count of byte-identical re-uploads the inbox loop auto-rejected this
+    // pass — surfaced to the user as a non-blocking notice (the rows never
+    // enter the review table; they're skipped before OCR).
+    let duplicatesSkipped = 0;
     try {
-      await this.documentsService.processInboxForUser(firebaseId, businessNumber);
+      const inboxResult = await this.documentsService.processInboxForUser(firebaseId, businessNumber);
+      duplicatesSkipped = inboxResult?.duplicates ?? 0;
     } catch (err: any) {
       this.logger.warn(
         `getReportPreview step 1 (processInboxForUser) failed for biz=${businessNumber}: ${err?.message ?? err}`,
@@ -337,6 +348,7 @@ export class ReportReviewService {
         docOnly: rows.filter(r => r.type === 'doc_only').length,
         txOnly: rows.filter(r => r.type === 'tx_only').length,
       },
+      duplicatesSkipped,
     };
   }
 
@@ -405,6 +417,7 @@ export class ReportReviewService {
           sum: amounts.sum,
           taxPercent: finalTaxPercent,
           vatPercent: finalVatPercent,
+          acknowledgeDuplicate: overrides.acknowledgeDuplicate ?? false,
           date: doc.date ? (new Date(doc.date) as any) : (cache.transactionDate as any),
           note: undefined as any,
           file: undefined as any,
@@ -536,6 +549,7 @@ export class ReportReviewService {
           sum: amounts.sum,
           taxPercent: finalTaxPercent,
           vatPercent: finalVatPercent,
+          acknowledgeDuplicate: overrides.acknowledgeDuplicate ?? false,
           date: doc.date ? (new Date(doc.date) as any) : (new Date() as any),
           note: undefined as any,
           file: undefined as any,
@@ -630,6 +644,7 @@ export class ReportReviewService {
           sum: this.absIls(cache),
           taxPercent: finalTaxPercent,
           vatPercent: finalVatPercent,
+          acknowledgeDuplicate: overrides.acknowledgeDuplicate ?? false,
           date: cache.transactionDate as any,
           note: undefined as any,
           file: undefined as any,

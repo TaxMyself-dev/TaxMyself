@@ -88,15 +88,10 @@
        therefore never show the icon. -->
   <!-- Icons come BEFORE the name in DOM order so under RTL they render
        to the right of the supplier name (the start of the visual line).
-       Order right-to-left: eye → flag → name. Eye only on rows that
-       actually have a Drive file (tx_only rows skip it). -->
+       The Drive-preview eye lives in the actions column; only the
+       new-supplier flag stays attached to the name here. -->
   <ng-template #supplierCell let-row>
     <span class="supplier-cell">
-      <i *ngIf="row.driveFileId"
-         class="pi pi-eye supplier-eye-icon"
-         pTooltip="צפה במסמך לצד הטבלה"
-         tooltipPosition="top"
-         (click)="openPreview(row)"></i>
       <i *ngIf="row.supplierStatusLabel === 'ספק חדש'"
          class="pi pi-flag supplier-new-icon"
          [class.supplier-new-icon--opt-out]="!row.saveAsSupplier"
@@ -119,9 +114,22 @@
   </ng-template>
 
   <ng-template #actionsCell let-row>
-    <!-- Failed action — small icon + hover tooltip with backend error. -->
-    <span *ngIf="row.saveStatus === 'failed'"
+    <!-- Hard failure — small icon + hover tooltip with backend error.
+         Soft duplicates render the inline prompt below instead. -->
+    <span *ngIf="row.saveStatus === 'failed' && !row.duplicateWarning"
           class="action-error" [title]="row.saveError ?? ''">⚠</span>
+
+    <!-- Drive preview — opens the document alongside the table. Only on
+         rows backed by a Drive file (tx_only rows without a doc skip it).
+         Lives here in the actions column rather than next to the supplier
+         name. -->
+    <button *ngIf="row.driveFileId"
+            type="button" class="icon-act icon-preview"
+            pTooltip="צפה במסמך לצד הטבלה"
+            tooltipPosition="top"
+            (click)="openPreview(row)">
+      <i class="pi pi-eye"></i>
+    </button>
 
     <ng-container *ngIf="row.saveStatus !== 'pending'">
       <!-- Doc-side rows (matched + doc_only): archive + delete.
@@ -187,6 +195,23 @@
         </button>
       </ng-container>
     </ng-container>
+
+    <!-- Soft-duplicate prompt — the backend flagged this row as a possible
+         duplicate (same supplier/sum/date, different/missing document
+         number). The user decides: save anyway (acknowledges the warning
+         and retries), or skip and leave the row un-approved. -->
+    <div *ngIf="row.duplicateWarning" class="dup-warning">
+      <span class="dup-warning__text">
+        <i class="pi pi-exclamation-triangle"></i>
+        {{ row.saveError || 'ייתכן שזו הוצאה כפולה' }}
+      </span>
+      <button type="button" class="act act-approve"
+              [disabled]="isActioning()"
+              (click)="confirmSaveAnyway(row)">שמור בכל זאת</button>
+      <button type="button" class="act act-archive"
+              [disabled]="isActioning()"
+              (click)="dismissDuplicate(row)">דלג</button>
+    </div>
 
     <!-- Inline link picker for tx_only rows in link-mode. Renders inside
          the actions cell to avoid disrupting the row stripe. -->

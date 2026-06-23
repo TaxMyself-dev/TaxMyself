@@ -69,6 +69,9 @@ export interface ReportPreviewResponse {
   mode: 'documents_only' | 'with_banking';
   rows: ReviewRow[];
   counts: { matched: number; docOnly: number; txOnly: number };
+  /** Byte-identical re-uploads the inbox scan auto-rejected this pass.
+   *  Surfaced as a non-blocking notice; never appear as review rows. */
+  duplicatesSkipped: number;
 }
 
 /**
@@ -89,6 +92,10 @@ export interface ReviewOverrides {
    *  Backend defaults to true when undefined. The review modal toggles
    *  this via the red flag icon on rows where the supplier is new. */
   saveAsSupplier?: boolean;
+  /** Acknowledges a soft duplicate (same supplier/sum/date, different or
+   *  missing document number). Sent as true after the user confirms "save
+   *  anyway" on a row the backend flagged with DUPLICATE_WARNING. */
+  acknowledgeDuplicate?: boolean;
 }
 
 @Injectable({ providedIn: 'root' })

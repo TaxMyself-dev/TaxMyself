@@ -68,6 +68,11 @@ export enum ExtractedDocumentType {
 // statements, bundled receipts). sub_index 0..N-1 disambiguates rows that
 // share a drive_file_id. Old rows default to 0 — the migration is a no-op.
 @Index(['driveFileId', 'subIndex'], { unique: true })
+// Byte-identical dedup: the inbox loop looks up prior rows by content hash
+// to catch the same file re-uploaded under a new drive_file_id. Scoped by
+// business so identical bytes across two businesses stay distinct. NOT
+// unique — a multi-invoice file produces N rows sharing one md5.
+@Index(['businessNumber', 'driveFileMd5'])
 export class ExtractedDocument {
   @PrimaryGeneratedColumn()
   id: number;
@@ -82,6 +87,13 @@ export class ExtractedDocument {
 
   @Column({ name: 'drive_file_id', type: 'varchar', length: 255 })
   driveFileId: string;
+
+  // Content hash (Drive's md5Checksum) of the source file. Used by the
+  // inbox loop to detect byte-identical re-uploads (same bytes → same md5,
+  // even though Drive assigns a fresh drive_file_id per upload). Nullable:
+  // legacy rows predate it, and Google-native files have no checksum.
+  @Column({ name: 'drive_file_md5', type: 'varchar', length: 32, nullable: true })
+  driveFileMd5: string | null;
 
   // Position of this invoice within its source file (0 for single-invoice
   // files, 0..N-1 for multi-invoice files like monthly statements).

@@ -120,6 +120,15 @@ interface EditableReviewRow {
   // Per-row UI state
   saveStatus: null | 'pending' | 'failed';
   saveError: string | null;
+  /** Set when the backend rejected this row with DUPLICATE_WARNING — a soft
+   *  duplicate (same supplier/sum/date, different/missing doc number). The
+   *  row stays visible with an inline "save anyway / skip" prompt instead of
+   *  a plain failure. Cleared once resolved. */
+  duplicateWarning?: boolean;
+  /** Set to true when the user clicks "save anyway" on a duplicateWarning
+   *  row; threaded into overrides.acknowledgeDuplicate so the retried
+   *  approve bypasses the soft block. */
+  acknowledgeDuplicate?: boolean;
 }
 
 /**
@@ -362,6 +371,21 @@ export class ReportReviewDialogComponent {
       .subscribe(preview => {
         this.mode.set(preview.mode);
         this.counts.set(preview.counts);
+
+        // Non-blocking notice: the inbox scan auto-rejected byte-identical
+        // re-uploads (same file dropped twice). They never become review
+        // rows, so tell the user it happened. Uses the app-level 'br' toast
+        // so it survives even when the dialog closes (no rows to review).
+        if (preview.duplicatesSkipped > 0) {
+          this.messageService.add({
+            severity: 'info',
+            summary: 'קבצים כפולים',
+            detail: `דולגו ${preview.duplicatesSkipped} קבצים כפולים שכבר קיימים במערכת`,
+            life: 6000,
+            key: 'br',
+          });
+        }
+
         const editable = preview.rows.map(r => this.toEditableRow(r));
         // Sort alphabetically by supplier name so rows from the same vendor
         // group together — easier to spot duplicates, easier to bulk-edit
@@ -946,12 +970,14 @@ export class ReportReviewDialogComponent {
     obs$
       .pipe(
         catchError(err => {
-          row.saveStatus = 'failed';
-          row.saveError = err?.error?.message ?? err?.message ?? errPrefix;
-          this.bumpRows();
-          this.messageService.add({
-            severity: 'error', summary: 'שגיאה', detail: row.saveError ?? errPrefix, life: 5000, key: 'br',
-          });
+          // Soft duplicates surface inline (no error toast); everything
+          // else is a real failure and gets the toast.
+          const soft = this.applySaveFailure(row, err, errPrefix);
+          if (!soft) {
+            this.messageService.add({
+              severity: 'error', summary: 'שגיאה', detail: row.saveError ?? errPrefix, life: 5000, key: 'br',
+            });
+          }
           return EMPTY;
         }),
         finalize(() => this.isActioning.set(false)),
@@ -961,6 +987,52 @@ export class ReportReviewDialogComponent {
         this.adjustCount(row.type, -1);
         this.maybeAutoClose();
       });
+  }
+
+  /**
+   * Shared save/approve failure handler. The backend's two-tier duplicate
+   * guard returns `code: 'DUPLICATE_WARNING'` for a soft duplicate (same
+   * supplier/sum/date, but a different or missing document number) — that
+   * row stays visible with an inline "save anyway / skip" prompt rather
+   * than a plain failure. Any other error (including the hard
+   * `DUPLICATE_EXACT` block) is a normal failure. Returns true when the
+   * row was put into the soft-duplicate state.
+   */
+  private applySaveFailure(
+    row: EditableReviewRow,
+    err: any,
+    fallback: string,
+  ): boolean {
+    row.saveStatus = 'failed';
+    row.saveError = err?.error?.message ?? err?.message ?? fallback;
+    row.duplicateWarning = err?.error?.code === 'DUPLICATE_WARNING';
+    this.bumpRows();
+    return row.duplicateWarning;
+  }
+
+  /** "שמור בכל זאת" on a soft-duplicate row — acknowledge the warning and
+   *  retry the approve. overridesFromRow now carries acknowledgeDuplicate,
+   *  so the backend skips the soft block (the hard block still applies). */
+  confirmSaveAnyway(row: EditableReviewRow): void {
+    if (this.isActioning() || row.saveStatus === 'pending') return;
+    row.acknowledgeDuplicate = true;
+    row.duplicateWarning = false;
+    row.saveError = null;
+    row.saveStatus = null;
+    this.bumpRows();
+    if (row.type === 'matched') this.approveMatched(row);
+    else if (row.type === 'doc_only') this.approveDocCash(row);
+    else if (row.type === 'tx_only') this.approveTxNoDoc(row);
+  }
+
+  /** "דלג" on a soft-duplicate row — clear the warning and leave the row
+   *  in the table un-approved. The user chose not to save this one. */
+  dismissDuplicate(row: EditableReviewRow): void {
+    row.duplicateWarning = false;
+    row.acknowledgeDuplicate = false;
+    row.saveError = null;
+    row.saveStatus = null;
+    this.bumpRows();
   }
 
   // ---- Link flow -------------------------------------------------------
@@ -1037,6 +1109,7 @@ export class ReportReviewDialogComponent {
       // otherwise the backend recomputes from date + business cadence.
       reportPeriod: row.reportPeriodOverridden ? row.reportPeriod : undefined,
       saveAsSupplier: row.saveAsSupplier,
+      acknowledgeDuplicate: row.acknowledgeDuplicate,
     };
   }
 
@@ -1289,9 +1362,10 @@ export class ReportReviewDialogComponent {
     obs$
       .pipe(
         catchError(err => {
-          row.saveStatus = 'failed';
-          row.saveError = err?.error?.message ?? err?.message ?? 'אישור השורה נכשל';
-          this.bumpRows();
+          // Soft duplicates leave the row in place with an inline prompt;
+          // hard failures keep the row flagged. Either way the queue moves
+          // on to the next selected row.
+          this.applySaveFailure(row, err, 'אישור השורה נכשל');
           return EMPTY;
         }),
       )

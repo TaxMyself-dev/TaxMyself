@@ -106,4 +106,8 @@ export interface ReportPreviewResponse {
     docOnly: number;
     txOnly: number;
   };
+  /** Number of byte-identical re-uploads the inbox scan auto-rejected this
+   *  pass (same file dropped twice). These never become review rows; the
+   *  modal surfaces the count as a non-blocking notice. */
+  duplicatesSkipped: number;
 }

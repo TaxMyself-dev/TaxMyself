@@ -42,6 +42,12 @@ export interface DriveFileMeta {
    *  string from the API; the caller usually wraps it in `new Date()` for
    *  the `upload_date` column. */
   createdTime: string | null;
+  /** Drive's `md5Checksum` — content hash of the file bytes. Present for
+   *  every binary upload (PDF/JPG/PNG); null for Google-native docs (which
+   *  aren't supported invoice types). Two uploads of the same file get
+   *  different `id`s but the SAME md5 — the signal the inbox dedup uses to
+   *  catch byte-identical re-uploads before paying for a second OCR. */
+  md5Checksum: string | null;
 }
 
 @Injectable()
@@ -276,7 +282,8 @@ export class GoogleDriveService {
           q,
           // createdTime feeds extracted_document.upload_date — the timestamp
           // we show the user as "when this invoice arrived in the inbox".
-          fields: 'nextPageToken, files(id, name, mimeType, size, createdTime)',
+          // md5Checksum feeds the byte-identical dedup in the inbox loop.
+          fields: 'nextPageToken, files(id, name, mimeType, size, createdTime, md5Checksum)',
           spaces: 'drive',
           pageSize: 100,
           pageToken,
@@ -291,6 +298,7 @@ export class GoogleDriveService {
             mimeType: f.mimeType,
             size: f.size ? Number(f.size) : null,
             createdTime: f.createdTime ?? null,
+            md5Checksum: f.md5Checksum ?? null,
           });
         }
         pageToken = res.data.nextPageToken ?? undefined;

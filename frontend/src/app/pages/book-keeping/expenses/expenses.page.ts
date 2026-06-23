@@ -363,11 +363,31 @@ export class ExpensesPage implements OnInit {
         icon: 'pi pi-eye',
         title: 'צפה בקובץ',
         alwaysShow: true,
+        showWhen: (row: IRowDataTable) => this.hasFile(row),
         action: (event: any, row: IRowDataTable) => {
           this.onPreviewFile(row);
         }
+      },
+      {
+        // When the row has no attached file, surface an "add file" action
+        // instead of the (useless) preview icon. Opens the edit dialog where
+        // the user can attach the missing file.
+        name: 'addFile',
+        icon: 'pi pi-upload',
+        title: 'הוסף קובץ',
+        alwaysShow: true,
+        showWhen: (row: IRowDataTable) => !this.hasFile(row),
+        action: (event: any, row: IRowDataTable) => {
+          this.onAddFile(row);
+        }
       }
     ]);
+  }
+
+  /** True when the row has a stored file path. */
+  private hasFile(row: IRowDataTable): boolean {
+    const filePath = row?.file as string | undefined;
+    return !!filePath && filePath !== '';
   }
 
   // ===========================
@@ -393,7 +413,6 @@ export class ExpensesPage implements OnInit {
   }
 
   onDeleteExpense(row: IRowDataTable): void {
-    console.log("Delete expense:", row);
     this.confirmationService.confirm({
       message: 'האם אתה בטוח שברצונך למחוק את ההוצאה?',
       header: 'אישור מחיקה',
@@ -449,13 +468,66 @@ export class ExpensesPage implements OnInit {
     }
   }
 
+  /**
+   * הוספת קובץ להוצאה שאין לה קובץ – פותח בורר קבצים, מעלה את הקובץ ומצרף
+   * אותו להוצאה (ללא פתיחת דיאלוג העריכה). מבוסס על אותו זרם של טבלת מע"מ.
+   */
+  onAddFile(row: IRowDataTable): void {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.pdf,.jpg,.jpeg,.png';
+    input.onchange = () => {
+      const file = input.files?.[0];
+      if (file) {
+        this.uploadFileToExpense(row, file);
+      }
+    };
+    input.click();
+  }
+
+  /** Upload a file via Firebase and attach it to the expense, then refresh. */
+  private uploadFileToExpense(row: IRowDataTable, file: File): void {
+    this.gs.getLoader().subscribe();
+    this.filesService.addFileToExpense(row, this.selectedBusinessNumber(), file)
+      .pipe(
+        catchError(err => {
+          console.error('Error attaching file to expense:', err);
+          this.messageService.add({
+            severity: 'error',
+            summary: 'שגיאה',
+            detail: 'שגיאה בהעלאת הקובץ',
+            life: 3000,
+            key: 'br'
+          });
+          return EMPTY;
+        }),
+        finalize(() => this.gs.dismissLoader())
+      )
+      .subscribe(() => {
+        this.fetchExpenses(this.selectedBusinessNumber(), this.startDate, this.endDate);
+        this.messageService.add({
+          severity: 'success',
+          summary: 'הצלחה',
+          detail: 'הקובץ הועלה בהצלחה',
+          life: 3000,
+          key: 'br'
+        });
+      });
+  }
+
   /** תצוגה מקדימה של קובץ – כמו בטבלת הכנסות */
   onPreviewFile(row: IRowDataTable): void {
     const filePath = row.file as string | undefined;
     if (filePath && filePath !== '') {
       this.filesService.previewFile(filePath).subscribe();
     } else {
-      alert('לא נשמר קובץ עבור הוצאה זו');
+      this.messageService.add({
+        severity: 'info',
+        summary: 'אין קובץ',
+        detail: 'לא נשמר קובץ עבור הוצאה זו',
+        life: 3000,
+        key: 'br'
+      });
     }
   }
 }

@@ -12,6 +12,9 @@ export interface ProcessInboxResult {
   processed: number;
   failed: number;
   skipped: number;
+  /** Byte-identical re-uploads auto-rejected this pass (same file dropped
+   *  twice). Skipped before OCR; never become review rows. */
+  duplicates: number;
   total: number;
   inboxFolderId: string;
   processedFolderId: string;

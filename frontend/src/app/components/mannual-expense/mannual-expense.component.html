@@ -220,3 +220,37 @@
       [disabled]="!customVatPeriodValue().trim()" (onButtonClicked)="confirmCustomVatPeriod()"></app-p-button>
   </ng-template>
 </p-dialog>
+
+<!-- Duplicate dialog — two flavors share it:
+     • HARD (DUPLICATE_EXACT, same document number): informational "can't
+       save", close-only.
+     • SOFT (DUPLICATE_WARNING, same supplier/sum/date but different/missing
+       number): offers "save anyway". -->
+<p-dialog
+  [header]="duplicateIsHardBlock() ? 'לא ניתן לשמור' : 'ייתכן שזו הוצאה כפולה'"
+  [visible]="duplicateConfirmVisible()"
+  (visibleChange)="$event ? null : cancelDuplicateSave()"
+  [modal]="true"
+  [style]="{ width: '460px', maxWidth: '95vw' }"
+  [draggable]="false"
+  [resizable]="false">
+
+  <div class="duplicate-confirm-body">
+    <p>{{ duplicateMessage() }}</p>
+    @if (!duplicateIsHardBlock()) {
+      <p>האם לשמור אותה בכל זאת?</p>
+    }
+  </div>
+
+  <ng-template pTemplate="footer">
+    @if (duplicateIsHardBlock()) {
+      <app-p-button [buttonText]="'סגור'" [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.SMALL"
+        (onButtonClicked)="cancelDuplicateSave()"></app-p-button>
+    } @else {
+      <app-p-button [buttonText]="'ביטול'" [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.SMALL"
+        [variant]="'outlined'" (onButtonClicked)="cancelDuplicateSave()"></app-p-button>
+      <app-p-button [buttonText]="'שמור בכל זאת'" [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.SMALL"
+        [isLoading]="isLoadingAddExpense()" (onButtonClicked)="confirmDuplicateSave()"></app-p-button>
+    }
+  </ng-template>
+</p-dialog>

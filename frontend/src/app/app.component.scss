@@ -154,6 +154,23 @@ ion-item.selected {
   min-height: 0;
 }
 
+/* Confirm dialog footer buttons (מחק / ביטול) — black background, rendered via PrimeNG portal */
+::ng-deep .p-confirmdialog .p-confirmdialog-accept-button,
+::ng-deep .p-confirmdialog .p-confirmdialog-reject-button,
+::ng-deep .p-confirm-dialog .p-confirm-dialog-accept,
+::ng-deep .p-confirm-dialog .p-confirm-dialog-reject {
+  background: #000;
+  border-color: #000;
+  color: #fff;
+
+  &:hover,
+  &:focus {
+    background: #1a1a1a;
+    border-color: #1a1a1a;
+    color: #fff;
+  }
+}
+
 /* Billing blocked dialog — rendered via PrimeNG portal outside the component tree */
 ::ng-deep .billing-blocked-dialog {
   direction: rtl;

@@ -1,7 +1,7 @@
 import { forwardRef, Inject, Injectable, HttpException, HttpStatus, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import axios, { AxiosInstance } from 'axios';
-import { EntityManager, Repository, In } from 'typeorm';
+import { EntityManager, Repository, In, Not } from 'typeorm';
 import { SettingDocuments } from './settingDocuments.entity';
 import { Documents } from './documents.entity';
 import { DocLines } from './doc-lines.entity';
@@ -2458,6 +2458,7 @@ ${finalOwnerName}`;
     processed: number;
     failed: number;
     skipped: number;
+    duplicates: number;
     total: number;
     inboxFolderId: string;
     processedFolderId: string;
@@ -2499,9 +2500,41 @@ ${finalOwnerName}`;
       existingByDriveId.set(row.driveFileId, list);
     }
 
+    // Byte-identical dedup setup. A file re-uploaded to inbox gets a fresh
+    // driveFileId, so the driveFileId check above can't see it — but its
+    // md5Checksum matches a prior row. Look up which content hashes are
+    // already represented by a LIVE row for this business. Excluded:
+    //   - ERROR    — retried, so not "already handled".
+    //   - REJECTED — the content was explicitly discarded (user junk or a
+    //     prior auto-dedup); a deliberate re-upload should get another OCR
+    //     pass, not be silently re-rejected forever.
+    // Map md5 → the original's driveFileId for the duplicate row's audit trail.
+    const batchMd5s = Array.from(
+      new Set(files.map(f => f.md5Checksum).filter((m): m is string => !!m)),
+    );
+    const priorMd5Rows = batchMd5s.length
+      ? await this.extractedDocRepo.find({
+          where: {
+            businessNumber,
+            driveFileMd5: In(batchMd5s),
+            status: Not(In([ExtractedDocStatus.ERROR, ExtractedDocStatus.REJECTED])),
+          },
+        })
+      : [];
+    const handledMd5ToFileId = new Map<string, string>();
+    for (const row of priorMd5Rows) {
+      if (row.driveFileMd5 && !handledMd5ToFileId.has(row.driveFileMd5)) {
+        handledMd5ToFileId.set(row.driveFileMd5, row.driveFileId);
+      }
+    }
+    // md5s OCR'd successfully earlier in THIS batch, so two identical files
+    // dropped together also dedup (first OCRs, the rest are rejected).
+    const seenMd5InBatch = new Map<string, string>();
+
     let processed = 0;
     let failed = 0;
     let skipped = 0;
+    let duplicates = 0;
 
     for (const file of files) {
       const priorRows = existingByDriveId.get(file.id) ?? [];
@@ -2523,12 +2556,39 @@ ${finalOwnerName}`;
         continue;
       }
 
+      const uploadDate = file.createdTime ? new Date(file.createdTime) : null;
+
+      // Byte-identical dedup. If this file's content hash already has a
+      // non-error row (prior run) or was OCR'd earlier in this batch, it's
+      // a re-upload of a document we already have. Skip OCR, record a
+      // REJECTED "duplicate" row for the audit trail, and move it out of
+      // inbox. Zero false-positive risk: identical bytes are always the
+      // same document (a re-scan/photo never matches byte-for-byte).
+      const md5 = file.md5Checksum;
+      const originalFileId = md5
+        ? (handledMd5ToFileId.get(md5) ?? seenMd5InBatch.get(md5))
+        : undefined;
+      if (originalFileId) {
+        // Clear any stale error rows for this driveFileId first so the
+        // rejected row is the only one we keep for this file.
+        if (priorRows.length > 0) {
+          await this.extractedDocRepo.remove(priorRows);
+        }
+        await this.saveDuplicateRow(
+          user.index, businessNumber, file, uploadDate, originalFileId,
+        );
+        await this.safelyMoveToProcessed(file.id, inboxFolderId, processedFolderId);
+        duplicates++;
+        this.logger.log(
+          `Skipped duplicate ${file.name} (id=${file.id}) — same content hash as ${originalFileId}`,
+        );
+        continue;
+      }
+
       // Wipe any prior `error` rows for this file before retrying.
       if (priorRows.length > 0) {
         await this.extractedDocRepo.remove(priorRows);
       }
-
-      const uploadDate = file.createdTime ? new Date(file.createdTime) : null;
 
       try {
         const buffer = await this.googleDriveService.downloadFile(file.id);
@@ -2578,6 +2638,7 @@ ${finalOwnerName}`;
               businessNumber,
               driveFileId: file.id,
               driveFileName: file.name,
+              driveFileMd5: file.md5Checksum,
               // The `month` column predates the inbox refactor. Keep it
               // populated from the OCR'd invoice date so legacy queries
               // that filter by month still work; fall back to the upload
@@ -2614,6 +2675,10 @@ ${finalOwnerName}`;
         // doesn't undo the saved rows (dedup catches it next run).
         await this.safelyMoveToProcessed(file.id, inboxFolderId, processedFolderId);
 
+        // Claim this content hash so a later copy in the same batch dedups
+        // against it (cross-run copies are caught via the stored column).
+        if (file.md5Checksum) seenMd5InBatch.set(file.md5Checksum, file.id);
+
         processed++;
         this.logger.log(
           `Extracted ${file.name} (id=${file.id}) → ${invoices.length} invoice row(s)`,
@@ -2635,6 +2700,7 @@ ${finalOwnerName}`;
       processed,
       failed,
       skipped,
+      duplicates,
       total: files.length,
       inboxFolderId,
       processedFolderId,
@@ -3033,6 +3099,36 @@ ${finalOwnerName}`;
         uploadDate,
         status: ExtractedDocStatus.ERROR,
         rawResponse,
+      }),
+    );
+  }
+
+  /** Records a byte-identical re-upload as a REJECTED row (reason:
+   *  duplicate) instead of OCR'ing it again. Keeps an audit trail of the
+   *  skipped file (so it doesn't silently vanish from inbox) and, together
+   *  with the move to processed/, keeps it out of future scans.
+   *  `originalDriveFileId` is the file we already have the content from. */
+  private async saveDuplicateRow(
+    userIndex: number,
+    businessNumber: string,
+    file: { id: string; name: string; md5Checksum: string | null },
+    uploadDate: Date | null,
+    originalDriveFileId: string,
+  ): Promise<void> {
+    const fallbackMonth = (uploadDate ?? new Date());
+    await this.extractedDocRepo.save(
+      this.extractedDocRepo.create({
+        userId: userIndex,
+        businessNumber,
+        driveFileId: file.id,
+        driveFileName: file.name,
+        driveFileMd5: file.md5Checksum,
+        // Legacy NOT NULL column — no OCR'd date, bucket by upload month.
+        month: `${fallbackMonth.getFullYear()}-${String(fallbackMonth.getMonth() + 1).padStart(2, '0')}`,
+        subIndex: 0,
+        uploadDate,
+        status: ExtractedDocStatus.REJECTED,
+        rawResponse: `Duplicate of drive file ${originalDriveFileId} (identical content hash) — skipped OCR.`,
       }),
     );
   }
