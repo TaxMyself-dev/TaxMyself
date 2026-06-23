@@ -11,4 +11,4 @@ keys/
 *.pem
 .firebase/hosting.*.cache
 backend/src/feezback/transactions-data/transactions-*.json
-Claude.md
+CLAUDE.md
