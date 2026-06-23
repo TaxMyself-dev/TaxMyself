@@ -14,7 +14,7 @@ import { ToastModule } from 'primeng/toast';
 import { DialogModule } from 'primeng/dialog';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { SelectModule } from 'primeng/select';
-import { familyStatusOptionsList, employmentTypeOptionsList, businessTypeOptionsList, paymentIdentifierType, VATReportingType, TaxReportingType, inputsSize } from 'src/app/shared/enums';
+import { familyStatusOptionsList, employmentTypeOptionsList, businessTypeOptionsList, companyBusinessTypeOptionsList, isExemptBusinessType, paymentIdentifierType, VATReportingType, TaxReportingType, inputsSize } from 'src/app/shared/enums';
 import { TransactionsService } from 'src/app/pages/transactions/transactions.page.service';
 import { SyncStatusService } from 'src/app/services/sync-status.service';
 import { catchError, EMPTY, finalize } from 'rxjs';
@@ -86,7 +86,6 @@ export class SettingsPage implements OnInit {
 
   familyStatusOptions = familyStatusOptionsList;
   employmentTypeOptions = employmentTypeOptionsList;
-  businessTypeOptions = businessTypeOptionsList;
   nationalInsOptions = [
     { name: 'חייב',    value: true },
     { name: 'לא חייב', value: false },
@@ -101,6 +100,19 @@ export class SettingsPage implements OnInit {
     { name: 'חד חודשי', value: TaxReportingType.MONTHLY_REPORT },
     { name: 'דו חודשי', value: TaxReportingType.DUAL_MONTH_REPORT },
   ];
+
+  /** Exposed for the template (businessType !== EXEMPT check must also cover EXEMPT_PARTNERSHIP). */
+  readonly isExemptBusinessType = isExemptBusinessType;
+
+  /** Company users have no spouse/children/personal-family data — those sections are hidden. */
+  isCompany(): boolean {
+    return !!this.userData?.isCompany;
+  }
+
+  /** Business-type dropdown options differ for company vs. private users, same split as registration. */
+  businessTypeOptions() {
+    return this.isCompany() ? companyBusinessTypeOptionsList : businessTypeOptionsList;
+  }
 
   // ─── Reactive Forms ───
   personalFormGroup  = this.buildPersonalForm();

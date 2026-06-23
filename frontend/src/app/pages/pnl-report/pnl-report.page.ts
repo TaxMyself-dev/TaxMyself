@@ -512,7 +512,7 @@ export class PnLReportPage implements OnInit {
     const data: ICreateDataDoc = {
       fid: "ydAEQsvSbC",
       prefill_data: {
-        name: this.userData.fName + " " + this.userData.lName,
+        name: [this.userData.fName, this.userData.lName].filter(Boolean).join(' '),
         businessNumber: effectiveBusinessNumber,
         period: `${this.startDate()} - ${this.endDate()}`,
         income: this.formatShekelAmount(this.pnlReport.income),

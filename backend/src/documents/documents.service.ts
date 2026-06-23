@@ -8,7 +8,7 @@ import { DocLines } from './doc-lines.entity';
 import { JournalEntry } from 'src/bookkeeping/jouranl-entry.entity';
 import { JournalLine } from 'src/bookkeeping/jouranl-line.entity';
 import { DefaultBookingAccount } from 'src/bookkeeping/account.entity'
-import { DocumentType, DocumentStatusType, JournalReferenceType, PaymentMethodType, VatOptions, Currency, UnitOfMeasure, CardCompany, CreditTransactionType, BusinessType } from 'src/enum';
+import { DocumentType, DocumentStatusType, JournalReferenceType, PaymentMethodType, VatOptions, Currency, UnitOfMeasure, CardCompany, CreditTransactionType, BusinessType, isExemptBusinessType } from 'src/enum';
 import { Business } from 'src/business/business.entity';
 import { SharedService } from 'src/shared/shared.service';
 import { FxRateService } from 'src/shared/fx-rate.service';
@@ -644,8 +644,8 @@ export class DocumentsService {
 
     const sumTable: any[] = [];
 
-    // For EXEMPT (עוסק פטור)
-    if (businessType === 'EXEMPT') {
+    // For EXEMPT (עוסק פטור / שותפות פטורה)
+    if (isExemptBusinessType(businessType)) {
       // If discount is 0, show only total; otherwise show all fields
       if (disSum > 0) {
         // Show: סה"כ לפני הנחה
@@ -667,7 +667,7 @@ export class DocumentsService {
         'סכום': `₪${this.formatNumberWithCommas(sumAftDisWithVAT)}`,
       });
     } else {
-      // For LICENSED (עוסק מורשה) or COMPANY (חברה)
+      // For LICENSED (עוסק מורשה) or LIMITED_COMPANY/AUTHORIZED_PARTNERSHIP (חברה)
       // For TAX_INVOICE and TAX_INVOICE_RECEIPT
       
       if (docType === DocumentType.TAX_INVOICE || docType === DocumentType.TAX_INVOICE_RECEIPT || docType === DocumentType.TRANSACTION_INVOICE || docType === DocumentType.PRICE_QUOTE || docType === DocumentType.WORK_ORDER) {
@@ -835,7 +835,7 @@ export class DocumentsService {
 
     disSum = docData.totalDiscount;
 
-    if (docData.businessType === BusinessType.EXEMPT) {
+    if (isExemptBusinessType(docData.businessType)) {
       sumBefDisBefVat = docData.totalWithoutVat;
       sumAftDisBefVAT = docData.totalWithoutVat - docData.totalDiscount;
       vatSum = 0;
@@ -1221,7 +1221,7 @@ export class DocumentsService {
               let ownerName = data.docData.issuerName;
               if (!ownerName && business?.firebaseId) {
                 const user = await this.userRepo.findOne({ where: { firebaseId: business.firebaseId } });
-                ownerName = user ? `${user.fName} ${user.lName}`.trim() : null;
+                ownerName = user ? [user.fName, user.lName].filter(Boolean).join(' ').trim() : null;
               }
               const finalOwnerName = ownerName?.trim() || businessName;
               console.log("  📧 Owner name:", finalOwnerName);

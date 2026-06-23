@@ -134,7 +134,7 @@ export interface DemoBusiness {
   businessName: string;
   /** Either the primary user's `id` or the spouse's `id`. */
   businessNumber: string;
-  /** EXEMPT → vatReportingType=NOT_REQUIRED. LICENSED/COMPANY → DUAL_MONTH_REPORT. */
+  /** EXEMPT → vatReportingType=NOT_REQUIRED. LICENSED → DUAL_MONTH_REPORT. */
   businessType: BusinessType;
   businessField?: string;
   businessAddress?: string;

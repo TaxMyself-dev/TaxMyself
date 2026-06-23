@@ -22,7 +22,7 @@ import {
 import { UploadFileDto } from './dtos/upload-file.dto';
 import { SlimTransaction } from 'src/transactions/slim-transaction.entity';
 import { FullTransactionCache } from 'src/transactions/full-transaction-cache.entity';
-import { BusinessType, ReportPeriodLabel } from 'src/enum';
+import { BusinessType, isExemptBusinessType, ReportPeriodLabel } from 'src/enum';
 
 /** API response shape: report + its files (files are loaded separately, no ORM relation). */
 export interface AnnualReportWithFiles extends AnnualReport {
@@ -276,7 +276,7 @@ export class AnnualReportService {
    *
    * Eligibility per row:
    *   business is EXEMPT  → all transactions get locked here.
-   *   business is LICENSED/COMPANY → only rows with vatPercent = 0 get locked
+   *   business is LICENSED/LIMITED_COMPANY/AUTHORIZED_PARTNERSHIP → only rows with vatPercent = 0 get locked
    *     here (rows with vatPercent > 0 should have been locked by the VAT
    *     report already; if a VAT report was never approved, those rows stay
    *     editable until that happens).
@@ -356,7 +356,7 @@ export class AnnualReportService {
 
     // For VAT-filing businesses, the annual report only locks the income-tax-only
     // rows; VAT-eligible rows are locked by the VAT report instead.
-    if (businessType !== BusinessType.EXEMPT) {
+    if (!isExemptBusinessType(businessType)) {
       qb.andWhere('slim.vatPercent = 0');
     }
 

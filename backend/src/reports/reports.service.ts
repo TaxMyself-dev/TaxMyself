@@ -11,7 +11,7 @@ import { Form1342ReportDto, Form1342ReportRowDto } from './dtos/depreciation-rep
 import { ExpensesService } from '../expenses/expenses.service';
 import { SharedService } from 'src/shared/shared.service';
 import { User } from '../users/user.entity';
-import { BusinessType, DOC_TYPE_INFO, DocumentSummaryRow, DocumentType, FIELD_MAP, JournalReferenceType, ListSummaryRow, PaymentMethodType, UniformFileTypeCodeMap, UniformSummaries} from 'src/enum';
+import { BusinessType, DOC_TYPE_INFO, DocumentSummaryRow, DocumentType, FIELD_MAP, isExemptBusinessType, JournalReferenceType, ListSummaryRow, PaymentMethodType, UniformFileTypeCodeMap, UniformSummaries} from 'src/enum';
 import { Documents } from 'src/documents/documents.entity';
 import { DocLines } from 'src/documents/doc-lines.entity';
 import axios from 'axios';
@@ -277,7 +277,7 @@ export class ReportsService {
       });
       const businessType = business?.businessType ?? null;
 
-      if (businessType === BusinessType.EXEMPT) {
+      if (isExemptBusinessType(businessType)) {
         return this.getAdvanceIncomeTaxReportDataForExempt(
           businessNumber,
           startDate,
@@ -377,7 +377,7 @@ export class ReportsService {
       .where('doc.issuerBusinessNumber = :businessNumber', { businessNumber })
       .andWhere('doc.isCancelled = false');
 
-    if (businessType === BusinessType.EXEMPT) {
+    if (isExemptBusinessType(businessType)) {
       const res = await base
         .clone()
         .andWhere('doc.docType = :type', { type: 'RECEIPT' })
@@ -597,8 +597,8 @@ export class ReportsService {
       .andWhere('doc.isCancelled = false');
 
     // 3️⃣ Logic by type
-    if (businessType === BusinessType.EXEMPT) {
-      // 🟢 Exempt (עוסק פטור)
+    if (isExemptBusinessType(businessType)) {
+      // 🟢 Exempt (עוסק פטור / שותפות פטורה)
       // Income is based on RECEIPTs (sumAftDisBefVAT)
       const result = await baseQb
         .andWhere('doc.docType = :type', { type: 'RECEIPT' })
