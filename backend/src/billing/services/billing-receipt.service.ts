@@ -49,7 +49,7 @@ export class BillingReceiptService implements OnModuleInit {
     this.issuerBusinessNumber = issuerBusinessNumber!;
     this.issuerName = issuerName!;
     this.issuerBusinessType =
-      (process.env.COMPANY_BILLING_BUSINESS_TYPE as BusinessType) ?? BusinessType.COMPANY;
+      (process.env.COMPANY_BILLING_BUSINESS_TYPE as BusinessType) ?? BusinessType.LIMITED_COMPANY;
     this.issuerPhone = process.env.COMPANY_BILLING_PHONE || null;
     this.issuerEmail = process.env.COMPANY_BILLING_EMAIL || null;
     this.issuerAddress = process.env.COMPANY_BILLING_ADDRESS || null;

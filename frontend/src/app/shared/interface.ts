@@ -145,6 +145,8 @@ export interface IUserData {
     firebaseId: string;
     id: string;
     index: number;
+    /** True for a company/partnership registration — spouse/children/personal-only fields are not applicable. */
+    isCompany: boolean;
     businessStatus: BusinessStatus;
     lName: string;
     phone: string;

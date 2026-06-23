@@ -20,23 +20,28 @@ export class User {
 
     @Column()
     fName: string;
-    
-    @Column()
-    lName: string;
 
-    @Column()
-    id: string;
+    /** Null for company users (no surname). */
+    @Column({ type: 'varchar', nullable: true, default: null })
+    lName: string | null;
 
+    /** Personal ID (ת.ז) — null for company users. */
+    @Column({ type: 'varchar', nullable: true, default: null })
+    id: string | null;
+
+    /** Null for company users (no personal gender). */
     @Column({
       type: 'enum',
       enum: Gender,
       enumName: 'Gender',
-      default: Gender.MALE
+      nullable: true,
+      default: null
     })
-    gender: Gender;
+    gender: Gender | null;
 
-    @Column('date')
-    dateOfBirth: Date;
+    /** Null for company users (no date of birth). */
+    @Column({ type: 'date', nullable: true, default: null })
+    dateOfBirth: Date | null;
 
     @Column()
     phone: string;
@@ -44,27 +49,36 @@ export class User {
     @Column()
     email: string;
 
-    @Column()
-    city: string;
+    /** Null for company users (no personal city of residence). */
+    @Column({ type: 'varchar', nullable: true, default: null })
+    city: string | null;
+
+    /** True for a company/partnership registration (skips spouse/children/personal fields). */
+    @Column({ type: 'boolean', default: false })
+    isCompany: boolean;
 
     @Column({ type: 'varchar', nullable: true, default: null })
     address: string | null;
 
+    /** Null for company users (employment status is a personal concept). */
     @Column({
       type: 'enum',
       enum: EmploymentType,
       enumName: 'EmploymentType',
-      default: EmploymentType.SELF_EMPLOYED
+      nullable: true,
+      default: null
     })
-    employmentStatus: EmploymentType;
+    employmentStatus: EmploymentType | null;
 
+    /** Null for company users (family status is a personal concept). */
     @Column({
       type: 'enum',
       enum: FamilyStatus,
       enumName: 'FamilyStatus',
-      default: FamilyStatus.SINGLE
+      nullable: true,
+      default: null
     })
-    familyStatus: FamilyStatus;
+    familyStatus: FamilyStatus | null;
 
     @OneToMany(() => Bill, (bill) => bill.user)
     bills: Bill[];

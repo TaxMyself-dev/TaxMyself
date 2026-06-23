@@ -25,6 +25,7 @@ import {
   BusinessType,
   VATReportingType,
   TaxReportingType,
+  isExemptBusinessType,
 } from '../enum';
 
 @Injectable()
@@ -455,7 +456,7 @@ export class DelegationService {
 
     // 3b. יוצרים תמיד עסק בטבלת העסקים לפי השדות הרלוונטיים
     const resolvedBusinessType = dto.businessType ?? BusinessType.EXEMPT;
-    const vatDefault = resolvedBusinessType === BusinessType.EXEMPT
+    const vatDefault = isExemptBusinessType(resolvedBusinessType)
       ? VATReportingType.NOT_REQUIRED
       : VATReportingType.DUAL_MONTH_REPORT;
     const business = this.businessRepository.create({

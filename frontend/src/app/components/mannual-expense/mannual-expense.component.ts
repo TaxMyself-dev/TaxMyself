@@ -5,7 +5,7 @@ import { DomSanitizer, SafeResourceUrl } from "@angular/platform-browser";
 import { FilesService } from "src/app/services/files.service";
 import { GenericService } from "src/app/services/generic.service";
 import { AuthService } from "src/app/services/auth.service";
-import { inputsSize, BusinessType, VATReportingType } from "src/app/shared/enums";
+import { inputsSize, BusinessType, isExemptBusinessType, VATReportingType } from "src/app/shared/enums";
 import { Business } from "src/app/shared/interface";
 import { IGetSupplier, ISelectItem, ISubCategory, ISupplier } from "src/app/shared/interface";
 import { InputDateComponent } from "../input-date/input-date.component";
@@ -581,7 +581,7 @@ export class MannualExpenseComponent implements OnDestroy {
     selectedVatReportingType = signal<VATReportingType>(VATReportingType.NOT_REQUIRED);
 
     // Check if the selected business is exempt from VAT
-    isExemptBusiness = computed(() => this.selectedBusinessType() === BusinessType.EXEMPT);
+    isExemptBusiness = computed(() => isExemptBusinessType(this.selectedBusinessType()));
 
     /** VAT-licensed = files monthly or bi-monthly VAT reports. Only then does
      *  an expense carry a VAT-report period, so the field shows only here;

@@ -10,7 +10,7 @@ import { Router } from '@angular/router';
 import { RegisterFormControls, RegisterFormModules } from './regiater.enum';
 import { catchError, EMPTY, finalize, map, startWith, Subject, takeUntil, tap } from 'rxjs';
 import { cloneDeep } from 'lodash';
-import { businessTypeOptionsList, EmploymentType, employmentTypeOptionsList, familyStatusOptionsList } from 'src/app/shared/enums';
+import { businessTypeOptionsList, companyBusinessTypeOptionsList, EmploymentType, employmentTypeOptionsList, familyStatusOptionsList } from 'src/app/shared/enums';
 import { FamilyStatus, FormTypes } from 'src/app/shared/enums';
 import { inputsSize } from 'src/app/shared/enums';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
@@ -103,12 +103,14 @@ export class RegisterPage implements OnInit, OnDestroy {
   cities = signal<ISelectItem[]>([]);
   selectedFormModule = signal<RegisterFormModules>(this.registerFormModules.PERSONAL);
   hasChildren = signal<boolean>(false);
+  isCompany = signal<boolean>(false);
   mainTitle = signal<string>("פרטים אישיים");
   subtitle = signal<string>("היי, אז נתחיל בהיכרות ראשונית...");
   isLoading = signal<boolean>(false);
   myForm: FormGroup;
   employmentTypeOptionsList = employmentTypeOptionsList;
   businessTypeOptionsList = businessTypeOptionsList;
+  companyBusinessTypeOptionsList = companyBusinessTypeOptionsList;
   familyStatusOptionsList = familyStatusOptionsList;
   registerPictureText = signal<string>("שמירת כל המסמכים בענן")
   registerPictureSubText = signal<string>("כל תיעוד ההכנסות וההוצאות מגובה בענן מוכן לשליחה, הורדה, או סתם לומר שלום")
@@ -220,11 +222,35 @@ matchRegisterImage = computed(() => {
       ["businessArray"]: this.formBuilder.array([]),
     })
 
+    const companyForm = this.formBuilder.group({
+      [RegisterFormControls.FIRSTNAME]: new FormControl(
+        '', this.requierdField ? [Validators.required] : null
+      ),
+      [RegisterFormControls.BUSINESSNUMBER]: new FormControl(
+        '', this.requierdField ? [Validators.required, Validators.pattern(/^\d+$/)] : null,
+      ),
+      [RegisterFormControls.BUSINESSTYPE]: new FormControl(
+        null, this.requierdField ? [Validators.required] : null,
+      ),
+      [RegisterFormControls.EMAIL]: new FormControl(
+        '', this.requierdField ? [Validators.required, Validators.pattern(/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/)] : null,
+      ),
+      [RegisterFormControls.PHONE]: new FormControl(
+        '', this.requierdField ? [Validators.pattern(/^(050|051|052|053|054|055|058|059)\d{7}$/)] : null,
+      ),
+      [RegisterFormControls.PASSWORD]: new FormControl(
+        '', [Validators.required, Validators.pattern(/^(?=.*[a-zA-Z].*[a-zA-Z])(?=.*\d).{8,}$/)]
+      ),
+      [RegisterFormControls.CONFIRM_PASSWORD]: new FormControl(
+        '', [Validators.required, this.confirmPasswordValidator()])
+    });
+
     this.myForm = this.formBuilder.group({
       [RegisterFormModules.PERSONAL]: personalForm,
       [RegisterFormModules.SPOUSE]: spouseForm,
       [RegisterFormModules.CHILDREN]: childrenForm,
       [RegisterFormModules.BUSINESS]: businessForm,
+      [RegisterFormModules.COMPANY]: companyForm,
     });
   }
 
@@ -235,6 +261,22 @@ matchRegisterImage = computed(() => {
   ngOnInit() {
     this.gelAllCities();
     this.fillDevDefaults();
+  }
+
+  /**
+   * Switches the PERSONAL step between the private-individual form
+   * (personalForm) and the dedicated company form (companyForm). Each form
+   * carries its own validators, so no cross-form validator patching is
+   * needed — switching modes just changes which form the step renders and
+   * resets the other so stale values can't leak into submission.
+   */
+  toggleCompanyMode(checked: boolean): void {
+    this.isCompany.set(checked);
+    if (checked) {
+      this.personalForm.reset();
+    } else {
+      this.companyForm.reset();
+    }
   }
 
   doRefresh(event: any) {
@@ -269,6 +311,10 @@ matchRegisterImage = computed(() => {
 
   get businessArray(): FormArray {
     return this.myForm?.get(RegisterFormModules.BUSINESS).get("businessArray") as FormArray;
+  }
+
+  get companyForm(): FormGroup {
+    return this.myForm?.get(RegisterFormModules.COMPANY) as FormGroup;
   }
 
   get isNextButtonDisabled(): boolean {
@@ -445,7 +491,37 @@ matchRegisterImage = computed(() => {
   handleFormRegister() {
     this.authService.error.set(null);
     const formData = cloneDeep(this.myForm.value);
-    
+
+    // companyForm only exists to drive the UI for company registration — it
+    // is never part of the backend payload shape (personal/spouse/children/business).
+    const companyData = formData.company;
+    delete formData.company;
+
+    if (this.isCompany()) {
+      // Company registration completes after the PERSONAL step: map
+      // companyForm into the existing personal/business payload shape and
+      // drop spouse/children entirely.
+      formData.personal = {
+        fName: companyData?.fName,
+        email: companyData?.email,
+        phone: companyData?.phone,
+        password: companyData?.password,
+        confirmPassword: companyData?.confirmPassword,
+        isCompany: true,
+      };
+      formData.business = {
+        businessArray: [{
+          businessName: companyData?.fName,
+          businessNumber: companyData?.businessNumber,
+          businessType: companyData?.businessType,
+          businessPhone: companyData?.phone,
+          businessEmail: companyData?.email,
+        }],
+      };
+      formData.spouse = {};
+      formData.children = { childrenArray: [] };
+    }
+
     // Remove empty child rows before submission
     if (formData.children?.childrenArray) {
       formData.children.childrenArray = formData.children.childrenArray.filter((child: any) => {
@@ -516,7 +592,9 @@ matchRegisterImage = computed(() => {
         this.handleFormRegister();
         break;
       case RegisterFormModules.PERSONAL:
-        if (this.isMarried()) {
+        if (this.isCompany()) {
+          this.handleFormRegister();
+        } else if (this.isMarried()) {
           this.selectedFormModule.set(RegisterFormModules.SPOUSE);
         } else if (this.isSingle() && this.isIndependent()) {
           this.selectedFormModule.set(RegisterFormModules.BUSINESS);
@@ -548,7 +626,7 @@ matchRegisterImage = computed(() => {
   private isCurrentFormValid(): boolean {
     switch (this.selectedFormModule()) {
       case RegisterFormModules.PERSONAL:
-        return this.personalForm.valid;
+        return this.isCompany() ? this.companyForm.valid : this.personalForm.valid;
       case RegisterFormModules.CHILDREN:
         return this.isChildrenFormValidForSubmission();
       case RegisterFormModules.SPOUSE:
