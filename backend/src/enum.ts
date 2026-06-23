@@ -21,7 +21,33 @@ export enum ModuleName {
 export enum BusinessType {
   EXEMPT = 'EXEMPT',
   LICENSED = 'LICENSED',
-  COMPANY = 'COMPANY'
+  LIMITED_COMPANY = 'LIMITED_COMPANY',
+  AUTHORIZED_PARTNERSHIP = 'AUTHORIZED_PARTNERSHIP',
+  EXEMPT_PARTNERSHIP = 'EXEMPT_PARTNERSHIP',
+}
+
+export const PRIVATE_BUSINESS_TYPES: readonly BusinessType[] = [BusinessType.EXEMPT, BusinessType.LICENSED];
+export const COMPANY_BUSINESS_TYPES: readonly BusinessType[] = [
+  BusinessType.LIMITED_COMPANY,
+  BusinessType.AUTHORIZED_PARTNERSHIP,
+  BusinessType.EXEMPT_PARTNERSHIP,
+];
+
+/** Whether `businessType` is a valid choice for a user of this kind (company vs. private). Null/undefined is always allowed (caller decides if it's required). */
+export function isBusinessTypeAllowedForUser(isCompany: boolean, businessType: BusinessType | null | undefined): boolean {
+  if (businessType == null) return true;
+  return isCompany ? COMPANY_BUSINESS_TYPES.includes(businessType) : PRIVATE_BUSINESS_TYPES.includes(businessType);
+}
+
+/**
+ * VAT-exempt business types — עוסק פטור (EXEMPT) and its company counterpart
+ * שותפות פטורה (EXEMPT_PARTNERSHIP). Use this instead of comparing directly
+ * to BusinessType.EXEMPT anywhere VAT-exemption is the actual question
+ * (report cadence, VAT computation, document totals) so exempt partnerships
+ * aren't silently treated as VAT-liable.
+ */
+export function isExemptBusinessType(businessType: BusinessType | string | null | undefined): boolean {
+  return businessType === BusinessType.EXEMPT || businessType === BusinessType.EXEMPT_PARTNERSHIP;
 }
 
 export enum FamilyStatus {

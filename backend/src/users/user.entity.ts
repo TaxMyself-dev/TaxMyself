@@ -5,7 +5,7 @@ import {
     OneToMany
  } from 'typeorm';
 import { Bill } from '../transactions/bill.entity';
-import { UserRole, TaxReportingType, VATReportingType, BusinessType, FamilyStatus, EmploymentType, PayStatus, ModuleName, Gender, BusinessStatus } from '../enum';
+import { UserRole, TaxReportingType, VATReportingType, BusinessType, FamilyStatus, EmploymentType, Gender, BusinessStatus } from '../enum';
 
 
 @Entity()
@@ -20,23 +20,28 @@ export class User {
 
     @Column()
     fName: string;
-    
-    @Column()
-    lName: string;
 
-    @Column()
-    id: string;
+    /** Null for company users (no surname). */
+    @Column({ type: 'varchar', nullable: true, default: null })
+    lName: string | null;
 
+    /** Personal ID (ת.ז) — null for company users. */
+    @Column({ type: 'varchar', nullable: true, default: null })
+    id: string | null;
+
+    /** Null for company users (no personal gender). */
     @Column({
       type: 'enum',
       enum: Gender,
       enumName: 'Gender',
-      default: Gender.MALE
+      nullable: true,
+      default: null
     })
-    gender: Gender;
+    gender: Gender | null;
 
-    @Column('date')
-    dateOfBirth: Date;
+    /** Null for company users (no date of birth). */
+    @Column({ type: 'date', nullable: true, default: null })
+    dateOfBirth: Date | null;
 
     @Column()
     phone: string;
@@ -44,27 +49,36 @@ export class User {
     @Column()
     email: string;
 
-    @Column()
-    city: string;
+    /** Null for company users (no personal city of residence). */
+    @Column({ type: 'varchar', nullable: true, default: null })
+    city: string | null;
+
+    /** True for a company/partnership registration (skips spouse/children/personal fields). */
+    @Column({ type: 'boolean', default: false })
+    isCompany: boolean;
 
     @Column({ type: 'varchar', nullable: true, default: null })
     address: string | null;
 
+    /** Null for company users (employment status is a personal concept). */
     @Column({
       type: 'enum',
       enum: EmploymentType,
       enumName: 'EmploymentType',
-      default: EmploymentType.SELF_EMPLOYED
+      nullable: true,
+      default: null
     })
-    employmentStatus: EmploymentType;
+    employmentStatus: EmploymentType | null;
 
+    /** Null for company users (family status is a personal concept). */
     @Column({
       type: 'enum',
       enum: FamilyStatus,
       enumName: 'FamilyStatus',
-      default: FamilyStatus.SINGLE
+      nullable: true,
+      default: null
     })
-    familyStatus: FamilyStatus;
+    familyStatus: FamilyStatus | null;
 
     @OneToMany(() => Bill, (bill) => bill.user)
     bills: Bill[];
@@ -81,23 +95,6 @@ export class User {
       type: 'simple-array',
     })
     role: UserRole[];
-
-    @Column({
-      type: 'enum',
-      enum: PayStatus,
-      enumName: 'PayStatus',
-      default: PayStatus.TRIAL
-    })
-    payStatus: PayStatus;
-
-    @Column({ type: 'simple-array', nullable: true })
-    modulesAccess: ModuleName[];
-  
-    @Column({ type: 'date', nullable: true, default: null })
-    subscriptionEndDate: Date;
-  
-    @Column({ type: 'date', nullable: true, default: null })
-    nextBillingDate: Date;
 
     @Column({ type: 'date', nullable: true, default: null })
     createdAt: Date;
@@ -121,12 +118,9 @@ export class User {
 
     @Column({ default: false })
     hasOpenBanking: boolean;
-
-    @Column({ type: 'decimal', precision: 5, scale: 2, default: 0 })
-    discountPercent: number;
-
-    @Column({ type: 'varchar', nullable: true, default: null })
-    discountLabel: string | null;
+    
+    @Column({ name: 'drive_folder_id', type: 'varchar', length: 255, nullable: true, default: null })
+    driveFolderId: string | null;
 
     ////////////////////////////////////
     /////////   Spouse details  ////////

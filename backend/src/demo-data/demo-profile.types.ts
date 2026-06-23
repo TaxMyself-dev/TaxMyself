@@ -70,6 +70,20 @@ export interface DemoProfile {
    * primary user as the agent.
    */
   delegatedClients?: DemoClient[];
+
+  /**
+   * When set, the seeder also provisions the primary user's Drive folders
+   * (user root + business folder + inbox/processed) and uploads
+   * every file from `sourceDir` into the first business's inbox/. Same
+   * directory is re-uploaded by the `/demo-data/test-reset` endpoint after
+   * the inbox is wiped, so the demo user can re-run OCR end-to-end from
+   * a known starting state without admin intervention.
+   *
+   * `sourceDir` is resolved relative to the backend process CWD (`cwd` is
+   * typically the repo root in dev and the dist/ dir in prod — the seeder
+   * tries both).
+   */
+  seedDriveFiles?: { sourceDir: string };
 }
 
 /**
@@ -120,7 +134,7 @@ export interface DemoBusiness {
   businessName: string;
   /** Either the primary user's `id` or the spouse's `id`. */
   businessNumber: string;
-  /** EXEMPT → vatReportingType=NOT_REQUIRED. LICENSED/COMPANY → DUAL_MONTH_REPORT. */
+  /** EXEMPT → vatReportingType=NOT_REQUIRED. LICENSED → DUAL_MONTH_REPORT. */
   businessType: BusinessType;
   businessField?: string;
   businessAddress?: string;
@@ -159,11 +173,18 @@ export interface DemoTransactionTemplate {
    */
   billKey?: string;
   /**
-   * Optional payment identifier (bank account number / card last digits).
-   * Used when `billKey` is omitted — mirrors what Feezback would stamp on
-   * the cache row in production so the future bill-association flow can
-   * group rows by source. Ignored when `billKey` is set (the bill's first
-   * source provides the identifier).
+   * Payment identifier (bank account number / card last digits) stamped on
+   * the cache row — mirrors what Feezback would return in production.
+   *
+   * When `billKey` is also set, this identifier WINS over the bill's first
+   * source. That lets a single bill back multiple sources (one bill with a
+   * BANK + a CARD source, each transaction tagged with the matching
+   * identifier — the typical real-world layout). Only when this field is
+   * omitted does the seeder fall back to the bill's first source.
+   *
+   * When `billKey` is omitted entirely, the transaction is "unassigned"
+   * (billId/billName null) and shows up in the UI under "לא שוייך" — the
+   * shape you want when demoing the bill-creation flow.
    */
   paymentIdentifier?: string;
   /** → DemoBusiness.businessNumber */

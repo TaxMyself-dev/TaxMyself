@@ -16,6 +16,7 @@ import {
   IRowDataTable,
   ISelectItem,
   ITableRowAction,
+  MobileHighlightedValueFormat,
 } from 'src/app/shared/interface';
 import { DateFormatPipe } from 'src/app/pipes/date-format.pipe';
 
@@ -79,6 +80,25 @@ export class MobileRowCardComponent {
     const n = typeof raw === 'number' ? raw : Number(raw);
     return Number.isFinite(n) && n > 0;
   });
+
+  formattedHighlightedValue = computed((): string => {
+    const col = this.highlightedColumn();
+    if (!col) return '';
+    return this.formatMobileHighlightedValue(this.resolveValue(col));
+  });
+
+  private formatMobileHighlightedValue(value: unknown): string {
+    if (value == null) return '';
+    const str = String(value);
+    if (str.trim() === '') return '';
+    const format: MobileHighlightedValueFormat =
+      this.config().highlightedValueFormat ?? 'currencyIls';
+    switch (format) {
+      case 'currencyIls': return `${str} ₪`;
+      case 'percent':     return `${str}%`;
+      case 'plain':       return str;
+    }
+  }
 
   // ─── Computed: excluded column names set ─────────────────────────────────
   private excludedNames = computed(() => new Set<string>([

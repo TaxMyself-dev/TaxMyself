@@ -110,6 +110,17 @@
     [size]="isMobile() ? inputSize.MOBILE : inputSize.BETWEEN">
   </app-input-select>
 
+  <!-- VAT report period — only for VAT-licensed businesses (monthly / dual).
+       Exempt businesses don't file VAT reports, so the field is hidden and
+       the period stays null. -->
+  @if (isVatLicensed()) {
+    <app-input-select [customStyle]="'register'" [controlName]="'vatReportingDate'"
+      [labelText]="'תקופת דיווח מע&quot;מ'" [placeholder]="'בחר תקופה'" [items]="vatPeriodOptions()"
+      [parentForm]="mannualExpenseForm" [size]="isMobile() ? inputSize.MOBILE : inputSize.BETWEEN"
+      (onChangeInputSelect)="onVatPeriodChange($event)">
+    </app-input-select>
+  }
+
   <app-input-text [customStyle]="'rounded-border'" [controlName]="'pnlCategory'"
     [labelText]="'קטגוריה לדוח רווח והפסד (אופציונלי)'" [placeholder]="'ריק = לפי תת הקטגוריה'"
     [parentForm]="mannualExpenseForm" [size]="isMobile() ? inputSize.MOBILE : inputSize.LARGE" [type]="'text'">
@@ -127,7 +138,14 @@
 
 <div class="wrap-file-uploader">
   <app-file-uploader-gpt (selectedFiles)="selectedFiles($event)"></app-file-uploader-gpt>
-  
+
+  @if (isOcrLoading()) {
+    <div class="ocr-loading" role="status" aria-live="polite">
+      <p-progressSpinner strokeWidth="4" styleClass="ocr-loading__spinner"></p-progressSpinner>
+      <span class="ocr-loading__text">מחלצים נתונים מהקובץ, רגע אחד…</span>
+    </div>
+  }
+
   @if (previewFileUrl() && previewFileType()) {
     <div class="file-preview-section" style="margin-top: 1rem; border: 1px solid #ddd; border-radius: 8px; padding: 1rem; background: #f9f9f9;">
       @if (previewFileType() === 'pdf' && pdfUrlWithParams()) {
@@ -166,3 +184,73 @@
     [isLoading]="isLoadingAddExpense()" [buttonText]="editMode ? 'עדכן' : 'הוסף'" [buttonSize]="buttonSize.SMALL"
     [buttonColor]="buttonColor.BLACK"></app-p-button>
 </div>
+
+<!-- Manual VAT-report-period entry (the "אחר" option). Lets the user type a
+     specific period outside the 6-month-forward window (e.g. back-dated
+     reporting), matching the extracted-documents review modal. -->
+<p-dialog
+  header="הזנת תקופת דיווח ידנית"
+  [visible]="customVatPeriodVisible()"
+  (visibleChange)="$event ? null : cancelCustomVatPeriod()"
+  [modal]="true"
+  [style]="{ width: '460px', maxWidth: '95vw' }"
+  [draggable]="false"
+  [resizable]="false">
+
+  <div class="custom-vat-period-body">
+    <p>
+      ניתן לבחור תקופת דיווח מהרשימה, או להזין כאן תקופה אחרת ידנית.
+    </p>
+    <label for="customVatPeriodInput">תקופת דיווח</label>
+    <input
+      id="customVatPeriodInput"
+      type="text"
+      class="custom-vat-period-input"
+      [ngModel]="customVatPeriodValue()"
+      (ngModelChange)="customVatPeriodValue.set($event)"
+      (keydown.enter)="confirmCustomVatPeriod()"
+      placeholder="לדוגמה: 5-6/2026 או 5/2026"
+      autocomplete="off" />
+  </div>
+
+  <ng-template pTemplate="footer">
+    <app-p-button [buttonText]="'ביטול'" [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.SMALL"
+      (onButtonClicked)="cancelCustomVatPeriod()"></app-p-button>
+    <app-p-button [buttonText]="'אישור'" [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.SMALL"
+      [disabled]="!customVatPeriodValue().trim()" (onButtonClicked)="confirmCustomVatPeriod()"></app-p-button>
+  </ng-template>
+</p-dialog>
+
+<!-- Duplicate dialog — two flavors share it:
+     • HARD (DUPLICATE_EXACT, same document number): informational "can't
+       save", close-only.
+     • SOFT (DUPLICATE_WARNING, same supplier/sum/date but different/missing
+       number): offers "save anyway". -->
+<p-dialog
+  [header]="duplicateIsHardBlock() ? 'לא ניתן לשמור' : 'ייתכן שזו הוצאה כפולה'"
+  [visible]="duplicateConfirmVisible()"
+  (visibleChange)="$event ? null : cancelDuplicateSave()"
+  [modal]="true"
+  [style]="{ width: '460px', maxWidth: '95vw' }"
+  [draggable]="false"
+  [resizable]="false">
+
+  <div class="duplicate-confirm-body">
+    <p>{{ duplicateMessage() }}</p>
+    @if (!duplicateIsHardBlock()) {
+      <p>האם לשמור אותה בכל זאת?</p>
+    }
+  </div>
+
+  <ng-template pTemplate="footer">
+    @if (duplicateIsHardBlock()) {
+      <app-p-button [buttonText]="'סגור'" [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.SMALL"
+        (onButtonClicked)="cancelDuplicateSave()"></app-p-button>
+    } @else {
+      <app-p-button [buttonText]="'ביטול'" [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.SMALL"
+        [variant]="'outlined'" (onButtonClicked)="cancelDuplicateSave()"></app-p-button>
+      <app-p-button [buttonText]="'שמור בכל זאת'" [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.SMALL"
+        [isLoading]="isLoadingAddExpense()" (onButtonClicked)="confirmDuplicateSave()"></app-p-button>
+    }
+  </ng-template>
+</p-dialog>

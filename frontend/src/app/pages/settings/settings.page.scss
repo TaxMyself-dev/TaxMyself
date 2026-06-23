@@ -3,7 +3,6 @@
   width: 100%;
   height: 100%;
   min-height: 100vh;
-  max-height: 100vh;
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
@@ -18,12 +17,26 @@
   flex-direction: column;
   gap: 40px;
   justify-content: flex-start;
+  align-items: center;
   box-sizing: border-box;
 }
 
 .settings-tabs {
   width: 100%;
   margin-bottom: 0;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background-color: var(--ion-background-color, #f8f8f8);
+  padding-top: 8px;
+  padding-bottom: 8px;
+  margin-top: -8px;
+  /* extend to the edges of the page-wrapper padding */
+  margin-left: -50px;
+  margin-right: -50px;
+  padding-left: 50px;
+  padding-right: 50px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
 .section-block {
@@ -31,6 +44,21 @@
   flex-direction: column;
   gap: 20px;
   width: 100%;
+}
+
+@media (max-width: 768px) {
+  .page-wrapper {
+    padding: 12px 16px;
+    padding-bottom: 60px;
+  }
+
+  .settings-tabs {
+    margin-left: -16px;
+    margin-right: -16px;
+    padding-left: 16px;
+    padding-right: 16px;
+    margin-top: -12px;
+  }
 }
 
 .section-title {
@@ -288,6 +316,28 @@
   margin: 0;
 }
 
+.inbox-folder-row {
+  margin-top: 4px;
+}
+
+.inbox-folder-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #0a6ed1;
+  text-decoration: none;
+
+  i {
+    font-size: 16px;
+  }
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
 .business-details {
   display: flex;
   flex-direction: column;
@@ -310,6 +360,10 @@
 }
 
 @media (prefers-color-scheme: dark) {
+  .settings-tabs {
+    background-color: var(--ion-background-color, #1a1a1a);
+  }
+
   .section-title {
     color: #fff;
   }
@@ -422,10 +476,10 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 24px;
-  border-radius: 15px;
+  // padding: 24px;
+  // border-radius: 15px;
   background-color: #fff;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  // box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   width: 100%;
 }
 
@@ -464,7 +518,7 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
-  padding: 24px;
+  // padding: 24px;
   border-radius: 15px;
   background-color: #fff;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
@@ -588,6 +642,194 @@
   .accounts-list {
     li {
       color: #eee;
+    }
+  }
+}
+
+/* ===========================
+   RESPONSIVE – TABLET / MOBILE
+   =========================== */
+
+@media (max-width: 768px) {
+  /* Outer page padding */
+  .page-wrapper {
+    padding: 20px 16px 60px;
+    gap: 24px;
+  }
+
+  .settings-tabs {
+    margin-left: -16px;
+    margin-right: -16px;
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  /* Kill the fixed 740px min-width — everything becomes fluid */
+  .details-container-fixed {
+    min-width: 0;
+    width: 100%;
+  }
+
+  /* Reduce card/frame padding */
+  .personal-frame,
+  .details-container {
+    padding: 16px;
+    gap: 16px;
+  }
+
+  .business-card {
+    padding: 16px;
+  }
+
+  .accounts-management,
+  .permissions-inner-frame {
+    padding: 16px;
+  }
+
+  /* Inputs and read-only boxes stretch to fill their container */
+  .detail-input,
+  .detail-input.detail-select,
+  .detail-value-box {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+
+  /* PrimeNG p-select override */
+  ::ng-deep .p-select.settings-select-width {
+    width: 100% !important;
+    min-width: 0;
+  }
+
+  /* Form fields wrap and fill available width */
+  .detail-field {
+    flex: 1 1 160px;
+    min-width: 0;
+  }
+
+  /* Children grid: swap fixed px columns for fluid fractions */
+  .child-row {
+    grid-template-columns: repeat(3, 1fr) 28px;
+    gap: 8px 12px;
+  }
+
+  /* Account sources: allow rows to wrap instead of overflowing */
+  .accounts-sources-header {
+    flex-wrap: wrap;
+  }
+
+  .details-container-fixed.accounts-sources-container .detail-row.three-fields {
+    flex-wrap: wrap;
+  }
+
+  /* Each source field stacks as a full-width block */
+  .accounts-sources-container .detail-field {
+    flex: 1 1 100%;
+    width: 100%;
+    min-width: 0;
+  }
+
+  /* Hide the header row on mobile — column labels don't align when stacked */
+  .accounts-sources-header {
+    display: none;
+  }
+
+  .section-block {
+    gap: 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .page-wrapper {
+    padding: 12px 10px 60px;
+    gap: 16px;
+  }
+
+  .settings-tabs {
+    margin-left: -10px;
+    margin-right: -10px;
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+
+  .personal-frame,
+  .details-container {
+    padding: 12px;
+    gap: 12px;
+  }
+
+  .business-card,
+  .accounts-management,
+  .permissions-inner-frame {
+    padding: 12px;
+  }
+
+  .section-title {
+    font-size: 18px;
+  }
+
+  .subsection-title {
+    font-size: 16px;
+  }
+
+  /* Tighten children row gap on small phones */
+  .child-row {
+    gap: 6px 8px;
+  }
+}
+
+/* ===================================================================
+   BUSINESSES TAB — MOBILE RESPONSIVE
+   Scoped to .section-businesses-wrapper so the other tabs are untouched.
+   =================================================================== */
+@media (max-width: 768px) {
+  .section-businesses-wrapper {
+    .detail-row.three-fields,
+    .detail-row.two-fields {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+  }
+}
+
+/* ===================================================================
+   PERSONAL TAB — MOBILE RESPONSIVE
+   Scoped to .section-personal-wrapper so the other tabs are untouched.
+   =================================================================== */
+
+/* ≤768 px  (isMobile() threshold — same breakpoint GenericService uses)
+   - One field per row (single column)
+   - Input width is controlled by inputsSize.MOBILE (255px) from global.scss
+   -------------------------------------------------------------------- */
+@media (max-width: 768px) {
+  .section-personal-wrapper {
+    /* Force every detail-row to stack vertically — one field per row */
+    .detail-row.three-fields,
+    .detail-row.two-fields {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    /* Children: override the global repeat(3,1fr) 28px grid.
+       Stack the three inputs in one column; delete button sits
+       top-right, aligned with the first input field. */
+    .child-row {
+      grid-template-columns: auto 28px;
+      gap: 8px;
+    }
+
+    .child-row app-input-text,
+    .child-row app-input-date {
+      grid-column: 1 / 2;
+    }
+
+    .child-row .child-remove-btn {
+      grid-column: 2 / 3;
+      grid-row: 1 / 2;
+      align-self: start;
+      /* ~label height (16px font + 10px padding-bottom) so the button
+         aligns visually with the input field beneath the label */
+      margin-top: 26px;
     }
   }
 }

@@ -1,3 +1,4 @@
+import { TemplateRef } from "@angular/core";
 import { ValidatorFn } from "@angular/forms";
 import { RegisterFormModules } from "../pages/register/regiater.enum";
 import { AccountantTaskSource, AccountantTaskType, BusinessStatus, BusinessType, ExpenseFormColumns, ExpenseFormHebrewColumns, FormTypes, ICellRenderer, TaxReportingType, VATReportingType } from "./enums";
@@ -144,6 +145,8 @@ export interface IUserData {
     firebaseId: string;
     id: string;
     index: number;
+    /** True for a company/partnership registration — spouse/children/personal-only fields are not applicable. */
+    isCompany: boolean;
     businessStatus: BusinessStatus;
     lName: string;
     phone: string;
@@ -171,6 +174,10 @@ export interface IUserData {
     previousLoginAt: string | null;
     /** Timestamp of the current session's sign-in. */
     lastLoginAt: string | null;
+    /** True when the signed-in user's email matches a DEMO_PROFILES entry —
+     *  enables the "אפס נתוני בדיקה" button on the dashboard. Stamped by
+     *  the backend on every sign-in (users.service.findFireUser). */
+    isDemo: boolean;
 }
 
 export interface IChild {
@@ -236,6 +243,19 @@ export interface IColumnDataTable<TFormColumns, TFormHebrewColumns> {
     errorText?: string;
     hide?: boolean;
     onChange?: (event?: any, parent?: any) => void;
+    /** Opt-in: render this cell as an inline editor based on `type`
+     *  (TEXT/NUMBER/DATE → input, DDL + listItems → select, CHECKBOX → checkbox).
+     *  Writes `[(ngModel)]` directly into `row[name]` and fires `onChange` on each change.
+     *  Omitted / false → cell renders read-only (existing behavior). */
+    editable?: boolean;
+    /** Opt-in: render this cell via a custom `<ng-template>`. Overrides `editable`
+     *  and all built-in renderers. The template receives `{ $implicit: row, row, col }`
+     *  so consumers can use either `let-row` or `let-row="row"`. */
+    cellTemplate?: TemplateRef<any>;
+    /** Optional CSS width hint applied to the `<th>` via `[style.width]`. Lets the
+     *  consumer keep icon-only columns narrow (e.g. `'36px'`) without restyling
+     *  generic-table globally. */
+    width?: string;
 }
 
 export interface ISettingDoc {
@@ -414,6 +434,8 @@ export interface ITableRowAction {
     isLoading?: () => boolean;
 }
 
+export type MobileHighlightedValueFormat = 'currencyIls' | 'percent' | 'plain';
+
 export interface IMobileCardConfig {
     /** Column name(s) used as the card's primary title (hero section) */
     primaryFields: string[];
@@ -423,6 +445,8 @@ export interface IMobileCardConfig {
     dateField: string;
     /** Column names to hide entirely from the card (not rendered anywhere) */
     hiddenFields?: string[];
+    /** How to format the highlighted value. Defaults to 'currencyIls' (appends ₪). */
+    highlightedValueFormat?: MobileHighlightedValueFormat;
 }
 
 export interface IButtons {
@@ -612,6 +636,8 @@ export interface Business {
     nationalInsRequired: boolean | null;
     /** אחוז מקדמות מס הכנסה (משתנה בין עסק לעסק) */
     advanceTaxPercent: number | null;
+    /** מזהה תיקיית ה-Inbox ב-Google Drive של העסק (נוצר אוטומטית ב-provisioning) */
+    driveInboxFolderId?: string | null;
     //   bankBeneficiary: string | null;
     //   bankName: string | null;
     //   bankBranch: string | null;

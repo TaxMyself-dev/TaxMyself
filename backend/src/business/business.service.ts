@@ -1,15 +1,20 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, forwardRef, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Business } from './business.entity';
 import { Repository } from 'typeorm';
+import { UsersService } from 'src/users/users.service';
+import { BusinessType, isBusinessTypeAllowedForUser } from 'src/enum';
 
 
 @Injectable()
 export class BusinessService {
+  private readonly logger = new Logger(BusinessService.name);
 
   constructor(
     @InjectRepository(Business)
     private businessRepo: Repository<Business>,
+    @Inject(forwardRef(() => UsersService))
+    private readonly usersService: UsersService,
   ) { }
 
 
@@ -54,6 +59,9 @@ export class BusinessService {
     if (!business) {
       throw new NotFoundException('Business not found or not owned by user');
     }
+    if (dto.businessType !== undefined) {
+      await this.assertBusinessTypeAllowed(firebaseId, dto.businessType as BusinessType | null);
+    }
     if (dto.advanceTaxPercent !== undefined) business.advanceTaxPercent = dto.advanceTaxPercent;
     if (dto.businessName !== undefined) business.businessName = dto.businessName;
     if (dto.businessAddress !== undefined) business.businessAddress = dto.businessAddress;
@@ -78,6 +86,9 @@ export class BusinessService {
       advanceTaxPercent?: number;
     },
   ): Promise<Business> {
+    if (dto?.businessType !== undefined) {
+      await this.assertBusinessTypeAllowed(firebaseId, dto.businessType as BusinessType | null);
+    }
     const business = this.businessRepo.create({
       firebaseId,
       businessName: dto?.businessName ?? null,
@@ -88,7 +99,38 @@ export class BusinessService {
       businessType: (dto?.businessType as any) ?? null,
       advanceTaxPercent: dto?.advanceTaxPercent ?? null,
     });
-    return this.businessRepo.save(business);
+    const saved = await this.businessRepo.save(business);
+
+    // Fire-and-forget Drive folder provisioning for the new business so the
+    // request returns immediately. provisionDriveStructure iterates all the
+    // user's businesses and skips any that already have a driveFolderId, so
+    // calling it again only creates the new folder.
+    void this.provisionDriveForNewBusiness(firebaseId);
+
+    return saved;
+  }
+
+  private async provisionDriveForNewBusiness(firebaseId: string): Promise<void> {
+    try {
+      const user = await this.usersService.findByFirebaseId(firebaseId);
+      if (!user) return;
+      // Include delegated accountants so the new business folder shows up in
+      // their "Shared with me" automatically.
+      const accountantEmails = await this.usersService.getActiveAccountantEmailsForUser(firebaseId);
+      await this.usersService.provisionDriveStructure(user, accountantEmails);
+    } catch (err: any) {
+      this.logger.error(
+        `provisionDriveForNewBusiness failed for firebaseId=${firebaseId}: ${err?.message ?? err}`,
+        err?.stack,
+      );
+    }
+  }
+
+  private async assertBusinessTypeAllowed(firebaseId: string, businessType: BusinessType | null): Promise<void> {
+    const user = await this.usersService.findByFirebaseId(firebaseId);
+    if (!isBusinessTypeAllowedForUser(!!user?.isCompany, businessType)) {
+      throw new BadRequestException(`סוג עסק לא תואם לסוג ההרשמה: ${businessType}`);
+    }
   }
 
   async deleteBusiness(firebaseId: string, id: number): Promise<void> {

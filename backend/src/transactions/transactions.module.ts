@@ -22,6 +22,7 @@ import { UserSyncState } from './user-sync-state.entity';
 import { UserSourceSyncState } from './user-source-sync-state.entity';
 import { UserSyncStateService } from './user-sync-state.service';
 import { ExpensesService } from '../expenses/expenses.service';
+import { ExtractedDocument } from '../documents/extracted-document.entity';
 import { UserSubCategory } from '../expenses/user-sub-categories.entity';
 import { DefaultSubCategory } from '../expenses/default-sub-categories.entity';
 import { Supplier } from '../expenses/suppliers.entity';
@@ -32,12 +33,13 @@ import { Finsite } from 'src/finsite/finsite.entity';
 import { Delegation } from 'src/delegation/delegation.entity';
 import { SettingDocuments } from 'src/documents/settingDocuments.entity';
 import { Business } from 'src/business/business.entity';
+import { BillingModule } from '../billing/billing.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Expense, User, Business, Transactions, DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory,
             Supplier, ClassifiedTransactions, SlimTransaction, FullTransactionCache, UserTransactionCacheState, UserSyncState, UserSourceSyncState,
-            Bill, Source, Child, Finsite, Delegation, SettingDocuments]),
+            Bill, Source, Child, Finsite, Delegation, SettingDocuments, ExtractedDocument]),
     // SharedModule provides SharedService AND FxRateService. Importing it (and
     // removing the local `SharedService` provider below) means both services
     // resolve through the same SharedModule instance — which is what the
@@ -45,6 +47,7 @@ import { Business } from 'src/business/business.entity';
     SharedModule,
     forwardRef(() => UsersModule),
     forwardRef(() => FeezbackModule),
+    forwardRef(() => BillingModule),
   ],
   controllers: [TransactionsController],
   providers: [

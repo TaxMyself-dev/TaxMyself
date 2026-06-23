@@ -69,7 +69,8 @@ export enum ExpenseFormHebrewColumns {
   actions = 'פעולות',
   businessNumber = 'שייך לעסק',
   reportScope = 'סוג דוח',
-  pnlCategory = 'קטגוריה לדוח רווח והפסד'
+  pnlCategory = 'קטגוריה לדוח רווח והפסד',
+  vatReportingDate = 'תקופת דיווח מע"מ'
 
 }
 
@@ -94,7 +95,8 @@ export enum ExpenseFormColumns {
   ACTIONS = 'actions',
   CHECKBOX = 'checkbox',
   REPORT_SCOPE = 'reportScope',
-  PNL_CATEGORY = 'pnlCategory'
+  PNL_CATEGORY = 'pnlCategory',
+  VAT_REPORT_PERIOD = 'vatReportingDate'
 }
 
 export enum ClientsTableColumns {
@@ -393,6 +395,13 @@ export enum ICellRenderer {
   MONTH_REPORT = 'monthReport',
   /** Sum cell: shows the original currency amount, with an ILS conversion in parentheses below for non-ILS rows. */
   SUM_WITH_FX = 'sumWithFx',
+  /** Same as AMOUNT_WITH_PERCENT but adds a small equipment icon when row.isEquipment is true. */
+  TAX_WITH_EQUIPMENT = 'taxWithEquipment',
+  /** Plain ILS amount with " ש״ח" suffix. Lighter than AMOUNT_WITH_PERCENT
+   *  (no percent line, no two-line layout) — used for report-summary cells
+   *  where the row is already known to be in ILS and the percent context
+   *  doesn't apply. */
+  AMOUNT_ILS = 'amountIls',
 }
 
 export enum NavigationItemClass {
@@ -420,20 +429,41 @@ export const familyStatusOptionsList = [
 export enum BusinessType {
   EXEMPT = 'EXEMPT',
   LICENSED = 'LICENSED',
-  COMPANY = 'COMPANY'
+  LIMITED_COMPANY = 'LIMITED_COMPANY',
+  AUTHORIZED_PARTNERSHIP = 'AUTHORIZED_PARTNERSHIP',
+  EXEMPT_PARTNERSHIP = 'EXEMPT_PARTNERSHIP'
 }
 
 export const BusinessTypeLabels = {
   [BusinessType.EXEMPT]: 'עוסק פטור',
   [BusinessType.LICENSED]: 'עוסק מורשה',
-  [BusinessType.COMPANY]: 'חברה בע"מ'
+  [BusinessType.LIMITED_COMPANY]: 'חברה בע"מ',
+  [BusinessType.AUTHORIZED_PARTNERSHIP]: 'שותפות מורשה',
+  [BusinessType.EXEMPT_PARTNERSHIP]: 'שותפות פטורה'
 };
 
+/** Private (individual) registration — עוסק פטור / עוסק מורשה. */
 export const businessTypeOptionsList = [
   { value: BusinessType.EXEMPT, name: BusinessTypeLabels[BusinessType.EXEMPT] },
-  { value: BusinessType.LICENSED, name: BusinessTypeLabels[BusinessType.LICENSED] },
-  { value: BusinessType.COMPANY, name: BusinessTypeLabels[BusinessType.COMPANY] }
+  { value: BusinessType.LICENSED, name: BusinessTypeLabels[BusinessType.LICENSED] }
 ];
+
+/** Company registration — חברה בע"מ / שותפות מורשה / שותפות פטורה. */
+export const companyBusinessTypeOptionsList = [
+  { value: BusinessType.LIMITED_COMPANY, name: BusinessTypeLabels[BusinessType.LIMITED_COMPANY] },
+  { value: BusinessType.AUTHORIZED_PARTNERSHIP, name: BusinessTypeLabels[BusinessType.AUTHORIZED_PARTNERSHIP] },
+  { value: BusinessType.EXEMPT_PARTNERSHIP, name: BusinessTypeLabels[BusinessType.EXEMPT_PARTNERSHIP] }
+];
+
+/**
+ * VAT-exempt business types — עוסק פטור (EXEMPT) and its company counterpart
+ * שותפות פטורה (EXEMPT_PARTNERSHIP). Use this instead of comparing directly
+ * to BusinessType.EXEMPT anywhere VAT-exemption is the actual question, so
+ * exempt partnerships aren't silently treated as VAT-liable.
+ */
+export function isExemptBusinessType(businessType: BusinessType | string | null | undefined): boolean {
+  return businessType === BusinessType.EXEMPT || businessType === BusinessType.EXEMPT_PARTNERSHIP;
+}
 
 export enum EmploymentType {
   SELF_EMPLOYED = 'SELF_EMPLOYED',

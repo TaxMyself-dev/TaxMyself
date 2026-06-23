@@ -104,5 +104,20 @@ export class Business {
 
   // @Column({ type: 'varchar', nullable: true, default: null })
   // bankIban: string | null;
-  
+
+  // Google Drive folder id for this business — created lazily on first sync.
+  // Parent folder is the user's root Drive folder (user.drive_folder_id).
+  @Column({ name: 'drive_folder_id', type: 'varchar', length: 255, nullable: true, default: null })
+  driveFolderId: string | null;
+
+  // Two fixed sub-folders under driveFolderId. Populated by
+  // UsersService.provisionDriveStructure() on signup/business-create, and by
+  // the admin backfill endpoint for existing businesses. Files dropped into
+  // `inbox/` get OCR'd on the next report-page visit; OK files move to
+  // `processed/`.
+  @Column({ name: 'drive_inbox_folder_id', type: 'varchar', length: 255, nullable: true, default: null })
+  driveInboxFolderId: string | null;
+
+  @Column({ name: 'drive_processed_folder_id', type: 'varchar', length: 255, nullable: true, default: null })
+  driveProcessedFolderId: string | null;
 }

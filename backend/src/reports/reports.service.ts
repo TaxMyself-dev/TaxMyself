@@ -7,10 +7,11 @@ import { buildVatReportPdf } from './vat-report-pdf';
 import { AdvanceIncomeTaxReportDto } from './dtos/advance-income-tax-report.dto';
 import { ExpensePnlDto, PnLReportDto } from './dtos/pnl-report.dto';
 import { DepreciationReportDto } from './dtos/reduction-report.dto';
+import { Form1342ReportDto, Form1342ReportRowDto } from './dtos/depreciation-report.dto';
 import { ExpensesService } from '../expenses/expenses.service';
 import { SharedService } from 'src/shared/shared.service';
 import { User } from '../users/user.entity';
-import { BusinessType, DOC_TYPE_INFO, DocumentSummaryRow, DocumentType, FIELD_MAP, JournalReferenceType, ListSummaryRow, PaymentMethodType, UniformFileTypeCodeMap, UniformSummaries} from 'src/enum';
+import { BusinessType, DOC_TYPE_INFO, DocumentSummaryRow, DocumentType, FIELD_MAP, isExemptBusinessType, JournalReferenceType, ListSummaryRow, PaymentMethodType, UniformFileTypeCodeMap, UniformSummaries} from 'src/enum';
 import { Documents } from 'src/documents/documents.entity';
 import { DocLines } from 'src/documents/doc-lines.entity';
 import axios from 'axios';
@@ -276,7 +277,7 @@ export class ReportsService {
       });
       const businessType = business?.businessType ?? null;
 
-      if (businessType === BusinessType.EXEMPT) {
+      if (isExemptBusinessType(businessType)) {
         return this.getAdvanceIncomeTaxReportDataForExempt(
           businessNumber,
           startDate,
@@ -376,7 +377,7 @@ export class ReportsService {
       .where('doc.issuerBusinessNumber = :businessNumber', { businessNumber })
       .andWhere('doc.isCancelled = false');
 
-    if (businessType === BusinessType.EXEMPT) {
+    if (isExemptBusinessType(businessType)) {
       const res = await base
         .clone()
         .andWhere('doc.docType = :type', { type: 'RECEIPT' })
@@ -596,8 +597,8 @@ export class ReportsService {
       .andWhere('doc.isCancelled = false');
 
     // 3️⃣ Logic by type
-    if (businessType === BusinessType.EXEMPT) {
-      // 🟢 Exempt (עוסק פטור)
+    if (isExemptBusinessType(businessType)) {
+      // 🟢 Exempt (עוסק פטור / שותפות פטורה)
       // Income is based on RECEIPTs (sumAftDisBefVAT)
       const result = await baseQb
         .andWhere('doc.docType = :type', { type: 'RECEIPT' })
@@ -766,7 +767,99 @@ export class ReportsService {
     isLeapYear(year: number): boolean {
       return (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
     }
-    
+
+
+  /**
+   * Form 1342 — equipment depreciation report for a single tax year.
+   * Standalone implementation — does not share code with createReductionReport
+   * so the column-by-column math here stays simple and matches the form spec
+   * exactly. Filters expenses by `isEquipment = true` for the requested business
+   * and includes everything purchased on or before the selected tax year.
+   */
+  async createForm1342Report(
+    firebaseId: string,
+    businessNumber: string,
+    year: number,
+  ): Promise<Form1342ReportDto> {
+
+    const yearEnd = new Date(year, 11, 31, 23, 59, 59, 999);
+
+    const equipmentExpenses = await this.expenseRepo.find({
+      where: {
+        userId: firebaseId,
+        businessNumber,
+        isEquipment: true,
+      },
+      order: { date: 'ASC' },
+    });
+
+    const rows: Form1342ReportRowDto[] = [];
+
+    for (const expense of equipmentExpenses) {
+      // typeorm returns 'date' columns as Date OR string depending on driver
+      const purchaseDate = expense.date instanceof Date
+        ? expense.date
+        : new Date(expense.date);
+
+      // Exclude assets purchased after the selected tax year
+      if (purchaseDate > yearEnd) continue;
+
+      const purchaseYear = purchaseDate.getFullYear();
+      const originalCost = Number(expense.sum) || 0;
+      const depreciationRate = Number(expense.reductionPercent) || 0;
+      const annualDepreciation = +(originalCost * (depreciationRate / 100)).toFixed(2);
+
+      // Number of full years that have already passed before the selected year.
+      // Asset purchased in 2022, selected year 2024 → prior years = 2 (2022, 2023).
+      const fullPriorYears = Math.max(0, year - purchaseYear);
+
+      // Cap accumulated prior-year depreciation at the original cost — an asset
+      // can never depreciate more than it cost.
+      const rawPrior = +(fullPriorYears * annualDepreciation).toFixed(2);
+      const priorYearsDepreciation = Math.min(rawPrior, originalCost);
+
+      // Current-year depreciation: full annual amount, but capped at the
+      // remaining un-depreciated balance so total never exceeds original cost.
+      const remainingBeforeCurrent = +(originalCost - priorYearsDepreciation).toFixed(2);
+      const currentYearDepreciation = Math.min(annualDepreciation, remainingBeforeCurrent);
+
+      const totalDepreciation = +(priorYearsDepreciation + currentYearDepreciation).toFixed(2);
+      const remainingBalance = +(originalCost - totalDepreciation).toFixed(2);
+
+      const purchaseIso = purchaseDate.toISOString().slice(0, 10);
+
+      rows.push({
+        assetName: expense.supplier ?? '',
+        purchaseDate: purchaseIso,
+        activationDate: purchaseIso,
+        originalCost,
+        changesDuringYear: 0,
+        depreciationRate,
+        depreciationRatePerLaw: depreciationRate,
+        currentYearDepreciation,
+        priorYearsDepreciation,
+        totalDepreciation,
+        remainingBalance,
+      });
+    }
+
+    const totalOriginalCost = +rows.reduce((s, r) => s + r.originalCost, 0).toFixed(2);
+    const totalCurrentYearDepreciation = +rows.reduce((s, r) => s + r.currentYearDepreciation, 0).toFixed(2);
+    const totalPriorYearsDepreciation = +rows.reduce((s, r) => s + r.priorYearsDepreciation, 0).toFixed(2);
+    const totalDepreciation = +rows.reduce((s, r) => s + r.totalDepreciation, 0).toFixed(2);
+    const totalRemainingBalance = +rows.reduce((s, r) => s + r.remainingBalance, 0).toFixed(2);
+
+    return {
+      year,
+      rows,
+      totalOriginalCost,
+      totalCurrentYearDepreciation,
+      totalPriorYearsDepreciation,
+      totalDepreciation,
+      totalRemainingBalance,
+    };
+  }
+
 
     async createUniformFile(userId: string, startDate: string, endDate: string, businessNumber: string): Promise<{ filePath: string; zipBuffer: Buffer; document_summary: DocumentSummaryRow[]; list_summary: ListSummaryRow[] }> {
 

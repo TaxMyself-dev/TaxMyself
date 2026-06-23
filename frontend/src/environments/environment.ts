@@ -16,3 +16,4 @@ export const environment = {
     measurementId: "G-K8B1TC0DKB"
   },
 };
+// apiUrl: 'http://192.168.1.106:3000/',

@@ -113,7 +113,7 @@ export class ClientPanelPage implements OnInit {
   createClientFormData: CreateClientPayload = this.getEmptyClientFormData();
   readonly createClientErrors = signal<Record<string, string>>({});
 
-  /** עוסק פטור, עוסק מורשה, חברה בע"מ – כמו בעמוד ההרשמה */
+  /** עוסק פטור, עוסק מורשה – לקוחות פרטיים בלבד, כמו בעמוד ההרשמה */
   readonly businessTypeOptions = businessTypeOptionsList;
 
   // ---------- Tasks tab state ----------

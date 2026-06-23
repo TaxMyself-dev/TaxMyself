@@ -11,13 +11,16 @@ import { Business } from 'src/business/business.entity';
 import { FirebaseAuthGuard } from '../guards/firebase-auth.guard';
 import { FeezbackModule } from '../feezback/feezback.module';
 import { SettingDocuments } from 'src/documents/settingDocuments.entity';
-import { UserModuleSubscription } from './user-module-subscription.entity';
+import { GoogleDriveModule } from '../google-drive/google-drive.module';
+import { BillingModule } from '../billing/billing.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, Child, Business, Delegation, SettingDocuments, UserModuleSubscription]),
+    TypeOrmModule.forFeature([User, Child, Business, Delegation, SettingDocuments]),
     SharedModule,
     forwardRef(() => FeezbackModule),
+    GoogleDriveModule,
+    forwardRef(() => BillingModule),
   ],
   controllers: [UsersController],
   providers: [

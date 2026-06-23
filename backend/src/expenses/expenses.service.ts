@@ -1,5 +1,5 @@
 //General
-import { HttpException, HttpStatus, Injectable, NotFoundException, UnauthorizedException, ConflictException, ForbiddenException } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable, Logger, NotFoundException, UnauthorizedException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Between, DataSource, In, LessThanOrEqual, MoreThan, MoreThanOrEqual, Repository } from 'typeorm';
 //Entities
@@ -11,6 +11,7 @@ import { DefaultSubCategory } from './default-sub-categories.entity';
 import { UserCategory } from './user-categories.entity';
 import { UserSubCategory } from './user-sub-categories.entity';
 import { ClassifiedTransactions } from '../transactions/classified-transactions.entity';
+import { ExtractedDocument, ExtractedDocStatus } from '../documents/extracted-document.entity';
 import { SharedService } from '../shared/shared.service';
 import { FxRateService } from '../shared/fx-rate.service';
 import { Business } from 'src/business/business.entity';
@@ -28,6 +29,7 @@ import { UpdateUserSubCategoryDto } from './dtos/update-user-sub-category.dto';
 
 @Injectable()
 export class ExpensesService {
+    private readonly logger = new Logger(ExpensesService.name);
 
     constructor
         (
@@ -41,13 +43,23 @@ export class ExpensesService {
             @InjectRepository(Supplier) private supplier_repo: Repository<Supplier>,
             @InjectRepository(Business) private businessRepo: Repository<Business>,
             @InjectRepository(ClassifiedTransactions) private rulesRepo: Repository<ClassifiedTransactions>,
+            @InjectRepository(ExtractedDocument) private extractedDocRepo: Repository<ExtractedDocument>,
             private readonly fxRateService: FxRateService,
             private readonly dataSource: DataSource,
         ) { }
 
 
-    async addExpense(expense: CreateExpenseDto, userId: string, businessNumber: string): Promise<Expense> {
-        console.log("addExpense - start");
+    async addExpense(
+        expense: CreateExpenseDto,
+        userId: string,
+        businessNumber: string,
+        /** Opt-out flag for the Supplier-table auto-create below. Default
+         *  true (preserves current behavior for every caller that doesn't
+         *  pass it). The report-review modal sets this to `false` when the
+         *  user clicked the red flag icon on a row to dismiss adding that
+         *  one-off vendor to their master list. */
+        saveAsSupplier: boolean = true,
+    ): Promise<Expense> {
         const newExpense = this.expense_repo.create(expense);
 
         // Foreign-currency manual entry: when the form sends originalCurrency
@@ -72,8 +84,16 @@ export class ExpensesService {
             newExpense.originalSum = null;
         }
 
-        // isEquipment should be true only if category is "רכוש קבוע", otherwise always false
-        if (expense.category === 'רכוש קבוע') {
+        // isEquipment resolution:
+        //   1) Trust an explicit value from the DTO (the OCR bulk-confirm flow
+        //      sends it from the catalog match — sub-categories tagged
+        //      isEquipment=true should win regardless of parent category name).
+        //   2) Otherwise fall back to the legacy behavior: only the parent
+        //      category "רכוש קבוע" triggers an isEquipment lookup; everything
+        //      else stays false (preserves the existing manual-entry contract).
+        if (typeof (expense as any).isEquipment === 'boolean') {
+            newExpense.isEquipment = (expense as any).isEquipment;
+        } else if (expense.category === 'רכוש קבוע') {
             const isEquipment = await this.getSubCategoryIsEquipment(expense.category, expense.subCategory, userId, businessNumber);
             newExpense.isEquipment = isEquipment ?? false;
         } else {
@@ -104,10 +124,115 @@ export class ExpensesService {
         // This calculates the tax amount based on the amount after VAT
         newExpense.totalTaxPayable = (newExpense.sum - newExpense.totalVatPayable) * (newExpense.taxPercent / 100);
 
+        // Duplicate guard — two tiers, both keyed on (userId, businessNumber,
+        // supplier, sum, date). Run AFTER the FX conversion so the `sum`
+        // comparison is ILS-on-both-sides (the foreign-currency manual entry
+        // block above may have rewritten newExpense.sum from originalSum).
+        //
+        //   HARD block (DUPLICATE_EXACT) — a match that ALSO shares the
+        //     document number (expenseNumber, present on both sides). That's
+        //     the literal same invoice; never savable.
+        //   SOFT warn (DUPLICATE_WARNING) — same supplier/sum/date but a
+        //     different or missing document number. Could be a genuine
+        //     same-day repeat purchase (two ₪50 fuel receipts) OR a real
+        //     duplicate the user didn't notice. We reject so the UI can ask
+        //     "save anyway?"; re-sending with acknowledgeDuplicate=true lets
+        //     it through. A missing number on either side stays SOFT — we
+        //     can't prove it's the same physical document.
+        const trimmedSupplier = newExpense.supplier?.trim();
+        if (trimmedSupplier) {
+            const matches = await this.expense_repo.find({
+                where: {
+                    userId,
+                    businessNumber,
+                    supplier: trimmedSupplier,
+                    sum: newExpense.sum,
+                    date: newExpense.date as any,
+                },
+            });
+            if (matches.length) {
+                const newNumber = newExpense.expenseNumber?.trim();
+                const exact = newNumber
+                    ? matches.find(m => m.expenseNumber?.trim() === newNumber)
+                    : undefined;
+                if (exact) {
+                    throw new ConflictException({
+                        code: 'DUPLICATE_EXACT',
+                        message: `הוצאה זו כבר קיימת במערכת, לא ניתן לשמור אותה.`,
+                        existingExpenseId: exact.id,
+                        existingPeriod: exact.vatReportingDate ?? null,
+                    });
+                }
+                if (!expense.acknowledgeDuplicate) {
+                    throw new ConflictException({
+                        code: 'DUPLICATE_WARNING',
+                        message: `קיימת הוצאה דומה (אותו ספק, סכום ותאריך) — ייתכן שזו כפילות.`,
+                        existingExpenseId: matches[0].id,
+                        existingPeriod: matches[0].vatReportingDate ?? null,
+                    });
+                }
+                // acknowledgeDuplicate === true → user confirmed; fall through.
+            }
+        }
+
         const resAddExpense = await this.expense_repo.save(newExpense);
         if (!resAddExpense || Object.keys(resAddExpense).length === 0) {
             throw new Error("expense not saved");
         }
+
+        // Auto-register the supplier in this business's master list. Runs
+        // AFTER the Expense save so a Supplier row never lands without its
+        // triggering Expense. Idempotent via the (businessNumber, supplierID)
+        // find-or-create — a business with 100 monthly Bezeq invoices ends
+        // up with one `supplier` row, not 100. Scoped by businessNumber (NOT
+        // userId) because the suppliers list endpoint is per-business: with
+        // a user-scoped check, biz A's auto-create would block biz B from
+        // ever getting its own row. Empty supplierIDs (foreign vendors with
+        // no Israeli tax ID) get skipped — there's nothing reliable to
+        // deduplicate against, and downstream listings tolerate the absent
+        // master row. saveAsSupplier=false skips the whole block — the
+        // review modal sets this when the user dismissed the red flag on
+        // the row. Best-effort: a failed Supplier save logs and continues
+        // — the Expense is already committed and the user shouldn't lose
+        // their action because of master-list bookkeeping.
+        const supplierIdTrimmed = newExpense.supplierID?.trim();
+        if (saveAsSupplier && supplierIdTrimmed) {
+            try {
+                const existing = await this.supplier_repo.findOne({
+                    where: { businessNumber, supplierID: supplierIdTrimmed },
+                });
+                if (!existing) {
+                    await this.supplier_repo.save(this.supplier_repo.create({
+                        userId,
+                        businessNumber,
+                        supplier: newExpense.supplier ?? '',
+                        supplierID: supplierIdTrimmed,
+                        category: newExpense.category ?? '',
+                        subCategory: newExpense.subCategory ?? '',
+                        vatPercent: newExpense.vatPercent ?? 0,
+                        taxPercent: newExpense.taxPercent ?? 0,
+                        isEquipment: !!newExpense.isEquipment,
+                        reductionPercent: 0,
+                    }));
+                }
+            } catch (err: any) {
+                // ER_DUP_ENTRY = the DB's uq_supplier_business_supplierid
+                // index caught a race (concurrent tabs / double-click). The
+                // sibling request already created the row, so this is a
+                // no-op success — log at debug, not warn.
+                if (err?.code === 'ER_DUP_ENTRY') {
+                    this.logger.debug(
+                        `addExpense: Supplier auto-create lost a race for ` +
+                        `(biz=${businessNumber}, supplierID=${supplierIdTrimmed}) — sibling won, OK`,
+                    );
+                } else {
+                    this.logger.warn(
+                        `addExpense: auto-create Supplier failed (supplierID=${supplierIdTrimmed}, expense=${resAddExpense.id}): ${err?.message ?? err}`,
+                    );
+                }
+            }
+        }
+
         return resAddExpense;
     }
 
@@ -738,27 +863,51 @@ export class ExpensesService {
 
 
     async addSupplier(supplier: Partial<Supplier>, userId: string, businessNumber: string) {
-        console.log("addSupplier - start");
-        console.log("addSupplier - businessNumber:", businessNumber);
-
-        // Check if supplier already exists for this business (not globally)
-        const isAlreadyExist = await this.supplier_repo.findOne({ 
-            where: { 
-                supplier: supplier.supplier,
-                businessNumber: businessNumber 
-            } 
-        });
-        console.log("is allready: ", isAlreadyExist);
-        if (isAlreadyExist) {
+        // Dedup priority: supplierID is the legal identity (tax ID), so
+        // when present it's the conflict key — two suppliers with the same
+        // display name but different tax IDs are different real entities
+        // (e.g. two stores under the same chain brand) and BOTH should be
+        // allowed. When supplierID is empty (cash vendor, foreign merchant)
+        // fall back to name-uniqueness so users don't accidentally create
+        // "אנונימי" twice.
+        const supplierIdTrimmed = supplier.supplierID?.trim();
+        const existing = supplierIdTrimmed
+            ? await this.supplier_repo.findOne({
+                  where: { businessNumber, supplierID: supplierIdTrimmed },
+              })
+            : await this.supplier_repo.findOne({
+                  where: { businessNumber, supplier: supplier.supplier },
+              });
+        if (existing) {
+            const reason = supplierIdTrimmed
+                ? `supplierID "${supplierIdTrimmed}"`
+                : `name "${supplier.supplier}"`;
             throw new HttpException({
                 status: HttpStatus.CONFLICT,
-                error: `Supplier with this name: "${supplier.supplier}" already exists for this business`
+                error: `Supplier with ${reason} already exists for this business`
             }, HttpStatus.CONFLICT);
         }
         const newSupplier = this.supplier_repo.create(supplier);
         newSupplier.userId = userId;
         newSupplier.businessNumber = businessNumber;
-        return await this.supplier_repo.save(newSupplier);
+        if (supplierIdTrimmed) newSupplier.supplierID = supplierIdTrimmed;
+        try {
+            return await this.supplier_repo.save(newSupplier);
+        } catch (err: any) {
+            // The pre-check above resolves the common case, but a concurrent
+            // request can still race past it. The DB's uq_supplier_business_
+            // supplierid index turns that race into ER_DUP_ENTRY — surface as
+            // a 409 instead of letting it bubble up as a 500.
+            if (err?.code === 'ER_DUP_ENTRY') {
+                throw new HttpException({
+                    status: HttpStatus.CONFLICT,
+                    error: supplierIdTrimmed
+                        ? `Supplier with supplierID "${supplierIdTrimmed}" already exists for this business`
+                        : `Supplier with name "${supplier.supplier}" already exists for this business`,
+                }, HttpStatus.CONFLICT);
+            }
+            throw err;
+        }
     }
 
 
@@ -857,11 +1006,13 @@ export class ExpensesService {
 
         // Attach the RESOLVED P&L category per row so the bookkeeping table can
         // show it without a per-row query. Precedence: per-expense override →
-        // subcategory map → null (UI shows "—" = uses bookkeeping category).
+        // subcategory map → bookkeeping category. This mirrors the actual P&L
+        // report grouping (reports.service.ts), so the column shows the real
+        // category the expense rolls up under instead of a bare "—".
         const pnlCategoryMap = await this.getPnlCategoryMap(userId, businessNumber);
         for (const e of reportedExpenses) {
             (e as any).resolvedPnlCategory =
-                e.pnlCategory ?? pnlCategoryMap.get(e.subCategory) ?? null;
+                e.pnlCategory ?? pnlCategoryMap.get(e.subCategory) ?? e.category;
         }
 
         // // Valid months when isSingleMonth is false
@@ -1196,4 +1347,227 @@ export class ExpensesService {
         }));
     }
 
+    /**
+     * Bulk-confirm a batch of OCR-extracted documents as Expenses. For each item:
+     *   1) create an Expense row (reuses addExpense for currency/percent logic)
+     *   2) optionally create a Supplier row (if saveAsSupplier && supplierID
+     *      isn't already in this user's supplier table)
+     *   3) mark the source extracted_document.confirmed_expense_id so it falls
+     *      out of the review list and can't be confirmed twice.
+     * Per-row best-effort: one failure doesn't abort the batch.
+     */
+    async bulkConfirmFromDrive(
+        firebaseId: string,
+        businessNumber: string,
+        items: BulkConfirmFromDriveItem[],
+    ): Promise<{
+        results: Array<{ documentId: number; ok: boolean; expenseId?: number; supplierCreated?: boolean; error?: string }>;
+        summary: { total: number; succeeded: number; failed: number };
+    }> {
+        const results: Array<{ documentId: number; ok: boolean; expenseId?: number; supplierCreated?: boolean; error?: string }> = [];
+
+        for (const item of items) {
+            try {
+                const dto: CreateExpenseDto = {
+                    supplier: item.supplier,
+                    supplierID: item.supplierID ?? '',
+                    expenseNumber: undefined as any,
+                    category: item.category,
+                    subCategory: item.subCategory,
+                    sum: item.sum,
+                    taxPercent: item.taxPercent,
+                    vatPercent: item.vatPercent,
+                    date: new Date(item.date) as any,
+                    note: undefined as any,
+                    file: undefined as any,
+                    reductionPercent: 0,
+                    isEquipment: !!item.isEquipment,
+                };
+
+                const expense = await this.addExpense(dto, firebaseId, businessNumber);
+
+                // Stamp the report-period label. The drive-extract flow is the
+                // only path that pre-computes vatReportingDate at confirm-time
+                // — manual addExpense leaves it NULL and falls back to the
+                // date-range filter in queries. Honor an explicit override
+                // from the UI (user-edited period dropdown) over the date.
+                const periodLabel = item.reportPeriod?.trim()
+                  || await this.derivePeriodLabelForBusiness(businessNumber, item.date);
+                if (periodLabel) {
+                    await this.expense_repo.update(expense.id, { vatReportingDate: periodLabel as any });
+                }
+
+                let supplierCreated = false;
+                if (item.saveAsSupplier && item.supplierID) {
+                    // Per-business dedup — matches addExpense's auto-create
+                    // and the suppliers-list endpoint (both scope by
+                    // businessNumber). userId-scoped lookup would block biz
+                    // B from getting a Bezeq row if biz A already had one.
+                    try {
+                        const existing = await this.supplier_repo.findOne({
+                            where: { businessNumber, supplierID: item.supplierID },
+                        });
+                        if (!existing) {
+                            await this.supplier_repo.save(
+                                this.supplier_repo.create({
+                                    supplier: item.supplier,
+                                    supplierID: item.supplierID,
+                                    category: item.category,
+                                    subCategory: item.subCategory,
+                                    taxPercent: item.taxPercent,
+                                    vatPercent: item.vatPercent,
+                                    userId: firebaseId,
+                                    businessNumber,
+                                    isEquipment: !!item.isEquipment,
+                                    reductionPercent: 0,
+                                }),
+                            );
+                            supplierCreated = true;
+                        }
+                    } catch (sErr: any) {
+                        // Race with a sibling create (e.g. user double-
+                        // clicked approve, two tabs, parallel rows in the
+                        // same bulk). The DB index already enforces the
+                        // invariant — treat ER_DUP_ENTRY as "sibling won",
+                        // not a failure. The Expense above is already
+                        // committed and the doc is about to be marked
+                        // APPROVED — losing this supplier-master write
+                        // shouldn't fail the row.
+                        if (sErr?.code !== 'ER_DUP_ENTRY') throw sErr;
+                        this.logger.debug(
+                            `bulkConfirm: Supplier auto-create lost a race for ` +
+                            `(biz=${businessNumber}, supplierID=${item.supplierID}) — sibling won, OK`,
+                        );
+                    }
+                }
+
+                // Mark the source row as approved so it falls out of the
+                // pending_review query AND records the resulting expense id
+                // for traceability.
+                await this.extractedDocRepo.update(item.documentId, {
+                    confirmedExpenseId: expense.id,
+                    status: ExtractedDocStatus.APPROVED,
+                });
+
+                results.push({ documentId: item.documentId, ok: true, expenseId: expense.id, supplierCreated });
+            } catch (err: any) {
+                this.logger.error(
+                    `bulkConfirmFromDrive: documentId=${item.documentId} failed: ${err?.message ?? err}`,
+                    err?.stack,
+                );
+                results.push({ documentId: item.documentId, ok: false, error: err?.message ?? String(err) });
+            }
+        }
+
+        const succeeded = results.filter(r => r.ok).length;
+        return {
+            results,
+            summary: { total: items.length, succeeded, failed: items.length - succeeded },
+        };
+    }
+
+    /**
+     * Compute the VAT report-period label for `dateString` using the
+     * business's cadence — single ("M/YYYY") or dual-month ("M1-M2/YYYY").
+     * Returns null when the business or date can't be resolved (caller then
+     * leaves vatReportingDate untouched and relies on the date-range
+     * fallback in the report query).
+     */
+    private async derivePeriodLabelForBusiness(
+        businessNumber: string,
+        dateString: string,
+    ): Promise<string | null> {
+        if (!dateString) return null;
+        const dt = new Date(dateString);
+        if (Number.isNaN(dt.getTime())) return null;
+        const business = await this.businessRepo.findOne({ where: { businessNumber } });
+        const businessType = business?.businessType ?? BusinessType.LICENSED;
+        const vatReportingType = business?.vatReportingType ?? VATReportingType.MONTHLY_REPORT;
+        return this.sharedService.buildReportPeriodLabel(businessType, vatReportingType, dt);
+    }
+
+    /**
+     * Pre-flight duplicate detection for the drive-extract flow. For each
+     * candidate (supplier + sum + date), check whether the user already has
+     * a matching expense in this business. Returns one entry per duplicate,
+     * including the existing expense's period label so the UI can tell the
+     * user *which* report they previously filed it under.
+     *
+     * Exact match on date (date-only column), supplier name, and numeric sum
+     * — keep it strict so accidental re-uploads are caught but legitimate
+     * same-day repeat payments (e.g., two ₪50 fuel receipts) aren't blocked.
+     * (Same-supplier, same-sum, same-day is rare enough in practice that the
+     * occasional false positive is preferable to silently double-booking.)
+     */
+    async checkDuplicateExpensesFromDrive(
+        firebaseId: string,
+        businessNumber: string,
+        items: DuplicateExpenseCheckItem[],
+    ): Promise<DuplicateExpenseMatch[]> {
+        if (!items?.length) return [];
+
+        const business = await this.businessRepo.findOne({ where: { businessNumber } });
+        const businessType = business?.businessType ?? BusinessType.LICENSED;
+        const vatReportingType = business?.vatReportingType ?? VATReportingType.MONTHLY_REPORT;
+
+        const matches: DuplicateExpenseMatch[] = [];
+        for (const item of items) {
+            if (!item.supplier?.trim() || !item.date || !(Number(item.sum) > 0)) continue;
+            const existing = await this.expense_repo.findOne({
+                where: {
+                    userId: firebaseId,
+                    businessNumber,
+                    supplier: item.supplier.trim(),
+                    sum: Number(item.sum),
+                    date: new Date(item.date) as any,
+                },
+            });
+            if (!existing) continue;
+            const existingPeriod = existing.vatReportingDate
+              ?? this.sharedService.buildReportPeriodLabel(businessType, vatReportingType, new Date(existing.date));
+            matches.push({
+                documentId: item.documentId,
+                existingExpenseId: existing.id,
+                existingPeriod: existingPeriod ?? null,
+                supplier: item.supplier,
+                sum: Number(item.sum),
+                date: item.date,
+            });
+        }
+        return matches;
+    }
+
+}
+
+export interface BulkConfirmFromDriveItem {
+    documentId: number;
+    supplier: string;
+    supplierID: string | null;
+    date: string;          // YYYY-MM-DD
+    sum: number;
+    category: string;
+    subCategory: string;
+    vatPercent: number;
+    taxPercent: number;
+    isEquipment: boolean;
+    saveAsSupplier: boolean;
+    /** Period label override ("M/YYYY" or "M1-M2/YYYY"). When omitted the
+     *  service derives the label from `date` + the business's VAT cadence. */
+    reportPeriod?: string | null;
+}
+
+export interface DuplicateExpenseCheckItem {
+    documentId: number;
+    supplier: string;
+    sum: number;
+    date: string;          // YYYY-MM-DD
+}
+
+export interface DuplicateExpenseMatch {
+    documentId: number;
+    existingExpenseId: number;
+    existingPeriod: string | null;
+    supplier: string;
+    sum: number;
+    date: string;
 }

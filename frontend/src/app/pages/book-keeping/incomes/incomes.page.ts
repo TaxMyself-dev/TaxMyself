@@ -12,6 +12,7 @@ import {
   FormTypes,
   ReportingPeriodType,
   getAllocationNumberThreshold,
+  isExemptBusinessType,
 } from 'src/app/shared/enums';
 import { AuthService } from 'src/app/services/auth.service';
 import { FilesService } from 'src/app/services/files.service';
@@ -178,16 +179,13 @@ export class IncomesPage implements OnInit {
       {
         type: 'select',
         controlName: 'docType',
-        placeholder: 'סוג מסמך',
-        options: [
-          { name: 'כל המסמכים', value: null },
-          { name: 'חשבונית מס', value: DocumentType.TAX_INVOICE },
-          { name: 'קבלה', value: DocumentType.RECEIPT },
-          { name: 'חשבונית זיכוי', value: DocumentType.CREDIT_INVOICE },
-          { name: 'חשבון עסקה', value: DocumentType.TRANSACTION_INVOICE },
-          { name: 'חשבונית מס קבלה', value: DocumentType.TAX_INVOICE_RECEIPT },
-          { name: 'הצעת מחיר', value: DocumentType.PRICE_QUOTE },
-          { name: 'הזמנת עבודה', value: DocumentType.WORK_ORDER },
+        label: 'סוג מסמך',
+        // Derived from the enum so every issued document type is filterable —
+        // the hardcoded subset omitted חשבונית מס קבלה / חשבון עסקה, which made
+        // the filter return nothing for documents of those (very common) types.
+        options: Object.values(DocumentType).map((t) => ({
+          name: DocTypeDisplayName[t] ?? t,
+          value: t,
         }))
       }
     ];
@@ -695,7 +693,7 @@ export class IncomesPage implements OnInit {
   closeDoc(row: IRowDataTable): void {
 
     const businessType = this.getSelectedBusinessType();
-    const isExempt = businessType === BusinessType.EXEMPT;
+    const isExempt = isExemptBusinessType(businessType);
     const docType = typeof row.docType === 'string' ? row.docType : String(row.docType ?? '');
     const docStatus = (row as any)?.docStatusOriginal?.toUpperCase();
 
@@ -859,7 +857,7 @@ export class IncomesPage implements OnInit {
     // Handle חשבון עסקה - depends on business type
     if (docTypeKey === 'חשבון עסקה') {
       const businessType = this.getSelectedBusinessType();
-      const isExempt = businessType === BusinessType.EXEMPT;
+      const isExempt = isExemptBusinessType(businessType);
       return {
         docType: isExempt ? DocumentType.RECEIPT : DocumentType.TAX_INVOICE_RECEIPT,
         label: isExempt ? 'קבלה' : 'חשבונית מס קבלה',
@@ -888,7 +886,7 @@ export class IncomesPage implements OnInit {
 
     if (docTypeKey === 'חשבון עסקה') {
       const businessType = this.getSelectedBusinessType();
-      const isExempt = businessType === BusinessType.EXEMPT;
+      const isExempt = isExemptBusinessType(businessType);
       return {
         docType: isExempt ? DocumentType.RECEIPT : DocumentType.TAX_INVOICE_RECEIPT,
         label: isExempt ? 'קבלה' : 'חשבונית מס קבלה',

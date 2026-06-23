@@ -7,7 +7,7 @@ import { parse, format, getDayOfYear } from 'date-fns';
 import { Expense } from '../expenses/expenses.entity';
 // TODO_FINTAX_REMOVE_LEGACY_TRANSACTIONS: Transactions is injected into SharedService solely to power the generic getRepository() helper. Remove the import, the @InjectRepository injection, and the Transactions case in getRepository() when the legacy table is dropped.
 import { Transactions } from '../transactions/transactions.entity';
-import { VATReportingType, SingleMonthReport, DualMonthReport, VAT_RATES, BusinessType, ReportPeriodLabel } from 'src/enum';
+import { VATReportingType, SingleMonthReport, DualMonthReport, VAT_RATES, BusinessType, ReportPeriodLabel, isExemptBusinessType } from 'src/enum';
 import * as annualParams from 'src/annual.params.json';
 import { SettingDocuments } from '../documents/settingDocuments.entity';
 import { DocumentType } from 'src/enum';
@@ -161,7 +161,7 @@ export class SharedService {
         vatReportingType: VATReportingType,
         date: Date,
     ): ReportPeriodLabel {
-        if (businessType === BusinessType.EXEMPT) {
+        if (isExemptBusinessType(businessType)) {
             return `${date.getMonth() + 1}/${date.getFullYear()}`;
         }
         const vatLabel = this.getVATReportingDate(date, vatReportingType);
@@ -215,7 +215,7 @@ export class SharedService {
         const labels: ReportPeriodLabel[] = [];
         const stepDays: Record<string, number> = {};
         const isBimonthly =
-            businessType !== BusinessType.EXEMPT &&
+            !isExemptBusinessType(businessType) &&
             vatReportingType === VATReportingType.DUAL_MONTH_REPORT;
         const monthsPerStep = isBimonthly ? 2 : 1;
 

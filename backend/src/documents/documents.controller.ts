@@ -1,4 +1,5 @@
-import { BadRequestException, Body, Controller, Delete, Get, Headers, Param, Patch, Post, Query, Req, Res, UseGuards, UsePipes, ValidationPipe, } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Headers, Param, ParseIntPipe, Patch, Post, Query, Req, Res, UploadedFile, UseGuards, UseInterceptors, UsePipes, ValidationPipe, } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
 import { DocumentType, DocumentStatusType } from 'src/enum';
 import { DocumentsService } from './documents.service';
@@ -305,6 +306,103 @@ export class DocumentsController {
     }
     await this.documentsService.deleteDraft(userId, issuerBusinessNumber, docType);
     return { success: true };
+  }
+
+  // =====================================================================
+  // Drive-folder sync + OCR-extracted documents (Claude)
+  // =====================================================================
+
+  // -----------------------------------------------------------------
+  // User-facing (bookkeeping → expenses → "pull docs from Drive")
+  // Declared BEFORE the param routes below so '/me/sync' and '/me/review'
+  // don't get swallowed by ':userId/:yearMonth' (Nest matches top-to-bottom).
+  // -----------------------------------------------------------------
+
+  /**
+   * Trigger for the new inbox-driven flow: walk the business's `inbox/`
+   * folder on Drive, OCR every file we haven't seen, move processed files
+   * to `processed/`. Called automatically from the VAT/P&L report-page
+   * pre-flight before the report renders.
+   */
+  @Post('me/process-inbox')
+  @UseGuards(FirebaseAuthGuard)
+  async processMyInbox(
+    @Req() request: AuthenticatedRequest,
+    @Body() body: { businessNumber: string },
+  ) {
+    const firebaseId = request.user?.firebaseId;
+    if (!firebaseId) throw new BadRequestException('Not authenticated');
+    const businessNumber = body?.businessNumber?.trim();
+    if (!businessNumber) throw new BadRequestException('businessNumber is required');
+    return this.documentsService.processInboxForUser(firebaseId, businessNumber);
+  }
+
+  /**
+   * User chose not to keep an extracted doc — flip its status to `archived`.
+   * The Drive file stays in processed/; the DB status is the source of truth
+   * for what shows in the review list.
+   */
+  @Post('me/archive/:documentId')
+  @UseGuards(FirebaseAuthGuard)
+  async archiveExtractedDoc(
+    @Req() request: AuthenticatedRequest,
+    @Param('documentId', ParseIntPipe) documentId: number,
+  ) {
+    const firebaseId = request.user?.firebaseId;
+    if (!firebaseId) throw new BadRequestException('Not authenticated');
+    return this.documentsService.archiveDocument(firebaseId, documentId);
+  }
+
+  // One-shot OCR for a single uploaded file (manual-expense dialog
+  // auto-fill). Does NOT persist anything — runs Claude and returns the
+  // first invoice's fields so the form can prefill.
+  @Post('me/ocr-file')
+  @UseGuards(FirebaseAuthGuard)
+  @UseInterceptors(FileInterceptor('file'))
+  async ocrSingleFile(
+    @Req() request: AuthenticatedRequest,
+    @UploadedFile() file: Express.Multer.File,
+    @Body() body: { businessNumber?: string },
+  ) {
+    const firebaseId = request.user?.firebaseId;
+    if (!firebaseId) throw new BadRequestException('Not authenticated');
+    if (!file?.buffer) throw new BadRequestException('file is required');
+    const businessNumber = body?.businessNumber?.trim();
+    if (!businessNumber) throw new BadRequestException('businessNumber is required');
+    return this.documentsService.ocrSingleFile(
+      firebaseId,
+      businessNumber,
+      file.buffer,
+      file.mimetype,
+    );
+  }
+
+  @Get('me/catalog')
+  @UseGuards(FirebaseAuthGuard)
+  async getMyCatalog(
+    @Req() request: AuthenticatedRequest,
+    @Query('businessNumber') businessNumber: string,
+  ) {
+    const firebaseId = request.user?.firebaseId;
+    if (!firebaseId) throw new BadRequestException('Not authenticated');
+    if (!businessNumber?.trim()) {
+      throw new BadRequestException('businessNumber query param required');
+    }
+    return this.documentsService.buildExtractionCatalog(firebaseId, businessNumber.trim());
+  }
+
+  @Get('me/review')
+  @UseGuards(FirebaseAuthGuard)
+  async listMyReviewable(
+    @Req() request: AuthenticatedRequest,
+    @Query('businessNumber') businessNumber: string,
+  ) {
+    const firebaseId = request.user?.firebaseId;
+    if (!firebaseId) throw new BadRequestException('Not authenticated');
+    if (!businessNumber?.trim()) {
+      throw new BadRequestException('businessNumber query param required');
+    }
+    return this.documentsService.getReviewableForUser(firebaseId, businessNumber.trim());
   }
 
 }

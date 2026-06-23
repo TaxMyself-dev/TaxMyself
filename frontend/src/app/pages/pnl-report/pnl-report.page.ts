@@ -13,6 +13,7 @@ import { FilterField } from 'src/app/components/filter-tab/filter-fields-model.c
 import { format as formatDateFns } from 'date-fns';
 import { TransactionsService } from '../transactions/transactions.page.service';
 import { ConfirmationService, MessageService } from 'primeng/api';
+import { ReportReviewService } from 'src/app/services/report-review.service';
 
 
 @Component({
@@ -55,6 +56,15 @@ export class PnLReportPage implements OnInit {
   // ── Unconfirmed-expenses gate (mirrors VAT report) ──
   visibleConfirmTransDialog = signal<boolean>(false);
 
+  /** Drive-inbox pre-flight dialog — runs before the trans-confirm dialog so
+   *  any new invoices in `inbox/` land as confirmed expenses before they
+   *  need to show up in the P&L numbers. */
+  visibleInboxDialog = signal<boolean>(false);
+
+  /** Visibility for the new unified report-review modal. Supersedes the
+   *  two-step chain (visibleInboxDialog → visibleConfirmTransDialog). */
+  visibleReviewDialog = signal<boolean>(false);
+
   /** True when the report for the currently-selected period has already been
    *  marked as submitted. Swaps the "סמן כדווח" button for "הדוח הוגש". */
   reportSubmitted = signal<boolean>(false);
@@ -62,6 +72,11 @@ export class PnLReportPage implements OnInit {
   arrayLength = signal<number>(0);
   isLoadingButtonConfirmDialog = signal<boolean>(false);
   isRequestSent = signal<boolean>(false);
+  /** Loader for the submit-pipeline gap between "הצג" and the next visible
+   *  UI (review dialog OR report data). The genericService global loader
+   *  only covers the report-fetch step; this fills the previewCheck +
+   *  prompt window before either of those start. */
+  isReportLoading = signal<boolean>(false);
   /** Visibility for the redirect-expenses prompt (`<p-dialog>` in the template). */
   redirectPromptVisible = signal<boolean>(false);
   /** Re-entry guard so the prompt isn't scheduled twice when close events fire. */
@@ -78,6 +93,7 @@ export class PnLReportPage implements OnInit {
     private transactionService: TransactionsService,
     private messageService: MessageService,
     private confirmationService: ConfirmationService,
+    private reportReviewService: ReportReviewService,
   ) {
   }
 
@@ -160,9 +176,68 @@ export class PnLReportPage implements OnInit {
     this.startDate.set(startDate);
     this.endDate.set(endDate);
     this.isRequestSent.set(true);
-    // Gate the report on unconfirmed expenses, same as VAT. If none → falls
-    // through to getPnLReportData inside closeDialogWithoutConfirm.
-    this.getTransToConfirm();
+    this.isReportLoading.set(true);
+
+    // Cheap pre-flight (folder listing + SELECT 1) — same pattern as the
+    // VAT report. Skips the review modal entirely when there's nothing to
+    // review; otherwise prompts the user before opening it.
+    this.reportReviewService.previewCheck(effectiveBusiness)
+      .pipe(catchError(() => of({ hasPendingDocs: true, hasUnconfirmedExpenses: true })))
+      .subscribe(check => {
+        if (!check.hasPendingDocs && !check.hasUnconfirmedExpenses) {
+          this.proceedDirectlyToReport();
+          return;
+        }
+        this.promptReviewBeforeReport(check);
+      });
+  }
+
+  private proceedDirectlyToReport(): void {
+    // Hand off to getPnLReportData — that flow uses genericService's
+    // global loader; clear ours so the two don't stack.
+    this.isReportLoading.set(false);
+    this.getPnLReportData(this.startDate(), this.endDate(), this.businessNumber());
+  }
+
+  private promptReviewBeforeReport(
+    check: { hasPendingDocs: boolean; hasUnconfirmedExpenses: boolean },
+  ): void {
+    // Clear our local loader before the prompt opens — the user needs to
+    // see the confirm dialog without a spinner stacked behind it. Both
+    // accept and reject paths take over loader responsibility (review
+    // dialog has its own; proceedDirectlyToReport hands off to the
+    // genericService global loader).
+    this.isReportLoading.set(false);
+    const reasons: string[] = [];
+    if (check.hasPendingDocs) reasons.push('מסמכים שעדיין לא אושרו');
+    if (check.hasUnconfirmedExpenses) reasons.push('תנועות שטרם אושרו כהוצאות');
+    const detail = reasons.join(' ו');
+    this.confirmationService.confirm({
+      key: 'reviewBeforeReport',
+      header: 'נמצאו הוצאות שעדיין לא אושרו',
+      message: `מצאנו ${detail}. האם תרצה לעבור עליהן כעת?`,
+      // Match the doc-create confirmation design: warning-triangle icon and
+      // two black (contrast) buttons.
+      icon: 'pi pi-exclamation-triangle',
+      acceptButtonProps: { severity: 'contrast', label: 'כן' },
+      rejectButtonProps: { severity: 'contrast', label: 'לא כרגע' },
+      accept: () => {
+        this.visibleReviewDialog.set(true);
+      },
+      reject: () => {
+        this.proceedDirectlyToReport();
+      },
+    });
+  }
+
+  /** Unified review dialog closed (auto when nothing to review, or
+   *  manual after the user works through every row). Proceed straight to
+   *  the P&L data load — no trans-confirm middle step. */
+  onReviewDialogVisibleChange(visible: boolean): void {
+    this.visibleReviewDialog.set(visible);
+    if (!visible) {
+      this.getPnLReportData(this.startDate(), this.endDate(), this.businessNumber());
+    }
   }
 
 
@@ -437,7 +512,7 @@ export class PnLReportPage implements OnInit {
     const data: ICreateDataDoc = {
       fid: "ydAEQsvSbC",
       prefill_data: {
-        name: this.userData.fName + " " + this.userData.lName,
+        name: [this.userData.fName, this.userData.lName].filter(Boolean).join(' '),
         businessNumber: effectiveBusinessNumber,
         period: `${this.startDate()} - ${this.endDate()}`,
         income: this.formatShekelAmount(this.pnlReport.income),

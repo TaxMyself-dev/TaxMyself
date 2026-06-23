@@ -7,6 +7,7 @@ import { CategoryManagementComponent } from 'src/app/shared/category-management/
 import { TransManagementComponent } from 'src/app/shared/trans-management/trans-management.component';
 import { ClientsDashboardComponent } from 'src/app/shared/clients-dashboard/clients-dashboard.component';
 import { DemoDataComponent } from 'src/app/shared/demo-data/demo-data.component';
+import { AdminBillingComponent } from 'src/app/shared/admin-billing/admin-billing.component';
 import { MessageService } from 'primeng/api';
 import { IShaamApprovalResponse } from 'src/app/shared/interface';
 
@@ -25,6 +26,7 @@ export class AdminPanelPage implements OnInit {
     { label: 'ניהול קטגוריות', value: 'category-management', component: CategoryManagementComponent },
     { label: 'ניהול תנועות', value: 'trans-management', component: TransManagementComponent },
     { label: 'נתוני דמו', value: 'demo-data', component: DemoDataComponent },
+    { label: 'קארדקום / מנויים', value: 'billing', component: AdminBillingComponent },
   ];
 
   selectedTab: string = 'clients-dashboard'; // Set default tab value

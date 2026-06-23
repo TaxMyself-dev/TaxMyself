@@ -26,18 +26,19 @@ const MICHAL_CARD = '4422';
  * "create your first bill and associate transactions" flow live:
  *   - Open Banking is "connected" (hasOpenBanking = true, UserSyncState
  *     completed → dashboard shows the transactions table, not the CTA).
- *   - 30+ unassigned transactions spread across 1.1.26 → 26.5.26, stamped
+ *   - 30+ unassigned transactions spread across 1.1.26 → 1.6.26, stamped
  *     with realistic paymentIdentifiers and businessNumbers but billId=null.
  *   - Husband אריאל has a LICENSED business (computer repair); wife מיכל
  *     has an EXEMPT business (relationship counseling).
  *
- * All `daysAgo` values are computed relative to 2026-05-26 (today).
+ * All `daysAgo` values are computed relative to 2026-06-01 (today).
+ * daysAgo: 0 = today (June 1, 2026), daysAgo: 151 ≈ 2026-01-01.
  */
 export const COUPLE_OPEN_BANKING_NO_BILLS_PROFILE: DemoProfile = {
   id: 'couple-open-banking-no-bills',
   label: 'זוג עם בנקאות פתוחה - ללא חשבונות מוגדרים',
   description:
-    'אריאל (תיקון מחשבים, עוסק מורשה) ומיכל (ייעוץ זוגי, עוסק פטור). חיבור פעיל לבנקאות פתוחה עם תנועות מ-1.1.26 עד 26.5.26, ללא חשבונות מוגדרים — מאפשר להדגים יצירת חשבונות ושיוך תנועות.',
+    'אריאל (תיקון מחשבים, עוסק מורשה) ומיכל (ייעוץ זוגי, עוסק פטור). חיבור פעיל לבנקאות פתוחה עם תנועות מ-1.1.26 עד 1.6.26, ללא חשבונות מוגדרים — מאפשר להדגים יצירת חשבונות ושיוך תנועות.',
 
   email: 'demo+couple-nobills@taxmyself.local',
   password: 'test1234',
@@ -114,7 +115,8 @@ export const COUPLE_OPEN_BANKING_NO_BILLS_PROFILE: DemoProfile = {
     //  ARIEL_CARD — household card (mixed personal/business)
     // ═════════════════════════════════════════════════════════════════════
 
-    // --- דלק (fuel) — varies between Paz/Sonol/Delek across the months ---
+    // --- דלק (fuel) — varies between Paz/Sonol/Delek across the months (Jan–Jun) ---
+    { paymentIdentifier: ARIEL_CARD, businessNumberRef: ARIEL_ID, merchantName: 'תחנת דלק דלק', amount: -415, daysAgo: 0 },
     { paymentIdentifier: ARIEL_CARD, businessNumberRef: ARIEL_ID, merchantName: 'תחנת דלק פז', amount: -380, daysAgo: 6 },
     { paymentIdentifier: ARIEL_CARD, businessNumberRef: ARIEL_ID, merchantName: 'תחנת דלק סונול', amount: -425, daysAgo: 22 },
     { paymentIdentifier: ARIEL_CARD, businessNumberRef: ARIEL_ID, merchantName: 'תחנת דלק פז', amount: -410, daysAgo: 58 },
@@ -122,19 +124,29 @@ export const COUPLE_OPEN_BANKING_NO_BILLS_PROFILE: DemoProfile = {
     { paymentIdentifier: ARIEL_CARD, businessNumberRef: ARIEL_ID, merchantName: 'תחנת דלק סונול', amount: -390, daysAgo: 105 },
     { paymentIdentifier: ARIEL_CARD, businessNumberRef: ARIEL_ID, merchantName: 'תחנת דלק פז', amount: -460, daysAgo: 140 },
 
-    // --- חשמל (electricity) — once per month ---
+    // --- חשמל (electricity) — once per month (Jan–Jun) ---
+    { paymentIdentifier: ARIEL_CARD, businessNumberRef: ARIEL_ID, merchantName: 'חברת החשמל לישראל', amount: -502, daysAgo: 0 },
     { paymentIdentifier: ARIEL_CARD, businessNumberRef: ARIEL_ID, merchantName: 'חברת החשמל לישראל', amount: -485, daysAgo: 10 },
     { paymentIdentifier: ARIEL_CARD, businessNumberRef: ARIEL_ID, merchantName: 'חברת החשמל לישראל', amount: -512, daysAgo: 40 },
     { paymentIdentifier: ARIEL_CARD, businessNumberRef: ARIEL_ID, merchantName: 'חברת החשמל לישראל', amount: -468, daysAgo: 70 },
     { paymentIdentifier: ARIEL_CARD, businessNumberRef: ARIEL_ID, merchantName: 'חברת החשמל לישראל', amount: -545, daysAgo: 100 },
     { paymentIdentifier: ARIEL_CARD, businessNumberRef: ARIEL_ID, merchantName: 'חברת החשמל לישראל', amount: -498, daysAgo: 130 },
 
-    // --- אינטרנט (internet) — Bezeq monthly ---
+    // --- אינטרנט (internet) — Bezeq monthly (Jan–Jun) ---
+    { paymentIdentifier: ARIEL_CARD, businessNumberRef: ARIEL_ID, merchantName: 'בזק בינלאומי', amount: -185, daysAgo: 1 },
     { paymentIdentifier: ARIEL_CARD, businessNumberRef: ARIEL_ID, merchantName: 'בזק בינלאומי', amount: -185, daysAgo: 8 },
     { paymentIdentifier: ARIEL_CARD, businessNumberRef: ARIEL_ID, merchantName: 'בזק בינלאומי', amount: -185, daysAgo: 38 },
     { paymentIdentifier: ARIEL_CARD, businessNumberRef: ARIEL_ID, merchantName: 'בזק בינלאומי', amount: -185, daysAgo: 68 },
     { paymentIdentifier: ARIEL_CARD, businessNumberRef: ARIEL_ID, merchantName: 'בזק בינלאומי', amount: -185, daysAgo: 98 },
     { paymentIdentifier: ARIEL_CARD, businessNumberRef: ARIEL_ID, merchantName: 'בזק בינלאומי', amount: -195, daysAgo: 128 },
+
+    // --- פלאפון (mobile) — monthly cellular plan (Jan–Jun) ---
+    { paymentIdentifier: ARIEL_CARD, businessNumberRef: ARIEL_ID, merchantName: 'פלאפון', amount: -149, daysAgo: 2 },
+    { paymentIdentifier: ARIEL_CARD, businessNumberRef: ARIEL_ID, merchantName: 'פלאפון', amount: -149, daysAgo: 32 },
+    { paymentIdentifier: ARIEL_CARD, businessNumberRef: ARIEL_ID, merchantName: 'פלאפון', amount: -149, daysAgo: 62 },
+    { paymentIdentifier: ARIEL_CARD, businessNumberRef: ARIEL_ID, merchantName: 'פלאפון', amount: -149, daysAgo: 92 },
+    { paymentIdentifier: ARIEL_CARD, businessNumberRef: ARIEL_ID, merchantName: 'פלאפון', amount: -149, daysAgo: 122 },
+    { paymentIdentifier: ARIEL_CARD, businessNumberRef: ARIEL_ID, merchantName: 'פלאפון', amount: -149, daysAgo: 148 },
 
     // --- ChatGPT (monthly USD subscription — exercises the FX render path) ---
     { paymentIdentifier: ARIEL_CARD, businessNumberRef: ARIEL_ID, merchantName: 'OpenAI ChatGPT', amount: -20, daysAgo: 9,   currency: 'USD' },
@@ -143,14 +155,22 @@ export const COUPLE_OPEN_BANKING_NO_BILLS_PROFILE: DemoProfile = {
     { paymentIdentifier: ARIEL_CARD, businessNumberRef: ARIEL_ID, merchantName: 'OpenAI ChatGPT', amount: -20, daysAgo: 99,  currency: 'USD' },
     { paymentIdentifier: ARIEL_CARD, businessNumberRef: ARIEL_ID, merchantName: 'OpenAI ChatGPT', amount: -20, daysAgo: 129, currency: 'USD' },
 
-    // --- מכולת שכונתית / סופרמרקטים ---
+    // --- סופרמרקטים (שופרסל / רמי לוי / יוחננוף) — at least one per month (Jan–Jun) ---
+    { paymentIdentifier: ARIEL_CARD, businessNumberRef: ARIEL_ID, merchantName: 'שופרסל', amount: -310, daysAgo: 0 },
     { paymentIdentifier: ARIEL_CARD, businessNumberRef: ARIEL_ID, merchantName: 'יוחננוף', amount: -240, daysAgo: 3 },
-    { paymentIdentifier: ARIEL_CARD, businessNumberRef: ARIEL_ID, merchantName: 'מכולת השכונה', amount: -85, daysAgo: 14 },
     { paymentIdentifier: ARIEL_CARD, businessNumberRef: ARIEL_ID, merchantName: 'רמי לוי', amount: -385, daysAgo: 27 },
     { paymentIdentifier: ARIEL_CARD, businessNumberRef: ARIEL_ID, merchantName: 'יוחננוף', amount: -195, daysAgo: 45 },
-    { paymentIdentifier: ARIEL_CARD, businessNumberRef: ARIEL_ID, merchantName: 'מכולת השכונה', amount: -120, daysAgo: 63 },
+    { paymentIdentifier: ARIEL_CARD, businessNumberRef: ARIEL_ID, merchantName: 'שופרסל', amount: -355, daysAgo: 78 },
     { paymentIdentifier: ARIEL_CARD, businessNumberRef: ARIEL_ID, merchantName: 'רמי לוי', amount: -425, daysAgo: 95 },
     { paymentIdentifier: ARIEL_CARD, businessNumberRef: ARIEL_ID, merchantName: 'יוחננוף', amount: -312, daysAgo: 115 },
+    { paymentIdentifier: ARIEL_CARD, businessNumberRef: ARIEL_ID, merchantName: 'שופרסל', amount: -290, daysAgo: 145 },
+
+    // --- מכולת שכונתית — at least one per month (Jan–Jun) ---
+    { paymentIdentifier: ARIEL_CARD, businessNumberRef: ARIEL_ID, merchantName: 'מכולת השכונה', amount: -90, daysAgo: 1 },
+    { paymentIdentifier: ARIEL_CARD, businessNumberRef: ARIEL_ID, merchantName: 'מכולת השכונה', amount: -85, daysAgo: 14 },
+    { paymentIdentifier: ARIEL_CARD, businessNumberRef: ARIEL_ID, merchantName: 'מכולת השכונה', amount: -105, daysAgo: 42 },
+    { paymentIdentifier: ARIEL_CARD, businessNumberRef: ARIEL_ID, merchantName: 'מכולת השכונה', amount: -120, daysAgo: 63 },
+    { paymentIdentifier: ARIEL_CARD, businessNumberRef: ARIEL_ID, merchantName: 'מכולת השכונה', amount: -112, daysAgo: 100 },
     { paymentIdentifier: ARIEL_CARD, businessNumberRef: ARIEL_ID, merchantName: 'מכולת השכונה', amount: -98, daysAgo: 138 },
 
     // --- חנויות בגדים ---
@@ -165,14 +185,16 @@ export const COUPLE_OPEN_BANKING_NO_BILLS_PROFILE: DemoProfile = {
     { paymentIdentifier: ARIEL_CARD, businessNumberRef: ARIEL_ID, merchantName: 'עזר מציון', amount: -180, daysAgo: 90 },
     { paymentIdentifier: ARIEL_CARD, businessNumberRef: ARIEL_ID, merchantName: 'קרן אבי חי', amount: -250, daysAgo: 142 },
 
-    // --- עיריית ירושלים — חיוב חודשי בסך 560 ---
+    // --- ארנונה — עיריית ירושלים, חיוב חודשי בסך 560 (Jan–Jun) ---
+    { paymentIdentifier: ARIEL_CARD, businessNumberRef: ARIEL_ID, merchantName: 'עיריית ירושלים', amount: -560, daysAgo: 0 },
     { paymentIdentifier: ARIEL_CARD, businessNumberRef: ARIEL_ID, merchantName: 'עיריית ירושלים', amount: -560, daysAgo: 5 },
     { paymentIdentifier: ARIEL_CARD, businessNumberRef: ARIEL_ID, merchantName: 'עיריית ירושלים', amount: -560, daysAgo: 35 },
     { paymentIdentifier: ARIEL_CARD, businessNumberRef: ARIEL_ID, merchantName: 'עיריית ירושלים', amount: -560, daysAgo: 65 },
     { paymentIdentifier: ARIEL_CARD, businessNumberRef: ARIEL_ID, merchantName: 'עיריית ירושלים', amount: -560, daysAgo: 95 },
     { paymentIdentifier: ARIEL_CARD, businessNumberRef: ARIEL_ID, merchantName: 'עיריית ירושלים', amount: -560, daysAgo: 125 },
 
-    // --- עיריית ירושלים — חיוב חודשי בסך 3400 ---
+    // --- עיריית ירושלים — חיוב חודשי בסך 3400 (Jan–Jun) ---
+    { paymentIdentifier: ARIEL_CARD, businessNumberRef: ARIEL_ID, merchantName: 'עיריית ירושלים', amount: -3400, daysAgo: 0 },
     { paymentIdentifier: ARIEL_CARD, businessNumberRef: ARIEL_ID, merchantName: 'עיריית ירושלים', amount: -3400, daysAgo: 7 },
     { paymentIdentifier: ARIEL_CARD, businessNumberRef: ARIEL_ID, merchantName: 'עיריית ירושלים', amount: -3400, daysAgo: 37 },
     { paymentIdentifier: ARIEL_CARD, businessNumberRef: ARIEL_ID, merchantName: 'עיריית ירושלים', amount: -3400, daysAgo: 67 },

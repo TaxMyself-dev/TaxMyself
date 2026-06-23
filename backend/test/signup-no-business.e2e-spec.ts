@@ -4,19 +4,19 @@ import { Repository } from 'typeorm';
 import { createTestApp } from './helpers/app-setup';
 import { cleanupTestUsers, makeTestFirebaseId, signupRequest } from './helpers/test-factory';
 import { User } from '../src/users/user.entity';
-import { UserModuleSubscription } from '../src/users/user-module-subscription.entity';
 import { BusinessStatus, ModuleName } from '../src/enum';
+import { BillingService } from '../src/billing/services/billing.service';
 
 describe('הרשמה ללא עסק (e2e)', () => {
   let app: INestApplication;
   let userRepo: Repository<User>;
-  let subRepo: Repository<UserModuleSubscription>;
+  let billingService: BillingService;
   let firebaseId: string;
 
   beforeAll(async () => {
     app = await createTestApp();
     userRepo = app.get<Repository<User>>(getRepositoryToken(User));
-    subRepo = app.get<Repository<UserModuleSubscription>>(getRepositoryToken(UserModuleSubscription));
+    billingService = app.get(BillingService);
   });
 
   afterAll(async () => {
@@ -40,23 +40,16 @@ describe('הרשמה ללא עסק (e2e)', () => {
     expect(user.businessStatus).toBe(BusinessStatus.NO_BUSINESS);
   });
 
-  it('modulesAccess עדיין כולל INVOICES ו-OPEN_BANKING (הגדרת ברירת מחדל)', async () => {
+  it('Subscription (TRIAL) מעניקה גישה ל-INVOICES ו-OPEN_BANKING גם ללא עסק (הגדרת ברירת מחדל)', async () => {
     await signupRequest(app, { firebaseId, withBusiness: false });
-    const user = await userRepo.findOne({ where: { firebaseId } });
-    expect(user.modulesAccess).toContain(ModuleName.INVOICES);
-    expect(user.modulesAccess).toContain(ModuleName.OPEN_BANKING);
+    expect(await billingService.hasModuleAccess(firebaseId, ModuleName.INVOICES)).toBe(true);
+    expect(await billingService.hasModuleAccess(firebaseId, ModuleName.OPEN_BANKING)).toBe(true);
   });
 
   it('hasOpenBanking = false בהרשמה', async () => {
     await signupRequest(app, { firebaseId, withBusiness: false });
     const user = await userRepo.findOne({ where: { firebaseId } });
     expect(user.hasOpenBanking).toBe(false);
-  });
-
-  it('אין רשומת UserModuleSubscription (ללא עסק = ללא מנוי INVOICES)', async () => {
-    await signupRequest(app, { firebaseId, withBusiness: false });
-    const sub = await subRepo.findOne({ where: { firebaseId, moduleName: ModuleName.INVOICES } });
-    expect(sub).toBeNull();
   });
 
   it('discountPercent = 0 כברירת מחדל', async () => {

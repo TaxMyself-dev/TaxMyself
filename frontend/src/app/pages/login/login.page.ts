@@ -291,12 +291,9 @@ export class LoginPage implements OnInit {
     try {
       const { isNewUser, userData } = await this.authService.signInWithGoogle();
       if (isNewUser) {
-        // Sign out only — DO NOT call firebaseUser.delete() here. Even though
-        // signInWithGoogle() now returns isNewUser=true only on a real 404
-        // from /auth/signin, hard-deleting the Firebase account on any
-        // transient race is unrecoverable. Worst case after this change is an
-        // orphan Firebase auth record for a never-registered user — harmless,
-        // and they can recover via password-reset if they later register.
+        // The ghost Firebase user created by signInWithPopup() was already
+        // deleted inside signInWithGoogle() (best-effort, only on a
+        // confirmed 404). signOut() here just clears the local session.
         await this.afAuth.signOut();
         this.messageService.add({
           severity: 'warn',

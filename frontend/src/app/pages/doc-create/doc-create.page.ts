@@ -13,7 +13,7 @@ import { DocumentsService } from 'src/app/services/documents.service';
 import { FilesService } from 'src/app/services/files.service';
 import { GenericService } from 'src/app/services/generic.service';
 import { ShaamService } from 'src/app/services/shaam.service';
-import { BusinessStatus, BusinessType, fieldLineDocName, fieldLineDocValue, FieldsCreateDocName, FieldsCreateDocValue, FormTypes, getAllocationNumberThreshold, inputsSize, paymentMethodOptions, vatOptions, VatType } from 'src/app/shared/enums';
+import { BusinessStatus, BusinessType, fieldLineDocName, fieldLineDocValue, FieldsCreateDocName, FieldsCreateDocValue, FormTypes, getAllocationNumberThreshold, inputsSize, isExemptBusinessType, paymentMethodOptions, vatOptions, VatType } from 'src/app/shared/enums';
 import { Business, ICreateDocField, IDocIndexes, ISettingDoc, IShaamApprovalRequest, IShaamApprovalResponse, ITotals, IUserData } from 'src/app/shared/interface';
 import { SelectClientComponent } from 'src/app/shared/select-client/select-client.component';
 import { bankOptionsList, DocCreateFields, DocTypeDefaultStart, DocTypeDisplayName, DocumentSummary, DocumentTotals, DocumentTotalsLabels, DocumentType, PartialLineItem } from './doc-cerate.enum';
@@ -193,7 +193,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
   log = console.log
   // Computed signals for filtered arrays based on document type
   isReceiptDocument = computed(() => this.fileSelected() === DocumentType.RECEIPT);
-  isExemptBusiness = computed(() => this.selectedBusinessType() === BusinessType.EXEMPT);
+  isExemptBusiness = computed(() => isExemptBusinessType(this.selectedBusinessType()));
   showWithholdingTaxSection = computed(() => this.fileSelected() === DocumentType.RECEIPT || this.fileSelected() === DocumentType.TAX_INVOICE_RECEIPT);
 
   filteredLineDetailsColumns = computed(() =>
@@ -463,7 +463,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
     if (!docTypeField) return;
 
     const allowedTypes: DocumentType[] =
-      this.selectedBusinessType() === BusinessType.EXEMPT
+      this.isExemptBusiness()
         ? [DocumentType.RECEIPT, DocumentType.TRANSACTION_INVOICE, DocumentType.PRICE_QUOTE, DocumentType.WORK_ORDER]
         : (Object.values(DocumentType) as DocumentType[]);
 
@@ -491,7 +491,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
       // [FieldsCreateDocValue.DISCOUNT]: 0 
     };
 
-    if (this.selectedBusinessType() === BusinessType.EXEMPT || this.fileSelected() === DocumentType.RECEIPT) {
+    if (this.isExemptBusiness() || this.fileSelected() === DocumentType.RECEIPT) {
       if (this.lineDetailsForm?.get(FieldsCreateDocValue.VAT_OPTIONS)) {
         this.lineDetailsForm.removeControl(FieldsCreateDocValue.VAT_OPTIONS);
       }
@@ -973,7 +973,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
     const transType = "3";
 
     // For receipts or EXEMPT businesses, vatOptions won't exist in the form, so set it to 'WITHOUT'
-    const isExempt = this.selectedBusinessType() === BusinessType.EXEMPT;
+    const isExempt = this.isExemptBusiness();
     const isReceipt = this.fileSelected() === DocumentType.RECEIPT;
     const isTaxInvoiceReceipt = this.fileSelected() === DocumentType.TAX_INVOICE_RECEIPT;
 
@@ -1043,7 +1043,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
 
   private updateLine(index: number, formData: any): void {
     const transType = "3";
-    const isExempt = this.selectedBusinessType() === BusinessType.EXEMPT;
+    const isExempt = this.isExemptBusiness();
     const isReceipt = this.fileSelected() === DocumentType.RECEIPT;
     const isTaxInvoiceReceipt = this.fileSelected() === DocumentType.TAX_INVOICE_RECEIPT;
 

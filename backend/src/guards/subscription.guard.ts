@@ -7,15 +7,15 @@ import {
 
 import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.interface';
 import { Reflector } from '@nestjs/core';
-import { UsersService } from 'src/users/users.service';
-import { PayStatus, ModuleName } from 'src/enum';
+import { BillingService } from 'src/billing/services/billing.service';
+import { ModuleName } from 'src/enum';
 
 
 @Injectable()
 export class SubscriptionGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
-    private readonly usersService: UsersService,
+    private readonly billingService: BillingService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -28,27 +28,14 @@ export class SubscriptionGuard implements CanActivate {
     }
 
     const requiredModule = this.reflector.get<ModuleName>('requiredModule', context.getHandler());
-    console.log("requiredModule is ", requiredModule);
 
     if (!requiredModule) return true;
 
-    const user = await this.usersService.findByFirebaseId(firebaseId);
-    if (!user) {
-      throw new ForbiddenException('User not found');
-    }
-
-    const sub = await this.usersService.getModuleSubscription(firebaseId, requiredModule);
-    const allowedStatuses = [PayStatus.FREE, PayStatus.TRIAL, PayStatus.PAID];
-    const isAllowed = sub ? allowedStatuses.includes(sub.payStatus) : allowedStatuses.includes(user.payStatus);
-
-    const hasAccess = isAllowed && user.modulesAccess.includes(requiredModule);
+    const hasAccess = await this.billingService.hasModuleAccess(firebaseId, requiredModule);
 
     if (!hasAccess) {
       throw new ForbiddenException('No access to this module');
     }
-
-    console.log("payment status", user.payStatus);
-    console.log("hasAccess is ", hasAccess);
 
     return true;
   }

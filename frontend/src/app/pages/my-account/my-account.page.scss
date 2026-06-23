@@ -66,6 +66,20 @@ p.block-title {
   align-items: center;
 }
 
+// Container for the dashboard's primary action buttons ("+ הוספת הוצאה" and,
+// for demo users, "אפס נתוני בדיקה"). Stays vertical so the two buttons
+// stack on the right side of the user-info-block without crowding the avatar.
+.dashboard-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+
+  app-p-button {
+    white-space: nowrap;
+  }
+}
+
 .hidden {
   display: none;
 }
@@ -169,6 +183,94 @@ p.block-title {
 
   .block-title {
     color: #fff;
+  }
+}
+
+// ─── CardCom payment result banner ───────────────────────────────────────────
+.payment-result-banner {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  border-radius: 10px;
+  padding: 16px 20px;
+  margin: 0 0 16px;
+  direction: rtl;
+  text-align: right;
+  box-sizing: border-box;
+
+  &--success {
+    background-color: #e6f4ea;
+    .payment-result-banner__icon { color: #2e7d32; }
+  }
+  &--warning {
+    background-color: #fff4e0;
+    .payment-result-banner__icon { color: #b8860b; }
+  }
+  &--error {
+    background-color: #fdecea;
+    .payment-result-banner__icon { color: #c62828; }
+  }
+  &--processing {
+    background-color: #eef3f7;
+    .payment-result-banner__icon { color: #204f56; }
+  }
+}
+
+.payment-result-banner__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.payment-result-banner__text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.payment-result-banner__message {
+  font-size: 15px;
+  font-weight: 600;
+  color: #204f56;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.payment-result-banner__detail {
+  font-size: 13px;
+  font-weight: 400;
+  color: #5a6a6e;
+  margin: 0;
+}
+
+.payment-result-banner__action {
+  flex-shrink: 0;
+  align-self: center;
+}
+
+.payment-result-banner__close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #5a6a6e;
+  font-size: 14px;
+  flex-shrink: 0;
+  padding: 2px;
+  align-self: flex-start;
+}
+
+@media (max-width: 768px) {
+  .payment-result-banner {
+    flex-wrap: wrap;
+    margin: 0 16px 16px;
+  }
+  .payment-result-banner__action {
+    width: 100%;
   }
 }
 

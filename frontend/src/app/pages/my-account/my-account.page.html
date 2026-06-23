@@ -295,6 +295,48 @@
         </nav>
     </div> -->
 
+    <!-- ─── CardCom payment result banner — shown after return from hosted payment page ─── -->
+    @if (paymentResultBanner(); as banner) {
+    <div class="payment-result-banner"
+         [class.payment-result-banner--success]="banner.kind === 'success'"
+         [class.payment-result-banner--warning]="banner.kind === 'email-failed'"
+         [class.payment-result-banner--error]="banner.kind === 'failed'"
+         [class.payment-result-banner--processing]="banner.kind === 'processing'">
+        <div class="payment-result-banner__icon">
+            @if (banner.kind === 'success') {
+                <i class="pi pi-check-circle"></i>
+            } @else if (banner.kind === 'email-failed') {
+                <i class="pi pi-exclamation-triangle"></i>
+            } @else if (banner.kind === 'failed') {
+                <i class="pi pi-times-circle"></i>
+            } @else {
+                <p-progressSpinner strokeWidth="6" [style]="{width: '22px', height: '22px'}"></p-progressSpinner>
+            }
+        </div>
+        <div class="payment-result-banner__text">
+            <p class="payment-result-banner__message">{{ banner.message }}</p>
+            @if (banner.kind === 'failed' && banner.detail) {
+                <p class="payment-result-banner__detail">{{ banner.detail }}</p>
+            }
+        </div>
+        @if (banner.kind === 'email-failed') {
+            <app-p-button
+                class="payment-result-banner__action"
+                [buttonText]="'נסה לשלוח שוב'"
+                [buttonColor]="buttonColor.YELLOW"
+                [buttonSize]="buttonSize.SMALL"
+                [isLoading]="resendingReceiptEmail()"
+                (onButtonClicked)="resendReceiptEmailClick(banner.eventId)">
+            </app-p-button>
+        }
+        @if (banner.kind !== 'processing') {
+            <button class="payment-result-banner__close" (click)="dismissPaymentResultBanner()" aria-label="סגור">
+                <i class="pi pi-times"></i>
+            </button>
+        }
+    </div>
+    }
+
     <div class="user-info-block">
         <div class="user-info-row">
             <p-avatar class="my-account-avatar" [label]="(userData?.fName?.charAt(0) || '') + (userData?.lName?.charAt(0) || '')" size="xlarge" shape="circle"></p-avatar>
@@ -311,10 +353,19 @@
                 <!-- Users without Open Banking already get the big "רוצה לראות את התנועות" CTA banner below, so no extra header button is needed here. -->
             </div>
         </div>
-        <app-p-button class="vat-report-payment-button" [buttonText]="'+ הוספת הוצאה'" [buttonColor]="buttonColor.BLACK"
-            [buttonSize]="buttonSize.AUTO" (onButtonClicked)="openMannualExpenses()">
-            <i class="pi pi-plus"></i>
-        </app-p-button>
+        <div class="dashboard-actions">
+            <app-p-button class="vat-report-payment-button" [buttonText]="'+ הוספת הוצאה'" [buttonColor]="buttonColor.BLACK"
+                [buttonSize]="buttonSize.AUTO" (onButtonClicked)="openMannualExpenses()">
+                <i class="pi pi-plus"></i>
+            </app-p-button>
+            @if (userData?.isDemo) {
+                <app-p-button class="demo-reset-button" [buttonText]="'אפס נתוני בדיקה'"
+                    [buttonColor]="buttonColor.WHITE_BORDER_LIGHT" [buttonSize]="buttonSize.AUTO"
+                    [isLoading]="isResettingDemo()" (onButtonClicked)="onResetTestData()">
+                    <i class="pi pi-refresh"></i>
+                </app-p-button>
+            }
+        </div>
     </div>
      <!-- ─── Open Banking CTA Banner (Figma nodes 2520:53911 → 2520:53930) ─── -->
      @if (!hasOpenBanking()) {

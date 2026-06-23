@@ -1,6 +1,6 @@
 import { Component, computed, effect, inject, signal } from '@angular/core';
 import { ReactiveFormsModule, Validators } from '@angular/forms';
-import { ConfirmationService, MessageService } from 'primeng/api';
+import { MessageService } from 'primeng/api';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 import { catchError, EMPTY } from 'rxjs';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
@@ -32,7 +32,6 @@ import { CheckboxModule } from 'primeng/checkbox';
 export class AddSupplierComponent {
   addSupplierService = inject(AddSupplierService);
   messageService = inject(MessageService);
-  confirmationService = inject(ConfirmationService);
   expenseDataService = inject(ExpenseDataService);
   dialogRef = inject(DynamicDialogRef);
   dialogConfig = inject(DynamicDialogConfig);
@@ -151,15 +150,7 @@ export class AddSupplierComponent {
     }, {} as Partial<ISupplier>);
 
     if (this.editMode && this.supplierId != null) {
-      this.confirmationService.confirm({
-        message: 'האם אתה בטוח שברצונך לעדכן את פרטי הספק?',
-        header: 'עדכון ספק',
-        icon: 'pi pi-exclamation-triangle',
-        acceptLabel: 'כן, עדכן',
-        rejectLabel: 'ביטול',
-        accept: () => this.doUpdateSupplier(supplierData),
-        reject: () => {}
-      });
+      this.doUpdateSupplier(supplierData);
       return;
     }
 

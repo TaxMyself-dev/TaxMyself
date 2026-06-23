@@ -9,10 +9,8 @@ import { TabMenu } from "primeng/tabmenu";
 import { GenericTableComponent } from "src/app/components/generic-table/generic-table.component";
 import { PeriodSelectComponent } from "src/app/components/period-select/period-select.component";
 import { FilterTabComponent } from "src/app/components/filter-tab/filter-tab.component";
+import { ButtonComponent } from "src/app/components/button/button.component";
 import { PopoverModule } from 'primeng/popover';
-import { ToastModule } from 'primeng/toast';
-import { ConfirmDialog } from 'primeng/confirmdialog';
-import { ConfirmationService, MessageService } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
 import { DynamicDialogModule } from 'primeng/dynamicdialog';
 
@@ -28,13 +26,16 @@ import { DynamicDialogModule } from 'primeng/dynamicdialog';
     GenericTableComponent,
     PeriodSelectComponent,
     FilterTabComponent,
+    ButtonComponent,
     PopoverModule,
-    ToastModule,
-    ConfirmDialog,
     DynamicDialogModule
   ],
   declarations: [ExpensesPage],
-  providers: [ConfirmationService, MessageService, DialogService]
+  // NOTE: ConfirmationService & MessageService are NOT provided here on purpose.
+  // The global <p-confirmdialog> and <p-toast> in app.component bind to the ROOT
+  // instances; re-providing them here would create module-scoped instances that
+  // nothing is listening to, so confirm()/toast calls would silently do nothing.
+  providers: [DialogService]
 })
 export class ExpensesPageModule {}
 

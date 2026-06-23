@@ -3,7 +3,7 @@ import { Controller, Post, Patch, Get, Delete, Query, Param, Body, Req, Headers,
 //Entities
 import { Expense } from './expenses.entity';
 //Services
-import { ExpensesService } from './expenses.service';
+import { ExpensesService, BulkConfirmFromDriveItem, DuplicateExpenseCheckItem } from './expenses.service';
 import { UsersService } from '../users/users.service';
 import { SharedService } from '../shared/shared.service';
 //DTOs
@@ -40,6 +40,48 @@ export class ExpensesController {
     const businessNumber = request.user?.businessNumber;
     const res = await this.expensesService.addExpense(body, firebaseId, businessNumber);
     return res;
+  }
+
+
+  @Post('bulk-confirm-from-drive')
+  @UseGuards(FirebaseAuthGuard)
+  async bulkConfirmFromDrive(
+    @Req() request: AuthenticatedRequest,
+    @Body() body: { businessNumber?: string; items: BulkConfirmFromDriveItem[] },
+  ) {
+    const firebaseId = request.user?.firebaseId;
+    // Prefer body.businessNumber (dialog sends it explicitly) and fall back to
+    // the businessnumber header set by AuthInterceptor (legacy contract).
+    const businessNumber = body?.businessNumber?.trim() || request.user?.businessNumber;
+    if (!firebaseId) throw new HttpException('Not authenticated', HttpStatus.UNAUTHORIZED);
+    if (!businessNumber) throw new HttpException('businessNumber is required (body or header)', HttpStatus.BAD_REQUEST);
+    const items = Array.isArray(body?.items) ? body.items : [];
+    if (items.length === 0) {
+      throw new BadRequestException('items[] is required');
+    }
+    return this.expensesService.bulkConfirmFromDrive(firebaseId, businessNumber, items);
+  }
+
+
+  /**
+   * Pre-flight duplicate check for the drive-extract confirm flow. The UI
+   * calls this before bulk-confirm so users see "this expense already exists
+   * in period X/YYYY" and can deselect the offending rows instead of silently
+   * double-booking. The check is supplier+sum+date exact-match; not a fuzzy
+   * heuristic (see service comment for the tradeoff).
+   */
+  @Post('check-duplicates-from-drive')
+  @UseGuards(FirebaseAuthGuard)
+  async checkDuplicatesFromDrive(
+    @Req() request: AuthenticatedRequest,
+    @Body() body: { businessNumber?: string; items: DuplicateExpenseCheckItem[] },
+  ) {
+    const firebaseId = request.user?.firebaseId;
+    const businessNumber = body?.businessNumber?.trim() || request.user?.businessNumber;
+    if (!firebaseId) throw new HttpException('Not authenticated', HttpStatus.UNAUTHORIZED);
+    if (!businessNumber) throw new HttpException('businessNumber is required (body or header)', HttpStatus.BAD_REQUEST);
+    const items = Array.isArray(body?.items) ? body.items : [];
+    return this.expensesService.checkDuplicateExpensesFromDrive(firebaseId, businessNumber, items);
   }
 
 

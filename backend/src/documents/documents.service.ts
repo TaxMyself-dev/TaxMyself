@@ -1,16 +1,17 @@
-import { Injectable, HttpException, HttpStatus, NotFoundException, BadRequestException } from '@nestjs/common';
+import { forwardRef, Inject, Injectable, HttpException, HttpStatus, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import axios, { AxiosInstance } from 'axios';
-import { EntityManager, Repository, In } from 'typeorm';
+import { EntityManager, Repository, In, Not } from 'typeorm';
 import { SettingDocuments } from './settingDocuments.entity';
 import { Documents } from './documents.entity';
 import { DocLines } from './doc-lines.entity';
 import { JournalEntry } from 'src/bookkeeping/jouranl-entry.entity';
 import { JournalLine } from 'src/bookkeeping/jouranl-line.entity';
 import { DefaultBookingAccount } from 'src/bookkeeping/account.entity'
-import { DocumentType, DocumentStatusType, JournalReferenceType, PaymentMethodType, VatOptions, Currency, UnitOfMeasure, CardCompany, CreditTransactionType, BusinessType } from 'src/enum';
+import { DocumentType, DocumentStatusType, JournalReferenceType, PaymentMethodType, VatOptions, Currency, UnitOfMeasure, CardCompany, CreditTransactionType, BusinessType, isExemptBusinessType } from 'src/enum';
 import { Business } from 'src/business/business.entity';
 import { SharedService } from 'src/shared/shared.service';
+import { FxRateService } from 'src/shared/fx-rate.service';
 import { BookkeepingService } from 'src/bookkeeping/bookkeeping.service';
 import { DocPayments } from './doc-payments.entity';
 import { DataSource } from 'typeorm';
@@ -22,9 +23,19 @@ import { CreateDocDto } from './dtos/create-doc.dto';
 import { BusinessService } from 'src/business/business.service';
 import { MailService } from 'src/mail/mail.service';
 import { User } from 'src/users/user.entity';
+import { ExtractedDocument, ExtractedDocStatus, ExtractedDocumentType } from './extracted-document.entity';
+import { SlimTransaction } from '../transactions/slim-transaction.entity';
+import { DocumentProcessorService, CatalogEntry } from './document-processor.service';
+import { GoogleDriveService } from '../google-drive/google-drive.service';
+import { Supplier } from '../expenses/suppliers.entity';
+import { DefaultSubCategory } from '../expenses/default-sub-categories.entity';
+import { UserSubCategory } from '../expenses/user-sub-categories.entity';
+import { UsersService } from '../users/users.service';
+// Business is already imported above as part of Bookkeeping/Issued-Documents logic.
 
 @Injectable()
 export class DocumentsService {
+  private readonly logger = new Logger(DocumentsService.name);
 
   private readonly apiClient: AxiosInstance;
   sessionID: string;
@@ -52,6 +63,21 @@ export class DocumentsService {
     private businessRepo: Repository<Business>,
     @InjectRepository(User)
     private userRepo: Repository<User>,
+    @InjectRepository(ExtractedDocument)
+    private extractedDocRepo: Repository<ExtractedDocument>,
+    @InjectRepository(Supplier)
+    private supplierRepo: Repository<Supplier>,
+    @InjectRepository(DefaultSubCategory)
+    private defaultSubCategoryRepo: Repository<DefaultSubCategory>,
+    @InjectRepository(UserSubCategory)
+    private userSubCategoryRepo: Repository<UserSubCategory>,
+    @InjectRepository(SlimTransaction)
+    private slimTransactionRepo: Repository<SlimTransaction>,
+    private readonly documentProcessor: DocumentProcessorService,
+    private readonly googleDriveService: GoogleDriveService,
+    @Inject(forwardRef(() => UsersService))
+    private readonly usersService: UsersService,
+    private readonly fxRateService: FxRateService,
     private dataSource: DataSource
   ) { }
 
@@ -198,13 +224,18 @@ export class DocumentsService {
     generalDocIndex: string,
     docType: string,
     fileName: string,
-    fileType: 'original' | 'copy'
+    fileType: 'original' | 'copy',
+    customerFirebaseId?: string | null
   ): Promise<string> {
 
     try {
       const bucket = admin.storage().bucket(process.env.FIREBASE_STORAGE_BUCKET);
       const uniqueId = randomUUID();
-      const filePath = `systemDocs/${issuerBusinessNumber}/${docType}/${fileType}/${uniqueId}/${fileName}.pdf`;
+      // Billing receipts pass customerFirebaseId so Firebase folders group by
+      // the paying user, even though the document is issued under the company.
+      const filePath = customerFirebaseId
+        ? `systemDocs/${issuerBusinessNumber}/${customerFirebaseId}/${docType}/${fileType}/${uniqueId}/${fileName}.pdf`
+        : `systemDocs/${issuerBusinessNumber}/${docType}/${fileType}/${uniqueId}/${fileName}.pdf`;
       const file = bucket.file(filePath);
       await file.save(pdfBuffer, {
         metadata: {
@@ -613,8 +644,8 @@ export class DocumentsService {
 
     const sumTable: any[] = [];
 
-    // For EXEMPT (עוסק פטור)
-    if (businessType === 'EXEMPT') {
+    // For EXEMPT (עוסק פטור / שותפות פטורה)
+    if (isExemptBusinessType(businessType)) {
       // If discount is 0, show only total; otherwise show all fields
       if (disSum > 0) {
         // Show: סה"כ לפני הנחה
@@ -636,7 +667,7 @@ export class DocumentsService {
         'סכום': `₪${this.formatNumberWithCommas(sumAftDisWithVAT)}`,
       });
     } else {
-      // For LICENSED (עוסק מורשה) or COMPANY (חברה)
+      // For LICENSED (עוסק מורשה) or LIMITED_COMPANY/AUTHORIZED_PARTNERSHIP (חברה)
       // For TAX_INVOICE and TAX_INVOICE_RECEIPT
       
       if (docType === DocumentType.TAX_INVOICE || docType === DocumentType.TAX_INVOICE_RECEIPT || docType === DocumentType.TRANSACTION_INVOICE || docType === DocumentType.PRICE_QUOTE || docType === DocumentType.WORK_ORDER) {
@@ -804,7 +835,7 @@ export class DocumentsService {
 
     disSum = docData.totalDiscount;
 
-    if (docData.businessType === BusinessType.EXEMPT) {
+    if (isExemptBusinessType(docData.businessType)) {
       sumBefDisBefVat = docData.totalWithoutVat;
       sumAftDisBefVAT = docData.totalWithoutVat - docData.totalDiscount;
       vatSum = 0;
@@ -1190,7 +1221,7 @@ export class DocumentsService {
               let ownerName = data.docData.issuerName;
               if (!ownerName && business?.firebaseId) {
                 const user = await this.userRepo.findOne({ where: { firebaseId: business.firebaseId } });
-                ownerName = user ? `${user.fName} ${user.lName}`.trim() : null;
+                ownerName = user ? [user.fName, user.lName].filter(Boolean).join(' ').trim() : null;
               }
               const finalOwnerName = ownerName?.trim() || businessName;
               console.log("  📧 Owner name:", finalOwnerName);
@@ -1682,6 +1713,285 @@ ${finalOwnerName}`;
   }
 
 
+  /**
+   * Generates original and copy PDFs for a billing receipt document already
+   * persisted by createBillingSystemReceipt(), uploads both to Firebase, and
+   * updates Documents.file / Documents.copyFile.
+   *
+   * Idempotent: if Documents.file is already set, skips generation and
+   * returns existing paths with the original PDF re-downloaded from Firebase.
+   *
+   * Issuer details are supplied by the caller — no Business entity lookup.
+   * generatePDF() and uploadToFirebase() remain private; this method is the
+   * single public entry point for the billing PDF lifecycle.
+   */
+  async finalizeBillingReceipt(params: {
+    docId: number;
+    issuerName: string;
+    issuerPhone: string | null;
+    issuerEmail: string | null;
+    issuerAddress: string | null;
+    businessType: BusinessType;
+    customerFirebaseId?: string | null;
+  }): Promise<{
+    originalPath: string;
+    copyPath: string;
+    originalBuffer: Buffer;
+    recipientEmail: string | null;
+    recipientName: string;
+    docNumber: string;
+  }> {
+    const { docId, issuerName, issuerPhone, issuerEmail, issuerAddress, businessType, customerFirebaseId } = params;
+
+    const doc = await this.documentsRepo.findOneOrFail({ where: { id: docId } });
+
+    // Idempotency: PDFs already generated and uploaded on a prior attempt.
+    if (doc.file && doc.copyFile) {
+      const originalBuffer = await this.downloadFromFirebase(doc.file);
+      return {
+        originalPath: doc.file,
+        copyPath: doc.copyFile,
+        originalBuffer,
+        recipientEmail: doc.recipientEmail ?? null,
+        recipientName: doc.recipientName,
+        docNumber: doc.docNumber,
+      };
+    }
+
+    const [lines, payments] = await Promise.all([
+      this.docLinesRepo.find({
+        where: { issuerBusinessNumber: doc.issuerBusinessNumber, generalDocIndex: doc.generalDocIndex },
+        order: { lineNumber: 'ASC' },
+      }),
+      this.docPaymentsRepo.find({
+        where: { issuerBusinessNumber: doc.issuerBusinessNumber, generalDocIndex: doc.generalDocIndex },
+        order: { paymentLineNumber: 'ASC' },
+      }),
+    ]);
+
+    // sumWithoutVat = lines with VatOptions.WITHOUT; always 0 for billing receipts
+    // (all lines use VatOptions.EXCLUDE), computed for correctness.
+    const sumWithoutVat = lines
+      .filter(l => l.vatOpts === VatOptions.WITHOUT)
+      .reduce((s, l) => s + Number(l.sumAftDisBefVatPerLine || 0), 0);
+
+    const data = {
+      docData: {
+        ...doc,
+        issuerName,
+        issuerPhone,
+        issuerEmail,
+        issuerAddress,
+        businessType,
+        sumWithoutVat,
+        paymentMethod: null,
+      },
+      linesData: lines,
+      paymentData: payments,
+    };
+
+    // Generate both PDFs (same path as createDoc step 7)
+    const originalPdfBlob = await this.generatePDF(data, 'createDoc');
+    const originalBuffer = Buffer.from(originalPdfBlob as any);
+
+    const copyPdfBlob = await this.generatePDF(data, 'createDoc', true);
+    const copyBuffer = Buffer.from(copyPdfBlob as any);
+
+    // Upload both to Firebase (same path as createDoc step 8)
+    const docFileName = `${doc.docType}_${doc.docNumber}`;
+    const originalPath = await this.uploadToFirebase(
+      originalBuffer,
+      doc.issuerBusinessNumber,
+      doc.generalDocIndex,
+      doc.docType,
+      docFileName,
+      'original',
+      customerFirebaseId,
+    );
+    const copyPath = await this.uploadToFirebase(
+      copyBuffer,
+      doc.issuerBusinessNumber,
+      doc.generalDocIndex,
+      doc.docType,
+      docFileName,
+      'copy',
+      customerFirebaseId,
+    );
+
+    // Update Documents.file and Documents.copyFile (same as createDoc step 9)
+    doc.file = originalPath;
+    doc.copyFile = copyPath;
+    await this.documentsRepo.save(doc);
+
+    return {
+      originalPath,
+      copyPath,
+      originalBuffer,
+      recipientEmail: doc.recipientEmail ?? null,
+      recipientName: doc.recipientName,
+      docNumber: doc.docNumber,
+    };
+  }
+
+  /**
+   * Downloads the original PDF for a billing receipt from Firebase Storage and
+   * returns it together with the document fields needed to compose an email.
+   * Throws if the document has no file path (finalizeBillingReceipt not yet run).
+   */
+  async getBillingReceiptPdf(docId: number): Promise<{
+    buffer: Buffer;
+    recipientEmail: string | null;
+    recipientName: string;
+    docNumber: string;
+    docType: string;
+    generalDocIndex: string;
+  }> {
+    const doc = await this.documentsRepo.findOneOrFail({ where: { id: docId } });
+    if (!doc.file) {
+      throw new Error(
+        `Billing receipt docId=${docId} has no PDF path — finalizeBillingReceipt may not have completed`,
+      );
+    }
+    const buffer = await this.downloadFromFirebase(doc.file);
+    return {
+      buffer,
+      recipientEmail: doc.recipientEmail ?? null,
+      recipientName: doc.recipientName,
+      docNumber: doc.docNumber,
+      docType: doc.docType,
+      generalDocIndex: doc.generalDocIndex,
+    };
+  }
+
+  /**
+   * Creates a billing receipt for a KeepInTax subscription payment without
+   * creating journal entries, generating PDFs, or uploading to Firebase.
+   * Issuer details come from the caller — no Business entity lookup required.
+   * Returns the DB document id, doc number, and general doc index for storage
+   * on the corresponding PAYMENT_SUCCESS billing_event row.
+   */
+  async createBillingSystemReceipt(params: {
+    systemUserId: string;
+    issuerBusinessNumber: string;
+    issuerBusinessType: BusinessType;
+    recipientName: string;
+    recipientEmail: string | null;
+    amountBeforeVatAgorot: number;
+    vatAmountAgorot: number;
+    amountIncludingVatAgorot: number;
+    planName: string;
+    docDate: Date;
+    initialReceiptIndex: number;
+  }): Promise<{ receiptDocId: number; docNumber: string; generalDocIndex: string }> {
+    const {
+      systemUserId, issuerBusinessNumber, issuerBusinessType,
+      recipientName, recipientEmail,
+      amountBeforeVatAgorot, vatAmountAgorot, amountIncludingVatAgorot,
+      planName, docDate, initialReceiptIndex,
+    } = params;
+
+    const amountBeforeVatShekels = +(amountBeforeVatAgorot / 100).toFixed(2);
+    const vatAmountShekels = +(vatAmountAgorot / 100).toFixed(2);
+    const amountIncludingVatShekels = +(amountIncludingVatAgorot / 100).toFixed(2);
+
+    const qr = this.dataSource.createQueryRunner();
+    await qr.connect();
+    await qr.startTransaction();
+
+    try {
+      // 1. Increment the shared generalDocIndex counter for this business
+      const generalIndexResult = await this.incrementGeneralIndex(
+        systemUserId, issuerBusinessNumber, qr.manager,
+      );
+      const generalDocIndex = String(generalIndexResult.currentIndex);
+
+      // 2. Determine the next TAX_INVOICE_RECEIPT doc number from the per-type counter
+      const settingRepo = qr.manager.getRepository(SettingDocuments);
+      let docSetting = await settingRepo.findOne({
+        where: { userId: systemUserId, issuerBusinessNumber, docType: DocumentType.TAX_INVOICE_RECEIPT },
+      });
+
+      let docNumber: string;
+      if (!docSetting) {
+        // First billing receipt — initialize counter at configured starting index
+        docSetting = settingRepo.create({
+          userId: systemUserId,
+          issuerBusinessNumber,
+          docType: DocumentType.TAX_INVOICE_RECEIPT,
+          initialIndex: initialReceiptIndex,
+          currentIndex: initialReceiptIndex + 1,
+        });
+        await settingRepo.save(docSetting);
+        docNumber = String(initialReceiptIndex);
+      } else {
+        docNumber = String(docSetting.currentIndex);
+        docSetting.currentIndex += 1;
+        await settingRepo.save(docSetting);
+      }
+
+      // 3. Persist the Documents row (no PDF, no Firebase, no journal entry)
+      const docData = {
+        issuerBusinessNumber,
+        businessType: issuerBusinessType,
+        docType: DocumentType.TAX_INVOICE_RECEIPT,
+        docNumber,
+        generalDocIndex,
+        docVatRate: 18,
+        currency: Currency.ILS,
+        sumBefDisBefVat: amountBeforeVatShekels,
+        disSum: 0,
+        sumAftDisBefVAT: amountBeforeVatShekels,
+        vatSum: vatAmountShekels,
+        sumAftDisWithVAT: amountIncludingVatShekels,
+        withholdingTaxAmount: 0,
+        recipientName,
+        recipientEmail,
+        docDate,
+      };
+      const savedDoc = await this.saveDocInfo(systemUserId, docData, qr.manager);
+
+      // 4. Persist one DocLines row
+      const lineData = [{
+        issuerBusinessNumber,
+        generalDocIndex,
+        docType: DocumentType.TAX_INVOICE_RECEIPT,
+        lineNumber: '1',
+        transType: '3',
+        description: planName,
+        unitType: UnitOfMeasure.UNIT,
+        unitQuantity: 1,
+        sumBefVatPerUnit: amountBeforeVatShekels,
+        disBefVatPerLine: 0,
+        sumAftDisBefVatPerLine: amountBeforeVatShekels,
+        vatOpts: VatOptions.EXCLUDE,
+        vatRate: 18,
+        vatPerLine: vatAmountShekels,
+      }];
+      await this.saveLinesInfo(systemUserId, lineData, qr.manager);
+
+      // 5. Persist one DocPayments row (VAT-inclusive total — what was actually charged)
+      const paymentData = [{
+        issuerBusinessNumber,
+        generalDocIndex,
+        paymentLineNumber: '1',
+        paymentMethod: 'CREDIT_CARD',
+        paymentDate: docDate,
+        paymentAmount: amountIncludingVatShekels,
+      }];
+      await this.savePaymentsInfo(systemUserId, paymentData, qr.manager);
+
+      await qr.commitTransaction();
+
+      return { receiptDocId: savedDoc.id, docNumber, generalDocIndex };
+    } catch (error) {
+      await qr.rollbackTransaction();
+      throw error;
+    } finally {
+      await qr.release();
+    }
+  }
+
+
   // Save draft before SHAAM redirect
   async saveDraft(userId: string, data: any): Promise<Documents> {
     console.log('=== SAVING DRAFT TO DATABASE ===');
@@ -2121,5 +2431,746 @@ ${finalOwnerName}`;
     };
   }
 
+
+  // =====================================================================
+  // Drive-folder sync + Claude OCR extraction
+  // (separate domain from the invoice-issuing logic above; consider splitting
+  // out into its own service if this grows beyond a few methods.)
+  // =====================================================================
+
+  /**
+   * Walk the business's `inbox/` folder, OCR every file we haven't seen
+   * before, and move successfully-processed files to `processed/`. Files
+   * that fail OCR get an `error` row and stay in `inbox/` so the user (or
+   * a retry) can see them. The inbox/processed sub-folders are provisioned
+   * lazily via UsersService.provisionDriveStructure — backfilled if missing.
+   *
+   * Called from the VAT/P&L report-page pre-flight. Idempotent: re-running
+   * after a successful pass is a cheap "list files, find nothing new" no-op.
+   *
+   * @returns counters scoped to this run (total = files seen in inbox now;
+   *          NOT a cumulative count of all-time-processed files).
+   */
+  async processInboxForUser(
+    firebaseId: string,
+    businessNumber: string,
+  ): Promise<{
+    processed: number;
+    failed: number;
+    skipped: number;
+    duplicates: number;
+    total: number;
+    inboxFolderId: string;
+    processedFolderId: string;
+  }> {
+    if (!businessNumber) {
+      throw new BadRequestException('businessNumber is required');
+    }
+
+    const user = await this.userRepo.findOne({ where: { firebaseId } });
+    if (!user) throw new NotFoundException(`User not found for firebaseId`);
+
+    // Ensure the sub-folder ids exist on the business row (backfills the
+    // inbox/processed sub-folders for businesses created pre-refactor).
+    const business = await this.ensureBusinessAndSubFolders(user, businessNumber);
+
+    const inboxFolderId     = business.driveInboxFolderId!;
+    const processedFolderId = business.driveProcessedFolderId!;
+
+    const files = await this.googleDriveService.listFolderFiles(inboxFolderId);
+    this.logger.log(
+      `processInboxForUser: fid=${firebaseId.substring(0, 8)} biz=${businessNumber} ` +
+      `inbox=${inboxFolderId} files=${files.length}`,
+    );
+
+    const catalog = await this.buildExtractionCatalog(firebaseId, businessNumber);
+
+    // Dedup: if a row already exists for this driveFileId with any status
+    // OTHER than `error`, the file's been seen — skip it. Error rows are
+    // retried so transient OCR failures can recover on the next pass.
+    const existingRows = files.length
+      ? await this.extractedDocRepo.find({
+          where: { driveFileId: In(files.map(f => f.id)) },
+        })
+      : [];
+    const existingByDriveId = new Map<string, ExtractedDocument[]>();
+    for (const row of existingRows) {
+      const list = existingByDriveId.get(row.driveFileId) ?? [];
+      list.push(row);
+      existingByDriveId.set(row.driveFileId, list);
+    }
+
+    // Byte-identical dedup setup. A file re-uploaded to inbox gets a fresh
+    // driveFileId, so the driveFileId check above can't see it — but its
+    // md5Checksum matches a prior row. Look up which content hashes are
+    // already represented by a LIVE row for this business. Excluded:
+    //   - ERROR    — retried, so not "already handled".
+    //   - REJECTED — the content was explicitly discarded (user junk or a
+    //     prior auto-dedup); a deliberate re-upload should get another OCR
+    //     pass, not be silently re-rejected forever.
+    // Map md5 → the original's driveFileId for the duplicate row's audit trail.
+    const batchMd5s = Array.from(
+      new Set(files.map(f => f.md5Checksum).filter((m): m is string => !!m)),
+    );
+    const priorMd5Rows = batchMd5s.length
+      ? await this.extractedDocRepo.find({
+          where: {
+            businessNumber,
+            driveFileMd5: In(batchMd5s),
+            status: Not(In([ExtractedDocStatus.ERROR, ExtractedDocStatus.REJECTED])),
+          },
+        })
+      : [];
+    const handledMd5ToFileId = new Map<string, string>();
+    for (const row of priorMd5Rows) {
+      if (row.driveFileMd5 && !handledMd5ToFileId.has(row.driveFileMd5)) {
+        handledMd5ToFileId.set(row.driveFileMd5, row.driveFileId);
+      }
+    }
+    // md5s OCR'd successfully earlier in THIS batch, so two identical files
+    // dropped together also dedup (first OCRs, the rest are rejected).
+    const seenMd5InBatch = new Map<string, string>();
+
+    let processed = 0;
+    let failed = 0;
+    let skipped = 0;
+    let duplicates = 0;
+
+    for (const file of files) {
+      const priorRows = existingByDriveId.get(file.id) ?? [];
+      // Any non-error row means we've handled this file already. Move it to
+      // processed/ if it's still hanging out in inbox (recovery from a prior
+      // run that crashed between save+move).
+      const alreadyHandled = priorRows.some(r => r.status !== ExtractedDocStatus.ERROR);
+      if (alreadyHandled) {
+        skipped++;
+        await this.safelyMoveToProcessed(file.id, inboxFolderId, processedFolderId);
+        continue;
+      }
+
+      if (!this.documentProcessor.isSupportedMimeType(file.mimeType)) {
+        this.logger.warn(
+          `Skipping unsupported file ${file.name} (${file.mimeType})`,
+        );
+        skipped++;
+        continue;
+      }
+
+      const uploadDate = file.createdTime ? new Date(file.createdTime) : null;
+
+      // Byte-identical dedup. If this file's content hash already has a
+      // non-error row (prior run) or was OCR'd earlier in this batch, it's
+      // a re-upload of a document we already have. Skip OCR, record a
+      // REJECTED "duplicate" row for the audit trail, and move it out of
+      // inbox. Zero false-positive risk: identical bytes are always the
+      // same document (a re-scan/photo never matches byte-for-byte).
+      const md5 = file.md5Checksum;
+      const originalFileId = md5
+        ? (handledMd5ToFileId.get(md5) ?? seenMd5InBatch.get(md5))
+        : undefined;
+      if (originalFileId) {
+        // Clear any stale error rows for this driveFileId first so the
+        // rejected row is the only one we keep for this file.
+        if (priorRows.length > 0) {
+          await this.extractedDocRepo.remove(priorRows);
+        }
+        await this.saveDuplicateRow(
+          user.index, businessNumber, file, uploadDate, originalFileId,
+        );
+        await this.safelyMoveToProcessed(file.id, inboxFolderId, processedFolderId);
+        duplicates++;
+        this.logger.log(
+          `Skipped duplicate ${file.name} (id=${file.id}) — same content hash as ${originalFileId}`,
+        );
+        continue;
+      }
+
+      // Wipe any prior `error` rows for this file before retrying.
+      if (priorRows.length > 0) {
+        await this.extractedDocRepo.remove(priorRows);
+      }
+
+      try {
+        const buffer = await this.googleDriveService.downloadFile(file.id);
+        const { invoices, rawResponse } = await this.documentProcessor.extract(
+          buffer,
+          file.mimeType,
+          catalog,
+        );
+
+        if (!invoices) {
+          await this.saveErrorRow(user.index, businessNumber, file, uploadDate, rawResponse);
+          failed++;
+          continue;
+        }
+        if (invoices.length === 0) {
+          await this.saveErrorRow(
+            user.index, businessNumber, file, uploadDate,
+            rawResponse || 'Claude returned 0 invoices for this file',
+          );
+          failed++;
+          continue;
+        }
+
+        // One row per invoice. Raw Claude response saved only on the first
+        // row to avoid duplicating a potentially-large blob.
+        for (let i = 0; i < invoices.length; i++) {
+          const inv = invoices[i];
+          const normalizedCurrency = this.normalizeCurrency(inv.currency);
+          // FX conversion: stamp the ILS-normalized amount on non-ILS docs
+          // so MatchingService can compare doc.ilsAmount against the tx
+          // side's cache.ilsAmount in a single currency. ILS docs keep
+          // both columns NULL (matcher's COALESCE falls back to doc.amount,
+          // preserving the pre-migration behavior). FxRateService.getRate
+          // is null-safe and BOI-cached, so this adds at most one cache
+          // miss per (date, currency) pair across the whole OCR batch.
+          const fxResolved =
+            normalizedCurrency && normalizedCurrency !== 'ILS' && inv.amount != null && inv.date
+              ? await this.fxRateService.getRate(new Date(inv.date), normalizedCurrency)
+              : null;
+          const ilsAmount =
+            fxResolved != null && inv.amount != null
+              ? Number((Number(inv.amount) * fxResolved).toFixed(2))
+              : null;
+          await this.extractedDocRepo.save(
+            this.extractedDocRepo.create({
+              userId: user.index,
+              businessNumber,
+              driveFileId: file.id,
+              driveFileName: file.name,
+              driveFileMd5: file.md5Checksum,
+              // The `month` column predates the inbox refactor. Keep it
+              // populated from the OCR'd invoice date so legacy queries
+              // that filter by month still work; fall back to the upload
+              // month if Claude couldn't parse the date.
+              month: this.deriveMonthFromExtraction(inv.date, uploadDate),
+              subIndex: i,
+              documentType: this.normalizeDocumentType(inv.document_type),
+              uploadDate,
+              supplier: inv.supplier ?? null,
+              supplierId: inv.supplier_id ?? null,
+              date: inv.date ?? null,
+              invoiceNumber: inv.invoice_number ?? null,
+              allocationNumber: this.normalizeAllocationNumber(inv.allocation_number),
+              amount: inv.amount != null ? String(inv.amount) : null,
+              vat: inv.vat != null ? String(inv.vat) : null,
+              amountBeforeVat:
+                inv.amount_before_vat != null ? String(inv.amount_before_vat) : null,
+              currency: normalizedCurrency,
+              ilsAmount: ilsAmount != null ? String(ilsAmount) : null,
+              fxRateToIls: fxResolved != null ? String(fxResolved) : null,
+              category: inv.category ?? null,
+              subCategory: inv.sub_category ?? null,
+              taxPercent: inv.tax_percent != null ? String(inv.tax_percent) : null,
+              vatPercent: inv.vat_percent != null ? String(inv.vat_percent) : null,
+              isEquipment: typeof inv.is_equipment === 'boolean' ? inv.is_equipment : null,
+              description: inv.description ?? null,
+              status: ExtractedDocStatus.PENDING_REVIEW,
+              rawResponse: i === 0 ? rawResponse : null,
+            }),
+          );
+        }
+        // OCR succeeded → move the file out of inbox so a repeat pass
+        // doesn't re-pick-it-up. Best-effort: a move failure is logged but
+        // doesn't undo the saved rows (dedup catches it next run).
+        await this.safelyMoveToProcessed(file.id, inboxFolderId, processedFolderId);
+
+        // Claim this content hash so a later copy in the same batch dedups
+        // against it (cross-run copies are caught via the stored column).
+        if (file.md5Checksum) seenMd5InBatch.set(file.md5Checksum, file.id);
+
+        processed++;
+        this.logger.log(
+          `Extracted ${file.name} (id=${file.id}) → ${invoices.length} invoice row(s)`,
+        );
+      } catch (err: any) {
+        await this.saveErrorRow(
+          user.index, businessNumber, file, uploadDate,
+          err?.message ?? String(err),
+        );
+        failed++;
+        this.logger.error(
+          `Failed to process ${file.name} (id=${file.id}): ${err?.message ?? err}`,
+          err?.stack,
+        );
+      }
+    }
+
+    return {
+      processed,
+      failed,
+      skipped,
+      duplicates,
+      total: files.length,
+      inboxFolderId,
+      processedFolderId,
+    };
+  }
+
+  /** Best-effort move so a Drive throttle / 5xx doesn't undo a successful
+   *  OCR. If the move fails we'll catch the orphaned file on the next inbox
+   *  scan (the `alreadyHandled` branch retries the move). */
+  private async safelyMoveToProcessed(
+    fileId: string,
+    fromInbox: string,
+    toProcessed: string,
+  ): Promise<void> {
+    try {
+      await this.googleDriveService.moveFile(fileId, fromInbox, toProcessed);
+    } catch (err: any) {
+      this.logger.error(
+        `safelyMoveToProcessed: fileId=${fileId} from=${fromInbox} to=${toProcessed} failed: ${err?.message ?? err}`,
+      );
+    }
+  }
+
+  /** YYYY-MM month for the legacy `month` column. Use the OCR'd invoice date
+   *  if it parses; fall back to the file's upload date; final fallback is
+   *  the current month so we never write NULL into a NOT NULL column. */
+  private deriveMonthFromExtraction(invoiceDate: string | null, uploadDate: Date | null): string {
+    if (invoiceDate && /^\d{4}-\d{2}-\d{2}$/.test(invoiceDate)) {
+      return invoiceDate.slice(0, 7);
+    }
+    const d = uploadDate ?? new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  }
+
+  /** Coerce Claude's `document_type` string into the canonical enum value
+   *  (or null when it's missing/unknown to us). */
+  private normalizeDocumentType(raw: string | null | undefined): ExtractedDocumentType | null {
+    if (!raw) return null;
+    const lower = raw.toLowerCase().trim();
+    const known = Object.values(ExtractedDocumentType) as string[];
+    if (known.includes(lower)) return lower as ExtractedDocumentType;
+    return ExtractedDocumentType.UNKNOWN;
+  }
+
+  /**
+   * Israeli tax-authority allocation numbers (מספר הקצאה) are exactly 9
+   * digits. OCR sometimes returns them with surrounding noise — a leading
+   * confirmation prefix, an embedded dash, the full barcode line — so the
+   * raw value can be longer than 9 chars. Strip non-digits and, when more
+   * than 9 digits remain, keep the rightmost 9 (the suffix is the actual
+   * allocation; any extra leading digits are header/sequence noise).
+   */
+  private normalizeAllocationNumber(raw: string | null | undefined): string | null {
+    if (!raw) return null;
+    const digits = String(raw).replace(/\D/g, '');
+    if (!digits) return null;
+    return digits.length > 9 ? digits.slice(-9) : digits;
+  }
+
+  /**
+   * Normalize Claude's `currency` extraction to a canonical ISO-4217
+   * uppercase code, defaulting to "ILS" when the value is missing or
+   * unrecognized. Downstream code treats null as "legacy/unknown" and the
+   * approve flow checks for `!== 'ILS'` to decide whether to run the BOI
+   * rate conversion — so we want consistent uppercase strings here.
+   */
+  private normalizeCurrency(raw: string | null | undefined): string | null {
+    if (!raw) return 'ILS';
+    const code = raw.trim().toUpperCase();
+    // Sanity: ISO-4217 is always 3 letters. Anything else is junk —
+    // fall back to ILS so the approve flow doesn't try to look up an
+    // FX rate for a phantom currency.
+    if (!/^[A-Z]{3}$/.test(code)) return 'ILS';
+    return code;
+  }
+
+  /**
+   * Resolve the business + ensure the inbox/processed sub-folders
+   * exist on it. Returns the refreshed business row with the folder ids
+   * populated. Throws if provisioning didn't produce them
+   * (means Drive is down or the user lacks permissions).
+   */
+  private async ensureBusinessAndSubFolders(
+    user: User,
+    businessNumber: string,
+  ): Promise<Business> {
+    const accountantEmails = await this.usersService.getActiveAccountantEmailsForUser(user.firebaseId);
+    await this.usersService.provisionDriveStructure(user, accountantEmails);
+
+    const business = await this.businessRepo.findOne({
+      where: { firebaseId: user.firebaseId, businessNumber },
+    });
+    if (!business) {
+      throw new BadRequestException(`Business ${businessNumber} not found for this user`);
+    }
+    if (!business.driveInboxFolderId || !business.driveProcessedFolderId) {
+      throw new HttpException(
+        `Business ${businessNumber} is missing inbox or processed folder id ` +
+        `after provisioning — check the [Drive] logs above.`,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+    return business;
+  }
+
+  /**
+   * Resolve a doc out of the review queue. Two terminal statuses are
+   * supported:
+   *
+   *   ARCHIVED — "I reviewed and decided no, keep the doc for reference."
+   *              For audit / future browsing.
+   *   REJECTED — "This isn't a real expense doc (OCR junk, duplicate, etc.)."
+   *              Distinguished from ARCHIVED only in the DB status so
+   *              reports can filter REJECTED out cleanly from "archived
+   *              but real".
+   *
+   * The underlying Drive file STAYS in processed/ in both cases. The DB
+   * `status` column is the only signal — file location no longer reflects
+   * the row's lifecycle.
+   *
+   * If the doc was matched to a slim transaction, that slim row gets reset
+   * too (matchedDocumentId=null, isRecognized=false) so the bank tx returns
+   * to "unclassified" on the dashboard rather than disappearing into a
+   * dangling matched-to-a-gone-doc state.
+   *
+   * Idempotent: re-running on an already-terminal doc returns
+   * { movedFile: false } without DB churn.
+   */
+  async archiveDocument(
+    firebaseId: string,
+    documentId: number,
+    targetStatus: ExtractedDocStatus.ARCHIVED | ExtractedDocStatus.REJECTED = ExtractedDocStatus.ARCHIVED,
+  ): Promise<{ ok: true; documentId: number; movedFile: boolean }> {
+    const user = await this.userRepo.findOne({ where: { firebaseId } });
+    if (!user) throw new NotFoundException(`User not found for firebaseId`);
+
+    const doc = await this.extractedDocRepo.findOne({ where: { id: documentId } });
+    if (!doc) throw new NotFoundException(`Extracted document #${documentId} not found`);
+    if (doc.userId !== user.index) {
+      throw new HttpException('Not your document', HttpStatus.FORBIDDEN);
+    }
+    // Idempotent on terminal states. Re-clicking archive on an already-
+    // archived row, or reject on a rejected row, is a no-op.
+    if (doc.status === targetStatus) {
+      return { ok: true, documentId, movedFile: false };
+    }
+
+    // Flip ONLY the clicked row, never the siblings — a multi-invoice file
+    // (e.g. monthly fuel statement OCR'd into N rows) shares one driveFileId,
+    // and the user may want to approve some and archive/reject others.
+    await this.extractedDocRepo.update(
+      { id: documentId },
+      { status: targetStatus },
+    );
+
+    // Matched row: also reset the slim transaction so the bank tx isn't
+    // left dangling with matchedDocumentId pointing at an archived doc.
+    // Without this, the next preview's matcher filter (matchedDocumentId
+    // IS NULL) would skip the slim row forever — the tx silently vanishes.
+    // Setting isRecognized=false also removes it from the review modal's
+    // tx_only column; the user can re-classify from the dashboard if they
+    // change their mind. (For non-matched rows, doc.matchedTransactionId
+    // is null and this block no-ops.)
+    if (doc.matchedTransactionId) {
+      await this.slimTransactionRepo.update(
+        { id: doc.matchedTransactionId },
+        { matchedDocumentId: null, isRecognized: false },
+      );
+    }
+
+    // Paired row: cascade the terminal status to the partner so an
+    // archived/rejected receipt doesn't leave its sibling invoice stuck
+    // in status=PAIRED with no primary to act on.
+    if (doc.pairedWithDocumentId) {
+      await this.extractedDocRepo.update(
+        { id: doc.pairedWithDocumentId },
+        { status: targetStatus },
+      );
+    }
+
+    // No Drive move on archive/reject: the file stays in processed/
+    // forever. The DB `status` column is the source of truth for what
+    // shows in the review modal; file location is no longer a signal
+    // anyone reads. `movedFile` stays in the response shape for callers
+    // that still read it (will always be false now).
+    return { ok: true, documentId, movedFile: false };
+  }
+
+  /**
+   * Upload a user-provided file directly into the business's Drive inbox,
+   * OCR it inline, persist the extracted rows, and return the FIRST
+   * extracted_document — the report-review flow uses that to auto-link
+   * the new doc to a pending tx_only row.
+   *
+   * Unlike `processInboxForUser` (which polls inbox/), this is invoked
+   * synchronously from a button click — so the user waits ~5-10s on the
+   * Claude call. Multi-invoice PDFs persist N rows; the linker only links
+   * sub_index=0 — siblings stay as doc_only rows the user can resolve
+   * separately. The file ends up in processed/ on success, same as the
+   * batch path.
+   */
+  async uploadAndOcrDoc(
+    firebaseId: string,
+    businessNumber: string,
+    fileBuffer: Buffer,
+    originalName: string,
+    mimeType: string,
+  ): Promise<ExtractedDocument> {
+    if (!this.documentProcessor.isSupportedMimeType(mimeType)) {
+      throw new BadRequestException(`Unsupported mime type: ${mimeType}`);
+    }
+    const user = await this.userRepo.findOne({ where: { firebaseId } });
+    if (!user) throw new NotFoundException(`User not found for firebaseId`);
+    const business = await this.ensureBusinessAndSubFolders(user, businessNumber);
+    const inboxFolderId     = business.driveInboxFolderId!;
+    const processedFolderId = business.driveProcessedFolderId!;
+
+    // 1) Drop the file in inbox/ so it ends up in the same Drive layout
+    //    as files that arrive via the normal "drag-into-inbox" route.
+    const driveFileId = await this.googleDriveService.uploadFile(
+      inboxFolderId,
+      originalName,
+      fileBuffer,
+      mimeType,
+    );
+
+    // 2) Run Claude on the buffer (no need to re-download from Drive).
+    const catalog = await this.buildExtractionCatalog(firebaseId, businessNumber);
+    const { invoices, rawResponse } = await this.documentProcessor.extract(
+      fileBuffer,
+      mimeType,
+      catalog,
+    );
+    const uploadDate = new Date();
+    if (!invoices || invoices.length === 0) {
+      // Persist an error row so admin diagnostics still see the file, but
+      // raise so the caller can surface "OCR didn't find an invoice".
+      await this.saveErrorRow(
+        user.index, businessNumber,
+        { id: driveFileId, name: originalName },
+        uploadDate,
+        rawResponse || 'Claude returned 0 invoices for this upload',
+      );
+      throw new BadRequestException('לא נמצאה חשבונית במסמך שהועלה');
+    }
+
+    // 3) Persist a row per invoice — same shape as processInboxForUser
+    //    (kept inline rather than factored out so the read-path comments
+    //    in that loop stay self-contained). Multi-invoice files get N
+    //    sibling rows sharing the same driveFileId.
+    const savedRows: ExtractedDocument[] = [];
+    for (let i = 0; i < invoices.length; i++) {
+      const inv = invoices[i];
+      const normalizedCurrency = this.normalizeCurrency(inv.currency);
+      const fxResolved =
+        normalizedCurrency && normalizedCurrency !== 'ILS' && inv.amount != null && inv.date
+          ? await this.fxRateService.getRate(new Date(inv.date), normalizedCurrency)
+          : null;
+      const ilsAmount =
+        fxResolved != null && inv.amount != null
+          ? Number((Number(inv.amount) * fxResolved).toFixed(2))
+          : null;
+      const saved = await this.extractedDocRepo.save(
+        this.extractedDocRepo.create({
+          userId: user.index,
+          businessNumber,
+          driveFileId,
+          driveFileName: originalName,
+          month: this.deriveMonthFromExtraction(inv.date, uploadDate),
+          subIndex: i,
+          documentType: this.normalizeDocumentType(inv.document_type),
+          uploadDate,
+          supplier: inv.supplier ?? null,
+          supplierId: inv.supplier_id ?? null,
+          date: inv.date ?? null,
+          invoiceNumber: inv.invoice_number ?? null,
+          allocationNumber: this.normalizeAllocationNumber(inv.allocation_number),
+          amount: inv.amount != null ? String(inv.amount) : null,
+          vat: inv.vat != null ? String(inv.vat) : null,
+          amountBeforeVat:
+            inv.amount_before_vat != null ? String(inv.amount_before_vat) : null,
+          currency: normalizedCurrency,
+          ilsAmount: ilsAmount != null ? String(ilsAmount) : null,
+          fxRateToIls: fxResolved != null ? String(fxResolved) : null,
+          category: inv.category ?? null,
+          subCategory: inv.sub_category ?? null,
+          taxPercent: inv.tax_percent != null ? String(inv.tax_percent) : null,
+          vatPercent: inv.vat_percent != null ? String(inv.vat_percent) : null,
+          isEquipment: typeof inv.is_equipment === 'boolean' ? inv.is_equipment : null,
+          description: inv.description ?? null,
+          status: ExtractedDocStatus.PENDING_REVIEW,
+          rawResponse: i === 0 ? rawResponse : null,
+        }),
+      );
+      savedRows.push(saved);
+    }
+
+    // 4) Move the file out of inbox/ now that OCR succeeded. Best-effort —
+    //    a failed move leaves the file in inbox/ where the next batch run
+    //    would re-OCR; the DB dedup (driveFileId + non-error status) then
+    //    short-circuits without creating duplicates.
+    await this.safelyMoveToProcessed(driveFileId, inboxFolderId, processedFolderId);
+
+    return savedRows[0];
+  }
+
+  /**
+   * One-shot OCR for a single file uploaded directly from the UI (manual
+   * expense dialog). Unlike `processInboxForUser` this does NOT persist
+   * anything — it just runs Claude on the buffer and returns the first
+   * invoice's extracted fields so the form can prefill. Returns null for
+   * `invoice` if Claude found nothing or returned unparseable output (caller
+   * surfaces a soft warning rather than treating it as a hard error).
+   */
+  async ocrSingleFile(
+    firebaseId: string,
+    businessNumber: string,
+    fileBuffer: Buffer,
+    mimeType: string,
+  ): Promise<{ invoice: any | null; invoicesCount: number }> {
+    if (!this.documentProcessor.isSupportedMimeType(mimeType)) {
+      throw new BadRequestException(
+        `Unsupported file type: ${mimeType}. Supported: PDF, JPEG, PNG, GIF, WEBP.`,
+      );
+    }
+    const catalog = await this.buildExtractionCatalog(firebaseId, businessNumber);
+    const { invoices } = await this.documentProcessor.extract(
+      fileBuffer,
+      mimeType,
+      catalog,
+    );
+    if (!invoices || invoices.length === 0) {
+      return { invoice: null, invoicesCount: 0 };
+    }
+    return { invoice: invoices[0], invoicesCount: invoices.length };
+  }
+
+  /**
+   * Build the sub-category catalog passed to Claude for classification AND
+   * served to the frontend so the review dialog can render dropdowns sourced
+   * from the same list. Combines system defaults (DefaultSubCategory) with
+   * this user/business's overrides (UserSubCategory). Overrides win on
+   * duplicate subCategoryName. Filters out non-expense entries.
+   */
+  async buildExtractionCatalog(
+    firebaseId: string,
+    businessNumber: string,
+  ): Promise<CatalogEntry[]> {
+    const [defaults, userOverrides] = await Promise.all([
+      this.defaultSubCategoryRepo.find({ where: { isExpense: true } }),
+      this.userSubCategoryRepo.find({
+        where: { firebaseId, businessNumber, isExpense: true },
+      }),
+    ]);
+
+    const byName = new Map<string, CatalogEntry>();
+    for (const d of defaults) {
+      byName.set(d.subCategoryName, {
+        subCategoryName: d.subCategoryName,
+        categoryName: d.categoryName,
+        taxPercent: Number(d.taxPercent),
+        vatPercent: Number(d.vatPercent),
+        isEquipment: !!d.isEquipment,
+      });
+    }
+    for (const u of userOverrides) {
+      byName.set(u.subCategoryName, {
+        subCategoryName: u.subCategoryName,
+        categoryName: u.categoryName,
+        taxPercent: Number(u.taxPercent),
+        vatPercent: Number(u.vatPercent),
+        isEquipment: !!u.isEquipment,
+      });
+    }
+    return Array.from(byName.values());
+  }
+
+  private async saveErrorRow(
+    userIndex: number,
+    businessNumber: string,
+    file: { id: string; name: string },
+    uploadDate: Date | null,
+    rawResponse: string,
+  ): Promise<void> {
+    const fallbackMonth = (uploadDate ?? new Date());
+    await this.extractedDocRepo.save(
+      this.extractedDocRepo.create({
+        userId: userIndex,
+        businessNumber,
+        driveFileId: file.id,
+        driveFileName: file.name,
+        // Legacy NOT NULL column — error rows have no OCR'd date so we use
+        // the upload month as the bucket.
+        month: `${fallbackMonth.getFullYear()}-${String(fallbackMonth.getMonth() + 1).padStart(2, '0')}`,
+        subIndex: 0,
+        uploadDate,
+        status: ExtractedDocStatus.ERROR,
+        rawResponse,
+      }),
+    );
+  }
+
+  /** Records a byte-identical re-upload as a REJECTED row (reason:
+   *  duplicate) instead of OCR'ing it again. Keeps an audit trail of the
+   *  skipped file (so it doesn't silently vanish from inbox) and, together
+   *  with the move to processed/, keeps it out of future scans.
+   *  `originalDriveFileId` is the file we already have the content from. */
+  private async saveDuplicateRow(
+    userIndex: number,
+    businessNumber: string,
+    file: { id: string; name: string; md5Checksum: string | null },
+    uploadDate: Date | null,
+    originalDriveFileId: string,
+  ): Promise<void> {
+    const fallbackMonth = (uploadDate ?? new Date());
+    await this.extractedDocRepo.save(
+      this.extractedDocRepo.create({
+        userId: userIndex,
+        businessNumber,
+        driveFileId: file.id,
+        driveFileName: file.name,
+        driveFileMd5: file.md5Checksum,
+        // Legacy NOT NULL column — no OCR'd date, bucket by upload month.
+        month: `${fallbackMonth.getFullYear()}-${String(fallbackMonth.getMonth() + 1).padStart(2, '0')}`,
+        subIndex: 0,
+        uploadDate,
+        status: ExtractedDocStatus.REJECTED,
+        rawResponse: `Duplicate of drive file ${originalDriveFileId} (identical content hash) — skipped OCR.`,
+      }),
+    );
+  }
+
+  /**
+   * All rows for this user+business that are awaiting review, enriched with
+   * the matching Supplier (if any) so the review dialog can pre-fill category
+   * / sub-category / VAT% / tax% for known suppliers. Scope is purely
+   * `status = pending_review` — no month filter, since the new inbox flow
+   * doesn't slice by period.
+   */
+  async getReviewableForUser(
+    firebaseId: string,
+    businessNumber: string,
+  ): Promise<Array<ExtractedDocument & { matchedSupplier: Supplier | null }>> {
+    const user = await this.userRepo.findOne({ where: { firebaseId } });
+    if (!user) throw new NotFoundException(`User not found for firebaseId`);
+
+    const docs = await this.extractedDocRepo
+      .createQueryBuilder('d')
+      .where('d.userId = :uid', { uid: user.index })
+      .andWhere('d.businessNumber = :bn', { bn: businessNumber })
+      .andWhere('d.status = :st', { st: ExtractedDocStatus.PENDING_REVIEW })
+      .orderBy('d.date', 'DESC')
+      .addOrderBy('d.id', 'DESC')
+      .getMany();
+
+    const supplierIds = Array.from(
+      new Set(docs.map(d => d.supplierId).filter((v): v is string => !!v)),
+    );
+
+    const suppliers = supplierIds.length
+      ? await this.supplierRepo.find({
+          where: { userId: firebaseId, supplierID: In(supplierIds) },
+        })
+      : [];
+    const supplierById = new Map(suppliers.map(s => [s.supplierID, s]));
+
+    return docs.map(d => ({
+      ...d,
+      matchedSupplier: d.supplierId ? (supplierById.get(d.supplierId) ?? null) : null,
+    }));
+  }
 
 }

@@ -1,0 +1,516 @@
+// Default layout: just the table-side content (`.dialog-main` fills the
+// dialog). When the preview panel opens (`.with-preview`), the body
+// switches to a horizontal flex split: table on the left, Drive iframe
+// on the right (RTL → preview is visually on the right because DOM
+// order under [dir=rtl] flows right-to-left).
+.dialog-body {
+  display: flex;
+  flex-direction: row;
+  gap: 14px;
+  align-items: stretch;
+}
+.dialog-main {
+  flex: 1 1 auto;
+  min-width: 0; // lets the table actually compress instead of overflowing
+}
+.dialog-body.with-preview .dialog-main {
+  // Table side keeps ~58% of the width when preview is open. Going below
+  // ~52% started clipping the right-edge "פעולות" column with our 14-col
+  // layout, even with horizontal scroll.
+  flex: 0 0 58%;
+  overflow-x: auto;
+}
+
+.preview-panel {
+  flex: 0 0 40%;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #f9fafb;
+  // Height matches the dialog content area so the iframe gets a real
+  // box to fill — without this Drive's iframe defaults to ~150px.
+  min-height: 75vh;
+}
+.preview-panel__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid #e5e7eb;
+  background: white;
+  border-radius: 6px 6px 0 0;
+}
+.preview-panel__title {
+  flex: 1 1 auto;
+  font-size: 0.82rem;
+  color: #374151;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  direction: ltr;          // file names are usually Latin / mixed
+  text-align: start;
+}
+.preview-panel__close {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  background: white;
+  cursor: pointer;
+  color: #4b5563;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  &:hover { background: #f3f4f6; }
+}
+.preview-panel__iframe {
+  flex: 1 1 auto;
+  width: 100%;
+  border: 0;
+  border-radius: 0 0 6px 6px;
+  background: white;
+}
+
+.subtitle {
+  font-size: 0.9rem;
+  color: #4b5563;
+  margin: 0 0 10px;
+}
+
+
+// Row tinting on the generic-table host. The <tr>s live inside generic-
+// table's view encapsulation, so pierce with ::ng-deep scoped to the
+// .review-table host class.
+//   highlighted → warning background; set when the user touches a
+//                 category/sub-category on any row sharing this row's
+//                 supplierId, to track which suppliers are mid-review.
+//   pending     → muted overlay while an action is in flight
+//   error       → red overlay on action failure
+// (Matched/doc/tx are no longer color-coded — the status-column icon
+// communicates the type now.)
+:host ::ng-deep .review-table {
+  // Aggressive density so all 15 columns fit at typical laptop widths
+  // (1280-1440px) without horizontal scroll. Going below 0.78rem on the
+  // body font hurts Hebrew/Latin mix legibility, so this is the floor.
+  font-size: 0.78rem;
+  line-height: 1.2;
+
+  // Back to fixed-layout — auto-layout under PrimeNG's wrapped p-table
+  // can't avoid the "all columns equal" redistribution when content is
+  // shorter than the container. With fixed layout + per-column widths
+  // sized to actual content (see buildColumns), nothing truncates and
+  // each column reads as a distinct unit.
+  .p-datatable-table,
+  table {
+    table-layout: fixed !important;
+  }
+
+  // GenericTableComponent sets [style.height]="...76px" on every row to
+  // accommodate its expandable-row design. Override here so the table
+  // gets actual compact density vertically — otherwise our padding cuts
+  // don't visibly shrink anything because each <tr> already reserves 76px.
+  tr.table-row,
+  tbody tr {
+    height: auto !important;
+  }
+
+  th, td {
+    // Bumped vertical padding (5px → 12px) so rows have visible
+    // breathing room — at 5px the table felt cramped against the
+    // dense column set. Horizontal stays at 14px to preserve the
+    // inter-column gap.
+    padding: 12px 14px !important;
+    vertical-align: middle;
+    // Keep cells on one line — auto-layout will widen the column
+    // instead of wrapping. No ellipsis / overflow:hidden because
+    // truncation is exactly what the user said they don't want.
+    white-space: nowrap;
+  }
+  th { font-size: 0.74rem; font-weight: 600; }
+
+  input.cell-editable,
+  select.cell-editable {
+    font-size: 0.78rem;
+    padding: 1px 2px;
+    min-height: 22px;
+    width: 100%;            // fill the column; otherwise inputs sit
+                            // surrounded by their own implicit padding
+  }
+  // Percent inputs are visually narrower because the column is narrow;
+  // strip the right-padding the browser adds for spinner buttons.
+  input[type='number'] {
+    padding-inline-end: 2px;
+  }
+
+  // Row backgrounds are no longer type-driven (the status-column icon
+  // tells the user "matched / doc-only / tx-only" now). The only
+  // background-based signal is .row-highlighted, set when the user
+  // touches a category/sub-category on any row — that row plus every
+  // sibling sharing its supplierId picks up the blue tint, so the user
+  // sees at a glance which rows were just updated by the cascade.
+  tr.row-highlighted { background: #dbeafe; }   // blue-100
+  tr.row-pending     { opacity: 0.6; }
+  tr.row-error       { background: #fee2e2 !important; }
+}
+
+
+// Period dropdown — amber tint when the user overrode the auto-derived
+// value, so the row visually advertises "this one's not automatic".
+:host ::ng-deep .review-table select.period-select {
+  font-variant-numeric: tabular-nums;
+  &.overridden {
+    border: 1px solid #f59e0b;
+    background: #fffbeb;
+    font-weight: 600;
+    color: #92400e;
+  }
+}
+
+// Per-row action buttons. Compact + monochrome by default; semantic
+// color only on approve to direct the eye to the primary action.
+.act {
+  display: inline-block;
+  padding: 3px 8px;
+  margin: 0 2px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  background: white;
+  color: #374151;
+  font-size: 0.76rem;
+  cursor: pointer;
+
+  &:hover:not(:disabled) { background: #f3f4f6; }
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  &.act-approve {
+    background: #16a34a; border-color: #16a34a; color: white;
+    &:hover:not(:disabled) { background: #15803d; border-color: #15803d; }
+  }
+  &.act-archive,
+  &.act-reject {
+    color: #b91c1c; border-color: #fca5a5;
+    &:hover:not(:disabled) { background: #fee2e2; }
+  }
+  &.act-link {
+    color: #1d4ed8; border-color: #93c5fd;
+    &:hover:not(:disabled) { background: #dbeafe; }
+  }
+}
+
+.action-error {
+  display: inline-block;
+  margin-inline-end: 4px;
+  font-size: 0.85rem;
+  color: #b91c1c;
+  font-weight: 600;
+  cursor: help;
+}
+
+// Compact icon-buttons for the actions column. Square, no background by
+// default, hover state hints at intent (red for destructive, blue for
+// link). Pi-icons render at the cell's font size, ~14px here.
+.icon-act {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 22px;
+  margin: 0 1px;
+  padding: 0;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  background: white;
+  color: #4b5563;
+  cursor: pointer;
+  font-size: 0.8rem;
+  line-height: 1;
+
+  &:hover:not(:disabled) { background: #f3f4f6; }
+  &:disabled { opacity: 0.45; cursor: not-allowed; }
+
+  &.icon-archive:hover:not(:disabled) {
+    background: #fef3c7;
+    color: #92400e;
+    border-color: #fcd34d;
+  }
+  &.icon-delete:hover:not(:disabled) {
+    background: #fee2e2;
+    color: #b91c1c;
+    border-color: #fca5a5;
+  }
+  &.icon-link:hover:not(:disabled) {
+    background: #dbeafe;
+    color: #1d4ed8;
+    border-color: #93c5fd;
+  }
+  // Drive preview (eye) — blue hover, matching the preview panel accent.
+  &.icon-preview {
+    color: #1d4ed8;
+    &:hover:not(:disabled) {
+      background: #dbeafe;
+      color: #1e40af;
+      border-color: #93c5fd;
+    }
+  }
+  // Upload (tx_only "העלה מסמך") — green hover hints the constructive
+  // intent (creating a new doc), distinct from the blue link icon which
+  // pairs with something existing.
+  &.icon-upload:hover:not(:disabled) {
+    background: #dcfce7;
+    color: #15803d;
+    border-color: #86efac;
+  }
+  // Unpair (split a paired invoice↔receipt row back into two) — purple
+  // hover to distinguish from the link icon used on tx_only rows (same
+  // pi-link glyph, opposite intent — splitting vs joining).
+  &.icon-unpair:hover:not(:disabled) {
+    background: #f3e8ff;
+    color: #7e22ce;
+    border-color: #d8b4fe;
+  }
+}
+
+// Native file input must be in the DOM (so the row's reference is
+// stable) but not visible — clicking the upload button opens the picker
+// programmatically via #docFileInput.click().
+.hidden-file-input {
+  display: none;
+}
+
+// "אחר" (custom period) dialog — opened from the period dropdown when
+// the user wants a value outside the 6-month auto-generated list.
+.custom-period-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 6px 4px 12px;
+}
+.custom-period-explanation {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: #4b5563;
+  background: #eff6ff;        // blue-50 — informational tone
+  border: 1px solid #bfdbfe;  // blue-200
+  border-right: 3px solid #1d4ed8; // RTL accent stripe
+  border-radius: 6px;
+  padding: 10px 14px;
+  strong { color: #1e3a8a; }  // blue-900 — anchors the "up to 6 months" callout
+}
+.custom-period-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #374151;
+}
+.custom-period-input {
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 0.95rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  &:focus {
+    outline: none;
+    border-color: #1d4ed8;
+    box-shadow: 0 0 0 3px #bfdbfe66;
+  }
+}
+.custom-period-footer {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+// Supplier-conflict pre-flight dialog — same visual idiom as the
+// custom-period dialog (informational blue accent stripe + rounded card).
+// Amber tone instead of blue so it reads as a warning rather than info.
+.supplier-conflict-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 6px 4px 12px;
+}
+.supplier-conflict-explanation {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: #4b5563;
+  background: #fffbeb;        // amber-50 — warning tone
+  border: 1px solid #fde68a;  // amber-200
+  border-right: 3px solid #b45309; // RTL accent stripe (amber-700)
+  border-radius: 6px;
+  padding: 10px 14px;
+  strong { color: #78350f; }  // amber-900
+}
+.supplier-conflict-list {
+  margin: 0;
+  padding: 0 18px 0 0;        // RTL: indent on the right
+  list-style: disc;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 0.9rem;
+  color: #374151;
+}
+.supplier-conflict-name {
+  font-weight: 600;
+  color: #111827;
+}
+.supplier-conflict-meta {
+  margin-right: 6px;
+  color: #6b7280;
+  font-size: 0.85rem;
+}
+.supplier-conflict-fields {
+  margin-top: 2px;
+  color: #4b5563;
+  font-size: 0.85rem;
+}
+.supplier-conflict-howto {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.55;
+  color: #374151;
+  strong { color: #111827; }
+}
+.supplier-conflict-flag-icon {
+  color: #dc2626; // red-600 — matches the in-table flag
+  font-size: 0.85rem;
+  margin: 0 2px;
+}
+.supplier-conflict-footer {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+// Supplier-name cell — name on the right (RTL), info icon hugging the
+// left of the cell. The icon only renders when the supplier isn't in the
+// user's Supplier table, so most rows show just the name.
+:host ::ng-deep .review-table .supplier-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+}
+:host ::ng-deep .review-table .supplier-name {
+  // Single-line name; the column width is sized to fit the longest
+  // observed supplier without truncation. If a longer name shows up,
+  // truncating is preferable to wrapping inside a fixed-height row.
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+// Two states for the new-supplier flag — both visible (so the user can
+// always see "this is a new supplier"), only differing in color so the
+// click choice ("yes save" / "no don't save") is glanceable too.
+//   Default       — red, will be added to Supplier table on approve
+//   Opt-out       — grey, will NOT be added
+// Click toggles between them (see toggleSaveAsSupplier).
+:host ::ng-deep .review-table .supplier-new-icon {
+  color: #dc2626;
+  font-size: 0.95rem;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: color 0.15s ease;
+
+  &:hover {
+    // Slight darken on hover so the click affordance is obvious without
+    // a heavier visual treatment.
+    color: #991b1b;
+  }
+
+  &--opt-out {
+    color: #9ca3af;            // grey-400: clearly de-emphasized
+    &:hover {
+      color: #6b7280;          // grey-500
+    }
+  }
+}
+
+// Status icon column — one icon per row.type, color-coded so the
+// at-a-glance signal that used to come from row backgrounds now lives
+// here. Hover gives the Hebrew description via PrimeNG tooltip.
+:host ::ng-deep .review-table .status-icon {
+  font-size: 1.05rem;
+  cursor: help;
+
+  &--matched  { color: #15803d; }   // green: doc successfully paired with bank tx
+  &--doc_only { color: #92400e; }   // amber: doc without tx
+  &--tx_only  { color: #1d4ed8; }   // blue:  tx without doc
+}
+
+.cell-empty { color: #d1d5db; }
+
+// Footer bar — bulk-approve + select-all toggle. Mirrors the
+// PullDriveDocsDialog footer so the muscle memory carries over.
+.footer-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid #e5e7eb;
+}
+.select-info {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  color: #6b7280;
+  font-size: 0.88rem;
+}
+
+// Keep "אישור הוצאות נבחרות" and "דלג" on the same line with a small gap
+// between them. flex-wrap lets a narrow modal break to two lines rather
+// than overflow horizontally.
+.footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.select-all-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+}
+
+// Inline link picker — drops in inside the actions cell, right beneath
+// the row's normal buttons. Kept narrow so it doesn't push the row tall.
+.link-picker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  padding: 4px 6px;
+  background: #eff6ff;
+  border: 1px solid #93c5fd;
+  border-radius: 4px;
+  select { flex: 1 1 auto; min-width: 180px; }
+}
+
+// Soft-duplicate inline prompt — amber (warning, not error) to set it
+// apart from the red hard-failure ⚠. Sits under the row's action icons.
+.dup-warning {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  padding: 4px 6px;
+  background: #fffbeb;          // amber-50
+  border: 1px solid #fcd34d;    // amber-300
+  border-radius: 4px;
+
+  &__text {
+    flex: 1 1 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.76rem;
+    color: #92400e;             // amber-800
+    i { color: #d97706; }       // amber-600
+  }
+}

@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm'
 import { DocumentsService,  } from './documents.service';
 import { DocumentsController } from './documents.controller';
@@ -10,6 +10,8 @@ import { JournalEntry } from 'src/bookkeeping/jouranl-entry.entity';
 import { JournalLine } from 'src/bookkeeping/jouranl-line.entity';
 import { DefaultBookingAccount } from 'src/bookkeeping/account.entity';
 import { SharedService } from 'src/shared/shared.service';
+import { FxRateService } from 'src/shared/fx-rate.service';
+import { FxRate } from 'src/shared/fx-rate.entity';
 import { Expense } from 'src/expenses/expenses.entity';
 // TODO_FINTAX_REMOVE_LEGACY_TRANSACTIONS: wiring leftover — Transactions registered to satisfy SharedService injection. Not used by DocumentsService or BookkeepingService directly. Remove when SharedService is cleaned up.
 import { Transactions } from 'src/transactions/transactions.entity';
@@ -19,20 +21,34 @@ import { Business } from 'src/business/business.entity';
 import { BusinessService } from 'src/business/business.service';
 import { MailModule } from 'src/mail/mail.module';
 import { User } from 'src/users/user.entity';
+import { ExtractedDocument } from './extracted-document.entity';
+import { SlimTransaction } from '../transactions/slim-transaction.entity';
+import { DocumentProcessorService } from './document-processor.service';
+import { DocumentPairingService } from './document-pairing.service';
+import { GoogleDriveModule } from '../google-drive/google-drive.module';
+import { Supplier } from '../expenses/suppliers.entity';
+import { DefaultSubCategory } from '../expenses/default-sub-categories.entity';
+import { UserSubCategory } from '../expenses/user-sub-categories.entity';
+import { UsersModule } from '../users/users.module';
 
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([SettingDocuments, Documents, Expense, Transactions, DocLines, DocPayments, Business, Delegation, JournalEntry, JournalLine, DefaultBookingAccount, User]),
-    MailModule
+    TypeOrmModule.forFeature([SettingDocuments, Documents, Expense, Transactions, DocLines, DocPayments, Business, Delegation, JournalEntry, JournalLine, DefaultBookingAccount, User, ExtractedDocument, Supplier, DefaultSubCategory, UserSubCategory, FxRate, SlimTransaction]),
+    MailModule,
+    GoogleDriveModule,
+    forwardRef(() => UsersModule),
   ],
   controllers: [DocumentsController],
   providers: [
     DocumentsService,
     SharedService,
+    FxRateService,
     BookkeepingService,
-    BusinessService
+    BusinessService,
+    DocumentProcessorService,
+    DocumentPairingService,
   ],
-  exports: [DocumentsService], // Export DocumentsService for use in other modules
+  exports: [DocumentsService, DocumentProcessorService, DocumentPairingService], // Export for use in other modules
 })
 export class DocumentsModule {}

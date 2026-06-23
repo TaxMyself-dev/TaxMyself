@@ -192,7 +192,7 @@
       (onRowUnselect)="onSelectionChange($event)" (onRowSelect)="onSelectionChange($event)"
       (onHeaderCheckboxToggle)="onSelectionChange($event)" dataKey="id"
       [loading]="effectiveIsLoading()"
-      loadingIcon="pi pi-spin pi-spinner-dotted" [columns]="columnsTitle()" [value]="filteredDataTable()"
+      loadingIcon="pi pi-spin pi-spinner-dotted" [columns]="visibleColumns()" [value]="filteredDataTable()"
       [scrollable]="false" [scrollHeight]="tableHeight()" [virtualScroll]="false" [virtualScrollItemSize]="76">
       <ng-template pTemplate="loadingbody">
         @if (useSyncState() && processStatus() === 'running') {
@@ -210,13 +210,15 @@
             <p-tableHeaderCheckbox></p-tableHeaderCheckbox>
           </th>
           }
-          <th style="position: sticky; top: 0;" *ngFor="let col of columns" class="columns-header">
+          <th style="position: sticky; top: 0;" *ngFor="let col of columns" class="columns-header"
+              [style.width]="col.width">
             {{ col.value }}
           </th>
         </tr>
       </ng-template>
       <ng-template pTemplate="body" let-row let-columns="columns" let-rowIndex="rowIndex">
         <tr [style.height]="isExpanded(row) ? 'auto' : '76px'" class="table-row"
+          [ngClass]="rowClass()?.(row)"
           (mouseenter)="onRowEnter(rowIndex, row, $event)" (mouseleave)="onRowLeave()">
           @if (showCheckbox()) {
           <td>
@@ -224,7 +226,58 @@
           </td>
           }
           @for(col of columns; track col.name; let i = $index) {
-          <td>
+          <td [style.width]="col.width">
+            <!-- Opt-in: custom cell template wins over everything else.
+                 Consumer supplies an <ng-template let-row let-col="col"> and
+                 we render it here. Used by the pull-drive-docs dialog for
+                 cells that need cascading dropdowns, conditional disable,
+                 or multi-state badges that the built-in editors can't express. -->
+            @if (col.cellTemplate) {
+              <ng-container *ngTemplateOutlet="col.cellTemplate; context: { $implicit: row, row: row, col: col }"></ng-container>
+            }
+            <!-- Opt-in: built-in inline editors. Consumer sets editable=true
+                 plus a `type`. Uses native DOM property/event bindings so
+                 FormsModule is not required in this shared component. -->
+            @else if (col.editable) {
+              @switch (col.type) {
+                @case (FormTypes.TEXT) {
+                  <input class="cell-editable" type="text"
+                         [value]="row[col.name] ?? ''"
+                         (input)="row[col.name] = $any($event).target.value; col.onChange?.($any($event).target.value, row)" />
+                }
+                @case (FormTypes.NUMBER) {
+                  <input class="cell-editable cell-editable--num" type="number" step="0.01"
+                         [value]="row[col.name] ?? ''"
+                         (input)="row[col.name] = +$any($event).target.value; col.onChange?.(+$any($event).target.value, row)" />
+                }
+                @case (FormTypes.DATE) {
+                  <input class="cell-editable" type="date"
+                         [value]="row[col.name] ?? ''"
+                         (input)="row[col.name] = $any($event).target.value; col.onChange?.($any($event).target.value, row)" />
+                }
+                @case (FormTypes.DDL) {
+                  <select class="cell-editable"
+                          [value]="row[col.name] ?? ''"
+                          (change)="row[col.name] = $any($event).target.value; col.onChange?.($any($event).target.value, row)">
+                    <option value="">— בחר —</option>
+                    @for (item of col.listItems ?? []; track item.value) {
+                      <option [value]="item.value">{{ item.name }}</option>
+                    }
+                  </select>
+                }
+                @case (FormTypes.CHECKBOX) {
+                  <input type="checkbox"
+                         [checked]="!!row[col.name]"
+                         (change)="row[col.name] = $any($event).target.checked; col.onChange?.($any($event).target.checked, row)" />
+                }
+                @default {
+                  <input class="cell-editable" type="text"
+                         [value]="row[col.name] ?? ''"
+                         (input)="row[col.name] = $any($event).target.value; col.onChange?.($any($event).target.value, row)" />
+                }
+              }
+            }
+            @else {
             <span #tp="truncatePointer" [class.truncate]="!isExpanded(row)" class="data-text"
               (click)="tp.isTruncated && toggleRow(row)" appTruncatePointer
               [class.red-text]="col.name === 'category' && row[col.name] === 'טרם סווג'">
@@ -291,18 +344,49 @@
                 {{ row[col.name] }}
               </span>
               }
+              <!-- Plain ILS amount with " ש״ח" suffix. Used by report-
+                   summary cells where the value is always in ILS and the
+                   percent line from AMOUNT_WITH_PERCENT isn't useful. -->
+              @else if (col.cellRenderer === ICellRenderer.AMOUNT_ILS) {
+                <span class="amount-ils">{{ (row[col.name] | number:'1.0-2') ?? 0 }} ש״ח</span>
+              }
               <!-- Amount + recognition % stacked on two lines (used by the
                    confirm-expense dialog for "מוכר למע״מ" / "מוכר למס"). -->
               @else if (col.cellRenderer === ICellRenderer.AMOUNT_WITH_PERCENT) {
                 <span class="amount-with-percent">
                   <span class="amount">{{ (row[col.name] | number:'1.0-2') ?? 0 }} ש״ח</span>
-                  <span class="percent">({{ row[amountPercentField(col.name)] ?? 0 }}%)</span>
+                  <span class="percent">({{ (row[amountPercentField(col.name)] ?? 0) | number:'1.2-2' }}%)</span>
                 </span>
+              }
+              <!-- Same as AMOUNT_WITH_PERCENT but adds the desktop equipment
+                   icon (purple) next to the percent value when the row is
+                   flagged as equipment. Used on the "% מס" column so users
+                   know at a glance whether the tax line will be treated as
+                   depreciation. -->
+              @else if (col.cellRenderer === ICellRenderer.TAX_WITH_EQUIPMENT) {
+                <span class="amount-with-percent">
+                  <span class="amount">{{ (row[col.name] | number:'1.0-2') ?? 0 }} ש״ח</span>
+                  <span class="percent">
+                    ({{ (row[amountPercentField(col.name)] ?? 0) | number:'1.2-2' }}%)
+                    @if (row.isEquipment) {
+                      <i class="pi pi-desktop supplier-equipment-icon"
+                         title="ציוד (רכוש קבוע) — פחת"></i>
+                    }
+                  </span>
+                </span>
+              }
+              @else if (col.cellRenderer === ICellRenderer.CHECKBOX) {
+                @if (row[col.name]) {
+                  <i class="pi pi-check-circle" style="color: #16a34a; font-size: 1.1rem;"></i>
+                } @else {
+                  <i class="pi pi-times-circle" style="color: #dc2626; font-size: 1.1rem;"></i>
+                }
               }
               @else {
               {{ row[col.name] }}
               }
             </span>
+            }
           </td>
           }
         </tr>

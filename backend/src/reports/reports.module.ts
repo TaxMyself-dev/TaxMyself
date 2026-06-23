@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { SharedModule } from '../shared/shared.module';
 //Entities
 import { Expense } from '../expenses/expenses.entity';
+import { ExtractedDocument } from '../documents/extracted-document.entity';
 import { DefaultSubCategory } from '../expenses/default-sub-categories.entity';
 import { UserSubCategory } from '../expenses/user-sub-categories.entity';
 import { ClassifiedTransactions } from 'src/transactions/classified-transactions.entity';
@@ -20,8 +21,12 @@ import { Delegation } from 'src/delegation/delegation.entity';
 import { ReportsController } from './reports.controller';
 //Services
 import { ReportsService } from './reports.service';
+import { ReportReviewService } from './report-review.service';
+import { MatchingService } from './matching.service';
 import { ExpensesService } from '../expenses/expenses.service';
 import { UsersModule } from '../users/users.module';
+import { DocumentsModule } from '../documents/documents.module';
+import { GoogleDriveModule } from '../google-drive/google-drive.module';
 import { DefaultCategory } from '../expenses/default-categories.entity';
 import { UserCategory } from '../expenses/user-categories.entity';
 import { FinsiteService } from 'src/finsite/finsite.service';
@@ -38,12 +43,25 @@ import { FullTransactionCache } from 'src/transactions/full-transaction-cache.en
     TypeOrmModule.forFeature([Business, Expense, DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory,
                                       ClassifiedTransactions, Bill, Source, Supplier, User, Child, Finsite, Documents, DocLines, DocPayments,
                                       Delegation, JournalEntry, JournalLine, DefaultBookingAccount,
-                                      SlimTransaction, FullTransactionCache]),
+                                      SlimTransaction, FullTransactionCache, ExtractedDocument]),
     SharedModule,
     UsersModule,
+    // DocumentsService is needed by ReportReviewService to trigger inbox
+    // processing + per-row archive/reject. Imported (not re-provided) so we
+    // share the same instance as DocumentsModule consumers.
+    DocumentsModule,
+    // GoogleDriveModule for Drive reads in the review flow (e.g. listing
+    // the inbox folder's files).
+    GoogleDriveModule,
   ],
   controllers: [ReportsController],
-  providers: [ReportsService, ExpensesService, FinsiteService],
-  exports: [ReportsService],
+  providers: [
+    ReportsService,
+    ReportReviewService,
+    MatchingService,
+    ExpensesService,
+    FinsiteService,
+  ],
+  exports: [ReportsService, ReportReviewService],
 })
 export class ReportsModule {}

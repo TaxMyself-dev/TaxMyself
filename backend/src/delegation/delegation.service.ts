@@ -1,5 +1,6 @@
 import {
   Injectable,
+  Logger,
   NotFoundException,
   UnauthorizedException,
   ConflictException,
@@ -13,21 +14,23 @@ import { Delegation, DelegationStatus } from './delegation.entity';
 import { User } from 'src/users/user.entity';
 import { Business } from 'src/business/business.entity';
 import { MailService } from 'src/mail/mail.service';
+import { UsersService } from 'src/users/users.service';
 import { CreateClientByAccountantDto } from './dtos/create-client-by-accountant.dto';
 import {
   UserRole,
   Gender,
   FamilyStatus,
   EmploymentType,
-  PayStatus,
   BusinessStatus,
   BusinessType,
   VATReportingType,
   TaxReportingType,
+  isExemptBusinessType,
 } from '../enum';
 
 @Injectable()
 export class DelegationService {
+  private readonly logger = new Logger(DelegationService.name);
   private readonly firebaseAuth: admin.auth.Auth;
 
   constructor(
@@ -38,6 +41,7 @@ export class DelegationService {
     @InjectRepository(Business)
     private readonly businessRepository: Repository<Business>,
     private readonly mailService: MailService,
+    private readonly usersService: UsersService,
   ) {
     this.firebaseAuth = admin.auth();
   }
@@ -354,6 +358,25 @@ export class DelegationService {
       throw new NotFoundException('לא נמצא קישור ללקוח זה');
     }
     await this.delegationRepository.remove(delegation);
+
+    // Revoke the accountant's Google Drive access to this client's folders.
+    // Done AFTER removing the delegation so the collision-safe check inside
+    // revokeAccountantDriveAccess sees the post-removal entitlement state.
+    // Fire-and-forget: a Drive hiccup must not fail the un-delegation itself.
+    const accountant = await this.userRepository.findOne({
+      where: { firebaseId: accountantFirebaseId },
+      select: ['email'],
+    });
+    if (accountant?.email) {
+      void this.usersService
+        .revokeAccountantDriveAccess(clientFirebaseId, accountant.email)
+        .catch(err =>
+          this.logger.error(
+            `[deleteClientByAccountant] Drive revoke failed for accountant=${accountant.email}, client=${clientFirebaseId}: ${err?.message ?? err}`,
+            err?.stack,
+          ),
+        );
+    }
   }
 
   /**
@@ -422,19 +445,18 @@ export class DelegationService {
       familyStatus: FamilyStatus.SINGLE,
       role: [UserRole.REGULAR],
       businessStatus: BusinessStatus.SINGLE_BUSINESS,
-      payStatus: PayStatus.TRIAL,
-      modulesAccess: null,
       createdAt: new Date(),
-      subscriptionEndDate: new Date(),
     });
-    newUser.subscriptionEndDate.setMonth(
-      newUser.subscriptionEndDate.getMonth() + 2,
-    );
     await this.userRepository.save(newUser);
+
+    // Subscription row — same trial-creation path as signup(), so delegated
+    // clients get identical TRIAL/all-modules access instead of a
+    // hand-rolled (and previously inconsistent) legacy state.
+    await this.usersService.ensureTrialSubscription(firebaseId);
 
     // 3b. יוצרים תמיד עסק בטבלת העסקים לפי השדות הרלוונטיים
     const resolvedBusinessType = dto.businessType ?? BusinessType.EXEMPT;
-    const vatDefault = resolvedBusinessType === BusinessType.EXEMPT
+    const vatDefault = isExemptBusinessType(resolvedBusinessType)
       ? VATReportingType.NOT_REQUIRED
       : VATReportingType.DUAL_MONTH_REPORT;
     const business = this.businessRepository.create({
@@ -461,7 +483,29 @@ export class DelegationService {
     });
     await this.delegationRepository.save(delegation);
 
+    // 5. Fire-and-forget Drive provisioning for the new client, plus share with
+    //    the accountant's email so the folders show up in their "Shared with me".
+    //    Looks up the accountant's email and passes it to provisionDriveStructure.
+    void this.provisionClientDriveForAccountant(newUser, accountantFirebaseId).catch(err =>
+      this.logger.error(
+        `[createClientByAccountant] background Drive provisioning failed for client ${firebaseId}: ${err?.message ?? err}`,
+        err?.stack,
+      ),
+    );
+
     const fullName = `${newUser.fName} ${newUser.lName}`.trim() || dto.email;
     return { firebaseId, fullName };
+  }
+
+  private async provisionClientDriveForAccountant(
+    clientUser: User,
+    accountantFirebaseId: string,
+  ): Promise<void> {
+    const accountant = await this.userRepository.findOne({
+      where: { firebaseId: accountantFirebaseId },
+      select: ['email'],
+    });
+    const extraEmails = accountant?.email ? [accountant.email] : [];
+    await this.usersService.provisionDriveStructure(clientUser, extraEmails);
   }
 }

@@ -14,7 +14,7 @@ import { GenericService } from 'src/app/services/generic.service';
 import { displayColumnsExpense, inputsSize } from 'src/app/shared/enums';
 import { IRowDataTable, ISelectItem, ISubCategory } from 'src/app/shared/interface';
 import { ButtonComponent } from "../button/button.component";
-import { ButtonSize } from '../button/button.enum';
+import { ButtonColor, ButtonSize } from '../button/button.enum';
 import { InputDateComponent } from '../input-date/input-date.component';
 import { InputSelectComponent } from "../input-select/input-select.component";
 import { InputTextComponent } from '../input-text/input-text.component';
@@ -92,6 +92,7 @@ export class ClassifyTranComponent implements OnInit {
 
   // UI constants
   buttonSize = ButtonSize;
+  buttonColor = ButtonColor;
   inputsSize = inputsSize;
   readonly displayHebrew = displayColumnsExpense;
 

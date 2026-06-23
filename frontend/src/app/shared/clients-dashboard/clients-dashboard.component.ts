@@ -1,7 +1,8 @@
 import { Component, OnInit, computed, signal } from '@angular/core';
-import { AdminPanelService } from 'src/app/services/admin-panel.service';
+import { AdminPanelService, DriveSyncResult, ExtractedDocRow } from 'src/app/services/admin-panel.service';
+import { AdminBillingService, AdminSubscription } from 'src/app/services/admin-billing.service';
 import { FeezbackService, AdminAccountsAndCardsResponse, AdminPullSourceResult } from 'src/app/services/feezback.service';
-import { catchError, EMPTY, finalize } from 'rxjs';
+import { catchError, EMPTY, finalize, forkJoin } from 'rxjs';
 import { IColumnDataTable, IRowDataTable, ITableRowAction } from 'src/app/shared/interface';
 import { FormTypes } from 'src/app/shared/enums';
 import { ConfirmationService, MessageService } from 'primeng/api';
@@ -44,6 +45,22 @@ export class ClientsDashboardComponent implements OnInit {
   // and the last result keyed by `${type}_${paymentIdentifier}`.
   pullingSourceKey = signal<string | null>(null);
   pullResultByKey = signal<Record<string, AdminPullSourceResult>>({});
+
+  // Drive OCR sync dialog state
+  driveDialogVisible = signal<boolean>(false);
+  driveDialogLoading = signal<boolean>(false);
+  driveDialogClient = signal<{ index: number; name: string } | null>(null);
+  driveDialogYear = signal<number>(new Date().getFullYear());
+  driveDialogMonth = signal<number>(new Date().getMonth() + 1);
+  driveDialogBusinessNumber = signal<string>('');
+  driveSyncSummary = signal<DriveSyncResult | null>(null);
+  driveExtractedDocs = signal<ExtractedDocRow[]>([]);
+
+  readonly driveYearOptions = [
+    new Date().getFullYear(),
+    new Date().getFullYear() - 1,
+  ];
+  readonly driveMonthOptions = Array.from({ length: 12 }, (_, i) => i + 1);
 
   readonly ButtonColor = ButtonColor;
   readonly ButtonSize = ButtonSize;
@@ -162,6 +179,15 @@ export class ClientsDashboardComponent implements OnInit {
       action: (event: any, row: IRowDataTable) => {
         this.confirmClearCache(row);
       }
+    },
+    {
+      name: 'pullDriveDocs',
+      icon: 'pi pi-google',
+      title: 'משוך מסמכים מ-Drive',
+      alwaysShow: true,
+      action: (event: any, row: IRowDataTable) => {
+        this.openDriveDataDialog(row);
+      }
     }
   ];
 
@@ -169,6 +195,7 @@ export class ClientsDashboardComponent implements OnInit {
 
   constructor(
     private adminPanelService: AdminPanelService,
+    private adminBillingService: AdminBillingService,
     private confirmationService: ConfirmationService,
     private messageService: MessageService,
     private feezbackService: FeezbackService,
@@ -180,7 +207,10 @@ export class ClientsDashboardComponent implements OnInit {
 
   loadUsers() {
     this.isLoading.set(true);
-    this.adminPanelService.getAllUsers()
+    forkJoin({
+      users: this.adminPanelService.getAllUsers(),
+      subscriptions: this.adminBillingService.getSubscriptions(),
+    })
       .pipe(
         catchError(err => {
           console.error('Error loading users:', err);
@@ -188,39 +218,62 @@ export class ClientsDashboardComponent implements OnInit {
         }),
         finalize(() => this.isLoading.set(false))
       )
-      .subscribe(users => {
+      .subscribe(({ users, subscriptions }) => {
+        const subscriptionByFirebaseId = new Map<string, AdminSubscription>(
+          subscriptions.map(s => [s.firebaseId, s]),
+        );
+
         this.users = users.map((user: any) => {
+          const subscription = subscriptionByFirebaseId.get(user.firebaseId) ?? null;
           const mappedUser: any = {
             ...user,
             fullName: `${user.fName || ''} ${user.lName || ''}`.trim(),
-            payStatus: this.getPayStatusLabel(user.payStatus),
+            payStatus: this.getSubscriptionStatusLabel(subscription?.status),
             openBankingStatus: user.hasOpenBanking ? 'מחובר' : 'לא מחובר',
             generalDocumentsCount:
               user.generalDocumentsCount != null ? Number(user.generalDocumentsCount) : 0,
           };
-          
+
           // Ensure dates are properly formatted
           if (user.createdAt) {
             mappedUser.createdAt = new Date(user.createdAt);
           }
-          if (user.subscriptionEndDate) {
-            mappedUser.subscriptionEndDate = new Date(user.subscriptionEndDate);
-          }
-          
+          const subscriptionEndDate = this.resolveSubscriptionEndDate(subscription);
+          mappedUser.subscriptionEndDate = subscriptionEndDate ? new Date(subscriptionEndDate) : null;
+
           return mappedUser;
         });
         this.filteredUsers = [...this.users];
       });
   }
 
-  getPayStatusLabel(status: string): string {
+  /**
+   * Maps a Subscription.status to the same Hebrew labels the dashboard's stat
+   * cards filter on. A missing status means no Subscription row was found for
+   * this user at all — that is NOT the same thing as "payment required" (a
+   * real billing state) and must not be folded into that bucket, or the
+   * dashboard's counters silently diverge from the Admin Billing subscriptions
+   * table (which only ever lists users that DO have a Subscription row).
+   */
+  getSubscriptionStatusLabel(status: string | undefined): string {
     const statusMap: { [key: string]: string } = {
       'TRIAL': 'ניסיון',
-      'PAID': 'שולם',
-      'PAYMENT_REQUIRED': 'נדרש תשלום',
-      'FREE': 'חינם',
+      'ACTIVE': 'שולם',
+      'TRIAL_EXPIRED': 'נדרש תשלום',
+      'PAST_DUE': 'נדרש תשלום',
+      'CANCELED': 'נדרש תשלום',
     };
-    return statusMap[status] || status;
+    if (!status) return 'ללא מנוי';
+    return statusMap[status] ?? status;
+  }
+
+  /** During trial, the relevant "end date" is trialEnd; otherwise the current paid period's end. */
+  private resolveSubscriptionEndDate(subscription: AdminSubscription | null): string | null {
+    if (!subscription) return null;
+    if (subscription.status === 'TRIAL' || subscription.status === 'TRIAL_EXPIRED') {
+      return subscription.trialEnd;
+    }
+    return subscription.currentPeriodEnd ?? subscription.nextBillingDate ?? null;
   }
 
   onSearch(event: any) {
@@ -411,6 +464,105 @@ export class ClientsDashboardComponent implements OnInit {
       rejectLabel: 'ביטול',
       accept: () => this.runRefreshSources(firebaseId, name),
     });
+  }
+
+  // ------------------------------------------------------------
+  // Drive OCR sync dialog
+  // ------------------------------------------------------------
+
+  openDriveDataDialog(row: IRowDataTable): void {
+    const index = Number(row['index']);
+    if (!Number.isFinite(index) || index <= 0) {
+      this.messageService.add({
+        severity: 'error',
+        summary: 'שגיאה',
+        detail: 'מזהה משתמש לא תקין',
+        life: 4000,
+        key: 'br',
+      });
+      return;
+    }
+    const name = (row['fullName'] as string) || `${row['fName'] || ''} ${row['lName'] || ''}`.trim();
+    this.driveDialogClient.set({ index, name });
+    this.driveDialogYear.set(new Date().getFullYear());
+    this.driveDialogMonth.set(new Date().getMonth() + 1);
+    this.driveDialogBusinessNumber.set('');
+    this.driveSyncSummary.set(null);
+    this.driveExtractedDocs.set([]);
+    this.driveDialogVisible.set(true);
+  }
+
+  onDriveDialogVisibleChange(visible: boolean): void {
+    if (!visible) this.closeDriveDataDialog();
+  }
+
+  closeDriveDataDialog(): void {
+    this.driveDialogVisible.set(false);
+    this.driveDialogClient.set(null);
+    this.driveSyncSummary.set(null);
+    this.driveExtractedDocs.set([]);
+  }
+
+  private formatYearMonth(year: number, month: number): string {
+    return `${year}-${String(month).padStart(2, '0')}`;
+  }
+
+  onSubmitDriveSync(): void {
+    const client = this.driveDialogClient();
+    if (!client || this.driveDialogLoading()) return;
+    const businessNumber = this.driveDialogBusinessNumber().trim();
+    if (!businessNumber) {
+      this.messageService.add({
+        severity: 'warn', summary: 'מס׳ עוסק חסר', detail: 'יש להזין מספר עוסק', life: 4000, key: 'br',
+      });
+      return;
+    }
+    const yearMonth = this.formatYearMonth(this.driveDialogYear(), this.driveDialogMonth());
+
+    this.driveDialogLoading.set(true);
+    this.driveSyncSummary.set(null);
+    this.driveExtractedDocs.set([]);
+
+    // Run sync first, then fetch the full month list. Sync is idempotent, so
+    // listing afterwards gives us "everything ever extracted for this month".
+    this.adminPanelService.syncUserDriveMonth(client.index, businessNumber, yearMonth)
+      .pipe(
+        catchError(err => {
+          const detail = err?.error?.message ?? err?.message ?? 'סינכרון נכשל';
+          this.messageService.add({
+            severity: 'error', summary: 'שגיאה', detail, life: 5000, key: 'br',
+          });
+          this.driveDialogLoading.set(false);
+          return EMPTY;
+        }),
+      )
+      .subscribe(summary => {
+        this.driveSyncSummary.set(summary);
+        this.adminPanelService.getUserExtractedDocs(client.index, businessNumber, yearMonth)
+          .pipe(
+            catchError(err => {
+              const detail = err?.error?.message ?? err?.message ?? 'טעינת המסמכים נכשלה';
+              this.messageService.add({
+                severity: 'error', summary: 'שגיאה', detail, life: 5000, key: 'br',
+              });
+              return EMPTY;
+            }),
+            finalize(() => this.driveDialogLoading.set(false)),
+          )
+          .subscribe(rows => this.driveExtractedDocs.set(rows));
+      });
+  }
+
+  driveStatusColor(status: string): string {
+    if (status === 'processed') return '#16a34a';
+    if (status === 'error') return '#dc2626';
+    return '#6b7280';
+  }
+
+  driveStatusLabel(status: string): string {
+    if (status === 'processed') return 'הצליח';
+    if (status === 'error') return 'נכשל';
+    return 'ממתין';
   }
 
   private runRefreshSources(firebaseId: string, name: string): void {
