@@ -1,9 +1,9 @@
-import { forwardRef, HttpException, HttpStatus, Inject, Injectable, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, forwardRef, HttpException, HttpStatus, Inject, Injectable, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
 import { Any, Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from './user.entity';
 import { Child } from './child.entity';
-import { UserRole, BusinessType, VATReportingType, TaxReportingType, FamilyStatus, EmploymentType, BusinessStatus, DocumentType } from '../enum';
+import { UserRole, BusinessType, VATReportingType, TaxReportingType, FamilyStatus, EmploymentType, BusinessStatus, DocumentType, isBusinessTypeAllowedForUser } from '../enum';
 import { AuthService } from './auth.service';
 import * as admin from 'firebase-admin';
 import { UpdateUserDto } from './dtos/update-user.dto';
@@ -79,6 +79,8 @@ export class UsersService {
     // 1️⃣ SAFE NORMALIZATION
     // -------------------------------------------------------
 
+    const isCompany = !!personal?.isCompany;
+
     // spouse may be null/undefined
     const safeSpouse = spouse ?? {};
 
@@ -93,6 +95,14 @@ export class UsersService {
     )
       ? business.businessArray
       : [];
+
+    // Reject a businessType that doesn't match the registration kind
+    // (e.g. a company picking EXEMPT, or a private user picking LIMITED_COMPANY).
+    for (const biz of newBusinesses) {
+      if (!isBusinessTypeAllowedForUser(isCompany, biz?.businessType as BusinessType | null | undefined)) {
+        throw new BadRequestException(`סוג עסק לא תואם לסוג ההרשמה: ${biz?.businessType}`);
+      }
+    }
 
     // -------------------------------------------------------
     // 2️⃣ Create the user object
@@ -150,13 +160,28 @@ export class UsersService {
         firebaseId: personal.firebaseId,
       });
 
+      // Company registration: the business IS the company, so phone/email/
+      // name come straight from the company's own personal fields — no
+      // id-matching needed (a company has no personal id).
+      if (isCompany) {
+        if (!newBusiness.businessPhone && personal?.phone) {
+          newBusiness.businessPhone = personal.phone;
+        }
+        if (!newBusiness.businessEmail && personal?.email) {
+          newBusiness.businessEmail = personal.email;
+        }
+        if (!newBusiness.businessName && personal?.fName) {
+          newBusiness.businessName = personal.fName;
+        }
+      }
+
       // Fill null business fields from personal or spouse data
       // Check if businessNumber matches personal.id or spouse.id
       const businessNumber = newBusiness.businessNumber;
       const personalId = personal?.id;
       const spouseId = safeSpouse?.spouseId || safeSpouse?.id;
 
-      if (businessNumber && (businessNumber === personalId || businessNumber === spouseId)) {
+      if (!isCompany && businessNumber && (businessNumber === personalId || businessNumber === spouseId)) {
         // Determine source: personal or spouse
         const isPersonalMatch = businessNumber === personalId;
 
@@ -199,12 +224,14 @@ export class UsersService {
       // VAT & tax logic
       switch (newBusiness.businessType) {
         case BusinessType.EXEMPT:
+        case BusinessType.EXEMPT_PARTNERSHIP:
           newBusiness.vatReportingType = VATReportingType.NOT_REQUIRED;
           newBusiness.taxReportingType = TaxReportingType.DUAL_MONTH_REPORT;
           break;
 
         case BusinessType.LICENSED:
-        case BusinessType.COMPANY:
+        case BusinessType.LIMITED_COMPANY:
+        case BusinessType.AUTHORIZED_PARTNERSHIP:
           newBusiness.vatReportingType = VATReportingType.DUAL_MONTH_REPORT;
           newBusiness.taxReportingType = TaxReportingType.DUAL_MONTH_REPORT;
           break;

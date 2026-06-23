@@ -429,20 +429,41 @@ export const familyStatusOptionsList = [
 export enum BusinessType {
   EXEMPT = 'EXEMPT',
   LICENSED = 'LICENSED',
-  COMPANY = 'COMPANY'
+  LIMITED_COMPANY = 'LIMITED_COMPANY',
+  AUTHORIZED_PARTNERSHIP = 'AUTHORIZED_PARTNERSHIP',
+  EXEMPT_PARTNERSHIP = 'EXEMPT_PARTNERSHIP'
 }
 
 export const BusinessTypeLabels = {
   [BusinessType.EXEMPT]: 'עוסק פטור',
   [BusinessType.LICENSED]: 'עוסק מורשה',
-  [BusinessType.COMPANY]: 'חברה בע"מ'
+  [BusinessType.LIMITED_COMPANY]: 'חברה בע"מ',
+  [BusinessType.AUTHORIZED_PARTNERSHIP]: 'שותפות מורשה',
+  [BusinessType.EXEMPT_PARTNERSHIP]: 'שותפות פטורה'
 };
 
+/** Private (individual) registration — עוסק פטור / עוסק מורשה. */
 export const businessTypeOptionsList = [
   { value: BusinessType.EXEMPT, name: BusinessTypeLabels[BusinessType.EXEMPT] },
-  { value: BusinessType.LICENSED, name: BusinessTypeLabels[BusinessType.LICENSED] },
-  { value: BusinessType.COMPANY, name: BusinessTypeLabels[BusinessType.COMPANY] }
+  { value: BusinessType.LICENSED, name: BusinessTypeLabels[BusinessType.LICENSED] }
 ];
+
+/** Company registration — חברה בע"מ / שותפות מורשה / שותפות פטורה. */
+export const companyBusinessTypeOptionsList = [
+  { value: BusinessType.LIMITED_COMPANY, name: BusinessTypeLabels[BusinessType.LIMITED_COMPANY] },
+  { value: BusinessType.AUTHORIZED_PARTNERSHIP, name: BusinessTypeLabels[BusinessType.AUTHORIZED_PARTNERSHIP] },
+  { value: BusinessType.EXEMPT_PARTNERSHIP, name: BusinessTypeLabels[BusinessType.EXEMPT_PARTNERSHIP] }
+];
+
+/**
+ * VAT-exempt business types — עוסק פטור (EXEMPT) and its company counterpart
+ * שותפות פטורה (EXEMPT_PARTNERSHIP). Use this instead of comparing directly
+ * to BusinessType.EXEMPT anywhere VAT-exemption is the actual question, so
+ * exempt partnerships aren't silently treated as VAT-liable.
+ */
+export function isExemptBusinessType(businessType: BusinessType | string | null | undefined): boolean {
+  return businessType === BusinessType.EXEMPT || businessType === BusinessType.EXEMPT_PARTNERSHIP;
+}
 
 export enum EmploymentType {
   SELF_EMPLOYED = 'SELF_EMPLOYED',

@@ -6,7 +6,7 @@
       <div class="content">
         <div class="header">
           <img class="logo" src="../../../assets/login_logo.svg" alt="Logo" height="20">
-          <app-stepper [totalSteps]="4" [currentStep]="currentStep()" />
+          <app-stepper [totalSteps]="isCompany() ? 1 : 4" [currentStep]="currentStep()" />
           <div class="title">
             <span class="main-title">{{ mainTitle() }}</span>
             <span class="title">{{ subtitle() }}</span>
@@ -19,6 +19,45 @@
           <!-- <form *ngIf="personalForm" class="form-register" [formGroup]="personalForm"> -->
           @if(personalForm) {
           <div class="form-register">
+            <!-- Company registration toggle -->
+            <div>
+              <p>רישום חברה</p>
+              <p-toggleswitch [ngModel]="isCompany()" [ngModelOptions]="{standalone: true}"
+                (onChange)="toggleCompanyMode($event.checked)" />
+            </div>
+
+            @if (isCompany()) {
+            <!-- Company fields — bound to the dedicated companyForm, not personalForm -->
+            <div class="section-one">
+              <app-input-text [controlName]="registerFormControls.FIRSTNAME" labelText="שם החברה"
+                [placeholder]="'כתוב כאן'" [parentForm]="companyForm" [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"
+                [customStyle]="'rounded-border'" [errorText]="'אנא הכנס שם חברה'"></app-input-text>
+              <app-input-text [controlName]="registerFormControls.BUSINESSNUMBER" labelText='מספר רישום חברה (ח.פ.)'
+                [placeholder]="'כתוב כאן'" [parentForm]="companyForm" [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"
+                [customStyle]="'rounded-border'" [errorText]="'אנא הכנס מספרים בלבד'"></app-input-text>
+              <app-input-select [controlName]="registerFormControls.BUSINESSTYPE" labelText="סוג העסק"
+                [placeholder]="'בחר/י'" [items]="companyBusinessTypeOptionsList" [parentForm]="companyForm"
+                [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"></app-input-select>
+            </div>
+            <div class="section-one">
+              <app-input-text [controlName]="registerFormControls.EMAIL" labelText="כתובת אימייל"
+                [placeholder]="'example@gmail.com'" [parentForm]="companyForm" [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"
+                [customStyle]="'rounded-border'" [errorText]="'כתובת המייל אינה חוקית'"></app-input-text>
+              <app-input-text [controlName]="registerFormControls.PHONE" labelText="מספר פלאפון"
+                [placeholder]="'050-0011223'" [parentForm]="companyForm" [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"
+                [customStyle]="'rounded-border'" [errorText]="'מספר פלאפון לא חוקי'"></app-input-text>
+            </div>
+            <div class="section-one">
+              <app-input-text [controlName]="registerFormControls.PASSWORD" labelText="סיסמה"
+                [placeholder]="'בחר 8 תווים'" [parentForm]="companyForm" [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"
+                [customStyle]="'rounded-border'" [errorText]="'סיסמא לא חוקית'"></app-input-text>
+              <app-input-text [controlName]="registerFormControls.CONFIRM_PASSWORD" labelText="אימות סיסמה"
+                [placeholder]="'בחר 8 תווים'" [parentForm]="companyForm" [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"
+                [customStyle]="'rounded-border'" [errorText]="'אימות סיסמא לא תקין'"></app-input-text>
+              <span class="password-instracions">על הסיסמה להכיל שמונה תווים<br>המורכבים מאותיות באנגלית
+                ומספרים</span>
+            </div>
+            } @else {
             <!-- First line -->
             <div class="section-one">
               <!---------first name----->
@@ -92,6 +131,7 @@
               <span class="password-instracions">על הסיסמה להכיל שמונה תווים<br>המורכבים מאותיות באנגלית
                 ומספרים</span>
             </div>
+            }
           </div>
           }
           <!-- </form> -->
@@ -243,7 +283,7 @@
           [buttonSize]="buttonSize.BETWEEN" [buttonColor]="buttonColor.WHITE_BORDER"
           (onButtonClicked)="selectedFormModule() === registerFormModules.PERSONAL ? navigateToLogin() : onBackBtnClicked() "></app-p-button>
         <app-p-button
-          [buttonText]="selectedFormModule() === registerFormModules.BUSINESS  || (isSingle() && !isIndependent() ) ? 'סיום' : 'הבא'"
+          [buttonText]="isCompany() || selectedFormModule() === registerFormModules.BUSINESS  || (isSingle() && !isIndependent() ) ? 'סיום' : 'הבא'"
           [buttonSize]="buttonSize.BETWEEN" [buttonColor]="buttonColor.YELLOW" (onButtonClicked)="onNextBtnClicked()"
           [disabled]="isNextButtonDisabled" [isLoading]="isLoading()"></app-p-button>
       </div>

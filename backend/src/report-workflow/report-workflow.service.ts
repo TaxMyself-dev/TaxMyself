@@ -464,7 +464,8 @@ export class ReportWorkflowService {
 
     if (
       business.businessType !== BusinessType.LICENSED &&
-      business.businessType !== BusinessType.COMPANY
+      business.businessType !== BusinessType.LIMITED_COMPANY &&
+      business.businessType !== BusinessType.AUTHORIZED_PARTNERSHIP
     ) {
       return null;
     }

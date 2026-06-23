@@ -10,7 +10,7 @@
       [labelText]="'מספר עסק'" [placeholder]="'מספר עסק'"
       [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"></app-input-text>
     <app-input-select [parentForm]="addBusinessFormGroup" [controlName]="'businessType'"
-      [items]="businessTypeOptions" [labelText]="'סוג עסק'" [placeholder]="'בחר/י'"
+      [items]="businessTypeOptions()" [labelText]="'סוג עסק'" [placeholder]="'בחר/י'"
       [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"></app-input-select>
     <app-input-text [parentForm]="addBusinessFormGroup" [controlName]="'businessEmail'"
       [labelText]="'אימייל'" [placeholder]="'example@gmail.com'" [type]="'email'"
@@ -76,14 +76,15 @@
 
       <!-- ─── פרטי משתמש ראשי ─── -->
       <div class="personal-subsection">
-        <h3 class="subsection-title">פרטי משתמש ראשי</h3>
+        <h3 class="subsection-title">{{ isCompany() ? 'פרטי חברה' : 'פרטי משתמש ראשי' }}</h3>
         <div class="details-container details-container-fixed">
           <div class="detail-row three-fields">
             <div class="detail-field">
               <app-input-text [parentForm]="personalFormGroup" [controlName]="'fName'"
-                [labelText]="'שם פרטי'" [placeholder]="'שם פרטי'"
+                [labelText]="isCompany() ? 'שם החברה' : 'שם פרטי'" [placeholder]="'שם פרטי'"
                 [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"></app-input-text>
             </div>
+            @if (!isCompany()) {
             <div class="detail-field">
               <app-input-text [parentForm]="personalFormGroup" [controlName]="'lName'"
                 [labelText]="'שם משפחה'" [placeholder]="'שם משפחה'"
@@ -94,6 +95,7 @@
                 [labelText]="'תעודת זהות'" [placeholder]="'ת.ז.'"
                 [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"></app-input-text>
             </div>
+            }
           </div>
           <div class="detail-row three-fields">
             <div class="detail-field">
@@ -106,12 +108,15 @@
                 [labelText]="'פלאפון'" [placeholder]="'פלאפון'"
                 [type]="'tel'" [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"></app-input-text>
             </div>
+            @if (!isCompany()) {
             <div class="detail-field">
               <app-input-date [parentForm]="personalFormGroup" [controlName]="'dateOfBirth'"
                 [labelText]="'תאריך לידה'" [placeholder]="'dd/mm/yyyy'"
                 [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"></app-input-date>
             </div>
+            }
           </div>
+          @if (!isCompany()) {
           <div class="detail-row three-fields">
             <div class="detail-field">
               <app-input-text [parentForm]="personalFormGroup" [controlName]="'city'"
@@ -129,6 +134,7 @@
                 [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"></app-input-select>
             </div>
           </div>
+          }
           <div class="section-actions">
             <app-p-button [buttonText]="'עדכן'" [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.SMALL"
               (onButtonClicked)="updatePersonalDetails()"
@@ -137,6 +143,7 @@
         </div>
       </div>
 
+      @if (!isCompany()) {
       <!-- ─── פרטי בן/בת זוג ─── -->
       <div class="personal-subsection">
         <h3 class="subsection-title">פרטי בן/בת זוג</h3>
@@ -225,6 +232,7 @@
           </div>
         </div>
       </div>
+      }
 
     </div>
   </div>
@@ -271,7 +279,7 @@
                 </div>
                 <div class="detail-field">
                   <app-input-select [parentForm]="bizGroup" [controlName]="'businessType'"
-                    [items]="businessTypeOptions" [labelText]="'סוג עסק'" [placeholder]="'בחר/י'"
+                    [items]="businessTypeOptions()" [labelText]="'סוג עסק'" [placeholder]="'בחר/י'"
                     [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"></app-input-select>
                 </div>
               </div>
@@ -282,7 +290,7 @@
                     [items]="nationalInsOptions" [labelText]="'ביטוח לאומי'" [placeholder]="'בחר/י'"
                     [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"></app-input-select>
                 </div>
-                @if (bizGroup.get('businessType')?.value !== 'EXEMPT') {
+                @if (!isExemptBusinessType(bizGroup.get('businessType')?.value)) {
                   <div class="detail-field">
                     <app-input-select [parentForm]="bizGroup" [controlName]="'vatReportingType'"
                       [items]="vatReportingOptions" [labelText]="'דיווח מע&quot;מ'" [placeholder]="'בחר/י'"
