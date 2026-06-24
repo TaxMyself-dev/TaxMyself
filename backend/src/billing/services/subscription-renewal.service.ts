@@ -198,6 +198,7 @@ export class SubscriptionRenewalService {
           chargedAmountAgorot: number;
           amountBeforeVatAgorot: number;
           vatAmountAgorot: number;
+          currentPeriodStart: Date;
           currentPeriodEnd: Date;
           rawResponse: Record<string, any>;
           approvalNumber: string | null;
@@ -390,6 +391,7 @@ export class SubscriptionRenewalService {
         chargedAmountAgorot: pricing.finalAmountAgorot,
         amountBeforeVatAgorot: pricing.amountBeforeVatAgorot,
         vatAmountAgorot: pricing.vatAmountAgorot,
+        currentPeriodStart: previousNextBillingDate,
         currentPeriodEnd,
         rawResponse: chargeResponse,
         approvalNumber: chargeResponse.ApprovalNumber ?? null,
@@ -522,6 +524,7 @@ export class SubscriptionRenewalService {
     chargedAmountAgorot: number;
     amountBeforeVatAgorot: number;
     vatAmountAgorot: number;
+    currentPeriodStart: Date;
     currentPeriodEnd: Date;
     rawResponse: Record<string, any>;
     approvalNumber: string | null;
@@ -531,7 +534,7 @@ export class SubscriptionRenewalService {
   }): Promise<void> {
     const {
       subscriptionId, firebaseId, planName, planModules, billingPeriod, idempotencyKey, attemptNumber,
-      cardcomDealNumber, chargedAmountAgorot, amountBeforeVatAgorot, vatAmountAgorot, currentPeriodEnd,
+      cardcomDealNumber, chargedAmountAgorot, amountBeforeVatAgorot, vatAmountAgorot, currentPeriodStart, currentPeriodEnd,
       rawResponse, approvalNumber, last4, cardMonth, cardYear,
     } = data;
 
@@ -577,6 +580,8 @@ export class SubscriptionRenewalService {
         amountBeforeVatAgorot,
         vatAmountAgorot,
         amountIncludingVatAgorot: chargedAmountAgorot,
+        periodStart: currentPeriodStart,
+        periodEnd: currentPeriodEnd,
         cardcomDealNumber,
         renewalSuccessEvent,
       });
@@ -590,12 +595,14 @@ export class SubscriptionRenewalService {
     amountBeforeVatAgorot: number;
     vatAmountAgorot: number;
     amountIncludingVatAgorot: number;
+    periodStart: Date;
+    periodEnd: Date;
     cardcomDealNumber: string | null;
     renewalSuccessEvent: { id: number };
   }): Promise<void> {
     const {
       firebaseId, subscriptionId, planName, amountBeforeVatAgorot, vatAmountAgorot,
-      amountIncludingVatAgorot, cardcomDealNumber, renewalSuccessEvent,
+      amountIncludingVatAgorot, periodStart, periodEnd, cardcomDealNumber, renewalSuccessEvent,
     } = params;
 
     try {
@@ -606,6 +613,8 @@ export class SubscriptionRenewalService {
         vatAmountAgorot,
         amountIncludingVatAgorot,
         planName,
+        periodStart,
+        periodEnd,
         cardcomDealNumber,
       });
 

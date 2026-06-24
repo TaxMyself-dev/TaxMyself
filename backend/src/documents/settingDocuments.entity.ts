@@ -1,7 +1,8 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, Index } from 'typeorm';
 import { DocumentType } from 'src/enum';
 
 @Entity()
+@Index('uq_setting_documents_user_business_doctype', ['userId', 'issuerBusinessNumber', 'docType'], { unique: true })
 export class SettingDocuments {
 
   @PrimaryGeneratedColumn()

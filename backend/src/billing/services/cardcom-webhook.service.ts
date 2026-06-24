@@ -236,6 +236,7 @@ export class CardcomWebhookService implements OnModuleInit {
       planName: string;
       planSlug: string;
       planModules: ModuleName[];
+      periodStart: Date;
       periodEnd: Date;
       chargedAmountAgorot: number | null;
       cardcomDealNumber: string | null;
@@ -387,6 +388,7 @@ export class CardcomWebhookService implements OnModuleInit {
         planName: plan.name,
         planSlug: plan.slug,
         planModules: (plan.modules ?? Object.values(ModuleName)) as ModuleName[],
+        periodStart: now,
         periodEnd,
         chargedAmountAgorot,
         cardcomDealNumber,
@@ -410,7 +412,7 @@ export class CardcomWebhookService implements OnModuleInit {
     // Only proceed if the DB transaction committed successfully.
     if (!postCommitData) return;
 
-    const { planName, planSlug, planModules, periodEnd, chargedAmountAgorot, cardcomDealNumber } =
+    const { planName, planSlug, planModules, periodStart, periodEnd, chargedAmountAgorot, cardcomDealNumber } =
       postCommitData;
 
     // ── 5. Mark webhook processed ─────────────────────────────────────────
@@ -460,6 +462,8 @@ export class CardcomWebhookService implements OnModuleInit {
       firebaseId,
       subscriptionId,
       planName,
+      periodStart,
+      periodEnd,
       cardcomDealNumber,
       paymentSuccessEvent,
     });
@@ -471,10 +475,12 @@ export class CardcomWebhookService implements OnModuleInit {
     firebaseId: string;
     subscriptionId: number;
     planName: string;
+    periodStart: Date;
+    periodEnd: Date;
     cardcomDealNumber: string | null;
     paymentSuccessEvent: BillingEvent | null;
   }): Promise<void> {
-    const { firebaseId, subscriptionId, planName, cardcomDealNumber, paymentSuccessEvent } = params;
+    const { firebaseId, subscriptionId, planName, periodStart, periodEnd, cardcomDealNumber, paymentSuccessEvent } = params;
 
     this.logger.log(
       `Receipt generation started: subscriptionId=${subscriptionId} dealNumber=${cardcomDealNumber ?? 'null'}`,
@@ -536,6 +542,8 @@ export class CardcomWebhookService implements OnModuleInit {
         vatAmountAgorot: breakdown.vatAmountAgorot,
         amountIncludingVatAgorot: breakdown.amountIncludingVatAgorot,
         planName,
+        periodStart,
+        periodEnd,
         cardcomDealNumber,
       });
 

@@ -105,7 +105,7 @@ export class CardcomService implements OnModuleInit {
       CARDCOM_API_PASSWORD: process.env.CARDCOM_API_PASSWORD,
       CARDCOM_SUCCESS_URL: process.env.CARDCOM_SUCCESS_URL,
       CARDCOM_FAILED_URL: process.env.CARDCOM_FAILED_URL,
-      CARDCOM_WEBHOOK_URL: process.env.CARDCOM_WEBHOOK_URL,
+      CARDCOM_WEBHOOK_BASE_URL: process.env.CARDCOM_WEBHOOK_BASE_URL,
     };
 
     const missing = Object.entries(required)
@@ -123,7 +123,10 @@ export class CardcomService implements OnModuleInit {
     this.apiPassword = required.CARDCOM_API_PASSWORD!;
     this.successUrl = required.CARDCOM_SUCCESS_URL!;
     this.failedUrl = required.CARDCOM_FAILED_URL!;
-    this.webhookUrl = required.CARDCOM_WEBHOOK_URL!;
+    // Each environment (local dev + ngrok, production) sets its own
+    // CARDCOM_WEBHOOK_BASE_URL. The webhook path is fixed and built here so
+    // dev/prod can never end up pointing at each other's callback URL.
+    this.webhookUrl = `${required.CARDCOM_WEBHOOK_BASE_URL!.replace(/\/+$/, '')}/billing/cardcom/webhook`;
     this.createUrl = CardcomService.DEFAULT_CREATE_URL;
     this.transactionUrl = CardcomService.DEFAULT_TRANSACTION_URL;
 
