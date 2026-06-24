@@ -415,24 +415,42 @@ export class DocumentsService {
         ? manager.getRepository(SettingDocuments)
         : this.settingDocuments;
 
+      // Lock the counter row so two concurrent transactions can't read the
+      // same currentIndex. Only valid inside a transaction (manager present).
       let generalIndex = await repo.findOne({
         where: { userId, issuerBusinessNumber, docType: DocumentType.GENERAL },
+        lock: manager ? { mode: 'pessimistic_write' } : undefined,
       });
 
       if (!generalIndex) {
-        // First-time setup: initialize with default starting value
-        generalIndex = repo.create({
-          userId,
-          issuerBusinessNumber,
-          docType: DocumentType.GENERAL,
-          initialIndex: 1000001,
-          currentIndex: 1000002,
-        });
-      } else {
-        // Increment normally
-        generalIndex.currentIndex += 1;
+        // First-time setup: initialize with default starting value.
+        // A concurrent transaction may be creating the same row right now —
+        // the unique constraint on (userId, issuerBusinessNumber, docType)
+        // turns that race into a duplicate-key error we can recover from.
+        try {
+          generalIndex = await repo.save(
+            repo.create({
+              userId,
+              issuerBusinessNumber,
+              docType: DocumentType.GENERAL,
+              initialIndex: 1000001,
+              currentIndex: 1000002,
+            }),
+          );
+          this.isGeneralIncrement = true;
+          return generalIndex;
+        } catch (err) {
+          if (!this.isDuplicateKeyError(err)) throw err;
+          // Lost the race — re-select with the lock so we wait for the
+          // winner's transaction to commit, then increment its real value.
+          generalIndex = await repo.findOneOrFail({
+            where: { userId, issuerBusinessNumber, docType: DocumentType.GENERAL },
+            lock: manager ? { mode: 'pessimistic_write' } : undefined,
+          });
+        }
       }
 
+      generalIndex.currentIndex += 1;
       const updated = await repo.save(generalIndex);
       this.isGeneralIncrement = true;
 
@@ -440,6 +458,11 @@ export class DocumentsService {
     } catch (error) {
       throw error;
     }
+  }
+
+  /** MySQL duplicate-key error, from either the driver or TypeORM's wrapper. */
+  private isDuplicateKeyError(err: any): boolean {
+    return err?.code === 'ER_DUP_ENTRY' || err?.driverError?.code === 'ER_DUP_ENTRY';
   }
 
 
@@ -1905,24 +1928,45 @@ ${finalOwnerName}`;
       );
       const generalDocIndex = String(generalIndexResult.currentIndex);
 
-      // 2. Determine the next TAX_INVOICE_RECEIPT doc number from the per-type counter
+      // 2. Determine the next TAX_INVOICE_RECEIPT doc number from the per-type counter.
+      // Locked with pessimistic_write so two payments succeeding at the same
+      // moment can't both read the same currentIndex (same shared company
+      // billing business number is used for every customer's receipt).
       const settingRepo = qr.manager.getRepository(SettingDocuments);
       let docSetting = await settingRepo.findOne({
         where: { userId: systemUserId, issuerBusinessNumber, docType: DocumentType.TAX_INVOICE_RECEIPT },
+        lock: { mode: 'pessimistic_write' },
       });
 
       let docNumber: string;
       if (!docSetting) {
-        // First billing receipt — initialize counter at configured starting index
-        docSetting = settingRepo.create({
-          userId: systemUserId,
-          issuerBusinessNumber,
-          docType: DocumentType.TAX_INVOICE_RECEIPT,
-          initialIndex: initialReceiptIndex,
-          currentIndex: initialReceiptIndex + 1,
-        });
-        await settingRepo.save(docSetting);
-        docNumber = String(initialReceiptIndex);
+        // First billing receipt — initialize counter at configured starting index.
+        // A concurrent transaction may be creating this same row right now; the
+        // unique constraint on (userId, issuerBusinessNumber, docType) turns
+        // that race into a duplicate-key error instead of a silent collision.
+        try {
+          docSetting = await settingRepo.save(
+            settingRepo.create({
+              userId: systemUserId,
+              issuerBusinessNumber,
+              docType: DocumentType.TAX_INVOICE_RECEIPT,
+              initialIndex: initialReceiptIndex,
+              currentIndex: initialReceiptIndex + 1,
+            }),
+          );
+          docNumber = String(initialReceiptIndex);
+        } catch (err) {
+          if (!this.isDuplicateKeyError(err)) throw err;
+          // Lost the race — re-select with the lock. This blocks until the
+          // winning transaction commits, then returns its committed value.
+          docSetting = await settingRepo.findOneOrFail({
+            where: { userId: systemUserId, issuerBusinessNumber, docType: DocumentType.TAX_INVOICE_RECEIPT },
+            lock: { mode: 'pessimistic_write' },
+          });
+          docNumber = String(docSetting.currentIndex);
+          docSetting.currentIndex += 1;
+          await settingRepo.save(docSetting);
+        }
       } else {
         docNumber = String(docSetting.currentIndex);
         docSetting.currentIndex += 1;
