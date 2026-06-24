@@ -68,12 +68,14 @@ export class BillingReceiptService implements OnModuleInit {
     vatAmountAgorot: number;
     amountIncludingVatAgorot: number;
     planName: string;
+    periodStart: Date;
+    periodEnd: Date;
     cardcomDealNumber: string | null;
   }): Promise<{ receiptDocId: number; docNumber: string; generalDocIndex: string }> {
     const {
       firebaseId, subscriptionId,
       amountBeforeVatAgorot, vatAmountAgorot, amountIncludingVatAgorot,
-      planName, cardcomDealNumber,
+      planName, periodStart, periodEnd, cardcomDealNumber,
     } = params;
 
     const user = await this.userRepo.findOne({ where: { firebaseId } });
@@ -94,6 +96,8 @@ export class BillingReceiptService implements OnModuleInit {
       vatAmountAgorot,
       amountIncludingVatAgorot,
       planName,
+      periodStart,
+      periodEnd,
       docDate: new Date(),
       initialReceiptIndex: this.initialReceiptIndex,
     });

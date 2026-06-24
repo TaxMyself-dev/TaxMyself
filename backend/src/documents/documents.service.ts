@@ -1903,6 +1903,8 @@ ${finalOwnerName}`;
     vatAmountAgorot: number;
     amountIncludingVatAgorot: number;
     planName: string;
+    periodStart: Date;
+    periodEnd: Date;
     docDate: Date;
     initialReceiptIndex: number;
   }): Promise<{ receiptDocId: number; docNumber: string; generalDocIndex: string }> {
@@ -1910,8 +1912,12 @@ ${finalOwnerName}`;
       systemUserId, issuerBusinessNumber, issuerBusinessType,
       recipientName, recipientEmail,
       amountBeforeVatAgorot, vatAmountAgorot, amountIncludingVatAgorot,
-      planName, docDate, initialReceiptIndex,
+      planName, periodStart, periodEnd, docDate, initialReceiptIndex,
     } = params;
+
+    const lineDescription =
+      `מנוי KeepInTax - תוכנית ${planName} - תקופת שירות: ` +
+      `${this.formatDateSlashDDMMYYYY(periodStart)} עד ${this.formatDateSlashDDMMYYYY(periodEnd)}`;
 
     const amountBeforeVatShekels = +(amountBeforeVatAgorot / 100).toFixed(2);
     const vatAmountShekels = +(vatAmountAgorot / 100).toFixed(2);
@@ -2001,7 +2007,7 @@ ${finalOwnerName}`;
         docType: DocumentType.TAX_INVOICE_RECEIPT,
         lineNumber: '1',
         transType: '3',
-        description: planName,
+        description: lineDescription,
         unitType: UnitOfMeasure.UNIT,
         unitQuantity: 1,
         sumBefVatPerUnit: amountBeforeVatShekels,
@@ -2443,6 +2449,15 @@ ${finalOwnerName}`;
     const month = String(date.getMonth() + 1).padStart(2, '0'); // months are zero-based
     const year = date.getFullYear();
     return `${day}-${month}-${year}`;
+  }
+
+  /** Used for the subscription service-period text in billing receipt line items. */
+  private formatDateSlashDDMMYYYY(dateInput: string | Date): string {
+    const date = new Date(dateInput);
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}/${month}/${year}`;
   }
 
   /**
