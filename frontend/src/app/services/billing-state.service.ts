@@ -182,4 +182,25 @@ export class BillingStateService {
       return { sent: false, error: err?.error?.message ?? 'שליחת החשבונית במייל נכשלה' };
     }
   }
+
+  /**
+   * Generates the missing receipt for a PAYMENT_SUCCESS event (INVOICE_FAILED case).
+   * On success, refreshes billing state so the banner reflects the new receipt.
+   */
+  async generateMissingReceipt(eventId: number): Promise<{ created: boolean; sent: boolean; error?: string }> {
+    try {
+      const result = await firstValueFrom(
+        this.http.post<{ created: boolean; sent: boolean; error?: string }>(
+          `${environment.apiUrl}billing/events/${eventId}/receipt/generate`,
+          {}
+        )
+      );
+      if (result.created || result.sent) {
+        await this.refreshBillingState();
+      }
+      return result;
+    } catch (err: any) {
+      return { created: false, sent: false, error: err?.error?.message ?? 'הפקת החשבונית נכשלה' };
+    }
+  }
 }

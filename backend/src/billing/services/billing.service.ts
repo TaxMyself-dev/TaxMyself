@@ -284,12 +284,13 @@ export class BillingService {
     };
   }
 
-  // ─── Receipt email retry ─────────────────────────────────────────────────────
+  // ─── Receipt retry ───────────────────────────────────────────────────────────
 
   /**
    * Re-sends the receipt email for an existing PAYMENT_SUCCESS billing event.
    * Validates that the authenticated user owns the event and that a receipt
    * document has already been created, then delegates to BillingReceiptService.
+   * Refuses to create a new document — for that use generateMissingReceipt().
    */
   async resendReceiptEmail(
     firebaseId: string,
@@ -313,6 +314,91 @@ export class BillingService {
     }
 
     return this.billingReceiptService.sendReceiptEmailForPaymentEvent(eventId);
+  }
+
+  /**
+   * Generates a missing receipt for a PAYMENT_SUCCESS event (INVOICE_FAILED case).
+   * Idempotent: if a receipt already exists, skips creation and resends the email.
+   * Never creates a duplicate document.
+   */
+  async generateMissingReceipt(
+    firebaseId: string,
+    eventId: number,
+  ): Promise<{ created: boolean; sent: boolean; error?: string }> {
+    const event = await this.billingEventService.findPaymentEventById(eventId);
+
+    if (!event || event.firebaseId !== firebaseId) {
+      throw new NotFoundException('Payment event not found');
+    }
+
+    if (event.eventType !== BillingEventType.PAYMENT_SUCCESS) {
+      throw new BadRequestException('Only PAYMENT_SUCCESS events can have receipts generated');
+    }
+
+    // Idempotent: receipt already exists — skip creation, only resend email.
+    if (event.receiptDocId != null) {
+      this.logger.log(
+        `generateMissingReceipt: receipt already exists (receiptDocId=${event.receiptDocId}), skipping creation`,
+      );
+      const emailResult = await this.billingReceiptService.sendReceiptEmailForPaymentEvent(eventId);
+      return { created: false, sent: emailResult.sent, error: emailResult.error };
+    }
+
+    if (!event.subscriptionId) {
+      throw new BadRequestException('Payment event has no associated subscription');
+    }
+
+    // Canonical VAT breakdown from CHECKOUT_CREATED — never recalculate.
+    const breakdown = await this.billingEventService.findCheckoutBreakdown(event.subscriptionId);
+    if (!breakdown) {
+      throw new BadRequestException(
+        'Cannot regenerate receipt: VAT breakdown not found. Please contact support.',
+      );
+    }
+
+    const subscription = await this.subscriptionRepo.findOne({ where: { id: event.subscriptionId } });
+    if (!subscription) {
+      throw new NotFoundException('Subscription not found');
+    }
+
+    if (!subscription.planId) {
+      throw new BadRequestException('Subscription has no plan — cannot generate receipt');
+    }
+
+    const plan = await this.planRepo.findOne({ where: { id: subscription.planId } });
+    if (!plan) {
+      throw new NotFoundException('Subscription plan not found');
+    }
+
+    const periodStart = subscription.currentPeriodStart ?? new Date();
+    const periodEnd = subscription.currentPeriodEnd ?? new Date();
+
+    const receipt = await this.billingReceiptService.createReceiptForPayment({
+      firebaseId,
+      subscriptionId: event.subscriptionId,
+      amountBeforeVatAgorot: breakdown.amountBeforeVatAgorot,
+      vatAmountAgorot: breakdown.vatAmountAgorot,
+      amountIncludingVatAgorot: breakdown.amountIncludingVatAgorot,
+      planName: plan.name,
+      periodStart,
+      periodEnd,
+      cardcomDealNumber: event.cardcomDealNumber,
+    });
+
+    // Link receipt to the PAYMENT_SUCCESS event — idempotency anchor for subsequent retries.
+    await this.billingEventService.updatePaymentEventWithReceipt(eventId, receipt.receiptDocId);
+
+    // Generate PDFs and upload to Firebase.
+    await this.billingReceiptService.finalizeBillingReceiptPdfs(receipt.receiptDocId, firebaseId);
+
+    // Send receipt email.
+    const emailResult = await this.billingReceiptService.sendReceiptEmailForPaymentEvent(eventId);
+
+    this.logger.log(
+      `generateMissingReceipt: receipt created and sent: receiptDocId=${receipt.receiptDocId} eventId=${eventId}`,
+    );
+
+    return { created: true, sent: emailResult.sent, error: emailResult.error };
   }
 
   // ─── Helpers ─────────────────────────────────────────────────────────────────

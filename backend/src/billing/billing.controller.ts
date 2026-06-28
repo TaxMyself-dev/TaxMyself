@@ -125,4 +125,27 @@ export class BillingController {
     return this.billingService.resendReceiptEmail(firebaseId, eventId);
   }
 
+  /**
+   * POST /billing/events/:eventId/receipt/generate
+   *
+   * Protected. Generates the missing receipt for a PAYMENT_SUCCESS event whose
+   * document was never created (INVOICE_FAILED case). Idempotent: if a receipt
+   * document already exists for the event, skips creation and only resends the
+   * email. Never creates a duplicate document.
+   *
+   * Returns { created, sent, error? }.
+   *
+   * Frontend: show [הפק חשבונית] when receiptDocId == null && receiptFailed === true.
+   */
+  @Post('events/:eventId/receipt/generate')
+  @UseGuards(FirebaseAuthGuard)
+  generateMissingReceipt(
+    @Req() request: AuthenticatedRequest,
+    @Param('eventId', ParseIntPipe) eventId: number,
+  ) {
+    const firebaseId = request.user?.firebaseId;
+    if (!firebaseId) throw new NotFoundException('User not found in request');
+    return this.billingService.generateMissingReceipt(firebaseId, eventId);
+  }
+
 }

@@ -149,6 +149,7 @@ export class MyAccountPage implements OnInit {
   readonly paymentBannerDismissed = signal(false);
   readonly paymentPolling = signal(false);
   readonly resendingReceiptEmail = signal(false);
+  readonly retryingInvoice = signal(false);
   private readonly cardcomRedirectFailure = signal<{ responseCode: string | null; status: string | null } | null>(null);
   private paymentReturnDetectedAt = 0;
   private paymentPollAttempts = 0;
@@ -179,7 +180,7 @@ export class MyAccountPage implements OnInit {
   readonly paymentResultBanner = computed<
     | { kind: 'success'; message: string }
     | { kind: 'email-failed'; message: string; eventId: number }
-    | { kind: 'invoice-failed'; message: string }
+    | { kind: 'invoice-failed'; message: string; eventId: number }
     | { kind: 'failed'; message: string; detail?: string }
     | { kind: 'unknown'; message: string }
     | { kind: 'processing'; message: string }
@@ -235,6 +236,7 @@ export class MyAccountPage implements OnInit {
         return {
           kind: 'invoice-failed',
           message: 'התשלום בוצע בהצלחה.\nהייתה תקלה בהפקה או בשליחה של החשבונית.',
+          eventId: result.latestPaymentEventId!,
         };
       }
       return processingState;
@@ -562,6 +564,23 @@ export class MyAccountPage implements OnInit {
         }
       })
       .finally(() => this.resendingReceiptEmail.set(false));
+  }
+
+  retryInvoiceClick(eventId: number): void {
+    this.retryingInvoice.set(true);
+    this.billingStateService.generateMissingReceipt(eventId)
+      .then(result => {
+        if (!result.sent && !result.created) {
+          this.messageService.add({
+            severity: 'error',
+            summary: 'שגיאה',
+            detail: result.error ?? 'הפקת החשבונית נכשלה. נסה שוב.',
+            life: 5000,
+            key: 'br',
+          });
+        }
+      })
+      .finally(() => this.retryingInvoice.set(false));
   }
 
   dismissPaymentResultBanner(): void {

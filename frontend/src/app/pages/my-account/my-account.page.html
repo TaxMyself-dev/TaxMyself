@@ -332,6 +332,16 @@
                 (onButtonClicked)="resendReceiptEmailClick(banner.eventId)">
             </app-p-button>
         }
+        @if (banner.kind === 'invoice-failed') {
+            <app-p-button
+                class="payment-result-banner__action"
+                [buttonText]="'הפק חשבונית'"
+                [buttonColor]="buttonColor.YELLOW"
+                [buttonSize]="buttonSize.SMALL"
+                [isLoading]="retryingInvoice()"
+                (onButtonClicked)="retryInvoiceClick(banner.eventId)">
+            </app-p-button>
+        }
         <!-- PAYMENT_STATUS_UNKNOWN: informational only — no close/retry/contact actions, by design. -->
         @if (banner.kind !== 'processing' && banner.kind !== 'unknown') {
             <button class="payment-result-banner__close" (click)="dismissPaymentResultBanner()" aria-label="סגור">
