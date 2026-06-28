@@ -257,31 +257,6 @@
   color: var(--color-primary);
 }
 
-// Secondary (licensed dealer) price — smaller than main, same weight
-.pricing-card__amount--secondary {
-  font-size: 36px;
-}
-
-// Dealer-type role label next to price ("עוסק פטור" / "עוסק מורשה")
-.pricing-card__price-role {
-  // align-self: center;
-  align-items: baseline;
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: var(--color-text-secondary);
-  margin-inline-start: 0.35rem;
-  white-space: nowrap;
-}
-
-// Secondary price line sits closer to the primary one
-.pricing-card__price-line--secondary {
-  margin-top: 0.35rem;
-}
-
-.pricing-card__currency--secondary {
-  font-size: 22px;
-}
-
 // Notes footnote below prices
 .pricing-card__notes {
   margin: 0.6rem 0 0;

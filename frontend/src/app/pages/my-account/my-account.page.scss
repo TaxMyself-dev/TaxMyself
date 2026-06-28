@@ -215,6 +215,12 @@ p.block-title {
     background-color: #eef3f7;
     .payment-result-banner__icon { color: #204f56; }
   }
+  // PAYMENT_STATUS_UNKNOWN — deliberately neutral, not red: we do not know the
+  // outcome, this is not necessarily a failure, and the user may already be charged.
+  &--unknown {
+    background-color: #eef3f7;
+    .payment-result-banner__icon { color: #204f56; }
+  }
 }
 
 .payment-result-banner__icon {
@@ -239,6 +245,7 @@ p.block-title {
   color: #204f56;
   margin: 0;
   line-height: 1.4;
+  white-space: pre-line;
 }
 
 .payment-result-banner__detail {

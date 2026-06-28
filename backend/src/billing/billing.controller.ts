@@ -27,11 +27,16 @@ export class BillingController {
   /**
    * GET /billing/plans
    *
-   * Public. Returns all active, public subscription plans sorted by displayOrder.
+   * Protected. Returns all active, public subscription plans sorted by
+   * displayOrder, each annotated with the price effective for the
+   * authenticated user's billing business type (see PricingService).
    */
   @Get('plans')
-  getPlans() {
-    return this.billingService.getPlans();
+  @UseGuards(FirebaseAuthGuard)
+  getPlans(@Req() request: AuthenticatedRequest) {
+    const firebaseId = request.user?.firebaseId;
+    if (!firebaseId) throw new NotFoundException('User not found in request');
+    return this.billingService.getPlans(firebaseId);
   }
 
   /**

@@ -299,16 +299,19 @@
     @if (paymentResultBanner(); as banner) {
     <div class="payment-result-banner"
          [class.payment-result-banner--success]="banner.kind === 'success'"
-         [class.payment-result-banner--warning]="banner.kind === 'email-failed'"
+         [class.payment-result-banner--warning]="banner.kind === 'email-failed' || banner.kind === 'invoice-failed'"
          [class.payment-result-banner--error]="banner.kind === 'failed'"
+         [class.payment-result-banner--unknown]="banner.kind === 'unknown'"
          [class.payment-result-banner--processing]="banner.kind === 'processing'">
         <div class="payment-result-banner__icon">
             @if (banner.kind === 'success') {
                 <i class="pi pi-check-circle"></i>
-            } @else if (banner.kind === 'email-failed') {
+            } @else if (banner.kind === 'email-failed' || banner.kind === 'invoice-failed') {
                 <i class="pi pi-exclamation-triangle"></i>
             } @else if (banner.kind === 'failed') {
                 <i class="pi pi-times-circle"></i>
+            } @else if (banner.kind === 'unknown') {
+                <i class="pi pi-info-circle"></i>
             } @else {
                 <p-progressSpinner strokeWidth="6" [style]="{width: '22px', height: '22px'}"></p-progressSpinner>
             }
@@ -329,7 +332,8 @@
                 (onButtonClicked)="resendReceiptEmailClick(banner.eventId)">
             </app-p-button>
         }
-        @if (banner.kind !== 'processing') {
+        <!-- PAYMENT_STATUS_UNKNOWN: informational only — no close/retry/contact actions, by design. -->
+        @if (banner.kind !== 'processing' && banner.kind !== 'unknown') {
             <button class="payment-result-banner__close" (click)="dismissPaymentResultBanner()" aria-label="סגור">
                 <i class="pi pi-times"></i>
             </button>

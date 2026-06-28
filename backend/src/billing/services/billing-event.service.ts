@@ -196,6 +196,27 @@ export class BillingEventService {
     }
   }
 
+  /**
+   * True if a RECEIPT_FAILED event was logged for this subscription at or after
+   * the given timestamp. Used by billing/me to distinguish "receipt still being
+   * generated" (still within the processing window) from "receipt generation
+   * permanently failed" for a given PAYMENT_SUCCESS event.
+   */
+  async hasReceiptFailedAfter(subscriptionId: number, after: Date): Promise<boolean> {
+    try {
+      const event = await this.billingEventRepo.findOne({
+        where: { subscriptionId, eventType: BillingEventType.RECEIPT_FAILED },
+        order: { createdAt: 'DESC' },
+      });
+      return !!event && event.createdAt >= after;
+    } catch (error) {
+      this.logger.error(
+        `hasReceiptFailedAfter failed for subscriptionId=${subscriptionId}: ${(error as Error)?.message ?? error}`,
+      );
+      return false;
+    }
+  }
+
   async findPaymentEventById(eventId: number): Promise<BillingEvent | null> {
     try {
       return await this.billingEventRepo.findOne({ where: { id: eventId } });

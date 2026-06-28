@@ -54,11 +54,18 @@ export interface BillingAccess {
 
 /** Latest CardCom payment/invoice outcome, used to render the post-return-from-CardCom banner. */
 export interface BillingPaymentResult {
-  latestPaymentEventId: number;
-  paymentStatus: 'SUCCESS' | 'FAILED';
+  latestPaymentEventId: number | null;
+  /**
+   * ACTIVATION_FAILED = CardCom charge was independently verified, but our own
+   * post-payment logic failed to activate the subscription. Must never be
+   * presented to the user as "payment failed" — they may already be charged.
+   */
+  paymentStatus: 'SUCCESS' | 'FAILED' | 'ACTIVATION_FAILED';
   receiptDocId: number | null;
   receiptEmailSent: boolean | null;
   receiptEmail: string | null;
+  /** True when receipt generation (not just email) permanently failed for this payment. */
+  receiptFailed: boolean;
   failureReason: string | null;
   createdAt: string;
 }

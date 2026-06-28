@@ -36,6 +36,7 @@ import { SubscriptionRenewalService } from './services/subscription-renewal.serv
 import { UsersModule } from 'src/users/users.module';
 import { DocumentsModule } from 'src/documents/documents.module';
 import { MailModule } from 'src/mail/mail.module';
+import { BusinessModule } from 'src/business/business.module';
 
 @Module({
   imports: [
@@ -44,6 +45,7 @@ import { MailModule } from 'src/mail/mail.module';
     forwardRef(() => UsersModule),
     DocumentsModule,
     MailModule,
+    BusinessModule,
     TypeOrmModule.forFeature([
       // Billing entities
       SubscriptionPlan,

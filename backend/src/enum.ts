@@ -15,6 +15,7 @@ export enum PayStatus {
 export enum ModuleName {
   INVOICES = 'INVOICES',
   OPEN_BANKING = 'OPEN_BANKING',
+  EXPENSES = 'EXPENSES',
   ACCOUNTANT = 'ACCOUNTANT',
 }
 

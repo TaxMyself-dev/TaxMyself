@@ -152,15 +152,36 @@ export class MyAccountPage implements OnInit {
   private readonly cardcomRedirectFailure = signal<{ responseCode: string | null; status: string | null } | null>(null);
   private paymentReturnDetectedAt = 0;
   private paymentPollAttempts = 0;
-  private readonly PAYMENT_POLL_MAX_ATTEMPTS = 5;
+  /**
+   * Bounded poll spans the same window as PAYMENT_STATUS_TIMEOUT_MS (90s) so we
+   * keep checking for a late-arriving webhook right up until the timeout fires.
+   */
+  private readonly PAYMENT_POLL_MAX_ATTEMPTS = 30;
   private readonly PAYMENT_POLL_INTERVAL_MS = 3000;
   /** Accept a billingPaymentResult as "for this return" if created up to this long before detection (clock skew / webhook racing the redirect). */
   private readonly PAYMENT_FRESHNESS_WINDOW_MS = 2 * 60_000;
+  /**
+   * Hard timeout: if we still don't know the outcome (webhook never arrived,
+   * network issue, ngrok down, provider issue, etc.) after this long, stop
+   * waiting and show PAYMENT_STATUS_UNKNOWN instead of spinning forever.
+   */
+  private readonly PAYMENT_STATUS_TIMEOUT_MS = 90_000;
+  private paymentTimeoutHandle: ReturnType<typeof setTimeout> | null = null;
+  /** Set once PAYMENT_STATUS_TIMEOUT_MS has elapsed since the CardCom redirect with no resolved outcome. */
+  readonly paymentTimedOut = signal(false);
+
+  private static readonly PAYMENT_STATUS_UNKNOWN_MESSAGE =
+    'לא הצלחנו להשלים באופן אוטומטי את תהליך הפעלת המנוי.\n' +
+    'ייתכן שהתשלום שלך כבר עובד בהצלחה.\n' +
+    'אנא אל תבצע/י תשלום נוסף.\n' +
+    'צור/י קשר עם התמיכה ואנחנו נבדוק את העסקה ונשלים את ההפעלה במידת הצורך.';
 
   readonly paymentResultBanner = computed<
     | { kind: 'success'; message: string }
     | { kind: 'email-failed'; message: string; eventId: number }
+    | { kind: 'invoice-failed'; message: string }
     | { kind: 'failed'; message: string; detail?: string }
+    | { kind: 'unknown'; message: string }
     | { kind: 'processing'; message: string }
     | null
   >(() => {
@@ -180,16 +201,26 @@ export class MyAccountPage implements OnInit {
       !!result &&
       new Date(result.createdAt).getTime() >= this.paymentReturnDetectedAt - this.PAYMENT_FRESHNESS_WINDOW_MS;
 
+    const processingState = {
+      kind: 'processing' as const,
+      message: 'התשלום בוצע בהצלחה.\nאנחנו משלימים את הפעלת המנוי ומפיקים את החשבונית שלך...',
+    };
+
     if (isFresh && result) {
       if (result.paymentStatus === 'FAILED') {
         return { kind: 'failed', message: 'התשלום נכשל', detail: result.failureReason ?? undefined };
+      }
+      // Charge was verified by CardCom but our own activation logic failed —
+      // never call this "payment failed", the user may already be charged.
+      if (result.paymentStatus === 'ACTIVATION_FAILED') {
+        return { kind: 'unknown', message: MyAccountPage.PAYMENT_STATUS_UNKNOWN_MESSAGE };
       }
       if (result.receiptDocId != null) {
         if (result.receiptEmailSent === false) {
           return {
             kind: 'email-failed',
             message: 'התשלום בוצע בהצלחה והחשבונית נוצרה, אבל השליחה למייל נכשלה.',
-            eventId: result.latestPaymentEventId,
+            eventId: result.latestPaymentEventId!,
           };
         }
         return {
@@ -197,10 +228,24 @@ export class MyAccountPage implements OnInit {
           message: `התשלום בוצע בהצלחה.${result.receiptEmail ? ` חשבונית מס קבלה נשלחה למייל: ${result.receiptEmail}` : ' חשבונית מס קבלה נשלחה למייל שלך.'}`,
         };
       }
-      // Payment succeeded but the receipt document hasn't been created yet — keep "processing".
+      // Payment succeeded but the receipt document hasn't been created yet.
+      // Distinguish "still generating" from "generation permanently failed" —
+      // payment success is already confirmed here, so this is never "failed payment".
+      if (result.receiptFailed || this.paymentTimedOut()) {
+        return {
+          kind: 'invoice-failed',
+          message: 'התשלום בוצע בהצלחה.\nהייתה תקלה בהפקה או בשליחה של החשבונית.',
+        };
+      }
+      return processingState;
     }
 
-    return { kind: 'processing', message: 'התשלום התקבל. אנחנו מעדכנים את המנוי ומפיקים את החשבונית.' };
+    // No resolved outcome yet — webhook may still be in flight, or may never arrive.
+    if (this.paymentTimedOut()) {
+      return { kind: 'unknown', message: MyAccountPage.PAYMENT_STATUS_UNKNOWN_MESSAGE };
+    }
+
+    return processingState;
   });
 
 
@@ -336,6 +381,10 @@ export class MyAccountPage implements OnInit {
 
     this.initFeezbackDialogFromReturnUrl();
     this.initPaymentResultFromReturnUrl();
+
+    this.destroyRef.onDestroy(() => {
+      if (this.paymentTimeoutHandle) clearTimeout(this.paymentTimeoutHandle);
+    });
   }
 
   /** Reads and clears the one-shot flag set by the admin demo-data panel when
@@ -442,9 +491,25 @@ export class MyAccountPage implements OnInit {
 
     this.billingStateService.refreshBillingState().then(() => {
       if (!redirectIndicatesFailure) {
+        this.startPaymentTimeoutTimer();
         this.startPaymentResultPolling();
       }
     });
+  }
+
+  /**
+   * Stop-loss for the "webhook never arrives" failure mode: charge succeeds at
+   * CardCom but the webhook is lost (network issue, ngrok down, provider issue),
+   * so billing/me never resolves a terminal outcome. Without this, the banner
+   * would stay on "processing" forever and the user might pay again, risking a
+   * duplicate charge. After PAYMENT_STATUS_TIMEOUT_MS, flip to PAYMENT_STATUS_UNKNOWN.
+   */
+  private startPaymentTimeoutTimer(): void {
+    if (this.paymentTimeoutHandle) clearTimeout(this.paymentTimeoutHandle);
+    this.paymentTimedOut.set(false);
+    this.paymentTimeoutHandle = setTimeout(() => {
+      this.paymentTimedOut.set(true);
+    }, this.PAYMENT_STATUS_TIMEOUT_MS);
   }
 
   /** Bounded poll — webhook may still be finishing receipt generation when the user lands back. */
@@ -458,10 +523,20 @@ export class MyAccountPage implements OnInit {
     const isFresh =
       !!result &&
       new Date(result.createdAt).getTime() >= this.paymentReturnDetectedAt - this.PAYMENT_FRESHNESS_WINDOW_MS;
-    const isDone = isFresh && result && (result.paymentStatus === 'FAILED' || result.receiptDocId != null);
+    const isDone =
+      isFresh &&
+      result &&
+      (result.paymentStatus === 'FAILED' ||
+        result.paymentStatus === 'ACTIVATION_FAILED' ||
+        result.receiptDocId != null ||
+        result.receiptFailed);
 
     if (isDone || this.paymentPollAttempts >= this.PAYMENT_POLL_MAX_ATTEMPTS) {
       this.paymentPolling.set(false);
+      if (this.paymentTimeoutHandle) {
+        clearTimeout(this.paymentTimeoutHandle);
+        this.paymentTimeoutHandle = null;
+      }
       return;
     }
 

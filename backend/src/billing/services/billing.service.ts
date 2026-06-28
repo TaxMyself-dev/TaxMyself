@@ -9,6 +9,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { LessThan, Repository } from 'typeorm';
 import { SubscriptionPlan } from '../entities/subscription-plan.entity';
 import { Subscription } from '../entities/subscription.entity';
+import { CardcomWebhookLog } from '../entities/cardcom-webhook-log.entity';
 import { User } from 'src/users/user.entity';
 import { ModuleName } from 'src/enum';
 import { BillingEventService } from './billing-event.service';
@@ -16,7 +17,7 @@ import { BillingReceiptService } from './billing-receipt.service';
 import { PricingService } from './pricing.service';
 import { SubscriptionAccessService } from './subscription-access.service';
 import { CardcomService, CardcomApiError } from './cardcom.service';
-import { BillingEventType, SubscriptionStatus } from '../enums/billing.enums';
+import { BillingEventType, SubscriptionStatus, WebhookLogStatus } from '../enums/billing.enums';
 import { CheckoutPreviewDto } from '../dtos/checkout-preview.dto';
 import { CreateCheckoutDto } from '../dtos/create-checkout.dto';
 
@@ -29,6 +30,8 @@ export class BillingService {
     private readonly planRepo: Repository<SubscriptionPlan>,
     @InjectRepository(Subscription)
     private readonly subscriptionRepo: Repository<Subscription>,
+    @InjectRepository(CardcomWebhookLog)
+    private readonly webhookLogRepo: Repository<CardcomWebhookLog>,
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
     private readonly pricingService: PricingService,
@@ -40,17 +43,29 @@ export class BillingService {
 
   // ─── Plans ──────────────────────────────────────────────────────────────────
 
-  async getPlans() {
-    const plans = await this.planRepo.find({
-      where: { isActive: true, isPublic: true },
-      order: { displayOrder: 'ASC' },
-    });
+  /**
+   * Returns all active, public plans with the price effective for the
+   * requesting user's billing business type — resolved once from their
+   * businesses and applied to every plan, so the frontend never has to
+   * decide between the exempt-dealer and licensed-dealer price itself.
+   */
+  async getPlans(firebaseId: string) {
+    const [plans, billingBusinessType] = await Promise.all([
+      this.planRepo.find({
+        where: { isActive: true, isPublic: true },
+        order: { displayOrder: 'ASC' },
+      }),
+      this.pricingService.resolveUserBillingBusinessType(firebaseId),
+    ]);
+
     return plans.map(p => ({
       id: p.id,
       name: p.name,
       slug: p.slug,
       priceMonthlyAgorot: p.priceMonthlyAgorot,
       licensedDealerPriceMonthlyAgorot: p.licensedDealerPriceMonthlyAgorot,
+      effectivePriceMonthlyAgorot: this.pricingService.resolveEffectivePlanPrice(p, billingBusinessType),
+      effectiveBillingBusinessType: billingBusinessType,
       notes: p.notes,
       badge: p.badge,
       features: p.features,
@@ -257,6 +272,7 @@ export class BillingService {
 
     this.logger.log(
       `Checkout ready: plan=${plan.slug} subscription=${subscription.id} ` +
+        `billingBusinessType=${pricing.billingBusinessType} ` +
         `amount=${pricing.finalAmountAgorot} agorot lowProfileId=${cardcomResult.lowProfileId}`,
     );
 
@@ -354,28 +370,69 @@ export class BillingService {
 
   /**
    * Builds the latest CardCom payment/invoice outcome for the frontend's
-   * post-return-from-CardCom UI (success / email-failed / failed / processing).
-   * Returns null when the user has never had a PAYMENT_SUCCESS or PAYMENT_FAILED
-   * event — the frontend treats that as "still processing" right after a redirect.
+   * post-return-from-CardCom UI (success / email-failed / invoice-failed /
+   * failed / activation-failed / processing).
+   *
+   * Returns null when there is no PAYMENT_SUCCESS/PAYMENT_FAILED event AND no
+   * failed webhook-processing attempt for this user — the frontend treats that
+   * as "still processing" right after a redirect, bounded by its own timeout.
+   *
+   * ACTIVATION_FAILED covers the case where CardCom's charge was independently
+   * verified (GetLpResult) but our own post-payment logic then failed — e.g.
+   * subscription row not found, firebaseId mismatch, or a DB/transaction error
+   * while activating. These are real charges that must never be reported to the
+   * user as "payment failed" (see CardcomWebhookService.processVerifiedSuccess).
+   * We surface the most recent of {payment event, failed webhook log} by time,
+   * since a later successful retry should always take precedence over an older
+   * failure.
    */
   private async buildPaymentResultPayload(firebaseId: string): Promise<{
-    latestPaymentEventId: number;
-    paymentStatus: 'SUCCESS' | 'FAILED';
+    latestPaymentEventId: number | null;
+    paymentStatus: 'SUCCESS' | 'FAILED' | 'ACTIVATION_FAILED';
     receiptDocId: number | null;
     receiptEmailSent: boolean | null;
     receiptEmail: string | null;
+    receiptFailed: boolean;
     failureReason: string | null;
     createdAt: Date;
   } | null> {
     const event = await this.billingEventService.findLatestPaymentResultEvent(firebaseId);
+    const failedLog = await this.webhookLogRepo.findOne({
+      where: { firebaseId, status: WebhookLogStatus.FAILED },
+      order: { createdAt: 'DESC' },
+    });
+
+    const eventTime = event?.createdAt?.getTime() ?? -Infinity;
+    const failedLogTime = failedLog?.createdAt?.getTime() ?? -Infinity;
+
+    if (failedLog && failedLogTime > eventTime) {
+      return {
+        latestPaymentEventId: null,
+        paymentStatus: 'ACTIVATION_FAILED',
+        receiptDocId: null,
+        receiptEmailSent: null,
+        receiptEmail: null,
+        receiptFailed: false,
+        failureReason: failedLog.errorMessage,
+        createdAt: failedLog.createdAt,
+      };
+    }
+
     if (!event) return null;
 
     const isSuccess = event.eventType === BillingEventType.PAYMENT_SUCCESS;
 
     let receiptEmail: string | null = null;
+    let receiptFailed = false;
     if (isSuccess) {
       const user = await this.userRepo.findOne({ where: { firebaseId } });
       receiptEmail = user?.email ?? null;
+      if (event.receiptDocId == null && event.subscriptionId != null) {
+        receiptFailed = await this.billingEventService.hasReceiptFailedAfter(
+          event.subscriptionId,
+          event.createdAt,
+        );
+      }
     }
 
     return {
@@ -384,6 +441,7 @@ export class BillingService {
       receiptDocId: isSuccess ? event.receiptDocId : null,
       receiptEmailSent: isSuccess ? event.receiptEmailSent : null,
       receiptEmail,
+      receiptFailed,
       failureReason: !isSuccess ? ((event.metadata?.reason as string) ?? null) : null,
       createdAt: event.createdAt,
     };

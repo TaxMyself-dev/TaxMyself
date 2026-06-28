@@ -472,7 +472,7 @@ export class DocumentsService {
 
     console.log("data is ", data);
 
-    
+
     // FID mapping based on environment and document type
     const fidMap = {
       // Production FIDs
@@ -523,12 +523,12 @@ export class DocumentsService {
         }
 
         const hebrewNameDoc = data.docData.docType === DocumentType.RECEIPT ? 'קבלה' :
-                              data.docData.docType === DocumentType.TAX_INVOICE ? 'חשבונית מס' :
-                              data.docData.docType === DocumentType.TAX_INVOICE_RECEIPT ? 'חשבונית מס קבלה' :
-                              data.docData.docType === DocumentType.TRANSACTION_INVOICE ? 'חשבון עסקה' :
-                              data.docData.docType === DocumentType.CREDIT_INVOICE ? 'חשבונית זיכוי' :
-                              data.docData.docType === DocumentType.PRICE_QUOTE ? 'הצעת מחיר' :
-                              data.docData.docType === DocumentType.WORK_ORDER ? 'הזמנת עבודה' : '';
+          data.docData.docType === DocumentType.TAX_INVOICE ? 'חשבונית מס' :
+            data.docData.docType === DocumentType.TAX_INVOICE_RECEIPT ? 'חשבונית מס קבלה' :
+              data.docData.docType === DocumentType.TRANSACTION_INVOICE ? 'חשבון עסקה' :
+                data.docData.docType === DocumentType.CREDIT_INVOICE ? 'חשבונית זיכוי' :
+                  data.docData.docType === DocumentType.PRICE_QUOTE ? 'הצעת מחיר' :
+                    data.docData.docType === DocumentType.WORK_ORDER ? 'הזמנת עבודה' : '';
         prefill_data = {
           recipientName: data.docData.recipientName,
           recipientTaxNumber: data.docData.recipientId ? `מ.ע. / ח.פ.:  ${data.docData.recipientId}` : null,
@@ -539,9 +539,9 @@ export class DocumentsService {
           issuerName: data.docData.issuerName ? `שם העסק: ${data.docData.issuerName}` : null,
           issuerDetails: [
             data.docData.issuerBusinessNumber ? `מ.ע. / ח.פ.:  ${data.docData.issuerBusinessNumber}` : null,
-            data.docData.issuerPhone          ? `טלפון:  ${data.docData.issuerPhone}` : null,
-            data.docData.issuerEmail          ? `כתובת מייל:  ${data.docData.issuerEmail}` : null,
-            data.docData.issuerAddress        ? `כתובת:  ${data.docData.issuerAddress}` : null,
+            data.docData.issuerPhone ? `טלפון:  ${data.docData.issuerPhone}` : null,
+            data.docData.issuerEmail ? `כתובת מייל:  ${data.docData.issuerEmail}` : null,
+            data.docData.issuerAddress ? `כתובת:  ${data.docData.issuerAddress}` : null,
           ].filter(Boolean).join('\n'),
           items_table: await this.transformLinesToItemsTable(data.linesData),
           sumTable: await this.transformSumsToSumTable(data.docData, data.docData.issuerBusinessNumber),
@@ -549,7 +549,7 @@ export class DocumentsService {
           paymentMethod: data.docData.paymentMethod,
           draft_image: templateType === 'previewDoc' ? draftImageBase64 : null
         };
-        
+
         // Add VAT-related fields only for non-receipts
         const isReceipt = docType === 'RECEIPT';
         if (!isReceipt) {
@@ -578,13 +578,22 @@ export class DocumentsService {
       prefill_data,
     };
 
+    // TEMP DEBUG — remove once the period-end rendering bug is root-caused.
+    if (Array.isArray(prefill_data?.items_table)) {
+      console.log(
+        '[TEMP DEBUG][generatePDF] items_table פירוט values sent to FillFaster:',
+        JSON.stringify(prefill_data.items_table.map((row: any) => row['פירוט'])),
+      );
+    }
+    console.log('[TEMP DEBUG][generatePDF] full payload sent to FillFaster:', JSON.stringify(payload));
+
     const headers = {
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
     };
 
     try {
-      
+
       const response = await axios.post<Blob>(url, payload, {
         headers,
         responseType: 'arraybuffer',
@@ -601,14 +610,14 @@ export class DocumentsService {
       console.error('   Status Text:', error.response?.statusText);
       console.error('   URL:', url);
       console.error('   FID:', fid);
-      
+
       // Try to parse error response body
       if (error.response?.data) {
         try {
           // Try to parse as JSON first
           const errorText = Buffer.from(error.response.data).toString('utf-8');
           console.error('   Error Response Body:', errorText);
-          
+
           try {
             const errorJson = JSON.parse(errorText);
             console.error('   Parsed Error JSON:', JSON.stringify(errorJson, null, 2));
@@ -620,7 +629,7 @@ export class DocumentsService {
           console.error('   Could not parse error response body');
         }
       }
-      
+
       // Log the payload that was sent (but truncate large fields)
       const payloadForLog = {
         ...payload,
@@ -633,7 +642,7 @@ export class DocumentsService {
         }
       };
       console.error('   Payload sent:', JSON.stringify(payloadForLog, null, 2));
-      
+
       throw new HttpException(
         `FillFaster API error: ${error.response?.status || 'Unknown'} - ${error.response?.statusText || error.message}`,
         error.response?.status || HttpStatus.INTERNAL_SERVER_ERROR
@@ -692,7 +701,7 @@ export class DocumentsService {
     } else {
       // For LICENSED (עוסק מורשה) or LIMITED_COMPANY/AUTHORIZED_PARTNERSHIP (חברה)
       // For TAX_INVOICE and TAX_INVOICE_RECEIPT
-      
+
       if (docType === DocumentType.TAX_INVOICE || docType === DocumentType.TAX_INVOICE_RECEIPT || docType === DocumentType.TRANSACTION_INVOICE || docType === DocumentType.PRICE_QUOTE || docType === DocumentType.WORK_ORDER) {
         // סה"כ חייב במע"מ
         sumTable.push({
@@ -949,7 +958,7 @@ export class DocumentsService {
         // Amounts
         sumBefVatPerUnit: Number((line.sumBefVatPerUnit || line.sum || 0).toFixed(4)),
         disBefVatPerLine: Number((line.disBefVatPerLine || line.discount || 0).toFixed(2)),
-        sumAftDisBefVatPerLine: Number((line.sumAftDisBefVatPerLine || 
+        sumAftDisBefVatPerLine: Number((line.sumAftDisBefVatPerLine ||
           ((line.sumBefVatPerUnit || line.sum || 0) * (line.unitQuantity || 1) - (line.discount || 0))
         ).toFixed(2)),
 
@@ -957,7 +966,7 @@ export class DocumentsService {
         vatOpts: line.vatOpts, // enum VatOptions, default INCLUDE
         vatRate: Number(line.vatRate), // decimal(5,2)
         vatPerLine: Number((line.vatPerLine || 0).toFixed(2)), // decimal(10,2)
-        sumAftDisWithVat: Number((line.sumAftDisWithVat || 
+        sumAftDisWithVat: Number((line.sumAftDisWithVat ||
           (line.sumAftDisBefVatPerLine || ((line.sumBefVatPerUnit || line.sum || 0) * (line.unitQuantity || 1) - (line.discount || 0))) + (line.vatPerLine || 0)
         ).toFixed(2)), // decimal(10,2)
 
@@ -1035,7 +1044,7 @@ export class DocumentsService {
       paymentData: transformedPaymentData,
     };
   }
-  
+
 
   async createDoc(data: any, userId: string, generatePdf: boolean = true): Promise<any> {
 
@@ -1066,7 +1075,7 @@ export class DocumentsService {
       // This ensures we always use a fresh, incremented value, not the parent document's index
       const newGeneralDocIndex = String(updatedGeneralIndex.currentIndex);
       data.docData.generalDocIndex = newGeneralDocIndex;
-      
+
       // Update all lines and payments to use the new generalDocIndex
       if (data.linesData && Array.isArray(data.linesData)) {
         data.linesData.forEach(line => {
@@ -1078,7 +1087,7 @@ export class DocumentsService {
           payment.generalDocIndex = newGeneralDocIndex;
         });
       }
-      
+
       console.log(new Date().toLocaleTimeString(), "Step 1 complete - General index incremented to:", newGeneralDocIndex);
 
       // 2. Increment document-specific index
@@ -1092,7 +1101,7 @@ export class DocumentsService {
       const newDoc = await this.saveDocInfo(userId, data.docData, queryRunner.manager);
       if (!newDoc) {
         throw new HttpException('Error in saveDocInfo', HttpStatus.INTERNAL_SERVER_ERROR);
-      }            
+      }
       console.log(new Date().toLocaleTimeString(), "Step 3 complete - Document info saved");
 
       // 4. Save line items (now with the correct incremented generalDocIndex)
@@ -1166,7 +1175,7 @@ export class DocumentsService {
             'original'
           );
           console.log(new Date().toLocaleTimeString(), "Step 8.1 complete - Original PDF uploaded");
-          
+
           copyFilePath = await this.uploadToFirebase(
             copyBuffer,
             data.docData.issuerBusinessNumber,
@@ -1196,7 +1205,7 @@ export class DocumentsService {
                   docNumber: data.docData.parentDocNumber,
                 }
               });
-              
+
               if (parentDoc && parentDoc.docStatus === DocumentStatusType.OPEN) {
                 parentDoc.docStatus = DocumentStatusType.CLOSE;
                 await documentsRepo.save(parentDoc);
@@ -1210,12 +1219,12 @@ export class DocumentsService {
           console.log("  - sendEmailToRecipient:", data.docData.sendEmailToRecipient);
           console.log("  - recipientEmail:", data.docData.recipientEmail);
           console.log("  - originalFilePath:", originalFilePath);
-          
+
           if (data.docData.sendEmailToRecipient && data.docData.recipientEmail && originalFilePath) {
             try {
               console.log(new Date().toLocaleTimeString(), "Step 11.1 - Starting email sending process");
               console.log("  📧 Email will be sent to:", data.docData.recipientEmail);
-              
+
               // Get business info for email content
               const business = await this.businessService.getBusinessByNumber(data.docData.issuerBusinessNumber);
               const businessName = business?.businessName || data.docData.issuerBusinessNumber;
@@ -1248,10 +1257,10 @@ export class DocumentsService {
               }
               const finalOwnerName = ownerName?.trim() || businessName;
               console.log("  📧 Owner name:", finalOwnerName);
-              
+
               // Prepare email content
               const recipientName = data.docData.recipientName || 'לקוח נכבד';
-              
+
               const emailSubject = `${docTypeName} #${data.docData.docNumber}`;
               const emailText = `שלום ${recipientName},
 
@@ -1523,7 +1532,7 @@ ${finalOwnerName}`;
       await queryRunner.release();
     }
   }
-  
+
 
   convertPaymentMethod(paymentMethod: string): string {
     switch (paymentMethod) {
@@ -1594,7 +1603,7 @@ ${finalOwnerName}`;
 
 
   async saveDocInfo(userId: string, data: any, manager?: EntityManager): Promise<Documents> {
-    
+
     try {
       const repo = manager
         ? manager.getRepository(Documents)
@@ -1714,7 +1723,7 @@ ${finalOwnerName}`;
 
       const payments = data.map(item => {
         // Normalize date to YYYY-MM-DD for MySQL DATE column
-          const paymentDate = this.sharedService.normalizeToMySqlDate(item.paymentDate);
+        const paymentDate = this.sharedService.normalizeToMySqlDate(item.paymentDate);
 
         // Map paymentSum (from frontend) to paymentAmount (DB column)
         const paymentAmount = item.paymentAmount ?? item.paymentSum ?? 0;
@@ -1915,9 +1924,20 @@ ${finalOwnerName}`;
       planName, periodStart, periodEnd, docDate, initialReceiptIndex,
     } = params;
 
+    const formattedPeriodStart = this.formatDateDotDDMMYYYY(periodStart);
+    const formattedPeriodEnd = this.formatDateDotDDMMYYYY(periodEnd);
     const lineDescription =
-      `מנוי KeepInTax - תוכנית ${planName} - תקופת שירות: ` +
-      `${this.formatDateSlashDDMMYYYY(periodStart)} עד ${this.formatDateSlashDDMMYYYY(periodEnd)}`;
+      `מנוי KeepInTax - תוכנית ${planName}\n` +
+      `תקופת שירות: ${formattedPeriodStart} עד ${formattedPeriodEnd}`;
+
+    // TEMP DEBUG — remove once the period-end rendering bug is root-caused.
+    console.log('[TEMP DEBUG][createBillingSystemReceipt] raw periodStart:', periodStart,
+      'isDate:', periodStart instanceof Date, 'typeof:', typeof periodStart);
+    console.log('[TEMP DEBUG][createBillingSystemReceipt] raw periodEnd:', periodEnd,
+      'isDate:', periodEnd instanceof Date, 'typeof:', typeof periodEnd);
+    console.log('[TEMP DEBUG][createBillingSystemReceipt] formattedPeriodStart:', formattedPeriodStart);
+    console.log('[TEMP DEBUG][createBillingSystemReceipt] formattedPeriodEnd:', formattedPeriodEnd);
+    console.log('[TEMP DEBUG][createBillingSystemReceipt] final lineDescription:', lineDescription);
 
     const amountBeforeVatShekels = +(amountBeforeVatAgorot / 100).toFixed(2);
     const vatAmountShekels = +(vatAmountAgorot / 100).toFixed(2);
@@ -2051,7 +2071,7 @@ ${finalOwnerName}`;
     console.log('Lines Count:', data.linesData?.length || 0);
     console.log('Payments Count:', data.paymentData?.length || 0);
     console.log('Full docData:', JSON.stringify(data.docData, null, 2));
-    
+
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -2069,7 +2089,7 @@ ${finalOwnerName}`;
       const draftGeneralDocIndex = `D${String(shortHash).padStart(6, '0')}`;
       data.docData.generalDocIndex = draftGeneralDocIndex;
       console.log('Generated draft generalDocIndex:', draftGeneralDocIndex, '(from timestamp:', timestamp, ')');
-      
+
       // Update lines and payments with draft index
       if (data.linesData && Array.isArray(data.linesData)) {
         data.linesData.forEach(line => {
@@ -2084,7 +2104,7 @@ ${finalOwnerName}`;
 
       // 3. Set docStatus to DRAFT
       data.docData.docStatus = DocumentStatusType.DRAFT;
-      
+
       // 4. Set docNumber to temporary value (not incrementing real index)
       if (!data.docData.docNumber || data.docData.docNumber === '') {
         data.docData.docNumber = 'DRAFT';
@@ -2130,7 +2150,7 @@ ${finalOwnerName}`;
     console.log('Business Number:', issuerBusinessNumber);
     console.log('Document Type:', docType);
     console.log('User ID:', userId);
-    
+
     try {
       // Find draft document
       console.log('Querying database for draft document...');
@@ -2186,7 +2206,7 @@ ${finalOwnerName}`;
   // Delete draft (called before saving new draft or after creating document)
   async deleteDraft(userId: string, issuerBusinessNumber: string, docType: DocumentType, manager?: EntityManager): Promise<void> {
     try {
-      const repo = manager 
+      const repo = manager
         ? manager.getRepository(Documents)
         : this.documentsRepo;
 
@@ -2211,7 +2231,7 @@ ${finalOwnerName}`;
       }
 
       // Delete lines
-      const linesRepo = manager 
+      const linesRepo = manager
         ? manager.getRepository(DocLines)
         : this.docLinesRepo;
       await linesRepo.delete({
@@ -2221,7 +2241,7 @@ ${finalOwnerName}`;
       });
 
       // Delete payments
-      const paymentsRepo = manager 
+      const paymentsRepo = manager
         ? manager.getRepository(DocPayments)
         : this.docPaymentsRepo;
       await paymentsRepo.delete({
@@ -2451,13 +2471,18 @@ ${finalOwnerName}`;
     return `${day}-${month}-${year}`;
   }
 
-  /** Used for the subscription service-period text in billing receipt line items. */
-  private formatDateSlashDDMMYYYY(dateInput: string | Date): string {
+  /**
+   * Used for the subscription service-period text in billing receipt line items.
+   * Uses "." separators instead of "/" because the generated CardCom PDF mixes
+   * this Hebrew RTL text with the date, and "/" triggers bidi reordering that
+   * scrambles the digits (e.g. "24/07/2026" rendering as "62026/07/2").
+   */
+  private formatDateDotDDMMYYYY(dateInput: string | Date): string {
     const date = new Date(dateInput);
     const day = String(date.getDate()).padStart(2, '0');
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const year = date.getFullYear();
-    return `${day}/${month}/${year}`;
+    return `${day}.${month}.${year}`;
   }
 
   /**
@@ -2533,7 +2558,7 @@ ${finalOwnerName}`;
     // inbox/processed sub-folders for businesses created pre-refactor).
     const business = await this.ensureBusinessAndSubFolders(user, businessNumber);
 
-    const inboxFolderId     = business.driveInboxFolderId!;
+    const inboxFolderId = business.driveInboxFolderId!;
     const processedFolderId = business.driveProcessedFolderId!;
 
     const files = await this.googleDriveService.listFolderFiles(inboxFolderId);
@@ -2549,8 +2574,8 @@ ${finalOwnerName}`;
     // retried so transient OCR failures can recover on the next pass.
     const existingRows = files.length
       ? await this.extractedDocRepo.find({
-          where: { driveFileId: In(files.map(f => f.id)) },
-        })
+        where: { driveFileId: In(files.map(f => f.id)) },
+      })
       : [];
     const existingByDriveId = new Map<string, ExtractedDocument[]>();
     for (const row of existingRows) {
@@ -2573,12 +2598,12 @@ ${finalOwnerName}`;
     );
     const priorMd5Rows = batchMd5s.length
       ? await this.extractedDocRepo.find({
-          where: {
-            businessNumber,
-            driveFileMd5: In(batchMd5s),
-            status: Not(In([ExtractedDocStatus.ERROR, ExtractedDocStatus.REJECTED])),
-          },
-        })
+        where: {
+          businessNumber,
+          driveFileMd5: In(batchMd5s),
+          status: Not(In([ExtractedDocStatus.ERROR, ExtractedDocStatus.REJECTED])),
+        },
+      })
       : [];
     const handledMd5ToFileId = new Map<string, string>();
     for (const row of priorMd5Rows) {
@@ -2974,7 +2999,7 @@ ${finalOwnerName}`;
     const user = await this.userRepo.findOne({ where: { firebaseId } });
     if (!user) throw new NotFoundException(`User not found for firebaseId`);
     const business = await this.ensureBusinessAndSubFolders(user, businessNumber);
-    const inboxFolderId     = business.driveInboxFolderId!;
+    const inboxFolderId = business.driveInboxFolderId!;
     const processedFolderId = business.driveProcessedFolderId!;
 
     // 1) Drop the file in inbox/ so it ends up in the same Drive layout
@@ -3221,8 +3246,8 @@ ${finalOwnerName}`;
 
     const suppliers = supplierIds.length
       ? await this.supplierRepo.find({
-          where: { userId: firebaseId, supplierID: In(supplierIds) },
-        })
+        where: { userId: firebaseId, supplierID: In(supplierIds) },
+      })
       : [];
     const supplierById = new Map(suppliers.map(s => [s.supplierID, s]));
 

@@ -14,7 +14,7 @@ type PlanCardItem =
 // 'feature' items check plan.features (marketing display benefits).
 const PLAN_CARD_ITEMS: PlanCardItem[] = [
   { type: 'module',  key: 'INVOICES',             label: 'הפקת מסמכים' },
-  { type: 'feature',  key: 'EXPENSES',             label: 'ניהול הוצאות' },
+  { type: 'module',  key: 'EXPENSES',             label: 'ניהול הוצאות' },
   { type: 'module',  key: 'OPEN_BANKING',         label: 'סנכרון לחשבונות הבנק' },
   { type: 'feature', key: 'SUPPORT', label: 'צ׳אט תמיכה לשאלות מקצועיות' },
 ];
@@ -25,6 +25,9 @@ interface Plan {
   name: string;
   priceMonthlyAgorot: number;
   licensedDealerPriceMonthlyAgorot: number | null;
+  /** Price for the authenticated user's billing business type — computed by the backend. */
+  effectivePriceMonthlyAgorot: number;
+  effectiveBillingBusinessType: 'LICENSED' | 'EXEMPT';
   currency: string;
   modules: string[];
   features: string[] | null;
@@ -45,7 +48,6 @@ export interface PlanVM {
   name: string;
   badge: string | null;
   displayPrice: string;
-  licensedDealerDisplayPrice: string | null;
   notes: string | null;
   features: FeatureVM[];
   recommended: boolean;
@@ -72,10 +74,8 @@ export class BillingPlansPage implements OnInit {
       id: plan.id,
       name: plan.name,
       badge: plan.badge,
-      displayPrice: formatShekels(plan.priceMonthlyAgorot),
-      licensedDealerDisplayPrice: plan.licensedDealerPriceMonthlyAgorot != null
-        ? formatShekels(plan.licensedDealerPriceMonthlyAgorot)
-        : null,
+      // Backend resolves this from the user's businesses — never decided on the frontend.
+      displayPrice: formatShekels(plan.effectivePriceMonthlyAgorot),
       notes: plan.notes,
       features: PLAN_CARD_ITEMS.map(item => ({
         key: item.key,
