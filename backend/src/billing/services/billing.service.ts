@@ -68,6 +68,7 @@ export class BillingService {
       effectiveBillingBusinessType: billingBusinessType,
       notes: p.notes,
       badge: p.badge,
+      recommended: p.recommended,
       features: p.features,
       modules: p.modules ?? [],
       trialDays: p.trialDays,

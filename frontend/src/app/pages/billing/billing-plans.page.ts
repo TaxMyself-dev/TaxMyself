@@ -32,6 +32,7 @@ interface Plan {
   modules: string[];
   features: string[] | null;
   badge: string | null;
+  recommended: boolean;
   notes: string | null;
   trialDays: number;
   displayOrder: number;
@@ -69,8 +70,7 @@ export class BillingPlansPage implements OnInit {
   readonly checkingOutPlanId = signal<number | null>(null);
 
   readonly plans = computed<PlanVM[]>(() => {
-    const all = this.rawPlans();
-    return all.map((plan, i) => ({
+    return this.rawPlans().map(plan => ({
       id: plan.id,
       name: plan.name,
       badge: plan.badge,
@@ -84,7 +84,7 @@ export class BillingPlansPage implements OnInit {
           ? plan.modules.includes(item.key)
           : (plan.features ?? []).includes(item.key),
       })),
-      recommended: isMiddlePlan(i, all.length),
+      recommended: !!plan.recommended,
     }));
   });
 
@@ -124,12 +124,6 @@ export class BillingPlansPage implements OnInit {
       this.checkingOutPlanId.set(null);
     }
   }
-}
-
-function isMiddlePlan(index: number, total: number): boolean {
-  if (total <= 1) return index === 0;
-  if (total === 2) return index === 0;
-  return index === Math.floor(total / 2);
 }
 
 function formatShekels(agorot: number): string {

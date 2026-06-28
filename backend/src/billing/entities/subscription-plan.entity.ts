@@ -48,6 +48,10 @@ export class SubscriptionPlan {
   @Column({ name: 'badge', type: 'varchar', length: 100, nullable: true, default: null })
   badge: string | null;
 
+  /** When true, this plan is highlighted as the recommended option on the pricing page. At most one plan should be true at a time. */
+  @Column({ name: 'recommended', type: 'boolean', default: false })
+  recommended: boolean;
+
   /** Optional footnote displayed below the price on the pricing card. */
   @Column({ name: 'notes', type: 'text', nullable: true, default: null })
   notes: string | null;
