@@ -1,6 +1,6 @@
 //General
 import { Response } from 'express';
-import { Controller, Post, Patch, Get, Query, Param, Body, Headers, UseGuards, ValidationPipe, Res, Req, UploadedFile, UseInterceptors, HttpException, HttpStatus, SetMetadata, UsePipes, BadRequestException} from '@nestjs/common';
+import { Controller, Post, Patch, Get, Query, Param, Body, Headers, UseGuards, ValidationPipe, Res, Req, UploadedFile, UseInterceptors, HttpException, HttpStatus, UsePipes, BadRequestException} from '@nestjs/common';
 //Services
 import { ReportsService } from './reports.service';
 import { ReportReviewService, ReviewOverrides } from './report-review.service';
@@ -19,6 +19,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
 import { SubscriptionGuard } from 'src/guards/subscription.guard';
+import { RequireModule } from 'src/decorators/require-module.decorator';
 import { ModuleName } from 'src/enum';
 
 
@@ -79,7 +80,8 @@ export class ReportsController {
      *  made in the review modal (category/sub-category/vat%/tax%/period)
      *  ride along in `overrides` and win over the source row's values. */
     @Post('me/review/approve-matched')
-    @UseGuards(FirebaseAuthGuard)
+    @RequireModule(ModuleName.OPEN_BANKING)
+    @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
     async approveMatched(
       @Req() request: AuthenticatedRequest,
       @Body() body: { businessNumber: string; documentId: number; transactionId: number; overrides?: ReviewOverrides },
@@ -115,7 +117,8 @@ export class ReportsController {
     /** Approve a "tx_only" row — creates an Expense from the transaction
      *  alone ("mark as no-doc-needed"). Overrides as above. */
     @Post('me/review/approve-tx-no-doc')
-    @UseGuards(FirebaseAuthGuard)
+    @RequireModule(ModuleName.OPEN_BANKING)
+    @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
     async approveTxNoDoc(
       @Req() request: AuthenticatedRequest,
       @Body() body: { businessNumber: string; transactionId: number; overrides?: ReviewOverrides },
@@ -195,7 +198,8 @@ export class ReportsController {
      *  Synchronous OCR — caller waits on the Claude call. Returns the
      *  new documentId so the frontend can refresh the row in-place. */
     @Post('me/review/upload-doc-to-tx/:transactionId')
-    @UseGuards(FirebaseAuthGuard)
+    @RequireModule(ModuleName.OPEN_BANKING)
+    @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
     @UseInterceptors(
       FileInterceptor('file', {
         limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB cap — generous for invoice PDFs
@@ -221,7 +225,8 @@ export class ReportsController {
     /** Reject a tx_only row — marks the slim transaction not-an-expense
      *  and locks it to the current period so it doesn't re-surface. */
     @Post('me/review/reject-tx')
-    @UseGuards(FirebaseAuthGuard)
+    @RequireModule(ModuleName.OPEN_BANKING)
+    @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
     async rejectTx(
       @Req() request: AuthenticatedRequest,
       @Body() body: { businessNumber: string; transactionId: number },
@@ -375,9 +380,8 @@ export class ReportsController {
     }
 
 
-    // @SetMetadata('requiredModule', ModuleName.UNIFORM_FILE)
-    // @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
-    @UseGuards(FirebaseAuthGuard)
+    @RequireModule(ModuleName.INVOICES)
+    @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
     @Post('create-uniform-file')
     async getHelloWorldZip(
         @Req() request: AuthenticatedRequest,

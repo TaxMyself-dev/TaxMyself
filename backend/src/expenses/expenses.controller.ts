@@ -18,12 +18,14 @@ import { AdminGuard } from '../guards/admin.guard';
 import { GetExpensesDto } from './dtos/get-expenses.dto';
 import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.interface';
 import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
+import { SubscriptionGuard } from 'src/guards/subscription.guard';
+import { RequireModule } from 'src/decorators/require-module.decorator';
 import { CreateUserSubCategoryDto } from './dtos/create-user-sub-category.dto';
-import { ExpenseReportScope } from 'src/enum';
+import { ExpenseReportScope, ModuleName } from 'src/enum';
 
 
 @Controller('expenses')
-//@UseGuards(FirebaseAuthGuard)
+@RequireModule(ModuleName.EXPENSES)
 export class ExpensesController {
   constructor(
     private expensesService: ExpensesService,
@@ -32,7 +34,7 @@ export class ExpensesController {
 
 
   @Post('add-expense')
-  @UseGuards(FirebaseAuthGuard)
+  @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
   async addExpense(
     @Req() request: AuthenticatedRequest,
     @Body() body: CreateExpenseDto) {
@@ -44,7 +46,7 @@ export class ExpensesController {
 
 
   @Post('bulk-confirm-from-drive')
-  @UseGuards(FirebaseAuthGuard)
+  @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
   async bulkConfirmFromDrive(
     @Req() request: AuthenticatedRequest,
     @Body() body: { businessNumber?: string; items: BulkConfirmFromDriveItem[] },
@@ -71,7 +73,7 @@ export class ExpensesController {
    * heuristic (see service comment for the tradeoff).
    */
   @Post('check-duplicates-from-drive')
-  @UseGuards(FirebaseAuthGuard)
+  @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
   async checkDuplicatesFromDrive(
     @Req() request: AuthenticatedRequest,
     @Body() body: { businessNumber?: string; items: DuplicateExpenseCheckItem[] },
@@ -86,7 +88,7 @@ export class ExpensesController {
 
 
   @Patch('update-expense/:id')
-  @UseGuards(FirebaseAuthGuard)
+  @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
   async updateExpense(
     @Req() request: AuthenticatedRequest,
     @Param('id') id: number,
@@ -97,7 +99,7 @@ export class ExpensesController {
 
 
   @Delete('delete-expense/:id')
-  @UseGuards(FirebaseAuthGuard)
+  @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
   async deleteExpense(
     @Req() request: AuthenticatedRequest,
     @Param('id') id: number) {
@@ -108,7 +110,7 @@ export class ExpensesController {
 
 
   @Get('get_by_userID')
-  @UseGuards(FirebaseAuthGuard)
+  @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
   async getExpensesByUserID(
     @Req() request: AuthenticatedRequest,
     @Query() query: GetExpensesDto): Promise<Expense[]> {
@@ -143,7 +145,7 @@ export class ExpensesController {
 
 
   @Get('get-expenses-for-vat-report')
-  @UseGuards(FirebaseAuthGuard)
+  @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
   async getExpensesByMonthReport(
     @Req() request: AuthenticatedRequest,
     @Query() query: any,
@@ -156,7 +158,7 @@ export class ExpensesController {
 
 
   @Patch('add-file-to-expense')
-  @UseGuards(FirebaseAuthGuard)
+  @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
   async addFileToExpense(
     @Req() request: AuthenticatedRequest,
     @Body() body: { files: { id: number; file: string | null }[]; fromTransactions: boolean }) {
@@ -167,7 +169,7 @@ export class ExpensesController {
   }
 
   @Patch('delete-file-from-expense/:id')
-  @UseGuards(FirebaseAuthGuard)
+  @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
   async deleteFileFromExpense(
     @Req() request: AuthenticatedRequest,
     @Param('id') expenseId: string
@@ -183,7 +185,7 @@ export class ExpensesController {
 
 
   @Post('add-user-category')
-  @UseGuards(FirebaseAuthGuard)
+  @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
   async addUserCategory(
     @Req() request: AuthenticatedRequest,
     @Body() createUserCategoryDto: CreateUserCategoryDto) {
@@ -194,7 +196,7 @@ export class ExpensesController {
 
 
   @Post('add-user-sub-categories')
-  @UseGuards(FirebaseAuthGuard)
+  @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
   async addUserSubCategories(
     @Req() request: AuthenticatedRequest,
     @Body() body: CreateUserCategoryDto,
@@ -221,7 +223,7 @@ export class ExpensesController {
 
 
   @Get('get-categories')
-  @UseGuards(FirebaseAuthGuard)
+  @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
   async getCategories(
     @Req() request: AuthenticatedRequest,
     @Query('isDefault') isDefault: string,
@@ -239,7 +241,7 @@ export class ExpensesController {
 
 
   @Get('get-sub-categories')
-  @UseGuards(FirebaseAuthGuard)
+  @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
   async getSubCategories(
     @Req() request: AuthenticatedRequest,
     @Query('isEquipment') isEquipment: string,
@@ -320,7 +322,7 @@ export class ExpensesController {
 
 
   @Post('add-supplier')
-  @UseGuards(FirebaseAuthGuard)
+  @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
   async addSupplier(
     @Req() request: AuthenticatedRequest,
     @Body() body: any) {
@@ -331,7 +333,7 @@ export class ExpensesController {
 
 
   @Patch('update-supplier/:id')
-  @UseGuards(FirebaseAuthGuard)
+  @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
   async updateSupplier(
     @Req() request: AuthenticatedRequest,
     @Param('id') id: number,
@@ -342,7 +344,7 @@ export class ExpensesController {
 
 
   @Delete('delete-supplier/:id')
-  @UseGuards(FirebaseAuthGuard)
+  @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
   async deleteSupplier(
     @Req() request: AuthenticatedRequest,
     @Param('id') id: number) {
@@ -352,7 +354,7 @@ export class ExpensesController {
 
 
   @Get('get-suppliers-list')
-  @UseGuards(FirebaseAuthGuard)
+  @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
   async getSupplierNamesByUserId(
     @Req() request: AuthenticatedRequest,
   ): Promise<SupplierResponseDto[]> {
@@ -363,7 +365,7 @@ export class ExpensesController {
 
 
   @Get('get-supplier/:id')
-  @UseGuards(FirebaseAuthGuard)
+  @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
   async getSupplierById(
     @Req() request: AuthenticatedRequest,
     @Param('id') id: number,
@@ -378,7 +380,7 @@ export class ExpensesController {
    * grouped by category name. Powers the "הקטגוריות שלי" tab in Settings.
    */
   @Get('user-categories')
-  @UseGuards(FirebaseAuthGuard)
+  @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
   async getUserCategoriesGrouped(
     @Req() request: AuthenticatedRequest,
     @Query('businessNumber') businessNumber: string,
@@ -391,7 +393,7 @@ export class ExpensesController {
   }
 
   @Delete('user-category/:id')
-  @UseGuards(FirebaseAuthGuard)
+  @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
   async deleteUserCategory(
     @Req() request: AuthenticatedRequest,
     @Param('id') id: string,
@@ -405,7 +407,7 @@ export class ExpensesController {
   }
 
   @Delete('user-sub-category/:id')
-  @UseGuards(FirebaseAuthGuard)
+  @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
   async deleteUserSubCategory(
     @Req() request: AuthenticatedRequest,
     @Param('id') id: string,
@@ -419,7 +421,7 @@ export class ExpensesController {
   }
 
   @Patch('user-category/:id')
-  @UseGuards(FirebaseAuthGuard)
+  @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
   async updateUserCategory(
     @Req() request: AuthenticatedRequest,
     @Param('id') id: string,
@@ -434,7 +436,7 @@ export class ExpensesController {
   }
 
   @Patch('user-sub-category/:id')
-  @UseGuards(FirebaseAuthGuard)
+  @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
   async updateUserSubCategory(
     @Req() request: AuthenticatedRequest,
     @Param('id') id: string,
@@ -454,7 +456,7 @@ export class ExpensesController {
    * ALL of that subcategory's expenses (P&L resolves pnlCategory live).
    */
   @Post('sub-category-report-config')
-  @UseGuards(FirebaseAuthGuard)
+  @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
   async setSubCategoryReportConfig(
     @Req() request: AuthenticatedRequest,
     @Body() body: {

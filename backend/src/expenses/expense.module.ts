@@ -21,12 +21,14 @@ import { Delegation } from 'src/delegation/delegation.entity';
 import { Business } from 'src/business/business.entity';
 import { ClassifiedTransactions } from '../transactions/classified-transactions.entity';
 import { ExtractedDocument } from '../documents/extracted-document.entity';
+import { BillingModule } from '../billing/billing.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Expense, User, Business, DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory, Supplier, Child, Delegation, ClassifiedTransactions, ExtractedDocument]),
     SharedModule,
-    UsersModule
+    UsersModule,
+    BillingModule,
   ],
   controllers: [ExpensesController],
   providers: [

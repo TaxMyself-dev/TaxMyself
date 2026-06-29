@@ -37,6 +37,7 @@ import { DocPayments } from 'src/documents/doc-payments.entity';
 import { Business } from 'src/business/business.entity';
 import { SlimTransaction } from 'src/transactions/slim-transaction.entity';
 import { FullTransactionCache } from 'src/transactions/full-transaction-cache.entity';
+import { BillingModule } from '../billing/billing.module';
 
 @Module({
   imports: [
@@ -53,6 +54,7 @@ import { FullTransactionCache } from 'src/transactions/full-transaction-cache.en
     // GoogleDriveModule for Drive reads in the review flow (e.g. listing
     // the inbox folder's files).
     GoogleDriveModule,
+    BillingModule,
   ],
   controllers: [ReportsController],
   providers: [
