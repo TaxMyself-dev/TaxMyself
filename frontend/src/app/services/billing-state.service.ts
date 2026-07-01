@@ -137,6 +137,7 @@ export class BillingStateService {
       const state = await firstValueFrom(
         this.http.get<BillingStateResponse>(`${environment.apiUrl}billing/me`)
       );
+      console.log('[BillingStateService] /billing/me response:', state);
       this.billingState.set(state);
     } catch (err: any) {
       // 401 → AuthErrorInterceptor handles redirect to login; do not set error

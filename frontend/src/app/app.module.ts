@@ -29,6 +29,7 @@ import { ConfirmationService } from 'primeng/api';
 import { ProgressSpinner } from 'primeng/progressspinner';
 import { Dialog } from 'primeng/dialog';
 import { AuthErrorInterceptor } from './interceptors/authError.interceptor';
+import { UpgradeRequiredDialogComponent } from './components/upgrade-required-dialog/upgrade-required-dialog.component';
 
 
 @NgModule({
@@ -56,6 +57,7 @@ import { AuthErrorInterceptor } from './interceptors/authError.interceptor';
     ConfirmDialog,
     ProgressSpinner,
     Dialog,
+    UpgradeRequiredDialogComponent,
 ],
   providers: [
     providePrimeNG({theme: {preset: Aura}}),

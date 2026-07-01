@@ -4,6 +4,8 @@ import {
   AppFeature,
   AppRoute,
   BlockedBehavior,
+  FEATURE_ACCESS_CONFIG,
+  ROUTE_ACCESS_CONFIG,
 } from '../shared/access-control';
 import { AccessService } from './access.service';
 import { UpgradeRequiredService } from './upgrade-required.service';
@@ -34,7 +36,7 @@ export class AccessHandlerService {
 
     const blockedBehavior = this.accessService.getFeatureBlockedBehavior(feature);
     if (blockedBehavior === BlockedBehavior.UPGRADE_POPUP) {
-      this.upgradeRequired.open();
+      this.upgradeRequired.open({ source: 'feature', id: feature, displayName: FEATURE_ACCESS_CONFIG[feature].displayName });
     }
     return { allowed: false, blockedBehavior };
   }
@@ -50,7 +52,7 @@ export class AccessHandlerService {
 
     const blockedBehavior = this.accessService.getRouteBlockedBehavior(route);
     if (blockedBehavior === BlockedBehavior.UPGRADE_POPUP) {
-      this.upgradeRequired.open();
+      this.upgradeRequired.open({ source: 'route', id: route, displayName: ROUTE_ACCESS_CONFIG[route].displayName });
     }
     return { allowed: false, blockedBehavior };
   }

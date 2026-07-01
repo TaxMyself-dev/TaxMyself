@@ -23,6 +23,8 @@
 <div class="app-content">
   <p-confirmdialog></p-confirmdialog>
 
+  <app-upgrade-required-dialog />
+
   @if (showBillingDialog()) {
     <p-dialog
       [visible]="true"

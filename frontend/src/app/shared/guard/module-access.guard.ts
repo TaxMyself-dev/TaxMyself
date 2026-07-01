@@ -35,6 +35,7 @@ export class ModuleAccessGuard {
     await this.billingState.loadBillingState();
 
     const appRoute = route.data['appRoute'] as AppRoute | undefined;
+    console.log("🚀 ~ ModuleAccessGuard ~ canActivate ~ appRoute:", appRoute)
     if (appRoute == null) {
       console.warn('[ModuleAccessGuard] route.data.appRoute is not set — skipping module check.');
       return true;
@@ -44,9 +45,10 @@ export class ModuleAccessGuard {
       return true;
     }
 
-    const { blockedBehavior } = ROUTE_ACCESS_CONFIG[appRoute];
+    const { blockedBehavior, displayName } = ROUTE_ACCESS_CONFIG[appRoute];
     if (blockedBehavior === BlockedBehavior.UPGRADE_POPUP) {
-      this.upgradeRequired.open();
+      this.upgradeRequired.open({ source: 'route', id: appRoute, displayName });
+      return false;
     }
 
     return this.router.createUrlTree([FALLBACK_ROUTE]);

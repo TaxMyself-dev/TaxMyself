@@ -1,22 +1,36 @@
 import { Injectable, signal } from '@angular/core';
 
+export interface UpgradeContext {
+  /** Whether the block originated from a feature check or a route guard. */
+  source: 'feature' | 'route';
+  /** The AppFeature or AppRoute id string that triggered the block. */
+  id: string;
+  /** Hebrew user-facing label shown in the upgrade popup title. */
+  displayName: string;
+}
+
 /**
- * Placeholder for the upgrade/upsell popup.
+ * Controls the upgrade/upsell popup.
  *
- * This service holds the open/closed signal. The actual popup UI reads isOpen
- * and will be implemented in a later step. Access flow already routes through here,
- * so wiring the real dialog later requires only a change to this service.
+ * Any part of the application can call open() to show the popup.
+ * The UpgradeRequiredDialogComponent reads isOpen and context.
+ * The real dialog UI is rendered once at app level; this service is the bridge.
  */
 @Injectable({ providedIn: 'root' })
 export class UpgradeRequiredService {
   /** True while the upgrade popup should be visible. */
   readonly isOpen = signal(false);
 
-  open(): void {
+  /** Context about what triggered the popup — for future message customization. */
+  readonly context = signal<UpgradeContext | null>(null);
+
+  open(context?: UpgradeContext): void {
+    this.context.set(context ?? null);
     this.isOpen.set(true);
   }
 
   close(): void {
     this.isOpen.set(false);
+    this.context.set(null);
   }
 }
