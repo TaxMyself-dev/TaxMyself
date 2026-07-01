@@ -453,6 +453,16 @@ export class ClientsDashboardComponent implements OnInit {
       });
   }
 
+  /**
+   * Strips the heavy raw Feezback payload from a pull result so the inline
+   * summary <pre> stays compact (status / count / ids). The full raw JSON gets
+   * its own collapsible "הצג JSON תנועות מלא" block below it.
+   */
+  pullSummary(res: AdminPullSourceResult): Partial<AdminPullSourceResult> {
+    const { rawTransactionsResponse, ...summary } = res;
+    return summary;
+  }
+
   confirmRefreshSources(row: IRowDataTable): void {
     const firebaseId = row['firebaseId'] as string;
     const name = (row['fullName'] as string) || `${row['fName'] || ''} ${row['lName'] || ''}`.trim();

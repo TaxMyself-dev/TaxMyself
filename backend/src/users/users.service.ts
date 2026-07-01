@@ -109,6 +109,10 @@ export class UsersService {
     // -------------------------------------------------------
     const newUser = {
       ...personal,
+      // Empty string is not a valid MySQL ENUM/DATE value — coerce to null so
+      // TypeORM writes NULL rather than '' when the user left the field blank.
+      gender: personal?.gender || null,
+      dateOfBirth: personal?.dateOfBirth || null,
       ...safeSpouse,
       role: [UserRole.REGULAR],
       finsiteId: 0,
@@ -154,6 +158,7 @@ export class UsersService {
     // -------------------------------------------------------
     for (const biz of newBusinesses) {
       if (!biz) continue;
+      if (!biz.businessName && !biz.businessNumber && !biz.businessType) continue;
 
       const newBusiness = this.business_repo.create({
         ...biz,
