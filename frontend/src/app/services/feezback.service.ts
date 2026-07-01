@@ -74,7 +74,16 @@ export class FeezbackService {
 export interface AdminPullSourceResult {
   type: 'bank' | 'card';
   sourceId: string;
+  resourceId?: string;
+  consentId?: string;
   status: 'not_synced' | 'success' | 'failed';
   transactionCount: number;
   error?: string;
+  /**
+   * Full raw JSON returned by Feezback for the transactions fetch (account/card
+   * metadata, asOf, booked/pending transactions, all raw fields). Present on a
+   * successful pull — shown in the collapsible "הצג JSON תנועות מלא" block so an
+   * admin can copy the exact response for Feezback support.
+   */
+  rawTransactionsResponse?: any;
 }

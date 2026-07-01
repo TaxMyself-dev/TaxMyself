@@ -99,10 +99,16 @@
             consentId: {{ src.consentId ?? '—' }}&nbsp; | &nbsp;resourceId: {{ src.resourceId ?? '—' }}
           </div>
 
-          <pre *ngIf="pullResultByKey()[sourceKey(src)] as res"
-               style="margin: 8px 0 2px; max-height: 30vh; overflow: auto; direction: ltr; text-align: left; font-size: 12px; padding: 10px; border-radius: 6px; white-space: pre-wrap; word-break: break-word;"
-               [style.background]="res.status === 'success' ? '#f0fdf4' : '#fef2f2'"
-               [style.border]="res.status === 'success' ? '1px solid #bbf7d0' : '1px solid #fecaca'">{{ res | json }}</pre>
+          <ng-container *ngIf="pullResultByKey()[sourceKey(src)] as res">
+            <pre style="margin: 8px 0 2px; max-height: 30vh; overflow: auto; direction: ltr; text-align: left; font-size: 12px; padding: 10px; border-radius: 6px; white-space: pre-wrap; word-break: break-word;"
+                 [style.background]="res.status === 'success' ? '#f0fdf4' : '#fef2f2'"
+                 [style.border]="res.status === 'success' ? '1px solid #bbf7d0' : '1px solid #fecaca'">{{ pullSummary(res) | json }}</pre>
+
+            <details *ngIf="res.rawTransactionsResponse" style="margin: 4px 0 2px;">
+              <summary style="cursor: pointer; color: #6b7280; font-size: 0.85rem;">הצג JSON תנועות מלא</summary>
+              <pre style="max-height: 40vh; overflow: auto; direction: ltr; text-align: left; font-size: 11px; background: #f6f8fa; padding: 10px; border-radius: 6px; margin-top: 6px; white-space: pre-wrap; word-break: break-word;">{{ res.rawTransactionsResponse | json }}</pre>
+            </details>
+          </ng-container>
         </div>
       </div>
       <div *ngIf="accountsDialogSources().length === 0" style="margin-bottom: 16px; color: #6b7280; font-style: italic;">

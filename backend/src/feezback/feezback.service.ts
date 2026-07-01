@@ -563,7 +563,7 @@ export class FeezbackService {
           };
           const transactionsWithMeta = transactions.map((tx: any) => ({ ...tx, __cardMeta: cardMeta }));
 
-          return { card, cardId, cardName, consentId, transactions, transactionsWithMeta, failed: false };
+          return { card, cardId, cardName, consentId, transactions, transactionsWithMeta, rawResponse: transactionsResponse, failed: false };
         } catch (err: any) {
           const status = err?.status ?? err?.response?.status;
           const code = err?.code;
@@ -585,7 +585,7 @@ export class FeezbackService {
     for (const result of cardFetchResults) {
       if (!result) continue; // skipped (no resourceId)
 
-      const { card, cardId, cardName, consentId, transactions, transactionsWithMeta, failed } = result;
+      const { card, cardId, cardName, consentId, transactions, transactionsWithMeta, rawResponse, failed } = result as any;
       cardInfoMap[cardId] = card;
 
       if (failed) {
@@ -597,7 +597,7 @@ export class FeezbackService {
       } else {
         transactionsByCard[cardId] = transactionsWithMeta;
         allTransactionsForDb.push(...transactionsWithMeta);
-        cardsResult.push({ cardResourceId: cardId, displayName: cardName, maskedPan: card?.maskedPan, consentId, transactions });
+        cardsResult.push({ cardResourceId: cardId, displayName: cardName, maskedPan: card?.maskedPan, consentId, transactions, rawResponse });
       }
     }
 
@@ -2171,6 +2171,9 @@ export class FeezbackService {
         consentId: row.consentId ?? undefined,
         status: 'success',
         transactionCount: normalized.length,
+        // Full raw Feezback response (account/asOf/transactions.booked+pending).
+        // Transient — updateSourceResults ignores it, so it never hits the DB.
+        rawTransactionsResponse: resp,
       };
       await this.userSyncStateService.updateSourceResults(firebaseId, [result]).catch(() => {});
       console.log(`  ✓ Bank ${sourceId} (${userName}) — success | count=${normalized.length}`);
@@ -2221,7 +2224,7 @@ export class FeezbackService {
         const failed = cardRes.cardErrors?.find((e: any) => e.cardResourceId === cardResourceId);
 
         const result: SourceResult = succeeded
-          ? { type: 'card', sourceId, resourceId: cardResourceId, status: 'success', transactionCount: succeeded.transactions?.length ?? 0 }
+          ? { type: 'card', sourceId, resourceId: cardResourceId, status: 'success', transactionCount: succeeded.transactions?.length ?? 0, rawTransactionsResponse: succeeded.rawResponse }
           : { type: 'card', sourceId, resourceId: cardResourceId, status: 'failed', transactionCount: 0, error: failed?.message };
 
         console.log(`  ${result.status === 'success' ? '✓' : '✗'} Card *${sourceId} (${userName}) — ${result.status} | count=${result.transactionCount}`);

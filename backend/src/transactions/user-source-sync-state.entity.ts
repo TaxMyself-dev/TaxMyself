@@ -11,6 +11,14 @@ export interface SourceResult {
   status: 'not_synced' | 'success' | 'failed';
   transactionCount: number;
   error?: string;
+  /**
+   * Full raw JSON returned by Feezback for this source's transactions fetch
+   * (account/card metadata, asOf, transactions.booked/pending, all raw tx
+   * fields). TRANSIENT — attached by pullOneSource/retrySource for the admin
+   * pull-source endpoint only; NEVER persisted (updateSourceResults ignores it).
+   * Used for debugging and forwarding the exact response to Feezback support.
+   */
+  rawTransactionsResponse?: any;
 }
 
 @Entity('user_source_sync_state')
