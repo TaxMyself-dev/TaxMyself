@@ -105,7 +105,14 @@
                  [style.border]="res.status === 'success' ? '1px solid #bbf7d0' : '1px solid #fecaca'">{{ pullSummary(res) | json }}</pre>
 
             <details *ngIf="res.rawTransactionsResponse" style="margin: 4px 0 2px;">
-              <summary style="cursor: pointer; color: #6b7280; font-size: 0.85rem;">הצג JSON תנועות מלא</summary>
+              <summary style="cursor: pointer; color: #6b7280; font-size: 0.85rem; display: flex; align-items: center; gap: 8px;">
+                <span>הצג JSON תנועות מלא</span>
+                <button type="button"
+                        (click)="$event.preventDefault(); $event.stopPropagation(); copyJson(res.rawTransactionsResponse)"
+                        style="margin-inline-start: auto; cursor: pointer; font-size: 0.8rem; padding: 2px 8px; border: 1px solid #d1d5db; border-radius: 4px; background: #fff; color: #374151; display: inline-flex; align-items: center; gap: 4px;">
+                  <i class="pi pi-copy" style="font-size: 0.8rem;"></i> העתק JSON
+                </button>
+              </summary>
               <pre style="max-height: 40vh; overflow: auto; direction: ltr; text-align: left; font-size: 11px; background: #f6f8fa; padding: 10px; border-radius: 6px; margin-top: 6px; white-space: pre-wrap; word-break: break-word;">{{ res.rawTransactionsResponse | json }}</pre>
             </details>
           </ng-container>
@@ -116,7 +123,14 @@
       </div>
 
       <details>
-        <summary style="cursor: pointer; color: #6b7280; font-size: 0.9rem; margin-bottom: 6px;">הצג JSON מלא</summary>
+        <summary style="cursor: pointer; color: #6b7280; font-size: 0.9rem; margin-bottom: 6px; display: flex; align-items: center; gap: 8px;">
+          <span>הצג JSON מלא</span>
+          <button type="button"
+                  (click)="$event.preventDefault(); $event.stopPropagation(); copyJson(accountsDialogData())"
+                  style="margin-inline-start: auto; cursor: pointer; font-size: 0.8rem; padding: 2px 8px; border: 1px solid #d1d5db; border-radius: 4px; background: #fff; color: #374151; display: inline-flex; align-items: center; gap: 4px;">
+            <i class="pi pi-copy" style="font-size: 0.8rem;"></i> העתק JSON
+          </button>
+        </summary>
         <pre style="max-height: 50vh; overflow: auto; direction: ltr; text-align: left; font-size: 12px; background: #f6f8fa; padding: 12px; border-radius: 6px;">{{ accountsDialogData() | json }}</pre>
       </details>
     </ng-container>

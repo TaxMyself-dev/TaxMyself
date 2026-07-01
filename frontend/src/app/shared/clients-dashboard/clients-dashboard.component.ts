@@ -463,6 +463,23 @@ export class ClientsDashboardComponent implements OnInit {
     return summary;
   }
 
+  /**
+   * Copies any JSON value to the clipboard as pretty-printed text
+   * (JSON.stringify(value, null, 2)) so an admin can paste the exact Feezback
+   * response into an email or support ticket. Works for arbitrarily large
+   * payloads via the async Clipboard API.
+   */
+  async copyJson(value: unknown): Promise<void> {
+    try {
+      const text = JSON.stringify(value, null, 2);
+      await navigator.clipboard.writeText(text);
+      this.messageService.add({ severity: 'success', summary: 'הצלחה', detail: 'JSON הועתק ללוח', life: 3000, key: 'br' });
+    } catch (err) {
+      console.error('Failed to copy JSON to clipboard:', err);
+      this.messageService.add({ severity: 'error', summary: 'שגיאה', detail: 'העתקת ה-JSON נכשלה', life: 4000, key: 'br' });
+    }
+  }
+
   confirmRefreshSources(row: IRowDataTable): void {
     const firebaseId = row['firebaseId'] as string;
     const name = (row['fullName'] as string) || `${row['fName'] || ''} ${row['lName'] || ''}`.trim();
