@@ -12,8 +12,9 @@ import {
 /**
  * Single entry point for all UI permission checks.
  *
- * BillingStateService remains the source of truth for subscription state.
- * This service maps that state to route-, module-, and feature-level access decisions.
+ * BillingStateService is the source of truth for subscription state.
+ * This service maps that state to module-, route-, and feature-level access decisions.
+ * It does not trigger any UI side-effects — use AccessHandlerService for that.
  */
 @Injectable({ providedIn: 'root' })
 export class AccessService {
@@ -30,8 +31,12 @@ export class AccessService {
 
   /** Returns true when the user can navigate to the given route. */
   canAccessRoute(route: AppRoute): boolean {
-    const module = ROUTE_ACCESS_CONFIG[route];
-    return this.canAccessModule(module);
+    return this.canAccessModule(ROUTE_ACCESS_CONFIG[route].requiredModule);
+  }
+
+  /** Returns the blocked behavior configured for the given route. */
+  getRouteBlockedBehavior(route: AppRoute): BlockedBehavior {
+    return ROUTE_ACCESS_CONFIG[route].blockedBehavior;
   }
 
   /** Returns true when the user can use the given UI feature. */
@@ -43,8 +48,8 @@ export class AccessService {
     return this.canAccessModule(config.requiredModule!);
   }
 
-  /** Returns the configured blocked behavior for a feature the user cannot access. */
-  getBlockedBehavior(feature: AppFeature): BlockedBehavior {
+  /** Returns the blocked behavior configured for the given feature. */
+  getFeatureBlockedBehavior(feature: AppFeature): BlockedBehavior {
     return FEATURE_ACCESS_CONFIG[feature].blockedBehavior;
   }
 
