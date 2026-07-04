@@ -33,6 +33,84 @@ import { UserSubCategory } from '../expenses/user-sub-categories.entity';
 import { UsersService } from '../users/users.service';
 // Business is already imported above as part of Bookkeeping/Issued-Documents logic.
 
+/**
+ * Build journal lines for a single-entry (חד-צידית) income document.
+ * Returns null when the docType does not produce a journal entry.
+ *
+ * Exported so unit tests can exercise the routing logic in isolation,
+ * without standing up the full DocumentsService provider tree.
+ *
+ * For CREDIT_INVOICE, pass parentDocType so the counter account correctly
+ * reverses the original entry: TAX_INVOICE_RECEIPT used 1100 (bank),
+ * TAX_INVOICE used 1200 (A/R). Without parentDocType the credit defaults
+ * to 1200.
+ */
+export function buildDocumentJournalLines(params: {
+  docType: DocumentType;
+  parentDocType?: DocumentType | null;
+  net: number;
+  vat: number;
+  full: number;
+  isLicensed: boolean;
+}): { journalLines: any[]; counterAccountCode: string | null } | null {
+  const { docType, parentDocType, net, vat, full, isLicensed } = params;
+  const isReceipt    = docType === DocumentType.RECEIPT;
+  const isCreditNote = docType === DocumentType.CREDIT_INVOICE;
+
+  if (isReceipt && isLicensed) {
+    // Licensed RECEIPT: bank receives payment (1100), clears A/R opened by TAX_INVOICE (1200).
+    return {
+      counterAccountCode: null,
+      journalLines: [
+        { accountCode: '1100', debit: full,  amountBeforeVat: 0, vatAmount: 0, isEquipment: false, taxPercent: 0, vatPercent: 0, amountForTax: 0, subCategoryName: null },
+        { accountCode: '1200', credit: full, amountBeforeVat: 0, vatAmount: 0, isEquipment: false, taxPercent: 0, vatPercent: 0, amountForTax: 0, subCategoryName: null },
+      ],
+    };
+  }
+
+  if (isReceipt) {
+    // Exempt RECEIPT: cash-basis income — bank receives payment, income recognized.
+    return {
+      counterAccountCode: '1100',
+      journalLines: [
+        { accountCode: '1100', debit: net,  amountBeforeVat: 0, vatAmount: 0, isEquipment: false, taxPercent: 0, vatPercent: 0, amountForTax: 0, subCategoryName: null },
+        { accountCode: '4000', credit: net, amountBeforeVat: net, vatAmount: 0, isEquipment: false, taxPercent: 100, vatPercent: 0, amountForTax: net, subCategoryName: null },
+      ],
+    };
+  }
+
+  if (isCreditNote) {
+    // Use the PARENT document's type to pick the right counter account.
+    // TAX_INVOICE_RECEIPT debited 1100 (bank) → credit 1100 to reverse.
+    // TAX_INVOICE debited 1200 (A/R) → credit 1200 to reverse.
+    const counterCode = parentDocType === DocumentType.TAX_INVOICE_RECEIPT ? '1100' : '1200';
+    return {
+      counterAccountCode: counterCode,
+      journalLines: [
+        { accountCode: counterCode, credit: full, amountBeforeVat: 0, vatAmount: 0, isEquipment: false, taxPercent: 0, vatPercent: 0, amountForTax: 0, subCategoryName: null },
+        { accountCode: '4000',      debit: net,  amountBeforeVat: net, vatAmount: 0,   isEquipment: false, taxPercent: 100, vatPercent: 100, amountForTax: net, subCategoryName: null },
+        ...(vat > 0 ? [{ accountCode: '2400', debit: vat, amountBeforeVat: 0, vatAmount: vat, isEquipment: false, taxPercent: 0, vatPercent: 100, amountForTax: 0, subCategoryName: null }] : []),
+      ],
+    };
+  }
+
+  if (docType === DocumentType.TAX_INVOICE || docType === DocumentType.TAX_INVOICE_RECEIPT) {
+    // TAX_INVOICE_RECEIPT → payment immediate: debit bank (1100)
+    // TAX_INVOICE         → payment deferred:  debit A/R (1200)
+    const counterCode = docType === DocumentType.TAX_INVOICE_RECEIPT ? '1100' : '1200';
+    return {
+      counterAccountCode: counterCode,
+      journalLines: [
+        { accountCode: counterCode, debit: full, amountBeforeVat: 0, vatAmount: 0, isEquipment: false, taxPercent: 0, vatPercent: 0, amountForTax: 0, subCategoryName: null },
+        { accountCode: '4000',      credit: net, amountBeforeVat: net, vatAmount: 0,   isEquipment: false, taxPercent: 100, vatPercent: 100, amountForTax: net, subCategoryName: null },
+        ...(vat > 0 ? [{ accountCode: '2400', credit: vat, amountBeforeVat: 0, vatAmount: vat, isEquipment: false, taxPercent: 0, vatPercent: 100, amountForTax: 0, subCategoryName: null }] : []),
+      ],
+    };
+  }
+
+  return null;
+}
+
 @Injectable()
 export class DocumentsService {
   private readonly logger = new Logger(DocumentsService.name);
@@ -1089,17 +1167,52 @@ export class DocumentsService {
       ];
 
       if (docTypesWithJournalEntry.includes(data.docData.docType) && !isPendingAllocation) {
-        await this.bookkeepingService.createJournalEntry({
+        // Single-entry (חד-צידית): credit net revenue (4000) + output VAT (2400).
+        // No contra A/R (1000) line. חשבונית זיכוי reverses both sides.
+        const net = Number(data.docData.sumAftDisBefVAT) || 0;
+        const vat = Number(data.docData.vatSum) || 0;
+        const docDateSql = this.sharedService.normalizeToMySqlDate(data.docData.docDate);
+        // Bucket the income entry into the same VAT/income reporting period the
+        // legacy reports use. Document lines are never equipment (isEquipment=false).
+        // Pass userId so that when a business number belongs to multiple users (or
+        // has both EXEMPT and LICENSED rows), we always get the correct record.
+        const business = await this.businessService.getBusinessByNumber(data.docData.issuerBusinessNumber, userId);
+        const vatReportingPeriod = business
+          ? this.sharedService.buildReportPeriodLabel(business.businessType, business.vatReportingType, new Date(data.docData.docDate))
+          : null;
+        const isLicensed = !isExemptBusinessType(business?.businessType);
+        const full = net + vat;
+        const linesResult = buildDocumentJournalLines({
+          docType: data.docData.docType,
+          parentDocType: data.docData.parentDocType ?? null,
+          net, vat, full, isLicensed,
+        });
+        if (!linesResult) throw new HttpException(`Unsupported docType for journal entry: ${data.docData.docType}`, HttpStatus.INTERNAL_SERVER_ERROR);
+        const { journalLines, counterAccountCode } = linesResult;
+        const createdEntry = await this.bookkeepingService.createJournalEntry({
+          firebaseId: userId,
           issuerBusinessNumber: data.docData.issuerBusinessNumber,
-          date: this.sharedService.normalizeToMySqlDate(data.docData.docDate),
+          subCategory: null,
+          counterAccountCode,
+          counterPartyName: data.docData.recipientName ?? null,
+          documentTotal: full,
+          date: docDateSql,
+          valueDate: docDateSql,   // תאריך ערך = document date
+          vatDate: docDateSql,     // תאריך למע"מ = document date
+          vatReportingPeriod,
           referenceType: data.docData.docType,
           referenceId: parseInt(data.docData.docNumber),
           description: `${data.docData.docType} #${data.docData.docNumber} for ${data.docData.recipientName}`,
-          lines: [
-            { accountCode: '4000', credit: data.docData.sumAftDisBefVAT },
-            { accountCode: '2400', credit: data.docData.vatSum },
-          ]
+          lines: journalLines,
         }, queryRunner.manager);
+        // Save the back-link on the document row so queries can join directly.
+        const docRepoTx = queryRunner.manager.getRepository(Documents);
+        await docRepoTx.update(newDoc.id, {
+          journalEntryNumber: createdEntry.entryNumber,
+          journalEntryId:     createdEntry.id,
+        });
+        newDoc.journalEntryNumber = createdEntry.entryNumber;
+        newDoc.journalEntryId     = createdEntry.id;
         console.log(new Date().toLocaleTimeString(), "Step 6 complete - BookKeeping info saved");
       } else {
         console.log(new Date().toLocaleTimeString(), "Step 6 skipped - Document type does not require journal entry");
@@ -1377,7 +1490,8 @@ ${finalOwnerName}`;
     });
 
     // Issuer details aren't stored on the entity — rebuild from Business.
-    const business = await this.businessService.getBusinessByNumber(issuerBusinessNumber);
+    // Pass userId so duplicate business numbers (EXEMPT/LICENSED on same number) resolve correctly.
+    const business = await this.businessService.getBusinessByNumber(issuerBusinessNumber, userId);
 
     // Compute sumWithoutVat from lines (not persisted on the entity).
     const sumWithoutVat = lines
@@ -1463,19 +1577,52 @@ ${finalOwnerName}`;
         DocumentType.CREDIT_INVOICE,
       ];
       if (wasPending && docTypesWithJournalEntry.includes(doc.docType)) {
-        await this.bookkeepingService.createJournalEntry({
+        // Single-entry (חד-צידית), same logic as createDoc: credit net revenue
+        // (4000) + output VAT (2400). No contra A/R (1000) line.
+        // חשבונית זיכוי reverses both sides.
+        const net = Number(doc.sumAftDisBefVAT) || 0;
+        const vat = Number(doc.vatSum) || 0;
+        const docDateSql = this.sharedService.normalizeToMySqlDate(doc.docDate);
+        // Same period bucketing as createDoc; reuse the `business` fetched above.
+        // Document lines are never equipment (isEquipment=false).
+        const vatReportingPeriod = business
+          ? this.sharedService.buildReportPeriodLabel(business.businessType, business.vatReportingType, new Date(doc.docDate))
+          : null;
+        const isLicensed = !isExemptBusinessType(business?.businessType);
+        const full = net + vat;
+        const linesResult = buildDocumentJournalLines({
+          docType: doc.docType,
+          parentDocType: doc.parentDocType ?? null,
+          net, vat, full, isLicensed,
+        });
+        if (!linesResult) throw new HttpException(`Unsupported docType for journal entry: ${doc.docType}`, HttpStatus.INTERNAL_SERVER_ERROR);
+        const { journalLines, counterAccountCode } = linesResult;
+        const createdEntry = await this.bookkeepingService.createJournalEntry({
+          firebaseId: userId,
           issuerBusinessNumber,
-          date: this.sharedService.normalizeToMySqlDate(doc.docDate),
+          subCategory: null,
+          counterAccountCode,
+          counterPartyName: doc.recipientName ?? null,
+          documentTotal: full,
+          date: docDateSql,
+          valueDate: docDateSql,   // תאריך ערך = document date
+          vatDate: docDateSql,     // תאריך למע"מ = document date
+          vatReportingPeriod,
           // DocumentType and JournalReferenceType share string values for the
           // subset checked above; cast across the parallel enums.
           referenceType: doc.docType as unknown as JournalReferenceType,
           referenceId: parseInt(doc.docNumber),
           description: `${doc.docType} #${doc.docNumber} for ${doc.recipientName}`,
-          lines: [
-            { accountCode: '4000', credit: doc.sumAftDisBefVAT },
-            { accountCode: '2400', credit: doc.vatSum },
-          ],
+          lines: journalLines,
         }, queryRunner.manager);
+        // Save the back-link on the document row.
+        const docRepoTx = queryRunner.manager.getRepository(Documents);
+        await docRepoTx.update(doc.id, {
+          journalEntryNumber: createdEntry.entryNumber,
+          journalEntryId:     createdEntry.id,
+        });
+        doc.journalEntryNumber = createdEntry.entryNumber;
+        doc.journalEntryId     = createdEntry.id;
       }
 
       await queryRunner.commitTransaction();

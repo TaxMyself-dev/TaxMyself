@@ -658,6 +658,8 @@ export class MannualExpenseComponent implements OnDestroy {
         // VAT report period stamp ("M/YYYY" or "M1-M2/YYYY"). Editable only
         // for VAT-licensed businesses; null for exempt.
         vatReportingDate: [null as string | null],
+        // UI-only toggle: "ללא מע״מ" forces vatPercent to 0. Never sent to backend.
+        noVat: [false],
     })
 
     /** Report-scope dropdown options (ISelectItem shape: { name, value }). */
@@ -1383,6 +1385,7 @@ export class MannualExpenseComponent implements OnDestroy {
         // Form-only fields — don't leak to the backend.
         delete payload.currency;
         delete payload.applyPnlToSubcategory;
+        delete payload.noVat;
         // Normalise empty override to null (clears it back to the default).
         if (payload.pnlCategory === '' || payload.pnlCategory === '—') payload.pnlCategory = null;
         // VAT report period: only VAT-licensed businesses carry one, and the
@@ -1504,14 +1507,34 @@ export class MannualExpenseComponent implements OnDestroy {
         const list = this.mannualExpenseService.subCategoriesResource.value();
         const subCategory = list?.find((item: ISubCategory) => item.subCategoryName === selectedName);
         const reduction = subCategory?.reductionPercent != null ? Number(subCategory.reductionPercent) : 0;
-        const vat = subCategory?.vatPercent != null ? Number(subCategory.vatPercent) : 0;
         const tax = subCategory?.taxPercent != null ? Number(subCategory.taxPercent) : 0;
+        // Exempt businesses never reclaim input VAT — keep vatPercent at 0
+        // regardless of the sub-category catalog default (which is set for
+        // non-exempt businesses). Also respect the "ללא מע״מ" toggle.
+        const vat = (this.isExemptBusiness() || this.mannualExpenseForm.get('noVat')?.value)
+            ? 0
+            : (subCategory?.vatPercent != null ? Number(subCategory.vatPercent) : 0);
         this.mannualExpenseForm.patchValue({
             reductionPercent: reduction,
             vatPercent: vat,
             taxPercent: tax,
         });
         this.isDirty.set(true);
+    }
+
+    onNoVatToggle(event: { checked?: boolean }): void {
+        if (event?.checked) {
+            this.mannualExpenseForm.patchValue({ vatPercent: 0 }, { emitEvent: false });
+        } else {
+            // Restore vatPercent from the currently-selected sub-category default.
+            const selectedName = this.mannualExpenseForm.get('subCategory')?.value;
+            const list = this.mannualExpenseService.subCategoriesResource.value();
+            const sub = list?.find((item: ISubCategory) => item.subCategoryName === selectedName);
+            this.mannualExpenseForm.patchValue(
+                { vatPercent: sub?.vatPercent != null ? Number(sub.vatPercent) : 0 },
+                { emitEvent: false },
+            );
+        }
     }
 
     onInputText(event: string): void {
@@ -1534,14 +1557,15 @@ export class MannualExpenseComponent implements OnDestroy {
         const supplierName = supplier.supplier || supplier.name || '';
         const supplierId = supplier.supplierID || supplier.supplierId || '';
         
-        // Fill form fields with supplier data
+        // Fill form fields with supplier data. For exempt businesses keep
+        // vatPercent at 0 regardless of what the supplier catalog says.
         this.mannualExpenseForm.patchValue({
             supplier: supplierName,
             supplierId: supplierId,
             category: supplier.category || null,
             subCategory: supplier.subCategory || null,
             taxPercent: supplier.taxPercent || 0,
-            vatPercent: supplier.vatPercent || 0,
+            vatPercent: (this.isExemptBusiness() || this.mannualExpenseForm.get('noVat')?.value) ? 0 : (supplier.vatPercent || 0),
             reductionPercent: supplier.reductionPercent || 0,
         });
         

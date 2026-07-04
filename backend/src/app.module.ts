@@ -103,7 +103,8 @@ import { BusinessService } from './business/business.service';
         Clients, Documents, DocLines, DocPayments, ExtractedDocument, JournalEntry, JournalLine, DefaultBookingAccount,
         FeezbackWebhookEvent, UserModuleSubscription, AccountantTask, AnnualReport, AnnualReportFile, ReportWorkflow,
         FxRate,
-        SubscriptionPlan, Subscription, PaymentMethod, CardcomWebhookLog, BillingEvent],
+        SubscriptionPlan, Subscription, PaymentMethod, CardcomWebhookLog, BillingEvent,
+        ],
       synchronize: process.env.NODE_ENV !== 'production',
       timezone: 'Z',
       //logging: true

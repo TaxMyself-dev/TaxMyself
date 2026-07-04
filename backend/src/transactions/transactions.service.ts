@@ -1703,7 +1703,14 @@ export class TransactionsService {
     }
 
     if (expenses.length > 0) {
-      await this.expenseRepo.save(expenses);
+      const savedExpenses = await this.expenseRepo.save(expenses);
+      // Post a journal entry for each newly-created expense via the SAME shared
+      // path used by manual entry and OCR documents (createExpenseJournalEntry),
+      // so a bank-transaction expense produces an identical journal entry.
+      // Best-effort per expense — the helper swallows its own failures.
+      for (const saved of savedExpenses) {
+        await this.expenseService.createExpenseJournalEntry(saved);
+      }
     }
 
     // ── Mark confirmed in slim_transactions ───────────────────────────────────

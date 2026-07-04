@@ -34,6 +34,7 @@ import { FlowAnalysisResponse, MonthlyFlowPoint } from './interfaces/flow-analys
 import { ClassificationType } from './enums/classification-type.enum';
 import { UserSyncStateService } from './user-sync-state.service';
 import { UserSyncState } from './user-sync-state.entity';
+import { ExpensesService } from '../expenses/expenses.service';
 
 /** Hours before a user's full_transactions_cache is considered stale. */
 const CACHE_TTL_HOURS = 24;
@@ -97,6 +98,9 @@ export class TransactionProcessingService {
     private readonly sharedService: SharedService,
     private readonly fxRateService: FxRateService,
     private readonly dataSource: DataSource,
+    // Re-classifying a confirmed transaction can change the expense's
+    // accountCode → re-sync its journal entry (syncExpenseJournalEntry).
+    private readonly expensesService: ExpensesService,
   ) {}
 
   /**
@@ -223,6 +227,11 @@ export class TransactionProcessingService {
     });
     if (!expense) return;
 
+    // A category / sub-category change can change the resolved accountCode, so
+    // the expense's journal entry must be re-synced after saving (below).
+    const classificationChanged =
+      expense.category !== slim.category || expense.subCategory !== slim.subCategory;
+
     const absSum = Math.abs(Number(cacheRow.amount));
     const vatRate = this.sharedService.getVatRateByYear(new Date(cacheRow.transactionDate));
     const totalVatPayable = (absSum / (1 + vatRate)) * vatRate * (slim.vatPercent / 100);
@@ -239,7 +248,13 @@ export class TransactionProcessingService {
     expense.vatReportingDate = (slim.vatReportingDate as any) ?? expense.vatReportingDate;
     expense.totalVatPayable = totalVatPayable;
     expense.totalTaxPayable = totalTaxPayable;
-    await this.expenseRepo.save(expense);
+    const saved = await this.expenseRepo.save(expense);
+
+    // Replace the existing expense journal entry's lines (header kept) with
+    // freshly-resolved lines so the ledger reflects the new classification.
+    if (classificationChanged) {
+      await this.expensesService.syncExpenseJournalEntry(saved);
+    }
   }
 
 

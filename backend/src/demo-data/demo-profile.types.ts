@@ -1,5 +1,6 @@
 import {
   BusinessType,
+  DocumentType,
   EmploymentType,
   FamilyStatus,
   Gender,
@@ -39,6 +40,22 @@ export interface DemoProfile {
 
   /** Mock transactions land in FullTransactionCache. */
   transactions: DemoTransactionTemplate[];
+
+  /**
+   * Real Documents to seed via DocumentsService.createDoc() AFTER the main
+   * seed transaction commits. Each income document posts a journal entry
+   * (debit A/R 1000, credit revenue 4000 + output VAT 2400; credit notes
+   * reverse). Requires the chart-of-accounts rows to exist — see
+   * account.seed.ts. Optional.
+   */
+  documents?: DemoDocumentTemplate[];
+
+  /**
+   * Real Expenses to seed via ExpensesService.addExpense() AFTER the main
+   * seed transaction commits. Each posts a journal entry (debit expense 5000
+   * + deductible VAT input 2410, credit 1000). Optional.
+   */
+  expenses?: DemoExpenseTemplate[];
 
   /**
    * Orphan Source rows seeded with no parent Bill — needed when transactions
@@ -203,6 +220,51 @@ export interface DemoTransactionTemplate {
   currency?: 'ILS' | 'USD' | 'EUR' | 'GBP';
 }
 
+/**
+ * A real income/sales document seeded through DocumentsService.createDoc().
+ * Only the document types that post journal entries are useful here
+ * (TAX_INVOICE, TAX_INVOICE_RECEIPT, RECEIPT, CREDIT_INVOICE).
+ */
+export interface DemoDocumentTemplate {
+  /** Which business this belongs to (→ DemoBusiness.businessNumber). */
+  businessNumberRef: string;
+  docType: DocumentType;
+  recipientName: string;
+  recipientId?: string;
+  /** Net amount before VAT (after any discount). */
+  sumAftDisBefVAT: number;
+  /** VAT amount (0 for exempt / RECEIPT). */
+  vatSum: number;
+  /** YYYY-MM-DD */
+  docDate: string;
+}
+
+/** A real expense seeded through ExpensesService.addExpense(). */
+export interface DemoExpenseTemplate {
+  /** Which business this belongs to (→ DemoBusiness.businessNumber). */
+  businessNumberRef: string;
+  merchantName: string;
+  /** Total including VAT. */
+  sum: number;
+  /** VAT recognition percent passed to addExpense (0 = no deductible VAT). */
+  vatPercent: number;
+  /** Tax (income-tax) deductibility percent (0–100). Defaults to 100. */
+  taxPercent?: number;
+  /** YYYY-MM-DD */
+  expenseDate: string;
+  /** Optional bookkeeping category id (informational; addExpense uses names). */
+  categoryId?: number;
+  /** Bookkeeping category name — drives the sub-category accountCode lookup in
+   *  addExpense. Falls back to a generic placeholder when omitted. */
+  category?: string;
+  /** Bookkeeping sub-category name (matched with `category` against
+   *  default_sub_category to resolve the journal accountCode). */
+  subCategory?: string;
+  /** When true the expense is routed to the equipment/depreciation account (6300)
+   *  instead of the regular expense accounts. Defaults to false. */
+  isEquipment?: boolean;
+}
+
 /** Subset of fields shared by DemoProfile and DemoClient — used by the seed helper. */
 export type DemoSeedable = {
   email: string;
@@ -219,4 +281,4 @@ export type DemoSeedable = {
 };
 
 /** Re-exported so profile files can import enum values from one place. */
-export { BusinessType, EmploymentType, FamilyStatus, Gender, ModuleName, SourceType, UserRole };
+export { BusinessType, DocumentType, EmploymentType, FamilyStatus, Gender, ModuleName, SourceType, UserRole };

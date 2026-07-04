@@ -1,0 +1,135 @@
+<p-confirmDialog></p-confirmDialog>
+<p-confirmDialog key="markSubmitted"></p-confirmDialog>
+<p-confirmDialog key="reviewBeforeReport"></p-confirmDialog>
+
+<p-dialog
+  [(visible)]="redirectPromptVisibleModel"
+  header="הוצאות לא מאושרות"
+  [modal]="true"
+  [closable]="true"
+  [draggable]="false"
+  [style]="{ width: '370px' }">
+  <div class="redirect-prompt-body">
+    <i class="pi pi-exclamation-triangle redirect-prompt-icon"></i>
+    <span>יש לך {{ arrayLength() }} הוצאות שעוד לא אושרו. עליך לאשרן לפני הפקת דו"ח רווח והפסד.</span>
+  </div>
+  <ng-template pTemplate="footer">
+    <app-p-button
+      buttonText="ביטול"
+      [buttonColor]="buttonColor.WHITE_BORDER"
+      [buttonSize]="buttonSize.SMALL"
+      (onButtonClicked)="onRedirectPromptCancel()">
+    </app-p-button>
+    <app-p-button
+      buttonText="מעבר לאישור הוצאות"
+      [buttonColor]="buttonColor.BLACK"
+      [buttonSize]="buttonSize.AUTO"
+      (onButtonClicked)="onRedirectPromptAccept()">
+    </app-p-button>
+  </ng-template>
+</p-dialog>
+
+<div class="pnl-report-wrap-screen">
+
+    <div class="pnl-report-header">
+      <div class="icon-title">
+        <img src="../../../assets/vat_report.svg" alt="VAT Report" class="icon" />
+        <span class="title">הפקת דו"ח רווח והפסד</span>
+      </div>
+      <p class="text-header">
+        צפייה בדו"ח רווח והפסד בקלות ובמהירות   
+      </p>
+    </div>
+
+     <!-- FILTER TAB -->
+    <app-filter-tab
+      [config]="filterConfig"
+      [parentForm]="form"
+      (apply)="onSubmit($event)">
+    </app-filter-tab>
+
+    <ng-container *ngIf="pnlReport">
+      <div class="journal-report-banner">
+        דוח זה מבוסס על פקודות יומן — לצורך השוואה לדוח המע"מ הקיים
+      </div>
+      <div class="pnl-report-title">
+        <p>
+         {{ businessName() }}
+        </p>
+        <p>
+         מ.ע: {{ businessNumber() }}
+        </p>
+        <p>
+          דו"ח רווח והפסד לתקופה: {{ formatReportDate(endDate()) }} - {{ formatReportDate(startDate()) }}
+        </p>
+      </div>
+      <div class="wrap-output-report">
+        <!-- Display Income -->
+        <div class="output-pnl-report">
+          <div class="field-report">סך הכל הכנסות לפני מע"מ:</div>
+          <div class="input-container">
+            <ion-input color="light"  class="input-value" [(ngModel)]="pnlReport.income" (ionInput)="updateIncome($event)"></ion-input>
+          </div>
+        </div>
+        <!-- Dynamically Display Expenses -->
+        <ng-container *ngFor="let category of pnlReport.expenses">
+          <div class="output-pnl-report">
+            <div >{{ category.category }}:</div>
+            <div >{{ category.total | number }}</div>
+          </div>
+        </ng-container>
+        <!-- Display Net Profit Before Tax -->
+        <div class="output-pnl-report">
+          <div>רווח נקי לפני מס:</div>
+          <div class="profit-field" dir="ltr">{{ pnlReport.netProfitBeforeTax }}</div>
+        </div>
+      </div>
+      <div class="report-action-row">
+        <app-p-button
+          [buttonText]="'ייצא כ-PDF'"
+          [buttonColor]="buttonColor.BLACK"
+          [buttonSize]="buttonSize.SMALL"
+          [isLoading]="isLoadingPDF()"
+          (onButtonClicked)="createPnlReportPDFfile()">
+        </app-p-button>
+
+        @if (reportSubmitted()) {
+          <div class="report-submitted-badge" aria-live="polite">
+            <i class="pi pi-check-circle"></i>
+            <span>הדוח הוגש</span>
+          </div>
+        } @else {
+          <app-p-button
+            [buttonText]="'סמן כדווח'"
+            [buttonColor]="buttonColor.WHITE_BORDER"
+            [buttonSize]="buttonSize.SMALL"
+            (onButtonClicked)="onMarkAsSubmitted()">
+          </app-p-button>
+        }
+      </div>
+    </ng-container>
+  </div>
+
+<!-- Unified report-review pre-flight: opened from onSubmit() before the
+     report renders. Handles inbox OCR, doc↔tx matching, and all three
+     row types (matched/doc-only/tx-only) in one modal. Replaces the
+     legacy two-step chain (PullDriveDocsDialog + ConfirmTransDialog). -->
+@if (visibleReviewDialog()) {
+  <app-report-review-dialog
+    [visible]="visibleReviewDialog()"
+    [businessNumber]="businessNumber()"
+    [startDate]="startDate()"
+    [endDate]="endDate()"
+    (visibleChange)="onReviewDialogVisibleChange($event)">
+  </app-report-review-dialog>
+}
+
+<!-- In-flight loader for the previewCheck + prompt window. The
+     getPnLReportData step has its own genericService loader, so we
+     clear this signal as soon as we hand off (see proceedDirectlyToReport). -->
+@if (isReportLoading() && !visibleReviewDialog()) {
+  <div class="report-loading">
+    <i class="pi pi-spin pi-spinner"></i>
+    <span>טוען נתוני דוח...</span>
+  </div>
+}

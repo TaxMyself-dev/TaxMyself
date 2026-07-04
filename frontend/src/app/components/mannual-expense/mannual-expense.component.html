@@ -89,6 +89,19 @@
   [labelText]="'אחוז מוכר למע&quot;מ'" [placeholder]="'הכנס מעמ'" [parentForm]="mannualExpenseForm"
   [size]="isMobile() ? inputSize.MOBILE : inputSize.BETWEEN" [type]="'number'" (onInputText)="onInputText($event)">
 </app-input-text>
+<div class="checkbox-row">
+  <form [formGroup]="mannualExpenseForm">
+    <div class="checkbox-field">
+      <p-checkbox
+        formControlName="noVat"
+        inputId="noVatManual"
+        [binary]="true"
+        (onChange)="onNoVatToggle($event)">
+      </p-checkbox>
+      <label for="noVatManual" class="checkbox-label">ללא מע״מ</label>
+    </div>
+  </form>
+</div>
 }
 
 @if (isEquipmentChecked()) {

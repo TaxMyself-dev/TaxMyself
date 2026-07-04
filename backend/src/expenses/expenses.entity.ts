@@ -144,4 +144,14 @@ export class Expense {
   @Column({ type: 'varchar', nullable: true, default: null })
   pnlCategory: string | null;
 
+  /**
+   * The entryNumber of the JournalEntry created for this expense.
+   * Stored so that when the expense is edited, the journal entry can be
+   * found and updated by entryNumber (stable, per-business running number)
+   * instead of relying only on referenceType+referenceId lookup.
+   * NULL for legacy rows created before this field was added.
+   */
+  @Column({ type: 'int', nullable: true, default: null })
+  journalEntryNumber: number | null;
+
 }

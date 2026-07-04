@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm'
 import { BookkeepingService,  } from './bookkeeping.service';
+import { AccountSeedService } from './account-seed.service';
 import { BookkepingController } from './bookkeeping.controller';
 import { JournalEntry } from './jouranl-entry.entity';
 import { JournalLine } from './jouranl-line.entity';
@@ -16,7 +17,9 @@ import { SettingDocuments } from 'src/documents/settingDocuments.entity';
   controllers: [BookkepingController],
   providers: [
     BookkeepingService,
+    AccountSeedService,
     SharedService
   ],
+  exports: [BookkeepingService],
 })
 export class BookkeepingModule {}

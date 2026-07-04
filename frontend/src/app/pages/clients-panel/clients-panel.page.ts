@@ -281,12 +281,21 @@ export class ClientPanelPage implements OnInit {
 
   /** מחיקת לקוח מהרשימה (הסרת הקישור בלבד) */
   confirmDeleteClient(client: Client): void {
+    const businessCount = this.groupedClients()
+      .find(g => g.user.id === client.id)
+      ?.businesses?.length ?? 1;
+
+    const businessWarning = businessCount > 1
+      ? ` שים לב: ללקוח זה ${businessCount} עסקים — הסרת הקישור תסיר את הגישה לכל העסקים שלו.`
+      : '';
+
     this.confirmationService.confirm({
-      message: `האם למחוק את הלקוח "${client.fullName}" מהרשימה? הפעולה תסיר את הקישור בלבד.`,
+      message: `האם למחוק את הלקוח "${client.fullName}" מהרשימה? הפעולה תסיר את הקישור בלבד.${businessWarning}`,
       header: 'אישור מחיקה',
-      icon: 'pi pi-exclamation-triangle',
+      icon: businessCount > 1 ? 'pi pi-exclamation-circle' : 'pi pi-exclamation-triangle',
       acceptLabel: 'מחק',
       rejectLabel: 'ביטול',
+      acceptButtonStyleClass: businessCount > 1 ? 'p-button-danger' : undefined,
       accept: () => this.deleteClient(client.id),
     });
   }

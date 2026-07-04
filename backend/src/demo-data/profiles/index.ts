@@ -4,6 +4,7 @@ import { ACCOUNTANT_WITH_CLIENTS_PROFILE } from './accountant-with-clients.profi
 import { SINGLE_LICENSED_NO_BANKING_PROFILE } from './single-licensed-no-banking.profile';
 import { COUPLE_OPEN_BANKING_NO_BILLS_PROFILE } from './couple-open-banking-no-bills.profile';
 import { SINGLE_OB_OCR_TEST_PROFILE } from './single-ob-ocr-test.profile';
+import { LEDGER_TEST_PROFILE } from './ledger-test.profile';
 
 /**
  * Registry of available demo profiles. To add a new profile:
@@ -17,6 +18,7 @@ export const DEMO_PROFILES: readonly DemoProfile[] = [
   SINGLE_LICENSED_NO_BANKING_PROFILE,
   COUPLE_OPEN_BANKING_NO_BILLS_PROFILE,
   SINGLE_OB_OCR_TEST_PROFILE,
+  LEDGER_TEST_PROFILE,
 ];
 
 /**

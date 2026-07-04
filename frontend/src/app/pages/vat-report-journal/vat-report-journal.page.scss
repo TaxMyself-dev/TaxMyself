@@ -1,0 +1,197 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  width: 100%;
+  overflow: auto;
+  align-items: center;
+}
+
+// Loader shown between submit ("הצג") and the next visible UI (review
+// dialog OR report rows). Centered on a generous block so the user
+// can't miss it during the 1-3s previewCheck + report fetch chain.
+.report-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 48px 24px;
+  font-size: 1rem;
+  color: #4b5563;
+
+  i {
+    font-size: 1.4rem;
+    color: #1d4ed8;
+  }
+}
+
+.redirect-prompt-body {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 4px;
+}
+
+.redirect-prompt-icon {
+  font-size: 1.6rem;
+  color: #f59e0b;
+}
+
+.vat-report-wrap-screen {
+  width: 100%;
+  height: 95%;
+  display: flex;
+  flex-direction: column;
+  align-items: left;
+  padding-right: 50px;
+}
+
+.vat-report-header {
+  display: flex;
+  flex-direction: column;
+  text-align: right;
+  margin-top: 100px
+}
+
+.icon-title {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.icon {
+  width: 40px;
+  height: 40px;
+}
+
+.title {
+  font-size: 2rem;
+  font-weight: 500;
+  position: relative;
+}
+
+.text-header {
+  font-size: 1.2rem;
+  color: #666;
+  margin-top: 0.5rem;
+}
+
+vat-report-search-bar-input {
+  margin-top: 10px;
+}
+
+.vat-report-payment-button {
+  margin-top: 15px;
+}
+
+// Flex row holding the action buttons under the VAT report. In RTL the first
+// DOM child renders on the right (inline-start) and subsequent children flow
+// to the left — so "לתשלום באתר מעמ" sits on the right and the
+// "סמן כדווח" / "הדוח הוגש" indicator sits to its left, matching the spec.
+.report-action-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 15px;
+  flex-wrap: wrap;
+}
+
+.report-submitted-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #2e7d32;
+  font-weight: 600;
+
+  .pi-check-circle {
+    font-size: 1.4rem;
+  }
+}
+
+.expenses-table {
+  width: 98%;
+  margin-top: 15px;
+  margin-bottom: 15px;
+}
+
+.table-wrapper {
+  width: 100%;
+}
+
+.wrap-output-report {
+  width: 50%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  border: 1px solid;
+  border-color: #f8e7e7;
+  border-radius: 15px;
+  margin-top: 15px;
+}
+
+.output-report {
+  display: flex;
+  justify-content: space-between;
+  border-bottom: #f8e7e7 1px solid;
+  padding: 10px;
+  margin-left: 15px;
+  margin-right: 15px;
+}
+
+// ─── Mobile ──────────────────────────────────────────────────────────────────
+
+@media (max-width: 768px) {
+  // Remove the RTL-only right padding and add symmetric inline padding so
+  // the content is centred and doesn't hug either edge.
+  .vat-report-wrap-screen {
+    padding-right: 16px;
+    padding-left: 16px;
+    // Let height be determined by content so the page scrolls naturally
+    // instead of being clipped at 95% of the parent.
+    height: auto;
+    // Centre the column of content on narrow viewports.
+    align-items: center;
+  }
+
+  // Reduce the huge desktop gap (meant for a fixed topnav) to something
+  // that makes sense when the topnav is not fixed or is much shorter.
+  .vat-report-header {
+    margin-top: 32px;
+    align-items: center;
+    text-align: center;
+    width: 100%;
+  }
+
+  // Centre the SVG icon + title row.
+  .icon-title {
+    justify-content: center;
+  }
+
+  // Expand the report summary card to fill the available width on mobile
+  // (50% of a 375px screen is only ~187px — not enough for bilingual labels).
+  .wrap-output-report {
+    width: 100%;
+  }
+
+  // Stretch the expenses table to use full width inside the padded wrapper.
+  .expenses-table {
+    width: 100%;
+    margin-bottom: 24px;
+  }
+
+  // Centre the action buttons row on mobile so buttons don't hug the
+  // RTL inline-start edge when wrapping.
+  .report-action-row {
+    justify-content: center;
+  }
+}
+/* Journal-based report comparison banner (TASK B) */
+.journal-report-banner {
+  background: #fff4e5;
+  border: 1px solid #ffcc80;
+  color: #8a5a00;
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin: 0 0 1rem;
+  font-weight: 600;
+  text-align: center;
+}

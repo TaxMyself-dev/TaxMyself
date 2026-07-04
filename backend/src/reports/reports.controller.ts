@@ -11,6 +11,8 @@ import { VatReportDto } from './dtos/vat-report.dto';
 import { AdvanceIncomeTaxReportDto } from './dtos/advance-income-tax-report.dto';
 import { PnLReportDto } from './dtos/pnl-report.dto';
 import { PnLReportRequestDto } from './dtos/pnl-report-request.dto';
+import { LedgerReportDto } from './dtos/ledger-report.dto';
+import { LedgerReportRequestDto } from './dtos/ledger-report-request.dto';
 import { DepreciationReportRequestDto } from './dtos/depreciation-report-request.dto';
 import { Form1342ReportDto } from './dtos/depreciation-report.dto';
 import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
@@ -320,6 +322,105 @@ export class ReportsController {
         const endDate = this.sharedService.convertStringToDateObject(query.endDate);
         const pnlReport = await this.reportsService.createPnLReport(firebaseId, query.businessNumber, startDate, endDate);
         return pnlReport;
+    }
+
+    /**
+     * Journal-based VAT report (TASK B) — parallel to /vat-report, reads from
+     * journal entries instead of documents/expenses. Same DTO/response shape.
+     */
+    @Get('vat-report-journal')
+    @UseGuards(FirebaseAuthGuard)
+    @UsePipes(new ValidationPipe({ transform: true }))
+    async getVatReportFromJournal(
+        @Req() request: AuthenticatedRequest,
+        @Query() query: VatReportRequestDto,
+    ): Promise<VatReportDto> {
+        const firebaseId = request.user?.firebaseId;
+        if (!firebaseId) {
+            throw new BadRequestException('Firebase ID is missing');
+        }
+        const startDate = this.sharedService.convertStringToDateObject(query.startDate);
+        const endDate = this.sharedService.convertStringToDateObject(query.endDate);
+        return this.reportsService.createVatReportFromJournal(
+            firebaseId, query.businessNumber, startDate, endDate,
+        );
+    }
+
+    /**
+     * Journal-based P&L report (TASK B) — parallel to /pnl-report, reads from
+     * journal entries instead of documents/expenses. Same DTO/response shape.
+     */
+    @Get('pnl-report-journal')
+    @UseGuards(FirebaseAuthGuard)
+    async getPnLReportFromJournal(
+        @Req() request: AuthenticatedRequest,
+        @Query() query: any,
+    ): Promise<PnLReportDto> {
+        const firebaseId = request.user?.firebaseId;
+        const startDate = this.sharedService.convertStringToDateObject(query.startDate);
+        const endDate = this.sharedService.convertStringToDateObject(query.endDate);
+        return this.reportsService.createPnLReportFromJournal(
+            firebaseId, query.businessNumber, startDate, endDate,
+        );
+    }
+
+    @Get('ledger-report')
+    @UseGuards(FirebaseAuthGuard)
+    @UsePipes(new ValidationPipe({ transform: true }))
+    async getLedgerReport(
+        @Req() request: AuthenticatedRequest,
+        @Query() query: LedgerReportRequestDto,
+    ): Promise<LedgerReportDto> {
+        const firebaseId = request.user?.firebaseId;
+        if (!firebaseId) {
+            throw new BadRequestException('Firebase ID is missing');
+        }
+        const startDate = this.sharedService.convertStringToDateObject(query.startDate);
+        const endDate = this.sharedService.convertStringToDateObject(query.endDate);
+        return this.reportsService.createLedgerReport(
+            firebaseId, query.businessNumber, startDate, endDate, query.accountCode ?? null,
+        );
+    }
+
+    /** Full journal entry detail — all lines enriched with account names. */
+    @Get('journal-entry/:entryId')
+    @UseGuards(FirebaseAuthGuard)
+    async getJournalEntryDetail(
+        @Req() request: AuthenticatedRequest,
+        @Param('entryId') entryId: string,
+        @Query('businessNumber') businessNumber: string,
+    ) {
+        const firebaseId = request.user?.firebaseId;
+        if (!firebaseId) throw new BadRequestException('Not authenticated');
+        if (!businessNumber) throw new BadRequestException('businessNumber is required');
+        return this.reportsService.getJournalEntryDetail(firebaseId, businessNumber, Number(entryId));
+    }
+
+    /** Chart of accounts for the ledger filter dropdown. Global (not business-scoped). */
+    @Get('ledger-accounts')
+    @UseGuards(FirebaseAuthGuard)
+    async getLedgerAccounts(
+        @Req() request: AuthenticatedRequest,
+    ): Promise<{ code: string; name: string; type: string }[]> {
+        const firebaseId = request.user?.firebaseId;
+        if (!firebaseId) {
+            throw new BadRequestException('Firebase ID is missing');
+        }
+        return this.reportsService.getLedgerAccounts();
+    }
+
+    /** Posting accounts for the manual journal-entry dropdown (excludes technical
+     *  accounts — pnlCategory IS NOT NULL). Global (not business-scoped). */
+    @Get('ledger-entry-accounts')
+    @UseGuards(FirebaseAuthGuard)
+    async getLedgerEntryAccounts(
+        @Req() request: AuthenticatedRequest,
+    ): Promise<{ code: string; name: string; type: string }[]> {
+        const firebaseId = request.user?.firebaseId;
+        if (!firebaseId) {
+            throw new BadRequestException('Firebase ID is missing');
+        }
+        return this.reportsService.getLedgerEntryAccounts();
     }
 
     @Post('pnl-report-pdf')

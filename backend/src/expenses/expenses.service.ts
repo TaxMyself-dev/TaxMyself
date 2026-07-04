@@ -15,7 +15,9 @@ import { ExtractedDocument, ExtractedDocStatus } from '../documents/extracted-do
 import { SharedService } from '../shared/shared.service';
 import { FxRateService } from '../shared/fx-rate.service';
 import { Business } from 'src/business/business.entity';
-import { BusinessType, VATReportingType, ExpenseReportScope } from 'src/enum';
+import { BusinessType, VATReportingType, ExpenseReportScope, JournalReferenceType, isExemptBusinessType } from 'src/enum';
+import { BookkeepingService } from '../bookkeeping/bookkeeping.service';
+import { JournalLineInput } from '../bookkeeping/dto/journal-entry-input.interface';
 //DTOs
 import { UpdateExpenseDto } from './dtos/update-expense.dto';
 import { UpdateSupplierDto } from './dtos/update-supplier.dto';
@@ -46,6 +48,7 @@ export class ExpensesService {
             @InjectRepository(ExtractedDocument) private extractedDocRepo: Repository<ExtractedDocument>,
             private readonly fxRateService: FxRateService,
             private readonly dataSource: DataSource,
+            private readonly bookkeepingService: BookkeepingService,
         ) { }
 
 
@@ -112,17 +115,26 @@ export class ExpensesService {
             expense.category, expense.subCategory, userId, businessNumber,
         );
 
-        // Calculate totalVatPayable and totalTaxPayable
-        // Get VAT rate for the expense date year
+        // Fetch business once — used both for the VAT calculation guard and for
+        // the VAT-period stamp below. Avoids a second round-trip to the DB.
+        const expenseBusiness = await this.businessRepo.findOne({
+            where: { businessNumber, firebaseId: userId },
+        });
+
+        // Calculate totalVatPayable and totalTaxPayable.
+        // Exempt businesses (עוסק פטור / שותפות פטורה) cannot reclaim input
+        // VAT. The full sum paid IS the expense — no VAT strip-out. Force
+        // vatPercent = 0 here regardless of what the sub-category catalog or
+        // the frontend sent, so the P&L shows the correct full amount.
         const vatRate = this.sharedService.getVatRateByYear(new Date(expense.date));
-
-        // Calculate totalVatPayable: (sum / (1 + vatRate)) * vatRate * (vatPercent / 100)
-        // This calculates the VAT amount that can be claimed based on the vatPercent
-        newExpense.totalVatPayable = (newExpense.sum / (1 + vatRate)) * vatRate * (newExpense.vatPercent / 100);
-
-        // Calculate totalTaxPayable: (sum - totalVatPayable) * (taxPercent / 100)
-        // This calculates the tax amount based on the amount after VAT
-        newExpense.totalTaxPayable = (newExpense.sum - newExpense.totalVatPayable) * (newExpense.taxPercent / 100);
+        if (isExemptBusinessType(expenseBusiness?.businessType) || newExpense.vatPercent === 0) {
+            newExpense.vatPercent = 0;
+            newExpense.totalVatPayable = 0;
+            newExpense.totalTaxPayable = newExpense.sum * (newExpense.taxPercent / 100);
+        } else {
+            newExpense.totalVatPayable = (newExpense.sum / (1 + vatRate)) * vatRate * (newExpense.vatPercent / 100);
+            newExpense.totalTaxPayable = (newExpense.sum - newExpense.totalVatPayable) * (newExpense.taxPercent / 100);
+        }
 
         // Duplicate guard — two tiers, both keyed on (userId, businessNumber,
         // supplier, sum, date). Run AFTER the FX conversion so the `sum`
@@ -175,10 +187,45 @@ export class ExpensesService {
             }
         }
 
-        const resAddExpense = await this.expense_repo.save(newExpense);
-        if (!resAddExpense || Object.keys(resAddExpense).length === 0) {
-            throw new Error("expense not saved");
-        }
+        // ── Atomic: save Expense + stamp VAT period + post journal entry ────
+        // All three writes run in one transaction so that a journal-entry
+        // failure (missing account, counter collision, …) rolls back the
+        // Expense save as well — no Expense can exist without its journal entry.
+        const resAddExpense = await this.dataSource.transaction(async (manager) => {
+            const expRepo = manager.getRepository(Expense);
+
+            const saved = await expRepo.save(newExpense);
+            if (!saved || Object.keys(saved).length === 0) {
+                throw new Error('expense not saved');
+            }
+
+            // Stamp the VAT reporting period inside the transaction so the
+            // journal entry (created next) reads the already-stamped value via
+            // resolveExpenseVatReportingPeriod → vatReportingDate preference.
+            if (expenseBusiness) {
+                const periodLabel = this.sharedService.buildReportPeriodLabel(
+                    expenseBusiness.businessType,
+                    expenseBusiness.vatReportingType,
+                    new Date(expense.date ?? saved.loadingDate),
+                );
+                if (periodLabel) {
+                    await expRepo.update(saved.id, { vatReportingDate: periodLabel as any });
+                    saved.vatReportingDate = periodLabel as any;
+                }
+            }
+
+            // Create the journal entry inside the same transaction.
+            // createExpenseJournalEntry passes `manager` so it joins here;
+            // any failure throws and rolls back the Expense save too.
+            const input = await this.buildJournalEntryInput(saved);
+            const { entryNumber } = await this.bookkeepingService.createJournalEntry(input, manager);
+
+            // Persist the back-link so future syncs go straight to the entry.
+            await expRepo.update(saved.id, { journalEntryNumber: entryNumber });
+            saved.journalEntryNumber = entryNumber;
+
+            return saved;
+        });
 
         // Auto-register the supplier in this business's master list. Runs
         // AFTER the Expense save so a Supplier row never lands without its
@@ -251,7 +298,7 @@ export class ExpensesService {
             throw new UnauthorizedException(`You do not have permission to update this expense`);
         }
 
-        // Explicitly update the vatPercent and taxPercent in the expense_repo and 
+        // Explicitly update the vatPercent and taxPercent in the expense_repo and
         // then call to the calculate function so the sums will update accordingly.
         if (updateExpenseDto.vatPercent !== undefined) expense.vatPercent = updateExpenseDto.vatPercent;
         if (updateExpenseDto.taxPercent !== undefined) expense.taxPercent = updateExpenseDto.taxPercent;
@@ -273,21 +320,28 @@ export class ExpensesService {
 
         // Recalculate totalVatPayable and totalTaxPayable if sum, vatPercent, or taxPercent changed
         if (updateExpenseDto.vatPercent !== undefined || updateExpenseDto.taxPercent !== undefined || updateExpenseDto.sum !== undefined) {
-            // Get VAT rate for the expense date year
             const vatRate = this.sharedService.getVatRateByYear(new Date(expense.date));
-
-            // Calculate totalVatPayable: (sum / (1 + vatRate)) * vatRate * (vatPercent / 100)
-            expense.totalVatPayable = (expense.sum / (1 + vatRate)) * vatRate * (expense.vatPercent / 100);
-
-            // Calculate totalTaxPayable: (sum - totalVatPayable) * (taxPercent / 100)
-            expense.totalTaxPayable = (expense.sum - expense.totalVatPayable) * (expense.taxPercent / 100);
+            const updateBusiness = await this.businessRepo.findOne({ where: { businessNumber: expense.businessNumber } });
+            if (isExemptBusinessType(updateBusiness?.businessType) || expense.vatPercent === 0) {
+                expense.vatPercent = 0;
+                expense.totalVatPayable = 0;
+                expense.totalTaxPayable = expense.sum * (expense.taxPercent / 100);
+            } else {
+                expense.totalVatPayable = (expense.sum / (1 + vatRate)) * vatRate * (expense.vatPercent / 100);
+                expense.totalTaxPayable = (expense.sum - expense.totalVatPayable) * (expense.taxPercent / 100);
+            }
         }
 
-        return this.expense_repo.save({
+        const saved = await this.expense_repo.save({
             ...expense,
             ...updateExpenseDto,
         });
 
+        // Any change to the expense may affect the ledger (amounts, dates,
+        // supplier name, account codes). Always sync the full journal entry.
+        await this.syncExpenseJournalEntry(saved);
+
+        return saved;
     }
 
     async deleteExpense(id: number, userId: string): Promise<any> {
@@ -688,6 +742,12 @@ export class ExpensesService {
         let subCategories = Array.from(combinedSubCategoriesMap.values());
         // Filter by isExpense if the flag is provided
         subCategories = subCategories.filter(subCategory => subCategory.isExpense === isExpense);
+        // Sort alphabetically by sub-category name (Hebrew locale) so the
+        // classification dropdowns/lists show a stable, ordered list under the
+        // parent category header.
+        subCategories.sort((a, b) =>
+            a.subCategoryName.localeCompare(b.subCategoryName, 'he'),
+        );
         return subCategories;
     }
 
@@ -799,6 +859,266 @@ export class ExpensesService {
             else map.delete(s.subCategoryName); // user explicitly cleared it
         }
         return map;
+    }
+
+    /**
+     * Resolve the bookkeeping account code for a (category, subCategory) pair.
+     * The single source of truth for routing an expense to a כרטיס — used by
+     * EVERY expense-creation path (manual entry, OCR document, bank-transaction
+     * approval) so they all post to the same account.
+     *
+     * Resolution order (first non-empty wins):
+     *   1. user_sub_category.accountCode    (per-business sub-category override)
+     *   2. default_sub_category.accountCode (global sub-category mapping)
+     *   3. user_category.accountCode        (per-business category override)
+     *   4. default_category.accountCode     (global category default)
+     *   5. '5000'                           (generic expense fallback)
+     */
+    async resolveAccountCode(
+        categoryName: string,
+        subCategoryName: string,
+        firebaseId?: string | null,
+        businessNumber?: string | null,
+    ): Promise<string> {
+        const category = categoryName?.trim();
+        const subCategory = subCategoryName?.trim();
+
+        // 1. user sub-category override
+        if (firebaseId && businessNumber && subCategory && category) {
+            const userSub = await this.userSubCategoryRepo.findOne({
+                where: { firebaseId, businessNumber, subCategoryName: subCategory, categoryName: category },
+            });
+            if (userSub?.accountCode) return userSub.accountCode;
+        }
+
+        // 2. default sub-category
+        if (subCategory && category) {
+            const defaultSub = await this.defaultSubCategoryRepo.findOne({
+                where: { subCategoryName: subCategory, categoryName: category },
+            });
+            if (defaultSub?.accountCode) return defaultSub.accountCode;
+        }
+
+        // 3. user category override
+        if (firebaseId && businessNumber && category) {
+            const userCat = await this.userCategoryRepo.findOne({
+                where: { firebaseId, businessNumber, categoryName: category },
+            });
+            if (userCat?.accountCode) return userCat.accountCode;
+        }
+
+        // 4. default category
+        if (category) {
+            const defaultCat = await this.defaultCategoryRepo.findOne({
+                where: { categoryName: category },
+            });
+            if (defaultCat?.accountCode) return defaultCat.accountCode;
+        }
+
+        // 5. final fallback
+        return '5000';
+    }
+
+    /**
+     * Build the single-entry (חד-צידית) expense journal lines for an Expense.
+     * Shared by createExpenseJournalEntry (new entry) and syncExpenseJournalEntry
+     * (replace lines on re-classification) so both produce identical structure.
+     *
+     * Lines: debit the resolved expense account (net before VAT) plus deductible
+     * VAT input (2410) when present; no-VAT expenses debit the whole amount to
+     * the expense account. No contra cash/A/P (1000) line.
+     */
+    private async buildExpenseJournalLines(expense: Expense): Promise<JournalLineInput[]> {
+        const total = Number(expense.sum) || 0;
+        // totalVatPayable = deductible VAT input (VAT × deductibility); 0 when
+        // vatPercent = 0. Computed by the caller before save.
+        const vatInput = Number(expense.totalVatPayable) || 0;
+        const hasVat = vatInput > 0;
+        const net = Number((total - vatInput).toFixed(2));
+
+        const expenseAccountCode = await this.resolveAccountCode(
+            expense.category, expense.subCategory, expense.userId, expense.businessNumber,
+        );
+
+        const isEquipment = expense.isEquipment ?? false;
+        const taxPct = Number(expense.taxPercent) || 0;
+        const vatPct  = Number(expense.vatPercent)  || 0;
+        const amountForTax = Number(expense.totalTaxPayable) || 0;
+
+        return hasVat
+            ? [
+                // Expense line: net amount (total – deductible VAT)
+                {
+                    accountCode: expenseAccountCode,
+                    debit: net, amountBeforeVat: net, vatAmount: 0, isEquipment,
+                    taxPercent: taxPct, vatPercent: vatPct, amountForTax,
+                    subCategoryName: expense.subCategory ?? null,
+                },
+                // Input VAT line: deductible VAT portion
+                {
+                    accountCode: '2410',
+                    debit: vatInput, amountBeforeVat: 0, vatAmount: vatInput, isEquipment,
+                    taxPercent: 0, vatPercent: vatPct, amountForTax: 0,
+                    subCategoryName: null,
+                },
+                // Bank credit: full payment (net + deductible VAT = total); balance the entry
+                {
+                    accountCode: '1100',
+                    credit: total, amountBeforeVat: net, vatAmount: vatInput, isEquipment: false,
+                    taxPercent: 0, vatPercent: 0, amountForTax: 0,
+                    subCategoryName: null,
+                },
+            ]
+            : [
+                // No-VAT expense: full sum
+                {
+                    accountCode: expenseAccountCode,
+                    debit: total, amountBeforeVat: total, vatAmount: 0, isEquipment,
+                    taxPercent: taxPct, vatPercent: 0, amountForTax,
+                    subCategoryName: expense.subCategory ?? null,
+                },
+                // Bank credit: full payment
+                {
+                    accountCode: '1100',
+                    credit: total, amountBeforeVat: total, vatAmount: 0, isEquipment: false,
+                    taxPercent: 0, vatPercent: 0, amountForTax: 0,
+                    subCategoryName: null,
+                },
+            ];
+    }
+
+    /**
+     * Build the full JournalEntryInput for an expense.
+     * Shared between createExpenseJournalEntry (new entry) and
+     * syncExpenseJournalEntry (update existing entry) so both produce
+     * identical data from the same expense state.
+     */
+    private async buildJournalEntryInput(expense: Expense): Promise<import('../bookkeeping/dto/journal-entry-input.interface').JournalEntryInput> {
+        const journalLines = await this.buildExpenseJournalLines(expense);
+        const expenseDateSql = this.sharedService.normalizeToMySqlDate(expense.date);
+        const vatReportingPeriod = await this.resolveExpenseVatReportingPeriod(expense);
+        return {
+            firebaseId: expense.userId,
+            issuerBusinessNumber: expense.businessNumber,
+            subCategory: expense.subCategory ?? null,
+            counterAccountCode: '1100',
+            counterPartyName: expense.supplier ?? null,
+            documentTotal: expense.sum,
+            date: expenseDateSql,
+            valueDate: expenseDateSql,
+            vatDate: expenseDateSql,
+            vatReportingPeriod,
+            referenceType: JournalReferenceType.EXPENSE,
+            referenceId: Number(expense.expenseNumber) || expense.id,
+            description: `EXPENSE #${expense.expenseNumber ?? expense.id} - ${expense.supplier ?? ''}`,
+            lines: journalLines,
+        };
+    }
+
+    /**
+     * Post the single-entry (חד-צידית) expense journal entry for an already-saved
+     * Expense. Best-effort — logs on failure so the already-committed Expense is
+     * never lost. On success, saves the entryNumber back to expense.journalEntryNumber.
+     * Returns the entryNumber on success, null on failure.
+     *
+     * For the atomic creation path (inside addExpense's transaction), pass a
+     * transactional `manager`; the journal entry will participate in that
+     * transaction and a failure will roll back the Expense save too.
+     */
+    async createExpenseJournalEntry(expense: Expense, manager?: import('typeorm').EntityManager): Promise<number | null> {
+        try {
+            const input = await this.buildJournalEntryInput(expense);
+            const { entryNumber } = await this.bookkeepingService.createJournalEntry(input, manager);
+            // Persist the link back so future syncs can find the entry by entryNumber.
+            const repo = manager ? manager.getRepository(Expense) : this.expense_repo;
+            await repo.update(expense.id, { journalEntryNumber: entryNumber });
+            expense.journalEntryNumber = entryNumber;
+            return entryNumber;
+        } catch (err: any) {
+            this.logger.warn(
+                `createExpenseJournalEntry: failed for expense ${expense.id}: ${err?.message ?? err}`,
+            );
+            return null;
+        }
+    }
+
+    /**
+     * Resolve the VAT reporting-period label for an expense's journal entry.
+     * Prefers the stamp already on the Expense (set by the bank/OCR paths);
+     * otherwise derives it from the business cadence + expense date, matching
+     * exactly how getExpensesByDates buckets the row. Returns null only when the
+     * business can't be resolved and the Expense carries no stamp.
+     */
+    private async resolveExpenseVatReportingPeriod(expense: Expense): Promise<string | null> {
+        if (expense.vatReportingDate) return expense.vatReportingDate as string;
+        const business = await this.businessRepo.findOne({
+            where: { businessNumber: expense.businessNumber, firebaseId: expense.userId },
+        });
+        if (!business) return null;
+        return this.sharedService.buildReportPeriodLabel(
+            business.businessType,
+            business.vatReportingType,
+            new Date(expense.date),
+        );
+    }
+
+    /**
+     * Re-sync an expense's journal entry after any field change. Updates
+     * BOTH the header (date, supplier, amounts, period) AND the lines
+     * (account codes, debit/credit splits) of the existing entry so the
+     * ledger always matches the expense. Best-effort — logs and returns on
+     * failure so the already-saved Expense is never rolled back.
+     *
+     * Lookup order:
+     *   1. expense.journalEntryNumber — fast, stable, preferred.
+     *   2. Backward compat: (referenceType=EXPENSE, referenceId=expense.id,
+     *      businessNumber) — for rows created before journalEntryNumber was
+     *      added. On success the entryNumber is saved back to the Expense.
+     *   3. If no entry found at all → create a fresh journal entry.
+     */
+    async syncExpenseJournalEntry(expense: Expense): Promise<void> {
+        try {
+            const input = await this.buildJournalEntryInput(expense);
+
+            // Path 1: preferred lookup by entryNumber.
+            if (expense.journalEntryNumber != null) {
+                const updated = await this.bookkeepingService.updateJournalEntryFull(
+                    expense.journalEntryNumber,
+                    expense.businessNumber,
+                    input,
+                );
+                if (updated) return;
+                this.logger.warn(
+                    `syncExpenseJournalEntry: entryNumber ${expense.journalEntryNumber} not found ` +
+                    `for expense ${expense.id} — falling back to reference lookup`,
+                );
+            }
+
+            // Path 2: backward compat — find by referenceType + referenceId.
+            const existingEntryNumber = await this.bookkeepingService.findJournalEntryNumber(
+                JournalReferenceType.EXPENSE,
+                expense.id,
+                expense.businessNumber,
+            );
+            if (existingEntryNumber != null) {
+                await this.bookkeepingService.updateJournalEntryFull(
+                    existingEntryNumber,
+                    expense.businessNumber,
+                    input,
+                );
+                // Persist the link for all future syncs.
+                await this.expense_repo.update(expense.id, { journalEntryNumber: existingEntryNumber });
+                expense.journalEntryNumber = existingEntryNumber;
+                return;
+            }
+
+            // Path 3: no entry at all → create one.
+            await this.createExpenseJournalEntry(expense);
+        } catch (err: any) {
+            this.logger.warn(
+                `syncExpenseJournalEntry: failed for expense ${expense.id}: ${err?.message ?? err}`,
+            );
+        }
     }
 
     /** Admin: get all default sub-categories (for category management). */
