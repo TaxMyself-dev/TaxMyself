@@ -42,4 +42,12 @@ export class DefaultSubCategory {
   @Column({ type: 'varchar', nullable: true, default: null })
   pnlCategory: string | null;
 
+  /**
+   * Bookkeeping account code for journal posting (→ default_booking_account.code).
+   * Populated on boot by AccountSeedService from pnlCategory; NULL ⇒ caller
+   * falls back to '5000'.
+   */
+  @Column({ nullable: true })
+  accountCode: string;
+
 }

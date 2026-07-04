@@ -1,0 +1,255 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  width: 100%;
+  overflow: auto;
+  align-items: center;
+}
+
+// Loader for the submit → next-visible-UI gap. Mirrors the VAT page so
+// both report flows look the same while previewCheck is running.
+.report-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 48px 24px;
+  font-size: 1rem;
+  color: #4b5563;
+
+  i {
+    font-size: 1.4rem;
+    color: #1d4ed8;
+  }
+}
+
+.redirect-prompt-body {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 4px;
+}
+
+.redirect-prompt-icon {
+  font-size: 1.6rem;
+  color: #f59e0b;
+}
+
+.pnl-report-wrap-screen {
+  width: 100%;
+  height: 95%;
+  display: flex;
+  flex-direction: column;
+  align-items: left;
+  padding-right: 50px;
+}
+
+.pnl-report-header {
+  display: flex;
+  flex-direction: column;
+  text-align: right;
+  margin-top: 100px;
+  display: flex;
+}
+
+.icon-title {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.icon {
+  width: 40px;
+  height: 40px;
+}
+
+.title {
+  font-size: 2rem;
+  font-weight: 500;
+  position: relative;
+}
+
+.text-header {
+  font-size: 1.2rem;
+  color: #666;
+  margin-top: 0.5rem;
+  display: flex;
+}
+
+// vat-report-search-bar-input {
+//   margin-top: 10px;
+// }
+
+// .vat-report-payment-button {
+//   margin-top: 15px;
+// }
+
+.wrap-output-report {
+  width: 50%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  border: 1px solid;
+  border-color: #f8e7e7;
+  border-radius: 15px;
+  margin-top: 15px;
+}
+
+.pnl-report-title {
+  display: flex;
+  flex-direction: column;
+  text-align: right;
+  margin-top: 25px;
+  font-size: 1.25rem; /* הקטנת פונט לטייטל */
+  line-height: 1.2;
+
+  p {
+    margin: 0;
+  }
+
+  /* להקטין את המרווח בין שורה של שם העסק לשורת מספר העסק */
+  p:nth-child(1) + p:nth-child(2) {
+    margin-top: 2px;
+  }
+
+  /* להוסיף מעט רווח לפני שורת "דו\"ח רווח והפסד לתקופה" */
+  p:nth-child(2) + p:nth-child(3) {
+    margin-top: 20px;
+  }
+}
+
+.output-pnl-report {
+  display: flex;
+  justify-content: space-between;
+  border-bottom: #f8e7e7 1px solid;
+  padding: 10px;
+  margin-left: 15px;
+  margin-right: 15px;
+}
+
+.value-field-report{
+  border: 1px solid #f8e7e7;
+  color: gray;
+  border-radius: 5px;
+  padding-bottom: 1px;
+  padding-top: 1px;
+  padding-left: 5px;
+  padding-right: 5px;
+  margin-bottom: 5px;
+  width: 20%;
+  text-align: center;
+}
+
+.profit-field {
+  font-weight: bold;
+}
+
+.input-container {
+  border: 1px solid #f8e7e7;
+  width: 20%;
+  border-radius: 5px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 5px;
+  text-align: center;
+}
+
+// .input-container ion-input {
+//   height: 100%;
+//   width: 100%;
+// }
+
+.field-report{
+  color: black;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+.wrap-buttons{
+  width: 75%;
+  display: flex;
+  justify-content: center;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.report-title{
+  display: none;
+}
+
+.pnl-pdf-button {
+  margin-top: 15px;
+}
+
+// Mirrors the VAT report's action row — see vat-report.page.scss for why
+// RTL flex puts "סמן כדווח" / "הדוח הוגש" to the visual left of "ייצא כ-PDF".
+.report-action-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 15px;
+  flex-wrap: wrap;
+}
+
+.report-submitted-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #2e7d32;
+  font-weight: 600;
+
+  .pi-check-circle {
+    font-size: 1.4rem;
+  }
+}
+
+@media only screen and (max-width: 768px) {
+
+  .pnl-report-wrap-screen {
+    padding-right: 0;
+    align-items: center;
+  }
+  .pnl-report-header {
+    justify-content: center;
+  }
+
+  .text-header {
+    justify-content: center;
+  }
+
+  .icon-title {
+    justify-content: center;
+  }
+
+  .pnl-report-title {
+    justify-content: center;
+  }
+
+  .pnl-report-title > p {
+    width: 218px;
+  }
+
+  .wrap-output-report {
+    width: 95%;
+    justify-content: center;
+  }
+  
+  .report-action-row {
+    justify-content: center;
+  }
+}
+/* Journal-based report comparison banner (TASK B) */
+.journal-report-banner {
+  background: #fff4e5;
+  border: 1px solid #ffcc80;
+  color: #8a5a00;
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin: 0 0 1rem;
+  font-weight: 600;
+  text-align: center;
+}

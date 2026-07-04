@@ -5,6 +5,9 @@ backend/src/auth/firebaseServiceAccount.json
 backend/src/auth/firebaseServiceAccount-*.json
 backend/src/auth/firebaseServiceAccount.json
 
+cleanup-dev.*
+fix-*.js
+
 prod-keys/
 keys/
 *.key

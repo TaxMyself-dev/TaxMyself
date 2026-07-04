@@ -21,17 +21,22 @@ import { Delegation } from 'src/delegation/delegation.entity';
 import { Business } from 'src/business/business.entity';
 import { ClassifiedTransactions } from '../transactions/classified-transactions.entity';
 import { ExtractedDocument } from '../documents/extracted-document.entity';
+// ExpensesService now posts a journal entry on expense create — needs BookkeepingService.
+import { BookkeepingModule } from '../bookkeeping/bookkeeping.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Expense, User, Business, DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory, Supplier, Child, Delegation, ClassifiedTransactions, ExtractedDocument]),
     SharedModule,
-    UsersModule
+    UsersModule,
+    BookkeepingModule
   ],
   controllers: [ExpensesController],
   providers: [
     ExpensesService,
     AuthService,
   ],
+  // Exported so other modules (e.g. DemoDataModule's seeder) can call addExpense.
+  exports: [ExpensesService],
 })
 export class ExpensesModule {}

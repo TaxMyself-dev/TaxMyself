@@ -34,12 +34,15 @@ import { Delegation } from 'src/delegation/delegation.entity';
 import { SettingDocuments } from 'src/documents/settingDocuments.entity';
 import { Business } from 'src/business/business.entity';
 import { BillingModule } from '../billing/billing.module';
+// ExpensesService (provided here) posts a journal entry on expense create — needs BookkeepingService.
+import { BookkeepingModule } from '../bookkeeping/bookkeeping.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Expense, User, Business, Transactions, DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory,
             Supplier, ClassifiedTransactions, SlimTransaction, FullTransactionCache, UserTransactionCacheState, UserSyncState, UserSourceSyncState,
             Bill, Source, Child, Finsite, Delegation, SettingDocuments, ExtractedDocument]),
+    BookkeepingModule,
     // SharedModule provides SharedService AND FxRateService. Importing it (and
     // removing the local `SharedService` provider below) means both services
     // resolve through the same SharedModule instance — which is what the

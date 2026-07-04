@@ -144,4 +144,21 @@ export class Documents {
 
   @Column({ type: 'varchar', length: 255, nullable: true })
   copyFile: string; // Firebase storage path for certified copy (העתק נאמן למקור)
+
+  /**
+   * Per-business running number of the JournalEntry created for this document.
+   * Matches JournalEntry.entryNumber. NULL for legacy documents created before
+   * this field was added, or for document types that don't generate a journal entry
+   * (e.g. TRANSACTION_INVOICE, PENDING_ALLOCATION docs before finalization).
+   */
+  @Column({ type: 'int', nullable: true, default: null })
+  journalEntryNumber: number | null;
+
+  /**
+   * Global PK of the JournalEntry row (journal_entry.id).
+   * Allows a direct FK join: JOIN journal_entry je ON je.id = d.journalEntryId.
+   * NULL under the same conditions as journalEntryNumber above.
+   */
+  @Column({ type: 'int', nullable: true, default: null })
+  journalEntryId: number | null;
 }

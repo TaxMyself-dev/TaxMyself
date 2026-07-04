@@ -15,6 +15,17 @@ export interface IFileUploadItem {
   file: File | string;
 }
 
+/** Result of a BKMV ("מבנה אחיד") historical-data import. */
+export interface IBkmvImportSummary {
+  importId: number;
+  suppliersImported: number;
+  documentsImported: number;
+  transactionsImported: number;
+  expensesCreated: number;
+  skipped: number;
+  errors: string[];
+}
+
 export interface IUploadResult {
   id: number;
   filePath: string;
@@ -498,6 +509,18 @@ export class FilesService {
       lastModified: Date.now(),
     });
     return file;
+  }
+
+  /**
+   * Upload a BKMV ("מבנה אחיד") ZIP export for a given business. The
+   * AuthInterceptor adds the Firebase token automatically; the business is
+   * identified by its integer id in the route.
+   */
+  importBkmv(businessId: number, file: File): Observable<IBkmvImportSummary> {
+    const url = `${environment.apiUrl}businesses/${businessId}/import/bkmv`;
+    const formData = new FormData();
+    formData.append('file', file, file.name);
+    return this.http.post<IBkmvImportSummary>(url, formData);
   }
 
   createUniformFile(startDate: string, endDate: string, businessNumber: string): Observable<any> {

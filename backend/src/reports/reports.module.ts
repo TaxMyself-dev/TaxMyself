@@ -27,6 +27,8 @@ import { ExpensesService } from '../expenses/expenses.service';
 import { UsersModule } from '../users/users.module';
 import { DocumentsModule } from '../documents/documents.module';
 import { GoogleDriveModule } from '../google-drive/google-drive.module';
+// ExpensesService (provided here) posts a journal entry on expense create — needs BookkeepingService.
+import { BookkeepingModule } from '../bookkeeping/bookkeeping.module';
 import { DefaultCategory } from '../expenses/default-categories.entity';
 import { UserCategory } from '../expenses/user-categories.entity';
 import { FinsiteService } from 'src/finsite/finsite.service';
@@ -53,6 +55,7 @@ import { FullTransactionCache } from 'src/transactions/full-transaction-cache.en
     // GoogleDriveModule for Drive reads in the review flow (e.g. listing
     // the inbox folder's files).
     GoogleDriveModule,
+    BookkeepingModule,
   ],
   controllers: [ReportsController],
   providers: [

@@ -1,0 +1,299 @@
+<div class="ledger-report-wrap-screen">
+
+  <div class="ledger-report-header no-print">
+    <div class="icon-title">
+      <img src="../../../assets/vat_report.svg" alt="Ledger Report" class="icon" />
+      <span class="title">כרטסת</span>
+    </div>
+    <p class="text-header">
+      צפייה בתנועות יומן לפי כרטיס חשבון, עם חשבון נגדי ויתרה רצה.
+    </p>
+  </div>
+
+  <!-- Top-left action: open the manual journal-entry modal (opposite הדפסה). -->
+  <div class="ledger-top-actions no-print">
+    <p-button
+      icon="pi pi-plus"
+      label="פקודת יומן"
+      styleClass="p-button-outlined"
+      (click)="openJournalEntryModal()">
+    </p-button>
+  </div>
+
+  <!-- FILTER TAB (hidden when printing) -->
+  <div class="no-print">
+    <app-filter-tab
+      [config]="filterConfig"
+      [parentForm]="form"
+      (apply)="onSubmit($event)">
+    </app-filter-tab>
+  </div>
+
+  <ng-container *ngIf="ledgerReport">
+
+    <div class="ledger-report-toolbar no-print">
+      <app-p-button
+        buttonText="הדפסה"
+        icon="pi pi-print"
+        [buttonColor]="buttonColor.WHITE_BORDER"
+        [buttonSize]="buttonSize.SMALL"
+        (onButtonClicked)="print()">
+      </app-p-button>
+    </div>
+
+    <div class="ledger-report-title">
+      <p>{{ businessName() }}</p>
+      <p>מ.ע: {{ businessNumber() }}</p>
+      <p>כרטסת לתקופה: {{ formatReportDate(endDate()) }} - {{ formatReportDate(startDate()) }}</p>
+      <p *ngIf="isSingleAccountMode && ledgerReport.accounts.length">
+        כרטיס: {{ ledgerReport.accounts[0].accountCode }} - {{ ledgerReport.accounts[0].accountName }}
+      </p>
+    </div>
+
+    <ng-container *ngIf="ledgerReport.accounts.length > 0; else noData">
+      <!-- One section per account. Single-account mode → exactly one section. -->
+      <div class="ledger-account-section" *ngFor="let account of ledgerReport.accounts">
+
+        <div class="ledger-account-header">
+          כרטיס: {{ account.accountName }} - {{ account.accountCode }}
+        </div>
+
+        <div class="ledger-table-wrap">
+          <table class="ledger-table" dir="rtl">
+            <thead>
+              <tr>
+                <th>מספר פקודה</th>
+                <th>תאריך יצירה</th>
+                <th>תאריך ערך</th>
+                <th>תאריך מסמך</th>
+                <th>תקופת דיווח</th>
+                <th>אסמכתא</th>
+                <th>סוג מסמך</th>
+                <th>ספק/לקוח</th>
+                <th>פירוט</th>
+                <th>חשבון נגדי</th>
+                <th>חובה</th>
+                <th>זכות</th>
+                <th>יתרה</th>
+                <th>סה"כ מסמך</th>
+                <th>סה"כ לרווח והפסד</th>
+                <th>סה"כ למע"מ</th>
+                <th>% מוכר למס</th>
+                <th>% מוכר למע"מ</th>
+                <th>מטבע</th>
+                <th>שע"ח</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- שורת יתרת פתיחה — וירטואלית, אינה נשמרת בבסיס הנתונים -->
+              <tr class="opening-balance-row">
+                <td colspan="8"></td>
+                <td class="opening-balance-label">יתרת פתיחה</td>
+                <td colspan="3"></td>
+                <td class="numeric-cell balance-cell">{{ account.openingBalance | number:'1.2-2' }}</td>
+                <td colspan="7"></td>
+              </tr>
+              <!-- שורות תנועות — היתרה מתחילה מיתרת הפתיחה (periodBalance) -->
+              <tr *ngFor="let line of account.lines"
+                  class="clickable-row"
+                  title="לחץ לצפייה בפקודת יומן מלאה"
+                  (click)="openEntryDetail(line)">
+                <td>{{ line.entryNumber }}</td>
+                <td>{{ line.date | date:'dd.MM.yyyy' }}</td>
+                <td>{{ line.valueDate | date:'dd.MM.yyyy' }}</td>
+                <td>{{ line.vatDate | date:'dd.MM.yyyy' }}</td>
+                <td>{{ line.vatReportingPeriod }}</td>
+                <td>{{ line.referenceId }}</td>
+                <td>{{ line.movementType }}</td>
+                <td>{{ line.counterPartyName || '' }}</td>
+                <td>{{ line.description }}</td>
+                <td>{{ line.counterAccounts || '' }}</td>
+                <td class="numeric-cell">{{ line.debit | number:'1.2-2' }}</td>
+                <td class="numeric-cell">{{ line.credit | number:'1.2-2' }}</td>
+                <td class="numeric-cell balance-cell">{{ line.periodBalance | number:'1.2-2' }}</td>
+                <td class="numeric-cell">{{ line.documentTotal != null ? (line.documentTotal | number:'1.2-2') : '' }}</td>
+                <td class="numeric-cell">{{ line.amountForTax | number:'1.2-2' }}</td>
+                <td class="numeric-cell">{{ line.vatAmount | number:'1.2-2' }}</td>
+                <td>{{ line.taxPercent !== 100 ? (line.taxPercent | number:'1.0-2') + '%' : '100%' }}</td>
+                <td>{{ line.vatPercent !== 100 ? (line.vatPercent | number:'1.0-2') + '%' : '100%' }}</td>
+                <td>{{ line.currency }}</td>
+                <td class="numeric-cell">{{ line.exchangeRate === 1 ? '1' : (line.exchangeRate | number:'1.4-4') }}</td>
+              </tr>
+            </tbody>
+            <tfoot>
+              <tr class="ledger-summary-row">
+                <td colspan="10" class="summary-label">סה"כ לכרטיס</td>
+                <td class="numeric-cell">{{ account.totalDebit | number:'1.2-2' }}</td>
+                <td class="numeric-cell">{{ account.totalCredit | number:'1.2-2' }}</td>
+                <!-- יתרת סגירה = יתרת פתיחה + תנועות נטו בתקופה -->
+                <td class="numeric-cell balance-cell">{{ (account.openingBalance + account.closingBalance) | number:'1.2-2' }}</td>
+                <td colspan="7"></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+    </ng-container>
+
+    <ng-template #noData>
+      <div class="ledger-no-data">לא נמצאו תנועות לתקופה זו</div>
+    </ng-template>
+
+  </ng-container>
+
+  <!-- ── Journal Entry Detail modal ────────────────────────────────────────── -->
+  <p-dialog
+    [header]="selectedEntry ? 'פקודת יומן ' + selectedEntry.entryNumber : 'טוען...'"
+    [(visible)]="showEntryDetailModal"
+    [modal]="true"
+    [style]="{ width: '680px' }"
+    [closable]="true"
+    (onHide)="closeEntryDetail()">
+
+    <div dir="rtl" class="je-detail">
+
+      <!-- Loading spinner -->
+      <div *ngIf="entryDetailLoading" class="je-detail-loading">טוען פקודת יומן...</div>
+
+      <ng-container *ngIf="selectedEntry && !entryDetailLoading">
+
+        <!-- Meta-data header -->
+        <div class="je-detail-meta">
+          <span>פקודה: <strong>{{ selectedEntry.entryNumber }}</strong></span>
+          <span>תאריך: <strong>{{ selectedEntry.date | date:'dd.MM.yyyy' }}</strong></span>
+          <span *ngIf="selectedEntry.valueDate">ת. ערך: <strong>{{ selectedEntry.valueDate | date:'dd.MM.yyyy' }}</strong></span>
+          <span *ngIf="selectedEntry.referenceId">אסמכתא: <strong>{{ selectedEntry.referenceId }}</strong></span>
+          <span *ngIf="selectedEntry.referenceType">סוג: <strong>{{ getDocTypeHebrew(selectedEntry.referenceType) }}</strong></span>
+          <span *ngIf="selectedEntry.counterPartyName">ספק/לקוח: <strong>{{ selectedEntry.counterPartyName }}</strong></span>
+        </div>
+
+        <!-- Lines table -->
+        <table class="je-detail-table" dir="rtl">
+          <thead>
+            <tr>
+              <th>פירוט</th>
+              <th>חשבון</th>
+              <th>מספר</th>
+              <th class="num-col">חובה</th>
+              <th class="num-col">זכות</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let line of selectedEntry.lines">
+              <td>{{ line.description }}</td>
+              <td>{{ line.accountName }}</td>
+              <td>{{ line.accountCode }}</td>
+              <td class="num-col">{{ line.debit > 0 ? (line.debit | number:'1.2-2') : '' }}</td>
+              <td class="num-col">{{ line.credit > 0 ? (line.credit | number:'1.2-2') : '' }}</td>
+            </tr>
+          </tbody>
+          <tfoot>
+            <tr class="je-detail-totals">
+              <td colspan="3" class="totals-label">סה"כ</td>
+              <td class="num-col">{{ selectedEntry.totalDebit | number:'1.2-2' }}</td>
+              <td class="num-col">{{ selectedEntry.totalCredit | number:'1.2-2' }}</td>
+            </tr>
+          </tfoot>
+        </table>
+
+        <!-- Balance indicator -->
+        <div class="je-balance-indicator"
+             [class.balanced]="selectedEntry.isBalanced"
+             [class.unbalanced]="!selectedEntry.isBalanced">
+          {{ selectedEntry.isBalanced ? '✓ פקודה מאוזנת' : '⚠ פקודה אינה מאוזנת' }}
+        </div>
+
+      </ng-container>
+    </div>
+
+    <ng-template pTemplate="footer">
+      <p-button label="סגור" styleClass="p-button-text" (click)="closeEntryDetail()"></p-button>
+    </ng-template>
+  </p-dialog>
+
+  <!-- ── Manual journal entry modal (UI scaffolding) ─────────────────────── -->
+  <p-dialog
+    header="פקודת יומן ידנית"
+    [(visible)]="showJournalEntryModal"
+    [modal]="true"
+    [style]="{ width: '700px' }"
+    (onHide)="closeJournalEntryModal()">
+
+    <div dir="rtl" class="je-modal">
+
+      <!-- Header fields -->
+      <div class="je-header-grid">
+        <label class="je-field">
+          <span>תאריך</span>
+          <input type="date" [(ngModel)]="journalEntryForm.date" />
+        </label>
+        <label class="je-field">
+          <span>תאריך ערך</span>
+          <input type="date" [(ngModel)]="journalEntryForm.valueDate" />
+        </label>
+        <label class="je-field">
+          <span>תאריך למע"מ</span>
+          <input type="date" [(ngModel)]="journalEntryForm.vatDate" />
+        </label>
+        <label class="je-field">
+          <span>פרטים</span>
+          <input type="text" [(ngModel)]="journalEntryForm.description" />
+        </label>
+        <label class="je-field">
+          <span>הערות</span>
+          <input type="text" [(ngModel)]="journalEntryForm.notes" />
+        </label>
+      </div>
+
+      <!-- Lines -->
+      <table class="je-lines">
+        <thead>
+          <tr>
+            <th>כרטיס חשבון</th>
+            <th>פרטים</th>
+            <th>חובה</th>
+            <th>זכות</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let line of journalEntryForm.lines; let i = index">
+            <td>
+              <select [(ngModel)]="line.accountCode">
+                <option value="">בחר חשבון</option>
+                <option *ngFor="let acc of journalAccountOptions" [value]="acc.value">{{ acc.name }}</option>
+              </select>
+            </td>
+            <td><input type="text" [(ngModel)]="line.description" /></td>
+            <td><input type="number" dir="ltr" [(ngModel)]="line.debit" /></td>
+            <td><input type="number" dir="ltr" [(ngModel)]="line.credit" /></td>
+            <td>
+              <button
+                type="button"
+                class="je-remove"
+                title="הסר שורה"
+                [disabled]="journalEntryForm.lines.length <= 2"
+                (click)="removeLine(i)">✕</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <button type="button" class="je-add-line" (click)="addLine()">+ שורה</button>
+
+      <!-- Running totals (reference only — single-entry, no balance requirement) -->
+      <div class="je-totals">
+        <span>סה"כ חובה: <b dir="ltr">{{ totalDebit | number:'1.2-2' }}</b></span>
+        <span>סה"כ זכות: <b dir="ltr">{{ totalCredit | number:'1.2-2' }}</b></span>
+      </div>
+
+      <!-- Footer -->
+      <div class="je-footer">
+        <p-button label="ביטול" styleClass="p-button-text" (click)="closeJournalEntryModal()"></p-button>
+        <p-button label="שמור" [disabled]="!hasAnyAmount" (click)="saveJournalEntry()"></p-button>
+      </div>
+
+    </div>
+  </p-dialog>
+
+</div>

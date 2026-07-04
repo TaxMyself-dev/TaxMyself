@@ -13,10 +13,14 @@ import * as path from 'path';
 import {
   BusinessStatus,
   BusinessType,
+  DocumentType,
   TaxReportingType,
   UserRole,
   VATReportingType,
 } from 'src/enum';
+import { DocumentsService } from 'src/documents/documents.service';
+import { ExpensesService } from 'src/expenses/expenses.service';
+import { DefaultBookingAccount } from 'src/bookkeeping/account.entity';
 import { User } from 'src/users/user.entity';
 import { UsersService } from 'src/users/users.service';
 import { Business } from 'src/business/business.entity';
@@ -125,6 +129,8 @@ export class DemoDataService {
     private readonly driveService: GoogleDriveService,
     private readonly fxRateService: FxRateService,
     private readonly usersService: UsersService,
+    private readonly documentsService: DocumentsService,
+    private readonly expensesService: ExpensesService,
   ) {}
 
   // ---------------- Public API ----------------
@@ -253,6 +259,22 @@ export class DemoDataService {
       throw dbErr;
     }
 
+    // 3.5 Documents + Expenses (opt-in per profile). Runs OUTSIDE the seed
+    //     transaction because DocumentsService.createDoc() and
+    //     ExpensesService.addExpense() each open their OWN transaction / use
+    //     their own repos (they don't accept the seeder's EntityManager) —
+    //     calling them inside `m` would run on a separate connection and could
+    //     deadlock or orphan rows on rollback. Best-effort: failures are
+    //     logged and the already-committed user/businesses stay valid.
+    try {
+      await this.seedDocumentsAndExpenses(primaryFirebaseId, profile);
+    } catch (docErr) {
+      this.logger.error(
+        `[demo-data] document/expense seeding failed for ${profile.id} ` +
+          `(user/businesses still committed): ${(docErr as Error)?.message ?? docErr}`,
+      );
+    }
+
     // 4. Drive provisioning + sample-file upload (opt-in per profile).
     //    Runs OUTSIDE the DB transaction so a Drive outage doesn't roll back
     //    the seed. Errors are caught and logged at ERROR level WITH the
@@ -289,6 +311,166 @@ export class DemoDataService {
         : undefined,
       driveInbox,
     };
+  }
+
+  /**
+   * Seed real Documents + Expenses for a profile's primary user. Runs AFTER the
+   * main seed transaction commits (see call site for why).
+   *
+   * Both paths post journal entries — income via createDoc (debit A/R 1000,
+   * credit revenue 4000 + output VAT 2400; credit notes reverse), expense via
+   * addExpense (debit expense 5000 + deductible VAT input 2410, credit 1000).
+   * These REQUIRE the chart-of-accounts rows (1000, 2400, 2410, 4000, 5000) to
+   * exist in default_booking_account — see backend/src/bookkeeping/account.seed.ts.
+   * If they're missing: createDoc rolls back each document (its journal post is
+   * NOT best-effort), and addExpense keeps the expense but skips the journal
+   * line (its post IS best-effort). Every call below is wrapped best-effort so a
+   * missing account / per-item failure logs and the rest of the seed continues.
+   */
+  private async seedDocumentsAndExpenses(
+    firebaseId: string,
+    profile: DemoProfile,
+  ): Promise<void> {
+    const docs = profile.documents ?? [];
+    const expenses = profile.expenses ?? [];
+    if (docs.length === 0 && expenses.length === 0) return;
+
+    await this.warnIfChartOfAccountsMissing();
+
+    // Pre-assign docNumbers before going parallel — sequential counter must be
+    // stable regardless of which business processes first.
+    const docsWithNumbers = docs.map((d, i) => ({ ...d, docNumber: 1001 + i }));
+
+    // Collect distinct businesses across docs + expenses.
+    const bizRefs = [...new Set([
+      ...docs.map(d => d.businessNumberRef),
+      ...expenses.map(e => e.businessNumberRef),
+    ])];
+
+    this.logger.log(
+      `[demo-data] seeding ${docs.length} docs + ${expenses.length} expenses ` +
+      `across ${bizRefs.length} businesses in parallel (expenses concurrency=5 per biz)`,
+    );
+    const t0 = Date.now();
+
+    // Different businesses share no counter rows — run them fully in parallel.
+    await Promise.all(bizRefs.map(async (bizRef) => {
+      const bizDocs = docsWithNumbers.filter(d => d.businessNumberRef === bizRef);
+      const bizExpenses = expenses.filter(e => e.businessNumberRef === bizRef);
+      const tb = Date.now();
+
+      // ── Documents: sequential within each business ─────────────────────────
+      // Documents share a per-business generalDocIndex counter; concurrent calls
+      // would serialize at the DB anyway, so sequential is simpler and safe.
+      for (const d of bizDocs) {
+        const sumWithVat = Number((d.sumAftDisBefVAT + d.vatSum).toFixed(2));
+        const docData = {
+          issuerBusinessNumber: d.businessNumberRef,
+          recipientName: d.recipientName,
+          recipientId: d.recipientId ?? null,
+          docType: d.docType,
+          docNumber: d.docNumber,
+          docVatRate: d.vatSum > 0 ? 18 : 0,
+          sumBefDisBefVat: d.sumAftDisBefVAT,
+          disSum: 0,
+          sumAftDisBefVAT: d.sumAftDisBefVAT,
+          vatSum: d.vatSum,
+          sumAftDisWithVAT: sumWithVat,
+          withholdingTaxAmount: 0,
+          docDate: d.docDate,
+          valueDate: d.docDate,
+        };
+        try {
+          await this.documentsService.createDoc(
+            { docData, linesData: [], paymentData: [] },
+            firebaseId,
+            false,
+          );
+        } catch (err: any) {
+          this.logger.warn(
+            `[demo-data] createDoc failed for ${d.docType} #${d.docNumber} ` +
+            `(biz ${bizRef}): ${err?.message ?? err}`,
+          );
+        }
+      }
+
+      // ── Expenses: worker-pool concurrency=5 within each business ──────────
+      // Reads dominate; the journal-entry counter serializes at the DB level so
+      // concurrency is safe — no duplicate entryNumbers, no lost updates.
+      await this.runConcurrently(bizExpenses, 5, async (e) => {
+        const dto: any = {
+          supplier: e.merchantName,
+          category: e.category ?? 'הוצאות',
+          subCategory: e.subCategory ?? 'כללי',
+          sum: e.sum,
+          taxPercent: e.taxPercent ?? 100,
+          vatPercent: e.vatPercent,
+          date: e.expenseDate,
+          reductionPercent: 0,
+          isEquipment: e.isEquipment ?? false,
+        };
+        try {
+          await this.expensesService.addExpense(dto, firebaseId, e.businessNumberRef, false);
+        } catch (err: any) {
+          this.logger.warn(
+            `[demo-data] addExpense failed for "${e.merchantName}" ` +
+            `(biz ${bizRef}): ${err?.message ?? err}`,
+          );
+        }
+      });
+
+      this.logger.log(
+        `[demo-data] biz ${bizRef}: ${bizDocs.length} docs + ${bizExpenses.length} expenses done in ${Date.now() - tb}ms`,
+      );
+    }));
+
+    this.logger.log(`[demo-data] seed complete in ${Date.now() - t0}ms`);
+  }
+
+  /**
+   * Worker-pool concurrency helper — runs `fn` over every item with at most
+   * `concurrency` calls in flight at once. Each worker pulls from a shared
+   * queue until exhausted. Errors propagate individually (caught by callers).
+   */
+  private async runConcurrently<T>(
+    items: T[],
+    concurrency: number,
+    fn: (item: T) => Promise<void>,
+  ): Promise<void> {
+    if (items.length === 0) return;
+    const queue = [...items];
+    const workers = Array.from(
+      { length: Math.min(concurrency, items.length) },
+      async () => {
+        while (queue.length > 0) {
+          const item = queue.shift()!;
+          await fn(item);
+        }
+      },
+    );
+    await Promise.all(workers);
+  }
+
+  /**
+   * Diagnostic: warn loudly if the bookkeeping chart of accounts isn't populated.
+   * Without these rows the ledger demo silently produces nothing (income docs
+   * roll back, expense journal lines are skipped). Non-fatal.
+   */
+  private async warnIfChartOfAccountsMissing(): Promise<void> {
+    try {
+      const rows = await this.dataSource.getRepository(DefaultBookingAccount).find();
+      const have = new Set(rows.map((r) => r.code));
+      const missing = ['1000', '2400', '2410', '4000', '5000'].filter((c) => !have.has(c));
+      if (missing.length) {
+        this.logger.warn(
+          `[demo-data][ledger] default_booking_account is missing codes [${missing.join(', ')}]. ` +
+            `Income documents will roll back and expense journal lines will be skipped until these ` +
+            `exist. See backend/src/bookkeeping/account.seed.ts for the SQL.`,
+        );
+      }
+    } catch {
+      // diagnostic only — never block seeding
+    }
   }
 
   /**
@@ -854,6 +1036,15 @@ export class DemoDataService {
       await inc('documents', this.deleteAndCount(m, Documents, { issuerBusinessNumber: In(businessNumbers) }));
       await inc('journalLines', this.deleteAndCount(m, JournalLine, { issuerBusinessNumber: In(businessNumbers) }));
       await inc('journalEntries', this.deleteAndCount(m, JournalEntry, { issuerBusinessNumber: In(businessNumbers) }));
+      // Also purge rows keyed by firebaseId (new rows created after the firebaseId column was added).
+      // These may not match businessNumbers if businessNumber changed, or if this is a shared-number scenario.
+      await inc('journalLines', this.deleteAndCount(m, JournalLine, { firebaseId }));
+      await inc('journalEntries', this.deleteAndCount(m, JournalEntry, { firebaseId }));
+      // Per-business journal running-number counter rows. These live in
+      // SettingDocuments keyed on userId = businessNumber (NOT the firebaseId),
+      // docType = JOURNAL_ENTRY — so the userId-scoped SettingDocuments delete
+      // below misses them. Clear them here so a re-seed restarts entryNumber.
+      await inc('journalCounters', this.deleteAndCount(m, SettingDocuments, { userId: In(businessNumbers), docType: DocumentType.JOURNAL_ENTRY }));
       // ExtractedDocument is OCR output keyed by businessNumber. Scoping by
       // businessNumber (not user.index) so re-seeds of a demo profile don't
       // leave orphans tied to the previous Firebase user's index — the

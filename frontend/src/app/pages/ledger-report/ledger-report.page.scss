@@ -1,0 +1,359 @@
+// Make the routed page host scroll vertically (mirrors pnl-report / vat-report).
+// Without this, the Ionic router-outlet host has a viewport-fixed height and no
+// overflow, so content below the fold (the account sections) is clipped and the
+// page can't be scrolled. align-items:center is intentionally omitted so the
+// full-width tables aren't shrunk to content width.
+:host {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  width: 100%;
+  overflow: auto;
+}
+
+.ledger-report-wrap-screen {
+  padding: 1rem;
+  text-align: right;
+}
+
+.ledger-report-header {
+  margin-bottom: 1rem;
+
+  .icon-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+
+    .icon {
+      width: 28px;
+      height: 28px;
+    }
+
+    .title {
+      font-size: 1.4rem;
+      font-weight: 700;
+    }
+  }
+
+  .text-header {
+    margin: 0.25rem 0 0;
+    color: #666;
+  }
+}
+
+.ledger-report-toolbar {
+  display: flex;
+  justify-content: flex-start;
+  margin: 1rem 0 0.5rem;
+}
+
+// Top-left action row (RTL: flex-end pushes the + button to the visual left).
+.ledger-top-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin: 0 0 0.5rem;
+}
+
+// ── Manual journal entry modal ───────────────────────────────────────────────
+.je-modal {
+  text-align: right;
+
+  .je-header-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem 1rem;
+    margin-bottom: 1rem;
+  }
+
+  .je-field {
+    display: flex;
+    flex-direction: column;
+    font-size: 0.85rem;
+    gap: 0.25rem;
+
+    input {
+      padding: 6px 8px;
+      border: 1px solid #d8e0ea;
+      border-radius: 4px;
+      font: inherit;
+    }
+  }
+
+  .je-lines {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+
+    th,
+    td {
+      border: 1px solid #e3e3e3;
+      padding: 4px 6px;
+      text-align: right;
+    }
+
+    thead th {
+      background: #f4f6f9;
+      font-weight: 700;
+    }
+
+    input,
+    select {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 5px 6px;
+      border: 1px solid #d8e0ea;
+      border-radius: 4px;
+      font: inherit;
+    }
+
+    .je-remove {
+      border: none;
+      background: transparent;
+      color: #c0392b;
+      cursor: pointer;
+      font-size: 0.95rem;
+
+      &:disabled {
+        color: #ccc;
+        cursor: not-allowed;
+      }
+    }
+  }
+
+  .je-add-line {
+    margin-top: 0.5rem;
+    border: 1px dashed #b9c4d2;
+    background: #f7f9fc;
+    color: #34516e;
+    border-radius: 4px;
+    padding: 4px 10px;
+    cursor: pointer;
+    font: inherit;
+  }
+
+  .je-totals {
+    display: flex;
+    gap: 1.5rem;
+    align-items: center;
+    margin-top: 1rem;
+    font-weight: 600;
+
+  }
+
+  .je-footer {
+    display: flex;
+    justify-content: flex-start;
+    gap: 0.75rem;
+    margin-top: 1.25rem;
+  }
+}
+
+.ledger-report-title {
+  margin: 1rem 0 0.5rem;
+
+  p {
+    margin: 2px 0;
+    font-weight: 600;
+  }
+}
+
+.ledger-account-section {
+  margin-bottom: 1.75rem;
+  // Keep an account card from splitting across printed pages where possible.
+  break-inside: avoid;
+}
+
+.ledger-account-header {
+  background: #eef2f7;
+  border: 1px solid #d8e0ea;
+  border-radius: 6px;
+  padding: 10px 16px;
+  margin-bottom: 0.6rem;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #1a2d4a;
+}
+
+.ledger-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.ledger-table {
+  width: 100%;
+  direction: rtl;
+  // 20 columns — force horizontal scroll (via .ledger-table-wrap overflow-x)
+  // on narrow / mobile screens rather than squashing.
+  min-width: 1600px;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+
+  th,
+  td {
+    border: 1px solid #e3e3e3;
+    padding: 8px 10px;
+    text-align: right !important;
+    white-space: nowrap;
+  }
+
+  .numeric-cell {
+    direction: ltr;
+    text-align: right !important;
+    font-variant-numeric: tabular-nums;
+  }
+
+  thead th {
+    background: #f4f6f9;
+    font-weight: 700;
+  }
+
+  // Opening balance row is always the first tbody row — exclude it from zebra striping
+  tbody tr:nth-child(even):not(.opening-balance-row) {
+    background: #fafbfc;
+  }
+
+  .opening-balance-row {
+    background: #dde8f5;
+    border-top: 2px solid #b8cfe8;
+    border-bottom: 2px solid #b8cfe8;
+
+    td {
+      color: #1a3a5c;
+      font-style: italic;
+    }
+
+    .opening-balance-label {
+      font-weight: 700;
+      font-style: italic;
+    }
+  }
+
+  // Clickable data rows — hover highlight
+  tbody tr.clickable-row {
+    cursor: pointer;
+
+    &:hover {
+      background: #e0eaf8 !important;
+    }
+  }
+
+  .balance-cell {
+    font-weight: 700;
+  }
+
+  tfoot .ledger-summary-row {
+    background: #eef2f7;
+    font-weight: 700;
+
+    .summary-label {
+      text-align: right;
+    }
+  }
+}
+
+.ledger-no-data {
+  text-align: center;
+  color: #888;
+  padding: 1.5rem;
+}
+
+// ── Journal Entry Detail dialog ──────────────────────────────────────────────
+.je-detail {
+  text-align: right;
+
+  .je-detail-loading {
+    text-align: center;
+    padding: 1.5rem;
+    color: #666;
+  }
+
+  .je-detail-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem 1.5rem;
+    font-size: 0.88rem;
+    background: #f4f6f9;
+    border: 1px solid #d8e0ea;
+    border-radius: 6px;
+    padding: 8px 12px;
+    margin-bottom: 1rem;
+  }
+
+  .je-detail-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+
+    th, td {
+      border: 1px solid #e3e3e3;
+      padding: 6px 10px;
+      text-align: right;
+    }
+
+    thead th {
+      background: #f4f6f9;
+      font-weight: 700;
+    }
+
+    .num-col {
+      direction: ltr;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+      min-width: 90px;
+    }
+
+    tfoot .je-detail-totals {
+      background: #eef2f7;
+      font-weight: 700;
+
+      .totals-label {
+        text-align: right;
+      }
+    }
+  }
+
+  .je-balance-indicator {
+    margin-top: 0.75rem;
+    font-size: 0.88rem;
+    font-weight: 600;
+    text-align: left;
+
+    &.balanced   { color: #2e7d32; }
+    &.unbalanced { color: #c62828; }
+  }
+}
+
+// ── Print: hide the chrome, show every account section, ink-friendly ──────────
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  .ledger-report-wrap-screen {
+    padding: 0;
+  }
+
+  .ledger-account-section {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .ledger-table {
+    font-size: 11px;
+
+    th,
+    td {
+      padding: 3px 6px;
+    }
+
+    thead th,
+    .ledger-account-header,
+    tfoot .ledger-summary-row,
+    tbody tr:nth-child(even) {
+      // Force background colors to print (Chrome/Firefox).
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+  }
+}

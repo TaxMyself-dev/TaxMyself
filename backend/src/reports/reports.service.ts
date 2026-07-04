@@ -6,6 +6,7 @@ import { VatReportDto } from './dtos/vat-report.dto';
 import { buildVatReportPdf } from './vat-report-pdf';
 import { AdvanceIncomeTaxReportDto } from './dtos/advance-income-tax-report.dto';
 import { ExpensePnlDto, PnLReportDto } from './dtos/pnl-report.dto';
+import { LedgerAccountDto, LedgerLineDto, LedgerReportDto } from './dtos/ledger-report.dto';
 import { DepreciationReportDto } from './dtos/reduction-report.dto';
 import { Form1342ReportDto, Form1342ReportRowDto } from './dtos/depreciation-report.dto';
 import { ExpensesService } from '../expenses/expenses.service';
@@ -31,6 +32,15 @@ import { SlimTransaction } from 'src/transactions/slim-transaction.entity';
 import { FullTransactionCache } from 'src/transactions/full-transaction-cache.entity';
 import { VATReportingType, ExpenseReportScope } from 'src/enum';
 
+/** Maps referenceType strings → Hebrew label for the כרטסת סוג תנועה column. */
+const LEDGER_MOVEMENT_LABELS: Record<string, string> = {
+  TAX_INVOICE:         'חשבונית מס',
+  TAX_INVOICE_RECEIPT: 'חשבונית מס קבלה',
+  CREDIT_INVOICE:      'חשבונית זיכוי',
+  RECEIPT:             'קבלה',
+  EXPENSE:             'הוצאה',
+  PRICE_QUOTE:         'הצעת מחיר',
+};
 
 @Injectable()
 export class ReportsService {
@@ -530,10 +540,579 @@ export class ReportsService {
       };
       
       return report;
-      
+
   }
 
 
+  // ───────────────────────────────────────────────────────────────────────────
+  // Journal-based parallel reports (TASK B). These read EXCLUSIVELY from
+  // journal_entry + journal_line and run ALONGSIDE the legacy document/expense
+  // reports for comparison. They MUST NOT replace createVatReport/createPnLReport.
+  // ───────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Build the journal-entry period filter shared by both journal reports:
+   * `vatReportingPeriod IN (labels) OR (vatReportingPeriod IS NULL AND date BETWEEN)`,
+   * mirroring getExpensesByDates. Mutates `qb` in place.
+   */
+  private applyJournalPeriodFilter(
+    qb: import('typeorm').SelectQueryBuilder<JournalLine>,
+    periodLabels: string[],
+    startDate: Date,
+    endDate: Date,
+  ): void {
+    if (periodLabels.length > 0) {
+      qb.andWhere(
+        '(je.vatReportingPeriod IN (:...periodLabels) OR (je.vatReportingPeriod IS NULL AND je.date BETWEEN :startDate AND :endDate))',
+        { periodLabels, startDate, endDate },
+      );
+    } else {
+      qb.andWhere(
+        '(je.vatReportingPeriod IS NULL AND je.date BETWEEN :startDate AND :endDate)',
+        { startDate, endDate },
+      );
+    }
+  }
+
+  /**
+   * VAT report computed from journal entries (parallel to createVatReport).
+   * Income from 4000 (vatable) / 4010 (non-vatable) credit; output VAT from
+   * 2400 (credit − debit, so credit notes reduce it); deductible input VAT from
+   * 2410 debit split by isEquipment (expenses vs assets).
+   */
+  async createVatReportFromJournal(
+    firebaseId: string,
+    businessNumber: string,
+    startDate: Date,
+    endDate: Date,
+  ): Promise<VatReportDto> {
+    const business = await this.businessRepo.findOne({ where: { businessNumber, firebaseId } });
+    if (!business) {
+      throw new BadRequestException('Business not found or not owned by user');
+    }
+
+    const periodLabels = this.sharedService.expandPeriodLabelsInRange(
+      business.businessType, business.vatReportingType, startDate, endDate,
+    );
+
+    const qb = this.JournalLineRepo.createQueryBuilder('jl')
+      .innerJoin(JournalEntry, 'je', 'je.id = jl.journalEntryId')
+      .where('je.issuerBusinessNumber = :businessNumber', { businessNumber })
+      .andWhere('je.firebaseId = :firebaseId', { firebaseId });
+    this.applyJournalPeriodFilter(qb, periodLabels, startDate, endDate);
+
+    const row = await qb
+      // credit − debit so credit invoices (which post a DEBIT on 4000/4010/2400)
+      // correctly REVERSE the income / output VAT instead of adding to it.
+      .select("SUM(CASE WHEN jl.accountCode = '4000' THEN jl.credit - jl.debit ELSE 0 END)", 'vatableTurnover')
+      .addSelect("SUM(CASE WHEN jl.accountCode = '4010' THEN jl.credit - jl.debit ELSE 0 END)", 'nonVatableTurnover')
+      .addSelect("SUM(CASE WHEN jl.accountCode = '2400' THEN jl.credit - jl.debit ELSE 0 END)", 'outputVat')
+      .addSelect("SUM(CASE WHEN jl.accountCode = '2410' AND jl.isEquipment = false THEN jl.debit ELSE 0 END)", 'vatRefundOnExpenses')
+      .addSelect("SUM(CASE WHEN jl.accountCode = '2410' AND jl.isEquipment = true THEN jl.debit ELSE 0 END)", 'vatRefundOnAssets')
+      .getRawOne<{
+        vatableTurnover: string; nonVatableTurnover: string; outputVat: string;
+        vatRefundOnExpenses: string; vatRefundOnAssets: string;
+      }>();
+
+    const vatableTurnover = Number(row?.vatableTurnover ?? 0);
+    const nonVatableTurnover = Number(row?.nonVatableTurnover ?? 0);
+    const outputVat = Number(row?.outputVat ?? 0);
+    const vatRefundOnExpenses = Number(row?.vatRefundOnExpenses ?? 0);
+    const vatRefundOnAssets = Number(row?.vatRefundOnAssets ?? 0);
+
+    // vatPayment from ACTUAL posted output VAT (2400) minus input VAT, unlike
+    // the legacy report which recomputes output VAT as turnover × rate.
+    const vatPayment = outputVat - vatRefundOnExpenses - vatRefundOnAssets;
+
+    return {
+      vatableTurnover,
+      nonVatableTurnover,
+      vatRefundOnAssets,
+      vatRefundOnExpenses,
+      vatPayment,
+      vatRate: this.sharedService.getVatRateByYear(startDate),
+    };
+  }
+
+  /**
+   * P&L report computed from journal entries (parallel to createPnLReport).
+   * Income = 4000 (credit − debit). Expenses grouped by the account's
+   * pnlCategory for 5xxx/6xxx (debit − credit), EXCEPT 6200 (פחת) which is
+   * surfaced as its own "הוצאות פחת" line. Equipment lines are excluded.
+   * NOTE: depreciation here reflects whatever was posted to 6200, which may
+   * differ from the legacy fractional createReductionReport — acceptable.
+   */
+  async createPnLReportFromJournal(
+    firebaseId: string,
+    businessNumber: string,
+    startDate: Date,
+    endDate: Date,
+  ): Promise<PnLReportDto> {
+    const business = await this.businessRepo.findOne({ where: { businessNumber, firebaseId } });
+    if (!business) {
+      throw new BadRequestException('Business not found or not owned by user');
+    }
+
+    const periodLabels = this.sharedService.expandPeriodLabelsInRange(
+      business.businessType, business.vatReportingType, startDate, endDate,
+    );
+
+    const qb = this.JournalLineRepo.createQueryBuilder('jl')
+      .innerJoin(JournalEntry, 'je', 'je.id = jl.journalEntryId')
+      .innerJoin(DefaultBookingAccount, 'dba', 'dba.code = jl.accountCode')
+      .where('je.issuerBusinessNumber = :businessNumber', { businessNumber })
+      .andWhere('je.firebaseId = :firebaseId', { firebaseId })
+      .andWhere('dba.pnlCategory IS NOT NULL')
+      .andWhere('jl.isEquipment = false');
+    this.applyJournalPeriodFilter(qb, periodLabels, startDate, endDate);
+
+    const rows = await qb
+      .select('jl.accountCode', 'accountCode')
+      .addSelect('dba.pnlCategory', 'pnlCategory')
+      .addSelect('jl.debit', 'debit')
+      .addSelect('jl.credit', 'credit')
+      .addSelect('jl.amountForTax', 'amountForTax')
+      .getRawMany<{ accountCode: string; pnlCategory: string; debit: string; credit: string; amountForTax: string }>();
+
+    let totalIncome = 0;
+    const expenseSumByCategory: { [category: string]: number } = {};
+
+    for (const r of rows) {
+      const code = String(r.accountCode);
+      const debit = Number(r.debit) || 0;
+      const credit = Number(r.credit) || 0;
+      if (code === '4000' || code === '4010') {
+        totalIncome += credit - debit;       // 4000 vatable; 4010 exempt (פטור) income
+      } else if (code.startsWith('5') || code.startsWith('6')) {
+        // Use amountForTax (= debit × taxPercent/100) so partial-deductibility
+        // expenses (vehicle 45%, mixed-use) show the correct P&L amount, not the
+        // gross debit. Label by the account's pnlCategory for consistent grouping.
+        const category = String(r.pnlCategory);
+        expenseSumByCategory[category] = (expenseSumByCategory[category] ?? 0) + (Number(r.amountForTax) || 0);
+      }
+    }
+
+    const expenseDtos: ExpensePnlDto[] = Object.entries(expenseSumByCategory).map(
+      ([category, total]) => ({ category, total }),
+    );
+
+    let totalExpenses = 0;
+    for (const e of expenseDtos) totalExpenses += e.total;
+    const netProfitBeforeTax = totalIncome - totalExpenses;
+
+    return {
+      income: Number(totalIncome.toFixed(2)),
+      expenses: expenseDtos,
+      netProfitBeforeTax: Number(netProfitBeforeTax.toFixed(2)),
+    };
+  }
+
+
+  /**
+   * כרטסת (ledger) report — per-account "cards", the professional accounting
+   * layout. Each account lists its movements with a running balance that RESETS
+   * per account, plus the counter-account(s) of each entry (GROUP_CONCAT of the
+   * other lines in the same journal entry) and per-account totals.
+   *
+   * @param accountCode  when provided, only that account is returned; otherwise
+   *                     all accounts that had movements in the range, ordered
+   *                     1000, 2400, 2410, 4000, 5000, then others alphabetically.
+   */
+  async createLedgerReport(
+    firebaseId: string,
+    businessNumber: string,
+    startDate: Date,
+    endDate: Date,
+    accountCode?: string | null,
+  ): Promise<LedgerReportDto> {
+
+    const business = await this.businessRepo.findOne({
+      where: { businessNumber, firebaseId },
+    });
+    if (!business) {
+      throw new BadRequestException('Business not found or not owned by user');
+    }
+    if (!startDate || !endDate) {
+      throw new BadRequestException('startDate and endDate are required');
+    }
+
+    // JournalEntry.date is a DATE-only column — compare on 'YYYY-MM-DD' strings
+    // (inclusive both ends) to sidestep any datetime/timezone coercion.
+    const startStr = startDate.toISOString().slice(0, 10);
+    const endStr = endDate.toISOString().slice(0, 10);
+    const code = accountCode && accountCode.trim() ? accountCode.trim() : null;
+
+    // One row per journal line. Counter-account comes directly from the entry
+    // header (je.counterAccountCode) — no GROUP_CONCAT / self-join needed.
+    const rawRows: any[] = await this.JournalLineRepo.query(
+      `
+      SELECT
+        jl.accountCode        AS accountCode,
+        je.entryNumber        AS entryNumber,
+        je.date               AS date,
+        je.valueDate          AS valueDate,
+        je.vatDate            AS vatDate,
+        je.vatReportingPeriod AS vatReportingPeriod,
+        je.notes              AS notes,
+        je.description        AS description,
+        je.referenceType      AS referenceType,
+        je.referenceId        AS referenceId,
+        je.id                 AS journalEntryId,
+        jl.debit              AS debit,
+        jl.credit             AS credit,
+        jl.amountBeforeVat    AS amountBeforeVat,
+        jl.vatAmount          AS vatAmount,
+        jl.taxPercent         AS taxPercent,
+        jl.vatPercent         AS vatPercent,
+        jl.amountForTax       AS amountForTax,
+        je.subCategory        AS subCategory,
+        jl.subCategoryName    AS subCategoryName,
+        (
+          SELECT jl2.accountCode
+          FROM journal_line jl2
+          WHERE jl2.journalEntryId = jl.journalEntryId
+            AND jl2.id != jl.id
+            AND (
+              (jl.debit  > 0 AND jl2.credit > 0)
+              OR (jl.credit > 0 AND jl2.debit  > 0)
+            )
+          ORDER BY jl2.lineInEntry
+          LIMIT 1
+        ) AS counterAccounts,
+        je.counterPartyName   AS counterPartyName,
+        je.documentTotal      AS documentTotal,
+        d.currency            AS docCurrency,
+        d.amountForeign       AS docAmountForeign,
+        d.sumAftDisWithVAT    AS docSumWithVat,
+        d.allocationNum       AS allocationNum
+      FROM journal_line jl
+      JOIN journal_entry je ON je.id = jl.journalEntryId
+      -- Document-sourced entries only: match the issued document by (business,
+      -- docType=referenceType, docNumber=referenceId). Expense/manual entries
+      -- never match (their referenceType isn't a docType) → currency defaults to ILS.
+      LEFT JOIN documents d
+        ON d.issuerBusinessNumber = je.issuerBusinessNumber
+        AND d.docType = je.referenceType
+        AND d.docNumber = je.referenceId
+      WHERE je.issuerBusinessNumber = ?
+        AND je.firebaseId = ?
+        AND je.date BETWEEN ? AND ?
+        AND jl.accountCode != '1000'
+        AND (? IS NULL OR jl.accountCode = ?)
+      ORDER BY jl.accountCode, je.date, je.id, jl.lineInEntry
+      `,
+      [businessNumber, firebaseId, startStr, endStr, code, code],
+    );
+
+    // Opening balance per account = signed sum of all that account's lines
+    // BEFORE the requested period. Direction (debit-/credit-normal) is applied
+    // below per account type. Used for "יתרה לתקופה" (periodBalance).
+    const openingRows: any[] = await this.JournalLineRepo.query(
+      `
+      SELECT jl.accountCode AS accountCode,
+             COALESCE(SUM(jl.debit), 0)  AS sumDebit,
+             COALESCE(SUM(jl.credit), 0) AS sumCredit
+      FROM journal_line jl
+      JOIN journal_entry je ON je.id = jl.journalEntryId
+      WHERE je.issuerBusinessNumber = ?
+        AND je.firebaseId = ?
+        AND je.date < ?
+        AND jl.accountCode != '1000'
+        AND (? IS NULL OR jl.accountCode = ?)
+      GROUP BY jl.accountCode
+      `,
+      [businessNumber, firebaseId, startStr, code, code],
+    );
+    const openingByCode = new Map<string, { sumDebit: number; sumCredit: number }>();
+    for (const o of openingRows) {
+      openingByCode.set(o.accountCode, {
+        sumDebit: Number(o.sumDebit ?? 0),
+        sumCredit: Number(o.sumCredit ?? 0),
+      });
+    }
+
+    // Account name + type lookup from the chart of accounts.
+    const chart = await this.defaultBookingAccountRepo.find();
+    const nameByCode = new Map(chart.map((a) => [a.code, a.name]));
+    const typeByCode = new Map(chart.map((a) => [a.code, a.type]));
+
+    // Group lines by account (input is already ordered within each account).
+    // Fix 2: skip zero-amount lines (debit = 0 AND credit = 0) — e.g. the VAT
+    // line (2400) on a no-VAT RECEIPT. This keeps כרטיס 2400 from appearing
+    // with empty amounts for עוסק פטור businesses (correct accounting behavior).
+    const byCode = new Map<string, any[]>();
+    for (const r of rawRows) {
+      const ac = r.accountCode ?? '';
+      if ((Number(r.debit) || 0) === 0 && (Number(r.credit) || 0) === 0) continue;
+      const bucket = byCode.get(ac);
+      if (bucket) bucket.push(r);
+      else byCode.set(ac, [r]);
+    }
+
+    const orderedCodes = [...byCode.keys()].sort((a, b) =>
+      this.compareLedgerAccountCodes(a, b),
+    );
+
+    const accounts: LedgerAccountDto[] = orderedCodes.map((ac) => {
+      const rows = byCode.get(ac) as any[];
+      // Fix 1: balance direction follows the account's natural side.
+      //   asset / expense   → debit-normal  → balance += (debit - credit)
+      //   income / liability/equity → credit-normal → balance += (credit - debit)
+      const type = typeByCode.get(ac);
+      const debitNormal = type === 'asset' || type === 'expense';
+
+      // Opening balance (before the period), signed by the account's direction.
+      const open = openingByCode.get(ac);
+      const opening = open
+        ? Number(
+            (debitNormal
+              ? open.sumDebit - open.sumCredit
+              : open.sumCredit - open.sumDebit
+            ).toFixed(2),
+          )
+        : 0;
+
+      let running = 0;
+      let totalDebit = 0;
+      let totalCredit = 0;
+      const lines: LedgerLineDto[] = rows.map((r) => {
+        const debit = Number(r.debit ?? 0);
+        const credit = Number(r.credit ?? 0);
+        const delta = debitNormal ? debit - credit : credit - debit;
+        running = Number((running + delta).toFixed(2)); // resets per account (within period)
+        totalDebit = Number((totalDebit + debit).toFixed(2));
+        totalCredit = Number((totalCredit + credit).toFixed(2));
+        // Currency / exchange rate from the source document (when document-sourced).
+        // Foreign docs carry amountForeign + sumAftDisWithVAT (ILS); rate = ILS/foreign.
+        const amountForeign = Number(r.docAmountForeign ?? 0);
+        const docSumWithVat = Number(r.docSumWithVat ?? 0);
+        const exchangeRate = amountForeign > 0
+          ? Number((docSumWithVat / amountForeign).toFixed(4))
+          : 1;
+        return {
+          entryNumber: r.entryNumber != null ? Number(r.entryNumber) : 0,
+          date: this.formatLedgerDate(r.date),
+          valueDate: this.formatLedgerDate(r.valueDate),
+          vatDate: this.formatLedgerDate(r.vatDate),
+          vatReportingPeriod: r.vatReportingPeriod ?? '',
+          allocationNum: r.allocationNum ?? '',
+          notes: r.notes ?? '',
+          referenceType: r.referenceType ?? '',
+          referenceId: r.referenceId != null ? Number(r.referenceId) : 0,
+          journalEntryId: Number(r.journalEntryId),
+          description: this.buildLineDescription(ac, r.referenceType ?? null, r.subCategoryName ?? null),
+          counterAccounts: r.counterAccounts != null
+            ? `${nameByCode.get(r.counterAccounts) ?? r.counterAccounts} - ${r.counterAccounts}`
+            : null,
+          counterPartyName: r.counterPartyName ?? null,
+          subCategoryName: r.subCategoryName ?? null,
+          movementType: LEDGER_MOVEMENT_LABELS[r.referenceType] ?? (debit > 0 ? 'חובה' : 'זכות'),
+          debit,
+          credit,
+          totalAmount: Math.max(debit, credit),
+          currency: r.docCurrency ?? 'ILS',
+          exchangeRate,
+          amountBeforeVat: Number(r.amountBeforeVat ?? 0),
+          amountForTax: Number(r.amountForTax ?? 0),
+          vatAmount: Number(r.vatAmount ?? 0),
+          taxPercent: Number(r.taxPercent ?? 100),
+          vatPercent: Number(r.vatPercent ?? 100),
+          documentTotal: r.documentTotal != null ? Number(r.documentTotal) : null,
+          balance: running,
+          periodBalance: Number((opening + running).toFixed(2)),
+        };
+      });
+      const closingBalance = debitNormal
+        ? Number((totalDebit - totalCredit).toFixed(2))
+        : Number((totalCredit - totalDebit).toFixed(2));
+      return {
+        accountCode: ac,
+        accountName: nameByCode.get(ac) ?? '',
+        lines,
+        totalDebit,
+        totalCredit,
+        closingBalance,
+        openingBalance: opening,
+        lineCount: lines.length,
+      };
+    });
+
+    return { accounts };
+  }
+
+  /**
+   * Returns all lines of a single journal entry, enriched with account names.
+   * Scoped to firebaseId + businessNumber so a user can't read another user's data.
+   */
+  async getJournalEntryDetail(
+    firebaseId: string,
+    businessNumber: string,
+    entryId: number,
+  ): Promise<{
+    entryNumber: number; date: string; valueDate: string; vatDate: string;
+    referenceId: number; referenceType: string; description: string;
+    counterPartyName: string | null;
+    lines: { accountCode: string; accountName: string; debit: number; credit: number; description: string }[];
+    totalDebit: number; totalCredit: number; isBalanced: boolean;
+  }> {
+    const entry = await this.JournalEntryRepo.findOne({
+      where: { id: entryId, issuerBusinessNumber: businessNumber, firebaseId },
+    });
+    if (!entry) throw new NotFoundException(`Journal entry ${entryId} not found`);
+
+    const rawLines = await this.JournalLineRepo.find({
+      where: { journalEntryId: entryId },
+      order: { lineInEntry: 'ASC' },
+    });
+
+    const chart = await this.defaultBookingAccountRepo.find();
+    const nameByCode = new Map(chart.map((a) => [a.code, a.name]));
+
+    const lines = rawLines.map((l) => ({
+      accountCode: l.accountCode,
+      accountName: nameByCode.get(l.accountCode) ?? l.accountCode,
+      debit: Number(l.debit) || 0,
+      credit: Number(l.credit) || 0,
+      description: this.buildLineDescription(
+        l.accountCode,
+        entry.referenceType ? String(entry.referenceType) : null,
+        l.subCategoryName ?? null,
+      ),
+    }));
+
+    const totalDebit = Number(lines.reduce((s, l) => s + l.debit, 0).toFixed(2));
+    const totalCredit = Number(lines.reduce((s, l) => s + l.credit, 0).toFixed(2));
+
+    return {
+      entryNumber: entry.entryNumber ?? 0,
+      date: entry.date ?? '',
+      valueDate: entry.valueDate ?? '',
+      vatDate: entry.vatDate ?? '',
+      referenceId: entry.referenceId ?? 0,
+      referenceType: entry.referenceType ?? '',
+      description: entry.description ?? '',
+      counterPartyName: entry.counterPartyName ?? null,
+      lines,
+      totalDebit,
+      totalCredit,
+      isBalanced: Math.abs(totalDebit - totalCredit) < 0.01,
+    };
+  }
+
+  /** Full chart of accounts for the ledger FILTER dropdown, in display order.
+   *  Includes technical accounts (2400/2410 VAT, 1000) so the ledger can be
+   *  filtered to any account that may carry movements. */
+  async getLedgerAccounts(): Promise<{ code: string; name: string; type: string }[]> {
+    const chart = await this.defaultBookingAccountRepo.find();
+    return chart
+      .sort((a, b) => this.compareLedgerAccountCodes(a.code, b.code))
+      .map((a) => ({ code: a.code, name: a.name, type: a.type }));
+  }
+
+  /** Posting accounts for the MANUAL JOURNAL ENTRY dropdown, in display order.
+   *  Only accounts with a pnlCategory (income/expense) are returned; technical
+   *  accounts (1000 A/R-contra, 2400/2410 VAT — pnlCategory NULL) are excluded
+   *  so they can't be chosen for a manual journal line. */
+  async getLedgerEntryAccounts(): Promise<{ code: string; name: string; type: string }[]> {
+    const chart = await this.defaultBookingAccountRepo.find();
+    return chart
+      .filter((a) => !!a.pnlCategory)
+      .sort((a, b) => this.compareLedgerAccountCodes(a.code, b.code))
+      .map((a) => ({ code: a.code, name: a.name, type: a.type }));
+  }
+
+  /** Ledger account display order — all 25 accounts in the chart.
+   *  Transfer/A/R/A/P accounts (1100–2100) are reserved for double-entry
+   *  mode; in single-entry mode no lines are posted there so they never
+   *  appear, but they are listed here so the ordering is stable if they do. */
+  private compareLedgerAccountCodes(a: string, b: string): number {
+    const order = [
+      // מע"מ — ראשון (עסקאות ותשומות)
+      '2400', '2410',
+      // הכנסות
+      '4000', '4010',
+      // בנק וחשבונות מאזן
+      '1100', '1110', '1120',
+      // לקוחות כלליים
+      '1200',
+      // ספקים כלליים
+      '2000', '2100',
+      // technical
+      '1000',
+      // הוצאות
+      '5000', '5100', '5200', '5300', '5400', '5500', '5600',
+      '5700', '5800', '5900', '6000', '6100', '6200', '6300',
+    ];
+    const ia = order.indexOf(a);
+    const ib = order.indexOf(b);
+    if (ia !== -1 && ib !== -1) return ia - ib;
+    if (ia !== -1) return -1;
+    if (ib !== -1) return 1;
+    return a.localeCompare(b);
+  }
+
+  /** Normalize a DATE column value (driver may yield Date or string) to 'YYYY-MM-DD'. */
+  private formatLedgerDate(value: unknown): string {
+    if (value instanceof Date) return value.toISOString().slice(0, 10);
+    return String(value ?? '').slice(0, 10);
+  }
+
+  /**
+   * Compute the Hebrew "פירוט" (detail) text for a ledger line.
+   * Priority: subCategoryName (expense lines) → account+referenceType lookup → fallback.
+   */
+  private buildLineDescription(
+    accountCode: string,
+    referenceType: string | null,
+    subCategoryName: string | null,
+  ): string {
+    // 1. Expense account lines → sub-category name (e.g. "דלק", "ביטוח רכב")
+    if (subCategoryName) return subCategoryName;
+
+    const ref = referenceType ?? '';
+
+    // 2. Input VAT line
+    if (accountCode === '2410') return 'מע"מ תשומות בגין הוצאה';
+
+    // 3. Output VAT line
+    if (accountCode === '2400') {
+      if (ref === 'CREDIT_INVOICE') return 'מע"מ עסקאות - חשבונית זיכוי';
+      return 'מע"מ עסקאות בגין הכנסה';
+    }
+
+    // 4. Income accounts
+    if (accountCode === '4000') {
+      if (ref === 'TAX_INVOICE')         return 'חשבונית מס';
+      if (ref === 'TAX_INVOICE_RECEIPT') return 'חשבונית מס קבלה';
+      if (ref === 'CREDIT_INVOICE')      return 'חשבונית זיכוי';
+      if (ref === 'RECEIPT')             return 'קבלה';
+      return 'הכנסה';
+    }
+    if (accountCode === '4010') return 'הכנסה פטורה';
+
+    // 5. Bank
+    if (accountCode === '1100') {
+      if (ref === 'EXPENSE')             return 'תשלום לספק';
+      if (ref === 'TAX_INVOICE_RECEIPT') return 'קבלה מלקוח';
+      if (ref === 'RECEIPT')             return 'קבלה מלקוח';
+      if (ref === 'CREDIT_INVOICE')      return 'החזר ללקוח';
+      if (ref === 'TAX_INVOICE')         return 'תשלום מלקוח';
+      return 'תנועה בנקאית';
+    }
+
+    // 6. Customers A/R
+    if (accountCode === '1200') {
+      if (ref === 'CREDIT_INVOICE')      return 'זיכוי ללקוח';
+      if (ref === 'RECEIPT')             return 'סגירת חוב לקוח';
+      return 'חיוב לקוח';
+    }
+
+    // 7. Suppliers A/P
+    if (accountCode === '2000') return 'חוב לספק';
+
+    // 8. Fallback to Hebrew movement label
+    return LEDGER_MOVEMENT_LABELS[ref] ?? 'תנועה';
+  }
 
   private async getVatIncomeFromDocuments(
     businessNumber: string,
