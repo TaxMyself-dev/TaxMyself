@@ -1,5 +1,6 @@
 import { Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Workbook } from 'exceljs';
 import { PnLReportService } from './pnl-report.service';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 import { ICreateDataDoc, IPnlReportData, IRowDataTable, ISelectItem, IUserData } from 'src/app/shared/interface';
@@ -545,6 +546,58 @@ export class PnLReportPage implements OnInit {
     // display them in dd.MM.yyyy for this page.
     if (!dateStr) return '';
     return String(dateStr).replace(/[\/-]/g, '.');
+  }
+
+  /**
+   * Export the currently-shown P&L report as an .xlsx file: one row per
+   * income/expense line plus the net-profit total. Uses `exceljs` (not
+   * `xlsx`) so the sheet actually renders right-to-left in Excel and the
+   * net-profit row can be bolded — the `xlsx` community build can't write
+   * either of those.
+   */
+  exportToExcel(): void {
+    if (!this.pnlReport) return;
+
+    const income = this.genericService.convertStringToNumber(this.pnlReport.income as string);
+    const netProfit = this.genericService.convertStringToNumber(this.pnlReport.netProfitBeforeTax as string);
+
+    const wb = new Workbook();
+    const ws = wb.addWorksheet('רווח והפסד', { views: [{ rightToLeft: true }] });
+
+    const headerRow = ws.addRow(['פירוט', 'סכום']);
+    headerRow.font = { bold: true };
+    headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF4F6F9' } } as any;
+
+    ws.addRow(['סך הכל הכנסות לפני מע"מ', income]);
+    for (const expense of this.pnlReport.expenses) {
+      ws.addRow([expense.category, expense.total]);
+    }
+
+    const netProfitRow = ws.addRow(['רווח נקי לפני מס', netProfit]);
+    netProfitRow.font = { bold: true };
+    netProfitRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDDE8F5' } } as any;
+
+    ws.getColumn(1).width = 32;
+    ws.getColumn(2).width = 16;
+
+    const businessName = this.businessName() || this.userData?.businessName || this.businessNumber();
+    const period = `${this.formatReportDate(this.startDate())}-${this.formatReportDate(this.endDate())}`;
+    this.downloadWorkbook(wb, `דוח רווח והפסד_${businessName}_${period}.xlsx`);
+  }
+
+  /** Serialize the workbook and trigger a browser download. */
+  private downloadWorkbook(wb: Workbook, filename: string): void {
+    wb.xlsx.writeBuffer().then((buffer) => {
+      const blob = new Blob([buffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
   }
 
   private formatShekelAmount(value: number | string | null | undefined): string {

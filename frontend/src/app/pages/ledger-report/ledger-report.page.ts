@@ -2,10 +2,10 @@ import { Component, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, FormGroup } from '@angular/forms';
 import { catchError, EMPTY, finalize } from 'rxjs';
+import { Workbook } from 'exceljs';
 import { GenericService } from 'src/app/services/generic.service';
 import { AuthService } from 'src/app/services/auth.service';
 import { BusinessStatus, ReportingPeriodType } from 'src/app/shared/enums';
-import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 import { FilterField } from 'src/app/components/filter-tab/filter-fields-model.component';
 import { ISelectItem, IUserData } from 'src/app/shared/interface';
 import { IJournalEntryDetail, ILedgerLine, ILedgerReport, LedgerReportService } from './ledger-report.service';
@@ -48,8 +48,6 @@ export class LedgerReportPage implements OnInit {
   userData: IUserData;
   isRequestSent = signal<boolean>(false);
 
-  buttonSize = ButtonSize;
-  buttonColor = ButtonColor;
   reportingPeriodType = ReportingPeriodType;
 
   /** True when a single account is shown (Mode A); false = all accounts (Mode B). */
@@ -216,9 +214,273 @@ export class LedgerReportPage implements OnInit {
     return LedgerReportPage.DOC_TYPE_HEBREW[type] ?? type;
   }
 
-  /** Print the full multi-account view (browser print → "Save as PDF"). */
-  print(): void {
-    window.print();
+  /**
+   * Export the full multi-account ledger as a PDF via a hidden-iframe print
+   * (same pattern as depreciation-report.page.ts). Unlike window.print() on
+   * the on-screen table — which carries a 1600px min-width and clips instead
+   * of scrolling in the print dialog — this builds a dedicated, unconstrained
+   * table (small font, wrapping text, landscape) so every column fits without
+   * horizontal cropping.
+   */
+  exportToPdf(): void {
+    if (!this.ledgerReport || !this.ledgerReport.accounts.length) return;
+
+    const businessName = this.businessName() || this.userData?.businessName || '';
+    const businessNum = this.businessNumber();
+    const period = `${this.formatReportDate(this.startDate())} - ${this.formatReportDate(this.endDate())}`;
+
+    const headerHtml = [
+      'מספר פקודה', 'תאריך יצירה', 'תאריך ערך', 'תאריך מסמך', 'תקופת דיווח',
+      'אסמכתא', 'סוג מסמך', 'ספק/לקוח', 'פירוט', 'חשבון נגדי',
+      'חובה', 'זכות', 'יתרה', 'סה"כ מסמך', 'סה"כ לרווח והפסד',
+      'סה"כ למע"מ', '% מוכר למס', '% מוכר למע"מ', 'מטבע', 'שע"ח',
+    ].map((h) => `<th>${this.escapeHtml(h)}</th>`).join('');
+
+    const accountsHtml = this.ledgerReport.accounts.map((account) => {
+      const rowsHtml = account.lines.map((line) => `
+        <tr>
+          <td>${line.entryNumber}</td>
+          <td>${this.escapeHtml(this.formatDateCell(line.date))}</td>
+          <td>${this.escapeHtml(this.formatDateCell(line.valueDate))}</td>
+          <td>${this.escapeHtml(this.formatDateCell(line.vatDate))}</td>
+          <td>${this.escapeHtml(line.vatReportingPeriod)}</td>
+          <td>${line.referenceId ?? ''}</td>
+          <td>${this.escapeHtml(line.movementType)}</td>
+          <td>${this.escapeHtml(line.counterPartyName || '')}</td>
+          <td>${this.escapeHtml(line.description)}</td>
+          <td>${this.escapeHtml(line.counterAccounts || '')}</td>
+          <td dir="ltr">${line.debit.toFixed(2)}</td>
+          <td dir="ltr">${line.credit.toFixed(2)}</td>
+          <td dir="ltr"><strong>${line.periodBalance.toFixed(2)}</strong></td>
+          <td dir="ltr">${line.documentTotal != null ? line.documentTotal.toFixed(2) : ''}</td>
+          <td dir="ltr">${line.amountForTax.toFixed(2)}</td>
+          <td dir="ltr">${line.vatAmount.toFixed(2)}</td>
+          <td>${line.taxPercent}%</td>
+          <td>${line.vatPercent}%</td>
+          <td>${this.escapeHtml(line.currency)}</td>
+          <td dir="ltr">${line.exchangeRate}</td>
+        </tr>
+      `).join('');
+
+      return `
+        <div class="account-section">
+          <div class="account-header">כרטיס: ${this.escapeHtml(account.accountName)} - ${this.escapeHtml(account.accountCode)}</div>
+          <table>
+            <thead><tr>${headerHtml}</tr></thead>
+            <tbody>
+              <tr class="opening-row">
+                <td colspan="8"></td>
+                <td><em>יתרת פתיחה</em></td>
+                <td colspan="3"></td>
+                <td dir="ltr"><strong>${account.openingBalance.toFixed(2)}</strong></td>
+                <td colspan="7"></td>
+              </tr>
+              ${rowsHtml}
+            </tbody>
+            <tfoot>
+              <tr class="totals-row">
+                <td colspan="10"><strong>סה"כ לכרטיס</strong></td>
+                <td dir="ltr"><strong>${account.totalDebit.toFixed(2)}</strong></td>
+                <td dir="ltr"><strong>${account.totalCredit.toFixed(2)}</strong></td>
+                <td dir="ltr"><strong>${(account.openingBalance + account.closingBalance).toFixed(2)}</strong></td>
+                <td colspan="7"></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      `;
+    }).join('');
+
+    const html = `<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <title>כרטסת - ${this.escapeHtml(businessName)}</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; }
+    body { font-family: Arial, "Segoe UI", sans-serif; padding: 16px; color: #222; }
+    h1 { font-size: 18px; margin: 0 0 4px; text-align: center; }
+    .meta { text-align: center; font-size: 12px; color: #444; margin-bottom: 16px; }
+    .account-section { margin-bottom: 18px; break-inside: avoid; }
+    .account-header {
+      background: #eef2f7; border: 1px solid #d8e0ea; border-radius: 4px;
+      padding: 4px 8px; margin-bottom: 4px; font-size: 12px; font-weight: 700;
+    }
+    table { width: 100%; border-collapse: collapse; table-layout: auto; }
+    th, td {
+      border: 1px solid #ddd; padding: 3px 4px; text-align: right;
+      font-size: 8px; word-break: break-word;
+    }
+    th { background: #f4f6f9; font-weight: 700; }
+    .opening-row { background: #dde8f5; }
+    .totals-row td { background: #eef2f7; }
+    @media print {
+      @page { size: A4 landscape; margin: 10mm; }
+    }
+  </style>
+</head>
+<body>
+  <h1>כרטסת</h1>
+  <div class="meta">
+    ${this.escapeHtml(businessName)} &nbsp;|&nbsp; מ.ע: ${this.escapeHtml(businessNum)} &nbsp;|&nbsp; לתקופה: ${this.escapeHtml(period)}
+  </div>
+  ${accountsHtml}
+</body>
+</html>`;
+
+    const iframe = document.createElement('iframe');
+    iframe.setAttribute('aria-hidden', 'true');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    document.body.appendChild(iframe);
+
+    const cleanup = () => {
+      if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+    };
+
+    const doc = iframe.contentDocument || iframe.contentWindow?.document;
+    if (!doc) {
+      cleanup();
+      return;
+    }
+    doc.open();
+    doc.write(html);
+    doc.close();
+
+    setTimeout(() => {
+      const win = iframe.contentWindow;
+      if (!win) { cleanup(); return; }
+      win.focus();
+      win.onafterprint = () => setTimeout(cleanup, 0);
+      win.print();
+      setTimeout(cleanup, 60000);
+    }, 250);
+  }
+
+  private escapeHtml(value: string | number | null | undefined): string {
+    return String(value ?? '').replace(/[&<>"']/g, (c) => {
+      switch (c) {
+        case '&': return '&amp;';
+        case '<': return '&lt;';
+        case '>': return '&gt;';
+        case '"': return '&quot;';
+        case "'": return '&#39;';
+        default: return c;
+      }
+    });
+  }
+
+  /** Format an ISO/date-like value as dd.MM.yyyy for the Excel export. */
+  private formatDateCell(value: string | null | undefined): string {
+    if (!value) return '';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return String(value);
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    return `${dd}.${mm}.${d.getFullYear()}`;
+  }
+
+  /**
+   * Export the currently-shown ledger (כרטסת) as an .xlsx file: one section
+   * per account, mirroring the on-screen table (header, opening balance,
+   * lines, totals-per-account row highlighted). Uses `exceljs` (not `xlsx`)
+   * because real cell styling (bold, fill color) and worksheet RTL require
+   * write support that the `xlsx` community build doesn't have.
+   */
+  exportToExcel(): void {
+    if (!this.ledgerReport || !this.ledgerReport.accounts.length) return;
+
+    const header = [
+      'מספר פקודה', 'תאריך יצירה', 'תאריך ערך', 'תאריך מסמך', 'תקופת דיווח',
+      'אסמכתא', 'סוג מסמך', 'ספק/לקוח', 'פירוט', 'חשבון נגדי',
+      'חובה', 'זכות', 'יתרה', 'סה"כ מסמך', 'סה"כ לרווח והפסד',
+      'סה"כ למע"מ', '% מוכר למס', '% מוכר למע"מ', 'מטבע', 'שע"ח',
+    ];
+
+    const wb = new Workbook();
+    const ws = wb.addWorksheet('כרטסת', { views: [{ rightToLeft: true }] });
+
+    const HEADER_FILL: any = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF4F6F9' } };
+    // Same light-blue used on screen for the opening-balance row — reused
+    // here for the account totals row per the "bold + light blue" request.
+    const TOTAL_FILL: any = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDDE8F5' } };
+
+    for (const account of this.ledgerReport.accounts) {
+      const titleRow = ws.addRow([`כרטיס: ${account.accountName} - ${account.accountCode}`]);
+      titleRow.font = { bold: true };
+
+      const headerRow = ws.addRow(header);
+      headerRow.font = { bold: true };
+      headerRow.fill = HEADER_FILL;
+
+      ws.addRow([
+        '', '', '', '', '', '', '', '', 'יתרת פתיחה', '',
+        '', '', account.openingBalance, '', '', '', '', '', '', '',
+      ]);
+
+      for (const line of account.lines) {
+        ws.addRow([
+          line.entryNumber,
+          this.formatDateCell(line.date),
+          this.formatDateCell(line.valueDate),
+          this.formatDateCell(line.vatDate),
+          line.vatReportingPeriod,
+          line.referenceId,
+          line.movementType,
+          line.counterPartyName || '',
+          line.description,
+          line.counterAccounts || '',
+          line.debit,
+          line.credit,
+          line.periodBalance,
+          line.documentTotal ?? '',
+          line.amountForTax,
+          line.vatAmount,
+          line.taxPercent,
+          line.vatPercent,
+          line.currency,
+          line.exchangeRate,
+        ]);
+      }
+
+      const totalRow = ws.addRow([
+        'סה"כ לכרטיס', '', '', '', '', '', '', '', '', '',
+        account.totalDebit, account.totalCredit, account.openingBalance + account.closingBalance,
+        '', '', '', '', '', '', '',
+      ]);
+      totalRow.font = { bold: true };
+      totalRow.fill = TOTAL_FILL;
+
+      ws.addRow([]);
+    }
+
+    for (let i = 1; i <= header.length; i++) {
+      ws.getColumn(i).width = 14;
+    }
+
+    const businessName = this.businessName() || this.userData?.businessName || this.businessNumber();
+    const period = `${this.formatReportDate(this.startDate())}-${this.formatReportDate(this.endDate())}`;
+    this.downloadWorkbook(wb, `כרטסת_${businessName}_${period}.xlsx`);
+  }
+
+  /** Serialize the workbook and trigger a browser download. */
+  private downloadWorkbook(wb: Workbook, filename: string): void {
+    wb.xlsx.writeBuffer().then((buffer) => {
+      const blob = new Blob([buffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
   }
 
   // ──────────────────────────────────────────────────────────────────────────

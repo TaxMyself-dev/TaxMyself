@@ -10,36 +10,44 @@
     </p>
   </div>
 
-  <!-- Top-left action: open the manual journal-entry modal (opposite הדפסה). -->
-  <div class="ledger-top-actions no-print">
-    <p-button
-      icon="pi pi-plus"
-      label="פקודת יומן"
-      styleClass="p-button-outlined"
-      (click)="openJournalEntryModal()">
-    </p-button>
-  </div>
+  <!-- Filter row (right) + icon action cluster (opposite side, same
+       baseline as the "הצג" button). Icons only appear once the filter
+       form is valid (mirrors the "הצג" button's own [disabled] condition). -->
+  <div class="ledger-controls-row no-print">
+    <div class="ledger-filter-wrap">
+      <app-filter-tab
+        [config]="filterConfig"
+        [parentForm]="form"
+        (apply)="onSubmit($event)">
+      </app-filter-tab>
+    </div>
 
-  <!-- FILTER TAB (hidden when printing) -->
-  <div class="no-print">
-    <app-filter-tab
-      [config]="filterConfig"
-      [parentForm]="form"
-      (apply)="onSubmit($event)">
-    </app-filter-tab>
+    <div class="ledger-icon-actions" *ngIf="!form.invalid">
+      <button
+        type="button"
+        class="icon-action-btn"
+        title="יצא ל-PDF"
+        (click)="exportToPdf()">
+        <i class="pi pi-file-pdf"></i>
+      </button>
+      <button
+        type="button"
+        class="icon-action-btn"
+        title="יצא ל-Excel"
+        (click)="exportToExcel()">
+        <i class="pi pi-file-excel"></i>
+      </button>
+      <button
+        type="button"
+        class="icon-action-btn"
+        title="הזן פקודת יומן"
+        (click)="openJournalEntryModal()">
+        <i class="pi pi-plus"></i>
+      </button>
+    </div>
   </div>
 
   <ng-container *ngIf="ledgerReport">
-
-    <div class="ledger-report-toolbar no-print">
-      <app-p-button
-        buttonText="הדפסה"
-        icon="pi pi-print"
-        [buttonColor]="buttonColor.WHITE_BORDER"
-        [buttonSize]="buttonSize.SMALL"
-        (onButtonClicked)="print()">
-      </app-p-button>
-    </div>
 
     <div class="ledger-report-title">
       <p>{{ businessName() }}</p>
