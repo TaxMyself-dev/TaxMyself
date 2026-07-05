@@ -1,10 +1,12 @@
 import {} from '@angular/common/http';
-import { Component, OnDestroy, OnInit, inject, signal } from '@angular/core';
+import { Component, computed, OnDestroy, OnInit, inject, signal } from '@angular/core';
 import { Router, NavigationEnd } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import { MenuItem } from 'primeng/api';
 import { ReportWorkflowService } from 'src/app/services/report-workflow.service';
+import { AccessService } from 'src/app/services/access.service';
+import { AppFeature } from 'src/app/shared/access-control';
 
 @Component({
   selector: 'app-book-keeping',
@@ -15,17 +17,30 @@ import { ReportWorkflowService } from 'src/app/services/report-workflow.service'
 export class BookKeepingPage implements OnInit, OnDestroy {
   private readonly router = inject(Router);
   private readonly workflowService = inject(ReportWorkflowService);
+  private readonly accessService = inject(AccessService);
 
-  items: MenuItem[] = [
+  private readonly allItems: MenuItem[] = [
     { label: 'מסמכים שהפקתי', icon: 'pi pi-wallet', routerLink: 'incomes' },
     { label: 'הוצאות', icon: 'pi pi-arrow-down', routerLink: 'expenses' },
     { label: 'לקוחות', icon: 'pi pi-users', routerLink: 'clients' },
     { label: 'ספקים', icon: 'pi pi-building', routerLink: 'suppliers' },
-    // Temporarily hidden — re-enable to restore the "המשימות שלי" tab.
-    // { label: 'המשימות שלי', icon: 'pi pi-bell', routerLink: 'tasks' },
   ];
 
-  activeItem = signal(this.items[0]);
+  readonly items = computed<MenuItem[]>(() => {
+    const showDocuments = this.accessService.getFeatureState(AppFeature.DOCUMENTS_LIST_TAB).visible;
+    const showExpenses  = this.accessService.getFeatureState(AppFeature.EXPENSES_LIST_TAB).visible;
+    return this.allItems.filter(item => {
+      if (item.routerLink === 'incomes')  return showDocuments;
+      if (item.routerLink === 'expenses') return showExpenses;
+      return true;
+    });
+  });
+
+  private readonly activeRouterLink = signal<string>('incomes');
+
+  readonly activeItem = computed<MenuItem | undefined>(() =>
+    this.items().find(item => item.routerLink === this.activeRouterLink())
+  );
 
   private routeSub?: Subscription;
   private pendingSub?: Subscription;
@@ -36,12 +51,10 @@ export class BookKeepingPage implements OnInit, OnDestroy {
       .pipe(filter((e) => e instanceof NavigationEnd))
       .subscribe((event: any) => {
         const url = event.urlAfterRedirects as string;
-        if (url.includes('/incomes')) this.activeItem.set(this.items[0]);
-        else if (url.includes('/expenses')) this.activeItem.set(this.items[1]);
-        else if (url.includes('/clients')) this.activeItem.set(this.items[2]);
-        else if (url.includes('/suppliers')) this.activeItem.set(this.items[3]);
-        // Tasks tab temporarily hidden — see items[] above.
-        // else if (url.includes('/tasks')) this.activeItem.set(this.items[4]);
+        if (url.includes('/incomes'))   this.activeRouterLink.set('incomes');
+        else if (url.includes('/expenses'))  this.activeRouterLink.set('expenses');
+        else if (url.includes('/clients'))   this.activeRouterLink.set('clients');
+        else if (url.includes('/suppliers')) this.activeRouterLink.set('suppliers');
       });
   }
 

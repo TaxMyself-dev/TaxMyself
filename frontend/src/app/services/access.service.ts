@@ -9,6 +9,14 @@ import {
   ROUTE_ACCESS_CONFIG,
 } from '../shared/access-control';
 
+/** Describes how a UI element should render based on the user's current access. */
+export interface FeatureState {
+  /** When false, the element should not be rendered (HIDE behavior). */
+  visible: boolean;
+  /** When true, the element should be rendered in a visually disabled/locked state (DISABLE behavior). */
+  disabled: boolean;
+}
+
 /**
  * Single entry point for all UI permission checks.
  *
@@ -51,6 +59,28 @@ export class AccessService {
   /** Returns the blocked behavior configured for the given feature. */
   getFeatureBlockedBehavior(feature: AppFeature): BlockedBehavior {
     return FEATURE_ACCESS_CONFIG[feature].blockedBehavior;
+  }
+
+  /**
+   * Returns a `FeatureState` describing how the element should render.
+   *
+   * Allowed         → { visible: true,  disabled: false }
+   * UPGRADE_POPUP   → { visible: true,  disabled: false }  (element is clickable; AccessHandlerService shows the popup)
+   * DISABLE         → { visible: true,  disabled: true  }  (element is rendered locked/grayed)
+   * HIDE            → { visible: false, disabled: false }  (element is removed from the DOM)
+   */
+  getFeatureState(feature: AppFeature): FeatureState {
+    if (this.canAccessFeature(feature)) {
+      return { visible: true, disabled: false };
+    }
+    switch (this.getFeatureBlockedBehavior(feature)) {
+      case BlockedBehavior.HIDE:
+        return { visible: false, disabled: false };
+      case BlockedBehavior.DISABLE:
+        return { visible: true, disabled: true };
+      case BlockedBehavior.UPGRADE_POPUP:
+        return { visible: true, disabled: false };
+    }
   }
 
   /** Validates all feature configs at startup to catch developer mistakes early. */

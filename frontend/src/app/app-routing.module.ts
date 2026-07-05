@@ -55,7 +55,8 @@ const routes: Routes = [
   {
     path: 'vat-report',
     loadChildren: () => import('./pages/vat-report/vat-report.module').then(m => m.VatReportPageModule),
-    canActivate: [AuthGuard, BillingGuard]
+    canActivate: [AuthGuard, BillingGuard, ModuleAccessGuard],
+    data: { appRoute: AppRoute.VAT_REPORT },
   },
   {
     path: 'annual-report',
@@ -65,17 +66,20 @@ const routes: Routes = [
   {
     path: 'advance-income-tax-report',
     loadChildren: () => import('./pages/advance-income-tax-report/advance-income-tax-report.module').then(m => m.AdvanceIncomeTaxReportPageModule),
-    canActivate: [AuthGuard, BillingGuard]
+    canActivate: [AuthGuard, BillingGuard, ModuleAccessGuard],
+    data: { appRoute: AppRoute.ADVANCE_INCOME_TAX_REPORT },
   },
   {
     path: 'uniform-file',
     loadChildren: () => import('./pages/uniform-file/uniform-file.module').then(m => m.UnifromFilePageModule),
-    canActivate: [AuthGuard, BillingGuard]
+    canActivate: [AuthGuard, BillingGuard, ModuleAccessGuard],
+    data: { appRoute: AppRoute.UNIFORM_FILE },
   },
   {
     path: 'pnl-report',
     loadChildren: () => import('./pages/pnl-report/pnl-report.module').then(m => m.PnLReportPageModule),
-    canActivate: [AuthGuard, BillingGuard]
+    canActivate: [AuthGuard, BillingGuard, ModuleAccessGuard],
+    data: { appRoute: AppRoute.PNL_REPORT },
   },
   {
     path: 'depreciation-report',
@@ -97,7 +101,8 @@ const routes: Routes = [
   {
     path: 'doc-create',
     loadChildren: () => import('./pages/doc-create/doc-create.module').then(m => m.DocCreatePageModule),
-    canActivate: [AuthGuard, BillingGuard, ViewOnlyBlockDocGuard]
+    canActivate: [AuthGuard, BillingGuard, ModuleAccessGuard, ViewOnlyBlockDocGuard],
+    data: { appRoute: AppRoute.DOC_CREATE },
   },
   {
     path: 'add-expense',
@@ -109,7 +114,9 @@ const routes: Routes = [
   },
   {
     path: 'flow-analysis',
-    loadComponent: () => import('./pages/flow-analysis/flow-analysis.component').then(m => m.FlowAnalysisComponent)
+    canActivate: [AuthGuard, BillingGuard, ModuleAccessGuard],
+    data: { appRoute: AppRoute.FLOW_ANALYSIS },
+    loadComponent: () => import('./pages/flow-analysis/flow-analysis.component').then(m => m.FlowAnalysisComponent),
   },
   {
     path: 'billing',

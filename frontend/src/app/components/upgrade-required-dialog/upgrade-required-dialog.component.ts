@@ -24,8 +24,8 @@ export class UpgradeRequiredDialogComponent {
     this.router.navigate(['/billing/plans']);
   }
 
-  navigateToHome(): void {
+  close(): void {
     this.upgradeService.close();
-    this.router.navigate(['/my-account']);
+    // this.router.navigate(['/my-account']);
   }
 }

@@ -67,7 +67,7 @@
 
 <div class="page-wrapper">
   <div class="settings-tabs">
-    <app-tab-bar [tabs]="tabs" [selectedTab]="selectedTab" (selectedTabChange)="onTabChange($event)"></app-tab-bar>
+    <app-tab-bar [tabs]="tabs()" [selectedTab]="selectedTab" (selectedTabChange)="onTabChange($event)"></app-tab-bar>
   </div>
 
   @if (selectedTab === 'personal') {

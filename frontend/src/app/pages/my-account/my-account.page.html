@@ -359,7 +359,7 @@
                 @if (userData?.previousLoginAt) {
                 <span class="last-login">כניסתך האחרונה היתה בתאריך {{ userData.previousLoginAt | date: 'd/M/yyyy' }}</span>
                 }
-                @if (hasOpenBanking()) {
+                @if (hasOpenBanking() && access.addOpenBankingButton().visible) {
                 <app-p-button [buttonText]="'+ חבר חשבון נוסף'" [buttonColor]="buttonColor.WHITE_BORDER_LIGHT" [buttonSize]="buttonSize.BETWEEN"
                     (onButtonClicked)="connectToOpenBanking()" [isLoading]="isLoadingFeezback()">
                 </app-p-button>
@@ -406,14 +406,28 @@
         <span class="block-title">פעולות מומלצות</span>
         <div class="cards-container">
             @for (item of itemsNavigate; track $index) {
-            <app-dashboard-navigate [cardItem]="item"></app-dashboard-navigate>
-            <!-- <app-card-navigate [cardItem]="item"></app-card-navigate> -->
+              @if (item.link === '/doc-create') {
+                <app-dashboard-navigate
+                  [cardItem]="item"
+                  [locked]="access.createDocumentRecommended().disabled"
+                  [controlledNavigation]="true"
+                  (cardClick)="onDocCreateCardClick()">
+                </app-dashboard-navigate>
+              } @else if (item.link === '/transactions') {
+                <app-dashboard-navigate
+                  [cardItem]="item"
+                  [controlledNavigation]="true"
+                  (cardClick)="onTransactionsCardClick()">
+                </app-dashboard-navigate>
+              } @else {
+                <app-dashboard-navigate [cardItem]="item"></app-dashboard-navigate>
+              }
             }
         </div>
     </div>
     }
 
-@if (hasOpenBanking()) {
+@if (hasOpenBanking() && access.openBankingTable().visible) {
 
 @if (syncRanThisSession() && syncSourceResults().length > 0 && !feezbackDialogVisible()) {
   <div class="source-results-panel">

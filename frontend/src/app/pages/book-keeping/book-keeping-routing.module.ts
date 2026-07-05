@@ -1,6 +1,8 @@
 import { NgModule } from '@angular/core';
 import { Routes, RouterModule } from '@angular/router';
 import { BookKeepingPage } from './book-keeping.page';
+import { ModuleAccessGuard } from '../../shared/guard/module-access.guard';
+import { AppRoute } from '../../shared/access-control';
 
 const routes: Routes = [
   {
@@ -9,11 +11,15 @@ const routes: Routes = [
     children: [
       {
         path: 'incomes',
+        canActivate: [ModuleAccessGuard],
+        data: { appRoute: AppRoute.BOOK_KEEPING_INCOMES },
         loadChildren: () =>
           import('./incomes/incomes.module').then(m => m.IncomesPageModule)
       },
       {
         path: 'expenses',
+        canActivate: [ModuleAccessGuard],
+        data: { appRoute: AppRoute.BOOK_KEEPING_EXPENSES },
         loadChildren: () =>
           import('./expenses/expenses.module').then(m => m.ExpensesPageModule)
       },
