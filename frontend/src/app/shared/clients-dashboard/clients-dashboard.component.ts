@@ -1,7 +1,10 @@
 import { Component, OnInit, computed, signal } from '@angular/core';
+import { Router } from '@angular/router';
 import { AdminPanelService, DriveSyncResult, ExtractedDocRow } from 'src/app/services/admin-panel.service';
 import { AdminBillingService, AdminSubscription } from 'src/app/services/admin-billing.service';
 import { FeezbackService, AdminAccountsAndCardsResponse, AdminPullSourceResult } from 'src/app/services/feezback.service';
+import { AuthService } from 'src/app/services/auth.service';
+import { ClientPanelService } from 'src/app/services/clients-panel.service';
 import { catchError, EMPTY, finalize, forkJoin } from 'rxjs';
 import { IColumnDataTable, IRowDataTable, ITableRowAction } from 'src/app/shared/interface';
 import { FormTypes } from 'src/app/shared/enums';
@@ -141,6 +144,15 @@ export class ClientsDashboardComponent implements OnInit {
 
   fileActions: ITableRowAction[] = [
     {
+      name: 'enterAsUser',
+      icon: 'pi pi-sign-in',
+      title: 'כניסה כמשתמש',
+      alwaysShow: true,
+      action: (event: any, row: IRowDataTable) => {
+        this.confirmEnterAsUser(row);
+      }
+    },
+    {
       name: 'feezback',
       icon: 'pi pi-cloud-download',
       title: 'טען תנועות מ-Feezback',
@@ -199,6 +211,9 @@ export class ClientsDashboardComponent implements OnInit {
     private confirmationService: ConfirmationService,
     private messageService: MessageService,
     private feezbackService: FeezbackService,
+    private authService: AuthService,
+    private clientPanelService: ClientPanelService,
+    private router: Router,
   ) {}
 
   ngOnInit() {
@@ -307,6 +322,37 @@ export class ClientsDashboardComponent implements OnInit {
       return 0;
     }
     return this.users.filter(u => u.hasOpenBanking).length;
+  }
+
+  /**
+   * Admin "enter as user": same mechanism accountants use to act on behalf of
+   * clients (ClientPanelService.setSelectedClient → auth interceptor adds
+   * x-client-user-id to every backend call → backend's FirebaseAuthGuard lets
+   * ADMIN callers impersonate any firebaseId with no delegation record needed).
+   * The top-nav banner and exit-to-admin-panel flow in app.component already
+   * handle the rest once selectedClientId is set.
+   */
+  confirmEnterAsUser(row: IRowDataTable): void {
+    const firebaseId = row['firebaseId'] as string;
+    const name = (row['fullName'] as string) || `${row['fName'] || ''} ${row['lName'] || ''}`.trim();
+    this.confirmationService.confirm({
+      message: `להיכנס לחשבון של "${name}" ולצפות בהנהלת החשבונות והדוחות שלו?`,
+      header: 'כניסה כמשתמש',
+      icon: 'pi pi-sign-in',
+      acceptLabel: 'כניסה',
+      rejectLabel: 'ביטול',
+      accept: () => this.enterAsUser(firebaseId, name),
+    });
+  }
+
+  private enterAsUser(firebaseId: string, name: string): void {
+    this.clientPanelService.setSelectedClient(firebaseId, name);
+    // Await the view-as user data fetch BEFORE navigating, otherwise /my-account
+    // reads userData in its ngOnInit before AuthService's viewAsUserData is
+    // populated and briefly renders with the admin's own data.
+    this.authService.loadViewAsUserData().subscribe(() => {
+      this.router.navigate(['/my-account']);
+    });
   }
 
   openFeezbackDialog(row: IRowDataTable): void {

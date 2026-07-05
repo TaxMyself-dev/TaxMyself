@@ -12,7 +12,6 @@ import { LedgerReportPageRoutingModule } from './ledger-report-routing.module';
 import { LedgerReportPage } from './ledger-report.page';
 import { SharedModule } from '../../shared/shared.module';
 import { FilterTabComponent } from 'src/app/components/filter-tab/filter-tab.component';
-import { ButtonComponent } from 'src/app/components/button/button.component';
 
 @NgModule({
   imports: [
@@ -23,7 +22,6 @@ import { ButtonComponent } from 'src/app/components/button/button.component';
     ReactiveFormsModule,
     SharedModule,
     FilterTabComponent,
-    ButtonComponent,
     DialogModule,
     ButtonModule,
   ],

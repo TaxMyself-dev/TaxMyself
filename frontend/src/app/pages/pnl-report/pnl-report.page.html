@@ -90,6 +90,13 @@
           (onButtonClicked)="createPnlReportPDFfile()">
         </app-p-button>
 
+        <app-p-button
+          [buttonText]="'ייצוא לאקסל'"
+          [buttonColor]="buttonColor.WHITE_BORDER"
+          [buttonSize]="buttonSize.SMALL"
+          (onButtonClicked)="exportToExcel()">
+        </app-p-button>
+
         @if (reportSubmitted()) {
           <div class="report-submitted-badge" aria-live="polite">
             <i class="pi pi-check-circle"></i>

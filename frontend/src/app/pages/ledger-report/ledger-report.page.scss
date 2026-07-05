@@ -41,17 +41,58 @@
   }
 }
 
-.ledger-report-toolbar {
+// Filter row + icon action cluster. The page is dir="rtl", so in source
+// order the filter (first child) lands on the right and the icon cluster
+// (second child) naturally falls on the opposite (left) side — no need for
+// `order`, which would actually fight the RTL main-axis direction here.
+// align-items: flex-end matches filter-tab's own baseline (it aligns "הצג"
+// by the fields' bottoms), so the icons sit at the same height as "הצג".
+.ledger-controls-row {
   display: flex;
-  justify-content: flex-start;
-  margin: 1rem 0 0.5rem;
+  align-items: flex-end;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
 }
 
-// Top-left action row (RTL: flex-end pushes the + button to the visual left).
-.ledger-top-actions {
+.ledger-filter-wrap {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.ledger-icon-actions {
   display: flex;
-  justify-content: flex-end;
-  margin: 0 0 0.5rem;
+  gap: 0.5rem;
+  flex-shrink: 0;
+  margin-bottom: 2px; // nudge to match filter-tab's own apply-button offset
+}
+
+.icon-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  border: 1px solid #d8e0ea;
+  background: #fff;
+  color: #34516e;
+  font-size: 1.15rem;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+
+  i {
+    pointer-events: none;
+  }
+
+  &:hover:not(:disabled) {
+    background: #eef2f7;
+  }
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
 }
 
 // ── Manual journal entry modal ───────────────────────────────────────────────
