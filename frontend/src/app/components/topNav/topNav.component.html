@@ -4,8 +4,8 @@
     </ng-template>
     <ng-template pTemplate="end" >
         <div class="top-nav-buttons">
-            @if (!isOnDocCreate()) {
-                <app-p-button [link]="'/doc-create'" [buttonText]="'הפקת מסמך'" [buttonColor]="ButtonColor.BLACK" [buttonSize]="ButtonSize.SMALL"></app-p-button>
+            @if (!isOnDocCreate() && access.createDocument().visible) {
+                <app-p-button [buttonText]="'הפקת מסמך'" [buttonColor]="ButtonColor.BLACK" [buttonSize]="ButtonSize.SMALL" (onButtonClicked)="onCreateDocumentClick()"></app-p-button>
             }
             <app-p-button [link]="'/settings'" [buttonColor]="ButtonColor.BLACK" [buttonSize]="ButtonSize.ICON"  [variant]="'outlined'" [icon]="'pi pi-cog'" [iconOnly]="true" [buttonText]="'הגדרות'"></app-p-button>
         </div>

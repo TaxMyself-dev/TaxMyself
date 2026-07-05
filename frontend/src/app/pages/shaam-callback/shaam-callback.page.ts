@@ -8,6 +8,8 @@ import { catchError, EMPTY } from 'rxjs';
 import { ButtonComponent } from 'src/app/components/button/button.component';
 import { ButtonSize, ButtonColor } from 'src/app/components/button/button.enum';
 import { environment } from 'src/environments/environment';
+import { AccessHandlerService } from 'src/app/services/access-handler.service';
+import { AppFeature } from 'src/app/shared/access-control';
 
 interface ShaamTokenResponse {
   access_token: string;
@@ -28,6 +30,7 @@ export class ShaamCallbackPage implements OnInit {
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private shaamService = inject(ShaamService);
+  private accessHandlerService = inject(AccessHandlerService);
   private messageService = inject(MessageService);
 
   readonly buttonSize = ButtonSize;
@@ -151,7 +154,10 @@ export class ShaamCallbackPage implements OnInit {
   }
 
   navigateToDocCreate(): void {
-    this.router.navigate(['/doc-create']);
+    const result = this.accessHandlerService.handleFeatureAccess(AppFeature.DOC_CREATE_BUTTON_PIVOT);
+    if (result.allowed) {
+      this.router.navigate(['/doc-create']);
+    }
   }
 
   tryAgain(): void {

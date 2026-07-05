@@ -5,6 +5,8 @@ import { ButtonComponent } from 'src/app/components/button/button.component';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 import { AuthService } from 'src/app/services/auth.service';
 import { GenericService } from 'src/app/services/generic.service';
+import { AccessService } from 'src/app/services/access.service';
+import { AppFeature } from 'src/app/shared/access-control';
 import { MyPermissionsService } from 'src/app/services/my-permissions.service';
 import { IUserData, Business, IChild, IColumnDataTable, IMobileCardConfig, IRowDataTable, ITableRowAction } from 'src/app/shared/interface';
 import { GenericTableComponent } from 'src/app/components/generic-table/generic-table.component';
@@ -57,6 +59,7 @@ export class SettingsPage implements OnInit {
   transactionsService = inject(TransactionsService);
   syncStatusService = inject(SyncStatusService);
   private readonly fb = inject(FormBuilder);
+  private readonly accessService = inject(AccessService);
 
   /** sourceName of the account whose single-account pull is in flight (disables that row's button). */
   retryingSourceId = signal<string | null>(null);
@@ -76,12 +79,16 @@ export class SettingsPage implements OnInit {
   readonly inputsSize = inputsSize;
   isMobile = computed(() => this.genericService.isMobile());
 
-  tabs = [
+  readonly tabs = computed(() => [
     { label: 'פרטים אישיים', value: 'personal' },
     { label: 'העסקים שלי', value: 'businesses' },
-    { label: 'הקטגוריות שלי', value: 'categories' },
-    { label: 'ניהול הרשאות וחשבונות', value: 'permissions' },
-  ];
+    ...(this.accessService.getFeatureState(AppFeature.CATEGORY_LIST_TAB).visible
+      ? [{ label: 'הקטגוריות שלי', value: 'categories' }]
+      : []),
+    ...(this.accessService.getFeatureState(AppFeature.OPEN_BANKING_PERMISSIONS_TAB).visible
+      ? [{ label: 'ניהול הרשאות וחשבונות', value: 'permissions' }]
+      : []),
+  ]);
   selectedTab: string = 'personal';
 
   familyStatusOptions = familyStatusOptionsList;

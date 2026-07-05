@@ -1,0 +1,26 @@
+<p-dialog
+  [visible]="upgradeService.isOpen()"
+  (onHide)="upgradeService.close()"
+  [modal]="true"
+  [showHeader]="false"
+  [draggable]="false"
+  [resizable]="false"
+  [style]="{ width: '90vw', maxWidth: '480px' }">
+
+  <div dir="rtl" class="upgrade-dialog-content">
+    <h3 class="dialog-title">{{ dialogHeader() }}</h3>
+
+    <p class="upgrade-dialog-message">
+      כדי להשתמש באפשרות הזו יש לשדרג לתוכנית מתאימה.
+    </p>
+
+    <div class="upgrade-dialog-footer">
+      <button type="button" class="upgrade-cta-btn" (click)="navigateToPlans()">
+        אני רוצה לשדרג
+      </button>
+      <button type="button" class="upgrade-close-btn" (click)="close()">
+       ביטול
+      </button>
+    </div>
+  </div>
+</p-dialog>

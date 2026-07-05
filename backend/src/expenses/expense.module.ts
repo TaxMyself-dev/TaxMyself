@@ -21,6 +21,7 @@ import { Delegation } from 'src/delegation/delegation.entity';
 import { Business } from 'src/business/business.entity';
 import { ClassifiedTransactions } from '../transactions/classified-transactions.entity';
 import { ExtractedDocument } from '../documents/extracted-document.entity';
+import { BillingModule } from '../billing/billing.module';
 // ExpensesService now posts a journal entry on expense create — needs BookkeepingService.
 import { BookkeepingModule } from '../bookkeeping/bookkeeping.module';
 
@@ -29,6 +30,7 @@ import { BookkeepingModule } from '../bookkeeping/bookkeeping.module';
     TypeOrmModule.forFeature([Expense, User, Business, DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory, Supplier, Child, Delegation, ClassifiedTransactions, ExtractedDocument]),
     SharedModule,
     UsersModule,
+    BillingModule,,
     BookkeepingModule
   ],
   controllers: [ExpensesController],

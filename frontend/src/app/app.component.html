@@ -18,10 +18,12 @@
   </div>
 }
 @if (showTopNav()) {
-  <app-p-topNav [menuItems]="menuItems" contentId="main-content"></app-p-topNav>
+  <app-p-topNav [menuItems]="menuItems()" contentId="main-content"></app-p-topNav>
 }
 <div class="app-content">
   <p-confirmdialog></p-confirmdialog>
+
+  <app-upgrade-required-dialog />
 
   @if (showBillingDialog()) {
     <p-dialog

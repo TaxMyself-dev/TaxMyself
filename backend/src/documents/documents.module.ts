@@ -30,6 +30,7 @@ import { Supplier } from '../expenses/suppliers.entity';
 import { DefaultSubCategory } from '../expenses/default-sub-categories.entity';
 import { UserSubCategory } from '../expenses/user-sub-categories.entity';
 import { UsersModule } from '../users/users.module';
+import { BillingModule } from 'src/billing/billing.module';
 
 
 @Module({
@@ -38,6 +39,7 @@ import { UsersModule } from '../users/users.module';
     MailModule,
     GoogleDriveModule,
     forwardRef(() => UsersModule),
+    forwardRef(() => BillingModule),
   ],
   controllers: [DocumentsController],
   providers: [

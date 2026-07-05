@@ -59,7 +59,7 @@ import { BookkeepingModule } from '../bookkeeping/bookkeeping.module';
     UserSyncStateService,
     ExpensesService,
     AuthService,
-    FinsiteService
+    FinsiteService,
   ],
   exports: [TypeOrmModule, TransactionsService, TransactionProcessingService, UserSyncStateService],
 })

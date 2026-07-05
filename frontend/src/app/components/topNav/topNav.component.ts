@@ -8,6 +8,9 @@ import { ButtonColor, ButtonSize } from '../button/button.enum';
 import { NavigationEnd, Router } from '@angular/router';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { filter, map } from 'rxjs/operators';
+import { AccessService, FeatureState } from 'src/app/services/access.service';
+import { AccessHandlerService } from 'src/app/services/access-handler.service';
+import { AppFeature } from 'src/app/shared/access-control';
 
 @Component({
     selector: 'app-p-topNav',
@@ -24,6 +27,8 @@ export class TopNavComponent {
 
     private readonly router = inject(Router);
     private readonly cdr = inject(ChangeDetectorRef);
+    private readonly accessService = inject(AccessService);
+    private readonly accessHandlerService = inject(AccessHandlerService);
 
     readonly ButtonColor = ButtonColor;
     readonly ButtonSize = ButtonSize;
@@ -37,6 +42,17 @@ export class TopNavComponent {
     );
 
     readonly isOnDocCreate = computed(() => this.currentUrl().startsWith('/doc-create'));
+
+    readonly access: { createDocument: ReturnType<typeof computed<FeatureState>> } = {
+      createDocument: computed(() => this.accessService.getFeatureState(AppFeature.DOC_CREATE_BUTTON_PIVOT)),
+    };
+
+    onCreateDocumentClick(): void {
+      const result = this.accessHandlerService.handleFeatureAccess(AppFeature.DOC_CREATE_BUTTON_PIVOT);
+      if (result.allowed) {
+        this.router.navigate(['/doc-create']);
+      }
+    }
 
     constructor() {
         this.router.events.pipe(

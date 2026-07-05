@@ -32,6 +32,9 @@ import { SourceResult, SyncStatusService } from 'src/app/services/sync-status.se
 import { MessageService } from 'primeng/api';
 import { BillingStateService } from 'src/app/services/billing-state.service';
 import { AdminPanelService } from 'src/app/services/admin-panel.service';
+import { AccessService, FeatureState } from 'src/app/services/access.service';
+import { AccessHandlerService } from 'src/app/services/access-handler.service';
+import { AppFeature } from 'src/app/shared/access-control';
 
 @Component({
   selector: 'app-my-account',
@@ -66,6 +69,31 @@ export class MyAccountPage implements OnInit {
   private readonly syncStatusService = inject(SyncStatusService);
   private readonly billingStateService = inject(BillingStateService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly accessService = inject(AccessService);
+  private readonly accessHandlerService = inject(AccessHandlerService);
+
+  readonly access = {
+    createDocumentRecommended: computed(() => this.accessService.getFeatureState(AppFeature.DOC_CREATE_BUTTON_RECOMMENDED_PIVOT)),
+    transactionsRecommended:   computed(() => this.accessService.getFeatureState(AppFeature.TRANSACTIONS_BUTTON_RECOMMENDED_PIVOT)),
+    addExpense:                computed(() => this.accessService.getFeatureState(AppFeature.ADD_EXPENSE_BUTTON)),
+    openBankingConnect:        computed(() => this.accessService.getFeatureState(AppFeature.OPEN_BANKING_CONNECT)),
+    addOpenBankingButton:      computed(() => this.accessService.getFeatureState(AppFeature.ADD_OPEN_BANKING_BUTTON)),
+    openBankingTable:          computed(() => this.accessService.getFeatureState(AppFeature.OPEN_BANKING_TABLE)),
+  };
+
+  onDocCreateCardClick(): void {
+    const result = this.accessHandlerService.handleFeatureAccess(AppFeature.DOC_CREATE_BUTTON_RECOMMENDED_PIVOT);
+    if (result.allowed) {
+      this.router.navigate(['/doc-create']);
+    }
+  }
+
+  onTransactionsCardClick(): void {
+    const result = this.accessHandlerService.handleFeatureAccess(AppFeature.TRANSACTIONS_BUTTON_RECOMMENDED_PIVOT);
+    if (result.allowed) {
+      this.router.navigate(['/transactions']);
+    }
+  }
 
   dialogService = inject(DialogService);
   // dialogRef = inject(DynamicDialogRef);
@@ -259,21 +287,27 @@ export class MyAccountPage implements OnInit {
     { name: "דוחות", link: "/reports", image: "../../../assets/icon-report-create.svg", content: 'דוחות לרשויות בקליק', id: '3', index: 'three' },
   ];
 
-  /** במצב צפייה כרואה חשבון – לא מציגים הפקת מסמך (צפייה בלבד) */
-  get itemsNavigate(): IItemNavigate[] {
-    // Hide /doc-create when an ACCOUNTANT is viewing as a client (accountants
-    // shouldn't issue docs on the client's behalf). Admins and demo
-    // presenters keep the card so they can showcase doc-create during demos
-    // or use it for QA/testing on demo users.
+  /**
+   * Reactive list of recommended-action cards.
+   * Filters items based on access state so HIDE-configured features are never rendered.
+   * Also hides /doc-create when an accountant is viewing as a client.
+   */
+  readonly itemsNavigate = computed<IItemNavigate[]>(() => {
+    const showTransactions = this.access.transactionsRecommended().visible;
+    let items = this.allItemsNavigate.filter(item => {
+      if (item.link === '/transactions') return showTransactions;
+      return true;
+    });
+    // Hide /doc-create when an ACCOUNTANT is viewing as a client.
     if (this.authService.isViewingAsClient()) {
       const realUser = this.authService.getRealUserDataFromLocalStorage();
       const realUserIsAdmin = !!realUser?.role?.includes('ADMIN');
       if (!realUserIsAdmin && !this.authService.isViewingDemoUser()) {
-        return this.allItemsNavigate.filter((item) => item.link !== '/doc-create');
+        items = items.filter((item) => item.link !== '/doc-create');
       }
     }
-    return this.allItemsNavigate;
-  }
+    return items;
+  });
 
   // ─── User-context signals (set in ngOnInit from userData) ────────────────
   isOnlyEmployer = signal<boolean>(false);
@@ -1046,6 +1080,8 @@ export class MyAccountPage implements OnInit {
   }
 
   connectToOpenBanking(): void {
+    const result = this.accessHandlerService.handleFeatureAccess(AppFeature.OPEN_BANKING_CONNECT);
+    if (!result.allowed) return;
     this.consentChecked.set(false);
     this.consentDialogVisible.set(true);
   }
@@ -1224,19 +1260,16 @@ export class MyAccountPage implements OnInit {
   }
 
   openMannualExpenses(): void {
-    // this.dialogRef = 
+    const result = this.accessHandlerService.handleFeatureAccess(AppFeature.ADD_EXPENSE_BUTTON);
+    if (!result.allowed) return;
     this.dialogService.open(MannualExpenseComponent, {
       header: 'הוספת הוצאה ידנית',
       width: '480px',
-      style: { maxWidth: '95vw' }, // 👈 מומלץ למובייל
+      style: { maxWidth: '95vw' },
       rtl: true,
       closable: true,
       dismissableMask: true,
       modal: true,
-      // data: {
-      //   businessNumber: this.selectedBusinessNumber,
-      //   clients: this.clients()
-      // }
     });
   }
 }

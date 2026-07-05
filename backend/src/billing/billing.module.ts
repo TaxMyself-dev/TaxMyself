@@ -15,6 +15,7 @@ import { BillingEvent } from './entities/billing-event.entity';
 
 // Guards
 import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
+import { SubscriptionGuard } from 'src/guards/subscription.guard';
 
 // Controllers
 import { BillingController } from './billing.controller';
@@ -70,7 +71,8 @@ import { BusinessModule } from 'src/business/business.module';
     SubscriptionAccessService,
     AdminBillingService,
     SubscriptionRenewalService,
+    SubscriptionGuard,
   ],
-  exports: [BillingService, SubscriptionAccessService],
+  exports: [BillingService, SubscriptionAccessService, SubscriptionGuard],
 })
 export class BillingModule {}
