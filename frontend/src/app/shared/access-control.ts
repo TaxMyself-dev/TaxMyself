@@ -121,8 +121,8 @@ export interface FeatureAccessConfig {
 
 export const FEATURE_ACCESS_CONFIG: Record<AppFeature, FeatureAccessConfig> = {
   // ── Route features (navigation / menu items / cards) ───────────────────
-  [AppFeature.TRANSACTIONS_TAB_PIVOT]:                  { relatedRoute: AppRoute.TRANSACTIONS,  blockedBehavior: BlockedBehavior.HIDE, displayName: 'תזרים' },
-  [AppFeature.TRANSACTIONS_BUTTON_RECOMMENDED_PIVOT]:   { relatedRoute: AppRoute.TRANSACTIONS,  blockedBehavior: BlockedBehavior.HIDE, displayName: 'תזרים' },
+  [AppFeature.TRANSACTIONS_TAB_PIVOT]:                  { relatedRoute: AppRoute.TRANSACTIONS,  blockedBehavior: BlockedBehavior.UPGRADE_POPUP, displayName: 'תזרים' },
+  [AppFeature.TRANSACTIONS_BUTTON_RECOMMENDED_PIVOT]:   { relatedRoute: AppRoute.TRANSACTIONS,  blockedBehavior: BlockedBehavior.UPGRADE_POPUP, displayName: 'תזרים' },
   [AppFeature.FLOW_ANALYSIS_TAB_PIVOT]:                 { relatedRoute: AppRoute.FLOW_ANALYSIS, blockedBehavior: BlockedBehavior.UPGRADE_POPUP, displayName: 'ניתוח תזרים' },
   [AppFeature.DOC_CREATE_BUTTON_PIVOT]:                 { relatedRoute: AppRoute.DOC_CREATE,    blockedBehavior: BlockedBehavior.UPGRADE_POPUP,          displayName: 'הפקת מסמך' },
   [AppFeature.DOC_CREATE_BUTTON_RECOMMENDED_PIVOT]:     { relatedRoute: AppRoute.DOC_CREATE,    blockedBehavior: BlockedBehavior.UPGRADE_POPUP,       displayName: 'הפקת מסמך' },

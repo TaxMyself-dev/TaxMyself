@@ -13,6 +13,8 @@ import { filter, pairwise, takeUntil } from 'rxjs/operators';
 import { MessageService } from 'primeng/api';
 import { GenericService } from './services/generic.service';
 import { BillingStateService, BILLING_BLOCKING_STATUSES } from './services/billing-state.service';
+import { AccessService } from './services/access.service';
+import { AppFeature } from './shared/access-control';
 
 
 
@@ -27,6 +29,7 @@ export class AppComponent implements OnInit {
 
   protected genericService = inject(GenericService);
   protected billingStateService = inject(BillingStateService);
+  private readonly accessService = inject(AccessService);
 
   // Tracks the settled URL after each navigation — drives billing dialog visibility.
   private readonly currentUrl = signal<string>('');
@@ -92,15 +95,25 @@ export class AppComponent implements OnInit {
   ];
 
 
-  menuItems = [
-    { label: 'דף הבית', routerLink: '/my-account' },
-    // { label: 'פרופיל אישי' },
-    { label: 'תזרים', routerLink: '/transactions' },
-    { label: 'דוחות', routerLink: '/reports' },
-    { label: 'הנהלת חשבונות', routerLink: '/book-keeping' },
-    { label: 'ניתוח הוצאות', routerLink: '/flow-analysis' },
-    // { label: 'צור קשר' },
-  ]
+  private readonly _isUserAdmin = signal<boolean>(false);
+  private readonly _isAccountant = signal<boolean>(false);
+
+  /** Reactive menu: filters access-gated items (e.g. תזרים) and role-based items reactively. */
+  readonly menuItems = computed(() => {
+    const showTransactions = this.accessService.getFeatureState(AppFeature.TRANSACTIONS_TAB_PIVOT).visible;
+    const hasBusiness = this.genericService.businesses().length > 0;
+
+    const items = [
+      { label: 'דף הבית', routerLink: '/my-account' },
+      ...(showTransactions ? [{ label: 'תזרים', routerLink: '/transactions' }] : []),
+      { label: 'דוחות', routerLink: '/reports' },
+      ...(hasBusiness ? [{ label: 'הנהלת חשבונות', routerLink: '/book-keeping' }] : []),
+      { label: 'ניתוח הוצאות', routerLink: '/flow-analysis' },
+      ...(this._isUserAdmin() ? [{ label: 'פאנל ניהול', routerLink: '/admin-panel' }] : []),
+      ...(this._isAccountant() ? [{ label: 'משרד', routerLink: '/client-panel' }] : []),
+    ];
+    return items;
+  });
 
   fromLoginPage = false; // Flag to check if entry was from login page
   isPopoverOpen: boolean = false;
@@ -375,39 +388,11 @@ export class AppComponent implements OnInit {
 
   updateAdminMenuItems(): void {
     const role = this.userData?.role;
-
-    // Remove role-based items so we can re-add according to current user.
-    // Also drop "הנהלת חשבונות" — it's re-added below only when the user
-    // has at least one business (no business → hide the tab).
-    this.menuItems = this.menuItems.filter(
-      (item) => item.label !== 'פאנל ניהול'
-             && item.label !== 'משרד'
-             && item.label !== 'הנהלת חשבונות',
-    );
-
-    // "הנהלת חשבונות" — visible only when the user has ≥1 business.
-    // Insert between "דוחות" and "ניתוח הוצאות" to preserve the menu order.
-    if (this.genericService.businesses().length > 0) {
-      const flowAnalysisIdx = this.menuItems.findIndex((i) => i.label === 'ניתוח הוצאות');
-      const bookKeepingItem = { label: 'הנהלת חשבונות', routerLink: '/book-keeping' };
-      if (flowAnalysisIdx >= 0) {
-        this.menuItems.splice(flowAnalysisIdx, 0, bookKeepingItem);
-      } else {
-        this.menuItems.push(bookKeepingItem);
-      }
-    }
-
-    if (role && (role[0] === 'ADMIN' || role.includes('ADMIN'))) {
-      if (!this.menuItems.some((item) => item.label === 'פאנל ניהול')) {
-        this.menuItems.push({ label: 'פאנל ניהול', routerLink: '/admin-panel' });
-      }
-    }
-    // טאב משרד לרואה חשבון – הלקוחות שלי + הקמת לקוח
-    if (role?.includes('ACCOUNTANT')) {
-      if (!this.menuItems.some((item) => item.label === 'משרד')) {
-        this.menuItems.push({ label: 'משרד', routerLink: '/client-panel' });
-      }
-    }
+    this._isUserAdmin.set(!!(role && (role[0] === 'ADMIN' || role.includes('ADMIN'))));
+    this._isAccountant.set(!!role?.includes('ACCOUNTANT'));
+    // isUserAdmin / isAccountant are kept in sync for any remaining non-template usages.
+    this.isUserAdmin = this._isUserAdmin();
+    this.isAccountant = this._isAccountant();
   }
 
 }

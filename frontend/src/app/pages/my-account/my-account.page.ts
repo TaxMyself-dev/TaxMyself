@@ -287,21 +287,27 @@ export class MyAccountPage implements OnInit {
     { name: "דוחות", link: "/reports", image: "../../../assets/icon-report-create.svg", content: 'דוחות לרשויות בקליק', id: '3', index: 'three' },
   ];
 
-  /** במצב צפייה כרואה חשבון – לא מציגים הפקת מסמך (צפייה בלבד) */
-  get itemsNavigate(): IItemNavigate[] {
-    // Hide /doc-create when an ACCOUNTANT is viewing as a client (accountants
-    // shouldn't issue docs on the client's behalf). Admins and demo
-    // presenters keep the card so they can showcase doc-create during demos
-    // or use it for QA/testing on demo users.
+  /**
+   * Reactive list of recommended-action cards.
+   * Filters items based on access state so HIDE-configured features are never rendered.
+   * Also hides /doc-create when an accountant is viewing as a client.
+   */
+  readonly itemsNavigate = computed<IItemNavigate[]>(() => {
+    const showTransactions = this.access.transactionsRecommended().visible;
+    let items = this.allItemsNavigate.filter(item => {
+      if (item.link === '/transactions') return showTransactions;
+      return true;
+    });
+    // Hide /doc-create when an ACCOUNTANT is viewing as a client.
     if (this.authService.isViewingAsClient()) {
       const realUser = this.authService.getRealUserDataFromLocalStorage();
       const realUserIsAdmin = !!realUser?.role?.includes('ADMIN');
       if (!realUserIsAdmin && !this.authService.isViewingDemoUser()) {
-        return this.allItemsNavigate.filter((item) => item.link !== '/doc-create');
+        items = items.filter((item) => item.link !== '/doc-create');
       }
     }
-    return this.allItemsNavigate;
-  }
+    return items;
+  });
 
   // ─── User-context signals (set in ngOnInit from userData) ────────────────
   isOnlyEmployer = signal<boolean>(false);

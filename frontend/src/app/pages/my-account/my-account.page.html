@@ -405,19 +405,13 @@
     <div class="nevigation-block">
         <span class="block-title">פעולות מומלצות</span>
         <div class="cards-container">
-            @for (item of itemsNavigate; track $index) {
+            @for (item of itemsNavigate(); track item.id) {
               @if (item.link === '/doc-create') {
                 <app-dashboard-navigate
                   [cardItem]="item"
                   [locked]="access.createDocumentRecommended().disabled"
                   [controlledNavigation]="true"
                   (cardClick)="onDocCreateCardClick()">
-                </app-dashboard-navigate>
-              } @else if (item.link === '/transactions') {
-                <app-dashboard-navigate
-                  [cardItem]="item"
-                  [controlledNavigation]="true"
-                  (cardClick)="onTransactionsCardClick()">
                 </app-dashboard-navigate>
               } @else {
                 <app-dashboard-navigate [cardItem]="item"></app-dashboard-navigate>
