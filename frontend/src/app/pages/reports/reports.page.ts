@@ -49,4 +49,15 @@ export class ReportsPage implements OnInit {
 
   }
 
+  onReportCardClick(item: ReportItem): void {
+    if (!item.appRoute) {
+      this.router.navigate([item.link]);
+      return;
+    }
+    const result = this.accessHandlerService.handleRouteAccess(item.appRoute);
+    if (result.allowed) {
+      this.router.navigate([item.link]);
+    }
+  }
+
 }
