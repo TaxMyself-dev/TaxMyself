@@ -116,7 +116,6 @@ export class AppComponent implements OnInit {
   });
 
   fromLoginPage = false; // Flag to check if entry was from login page
-  isPopoverOpen: boolean = false;
   showMenu: boolean = false;
   columns: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[]; // Titles of expense // TODO: remove?
   userData: IUserData;
@@ -138,7 +137,7 @@ export class AppComponent implements OnInit {
     private expenseDataServise: ExpenseDataService,
     private router: Router,
     private modalCtrl: ModalController,
-    private authService: AuthService,
+    public authService: AuthService,
     private messageService: MessageService,
     private clientPanelService: ClientPanelService,
   ) {}
@@ -283,12 +282,6 @@ export class AppComponent implements OnInit {
     this.isAccountant = this.userData?.role?.includes('ACCOUNTANT') || false;
   }
 
-  openCloseLogOutPopup() {
-    console.log("popover open");
-    this.isPopoverOpen = !this.isPopoverOpen
-    console.log(this.isPopoverOpen);
-  }
-
   openModalAddExpense() {
 
     this.expenseDataServise.openModalAddExpense()
@@ -297,14 +290,6 @@ export class AppComponent implements OnInit {
       )
       .subscribe()
 
-  }
-
-  async signOut() {
-    console.log("sign out");
-    this.clientPanelService.clearSelectedClient();
-    await this.authService.SignOut();
-    this.isPopoverOpen = !this.isPopoverOpen;
-    this.router.navigate(["/login"]);
   }
 
   /**

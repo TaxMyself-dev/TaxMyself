@@ -1,0 +1,115 @@
+<div cdkOverlayOrigin #trigger="cdkOverlayOrigin" class="menu-button__trigger">
+  <app-p-button
+    [iconOnly]="true"
+    [icon]="icon()"
+    [buttonSize]="buttonSize()"
+    [buttonColor]="buttonColor()"
+    [variant]="variant()"
+    [disabled]="disabled()"
+    [attr.aria-label]="ariaLabel()"
+    [attr.aria-haspopup]="'menu'"
+    [attr.aria-expanded]="open()"
+    (onButtonClicked)="toggle()">
+  </app-p-button>
+</div>
+
+<ng-template
+  cdkConnectedOverlay
+  [cdkConnectedOverlayOrigin]="trigger"
+  [cdkConnectedOverlayOpen]="open()"
+  [cdkConnectedOverlayPositions]="positions()"
+  [cdkConnectedOverlayPush]="true"
+  [cdkConnectedOverlayViewportMargin]="8"
+  (overlayOutsideClick)="close()"
+  (detach)="close()">
+
+  @if (hasItems()) {
+    <div
+      class="menu-popup"
+      role="menu"
+      dir="rtl"
+      [style.min-width]="menuMinWidth()"
+      (keydown.escape)="close()">
+      @for (item of items(); track item.type === 'separator' ? $index : (item.id ?? $index)) {
+        @switch (item.type) {
+
+          @case ('separator') {
+            <div class="menu-popup__separator" role="separator"></div>
+          }
+
+          @case ('template') {
+            <ng-container
+              [ngTemplateOutlet]="item.template"
+              [ngTemplateOutletContext]="{ $implicit: item }">
+            </ng-container>
+          }
+
+          @case ('action') {
+            <button
+              type="button"
+              class="menu-popup__item"
+              role="menuitem"
+              [class.menu-popup__item--disabled]="item.disabled"
+              [disabled]="item.disabled"
+              (click)="onActionClick(item)">
+              @if (item.icon) {
+                <i class="menu-popup__icon {{ item.icon }}"></i>
+              }
+              <span class="menu-popup__label">{{ item.label }}</span>
+            </button>
+          }
+
+          @case ('checkbox') {
+            <button
+              type="button"
+              class="menu-popup__item"
+              role="menuitemcheckbox"
+              [attr.aria-checked]="item.checked"
+              [class.menu-popup__item--disabled]="item.disabled"
+              [disabled]="item.disabled"
+              (click)="onToggle(item)">
+              <span
+                class="menu-popup__checkbox"
+                [class.menu-popup__checkbox--checked]="item.checked">
+                @if (item.checked) {
+                  <i class="pi pi-check"></i>
+                }
+              </span>
+              @if (item.icon) {
+                <i class="menu-popup__icon {{ item.icon }}"></i>
+              }
+              <span class="menu-popup__label">{{ item.label }}</span>
+            </button>
+          }
+
+          @case ('toggle') {
+            <button
+              type="button"
+              class="menu-popup__item"
+              role="menuitemcheckbox"
+              [attr.aria-checked]="item.checked"
+              [class.menu-popup__item--disabled]="item.disabled"
+              [disabled]="item.disabled"
+              (click)="onToggle(item)">
+              @if (item.icon) {
+                <i class="menu-popup__icon {{ item.icon }}"></i>
+              }
+              <span class="menu-popup__label">{{ item.label }}</span>
+              <span
+                class="menu-popup__switch"
+                [class.menu-popup__switch--on]="item.checked"
+                aria-hidden="true">
+                <span class="menu-popup__switch-knob"></span>
+              </span>
+            </button>
+          }
+
+        }
+      }
+    </div>
+  } @else {
+    <div class="menu-popup__projected" (keydown.escape)="close()">
+      <ng-content></ng-content>
+    </div>
+  }
+</ng-template>
