@@ -7,7 +7,11 @@
             @if (!isOnDocCreate() && access.createDocument().visible) {
                 <app-p-button [buttonText]="'הפקת מסמך'" [buttonColor]="ButtonColor.BLACK" [buttonSize]="ButtonSize.SMALL" (onButtonClicked)="onCreateDocumentClick()"></app-p-button>
             }
-            <app-p-button [link]="'/settings'" [buttonColor]="ButtonColor.BLACK" [buttonSize]="ButtonSize.ICON"  [variant]="'outlined'" [icon]="'pi pi-cog'" [iconOnly]="true" [buttonText]="'הגדרות'"></app-p-button>
+            <app-menu-button
+                icon="pi pi-cog"
+                ariaLabel="תפריט הגדרות"
+                [items]="settingsMenuItems">
+            </app-menu-button>
         </div>
       </ng-template>
   </p-menubar>

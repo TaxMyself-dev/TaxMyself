@@ -14,6 +14,7 @@ import { catchError, EMPTY, filter, forkJoin, map, of, Subject, switchMap, take,
 import { SegmentedControlComponent, SegmentedOption } from 'src/app/components/segmented-control/segmented-control.component';
 import { CustomDateRangeComponent } from '../../components/custom-date-range/custom-date-range.component';
 import { GraphViewSettingsComponent } from 'src/app/components/graph-view-settings/graph-view-settings.component';
+import { MenuButtonComponent } from 'src/app/components/menu-button/menu-button.component';
 import { LineChartComponent, LineChartSeries } from 'src/app/widgets/line-chart/line-chart.component';
 import { DonutChartComponent, DonutChartItem } from 'src/app/widgets/donut-chart/donut-chart.component';
 import { InputSelectComponent } from 'src/app/components/input-select/input-select.component';
@@ -126,6 +127,7 @@ function isSameDate(a: Date, b: Date): boolean {
     CdkOverlayOrigin,
     ButtonComponent,
     GraphViewSettingsComponent,
+    MenuButtonComponent,
 ],
 })
 export class FlowAnalysisComponent {
@@ -154,7 +156,6 @@ export class FlowAnalysisComponent {
   ];
 
   readonly showCustomRange    = signal(false);
-  readonly showGraphSettings  = signal(false);
 
   // ── Graph presentation state (pure UI — does not affect backend queries) ──
   readonly graphChartType  = signal<'line' | 'bar'>('line');
@@ -481,9 +482,6 @@ export class FlowAnalysisComponent {
   submit(): void { this.submit$.next(); }
 
   closeCustomRange(): void { this.showCustomRange.set(false); }
-
-  toggleGraphSettings(): void { this.showGraphSettings.update(v => !v); }
-  closeGraphSettings():  void { this.showGraphSettings.set(false); }
 
   onChartTypeChange(type: 'line' | 'bar'): void { this.graphChartType.set(type); }
   onExpensesChange(value: boolean):        void { this.showExpenses.set(value); }

@@ -85,12 +85,60 @@ export class AuthService {
     this.setActiveBusinessNumber(null);
   }
 
-  logout(): void {
-    this.clearDelegationState();
-    this.afAuth.signOut().then(() => {
-      localStorage.clear();
-      sessionStorage.clear();
-    });
+  /**
+   * The single logout entry point for the entire application. Every logout
+   * trigger (settings menu, forced 401 sign-out, etc.) must funnel through here.
+   *
+   * Clears, in order: in-memory app state (root singletons survive client-side
+   * navigation and would otherwise leak into the next session in the same tab),
+   * the Firebase auth session, then every auth/user storage key explicitly.
+   * Finally redirects to /login with `replaceUrl` so the back button cannot
+   * return to a protected page.
+   */
+  async logout(): Promise<void> {
+    // 1. Firebase — await so the persisted session (IndexedDB) is fully cleared
+    //    before we tear the app down.
+    try {
+      await this.afAuth.signOut();
+    } catch (err) {
+      console.error('Firebase signOut failed during logout:', err);
+    }
+
+    // 2. Remove every auth/user-related storage item explicitly (never *.clear()).
+    this.clearAuthStorage();
+
+    // 3. Full application reload. Angular boots from scratch, so every singleton
+    //    service, signal, computed and in-memory cache is recreated clean — no
+    //    manual per-service resets needed. replace() (not assign) so the
+    //    authenticated page can't be reached via the Back button.
+    window.location.replace('/login');
+  }
+
+  /**
+   * Explicit allow-list of every auth/user-related storage key written anywhere
+   * in the app. Kept explicit (not localStorage.clear()) so unrelated keys are
+   * left untouched and every cleared key is auditable.
+   */
+  private clearAuthStorage(): void {
+    const localKeys = [
+      'userData',
+      'businesses',
+      'token',                    // legacy, never written today — cleared defensively
+      'shaam_access_token',
+      'shaam_token_expires_in',
+      'shaam_token_timestamp',
+    ];
+    const sessionKeys = [
+      'isLoggedIn',
+      'tm.selectedClientId',
+      'tm.selectedClientName',
+      'draft_businessNumber',
+      'draft_docType',
+      'tm.demoSimulateBankLoader',
+      'chunkReloadFor',
+    ];
+    localKeys.forEach((k) => localStorage.removeItem(k));
+    sessionKeys.forEach((k) => sessionStorage.removeItem(k));
   }
 
   /** טעינת נתוני המשתמש "האפקטיבי" – כשהרואה חשבון צופה בלקוח מחזיר נתוני הלקוח */
@@ -398,15 +446,6 @@ export class AuthService {
       console.error('Failed to delete unregistered Google Firebase user:', deleteErr);
     }
   }
-
-  async SignOut() {
-    return this.afAuth.signOut().then(() => {
-      localStorage.removeItem('userData');
-      sessionStorage.removeItem('isLoggedIn');
-      this.router.navigate(['login']);
-    });
-  }
-
 
 }
 
