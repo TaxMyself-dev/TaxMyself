@@ -14,8 +14,27 @@ import { UserIntegrationsService } from './user-integrations.service';
 
 const GMAIL_READONLY_SCOPE = 'https://www.googleapis.com/auth/gmail.readonly';
 
-/** Default Gmail search when the caller does not pass one. */
+/**
+ * Default Gmail search when the caller does not pass one. Deliberately broad:
+ * the priority is to never miss a real receipt, so the search does NOT
+ * require receipt/invoice keywords — junk is filtered per-attachment below,
+ * and the real receipt-vs-not decision belongs to the Claude analysis phase.
+ */
 const DEFAULT_QUERY = 'has:attachment newer_than:90d';
+
+/** Extensions we consider candidate receipt documents. */
+const DOCUMENT_EXTENSIONS = ['pdf', 'jpg', 'jpeg', 'png'];
+
+/** Filename fragments that mark email assets rather than documents. */
+const ASSET_NAME_PATTERN = /(logo|icon|banner|signature|templogo|temp)/i;
+
+/** PDFs below this are unlikely to be real documents (empty/broken). */
+const MIN_PDF_BYTES = 20 * 1024;
+/**
+ * Images need to be substantial to be a scanned/photographed receipt —
+ * this also drops tiny logos, tracking pixels and signature images.
+ */
+const MIN_IMAGE_BYTES = 80 * 1024;
 
 /** contentBase64 responses get large fast — keep the page size modest. */
 const DEFAULT_MAX_RESULTS = 10;
@@ -47,6 +66,8 @@ export interface GmailAttachmentsResult {
   messagesWithAttachments: number;
   attachmentsFound: number;
   skippedWithoutFilename: number;
+  /** Attachments dropped by the receipt-likeness filter (logos, inline assets, tiny images...). */
+  skippedIrrelevant: number;
   attachments: GmailAttachmentFile[];
 }
 
@@ -93,6 +114,7 @@ export class GmailReaderService {
       messagesWithAttachments: 0,
       attachmentsFound: 0,
       skippedWithoutFilename: 0,
+      skippedIrrelevant: 0,
       attachments: [],
     };
 
@@ -100,6 +122,7 @@ export class GmailReaderService {
       try {
         const collected = await this.collectMessageAttachments(gmail, messageId);
         result.skippedWithoutFilename += collected.skippedWithoutFilename;
+        result.skippedIrrelevant += collected.skippedIrrelevant;
         if (collected.attachments.length === 0) {
           continue; // message has no usable attachments — skip it
         }
@@ -122,7 +145,8 @@ export class GmailReaderService {
     this.logger.log(
       `Gmail scan complete for firebaseId=${firebaseId}: ` +
         `${result.messagesFound} messages, ${result.messagesWithAttachments} with attachments, ` +
-        `${result.attachmentsFound} attachments downloaded, ` +
+        `${result.attachmentsFound} receipt candidates returned, ` +
+        `${result.skippedIrrelevant} irrelevant attachments skipped, ` +
         `${result.skippedWithoutFilename} parts skipped (no filename)`,
     );
 
@@ -216,11 +240,18 @@ export class GmailReaderService {
     }
   }
 
-  /** Fetches one message, walks its MIME tree and downloads named attachments. */
+  /**
+   * Fetches one message, walks its MIME tree and downloads the attachments
+   * that look like receipt/invoice documents (see isLikelyReceiptAttachment).
+   */
   private async collectMessageAttachments(
     gmail: gmail_v1.Gmail,
     messageId: string,
-  ): Promise<{ attachments: GmailAttachmentFile[]; skippedWithoutFilename: number }> {
+  ): Promise<{
+    attachments: GmailAttachmentFile[];
+    skippedWithoutFilename: number;
+    skippedIrrelevant: number;
+  }> {
     const { data: message } = await gmail.users.messages.get({
       userId: 'me',
       id: messageId,
@@ -252,26 +283,125 @@ export class GmailReaderService {
       );
     }
 
+    const subject = header('subject');
     const attachments: GmailAttachmentFile[] = [];
+    let skippedIrrelevant = 0;
+    const skip = (filename: string, reason: string): void => {
+      skippedIrrelevant += 1;
+      this.logger.log(`Skipped attachment "${filename}" on message ${messageId}: ${reason}`);
+    };
+
     for (const part of parts) {
+      const filename = part.filename as string;
+
+      // Stage 1 — metadata gate, before spending a download on it.
+      const verdict = this.isLikelyReceiptAttachment(part);
+      if (!verdict.ok) {
+        skip(filename, verdict.reason ?? 'filtered');
+        continue;
+      }
+
       const content = await this.downloadPartContent(gmail, messageId, part);
       if (!content) continue;
+
+      // Stage 2 — checks that need the actual bytes.
+      const ext = this.getExtension(filename);
+      if (ext === 'pdf') {
+        if (content.length < MIN_PDF_BYTES) {
+          skip(filename, `pdf too small (${content.length} bytes)`);
+          continue;
+        }
+        if (!this.looksLikePdf(content)) {
+          skip(filename, 'missing %PDF content signature');
+          continue;
+        }
+      } else if (content.length < MIN_IMAGE_BYTES) {
+        skip(filename, `image too small (${content.length} bytes)`);
+        continue;
+      }
 
       attachments.push({
         messageId,
         threadId: message.threadId ?? null,
-        subject: header('subject'),
+        subject,
         from: header('from'),
         date: header('date'),
         attachmentId: part.body?.attachmentId ?? null,
-        filename: part.filename as string,
+        filename,
         mimeType: part.mimeType ?? null,
         size: content.length,
         content,
       });
     }
 
-    return { attachments, skippedWithoutFilename };
+    return { attachments, skippedWithoutFilename, skippedIrrelevant };
+  }
+
+  /**
+   * Metadata-level junk gate, run before downloading. Intentionally permissive:
+   * it only drops obvious non-documents (email assets, tiny files, unsupported
+   * types) — whether a candidate is truly a receipt is decided later by the
+   * Claude analysis phase, so email subject and keywords play no role here.
+   * PDFs: extension + size decide (mimeType is ignored, some providers send
+   * PDFs as application/octet-stream). Images: not an inline asset and
+   * substantial enough to be a scan/photo.
+   */
+  private isLikelyReceiptAttachment(
+    part: gmail_v1.Schema$MessagePart,
+  ): { ok: boolean; reason?: string } {
+    const filename = part.filename ?? '';
+    const ext = this.getExtension(filename);
+
+    if (!DOCUMENT_EXTENSIONS.includes(ext)) {
+      return { ok: false, reason: `unsupported extension "${ext || 'none'}"` };
+    }
+    if (ASSET_NAME_PATTERN.test(filename)) {
+      return { ok: false, reason: 'asset-like filename (logo/icon/banner/signature/temp)' };
+    }
+
+    // body.size is Gmail's decoded size estimate; 0/undefined means unknown —
+    // in that case defer to the post-download size check.
+    const declaredSize = part.body?.size ?? 0;
+
+    if (ext === 'pdf') {
+      if (declaredSize > 0 && declaredSize < MIN_PDF_BYTES) {
+        return { ok: false, reason: `pdf too small (declared ${declaredSize} bytes)` };
+      }
+      return { ok: true };
+    }
+
+    if (this.isInlineAsset(part)) {
+      return { ok: false, reason: 'inline email asset' };
+    }
+    if (declaredSize > 0 && declaredSize < MIN_IMAGE_BYTES) {
+      return { ok: false, reason: `image too small (declared ${declaredSize} bytes)` };
+    }
+    return { ok: true };
+  }
+
+  /**
+   * Inline email assets: embedded images referenced by the HTML body
+   * (Content-Disposition: inline) or with mailer-generated names like
+   * image001.png.
+   */
+  private isInlineAsset(part: gmail_v1.Schema$MessagePart): boolean {
+    const filename = (part.filename ?? '').toLowerCase();
+    if (/^(image|inline|oleobject)\d+\.(png|jpe?g|gif|bmp)$/.test(filename)) {
+      return true;
+    }
+    const disposition =
+      part.headers?.find((h) => h.name?.toLowerCase() === 'content-disposition')?.value ?? '';
+    return disposition.toLowerCase().trim().startsWith('inline');
+  }
+
+  private getExtension(filename: string): string {
+    const dot = filename.lastIndexOf('.');
+    return dot >= 0 ? filename.slice(dot + 1).toLowerCase() : '';
+  }
+
+  /** PDFs start with %PDF- (allow a little leading junk some generators add). */
+  private looksLikePdf(content: Buffer): boolean {
+    return content.subarray(0, 1024).includes('%PDF-');
   }
 
   /**

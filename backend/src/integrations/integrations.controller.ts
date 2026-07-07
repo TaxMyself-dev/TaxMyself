@@ -162,6 +162,7 @@ export class IntegrationsController {
       messagesWithAttachments: result.messagesWithAttachments,
       attachmentsFound: result.attachmentsFound,
       skippedWithoutFilename: result.skippedWithoutFilename,
+      skippedIrrelevant: result.skippedIrrelevant,
       attachments: result.attachments.map((a) => ({
         messageId: a.messageId,
         threadId: a.threadId,
