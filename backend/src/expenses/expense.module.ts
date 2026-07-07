@@ -30,7 +30,7 @@ import { BookkeepingModule } from '../bookkeeping/bookkeeping.module';
     TypeOrmModule.forFeature([Expense, User, Business, DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory, Supplier, Child, Delegation, ClassifiedTransactions, ExtractedDocument]),
     SharedModule,
     UsersModule,
-    BillingModule,,
+    BillingModule,
     BookkeepingModule
   ],
   controllers: [ExpensesController],

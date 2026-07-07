@@ -128,7 +128,7 @@ export class VatReportJournalPage implements OnInit {
     vatPayment: 'סה"כ לתשלום'
   };
 
-  readonly PDF_FOOTER_TEXT = 'Created by KeepInTax LTD | תוכנה מאושרת על ידי רשות המיסים';
+  isLoadingPDF = signal<boolean>(false);
 
   buttonSize = ButtonSize;
   inputSize = inputsSize;
@@ -864,186 +864,32 @@ export class VatReportJournalPage implements OnInit {
   }
 
   /**
-   * Opens a print-friendly window containing the business details, report
-   * period, VAT summary, and the underlying expense rows, then triggers
-   * the browser print dialog. The user picks "Save as PDF" to download.
-   * Uses the browser's native print pipeline so no PDF dependency is needed.
+   * Requests a server-rendered PDF (pdfkit, RTL Hebrew) from the backend and
+   * downloads it. No browser print dialog involved, so the output has no
+   * browser-injected header/footer (date/title/URL/page numbers).
    */
   exportToPdf(): void {
-    const data = this.vatReportData();
-    if (!data) return;
+    if (!this.vatReportData()) return;
 
-    const business = this.gs.businesses().find(b => b.businessNumber === this.businessNumber());
-    const businessName = business?.businessName ?? this.userData?.businessName ?? '';
-    const businessAddress = business?.businessAddress ?? this.userData?.businessAddress ?? '';
-    const businessNum = this.businessNumber();
-    const period = `${this.startDate()} - ${this.endDate()}`;
-
-    const summaryHtml = this.reportOrder.map(key => `
-      <div class="summary-row ${key === 'vatPayment' ? 'total-row' : ''}">
-        <span>${this.escapeHtml(this.vatReportFieldTitles[key])}</span>
-        <strong dir="ltr">${this.escapeHtml(this.getReportDisplayValue(key))}</strong>
-      </div>
-    `).join('');
-
-    const formatAmount = (v: unknown): string => {
-      if (v === null || v === undefined || v === '') return '';
-      const n = Number(typeof v === 'string' ? v.replace(/,/g, '') : v);
-      return Number.isFinite(n) ? n.toLocaleString() : '';
-    };
-
-    const expensesRowsHtml = (this.rows ?? []).map(r => `
-      <tr>
-        <td>${this.escapeHtml(String(r.supplier ?? ''))}</td>
-        <td>${this.escapeHtml(String(r.date ?? ''))}</td>
-        <td dir="ltr">${this.escapeHtml(String(r.sum ?? ''))}</td>
-        <td>${this.escapeHtml(String(r.category ?? ''))}</td>
-        <td>${this.escapeHtml(String(r.subCategory ?? ''))}</td>
-        <td dir="ltr">${this.escapeHtml(formatAmount(r['totalVatPayable']))}</td>
-        <td dir="ltr">${this.escapeHtml(formatAmount(r['totalTaxPayable']))}</td>
-      </tr>
-    `).join('');
-
-    const expensesSection = (this.rows?.length ?? 0) > 0 ? `
-      <div class="section">
-        <h2>פירוט ההוצאות</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>ספק</th>
-              <th>תאריך</th>
-              <th>סכום</th>
-              <th>קטגוריה</th>
-              <th>תת קטגוריה</th>
-              <th>מע"מ</th>
-              <th>הוצאה מוכרת</th>
-            </tr>
-          </thead>
-          <tbody>${expensesRowsHtml}</tbody>
-        </table>
-      </div>` : '';
-
-    const html = `<!DOCTYPE html>
-<html lang="he" dir="rtl">
-<head>
-  <meta charset="utf-8" />
-  <title>דוח מע"מ - ${this.escapeHtml(businessName)} - ${this.escapeHtml(period)}</title>
-  <style>
-    * { box-sizing: border-box; }
-    html, body { margin: 0; }
-    body { font-family: Arial, "Segoe UI", sans-serif; padding: 24px 24px 64px; color: #222; }
-    h1 { font-size: 22px; margin: 0 0 16px; text-align: center; }
-    .section { margin-bottom: 22px; }
-    .section h2 { font-size: 16px; margin: 0 0 10px; border-bottom: 2px solid #444; padding-bottom: 4px; }
-    .business-info p { margin: 4px 0; }
-    table { width: 100%; border-collapse: collapse; font-size: 12px; }
-    th, td { border: 1px solid #ddd; padding: 6px 8px; text-align: right; }
-    th { background: #f4f4f4; }
-    .summary-row { display: flex; justify-content: space-between; padding: 8px 4px; border-bottom: 1px solid #eee; }
-    .summary-row.total-row { font-weight: 700; background: #fafafa; }
-    .pdf-footer {
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      padding: 8px 16px;
-      font-size: 11px;
-      color: #555;
-      text-align: center;
-      border-top: 1px solid #ddd;
-      background: #fff;
-    }
-    @media print {
-      body { padding: 24px 24px 64px; }
-      .pdf-footer { position: fixed; bottom: 0; }
-    }
-  </style>
-</head>
-<body>
-  <h1>דוח מע"מ</h1>
-
-  <div class="section business-info">
-    <h2>פרטי העסק</h2>
-    <p><strong>שם העסק:</strong> ${this.escapeHtml(businessName)}</p>
-    <p><strong>מספר עוסק:</strong> ${this.escapeHtml(businessNum)}</p>
-    ${businessAddress ? `<p><strong>כתובת:</strong> ${this.escapeHtml(businessAddress)}</p>` : ''}
-    <p><strong>תקופת הדוח:</strong> ${this.escapeHtml(period)}</p>
-  </div>
-
-  <div class="section">
-    <h2>סיכום הדוח</h2>
-    ${summaryHtml}
-  </div>
-
-  ${expensesSection}
-
-  <div class="pdf-footer">${this.escapeHtml(this.PDF_FOOTER_TEXT)}</div>
-</body>
-</html>`;
-
-    // Use a hidden iframe (rather than a new window) so the browser's
-    // print dialog shows the parent app URL in its auto-injected header/
-    // footer instead of "about:blank". The iframe is removed after print.
-    const iframe = document.createElement('iframe');
-    iframe.setAttribute('aria-hidden', 'true');
-    iframe.style.position = 'fixed';
-    iframe.style.right = '0';
-    iframe.style.bottom = '0';
-    iframe.style.width = '0';
-    iframe.style.height = '0';
-    iframe.style.border = '0';
-    document.body.appendChild(iframe);
-
-    const cleanup = () => {
-      if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
-    };
-
-    const doc = iframe.contentDocument || iframe.contentWindow?.document;
-    if (!doc) {
-      cleanup();
-      this.messageService.add({
-        severity: 'error',
-        summary: 'Error',
-        detail: 'יצירת קובץ ה-PDF נכשלה. אנא נסה שוב.',
-        life: 5000,
-        key: 'br',
+    this.isLoadingPDF.set(true);
+    this.vatReportService.generateVatReportPDF(this.startDate(), this.endDate(), this.businessNumber())
+      .pipe(
+        catchError((err) => {
+          console.error('error generating vat report pdf: ', err);
+          this.messageService.add({
+            severity: 'error',
+            summary: 'Error',
+            detail: 'הפקת קובץ ה-PDF נכשלה. אנא נסה שוב.',
+            life: 5000,
+            key: 'br',
+          });
+          return EMPTY;
+        }),
+        finalize(() => this.isLoadingPDF.set(false)),
+      )
+      .subscribe((blob) => {
+        this.filesService.downloadFile(`דוח מעמ ${this.startDate()} - ${this.endDate()}.pdf`, blob);
       });
-      return;
-    }
-    doc.open();
-    doc.write(html);
-    doc.close();
-
-    // Defer print so the iframe document finishes layout (fonts/RTL) before
-    // the print dialog snapshots it. After the dialog closes (or after a
-    // safety timeout) the iframe is removed.
-    setTimeout(() => {
-      const win = iframe.contentWindow;
-      if (!win) {
-        cleanup();
-        return;
-      }
-      win.focus();
-      // onafterprint fires after the user closes / confirms the dialog.
-      win.onafterprint = () => setTimeout(cleanup, 0);
-      win.print();
-      // Safety net — if onafterprint doesn't fire (older browsers), drop
-      // the iframe after a generous delay.
-      setTimeout(cleanup, 60000);
-    }, 250);
-  }
-
-  private escapeHtml(value: string | number | null | undefined): string {
-    return String(value ?? '').replace(/[&<>"']/g, (c) => {
-      switch (c) {
-        case '&': return '&amp;';
-        case '<': return '&lt;';
-        case '>': return '&gt;';
-        case '"': return '&quot;';
-        case "'": return '&#39;';
-        default: return c;
-      }
-    });
   }
 
   onDeleteFile(row: IRowDataTable): void {

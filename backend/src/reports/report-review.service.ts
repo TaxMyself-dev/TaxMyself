@@ -287,7 +287,7 @@ export class ReportReviewService {
     ));
     const knownSuppliers = docSupplierIds.length
       ? await this.supplierRepo.find({
-          where: { userId: firebaseId, supplierID: In(docSupplierIds) },
+          where: { businessNumber, supplierID: In(docSupplierIds) },
         })
       : [];
     // Index by supplierID so toDocSummary can both flag a known supplier

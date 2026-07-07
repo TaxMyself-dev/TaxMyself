@@ -1,13 +1,13 @@
-import { BadRequestException, Injectable, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Between, Not, Repository } from 'typeorm';
 import { Expense } from '../expenses/expenses.entity';
 import { VatReportDto } from './dtos/vat-report.dto';
 import { buildVatReportPdf } from './vat-report-pdf';
+import { buildPnlReportPdf } from './pnl-report-pdf';
 import { AdvanceIncomeTaxReportDto } from './dtos/advance-income-tax-report.dto';
 import { ExpensePnlDto, PnLReportDto } from './dtos/pnl-report.dto';
 import { LedgerAccountDto, LedgerLineDto, LedgerReportDto } from './dtos/ledger-report.dto';
-import { DepreciationReportDto } from './dtos/reduction-report.dto';
 import { Form1342ReportDto, Form1342ReportRowDto } from './dtos/depreciation-report.dto';
 import { ExpensesService } from '../expenses/expenses.service';
 import { SharedService } from 'src/shared/shared.service';
@@ -15,7 +15,6 @@ import { User } from '../users/user.entity';
 import { BusinessType, DOC_TYPE_INFO, DocumentSummaryRow, DocumentType, FIELD_MAP, isExemptBusinessType, JournalReferenceType, ListSummaryRow, PaymentMethodType, UniformFileTypeCodeMap, UniformSummaries} from 'src/enum';
 import { Documents } from 'src/documents/documents.entity';
 import { DocLines } from 'src/documents/doc-lines.entity';
-import axios from 'axios';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -156,95 +155,6 @@ export class ReportsService {
   }
 
 
-  async generatePnLReportPDF(data: any): Promise<Blob> {
-    const fid = 'ydAEQsvSbC';
-    const url = 'https://api.fillfaster.com/v1/generatePDF';
-    const token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6ImluZm9AdGF4bXlzZWxmLmNvLmlsIiwic3ViIjo5ODUsInJlYXNvbiI6IkFQSSIsImlhdCI6MTczODIzODAxMSwiaXNzIjoiaHR0cHM6Ly9maWxsZmFzdGVyLmNvbSJ9.DdKFDTxNWEXOVkEF2TJHCX0Mu2AbezUBeWOWbpYB2zM';
-
-    const payload = {
-      fid,
-      digitallySign: false,
-      prefill_data: data.prefill_data,
-    };
-
-    const headers = {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    };
-
-    try {
-      const response = await axios.post<Blob>(url, payload, {
-        headers,
-        responseType: 'arraybuffer',
-      });
-
-      if (!response.data) {
-        throw new Error('Failed to generate PDF');
-      }
-
-      return response.data;
-    } catch (error: any) {
-      console.error('❌ FillFaster API Error for PnL Report:');
-      console.error('   Status:', error.response?.status);
-      console.error('   Status Text:', error.response?.statusText);
-      console.error('   URL:', url);
-      console.error('   FID:', fid);
-      
-      if (error.response?.data) {
-        try {
-          const errorText = Buffer.from(error.response.data).toString('utf-8');
-          console.error('   Error Response Body:', errorText);
-        } catch (bufferError) {
-          console.error('   Could not parse error response body');
-        }
-      }
-      
-      throw new InternalServerErrorException(
-        `FillFaster API error: ${error.response?.status || 'Unknown'} - ${error.response?.statusText || error.message}`
-      );
-    }
-  }
-    
-
-  async createVatReport(
-    firebaseId: string,
-      businessNumber: string,
-      startDate: Date,
-      endDate: Date
-  ): Promise<VatReportDto> {
-
-    try {
-      const vatReport: VatReportDto = {
-          vatableTurnover: 0,
-          nonVatableTurnover: 0,
-          vatRefundOnAssets: 0,
-          vatRefundOnExpenses: 0,
-          vatPayment: 0,
-          vatRate: 0
-      };
-
-      const year = startDate.getFullYear();
-
-      ({ vatableIncome: vatReport.vatableTurnover, nonVatableIncome: vatReport.nonVatableTurnover } =
-        await this.getVatIncomeFromDocuments(businessNumber, startDate, endDate));
-
-      const expenses = await this.expensesService.getExpensesForVatReport(firebaseId, businessNumber, startDate, endDate);
-      const regularExpenses = expenses.filter(expense => !expense.isEquipment);
-      const assetsExpenses = expenses.filter(expense => expense.isEquipment);
-
-      vatReport.vatRefundOnExpenses = regularExpenses.reduce((sum, expense) => sum + Number(expense.totalVatPayable || 0), 0);
-      vatReport.vatRefundOnAssets = assetsExpenses.reduce((sum, expense) => sum + Number(expense.totalVatPayable || 0), 0);
-
-      const vatPercent = this.sharedService.getVatPercent(year);
-      vatReport.vatPayment = Math.round(vatReport.vatableTurnover * vatPercent) - vatReport.vatRefundOnExpenses - vatReport.vatRefundOnAssets;
-      vatReport.vatRate = this.sharedService.getVatRateByYear(startDate);
-
-      return vatReport;
-    } catch (error) {
-      throw error;
-    }
-  }
-
   /**
    * Compute the VAT report for a business+period and render it as a PDF buffer.
    * Used when a VAT report workflow is marked submitted, to snapshot the
@@ -257,7 +167,7 @@ export class ReportsService {
     endDate: Date,
     submittedAt: Date = new Date(),
   ): Promise<Buffer> {
-    const data = await this.createVatReport(
+    const data = await this.createVatReportFromJournal(
       firebaseId,
       businessNumber,
       startDate,
@@ -272,6 +182,70 @@ export class ReportsService {
       periodStart: startDate,
       periodEnd: endDate,
       submittedAt,
+    });
+  }
+
+  /**
+   * Compute the VAT report for a business+period and render it as a PDF
+   * buffer for the interactive "ייצא כ-PDF" button — includes the expense
+   * line-item breakdown and omits the "הוגש בתאריך" line (report may not be
+   * submitted yet). Server-rendered (pdfkit), same approach as the submitted
+   * snapshot — no external template-fill service involved.
+   */
+  async generateVatReportPdfForExport(
+    firebaseId: string,
+    businessNumber: string,
+    startDate: Date,
+    endDate: Date,
+  ): Promise<Buffer> {
+    const [data, business, expenseRows] = await Promise.all([
+      this.createVatReportFromJournal(firebaseId, businessNumber, startDate, endDate),
+      this.businessRepo.findOne({ where: { businessNumber, firebaseId } }),
+      this.expensesService.getExpensesForVatReport(firebaseId, businessNumber, startDate, endDate),
+    ]);
+
+    const expenses = expenseRows
+      .filter((e) => Number(e.totalVatPayable ?? 0) !== 0)
+      .map((e) => ({
+        supplier: e.supplier ?? '',
+        date: e.date ? this.formatLedgerDate(e.date) : '',
+        sum: Number(e.sum) || 0,
+        category: e.category ?? '',
+        subCategory: e.subCategory ?? '',
+        totalVatPayable: Number(e.totalVatPayable) || 0,
+        totalTaxPayable: Number(e.totalTaxPayable) || 0,
+      }));
+
+    return buildVatReportPdf(data, {
+      businessName: business?.businessName ?? businessNumber,
+      businessNumber,
+      periodStart: startDate,
+      periodEnd: endDate,
+      expenses,
+    });
+  }
+
+  /**
+   * Compute the P&L report for a business+period and render it as a PDF
+   * buffer for the interactive "ייצא כ-PDF" button. Server-rendered
+   * (pdfkit), same approach as the VAT report — no external template-fill
+   * service involved.
+   */
+  async generatePnlReportPdfForExport(
+    firebaseId: string,
+    businessNumber: string,
+    startDate: Date,
+    endDate: Date,
+  ): Promise<Buffer> {
+    const [data, business] = await Promise.all([
+      this.createPnLReportFromJournal(firebaseId, businessNumber, startDate, endDate),
+      this.businessRepo.findOne({ where: { businessNumber, firebaseId } }),
+    ]);
+    return buildPnlReportPdf(data, {
+      businessName: business?.businessName ?? businessNumber,
+      businessNumber,
+      periodStart: startDate,
+      periodEnd: endDate,
     });
   }
 
@@ -441,113 +415,8 @@ export class ReportsService {
   }
 
 
-  async createPnLReport(
-      firebaseId: string,
-      businessNumber: string,
-      startDate: Date,
-      endDate: Date
-  ): Promise<PnLReportDto> {
-
-      const year = startDate.getFullYear();
-
-      const business = await this.businessRepo.findOne({
-        where: { businessNumber, firebaseId }
-      });
-
-      if (!business) {
-        throw new BadRequestException("Business not found or not owned by user");
-      }
-
-      // Get total income
-      let totalIncome : number = 0;
-      totalIncome = await this.getIncomeBeforeVat(businessNumber, startDate, endDate);
-
-      // סוף יום עבור endDate כדי לכלול את כל ההוצאות בתאריך האחרון
-      const endDateEndOfDay = new Date(Date.UTC(
-        endDate.getUTCFullYear(),
-        endDate.getUTCMonth(),
-        endDate.getUTCDate(),
-        23, 59, 59, 999
-      ));
-      const expenses = await this.expensesService.getExpensesByDates(firebaseId, businessNumber, startDate, endDateEndOfDay);
-
-      // Subcategory → P&L-presentation-category map (resolved live, user wins).
-      const pnlCategoryMap = await this.expensesService.getPnlCategoryMap(firebaseId, businessNumber);
-
-      // Exclude equipment (→ depreciation) AND annual-report-only expenses
-      // (תרומות מוכרות / מקדמות) — they are not P&L operating expenses.
-      const nonEquipmentExpenses = expenses.filter(
-        expense => !expense.isEquipment && expense.reportScope !== ExpenseReportScope.ANNUAL,
-      );
-
-      // Initialize an object to hold the expense sums by P&L category
-      const expenseSumByCategory: { [category: string]: number } = {};
-
-      // Loop through each non-equipment expense – סכום לפי totalTaxPayable השמור בטבלת ההוצאות.
-      // P&L grouping precedence: per-expense override → subcategory map → bookkeeping category.
-      for (const expense of nonEquipmentExpenses) {
-          const category = String(
-            expense.pnlCategory ?? pnlCategoryMap.get(expense.subCategory) ?? expense.category,
-          );
-          if (!expenseSumByCategory[category]) {
-              expenseSumByCategory[category] = 0;
-          }
-          expenseSumByCategory[category] += Number(expense.totalTaxPayable ?? 0);
-      }
-
-        // Map the totals by category into an array of ExpenseDto
-      const expenseDtos: ExpensePnlDto[] = Object.entries(expenseSumByCategory).map(
-          ([category, total]) => ({
-              category,
-              total,
-          })
-      );
-
-      const depreciationExpenses = await this.createReductionReport(firebaseId, businessNumber, year);
-
-      if (depreciationExpenses?.length > 0) {
-        // Calculate the total of currentReduction from reductionExpenses using a for loop
-        let totalDepreciationExpenses = 0;
-        for (const expense of depreciationExpenses) {
-          if (expense.currentDepreciation) {
-            totalDepreciationExpenses += Number(expense.currentDepreciation); // Ensure conversion to a number
-          }
-        }
-      
-        // Add reduction expenses as "הוצאות פחת"
-        if (totalDepreciationExpenses > 0) {
-          expenseDtos.push({
-            category: "הוצאות פחת",
-            total: totalDepreciationExpenses,
-          });
-        }
-      }
-      
-      // Calculate the total expenses using a for loop
-      let totalExpenses = 0;
-      for (const expense of expenseDtos) {
-        totalExpenses += expense.total;
-      }
-
-      // Calculate net profit before tax
-      const netProfitBeforeTax = totalIncome - totalExpenses;
-
-      // Construct the final report
-      const report: PnLReportDto = {
-          income: Number(totalIncome.toFixed(2)),
-          expenses: expenseDtos,
-          netProfitBeforeTax:Number(netProfitBeforeTax.toFixed(2)),
-      };
-      
-      return report;
-
-  }
-
-
   // ───────────────────────────────────────────────────────────────────────────
-  // Journal-based parallel reports (TASK B). These read EXCLUSIVELY from
-  // journal_entry + journal_line and run ALONGSIDE the legacy document/expense
-  // reports for comparison. They MUST NOT replace createVatReport/createPnLReport.
+  // VAT / P&L reports — computed from journal entries (journal_entry + journal_line).
   // ───────────────────────────────────────────────────────────────────────────
 
   /**
@@ -575,7 +444,7 @@ export class ReportsService {
   }
 
   /**
-   * VAT report computed from journal entries (parallel to createVatReport).
+   * VAT report computed from journal entries.
    * Income from 4000 (vatable) / 4010 (non-vatable) credit; output VAT from
    * 2400 (credit − debit, so credit notes reduce it); deductible input VAT from
    * 2410 debit split by isEquipment (expenses vs assets).
@@ -635,12 +504,11 @@ export class ReportsService {
   }
 
   /**
-   * P&L report computed from journal entries (parallel to createPnLReport).
+   * P&L report computed from journal entries.
    * Income = 4000 (credit − debit). Expenses grouped by the account's
    * pnlCategory for 5xxx/6xxx (debit − credit), EXCEPT 6200 (פחת) which is
    * surfaced as its own "הוצאות פחת" line. Equipment lines are excluded.
-   * NOTE: depreciation here reflects whatever was posted to 6200, which may
-   * differ from the legacy fractional createReductionReport — acceptable.
+   * Depreciation here reflects whatever was posted to 6200.
    */
   async createPnLReportFromJournal(
     firebaseId: string,
@@ -1223,136 +1091,10 @@ export class ReportsService {
   }
         
 
-  async createReductionReport(firebaseId: string, businessNumber: string, year: number): Promise<DepreciationReportDto[]> {
-
-      const equipmentExpenses = await this.expensesService.getExpensesForReductionReport(firebaseId, businessNumber, year);
-      return this.calculateReductionsForExpenses(equipmentExpenses, year)
-
-  }
-
-    
-  calculateReductionsForExpenses(
-      expenses: Expense[],
-      requiredYear: number
-    ): DepreciationReportDto[] {
-
-      // Use map to transform each expense into a ReductionReportDto
-      return expenses.map((expense) => {
-        const { supplier: name, date, sum, reductionPercent } = expense;
-        let pastDepreciation = 0;
-        let currentDepreciation = 0;
-        let fixedReductionPercent;
-        const validDate = typeof date === 'string' ? new Date(date) : date;
-
-        // In case the reductionPercent from the user is not arrived accuratelly (for example 33 instead of 33.33), fix it to get accurate results. 
-        if (reductionPercent === 33) {
-          fixedReductionPercent = (100/3);
-        } else {
-          fixedReductionPercent = reductionPercent;
-        }
-    
-        // Calculate total reduction years for the expense
-        const totalReductionYears = this.calculateReductionYears(fixedReductionPercent, validDate);
-        const firstYear = validDate.getFullYear();
-        const lastYear = firstYear + totalReductionYears - 1;
-    
-        // Iterate through the years from the purchase year to the required year
-        for (let year = firstYear; year <= requiredYear; year++) {
-          const yearFraction = this.calculateYearlyReductionFraction(year, validDate, fixedReductionPercent, totalReductionYears);            
-          const yearReduction = Math.round((yearFraction / 100) * sum);
-    
-          if (year < requiredYear) {
-            // Accumulate reduction for past years
-            pastDepreciation += yearReduction;
-          } else if (year === requiredYear) {
-            if (year === lastYear) {
-              currentDepreciation = sum - pastDepreciation;
-            } else {
-              // Add reduction for the required year
-              currentDepreciation = yearReduction;
-            }
-          }
-        }
-    
-        // Create and return a DTO matching ReductionReportDto
-        return {
-          name,
-          date: validDate,
-          depreciationPercent: reductionPercent.toFixed(2), // Convert reduction percent to string
-          currentDepreciation: Math.min(currentDepreciation, sum - pastDepreciation), // Prevent over-reduction
-          pastDepreciation: Math.min(pastDepreciation, sum), // Ensure reduction doesn't exceed the total sum
-
-        } as DepreciationReportDto; // Explicitly cast to ReductionReportDto
-      });
-  }
-    
-    
-  calculateReductionYears(reductionPercent: number, date: Date): number {
-    
-    const purchaseMonth = date.getMonth() + 1; 
-    const isPartialYear = purchaseMonth > 1 || date.getDate() > 1;
-  
-    const fullYears = Math.round(100 / reductionPercent);
-    const totalYears = fullYears + (isPartialYear ? 1 : 0);
-  
-    return totalYears;
-  }
-
-
-  calculateYearlyReductionFraction(
-      year: number,
-      date: Date,
-      reductionPercent: number,
-      totalReductionYears: number
-    ): number {
-
-      let result: number = 0;
-      const purchaseYear = date.getFullYear();
-    
-      // If the given year is before the purchase year or after the total reduction period
-      if (year < purchaseYear || year > purchaseYear + totalReductionYears - 1) {
-        result = 0;
-      }
-    
-      const isLeap = this.isLeapYear(year);
-      const daysInYear = isLeap ? 366 : 365;
-    
-      // First year: calculate partial reduction based on days remaining in the year
-      if (year === purchaseYear) {
-          const daysRemaining =
-          Math.ceil(
-            (new Date(purchaseYear, 11, 31).getTime() - date.getTime()) /
-              (1000 * 60 * 60 * 24)
-          ) + 1; // Days from the purchase date to the end of the year, including the purchase day
-          result = (reductionPercent * daysRemaining) / daysInYear;
-      // Last year: calculate partial reduction based on days used in that year
-      } else if (year === purchaseYear + totalReductionYears - 1) {
-          const firstDayOfYear = new Date(year, 0, 1); // January 1st of the last reduction year
-          const daysUsed =
-          Math.ceil(
-            (new Date(year, 11, 31).getTime() - firstDayOfYear.getTime()) /
-              (1000 * 60 * 60 * 24)
-          ) + 1; // Total days of the year that apply for reduction
-          return (reductionPercent * daysUsed) / daysInYear;
-      // Full years: apply the full reduction percentage
-      } else {
-        result = reductionPercent;
-      }
-      
-      return result;
-    }
-    
-    // Helper function to determine if a year is a leap year
-    isLeapYear(year: number): boolean {
-      return (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
-    }
-
 
   /**
    * Form 1342 — equipment depreciation report for a single tax year.
-   * Standalone implementation — does not share code with createReductionReport
-   * so the column-by-column math here stays simple and matches the form spec
-   * exactly. Filters expenses by `isEquipment = true` for the requested business
+   * Filters expenses by `isEquipment = true` for the requested business
    * and includes everything purchased on or before the selected tax year.
    */
   async createForm1342Report(

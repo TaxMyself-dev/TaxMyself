@@ -2,7 +2,7 @@ import { Component, computed, DestroyRef, inject, OnInit, signal } from '@angula
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { PnLReportJournalService } from './pnl-report-journal.service';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
-import { ICreateDataDoc, IPnlReportData, IRowDataTable, ISelectItem, IUserData } from 'src/app/shared/interface';
+import { IPnlReportData, IRowDataTable, ISelectItem, IUserData } from 'src/app/shared/interface';
 import { GenericService } from 'src/app/services/generic.service';
 import { AuthService } from 'src/app/services/auth.service';
 import { catchError, EMPTY, finalize, map, Observable, of, switchMap, tap } from 'rxjs';
@@ -10,7 +10,6 @@ import { FilesService } from 'src/app/services/files.service';
 import { BusinessStatus, ReportingPeriodType } from 'src/app/shared/enums';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 import { FilterField } from 'src/app/components/filter-tab/filter-fields-model.component';
-import { format as formatDateFns } from 'date-fns';
 import { TransactionsService } from '../transactions/transactions.page.service';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { ReportReviewService } from 'src/app/services/report-review.service';
@@ -496,48 +495,34 @@ export class PnLReportJournalPage implements OnInit {
   }
 
 
+  /**
+   * Requests a server-rendered PDF (pdfkit, RTL Hebrew) from the backend —
+   * same approach as the VAT report — and downloads it. No external
+   * template-fill service and no browser print dialog involved, so the
+   * output has no browser-injected header/footer.
+   */
   createPnlReportPDFfile(): void {
+    if (!this.pnlReport) return;
 
     this.isLoadingPDF.set(true);
-    let dataTable: (string | number)[][] = [];
-    this.pnlReport.expenses.forEach((expense) => {
-      // טבלת הוצאות לפילפאסטר: אותו פורמט כמו הכותרות (ש"ח + 2 ספרות אחרי נקודה)
-      dataTable.push([this.formatShekelAmount(expense.total), expense.category]);
-    })
-    
-    const effectiveBusinessNumber = (this.businessNumber() ?? this.userData?.businessNumber ?? '').toString();
-    // תאריך הפקת הדוח (issue date) - פורמט עקבי עם שאר תאריכי הדוחות שנשלחים לפילפאסטר
-    const issueDate = formatDateFns(new Date(), 'dd/MM/yyyy');
-     
-    const data: ICreateDataDoc = {
-      fid: "ydAEQsvSbC",
-      prefill_data: {
-        name: [this.userData.fName, this.userData.lName].filter(Boolean).join(' '),
-        businessNumber: effectiveBusinessNumber,
-        period: `${this.startDate()} - ${this.endDate()}`,
-        income: this.formatShekelAmount(this.pnlReport.income),
-        profit: this.formatShekelAmount(this.pnlReport.netProfitBeforeTax),
-        expenses: this.formatShekelAmount(this.totalExpense),
-        issueDate,
-        table: dataTable,
-      },
-    }
-
-    this.pnlReportService.generatePnLReportPDF(data)
+    this.pnlReportService.generatePnLReportPDF(this.startDate(), this.endDate(), this.businessNumber())
       .pipe(
         catchError((err) => {
-          console.log("error in create pdf: ", err);
-          this.isLoadingPDF.set(false);
+          console.error('error generating pnl report pdf: ', err);
+          this.messageService.add({
+            severity: 'error',
+            summary: 'Error',
+            detail: 'הפקת קובץ ה-PDF נכשלה. אנא נסה שוב.',
+            life: 5000,
+            key: 'br',
+          });
           return EMPTY;
         }),
-        finalize(() =>{
-          this.isLoadingPDF.set(false);
-        })
+        finalize(() => this.isLoadingPDF.set(false)),
       )
-      .subscribe((res) => {
-        console.log('res of create pdf: ', res);
-        this.fileService.downloadFile("my pdf", res)
-      })
+      .subscribe((blob) => {
+        this.fileService.downloadFile(`דוח רווח והפסד ${this.startDate()} - ${this.endDate()}.pdf`, blob);
+      });
   }
 
   formatReportDate(dateStr: string): string {
@@ -545,20 +530,6 @@ export class PnLReportJournalPage implements OnInit {
     // display them in dd.MM.yyyy for this page.
     if (!dateStr) return '';
     return String(dateStr).replace(/[\/-]/g, '.');
-  }
-
-  private formatShekelAmount(value: number | string | null | undefined): string {
-    const raw = value ?? 0;
-    const num = typeof raw === 'number' ? raw : Number(String(raw).replace(/,/g, ''));
-    const safeNum = Number.isFinite(num) ? num : 0;
-    const isNegative = safeNum < 0;
-    const abs = Math.abs(safeNum);
-    const fixed = abs.toFixed(2); // uses '.' as decimal separator
-    const [intPart, fracPart] = fixed.split('.');
-    const intWithCommas = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-    const formatted = `${intWithCommas}.${fracPart}`;
-    // Put minus on the right for RTL-like appearance, before currency sign
-    return isNegative ? `${formatted}- ש"ח` : `${formatted} ש"ח`;
   }
 
 

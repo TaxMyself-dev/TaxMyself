@@ -28,13 +28,9 @@ export class ReportsPage implements OnInit {
     this.userData = this.authService.getUserDataFromLocalStorage();
     this.itemsNavigate = [
       { name: 'דו"ח מע"מ', link: '/vat-report', image: '../../../assets/vat_report.svg', id: '0', index: 'zero', content: 'דיווח ותשלום מע"מ', appRoute: AppRoute.VAT_REPORT },
-    
+
       { name: 'דו"ח רווח והפסד', link: '/pnl-report', image: '../../../assets/p&l_report.svg', id: '1', index: 'one', content: 'צפייה בהכנסות והוצאות העסק לפי תקופה', appRoute: AppRoute.PNL_REPORT },
-    
-      { name: 'דו"ח מע"מ (יומן)', link: '/vat-report-journal', image: '../../../assets/vat_report.svg', id: '7', index: 'seven', content: 'דוח מע"מ מבוסס פקודות יומן — לצורך השוואה' },
-    
-      { name: 'דו"ח רווח והפסד (יומן)', link: '/pnl-report-journal', image: '../../../assets/p&l_report.svg', id: '8', index: 'eight', content: 'דוח רווח והפסד מבוסס פקודות יומן — לצורך השוואה' },
-    
+
       // TODO: temporarily hidden during development - re-enable when annual report dev is complete
       // { name: 'דו"ח שנתי', link: '/annual-report', image: '../../../assets/annual_report.svg', id:'2', index: 'two', content: 'הגשת דו"ח שנתי למס הכנסה' },
     
@@ -47,6 +43,17 @@ export class ReportsPage implements OnInit {
       { name: 'כרטסת', link: '/ledger-report', image: '../../../assets/p&l_report.svg', id: '6', index: 'six', content: 'צפייה בתנועות יומן (כרטסת) לפי תקופה' },
     ];
 
+  }
+
+  onReportCardClick(item: ReportItem): void {
+    if (!item.appRoute) {
+      this.router.navigate([item.link]);
+      return;
+    }
+    const result = this.accessHandlerService.handleRouteAccess(item.appRoute);
+    if (result.allowed) {
+      this.router.navigate([item.link]);
+    }
   }
 
 }

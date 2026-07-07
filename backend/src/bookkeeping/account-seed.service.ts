@@ -96,7 +96,6 @@ export class AccountSeedService implements OnModuleInit {
    * and demo-data/profiles/ledger-test.profile.ts, not just assumed.
    */
   private static readonly CATEGORY_ACCOUNT_DEFAULTS: Record<string, string | null> = {
-    'בית':                      '5100',
     'רכב ותחבורה':              '5200',
     'בנקים וכרטיסי אשראי':     '6100',
     'בנק, אשראי ותנועות':      '6100', // legacy alias seen in prod
@@ -111,7 +110,7 @@ export class AccountSeedService implements OnModuleInit {
     'העברות ותנועות בחשבון':    null,   // internal transfers — not a P&L item
     'הכנסות':                   null,   // income handled by step 7 in sub-category cascade
     'העברות':                   null,
-    'דיור והוצאות הבית':        '5100', // legacy alias for בית
+    'דיור והוצאות הבית':        '5100', // canonical home-expenses category — 'בית' was removed
     'החזרי מס ודוח שנתי':       null,   // never P&L
   };
 
@@ -132,6 +131,9 @@ export class AccountSeedService implements OnModuleInit {
     { category: 'דיור והוצאות הבית', subCategory: 'חשמל',    pnlCategory: 'הוצאות משרד' },
     { category: 'דיור והוצאות הבית', subCategory: 'ועד בית', pnlCategory: 'הוצאות משרד' },
     { category: 'דיור והוצאות הבית', subCategory: 'תחזוקה',  pnlCategory: 'הוצאות משרד' },
+    { category: 'דיור והוצאות הבית', subCategory: 'גז',      pnlCategory: 'הוצאות משרד' },
+    { category: 'דיור והוצאות הבית', subCategory: 'מים',     pnlCategory: 'הוצאות משרד' },
+    { category: 'דיור והוצאות הבית', subCategory: 'שכירות',  pnlCategory: 'הוצאות משרד' },
     { category: 'עסק', subCategory: 'שכירות משרד', pnlCategory: 'הוצאות משרד' },
     { category: 'עסק', subCategory: 'הוצאות משרד', pnlCategory: 'הוצאות משרד' },
     { category: 'עסק', subCategory: 'שליחויות',    pnlCategory: 'הוצאות משרד' },
@@ -146,9 +148,6 @@ export class AccountSeedService implements OnModuleInit {
     { category: 'דיור והוצאות הבית', subCategory: 'פלאפון',     pnlCategory: 'תקשורת' },
     { category: 'דיור והוצאות הבית', subCategory: 'אינטרנט',    pnlCategory: 'תקשורת' },
     { category: 'דיור והוצאות הבית', subCategory: 'טלפון קווי', pnlCategory: 'תקשורת' },
-    { category: 'בית', subCategory: 'פלאפון',     pnlCategory: 'תקשורת' }, // modern category alias
-    { category: 'בית', subCategory: 'אינטרנט',    pnlCategory: 'תקשורת' },
-    { category: 'בית', subCategory: 'טלפון קווי', pnlCategory: 'תקשורת' },
     { category: 'עסק', subCategory: 'תוכנות',     pnlCategory: 'תקשורת ותוכנות' }, // keyword step overrides to 5400
     // 5400 — שיווק ופרסום
     { category: 'עסק', subCategory: 'שיווק ופרסום', pnlCategory: 'שיווק ופרסום' },
@@ -171,39 +170,45 @@ export class AccountSeedService implements OnModuleInit {
   ];
 
   /**
-   * Sub-categories whose VAT deductibility percent (vatPercent) differs from
-   * the default 100. Applied idempotently on every boot, after
-   * seedExpenseSubCategoryMappings creates any missing rows.
+   * Sub-categories whose taxPercent and/or vatPercent deductibility differ from
+   * the defaults (100/100). Consulted ONLY at row-creation time, inside
+   * seedExpenseSubCategoryMappings' INSERT branch — never re-applied to a row
+   * that already exists. This is deliberate: default_sub_category is editable
+   * via the admin panel (expenses.controller.ts update/add/delete-default-sub-
+   * category), so once a row exists its taxPercent/vatPercent are the admin's
+   * to own — boot-time code must never silently revert them.
    *
-   * Values: 0 = no deductible input VAT; 67 = two-thirds (רכב פרטי rule);
-   * 100 = fully deductible (default — not listed here, that's the INSERT default).
+   * 'משכנתא' and 'גינה' were deliberately removed (not tracked, not relevant).
    */
-  private static readonly SUBCATEGORY_VAT_DEFAULTS: ReadonlyArray<{
+  private static readonly SUBCATEGORY_TAX_VAT_DEFAULTS: ReadonlyArray<{
     category: string;
     subCategory: string;
+    taxPercent: number;
     vatPercent: number;
   }> = [
-    // דיור / home expenses — not VAT-deductible for businesses
-    { category: 'דיור והוצאות הבית', subCategory: 'ארנונה',   vatPercent: 0  },
-    { category: 'דיור והוצאות הבית', subCategory: 'חשמל',     vatPercent: 0  },
-    { category: 'דיור והוצאות הבית', subCategory: 'מים',      vatPercent: 0  },
-    { category: 'דיור והוצאות הבית', subCategory: 'גז',       vatPercent: 0  },
-    { category: 'דיור והוצאות הבית', subCategory: 'ועד בית',  vatPercent: 0  },
-    { category: 'דיור והוצאות הבית', subCategory: 'תחזוקה',   vatPercent: 0  },
-    { category: 'דיור והוצאות הבית', subCategory: 'גינה',     vatPercent: 0  },
-    { category: 'דיור והוצאות הבית', subCategory: 'משכנתא',   vatPercent: 0  },
-    { category: 'דיור והוצאות הבית', subCategory: 'שכירות',   vatPercent: 0  },
-    // רכב — 2/3 deductible VAT (Israeli tax law: private vehicle rule)
-    { category: 'רכב ותחבורה', subCategory: 'דלק',            vatPercent: 67 },
-    { category: 'רכב ותחבורה', subCategory: 'חניה',            vatPercent: 67 },
-    { category: 'רכב ותחבורה', subCategory: 'טיפולים',         vatPercent: 67 },
-    { category: 'רכב ותחבורה', subCategory: 'כבישי אגרה',      vatPercent: 67 },
-    { category: 'רכב ותחבורה', subCategory: 'מעורכות',         vatPercent: 67 },
-    { category: 'רכב ותחבורה', subCategory: 'תחבורה ציבורית',  vatPercent: 67 },
-    // רכב — insurance: no deductible input VAT
-    { category: 'רכב ותחבורה', subCategory: 'ביטוח רכב',      vatPercent: 0  },
-    // כיבוד — meals/entertainment: no input VAT deduction allowed
-    { category: 'עסק', subCategory: 'כיבוד',                   vatPercent: 0  },
+    // דיור / הוצאות משרד — לא ניתנות לניכוי מע"מ, 25% מוכר למס הכנסה (חלק עסקי מהבית)
+    { category: 'דיור והוצאות הבית', subCategory: 'ארנונה',  taxPercent: 25, vatPercent: 0  },
+    { category: 'דיור והוצאות הבית', subCategory: 'מים',     taxPercent: 25, vatPercent: 0  },
+    { category: 'דיור והוצאות הבית', subCategory: 'ועד בית', taxPercent: 25, vatPercent: 0  },
+    { category: 'דיור והוצאות הבית', subCategory: 'שכירות',  taxPercent: 25, vatPercent: 0  },
+    // חשמל/גז/תחזוקה — 25% מוכר בשניהם (גם מע"מ, בניגוד לשאר קבוצת הדיור)
+    { category: 'דיור והוצאות הבית', subCategory: 'חשמל',    taxPercent: 25, vatPercent: 25 },
+    { category: 'דיור והוצאות הבית', subCategory: 'גז',      taxPercent: 25, vatPercent: 25 },
+    { category: 'דיור והוצאות הבית', subCategory: 'תחזוקה',  taxPercent: 25, vatPercent: 25 },
+    // תקשורת (טלפון/אינטרנט/פלאפון) — 25% בשניהם
+    { category: 'דיור והוצאות הבית', subCategory: 'אינטרנט',    taxPercent: 25, vatPercent: 25 },
+    { category: 'דיור והוצאות הבית', subCategory: 'טלפון קווי', taxPercent: 25, vatPercent: 25 },
+    { category: 'דיור והוצאות הבית', subCategory: 'פלאפון',     taxPercent: 25, vatPercent: 25 },
+    // רכב — 45% מס הכנסה, 66.66% מע"מ (כלל 2/3 לרכב פרטי), חוץ מביטוח (מע"מ 0)
+    { category: 'רכב ותחבורה', subCategory: 'דלק',            taxPercent: 45, vatPercent: 66.66 },
+    { category: 'רכב ותחבורה', subCategory: 'חניה',            taxPercent: 45, vatPercent: 66.66 },
+    { category: 'רכב ותחבורה', subCategory: 'טיפולים',         taxPercent: 45, vatPercent: 66.66 },
+    { category: 'רכב ותחבורה', subCategory: 'כבישי אגרה',      taxPercent: 45, vatPercent: 66.66 },
+    { category: 'רכב ותחבורה', subCategory: 'תחבורה ציבורית',  taxPercent: 45, vatPercent: 66.66 },
+    { category: 'רכב ותחבורה', subCategory: 'מערכות',          taxPercent: 45, vatPercent: 66.66 },
+    { category: 'רכב ותחבורה', subCategory: 'ביטוח רכב',      taxPercent: 45, vatPercent: 0     },
+    // כיבוד — ללא ניכוי מע"מ (נשאר כמו קודם)
+    { category: 'עסק', subCategory: 'כיבוד', taxPercent: 100, vatPercent: 0 },
   ];
 
   async onModuleInit(): Promise<void> {
@@ -224,25 +229,16 @@ export class AccountSeedService implements OnModuleInit {
       );
     }
 
-    // Ensure the expense sub-categories exist with the right pnlCategory BEFORE
-    // the accountCode mapping runs (the mapping derives accountCode from
-    // pnlCategory). Own try so a failure here doesn't block the mapping below.
+    // Ensure the expense sub-categories exist — creates any MISSING (category,
+    // subCategory) row (with its correct initial pnlCategory + vatPercent);
+    // never touches a row that already exists (admin-panel edits are the row's
+    // owner from that point on). Own try so a failure here doesn't block the
+    // accountCode mapping below.
     try {
       await this.seedExpenseSubCategoryMappings();
     } catch (err: any) {
       this.logger.error(
-        `Expense sub-category pnlCategory seed failed: ${err?.message ?? err}`,
-      );
-    }
-
-    // Apply correct vatPercent values for sub-categories whose deductibility
-    // differs from the default (100%). Runs after seedExpenseSubCategoryMappings
-    // so missing rows are created first.
-    try {
-      await this.seedSubCategoryVatDefaults();
-    } catch (err: any) {
-      this.logger.error(
-        `Sub-category VAT defaults seed failed: ${err?.message ?? err}`,
+        `Expense sub-category mapping seed failed: ${err?.message ?? err}`,
       );
     }
 
@@ -277,73 +273,69 @@ export class AccountSeedService implements OnModuleInit {
    */
   private async seedCategoryAccountCodes(): Promise<void> {
     const em = this.accountRepo.manager;
-    const entries = Object.entries(AccountSeedService.CATEGORY_ACCOUNT_DEFAULTS);
+    // GUARD INVARIANT: only fills a category's accountCode when it's currently
+    // NULL — never overwrites an existing value (whether set by a prior boot or
+    // an admin edit). `null`-mapped entries have nothing to "fill", so they're
+    // skipped entirely rather than force-clearing an already-set value.
+    const entries = Object.entries(AccountSeedService.CATEGORY_ACCOUNT_DEFAULTS).filter(
+      ([, code]) => code !== null,
+    );
     for (const [categoryName, code] of entries) {
       await em.query(
-        'UPDATE default_category SET accountCode = ? WHERE categoryName = ?',
+        'UPDATE default_category SET accountCode = ? WHERE categoryName = ? AND accountCode IS NULL',
         [code, categoryName],
       );
     }
     const mappingLines = entries
-      .map(([categoryName, code]) => `  ${categoryName} -> ${code ?? 'NULL'}`)
+      .map(([categoryName, code]) => `  ${categoryName} -> ${code}`)
       .join('\n');
     this.logger.log(
-      `Category accountCode defaults applied (${entries.length} categories):\n${mappingLines}`,
+      `Category accountCode defaults applied to previously-NULL rows (${entries.length} categories checked):\n${mappingLines}`,
     );
   }
 
   /**
    * Ensure each (category, subCategory) in EXPENSE_SUBCATEGORY_PNL exists in the
-   * GLOBAL default_sub_category catalog and carries the intended pnlCategory.
-   * Existing rows are updated in place (pnlCategory only — other fields kept);
-   * missing rows are created with sensible defaults. Idempotent across boots.
+   * GLOBAL default_sub_category catalog. GUARD INVARIANT: only ever INSERTs a
+   * row that doesn't exist yet — a row that already exists (whatever its
+   * current pnlCategory/vatPercent/etc.) is never touched, because
+   * default_sub_category is admin-editable (expenses.controller.ts's
+   * update/add/delete-default-sub-category endpoints) and boot-time code must
+   * never silently revert an admin's edit. On creation, taxPercent/vatPercent
+   * are looked up from SUBCATEGORY_TAX_VAT_DEFAULTS (falling back to 100/100)
+   * so a brand-new row starts with the correct values instead of always-100.
    * Runs BEFORE seedSubCategoryAccountCodes so the accountCode mapping sees the
-   * freshly-set pnlCategory values.
+   * freshly-created rows' pnlCategory.
    */
   private async seedExpenseSubCategoryMappings(): Promise<void> {
     const em = this.accountRepo.manager;
+    let created = 0;
     for (const { category, subCategory, pnlCategory } of AccountSeedService.EXPENSE_SUBCATEGORY_PNL) {
       const existing: Array<{ id: number }> = await em.query(
         'SELECT id FROM default_sub_category WHERE categoryName = ? AND subCategoryName = ? LIMIT 1',
         [category, subCategory],
       );
-      if (existing.length) {
-        await em.query(
-          'UPDATE default_sub_category SET pnlCategory = ? WHERE categoryName = ? AND subCategoryName = ?',
-          [pnlCategory, category, subCategory],
-        );
-      } else {
-        // necessity + reportScope rely on their DB column defaults; accountCode
-        // is set right after by seedSubCategoryAccountCodes.
-        await em.query(
-          `INSERT INTO default_sub_category
-             (subCategoryName, categoryName, taxPercent, vatPercent, reductionPercent,
-              isEquipment, isRecognized, isExpense, pnlCategory)
-           VALUES (?, ?, 100, 100, 0, 0, 1, 1, ?)`,
-          [subCategory, category, pnlCategory],
-        );
-      }
-    }
-    this.logger.log(
-      `Expense sub-category pnlCategory mappings ensured (${AccountSeedService.EXPENSE_SUBCATEGORY_PNL.length} pairs).`,
-    );
-  }
+      if (existing.length) continue; // row already exists — admin owns it, never overwrite
 
-  /**
-   * Apply correct vatPercent values for sub-categories whose VAT deductibility
-   * differs from the insert default (100). Idempotent — safe on every boot.
-   * Runs after seedExpenseSubCategoryMappings so all rows exist before we update.
-   */
-  private async seedSubCategoryVatDefaults(): Promise<void> {
-    const em = this.accountRepo.manager;
-    for (const { category, subCategory, vatPercent } of AccountSeedService.SUBCATEGORY_VAT_DEFAULTS) {
-      await em.query(
-        'UPDATE default_sub_category SET vatPercent = ? WHERE categoryName = ? AND subCategoryName = ?',
-        [vatPercent, category, subCategory],
+      const defaults = AccountSeedService.SUBCATEGORY_TAX_VAT_DEFAULTS.find(
+        (v) => v.category === category && v.subCategory === subCategory,
       );
+      const taxPercent = defaults?.taxPercent ?? 100;
+      const vatPercent = defaults?.vatPercent ?? 100;
+
+      // necessity + reportScope rely on their DB column defaults; accountCode
+      // is set right after by seedSubCategoryAccountCodes.
+      await em.query(
+        `INSERT INTO default_sub_category
+           (subCategoryName, categoryName, taxPercent, vatPercent, reductionPercent,
+            isEquipment, isRecognized, isExpense, pnlCategory)
+         VALUES (?, ?, ?, ?, 0, 0, 1, 1, ?)`,
+        [subCategory, category, taxPercent, vatPercent, pnlCategory],
+      );
+      created++;
     }
     this.logger.log(
-      `Sub-category VAT defaults applied (${AccountSeedService.SUBCATEGORY_VAT_DEFAULTS.length} pairs).`,
+      `Expense sub-category mappings ensured (${created} new row(s) created out of ${AccountSeedService.EXPENSE_SUBCATEGORY_PNL.length} pairs; existing rows left untouched).`,
     );
   }
 
@@ -374,79 +366,96 @@ export class AccountSeedService implements OnModuleInit {
    *
    * user_sub_category is left on its pre-existing (pnlCategory-only) mapping —
    * out of Phase 3 scope, untouched.
+   *
+   * GUARD INVARIANT: a row's accountCode is assigned by this cascade ONCE —
+   * the very first time it's seen with accountCode IS NULL. The set of
+   * eligible ids is snapshotted BEFORE step 1 runs, and every step's UPDATE is
+   * scoped to `id IN (<snapshot>)`, so the 7-step precedence logic still runs
+   * to completion for those rows (a later step can still override an earlier
+   * step's result WITHIN this one pass), but a row that already has an
+   * accountCode — from a previous boot, OR because an admin edited it via the
+   * generic update-default-sub-category endpoint — is never touched again.
    */
   private async seedSubCategoryAccountCodes(): Promise<void> {
     const em = this.accountRepo.manager;
     const fallback = AccountSeedService.EXPENSE_FALLBACK_ACCOUNT;
     const legacyMap = AccountSeedService.PNL_CATEGORY_TO_ACCOUNT;
 
-    // 1. Baseline for recognized, deductible business expenses — "if unsure,
-    //    map to 5000". Rows that aren't a recognized expense are left alone.
-    await em.query(
-      `UPDATE default_sub_category SET accountCode = ? WHERE isRecognized = 1 AND isExpense = 1`,
-      [fallback],
+    const nullRows: Array<{ id: number }> = await em.query(
+      `SELECT id FROM default_sub_category WHERE accountCode IS NULL`,
     );
-
-    // 2. Legacy pnlCategory → account, pre-Phase-1 mapping.
-    for (const [pnlCategory, code] of Object.entries(legacyMap)) {
+    const ids = nullRows.map((r) => r.id);
+    if (ids.length === 0) {
+      this.logger.log('Sub-category accountCode mapping: no NULL rows to assign — skipped.');
+    } else {
+      // 1. Baseline for recognized, deductible business expenses — "if unsure,
+      //    map to 5000". Rows that aren't a recognized expense are left alone.
       await em.query(
-        `UPDATE default_sub_category SET accountCode = ? WHERE pnlCategory = ?`,
-        [code, pnlCategory],
+        `UPDATE default_sub_category SET accountCode = ? WHERE isRecognized = 1 AND isExpense = 1 AND id IN (?)`,
+        [fallback, ids],
       );
+
+      // 2. Legacy pnlCategory → account, pre-Phase-1 mapping.
+      for (const [pnlCategory, code] of Object.entries(legacyMap)) {
+        await em.query(
+          `UPDATE default_sub_category SET accountCode = ? WHERE pnlCategory = ? AND id IN (?)`,
+          [code, pnlCategory, ids],
+        );
+      }
+
+      // 3. 'ספקים' was account 5800's OLD name pre-Phase-1; 5800 now means "שכר".
+      //    Any row still tagged with this stale pnlCategory falls back to 5000.
+      await em.query(
+        `UPDATE default_sub_category SET accountCode = ? WHERE pnlCategory = ? AND id IN (?)`,
+        [fallback, 'ספקים', ids],
+      );
+
+      // 4. Category-level defaults — applies non-null entries only.
+      //    Null entries in CATEGORY_ACCOUNT_DEFAULTS mean "category too broad to
+      //    map at the category level" (they serve seedCategoryAccountCodes which
+      //    writes to default_category). Applying them here would wipe the more
+      //    specific accountCodes already set by step 2 (e.g. 'עסק' sub-categories
+      //    that have correct pnlCategory-derived codes like 5100 would be cleared
+      //    to null and fall back to the 5000 resolver fallback).
+      for (const [categoryName, code] of Object.entries(AccountSeedService.CATEGORY_ACCOUNT_DEFAULTS)) {
+        if (code === null) continue;
+        await em.query(
+          `UPDATE default_sub_category SET accountCode = ? WHERE categoryName = ? AND id IN (?)`,
+          [code, categoryName, ids],
+        );
+      }
+
+      // 5. Sub-category NAME keyword overrides — most specific textual signal.
+      for (const { code, keywords } of AccountSeedService.SUBCATEGORY_KEYWORD_RULES) {
+        const likeClauses = keywords.map(() => 'subCategoryName LIKE ?').join(' OR ');
+        await em.query(
+          `UPDATE default_sub_category SET accountCode = ? WHERE (${likeClauses}) AND id IN (?)`,
+          [code, ...keywords.map((k) => `%${k}%`), ids],
+        );
+      }
+
+      // 6. Equipment — blanket-routed to depreciation; no fixed-assets chart yet.
+      await em.query(
+        `UPDATE default_sub_category SET accountCode = ? WHERE isEquipment = 1 AND id IN (?)`,
+        ['6300', ids],
+      );
+
+      // 7. Income — most specific subcategory applied last so it wins over the
+      //    general income-category default.
+      await em.query(
+        `UPDATE default_sub_category SET accountCode = ? WHERE categoryName = ? AND id IN (?)`,
+        ['4000', 'הכנסות', ids],
+      );
+      await em.query(
+        `UPDATE default_sub_category SET accountCode = ? WHERE subCategoryName = ? AND id IN (?)`,
+        ['4010', 'הכנסות פטורות', ids],
+      );
+
+      this.logger.log(`Sub-category accountCode mapping applied to ${ids.length} previously-NULL row(s).`);
     }
 
-    // 3. 'ספקים' was account 5800's OLD name pre-Phase-1; 5800 now means "שכר".
-    //    Any row still tagged with this stale pnlCategory falls back to 5000.
-    await em.query(
-      `UPDATE default_sub_category SET accountCode = ? WHERE pnlCategory = ?`,
-      [fallback, 'ספקים'],
-    );
-
-    // 4. Category-level defaults — applies non-null entries only.
-    //    Null entries in CATEGORY_ACCOUNT_DEFAULTS mean "category too broad to
-    //    map at the category level" (they serve seedCategoryAccountCodes which
-    //    writes to default_category). Applying them here would wipe the more
-    //    specific accountCodes already set by step 2 (e.g. 'עסק' sub-categories
-    //    that have correct pnlCategory-derived codes like 5100 would be cleared
-    //    to null and fall back to the 5000 resolver fallback).
-    for (const [categoryName, code] of Object.entries(AccountSeedService.CATEGORY_ACCOUNT_DEFAULTS)) {
-      if (code === null) continue;
-      await em.query(
-        `UPDATE default_sub_category SET accountCode = ? WHERE categoryName = ?`,
-        [code, categoryName],
-      );
-    }
-
-    // 5. Sub-category NAME keyword overrides — most specific textual signal.
-    for (const { code, keywords } of AccountSeedService.SUBCATEGORY_KEYWORD_RULES) {
-      const likeClauses = keywords.map(() => 'subCategoryName LIKE ?').join(' OR ');
-      await em.query(
-        `UPDATE default_sub_category SET accountCode = ? WHERE ${likeClauses}`,
-        [code, ...keywords.map((k) => `%${k}%`)],
-      );
-    }
-
-    // 6. Equipment — blanket-routed to depreciation; no fixed-assets chart yet.
-    await em.query(
-      `UPDATE default_sub_category SET accountCode = ? WHERE isEquipment = 1`,
-      ['6300'],
-    );
-
-    // 7. Income — most specific subcategory applied last so it wins over the
-    //    general income-category default.
-    await em.query(
-      `UPDATE default_sub_category SET accountCode = ? WHERE categoryName = ?`,
-      ['4000', 'הכנסות'],
-    );
-    await em.query(
-      `UPDATE default_sub_category SET accountCode = ? WHERE subCategoryName = ?`,
-      ['4010', 'הכנסות פטורות'],
-    );
-
-    this.logger.log('Sub-category accountCode mapping applied (Phase 3 rule cascade).');
-
-    // user_sub_category: unchanged legacy behavior (out of Phase 3 scope) —
-    // only rows whose pnlCategory matches the legacy map are touched.
+    // user_sub_category: same guard — only rows whose accountCode is still
+    // NULL AND whose pnlCategory matches the legacy map are touched.
     const legacyKeys = Object.keys(legacyMap);
     if (legacyKeys.length) {
       const whenSql = legacyKeys.map(() => 'WHEN ? THEN ?').join(' ');
@@ -456,7 +465,7 @@ export class AccountSeedService implements OnModuleInit {
       await em.query(
         `UPDATE user_sub_category
          SET accountCode = CASE pnlCategory ${whenSql} END
-         WHERE pnlCategory IN (${inPlaceholders})`,
+         WHERE pnlCategory IN (${inPlaceholders}) AND accountCode IS NULL`,
         [...caseParams, ...legacyKeys],
       );
     }

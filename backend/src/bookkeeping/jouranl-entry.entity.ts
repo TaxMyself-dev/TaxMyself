@@ -33,7 +33,7 @@ export class JournalEntry {
   @Column({ type: 'enum', enum: JournalReferenceType, nullable: true })
   referenceType: JournalReferenceType;
 
-  @Column()
+  @Column({ type: 'bigint' })
   referenceId: number; // The ID of the invoice/receipt/expense etc
 
   @Column({ type: 'date', nullable: true })

@@ -1,7 +1,10 @@
 import { Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, FormGroup } from '@angular/forms';
+import { catchError, of } from 'rxjs';
+import { Workbook } from 'exceljs';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
+import { LedgerReportService } from 'src/app/pages/ledger-report/ledger-report.service';
 import { ConfirmationService } from 'primeng/api';
 import { ButtonSize, ButtonColor } from 'src/app/components/button/button.enum';
 import { FilterField } from 'src/app/components/filter-tab/filter-fields-model.component';
@@ -38,6 +41,7 @@ const REPORT_SCOPE_OPTIONS = [
 export class CategoryManagementComponent implements OnInit {
   private destroyRef = inject(DestroyRef);
   private expenseDataService = inject(ExpenseDataService);
+  private ledgerReportService = inject(LedgerReportService);
   private confirmationService = inject(ConfirmationService);
   private fb = inject(FormBuilder);
 
@@ -300,5 +304,159 @@ export class CategoryManagementComponent implements OnInit {
         },
         error: () => this.loading.set(false),
       });
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Excel export — all default sub-categories, split into "מוכרות" /
+  // "לא מוכרות" sheets. Same exceljs pattern (RTL, bold header, download via
+  // Blob) as ledger-report.page.ts's exportToExcel().
+  // ──────────────────────────────────────────────────────────────────────────
+
+  exportingExcel = signal<boolean>(false);
+
+  exportToExcel(): void {
+    if (this.exportingExcel() || !this.subCategories().length) return;
+    this.exportingExcel.set(true);
+    this.ledgerReportService.getLedgerAccounts()
+      .pipe(
+        catchError(() => of([])),
+        finalize(() => this.exportingExcel.set(false)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((accounts) => {
+        const accountNameByCode = new Map((accounts ?? []).map((a) => [a.code, a.name]));
+        this.buildAndDownloadSubCategoriesWorkbook(accountNameByCode);
+      });
+  }
+
+  private buildAndDownloadSubCategoriesWorkbook(accountNameByCode: Map<string, string>): void {
+    const header = [
+      'קטגוריה', 'תת קטגוריה', 'אחוז מוכר (מס)', 'אחוז מע"מ מוכר', 'אחוז הפחתה',
+      'קוד חשבון', 'שם חשבון', 'קטגוריית רווח והפסד', 'ציוד (פחת)', 'הכרחיות', 'תחום דיווח',
+    ];
+
+    const HEADER_FILL: any = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF4F6F9' } };
+
+    const wb = new Workbook();
+    const recognized = this.subCategories().filter((s) => !!s.isRecognized);
+    const notRecognized = this.subCategories().filter((s) => !s.isRecognized);
+
+    for (const [sheetName, rows] of [
+      ['הוצאות מוכרות', recognized],
+      ['הוצאות לא מוכרות', notRecognized],
+    ] as const) {
+      const ws = wb.addWorksheet(sheetName, { views: [{ rightToLeft: true }] });
+      const headerRow = ws.addRow(header);
+      headerRow.font = { bold: true };
+      headerRow.fill = HEADER_FILL;
+
+      for (const row of rows) {
+        ws.addRow([
+          row.categoryName,
+          row.subCategoryName,
+          row.taxPercent,
+          row.vatPercent,
+          row.reductionPercent,
+          row.accountCode || '',
+          row.accountCode ? (accountNameByCode.get(row.accountCode) || '') : '',
+          row.pnlCategory || '',
+          row.isEquipment ? 'כן' : 'לא',
+          this.necessityLabel(row.necessity),
+          this.reportScopeLabel(row.reportScope),
+        ]);
+      }
+
+      for (let i = 1; i <= header.length; i++) {
+        ws.getColumn(i).width = 16;
+      }
+    }
+
+    this.addAccountantSheet(wb, accountNameByCode);
+
+    wb.xlsx.writeBuffer().then((buffer) => {
+      const blob = new Blob([buffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'תתי-קטגוריות.xlsx';
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+  }
+
+  /** Pastel rotation used to give each accountCode block a distinct, uniform
+   *  background across all its rows (not row-by-row alternating). */
+  private static readonly ACCOUNT_BLOCK_COLORS = [
+    'FFFCE4EC', 'FFE3F2FD', 'FFE8F5E9', 'FFFFF3E0', 'FFF3E5F5', 'FFE0F7FA',
+  ];
+
+  /**
+   * Third sheet, laid out for the accountant: one row per sub-category
+   * (recognized AND not-recognized combined — unlike the other two sheets),
+   * sorted by accountCode then subCategoryName, with each accountCode's rows
+   * sharing one solid pastel background so card boundaries are visible at a
+   * glance even across many accounts.
+   *
+   * "קטגoריה ל-6111" has no backing field anywhere in the system yet (see
+   * exportToExcel's repo-wide search — no form6111/reportCode/6111 column
+   * exists on default_sub_category, default_booking_account, or elsewhere).
+   * Left blank here for the accountant to fill in manually until such a
+   * field is added.
+   */
+  private addAccountantSheet(wb: Workbook, accountNameByCode: Map<string, string>): void {
+    const header = [
+      'שם הכרטיס', 'מספר הכרטיס', 'הוצאה', 'אחוז מוכר למס הכנסה', 'אחוז מוכר למע"מ',
+      'פחת', 'אחוז פחת', 'קטגוריה לדוח רווח והפסד', 'קטגוריה ל-6111',
+    ];
+    const HEADER_FILL: any = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF4F6F9' } };
+
+    const rows = [...this.subCategories()].sort((a, b) => {
+      const codeA = a.accountCode || '';
+      const codeB = b.accountCode || '';
+      if (codeA !== codeB) {
+        if (!codeA) return 1;
+        if (!codeB) return -1;
+        return codeA.localeCompare(codeB);
+      }
+      return (a.subCategoryName || '').localeCompare(b.subCategoryName || '');
+    });
+
+    const ws = wb.addWorksheet('רואה חשבון', { views: [{ rightToLeft: true }] });
+    const headerRow = ws.addRow(header);
+    headerRow.font = { bold: true };
+    headerRow.fill = HEADER_FILL;
+
+    let previousCode: string | null = null;
+    let colorIndex = -1;
+    for (const row of rows) {
+      const code = row.accountCode || '';
+      if (code !== previousCode) {
+        colorIndex = (colorIndex + 1) % CategoryManagementComponent.ACCOUNT_BLOCK_COLORS.length;
+        previousCode = code;
+      }
+
+      const dataRow = ws.addRow([
+        code ? (accountNameByCode.get(code) || '') : '',
+        code,
+        row.subCategoryName,
+        row.taxPercent,
+        row.vatPercent,
+        row.isEquipment ? 'כן' : 'לא',
+        row.reductionPercent,
+        row.pnlCategory || '',
+        '', // קטגוריה ל-6111 — no backing field in the system yet; filled manually.
+      ]);
+      dataRow.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: CategoryManagementComponent.ACCOUNT_BLOCK_COLORS[colorIndex] },
+      } as any;
+    }
+
+    for (let i = 1; i <= header.length; i++) {
+      ws.getColumn(i).width = 16;
+    }
   }
 }

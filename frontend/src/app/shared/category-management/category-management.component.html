@@ -10,6 +10,8 @@
     <div class="table-header-row">
       <app-p-button [icon]="'pi pi-plus'" [buttonText]="'הוספת תת קטגוריה'" [buttonSize]="buttonSize.SMALL"
         (onButtonClicked)="openAddSubCategory()"></app-p-button>
+      <app-p-button [icon]="'pi pi-file-excel'" [buttonText]="'ייצוא לאקסל'" [buttonSize]="buttonSize.SMALL"
+        [disabled]="exportingExcel()" (onButtonClicked)="exportToExcel()"></app-p-button>
       <p class="table-title">תתי קטגוריות</p>
     </div>
 

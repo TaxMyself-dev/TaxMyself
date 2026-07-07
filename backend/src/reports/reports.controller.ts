@@ -242,30 +242,6 @@ export class ReportsController {
     }
 
 
-    @Get('vat-report')
-    @UseGuards(FirebaseAuthGuard)
-    @UsePipes(new ValidationPipe({ transform: true }))
-    async getVatReport(
-        @Req() request: AuthenticatedRequest,
-        @Query() query: VatReportRequestDto,
-    ): Promise<VatReportDto> {
-        try {
-            const firebaseId = request.user?.firebaseId;
-            if (!firebaseId) {
-                throw new BadRequestException('Firebase ID is missing');
-            }
-            const startDate = this.sharedService.convertStringToDateObject(query.startDate);
-            const endDate = this.sharedService.convertStringToDateObject(query.endDate);
-            const vatReport = await this.reportsService.createVatReport(firebaseId, query.businessNumber, startDate, endDate);
-            return vatReport;
-        } catch (error) {
-            console.error("❌ Error in getVatReport controller:", error);
-            console.error("Error message:", error.message);
-            console.error("Error stack:", error.stack);
-            throw error;
-        }
-    }
-
     /**
      * Form 1342 (Israeli Tax Authority) — equipment depreciation report.
      * Returns one row per equipment asset purchased on or before `year`,
@@ -316,22 +292,8 @@ export class ReportsController {
         }
     }
 
-    @Get('pnl-report')
-    @UseGuards(FirebaseAuthGuard)
-    async getPnLReport(
-        @Req() request: AuthenticatedRequest,
-        @Query() query: any,
-    ): Promise<PnLReportDto> {
-        const firebaseId = request.user?.firebaseId;
-        const startDate = this.sharedService.convertStringToDateObject(query.startDate);
-        const endDate = this.sharedService.convertStringToDateObject(query.endDate);
-        const pnlReport = await this.reportsService.createPnLReport(firebaseId, query.businessNumber, startDate, endDate);
-        return pnlReport;
-    }
-
     /**
-     * Journal-based VAT report (TASK B) — parallel to /vat-report, reads from
-     * journal entries instead of documents/expenses. Same DTO/response shape.
+     * VAT report — computed from journal entries.
      */
     @Get('vat-report-journal')
     @UseGuards(FirebaseAuthGuard)
@@ -352,8 +314,7 @@ export class ReportsController {
     }
 
     /**
-     * Journal-based P&L report (TASK B) — parallel to /pnl-report, reads from
-     * journal entries instead of documents/expenses. Same DTO/response shape.
+     * P&L report — computed from journal entries.
      */
     @Get('pnl-report-journal')
     @UseGuards(FirebaseAuthGuard)
@@ -367,6 +328,55 @@ export class ReportsController {
         return this.reportsService.createPnLReportFromJournal(
             firebaseId, query.businessNumber, startDate, endDate,
         );
+    }
+
+    /**
+     * VAT report as a PDF (server-rendered, RTL Hebrew) — the interactive
+     * "ייצא כ-PDF" button. Includes the expense line-item breakdown.
+     */
+    @Get('vat-report-pdf')
+    @UseGuards(FirebaseAuthGuard)
+    @UsePipes(new ValidationPipe({ transform: true }))
+    async getVatReportPdf(
+        @Req() request: AuthenticatedRequest,
+        @Query() query: VatReportRequestDto,
+        @Res() res: Response,
+    ) {
+        const firebaseId = request.user?.firebaseId;
+        if (!firebaseId) {
+            throw new BadRequestException('Firebase ID is missing');
+        }
+        const startDate = this.sharedService.convertStringToDateObject(query.startDate);
+        const endDate = this.sharedService.convertStringToDateObject(query.endDate);
+        const pdfBuffer = await this.reportsService.generateVatReportPdfForExport(
+            firebaseId, query.businessNumber, startDate, endDate,
+        );
+        res.setHeader('Content-Type', 'application/pdf');
+        return res.send(pdfBuffer);
+    }
+
+    /**
+     * P&L report as a PDF (server-rendered, RTL Hebrew) — the interactive
+     * "ייצא כ-PDF" button.
+     */
+    @Get('pnl-report-pdf')
+    @UseGuards(FirebaseAuthGuard)
+    async getPnlReportPdf(
+        @Req() request: AuthenticatedRequest,
+        @Query() query: any,
+        @Res() res: Response,
+    ) {
+        const firebaseId = request.user?.firebaseId;
+        if (!firebaseId) {
+            throw new BadRequestException('Firebase ID is missing');
+        }
+        const startDate = this.sharedService.convertStringToDateObject(query.startDate);
+        const endDate = this.sharedService.convertStringToDateObject(query.endDate);
+        const pdfBuffer = await this.reportsService.generatePnlReportPdfForExport(
+            firebaseId, query.businessNumber, startDate, endDate,
+        );
+        res.setHeader('Content-Type', 'application/pdf');
+        return res.send(pdfBuffer);
     }
 
     @Get('ledger-report')
@@ -426,18 +436,6 @@ export class ReportsController {
             throw new BadRequestException('Firebase ID is missing');
         }
         return this.reportsService.getLedgerEntryAccounts();
-    }
-
-    @Post('pnl-report-pdf')
-    @UseGuards(FirebaseAuthGuard)
-    async generatePnLReportPDF(
-        @Body() body: any,
-        @Res() res: Response,
-        @Req() request: AuthenticatedRequest
-    ) {
-        const pdfBuffer = await this.reportsService.generatePnLReportPDF(body);
-        res.setHeader('Content-Type', 'application/pdf');
-        return res.send(pdfBuffer);
     }
 
 

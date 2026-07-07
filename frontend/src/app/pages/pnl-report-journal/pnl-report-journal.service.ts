@@ -35,11 +35,14 @@ export class PnLReportJournalService {
     return this.http.get<any>(url, { params: params })
   }
 
-  generatePnLReportPDF(data: any): Observable<Blob> {
+  /** Server-rendered (pdfkit) P&L report PDF — same approach as the VAT report. */
+  generatePnLReportPDF(startDate: string, endDate: string, businessNumber: string): Observable<Blob> {
     const url = `${environment.apiUrl}reports/pnl-report-pdf`;
-    return this.http.post<Blob>(url, data, { 
-      responseType: 'blob' as 'json'
-    });
+    const params = new HttpParams()
+      .set('startDate', startDate)
+      .set('endDate', endDate)
+      .set('businessNumber', businessNumber);
+    return this.http.get(url, { params, responseType: 'blob' });
   }
 
   addFileToExpenses(formData: { id: number, file: string | File }[], fromTransactions: boolean = false): Observable<any> {

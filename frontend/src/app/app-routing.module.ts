@@ -54,14 +54,9 @@ const routes: Routes = [
   },
   {
     path: 'vat-report',
-    loadChildren: () => import('./pages/vat-report/vat-report.module').then(m => m.VatReportPageModule),
+    loadChildren: () => import('./pages/vat-report-journal/vat-report-journal.module').then( m => m.VatReportJournalPageModule),
     canActivate: [AuthGuard, BillingGuard, ModuleAccessGuard],
     data: { appRoute: AppRoute.VAT_REPORT },
-  },
-  {
-    path: 'vat-report-journal',
-    loadChildren: () => import('./pages/vat-report-journal/vat-report-journal.module').then( m => m.VatReportJournalPageModule),
-    canActivate: [AuthGuard, BillingGuard]
   },
   {
     path: 'annual-report',
@@ -82,14 +77,9 @@ const routes: Routes = [
   },
   {
     path: 'pnl-report',
-    loadChildren: () => import('./pages/pnl-report/pnl-report.module').then(m => m.PnLReportPageModule),
+    loadChildren: () => import('./pages/pnl-report-journal/pnl-report-journal.module').then( m => m.PnLReportJournalPageModule),
     canActivate: [AuthGuard, BillingGuard, ModuleAccessGuard],
     data: { appRoute: AppRoute.PNL_REPORT },
-  },
-  {
-    path: 'pnl-report-journal',
-    loadChildren: () => import('./pages/pnl-report-journal/pnl-report-journal.module').then( m => m.PnLReportJournalPageModule),
-    canActivate: [AuthGuard, BillingGuard]
   },
   {
     path: 'ledger-report',

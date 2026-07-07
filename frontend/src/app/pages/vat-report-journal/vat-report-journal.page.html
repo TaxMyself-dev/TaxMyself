@@ -48,9 +48,6 @@
   </app-filter-tab>
 
   @if (vatReportData()) {
-    <div class="journal-report-banner">
-      דוח זה מבוסס על פקודות יומן — לצורך השוואה לדוח המע"מ הקיים
-    </div>
     <div class="wrap-output-report">
       <div class="output-report" *ngFor="let key of reportOrder">
         <div class="field-report">{{ vatReportFieldTitles[key] }}:</div>
@@ -89,6 +86,7 @@
         [buttonText]="'שמור כ-PDF'"
         [buttonColor]="buttonColor.WHITE_BORDER"
         [buttonSize]="buttonSize.AUTO"
+        [isLoading]="isLoadingPDF()"
         (onButtonClicked)="exportToPdf()">
       </app-p-button>
     </div>

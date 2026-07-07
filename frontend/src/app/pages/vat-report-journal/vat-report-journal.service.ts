@@ -21,6 +21,17 @@ export class VatReportJournalService {
   }
 
 
+  /** Server-rendered (pdfkit) VAT report PDF — includes the expense line-item breakdown. */
+  generateVatReportPDF(startDate: string, endDate: string, businessNumber: string): Observable<Blob> {
+    const url = `${environment.apiUrl}reports/vat-report-pdf`;
+    const params = new HttpParams()
+      .set('startDate', startDate)
+      .set('endDate', endDate)
+      .set('businessNumber', businessNumber);
+    return this.http.get(url, { params, responseType: 'blob' });
+  }
+
+
   addFileToExpenses(formData: {id:number, file: string | File}[], fromTransactions: boolean = false): Observable<any> {
     const url = `${environment.apiUrl}expenses/add-file-to-expense`;
     return this.http.patch<any>(url, {formData, fromTransactions})
