@@ -119,6 +119,11 @@ export class UserIntegrationsService {
 
   /** Decrypted refresh token. Use immediately before a provider call; never log it. */
   getDecryptedRefreshToken(integration: UserIntegration): string {
+    if (!integration.refreshToken) {
+      throw new Error(
+        `Integration ${integration.id} has no stored refresh token (status=${integration.status})`,
+      );
+    }
     return decryptIntegrationToken(integration.refreshToken);
   }
 
@@ -135,5 +140,22 @@ export class UserIntegrationsService {
    */
   async updateStatus(integrationId: number, status: IntegrationStatus): Promise<void> {
     await this.userIntegrationRepo.update({ id: integrationId }, { status });
+  }
+
+  /**
+   * User-initiated disconnect: clears the stored tokens and marks the
+   * integration REVOKED. The row is kept for audit/history.
+   */
+  async disconnect(integrationId: number): Promise<void> {
+    await this.userIntegrationRepo.update(
+      { id: integrationId },
+      {
+        refreshToken: null,
+        accessToken: null,
+        expiresAt: null,
+        status: IntegrationStatus.REVOKED,
+      },
+    );
+    this.logger.log(`Integration ${integrationId} disconnected (tokens cleared, status REVOKED)`);
   }
 }

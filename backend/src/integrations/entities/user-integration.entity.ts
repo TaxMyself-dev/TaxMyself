@@ -43,9 +43,12 @@ export class UserIntegration {
   @Column({ name: 'account_email', type: 'varchar', length: 320, nullable: true, default: null })
   accountEmail: string | null;
 
-  /** AES-256-GCM encrypted refresh token. Encrypt/decrypt only via the service. */
-  @Column({ name: 'refresh_token', type: 'text' })
-  refreshToken: string;
+  /**
+   * AES-256-GCM encrypted refresh token. Encrypt/decrypt only via the service.
+   * Null after disconnect: the row is kept (status REVOKED) but tokens are cleared.
+   */
+  @Column({ name: 'refresh_token', type: 'text', nullable: true, default: null })
+  refreshToken: string | null;
 
   /** AES-256-GCM encrypted short-lived access token. Optional cache; may be null. */
   @Column({ name: 'access_token', type: 'text', nullable: true, default: null })

@@ -28,6 +28,7 @@ import { BillingModule } from './billing/billing.module';
 import { IntegrationsModule } from './integrations/integrations.module';
 //Integrations entities
 import { UserIntegration } from './integrations/entities/user-integration.entity';
+import { OauthState } from './integrations/entities/oauth-state.entity';
 //Billing entities
 import { SubscriptionPlan } from './billing/entities/subscription-plan.entity';
 import { Subscription } from './billing/entities/subscription.entity';
@@ -107,7 +108,7 @@ import { BusinessService } from './business/business.service';
         FeezbackWebhookEvent, UserModuleSubscription, AccountantTask, AnnualReport, AnnualReportFile, ReportWorkflow,
         FxRate,
         SubscriptionPlan, Subscription, PaymentMethod, CardcomWebhookLog, BillingEvent,
-        UserIntegration,
+        UserIntegration, OauthState,
         ],
       synchronize: process.env.NODE_ENV !== 'production',
       timezone: 'Z',
