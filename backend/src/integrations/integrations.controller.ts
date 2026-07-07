@@ -1,9 +1,11 @@
 import {
+  Body,
   Controller,
   Delete,
   Get,
   Logger,
   NotFoundException,
+  Post,
   Query,
   Req,
   Res,
@@ -12,15 +14,18 @@ import {
 import { Response } from 'express';
 import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
 import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.interface';
+import { GmailImportDto } from './dto/gmail-import.dto';
 import { IntegrationProvider, IntegrationStatus } from './enums/integrations.enums';
+import { GmailDriveImportService } from './services/gmail-drive-import.service';
 import { GmailReaderService } from './services/gmail-reader.service';
 import { GoogleOauthService } from './services/google-oauth.service';
 import { OauthStateService } from './services/oauth-state.service';
 import { UserIntegrationsService } from './services/user-integrations.service';
 
 /**
- * Google account connect/disconnect endpoints (Phase B) and the Gmail
- * attachment reader (Phase C). No Drive upload and no document analysis here.
+ * Google account connect/disconnect endpoints (Phase B), the Gmail attachment
+ * reader (Phase C) and the Gmail → Drive inbox import (Phase D).
+ * No document analysis here — that stays in the existing Drive-inbox flow.
  */
 @Controller('integrations')
 export class IntegrationsController {
@@ -31,6 +36,7 @@ export class IntegrationsController {
     private readonly oauthStateService: OauthStateService,
     private readonly userIntegrationsService: UserIntegrationsService,
     private readonly gmailReaderService: GmailReaderService,
+    private readonly gmailDriveImportService: GmailDriveImportService,
   ) {}
 
   /** Returns the Google consent-screen URL the frontend should navigate to. */
@@ -176,6 +182,29 @@ export class IntegrationsController {
         contentBase64: a.content.toString('base64'),
       })),
     };
+  }
+
+  /**
+   * Phase D: import Gmail attachment candidates into the business's Drive
+   * inbox/ folder via the shared DocumentImportService pipeline. Documents
+   * already in the system (tracked in imported_documents) are skipped; the
+   * response summarizes what happened per file. Claude analysis is NOT
+   * triggered here — it keeps running from the Drive inbox as before.
+   */
+  @Post('google/gmail/import')
+  @UseGuards(FirebaseAuthGuard)
+  async gmailImport(
+    @Req() request: AuthenticatedRequest,
+    @Body() body: GmailImportDto,
+  ) {
+    const firebaseId = request.user?.firebaseId;
+    if (!firebaseId) throw new NotFoundException('User not found in request');
+
+    return this.gmailDriveImportService.importFromGmail(firebaseId, {
+      businessNumber: body.businessNumber.trim(),
+      query: body.q,
+      maxResults: body.maxResults,
+    });
   }
 
   /**
