@@ -24,6 +24,14 @@ const ISRAEL_TIMEZONE = 'Asia/Jerusalem';
  */
 const STALE_RUNNING_SYNC_MS = 6 * 60 * 60 * 1000;
 
+/**
+ * Overlap subtracted from the cursor on nightly syncs. Gmail's after: matches
+ * on receive time; indexing lag, clock skew and the UTC-midnight cursor of the
+ * initial import all create boundary slop — re-scanning a few extra hours is
+ * free because re-imports dedup on content hash.
+ */
+const NIGHTLY_SYNC_OVERLAP_MS = 3 * 60 * 60 * 1000;
+
 export interface GmailSyncStatusResponse {
   connected: boolean;
   accountEmail: string | null;
@@ -177,17 +185,27 @@ export class GmailSyncService {
         'The initial Gmail import has already been completed for this account.',
       );
     }
-    if (integration.lastSyncStatus === IntegrationSyncStatus.RUNNING) {
-      const startedAt = integration.lastSyncStartedAt?.getTime() ?? 0;
-      const isStale = Date.now() - startedAt > STALE_RUNNING_SYNC_MS;
-      if (!isStale) {
-        throw new ConflictException('A Gmail sync is already running for this account.');
-      }
-      this.logger.warn(
-        `Integration ${integration.id} stuck in RUNNING since ` +
-          `${integration.lastSyncStartedAt?.toISOString()} — treating as dead and restarting`,
-      );
+    if (this.hasLiveRunningSync(integration)) {
+      throw new ConflictException('A Gmail sync is already running for this account.');
     }
+  }
+
+  /**
+   * True when a RUNNING marker belongs to a sync that is plausibly still
+   * alive. A marker older than STALE_RUNNING_SYNC_MS is treated as dead
+   * (process restarted mid-run) and logged — callers may start a new run.
+   */
+  private hasLiveRunningSync(integration: UserIntegration): boolean {
+    if (integration.lastSyncStatus !== IntegrationSyncStatus.RUNNING) return false;
+
+    const startedAt = integration.lastSyncStartedAt?.getTime() ?? 0;
+    if (Date.now() - startedAt <= STALE_RUNNING_SYNC_MS) return true;
+
+    this.logger.warn(
+      `Integration ${integration.id} stuck in RUNNING since ` +
+        `${integration.lastSyncStartedAt?.toISOString()} — treating as dead`,
+    );
+    return false;
   }
 
   /**
@@ -240,6 +258,79 @@ export class GmailSyncService {
             `Could not persist sync error for integration ${integrationId}: ${persistError}`,
           ),
         );
+    }
+  }
+
+  // --- Nightly incremental sync -------------------------------------------------
+
+  /**
+   * One user's incremental sync: pull mail received since the cursor
+   * (lastSuccessfulSyncAt, minus a dedup-absorbed overlap) until now, through
+   * the same import pipeline as the initial import. Called by the nightly
+   * cron for each eligible integration.
+   *
+   * Never throws — the outcome is returned for the cron's summary and
+   * persisted on the integration row. The cursor advances to the moment the
+   * run STARTED (mail arriving mid-run is caught next night), and only on
+   * success.
+   */
+  async runIncrementalSync(
+    integration: UserIntegration,
+  ): Promise<{ outcome: 'success' | 'skipped' | 'error'; detail: string }> {
+    if (this.hasLiveRunningSync(integration)) {
+      return { outcome: 'skipped', detail: 'a sync is already running' };
+    }
+    if (!integration.lastSuccessfulSyncAt) {
+      // Initial import completed but no cursor — should be impossible; do not
+      // guess a window, a human should look at this row.
+      this.logger.error(
+        `Integration ${integration.id} has initialImportCompletedAt but no ` +
+          'lastSuccessfulSyncAt — skipping nightly sync',
+      );
+      return { outcome: 'skipped', detail: 'no sync cursor' };
+    }
+
+    const windowEnd = new Date();
+    await this.userIntegrationsService.markSyncRunning(integration.id);
+    try {
+      // Epoch seconds, not a YYYY/MM/DD date: after: with a date is
+      // day-granular and timezone-fuzzy; the epoch form is exact.
+      const afterEpochSeconds = Math.floor(
+        (integration.lastSuccessfulSyncAt.getTime() - NIGHTLY_SYNC_OVERLAP_MS) / 1000,
+      );
+      const result = await this.gmailDriveImportService.importFromGmail(
+        integration.firebaseId,
+        {
+          query: `has:attachment after:${afterEpochSeconds}`,
+          includeFileDetails: false,
+        },
+      );
+
+      await this.userIntegrationsService.markSyncSuccess(integration.id, {
+        lastSuccessfulSyncAt: windowEnd,
+      });
+      const detail =
+        `${result.imported} imported, ${result.alreadyImported} already imported, ` +
+        `${result.skipped} skipped, ${result.messagesFailed} message(s) failed ` +
+        `(${result.messagesFound} messages scanned)`;
+      this.logger.log(
+        `Nightly Gmail sync for firebaseId=${integration.firebaseId}: ${detail}`,
+      );
+      return { outcome: 'success', detail };
+    } catch (error: any) {
+      const reason = error?.message ?? String(error);
+      this.logger.error(
+        `Nightly Gmail sync failed for firebaseId=${integration.firebaseId}: ${reason}`,
+        error?.stack,
+      );
+      await this.userIntegrationsService
+        .markSyncError(integration.id, reason)
+        .catch((persistError) =>
+          this.logger.error(
+            `Could not persist sync error for integration ${integration.id}: ${persistError}`,
+          ),
+        );
+      return { outcome: 'error', detail: reason };
     }
   }
 

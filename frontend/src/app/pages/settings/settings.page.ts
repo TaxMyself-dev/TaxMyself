@@ -20,6 +20,7 @@ import { SyncStatusService } from 'src/app/services/sync-status.service';
 import { catchError, EMPTY, finalize } from 'rxjs';
 import { SharedModule } from 'src/app/shared/shared.module';
 import { MyCategoriesTabComponent } from './my-categories-tab/my-categories-tab.component';
+import { GmailIntegrationComponent } from './gmail-integration/gmail-integration.component';
 import { InputTextComponent } from 'src/app/components/input-text/input-text.component';
 import { InputDateComponent } from 'src/app/components/input-date/input-date.component';
 import { InputSelectComponent } from 'src/app/components/input-select/input-select.component';
@@ -41,6 +42,7 @@ import { InputSelectComponent } from 'src/app/components/input-select/input-sele
     SelectModule,
     SharedModule,
     MyCategoriesTabComponent,
+    GmailIntegrationComponent,
     GenericTableComponent,
     InputTextComponent,
     InputDateComponent,

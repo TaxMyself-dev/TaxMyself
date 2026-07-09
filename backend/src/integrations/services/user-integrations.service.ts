@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { IsNull, Not, Repository } from 'typeorm';
 import { UserIntegration } from '../entities/user-integration.entity';
 import {
   IntegrationProvider,
@@ -159,6 +159,24 @@ export class UserIntegrationsService {
    */
   async updateStatus(integrationId: number, status: IntegrationStatus): Promise<void> {
     await this.userIntegrationRepo.update({ id: integrationId }, { status });
+  }
+
+  /**
+   * Integrations eligible for the nightly Gmail sync: ACTIVE Google
+   * connections whose initial manual import completed. RUNNING rows are NOT
+   * excluded here — the sync itself decides whether a RUNNING marker is live
+   * (skip) or stale from a crashed run (recover), so that logic stays in one
+   * place (GmailSyncService).
+   */
+  async findGmailSyncCandidates(): Promise<UserIntegration[]> {
+    return this.userIntegrationRepo.find({
+      where: {
+        provider: IntegrationProvider.GOOGLE,
+        status: IntegrationStatus.ACTIVE,
+        initialImportCompletedAt: Not(IsNull()),
+      },
+      order: { id: 'ASC' },
+    });
   }
 
   // --- Gmail sync state transitions ------------------------------------------

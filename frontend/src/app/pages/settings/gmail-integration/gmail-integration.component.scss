@@ -1,0 +1,70 @@
+.gmail-integration {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  .subsection-title {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 600;
+  }
+
+  .gmail-text,
+  .gmail-account {
+    margin: 0;
+    font-size: 0.9rem;
+    line-height: 1.5;
+  }
+
+  .gmail-muted {
+    margin: 0;
+    font-size: 0.85rem;
+    color: #6b7280;
+  }
+
+  .gmail-running,
+  .gmail-success,
+  .gmail-error {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    line-height: 1.5;
+
+    i {
+      margin-top: 2px;
+    }
+  }
+
+  .gmail-running {
+    background: #eff6ff;
+    color: #1d4ed8;
+  }
+
+  .gmail-success {
+    background: #ecfdf5;
+    color: #047857;
+  }
+
+  .gmail-error {
+    background: #fef2f2;
+    color: #b91c1c;
+  }
+
+  .gmail-date-range {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+
+    .gmail-date-field {
+      min-width: 0;
+    }
+  }
+
+  .gmail-actions {
+    display: flex;
+    gap: 8px;
+  }
+}
