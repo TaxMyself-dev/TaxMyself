@@ -46,7 +46,7 @@ export class GmailDriveImportService {
 
   async importFromGmail(
     firebaseId: string,
-    options: { businessNumber: string; query?: string; maxResults?: number },
+    options: { businessNumber?: string; query?: string; maxResults?: number },
   ): Promise<GmailImportResult> {
     // Integration/token errors (not connected, expired, revoked) bubble up
     // from the reader with clear messages; junk filtering happens there too.
@@ -102,7 +102,7 @@ export class GmailDriveImportService {
     }
 
     this.logger.log(
-      `Gmail import for firebaseId=${firebaseId} business=${options.businessNumber}: ` +
+      `Gmail import for firebaseId=${firebaseId} business=${options.businessNumber ?? 'auto-resolved'}: ` +
         `${result.imported} imported, ${result.alreadyImported} already imported, ` +
         `${result.skipped} skipped (of ${result.attachmentsFound} candidates)`,
     );

@@ -3,10 +3,15 @@ import { IsInt, IsNotEmpty, IsOptional, IsString, Max, Min } from 'class-validat
 
 /** Body of POST /integrations/google/gmail/import (Phase D). */
 export class GmailImportDto {
-  /** Which business's Drive inbox receives the files — inbox/ lives per business. */
+  /**
+   * Which business's Drive inbox receives the files — inbox/ lives per business.
+   * Optional: when omitted, BusinessResolverService resolves the target business
+   * (single business, or the primary for multi-business users).
+   */
+  @IsOptional()
   @IsString()
   @IsNotEmpty()
-  businessNumber: string;
+  businessNumber?: string;
 
   /** Optional Gmail search override; defaults to the reader's broad receipts query. */
   @IsOptional()

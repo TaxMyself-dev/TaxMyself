@@ -190,6 +190,10 @@ export class IntegrationsController {
    * already in the system (tracked in imported_documents) are skipped; the
    * response summarizes what happened per file. Claude analysis is NOT
    * triggered here — it keeps running from the Drive inbox as before.
+   *
+   * businessNumber is optional: when omitted, the pipeline resolves the target
+   * business via BusinessResolverService (single business, or the primary for
+   * multi-business users).
    */
   @Post('google/gmail/import')
   @UseGuards(FirebaseAuthGuard)
@@ -201,7 +205,9 @@ export class IntegrationsController {
     if (!firebaseId) throw new NotFoundException('User not found in request');
 
     return this.gmailDriveImportService.importFromGmail(firebaseId, {
-      businessNumber: body.businessNumber.trim(),
+      // Optional: when omitted, DocumentImportService resolves the target
+      // business via BusinessResolverService.
+      businessNumber: body.businessNumber?.trim() || undefined,
       query: body.q,
       maxResults: body.maxResults,
     });

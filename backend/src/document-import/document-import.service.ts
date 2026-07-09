@@ -8,6 +8,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { createHash } from 'crypto';
 import { Repository } from 'typeorm';
 import { Business } from 'src/business/business.entity';
+import { BusinessResolverService } from 'src/business/business-resolver.service';
 import { GoogleDriveService } from 'src/google-drive/google-drive.service';
 import { ImportedDocument } from './entities/imported-document.entity';
 import { DocumentImportSource } from './enums/document-import.enums';
@@ -30,7 +31,12 @@ export type DocumentImportMetadata = GmailImportMetadata;
 
 export interface DocumentImportRequest {
   firebaseId: string;
-  businessNumber: string;
+  /**
+   * Target business. Optional: when omitted (or blank), BusinessResolverService
+   * decides the business (single business, or the primary for multi-business
+   * users). When explicitly supplied, it is honored and validated as before.
+   */
+  businessNumber?: string | null;
   source: DocumentImportSource;
   filename: string;
   mimeType: string | null;
@@ -72,6 +78,7 @@ export class DocumentImportService {
     @InjectRepository(Business)
     private readonly businessRepo: Repository<Business>,
     private readonly googleDriveService: GoogleDriveService,
+    private readonly businessResolver: BusinessResolverService,
   ) {}
 
   /**
@@ -83,6 +90,11 @@ export class DocumentImportService {
    * batch caller can continue with its remaining documents.
    */
   async importDocument(request: DocumentImportRequest): Promise<DocumentImportResult> {
+    // Decide the target business first — dedup, Drive folder lookup and the
+    // ledger row all key off businessNumber. When the caller supplies one it is
+    // honored unchanged; when it is absent the resolver picks it.
+    const businessNumber = await this.resolveBusinessNumber(request);
+
     const contentHash = createHash('sha256').update(request.content).digest('hex');
 
     // Dedup BEFORE any Drive work: the product manages documents, not import
@@ -91,7 +103,7 @@ export class DocumentImportService {
     const existing = await this.importedDocumentRepo.findOne({
       where: {
         firebaseId: request.firebaseId,
-        businessNumber: request.businessNumber,
+        businessNumber,
         contentHash,
       },
     });
@@ -108,7 +120,7 @@ export class DocumentImportService {
 
     const inboxFolderId = await this.resolveInboxFolderId(
       request.firebaseId,
-      request.businessNumber,
+      businessNumber,
     );
 
     // Collision-safe name against the CURRENT inbox listing. Listed per
@@ -130,7 +142,7 @@ export class DocumentImportService {
     } catch (error: any) {
       this.logger.error(
         `Drive upload failed for "${request.filename}" ` +
-          `(source=${request.source}, business=${request.businessNumber}): ${error?.message ?? error}`,
+          `(source=${request.source}, business=${businessNumber}): ${error?.message ?? error}`,
       );
       return {
         status: 'SKIPPED',
@@ -150,7 +162,7 @@ export class DocumentImportService {
       const saved = await this.importedDocumentRepo.save(
         this.importedDocumentRepo.create({
           firebaseId: request.firebaseId,
-          businessNumber: request.businessNumber,
+          businessNumber,
           source: request.source,
           contentHash,
           driveFileId,
@@ -183,7 +195,7 @@ export class DocumentImportService {
         const winner = await this.importedDocumentRepo.findOne({
           where: {
             firebaseId: request.firebaseId,
-            businessNumber: request.businessNumber,
+            businessNumber,
             contentHash,
           },
         });
@@ -211,6 +223,31 @@ export class DocumentImportService {
         importedDocumentId: null,
       };
     }
+  }
+
+  /**
+   * Decide which business this import targets.
+   *
+   * - Explicit businessNumber supplied by the caller → honored as-is (the
+   *   existing behavior; ownership is validated downstream in
+   *   resolveInboxFolderId's business lookup).
+   * - No businessNumber → delegate to BusinessResolverService, the single
+   *   home for "which business does this document belong to" (single business,
+   *   or the primary for multi-business users).
+   */
+  private async resolveBusinessNumber(request: DocumentImportRequest): Promise<string> {
+    const explicit = request.businessNumber?.trim();
+    if (explicit) {
+      return explicit;
+    }
+
+    const business = await this.businessResolver.resolveTargetBusiness(request.firebaseId);
+    if (!business.businessNumber) {
+      throw new BadRequestException(
+        `Resolved business (id=${business.id}) has no business number — cannot import into it.`,
+      );
+    }
+    return business.businessNumber;
   }
 
   /**
