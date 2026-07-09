@@ -1,0 +1,124 @@
+<div class="subscription-tab">
+
+  <!-- ─── 1. Subscription status ─── -->
+  <section class="sub-card status-card">
+    <h3 class="subsection-title">סטטוס המנוי</h3>
+
+    @if (billingLoading() && !billingState()) {
+      <p class="muted">טוען...</p>
+    } @else {
+      <div class="status-grid">
+        <div class="status-row">
+          <span class="label">סטטוס</span>
+          <span class="status-badge" [class]="'status-' + (status() ?? 'none')">
+            @switch (status()) {
+              @case ('TRIAL') { {{ statusLabel() }} }
+              @case ('ACTIVE') { {{ statusLabel() }} }
+              @case ('PAST_DUE') { {{ statusLabel() }} }
+              @case ('CANCELED') { {{ statusLabel() }} }
+              @case ('TRIAL_EXPIRED') { {{ statusLabel() }} }
+              @default { {{ statusLabel() }} }
+            }
+          </span>
+        </div>
+
+        <div class="status-row">
+          <span class="label">תוכנית</span>
+          <span class="value">{{ planNameLabel() }}</span>
+        </div>
+
+        <div class="status-row">
+          <span class="label">סוג עוסק לחיוב</span>
+          <span class="value">{{ billingBusinessTypeLabel() }}</span>
+        </div>
+
+        <div class="status-row">
+          <span class="label">מחיר חודשי</span>
+          <span class="value">{{ monthlyPriceLabel() }}</span>
+        </div>
+
+        <div class="status-row">
+          <span class="label">מועד החיוב הבא</span>
+          <span class="value">{{ nextBillingDateLabel() }}</span>
+        </div>
+
+        @if (isCanceled()) {
+          <div class="status-row">
+            <span class="label">בתוקף עד</span>
+            <span class="value">{{ activeUntilLabel() }}</span>
+          </div>
+        }
+
+        @if (activeDiscount()) {
+          <div class="status-row">
+            <span class="label">הנחה פעילה</span>
+            <span class="value discount-value">
+              {{ discountValueLabel() }}
+              @if (discountRangeLabel()) {
+                <span class="discount-range">({{ discountRangeLabel() }})</span>
+              }
+            </span>
+          </div>
+        }
+      </div>
+    }
+  </section>
+
+  <!-- ─── 2. Payment method ─── -->
+  <section class="sub-card">
+    <h3 class="subsection-title">אמצעי תשלום</h3>
+
+    @if (paymentMethod(); as pm) {
+      <div class="credit-card" dir="ltr">
+        <div class="cc-top">
+          <span class="cc-chip"></span>
+          <span class="cc-brand">{{ pm.brand || 'CARD' }}</span>
+        </div>
+        <div class="cc-number">•••• •••• •••• {{ pm.last4 || '••••' }}</div>
+        <div class="cc-bottom">
+          @if (pm.cardholderName) {
+            <div class="cc-field">
+              <span class="cc-field-label">CARD HOLDER</span>
+              <span class="cc-field-value">{{ pm.cardholderName }}</span>
+            </div>
+          }
+          <div class="cc-field cc-expiry">
+            <span class="cc-field-label">EXPIRES</span>
+            <span class="cc-field-value">{{ cardExpiryLabel() || '––/––' }}</span>
+          </div>
+        </div>
+      </div>
+    } @else {
+      <p class="muted">לא נשמר אמצעי תשלום.</p>
+    }
+
+    <div class="card-actions">
+      <!-- TODO(Phase 2): wire up "Change payment method" (CardCom token update flow). -->
+      <app-p-button
+        [buttonText]="'החלף אמצעי תשלום'"
+        [buttonColor]="buttonColor.WHITE_BORDER"
+        [buttonSize]="buttonSize.SMALL"
+        [disabled]="true">
+      </app-p-button>
+    </div>
+  </section>
+
+  <!-- ─── 3. Payment history ─── -->
+  <section class="sub-card">
+    <h3 class="subsection-title">היסטוריית תשלומים</h3>
+
+    @if (historyLoading()) {
+      <p class="muted">טוען...</p>
+    } @else if (paymentHistory().length === 0) {
+      <p class="muted">אין תשלומים להצגה.</p>
+    } @else {
+      <app-generic-table
+        [dataTable]="historyRows()"
+        [columnsTitle]="$any(historyColumns)"
+        [rowActions]="historyRowActions"
+        [mobileCardConfig]="historyMobileCardConfig">
+      </app-generic-table>
+    }
+  </section>
+
+</div>

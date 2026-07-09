@@ -52,6 +52,45 @@ export interface BillingAccess {
   gracePeriodActive: boolean;
 }
 
+export type BillingBusinessType = 'LICENSED' | 'EXEMPT';
+
+/** Saved CardCom card details for the "My Subscription" payment-method card. */
+export interface BillingPaymentMethod {
+  brand: string | null;
+  last4: string | null;
+  expiryMonth: number | null;
+  expiryYear: number | null;
+  /** Not stored today — present only if a future column adds it. */
+  cardholderName?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Active/scheduled subscription discount, mirrored from the backend PricingService. */
+export interface BillingDiscount {
+  kind: 'PERCENT' | 'AMOUNT';
+  percent: number | null;
+  amountAgorot: number | null;
+  startDate: string | null;
+  endDate: string | null;
+  isActiveNow: boolean;
+}
+
+/** One row of the payment-history table (GET /billing/payments). */
+export interface PaymentHistoryRow {
+  eventId: number;
+  date: string;
+  planName: string | null;
+  amountAgorot: number | null;
+  currency: string;
+  status: 'SUCCESS' | 'FAILED';
+  receiptDocId: number | null;
+  /** True only when the backend confirmed the receipt document exists and is downloadable. */
+  receiptAvailable: boolean;
+  /** True when the event supports a (future) retry-payment action. Backend-resolved from event type. */
+  canRetry: boolean;
+}
+
 /** Latest CardCom payment/invoice outcome, used to render the post-return-from-CardCom banner. */
 export interface BillingPaymentResult {
   latestPaymentEventId: number | null;
@@ -76,6 +115,16 @@ export interface BillingStateResponse {
   plan: BillingPlan | null;
   access: BillingAccess;
   billingPaymentResult: BillingPaymentResult | null;
+  /** The user's effective billing business type — resolved by the backend. */
+  billingBusinessType: BillingBusinessType;
+  /**
+   * Monthly plan price for the user's billing business type, BEFORE VAT, in
+   * agorot — exactly as stored in subscription_plan. Null during trial (no plan).
+   * Any active discount is reported separately in `discount`, not subtracted here.
+   */
+  effectiveMonthlyPriceBeforeVatAgorot: number | null;
+  discount: BillingDiscount | null;
+  paymentMethod: BillingPaymentMethod | null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -153,6 +202,25 @@ export class BillingStateService {
   hasModuleAccess(moduleName: string): boolean {
     return (
       this.billingState()?.access?.modulesAccess?.includes(moduleName) ?? false
+    );
+  }
+
+  /** Loads the user's payment history for the "My Subscription" tab. */
+  getPaymentHistory(): Promise<PaymentHistoryRow[]> {
+    return firstValueFrom(
+      this.http.get<PaymentHistoryRow[]>(`${environment.apiUrl}billing/payments`)
+    );
+  }
+
+  /**
+   * Downloads a payment's receipt PDF as a Blob. The caller is responsible for
+   * saving it (reuse FilesService.downloadFile). Backend enforces ownership.
+   */
+  getReceiptBlob(eventId: number): Promise<Blob> {
+    return firstValueFrom(
+      this.http.get(`${environment.apiUrl}billing/payments/${eventId}/receipt`, {
+        responseType: 'blob',
+      })
     );
   }
 

@@ -217,6 +217,33 @@ export class BillingEventService {
     }
   }
 
+  /**
+   * Returns the user's full payment history — every PAYMENT/RENEWAL success or
+   * failure event, newest first. Used by GET /billing/payments to render the
+   * payment-history table. Read-only; never throws (returns [] on error).
+   */
+  async findUserPaymentHistory(firebaseId: string): Promise<BillingEvent[]> {
+    try {
+      return await this.billingEventRepo.find({
+        where: {
+          firebaseId,
+          eventType: In([
+            BillingEventType.PAYMENT_SUCCESS,
+            BillingEventType.PAYMENT_FAILED,
+            BillingEventType.RENEWAL_SUCCESS,
+            BillingEventType.RENEWAL_FAILED,
+          ]),
+        },
+        order: { createdAt: 'DESC' },
+      });
+    } catch (error) {
+      this.logger.error(
+        `findUserPaymentHistory failed for firebaseId=${firebaseId}: ${(error as Error)?.message ?? error}`,
+      );
+      return [];
+    }
+  }
+
   async findPaymentEventById(eventId: number): Promise<BillingEvent | null> {
     try {
       return await this.billingEventRepo.findOne({ where: { id: eventId } });

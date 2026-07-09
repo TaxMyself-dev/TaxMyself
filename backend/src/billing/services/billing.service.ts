@@ -6,12 +6,14 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { LessThan, Repository } from 'typeorm';
+import { In, LessThan, Repository } from 'typeorm';
 import { SubscriptionPlan } from '../entities/subscription-plan.entity';
 import { Subscription } from '../entities/subscription.entity';
+import { PaymentMethod } from '../entities/payment-method.entity';
 import { CardcomWebhookLog } from '../entities/cardcom-webhook-log.entity';
 import { User } from 'src/users/user.entity';
 import { ModuleName } from 'src/enum';
+import { DocumentsService } from 'src/documents/documents.service';
 import { BillingEventService } from './billing-event.service';
 import { BillingReceiptService } from './billing-receipt.service';
 import { PricingService } from './pricing.service';
@@ -20,6 +22,33 @@ import { CardcomService, CardcomApiError } from './cardcom.service';
 import { BillingEventType, SubscriptionStatus, WebhookLogStatus } from '../enums/billing.enums';
 import { CheckoutPreviewDto } from '../dtos/checkout-preview.dto';
 import { CreateCheckoutDto } from '../dtos/create-checkout.dto';
+
+/** One row of the user-facing payment history (GET /billing/payments). */
+export interface PaymentHistoryRow {
+  eventId: number;
+  date: Date;
+  planName: string | null;
+  amountAgorot: number | null;
+  currency: string;
+  status: 'SUCCESS' | 'FAILED';
+  receiptDocId: number | null;
+  /**
+   * True only when the receipt is genuinely downloadable: receiptDocId is set,
+   * the Documents row exists, AND it has a file path. Not merely receiptDocId != null.
+   */
+  receiptAvailable: boolean;
+  /**
+   * Whether this event supports a (future) retry-payment action. Determined
+   * explicitly from the event type, not inferred from SUCCESS/FAILED status.
+   */
+  canRetry: boolean;
+}
+
+/** Event types that support a retry-payment action (Phase 2 wires the real flow). */
+const RETRYABLE_EVENT_TYPES: readonly BillingEventType[] = [
+  BillingEventType.PAYMENT_FAILED,
+  BillingEventType.RENEWAL_FAILED,
+];
 
 @Injectable()
 export class BillingService {
@@ -30,6 +59,8 @@ export class BillingService {
     private readonly planRepo: Repository<SubscriptionPlan>,
     @InjectRepository(Subscription)
     private readonly subscriptionRepo: Repository<Subscription>,
+    @InjectRepository(PaymentMethod)
+    private readonly paymentMethodRepo: Repository<PaymentMethod>,
     @InjectRepository(CardcomWebhookLog)
     private readonly webhookLogRepo: Repository<CardcomWebhookLog>,
     @InjectRepository(User)
@@ -39,6 +70,7 @@ export class BillingService {
     private readonly billingReceiptService: BillingReceiptService,
     private readonly subscriptionAccessService: SubscriptionAccessService,
     private readonly cardcomService: CardcomService,
+    private readonly documentsService: DocumentsService,
   ) {}
 
   // ─── Plans ──────────────────────────────────────────────────────────────────
@@ -401,6 +433,130 @@ export class BillingService {
     return { created: true, sent: emailResult.sent, error: emailResult.error };
   }
 
+  // ─── Payment history ───────────────────────────────────────────────────────
+
+  /**
+   * Returns the authenticated user's payment history for the read-only
+   * "My Subscription" tab. Reuses BillingEventService for the ledger rows and
+   * resolves plan names from the planId stored on each event's metadata.
+   */
+  async getUserPaymentHistory(firebaseId: string): Promise<PaymentHistoryRow[]> {
+    const events = await this.billingEventService.findUserPaymentHistory(firebaseId);
+    if (events.length === 0) return [];
+
+    // Plan resolution strategy, most reliable first:
+    //   1. event.metadata.planId — the plan charged at the time of the event.
+    //      Set on every checkout-driven PAYMENT_SUCCESS, and stays historically
+    //      correct even after the user later changes plans.
+    //   2. Fallback: the plan of the event's subscription. RENEWAL_SUCCESS and
+    //      PAYMENT_FAILED never carry planId in metadata, and some legacy
+    //      PAYMENT_SUCCESS rows predate it. Only resolves while the subscription
+    //      still exists — deleted subscriptions fall through to null ("—").
+    const planIds = new Set<number>();
+    const subscriptionIds = new Set<number>();
+    for (const event of events) {
+      const planId = event.metadata?.planId;
+      if (typeof planId === 'number') planIds.add(planId);
+      if (event.subscriptionId != null) subscriptionIds.add(event.subscriptionId);
+    }
+
+    // subscriptionId → planId, for events lacking metadata.planId.
+    const subscriptionPlanId = new Map<number, number>();
+    if (subscriptionIds.size > 0) {
+      const subs = await this.subscriptionRepo.find({
+        where: { id: In([...subscriptionIds]) },
+        select: ['id', 'planId'],
+      });
+      for (const sub of subs) {
+        if (sub.planId != null) {
+          subscriptionPlanId.set(sub.id, sub.planId);
+          planIds.add(sub.planId);
+        }
+      }
+    }
+
+    const planNameById = new Map<number, string>();
+    if (planIds.size > 0) {
+      const plans = await this.planRepo.find({ where: { id: In([...planIds]) } });
+      for (const plan of plans) planNameById.set(plan.id, plan.name);
+    }
+
+    // Truthful receipt availability: a receipt is only downloadable when its
+    // Documents row exists AND has a file path. receiptDocId alone is unreliable —
+    // rows can reference deleted or never-finalized documents. Resolved via
+    // DocumentsService so no new Firebase/document logic is introduced here.
+    const receiptDocIds = events
+      .map(e => e.receiptDocId)
+      .filter((id): id is number => id != null);
+    const downloadableReceiptIds =
+      await this.documentsService.findDownloadableBillingReceiptDocIds(receiptDocIds);
+
+    const successTypes: BillingEventType[] = [
+      BillingEventType.PAYMENT_SUCCESS,
+      BillingEventType.RENEWAL_SUCCESS,
+    ];
+
+    return events.map((event): PaymentHistoryRow => {
+      const planId =
+        typeof event.metadata?.planId === 'number'
+          ? event.metadata.planId
+          : event.subscriptionId != null
+            ? (subscriptionPlanId.get(event.subscriptionId) ?? null)
+            : null;
+      return {
+        eventId: event.id,
+        date: event.createdAt,
+        planName: planId != null ? (planNameById.get(planId) ?? null) : null,
+        amountAgorot: event.amountAgorot,
+        currency: event.currency,
+        status: successTypes.includes(event.eventType) ? 'SUCCESS' : 'FAILED',
+        receiptDocId: event.receiptDocId,
+        receiptAvailable:
+          event.receiptDocId != null && downloadableReceiptIds.has(event.receiptDocId),
+        canRetry: RETRYABLE_EVENT_TYPES.includes(event.eventType),
+      };
+    });
+  }
+
+  /**
+   * Returns the receipt PDF for a payment event the authenticated user owns.
+   * Verifies ownership, then reuses DocumentsService.getBillingReceiptPdf —
+   * no new Firebase download logic is introduced here.
+   */
+  async getPaymentReceiptPdf(
+    firebaseId: string,
+    eventId: number,
+  ): Promise<{ buffer: Buffer; docType: string; docNumber: string; generalDocIndex: string }> {
+    const event = await this.billingEventService.findPaymentEventById(eventId);
+
+    if (!event || event.firebaseId !== firebaseId) {
+      throw new NotFoundException('Payment event not found');
+    }
+
+    if (!event.receiptDocId) {
+      throw new NotFoundException('לא קיים מסמך עבור תשלום זה');
+    }
+
+    // Verify the document exists AND has a downloadable file BEFORE downloading,
+    // so a missing/incomplete receipt returns a clean 404 rather than letting an
+    // EntityNotFoundError bubble up as a 500. No exceptions used for control flow.
+    const downloadable = await this.documentsService.isBillingReceiptDownloadable(
+      event.receiptDocId,
+    );
+    if (!downloadable) {
+      throw new NotFoundException('לא קיים מסמך עבור תשלום זה');
+    }
+
+    const receipt = await this.documentsService.getBillingReceiptPdf(event.receiptDocId);
+
+    return {
+      buffer: receipt.buffer,
+      docType: receipt.docType,
+      docNumber: receipt.docNumber,
+      generalDocIndex: receipt.generalDocIndex,
+    };
+  }
+
   // ─── Helpers ─────────────────────────────────────────────────────────────────
 
   private async buildBillingStateResponse(
@@ -413,10 +569,42 @@ export class BillingService {
       plan,
     );
 
-    const billingPaymentResult = await this.buildPaymentResultPayload(firebaseId);
+    const [billingPaymentResult, billingBusinessType, paymentMethod] = await Promise.all([
+      this.buildPaymentResultPayload(firebaseId),
+      this.pricingService.resolveUserBillingBusinessType(firebaseId),
+      subscription.paymentMethodId
+        ? this.paymentMethodRepo.findOne({ where: { id: subscription.paymentMethodId } })
+        : Promise.resolve(null),
+    ]);
+
+    // Monthly plan price effective for the user's billing business type, BEFORE
+    // VAT — exactly the value stored in subscription_plan (price_monthly_agorot
+    // for EXEMPT, licensed_dealer_price_monthly_agorot for LICENSED when set).
+    // Resolved on the backend so the frontend never chooses between exempt/
+    // licensed pricing, and never adds VAT for display. Any active discount is
+    // reported separately in `discount` — it is NOT subtracted here.
+    const effectiveMonthlyPriceBeforeVatAgorot = plan
+      ? this.pricingService.resolveEffectivePlanPrice(plan, billingBusinessType)
+      : null;
+
+    const discount = this.pricingService.resolveSubscriptionDiscount(subscription);
 
     return {
       hasSubscription: true,
+      billingBusinessType,
+      effectiveMonthlyPriceBeforeVatAgorot,
+      discount,
+      // No cardholder-name column on payment_method — omitted by design (Phase 1).
+      paymentMethod: paymentMethod
+        ? {
+            brand: paymentMethod.cardBrand,
+            last4: paymentMethod.last4,
+            expiryMonth: paymentMethod.cardExpiryMonth,
+            expiryYear: paymentMethod.cardExpiryYear,
+            createdAt: paymentMethod.createdAt,
+            updatedAt: paymentMethod.updatedAt,
+          }
+        : null,
       subscription: {
         id: subscription.id,
         status: subscription.status,

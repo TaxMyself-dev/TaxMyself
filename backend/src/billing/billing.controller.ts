@@ -8,10 +8,12 @@ import {
   ParseIntPipe,
   Post,
   Req,
+  Res,
   UseGuards,
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
 import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.interface';
 import { BillingService } from './services/billing.service';
@@ -103,6 +105,44 @@ export class BillingController {
     const firebaseId = request.user?.firebaseId;
     if (!firebaseId) throw new NotFoundException('User not found in request');
     return this.billingService.createCheckout(firebaseId, dto);
+  }
+
+  /**
+   * GET /billing/payments
+   *
+   * Protected. Returns the authenticated user's payment history (successful and
+   * failed payments/renewals), newest first, for the "My Subscription" tab.
+   */
+  @Get('payments')
+  @UseGuards(FirebaseAuthGuard)
+  getPaymentHistory(@Req() request: AuthenticatedRequest) {
+    const firebaseId = request.user?.firebaseId;
+    if (!firebaseId) throw new NotFoundException('User not found in request');
+    return this.billingService.getUserPaymentHistory(firebaseId);
+  }
+
+  /**
+   * GET /billing/payments/:eventId/receipt
+   *
+   * Protected. Streams the receipt PDF for a payment event the user owns.
+   * Reuses DocumentsService.getBillingReceiptPdf — no new download logic.
+   */
+  @Get('payments/:eventId/receipt')
+  @UseGuards(FirebaseAuthGuard)
+  async downloadReceipt(
+    @Req() request: AuthenticatedRequest,
+    @Param('eventId', ParseIntPipe) eventId: number,
+    @Res() res: Response,
+  ) {
+    const firebaseId = request.user?.firebaseId;
+    if (!firebaseId) throw new NotFoundException('User not found in request');
+
+    const receipt = await this.billingService.getPaymentReceiptPdf(firebaseId, eventId);
+    const fileName = `${receipt.docType}_${receipt.docNumber}_${receipt.generalDocIndex}.pdf`;
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    return res.send(receipt.buffer);
   }
 
   /**

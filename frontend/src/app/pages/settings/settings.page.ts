@@ -22,6 +22,7 @@ import { SyncStatusService } from 'src/app/services/sync-status.service';
 import { catchError, EMPTY, finalize } from 'rxjs';
 import { SharedModule } from 'src/app/shared/shared.module';
 import { MyCategoriesTabComponent } from './my-categories-tab/my-categories-tab.component';
+import { MySubscriptionTabComponent } from './my-subscription-tab/my-subscription-tab.component';
 import { InputTextComponent } from 'src/app/components/input-text/input-text.component';
 import { InputDateComponent } from 'src/app/components/input-date/input-date.component';
 import { InputSelectComponent } from 'src/app/components/input-select/input-select.component';
@@ -43,6 +44,7 @@ import { InputSelectComponent } from 'src/app/components/input-select/input-sele
     SelectModule,
     SharedModule,
     MyCategoriesTabComponent,
+    MySubscriptionTabComponent,
     GenericTableComponent,
     InputTextComponent,
     InputDateComponent,
@@ -88,6 +90,7 @@ export class SettingsPage implements OnInit {
     ...(this.accessService.getFeatureState(AppFeature.OPEN_BANKING_PERMISSIONS_TAB).visible
       ? [{ label: 'ניהול הרשאות וחשבונות', value: 'permissions' }]
       : []),
+    { label: 'המנוי שלי', value: 'subscription' },
   ]);
   selectedTab: string = 'personal';
 

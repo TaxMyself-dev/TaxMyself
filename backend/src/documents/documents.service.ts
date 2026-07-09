@@ -2017,6 +2017,37 @@ ${finalOwnerName}`;
    * returns it together with the document fields needed to compose an email.
    * Throws if the document has no file path (finalizeBillingReceipt not yet run).
    */
+  /**
+   * True when a billing-receipt document actually exists AND has a downloadable
+   * file path. Lets callers verify availability BEFORE calling
+   * getBillingReceiptPdf, so a missing/incomplete document is reported as a
+   * clean 404 instead of surfacing as an unhandled EntityNotFoundError.
+   */
+  async isBillingReceiptDownloadable(docId: number): Promise<boolean> {
+    const doc = await this.documentsRepo.findOne({
+      where: { id: docId },
+      select: ['id', 'file'],
+    });
+    return !!doc && !!doc.file && String(doc.file).trim() !== '';
+  }
+
+  /**
+   * Returns the subset of the given billing-receipt document ids that are
+   * actually downloadable — the Documents row exists AND has a non-empty file
+   * path. Used by the payment-history endpoint to report a truthful
+   * `receiptAvailable` without relying on exceptions for control flow.
+   */
+  async findDownloadableBillingReceiptDocIds(docIds: number[]): Promise<Set<number>> {
+    if (docIds.length === 0) return new Set<number>();
+    const docs = await this.documentsRepo.find({
+      where: { id: In(docIds) },
+      select: ['id', 'file'],
+    });
+    return new Set<number>(
+      docs.filter(d => !!d.file && String(d.file).trim() !== '').map(d => d.id),
+    );
+  }
+
   async getBillingReceiptPdf(docId: number): Promise<{
     buffer: Buffer;
     recipientEmail: string | null;
