@@ -27,6 +27,11 @@
         אפשר להמשיך לעבוד, המסך יתעדכן אוטומטית בסיום.
       </span>
     </div>
+    <div class="gmail-actions">
+      <app-p-button [buttonText]="'נתק הרשאת Gmail'" [severity]="'danger'" [variant]="'outlined'"
+        [buttonSize]="buttonSize.SMALL" [disabled]="disconnecting()" [isLoading]="disconnecting()"
+        (onButtonClicked)="confirmDisconnectGmail()"></app-p-button>
+    </div>
 
   } @else if (syncState.status()?.initialImportCompleted) {
 
@@ -53,6 +58,11 @@
     <p class="gmail-muted">
       מעכשיו הודעות חדשות עם קבצים מצורפים יסונכרנו מ-Gmail באופן אוטומטי מדי לילה.
     </p>
+    <div class="gmail-actions">
+      <app-p-button [buttonText]="'נתק הרשאת Gmail'" [severity]="'danger'" [variant]="'outlined'"
+        [buttonSize]="buttonSize.SMALL" [disabled]="disconnecting()" [isLoading]="disconnecting()"
+        (onButtonClicked)="confirmDisconnectGmail()"></app-p-button>
+    </div>
 
   } @else {
 
@@ -89,6 +99,9 @@
       <app-p-button [buttonText]="'התחל ייבוא מ-Gmail'" [buttonColor]="buttonColor.BLACK"
         [buttonSize]="buttonSize.SMALL" [disabled]="syncState.starting()" [isLoading]="syncState.starting()"
         (onButtonClicked)="startImport()"></app-p-button>
+      <app-p-button [buttonText]="'נתק הרשאת Gmail'" [severity]="'danger'" [variant]="'outlined'"
+        [buttonSize]="buttonSize.SMALL" [disabled]="disconnecting()" [isLoading]="disconnecting()"
+        (onButtonClicked)="confirmDisconnectGmail()"></app-p-button>
     </div>
 
   }

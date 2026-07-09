@@ -46,4 +46,9 @@ export class IntegrationsService {
       { fromDate, toDate },
     );
   }
+
+  /** ניתוק הרשאת Gmail — מבטל את החיבור ומסיר את הטוקנים השמורים בשרת. */
+  disconnectGoogleIntegration(): Observable<void> {
+    return this.http.delete<void>(`${environment.apiUrl}integrations/google`);
+  }
 }

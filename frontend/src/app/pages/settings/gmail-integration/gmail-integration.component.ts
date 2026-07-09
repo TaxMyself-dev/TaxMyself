@@ -2,7 +2,7 @@ import { CommonModule } from '@angular/common';
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { MessageService } from 'primeng/api';
+import { ConfirmationService, MessageService } from 'primeng/api';
 import { ButtonComponent } from 'src/app/components/button/button.component';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 import { InputDateComponent } from 'src/app/components/input-date/input-date.component';
@@ -30,6 +30,7 @@ export class GmailIntegrationComponent implements OnInit {
   readonly syncState = inject(GmailSyncStateService);
   private readonly integrationsService = inject(IntegrationsService);
   private readonly messageService = inject(MessageService);
+  private readonly confirmationService = inject(ConfirmationService);
   private readonly genericService = inject(GenericService);
   private readonly fb = inject(FormBuilder);
 
@@ -39,6 +40,7 @@ export class GmailIntegrationComponent implements OnInit {
   readonly isMobile = computed(() => this.genericService.isMobile());
 
   readonly connecting = signal(false);
+  readonly disconnecting = signal(false);
 
   readonly importFormGroup = this.fb.group({
     fromDate: this.fb.control<Date | null>(null, Validators.required),
@@ -98,6 +100,47 @@ export class GmailIntegrationComponent implements OnInit {
     }
 
     this.syncState.startInitialImport(this.dateToApiString(fromDate), this.dateToApiString(toDate));
+  }
+
+  /** מבקש אישור ואז מנתק את הרשאת הגישה ל-Gmail. */
+  confirmDisconnectGmail(): void {
+    if (this.disconnecting()) return;
+    this.confirmationService.confirm({
+      header: 'ניתוק הרשאת Gmail',
+      message:
+        'האם לנתק את הרשאת הגישה לחשבון Gmail? לאחר הניתוק לא נוכל למשוך מסמכים חדשים מהמייל.',
+      icon: 'pi pi-exclamation-triangle',
+      acceptLabel: 'נתק הרשאה',
+      rejectLabel: 'ביטול',
+      accept: () => this.disconnectGmail(),
+    });
+  }
+
+  private disconnectGmail(): void {
+    this.disconnecting.set(true);
+    this.integrationsService.disconnectGoogleIntegration().subscribe({
+      next: () => {
+        this.disconnecting.set(false);
+        this.syncState.refresh();
+        this.messageService.add({
+          severity: 'success',
+          summary: 'הצלחה',
+          detail: 'הרשאת Gmail נותקה בהצלחה',
+          life: 4000,
+          key: 'br',
+        });
+      },
+      error: () => {
+        this.disconnecting.set(false);
+        this.messageService.add({
+          severity: 'error',
+          summary: 'שגיאה',
+          detail: 'לא הצלחנו לנתק את הרשאת Gmail. נסה שוב.',
+          life: 4000,
+          key: 'br',
+        });
+      },
+    });
   }
 
   /** Date → YYYY-MM-DD בחלקים מקומיים (בלי הסטת UTC), כמו dateToApiString בהגדרות. */
