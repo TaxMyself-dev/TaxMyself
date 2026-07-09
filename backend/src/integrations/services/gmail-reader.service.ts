@@ -54,6 +54,91 @@ const RETRY_DELAYS_MS = [1000, 2000, 4000];
 /** Guard against pathological/malicious MIME nesting. */
 const MAX_MIME_DEPTH = 20;
 
+/**
+ * Keywords that mark an attachment/email as a likely invoice or receipt.
+ * Deliberately excludes weak abbreviations ("inv", "rcpt") that would create
+ * false positives. Hebrew, English and common transliterations are all listed
+ * so a real receipt is matched regardless of how the sender named it.
+ */
+const INVOICE_RECEIPT_KEYWORDS = [
+  // Hebrew
+  'קבלה',
+  'חשבונית',
+  'חשבונית מס',
+  'חשבונית מס קבלה',
+  'מס קבלה',
+  // English
+  'invoice',
+  'receipt',
+  'tax invoice',
+  'tax-invoice',
+  'tax_invoice',
+  'invoice receipt',
+  'tax receipt',
+  // Transliteration / common variants
+  'kabala',
+  'kabbala',
+  'kabalah',
+  'kabbalah',
+  'kaballa',
+  'cheshbonit',
+  'heshbonit',
+  'hashbonit',
+  'hesbonit',
+  'chashbonit',
+  'chashbunit',
+];
+
+/**
+ * Normalizes text for keyword matching: lowercased, hyphen/underscore/dot
+ * turned into spaces, whitespace collapsed. Also returns a `compact` form with
+ * all spaces removed so glued spellings like "taxinvoice" or
+ * "chashbonitkabbala" still match multi-word keywords.
+ */
+function normalizeForKeywordMatch(text: string | null | undefined): {
+  spaced: string;
+  compact: string;
+} {
+  const spaced = (text ?? '')
+    .toLowerCase()
+    .replace(/[-_.]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return { spaced, compact: spaced.replace(/ /g, '') };
+}
+
+/** Pre-normalized keyword forms — computed once, reused for every attachment. */
+const INVOICE_RECEIPT_KEYWORD_FORMS = INVOICE_RECEIPT_KEYWORDS.map((keyword) =>
+  normalizeForKeywordMatch(keyword),
+);
+
+/** True when a single piece of text contains any invoice/receipt keyword. */
+function textMatchesInvoiceOrReceipt(text: string | null | undefined): boolean {
+  const { spaced, compact } = normalizeForKeywordMatch(text);
+  if (!spaced) return false;
+  return INVOICE_RECEIPT_KEYWORD_FORMS.some(
+    (keyword) => spaced.includes(keyword.spaced) || compact.includes(keyword.compact),
+  );
+}
+
+/**
+ * Simple boolean gate (no scoring): an attachment is a likely invoice/receipt
+ * when the filename, the email subject, OR the snippet/body contains any of
+ * INVOICE_RECEIPT_KEYWORDS. Each field is matched independently so keywords
+ * are never accidentally formed across field boundaries.
+ */
+export function isLikelyInvoiceOrReceiptAttachment(
+  filename: string | null | undefined,
+  subject: string | null | undefined,
+  snippetOrBody: string | null | undefined,
+): boolean {
+  return (
+    textMatchesInvoiceOrReceipt(filename) ||
+    textMatchesInvoiceOrReceipt(subject) ||
+    textMatchesInvoiceOrReceipt(snippetOrBody)
+  );
+}
+
 export interface GmailAttachmentFile {
   messageId: string;
   threadId: string | null;
@@ -411,6 +496,9 @@ export class GmailReaderService {
     walk(message.payload ?? undefined, 0);
 
     const subject = header('subject');
+    // Gmail's short plaintext preview of the message body — the body signal
+    // already available in this reader flow (no extra fetch/decoding needed).
+    const snippet = message.snippet ?? null;
     const attachments: GmailAttachmentFile[] = [];
     let skippedIrrelevant = 0;
     // Expected skips are aggregated into the run's single SKIPPED SUMMARY
@@ -428,6 +516,14 @@ export class GmailReaderService {
       const verdict = this.isLikelyReceiptAttachment(part);
       if (!verdict.ok) {
         skip(filename, verdict.reason as GmailSkipReason);
+        continue;
+      }
+
+      // Stage 1b — require an invoice/receipt keyword in the filename, subject
+      // or body snippet. Also runs before download, so unrelated attachments
+      // never reach the network or the Drive upload downstream.
+      if (!isLikelyInvoiceOrReceiptAttachment(filename, subject, snippet)) {
+        skip(filename, GmailSkipReason.NOT_INVOICE_OR_RECEIPT);
         continue;
       }
 

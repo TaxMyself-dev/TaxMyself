@@ -74,6 +74,7 @@ export const GmailSkipReason = {
   IMAGE_TOO_SMALL: 'image too small',
   PDF_TOO_SMALL: 'pdf too small',
   PDF_INVALID: 'invalid pdf content',
+  NOT_INVOICE_OR_RECEIPT: 'filename/email text not invoice or receipt',
 } as const;
 
 export type GmailSkipReason = (typeof GmailSkipReason)[keyof typeof GmailSkipReason];
