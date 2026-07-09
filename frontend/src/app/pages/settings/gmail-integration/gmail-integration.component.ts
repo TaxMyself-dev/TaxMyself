@@ -1,25 +1,23 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MessageService } from 'primeng/api';
-import { Subscription, interval } from 'rxjs';
 import { ButtonComponent } from 'src/app/components/button/button.component';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 import { InputDateComponent } from 'src/app/components/input-date/input-date.component';
 import { GenericService } from 'src/app/services/generic.service';
-import { GmailSyncStatus, IntegrationsService } from 'src/app/services/integrations.service';
+import { GmailSyncStateService } from 'src/app/services/gmail-sync-state.service';
+import { IntegrationsService } from 'src/app/services/integrations.service';
 import { inputsSize } from 'src/app/shared/enums';
-
-/** בזמן ייבוא רץ — בדיקת מצב מול השרת כל 5 שניות. */
-const POLL_INTERVAL_MS = 5000;
 
 /**
  * חיבור Gmail לקליטת מסמכים (טאב "ניהול הרשאות וחשבונות" בהגדרות).
  *
- * מצבים: לא מחובר → חיבור OAuth; מחובר ללא ייבוא ראשוני → בחירת טווח תאריכים
- * והתחלת ייבוא; ייבוא רץ → polling על sync-status; הושלם → סנכרון לילי אוטומטי.
- * גבולות התאריכים (minFromDate/maxToDate) מגיעים מהשרת בלבד — הפרונט לא מחשב אותם.
+ * קומפוננטת תצוגה בלבד: המצב, ה-polling והתראות הסיום חיים ב-
+ * GmailSyncStateService (root) כדי שימשיכו לפעול גם אחרי ניווט למסך אחר.
+ * כאן נשארים רק טופס טווח התאריכים והפניית ה-OAuth.
+ * גבולות התאריכים (minFromDate/maxToDate) מגיעים מהשרת בלבד.
  */
 @Component({
   selector: 'app-gmail-integration',
@@ -28,7 +26,8 @@ const POLL_INTERVAL_MS = 5000;
   standalone: true,
   imports: [CommonModule, ReactiveFormsModule, ButtonComponent, InputDateComponent],
 })
-export class GmailIntegrationComponent implements OnInit, OnDestroy {
+export class GmailIntegrationComponent implements OnInit {
+  readonly syncState = inject(GmailSyncStateService);
   private readonly integrationsService = inject(IntegrationsService);
   private readonly messageService = inject(MessageService);
   private readonly genericService = inject(GenericService);
@@ -39,12 +38,7 @@ export class GmailIntegrationComponent implements OnInit, OnDestroy {
   readonly inputsSize = inputsSize;
   readonly isMobile = computed(() => this.genericService.isMobile());
 
-  readonly status = signal<GmailSyncStatus | null>(null);
-  readonly loading = signal(true);
   readonly connecting = signal(false);
-  readonly starting = signal(false);
-
-  private pollSubscription: Subscription | null = null;
 
   readonly importFormGroup = this.fb.group({
     fromDate: this.fb.control<Date | null>(null, Validators.required),
@@ -57,39 +51,16 @@ export class GmailIntegrationComponent implements OnInit, OnDestroy {
     { initialValue: null as Date | null },
   );
 
-  readonly isRunning = computed(() => this.status()?.lastSyncStatus === 'RUNNING');
-  readonly minFromDate = computed(() => this.isoToLocalDate(this.status()?.minFromDate));
-  readonly maxToDate = computed(() => this.isoToLocalDate(this.status()?.maxToDate));
+  readonly minFromDate = computed(() => this.isoToLocalDate(this.syncState.status()?.minFromDate));
+  readonly maxToDate = computed(() => this.isoToLocalDate(this.syncState.status()?.maxToDate));
   readonly minToDate = computed(() => this.selectedFromDate() ?? this.minFromDate());
 
   ngOnInit(): void {
-    this.fetchStatus();
+    // רענון בכל כניסה למסך; אם ייבוא רץ — השירות ממשיך/מחדש את ה-polling.
+    this.syncState.refresh();
   }
 
-  ngOnDestroy(): void {
-    this.stopPolling();
-  }
-
-  fetchStatus(): void {
-    this.integrationsService.getGmailSyncStatus().subscribe({
-      next: (status) => {
-        this.applyStatus(status);
-        this.loading.set(false);
-      },
-      error: () => {
-        this.loading.set(false);
-        this.messageService.add({
-          severity: 'error',
-          summary: 'שגיאה',
-          detail: 'לא ניתן לטעון את מצב חיבור ה-Gmail',
-          life: 4000,
-          key: 'br',
-        });
-      },
-    });
-  }
-
-  /** מפנה למסך ההסכמה של Google (ה-flow הקיים; החזרה נוחתת בדף הבית). */
+  /** מפנה למסך ההסכמה של Google; החזרה נוחתת ב-/settings?tab=permissions. */
   connectGmail(): void {
     if (this.connecting()) return;
     this.connecting.set(true);
@@ -111,7 +82,7 @@ export class GmailIntegrationComponent implements OnInit, OnDestroy {
   }
 
   startImport(): void {
-    if (this.starting() || this.isRunning()) return;
+    if (this.syncState.starting() || this.syncState.isRunning()) return;
     this.importFormGroup.markAllAsTouched();
     const { fromDate, toDate } = this.importFormGroup.getRawValue();
     if (this.importFormGroup.invalid || !fromDate || !toDate) return;
@@ -126,78 +97,7 @@ export class GmailIntegrationComponent implements OnInit, OnDestroy {
       return;
     }
 
-    this.starting.set(true);
-    this.integrationsService
-      .startInitialGmailImport(this.dateToApiString(fromDate), this.dateToApiString(toDate))
-      .subscribe({
-        next: () => {
-          this.starting.set(false);
-          this.messageService.add({
-            severity: 'info',
-            summary: 'הייבוא התחיל',
-            detail: 'ייבוא ההודעות מ-Gmail רץ ברקע — נעדכן כאן כשיסתיים',
-            life: 5000,
-            key: 'br',
-          });
-          this.fetchStatus(); // יחזור RUNNING ויפעיל את ה-polling
-        },
-        error: (err) => {
-          this.starting.set(false);
-          const detail =
-            err?.status === 409
-              ? 'ייבוא כבר בוצע או רץ כרגע עבור חשבון זה'
-              : err?.error?.message ?? 'לא ניתן להתחיל את הייבוא. נסה שוב.';
-          this.messageService.add({ severity: 'error', summary: 'שגיאה', detail, life: 5000, key: 'br' });
-          this.fetchStatus();
-        },
-      });
-  }
-
-  /** Applies a fresh status and starts/stops polling to match RUNNING state. */
-  private applyStatus(status: GmailSyncStatus): void {
-    const wasRunning = this.isRunning();
-    this.status.set(status);
-
-    if (status.lastSyncStatus === 'RUNNING') {
-      this.startPolling();
-      return;
-    }
-    this.stopPolling();
-
-    // מעבר RUNNING → סופי בזמן שהמסך פתוח: עדכון למשתמש על התוצאה.
-    if (wasRunning && status.lastSyncStatus === 'SUCCESS') {
-      this.messageService.add({
-        severity: 'success',
-        summary: 'הייבוא הושלם',
-        detail: 'ייבוא ההודעות מ-Gmail הסתיים בהצלחה',
-        life: 5000,
-        key: 'br',
-      });
-    } else if (wasRunning && status.lastSyncStatus === 'ERROR') {
-      this.messageService.add({
-        severity: 'error',
-        summary: 'הייבוא נכשל',
-        detail: status.lastSyncError || 'הייבוא מ-Gmail נכשל. ניתן לנסות שוב.',
-        life: 6000,
-        key: 'br',
-      });
-    }
-  }
-
-  private startPolling(): void {
-    if (this.pollSubscription) return;
-    this.pollSubscription = interval(POLL_INTERVAL_MS).subscribe(() => {
-      this.integrationsService.getGmailSyncStatus().subscribe({
-        next: (status) => this.applyStatus(status),
-        // כשל נקודתי ב-polling אינו קריטי — הניסיון הבא ירוץ בעוד 5 שניות.
-        error: () => {},
-      });
-    });
-  }
-
-  private stopPolling(): void {
-    this.pollSubscription?.unsubscribe();
-    this.pollSubscription = null;
+    this.syncState.startInitialImport(this.dateToApiString(fromDate), this.dateToApiString(toDate));
   }
 
   /** Date → YYYY-MM-DD בחלקים מקומיים (בלי הסטת UTC), כמו dateToApiString בהגדרות. */

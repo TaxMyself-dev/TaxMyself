@@ -4,10 +4,17 @@ import {
   DocumentImportStatus,
 } from 'src/document-import/document-import.service';
 import { DocumentImportSource } from 'src/document-import/enums/document-import.enums';
+import {
+  SkippedAttachmentsAccumulator,
+  tagGmailSyncError,
+} from '../utils/gmail-sync-logging.util';
 import { DEFAULT_GMAIL_QUERY, GmailReaderService } from './gmail-reader.service';
 
 /** Progress heartbeat interval for long scans (initial import can span years). */
 const LOG_PROGRESS_EVERY_MESSAGES = 100;
+
+/** How many failed message ids to keep for the run's FINISH/troubleshooting log. */
+const MAX_FAILED_MESSAGE_IDS = 5;
 
 export interface GmailImportFileResult {
   messageId: string;
@@ -25,6 +32,8 @@ export interface GmailImportResult {
   messagesFound: number;
   /** Messages that could not be fetched/parsed (logged and skipped by the reader). */
   messagesFailed: number;
+  /** First few failed Gmail message ids, for troubleshooting logs. */
+  failedMessageIds: string[];
   attachmentsFound: number;
   imported: number;
   alreadyImported: number;
@@ -58,6 +67,10 @@ export class GmailDriveImportService {
    * `maxMessages` bounds the scan (omit for unlimited — the reader pages
    * through the full result set). `includeFileDetails: false` skips the
    * per-file result list, which nobody reads on background bulk runs.
+   *
+   * `skipStats` (optional) collects EXPECTED attachment skips so the caller
+   * (the sync orchestrator) can emit one aggregated SKIPPED SUMMARY at FINISH
+   * instead of a DEBUG line per skipped attachment.
    */
   async importFromGmail(
     firebaseId: string,
@@ -66,6 +79,7 @@ export class GmailDriveImportService {
       query?: string;
       maxMessages?: number;
       includeFileDetails?: boolean;
+      skipStats?: SkippedAttachmentsAccumulator;
     },
   ): Promise<GmailImportResult> {
     const query = options.query?.trim() || DEFAULT_GMAIL_QUERY;
@@ -75,6 +89,7 @@ export class GmailDriveImportService {
       query,
       messagesFound: 0,
       messagesFailed: 0,
+      failedMessageIds: [],
       attachmentsFound: 0,
       imported: 0,
       alreadyImported: 0,
@@ -87,10 +102,14 @@ export class GmailDriveImportService {
     for await (const scan of this.gmailReaderService.scanMessages(firebaseId, {
       query,
       maxMessages: options.maxMessages,
+      skipStats: options.skipStats,
     })) {
       result.messagesFound += 1;
       if (scan.failed) {
         result.messagesFailed += 1;
+        if (result.failedMessageIds.length < MAX_FAILED_MESSAGE_IDS) {
+          result.failedMessageIds.push(scan.messageId);
+        }
         continue;
       }
 
@@ -100,22 +119,28 @@ export class GmailDriveImportService {
         // Per-attachment failures come back as status SKIPPED — importDocument
         // only throws for environment problems (business missing, Drive
         // unprovisioned), which rightly abort the whole request.
-        const imported = await this.documentImportService.importDocument({
-          firebaseId,
-          businessNumber: options.businessNumber,
-          source: DocumentImportSource.GMAIL,
-          filename: attachment.filename,
-          mimeType: attachment.mimeType,
-          content: attachment.content,
-          metadata: {
-            gmailMessageId: attachment.messageId,
-            gmailThreadId: attachment.threadId,
-            gmailAttachmentId: attachment.attachmentId,
-            gmailSubject: attachment.subject,
-            gmailFrom: attachment.from,
-            gmailDate: attachment.date,
-          },
-        });
+        let imported;
+        try {
+          imported = await this.documentImportService.importDocument({
+            firebaseId,
+            businessNumber: options.businessNumber,
+            source: DocumentImportSource.GMAIL,
+            filename: attachment.filename,
+            mimeType: attachment.mimeType,
+            content: attachment.content,
+            metadata: {
+              gmailMessageId: attachment.messageId,
+              gmailThreadId: attachment.threadId,
+              gmailAttachmentId: attachment.attachmentId,
+              gmailSubject: attachment.subject,
+              gmailFrom: attachment.from,
+              gmailDate: attachment.date,
+            },
+          });
+        } catch (error) {
+          // Stage tag only — behavior (abort the run) is unchanged.
+          throw tagGmailSyncError(error, 'START_DOCUMENT_IMPORT', false);
+        }
 
         if (includeFileDetails) {
           result.files.push({
@@ -135,14 +160,16 @@ export class GmailDriveImportService {
       }
 
       if (result.messagesFound % LOG_PROGRESS_EVERY_MESSAGES === 0) {
-        this.logger.log(
+        this.logger.debug(
           `Gmail import progress for firebaseId=${firebaseId}: ` +
             `${result.messagesFound} messages scanned, ${result.imported} imported so far`,
         );
       }
     }
 
-    this.logger.log(
+    // DEBUG only — the run-level INFO summary (with sync type, integration id
+    // and duration) is logged once by the orchestrator (GmailSyncService).
+    this.logger.debug(
       `Gmail import for firebaseId=${firebaseId} business=${options.businessNumber ?? 'auto-resolved'}: ` +
         `${result.imported} imported, ${result.alreadyImported} already imported, ` +
         `${result.skipped} skipped (of ${result.attachmentsFound} candidates, ` +

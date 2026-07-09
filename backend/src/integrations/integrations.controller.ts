@@ -66,10 +66,13 @@ export class IntegrationsController {
     @Query('state') state?: string,
     @Query('error') error?: string,
   ) {
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:4200';
+    const frontendUrl = process.env.GMAIL_FRONTEND_URL || 'http://localhost:4200';
+    // Land the user back on the settings tab that hosts the Gmail integration
+    // section (Feezback consent-return pattern) — the frontend reads and then
+    // strips these query params.
     const redirectTo = (result: string, reason?: string) =>
       res.redirect(
-        `${frontendUrl}/?googleIntegration=${result}` +
+        `${frontendUrl}&googleIntegration=${result}` +
           (reason ? `&reason=${encodeURIComponent(reason)}` : ''),
       );
 

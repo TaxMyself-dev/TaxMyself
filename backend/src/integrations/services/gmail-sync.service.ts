@@ -11,7 +11,14 @@ import {
   IntegrationStatus,
   IntegrationSyncStatus,
 } from '../enums/integrations.enums';
-import { GmailDriveImportService } from './gmail-drive-import.service';
+import {
+  describeGmailSyncError,
+  getGmailSyncRetryable,
+  getGmailSyncStage,
+  SkippedAttachmentsAccumulator,
+  tagGmailSyncError,
+} from '../utils/gmail-sync-logging.util';
+import { GmailDriveImportService, GmailImportResult } from './gmail-drive-import.service';
 import { UserIntegrationsService } from './user-integrations.service';
 
 /** All user-facing date boundaries are computed on Israel's calendar day. */
@@ -31,6 +38,19 @@ const STALE_RUNNING_SYNC_MS = 6 * 60 * 60 * 1000;
  * free because re-imports dedup on content hash.
  */
 const NIGHTLY_SYNC_OVERLAP_MS = 3 * 60 * 60 * 1000;
+
+/**
+ * Identity of one sync run, threaded through its START/FINISH/FAILED logs so
+ * production issues can be traced with a single grep (e.g. "int=12").
+ */
+interface GmailSyncRunContext {
+  syncType: 'INITIAL' | 'NIGHTLY';
+  integrationId: number;
+  firebaseId: string;
+  accountEmail: string | null;
+  /** Human-readable sync window: date range (initial) or cursor→now (nightly). */
+  window: string;
+}
 
 export interface GmailSyncStatusResponse {
   connected: boolean;
@@ -123,14 +143,18 @@ export class GmailSyncService {
     this.assertNoConflictingRun(integration);
 
     await this.userIntegrationsService.markSyncRunning(integration.id);
-    this.logger.log(
-      `Initial Gmail import started for firebaseId=${firebaseId} ` +
-        `(integration ${integration.id}) range ${fromDate}..${toDate}`,
-    );
+
+    const context: GmailSyncRunContext = {
+      syncType: 'INITIAL',
+      integrationId: integration.id,
+      firebaseId,
+      accountEmail: integration.accountEmail,
+      window: `${fromDate}..${toDate}`,
+    };
 
     // Deliberately not awaited: a range import can take many minutes and must
     // not block (or time out) the HTTP request. runInitialImport never throws.
-    void this.runInitialImport(integration.id, firebaseId, fromDate, toDate);
+    void this.runInitialImport(context, fromDate, toDate);
 
     return { started: true };
   }
@@ -214,17 +238,19 @@ export class GmailSyncService {
    * polling frontend sees.
    */
   private async runInitialImport(
-    integrationId: number,
-    firebaseId: string,
+    context: GmailSyncRunContext,
     fromDate: string,
     toDate: string,
   ): Promise<void> {
     const runStartedAt = new Date();
+    const skipStats = new SkippedAttachmentsAccumulator();
+    this.logRunStart(context);
     try {
-      const result = await this.gmailDriveImportService.importFromGmail(firebaseId, {
+      const result = await this.gmailDriveImportService.importFromGmail(context.firebaseId, {
         query: this.buildDateRangeQuery(fromDate, toDate),
         // No maxMessages: the reader pages through the entire range.
         includeFileDetails: false,
+        skipStats,
       });
 
       // Cursor for the nightly sync. End of the imported range is the day
@@ -234,30 +260,20 @@ export class GmailSyncService {
       const rangeEnd = new Date(`${this.dayAfter(toDate)}T00:00:00Z`);
       const lastSuccessfulSyncAt = runStartedAt < rangeEnd ? runStartedAt : rangeEnd;
 
-      await this.userIntegrationsService.markSyncSuccess(integrationId, {
-        lastSuccessfulSyncAt,
-        initialImport: { fromDate, toDate },
-      });
-      this.logger.log(
-        `Initial Gmail import finished for firebaseId=${firebaseId}: ` +
-          `${result.imported} imported, ${result.alreadyImported} already imported, ` +
-          `${result.skipped} skipped, ${result.messagesFailed} message(s) failed ` +
-          `(${result.messagesFound} messages scanned)`,
-      );
+      try {
+        await this.userIntegrationsService.markSyncSuccess(context.integrationId, {
+          lastSuccessfulSyncAt,
+          initialImport: { fromDate, toDate },
+        });
+      } catch (error) {
+        throw tagGmailSyncError(error, 'SAVE_SYNC_STATE');
+      }
+      this.logRunFinish(context, result, Date.now() - runStartedAt.getTime());
+      this.logSkippedSummary(context, skipStats);
     } catch (error: any) {
-      const reason = error?.message ?? String(error);
-      this.logger.error(
-        `Initial Gmail import failed for firebaseId=${firebaseId}: ${reason}`,
-        error?.stack,
-      );
       // Cursor and initialImportCompletedAt untouched — the user can retry.
-      await this.userIntegrationsService
-        .markSyncError(integrationId, reason)
-        .catch((persistError) =>
-          this.logger.error(
-            `Could not persist sync error for integration ${integrationId}: ${persistError}`,
-          ),
-        );
+      this.logRunFailure(context, error);
+      await this.persistRunError(context, error);
     }
   }
 
@@ -291,7 +307,17 @@ export class GmailSyncService {
     }
 
     const windowEnd = new Date();
+    const context: GmailSyncRunContext = {
+      syncType: 'NIGHTLY',
+      integrationId: integration.id,
+      firebaseId: integration.firebaseId,
+      accountEmail: integration.accountEmail,
+      window: `${integration.lastSuccessfulSyncAt.toISOString()}..${windowEnd.toISOString()}`,
+    };
+
+    const skipStats = new SkippedAttachmentsAccumulator();
     await this.userIntegrationsService.markSyncRunning(integration.id);
+    this.logRunStart(context);
     try {
       // Epoch seconds, not a YYYY/MM/DD date: after: with a date is
       // day-granular and timezone-fuzzy; the epoch form is exact.
@@ -303,35 +329,99 @@ export class GmailSyncService {
         {
           query: `has:attachment after:${afterEpochSeconds}`,
           includeFileDetails: false,
+          skipStats,
         },
       );
 
-      await this.userIntegrationsService.markSyncSuccess(integration.id, {
-        lastSuccessfulSyncAt: windowEnd,
-      });
-      const detail =
-        `${result.imported} imported, ${result.alreadyImported} already imported, ` +
-        `${result.skipped} skipped, ${result.messagesFailed} message(s) failed ` +
-        `(${result.messagesFound} messages scanned)`;
-      this.logger.log(
-        `Nightly Gmail sync for firebaseId=${integration.firebaseId}: ${detail}`,
-      );
-      return { outcome: 'success', detail };
+      try {
+        await this.userIntegrationsService.markSyncSuccess(integration.id, {
+          lastSuccessfulSyncAt: windowEnd,
+        });
+      } catch (error) {
+        throw tagGmailSyncError(error, 'SAVE_SYNC_STATE');
+      }
+      this.logRunFinish(context, result, Date.now() - windowEnd.getTime());
+      this.logSkippedSummary(context, skipStats);
+      return {
+        outcome: 'success',
+        detail: `${result.imported} imported of ${result.attachmentsFound} candidates`,
+      };
     } catch (error: any) {
-      const reason = error?.message ?? String(error);
-      this.logger.error(
-        `Nightly Gmail sync failed for firebaseId=${integration.firebaseId}: ${reason}`,
-        error?.stack,
-      );
-      await this.userIntegrationsService
-        .markSyncError(integration.id, reason)
-        .catch((persistError) =>
-          this.logger.error(
-            `Could not persist sync error for integration ${integration.id}: ${persistError}`,
-          ),
-        );
-      return { outcome: 'error', detail: reason };
+      this.logRunFailure(context, error);
+      await this.persistRunError(context, error);
+      return { outcome: 'error', detail: error?.message ?? String(error) };
     }
+  }
+
+  // --- Run logging (see gmail-sync-logging.util.ts for the stage vocabulary) ----
+
+  private runPrefix(context: GmailSyncRunContext): string {
+    return (
+      `[gmail-sync ${context.syncType} int=${context.integrationId} ` +
+      `user=${context.firebaseId} account=${context.accountEmail ?? 'unknown'}]`
+    );
+  }
+
+  private logRunStart(context: GmailSyncRunContext): void {
+    this.logger.log(`${this.runPrefix(context)} START window=${context.window}`);
+  }
+
+  /**
+   * The single success summary of a run. WARN (not error) when some messages
+   * failed but the run completed — the cursor advanced, dedup makes a manual
+   * re-run safe, and the failed ids are listed for follow-up.
+   */
+  private logRunFinish(
+    context: GmailSyncRunContext,
+    result: GmailImportResult,
+    durationMs: number,
+  ): void {
+    const line =
+      `${this.runPrefix(context)} FINISH window=${context.window} durationMs=${durationMs} ` +
+      `messages=${result.messagesFound} messagesFailed=${result.messagesFailed} ` +
+      `attachments=${result.attachmentsFound} imported=${result.imported} ` +
+      `alreadyImported=${result.alreadyImported} skipped=${result.skipped}` +
+      (result.failedMessageIds.length > 0
+        ? ` failedMessageIds=${result.failedMessageIds.join(',')}`
+        : '');
+    if (result.messagesFailed > 0) this.logger.warn(line);
+    else this.logger.log(line);
+  }
+
+  /**
+   * One aggregated DEBUG summary of EXPECTED attachment skips, emitted right
+   * after FINISH and only when at least one attachment was skipped. Replaces
+   * the old per-attachment DEBUG lines that flooded logs on large imports;
+   * actual failures are still logged individually elsewhere.
+   */
+  private logSkippedSummary(
+    context: GmailSyncRunContext,
+    skipStats: SkippedAttachmentsAccumulator,
+  ): void {
+    if (!skipStats.hasSkips()) return;
+    this.logger.debug(`${this.runPrefix(context)}\n\n${skipStats.format()}`);
+  }
+
+  private logRunFailure(context: GmailSyncRunContext, error: any): void {
+    const retryable = getGmailSyncRetryable(error);
+    this.logger.error(
+      `${this.runPrefix(context)} FAILED stage=${getGmailSyncStage(error)} ` +
+        `retryable=${retryable ?? 'unknown'} window=${context.window} ` +
+        `error=${error?.message ?? error}`,
+      error?.stack,
+    );
+  }
+
+  /** Persists "STAGE: message" into lastSyncError; a persist failure only logs. */
+  private async persistRunError(context: GmailSyncRunContext, error: any): Promise<void> {
+    await this.userIntegrationsService
+      .markSyncError(context.integrationId, describeGmailSyncError(error))
+      .catch((persistError) =>
+        this.logger.error(
+          `${this.runPrefix(context)} stage=SAVE_SYNC_STATE could not persist ` +
+            `sync error: ${persistError}`,
+        ),
+      );
   }
 
   /**

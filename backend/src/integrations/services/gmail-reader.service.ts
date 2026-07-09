@@ -9,6 +9,11 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { UserIntegration } from '../entities/user-integration.entity';
 import { IntegrationProvider, IntegrationStatus } from '../enums/integrations.enums';
+import {
+  GmailSkipReason,
+  SkippedAttachmentsAccumulator,
+  tagGmailSyncError,
+} from '../utils/gmail-sync-logging.util';
 import { GoogleOauthService } from './google-oauth.service';
 import { UserIntegrationsService } from './user-integrations.service';
 
@@ -114,17 +119,21 @@ export class GmailReaderService {
    * `maxMessages` bounds the scan; omit it to scan every match.
    * Per-message failures are logged and yielded with failed=true — one broken
    * message never aborts the scan.
+   *
+   * `skipStats` (optional) collects EXPECTED attachment skips for the run's
+   * single aggregated SKIPPED SUMMARY — passing it replaces the old per-skip
+   * DEBUG lines. Bulk callers (initial import, nightly sync) supply one.
    */
   async *scanMessages(
     firebaseId: string,
-    options: { query?: string; maxMessages?: number } = {},
+    options: { query?: string; maxMessages?: number; skipStats?: SkippedAttachmentsAccumulator } = {},
   ): AsyncGenerator<GmailMessageScanResult> {
     const integration = await this.getUsableIntegration(firebaseId);
     const gmail = await this.createGmailClient(integration);
 
     const query = options.query?.trim() || DEFAULT_GMAIL_QUERY;
     const maxMessages = options.maxMessages;
-    this.logger.log(
+    this.logger.debug(
       `Gmail scan starting for firebaseId=${firebaseId} query="${query}"` +
         (maxMessages ? ` maxMessages=${maxMessages}` : ''),
     );
@@ -144,12 +153,18 @@ export class GmailReaderService {
       for (const messageId of page.ids) {
         scanned += 1;
         try {
-          const collected = await this.collectMessageAttachments(gmail, messageId);
+          const collected = await this.collectMessageAttachments(
+            gmail,
+            messageId,
+            options.skipStats,
+          );
           yield { messageId, failed: false, ...collected };
         } catch (error: any) {
-          // One broken message must not fail the whole scan.
-          this.logger.error(
-            `Failed to read Gmail message ${messageId}: ${error?.message ?? error}`,
+          // One broken message must not fail the whole scan — contained,
+          // counted (messagesFailed) and surfaced in the run's FINISH log.
+          this.logger.warn(
+            `Gmail sync stage=LOAD_MESSAGE failed for message ${messageId}: ` +
+              `${error?.message ?? error}`,
           );
           yield {
             messageId,
@@ -205,7 +220,7 @@ export class GmailReaderService {
       }
     }
 
-    this.logger.log(
+    this.logger.debug(
       `Gmail scan complete for firebaseId=${firebaseId}: ` +
         `${result.messagesFound} messages, ${result.messagesWithAttachments} with attachments, ` +
         `${result.attachmentsFound} receipt candidates returned, ` +
@@ -223,20 +238,33 @@ export class GmailReaderService {
       IntegrationProvider.GOOGLE,
     );
 
+    // All three states need the user to (re-)connect — retrying won't help.
     if (!integration) {
-      throw new NotFoundException(
-        'No Google integration found for this user. Connect a Google account first.',
+      throw tagGmailSyncError(
+        new NotFoundException(
+          'No Google integration found for this user. Connect a Google account first.',
+        ),
+        'LOAD_INTEGRATION',
+        false,
       );
     }
     if (integration.status !== IntegrationStatus.ACTIVE || !integration.refreshToken) {
-      throw new BadRequestException(
-        `Google integration is ${integration.status} — reconnect the Google account.`,
+      throw tagGmailSyncError(
+        new BadRequestException(
+          `Google integration is ${integration.status} — reconnect the Google account.`,
+        ),
+        'LOAD_INTEGRATION',
+        false,
       );
     }
     if (!integration.scopes?.includes(GMAIL_READONLY_SCOPE)) {
-      throw new BadRequestException(
-        'The connected Google account did not grant Gmail read access. ' +
-          'Disconnect and reconnect the account, approving Gmail access.',
+      throw tagGmailSyncError(
+        new BadRequestException(
+          'The connected Google account did not grant Gmail read access. ' +
+            'Disconnect and reconnect the account, approving Gmail access.',
+        ),
+        'LOAD_INTEGRATION',
+        false,
       );
     }
     return integration;
@@ -272,11 +300,18 @@ export class GmailReaderService {
           integration.id,
           IntegrationStatus.EXPIRED,
         );
-        throw new BadRequestException(
-          'Google authorization has expired or was revoked — reconnect the Google account.',
+        throw tagGmailSyncError(
+          new BadRequestException(
+            'Google authorization has expired or was revoked — reconnect the Google account.',
+          ),
+          'TOKEN_REFRESH',
+          false, // dead grant — only a user reconnect fixes it
         );
       }
-      throw new BadRequestException(`Google token refresh failed: ${reason}`);
+      throw tagGmailSyncError(
+        new BadRequestException(`Google token refresh failed: ${reason}`),
+        'TOKEN_REFRESH',
+      );
     }
 
     return google.gmail({ version: 'v1', auth: client });
@@ -301,9 +336,15 @@ export class GmailReaderService {
         nextPageToken: response.data.nextPageToken ?? undefined,
       };
     } catch (error: any) {
+      const status = Number(error?.response?.status ?? error?.code);
       const reason = error?.response?.data?.error?.message ?? error?.message ?? String(error);
       this.logger.error(`Gmail messages.list failed: ${reason}`);
-      throw new BadRequestException(`Gmail search failed: ${reason}`);
+      throw tagGmailSyncError(
+        new BadRequestException(`Gmail search failed: ${reason}`),
+        'SEARCH_MESSAGES',
+        // Rate limits / transient 5xx exhausted the backoff — a later run succeeds.
+        status === 429 || (status >= 500 && status < 600) ? true : undefined,
+      );
     }
   }
 
@@ -336,6 +377,7 @@ export class GmailReaderService {
   private async collectMessageAttachments(
     gmail: gmail_v1.Gmail,
     messageId: string,
+    skipStats?: SkippedAttachmentsAccumulator,
   ): Promise<{
     attachments: GmailAttachmentFile[];
     skippedWithoutFilename: number;
@@ -358,6 +400,9 @@ export class GmailReaderService {
         parts.push(part);
       } else if (hasBody && part.body?.attachmentId && !part.filename) {
         skippedWithoutFilename += 1;
+        // Expected skip — aggregated into the run's SKIPPED SUMMARY, not logged
+        // per message. No filename to offer as an example, by definition.
+        skipStats?.record(GmailSkipReason.MISSING_FILENAME);
       }
       for (const child of part.parts ?? []) {
         walk(child, depth + 1);
@@ -365,18 +410,15 @@ export class GmailReaderService {
     };
     walk(message.payload ?? undefined, 0);
 
-    if (skippedWithoutFilename > 0) {
-      this.logger.log(
-        `Message ${messageId}: skipped ${skippedWithoutFilename} attachment part(s) without filename`,
-      );
-    }
-
     const subject = header('subject');
     const attachments: GmailAttachmentFile[] = [];
     let skippedIrrelevant = 0;
-    const skip = (filename: string, reason: string): void => {
+    // Expected skips are aggregated into the run's single SKIPPED SUMMARY
+    // (see SkippedAttachmentsAccumulator) — never one log line per attachment,
+    // which would flood production during a multi-year import.
+    const skip = (filename: string, reason: GmailSkipReason): void => {
       skippedIrrelevant += 1;
-      this.logger.log(`Skipped attachment "${filename}" on message ${messageId}: ${reason}`);
+      skipStats?.record(reason, filename);
     };
 
     for (const part of parts) {
@@ -385,7 +427,7 @@ export class GmailReaderService {
       // Stage 1 — metadata gate, before spending a download on it.
       const verdict = this.isLikelyReceiptAttachment(part);
       if (!verdict.ok) {
-        skip(filename, verdict.reason ?? 'filtered');
+        skip(filename, verdict.reason as GmailSkipReason);
         continue;
       }
 
@@ -396,15 +438,15 @@ export class GmailReaderService {
       const ext = this.getExtension(filename);
       if (ext === 'pdf') {
         if (content.length < MIN_PDF_BYTES) {
-          skip(filename, `pdf too small (${content.length} bytes)`);
+          skip(filename, GmailSkipReason.PDF_TOO_SMALL);
           continue;
         }
         if (!this.looksLikePdf(content)) {
-          skip(filename, 'missing %PDF content signature');
+          skip(filename, GmailSkipReason.PDF_INVALID);
           continue;
         }
       } else if (content.length < MIN_IMAGE_BYTES) {
-        skip(filename, `image too small (${content.length} bytes)`);
+        skip(filename, GmailSkipReason.IMAGE_TOO_SMALL);
         continue;
       }
 
@@ -436,15 +478,15 @@ export class GmailReaderService {
    */
   private isLikelyReceiptAttachment(
     part: gmail_v1.Schema$MessagePart,
-  ): { ok: boolean; reason?: string } {
+  ): { ok: boolean; reason?: GmailSkipReason } {
     const filename = part.filename ?? '';
     const ext = this.getExtension(filename);
 
     if (!DOCUMENT_EXTENSIONS.includes(ext)) {
-      return { ok: false, reason: `unsupported extension "${ext || 'none'}"` };
+      return { ok: false, reason: GmailSkipReason.UNSUPPORTED_EXTENSION };
     }
     if (ASSET_NAME_PATTERN.test(filename)) {
-      return { ok: false, reason: 'asset-like filename (logo/icon/banner/signature/temp)' };
+      return { ok: false, reason: GmailSkipReason.ASSET_FILENAME };
     }
 
     // body.size is Gmail's decoded size estimate; 0/undefined means unknown —
@@ -453,16 +495,16 @@ export class GmailReaderService {
 
     if (ext === 'pdf') {
       if (declaredSize > 0 && declaredSize < MIN_PDF_BYTES) {
-        return { ok: false, reason: `pdf too small (declared ${declaredSize} bytes)` };
+        return { ok: false, reason: GmailSkipReason.PDF_TOO_SMALL };
       }
       return { ok: true };
     }
 
     if (this.isInlineAsset(part)) {
-      return { ok: false, reason: 'inline email asset' };
+      return { ok: false, reason: GmailSkipReason.INLINE_ASSET };
     }
     if (declaredSize > 0 && declaredSize < MIN_IMAGE_BYTES) {
-      return { ok: false, reason: `image too small (declared ${declaredSize} bytes)` };
+      return { ok: false, reason: GmailSkipReason.IMAGE_TOO_SMALL };
     }
     return { ok: true };
   }
@@ -516,7 +558,7 @@ export class GmailReaderService {
       }
 
       await fs.promises.writeFile(target, content);
-      this.logger.log(`Saved Gmail attachment: ${target}`);
+      this.logger.debug(`Saved Gmail attachment: ${target}`);
     } catch (error: any) {
       this.logger.warn(
         `DEBUG save of Gmail attachment "${filename}" failed: ${error?.message ?? error}`,
@@ -558,8 +600,10 @@ export class GmailReaderService {
       }
       return null;
     } catch (error: any) {
-      this.logger.error(
-        `Failed to download attachment "${part.filename}" from message ${messageId}: ` +
+      // Contained per-attachment failure — the message's other files continue.
+      this.logger.warn(
+        `Gmail sync stage=DOWNLOAD_ATTACHMENT failed for "${part.filename}" ` +
+          `(message ${messageId}, attachmentId=${part.body?.attachmentId ?? 'inline'}): ` +
           `${error?.response?.data?.error?.message ?? error?.message ?? error}`,
       );
       return null;

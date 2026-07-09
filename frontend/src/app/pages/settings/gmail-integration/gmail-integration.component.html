@@ -1,9 +1,9 @@
 <div class="gmail-integration">
   <h3 class="subsection-title">חיבור Gmail לקליטת מסמכים</h3>
 
-  @if (loading()) {
+  @if (syncState.loading()) {
     <p class="gmail-muted">טוען...</p>
-  } @else if (!status()?.connected) {
+  } @else if (!syncState.status()?.connected) {
 
     <!-- א. לא מחובר -->
     <p class="gmail-text">
@@ -16,10 +16,10 @@
         (onButtonClicked)="connectGmail()"></app-p-button>
     </div>
 
-  } @else if (isRunning()) {
+  } @else if (syncState.isRunning()) {
 
     <!-- ג. ייבוא רץ -->
-    <p class="gmail-account">חשבון מחובר: <strong>{{ status()?.accountEmail }}</strong></p>
+    <p class="gmail-account">חשבון מחובר: <strong>{{ syncState.status()?.accountEmail }}</strong></p>
     <div class="gmail-running">
       <i class="pi pi-spin pi-spinner"></i>
       <span>
@@ -28,24 +28,24 @@
       </span>
     </div>
 
-  } @else if (status()?.initialImportCompleted) {
+  } @else if (syncState.status()?.initialImportCompleted) {
 
     <!-- ד. ייבוא ראשוני הושלם -->
-    <p class="gmail-account">חשבון מחובר: <strong>{{ status()?.accountEmail }}</strong></p>
+    <p class="gmail-account">חשבון מחובר: <strong>{{ syncState.status()?.accountEmail }}</strong></p>
     <div class="gmail-success">
       <i class="pi pi-check-circle"></i>
       <span>הייבוא הראשוני הושלם בהצלחה.</span>
     </div>
-    @if (status()?.lastSuccessfulSyncAt) {
+    @if (syncState.status()?.lastSuccessfulSyncAt) {
       <p class="gmail-text">
-        סנכרון אחרון: {{ status()?.lastSuccessfulSyncAt | date:'dd/MM/yyyy HH:mm' }}
+        סנכרון אחרון: {{ syncState.status()?.lastSuccessfulSyncAt | date:'dd/MM/yyyy HH:mm' }}
       </p>
     }
-    @if (status()?.lastSyncStatus === 'ERROR') {
+    @if (syncState.status()?.lastSyncStatus === 'ERROR') {
       <div class="gmail-error">
         <i class="pi pi-exclamation-triangle"></i>
         <span>
-          הסנכרון האחרון נכשל{{ status()?.lastSyncError ? ': ' + status()?.lastSyncError : '' }}.
+          הסנכרון האחרון נכשל{{ syncState.status()?.lastSyncError ? ': ' + syncState.status()?.lastSyncError : '' }}.
           ננסה שוב אוטומטית בלילה הקרוב.
         </span>
       </div>
@@ -57,12 +57,12 @@
   } @else {
 
     <!-- ב. מחובר, ייבוא ראשוני טרם בוצע (וגם מצב ה. שגיאה → ניסיון חוזר) -->
-    <p class="gmail-account">חשבון מחובר: <strong>{{ status()?.accountEmail }}</strong></p>
-    @if (status()?.lastSyncStatus === 'ERROR') {
+    <p class="gmail-account">חשבון מחובר: <strong>{{ syncState.status()?.accountEmail }}</strong></p>
+    @if (syncState.status()?.lastSyncStatus === 'ERROR') {
       <div class="gmail-error">
         <i class="pi pi-exclamation-triangle"></i>
         <span>
-          הייבוא הקודם נכשל{{ status()?.lastSyncError ? ': ' + status()?.lastSyncError : '' }}.
+          הייבוא הקודם נכשל{{ syncState.status()?.lastSyncError ? ': ' + syncState.status()?.lastSyncError : '' }}.
           ניתן לנסות שוב.
         </span>
       </div>
@@ -87,7 +87,7 @@
     </div>
     <div class="gmail-actions">
       <app-p-button [buttonText]="'התחל ייבוא מ-Gmail'" [buttonColor]="buttonColor.BLACK"
-        [buttonSize]="buttonSize.SMALL" [disabled]="starting()" [isLoading]="starting()"
+        [buttonSize]="buttonSize.SMALL" [disabled]="syncState.starting()" [isLoading]="syncState.starting()"
         (onButtonClicked)="startImport()"></app-p-button>
     </div>
 

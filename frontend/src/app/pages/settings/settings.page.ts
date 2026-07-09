@@ -1,5 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { ActivatedRoute, Router } from '@angular/router';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators, AbstractControl, ValidationErrors } from '@angular/forms';
 import { ButtonComponent } from 'src/app/components/button/button.component';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
@@ -58,6 +59,8 @@ export class SettingsPage implements OnInit {
   myPermissionsService = inject(MyPermissionsService);
   transactionsService = inject(TransactionsService);
   syncStatusService = inject(SyncStatusService);
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   private readonly fb = inject(FormBuilder);
 
   /** sourceName of the account whose single-account pull is in flight (disables that row's button). */
@@ -187,6 +190,8 @@ export class SettingsPage implements OnInit {
     this.loadBusinesses();
     this.loadChildren();
     this.fetchMyPermissions();
+    // חזרה מ-OAuth של Google נוחתת כאן עם ?tab=permissions&googleIntegration=...
+    this.handleReturnFromGoogleOauth();
     // מקורות חשבון (get-sources-with-types) נטענים בלחיצה על טאב "ניהול הרשאות וחשבונות" — ראה onTabChange
     // רענון נתונים מהשרת כדי להציג תאריך בן/בת זוג ועוד שדות שעודכנו (למשל בדאטאבייס)
     this.authService.restoreUserData().subscribe({
@@ -204,6 +209,66 @@ export class SettingsPage implements OnInit {
     this.selectedTab = newTabValue;
     if (newTabValue === 'permissions') {
       this.fetchAccountSources();
+    }
+  }
+
+  /**
+   * Handles the Google OAuth return redirect (integrations.controller sends the
+   * browser to /settings?tab=permissions&googleIntegration=success|error&reason=...).
+   * Opens the requested tab, shows a global toast, then strips the params so a
+   * refresh or back-navigation doesn't re-toast. Snapshot read is enough — the
+   * redirect is always a fresh full-page load.
+   */
+  private handleReturnFromGoogleOauth(): void {
+    const params = this.route.snapshot.queryParams;
+    const tab = params['tab'];
+    const googleIntegration = params['googleIntegration'];
+    const reason = params['reason'];
+    if (!tab && !googleIntegration) return;
+
+    if (tab && this.tabs.some((t) => t.value === tab)) {
+      this.onTabChange(tab);
+    }
+
+    if (googleIntegration === 'success') {
+      this.messageService.add({
+        severity: 'success',
+        summary: 'חשבון Google חובר',
+        detail: 'חשבון ה-Gmail חובר בהצלחה.',
+        life: 4000,
+        key: 'br',
+      });
+    } else if (googleIntegration === 'error') {
+      this.messageService.add({
+        severity: 'error',
+        summary: 'שגיאה',
+        detail: this.googleOauthErrorDetail(reason),
+        life: 6000,
+        key: 'br',
+      });
+    }
+
+    // Remove only the OAuth-return params, keeping the rest of the URL intact.
+    this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { tab: null, googleIntegration: null, reason: null },
+      queryParamsHandling: 'merge',
+      replaceUrl: true,
+    });
+  }
+
+  /** Maps the backend/Google `reason` code to a user-facing Hebrew message. */
+  private googleOauthErrorDetail(reason: string | undefined): string {
+    switch (reason) {
+      case 'access_denied':
+        return 'החיבור בוטל. לא ניתנה הרשאה לחשבון Google.';
+      case 'no_refresh_token':
+        return 'החיבור נכשל: לא התקבלה הרשאה מתמשכת מ-Google. נסה שוב.';
+      case 'missing_code':
+      case 'callback_failed':
+        return 'חיבור חשבון Google נכשל. נסה שוב.';
+      default:
+        return 'חיבור חשבון Google נכשל. נסה שוב.';
     }
   }
 
