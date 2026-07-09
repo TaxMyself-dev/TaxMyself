@@ -20,7 +20,7 @@ const GMAIL_READONLY_SCOPE = 'https://www.googleapis.com/auth/gmail.readonly';
  * require receipt/invoice keywords — junk is filtered per-attachment below,
  * and the real receipt-vs-not decision belongs to the Claude analysis phase.
  */
-const DEFAULT_QUERY = 'has:attachment newer_than:90d';
+export const DEFAULT_GMAIL_QUERY = 'has:attachment newer_than:90d';
 
 /** Extensions we consider candidate receipt documents. */
 const DOCUMENT_EXTENSIONS = ['pdf', 'jpg', 'jpeg', 'png'];
@@ -39,6 +39,12 @@ const MIN_IMAGE_BYTES = 80 * 1024;
 /** contentBase64 responses get large fast — keep the page size modest. */
 const DEFAULT_MAX_RESULTS = 10;
 const MAX_MAX_RESULTS = 25;
+
+/** messages.list page size — 500 is the Gmail API maximum. */
+const LIST_PAGE_SIZE = 500;
+
+/** Backoff schedule for rate-limited/transient Gmail API failures. */
+const RETRY_DELAYS_MS = [1000, 2000, 4000];
 
 /** Guard against pathological/malicious MIME nesting. */
 const MAX_MIME_DEPTH = 20;
@@ -71,6 +77,17 @@ export interface GmailAttachmentsResult {
   attachments: GmailAttachmentFile[];
 }
 
+/** One scanned message, as yielded by scanMessages(). */
+export interface GmailMessageScanResult {
+  messageId: string;
+  /** Receipt-candidate attachments of this one message (may be empty). */
+  attachments: GmailAttachmentFile[];
+  skippedWithoutFilename: number;
+  skippedIrrelevant: number;
+  /** True when the message could not be fetched/parsed — logged, attachments empty. */
+  failed: boolean;
+}
+
 /**
  * Phase C — Gmail Reader. Searches the connected Google account's mailbox for
  * candidate receipt/invoice emails and downloads their attachments.
@@ -87,30 +104,84 @@ export class GmailReaderService {
   ) {}
 
   /**
-   * Searches the user's Gmail for messages matching `query` (default:
-   * receipts heuristic) and downloads every named attachment.
+   * Streams the user's mailbox message by message: searches Gmail for `query`
+   * (default: receipts heuristic), pages through the FULL result set via
+   * nextPageToken, and yields each message's downloaded attachments as soon
+   * as they are ready. Memory holds one message's attachments at a time, so
+   * this is the entry point for large imports (initial import, nightly sync)
+   * — callers import each yielded batch before pulling the next.
+   *
+   * `maxMessages` bounds the scan; omit it to scan every match.
+   * Per-message failures are logged and yielded with failed=true — one broken
+   * message never aborts the scan.
+   */
+  async *scanMessages(
+    firebaseId: string,
+    options: { query?: string; maxMessages?: number } = {},
+  ): AsyncGenerator<GmailMessageScanResult> {
+    const integration = await this.getUsableIntegration(firebaseId);
+    const gmail = await this.createGmailClient(integration);
+
+    const query = options.query?.trim() || DEFAULT_GMAIL_QUERY;
+    const maxMessages = options.maxMessages;
+    this.logger.log(
+      `Gmail scan starting for firebaseId=${firebaseId} query="${query}"` +
+        (maxMessages ? ` maxMessages=${maxMessages}` : ''),
+    );
+
+    let pageToken: string | undefined;
+    let scanned = 0;
+    do {
+      const remaining = maxMessages ? maxMessages - scanned : LIST_PAGE_SIZE;
+      const page = await this.listMessagesPage(
+        gmail,
+        query,
+        Math.min(LIST_PAGE_SIZE, remaining),
+        pageToken,
+      );
+      pageToken = page.nextPageToken;
+
+      for (const messageId of page.ids) {
+        scanned += 1;
+        try {
+          const collected = await this.collectMessageAttachments(gmail, messageId);
+          yield { messageId, failed: false, ...collected };
+        } catch (error: any) {
+          // One broken message must not fail the whole scan.
+          this.logger.error(
+            `Failed to read Gmail message ${messageId}: ${error?.message ?? error}`,
+          );
+          yield {
+            messageId,
+            failed: true,
+            attachments: [],
+            skippedWithoutFilename: 0,
+            skippedIrrelevant: 0,
+          };
+        }
+        if (maxMessages && scanned >= maxMessages) return;
+      }
+    } while (pageToken);
+  }
+
+  /**
+   * Phase C test helper: scans up to `maxResults` (clamped 1–25) messages and
+   * returns every attachment buffered in one result — fine at this size, NOT
+   * for bulk imports (use scanMessages there).
    */
   async fetchAttachments(
     firebaseId: string,
     options: { query?: string; maxResults?: number } = {},
   ): Promise<GmailAttachmentsResult> {
-    const integration = await this.getUsableIntegration(firebaseId);
-    const gmail = await this.createGmailClient(integration);
-
-    const query = options.query?.trim() || DEFAULT_QUERY;
-    const maxResults = Math.min(
+    const query = options.query?.trim() || DEFAULT_GMAIL_QUERY;
+    const maxMessages = Math.min(
       Math.max(1, options.maxResults ?? DEFAULT_MAX_RESULTS),
       MAX_MAX_RESULTS,
     );
 
-    const messageIds = await this.searchMessages(gmail, query, maxResults);
-    this.logger.log(
-      `Gmail search for firebaseId=${firebaseId} query="${query}" found ${messageIds.length} message(s)`,
-    );
-
     const result: GmailAttachmentsResult = {
       query,
-      messagesFound: messageIds.length,
+      messagesFound: 0,
       messagesWithAttachments: 0,
       attachmentsFound: 0,
       skippedWithoutFilename: 0,
@@ -118,27 +189,19 @@ export class GmailReaderService {
       attachments: [],
     };
 
-    for (const messageId of messageIds) {
-      try {
-        const collected = await this.collectMessageAttachments(gmail, messageId);
-        result.skippedWithoutFilename += collected.skippedWithoutFilename;
-        result.skippedIrrelevant += collected.skippedIrrelevant;
-        if (collected.attachments.length === 0) {
-          continue; // message has no usable attachments — skip it
-        }
-        result.messagesWithAttachments += 1;
-        result.attachmentsFound += collected.attachments.length;
-        result.attachments.push(...collected.attachments);
+    for await (const scan of this.scanMessages(firebaseId, { query, maxMessages })) {
+      result.messagesFound += 1;
+      result.skippedWithoutFilename += scan.skippedWithoutFilename;
+      result.skippedIrrelevant += scan.skippedIrrelevant;
+      if (scan.attachments.length === 0) continue;
 
-        // DEBUG ONLY — remove together with debugSaveToDisk() below.
-        for (const attachment of collected.attachments) {
-          await this.debugSaveToDisk(attachment.filename, attachment.content);
-        }
-      } catch (error: any) {
-        // One broken message must not fail the whole scan.
-        this.logger.error(
-          `Failed to read Gmail message ${messageId}: ${error?.message ?? error}`,
-        );
+      result.messagesWithAttachments += 1;
+      result.attachmentsFound += scan.attachments.length;
+      result.attachments.push(...scan.attachments);
+
+      // DEBUG ONLY — remove together with debugSaveToDisk() below.
+      for (const attachment of scan.attachments) {
+        await this.debugSaveToDisk(attachment.filename, attachment.content);
       }
     }
 
@@ -219,24 +282,50 @@ export class GmailReaderService {
     return google.gmail({ version: 'v1', auth: client });
   }
 
-  private async searchMessages(
+  /** One messages.list page. nextPageToken is undefined on the last page. */
+  private async listMessagesPage(
     gmail: gmail_v1.Gmail,
     query: string,
     maxResults: number,
-  ): Promise<string[]> {
+    pageToken: string | undefined,
+  ): Promise<{ ids: string[]; nextPageToken?: string }> {
     try {
-      const response = await gmail.users.messages.list({
-        userId: 'me',
-        q: query,
-        maxResults,
-      });
-      return (response.data.messages ?? [])
-        .map((m) => m.id)
-        .filter((id): id is string => !!id);
+      const response = await this.withRetry(
+        () => gmail.users.messages.list({ userId: 'me', q: query, maxResults, pageToken }),
+        'messages.list',
+      );
+      return {
+        ids: (response.data.messages ?? [])
+          .map((m) => m.id)
+          .filter((id): id is string => !!id),
+        nextPageToken: response.data.nextPageToken ?? undefined,
+      };
     } catch (error: any) {
       const reason = error?.response?.data?.error?.message ?? error?.message ?? String(error);
       this.logger.error(`Gmail messages.list failed: ${reason}`);
       throw new BadRequestException(`Gmail search failed: ${reason}`);
+    }
+  }
+
+  /**
+   * Retries rate-limited (429) and transient (5xx) Gmail API failures with
+   * exponential backoff. Long scans make hundreds of calls, so a burst limit
+   * hit must slow the scan down, not lose the message.
+   */
+  private async withRetry<T>(call: () => Promise<T>, label: string): Promise<T> {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await call();
+      } catch (error: any) {
+        const status = Number(error?.response?.status ?? error?.code);
+        const retryable = status === 429 || (status >= 500 && status < 600);
+        if (!retryable || attempt >= RETRY_DELAYS_MS.length) throw error;
+        this.logger.warn(
+          `Gmail ${label} returned ${status} — retry ${attempt + 1}/${RETRY_DELAYS_MS.length} ` +
+            `in ${RETRY_DELAYS_MS[attempt]}ms`,
+        );
+        await new Promise((resolve) => setTimeout(resolve, RETRY_DELAYS_MS[attempt]));
+      }
     }
   }
 
@@ -252,11 +341,10 @@ export class GmailReaderService {
     skippedWithoutFilename: number;
     skippedIrrelevant: number;
   }> {
-    const { data: message } = await gmail.users.messages.get({
-      userId: 'me',
-      id: messageId,
-      format: 'full',
-    });
+    const { data: message } = await this.withRetry(
+      () => gmail.users.messages.get({ userId: 'me', id: messageId, format: 'full' }),
+      'messages.get',
+    );
 
     const header = (name: string): string | null =>
       message.payload?.headers?.find((h) => h.name?.toLowerCase() === name)?.value ?? null;
@@ -452,11 +540,16 @@ export class GmailReaderService {
         return Buffer.from(part.body.data, 'base64url');
       }
       if (part.body?.attachmentId) {
-        const { data } = await gmail.users.messages.attachments.get({
-          userId: 'me',
-          messageId,
-          id: part.body.attachmentId,
-        });
+        const attachmentId = part.body.attachmentId;
+        const { data } = await this.withRetry(
+          () =>
+            gmail.users.messages.attachments.get({
+              userId: 'me',
+              messageId,
+              id: attachmentId,
+            }),
+          'attachments.get',
+        );
         if (!data.data) {
           this.logger.warn(`Attachment ${part.filename} on message ${messageId} returned no data`);
           return null;

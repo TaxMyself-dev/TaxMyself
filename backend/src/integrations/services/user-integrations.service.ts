@@ -2,7 +2,11 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { UserIntegration } from '../entities/user-integration.entity';
-import { IntegrationProvider, IntegrationStatus } from '../enums/integrations.enums';
+import {
+  IntegrationProvider,
+  IntegrationStatus,
+  IntegrationSyncStatus,
+} from '../enums/integrations.enums';
 import {
   decryptIntegrationToken,
   encryptIntegrationToken,
@@ -77,6 +81,21 @@ export class UserIntegrationsService {
       provider: input.provider,
     });
 
+    // Reconnecting a DIFFERENT provider account means a different mailbox —
+    // the previous sync cursor and initial-import state belong to the old
+    // account and must not gate or seed syncs of the new one.
+    if (
+      existing?.accountId &&
+      input.accountId &&
+      existing.accountId !== input.accountId
+    ) {
+      this.logger.warn(
+        `${input.provider} account changed for firebaseId=${input.firebaseId} ` +
+          `(integration ${existing.id}) — resetting sync state`,
+      );
+      this.clearSyncStateFields(integration);
+    }
+
     integration.refreshToken = encryptIntegrationToken(input.refreshToken);
     integration.accessToken = input.accessToken
       ? encryptIntegrationToken(input.accessToken)
@@ -140,6 +159,71 @@ export class UserIntegrationsService {
    */
   async updateStatus(integrationId: number, status: IntegrationStatus): Promise<void> {
     await this.userIntegrationRepo.update({ id: integrationId }, { status });
+  }
+
+  // --- Gmail sync state transitions ------------------------------------------
+  // The three legal moves are RUNNING → SUCCESS and RUNNING → ERROR (plus the
+  // reset on account change in upsertIntegration). Callers own the decision of
+  // WHEN a run counts as successful; this service only persists the outcome.
+
+  /** A sync run (initial import or nightly) is starting now. */
+  async markSyncRunning(integrationId: number): Promise<void> {
+    await this.userIntegrationRepo.update(
+      { id: integrationId },
+      {
+        lastSyncStatus: IntegrationSyncStatus.RUNNING,
+        lastSyncStartedAt: new Date(),
+        lastSyncError: null,
+      },
+    );
+  }
+
+  /**
+   * A sync run finished successfully — advance the cursor. When the run was
+   * the initial manual import, also record its completion and chosen range
+   * (dates as 'YYYY-MM-DD').
+   */
+  async markSyncSuccess(
+    integrationId: number,
+    options: {
+      lastSuccessfulSyncAt: Date;
+      initialImport?: { fromDate: string; toDate: string };
+    },
+  ): Promise<void> {
+    const update: Partial<UserIntegration> = {
+      lastSyncStatus: IntegrationSyncStatus.SUCCESS,
+      lastSyncError: null,
+      lastSuccessfulSyncAt: options.lastSuccessfulSyncAt,
+    };
+    if (options.initialImport) {
+      update.initialImportCompletedAt = new Date();
+      update.initialImportFromDate = options.initialImport.fromDate;
+      update.initialImportToDate = options.initialImport.toDate;
+    }
+    await this.userIntegrationRepo.update({ id: integrationId }, update);
+  }
+
+  /** A sync run failed — record why. The cursor is deliberately NOT advanced. */
+  async markSyncError(integrationId: number, error: string): Promise<void> {
+    await this.userIntegrationRepo.update(
+      { id: integrationId },
+      {
+        lastSyncStatus: IntegrationSyncStatus.ERROR,
+        // TEXT column, but keep pathological messages bounded anyway.
+        lastSyncError: error.length > 2000 ? error.slice(0, 2000) : error,
+      },
+    );
+  }
+
+  /** Blanks every Gmail sync field on the (unsaved) entity. */
+  private clearSyncStateFields(integration: UserIntegration): void {
+    integration.initialImportCompletedAt = null;
+    integration.initialImportFromDate = null;
+    integration.initialImportToDate = null;
+    integration.lastSyncStartedAt = null;
+    integration.lastSuccessfulSyncAt = null;
+    integration.lastSyncStatus = null;
+    integration.lastSyncError = null;
   }
 
   /**

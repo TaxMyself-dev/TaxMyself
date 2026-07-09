@@ -17,6 +17,7 @@ import { OauthStateService } from './services/oauth-state.service';
 import { GoogleOauthService } from './services/google-oauth.service';
 import { GmailReaderService } from './services/gmail-reader.service';
 import { GmailDriveImportService } from './services/gmail-drive-import.service';
+import { GmailSyncService } from './services/gmail-sync.service';
 
 /**
  * Provider-agnostic integrations infrastructure (Phase A), the Google OAuth
@@ -37,7 +38,7 @@ import { GmailDriveImportService } from './services/gmail-drive-import.service';
     DocumentImportModule,
   ],
   controllers: [IntegrationsController],
-  providers: [FirebaseAuthGuard, UserIntegrationsService, OauthStateService, GoogleOauthService, GmailReaderService, GmailDriveImportService],
-  exports: [UserIntegrationsService, GoogleOauthService, GmailReaderService, GmailDriveImportService],
+  providers: [FirebaseAuthGuard, UserIntegrationsService, OauthStateService, GoogleOauthService, GmailReaderService, GmailDriveImportService, GmailSyncService],
+  exports: [UserIntegrationsService, GoogleOauthService, GmailReaderService, GmailDriveImportService, GmailSyncService],
 })
 export class IntegrationsModule {}

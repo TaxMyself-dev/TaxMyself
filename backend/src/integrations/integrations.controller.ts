@@ -15,9 +15,11 @@ import { Response } from 'express';
 import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
 import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.interface';
 import { GmailImportDto } from './dto/gmail-import.dto';
+import { GmailInitialImportDto } from './dto/gmail-initial-import.dto';
 import { IntegrationProvider, IntegrationStatus } from './enums/integrations.enums';
 import { GmailDriveImportService } from './services/gmail-drive-import.service';
 import { GmailReaderService } from './services/gmail-reader.service';
+import { GmailSyncService } from './services/gmail-sync.service';
 import { GoogleOauthService } from './services/google-oauth.service';
 import { OauthStateService } from './services/oauth-state.service';
 import { UserIntegrationsService } from './services/user-integrations.service';
@@ -37,6 +39,7 @@ export class IntegrationsController {
     private readonly userIntegrationsService: UserIntegrationsService,
     private readonly gmailReaderService: GmailReaderService,
     private readonly gmailDriveImportService: GmailDriveImportService,
+    private readonly gmailSyncService: GmailSyncService,
   ) {}
 
   /** Returns the Google consent-screen URL the frontend should navigate to. */
@@ -209,8 +212,41 @@ export class IntegrationsController {
       // business via BusinessResolverService.
       businessNumber: body.businessNumber?.trim() || undefined,
       query: body.q,
-      maxResults: body.maxResults,
+      // Default 10, DTO clamps to 25 — this endpoint stays a small manual scan.
+      maxMessages: body.maxResults ?? 10,
     });
+  }
+
+  /**
+   * Sync state for the settings UI: connection, initial-import progress and
+   * the backend-computed date-picker bounds (minFromDate = Jan 1 of the
+   * previous year; maxToDate = today). The frontend must not re-derive these.
+   */
+  @Get('google/gmail/sync-status')
+  @UseGuards(FirebaseAuthGuard)
+  async gmailSyncStatus(@Req() request: AuthenticatedRequest) {
+    const firebaseId = request.user?.firebaseId;
+    if (!firebaseId) throw new NotFoundException('User not found in request');
+
+    return this.gmailSyncService.getSyncStatus(firebaseId);
+  }
+
+  /**
+   * Starts the one-time initial Gmail import over a user-chosen date range.
+   * Runs in the background — returns { started: true } immediately and the
+   * frontend polls sync-status until the run leaves RUNNING.
+   * 409 when the initial import already completed or a sync is running.
+   */
+  @Post('google/gmail/import-initial')
+  @UseGuards(FirebaseAuthGuard)
+  async gmailImportInitial(
+    @Req() request: AuthenticatedRequest,
+    @Body() body: GmailInitialImportDto,
+  ) {
+    const firebaseId = request.user?.firebaseId;
+    if (!firebaseId) throw new NotFoundException('User not found in request');
+
+    return this.gmailSyncService.startInitialImport(firebaseId, body.fromDate, body.toDate);
   }
 
   /**

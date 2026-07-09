@@ -4,7 +4,10 @@ import {
   DocumentImportStatus,
 } from 'src/document-import/document-import.service';
 import { DocumentImportSource } from 'src/document-import/enums/document-import.enums';
-import { GmailReaderService } from './gmail-reader.service';
+import { DEFAULT_GMAIL_QUERY, GmailReaderService } from './gmail-reader.service';
+
+/** Progress heartbeat interval for long scans (initial import can span years). */
+const LOG_PROGRESS_EVERY_MESSAGES = 100;
 
 export interface GmailImportFileResult {
   messageId: string;
@@ -20,10 +23,13 @@ export interface GmailImportFileResult {
 export interface GmailImportResult {
   query: string;
   messagesFound: number;
+  /** Messages that could not be fetched/parsed (logged and skipped by the reader). */
+  messagesFailed: number;
   attachmentsFound: number;
   imported: number;
   alreadyImported: number;
   skipped: number;
+  /** Per-file detail; empty when the caller opted out (bulk imports). */
   files: GmailImportFileResult[];
 }
 
@@ -44,67 +50,103 @@ export class GmailDriveImportService {
     private readonly documentImportService: DocumentImportService,
   ) {}
 
+  /**
+   * Scans Gmail and imports each message's attachments as they stream in —
+   * memory never holds more than one message's files, so this is safe for
+   * bulk runs (initial import, nightly sync) as well as the small manual scan.
+   *
+   * `maxMessages` bounds the scan (omit for unlimited — the reader pages
+   * through the full result set). `includeFileDetails: false` skips the
+   * per-file result list, which nobody reads on background bulk runs.
+   */
   async importFromGmail(
     firebaseId: string,
-    options: { businessNumber?: string; query?: string; maxResults?: number },
+    options: {
+      businessNumber?: string;
+      query?: string;
+      maxMessages?: number;
+      includeFileDetails?: boolean;
+    },
   ): Promise<GmailImportResult> {
-    // Integration/token errors (not connected, expired, revoked) bubble up
-    // from the reader with clear messages; junk filtering happens there too.
-    const scan = await this.gmailReaderService.fetchAttachments(firebaseId, {
-      query: options.query,
-      maxResults: options.maxResults,
-    });
+    const query = options.query?.trim() || DEFAULT_GMAIL_QUERY;
+    const includeFileDetails = options.includeFileDetails ?? true;
 
     const result: GmailImportResult = {
-      query: scan.query,
-      messagesFound: scan.messagesFound,
-      attachmentsFound: scan.attachmentsFound,
+      query,
+      messagesFound: 0,
+      messagesFailed: 0,
+      attachmentsFound: 0,
       imported: 0,
       alreadyImported: 0,
       skipped: 0,
       files: [],
     };
 
-    for (const attachment of scan.attachments) {
-      // Per-attachment failures come back as status SKIPPED — importDocument
-      // only throws for environment problems (business missing, Drive
-      // unprovisioned), which rightly abort the whole request.
-      const imported = await this.documentImportService.importDocument({
-        firebaseId,
-        businessNumber: options.businessNumber,
-        source: DocumentImportSource.GMAIL,
-        filename: attachment.filename,
-        mimeType: attachment.mimeType,
-        content: attachment.content,
-        metadata: {
-          gmailMessageId: attachment.messageId,
-          gmailThreadId: attachment.threadId,
-          gmailAttachmentId: attachment.attachmentId,
-          gmailSubject: attachment.subject,
-          gmailFrom: attachment.from,
-          gmailDate: attachment.date,
-        },
-      });
+    // Integration/token errors (not connected, expired, revoked) bubble up
+    // from the reader with clear messages; junk filtering happens there too.
+    for await (const scan of this.gmailReaderService.scanMessages(firebaseId, {
+      query,
+      maxMessages: options.maxMessages,
+    })) {
+      result.messagesFound += 1;
+      if (scan.failed) {
+        result.messagesFailed += 1;
+        continue;
+      }
 
-      result.files.push({
-        messageId: attachment.messageId,
-        threadId: attachment.threadId,
-        attachmentId: attachment.attachmentId,
-        originalFilename: attachment.filename,
-        driveFileId: imported.driveFileId,
-        driveFileName: imported.driveFileName,
-        status: imported.status,
-        reason: imported.reason,
-      });
-      if (imported.status === 'IMPORTED') result.imported += 1;
-      else if (imported.status === 'ALREADY_IMPORTED') result.alreadyImported += 1;
-      else result.skipped += 1;
+      for (const attachment of scan.attachments) {
+        result.attachmentsFound += 1;
+
+        // Per-attachment failures come back as status SKIPPED — importDocument
+        // only throws for environment problems (business missing, Drive
+        // unprovisioned), which rightly abort the whole request.
+        const imported = await this.documentImportService.importDocument({
+          firebaseId,
+          businessNumber: options.businessNumber,
+          source: DocumentImportSource.GMAIL,
+          filename: attachment.filename,
+          mimeType: attachment.mimeType,
+          content: attachment.content,
+          metadata: {
+            gmailMessageId: attachment.messageId,
+            gmailThreadId: attachment.threadId,
+            gmailAttachmentId: attachment.attachmentId,
+            gmailSubject: attachment.subject,
+            gmailFrom: attachment.from,
+            gmailDate: attachment.date,
+          },
+        });
+
+        if (includeFileDetails) {
+          result.files.push({
+            messageId: attachment.messageId,
+            threadId: attachment.threadId,
+            attachmentId: attachment.attachmentId,
+            originalFilename: attachment.filename,
+            driveFileId: imported.driveFileId,
+            driveFileName: imported.driveFileName,
+            status: imported.status,
+            reason: imported.reason,
+          });
+        }
+        if (imported.status === 'IMPORTED') result.imported += 1;
+        else if (imported.status === 'ALREADY_IMPORTED') result.alreadyImported += 1;
+        else result.skipped += 1;
+      }
+
+      if (result.messagesFound % LOG_PROGRESS_EVERY_MESSAGES === 0) {
+        this.logger.log(
+          `Gmail import progress for firebaseId=${firebaseId}: ` +
+            `${result.messagesFound} messages scanned, ${result.imported} imported so far`,
+        );
+      }
     }
 
     this.logger.log(
       `Gmail import for firebaseId=${firebaseId} business=${options.businessNumber ?? 'auto-resolved'}: ` +
         `${result.imported} imported, ${result.alreadyImported} already imported, ` +
-        `${result.skipped} skipped (of ${result.attachmentsFound} candidates)`,
+        `${result.skipped} skipped (of ${result.attachmentsFound} candidates, ` +
+        `${result.messagesFound} messages, ${result.messagesFailed} failed)`,
     );
     return result;
   }
