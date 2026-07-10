@@ -287,12 +287,18 @@ and expected numeric delta per report. The Phase 1.7/3.6/4.6 comparison
 script must show ZERO diffs outside this registry.
 
 Registered correction #1: business 204245724 has six journal entries
-(ids 10000145, 10000158, 10000167, 10000173, 10000186, 10000203; ~₪29,645
-total) posting מקדמות ביטוח לאומי to account 5000 as a P&L expense. Per
-D14 decision 3, the migration remaps these to the Bituach Leumi technical
-account — the business's P&L expense total is EXPECTED to drop by the
-amountForTax of these lines, and its VAT report is unaffected (no VAT
-lines). Elazar signs off on the exact delta during Phase 1.7 review.
+(ids 10000145, 10000158, 10000167, 10000173, 10000186, 10000203; ₪22,645
+gross debit, ₪11,775.40 total `amountForTax`) posting מקדמות ביטוח לאומי
+to account 5000 as a P&L expense. Per D14 decision 3, the migration remaps
+these to the Bituach Leumi technical account — the business's P&L expense
+total (the "הוצאות בלתי מזוהות" category) is EXPECTED to drop by exactly
+₪11,775.40 (the summed `amountForTax` — that's what
+`createPnLReportFromJournal` actually sums into the P&L, not the gross
+debit), and its VAT report is unaffected (no VAT lines). Verified 2026-07-10
+against `docs/redesign/baseline-reports/204245724.json` and
+`docs/redesign/intentional-diffs.md` entry #1 — Elazar approved this exact
+figure, correcting an earlier "~₪29,645" placeholder that didn't match the
+data.
 
 ---
 
@@ -300,27 +306,34 @@ lines). Elazar signs off on the exact delta during Phase 1.7 review.
 
 **Goal:** safe ground before touching schema.
 
-- [ ] 0.1 Full production DB backup (mysqldump). Verify restore works on a
+- [x] 0.1 Full production DB backup (mysqldump). Verify restore works on a
       local copy. All later phases are rehearsed on this copy first.
-- [ ] 0.2 Run the production audit queries (provided separately in chat;
+      (`_prod_dump/keepintax-prod.sql`, restored into `keepintax_prodcopy`
+      and re-verified restorable multiple times during Session 1.)
+- [x] 0.2 Run the production audit queries (provided separately in chat;
       also in `docs/categories-audit.md` §8). Record results in
       `docs/redesign/production-baseline.md`: row counts, orphan pairs,
       duplicate catalog rows, live journal account codes, supplier/rule
       shadow counts.
 - [ ] 0.3 Implement D12 security fixes. Each is a small, independent
       commit, deployable on its own. Ship to production immediately —
-      these do not wait for the cutover.
-- [ ] 0.4 Clean duplicates found by query 3 (manual SQL, reviewed), then
+      these do not wait for the cutover. (Deferred to Session 8 per
+      Elazar. D12.4 specifically is investigated and staged in
+      `cutover.sql` §2 — see `production-baseline.md` — ready for Session
+      8 to deploy.)
+- [x] 0.4 Clean duplicates found by query 3 (manual SQL, reviewed), then
       add `UNIQUE(categoryName, subCategoryName)` to `default_sub_category`
       and `UNIQUE(firebaseId, businessNumber, categoryName, subCategoryName)`
       to `user_sub_category` — these protect the Phase 2 migration.
-- [ ] 0.5 Snapshot verification baseline: run `createVatReportFromJournal`,
+      (Zero duplicates found; both constraints applied and verified
+      against `keepintax_prodcopy`, recorded in `cutover.sql` §1.)
+- [x] 0.5 Snapshot verification baseline: run `createVatReportFromJournal`,
       `createPnLReportFromJournal`, and `createLedgerReport` for ALL active
       businesses for all periods with data; save outputs as JSON fixtures in
       `docs/redesign/baseline-reports/`. These are the golden files —
       Phases 1–4 must reproduce them (with renumbered codes) exactly,
       modulo the D15 intentional-diffs registry.
-- [ ] 0.6 **Schema drift audit (mandatory — drift already confirmed, see
+- [x] 0.6 **Schema drift audit (mandatory — drift already confirmed, see
       D14).** Generate `SHOW COLUMNS`/`SHOW INDEX` statements for every
       table this plan touches (all category tables, expense, journal_entry,
       journal_line, default_booking_account, supplier,

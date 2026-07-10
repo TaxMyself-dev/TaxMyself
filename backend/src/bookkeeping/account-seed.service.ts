@@ -294,6 +294,15 @@ export class AccountSeedService implements OnModuleInit {
   ];
 
   async onModuleInit(): Promise<void> {
+    // Escape hatch for one-off scripts/reports run against a database that
+    // must stay byte-for-byte identical to its source (e.g. keepintax_prodcopy,
+    // the categories-redesign baseline-report fixtures) — this seeder writes
+    // unconditionally on every boot otherwise. Deleted along with this whole
+    // service in Phase 2.6.
+    if (process.env.SKIP_BOOT_SEED === 'true') {
+      this.logger.log('SKIP_BOOT_SEED=true — AccountSeedService.onModuleInit is a no-op.');
+      return;
+    }
     try {
       // Idempotent upsert — TypeORM emits INSERT ... ON DUPLICATE KEY UPDATE on
       // MySQL, keyed on the unique `code` column. Safe to run on every boot;
