@@ -95,6 +95,19 @@
   margin-top: 15px;
 }
 
+.osek-zair-checkbox-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  width: 50%;
+
+  .checkbox-label {
+    cursor: pointer;
+    user-select: none;
+  }
+}
+
 .pnl-report-title {
   display: flex;
   flex-direction: column;
@@ -237,7 +250,12 @@
     width: 95%;
     justify-content: center;
   }
-  
+
+  .osek-zair-checkbox-container {
+    width: 95%;
+    justify-content: center;
+  }
+
   .report-action-row {
     justify-content: center;
   }

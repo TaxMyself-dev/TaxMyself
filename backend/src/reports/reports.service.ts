@@ -236,9 +236,11 @@ export class ReportsService {
     businessNumber: string,
     startDate: Date,
     endDate: Date,
+    osekZair = false,
+    incomeOverride?: number,
   ): Promise<Buffer> {
     const [data, business] = await Promise.all([
-      this.createPnLReportFromJournal(firebaseId, businessNumber, startDate, endDate),
+      this.createPnLReportFromJournal(firebaseId, businessNumber, startDate, endDate, osekZair, incomeOverride),
       this.businessRepo.findOne({ where: { businessNumber, firebaseId } }),
     ]);
     return buildPnlReportPdf(data, {
@@ -509,12 +511,25 @@ export class ReportsService {
    * pnlCategory for 5xxx/6xxx (debit − credit), EXCEPT 6200 (פחת) which is
    * surfaced as its own "הוצאות פחת" line. Equipment lines are excluded.
    * Depreciation here reflects whatever was posted to 6200.
+   *
+   * @param osekZair       "עוסק זעיר" (small trader) mode — only meaningful when
+   *                       income is under the ITA's 120,000 ILS annual threshold.
+   *                       Replaces the real expense breakdown with a single flat
+   *                       30%-of-income deduction line, per the elective rule.
+   * @param incomeOverride When set, replaces the journal-computed income for
+   *                       this report — mirrors a manual edit made in the
+   *                       on-screen preview so the exported PDF matches it.
+   *                       Only the income figure is overridden; the real
+   *                       expense breakdown (or the osek-zair 30% line, which
+   *                       is itself derived from this override) is unaffected.
    */
   async createPnLReportFromJournal(
     firebaseId: string,
     businessNumber: string,
     startDate: Date,
     endDate: Date,
+    osekZair = false,
+    incomeOverride?: number,
   ): Promise<PnLReportDto> {
     const business = await this.businessRepo.findOne({ where: { businessNumber, firebaseId } });
     if (!business) {
@@ -560,16 +575,23 @@ export class ReportsService {
       }
     }
 
-    const expenseDtos: ExpensePnlDto[] = Object.entries(expenseSumByCategory).map(
+    const effectiveIncome = incomeOverride ?? totalIncome;
+
+    let expenseDtos: ExpensePnlDto[] = Object.entries(expenseSumByCategory).map(
       ([category, total]) => ({ category, total }),
     );
 
+    if (osekZair) {
+      const flatDeduction = Number((effectiveIncome * 0.3).toFixed(2));
+      expenseDtos = [{ category: 'ניכוי 30% הוצאות לעוסק זעיר', total: flatDeduction }];
+    }
+
     let totalExpenses = 0;
     for (const e of expenseDtos) totalExpenses += e.total;
-    const netProfitBeforeTax = totalIncome - totalExpenses;
+    const netProfitBeforeTax = effectiveIncome - totalExpenses;
 
     return {
-      income: Number(totalIncome.toFixed(2)),
+      income: Number(effectiveIncome.toFixed(2)),
       expenses: expenseDtos,
       netProfitBeforeTax: Number(netProfitBeforeTax.toFixed(2)),
     };

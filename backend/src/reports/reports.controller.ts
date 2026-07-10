@@ -326,7 +326,7 @@ export class ReportsController {
         const startDate = this.sharedService.convertStringToDateObject(query.startDate);
         const endDate = this.sharedService.convertStringToDateObject(query.endDate);
         return this.reportsService.createPnLReportFromJournal(
-            firebaseId, query.businessNumber, startDate, endDate,
+            firebaseId, query.businessNumber, startDate, endDate, query.osekZair === 'true',
         );
     }
 
@@ -372,8 +372,12 @@ export class ReportsController {
         }
         const startDate = this.sharedService.convertStringToDateObject(query.startDate);
         const endDate = this.sharedService.convertStringToDateObject(query.endDate);
+        const parsedIncomeOverride = Number(query.incomeOverride);
+        const incomeOverride = query.incomeOverride !== undefined && query.incomeOverride !== '' && !isNaN(parsedIncomeOverride)
+            ? parsedIncomeOverride
+            : undefined;
         const pdfBuffer = await this.reportsService.generatePnlReportPdfForExport(
-            firebaseId, query.businessNumber, startDate, endDate,
+            firebaseId, query.businessNumber, startDate, endDate, query.osekZair === 'true', incomeOverride,
         );
         res.setHeader('Content-Type', 'application/pdf');
         return res.send(pdfBuffer);

@@ -11,9 +11,15 @@ import { Expense } from 'src/expenses/expenses.entity';
 // TODO_FINTAX_REMOVE_LEGACY_TRANSACTIONS: wiring leftover — Transactions is registered in forFeature to satisfy SharedService injection (SharedService requires transactionRepository). Not used directly by BookkeepingService. Remove import and Transactions from forFeature once SharedService no longer needs it.
 import { Transactions } from 'src/transactions/transactions.entity';
 import { SettingDocuments } from 'src/documents/settingDocuments.entity';
+// FirebaseAuthGuard (used on the new manual-journal-entry endpoint) needs these two
+// repositories injectable in this module's context.
+import { User } from 'src/users/user.entity';
+import { Delegation } from 'src/delegation/delegation.entity';
+// getVatReportingPeriods needs the business's businessType/vatReportingType.
+import { Business } from 'src/business/business.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([JournalEntry, JournalLine, DefaultBookingAccount, Expense, Transactions, SettingDocuments])],
+  imports: [TypeOrmModule.forFeature([JournalEntry, JournalLine, DefaultBookingAccount, Expense, Transactions, SettingDocuments, User, Delegation, Business])],
   controllers: [BookkepingController],
   providers: [
     BookkeepingService,

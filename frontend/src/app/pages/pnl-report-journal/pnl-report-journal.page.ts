@@ -49,6 +49,18 @@ export class PnLReportJournalPage implements OnInit {
   totalExpense: number = 0;
   reportingPeriodType = ReportingPeriodType;
 
+  /** Raw (unformatted) income from the last fetch — used to gate the
+   *  "עוסק זעיר" checkbox against the ITA's 120,000 ILS annual threshold. */
+  incomeRaw: number = 0;
+  /** True once the user has manually edited the income field in-browser —
+   *  the exported PDF then uses `incomeRaw` as an override instead of
+   *  re-deriving income from journal entries. */
+  incomeEdited: boolean = false;
+  /** "עוסק זעיר" (small trader) flat 30%-of-income deduction toggle. */
+  osekZair = signal<boolean>(false);
+  readonly osekZairThreshold = 120000;
+  readonly osekZairCategory = 'ניכוי 30% הוצאות לעוסק זעיר';
+
   buttonSize = ButtonSize;
   buttonColor = ButtonColor;
 
@@ -155,6 +167,9 @@ export class PnLReportJournalPage implements OnInit {
       .subscribe(() => {
         this.pnlReport = undefined;
         this.totalExpense = 0;
+        this.incomeRaw = 0;
+        this.incomeEdited = false;
+        this.osekZair.set(false);
         this.isRequestSent.set(false);
         this.arrayLength.set(0);
         this.reportSubmitted.set(false);
@@ -399,7 +414,7 @@ export class PnLReportJournalPage implements OnInit {
 
   getPnLReportData(startDate: string, endDate: string, businessNumber: string) {
     this.genericService.getLoader().subscribe();
-    this.pnlReportService.getPnLReportData(startDate, endDate, businessNumber)
+    this.pnlReportService.getPnLReportData(startDate, endDate, businessNumber, this.osekZair())
       .pipe(
         finalize(() => this.genericService.dismissLoader()),
         catchError((err) => {
@@ -408,6 +423,8 @@ export class PnLReportJournalPage implements OnInit {
         }),
         map((data: IPnlReportData) => {
           console.log("pnl report: ", data);
+          this.incomeRaw = Number(data.income);
+          this.incomeEdited = false;
           data.income = this.genericService.addComma(data.income);
           data.netProfitBeforeTax = this.genericService.addComma(data.netProfitBeforeTax);
           return data;
@@ -431,13 +448,33 @@ export class PnLReportJournalPage implements OnInit {
       .subscribe((status) => this.reportSubmitted.set(status.isSubmitted));
   }
 
+  /** Toggling "עוסק זעיר" re-fetches the report so the backend recomputes
+   *  the flat 30% deduction the same way for both the on-screen numbers
+   *  and the exported PDF — no duplicated calc on the frontend. */
+  onOsekZairToggle(checked: boolean): void {
+    this.osekZair.set(checked);
+    this.getPnLReportData(this.startDate(), this.endDate(), this.businessNumber());
+  }
+
   updateIncome(event: any) {
     if (event.detail.value === "") {
       event.detail.value = '0';
       this.pnlReport.income = '0';
     }
-    this.pnlReport.income = this.genericService.convertStringToNumber(event.detail.value);
-    this.pnlReport.netProfitBeforeTax = this.genericService.convertStringToNumber(this.pnlReport.netProfitBeforeTax as string);
+    const newIncome = this.genericService.convertStringToNumber(event.detail.value);
+    this.incomeRaw = newIncome;
+    this.incomeEdited = true;
+
+    // Osek-zair mode ties the pseudo-expense to income — a manual income
+    // edit (no re-fetch involved) must recompute it locally, same formula
+    // the backend uses, or the 30% line goes stale against the new number.
+    if (this.osekZair()) {
+      const flatDeduction = Number((newIncome * 0.3).toFixed(2));
+      this.pnlReport.expenses = [{ category: this.osekZairCategory, total: flatDeduction }];
+      this.totalExpense = flatDeduction;
+    }
+
+    this.pnlReport.income = newIncome;
     this.pnlReport.netProfitBeforeTax = this.pnlReport.income - this.totalExpense;
     this.pnlReport.netProfitBeforeTax = this.genericService.addComma(this.pnlReport.netProfitBeforeTax);
     this.pnlReport.income = this.genericService.addComma(this.pnlReport.income);
@@ -505,7 +542,8 @@ export class PnLReportJournalPage implements OnInit {
     if (!this.pnlReport) return;
 
     this.isLoadingPDF.set(true);
-    this.pnlReportService.generatePnLReportPDF(this.startDate(), this.endDate(), this.businessNumber())
+    const incomeOverride = this.incomeEdited ? this.incomeRaw : undefined;
+    this.pnlReportService.generatePnLReportPDF(this.startDate(), this.endDate(), this.businessNumber(), this.osekZair(), incomeOverride)
       .pipe(
         catchError((err) => {
           console.error('error generating pnl report pdf: ', err);

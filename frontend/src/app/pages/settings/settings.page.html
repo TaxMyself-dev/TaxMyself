@@ -316,6 +316,21 @@
                   </a>
                 </div>
               }
+              @if (biz?.id != null && biz?.businessNumber) {
+                <div class="detail-row inbox-folder-row">
+                  <input type="file" #docsFileInput class="hidden-file-input" multiple
+                    accept="application/pdf,image/jpeg,image/png,image/webp"
+                    (change)="onUploadDocsToDrive(biz, docsFileInput)" />
+                  <app-p-button
+                    [buttonText]="'העלאת מסמכים ל-Drive'"
+                    [buttonColor]="buttonColor.WHITE_BORDER"
+                    [buttonSize]="buttonSize.SMALL"
+                    [disabled]="uploadingDocsBusinessId() === biz.id"
+                    [isLoading]="uploadingDocsBusinessId() === biz.id"
+                    (onButtonClicked)="docsFileInput.click()">
+                  </app-p-button>
+                </div>
+              }
               <div class="section-actions section-actions-multiple">
                 <app-p-button
                   [buttonText]="'עדכן'"

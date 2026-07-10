@@ -48,6 +48,16 @@
       (apply)="onSubmit($event)">
     </app-filter-tab>
 
+    @if (pnlReport && incomeRaw < osekZairThreshold) {
+      <div class="osek-zair-checkbox-container">
+        <p-checkbox [binary]="true" inputId="osekZairCheckbox" [ngModel]="osekZair()" (ngModelChange)="onOsekZairToggle($event)">
+        </p-checkbox>
+        <label for="osekZairCheckbox" class="checkbox-label">
+          עוסק זעיר
+        </label>
+      </div>
+    }
+
     <ng-container *ngIf="pnlReport">
       <div class="pnl-report-title">
         <p>

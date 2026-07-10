@@ -920,6 +920,23 @@ export class ExpensesService {
     }
 
     /**
+     * Resolve the sub-ledger account code (default_sub_category.subAccountCode)
+     * for a (category, subCategory) pair, for the journal entry's
+     * subCounterAccountCode. Global catalog only — no per-business override
+     * exists for subAccountCode. Returns null when unmapped.
+     */
+    private async resolveSubAccountCode(categoryName: string, subCategoryName: string): Promise<string | null> {
+        const category = categoryName?.trim();
+        const subCategory = subCategoryName?.trim();
+        if (!category || !subCategory) return null;
+
+        const defaultSub = await this.defaultSubCategoryRepo.findOne({
+            where: { subCategoryName: subCategory, categoryName: category },
+        });
+        return defaultSub?.subAccountCode ?? null;
+    }
+
+    /**
      * Build the single-entry (חד-צידית) expense journal lines for an Expense.
      * Shared by createExpenseJournalEntry (new entry) and syncExpenseJournalEntry
      * (replace lines on re-classification) so both produce identical structure.
@@ -997,11 +1014,13 @@ export class ExpensesService {
         const journalLines = await this.buildExpenseJournalLines(expense);
         const expenseDateSql = this.sharedService.normalizeToMySqlDate(expense.date);
         const vatReportingPeriod = await this.resolveExpenseVatReportingPeriod(expense);
+        const subCounterAccountCode = await this.resolveSubAccountCode(expense.category, expense.subCategory);
         return {
             firebaseId: expense.userId,
             issuerBusinessNumber: expense.businessNumber,
             subCategory: expense.subCategory ?? null,
             counterAccountCode: '1100',
+            subCounterAccountCode,
             counterPartyName: expense.supplier ?? null,
             documentTotal: expense.sum,
             date: expenseDateSql,

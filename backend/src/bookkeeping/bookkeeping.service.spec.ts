@@ -23,6 +23,7 @@ import { JournalLine } from './jouranl-line.entity';
 import { DefaultBookingAccount } from './account.entity';
 import { SharedService } from '../shared/shared.service';
 import { JournalReferenceType } from '../enum';
+import { Business } from '../business/business.entity';
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -114,6 +115,7 @@ describe('BookkeepingService — createJournalEntry / persistJournalEntry', () =
         { provide: getRepositoryToken(JournalEntry), useValue: journalEntryRepo },
         { provide: getRepositoryToken(JournalLine), useValue: journalLineRepo },
         { provide: getRepositoryToken(DefaultBookingAccount), useValue: bookingAccountRepo },
+        { provide: getRepositoryToken(Business), useValue: makeRepo<Business>() },
         { provide: SharedService, useValue: sharedService },
         { provide: DataSource, useValue: dataSource },
       ],

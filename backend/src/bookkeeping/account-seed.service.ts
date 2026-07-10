@@ -97,7 +97,6 @@ export class AccountSeedService implements OnModuleInit {
    */
   private static readonly CATEGORY_ACCOUNT_DEFAULTS: Record<string, string | null> = {
     'רכב ותחבורה':              '5200',
-    'בנקים וכרטיסי אשראי':     '6100',
     'בנק, אשראי ותנועות':      '6100', // legacy alias seen in prod
     'עסק':                      null,   // too broad — sub-category level only
     'שונות':                    '5000',
@@ -144,6 +143,7 @@ export class AccountSeedService implements OnModuleInit {
     { category: 'רכב ותחבורה', subCategory: 'תחבורה ציבורית',  pnlCategory: 'רכב ותחבורה' },
     { category: 'רכב ותחבורה', subCategory: 'כבישי אגרה',      pnlCategory: 'רכב ותחבורה' },
     { category: 'רכב ותחבורה', subCategory: 'טיפולים',         pnlCategory: 'רכב ותחבורה' },
+    { category: 'רכב ותחבורה', subCategory: 'מערכות',          pnlCategory: 'רכב ותחבורה' },
     // 5300 — תקשורת
     { category: 'דיור והוצאות הבית', subCategory: 'פלאפון',     pnlCategory: 'תקשורת' },
     { category: 'דיור והוצאות הבית', subCategory: 'אינטרנט',    pnlCategory: 'תקשורת' },
@@ -154,9 +154,10 @@ export class AccountSeedService implements OnModuleInit {
     // 5500 — ייעוץ ושירותים מקצועיים
     { category: 'עסק', subCategory: 'ייעוץ והשתלמויות', pnlCategory: 'ייעוץ ושירותים מקצועיים' },
     { category: 'עסק', subCategory: 'ייעוץ מקצועי',     pnlCategory: 'ייעוץ ושירותים מקצועיים' },
-    // 5600 — הנהלת חשבונות
-    { category: 'עסק', subCategory: 'רואה חשבון',    pnlCategory: 'הנהלת חשבונות' },
+    // 5600 — הנהלת חשבונות ('רואה חשבון' removed — duplicate of 'הנהלת חשבונות')
     { category: 'עסק', subCategory: 'הנהלת חשבונות', pnlCategory: 'הנהלת חשבונות' },
+    // 5800 — שכר
+    { category: 'עסק', subCategory: 'שכר', pnlCategory: 'שכר' },
     // 5900 — ספרות מקצועית
     { category: 'עסק', subCategory: 'ספרות מקצועית', pnlCategory: 'ספרות מקצועית' },
     // 6000 — כיבוד
@@ -165,8 +166,13 @@ export class AccountSeedService implements OnModuleInit {
     { category: 'עסק', subCategory: 'עמלות ודמי כרטיס',                pnlCategory: 'עמלות ודמי כרטיס' },
     { category: 'בנק, אשראי ותנועות', subCategory: 'עמלות ודמי כרטיס', pnlCategory: 'עמלות ודמי כרטיס' },
     // 6200 — הוצאות מימון (keyword 'ריבית' also routes accountCode to 6200)
-    { category: 'בנק, אשראי ותנועות',     subCategory: 'ריבית', pnlCategory: 'הוצאות מימון' },
-    { category: 'בנקים וכרטיסי אשראי',   subCategory: 'ריבית', pnlCategory: 'הוצאות מימון' },
+    // 'בנקים וכרטיסי אשראי' removed — duplicate category of 'בנק, אשראי ותנועות'
+    { category: 'בנק, אשראי ותנועות', subCategory: 'ריבית', pnlCategory: 'הוצאות מימון' },
+    // 6300 — פחת (fixed-asset depreciation; taxPercent=0 — recognized gradually
+    // via reductionPercent, not as an immediate expense — see SUBCATEGORY_TAX_VAT_DEFAULTS)
+    { category: 'רכוש קבוע (פחת)', subCategory: 'רכב',    pnlCategory: 'פחת' },
+    { category: 'רכוש קבוע (פחת)', subCategory: 'מחשב',   pnlCategory: 'פחת' },
+    { category: 'רכוש קבוע (פחת)', subCategory: 'ריהוט',  pnlCategory: 'פחת' },
   ];
 
   /**
@@ -179,12 +185,18 @@ export class AccountSeedService implements OnModuleInit {
    * to own — boot-time code must never silently revert them.
    *
    * 'משכנתא' and 'גינה' were deliberately removed (not tracked, not relevant).
+   *
+   * `reductionPercent`/`isEquipment` are optional — only fixed-asset
+   * (depreciation) sub-categories set them; everything else defaults to 0/false
+   * in seedExpenseSubCategoryMappings' INSERT.
    */
   private static readonly SUBCATEGORY_TAX_VAT_DEFAULTS: ReadonlyArray<{
     category: string;
     subCategory: string;
     taxPercent: number;
     vatPercent: number;
+    reductionPercent?: number;
+    isEquipment?: boolean;
   }> = [
     // דיור / הוצאות משרד — לא ניתנות לניכוי מע"מ, 25% מוכר למס הכנסה (חלק עסקי מהבית)
     { category: 'דיור והוצאות הבית', subCategory: 'ארנונה',  taxPercent: 25, vatPercent: 0  },
@@ -209,6 +221,76 @@ export class AccountSeedService implements OnModuleInit {
     { category: 'רכב ותחבורה', subCategory: 'ביטוח רכב',      taxPercent: 45, vatPercent: 0     },
     // כיבוד — ללא ניכוי מע"מ (נשאר כמו קודם)
     { category: 'עסק', subCategory: 'כיבוד', taxPercent: 100, vatPercent: 0 },
+    // בנק, אשראי ותנועות — 25% מוכר למס הכנסה, ללא ניכוי מע"מ
+    { category: 'בנק, אשראי ותנועות', subCategory: 'ריבית',               taxPercent: 25, vatPercent: 0 },
+    { category: 'בנק, אשראי ותנועות', subCategory: 'עמלות ודמי כרטיס',    taxPercent: 25, vatPercent: 0 },
+    // רכוש קבוע (פחת) — לא מוכר כהוצאה מיידית (taxPercent=0), מופחת בהדרגה
+    // דרך reductionPercent. vatPercent שונה לפי הפריט: מחשב/ריהוט 100%, רכב 0%
+    // (כלל רכב פרטי, עקבי עם שאר הוצאות הרכב).
+    { category: 'רכוש קבוע (פחת)', subCategory: 'רכב',   taxPercent: 0, vatPercent: 0,   reductionPercent: 15,    isEquipment: true },
+    { category: 'רכוש קבוע (פחת)', subCategory: 'מחשב',  taxPercent: 0, vatPercent: 100, reductionPercent: 33.33, isEquipment: true },
+    { category: 'רכוש קבוע (פחת)', subCategory: 'ריהוט', taxPercent: 0, vatPercent: 100, reductionPercent: 7,     isEquipment: true },
+  ];
+
+  /**
+   * Per-(category, subCategory) sub-ledger account code, nested under the
+   * parent bookkeeping account (e.g. 5100 הוצאות משרד → 5101 ארנונה, 5102 גז...).
+   * Consulted by seedSubAccountCodes() (fills default_sub_category.subAccountCode)
+   * and by ExpensesService when posting a journal entry's subCounterAccountCode.
+   * Numbering is alphabetical-within-group and arbitrary but must stay unique.
+   */
+  private static readonly SUBCATEGORY_SUB_ACCOUNT_CODES: ReadonlyArray<{
+    category: string;
+    subCategory: string;
+    subAccountCode: string;
+  }> = [
+    // 5100 — הוצאות משרד
+    { category: 'דיור והוצאות הבית', subCategory: 'ארנונה',        subAccountCode: '5101' },
+    { category: 'דיור והוצאות הבית', subCategory: 'גז',            subAccountCode: '5102' },
+    { category: 'עסק',               subCategory: 'הוצאות משרד',   subAccountCode: '5103' },
+    { category: 'דיור והוצאות הבית', subCategory: 'ועד בית',       subAccountCode: '5104' },
+    { category: 'דיור והוצאות הבית', subCategory: 'חשמל',          subAccountCode: '5105' },
+    { category: 'דיור והוצאות הבית', subCategory: 'מים',           subAccountCode: '5106' },
+    { category: 'דיור והוצאות הבית', subCategory: 'שכירות',        subAccountCode: '5107' },
+    { category: 'עסק',               subCategory: 'שכירות משרד',   subAccountCode: '5108' },
+    { category: 'עסק',               subCategory: 'שליחויות',      subAccountCode: '5109' },
+    { category: 'דיור והוצאות הבית', subCategory: 'תחזוקה',        subAccountCode: '5110' },
+    // 5200 — רכב ותחבורה
+    { category: 'רכב ותחבורה', subCategory: 'ביטוח רכב',       subAccountCode: '5201' },
+    { category: 'רכב ותחבורה', subCategory: 'דלק',              subAccountCode: '5202' },
+    { category: 'רכב ותחבורה', subCategory: 'חניה',              subAccountCode: '5203' },
+    { category: 'רכב ותחבורה', subCategory: 'טיפולים',           subAccountCode: '5204' },
+    { category: 'רכב ותחבורה', subCategory: 'כבישי אגרה',        subAccountCode: '5205' },
+    { category: 'רכב ותחבורה', subCategory: 'מערכות',            subAccountCode: '5206' },
+    { category: 'רכב ותחבורה', subCategory: 'תחבורה ציבורית',    subAccountCode: '5207' },
+    // 5300 — תקשורת
+    { category: 'דיור והוצאות הבית', subCategory: 'אינטרנט',     subAccountCode: '5301' },
+    { category: 'דיור והוצאות הבית', subCategory: 'טלפון קווי',  subAccountCode: '5302' },
+    { category: 'דיור והוצאות הבית', subCategory: 'פלאפון',      subAccountCode: '5303' },
+    // 5400 — תוכנות ושירותי ענן
+    { category: 'עסק', subCategory: 'תוכנות', subAccountCode: '5401' },
+    // 5500 — שיווק ופרסום
+    { category: 'עסק', subCategory: 'שיווק ופרסום', subAccountCode: '5501' },
+    // 5600 — ייעוץ ושירותים מקצועיים
+    { category: 'עסק', subCategory: 'ייעוץ והשתלמויות', subAccountCode: '5601' },
+    { category: 'עסק', subCategory: 'ייעוץ מקצועי',     subAccountCode: '5602' },
+    // 5700 — הנהלת חשבונות (אחרי מחיקת "רואה חשבון")
+    { category: 'עסק', subCategory: 'הנהלת חשבונות', subAccountCode: '5701' },
+    // 5800 — שכר
+    { category: 'עסק', subCategory: 'שכר', subAccountCode: '5801' },
+    // 5900 — ספרות מקצועית
+    { category: 'עסק', subCategory: 'ספרות מקצועית', subAccountCode: '5901' },
+    // 6000 — כיבוד
+    { category: 'עסק', subCategory: 'כיבוד', subAccountCode: '6001' },
+    // 6100 — עמלות ודמי כרטיס (שני מקורות שונים, אותו חשבון-אב)
+    { category: 'עסק',                 subCategory: 'עמלות ודמי כרטיס', subAccountCode: '6101' },
+    { category: 'בנק, אשראי ותנועות', subCategory: 'עמלות ודמי כרטיס', subAccountCode: '6102' },
+    // 6200 — הוצאות מימון (אחרי מחיקת "בנקים וכרטיסי אשראי")
+    { category: 'בנק, אשראי ותנועות', subCategory: 'ריבית', subAccountCode: '6201' },
+    // 6300 — פחת
+    { category: 'רכוש קבוע (פחת)', subCategory: 'מחשב',  subAccountCode: '6301' },
+    { category: 'רכוש קבוע (פחת)', subCategory: 'ריהוט', subAccountCode: '6302' },
+    { category: 'רכוש קבוע (פחת)', subCategory: 'רכב',   subAccountCode: '6303' },
   ];
 
   async onModuleInit(): Promise<void> {
@@ -262,6 +344,16 @@ export class AccountSeedService implements OnModuleInit {
         `Category accountCode seed failed: ${err?.message ?? err}`,
       );
     }
+
+    // Sub-ledger (subAccountCode) numbering — own try so a failure here can't
+    // undo any of the steps above.
+    try {
+      await this.seedSubAccountCodes();
+    } catch (err: any) {
+      this.logger.error(
+        `Sub-account code seed failed: ${err?.message ?? err}`,
+      );
+    }
   }
 
   /**
@@ -295,6 +387,29 @@ export class AccountSeedService implements OnModuleInit {
   }
 
   /**
+   * Set `subAccountCode` on default_sub_category rows from
+   * SUBCATEGORY_SUB_ACCOUNT_CODES. Idempotent, GUARD INVARIANT: only fills a
+   * row's subAccountCode when it's currently NULL — never overwrites an
+   * existing value (prior boot or admin edit).
+   */
+  private async seedSubAccountCodes(): Promise<void> {
+    const em = this.accountRepo.manager;
+    let updated = 0;
+    for (const { category, subCategory, subAccountCode } of AccountSeedService.SUBCATEGORY_SUB_ACCOUNT_CODES) {
+      const result = await em.query(
+        `UPDATE default_sub_category SET subAccountCode = ?
+         WHERE categoryName = ? AND subCategoryName = ? AND subAccountCode IS NULL`,
+        [subAccountCode, category, subCategory],
+      );
+      const affected = result?.affectedRows ?? 0;
+      updated += affected;
+    }
+    this.logger.log(
+      `Sub-account codes applied to ${updated} previously-NULL row(s) out of ${AccountSeedService.SUBCATEGORY_SUB_ACCOUNT_CODES.length} mapped pairs.`,
+    );
+  }
+
+  /**
    * Ensure each (category, subCategory) in EXPENSE_SUBCATEGORY_PNL exists in the
    * GLOBAL default_sub_category catalog. GUARD INVARIANT: only ever INSERTs a
    * row that doesn't exist yet — a row that already exists (whatever its
@@ -322,6 +437,8 @@ export class AccountSeedService implements OnModuleInit {
       );
       const taxPercent = defaults?.taxPercent ?? 100;
       const vatPercent = defaults?.vatPercent ?? 100;
+      const reductionPercent = defaults?.reductionPercent ?? 0;
+      const isEquipment = defaults?.isEquipment ?? false;
 
       // necessity + reportScope rely on their DB column defaults; accountCode
       // is set right after by seedSubCategoryAccountCodes.
@@ -329,8 +446,8 @@ export class AccountSeedService implements OnModuleInit {
         `INSERT INTO default_sub_category
            (subCategoryName, categoryName, taxPercent, vatPercent, reductionPercent,
             isEquipment, isRecognized, isExpense, pnlCategory)
-         VALUES (?, ?, ?, ?, 0, 0, 1, 1, ?)`,
-        [subCategory, category, taxPercent, vatPercent, pnlCategory],
+         VALUES (?, ?, ?, ?, ?, ?, 1, 1, ?)`,
+        [subCategory, category, taxPercent, vatPercent, reductionPercent, isEquipment ? 1 : 0, pnlCategory],
       );
       created++;
     }

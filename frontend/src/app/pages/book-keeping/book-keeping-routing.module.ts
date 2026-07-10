@@ -34,6 +34,11 @@ const routes: Routes = [
           import('./suppliers/suppliers.module').then(m => m.SuppliersPageModule)
       },
       {
+        path: 'archived-documents',
+        loadChildren: () =>
+          import('./archived-documents/archived-documents.module').then(m => m.ArchivedDocumentsPageModule)
+      },
+      {
         path: 'tasks',
         loadChildren: () =>
           import('./client-tasks/client-tasks.module').then(m => m.ClientTasksPageModule)

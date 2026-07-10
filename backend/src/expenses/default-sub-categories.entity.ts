@@ -50,4 +50,12 @@ export class DefaultSubCategory {
   @Column({ nullable: true })
   accountCode: string;
 
+  /**
+   * Sub-ledger account code nested under `accountCode` (e.g. '5101' under
+   * parent '5100'). Populated on boot by AccountSeedService.seedSubAccountCodes
+   * from SUBCATEGORY_SUB_ACCOUNT_CODES; NULL when unmapped.
+   */
+  @Column({ type: 'varchar', length: 10, nullable: true })
+  subAccountCode: string | null;
+
 }

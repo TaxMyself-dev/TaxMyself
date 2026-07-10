@@ -24,6 +24,7 @@ export class BookKeepingPage implements OnInit, OnDestroy {
     { label: 'הוצאות', icon: 'pi pi-arrow-down', routerLink: 'expenses' },
     { label: 'לקוחות', icon: 'pi pi-users', routerLink: 'clients' },
     { label: 'ספקים', icon: 'pi pi-building', routerLink: 'suppliers' },
+    { label: 'ארכיון מסמכים', icon: 'pi pi-folder-open', routerLink: 'archived-documents' },
   ];
 
   readonly items = computed<MenuItem[]>(() => {
@@ -55,6 +56,7 @@ export class BookKeepingPage implements OnInit, OnDestroy {
         else if (url.includes('/expenses'))  this.activeRouterLink.set('expenses');
         else if (url.includes('/clients'))   this.activeRouterLink.set('clients');
         else if (url.includes('/suppliers')) this.activeRouterLink.set('suppliers');
+        else if (url.includes('/archived-documents')) this.activeRouterLink.set('archived-documents');
       });
   }
 

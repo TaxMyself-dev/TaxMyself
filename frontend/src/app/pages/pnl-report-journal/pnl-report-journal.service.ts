@@ -20,13 +20,16 @@ export class PnLReportJournalService {
   // }
 
 
-  getPnLReportData(startDate: string, endDate: string, businessNumber: string): Observable<any> {
+  getPnLReportData(startDate: string, endDate: string, businessNumber: string, osekZair: boolean = false): Observable<any> {
     // const token = localStorage.getItem('token');
     const url = `${environment.apiUrl}reports/pnl-report-journal`;
-    const params = new HttpParams()
+    let params = new HttpParams()
       .set('startDate', startDate)
       .set('endDate', endDate)
       .set('businessNumber', businessNumber)
+    if (osekZair) {
+      params = params.set('osekZair', 'true');
+    }
 
     // const headers = {
     //   'token': token
@@ -35,13 +38,21 @@ export class PnLReportJournalService {
     return this.http.get<any>(url, { params: params })
   }
 
-  /** Server-rendered (pdfkit) P&L report PDF — same approach as the VAT report. */
-  generatePnLReportPDF(startDate: string, endDate: string, businessNumber: string): Observable<Blob> {
+  /** Server-rendered (pdfkit) P&L report PDF — same approach as the VAT report.
+   *  `incomeOverride` mirrors a manual edit made in the on-screen preview so
+   *  the exported PDF matches what the user is actually looking at. */
+  generatePnLReportPDF(startDate: string, endDate: string, businessNumber: string, osekZair: boolean = false, incomeOverride?: number): Observable<Blob> {
     const url = `${environment.apiUrl}reports/pnl-report-pdf`;
-    const params = new HttpParams()
+    let params = new HttpParams()
       .set('startDate', startDate)
       .set('endDate', endDate)
       .set('businessNumber', businessNumber);
+    if (osekZair) {
+      params = params.set('osekZair', 'true');
+    }
+    if (incomeOverride !== undefined) {
+      params = params.set('incomeOverride', String(incomeOverride));
+    }
     return this.http.get(url, { params, responseType: 'blob' });
   }
 

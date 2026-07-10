@@ -99,11 +99,19 @@
 .je-modal {
   text-align: right;
 
-  .je-header-grid {
+  .je-entry-card {
+    position: relative;
+    border: 1px solid #d8e0ea;
+    border-radius: 6px;
+    padding: 0.9rem 1rem;
+    margin-bottom: 0.9rem;
+    background: #fafbfc;
+  }
+
+  .je-card-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 0.75rem 1rem;
-    margin-bottom: 1rem;
   }
 
   .je-field {
@@ -120,72 +128,55 @@
     }
   }
 
-  .je-lines {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.85rem;
+  .je-checkbox {
+    flex-direction: row;
+    align-items: center;
+    gap: 0.5rem;
+  }
 
-    th,
-    td {
-      border: 1px solid #e3e3e3;
-      padding: 4px 6px;
-      text-align: right;
-    }
+  .je-remove-card {
+    position: absolute;
+    top: 0.5rem;
+    left: 0.5rem;
+    border: none;
+    background: transparent;
+    color: #c0392b;
+    cursor: pointer;
+    font-size: 1rem;
 
-    thead th {
-      background: #f4f6f9;
-      font-weight: 700;
-    }
-
-    input,
-    select {
-      width: 100%;
-      box-sizing: border-box;
-      padding: 5px 6px;
-      border: 1px solid #d8e0ea;
-      border-radius: 4px;
-      font: inherit;
-    }
-
-    .je-remove {
-      border: none;
-      background: transparent;
-      color: #c0392b;
-      cursor: pointer;
-      font-size: 0.95rem;
-
-      &:disabled {
-        color: #ccc;
-        cursor: not-allowed;
-      }
+    &:disabled {
+      color: #ccc;
+      cursor: not-allowed;
     }
   }
 
-  .je-add-line {
-    margin-top: 0.5rem;
+  .je-add-card {
+    margin-top: 0.25rem;
     border: 1px dashed #b9c4d2;
     background: #f7f9fc;
     color: #34516e;
     border-radius: 4px;
-    padding: 4px 10px;
+    padding: 6px 12px;
     cursor: pointer;
     font: inherit;
   }
 
-  .je-totals {
-    display: flex;
-    gap: 1.5rem;
-    align-items: center;
-    margin-top: 1rem;
-    font-weight: 600;
-
-  }
-
   .je-footer {
     display: flex;
-    justify-content: flex-start;
+    justify-content: flex-end; // visually bottom-LEFT in this RTL dialog
     gap: 0.75rem;
     margin-top: 1.25rem;
+
+    ::ng-deep .je-footer-btn .p-button {
+      background: #000;
+      border-color: #000;
+      color: #fff;
+
+      &:hover {
+        background: #222;
+        border-color: #222;
+      }
+    }
   }
 }
 

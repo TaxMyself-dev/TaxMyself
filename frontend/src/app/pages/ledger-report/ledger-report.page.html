@@ -219,86 +219,86 @@
     </ng-template>
   </p-dialog>
 
-  <!-- ── Manual journal entry modal (UI scaffolding) ─────────────────────── -->
+  <!-- ── Manual journal entry modal ───────────────────────────────────────── -->
   <p-dialog
     header="פקודת יומן ידנית"
     [(visible)]="showJournalEntryModal"
     [modal]="true"
-    [style]="{ width: '700px' }"
+    [style]="{ width: '760px' }"
     (onHide)="closeJournalEntryModal()">
 
     <div dir="rtl" class="je-modal">
 
-      <!-- Header fields -->
-      <div class="je-header-grid">
-        <label class="je-field">
-          <span>תאריך</span>
-          <input type="date" [(ngModel)]="journalEntryForm.date" />
-        </label>
-        <label class="je-field">
-          <span>תאריך ערך</span>
-          <input type="date" [(ngModel)]="journalEntryForm.valueDate" />
-        </label>
-        <label class="je-field">
-          <span>תאריך למע"מ</span>
-          <input type="date" [(ngModel)]="journalEntryForm.vatDate" />
-        </label>
-        <label class="je-field">
-          <span>פרטים</span>
-          <input type="text" [(ngModel)]="journalEntryForm.description" />
-        </label>
-        <label class="je-field">
-          <span>הערות</span>
-          <input type="text" [(ngModel)]="journalEntryForm.notes" />
-        </label>
+      <div class="je-entry-card" *ngFor="let card of entryCards; let i = index" [formGroup]="card">
+        <button
+          type="button"
+          class="je-remove-card"
+          title="הסר פקודה"
+          [disabled]="entryCards.length <= 1"
+          (click)="removeEntryCard(i)">✕</button>
+
+        <div class="je-card-grid">
+          <app-input-select [parentForm]="card" [controlName]="'entryKind'" [labelText]="'סוג פקודה'"
+            [items]="entryKindOptions" [showClear]="false" [filter]="false"
+            (onChangeInputSelect)="onEntryKindChange(card)">
+          </app-input-select>
+
+          <app-input-date [parentForm]="card" [controlName]="'valueDate'" [labelText]="'תאריך'"
+            [placeholder]="'00/00/0000'">
+          </app-input-date>
+
+          <label class="je-field">
+            <span>אסמכתא</span>
+            <input type="text" formControlName="reference" />
+          </label>
+
+          <label class="je-field">
+            <span>תיאור</span>
+            <input type="text" formControlName="notes" />
+          </label>
+
+          <label class="je-field">
+            <span>סכום</span>
+            <input type="number" dir="ltr" formControlName="amount" />
+          </label>
+
+          <app-input-select *ngIf="isExpenseCard(card)" [parentForm]="card" [controlName]="'accountCode'" [labelText]="'כרטיס חשבון'"
+            [items]="accountOptionsForCard(card)" [placeholder]="'בחר חשבון'">
+          </app-input-select>
+
+          <label class="je-field" *ngIf="isExpenseCard(card)">
+            <span>תת-קטגוריה</span>
+            <input type="text" formControlName="subCategoryName" />
+          </label>
+
+          <label class="je-field" *ngIf="isExpenseCard(card)">
+            <span>% הכרה למס</span>
+            <input type="number" dir="ltr" min="0" max="100" formControlName="taxPercent" />
+          </label>
+
+          <label class="je-field" *ngIf="isExpenseCard(card)">
+            <span>% מוכר למע"מ</span>
+            <input type="number" dir="ltr" min="0" max="100" formControlName="vatPercent" />
+          </label>
+
+          <label class="je-field je-checkbox" *ngIf="isExpenseCard(card)">
+            <input type="checkbox" formControlName="isEquipment" />
+            <span>ציוד (רכוש קבוע)</span>
+          </label>
+
+          <app-input-select *ngIf="!isExemptCard(card)" [parentForm]="card" [controlName]="'vatReportingPeriod'"
+            [labelText]="'תקופת דיווח למע&quot;מ' + (isVatReportingPeriodRequired(card) ? ' *' : '')"
+            [items]="vatPeriodOptions()" [placeholder]="'בחר תקופה'">
+          </app-input-select>
+        </div>
       </div>
 
-      <!-- Lines -->
-      <table class="je-lines">
-        <thead>
-          <tr>
-            <th>כרטיס חשבון</th>
-            <th>פרטים</th>
-            <th>חובה</th>
-            <th>זכות</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr *ngFor="let line of journalEntryForm.lines; let i = index">
-            <td>
-              <select [(ngModel)]="line.accountCode">
-                <option value="">בחר חשבון</option>
-                <option *ngFor="let acc of journalAccountOptions" [value]="acc.value">{{ acc.name }}</option>
-              </select>
-            </td>
-            <td><input type="text" [(ngModel)]="line.description" /></td>
-            <td><input type="number" dir="ltr" [(ngModel)]="line.debit" /></td>
-            <td><input type="number" dir="ltr" [(ngModel)]="line.credit" /></td>
-            <td>
-              <button
-                type="button"
-                class="je-remove"
-                title="הסר שורה"
-                [disabled]="journalEntryForm.lines.length <= 2"
-                (click)="removeLine(i)">✕</button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-
-      <button type="button" class="je-add-line" (click)="addLine()">+ שורה</button>
-
-      <!-- Running totals (reference only — single-entry, no balance requirement) -->
-      <div class="je-totals">
-        <span>סה"כ חובה: <b dir="ltr">{{ totalDebit | number:'1.2-2' }}</b></span>
-        <span>סה"כ זכות: <b dir="ltr">{{ totalCredit | number:'1.2-2' }}</b></span>
-      </div>
+      <button type="button" class="je-add-card" (click)="addEntryCard()">+ הוסף פקודה</button>
 
       <!-- Footer -->
       <div class="je-footer">
-        <p-button label="ביטול" styleClass="p-button-text" (click)="closeJournalEntryModal()"></p-button>
-        <p-button label="שמור" [disabled]="!hasAnyAmount" (click)="saveJournalEntry()"></p-button>
+        <p-button label="ביטול" styleClass="je-footer-btn" (click)="closeJournalEntryModal()"></p-button>
+        <p-button label="אישור" styleClass="je-footer-btn" [disabled]="!hasValidEntries" (click)="saveJournalEntry()"></p-button>
       </div>
 
     </div>

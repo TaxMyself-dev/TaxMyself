@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { JournalEntry } from './jouranl-entry.entity';
@@ -6,8 +6,10 @@ import { JournalLine } from './jouranl-line.entity';
 import { DefaultBookingAccount } from './account.entity';
 import { SharedService } from '../shared/shared.service';
 import { JournalEntryInput, JournalLineInput } from './dto/journal-entry-input.interface';
+import { CreateManualJournalEntryDto } from './dto/manual-journal-entry.dto';
 import { JournalReferenceType } from '../enum';
 import { EntityManager } from 'typeorm';
+import { Business } from '../business/business.entity';
 
 
 @Injectable()
@@ -22,6 +24,8 @@ export class BookkeepingService {
     private journalLineRepo: Repository<JournalLine>,
     @InjectRepository(DefaultBookingAccount)
     private defaultBookingAccountRepo: Repository<DefaultBookingAccount>,
+    @InjectRepository(Business)
+    private businessRepo: Repository<Business>,
   ) { }
 
 
@@ -65,6 +69,7 @@ export class BookkeepingService {
       issuerBusinessNumber,
       subCategory,
       counterAccountCode,
+      subCounterAccountCode,
       counterPartyName,
       documentTotal,
       date,
@@ -120,6 +125,7 @@ export class BookkeepingService {
         issuerBusinessNumber,
         subCategory: subCategory ?? null,
         counterAccountCode: counterAccountCode ?? null,
+        subCounterAccountCode: subCounterAccountCode ?? null,
         counterPartyName: counterPartyName ?? null,
         documentTotal: documentTotal ?? null,
         date,
@@ -144,6 +150,225 @@ export class BookkeepingService {
     await this.sharedService.incrementJournalEntryIndex(issuerBusinessNumber, m);
 
     return { entryNumber, id: journalEntry.id };
+  }
+
+  /**
+   * Build and post a manual journal entry with a REAL VAT line when
+   * applicable, plus an automatic bank (1100) counter line — same overall
+   * shape as buildExpenseJournalLines/buildDocumentJournalLines, so a manual
+   * entry moves the bank balance exactly like a normal expense/income
+   * posting does. `amount` is the GROSS total (matches Expense.sum's
+   * convention); net/vatAmount are derived from it using the effective VAT
+   * rate: net = total / (1 + vatRate × (vatPercent / 100)); vatAmount = total − net.
+   * Each dto line becomes 1 or 2 JournalLineInput rows:
+   *   - line 1: the P&L account, net of VAT (matches every other P&L line —
+   *     VAT is never mixed into it). income/income_exempt always post to
+   *     '4000' — the service ignores/overrides whatever accountCode the
+   *     client sent, never trusting it for those kinds.
+   *   - line 2 (only when vatAmount > 0): the technical VAT account — '2400'
+   *     for income, '2410' for expense — added automatically, never chosen
+   *     by the user.
+   * After all dto lines are processed, ONE bank line (account '1100') is
+   * added for the entry's full gross total — debited for income/income_exempt,
+   * credited for expense — always assuming immediate bank settlement (no
+   * deferred A/R (1200) support here, unlike the document-issuing flow).
+   * vatPercent is fixed 100 for income, fixed 0 for income_exempt, and
+   * user-entered (default 100) for expense. taxPercent (income-tax
+   * recognition %) is fixed 100 for income/income_exempt, user-entered
+   * (default 100) for expense — feeds amountForTax = net × taxPercent / 100.
+   * The VAT rate itself always comes from the existing single source of
+   * truth (SharedService.getVatRateByYear / VAT_RATES in enum.ts), never a
+   * hardcoded literal.
+   */
+  async createManualJournalEntry(
+    dto: CreateManualJournalEntryDto,
+    firebaseId: string,
+    issuerBusinessNumber: string,
+    manager?: EntityManager,
+  ): Promise<{ entryNumber: number; id: number }> {
+    const isExpense = dto.entryKind === 'expense';
+    const isExempt = dto.entryKind === 'income_exempt';
+    const expectedType = isExpense ? 'expense' : 'income';
+    const vatAccountCode = isExpense ? '2410' : '2400';
+
+    if (!dto.lines?.length) {
+      throw new BadRequestException('At least one line is required');
+    }
+
+    const vatRate = this.sharedService.getVatRateByYear(new Date(dto.date));
+    const bookingAccountRepo = manager ? manager.getRepository(DefaultBookingAccount) : this.defaultBookingAccountRepo;
+
+    const lines: JournalLineInput[] = [];
+    let anyVatLine = false;
+
+    for (const line of dto.lines) {
+      const total = Number(line.amount) || 0;
+      if (total === 0) continue;
+
+      // income/income_exempt always post to the fixed income account — never
+      // trust a client-supplied accountCode for those kinds.
+      const accountCode = isExpense ? line.accountCode : '4000';
+      if (isExpense && !accountCode) continue;
+
+      // Safety net: the manual-entry dropdown is meant to only offer
+      // postable P&L accounts, but nothing stops a client from sending an
+      // arbitrary code directly — reject anything that isn't a real,
+      // kind-matching posting account (blocks silently posting into
+      // technical/asset/liability accounts via this path).
+      const account = await bookingAccountRepo.findOneByOrFail({ code: accountCode });
+      if (!account.pnlCategory || account.type !== expectedType) {
+        throw new BadRequestException(
+          `Account ${accountCode} is not a valid ${expectedType} posting account`,
+        );
+      }
+
+      // vatPercent: fixed 100 for income, fixed 0 for income_exempt (no VAT
+      // at all), user-entered (default 100) for expense.
+      const vatPercent = isExempt ? 0 : isExpense ? Number(line.vatPercent ?? 100) : 100;
+      // taxPercent: fixed 100 for income/income_exempt, user-entered
+      // (default 100) for expense.
+      const taxPercent = isExpense ? Number(line.taxPercent ?? 100) : 100;
+
+      // total is GROSS — derive net/vatAmount from it (same math the Expense
+      // entity itself uses, expenses.service.ts:135).
+      const net = Number((total / (1 + vatRate * (vatPercent / 100))).toFixed(2));
+      const vatAmount = Number((total - net).toFixed(2));
+      const amountForTax = Number((net * taxPercent / 100).toFixed(2));
+      const isEquipment = isExpense ? !!line.isEquipment : false;
+
+      // Line 1: the P&L account itself, always net of VAT.
+      lines.push({
+        accountCode,
+        debit: isExpense ? net : 0,
+        credit: isExpense ? 0 : net,
+        amountBeforeVat: net,
+        vatAmount: 0,
+        isEquipment,
+        taxPercent,
+        vatPercent,
+        amountForTax,
+        subCategoryName: isExpense ? (line.subCategoryName?.trim() || null) : null,
+      });
+
+      // Line 2: the real VAT line — added automatically, never user-chosen.
+      if (vatAmount > 0) {
+        anyVatLine = true;
+        lines.push({
+          accountCode: vatAccountCode,
+          debit: isExpense ? vatAmount : 0,
+          credit: isExpense ? 0 : vatAmount,
+          amountBeforeVat: 0,
+          vatAmount,
+          isEquipment,
+          taxPercent: 0,
+          vatPercent,
+          amountForTax: 0,
+          subCategoryName: null,
+        });
+      }
+    }
+
+    if (!lines.length) {
+      throw new BadRequestException('At least one line with a non-zero amount is required');
+    }
+
+    // Sums the P&L line(s) and (when present) their VAT line(s) — the true
+    // gross total, computed BEFORE the bank counter line below (which would
+    // otherwise double it, since that line's amount lands on the opposite
+    // debit/credit side).
+    const documentTotal = lines.reduce((sum, l) => sum + (l.debit || l.credit || 0), 0);
+
+    // Bank counter line — balances the entry against account 1100 (Bank)
+    // automatically, the same way buildExpenseJournalLines/
+    // buildDocumentJournalLines always add a cash/bank counter line. Without
+    // this, a manual entry only ever posted the P&L + VAT side and never
+    // moved the bank balance.
+    lines.push({
+      accountCode: '1100',
+      debit: isExpense ? 0 : documentTotal,
+      credit: isExpense ? documentTotal : 0,
+      amountBeforeVat: 0,
+      vatAmount: 0,
+      isEquipment: false,
+      taxPercent: 0,
+      vatPercent: 0,
+      amountForTax: 0,
+      subCategoryName: null,
+    });
+
+    const vatReportingPeriod = isExempt ? null : (dto.vatReportingPeriod?.trim() || null);
+    if (!isExempt && anyVatLine && !vatReportingPeriod) {
+      throw new BadRequestException('vatReportingPeriod is required for this entry');
+    }
+
+    const input: JournalEntryInput = {
+      firebaseId,
+      issuerBusinessNumber,
+      subCategory: null,
+      counterAccountCode: '1100',
+      subCounterAccountCode: null,
+      counterPartyName: null,
+      documentTotal,
+      date: dto.date,
+      valueDate: dto.valueDate || dto.date,
+      vatDate: dto.vatDate || dto.date,
+      notes: dto.notes ?? undefined,
+      vatReportingPeriod,
+      referenceType: JournalReferenceType.MANUAL,
+      referenceId: null,
+      description: dto.reference?.trim() || '',
+      lines,
+    };
+
+    return this.createJournalEntry(input, manager);
+  }
+
+  /**
+   * Post multiple manual journal entries atomically — all succeed or none do.
+   * Used by the list-of-entries UI: if any entry fails validation (bad
+   * account, missing vatReportingPeriod, etc.), the whole transaction rolls
+   * back, so a failing third entry can never leave the first two committed.
+   */
+  async createManualJournalEntries(
+    dtos: CreateManualJournalEntryDto[],
+    firebaseId: string,
+    issuerBusinessNumber: string,
+  ): Promise<{ entryNumber: number; id: number }[]> {
+    if (!dtos?.length) {
+      throw new BadRequestException('At least one entry is required');
+    }
+    return this.dataSource.transaction(async (manager) => {
+      const results: { entryNumber: number; id: number }[] = [];
+      for (const dto of dtos) {
+        results.push(await this.createManualJournalEntry(dto, firebaseId, issuerBusinessNumber, manager));
+      }
+      return results;
+    });
+  }
+
+  /**
+   * Valid vatReportingPeriod labels for a business's manual-entry dropdown —
+   * 2 months ahead through 12 months back, using the same cadence logic
+   * (buildReportPeriodLabel) as every other VAT-period stamp in the system,
+   * so this list never drifts from what the VAT/P&L reports actually bucket by.
+   */
+  async getVatReportingPeriods(businessNumber: string, firebaseId: string): Promise<string[]> {
+    const business = await this.businessRepo.findOne({ where: { businessNumber, firebaseId } });
+    if (!business) {
+      throw new BadRequestException('Business not found');
+    }
+    const labels: string[] = [];
+    const seen = new Set<string>();
+    const today = new Date();
+    for (let m = 2; m >= -12; m--) {
+      const cursor = new Date(today.getFullYear(), today.getMonth() + m, 1);
+      const label = this.sharedService.buildReportPeriodLabel(business.businessType, business.vatReportingType, cursor);
+      if (!seen.has(label)) {
+        seen.add(label);
+        labels.push(label);
+      }
+    }
+    return labels;
   }
 
   /**

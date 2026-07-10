@@ -33,8 +33,8 @@ export class JournalEntry {
   @Column({ type: 'enum', enum: JournalReferenceType, nullable: true })
   referenceType: JournalReferenceType;
 
-  @Column({ type: 'bigint' })
-  referenceId: number; // The ID of the invoice/receipt/expense etc
+  @Column({ type: 'bigint', nullable: true })
+  referenceId: number | null; // The ID of the invoice/receipt/expense etc; null for MANUAL entries
 
   @Column({ type: 'date', nullable: true })
   valueDate: string;           // תאריך ערך
@@ -64,6 +64,13 @@ export class JournalEntry {
    *  where the A/R close is implicit. Nullable so existing rows are unaffected. */
   @Column({ nullable: true, default: null })
   counterAccountCode: string | null;
+
+  /** Sub-ledger counter-account code (default_sub_category.subAccountCode) for
+   *  the entry's expense sub-category, alongside counterAccountCode. Nullable —
+   *  existing rows and entries with no matching sub-account code stay NULL;
+   *  no retroactive backfill. */
+  @Column({ nullable: true, default: null })
+  subCounterAccountCode: string | null;
 
   /** שם ספק / לקוח — vendor or customer name from the source document or expense. */
   @Column({ nullable: true, default: null })

@@ -1,5 +1,5 @@
 ---
-name: conversation-handoff
+name: dev-conversation-handoff
 description: Generate a concise handoff summary so work can continue in a brand new Claude chat without losing important context. Use only when explicitly requested.
 ---
 

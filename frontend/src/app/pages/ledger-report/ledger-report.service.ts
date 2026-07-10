@@ -83,6 +83,29 @@ export interface ILedgerAccountOption {
   type: string;
 }
 
+export type ManualJournalEntryKind = 'income' | 'income_exempt' | 'expense';
+
+export interface IManualJournalLinePayload {
+  accountCode?: string; // required for 'expense' only
+  amount: number;
+  subCategoryName?: string | null;
+  isEquipment?: boolean;
+  vatPercent?: number;
+  taxPercent?: number; // expense only
+}
+
+export interface ICreateManualJournalEntryPayload {
+  entryKind: ManualJournalEntryKind;
+  businessNumber: string;
+  date: string;
+  valueDate?: string;
+  vatDate?: string;
+  reference?: string; // אסמכתא — maps to JournalEntry.description
+  notes?: string;
+  vatReportingPeriod?: string | null;
+  lines: IManualJournalLinePayload[];
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -127,6 +150,21 @@ export class LedgerReportService {
     const url = `${environment.apiUrl}reports/journal-entry/${entryId}`;
     const params = new HttpParams().set('businessNumber', businessNumber);
     return this.http.get<IJournalEntryDetail>(url, { params });
+  }
+
+  /** Post multiple manual journal entries atomically (all-or-nothing). */
+  createManualJournalEntries(
+    payloads: ICreateManualJournalEntryPayload[],
+  ): Observable<{ entryNumber: number; id: number }[]> {
+    const url = `${environment.apiUrl}bookkeeping/manual-journal-entries`;
+    return this.http.post<{ entryNumber: number; id: number }[]>(url, payloads);
+  }
+
+  /** Valid vatReportingPeriod options for the manual-entry dropdown. */
+  getVatReportingPeriods(businessNumber: string): Observable<string[]> {
+    const url = `${environment.apiUrl}bookkeeping/vat-reporting-periods`;
+    const params = new HttpParams().set('businessNumber', businessNumber);
+    return this.http.get<string[]>(url, { params });
   }
 
 }

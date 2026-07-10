@@ -1,5 +1,6 @@
-import { Body, Controller, Get, Headers, Param, Patch, Post, Req, Res, UseGuards, } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Headers, Param, ParseArrayPipe, Patch, Post, Query, Req, Res, UnauthorizedException, UseGuards, } from '@nestjs/common';
 import { BookkeepingService } from './bookkeeping.service';
+import { CreateManualJournalEntryDto } from './dto/manual-journal-entry.dto';
 import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.interface';
 import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
 
@@ -10,5 +11,49 @@ export class BookkepingController {
   constructor(
     private readonly bookkeepingService: BookkeepingService,
   ) { }
+
+  /** Manual, single-sided journal entry (no counter-account) — for cases the
+   *  automatic EXPENSE/document postings don't cover. */
+  @Post('manual-journal-entry')
+  @UseGuards(FirebaseAuthGuard)
+  async createManualJournalEntry(
+    @Req() request: AuthenticatedRequest,
+    @Body() body: CreateManualJournalEntryDto,
+  ): Promise<{ entryNumber: number; id: number }> {
+    const firebaseId = request.user?.firebaseId;
+    if (!firebaseId) throw new UnauthorizedException('Not authenticated');
+    const businessNumber = body.businessNumber?.trim() || request.user?.businessNumber;
+    if (!businessNumber) throw new BadRequestException('businessNumber is required');
+    return this.bookkeepingService.createManualJournalEntry(body, firebaseId, businessNumber);
+  }
+
+  /** Atomic batch version — the frontend's list-of-entries modal uses this one.
+   *  Kept alongside the singular endpoint above for backward compatibility. */
+  @Post('manual-journal-entries')
+  @UseGuards(FirebaseAuthGuard)
+  async createManualJournalEntries(
+    @Req() request: AuthenticatedRequest,
+    @Body(new ParseArrayPipe({ items: CreateManualJournalEntryDto })) body: CreateManualJournalEntryDto[],
+  ): Promise<{ entryNumber: number; id: number }[]> {
+    const firebaseId = request.user?.firebaseId;
+    if (!firebaseId) throw new UnauthorizedException('Not authenticated');
+    if (!body?.length) throw new BadRequestException('At least one entry is required');
+    const businessNumber = body[0]?.businessNumber?.trim() || request.user?.businessNumber;
+    if (!businessNumber) throw new BadRequestException('businessNumber is required');
+    return this.bookkeepingService.createManualJournalEntries(body, firebaseId, businessNumber);
+  }
+
+  /** Valid vatReportingPeriod options for the manual-entry dropdown. */
+  @Get('vat-reporting-periods')
+  @UseGuards(FirebaseAuthGuard)
+  async getVatReportingPeriods(
+    @Req() request: AuthenticatedRequest,
+    @Query('businessNumber') businessNumber: string,
+  ): Promise<string[]> {
+    const firebaseId = request.user?.firebaseId;
+    if (!firebaseId) throw new UnauthorizedException('Not authenticated');
+    if (!businessNumber?.trim()) throw new BadRequestException('businessNumber is required');
+    return this.bookkeepingService.getVatReportingPeriods(businessNumber.trim(), firebaseId);
+  }
 
 }

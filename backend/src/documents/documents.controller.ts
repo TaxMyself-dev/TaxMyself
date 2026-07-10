@@ -1,5 +1,5 @@
-import { BadRequestException, Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Query, Req, Res, UploadedFile, UseGuards, UseInterceptors, UsePipes, ValidationPipe, } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { BadRequestException, Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Query, Req, Res, UploadedFile, UploadedFiles, UseGuards, UseInterceptors, UsePipes, ValidationPipe, } from '@nestjs/common';
+import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
 import { DocumentType, DocumentStatusType, ModuleName } from 'src/enum';
 import { DocumentsService } from './documents.service';
@@ -334,6 +334,26 @@ export class DocumentsController {
     );
   }
 
+  /** Drop one or more files straight into the business's Drive inbox/
+   *  folder — no OCR, just storage. multipart/form-data with `files`
+   *  (1..10) + `businessNumber` form field. */
+  @Post('me/upload-to-inbox')
+  @UseInterceptors(
+    FilesInterceptor('files', 10, { limits: { fileSize: 10 * 1024 * 1024 } }),
+  )
+  async uploadFilesToInbox(
+    @Req() request: AuthenticatedRequest,
+    @UploadedFiles() files: Express.Multer.File[],
+    @Body() body: { businessNumber?: string },
+  ) {
+    const firebaseId = request.user?.firebaseId;
+    if (!firebaseId) throw new BadRequestException('Not authenticated');
+    const businessNumber = body?.businessNumber?.trim();
+    if (!businessNumber) throw new BadRequestException('businessNumber is required');
+    if (!files?.length) throw new BadRequestException('At least one file is required');
+    return this.documentsService.uploadFilesToInbox(firebaseId, businessNumber, files);
+  }
+
   @Get('me/catalog')
   async getMyCatalog(
     @Req() request: AuthenticatedRequest,
@@ -358,6 +378,19 @@ export class DocumentsController {
       throw new BadRequestException('businessNumber query param required');
     }
     return this.documentsService.getReviewableForUser(firebaseId, businessNumber.trim());
+  }
+
+  @Get('me/archived')
+  async listMyArchived(
+    @Req() request: AuthenticatedRequest,
+    @Query('businessNumber') businessNumber: string,
+  ) {
+    const firebaseId = request.user?.firebaseId;
+    if (!firebaseId) throw new BadRequestException('Not authenticated');
+    if (!businessNumber?.trim()) {
+      throw new BadRequestException('businessNumber query param required');
+    }
+    return this.documentsService.getArchivedForUser(firebaseId, businessNumber.trim());
   }
 
 }

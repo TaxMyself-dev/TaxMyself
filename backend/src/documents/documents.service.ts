@@ -3239,6 +3239,36 @@ ${finalOwnerName}`;
   }
 
   /**
+   * Drop one or more user-picked files straight into the business's Drive
+   * inbox/ folder — no OCR, no extracted_document row. Used by the
+   * settings-page "העלאת מסמכים ל-Drive" button, where the user just wants
+   * files sitting in Drive (e.g. for an accountant to browse, or to be
+   * picked up later by `processInboxForUser`).
+   */
+  async uploadFilesToInbox(
+    firebaseId: string,
+    businessNumber: string,
+    files: { buffer: Buffer; originalname: string; mimetype: string }[],
+  ): Promise<{ fileId: string; fileName: string }[]> {
+    const user = await this.userRepo.findOne({ where: { firebaseId } });
+    if (!user) throw new NotFoundException(`User not found for firebaseId`);
+    const business = await this.ensureBusinessAndSubFolders(user, businessNumber);
+    const inboxFolderId = business.driveInboxFolderId!;
+
+    const uploaded: { fileId: string; fileName: string }[] = [];
+    for (const file of files) {
+      const fileId = await this.googleDriveService.uploadFile(
+        inboxFolderId,
+        file.originalname,
+        file.buffer,
+        file.mimetype,
+      );
+      uploaded.push({ fileId, fileName: file.originalname });
+    }
+    return uploaded;
+  }
+
+  /**
    * One-shot OCR for a single file uploaded directly from the UI (manual
    * expense dialog). Unlike `processInboxForUser` this does NOT persist
    * anything — it just runs Claude on the buffer and returns the first
@@ -3402,6 +3432,29 @@ ${finalOwnerName}`;
       ...d,
       matchedSupplier: d.supplierId ? (supplierById.get(d.supplierId) ?? null) : null,
     }));
+  }
+
+  /**
+   * All rows for this user+business that were archived from the review
+   * modal (`status = archived`) — kept for reference/audit but not counted
+   * as an expense. Rejected/junk rows are intentionally excluded; those
+   * aren't real documents worth browsing here.
+   */
+  async getArchivedForUser(
+    firebaseId: string,
+    businessNumber: string,
+  ): Promise<ExtractedDocument[]> {
+    const user = await this.userRepo.findOne({ where: { firebaseId } });
+    if (!user) throw new NotFoundException(`User not found for firebaseId`);
+
+    return this.extractedDocRepo
+      .createQueryBuilder('d')
+      .where('d.userId = :uid', { uid: user.index })
+      .andWhere('d.businessNumber = :bn', { bn: businessNumber })
+      .andWhere('d.status = :st', { st: ExtractedDocStatus.ARCHIVED })
+      .orderBy('d.date', 'DESC')
+      .addOrderBy('d.id', 'DESC')
+      .getMany();
   }
 
 }

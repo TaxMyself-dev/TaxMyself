@@ -25,6 +25,7 @@ import { MyCategoriesTabComponent } from './my-categories-tab/my-categories-tab.
 import { InputTextComponent } from 'src/app/components/input-text/input-text.component';
 import { InputDateComponent } from 'src/app/components/input-date/input-date.component';
 import { InputSelectComponent } from 'src/app/components/input-select/input-select.component';
+import { DriveDocsService } from 'src/app/services/drive-docs.service';
 
 @Component({
   selector: 'app-settings',
@@ -58,6 +59,7 @@ export class SettingsPage implements OnInit {
   myPermissionsService = inject(MyPermissionsService);
   transactionsService = inject(TransactionsService);
   syncStatusService = inject(SyncStatusService);
+  driveDocsService = inject(DriveDocsService);
   private readonly fb = inject(FormBuilder);
   private readonly accessService = inject(AccessService);
 
@@ -73,6 +75,7 @@ export class SettingsPage implements OnInit {
   savingChildren = signal<boolean>(false);
   addingBusiness = signal<boolean>(false);
   addBusinessModalVisible = signal<boolean>(false);
+  uploadingDocsBusinessId = signal<number | null>(null);
 
   buttonSize = ButtonSize;
   buttonColor = ButtonColor;
@@ -680,6 +683,42 @@ export class SettingsPage implements OnInit {
     return biz?.driveInboxFolderId
       ? `https://drive.google.com/drive/folders/${biz.driveInboxFolderId}`
       : null;
+  }
+
+  /**
+   * "העלאת מסמכים ל-Drive" — user picked one or more files off their
+   * machine; drop them straight into the business's Drive inbox/ folder
+   * (no OCR, just storage). Resets the input afterward so re-picking the
+   * same filename still fires `change`.
+   */
+  onUploadDocsToDrive(biz: Business | undefined, input: HTMLInputElement): void {
+    const files = input.files ? Array.from(input.files) : [];
+    input.value = '';
+    if (!files.length || biz?.id == null || !biz.businessNumber) return;
+
+    this.uploadingDocsBusinessId.set(biz.id);
+    this.driveDocsService.uploadFilesToInbox(files, biz.businessNumber).subscribe({
+      next: (uploaded) => {
+        this.uploadingDocsBusinessId.set(null);
+        this.messageService.add({
+          severity: 'success',
+          summary: 'הצלחה',
+          detail: `${uploaded.length} קבצים הועלו ל-Drive בהצלחה`,
+          life: 3000,
+          key: 'br'
+        });
+      },
+      error: () => {
+        this.uploadingDocsBusinessId.set(null);
+        this.messageService.add({
+          severity: 'error',
+          summary: 'שגיאה',
+          detail: 'לא ניתן היה להעלות את הקבצים ל-Drive. נסה שוב מאוחר יותר.',
+          life: 3000,
+          key: 'br'
+        });
+      }
+    });
   }
 
   formatChildDate(childDate: string | null | undefined): string {
