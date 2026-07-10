@@ -24,7 +24,7 @@ Handles the full lifecycle of official documents the user issues (invoices, rece
 - `POST /documents/me/archive/:documentId` — archive a reviewed `ExtractedDocument`.
 
 ## Related topics
-- bookkeeping (`JournalEntry`/`JournalLine`/`DefaultBookingAccount`, `BookkeepingService` — journal entries posted for issued documents)
+- bookkeeping (`JournalEntry`/`JournalLine`/`BookingAccount` — renamed from `DefaultBookingAccount`, Phase 1.2 of the categories redesign — `BookkeepingService` — journal entries posted for issued documents)
 - expenses (`Expense`, `Supplier`, `DefaultSubCategory`, `UserSubCategory` — OCR'd documents become expenses)
 - transactions (`SlimTransaction` — matching extracted documents to bank transactions; legacy `Transactions` registered only for `SharedService`)
 - business (`Business`, `BusinessService` — per-business folders and settings)

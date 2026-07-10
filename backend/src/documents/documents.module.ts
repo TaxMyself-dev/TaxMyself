@@ -8,7 +8,7 @@ import { Delegation } from 'src/delegation/delegation.entity';
 import { DocLines } from './doc-lines.entity';
 import { JournalEntry } from 'src/bookkeeping/jouranl-entry.entity';
 import { JournalLine } from 'src/bookkeeping/jouranl-line.entity';
-import { DefaultBookingAccount } from 'src/bookkeeping/account.entity';
+import { BookingAccount } from 'src/bookkeeping/account.entity';
 import { SharedService } from 'src/shared/shared.service';
 import { FxRateService } from 'src/shared/fx-rate.service';
 import { FxRate } from 'src/shared/fx-rate.entity';
@@ -35,7 +35,7 @@ import { BillingModule } from 'src/billing/billing.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([SettingDocuments, Documents, Expense, Transactions, DocLines, DocPayments, Business, Delegation, JournalEntry, JournalLine, DefaultBookingAccount, User, ExtractedDocument, Supplier, DefaultSubCategory, UserSubCategory, FxRate, SlimTransaction]),
+    TypeOrmModule.forFeature([SettingDocuments, Documents, Expense, Transactions, DocLines, DocPayments, Business, Delegation, JournalEntry, JournalLine, BookingAccount, User, ExtractedDocument, Supplier, DefaultSubCategory, UserSubCategory, FxRate, SlimTransaction]),
     MailModule,
     GoogleDriveModule,
     forwardRef(() => UsersModule),

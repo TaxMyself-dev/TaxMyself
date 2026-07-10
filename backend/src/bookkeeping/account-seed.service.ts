@@ -1,7 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { DefaultBookingAccount } from './account.entity';
+import { BookingAccount } from './account.entity';
 import { DEFAULT_ACCOUNTS } from './account.seed';
 
 /**
@@ -17,8 +17,8 @@ export class AccountSeedService implements OnModuleInit {
   private readonly logger = new Logger(AccountSeedService.name);
 
   constructor(
-    @InjectRepository(DefaultBookingAccount)
-    private readonly accountRepo: Repository<DefaultBookingAccount>,
+    @InjectRepository(BookingAccount)
+    private readonly accountRepo: Repository<BookingAccount>,
   ) {}
 
   /**

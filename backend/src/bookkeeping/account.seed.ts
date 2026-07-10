@@ -1,4 +1,4 @@
-import { DefaultBookingAccount } from './account.entity';
+import { BookingAccount } from './account.entity';
 
 // Canonical chart of accounts for the bookkeeping/journal feature.
 //
@@ -11,7 +11,7 @@ import { DefaultBookingAccount } from './account.entity';
 // for these codes on every boot, manual DB edits to these rows are reverted on
 // restart. Edit them here instead.
 export const DEFAULT_ACCOUNTS: Pick<
-  DefaultBookingAccount,
+  BookingAccount,
   'code' | 'name' | 'type' | 'pnlCategory' | 'displayOrder'
 >[] = [
   // Technical / transfer

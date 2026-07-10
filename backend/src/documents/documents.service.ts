@@ -7,7 +7,7 @@ import { Documents } from './documents.entity';
 import { DocLines } from './doc-lines.entity';
 import { JournalEntry } from 'src/bookkeeping/jouranl-entry.entity';
 import { JournalLine } from 'src/bookkeeping/jouranl-line.entity';
-import { DefaultBookingAccount } from 'src/bookkeeping/account.entity'
+import { BookingAccount } from 'src/bookkeeping/account.entity'
 import { DocumentType, DocumentStatusType, JournalReferenceType, PaymentMethodType, VatOptions, Currency, UnitOfMeasure, CardCompany, CreditTransactionType, BusinessType, isExemptBusinessType } from 'src/enum';
 import { Business } from 'src/business/business.entity';
 import { SharedService } from 'src/shared/shared.service';
@@ -135,8 +135,8 @@ export class DocumentsService {
     private journalEntryRepo: Repository<JournalEntry>,
     @InjectRepository(JournalLine)
     private journalLineRepo: Repository<JournalLine>,
-    @InjectRepository(DefaultBookingAccount)
-    private defaultBookingAccountRepo: Repository<DefaultBookingAccount>,
+    @InjectRepository(BookingAccount)
+    private defaultBookingAccountRepo: Repository<BookingAccount>,
     @InjectRepository(Business)
     private businessRepo: Repository<Business>,
     @InjectRepository(User)

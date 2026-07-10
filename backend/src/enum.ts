@@ -266,6 +266,30 @@ export enum ExpenseReportScope {
   ANNUAL = 'annual', // דוח שנתי בלבד
 }
 
+/**
+ * Who owns a row of the categories/accounting chart (accounting_section,
+ * booking_account, category, sub_category — D4 of the redesign plan).
+ * Drives the CLIENT > ACCOUNTANT > SYSTEM merge precedence.
+ */
+export enum OwnerType {
+  SYSTEM = 'SYSTEM',
+  ACCOUNTANT = 'ACCOUNTANT',
+  CLIENT = 'CLIENT',
+}
+
+/** SYSTEM rows always use this literal as their chartOwnerKey (D4). */
+export const SYSTEM_CHART_OWNER_KEY = 'SYSTEM';
+
+/**
+ * Who can see an ACCOUNTANT/CLIENT-owned catalog row (D4). Irrelevant for
+ * ownerType=SYSTEM (always visible to everyone).
+ */
+export enum VisibilityScope {
+  SYSTEM_DEFAULT = 'SYSTEM_DEFAULT',
+  ALL_ACCOUNTANT_CLIENTS = 'ALL_ACCOUNTANT_CLIENTS',
+  SPECIFIC_CLIENT = 'SPECIFIC_CLIENT',
+}
+
 
 // ************ Uniform file ************ // 
 

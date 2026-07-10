@@ -20,7 +20,7 @@ import {
 } from 'src/enum';
 import { DocumentsService } from 'src/documents/documents.service';
 import { ExpensesService } from 'src/expenses/expenses.service';
-import { DefaultBookingAccount } from 'src/bookkeeping/account.entity';
+import { BookingAccount } from 'src/bookkeeping/account.entity';
 import { User } from 'src/users/user.entity';
 import { UsersService } from 'src/users/users.service';
 import { Business } from 'src/business/business.entity';
@@ -458,7 +458,7 @@ export class DemoDataService {
    */
   private async warnIfChartOfAccountsMissing(): Promise<void> {
     try {
-      const rows = await this.dataSource.getRepository(DefaultBookingAccount).find();
+      const rows = await this.dataSource.getRepository(BookingAccount).find();
       const have = new Set(rows.map((r) => r.code));
       const missing = ['1000', '2400', '2410', '4000', '5000'].filter((c) => !have.has(c));
       if (missing.length) {

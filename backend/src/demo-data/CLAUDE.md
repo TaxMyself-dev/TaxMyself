@@ -20,7 +20,7 @@ Seeds, resets, and self-service-resets realistic demo/sandbox user accounts (Fir
 - transactions (`Bill`, `Source`, `FullTransactionCache`, `SlimTransaction`, `ClassifiedTransactions`, `UserSyncState`, `UserSourceSyncState`, `UserTransactionCacheState`, legacy `Transactions` entities)
 - expenses (`ExpensesModule`/`ExpensesService.addExpense`, `UserCategory`, `UserSubCategory`, `Expense`, `Income`, `Supplier` entities)
 - documents (`DocumentsModule`/`DocumentsService.createDoc`, `Documents`, `DocLines`, `DocPayments`, `SettingDocuments`, `ExtractedDocument` entities)
-- bookkeeping (`DefaultBookingAccount` chart-of-accounts check, `JournalEntry`/`JournalLine` purge)
+- bookkeeping (`BookingAccount` — renamed from `DefaultBookingAccount`, Phase 1.2 of the categories redesign — chart-of-accounts check, `JournalEntry`/`JournalLine` purge)
 - delegation (`Delegation` entity — created for accountant/client demo relationships, purged on reset)
 - clients (`Clients` entity, purged on reset)
 - google-drive (`GoogleDriveModule`/`GoogleDriveService` — folder provisioning, sample file upload/delete)

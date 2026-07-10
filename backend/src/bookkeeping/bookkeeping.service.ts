@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { JournalEntry } from './jouranl-entry.entity';
 import { JournalLine } from './jouranl-line.entity';
-import { DefaultBookingAccount } from './account.entity';
+import { BookingAccount } from './account.entity';
 import { SharedService } from '../shared/shared.service';
 import { JournalEntryInput, JournalLineInput } from './dto/journal-entry-input.interface';
 import { CreateManualJournalEntryDto } from './dto/manual-journal-entry.dto';
@@ -22,8 +22,8 @@ export class BookkeepingService {
     private journalEntryRepo: Repository<JournalEntry>,
     @InjectRepository(JournalLine)
     private journalLineRepo: Repository<JournalLine>,
-    @InjectRepository(DefaultBookingAccount)
-    private defaultBookingAccountRepo: Repository<DefaultBookingAccount>,
+    @InjectRepository(BookingAccount)
+    private defaultBookingAccountRepo: Repository<BookingAccount>,
     @InjectRepository(Business)
     private businessRepo: Repository<Business>,
   ) { }
@@ -85,7 +85,7 @@ export class BookkeepingService {
 
     const journalEntryRepo = m.getRepository(JournalEntry);
     const journalLineRepo = m.getRepository(JournalLine);
-    const bookingAccountRepo = m.getRepository(DefaultBookingAccount);
+    const bookingAccountRepo = m.getRepository(BookingAccount);
 
     // 1. Resolve every account FIRST so a missing code aborts before any write.
     const resolvedLines = await Promise.all(
@@ -196,7 +196,7 @@ export class BookkeepingService {
     }
 
     const vatRate = this.sharedService.getVatRateByYear(new Date(dto.date));
-    const bookingAccountRepo = manager ? manager.getRepository(DefaultBookingAccount) : this.defaultBookingAccountRepo;
+    const bookingAccountRepo = manager ? manager.getRepository(BookingAccount) : this.defaultBookingAccountRepo;
 
     const lines: JournalLineInput[] = [];
     let anyVatLine = false;
@@ -395,7 +395,7 @@ export class BookkeepingService {
     const run = async (m: EntityManager): Promise<boolean> => {
       const journalEntryRepo = m.getRepository(JournalEntry);
       const journalLineRepo = m.getRepository(JournalLine);
-      const bookingAccountRepo = m.getRepository(DefaultBookingAccount);
+      const bookingAccountRepo = m.getRepository(BookingAccount);
 
       const entry = await journalEntryRepo.findOne({
         where: { referenceType, referenceId, issuerBusinessNumber },
@@ -487,7 +487,7 @@ export class BookkeepingService {
     const run = async (m: EntityManager): Promise<boolean> => {
       const journalEntryRepo = m.getRepository(JournalEntry);
       const journalLineRepo = m.getRepository(JournalLine);
-      const bookingAccountRepo = m.getRepository(DefaultBookingAccount);
+      const bookingAccountRepo = m.getRepository(BookingAccount);
 
       const entry = await journalEntryRepo.findOne({
         where: { entryNumber, issuerBusinessNumber },

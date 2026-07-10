@@ -80,7 +80,9 @@ import { DocumentsService } from './documents/documents.service';
 import { ClientsService } from './clients/clients.service';
 import { JournalEntry } from './bookkeeping/jouranl-entry.entity';
 import { JournalLine } from './bookkeeping/jouranl-line.entity';
-import { DefaultBookingAccount } from './bookkeeping/account.entity';
+import { BookingAccount } from './bookkeeping/account.entity';
+import { AccountingSection } from './bookkeeping/accounting-section.entity';
+import { AccountCodeMigration } from './bookkeeping/account-code-migration.entity';
 import { BookkeepingService } from './bookkeeping/bookkeeping.service';
 import { UsersService } from './users/users.service';
 import { BusinessModule } from './business/business.module';
@@ -100,7 +102,8 @@ import { BusinessService } from './business/business.service';
         SlimTransaction, FullTransactionCache, UserTransactionCacheState, UserSyncState, UserSourceSyncState,
         Bill, Source,
         DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory, Finsite, Delegation, SettingDocuments,
-        Clients, Documents, DocLines, DocPayments, ExtractedDocument, JournalEntry, JournalLine, DefaultBookingAccount,
+        Clients, Documents, DocLines, DocPayments, ExtractedDocument, JournalEntry, JournalLine, BookingAccount,
+        AccountingSection, AccountCodeMigration,
         FeezbackWebhookEvent, UserModuleSubscription, AccountantTask, AnnualReport, AnnualReportFile, ReportWorkflow,
         FxRate,
         SubscriptionPlan, Subscription, PaymentMethod, CardcomWebhookLog, BillingEvent,
@@ -134,7 +137,7 @@ import { BusinessService } from './business/business.service';
       DocPayments,
       JournalEntry,
       JournalLine,
-      DefaultBookingAccount,
+      BookingAccount,
       Child,
       FeezbackWebhookEvent,
       ExtractedDocument,

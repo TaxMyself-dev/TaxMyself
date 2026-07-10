@@ -359,18 +359,22 @@ D14/D15 numbers recorded in `production-baseline.md`.
 **Goal:** sections table, enriched accounts table, full renumbering, with
 journal history migrated.
 
-- [ ] 1.1 New entity `AccountingSection` (table `accounting_section`):
+- [x] 1.1 New entity `AccountingSection` (table `accounting_section`):
       `id, code (string), name, ownerType, chartOwnerKey, accountantId,
       userId, businessNumber, displayOrder, isActive, timestamps`,
-      `UNIQUE(chartOwnerKey, code)`.
-- [ ] 1.2 Extend `DefaultBookingAccount` → rename entity/table to
+      `UNIQUE(chartOwnerKey, code)`. Done Session 2 —
+      `backend/src/bookkeeping/accounting-section.entity.ts`.
+- [x] 1.2 Extend `DefaultBookingAccount` → rename entity/table to
       `BookingAccount` (`booking_account`): add `sectionId (FK)`,
       `code6111`, `ownerType`, `chartOwnerKey`, `accountantId`, `userId`,
       `businessNumber`, `visibilityScope`, `isActive`. Replace
       `UNIQUE(code)` with `UNIQUE(chartOwnerKey, code)`. `pnlCategory` and
       `displayOrder` remain temporarily (dropped Phase 7); sections take
-      over their role.
-- [ ] 1.3 Author the new SYSTEM chart as flat seed data
+      over their role. Done Session 2 — `backend/src/bookkeeping/account.entity.ts`;
+      every real caller (`account-seed.service.ts`, `bookkeeping.service.ts`
+      + spec, `reports.service.ts`, `documents.service.ts`, `demo-data.service.ts`,
+      `app.module.ts` + module registrations) renamed, `tsc --noEmit` clean.
+- [x] 1.3 Author the new SYSTEM chart as flat seed data
       (`bookkeeping/chart.seed.ts`): sections (from the current 18 P&L
       categories + rehome of pnlCategory strings), accounts in the new
       ranges, `code6111` per account (source the 6111 field codes from the
@@ -380,6 +384,22 @@ journal history migrated.
       `account_code_migration (old_code, new_code, source)` covering:
       4000→40000, 4010→40010, each 5000–6300 code → its 60000-range code,
       each subAccountCode 5101–6201 → its own 60000-range account code.
+      Done Session 2. Reviewed with Elazar first as a review table
+      (`docs/redesign/phase1-chart-review.md`) before writing code, per the
+      Session 2 runbook. Verified discrepancy: code found only 16 distinct
+      `pnlCategory` strings in current code/data, not 18 as this line
+      states — proceeded with the 16 verified values (flagged, not
+      re-litigated). `code6111` is NULL on every account: no verified
+      source found; Elazar will provide the official Form 6111 list in a
+      later session. New `AccountCodeMigration` entity
+      (`account-code-migration.entity.ts`) holds the 50-row migration map
+      as real data (derived, not hand-typed, from `chart.seed.ts`'s
+      `legacyCode`/`legacySource` fields). Three brand-new D14-decision-3
+      technical accounts (90100/90200/90300) added; 90200 confirmed with
+      Elazar as the VAT-remittance clearing account, distinct from
+      2400/2410. New entities registered in `bookkeeping.module.ts`/
+      `app.module.ts` but **not** wired into any boot-time seeder yet —
+      that (and the actual journal_line renumbering) is Phase 1.4/2.6.
 - [ ] 1.4 Production migration script
       (`backend/scripts/migrations/2026-07-XX_chart_renumber.sql` + a
       TypeScript runner for the seeded parts), in ONE transaction:

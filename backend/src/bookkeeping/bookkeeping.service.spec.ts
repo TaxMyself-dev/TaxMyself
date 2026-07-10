@@ -20,7 +20,7 @@ import { DataSource, EntityManager, Repository } from 'typeorm';
 import { BookkeepingService } from './bookkeeping.service';
 import { JournalEntry } from './jouranl-entry.entity';
 import { JournalLine } from './jouranl-line.entity';
-import { DefaultBookingAccount } from './account.entity';
+import { BookingAccount } from './account.entity';
 import { SharedService } from '../shared/shared.service';
 import { JournalReferenceType } from '../enum';
 import { Business } from '../business/business.entity';
@@ -72,7 +72,7 @@ describe('BookkeepingService — createJournalEntry / persistJournalEntry', () =
   let sharedService: jest.Mocked<Partial<SharedService>>;
   let journalEntryRepo: jest.Mocked<Repository<JournalEntry>>;
   let journalLineRepo: jest.Mocked<Repository<JournalLine>>;
-  let bookingAccountRepo: jest.Mocked<Repository<DefaultBookingAccount>>;
+  let bookingAccountRepo: jest.Mocked<Repository<BookingAccount>>;
   let mockManager: jest.Mocked<EntityManager>;
 
   beforeEach(async () => {
@@ -82,7 +82,7 @@ describe('BookkeepingService — createJournalEntry / persistJournalEntry', () =
     journalLineRepo = makeRepo<JournalLine>({
       save: jest.fn().mockResolvedValue(undefined),
     });
-    bookingAccountRepo = makeRepo<DefaultBookingAccount>({
+    bookingAccountRepo = makeRepo<BookingAccount>({
       findOneByOrFail: jest.fn().mockImplementation(({ code }: { code: string }) =>
         Promise.resolve({ code }),
       ),
@@ -91,7 +91,7 @@ describe('BookkeepingService — createJournalEntry / persistJournalEntry', () =
     const reposByEntity = new Map<any, any>([
       [JournalEntry, journalEntryRepo],
       [JournalLine, journalLineRepo],
-      [DefaultBookingAccount, bookingAccountRepo],
+      [BookingAccount, bookingAccountRepo],
     ]);
 
     mockManager = {
@@ -114,7 +114,7 @@ describe('BookkeepingService — createJournalEntry / persistJournalEntry', () =
         BookkeepingService,
         { provide: getRepositoryToken(JournalEntry), useValue: journalEntryRepo },
         { provide: getRepositoryToken(JournalLine), useValue: journalLineRepo },
-        { provide: getRepositoryToken(DefaultBookingAccount), useValue: bookingAccountRepo },
+        { provide: getRepositoryToken(BookingAccount), useValue: bookingAccountRepo },
         { provide: getRepositoryToken(Business), useValue: makeRepo<Business>() },
         { provide: SharedService, useValue: sharedService },
         { provide: DataSource, useValue: dataSource },

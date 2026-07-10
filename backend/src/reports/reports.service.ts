@@ -24,7 +24,7 @@ import * as readline from 'readline';
 import * as iconv from 'iconv-lite';
 import { JournalEntry } from 'src/bookkeeping/jouranl-entry.entity';
 import { JournalLine } from 'src/bookkeeping/jouranl-line.entity';
-import { DefaultBookingAccount } from 'src/bookkeeping/account.entity';
+import { BookingAccount } from 'src/bookkeeping/account.entity';
 import { DocPayments } from 'src/documents/doc-payments.entity';
 import { Business } from 'src/business/business.entity';
 import { SlimTransaction } from 'src/transactions/slim-transaction.entity';
@@ -71,8 +71,8 @@ export class ReportsService {
     private JournalEntryRepo: Repository<JournalEntry>,
     @InjectRepository(JournalLine) 
     private JournalLineRepo: Repository<JournalLine>,
-    @InjectRepository(DefaultBookingAccount)
-    private defaultBookingAccountRepo: Repository<DefaultBookingAccount>,
+    @InjectRepository(BookingAccount)
+    private defaultBookingAccountRepo: Repository<BookingAccount>,
     @InjectRepository(SlimTransaction)
     private slimRepo: Repository<SlimTransaction>,
     @InjectRepository(FullTransactionCache)
@@ -542,7 +542,7 @@ export class ReportsService {
 
     const qb = this.JournalLineRepo.createQueryBuilder('jl')
       .innerJoin(JournalEntry, 'je', 'je.id = jl.journalEntryId')
-      .innerJoin(DefaultBookingAccount, 'dba', 'dba.code = jl.accountCode')
+      .innerJoin(BookingAccount, 'dba', 'dba.code = jl.accountCode')
       .where('je.issuerBusinessNumber = :businessNumber', { businessNumber })
       .andWhere('je.firebaseId = :firebaseId', { firebaseId })
       .andWhere('dba.pnlCategory IS NOT NULL')
