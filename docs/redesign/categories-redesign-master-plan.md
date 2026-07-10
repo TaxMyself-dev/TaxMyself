@@ -615,6 +615,186 @@ ledger/VAT/P&L, in both view modes, as client and as accountant.
 
 ---
 
+## Session runbook — the exact execution order
+
+This section is the operator's guide for Elazar. Each session below is a
+fresh Claude Code session. Copy the prompt as-is. Sessions marked A/B may
+run IN PARALLEL in separate terminals — they touch disjoint files.
+Everything else is sequential.
+
+Standing rules (already in CLAUDE.md, repeated for clarity): commit after
+every task, tick the checkbox in this plan, append to worklog.md. All DB
+work runs against the local `keepintax_prodcopy` database.
+
+### Session 1 — Phase 0, all of it
+
+```
+Read docs/redesign/categories-redesign-master-plan.md in full.
+Phase 0. Production access is deferred — everything runs against a local
+copy of production data.
+Step 1: import _prod-dump/keepintax-prod.sql into a new local MySQL
+database keepintax_prodcopy (find the mysql client yourself, utf8mb4,
+verify row counts against D14; ask me for credentials).
+Step 2 (0.6): SHOW COLUMNS / SHOW INDEX on keepintax_prodcopy for every
+listed table, diff vs the TypeORM entities, write
+docs/redesign/schema-drift.md with a decision per gap.
+Step 3 (0.5): write backend/scripts/generate-baseline-reports.ts, run it
+against keepintax_prodcopy, commit the JSON fixtures.
+Step 4 (0.2 + 0.4): write production-baseline.md from D14; append the two
+UNIQUE constraints as the first section of cutover.sql.
+Stop and ask if anything conflicts with the plan (rule 5).
+```
+
+Elazar between steps: provide DB credentials; review schema-drift.md
+decisions. After: set `Current phase: 1` in CLAUDE.md.
+(Task 0.3 security fixes are deferred to Session 8 per the decision to
+avoid production deploys until the cutover.)
+
+### Session 2 — Phase 1: the new chart (1.1–1.3) — HEAVY, work WITH it
+
+```
+Read docs/redesign/categories-redesign-master-plan.md and
+docs/redesign/schema-drift.md.
+Phase 1, tasks 1.1, 1.2, 1.3: AccountingSection entity, booking account
+entity extension, and the new SYSTEM chart seed with the
+account_code_migration map, applying D14's catalog decisions. Present the
+full proposed chart (sections, accounts, codes, 6111 where certain,
+NULL+TODO where not) as a review table BEFORE writing the seed — I will
+correct codes and 6111 mappings, then you implement.
+```
+
+Elazar: this is the session where you review every account code and 6111
+mapping. Budget real time for it.
+
+### Session 3A — Phase 1: getNextAccountCode (1.5) — may run parallel to Session 2
+
+```
+Read docs/redesign/categories-redesign-master-plan.md.
+Phase 1, task 1.5: implement getNextAccountCode with unit tests (range
+per ownerType/type, jumps of 10, per-chartOwnerKey isolation, manual
+out-of-range codes tolerated).
+```
+
+### Session 4 — Phase 1: renumbering script (1.4) — Plan Mode ON
+
+```
+Phase 1, task 1.4 per the plan: the renumbering script (nine live codes,
+D14/D15 Bituach Leumi remap to the 90000 technical account, no
+subCounterAccountCode in prod). Run against keepintax_prodcopy, show me
+verification SELECTs before/after, append the final version to
+cutover.sql.
+```
+
+### Session 5 — Phase 1: code updates + verification (1.6, 1.7)
+
+```
+Phase 1, tasks 1.6 and 1.7: update every hardcoded account code listed in
+1.6, run the baseline comparison against the migrated keepintax_prodcopy,
+report any diff not covered by intentional-diffs.md.
+```
+
+After: `Current phase: 2`.
+
+### Session 6 — Phase 2: schema + migration (2.1–2.3) — Plan Mode ON
+
+```
+Phase 2, tasks 2.1, 2.2, 2.3: the unified category/sub_category entities,
+the data migration from the four old tables (run on keepintax_prodcopy,
+show verification counts), and the CatalogService with the
+resolveAccountCode adapter. Present the migration plan first.
+```
+
+### Session 6B — Phase 2: CRUD port (2.4–2.7)
+
+```
+Phase 2, tasks 2.4–2.7: port the catalog CRUD endpoints behind the same
+routes/DTOs, freeze old-table writes, replace AccountSeedService with the
+flat seeder, and the parity test over every production (category,
+subCategory) pair.
+```
+
+### Session 7 — Phase 3 (all): FK backfill & snapshots
+
+```
+Phase 3, all tasks, per the plan. Production has zero orphans (D14) so
+3.2 should backfill 100% automatically — if ANY row fails to match, stop
+and show me. Run everything on keepintax_prodcopy, append to cutover.sql,
+finish with the 3.6 verification.
+```
+
+After: `Current phase: 4`.
+
+### Session 8 — Phase 4: write paths (4.1–4.3) + the deferred 0.3
+
+```
+Phase 4, tasks 4.1, 4.2, 4.3, plus the deferred Phase 0.3 security fixes
+(D12) as separate commits. Plan Mode for 4.1.
+```
+
+### Session 9 — Phase 4: reports + dead-code removal (4.4–4.6)
+
+```
+Phase 4, tasks 4.4, 4.5, 4.6: reports to sections, manual entry picker,
+delete the legacy resolver and old-table reads, port + extend the test
+suite, full baseline regression.
+```
+
+After: `Current phase: 5`.
+
+### Session 10 — Phase 5 (all): accountant layer
+
+```
+Phase 5, all tasks per the plan: delegation-aware authorization, the D11
+add-account flow, the client-unmapped flow, and the accountant catalog
+management backend.
+```
+
+After: `Current phase: 6`.
+
+### Sessions 11A / 11B — Phase 6 frontend (parallel, different components)
+
+11A:
+```
+Phase 6, task 6.1: the approval screen per D9 — both view modes, the
+description column, status badges, inline mapping completion, the simple
+picker for clients without an accountant.
+```
+
+11B:
+```
+Phase 6, tasks 6.2–6.4: category management screens, modal-add-expenses /
+add-supplier on the new catalog, ledger/P&L page updates.
+```
+
+After: `Current phase: cutover-ready`.
+
+### Session 12 — Cutover prep
+
+```
+We are cutover-ready. Assemble the final cutover.sql review: walk me
+through it section by section with the embedded verification SELECTs,
+then produce the cutover-day checklist filled in with our actual file
+names and databases, per the plan's cutover section.
+```
+
+Elazar executes the cutover checklist manually. Phase 7 cleanup = one
+more short session 2–4 weeks later, plus re-running /docs-app-map to
+regenerate the per-topic CLAUDE.md docs (they describe the old
+architecture).
+
+### Parallelism rules
+
+- Safe pairs: 2‖3A, 6B‖7-start, 11A‖11B. Nothing else — all other phases
+  chain through shared files (expenses.service, reports.service,
+  entities).
+- Two sessions must never touch the same file; only the primary session
+  of a pair updates this plan's checkboxes.
+- Realistic ceiling: one working session + one helper session. Elazar is
+  the only reviewer — review bandwidth, not typing speed, is the
+  bottleneck.
+
+---
+
 ## Execution rules for Claude Code
 
 **Deployment model: build everything in dev, then ONE manual production
