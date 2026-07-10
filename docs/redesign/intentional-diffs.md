@@ -58,3 +58,37 @@ discrepancy was found).
 the gross debit (₪22,645.00) or the `amountForTax` sum (₪11,775.40) when
 independently verified against the dump — corrected here and in the master
 plan itself.
+
+---
+
+## Correction #2 — Duplicate "בית" / "בנקים וכרטיסי אשראי" categories merged into their canonical counterparts
+
+**Decision:** two documented-dead duplicate `default_category` rows —
+`בית` (duplicate of `דיור והוצאות הבית`) and `בנקים וכרטיסי אשראי`
+(duplicate of `בנק, אשראי ותנועות`), both already flagged as removed/stale
+in `account-seed.service.ts`'s comments — have their `default_sub_category`
+children (`בית`: אינטרנט/טלפון קווי/פלאפון at 100/100; `בנקים וכרטיסי
+אשראי`: ריבית at 100/100) merged into the canonical category's equivalent
+sub-category and its percents (25/25 for the תקשורת trio; 100/0 for ריבית)
+rather than kept as a separate treatment. Approved by Elazar 2026-07-10.
+
+**Delta check (queried `keepintax_prodcopy` 2026-07-10):** `SELECT ... FROM
+expense WHERE category IN ('בית', 'בנקים וכרטיסי אשראי')` and the same
+against `classified_transactions.category` — **zero rows in both tables,
+both categories.** No business has ever posted an expense or a
+classification rule against either duplicate category.
+
+**Expected delta: ₪0.00, every report, every business.** No P&L, VAT, or
+ledger total is affected by this merge — it only prevents the duplicate
+categories from producing a second, incorrectly-percented card in the new
+chart. Registered here per D15 process even though the delta is zero, so
+Phase 1.7/3.6/4.6's comparison script has a documented answer if it
+encounters these category names during migration rather than treating a
+zero-row match as suspicious.
+
+**Chart action:** `chart.seed.ts`'s `60300` (תקשורת) and `61200` (הוצאות
+מימון) blocks are built on the canonical combo only — no separate card for
+either duplicate (see `docs/redesign/phase1-chart-review.md` §6.4/§6.7).
+Retiring the duplicate `default_category`/`default_sub_category` rows
+themselves is Phase 2 (catalog migration) work, out of this session's
+scope (entity + `chart.seed.ts` only) — tracked there, not forgotten.

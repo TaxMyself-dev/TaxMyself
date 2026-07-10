@@ -1,281 +1,339 @@
-# Phase 1.1–1.3 review — new chart of accounts
+# Phase 1.1–1.3 review — new chart of accounts (REVISED 2026-07-10, chart-revision session)
 
-Status: DRAFT — awaiting Elazar's corrections. Nothing in `backend/src/` has
-been written yet; this document is the review artifact requested by the
-Session 2 runbook prompt ("present the full proposed chart... BEFORE writing
-the seed").
+Status: **APPROVED 2026-07-10 — committing.** `backend/src/` was written
+this session (entity + `chart.seed.ts` + `RecognitionType` enum), presented
+here for review, and all decisions below were resolved by Elazar the same
+day. Supersedes the original 2026-07-10 Session 2 version of this file in
+full (D1/D3/D5/D9/D11 and tasks 1.2/1.3 were revised that same day:
+accounting law moved from `sub_category` onto the card).
 
-Source data: `backend/src/bookkeeping/account.seed.ts` (16 accounts),
-`account-seed.service.ts` (`SUBCATEGORY_SUB_ACCOUNT_CODES`, 34 dev-only
-sub-ledger codes), D14/D15 in the master plan, `production-baseline.md`.
+Source data: `backend/src/bookkeeping/chart.seed.ts` (as rebuilt this
+session), and a **live read-only query against `keepintax_prodcopy`.
+default_sub_category** (87 rows, queried via `mysql2`, 2026-07-10). This
+replaces `account-seed.service.ts`'s `SUBCATEGORY_TAX_VAT_DEFAULTS` as the
+source of percents; that hardcoded table is stale in multiple places
+(see §6).
 
 ---
 
-## 0. Open items — please resolve these first, they gate everything below
+## 0. Decisions (resolved 2026-07-10)
 
-**Resolved 2026-07-10 (this session):**
-- code6111: Elazar will provide the official Form 6111 code list in a later
-  session. Proceeding now with `code6111 = NULL` on every account; nothing
-  blocks on this. Revisit once the list is available.
-- `90200 גביית מע"מ` confirmed as the VAT-remittance clearing account
-  (the actual periodic payment to the Tax Authority), distinct from the
-  transactional `2400`/`2410` accounts. Proceeding with this reading and
-  the proposed code.
+**Carried over from the original Session 2 review, still open (deferred, not
+blocking this commit):**
+1. `code6111` — still NULL/TODO on every account. No verified source for the
+   official Form 6111 code list yet.
+2. Sections: still 16 (not the plan text's "18") — see original rationale,
+   unchanged.
 
-1. **Master plan says sections come from "the current 18 P&L categories."**
-   A dedicated search (reports.service.ts, expenses.service.ts, frontend,
-   categories-audit.md) found exactly **16** distinct `pnlCategory` strings
-   in current code/data, not 18 — see §1. Five more strings exist only as
-   dead legacy aliases in `account-seed.service.ts` (`תקשורת ותוכנות`,
-   `ייעוץ מקצועי`, `הוצאות חשבונאות`, `עמלות ומימון`, `ספקים`), all of which
-   already route to one of the 16 canonical accounts and none of which is
-   written by current code except `תקשורת ותוכנות` (which the keyword step
-   immediately overrides to 5400 anyway). **Proposal: proceed with 16
-   sections** (below); flagging the "18" as a stale figure rather than
-   guessing at 2 more you might have in mind. Tell me if you intended 2
-   specific additional sections.
+**This session's four decisions:**
 
-2. **`code6111` — I have no verified source for the official Form 6111
-   field-code catalog.** Per D2/1.3 ("do NOT invent codes"), every
-   `code6111` below is `NULL — TODO`. I did not fill in even
-   low-risk-looking guesses (e.g. for `הכנסות`) because I cannot verify them
-   against the actual Tax Authority uniform classification and a wrong code
-   here has real compliance consequences. **I need either the official
-   code list (a document/link) or your own knowledge of the mapping** to
-   fill these in — I can't respond to correction unless you tell me the
-   values.
+3. **"מתנות מוכרות"**: `tax=100`, `vat=0` (confirmed — corrected the earlier
+   100/100 placeholder). Code `61010`, section `61000` (כיבוד) as proposed.
+4. **60010 "ספקים — כללי" split**: **approved**, resolves the old-code-5000
+   conflict (recognized `עסק/ספקים` vs. NOT_RECOGNIZED `שונות/שונות`). The
+   NOT_RECOGNIZED parent card (`60000`) is renamed **`הוצאות לא מוכרות`**
+   (the section itself keeps the broader legacy label `הוצאות בלתי מזוהות` —
+   see §1, §3c).
+5. **`רכב ותחבורה` VAT normalized to `66.67`** across all six
+   deductible-VAT car-expense cards (60200 parent + 60220/60230/60240/
+   60250/60260/60270) — not 67.00 as originally proposed. `60210 ביטוח רכב`
+   stays `vat=0` (unaffected, it was never in the conflicting group).
+6. **"בית" and "בנקים וכרטיסי אשראי" duplicate categories**: merge into
+   their canonical counterparts (25/25 for the תקשורת trio, 100/0 for
+   ריבית) — the chart already reflected this (built on the canonical combo
+   only, §6.4/§6.7); confirmed as final, not merely a proposal. Delta check
+   run against `keepintax_prodcopy`: **zero expenses, zero classification
+   rules reference either duplicate category — ₪0.00 impact on every
+   report.** Recorded as `docs/redesign/intentional-diffs.md` Correction #2.
+   Retiring the duplicate `default_category`/`default_sub_category` rows
+   themselves remains Phase 2 scope.
 
-3. **The three new D14/decision-3 technical accounts (מקדמות מס הכנסה,
-   גביית מע"מ, מקדמות ביטוח לאומי) never existed as accounts before** — I
-   proposed codes 90100/90200/90300 (§4) and a reading of "גביית מע"מ" as
-   the VAT-remittance clearing account (distinct from the existing
-   2400/2410 transactional VAT accounts) — please confirm that reading and
-   the codes.
+**Accepted as originally proposed, no further action (informational,
+carried forward for Phase 2's attention):**
 
-4. **Six sub-ledger accounts share their exact name with their parent
-   account** (e.g. parent `60100 הוצאות משרד` / child `60103 הוצאות משרד`,
-   from `default_sub_category` row `עסק/הוצאות משרד`). Harmless (only
-   `code` is unique, not `name`), but confusing in a picker UI. Proposed
-   rename to distinguish (e.g. "הוצאות משרד — כללי"), see §3 footnote —
-   confirm or override each one.
-
-5. **Section code scheme** (§2) is my own invention — there is no external
-   compliance constraint on it (only `booking_account.code` maps to real
-   money/6111, sections are our own P&L grouping layer). Proposed:
-   `displayOrder × 10` as a string. Change if you want something else.
+7. Naming bug fix: `chart.seed.ts`'s `60810` uses the live DB's actual name
+   `הוצאות שכר`, not the old hardcoded (and never-matching) `'שכר'`.
+8. Two rows squatting on old code `5900` that aren't ספרות מקצועית
+   (`עסק/הפקדה לקרן השתלמות`, `פנאי וחופשות/ספרות וקריאה`) — no chart
+   account created; recommend the same D14-approved פנסיה-pair treatment
+   for the קרן השתלמות duplicate; the פנאי וחופשות row already falls under
+   D14's PRIVATE list.
+9. Five bank/cash-movement rows on old code `6100` (ביט, בין חשבונותי, חיוב
+   אשראי חודשי, משיכת מזומן, פייבוקס) — not real expense cards, no account
+   created, same treatment as the existing `'העברות ותנועות בחשבון': null`
+   category default.
+10. `בנק, אשראי ותנועות/פרעון הלוואה` (loan principal) on old code `6200` —
+    not a P&L concept, no account created; likely a balance-sheet account
+    in Phase 2, out of this session's scope.
+11. `דיור והוצאות הבית/גינה`, `/משכנתא`, `/שכירות` (old code 5100, all
+    NOT_RECOGNIZED) — redirected to the `60000` catch-all rather than
+    becoming `60100` children.
 
 ---
 
 ## 1. Sections (`accounting_section`) — 16 total, all SYSTEM
 
-| # | Proposed code | Name | Type | Old pnlCategory (verbatim) | Old displayOrder |
-|---|---|---|---|---|---|
-| 1 | `10` | הכנסות | income | הכנסות | 1 |
-| 2 | `20` | הכנסות פטורות | income | הכנסות פטורות | 2 |
-| 3 | `30` | הוצאות משרד | expense | הוצאות משרד | 3 |
-| 4 | `40` | רכב ותחבורה | expense | רכב ותחבורה | 4 |
-| 5 | `50` | תקשורת | expense | תקשורת | 5 |
-| 6 | `60` | תוכנות ושירותי ענן | expense | תוכנות ושירותי ענן | 6 |
-| 7 | `70` | שיווק ופרסום | expense | שיווק ופרסום | 7 |
-| 8 | `80` | ייעוץ ושירותים מקצועיים | expense | ייעוץ ושירותים מקצועיים | 8 |
-| 9 | `90` | הנהלת חשבונות | expense | הנהלת חשבונות | 9 |
-| 10 | `100` | שכר | expense | שכר | 10 |
-| 11 | `110` | ספרות מקצועית | expense | ספרות מקצועית | 11 |
-| 12 | `120` | כיבוד | expense | כיבוד | 12 |
-| 13 | `130` | עמלות ודמי כרטיס | expense | עמלות ודמי כרטיס | 13 |
-| 14 | `140` | הוצאות בלתי מזוהות | expense | הוצאות בלתי מזוהות | 14 |
-| 15 | `150` | הוצאות מימון | expense | הוצאות מימון | 15 |
-| 16 | `160` | פחת | expense | פחת | 16 |
+**REVISED 2026-07-10: section code = block anchor** (the parent expense/
+income account's own code), replacing the old arbitrary `10/20/.../160`
+scheme. Still a separate DB namespace from `booking_account.code` per D1 —
+the numeric equality is intentional but not a foreign key. Section names
+are the broader legacy P&L labels and can differ from an individual card's
+own name within the block (e.g. section `60000` = "הוצאות בלתי מזוהות", its
+NOT_RECOGNIZED anchor card = "הוצאות לא מוכרות").
 
-Note: section codes here are **unrelated** to `booking_account.code` — they
-are a separate table/namespace per D1. Balance-sheet/technical accounts
-(1000–2999, 90000-range) have `sectionId = NULL`, matching today's
-`pnlCategory IS NULL` exclusion from the P&L join.
+| # | Section code (= block anchor) | Name | Type | displayOrder |
+|---|---|---|---|---|
+| 1 | `40000` | הכנסות | income | 1 |
+| 2 | `40010` | הכנסות פטורות | income | 2 |
+| 3 | `60100` | הוצאות משרד | expense | 3 |
+| 4 | `60200` | רכב ותחבורה | expense | 4 |
+| 5 | `60300` | תקשורת | expense | 5 |
+| 6 | `60400` | תוכנות ושירותי ענן | expense | 6 |
+| 7 | `60500` | שיווק ופרסום | expense | 7 |
+| 8 | `60600` | ייעוץ ושירותים מקצועיים | expense | 8 |
+| 9 | `60700` | הנהלת חשבונות | expense | 9 |
+| 10 | `60800` | שכר | expense | 10 |
+| 11 | `60900` | ספרות מקצועית | expense | 11 |
+| 12 | `61000` | כיבוד | expense | 12 |
+| 13 | `61100` | עמלות ודמי כרטיס | expense | 13 |
+| 14 | `60000` | הוצאות בלתי מזוהות | expense | 14 |
+| 15 | `61200` | הוצאות מימון | expense | 15 |
+| 16 | `61300` | פחת | expense | 16 |
+
+Balance-sheet/technical accounts (1000–2999, 90000-range) have
+`sectionId = NULL`, as before.
 
 ---
 
-## 2. Numbering formula used below
+## 2. Numbering formula (revised)
 
 - Balance-sheet/technical `1000–2999`: **unchanged**, per D2.
-- Income: `new = old × 10` (4000→40000, 4010→40010) — literal per D2 text.
-- Expense parent accounts `5000–6300`: `new = old + 55000` (5000→60000 …
-  6300→61300) — lands exactly in the mandated 60000–69999 system range and
-  preserves old ordering/spacing so the mapping is visually obvious.
-- Expense sub-ledger accounts (old dev-only `subAccountCode`, 5101–6303):
-  same `+55000` formula (5101→60101 … 6303→61303), nesting each child
-  directly under its parent's new code (e.g. parent `60200` /
-  children `60201–60207`).
-- New technical accounts (D14 decision 3, never existed before): proposed
-  `90100`, `90200`, `90300` — open item 3 above.
-- Ranges for `getNextAccountCode` (task 1.5, consistent with this table):
-  SYSTEM income `40000–49999`, SYSTEM expense `60000–69999`, ACCOUNTANT
-  `70000–79999`, CLIENT `80000–89999`, technical/adjustment `90000–99999`.
+- Income: `new = old × 10` — unchanged.
+- Expense **block anchors** (parent accounts): `new = old + 55000` —
+  unchanged (5200→60200 etc.). Anchors are now also their section's code.
+- Expense **children**: **jumps of 10 from the anchor** (anchor+10, +20,
+  ...), replacing the old `+1/+2/...` offset scheme. Anchors sit 100 apart,
+  so a block has room for at most **9** children before colliding with the
+  next block's anchor.
+- **Name-collision merge rule** (new): a sub-category whose name is
+  IDENTICAL to its block's section name merges into the parent card instead
+  of getting its own child code. This resolves both the old "6 collisions
+  read oddly in a picker" issue AND the numbering overflow in the 60100
+  block (10 old children didn't fit in 9 jump-of-10 slots — see §6.1).
+- New technical accounts (90000-range): `90100`/`90200`/`90300` (D14,
+  confirmed), plus this session's new `90400`.
 
 ---
 
-## 3. Full proposed chart
+## 3. Full approved chart
 
-### 3a. Balance-sheet / technical — codes unchanged
+### 3a. Balance-sheet / technical — unchanged
 
-| Code | Name | Type | Section | code6111 | Prod live? |
-|---|---|---|---|---|---|
-| 1000 | חשבון מעבר | asset | — | NULL–TODO | no |
-| 1100 | בנק | asset | — | NULL–TODO | **yes (85)** |
-| 1110 | מזומן | asset | — | NULL–TODO | no |
-| 1120 | כרטיס אשראי / סליקה | asset | — | NULL–TODO | no |
-| 1200 | לקוחות כלליים | asset | — | NULL–TODO | no |
-| 2000 | ספקים כלליים | liability | — | NULL–TODO | no |
-| 2100 | כרטיסי אשראי לתשלום | liability | — | NULL–TODO | no |
-| 2400 | מע"מ עסקאות | liability | — | NULL–TODO | yes (1, non-expense entries) |
-| 2410 | מע"מ תשומות | asset | — | NULL–TODO | **yes (56)** |
+Same 9 rows as before (1000, 1100, 1110, 1120, 1200, 2000, 2100, 2400,
+2410) — no law fields (not applicable to non-expense accounts).
 
-### 3b. Income
+### 3b. Income — unchanged codes, no law fields
 
-| Old | New | Name | Section | code6111 | Prod live? |
-|---|---|---|---|---|---|
-| 4000 | **40000** | הכנסות | הכנסות (10) | NULL–TODO | **yes (38)** |
-| 4010 | **40010** | הכנסות פטורות | הכנסות פטורות (20) | NULL–TODO | no |
-
-### 3c. Expense parent accounts
-
-| Old | New | Name | Section | code6111 | Prod live (expense lines) |
-|---|---|---|---|---|---|
-| 5000 | **60000** | הוצאות בלתי מזוהות (generic fallback) | הוצאות בלתי מזוהות (140) | NULL–TODO | **yes (6)** |
-| 5100 | **60100** | הוצאות משרד | הוצאות משרד (30) | NULL–TODO | **yes (11)** |
-| 5200 | **60200** | רכב ותחבורה | רכב ותחבורה (40) | NULL–TODO | **yes (29)** |
-| 5300 | **60300** | תקשורת | תקשורת (50) | NULL–TODO | **yes (14)** |
-| 5400 | **60400** | תוכנות ושירותי ענן | תוכנות ושירותי ענן (60) | NULL–TODO | **yes (3)** |
-| 5500 | **60500** | שיווק ופרסום | שיווק ופרסום (70) | NULL–TODO | no |
-| 5600 | **60600** | ייעוץ ושירותים מקצועיים | ייעוץ ושירותים מקצועיים (80) | NULL–TODO | **yes (3)** |
-| 5700 | **60700** | הנהלת חשבונות | הנהלת חשבונות (90) | NULL–TODO | **yes (1)** |
-| 5800 | **60800** | שכר | שכר (100) | NULL–TODO | no |
-| 5900 | **60900** | ספרות מקצועית | ספרות מקצועית (110) | NULL–TODO | no |
-| 6000 | **61000** | כיבוד | כיבוד (120) | NULL–TODO | no |
-| 6100 | **61100** | עמלות ודמי כרטיס | עמלות ודמי כרטיס (130) | NULL–TODO | **yes (18)** |
-| 6200 | **61200** | הוצאות מימון | הוצאות מימון (150) | NULL–TODO | no |
-| 6300 | **61300** | פחת | פחת (160) | NULL–TODO | no |
-
-(9 live-in-prod parent codes shown in bold — matches D14's "nine live code
-values" exactly: the 8 distinct 5xxx/6xxx codes above + 4000.)
-
-### 3d. Expense sub-ledger accounts (dev-only today; becomes real per D1/D2)
-
-All currently dev-only (`subAccountCode`, never in prod — schema-drift.md
-Gap 1). Each becomes a real `booking_account` row, child of the parent
-listed. None has independent prod journal usage (prod never populated
-`subCounterAccountCode` — D14).
-
-| Old subAccountCode | New code | Name | Parent (new) |
+| Old | New | Name | Section |
 |---|---|---|---|
-| 5101 | 60101 | ארנונה | 60100 |
-| 5102 | 60102 | גז | 60100 |
-| 5103 | 60103 | הוצאות משרד ⚠️ (name collision, see open item 4) | 60100 |
-| 5104 | 60104 | ועד בית | 60100 |
-| 5105 | 60105 | חשמל | 60100 |
-| 5106 | 60106 | מים | 60100 |
-| 5107 | 60107 | שכירות | 60100 |
-| 5108 | 60108 | שכירות משרד | 60100 |
-| 5109 | 60109 | שליחויות | 60100 |
-| 5110 | 60110 | תחזוקה | 60100 |
-| 5201 | 60201 | ביטוח רכב | 60200 |
-| 5202 | 60202 | דלק | 60200 |
-| 5203 | 60203 | חניה | 60200 |
-| 5204 | 60204 | טיפולים | 60200 |
-| 5205 | 60205 | כבישי אגרה | 60200 |
-| 5206 | 60206 | מערכות | 60200 |
-| 5207 | 60207 | תחבורה ציבורית | 60200 |
-| 5301 | 60301 | אינטרנט | 60300 |
-| 5302 | 60302 | טלפון קווי | 60300 |
-| 5303 | 60303 | פלאפון | 60300 |
-| 5401 | 60401 | תוכנות | 60400 |
-| 5501 | 60501 | שיווק ופרסום ⚠️ (name collision) | 60500 |
-| 5601 | 60601 | ייעוץ והשתלמויות | 60600 |
-| 5602 | 60602 | ייעוץ מקצועי | 60600 |
-| 5701 | 60701 | הנהלת חשבונות ⚠️ (name collision) | 60700 |
-| 5801 | 60801 | שכר ⚠️ (name collision) | 60800 |
-| 5901 | 60901 | ספרות מקצועית ⚠️ (name collision) | 60900 |
-| 6001 | 61001 | כיבוד ⚠️ (name collision) | 61000 |
-| 6101 | 61101 | עמלות ודמי כרטיס (מקור: עסק) | 61100 |
-| 6102 | 61102 | עמלות ודמי כרטיס (מקור: בנק אשראי ותנועות) | 61100 |
-| 6201 | 61201 | ריבית | 61200 |
-| 6301 | 61301 | מחשב | 61300 |
-| 6302 | 61302 | ריהוט | 61300 |
-| 6303 | 61303 | רכב | 61300 |
+| 4000 | **40000** | הכנסות | 40000 |
+| 4010 | **40010** | הכנסות פטורות | 40010 |
 
-### 3e. New technical accounts (D14 decision 3 — proposed, not yet confirmed)
+### 3c. Expense block anchors (= section codes)
 
-| Proposed code | Name | Type | Section | Notes |
-|---|---|---|---|---|
-| 90100 | מקדמות מס הכנסה | asset (advance payment) | NULL (technical) | New — no current equivalent |
-| 90200 | גביית מע"מ | liability/asset (clearing) | NULL (technical) | New — my reading: VAT-remittance clearing, distinct from 2400/2410. Confirm. |
-| 90300 | מקדמות ביטוח לאומי | asset (advance payment) | NULL (technical) | New — receives business 204245724's six D15-registered entries currently on `5000` |
+| Old | New | Name | vat% | tax% | Recognition | Notes |
+|---|---|---|---|---|---|---|
+| 5000 | **60000** | הוצאות לא מוכרות | 0 | 0 | NOT_RECOGNIZED | renamed 2026-07-10; section keeps legacy label |
+| — | **60010** | ספקים — כללי (הוצאה מוכרת) | 100 | 100 | RECOGNIZED | NEW, approved |
+| 5100 | **60100** | הוצאות משרד | 100 | 100 | RECOGNIZED | absorbs old 5103 (name-identical) |
+| 5200 | **60200** | רכב ותחבורה | 66.67 | 45 | RECOGNIZED | normalized 2026-07-10 |
+| 5300 | **60300** | תקשורת | 25 | 25 | RECOGNIZED | canonical combo; "בית" duplicate merged, Correction #2 |
+| 5400 | **60400** | תוכנות ושירותי ענן | 100 | 100 | RECOGNIZED | |
+| 5500 | **60500** | שיווק ופרסום | 100 | 100 | RECOGNIZED | absorbs old 5501 (name-identical) |
+| 5600 | **60600** | ייעוץ ושירותים מקצועיים | 100 | 100 | RECOGNIZED | |
+| 5700 | **60700** | הנהלת חשבונות | 100 | 100 | RECOGNIZED | absorbs old 5701 + live "רואה חשבון" |
+| 5800 | **60800** | שכר | 0 | 100 | RECOGNIZED | |
+| 5900 | **60900** | ספרות מקצועית | 100 | 100 | RECOGNIZED | absorbs old 5901 (name-identical) |
+| 6000 | **61000** | כיבוד | 0 | 80 | RECOGNIZED | absorbs old 6001; tax=80 confirmed |
+| — | **61010** | מתנות מוכרות | 0 | 100 | RECOGNIZED | NEW, approved (tax100/vat0) |
+| 6100 | **61100** | עמלות ודמי כרטיס | 0 | 100 | RECOGNIZED | parent default |
+| 6200 | **61200** | הוצאות מימון | 0 | 100 | RECOGNIZED | parent default; "בנקים וכרטיסי אשראי" duplicate merged, Correction #2 |
+| 6300 | **61300** | פחת | 0 | 0 | RECOGNIZED | parent unused directly |
 
----
+### 3d. Expense children (jumps of 10)
 
-## 4. `account_code_migration` table (old_code, new_code, source)
+| Old subAccountCode | New | Name | vat% | tax% | red% | eq | Parent |
+|---|---|---|---|---|---|---|---|
+| 5101 | 60110 | ארנונה | 0 | 25 | — | — | 60100 |
+| 5102 | 60120 | גז | 0 | 25 | — | — | 60100 |
+| 5104 | 60130 | ועד בית | 0 | 25 | — | — | 60100 |
+| 5105 | 60140 | חשמל | 0 | 25 | — | — | 60100 |
+| 5106 | 60150 | מים | 0 | 25 | — | — | 60100 |
+| 5110 | 60160 | תחזוקה | 0 | 25 | — | — | 60100 |
+| 5108 | 60170 | שכירות משרד | 100 | 100 | — | — | 60100 |
+| 5109 | 60180 | שליחויות | 100 | 100 | — | — | 60100 |
+| 5201 | 60210 | ביטוח רכב | 0 | 45 | — | — | 60200 |
+| 5202 | 60220 | דלק | 66.67 | 45 | — | — | 60200 |
+| 5203 | 60230 | חניה | 66.67 | 45 | — | — | 60200 |
+| 5204 | 60240 | טיפולים | 66.67 | 45 | — | — | 60200 |
+| 5205 | 60250 | כבישי אגרה | 66.67 | 45 | — | — | 60200 |
+| 5206 | 60260 | מערכות | 66.67 | 45 | — | — | 60200 |
+| 5207 | 60270 | תחבורה ציבורית | 66.67 | 45 | — | — | 60200 |
+| 5301 | 60310 | אינטרנט | 25 | 25 | — | — | 60300 |
+| 5302 | 60320 | טלפון קווי | 25 | 25 | — | — | 60300 |
+| 5303 | 60330 | פלאפון | 25 | 25 | — | — | 60300 |
+| 5401 | 60410 | תוכנות | 100 | 100 | — | — | 60400 |
+| 5601 | 60610 | ייעוץ והשתלמויות | 100 | 100 | — | — | 60600 |
+| 5602 | 60620 | ייעוץ מקצועי | 100 | 100 | — | — | 60600 |
+| 5801 | 60810 | הוצאות שכר (name fixed, §0.7) | 0 | 100 | — | — | 60800 |
+| 6101 | 61110 | עמלות ודמי כרטיס (עסק) | 0 | 100 | — | — | 61100 |
+| 6102 | 61120 | עמלות ודמי כרטיס (בנק, אשראי ותנועות) | 0 | 25 | — | — | 61100 |
+| 6201 | 61210 | ריבית | 0 | 100 | — | — | 61200 |
+| 6301 | 61310 | מחשב | 100 | 0 | 33.33 | ✓ | 61300 |
+| 6302 | 61320 | ריהוט | 100 | 0 | 7 | ✓ | 61300 |
+| 6303 | 61330 | רכב | 0 | 0 | 15 | ✓ | 61300 |
 
-Every row below is a candidate INSERT for the Phase 1.4 migration map.
-`source` distinguishes the two origin columns per D2's spec.
+No children (merged into parent): **60500, 60700, 60900, 61000**.
 
-```
--- source = 'accountCode' (parent accounts, old default_booking_account.code)
-('4000','40000','accountCode'),
-('4010','40010','accountCode'),
-('5000','60000','accountCode'),
-('5100','60100','accountCode'),
-('5200','60200','accountCode'),
-('5300','60300','accountCode'),
-('5400','60400','accountCode'),
-('5500','60500','accountCode'),
-('5600','60600','accountCode'),
-('5700','60700','accountCode'),
-('5800','60800','accountCode'),
-('5900','60900','accountCode'),
-('6000','61000','accountCode'),
-('6100','61100','accountCode'),
-('6200','61200','accountCode'),
-('6300','61300','accountCode'),
+### 3e. New technical accounts (90000-range)
 
--- source = 'subAccountCode' (dev-only today; derive-from-if-present per 1.4)
-('5101','60101','subAccountCode'), ('5102','60102','subAccountCode'),
-('5103','60103','subAccountCode'), ('5104','60104','subAccountCode'),
-('5105','60105','subAccountCode'), ('5106','60106','subAccountCode'),
-('5107','60107','subAccountCode'), ('5108','60108','subAccountCode'),
-('5109','60109','subAccountCode'), ('5110','60110','subAccountCode'),
-('5201','60201','subAccountCode'), ('5202','60202','subAccountCode'),
-('5203','60203','subAccountCode'), ('5204','60204','subAccountCode'),
-('5205','60205','subAccountCode'), ('5206','60206','subAccountCode'),
-('5207','60207','subAccountCode'), ('5301','60301','subAccountCode'),
-('5302','60302','subAccountCode'), ('5303','60303','subAccountCode'),
-('5401','60401','subAccountCode'), ('5501','60501','subAccountCode'),
-('5601','60601','subAccountCode'), ('5602','60602','subAccountCode'),
-('5701','60701','subAccountCode'), ('5801','60801','subAccountCode'),
-('5901','60901','subAccountCode'), ('6001','61001','subAccountCode'),
-('6101','61101','subAccountCode'), ('6102','61102','subAccountCode'),
-('6201','61201','subAccountCode'), ('6301','61301','subAccountCode'),
-('6302','61302','subAccountCode'), ('6303','61303','subAccountCode');
-
--- NOT migrated (unchanged): 1000, 1100, 1110, 1120, 1200, 2000, 2100, 2400, 2410
--- Special-cased, NOT a straight code-map row (per D14/D15): the six
--- business-204245724 journal_line rows currently on account 5000 whose
--- journal_entry counterparty is Bituach Leumi remap to 90300, not 60000 —
--- handled as a targeted UPDATE in 1.4, not via this generic map.
-```
-
-Total: 16 parent + 34 sub-ledger = **50 mapping rows**, covering every code
-that currently exists in `account.seed.ts` + `SUBCATEGORY_SUB_ACCOUNT_CODES`.
+| Code | Name | Type | Notes |
+|---|---|---|---|
+| 90100 | מקדמות מס הכנסה | asset | D14, confirmed |
+| 90200 | גביית מע"מ | asset | D14, confirmed VAT-remittance clearing |
+| 90300 | מקדמות ביטוח לאומי | asset | D14, confirmed |
+| 90400 | מס במקור שנוכה מלקוחות | asset | NEW this session — withholding tax clients deducted at source |
 
 ---
 
-## 5. Next step
+## 4. `account_code_migration` — 50 rows (16 accountCode + 34 subAccountCode)
 
-Once you've corrected §0's open items (especially the `code6111` values —
-I cannot proceed on those without your input) and confirmed/edited the
-tables in §1–§4, I'll implement:
+Same total row count as before (50), same set of old codes covered. What
+changed: 6 of the 34 old subAccountCodes now migrate to their BLOCK'S
+PARENT code instead of a distinct child code (the name-collision merges +
+the 5107 redirect), and every other child's new code changed to the
+jumps-of-10 scheme. Full list is in `chart.seed.ts` (`CHART_ACCOUNTS`-derived
+rows + `MERGED_SUBACCOUNT_MIGRATIONS`); not duplicated here to avoid drift
+between the code and this doc — see the file directly, `ACCOUNT_CODE_MIGRATION`
+export, verified by script to have exactly 50 rows with zero duplicate old
+codes and every new-code target resolving to a real chart-account row.
 
-- `AccountingSection` entity (table `accounting_section`)
-- `BookingAccount` entity (renamed from `DefaultBookingAccount`, extended
-  per D1.2)
-- `backend/src/bookkeeping/chart.seed.ts` — flat seed data reflecting the
-  corrected tables above
-- The `account_code_migration` seed rows (for task 1.4's consumption)
+Special case (unchanged): business 204245724's six journal_line rows on old
+account 5000, Bituach Leumi counterparty → remap to `90300`, not
+`60000`/`60010` (D14/D15, handled as a targeted UPDATE in 1.4).
+
+---
+
+## 5. Entity change (`BookingAccount`, D1.2 revised)
+
+Added to `booking_account`, per revised D1/D5 ("the card carries the full
+accounting law"):
+
+```
+vatPercent: decimal(5,2) | null
+taxPercent: decimal(5,2) | null
+reductionPercent: decimal(5,2) | null
+isEquipment: boolean | null
+recognitionType: 'RECOGNIZED' | 'NOT_RECOGNIZED' | null
+```
+
+All five are **nullable** — NULL on every non-expense account (income,
+balance-sheet, technical), same "NULL = not applicable" convention already
+used for `code6111`. New enum `RecognitionType` added to `src/enum.ts`.
+
+---
+
+## 6. Percent-conflict check (task 1.3's "detect and list, don't merge
+   silently") — full results
+
+Ran across all 87 live `default_sub_category` rows, grouped by current
+`accountCode`. **8 of 13 non-null accountCode groups had more than one
+distinct `(tax%, vat%, reduction%, isEquipment, isRecognized)` combination**
+— i.e. 8 old codes were carrying more than one real treatment, which the
+revised D1 model ("different percent combo = different card") can no longer
+represent with a single account. Resolution taken for each, below.
+
+### 6.1 — old code `5100` (הוצאות משרד) — 3 combos, 12 rows
+
+| Combo | Rows |
+|---|---|
+| tax25/vat0, recognized | ארנונה, גז, ועד בית, חשמל, מים, תחזוקה |
+| tax100/vat100, recognized | הוצאות משרד (name-collision→merged into parent), שכירות משרד, שליחויות |
+| tax0/vat0, NOT recognized | גינה, משכנתא, שכירות |
+
+**Resolution**: combo 1 → 6 children (60110–60160). Combo 2's "הוצאות משרד"
+merges into parent per the name-collision rule; שכירות משרד/שליחויות get
+their own children (60170/60180) despite sharing the parent's combo, to
+preserve sub-ledger granularity like the pre-existing design. Combo 3 (all
+three NOT recognized) → redirected to the `60000` catch-all (§0.11).
+
+### 6.2 — old code `5000` (הוצאות בלתי מזוהות) — 3 combos, 3 rows — RESOLVED
+
+| Combo | Row |
+|---|---|
+| tax52/vat0, recognized, ANNUAL | עסק/מקדמות ביטוח לאומי |
+| tax100/vat100, recognized | עסק/ספקים |
+| tax0/vat0, NOT recognized | שונות/שונות |
+
+Row 1 is the D14/D15-registered Bituach Leumi case — remaps to `90300`, not
+this block at all. Row 3 defines the `60000` catch-all, renamed
+**הוצאות לא מוכרות** (NOT_RECOGNIZED, 0/0). Row 2 gets the approved `60010`
+child (§0.4).
+
+### 6.3 — old code `5200` (רכב ותחבורה) — RESOLVED
+
+ביטוח רכב is intentionally vat0 (insurance, no VAT input). The other six all
+carry tax45; the old vat split (67.00 on five rows, 66.66 on מערכות alone)
+is **normalized to 66.67 across all six** (§0.5).
+
+### 6.4 — old code `5300` (תקשורת) — RESOLVED, Correction #2
+
+Canonical `דיור והוצאות הבית` rows (אינטרנט/טלפון קווי/פלאפון) at 25/25 vs.
+the documented-dead duplicate category `בית`'s same-named rows at 100/100.
+Children built on the canonical combo; the "בית" duplicate merges into it
+per §0.6 — zero live usage, zero report delta (`intentional-diffs.md`
+Correction #2).
+
+### 6.5 — old code `5900` (ספרות מקצועית) — 2 combos, 4 rows
+
+| Combo | Row |
+|---|---|
+| tax100/vat100, recognized | עסק/ספרות מקצועית (→ merges into parent, name-identical) |
+| tax0/vat0, NOT recognized | עסק/הפקדה לקרן השתלמות; פנאי וחופשות/ספרות וקריאה; החזרי מס/הפקדה לקרן השתלמות (עצמאי) |
+
+Only the first row is a real ספרות מקצועית card (merges into `60900`). The
+other three are anomalies (§0.8) — no chart account; Phase 2 concern.
+
+### 6.6 — old code `6100` (עמלות ודמי כרטיס) — 3 combos, 7 rows
+
+Two real cards (עסק 100/0, בנק 25/0) → 61110/61120. Five NOT_RECOGNIZED
+bank/cash-movement rows (§0.9) — not real expense cards, no account created.
+
+### 6.7 — old code `6200` (הוצאות מימון) — RESOLVED, Correction #2
+
+Real card: `בנק, אשראי ותנועות/ריבית` (100/0) → `61210`. Documented-dead
+duplicate category `בנקים וכרטיסי אשראי/ריבית` (100/**100**) merges into it
+per §0.6 — zero live usage, zero report delta. `פרעון הלוואה` (§0.10, loan
+principal) is a balance-sheet concept, no account created.
+
+### 6.8 — old code `4000` (income) — informational only, not a real conflict
+
+7 income rows all show `tax=0/vat=0`, differing only in `isRecognized`
+(cosmetic — income doesn't carry deductibility percents the way expenses
+do). All map to the single `40000` parent as before; not treated as a D1
+percent conflict.
+
+### Groups with NO conflict (single combo, straightforward)
+
+Old codes `5400`, `5500`, `5600`, `5700`, `6000` — one distinct combo each
+across all their rows, no action needed beyond the name-collision merges
+already noted in §3c/§3d.
+
+---
+
+## 7. Status
+
+All four this-session decisions applied to `chart.seed.ts` and verified
+(59 accounts, 16 sections, 50 migration rows, zero duplicate/colliding
+codes, `tsc --noEmit` clean). Committing 1.2 + 1.3 together. Next: Session 4
+(task 1.4, the actual renumbering script).

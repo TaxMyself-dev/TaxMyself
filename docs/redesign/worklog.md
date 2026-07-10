@@ -166,3 +166,85 @@ code as a string.
 
 **Next**: Session 2-continuation or Session 4 (1.4, the renumbering
 script) per the runbook.
+
+## 2026-07-10 — Chart-revision session (1.2/1.3 REVISED, APPROVED & COMMITTED)
+
+Triggered by same-day revisions to D1/D3/D5/D9/D11 (accounting law — vat%,
+tax%, isEquipment, reductionPercent, recognition — moved from `sub_category`
+onto the `booking_account` card). Rebuilt `chart.seed.ts` and extended
+`BookingAccount` before task 1.4; **stopped short of committing**, per this
+session's explicit instruction — awaiting Elazar's review of
+`docs/redesign/phase1-chart-review.md` (full rewrite) and
+`docs/redesign/chart-review.xlsx` (regenerated, now includes the five new
+law columns).
+
+- **Entity**: added `vatPercent`/`taxPercent`/`reductionPercent` (decimal,
+  nullable), `isEquipment` (boolean, nullable), `recognitionType` (new enum
+  `RecognitionType`, nullable) to `BookingAccount`. All nullable — NULL on
+  every non-expense account (income/balance-sheet/technical), same
+  convention as `code6111`.
+- **Percents sourced live**: connected read-only (via `mysql2`, no app boot)
+  to `keepintax_prodcopy`.`default_sub_category` (87 rows) instead of
+  reusing `account-seed.service.ts`'s `SUBCATEGORY_TAX_VAT_DEFAULTS`, which
+  is stale in several places (e.g. כיבוד hardcoded as 100/0, live data is
+  80/0 — matches Elazar's explicit "כיבוד tax 80" instruction exactly).
+- **Section codes revised**: now equal their block's anchor account code
+  (e.g. section רכב ותחבורה = `60200`), replacing the old arbitrary
+  `10/20/.../160` scheme.
+- **Children renumbered**: jumps of 10 from the anchor, replacing `+1/+2/…`.
+  Anchors are 100 apart → max 9 children per block. One block (5100, 10 old
+  children) exceeded that — resolved via a new "identical-name merges into
+  parent" rule, which also happened to clean up 5 of the original 6
+  name-collision picker annoyances for free.
+- **Percent-conflict check run** (task 1.3, explicit ask): 8 of 13 non-null
+  old account codes had more than one real `(tax%, vat%, isRecognized)`
+  combination live in prod. Every one resolved or explicitly flagged rather
+  than silently merged — full writeup in the review doc §6. Two genuinely
+  new judgment calls fell out of this and are NOT yet confirmed: a new
+  `60010 ספקים — כללי` child (splits a real conflict on old code 5000), and
+  the requested `90400 מס במקור שנוכה מלקוחות` + a proposed `61010 מתנות
+  מוכרות` (code/section/percents all placeholder — no source data exists for
+  it anywhere, flagged prominently, not invented past that point).
+- **Data-quality findings surfaced, not silently fixed** (see review doc §0):
+  a `SUBCATEGORY_SUB_ACCOUNT_CODES` naming bug (hardcoded "שכר" never
+  actually matched the live row, which is named "הוצאות שכר" — fixed in the
+  new seed); two documented-dead duplicate categories (`בית`, `בנקים
+  וכרטיסי אשראי`) still have live rows with different percents than their
+  canonical counterpart; a probable rounding inconsistency on
+  `רכב ותחבורה/מערכות`'s VAT (66.66 vs. 67.00 on its five siblings); an
+  undocumented near-duplicate of D14's already-approved פנסיה merge pattern
+  found for קרן השתלמות; five bank/cash-movement rows and one loan-repayment
+  row squatting on expense account codes despite not being real P&L items.
+- **`account_code_migration`**: still 50 rows (same count, same old-code
+  coverage) — 6 of the old 34 subAccountCodes now migrate to their block's
+  PARENT code (merges) instead of a distinct child; captured in a new
+  `MERGED_SUBACCOUNT_MIGRATIONS` array since a merged account's `legacyCode`
+  slot is already used by its own primary old code.
+- **Verified via script**: 59 accounts, zero duplicate codes, zero numbering
+  collisions, every migration target resolves to a real account row,
+  `tsc --noEmit` shows zero new errors (same pre-existing users/report-workflow
+  spec failures as before, untouched).
+
+**Resolution (same day, after review)** — Elazar's four decisions applied:
+1. `61010 מתנות מוכרות` → `tax=100/vat=0` (corrected from the 100/100
+   placeholder).
+2. `60010` split approved; the NOT_RECOGNIZED anchor card (`60000`) renamed
+   `הוצאות לא מוכרות` (section keeps the broader legacy label
+   `הוצאות בלתי מזוהות`).
+3. All six deductible-VAT car-expense cards normalized to `vat=66.67`
+   (not 67.00 as originally proposed) — `60200` parent +
+   `60220/60230/60240/60250/60260/60270`; `60210 ביטוח רכב` unaffected.
+4. "בית"/"בנקים וכרטיסי אשראי" duplicate categories merge into their
+   canonical counterparts — confirmed. Delta check against
+   `keepintax_prodcopy` (`expense` + `classified_transactions` tables):
+   **zero rows reference either duplicate category anywhere** → ₪0.00
+   report impact, registered as `intentional-diffs.md` Correction #2 per
+   D15 process (recorded even though the delta is zero, so the Phase
+   1.7/3.6/4.6 comparison script has a documented answer).
+
+`chart-review.xlsx` regenerated (twice — once after the initial build, once
+after applying these four decisions). `phase1-chart-review.md` rewritten to
+STATUS: APPROVED. Master-plan checkboxes 1.2 and 1.3 ticked. Committed.
+
+**Next**: Session 4 (task 1.4, the actual renumbering script against
+`keepintax_prodcopy`) — Plan Mode per the runbook.

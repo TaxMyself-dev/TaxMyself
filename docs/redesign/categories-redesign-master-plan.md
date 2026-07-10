@@ -15,20 +15,29 @@ migrate the data instead.
 
 These are final. Do not re-litigate them during implementation.
 
-### D1 — Four-table core model
+### D1 — Four-table core model (REVISED 2026-07-10: accounting law lives on the card)
 
 | Table | Role | Visible to |
 |---|---|---|
 | `accounting_section` | חתך — P&L grouping | accountant, reports |
-| `booking_account` | כרטיס — journal posting target, carries `code6111` | accountant, ledger |
+| `booking_account` | כרטיס — carries the FULL accounting law: journal target, `code6111`, vat%, tax%, isEquipment, depreciation%, recognition | accountant, ledger |
 | `category` | display group, client language | client |
-| `sub_category` | expense type, client language; points at a `booking_account` | client |
+| `sub_category` | client-language label for an expense type; a thin pointer at a `booking_account` | client |
 
 Relationship: `sub_category.accountId → booking_account.id` (many-to-one).
-`booking_account.sectionId → accounting_section.id`. System-default
-sub-categories happen to map 1:1 to accounts ("category = section,
-sub-category = account"), but that is a data coincidence, not a structural
-rule — user/accountant sub-categories will be many-to-one.
+`booking_account.sectionId → accounting_section.id`.
+
+**The card is the bearer of accounting treatment** — matching Israeli
+bookkeeping practice (חשבשבת/רווחית sort codes, and the accountant's
+sort-code file reviewed 2026-07-10): `vatPercent`, `taxPercent`,
+`isEquipment`, `reductionPercent`, and business recognition all live on
+`booking_account`. The sub_category carries NO accounting fields — only
+name, parent category, ownership, and the account pointer. Consequence:
+**a different percentage combination = a different card.** Fuel at
+45/66.67 and fuel at 100/100 (courier client) are two cards; the
+accountant points that client's "דלק" sub_category at the 100/100 card.
+Resolution chain: sub_category → account → (section, 6111, percents,
+equipment, recognition) → expense snapshot + journal.
 
 ### D2 — Full renumbering of result accounts
 
@@ -65,9 +74,11 @@ rule — user/accountant sub-categories will be many-to-one.
   and must be deleted, not reproduced.
 - `booking_account.code6111: string | null` — the Form 6111 field code per
   account (per Tax Authority uniform classification).
-- `sub_category` gets optional overrides, default NULL = inherit from the
-  account: `pnlSectionId: number | null`, `code6111Override: string | null`.
-  When set, they flow into the expense snapshot and journal at posting time.
+- (REVISED) There are NO accounting overrides on `sub_category`
+  (the earlier `pnlSectionId` / `code6111Override` idea is dropped). A
+  variant treatment — different percents, different 6111, different
+  section — is a separate card, per D1. One-off deviations on a single
+  expense use the D10 snapshot override.
 
 ### D4 — Ownership model
 
@@ -89,21 +100,30 @@ SYSTEM, keyed by name (same override-by-name behavior as today's
 Existing data maps deterministically: `default_*` rows → SYSTEM;
 `user_*` rows → CLIENT (chartOwnerKey = `CLIENT_<businessNumber>`).
 
-### D5 — Recognition & approval on sub_category
+### D5 — Recognition & approval (REVISED: recognition lives on the card)
 
+On `booking_account`:
 ```
-recognitionType: 'RECOGNIZED' | 'NOT_RECOGNIZED' | 'PRIVATE'
+recognitionType: 'RECOGNIZED' | 'NOT_RECOGNIZED'
+```
+- NOT_RECOGNIZED cards (e.g. קנסות) carry vat/tax 0 and post to the ledger
+  but are excluded from deductible totals.
+
+On `sub_category`:
+```
+isPrivate: boolean
 approvalStatus: 'APPROVED' | 'PENDING_ACCOUNTANT_APPROVAL' | 'MISSING_ACCOUNTING_MAPPING' | 'REJECTED'
 ```
-
-- PRIVATE ⇒ accountId NULL, vat/tax 0, excluded from business reports.
-- NOT_RECOGNIZED ⇒ vat/tax 0, may map to a dedicated non-deductible account.
-- RECOGNIZED requires full mapping before any expense using it can be
-  approved; a client with an accountant may create it unmapped ⇒
-  `MISSING_ACCOUNTING_MAPPING`.
-- Migration mapping from today's `isRecognized` boolean:
-  `true → RECOGNIZED`, `false → NOT_RECOGNIZED`. (`PRIVATE` is new; nothing
-  maps to it automatically.)
+- isPrivate ⇒ accountId NULL, never journaled, excluded from business
+  reports entirely. PRIVATE is a sub_category concept because a private
+  expense type has no card at all.
+- A business (non-private) sub_category requires accountId before any
+  expense using it can be approved; a client with an accountant may create
+  it unmapped ⇒ `MISSING_ACCOUNTING_MAPPING`.
+- Migration from today's `isRecognized` boolean: it maps to the CARD's
+  recognitionType (`true → RECOGNIZED`, `false → NOT_RECOGNIZED`) for
+  mapped rows; the D14 group-1 rows (household) become
+  `sub_category.isPrivate = true` with no card.
 
 ### D6 — Expense snapshot + description
 
@@ -172,16 +192,22 @@ instead of rebuilding it per report.
   tax%, depreciation%, status.
 - Rows with missing mapping cannot be approved. Client with accountant sees
   "חסר מיפוי — אצל הרו״ח" (checkbox disabled). Accountant gets an inline
-  completion row: account picker, percents, and a checkbox "החל גם על
-  סיווגים עתידיים" — checked = update the sub_category mapping (future
-  expenses too), unchecked = one-off snapshot override on this expense only.
+  completion row: account picker (the card brings its own percents per D1;
+  no separate percent inputs unless creating a new card), and a checkbox
+  "החל גם על סיווגים עתידיים" — checked = point the sub_category at the
+  chosen card (future expenses too), unchecked = one-off snapshot override
+  on this expense only.
+- (REVISED) In professional view, classification is by CARD: the dropdown
+  lists booking accounts (grouped by section), and picking a card is a
+  complete classification since the card carries the full accounting law.
+  In regular view, classification remains by sub_category (client
+  language), which resolves to its card.
 - Client WITHOUT an accountant must never be stuck: missing-mapping rows
   offer the simple "למה ההוצאה שייכת?" picker (fuel / vehicle maintenance /
   office equipment / advertising / rent / other...) mapping to system
   accounts behind the scenes.
 - Approval = final resolution (sub_category → account → section/6111/
-  percents with overrides) + snapshot write + journal entry, one
-  transaction.
+  percents/equipment) + snapshot write + journal entry, one transaction.
 
 ### D10 — Reclassification & reported-period lock
 
@@ -191,8 +217,10 @@ instead of rebuilding it per report.
      replace, reusing today's `syncExpenseJournalEntry` pattern) OR
      mapping-only override (keep subCategoryId, override snapshot fields,
      rewrite journal lines).
-  2. Future mapping: update the `sub_category` row itself (accountId /
-     percents). History never moves — reports read journal + snapshots.
+  2. Future mapping: re-point the `sub_category` row at a different card
+     (or a newly created variant card). Percents are never edited in
+     place — they belong to the card. History never moves — reports read
+     journal + snapshots.
 - Accountants cannot edit SYSTEM sub_category mappings; they create their
   own same-named row (name-keyed override already exists in merge logic).
 - **Period lock**: if `expense.isReported = true` (or its
@@ -202,18 +230,24 @@ instead of rebuilding it per report.
 
 ### D11 — Accountant "add account" flow
 
-Screen fields: name, code (auto via getNextAccountCode, editable), section,
-code6111, recognition, vat%, tax%, isEquipment, depreciation%, available
-for: all my clients / current client only.
+Screen fields — all of which now live ON THE ACCOUNT itself (per D1):
+name, code (auto via getNextAccountCode, editable), section, code6111,
+recognition, vat%, tax%, isEquipment, depreciation%, available for: all my
+clients / current client only. This matches Elazar's original spec
+screen exactly.
 
 - Default behavior: creates **two rows atomically** — a `booking_account`
-  (owner = accountant, code in 70000 range) AND a same-named `sub_category`
-  pointing at it (carrying the percents/recognition, visibilityScope per
-  the "available for" choice).
+  (owner = accountant, code in 70000 range, carrying all the accounting
+  fields) AND a same-named thin `sub_category` pointing at it
+  (visibilityScope per the "available for" choice) so clients can select
+  it when classifying.
 - Advanced option "כרטיס טכני בלבד" → account row only (for manual journal
   entry targets clients never classify to).
 - Creating a new sub_category that points at an EXISTING account (the
-  common daily case — "איתוראן" → 60130) touches only `sub_category`.
+  common daily case — "איתוראן" → אחזקת רכב) touches only `sub_category`.
+- Variant-percent case (e.g. fuel 100/100 for a courier client): the
+  accountant creates a new CARD "דלק — מוכר מלא" (70xxx) and points the
+  client's "דלק" sub_category at it. Same UI, same flow.
 - Platform-admin (not accountant) is the only role that can add SYSTEM
   accounts.
 
@@ -287,18 +321,12 @@ and expected numeric delta per report. The Phase 1.7/3.6/4.6 comparison
 script must show ZERO diffs outside this registry.
 
 Registered correction #1: business 204245724 has six journal entries
-(ids 10000145, 10000158, 10000167, 10000173, 10000186, 10000203; ₪22,645
-gross debit, ₪11,775.40 total `amountForTax`) posting מקדמות ביטוח לאומי
-to account 5000 as a P&L expense. Per D14 decision 3, the migration remaps
-these to the Bituach Leumi technical account — the business's P&L expense
-total (the "הוצאות בלתי מזוהות" category) is EXPECTED to drop by exactly
-₪11,775.40 (the summed `amountForTax` — that's what
-`createPnLReportFromJournal` actually sums into the P&L, not the gross
-debit), and its VAT report is unaffected (no VAT lines). Verified 2026-07-10
-against `docs/redesign/baseline-reports/204245724.json` and
-`docs/redesign/intentional-diffs.md` entry #1 — Elazar approved this exact
-figure, correcting an earlier "~₪29,645" placeholder that didn't match the
-data.
+(ids 10000145, 10000158, 10000167, 10000173, 10000186, 10000203; ~₪29,645
+total) posting מקדמות ביטוח לאומי to account 5000 as a P&L expense. Per
+D14 decision 3, the migration remaps these to the Bituach Leumi technical
+account — the business's P&L expense total is EXPECTED to drop by the
+amountForTax of these lines, and its VAT report is unaffected (no VAT
+lines). Elazar signs off on the exact delta during Phase 1.7 review.
 
 ---
 
@@ -306,34 +334,27 @@ data.
 
 **Goal:** safe ground before touching schema.
 
-- [x] 0.1 Full production DB backup (mysqldump). Verify restore works on a
+- [ ] 0.1 Full production DB backup (mysqldump). Verify restore works on a
       local copy. All later phases are rehearsed on this copy first.
-      (`_prod_dump/keepintax-prod.sql`, restored into `keepintax_prodcopy`
-      and re-verified restorable multiple times during Session 1.)
-- [x] 0.2 Run the production audit queries (provided separately in chat;
+- [ ] 0.2 Run the production audit queries (provided separately in chat;
       also in `docs/categories-audit.md` §8). Record results in
       `docs/redesign/production-baseline.md`: row counts, orphan pairs,
       duplicate catalog rows, live journal account codes, supplier/rule
       shadow counts.
 - [ ] 0.3 Implement D12 security fixes. Each is a small, independent
       commit, deployable on its own. Ship to production immediately —
-      these do not wait for the cutover. (Deferred to Session 8 per
-      Elazar. D12.4 specifically is investigated and staged in
-      `cutover.sql` §2 — see `production-baseline.md` — ready for Session
-      8 to deploy.)
-- [x] 0.4 Clean duplicates found by query 3 (manual SQL, reviewed), then
+      these do not wait for the cutover.
+- [ ] 0.4 Clean duplicates found by query 3 (manual SQL, reviewed), then
       add `UNIQUE(categoryName, subCategoryName)` to `default_sub_category`
       and `UNIQUE(firebaseId, businessNumber, categoryName, subCategoryName)`
       to `user_sub_category` — these protect the Phase 2 migration.
-      (Zero duplicates found; both constraints applied and verified
-      against `keepintax_prodcopy`, recorded in `cutover.sql` §1.)
-- [x] 0.5 Snapshot verification baseline: run `createVatReportFromJournal`,
+- [ ] 0.5 Snapshot verification baseline: run `createVatReportFromJournal`,
       `createPnLReportFromJournal`, and `createLedgerReport` for ALL active
       businesses for all periods with data; save outputs as JSON fixtures in
       `docs/redesign/baseline-reports/`. These are the golden files —
       Phases 1–4 must reproduce them (with renumbered codes) exactly,
       modulo the D15 intentional-diffs registry.
-- [x] 0.6 **Schema drift audit (mandatory — drift already confirmed, see
+- [ ] 0.6 **Schema drift audit (mandatory — drift already confirmed, see
       D14).** Generate `SHOW COLUMNS`/`SHOW INDEX` statements for every
       table this plan touches (all category tables, expense, journal_entry,
       journal_line, default_booking_account, supplier,
@@ -359,47 +380,39 @@ D14/D15 numbers recorded in `production-baseline.md`.
 **Goal:** sections table, enriched accounts table, full renumbering, with
 journal history migrated.
 
-- [x] 1.1 New entity `AccountingSection` (table `accounting_section`):
+- [ ] 1.1 New entity `AccountingSection` (table `accounting_section`):
       `id, code (string), name, ownerType, chartOwnerKey, accountantId,
       userId, businessNumber, displayOrder, isActive, timestamps`,
-      `UNIQUE(chartOwnerKey, code)`. Done Session 2 —
-      `backend/src/bookkeeping/accounting-section.entity.ts`.
+      `UNIQUE(chartOwnerKey, code)`.
 - [x] 1.2 Extend `DefaultBookingAccount` → rename entity/table to
       `BookingAccount` (`booking_account`): add `sectionId (FK)`,
-      `code6111`, `ownerType`, `chartOwnerKey`, `accountantId`, `userId`,
+      `code6111`, `vatPercent`, `taxPercent`, `isEquipment`,
+      `reductionPercent`, `recognitionType ('RECOGNIZED'|'NOT_RECOGNIZED')`
+      (the card carries the full accounting law, per revised D1), plus
+      `ownerType`, `chartOwnerKey`, `accountantId`, `userId`,
       `businessNumber`, `visibilityScope`, `isActive`. Replace
       `UNIQUE(code)` with `UNIQUE(chartOwnerKey, code)`. `pnlCategory` and
       `displayOrder` remain temporarily (dropped Phase 7); sections take
-      over their role. Done Session 2 — `backend/src/bookkeeping/account.entity.ts`;
-      every real caller (`account-seed.service.ts`, `bookkeeping.service.ts`
-      + spec, `reports.service.ts`, `documents.service.ts`, `demo-data.service.ts`,
-      `app.module.ts` + module registrations) renamed, `tsc --noEmit` clean.
+      over their role.
 - [x] 1.3 Author the new SYSTEM chart as flat seed data
-      (`bookkeeping/chart.seed.ts`): sections (from the current 18 P&L
-      categories + rehome of pnlCategory strings), accounts in the new
-      ranges, `code6111` per account (source the 6111 field codes from the
-      official uniform classification; leave NULL + TODO where uncertain
-      and log them — do NOT invent codes). Every current account and every
-      current `subAccountCode` gets a row; build
-      `account_code_migration (old_code, new_code, source)` covering:
-      4000→40000, 4010→40010, each 5000–6300 code → its 60000-range code,
-      each subAccountCode 5101–6201 → its own 60000-range account code.
-      Done Session 2. Reviewed with Elazar first as a review table
-      (`docs/redesign/phase1-chart-review.md`) before writing code, per the
-      Session 2 runbook. Verified discrepancy: code found only 16 distinct
-      `pnlCategory` strings in current code/data, not 18 as this line
-      states — proceeded with the 16 verified values (flagged, not
-      re-litigated). `code6111` is NULL on every account: no verified
-      source found; Elazar will provide the official Form 6111 list in a
-      later session. New `AccountCodeMigration` entity
-      (`account-code-migration.entity.ts`) holds the 50-row migration map
-      as real data (derived, not hand-typed, from `chart.seed.ts`'s
-      `legacyCode`/`legacySource` fields). Three brand-new D14-decision-3
-      technical accounts (90100/90200/90300) added; 90200 confirmed with
-      Elazar as the VAT-remittance clearing account, distinct from
-      2400/2410. New entities registered in `bookkeeping.module.ts`/
-      `app.module.ts` but **not** wired into any boot-time seeder yet —
-      that (and the actual journal_line renumbering) is Phase 1.4/2.6.
+      (`bookkeeping/chart.seed.ts`): sections (codes = block anchors, e.g.
+      רכב ותחבורה = 60200, per the 2026-07-10 chart-revision decisions),
+      accounts in the new ranges (children in jumps of 10 within their
+      section block), and — per revised D1 — vat%/tax%/isEquipment/
+      depreciation%/recognition ON EVERY CARD, sourced from the current
+      `default_sub_category` percents (each old subAccountCode maps 1:1 to
+      a card and brings its percents with it). VAT corrections from the
+      accountant's sort-code file apply here: insurance / bank fees /
+      ארנונה / מים / ועד בית / שכירות cards get vatPercent=0; כיבוד card
+      taxPercent=80. `code6111` per account (source from the official
+      uniform classification; NULL + TODO where uncertain — do NOT invent
+      codes). Build `account_code_migration (old_code, new_code, source)`
+      covering: 4000→40000, 4010→40010, each 5000–6300 code → its
+      60000-range anchor, each subAccountCode 5101–6303 → its new
+      jumps-of-10 card code.
+      **Conflict check:** if two old sub-categories share one accountCode
+      but have different percent combinations, they need separate cards —
+      detect and list these for Elazar rather than merging silently.
 - [ ] 1.4 Production migration script
       (`backend/scripts/migrations/2026-07-XX_chart_renumber.sql` + a
       TypeScript runner for the seeded parts), in ONE transaction:
@@ -414,10 +427,9 @@ journal history migrated.
       Bituach-Leumi entries of business 204245724 are remapped to the
       90000-range technical account per D14/D15, not to a 60000 expense
       account.
-- [x] 1.5 `getNextAccountCode` service + unit tests (range per
+- [ ] 1.5 `getNextAccountCode` service + unit tests (range per
       ownerType/type, jumps of 10, per-chartOwnerKey isolation, manual
-      out-of-sequence codes tolerated). Done Session 3A —
-      `backend/src/bookkeeping/account-code-allocator.service.ts`.
+      out-of-sequence codes tolerated).
 - [ ] 1.6 Update every hardcoded result-account code:
       `buildDocumentJournalLines` (4000/4010 → 40000/40010),
       `createVatReportFromJournal` (same), manual-entry account dropdown
@@ -445,10 +457,10 @@ reproduce baseline totals, old code ranges absent from `journal_line`.
       visibilityScope, isDefault, isActive, createdByUserId, timestamps`,
       `UNIQUE(chartOwnerKey, name, type)`.
 
-      SubCategory: `id, categoryId (FK), name, recognitionType,
-      accountId (FK → booking_account, nullable), pnlSectionId (FK,
-      nullable, override), code6111Override, vatPercent, taxPercent,
-      isEquipment, reductionPercent, necessity, reportScope, ownerType,
+      SubCategory (thin, per revised D1 — NO accounting fields):
+      `id, categoryId (FK), name, isPrivate,
+      accountId (FK → booking_account, nullable — NULL when isPrivate or
+      MISSING_ACCOUNTING_MAPPING), necessity, reportScope, ownerType,
       chartOwnerKey, accountantId, userId, businessNumber, visibilityScope,
       approvalStatus, approvedByUserId, approvedAt, rejectedByUserId,
       rejectedAt, rejectionReason, isDefault, isActive, createdByUserId,
@@ -456,23 +468,32 @@ reproduce baseline totals, old code ranges absent from `journal_line`.
 - [ ] 2.2 Data migration (script, one transaction, rehearsed on the
       backup):
       `default_category` → `category` (SYSTEM);
-      `default_sub_category` → `sub_category` (SYSTEM; `isRecognized` →
-      recognitionType per D5; `accountCode`/`subAccountCode` → `accountId`
-      via the Phase 1 migration map — subAccountCode wins when present, it
-      is more specific; `pnlCategory` string → nothing (sections own it
-      now); approvalStatus = APPROVED);
+      `default_sub_category` → `sub_category` (SYSTEM, thin: name + parent
+      + accountId via the Phase 1 migration map — subAccountCode wins when
+      present, it is more specific. Percents are NOT copied to the
+      sub_category; they already live on the target card from 1.3. D14
+      group-1 rows → isPrivate=true, no accountId; approvalStatus =
+      APPROVED);
       `user_category` → `category` (CLIENT, chartOwnerKey =
       `CLIENT_<businessNumber>`);
       `user_sub_category` → `sub_category` (CLIENT; same rules; parent
       categoryId resolved by name within CLIENT scope, falling back to the
       SYSTEM category of the same name — record unmatched parents in a
       migration log table for manual review).
+      **Percent-variant handling:** a user_sub_category whose percents
+      differ from its target card's percents cannot be represented by a
+      thin pointer — the migration must create a CLIENT-scoped variant
+      CARD (80000 range) carrying those percents and point the
+      sub_category at it. List every such case for Elazar's review before
+      running (expected: few — 15 user_sub_category rows total, 6 expenses
+      on them).
 - [ ] 2.3 New `CatalogService`: single resolution query replacing
       `resolveAccountCode`'s 5-level chain — load merged catalog for a
       business (CLIENT > ACCOUNTANT > SYSTEM by name), resolve
-      subCategoryId → account → section/6111/percents including D3
-      overrides. Old `resolveAccountCode` becomes a thin adapter over it
-      during transition (same signature, string in / code out) so existing
+      subCategoryId → account → the card's full accounting law (section,
+      6111, percents, equipment, recognition; revised D1). Old
+      `resolveAccountCode` becomes a thin adapter over it during
+      transition (same signature, string in / code out) so existing
       callers keep working until Phase 4.
 - [ ] 2.4 Port catalog CRUD endpoints to the new tables behind the SAME
       routes/DTO shapes the Angular app already calls (`get-categories`,

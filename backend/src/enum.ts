@@ -281,6 +281,19 @@ export enum OwnerType {
 export const SYSTEM_CHART_OWNER_KEY = 'SYSTEM';
 
 /**
+ * Business-expense recognition, living on `booking_account` per the revised
+ * D1/D5 (accounting law moved to the card, 2026-07-10): whether spend posted
+ * to this card counts toward deductible totals. NOT_RECOGNIZED cards still
+ * post to the ledger (D5) — this is not the same as `sub_category.isPrivate`
+ * (which means no card / never journaled at all). NULL on non-expense
+ * accounts (income, balance-sheet, technical) — not applicable there.
+ */
+export enum RecognitionType {
+  RECOGNIZED = 'RECOGNIZED',
+  NOT_RECOGNIZED = 'NOT_RECOGNIZED',
+}
+
+/**
  * Who can see an ACCOUNTANT/CLIENT-owned catalog row (D4). Irrelevant for
  * ownerType=SYSTEM (always visible to everyone).
  */

@@ -1,5 +1,5 @@
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, Unique } from 'typeorm';
-import { OwnerType, VisibilityScope, SYSTEM_CHART_OWNER_KEY } from 'src/enum';
+import { OwnerType, VisibilityScope, SYSTEM_CHART_OWNER_KEY, RecognitionType } from 'src/enum';
 import { AccountingSection } from './accounting-section.entity';
 
 /**
@@ -46,6 +46,35 @@ export class BookingAccount {
    *  NULL = not yet sourced — never invent a value here (D2/1.3). */
   @Column({ nullable: true, default: null })
   code6111: string | null;
+
+  /**
+   * The card carries the FULL accounting law (revised D1/D5, 2026-07-10):
+   * VAT/tax deductibility, equipment/depreciation, and business recognition
+   * all live here instead of on `sub_category`. NULL on every non-expense
+   * account (income, balance-sheet, technical 90000-range) — these fields
+   * are not applicable there, same NULL-means-"not applicable" convention
+   * as `code6111`. Two sub_categories with different percent combinations
+   * are, by definition, two different cards (D1) — never encode a second
+   * treatment by overloading one account's percents.
+   */
+  @Column('decimal', { precision: 5, scale: 2, nullable: true, default: null })
+  vatPercent: number | null;
+
+  @Column('decimal', { precision: 5, scale: 2, nullable: true, default: null })
+  taxPercent: number | null;
+
+  /** Depreciation rate — only meaningful when `isEquipment` is true. */
+  @Column('decimal', { precision: 5, scale: 2, nullable: true, default: null })
+  reductionPercent: number | null;
+
+  @Column({ type: 'boolean', nullable: true, default: null })
+  isEquipment: boolean | null;
+
+  /** NOT_RECOGNIZED cards still post to the ledger but are excluded from
+   *  deductible totals (D5) — distinct from `sub_category.isPrivate`, which
+   *  means no card at all. NULL on non-expense accounts. */
+  @Column({ type: 'enum', enum: RecognitionType, nullable: true, default: null })
+  recognitionType: RecognitionType | null;
 
   @Column({ type: 'enum', enum: OwnerType, default: OwnerType.SYSTEM })
   ownerType: OwnerType;
