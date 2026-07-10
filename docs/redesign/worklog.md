@@ -248,3 +248,75 @@ STATUS: APPROVED. Master-plan checkboxes 1.2 and 1.3 ticked. Committed.
 
 **Next**: Session 4 (task 1.4, the actual renumbering script against
 `keepintax_prodcopy`) — Plan Mode per the runbook.
+
+## 2026-07-10 — Session 4 (Phase 1.4, complete)
+
+Plan Mode, per the runbook. Wrote and rehearsed
+`backend/scripts/migrations/2026-07-10_chart_renumber.sql` end-to-end against
+`keepintax_prodcopy`, then appended the final version to `cutover.sql`
+Section 3.
+
+- **Script structure**: Section A (DDL — `CREATE TABLE accounting_section` /
+  `account_code_migration`, rename+extend `default_booking_account` →
+  `booking_account`, drop the old auto-named `UNIQUE(code)` index via a
+  dynamic `information_schema` lookup + `PREPARE`/`EXECUTE`, `TRUNCATE` the
+  old ~25-row chart since it's structurally superseded); Section B (seed the
+  new 16-section/59-account/50-migration-row chart, generated verbatim from
+  `chart.seed.ts` via a new one-off generator script,
+  `2026-07-10_generate-chart-seed-sql.ts`, to eliminate transcription risk);
+  Section C+D (the actual renumbering UPDATEs, wrapped in a real
+  `START TRANSACTION`/`COMMIT` since no DDL runs in that block). Per Elazar's
+  explicit instruction, the file's header documents that Sections A/B are
+  NOT transactional (MySQL DDL auto-commits) — recovery from a mid-A/B
+  failure is a backup restore, not a rollback — while C/D genuinely roll back
+  on failure.
+- **D14/D15 Bituach Leumi special case verified, not assumed**: confirmed via
+  a guard query that ALL 6 live `journal_line` rows on old account 5000 are
+  exactly the 6 registered `journal_entry` ids (10000145/158/167/173/186/203)
+  before running the special-case UPDATE (→ 90300) ahead of the generic
+  migration-map UPDATE (5000→60000), so the generic pass affects 0 rows on
+  5000 by the time it runs — verified empirically, not just asserted.
+- **Bug caught and fixed mid-session**: first rehearsal attempt failed with
+  `ER_CANT_AGGREGATE_2COLLATIONS` — the new tables' `CREATE TABLE` statements
+  used `utf8mb4_unicode_ci` (copied from the billing migration's style)
+  but the database's actual standard (confirmed via
+  `information_schema.TABLES` against `journal_line`/`journal_entry`/
+  `booking_account`/`default_sub_category`) is `utf8mb4_0900_ai_ci` (MySQL 8
+  default). Fixed in the `.sql` file. Recovered by fully re-importing
+  `_prod_dump/keepintax-prod.sql` into `keepintax_prodcopy` (via a `mysql2`
+  script, `multipleStatements: true`, `FOREIGN_KEY_CHECKS=0` during the
+  import, and stripping the dump's one `DELIMITER $$` trigger block — none of
+  which mysql2's wire protocol understands — before executing), then
+  re-running the corrected script clean end-to-end from a pristine copy, per
+  the cutover checklist's own "rehearse against a FRESH dump" discipline.
+- **Verified clean** (full detail in `cutover.sql` Section 3's header):
+  9 old codes renumbered exactly as D14 lists; all 6 Bituach Leumi rows now
+  read 90300, 0 rows remain on 5000; grand totals (`SUM(debit)`,
+  `SUM(credit)`, `SUM(amountForTax)` — the last per Elazar's explicit
+  addition to the verification set) byte-identical before/after; 0 orphaned
+  `journal_line.accountCode` values; `accounting_section`=16,
+  `booking_account`=59, `account_code_migration`=50;
+  `journal_entry.counterAccountCode` was `'1100'` on all 122 rows both
+  before and after (the generic renumbering UPDATE against it is a verified
+  no-op on this data, kept per D14 to guard future/other data).
+- **`subCounterAccountCode` retired from the entity**, per Elazar's explicit
+  confirmation this session (schema-drift.md Gap 2 / D2). Removed from
+  `JournalEntry`, `JournalEntryInput`, and every real call site (not just the
+  entity): `BookkeepingService.persistJournalEntry` +
+  `buildCreateManualJournalEntryInput`-equivalent path, and
+  `ExpensesService` — deleted the now-dead `resolveSubAccountCode` private
+  method and its one caller in `buildJournalEntryInput`. `tsc --noEmit`
+  clean on every touched file (bookkeeping + expenses); remaining failures
+  are the same pre-existing unrelated ones (users/auth specs,
+  report-workflow spec) noted in every prior session.
+- **`keepintax-dev` side effect flagged, not actioned**: the shared dev DB
+  still has `subCounterAccountCode` (from `synchronize`); removing it from
+  the entity means TypeORM will `DROP COLUMN` it there next boot. No
+  preservation step taken — consistent with the existing "shared dev DB is
+  disposable for schema work" understanding.
+
+**Phase 1 checklist status**: 1.1–1.4 done. 1.5 (`getNextAccountCode`,
+Session 3A) already done in parallel. Remaining: 1.6 (update every hardcoded
+account code in app code) and 1.7 (baseline-report regression).
+
+**Next**: Session 5 (tasks 1.6, 1.7) — after which `Current phase: 2`.

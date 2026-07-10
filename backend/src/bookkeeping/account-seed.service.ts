@@ -235,8 +235,7 @@ export class AccountSeedService implements OnModuleInit {
   /**
    * Per-(category, subCategory) sub-ledger account code, nested under the
    * parent bookkeeping account (e.g. 5100 הוצאות משרד → 5101 ארנונה, 5102 גז...).
-   * Consulted by seedSubAccountCodes() (fills default_sub_category.subAccountCode)
-   * and by ExpensesService when posting a journal entry's subCounterAccountCode.
+   * Consulted by seedSubAccountCodes() (fills default_sub_category.subAccountCode).
    * Numbering is alphabetical-within-group and arbitrary but must stay unique.
    */
   private static readonly SUBCATEGORY_SUB_ACCOUNT_CODES: ReadonlyArray<{

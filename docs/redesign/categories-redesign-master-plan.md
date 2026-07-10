@@ -413,7 +413,7 @@ journal history migrated.
       **Conflict check:** if two old sub-categories share one accountCode
       but have different percent combinations, they need separate cards —
       detect and list these for Elazar rather than merging silently.
-- [ ] 1.4 Production migration script
+- [x] 1.4 Production migration script
       (`backend/scripts/migrations/2026-07-XX_chart_renumber.sql` + a
       TypeScript runner for the seeded parts), in ONE transaction:
       create tables → seed sections/accounts → UPDATE

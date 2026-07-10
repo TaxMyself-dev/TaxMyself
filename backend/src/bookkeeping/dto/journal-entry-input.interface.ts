@@ -18,7 +18,6 @@ export interface JournalEntryInput {
   issuerBusinessNumber: string;
   subCategory?: string | null;   // sub-category name from the source expense; null for income docs
   counterAccountCode?: string | null; // single counter-account for the entry header (e.g. '2000', '1100', '1200')
-  subCounterAccountCode?: string | null; // sub-ledger account code (default_sub_category.subAccountCode) for the source sub-category
   counterPartyName?: string | null;   // שם ספק / לקוח
   documentTotal?: number | null;      // סה"כ מסמך כולל מע"מ
   date: string;

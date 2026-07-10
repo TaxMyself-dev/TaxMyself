@@ -65,13 +65,6 @@ export class JournalEntry {
   @Column({ nullable: true, default: null })
   counterAccountCode: string | null;
 
-  /** Sub-ledger counter-account code (default_sub_category.subAccountCode) for
-   *  the entry's expense sub-category, alongside counterAccountCode. Nullable —
-   *  existing rows and entries with no matching sub-account code stay NULL;
-   *  no retroactive backfill. */
-  @Column({ nullable: true, default: null })
-  subCounterAccountCode: string | null;
-
   /** שם ספק / לקוח — vendor or customer name from the source document or expense. */
   @Column({ nullable: true, default: null })
   counterPartyName: string | null;
