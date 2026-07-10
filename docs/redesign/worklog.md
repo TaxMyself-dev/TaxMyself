@@ -126,3 +126,43 @@ unique) but worth a pass before Phase 2 exposes these as picker options.
 future Session 2-continuation; Session 4 (1.4, the actual renumbering
 script) needs Plan Mode and Elazar's `code6111` list would help but isn't
 blocking since 1.4 only touches account codes, not 6111.
+
+## 2026-07-10 — Session 3A (Phase 1.5, complete)
+
+New `AccountCodeAllocatorService`
+(`backend/src/bookkeeping/account-code-allocator.service.ts`), registered
+(and exported) in `bookkeeping.module.ts`. `getNextAccountCode({ ownerType,
+type, chartOwnerKey }, manager?)` returns the next free `booking_account`
+code as a string.
+
+- **Ranges implemented exactly per D2**: SYSTEM income 40000–49999 /
+  expense 60000–69999; ACCOUNTANT income 50000–59999 / expense
+  70000–79999; CLIENT income 50000–59999 (shared numeric range with
+  ACCOUNTANT — isolation is by `chartOwnerKey`, per D2's
+  `UNIQUE(chartOwnerKey, code)`, not by code range) / expense 80000–89999.
+- **Scope decision, not in the plan text, flagged here rather than
+  guessed silently**: the function only auto-allocates `type: 'income' |
+  'expense'`. The 90000–99999 "technical/adjustment" range and the
+  1000–2999 balance-sheet range are hand-seeded (see `chart.seed.ts`'s
+  90100/90200/90300 D14 rows) — nothing in the plan describes a runtime
+  flow that allocates into either range, so the service throws a clear
+  `BadRequestException` for any other `type` rather than inventing a
+  range. Revisit if Phase 5's D11 "כרטיס טכני בלבד" flow turns out to need
+  one.
+- **Algorithm**: loads existing `code`s for the given `chartOwnerKey` only,
+  filters to those numerically inside the target range (out-of-range
+  manual codes are ignored, not treated as errors — "tolerated"), takes
+  the max + 10, or the range floor if none exist. Throws if the range is
+  exhausted. Takes an optional `EntityManager` so callers (Phase 2
+  `CatalogService`, Phase 5 D11 add-account flow) can allocate inside
+  their own transaction.
+- **Tests**: `account-code-allocator.service.spec.ts`, 14 cases — floor
+  per ownerType/type pair, jump-of-10 continuation, per-chartOwnerKey
+  isolation, out-of-range manual codes ignored, in-range off-grid manual
+  codes jumped from without collision, unknown type throws, exhausted
+  range throws, EntityManager override bypasses the injected repo. All
+  green. `tsc --noEmit` shows zero new errors (pre-existing failures in
+  `users`/`report-workflow` specs are untouched).
+
+**Next**: Session 2-continuation or Session 4 (1.4, the renumbering
+script) per the runbook.

@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm'
 import { BookkeepingService,  } from './bookkeeping.service';
 import { AccountSeedService } from './account-seed.service';
+import { AccountCodeAllocatorService } from './account-code-allocator.service';
 import { BookkepingController } from './bookkeeping.controller';
 import { JournalEntry } from './jouranl-entry.entity';
 import { JournalLine } from './jouranl-line.entity';
@@ -26,8 +27,9 @@ import { Business } from 'src/business/business.entity';
   providers: [
     BookkeepingService,
     AccountSeedService,
+    AccountCodeAllocatorService,
     SharedService
   ],
-  exports: [BookkeepingService],
+  exports: [BookkeepingService, AccountCodeAllocatorService],
 })
 export class BookkeepingModule {}

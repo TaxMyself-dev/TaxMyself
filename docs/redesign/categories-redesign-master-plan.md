@@ -414,9 +414,10 @@ journal history migrated.
       Bituach-Leumi entries of business 204245724 are remapped to the
       90000-range technical account per D14/D15, not to a 60000 expense
       account.
-- [ ] 1.5 `getNextAccountCode` service + unit tests (range per
+- [x] 1.5 `getNextAccountCode` service + unit tests (range per
       ownerType/type, jumps of 10, per-chartOwnerKey isolation, manual
-      out-of-sequence codes tolerated).
+      out-of-sequence codes tolerated). Done Session 3A —
+      `backend/src/bookkeeping/account-code-allocator.service.ts`.
 - [ ] 1.6 Update every hardcoded result-account code:
       `buildDocumentJournalLines` (4000/4010 → 40000/40010),
       `createVatReportFromJournal` (same), manual-entry account dropdown
