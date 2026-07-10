@@ -320,3 +320,86 @@ Session 3A) already done in parallel. Remaining: 1.6 (update every hardcoded
 account code in app code) and 1.7 (baseline-report regression).
 
 **Next**: Session 5 (tasks 1.6, 1.7) — after which `Current phase: 2`.
+
+## 2026-07-10 — Session 5 (Phase 1.6–1.7, complete — Phase 1 DONE)
+
+Confirmed `keepintax_prodcopy` was left in the migrated (post-1.4) state from
+Session 4's last rehearsal: `booking_account` has 59 rows, `journal_line`
+already carries only new codes (`1100`(122), `2400`(1), `2410`(56),
+`40000`(38), `60100`(11), `60200`(29), `60300`(14), `60400`(3), `60600`(3),
+`60700`(1), `61100`(18), `90300`(6) — matches D14 exactly, old 5000 fully
+gone).
+
+- **1.6**: swept every hardcoded old-chart account code out of application
+  logic. `buildDocumentJournalLines` (`documents.service.ts`) and
+  `createManualJournalEntry` (`bookkeeping.service.ts`): `4000` → `40000`
+  (3 + 1 call sites). `reports.service.ts`: `createVatReportFromJournal`
+  and `createPnLReportFromJournal` SQL/JS literals `4000`/`4010` →
+  `40000`/`40010`; `buildLineDescription`'s income-account labels same;
+  `getLedgerEntryAccounts` (the manual-entry dropdown) switched its filter
+  from `!!a.pnlCategory` to `!!a.sectionId` — `pnlCategory` is only set on
+  parent-level accounts, so the old filter would have silently hidden every
+  sub-ledger child account from the dropdown once BookingAccount actually
+  has child rows (per Phase 1.2/1.3). `createPnLReportFromJournal`'s own
+  `pnlCategory IS NOT NULL` join was deliberately left alone — its own
+  entity comment says that switch is Phase 4.4, not 1.6, and it's safe for
+  now because all 9 businesses' live journal data only touches parent-level
+  codes. Found and fixed the same class of bug one level down:
+  `bookkeeping.service.ts`'s manual-entry safety-net check
+  (`!account.pnlCategory`) would have rejected any child account the
+  now-fixed dropdown offers — switched to `!account.sectionId` too, not
+  explicitly named in the plan bullet but the same defect. `demo-data.service.ts`'s
+  boot diagnostic code list updated (`4000`/`5000` → `40000`/`60000`,
+  non-fatal). `compareLedgerAccountCodes`'s hardcoded display-order array
+  translated 1:1 through the legacy→new mapping (also not explicitly named
+  in the bullet, but the same class of hardcode — would otherwise silently
+  mis-sort the ledger/dropdown). Verified, no change needed: SHAAM B100's
+  account-code field is 15 chars wide (comfortably fits 5 digits); ledger
+  balance-direction logic keys off `BookingAccount.type`, never a code;
+  `expenses.service.ts` always resolves codes dynamically; `account.seed.ts`/
+  `account-seed.service.ts` (the OLD boot seeder) is out of scope per its
+  own file header — superseded in Phase 2.6, not touched here. Updated the
+  3+3 hardcoded `'4000'` test fixtures in `bookkeeping.service.spec.ts` and
+  `documents-journal.service.spec.ts` to match. `tsc --noEmit` and
+  `jest bookkeeping.service.spec documents-journal.service.spec` both clean
+  (24/24 passing; remaining pre-existing failures are the same untouched
+  users/report-workflow specs noted every session).
+- **1.7**: added an `OUT_DIR_NAME` env override to
+  `generate-baseline-reports.ts` (defaults to the original behavior) so it
+  could re-run against the now-migrated `keepintax_prodcopy` without
+  overwriting the Phase 0.5 golden fixtures — output went to
+  `docs/redesign/baseline-reports-post-migration/`. Same 9 businesses, same
+  date ranges/period counts as the original run. Wrote
+  `backend/scripts/compare-baseline-reports.ts` (the committed automated
+  comparison script this task calls for): diffs every VAT field and P&L
+  field/category per period + aggregate, diffs the ledger by regrouping the
+  OLD ledger's lines under their expected NEW account code (via
+  `chart.seed.ts`'s `ACCOUNT_CODE_MIGRATION`, `accountCode`-sourced rows
+  only) and comparing against the real NEW ledger, and asserts old code
+  ranges (`4000`/`4010`/`5000`–`6300`) are fully absent from the
+  post-migration ledger. Two D15 corrections special-cased directly from
+  Elazar's review of this session's plan (not just inferred): the six
+  Bituach Leumi journal entries (ids `10000145/158/167/173/186/203`) are
+  matched by `journalEntryId`, not by their old account code, and expected
+  on `90300` rather than the generic `5000`→`60000` mapping; business
+  `204245724`'s "הוצאות בלתי מזוהות" P&L category vanishing entirely (old
+  total present, new total zero) is treated as satisfying Correction #1
+  rather than a failure, with `netProfitBeforeTax` required to rise by
+  exactly the removed amount. Also asserted, once per business, that the
+  removed aggregate amount for 204245724 matches the registry's exact
+  ₪11,775.40 (confirmed: `11775.399999999998`, floating-point-equal).
+  **Result: `npx ts-node -r tsconfig-paths/register
+  scripts/compare-baseline-reports.ts` → all 9 businesses ✅, zero
+  un-registered diffs.**
+
+**Phase 1 checklist status**: 1.2–1.4, 1.6, 1.7 ticked `[x]` this session's
+scope. 1.1 and 1.5 are also functionally complete per Sessions 2/3A but
+their checkboxes were found still unticked in the plan file — flagging
+here rather than silently fixing someone else's task's checkbox; worth a
+quick pass before Phase 2 work starts. `Current phase: 2` set in `CLAUDE.md`.
+Phase 1's "Definition of done" (production journal fully on new codes; all
+reports reproduce baseline; old code ranges absent from `journal_line`) is
+now fully met.
+
+**Next**: Phase 2 (Session 6+) — the unified `category`/`sub_category`
+tables and their migration from the four old catalog tables.

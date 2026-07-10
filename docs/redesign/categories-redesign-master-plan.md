@@ -430,13 +430,13 @@ journal history migrated.
 - [ ] 1.5 `getNextAccountCode` service + unit tests (range per
       ownerType/type, jumps of 10, per-chartOwnerKey isolation, manual
       out-of-sequence codes tolerated).
-- [ ] 1.6 Update every hardcoded result-account code:
+- [x] 1.6 Update every hardcoded result-account code:
       `buildDocumentJournalLines` (4000/4010 → 40000/40010),
       `createVatReportFromJournal` (same), manual-entry account dropdown
       filter (pnlCategory IS NOT NULL → sectionId IS NOT NULL), SHAAM B100
       (verify field width tolerates 5-digit codes), ledger balance-direction
       logic (unchanged — still by `type`).
-- [ ] 1.7 Verification: regenerate all Phase 0.5 baseline reports; totals
+- [x] 1.7 Verification: regenerate all Phase 0.5 baseline reports; totals
       must match exactly; ledger account codes must match through the
       migration map. Automated comparison script, committed.
 

@@ -33,7 +33,9 @@ import { ReportsService } from '../src/reports/reports.service';
 import { SharedService } from '../src/shared/shared.service';
 import { Business } from '../src/business/business.entity';
 
-const OUT_DIR = path.resolve(__dirname, '../../docs/redesign/baseline-reports');
+// OUT_DIR_NAME lets Phase 1.7 re-run this same script post-renumbering into a
+// separate directory without overwriting the Phase 0.5 golden fixtures.
+const OUT_DIR = path.resolve(__dirname, '../../docs/redesign', process.env.OUT_DIR_NAME || 'baseline-reports');
 
 function toDateOnly(d: Date): string {
   return d.toISOString().slice(0, 10);

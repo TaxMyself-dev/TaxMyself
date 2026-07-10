@@ -447,7 +447,7 @@ export class ReportsService {
 
   /**
    * VAT report computed from journal entries.
-   * Income from 4000 (vatable) / 4010 (non-vatable) credit; output VAT from
+   * Income from 40000 (vatable) / 40010 (non-vatable) credit; output VAT from
    * 2400 (credit − debit, so credit notes reduce it); deductible input VAT from
    * 2410 debit split by isEquipment (expenses vs assets).
    */
@@ -473,10 +473,10 @@ export class ReportsService {
     this.applyJournalPeriodFilter(qb, periodLabels, startDate, endDate);
 
     const row = await qb
-      // credit − debit so credit invoices (which post a DEBIT on 4000/4010/2400)
+      // credit − debit so credit invoices (which post a DEBIT on 40000/40010/2400)
       // correctly REVERSE the income / output VAT instead of adding to it.
-      .select("SUM(CASE WHEN jl.accountCode = '4000' THEN jl.credit - jl.debit ELSE 0 END)", 'vatableTurnover')
-      .addSelect("SUM(CASE WHEN jl.accountCode = '4010' THEN jl.credit - jl.debit ELSE 0 END)", 'nonVatableTurnover')
+      .select("SUM(CASE WHEN jl.accountCode = '40000' THEN jl.credit - jl.debit ELSE 0 END)", 'vatableTurnover')
+      .addSelect("SUM(CASE WHEN jl.accountCode = '40010' THEN jl.credit - jl.debit ELSE 0 END)", 'nonVatableTurnover')
       .addSelect("SUM(CASE WHEN jl.accountCode = '2400' THEN jl.credit - jl.debit ELSE 0 END)", 'outputVat')
       .addSelect("SUM(CASE WHEN jl.accountCode = '2410' AND jl.isEquipment = false THEN jl.debit ELSE 0 END)", 'vatRefundOnExpenses')
       .addSelect("SUM(CASE WHEN jl.accountCode = '2410' AND jl.isEquipment = true THEN jl.debit ELSE 0 END)", 'vatRefundOnAssets')
@@ -507,10 +507,8 @@ export class ReportsService {
 
   /**
    * P&L report computed from journal entries.
-   * Income = 4000 (credit − debit). Expenses grouped by the account's
-   * pnlCategory for 5xxx/6xxx (debit − credit), EXCEPT 6200 (פחת) which is
-   * surfaced as its own "הוצאות פחת" line. Equipment lines are excluded.
-   * Depreciation here reflects whatever was posted to 6200.
+   * Income = 40000 (credit − debit). Expenses grouped by the account's
+   * pnlCategory for 6xxxx (debit − credit). Equipment lines are excluded.
    *
    * @param osekZair       "עוסק זעיר" (small trader) mode — only meaningful when
    *                       income is under the ITA's 120,000 ILS annual threshold.
@@ -564,9 +562,9 @@ export class ReportsService {
       const code = String(r.accountCode);
       const debit = Number(r.debit) || 0;
       const credit = Number(r.credit) || 0;
-      if (code === '4000' || code === '4010') {
-        totalIncome += credit - debit;       // 4000 vatable; 4010 exempt (פטור) income
-      } else if (code.startsWith('5') || code.startsWith('6')) {
+      if (code === '40000' || code === '40010') {
+        totalIncome += credit - debit;       // 40000 vatable; 40010 exempt (פטור) income
+      } else if (code.startsWith('6')) {
         // Use amountForTax (= debit × taxPercent/100) so partial-deductibility
         // expenses (vehicle 45%, mixed-use) show the correct P&L amount, not the
         // gross debit. Label by the account's pnlCategory for consistent grouping.
@@ -606,7 +604,7 @@ export class ReportsService {
    *
    * @param accountCode  when provided, only that account is returned; otherwise
    *                     all accounts that had movements in the range, ordered
-   *                     1000, 2400, 2410, 4000, 5000, then others alphabetically.
+   *                     1000, 2400, 2410, 40000, 60000, then others alphabetically.
    */
   async createLedgerReport(
     firebaseId: string,
@@ -900,13 +898,17 @@ export class ReportsService {
   }
 
   /** Posting accounts for the MANUAL JOURNAL ENTRY dropdown, in display order.
-   *  Only accounts with a pnlCategory (income/expense) are returned; technical
-   *  accounts (1000 A/R-contra, 2400/2410 VAT — pnlCategory NULL) are excluded
-   *  so they can't be chosen for a manual journal line. */
+   *  Only accounts under a section (income/expense — every posting account,
+   *  parent or sub-ledger child, has one) are returned; technical accounts
+   *  (1000 A/R-contra, 2400/2410 VAT, 90000-range — sectionId NULL) are
+   *  excluded so they can't be chosen for a manual journal line. Uses
+   *  sectionId rather than pnlCategory because pnlCategory is only set on
+   *  parent-level accounts — filtering on it would wrongly hide every
+   *  sub-ledger child account from the dropdown. */
   async getLedgerEntryAccounts(): Promise<{ code: string; name: string; type: string }[]> {
     const chart = await this.defaultBookingAccountRepo.find();
     return chart
-      .filter((a) => !!a.pnlCategory)
+      .filter((a) => !!a.sectionId)
       .sort((a, b) => this.compareLedgerAccountCodes(a.code, b.code))
       .map((a) => ({ code: a.code, name: a.name, type: a.type }));
   }
@@ -919,8 +921,8 @@ export class ReportsService {
     const order = [
       // מע"מ — ראשון (עסקאות ותשומות)
       '2400', '2410',
-      // הכנסות
-      '4000', '4010',
+      // הכנסות (legacy 4000/4010)
+      '40000', '40010',
       // בנק וחשבונות מאזן
       '1100', '1110', '1120',
       // לקוחות כלליים
@@ -929,9 +931,9 @@ export class ReportsService {
       '2000', '2100',
       // technical
       '1000',
-      // הוצאות
-      '5000', '5100', '5200', '5300', '5400', '5500', '5600',
-      '5700', '5800', '5900', '6000', '6100', '6200', '6300',
+      // הוצאות (legacy 5000-6300, per chart.seed.ts ACCOUNT_CODE_MIGRATION)
+      '60000', '60100', '60200', '60300', '60400', '60500', '60600',
+      '60700', '60800', '60900', '61000', '61100', '61200', '61300',
     ];
     const ia = order.indexOf(a);
     const ib = order.indexOf(b);
@@ -971,14 +973,14 @@ export class ReportsService {
     }
 
     // 4. Income accounts
-    if (accountCode === '4000') {
+    if (accountCode === '40000') {
       if (ref === 'TAX_INVOICE')         return 'חשבונית מס';
       if (ref === 'TAX_INVOICE_RECEIPT') return 'חשבונית מס קבלה';
       if (ref === 'CREDIT_INVOICE')      return 'חשבונית זיכוי';
       if (ref === 'RECEIPT')             return 'קבלה';
       return 'הכנסה';
     }
-    if (accountCode === '4010') return 'הכנסה פטורה';
+    if (accountCode === '40010') return 'הכנסה פטורה';
 
     // 5. Bank
     if (accountCode === '1100') {

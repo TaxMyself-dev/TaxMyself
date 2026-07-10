@@ -57,7 +57,7 @@ function makeInput(overrides: Partial<any> = {}) {
     description: 'test entry',
     lines: [
       { accountCode: '1200', debit: 117 },
-      { accountCode: '4000', credit: 100, amountBeforeVat: 100, taxPercent: 100, vatPercent: 100, amountForTax: 100 },
+      { accountCode: '40000', credit: 100, amountBeforeVat: 100, taxPercent: 100, vatPercent: 100, amountForTax: 100 },
       { accountCode: '2400', credit: 17, vatAmount: 17, vatPercent: 100 },
     ],
     ...overrides,
@@ -173,7 +173,7 @@ describe('BookkeepingService — createJournalEntry / persistJournalEntry', () =
       await service.createJournalEntry(makeInput(), mockManager);
       expect(bookingAccountRepo.findOneByOrFail).toHaveBeenCalledTimes(3);
       expect(bookingAccountRepo.findOneByOrFail).toHaveBeenCalledWith({ code: '1200' });
-      expect(bookingAccountRepo.findOneByOrFail).toHaveBeenCalledWith({ code: '4000' });
+      expect(bookingAccountRepo.findOneByOrFail).toHaveBeenCalledWith({ code: '40000' });
       expect(bookingAccountRepo.findOneByOrFail).toHaveBeenCalledWith({ code: '2400' });
     });
 
@@ -254,7 +254,7 @@ describe('BookkeepingService — createJournalEntry / persistJournalEntry', () =
 
       expect(journalLineRepo.save).toHaveBeenCalledWith([
         expect.objectContaining({ accountCode: '1200', journalEntryId: 777, lineInEntry: 1, debit: 117, credit: 0 }),
-        expect.objectContaining({ accountCode: '4000', journalEntryId: 777, lineInEntry: 2, credit: 100 }),
+        expect.objectContaining({ accountCode: '40000', journalEntryId: 777, lineInEntry: 2, credit: 100 }),
         expect.objectContaining({ accountCode: '2400', journalEntryId: 777, lineInEntry: 3, credit: 17 }),
       ]);
     });

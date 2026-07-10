@@ -460,7 +460,7 @@ export class DemoDataService {
     try {
       const rows = await this.dataSource.getRepository(BookingAccount).find();
       const have = new Set(rows.map((r) => r.code));
-      const missing = ['1000', '2400', '2410', '4000', '5000'].filter((c) => !have.has(c));
+      const missing = ['1000', '2400', '2410', '40000', '60000'].filter((c) => !have.has(c));
       if (missing.length) {
         this.logger.warn(
           `[demo-data][ledger] default_booking_account is missing codes [${missing.join(', ')}]. ` +

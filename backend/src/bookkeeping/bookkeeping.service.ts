@@ -161,7 +161,7 @@ export class BookkeepingService {
    * Each dto line becomes 1 or 2 JournalLineInput rows:
    *   - line 1: the P&L account, net of VAT (matches every other P&L line —
    *     VAT is never mixed into it). income/income_exempt always post to
-   *     '4000' — the service ignores/overrides whatever accountCode the
+   *     '40000' — the service ignores/overrides whatever accountCode the
    *     client sent, never trusting it for those kinds.
    *   - line 2 (only when vatAmount > 0): the technical VAT account — '2400'
    *     for income, '2410' for expense — added automatically, never chosen
@@ -205,16 +205,18 @@ export class BookkeepingService {
 
       // income/income_exempt always post to the fixed income account — never
       // trust a client-supplied accountCode for those kinds.
-      const accountCode = isExpense ? line.accountCode : '4000';
+      const accountCode = isExpense ? line.accountCode : '40000';
       if (isExpense && !accountCode) continue;
 
       // Safety net: the manual-entry dropdown is meant to only offer
       // postable P&L accounts, but nothing stops a client from sending an
       // arbitrary code directly — reject anything that isn't a real,
       // kind-matching posting account (blocks silently posting into
-      // technical/asset/liability accounts via this path).
+      // technical/asset/liability accounts via this path). Checks sectionId,
+      // not pnlCategory, so sub-ledger child accounts (which the dropdown
+      // does offer but which have no pnlCategory of their own) still pass.
       const account = await bookingAccountRepo.findOneByOrFail({ code: accountCode });
-      if (!account.pnlCategory || account.type !== expectedType) {
+      if (!account.sectionId || account.type !== expectedType) {
         throw new BadRequestException(
           `Account ${accountCode} is not a valid ${expectedType} posting account`,
         );

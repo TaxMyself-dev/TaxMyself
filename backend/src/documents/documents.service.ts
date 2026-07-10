@@ -74,7 +74,7 @@ export function buildDocumentJournalLines(params: {
       counterAccountCode: '1100',
       journalLines: [
         { accountCode: '1100', debit: net,  amountBeforeVat: 0, vatAmount: 0, isEquipment: false, taxPercent: 0, vatPercent: 0, amountForTax: 0, subCategoryName: null },
-        { accountCode: '4000', credit: net, amountBeforeVat: net, vatAmount: 0, isEquipment: false, taxPercent: 100, vatPercent: 0, amountForTax: net, subCategoryName: null },
+        { accountCode: '40000', credit: net, amountBeforeVat: net, vatAmount: 0, isEquipment: false, taxPercent: 100, vatPercent: 0, amountForTax: net, subCategoryName: null },
       ],
     };
   }
@@ -88,7 +88,7 @@ export function buildDocumentJournalLines(params: {
       counterAccountCode: counterCode,
       journalLines: [
         { accountCode: counterCode, credit: full, amountBeforeVat: 0, vatAmount: 0, isEquipment: false, taxPercent: 0, vatPercent: 0, amountForTax: 0, subCategoryName: null },
-        { accountCode: '4000',      debit: net,  amountBeforeVat: net, vatAmount: 0,   isEquipment: false, taxPercent: 100, vatPercent: 100, amountForTax: net, subCategoryName: null },
+        { accountCode: '40000',     debit: net,  amountBeforeVat: net, vatAmount: 0,   isEquipment: false, taxPercent: 100, vatPercent: 100, amountForTax: net, subCategoryName: null },
         ...(vat > 0 ? [{ accountCode: '2400', debit: vat, amountBeforeVat: 0, vatAmount: vat, isEquipment: false, taxPercent: 0, vatPercent: 100, amountForTax: 0, subCategoryName: null }] : []),
       ],
     };
@@ -102,7 +102,7 @@ export function buildDocumentJournalLines(params: {
       counterAccountCode: counterCode,
       journalLines: [
         { accountCode: counterCode, debit: full, amountBeforeVat: 0, vatAmount: 0, isEquipment: false, taxPercent: 0, vatPercent: 0, amountForTax: 0, subCategoryName: null },
-        { accountCode: '4000',      credit: net, amountBeforeVat: net, vatAmount: 0,   isEquipment: false, taxPercent: 100, vatPercent: 100, amountForTax: net, subCategoryName: null },
+        { accountCode: '40000',     credit: net, amountBeforeVat: net, vatAmount: 0,   isEquipment: false, taxPercent: 100, vatPercent: 100, amountForTax: net, subCategoryName: null },
         ...(vat > 0 ? [{ accountCode: '2400', credit: vat, amountBeforeVat: 0, vatAmount: vat, isEquipment: false, taxPercent: 0, vatPercent: 100, amountForTax: 0, subCategoryName: null }] : []),
       ],
     };
