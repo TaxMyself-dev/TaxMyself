@@ -403,3 +403,99 @@ now fully met.
 
 **Next**: Phase 2 (Session 6+) — the unified `category`/`sub_category`
 tables and their migration from the four old catalog tables.
+
+## 2026-07-12 — Session 6 (Phase 2.1 + 2.3 complete; 2.2 review generated, apply pending sign-off)
+
+Planned and implemented tasks 2.1 (`Category`/`SubCategory` entities) and 2.3
+(`CatalogService` + `resolveAccountCode` adapter) in full; wrote and ran
+task 2.2's migration script in `MODE=review` only, per Elazar's explicit
+gate — no writes were made to `keepintax_prodcopy` or any other DB this
+session.
+
+- **2.1**: `Category`/`SubCategory` (`backend/src/bookkeeping/category.entity.ts`,
+  `sub-category.entity.ts`) placed in the `bookkeeping` module per Elazar's
+  choice (not a new `catalog` module) — `ExpensesModule` already imports
+  `BookkeepingModule`, zero new wiring needed. Two new enums added to
+  `enum.ts`: `CategoryType`, `ApprovalStatus`. Wired into
+  `bookkeeping.module.ts` (`forFeature`, `CatalogService` provider/export)
+  and `app.module.ts`'s root `entities` array (dev `synchronize` will create
+  the tables next boot).
+- **2.3**: `CatalogService` (`backend/src/bookkeeping/catalog.service.ts`):
+  `getMergedCategories`/`getMergedSubCategories` (CLIENT>ACCOUNTANT>SYSTEM
+  by name, D4), `resolveSubCategory` (subCategoryId → account → full
+  accounting law, for Phase 3/4), and `resolveAccountCode` — the thin
+  adapter matching the OLD resolver's exact signature. Its fallback moved
+  from the retired `'5000'` to `'60000'` (the new NOT_RECOGNIZED catch-all).
+  Per Elazar's note, the adapter carries an explicit TODO marking it a
+  Phase-4-only transition bridge: once expense approval resolves through
+  `subCategoryId` directly, a PRIVATE/unmapped sub_category is rejected
+  before journal posting is ever attempted, so this fallback should never
+  be reached post-Phase-4. `ExpensesService.resolveAccountCode`
+  (`expenses.service.ts`) now delegates to it — one-line body, signature
+  and single call site (`buildExpenseJournalLines`) untouched.
+  `expenses-journal.service.spec.ts` updated with a mocked `CatalogService`
+  provider (was implicitly relying on `defaultSubCategoryRepo`'s mock to
+  drive `resolveAccountCode`'s old chain). All 45 tests across
+  `bookkeeping.service.spec`, `account-code-allocator.service.spec`,
+  `expenses-journal.service.spec` green; `tsc --noEmit` clean on every
+  touched file (same pre-existing unrelated failures as every prior
+  session: users/report-workflow specs).
+- **90500/90600**: added two new technical accounts to `chart.seed.ts`
+  (additive, not touching Phase 1's already-rehearsed migration) per
+  Elazar's decision on the two row-groups `phase1-chart-review.md` §0.9/§0.10
+  left undecided — `90500` for internal cash/bank movements (ביט, בין
+  חשבונותי, חיוב אשראי חודשי, משיכת מזומן, פייבוקס) and `90600` for
+  loan-principal repayment (פרעון הלוואה). Elazar's requested check on
+  account `1000` (חשבון מעבר) confirmed it's a vestigial, never-posted-to
+  A/R-contra placeholder (`reports.service.ts` actively excludes it from
+  the ledger/dropdown; no code path ever writes to it) — not reused.
+- **2.2 (script written, MODE=review run, MODE=apply NOT run)**:
+  `backend/scripts/migrations/2026-07-12_catalog_migration.ts`. Reads all
+  four legacy tables via raw `dataSource.query()` (never TypeORM repos,
+  never `subAccountCode` — schema-drift.md Gap 1, that column doesn't exist
+  in production). Resolution order: explicit override table (D14 buckets +
+  this session's 90500/90600 + the confirmed קרן השתלמות merge) → D14
+  private/annual buckets → exact name match against `CHART_ACCOUNTS` →
+  old `accountCode` via `ACCOUNT_CODE_MIGRATION` → unresolved. Ran against
+  `keepintax_prodcopy`: **all 102 legacy sub-category rows accounted for**
+  (87 default_sub_category + 15 user_sub_category), 4 excluded (the
+  documented-dead "בית"/"בנקים וכרטיסי אשראי" duplicate categories — found
+  to be orphan `categoryName` strings on `default_sub_category` with no
+  matching `default_category` row at all, not excluded `default_category`
+  rows as `intentional-diffs.md`'s Correction #2 wording had implied; usage
+  re-verified zero against live `expense`/`classified_transactions`), 0
+  SYSTEM rows unresolved, 7 CLIENT rows resolved to
+  `MISSING_ACCOUNTING_MAPPING` (a design addition beyond the plan's literal
+  text: a CLIENT sub_category with no resolvable card is still migrated,
+  accountId=NULL, rather than silently dropped — this is D5's own explicit
+  design for exactly this case, needed so Phase 3.2's expense backfill has
+  a real row to attach to), 0 genuine percent-variant cases (the one
+  initial hit, business 204245724's Bituach Leumi row, was a false
+  positive from comparing expense-shaped percents against technical
+  account `90300`'s intentionally-null law — fixed by only comparing
+  against accounts with a real `recognitionType`). Output:
+  `docs/redesign/phase2-catalog-review.md`.
+  **Found and fixed two bugs in the script's first pass** (both from
+  gaps between what `phase1-chart-review.md`/D14 documented and what a
+  live query actually returns): the בריאות category is really named
+  "בריאות וביטוחים" in production, not "בריאות" (fixed the override key,
+  recovering 5 rows from spuriously landing in "unresolved"); and the
+  percent-variant false positive above.
+  **2.2 checkbox intentionally left unticked** — the task includes running
+  the migration, which has not happened. `MODE=apply` is stubbed to throw
+  ("not yet implemented ... Phase 2.2 execution is a separate, later
+  step") pending Elazar's sign-off on the review doc, per the explicit
+  process gate this session was scoped to respect. One item surfaced for a
+  possible follow-up decision (not auto-applied): user_sub_category id 11
+  ("שונות → תרומה") landed in MISSING_ACCOUNTING_MAPPING rather than
+  ANNUAL because "תרומה" doesn't exact-match "תרומות מוכרות" — plausibly
+  the same real-world donation-deduction item, left for Elazar rather than
+  guessed.
+
+**Next**: Elazar reviews `docs/redesign/phase2-catalog-review.md` and signs
+off (or corrects); then a follow-up session implements `MODE=apply` in the
+migration script (transactional writes to `category`/`sub_category`/new
+80000-range variant cards — none needed this run — plus the
+`booking_account` 90500/90600 seed), re-verifies row counts, and appends
+the result to `cutover.sql`. After that, `Current phase` stays `2` until
+2.4–2.7 (CRUD port, freeze old tables, flat seeder, parity test) also land.

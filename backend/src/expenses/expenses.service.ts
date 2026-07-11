@@ -17,6 +17,7 @@ import { FxRateService } from '../shared/fx-rate.service';
 import { Business } from 'src/business/business.entity';
 import { BusinessType, VATReportingType, ExpenseReportScope, JournalReferenceType, isExemptBusinessType } from 'src/enum';
 import { BookkeepingService } from '../bookkeeping/bookkeeping.service';
+import { CatalogService } from '../bookkeeping/catalog.service';
 import { JournalLineInput } from '../bookkeeping/dto/journal-entry-input.interface';
 //DTOs
 import { UpdateExpenseDto } from './dtos/update-expense.dto';
@@ -49,6 +50,7 @@ export class ExpensesService {
             private readonly fxRateService: FxRateService,
             private readonly dataSource: DataSource,
             private readonly bookkeepingService: BookkeepingService,
+            private readonly catalogService: CatalogService,
         ) { }
 
 
@@ -867,12 +869,12 @@ export class ExpensesService {
      * EVERY expense-creation path (manual entry, OCR document, bank-transaction
      * approval) so they all post to the same account.
      *
-     * Resolution order (first non-empty wins):
-     *   1. user_sub_category.accountCode    (per-business sub-category override)
-     *   2. default_sub_category.accountCode (global sub-category mapping)
-     *   3. user_category.accountCode        (per-business category override)
-     *   4. default_category.accountCode     (global category default)
-     *   5. '5000'                           (generic expense fallback)
+     * Phase 2.3: delegates to CatalogService, which resolves against the new
+     * category/sub_category/booking_account tables (D1) instead of the old
+     * four-table 5-level chain. Signature unchanged so this call site's
+     * caller (buildExpenseJournalLines) needed no changes — see
+     * CatalogService.resolveAccountCode for the resolution order and the
+     * Phase-4 TODO on its fallback behavior.
      */
     async resolveAccountCode(
         categoryName: string,
@@ -880,43 +882,7 @@ export class ExpensesService {
         firebaseId?: string | null,
         businessNumber?: string | null,
     ): Promise<string> {
-        const category = categoryName?.trim();
-        const subCategory = subCategoryName?.trim();
-
-        // 1. user sub-category override
-        if (firebaseId && businessNumber && subCategory && category) {
-            const userSub = await this.userSubCategoryRepo.findOne({
-                where: { firebaseId, businessNumber, subCategoryName: subCategory, categoryName: category },
-            });
-            if (userSub?.accountCode) return userSub.accountCode;
-        }
-
-        // 2. default sub-category
-        if (subCategory && category) {
-            const defaultSub = await this.defaultSubCategoryRepo.findOne({
-                where: { subCategoryName: subCategory, categoryName: category },
-            });
-            if (defaultSub?.accountCode) return defaultSub.accountCode;
-        }
-
-        // 3. user category override
-        if (firebaseId && businessNumber && category) {
-            const userCat = await this.userCategoryRepo.findOne({
-                where: { firebaseId, businessNumber, categoryName: category },
-            });
-            if (userCat?.accountCode) return userCat.accountCode;
-        }
-
-        // 4. default category
-        if (category) {
-            const defaultCat = await this.defaultCategoryRepo.findOne({
-                where: { categoryName: category },
-            });
-            if (defaultCat?.accountCode) return defaultCat.accountCode;
-        }
-
-        // 5. final fallback
-        return '5000';
+        return this.catalogService.resolveAccountCode(categoryName, subCategoryName, firebaseId, businessNumber);
     }
 
     /**

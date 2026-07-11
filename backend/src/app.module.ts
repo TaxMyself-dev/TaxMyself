@@ -83,6 +83,8 @@ import { JournalLine } from './bookkeeping/jouranl-line.entity';
 import { BookingAccount } from './bookkeeping/account.entity';
 import { AccountingSection } from './bookkeeping/accounting-section.entity';
 import { AccountCodeMigration } from './bookkeeping/account-code-migration.entity';
+import { Category } from './bookkeeping/category.entity';
+import { SubCategory } from './bookkeeping/sub-category.entity';
 import { BookkeepingService } from './bookkeeping/bookkeeping.service';
 import { UsersService } from './users/users.service';
 import { BusinessModule } from './business/business.module';
@@ -103,7 +105,7 @@ import { BusinessService } from './business/business.service';
         Bill, Source,
         DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory, Finsite, Delegation, SettingDocuments,
         Clients, Documents, DocLines, DocPayments, ExtractedDocument, JournalEntry, JournalLine, BookingAccount,
-        AccountingSection, AccountCodeMigration,
+        AccountingSection, AccountCodeMigration, Category, SubCategory,
         FeezbackWebhookEvent, UserModuleSubscription, AccountantTask, AnnualReport, AnnualReportFile, ReportWorkflow,
         FxRate,
         SubscriptionPlan, Subscription, PaymentMethod, CardcomWebhookLog, BillingEvent,

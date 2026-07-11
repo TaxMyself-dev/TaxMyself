@@ -449,7 +449,7 @@ reproduce baseline totals, old code ranges absent from `journal_line`.
 
 **Goal:** the new two-table catalog, migrated from the four old tables.
 
-- [ ] 2.1 New entities `Category` (table `category`) and `SubCategory`
+- [x] 2.1 New entities `Category` (table `category`) and `SubCategory`
       (table `sub_category`) exactly per D1/D3/D4/D5:
 
       Category: `id, name, type ('EXPENSE'|'INCOME'), defaultRecognitionType,
@@ -487,7 +487,7 @@ reproduce baseline totals, old code ranges absent from `journal_line`.
       sub_category at it. List every such case for Elazar's review before
       running (expected: few — 15 user_sub_category rows total, 6 expenses
       on them).
-- [ ] 2.3 New `CatalogService`: single resolution query replacing
+- [x] 2.3 New `CatalogService`: single resolution query replacing
       `resolveAccountCode`'s 5-level chain — load merged catalog for a
       business (CLIENT > ACCOUNTANT > SYSTEM by name), resolve
       subCategoryId → account → the card's full accounting law (section,

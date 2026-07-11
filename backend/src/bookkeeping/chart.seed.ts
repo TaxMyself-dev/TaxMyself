@@ -265,6 +265,12 @@ export const CHART_ACCOUNTS: ChartAccountSeed[] = [
   // business's own income-tax liability), same technical-account pattern as
   // the three above. Section/percents not applicable, same as its siblings.
   { code: '90400', legacyCode: null, legacySource: null, name: 'מס במקור שנוכה מלקוחות',   type: 'asset', pnlCategory: null, displayOrder: null, sectionCode: null, ...SYSTEM_DEFAULTS, ...NOT_APPLICABLE_LAW },
+  // NEW Phase 2.2 — targets for two old-chart row groups phase1-chart-review.md
+  // §0.9/§0.10 explicitly left undecided (not real expense cards, but not
+  // usefully "private" either — confirmed account 1000 חשבון מעבר is a
+  // vestigial, never-posted-to A/R-contra placeholder, not a semantic fit).
+  { code: '90500', legacyCode: null, legacySource: null, name: 'תנועות פנימיות בין חשבונות', type: 'asset', pnlCategory: null, displayOrder: null, sectionCode: null, ...SYSTEM_DEFAULTS, ...NOT_APPLICABLE_LAW },
+  { code: '90600', legacyCode: null, legacySource: null, name: 'פרעון הלוואות (קרן)',        type: 'liability', pnlCategory: null, displayOrder: null, sectionCode: null, ...SYSTEM_DEFAULTS, ...NOT_APPLICABLE_LAW },
 ];
 
 /**

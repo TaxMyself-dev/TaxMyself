@@ -23,6 +23,7 @@ import { DefaultSubCategory } from './default-sub-categories.entity';
 import { UserCategory } from './user-categories.entity';
 import { UserSubCategory } from './user-sub-categories.entity';
 import { BookkeepingService } from '../bookkeeping/bookkeeping.service';
+import { CatalogService } from '../bookkeeping/catalog.service';
 import { SharedService } from '../shared/shared.service';
 import { FxRateService } from '../shared/fx-rate.service';
 import { User } from '../users/user.entity';
@@ -98,6 +99,13 @@ describe('ExpensesService — journal entry linking', () => {
       findJournalEntryNumber: jest.fn().mockResolvedValue(null),
     } as any;
 
+    // Phase 2.3: ExpensesService.resolveAccountCode now delegates to
+    // CatalogService — mock it to the same '5100' the old defaultSubCategoryRepo
+    // mock below used to drive, so these journal-line assertions stay unchanged.
+    const catalogService: Partial<CatalogService> = {
+      resolveAccountCode: jest.fn().mockResolvedValue('5100'),
+    };
+
     mockManager = {
       getRepository: jest.fn().mockReturnValue(expenseRepo),
     } as any;
@@ -158,6 +166,7 @@ describe('ExpensesService — journal entry linking', () => {
         { provide: FxRateService, useValue: fxRateService },
         { provide: DataSource, useValue: dataSource },
         { provide: BookkeepingService, useValue: bookkeepingService },
+        { provide: CatalogService, useValue: catalogService },
       ],
     }).compile();
 

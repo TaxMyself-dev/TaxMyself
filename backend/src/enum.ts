@@ -303,8 +303,27 @@ export enum VisibilityScope {
   SPECIFIC_CLIENT = 'SPECIFIC_CLIENT',
 }
 
+/** category.type — client-facing polarity (D1 of the categories redesign). */
+export enum CategoryType {
+  EXPENSE = 'EXPENSE',
+  INCOME = 'INCOME',
+}
 
-// ************ Uniform file ************ // 
+/**
+ * sub_category.approvalStatus (D5). MISSING_ACCOUNTING_MAPPING = a business
+ * (non-private) sub_category with no accountId yet — a client with an
+ * accountant may create one unmapped; expenses on it cannot be approved
+ * until an accountant completes the mapping (D9's inline completion row).
+ */
+export enum ApprovalStatus {
+  APPROVED = 'APPROVED',
+  PENDING_ACCOUNTANT_APPROVAL = 'PENDING_ACCOUNTANT_APPROVAL',
+  MISSING_ACCOUNTING_MAPPING = 'MISSING_ACCOUNTING_MAPPING',
+  REJECTED = 'REJECTED',
+}
+
+
+// ************ Uniform file ************ //
 
 export const FIELD_MAP = {
   A000: [
