@@ -380,7 +380,7 @@ D14/D15 numbers recorded in `production-baseline.md`.
 **Goal:** sections table, enriched accounts table, full renumbering, with
 journal history migrated.
 
-- [ ] 1.1 New entity `AccountingSection` (table `accounting_section`):
+- [x] 1.1 New entity `AccountingSection` (table `accounting_section`):
       `id, code (string), name, ownerType, chartOwnerKey, accountantId,
       userId, businessNumber, displayOrder, isActive, timestamps`,
       `UNIQUE(chartOwnerKey, code)`.
@@ -427,7 +427,7 @@ journal history migrated.
       Bituach-Leumi entries of business 204245724 are remapped to the
       90000-range technical account per D14/D15, not to a 60000 expense
       account.
-- [ ] 1.5 `getNextAccountCode` service + unit tests (range per
+- [x] 1.5 `getNextAccountCode` service + unit tests (range per
       ownerType/type, jumps of 10, per-chartOwnerKey isolation, manual
       out-of-sequence codes tolerated).
 - [x] 1.6 Update every hardcoded result-account code:
