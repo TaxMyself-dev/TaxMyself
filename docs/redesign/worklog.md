@@ -583,3 +583,136 @@ of it, not a substitute for the committed Jest suite the plan calls for).
 `Current phase` stays `2` in `CLAUDE.md` until those land.
 
 **Next**: a follow-up session for 2.4–2.7.
+
+## 2026-07-12 — Session 6B (Phase 2.4–2.7 — Phase 2 COMPLETE)
+
+Plan-mode session (three corrections from Elazar's review, all applied
+before implementing — see below). Ported every catalog CRUD endpoint,
+froze the old four tables, replaced `AccountSeedService` with a flat
+idempotent seeder, and added the Phase 2.7 test suite.
+
+**Design decision confirmed with Elazar up front**: the old percent-bearing
+endpoints (`add-user-sub-categories`, `update-user-sub-category`,
+`sub-category-report-config`) stay wire-compatible, but a submitted percent
+combination now resolves to a `booking_account` rather than living on
+`sub_category` (D1). A new `CatalogService.findOrCreateVariantAccount`
+finds-or-creates a scoped variant card per unique percent/isEquipment/
+recognition combination and points the thin `sub_category` at it — same
+precedent the Phase 2.2 migration already used for user_sub_category
+percent-variants. Variant cards are named `"{name} — מוכר {tax%}/{vat%}"`.
+
+**Three corrections from plan review, all implemented:**
+1. **Section inheritance, not invention**: `findOrCreateVariantAccount`
+   never creates a sectionless card. Resolution order: (1) the base
+   account's `sectionId` (the canonical same-named card — found via a
+   SYSTEM `sub_category` lookup by name) — (2) a SYSTEM `accounting_section`
+   whose name matches the parent category name — (3) refuse (return
+   `null`); the caller lands the `sub_category` as
+   `MISSING_ACCOUNTING_MAPPING` with `accountId=NULL` instead. Also applied
+   uniformly to `createSubCategory`'s ANNUAL/isPrivate rows: neither ever
+   attempts law resolution — both are `APPROVED` with `accountId=NULL` by
+   design (D5 / D14 decision 2), never `MISSING_ACCOUNTING_MAPPING`.
+2. **Soft delete, `isActive` audited everywhere**: `deleteCategory`/
+   `deleteSubCategory` set `isActive=false` (hard-deleting a SYSTEM category
+   could orphan CLIENT sub_categories pointing at it by `categoryId`).
+   Confirmed every read path filters `isActive: true`
+   (`getMergedCategories`/`getMergedSubCategories` already did;
+   `findOrCreateCategory`/`findCategoryInSingleScope`/
+   `findSubCategoryInSingleScope`/`findSystemSubCategoryByName` and the
+   admin listing methods added this session all do too) — also fixed a
+   pre-existing gap: the Phase 2.3 `resolveAccountCode` adapter's own
+   queries were missing `isActive: true` (folded into the `resolveByName`
+   rewrite it now delegates to).
+3. **cutover.sql captures the seeder as a proper section**: appended
+   Section 5, documenting that the Phase 2.6 seeder is a *confirmed no-op*
+   against `keepintax_prodcopy` (verified via a MODE=review/apply script,
+   same two-step pattern as the Phase 2.2 migration) — every section/
+   account/SYSTEM-category/SYSTEM-sub_category it would write already
+   exists, written by Sections 3/4a/4b. Not redundant SQL — a documented,
+   verified reconciliation, with the cutover-ordering implication spelled
+   out (Sections 3/4a/4b must run before the new code, carrying
+   `CatalogSeedService`, is deployed and boots).
+
+**2.4 — CRUD port** (`backend/src/bookkeeping/catalog.service.ts`,
+`backend/src/expenses/expenses.service.ts`): added
+`findOrCreateCategory`/`findOrCreateVariantAccount`/`createSubCategory`/
+`updateSubCategoryLaw`/`deleteCategory`/`deleteSubCategory` plus several
+scoped-lookup helpers to `CatalogService` (now also injects `BookingAccount`/
+`AccountingSection` repos and `AccountCodeAllocatorService`). Every
+`ExpensesService` catalog method (`getCategories`, `getSubCategories`,
+`addUserCategory`, `addUserSubCategories`, `getAllDefaultSubCategories`,
+`getAllUserSubCategories`, `updateDefaultSubCategory`,
+`deleteDefaultSubCategory`, `createDefaultSubCategory`,
+`updateUserCategory`, `updateUserSubCategory`,
+`setSubCategoryReportConfig`, `deleteUserCategoryCascade`,
+`deleteUserSubCategory`, `getUserCategoriesGrouped`) rewritten to call
+`CatalogService`, with a `toLegacyCategory`/`toLegacySubCategory` mapper
+pair translating `Category`/`SubCategory` rows back to the
+`categoryName`/`subCategoryName`-shaped objects the frontend already
+expects — zero frontend changes needed. Also ported
+`getSubCategoryIsEquipment`/`getSubCategoryReportScope` (live inputs to
+`addExpense`'s classification snapshot, not literally "CRUD" but reading
+the exact tables 2.5 freezes — leaving them on the old tables would have
+silently gone stale for every sub-category created after this session) via
+a new `CatalogService.resolveByName`. Deliberately did **not** port
+`getPnlCategoryMap` (D3: the `pnlCategory` namespace is already dead;
+deletion is explicitly Phase 4.4 scope) or `transactions.service.ts`'s
+`findSubCategoryDetails`/category-name filter (both operate on the legacy
+`Transactions` table, already flagged `TODO_FINTAX_REMOVE_LEGACY_TRANSACTIONS`
+and superseded by `TransactionProcessingService`'s live pipeline — out of
+scope, not a regression). Added a classified_transactions safety check to
+`deleteDefaultSubCategory` that didn't exist pre-port (SYSTEM sub-category
+names ARE referenced by CLIENT classification rules).
+
+**2.5 — freeze**: removed `transactions.service.ts`'s `loadDefaultCategories`
+and its controller route (the only other write path to the old tables
+besides `ExpensesService`); dropped `DefaultCategory`/`UserCategory` repo
+injections from `ExpensesService` (kept `DefaultSubCategory`/
+`UserSubCategory` — still read by the untouched `getPnlCategoryMap`).
+Removed the now-dead `load-default-categories` bulk-upload control from
+`category-management.component.html`/`.ts` (admin panel) rather than leave
+a button pointing at a deleted endpoint.
+
+**2.6 — flat seeder**: new `backend/src/bookkeeping/catalog.seed.ts`
+(`SYSTEM_CATEGORIES`, `SYSTEM_SUB_CATEGORIES` — 12 categories / 81
+sub-categories, name-keyed, transcribed from the already-reviewed
+`docs/redesign/phase2-catalog-review.md`, with the two ANNUAL merges
+folded in) and `catalog-seed.service.ts` (`CatalogSeedService`, replacing
+`AccountSeedService`): seeds `accounting_section`/`booking_account` from
+`chart.seed.ts` (data that existed since Phase 1.3 but was "not wired into
+any boot-time seeder yet" per its own header comment — this session is
+that wiring) and the SYSTEM catalog from `catalog.seed.ts`, all idempotent.
+Deleted `account-seed.service.ts` and `account.seed.ts` (old pre-redesign
+`DEFAULT_ACCOUNTS`). **Bug caught during rehearsal**: `.upsert()` on
+`accounting_section`/`booking_account` (composite non-PK conflict target)
+threw `Cannot update entity because entity id is not set in the entity` — a
+TypeORM RETURNING-columns limitation on the UPDATE branch of an upsert,
+confirmed to corrupt nothing (row counts held steady) but failing every
+row. Replaced with explicit find-then-create/update loops (matching the
+pattern `findOrCreateCategory` already used) — clean run confirmed after.
+
+**2.7 — tests**: `catalog.service.spec.ts` (merge precedence,
+`findOrCreateVariantAccount` reuse/create/refuse/section-inheritance,
+`createSubCategory`'s isPrivate/ANNUAL/MISSING_ACCOUNTING_MAPPING
+branches, `resolveAccountCode` fallback), `catalog-seed.service.spec.ts`
+(full-seed + idempotent-rerun + `SKIP_BOOT_SEED` + seed-data cross-reference
+checks against `chart.seed.ts`), `catalog-parity.spec.ts` (the Phase 2.7
+plan item verbatim — promotes
+`backend/scripts/verify-phase2-catalog-migration.ts`'s hand-rolled hard-gate
+check into a committed Jest suite, gated behind `DB_DATABASE` so `npm test`
+never needs DB access). Full backend suite run: only the 6 suites already
+broken on `main` before this session (confirmed via `git stash`) still
+fail; nothing newly broken.
+
+**Verification against `keepintax_prodcopy`**: `2026-07-12_run-catalog-seeder.ts`
+(MODE=review then MODE=apply, same two-step pattern as the Phase 2.2
+script) — confirmed **zero diff**: 16/16 sections, 61/61 accounts, 12/12
+SYSTEM categories, 81/81 SYSTEM sub-categories all already matched exactly.
+
+**Phase 2 checklist status**: 2.1–2.7 all ticked `[x]`. **Phase 2 is
+COMPLETE** per its Definition of Done (new catalog serves all reads/writes,
+parity test green, old tables frozen). `Current phase` set to `3` in
+`CLAUDE.md`.
+
+**Next**: Phase 3 (FK backfill & expense snapshots) — a fresh session per
+the runbook's Session 7.

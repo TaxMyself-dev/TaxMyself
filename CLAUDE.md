@@ -7,9 +7,9 @@
   host as keepintax-dev (34.165.27.179) — NOT a local server (none exists
   on this machine). Never boot the full Nest app against it without both
   NODE_ENV=production (disables synchronize) and SKIP_BOOT_SEED=true
-  (no-ops AccountSeedService's boot-time catalog writes) — see
-  docs/redesign/production-baseline.md "Open items" for what happens if
-  you skip either.
+  (no-ops CatalogSeedService's boot-time catalog writes, formerly
+  AccountSeedService) — see docs/redesign/production-baseline.md "Open
+  items" for what happens if you skip either.
 - Task 0.1 (production backup) is DONE — the dump file is the backup.
 
 - Master plan: docs/redesign/categories-redesign-master-plan.md
@@ -18,7 +18,7 @@
 - Decisions D1–D15 in the plan are FINAL. Do not re-litigate them.
   If reality conflicts with the plan (missing column, undocumented flow),
   STOP and ask Elazar — do not improvise schema decisions.
-- Current phase: 2
+- Current phase: 3
   (Update this line manually when a phase completes.)
 - Audit of the pre-redesign system: docs/categories-audit.md
 - Where older docs in /docs (bookkeeping-system.md,

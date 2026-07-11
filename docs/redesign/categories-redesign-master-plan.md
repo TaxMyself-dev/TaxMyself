@@ -495,17 +495,17 @@ reproduce baseline totals, old code ranges absent from `journal_line`.
       `resolveAccountCode` becomes a thin adapter over it during
       transition (same signature, string in / code out) so existing
       callers keep working until Phase 4.
-- [ ] 2.4 Port catalog CRUD endpoints to the new tables behind the SAME
+- [x] 2.4 Port catalog CRUD endpoints to the new tables behind the SAME
       routes/DTO shapes the Angular app already calls (`get-categories`,
       `get-sub-categories`, add/update/delete user category endpoints,
       admin default-catalog endpoints). Frontend keeps working unchanged.
       Delete-safety checks (classified_transactions references) preserved.
-- [ ] 2.5 Old four tables become read-only (remove all write paths;
+- [x] 2.5 Old four tables become read-only (remove all write paths;
       keep tables for rollback until Phase 7).
-- [ ] 2.6 Replace `AccountSeedService` with the flat idempotent seeder
+- [x] 2.6 Replace `AccountSeedService` with the flat idempotent seeder
       (D13). Delete the 7-step cascade and
       `transactions/load-default-categories` (superseded).
-- [ ] 2.7 Tests: migration script unit-tested against fixture DB built
+- [x] 2.7 Tests: migration script unit-tested against fixture DB built
       from production baseline shapes; catalog merge precedence tests;
       resolution parity test — for every (category, subCategory) pair in
       the production baseline, old `resolveAccountCode` output == new

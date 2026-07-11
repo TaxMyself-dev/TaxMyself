@@ -3,14 +3,13 @@ Admin-only screen for maintaining the global list of default sub-categories (the
 
 ## Key entities/files
 - `category-management.component.ts` — signal-based state (`subCategories`, filters, add/edit dialog state); CRUD against `ExpenseDataService` (`getAllDefaultSubCategories`/`addDefaultSubCategory`/`updateDefaultSubCategory`/`deleteDefaultSubCategory`); Excel export built with `exceljs`.
-- `category-management.component.html` — `app-filter-tab` filter bar, results table, add/edit `p-dialog`s, `app-load-file` for bulk upload (`load-default-categories` endpoint).
+- `category-management.component.html` — `app-filter-tab` filter bar, results table, add/edit `p-dialog`s. The bulk-upload `app-load-file` control (backed by `load-default-categories`) was removed in Phase 2.6 of the categories redesign — that endpoint was deleted, superseded by the flat idempotent seeder (D13).
 - `category-management.component.scss` — styling.
 
 ## Main flows
 - Load and filter default sub-categories (by category, isExpense, isRecognized, reportScope, isEquipment).
 - Add a sub-category (pick existing parent category or create a new one).
 - Edit / delete a sub-category (PrimeNG `ConfirmationService` confirm dialogs).
-- Bulk-import sub-categories from an uploaded file.
 - Export all sub-categories to a 3-sheet Excel workbook (recognized / not-recognized / accountant view), using `LedgerReportService.getLedgerAccounts()` to resolve account names for the accountant sheet.
 
 ## Related topics

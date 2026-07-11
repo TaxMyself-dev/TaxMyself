@@ -552,15 +552,6 @@ export class TransactionsController {
   }
 
 
-  @Post('load-default-categories')
-  //TODO: Add Admin guard
-  @UseInterceptors(FileInterceptor('file'))
-  async loadDefaultCategories(
-    @UploadedFile() file: Express.Multer.File) {
-    return this.transactionsService.loadDefaultCategories(file)
-  }
-
-
   @Post('add-bill')
   @UseGuards(FirebaseAuthGuard)
   async addBill(

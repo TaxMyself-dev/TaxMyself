@@ -99,11 +99,23 @@ describe('ExpensesService — journal entry linking', () => {
       findJournalEntryNumber: jest.fn().mockResolvedValue(null),
     } as any;
 
-    // Phase 2.3: ExpensesService.resolveAccountCode now delegates to
-    // CatalogService — mock it to the same '5100' the old defaultSubCategoryRepo
-    // mock below used to drive, so these journal-line assertions stay unchanged.
+    // Phase 2.3/2.4: ExpensesService.resolveAccountCode/getSubCategoryIsEquipment/
+    // getSubCategoryReportScope now delegate to CatalogService — mock them to the
+    // same values the old defaultSubCategoryRepo mock below used to drive, so
+    // these journal-line assertions stay unchanged.
     const catalogService: Partial<CatalogService> = {
       resolveAccountCode: jest.fn().mockResolvedValue('5100'),
+      resolveByName: jest.fn().mockResolvedValue({
+        subCategory: { reportScope: ExpenseReportScope.PNL },
+        account: null,
+        section: null,
+        code6111: null,
+        vatPercent: null,
+        taxPercent: null,
+        isEquipment: false,
+        reductionPercent: null,
+        recognitionType: null,
+      }),
     };
 
     mockManager = {

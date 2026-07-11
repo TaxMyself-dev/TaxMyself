@@ -741,3 +741,44 @@ COMMIT;
 -- Full resolution-parity re-run: backend/scripts/verify-phase2-catalog-migration.ts
 -- ============================================================================
 
+
+-- ============================================================================
+-- SECTION 5 (Phase 2.6, D13) — flat catalog seeder reconciliation.
+--
+-- NO NEW SQL IN THIS SECTION. `CatalogSeedService` (backend/src/bookkeeping/
+-- catalog-seed.service.ts, replacing AccountSeedService) seeds
+-- accounting_section + booking_account from chart.seed.ts and the SYSTEM
+-- category/sub_category catalog from catalog.seed.ts, on every backend boot
+-- (idempotent: sections/accounts are find-or-create/update by
+-- (chartOwnerKey, code); category/sub_category rows are create-if-missing
+-- only, never touching an existing row).
+--
+-- Verified against `keepintax_prodcopy` (2026-07-12, MODE=review then
+-- MODE=apply via backend/scripts/migrations/2026-07-12_run-catalog-seeder.ts):
+-- running the seeder is a CONFIRMED NO-OP — every one of its 16 sections /
+-- 61 accounts / 12 SYSTEM categories / 81 SYSTEM sub_categories already
+-- matches, byte-for-byte, what Section 3 (Phase 1.4 chart renumber) and
+-- Sections 4a/4b (Phase 2.2 catalog migration) above already wrote. This is
+-- the intended relationship, not a coincidence: catalog.seed.ts's SYSTEM_
+-- SUB_CATEGORIES array is a portable, name-keyed restatement of the exact
+-- same reviewed data in docs/redesign/phase2-catalog-review.md that Section
+-- 4b's literal INSERTs encode by id — two representations of one
+-- Elazar-approved source, not two independent ones.
+--
+-- Cutover ordering implication (Elazar, Phase 2.4 plan review): Sections
+-- 3/4a/4b MUST run (they create the rows) BEFORE the new backend code
+-- (carrying CatalogSeedService) is deployed and boots — matching the
+-- checklist's existing order (run cutover.sql fully, THEN deploy). Once
+-- deployed, CatalogSeedService's own boot-time run reproduces the identical
+-- no-op confirmed here, and continues to keep the catalog consistent on
+-- every subsequent boot (e.g. after Phase 7 drops the old four tables and
+-- AccountSeedService no longer exists to do this job).
+--
+-- If a future cutover rehearsal on a FRESH database shows this section is
+-- NOT a no-op (report at
+--   DB_DATABASE=<db> NODE_ENV=production SKIP_BOOT_SEED=true \
+--     npx ts-node -r tsconfig-paths/register scripts/migrations/2026-07-12_run-catalog-seeder.ts
+-- ), catalog.seed.ts has drifted from Sections 4a/4b — investigate before
+-- trusting either one at cutover.
+-- ============================================================================
+

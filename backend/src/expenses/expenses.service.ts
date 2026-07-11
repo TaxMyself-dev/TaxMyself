@@ -6,18 +6,18 @@ import { Between, DataSource, In, LessThanOrEqual, MoreThan, MoreThanOrEqual, Re
 import { Expense } from './expenses.entity';
 import { Supplier } from './suppliers.entity';
 import { User } from '../users/user.entity';
-import { DefaultCategory } from './default-categories.entity';
 import { DefaultSubCategory } from './default-sub-categories.entity';
-import { UserCategory } from './user-categories.entity';
 import { UserSubCategory } from './user-sub-categories.entity';
 import { ClassifiedTransactions } from '../transactions/classified-transactions.entity';
 import { ExtractedDocument, ExtractedDocStatus } from '../documents/extracted-document.entity';
 import { SharedService } from '../shared/shared.service';
 import { FxRateService } from '../shared/fx-rate.service';
 import { Business } from 'src/business/business.entity';
-import { BusinessType, VATReportingType, ExpenseReportScope, JournalReferenceType, isExemptBusinessType } from 'src/enum';
+import { BusinessType, VATReportingType, ExpenseReportScope, JournalReferenceType, isExemptBusinessType, CategoryType, OwnerType, RecognitionType } from 'src/enum';
 import { BookkeepingService } from '../bookkeeping/bookkeeping.service';
-import { CatalogService } from '../bookkeeping/catalog.service';
+import { CatalogService, AccountLaw, CatalogScope } from '../bookkeeping/catalog.service';
+import { Category } from '../bookkeeping/category.entity';
+import { SubCategory } from '../bookkeeping/sub-category.entity';
 import { JournalLineInput } from '../bookkeeping/dto/journal-entry-input.interface';
 //DTOs
 import { UpdateExpenseDto } from './dtos/update-expense.dto';
@@ -39,9 +39,10 @@ export class ExpensesService {
             private readonly sharedService: SharedService,
             @InjectRepository(Expense) private expense_repo: Repository<Expense>,
             @InjectRepository(User) private userRepo: Repository<User>,
-            @InjectRepository(DefaultCategory) private defaultCategoryRepo: Repository<DefaultCategory>,
+            // Kept ONLY for getPnlCategoryMap (D3: pnlCategory namespace is dead,
+            // deletion deferred to Phase 4.4 per the master plan) — every other
+            // catalog read/write goes through CatalogService as of Phase 2.4.
             @InjectRepository(DefaultSubCategory) private defaultSubCategoryRepo: Repository<DefaultSubCategory>,
-            @InjectRepository(UserCategory) private userCategoryRepo: Repository<UserCategory>,
             @InjectRepository(UserSubCategory) private userSubCategoryRepo: Repository<UserSubCategory>,
             @InjectRepository(Supplier) private supplier_repo: Repository<Supplier>,
             @InjectRepository(Business) private businessRepo: Repository<Business>,
@@ -433,18 +434,59 @@ export class ExpensesService {
     ///////////////////////////////////////////////////////////////////////////////////////////////
 
 
+    /** Phase 2.4 legacy-shape mappers — the wire contract (categoryName/
+     *  subCategoryName field names) stays exactly what the frontend already
+     *  expects; only the storage moved to category/sub_category (D1). */
+    private toLegacyCategory(cat: Category): any {
+        return {
+            id: cat.id,
+            categoryName: cat.name,
+            firebaseId: cat.userId ?? cat.accountantId ?? null,
+            businessNumber: cat.businessNumber ?? null,
+            isExpense: cat.type === CategoryType.EXPENSE,
+            accountCode: null,
+        };
+    }
+
+    private toLegacySubCategory(sub: SubCategory): any {
+        const acc = sub.account ?? null;
+        return {
+            id: sub.id,
+            subCategoryName: sub.name,
+            categoryName: sub.category?.name,
+            firebaseId: sub.userId ?? sub.accountantId ?? null,
+            businessNumber: sub.businessNumber ?? null,
+            taxPercent: acc?.taxPercent != null ? Number(acc.taxPercent) : 0,
+            vatPercent: acc?.vatPercent != null ? Number(acc.vatPercent) : 0,
+            reductionPercent: acc?.reductionPercent != null ? Number(acc.reductionPercent) : 0,
+            isEquipment: acc?.isEquipment ?? false,
+            isRecognized: sub.isPrivate ? false : acc?.recognitionType === RecognitionType.RECOGNIZED,
+            isExpense: sub.category ? sub.category.type === CategoryType.EXPENSE : true,
+            necessity: sub.necessity,
+            reportScope: sub.reportScope,
+            pnlCategory: null, // D3 — pnlCategory string namespace retired, never populated on new rows
+            accountCode: acc?.code ?? null,
+            subAccountCode: null,
+            approvalStatus: sub.approvalStatus,
+        };
+    }
+
+    /** Reload a just-created/updated sub_category with account/category relations
+     *  populated, for the legacy mapper. */
+    private async reloadSubCategory(id: number, chartOwnerKey: string): Promise<SubCategory> {
+        const sub = await this.catalogService.findSubCategoryInScope(id, chartOwnerKey);
+        if (!sub) {
+            throw new NotFoundException(`Sub-category ${id} not found`);
+        }
+        return sub;
+    }
+
     private async getUserCategory(
         firebaseId: string,
         businessNumber: string,
         categoryName: string,
-    ): Promise<UserCategory | null> {
-        return this.userCategoryRepo.findOne({
-            where: {
-                categoryName,
-                firebaseId,
-                businessNumber,
-            },
-        });
+    ): Promise<Category | null> {
+        return this.catalogService.findCategoryInSingleScope(`CLIENT_${businessNumber}`, categoryName);
     }
 
     private async saveUserSubCategories(
@@ -452,24 +494,26 @@ export class ExpensesService {
         businessNumber: string,
         categoryName: string,
         subCategories: CreateUserSubCategoryDto[],
-    ): Promise<UserSubCategory[]> {
+    ): Promise<any[]> {
         if (!subCategories.length) {
             return [];
         }
 
-        const names = subCategories.map(s => s.subCategoryName);
+        const ctx = { userId: firebaseId, businessNumber };
+        const scope = this.catalogService.buildScope(OwnerType.CLIENT, ctx);
+        // Parent category need not exist in the CLIENT's own scope — it may be
+        // a SYSTEM default the client is adding sub-categories under; find or
+        // create it in CLIENT scope only when no default of that name exists.
+        const category =
+            (await this.catalogService.findCategoryByNameInScope(ctx, categoryName)) ??
+            (await this.catalogService.findOrCreateCategory(scope, categoryName, CategoryType.EXPENSE, firebaseId));
 
-        const existingSubs = await this.userSubCategoryRepo.find({
-            where: names.map((subCategoryName) => ({
-                firebaseId,
-                categoryName,
-                subCategoryName,
-            })),
-            select: { subCategoryName: true },
-        });
-
-        if (existingSubs.length) {
-            const dupNames = existingSubs.map((s) => s.subCategoryName);
+        const dupNames: string[] = [];
+        for (const subDto of subCategories) {
+            const existing = await this.catalogService.findSubCategoryInSingleScope(scope.chartOwnerKey, category.id, subDto.subCategoryName);
+            if (existing) dupNames.push(subDto.subCategoryName);
+        }
+        if (dupNames.length) {
             throw new ConflictException({
                 message:
                     dupNames.length === 1
@@ -479,31 +523,31 @@ export class ExpensesService {
             });
         }
 
-        const entities = subCategories.map((subDto) =>
-            this.userSubCategoryRepo.create({
-                subCategoryName: subDto.subCategoryName,
-                taxPercent: subDto.taxPercent ?? 0,
+        const created: SubCategory[] = [];
+        for (const subDto of subCategories) {
+            const law: AccountLaw = {
                 vatPercent: subDto.vatPercent ?? 0,
+                taxPercent: subDto.taxPercent ?? 0,
                 reductionPercent: subDto.reductionPercent ?? 0,
                 isEquipment: subDto.isEquipment ?? false,
-                isRecognized: subDto.isRecognized ?? false,
+                recognitionType: subDto.isRecognized === false ? RecognitionType.NOT_RECOGNIZED : RecognitionType.RECOGNIZED,
+            };
+            const sub = await this.catalogService.createSubCategory(scope, category, subDto.subCategoryName, {
+                law,
                 reportScope: subDto.reportScope ?? ExpenseReportScope.PNL,
-                pnlCategory: subDto.pnlCategory ?? null,
-                firebaseId,
-                businessNumber,
-                categoryName,
-                isExpense: subDto.isExpense,
-            })
-        );
+                createdByUserId: firebaseId,
+            });
+            created.push(await this.reloadSubCategory(sub.id, scope.chartOwnerKey));
+        }
 
-        return this.userSubCategoryRepo.save(entities);
+        return created.map((s) => this.toLegacySubCategory(s));
     }
 
     async addUserCategory(
         firebaseId: string,
         createUserCategoryDto: CreateUserCategoryDto,
         businessNumber: string
-    ): Promise<UserSubCategory[]> {
+    ): Promise<any[]> {
 
         // Step 1: Validate that the user exists
         const user = await this.userRepo.findOne({ where: { firebaseId } });
@@ -517,12 +561,10 @@ export class ExpensesService {
             throw new ConflictException(`Category with name ${createUserCategoryDto.categoryName} already exists`);
         }
 
-        await this.userCategoryRepo.save(this.userCategoryRepo.create({
-            categoryName: createUserCategoryDto.categoryName,
-            firebaseId,
-            businessNumber,
-            isExpense: createUserCategoryDto.isExpense ?? true,
-        }));
+        const ctx = { userId: firebaseId, businessNumber };
+        const scope = this.catalogService.buildScope(OwnerType.CLIENT, ctx);
+        const type = createUserCategoryDto.isExpense === false ? CategoryType.INCOME : CategoryType.EXPENSE;
+        await this.catalogService.findOrCreateCategory(scope, createUserCategoryDto.categoryName, type, firebaseId);
 
         return this.saveUserSubCategories(
             firebaseId,
@@ -539,7 +581,7 @@ export class ExpensesService {
         categoryName: string,
         subCategories: CreateUserSubCategoryDto[],
         defaultIsExpense?: boolean
-    ): Promise<UserSubCategory[]> {
+    ): Promise<any[]> {
         const user = await this.userRepo.findOne({ where: { firebaseId } });
         if (!user) {
             throw new NotFoundException(`User with ID ${firebaseId} not found`);
@@ -557,129 +599,38 @@ export class ExpensesService {
     }
 
 
-    // async getCategories(isDefault: boolean | null, isExpense: boolean, firebaseId: string | null, businessNumber: string | null): Promise<(UserCategory | DefaultCategory)[]> {
-
-    //     if (isDefault === null) {
-
-    //         if (!firebaseId || !businessNumber) {
-    //             throw new Error('firebaseId and businessNumber must be provided to fetch user-specific categories.');
-    //         }
-
-    //         const defaultCategories = await this.defaultCategoryRepo.find();
-    //         const userCategories = await this.userCategoryRepo.find({ where: { firebaseId, businessNumber } });
-    //         console.log("🚀 ~ ExpensesService ~ getCategories ~ userCategories:", userCategories)
-    //         const categoryMap = new Map<string, UserCategory | DefaultCategory>();
-
-    //         // First, add all default categories
-    //         defaultCategories.forEach(category => {
-    //             categoryMap.set(category.categoryName, category);
-    //         });
-    //         // Then, add/override with user-specific categories (preference for user categories)
-    //         userCategories.forEach(category => {
-    //             categoryMap.set(category.categoryName, category);
-    //         });
-    //         // Convert the map back to an array
-    //         let categories = Array.from(categoryMap.values());
-
-    //         if (isExpense === null) {
-    //             return categories;
-    //         }
-    //         // Filter by isExpense if the flag is provided
-    //         categories = categories.filter(category => category.isExpense === isExpense);
-    //         // console.log("🚀 ~ ExpensesService ~ getCategories ~ categories:", categories)
-
-    //         return categories;
-    //     }
-
-    //     else if (isDefault === true) {
-    //         // Return only the default categories
-    //         let defaultCategories = await this.defaultCategoryRepo.find();
-    //         // Filter by isExpense if the flag is provided
-    //         defaultCategories = defaultCategories.filter(category => category.isExpense === isExpense);
-    //         return defaultCategories;
-    //     }
-
-    //     else if (isDefault === false) {
-    //         // Return only the user-specific categories for the given firebaseId
-    //         if (!firebaseId || !businessNumber) {
-    //             throw new Error('firebaseId and businessNumber must be provided to fetch user-specific categories.');
-    //         }
-    //         let userCategories = await this.userCategoryRepo.find({ where: { firebaseId, businessNumber } });
-    //         // Filter by isExpense if the flag is provided
-    //         userCategories = userCategories.filter(category => category.isExpense === isExpense);
-    //         return userCategories;
-    //     }
-
-    // }
     async getCategories(
         isDefault: boolean | null,
         isExpense: boolean | null,
         firebaseId: string | null,
         businessNumber: string | null
-    ): Promise<(UserCategory | DefaultCategory)[]> {
+    ): Promise<any[]> {
+        const type = isExpense === null ? undefined : (isExpense ? CategoryType.EXPENSE : CategoryType.INCOME);
 
-        // helper – שליפת קטגוריות משתמש עם/בלי businessNumber
-        const getUserCategories = async (): Promise<UserCategory[]> => {
+        // ====== MIX: default + user (CLIENT overrides SYSTEM by name, D4) ======
+        if (isDefault === null) {
+            const categories = await this.catalogService.getMergedCategories({ businessNumber }, type);
+            return categories.map((c) => this.toLegacyCategory(c));
+        }
+
+        // ====== ONLY DEFAULT (SYSTEM) ======
+        if (isDefault === true) {
+            const categories = await this.catalogService.findCategoriesByChartOwnerKey('SYSTEM');
+            const filtered = type ? categories.filter((c) => c.type === type) : categories;
+            return filtered.map((c) => this.toLegacyCategory(c));
+        }
+
+        // ====== ONLY USER (CLIENT) ======
+        if (isDefault === false) {
             if (!firebaseId) {
                 throw new Error('firebaseId must be provided to fetch user categories.');
             }
-
-            const where: any = { firebaseId };
-
-            if (businessNumber) {
-                where.businessNumber = businessNumber;
+            if (!businessNumber) {
+                return [];
             }
-
-            return this.userCategoryRepo.find({ where });
-        };
-
-        // ====== MIX: default + user ======
-        if (isDefault === null) {
-            const defaultCategories = await this.defaultCategoryRepo.find();
-            const userCategories = await this.userCategoryRepo.find({ where: { firebaseId, businessNumber } });
-            const categoryMap = new Map<string, UserCategory | DefaultCategory>();
-
-            // default first
-            defaultCategories.forEach(cat =>
-                categoryMap.set(cat.categoryName, cat)
-            );
-
-            // user overrides default
-            userCategories.forEach(cat =>
-                categoryMap.set(cat.categoryName, cat)
-            );
-
-            let categories = Array.from(categoryMap.values());
-
-            if (isExpense !== null) {
-                categories = categories.filter(c => c.isExpense === isExpense);
-            }
-            // Filter by isExpense if the flag is provided
-            categories = categories.filter(category => category.isExpense === isExpense);
-
-            return categories;
-        }
-
-        // ====== ONLY DEFAULT ======
-        if (isDefault === true) {
-            let defaultCategories = await this.defaultCategoryRepo.find();
-
-            if (isExpense !== null) {
-                defaultCategories = defaultCategories.filter(c => c.isExpense === isExpense);
-            }
-
-            return defaultCategories;
-        }
-
-        // ====== ONLY USER ======
-        if (isDefault === false) {
-            let userCategories = await getUserCategories();
-
-            if (isExpense !== null) {
-                userCategories = userCategories.filter(c => c.isExpense === isExpense);
-            }
-
-            return userCategories;
+            const categories = await this.catalogService.findCategoriesByChartOwnerKey(`CLIENT_${businessNumber}`);
+            const filtered = type ? categories.filter((c) => c.type === type) : categories;
+            return filtered.map((c) => this.toLegacyCategory(c));
         }
 
         return [];
@@ -693,64 +644,31 @@ export class ExpensesService {
         isExpense: boolean,
         categoryName: string,
         businessNumber: string | null
-    ): Promise<(UserSubCategory | DefaultSubCategory)[]> {
+    ): Promise<any[]> {
 
         if (!firebaseId || !businessNumber) {
             throw new Error('firebaseId and businessNumber must be provided for user-specific subcategory search.');
         }
 
-        // Query userSubCategoryRepo by categoryName
-        const userQuery = this.userSubCategoryRepo
-            .createQueryBuilder('subcategory')
-            .where('subcategory.firebaseId = :firebaseId', { firebaseId })
-            .andWhere('subcategory.businessNumber = :businessNumber', { businessNumber })
-            .andWhere('subcategory.categoryName = :categoryName', { categoryName });
-
-        // Add the isEquipment condition only if it’s true or false (not null)
-        if (isEquipment !== null) {
-            userQuery.andWhere('subcategory.isEquipment = :isEquipment', { isEquipment });
+        const ctx = { userId: firebaseId, businessNumber };
+        const category = await this.catalogService.findCategoryByNameInScope(ctx, categoryName);
+        if (!category) {
+            return [];
         }
 
-        const userSubCategories = await userQuery.getMany();
+        let subCategories = await this.catalogService.getMergedSubCategories(ctx, category.id);
 
-        // Query defaultSubCategoryRepo by categoryName
-        const defaultQuery = this.defaultSubCategoryRepo
-            .createQueryBuilder('subcategory')
-            .where('subcategory.categoryName = :categoryName', { categoryName });
-
-        // Add the isEquipment condition only if it’s true or false (not null)
         if (isEquipment !== null) {
-            defaultQuery.andWhere('subcategory.isEquipment = :isEquipment', { isEquipment });
+            subCategories = subCategories.filter((s) => (s.account?.isEquipment ?? false) === isEquipment);
         }
+        subCategories = subCategories.filter((s) => (s.category ? s.category.type === CategoryType.EXPENSE : true) === isExpense);
 
-        const defaultSubCategories = await defaultQuery.getMany();
-
-        // Combine results, giving precedence to userSubCategories if subCategoryName matches
-        const combinedSubCategoriesMap = new Map<string, UserSubCategory | DefaultSubCategory>();
-
-        // Add all userSubCategories to the map
-        userSubCategories.forEach(subCategory => {
-            combinedSubCategoriesMap.set(subCategory.subCategoryName, subCategory);
-        });
-
-        // Add defaultSubCategories, only if they are not already in the map
-        defaultSubCategories.forEach(subCategory => {
-            if (!combinedSubCategoriesMap.has(subCategory.subCategoryName)) {
-                combinedSubCategoriesMap.set(subCategory.subCategoryName, subCategory);
-            }
-        });
-
-        // Get the combined subcategories as an array
-        let subCategories = Array.from(combinedSubCategoriesMap.values());
-        // Filter by isExpense if the flag is provided
-        subCategories = subCategories.filter(subCategory => subCategory.isExpense === isExpense);
         // Sort alphabetically by sub-category name (Hebrew locale) so the
         // classification dropdowns/lists show a stable, ordered list under the
         // parent category header.
-        subCategories.sort((a, b) =>
-            a.subCategoryName.localeCompare(b.subCategoryName, 'he'),
-        );
-        return subCategories;
+        subCategories.sort((a, b) => a.name.localeCompare(b.name, 'he'));
+
+        return subCategories.map((s) => this.toLegacySubCategory(s));
     }
 
 
@@ -766,32 +684,8 @@ export class ExpensesService {
             return null;
         }
 
-        if (firebaseId && businessNumber) {
-            const userMatch = await this.userSubCategoryRepo.findOne({
-                where: {
-                    categoryName,
-                    subCategoryName,
-                    firebaseId,
-                    businessNumber,
-                },
-                select: { isEquipment: true },
-            });
-
-            if (userMatch) {
-                return userMatch.isEquipment ?? null;
-            }
-        }
-
-        const defaultMatch = await this.defaultSubCategoryRepo.findOne({
-            where: {
-                categoryName,
-                subCategoryName,
-            },
-            select: { isEquipment: true },
-        });
-        console.log("🚀 ~ ExpensesService ~ getSubCategoryIsEquipment ~ defaultMatch:", defaultMatch)
-
-        return defaultMatch?.isEquipment ?? null;
+        const resolved = await this.catalogService.resolveByName(categoryName, subCategoryName, { userId: firebaseId, businessNumber });
+        return resolved?.isEquipment ?? null;
     }
 
     /**
@@ -811,21 +705,8 @@ export class ExpensesService {
             return ExpenseReportScope.PNL;
         }
 
-        if (firebaseId && businessNumber) {
-            const userMatch = await this.userSubCategoryRepo.findOne({
-                where: { categoryName, subCategoryName, firebaseId, businessNumber },
-                select: { reportScope: true },
-            });
-            if (userMatch) {
-                return userMatch.reportScope ?? ExpenseReportScope.PNL;
-            }
-        }
-
-        const defaultMatch = await this.defaultSubCategoryRepo.findOne({
-            where: { categoryName, subCategoryName },
-            select: { reportScope: true },
-        });
-        return defaultMatch?.reportScope ?? ExpenseReportScope.PNL;
+        const resolved = await this.catalogService.resolveByName(categoryName, subCategoryName, { userId: firebaseId, businessNumber });
+        return resolved?.subCategory?.reportScope ?? ExpenseReportScope.PNL;
     }
 
     /**
@@ -1087,59 +968,110 @@ export class ExpensesService {
         }
     }
 
-    /** Admin: get all default sub-categories (for category management). */
-    async getAllDefaultSubCategories(): Promise<DefaultSubCategory[]> {
-        return this.defaultSubCategoryRepo.find({ order: { categoryName: 'ASC', subCategoryName: 'ASC' } });
-    }
-
-    /** Get all user-specific sub-categories for a given user, optionally scoped to a business. */
-    async getAllUserSubCategories(firebaseId: string, businessNumber?: string): Promise<UserSubCategory[]> {
-        const where: any = { firebaseId };
-        if (businessNumber) where.businessNumber = businessNumber;
-        return this.userSubCategoryRepo.find({
-            where,
-            order: { categoryName: 'ASC', subCategoryName: 'ASC' },
+    /** Admin: get all default (SYSTEM) sub-categories (for category management). */
+    async getAllDefaultSubCategories(): Promise<any[]> {
+        const subCategories = await this.catalogService.findSubCategoriesByChartOwnerKey('SYSTEM');
+        subCategories.sort((a, b) => {
+            const catCmp = (a.category?.name ?? '').localeCompare(b.category?.name ?? '', 'he');
+            return catCmp !== 0 ? catCmp : a.name.localeCompare(b.name, 'he');
         });
+        return subCategories.map((s) => this.toLegacySubCategory(s));
     }
 
-    /** Admin: update a default sub-category by id. */
-    async updateDefaultSubCategory(id: number, dto: Partial<DefaultSubCategory>): Promise<DefaultSubCategory> {
-        const existing = await this.defaultSubCategoryRepo.findOne({ where: { id } });
+    /** Get all user-specific (CLIENT) sub-categories for a given user, optionally scoped to a business. */
+    async getAllUserSubCategories(firebaseId: string, businessNumber?: string): Promise<any[]> {
+        if (!businessNumber) return [];
+        const subCategories = await this.catalogService.findSubCategoriesByChartOwnerKey(`CLIENT_${businessNumber}`);
+        subCategories.sort((a, b) => {
+            const catCmp = (a.category?.name ?? '').localeCompare(b.category?.name ?? '', 'he');
+            return catCmp !== 0 ? catCmp : a.name.localeCompare(b.name, 'he');
+        });
+        return subCategories.map((s) => this.toLegacySubCategory(s));
+    }
+
+    /** Admin: update a default (SYSTEM) sub-category by id — accepts the same
+     *  legacy-shaped body (subCategoryName/taxPercent/vatPercent/...); percent
+     *  fields resolve to a SYSTEM-scoped card via CatalogService, same as the
+     *  CLIENT path (see updateUserSubCategory). */
+    async updateDefaultSubCategory(id: number, dto: any): Promise<any> {
+        const existing = await this.catalogService.findSubCategoryInScope(id, 'SYSTEM');
         if (!existing) {
             throw new NotFoundException(`Default sub-category with id ${id} not found`);
         }
-        Object.assign(existing, dto);
-        return this.defaultSubCategoryRepo.save(existing);
+
+        if (dto.necessity !== undefined) existing.necessity = dto.necessity;
+        if (dto.reportScope !== undefined) existing.reportScope = dto.reportScope;
+
+        const hasLawFields = ['vatPercent', 'taxPercent', 'reductionPercent', 'isEquipment', 'isRecognized'].some(
+            (k) => dto[k] !== undefined,
+        );
+        if (hasLawFields) {
+            const scope = this.catalogService.buildScope(OwnerType.SYSTEM, {});
+            const current = existing.account;
+            const law: AccountLaw = {
+                vatPercent: dto.vatPercent ?? current?.vatPercent ?? 0,
+                taxPercent: dto.taxPercent ?? current?.taxPercent ?? 0,
+                reductionPercent: dto.reductionPercent ?? current?.reductionPercent ?? 0,
+                isEquipment: dto.isEquipment ?? current?.isEquipment ?? false,
+                recognitionType:
+                    dto.isRecognized === false
+                        ? RecognitionType.NOT_RECOGNIZED
+                        : dto.isRecognized === true
+                          ? RecognitionType.RECOGNIZED
+                          : (current?.recognitionType ?? RecognitionType.RECOGNIZED),
+            };
+            await this.catalogService.updateSubCategoryLaw(existing, scope, law);
+        } else {
+            await this.catalogService.saveSubCategory(existing);
+        }
+
+        return this.toLegacySubCategory(await this.reloadSubCategory(id, 'SYSTEM'));
     }
 
-    /** Admin: delete a default sub-category by id. */
+    /** Admin: delete a default (SYSTEM) sub-category by id (soft delete —
+     *  isActive=false, per Phase 2.4's review correction). Blocked when
+     *  classified_transactions rules reference it (SYSTEM names ARE
+     *  referenced by client rules — this check was missing pre-port). */
     async deleteDefaultSubCategory(id: number): Promise<void> {
-        const existing = await this.defaultSubCategoryRepo.findOne({ where: { id } });
+        const existing = await this.catalogService.findSubCategoryInScope(id, 'SYSTEM');
         if (!existing) {
             throw new NotFoundException(`Default sub-category with id ${id} not found`);
         }
-        await this.defaultSubCategoryRepo.delete(id);
-    }
 
-    /** Admin: create a new default sub-category. */
-    async createDefaultSubCategory(dto: Partial<DefaultSubCategory>): Promise<DefaultSubCategory> {
-        // Upsert parent default_category if it doesn't exist yet
-        if (dto.categoryName) {
-            const exists = await this.defaultCategoryRepo.findOne({
-                where: { categoryName: dto.categoryName },
+        const affectedRules = await this.rulesRepo.find({
+            where: { category: existing.category?.name, subCategory: existing.name },
+            select: { id: true, transactionName: true, subCategory: true } as any,
+        });
+        if (affectedRules.length > 0) {
+            throw new ConflictException({
+                message: 'Sub-category has classification rules referencing it. Delete those rules first.',
+                affectedRuleIds: affectedRules.map((r) => r.id),
+                affectedRules,
             });
-            if (!exists) {
-                await this.defaultCategoryRepo.save(
-                    this.defaultCategoryRepo.create({
-                        categoryName: dto.categoryName,
-                        isExpense: dto.isExpense ?? true,
-                    }),
-                );
-            }
         }
 
-        const entity = this.defaultSubCategoryRepo.create(dto);
-        return this.defaultSubCategoryRepo.save(entity);
+        await this.catalogService.deleteSubCategory(existing);
+    }
+
+    /** Admin: create a new default (SYSTEM) sub-category, same legacy body
+     *  shape as before (auto-creates the parent SYSTEM category if missing). */
+    async createDefaultSubCategory(dto: any): Promise<any> {
+        const scope = this.catalogService.buildScope(OwnerType.SYSTEM, {});
+        const type = dto.isExpense === false ? CategoryType.INCOME : CategoryType.EXPENSE;
+        const category = await this.catalogService.findOrCreateCategory(scope, dto.categoryName, type);
+
+        const law: AccountLaw = {
+            vatPercent: dto.vatPercent ?? 0,
+            taxPercent: dto.taxPercent ?? 0,
+            reductionPercent: dto.reductionPercent ?? 0,
+            isEquipment: dto.isEquipment ?? false,
+            recognitionType: dto.isRecognized === false ? RecognitionType.NOT_RECOGNIZED : RecognitionType.RECOGNIZED,
+        };
+        const sub = await this.catalogService.createSubCategory(scope, category, dto.subCategoryName, {
+            law,
+            reportScope: dto.reportScope ?? ExpenseReportScope.PNL,
+        });
+        return this.toLegacySubCategory(await this.reloadSubCategory(sub.id, 'SYSTEM'));
     }
 
 
@@ -1434,15 +1366,16 @@ export class ExpensesService {
         businessNumber: string,
         id: number,
         dto: UpdateUserCategoryDto,
-    ): Promise<UserCategory> {
-        const cat = await this.userCategoryRepo.findOne({
-            where: { id, firebaseId, businessNumber },
-        });
+    ): Promise<any> {
+        const chartOwnerKey = `CLIENT_${businessNumber}`;
+        const cat = await this.catalogService.findCategoryInScope(id, chartOwnerKey);
         if (!cat) {
             throw new NotFoundException(`User category ${id} not found`);
         }
-        Object.assign(cat, dto);
-        return this.userCategoryRepo.save(cat);
+        if (dto.isExpense !== undefined) {
+            cat.type = dto.isExpense ? CategoryType.EXPENSE : CategoryType.INCOME;
+        }
+        return this.toLegacyCategory(await this.catalogService.saveCategory(cat));
     }
 
     /**
@@ -1454,15 +1387,40 @@ export class ExpensesService {
         businessNumber: string,
         id: number,
         dto: UpdateUserSubCategoryDto,
-    ): Promise<UserSubCategory> {
-        const sub = await this.userSubCategoryRepo.findOne({
-            where: { id, firebaseId, businessNumber },
-        });
+    ): Promise<any> {
+        const chartOwnerKey = `CLIENT_${businessNumber}`;
+        const sub = await this.catalogService.findSubCategoryInScope(id, chartOwnerKey);
         if (!sub) {
             throw new NotFoundException(`User sub-category ${id} not found`);
         }
-        Object.assign(sub, dto);
-        return this.userSubCategoryRepo.save(sub);
+
+        if (dto.necessity !== undefined) sub.necessity = dto.necessity;
+        if (dto.reportScope !== undefined) sub.reportScope = dto.reportScope;
+
+        const hasLawFields = ['vatPercent', 'taxPercent', 'reductionPercent', 'isEquipment', 'isRecognized'].some(
+            (k) => (dto as any)[k] !== undefined,
+        );
+        if (hasLawFields) {
+            const scope = this.catalogService.buildScope(OwnerType.CLIENT, { userId: firebaseId, businessNumber });
+            const current = sub.account;
+            const law: AccountLaw = {
+                vatPercent: dto.vatPercent ?? current?.vatPercent ?? 0,
+                taxPercent: dto.taxPercent ?? current?.taxPercent ?? 0,
+                reductionPercent: dto.reductionPercent ?? current?.reductionPercent ?? 0,
+                isEquipment: dto.isEquipment ?? current?.isEquipment ?? false,
+                recognitionType:
+                    (dto as any).isRecognized === false
+                        ? RecognitionType.NOT_RECOGNIZED
+                        : (dto as any).isRecognized === true
+                          ? RecognitionType.RECOGNIZED
+                          : (current?.recognitionType ?? RecognitionType.RECOGNIZED),
+            };
+            await this.catalogService.updateSubCategoryLaw(sub, scope, law);
+        } else {
+            await this.catalogService.saveSubCategory(sub);
+        }
+
+        return this.toLegacySubCategory(await this.reloadSubCategory(id, chartOwnerKey));
     }
 
     /**
@@ -1475,50 +1433,59 @@ export class ExpensesService {
      * matching DefaultSubCategory's attributes into a new user row carrying
      * the override (so the default stays untouched and shared).
      */
+    /**
+     * D3 note: `config.pnlCategory` is accepted for wire compatibility but
+     * ignored — the pnlCategory string namespace is retired (accounting_
+     * section replaces it); deleting the field entirely is Phase 4.4 scope.
+     */
     async setSubCategoryReportConfig(
         firebaseId: string,
         businessNumber: string,
         categoryName: string,
         subCategoryName: string,
         config: { reportScope?: ExpenseReportScope; pnlCategory?: string | null },
-    ): Promise<UserSubCategory> {
+    ): Promise<any> {
         categoryName = categoryName?.trim();
         subCategoryName = subCategoryName?.trim();
         if (!categoryName || !subCategoryName) {
             throw new NotFoundException('categoryName and subCategoryName are required');
         }
 
-        let sub = await this.userSubCategoryRepo.findOne({
-            where: { firebaseId, businessNumber, categoryName, subCategoryName },
-        });
+        const ctx = { userId: firebaseId, businessNumber };
+        const scope = this.catalogService.buildScope(OwnerType.CLIENT, ctx);
+        const chartOwnerKey = scope.chartOwnerKey;
+
+        const category =
+            (await this.catalogService.findCategoryByNameInScope(ctx, categoryName)) ??
+            (await this.catalogService.findOrCreateCategory(scope, categoryName, CategoryType.EXPENSE, firebaseId));
+
+        let sub = await this.catalogService.findSubCategoryInSingleScope(chartOwnerKey, category.id, subCategoryName);
 
         if (!sub) {
-            const def = await this.defaultSubCategoryRepo.findOne({
-                where: { categoryName, subCategoryName },
-            });
-            sub = this.userSubCategoryRepo.create({
-                firebaseId,
-                businessNumber,
-                categoryName,
-                subCategoryName,
-                taxPercent: def?.taxPercent ?? 0,
-                vatPercent: def?.vatPercent ?? 0,
-                reductionPercent: def?.reductionPercent ?? 0,
-                isEquipment: def?.isEquipment ?? false,
-                isRecognized: def?.isRecognized ?? false,
-                isExpense: def?.isExpense ?? true,
-                necessity: def?.necessity,
-                reportScope: def?.reportScope ?? ExpenseReportScope.PNL,
-                pnlCategory: def?.pnlCategory ?? null,
+            // Clone the merged (CLIENT>SYSTEM) row's current law into a fresh
+            // CLIENT override, same "clone-on-first-write" behavior as before.
+            const merged = await this.catalogService.findSubCategoryByNameInScope(ctx, category.id, subCategoryName);
+            const law: AccountLaw = {
+                vatPercent: merged?.account?.vatPercent ?? 0,
+                taxPercent: merged?.account?.taxPercent ?? 0,
+                reductionPercent: merged?.account?.reductionPercent ?? 0,
+                isEquipment: merged?.account?.isEquipment ?? false,
+                recognitionType: merged?.account?.recognitionType ?? RecognitionType.RECOGNIZED,
+            };
+            sub = await this.catalogService.createSubCategory(scope, category, subCategoryName, {
+                isPrivate: merged?.isPrivate ?? false,
+                law: merged?.isPrivate ? undefined : law,
+                accountId: merged?.isPrivate ? null : undefined,
+                necessity: merged?.necessity,
+                reportScope: merged?.reportScope ?? ExpenseReportScope.PNL,
+                createdByUserId: firebaseId,
             });
         }
 
         if (config.reportScope !== undefined) sub.reportScope = config.reportScope;
-        if (config.pnlCategory !== undefined) {
-            const v = config.pnlCategory?.trim();
-            sub.pnlCategory = v ? v : null;
-        }
-        return this.userSubCategoryRepo.save(sub);
+        await this.catalogService.saveSubCategory(sub);
+
+        return this.toLegacySubCategory(await this.reloadSubCategory(sub.id, chartOwnerKey));
     }
 
     /**
@@ -1531,15 +1498,14 @@ export class ExpensesService {
         businessNumber: string,
         categoryId: number,
     ): Promise<{ deleted: true }> {
-        const category = await this.userCategoryRepo.findOne({
-            where: { id: categoryId, firebaseId, businessNumber },
-        });
+        const chartOwnerKey = `CLIENT_${businessNumber}`;
+        const category = await this.catalogService.findCategoryInScope(categoryId, chartOwnerKey);
         if (!category) {
             throw new NotFoundException(`User category ${categoryId} not found`);
         }
 
         const affectedRules = await this.rulesRepo.find({
-            where: { userId: firebaseId, category: category.categoryName },
+            where: { userId: firebaseId, category: category.name },
             select: { id: true, transactionName: true, subCategory: true } as any,
         });
         if (affectedRules.length > 0) {
@@ -1550,14 +1516,11 @@ export class ExpensesService {
             });
         }
 
-        await this.dataSource.transaction(async (manager) => {
-            await manager.delete(UserSubCategory, {
-                firebaseId,
-                businessNumber,
-                categoryName: category.categoryName,
-            });
-            await manager.delete(UserCategory, { id: categoryId });
-        });
+        const subCategories = await this.catalogService.getMergedSubCategories({ businessNumber }, categoryId);
+        for (const sub of subCategories.filter((s) => s.chartOwnerKey === chartOwnerKey)) {
+            await this.catalogService.deleteSubCategory(sub);
+        }
+        await this.catalogService.deleteCategory(category);
 
         return { deleted: true as const };
     }
@@ -1571,9 +1534,8 @@ export class ExpensesService {
         businessNumber: string,
         subCategoryId: number,
     ): Promise<{ deleted: true }> {
-        const sub = await this.userSubCategoryRepo.findOne({
-            where: { id: subCategoryId, firebaseId, businessNumber },
-        });
+        const chartOwnerKey = `CLIENT_${businessNumber}`;
+        const sub = await this.catalogService.findSubCategoryInScope(subCategoryId, chartOwnerKey);
         if (!sub) {
             throw new NotFoundException(`User sub-category ${subCategoryId} not found`);
         }
@@ -1581,8 +1543,8 @@ export class ExpensesService {
         const affectedRules = await this.rulesRepo.find({
             where: {
                 userId: firebaseId,
-                category: sub.categoryName,
-                subCategory: sub.subCategoryName,
+                category: sub.category?.name,
+                subCategory: sub.name,
             },
             select: { id: true, transactionName: true } as any,
         });
@@ -1594,42 +1556,37 @@ export class ExpensesService {
             });
         }
 
-        await this.userSubCategoryRepo.delete({ id: subCategoryId });
+        await this.catalogService.deleteSubCategory(sub);
         return { deleted: true as const };
     }
 
     /**
      * List the user's custom categories and sub-categories for a single business,
      * grouped by category name. Includes "orphan" sub-categories — sub-categories
-     * the user added under a default category (where no UserCategory row exists).
+     * the user added under a default category (where no CLIENT category row exists).
      */
     async getUserCategoriesGrouped(
         firebaseId: string,
         businessNumber: string,
     ): Promise<{
         categoryName: string;
-        userCategory: UserCategory | null;
-        subCategories: UserSubCategory[];
+        userCategory: any | null;
+        subCategories: any[];
     }[]> {
+        const chartOwnerKey = `CLIENT_${businessNumber}`;
         const [categories, subCategories] = await Promise.all([
-            this.userCategoryRepo.find({
-                where: { firebaseId, businessNumber },
-                order: { categoryName: 'ASC' },
-            }),
-            this.userSubCategoryRepo.find({
-                where: { firebaseId, businessNumber },
-                order: { categoryName: 'ASC', subCategoryName: 'ASC' },
-            }),
+            this.catalogService.findCategoriesByChartOwnerKey(chartOwnerKey),
+            this.catalogService.findSubCategoriesByChartOwnerKey(chartOwnerKey),
         ]);
 
         const names = new Set<string>();
-        categories.forEach(c => names.add(c.categoryName));
-        subCategories.forEach(sc => names.add(sc.categoryName));
+        categories.forEach(c => names.add(c.name));
+        subCategories.forEach(sc => names.add(sc.category?.name ?? ''));
 
-        return [...names].sort().map(name => ({
+        return [...names].filter(Boolean).sort().map(name => ({
             categoryName: name,
-            userCategory: categories.find(c => c.categoryName === name) ?? null,
-            subCategories: subCategories.filter(sc => sc.categoryName === name),
+            userCategory: categories.find(c => c.name === name) ? this.toLegacyCategory(categories.find(c => c.name === name)!) : null,
+            subCategories: subCategories.filter(sc => sc.category?.name === name).map((s) => this.toLegacySubCategory(s)),
         }));
     }
 

@@ -166,12 +166,6 @@ export class CategoryManagementComponent implements OnInit {
       });
   }
 
-  onCategoriesUploaded(event: { status: boolean; message: string }): void {
-    if (event?.status) {
-      this.loadSubCategories();
-    }
-  }
-
   necessityLabel(necessity: string): string {
     return NECESSITY_LABELS[necessity] ?? necessity ?? '';
   }
