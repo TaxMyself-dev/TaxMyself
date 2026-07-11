@@ -499,3 +499,87 @@ migration script (transactional writes to `category`/`sub_category`/new
 `booking_account` 90500/90600 seed), re-verifies row counts, and appends
 the result to `cutover.sql`. After that, `Current phase` stays `2` until
 2.4–2.7 (CRUD port, freeze old tables, flat seeder, parity test) also land.
+
+## 2026-07-12 — Session 6 continued (Phase 2.2 applied, verified, in cutover.sql — Phase 2.1–2.3 DONE)
+
+Elazar reviewed `phase2-catalog-review.md` and approved with three
+corrections, all implemented before applying: (1) the "בית"/"בנקים וכרטיסי
+אשראי" orphan-row exclusion confirmed acceptable as-is (zero-usage
+verification is what matters, not the exact table-level shape); (2) the 7
+`MISSING_ACCOUNTING_MAPPING` CLIENT rows confirmed as correct D5 behavior,
+kept; (3) user_sub_category id 11 ("שונות → תרומה") changed from
+`MISSING_ACCOUNTING_MAPPING` to its own `ANNUAL` sub_category (own name
+preserved, not merged into "תרומות מוכרות") — added `'תרומה'` to the
+migration script's `ANNUAL_SUBCATEGORY_NAMES` set.
+
+**`MODE=apply` — two blockers hit and resolved, both handled by stopping
+and asking rather than pushing through:**
+
+1. First `MODE=apply` attempt failed immediately: `category`/`sub_category`
+   tables don't exist in `keepintax_prodcopy` — this rehearsal DB was only
+   ever touched by Phase 1.4's explicit migration script, never by a normal
+   `synchronize`-enabled dev boot, so nothing had created the Phase 2.1
+   tables there yet. Transaction rolled back cleanly (verified: zero
+   90500/90600 rows in `booking_account`, only the four old catalog tables
+   present). Wrote `backend/scripts/migrations/2026-07-12_catalog_migration_schema.sql`
+   (CREATE TABLE DDL, verified column-for-column against `category.entity.ts`/
+   `sub-category.entity.ts` per Elazar's explicit condition; no FK
+   constraints on `sub_category.categoryId`/`accountId`, matching the
+   established precedent from `booking_account.sectionId` in
+   `2026-07-10_chart_renumber.sql`) — flagged to Elazar as a new schema
+   change to the shared rehearsal DB before running it (auto mode blocked
+   the unapproved DDL run automatically), per his explicit two conditions:
+   embed it in `cutover.sql` Section 4a (done, appended before running, not
+   after — auto mode also correctly blocked a same-turn "run now, document
+   later" attempt) and verify column-for-column against the entities (done,
+   both files re-read side-by-side against the DDL).
+2. First DDL run attempt only created `sub_category` — a bug in the runner
+   script's naive `sql.split(/;\s*\n/)` parsing merged the file's leading
+   comment block with the `category` CREATE TABLE statement into one chunk
+   starting with `--`, which the (also naive) `!startsWith('--')` filter
+   silently dropped. Caught immediately by checking `SHOW TABLES` before
+   proceeding rather than assuming success; fixed by issuing the `category`
+   DDL as a literal string instead of parsing the file.
+
+**`MODE=apply` (clean run against `keepintax_prodcopy`):** 2 `booking_account`
+rows (90500, 90600), 14 `category` rows (12 SYSTEM + 2 CLIENT), 96
+`sub_category` rows (98 migrated legacy rows − 2 merge-collapses: pension
+and קרן השתלמות each fold two legacy rows into one). Readback dumped to
+`2026-07-12_catalog_migration_result.json`, rendered to literal SQL by the
+new `2026-07-12_generate-catalog-migration-sql.ts` and appended verbatim to
+`cutover.sql` as Section 4b (wrapped in `START TRANSACTION`/`COMMIT`, no
+DDL), directly under Section 4a's schema DDL.
+
+**Verification (`backend/scripts/verify-phase2-catalog-migration.ts`, kept
+in the repo, all against `keepintax_prodcopy`):** row counts exact (14/96/2);
+zero duplicate rows under either `UNIQUE` constraint; zero orphaned
+`sub_category.accountId` references; zero PRIVATE rows carrying an
+`accountId` (D5). **Parity hard gate** (per Elazar's explicit instruction
+to keep it as a hard gate): spot-checked all 22 distinct
+`(category, subCategory, firebaseId, businessNumber)` pairs the 85 live
+`expense` rows actually use. First run surfaced 16 apparent mismatches —
+all traced to the SAME root cause: the old flat resolver only ever
+returned a bare parent code (e.g. `5200` for `רכב ותחבורה`) because
+`subAccountCode` never existed in production (schema-drift.md Gap 1) to
+carry finer detail, while Phase 1.3's chart deliberately built granular
+child accounts by name (`דלק`→`60220`, `חניה`→`60230`, etc.) — confirmed
+by checking every one of the 16 new codes' `sectionCode` in `chart.seed.ts`
+against the expected parent, all matched exactly. This is Phase 1.3's
+intended refinement, not a migration bug — the verification script's
+oracle was fixed to accept "new result is a child of the expected old
+parent block" as a pass, mirroring the same exclusion
+`compare-baseline-reports.ts` already applies (only `accountCode`-sourced
+rows compared 1:1, `subAccountCode`-sourced ones never were, since that
+column never existed in prod). Re-run: **21/21 non-exception pairs pass
+exactly (16 confirmed refinements + 5 exact matches), 1/1 registered
+exception confirmed** (`עסק/מקדמות ביטוח לאומי`, business 204245724 →
+`90300`, not the generic `60000` mapping, per D14/D15) — **0 unregistered
+mismatches.**
+
+**Phase 2 checklist status**: 2.1, 2.2, 2.3 all ticked `[x]` this session.
+Remaining: 2.4 (CRUD port), 2.5 (freeze old tables), 2.6 (flat seeder), 2.7
+(parity test — this session's verification script is a hand-rolled preview
+of it, not a substitute for the committed Jest suite the plan calls for).
+`Current phase` stays `2` in `CLAUDE.md` until those land.
+
+**Next**: a follow-up session for 2.4–2.7.

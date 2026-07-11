@@ -465,7 +465,7 @@ reproduce baseline totals, old code ranges absent from `journal_line`.
       approvalStatus, approvedByUserId, approvedAt, rejectedByUserId,
       rejectedAt, rejectionReason, isDefault, isActive, createdByUserId,
       timestamps`, `UNIQUE(chartOwnerKey, categoryId, name)`.
-- [ ] 2.2 Data migration (script, one transaction, rehearsed on the
+- [x] 2.2 Data migration (script, one transaction, rehearsed on the
       backup):
       `default_category` → `category` (SYSTEM);
       `default_sub_category` → `sub_category` (SYSTEM, thin: name + parent

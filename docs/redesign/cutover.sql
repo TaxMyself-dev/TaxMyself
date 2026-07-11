@@ -484,3 +484,260 @@ COMMIT;
 -- Every posted code now resolves to a real chart row — expect 0.
 -- SELECT COUNT(*) FROM journal_line WHERE accountCode NOT IN (SELECT code FROM booking_account);
 -- ============================================================================
+
+
+-- ============================================================================
+-- SECTION 4 (Phase 2.1/2.2) — category/sub_category tables + catalog data
+-- migration.
+--
+-- SECTION 4a below is the schema DDL (NOT transactional — MySQL DDL
+-- auto-commits), embedded verbatim from
+-- backend/scripts/migrations/2026-07-12_catalog_migration_schema.sql — do
+-- not hand-edit here without regenerating from that file. Verified
+-- column-for-column against backend/src/bookkeeping/category.entity.ts and
+-- sub-category.entity.ts (2026-07-12).
+--
+-- SECTION 4b (the category/sub_category/booking_account DATA — a real
+-- transaction) is appended separately once
+-- backend/scripts/migrations/2026-07-12_catalog_migration.ts's MODE=apply
+-- has actually run and its results are read back — see that section for
+-- why (variant-card codes are allocated dynamically, not statically
+-- derivable like Phase 1's chart).
+-- ============================================================================
+
+-- ============================================================================
+-- SECTION 4a (NOT transactional — DDL auto-commits)
+-- ============================================================================
+
+CREATE TABLE `category` (
+  `id`                     INT           NOT NULL AUTO_INCREMENT,
+  `name`                   VARCHAR(255)  NOT NULL,
+  `type`                   ENUM('EXPENSE','INCOME') NOT NULL,
+  `defaultRecognitionType` ENUM('RECOGNIZED','NOT_RECOGNIZED') NULL DEFAULT NULL,
+  `ownerType`              ENUM('SYSTEM','ACCOUNTANT','CLIENT') NOT NULL DEFAULT 'SYSTEM',
+  `chartOwnerKey`          VARCHAR(255)  NOT NULL DEFAULT 'SYSTEM',
+  `accountantId`           VARCHAR(255)  NULL     DEFAULT NULL,
+  `userId`                 VARCHAR(255)  NULL     DEFAULT NULL,
+  `businessNumber`         VARCHAR(255)  NULL     DEFAULT NULL,
+  `visibilityScope`        ENUM('SYSTEM_DEFAULT','ALL_ACCOUNTANT_CLIENTS','SPECIFIC_CLIENT') NULL DEFAULT NULL,
+  `isDefault`              TINYINT(1)    NOT NULL DEFAULT 0,
+  `isActive`               TINYINT(1)    NOT NULL DEFAULT 1,
+  `createdByUserId`        VARCHAR(255)  NULL     DEFAULT NULL,
+  `createdAt`              DATETIME(6)   NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  `updatedAt`              DATETIME(6)   NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_category_owner_name_type` (`chartOwnerKey`, `name`, `type`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE `sub_category` (
+  `id`                INT           NOT NULL AUTO_INCREMENT,
+  `categoryId`        INT           NOT NULL,
+  `name`              VARCHAR(255)  NOT NULL,
+  `isPrivate`         TINYINT(1)    NOT NULL DEFAULT 0,
+  `accountId`         INT           NULL     DEFAULT NULL,
+  `necessity`         ENUM('MANDATORY','IMPORTANT','OPTIONAL') NOT NULL DEFAULT 'IMPORTANT',
+  `reportScope`       ENUM('pnl','annual') NOT NULL DEFAULT 'pnl',
+  `ownerType`         ENUM('SYSTEM','ACCOUNTANT','CLIENT') NOT NULL DEFAULT 'SYSTEM',
+  `chartOwnerKey`     VARCHAR(255)  NOT NULL DEFAULT 'SYSTEM',
+  `accountantId`      VARCHAR(255)  NULL     DEFAULT NULL,
+  `userId`            VARCHAR(255)  NULL     DEFAULT NULL,
+  `businessNumber`    VARCHAR(255)  NULL     DEFAULT NULL,
+  `visibilityScope`   ENUM('SYSTEM_DEFAULT','ALL_ACCOUNTANT_CLIENTS','SPECIFIC_CLIENT') NULL DEFAULT NULL,
+  `approvalStatus`    ENUM('APPROVED','PENDING_ACCOUNTANT_APPROVAL','MISSING_ACCOUNTING_MAPPING','REJECTED') NOT NULL DEFAULT 'APPROVED',
+  `approvedByUserId`  VARCHAR(255)  NULL     DEFAULT NULL,
+  `approvedAt`        DATETIME      NULL     DEFAULT NULL,
+  `rejectedByUserId`  VARCHAR(255)  NULL     DEFAULT NULL,
+  `rejectedAt`        DATETIME      NULL     DEFAULT NULL,
+  `rejectionReason`   TEXT          NULL     DEFAULT NULL,
+  `isDefault`         TINYINT(1)    NOT NULL DEFAULT 0,
+  `isActive`          TINYINT(1)    NOT NULL DEFAULT 1,
+  `createdByUserId`   VARCHAR(255)  NULL     DEFAULT NULL,
+  `createdAt`         DATETIME(6)   NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  `updatedAt`         DATETIME(6)   NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_sub_category_owner_category_name` (`chartOwnerKey`, `categoryId`, `name`),
+  KEY `idx_sub_category_categoryId` (`categoryId`),
+  KEY `idx_sub_category_accountId` (`accountId`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- Verification (run after applying, expect both to exist with 0 rows):
+-- SHOW COLUMNS FROM `category`;
+-- SHOW COLUMNS FROM `sub_category`;
+-- SELECT COUNT(*) FROM `category`;
+-- SELECT COUNT(*) FROM `sub_category`;
+
+-- ============================================================================
+-- SECTION 4b — category/sub_category/booking_account DATA, wrapped in a real
+-- transaction (no DDL). Embedded verbatim from the readback of an actual
+-- MODE=apply run of 2026-07-12_catalog_migration.ts against
+-- keepintax_prodcopy (2026-07-12), generated by
+-- backend/scripts/migrations/2026-07-12_generate-catalog-migration-sql.ts —
+-- do not hand-edit without regenerating. Explicit `id` values are included
+-- (this DB's tables were empty at insert time; AUTO_INCREMENT will need
+-- resetting or the ids re-verified free before running against a DB where
+-- these tables already have rows — not the case for a fresh production
+-- cutover run against empty category/sub_category tables).
+--
+-- Passed full verification (backend/scripts/verify-phase2-catalog-migration.ts,
+-- 2026-07-12): 14 category / 96 sub_category / 2 new booking_account rows;
+-- zero duplicate rows under either UNIQUE constraint; zero orphaned
+-- sub_category.accountId references; zero PRIVATE rows carrying an
+-- accountId; and the resolution-parity hard gate — 21 of 22 distinct
+-- (category,subCategory,firebaseId,businessNumber) pairs referenced by the
+-- 85 live `expense` rows resolve identically through CatalogService as
+-- through the old resolver mapped via account_code_migration (16 of those
+-- are exact matches, the other 5 are Phase 1.3's intentional parent→child
+-- refinements — e.g. "דלק" now resolves to the granular 60220 rather than
+-- the old flat parent 60200, since subAccountCode never existed in
+-- production to carry that distinction before); the 22nd pair (עסק/מקדמות
+-- ביטוח לאומי, business 204245724) is the registered D14/D15 exception,
+-- resolving to 90300 rather than the generic 60000 mapping, exactly as
+-- required.
+-- ============================================================================
+
+START TRANSACTION;
+
+-- booking_account (2 new rows, this-session technical accounts) --
+INSERT INTO `booking_account` (`id`, `code`, `name`, `type`, `pnlCategory`, `displayOrder`, `sectionId`, `code6111`, `vatPercent`, `taxPercent`, `reductionPercent`, `isEquipment`, `recognitionType`, `ownerType`, `chartOwnerKey`, `accountantId`, `userId`, `businessNumber`, `visibilityScope`, `isActive`) VALUES
+  (62, '90500', 'תנועות פנימיות בין חשבונות', 'asset', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 1),
+  (63, '90600', 'פרעון הלוואות (קרן)', 'liability', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 1);
+
+-- category (14 rows) --
+INSERT INTO `category` (`id`, `name`, `type`, `defaultRecognitionType`, `ownerType`, `chartOwnerKey`, `accountantId`, `userId`, `businessNumber`, `visibilityScope`, `isDefault`, `isActive`, `createdByUserId`) VALUES
+  (1, 'דיור והוצאות הבית', 'EXPENSE', NULL, 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (2, 'אוכל וצריכה שוטפת', 'EXPENSE', NULL, 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (3, 'רכב ותחבורה', 'EXPENSE', NULL, 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (4, 'קניות', 'EXPENSE', NULL, 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (5, 'ילדים ומשפחה', 'EXPENSE', NULL, 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (6, 'בריאות וביטוחים', 'EXPENSE', NULL, 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (7, 'פנאי וחופשות', 'EXPENSE', NULL, 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (8, 'עסק', 'EXPENSE', NULL, 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (9, 'בנק, אשראי ותנועות', 'EXPENSE', NULL, 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (10, 'החזרי מס ודוח שנתי', 'EXPENSE', NULL, 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (11, 'שונות', 'EXPENSE', NULL, 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (12, 'הכנסות', 'INCOME', NULL, 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (13, 'חומרי גלם וציוד לאפיה', 'EXPENSE', NULL, 'CLIENT', 'CLIENT_308360981', NULL, 'yzLUGK0UBTchyasx6WREYs7S0Ni1', '308360981', NULL, 0, 1, 'yzLUGK0UBTchyasx6WREYs7S0Ni1'),
+  (14, 'חריגים', 'EXPENSE', NULL, 'CLIENT', 'CLIENT_204245724', NULL, 'JpIEJt3lSDMsI9uG67Etqx4ZbuC3', '204245724', NULL, 0, 1, 'JpIEJt3lSDMsI9uG67Etqx4ZbuC3');
+
+-- sub_category (96 rows) --
+INSERT INTO `sub_category` (`id`, `categoryId`, `name`, `isPrivate`, `accountId`, `necessity`, `reportScope`, `ownerType`, `chartOwnerKey`, `accountantId`, `userId`, `businessNumber`, `visibilityScope`, `approvalStatus`, `approvedByUserId`, `approvedAt`, `rejectedByUserId`, `rejectedAt`, `rejectionReason`, `isDefault`, `isActive`, `createdByUserId`) VALUES
+  (1, 1, 'שכירות', 0, 14, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (2, 1, 'משכנתא', 0, 14, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (3, 1, 'ארנונה', 0, 28, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (4, 1, 'ועד בית', 0, 30, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (5, 1, 'חשמל', 0, 31, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (6, 1, 'מים', 0, 32, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (7, 1, 'גז', 0, 29, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (8, 1, 'אינטרנט', 0, 43, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (9, 1, 'טלפון קווי', 0, 44, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (10, 1, 'תחזוקה', 0, 33, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (11, 1, 'גינה', 0, 14, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (12, 2, 'סופרמרקט', 1, NULL, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (13, 2, 'משלוחים', 1, NULL, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (14, 2, 'פארם', 1, NULL, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (15, 3, 'דלק', 0, 37, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (16, 3, 'ביטוח רכב', 0, 36, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (17, 3, 'טיפולים', 0, 39, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (18, 3, 'חניה', 0, 38, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (19, 3, 'כבישי אגרה', 0, 40, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (20, 3, 'מערכות', 0, 41, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (21, 3, 'תחבורה ציבורית', 0, 42, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (22, 4, 'ביגוד', 1, NULL, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (23, 4, 'אלקטרוניקה', 1, NULL, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (24, 4, 'ריהוט', 1, NULL, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (25, 4, 'מתנות', 1, NULL, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (26, 4, 'כללי', 1, NULL, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (27, 5, 'גן', 1, NULL, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (28, 5, 'בית ספר', 1, NULL, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (29, 5, 'חוגים', 1, NULL, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (30, 5, 'בייביסיטר', 1, NULL, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (31, 6, 'רופא', 1, NULL, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (32, 6, 'תרופות', 1, NULL, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (33, 6, 'בדיקות', 1, NULL, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (34, 6, 'ביטוח בריאות', 1, NULL, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (35, 7, 'מסעדות', 1, NULL, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (36, 7, 'נופש', 1, NULL, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (37, 7, 'ספורט', 1, NULL, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (38, 7, 'בילויים', 1, NULL, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (39, 8, 'הוצאות משרד', 0, 14, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (40, 8, 'תוכנות', 0, 46, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (41, 8, 'שיווק ופרסום', 0, 18, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (42, 8, 'הנהלת חשבונות', 0, 20, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (43, 8, 'רואה חשבון', 0, 20, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (44, 8, 'ספקים', 0, 12, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (45, 8, 'ייעוץ והשתלמויות', 0, 47, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (46, 8, 'ספרות מקצועית', 0, 22, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (47, 8, 'כיבוד', 0, 23, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (48, 8, 'מקדמות ביטוח לאומי', 0, 58, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (49, 8, 'מקדמות מס הכנסה', 0, 56, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (50, 8, 'גביית מע"מ', 0, 57, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (51, 10, 'הפקדה לפנסיה', 0, NULL, 'IMPORTANT', 'annual', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (52, 10, 'הפקדה לקרן השתלמות', 0, NULL, 'IMPORTANT', 'annual', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (53, 8, 'עמלות ודמי כרטיס', 0, 25, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (54, 8, 'הוצאות שכר', 0, 49, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (55, 9, 'ריבית', 0, 52, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (56, 9, 'עמלות ודמי כרטיס', 0, 25, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (57, 9, 'חיוב אשראי חודשי', 0, 62, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (58, 9, 'משיכת מזומן', 0, 62, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (59, 9, 'פרעון הלוואה', 0, 63, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (60, 9, 'בין חשבונותי', 0, 62, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (61, 9, 'ביט', 0, 62, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (62, 9, 'פייבוקס', 0, 62, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (63, 12, 'הכנסה עסקית', 0, 10, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (64, 12, 'משכורת', 0, 10, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (65, 12, 'זיכוי כרטיס אשראי', 0, 10, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (66, 12, 'מילואים', 0, 10, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (67, 12, 'דמי לידה', 0, 10, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (68, 12, 'אפליקציית תשלום', 0, 10, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (69, 1, 'פלאפון', 0, 45, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (70, 11, 'שונות', 0, 12, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (71, 5, 'מעון', 1, NULL, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (72, 6, 'קופת חולים', 1, NULL, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (73, 10, 'תרומות מוכרות', 0, NULL, 'IMPORTANT', 'annual', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (74, 10, 'ביטוח חיים', 0, NULL, 'IMPORTANT', 'annual', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (75, 10, 'ביטוח אובדן כושר עבודה', 0, NULL, 'IMPORTANT', 'annual', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (76, 7, 'ספרות וקריאה', 1, NULL, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (77, 7, 'שירותי סטרימינג', 1, NULL, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (78, 12, 'קצבת ילדים', 0, 10, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (79, 8, 'שכירות משרד', 0, 34, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (80, 8, 'שליחויות', 0, 35, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (81, 8, 'ייעוץ מקצועי', 0, 48, 'IMPORTANT', 'pnl', 'SYSTEM', 'SYSTEM', NULL, NULL, NULL, NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL),
+  (82, 2, 'מכולת רמגש', 1, NULL, 'IMPORTANT', 'pnl', 'CLIENT', 'CLIENT_204245724', NULL, 'JpIEJt3lSDMsI9uG67Etqx4ZbuC3', '204245724', NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 0, 1, 'JpIEJt3lSDMsI9uG67Etqx4ZbuC3'),
+  (83, 2, 'מכולת נוב', 1, NULL, 'IMPORTANT', 'pnl', 'CLIENT', 'CLIENT_204245724', NULL, 'JpIEJt3lSDMsI9uG67Etqx4ZbuC3', '204245724', NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 0, 1, 'JpIEJt3lSDMsI9uG67Etqx4ZbuC3'),
+  (84, 2, 'בשרים', 1, NULL, 'IMPORTANT', 'pnl', 'CLIENT', 'CLIENT_204245724', NULL, 'JpIEJt3lSDMsI9uG67Etqx4ZbuC3', '204245724', NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 0, 1, 'JpIEJt3lSDMsI9uG67Etqx4ZbuC3'),
+  (85, 2, 'איסוף עצמי', 1, NULL, 'IMPORTANT', 'pnl', 'CLIENT', 'CLIENT_308360981', NULL, 'yzLUGK0UBTchyasx6WREYs7S0Ni1', '308360981', NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 0, 1, 'yzLUGK0UBTchyasx6WREYs7S0Ni1'),
+  (86, 13, 'קונדיטוריה', 0, NULL, 'IMPORTANT', 'pnl', 'CLIENT', 'CLIENT_308360981', NULL, 'yzLUGK0UBTchyasx6WREYs7S0Ni1', '308360981', NULL, 'MISSING_ACCOUNTING_MAPPING', NULL, NULL, NULL, NULL, NULL, 0, 1, 'yzLUGK0UBTchyasx6WREYs7S0Ni1'),
+  (87, 1, 'מיסי ישוב', 0, NULL, 'IMPORTANT', 'pnl', 'CLIENT', 'CLIENT_204245724', NULL, 'JpIEJt3lSDMsI9uG67Etqx4ZbuC3', '204245724', NULL, 'MISSING_ACCOUNTING_MAPPING', NULL, NULL, NULL, NULL, NULL, 0, 1, 'JpIEJt3lSDMsI9uG67Etqx4ZbuC3'),
+  (88, 7, 'אופנוע', 1, NULL, 'IMPORTANT', 'pnl', 'CLIENT', 'CLIENT_204245724', NULL, 'JpIEJt3lSDMsI9uG67Etqx4ZbuC3', '204245724', NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 0, 1, 'JpIEJt3lSDMsI9uG67Etqx4ZbuC3'),
+  (89, 14, 'שיפוץ נוב', 0, NULL, 'IMPORTANT', 'pnl', 'CLIENT', 'CLIENT_204245724', NULL, 'JpIEJt3lSDMsI9uG67Etqx4ZbuC3', '204245724', NULL, 'MISSING_ACCOUNTING_MAPPING', NULL, NULL, NULL, NULL, NULL, 0, 1, 'JpIEJt3lSDMsI9uG67Etqx4ZbuC3'),
+  (90, 6, 'ביטוח חיים', 0, NULL, 'IMPORTANT', 'annual', 'CLIENT', 'CLIENT_200866028', NULL, 'AF9LT37vCLZZX7boMLUyFwYZ2u23', '200866028', NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 0, 1, 'AF9LT37vCLZZX7boMLUyFwYZ2u23'),
+  (91, 1, 'מיסי ישוב ומים', 0, NULL, 'IMPORTANT', 'pnl', 'CLIENT', 'CLIENT_200866028', NULL, 'AF9LT37vCLZZX7boMLUyFwYZ2u23', '200866028', NULL, 'MISSING_ACCOUNTING_MAPPING', NULL, NULL, NULL, NULL, NULL, 0, 1, 'AF9LT37vCLZZX7boMLUyFwYZ2u23'),
+  (92, 11, 'תרומה', 0, NULL, 'IMPORTANT', 'annual', 'CLIENT', 'CLIENT_200866028', NULL, 'AF9LT37vCLZZX7boMLUyFwYZ2u23', '200866028', NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 0, 1, 'AF9LT37vCLZZX7boMLUyFwYZ2u23'),
+  (93, 8, 'מקדמות ביטוח לאומי', 0, 58, 'IMPORTANT', 'pnl', 'CLIENT', 'CLIENT_204245724', NULL, 'JpIEJt3lSDMsI9uG67Etqx4ZbuC3', '204245724', NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 0, 1, 'JpIEJt3lSDMsI9uG67Etqx4ZbuC3'),
+  (94, 2, 'משנת', 1, NULL, 'IMPORTANT', 'pnl', 'CLIENT', 'CLIENT_207550344', NULL, 'FVVORr3iRiPQYnpTmm0ODylzj2s1', '207550344', NULL, 'APPROVED', NULL, NULL, NULL, NULL, NULL, 0, 1, 'FVVORr3iRiPQYnpTmm0ODylzj2s1'),
+  (95, 12, 'מלגה', 0, NULL, 'IMPORTANT', 'pnl', 'CLIENT', 'CLIENT_322253238', NULL, 'nVtdyGPipFXFgGr4Mp2wLfpW8Nw2', '322253238', NULL, 'MISSING_ACCOUNTING_MAPPING', NULL, NULL, NULL, NULL, NULL, 0, 1, 'nVtdyGPipFXFgGr4Mp2wLfpW8Nw2'),
+  (96, 12, 'העברה בין חשבונות', 0, NULL, 'IMPORTANT', 'pnl', 'CLIENT', 'CLIENT_322253238', NULL, 'nVtdyGPipFXFgGr4Mp2wLfpW8Nw2', '322253238', NULL, 'MISSING_ACCOUNTING_MAPPING', NULL, NULL, NULL, NULL, NULL, 0, 1, 'nVtdyGPipFXFgGr4Mp2wLfpW8Nw2');
+
+COMMIT;
+
+-- ============================================================================
+-- POST-MIGRATION VERIFICATION (run manually, review output)
+-- ============================================================================
+-- Expect 14 / 96 / 2.
+-- SELECT COUNT(*) FROM category;
+-- SELECT COUNT(*) FROM sub_category;
+-- SELECT COUNT(*) FROM booking_account WHERE code IN ('90500','90600');
+--
+-- Zero duplicates under either UNIQUE constraint.
+-- SELECT chartOwnerKey, name, type, COUNT(*) c FROM category GROUP BY 1,2,3 HAVING c > 1;
+-- SELECT chartOwnerKey, categoryId, name, COUNT(*) c FROM sub_category GROUP BY 1,2,3 HAVING c > 1;
+--
+-- Every accountId resolves to a real booking_account row — expect 0.
+-- SELECT COUNT(*) FROM sub_category WHERE accountId IS NOT NULL AND accountId NOT IN (SELECT id FROM booking_account);
+--
+-- No PRIVATE row carries an accountId (D5) — expect 0.
+-- SELECT COUNT(*) FROM sub_category WHERE isPrivate = 1 AND accountId IS NOT NULL;
+--
+-- Full resolution-parity re-run: backend/scripts/verify-phase2-catalog-migration.ts
+-- ============================================================================
+

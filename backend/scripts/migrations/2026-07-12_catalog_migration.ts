@@ -28,11 +28,23 @@
  * keepintax_prodcopy throws "Unknown column").
  */
 import { NestFactory } from '@nestjs/core';
-import { DataSource } from 'typeorm';
+import { DataSource, EntityManager } from 'typeorm';
 import * as fs from 'fs';
 import * as path from 'path';
 import { AppModule } from '../../src/app.module';
 import { CHART_ACCOUNTS, ACCOUNT_CODE_MIGRATION } from '../../src/bookkeeping/chart.seed';
+import { Category } from '../../src/bookkeeping/category.entity';
+import { SubCategory } from '../../src/bookkeeping/sub-category.entity';
+import { BookingAccount } from '../../src/bookkeeping/account.entity';
+import { CategoryType, ApprovalStatus, OwnerType, ExpenseReportScope, SYSTEM_CHART_OWNER_KEY } from '../../src/enum';
+
+/** Parent category for the two ANNUAL merge groups — both source rows'
+ *  original categories ("עסק" and "החזרי מס ודוח שנתי") aren't a clean fit
+ *  post-merge (the merged row is purely an annual-report item, not tied to
+ *  either), so both land under "החזרי מס ודוח שנתי", which already houses
+ *  every other D14 bucket-2 ANNUAL SYSTEM row — keeps every ANNUAL item
+ *  under one category rather than splitting them across two. */
+const ANNUAL_MERGE_PARENT_CATEGORY = 'החזרי מס ודוח שנתי';
 
 const MODE = process.env.MODE === 'apply' ? 'apply' : 'review';
 const REVIEW_OUT = path.resolve(__dirname, '../../../docs/redesign/phase2-catalog-review.md');
@@ -84,8 +96,13 @@ const PRIVATE_CATEGORY_NAMES = new Set(['אוכל וצריכה שוטפת', 'י�
 const PRIVATE_SUBCATEGORY_NAMES = new Set(['רופא', 'תרופות', 'בדיקות', 'ביטוח בריאות', 'קופת חולים']);
 
 // ── D14 bucket 2 — annual-report items (subCategoryName-keyed singletons) ──
-
-const ANNUAL_SUBCATEGORY_NAMES = new Set(['תרומות מוכרות', 'ביטוח חיים', 'ביטוח אובדן כושר עבודה']);
+//
+// 'תרומה' (user_sub_category id 11, CLIENT_200866028, category "שונות") added
+// per Elazar's explicit sign-off: NOT merged into the SYSTEM "תרומות מוכרות"
+// row (name not exact-matched, no silent guess) — kept as its own CLIENT
+// sub_category, own name preserved, just given the same ANNUAL/no-account
+// treatment as the D14 bucket 2 items.
+const ANNUAL_SUBCATEGORY_NAMES = new Set(['תרומות מוכרות', 'ביטוח חיים', 'ביטוח אובדן כושר עבודה', 'תרומה']);
 
 // ── D14 bucket 2 + this session's confirmed extension — duplicate-naming merges into ONE ANNUAL sub_category ──
 
@@ -456,6 +473,9 @@ async function main() {
   lines.push('- קרן השתלמות merge (עסק/הפקדה לקרן השתלמות + החזרי מס/הפקדה לקרן השתלמות (עצמאי) → ONE ANNUAL sub_category) — **CONFIRMED** by Elazar this session, same pattern as the pension merge.');
   lines.push('- Internal account transfers (ביט, בין חשבונותי, חיוב אשראי חודשי, משיכת מזומן, פייבוקס) → new account 90500 — **CONFIRMED** this session.');
   lines.push('- Loan principal repayment (פרעון הלוואה) → new account 90600 — **CONFIRMED** this session (account 1000 checked and rejected as a target — vestigial, never-posted-to placeholder).');
+  lines.push('- Orphan "בית"/"בנקים וכרטיסי אשראי" exclusion — **APPROVED**, zero-usage verification is what matters, not the exact table-level shape.');
+  lines.push('- 7 MISSING_ACCOUNTING_MAPPING CLIENT rows — **APPROVED** as correct D5 behavior, kept as-is.');
+  lines.push('- user_sub_category id 11 ("שונות → תרומה") — **APPROVED**: own CLIENT sub_category, own name preserved, reportScope=ANNUAL, no account. NOT merged into "תרומות מוכרות".');
   lines.push('');
 
   fs.mkdirSync(path.dirname(REVIEW_OUT), { recursive: true });
@@ -468,7 +488,234 @@ async function main() {
     return;
   }
 
-  throw new Error('MODE=apply is not yet implemented in this script — Phase 2.2 execution is a separate, later step after sign-off.');
+  // ── MODE=apply: re-derive the identical plan, write it in one transaction ──
+  console.log('[catalog_migration] MODE=apply — writing category/sub_category/booking_account rows...');
+
+  const insertedCategoryIds: number[] = [];
+  const insertedSubCategoryIds: number[] = [];
+  const insertedAccountCodes: string[] = [];
+
+  await dataSource.transaction(async (manager: EntityManager) => {
+    const categoryRepo = manager.getRepository(Category);
+    const subCategoryRepo = manager.getRepository(SubCategory);
+    const bookingAccountRepo = manager.getRepository(BookingAccount);
+
+    // 1. Ensure this session's new technical accounts (90500/90600) exist.
+    for (const code of ['90500', '90600']) {
+      const existing = await bookingAccountRepo.findOne({ where: { chartOwnerKey: SYSTEM_CHART_OWNER_KEY, code } });
+      if (existing) continue;
+      const chartRow = chartAccountByCode.get(code);
+      if (!chartRow) throw new Error(`chart.seed.ts has no CHART_ACCOUNTS entry for ${code}`);
+      const saved = await bookingAccountRepo.save(bookingAccountRepo.create({
+        code: chartRow.code,
+        name: chartRow.name,
+        type: chartRow.type,
+        pnlCategory: chartRow.pnlCategory,
+        displayOrder: chartRow.displayOrder,
+        section: null,
+        sectionId: null,
+        code6111: chartRow.code6111,
+        vatPercent: chartRow.vatPercent,
+        taxPercent: chartRow.taxPercent,
+        reductionPercent: chartRow.reductionPercent,
+        isEquipment: chartRow.isEquipment,
+        recognitionType: chartRow.recognitionType,
+        ownerType: chartRow.ownerType,
+        chartOwnerKey: chartRow.chartOwnerKey,
+        isActive: chartRow.isActive,
+      }));
+      insertedAccountCodes.push(saved.code);
+      console.log(`[catalog_migration] inserted booking_account ${saved.code} ${saved.name} (id ${saved.id})`);
+    }
+
+    const allSystemAccounts = await bookingAccountRepo.find({ where: { chartOwnerKey: SYSTEM_CHART_OWNER_KEY } });
+    const accountIdByCode = new Map(allSystemAccounts.map((a) => [a.code, a.id]));
+
+    // 2. SYSTEM categories (default_category, none excluded at this level — verified above).
+    const categoryIdByKey = new Map<string, number>();
+    for (const c of includedDefaultCategories) {
+      const saved = await categoryRepo.save(categoryRepo.create({
+        name: c.categoryName,
+        type: c.isExpense ? CategoryType.EXPENSE : CategoryType.INCOME,
+        defaultRecognitionType: null,
+        ownerType: OwnerType.SYSTEM,
+        chartOwnerKey: SYSTEM_CHART_OWNER_KEY,
+        isDefault: true,
+        isActive: true,
+      }));
+      insertedCategoryIds.push(saved.id);
+      categoryIdByKey.set(`${SYSTEM_CHART_OWNER_KEY}::${c.categoryName}`, saved.id);
+    }
+
+    // 3. CLIENT categories (user_category).
+    for (const c of userCategories) {
+      const key = `CLIENT_${c.businessNumber}`;
+      const saved = await categoryRepo.save(categoryRepo.create({
+        name: c.categoryName,
+        type: c.isExpense ? CategoryType.EXPENSE : CategoryType.INCOME,
+        defaultRecognitionType: null,
+        ownerType: OwnerType.CLIENT,
+        chartOwnerKey: key,
+        userId: c.firebaseId,
+        businessNumber: c.businessNumber,
+        isDefault: false,
+        createdByUserId: c.firebaseId,
+        isActive: true,
+      }));
+      insertedCategoryIds.push(saved.id);
+      categoryIdByKey.set(`${key}::${c.categoryName}`, saved.id);
+    }
+
+    // 4. SYSTEM sub_categories (default_sub_category), collapsing ANNUAL_MERGES into one row each.
+    const mergeSubCategoryId = new Map<string, number>();
+    for (const sc of defaultSubCategories) {
+      if (EXCLUDED_CATEGORY_NAMES.has(sc.categoryName)) continue;
+
+      const disposition = resolveDisposition(sc.categoryName, sc.subCategoryName, sc.accountCode);
+      if (disposition.kind === 'UNRESOLVED') {
+        throw new Error(`Unresolved SYSTEM row at apply time (was resolved at review time?): id ${sc.id} ${sc.categoryName}/${sc.subCategoryName}`);
+      }
+
+      if (disposition.kind === 'ANNUAL' && disposition.mergeInto) {
+        if (!mergeSubCategoryId.has(disposition.mergeInto)) {
+          const categoryId = categoryIdByKey.get(`${SYSTEM_CHART_OWNER_KEY}::${ANNUAL_MERGE_PARENT_CATEGORY}`);
+          if (!categoryId) throw new Error(`No SYSTEM category id for merge parent "${ANNUAL_MERGE_PARENT_CATEGORY}"`);
+          const saved = await subCategoryRepo.save(subCategoryRepo.create({
+            categoryId,
+            name: disposition.mergeInto,
+            isPrivate: false,
+            accountId: null,
+            reportScope: ExpenseReportScope.ANNUAL,
+            ownerType: OwnerType.SYSTEM,
+            chartOwnerKey: SYSTEM_CHART_OWNER_KEY,
+            approvalStatus: ApprovalStatus.APPROVED,
+            isDefault: true,
+            isActive: true,
+          }));
+          mergeSubCategoryId.set(disposition.mergeInto, saved.id);
+          insertedSubCategoryIds.push(saved.id);
+          console.log(`[catalog_migration] inserted merged ANNUAL sub_category "${disposition.mergeInto}" (id ${saved.id})`);
+        }
+        continue; // subsequent members of the same merge group point at the same row, no separate insert
+      }
+
+      const categoryId = categoryIdByKey.get(`${SYSTEM_CHART_OWNER_KEY}::${sc.categoryName}`);
+      if (!categoryId) throw new Error(`No SYSTEM category id for "${sc.categoryName}" (sub_category id ${sc.id})`);
+
+      let isPrivate = false;
+      let accountId: number | null = null;
+      let reportScope = ExpenseReportScope.PNL;
+      if (disposition.kind === 'PRIVATE') {
+        isPrivate = true;
+      } else if (disposition.kind === 'ANNUAL') {
+        reportScope = ExpenseReportScope.ANNUAL;
+      } else if (disposition.kind === 'ACCOUNT') {
+        const id = accountIdByCode.get(disposition.code);
+        if (!id) throw new Error(`No booking_account id for code ${disposition.code} (sub_category id ${sc.id})`);
+        accountId = id;
+      }
+
+      const saved = await subCategoryRepo.save(subCategoryRepo.create({
+        categoryId,
+        name: sc.subCategoryName,
+        isPrivate,
+        accountId,
+        reportScope,
+        ownerType: OwnerType.SYSTEM,
+        chartOwnerKey: SYSTEM_CHART_OWNER_KEY,
+        approvalStatus: ApprovalStatus.APPROVED,
+        isDefault: true,
+        isActive: true,
+      }));
+      insertedSubCategoryIds.push(saved.id);
+    }
+
+    // 5. CLIENT sub_categories (user_sub_category). Percent-variant handling
+    //    intentionally omitted here — MODE=review found 0 genuine variant
+    //    cases this run; if any appear at apply time (DB state changed since
+    //    review), fail loudly rather than silently allocate a new card.
+    for (const sc of userSubCategories) {
+      let disposition = resolveDisposition(sc.categoryName, sc.subCategoryName, sc.accountCode);
+      let approvalStatus = ApprovalStatus.APPROVED;
+      if (disposition.kind === 'UNRESOLVED') {
+        disposition = { kind: 'MISSING_MAPPING', source: 'D5 — CLIENT row, no resolvable card, migrated unmapped' };
+      }
+      if (disposition.kind === 'MISSING_MAPPING') approvalStatus = ApprovalStatus.MISSING_ACCOUNTING_MAPPING;
+
+      if (disposition.kind === 'ACCOUNT') {
+        const target = chartAccountByCode.get(disposition.code);
+        if (target && target.recognitionType != null) {
+          const own = { tax: Number(sc.taxPercent), vat: Number(sc.vatPercent), red: Number(sc.reductionPercent), eq: !!sc.isEquipment };
+          const differs =
+            Number(target.taxPercent) !== own.tax ||
+            Number(target.vatPercent) !== own.vat ||
+            Number(target.reductionPercent ?? 0) !== own.red ||
+            !!target.isEquipment !== own.eq;
+          if (differs) {
+            throw new Error(
+              `Percent-variant case found at apply time that MODE=review did not report (DB state changed?) — ` +
+              `user_sub_category id ${sc.id} (${sc.categoryName}/${sc.subCategoryName}). STOP, re-run MODE=review.`,
+            );
+          }
+        }
+      }
+
+      const clientKey = `CLIENT_${sc.businessNumber}`;
+      const categoryId = categoryIdByKey.get(`${clientKey}::${sc.categoryName}`) ?? categoryIdByKey.get(`${SYSTEM_CHART_OWNER_KEY}::${sc.categoryName}`);
+      if (!categoryId) throw new Error(`No category id resolvable for CLIENT row id ${sc.id} (${sc.categoryName})`);
+
+      let isPrivate = false;
+      let accountId: number | null = null;
+      let reportScope = ExpenseReportScope.PNL;
+      if (disposition.kind === 'PRIVATE') {
+        isPrivate = true;
+      } else if (disposition.kind === 'ANNUAL') {
+        reportScope = ExpenseReportScope.ANNUAL;
+      } else if (disposition.kind === 'ACCOUNT') {
+        const id = accountIdByCode.get(disposition.code);
+        if (!id) throw new Error(`No booking_account id for code ${disposition.code} (user_sub_category id ${sc.id})`);
+        accountId = id;
+      }
+
+      const saved = await subCategoryRepo.save(subCategoryRepo.create({
+        categoryId,
+        name: sc.subCategoryName,
+        isPrivate,
+        accountId,
+        reportScope,
+        ownerType: OwnerType.CLIENT,
+        chartOwnerKey: clientKey,
+        userId: sc.firebaseId,
+        businessNumber: sc.businessNumber,
+        approvalStatus,
+        isDefault: false,
+        createdByUserId: sc.firebaseId,
+        isActive: true,
+      }));
+      insertedSubCategoryIds.push(saved.id);
+    }
+  });
+
+  console.log(
+    `[catalog_migration] MODE=apply complete: ${insertedAccountCodes.length} booking_account, ` +
+    `${insertedCategoryIds.length} category, ${insertedSubCategoryIds.length} sub_category rows inserted.`,
+  );
+
+  // ── read back what was actually written, for the cutover.sql dump ──
+  const writtenAccounts = insertedAccountCodes.length
+    ? await dataSource.query(`SELECT * FROM booking_account WHERE code IN (?) ORDER BY code`, [insertedAccountCodes])
+    : [];
+  const writtenCategories = await dataSource.query(`SELECT * FROM category WHERE id IN (?) ORDER BY id`, [insertedCategoryIds]);
+  const writtenSubCategories = await dataSource.query(`SELECT * FROM sub_category WHERE id IN (?) ORDER BY id`, [insertedSubCategoryIds]);
+
+  const dumpPath = path.resolve(__dirname, '2026-07-12_catalog_migration_result.json');
+  fs.writeFileSync(
+    dumpPath,
+    JSON.stringify({ writtenAccounts, writtenCategories, writtenSubCategories }, null, 2),
+  );
+  console.log(`[catalog_migration] wrote readback dump to ${dumpPath} (source for the cutover.sql Section 4 INSERTs)`);
+
+  await app.close();
 }
 
 main().catch((err) => {

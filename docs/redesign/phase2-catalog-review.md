@@ -1,12 +1,12 @@
 # Phase 2.2 catalog migration — review table
 
-Generated 2026-07-11T21:19:13.798Z by `backend/scripts/migrations/2026-07-12_catalog_migration.ts` (MODE=review), against `keepintax_prodcopy`.
+Generated 2026-07-11T22:08:33.480Z by `backend/scripts/migrations/2026-07-12_catalog_migration.ts` (MODE=review), against `keepintax_prodcopy`.
 
 **No writes have been made.** This is a dry run of the Phase 2.2 data migration for sign-off before `MODE=apply` runs.
 
 Categories: 12 default_category (12 migrated, 0 excluded) + 2 user_category (CLIENT) = 14 `category` rows.
 
-Sub-categories: 87 default_sub_category + 15 user_sub_category legacy rows → 98 migrated (7 of them MISSING_ACCOUNTING_MAPPING, some collapse via ANNUAL merges), 4 excluded (dead duplicate categories), 0 SYSTEM rows genuinely unresolved (need a decision).
+Sub-categories: 87 default_sub_category + 15 user_sub_category legacy rows → 98 migrated (6 of them MISSING_ACCOUNTING_MAPPING, some collapse via ANNUAL merges), 4 excluded (dead duplicate categories), 0 SYSTEM rows genuinely unresolved (need a decision).
 
 ## Excluded categories (D15 Correction #2 — re-verified zero live usage)
 
@@ -116,7 +116,7 @@ These categoryName values have no matching `default_category` row at all (confir
 | user_sub_category | 8 | CLIENT_204245724 | חריגים → שיפוץ נוב | MISSING_ACCOUNTING_MAPPING (migrated, no card yet) |
 | user_sub_category | 9 | CLIENT_200866028 | בריאות וביטוחים → ביטוח חיים | ANNUAL |
 | user_sub_category | 10 | CLIENT_200866028 | דיור והוצאות הבית → מיסי ישוב ומים | MISSING_ACCOUNTING_MAPPING (migrated, no card yet) |
-| user_sub_category | 11 | CLIENT_200866028 | שונות → תרומה | MISSING_ACCOUNTING_MAPPING (migrated, no card yet) |
+| user_sub_category | 11 | CLIENT_200866028 | שונות → תרומה | ANNUAL |
 | user_sub_category | 12 | CLIENT_204245724 | עסק → מקדמות ביטוח לאומי | 90300 מקדמות ביטוח לאומי |
 | user_sub_category | 13 | CLIENT_207550344 | אוכל וצריכה שוטפת → משנת | PRIVATE |
 | user_sub_category | 14 | CLIENT_322253238 | הכנסות → מלגה | MISSING_ACCOUNTING_MAPPING (migrated, no card yet) |
@@ -140,7 +140,6 @@ No override, no name match, no accountCode fallback for these CLIENT rows — pe
 | 6 | CLIENT_204245724 | דיור והוצאות הבית → מיסי ישוב |
 | 8 | CLIENT_204245724 | חריגים → שיפוץ נוב |
 | 10 | CLIENT_200866028 | דיור והוצאות הבית → מיסי ישוב ומים |
-| 11 | CLIENT_200866028 | שונות → תרומה |
 | 14 | CLIENT_322253238 | הכנסות → מלגה |
 | 15 | CLIENT_322253238 | הכנסות → העברה בין חשבונות |
 
@@ -153,3 +152,6 @@ None — every SYSTEM row resolved.
 - קרן השתלמות merge (עסק/הפקדה לקרן השתלמות + החזרי מס/הפקדה לקרן השתלמות (עצמאי) → ONE ANNUAL sub_category) — **CONFIRMED** by Elazar this session, same pattern as the pension merge.
 - Internal account transfers (ביט, בין חשבונותי, חיוב אשראי חודשי, משיכת מזומן, פייבוקס) → new account 90500 — **CONFIRMED** this session.
 - Loan principal repayment (פרעון הלוואה) → new account 90600 — **CONFIRMED** this session (account 1000 checked and rejected as a target — vestigial, never-posted-to placeholder).
+- Orphan "בית"/"בנקים וכרטיסי אשראי" exclusion — **APPROVED**, zero-usage verification is what matters, not the exact table-level shape.
+- 7 MISSING_ACCOUNTING_MAPPING CLIENT rows — **APPROVED** as correct D5 behavior, kept as-is.
+- user_sub_category id 11 ("שונות → תרומה") — **APPROVED**: own CLIENT sub_category, own name preserved, reportScope=ANNUAL, no account. NOT merged into "תרומות מוכרות".
