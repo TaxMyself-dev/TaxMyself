@@ -1,6 +1,7 @@
 import { BadRequestException, Body, Controller, Get, Headers, Param, ParseArrayPipe, ParseIntPipe, Patch, Post, Query, Req, Res, UnauthorizedException, UseGuards, } from '@nestjs/common';
 import { BookkeepingService } from './bookkeeping.service';
 import { CatalogService } from './catalog.service';
+import { CatalogContextService } from './catalog-context.service';
 import { CreateManualJournalEntryDto } from './dto/manual-journal-entry.dto';
 import { RepointSubCategoryAccountDto } from './dto/repoint-sub-category-account.dto';
 import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.interface';
@@ -13,6 +14,7 @@ export class BookkepingController {
   constructor(
     private readonly bookkeepingService: BookkeepingService,
     private readonly catalogService: CatalogService,
+    private readonly catalogContextService: CatalogContextService,
   ) { }
 
   /**
@@ -33,10 +35,12 @@ export class BookkepingController {
     if (!firebaseId) throw new UnauthorizedException('Not authenticated');
     const businessNumber = request.user?.businessNumber;
     if (!businessNumber) throw new BadRequestException('businessNumber header is required');
-    return this.catalogService.repointSubCategoryAccount(id, body.accountId, {
-      userId: firebaseId,
-      businessNumber,
-    });
+    // 5.1: delegation-aware ctx — the accountant's own cards are valid
+    // repoint targets, and accountant-layer sub_categories are reachable
+    // (repointing one from a client context lands a CLIENT override row,
+    // never edits the shared ACCOUNTANT row).
+    const ctx = await this.catalogContextService.forUser(firebaseId, businessNumber);
+    return this.catalogService.repointSubCategoryAccount(id, body.accountId, ctx);
   }
 
   /** Manual, single-sided journal entry (no counter-account) — for cases the
@@ -83,10 +87,9 @@ export class BookkepingController {
     const firebaseId = request.user?.firebaseId;
     if (!firebaseId) throw new UnauthorizedException('Not authenticated');
     if (!businessNumber?.trim()) throw new BadRequestException('businessNumber is required');
-    const rows = await this.catalogService.getMergedExpenseCatalog({
-      userId: firebaseId,
-      businessNumber: businessNumber.trim(),
-    });
+    const rows = await this.catalogService.getMergedExpenseCatalog(
+      await this.catalogContextService.forUser(firebaseId, businessNumber.trim()),
+    );
     return rows
       .filter((s) => !s.isPrivate)
       .map((s) => ({

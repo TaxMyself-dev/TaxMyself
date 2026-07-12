@@ -26,6 +26,7 @@ import { JournalEntry } from 'src/bookkeeping/jouranl-entry.entity';
 import { JournalLine } from 'src/bookkeeping/jouranl-line.entity';
 import { BookingAccount } from 'src/bookkeeping/account.entity';
 import { AccountingSection } from 'src/bookkeeping/accounting-section.entity';
+import { CatalogContextService } from 'src/bookkeeping/catalog-context.service';
 import { DocPayments } from 'src/documents/doc-payments.entity';
 import { Business } from 'src/business/business.entity';
 import { SlimTransaction } from 'src/transactions/slim-transaction.entity';
@@ -78,6 +79,9 @@ export class ReportsService {
     private slimRepo: Repository<SlimTransaction>,
     @InjectRepository(FullTransactionCache)
     private cacheRepo: Repository<FullTransactionCache>,
+    // Phase 5.1: delegation lookup — the client's ACCOUNTANT charts join the
+    // P&L booking-account join and the manual-entry account dropdown.
+    private readonly catalogContextService: CatalogContextService,
   ) {
     if (!fs.existsSync(this.debugFolder)) {
       fs.mkdirSync(this.debugFolder, { recursive: true });
@@ -541,12 +545,17 @@ export class ReportsService {
       business.businessType, business.vatReportingType, startDate, endDate,
     );
 
-    // Owner charts visible to this business: SYSTEM + its own CLIENT chart.
-    // (The accountant chart joins in Phase 5.1 once delegation-aware context
-    // plumbing exists — no ACCOUNTANT-owned accounts carry postings yet.)
+    // Owner charts visible to this business: SYSTEM + its own CLIENT chart +
+    // (Phase 5.1) the ACCOUNTANT chart of every ACTIVE delegation on the
+    // owner — accountant-created 70000-range cards roll up like any other.
     // Scoping the join prevents cross-tenant fan-out when two CLIENT charts
     // allocate the same code in their 80000 range.
-    const chartOwnerKeys = ['SYSTEM', `CLIENT_${businessNumber}`];
+    const accountantIds = await this.catalogContextService.accountantIdsForUser(firebaseId);
+    const chartOwnerKeys = [
+      'SYSTEM',
+      `CLIENT_${businessNumber}`,
+      ...accountantIds.map((id) => `ACCOUNTANT_${id}`),
+    ];
 
     const qb = this.JournalLineRepo.createQueryBuilder('jl')
       .innerJoin(JournalEntry, 'je', 'je.id = jl.journalEntryId')
@@ -932,8 +941,19 @@ export class ReportsService {
    *  be chosen for a manual journal line. */
   async getLedgerEntryAccounts(
     businessNumber?: string | null,
+    /** Effective user (the client when impersonating) — 5.1: their ACTIVE
+     *  delegations' ACCOUNTANT charts join the dropdown, so accountant-created
+     *  cards (incl. D11 technical cards) are postable in manual entries. */
+    firebaseId?: string | null,
   ): Promise<{ code: string; name: string; type: string; sectionCode: string | null; sectionName: string | null }[]> {
-    const chartOwnerKeys = ['SYSTEM', ...(businessNumber ? [`CLIENT_${businessNumber}`] : [])];
+    const accountantIds = firebaseId
+      ? await this.catalogContextService.accountantIdsForUser(firebaseId)
+      : [];
+    const chartOwnerKeys = [
+      'SYSTEM',
+      ...(businessNumber ? [`CLIENT_${businessNumber}`] : []),
+      ...accountantIds.map((id) => `ACCOUNTANT_${id}`),
+    ];
     const chart = await this.defaultBookingAccountRepo.find({
       where: { chartOwnerKey: In(chartOwnerKeys), isActive: true },
       relations: ['section'],

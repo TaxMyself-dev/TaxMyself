@@ -700,11 +700,22 @@ baseline reports reproduce.
 
 **Goal:** accountants operate on the catalog per D4/D11, safely.
 
-- [ ] 5.1 Authorization: delegation-aware guard usage on all catalog and
+- [x] 5.1 Authorization: delegation-aware guard usage on all catalog and
       approval endpoints (building on Phase 0 fixes). An accountant acting
       via `x-client-user-id` may: complete/override mappings, approve
       expenses, create ACCOUNTANT/CLIENT catalog rows. May NOT edit SYSTEM
       rows (admin only).
+      (Done Session 10: new CatalogContextService builds delegation-aware
+      contexts — every ACTIVE delegation's ACCOUNTANT_<agentId> chart joins
+      the D4 merge between CLIENT and SYSTEM, threaded through every
+      resolution/merge point: expense classification, catalog reads,
+      override-mapping lookups, repoint, manual-entry sub_category + account
+      dropdown, OCR extraction catalog, and the P&L booking-account join.
+      repointSubCategoryAccount now protects ACCOUNTANT rows like SYSTEM
+      rows (client-context repoint lands a CLIENT override). SYSTEM-catalog
+      admin endpoints gate on actorFirebaseId — admin-while-impersonating
+      works, accountant-while-impersonating is refused; the previously
+      commented-out getAllDefaultSubCategories admin check is enforced.)
 - [ ] 5.2 D11 add-account flow: `POST bookkeeping/accounts` — atomic
       account (+ optional paired sub_category) creation, getNextAccountCode
       allocation, "all my clients / current client" scoping, technical

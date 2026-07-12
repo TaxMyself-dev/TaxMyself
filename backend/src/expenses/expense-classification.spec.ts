@@ -24,6 +24,7 @@ import { Expense } from './expenses.entity';
 import { Supplier } from './suppliers.entity';
 import { BookkeepingService } from '../bookkeeping/bookkeeping.service';
 import { CatalogService } from '../bookkeeping/catalog.service';
+import { CatalogContextService } from '../bookkeeping/catalog-context.service';
 import { SharedService } from '../shared/shared.service';
 import { FxRateService } from '../shared/fx-rate.service';
 import { User } from '../users/user.entity';
@@ -174,6 +175,13 @@ describe('ExpensesService — Phase 4.1 classification', () => {
         { provide: DataSource, useValue: dataSource },
         { provide: BookkeepingService, useValue: bookkeepingService },
         { provide: CatalogService, useValue: catalogService },
+        {
+          provide: CatalogContextService,
+          useValue: {
+            forUser: jest.fn(async (userId: string, businessNumber: string) => ({ userId, businessNumber, accountantIds: [] })),
+            accountantIdsForUser: jest.fn().mockResolvedValue([]),
+          },
+        },
       ],
     }).compile();
 
@@ -204,7 +212,8 @@ describe('ExpensesService — Phase 4.1 classification', () => {
 
   it('addExpense prefers subCategoryId over the name pair (tenant-scope-checked)', async () => {
     await service.addExpense(makeDto({ subCategoryId: 42 }), 'uid-1', '999999999');
-    expect(catalogService.resolveSubCategory).toHaveBeenCalledWith(42, { businessNumber: '999999999' });
+    // 5.1: the ctx is delegation-aware (built by CatalogContextService).
+    expect(catalogService.resolveSubCategory).toHaveBeenCalledWith(42, { userId: 'uid-1', businessNumber: '999999999', accountantIds: [] });
     expect(catalogService.resolveByName).not.toHaveBeenCalled();
   });
 
@@ -424,7 +433,8 @@ describe('ExpensesService — Phase 4.1 classification', () => {
     });
 
     const result = await service.overrideExpenseMapping(20, 'uid-1', 'uid-1', { accountCode: '80020' });
-    expect(catalogService.findAccountByCodeInScope).toHaveBeenCalledWith('80020', { businessNumber: '999999999' });
+    // 5.1: the ctx carries the owner's delegations (empty in this fixture).
+    expect(catalogService.findAccountByCodeInScope).toHaveBeenCalledWith('80020', { userId: 'uid-1', businessNumber: '999999999', accountantIds: [] });
     expect(result.accountCodeSnapshot).toBe('80020');
   });
 

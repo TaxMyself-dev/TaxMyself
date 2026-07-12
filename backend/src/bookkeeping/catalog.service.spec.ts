@@ -124,6 +124,32 @@ describe('CatalogService', () => {
       const merged = await service.getMergedCategories({ businessNumber: '123456789' });
       expect(merged.find((c) => c.name === 'רכב ותחבורה')?.chartOwnerKey).toBe(SYS);
     });
+
+    // ── Phase 5.1: the ACCOUNTANT layer joins the merge via accountantIds ──
+
+    it('ACCOUNTANT overrides SYSTEM but loses to CLIENT (D4 precedence)', async () => {
+      categoryRepo.rows.push(
+        { id: 3, name: 'רכב ותחבורה', type: CategoryType.EXPENSE, chartOwnerKey: 'ACCOUNTANT_agent-1', isActive: true },
+        { id: 4, name: 'ייעוץ', type: CategoryType.EXPENSE, chartOwnerKey: 'ACCOUNTANT_agent-1', isActive: true },
+        { id: 5, name: 'ייעוץ', type: CategoryType.EXPENSE, chartOwnerKey: CLIENT, isActive: true },
+      );
+
+      const merged = await service.getMergedCategories({
+        businessNumber: '123456789',
+        accountantIds: ['agent-1'],
+      });
+
+      expect(merged.find((c) => c.name === 'רכב ותחבורה')?.chartOwnerKey).toBe('ACCOUNTANT_agent-1');
+      expect(merged.find((c) => c.name === 'ייעוץ')?.chartOwnerKey).toBe(CLIENT);
+    });
+
+    it('without accountantIds the ACCOUNTANT layer stays invisible (pre-5.1 ctx literals)', async () => {
+      categoryRepo.rows.push(
+        { id: 4, name: 'ייעוץ', type: CategoryType.EXPENSE, chartOwnerKey: 'ACCOUNTANT_agent-1', isActive: true },
+      );
+      const merged = await service.getMergedCategories({ businessNumber: '123456789' });
+      expect(merged.find((c) => c.name === 'ייעוץ')).toBeUndefined();
+    });
   });
 
   // ── resolveSubCategory tenant-scope check (Phase 4.1) ──────────────────
@@ -237,6 +263,27 @@ describe('CatalogService', () => {
         isActive: true, isPrivate: false, accountId: 1,
       });
       await expect(service.repointSubCategoryAccount(63, 3, ctx)).rejects.toThrow('Account 3 not found');
+    });
+
+    // ── Phase 5.1: ACCOUNTANT rows get the same never-edit protection ──────
+
+    it('ACCOUNTANT sub_category → never edited from a client ctx; creates a CLIENT override row', async () => {
+      const accountantCtx = { ...ctx, accountantIds: ['agent-1'] };
+      subCategoryRepo.rows.push({
+        id: 70, name: 'איתוראן', categoryId: 1, chartOwnerKey: 'ACCOUNTANT_agent-1',
+        isActive: true, isPrivate: false, accountId: 1,
+        category: { id: 1, name: 'רכב ותחבורה', type: CategoryType.EXPENSE },
+      });
+
+      const result = await service.repointSubCategoryAccount(70, 2, accountantCtx);
+
+      // The shared ACCOUNTANT row is untouched — editing it would re-map
+      // every other client of that accountant.
+      const accountantRow = subCategoryRepo.rows.find((r: any) => r.id === 70);
+      expect(accountantRow.accountId).toBe(1);
+      expect(result.id).not.toBe(70);
+      expect(result.chartOwnerKey).toBe(CLIENT);
+      expect(result.accountId).toBe(2);
     });
   });
 

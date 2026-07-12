@@ -19,7 +19,14 @@ import {
 
 export interface CatalogContext {
   userId?: string | null;
+  /** Single acting accountant — the WRITE-scope field consumed by
+   *  buildScope(ACCOUNTANT). Reads should use accountantIds instead. */
   accountantId?: string | null;
+  /** Phase 5.1: the client's accountants (ACTIVE delegations), in precedence
+   *  order — each contributes an ACCOUNTANT_<id> chart to the read merge.
+   *  Built by CatalogContextService.forUser; hand-rolled ctx literals that
+   *  omit it simply see no ACCOUNTANT layer (pre-5.1 behavior). */
+  accountantIds?: string[] | null;
   businessNumber?: string | null;
 }
 
@@ -98,9 +105,10 @@ export class CatalogService {
     // Precedence order — earlier entries win (D4: CLIENT > ACCOUNTANT > SYSTEM).
     const keys: string[] = [];
     if (ctx.businessNumber) keys.push(`CLIENT_${ctx.businessNumber}`);
+    for (const agentId of ctx.accountantIds ?? []) keys.push(`ACCOUNTANT_${agentId}`);
     if (ctx.accountantId) keys.push(`ACCOUNTANT_${ctx.accountantId}`);
     keys.push(SYSTEM_CHART_OWNER_KEY);
-    return keys;
+    return [...new Set(keys)];
   }
 
   /**
@@ -620,9 +628,12 @@ export class CatalogService {
    * resolve there. History never moves (D10 — no journal or expense writes
    * here).
    *
-   * SYSTEM rows are never edited: a same-named CLIENT-scoped override row is
-   * created (or repointed when one already exists) — D4 merge precedence
-   * makes it win by name for this business.
+   * Rows the acting business does not own (SYSTEM — and, since 5.1 made the
+   * accountant layer visible, ACCOUNTANT rows too) are never edited from a
+   * client context: a same-named CLIENT-scoped override row is created (or
+   * repointed when one already exists) — D4 merge precedence makes it win by
+   * name for this business. Editing an ACCOUNTANT row here would silently
+   * re-map every other client of that accountant.
    */
   async repointSubCategoryAccount(
     subCategoryId: number,
@@ -644,7 +655,8 @@ export class CatalogService {
       throw new NotFoundException(`Account ${accountId} not found`);
     }
 
-    if (sub.chartOwnerKey === SYSTEM_CHART_OWNER_KEY) {
+    const clientChartOwnerKey = ctx.businessNumber ? `CLIENT_${ctx.businessNumber}` : null;
+    if (sub.chartOwnerKey !== clientChartOwnerKey) {
       const scope = this.buildScope(OwnerType.CLIENT, ctx);
       const category = await this.findOrCreateCategory(
         scope,

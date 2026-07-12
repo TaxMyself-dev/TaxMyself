@@ -470,7 +470,7 @@ export class ReportsController {
         if (!firebaseId) {
             throw new BadRequestException('Firebase ID is missing');
         }
-        return this.reportsService.getLedgerEntryAccounts(businessNumber?.trim() || null);
+        return this.reportsService.getLedgerEntryAccounts(businessNumber?.trim() || null, firebaseId);
     }
 
 

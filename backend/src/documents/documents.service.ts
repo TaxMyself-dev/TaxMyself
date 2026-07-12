@@ -30,6 +30,7 @@ import { deriveDocumentKind } from './document-kind.util';
 import { GoogleDriveService } from '../google-drive/google-drive.service';
 import { Supplier } from '../expenses/suppliers.entity';
 import { CatalogService } from 'src/bookkeeping/catalog.service';
+import { CatalogContextService } from 'src/bookkeeping/catalog-context.service';
 import { UsersService } from '../users/users.service';
 // Business is already imported above as part of Bookkeeping/Issued-Documents logic.
 
@@ -148,6 +149,7 @@ export class DocumentsService {
     @InjectRepository(SlimTransaction)
     private slimTransactionRepo: Repository<SlimTransaction>,
     private readonly catalogService: CatalogService,
+    private readonly catalogContextService: CatalogContextService,
     private readonly documentProcessor: DocumentProcessorService,
     private readonly googleDriveService: GoogleDriveService,
     @Inject(forwardRef(() => UsersService))
@@ -3395,15 +3397,17 @@ ${finalOwnerName}`;
    * served to the frontend so the review dialog can render dropdowns sourced
    * from the same list. Ported to CatalogService's merged catalog (D1/D4)
    * in the same 2.4 legacy-DTO-shape strategy — CLIENT > ACCOUNTANT > SYSTEM
-   * by name, EXPENSE categories only. `firebaseId` is accepted for call-site
-   * parity only: catalog scoping is by businessNumber (chartOwnerKey), never
-   * by firebaseId, per D4.
+   * by name, EXPENSE categories only. Since 5.1 `firebaseId` is load-bearing:
+   * it drives the delegation lookup that adds the client's ACCOUNTANT chart
+   * layer to the merge.
    */
   async buildExtractionCatalog(
     firebaseId: string,
     businessNumber: string,
   ): Promise<CatalogEntry[]> {
-    const subCategories = await this.catalogService.getMergedExpenseCatalog({ businessNumber });
+    const subCategories = await this.catalogService.getMergedExpenseCatalog(
+      await this.catalogContextService.forUser(firebaseId, businessNumber),
+    );
     return subCategories.map((sub) => ({
       subCategoryName: sub.name,
       categoryName: sub.category?.name ?? '',

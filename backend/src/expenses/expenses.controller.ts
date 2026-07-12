@@ -297,14 +297,21 @@ export class ExpensesController {
     return this.expensesService.getSubCategories(firebaseId, isEquipmentValue, isExpenseValue, categoryName, businessNumber);
   }
 
+  // SYSTEM-catalog admin endpoints (D11/5.1: only a platform admin edits
+  // SYSTEM rows — accountants get their own ACCOUNTANT layer instead). The
+  // admin check runs against actorFirebaseId — the caller's OWN identity —
+  // so an admin browsing while impersonating a client (x-client-user-id
+  // swaps firebaseId) is still recognized, and an accountant impersonating
+  // a client is still refused.
+
   @Get('get-all-default-sub-categories')
   @UseGuards(FirebaseAuthGuard)
   async getAllDefaultSubCategories(@Req() request: AuthenticatedRequest) {
-    const firebaseId = request.user?.firebaseId;
-    const isAdmin = await this.usersService.isAdmin(firebaseId);
-    // if (!isAdmin) {
-    //   throw new ForbiddenException('Admin access required');
-    // }
+    const actorFirebaseId = request.user?.actorFirebaseId ?? request.user?.firebaseId;
+    const isAdmin = await this.usersService.isAdmin(actorFirebaseId);
+    if (!isAdmin) {
+      throw new ForbiddenException('Admin access required');
+    }
     return this.expensesService.getAllDefaultSubCategories();
   }
 
@@ -315,8 +322,8 @@ export class ExpensesController {
     @Param('id') id: string,
     @Body() body: any,
   ) {
-    const firebaseId = request.user?.firebaseId;
-    const isAdmin = await this.usersService.isAdmin(firebaseId);
+    const actorFirebaseId = request.user?.actorFirebaseId ?? request.user?.firebaseId;
+    const isAdmin = await this.usersService.isAdmin(actorFirebaseId);
     if (!isAdmin) {
       throw new ForbiddenException('Admin access required');
     }
@@ -326,8 +333,8 @@ export class ExpensesController {
   @Post('add-default-sub-category')
   @UseGuards(FirebaseAuthGuard)
   async addDefaultSubCategory(@Req() request: AuthenticatedRequest, @Body() body: any) {
-    const firebaseId = request.user?.firebaseId;
-    const isAdmin = await this.usersService.isAdmin(firebaseId);
+    const actorFirebaseId = request.user?.actorFirebaseId ?? request.user?.firebaseId;
+    const isAdmin = await this.usersService.isAdmin(actorFirebaseId);
     if (!isAdmin) {
       throw new ForbiddenException('Admin access required');
     }
@@ -337,8 +344,8 @@ export class ExpensesController {
   @Delete('delete-default-sub-category/:id')
   @UseGuards(FirebaseAuthGuard)
   async deleteDefaultSubCategory(@Req() request: AuthenticatedRequest, @Param('id') id: string) {
-    const firebaseId = request.user?.firebaseId;
-    const isAdmin = await this.usersService.isAdmin(firebaseId);
+    const actorFirebaseId = request.user?.actorFirebaseId ?? request.user?.firebaseId;
+    const isAdmin = await this.usersService.isAdmin(actorFirebaseId);
     if (!isAdmin) {
       throw new ForbiddenException('Admin access required');
     }

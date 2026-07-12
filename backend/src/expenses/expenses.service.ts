@@ -15,6 +15,7 @@ import { ReportWorkflow, ReportWorkflowStatus, ReportWorkflowType } from '../rep
 import { BusinessType, VATReportingType, ExpenseReportScope, ExpenseApprovalStatus, ApprovalStatus, JournalReferenceType, isExemptBusinessType, CategoryType, OwnerType, RecognitionType } from 'src/enum';
 import { BookkeepingService } from '../bookkeeping/bookkeeping.service';
 import { CatalogService, AccountLaw, CatalogScope, ResolvedSubCategory } from '../bookkeeping/catalog.service';
+import { CatalogContextService } from '../bookkeeping/catalog-context.service';
 import { Category } from '../bookkeeping/category.entity';
 import { SubCategory } from '../bookkeeping/sub-category.entity';
 import { JournalLineInput } from '../bookkeeping/dto/journal-entry-input.interface';
@@ -50,6 +51,7 @@ export class ExpensesService {
             private readonly dataSource: DataSource,
             private readonly bookkeepingService: BookkeepingService,
             private readonly catalogService: CatalogService,
+            private readonly catalogContextService: CatalogContextService,
         ) { }
 
 
@@ -75,13 +77,17 @@ export class ExpensesService {
     private async resolveExpenseClassification(
         input: { subCategoryId?: number | null; category?: string | null; subCategory?: string | null },
         businessNumber: string,
+        /** The expense OWNER's firebaseId — drives the delegation lookup that
+         *  makes the ACCOUNTANT catalog layer visible (Phase 5.1, D4). */
+        ownerUserId?: string | null,
     ): Promise<{ resolved: ResolvedSubCategory; approvalStatus: ExpenseApprovalStatus; journalable: boolean }> {
+        const ctx = await this.catalogContextService.forUser(ownerUserId, businessNumber);
         let resolved: ResolvedSubCategory | null = null;
         if (input.subCategoryId != null) {
             // Tenant-scope-checked: an id outside this business's merged catalog 404s.
-            resolved = await this.catalogService.resolveSubCategory(input.subCategoryId, { businessNumber });
+            resolved = await this.catalogService.resolveSubCategory(input.subCategoryId, ctx);
         } else if (input.category?.trim() && input.subCategory?.trim()) {
-            resolved = await this.catalogService.resolveByName(input.category, input.subCategory, { businessNumber });
+            resolved = await this.catalogService.resolveByName(input.category, input.subCategory, ctx);
         }
 
         if (!resolved) {
@@ -282,6 +288,7 @@ export class ExpensesService {
         const rc = await this.resolveExpenseClassification(
             { category: input.category, subCategory: input.subCategory },
             expense.businessNumber,
+            expense.userId,
         );
         if (expense.journalEntryNumber != null && !rc.journalable) {
             throw new BadRequestException(
@@ -334,7 +341,7 @@ export class ExpensesService {
         }
         await this.assertExpensePeriodUnlocked(expense);
 
-        const rc = await this.resolveExpenseClassification({ subCategoryId }, expense.businessNumber);
+        const rc = await this.resolveExpenseClassification({ subCategoryId }, expense.businessNumber, expense.userId);
         if (expense.journalEntryNumber != null && !rc.journalable) {
             throw new BadRequestException(
                 'לא ניתן לסווג הוצאה שנרשמה בספרים לסיווג פרטי או לסיווג ללא חשבון — יש להשלים את המיפוי החשבונאי תחילה',
@@ -385,7 +392,9 @@ export class ExpensesService {
         }
         await this.assertExpensePeriodUnlocked(expense);
 
-        const ctx = { businessNumber: expense.businessNumber };
+        // 5.1: accountant-layer cards (the actor's own 70000-range accounts)
+        // are valid override targets — the ctx carries the owner's delegations.
+        const ctx = await this.catalogContextService.forUser(expense.userId, expense.businessNumber);
         const account = hasId
             ? await this.catalogService.findAccountByIdInScope(input.accountId!, ctx)
             : await this.catalogService.findAccountByCodeInScope(input.accountCode!, ctx);
@@ -501,6 +510,7 @@ export class ExpensesService {
                 subCategory: expense.subCategory,
             },
             businessNumber,
+            userId,
         );
         this.applyClassificationToExpense(
             newExpense,
@@ -714,6 +724,7 @@ export class ExpensesService {
                     subCategory: dto.subCategory ?? expense.subCategory,
                 },
                 expense.businessNumber,
+                expense.userId,
             );
             // A journaled expense cannot move to a target that can't be
             // journaled — there is no journal-delete API and storno is
@@ -988,11 +999,12 @@ export class ExpensesService {
             return [];
         }
 
-        const ctx = { userId: firebaseId, businessNumber };
+        const ctx = await this.catalogContextService.forUser(firebaseId, businessNumber);
         const scope = this.catalogService.buildScope(OwnerType.CLIENT, ctx);
         // Parent category need not exist in the CLIENT's own scope — it may be
-        // a SYSTEM default the client is adding sub-categories under; find or
-        // create it in CLIENT scope only when no default of that name exists.
+        // a SYSTEM (or, since 5.1, an accountant's) default the client is
+        // adding sub-categories under; find or create it in CLIENT scope only
+        // when no visible category of that name exists.
         const category =
             (await this.catalogService.findCategoryByNameInScope(ctx, categoryName)) ??
             (await this.catalogService.findOrCreateCategory(scope, categoryName, CategoryType.EXPENSE, firebaseId));
@@ -1098,7 +1110,8 @@ export class ExpensesService {
 
         // ====== MIX: default + user (CLIENT overrides SYSTEM by name, D4) ======
         if (isDefault === null) {
-            const categories = await this.catalogService.getMergedCategories({ businessNumber }, type);
+            const ctx = await this.catalogContextService.forUser(firebaseId, businessNumber);
+            const categories = await this.catalogService.getMergedCategories(ctx, type);
             return categories.map((c) => this.toLegacyCategory(c));
         }
 
@@ -1139,7 +1152,7 @@ export class ExpensesService {
             throw new Error('firebaseId and businessNumber must be provided for user-specific subcategory search.');
         }
 
-        const ctx = { userId: firebaseId, businessNumber };
+        const ctx = await this.catalogContextService.forUser(firebaseId, businessNumber);
         const category = await this.catalogService.findCategoryByNameInScope(ctx, categoryName);
         if (!category) {
             return [];
@@ -1173,7 +1186,8 @@ export class ExpensesService {
             return null;
         }
 
-        const resolved = await this.catalogService.resolveByName(categoryName, subCategoryName, { userId: firebaseId, businessNumber });
+        const ctx = await this.catalogContextService.forUser(firebaseId, businessNumber);
+        const resolved = await this.catalogService.resolveByName(categoryName, subCategoryName, ctx);
         return resolved?.isEquipment ?? null;
     }
 
@@ -1194,7 +1208,8 @@ export class ExpensesService {
             return ExpenseReportScope.PNL;
         }
 
-        const resolved = await this.catalogService.resolveByName(categoryName, subCategoryName, { userId: firebaseId, businessNumber });
+        const ctx = await this.catalogContextService.forUser(firebaseId, businessNumber);
+        const resolved = await this.catalogService.resolveByName(categoryName, subCategoryName, ctx);
         return resolved?.subCategory?.reportScope ?? ExpenseReportScope.PNL;
     }
 
@@ -1223,7 +1238,8 @@ export class ExpensesService {
         let expenseAccountCode = expense.accountCodeSnapshot;
         if (!expenseAccountCode) {
             const retried = await this.catalogService.resolveByName(
-                expense.category, expense.subCategory, { businessNumber: expense.businessNumber },
+                expense.category, expense.subCategory,
+                await this.catalogContextService.forUser(expense.userId, expense.businessNumber),
             );
             expenseAccountCode = retried?.account?.code ?? null;
             if (!expenseAccountCode) {
@@ -1895,7 +1911,7 @@ export class ExpensesService {
             throw new NotFoundException('categoryName and subCategoryName are required');
         }
 
-        const ctx = { userId: firebaseId, businessNumber };
+        const ctx = await this.catalogContextService.forUser(firebaseId, businessNumber);
         const scope = this.catalogService.buildScope(OwnerType.CLIENT, ctx);
         const chartOwnerKey = scope.chartOwnerKey;
 
