@@ -341,9 +341,16 @@ lines). Elazar signs off on the exact delta during Phase 1.7 review.
       `docs/redesign/production-baseline.md`: row counts, orphan pairs,
       duplicate catalog rows, live journal account codes, supplier/rule
       shadow counts.
-- [ ] 0.3 Implement D12 security fixes. Each is a small, independent
+- [x] 0.3 Implement D12 security fixes. Each is a small, independent
       commit, deployable on its own. Ship to production immediately —
-      these do not wait for the cutover.
+      these do not wait for the cutover. (Done Session 8, four commits:
+      D12.1 endpoint already deleted in Phase 2.6, stale .http lines
+      removed; D12.2 guard ACTIVE filter + method-based DOCUMENTS_WRITE
+      enforcement + actorFirebaseId; D12.3 users-for-agent self-or-admin
+      guard; D12.4 business dedup — id=5 נגרות deleted per Elazar — +
+      named UNIQUE ux_business_number + insert-path pre-checks. D12.4's
+      schema part rides cutover.sql, NOT an immediate prod deploy;
+      code-only fixes D12.1–D12.3 remain immediately deployable.)
 - [ ] 0.4 Clean duplicates found by query 3 (manual SQL, reviewed), then
       add `UNIQUE(categoryName, subCategoryName)` to `default_sub_category`
       and `UNIQUE(firebaseId, businessNumber, categoryName, subCategoryName)`

@@ -1385,3 +1385,34 @@ COMMIT;
 -- generate-baseline-reports.ts + compare-baseline-reports.ts for the report-
 -- reproduction check (Definition of Done per the master plan).
 -- ============================================================================
+
+
+-- ============================================================================
+-- PHASE 0.3 / D12.4 - UNIQUE(businessNumber) on business  (Session 8)
+-- ============================================================================
+-- VERIFICATION FIRST (run manually, review output BEFORE the statements below):
+-- production may have drifted since the dump. Expect exactly ONE group -
+-- businessNumber 314719279 held by ids 5 and 12. If ANY other group appears,
+-- STOP and resolve it with Elazar before proceeding.
+--
+-- SELECT businessNumber, COUNT(*) AS n, GROUP_CONCAT(id) AS ids
+--   FROM business
+--   WHERE businessNumber IS NOT NULL AND businessNumber <> ''
+--   GROUP BY businessNumber HAVING n > 1;
+
+START TRANSACTION;
+
+-- Elazar's decision (Session 8): delete business id=5 ("נגרות", user שמואל הראל,
+-- EXEMPT, zero expenses/journal entries/documents); id=12 ("פוטובלוק שמואל",
+-- LICENSED) keeps the number. Guarded by the businessNumber predicate so the
+-- statement is a no-op if ids have drifted.
+DELETE FROM business WHERE id = 5 AND businessNumber = '314719279';
+
+-- Named unique index, matching business.entity.ts. Nullable column - MySQL
+-- allows multiple NULLs under a UNIQUE index.
+ALTER TABLE business ADD UNIQUE INDEX ux_business_number (businessNumber);
+
+COMMIT;
+
+-- Post-check: expect 1 row deleted, index present in SHOW INDEX FROM business,
+-- and the duplicate SELECT above now returns 0 rows.
