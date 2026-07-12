@@ -308,6 +308,13 @@ export class AppComponent implements OnInit {
       console.log('[AppComponent] selectedClientId$ emission:', { id, persisted: this.clientPanelService.getSelectedClientId() });
       this.selectedClientId = id;
       this.selectedClientName = id ? this.clientPanelService.getSelectedClientName() : null;
+      // Billing/module-access state is per-identity (BillingStateService caches
+      // it until explicitly refreshed) — without this, every module-gated tab
+      // and route (book-keeping/expenses, book-keeping/incomes, transactions...)
+      // keeps evaluating against whichever identity's billing state loaded
+      // first, so entering or exiting client view silently shows the wrong
+      // person's access instead of "exactly what the client sees".
+      this.billingStateService.refreshBillingState();
       if (id) {
         this.authService.loadViewAsUserData().subscribe((data) => {
           if (data) {

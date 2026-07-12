@@ -909,3 +909,22 @@ re-linking any real user:
   line on every boot (`[Bootstrap]` logger), right next to the guard that
   depends on the same two values — confirmed present in the QA boot log
   above (`DB_DATABASE=keepintax_prodcopy synchronize=false`).
+
+**Follow-up same day — real frontend bug found by actually clicking
+through impersonation (not just the API-level checks above):** entering
+as a client hid the bookkeeping tabs and made expenses unreachable.
+Root cause: `BillingStateService` caches billing/module-access state
+until explicitly refreshed, and `AppComponent.subscribeToSelectedClient()`
+refreshed `viewAsUserData`/`businesses` on every client switch but never
+billing state — so every module-gated tab/route kept evaluating against
+whichever identity's billing loaded first (the admin/accountant's own),
+not the impersonated client's. Fixed with one call to
+`billingStateService.refreshBillingState()` in
+`subscribeToSelectedClient()` (both the enter- and exit-client-view
+branches), which covers every caller of `ClientPanelService.setSelectedClient()`
+— admin clients-dashboard, `demo-data`, and (relevant beyond QA)
+the accountant's `clients-panel.page.ts` Phase 5 path. Full writeup:
+`docs/redesign/qa-access.md`. Not browser-tested live (no browser
+automation available this session) — verified by full code-path trace +
+clean typecheck; flagging that explicitly rather than claiming it as
+UI-tested.

@@ -69,10 +69,51 @@ with a real Firebase ID token minted for the new UID:
    time, correct business data returned, admin-bypass path confirmed (no
    `delegation` rows exist for this admin — none were needed).
 
-**No code changes were needed to make this work.** The gaps flagged as
-possible risks going in — missing subscription row, missing business row
-for the admin itself — are both already handled gracefully by existing
-code.
+**No backend code changes were needed to make the API work.** The gaps
+flagged as possible risks going in — missing subscription row, missing
+business row for the admin itself — are both already handled gracefully
+by existing code. A real **frontend** bug surfaced once this was actually
+clicked through in the browser — see below.
+
+## Frontend bug found and fixed: stale billing/module-access state on impersonation
+
+API-level verification above passed, but the real UI did not: after
+"entering as user" from clients-dashboard, the bookkeeping tabs
+(incomes/expenses) disappeared and their routes were unreachable — not a
+QA-only issue, the same mechanism accountant delegation (Phase 5) uses.
+
+Root cause: `BillingStateService.loadBillingState()`
+(`frontend/src/app/services/billing-state.service.ts`) loads once and
+caches forever (`if (this.billingState() !== null ...) return;`) until
+`refreshBillingState()` is explicitly called. It gets loaded once for
+whichever identity is active at app boot (the admin/accountant's own
+account) and was **never invalidated when `ClientPanelService`'s selected
+client changed** — `AppComponent.subscribeToSelectedClient()` already
+correctly re-fetched `viewAsUserData` and `businesses` on every client
+switch, but not billing state. Since `AccessService.canAccessModule()`
+and `ModuleAccessGuard` both read straight from that cached
+`BillingStateService` signal, every module-gated tab/route
+(`book-keeping.page.ts`'s incomes/expenses tabs, `ModuleAccessGuard` on
+`/book-keeping/incomes`, `/book-keeping/expenses`, `/transactions`, etc.)
+kept evaluating against the admin's own (no-subscription) billing state
+instead of the impersonated client's real one.
+
+Fix: `AppComponent.subscribeToSelectedClient()` now calls
+`billingStateService.refreshBillingState()` on every
+`selectedClientId$` emission — both entering AND exiting client view (the
+"exit" branch needed it too, otherwise leaving client view stayed stuck
+showing the client's access instead of the accountant/admin's own).
+Single fix point, covers every caller of `ClientPanelService.setSelectedClient()`
+uniformly: admin clients-dashboard, `demo-data` component, and the
+accountant's `clients-panel.page.ts` (`enterClient()`) — the actual Phase
+5 path.
+
+Verified via full typecheck + code-path trace (no browser-automation tool
+available in this environment to click through live — flagged explicitly
+rather than claimed as browser-tested). Recommend a quick manual
+click-through (enter as a MULTI_BUSINESS client, confirm the bookkeeping
+tab + expenses list + business selector all appear) before relying on
+this for Phase 5 accountant testing.
 
 ## How to recreate after a future re-import
 
