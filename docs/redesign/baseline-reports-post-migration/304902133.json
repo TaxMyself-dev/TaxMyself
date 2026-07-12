@@ -170,11 +170,11 @@
         "income": 0,
         "expenses": [
           {
-            "category": "תוכנות ושירותי ענן",
+            "sectionName": "תוכנות ושירותי ענן",
             "total": 63.5
           },
           {
-            "category": "עמלות ודמי כרטיס",
+            "sectionName": "עמלות ודמי כרטיס",
             "total": 7.01
           }
         ],
@@ -197,7 +197,7 @@
         "income": 0,
         "expenses": [
           {
-            "category": "תוכנות ושירותי ענן",
+            "sectionName": "תוכנות ושירותי ענן",
             "total": 62.5
           }
         ],
@@ -220,7 +220,7 @@
         "income": 0,
         "expenses": [
           {
-            "category": "תוכנות ושירותי ענן",
+            "sectionName": "תוכנות ושירותי ענן",
             "total": 61.54
           }
         ],
@@ -241,11 +241,11 @@
       "income": 480,
       "expenses": [
         {
-          "category": "תוכנות ושירותי ענן",
+          "sectionName": "תוכנות ושירותי ענן",
           "total": 187.54
         },
         {
-          "category": "עמלות ודמי כרטיס",
+          "sectionName": "עמלות ודמי כרטיס",
           "total": 7.01
         }
       ],
@@ -651,7 +651,7 @@
             "referenceType": "EXPENSE",
             "referenceId": 63,
             "journalEntryId": 10000046,
-            "description": "תוכנות",
+            "description": "EXPENSE # - OPENAI *CHATGPT SUBS",
             "counterAccounts": "בנק - 1100",
             "counterPartyName": "OPENAI *CHATGPT SUBS",
             "subCategoryName": "תוכנות",
@@ -681,7 +681,7 @@
             "referenceType": "EXPENSE",
             "referenceId": 64,
             "journalEntryId": 10000047,
-            "description": "תוכנות",
+            "description": "EXPENSE # - OPENAI *CHATGPT SUBS",
             "counterAccounts": "בנק - 1100",
             "counterPartyName": "OPENAI *CHATGPT SUBS",
             "subCategoryName": "תוכנות",
@@ -711,7 +711,7 @@
             "referenceType": "EXPENSE",
             "referenceId": 65,
             "journalEntryId": 10000048,
-            "description": "תוכנות",
+            "description": "EXPENSE # - OPENAI *CHATGPT SUBS",
             "counterAccounts": "בנק - 1100",
             "counterPartyName": "OPENAI *CHATGPT SUBS",
             "subCategoryName": "תוכנות",
@@ -752,7 +752,7 @@
             "referenceType": "EXPENSE",
             "referenceId": 62,
             "journalEntryId": 10000045,
-            "description": "עמלות ודמי כרטיס",
+            "description": "EXPENSE # - עמל.ערוץ יש 17",
             "counterAccounts": "בנק - 1100",
             "counterPartyName": "עמל.ערוץ יש 17",
             "subCategoryName": "עמלות ודמי כרטיס",
@@ -780,6 +780,6 @@
       }
     ]
   },
-  "generatedAt": "2026-07-12T15:54:45.707Z",
+  "generatedAt": "2026-07-12T17:33:39.785Z",
   "sourceDb": "keepintax_prodcopy"
 }

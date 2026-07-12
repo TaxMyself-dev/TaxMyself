@@ -44,15 +44,15 @@
         "income": 0,
         "expenses": [
           {
-            "category": "הוצאות משרד",
+            "sectionName": "הוצאות משרד",
             "total": 8215.88
           },
           {
-            "category": "רכב ותחבורה",
+            "sectionName": "רכב ותחבורה",
             "total": 729.61
           },
           {
-            "category": "ייעוץ ושירותים מקצועיים",
+            "sectionName": "ייעוץ ושירותים מקצועיים",
             "total": 138088.98
           }
         ],
@@ -73,15 +73,15 @@
       "income": 0,
       "expenses": [
         {
-          "category": "הוצאות משרד",
+          "sectionName": "הוצאות משרד",
           "total": 8215.88
         },
         {
-          "category": "רכב ותחבורה",
+          "sectionName": "רכב ותחבורה",
           "total": 729.61
         },
         {
-          "category": "ייעוץ ושירותים מקצועיים",
+          "sectionName": "ייעוץ ושירותים מקצועיים",
           "total": 138088.98
         }
       ],
@@ -1147,7 +1147,7 @@
             "referenceType": "EXPENSE",
             "referenceId": 79,
             "journalEntryId": 10000111,
-            "description": "שליחויות",
+            "description": "EXPENSE #6-010157772101-068819 - דואר ישראל",
             "counterAccounts": "בנק - 1100",
             "counterPartyName": "דואר ישראל",
             "subCategoryName": "שליחויות",
@@ -1177,7 +1177,7 @@
             "referenceType": "EXPENSE",
             "referenceId": 80,
             "journalEntryId": 10000112,
-            "description": "שליחויות",
+            "description": "EXPENSE #26-010102603914-053074 - דואר ישראל",
             "counterAccounts": "בנק - 1100",
             "counterPartyName": "דואר ישראל",
             "subCategoryName": "שליחויות",
@@ -1207,7 +1207,7 @@
             "referenceType": "EXPENSE",
             "referenceId": 10576128,
             "journalEntryId": 10000113,
-            "description": "הוצאות משרד",
+            "description": "EXPENSE #10576128 - פרטנר תקשורת בע\"מ",
             "counterAccounts": "בנק - 1100",
             "counterPartyName": "פרטנר תקשורת בע\"מ",
             "subCategoryName": "הוצאות משרד",
@@ -1237,7 +1237,7 @@
             "referenceType": "EXPENSE",
             "referenceId": 7814,
             "journalEntryId": 10000115,
-            "description": "שכירות משרד",
+            "description": "EXPENSE #7814 - אביב שני פיתוח ובניה בע\"מ",
             "counterAccounts": "בנק - 1100",
             "counterPartyName": "אביב שני פיתוח ובניה בע\"מ",
             "subCategoryName": "שכירות משרד",
@@ -1267,7 +1267,7 @@
             "referenceType": "EXPENSE",
             "referenceId": 12017246,
             "journalEntryId": 10000120,
-            "description": "הוצאות משרד",
+            "description": "EXPENSE #12017246 - פרטנר תקשורת בע\"מ",
             "counterAccounts": "בנק - 1100",
             "counterPartyName": "פרטנר תקשורת בע\"מ",
             "subCategoryName": "הוצאות משרד",
@@ -1297,7 +1297,7 @@
             "referenceType": "EXPENSE",
             "referenceId": 7826,
             "journalEntryId": 10000123,
-            "description": "שכירות משרד",
+            "description": "EXPENSE #7826 - אביב שני פיתוח ובניה בע\"מ",
             "counterAccounts": "בנק - 1100",
             "counterPartyName": "אביב שני פיתוח ובניה בע\"מ",
             "subCategoryName": "שכירות משרד",
@@ -1327,7 +1327,7 @@
             "referenceType": "EXPENSE",
             "referenceId": 81,
             "journalEntryId": 10000126,
-            "description": "שליחויות",
+            "description": "EXPENSE #26-010102607800-054606 - דואר ישראל",
             "counterAccounts": "בנק - 1100",
             "counterPartyName": "דואר ישראל",
             "subCategoryName": "שליחויות",
@@ -1368,7 +1368,7 @@
             "referenceType": "EXPENSE",
             "referenceId": 71791876,
             "journalEntryId": 10000110,
-            "description": "מערכות",
+            "description": "EXPENSE #71791876 - איטורן",
             "counterAccounts": "בנק - 1100",
             "counterPartyName": "איטורן",
             "subCategoryName": "מערכות",
@@ -1398,7 +1398,7 @@
             "referenceType": "EXPENSE",
             "referenceId": 87,
             "journalEntryId": 10000114,
-            "description": "דלק",
+            "description": "EXPENSE #037609036916116 - פז קמעונאות ואנרגיה בע\"מ",
             "counterAccounts": "בנק - 1100",
             "counterPartyName": "פז קמעונאות ואנרגיה בע\"מ",
             "subCategoryName": "דלק",
@@ -1428,7 +1428,7 @@
             "referenceType": "EXPENSE",
             "referenceId": 82,
             "journalEntryId": 10000116,
-            "description": "כבישי אגרה",
+            "description": "EXPENSE #1260-494678 - דרך ארץ הייווייז (1997) בע\"מ - כביש 6",
             "counterAccounts": "בנק - 1100",
             "counterPartyName": "דרך ארץ הייווייז (1997) בע\"מ - כביש 6",
             "subCategoryName": "כבישי אגרה",
@@ -1458,7 +1458,7 @@
             "referenceType": "EXPENSE",
             "referenceId": 88,
             "journalEntryId": 10000117,
-            "description": "דלק",
+            "description": "EXPENSE #050009901647288 - פז קמעונאות ואנרגיה בע\"מ",
             "counterAccounts": "בנק - 1100",
             "counterPartyName": "פז קמעונאות ואנרגיה בע\"מ",
             "subCategoryName": "דלק",
@@ -1488,7 +1488,7 @@
             "referenceType": "EXPENSE",
             "referenceId": 72202281,
             "journalEntryId": 10000118,
-            "description": "מערכות",
+            "description": "EXPENSE #72202281 - איטורן",
             "counterAccounts": "בנק - 1100",
             "counterPartyName": "איטורן",
             "subCategoryName": "מערכות",
@@ -1518,7 +1518,7 @@
             "referenceType": "EXPENSE",
             "referenceId": 84,
             "journalEntryId": 10000122,
-            "description": "דלק",
+            "description": "EXPENSE #017909901079052 - מנטה קמעונאות דרכים בע\"מ - דלק ניות",
             "counterAccounts": "בנק - 1100",
             "counterPartyName": "מנטה קמעונאות דרכים בע\"מ - דלק ניות",
             "subCategoryName": "דלק",
@@ -1548,7 +1548,7 @@
             "referenceType": "EXPENSE",
             "referenceId": 83,
             "journalEntryId": 10000124,
-            "description": "כבישי אגרה",
+            "description": "EXPENSE #1264-517405 - דרך ארץ הייווייז (1997) בע\"מ - כביש 6",
             "counterAccounts": "בנק - 1100",
             "counterPartyName": "דרך ארץ הייווייז (1997) בע\"מ - כביש 6",
             "subCategoryName": "כבישי אגרה",
@@ -1578,7 +1578,7 @@
             "referenceType": "EXPENSE",
             "referenceId": 72712685,
             "journalEntryId": 10000125,
-            "description": "מערכות",
+            "description": "EXPENSE #72712685 - איטורן",
             "counterAccounts": "בנק - 1100",
             "counterPartyName": "איטורן",
             "subCategoryName": "מערכות",
@@ -1619,7 +1619,7 @@
             "referenceType": "EXPENSE",
             "referenceId": 3078,
             "journalEntryId": 10000119,
-            "description": "ייעוץ מקצועי",
+            "description": "EXPENSE #3078 - משה רז משרד עו\"ד זנוטריון",
             "counterAccounts": "בנק - 1100",
             "counterPartyName": "משה רז משרד עו\"ד זנוטריון",
             "subCategoryName": "ייעוץ מקצועי",
@@ -1649,7 +1649,7 @@
             "referenceType": "EXPENSE",
             "referenceId": 30024,
             "journalEntryId": 10000121,
-            "description": "ייעוץ מקצועי",
+            "description": "EXPENSE #30024 - עם דין ייעוץ נדלן",
             "counterAccounts": "בנק - 1100",
             "counterPartyName": "עם דין ייעוץ נדלן",
             "subCategoryName": "ייעוץ מקצועי",
@@ -1677,6 +1677,6 @@
       }
     ]
   },
-  "generatedAt": "2026-07-12T15:54:44.946Z",
+  "generatedAt": "2026-07-12T17:33:39.008Z",
   "sourceDb": "keepintax_prodcopy"
 }

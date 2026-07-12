@@ -1248,3 +1248,95 @@ DB so synchronize can create `ux_business_number` on the next dev boot:
   and something keys on its business number, it is now `999999999`.
 
 Verified: zero duplicate groups remain on keepintax-dev.
+
+
+---
+
+## Session 9 — 2026-07-12 — Phase 4 complete: 4.3b + reports/manual-entry/dead-code (4.4–4.6)
+
+Four commits, each with its checkbox tick. Phase 4 is DONE — plan header
+bumped to `Current phase: 5`.
+
+- **4.3b — deleteExpense journal fix (the active accounting bug from
+  Session 8's plan review)**: new `BookkeepingService.deleteJournalEntry`
+  (hard delete of header + lines; the per-business entryNumber sequence is
+  NOT compacted — a display gap is safer than renumbering). `deleteExpense`
+  asserts the D10 period lock (423 `expense_period_locked`) BEFORE touching
+  anything — the lock now covers deletes exactly like edits — resolves the
+  entry via journalEntryNumber → reference lookup (expense.id, then
+  expenseNumber, mirroring syncExpenseJournalEntry), and removes entry +
+  expense in ONE dataSource.transaction. Unjournaled (MISSING/private) rows
+  delete the expense only. Storno stays out of scope per D10.
+- **4.4 — reports to sections (D3) + stored descriptions (D7)**:
+  `createPnLReportFromJournal` joins booking_account scoped by chartOwnerKey
+  (SYSTEM + CLIENT_<biz>; the ACCOUNTANT chart joins in Phase 5.1) → INNER
+  JOIN accounting_section; income/expense split by account `type` instead of
+  hardcoded code prefixes, so 50000/70000/80000-range accounts roll up
+  correctly once they exist. Pre-flight against prodcopy confirmed every
+  posted account's section name is string-identical to its pnlCategory →
+  output-identical switch (D15). `ExpensePnlDto.category` → `sectionName`
+  (PDF renderer + frontend P&L page + the baseline comparator, which now
+  keys P&L rows by `sectionName ?? category` so the golden fixtures predate
+  the rename cleanly). Ledger + entry-detail expense lines read the STORED
+  `journal_entry.description` (Phase-3 backfill coverage on prodcopy: 85/85
+  expense lines), `jl.subCategoryName` kept as pre-backfill fallback;
+  VAT/income/bank computed labels unchanged. Deleted `getPnlCategoryMap` +
+  the `resolvedPnlCategory` attach — the bookkeeping expenses-table column
+  now shows `expense.sectionNameSnapshot`. `booking_account.pnlCategory` is
+  now fully unread at runtime (column kept for rollback until Phase 7).
+- **4.5 — manual journal entry on the new catalog**: `GET
+  reports/ledger-entry-accounts` is business-scoped (SYSTEM + CLIENT chart,
+  isActive only) and carries sectionCode/sectionName — the modal's account
+  dropdown renders sections as option groups. New `GET
+  bookkeeping/expense-catalog` feeds the optional sub_category picker
+  (merged catalog, isPrivate excluded per D5). DTO: free-text
+  `subCategoryName` REPLACED by `subCategoryId` (resolved tenant-scope-
+  checked via CatalogService → ledger-line name snapshot; cross-tenant ids
+  404 before anything is written) + new free-text `description` —
+  `je.description` = free text ‖ derived "category/sub" ‖ legacy reference
+  fallback (D7: the ledger shows this stored text since 4.4).
+  BookkeepingService now injects CatalogService. Frontend modal: sub_category
+  dropdown + "פירוט" free-text replace the old תת-קטגוריה input; accounts +
+  catalog load on modal open with the selected business.
+- **4.6 — legacy resolver + old-table reads deleted**:
+  `CatalogService.resolveAccountCode` (silent-60000 bridge) + the
+  ExpensesService wrapper + catalog-parity.spec.ts gone
+  (`resolveSubAccountCode` had already been deleted in an earlier session).
+  TransactionsService: dead legacy `classifyTransaction` (controller routes
+  to TransactionProcessingService) + `findSubCategoryDetails` deleted; the
+  legacy transactions-table category filter reads new
+  `CatalogService.getCategoryNamesForUser`. TransactionProcessingService's
+  never-used old-repo injections removed. Demo-data reset now wipes the demo
+  user's NEW-catalog CLIENT rows (sub_category → category → booking_account
+  → accounting_section, FK order) — closing a gap where reset left
+  new-catalog rows behind. The four legacy entities are out of every
+  forFeature list; they remain ONLY in app.module's forRoot entities (frozen
+  tables stay schema-managed for rollback until the Phase 7 drop). DoD grep:
+  zero runtime reads/writes of the old four tables — remaining references
+  are the entity files themselves (headers updated to say so), the forRoot
+  registration, legacy-SHAPED DTO/method names on the unchanged API surface,
+  and comments/docs.
+- **Tests**: 182 green across the redesign suites (expenses/bookkeeping/
+  documents/reports/report-workflow/guards/delegation), incl. new
+  deleteExpense (5) + deleteJournalEntry (3) + manual-entry picker (5) +
+  ledger-description D7 (7) + expense-description.util chain (7) +
+  getCategoryNamesForUser cases. Only the pre-existing users/reports
+  scaffold "should be defined" spec failures remain (verified pre-existing
+  in Session 8 via git stash).
+- **Verification**: full AppModule booted against `keepintax_prodcopy`
+  (NODE_ENV=production, SKIP_BOOT_SEED=true) — regenerated
+  baseline-reports-post-migration + compare-baseline-reports.ts:
+  **all 9 businesses ✅, zero un-registered diffs** (D15). The fixture
+  changes are exactly the ExpensePnlDto field rename (category →
+  sectionName) with identical section names and totals — the section
+  switch is empirically output-identical. The boot itself re-verified the
+  Session-9 DI/module changes (forFeature cleanups, CatalogService into
+  BookkeepingService/TransactionsService).
+- **CLAUDE.md docs synced**: expenses, bookkeeping, reports, transactions,
+  demo-data, frontend ledger-report.
+
+**Phase 4 checklist status**: 4.1–4.6 + 4.3b ALL ticked — Phase 4 complete.
+`Current phase: 5`. **Next**: Session 10 — Phase 5 (accountant layer):
+delegation-aware authorization on catalog/approval endpoints, the D11
+add-account flow, the client-unmapped flow (D5), and the accountant catalog
+management backend.
