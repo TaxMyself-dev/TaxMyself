@@ -470,7 +470,7 @@ export class PnLReportJournalPage implements OnInit {
     // the backend uses, or the 30% line goes stale against the new number.
     if (this.osekZair()) {
       const flatDeduction = Number((newIncome * 0.3).toFixed(2));
-      this.pnlReport.expenses = [{ category: this.osekZairCategory, total: flatDeduction }];
+      this.pnlReport.expenses = [{ sectionName: this.osekZairCategory, total: flatDeduction }];
       this.totalExpense = flatDeduction;
     }
 

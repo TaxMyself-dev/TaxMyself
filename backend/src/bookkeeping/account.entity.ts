@@ -26,10 +26,10 @@ export class BookingAccount {
   @Column()
   type: 'asset' | 'liability' | 'equity' | 'income' | 'expense';
 
-  /** Which P&L report line this account maps to. NULL = technical account
-   *  that does not appear in the P&L (e.g. clearing / VAT accounts).
-   *  TEMPORARY (D1.2) — superseded by `section`/`sectionId`; dropped Phase 7
-   *  once createPnLReportFromJournal reads sectionId instead (Phase 4.4). */
+  /** DEAD as of Phase 4.4 — createPnLReportFromJournal now groups by
+   *  `section`/`sectionId` (D3); no runtime code reads pnlCategory anymore.
+   *  Column kept (with its seed values) purely for rollback until the
+   *  Phase 7 drop. */
   @Column({ nullable: true })
   pnlCategory: string | null;
 

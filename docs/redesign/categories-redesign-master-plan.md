@@ -629,10 +629,25 @@ description; orphan decision doc resolved with Elazar.
       syncExpenseJournalEntry, and removes entry + expense in ONE
       dataSource.transaction. Unjournaled (MISSING/private) rows delete
       the expense only. Storno explicitly out of scope per D10.)
-- [ ] 4.4 Reports: P&L groups by section (D3); ledger uses stored
+- [x] 4.4 Reports: P&L groups by section (D3); ledger uses stored
       descriptions (D7); delete dead `resolvedPnlCategory`/
       `getPnlCategoryMap` precedence code and the misleading comments;
       `ExpensePnlDto.category` renamed to `sectionName`.
+      (Done Session 9: createPnLReportFromJournal joins booking_account
+      scoped by chartOwnerKey (SYSTEM + CLIENT_<biz>; ACCOUNTANT joins in
+      Phase 5.1) → INNER JOIN accounting_section — income/expense split by
+      account `type`, not code prefixes, so 50000/70000/80000-range
+      accounts roll up correctly once they exist; verified on prodcopy
+      that every posted account's section name === its pnlCategory string,
+      so the switch is output-identical. Ledger + entry-detail
+      buildLineDescription: expense-account lines read the stored
+      journal_entry.description (subCategoryName snapshot as pre-backfill
+      fallback); VAT/income/bank labels unchanged. getPnlCategoryMap +
+      resolvedPnlCategory deleted; the bookkeeping expenses table column
+      now shows expense.sectionNameSnapshot. compare-baseline-reports.ts
+      keys P&L rows by sectionName ?? category so golden fixtures predate
+      the rename cleanly. booking_account.pnlCategory is now fully dead —
+      column kept for rollback until Phase 7.)
 - [ ] 4.5 Manual journal entry: account dropdown from new
       `booking_account` (sections shown as groups); free-text
       subCategoryName field replaced by optional sub_category picker +

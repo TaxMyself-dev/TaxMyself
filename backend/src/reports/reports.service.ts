@@ -25,6 +25,7 @@ import * as iconv from 'iconv-lite';
 import { JournalEntry } from 'src/bookkeeping/jouranl-entry.entity';
 import { JournalLine } from 'src/bookkeeping/jouranl-line.entity';
 import { BookingAccount } from 'src/bookkeeping/account.entity';
+import { AccountingSection } from 'src/bookkeeping/accounting-section.entity';
 import { DocPayments } from 'src/documents/doc-payments.entity';
 import { Business } from 'src/business/business.entity';
 import { SlimTransaction } from 'src/transactions/slim-transaction.entity';
@@ -507,8 +508,10 @@ export class ReportsService {
 
   /**
    * P&L report computed from journal entries.
-   * Income = 40000 (credit − debit). Expenses grouped by the account's
-   * pnlCategory for 6xxxx (debit − credit). Equipment lines are excluded.
+   * Income = accounts of type 'income' (credit − debit). Expenses = accounts
+   * of type 'expense', grouped by their accounting_section (D3 — the section
+   * REPLACES the dead pnlCategory string namespace). Equipment lines are
+   * excluded. Technical accounts (no section) drop out via the INNER join.
    *
    * @param osekZair       "עוסק זעיר" (small trader) mode — only meaningful when
    *                       income is under the ITA's 120,000 ILS annual threshold.
@@ -538,50 +541,62 @@ export class ReportsService {
       business.businessType, business.vatReportingType, startDate, endDate,
     );
 
+    // Owner charts visible to this business: SYSTEM + its own CLIENT chart.
+    // (The accountant chart joins in Phase 5.1 once delegation-aware context
+    // plumbing exists — no ACCOUNTANT-owned accounts carry postings yet.)
+    // Scoping the join prevents cross-tenant fan-out when two CLIENT charts
+    // allocate the same code in their 80000 range.
+    const chartOwnerKeys = ['SYSTEM', `CLIENT_${businessNumber}`];
+
     const qb = this.JournalLineRepo.createQueryBuilder('jl')
       .innerJoin(JournalEntry, 'je', 'je.id = jl.journalEntryId')
-      .innerJoin(BookingAccount, 'dba', 'dba.code = jl.accountCode')
+      .innerJoin(
+        BookingAccount, 'dba',
+        'dba.code = jl.accountCode AND dba.chartOwnerKey IN (:...chartOwnerKeys)',
+        { chartOwnerKeys },
+      )
+      // D3: group by accounting_section. Posting accounts always have one;
+      // technical accounts (1000/1100/2400/2410/90000-range) have
+      // sectionId NULL and drop out via this INNER join.
+      .innerJoin(AccountingSection, 'sec', 'sec.id = dba.sectionId')
       .where('je.issuerBusinessNumber = :businessNumber', { businessNumber })
       .andWhere('je.firebaseId = :firebaseId', { firebaseId })
-      .andWhere('dba.pnlCategory IS NOT NULL')
       .andWhere('jl.isEquipment = false');
     this.applyJournalPeriodFilter(qb, periodLabels, startDate, endDate);
 
     const rows = await qb
-      .select('jl.accountCode', 'accountCode')
-      .addSelect('dba.pnlCategory', 'pnlCategory')
+      .select('dba.type', 'accountType')
+      .addSelect('sec.name', 'sectionName')
       .addSelect('jl.debit', 'debit')
       .addSelect('jl.credit', 'credit')
       .addSelect('jl.amountForTax', 'amountForTax')
-      .getRawMany<{ accountCode: string; pnlCategory: string; debit: string; credit: string; amountForTax: string }>();
+      .getRawMany<{ accountType: string; sectionName: string; debit: string; credit: string; amountForTax: string }>();
 
     let totalIncome = 0;
-    const expenseSumByCategory: { [category: string]: number } = {};
+    const expenseSumBySection: { [sectionName: string]: number } = {};
 
     for (const r of rows) {
-      const code = String(r.accountCode);
       const debit = Number(r.debit) || 0;
       const credit = Number(r.credit) || 0;
-      if (code === '40000' || code === '40010') {
-        totalIncome += credit - debit;       // 40000 vatable; 40010 exempt (פטור) income
-      } else if (code.startsWith('6')) {
+      if (r.accountType === 'income') {
+        totalIncome += credit - debit;       // vatable (40000) and exempt (40010) income alike
+      } else if (r.accountType === 'expense') {
         // Use amountForTax (= debit × taxPercent/100) so partial-deductibility
-        // expenses (vehicle 45%, mixed-use) show the correct P&L amount, not the
-        // gross debit. Label by the account's pnlCategory for consistent grouping.
-        const category = String(r.pnlCategory);
-        expenseSumByCategory[category] = (expenseSumByCategory[category] ?? 0) + (Number(r.amountForTax) || 0);
+        // expenses (vehicle 45%, mixed-use) show the correct P&L amount, not
+        // the gross debit.
+        expenseSumBySection[r.sectionName] = (expenseSumBySection[r.sectionName] ?? 0) + (Number(r.amountForTax) || 0);
       }
     }
 
     const effectiveIncome = incomeOverride ?? totalIncome;
 
-    let expenseDtos: ExpensePnlDto[] = Object.entries(expenseSumByCategory).map(
-      ([category, total]) => ({ category, total }),
+    let expenseDtos: ExpensePnlDto[] = Object.entries(expenseSumBySection).map(
+      ([sectionName, total]) => ({ sectionName, total }),
     );
 
     if (osekZair) {
       const flatDeduction = Number((effectiveIncome * 0.3).toFixed(2));
-      expenseDtos = [{ category: 'ניכוי 30% הוצאות לעוסק זעיר', total: flatDeduction }];
+      expenseDtos = [{ sectionName: 'ניכוי 30% הוצאות לעוסק זעיר', total: flatDeduction }];
     }
 
     let totalExpenses = 0;
@@ -788,7 +803,13 @@ export class ReportsService {
           referenceType: r.referenceType ?? '',
           referenceId: r.referenceId != null ? Number(r.referenceId) : 0,
           journalEntryId: Number(r.journalEntryId),
-          description: this.buildLineDescription(ac, r.referenceType ?? null, r.subCategoryName ?? null),
+          description: this.buildLineDescription(
+            ac,
+            typeByCode.get(ac) ?? null,
+            r.referenceType ?? null,
+            r.subCategoryName ?? null,
+            r.description ?? null,
+          ),
           counterAccounts: r.counterAccounts != null
             ? `${nameByCode.get(r.counterAccounts) ?? r.counterAccounts} - ${r.counterAccounts}`
             : null,
@@ -855,6 +876,7 @@ export class ReportsService {
 
     const chart = await this.defaultBookingAccountRepo.find();
     const nameByCode = new Map(chart.map((a) => [a.code, a.name]));
+    const typeByCode = new Map(chart.map((a) => [a.code, a.type]));
 
     const lines = rawLines.map((l) => ({
       accountCode: l.accountCode,
@@ -863,8 +885,10 @@ export class ReportsService {
       credit: Number(l.credit) || 0,
       description: this.buildLineDescription(
         l.accountCode,
+        typeByCode.get(l.accountCode) ?? null,
         entry.referenceType ? String(entry.referenceType) : null,
         l.subCategoryName ?? null,
+        entry.description ?? null,
       ),
     }));
 
@@ -951,15 +975,33 @@ export class ReportsService {
 
   /**
    * Compute the Hebrew "פירוט" (detail) text for a ledger line.
-   * Priority: subCategoryName (expense lines) → account+referenceType lookup → fallback.
+   *
+   * Phase 4.4 (D7): expense-account lines read the STORED
+   * journal_entry.description (frozen at approval from the expense's
+   * description — written live since Phase 4.1, backfilled in Phase 3)
+   * instead of rebuilding text from jl.subCategoryName per report.
+   * subCategoryName remains the fallback for rows that predate the
+   * description backfill; technical/income/bank lines keep their computed
+   * labels (their entry description describes the EXPENSE side, not them).
    */
   private buildLineDescription(
     accountCode: string,
+    accountType: string | null,
     referenceType: string | null,
     subCategoryName: string | null,
+    entryDescription: string | null,
   ): string {
-    // 1. Expense account lines → sub-category name (e.g. "דלק", "ביטוח רכב")
-    if (subCategoryName) return subCategoryName;
+    // 1. Expense account lines → the frozen entry description (D7), falling
+    //    back to the legacy sub-category name snapshot.
+    if (accountType === 'expense') {
+      const stored = entryDescription?.trim();
+      if (stored) return stored;
+      if (subCategoryName) return subCategoryName;
+    } else if (subCategoryName) {
+      // Non-expense line that still carries a name snapshot (not produced by
+      // any current writer, but preserved as the pre-4.4 behavior).
+      return subCategoryName;
+    }
 
     const ref = referenceType ?? '';
 

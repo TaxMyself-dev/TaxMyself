@@ -79,10 +79,10 @@
           </div>
         </div>
         <!-- Dynamically Display Expenses -->
-        <ng-container *ngFor="let category of pnlReport.expenses">
+        <ng-container *ngFor="let section of pnlReport.expenses">
           <div class="output-pnl-report">
-            <div >{{ category.category }}:</div>
-            <div >{{ category.total | number }}</div>
+            <div >{{ section.sectionName }}:</div>
+            <div >{{ section.total | number }}</div>
           </div>
         </ng-container>
         <!-- Display Net Profit Before Tax -->

@@ -475,10 +475,9 @@ export class ReportReviewService {
 
       // Stamp document-side provenance + the resolved period on the fresh
       // Expense. The period is ALWAYS written now (not only on override).
-      // pnlCategory is intentionally left NULL — it's an override-only slot
-      // resolved live (expense.pnlCategory ?? subcategory map ?? category) by
-      // both the P&L report and the bookkeeping display, so storing it here
-      // would only freeze a value that should track the live mapping.
+      // (Phase 4.4/D3: expense.pnlCategory is dead — the P&L groups by the
+      // accounting-section of the posted account; nothing resolves
+      // pnlCategory anymore.)
       await manager.getRepository(Expense).update(
         { id: expense.id },
         { sourceDocumentId: doc.id, vatReportingDate: expensePeriod as any },
@@ -606,7 +605,7 @@ export class ReportReviewService {
           doc.date ? new Date(doc.date) : new Date(),
         );
 
-      // pnlCategory left NULL — override-only, resolved live downstream.
+      // (Phase 4.4/D3: expense.pnlCategory is dead — P&L groups by section.)
       await manager.getRepository(Expense).update(
         { id: expense.id },
         { sourceDocumentId: doc.id, vatReportingDate: reportPeriod as any },
@@ -712,7 +711,7 @@ export class ReportReviewService {
           new Date(cache.transactionDate as any),
         );
 
-      // pnlCategory left NULL — override-only, resolved live downstream.
+      // (Phase 4.4/D3: expense.pnlCategory is dead — P&L groups by section.)
       await manager.getRepository(Expense).update(
         { id: expense.id },
         { vatReportingDate: reportPeriod as any },

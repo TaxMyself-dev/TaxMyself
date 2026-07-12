@@ -82,8 +82,13 @@ function compareVat(label: string, oldVat: any, newVat: any): void {
 function comparePnl(label: string, oldPnl: any, newPnl: any, businessNumber: string): void {
   reportDiff(`${label} PNL.income`, oldPnl.income, newPnl.income);
 
-  const oldCats = new Map<string, number>(oldPnl.expenses.map((e: any) => [e.category, e.total]));
-  const newCats = new Map<string, number>(newPnl.expenses.map((e: any) => [e.category, e.total]));
+  // Phase 4.4 renamed ExpensePnlDto.category → sectionName (D3 section
+  // grouping); the golden fixtures predate the rename. Section names are
+  // string-identical to the old pnlCategory labels (verified against
+  // keepintax_prodcopy), so keying on either field compares like-for-like.
+  const pnlKey = (e: any) => e.sectionName ?? e.category;
+  const oldCats = new Map<string, number>(oldPnl.expenses.map((e: any) => [pnlKey(e), e.total]));
+  const newCats = new Map<string, number>(newPnl.expenses.map((e: any) => [pnlKey(e), e.total]));
   const allCats = new Set([...oldCats.keys(), ...newCats.keys()]);
 
   let correction1Removed = 0;

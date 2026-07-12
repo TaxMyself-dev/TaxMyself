@@ -6,8 +6,6 @@ import { Between, DataSource, EntityManager, In, LessThanOrEqual, MoreThan, More
 import { Expense } from './expenses.entity';
 import { Supplier } from './suppliers.entity';
 import { User } from '../users/user.entity';
-import { DefaultSubCategory } from './default-sub-categories.entity';
-import { UserSubCategory } from './user-sub-categories.entity';
 import { ClassifiedTransactions } from '../transactions/classified-transactions.entity';
 import { ExtractedDocument, ExtractedDocStatus } from '../documents/extracted-document.entity';
 import { SharedService } from '../shared/shared.service';
@@ -41,11 +39,6 @@ export class ExpensesService {
             private readonly sharedService: SharedService,
             @InjectRepository(Expense) private expense_repo: Repository<Expense>,
             @InjectRepository(User) private userRepo: Repository<User>,
-            // Kept ONLY for getPnlCategoryMap (D3: pnlCategory namespace is dead,
-            // deletion deferred to Phase 4.4 per the master plan) — every other
-            // catalog read/write goes through CatalogService as of Phase 2.4.
-            @InjectRepository(DefaultSubCategory) private defaultSubCategoryRepo: Repository<DefaultSubCategory>,
-            @InjectRepository(UserSubCategory) private userSubCategoryRepo: Repository<UserSubCategory>,
             @InjectRepository(Supplier) private supplier_repo: Repository<Supplier>,
             @InjectRepository(Business) private businessRepo: Repository<Business>,
             @InjectRepository(ClassifiedTransactions) private rulesRepo: Repository<ClassifiedTransactions>,
@@ -1206,41 +1199,6 @@ export class ExpensesService {
     }
 
     /**
-     * Map of subCategoryName → pnlCategory (user override wins over default),
-     * for a given user+business. Used by the P&L report to remap a
-     * subcategory's expenses to a different presentation category. Entries
-     * with a null/empty pnlCategory are omitted (caller falls back to the
-     * bookkeeping category). Mirrors the getSubCategories merge.
-     */
-    async getPnlCategoryMap(
-        firebaseId: string,
-        businessNumber: string,
-    ): Promise<Map<string, string>> {
-        const [userSubs, defaultSubs] = await Promise.all([
-            this.userSubCategoryRepo.find({
-                where: { firebaseId, businessNumber },
-                select: { subCategoryName: true, pnlCategory: true },
-            }),
-            this.defaultSubCategoryRepo.find({
-                select: { subCategoryName: true, pnlCategory: true },
-            }),
-        ]);
-
-        const map = new Map<string, string>();
-        // Defaults first, user overrides win.
-        for (const s of defaultSubs) {
-            const v = s.pnlCategory?.trim();
-            if (v) map.set(s.subCategoryName, v);
-        }
-        for (const s of userSubs) {
-            const v = s.pnlCategory?.trim();
-            if (v) map.set(s.subCategoryName, v);
-            else map.delete(s.subCategoryName); // user explicitly cleared it
-        }
-        return map;
-    }
-
-    /**
      * Resolve the bookkeeping account code for a (category, subCategory) pair.
      * The single source of truth for routing an expense to a כרטיס — used by
      * EVERY expense-creation path (manual entry, OCR document, bank-transaction
@@ -1735,16 +1693,11 @@ export class ExpensesService {
         // IMPORTANT: await the promise!
         const reportedExpenses = await this.getExpensesByDates(userId, businessNumber, startDate, endDate);
 
-        // Attach the RESOLVED P&L category per row so the bookkeeping table can
-        // show it without a per-row query. Precedence: per-expense override →
-        // subcategory map → bookkeeping category. This mirrors the actual P&L
-        // report grouping (reports.service.ts), so the column shows the real
-        // category the expense rolls up under instead of a bare "—".
-        const pnlCategoryMap = await this.getPnlCategoryMap(userId, businessNumber);
-        for (const e of reportedExpenses) {
-            (e as any).resolvedPnlCategory =
-                e.pnlCategory ?? pnlCategoryMap.get(e.subCategory) ?? e.category;
-        }
+        // Phase 4.4 (D3): the old resolvedPnlCategory precedence chain
+        // (per-expense override → subcategory pnlCategory map → bookkeeping
+        // category) is DELETED — the pnlCategory namespace is dead. The P&L
+        // grouping an expense rolls up under is its sectionNameSnapshot (D6),
+        // already on every row; the frontend column reads it directly.
 
         // // Valid months when isSingleMonth is false
         // const validMonths = [1, 3, 5, 7, 9, 11];        

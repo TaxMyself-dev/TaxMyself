@@ -208,7 +208,9 @@ export interface IPnlReportData {
     income: number | string;
     netProfitBeforeTax: number | string;
     expenses: {
-        category: string,
+        // Accounting-section name (backend renamed `category` → `sectionName`
+        // in Phase 4.4 of the categories redesign — D3 section grouping).
+        sectionName: string,
         total: number
     }[];
 }
