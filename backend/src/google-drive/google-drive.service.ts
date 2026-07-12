@@ -55,6 +55,7 @@ export class GoogleDriveService {
   private readonly logger = new Logger(GoogleDriveService.name);
   private driveClient: drive_v3.Drive | null = null;
   private rootFolderIdCached: string | null = null;
+  private systemDriveClient: drive_v3.Drive | null = null;
 
   private getDrive(): { drive: drive_v3.Drive; rootFolderId: string } {
     if (this.driveClient && this.rootFolderIdCached) {
@@ -78,6 +79,52 @@ export class GoogleDriveService {
     this.driveClient = google.drive({ version: 'v3', auth });
     this.rootFolderIdCached = rootFolderId;
     return { drive: this.driveClient, rootFolderId };
+  }
+
+  /**
+   * Drive client authenticated as the KeepInTax **system user account**
+   * (GOOGLE_DRIVE_SYSTEM_ACCOUNT_EMAIL — app@keepintax.co.il) via OAuth,
+   * used exclusively for file **uploads**.
+   *
+   * Why a separate client from `getDrive()`: the service account can create
+   * and manage folders (folders store no bytes) but CANNOT write file bytes —
+   * it owns no storage quota, so `files.create` with a media body fails with
+   * "Service Accounts do not have storage quota". A real user account does
+   * have quota, so uploads run as this account instead. Folder/list/move/
+   * permission operations keep using the service-account client.
+   *
+   * The refresh token is minted ONCE, out of band, by app@keepintax.co.il
+   * (see backend/docs/google-drive-system-oauth.md) and supplied via env —
+   * never stored in the DB, and entirely separate from the per-user Gmail
+   * OAuth grants in user_integrations. It reuses the same OAuth app
+   * credentials (GOOGLE_OAUTH_CLIENT_ID/SECRET) the token was issued against;
+   * the googleapis client refreshes the access token automatically.
+   */
+  private getSystemDrive(): drive_v3.Drive {
+    if (this.systemDriveClient) return this.systemDriveClient;
+
+    const refreshToken = process.env.GOOGLE_DRIVE_SYSTEM_REFRESH_TOKEN;
+    if (!refreshToken) {
+      throw new Error(
+        'GOOGLE_DRIVE_SYSTEM_REFRESH_TOKEN env var is missing — Drive file uploads ' +
+          'run as the KeepInTax system account (GOOGLE_DRIVE_SYSTEM_ACCOUNT_EMAIL) via ' +
+          'OAuth because the service account has no storage quota. Mint the token for ' +
+          'app@keepintax.co.il as described in backend/docs/google-drive-system-oauth.md.',
+      );
+    }
+    const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
+    const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
+    if (!clientId || !clientSecret) {
+      throw new Error(
+        'GOOGLE_OAUTH_CLIENT_ID / GOOGLE_OAUTH_CLIENT_SECRET env vars are missing — ' +
+          'required to build the system Drive OAuth client from GOOGLE_DRIVE_SYSTEM_REFRESH_TOKEN.',
+      );
+    }
+
+    const auth = new google.auth.OAuth2(clientId, clientSecret);
+    auth.setCredentials({ refresh_token: refreshToken });
+    this.systemDriveClient = google.drive({ version: 'v3', auth });
+    return this.systemDriveClient;
   }
 
   async createUserFolder(folderName: string, userEmail: string): Promise<string> {
@@ -321,12 +368,17 @@ export class GoogleDriveService {
    * `mimeType` defaults to application/pdf since every current caller is
    * pushing PDFs; pass through explicitly when uploading anything else.
    *
-   * Throws `ServiceAccountQuotaError` when the underlying Drive call fails
-   * with "Service Accounts do not have storage quota" — a known Google
-   * limitation when the root folder lives on a personal (non-Workspace)
-   * Drive. Callers that just want best-effort uploads (demo seeder) can
-   * catch this specific class and continue; everyone else can let it
-   * bubble.
+   * Runs on the **system OAuth Drive client** (`getSystemDrive` —
+   * app@keepintax.co.il), NOT the service-account client, because a service
+   * account owns no storage quota and can't write file bytes. The file is
+   * therefore owned by the system account; the service account still needs
+   * write access to `parentFolderId` (inherited from the root share) so the
+   * folder/list/move operations that use `getDrive()` keep working.
+   *
+   * Still throws `ServiceAccountQuotaError` if the "no storage quota" error
+   * ever resurfaces (e.g. env misconfigured back to a service-account token),
+   * so best-effort callers (demo seeder) can keep catching it; everyone else
+   * can let it bubble.
    */
   async uploadFile(
     parentFolderId: string,
@@ -335,7 +387,7 @@ export class GoogleDriveService {
     mimeType: string = 'application/pdf',
   ): Promise<string> {
     try {
-      const { drive } = this.getDrive();
+      const drive = this.getSystemDrive();
       const { Readable } = await import('stream');
       const res = await drive.files.create({
         requestBody: {
@@ -367,12 +419,63 @@ export class GoogleDriveService {
         );
         throw new ServiceAccountQuotaError(message);
       }
+      // Surface the REAL Drive/OAuth failure. The generic "Failed to upload
+      // Drive file" told us nothing; the actual reason (insufficient
+      // permissions, invalid_grant, invalid scope, folder not found, ...)
+      // lives in the Google error's code/status + response body.
+      const detail = this.describeDriveError(error);
       this.logger.error(
-        `uploadFile failed (parent=${parentFolderId}, name="${name}"): ${error?.message ?? error}`,
+        `uploadFile failed (parent=${parentFolderId}, name="${name}"): ${detail}`,
         (error as Error)?.stack,
       );
-      throw new InternalServerErrorException('Failed to upload Drive file');
+      // Preserve the original message so the API response / imported-documents
+      // ledger shows the real cause instead of a generic string.
+      throw new InternalServerErrorException(`Drive upload failed: ${detail}`);
     }
+  }
+
+  /**
+   * Build a concise, secrets-safe description of a googleapis (Gaxios) error
+   * for logging and for the thrown message. Pulls only known-safe fields —
+   * never the raw error (whose `config.headers` carries the OAuth bearer
+   * token) — so nothing sensitive reaches the logs.
+   *
+   * Handles both error body shapes:
+   *  - Drive API : { error: { code, status, message, errors:[{reason,message}] } }
+   *  - OAuth token: { error: 'invalid_grant', error_description: '...' }
+   */
+  private describeDriveError(error: any): string {
+    const parts: string[] = [];
+    const status = error?.code ?? error?.response?.status;
+    if (status !== undefined && status !== null) parts.push(`status=${status}`);
+
+    const data = error?.response?.data;
+    if (data?.error && typeof data.error === 'string') {
+      // OAuth token endpoint failure (invalid_grant, invalid_scope, ...).
+      parts.push(`error=${data.error}`);
+      if (data.error_description) parts.push(`description="${data.error_description}"`);
+    } else if (data?.error && typeof data.error === 'object') {
+      // Drive API failure.
+      if (data.error.status) parts.push(`reason=${data.error.status}`);
+      const reasons = (data.error.errors ?? [])
+        .map((e: any) => e?.reason)
+        .filter(Boolean);
+      if (reasons.length) parts.push(`errors=[${reasons.join(',')}]`);
+      if (data.error.message) parts.push(`message="${data.error.message}"`);
+    } else if (Array.isArray(error?.errors) && error.errors.length) {
+      // Older googleapis top-level errors array.
+      const reasons = error.errors.map((e: any) => e?.reason).filter(Boolean);
+      if (reasons.length) parts.push(`errors=[${reasons.join(',')}]`);
+    }
+
+    // Always include the top-level message when we didn't already capture a
+    // structured one, so the reason is never lost.
+    const hasMessage = parts.some(
+      (p) => p.startsWith('message=') || p.startsWith('error=') || p.startsWith('description='),
+    );
+    if (!hasMessage && error?.message) parts.push(`message="${error.message}"`);
+
+    return parts.join(' ') || 'unknown Drive error';
   }
 
   /**
