@@ -290,4 +290,46 @@ describe('BookkeepingService — createJournalEntry / persistJournalEntry', () =
       expect(result).toEqual({ entryNumber: 10000099, id: 321 });
     });
   });
+
+  // ── deleteJournalEntry (Phase 4.3b) ─────────────────────────────────────────
+
+  describe('deleteJournalEntry', () => {
+    beforeEach(() => {
+      journalEntryRepo.delete = jest.fn().mockResolvedValue(undefined) as any;
+      journalLineRepo.delete = jest.fn().mockResolvedValue(undefined) as any;
+    });
+
+    it('deletes lines first, then the header, inside the given manager', async () => {
+      journalEntryRepo.findOne.mockResolvedValueOnce({ id: 888, entryNumber: 10000005 } as any);
+
+      const result = await service.deleteJournalEntry(10000005, '999999999', mockManager);
+
+      expect(result).toBe(true);
+      expect(journalEntryRepo.findOne).toHaveBeenCalledWith({
+        where: { entryNumber: 10000005, issuerBusinessNumber: '999999999' },
+      });
+      expect(journalLineRepo.delete).toHaveBeenCalledWith({ journalEntryId: 888 });
+      expect(journalEntryRepo.delete).toHaveBeenCalledWith(888);
+      expect(dataSource.transaction).not.toHaveBeenCalled();
+    });
+
+    it('opens its own transaction when no manager is given', async () => {
+      journalEntryRepo.findOne.mockResolvedValueOnce({ id: 889, entryNumber: 10000006 } as any);
+
+      await service.deleteJournalEntry(10000006, '999999999');
+
+      expect(dataSource.transaction).toHaveBeenCalledTimes(1);
+      expect(journalEntryRepo.delete).toHaveBeenCalledWith(889);
+    });
+
+    it('returns false and deletes nothing when no entry matches', async () => {
+      journalEntryRepo.findOne.mockResolvedValueOnce(null);
+
+      const result = await service.deleteJournalEntry(10000404, '999999999', mockManager);
+
+      expect(result).toBe(false);
+      expect(journalLineRepo.delete).not.toHaveBeenCalled();
+      expect(journalEntryRepo.delete).not.toHaveBeenCalled();
+    });
+  });
 });

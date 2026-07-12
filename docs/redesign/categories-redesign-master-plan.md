@@ -612,7 +612,7 @@ description; orphan decision doc resolved with Elazar.
       minimal terminal state — annual_report_file bridge deferred to
       Phase 6) + PATCH reports/me/review/doc-kind/:documentId triage;
       ReviewDocSummary carries documentKind for the Phase-6 UI.)
-- [ ] 4.3b deleteExpense must remove/reverse its journal entry in the
+- [x] 4.3b deleteExpense must remove/reverse its journal entry in the
       same transaction (Session 9). Elazar (Session 8 plan approval):
       this is an ACTIVE accounting bug, not a known issue —
       expenses.service.ts deleteExpense currently removes the expense row
@@ -621,6 +621,14 @@ description; orphan decision doc resolved with Elazar.
       allows at that point) the journal entry in the same tx, and the
       D10 period lock (assertExpensePeriodUnlocked) must apply to deletes
       too.
+      (Done Session 9: new BookkeepingService.deleteJournalEntry —
+      hard delete of header + lines, entryNumber gap left uncompacted;
+      deleteExpense now asserts assertExpensePeriodUnlocked (423) BEFORE
+      touching anything, resolves the entry via journalEntryNumber →
+      reference lookup (expense.id, then expenseNumber) exactly like
+      syncExpenseJournalEntry, and removes entry + expense in ONE
+      dataSource.transaction. Unjournaled (MISSING/private) rows delete
+      the expense only. Storno explicitly out of scope per D10.)
 - [ ] 4.4 Reports: P&L groups by section (D3); ledger uses stored
       descriptions (D7); delete dead `resolvedPnlCategory`/
       `getPnlCategoryMap` precedence code and the misleading comments;

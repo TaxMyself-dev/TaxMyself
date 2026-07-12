@@ -135,6 +135,7 @@ describe('ExpensesService — Phase 4.1 classification', () => {
       replaceJournalEntryLines: jest.fn().mockResolvedValue(true),
       updateJournalEntryFull: jest.fn().mockResolvedValue(true),
       findJournalEntryNumber: jest.fn().mockResolvedValue(null),
+      deleteJournalEntry: jest.fn().mockResolvedValue(true),
     };
 
     catalogService = {
@@ -459,5 +460,73 @@ describe('ExpensesService — Phase 4.1 classification', () => {
     expect(result.approvalStatus).toBe(ExpenseApprovalStatus.APPROVED);
     expect(result.accountCodeSnapshot).toBe('61000');
     expect(bookkeepingService.createJournalEntry).toHaveBeenCalledTimes(1);
+  });
+
+  // ── deleteExpense (Phase 4.3b) ─────────────────────────────────────────────
+
+  it('deleteExpense removes the journal entry AND the expense in one transaction', async () => {
+    const expense = {
+      id: 30, userId: 'uid-1', businessNumber: '999999999', isReported: null,
+      vatReportingDate: '5/2024', journalEntryNumber: 10000007,
+    } as any;
+    expenseRepo.findOne.mockResolvedValue(expense);
+    bookkeepingService.deleteJournalEntry.mockResolvedValue(true);
+
+    await service.deleteExpense(30, 'uid-1');
+
+    expect(dataSource.transaction).toHaveBeenCalledTimes(1);
+    expect(bookkeepingService.deleteJournalEntry).toHaveBeenCalledWith(10000007, '999999999', mockManager);
+    expect(expenseRepo.remove).toHaveBeenCalledWith(expense);
+  });
+
+  it('deleteExpense falls back to the reference lookup for legacy rows without journalEntryNumber', async () => {
+    const expense = {
+      id: 31, userId: 'uid-1', businessNumber: '999999999', isReported: null,
+      vatReportingDate: '5/2024', journalEntryNumber: null, expenseNumber: 31,
+    } as any;
+    expenseRepo.findOne.mockResolvedValue(expense);
+    bookkeepingService.findJournalEntryNumber.mockResolvedValue(10000042);
+    bookkeepingService.deleteJournalEntry.mockResolvedValue(true);
+
+    await service.deleteExpense(31, 'uid-1');
+
+    expect(bookkeepingService.findJournalEntryNumber).toHaveBeenCalledWith('EXPENSE', 31, '999999999');
+    expect(bookkeepingService.deleteJournalEntry).toHaveBeenCalledWith(10000042, '999999999', mockManager);
+    expect(expenseRepo.remove).toHaveBeenCalledWith(expense);
+  });
+
+  it('deleteExpense on an unjournaled expense deletes the row without touching the ledger', async () => {
+    const expense = {
+      id: 32, userId: 'uid-1', businessNumber: '999999999', isReported: null,
+      vatReportingDate: '5/2024', journalEntryNumber: null, expenseNumber: null,
+    } as any;
+    expenseRepo.findOne.mockResolvedValue(expense);
+    bookkeepingService.findJournalEntryNumber.mockResolvedValue(null);
+
+    await service.deleteExpense(32, 'uid-1');
+
+    expect(bookkeepingService.deleteJournalEntry).not.toHaveBeenCalled();
+    expect(expenseRepo.remove).toHaveBeenCalledWith(expense);
+  });
+
+  it('deleteExpense: D10 period lock applies to deletes → 423, nothing deleted', async () => {
+    const expense = {
+      id: 33, userId: 'uid-1', businessNumber: '999999999', isReported: true,
+      vatReportingDate: '1/2024', journalEntryNumber: 10000008,
+    } as any;
+    expenseRepo.findOne.mockResolvedValue(expense);
+
+    await expect(service.deleteExpense(33, 'uid-1')).rejects.toMatchObject({
+      status: 423,
+      response: expect.objectContaining({ type: 'expense_period_locked' }),
+    });
+    expect(bookkeepingService.deleteJournalEntry).not.toHaveBeenCalled();
+    expect(expenseRepo.remove).not.toHaveBeenCalled();
+  });
+
+  it('deleteExpense: foreign expense rejected', async () => {
+    expenseRepo.findOne.mockResolvedValue({ id: 34, userId: 'someone-else' } as any);
+    await expect(service.deleteExpense(34, 'uid-1')).rejects.toThrow('You do not have permission');
+    expect(expenseRepo.remove).not.toHaveBeenCalled();
   });
 });

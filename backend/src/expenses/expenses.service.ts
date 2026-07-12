@@ -796,10 +796,25 @@ export class ExpensesService {
         return saved;
     }
 
+    /**
+     * Delete an expense AND its posted journal entry in one transaction
+     * (Phase 4.3b). Pre-4.3b this removed only the expense row and orphaned
+     * the journal entry — an active accounting bug (the ledger kept a posting
+     * whose source no longer existed).
+     *
+     * The D10 period lock applies to deletes exactly as to edits: a reported
+     * expense (or one whose period was already submitted) throws 423 before
+     * anything is touched. Correction entries (סטורנו) are out of scope per
+     * D10 — locked rows are simply blocked.
+     *
+     * Entry lookup mirrors syncExpenseJournalEntry: journalEntryNumber first,
+     * then the (referenceType=EXPENSE, referenceId, businessNumber) reference
+     * lookup for legacy rows — checking both id and expenseNumber, since
+     * createExpenseJournalEntry historically wrote either as referenceId.
+     * Unjournaled expenses (MISSING mapping / private) simply have no entry
+     * to remove.
+     */
     async deleteExpense(id: number, userId: string): Promise<any> {
-        console.log("delete - start");
-        console.log("id: ", id);
-
         const expense = await this.expense_repo.findOne({ where: { id } });
 
         if (!expense) {
@@ -811,9 +826,41 @@ export class ExpensesService {
             throw new UnauthorizedException(`You do not have permission to delete this expense`);
         }
 
-        // Delete the expense from the database
-        return await this.expense_repo.remove(expense);
+        // D10: a delete rewrites history exactly like a reclassification does.
+        await this.assertExpensePeriodUnlocked(expense);
 
+        // Resolve the journal entry BEFORE the transaction (reads only).
+        let entryNumber: number | null = expense.journalEntryNumber ?? null;
+        if (entryNumber == null) {
+            entryNumber = await this.bookkeepingService.findJournalEntryNumber(
+                JournalReferenceType.EXPENSE,
+                expense.id,
+                expense.businessNumber,
+            );
+        }
+        if (entryNumber == null && Number(expense.expenseNumber) && Number(expense.expenseNumber) !== expense.id) {
+            entryNumber = await this.bookkeepingService.findJournalEntryNumber(
+                JournalReferenceType.EXPENSE,
+                Number(expense.expenseNumber),
+                expense.businessNumber,
+            );
+        }
+
+        return this.dataSource.transaction(async (m) => {
+            if (entryNumber != null) {
+                const deleted = await this.bookkeepingService.deleteJournalEntry(
+                    entryNumber,
+                    expense.businessNumber,
+                    m,
+                );
+                if (!deleted) {
+                    this.logger.warn(
+                        `deleteExpense: journal entry ${entryNumber} not found for expense ${expense.id} — deleting expense only`,
+                    );
+                }
+            }
+            return m.getRepository(Expense).remove(expense);
+        });
     }
 
     async saveFileToExpenses(expensesData: { id: number, file: string | null }[], userId: string, fromTransactions: boolean = false): Promise<{ message: string }> {

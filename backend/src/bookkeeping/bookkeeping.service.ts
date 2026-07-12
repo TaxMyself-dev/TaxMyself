@@ -446,6 +446,53 @@ export class BookkeepingService {
   }
 
   /**
+   * Hard-delete a journal entry (header + all its lines), located by
+   * entryNumber + issuerBusinessNumber. Added for Phase 4.3b: deleting an
+   * expense must remove its posted journal entry in the same transaction —
+   * the pre-4.3b deleteExpense removed only the expense row and orphaned the
+   * entry, silently corrupting the ledger.
+   *
+   * The per-business entryNumber sequence is NOT compacted — a deleted entry
+   * leaves a display-number gap, which is safer than renumbering entries
+   * other rows may reference. Correction entries (סטורנו) are explicitly out
+   * of scope per D10; callers must enforce the period lock BEFORE calling
+   * this (a reported period blocks the delete entirely).
+   *
+   * Returns true when an entry was found and deleted, false when none exists.
+   */
+  async deleteJournalEntry(
+    entryNumber: number,
+    issuerBusinessNumber: string,
+    manager?: EntityManager,
+  ): Promise<boolean> {
+    const run = async (m: EntityManager): Promise<boolean> => {
+      const journalEntryRepo = m.getRepository(JournalEntry);
+      const journalLineRepo = m.getRepository(JournalLine);
+
+      const entry = await journalEntryRepo.findOne({
+        where: { entryNumber, issuerBusinessNumber },
+      });
+      if (!entry) return false;
+
+      await journalLineRepo.delete({ journalEntryId: entry.id });
+      await journalEntryRepo.delete(entry.id);
+      return true;
+    };
+
+    try {
+      if (manager) return await run(manager);
+      return await this.dataSource.transaction(run);
+    } catch (err) {
+      console.error('❌ Failed to delete journal entry:', {
+        entryNumber,
+        issuerBusinessNumber,
+        error: err?.message,
+      });
+      throw err; // preserve cause; caller decides how to handle
+    }
+  }
+
+  /**
    * Look up the entryNumber for an existing journal entry by its source
    * reference (referenceType + referenceId + businessNumber). Used by the
    * backward-compatibility path in syncExpenseJournalEntry to retrieve the
