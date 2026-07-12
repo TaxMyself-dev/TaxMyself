@@ -1,7 +1,9 @@
 import { CommonModule } from '@angular/common';
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
-import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormBuilder, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ConfirmationService, MessageService } from 'primeng/api';
+import { CheckboxModule } from 'primeng/checkbox';
+import { DialogModule } from 'primeng/dialog';
 import { ButtonComponent } from 'src/app/components/button/button.component';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 import { InputDateComponent } from 'src/app/components/input-date/input-date.component';
@@ -26,7 +28,15 @@ import { inputsSize } from 'src/app/shared/enums';
   templateUrl: './gmail-integration.component.html',
   styleUrls: ['./gmail-integration.component.scss'],
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, ButtonComponent, InputDateComponent],
+  imports: [
+    CommonModule,
+    ReactiveFormsModule,
+    FormsModule,
+    DialogModule,
+    CheckboxModule,
+    ButtonComponent,
+    InputDateComponent,
+  ],
 })
 export class GmailIntegrationComponent implements OnInit {
   readonly syncState = inject(GmailSyncStateService);
@@ -42,9 +52,25 @@ export class GmailIntegrationComponent implements OnInit {
   readonly isMobile = computed(() => this.genericService.isMobile());
 
   readonly connecting = signal(false);
-  readonly importingAll = signal(false);
+  /** ייבוא ידני (מהדיאלוג) רץ כרגע — נועל את הדיאלוג ומונע שליחה כפולה. */
+  readonly importing = signal(false);
   /** מזהי אינטגרציה שמתנתקים כרגע (spinner per-account). */
   readonly disconnecting = signal<ReadonlySet<number>>(new Set());
+
+  /** דיאלוג "משוך מסמכים עכשיו" — בחירת חשבונות לייבוא ידני. */
+  readonly importDialogVisible = signal(false);
+  /** מזהי החשבונות המסומנים בדיאלוג; מאותחל מחדש בכל פתיחה. */
+  readonly selectedImportIds = signal<ReadonlySet<number>>(new Set());
+
+  /**
+   * חשבונות שאפשר למשוך מהם ידנית: ACTIVE שגם השלימו משיכה ראשונית.
+   * EXPIRED וחשבונות שטרם ביצעו משיכה ראשונית מוצגים בדיאלוג כמושבתים,
+   * עם הסבר (אותו כלל נאכף גם בשרת).
+   */
+  readonly selectableAccounts = computed(() =>
+    this.syncState.accounts().filter((a) => this.isImportSelectable(a)),
+  );
+  readonly hasImportSelection = computed(() => this.selectedImportIds().size > 0);
 
   /** טופס טווח תאריכים לכל חשבון (נבנה לפי דרישה, נשמר בין רינדורים). */
   private readonly importForms = new Map<number, FormGroup>();
@@ -101,27 +127,72 @@ export class GmailIntegrationComponent implements OnInit {
     });
   }
 
-  /** ייבוא מכל החשבונות המחוברים בבת אחת (כפתור גלובלי). */
-  importAll(): void {
-    if (this.importingAll()) return;
-    this.importingAll.set(true);
-    this.integrationsService.importAllGmail().subscribe({
+  /** האם חשבון ניתן לבחירה בדיאלוג: מחובר (ACTIVE) וגם השלים משיכה ראשונית. */
+  isImportSelectable(account: GmailAccountSyncStatus): boolean {
+    return account.connected && account.initialImportCompleted;
+  }
+
+  /** פותח את דיאלוג "משוך מסמכים עכשיו"; כל החשבונות הזמינים מסומנים כברירת מחדל. */
+  openImportDialog(): void {
+    if (this.importing()) return;
+    this.selectedImportIds.set(new Set(this.selectableAccounts().map((a) => a.id)));
+    this.importDialogVisible.set(true);
+  }
+
+  closeImportDialog(): void {
+    if (this.importing()) return;
+    this.importDialogVisible.set(false);
+  }
+
+  isSelectedForImport(integrationId: number): boolean {
+    return this.selectedImportIds().has(integrationId);
+  }
+
+  toggleImportAccount(account: GmailAccountSyncStatus): void {
+    if (!this.isImportSelectable(account) || this.importing()) return;
+    const next = new Set(this.selectedImportIds());
+    if (next.has(account.id)) next.delete(account.id);
+    else next.add(account.id);
+    this.selectedImportIds.set(next);
+  }
+
+  /** "בחר הכל" — מסמן רק חשבונות זמינים (EXPIRED וללא משיכה ראשונית לא נבחרים). */
+  selectAllImportAccounts(): void {
+    if (this.importing()) return;
+    this.selectedImportIds.set(new Set(this.selectableAccounts().map((a) => a.id)));
+  }
+
+  clearImportSelection(): void {
+    if (this.importing()) return;
+    this.selectedImportIds.set(new Set());
+  }
+
+  /** ייבוא מהחשבונות שנבחרו בדיאלוג (כפתור האישור). */
+  importSelected(): void {
+    if (this.importing() || !this.hasImportSelection()) return;
+    this.importing.set(true);
+    this.integrationsService.importGmail([...this.selectedImportIds()]).subscribe({
       next: (result) => {
-        this.importingAll.set(false);
-        const failed = result.perAccount.filter((a) => a.error).length;
+        this.importing.set(false);
+        this.importDialogVisible.set(false);
+        const failed = result.perAccount.filter((a) => a.error);
         this.messageService.add({
-          severity: failed > 0 ? 'warn' : 'success',
+          severity: failed.length > 0 ? 'warn' : 'success',
           summary: 'ייבוא הושלם',
           detail:
             `יובאו ${result.totalImported} מסמכים חדשים` +
-            (failed > 0 ? ` (${failed} חשבונות נכשלו)` : ''),
+            (failed.length > 0
+              ? ` (נכשלו: ${failed.map((a) => a.accountEmail ?? `חשבון ${a.integrationId}`).join(', ')})`
+              : ''),
           life: 5000,
           key: 'br',
         });
         this.syncState.refresh();
       },
       error: (err) => {
-        this.importingAll.set(false);
+        // הדיאלוג נשאר פתוח לניסיון חוזר; רענון תופס רשימת חשבונות לא עדכנית
+        // (למשל חשבון שנבחר והפך EXPIRED בינתיים — השרת מחזיר 404).
+        this.importing.set(false);
         this.messageService.add({
           severity: 'error',
           summary: 'שגיאה',
@@ -129,6 +200,7 @@ export class GmailIntegrationComponent implements OnInit {
           life: 5000,
           key: 'br',
         });
+        this.syncState.refresh();
       },
     });
   }
