@@ -7,7 +7,7 @@ Handles the full lifecycle of official documents the user issues (invoices, rece
 - `doc-payments.entity.ts` — `DocPayments`: payment details attached to an issued document (bank/check/credit-card info).
 - `settingDocuments.entity.ts` — `SettingDocuments`: per-user/business/docType running-number counters (`currentIndex`/`initialIndex`); also reused by other modules as a generic per-business counter (e.g. journal entry numbers).
 - `extracted-document.entity.ts` — `ExtractedDocument`: OCR results (Claude) for documents received from suppliers via Drive inbox — one row per invoice/receipt found in a Drive file, with status workflow (`PENDING_REVIEW`→`APPROVED`/`ARCHIVED`/`REJECTED`/`PAIRED`/`ERROR`), invoice/receipt pairing fields, currency/FX normalization, and matching to bank transactions.
-- `documents.service.ts` — `DocumentsService`: the large core service — issued-document CRUD/PDF generation (`createDoc`, `previewDoc`, `saveDocInfo`/`saveLinesInfo`/`savePaymentsInfo`, `rollbackDocumentAndIndexes`, `finalizeAllocation`, drafts), running-number index management, plus inbound OCR flow (`processInboxForUser`, `ocrSingleFile`, `uploadAndOcrDoc`, `buildExtractionCatalog`, `getReviewableForUser`, `archiveDocument`).
+- `documents.service.ts` — `DocumentsService`: the large core service — issued-document CRUD/PDF generation (`createDoc`, `previewDoc`, `saveDocInfo`/`saveLinesInfo`/`savePaymentsInfo`, `rollbackDocumentAndIndexes`, `finalizeAllocation`, drafts), running-number index management, plus inbound OCR flow (`processInboxForUser`, `ocrSingleFile`, `uploadAndOcrDoc`, `buildExtractionCatalog`, `getReviewableForUser`, `archiveDocument`). `buildExtractionCatalog` was a Phase 2.4 leftover (fixed 2026-07-12): it now delegates to `bookkeeping/catalog.service.ts`'s `CatalogService.getMergedExpenseCatalog`, not the frozen `DefaultSubCategory`/`UserSubCategory` tables directly — that direct read 500'd against real prod data (`subAccountCode` was never actually present there, only synced into dev by the shared dev DB's `synchronize=true`).
 - `document-processor.service.ts` — `DocumentProcessorService.extract()`: calls out to Claude to OCR/classify a document file.
 - `document-pairing.service.ts` — `DocumentPairingService`: auto-pairs INVOICE + RECEIPT `ExtractedDocument` rows from the same supplier/invoice number (`pairInvoicesAndReceiptsForBusiness`, `unpair`).
 - `documents.controller.ts` — `DocumentsController` at route `documents`, gated by `FirebaseAuthGuard` + `SubscriptionGuard` + `RequireModule(INVOICES)`.
@@ -24,8 +24,8 @@ Handles the full lifecycle of official documents the user issues (invoices, rece
 - `POST /documents/me/archive/:documentId` — archive a reviewed `ExtractedDocument`.
 
 ## Related topics
-- bookkeeping (`JournalEntry`/`JournalLine`/`BookingAccount` — renamed from `DefaultBookingAccount`, Phase 1.2 of the categories redesign — `BookkeepingService` — journal entries posted for issued documents)
-- expenses (`Expense`, `Supplier`, `DefaultSubCategory`, `UserSubCategory` — OCR'd documents become expenses)
+- bookkeeping (`JournalEntry`/`JournalLine`/`BookingAccount` — renamed from `DefaultBookingAccount`, Phase 1.2 of the categories redesign — `BookkeepingService` — journal entries posted for issued documents; `CatalogService.getMergedExpenseCatalog` — the OCR extraction catalog, since 2026-07-12)
+- expenses (`Expense`, `Supplier` — OCR'd documents become expenses)
 - transactions (`SlimTransaction` — matching extracted documents to bank transactions; legacy `Transactions` registered only for `SharedService`)
 - business (`Business`, `BusinessService` — per-business folders and settings)
 - users (`UsersModule`, `User` entity)

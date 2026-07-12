@@ -235,6 +235,57 @@ describe('CatalogService', () => {
     });
   });
 
+  // ── getMergedExpenseCatalog ──────────────────────────────────────────────
+  // Regression coverage for the 2026-07-12 documents.service.ts bug:
+  // buildExtractionCatalog (OCR/GET /documents/me/catalog) was still reading
+  // the legacy DefaultSubCategory/UserSubCategory tables directly, which 500s
+  // against a real prod-shaped DB (DefaultSubCategory.subAccountCode was
+  // never actually present in production — schema-drift.md Gap 1). Ported to
+  // this method instead.
+
+  describe('getMergedExpenseCatalog', () => {
+    it('returns EXPENSE sub-categories across ALL categories, not scoped to one categoryId', async () => {
+      subCategoryRepo.rows.push({
+        id: 10,
+        categoryId: 1,
+        name: 'דלק',
+        chartOwnerKey: SYS,
+        isActive: true,
+        accountId: 1,
+        account: accountRepo.rows[0],
+        category: categoryRepo.rows[0],
+      });
+
+      const catalog = await service.getMergedExpenseCatalog({ businessNumber: '123456789' });
+
+      expect(catalog).toHaveLength(1);
+      expect(catalog[0]).toMatchObject({ name: 'דלק', chartOwnerKey: SYS });
+      expect(catalog[0].account?.taxPercent).toBe(45);
+    });
+
+    it('CLIENT override wins over SYSTEM by name (D4)', async () => {
+      subCategoryRepo.rows.push(
+        { id: 10, categoryId: 1, name: 'דלק', chartOwnerKey: SYS, isActive: true, accountId: 1, account: accountRepo.rows[0] },
+        { id: 11, categoryId: 1, name: 'דלק', chartOwnerKey: CLIENT, isActive: true, accountId: 1, account: accountRepo.rows[0] },
+      );
+
+      const catalog = await service.getMergedExpenseCatalog({ businessNumber: '123456789' });
+      const delek = catalog.filter((s) => s.name === 'דלק');
+      expect(delek).toHaveLength(1);
+      expect(delek[0].chartOwnerKey).toBe(CLIENT);
+    });
+
+    it('excludes INCOME categories', async () => {
+      categoryRepo.rows.push({ id: 2, name: 'שכר', type: CategoryType.INCOME, chartOwnerKey: SYS, isActive: true });
+      subCategoryRepo.rows.push({
+        id: 20, categoryId: 2, name: 'משכורת', chartOwnerKey: SYS, isActive: true, accountId: null, account: null,
+      });
+
+      const catalog = await service.getMergedExpenseCatalog({ businessNumber: '123456789' });
+      expect(catalog.find((s) => s.name === 'משכורת')).toBeUndefined();
+    });
+  });
+
   // ── resolveAccountCode adapter ──────────────────────────────────────────
 
   describe('resolveAccountCode', () => {

@@ -928,3 +928,67 @@ the accountant's `clients-panel.page.ts` Phase 5 path. Full writeup:
 automation available this session) — verified by full code-path trace +
 clean typecheck; flagging that explicitly rather than claiming it as
 UI-tested.
+
+## 2026-07-12 — Regression: Phase 2.4 missed the documents/OCR consumer path
+
+`GET /documents/me/catalog` 500'd against `keepintax_prodcopy`: "Unknown
+column 'DefaultSubCategory.subAccountCode' in 'field list'". Root cause:
+`DocumentsService.buildExtractionCatalog` (flagged as a consumer in audit
+§5.6) was never ported when Phase 2.4-2.7 (commit `84078bc4`) cut every
+*other* catalog CRUD/read path over to `CatalogService` — it was still
+reading the legacy `DefaultSubCategory`/`UserSubCategory` tables directly.
+`DefaultSubCategory.subAccountCode` was never actually present in
+`keepintax_prodcopy` (schema-drift.md Gap 1, known since Phase 0) — any
+plain TypeORM `.find()` against the real prod-shaped DB was always going to
+crash this way; it only worked in prior dev testing against
+`keepintax-dev`, where the shared DB's `synchronize=true` had silently
+added the column. Because this endpoint 500'd, the report-review screen's
+category/sub-category dropdowns rendered empty and
+`ReportReviewService.getReportPreview` step 1 (`processInboxForUser`)
+failed with the same error — same root cause, not a separate bug.
+
+Fix: added `CatalogService.getMergedExpenseCatalog(ctx)` (merged
+CLIENT > ACCOUNTANT > SYSTEM by name, EXPENSE categories only, across ALL
+categories at once — unlike `getMergedSubCategories`, not scoped to one
+`categoryId`). `buildExtractionCatalog` now calls this and maps the result
+into the same legacy `CatalogEntry` shape Claude/the review dropdown
+already expect. `documents.module.ts` now wires `CatalogService` +
+`AccountCodeAllocatorService` + the `Category`/`SubCategory`/
+`AccountingSection` entities the same way `BookkeepingService` was already
+directly provided there (rather than importing `BookkeepingModule`,
+matching the module's existing pattern); the `DefaultSubCategory`/
+`UserSubCategory` repo injections are gone from both the module and the
+service — `buildExtractionCatalog` was their only use in this module.
+
+Grepped the whole backend for remaining `DefaultSubCategory`/
+`UserSubCategory`/`DefaultCategory`/`UserCategory` reads outside frozen
+entities and migration scripts, per the bug report's instruction: the only
+other live one is the already-documented deliberate `getPnlCategoryMap`
+holdout in `expenses.service.ts` (explicit `select` that never touches
+`subAccountCode` — safe, Phase 4.4 to remove). Found one dead-code
+leftover: `TransactionsService.findSubCategoryDetails`/`classifyTransaction`
+in `transactions.service.ts` still reads both legacy tables, but it's
+unreachable — `POST /transactions/classify-trans` routes through
+`TransactionProcessingService.classifyManually`/`classifyWithRule` instead
+(confirmed via the controller). Left alone: it's dead code under the
+separate `TODO_FINTAX_REMOVE_LEGACY_TRANSACTIONS` effort, not a live
+consumer, and not part of this bug.
+
+Verified live: booted the backend against `keepintax_prodcopy`
+(`PORT=3001`), hit `GET /documents/me/catalog` impersonating a real
+baseline client — `500` → `200`, 73 entries returned. Added regression
+tests: `catalog.service.spec.ts` (3 new cases for
+`getMergedExpenseCatalog` — cross-category merge, CLIENT-override
+precedence, EXPENSE-only filtering) and a new
+`documents-catalog.service.spec.ts` (verifies the `CatalogEntry` mapping
+and that a legacy repo is never touched again). Full backend suite: 12/18
+suites pass; the 6 that fail are pre-existing DI-wiring/type issues in
+unrelated spec files (`reports.service.spec.ts`, `reports.controller.spec.ts`,
+`report-workflow.service.spec.ts`, `users.controller.spec.ts`,
+`users.service.spec.ts`, `auth.service.spec.ts`) — none reference
+`CatalogService`, `SubCategory`, or anything touched here.
+
+Not done this session (Elazar doing it manually): re-checking the
+review-screen percent-display glitch (66/67/100/0) now that the catalog
+isn't empty — flagged in the original bug report as likely downstream of
+this same fix, not confirmed either way yet.

@@ -28,8 +28,7 @@ import { SlimTransaction } from '../transactions/slim-transaction.entity';
 import { DocumentProcessorService, CatalogEntry } from './document-processor.service';
 import { GoogleDriveService } from '../google-drive/google-drive.service';
 import { Supplier } from '../expenses/suppliers.entity';
-import { DefaultSubCategory } from '../expenses/default-sub-categories.entity';
-import { UserSubCategory } from '../expenses/user-sub-categories.entity';
+import { CatalogService } from 'src/bookkeeping/catalog.service';
 import { UsersService } from '../users/users.service';
 // Business is already imported above as part of Bookkeeping/Issued-Documents logic.
 
@@ -145,12 +144,9 @@ export class DocumentsService {
     private extractedDocRepo: Repository<ExtractedDocument>,
     @InjectRepository(Supplier)
     private supplierRepo: Repository<Supplier>,
-    @InjectRepository(DefaultSubCategory)
-    private defaultSubCategoryRepo: Repository<DefaultSubCategory>,
-    @InjectRepository(UserSubCategory)
-    private userSubCategoryRepo: Repository<UserSubCategory>,
     @InjectRepository(SlimTransaction)
     private slimTransactionRepo: Repository<SlimTransaction>,
+    private readonly catalogService: CatalogService,
     private readonly documentProcessor: DocumentProcessorService,
     private readonly googleDriveService: GoogleDriveService,
     @Inject(forwardRef(() => UsersService))
@@ -3302,41 +3298,24 @@ ${finalOwnerName}`;
   /**
    * Build the sub-category catalog passed to Claude for classification AND
    * served to the frontend so the review dialog can render dropdowns sourced
-   * from the same list. Combines system defaults (DefaultSubCategory) with
-   * this user/business's overrides (UserSubCategory). Overrides win on
-   * duplicate subCategoryName. Filters out non-expense entries.
+   * from the same list. Ported to CatalogService's merged catalog (D1/D4)
+   * in the same 2.4 legacy-DTO-shape strategy — CLIENT > ACCOUNTANT > SYSTEM
+   * by name, EXPENSE categories only. `firebaseId` is accepted for call-site
+   * parity only: catalog scoping is by businessNumber (chartOwnerKey), never
+   * by firebaseId, per D4.
    */
   async buildExtractionCatalog(
     firebaseId: string,
     businessNumber: string,
   ): Promise<CatalogEntry[]> {
-    const [defaults, userOverrides] = await Promise.all([
-      this.defaultSubCategoryRepo.find({ where: { isExpense: true } }),
-      this.userSubCategoryRepo.find({
-        where: { firebaseId, businessNumber, isExpense: true },
-      }),
-    ]);
-
-    const byName = new Map<string, CatalogEntry>();
-    for (const d of defaults) {
-      byName.set(d.subCategoryName, {
-        subCategoryName: d.subCategoryName,
-        categoryName: d.categoryName,
-        taxPercent: Number(d.taxPercent),
-        vatPercent: Number(d.vatPercent),
-        isEquipment: !!d.isEquipment,
-      });
-    }
-    for (const u of userOverrides) {
-      byName.set(u.subCategoryName, {
-        subCategoryName: u.subCategoryName,
-        categoryName: u.categoryName,
-        taxPercent: Number(u.taxPercent),
-        vatPercent: Number(u.vatPercent),
-        isEquipment: !!u.isEquipment,
-      });
-    }
-    return Array.from(byName.values());
+    const subCategories = await this.catalogService.getMergedExpenseCatalog({ businessNumber });
+    return subCategories.map((sub) => ({
+      subCategoryName: sub.name,
+      categoryName: sub.category?.name ?? '',
+      taxPercent: Number(sub.account?.taxPercent ?? 0),
+      vatPercent: Number(sub.account?.vatPercent ?? 0),
+      isEquipment: !!sub.account?.isEquipment,
+    }));
   }
 
   private async saveErrorRow(

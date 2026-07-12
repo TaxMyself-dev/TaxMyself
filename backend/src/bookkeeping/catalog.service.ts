@@ -159,6 +159,28 @@ export class CatalogService {
     return this.mergeByName(rows, chartOwnerKeys, (s) => s.name);
   }
 
+  /**
+   * Merged (CLIENT > ACCOUNTANT > SYSTEM) list of every active EXPENSE
+   * sub-category for a business context, across ALL categories at once —
+   * unlike getMergedSubCategories, not scoped to one categoryId. Feeds the
+   * OCR extraction catalog (documents.service.ts buildExtractionCatalog):
+   * the allowed-category hint sent to Claude and the review dialog's
+   * dropdown list.
+   */
+  async getMergedExpenseCatalog(ctx: CatalogContext): Promise<SubCategory[]> {
+    const chartOwnerKeys = this.chartOwnerKeysFor(ctx);
+    const categories = await this.categoryRepo.find({
+      where: { chartOwnerKey: In(chartOwnerKeys), isActive: true, type: CategoryType.EXPENSE },
+    });
+    const categoryIds = [...new Set(categories.map((c) => c.id))];
+    if (categoryIds.length === 0) return [];
+    const rows = await this.subCategoryRepo.find({
+      where: { chartOwnerKey: In(chartOwnerKeys), categoryId: In(categoryIds), isActive: true },
+      relations: ['account', 'category'],
+    });
+    return this.mergeByName(rows, chartOwnerKeys, (s) => s.name);
+  }
+
   /** All active rows for one chartOwnerKey (admin/user "list everything I own"
    *  endpoints — getAllDefaultSubCategories / getAllUserSubCategories). */
   async findCategoriesByChartOwnerKey(chartOwnerKey: string): Promise<Category[]> {
