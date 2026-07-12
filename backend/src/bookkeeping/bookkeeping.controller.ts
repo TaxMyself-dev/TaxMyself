@@ -1,11 +1,13 @@
-import { BadRequestException, Body, Controller, Get, Headers, Param, ParseArrayPipe, ParseIntPipe, Patch, Post, Query, Req, Res, UnauthorizedException, UseGuards, } from '@nestjs/common';
+import { BadRequestException, Body, Controller, ForbiddenException, Get, Headers, Param, ParseArrayPipe, ParseIntPipe, Patch, Post, Query, Req, Res, UnauthorizedException, UseGuards, } from '@nestjs/common';
 import { BookkeepingService } from './bookkeeping.service';
-import { CatalogService } from './catalog.service';
+import { CatalogService, CatalogScope } from './catalog.service';
 import { CatalogContextService } from './catalog-context.service';
 import { CreateManualJournalEntryDto } from './dto/manual-journal-entry.dto';
+import { CreateAccountDto, AccountAvailability } from './dto/create-account.dto';
 import { RepointSubCategoryAccountDto } from './dto/repoint-sub-category-account.dto';
 import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.interface';
 import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
+import { OwnerType, RecognitionType, VisibilityScope } from 'src/enum';
 
 
 
@@ -41,6 +43,91 @@ export class BookkepingController {
     // never edits the shared ACCOUNTANT row).
     const ctx = await this.catalogContextService.forUser(firebaseId, businessNumber);
     return this.catalogService.repointSubCategoryAccount(id, body.accountId, ctx);
+  }
+
+  /**
+   * Phase 5.2 (D11): accountant "add account" — a booking_account carrying
+   * the full accounting law + (unless technicalOnly) a paired same-named
+   * sub_category, created atomically. Actor-gated to ACCOUNTANT/ADMIN roles;
+   * "current client only" additionally rides the delegation guard (the
+   * impersonation write already required DOCUMENTS_WRITE, D12.2).
+   */
+  @Post('accounts')
+  @UseGuards(FirebaseAuthGuard)
+  async createAccount(
+    @Req() request: AuthenticatedRequest,
+    @Body() dto: CreateAccountDto,
+  ) {
+    const actorFirebaseId = request.user?.actorFirebaseId ?? request.user?.firebaseId;
+    if (!actorFirebaseId) throw new UnauthorizedException('Not authenticated');
+    if (!(await this.catalogContextService.isAccountantOrAdmin(actorFirebaseId))) {
+      throw new ForbiddenException('רק רואה חשבון (או מנהל מערכת) יכול להוסיף כרטיסי חשבון');
+    }
+
+    let scope: CatalogScope;
+    if (dto.availableFor === AccountAvailability.CURRENT_CLIENT) {
+      // CLIENT-owned rows for the impersonated business; accountantId records
+      // the creator (D4: "creator when accountant created for a client").
+      const businessNumber = request.user?.businessNumber;
+      if (!businessNumber) {
+        throw new BadRequestException('businessNumber header is required when availableFor=CURRENT_CLIENT');
+      }
+      scope = this.catalogService.buildScope(OwnerType.CLIENT, {
+        userId: request.user?.firebaseId,
+        businessNumber,
+      });
+      scope.accountantId = actorFirebaseId;
+      scope.visibilityScope = VisibilityScope.SPECIFIC_CLIENT;
+    } else {
+      scope = this.catalogService.buildScope(OwnerType.ACCOUNTANT, { accountantId: actorFirebaseId });
+    }
+
+    const { account, subCategory } = await this.catalogService.createAccountWithSubCategory({
+      scope,
+      name: dto.name,
+      code: dto.code ?? null,
+      type: dto.type ?? 'expense',
+      sectionId: dto.sectionId,
+      code6111: dto.code6111 ?? null,
+      law: {
+        vatPercent: dto.vatPercent,
+        taxPercent: dto.taxPercent,
+        reductionPercent: dto.reductionPercent ?? 0,
+        isEquipment: dto.isEquipment ?? false,
+        recognitionType: dto.recognitionType ?? RecognitionType.RECOGNIZED,
+      },
+      technicalOnly: dto.technicalOnly ?? false,
+      categoryName: dto.categoryName ?? null,
+      createdByUserId: actorFirebaseId,
+    });
+
+    return {
+      account: {
+        id: account.id,
+        code: account.code,
+        name: account.name,
+        type: account.type,
+        sectionId: account.sectionId,
+        code6111: account.code6111,
+        vatPercent: account.vatPercent,
+        taxPercent: account.taxPercent,
+        reductionPercent: account.reductionPercent,
+        isEquipment: account.isEquipment,
+        recognitionType: account.recognitionType,
+        ownerType: account.ownerType,
+        chartOwnerKey: account.chartOwnerKey,
+      },
+      subCategory: subCategory
+        ? {
+            id: subCategory.id,
+            name: subCategory.name,
+            categoryId: subCategory.categoryId,
+            ownerType: subCategory.ownerType,
+            chartOwnerKey: subCategory.chartOwnerKey,
+            approvalStatus: subCategory.approvalStatus,
+          }
+        : null,
+    };
   }
 
   /** Manual, single-sided journal entry (no counter-account) — for cases the

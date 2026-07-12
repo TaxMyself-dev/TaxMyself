@@ -716,10 +716,23 @@ baseline reports reproduce.
       admin endpoints gate on actorFirebaseId — admin-while-impersonating
       works, accountant-while-impersonating is refused; the previously
       commented-out getAllDefaultSubCategories admin check is enforced.)
-- [ ] 5.2 D11 add-account flow: `POST bookkeeping/accounts` — atomic
+- [x] 5.2 D11 add-account flow: `POST bookkeeping/accounts` — atomic
       account (+ optional paired sub_category) creation, getNextAccountCode
       allocation, "all my clients / current client" scoping, technical
       account option.
+      (Done Session 10: CatalogService.createAccountWithSubCategory — one
+      dataSource.transaction writes the law-bearing booking_account +
+      same-named thin sub_category; manual codes accepted when unique within
+      the chartOwnerKey (out-of-range 90xxx tolerated per D2), else
+      allocated (ACCOUNTANT 70000 / CLIENT 80000). "current client" scope =
+      CLIENT rows + accountantId=creator + SPECIFIC_CLIENT; "all my clients"
+      = ACCOUNTANT rows + ALL_ACCOUNTANT_CLIENTS. technicalOnly skips the
+      sub_category but still requires a section — sectionless cards are
+      invisible to the manual-entry dropdown, which is where technical cards
+      are used. Endpoint gated to ACCOUNTANT/ADMIN actors (actorFirebaseId).
+      Decision approved by Elazar this session: the DTO carries categoryName
+      (a category picker joins the Phase 6 screen) — D11's field list had no
+      parent-category field but sub_category.categoryId requires one.)
 - [ ] 5.3 Client-creates-unmapped flow (D5): client with an active
       delegation may save a RECOGNIZED sub_category without mapping →
       MISSING_ACCOUNTING_MAPPING; accountant completion UI (the inline row

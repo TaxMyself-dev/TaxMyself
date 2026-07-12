@@ -16,7 +16,7 @@ import { BookingAccount } from './account.entity';
 import { AccountingSection } from './accounting-section.entity';
 import { CatalogService } from './catalog.service';
 import { AccountCodeAllocatorService } from './account-code-allocator.service';
-import { ApprovalStatus, CategoryType, ExpenseReportScope, OwnerType, RecognitionType, SYSTEM_CHART_OWNER_KEY } from '../enum';
+import { ApprovalStatus, CategoryType, ExpenseReportScope, OwnerType, RecognitionType, SYSTEM_CHART_OWNER_KEY, VisibilityScope } from '../enum';
 
 function makeRepo<T extends { id?: number }>(rows: T[] = []) {
   let nextId = (Math.max(0, ...rows.map((r) => r.id ?? 0)) || 0) + 1;
@@ -99,12 +99,26 @@ describe('CatalogService', () => {
     sectionRepo = makeRepo<any>([{ id: 99, code: '60200', name: 'רכב ותחבורה', chartOwnerKey: SYS, isActive: true }]);
     allocator = { getNextAccountCode: jest.fn().mockResolvedValue('80000') } as any;
 
+    // dataSource.transaction hands back a manager whose getRepository returns
+    // the same in-memory repos (5.2's createAccountWithSubCategory).
+    const reposByEntity = new Map<any, any>([
+      [Category, categoryRepo],
+      [SubCategory, subCategoryRepo],
+      [BookingAccount, accountRepo],
+      [AccountingSection, sectionRepo],
+    ]);
+    const mockManager = { getRepository: (entity: any) => reposByEntity.get(entity) };
+    const dataSource = {
+      transaction: jest.fn().mockImplementation((cb: (m: any) => Promise<any>) => cb(mockManager)),
+    };
+
     service = new CatalogService(
       categoryRepo as any,
       subCategoryRepo as any,
       accountRepo as any,
       sectionRepo as any,
       allocator,
+      dataSource as any,
     );
   });
 
@@ -395,6 +409,153 @@ describe('CatalogService', () => {
       expect(sub.accountId).not.toBeNull();
       const created = accountRepo.rows.find((a: any) => a.id === sub.accountId);
       expect(created?.sectionId).toBe(99); // inherited from the base דלק card
+    });
+  });
+
+  // ── createAccountWithSubCategory (Phase 5.2 / D11) ───────────────────────
+
+  describe('createAccountWithSubCategory', () => {
+    const law = { vatPercent: 100, taxPercent: 100, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED };
+    const accountantScope = {
+      ownerType: OwnerType.ACCOUNTANT,
+      chartOwnerKey: 'ACCOUNTANT_agent-1',
+      accountantId: 'agent-1',
+      visibilityScope: VisibilityScope.ALL_ACCOUNTANT_CLIENTS,
+    };
+
+    it('creates account + paired sub_category atomically (ACCOUNTANT scope, auto code)', async () => {
+      allocator.getNextAccountCode.mockResolvedValue('70000');
+
+      const { account, subCategory } = await service.createAccountWithSubCategory({
+        scope: accountantScope,
+        name: 'איתוראן',
+        type: 'expense',
+        sectionId: 99,
+        law,
+        categoryName: 'רכב ותחבורה',
+        createdByUserId: 'agent-1',
+      });
+
+      expect(allocator.getNextAccountCode).toHaveBeenCalledWith(
+        { ownerType: OwnerType.ACCOUNTANT, type: 'expense', chartOwnerKey: 'ACCOUNTANT_agent-1' },
+        expect.anything(),
+      );
+      expect(account.code).toBe('70000');
+      expect(account.chartOwnerKey).toBe('ACCOUNTANT_agent-1');
+      expect(account.recognitionType).toBe(RecognitionType.RECOGNIZED);
+      expect(subCategory).not.toBeNull();
+      expect(subCategory!.accountId).toBe(account.id);
+      expect(subCategory!.name).toBe('איתוראן');
+      // Parent category resolved to the existing SYSTEM row by name — no new
+      // category row was created.
+      expect(subCategory!.categoryId).toBe(1);
+      expect(subCategory!.approvalStatus).toBe(ApprovalStatus.APPROVED);
+      expect(subCategory!.visibilityScope).toBe(VisibilityScope.ALL_ACCOUNTANT_CLIENTS);
+    });
+
+    it('technicalOnly creates the account row only', async () => {
+      allocator.getNextAccountCode.mockResolvedValue('70010');
+      const before = subCategoryRepo.rows.length;
+
+      const { account, subCategory } = await service.createAccountWithSubCategory({
+        scope: accountantScope,
+        name: 'כרטיס טכני',
+        type: 'expense',
+        sectionId: 99,
+        law,
+        technicalOnly: true,
+      });
+
+      expect(account.code).toBe('70010');
+      expect(subCategory).toBeNull();
+      expect(subCategoryRepo.rows.length).toBe(before);
+    });
+
+    it('manual code is accepted when free, rejected on collision within the chartOwnerKey', async () => {
+      const { account } = await service.createAccountWithSubCategory({
+        scope: accountantScope,
+        name: 'קוד ידני',
+        code: '90910',
+        type: 'expense',
+        sectionId: 99,
+        law,
+        technicalOnly: true,
+      });
+      expect(account.code).toBe('90910');
+      expect(allocator.getNextAccountCode).not.toHaveBeenCalled();
+
+      await expect(
+        service.createAccountWithSubCategory({
+          scope: accountantScope,
+          name: 'קוד ידני כפול',
+          code: '90910',
+          type: 'expense',
+          sectionId: 99,
+          law,
+          technicalOnly: true,
+        }),
+      ).rejects.toThrow('כבר קיים');
+    });
+
+    it('requires categoryName unless technicalOnly', async () => {
+      await expect(
+        service.createAccountWithSubCategory({
+          scope: accountantScope,
+          name: 'בלי קטגוריה',
+          type: 'expense',
+          sectionId: 99,
+          law,
+        }),
+      ).rejects.toThrow('categoryName is required');
+    });
+
+    it('404s on a section that is not visible to the scope', async () => {
+      await expect(
+        service.createAccountWithSubCategory({
+          scope: accountantScope,
+          name: 'סקשן לא קיים',
+          type: 'expense',
+          sectionId: 12345,
+          law,
+          categoryName: 'רכב ותחבורה',
+        }),
+      ).rejects.toThrow('section 12345 not found');
+    });
+
+    it('creates the parent category in the target scope when no visible one matches', async () => {
+      allocator.getNextAccountCode.mockResolvedValue('70020');
+
+      const { subCategory } = await service.createAccountWithSubCategory({
+        scope: accountantScope,
+        name: 'ייעוץ עסקי',
+        type: 'expense',
+        sectionId: 99,
+        law,
+        categoryName: 'קטגוריה חדשה של רו"ח',
+      });
+
+      const createdCategory = categoryRepo.rows.find((c: any) => c.name === 'קטגוריה חדשה של רו"ח');
+      expect(createdCategory).toBeDefined();
+      expect(createdCategory.chartOwnerKey).toBe('ACCOUNTANT_agent-1');
+      expect(subCategory!.categoryId).toBe(createdCategory.id);
+    });
+
+    it('rejects a duplicate same-named sub_category in the target scope', async () => {
+      allocator.getNextAccountCode.mockResolvedValue('70030');
+      subCategoryRepo.rows.push({
+        id: 200, name: 'איתוראן', categoryId: 1, chartOwnerKey: 'ACCOUNTANT_agent-1', isActive: true,
+      });
+
+      await expect(
+        service.createAccountWithSubCategory({
+          scope: accountantScope,
+          name: 'איתוראן',
+          type: 'expense',
+          sectionId: 99,
+          law,
+          categoryName: 'רכב ותחבורה',
+        }),
+      ).rejects.toThrow('כבר קיימת');
     });
   });
 

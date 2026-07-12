@@ -1,6 +1,6 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { DataSource, In, Repository } from 'typeorm';
 import { Category } from './category.entity';
 import { SubCategory } from './sub-category.entity';
 import { BookingAccount } from './account.entity';
@@ -99,6 +99,8 @@ export class CatalogService {
     @InjectRepository(BookingAccount) private readonly accountRepo: Repository<BookingAccount>,
     @InjectRepository(AccountingSection) private readonly sectionRepo: Repository<AccountingSection>,
     private readonly accountCodeAllocator: AccountCodeAllocatorService,
+    // Phase 5.2 (D11): createAccountWithSubCategory writes two rows atomically.
+    private readonly dataSource: DataSource,
   ) {}
 
   private chartOwnerKeysFor(ctx: CatalogContext): string[] {
@@ -591,6 +593,155 @@ export class CatalogService {
 
   async saveCategory(category: Category): Promise<Category> {
     return this.categoryRepo.save(category);
+  }
+
+  // ==========================================================================
+  // Phase 5.2 — D11 accountant "add account" flow.
+  // ==========================================================================
+
+  /**
+   * D11: create a booking_account carrying the FULL accounting law and (unless
+   * `technicalOnly`) a same-named thin sub_category pointing at it — two rows,
+   * one transaction. The caller builds `scope` (ACCOUNTANT for "all my
+   * clients", CLIENT + accountantId=creator + SPECIFIC_CLIENT for "current
+   * client only") and has already role-gated the actor.
+   *
+   * Code: manual codes are accepted when unique within the chartOwnerKey
+   * (D2 — out-of-range codes like a 90000-series technical card are
+   * tolerated); otherwise the next code in the owner's range is allocated
+   * (jumps of 10).
+   */
+  async createAccountWithSubCategory(input: {
+    scope: CatalogScope;
+    name: string;
+    code?: string | null;
+    type: 'expense' | 'income';
+    sectionId: number;
+    code6111?: string | null;
+    law: AccountLaw;
+    technicalOnly?: boolean;
+    categoryName?: string | null;
+    createdByUserId?: string | null;
+  }): Promise<{ account: BookingAccount; subCategory: SubCategory | null }> {
+    const { scope } = input;
+    const name = input.name?.trim();
+    if (!name) throw new BadRequestException('name is required');
+    const categoryName = input.categoryName?.trim();
+    if (!input.technicalOnly && !categoryName) {
+      throw new BadRequestException('categoryName is required unless technicalOnly (the paired sub_category needs a parent category)');
+    }
+
+    return this.dataSource.transaction(async (m) => {
+      const sectionRepo = m.getRepository(AccountingSection);
+      const accountRepo = m.getRepository(BookingAccount);
+      const categoryRepo = m.getRepository(Category);
+      const subCategoryRepo = m.getRepository(SubCategory);
+
+      // Section must exist and be visible to the target scope. No sectionless
+      // cards — a D11 technical card still carries a section so it appears in
+      // the manual-entry dropdown (sectionId NULL is excluded there) and
+      // rolls up in the P&L if posted.
+      const section = await sectionRepo.findOne({
+        where: { id: input.sectionId, isActive: true, chartOwnerKey: In([SYSTEM_CHART_OWNER_KEY, scope.chartOwnerKey]) },
+      });
+      if (!section) {
+        throw new NotFoundException(`Accounting section ${input.sectionId} not found`);
+      }
+
+      let code = input.code?.trim() || null;
+      if (code) {
+        const collision = await accountRepo.findOne({ where: { chartOwnerKey: scope.chartOwnerKey, code } });
+        if (collision) {
+          throw new ConflictException(`חשבון עם קוד ${code} כבר קיים בתרשים החשבונות שלך`);
+        }
+      } else {
+        code = await this.accountCodeAllocator.getNextAccountCode(
+          { ownerType: scope.ownerType, type: input.type, chartOwnerKey: scope.chartOwnerKey },
+          m,
+        );
+      }
+
+      const account = await accountRepo.save(
+        accountRepo.create({
+          code,
+          name,
+          type: input.type,
+          sectionId: section.id,
+          code6111: input.code6111?.trim() || null,
+          vatPercent: input.law.vatPercent,
+          taxPercent: input.law.taxPercent,
+          reductionPercent: input.law.reductionPercent,
+          isEquipment: input.law.isEquipment,
+          recognitionType: input.law.recognitionType,
+          ownerType: scope.ownerType,
+          chartOwnerKey: scope.chartOwnerKey,
+          accountantId: scope.accountantId ?? null,
+          userId: scope.userId ?? null,
+          businessNumber: scope.businessNumber ?? null,
+          visibilityScope: scope.visibilityScope ?? null,
+          isActive: true,
+        }),
+      );
+
+      if (input.technicalOnly) {
+        return { account, subCategory: null };
+      }
+
+      // Parent category: any visible same-named row (the client's own, the
+      // accountant's, or SYSTEM — precedence order), else created in the same
+      // scope as the sub_category. Type mirrors the account's polarity.
+      const categoryType = input.type === 'income' ? CategoryType.INCOME : CategoryType.EXPENSE;
+      const visibleKeys = [...new Set([scope.chartOwnerKey, ...(scope.accountantId ? [`ACCOUNTANT_${scope.accountantId}`] : []), SYSTEM_CHART_OWNER_KEY])];
+      const categoryRows = await categoryRepo.find({
+        where: { chartOwnerKey: In(visibleKeys), name: categoryName, type: categoryType, isActive: true },
+      });
+      let category = this.pickByPrecedence(categoryRows, visibleKeys);
+      if (!category) {
+        category = await categoryRepo.save(
+          categoryRepo.create({
+            name: categoryName,
+            type: categoryType,
+            ownerType: scope.ownerType,
+            chartOwnerKey: scope.chartOwnerKey,
+            accountantId: scope.accountantId ?? null,
+            userId: scope.userId ?? null,
+            businessNumber: scope.businessNumber ?? null,
+            visibilityScope: scope.visibilityScope ?? null,
+            isDefault: false,
+            createdByUserId: input.createdByUserId ?? null,
+          }),
+        );
+      }
+
+      const duplicate = await subCategoryRepo.findOne({
+        where: { chartOwnerKey: scope.chartOwnerKey, categoryId: category.id, name, isActive: true },
+      });
+      if (duplicate) {
+        throw new ConflictException(`תת-קטגוריה "${name}" כבר קיימת תחת "${category.name}" בהיקף זה`);
+      }
+
+      const subCategory = await subCategoryRepo.save(
+        subCategoryRepo.create({
+          categoryId: category.id,
+          name,
+          isPrivate: false,
+          accountId: account.id,
+          necessity: ExpenseNecessity.IMPORTANT,
+          reportScope: ExpenseReportScope.PNL,
+          ownerType: scope.ownerType,
+          chartOwnerKey: scope.chartOwnerKey,
+          accountantId: scope.accountantId ?? null,
+          userId: scope.userId ?? null,
+          businessNumber: scope.businessNumber ?? null,
+          visibilityScope: scope.visibilityScope ?? null,
+          approvalStatus: ApprovalStatus.APPROVED,
+          isDefault: false,
+          createdByUserId: input.createdByUserId ?? null,
+        }),
+      );
+
+      return { account, subCategory };
+    });
   }
 
   // ==========================================================================
