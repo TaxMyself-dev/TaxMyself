@@ -33,6 +33,9 @@ import { Finsite } from 'src/finsite/finsite.entity';
 import { Delegation } from 'src/delegation/delegation.entity';
 import { SettingDocuments } from 'src/documents/settingDocuments.entity';
 import { Business } from 'src/business/business.entity';
+// ExpensesService (provided here) injects the ReportWorkflow repo for the
+// D10 period lock (Phase 4.1) — entity-only registration.
+import { ReportWorkflow } from 'src/report-workflow/report-workflow.entity';
 import { BillingModule } from '../billing/billing.module';
 // ExpensesService (provided here) posts a journal entry on expense create — needs BookkeepingService.
 import { BookkeepingModule } from '../bookkeeping/bookkeeping.module';
@@ -41,7 +44,7 @@ import { BookkeepingModule } from '../bookkeeping/bookkeeping.module';
   imports: [
     TypeOrmModule.forFeature([Expense, User, Business, Transactions, DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory,
             Supplier, ClassifiedTransactions, SlimTransaction, FullTransactionCache, UserTransactionCacheState, UserSyncState, UserSourceSyncState,
-            Bill, Source, Child, Finsite, Delegation, SettingDocuments, ExtractedDocument]),
+            Bill, Source, Child, Finsite, Delegation, SettingDocuments, ExtractedDocument, ReportWorkflow]),
     BookkeepingModule,
     // SharedModule provides SharedService AND FxRateService. Importing it (and
     // removing the local `SharedService` provider below) means both services

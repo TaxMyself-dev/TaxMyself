@@ -168,6 +168,10 @@ new Logger('Bootstrap').log(
       Child,
       FeezbackWebhookEvent,
       ExtractedDocument,
+      // ExpensesService (re-provided below) injects the ReportWorkflow repo
+      // for the D10 period lock (Phase 4.1) — every module that re-provides
+      // it must register the entity.
+      ReportWorkflow,
     ]),
     ScheduleModule.forRoot(),
     HttpModule, UsersModule, ReportsModule, ExpensesModule, TransactionsModule, BusinessModule, CloudModule, SharedModule, FinsiteModule, MailModule, DelegationModule, DocumentsModule, ClientsModule, BookkeepingModule, FeezbackModule, ShaamModule, FeezbackWebhookModule, AccountantTasksModule, AnnualReportModule, ReportWorkflowModule, NotificationsModule, DemoDataModule, GoogleDriveModule, BillingModule],

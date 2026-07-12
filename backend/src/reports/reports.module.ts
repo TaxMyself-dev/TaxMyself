@@ -39,6 +39,9 @@ import { DocPayments } from 'src/documents/doc-payments.entity';
 import { Business } from 'src/business/business.entity';
 import { SlimTransaction } from 'src/transactions/slim-transaction.entity';
 import { FullTransactionCache } from 'src/transactions/full-transaction-cache.entity';
+// ExpensesService (provided here) injects the ReportWorkflow repo for the
+// D10 period lock (Phase 4.1) — entity-only registration.
+import { ReportWorkflow } from 'src/report-workflow/report-workflow.entity';
 import { BillingModule } from '../billing/billing.module';
 
 @Module({
@@ -46,7 +49,7 @@ import { BillingModule } from '../billing/billing.module';
     TypeOrmModule.forFeature([Business, Expense, DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory,
                                       ClassifiedTransactions, Bill, Source, Supplier, User, Child, Finsite, Documents, DocLines, DocPayments,
                                       Delegation, JournalEntry, JournalLine, BookingAccount,
-                                      SlimTransaction, FullTransactionCache, ExtractedDocument]),
+                                      SlimTransaction, FullTransactionCache, ExtractedDocument, ReportWorkflow]),
     SharedModule,
     UsersModule,
     // DocumentsService is needed by ReportReviewService to trigger inbox
