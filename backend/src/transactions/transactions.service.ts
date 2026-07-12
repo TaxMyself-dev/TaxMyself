@@ -1591,12 +1591,12 @@ export class TransactionsService {
       expense.category = row.category;
       expense.subCategory = row.subCategory;
       expense.sum = sumIls;
-      expense.taxPercent = row.taxPercent;
-      expense.vatPercent = row.vatPercent;
+      expense.taxPercentSnapshot = row.taxPercent;
+      expense.vatPercentSnapshot = row.vatPercent;
       expense.date = row.transactionDate;
       expense.note = '';
       expense.file = transactionFile as string;
-      expense.isEquipment = row.isEquipment;
+      expense.isEquipmentSnapshot = row.isEquipment;
       expense.userId = row.userId;
       expense.loadingDate = new Date();
       expense.expenseNumber = '';
@@ -1606,7 +1606,7 @@ export class TransactionsService {
       // the Expense so the expenses table can render "$X (₪Y)".
       expense.originalCurrency = isForeignCurrency ? row.currency!.toUpperCase() : null;
       expense.originalSum = isForeignCurrency ? Math.abs(Number(row.amount)) : null;
-      expense.reductionPercent = row.reductionPercent;
+      expense.reductionPercentSnapshot = row.reductionPercent;
       expense.businessNumber = row.businessNumber;
       expense.vatReportingDate = (slim?.vatReportingDate ?? row.vatReportingDate ?? null) as any;
       // Snapshot the report scope (slim wins, then cache, default PNL).
@@ -1616,13 +1616,13 @@ export class TransactionsService {
       expense.reportScope = slim?.reportScope ?? row.reportScope ?? ExpenseReportScope.PNL;
 
       const vatRate = this.sharedService.getVatRateByYear(new Date(expense.date));
-      expense.totalVatPayable = (expense.sum / (1 + vatRate)) * vatRate * (expense.vatPercent / 100);
-      expense.totalTaxPayable = (expense.sum - expense.totalVatPayable) * (expense.taxPercent / 100);
+      expense.totalVatPayable = (expense.sum / (1 + vatRate)) * vatRate * (expense.vatPercentSnapshot / 100);
+      expense.totalTaxPayable = (expense.sum - expense.totalVatPayable) * (expense.taxPercentSnapshot / 100);
 
       const purchaseYear = new Date(expense.date).getFullYear();
       const purchaseMonth = new Date(expense.date).getMonth() + 1;
-      if (expense.reductionPercent) {
-        const fullReductionYears = Math.ceil(100 / expense.reductionPercent);
+      if (expense.reductionPercentSnapshot) {
+        const fullReductionYears = Math.ceil(100 / expense.reductionPercentSnapshot);
         const isPartialYear = purchaseMonth > 1 || new Date(expense.date).getDate() > 1;
         expense.reductionDone = purchaseYear + fullReductionYears + (isPartialYear ? 1 : 0) - 1;
       } else {

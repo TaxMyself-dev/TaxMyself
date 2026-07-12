@@ -6,6 +6,7 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { DocumentKind } from 'src/enum';
 
 export enum ExtractedDocStatus {
   /** OCR succeeded, awaiting user review in the report-page modal. */
@@ -269,4 +270,22 @@ export class ExtractedDocument {
 
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
+
+  /**
+   * Nullable pointer at sub_category.id (D6/Phase 3.1) — display-only, no
+   * DB FK constraint (same no-real-FK precedent as Supplier.subCategoryId).
+   * Backfilled by name within scope in Phase 3.5; unmatched -> stays NULL.
+   */
+  @Column({ name: 'sub_category_id', type: 'int', nullable: true, default: null })
+  subCategoryId: number | null;
+
+  /**
+   * D8 OCR-pipeline routing. Backfilled in Phase 3.1: rows already converted
+   * to an Expense (confirmedExpenseId set) -> EXPENSE_INVOICE; rows whose
+   * documentType is a recognized annual-report type (FORM_106, TAX_FORM) ->
+   * ANNUAL_DOCUMENT; everything else -> UNIDENTIFIED. Not yet consumed by
+   * the review flow's routing logic — that's Phase 4.3.
+   */
+  @Column({ name: 'document_kind', type: 'varchar', length: 32, nullable: true, default: null })
+  documentKind: DocumentKind | null;
 }

@@ -992,3 +992,128 @@ Not done this session (Elazar doing it manually): re-checking the
 review-screen percent-display glitch (66/67/100/0) now that the catalog
 isn't empty — flagged in the original bug report as likely downstream of
 this same fix, not confirmed either way yet.
+
+## 2026-07-12 — Session 7 (Phase 3, all tasks — Phase 3 COMPLETE)
+
+Read the master plan in full per CLAUDE.md's standing instruction. Ran
+Phase 3.1–3.6 against `keepintax_prodcopy`, appended cutover.sql Section 6,
+`Current phase` set to `4`.
+
+- **3.1 — D6 schema**: `backend/scripts/migrations/2026-07-13_phase3_schema.sql`
+  (+ `2026-07-13_run-phase3-schema.js` raw-mysql2 runner, same no-NestJS-boot
+  pattern as every prior DDL script — the app's entities already declare the
+  renamed/new columns, so booting against the pre-DDL schema would 1054 on
+  the first Expense query). `RENAME COLUMN` (MySQL 8.0.8+, confirmed 8.0.37)
+  renamed `expense.taxPercent/vatPercent/isEquipment/reductionPercent` to
+  their `*Snapshot` names in place — no data copy, per D6's explicit
+  instruction. Added the rest of D6's columns to `expense`
+  (`subCategoryId`, `sectionId/Code/NameSnapshot`, `accountId/Code/
+  NameSnapshot`, `code6111Snapshot`, `description`, `approvalStatus` — new
+  `ExpenseApprovalStatus` enum, deliberately separate from sub_category's
+  own `ApprovalStatus` since the value sets differ, `enum.ts`), plus
+  `approvedByUserId/At`, `classificationOverrideByUserId/At`. Added
+  `subCategoryId` (display-only, no FK — matching the established
+  no-real-FK precedent for `sub_category.categoryId/accountId`) to
+  `supplier`/`classified_transactions`/`extracted_document`, and
+  `extracted_document.document_kind` (new `DocumentKind` enum, kept varchar
+  not real ENUM — matching that table's own established convention for
+  `status`/`documentType`, unlike `expense.approvalStatus` which follows the
+  redesign's own real-ENUM convention).
+  **Rename ripple** (the entity rename touches every call site, not just
+  the entity file — mapped exhaustively via a research pass before editing,
+  distinguishing genuine `Expense` field usages from same-named fields on
+  `JournalLine`/`BookingAccount`/`Supplier`/`ClassifiedTransactions`/
+  `SlimTransaction`): `expenses.service.ts` (`addExpense`/`updateExpense`/
+  `buildExpenseJournalLines`/`getExpensesForReductionReport` — including an
+  explicit `newExpense.reductionPercentSnapshot = expense.reductionPercent`
+  mapping, since `expense_repo.create(dto)`'s auto field-name-mapping stops
+  working for a renamed column and this one wasn't already explicitly
+  reassigned like the other three were), `transactions.service.ts`
+  (`saveTransactionsToExpenses`), `transaction-processing.service.ts`
+  (`syncExpenseFromSlim`), `reports.service.ts` (`createForm1342Report`),
+  `expenses-journal.service.spec.ts` (`makeExpense` factory + per-test
+  overrides). `tsc --noEmit` diffed byte-identical before/after (same 23
+  pre-existing lines, users/report-workflow specs, untouched); full backend
+  Jest suite: 12/18 → confirmed via this session's own run 6 failed/12
+  passed, same 6 pre-existing suites as every prior session
+  (reports.service/controller, report-workflow.service,
+  users.controller/service, auth.service specs) — nothing newly broken.
+- **3.2 — subCategoryId backfill**: `backend/scripts/migrations/
+  2026-07-13_phase3_backfill.ts` (MODE=review/apply, same pattern as the
+  Phase 2.2 script). Resolved all 85 expense rows (22 distinct (category,
+  subCategory, businessNumber) pairs) via `CatalogService.resolveByName` —
+  **0 orphans**, exactly matching D14's "production has zero orphans"
+  expectation; the explicit stop-and-show-me gate was never triggered.
+  `docs/redesign/orphan-resolution.md` written per the plan's "do not guess
+  silently" instruction (documents the zero-orphan result, not just the
+  happy path).
+- **3.3 — snapshots from the journal**: for each expense, resolved its
+  journal entry (`journalEntryNumber`, falling back to
+  `referenceType=EXPENSE`+`referenceId` — same lookup order as
+  `syncExpenseJournalEntry`) and the one `journal_line` row with
+  `subCategoryName IS NOT NULL` (the expense line; VAT/bank lines never set
+  it) — 85/85 resolved cleanly. Snapshot columns filled from THAT line's
+  `accountCode` (the journal, not the live catalog) via a `booking_account`
+  lookup. Spot-checked: the 6 D14/D15 Bituach Leumi expenses correctly
+  snapshot onto the 90300 technical account with `sectionIdSnapshot = NULL`
+  (no P&L section, matching D14 decision 3) — asserted in
+  `verify-phase3-backfill.ts`, not just eyeballed. All 85 → `approvalStatus
+  = APPROVED` (every production expense already has a journal entry, since
+  `addExpense` has always posted one synchronously at creation — there's no
+  PENDING/APPROVED split in the write path yet, that's Phase 4.1).
+- **3.4 — description backfill**: new `backend/src/expenses/
+  expense-description.util.ts` (`buildExpenseDescription`, D7's fallback
+  chain: classification → recognized-doc-type → "מסמך לא מזוהה"). Every
+  production expense already has non-null `category`/`subCategory` (NOT
+  NULL columns), so branch 1 always applied — 85/85 got
+  `"{category}/{subCategory}"`. `journal_entry.description` backfill was a
+  confirmed no-op (0 rows) — every EXPENSE-referenced entry already carries
+  `"EXPENSE #N - supplier"` from `buildJournalEntryInput`, so the
+  WHERE-empty guard never fired; the UPDATE is still in cutover.sql,
+  idempotently guarded, for the rare legacy entry that might lack one.
+- **3.5 — FK constraint + shadow-table backfill**: `fk_expense_sub_category`
+  (`expense.subCategoryId` → `sub_category.id`, `ON DELETE SET NULL` — D6
+  singles this one out as "real DB constraint"; the shadow-table pointers
+  stay plain nullable ints with no enforced FK, matching precedent).
+  Applied only after 3.2's backfill confirmed 0 NULLs. Shadow-table
+  best-effort backfill (not a hard stop, per plan): `supplier` 11/11,
+  `classified_transactions` 195/196 (1 legacy rule's category/subCategory
+  pair didn't resolve — left NULL, logged), `extracted_document` 33/33 +
+  `documentKind` 33/33 (all `EXPENSE_INVOICE` — every OCR'd doc in this
+  dataset is either already confirmed to an Expense or a plain
+  invoice/receipt/tax_invoice_receipt type; none hit the ANNUAL_DOCUMENT or
+  UNIDENTIFIED buckets in this baseline).
+- **3.6 — verification**: new committed `backend/scripts/
+  verify-phase3-backfill.ts` — all checks green (0 NULL subCategoryId/
+  snapshot/description/approvalStatus on APPROVED rows, FK constraint
+  confirmed present, 0 orphaned subCategoryId refs, D14/D15 spot-check).
+  Re-ran `generate-baseline-reports.ts` (into the same
+  `baseline-reports-post-migration` dir Session 5 established) +
+  `compare-baseline-reports.ts` fresh, post-Phase-3: **all 9 businesses ✅,
+  zero un-registered diffs** — expected, since Phase 3 touches no
+  `journal_entry`/`journal_line` values, but confirmed empirically rather
+  than assumed.
+- **cutover.sql Section 6**: appended 6a (schema DDL) / 6b (FK constraint)
+  / 6c (literal data — generated by new
+  `2026-07-13_generate-phase3-sql.ts`, same "bake in the exact resolved
+  values" precedent as Section 4b, rather than have cutover.sql re-resolve
+  live against production's catalog state at cutover time). Flagged in the
+  section's own header: the embedded `subCategoryId` values are only
+  self-consistent with Section 4b's own baked-in ids as long as Sections
+  3–6 run together against one fresh dump in one pass (the cutover
+  checklist's own "full rehearsal" requirement) — if Section 4b is ever
+  regenerated independently before cutover, Section 6c must be regenerated
+  too. Deliberately did NOT run a full fresh-dump end-to-end rehearsal of
+  the cumulative cutover.sql this session — that's explicitly Session 12
+  (Cutover prep) / the production cutover checklist's step 1, out of this
+  session's scope.
+
+**Phase 3 checklist status**: 3.1–3.6 all ticked `[x]`. **Phase 3 is
+COMPLETE** per its Definition of Done (every approved expense has FK +
+snapshot + frozen description; orphan decision doc resolved — trivially,
+since there were zero orphans to resolve). `Current phase` set to `4` in
+`CLAUDE.md`.
+
+**Next**: Phase 4 (code cutover — write paths start using `subCategoryId`
+directly, `resolveAccountCode` adapter deleted) — a fresh session per the
+runbook's Session 8.

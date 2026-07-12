@@ -6,7 +6,7 @@ export interface JournalLineInput {
   credit?: number;
   amountBeforeVat?: number;   // סכום לרוה"ס
   vatAmount?: number;         // סכום למע"מ
-  isEquipment?: boolean;      // mirrors source expense.isEquipment (false for documents)
+  isEquipment?: boolean;      // mirrors source expense.isEquipmentSnapshot (false for documents)
   taxPercent?: number;        // אחוז מוכר למס הכנסה (0-100); defaults to 100
   vatPercent?: number;        // אחוז מוכר למע"מ (0-100); defaults to 100
   amountForTax?: number;      // סכום מוכר למס = debit × (taxPercent/100)

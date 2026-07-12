@@ -521,13 +521,13 @@ green on full production pair list, old tables frozen.
 **Goal:** expenses (and shadow tables) point at real sub_category ids;
 snapshot columns populated.
 
-- [ ] 3.1 Schema: add D6 columns to `expense`; add `subCategoryId` to
+- [x] 3.1 Schema: add D6 columns to `expense`; add `subCategoryId` to
       `supplier`, `classified_transactions`, `extracted_document` (nullable
       FK; string columns stay for display). Add `documentKind` to
       `extracted_document` (D8), default backfill: rows already converted
       to expenses → EXPENSE_INVOICE; others → infer from stored docType if
       possible, else UNIDENTIFIED.
-- [ ] 3.2 Backfill `expense.subCategoryId` by (category, subCategory,
+- [x] 3.2 Backfill `expense.subCategoryId` by (category, subCategory,
       userId, businessNumber) against the merged catalog. Orphans (Phase 0
       query 2ב tells us how many): create CLIENT sub_categories with
       approvalStatus = MISSING_ACCOUNTING_MAPPING for pairs that look like
@@ -535,18 +535,18 @@ snapshot columns populated.
       decision list for Elazar to resolve manually — produce
       `docs/redesign/orphan-resolution.md` with the proposed action per
       pair, do not guess silently.
-- [ ] 3.3 Backfill snapshots for APPROVED/journal-posted expenses FROM THE
+- [x] 3.3 Backfill snapshots for APPROVED/journal-posted expenses FROM THE
       JOURNAL (not from the live catalog — the journal is what actually
       happened): join expense → journal_entry → lines to fill
       accountCodeSnapshot etc.; percent columns are renamed in place (D6).
       Expenses with a journal entry → approvalStatus = APPROVED; without →
       PENDING (or MISSING_ACCOUNTING_MAPPING if their sub_category is).
-- [ ] 3.4 Backfill `expense.description` (D7 chain) and copy into
+- [x] 3.4 Backfill `expense.description` (D7 chain) and copy into
       `journal_entry.description` where empty.
-- [ ] 3.5 Add the FK constraints (after backfill is clean). Same for
+- [x] 3.5 Add the FK constraints (after backfill is clean). Same for
       supplier/classified_transactions backfills (by name within scope;
       unmatched → NULL + logged).
-- [ ] 3.6 Verification: 0 approved expenses with NULL subCategoryId or
+- [x] 3.6 Verification: 0 approved expenses with NULL subCategoryId or
       NULL snapshots; ledger/VAT/P&L still reproduce Phase 1 outputs.
 
 **Definition of done:** every approved expense has FK + snapshot + frozen

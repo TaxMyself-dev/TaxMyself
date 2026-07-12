@@ -98,13 +98,19 @@ export class ExpensesService {
         //      category "רכוש קבוע" triggers an isEquipment lookup; everything
         //      else stays false (preserves the existing manual-entry contract).
         if (typeof (expense as any).isEquipment === 'boolean') {
-            newExpense.isEquipment = (expense as any).isEquipment;
+            newExpense.isEquipmentSnapshot = (expense as any).isEquipment;
         } else if (expense.category === 'רכוש קבוע') {
             const isEquipment = await this.getSubCategoryIsEquipment(expense.category, expense.subCategory, userId, businessNumber);
-            newExpense.isEquipment = isEquipment ?? false;
+            newExpense.isEquipmentSnapshot = isEquipment ?? false;
         } else {
-            newExpense.isEquipment = false;
+            newExpense.isEquipmentSnapshot = false;
         }
+        // .create(dto) auto-maps same-named fields; taxPercent/vatPercent/
+        // isEquipment are all explicitly reassigned below/above, but
+        // reductionPercent never was — the entity's rename (D6) means the
+        // DTO's `reductionPercent` no longer auto-populates
+        // `reductionPercentSnapshot`, so map it explicitly.
+        newExpense.reductionPercentSnapshot = expense.reductionPercent;
         newExpense.userId = userId;
         newExpense.date = expense.date;
         const currentDate = (new Date()).toISOString();
@@ -130,13 +136,13 @@ export class ExpensesService {
         // vatPercent = 0 here regardless of what the sub-category catalog or
         // the frontend sent, so the P&L shows the correct full amount.
         const vatRate = this.sharedService.getVatRateByYear(new Date(expense.date));
-        if (isExemptBusinessType(expenseBusiness?.businessType) || newExpense.vatPercent === 0) {
-            newExpense.vatPercent = 0;
+        if (isExemptBusinessType(expenseBusiness?.businessType) || newExpense.vatPercentSnapshot === 0) {
+            newExpense.vatPercentSnapshot = 0;
             newExpense.totalVatPayable = 0;
-            newExpense.totalTaxPayable = newExpense.sum * (newExpense.taxPercent / 100);
+            newExpense.totalTaxPayable = newExpense.sum * (newExpense.taxPercentSnapshot / 100);
         } else {
-            newExpense.totalVatPayable = (newExpense.sum / (1 + vatRate)) * vatRate * (newExpense.vatPercent / 100);
-            newExpense.totalTaxPayable = (newExpense.sum - newExpense.totalVatPayable) * (newExpense.taxPercent / 100);
+            newExpense.totalVatPayable = (newExpense.sum / (1 + vatRate)) * vatRate * (newExpense.vatPercentSnapshot / 100);
+            newExpense.totalTaxPayable = (newExpense.sum - newExpense.totalVatPayable) * (newExpense.taxPercentSnapshot / 100);
         }
 
         // Duplicate guard — two tiers, both keyed on (userId, businessNumber,
@@ -259,9 +265,9 @@ export class ExpensesService {
                         supplierID: supplierIdTrimmed,
                         category: newExpense.category ?? '',
                         subCategory: newExpense.subCategory ?? '',
-                        vatPercent: newExpense.vatPercent ?? 0,
-                        taxPercent: newExpense.taxPercent ?? 0,
-                        isEquipment: !!newExpense.isEquipment,
+                        vatPercent: newExpense.vatPercentSnapshot ?? 0,
+                        taxPercent: newExpense.taxPercentSnapshot ?? 0,
+                        isEquipment: !!newExpense.isEquipmentSnapshot,
                         reductionPercent: 0,
                     }));
                 }
@@ -301,10 +307,11 @@ export class ExpensesService {
             throw new UnauthorizedException(`You do not have permission to update this expense`);
         }
 
-        // Explicitly update the vatPercent and taxPercent in the expense_repo and
-        // then call to the calculate function so the sums will update accordingly.
-        if (updateExpenseDto.vatPercent !== undefined) expense.vatPercent = updateExpenseDto.vatPercent;
-        if (updateExpenseDto.taxPercent !== undefined) expense.taxPercent = updateExpenseDto.taxPercent;
+        // Explicitly update the vatPercentSnapshot and taxPercentSnapshot in the
+        // expense_repo and then call to the calculate function so the sums will
+        // update accordingly.
+        if (updateExpenseDto.vatPercent !== undefined) expense.vatPercentSnapshot = updateExpenseDto.vatPercent;
+        if (updateExpenseDto.taxPercent !== undefined) expense.taxPercentSnapshot = updateExpenseDto.taxPercent;
         if (updateExpenseDto.sum !== undefined) expense.sum = updateExpenseDto.sum;
         if (updateExpenseDto.category !== undefined) expense.category = updateExpenseDto.category;
         if (updateExpenseDto.subCategory !== undefined) expense.subCategory = updateExpenseDto.subCategory;
@@ -315,9 +322,9 @@ export class ExpensesService {
             if (categoryToCheck === 'רכוש קבוע') {
                 const subCategoryToCheck = updateExpenseDto.subCategory ?? expense.subCategory;
                 const isEquipment = await this.getSubCategoryIsEquipment(categoryToCheck, subCategoryToCheck, userId, expense.businessNumber);
-                expense.isEquipment = isEquipment ?? false;
+                expense.isEquipmentSnapshot = isEquipment ?? false;
             } else {
-                expense.isEquipment = false;
+                expense.isEquipmentSnapshot = false;
             }
         }
 
@@ -325,19 +332,25 @@ export class ExpensesService {
         if (updateExpenseDto.vatPercent !== undefined || updateExpenseDto.taxPercent !== undefined || updateExpenseDto.sum !== undefined) {
             const vatRate = this.sharedService.getVatRateByYear(new Date(expense.date));
             const updateBusiness = await this.businessRepo.findOne({ where: { businessNumber: expense.businessNumber } });
-            if (isExemptBusinessType(updateBusiness?.businessType) || expense.vatPercent === 0) {
-                expense.vatPercent = 0;
+            if (isExemptBusinessType(updateBusiness?.businessType) || expense.vatPercentSnapshot === 0) {
+                expense.vatPercentSnapshot = 0;
                 expense.totalVatPayable = 0;
-                expense.totalTaxPayable = expense.sum * (expense.taxPercent / 100);
+                expense.totalTaxPayable = expense.sum * (expense.taxPercentSnapshot / 100);
             } else {
-                expense.totalVatPayable = (expense.sum / (1 + vatRate)) * vatRate * (expense.vatPercent / 100);
-                expense.totalTaxPayable = (expense.sum - expense.totalVatPayable) * (expense.taxPercent / 100);
+                expense.totalVatPayable = (expense.sum / (1 + vatRate)) * vatRate * (expense.vatPercentSnapshot / 100);
+                expense.totalTaxPayable = (expense.sum - expense.totalVatPayable) * (expense.taxPercentSnapshot / 100);
             }
         }
 
+        // updateExpenseDto still carries wire-format `vatPercent`/`taxPercent`/
+        // `isEquipment` — spreading it straight over `expense` (post-rename)
+        // would silently reintroduce those as stray non-column properties
+        // instead of the renamed snapshot columns already set above. Strip
+        // them so the spread only touches fields that are still name-aligned.
+        const { vatPercent: _vp, taxPercent: _tp, isEquipment: _ie, ...restUpdateDto } = updateExpenseDto as any;
         const saved = await this.expense_repo.save({
             ...expense,
-            ...updateExpenseDto,
+            ...restUpdateDto,
         });
 
         // Any change to the expense may affect the ledger (amounts, dates,
@@ -787,9 +800,9 @@ export class ExpensesService {
             expense.category, expense.subCategory, expense.userId, expense.businessNumber,
         );
 
-        const isEquipment = expense.isEquipment ?? false;
-        const taxPct = Number(expense.taxPercent) || 0;
-        const vatPct  = Number(expense.vatPercent)  || 0;
+        const isEquipment = expense.isEquipmentSnapshot ?? false;
+        const taxPct = Number(expense.taxPercentSnapshot) || 0;
+        const vatPct  = Number(expense.vatPercentSnapshot)  || 0;
         const amountForTax = Number(expense.totalTaxPayable) || 0;
 
         return hasVat
@@ -1309,7 +1322,7 @@ export class ExpensesService {
             where: {
                 userId: userId,
                 businessNumber: businessNumber,
-                isEquipment: true,
+                isEquipmentSnapshot: true,
                 reductionDone: MoreThanOrEqual(year),
                 //date: MoreThanOrEqual(new Date(`${year}-01-01`))
             }

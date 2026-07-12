@@ -322,6 +322,37 @@ export enum ApprovalStatus {
   REJECTED = 'REJECTED',
 }
 
+/**
+ * expense.approvalStatus (D6, Phase 3). Deliberately a SEPARATE enum from
+ * sub_category's ApprovalStatus above — the value sets differ (PENDING vs
+ * PENDING_ACCOUNTANT_APPROVAL; NOT_AN_EXPENSE is expense-only, D8's
+ * ANNUAL_DOCUMENT "תייק" routing) and conflating them would let a
+ * sub_category's approval state leak semantics onto an expense's.
+ * Backfilled in Phase 3.3: a journal-posted expense -> APPROVED; otherwise
+ * PENDING (or MISSING_ACCOUNTING_MAPPING when its sub_category is).
+ */
+export enum ExpenseApprovalStatus {
+  PENDING = 'PENDING',
+  APPROVED = 'APPROVED',
+  REJECTED = 'REJECTED',
+  MISSING_ACCOUNTING_MAPPING = 'MISSING_ACCOUNTING_MAPPING',
+  NOT_AN_EXPENSE = 'NOT_AN_EXPENSE',
+}
+
+/**
+ * extracted_document.documentKind (D8) — OCR pipeline routing. EXPENSE_INVOICE
+ * goes through the normal approval flow; ANNUAL_DOCUMENT (תרומה, טופס 106,
+ * אישורי מס) is never journaled, routed to the "תייק" (file it) flow instead;
+ * UNIDENTIFIED sits in PENDING until a human decides. Backfilled in Phase 3.1:
+ * rows already converted to an Expense -> EXPENSE_INVOICE; others inferred
+ * from the stored documentType where possible, else UNIDENTIFIED.
+ */
+export enum DocumentKind {
+  EXPENSE_INVOICE = 'EXPENSE_INVOICE',
+  ANNUAL_DOCUMENT = 'ANNUAL_DOCUMENT',
+  UNIDENTIFIED = 'UNIDENTIFIED',
+}
+
 
 // ************ Uniform file ************ //
 

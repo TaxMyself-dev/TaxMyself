@@ -42,14 +42,14 @@ function makeExpense(overrides: Partial<Expense> = {}): Expense {
     category: 'הוצאות',
     subCategory: 'דלק',
     sum: 100,
-    taxPercent: 100,
-    vatPercent: 100,
+    taxPercentSnapshot: 100,
+    vatPercentSnapshot: 100,
     date: new Date('2024-01-15') as any,
     businessNumber: '999999999',
     userId: 'firebase-uid-1',
     loadingDate: new Date(),
-    isEquipment: false,
-    reductionPercent: 0,
+    isEquipmentSnapshot: false,
+    reductionPercentSnapshot: 0,
     totalVatPayable: 17.09,
     totalTaxPayable: 82.91,
     vatReportingDate: '1/2024' as any,
@@ -357,9 +357,9 @@ describe('ExpensesService — journal entry linking', () => {
     });
 
     it('syncs after vatPercent change (affects VAT line split)', async () => {
-      const expense = makeExpense({ journalEntryNumber: 10000001, vatPercent: 100 });
+      const expense = makeExpense({ journalEntryNumber: 10000001, vatPercentSnapshot: 100 });
       expenseRepo.findOne.mockResolvedValue(expense);
-      expenseRepo.save.mockResolvedValue({ ...expense, vatPercent: 66 } as any);
+      expenseRepo.save.mockResolvedValue({ ...expense, vatPercentSnapshot: 66 } as any);
       bookkeepingService.updateJournalEntryFull.mockResolvedValue(true);
 
       await service.updateExpense(
@@ -429,9 +429,9 @@ describe('ExpensesService — journal entry linking', () => {
         sum: 100,
         totalVatPayable: 17.09,
         totalTaxPayable: 82.91,
-        isEquipment: true,
-        taxPercent: 50,
-        vatPercent: 100,
+        isEquipmentSnapshot: true,
+        taxPercentSnapshot: 50,
+        vatPercentSnapshot: 100,
       });
       const lines = await callBuild(expense);
       expect(lines[0]).toEqual(

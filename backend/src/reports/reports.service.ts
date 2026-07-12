@@ -1133,7 +1133,7 @@ export class ReportsService {
       where: {
         userId: firebaseId,
         businessNumber,
-        isEquipment: true,
+        isEquipmentSnapshot: true,
       },
       order: { date: 'ASC' },
     });
@@ -1151,7 +1151,7 @@ export class ReportsService {
 
       const purchaseYear = purchaseDate.getFullYear();
       const originalCost = Number(expense.sum) || 0;
-      const depreciationRate = Number(expense.reductionPercent) || 0;
+      const depreciationRate = Number(expense.reductionPercentSnapshot) || 0;
       const annualDepreciation = +(originalCost * (depreciationRate / 100)).toFixed(2);
 
       // Number of full years that have already passed before the selected year.

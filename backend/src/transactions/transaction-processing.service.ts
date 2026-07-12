@@ -239,10 +239,10 @@ export class TransactionProcessingService {
 
     expense.category = slim.category;
     expense.subCategory = slim.subCategory;
-    expense.vatPercent = slim.vatPercent;
-    expense.taxPercent = slim.taxPercent;
-    expense.reductionPercent = slim.reductionPercent;
-    expense.isEquipment = slim.isEquipment;
+    expense.vatPercentSnapshot = slim.vatPercent;
+    expense.taxPercentSnapshot = slim.taxPercent;
+    expense.reductionPercentSnapshot = slim.reductionPercent;
+    expense.isEquipmentSnapshot = slim.isEquipment;
     expense.reportScope = slim.reportScope ?? expense.reportScope;
     expense.businessNumber = slim.businessNumber ?? expense.businessNumber;
     expense.vatReportingDate = (slim.vatReportingDate as any) ?? expense.vatReportingDate;
