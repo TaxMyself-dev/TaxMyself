@@ -1117,3 +1117,116 @@ since there were zero orphans to resolve). `Current phase` set to `4` in
 **Next**: Phase 4 (code cutover — write paths start using `subCategoryId`
 directly, `resolveAccountCode` adapter deleted) — a fresh session per the
 runbook's Session 8.
+
+
+---
+
+## Session 8 — 2026-07-12 — Phase 4 write paths (4.1–4.3) + deferred 0.3 security fixes (D12)
+
+Seven commits, each with its checkbox tick. Plan approved in Plan Mode with
+four adjustments (supplier auto-create inside the shared tx; the null-
+vatReportingDate lock branch applies to JOURNALED rows only; D8's
+NOT_AN_EXPENSE wording moved to extracted_document; deleteExpense's orphaned
+journal entry promoted to explicit task 4.3b for Session 9).
+
+- **0.3 / D12 (4 commits)** — the deferred security fixes:
+  - D12.1: `load-default-categories` endpoint was already deleted in Phase
+    2.6 — removed the two stale `.http` scratch entries.
+  - D12.2: `FirebaseAuthGuard` now filters `status=ACTIVE` (REVOKED
+    delegations no longer grant impersonation) and enforces write scopes by
+    HTTP method (POST/PUT/PATCH/DELETE require `DOCUMENTS_WRITE`; NULL-scopes
+    legacy rows are read-only). `request.user.actorFirebaseId` preserves the
+    caller's own identity through the impersonation swap (4.2's override
+    stamps and D12.3's self-check consume it). `grantPermission` (invite
+    flow) now sets ACTIVE + READ/WRITE scopes explicitly. Guard unit spec
+    (10 tests). Prodcopy data check: 5 delegations, all ACTIVE — enforcement
+    blocks exactly the 3 grant-view READ-only rows from writing.
+  - D12.3: `GET delegations/users-for-agent/:agentId` had NO guard
+    (unauthenticated enumeration of any agent's client list). Now
+    FirebaseAuthGuard + self-or-admin against `actorFirebaseId` (pre-swap —
+    the frontend sends `x-client-user-id` on every request while
+    impersonating, so a post-swap comparison would break the clients panel).
+  - D12.4: named `ux_business_number` UNIQUE on `business.businessNumber` +
+    friendly ConflictException pre-checks on all three insert paths
+    (createBusiness / signup loop / createClientByAccountant — the latter
+    BEFORE the Firebase user is created). Duplicate 314719279: Elazar chose
+    to delete business id=5 (zero activity); applied to keepintax_prodcopy
+    (24 rows, 0 dups, index verified) + cutover.sql section with a
+    verification SELECT that re-checks production for NEW duplicates at
+    cutover time. ⚠ **Open item — keepintax-dev has 3 duplicate groups of
+    its own** (orphan business rows ids 1,3 whose owner user is gone + the
+    accountant test account and the demo user both on fake 123456789);
+    synchronize will FAIL to create the index on the next dev boot until
+    resolved. Proposed fix (blocked by permission classifier, needs Elazar's
+    go-ahead): delete orphans 1+3, renumber the accountant row id=2 to an
+    unused placeholder (zero rows reference its number; all 123456789
+    activity belongs to the demo user).
+- **4.1 — expense write paths on the new model**: every path funnels through
+  `resolveExpenseClassification` + `applyClassificationToExpense`
+  (subCategoryId wins, name pair fallback until 4.6): FK + section/account/
+  6111 snapshots + D7 description + approvalStatus written together.
+  Enforcement matrix: mapped+APPROVED → APPROVED + journal; unmapped/pending
+  → MISSING_ACCOUNTING_MAPPING with NO journal entry; isPrivate → APPROVED,
+  never journaled; unresolvable → **400 (the 60000 fallback is dead in the
+  write path)**. `addExpense` takes an optional caller `EntityManager` — the
+  three review-modal approve paths join one genuine transaction (old
+  nested-tx bug fixed) and the supplier auto-create moved inside it.
+  `buildExpenseJournalLines` reads `accountCodeSnapshot` (one name retry for
+  legacy rows, else throw); `journal_entry.description = expense.description`
+  (D7). D10 lock: `assertExpensePeriodUnlocked` throws 423
+  `expense_period_locked` (isReported flag — now stamped/cleared live by
+  report-workflow lock/unlock — or vatReportingDate ∈ REPORTED VAT workflow
+  labels, or date-in-period for JOURNALED rows only). `updateExpense`
+  re-resolves through the catalog ('רכוש קבוע' special-case deleted),
+  blocks journaled→unmappable with 400, auto-approves+journals a completed
+  mapping. `syncExpenseFromSlim` skips overridden expenses (D10 stickiness)
+  and routes through new `reclassifyExpenseFromNames`.
+  `CatalogService.resolveSubCategory` gained a tenant-scope check (cross-
+  tenant id guessing 404s). Fixed in a follow-up commit: every module that
+  re-provides ExpensesService (app/transactions/reports) needed the
+  ReportWorkflow entity in its forFeature — caught by the prodcopy boot.
+- **4.2 — reclassification endpoints (D10)**: `PATCH expenses/:id/
+  reclassify` (card law only, stamps `classificationOverrideByUserId =
+  actorFirebaseId`), `PATCH expenses/:id/override-mapping` (exactly-one-of
+  accountId/accountCode via new scoped lookups `findAccountByIdInScope`/
+  `findAccountByCodeInScope`), `PATCH bookkeeping/sub-categories/:id/account`
+  → `CatalogService.repointSubCategoryAccount` (D9 future-mapping primitive;
+  SYSTEM rows get a same-named CLIENT override; history never moves).
+- **4.3 — OCR documentKind routing (D8)**: `deriveDocumentKind` util at both
+  OCR insert points + `subCategoryId` stamped by name-matching Claude's pair
+  against the same catalog it classified from (`CatalogEntry` +=
+  `subCategoryId`, kept out of the prompt block to preserve the Anthropic
+  cache prefix). `ExtractedDocStatus += NOT_AN_EXPENSE` (varchar — no
+  ALTER). Approve paths 400 ANNUAL_DOCUMENT rows and flip approved docs to
+  EXPENSE_INVOICE in-tx. New `POST reports/me/review/file-doc/:documentId`
+  ("תייק" — minimal terminal state, slim reset + pair cascade factored out
+  of archiveDocument; annual_report_file bridge deferred to Phase 6) and
+  `PATCH reports/me/review/doc-kind/:documentId` (PENDING_REVIEW triage).
+  `ReviewDocSummary` carries `documentKind`. D8 wording corrected in the
+  master plan (approved).
+- **Tests**: 145+ green across guard/delegation/expenses/catalog/report-
+  workflow/documents suites, incl. new `expense-classification.spec.ts`,
+  `firebase-auth.guard.spec.ts`, `delegation.controller.spec.ts`,
+  `document-kind.spec.ts`, `report-review-dockind.spec.ts`. Also fixed the
+  report-workflow lock spec, which was failing BEFORE this session (missing
+  constructor arg). Pre-existing failures unrelated to this session (users/
+  reports scaffold "should be defined" specs) remain.
+- **Verification**: full AppModule booted against `keepintax_prodcopy`
+  (NODE_ENV=production, SKIP_BOOT_SEED=true) via
+  `generate-baseline-reports.ts` regeneration into
+  `baseline-reports-post-migration` + `compare-baseline-reports.ts`:
+  **all 9 businesses ✅, zero un-registered diffs** (read paths untouched
+  this session — confirmed empirically, per D15). The boot itself caught
+  the ReportWorkflow-entity DI gap fixed in the follow-up commit.
+
+**Phase 4 checklist status**: 4.1, 4.2, 4.3 ticked; 4.3b (deleteExpense
+journal fix, added this session per Elazar), 4.4–4.6 remain. 0.3 ticked —
+the deferred D12 security fixes are closed. Note per the 0.3 execution
+rule: D12.1–D12.3 are code-only and immediately deployable to production;
+D12.4's schema half (dedup + UNIQUE) rides cutover.sql instead, only its
+code pre-checks are deploy-safe now.
+
+**Next**: Session 9 — 4.3b (deleteExpense must remove/reverse its journal
+entry in the same tx, D10 lock applying to deletes) + 4.4 (reports read
+side: P&L by section, ledger from stored descriptions). Elazar decisions
+pending: the keepintax-dev duplicate cleanup above.
