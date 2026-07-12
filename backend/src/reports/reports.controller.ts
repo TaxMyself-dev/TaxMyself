@@ -22,7 +22,7 @@ import { diskStorage } from 'multer';
 import { extname } from 'path';
 import { SubscriptionGuard } from 'src/guards/subscription.guard';
 import { RequireModule } from 'src/decorators/require-module.decorator';
-import { ModuleName } from 'src/enum';
+import { DocumentKind, ModuleName } from 'src/enum';
 
 
 @Controller('reports')
@@ -177,6 +177,35 @@ export class ReportsController {
       const firebaseId = request.user?.firebaseId;
       if (!firebaseId) throw new BadRequestException('Not authenticated');
       return this.reviewService.deleteDoc(firebaseId, Number(documentId));
+    }
+
+    /** D8 "תייק" (Phase 4.3): file a document for the ANNUAL report —
+     *  terminal NOT_AN_EXPENSE + documentKind=ANNUAL_DOCUMENT; never
+     *  creates an expense or journal entry. Idempotent. */
+    @Post('me/review/file-doc/:documentId')
+    @UseGuards(FirebaseAuthGuard)
+    async fileDocAsAnnual(
+      @Req() request: AuthenticatedRequest,
+      @Param('documentId') documentId: string,
+    ) {
+      const firebaseId = request.user?.firebaseId;
+      if (!firebaseId) throw new BadRequestException('Not authenticated');
+      return this.reviewService.fileDocAsAnnual(firebaseId, Number(documentId));
+    }
+
+    /** D8 triage (Phase 4.3): re-kind a PENDING_REVIEW document (e.g. an
+     *  UNIDENTIFIED row the user recognizes as an expense invoice). */
+    @Patch('me/review/doc-kind/:documentId')
+    @UseGuards(FirebaseAuthGuard)
+    async setDocKind(
+      @Req() request: AuthenticatedRequest,
+      @Param('documentId') documentId: string,
+      @Body() body: { documentKind: DocumentKind },
+    ) {
+      const firebaseId = request.user?.firebaseId;
+      if (!firebaseId) throw new BadRequestException('Not authenticated');
+      if (!body?.documentKind) throw new BadRequestException('documentKind is required');
+      return this.reviewService.setDocKind(firebaseId, Number(documentId), body.documentKind);
     }
 
     /** Unpair an invoice↔receipt pair set by DocumentPairingService.

@@ -37,6 +37,12 @@ export interface ReviewDocSummary {
   isEquipment: boolean | null;
   uploadDate: string | null;    // ISO-8601 from Drive's createdTime
   documentType: string | null;  // invoice | receipt | tax_invoice_receipt | form_106 | tax_form | contract | unknown
+  /** D8 routing kind (Phase 4.3): EXPENSE_INVOICE | ANNUAL_DOCUMENT |
+   *  UNIDENTIFIED. ANNUAL/UNIDENTIFIED rows stay PENDING_REVIEW so they
+   *  appear in the modal, tagged for the Phase-6 UI (annual rows offer
+   *  "תייק", unidentified rows offer triage). Null on legacy rows the
+   *  Phase-3 backfill somehow missed. */
+  documentKind: string | null;
   /** ISO-4217 currency code (uppercase) the OCR'd amounts are in.
    *  "ILS" for Israeli documents (the common case); foreign codes
    *  drive the "$X (₪Y)" two-line render in the review modal and tell

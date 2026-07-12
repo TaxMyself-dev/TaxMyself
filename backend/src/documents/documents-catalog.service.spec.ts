@@ -18,17 +18,20 @@ describe('DocumentsService.buildExtractionCatalog', () => {
   it('maps CatalogService.getMergedExpenseCatalog rows into the legacy CatalogEntry shape', async () => {
     const getMergedExpenseCatalog = jest.fn().mockResolvedValue([
       {
+        id: 11,
         name: 'דלק',
         category: { name: 'רכב ותחבורה' },
         account: { taxPercent: 45, vatPercent: 66.66, isEquipment: false },
       },
       {
+        id: 12,
         name: 'ציוד',
         category: { name: 'ציוד ורכוש קבוע' },
         account: { taxPercent: 100, vatPercent: 100, isEquipment: true },
       },
       // isPrivate sub-category — no card, no law (D5).
       {
+        id: 13,
         name: 'הוצאה פרטית',
         category: { name: 'פרטי' },
         account: null,
@@ -44,9 +47,9 @@ describe('DocumentsService.buildExtractionCatalog', () => {
 
     expect(getMergedExpenseCatalog).toHaveBeenCalledWith({ businessNumber: '123456789' });
     expect(catalog).toEqual([
-      { subCategoryName: 'דלק', categoryName: 'רכב ותחבורה', taxPercent: 45, vatPercent: 66.66, isEquipment: false },
-      { subCategoryName: 'ציוד', categoryName: 'ציוד ורכוש קבוע', taxPercent: 100, vatPercent: 100, isEquipment: true },
-      { subCategoryName: 'הוצאה פרטית', categoryName: 'פרטי', taxPercent: 0, vatPercent: 0, isEquipment: false },
+      { subCategoryName: 'דלק', categoryName: 'רכב ותחבורה', taxPercent: 45, vatPercent: 66.66, isEquipment: false, subCategoryId: 11 },
+      { subCategoryName: 'ציוד', categoryName: 'ציוד ורכוש קבוע', taxPercent: 100, vatPercent: 100, isEquipment: true, subCategoryId: 12 },
+      { subCategoryName: 'הוצאה פרטית', categoryName: 'פרטי', taxPercent: 0, vatPercent: 0, isEquipment: false, subCategoryId: 13 },
     ]);
   });
 

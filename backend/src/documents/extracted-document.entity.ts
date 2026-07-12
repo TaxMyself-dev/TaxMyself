@@ -30,6 +30,17 @@ export enum ExtractedDocStatus {
   PAIRED = 'paired',
   /** OCR failed on the file; row exists for diagnostics, file stays in inbox/. */
   ERROR = 'error',
+  /** D8 (Phase 4.3): terminal state of the "תייק" flow — an ANNUAL_DOCUMENT
+   *  (טופס 106, אישור מס, תרומה) filed for the annual report. Never becomes
+   *  an Expense, never journaled. Distinct from ARCHIVED ("chose not to
+   *  claim") — this doc IS claimed, just on the annual report instead of a
+   *  periodic one. The varchar status column needs no ALTER (by design).
+   *  NOTE (plan/reality): the master plan's 4.3 wording placed
+   *  NOT_AN_EXPENSE on the expense status — filed docs never get an expense
+   *  row, so the value lives HERE, on extracted_document (approved by
+   *  Elazar, Session 8; ExpenseApprovalStatus keeps its own NOT_AN_EXPENSE
+   *  for other D8 flows). */
+  NOT_AN_EXPENSE = 'not_an_expense',
 }
 
 /** Classification returned by Claude — drives downstream routing

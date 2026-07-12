@@ -179,6 +179,12 @@ instead of rebuilding it per report.
 - UNIDENTIFIED → stuck in PENDING until a human decides: expense (classify)
   / annual document (file) / delete.
 - OCR already detects document types; this is routing, not new capability.
+- Wording correction (Session 8, approved by Elazar): the "תייק" flow's
+  NOT_AN_EXPENSE terminal status lives on **extracted_document.status**
+  (`'not_an_expense'`, varchar — no ALTER needed), NOT on the expense —
+  filed documents never get an expense row at all.
+  `ExpenseApprovalStatus.NOT_AN_EXPENSE` remains in the enum for
+  expense-side uses, but D8 filing never touches the expense table.
 
 ### D9 — Approval screen (מסך אישור הוצאות)
 
@@ -592,10 +598,29 @@ description; orphan decision doc resolved with Elazar.
       sub-categories/:id/account → CatalogService.repointSubCategoryAccount
       — the D9 future-mapping primitive, SYSTEM rows get a same-named
       CLIENT override row, history never moves.)
-- [ ] 4.3 OCR pipeline: `buildExtractionCatalog` reads the new catalog;
+- [x] 4.3 OCR pipeline: `buildExtractionCatalog` reads the new catalog;
       OCR output sets `documentKind`; review flow routes per D8
       (EXPENSE_INVOICE → approval, ANNUAL_DOCUMENT → "תייק" flow with
       NOT_AN_EXPENSE status, UNIDENTIFIED → pending triage).
+      (Done Session 8: document-kind.util.ts derives the kind at insert
+      time in both OCR paths + stamps subCategoryId by name-matching
+      Claude's pair against the same catalog it classified from
+      (CatalogEntry gained subCategoryId — additive JSON);
+      ExtractedDocStatus += NOT_AN_EXPENSE (see D8 wording correction);
+      approve paths 400 ANNUAL_DOCUMENT rows and flip approved docs to
+      EXPENSE_INVOICE; POST reports/me/review/file-doc/:documentId (תייק,
+      minimal terminal state — annual_report_file bridge deferred to
+      Phase 6) + PATCH reports/me/review/doc-kind/:documentId triage;
+      ReviewDocSummary carries documentKind for the Phase-6 UI.)
+- [ ] 4.3b deleteExpense must remove/reverse its journal entry in the
+      same transaction (Session 9). Elazar (Session 8 plan approval):
+      this is an ACTIVE accounting bug, not a known issue —
+      expenses.service.ts deleteExpense currently removes the expense row
+      and orphans the posted journal entry, silently corrupting the
+      ledger. Fix: delete must remove (or storno-reverse, per what D10
+      allows at that point) the journal entry in the same tx, and the
+      D10 period lock (assertExpensePeriodUnlocked) must apply to deletes
+      too.
 - [ ] 4.4 Reports: P&L groups by section (D3); ledger uses stored
       descriptions (D7); delete dead `resolvedPnlCategory`/
       `getPnlCategoryMap` precedence code and the misleading comments;

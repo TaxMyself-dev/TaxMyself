@@ -24,7 +24,7 @@ import { DocumentsService } from '../documents/documents.service';
 import { DocumentPairingService } from '../documents/document-pairing.service';
 import { GoogleDriveService } from '../google-drive/google-drive.service';
 import { SharedService } from '../shared/shared.service';
-import { BusinessType, VATReportingType } from '../enum';
+import { BusinessType, DocumentKind, VATReportingType } from '../enum';
 import { MatchingService } from './matching.service';
 import {
   ReportPreviewResponse,
@@ -387,6 +387,11 @@ export class ReportReviewService {
       slimTransactionId,
     );
 
+    // D8 (Phase 4.3): annual documents are never expenses — route to "תייק".
+    if (doc.documentKind === DocumentKind.ANNUAL_DOCUMENT) {
+      throw new BadRequestException('מסמך שנתי — לא הוצאה; יש לתייק אותו לדוח השנתי');
+    }
+
     // Resolve final values: override > doc > slim. Doc wins over slim
     // because matched rows are anchored on the document (it's the source
     // for VAT-deduction evidence); slim is the bank-side classification.
@@ -484,6 +489,9 @@ export class ReportReviewService {
         {
           status: ExtractedDocStatus.APPROVED,
           confirmedExpenseId: expense.id,
+          // D8: an approved doc IS an expense invoice — flips UNIDENTIFIED
+          // rows that were approved with an explicit classification.
+          documentKind: DocumentKind.EXPENSE_INVOICE,
         },
       );
 
@@ -535,6 +543,11 @@ export class ReportReviewService {
       throw new BadRequestException(
         `Document ${documentId} is not pending_review (status=${doc.status})`,
       );
+    }
+
+    // D8 (Phase 4.3): annual documents are never expenses — route to "תייק".
+    if (doc.documentKind === DocumentKind.ANNUAL_DOCUMENT) {
+      throw new BadRequestException('מסמך שנתי — לא הוצאה; יש לתייק אותו לדוח השנתי');
     }
 
     const finalCategory    = overrides.category    ?? doc.category    ?? '';
@@ -604,6 +617,9 @@ export class ReportReviewService {
         {
           status: ExtractedDocStatus.APPROVED,
           confirmedExpenseId: expense.id,
+          // D8: an approved doc IS an expense invoice — flips UNIDENTIFIED
+          // rows that were approved with an explicit classification.
+          documentKind: DocumentKind.EXPENSE_INVOICE,
         },
       );
 
@@ -748,6 +764,28 @@ export class ReportReviewService {
     documentId: number,
   ): Promise<{ ok: true; documentId: number; movedFile: boolean }> {
     return this.documentsService.archiveDocument(firebaseId, documentId);
+  }
+
+  // ====================================================================
+  // D8 (Phase 4.3) — "תייק" + kind triage, delegated to DocumentsService
+  // ====================================================================
+
+  /** File an ANNUAL_DOCUMENT (or anything the user says belongs on the
+   *  annual report) — terminal NOT_AN_EXPENSE, never an expense/journal. */
+  fileDocAsAnnual(
+    firebaseId: string,
+    documentId: number,
+  ): Promise<{ ok: true; documentId: number }> {
+    return this.documentsService.fileDocumentAsAnnual(firebaseId, documentId);
+  }
+
+  /** Re-kind a PENDING_REVIEW row (UNIDENTIFIED triage). */
+  setDocKind(
+    firebaseId: string,
+    documentId: number,
+    documentKind: DocumentKind,
+  ): Promise<{ ok: true; documentId: number; documentKind: DocumentKind }> {
+    return this.documentsService.setDocumentKind(firebaseId, documentId, documentKind);
   }
 
   // ====================================================================
@@ -1078,6 +1116,7 @@ export class ReportReviewService {
       isEquipment: savedSupplier?.isEquipment ?? d.isEquipment,
       uploadDate: d.uploadDate ? d.uploadDate.toISOString() : null,
       documentType: d.documentType,
+      documentKind: d.documentKind,
       currency: d.currency ?? 'ILS',
       ilsAmount: d.ilsAmount != null ? Number(d.ilsAmount) : null,
       matchedSupplierKnown: !!savedSupplier,
