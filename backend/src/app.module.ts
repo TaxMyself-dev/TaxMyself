@@ -151,10 +151,10 @@ new Logger('Bootstrap').log(
       Bill,
       Source,
       Expense,
-      DefaultCategory,
-      UserCategory,
-      DefaultSubCategory,
-      UserSubCategory,
+      // (Phase 4.6: the four legacy catalog entities left this forFeature —
+      // no provided service injects their repos anymore. They stay in the
+      // forRoot entities list above only so the frozen tables remain
+      // schema-managed for rollback until the Phase 7 drop.)
       Finsite,
       Delegation,
       SettingDocuments,

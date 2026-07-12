@@ -1199,28 +1199,6 @@ export class ExpensesService {
     }
 
     /**
-     * Resolve the bookkeeping account code for a (category, subCategory) pair.
-     * The single source of truth for routing an expense to a כרטיס — used by
-     * EVERY expense-creation path (manual entry, OCR document, bank-transaction
-     * approval) so they all post to the same account.
-     *
-     * Phase 2.3: delegates to CatalogService, which resolves against the new
-     * category/sub_category/booking_account tables (D1) instead of the old
-     * four-table 5-level chain. Signature unchanged so this call site's
-     * caller (buildExpenseJournalLines) needed no changes — see
-     * CatalogService.resolveAccountCode for the resolution order and the
-     * Phase-4 TODO on its fallback behavior.
-     */
-    async resolveAccountCode(
-        categoryName: string,
-        subCategoryName: string,
-        firebaseId?: string | null,
-        businessNumber?: string | null,
-    ): Promise<string> {
-        return this.catalogService.resolveAccountCode(categoryName, subCategoryName, firebaseId, businessNumber);
-    }
-
-    /**
      * Build the single-entry (חד-צידית) expense journal lines for an Expense.
      * Shared by createExpenseJournalEntry (new entry) and syncExpenseJournalEntry
      * (replace lines on re-classification) so both produce identical structure.

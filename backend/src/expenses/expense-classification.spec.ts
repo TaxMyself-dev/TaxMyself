@@ -22,10 +22,6 @@ import { BadRequestException, HttpException } from '@nestjs/common';
 import { ExpensesService } from './expenses.service';
 import { Expense } from './expenses.entity';
 import { Supplier } from './suppliers.entity';
-import { DefaultCategory } from './default-categories.entity';
-import { DefaultSubCategory } from './default-sub-categories.entity';
-import { UserCategory } from './user-categories.entity';
-import { UserSubCategory } from './user-sub-categories.entity';
 import { BookkeepingService } from '../bookkeeping/bookkeeping.service';
 import { CatalogService } from '../bookkeeping/catalog.service';
 import { SharedService } from '../shared/shared.service';
@@ -141,7 +137,6 @@ describe('ExpensesService — Phase 4.1 classification', () => {
     catalogService = {
       resolveByName: jest.fn().mockResolvedValue(makeResolved()),
       resolveSubCategory: jest.fn().mockResolvedValue(makeResolved()),
-      resolveAccountCode: jest.fn().mockResolvedValue('61000'),
     };
 
     mockManager = {
@@ -161,10 +156,6 @@ describe('ExpensesService — Phase 4.1 classification', () => {
         ExpensesService,
         { provide: getRepositoryToken(Expense), useValue: expenseRepo },
         { provide: getRepositoryToken(User), useValue: makeRepo<User>() },
-        { provide: getRepositoryToken(DefaultCategory), useValue: makeRepo<DefaultCategory>() },
-        { provide: getRepositoryToken(DefaultSubCategory), useValue: makeRepo<DefaultSubCategory>() },
-        { provide: getRepositoryToken(UserCategory), useValue: makeRepo<UserCategory>() },
-        { provide: getRepositoryToken(UserSubCategory), useValue: makeRepo<UserSubCategory>() },
         { provide: getRepositoryToken(Supplier), useValue: makeRepo<Supplier>() },
         { provide: getRepositoryToken(Business), useValue: businessRepo },
         { provide: getRepositoryToken(ClassifiedTransactions), useValue: makeRepo<ClassifiedTransactions>() },

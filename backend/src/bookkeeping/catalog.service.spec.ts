@@ -8,7 +8,7 @@
  *    rule (corrected in the Phase 2.4 plan review)
  *  - createSubCategory: isPrivate / ANNUAL bypass the law-resolution path
  *    entirely; a law with no resolvable section lands MISSING_ACCOUNTING_MAPPING
- *  - resolveAccountCode adapter fallback behavior
+ *  - getCategoryNamesForUser (Phase 4.6 — replaced the legacy-table merge)
  */
 import { Category } from './category.entity';
 import { SubCategory } from './sub-category.entity';
@@ -51,6 +51,8 @@ function makeRepo<T extends { id?: number }>(rows: T[] = []) {
 
 function matches(row: any, where: any): boolean {
   if (!where) return true;
+  // TypeORM array-where = OR across the clauses.
+  if (Array.isArray(where)) return where.some((clause) => matches(row, clause));
   return Object.entries(where).every(([key, value]) => {
     // TypeORM's In(...) returns a FindOperator whose `.type`/`.value` are
     // getters — duck-type it rather than importing the class.
@@ -400,28 +402,23 @@ describe('CatalogService', () => {
     });
   });
 
-  // ── resolveAccountCode adapter ──────────────────────────────────────────
+  // ── getCategoryNamesForUser (Phase 4.6 — replaced the legacy-table merge) ──
 
-  describe('resolveAccountCode', () => {
-    it('falls back to 60000 when nothing resolves', async () => {
-      const code = await service.resolveAccountCode('לא קיים', 'גם לא קיים', null, null);
-      expect(code).toBe('60000');
-    });
+  describe('getCategoryNamesForUser', () => {
+    it('returns SYSTEM + the user-owned category names, deduplicated', async () => {
+      categoryRepo.rows.push(
+        { id: 30, name: 'רכב ותחבורה', chartOwnerKey: SYS, isActive: true, userId: null },
+        { id: 31, name: 'קטגוריה שלי', chartOwnerKey: 'CLIENT_111', isActive: true, userId: 'uid-1' },
+        { id: 32, name: 'רכב ותחבורה', chartOwnerKey: 'CLIENT_111', isActive: true, userId: 'uid-1' },
+        { id: 33, name: 'של מישהו אחר', chartOwnerKey: 'CLIENT_222', isActive: true, userId: 'uid-2' },
+      );
 
-    it('returns the real account code for a resolvable pair', async () => {
-      subCategoryRepo.rows.push({
-        id: 10,
-        categoryId: 1,
-        name: 'דלק',
-        chartOwnerKey: SYS,
-        isActive: true,
-        isPrivate: false,
-        accountId: 1,
-        account: accountRepo.rows[0],
-      });
+      const names = await service.getCategoryNamesForUser('uid-1');
 
-      const code = await service.resolveAccountCode('רכב ותחבורה', 'דלק', null, null);
-      expect(code).toBe('60220');
+      expect(names).toContain('רכב ותחבורה');
+      expect(names).toContain('קטגוריה שלי');
+      expect(names).not.toContain('של מישהו אחר');
+      expect(names.filter((n) => n === 'רכב ותחבורה')).toHaveLength(1);
     });
   });
 });

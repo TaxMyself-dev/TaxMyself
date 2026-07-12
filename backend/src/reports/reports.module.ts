@@ -5,8 +5,6 @@ import { SharedModule } from '../shared/shared.module';
 //Entities
 import { Expense } from '../expenses/expenses.entity';
 import { ExtractedDocument } from '../documents/extracted-document.entity';
-import { DefaultSubCategory } from '../expenses/default-sub-categories.entity';
-import { UserSubCategory } from '../expenses/user-sub-categories.entity';
 import { ClassifiedTransactions } from 'src/transactions/classified-transactions.entity';
 import { Bill } from 'src/transactions/bill.entity';
 import { Source } from 'src/transactions/source.entity';
@@ -29,8 +27,6 @@ import { DocumentsModule } from '../documents/documents.module';
 import { GoogleDriveModule } from '../google-drive/google-drive.module';
 // ExpensesService (provided here) posts a journal entry on expense create — needs BookkeepingService.
 import { BookkeepingModule } from '../bookkeeping/bookkeeping.module';
-import { DefaultCategory } from '../expenses/default-categories.entity';
-import { UserCategory } from '../expenses/user-categories.entity';
 import { FinsiteService } from 'src/finsite/finsite.service';
 import { JournalEntry } from 'src/bookkeeping/jouranl-entry.entity';
 import { JournalLine } from 'src/bookkeeping/jouranl-line.entity';
@@ -46,7 +42,9 @@ import { BillingModule } from '../billing/billing.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Business, Expense, DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory,
+    // Phase 4.6: the four legacy catalog entities are gone from this list —
+    // no service provided here injects their repos anymore.
+    TypeOrmModule.forFeature([Business, Expense,
                                       ClassifiedTransactions, Bill, Source, Supplier, User, Child, Finsite, Documents, DocLines, DocPayments,
                                       Delegation, JournalEntry, JournalLine, BookingAccount,
                                       SlimTransaction, FullTransactionCache, ExtractedDocument, ReportWorkflow]),

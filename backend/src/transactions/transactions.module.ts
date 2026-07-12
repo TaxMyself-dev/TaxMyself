@@ -23,11 +23,7 @@ import { UserSourceSyncState } from './user-source-sync-state.entity';
 import { UserSyncStateService } from './user-sync-state.service';
 import { ExpensesService } from '../expenses/expenses.service';
 import { ExtractedDocument } from '../documents/extracted-document.entity';
-import { UserSubCategory } from '../expenses/user-sub-categories.entity';
-import { DefaultSubCategory } from '../expenses/default-sub-categories.entity';
 import { Supplier } from '../expenses/suppliers.entity';
-import { DefaultCategory } from '../expenses/default-categories.entity';
-import { UserCategory } from '../expenses/user-categories.entity';
 import { FinsiteService } from 'src/finsite/finsite.service';
 import { Finsite } from 'src/finsite/finsite.entity';
 import { Delegation } from 'src/delegation/delegation.entity';
@@ -42,7 +38,10 @@ import { BookkeepingModule } from '../bookkeeping/bookkeeping.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Expense, User, Business, Transactions, DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory,
+    // Phase 4.6: the four legacy catalog entities are gone from this list —
+    // TransactionsService's category-name filter reads the new catalog via
+    // CatalogService (BookkeepingModule below) instead.
+    TypeOrmModule.forFeature([Expense, User, Business, Transactions,
             Supplier, ClassifiedTransactions, SlimTransaction, FullTransactionCache, UserTransactionCacheState, UserSyncState, UserSourceSyncState,
             Bill, Source, Child, Finsite, Delegation, SettingDocuments, ExtractedDocument, ReportWorkflow]),
     BookkeepingModule,

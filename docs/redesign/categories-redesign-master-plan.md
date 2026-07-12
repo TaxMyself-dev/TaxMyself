@@ -666,11 +666,29 @@ description; orphan decision doc resolved with Elazar.
       shows this stored text since 4.4). Modal: sub_category dropdown +
       פירוט free-text replace the old תת-קטגוריה input; accounts load on
       modal open with the selected business. 5 new manual-entry specs.)
-- [ ] 4.6 Delete `resolveAccountCode` adapter, `resolveSubAccountCode`,
+- [x] 4.6 Delete `resolveAccountCode` adapter, `resolveSubAccountCode`,
       and every read of the old four tables. Jest suite: port the existing
       43 journal tests + add coverage for resolution overrides (D3),
       period lock, override stickiness, description chain, documentKind
       routing. Full baseline-report regression one more time.
+      (Done Session 9. `resolveSubAccountCode` was already deleted in an
+      earlier session; this session deleted CatalogService.resolveAccountCode
+      + the ExpensesService wrapper + catalog-parity.spec.ts (raw-SQL
+      old-table reads). TransactionsService: dead legacy classifyTransaction
+      + findSubCategoryDetails removed (live path is
+      TransactionProcessingService); the legacy transactions-table category
+      filter now uses new CatalogService.getCategoryNamesForUser.
+      TransactionProcessingService's unused old-repo injections removed.
+      Demo-data reset now wipes the demo user's NEW-catalog CLIENT rows
+      (sub_category → category → booking_account → accounting_section)
+      instead of the frozen user_* tables. All four legacy entities removed
+      from every forFeature list; they remain ONLY in app.module forRoot
+      entities (schema-managed for rollback) + their frozen entity files,
+      headers updated. Test suite: journal/classification/catalog/lock/
+      stickiness/documentKind suites all green (Session 8+9), plus new
+      expense-description.util.spec.ts (D7 chain) and
+      getCategoryNamesForUser coverage — 182 tests across the redesign
+      suites. Baseline regression: see session-end verification.)
 
 **Definition of done:** grep shows zero references to
 default_/user_category tables outside migration scripts; test suite green;

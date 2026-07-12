@@ -33,8 +33,9 @@ import { ClassifiedTransactions } from 'src/transactions/classified-transactions
 import { Transactions } from 'src/transactions/transactions.entity';
 import { UserTransactionCacheState } from 'src/transactions/user-transaction-cache-state.entity';
 import { UserSourceSyncState } from 'src/transactions/user-source-sync-state.entity';
-import { UserCategory } from 'src/expenses/user-categories.entity';
-import { UserSubCategory } from 'src/expenses/user-sub-categories.entity';
+import { Category } from 'src/bookkeeping/category.entity';
+import { SubCategory } from 'src/bookkeeping/sub-category.entity';
+import { AccountingSection } from 'src/bookkeeping/accounting-section.entity';
 import { Expense } from 'src/expenses/expenses.entity';
 import { Income } from 'src/expenses/incomes.entity';
 import { Supplier } from 'src/expenses/suppliers.entity';
@@ -1018,9 +1019,17 @@ export class DemoDataService {
     await inc('sources', this.deleteAndCount(m, Source, { userId: firebaseId }));
     await inc('bills', this.deleteAndCount(m, Bill, { userId: firebaseId }));
 
-    // User-scoped categories.
-    await inc('userCategories', this.deleteAndCount(m, UserCategory, { firebaseId }));
-    await inc('userSubCategories', this.deleteAndCount(m, UserSubCategory, { firebaseId }));
+    // User-scoped catalog rows — the NEW model (Phase 4.6: the old
+    // user_category/user_sub_category wipes are gone; those tables are
+    // frozen and nothing writes them since Phase 2.5). Order respects FKs:
+    // sub_category → category / booking_account → accounting_section.
+    await inc('catalogSubCategories', this.deleteAndCount(m, SubCategory, { userId: firebaseId }));
+    await inc('catalogCategories', this.deleteAndCount(m, Category, { userId: firebaseId }));
+    if (businessNumbers.length > 0) {
+      const clientChartKeys = businessNumbers.map((bn) => `CLIENT_${bn}`);
+      await inc('catalogAccounts', this.deleteAndCount(m, BookingAccount, { chartOwnerKey: In(clientChartKeys) }));
+      await inc('catalogSections', this.deleteAndCount(m, AccountingSection, { chartOwnerKey: In(clientChartKeys) }));
+    }
 
     // Bookkeeping (mostly userId-scoped).
     await inc('expenses', this.deleteAndCount(m, Expense, { userId: firebaseId }));

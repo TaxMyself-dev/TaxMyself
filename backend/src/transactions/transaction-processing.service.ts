@@ -14,8 +14,6 @@ import { SlimTransaction } from './slim-transaction.entity';
 import { FullTransactionCache } from './full-transaction-cache.entity';
 import { UserTransactionCacheState } from './user-transaction-cache-state.entity';
 import { ClassifiedTransactions } from './classified-transactions.entity';
-import { DefaultCategory } from '../expenses/default-categories.entity';
-import { UserCategory } from '../expenses/user-categories.entity';
 import { Bill } from './bill.entity';
 import { Source } from './source.entity';
 import { Business } from 'src/business/business.entity';
@@ -78,12 +76,6 @@ export class TransactionProcessingService {
 
     @InjectRepository(Source)
     private readonly sourceRepo: Repository<Source>,
-
-    @InjectRepository(DefaultCategory)
-    private readonly categoryRepo: Repository<DefaultCategory>,
-
-    @InjectRepository(UserCategory)
-    private readonly userCategoryRepo: Repository<UserCategory>,
 
     @InjectRepository(Bill)
     private readonly billRepo: Repository<Bill>,

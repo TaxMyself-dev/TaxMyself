@@ -18,10 +18,6 @@ import { NotFoundException } from '@nestjs/common';
 import { ExpensesService } from './expenses.service';
 import { Expense } from './expenses.entity';
 import { Supplier } from './suppliers.entity';
-import { DefaultCategory } from './default-categories.entity';
-import { DefaultSubCategory } from './default-sub-categories.entity';
-import { UserCategory } from './user-categories.entity';
-import { UserSubCategory } from './user-sub-categories.entity';
 import { BookkeepingService } from '../bookkeeping/bookkeeping.service';
 import { CatalogService } from '../bookkeeping/catalog.service';
 import { SharedService } from '../shared/shared.service';
@@ -123,7 +119,6 @@ describe('ExpensesService — journal entry linking', () => {
       recognitionType: null,
     };
     const catalogService: Partial<CatalogService> = {
-      resolveAccountCode: jest.fn().mockResolvedValue('5100'),
       resolveByName: jest.fn().mockResolvedValue(resolvedSubCategory as any),
       resolveSubCategory: jest.fn().mockResolvedValue(resolvedSubCategory as any),
     };
@@ -157,29 +152,11 @@ describe('ExpensesService — journal entry linking', () => {
       vatReportingType: VATReportingType.MONTHLY_REPORT,
     } as any);
 
-    const defaultSubCategoryRepo = makeRepo<DefaultSubCategory>({
-      findOne: jest.fn().mockResolvedValue({
-        accountCode: '5100',
-        isEquipment: false,
-        reportScope: ExpenseReportScope.PNL,
-        subCategoryName: 'דלק',
-        categoryName: 'הוצאות',
-      }),
-    });
-
-    const userSubCategoryRepo = makeRepo<UserSubCategory>({
-      findOne: jest.fn().mockResolvedValue(null),
-    });
-
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ExpensesService,
         { provide: getRepositoryToken(Expense), useValue: expenseRepo },
         { provide: getRepositoryToken(User), useValue: makeRepo<User>() },
-        { provide: getRepositoryToken(DefaultCategory), useValue: makeRepo<DefaultCategory>({ findOne: jest.fn().mockResolvedValue(null) }) },
-        { provide: getRepositoryToken(DefaultSubCategory), useValue: defaultSubCategoryRepo },
-        { provide: getRepositoryToken(UserCategory), useValue: makeRepo<UserCategory>({ findOne: jest.fn().mockResolvedValue(null) }) },
-        { provide: getRepositoryToken(UserSubCategory), useValue: userSubCategoryRepo },
         { provide: getRepositoryToken(Supplier), useValue: makeRepo<Supplier>() },
         { provide: getRepositoryToken(Business), useValue: businessRepo },
         { provide: getRepositoryToken(ClassifiedTransactions), useValue: makeRepo<ClassifiedTransactions>() },

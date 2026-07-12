@@ -9,7 +9,7 @@ Owns bank/card transaction ingestion, classification (rule-based and manual), an
 - `bill.entity.ts` / `source.entity.ts` — `Bill` (a bank/card account, owned by a `User`) has many `Source`s (individual feeds/sync sources).
 - `user-sync-state.entity.ts`, `user-source-sync-state.entity.ts`, `user-transaction-cache-state.entity.ts`, `user-sync-state.service.ts` — per-user/per-source Open Banking sync progress and cache-freshness tracking.
 - `transaction-processing.service.ts` — `TransactionProcessingService`: ingestion pipeline (`process`), `classifyManually`/`classifyWithRule`, cache invalidation, flow analysis, rule CRUD (`listRulesForUser`/`updateRuleForUser`/`deleteRuleForUser`), scheduled cache cleanup (`handleDailyCacheCleanup`).
-- `transactions.service.ts` — `TransactionsService`: legacy + bill/source CRUD, classification, confirm-to-expenses (`saveTransactionsToExpenses`), ledger/report helper queries.
+- `transactions.service.ts` — `TransactionsService`: legacy + bill/source CRUD, confirm-to-expenses (`saveTransactionsToExpenses`), ledger/report helper queries. Phase 4.6: the dead legacy `classifyTransaction`/`findSubCategoryDetails` were deleted (the live classify path is `TransactionProcessingService.classifyManually`/`classifyWithRule`), and the legacy transactions-table category filter now gets its known-name list from `CatalogService.getCategoryNamesForUser` — this module no longer touches the frozen `default_/user_category` tables.
 - `transactions.controller.ts` — REST endpoints under `/transactions`.
 
 ## Main flows

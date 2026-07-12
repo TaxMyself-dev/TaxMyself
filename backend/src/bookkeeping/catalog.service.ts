@@ -74,19 +74,15 @@ export interface CreateSubCategoryInput {
 }
 
 /**
- * Retired hardcoded fallback ('5000') no longer exists as a booking_account
- * code after Phase 1's renumbering — 60000 ("הוצאות לא מוכרות") is its
- * replacement, the NOT_RECOGNIZED catch-all card.
- */
-const FALLBACK_ACCOUNT_CODE = '60000';
-
-/**
  * Single resolution + CRUD point for the D1 four-table catalog model,
  * replacing the old default_/user_ four-table 5-level chain (Phase 2.3 read
- * side; Phase 2.4 adds the write side here so ExpensesService's ported CRUD
- * methods have a single place to call into, mirroring how resolveAccountCode
- * already centralizes reads). CLIENT > ACCOUNTANT > SYSTEM precedence by name
- * throughout (D4).
+ * side; Phase 2.4 the write side). CLIENT > ACCOUNTANT > SYSTEM precedence
+ * by name throughout (D4).
+ *
+ * Phase 4.6: the `resolveAccountCode` transition adapter (string pair in /
+ * code out, with a silent '60000' fallback) is GONE — every write path
+ * resolves through resolveSubCategory/resolveByName and rejects unmappable
+ * classifications instead of falling back.
  */
 @Injectable()
 export class CatalogService {
@@ -325,9 +321,8 @@ export class CatalogService {
    * D4 precedence. Used by ExpensesService's legacy-DTO resolvers
    * (getSubCategoryIsEquipment/getSubCategoryReportScope) which only have
    * strings to go on until Phase 4 moves expense creation to subCategoryId.
-   * Returns null when unresolved (private, or no matching row) — distinct
-   * from resolveAccountCode's string-fallback, since these callers need to
-   * tell "unknown" apart from "known but zero".
+   * Returns null when unresolved (private, or no matching row) so callers
+   * can tell "unknown" apart from "known but zero".
    */
   async resolveByName(
     categoryName: string,
@@ -355,33 +350,21 @@ export class CatalogService {
   }
 
   /**
-   * Thin adapter over the merged catalog matching the OLD
-   * ExpensesService.resolveAccountCode's exact signature (D2.3 — "same
-   * signature, string in / code out") so its single caller
-   * (buildExpenseJournalLines) needs zero changes beyond delegating here.
-   * `firebaseId` is accepted for signature parity with the old resolver
-   * only — catalog scoping is by businessNumber (chartOwnerKey), never by
-   * firebaseId, per D4.
-   *
-   * TRANSITION BRIDGE ONLY — TODO(Phase 4): once expense creation/approval
-   * resolves through subCategoryId directly (D1/4.1), a PRIVATE or
-   * unmapped sub_category is rejected before journal posting is ever
-   * attempted — private expenses never reach the journal at all (D5).
-   * Falling back to the 60000 catch-all here is only correct while this
-   * string-name adapter remains the sole entry point (pre-Phase-4); do not
-   * carry this fallback forward into the subCategoryId-based flow.
+   * Legacy-table-free replacement for the OLD merged category-name list
+   * (default_category ∪ user_category by firebaseId) that
+   * TransactionsService's legacy transactions-table filter consumed
+   * (Phase 4.6). Keyed by firebaseId across ALL the user's businesses —
+   * exactly the old read's semantics — plus SYSTEM.
    */
-  async resolveAccountCode(
-    categoryName: string,
-    subCategoryName: string,
-    _firebaseId?: string | null,
-    businessNumber?: string | null,
-  ): Promise<string> {
-    const resolved = await this.resolveByName(categoryName, subCategoryName, { businessNumber });
-    if (!resolved || resolved.subCategory.isPrivate || !resolved.account) {
-      return FALLBACK_ACCOUNT_CODE;
-    }
-    return resolved.account.code;
+  async getCategoryNamesForUser(firebaseId: string): Promise<string[]> {
+    const rows = await this.categoryRepo.find({
+      where: [
+        { chartOwnerKey: SYSTEM_CHART_OWNER_KEY, isActive: true },
+        { userId: firebaseId, isActive: true },
+      ],
+      select: { name: true } as any,
+    });
+    return [...new Set(rows.map((r) => r.name))];
   }
 
   // ==========================================================================
