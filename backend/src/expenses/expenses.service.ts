@@ -1,7 +1,7 @@
 //General
-import { HttpException, HttpStatus, Injectable, Logger, NotFoundException, UnauthorizedException, ConflictException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, HttpException, HttpStatus, Injectable, Logger, NotFoundException, UnauthorizedException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Between, DataSource, In, LessThanOrEqual, MoreThan, MoreThanOrEqual, Repository } from 'typeorm';
+import { Between, DataSource, EntityManager, In, LessThanOrEqual, MoreThan, MoreThanOrEqual, Repository } from 'typeorm';
 //Entities
 import { Expense } from './expenses.entity';
 import { Supplier } from './suppliers.entity';
@@ -13,12 +13,14 @@ import { ExtractedDocument, ExtractedDocStatus } from '../documents/extracted-do
 import { SharedService } from '../shared/shared.service';
 import { FxRateService } from '../shared/fx-rate.service';
 import { Business } from 'src/business/business.entity';
-import { BusinessType, VATReportingType, ExpenseReportScope, JournalReferenceType, isExemptBusinessType, CategoryType, OwnerType, RecognitionType } from 'src/enum';
+import { ReportWorkflow, ReportWorkflowStatus, ReportWorkflowType } from '../report-workflow/report-workflow.entity';
+import { BusinessType, VATReportingType, ExpenseReportScope, ExpenseApprovalStatus, ApprovalStatus, JournalReferenceType, isExemptBusinessType, CategoryType, OwnerType, RecognitionType } from 'src/enum';
 import { BookkeepingService } from '../bookkeeping/bookkeeping.service';
-import { CatalogService, AccountLaw, CatalogScope } from '../bookkeeping/catalog.service';
+import { CatalogService, AccountLaw, CatalogScope, ResolvedSubCategory } from '../bookkeeping/catalog.service';
 import { Category } from '../bookkeeping/category.entity';
 import { SubCategory } from '../bookkeeping/sub-category.entity';
 import { JournalLineInput } from '../bookkeeping/dto/journal-entry-input.interface';
+import { buildExpenseDescription, DescriptionDocInput } from './expense-description.util';
 //DTOs
 import { UpdateExpenseDto } from './dtos/update-expense.dto';
 import { UpdateSupplierDto } from './dtos/update-supplier.dto';
@@ -48,12 +50,274 @@ export class ExpensesService {
             @InjectRepository(Business) private businessRepo: Repository<Business>,
             @InjectRepository(ClassifiedTransactions) private rulesRepo: Repository<ClassifiedTransactions>,
             @InjectRepository(ExtractedDocument) private extractedDocRepo: Repository<ExtractedDocument>,
+            // Entity-only registration (module import would be cyclic:
+            // ReportWorkflowModule -> ReportsModule -> ExpensesModule).
+            @InjectRepository(ReportWorkflow) private reportWorkflowRepo: Repository<ReportWorkflow>,
             private readonly fxRateService: FxRateService,
             private readonly dataSource: DataSource,
             private readonly bookkeepingService: BookkeepingService,
             private readonly catalogService: CatalogService,
         ) { }
 
+
+    // =========================================================================
+    // Phase 4.1 — classification resolution on the D1 model. Every expense
+    // write path (manual add, review-modal approve, update, slim re-sync)
+    // funnels through resolveExpenseClassification + applyClassificationToExpense
+    // so subCategoryId, the accounting snapshots, description (D7) and
+    // approvalStatus are always written together and always consistent.
+    // =========================================================================
+
+    /**
+     * Resolve a classification input (subCategoryId preferred, legacy name
+     * pair as fallback) to the full accounting law + the enforcement verdict:
+     *
+     *   | resolution                                    | approvalStatus              | journal |
+     *   |-----------------------------------------------|-----------------------------|---------|
+     *   | account present, sub APPROVED, not private    | APPROVED                    | yes     |
+     *   | no account / sub MISSING / PENDING / REJECTED | MISSING_ACCOUNTING_MAPPING  | no      |
+     *   | isPrivate                                     | APPROVED                    | never   |
+     *   | unresolvable                                  | 400 (the 60000 fallback is dead) |    |
+     */
+    private async resolveExpenseClassification(
+        input: { subCategoryId?: number | null; category?: string | null; subCategory?: string | null },
+        businessNumber: string,
+    ): Promise<{ resolved: ResolvedSubCategory; approvalStatus: ExpenseApprovalStatus; journalable: boolean }> {
+        let resolved: ResolvedSubCategory | null = null;
+        if (input.subCategoryId != null) {
+            // Tenant-scope-checked: an id outside this business's merged catalog 404s.
+            resolved = await this.catalogService.resolveSubCategory(input.subCategoryId, { businessNumber });
+        } else if (input.category?.trim() && input.subCategory?.trim()) {
+            resolved = await this.catalogService.resolveByName(input.category, input.subCategory, { businessNumber });
+        }
+
+        if (!resolved) {
+            throw new BadRequestException(
+                `סיווג לא מזוהה: "${input.category ?? ''}/${input.subCategory ?? ''}" — יש לבחור תת-קטגוריה מהקטלוג`,
+            );
+        }
+
+        if (resolved.subCategory.isPrivate) {
+            // D5: private — approved, but never journaled and never mapped.
+            return { resolved, approvalStatus: ExpenseApprovalStatus.APPROVED, journalable: false };
+        }
+        const mapped =
+            resolved.account != null &&
+            resolved.subCategory.approvalStatus === ApprovalStatus.APPROVED;
+        return mapped
+            ? { resolved, approvalStatus: ExpenseApprovalStatus.APPROVED, journalable: true }
+            : { resolved, approvalStatus: ExpenseApprovalStatus.MISSING_ACCOUNTING_MAPPING, journalable: false };
+    }
+
+    /**
+     * Write the resolved classification onto the expense: FK + canonical legacy
+     * name strings + accounting snapshots + law percents (DTO-explicit values
+     * win as one-off snapshot overrides — transition rule until Phase 6) +
+     * reportScope + description (D7) + approvalStatus stamps.
+     */
+    private applyClassificationToExpense(
+        expense: Expense,
+        rc: { resolved: ResolvedSubCategory; approvalStatus: ExpenseApprovalStatus; journalable: boolean },
+        dtoOverrides: {
+            vatPercent?: number | null;
+            taxPercent?: number | null;
+            reductionPercent?: number | null;
+            isEquipment?: boolean | null;
+            reportScope?: ExpenseReportScope | null;
+        },
+        actingUserId: string,
+        doc?: DescriptionDocInput | null,
+    ): void {
+        const { resolved, approvalStatus } = rc;
+        const sub = resolved.subCategory;
+
+        expense.subCategoryId = sub.id;
+        // Canonical legacy strings — the merged-catalog row's names, not the
+        // caller's raw input (CLIENT override may differ in casing/spacing).
+        expense.category = sub.category?.name ?? expense.category;
+        expense.subCategory = sub.name ?? expense.subCategory;
+
+        expense.sectionIdSnapshot = resolved.section?.id ?? null;
+        expense.sectionCodeSnapshot = resolved.section?.code ?? null;
+        expense.sectionNameSnapshot = resolved.section?.name ?? null;
+        expense.accountIdSnapshot = resolved.account?.id ?? null;
+        expense.accountCodeSnapshot = resolved.account?.code ?? null;
+        expense.accountNameSnapshot = resolved.account?.name ?? null;
+        expense.code6111Snapshot = resolved.code6111 ?? null;
+
+        // Card law, unless the DTO sent an explicit one-off override.
+        expense.vatPercentSnapshot = dtoOverrides.vatPercent ?? Number(resolved.vatPercent ?? 0);
+        expense.taxPercentSnapshot = dtoOverrides.taxPercent ?? Number(resolved.taxPercent ?? 0);
+        expense.reductionPercentSnapshot = dtoOverrides.reductionPercent ?? Number(resolved.reductionPercent ?? 0);
+        expense.isEquipmentSnapshot = dtoOverrides.isEquipment ?? (resolved.isEquipment ?? false);
+
+        expense.reportScope = dtoOverrides.reportScope ?? sub.reportScope ?? ExpenseReportScope.PNL;
+
+        expense.description = buildExpenseDescription(
+            { category: expense.category, subCategory: expense.subCategory },
+            doc,
+        );
+
+        expense.approvalStatus = approvalStatus;
+        if (approvalStatus === ExpenseApprovalStatus.APPROVED) {
+            expense.approvedByUserId = actingUserId;
+            expense.approvedAt = new Date();
+        } else {
+            expense.approvedByUserId = null;
+            expense.approvedAt = null;
+        }
+    }
+
+    /**
+     * VAT/tax payable recomputation from sum + percent snapshots. Exempt
+     * businesses can't reclaim input VAT — vatPercent is forced to 0 and the
+     * full sum is the expense.
+     */
+    private recomputeExpenseTotals(expense: Expense, businessType: BusinessType | null | undefined): void {
+        const vatRate = this.sharedService.getVatRateByYear(new Date(expense.date));
+        if (isExemptBusinessType(businessType) || Number(expense.vatPercentSnapshot) === 0) {
+            expense.vatPercentSnapshot = 0;
+            expense.totalVatPayable = 0;
+            expense.totalTaxPayable = expense.sum * (Number(expense.taxPercentSnapshot) / 100);
+        } else {
+            expense.totalVatPayable = (expense.sum / (1 + vatRate)) * vatRate * (Number(expense.vatPercentSnapshot) / 100);
+            expense.totalTaxPayable = (expense.sum - expense.totalVatPayable) * (Number(expense.taxPercentSnapshot) / 100);
+        }
+    }
+
+    /**
+     * D10 period lock. Throws 423 (`type: 'expense_period_locked'`, mirroring
+     * the transaction-side `natural_period_locked` contract) when the expense
+     * belongs to an already-REPORTED VAT period:
+     *   1. `isReported === true` (stamped live by report-workflow lock), OR
+     *   2. its `vatReportingDate` matches a REPORTED VAT workflow's period, OR
+     *   3. (no vatReportingDate, JOURNALED rows only) its `date` falls inside
+     *      a REPORTED period — exempt-dealer expenses with no VAT linkage and
+     *      no journal entry must stay editable.
+     */
+    async assertExpensePeriodUnlocked(expense: Expense): Promise<void> {
+        const locked = (period: string) => {
+            throw new HttpException(
+                {
+                    type: 'expense_period_locked',
+                    message: `הדוח לתקופה ${period} כבר הוגש לרשויות המס — לא ניתן לערוך הוצאה ששויכה אליו`,
+                    period,
+                },
+                423,
+            );
+        };
+
+        if (expense.isReported === true) {
+            locked((expense.vatReportingDate as string) ?? '');
+        }
+
+        const workflows = await this.reportWorkflowRepo.find({
+            where: {
+                businessNumber: expense.businessNumber,
+                type: ReportWorkflowType.VAT_REPORT,
+                status: ReportWorkflowStatus.REPORTED,
+            },
+        });
+        if (workflows.length === 0) return;
+
+        const business = await this.businessRepo.findOne({
+            where: { businessNumber: expense.businessNumber },
+        });
+        const businessType = business?.businessType ?? BusinessType.LICENSED;
+        const vatReportingType = business?.vatReportingType ?? VATReportingType.MONTHLY_REPORT;
+
+        for (const wf of workflows) {
+            const labels = this.sharedService.expandPeriodLabelsInRange(
+                businessType,
+                vatReportingType,
+                new Date(wf.periodStart),
+                new Date(wf.periodEnd),
+            );
+            if (expense.vatReportingDate) {
+                if (labels.includes(expense.vatReportingDate as any)) {
+                    locked(expense.vatReportingDate as string);
+                }
+            } else if (expense.journalEntryNumber != null) {
+                const d = new Date(expense.date).getTime();
+                if (d >= new Date(wf.periodStart).getTime() && d <= new Date(wf.periodEnd).getTime()) {
+                    locked(labels[0] ?? '');
+                }
+            }
+        }
+    }
+
+    /**
+     * Re-apply a (category, subCategory) name classification coming from a
+     * slim-transaction re-classify onto an existing Expense — keeps the FK,
+     * snapshots, description, totals AND the journal entry coherent (Phase
+     * 4.1; replaces syncExpenseFromSlim's raw field copies).
+     *
+     * D10 guards (belt-and-braces — the transaction-side lock and stickiness
+     * checks should have blocked earlier):
+     *   - classificationOverrideByUserId set → skip silently, the manual
+     *     override is never auto re-resolved.
+     *   - reported/locked period → 423.
+     *   - journaled expense + unmappable target → 400.
+     */
+    async reclassifyExpenseFromNames(
+        expense: Expense,
+        input: {
+            category: string;
+            subCategory: string;
+            vatPercent?: number;
+            taxPercent?: number;
+            reductionPercent?: number;
+            isEquipment?: boolean;
+            reportScope?: ExpenseReportScope;
+            businessNumber?: string;
+            vatReportingDate?: string | null;
+            /** Absolute ILS amount from the source transaction — overwrites `sum` when provided. */
+            sum?: number;
+        },
+    ): Promise<Expense> {
+        if (expense.classificationOverrideByUserId != null) {
+            this.logger.log(
+                `reclassifyExpenseFromNames: expense ${expense.id} carries a manual classification override — skipping auto re-resolve (D10)`,
+            );
+            return expense;
+        }
+        await this.assertExpensePeriodUnlocked(expense);
+
+        if (input.businessNumber) expense.businessNumber = input.businessNumber;
+        if (input.vatReportingDate != null) expense.vatReportingDate = input.vatReportingDate as any;
+
+        const rc = await this.resolveExpenseClassification(
+            { category: input.category, subCategory: input.subCategory },
+            expense.businessNumber,
+        );
+        if (expense.journalEntryNumber != null && !rc.journalable) {
+            throw new BadRequestException(
+                'לא ניתן לסווג הוצאה שנרשמה בספרים לסיווג פרטי או לסיווג ללא חשבון — יש להשלים את המיפוי החשבונאי תחילה',
+            );
+        }
+        this.applyClassificationToExpense(
+            expense,
+            rc,
+            {
+                vatPercent: input.vatPercent,
+                taxPercent: input.taxPercent,
+                reductionPercent: input.reductionPercent,
+                isEquipment: input.isEquipment,
+                reportScope: input.reportScope,
+            },
+            expense.userId,
+        );
+
+        if (input.sum !== undefined) expense.sum = input.sum;
+        const business = await this.businessRepo.findOne({ where: { businessNumber: expense.businessNumber } });
+        this.recomputeExpenseTotals(expense, business?.businessType);
+
+        const saved = await this.expense_repo.save(expense);
+        if (rc.journalable) {
+            await this.syncExpenseJournalEntry(saved);
+        }
+        return saved;
+    }
 
     async addExpense(
         expense: CreateExpenseDto,
@@ -65,6 +329,14 @@ export class ExpensesService {
          *  user clicked the red flag icon on a row to dismiss adding that
          *  one-off vendor to their master list. */
         saveAsSupplier: boolean = true,
+        /** Transactional manager to JOIN — the review-modal approve paths pass
+         *  their own so expense + journal + doc/slim flips commit atomically.
+         *  When omitted, addExpense opens its own transaction (fixes the
+         *  historical nested-transaction bug where approve* wrapped
+         *  addExpense's separate inner transaction). */
+        manager?: EntityManager,
+        /** Source-document context for the D7 description fallback chain. */
+        doc?: DescriptionDocInput | null,
     ): Promise<Expense> {
         const newExpense = this.expense_repo.create(expense);
 
@@ -90,39 +362,37 @@ export class ExpensesService {
             newExpense.originalSum = null;
         }
 
-        // isEquipment resolution:
-        //   1) Trust an explicit value from the DTO (the OCR bulk-confirm flow
-        //      sends it from the catalog match — sub-categories tagged
-        //      isEquipment=true should win regardless of parent category name).
-        //   2) Otherwise fall back to the legacy behavior: only the parent
-        //      category "רכוש קבוע" triggers an isEquipment lookup; everything
-        //      else stays false (preserves the existing manual-entry contract).
-        if (typeof (expense as any).isEquipment === 'boolean') {
-            newExpense.isEquipmentSnapshot = (expense as any).isEquipment;
-        } else if (expense.category === 'רכוש קבוע') {
-            const isEquipment = await this.getSubCategoryIsEquipment(expense.category, expense.subCategory, userId, businessNumber);
-            newExpense.isEquipmentSnapshot = isEquipment ?? false;
-        } else {
-            newExpense.isEquipmentSnapshot = false;
-        }
-        // .create(dto) auto-maps same-named fields; taxPercent/vatPercent/
-        // isEquipment are all explicitly reassigned below/above, but
-        // reductionPercent never was — the entity's rename (D6) means the
-        // DTO's `reductionPercent` no longer auto-populates
-        // `reductionPercentSnapshot`, so map it explicitly.
-        newExpense.reductionPercentSnapshot = expense.reductionPercent;
+        // ── Classification (Phase 4.1 — D1/D5/D6/D7) ─────────────────────────
+        // subCategoryId wins; the legacy name pair is the fallback (until 4.6).
+        // Writes FK + snapshots + description + approvalStatus in one place;
+        // DTO-explicit percents/isEquipment act as one-off snapshot overrides
+        // over the card's law (transition rule until Phase 6). Unresolvable
+        // input → 400: the silent 60000 fallback is dead (Elazar, Session 8).
+        const rc = await this.resolveExpenseClassification(
+            {
+                subCategoryId: expense.subCategoryId,
+                category: expense.category,
+                subCategory: expense.subCategory,
+            },
+            businessNumber,
+        );
+        this.applyClassificationToExpense(
+            newExpense,
+            rc,
+            {
+                vatPercent: expense.vatPercent,
+                taxPercent: expense.taxPercent,
+                reductionPercent: expense.reductionPercent,
+                isEquipment: typeof (expense as any).isEquipment === 'boolean' ? (expense as any).isEquipment : undefined,
+            },
+            userId,
+            doc,
+        );
+
         newExpense.userId = userId;
         newExpense.date = expense.date;
-        const currentDate = (new Date()).toISOString();
         newExpense.loadingDate = new Date();
         newExpense.businessNumber = businessNumber;
-
-        // Manual entry bypasses slim/cache — snapshot the report scope straight
-        // from the chosen subcategory (user override wins, default PNL).
-        // pnlCategory stays NULL (resolved live; overridable via Edit dialog).
-        newExpense.reportScope = await this.getSubCategoryReportScope(
-            expense.category, expense.subCategory, userId, businessNumber,
-        );
 
         // Fetch business once — used both for the VAT calculation guard and for
         // the VAT-period stamp below. Avoids a second round-trip to the DB.
@@ -130,20 +400,10 @@ export class ExpensesService {
             where: { businessNumber, firebaseId: userId },
         });
 
-        // Calculate totalVatPayable and totalTaxPayable.
         // Exempt businesses (עוסק פטור / שותפות פטורה) cannot reclaim input
-        // VAT. The full sum paid IS the expense — no VAT strip-out. Force
-        // vatPercent = 0 here regardless of what the sub-category catalog or
-        // the frontend sent, so the P&L shows the correct full amount.
-        const vatRate = this.sharedService.getVatRateByYear(new Date(expense.date));
-        if (isExemptBusinessType(expenseBusiness?.businessType) || newExpense.vatPercentSnapshot === 0) {
-            newExpense.vatPercentSnapshot = 0;
-            newExpense.totalVatPayable = 0;
-            newExpense.totalTaxPayable = newExpense.sum * (newExpense.taxPercentSnapshot / 100);
-        } else {
-            newExpense.totalVatPayable = (newExpense.sum / (1 + vatRate)) * vatRate * (newExpense.vatPercentSnapshot / 100);
-            newExpense.totalTaxPayable = (newExpense.sum - newExpense.totalVatPayable) * (newExpense.taxPercentSnapshot / 100);
-        }
+        // VAT — recomputeExpenseTotals forces vatPercent = 0 for them so the
+        // P&L shows the correct full amount.
+        this.recomputeExpenseTotals(newExpense, expenseBusiness?.businessType);
 
         // Duplicate guard — two tiers, both keyed on (userId, businessNumber,
         // supplier, sum, date). Run AFTER the FX conversion so the `sum`
@@ -196,12 +456,13 @@ export class ExpensesService {
             }
         }
 
-        // ── Atomic: save Expense + stamp VAT period + post journal entry ────
-        // All three writes run in one transaction so that a journal-entry
-        // failure (missing account, counter collision, …) rolls back the
-        // Expense save as well — no Expense can exist without its journal entry.
-        const resAddExpense = await this.dataSource.transaction(async (manager) => {
-            const expRepo = manager.getRepository(Expense);
+        // ── Atomic: save Expense + stamp VAT period + post journal + supplier ──
+        // Joins the CALLER's transaction when `manager` is provided (review-
+        // modal approve paths); otherwise opens its own. The journal entry is
+        // posted only for journalable classifications — MISSING_ACCOUNTING_
+        // MAPPING and private (D5) rows commit with journalEntryNumber = null.
+        const persistExpense = async (m: EntityManager): Promise<Expense> => {
+            const expRepo = m.getRepository(Expense);
 
             const saved = await expRepo.save(newExpense);
             if (!saved || Object.keys(saved).length === 0) {
@@ -223,79 +484,73 @@ export class ExpensesService {
                 }
             }
 
-            // Create the journal entry inside the same transaction.
-            // createExpenseJournalEntry passes `manager` so it joins here;
-            // any failure throws and rolls back the Expense save too.
-            const input = await this.buildJournalEntryInput(saved);
-            const { entryNumber } = await this.bookkeepingService.createJournalEntry(input, manager);
+            // Journal entry in the same transaction — any failure rolls back
+            // the Expense save too.
+            if (rc.journalable) {
+                const input = await this.buildJournalEntryInput(saved);
+                const { entryNumber } = await this.bookkeepingService.createJournalEntry(input, m);
+                await expRepo.update(saved.id, { journalEntryNumber: entryNumber });
+                saved.journalEntryNumber = entryNumber;
+            }
 
-            // Persist the back-link so future syncs go straight to the entry.
-            await expRepo.update(saved.id, { journalEntryNumber: entryNumber });
-            saved.journalEntryNumber = entryNumber;
-
-            return saved;
-        });
-
-        // Auto-register the supplier in this business's master list. Runs
-        // AFTER the Expense save so a Supplier row never lands without its
-        // triggering Expense. Idempotent via the (businessNumber, supplierID)
-        // find-or-create — a business with 100 monthly Bezeq invoices ends
-        // up with one `supplier` row, not 100. Scoped by businessNumber (NOT
-        // userId) because the suppliers list endpoint is per-business: with
-        // a user-scoped check, biz A's auto-create would block biz B from
-        // ever getting its own row. Empty supplierIDs (foreign vendors with
-        // no Israeli tax ID) get skipped — there's nothing reliable to
-        // deduplicate against, and downstream listings tolerate the absent
-        // master row. saveAsSupplier=false skips the whole block — the
-        // review modal sets this when the user dismissed the red flag on
-        // the row. Best-effort: a failed Supplier save logs and continues
-        // — the Expense is already committed and the user shouldn't lose
-        // their action because of master-list bookkeeping.
-        const supplierIdTrimmed = newExpense.supplierID?.trim();
-        if (saveAsSupplier && supplierIdTrimmed) {
-            try {
-                const existing = await this.supplier_repo.findOne({
-                    where: { businessNumber, supplierID: supplierIdTrimmed },
-                });
-                if (!existing) {
-                    await this.supplier_repo.save(this.supplier_repo.create({
-                        userId,
-                        businessNumber,
-                        supplier: newExpense.supplier ?? '',
-                        supplierID: supplierIdTrimmed,
-                        category: newExpense.category ?? '',
-                        subCategory: newExpense.subCategory ?? '',
-                        vatPercent: newExpense.vatPercentSnapshot ?? 0,
-                        taxPercent: newExpense.taxPercentSnapshot ?? 0,
-                        isEquipment: !!newExpense.isEquipmentSnapshot,
-                        reductionPercent: 0,
-                    }));
-                }
-            } catch (err: any) {
-                // ER_DUP_ENTRY = the DB's uq_supplier_business_supplierid
-                // index caught a race (concurrent tabs / double-click). The
-                // sibling request already created the row, so this is a
-                // no-op success — log at debug, not warn.
-                if (err?.code === 'ER_DUP_ENTRY') {
-                    this.logger.debug(
-                        `addExpense: Supplier auto-create lost a race for ` +
-                        `(biz=${businessNumber}, supplierID=${supplierIdTrimmed}) — sibling won, OK`,
-                    );
-                } else {
-                    this.logger.warn(
-                        `addExpense: auto-create Supplier failed (supplierID=${supplierIdTrimmed}, expense=${resAddExpense.id}): ${err?.message ?? err}`,
-                    );
+            // Auto-register the supplier in this business's master list.
+            // Idempotent via the (businessNumber, supplierID) find-or-create.
+            // Scoped by businessNumber (NOT userId) because the suppliers list
+            // endpoint is per-business. Empty supplierIDs (foreign vendors
+            // with no Israeli tax ID) get skipped. saveAsSupplier=false skips
+            // the whole block (review modal's red-flag dismiss).
+            //
+            // Moved INSIDE the transaction (Session 8 review): now that
+            // addExpense can join the caller's tx, a ghost supplier surviving
+            // a rolled-back approve is a real scenario. Its own failures stay
+            // best-effort — log and continue (an InnoDB duplicate-key error
+            // does not poison the surrounding transaction).
+            const supplierIdTrimmed = newExpense.supplierID?.trim();
+            if (saveAsSupplier && supplierIdTrimmed) {
+                const supplierRepo = m.getRepository(Supplier);
+                try {
+                    const existing = await supplierRepo.findOne({
+                        where: { businessNumber, supplierID: supplierIdTrimmed },
+                    });
+                    if (!existing) {
+                        await supplierRepo.save(supplierRepo.create({
+                            userId,
+                            businessNumber,
+                            supplier: newExpense.supplier ?? '',
+                            supplierID: supplierIdTrimmed,
+                            category: newExpense.category ?? '',
+                            subCategory: newExpense.subCategory ?? '',
+                            vatPercent: newExpense.vatPercentSnapshot ?? 0,
+                            taxPercent: newExpense.taxPercentSnapshot ?? 0,
+                            isEquipment: !!newExpense.isEquipmentSnapshot,
+                            reductionPercent: 0,
+                        }));
+                    }
+                } catch (err: any) {
+                    // ER_DUP_ENTRY = the DB's uq_supplier_business_supplierid
+                    // index caught a race (concurrent tabs / double-click) —
+                    // the sibling request already created the row.
+                    if (err?.code === 'ER_DUP_ENTRY') {
+                        this.logger.debug(
+                            `addExpense: Supplier auto-create lost a race for ` +
+                            `(biz=${businessNumber}, supplierID=${supplierIdTrimmed}) — sibling won, OK`,
+                        );
+                    } else {
+                        this.logger.warn(
+                            `addExpense: auto-create Supplier failed (supplierID=${supplierIdTrimmed}, expense=${saved.id}): ${err?.message ?? err}`,
+                        );
+                    }
                 }
             }
-        }
 
-        return resAddExpense;
+            return saved;
+        };
+
+        return manager ? persistExpense(manager) : this.dataSource.transaction(persistExpense);
     }
 
     async updateExpense(id: number, userId: string, updateExpenseDto: UpdateExpenseDto): Promise<Expense> {
 
-        console.log("service update expense - Start");
-        console.log("body of update expense :", updateExpenseDto);
         const expense = await this.expense_repo.findOne({ where: { id } });
 
         if (!expense) {
@@ -307,55 +562,103 @@ export class ExpensesService {
             throw new UnauthorizedException(`You do not have permission to update this expense`);
         }
 
-        // Explicitly update the vatPercentSnapshot and taxPercentSnapshot in the
-        // expense_repo and then call to the calculate function so the sums will
-        // update accordingly.
-        if (updateExpenseDto.vatPercent !== undefined) expense.vatPercentSnapshot = updateExpenseDto.vatPercent;
-        if (updateExpenseDto.taxPercent !== undefined) expense.taxPercentSnapshot = updateExpenseDto.taxPercent;
-        if (updateExpenseDto.sum !== undefined) expense.sum = updateExpenseDto.sum;
-        if (updateExpenseDto.category !== undefined) expense.category = updateExpenseDto.category;
-        if (updateExpenseDto.subCategory !== undefined) expense.subCategory = updateExpenseDto.subCategory;
+        const dto = updateExpenseDto as any;
+        const classificationTouched =
+            dto.subCategoryId !== undefined || dto.category !== undefined || dto.subCategory !== undefined;
+        const journalAffecting =
+            classificationTouched ||
+            ['sum', 'vatPercent', 'taxPercent', 'date', 'isEquipment', 'supplier'].some((k) => dto[k] !== undefined);
 
-        // Update isEquipment based on category: true only if category is "רכוש קבוע", otherwise always false
-        if (updateExpenseDto.category !== undefined || updateExpenseDto.subCategory !== undefined) {
-            const categoryToCheck = updateExpenseDto.category ?? expense.category;
-            if (categoryToCheck === 'רכוש קבוע') {
-                const subCategoryToCheck = updateExpenseDto.subCategory ?? expense.subCategory;
-                const isEquipment = await this.getSubCategoryIsEquipment(categoryToCheck, subCategoryToCheck, userId, expense.businessNumber);
-                expense.isEquipmentSnapshot = isEquipment ?? false;
-            } else {
-                expense.isEquipmentSnapshot = false;
-            }
+        // D10: expenses in an already-REPORTED VAT period reject every
+        // journal-affecting edit with 423.
+        if (journalAffecting) {
+            await this.assertExpensePeriodUnlocked(expense);
         }
 
-        // Recalculate totalVatPayable and totalTaxPayable if sum, vatPercent, or taxPercent changed
-        if (updateExpenseDto.vatPercent !== undefined || updateExpenseDto.taxPercent !== undefined || updateExpenseDto.sum !== undefined) {
-            const vatRate = this.sharedService.getVatRateByYear(new Date(expense.date));
-            const updateBusiness = await this.businessRepo.findOne({ where: { businessNumber: expense.businessNumber } });
-            if (isExemptBusinessType(updateBusiness?.businessType) || expense.vatPercentSnapshot === 0) {
-                expense.vatPercentSnapshot = 0;
-                expense.totalVatPayable = 0;
-                expense.totalTaxPayable = expense.sum * (expense.taxPercentSnapshot / 100);
-            } else {
-                expense.totalVatPayable = (expense.sum / (1 + vatRate)) * vatRate * (expense.vatPercentSnapshot / 100);
-                expense.totalTaxPayable = (expense.sum - expense.totalVatPayable) * (expense.taxPercentSnapshot / 100);
+        let journalable: boolean;
+        if (classificationTouched) {
+            // Full re-resolution through the catalog — snapshots, description
+            // and approvalStatus move together. The old 'רכוש קבוע' special-
+            // case is gone: isEquipment comes from the card (or an explicit
+            // DTO override).
+            const rc = await this.resolveExpenseClassification(
+                {
+                    subCategoryId: dto.subCategoryId,
+                    category: dto.category ?? expense.category,
+                    subCategory: dto.subCategory ?? expense.subCategory,
+                },
+                expense.businessNumber,
+            );
+            // A journaled expense cannot move to a target that can't be
+            // journaled — there is no journal-delete API and storno is
+            // explicitly out of scope (D10: just block).
+            if (expense.journalEntryNumber != null && !rc.journalable) {
+                throw new BadRequestException(
+                    'לא ניתן לסווג הוצאה שנרשמה בספרים לסיווג פרטי או לסיווג ללא חשבון — יש להשלים את המיפוי החשבונאי תחילה',
+                );
             }
+            this.applyClassificationToExpense(
+                expense,
+                rc,
+                {
+                    vatPercent: dto.vatPercent,
+                    taxPercent: dto.taxPercent,
+                    isEquipment: typeof dto.isEquipment === 'boolean' ? dto.isEquipment : undefined,
+                },
+                userId,
+            );
+            journalable = rc.journalable;
+        } else {
+            if (dto.vatPercent !== undefined) expense.vatPercentSnapshot = dto.vatPercent;
+            if (dto.taxPercent !== undefined) expense.taxPercentSnapshot = dto.taxPercent;
+            if (typeof dto.isEquipment === 'boolean') expense.isEquipmentSnapshot = dto.isEquipment;
+            // Journalability from current state: an existing entry keeps being
+            // synced; otherwise only an APPROVED row with an account snapshot
+            // qualifies (private/MISSING rows have no accountCodeSnapshot).
+            journalable =
+                expense.journalEntryNumber != null ||
+                (expense.approvalStatus === ExpenseApprovalStatus.APPROVED && !!expense.accountCodeSnapshot);
+        }
+
+        if (dto.sum !== undefined) expense.sum = dto.sum;
+
+        // Recalculate totals when any amount-affecting input changed.
+        if (classificationTouched || dto.vatPercent !== undefined || dto.taxPercent !== undefined || dto.sum !== undefined) {
+            const updateBusiness = await this.businessRepo.findOne({ where: { businessNumber: expense.businessNumber } });
+            this.recomputeExpenseTotals(expense, updateBusiness?.businessType);
         }
 
         // updateExpenseDto still carries wire-format `vatPercent`/`taxPercent`/
-        // `isEquipment` — spreading it straight over `expense` (post-rename)
-        // would silently reintroduce those as stray non-column properties
-        // instead of the renamed snapshot columns already set above. Strip
-        // them so the spread only touches fields that are still name-aligned.
-        const { vatPercent: _vp, taxPercent: _tp, isEquipment: _ie, ...restUpdateDto } = updateExpenseDto as any;
+        // `isEquipment` (snapshot columns set above) plus the new
+        // `subCategoryId`/`category`/`subCategory` (owned by
+        // applyClassificationToExpense). Strip them so the spread only touches
+        // fields that are still name-aligned.
+        const {
+            vatPercent: _vp, taxPercent: _tp, isEquipment: _ie,
+            subCategoryId: _sc, category: _c, subCategory: _s,
+            ...restUpdateDto
+        } = dto;
         const saved = await this.expense_repo.save({
             ...expense,
             ...restUpdateDto,
         });
 
-        // Any change to the expense may affect the ledger (amounts, dates,
-        // supplier name, account codes). Always sync the full journal entry.
-        await this.syncExpenseJournalEntry(saved);
+        // Journal transitions:
+        //   journalable + entry exists      → full re-sync (amounts, dates,
+        //                                     supplier, account codes).
+        //   journalable + no entry          → the mapping was just completed —
+        //                                     syncExpenseJournalEntry's path 3
+        //                                     creates the entry (paths 1/2
+        //                                     still catch legacy rows whose
+        //                                     entry is only findable by
+        //                                     reference lookup).
+        //   not journalable + entry exists  → unreachable (blocked with 400
+        //                                     above before the save).
+        //   not journalable + no entry      → nothing to do (MISSING/private
+        //                                     rows stay out of the ledger).
+        if (journalable) {
+            await this.syncExpenseJournalEntry(saved);
+        }
 
         return saved;
     }
@@ -796,9 +1099,23 @@ export class ExpensesService {
         const hasVat = vatInput > 0;
         const net = Number((total - vatInput).toFixed(2));
 
-        const expenseAccountCode = await this.resolveAccountCode(
-            expense.category, expense.subCategory, expense.userId, expense.businessNumber,
-        );
+        // Phase 4.1: the account code comes from the expense's own snapshot
+        // (frozen at classification time, D6). Legacy rows that predate the
+        // snapshot columns get ONE name-resolution retry; if that fails too,
+        // throw — the 60000 fallback is dead, an unmappable expense must not
+        // silently post to the catch-all card.
+        let expenseAccountCode = expense.accountCodeSnapshot;
+        if (!expenseAccountCode) {
+            const retried = await this.catalogService.resolveByName(
+                expense.category, expense.subCategory, { businessNumber: expense.businessNumber },
+            );
+            expenseAccountCode = retried?.account?.code ?? null;
+            if (!expenseAccountCode) {
+                throw new BadRequestException(
+                    `להוצאה ${expense.id} אין חשבון רישום (סיווג "${expense.category}/${expense.subCategory}" לא ממופה) — לא ניתן לרשום פקודת יומן`,
+                );
+            }
+        }
 
         const isEquipment = expense.isEquipmentSnapshot ?? false;
         const taxPct = Number(expense.taxPercentSnapshot) || 0;
@@ -870,7 +1187,10 @@ export class ExpensesService {
             vatReportingPeriod,
             referenceType: JournalReferenceType.EXPENSE,
             referenceId: Number(expense.expenseNumber) || expense.id,
-            description: `EXPENSE #${expense.expenseNumber ?? expense.id} - ${expense.supplier ?? ''}`,
+            // D7: the expense's frozen description IS the journal entry's
+            // description. Legacy rows without one get the same fallback chain.
+            description: expense.description
+                ?? buildExpenseDescription({ category: expense.category, subCategory: expense.subCategory }),
             lines: journalLines,
         };
     }

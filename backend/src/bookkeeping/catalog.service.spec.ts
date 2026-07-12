@@ -124,6 +124,41 @@ describe('CatalogService', () => {
     });
   });
 
+  // ── resolveSubCategory tenant-scope check (Phase 4.1) ──────────────────
+
+  describe('resolveSubCategory scope check', () => {
+    beforeEach(() => {
+      subCategoryRepo.rows.push({
+        id: 50, name: 'דלק', categoryId: 1, chartOwnerKey: 'CLIENT_OTHER_BIZ',
+        isActive: true, isPrivate: false, accountId: 1,
+      });
+    });
+
+    it('resolves an in-scope id', async () => {
+      subCategoryRepo.rows.push({
+        id: 51, name: 'דלק', categoryId: 1, chartOwnerKey: SYS,
+        isActive: true, isPrivate: false, accountId: 1,
+      });
+      const resolved = await service.resolveSubCategory(51, { businessNumber: '123456789' });
+      expect(resolved.subCategory.id).toBe(51);
+    });
+
+    it('404s for an id belonging to another tenant (existence not leaked)', async () => {
+      await expect(service.resolveSubCategory(50, { businessNumber: '123456789' }))
+        .rejects.toThrow('Sub-category 50 not found');
+    });
+
+    it('404s for a missing id', async () => {
+      await expect(service.resolveSubCategory(999, { businessNumber: '123456789' }))
+        .rejects.toThrow('Sub-category 999 not found');
+    });
+
+    it('without ctx, resolves any id (internal/legacy callers)', async () => {
+      const resolved = await service.resolveSubCategory(50);
+      expect(resolved.subCategory.id).toBe(50);
+    });
+  });
+
   // ── findOrCreateVariantAccount ─────────────────────────────────────────
 
   describe('findOrCreateVariantAccount', () => {

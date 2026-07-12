@@ -565,13 +565,23 @@ description; orphan decision doc resolved with Elazar.
 
 **Goal:** all runtime paths use the new model; adapters deleted.
 
-- [ ] 4.1 Expense creation/approval flow: `addExpense` and the three
+- [x] 4.1 Expense creation/approval flow: `addExpense` and the three
       `ReportReviewService.approve*` paths take `subCategoryId` (with
       name-based fallback removed at the end of this phase), run
       CatalogService resolution, write snapshot + description + journal in
       one transaction. Enforce: cannot approve when resolution incomplete
       (MISSING_ACCOUNTING_MAPPING), cannot reclassify when `isReported`
       (D10 lock), never auto re-resolve overridden expenses.
+      (Done Session 8. Also: addExpense accepts a caller EntityManager —
+      the approve* paths now genuinely join one transaction (old nested-tx
+      bug fixed) and the supplier auto-create moved inside it; the D10
+      lock is `assertExpensePeriodUnlocked` (423 expense_period_locked —
+      isReported flag [stamped live by report-workflow lock/unlock] /
+      vatReportingDate label match / date-in-period for JOURNALED rows
+      only, so exempt-dealer rows with no VAT linkage stay editable);
+      unresolvable classification → 400, the 60000 fallback is dead in
+      the write path; `resolveSubCategory` gained a tenant-scope check;
+      slim re-sync routes through `reclassifyExpenseFromNames`.)
 - [ ] 4.2 Reclassification endpoints per D10: single-expense (full /
       mapping-only) + future-mapping update; both journal-line-replacing
       via the `syncExpenseJournalEntry` pattern; override stamps.

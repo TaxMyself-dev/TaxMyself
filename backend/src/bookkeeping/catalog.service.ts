@@ -287,12 +287,21 @@ export class CatalogService {
   }
 
   /** subCategoryId -> account -> the FULL accounting law (D1/D3 revised) —
-   *  what Phase 3/4 will consume directly for snapshot/journal writes. */
-  async resolveSubCategory(subCategoryId: number): Promise<ResolvedSubCategory> {
-    const subCategory = await this.subCategoryRepo.findOneOrFail({
+   *  consumed by Phase 4's snapshot/journal write paths.
+   *
+   *  When `ctx` is provided the row's chartOwnerKey must be visible to that
+   *  context (CLIENT_{biz} / ACCOUNTANT_{id} / SYSTEM) — without this check,
+   *  any authenticated caller could classify onto another tenant's private
+   *  sub_category by guessing ids. Out-of-scope ids 404 exactly like missing
+   *  ones so existence is not leaked. */
+  async resolveSubCategory(subCategoryId: number, ctx?: CatalogContext): Promise<ResolvedSubCategory> {
+    const subCategory = await this.subCategoryRepo.findOne({
       where: { id: subCategoryId },
-      relations: ['account', 'account.section'],
+      relations: ['account', 'account.section', 'category'],
     });
+    if (!subCategory || (ctx && !this.chartOwnerKeysFor(ctx).includes(subCategory.chartOwnerKey))) {
+      throw new NotFoundException(`Sub-category ${subCategoryId} not found`);
+    }
     return this.toResolved(subCategory);
   }
 
@@ -338,7 +347,7 @@ export class CatalogService {
 
     const subCategoryRows = await this.subCategoryRepo.find({
       where: { chartOwnerKey: In(chartOwnerKeys), categoryId: categoryRow.id, name: subCategory, isActive: true },
-      relations: ['account', 'account.section'],
+      relations: ['account', 'account.section', 'category'],
     });
     const subCategoryRow = this.pickByPrecedence(subCategoryRows, chartOwnerKeys);
     if (!subCategoryRow) return null;

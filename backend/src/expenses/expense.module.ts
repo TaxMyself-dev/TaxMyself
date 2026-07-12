@@ -21,13 +21,17 @@ import { Delegation } from 'src/delegation/delegation.entity';
 import { Business } from 'src/business/business.entity';
 import { ClassifiedTransactions } from '../transactions/classified-transactions.entity';
 import { ExtractedDocument } from '../documents/extracted-document.entity';
+// ENTITY-only registration for the D10 period-lock check — importing
+// ReportWorkflowModule here would be cyclic (ReportWorkflowModule →
+// ReportsModule → ExpensesModule).
+import { ReportWorkflow } from '../report-workflow/report-workflow.entity';
 import { BillingModule } from '../billing/billing.module';
 // ExpensesService now posts a journal entry on expense create — needs BookkeepingService.
 import { BookkeepingModule } from '../bookkeeping/bookkeeping.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Expense, User, Business, DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory, Supplier, Child, Delegation, ClassifiedTransactions, ExtractedDocument]),
+    TypeOrmModule.forFeature([Expense, User, Business, DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory, Supplier, Child, Delegation, ClassifiedTransactions, ExtractedDocument, ReportWorkflow]),
     SharedModule,
     UsersModule,
     BillingModule,

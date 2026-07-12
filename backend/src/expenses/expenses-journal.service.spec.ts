@@ -30,7 +30,8 @@ import { User } from '../users/user.entity';
 import { Business } from '../business/business.entity';
 import { ClassifiedTransactions } from '../transactions/classified-transactions.entity';
 import { ExtractedDocument } from '../documents/extracted-document.entity';
-import { JournalReferenceType, BusinessType, VATReportingType, ExpenseReportScope } from '../enum';
+import { ReportWorkflow } from '../report-workflow/report-workflow.entity';
+import { JournalReferenceType, BusinessType, VATReportingType, ExpenseReportScope, ApprovalStatus } from '../enum';
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -99,23 +100,32 @@ describe('ExpensesService — journal entry linking', () => {
       findJournalEntryNumber: jest.fn().mockResolvedValue(null),
     } as any;
 
-    // Phase 2.3/2.4: ExpensesService.resolveAccountCode/getSubCategoryIsEquipment/
-    // getSubCategoryReportScope now delegate to CatalogService — mock them to the
-    // same values the old defaultSubCategoryRepo mock below used to drive, so
-    // these journal-line assertions stay unchanged.
+    // Phase 4.1: addExpense/updateExpense resolve the full classification
+    // (subCategoryId or name pair) through CatalogService — the mock returns a
+    // fully-mapped APPROVED sub_category on the '5100' card so the journal-line
+    // assertions stay on the same account code the old mocks drove.
+    const resolvedSubCategory = {
+      subCategory: {
+        id: 42,
+        name: 'דלק',
+        isPrivate: false,
+        approvalStatus: ApprovalStatus.APPROVED,
+        reportScope: ExpenseReportScope.PNL,
+        category: { name: 'הוצאות' },
+      },
+      account: { id: 7, code: '5100', name: 'דלק' },
+      section: { id: 3, code: '200', name: 'הוצאות רכב' },
+      code6111: null,
+      vatPercent: 100,
+      taxPercent: 100,
+      isEquipment: false,
+      reductionPercent: 0,
+      recognitionType: null,
+    };
     const catalogService: Partial<CatalogService> = {
       resolveAccountCode: jest.fn().mockResolvedValue('5100'),
-      resolveByName: jest.fn().mockResolvedValue({
-        subCategory: { reportScope: ExpenseReportScope.PNL },
-        account: null,
-        section: null,
-        code6111: null,
-        vatPercent: null,
-        taxPercent: null,
-        isEquipment: false,
-        reductionPercent: null,
-        recognitionType: null,
-      }),
+      resolveByName: jest.fn().mockResolvedValue(resolvedSubCategory as any),
+      resolveSubCategory: jest.fn().mockResolvedValue(resolvedSubCategory as any),
     };
 
     mockManager = {
@@ -174,6 +184,7 @@ describe('ExpensesService — journal entry linking', () => {
         { provide: getRepositoryToken(Business), useValue: businessRepo },
         { provide: getRepositoryToken(ClassifiedTransactions), useValue: makeRepo<ClassifiedTransactions>() },
         { provide: getRepositoryToken(ExtractedDocument), useValue: makeRepo<ExtractedDocument>() },
+        { provide: getRepositoryToken(ReportWorkflow), useValue: makeRepo<ReportWorkflow>({ find: jest.fn().mockResolvedValue([]) }) },
         { provide: SharedService, useValue: sharedService },
         { provide: FxRateService, useValue: fxRateService },
         { provide: DataSource, useValue: dataSource },

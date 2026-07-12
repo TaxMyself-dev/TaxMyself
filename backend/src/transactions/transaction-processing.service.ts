@@ -227,34 +227,32 @@ export class TransactionProcessingService {
     });
     if (!expense) return;
 
-    // A category / sub-category change can change the resolved accountCode, so
-    // the expense's journal entry must be re-synced after saving (below).
-    const classificationChanged =
-      expense.category !== slim.category || expense.subCategory !== slim.subCategory;
-
-    const absSum = Math.abs(Number(cacheRow.amount));
-    const vatRate = this.sharedService.getVatRateByYear(new Date(cacheRow.transactionDate));
-    const totalVatPayable = (absSum / (1 + vatRate)) * vatRate * (slim.vatPercent / 100);
-    const totalTaxPayable = (absSum - totalVatPayable) * (slim.taxPercent / 100);
-
-    expense.category = slim.category;
-    expense.subCategory = slim.subCategory;
-    expense.vatPercentSnapshot = slim.vatPercent;
-    expense.taxPercentSnapshot = slim.taxPercent;
-    expense.reductionPercentSnapshot = slim.reductionPercent;
-    expense.isEquipmentSnapshot = slim.isEquipment;
-    expense.reportScope = slim.reportScope ?? expense.reportScope;
-    expense.businessNumber = slim.businessNumber ?? expense.businessNumber;
-    expense.vatReportingDate = (slim.vatReportingDate as any) ?? expense.vatReportingDate;
-    expense.totalVatPayable = totalVatPayable;
-    expense.totalTaxPayable = totalTaxPayable;
-    const saved = await this.expenseRepo.save(expense);
-
-    // Replace the existing expense journal entry's lines (header kept) with
-    // freshly-resolved lines so the ledger reflects the new classification.
-    if (classificationChanged) {
-      await this.expensesService.syncExpenseJournalEntry(saved);
+    // D10 stickiness (Phase 4.1): an expense carrying a manual classification
+    // override is NEVER auto re-resolved — the accountant's decision sticks
+    // even when the source transaction is re-classified.
+    if (expense.classificationOverrideByUserId != null) {
+      this.logger.log(
+        `syncExpenseFromSlim: expense ${expense.id} carries a manual classification override — skipping auto re-sync (D10)`,
+      );
+      return;
     }
+
+    // Phase 4.1: route through ExpensesService so subCategoryId, the
+    // accounting snapshots, description and the journal entry all move
+    // together instead of raw field copies. Also re-asserts the period lock
+    // (belt-and-braces on top of the slim-side isLocked guard).
+    await this.expensesService.reclassifyExpenseFromNames(expense, {
+      category: slim.category,
+      subCategory: slim.subCategory,
+      vatPercent: slim.vatPercent,
+      taxPercent: slim.taxPercent,
+      reductionPercent: slim.reductionPercent,
+      isEquipment: slim.isEquipment,
+      reportScope: slim.reportScope ?? undefined,
+      businessNumber: slim.businessNumber ?? undefined,
+      vatReportingDate: (slim.vatReportingDate as any) ?? undefined,
+      sum: Math.abs(Number(cacheRow.amount)),
+    });
   }
 
 

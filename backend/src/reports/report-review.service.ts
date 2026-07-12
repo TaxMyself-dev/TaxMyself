@@ -42,6 +42,9 @@ import {
  * date + business cadence.
  */
 export interface ReviewOverrides {
+  /** D1/Phase 4.1: direct sub_category pointer — wins over the name pair and
+   *  over the doc/slim-side names. */
+  subCategoryId?: number;
   category?: string;
   subCategory?: string;
   vatPercent?: number;
@@ -403,6 +406,11 @@ export class ReportReviewService {
       : { sum: this.absIls(cache), originalCurrency: null, originalSum: null };
 
     return this.dataSource.transaction(async manager => {
+      // Phase 4.1: addExpense JOINS this transaction via `manager` (it used
+      // to open its own nested one) — expense + journal + doc/slim flips are
+      // now genuinely atomic. subCategoryId (override > doc-side backfill)
+      // wins over the name pair; the doc rides along for the D7 description
+      // fallback chain.
       const expense = await this.expensesService.addExpense(
         {
           supplier: doc.supplier ?? cache.merchantName,
@@ -412,6 +420,7 @@ export class ReportReviewService {
           // through whatever the OCR captured; null when the doc has no
           // printed number (rare for invoices, common for cash receipts).
           expenseNumber: doc.invoiceNumber ?? undefined as any,
+          subCategoryId: overrides.subCategoryId ?? doc.subCategoryId ?? undefined,
           category: finalCategory,
           subCategory: finalSubCategory,
           sum: amounts.sum,
@@ -432,6 +441,8 @@ export class ReportReviewService {
         firebaseId,
         businessNumber,
         overrides.saveAsSupplier ?? true,
+        manager,
+        { documentType: doc.documentType, supplier: doc.supplier, invoiceNumber: doc.invoiceNumber },
       );
 
       // Resolve the VAT report period once and stamp it on BOTH the Expense
@@ -535,6 +546,7 @@ export class ReportReviewService {
     const amounts = this.buildExpenseAmountFromDoc(doc);
 
     return this.dataSource.transaction(async manager => {
+      // Phase 4.1: joins this transaction (see approveMatched).
       const expense = await this.expensesService.addExpense(
         {
           supplier: doc.supplier ?? '',
@@ -544,6 +556,7 @@ export class ReportReviewService {
           // through whatever the OCR captured; null when the doc has no
           // printed number (rare for invoices, common for cash receipts).
           expenseNumber: doc.invoiceNumber ?? undefined as any,
+          subCategoryId: overrides.subCategoryId ?? doc.subCategoryId ?? undefined,
           category: finalCategory,
           subCategory: finalSubCategory,
           sum: amounts.sum,
@@ -561,6 +574,8 @@ export class ReportReviewService {
         firebaseId,
         businessNumber,
         overrides.saveAsSupplier ?? true,
+        manager,
+        { documentType: doc.documentType, supplier: doc.supplier, invoiceNumber: doc.invoiceNumber },
       );
 
       // Resolve + stamp the VAT report period on the Expense — ALWAYS, not
@@ -634,11 +649,15 @@ export class ReportReviewService {
     const finalEquipment   = overrides.isEquipment ?? !!slim.isEquipment;
 
     return this.dataSource.transaction(async manager => {
+      // Phase 4.1: joins this transaction (see approveMatched). tx_only rows
+      // have no document, so no subCategoryId backfill source beyond an
+      // explicit override and no D7 doc context.
       const expense = await this.expensesService.addExpense(
         {
           supplier: cache.merchantName,
           supplierID: '',
           expenseNumber: undefined as any,
+          subCategoryId: overrides.subCategoryId ?? undefined,
           category: finalCategory,
           subCategory: finalSubCategory,
           sum: this.absIls(cache),
@@ -657,6 +676,7 @@ export class ReportReviewService {
         firebaseId,
         businessNumber,
         overrides.saveAsSupplier ?? true,
+        manager,
       );
 
       // Resolve the VAT report period once and stamp it on BOTH the Expense

@@ -20,6 +20,11 @@ export class UpdateExpenseDto {
     @IsNumber()
     supplierId: number;
     
+    /** D1/Phase 4.1: direct sub_category pointer — wins over the name pair. */
+    @IsOptional()
+    @IsNumber()
+    subCategoryId?: number;
+
     @IsOptional()
     @IsString()
     category: string;
