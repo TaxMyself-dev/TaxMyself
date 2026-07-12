@@ -1,6 +1,8 @@
-import { BadRequestException, Body, Controller, Get, Headers, Param, ParseArrayPipe, Patch, Post, Query, Req, Res, UnauthorizedException, UseGuards, } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Headers, Param, ParseArrayPipe, ParseIntPipe, Patch, Post, Query, Req, Res, UnauthorizedException, UseGuards, } from '@nestjs/common';
 import { BookkeepingService } from './bookkeeping.service';
+import { CatalogService } from './catalog.service';
 import { CreateManualJournalEntryDto } from './dto/manual-journal-entry.dto';
+import { RepointSubCategoryAccountDto } from './dto/repoint-sub-category-account.dto';
 import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.interface';
 import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
 
@@ -10,7 +12,32 @@ import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
 export class BookkepingController {
   constructor(
     private readonly bookkeepingService: BookkeepingService,
+    private readonly catalogService: CatalogService,
   ) { }
+
+  /**
+   * Phase 4.2 (D9/D10): repoint a sub_category at a different card so FUTURE
+   * classifications resolve there — history never moves. SYSTEM rows get a
+   * same-named CLIENT-scoped override (D4 precedence wins by name); the
+   * acting business's scope is the target (accountant "all-my-clients"
+   * scoping is Phase 5.1/5.2).
+   */
+  @Patch('sub-categories/:id/account')
+  @UseGuards(FirebaseAuthGuard)
+  async repointSubCategoryAccount(
+    @Req() request: AuthenticatedRequest,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: RepointSubCategoryAccountDto,
+  ) {
+    const firebaseId = request.user?.firebaseId;
+    if (!firebaseId) throw new UnauthorizedException('Not authenticated');
+    const businessNumber = request.user?.businessNumber;
+    if (!businessNumber) throw new BadRequestException('businessNumber header is required');
+    return this.catalogService.repointSubCategoryAccount(id, body.accountId, {
+      userId: firebaseId,
+      businessNumber,
+    });
+  }
 
   /** Manual, single-sided journal entry (no counter-account) — for cases the
    *  automatic EXPENSE/document postings don't cover. */

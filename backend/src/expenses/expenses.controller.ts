@@ -13,6 +13,7 @@ import { SupplierResponseDto } from './dtos/response-supplier.dto';
 import { CreateUserCategoryDto } from './dtos/create-user-category.dto';
 import { UpdateUserCategoryDto } from './dtos/update-user-category.dto';
 import { UpdateUserSubCategoryDto } from './dtos/update-user-sub-category.dto';
+import { ReclassifyExpenseDto, OverrideExpenseMappingDto } from './dtos/reclassify-expense.dto';
 //Guards
 import { AdminGuard } from '../guards/admin.guard';
 import { GetExpensesDto } from './dtos/get-expenses.dto';
@@ -86,6 +87,35 @@ export class ExpensesController {
     return this.expensesService.checkDuplicateExpensesFromDrive(firebaseId, businessNumber, items);
   }
 
+
+  /** Phase 4.2 (D10): full reclassification onto a different sub_category —
+   *  card law only. Stamps classificationOverrideByUserId with the ACTOR's
+   *  own id (the accountant's, not the impersonated client's). */
+  @Patch(':id/reclassify')
+  @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
+  async reclassifyExpense(
+    @Req() request: AuthenticatedRequest,
+    @Param('id') id: number,
+    @Body() body: ReclassifyExpenseDto,
+  ) {
+    const firebaseId = request.user?.firebaseId;
+    const actorFirebaseId = request.user?.actorFirebaseId ?? firebaseId;
+    return this.expensesService.reclassifyExpense(id, firebaseId, actorFirebaseId, body.subCategoryId);
+  }
+
+  /** Phase 4.2 (D10): mapping-only override — keep the sub_category, point
+   *  the accounting snapshots at an explicitly-chosen card. */
+  @Patch(':id/override-mapping')
+  @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
+  async overrideExpenseMapping(
+    @Req() request: AuthenticatedRequest,
+    @Param('id') id: number,
+    @Body() body: OverrideExpenseMappingDto,
+  ) {
+    const firebaseId = request.user?.firebaseId;
+    const actorFirebaseId = request.user?.actorFirebaseId ?? firebaseId;
+    return this.expensesService.overrideExpenseMapping(id, firebaseId, actorFirebaseId, body);
+  }
 
   @Patch('update-expense/:id')
   @UseGuards(FirebaseAuthGuard, SubscriptionGuard)

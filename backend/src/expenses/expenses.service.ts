@@ -319,6 +319,139 @@ export class ExpensesService {
         return saved;
     }
 
+    /**
+     * Phase 4.2 (C1) — PATCH expenses/:id/reclassify. Full reclassification
+     * onto a different sub_category, CARD LAW ONLY (D1: picking a card IS the
+     * classification — no percent overrides here). Rewrites snapshots +
+     * description + journal in one transaction and stamps the D10 override
+     * (actor = the accountant's own id when impersonating).
+     */
+    async reclassifyExpense(
+        id: number,
+        userId: string,
+        actorUserId: string,
+        subCategoryId: number,
+    ): Promise<Expense> {
+        const expense = await this.expense_repo.findOne({ where: { id } });
+        if (!expense) {
+            throw new NotFoundException(`Expense with ID ${id} not found`);
+        }
+        if (expense.userId !== userId) {
+            throw new UnauthorizedException(`You do not have permission to update this expense`);
+        }
+        await this.assertExpensePeriodUnlocked(expense);
+
+        const rc = await this.resolveExpenseClassification({ subCategoryId }, expense.businessNumber);
+        if (expense.journalEntryNumber != null && !rc.journalable) {
+            throw new BadRequestException(
+                'לא ניתן לסווג הוצאה שנרשמה בספרים לסיווג פרטי או לסיווג ללא חשבון — יש להשלים את המיפוי החשבונאי תחילה',
+            );
+        }
+
+        return this.dataSource.transaction(async (m) => {
+            this.applyClassificationToExpense(expense, rc, {}, actorUserId);
+            const business = await m.getRepository(Business).findOne({
+                where: { businessNumber: expense.businessNumber },
+            });
+            this.recomputeExpenseTotals(expense, business?.businessType);
+            expense.classificationOverrideByUserId = actorUserId;
+            expense.classificationOverrideAt = new Date();
+
+            const saved = await m.getRepository(Expense).save(expense);
+            if (rc.journalable) {
+                await this.rewriteExpenseJournal(saved, m);
+            }
+            return saved;
+        });
+    }
+
+    /**
+     * Phase 4.2 (C2) — PATCH expenses/:id/override-mapping. Mapping-only
+     * override: the sub_category (client language) stays; the accounting
+     * snapshots are overwritten from an explicitly-chosen card (by id or by
+     * code, exactly one). Journal lines are rewritten; D10 override stamped.
+     */
+    async overrideExpenseMapping(
+        id: number,
+        userId: string,
+        actorUserId: string,
+        input: { accountId?: number; accountCode?: string },
+    ): Promise<Expense> {
+        const hasId = input.accountId != null;
+        const hasCode = !!input.accountCode?.trim();
+        if (hasId === hasCode) {
+            throw new BadRequestException('יש לספק בדיוק אחד מ-accountId או accountCode');
+        }
+
+        const expense = await this.expense_repo.findOne({ where: { id } });
+        if (!expense) {
+            throw new NotFoundException(`Expense with ID ${id} not found`);
+        }
+        if (expense.userId !== userId) {
+            throw new UnauthorizedException(`You do not have permission to update this expense`);
+        }
+        await this.assertExpensePeriodUnlocked(expense);
+
+        const ctx = { businessNumber: expense.businessNumber };
+        const account = hasId
+            ? await this.catalogService.findAccountByIdInScope(input.accountId!, ctx)
+            : await this.catalogService.findAccountByCodeInScope(input.accountCode!, ctx);
+        if (!account) {
+            throw new NotFoundException('חשבון הרישום לא נמצא');
+        }
+
+        return this.dataSource.transaction(async (m) => {
+            // subCategoryId / category / subCategory / description stay — only
+            // the accounting mapping moves onto the chosen card (with its law).
+            expense.accountIdSnapshot = account.id;
+            expense.accountCodeSnapshot = account.code;
+            expense.accountNameSnapshot = account.name;
+            expense.sectionIdSnapshot = account.section?.id ?? account.sectionId ?? null;
+            expense.sectionCodeSnapshot = account.section?.code ?? null;
+            expense.sectionNameSnapshot = account.section?.name ?? null;
+            expense.code6111Snapshot = account.code6111 ?? null;
+            expense.vatPercentSnapshot = Number(account.vatPercent ?? 0);
+            expense.taxPercentSnapshot = Number(account.taxPercent ?? 0);
+            expense.reductionPercentSnapshot = Number(account.reductionPercent ?? 0);
+            expense.isEquipmentSnapshot = !!account.isEquipment;
+
+            // A mapping override IS the accounting completion — an unmapped
+            // (MISSING) expense becomes approvable the moment a card is chosen.
+            expense.approvalStatus = ExpenseApprovalStatus.APPROVED;
+            expense.approvedByUserId = expense.approvedByUserId ?? actorUserId;
+            expense.approvedAt = expense.approvedAt ?? new Date();
+            expense.classificationOverrideByUserId = actorUserId;
+            expense.classificationOverrideAt = new Date();
+
+            const business = await m.getRepository(Business).findOne({
+                where: { businessNumber: expense.businessNumber },
+            });
+            this.recomputeExpenseTotals(expense, business?.businessType);
+
+            const saved = await m.getRepository(Expense).save(expense);
+            await this.rewriteExpenseJournal(saved, m);
+            return saved;
+        });
+    }
+
+    /** Rewrite (or create) an expense's journal entry inside the caller's
+     *  transaction — the 4.2 endpoints' journal-line-replacing step. */
+    private async rewriteExpenseJournal(expense: Expense, m: EntityManager): Promise<void> {
+        const input = await this.buildJournalEntryInput(expense);
+        if (expense.journalEntryNumber != null) {
+            const updated = await this.bookkeepingService.updateJournalEntryFull(
+                expense.journalEntryNumber,
+                expense.businessNumber,
+                input,
+                m,
+            );
+            if (updated) return;
+        }
+        const { entryNumber } = await this.bookkeepingService.createJournalEntry(input, m);
+        await m.getRepository(Expense).update(expense.id, { journalEntryNumber: entryNumber });
+        expense.journalEntryNumber = entryNumber;
+    }
+
     async addExpense(
         expense: CreateExpenseDto,
         userId: string,

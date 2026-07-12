@@ -159,6 +159,85 @@ describe('CatalogService', () => {
     });
   });
 
+  // ── repointSubCategoryAccount (Phase 4.2 / D9) ─────────────────────────
+
+  describe('repointSubCategoryAccount', () => {
+    const ctx = { userId: 'uid-1', businessNumber: '123456789' };
+
+    beforeEach(() => {
+      accountRepo.rows.push({
+        id: 2, code: '80010', name: 'כרטיס לקוח', type: 'expense', sectionId: 99,
+        chartOwnerKey: CLIENT, isActive: true,
+      });
+    });
+
+    it('CLIENT sub_category → repoints in place + APPROVED', async () => {
+      subCategoryRepo.rows.push({
+        id: 60, name: 'דלק', categoryId: 1, chartOwnerKey: CLIENT,
+        isActive: true, isPrivate: false, accountId: 1,
+        approvalStatus: ApprovalStatus.MISSING_ACCOUNTING_MAPPING,
+      });
+
+      const result = await service.repointSubCategoryAccount(60, 2, ctx);
+
+      expect(result.id).toBe(60);
+      expect(result.accountId).toBe(2);
+      expect(result.approvalStatus).toBe(ApprovalStatus.APPROVED);
+    });
+
+    it('SYSTEM sub_category → never edited; creates a same-named CLIENT override row', async () => {
+      subCategoryRepo.rows.push({
+        id: 61, name: 'דלק', categoryId: 1, chartOwnerKey: SYS,
+        isActive: true, isPrivate: false, accountId: 1,
+        category: { id: 1, name: 'רכב ותחבורה', type: CategoryType.EXPENSE },
+      });
+
+      const result = await service.repointSubCategoryAccount(61, 2, ctx);
+
+      // The SYSTEM row itself is untouched.
+      const systemRow = subCategoryRepo.rows.find((r: any) => r.id === 61);
+      expect(systemRow.accountId).toBe(1);
+      // A CLIENT override row now exists and points at the new card.
+      expect(result.id).not.toBe(61);
+      expect(result.chartOwnerKey).toBe(CLIENT);
+      expect(result.name).toBe('דלק');
+      expect(result.accountId).toBe(2);
+    });
+
+    it('SYSTEM sub_category with an EXISTING client override → repoints the override', async () => {
+      subCategoryRepo.rows.push(
+        {
+          id: 61, name: 'דלק', categoryId: 1, chartOwnerKey: SYS,
+          isActive: true, isPrivate: false, accountId: 1,
+          category: { id: 1, name: 'רכב ותחבורה', type: CategoryType.EXPENSE },
+        },
+        {
+          id: 62, name: 'דלק', categoryId: 5, chartOwnerKey: CLIENT,
+          isActive: true, isPrivate: false, accountId: 1,
+        },
+      );
+      categoryRepo.rows.push({ id: 5, name: 'רכב ותחבורה', type: CategoryType.EXPENSE, chartOwnerKey: CLIENT, isActive: true });
+
+      const result = await service.repointSubCategoryAccount(61, 2, ctx);
+
+      expect(result.id).toBe(62);
+      expect(result.accountId).toBe(2);
+      expect(subCategoryRepo.rows.filter((r: any) => r.name === 'דלק' && r.chartOwnerKey === CLIENT)).toHaveLength(1);
+    });
+
+    it('account outside the context scope → 404', async () => {
+      accountRepo.rows.push({
+        id: 3, code: '80020', name: 'של עסק אחר', type: 'expense', sectionId: 99,
+        chartOwnerKey: 'CLIENT_OTHER', isActive: true,
+      });
+      subCategoryRepo.rows.push({
+        id: 63, name: 'דלק', categoryId: 1, chartOwnerKey: CLIENT,
+        isActive: true, isPrivate: false, accountId: 1,
+      });
+      await expect(service.repointSubCategoryAccount(63, 3, ctx)).rejects.toThrow('Account 3 not found');
+    });
+  });
+
   // ── findOrCreateVariantAccount ─────────────────────────────────────────
 
   describe('findOrCreateVariantAccount', () => {

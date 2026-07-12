@@ -144,9 +144,11 @@ describe('ExpensesService — Phase 4.1 classification', () => {
     };
 
     mockManager = {
-      getRepository: jest.fn().mockImplementation((entity: any) =>
-        entity === Expense ? expenseRepo : makeRepo(),
-      ),
+      getRepository: jest.fn().mockImplementation((entity: any) => {
+        if (entity === Expense) return expenseRepo;
+        if (entity === Business) return businessRepo;
+        return makeRepo();
+      }),
     } as any;
 
     dataSource = {
@@ -358,6 +360,87 @@ describe('ExpensesService — Phase 4.1 classification', () => {
       service.updateExpense(3, 'uid-1', { subCategory: 'פרטי' } as any),
     ).rejects.toThrow(BadRequestException);
     expect(expenseRepo.save).not.toHaveBeenCalled();
+  });
+
+  // ── Phase 4.2: reclassify / override-mapping endpoints ─────────────────────
+
+  function makeJournaledExpense(overrides: any = {}) {
+    return {
+      id: 20, userId: 'uid-1', businessNumber: '999999999', isReported: null,
+      journalEntryNumber: 10000001, category: 'ישן', subCategory: 'ישן',
+      date: new Date('2024-05-02'), sum: 118, vatReportingDate: '5/2024',
+      supplier: 'פז', expenseNumber: null, description: 'ישן/ישן',
+      ...overrides,
+    } as any;
+  }
+
+  it('reclassifyExpense: rewrites snapshots + journal, stamps the ACTOR id, card law only', async () => {
+    expenseRepo.findOne.mockResolvedValue(makeJournaledExpense());
+
+    const result = await service.reclassifyExpense(20, 'uid-1', 'accountant-uid', 42);
+
+    expect(result.subCategoryId).toBe(42);
+    expect(result.accountCodeSnapshot).toBe('61000');
+    // Card law, NOT any request percents (none are accepted).
+    expect(result.vatPercentSnapshot).toBe(66);
+    expect(result.taxPercentSnapshot).toBe(45);
+    expect(result.classificationOverrideByUserId).toBe('accountant-uid');
+    expect(result.classificationOverrideAt).toBeInstanceOf(Date);
+    expect(result.description).toBe('הוצאות רכב/דלק');
+    expect(bookkeepingService.updateJournalEntryFull).toHaveBeenCalledWith(
+      10000001, '999999999', expect.anything(), mockManager,
+    );
+  });
+
+  it('reclassifyExpense: locked period → 423', async () => {
+    expenseRepo.findOne.mockResolvedValue(makeJournaledExpense({ isReported: true }));
+    await expect(service.reclassifyExpense(20, 'uid-1', 'uid-1', 42)).rejects.toMatchObject({ status: 423 });
+  });
+
+  it('reclassifyExpense: journaled → unmappable target rejected with 400', async () => {
+    expenseRepo.findOne.mockResolvedValue(makeJournaledExpense());
+    catalogService.resolveSubCategory.mockResolvedValue(
+      makeResolved({ account: null, subCategory: { approvalStatus: ApprovalStatus.MISSING_ACCOUNTING_MAPPING } }),
+    );
+    await expect(service.reclassifyExpense(20, 'uid-1', 'uid-1', 42)).rejects.toThrow(BadRequestException);
+    expect(expenseRepo.save).not.toHaveBeenCalled();
+  });
+
+  it('overrideExpenseMapping by accountId: keeps subCategoryId, moves the mapping, stamps override', async () => {
+    expenseRepo.findOne.mockResolvedValue(makeJournaledExpense({ subCategoryId: 42 }));
+    catalogService.findAccountByIdInScope = jest.fn().mockResolvedValue({
+      id: 11, code: '80010', name: 'כרטיס מותאם', sectionId: 4,
+      section: { id: 4, code: '300', name: 'חתך אחר' }, code6111: '2222',
+      vatPercent: 100, taxPercent: 100, reductionPercent: 0, isEquipment: false,
+    });
+
+    const result = await service.overrideExpenseMapping(20, 'uid-1', 'accountant-uid', { accountId: 11 });
+
+    expect(result.subCategoryId).toBe(42); // client language untouched
+    expect(result.accountCodeSnapshot).toBe('80010');
+    expect(result.sectionCodeSnapshot).toBe('300');
+    expect(result.code6111Snapshot).toBe('2222');
+    expect(result.classificationOverrideByUserId).toBe('accountant-uid');
+    expect(bookkeepingService.updateJournalEntryFull).toHaveBeenCalled();
+  });
+
+  it('overrideExpenseMapping by accountCode uses the precedence lookup', async () => {
+    expenseRepo.findOne.mockResolvedValue(makeJournaledExpense());
+    catalogService.findAccountByCodeInScope = jest.fn().mockResolvedValue({
+      id: 12, code: '80020', name: 'קוד', sectionId: null, section: null, code6111: null,
+      vatPercent: 0, taxPercent: 100, reductionPercent: 0, isEquipment: false,
+    });
+
+    const result = await service.overrideExpenseMapping(20, 'uid-1', 'uid-1', { accountCode: '80020' });
+    expect(catalogService.findAccountByCodeInScope).toHaveBeenCalledWith('80020', { businessNumber: '999999999' });
+    expect(result.accountCodeSnapshot).toBe('80020');
+  });
+
+  it('overrideExpenseMapping: exactly one of accountId/accountCode required', async () => {
+    await expect(service.overrideExpenseMapping(20, 'uid-1', 'uid-1', {})).rejects.toThrow(BadRequestException);
+    await expect(
+      service.overrideExpenseMapping(20, 'uid-1', 'uid-1', { accountId: 1, accountCode: '80010' }),
+    ).rejects.toThrow(BadRequestException);
   });
 
   it('updateExpense: completing a mapping approves + creates the journal entry', async () => {

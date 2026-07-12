@@ -601,4 +601,92 @@ export class CatalogService {
   async saveCategory(category: Category): Promise<Category> {
     return this.categoryRepo.save(category);
   }
+
+  // ==========================================================================
+  // Phase 4.2 — reclassification primitives (D10).
+  // ==========================================================================
+
+  /** Account by code across the context's visible chart owners, CLIENT >
+   *  ACCOUNTANT > SYSTEM precedence (Phase 4.2 override-mapping lookup).
+   *  Loads the section relation — callers snapshot section fields from it. */
+  async findAccountByCodeInScope(code: string, ctx: CatalogContext): Promise<BookingAccount | null> {
+    const trimmed = code?.trim();
+    if (!trimmed) return null;
+    const chartOwnerKeys = this.chartOwnerKeysFor(ctx);
+    const rows = await this.accountRepo.find({
+      where: { chartOwnerKey: In(chartOwnerKeys), code: trimmed, isActive: true },
+      relations: ['section'],
+    });
+    return this.pickByPrecedence(rows, chartOwnerKeys);
+  }
+
+  /** Account by id, validated against the context's visible chart owners —
+   *  same no-existence-leak semantics as resolveSubCategory's scope check. */
+  async findAccountByIdInScope(accountId: number, ctx: CatalogContext): Promise<BookingAccount | null> {
+    const account = await this.accountRepo.findOne({
+      where: { id: accountId, isActive: true },
+      relations: ['section'],
+    });
+    if (!account || !this.chartOwnerKeysFor(ctx).includes(account.chartOwnerKey)) return null;
+    return account;
+  }
+
+  /**
+   * D9's "החל גם על סיווגים עתידיים" primitive (Phase 4.2; Phase 5.3 reuses
+   * it): repoint a sub_category at a different card so FUTURE classifications
+   * resolve there. History never moves (D10 — no journal or expense writes
+   * here).
+   *
+   * SYSTEM rows are never edited: a same-named CLIENT-scoped override row is
+   * created (or repointed when one already exists) — D4 merge precedence
+   * makes it win by name for this business.
+   */
+  async repointSubCategoryAccount(
+    subCategoryId: number,
+    accountId: number,
+    ctx: CatalogContext,
+  ): Promise<SubCategory> {
+    const sub = await this.subCategoryRepo.findOne({
+      where: { id: subCategoryId },
+      relations: ['category'],
+    });
+    if (!sub || !this.chartOwnerKeysFor(ctx).includes(sub.chartOwnerKey)) {
+      throw new NotFoundException(`Sub-category ${subCategoryId} not found`);
+    }
+    if (sub.isPrivate) {
+      throw new BadRequestException('תת-קטגוריה פרטית לעולם אינה ממופה לחשבון (D5)');
+    }
+    const account = await this.findAccountByIdInScope(accountId, ctx);
+    if (!account) {
+      throw new NotFoundException(`Account ${accountId} not found`);
+    }
+
+    if (sub.chartOwnerKey === SYSTEM_CHART_OWNER_KEY) {
+      const scope = this.buildScope(OwnerType.CLIENT, ctx);
+      const category = await this.findOrCreateCategory(
+        scope,
+        sub.category?.name ?? '',
+        sub.category?.type ?? CategoryType.EXPENSE,
+        ctx.userId ?? null,
+      );
+      const existing = await this.subCategoryRepo.findOne({
+        where: { chartOwnerKey: scope.chartOwnerKey, categoryId: category.id, name: sub.name, isActive: true },
+      });
+      if (existing) {
+        existing.accountId = account.id;
+        existing.approvalStatus = ApprovalStatus.APPROVED;
+        return this.subCategoryRepo.save(existing);
+      }
+      return this.createSubCategory(scope, category, sub.name, {
+        accountId: account.id,
+        necessity: sub.necessity,
+        reportScope: sub.reportScope,
+        createdByUserId: ctx.userId ?? null,
+      });
+    }
+
+    sub.accountId = account.id;
+    sub.approvalStatus = ApprovalStatus.APPROVED;
+    return this.subCategoryRepo.save(sub);
+  }
 }

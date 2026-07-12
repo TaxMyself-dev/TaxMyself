@@ -582,9 +582,16 @@ description; orphan decision doc resolved with Elazar.
       unresolvable classification → 400, the 60000 fallback is dead in
       the write path; `resolveSubCategory` gained a tenant-scope check;
       slim re-sync routes through `reclassifyExpenseFromNames`.)
-- [ ] 4.2 Reclassification endpoints per D10: single-expense (full /
+- [x] 4.2 Reclassification endpoints per D10: single-expense (full /
       mapping-only) + future-mapping update; both journal-line-replacing
       via the `syncExpenseJournalEntry` pattern; override stamps.
+      (Done Session 8: PATCH expenses/:id/reclassify — card law only,
+      stamps classificationOverrideByUserId = actorFirebaseId; PATCH
+      expenses/:id/override-mapping — exactly-one-of accountId/accountCode
+      via scoped CatalogService lookups; PATCH bookkeeping/
+      sub-categories/:id/account → CatalogService.repointSubCategoryAccount
+      — the D9 future-mapping primitive, SYSTEM rows get a same-named
+      CLIENT override row, history never moves.)
 - [ ] 4.3 OCR pipeline: `buildExtractionCatalog` reads the new catalog;
       OCR output sets `documentKind`; review flow routes per D8
       (EXPENSE_INVOICE → approval, ANNUAL_DOCUMENT → "תייק" flow with
