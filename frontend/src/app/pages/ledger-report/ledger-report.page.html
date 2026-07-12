@@ -263,12 +263,18 @@
           </label>
 
           <app-input-select *ngIf="isExpenseCard(card)" [parentForm]="card" [controlName]="'accountCode'" [labelText]="'כרטיס חשבון'"
-            [items]="accountOptionsForCard(card)" [placeholder]="'בחר חשבון'">
+            [items]="accountOptionsForCard(card)" [group]="true" [placeholder]="'בחר חשבון'">
+          </app-input-select>
+
+          <!-- Phase 4.5: optional sub_category picker + free-text פירוט
+               replaced the old free-text תת-קטגוריה input. -->
+          <app-input-select *ngIf="isExpenseCard(card)" [parentForm]="card" [controlName]="'subCategoryId'"
+            [labelText]="'תת-קטגוריה'" [items]="subCategoryOptions()" [placeholder]="'בחר תת-קטגוריה (אופציונלי)'">
           </app-input-select>
 
           <label class="je-field" *ngIf="isExpenseCard(card)">
-            <span>תת-קטגוריה</span>
-            <input type="text" formControlName="subCategoryName" />
+            <span>פירוט</span>
+            <input type="text" formControlName="description" />
           </label>
 
           <label class="je-field" *ngIf="isExpenseCard(card)">

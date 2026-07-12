@@ -21,6 +21,7 @@ import { BookkeepingService } from './bookkeeping.service';
 import { JournalEntry } from './jouranl-entry.entity';
 import { JournalLine } from './jouranl-line.entity';
 import { BookingAccount } from './account.entity';
+import { CatalogService } from './catalog.service';
 import { SharedService } from '../shared/shared.service';
 import { JournalReferenceType } from '../enum';
 import { Business } from '../business/business.entity';
@@ -70,6 +71,7 @@ describe('BookkeepingService — createJournalEntry / persistJournalEntry', () =
   let service: BookkeepingService;
   let dataSource: jest.Mocked<DataSource>;
   let sharedService: jest.Mocked<Partial<SharedService>>;
+  let catalogService: any;
   let journalEntryRepo: jest.Mocked<Repository<JournalEntry>>;
   let journalLineRepo: jest.Mocked<Repository<JournalLine>>;
   let bookingAccountRepo: jest.Mocked<Repository<BookingAccount>>;
@@ -107,6 +109,13 @@ describe('BookkeepingService — createJournalEntry / persistJournalEntry', () =
     sharedService = {
       getJournalEntryCurrentIndex: jest.fn().mockResolvedValue(10000001),
       incrementJournalEntryIndex: jest.fn().mockResolvedValue(undefined),
+      getVatRateByYear: jest.fn().mockReturnValue(0.18),
+    };
+
+    catalogService = {
+      resolveSubCategory: jest.fn().mockResolvedValue({
+        subCategory: { id: 42, name: 'דלק', category: { name: 'רכב ותחבורה' } },
+      }),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -118,6 +127,7 @@ describe('BookkeepingService — createJournalEntry / persistJournalEntry', () =
         { provide: getRepositoryToken(Business), useValue: makeRepo<Business>() },
         { provide: SharedService, useValue: sharedService },
         { provide: DataSource, useValue: dataSource },
+        { provide: CatalogService, useValue: catalogService },
       ],
     }).compile();
 
@@ -288,6 +298,86 @@ describe('BookkeepingService — createJournalEntry / persistJournalEntry', () =
 
       const result = await service.createJournalEntry(makeInput(), mockManager);
       expect(result).toEqual({ entryNumber: 10000099, id: 321 });
+    });
+  });
+
+  // ── createManualJournalEntry (Phase 4.5) ────────────────────────────────────
+
+  describe('createManualJournalEntry — sub_category picker + description (4.5)', () => {
+    function makeManualDto(overrides: Partial<any> = {}) {
+      return {
+        entryKind: 'expense',
+        date: '2024-03-10',
+        vatReportingPeriod: '3/2024',
+        lines: [{ accountCode: '60200', amount: 118, vatPercent: 100, taxPercent: 100 }],
+        ...overrides,
+      } as any;
+    }
+
+    beforeEach(() => {
+      // Manual-entry account validation needs a sectioned, kind-matching account.
+      bookingAccountRepo.findOneByOrFail.mockImplementation(({ code }: { code: string }) =>
+        Promise.resolve({ code, sectionId: 4, type: code === '40000' ? 'income' : 'expense' } as any),
+      );
+    });
+
+    it('resolves subCategoryId (scope-checked) into the line snapshot and derives the entry description', async () => {
+      const dto = makeManualDto();
+      dto.lines[0].subCategoryId = 42;
+
+      await service.createManualJournalEntry(dto, 'uid-1', '999999999', mockManager);
+
+      expect(catalogService.resolveSubCategory).toHaveBeenCalledWith(42, {
+        userId: 'uid-1',
+        businessNumber: '999999999',
+      });
+      const savedLines = journalLineRepo.save.mock.calls[0][0] as any[];
+      expect(savedLines[0]).toEqual(expect.objectContaining({ accountCode: '60200', subCategoryName: 'דלק' }));
+      const savedHeader = journalEntryRepo.save.mock.calls[0][0] as any;
+      expect(savedHeader.description).toBe('רכב ותחבורה/דלק');
+    });
+
+    it('free-text description wins over the derived pair and over reference', async () => {
+      const dto = makeManualDto({ description: 'תיקון שנתי', reference: '1234' });
+      dto.lines[0].subCategoryId = 42;
+
+      await service.createManualJournalEntry(dto, 'uid-1', '999999999', mockManager);
+
+      const savedHeader = journalEntryRepo.save.mock.calls[0][0] as any;
+      expect(savedHeader.description).toBe('תיקון שנתי');
+    });
+
+    it('legacy fallback: no description and no picker → reference still maps to the description', async () => {
+      const dto = makeManualDto({ reference: 'קבלה 88' });
+
+      await service.createManualJournalEntry(dto, 'uid-1', '999999999', mockManager);
+
+      const savedHeader = journalEntryRepo.save.mock.calls[0][0] as any;
+      expect(savedHeader.description).toBe('קבלה 88');
+      expect(catalogService.resolveSubCategory).not.toHaveBeenCalled();
+      const savedLines = journalLineRepo.save.mock.calls[0][0] as any[];
+      expect(savedLines[0].subCategoryName).toBeNull();
+    });
+
+    it('income entries never resolve a sub_category even if one is sent', async () => {
+      const dto = makeManualDto({ entryKind: 'income' });
+      dto.lines[0].subCategoryId = 42;
+
+      await service.createManualJournalEntry(dto, 'uid-1', '999999999', mockManager);
+
+      expect(catalogService.resolveSubCategory).not.toHaveBeenCalled();
+    });
+
+    it('a cross-tenant subCategoryId aborts before anything is written', async () => {
+      catalogService.resolveSubCategory.mockRejectedValueOnce(new Error('Sub-category 42 not found'));
+      const dto = makeManualDto();
+      dto.lines[0].subCategoryId = 42;
+
+      await expect(
+        service.createManualJournalEntry(dto, 'uid-1', '999999999', mockManager),
+      ).rejects.toThrow('not found');
+      expect(journalEntryRepo.save).not.toHaveBeenCalled();
+      expect(journalLineRepo.save).not.toHaveBeenCalled();
     });
   });
 

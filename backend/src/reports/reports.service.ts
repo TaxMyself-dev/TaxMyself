@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Between, Not, Repository } from 'typeorm';
+import { Between, In, Not, Repository } from 'typeorm';
 import { Expense } from '../expenses/expenses.entity';
 import { VatReportDto } from './dtos/vat-report.dto';
 import { buildVatReportPdf } from './vat-report-pdf';
@@ -921,20 +921,43 @@ export class ReportsService {
       .map((a) => ({ code: a.code, name: a.name, type: a.type }));
   }
 
-  /** Posting accounts for the MANUAL JOURNAL ENTRY dropdown, in display order.
-   *  Only accounts under a section (income/expense — every posting account,
-   *  parent or sub-ledger child, has one) are returned; technical accounts
-   *  (1000 A/R-contra, 2400/2410 VAT, 90000-range — sectionId NULL) are
-   *  excluded so they can't be chosen for a manual journal line. Uses
-   *  sectionId rather than pnlCategory because pnlCategory is only set on
-   *  parent-level accounts — filtering on it would wrongly hide every
-   *  sub-ledger child account from the dropdown. */
-  async getLedgerEntryAccounts(): Promise<{ code: string; name: string; type: string }[]> {
-    const chart = await this.defaultBookingAccountRepo.find();
+  /** Posting accounts for the MANUAL JOURNAL ENTRY dropdown, grouped by
+   *  accounting section (Phase 4.5 — the frontend renders sections as option
+   *  groups). Scoped to the charts visible to the business (SYSTEM + its own
+   *  CLIENT chart; the ACCOUNTANT chart joins in Phase 5.1) so one tenant's
+   *  custom accounts are never offered to another. Only accounts under a
+   *  section (income/expense — every posting account, parent or sub-ledger
+   *  child, has one) are returned; technical accounts (1000 A/R-contra,
+   *  2400/2410 VAT, 90000-range — sectionId NULL) are excluded so they can't
+   *  be chosen for a manual journal line. */
+  async getLedgerEntryAccounts(
+    businessNumber?: string | null,
+  ): Promise<{ code: string; name: string; type: string; sectionCode: string | null; sectionName: string | null }[]> {
+    const chartOwnerKeys = ['SYSTEM', ...(businessNumber ? [`CLIENT_${businessNumber}`] : [])];
+    const chart = await this.defaultBookingAccountRepo.find({
+      where: { chartOwnerKey: In(chartOwnerKeys), isActive: true },
+      relations: ['section'],
+    });
     return chart
       .filter((a) => !!a.sectionId)
-      .sort((a, b) => this.compareLedgerAccountCodes(a.code, b.code))
-      .map((a) => ({ code: a.code, name: a.name, type: a.type }));
+      .sort((a, b) => {
+        // Sections in their display order (nulls last), then accounts in the
+        // canonical ledger order within each section.
+        const soA = a.section?.displayOrder ?? Number.MAX_SAFE_INTEGER;
+        const soB = b.section?.displayOrder ?? Number.MAX_SAFE_INTEGER;
+        if (soA !== soB) return soA - soB;
+        const scA = a.section?.code ?? '';
+        const scB = b.section?.code ?? '';
+        if (scA !== scB) return scA.localeCompare(scB);
+        return this.compareLedgerAccountCodes(a.code, b.code);
+      })
+      .map((a) => ({
+        code: a.code,
+        name: a.name,
+        type: a.type,
+        sectionCode: a.section?.code ?? null,
+        sectionName: a.section?.name ?? null,
+      }));
   }
 
   /** Ledger account display order — all 25 accounts in the chart.

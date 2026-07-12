@@ -457,18 +457,20 @@ export class ReportsController {
         return this.reportsService.getLedgerAccounts();
     }
 
-    /** Posting accounts for the manual journal-entry dropdown (excludes technical
-     *  accounts — pnlCategory IS NOT NULL). Global (not business-scoped). */
+    /** Posting accounts for the manual journal-entry dropdown (technical
+     *  accounts excluded — no section), grouped by accounting section and
+     *  scoped to the business's visible charts (Phase 4.5). */
     @Get('ledger-entry-accounts')
     @UseGuards(FirebaseAuthGuard)
     async getLedgerEntryAccounts(
         @Req() request: AuthenticatedRequest,
-    ): Promise<{ code: string; name: string; type: string }[]> {
+        @Query('businessNumber') businessNumber?: string,
+    ): Promise<{ code: string; name: string; type: string; sectionCode: string | null; sectionName: string | null }[]> {
         const firebaseId = request.user?.firebaseId;
         if (!firebaseId) {
             throw new BadRequestException('Firebase ID is missing');
         }
-        return this.reportsService.getLedgerEntryAccounts();
+        return this.reportsService.getLedgerEntryAccounts(businessNumber?.trim() || null);
     }
 
 

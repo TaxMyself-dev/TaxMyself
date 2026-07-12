@@ -4,6 +4,7 @@ import { DataSource, Repository } from 'typeorm';
 import { JournalEntry } from './jouranl-entry.entity';
 import { JournalLine } from './jouranl-line.entity';
 import { BookingAccount } from './account.entity';
+import { CatalogService } from './catalog.service';
 import { SharedService } from '../shared/shared.service';
 import { JournalEntryInput, JournalLineInput } from './dto/journal-entry-input.interface';
 import { CreateManualJournalEntryDto } from './dto/manual-journal-entry.dto';
@@ -26,6 +27,9 @@ export class BookkeepingService {
     private defaultBookingAccountRepo: Repository<BookingAccount>,
     @InjectRepository(Business)
     private businessRepo: Repository<Business>,
+    // Phase 4.5: resolves the manual-entry modal's optional sub_category
+    // pointer (tenant-scope-checked) to its display name.
+    private readonly catalogService: CatalogService,
   ) { }
 
 
@@ -198,6 +202,12 @@ export class BookkeepingService {
 
     const lines: JournalLineInput[] = [];
     let anyVatLine = false;
+    // Phase 4.5: the optional sub_category pointer (replaced the free-text
+    // subCategoryName field) resolves to its display name for the ledger
+    // line's snapshot, and to the "category/sub" pair for the entry
+    // description fallback below. Tenant-scope-checked — a cross-tenant id
+    // 404s here before anything is written.
+    let resolvedSubCategoryPair: { category: string | null; subCategory: string } | null = null;
 
     for (const line of dto.lines) {
       const total = Number(line.amount) || 0;
@@ -220,6 +230,22 @@ export class BookkeepingService {
         throw new BadRequestException(
           `Account ${accountCode} is not a valid ${expectedType} posting account`,
         );
+      }
+
+      // Optional sub_category pointer (expense lines only) → display name.
+      let lineSubCategoryName: string | null = null;
+      if (isExpense && line.subCategoryId != null) {
+        const resolved = await this.catalogService.resolveSubCategory(line.subCategoryId, {
+          userId: firebaseId,
+          businessNumber: issuerBusinessNumber,
+        });
+        lineSubCategoryName = resolved.subCategory?.name ?? null;
+        if (lineSubCategoryName && !resolvedSubCategoryPair) {
+          resolvedSubCategoryPair = {
+            category: resolved.subCategory?.category?.name ?? null,
+            subCategory: lineSubCategoryName,
+          };
+        }
       }
 
       // vatPercent: fixed 100 for income, fixed 0 for income_exempt (no VAT
@@ -247,7 +273,7 @@ export class BookkeepingService {
         taxPercent,
         vatPercent,
         amountForTax,
-        subCategoryName: isExpense ? (line.subCategoryName?.trim() || null) : null,
+        subCategoryName: lineSubCategoryName,
       });
 
       // Line 2: the real VAT line — added automatically, never user-chosen.
@@ -315,7 +341,18 @@ export class BookkeepingService {
       vatReportingPeriod,
       referenceType: JournalReferenceType.MANUAL,
       referenceId: null,
-      description: dto.reference?.trim() || '',
+      // D7 (Phase 4.5): the ledger shows the STORED entry description for
+      // expense lines. Free-text description wins; otherwise derive the
+      // "category/sub" pair from the picked sub_category; the legacy
+      // `reference` mapping stays as the last fallback for old payloads.
+      description: dto.description?.trim()
+        || (resolvedSubCategoryPair
+              ? (resolvedSubCategoryPair.category
+                  ? `${resolvedSubCategoryPair.category}/${resolvedSubCategoryPair.subCategory}`
+                  : resolvedSubCategoryPair.subCategory)
+              : '')
+        || dto.reference?.trim()
+        || '',
       lines,
     };
 

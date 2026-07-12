@@ -26,9 +26,14 @@ export class ManualJournalLineDto {
   @IsNumber()
   amount: number;
 
+  /** Optional pointer at a sub_category from the merged catalog (Phase 4.5 —
+   *  replaced the old free-text `subCategoryName` field). Display metadata
+   *  only: the service resolves it (tenant-scope-checked) to the row's name
+   *  for the ledger line's snapshot; the posting account is ALWAYS the
+   *  explicitly chosen accountCode, never derived from this. */
   @IsOptional()
-  @IsString()
-  subCategoryName?: string | null;
+  @IsNumber()
+  subCategoryId?: number | null;
 
   @IsOptional()
   @IsBoolean()
@@ -67,12 +72,19 @@ export class CreateManualJournalEntryDto {
   @IsString()
   vatDate?: string;
 
-  /** אסמכתא — free-text reference (invoice/receipt number etc). Maps
-   *  directly to JournalEntry.description with no auto-generated text,
-   *  unlike the computed descriptions EXPENSE/document entries get. */
+  /** אסמכתא — free-text reference (invoice/receipt number etc). Legacy
+   *  fallback for JournalEntry.description when neither `description` nor a
+   *  sub_category pointer is given (pre-4.5 payloads mapped it directly). */
   @IsOptional()
   @IsString()
   reference?: string;
+
+  /** פירוט — free-text description for the entry (Phase 4.5, D7: the ledger
+   *  shows the STORED journal_entry.description for expense lines). Wins
+   *  over the sub_category-derived "category/sub" text and over `reference`. */
+  @IsOptional()
+  @IsString()
+  description?: string;
 
   @IsOptional()
   @IsString()

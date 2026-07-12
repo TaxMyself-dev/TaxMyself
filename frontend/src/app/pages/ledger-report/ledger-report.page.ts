@@ -46,12 +46,12 @@ export class LedgerReportPage implements OnInit {
    *  WITHOUT delaying filterConfig (see ngOnInit). value '' = "all accounts". */
   accountOptions = signal<ISelectItem[]>([{ name: 'כל הכרטיסים', value: '' }]);
   /** Posting accounts for the manual journal-entry modal (excludes technical
-   *  accounts — loaded from /reports/ledger-entry-accounts). */
-  entryAccountOptions = signal<ISelectItem[]>([]);
-  /** Same list, unmapped, kept so each card can filter by account `type`
-   *  (income accounts for income/income_exempt cards, expense accounts for
-   *  expense cards). */
+   *  accounts — loaded from /reports/ledger-entry-accounts, scoped to the
+   *  selected business, Phase 4.5). Kept raw so each card can filter by
+   *  account `type` and group options by accounting section. */
   private entryAccountOptionsRaw = signal<ILedgerAccountOption[]>([]);
+  /** Merged expense sub-categories for the manual-entry picker (Phase 4.5). */
+  subCategoryOptions = signal<ISelectItem[]>([]);
 
   // Report data
   ledgerReport: ILedgerReport;
@@ -162,19 +162,10 @@ export class LedgerReportPage implements OnInit {
         ]);
       });
 
-    // Posting accounts for the manual journal-entry modal (no "all" option;
-    // technical accounts already excluded server-side).
-    this.ledgerReportService.getLedgerEntryAccounts()
-      .pipe(
-        takeUntilDestroyed(this.destroyRef),
-        catchError(() => EMPTY),
-      )
-      .subscribe((accounts) => {
-        this.entryAccountOptionsRaw.set(accounts ?? []);
-        this.entryAccountOptions.set(
-          (accounts ?? []).map((a) => ({ name: `${a.code} - ${a.name}`, value: a.code })),
-        );
-      });
+    // Posting accounts for the manual journal-entry modal are loaded on
+    // modal open (openJournalEntryModal) — they are business-scoped since
+    // Phase 4.5, so loading them here (before a business is picked) would
+    // fetch the wrong scope.
   }
 
   onSubmit(formValues: any): void {
@@ -553,7 +544,10 @@ export class LedgerReportPage implements OnInit {
       valueDate: [new Date()],
       reference: [''],
       accountCode: [''],
-      subCategoryName: [''],
+      // Phase 4.5: sub_category picker (optional) + free-text description
+      // replaced the old free-text subCategoryName field.
+      subCategoryId: [null as number | null],
+      description: [''],
       amount: [0],
       vatPercent: [100],
       taxPercent: [100],
@@ -567,6 +561,36 @@ export class LedgerReportPage implements OnInit {
     this.manualEntriesForm = this.fb.array([this.buildEntryCardGroup()]);
     this.showJournalEntryModal = true;
     this.loadVatReportingPeriods();
+    this.loadEntryAccounts();
+    this.loadSubCategoryOptions();
+  }
+
+  /** Business-scoped posting accounts for the modal's account dropdown
+   *  (sections arrive as sectionName/sectionCode per account, Phase 4.5). */
+  private loadEntryAccounts(): void {
+    const businessNumber = this.businessNumber();
+    this.ledgerReportService.getLedgerEntryAccounts(businessNumber || undefined)
+      .pipe(catchError(() => EMPTY))
+      .subscribe((accounts) => this.entryAccountOptionsRaw.set(accounts ?? []));
+  }
+
+  /** Merged expense sub-categories for the optional picker (Phase 4.5). */
+  private loadSubCategoryOptions(): void {
+    const businessNumber = this.businessNumber();
+    if (!businessNumber) {
+      this.subCategoryOptions.set([]);
+      return;
+    }
+    this.ledgerReportService.getExpenseCatalog(businessNumber)
+      .pipe(catchError(() => EMPTY))
+      .subscribe((items) => {
+        this.subCategoryOptions.set(
+          (items ?? []).map((i) => ({
+            name: i.category ? `${i.category} / ${i.subCategory}` : i.subCategory,
+            value: i.subCategoryId,
+          })),
+        );
+      });
   }
 
   closeJournalEntryModal(): void {
@@ -607,12 +631,24 @@ export class LedgerReportPage implements OnInit {
   }
 
   /** Account options filtered to the card's kind — income cards only offer
-   *  'income'-type accounts, expense cards only 'expense'-type accounts. */
-  accountOptionsForCard(card: FormGroup): ISelectItem[] {
+   *  'income'-type accounts, expense cards only 'expense'-type accounts —
+   *  grouped by accounting section (Phase 4.5; server order preserved). */
+  accountOptionsForCard(card: FormGroup): { label: string; items: ISelectItem[] }[] {
     const expectedType = this.isExpenseCard(card) ? 'expense' : 'income';
-    return this.entryAccountOptionsRaw()
-      .filter((a) => a.type === expectedType)
-      .map((a) => ({ name: `${a.code} - ${a.name}`, value: a.code }));
+    const groups: { label: string; items: ISelectItem[] }[] = [];
+    const groupByLabel = new Map<string, ISelectItem[]>();
+    for (const a of this.entryAccountOptionsRaw()) {
+      if (a.type !== expectedType) continue;
+      const label = a.sectionName || 'ללא חתך';
+      let items = groupByLabel.get(label);
+      if (!items) {
+        items = [];
+        groupByLabel.set(label, items);
+        groups.push({ label, items });
+      }
+      items.push({ name: `${a.code} - ${a.name}`, value: a.code });
+    }
+    return groups;
   }
 
   /** Kind changed — the previously-picked account may no longer be valid for
@@ -670,15 +706,17 @@ export class LedgerReportPage implements OnInit {
       valueDate,
       vatDate: valueDate,
       reference: v.reference || undefined,
+      description: v.description || undefined,
       notes: v.notes || undefined,
       vatReportingPeriod: isExempt ? null : (v.vatReportingPeriod || null),
       lines: [{
         // accountCode/vatPercent/taxPercent only matter for expense — the
-        // service forces '4000' + fixed percents for income/income_exempt
-        // regardless, but don't send stale values for those kinds.
+        // service forces the income account + fixed percents for
+        // income/income_exempt regardless, but don't send stale values for
+        // those kinds.
         accountCode: isExpense ? v.accountCode : undefined,
         amount: Number(v.amount) || 0,
-        subCategoryName: isExpense ? (v.subCategoryName || null) : null,
+        subCategoryId: isExpense ? (v.subCategoryId ?? null) : null,
         isEquipment: isExpense ? !!v.isEquipment : false,
         vatPercent: isExpense ? (Number(v.vatPercent) || 0) : undefined,
         taxPercent: isExpense ? (Number(v.taxPercent) || 100) : undefined,

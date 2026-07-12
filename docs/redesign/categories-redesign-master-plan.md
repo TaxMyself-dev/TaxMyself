@@ -648,10 +648,24 @@ description; orphan decision doc resolved with Elazar.
       keys P&L rows by sectionName ?? category so golden fixtures predate
       the rename cleanly. booking_account.pnlCategory is now fully dead —
       column kept for rollback until Phase 7.)
-- [ ] 4.5 Manual journal entry: account dropdown from new
+- [x] 4.5 Manual journal entry: account dropdown from new
       `booking_account` (sections shown as groups); free-text
       subCategoryName field replaced by optional sub_category picker +
       free-text description.
+      (Done Session 9: GET reports/ledger-entry-accounts is now
+      business-scoped (SYSTEM + CLIENT chart, isActive only) and returns
+      sectionCode/sectionName per account — the modal's account select
+      renders sections as PrimeNG option groups. New GET
+      bookkeeping/expense-catalog feeds the picker (merged expense
+      sub-categories, isPrivate excluded per D5).
+      ManualJournalLineDto.subCategoryName → subCategoryId (resolved
+      tenant-scope-checked via CatalogService.resolveSubCategory → ledger
+      line snapshot name); CreateManualJournalEntryDto gained
+      `description` — je.description = free text ‖ derived
+      "category/sub" pair ‖ legacy reference fallback (D7: the ledger
+      shows this stored text since 4.4). Modal: sub_category dropdown +
+      פירוט free-text replace the old תת-קטגוריה input; accounts load on
+      modal open with the selected business. 5 new manual-entry specs.)
 - [ ] 4.6 Delete `resolveAccountCode` adapter, `resolveSubAccountCode`,
       and every read of the old four tables. Jest suite: port the existing
       43 journal tests + add coverage for resolution overrides (D3),

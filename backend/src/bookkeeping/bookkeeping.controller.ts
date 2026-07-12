@@ -70,6 +70,32 @@ export class BookkepingController {
     return this.bookkeepingService.createManualJournalEntries(body, firebaseId, businessNumber);
   }
 
+  /** Merged (CLIENT > ACCOUNTANT > SYSTEM) expense sub-categories for the
+   *  manual-entry modal's optional sub_category picker (Phase 4.5). Private
+   *  rows are excluded — they are never journaled (D5), so offering them on
+   *  a journal-entry form would be a contradiction. */
+  @Get('expense-catalog')
+  @UseGuards(FirebaseAuthGuard)
+  async getExpenseCatalog(
+    @Req() request: AuthenticatedRequest,
+    @Query('businessNumber') businessNumber: string,
+  ): Promise<{ subCategoryId: number; category: string | null; subCategory: string }[]> {
+    const firebaseId = request.user?.firebaseId;
+    if (!firebaseId) throw new UnauthorizedException('Not authenticated');
+    if (!businessNumber?.trim()) throw new BadRequestException('businessNumber is required');
+    const rows = await this.catalogService.getMergedExpenseCatalog({
+      userId: firebaseId,
+      businessNumber: businessNumber.trim(),
+    });
+    return rows
+      .filter((s) => !s.isPrivate)
+      .map((s) => ({
+        subCategoryId: s.id,
+        category: s.category?.name ?? null,
+        subCategory: s.name,
+      }));
+  }
+
   /** Valid vatReportingPeriod options for the manual-entry dropdown. */
   @Get('vat-reporting-periods')
   @UseGuards(FirebaseAuthGuard)
