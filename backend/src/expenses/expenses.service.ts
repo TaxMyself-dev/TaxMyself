@@ -436,6 +436,62 @@ export class ExpensesService {
         });
     }
 
+    /**
+     * Phase 5.3 (D9's inline completion row) — POST expenses/:id/
+     * complete-mapping. The accountant picks a card for a
+     * MISSING_ACCOUNTING_MAPPING row; the "החל גם על סיווגים עתידיים"
+     * checkbox decides:
+     *   - applyToFuture=false → one-off snapshot override on this expense
+     *     only (delegates to the 4.2 overrideExpenseMapping path).
+     *   - applyToFuture=true → the expense's sub_category is repointed at
+     *     the card (SYSTEM/ACCOUNTANT rows get a CLIENT override row, D4),
+     *     then THIS expense is re-resolved through it — snapshots +
+     *     description + journal in one transaction, approval + D10 override
+     *     stamped with the actor (approved by Elazar: completion
+     *     auto-approves + journals, consistent with overrideExpenseMapping).
+     *     The repoint itself commits before the expense transaction; if the
+     *     second step fails the mapping is still completed and the expense
+     *     stays pending — a retryable state, never a corrupt one.
+     */
+    async completeExpenseMapping(
+        id: number,
+        userId: string,
+        actorUserId: string,
+        input: { accountId: number; applyToFuture?: boolean },
+    ): Promise<Expense> {
+        if (input.accountId == null) {
+            throw new BadRequestException('accountId is required');
+        }
+        if (!input.applyToFuture) {
+            return this.overrideExpenseMapping(id, userId, actorUserId, { accountId: input.accountId });
+        }
+
+        const expense = await this.expense_repo.findOne({ where: { id } });
+        if (!expense) {
+            throw new NotFoundException(`Expense with ID ${id} not found`);
+        }
+        if (expense.userId !== userId) {
+            throw new UnauthorizedException(`You do not have permission to update this expense`);
+        }
+        await this.assertExpensePeriodUnlocked(expense);
+        if (expense.subCategoryId == null) {
+            throw new BadRequestException(
+                'להוצאה אין תת-קטגוריה — השלמת מיפוי עתידית דורשת סיווג קיים; יש לסווג את ההוצאה או להשתמש בעקיפה חד-פעמית',
+            );
+        }
+
+        const ctx = await this.catalogContextService.forUser(expense.userId, expense.businessNumber);
+        const effectiveSub = await this.catalogService.repointSubCategoryAccount(
+            expense.subCategoryId,
+            input.accountId,
+            ctx,
+        );
+        // repoint may have landed a CLIENT override row with a different id —
+        // reclassify onto the EFFECTIVE row so the FK matches what future
+        // name-resolution will pick (D4 precedence).
+        return this.reclassifyExpense(id, userId, actorUserId, effectiveSub.id);
+    }
+
     /** Rewrite (or create) an expense's journal entry inside the caller's
      *  transaction — the 4.2 endpoints' journal-line-replacing step. */
     private async rewriteExpenseJournal(expense: Expense, m: EntityManager): Promise<void> {
@@ -1024,20 +1080,42 @@ export class ExpensesService {
             });
         }
 
+        // Phase 5.3 (D5): "defer to accountant" saves the row unmapped
+        // (MISSING_ACCOUNTING_MAPPING) — only meaningful when an accountant
+        // actually services this client. A client without an ACTIVE
+        // delegation would be stuck forever, so they must pick a mapping
+        // (the D9 simple picker) instead.
+        if (subCategories.some((s) => s.deferToAccountant) && !(ctx.accountantIds?.length)) {
+            throw new BadRequestException(
+                'לא ניתן להשאיר את המיפוי לרואה החשבון — לא מקושר רואה חשבון לחשבון זה. יש לבחור למה ההוצאה שייכת.',
+            );
+        }
+
         const created: SubCategory[] = [];
         for (const subDto of subCategories) {
-            const law: AccountLaw = {
-                vatPercent: subDto.vatPercent ?? 0,
-                taxPercent: subDto.taxPercent ?? 0,
-                reductionPercent: subDto.reductionPercent ?? 0,
-                isEquipment: subDto.isEquipment ?? false,
-                recognitionType: subDto.isRecognized === false ? RecognitionType.NOT_RECOGNIZED : RecognitionType.RECOGNIZED,
-            };
-            const sub = await this.catalogService.createSubCategory(scope, category, subDto.subCategoryName, {
-                law,
-                reportScope: subDto.reportScope ?? ExpenseReportScope.PNL,
-                createdByUserId: firebaseId,
-            });
+            let sub: SubCategory;
+            if (subDto.deferToAccountant) {
+                // No law, no accountId → CatalogService lands the row as
+                // MISSING_ACCOUNTING_MAPPING; the accountant completes it via
+                // the D9 inline row (complete-mapping / repoint endpoints).
+                sub = await this.catalogService.createSubCategory(scope, category, subDto.subCategoryName, {
+                    reportScope: subDto.reportScope ?? ExpenseReportScope.PNL,
+                    createdByUserId: firebaseId,
+                });
+            } else {
+                const law: AccountLaw = {
+                    vatPercent: subDto.vatPercent ?? 0,
+                    taxPercent: subDto.taxPercent ?? 0,
+                    reductionPercent: subDto.reductionPercent ?? 0,
+                    isEquipment: subDto.isEquipment ?? false,
+                    recognitionType: subDto.isRecognized === false ? RecognitionType.NOT_RECOGNIZED : RecognitionType.RECOGNIZED,
+                };
+                sub = await this.catalogService.createSubCategory(scope, category, subDto.subCategoryName, {
+                    law,
+                    reportScope: subDto.reportScope ?? ExpenseReportScope.PNL,
+                    createdByUserId: firebaseId,
+                });
+            }
             created.push(await this.reloadSubCategory(sub.id, scope.chartOwnerKey));
         }
 

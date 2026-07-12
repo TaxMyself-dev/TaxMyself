@@ -733,12 +733,24 @@ baseline reports reproduce.
       Decision approved by Elazar this session: the DTO carries categoryName
       (a category picker joins the Phase 6 screen) — D11's field list had no
       parent-category field but sub_category.categoryId requires one.)
-- [ ] 5.3 Client-creates-unmapped flow (D5): client with an active
+- [x] 5.3 Client-creates-unmapped flow (D5): client with an active
       delegation may save a RECOGNIZED sub_category without mapping →
       MISSING_ACCOUNTING_MAPPING; accountant completion UI (the inline row
       from D9) sets mapping + approvalStatus=APPROVED; the "החל גם על
       סיווגים עתידיים" checkbox decides sub_category update vs one-off
       snapshot override.
+      (Done Session 10: CreateUserSubCategoryDto.deferToAccountant — saves
+      the row unmapped (no law, MISSING_ACCOUNTING_MAPPING) but ONLY when
+      the client has an ACTIVE delegation; without one → 400 so a client
+      without an accountant is never stuck (they use the D9 simple picker =
+      a normal mapped create). POST expenses/:id/complete-mapping —
+      applyToFuture=false delegates to the 4.2 overrideExpenseMapping
+      one-off path; applyToFuture=true repoints the sub_category
+      (repointSubCategoryAccount — SYSTEM/ACCOUNTANT rows land a CLIENT
+      override) then re-resolves THIS expense onto the effective row via
+      reclassifyExpense: snapshots + description + journal in one tx,
+      approval + D10 override stamped with the actor. Elazar-approved:
+      completion auto-approves + journals, consistent with 4.2.)
 - [ ] 5.4 Accountant catalog management screen: list categories/
       sub_categories across the three layers with owner badges;
       pending-approval queue (sub_categories with

@@ -42,4 +42,14 @@ export class CreateUserSubCategoryDto {
   @IsOptional()
   pnlCategory?: string | null;
 
+  /**
+   * Phase 5.3 (D5): "יטופל ע"י רואה החשבון" — save the sub_category WITHOUT
+   * accounting mapping (MISSING_ACCOUNTING_MAPPING, accountId NULL). Only
+   * allowed when the client has an ACTIVE delegation; a client without an
+   * accountant must pick a mapping (the D9 simple picker) and gets a 400.
+   */
+  @IsBoolean()
+  @IsOptional()
+  deferToAccountant?: boolean;
+
 }

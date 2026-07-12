@@ -106,8 +106,10 @@ describe('ExpensesService — Phase 4.1 classification', () => {
   let expenseRepo: jest.Mocked<Repository<Expense>>;
   let workflowRepo: jest.Mocked<Repository<ReportWorkflow>>;
   let businessRepo: jest.Mocked<Repository<Business>>;
+  let userRepo: jest.Mocked<Repository<User>>;
   let bookkeepingService: any;
   let catalogService: any;
+  let catalogContextService: any;
   let dataSource: any;
   let mockManager: jest.Mocked<EntityManager>;
 
@@ -118,6 +120,7 @@ describe('ExpensesService — Phase 4.1 classification', () => {
       save: jest.fn().mockImplementation(async (e: any) => ({ id: 5, ...e })),
     });
     workflowRepo = makeRepo<ReportWorkflow>();
+    userRepo = makeRepo<User>();
     businessRepo = makeRepo<Business>({
       findOne: jest.fn().mockResolvedValue({
         businessNumber: '999999999',
@@ -140,6 +143,11 @@ describe('ExpensesService — Phase 4.1 classification', () => {
       resolveSubCategory: jest.fn().mockResolvedValue(makeResolved()),
     };
 
+    catalogContextService = {
+      forUser: jest.fn(async (userId: string, businessNumber: string) => ({ userId, businessNumber, accountantIds: [] })),
+      accountantIdsForUser: jest.fn().mockResolvedValue([]),
+    };
+
     mockManager = {
       getRepository: jest.fn().mockImplementation((entity: any) => {
         if (entity === Expense) return expenseRepo;
@@ -156,7 +164,7 @@ describe('ExpensesService — Phase 4.1 classification', () => {
       providers: [
         ExpensesService,
         { provide: getRepositoryToken(Expense), useValue: expenseRepo },
-        { provide: getRepositoryToken(User), useValue: makeRepo<User>() },
+        { provide: getRepositoryToken(User), useValue: userRepo },
         { provide: getRepositoryToken(Supplier), useValue: makeRepo<Supplier>() },
         { provide: getRepositoryToken(Business), useValue: businessRepo },
         { provide: getRepositoryToken(ClassifiedTransactions), useValue: makeRepo<ClassifiedTransactions>() },
@@ -175,13 +183,7 @@ describe('ExpensesService — Phase 4.1 classification', () => {
         { provide: DataSource, useValue: dataSource },
         { provide: BookkeepingService, useValue: bookkeepingService },
         { provide: CatalogService, useValue: catalogService },
-        {
-          provide: CatalogContextService,
-          useValue: {
-            forUser: jest.fn(async (userId: string, businessNumber: string) => ({ userId, businessNumber, accountantIds: [] })),
-            accountantIdsForUser: jest.fn().mockResolvedValue([]),
-          },
-        },
+        { provide: CatalogContextService, useValue: catalogContextService },
       ],
     }).compile();
 
@@ -529,5 +531,105 @@ describe('ExpensesService — Phase 4.1 classification', () => {
     expenseRepo.findOne.mockResolvedValue({ id: 34, userId: 'someone-else' } as any);
     await expect(service.deleteExpense(34, 'uid-1')).rejects.toThrow('You do not have permission');
     expect(expenseRepo.remove).not.toHaveBeenCalled();
+  });
+
+  // ── completeExpenseMapping (Phase 5.3 / D9 inline completion row) ──────────
+
+  describe('completeExpenseMapping', () => {
+    const missingExpense = () => ({
+      id: 40, userId: 'uid-1', businessNumber: '999999999', isReported: null,
+      vatReportingDate: null, journalEntryNumber: null, subCategoryId: 42,
+      category: 'הוצאות רכב', subCategory: 'דלק', sum: 118, date: new Date('2024-03-10') as any,
+      approvalStatus: ExpenseApprovalStatus.MISSING_ACCOUNTING_MAPPING,
+    } as any);
+
+    it('applyToFuture=false → one-off override only (repoint never called)', async () => {
+      expenseRepo.findOne.mockResolvedValue(missingExpense());
+      catalogService.findAccountByIdInScope = jest.fn().mockResolvedValue({
+        id: 11, code: '70010', name: 'כרטיס רו"ח', sectionId: 4,
+        section: { id: 4, code: '300', name: 'חתך' }, code6111: null,
+        vatPercent: 100, taxPercent: 100, reductionPercent: 0, isEquipment: false,
+      });
+      catalogService.repointSubCategoryAccount = jest.fn();
+
+      const result = await service.completeExpenseMapping(40, 'uid-1', 'accountant-uid', { accountId: 11 });
+
+      expect(catalogService.repointSubCategoryAccount).not.toHaveBeenCalled();
+      expect(result.accountCodeSnapshot).toBe('70010');
+      expect(result.approvalStatus).toBe(ExpenseApprovalStatus.APPROVED);
+      expect(result.classificationOverrideByUserId).toBe('accountant-uid');
+    });
+
+    it('applyToFuture=true → repoints, reclassifies onto the EFFECTIVE row, approves + journals', async () => {
+      expenseRepo.findOne.mockResolvedValue(missingExpense());
+      expenseRepo.save.mockImplementation(async (e: any) => e);
+      catalogService.repointSubCategoryAccount = jest.fn().mockResolvedValue({ id: 77, name: 'דלק' });
+      catalogService.resolveSubCategory.mockResolvedValue(makeResolved({ subCategory: { id: 77 } }));
+
+      const result = await service.completeExpenseMapping(40, 'uid-1', 'accountant-uid', { accountId: 11, applyToFuture: true });
+
+      expect(catalogService.repointSubCategoryAccount).toHaveBeenCalledWith(
+        42, 11, expect.objectContaining({ businessNumber: '999999999' }),
+      );
+      // Re-resolution runs against the row repoint returned (a CLIENT
+      // override may carry a different id than the original sub_category).
+      expect(catalogService.resolveSubCategory).toHaveBeenCalledWith(77, expect.anything());
+      expect(result.subCategoryId).toBe(77);
+      expect(result.approvalStatus).toBe(ExpenseApprovalStatus.APPROVED);
+      expect(result.classificationOverrideByUserId).toBe('accountant-uid');
+      expect(bookkeepingService.createJournalEntry).toHaveBeenCalledTimes(1);
+    });
+
+    it('applyToFuture=true on an expense with no subCategoryId → 400, no repoint', async () => {
+      expenseRepo.findOne.mockResolvedValue({ ...missingExpense(), subCategoryId: null });
+      catalogService.repointSubCategoryAccount = jest.fn();
+
+      await expect(
+        service.completeExpenseMapping(40, 'uid-1', 'uid-1', { accountId: 11, applyToFuture: true }),
+      ).rejects.toThrow(BadRequestException);
+      expect(catalogService.repointSubCategoryAccount).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── defer-to-accountant sub_category create (Phase 5.3 / D5) ───────────────
+
+  describe('addUserSubCategories deferToAccountant', () => {
+    beforeEach(() => {
+      userRepo.findOne.mockResolvedValue({ firebaseId: 'uid-1' } as any);
+      catalogService.buildScope = jest.fn().mockReturnValue({ ownerType: 'CLIENT', chartOwnerKey: 'CLIENT_999999999', businessNumber: '999999999' });
+      catalogService.findCategoryByNameInScope = jest.fn().mockResolvedValue({ id: 1, name: 'הוצאות רכב' });
+      catalogService.findSubCategoryInSingleScope = jest.fn().mockResolvedValue(null);
+      catalogService.createSubCategory = jest.fn().mockResolvedValue({ id: 90 });
+      catalogService.findSubCategoryInScope = jest.fn().mockResolvedValue({
+        id: 90, name: 'איתוראן', categoryId: 1, isPrivate: false, accountId: null, account: null,
+        category: { id: 1, name: 'הוצאות רכב', type: 'EXPENSE' },
+        approvalStatus: ApprovalStatus.MISSING_ACCOUNTING_MAPPING,
+        reportScope: ExpenseReportScope.PNL,
+      });
+    });
+
+    it('client WITHOUT an active delegation cannot defer → 400, nothing created', async () => {
+      catalogContextService.forUser.mockResolvedValue({ userId: 'uid-1', businessNumber: '999999999', accountantIds: [] });
+
+      await expect(
+        service.addUserSubCategories('uid-1', '999999999', 'הוצאות רכב', [
+          { subCategoryName: 'איתוראן', deferToAccountant: true } as any,
+        ]),
+      ).rejects.toThrow('לא מקושר רואה חשבון');
+      expect(catalogService.createSubCategory).not.toHaveBeenCalled();
+    });
+
+    it('client WITH an active delegation defers → created with NO law (MISSING_ACCOUNTING_MAPPING path)', async () => {
+      catalogContextService.forUser.mockResolvedValue({ userId: 'uid-1', businessNumber: '999999999', accountantIds: ['agent-1'] });
+
+      await service.addUserSubCategories('uid-1', '999999999', 'הוצאות רכב', [
+        { subCategoryName: 'איתוראן', deferToAccountant: true } as any,
+      ]);
+
+      expect(catalogService.createSubCategory).toHaveBeenCalledTimes(1);
+      const input = catalogService.createSubCategory.mock.calls[0][3];
+      expect(input.law).toBeUndefined();
+      expect(input.accountId).toBeUndefined();
+    });
   });
 });

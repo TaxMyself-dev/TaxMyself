@@ -13,7 +13,7 @@ import { SupplierResponseDto } from './dtos/response-supplier.dto';
 import { CreateUserCategoryDto } from './dtos/create-user-category.dto';
 import { UpdateUserCategoryDto } from './dtos/update-user-category.dto';
 import { UpdateUserSubCategoryDto } from './dtos/update-user-sub-category.dto';
-import { ReclassifyExpenseDto, OverrideExpenseMappingDto } from './dtos/reclassify-expense.dto';
+import { ReclassifyExpenseDto, OverrideExpenseMappingDto, CompleteExpenseMappingDto } from './dtos/reclassify-expense.dto';
 //Guards
 import { AdminGuard } from '../guards/admin.guard';
 import { GetExpensesDto } from './dtos/get-expenses.dto';
@@ -115,6 +115,21 @@ export class ExpensesController {
     const firebaseId = request.user?.firebaseId;
     const actorFirebaseId = request.user?.actorFirebaseId ?? firebaseId;
     return this.expensesService.overrideExpenseMapping(id, firebaseId, actorFirebaseId, body);
+  }
+
+  /** Phase 5.3 (D9's inline completion row): complete a missing accounting
+   *  mapping. applyToFuture=true repoints the sub_category (future expenses
+   *  follow) and re-resolves this expense; false = one-off override only. */
+  @Post(':id/complete-mapping')
+  @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
+  async completeExpenseMapping(
+    @Req() request: AuthenticatedRequest,
+    @Param('id') id: number,
+    @Body() body: CompleteExpenseMappingDto,
+  ) {
+    const firebaseId = request.user?.firebaseId;
+    const actorFirebaseId = request.user?.actorFirebaseId ?? firebaseId;
+    return this.expensesService.completeExpenseMapping(id, firebaseId, actorFirebaseId, body);
   }
 
   @Patch('update-expense/:id')
