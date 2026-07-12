@@ -54,7 +54,20 @@ export class DelegationController {
 
 
   @Get('users-for-agent/:agentId')
-  async getUsersForAgent(@Param('agentId') agentId: string): Promise<any> {
+  @UseGuards(FirebaseAuthGuard)
+  async getUsersForAgent(
+    @Req() request: AuthenticatedRequest,
+    @Param('agentId') agentId: string,
+  ): Promise<any> {
+    // Self-or-admin: compare against the caller's OWN identity
+    // (actorFirebaseId survives the impersonation swap — the frontend sends
+    // x-client-user-id on every request while impersonating, and the clients
+    // panel must keep loading the accountant's list during impersonation).
+    const actorFirebaseId = request.user?.actorFirebaseId;
+    if (!actorFirebaseId) throw new ForbiddenException('לא אותחל משתמש');
+    if (actorFirebaseId !== agentId && !(await this.usersService.isAdmin(actorFirebaseId))) {
+      throw new ForbiddenException('אין הרשאה לצפות ברשימת לקוחות של מייצג אחר');
+    }
     const users = await this.delegationService.getUsersForAgent(agentId);
     return users;
   }

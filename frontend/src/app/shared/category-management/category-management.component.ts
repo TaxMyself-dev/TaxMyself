@@ -2,7 +2,7 @@ import { Component, DestroyRef, OnInit, computed, inject, signal } from '@angula
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, FormGroup } from '@angular/forms';
 import { catchError, of } from 'rxjs';
-import { Workbook } from 'exceljs';
+import { Workbook, Worksheet } from 'exceljs';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { LedgerReportService } from 'src/app/pages/ledger-report/ledger-report.service';
 import { ConfirmationService } from 'primeng/api';
@@ -164,12 +164,6 @@ export class CategoryManagementComponent implements OnInit {
           this.subCategories.set([]);
         },
       });
-  }
-
-  onCategoriesUploaded(event: { status: boolean; message: string }): void {
-    if (event?.status) {
-      this.loadSubCategories();
-    }
   }
 
   necessityLabel(necessity: string): string {
@@ -369,6 +363,7 @@ export class CategoryManagementComponent implements OnInit {
       for (let i = 1; i <= header.length; i++) {
         ws.getColumn(i).width = 16;
       }
+      this.alignAllCellsRight(ws);
     }
 
     this.addAccountantSheet(wb, accountNameByCode);
@@ -407,7 +402,7 @@ export class CategoryManagementComponent implements OnInit {
    */
   private addAccountantSheet(wb: Workbook, accountNameByCode: Map<string, string>): void {
     const header = [
-      'שם הכרטיס', 'מספר הכרטיס', 'הוצאה', 'אחוז מוכר למס הכנסה', 'אחוז מוכר למע"מ',
+      'שם הכרטיס', 'מספר הכרטיס', 'הוצאה', 'קוד תת-חשבון', 'אחוז מוכר למס הכנסה', 'אחוז מוכר למע"מ',
       'פחת', 'אחוז פחת', 'קטגוריה לדוח רווח והפסד', 'קטגוריה ל-6111',
     ];
     const HEADER_FILL: any = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF4F6F9' } };
@@ -441,6 +436,7 @@ export class CategoryManagementComponent implements OnInit {
         code ? (accountNameByCode.get(code) || '') : '',
         code,
         row.subCategoryName,
+        row.subAccountCode || '',
         row.taxPercent,
         row.vatPercent,
         row.isEquipment ? 'כן' : 'לא',
@@ -458,5 +454,16 @@ export class CategoryManagementComponent implements OnInit {
     for (let i = 1; i <= header.length; i++) {
       ws.getColumn(i).width = 16;
     }
+    this.alignAllCellsRight(ws);
+  }
+
+  /** Force right-alignment on every cell (header + data, text and numeric alike)
+   *  so the RTL worksheet view doesn't leave numeric columns locale-aligned left. */
+  private alignAllCellsRight(ws: Worksheet): void {
+    ws.eachRow((row) => {
+      row.eachCell({ includeEmpty: true }, (cell) => {
+        cell.alignment = { horizontal: 'right' };
+      });
+    });
   }
 }

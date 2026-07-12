@@ -1,0 +1,164 @@
+{
+  "generatedAt": "2026-07-12T17:33:40.492Z",
+  "sourceDb": "keepintax_prodcopy",
+  "businesses": [
+    {
+      "businessNumber": "039076963",
+      "firebaseId": "x2T1K4PxUgSgLvU30RfJC5smMNi2",
+      "businessName": "רות צברי",
+      "dateRange": {
+        "start": "2026-01-02",
+        "end": "2026-06-01"
+      },
+      "periodCount": 6,
+      "periodLabels": [
+        "1/2026",
+        "2/2026",
+        "3/2026",
+        "4/2026",
+        "5/2026",
+        "6/2026"
+      ],
+      "file": "039076963.json"
+    },
+    {
+      "businessNumber": "200866028",
+      "firebaseId": "AF9LT37vCLZZX7boMLUyFwYZ2u23",
+      "businessName": "כינר קלרמן",
+      "dateRange": {
+        "start": "2026-03-16",
+        "end": "2026-05-25"
+      },
+      "periodCount": 3,
+      "periodLabels": [
+        "3/2026",
+        "4/2026",
+        "5/2026"
+      ],
+      "file": "200866028.json"
+    },
+    {
+      "businessNumber": "204245724",
+      "firebaseId": "JpIEJt3lSDMsI9uG67Etqx4ZbuC3",
+      "businessName": "אוריה הראל אדריכלות",
+      "dateRange": {
+        "start": "2026-01-01",
+        "end": "2026-05-20"
+      },
+      "periodCount": 3,
+      "periodLabels": [
+        "1-2/2026",
+        "3-4/2026",
+        "5-6/2026"
+      ],
+      "file": "204245724.json"
+    },
+    {
+      "businessNumber": "206673600",
+      "firebaseId": "aRZeoIzKsNX3e7AyvQUPrexpO3P2",
+      "businessName": "יצחק הראל",
+      "dateRange": {
+        "start": "2025-12-21",
+        "end": "2026-05-27"
+      },
+      "periodCount": 6,
+      "periodLabels": [
+        "12/2025",
+        "1/2026",
+        "2/2026",
+        "3/2026",
+        "4/2026",
+        "5/2026"
+      ],
+      "file": "206673600.json"
+    },
+    {
+      "businessNumber": "207550344",
+      "firebaseId": "FVVORr3iRiPQYnpTmm0ODylzj2s1",
+      "businessName": "קל וחומר",
+      "dateRange": {
+        "start": "2026-04-29",
+        "end": "2026-06-27"
+      },
+      "periodCount": 3,
+      "periodLabels": [
+        "4/2026",
+        "5/2026",
+        "6/2026"
+      ],
+      "file": "207550344.json"
+    },
+    {
+      "businessNumber": "300247012",
+      "firebaseId": "4CvisVzlnwMfUCJjs42etaocbRb2",
+      "businessName": "אליקים אורבך עריכת דין",
+      "dateRange": {
+        "start": "2025-12-28",
+        "end": "2026-02-25"
+      },
+      "periodCount": 2,
+      "periodLabels": [
+        "11-12/2025",
+        "1-2/2026"
+      ],
+      "file": "300247012.json"
+    },
+    {
+      "businessNumber": "304902133",
+      "firebaseId": "JpIEJt3lSDMsI9uG67Etqx4ZbuC3",
+      "businessName": "אלעזר הראל - 45",
+      "dateRange": {
+        "start": "2025-05-01",
+        "end": "2026-03-06"
+      },
+      "periodCount": 11,
+      "periodLabels": [
+        "5/2025",
+        "6/2025",
+        "7/2025",
+        "8/2025",
+        "9/2025",
+        "10/2025",
+        "11/2025",
+        "12/2025",
+        "1/2026",
+        "2/2026",
+        "3/2026"
+      ],
+      "file": "304902133.json"
+    },
+    {
+      "businessNumber": "308360981",
+      "firebaseId": "yzLUGK0UBTchyasx6WREYs7S0Ni1",
+      "businessName": "ברכה",
+      "dateRange": {
+        "start": "2026-01-05",
+        "end": "2026-02-21"
+      },
+      "periodCount": 2,
+      "periodLabels": [
+        "1/2026",
+        "2/2026"
+      ],
+      "file": "308360981.json"
+    },
+    {
+      "businessNumber": "318970860",
+      "firebaseId": "4gMM6Mx2ADOIVDv6VEWtVK4dTgQ2",
+      "businessName": "לוי הראל עבודות עץ",
+      "dateRange": {
+        "start": "2026-01-21",
+        "end": "2026-05-17"
+      },
+      "periodCount": 5,
+      "periodLabels": [
+        "1/2026",
+        "2/2026",
+        "3/2026",
+        "4/2026",
+        "5/2026"
+      ],
+      "file": "318970860.json"
+    }
+  ]
+}

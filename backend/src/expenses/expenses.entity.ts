@@ -1,4 +1,4 @@
-import { SingleMonthReport, DualMonthReport, ExpenseReportScope } from 'src/enum';
+import { SingleMonthReport, DualMonthReport, ExpenseReportScope, ExpenseApprovalStatus } from 'src/enum';
 import {
   Entity,
   Column,
@@ -26,11 +26,20 @@ export class Expense {
   @Column('decimal', { precision: 10, scale: 2 })
   sum: number;
 
+  /**
+   * Renamed in place from `taxPercent` (D6, Phase 3.1) — the same column,
+   * no data copy needed. Historically (and still, pre-Phase-4) set at
+   * creation time, the moment an expense is journal-posted — there is no
+   * separate PENDING-then-APPROVED write path yet, so "snapshot" here means
+   * exactly what it always meant: the percent used for this expense's own
+   * VAT/tax calculation and journal lines.
+   */
   @Column('decimal')
-  taxPercent: number;
+  taxPercentSnapshot: number;
 
+  /** Renamed in place from `vatPercent` — see taxPercentSnapshot. */
   @Column('decimal')
-  vatPercent: number;
+  vatPercentSnapshot: number;
 
   @Column('date')
   date: Date;
@@ -44,8 +53,9 @@ export class Expense {
   @Column({ nullable: true, default: null })
   file: string;
 
+  /** Renamed in place from `isEquipment` — see taxPercentSnapshot. */
   @Column('boolean')
-  isEquipment: boolean;
+  isEquipmentSnapshot: boolean;
 
   @Column()
   userId: string;
@@ -59,8 +69,9 @@ export class Expense {
   @Column({ nullable: true, default: null })
   reductionDone: number;
 
+  /** Renamed in place from `reductionPercent` — see taxPercentSnapshot. */
   @Column()
-  reductionPercent: number;
+  reductionPercentSnapshot: number;
 
   @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
   totalTaxPayable: number;
@@ -153,5 +164,74 @@ export class Expense {
    */
   @Column({ type: 'int', nullable: true, default: null })
   journalEntryNumber: number | null;
+
+  // ==========================================================================
+  // D6 (Phase 3) — catalog FK + accounting-law snapshot + description +
+  // approval workflow. Backfilled from the journal (the historical source of
+  // truth) in Phase 3.2/3.3/3.4; NOT YET written by addExpense/updateExpense
+  // — that switchover is Phase 4.1. All nullable: legacy rows predate every
+  // one of these columns.
+  // ==========================================================================
+
+  /** FK -> sub_category.id (real DB constraint, added Phase 3.5 after backfill
+   *  is verified clean). Resolved from (category, subCategory, userId,
+   *  businessNumber) against the merged catalog (Phase 3.2). */
+  @Column({ type: 'int', nullable: true, default: null })
+  subCategoryId: number | null;
+
+  @Column({ type: 'int', nullable: true, default: null })
+  sectionIdSnapshot: number | null;
+
+  @Column({ type: 'varchar', nullable: true, default: null })
+  sectionCodeSnapshot: string | null;
+
+  @Column({ type: 'varchar', nullable: true, default: null })
+  sectionNameSnapshot: string | null;
+
+  @Column({ type: 'int', nullable: true, default: null })
+  accountIdSnapshot: number | null;
+
+  @Column({ type: 'varchar', nullable: true, default: null })
+  accountCodeSnapshot: string | null;
+
+  @Column({ type: 'varchar', nullable: true, default: null })
+  accountNameSnapshot: string | null;
+
+  @Column({ type: 'varchar', nullable: true, default: null })
+  code6111Snapshot: string | null;
+
+  /**
+   * Computed by buildExpenseDescription (D7) — the עמודת תיאור fallback
+   * chain (classification -> recognized-document type -> "מסמך לא מזוהה").
+   * Recomputed on every classification change while PENDING; frozen at
+   * approval. Nullable: backfilled in Phase 3.4, not yet written live.
+   */
+  @Column({ type: 'varchar', nullable: true, default: null })
+  description: string | null;
+
+  /**
+   * D6/Phase 3.3 backfill: a journal-posted expense -> APPROVED (matches
+   * today's implicit "every addExpense immediately posts a journal entry"
+   * behavior); no journal entry -> PENDING (or MISSING_ACCOUNTING_MAPPING
+   * when its sub_category is). Default APPROVED only applies going forward
+   * once Phase 4.1 wires real writes; existing rows are backfilled
+   * explicitly, never rely on this default.
+   */
+  @Column({ type: 'enum', enum: ExpenseApprovalStatus, nullable: true, default: null })
+  approvalStatus: ExpenseApprovalStatus | null;
+
+  @Column({ nullable: true, default: null })
+  approvedByUserId: string | null;
+
+  @Column({ type: 'datetime', nullable: true, default: null })
+  approvedAt: Date | null;
+
+  /** D10: set by an accountant's reclassification override. Once set, this
+   *  expense is NEVER auto re-resolved — manual override sticks. */
+  @Column({ nullable: true, default: null })
+  classificationOverrideByUserId: string | null;
+
+  @Column({ type: 'datetime', nullable: true, default: null })
+  classificationOverrideAt: Date | null;
 
 }

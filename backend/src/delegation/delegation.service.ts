@@ -118,9 +118,13 @@ export class DelegationService {
 
     // Create and save the delegation entry
     try {
+      // Invite flow is the accountant-onboarding path — grant full scopes,
+      // matching createClientByAccountant (NULL scopes are read-only in the guard).
       const delegation = this.delegationRepository.create({
         userId,
         agentId,
+        status: DelegationStatus.ACTIVE,
+        scopes: ['DOCUMENTS_READ', 'DOCUMENTS_WRITE'],
       });
       await this.delegationRepository.save(delegation);
       return {
@@ -394,6 +398,18 @@ export class DelegationService {
     });
     if (existingUser) {
       throw new ConflictException(`העסק כבר קיים במערכת`);
+    }
+
+    // 1b. Friendly duplicate check ahead of ux_business_number — before the
+    // Firebase user is created, so a duplicate doesn't orphan a Firebase account.
+    const businessNumber = dto.businessNumber?.trim();
+    if (businessNumber) {
+      const existingBusiness = await this.businessRepository.findOne({
+        where: { businessNumber },
+      });
+      if (existingBusiness) {
+        throw new ConflictException(`עסק עם מספר ${businessNumber} כבר קיים במערכת`);
+      }
     }
 
     const password = `KE${dto.phone.replace(/\D/g, '')}`;

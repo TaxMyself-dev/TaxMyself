@@ -278,9 +278,11 @@ export class ExpensesPage implements OnInit {
               : `${this.gs.addComma(Math.abs(ilsSum))} ש"ח`;
 
             // reportScope: keep the raw value for filtering, show Hebrew in
-            // the column. pnlCategory: backend attached `resolvedPnlCategory`
-            // (per-expense override → subcategory default → null); "—" means
-            // it uses the bookkeeping category.
+            // the column. pnlCategory column: since Phase 4.4 (D3) the P&L
+            // grouping is the expense's accounting-section snapshot
+            // (sectionNameSnapshot) — the old resolvedPnlCategory precedence
+            // chain is gone; "—" means the expense has no section (unmapped
+            // or posted to a technical account).
             const rawScope = (row.reportScope ?? 'pnl') as string;
 
             return {
@@ -303,7 +305,7 @@ export class ExpensesPage implements OnInit {
               // Raw per-expense override (for the Edit dialog prefill) vs the
               // resolved value shown in the table column.
               pnlCategoryOverrideRaw: row.pnlCategory ?? null,
-              pnlCategory: row.resolvedPnlCategory ?? '—',
+              pnlCategory: row.sectionNameSnapshot ?? '—',
               // VAT report period as stamped on the expense — single month
               // ("1/2024") or dual month ("1-2/2024") per the business's
               // cadence. Legacy rows without a stamp show "—".

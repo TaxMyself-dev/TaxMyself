@@ -1,0 +1,267 @@
+{
+  "businessNumber": "318970860",
+  "firebaseId": "4gMM6Mx2ADOIVDv6VEWtVK4dTgQ2",
+  "businessName": "לוי הראל עבודות עץ",
+  "businessType": "EXEMPT",
+  "vatReportingType": "NOT_REQUIRED",
+  "taxReportingType": "DUAL_MONTH_REPORT",
+  "dateRange": {
+    "start": "2026-01-21",
+    "end": "2026-05-17"
+  },
+  "periods": [
+    {
+      "label": "1/2026",
+      "startDate": "2026-01-01",
+      "endDate": "2026-01-31",
+      "vat": {
+        "vatableTurnover": 4250,
+        "nonVatableTurnover": 0,
+        "vatRefundOnAssets": 0,
+        "vatRefundOnExpenses": 0,
+        "vatPayment": 0,
+        "vatRate": 0.18
+      },
+      "pnl": {
+        "income": 4250,
+        "expenses": [],
+        "netProfitBeforeTax": 4250
+      }
+    },
+    {
+      "label": "2/2026",
+      "startDate": "2026-02-01",
+      "endDate": "2026-02-28",
+      "vat": {
+        "vatableTurnover": 0,
+        "nonVatableTurnover": 0,
+        "vatRefundOnAssets": 0,
+        "vatRefundOnExpenses": 0,
+        "vatPayment": 0,
+        "vatRate": 0.18
+      },
+      "pnl": {
+        "income": 0,
+        "expenses": [],
+        "netProfitBeforeTax": 0
+      }
+    },
+    {
+      "label": "3/2026",
+      "startDate": "2026-03-01",
+      "endDate": "2026-03-31",
+      "vat": {
+        "vatableTurnover": 0,
+        "nonVatableTurnover": 0,
+        "vatRefundOnAssets": 0,
+        "vatRefundOnExpenses": 0,
+        "vatPayment": 0,
+        "vatRate": 0.18
+      },
+      "pnl": {
+        "income": 0,
+        "expenses": [],
+        "netProfitBeforeTax": 0
+      }
+    },
+    {
+      "label": "4/2026",
+      "startDate": "2026-04-01",
+      "endDate": "2026-04-30",
+      "vat": {
+        "vatableTurnover": 0,
+        "nonVatableTurnover": 0,
+        "vatRefundOnAssets": 0,
+        "vatRefundOnExpenses": 0,
+        "vatPayment": 0,
+        "vatRate": 0.18
+      },
+      "pnl": {
+        "income": 0,
+        "expenses": [],
+        "netProfitBeforeTax": 0
+      }
+    },
+    {
+      "label": "5/2026",
+      "startDate": "2026-05-01",
+      "endDate": "2026-05-31",
+      "vat": {
+        "vatableTurnover": 1800,
+        "nonVatableTurnover": 0,
+        "vatRefundOnAssets": 0,
+        "vatRefundOnExpenses": 0,
+        "vatPayment": 0,
+        "vatRate": 0.18
+      },
+      "pnl": {
+        "income": 1800,
+        "expenses": [],
+        "netProfitBeforeTax": 1800
+      }
+    }
+  ],
+  "aggregate": {
+    "vat": {
+      "vatableTurnover": 6050,
+      "nonVatableTurnover": 0,
+      "vatRefundOnAssets": 0,
+      "vatRefundOnExpenses": 0,
+      "vatPayment": 0,
+      "vatRate": 0.18
+    },
+    "pnl": {
+      "income": 6050,
+      "expenses": [],
+      "netProfitBeforeTax": 6050
+    }
+  },
+  "ledger": {
+    "accounts": [
+      {
+        "accountCode": "40000",
+        "accountName": "הכנסות",
+        "lines": [
+          {
+            "entryNumber": 10000000,
+            "date": "2026-01-21",
+            "valueDate": "2026-01-21",
+            "vatDate": "2026-01-21",
+            "vatReportingPeriod": "1/2026",
+            "allocationNum": "",
+            "notes": "",
+            "referenceType": "RECEIPT",
+            "referenceId": 70001,
+            "journalEntryId": 10000107,
+            "description": "קבלה",
+            "counterAccounts": "בנק - 1100",
+            "counterPartyName": "ציפי הכהן פארן",
+            "subCategoryName": null,
+            "movementType": "קבלה",
+            "debit": 0,
+            "credit": 4250,
+            "totalAmount": 4250,
+            "currency": "ILS",
+            "exchangeRate": 1,
+            "amountBeforeVat": 4250,
+            "amountForTax": 4250,
+            "vatAmount": 0,
+            "taxPercent": 100,
+            "vatPercent": 0,
+            "documentTotal": 4250,
+            "balance": 4250,
+            "periodBalance": 4250
+          },
+          {
+            "entryNumber": 10000001,
+            "date": "2026-05-17",
+            "valueDate": "2026-05-17",
+            "vatDate": "2026-05-17",
+            "vatReportingPeriod": "5/2026",
+            "allocationNum": "",
+            "notes": "",
+            "referenceType": "RECEIPT",
+            "referenceId": 70002,
+            "journalEntryId": 10000108,
+            "description": "קבלה",
+            "counterAccounts": "בנק - 1100",
+            "counterPartyName": "אלישבע אביטל",
+            "subCategoryName": null,
+            "movementType": "קבלה",
+            "debit": 0,
+            "credit": 1800,
+            "totalAmount": 1800,
+            "currency": "ILS",
+            "exchangeRate": 1,
+            "amountBeforeVat": 1800,
+            "amountForTax": 1800,
+            "vatAmount": 0,
+            "taxPercent": 100,
+            "vatPercent": 0,
+            "documentTotal": 1800,
+            "balance": 6050,
+            "periodBalance": 6050
+          }
+        ],
+        "totalDebit": 0,
+        "totalCredit": 6050,
+        "closingBalance": 6050,
+        "openingBalance": 0,
+        "lineCount": 2
+      },
+      {
+        "accountCode": "1100",
+        "accountName": "בנק",
+        "lines": [
+          {
+            "entryNumber": 10000000,
+            "date": "2026-01-21",
+            "valueDate": "2026-01-21",
+            "vatDate": "2026-01-21",
+            "vatReportingPeriod": "1/2026",
+            "allocationNum": "",
+            "notes": "",
+            "referenceType": "RECEIPT",
+            "referenceId": 70001,
+            "journalEntryId": 10000107,
+            "description": "קבלה מלקוח",
+            "counterAccounts": "הכנסות - 40000",
+            "counterPartyName": "ציפי הכהן פארן",
+            "subCategoryName": null,
+            "movementType": "קבלה",
+            "debit": 4250,
+            "credit": 0,
+            "totalAmount": 4250,
+            "currency": "ILS",
+            "exchangeRate": 1,
+            "amountBeforeVat": 0,
+            "amountForTax": 0,
+            "vatAmount": 0,
+            "taxPercent": 0,
+            "vatPercent": 0,
+            "documentTotal": 4250,
+            "balance": 4250,
+            "periodBalance": 4250
+          },
+          {
+            "entryNumber": 10000001,
+            "date": "2026-05-17",
+            "valueDate": "2026-05-17",
+            "vatDate": "2026-05-17",
+            "vatReportingPeriod": "5/2026",
+            "allocationNum": "",
+            "notes": "",
+            "referenceType": "RECEIPT",
+            "referenceId": 70002,
+            "journalEntryId": 10000108,
+            "description": "קבלה מלקוח",
+            "counterAccounts": "הכנסות - 40000",
+            "counterPartyName": "אלישבע אביטל",
+            "subCategoryName": null,
+            "movementType": "קבלה",
+            "debit": 1800,
+            "credit": 0,
+            "totalAmount": 1800,
+            "currency": "ILS",
+            "exchangeRate": 1,
+            "amountBeforeVat": 0,
+            "amountForTax": 0,
+            "vatAmount": 0,
+            "taxPercent": 0,
+            "vatPercent": 0,
+            "documentTotal": 1800,
+            "balance": 6050,
+            "periodBalance": 6050
+          }
+        ],
+        "totalDebit": 6050,
+        "totalCredit": 0,
+        "closingBalance": 6050,
+        "openingBalance": 0,
+        "lineCount": 2
+      }
+    ]
+  },
+  "generatedAt": "2026-07-12T17:33:40.490Z",
+  "sourceDb": "keepintax_prodcopy"
+}

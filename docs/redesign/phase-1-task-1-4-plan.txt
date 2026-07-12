@@ -1,0 +1,214 @@
+Phase 1.4 — production chart renumbering script
+=================================================
+
+CONTEXT
+-------
+Phase 1.1-1.3 built the new SYSTEM chart (accounting_section, extended
+BookingAccount, AccountCodeMigration entities + chart.seed.ts's flat
+59-account/16-section/50-mapping data) but left it entirely unwired -- no
+table exists yet in keepintax_prodcopy, and production's journal_line/
+journal_entry still carry the old 1000-6300 codes. Task 1.4 is the script
+that actually creates the new tables, seeds them from chart.seed.ts
+(single source of truth -- already reviewed and approved, see
+phase1-chart-review.md), and renumbers the 9 old account codes that have
+live journal usage (D14), including the D14/D15-approved special case:
+business 204245724's six Bituach-Leumi journal lines move to the new 90300
+technical account instead of the generic 5000->60000 mapping. Everything
+runs against keepintax_prodcopy first (rehearsal); the same file is what
+runs in phpMyAdmin at real cutover (per the plan's execution rules), so it
+must be self-contained SQL, not dependent on a Node runtime.
+
+WHAT ACTUALLY NEEDS RENUMBERING (confirmed from D14 + production-baseline.md)
+-------------------------------------------------------------------------
+Only 9 old codes have live journal_line/journal_entry data. Balance-sheet
+codes (1000,1100,1110,1120,1200,2000,2100,2400,2410) are unchanged and
+untouched.
+
+  Old   | New                                          | Rows | Note
+  ------|----------------------------------------------|------|------------------------------
+  4000  | 40000                                         | 38   | straightforward (income)
+  5000  | 90300 for 6 specific rows; 60000 generic (0)  | 6    | ALL 6 live rows ARE the Bituach Leumi case
+  5100  | 60100                                         | 11   |
+  5200  | 60200                                         | 29   |
+  5300  | 60300                                         | 14   |
+  5400  | 60400                                         | 3    |
+  5600  | 60600                                         | 3    |
+  5700  | 60700                                         | 1    |
+  6100  | 61100                                         | 18   |
+
+5000 SPECIAL CASE (D14/D15): per intentional-diffs.md Correction #1, the
+entirety of account 5000's 6 live journal_line rows belong to business
+204245724's six מקדמות ביטוח לאומי entries (journal_entry.id IN
+10000145,10000158,10000167,10000173,10000186,10000203). These must be
+remapped to 90300, not 60000. The targeted UPDATE runs BEFORE the generic
+migration-map UPDATE, so by the time the generic pass runs on code 5000 it
+affects zero rows (verified, not assumed -- see verification queries).
+
+subAccountCode-sourced codes (5101-6303) never existed in production
+(schema-drift.md Gap 1) -- nothing to migrate for those; the generic
+migration-map UPDATE simply won't match them.
+
+FILES
+-----
+1. backend/scripts/migrations/2026-07-10_chart_renumber.sql (new)
+   The authoritative, self-contained script. Pure SQL (runnable in
+   phpMyAdmin at real cutover, per the checklist's "final rehearsal must
+   run the exact file that will run in production"). Structure:
+
+   Section A -- DDL:
+     - CREATE TABLE accounting_section (per accounting-section.entity.ts:
+       id, code, name, ownerType enum, chartOwnerKey, accountantId,
+       userId, businessNumber, visibilityScope enum, displayOrder,
+       isActive, createdAt, updatedAt, UNIQUE(chartOwnerKey, code))
+     - CREATE TABLE account_code_migration (per
+       account-code-migration.entity.ts: id, oldCode, newCode, source
+       enum, createdAt, UNIQUE(oldCode))
+     - Rename+extend default_booking_account -> booking_account:
+       ALTER TABLE ... RENAME TO booking_account, then ADD COLUMN for
+       every new field:
+         sectionId INT NULL
+         code6111 VARCHAR(255) NULL
+         vatPercent DECIMAL(5,2) NULL
+         taxPercent DECIMAL(5,2) NULL
+         reductionPercent DECIMAL(5,2) NULL
+         isEquipment TINYINT(1) NULL
+         recognitionType ENUM('RECOGNIZED','NOT_RECOGNIZED') NULL
+         ownerType ENUM('SYSTEM','ACCOUNTANT','CLIENT') NOT NULL DEFAULT 'SYSTEM'
+         chartOwnerKey VARCHAR(255) NOT NULL DEFAULT 'SYSTEM'
+         accountantId/userId/businessNumber VARCHAR(255) NULL
+         visibilityScope ENUM(...) NULL
+         isActive TINYINT(1) NOT NULL DEFAULT 1
+       Dropping the old bare UNIQUE(code) requires looking up its
+       auto-generated hash name first (the old entity used
+       @Column({unique:true}), not a literal name) -- done via a portable
+       dynamic-SQL block (information_schema.STATISTICS lookup ->
+       PREPARE/EXECUTE the DROP INDEX), then ADD UNIQUE(chartOwnerKey, code).
+
+   Section B -- seed data:
+     - INSERT INTO accounting_section (16 rows)
+     - INSERT INTO booking_account (59 rows, sectionId resolved per-row
+       via (SELECT id FROM accounting_section WHERE code = 'xxxxx') since
+       sections are inserted first in the same script)
+     - INSERT INTO account_code_migration (50 rows)
+     All three generated verbatim from chart.seed.ts's
+     ACCOUNTING_SECTIONS/CHART_ACCOUNTS/ACCOUNT_CODE_MIGRATION exports
+     (see script #2 below) rather than hand-transcribed, to eliminate
+     copy/paste drift from the already-reviewed-and-approved data.
+
+   Section C -- the Bituach Leumi targeted UPDATE (the 6 specific
+   journal_entry.id's, accountCode='5000' -> '90300').
+
+   Section D -- the generic renumbering:
+     UPDATE journal_line jl JOIN account_code_migration m
+       ON m.oldCode = jl.accountCode SET jl.accountCode = m.newCode;
+     and the same JOIN pattern against journal_entry.counterAccountCode.
+
+   Wrapped in START TRANSACTION / COMMIT (matching "in ONE transaction"
+   from the master plan), with the verification SELECTs (below) embedded
+   as commented blocks before/after, per this session's ask.
+
+2. backend/scripts/migrations/2026-07-10_generate-chart-seed-sql.ts (new,
+   one-off generator -- same pattern as export-chart-review.ts)
+   Imports ACCOUNTING_SECTIONS, CHART_ACCOUNTS, ACCOUNT_CODE_MIGRATION
+   from chart.seed.ts and prints the exact INSERT statements for Section B
+   above, so they can be pasted into the .sql file with zero transcription
+   risk. Not part of the runtime app.
+
+3. Rehearsal: run the finished .sql file against keepintax_prodcopy (via a
+   mysql2 connection with multipleStatements: true -- no local mysql CLI
+   on this machine, per production-baseline.md/worklog precedent -- or
+   NODE_ENV=production SKIP_BOOT_SEED=true + DB_DATABASE=keepintax_prodcopy
+   through the same Nest createApplicationContext pattern
+   generate-baseline-reports.ts uses, executing the file's statements via
+   dataSource.query/transaction). Print every verification SELECT's result
+   to the console for review before/after.
+
+4. backend/src/bookkeeping/jouranl-entry.entity.ts -- remove the
+   subCounterAccountCode column declaration (schema-drift.md Gap 2's
+   decision, explicitly folded into task 1.4's text: "nothing to migrate
+   from it ... remove it from the entity"). Production never had this
+   column so this has no effect on keepintax_prodcopy/prod.
+   SIDE EFFECT FLAGGED, NOT SILENTLY HANDLED: keepintax-dev (shared,
+   synchronize: true) does have this column -- removing it from the
+   entity means TypeORM will DROP COLUMN it there on next boot. Per the
+   existing memory note (shared dev DB synchronize thrash, use a local DB
+   for schema work) and this being a derived/denormalized field with no
+   downstream consumer once removed, no data-preservation step is planned
+   for dev -- flagged here so Elazar can object if any dev journal data
+   actually depends on it.
+
+5. docs/redesign/cutover.sql -- append the finished script as SECTION 3
+   (Phase 1.4), following the existing section-numbering convention
+   (verification SELECTs included as comments, same style as Sections 1-2).
+
+6. Tick "- [x] 1.4" in categories-redesign-master-plan.md, append a
+   session entry to docs/redesign/worklog.md (row counts, before/after
+   code distribution, confirmation the Bituach Leumi special case affected
+   exactly 6 rows and the generic 5000 pass affected 0).
+
+VERIFICATION SELECTs (shown to Elazar before AND after running)
+-----------------------------------------------------------------
+BEFORE:
+  - SELECT accountCode, COUNT(*) c, SUM(debit) d, SUM(credit) cr
+      FROM journal_line GROUP BY accountCode ORDER BY accountCode;
+    -- baseline distribution + amount totals (amounts must be identical
+    -- after -- renumbering never changes money).
+  - SELECT id, issuerBusinessNumber, description FROM journal_entry
+      WHERE id IN (10000145,10000158,10000167,10000173,10000186,10000203);
+    -- confirms the 6 target entries and their business.
+  - SELECT COUNT(*) FROM journal_line WHERE accountCode='5000';
+    -- must equal exactly 6 (the D14 premise this whole special-case
+    -- rests on).
+  - SELECT COUNT(*) FROM journal_line jl JOIN journal_entry je
+      ON je.id=jl.journalEntryId
+      WHERE jl.accountCode='5000'
+      AND je.id NOT IN (10000145,10000158,10000167,10000173,10000186,10000203);
+    -- must be 0 (guards the premise; if not 0, STOP per plan rule 5,
+    -- don't run the generic 5000->60000 pass blindly).
+  - SELECT COUNT(*) FROM default_booking_account;
+    / SHOW TABLES LIKE '%booking_account%';
+    -- pre-migration state.
+
+AFTER:
+  - Same accountCode GROUP BY -- old codes
+    (4000,5000,5100,5200,5300,5400,5600,5700,6100) must be ABSENT; sums
+    per new code must equal the old code's pre-migration sums exactly
+    (except 5000, which splits into 90300-vs-nothing since all of it was
+    the special case).
+  - SELECT accountCode FROM journal_line
+      WHERE journalEntryId IN (10000145,10000158,10000167,10000173,10000186,10000203);
+    -- all 6 rows must read 90300.
+  - SELECT SUM(debit), SUM(credit) FROM journal_line; before vs. after --
+    must match exactly (renumbering is code-only, never touches amounts).
+  - SELECT COUNT(*) FROM accounting_section;      -> 16
+    SELECT COUNT(*) FROM booking_account;         -> 59
+    SELECT COUNT(*) FROM account_code_migration;  -> 50
+  - SELECT COUNT(*) FROM journal_line
+      WHERE accountCode NOT IN (SELECT code FROM booking_account);
+    -- -> 0 (every posted code now resolves to a real chart row).
+
+EXPLICITLY OUT OF SCOPE FOR 1.4 (flagged so it isn't mistaken for done)
+-------------------------------------------------------------------------
+  - App code still reads the OLD hardcoded codes (4000/4010, 5xxx) in
+    buildDocumentJournalLines, createVatReportFromJournal, the
+    manual-entry dropdown filter, SHAAM B100 -- that's task 1.6/1.7 (next
+    session). Running 1.4 alone against keepintax_prodcopy means that
+    DB's data is renumbered but the app isn't updated to match yet --
+    expected, not a bug, don't try to boot the full app against it in
+    between.
+  - default_sub_category.accountCode/catalog tables are untouched
+    (Phase 2 scope, D2).
+
+VERIFICATION (end-to-end for this task)
+-----------------------------------------
+  1. Run the assembled .sql file against keepintax_prodcopy, capturing
+     before/after verification SELECT output.
+  2. Confirm zero unexplained diffs: total debit/credit sums unchanged,
+     exactly 6 rows moved to 90300, exactly the 8 other codes' row counts
+     moved to their new code with identical per-code sums, journal_entry
+     rows similarly clean.
+  3. tsc --noEmit on the touched entity file (jouranl-entry.entity.ts) --
+     confirm no new errors beyond the pre-existing unrelated failures
+     noted in prior sessions.
+  4. Show the full before/after console output to Elazar, then append to
+     cutover.sql, tick the checkbox, commit, append to worklog.md.

@@ -1,0 +1,23 @@
+## Purpose
+Generates every report view/export (VAT, P&L, ledger, advance income tax, depreciation/Form 1342, SHAAM uniform file) from journal entries, expenses and transactions, and owns the pre-report "review" pipeline that reconciles OCR'd documents with bank transactions before a report is generated.
+
+## Key entities/files
+- `reports.service.ts` — `ReportsService`: VAT/P&L/ledger builders (from journal entries), advance income tax, Form 1342 depreciation, SHAAM uniform-file export (`createUniformFile`), PDF export wrappers, submission tracking (`markReportAsSubmitted`/`getReportSubmissionStatus`).
+- `report-review.service.ts` — `ReportReviewService`: unified pre-report review pre-flight (`previewCheck`, `getReportPreview`, `approveMatched`/`approveDocCash`/`approveTxNoDoc`, `linkDocToTx`, `uploadDocAndLinkToTx`, `archiveDoc`/`deleteDoc`/`unpair`/`rejectTx`). Kept separate from `ReportsService` (generation) by design.
+- `matching.service.ts` — `MatchingService.matchDocumentsForBusiness`: auto-pairs pending `ExtractedDocument`s with unmatched `SlimTransaction`s per business/period (±3 days, ±1 ILS tolerance, first-fit, idempotent, one DB transaction).
+- `vat-report-pdf.ts` / `pnl-report-pdf.ts` — PDFKit renderers for the RTL Hebrew report PDFs.
+- `pdf-shared.ts` — shared PDF helpers; owns `PDF_COMPLIANCE_FOOTER` (required on every generated PDF) and the RTL/Hebrew word-order layout fix for pdfkit.
+- `dtos/*` — one request/response DTO pair per report type, plus `report-review.dto.ts` (`ReviewRow` discriminated union: `matched` / `doc_only` / `tx_only`, `ReportPreviewResponse`).
+- `reports.controller.ts` — REST endpoints under `/reports` (**has pending local changes — read on disk, not git history**).
+- `reports.module.ts` — wires Documents/GoogleDrive/Bookkeeping/Billing/Shared/Users modules.
+
+## Main flows
+- `GET /reports/me/preview-check`, `POST /reports/me/preview` — cheap/full review pre-flight before report submission.
+- `POST /reports/me/review/*` (approve-matched, approve-doc-cash, approve-tx-no-doc, link-doc-to-tx, upload-doc-to-tx/:id, archive-doc/:id, delete-doc/:id, unpair/:id, reject-tx) — resolve rows surfaced by the review modal.
+- `GET /reports/vat-report-journal`, `/pnl-report-journal`, `/ledger-report`, `/advance-income-tax-report`, `/depreciation-report`, `/journal-entry/:entryId`, `/ledger-accounts`, `/ledger-entry-accounts` — report data endpoints, computed from journal entries.
+- `GET /reports/vat-report-pdf`, `/pnl-report-pdf` — server-rendered PDF export.
+- `POST /reports/mark-submitted`, `GET /reports/submission-status` — self-employed "mark as reported" locking (transaction-period lock, distinct from report-workflow's accountant-facing state machine).
+- `POST /reports/create-uniform-file` — SHAAM/Tax-Authority "מבנה אחיד" zip export.
+
+## Related topics
+Depends on: shared (`SharedService`), users (`UsersService`, `User`), expenses (`ExpensesService`), documents (`DocumentsService`, `DocumentPairingService`, `Documents`/`DocLines`/`DocPayments`/`ExtractedDocument`), google-drive (inbox listing), bookkeeping (`JournalEntry`/`JournalLine`/`BookingAccount`/`AccountingSection` — since Phase 4.4 the P&L groups by `AccountingSection` via the posted account's `sectionId` (D3; `pnlCategory` is dead), and the ledger's expense-line "פירוט" reads the stored `journal_entry.description` (D7)), business (`Business`), transactions (`SlimTransaction`, `FullTransactionCache`, `ClassifiedTransactions`, `Bill`, `Source`), billing, delegation. Depended on by: report-workflow (VAT PDF snapshot generation on submit). Note: `ExpensePnlDto.category` was renamed to `sectionName` in Phase 4.4.

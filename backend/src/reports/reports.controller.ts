@@ -22,7 +22,7 @@ import { diskStorage } from 'multer';
 import { extname } from 'path';
 import { SubscriptionGuard } from 'src/guards/subscription.guard';
 import { RequireModule } from 'src/decorators/require-module.decorator';
-import { ModuleName } from 'src/enum';
+import { DocumentKind, ModuleName } from 'src/enum';
 
 
 @Controller('reports')
@@ -179,6 +179,35 @@ export class ReportsController {
       return this.reviewService.deleteDoc(firebaseId, Number(documentId));
     }
 
+    /** D8 "תייק" (Phase 4.3): file a document for the ANNUAL report —
+     *  terminal NOT_AN_EXPENSE + documentKind=ANNUAL_DOCUMENT; never
+     *  creates an expense or journal entry. Idempotent. */
+    @Post('me/review/file-doc/:documentId')
+    @UseGuards(FirebaseAuthGuard)
+    async fileDocAsAnnual(
+      @Req() request: AuthenticatedRequest,
+      @Param('documentId') documentId: string,
+    ) {
+      const firebaseId = request.user?.firebaseId;
+      if (!firebaseId) throw new BadRequestException('Not authenticated');
+      return this.reviewService.fileDocAsAnnual(firebaseId, Number(documentId));
+    }
+
+    /** D8 triage (Phase 4.3): re-kind a PENDING_REVIEW document (e.g. an
+     *  UNIDENTIFIED row the user recognizes as an expense invoice). */
+    @Patch('me/review/doc-kind/:documentId')
+    @UseGuards(FirebaseAuthGuard)
+    async setDocKind(
+      @Req() request: AuthenticatedRequest,
+      @Param('documentId') documentId: string,
+      @Body() body: { documentKind: DocumentKind },
+    ) {
+      const firebaseId = request.user?.firebaseId;
+      if (!firebaseId) throw new BadRequestException('Not authenticated');
+      if (!body?.documentKind) throw new BadRequestException('documentKind is required');
+      return this.reviewService.setDocKind(firebaseId, Number(documentId), body.documentKind);
+    }
+
     /** Unpair an invoice↔receipt pair set by DocumentPairingService.
      *  Either side of the pair can be the entry point — the service
      *  follows the back-pointer to find the partner. */
@@ -326,7 +355,7 @@ export class ReportsController {
         const startDate = this.sharedService.convertStringToDateObject(query.startDate);
         const endDate = this.sharedService.convertStringToDateObject(query.endDate);
         return this.reportsService.createPnLReportFromJournal(
-            firebaseId, query.businessNumber, startDate, endDate,
+            firebaseId, query.businessNumber, startDate, endDate, query.osekZair === 'true',
         );
     }
 
@@ -372,8 +401,12 @@ export class ReportsController {
         }
         const startDate = this.sharedService.convertStringToDateObject(query.startDate);
         const endDate = this.sharedService.convertStringToDateObject(query.endDate);
+        const parsedIncomeOverride = Number(query.incomeOverride);
+        const incomeOverride = query.incomeOverride !== undefined && query.incomeOverride !== '' && !isNaN(parsedIncomeOverride)
+            ? parsedIncomeOverride
+            : undefined;
         const pdfBuffer = await this.reportsService.generatePnlReportPdfForExport(
-            firebaseId, query.businessNumber, startDate, endDate,
+            firebaseId, query.businessNumber, startDate, endDate, query.osekZair === 'true', incomeOverride,
         );
         res.setHeader('Content-Type', 'application/pdf');
         return res.send(pdfBuffer);
@@ -424,18 +457,20 @@ export class ReportsController {
         return this.reportsService.getLedgerAccounts();
     }
 
-    /** Posting accounts for the manual journal-entry dropdown (excludes technical
-     *  accounts — pnlCategory IS NOT NULL). Global (not business-scoped). */
+    /** Posting accounts for the manual journal-entry dropdown (technical
+     *  accounts excluded — no section), grouped by accounting section and
+     *  scoped to the business's visible charts (Phase 4.5). */
     @Get('ledger-entry-accounts')
     @UseGuards(FirebaseAuthGuard)
     async getLedgerEntryAccounts(
         @Req() request: AuthenticatedRequest,
-    ): Promise<{ code: string; name: string; type: string }[]> {
+        @Query('businessNumber') businessNumber?: string,
+    ): Promise<{ code: string; name: string; type: string; sectionCode: string | null; sectionName: string | null }[]> {
         const firebaseId = request.user?.firebaseId;
         if (!firebaseId) {
             throw new BadRequestException('Firebase ID is missing');
         }
-        return this.reportsService.getLedgerEntryAccounts();
+        return this.reportsService.getLedgerEntryAccounts(businessNumber?.trim() || null);
     }
 
 

@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Between, Not, Repository } from 'typeorm';
+import { Between, In, Not, Repository } from 'typeorm';
 import { Expense } from '../expenses/expenses.entity';
 import { VatReportDto } from './dtos/vat-report.dto';
 import { buildVatReportPdf } from './vat-report-pdf';
@@ -24,7 +24,8 @@ import * as readline from 'readline';
 import * as iconv from 'iconv-lite';
 import { JournalEntry } from 'src/bookkeeping/jouranl-entry.entity';
 import { JournalLine } from 'src/bookkeeping/jouranl-line.entity';
-import { DefaultBookingAccount } from 'src/bookkeeping/account.entity';
+import { BookingAccount } from 'src/bookkeeping/account.entity';
+import { AccountingSection } from 'src/bookkeeping/accounting-section.entity';
 import { DocPayments } from 'src/documents/doc-payments.entity';
 import { Business } from 'src/business/business.entity';
 import { SlimTransaction } from 'src/transactions/slim-transaction.entity';
@@ -71,8 +72,8 @@ export class ReportsService {
     private JournalEntryRepo: Repository<JournalEntry>,
     @InjectRepository(JournalLine) 
     private JournalLineRepo: Repository<JournalLine>,
-    @InjectRepository(DefaultBookingAccount)
-    private defaultBookingAccountRepo: Repository<DefaultBookingAccount>,
+    @InjectRepository(BookingAccount)
+    private defaultBookingAccountRepo: Repository<BookingAccount>,
     @InjectRepository(SlimTransaction)
     private slimRepo: Repository<SlimTransaction>,
     @InjectRepository(FullTransactionCache)
@@ -236,9 +237,11 @@ export class ReportsService {
     businessNumber: string,
     startDate: Date,
     endDate: Date,
+    osekZair = false,
+    incomeOverride?: number,
   ): Promise<Buffer> {
     const [data, business] = await Promise.all([
-      this.createPnLReportFromJournal(firebaseId, businessNumber, startDate, endDate),
+      this.createPnLReportFromJournal(firebaseId, businessNumber, startDate, endDate, osekZair, incomeOverride),
       this.businessRepo.findOne({ where: { businessNumber, firebaseId } }),
     ]);
     return buildPnlReportPdf(data, {
@@ -445,7 +448,7 @@ export class ReportsService {
 
   /**
    * VAT report computed from journal entries.
-   * Income from 4000 (vatable) / 4010 (non-vatable) credit; output VAT from
+   * Income from 40000 (vatable) / 40010 (non-vatable) credit; output VAT from
    * 2400 (credit − debit, so credit notes reduce it); deductible input VAT from
    * 2410 debit split by isEquipment (expenses vs assets).
    */
@@ -471,10 +474,10 @@ export class ReportsService {
     this.applyJournalPeriodFilter(qb, periodLabels, startDate, endDate);
 
     const row = await qb
-      // credit − debit so credit invoices (which post a DEBIT on 4000/4010/2400)
+      // credit − debit so credit invoices (which post a DEBIT on 40000/40010/2400)
       // correctly REVERSE the income / output VAT instead of adding to it.
-      .select("SUM(CASE WHEN jl.accountCode = '4000' THEN jl.credit - jl.debit ELSE 0 END)", 'vatableTurnover')
-      .addSelect("SUM(CASE WHEN jl.accountCode = '4010' THEN jl.credit - jl.debit ELSE 0 END)", 'nonVatableTurnover')
+      .select("SUM(CASE WHEN jl.accountCode = '40000' THEN jl.credit - jl.debit ELSE 0 END)", 'vatableTurnover')
+      .addSelect("SUM(CASE WHEN jl.accountCode = '40010' THEN jl.credit - jl.debit ELSE 0 END)", 'nonVatableTurnover')
       .addSelect("SUM(CASE WHEN jl.accountCode = '2400' THEN jl.credit - jl.debit ELSE 0 END)", 'outputVat')
       .addSelect("SUM(CASE WHEN jl.accountCode = '2410' AND jl.isEquipment = false THEN jl.debit ELSE 0 END)", 'vatRefundOnExpenses')
       .addSelect("SUM(CASE WHEN jl.accountCode = '2410' AND jl.isEquipment = true THEN jl.debit ELSE 0 END)", 'vatRefundOnAssets')
@@ -505,16 +508,29 @@ export class ReportsService {
 
   /**
    * P&L report computed from journal entries.
-   * Income = 4000 (credit − debit). Expenses grouped by the account's
-   * pnlCategory for 5xxx/6xxx (debit − credit), EXCEPT 6200 (פחת) which is
-   * surfaced as its own "הוצאות פחת" line. Equipment lines are excluded.
-   * Depreciation here reflects whatever was posted to 6200.
+   * Income = accounts of type 'income' (credit − debit). Expenses = accounts
+   * of type 'expense', grouped by their accounting_section (D3 — the section
+   * REPLACES the dead pnlCategory string namespace). Equipment lines are
+   * excluded. Technical accounts (no section) drop out via the INNER join.
+   *
+   * @param osekZair       "עוסק זעיר" (small trader) mode — only meaningful when
+   *                       income is under the ITA's 120,000 ILS annual threshold.
+   *                       Replaces the real expense breakdown with a single flat
+   *                       30%-of-income deduction line, per the elective rule.
+   * @param incomeOverride When set, replaces the journal-computed income for
+   *                       this report — mirrors a manual edit made in the
+   *                       on-screen preview so the exported PDF matches it.
+   *                       Only the income figure is overridden; the real
+   *                       expense breakdown (or the osek-zair 30% line, which
+   *                       is itself derived from this override) is unaffected.
    */
   async createPnLReportFromJournal(
     firebaseId: string,
     businessNumber: string,
     startDate: Date,
     endDate: Date,
+    osekZair = false,
+    incomeOverride?: number,
   ): Promise<PnLReportDto> {
     const business = await this.businessRepo.findOne({ where: { businessNumber, firebaseId } });
     if (!business) {
@@ -525,51 +541,70 @@ export class ReportsService {
       business.businessType, business.vatReportingType, startDate, endDate,
     );
 
+    // Owner charts visible to this business: SYSTEM + its own CLIENT chart.
+    // (The accountant chart joins in Phase 5.1 once delegation-aware context
+    // plumbing exists — no ACCOUNTANT-owned accounts carry postings yet.)
+    // Scoping the join prevents cross-tenant fan-out when two CLIENT charts
+    // allocate the same code in their 80000 range.
+    const chartOwnerKeys = ['SYSTEM', `CLIENT_${businessNumber}`];
+
     const qb = this.JournalLineRepo.createQueryBuilder('jl')
       .innerJoin(JournalEntry, 'je', 'je.id = jl.journalEntryId')
-      .innerJoin(DefaultBookingAccount, 'dba', 'dba.code = jl.accountCode')
+      .innerJoin(
+        BookingAccount, 'dba',
+        'dba.code = jl.accountCode AND dba.chartOwnerKey IN (:...chartOwnerKeys)',
+        { chartOwnerKeys },
+      )
+      // D3: group by accounting_section. Posting accounts always have one;
+      // technical accounts (1000/1100/2400/2410/90000-range) have
+      // sectionId NULL and drop out via this INNER join.
+      .innerJoin(AccountingSection, 'sec', 'sec.id = dba.sectionId')
       .where('je.issuerBusinessNumber = :businessNumber', { businessNumber })
       .andWhere('je.firebaseId = :firebaseId', { firebaseId })
-      .andWhere('dba.pnlCategory IS NOT NULL')
       .andWhere('jl.isEquipment = false');
     this.applyJournalPeriodFilter(qb, periodLabels, startDate, endDate);
 
     const rows = await qb
-      .select('jl.accountCode', 'accountCode')
-      .addSelect('dba.pnlCategory', 'pnlCategory')
+      .select('dba.type', 'accountType')
+      .addSelect('sec.name', 'sectionName')
       .addSelect('jl.debit', 'debit')
       .addSelect('jl.credit', 'credit')
       .addSelect('jl.amountForTax', 'amountForTax')
-      .getRawMany<{ accountCode: string; pnlCategory: string; debit: string; credit: string; amountForTax: string }>();
+      .getRawMany<{ accountType: string; sectionName: string; debit: string; credit: string; amountForTax: string }>();
 
     let totalIncome = 0;
-    const expenseSumByCategory: { [category: string]: number } = {};
+    const expenseSumBySection: { [sectionName: string]: number } = {};
 
     for (const r of rows) {
-      const code = String(r.accountCode);
       const debit = Number(r.debit) || 0;
       const credit = Number(r.credit) || 0;
-      if (code === '4000' || code === '4010') {
-        totalIncome += credit - debit;       // 4000 vatable; 4010 exempt (פטור) income
-      } else if (code.startsWith('5') || code.startsWith('6')) {
+      if (r.accountType === 'income') {
+        totalIncome += credit - debit;       // vatable (40000) and exempt (40010) income alike
+      } else if (r.accountType === 'expense') {
         // Use amountForTax (= debit × taxPercent/100) so partial-deductibility
-        // expenses (vehicle 45%, mixed-use) show the correct P&L amount, not the
-        // gross debit. Label by the account's pnlCategory for consistent grouping.
-        const category = String(r.pnlCategory);
-        expenseSumByCategory[category] = (expenseSumByCategory[category] ?? 0) + (Number(r.amountForTax) || 0);
+        // expenses (vehicle 45%, mixed-use) show the correct P&L amount, not
+        // the gross debit.
+        expenseSumBySection[r.sectionName] = (expenseSumBySection[r.sectionName] ?? 0) + (Number(r.amountForTax) || 0);
       }
     }
 
-    const expenseDtos: ExpensePnlDto[] = Object.entries(expenseSumByCategory).map(
-      ([category, total]) => ({ category, total }),
+    const effectiveIncome = incomeOverride ?? totalIncome;
+
+    let expenseDtos: ExpensePnlDto[] = Object.entries(expenseSumBySection).map(
+      ([sectionName, total]) => ({ sectionName, total }),
     );
+
+    if (osekZair) {
+      const flatDeduction = Number((effectiveIncome * 0.3).toFixed(2));
+      expenseDtos = [{ sectionName: 'ניכוי 30% הוצאות לעוסק זעיר', total: flatDeduction }];
+    }
 
     let totalExpenses = 0;
     for (const e of expenseDtos) totalExpenses += e.total;
-    const netProfitBeforeTax = totalIncome - totalExpenses;
+    const netProfitBeforeTax = effectiveIncome - totalExpenses;
 
     return {
-      income: Number(totalIncome.toFixed(2)),
+      income: Number(effectiveIncome.toFixed(2)),
       expenses: expenseDtos,
       netProfitBeforeTax: Number(netProfitBeforeTax.toFixed(2)),
     };
@@ -584,7 +619,7 @@ export class ReportsService {
    *
    * @param accountCode  when provided, only that account is returned; otherwise
    *                     all accounts that had movements in the range, ordered
-   *                     1000, 2400, 2410, 4000, 5000, then others alphabetically.
+   *                     1000, 2400, 2410, 40000, 60000, then others alphabetically.
    */
   async createLedgerReport(
     firebaseId: string,
@@ -768,7 +803,13 @@ export class ReportsService {
           referenceType: r.referenceType ?? '',
           referenceId: r.referenceId != null ? Number(r.referenceId) : 0,
           journalEntryId: Number(r.journalEntryId),
-          description: this.buildLineDescription(ac, r.referenceType ?? null, r.subCategoryName ?? null),
+          description: this.buildLineDescription(
+            ac,
+            typeByCode.get(ac) ?? null,
+            r.referenceType ?? null,
+            r.subCategoryName ?? null,
+            r.description ?? null,
+          ),
           counterAccounts: r.counterAccounts != null
             ? `${nameByCode.get(r.counterAccounts) ?? r.counterAccounts} - ${r.counterAccounts}`
             : null,
@@ -835,6 +876,7 @@ export class ReportsService {
 
     const chart = await this.defaultBookingAccountRepo.find();
     const nameByCode = new Map(chart.map((a) => [a.code, a.name]));
+    const typeByCode = new Map(chart.map((a) => [a.code, a.type]));
 
     const lines = rawLines.map((l) => ({
       accountCode: l.accountCode,
@@ -843,8 +885,10 @@ export class ReportsService {
       credit: Number(l.credit) || 0,
       description: this.buildLineDescription(
         l.accountCode,
+        typeByCode.get(l.accountCode) ?? null,
         entry.referenceType ? String(entry.referenceType) : null,
         l.subCategoryName ?? null,
+        entry.description ?? null,
       ),
     }));
 
@@ -877,16 +921,43 @@ export class ReportsService {
       .map((a) => ({ code: a.code, name: a.name, type: a.type }));
   }
 
-  /** Posting accounts for the MANUAL JOURNAL ENTRY dropdown, in display order.
-   *  Only accounts with a pnlCategory (income/expense) are returned; technical
-   *  accounts (1000 A/R-contra, 2400/2410 VAT — pnlCategory NULL) are excluded
-   *  so they can't be chosen for a manual journal line. */
-  async getLedgerEntryAccounts(): Promise<{ code: string; name: string; type: string }[]> {
-    const chart = await this.defaultBookingAccountRepo.find();
+  /** Posting accounts for the MANUAL JOURNAL ENTRY dropdown, grouped by
+   *  accounting section (Phase 4.5 — the frontend renders sections as option
+   *  groups). Scoped to the charts visible to the business (SYSTEM + its own
+   *  CLIENT chart; the ACCOUNTANT chart joins in Phase 5.1) so one tenant's
+   *  custom accounts are never offered to another. Only accounts under a
+   *  section (income/expense — every posting account, parent or sub-ledger
+   *  child, has one) are returned; technical accounts (1000 A/R-contra,
+   *  2400/2410 VAT, 90000-range — sectionId NULL) are excluded so they can't
+   *  be chosen for a manual journal line. */
+  async getLedgerEntryAccounts(
+    businessNumber?: string | null,
+  ): Promise<{ code: string; name: string; type: string; sectionCode: string | null; sectionName: string | null }[]> {
+    const chartOwnerKeys = ['SYSTEM', ...(businessNumber ? [`CLIENT_${businessNumber}`] : [])];
+    const chart = await this.defaultBookingAccountRepo.find({
+      where: { chartOwnerKey: In(chartOwnerKeys), isActive: true },
+      relations: ['section'],
+    });
     return chart
-      .filter((a) => !!a.pnlCategory)
-      .sort((a, b) => this.compareLedgerAccountCodes(a.code, b.code))
-      .map((a) => ({ code: a.code, name: a.name, type: a.type }));
+      .filter((a) => !!a.sectionId)
+      .sort((a, b) => {
+        // Sections in their display order (nulls last), then accounts in the
+        // canonical ledger order within each section.
+        const soA = a.section?.displayOrder ?? Number.MAX_SAFE_INTEGER;
+        const soB = b.section?.displayOrder ?? Number.MAX_SAFE_INTEGER;
+        if (soA !== soB) return soA - soB;
+        const scA = a.section?.code ?? '';
+        const scB = b.section?.code ?? '';
+        if (scA !== scB) return scA.localeCompare(scB);
+        return this.compareLedgerAccountCodes(a.code, b.code);
+      })
+      .map((a) => ({
+        code: a.code,
+        name: a.name,
+        type: a.type,
+        sectionCode: a.section?.code ?? null,
+        sectionName: a.section?.name ?? null,
+      }));
   }
 
   /** Ledger account display order — all 25 accounts in the chart.
@@ -897,8 +968,8 @@ export class ReportsService {
     const order = [
       // מע"מ — ראשון (עסקאות ותשומות)
       '2400', '2410',
-      // הכנסות
-      '4000', '4010',
+      // הכנסות (legacy 4000/4010)
+      '40000', '40010',
       // בנק וחשבונות מאזן
       '1100', '1110', '1120',
       // לקוחות כלליים
@@ -907,9 +978,9 @@ export class ReportsService {
       '2000', '2100',
       // technical
       '1000',
-      // הוצאות
-      '5000', '5100', '5200', '5300', '5400', '5500', '5600',
-      '5700', '5800', '5900', '6000', '6100', '6200', '6300',
+      // הוצאות (legacy 5000-6300, per chart.seed.ts ACCOUNT_CODE_MIGRATION)
+      '60000', '60100', '60200', '60300', '60400', '60500', '60600',
+      '60700', '60800', '60900', '61000', '61100', '61200', '61300',
     ];
     const ia = order.indexOf(a);
     const ib = order.indexOf(b);
@@ -927,15 +998,33 @@ export class ReportsService {
 
   /**
    * Compute the Hebrew "פירוט" (detail) text for a ledger line.
-   * Priority: subCategoryName (expense lines) → account+referenceType lookup → fallback.
+   *
+   * Phase 4.4 (D7): expense-account lines read the STORED
+   * journal_entry.description (frozen at approval from the expense's
+   * description — written live since Phase 4.1, backfilled in Phase 3)
+   * instead of rebuilding text from jl.subCategoryName per report.
+   * subCategoryName remains the fallback for rows that predate the
+   * description backfill; technical/income/bank lines keep their computed
+   * labels (their entry description describes the EXPENSE side, not them).
    */
   private buildLineDescription(
     accountCode: string,
+    accountType: string | null,
     referenceType: string | null,
     subCategoryName: string | null,
+    entryDescription: string | null,
   ): string {
-    // 1. Expense account lines → sub-category name (e.g. "דלק", "ביטוח רכב")
-    if (subCategoryName) return subCategoryName;
+    // 1. Expense account lines → the frozen entry description (D7), falling
+    //    back to the legacy sub-category name snapshot.
+    if (accountType === 'expense') {
+      const stored = entryDescription?.trim();
+      if (stored) return stored;
+      if (subCategoryName) return subCategoryName;
+    } else if (subCategoryName) {
+      // Non-expense line that still carries a name snapshot (not produced by
+      // any current writer, but preserved as the pre-4.4 behavior).
+      return subCategoryName;
+    }
 
     const ref = referenceType ?? '';
 
@@ -949,14 +1038,14 @@ export class ReportsService {
     }
 
     // 4. Income accounts
-    if (accountCode === '4000') {
+    if (accountCode === '40000') {
       if (ref === 'TAX_INVOICE')         return 'חשבונית מס';
       if (ref === 'TAX_INVOICE_RECEIPT') return 'חשבונית מס קבלה';
       if (ref === 'CREDIT_INVOICE')      return 'חשבונית זיכוי';
       if (ref === 'RECEIPT')             return 'קבלה';
       return 'הכנסה';
     }
-    if (accountCode === '4010') return 'הכנסה פטורה';
+    if (accountCode === '40010') return 'הכנסה פטורה';
 
     // 5. Bank
     if (accountCode === '1100') {
@@ -1109,7 +1198,7 @@ export class ReportsService {
       where: {
         userId: firebaseId,
         businessNumber,
-        isEquipment: true,
+        isEquipmentSnapshot: true,
       },
       order: { date: 'ASC' },
     });
@@ -1127,7 +1216,7 @@ export class ReportsService {
 
       const purchaseYear = purchaseDate.getFullYear();
       const originalCost = Number(expense.sum) || 0;
-      const depreciationRate = Number(expense.reductionPercent) || 0;
+      const depreciationRate = Number(expense.reductionPercentSnapshot) || 0;
       const annualDepreciation = +(originalCost * (depreciationRate / 100)).toFixed(2);
 
       // Number of full years that have already passed before the selected year.

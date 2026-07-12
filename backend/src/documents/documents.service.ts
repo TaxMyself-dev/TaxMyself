@@ -7,8 +7,8 @@ import { Documents } from './documents.entity';
 import { DocLines } from './doc-lines.entity';
 import { JournalEntry } from 'src/bookkeeping/jouranl-entry.entity';
 import { JournalLine } from 'src/bookkeeping/jouranl-line.entity';
-import { DefaultBookingAccount } from 'src/bookkeeping/account.entity'
-import { DocumentType, DocumentStatusType, JournalReferenceType, PaymentMethodType, VatOptions, Currency, UnitOfMeasure, CardCompany, CreditTransactionType, BusinessType, isExemptBusinessType } from 'src/enum';
+import { BookingAccount } from 'src/bookkeeping/account.entity'
+import { DocumentType, DocumentStatusType, DocumentKind, JournalReferenceType, PaymentMethodType, VatOptions, Currency, UnitOfMeasure, CardCompany, CreditTransactionType, BusinessType, isExemptBusinessType } from 'src/enum';
 import { Business } from 'src/business/business.entity';
 import { SharedService } from 'src/shared/shared.service';
 import { FxRateService } from 'src/shared/fx-rate.service';
@@ -26,10 +26,10 @@ import { User } from 'src/users/user.entity';
 import { ExtractedDocument, ExtractedDocStatus, ExtractedDocumentType } from './extracted-document.entity';
 import { SlimTransaction } from '../transactions/slim-transaction.entity';
 import { DocumentProcessorService, CatalogEntry } from './document-processor.service';
+import { deriveDocumentKind } from './document-kind.util';
 import { GoogleDriveService } from '../google-drive/google-drive.service';
 import { Supplier } from '../expenses/suppliers.entity';
-import { DefaultSubCategory } from '../expenses/default-sub-categories.entity';
-import { UserSubCategory } from '../expenses/user-sub-categories.entity';
+import { CatalogService } from 'src/bookkeeping/catalog.service';
 import { UsersService } from '../users/users.service';
 // Business is already imported above as part of Bookkeeping/Issued-Documents logic.
 
@@ -74,7 +74,7 @@ export function buildDocumentJournalLines(params: {
       counterAccountCode: '1100',
       journalLines: [
         { accountCode: '1100', debit: net,  amountBeforeVat: 0, vatAmount: 0, isEquipment: false, taxPercent: 0, vatPercent: 0, amountForTax: 0, subCategoryName: null },
-        { accountCode: '4000', credit: net, amountBeforeVat: net, vatAmount: 0, isEquipment: false, taxPercent: 100, vatPercent: 0, amountForTax: net, subCategoryName: null },
+        { accountCode: '40000', credit: net, amountBeforeVat: net, vatAmount: 0, isEquipment: false, taxPercent: 100, vatPercent: 0, amountForTax: net, subCategoryName: null },
       ],
     };
   }
@@ -88,7 +88,7 @@ export function buildDocumentJournalLines(params: {
       counterAccountCode: counterCode,
       journalLines: [
         { accountCode: counterCode, credit: full, amountBeforeVat: 0, vatAmount: 0, isEquipment: false, taxPercent: 0, vatPercent: 0, amountForTax: 0, subCategoryName: null },
-        { accountCode: '4000',      debit: net,  amountBeforeVat: net, vatAmount: 0,   isEquipment: false, taxPercent: 100, vatPercent: 100, amountForTax: net, subCategoryName: null },
+        { accountCode: '40000',     debit: net,  amountBeforeVat: net, vatAmount: 0,   isEquipment: false, taxPercent: 100, vatPercent: 100, amountForTax: net, subCategoryName: null },
         ...(vat > 0 ? [{ accountCode: '2400', debit: vat, amountBeforeVat: 0, vatAmount: vat, isEquipment: false, taxPercent: 0, vatPercent: 100, amountForTax: 0, subCategoryName: null }] : []),
       ],
     };
@@ -102,7 +102,7 @@ export function buildDocumentJournalLines(params: {
       counterAccountCode: counterCode,
       journalLines: [
         { accountCode: counterCode, debit: full, amountBeforeVat: 0, vatAmount: 0, isEquipment: false, taxPercent: 0, vatPercent: 0, amountForTax: 0, subCategoryName: null },
-        { accountCode: '4000',      credit: net, amountBeforeVat: net, vatAmount: 0,   isEquipment: false, taxPercent: 100, vatPercent: 100, amountForTax: net, subCategoryName: null },
+        { accountCode: '40000',     credit: net, amountBeforeVat: net, vatAmount: 0,   isEquipment: false, taxPercent: 100, vatPercent: 100, amountForTax: net, subCategoryName: null },
         ...(vat > 0 ? [{ accountCode: '2400', credit: vat, amountBeforeVat: 0, vatAmount: vat, isEquipment: false, taxPercent: 0, vatPercent: 100, amountForTax: 0, subCategoryName: null }] : []),
       ],
     };
@@ -135,8 +135,8 @@ export class DocumentsService {
     private journalEntryRepo: Repository<JournalEntry>,
     @InjectRepository(JournalLine)
     private journalLineRepo: Repository<JournalLine>,
-    @InjectRepository(DefaultBookingAccount)
-    private defaultBookingAccountRepo: Repository<DefaultBookingAccount>,
+    @InjectRepository(BookingAccount)
+    private defaultBookingAccountRepo: Repository<BookingAccount>,
     @InjectRepository(Business)
     private businessRepo: Repository<Business>,
     @InjectRepository(User)
@@ -145,12 +145,9 @@ export class DocumentsService {
     private extractedDocRepo: Repository<ExtractedDocument>,
     @InjectRepository(Supplier)
     private supplierRepo: Repository<Supplier>,
-    @InjectRepository(DefaultSubCategory)
-    private defaultSubCategoryRepo: Repository<DefaultSubCategory>,
-    @InjectRepository(UserSubCategory)
-    private userSubCategoryRepo: Repository<UserSubCategory>,
     @InjectRepository(SlimTransaction)
     private slimTransactionRepo: Repository<SlimTransaction>,
+    private readonly catalogService: CatalogService,
     private readonly documentProcessor: DocumentProcessorService,
     private readonly googleDriveService: GoogleDriveService,
     @Inject(forwardRef(() => UsersService))
@@ -2878,6 +2875,7 @@ ${finalOwnerName}`;
         // row to avoid duplicating a potentially-large blob.
         for (let i = 0; i < invoices.length; i++) {
           const inv = invoices[i];
+          const normalizedDocumentType = this.normalizeDocumentType(inv.document_type);
           const normalizedCurrency = this.normalizeCurrency(inv.currency);
           // FX conversion: stamp the ILS-normalized amount on non-ILS docs
           // so MatchingService can compare doc.ilsAmount against the tx
@@ -2907,7 +2905,11 @@ ${finalOwnerName}`;
               // month if Claude couldn't parse the date.
               month: this.deriveMonthFromExtraction(inv.date, uploadDate),
               subIndex: i,
-              documentType: this.normalizeDocumentType(inv.document_type),
+              documentType: normalizedDocumentType,
+              // D8 (Phase 4.3): routing kind + catalog FK stamped at insert
+              // time — new docs no longer land with documentKind = NULL.
+              documentKind: deriveDocumentKind(normalizedDocumentType),
+              subCategoryId: this.matchCatalogSubCategoryId(catalog, inv.category, inv.sub_category),
               uploadDate,
               supplier: inv.supplier ?? null,
               supplierId: inv.supplier_id ?? null,
@@ -3118,30 +3120,7 @@ ${finalOwnerName}`;
       { status: targetStatus },
     );
 
-    // Matched row: also reset the slim transaction so the bank tx isn't
-    // left dangling with matchedDocumentId pointing at an archived doc.
-    // Without this, the next preview's matcher filter (matchedDocumentId
-    // IS NULL) would skip the slim row forever — the tx silently vanishes.
-    // Setting isRecognized=false also removes it from the review modal's
-    // tx_only column; the user can re-classify from the dashboard if they
-    // change their mind. (For non-matched rows, doc.matchedTransactionId
-    // is null and this block no-ops.)
-    if (doc.matchedTransactionId) {
-      await this.slimTransactionRepo.update(
-        { id: doc.matchedTransactionId },
-        { matchedDocumentId: null, isRecognized: false },
-      );
-    }
-
-    // Paired row: cascade the terminal status to the partner so an
-    // archived/rejected receipt doesn't leave its sibling invoice stuck
-    // in status=PAIRED with no primary to act on.
-    if (doc.pairedWithDocumentId) {
-      await this.extractedDocRepo.update(
-        { id: doc.pairedWithDocumentId },
-        { status: targetStatus },
-      );
-    }
+    await this.resetMatchedSlimAndCascadePair(doc, targetStatus);
 
     // No Drive move on archive/reject: the file stays in processed/
     // forever. The DB `status` column is the source of truth for what
@@ -3149,6 +3128,114 @@ ${finalOwnerName}`;
     // anyone reads. `movedFile` stays in the response shape for callers
     // that still read it (will always be false now).
     return { ok: true, documentId, movedFile: false };
+  }
+
+  /**
+   * Shared tail of every doc-terminal transition (archive / reject /
+   * file-as-annual), factored out of archiveDocument (Phase 4.3):
+   *
+   * Matched row: reset the slim transaction so the bank tx isn't left
+   * dangling with matchedDocumentId pointing at a terminal doc. Without
+   * this, the next preview's matcher filter (matchedDocumentId IS NULL)
+   * would skip the slim row forever — the tx silently vanishes. Setting
+   * isRecognized=false also removes it from the review modal's tx_only
+   * column; the user can re-classify from the dashboard if they change
+   * their mind. (For non-matched rows this no-ops.)
+   *
+   * Paired row: cascade the terminal status to the partner so a terminal
+   * receipt doesn't leave its sibling invoice stuck in status=PAIRED with
+   * no primary to act on.
+   */
+  private async resetMatchedSlimAndCascadePair(
+    doc: ExtractedDocument,
+    targetStatus: ExtractedDocStatus,
+  ): Promise<void> {
+    if (doc.matchedTransactionId) {
+      await this.slimTransactionRepo.update(
+        { id: doc.matchedTransactionId },
+        { matchedDocumentId: null, isRecognized: false },
+      );
+    }
+    if (doc.pairedWithDocumentId) {
+      await this.extractedDocRepo.update(
+        { id: doc.pairedWithDocumentId },
+        { status: targetStatus },
+      );
+    }
+  }
+
+  /**
+   * D8 "תייק" (Phase 4.3, minimal per Elazar's decision): file a document
+   * for the ANNUAL report instead of a periodic one. Terminal state on the
+   * extracted_document only — NEVER creates an expense or journal entry;
+   * the Drive file stays in processed/. Filed docs remain queryable by
+   * (documentKind=ANNUAL_DOCUMENT, status=NOT_AN_EXPENSE); the
+   * annual_report_file bridge is deferred to Phase 6.
+   *
+   * Idempotent: re-filing an already-filed doc is a no-op.
+   */
+  async fileDocumentAsAnnual(
+    firebaseId: string,
+    documentId: number,
+  ): Promise<{ ok: true; documentId: number }> {
+    const user = await this.userRepo.findOne({ where: { firebaseId } });
+    if (!user) throw new NotFoundException(`User not found for firebaseId`);
+
+    const doc = await this.extractedDocRepo.findOne({ where: { id: documentId } });
+    if (!doc) throw new NotFoundException(`Extracted document #${documentId} not found`);
+    if (doc.userId !== user.index) {
+      throw new HttpException('Not your document', HttpStatus.FORBIDDEN);
+    }
+    if (doc.status === ExtractedDocStatus.NOT_AN_EXPENSE) {
+      return { ok: true, documentId };
+    }
+    if (doc.status === ExtractedDocStatus.APPROVED) {
+      throw new BadRequestException(
+        'המסמך כבר אושר כהוצאה — יש לבטל את האישור לפני תיוק לדוח השנתי',
+      );
+    }
+
+    await this.extractedDocRepo.update(
+      { id: documentId },
+      {
+        status: ExtractedDocStatus.NOT_AN_EXPENSE,
+        documentKind: DocumentKind.ANNUAL_DOCUMENT,
+      },
+    );
+    await this.resetMatchedSlimAndCascadePair(doc, ExtractedDocStatus.NOT_AN_EXPENSE);
+    return { ok: true, documentId };
+  }
+
+  /**
+   * D8 triage (Phase 4.3): manually re-kind a PENDING_REVIEW document —
+   * e.g. an UNIDENTIFIED contract the user recognizes as an expense
+   * invoice, or a mis-typed 106 form. Restricted to PENDING_REVIEW rows:
+   * terminal rows' kind is part of how they were resolved.
+   */
+  async setDocumentKind(
+    firebaseId: string,
+    documentId: number,
+    documentKind: DocumentKind,
+  ): Promise<{ ok: true; documentId: number; documentKind: DocumentKind }> {
+    if (!Object.values(DocumentKind).includes(documentKind)) {
+      throw new BadRequestException(`documentKind לא חוקי: ${documentKind}`);
+    }
+    const user = await this.userRepo.findOne({ where: { firebaseId } });
+    if (!user) throw new NotFoundException(`User not found for firebaseId`);
+
+    const doc = await this.extractedDocRepo.findOne({ where: { id: documentId } });
+    if (!doc) throw new NotFoundException(`Extracted document #${documentId} not found`);
+    if (doc.userId !== user.index) {
+      throw new HttpException('Not your document', HttpStatus.FORBIDDEN);
+    }
+    if (doc.status !== ExtractedDocStatus.PENDING_REVIEW) {
+      throw new BadRequestException(
+        `ניתן לשנות סוג מסמך רק למסמך בהמתנה לבדיקה (status=${doc.status})`,
+      );
+    }
+
+    await this.extractedDocRepo.update({ id: documentId }, { documentKind });
+    return { ok: true, documentId, documentKind };
   }
 
   /**
@@ -3234,6 +3321,10 @@ ${finalOwnerName}`;
           month: this.deriveMonthFromExtraction(inv.date, uploadDate),
           subIndex: i,
           documentType: this.normalizeDocumentType(inv.document_type),
+          // D8 (Phase 4.3): routing kind + catalog FK at insert time — same
+          // rule as the batch inbox path.
+          documentKind: deriveDocumentKind(this.normalizeDocumentType(inv.document_type)),
+          subCategoryId: this.matchCatalogSubCategoryId(catalog, inv.category, inv.sub_category),
           uploadDate,
           supplier: inv.supplier ?? null,
           supplierId: inv.supplier_id ?? null,
@@ -3270,6 +3361,36 @@ ${finalOwnerName}`;
   }
 
   /**
+   * Drop one or more user-picked files straight into the business's Drive
+   * inbox/ folder — no OCR, no extracted_document row. Used by the
+   * settings-page "העלאת מסמכים ל-Drive" button, where the user just wants
+   * files sitting in Drive (e.g. for an accountant to browse, or to be
+   * picked up later by `processInboxForUser`).
+   */
+  async uploadFilesToInbox(
+    firebaseId: string,
+    businessNumber: string,
+    files: { buffer: Buffer; originalname: string; mimetype: string }[],
+  ): Promise<{ fileId: string; fileName: string }[]> {
+    const user = await this.userRepo.findOne({ where: { firebaseId } });
+    if (!user) throw new NotFoundException(`User not found for firebaseId`);
+    const business = await this.ensureBusinessAndSubFolders(user, businessNumber);
+    const inboxFolderId = business.driveInboxFolderId!;
+
+    const uploaded: { fileId: string; fileName: string }[] = [];
+    for (const file of files) {
+      const fileId = await this.googleDriveService.uploadFile(
+        inboxFolderId,
+        file.originalname,
+        file.buffer,
+        file.mimetype,
+      );
+      uploaded.push({ fileId, fileName: file.originalname });
+    }
+    return uploaded;
+  }
+
+  /**
    * One-shot OCR for a single file uploaded directly from the UI (manual
    * expense dialog). Unlike `processInboxForUser` this does NOT persist
    * anything — it just runs Claude on the buffer and returns the first
@@ -3303,41 +3424,46 @@ ${finalOwnerName}`;
   /**
    * Build the sub-category catalog passed to Claude for classification AND
    * served to the frontend so the review dialog can render dropdowns sourced
-   * from the same list. Combines system defaults (DefaultSubCategory) with
-   * this user/business's overrides (UserSubCategory). Overrides win on
-   * duplicate subCategoryName. Filters out non-expense entries.
+   * from the same list. Ported to CatalogService's merged catalog (D1/D4)
+   * in the same 2.4 legacy-DTO-shape strategy — CLIENT > ACCOUNTANT > SYSTEM
+   * by name, EXPENSE categories only. `firebaseId` is accepted for call-site
+   * parity only: catalog scoping is by businessNumber (chartOwnerKey), never
+   * by firebaseId, per D4.
    */
   async buildExtractionCatalog(
     firebaseId: string,
     businessNumber: string,
   ): Promise<CatalogEntry[]> {
-    const [defaults, userOverrides] = await Promise.all([
-      this.defaultSubCategoryRepo.find({ where: { isExpense: true } }),
-      this.userSubCategoryRepo.find({
-        where: { firebaseId, businessNumber, isExpense: true },
-      }),
-    ]);
+    const subCategories = await this.catalogService.getMergedExpenseCatalog({ businessNumber });
+    return subCategories.map((sub) => ({
+      subCategoryName: sub.name,
+      categoryName: sub.category?.name ?? '',
+      taxPercent: Number(sub.account?.taxPercent ?? 0),
+      vatPercent: Number(sub.account?.vatPercent ?? 0),
+      isEquipment: !!sub.account?.isEquipment,
+      subCategoryId: sub.id,
+    }));
+  }
 
-    const byName = new Map<string, CatalogEntry>();
-    for (const d of defaults) {
-      byName.set(d.subCategoryName, {
-        subCategoryName: d.subCategoryName,
-        categoryName: d.categoryName,
-        taxPercent: Number(d.taxPercent),
-        vatPercent: Number(d.vatPercent),
-        isEquipment: !!d.isEquipment,
-      });
-    }
-    for (const u of userOverrides) {
-      byName.set(u.subCategoryName, {
-        subCategoryName: u.subCategoryName,
-        categoryName: u.categoryName,
-        taxPercent: Number(u.taxPercent),
-        vatPercent: Number(u.vatPercent),
-        isEquipment: !!u.isEquipment,
-      });
-    }
-    return Array.from(byName.values());
+  /**
+   * D8 (Phase 4.3): name-match Claude's returned (category, sub_category)
+   * pair back to the SAME in-memory catalog it classified from, so the
+   * extracted row gets a concrete subCategoryId at insert time. Claude
+   * classifies FROM this catalog, so a hit is the normal case; misses
+   * (hallucinated / free-text answers) stay NULL.
+   */
+  private matchCatalogSubCategoryId(
+    catalog: CatalogEntry[],
+    category: string | null | undefined,
+    subCategory: string | null | undefined,
+  ): number | null {
+    const subName = subCategory?.trim();
+    if (!subName) return null;
+    const bySubName = catalog.filter((c) => c.subCategoryName === subName);
+    if (bySubName.length === 0) return null;
+    const catName = category?.trim();
+    const exact = catName ? bySubName.find((c) => c.categoryName === catName) : undefined;
+    return (exact ?? bySubName[0]).subCategoryId ?? null;
   }
 
   private async saveErrorRow(
@@ -3433,6 +3559,29 @@ ${finalOwnerName}`;
       ...d,
       matchedSupplier: d.supplierId ? (supplierById.get(d.supplierId) ?? null) : null,
     }));
+  }
+
+  /**
+   * All rows for this user+business that were archived from the review
+   * modal (`status = archived`) — kept for reference/audit but not counted
+   * as an expense. Rejected/junk rows are intentionally excluded; those
+   * aren't real documents worth browsing here.
+   */
+  async getArchivedForUser(
+    firebaseId: string,
+    businessNumber: string,
+  ): Promise<ExtractedDocument[]> {
+    const user = await this.userRepo.findOne({ where: { firebaseId } });
+    if (!user) throw new NotFoundException(`User not found for firebaseId`);
+
+    return this.extractedDocRepo
+      .createQueryBuilder('d')
+      .where('d.userId = :uid', { uid: user.index })
+      .andWhere('d.businessNumber = :bn', { bn: businessNumber })
+      .andWhere('d.status = :st', { st: ExtractedDocStatus.ARCHIVED })
+      .orderBy('d.date', 'DESC')
+      .addOrderBy('d.id', 'DESC')
+      .getMany();
   }
 
 }

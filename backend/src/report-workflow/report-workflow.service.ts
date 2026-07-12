@@ -26,6 +26,7 @@ import { ReportsService } from 'src/reports/reports.service';
 import * as admin from 'firebase-admin';
 import { SlimTransaction } from 'src/transactions/slim-transaction.entity';
 import { FullTransactionCache } from 'src/transactions/full-transaction-cache.entity';
+import { Expense } from 'src/expenses/expenses.entity';
 import { SharedService } from 'src/shared/shared.service';
 import { BusinessType, ReportPeriodLabel, VATReportingType } from 'src/enum';
 
@@ -55,6 +56,10 @@ export class ReportWorkflowService {
     private readonly slimRepo: Repository<SlimTransaction>,
     @InjectRepository(FullTransactionCache)
     private readonly cacheRepo: Repository<FullTransactionCache>,
+    // Phase 4.1 (D10): lock/unlock also stamps expense.isReported so the
+    // expense-side period lock is a cheap column check.
+    @InjectRepository(Expense)
+    private readonly expenseRepo: Repository<Expense>,
     private readonly notifications: NotificationService,
     private readonly tasksGenerator: TasksGeneratorService,
     private readonly reportsService: ReportsService,
@@ -419,6 +424,15 @@ export class ReportWorkflowService {
     const patch = { vatReportingDate: ctx.periodLabel, isLocked: true } as const;
     await this.slimRepo.update(filter, patch);
     await this.cacheRepo.update(filter, patch);
+
+    // Phase 4.1 (D10): mirror the lock onto the expense rows of this business
+    // + period so journal-affecting expense edits are blocked by a cheap
+    // isReported check (ExpensesService.assertExpensePeriodUnlocked).
+    await this.expenseRepo.update(
+      { businessNumber: workflow.businessNumber, vatReportingDate: ctx.periodLabel as any },
+      { isReported: true },
+    );
+
     this.logger.log(
       `lockTransactions: locked ${ids.length} transactions to period ${ctx.periodLabel} (workflow ${workflow.id}).`,
     );
@@ -443,6 +457,14 @@ export class ReportWorkflowService {
     } as const;
     await this.slimRepo.update(filter, { isLocked: false });
     await this.cacheRepo.update(filter, { isLocked: false });
+
+    // Phase 4.1 (D10): clear the expense-side mirror too, so expense edits
+    // unblock together with the transaction-side lock.
+    await this.expenseRepo.update(
+      { businessNumber: workflow.businessNumber, vatReportingDate: ctx.periodLabel as any },
+      { isReported: false },
+    );
+
     this.logger.log(
       `unlockTransactions: cleared lock for period ${ctx.periodLabel} (workflow ${workflow.id}).`,
     );

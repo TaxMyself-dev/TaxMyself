@@ -1,4 +1,4 @@
-import { BadRequestException, forwardRef, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, forwardRef, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Business } from './business.entity';
 import { Repository } from 'typeorm';
@@ -88,6 +88,12 @@ export class BusinessService {
   ): Promise<Business> {
     if (dto?.businessType !== undefined) {
       await this.assertBusinessTypeAllowed(firebaseId, dto.businessType as BusinessType | null);
+    }
+    if (dto?.businessNumber) {
+      const existing = await this.businessRepo.findOne({ where: { businessNumber: dto.businessNumber } });
+      if (existing) {
+        throw new ConflictException(`עסק עם מספר ${dto.businessNumber} כבר קיים במערכת`);
+      }
     }
     const business = this.businessRepo.create({
       firebaseId,

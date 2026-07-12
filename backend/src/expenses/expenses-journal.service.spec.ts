@@ -18,18 +18,16 @@ import { NotFoundException } from '@nestjs/common';
 import { ExpensesService } from './expenses.service';
 import { Expense } from './expenses.entity';
 import { Supplier } from './suppliers.entity';
-import { DefaultCategory } from './default-categories.entity';
-import { DefaultSubCategory } from './default-sub-categories.entity';
-import { UserCategory } from './user-categories.entity';
-import { UserSubCategory } from './user-sub-categories.entity';
 import { BookkeepingService } from '../bookkeeping/bookkeeping.service';
+import { CatalogService } from '../bookkeeping/catalog.service';
 import { SharedService } from '../shared/shared.service';
 import { FxRateService } from '../shared/fx-rate.service';
 import { User } from '../users/user.entity';
 import { Business } from '../business/business.entity';
 import { ClassifiedTransactions } from '../transactions/classified-transactions.entity';
 import { ExtractedDocument } from '../documents/extracted-document.entity';
-import { JournalReferenceType, BusinessType, VATReportingType, ExpenseReportScope } from '../enum';
+import { ReportWorkflow } from '../report-workflow/report-workflow.entity';
+import { JournalReferenceType, BusinessType, VATReportingType, ExpenseReportScope, ApprovalStatus } from '../enum';
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -41,14 +39,14 @@ function makeExpense(overrides: Partial<Expense> = {}): Expense {
     category: 'הוצאות',
     subCategory: 'דלק',
     sum: 100,
-    taxPercent: 100,
-    vatPercent: 100,
+    taxPercentSnapshot: 100,
+    vatPercentSnapshot: 100,
     date: new Date('2024-01-15') as any,
     businessNumber: '999999999',
     userId: 'firebase-uid-1',
     loadingDate: new Date(),
-    isEquipment: false,
-    reductionPercent: 0,
+    isEquipmentSnapshot: false,
+    reductionPercentSnapshot: 0,
     totalVatPayable: 17.09,
     totalTaxPayable: 82.91,
     vatReportingDate: '1/2024' as any,
@@ -98,6 +96,33 @@ describe('ExpensesService — journal entry linking', () => {
       findJournalEntryNumber: jest.fn().mockResolvedValue(null),
     } as any;
 
+    // Phase 4.1: addExpense/updateExpense resolve the full classification
+    // (subCategoryId or name pair) through CatalogService — the mock returns a
+    // fully-mapped APPROVED sub_category on the '5100' card so the journal-line
+    // assertions stay on the same account code the old mocks drove.
+    const resolvedSubCategory = {
+      subCategory: {
+        id: 42,
+        name: 'דלק',
+        isPrivate: false,
+        approvalStatus: ApprovalStatus.APPROVED,
+        reportScope: ExpenseReportScope.PNL,
+        category: { name: 'הוצאות' },
+      },
+      account: { id: 7, code: '5100', name: 'דלק' },
+      section: { id: 3, code: '200', name: 'הוצאות רכב' },
+      code6111: null,
+      vatPercent: 100,
+      taxPercent: 100,
+      isEquipment: false,
+      reductionPercent: 0,
+      recognitionType: null,
+    };
+    const catalogService: Partial<CatalogService> = {
+      resolveByName: jest.fn().mockResolvedValue(resolvedSubCategory as any),
+      resolveSubCategory: jest.fn().mockResolvedValue(resolvedSubCategory as any),
+    };
+
     mockManager = {
       getRepository: jest.fn().mockReturnValue(expenseRepo),
     } as any;
@@ -127,37 +152,21 @@ describe('ExpensesService — journal entry linking', () => {
       vatReportingType: VATReportingType.MONTHLY_REPORT,
     } as any);
 
-    const defaultSubCategoryRepo = makeRepo<DefaultSubCategory>({
-      findOne: jest.fn().mockResolvedValue({
-        accountCode: '5100',
-        isEquipment: false,
-        reportScope: ExpenseReportScope.PNL,
-        subCategoryName: 'דלק',
-        categoryName: 'הוצאות',
-      }),
-    });
-
-    const userSubCategoryRepo = makeRepo<UserSubCategory>({
-      findOne: jest.fn().mockResolvedValue(null),
-    });
-
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ExpensesService,
         { provide: getRepositoryToken(Expense), useValue: expenseRepo },
         { provide: getRepositoryToken(User), useValue: makeRepo<User>() },
-        { provide: getRepositoryToken(DefaultCategory), useValue: makeRepo<DefaultCategory>({ findOne: jest.fn().mockResolvedValue(null) }) },
-        { provide: getRepositoryToken(DefaultSubCategory), useValue: defaultSubCategoryRepo },
-        { provide: getRepositoryToken(UserCategory), useValue: makeRepo<UserCategory>({ findOne: jest.fn().mockResolvedValue(null) }) },
-        { provide: getRepositoryToken(UserSubCategory), useValue: userSubCategoryRepo },
         { provide: getRepositoryToken(Supplier), useValue: makeRepo<Supplier>() },
         { provide: getRepositoryToken(Business), useValue: businessRepo },
         { provide: getRepositoryToken(ClassifiedTransactions), useValue: makeRepo<ClassifiedTransactions>() },
         { provide: getRepositoryToken(ExtractedDocument), useValue: makeRepo<ExtractedDocument>() },
+        { provide: getRepositoryToken(ReportWorkflow), useValue: makeRepo<ReportWorkflow>({ find: jest.fn().mockResolvedValue([]) }) },
         { provide: SharedService, useValue: sharedService },
         { provide: FxRateService, useValue: fxRateService },
         { provide: DataSource, useValue: dataSource },
         { provide: BookkeepingService, useValue: bookkeepingService },
+        { provide: CatalogService, useValue: catalogService },
       ],
     }).compile();
 
@@ -336,9 +345,9 @@ describe('ExpensesService — journal entry linking', () => {
     });
 
     it('syncs after vatPercent change (affects VAT line split)', async () => {
-      const expense = makeExpense({ journalEntryNumber: 10000001, vatPercent: 100 });
+      const expense = makeExpense({ journalEntryNumber: 10000001, vatPercentSnapshot: 100 });
       expenseRepo.findOne.mockResolvedValue(expense);
-      expenseRepo.save.mockResolvedValue({ ...expense, vatPercent: 66 } as any);
+      expenseRepo.save.mockResolvedValue({ ...expense, vatPercentSnapshot: 66 } as any);
       bookkeepingService.updateJournalEntryFull.mockResolvedValue(true);
 
       await service.updateExpense(
@@ -408,9 +417,9 @@ describe('ExpensesService — journal entry linking', () => {
         sum: 100,
         totalVatPayable: 17.09,
         totalTaxPayable: 82.91,
-        isEquipment: true,
-        taxPercent: 50,
-        vatPercent: 100,
+        isEquipmentSnapshot: true,
+        taxPercentSnapshot: 50,
+        vatPercentSnapshot: 100,
       });
       const lines = await callBuild(expense);
       expect(lines[0]).toEqual(

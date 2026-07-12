@@ -1,4 +1,4 @@
-import { BadRequestException, forwardRef, HttpException, HttpStatus, Inject, Injectable, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, forwardRef, HttpException, HttpStatus, Inject, Injectable, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
 import { Any, Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from './user.entity';
@@ -245,6 +245,16 @@ export class UsersService {
           newBusiness.vatReportingType = VATReportingType.NOT_REQUIRED;
           newBusiness.taxReportingType = TaxReportingType.NOT_REQUIRED;
           break;
+      }
+
+      // Friendly duplicate check ahead of ux_business_number (raw ER_DUP_ENTRY → 500)
+      if (newBusiness.businessNumber) {
+        const existingBusiness = await this.business_repo.findOne({
+          where: { businessNumber: newBusiness.businessNumber },
+        });
+        if (existingBusiness) {
+          throw new ConflictException(`עסק עם מספר ${newBusiness.businessNumber} כבר קיים במערכת`);
+        }
       }
 
       await this.business_repo.save(newBusiness);

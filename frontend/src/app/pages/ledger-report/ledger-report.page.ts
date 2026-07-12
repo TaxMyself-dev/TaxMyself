@@ -1,6 +1,6 @@
 import { Component, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { FormBuilder, FormGroup } from '@angular/forms';
+import { FormArray, FormBuilder, FormGroup } from '@angular/forms';
 import { catchError, EMPTY, finalize } from 'rxjs';
 import { Workbook } from 'exceljs';
 import { GenericService } from 'src/app/services/generic.service';
@@ -8,7 +8,15 @@ import { AuthService } from 'src/app/services/auth.service';
 import { BusinessStatus, ReportingPeriodType } from 'src/app/shared/enums';
 import { FilterField } from 'src/app/components/filter-tab/filter-fields-model.component';
 import { ISelectItem, IUserData } from 'src/app/shared/interface';
-import { IJournalEntryDetail, ILedgerLine, ILedgerReport, LedgerReportService } from './ledger-report.service';
+import {
+  ICreateManualJournalEntryPayload,
+  IJournalEntryDetail,
+  ILedgerAccountOption,
+  ILedgerLine,
+  ILedgerReport,
+  LedgerReportService,
+  ManualJournalEntryKind,
+} from './ledger-report.service';
 
 @Component({
   selector: 'app-ledger-report',
@@ -38,8 +46,12 @@ export class LedgerReportPage implements OnInit {
    *  WITHOUT delaying filterConfig (see ngOnInit). value '' = "all accounts". */
   accountOptions = signal<ISelectItem[]>([{ name: 'כל הכרטיסים', value: '' }]);
   /** Posting accounts for the manual journal-entry modal (excludes technical
-   *  accounts — loaded from /reports/ledger-entry-accounts). */
-  entryAccountOptions = signal<ISelectItem[]>([]);
+   *  accounts — loaded from /reports/ledger-entry-accounts, scoped to the
+   *  selected business, Phase 4.5). Kept raw so each card can filter by
+   *  account `type` and group options by accounting section. */
+  private entryAccountOptionsRaw = signal<ILedgerAccountOption[]>([]);
+  /** Merged expense sub-categories for the manual-entry picker (Phase 4.5). */
+  subCategoryOptions = signal<ISelectItem[]>([]);
 
   // Report data
   ledgerReport: ILedgerReport;
@@ -71,18 +83,6 @@ export class LedgerReportPage implements OnInit {
       this.businessName.set(businesses[0].businessName);
       this.form.get('businessNumber')?.setValue(businesses[0].businessNumber);
     }
-
-    // Keep businessNumber/businessName signals in sync with the filter select.
-    this.form.get('businessNumber')?.valueChanges
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(businessNumber => {
-        if (!businessNumber) return;
-        const business = this.gs.businesses().find(b => b.businessNumber === businessNumber);
-        if (business) {
-          this.businessNumber.set(business.businessNumber);
-          this.businessName.set(business.businessName);
-        }
-      });
 
     const currentYear = new Date().getFullYear();
     const currentMonth = new Date().getMonth() + 1;
@@ -124,12 +124,28 @@ export class LedgerReportPage implements OnInit {
 
     // Clear a previously-rendered report when ANY filter changes (business,
     // account, or period) so a stale report is never shown for a different
-    // selection — the user must press "הצג" again.
+    // selection — the user must press "הצג" again. Also keeps
+    // businessNumber()/businessName() in sync with the filter's business
+    // select as soon as it's picked, not only on submit — subscribing
+    // directly to form.get('businessNumber').valueChanges from THIS ngOnInit
+    // doesn't work because that control doesn't exist yet (FilterTabComponent
+    // adds it later, in its own ngOnInit); the group-level valueChanges
+    // observable exists from the start and still fires once the control is
+    // added under it.
     this.form.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => {
         this.ledgerReport = undefined;
         this.isRequestSent.set(false);
+
+        const selectedBusinessNumber = this.form.get('businessNumber')?.value;
+        if (selectedBusinessNumber && selectedBusinessNumber !== this.businessNumber()) {
+          const business = this.gs.businesses().find(b => b.businessNumber === selectedBusinessNumber);
+          if (business) {
+            this.businessNumber.set(business.businessNumber);
+            this.businessName.set(business.businessName);
+          }
+        }
       });
 
     // Load the account-selector options asynchronously into the signal used in
@@ -146,18 +162,10 @@ export class LedgerReportPage implements OnInit {
         ]);
       });
 
-    // Posting accounts for the manual journal-entry modal (no "all" option;
-    // technical accounts already excluded server-side).
-    this.ledgerReportService.getLedgerEntryAccounts()
-      .pipe(
-        takeUntilDestroyed(this.destroyRef),
-        catchError(() => EMPTY),
-      )
-      .subscribe((accounts) => {
-        this.entryAccountOptions.set(
-          (accounts ?? []).map((a) => ({ name: `${a.code} - ${a.name}`, value: a.code })),
-        );
-      });
+    // Posting accounts for the manual journal-entry modal are loaded on
+    // modal open (openJournalEntryModal) — they are business-scoped since
+    // Phase 4.5, so loading them here (before a business is picked) would
+    // fetch the wrong scope.
   }
 
   onSubmit(formValues: any): void {
@@ -484,8 +492,8 @@ export class LedgerReportPage implements OnInit {
   }
 
   // ──────────────────────────────────────────────────────────────────────────
-  // Manual journal entry (פקודת יומן ידנית) — UI scaffolding only.
-  // saveJournalEntry() currently just logs; the API wiring lands in a later task.
+  // Manual journal entry (פקודת יומן ידנית) — POST /bookkeeping/manual-journal-entries
+  // A list of independent entries, submitted atomically (all-or-nothing).
   // ──────────────────────────────────────────────────────────────────────────
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -515,75 +523,229 @@ export class LedgerReportPage implements OnInit {
     this.selectedEntry = null;
   }
 
+  entryKindOptions: ISelectItem[] = [
+    { name: 'הכנסה (חייבת במע"מ)', value: 'income' },
+    { name: 'הכנסה פטורה ממע"מ', value: 'income_exempt' },
+    { name: 'הוצאה', value: 'expense' },
+  ];
+
+  vatPeriodOptions = signal<ISelectItem[]>([]);
+
   showJournalEntryModal = false;
+  manualEntriesForm: FormArray<FormGroup> = this.fb.array([this.buildEntryCardGroup()]);
 
-  journalEntryForm = this.buildEmptyJournalEntry();
-
-  /** today as YYYY-MM-DD for the native date inputs' default value. */
-  private todayStr(): string {
-    return new Date().toISOString().slice(0, 10);
+  get entryCards(): FormGroup[] {
+    return this.manualEntriesForm.controls;
   }
 
-  private buildEmptyJournalEntry() {
-    const today = this.todayStr();
-    return {
-      date: today,
-      valueDate: today,
-      vatDate: today,
-      description: '',
-      notes: '',
-      lines: [
-        { accountCode: '', description: '', debit: 0, credit: 0 },
-        { accountCode: '', description: '', debit: 0, credit: 0 },
-      ],
-    };
-  }
-
-  /** Account options for the journal line dropdowns — posting accounts only
-   *  (from /reports/ledger-entry-accounts; technical accounts excluded). */
-  get journalAccountOptions(): ISelectItem[] {
-    return this.entryAccountOptions();
+  private buildEntryCardGroup(): FormGroup {
+    return this.fb.group({
+      entryKind: ['expense' as ManualJournalEntryKind],
+      valueDate: [new Date()],
+      reference: [''],
+      accountCode: [''],
+      // Phase 4.5: sub_category picker (optional) + free-text description
+      // replaced the old free-text subCategoryName field.
+      subCategoryId: [null as number | null],
+      description: [''],
+      amount: [0],
+      vatPercent: [100],
+      taxPercent: [100],
+      isEquipment: [false],
+      vatReportingPeriod: [null],
+      notes: [''],
+    });
   }
 
   openJournalEntryModal(): void {
+    this.manualEntriesForm = this.fb.array([this.buildEntryCardGroup()]);
     this.showJournalEntryModal = true;
+    this.loadVatReportingPeriods();
+    this.loadEntryAccounts();
+    this.loadSubCategoryOptions();
+  }
+
+  /** Business-scoped posting accounts for the modal's account dropdown
+   *  (sections arrive as sectionName/sectionCode per account, Phase 4.5). */
+  private loadEntryAccounts(): void {
+    const businessNumber = this.businessNumber();
+    this.ledgerReportService.getLedgerEntryAccounts(businessNumber || undefined)
+      .pipe(catchError(() => EMPTY))
+      .subscribe((accounts) => this.entryAccountOptionsRaw.set(accounts ?? []));
+  }
+
+  /** Merged expense sub-categories for the optional picker (Phase 4.5). */
+  private loadSubCategoryOptions(): void {
+    const businessNumber = this.businessNumber();
+    if (!businessNumber) {
+      this.subCategoryOptions.set([]);
+      return;
+    }
+    this.ledgerReportService.getExpenseCatalog(businessNumber)
+      .pipe(catchError(() => EMPTY))
+      .subscribe((items) => {
+        this.subCategoryOptions.set(
+          (items ?? []).map((i) => ({
+            name: i.category ? `${i.category} / ${i.subCategory}` : i.subCategory,
+            value: i.subCategoryId,
+          })),
+        );
+      });
   }
 
   closeJournalEntryModal(): void {
-    this.journalEntryForm = this.buildEmptyJournalEntry();
+    this.manualEntriesForm = this.fb.array([this.buildEntryCardGroup()]);
     this.showJournalEntryModal = false;
   }
 
-  addLine(): void {
-    this.journalEntryForm.lines.push({ accountCode: '', description: '', debit: 0, credit: 0 });
+  private loadVatReportingPeriods(): void {
+    const businessNumber = this.businessNumber();
+    if (!businessNumber) {
+      this.vatPeriodOptions.set([]);
+      return;
+    }
+    this.ledgerReportService.getVatReportingPeriods(businessNumber)
+      .pipe(catchError(() => EMPTY))
+      .subscribe((periods) => {
+        this.vatPeriodOptions.set((periods ?? []).map((p) => ({ name: p, value: p })));
+      });
   }
 
-  /** Remove a line, keeping a minimum of 2 lines. */
-  removeLine(index: number): void {
-    if (this.journalEntryForm.lines.length > 2) {
-      this.journalEntryForm.lines.splice(index, 1);
+  addEntryCard(): void {
+    this.manualEntriesForm.push(this.buildEntryCardGroup());
+  }
+
+  /** Remove a card, keeping a minimum of 1. */
+  removeEntryCard(index: number): void {
+    if (this.manualEntriesForm.length > 1) {
+      this.manualEntriesForm.removeAt(index);
     }
   }
 
-  get totalDebit(): number {
-    return this.journalEntryForm.lines.reduce((sum, l) => sum + (Number(l.debit) || 0), 0);
+  isExpenseCard(card: FormGroup): boolean {
+    return card.get('entryKind')?.value === 'expense';
   }
 
-  get totalCredit(): number {
-    return this.journalEntryForm.lines.reduce((sum, l) => sum + (Number(l.credit) || 0), 0);
+  isExemptCard(card: FormGroup): boolean {
+    return card.get('entryKind')?.value === 'income_exempt';
   }
 
-  /** Single-entry: no debit=credit balancing required. The only gate on שמור is
-   *  that at least one line carries an amount. */
-  get hasAnyAmount(): boolean {
-    return this.journalEntryForm.lines.some(
-      (l) => (Number(l.debit) || 0) !== 0 || (Number(l.credit) || 0) !== 0,
-    );
+  /** Account options filtered to the card's kind — income cards only offer
+   *  'income'-type accounts, expense cards only 'expense'-type accounts —
+   *  grouped by accounting section (Phase 4.5; server order preserved). */
+  accountOptionsForCard(card: FormGroup): { label: string; items: ISelectItem[] }[] {
+    const expectedType = this.isExpenseCard(card) ? 'expense' : 'income';
+    const groups: { label: string; items: ISelectItem[] }[] = [];
+    const groupByLabel = new Map<string, ISelectItem[]>();
+    for (const a of this.entryAccountOptionsRaw()) {
+      if (a.type !== expectedType) continue;
+      const label = a.sectionName || 'ללא חתך';
+      let items = groupByLabel.get(label);
+      if (!items) {
+        items = [];
+        groupByLabel.set(label, items);
+        groups.push({ label, items });
+      }
+      items.push({ name: `${a.code} - ${a.name}`, value: a.code });
+    }
+    return groups;
+  }
+
+  /** Kind changed — the previously-picked account may no longer be valid for
+   *  the new kind (different type), so clear it rather than silently keep a
+   *  now-invalid selection. */
+  onEntryKindChange(card: FormGroup): void {
+    card.get('accountCode')?.setValue('');
+  }
+
+  /** Mirrors the backend: for income, vatPercent is fixed at 100 internally,
+   *  so any non-zero amount always posts a VAT line — required whenever
+   *  there's an amount. For expense it depends on the user-entered
+   *  vatPercent. Never required for income_exempt (no VAT at all). */
+  isVatReportingPeriodRequired(card: FormGroup): boolean {
+    if (this.isExemptCard(card)) return false;
+    const amount = Number(card.get('amount')?.value) || 0;
+    if (amount === 0) return false;
+    if (!this.isExpenseCard(card)) return true;
+    return (Number(card.get('vatPercent')?.value) || 0) > 0;
+  }
+
+  private get validCards(): FormGroup[] {
+    return this.entryCards.filter((c) => {
+      if ((Number(c.get('amount')?.value) || 0) === 0) return false;
+      // accountCode only matters for expense — income/income_exempt always
+      // post to the fixed '4000' account, no user selection needed.
+      return this.isExpenseCard(c) ? !!c.get('accountCode')?.value : true;
+    });
+  }
+
+  get hasValidEntries(): boolean {
+    return this.validCards.length > 0;
+  }
+
+  /** yyyy-mm-dd using LOCAL date components (not toISOString, which shifts
+   *  by the UTC offset and can land on the wrong calendar day). */
+  private toDateOnlyString(value: Date | string | null): string {
+    const d = value instanceof Date ? value : (value ? new Date(value) : new Date());
+    if (Number.isNaN(d.getTime())) return this.toDateOnlyString(new Date());
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  }
+
+  private buildPayload(card: FormGroup, businessNumber: string): ICreateManualJournalEntryPayload {
+    const v = card.value;
+    const isExpense = v.entryKind === 'expense';
+    const isExempt = v.entryKind === 'income_exempt';
+    const valueDate = this.toDateOnlyString(v.valueDate);
+    return {
+      entryKind: v.entryKind,
+      businessNumber,
+      date: valueDate,
+      valueDate,
+      vatDate: valueDate,
+      reference: v.reference || undefined,
+      description: v.description || undefined,
+      notes: v.notes || undefined,
+      vatReportingPeriod: isExempt ? null : (v.vatReportingPeriod || null),
+      lines: [{
+        // accountCode/vatPercent/taxPercent only matter for expense — the
+        // service forces the income account + fixed percents for
+        // income/income_exempt regardless, but don't send stale values for
+        // those kinds.
+        accountCode: isExpense ? v.accountCode : undefined,
+        amount: Number(v.amount) || 0,
+        subCategoryId: isExpense ? (v.subCategoryId ?? null) : null,
+        isEquipment: isExpense ? !!v.isEquipment : false,
+        vatPercent: isExpense ? (Number(v.vatPercent) || 0) : undefined,
+        taxPercent: isExpense ? (Number(v.taxPercent) || 100) : undefined,
+      }],
+    };
   }
 
   saveJournalEntry(): void {
-    // Scaffolding: log the payload; API wiring comes in the next task.
-    console.log('[ledger] manual journal entry (scaffold):', JSON.parse(JSON.stringify(this.journalEntryForm)));
-    this.closeJournalEntryModal();
+    const businessNumber = this.businessNumber();
+    if (!businessNumber || !this.hasValidEntries) return;
+
+    const payloads = this.validCards.map((card) => this.buildPayload(card, businessNumber));
+
+    this.genericService.getLoader().subscribe();
+    this.ledgerReportService.createManualJournalEntries(payloads)
+      .pipe(
+        finalize(() => this.genericService.dismissLoader()),
+        catchError((err) => {
+          this.genericService.showToast(err?.error?.message || 'שמירת הפקודות נכשלה', 'error');
+          return EMPTY;
+        }),
+      )
+      .subscribe((res) => {
+        if (!res) return;
+        this.genericService.showToast('פקודות היומן נשמרו בהצלחה', 'success');
+        this.closeJournalEntryModal();
+        if (this.isRequestSent()) {
+          this.getLedgerReportData(this.startDate(), this.endDate(), this.businessNumber(), this.selectedAccountCode());
+        }
+      });
   }
 }

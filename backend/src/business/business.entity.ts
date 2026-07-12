@@ -1,8 +1,11 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, Index } from 'typeorm';
 import { BusinessType, TaxReportingType, VATReportingType } from 'src/enum';
 
 
+// Named explicitly per the schema-drift convention. Nullable column — MySQL
+// allows multiple NULLs under a UNIQUE index, so number-less businesses are fine.
 @Entity('business')
+@Index('ux_business_number', ['businessNumber'], { unique: true })
 export class Business {
 
   @PrimaryGeneratedColumn()

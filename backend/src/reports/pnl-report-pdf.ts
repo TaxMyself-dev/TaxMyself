@@ -103,7 +103,7 @@ export function buildPnlReportPdf(
       doc.y = dividerY + 14;
 
       for (const expense of data.expenses ?? []) {
-        drawRow(expense.category, Number(expense.total) || 0, { negative: true });
+        drawRow(expense.sectionName, Number(expense.total) || 0, { negative: true });
       }
       drawRow('סך הכל הוצאות', totalExpenses, { negative: true });
 

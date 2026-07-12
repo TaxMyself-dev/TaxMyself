@@ -1,5 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { ActivatedRoute, Router } from '@angular/router';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators, AbstractControl, ValidationErrors } from '@angular/forms';
 import { ButtonComponent } from 'src/app/components/button/button.component';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
@@ -22,10 +23,12 @@ import { SyncStatusService } from 'src/app/services/sync-status.service';
 import { catchError, EMPTY, finalize } from 'rxjs';
 import { SharedModule } from 'src/app/shared/shared.module';
 import { MyCategoriesTabComponent } from './my-categories-tab/my-categories-tab.component';
+import { GmailIntegrationComponent } from './gmail-integration/gmail-integration.component';
 import { MySubscriptionTabComponent } from './my-subscription-tab/my-subscription-tab.component';
 import { InputTextComponent } from 'src/app/components/input-text/input-text.component';
 import { InputDateComponent } from 'src/app/components/input-date/input-date.component';
 import { InputSelectComponent } from 'src/app/components/input-select/input-select.component';
+import { DriveDocsService } from 'src/app/services/drive-docs.service';
 
 @Component({
   selector: 'app-settings',
@@ -44,6 +47,7 @@ import { InputSelectComponent } from 'src/app/components/input-select/input-sele
     SelectModule,
     SharedModule,
     MyCategoriesTabComponent,
+    GmailIntegrationComponent,
     MySubscriptionTabComponent,
     GenericTableComponent,
     InputTextComponent,
@@ -60,6 +64,9 @@ export class SettingsPage implements OnInit {
   myPermissionsService = inject(MyPermissionsService);
   transactionsService = inject(TransactionsService);
   syncStatusService = inject(SyncStatusService);
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
+  driveDocsService = inject(DriveDocsService);
   private readonly fb = inject(FormBuilder);
   private readonly accessService = inject(AccessService);
 
@@ -75,6 +82,7 @@ export class SettingsPage implements OnInit {
   savingChildren = signal<boolean>(false);
   addingBusiness = signal<boolean>(false);
   addBusinessModalVisible = signal<boolean>(false);
+  uploadingDocsBusinessId = signal<number | null>(null);
 
   buttonSize = ButtonSize;
   buttonColor = ButtonColor;
@@ -195,6 +203,8 @@ export class SettingsPage implements OnInit {
     this.loadBusinesses();
     this.loadChildren();
     this.fetchMyPermissions();
+    // חזרה מ-OAuth של Google נוחתת כאן עם ?tab=permissions&googleIntegration=...
+    this.handleReturnFromGoogleOauth();
     // מקורות חשבון (get-sources-with-types) נטענים בלחיצה על טאב "ניהול הרשאות וחשבונות" — ראה onTabChange
     // רענון נתונים מהשרת כדי להציג תאריך בן/בת זוג ועוד שדות שעודכנו (למשל בדאטאבייס)
     this.authService.restoreUserData().subscribe({
@@ -212,6 +222,66 @@ export class SettingsPage implements OnInit {
     this.selectedTab = newTabValue;
     if (newTabValue === 'permissions') {
       this.fetchAccountSources();
+    }
+  }
+
+  /**
+   * Handles the Google OAuth return redirect (integrations.controller sends the
+   * browser to /settings?tab=permissions&googleIntegration=success|error&reason=...).
+   * Opens the requested tab, shows a global toast, then strips the params so a
+   * refresh or back-navigation doesn't re-toast. Snapshot read is enough — the
+   * redirect is always a fresh full-page load.
+   */
+  private handleReturnFromGoogleOauth(): void {
+    const params = this.route.snapshot.queryParams;
+    const tab = params['tab'];
+    const googleIntegration = params['googleIntegration'];
+    const reason = params['reason'];
+    if (!tab && !googleIntegration) return;
+
+    if (tab && this.tabs.some((t) => t.value === tab)) {
+      this.onTabChange(tab);
+    }
+
+    if (googleIntegration === 'success') {
+      this.messageService.add({
+        severity: 'success',
+        summary: 'חשבון Google חובר',
+        detail: 'חשבון ה-Gmail חובר בהצלחה.',
+        life: 4000,
+        key: 'br',
+      });
+    } else if (googleIntegration === 'error') {
+      this.messageService.add({
+        severity: 'error',
+        summary: 'שגיאה',
+        detail: this.googleOauthErrorDetail(reason),
+        life: 6000,
+        key: 'br',
+      });
+    }
+
+    // Remove only the OAuth-return params, keeping the rest of the URL intact.
+    this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { tab: null, googleIntegration: null, reason: null },
+      queryParamsHandling: 'merge',
+      replaceUrl: true,
+    });
+  }
+
+  /** Maps the backend/Google `reason` code to a user-facing Hebrew message. */
+  private googleOauthErrorDetail(reason: string | undefined): string {
+    switch (reason) {
+      case 'access_denied':
+        return 'החיבור בוטל. לא ניתנה הרשאה לחשבון Google.';
+      case 'no_refresh_token':
+        return 'החיבור נכשל: לא התקבלה הרשאה מתמשכת מ-Google. נסה שוב.';
+      case 'missing_code':
+      case 'callback_failed':
+        return 'חיבור חשבון Google נכשל. נסה שוב.';
+      default:
+        return 'חיבור חשבון Google נכשל. נסה שוב.';
     }
   }
 
@@ -683,6 +753,42 @@ export class SettingsPage implements OnInit {
     return biz?.driveInboxFolderId
       ? `https://drive.google.com/drive/folders/${biz.driveInboxFolderId}`
       : null;
+  }
+
+  /**
+   * "העלאת מסמכים ל-Drive" — user picked one or more files off their
+   * machine; drop them straight into the business's Drive inbox/ folder
+   * (no OCR, just storage). Resets the input afterward so re-picking the
+   * same filename still fires `change`.
+   */
+  onUploadDocsToDrive(biz: Business | undefined, input: HTMLInputElement): void {
+    const files = input.files ? Array.from(input.files) : [];
+    input.value = '';
+    if (!files.length || biz?.id == null || !biz.businessNumber) return;
+
+    this.uploadingDocsBusinessId.set(biz.id);
+    this.driveDocsService.uploadFilesToInbox(files, biz.businessNumber).subscribe({
+      next: (uploaded) => {
+        this.uploadingDocsBusinessId.set(null);
+        this.messageService.add({
+          severity: 'success',
+          summary: 'הצלחה',
+          detail: `${uploaded.length} קבצים הועלו ל-Drive בהצלחה`,
+          life: 3000,
+          key: 'br'
+        });
+      },
+      error: () => {
+        this.uploadingDocsBusinessId.set(null);
+        this.messageService.add({
+          severity: 'error',
+          summary: 'שגיאה',
+          detail: 'לא ניתן היה להעלות את הקבצים ל-Drive. נסה שוב מאוחר יותר.',
+          life: 3000,
+          key: 'br'
+        });
+      }
+    });
   }
 
   formatChildDate(childDate: string | null | undefined): string {

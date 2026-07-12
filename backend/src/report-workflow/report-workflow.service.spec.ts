@@ -76,6 +76,7 @@ interface ServiceWithDeps {
     };
   };
   cacheRepo: { update: jest.Mock };
+  expenseRepo: { update: jest.Mock };
   sharedService: { getVATReportingDate: jest.Mock };
 }
 
@@ -111,6 +112,10 @@ function buildService(opts: {
     update: jest.fn().mockResolvedValue({ affected: 0 }),
   };
 
+  const expenseRepo = {
+    update: jest.fn().mockResolvedValue({ affected: 0 }),
+  };
+
   // Other dependencies are not used by the lock methods.
   const service = new ReportWorkflowService(
     {} as any, // workflowRepo
@@ -119,12 +124,14 @@ function buildService(opts: {
     {} as any, // taskRepo
     slimRepo as any,
     cacheRepo as any,
+    expenseRepo as any,
     {} as any, // notifications
     {} as any, // tasksGenerator
+    {} as any, // reportsService
     sharedService as any,
   );
 
-  return { service, businessRepo, slimRepo, cacheRepo, sharedService };
+  return { service, businessRepo, slimRepo, cacheRepo, expenseRepo, sharedService };
 }
 
 describe('ReportWorkflowService – transaction lock trigger', () => {

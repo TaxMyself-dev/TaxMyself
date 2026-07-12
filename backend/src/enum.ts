@@ -266,8 +266,95 @@ export enum ExpenseReportScope {
   ANNUAL = 'annual', // דוח שנתי בלבד
 }
 
+/**
+ * Who owns a row of the categories/accounting chart (accounting_section,
+ * booking_account, category, sub_category — D4 of the redesign plan).
+ * Drives the CLIENT > ACCOUNTANT > SYSTEM merge precedence.
+ */
+export enum OwnerType {
+  SYSTEM = 'SYSTEM',
+  ACCOUNTANT = 'ACCOUNTANT',
+  CLIENT = 'CLIENT',
+}
 
-// ************ Uniform file ************ // 
+/** SYSTEM rows always use this literal as their chartOwnerKey (D4). */
+export const SYSTEM_CHART_OWNER_KEY = 'SYSTEM';
+
+/**
+ * Business-expense recognition, living on `booking_account` per the revised
+ * D1/D5 (accounting law moved to the card, 2026-07-10): whether spend posted
+ * to this card counts toward deductible totals. NOT_RECOGNIZED cards still
+ * post to the ledger (D5) — this is not the same as `sub_category.isPrivate`
+ * (which means no card / never journaled at all). NULL on non-expense
+ * accounts (income, balance-sheet, technical) — not applicable there.
+ */
+export enum RecognitionType {
+  RECOGNIZED = 'RECOGNIZED',
+  NOT_RECOGNIZED = 'NOT_RECOGNIZED',
+}
+
+/**
+ * Who can see an ACCOUNTANT/CLIENT-owned catalog row (D4). Irrelevant for
+ * ownerType=SYSTEM (always visible to everyone).
+ */
+export enum VisibilityScope {
+  SYSTEM_DEFAULT = 'SYSTEM_DEFAULT',
+  ALL_ACCOUNTANT_CLIENTS = 'ALL_ACCOUNTANT_CLIENTS',
+  SPECIFIC_CLIENT = 'SPECIFIC_CLIENT',
+}
+
+/** category.type — client-facing polarity (D1 of the categories redesign). */
+export enum CategoryType {
+  EXPENSE = 'EXPENSE',
+  INCOME = 'INCOME',
+}
+
+/**
+ * sub_category.approvalStatus (D5). MISSING_ACCOUNTING_MAPPING = a business
+ * (non-private) sub_category with no accountId yet — a client with an
+ * accountant may create one unmapped; expenses on it cannot be approved
+ * until an accountant completes the mapping (D9's inline completion row).
+ */
+export enum ApprovalStatus {
+  APPROVED = 'APPROVED',
+  PENDING_ACCOUNTANT_APPROVAL = 'PENDING_ACCOUNTANT_APPROVAL',
+  MISSING_ACCOUNTING_MAPPING = 'MISSING_ACCOUNTING_MAPPING',
+  REJECTED = 'REJECTED',
+}
+
+/**
+ * expense.approvalStatus (D6, Phase 3). Deliberately a SEPARATE enum from
+ * sub_category's ApprovalStatus above — the value sets differ (PENDING vs
+ * PENDING_ACCOUNTANT_APPROVAL; NOT_AN_EXPENSE is expense-only, D8's
+ * ANNUAL_DOCUMENT "תייק" routing) and conflating them would let a
+ * sub_category's approval state leak semantics onto an expense's.
+ * Backfilled in Phase 3.3: a journal-posted expense -> APPROVED; otherwise
+ * PENDING (or MISSING_ACCOUNTING_MAPPING when its sub_category is).
+ */
+export enum ExpenseApprovalStatus {
+  PENDING = 'PENDING',
+  APPROVED = 'APPROVED',
+  REJECTED = 'REJECTED',
+  MISSING_ACCOUNTING_MAPPING = 'MISSING_ACCOUNTING_MAPPING',
+  NOT_AN_EXPENSE = 'NOT_AN_EXPENSE',
+}
+
+/**
+ * extracted_document.documentKind (D8) — OCR pipeline routing. EXPENSE_INVOICE
+ * goes through the normal approval flow; ANNUAL_DOCUMENT (תרומה, טופס 106,
+ * אישורי מס) is never journaled, routed to the "תייק" (file it) flow instead;
+ * UNIDENTIFIED sits in PENDING until a human decides. Backfilled in Phase 3.1:
+ * rows already converted to an Expense -> EXPENSE_INVOICE; others inferred
+ * from the stored documentType where possible, else UNIDENTIFIED.
+ */
+export enum DocumentKind {
+  EXPENSE_INVOICE = 'EXPENSE_INVOICE',
+  ANNUAL_DOCUMENT = 'ANNUAL_DOCUMENT',
+  UNIDENTIFIED = 'UNIDENTIFIED',
+}
+
+
+// ************ Uniform file ************ //
 
 export const FIELD_MAP = {
   A000: [

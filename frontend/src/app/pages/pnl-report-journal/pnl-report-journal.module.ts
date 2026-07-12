@@ -14,6 +14,7 @@ import { FilterTabComponent } from "src/app/components/filter-tab/filter-tab.com
 import { ReportReviewDialogComponent } from "../../components/report-review-dialog/report-review-dialog.component";
 import { DialogModule } from 'primeng/dialog';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
+import { CheckboxModule } from 'primeng/checkbox';
 
 @NgModule({
   imports: [
@@ -28,7 +29,8 @@ import { ConfirmDialogModule } from 'primeng/confirmdialog';
     FilterTabComponent,
     ReportReviewDialogComponent,
     DialogModule,
-    ConfirmDialogModule
+    ConfirmDialogModule,
+    CheckboxModule
 ],
   declarations: [PnLReportJournalPage]
 })

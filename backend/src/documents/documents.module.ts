@@ -8,7 +8,12 @@ import { Delegation } from 'src/delegation/delegation.entity';
 import { DocLines } from './doc-lines.entity';
 import { JournalEntry } from 'src/bookkeeping/jouranl-entry.entity';
 import { JournalLine } from 'src/bookkeeping/jouranl-line.entity';
-import { DefaultBookingAccount } from 'src/bookkeeping/account.entity';
+import { BookingAccount } from 'src/bookkeeping/account.entity';
+import { AccountingSection } from 'src/bookkeeping/accounting-section.entity';
+import { Category } from 'src/bookkeeping/category.entity';
+import { SubCategory } from 'src/bookkeeping/sub-category.entity';
+import { CatalogService } from 'src/bookkeeping/catalog.service';
+import { AccountCodeAllocatorService } from 'src/bookkeeping/account-code-allocator.service';
 import { SharedService } from 'src/shared/shared.service';
 import { FxRateService } from 'src/shared/fx-rate.service';
 import { FxRate } from 'src/shared/fx-rate.entity';
@@ -27,15 +32,13 @@ import { DocumentProcessorService } from './document-processor.service';
 import { DocumentPairingService } from './document-pairing.service';
 import { GoogleDriveModule } from '../google-drive/google-drive.module';
 import { Supplier } from '../expenses/suppliers.entity';
-import { DefaultSubCategory } from '../expenses/default-sub-categories.entity';
-import { UserSubCategory } from '../expenses/user-sub-categories.entity';
 import { UsersModule } from '../users/users.module';
 import { BillingModule } from 'src/billing/billing.module';
 
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([SettingDocuments, Documents, Expense, Transactions, DocLines, DocPayments, Business, Delegation, JournalEntry, JournalLine, DefaultBookingAccount, User, ExtractedDocument, Supplier, DefaultSubCategory, UserSubCategory, FxRate, SlimTransaction]),
+    TypeOrmModule.forFeature([SettingDocuments, Documents, Expense, Transactions, DocLines, DocPayments, Business, Delegation, JournalEntry, JournalLine, BookingAccount, AccountingSection, Category, SubCategory, User, ExtractedDocument, Supplier, FxRate, SlimTransaction]),
     MailModule,
     GoogleDriveModule,
     forwardRef(() => UsersModule),
@@ -47,6 +50,8 @@ import { BillingModule } from 'src/billing/billing.module';
     SharedService,
     FxRateService,
     BookkeepingService,
+    CatalogService,
+    AccountCodeAllocatorService,
     BusinessService,
     DocumentProcessorService,
     DocumentPairingService,

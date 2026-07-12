@@ -1,9 +1,6 @@
 <div class="category-management">
-  <!-- בחירת והעלאת קובץ – צד ימין -->
-  <div class="upload-section">
-    <app-load-file [relativeUrl]="'load-default-categories'" class="load-category-file"
-      (onSend)="onCategoriesUploaded($event)"></app-load-file>
-  </div>
+  <!-- Bulk-upload control removed (Phase 2.6): load-default-categories was
+       superseded by the flat idempotent seeder (D13) and deleted. -->
 
   <!-- טבלת תתי קטגוריות -->
   <div class="table-wrap">

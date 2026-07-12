@@ -21,18 +21,13 @@ import { UserSourceSyncState } from './user-source-sync-state.entity';
 import { SharedService } from '../shared/shared.service';
 import { ExpensesService } from '../expenses/expenses.service';
 import { FinsiteService } from 'src/finsite/finsite.service';
+import { CatalogService } from 'src/bookkeeping/catalog.service';
 
 //DTOs
 import { UpdateTransactionsDto } from './dtos/update-transactions.dto';
-import { ClassifyTransactionDto } from './dtos/classify-transaction.dto';
-import { DefaultCategory } from '../expenses/default-categories.entity';
-import { DefaultSubCategory } from '../expenses/default-sub-categories.entity';
-import { CreateUserCategoryDto } from '../expenses/dtos/create-user-category.dto';
 import { User } from 'src/users/user.entity';
-import { UserCategory } from 'src/expenses/user-categories.entity';
 import { CreateBillDto } from './dtos/create-bill.dto';
 import * as fs from 'fs';
-import { UserSubCategory } from 'src/expenses/user-sub-categories.entity';
 import { Business } from 'src/business/business.entity';
 import { log } from 'console';
 
@@ -58,14 +53,9 @@ export class TransactionsService {
     private sourceRepo: Repository<Source>,
     @InjectRepository(Expense)
     private expenseRepo: Repository<Expense>,
-    @InjectRepository(DefaultCategory)
-    private categoryRepo: Repository<DefaultCategory>,
-    @InjectRepository(DefaultSubCategory)
-    private defaultSubCategoryRepo: Repository<DefaultSubCategory>,
-    @InjectRepository(UserCategory)
-    private userCategoryRepo: Repository<UserCategory>,
-    @InjectRepository(UserSubCategory)
-    private userSubCategoryRepo: Repository<UserSubCategory>,
+    // Phase 4.6: category names for the legacy transactions-table filter come
+    // from the NEW catalog (the old default_/user_category reads are gone).
+    private readonly catalogService: CatalogService,
     @InjectRepository(FullTransactionCache)
     private cacheRepo: Repository<FullTransactionCache>,
     @InjectRepository(SlimTransaction)
@@ -447,425 +437,13 @@ export class TransactionsService {
   }
 
 
-  async loadDefaultCategories(file: Express.Multer.File): Promise<{ message: string }> {
-
-    if (!file) {
-      throw new BadRequestException('No file uploaded.');
-    }
-
-    const workbook = XLSX.read(file.buffer, { type: 'buffer' });
-    const sheetName = workbook.SheetNames[0];
-    const worksheet = workbook.Sheets[sheetName];
-    const rows: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: false }); // Get rows as arrays of values, raw: false to get formatted strings
-
-    // Assuming the first row contains headers
-    const headers = rows.shift();
-
-    // Dynamically find the index of each column based on the header names
-    const categoryIndex = headers.findIndex(header => header === 'categoryName');
-    const subCategoryIndex = headers.findIndex(header => header === 'subCategoryName');
-    const taxPercentIndex = headers.findIndex(header => header === 'taxPercent');
-    const vatPercentIndex = headers.findIndex(header => header === 'vatPercent');
-    const reductionPercentIndex = headers.findIndex(header => header === 'reductionPercent');
-    const isEquipmentIndex = headers.findIndex(header => header === 'isEquipment');
-    const isRecognizedIndex = headers.findIndex(header => header === 'isRecognized');
-    const isExpenseIndex = headers.findIndex(header => header === 'isExpense');
-
-
-    for (const row of rows) {
-      const categoryName = row[categoryIndex];
-      const subCategoryName = row[subCategoryIndex];
-      const taxPercent = parseFloat(row[taxPercentIndex]);
-      const vatPercent = parseFloat(row[vatPercentIndex]);
-      const reductionPercent = parseFloat(row[reductionPercentIndex]);
-      const isEquipment = row[isEquipmentIndex] == '1' || row[isEquipmentIndex] == 'true';  // Boolean conversion
-      const isRecognized = row[isRecognizedIndex] == '1' || row[isRecognizedIndex] == 'true'; // Boolean conversion
-      const isExpense = row[isExpenseIndex] == '1' || row[isExpenseIndex] == 'true'; // Boolean conversion
-
-      // Check if the category already exists
-      let category = await this.categoryRepo.findOne({ where: { categoryName: categoryName } });
-      if (!category) {
-        // Create a new category if it doesn't exist
-        category = this.categoryRepo.create({
-          categoryName: categoryName,
-          isExpense: isExpense
-        });
-        await this.categoryRepo.save(category);
-      }
-
-      // Check if the sub-category already exists
-      let subCategory = await this.defaultSubCategoryRepo.findOne({ where: { subCategoryName: subCategoryName } });
-      if (!subCategory) {
-        // Create a new sub-category if it doesn't exist
-        subCategory = this.defaultSubCategoryRepo.create({
-          subCategoryName: subCategoryName,
-          taxPercent: taxPercent,
-          vatPercent: vatPercent,
-          reductionPercent: reductionPercent,
-          isEquipment: isEquipment,
-          isRecognized: isRecognized,
-          isExpense: isExpense,
-          categoryName: categoryName
-        });
-        await this.defaultSubCategoryRepo.save(subCategory);
-      }
-
-    }
-
-    return { message: `Successfully saved categories and sub-categories.` };
-
-  }
-
-
   // TODO_FINTAX_REMOVE_LEGACY_TRANSACTIONS: reads all legacy transactions for a user. No known active caller; likely dead code. Remove when legacy table is dropped.
   async getTransactionsByUserID(userId: string) {
     return await this.transactionsRepo.find({ where: { userId: userId } });
   }
 
 
-  // TODO_FINTAX_REMOVE_LEGACY_TRANSACTIONS: legacy classify flow that writes classification back to the transactions table.
-  // The new pipeline (TransactionProcessingService.classifyManually / classifyWithRule) is now the canonical path.
-  // This method is kept temporarily; remove once all classify-trans callers are confirmed migrated.
-  async classifyTransaction(
-    classifyDto: ClassifyTransactionDto,
-    userId: string,
-  ): Promise<void> {
-    const {
-      finsiteId,
-      isSingleUpdate,
-      name,
-      billName,
-      category,
-      subCategory,
-      taxPercent,
-      vatPercent,
-      reductionPercent,
-      isEquipment,
-      isRecognized,
-      startDate,
-      endDate,
-      minSum,
-      maxSum,
-      comment,          // user-entered text
-      matchType = 'equals', // new field for match behavior
-    } = classifyDto;
 
-    console.log('classifyDto is ', classifyDto);
-
-    // Resolve billId from billName
-    const billId = await this.getBillIdByBillName(userId, billName);
-
-    // ✅ Case 1: Single update
-    if (isSingleUpdate) {
-      const transaction = await this.transactionsRepo.findOne({
-        where: { finsiteId, userId },
-      });
-
-      if (!transaction) {
-        throw new NotFoundException(`Transaction with finsiteId ${finsiteId} not found`);
-      }
-
-      transaction.category = category;
-      transaction.subCategory = subCategory;
-      transaction.taxPercent = taxPercent;
-      transaction.vatPercent = vatPercent;
-      transaction.reductionPercent = reductionPercent;
-      transaction.isEquipment = isEquipment;
-      transaction.isRecognized = isRecognized ?? false;
-
-      await this.transactionsRepo.save(transaction);
-      return;
-    }
-
-    // ✅ Case 2: Bulk update
-    const subCategoryDetails = await this.findSubCategoryDetails(
-      userId,
-      category,
-      subCategory,
-    );
-
-    if (!subCategoryDetails) {
-      throw new NotFoundException(
-        `Subcategory "${subCategory}" under category "${category}" not found.`,
-      );
-    }
-
-    // ✅ Build dynamic query
-    const query = this.transactionsRepo
-      .createQueryBuilder('t')
-      .where('t.userId = :userId', { userId })
-      .andWhere('t.name = :name', { name })
-      .andWhere('t.billName = :billName', { billName })
-      .andWhere(subCategoryDetails.isExpense ? 't.sum < 0' : 't.sum > 0');
-
-    // Optional date filter
-    if (startDate && endDate) {
-      query.andWhere('t.billDate BETWEEN :start AND :end', {
-        start: startDate,
-        end: endDate,
-      });
-    }
-
-    // Optional sum range filter
-    if (minSum != null && maxSum != null) {
-      query.andWhere('ABS(t.sum) BETWEEN :minSum AND :maxSum', { minSum, maxSum });
-    } else if (minSum != null) {
-      query.andWhere('ABS(t.sum) >= :minSum', { minSum });
-    } else if (maxSum != null) {
-      query.andWhere('ABS(t.sum) <= :maxSum', { maxSum });
-    }
-
-    // Optional comment filter (depending on match type)
-    if (comment) {
-      if (matchType === 'equals') {
-        query.andWhere('t.note2 = :comment', { comment });
-      } else if (matchType === 'contains') {
-        query.andWhere('t.note2 LIKE :comment', { comment: `%${comment}%` });
-      }
-    }
-
-    const transactions = await query.getMany();
-
-    if (!transactions.length) {
-      throw new NotFoundException(
-        `No matching transactions found for "${name}" (billId: ${billId})`,
-      );
-    }
-
-    // ✅ Update all matched transactions
-    transactions.forEach((t) => {
-      t.category = subCategoryDetails.categoryName;
-      t.subCategory = subCategoryDetails.subCategoryName;
-      t.taxPercent = subCategoryDetails.taxPercent;
-      t.vatPercent = subCategoryDetails.vatPercent;
-      t.reductionPercent = subCategoryDetails.reductionPercent;
-      t.isEquipment = subCategoryDetails.isEquipment;
-      t.isRecognized = subCategoryDetails.isRecognized ?? false;
-    });
-
-    await this.transactionsRepo.save(transactions);
-
-    // ✅ Update or create entry in ClassifiedTransactions
-    let classified = await this.classifiedTransactionsRepo.findOne({
-      where: {
-        userId,
-        transactionName: name,
-        billId,
-        isExpense: subCategoryDetails.isExpense ?? false,
-        startDate: startDate ?? null,
-        endDate: endDate ?? null,
-        minAbsSum: minSum ?? null,
-        maxAbsSum: maxSum ?? null,
-        commentPattern: comment ?? null,
-        commentMatchType: matchType ?? 'equals',
-      },
-    });
-
-    if (!classified) {
-      classified = this.classifiedTransactionsRepo.create({
-        userId,
-        transactionName: name,
-        billId,
-        category: subCategoryDetails.categoryName,
-        subCategory: subCategoryDetails.subCategoryName,
-        taxPercent: subCategoryDetails.taxPercent,
-        vatPercent: subCategoryDetails.vatPercent,
-        reductionPercent: subCategoryDetails.reductionPercent,
-        isEquipment: subCategoryDetails.isEquipment,
-        isRecognized: subCategoryDetails.isRecognized ?? false,
-        isExpense: subCategoryDetails.isExpense ?? false,
-        startDate: startDate ?? null,
-        endDate: endDate ?? null,
-        minAbsSum: minSum ?? null,
-        maxAbsSum: maxSum ?? null,
-        commentPattern: comment ?? null,
-        commentMatchType: matchType ?? 'equals',
-      });
-    } else {
-      classified.category = subCategoryDetails.categoryName;
-      classified.subCategory = subCategoryDetails.subCategoryName;
-      classified.taxPercent = subCategoryDetails.taxPercent;
-      classified.vatPercent = subCategoryDetails.vatPercent;
-      classified.reductionPercent = subCategoryDetails.reductionPercent;
-      classified.isEquipment = subCategoryDetails.isEquipment;
-      classified.isRecognized = subCategoryDetails.isRecognized ?? false;
-      classified.isExpense = subCategoryDetails.isExpense ?? false;
-      classified.startDate = startDate ?? null;
-      classified.endDate = endDate ?? null;
-      classified.minAbsSum = minSum ?? null;
-      classified.maxAbsSum = maxSum ?? null;
-      classified.commentPattern = comment ?? null;
-      classified.commentMatchType = matchType ?? 'equals';
-    }
-
-    await this.classifiedTransactionsRepo.save(classified);
-  }
-
-
-
-  // TODO_FINTAX_REMOVE_LEGACY_TRANSACTIONS: dead commented-out version of the old classifyTransaction method. Remove when legacy table is dropped.
-  // async classifyTransaction(
-  //   classifyDto: ClassifyTransactionDto,
-  //   userId: string,
-  // ): Promise<void> {
-  //   const {
-  //     id,
-  //     isSingleUpdate,
-  //     name,
-  //     billName,
-  //     category,
-  //     subCategory,
-  //     taxPercent,
-  //     vatPercent,
-  //     reductionPercent,
-  //     isEquipment,
-  //     isRecognized,
-  //     startDate,
-  //     endDate,
-  //     minSum,
-  //     maxSum,
-  //     comment
-  //   } = classifyDto;
-
-  //   console.log("classifyDto is ", classifyDto);
-
-
-  //   // ✅ Case 1: Single update
-  //   if (isSingleUpdate) {
-
-  //     const transaction = await this.transactionsRepo.findOne({
-  //       where: { id, userId },
-  //     });
-
-  //     if (!transaction) {
-  //       throw new NotFoundException(`Transaction with ID ${id} not found`);
-  //     }
-
-  //     transaction.category = category;
-  //     transaction.subCategory = subCategory;
-  //     transaction.taxPercent = taxPercent;
-  //     transaction.vatPercent = vatPercent;
-  //     transaction.reductionPercent = reductionPercent;
-  //     transaction.isEquipment = isEquipment;
-  //     transaction.isRecognized = isRecognized ?? false;
-
-  //     await this.transactionsRepo.save(transaction);
-  //     return;
-
-  //   }    
-
-  //   // ✅ Case 2: Bulk update
-  //   const subCategoryDetails = await this.findSubCategoryDetails(
-  //     userId,
-  //     category,
-  //     subCategory,
-  //   );
-
-  //   if (!subCategoryDetails) {
-  //     throw new NotFoundException(
-  //       `Subcategory "${subCategory}" under category "${category}" not found.`,
-  //     );
-  //   }
-
-  //   // ✅ Build dynamic query
-  //   const query = this.transactionsRepo
-  //     .createQueryBuilder('t')
-  //     .where('t.userId = :userId', { userId })
-  //     .andWhere('t.name = :name', { name })
-  //     .andWhere('t.billName = :billName', { billName })
-  //     .andWhere(
-  //       subCategoryDetails.isExpense ? 't.sum < 0' : 't.sum > 0',
-  //     );
-
-  //   // Optional date filter
-  //   if (startDate && endDate) {
-  //     query.andWhere('t.billDate BETWEEN :start AND :end', {
-  //       start: startDate,
-  //       end: endDate,
-  //     });
-  //   }
-
-  //   // Optional sum range filter
-  //   if (minSum != null && maxSum != null) {
-  //     query.andWhere('ABS(t.sum) BETWEEN :minSum AND :maxSum', {
-  //       minSum,
-  //       maxSum,
-  //     });
-  //   } else if (minSum != null) {
-  //     query.andWhere('ABS(t.sum) >= :minSum', { minSum });
-  //   } else if (maxSum != null) {
-  //     query.andWhere('ABS(t.sum) <= :maxSum', { maxSum });
-  //   }
-
-  //   // Optional comment filter
-  //   if (comment) {
-  //     query.andWhere('t.note2 = :comment', { comment });
-  //   }
-
-  //   const transactions = await query.getMany();
-
-  //   if (!transactions.length) {
-  //     throw new NotFoundException(
-  //       `No matching transactions found for "${name}" (${billName})`,
-  //     );
-  //   }
-
-  //   // ✅ Update all matched transactions
-  //   transactions.forEach((t) => {
-  //     t.category = subCategoryDetails.categoryName;
-  //     t.subCategory = subCategoryDetails.subCategoryName;
-  //     t.taxPercent = subCategoryDetails.taxPercent;
-  //     t.vatPercent = subCategoryDetails.vatPercent;
-  //     t.reductionPercent = subCategoryDetails.reductionPercent;
-  //     t.isEquipment = subCategoryDetails.isEquipment;
-  //     t.isRecognized = subCategoryDetails.isRecognized ?? false;
-  //     // optionally: t.isExpense = subCategoryDetails.isExpense ?? false;
-  //   });
-
-  //   await this.transactionsRepo.save(transactions);
-
-  //   // ✅ Update or create entry in ClassifiedTransactions
-  //   let classified = await this.classifiedTransactionsRepo.findOne({
-  //     where: {
-  //       userId,
-  //       transactionName: name,
-  //       billName,
-  //       isExpense: subCategoryDetails.isExpense ?? false,
-  //       startDate: startDate ?? null,
-  //       endDate: endDate ?? null,
-  //       minAbsSum: minSum ?? null,
-  //       maxAbsSum: maxSum ?? null,
-  //       comment: comment ?? null,
-  //     },
-  //   });
-
-  //   if (!classified) {
-  //     classified = this.classifiedTransactionsRepo.create({
-  //       userId,
-  //       transactionName: name,
-  //       billName,
-  //       category: subCategoryDetails.categoryName,
-  //       subCategory: subCategoryDetails.subCategoryName,
-  //       taxPercent: subCategoryDetails.taxPercent,
-  //       vatPercent: subCategoryDetails.vatPercent,
-  //       reductionPercent: subCategoryDetails.reductionPercent,
-  //       isEquipment: subCategoryDetails.isEquipment,
-  //       isRecognized: subCategoryDetails.isRecognized ?? false,
-  //       isExpense: subCategoryDetails.isExpense ?? false,
-  //     });
-  //   } else {
-  //     classified.category = subCategoryDetails.categoryName;
-  //     classified.subCategory = subCategoryDetails.subCategoryName;
-  //     classified.taxPercent = subCategoryDetails.taxPercent;
-  //     classified.vatPercent = subCategoryDetails.vatPercent;
-  //     classified.reductionPercent = subCategoryDetails.reductionPercent;
-  //     classified.isEquipment = subCategoryDetails.isEquipment;
-  //     classified.isRecognized = subCategoryDetails.isRecognized ?? false;
-  //     classified.isExpense = subCategoryDetails.isExpense ?? false;
-  //   }
-
-  //   await this.classifiedTransactionsRepo.save(classified);
-  // }
 
 
 
@@ -905,42 +483,6 @@ export class TransactionsService {
     await this.transactionsRepo.save(transaction);
   }
 
-
-  async findSubCategoryDetails(
-    firebaseId: string,
-    categoryName: string,
-    subCategoryName: string,
-  ): Promise<UserSubCategory | DefaultSubCategory> {
-    // 1️⃣ Try to find in user subcategories
-    const userSubCategory = await this.userSubCategoryRepo.findOne({
-      where: {
-        firebaseId,
-        categoryName,
-        subCategoryName,
-      },
-    });
-
-    if (userSubCategory) {
-      return userSubCategory;
-    }
-
-    // 2️⃣ If not found, try to find in default subcategories
-    const defaultSubCategory = await this.defaultSubCategoryRepo.findOne({
-      where: {
-        categoryName,
-        subCategoryName,
-      },
-    });
-
-    if (defaultSubCategory) {
-      return defaultSubCategory;
-    }
-
-    // 3️⃣ If not found in either, throw an error
-    throw new NotFoundException(
-      `Subcategory '${subCategoryName}' not found under category '${categoryName}'`,
-    );
-  }
 
 
   async updateTransaction(updateDto: UpdateTransactionsDto, userId: string, startDate: Date, endDate: Date): Promise<void> {
@@ -1299,16 +841,10 @@ export class TransactionsService {
       });
     }
 
-    // 6) Category filter
-    const defaultCategories = await this.categoryRepo.find();
-    const userCategories = await this.userCategoryRepo.find({
-      where: { firebaseId: userId },
-    });
-
-    const allCategoriesName: string[] = [
-      ...defaultCategories.map((c) => c.categoryName),
-      ...userCategories.map((c) => c.categoryName),
-    ];
+    // 6) Category filter — known names come from the NEW catalog (Phase 4.6:
+    // the old default_category ∪ user_category read is gone; same semantics —
+    // SYSTEM names plus every category this user created, across businesses).
+    const allCategoriesName: string[] = await this.catalogService.getCategoryNamesForUser(userId);
 
     if (categories && categories.length > 0 && allCategoriesName.length > 0) {
       // Include:
@@ -1661,12 +1197,12 @@ export class TransactionsService {
       expense.category = row.category;
       expense.subCategory = row.subCategory;
       expense.sum = sumIls;
-      expense.taxPercent = row.taxPercent;
-      expense.vatPercent = row.vatPercent;
+      expense.taxPercentSnapshot = row.taxPercent;
+      expense.vatPercentSnapshot = row.vatPercent;
       expense.date = row.transactionDate;
       expense.note = '';
       expense.file = transactionFile as string;
-      expense.isEquipment = row.isEquipment;
+      expense.isEquipmentSnapshot = row.isEquipment;
       expense.userId = row.userId;
       expense.loadingDate = new Date();
       expense.expenseNumber = '';
@@ -1676,7 +1212,7 @@ export class TransactionsService {
       // the Expense so the expenses table can render "$X (₪Y)".
       expense.originalCurrency = isForeignCurrency ? row.currency!.toUpperCase() : null;
       expense.originalSum = isForeignCurrency ? Math.abs(Number(row.amount)) : null;
-      expense.reductionPercent = row.reductionPercent;
+      expense.reductionPercentSnapshot = row.reductionPercent;
       expense.businessNumber = row.businessNumber;
       expense.vatReportingDate = (slim?.vatReportingDate ?? row.vatReportingDate ?? null) as any;
       // Snapshot the report scope (slim wins, then cache, default PNL).
@@ -1686,13 +1222,13 @@ export class TransactionsService {
       expense.reportScope = slim?.reportScope ?? row.reportScope ?? ExpenseReportScope.PNL;
 
       const vatRate = this.sharedService.getVatRateByYear(new Date(expense.date));
-      expense.totalVatPayable = (expense.sum / (1 + vatRate)) * vatRate * (expense.vatPercent / 100);
-      expense.totalTaxPayable = (expense.sum - expense.totalVatPayable) * (expense.taxPercent / 100);
+      expense.totalVatPayable = (expense.sum / (1 + vatRate)) * vatRate * (expense.vatPercentSnapshot / 100);
+      expense.totalTaxPayable = (expense.sum - expense.totalVatPayable) * (expense.taxPercentSnapshot / 100);
 
       const purchaseYear = new Date(expense.date).getFullYear();
       const purchaseMonth = new Date(expense.date).getMonth() + 1;
-      if (expense.reductionPercent) {
-        const fullReductionYears = Math.ceil(100 / expense.reductionPercent);
+      if (expense.reductionPercentSnapshot) {
+        const fullReductionYears = Math.ceil(100 / expense.reductionPercentSnapshot);
         const isPartialYear = purchaseMonth > 1 || new Date(expense.date).getDate() > 1;
         expense.reductionDone = purchaseYear + fullReductionYears + (isPartialYear ? 1 : 0) - 1;
       } else {

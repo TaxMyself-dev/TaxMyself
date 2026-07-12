@@ -48,6 +48,16 @@
       (apply)="onSubmit($event)">
     </app-filter-tab>
 
+    @if (pnlReport && incomeRaw < osekZairThreshold) {
+      <div class="osek-zair-checkbox-container">
+        <p-checkbox [binary]="true" inputId="osekZairCheckbox" [ngModel]="osekZair()" (ngModelChange)="onOsekZairToggle($event)">
+        </p-checkbox>
+        <label for="osekZairCheckbox" class="checkbox-label">
+          עוסק זעיר
+        </label>
+      </div>
+    }
+
     <ng-container *ngIf="pnlReport">
       <div class="pnl-report-title">
         <p>
@@ -69,10 +79,10 @@
           </div>
         </div>
         <!-- Dynamically Display Expenses -->
-        <ng-container *ngFor="let category of pnlReport.expenses">
+        <ng-container *ngFor="let section of pnlReport.expenses">
           <div class="output-pnl-report">
-            <div >{{ category.category }}:</div>
-            <div >{{ category.total | number }}</div>
+            <div >{{ section.sectionName }}:</div>
+            <div >{{ section.total | number }}</div>
           </div>
         </ng-container>
         <!-- Display Net Profit Before Tax -->

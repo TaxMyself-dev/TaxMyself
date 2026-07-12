@@ -106,4 +106,12 @@ export class ClassifiedTransactions {
   @UpdateDateColumn()
   updatedAt: Date;
 
+  /**
+   * Nullable pointer at sub_category.id (D6/Phase 3.1) — display-only, no
+   * DB FK constraint (same no-real-FK precedent as Supplier.subCategoryId).
+   * Backfilled by name within scope in Phase 3.5; unmatched -> stays NULL.
+   */
+  @Column({ type: 'int', nullable: true, default: null })
+  subCategoryId: number | null;
+
 }

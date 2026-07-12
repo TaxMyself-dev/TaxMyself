@@ -24,7 +24,6 @@ import { SourceResult } from './user-source-sync-state.entity';
 import { FlowAnalysisDto } from './dtos/flow-analysis.dto';
 import { FlowAnalysisResponse } from './interfaces/flow-analysis-response.interface';
 import { ExpensesService } from '../expenses/expenses.service';
-import { UserSubCategory } from '../expenses/user-sub-categories.entity';
 import { BillingService } from '../billing/services/billing.service';
 
 // ── Dev simulator scenario specs (shared by the 3 staged dev endpoints) ──────
@@ -516,10 +515,13 @@ export class TransactionsController {
 
   @Get('get-all-user-sub-categories')
   @UseGuards(FirebaseAuthGuard)
+  // Returns legacy-shaped (subCategoryName/categoryName) objects mapped from
+  // the new catalog by ExpensesService — the UserSubCategory ENTITY type was
+  // only ever nominal here (Phase 4.6 removed the last legacy-table reads).
   async getAllUserSubCategories(
     @Req() request: AuthenticatedRequest,
     @Query('billId') billId?: string,
-  ): Promise<UserSubCategory[]> {
+  ): Promise<any[]> {
     const userId = request.user?.firebaseId;
     let businessNumber: string | undefined;
     if (billId) {
@@ -549,15 +551,6 @@ export class TransactionsController {
   ) {
     const userId = request.user?.firebaseId;
     return this.transactionsService.saveTransactions(file, userId);
-  }
-
-
-  @Post('load-default-categories')
-  //TODO: Add Admin guard
-  @UseInterceptors(FileInterceptor('file'))
-  async loadDefaultCategories(
-    @UploadedFile() file: Express.Multer.File) {
-    return this.transactionsService.loadDefaultCategories(file)
   }
 
 

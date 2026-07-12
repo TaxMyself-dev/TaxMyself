@@ -6,7 +6,7 @@ export interface JournalLineInput {
   credit?: number;
   amountBeforeVat?: number;   // סכום לרוה"ס
   vatAmount?: number;         // סכום למע"מ
-  isEquipment?: boolean;      // mirrors source expense.isEquipment (false for documents)
+  isEquipment?: boolean;      // mirrors source expense.isEquipmentSnapshot (false for documents)
   taxPercent?: number;        // אחוז מוכר למס הכנסה (0-100); defaults to 100
   vatPercent?: number;        // אחוז מוכר למע"מ (0-100); defaults to 100
   amountForTax?: number;      // סכום מוכר למס = debit × (taxPercent/100)
@@ -26,7 +26,7 @@ export interface JournalEntryInput {
   notes?: string;             // הערות
   vatReportingPeriod?: string | null; // VAT/income period label ("3/2026", "1-2/2026", "2026")
   referenceType?: JournalReferenceType;
-  referenceId?: number;
+  referenceId?: number | null;
   description?: string;
   lines: JournalLineInput[];
 }

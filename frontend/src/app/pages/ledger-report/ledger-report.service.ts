@@ -76,11 +76,49 @@ export interface IJournalEntryDetail {
   isBalanced: boolean;
 }
 
-/** Chart-of-accounts row for the filter dropdown. */
+/** Chart-of-accounts row for the filter dropdown. Entry accounts (the
+ *  manual-entry modal) also carry their accounting section (Phase 4.5) so
+ *  the dropdown can group by section. */
 export interface ILedgerAccountOption {
   code: string;
   name: string;
   type: string;
+  sectionCode?: string | null;
+  sectionName?: string | null;
+}
+
+/** Merged expense sub-category for the manual-entry picker (Phase 4.5). */
+export interface IExpenseCatalogItem {
+  subCategoryId: number;
+  category: string | null;
+  subCategory: string;
+}
+
+export type ManualJournalEntryKind = 'income' | 'income_exempt' | 'expense';
+
+export interface IManualJournalLinePayload {
+  accountCode?: string; // required for 'expense' only
+  amount: number;
+  /** Optional sub_category pointer — replaced the free-text subCategoryName
+   *  (Phase 4.5). Display metadata for the ledger line. */
+  subCategoryId?: number | null;
+  isEquipment?: boolean;
+  vatPercent?: number;
+  taxPercent?: number; // expense only
+}
+
+export interface ICreateManualJournalEntryPayload {
+  entryKind: ManualJournalEntryKind;
+  businessNumber: string;
+  date: string;
+  valueDate?: string;
+  vatDate?: string;
+  reference?: string; // אסמכתא — description fallback for legacy payloads
+  /** פירוט — free-text entry description (shown in the ledger, D7). */
+  description?: string;
+  notes?: string;
+  vatReportingPeriod?: string | null;
+  lines: IManualJournalLinePayload[];
 }
 
 @Injectable({
@@ -113,10 +151,21 @@ export class LedgerReportService {
     return this.http.get<ILedgerAccountOption[]>(url);
   }
 
-  /** Posting accounts for the MANUAL JOURNAL ENTRY dropdown (excludes technical accounts). */
-  getLedgerEntryAccounts(): Observable<ILedgerAccountOption[]> {
+  /** Posting accounts for the MANUAL JOURNAL ENTRY dropdown (excludes
+   *  technical accounts), grouped by section and scoped to the business's
+   *  visible charts (Phase 4.5). */
+  getLedgerEntryAccounts(businessNumber?: string): Observable<ILedgerAccountOption[]> {
     const url = `${environment.apiUrl}reports/ledger-entry-accounts`;
-    return this.http.get<ILedgerAccountOption[]>(url);
+    let params = new HttpParams();
+    if (businessNumber) params = params.set('businessNumber', businessNumber);
+    return this.http.get<ILedgerAccountOption[]>(url, { params });
+  }
+
+  /** Merged expense sub-categories for the manual-entry picker (Phase 4.5). */
+  getExpenseCatalog(businessNumber: string): Observable<IExpenseCatalogItem[]> {
+    const url = `${environment.apiUrl}bookkeeping/expense-catalog`;
+    const params = new HttpParams().set('businessNumber', businessNumber);
+    return this.http.get<IExpenseCatalogItem[]>(url, { params });
   }
 
   /** Fetch all lines of a journal entry for the detail modal. */
@@ -127,6 +176,21 @@ export class LedgerReportService {
     const url = `${environment.apiUrl}reports/journal-entry/${entryId}`;
     const params = new HttpParams().set('businessNumber', businessNumber);
     return this.http.get<IJournalEntryDetail>(url, { params });
+  }
+
+  /** Post multiple manual journal entries atomically (all-or-nothing). */
+  createManualJournalEntries(
+    payloads: ICreateManualJournalEntryPayload[],
+  ): Observable<{ entryNumber: number; id: number }[]> {
+    const url = `${environment.apiUrl}bookkeeping/manual-journal-entries`;
+    return this.http.post<{ entryNumber: number; id: number }[]>(url, payloads);
+  }
+
+  /** Valid vatReportingPeriod options for the manual-entry dropdown. */
+  getVatReportingPeriods(businessNumber: string): Observable<string[]> {
+    const url = `${environment.apiUrl}bookkeeping/vat-reporting-periods`;
+    const params = new HttpParams().set('businessNumber', businessNumber);
+    return this.http.get<string[]>(url, { params });
   }
 
 }

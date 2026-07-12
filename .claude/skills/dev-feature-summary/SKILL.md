@@ -1,5 +1,5 @@
 ---
-name: feature-summary
+name: dev-feature-summary
 description: Generate long-term technical documentation for a completed feature, refactor, or significant implementation — for maintenance, onboarding, and architecture history. Use only when explicitly requested.
 ---
 
@@ -21,7 +21,7 @@ Do not activate proactively. Never trigger this just because a feature, refactor
 
 ## Purpose vs. Conversation Handoff
 
-This skill is NOT for context reduction. It produces long-term documentation, not a compact pointer for resuming a chat. See [[conversation-handoff]] for that use case.
+This skill is NOT for context reduction. It produces long-term documentation, not a compact pointer for resuming a chat. See [[dev-conversation-handoff]] for that use case.
 
 This summary is meant to be useful:
 

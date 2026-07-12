@@ -20,9 +20,11 @@ import { DataSource, EntityManager, Repository } from 'typeorm';
 import { BookkeepingService } from './bookkeeping.service';
 import { JournalEntry } from './jouranl-entry.entity';
 import { JournalLine } from './jouranl-line.entity';
-import { DefaultBookingAccount } from './account.entity';
+import { BookingAccount } from './account.entity';
+import { CatalogService } from './catalog.service';
 import { SharedService } from '../shared/shared.service';
 import { JournalReferenceType } from '../enum';
+import { Business } from '../business/business.entity';
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -56,7 +58,7 @@ function makeInput(overrides: Partial<any> = {}) {
     description: 'test entry',
     lines: [
       { accountCode: '1200', debit: 117 },
-      { accountCode: '4000', credit: 100, amountBeforeVat: 100, taxPercent: 100, vatPercent: 100, amountForTax: 100 },
+      { accountCode: '40000', credit: 100, amountBeforeVat: 100, taxPercent: 100, vatPercent: 100, amountForTax: 100 },
       { accountCode: '2400', credit: 17, vatAmount: 17, vatPercent: 100 },
     ],
     ...overrides,
@@ -69,9 +71,10 @@ describe('BookkeepingService — createJournalEntry / persistJournalEntry', () =
   let service: BookkeepingService;
   let dataSource: jest.Mocked<DataSource>;
   let sharedService: jest.Mocked<Partial<SharedService>>;
+  let catalogService: any;
   let journalEntryRepo: jest.Mocked<Repository<JournalEntry>>;
   let journalLineRepo: jest.Mocked<Repository<JournalLine>>;
-  let bookingAccountRepo: jest.Mocked<Repository<DefaultBookingAccount>>;
+  let bookingAccountRepo: jest.Mocked<Repository<BookingAccount>>;
   let mockManager: jest.Mocked<EntityManager>;
 
   beforeEach(async () => {
@@ -81,7 +84,7 @@ describe('BookkeepingService — createJournalEntry / persistJournalEntry', () =
     journalLineRepo = makeRepo<JournalLine>({
       save: jest.fn().mockResolvedValue(undefined),
     });
-    bookingAccountRepo = makeRepo<DefaultBookingAccount>({
+    bookingAccountRepo = makeRepo<BookingAccount>({
       findOneByOrFail: jest.fn().mockImplementation(({ code }: { code: string }) =>
         Promise.resolve({ code }),
       ),
@@ -90,7 +93,7 @@ describe('BookkeepingService — createJournalEntry / persistJournalEntry', () =
     const reposByEntity = new Map<any, any>([
       [JournalEntry, journalEntryRepo],
       [JournalLine, journalLineRepo],
-      [DefaultBookingAccount, bookingAccountRepo],
+      [BookingAccount, bookingAccountRepo],
     ]);
 
     mockManager = {
@@ -106,6 +109,13 @@ describe('BookkeepingService — createJournalEntry / persistJournalEntry', () =
     sharedService = {
       getJournalEntryCurrentIndex: jest.fn().mockResolvedValue(10000001),
       incrementJournalEntryIndex: jest.fn().mockResolvedValue(undefined),
+      getVatRateByYear: jest.fn().mockReturnValue(0.18),
+    };
+
+    catalogService = {
+      resolveSubCategory: jest.fn().mockResolvedValue({
+        subCategory: { id: 42, name: 'דלק', category: { name: 'רכב ותחבורה' } },
+      }),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -113,9 +123,11 @@ describe('BookkeepingService — createJournalEntry / persistJournalEntry', () =
         BookkeepingService,
         { provide: getRepositoryToken(JournalEntry), useValue: journalEntryRepo },
         { provide: getRepositoryToken(JournalLine), useValue: journalLineRepo },
-        { provide: getRepositoryToken(DefaultBookingAccount), useValue: bookingAccountRepo },
+        { provide: getRepositoryToken(BookingAccount), useValue: bookingAccountRepo },
+        { provide: getRepositoryToken(Business), useValue: makeRepo<Business>() },
         { provide: SharedService, useValue: sharedService },
         { provide: DataSource, useValue: dataSource },
+        { provide: CatalogService, useValue: catalogService },
       ],
     }).compile();
 
@@ -171,7 +183,7 @@ describe('BookkeepingService — createJournalEntry / persistJournalEntry', () =
       await service.createJournalEntry(makeInput(), mockManager);
       expect(bookingAccountRepo.findOneByOrFail).toHaveBeenCalledTimes(3);
       expect(bookingAccountRepo.findOneByOrFail).toHaveBeenCalledWith({ code: '1200' });
-      expect(bookingAccountRepo.findOneByOrFail).toHaveBeenCalledWith({ code: '4000' });
+      expect(bookingAccountRepo.findOneByOrFail).toHaveBeenCalledWith({ code: '40000' });
       expect(bookingAccountRepo.findOneByOrFail).toHaveBeenCalledWith({ code: '2400' });
     });
 
@@ -252,7 +264,7 @@ describe('BookkeepingService — createJournalEntry / persistJournalEntry', () =
 
       expect(journalLineRepo.save).toHaveBeenCalledWith([
         expect.objectContaining({ accountCode: '1200', journalEntryId: 777, lineInEntry: 1, debit: 117, credit: 0 }),
-        expect.objectContaining({ accountCode: '4000', journalEntryId: 777, lineInEntry: 2, credit: 100 }),
+        expect.objectContaining({ accountCode: '40000', journalEntryId: 777, lineInEntry: 2, credit: 100 }),
         expect.objectContaining({ accountCode: '2400', journalEntryId: 777, lineInEntry: 3, credit: 17 }),
       ]);
     });
@@ -286,6 +298,128 @@ describe('BookkeepingService — createJournalEntry / persistJournalEntry', () =
 
       const result = await service.createJournalEntry(makeInput(), mockManager);
       expect(result).toEqual({ entryNumber: 10000099, id: 321 });
+    });
+  });
+
+  // ── createManualJournalEntry (Phase 4.5) ────────────────────────────────────
+
+  describe('createManualJournalEntry — sub_category picker + description (4.5)', () => {
+    function makeManualDto(overrides: Partial<any> = {}) {
+      return {
+        entryKind: 'expense',
+        date: '2024-03-10',
+        vatReportingPeriod: '3/2024',
+        lines: [{ accountCode: '60200', amount: 118, vatPercent: 100, taxPercent: 100 }],
+        ...overrides,
+      } as any;
+    }
+
+    beforeEach(() => {
+      // Manual-entry account validation needs a sectioned, kind-matching account.
+      bookingAccountRepo.findOneByOrFail.mockImplementation(({ code }: { code: string }) =>
+        Promise.resolve({ code, sectionId: 4, type: code === '40000' ? 'income' : 'expense' } as any),
+      );
+    });
+
+    it('resolves subCategoryId (scope-checked) into the line snapshot and derives the entry description', async () => {
+      const dto = makeManualDto();
+      dto.lines[0].subCategoryId = 42;
+
+      await service.createManualJournalEntry(dto, 'uid-1', '999999999', mockManager);
+
+      expect(catalogService.resolveSubCategory).toHaveBeenCalledWith(42, {
+        userId: 'uid-1',
+        businessNumber: '999999999',
+      });
+      const savedLines = journalLineRepo.save.mock.calls[0][0] as any[];
+      expect(savedLines[0]).toEqual(expect.objectContaining({ accountCode: '60200', subCategoryName: 'דלק' }));
+      const savedHeader = journalEntryRepo.save.mock.calls[0][0] as any;
+      expect(savedHeader.description).toBe('רכב ותחבורה/דלק');
+    });
+
+    it('free-text description wins over the derived pair and over reference', async () => {
+      const dto = makeManualDto({ description: 'תיקון שנתי', reference: '1234' });
+      dto.lines[0].subCategoryId = 42;
+
+      await service.createManualJournalEntry(dto, 'uid-1', '999999999', mockManager);
+
+      const savedHeader = journalEntryRepo.save.mock.calls[0][0] as any;
+      expect(savedHeader.description).toBe('תיקון שנתי');
+    });
+
+    it('legacy fallback: no description and no picker → reference still maps to the description', async () => {
+      const dto = makeManualDto({ reference: 'קבלה 88' });
+
+      await service.createManualJournalEntry(dto, 'uid-1', '999999999', mockManager);
+
+      const savedHeader = journalEntryRepo.save.mock.calls[0][0] as any;
+      expect(savedHeader.description).toBe('קבלה 88');
+      expect(catalogService.resolveSubCategory).not.toHaveBeenCalled();
+      const savedLines = journalLineRepo.save.mock.calls[0][0] as any[];
+      expect(savedLines[0].subCategoryName).toBeNull();
+    });
+
+    it('income entries never resolve a sub_category even if one is sent', async () => {
+      const dto = makeManualDto({ entryKind: 'income' });
+      dto.lines[0].subCategoryId = 42;
+
+      await service.createManualJournalEntry(dto, 'uid-1', '999999999', mockManager);
+
+      expect(catalogService.resolveSubCategory).not.toHaveBeenCalled();
+    });
+
+    it('a cross-tenant subCategoryId aborts before anything is written', async () => {
+      catalogService.resolveSubCategory.mockRejectedValueOnce(new Error('Sub-category 42 not found'));
+      const dto = makeManualDto();
+      dto.lines[0].subCategoryId = 42;
+
+      await expect(
+        service.createManualJournalEntry(dto, 'uid-1', '999999999', mockManager),
+      ).rejects.toThrow('not found');
+      expect(journalEntryRepo.save).not.toHaveBeenCalled();
+      expect(journalLineRepo.save).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── deleteJournalEntry (Phase 4.3b) ─────────────────────────────────────────
+
+  describe('deleteJournalEntry', () => {
+    beforeEach(() => {
+      journalEntryRepo.delete = jest.fn().mockResolvedValue(undefined) as any;
+      journalLineRepo.delete = jest.fn().mockResolvedValue(undefined) as any;
+    });
+
+    it('deletes lines first, then the header, inside the given manager', async () => {
+      journalEntryRepo.findOne.mockResolvedValueOnce({ id: 888, entryNumber: 10000005 } as any);
+
+      const result = await service.deleteJournalEntry(10000005, '999999999', mockManager);
+
+      expect(result).toBe(true);
+      expect(journalEntryRepo.findOne).toHaveBeenCalledWith({
+        where: { entryNumber: 10000005, issuerBusinessNumber: '999999999' },
+      });
+      expect(journalLineRepo.delete).toHaveBeenCalledWith({ journalEntryId: 888 });
+      expect(journalEntryRepo.delete).toHaveBeenCalledWith(888);
+      expect(dataSource.transaction).not.toHaveBeenCalled();
+    });
+
+    it('opens its own transaction when no manager is given', async () => {
+      journalEntryRepo.findOne.mockResolvedValueOnce({ id: 889, entryNumber: 10000006 } as any);
+
+      await service.deleteJournalEntry(10000006, '999999999');
+
+      expect(dataSource.transaction).toHaveBeenCalledTimes(1);
+      expect(journalEntryRepo.delete).toHaveBeenCalledWith(889);
+    });
+
+    it('returns false and deletes nothing when no entry matches', async () => {
+      journalEntryRepo.findOne.mockResolvedValueOnce(null);
+
+      const result = await service.deleteJournalEntry(10000404, '999999999', mockManager);
+
+      expect(result).toBe(false);
+      expect(journalLineRepo.delete).not.toHaveBeenCalled();
+      expect(journalEntryRepo.delete).not.toHaveBeenCalled();
     });
   });
 });
