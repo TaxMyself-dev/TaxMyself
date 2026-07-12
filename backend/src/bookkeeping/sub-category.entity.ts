@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, Unique, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, Unique, Index, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 import { OwnerType, VisibilityScope, SYSTEM_CHART_OWNER_KEY, ExpenseNecessity, ExpenseReportScope, ApprovalStatus } from 'src/enum';
 import { Category } from './category.entity';
 import { BookingAccount } from './account.entity';
@@ -9,8 +9,13 @@ import { BookingAccount } from './account.entity';
  * the card carries the full accounting law). Replaces default_sub_category +
  * user_sub_category (migrated in Phase 2.2).
  */
+// Named explicitly to match 2026-07-12_catalog_migration_schema.sql — see
+// schema-drift.md Gap 7 (2026-07-12 incident: an unnamed decorator here got
+// dropped by an accidental synchronize run and never recreated).
 @Entity('sub_category')
-@Unique(['chartOwnerKey', 'categoryId', 'name'])
+@Unique('uq_sub_category_owner_category_name', ['chartOwnerKey', 'categoryId', 'name'])
+@Index('idx_sub_category_categoryId', ['categoryId'])
+@Index('idx_sub_category_accountId', ['accountId'])
 export class SubCategory {
   @PrimaryGeneratedColumn()
   id: number;

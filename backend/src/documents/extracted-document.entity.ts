@@ -62,17 +62,31 @@ export enum ExtractedDocumentType {
 // Distinct from the existing `Documents` entity, which represents invoices
 // the user ISSUES to their clients (this one represents documents RECEIVED
 // from suppliers and OCR'd into structured fields).
+// All 5 indexes below are named explicitly to match prod's literal names
+// (schema-drift.md Gap 5's original decision, implemented 2026-07-12 after
+// an accidental synchronize run against keepintax_prodcopy dropped all 5 —
+// see Gap 7 — because 3 were unnamed and the other 2 had no entity
+// declaration at all). Do not remove the names — an unnamed decorator here
+// hash-generates a different name than prod's, which is exactly the
+// drop/never-recreate failure mode that caused the incident.
 @Entity('extracted_document')
-@Index(['userId', 'businessNumber', 'month'])
+@Index('ix_extracted_document_user_business_month', ['userId', 'businessNumber', 'month'])
 // A single Drive file can contain multiple invoices (common: monthly fuel
 // statements, bundled receipts). sub_index 0..N-1 disambiguates rows that
 // share a drive_file_id. Old rows default to 0 — the migration is a no-op.
-@Index(['driveFileId', 'subIndex'], { unique: true })
+@Index('uq_extracted_document_file_subindex', ['driveFileId', 'subIndex'], { unique: true })
 // Byte-identical dedup: the inbox loop looks up prior rows by content hash
 // to catch the same file re-uploaded under a new drive_file_id. Scoped by
 // business so identical bytes across two businesses stay distinct. NOT
 // unique — a multi-invoice file produces N rows sharing one md5.
-@Index(['businessNumber', 'driveFileMd5'])
+@Index('IDX_extracted_document_biz_md5', ['businessNumber', 'driveFileMd5'])
+// Matched by MatchingService when finding the extracted_document for a
+// given slim_transactions row. Prod-only index with no prior entity
+// declaration (schema-drift.md Gap 5) — added here for the first time.
+@Index('ix_extracted_doc_matched_tx', ['matchedTransactionId'])
+// Invoice<->receipt pairing back-pointer lookups. Same as above — prod-only,
+// never previously declared.
+@Index('ix_extracted_document_paired_with', ['pairedWithDocumentId'])
 export class ExtractedDocument {
   @PrimaryGeneratedColumn()
   id: number;

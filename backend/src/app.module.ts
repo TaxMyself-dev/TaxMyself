@@ -91,6 +91,25 @@ import { BusinessModule } from './business/business.module';
 import { BusinessService } from './business/business.service';
 
 
+// Boot-time safety valve (added 2026-07-12 after an accidental synchronize
+// run against keepintax_prodcopy dropped several unnamed unique/secondary
+// indexes — see docs/redesign/schema-drift.md Gap 7). `synchronize` is only
+// ever meant to run against keepintax-dev; refuse to even attempt a DB
+// connection if it's enabled against anything whose name looks like a
+// production/production-copy database, regardless of how NODE_ENV ended up
+// unset — this must fail before TypeORM ever opens a connection, so it runs
+// as plain top-level code (evaluated at module-load time, before Nest
+// bootstraps), not inside a provider/guard.
+const isSynchronizeEnabled = process.env.NODE_ENV !== 'production';
+if (isSynchronizeEnabled && /prod/i.test(process.env.DB_DATABASE || '')) {
+  throw new Error(
+    `Refusing to start: TypeORM synchronize is enabled (NODE_ENV=${JSON.stringify(process.env.NODE_ENV)}) ` +
+    `against DB_DATABASE=${JSON.stringify(process.env.DB_DATABASE)}, which looks like a production database. ` +
+    `Set NODE_ENV=production to disable synchronize, or point DB_DATABASE at keepintax-dev. ` +
+    `See docs/redesign/schema-drift.md Gap 7 for why this guard exists.`,
+  );
+}
+
 @Module({
   imports: [
     TypeOrmModule.forRoot({
@@ -110,7 +129,7 @@ import { BusinessService } from './business/business.service';
         FxRate,
         SubscriptionPlan, Subscription, PaymentMethod, CardcomWebhookLog, BillingEvent,
         ],
-      synchronize: process.env.NODE_ENV !== 'production',
+      synchronize: isSynchronizeEnabled,
       timezone: 'Z',
       //logging: true
     }),

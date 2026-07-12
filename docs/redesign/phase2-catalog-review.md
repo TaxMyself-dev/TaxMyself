@@ -1,6 +1,6 @@
 # Phase 2.2 catalog migration — review table
 
-Generated 2026-07-11T22:08:33.480Z by `backend/scripts/migrations/2026-07-12_catalog_migration.ts` (MODE=review), against `keepintax_prodcopy`.
+Generated 2026-07-12T08:40:52.487Z by `backend/scripts/migrations/2026-07-12_catalog_migration.ts` (MODE=review), against `keepintax_prodcopy`.
 
 **No writes have been made.** This is a dry run of the Phase 2.2 data migration for sign-off before `MODE=apply` runs.
 

@@ -6,8 +6,13 @@ import { OwnerType, VisibilityScope, SYSTEM_CHART_OWNER_KEY, RecognitionType, Ca
  * Carries NO accounting law (that lives on booking_account, D1 revised).
  * Replaces default_category + user_category (migrated in Phase 2.2).
  */
+// Named explicitly (matching the constraint name 2026-07-12_catalog_migration_schema.sql
+// creates in prod) so TypeORM's synchronize computes the same name an unnamed
+// decorator would hash-generate — an accidental synchronize run against
+// keepintax_prodcopy on 2026-07-12 dropped this exact constraint (name
+// mismatch) and never recreated it; see schema-drift.md Gap 7.
 @Entity('category')
-@Unique(['chartOwnerKey', 'name', 'type'])
+@Unique('uq_category_owner_name_type', ['chartOwnerKey', 'name', 'type'])
 export class Category {
   @PrimaryGeneratedColumn()
   id: number;

@@ -7,8 +7,11 @@ import { OwnerType, VisibilityScope, SYSTEM_CHART_OWNER_KEY } from 'src/enum';
  * namespace; `pnlCategory` remains on BookingAccount temporarily (dropped
  * Phase 7) so existing report code keeps working until Phase 4.4.
  */
+// Named explicitly to match 2026-07-10_chart_renumber.sql — see
+// schema-drift.md Gap 7 (2026-07-12 incident: an unnamed decorator here got
+// dropped by an accidental synchronize run and never recreated).
 @Entity('accounting_section')
-@Unique(['chartOwnerKey', 'code'])
+@Unique('uq_accounting_section_owner_code', ['chartOwnerKey', 'code'])
 export class AccountingSection {
   @PrimaryGeneratedColumn()
   id: number;

@@ -716,3 +716,157 @@ parity test green, old tables frozen). `Current phase` set to `3` in
 
 **Next**: Phase 3 (FK backfill & expense snapshots) — a fresh session per
 the runbook's Session 7.
+
+## 2026-07-12 — INCIDENT: accidental `synchronize=true` boot against `keepintax_prodcopy`
+
+⚠️ **Process warning, read before ANY future session touches
+`keepintax_prodcopy`**: Elazar booted the backend normally (no explicit
+`NODE_ENV` override) while `backend/.env`'s `DB_DATABASE` happened to be
+pointed at `keepintax_prodcopy` — this silently enabled TypeORM
+`synchronize` against the rehearsal DB (`synchronize:
+process.env.NODE_ENV !== 'production'`), exactly the scenario `CLAUDE.md`'s
+standing instruction warns about. It failed on `feezback_webhook_events`
+("Duplicate entry '' for key PRIMARY") and was retried a couple of times
+before being stopped manually.
+
+Read-only forensic audit (raw `mysql2`, no NestJS boot, zero write risk)
+found:
+- **Row counts**: every table checked matches the known baseline exactly —
+  no data was added, deleted, or corrupted anywhere.
+- **Real, confirmed schema damage**: `booking_account`, `accounting_section`,
+  `category`, `sub_category`, and `extracted_document` all lost secondary
+  indexes/UNIQUE constraints that our own migration scripts (or, for
+  `extracted_document`, pre-existing production schema per schema-drift.md
+  Gap 5) had created — synchronize's index-drop pass ran (and committed)
+  across the schema before the fatal column-ALTER on
+  `feezback_webhook_events` halted everything, so the "drop the mismatched
+  old-named index, create a new hash-named one" cycle got stuck halfway:
+  dropped, never recreated. Full details, exact constraint names, and the
+  mechanism: `docs/redesign/schema-drift.md` Gap 7.
+- `feezback_webhook_events` itself: **this bullet was WRONG in the original
+  audit pass — corrected below.** It does NOT have a pre-existing
+  entity/prod mismatch; real production's `id CHAR(36) PRIMARY KEY` (1188
+  populated UUID rows) matches the entity exactly. Synchronize actually
+  DROPPED this real, data-bearing column (root-cause detail + correction:
+  `docs/redesign/schema-drift.md` Gap 7).
+
+**Recommendation (at audit time)**: re-import `keepintax_prodcopy` from
+`_prod_dump/keepintax-prod.sql` rather than hand-patching the ~5 known
+constraints, since 22 tables in the DB have zero secondary indexes and only
+5 were individually cross-checked against a known baseline — re-import is
+cheap (already done twice this project) and closes any unverified gap in
+one step. If approved, EVERY migration script that has been applied to
+`keepintax_prodcopy` so far must be re-run against the fresh import before
+Phase 3 (or any further rehearsal) resumes: `2026-07-10_chart_renumber.sql`,
+`2026-07-12_catalog_migration.ts` MODE=apply,
+`2026-07-12_run-catalog-seeder.ts` MODE=apply.
+
+**→ Approved and executed the same day — see the RESOLVED entry below.**
+
+**Standing reminder for every future session**: before running ANYTHING
+against `keepintax_prodcopy` — a script, a manual `npm run start`, a debug
+session — explicitly export `NODE_ENV=production` (and `SKIP_BOOT_SEED=true`
+if boot-time seeding would otherwise run). `backend/.env`'s `DB_DATABASE`
+currently defaults to `keepintax_prodcopy`, so a completely ordinary "just
+start the app to check something" boot is enough to trigger this. **Update:
+a code-level guard now exists** (`app.module.ts`, added same day — see
+RESOLVED entry below) that refuses to boot at all under this exact
+condition, but keep setting `NODE_ENV=production` explicitly regardless —
+the guard is a backstop, not a substitute for doing it right.
+
+## 2026-07-12 — RESOLVED: incident recovery (root-cause fix, re-import, full verification)
+
+Elazar approved the audit's recommendation plus two additions: fix the
+entity-naming root cause (not just this incident's symptoms) and implement
+the boot-time safety valve, then re-import + re-run + verify.
+
+**Root-cause fix — entity constraint naming:**
+Named all `@Unique()`/`@Index()` decorators explicitly to match production's
+literal constraint names (D4/D2's tables were the casualties; audited the
+whole codebase for the same pattern and found one more outside that set):
+- `category.entity.ts` → `uq_category_owner_name_type`
+- `sub-category.entity.ts` → `uq_sub_category_owner_category_name`, plus 2
+  previously-undeclared plain indexes `idx_sub_category_categoryId`/
+  `idx_sub_category_accountId`
+- `account.entity.ts` (`BookingAccount`) → `uq_booking_account_owner_code`
+- `accounting-section.entity.ts` → `uq_accounting_section_owner_code`
+- `account-code-migration.entity.ts` → `uq_account_code_migration_oldCode`
+  (this one had survived the incident, just silently renamed — pinned now
+  too, same risk class)
+- `extracted-document.entity.ts` → all 5 of its indexes named, including
+  the 2 (`ix_extracted_doc_matched_tx`, `ix_extracted_document_paired_with`)
+  that had **no entity declaration at all** before today — finally
+  implementing schema-drift.md Gap 5's original decision from Phase 0.6
+- `source.entity.ts` → `@Unique(['userId','sourceName'])` was the one
+  additional unnamed decorator found by grepping every `@Unique`/`@Index`
+  in `backend/src` (46 total hits; every other one was already explicitly
+  named — this appears to be an established codebase convention that these
+  6 tables were exceptions to). Its real name
+  (`IDX_source_userId_sourceName`) was only discoverable after the
+  re-import below — first guess was wrong, corrected once ground truth was
+  available.
+
+**Root-cause fix — boot-time safety valve:**
+`backend/src/app.module.ts` now computes `isSynchronizeEnabled` once and
+throws (before TypeORM ever attempts a connection — plain top-level code,
+evaluated at module-load time) if it's `true` AND `DB_DATABASE` matches
+`/prod/i`. This is the exact condition that caused the incident and has no
+other guard today.
+
+**Re-import + re-run (raw `mysql2`, `DROP DATABASE` + fresh restore from
+`_prod_dump/keepintax-prod.sql` — not just re-running the dump's own
+per-table `DROP`/`CREATE`, so no stale redesign-only tables survived
+either):**
+1. Re-import: 42 tables restored, every D14 baseline row count exact
+   (`default_category`=12, `default_sub_category`=87, `user_category`=2,
+   `user_sub_category`=15, `expense`=85, `journal_entry`=122,
+   `journal_line`=302, `supplier`=11, `classified_transactions`=196,
+   `extracted_document`=33), `default_booking_account` present with 25 rows
+   (pre-rename, confirming a truly pristine copy — no redesign tables
+   present yet).
+2. `2026-07-10_chart_renumber.sql` re-run clean: old codes (4000/5000/
+   5100/5200/5300/5400/5600/5700/6100) absent afterward, all 6 Bituach
+   Leumi lines read 90300, every posted code resolves to a real chart row,
+   `accounting_section`=16 / `booking_account`=59 / `account_code_migration`=50
+   exactly as before.
+3. `2026-07-12_catalog_migration_schema.sql` (DDL) + `2026-07-12_catalog_migration.ts`
+   MODE=apply re-run clean: same shape as the original Phase 2.2 run — 2
+   new `booking_account` rows (90500/90600), 14 `category`, 96
+   `sub_category` (including both ANNUAL merges). Row ids differ from the
+   first run (fresh AUTO_INCREMENT sequence) but that's expected/harmless —
+   `phase2-catalog-review.md` and `2026-07-12_catalog_migration_result.json`
+   were regenerated (byte-identical content, only internal ids differ).
+4. `2026-07-12_run-catalog-seeder.ts` MODE=review then MODE=apply: **same
+   confirmed no-op as the original Phase 2.6 rehearsal** — 16/16 sections,
+   61/61 accounts, 12/12 SYSTEM categories, 81/81 SYSTEM sub-categories all
+   already matched.
+
+**Full verification chain — all green:**
+- `generate-baseline-reports.ts` (`OUT_DIR_NAME=baseline-reports-post-migration`)
+  + `compare-baseline-reports.ts`: all 9 businesses ✅, zero un-registered
+  diffs against the Phase 0.5 golden fixtures.
+- `verify-phase2-catalog-migration.ts`: 21/21 parity pairs (16 intentional
+  parent→child refinements + 5 exact matches) + 1 registered D14/D15
+  exception confirmed, 0 unregistered mismatches — identical to the
+  pre-incident result.
+- Fresh `SHOW INDEX` sweep: all 6 previously-lost/renamed constraints now
+  present under their correct, entity-pinned names
+  (`uq_category_owner_name_type`, `uq_sub_category_owner_category_name` +
+  its 2 plain indexes, `uq_booking_account_owner_code`,
+  `uq_accounting_section_owner_code`, all 5 of `extracted_document`'s,
+  `uq_account_code_migration_oldCode`).
+
+**Correction to the original audit while investigating this**:
+`feezback_webhook_events.id` was NOT a pre-existing entity/prod mismatch as
+first reported — the pristine dump proves real production has this column
+populated with real UUIDs, matching the entity exactly. Synchronize
+actually dropped this real column (root cause not fully proven — a
+default/generation-strategy mismatch on `@PrimaryGeneratedColumn('uuid')`
+is the leading theory, collation was ruled out since every string column on
+that table already shares one collation) — genuine, if likely harmless
+(no FK references `.id`), data loss, not merely a failed no-op. Full
+correction: `docs/redesign/schema-drift.md` Gap 7.
+
+**Status**: `keepintax_prodcopy` confirmed back to the exact pre-incident
+state, root cause fixed at the entity level, boot-time guard in place.
+Proceeding to Phase 3.

@@ -8,8 +8,11 @@ import { AccountingSection } from './accounting-section.entity';
  * production rename happens via Phase 1.4's migration script, not
  * TypeORM synchronize.
  */
+// Named explicitly to match 2026-07-10_chart_renumber.sql — see
+// schema-drift.md Gap 7 (2026-07-12 incident: an unnamed decorator here got
+// dropped by an accidental synchronize run and never recreated).
 @Entity('booking_account')
-@Unique(['chartOwnerKey', 'code'])
+@Unique('uq_booking_account_owner_code', ['chartOwnerKey', 'code'])
 export class BookingAccount {
   @PrimaryGeneratedColumn()
   id: number;
