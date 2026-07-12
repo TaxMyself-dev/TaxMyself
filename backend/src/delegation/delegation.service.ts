@@ -118,9 +118,13 @@ export class DelegationService {
 
     // Create and save the delegation entry
     try {
+      // Invite flow is the accountant-onboarding path — grant full scopes,
+      // matching createClientByAccountant (NULL scopes are read-only in the guard).
       const delegation = this.delegationRepository.create({
         userId,
         agentId,
+        status: DelegationStatus.ACTIVE,
+        scopes: ['DOCUMENTS_READ', 'DOCUMENTS_WRITE'],
       });
       await this.delegationRepository.save(delegation);
       return {
