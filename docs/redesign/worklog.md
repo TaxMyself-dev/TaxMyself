@@ -870,3 +870,42 @@ correction: `docs/redesign/schema-drift.md` Gap 7.
 **Status**: `keepintax_prodcopy` confirmed back to the exact pre-incident
 state, root cause fixed at the entity level, boot-time guard in place.
 Proceeding to Phase 3.
+
+## 2026-07-12 — QA access to `keepintax_prodcopy`
+
+Elazar's day-to-day login uses a **separate dev Firebase project** from
+production's, so none of the 24 copied-from-production `user` rows can
+authenticate against the copy. Set up admin impersonation instead of
+re-linking any real user:
+
+- Inserted one new `user` row (raw `mysql2`, same bypass-TypeORM pattern as
+  the incident recovery above): `firebaseId = LiVlGGxaC0hefnmw5LinOZvbjvc2`
+  (dev Firebase UID), `email = harelazar@gmail.com`, `role = ADMIN`,
+  `businessStatus = NO_BUSINESS`. No existing row touched — in particular
+  the real production admin row (`index=1`, same email, different
+  `firebaseId`, 2 real businesses) is untouched; `user.email` has no
+  unique index so the shared email is not a collision.
+- Verified end-to-end for real: booted the backend directly against
+  `keepintax_prodcopy` (`NODE_ENV=production` + `SKIP_BOOT_SEED=true`, port
+  3001 to avoid colliding with a normal dev server on 3000), minted a real
+  Firebase ID token for the new UID, and hit the live HTTP API —
+  `GET /auth/signin` (200, no crash despite zero businesses of its own),
+  `GET /auth/all-users` (200, 25 rows), and `GET /business/get-businesses`
+  with `x-client-user-id` set to each of the 8 distinct `firebaseId`s that
+  own the 9 baseline businesses — all 200, correct data, admin-bypass path
+  in `FirebaseAuthGuard` confirmed working with zero `delegation` rows.
+- **No code changes needed** — the two things that could plausibly have
+  broken (missing subscription row for the admin, missing business row for
+  the admin) are both already handled gracefully by existing code
+  (`UsersService.findFireUser`, `BillingGuard`).
+- This row does **not** go in `cutover.sql` — rehearsal-copy convenience
+  only, tied to a dev-only Firebase UID. It also does not survive a
+  re-import (already re-imported 3 times this project) — recreate with
+  `MODE=apply node backend/scripts/qa/seed-qa-admin-user.js` (idempotent).
+  Re-verify with `backend/scripts/qa/verify-qa-impersonation.js`. Full
+  details: `docs/redesign/qa-access.md`.
+- Also added the small boot-time log line discussed alongside the Gap 7
+  guard: `app.module.ts` now logs `DB_DATABASE=... synchronize=...` as one
+  line on every boot (`[Bootstrap]` logger), right next to the guard that
+  depends on the same two values — confirmed present in the QA boot log
+  above (`DB_DATABASE=keepintax_prodcopy synchronize=false`).

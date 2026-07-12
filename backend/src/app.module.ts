@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, Logger } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ScheduleModule } from '@nestjs/schedule';
 import { AppController } from './app.controller';
@@ -109,6 +109,12 @@ if (isSynchronizeEnabled && /prod/i.test(process.env.DB_DATABASE || '')) {
     `See docs/redesign/schema-drift.md Gap 7 for why this guard exists.`,
   );
 }
+
+// "Which DB am I on?" should always be answerable at a glance — one line,
+// every boot, right next to the guard above that depends on the same two values.
+new Logger('Bootstrap').log(
+  `DB_DATABASE=${process.env.DB_DATABASE} synchronize=${isSynchronizeEnabled}`,
+);
 
 @Module({
   imports: [
