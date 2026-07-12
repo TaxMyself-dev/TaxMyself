@@ -1230,3 +1230,21 @@ code pre-checks are deploy-safe now.
 entry in the same tx, D10 lock applying to deletes) + 4.4 (reports read
 side: P&L by section, ledger from stored descriptions). Elazar decisions
 pending: the keepintax-dev duplicate cleanup above.
+
+### Session 8 addendum — keepintax-dev business dedup (approved by Elazar)
+
+Cleared the 3 duplicate `businessNumber` groups on the SHARED keepintax-dev
+DB so synchronize can create `ux_business_number` on the next dev boot:
+
+- Deleted orphan `business` rows **id=1** (פורטי פייב, 304902133) and
+  **id=3** (אוריה הראל אדריכלות, 204245724) — their owner firebaseId
+  (`O8OaV9fyVsV29h63DszM78KYVqb2`) has no `user` row and zero activity;
+  the surviving rows (ids 7/8) belong to harelazar@gmail.com.
+- Renumbered **id=2** (the harel.taxit@gmail.com accountant test account's
+  own business, previously fake `123456789`) to placeholder `999999999` —
+  zero expenses/journal entries/documents referenced the old number; all
+  `123456789` activity belongs to the demo user (demo@gmail.com), which
+  keeps that number. ⚠ If anyone else uses the harel.taxit test account
+  and something keys on its business number, it is now `999999999`.
+
+Verified: zero duplicate groups remain on keepintax-dev.
