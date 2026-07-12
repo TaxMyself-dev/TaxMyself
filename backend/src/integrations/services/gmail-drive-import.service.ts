@@ -1,14 +1,17 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import {
   DocumentImportService,
   DocumentImportStatus,
 } from 'src/document-import/document-import.service';
 import { DocumentImportSource } from 'src/document-import/enums/document-import.enums';
+import { UserIntegration } from '../entities/user-integration.entity';
+import { IntegrationProvider } from '../enums/integrations.enums';
 import {
   SkippedAttachmentsAccumulator,
   tagGmailSyncError,
 } from '../utils/gmail-sync-logging.util';
 import { DEFAULT_GMAIL_QUERY, GmailReaderService } from './gmail-reader.service';
+import { UserIntegrationsService } from './user-integrations.service';
 
 /** Progress heartbeat interval for long scans (initial import can span years). */
 const LOG_PROGRESS_EVERY_MESSAGES = 100;
@@ -42,6 +45,29 @@ export interface GmailImportResult {
   files: GmailImportFileResult[];
 }
 
+/** One connected mailbox's outcome inside a user-level "import all" run. */
+export interface GmailAccountImportResult {
+  integrationId: number;
+  accountEmail: string | null;
+  imported: number;
+  alreadyImported: number;
+  skipped: number;
+  attachmentsFound: number;
+  messagesFound: number;
+  messagesFailed: number;
+  /** Non-null when this mailbox failed; the other mailboxes still run. */
+  error: string | null;
+}
+
+/** Aggregate of a "import from all connected Gmail accounts" run. */
+export interface GmailImportAllResult {
+  totalImported: number;
+  totalAlreadyImported: number;
+  totalSkipped: number;
+  totalAttachmentsFound: number;
+  perAccount: GmailAccountImportResult[];
+}
+
 /**
  * Phase D — Gmail intake adapter. Deliberately thin: it only reads attachment
  * candidates via GmailReaderService and hands each one to the shared
@@ -57,7 +83,80 @@ export class GmailDriveImportService {
   constructor(
     private readonly gmailReaderService: GmailReaderService,
     private readonly documentImportService: DocumentImportService,
+    private readonly userIntegrationsService: UserIntegrationsService,
   ) {}
+
+  /**
+   * Imports from EVERY ACTIVE Gmail account the user has connected, isolating
+   * each mailbox: one failing account is recorded in its perAccount.error and
+   * never aborts the others. Dedup (firebaseId + businessNumber + contentHash)
+   * runs in DocumentImportService, so the same file arriving in two mailboxes
+   * is imported once.
+   */
+  async importAllForUser(
+    firebaseId: string,
+    options: { businessNumber?: string; query?: string; maxMessages?: number },
+  ): Promise<GmailImportAllResult> {
+    const integrations = await this.userIntegrationsService.findAllActiveByUserAndProvider(
+      firebaseId,
+      IntegrationProvider.GOOGLE,
+    );
+    if (integrations.length === 0) {
+      throw new BadRequestException(
+        'No active Gmail accounts are connected. Connect a Gmail account first.',
+      );
+    }
+
+    const aggregate: GmailImportAllResult = {
+      totalImported: 0,
+      totalAlreadyImported: 0,
+      totalSkipped: 0,
+      totalAttachmentsFound: 0,
+      perAccount: [],
+    };
+
+    for (const integration of integrations) {
+      const account: GmailAccountImportResult = {
+        integrationId: integration.id,
+        accountEmail: integration.accountEmail,
+        imported: 0,
+        alreadyImported: 0,
+        skipped: 0,
+        attachmentsFound: 0,
+        messagesFound: 0,
+        messagesFailed: 0,
+        error: null,
+      };
+      try {
+        const result = await this.importFromGmail(integration, {
+          businessNumber: options.businessNumber,
+          query: options.query,
+          maxMessages: options.maxMessages,
+          includeFileDetails: false,
+        });
+        account.imported = result.imported;
+        account.alreadyImported = result.alreadyImported;
+        account.skipped = result.skipped;
+        account.attachmentsFound = result.attachmentsFound;
+        account.messagesFound = result.messagesFound;
+        account.messagesFailed = result.messagesFailed;
+      } catch (error: any) {
+        account.error = error?.message ?? String(error);
+        this.logger.error(
+          `Gmail import-all: account ${integration.accountEmail ?? 'unknown'} ` +
+            `(integration ${integration.id}) failed: ${account.error}`,
+        );
+      }
+
+      aggregate.totalImported += account.imported;
+      aggregate.totalAlreadyImported += account.alreadyImported;
+      aggregate.totalSkipped += account.skipped;
+      aggregate.totalAttachmentsFound += account.attachmentsFound;
+      aggregate.perAccount.push(account);
+    }
+
+    return aggregate;
+  }
 
   /**
    * Scans Gmail and imports each message's attachments as they stream in —
@@ -73,7 +172,7 @@ export class GmailDriveImportService {
    * instead of a DEBUG line per skipped attachment.
    */
   async importFromGmail(
-    firebaseId: string,
+    integration: UserIntegration,
     options: {
       businessNumber?: string;
       query?: string;
@@ -82,6 +181,7 @@ export class GmailDriveImportService {
       skipStats?: SkippedAttachmentsAccumulator;
     },
   ): Promise<GmailImportResult> {
+    const firebaseId = integration.firebaseId;
     const query = options.query?.trim() || DEFAULT_GMAIL_QUERY;
     const includeFileDetails = options.includeFileDetails ?? true;
 
@@ -99,7 +199,7 @@ export class GmailDriveImportService {
 
     // Integration/token errors (not connected, expired, revoked) bubble up
     // from the reader with clear messages; junk filtering happens there too.
-    for await (const scan of this.gmailReaderService.scanMessages(firebaseId, {
+    for await (const scan of this.gmailReaderService.scanMessages(integration, {
       query,
       maxMessages: options.maxMessages,
       skipStats: options.skipStats,

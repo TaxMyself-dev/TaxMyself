@@ -1,4 +1,9 @@
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Not, Repository } from 'typeorm';
 import { UserIntegration } from '../entities/user-integration.entity';
@@ -15,11 +20,16 @@ import {
 export interface UpsertIntegrationInput {
   firebaseId: string;
   provider: IntegrationProvider;
+  /**
+   * Provider-side account identifier (Google `sub`). REQUIRED: it is the
+   * global identity of the connected account and half of the upsert key
+   * UNIQUE(provider, accountId).
+   */
+  accountId: string;
   /** Plaintext refresh token — encrypted here before persisting. */
   refreshToken: string;
   /** Plaintext access token — encrypted here before persisting. */
   accessToken?: string | null;
-  accountId?: string | null;
   accountEmail?: string | null;
   scopes?: string | null;
   expiresAt?: Date | null;
@@ -43,64 +53,123 @@ export class UserIntegrationsService {
     private readonly userIntegrationRepo: Repository<UserIntegration>,
   ) {}
 
-  /** All integrations of a user, for a future "connected accounts" screen. */
+  /** All integrations of a user, for the "connected accounts" screen. */
   async findAllForUser(firebaseId: string): Promise<UserIntegration[]> {
     return this.userIntegrationRepo.find({
       where: { firebaseId },
-      order: { provider: 'ASC' },
+      order: { provider: 'ASC', id: 'ASC' },
     });
   }
 
-  async findByUserAndProvider(
+  /** All of a user's integrations for one provider (any status), oldest first. */
+  async findAllByUserAndProvider(
     firebaseId: string,
     provider: IntegrationProvider,
-  ): Promise<UserIntegration | null> {
-    return this.userIntegrationRepo.findOne({ where: { firebaseId, provider } });
-  }
-
-  /** The user's integration for a provider, only if it is currently ACTIVE. */
-  async findActiveIntegration(
-    firebaseId: string,
-    provider: IntegrationProvider,
-  ): Promise<UserIntegration | null> {
-    return this.userIntegrationRepo.findOne({
-      where: { firebaseId, provider, status: IntegrationStatus.ACTIVE },
+  ): Promise<UserIntegration[]> {
+    return this.userIntegrationRepo.find({
+      where: { firebaseId, provider },
+      order: { id: 'ASC' },
     });
   }
 
   /**
-   * Creates the user's integration for a provider, or overwrites the existing
-   * one (re-connect / re-consent). Always resets status to ACTIVE.
+   * A user's integrations for one provider that should be VISIBLE in the UI —
+   * everything except REVOKED. A REVOKED row is a mailbox the user
+   * intentionally disconnected: it must vanish from the settings screen and
+   * from the frontend status endpoints. EXPIRED rows stay visible so the user
+   * can see the failure and reconnect.
+   */
+  async findAllVisibleByUserAndProvider(
+    firebaseId: string,
+    provider: IntegrationProvider,
+  ): Promise<UserIntegration[]> {
+    return this.userIntegrationRepo.find({
+      where: { firebaseId, provider, status: Not(IntegrationStatus.REVOKED) },
+      order: { id: 'ASC' },
+    });
+  }
+
+  /** A user's ACTIVE integrations for one provider, oldest first. */
+  async findAllActiveByUserAndProvider(
+    firebaseId: string,
+    provider: IntegrationProvider,
+  ): Promise<UserIntegration[]> {
+    return this.userIntegrationRepo.find({
+      where: { firebaseId, provider, status: IntegrationStatus.ACTIVE },
+      order: { id: 'ASC' },
+    });
+  }
+
+  /** The single integration for a provider account, keyed on the upsert key. */
+  async findByProviderAndAccountId(
+    provider: IntegrationProvider,
+    accountId: string,
+  ): Promise<UserIntegration | null> {
+    return this.userIntegrationRepo.findOne({ where: { provider, accountId } });
+  }
+
+  /**
+   * Loads an integration by id and asserts it belongs to firebaseId. Throws
+   * 404 both when the row is missing and when it is owned by another user —
+   * a foreign id must not leak that the integration exists.
+   */
+  async findOwnedByIdOrThrow(
+    integrationId: number,
+    firebaseId: string,
+  ): Promise<UserIntegration> {
+    const integration = await this.userIntegrationRepo.findOne({
+      where: { id: integrationId },
+    });
+    if (!integration || integration.firebaseId !== firebaseId) {
+      throw new NotFoundException('Integration not found');
+    }
+    return integration;
+  }
+
+  /**
+   * Connects (or reconnects) a provider account, keyed on UNIQUE(provider,
+   * accountId) so a single user can hold many accounts of the same provider.
+   *
+   * - No existing row → create a new integration for this user (ACTIVE).
+   * - Existing row owned by the SAME user → refresh tokens/scopes/expiry and
+   *   set ACTIVE; sync state (cursor, initial-import) is PRESERVED, because it
+   *   belongs to this same mailbox.
+   * - Existing row owned by ANOTHER user → reject: a Gmail account belongs to
+   *   exactly one KeepInTax user globally.
+   *
    * Tokens are encrypted before persisting.
    */
   async upsertIntegration(input: UpsertIntegrationInput): Promise<UserIntegration> {
-    const existing = await this.findByUserAndProvider(input.firebaseId, input.provider);
-
-    const integration = existing ?? this.userIntegrationRepo.create({
-      firebaseId: input.firebaseId,
-      provider: input.provider,
-    });
-
-    // Reconnecting a DIFFERENT provider account means a different mailbox —
-    // the previous sync cursor and initial-import state belong to the old
-    // account and must not gate or seed syncs of the new one.
-    if (
-      existing?.accountId &&
-      input.accountId &&
-      existing.accountId !== input.accountId
-    ) {
-      this.logger.warn(
-        `${input.provider} account changed for firebaseId=${input.firebaseId} ` +
-          `(integration ${existing.id}) — resetting sync state`,
+    if (!input.accountId) {
+      throw new ConflictException(
+        `Cannot connect ${input.provider}: the provider returned no account id.`,
       );
-      this.clearSyncStateFields(integration);
     }
 
+    const existing = await this.findByProviderAndAccountId(input.provider, input.accountId);
+
+    if (existing && existing.firebaseId !== input.firebaseId) {
+      this.logger.warn(
+        `Rejected ${input.provider} connect: account ${input.accountId} is already ` +
+          `linked to another KeepInTax user (integration ${existing.id})`,
+      );
+      throw new ConflictException(
+        'This account is already connected to a different KeepInTax user.',
+      );
+    }
+
+    const integration =
+      existing ??
+      this.userIntegrationRepo.create({
+        firebaseId: input.firebaseId,
+        provider: input.provider,
+      });
+
+    integration.accountId = input.accountId;
     integration.refreshToken = encryptIntegrationToken(input.refreshToken);
     integration.accessToken = input.accessToken
       ? encryptIntegrationToken(input.accessToken)
       : null;
-    integration.accountId = input.accountId ?? null;
     integration.accountEmail = input.accountEmail ?? null;
     integration.scopes = input.scopes ?? null;
     integration.expiresAt = input.expiresAt ?? null;
@@ -108,7 +177,8 @@ export class UserIntegrationsService {
 
     const saved = await this.userIntegrationRepo.save(integration);
     this.logger.log(
-      `${existing ? 'Updated' : 'Created'} ${input.provider} integration for firebaseId=${input.firebaseId}`,
+      `${existing ? 'Updated' : 'Created'} ${input.provider} integration ` +
+        `${saved.id} for firebaseId=${input.firebaseId}`,
     );
     return saved;
   }
@@ -231,17 +301,6 @@ export class UserIntegrationsService {
         lastSyncError: error.length > 2000 ? error.slice(0, 2000) : error,
       },
     );
-  }
-
-  /** Blanks every Gmail sync field on the (unsaved) entity. */
-  private clearSyncStateFields(integration: UserIntegration): void {
-    integration.initialImportCompletedAt = null;
-    integration.initialImportFromDate = null;
-    integration.initialImportToDate = null;
-    integration.lastSyncStartedAt = null;
-    integration.lastSuccessfulSyncAt = null;
-    integration.lastSyncStatus = null;
-    integration.lastSyncError = null;
   }
 
   /**

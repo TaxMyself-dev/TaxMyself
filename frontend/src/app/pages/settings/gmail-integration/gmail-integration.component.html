@@ -3,9 +3,9 @@
 
   @if (syncState.loading()) {
     <p class="gmail-muted">טוען...</p>
-  } @else if (!syncState.status()?.connected) {
+  } @else if (syncState.accounts().length === 0) {
 
-    <!-- א. לא מחובר -->
+    <!-- אין חשבונות מחוברים -->
     <p class="gmail-text">
       חשבון Gmail אינו מחובר. חיבור החשבון מאפשר קליטה אוטומטית של קבלות
       וחשבוניות שמגיעות אליך במייל, ישירות אל מסמכי העסק.
@@ -16,92 +16,140 @@
         (onButtonClicked)="connectGmail()"></app-p-button>
     </div>
 
-  } @else if (syncState.isRunning()) {
-
-    <!-- ג. ייבוא רץ -->
-    <p class="gmail-account">חשבון מחובר: <strong>{{ syncState.status()?.accountEmail }}</strong></p>
-    <div class="gmail-running">
-      <i class="pi pi-spin pi-spinner"></i>
-      <span>
-        ייבוא הודעות מ-Gmail מתבצע כעת. התהליך עשוי להימשך מספר דקות —
-        אפשר להמשיך לעבוד, המסך יתעדכן אוטומטית בסיום.
-      </span>
-    </div>
-    <div class="gmail-actions">
-      <app-p-button [buttonText]="'נתק הרשאת Gmail'" [severity]="'danger'" [variant]="'outlined'"
-        [buttonSize]="buttonSize.SMALL" [disabled]="disconnecting()" [isLoading]="disconnecting()"
-        (onButtonClicked)="confirmDisconnectGmail()"></app-p-button>
-    </div>
-
-  } @else if (syncState.status()?.initialImportCompleted) {
-
-    <!-- ד. ייבוא ראשוני הושלם -->
-    <p class="gmail-account">חשבון מחובר: <strong>{{ syncState.status()?.accountEmail }}</strong></p>
-    <div class="gmail-success">
-      <i class="pi pi-check-circle"></i>
-      <span>הייבוא הראשוני הושלם בהצלחה.</span>
-    </div>
-    @if (syncState.status()?.lastSuccessfulSyncAt) {
-      <p class="gmail-text">
-        סנכרון אחרון: {{ syncState.status()?.lastSuccessfulSyncAt | date:'dd/MM/yyyy HH:mm' }}
-      </p>
-    }
-    @if (syncState.status()?.lastSyncStatus === 'ERROR') {
-      <div class="gmail-error">
-        <i class="pi pi-exclamation-triangle"></i>
-        <span>
-          הסנכרון האחרון נכשל{{ syncState.status()?.lastSyncError ? ': ' + syncState.status()?.lastSyncError : '' }}.
-          ננסה שוב אוטומטית בלילה הקרוב.
-        </span>
-      </div>
-    }
-    <p class="gmail-muted">
-      מעכשיו הודעות חדשות עם קבצים מצורפים יסונכרנו מ-Gmail באופן אוטומטי מדי לילה.
-    </p>
-    <div class="gmail-actions">
-      <app-p-button [buttonText]="'נתק הרשאת Gmail'" [severity]="'danger'" [variant]="'outlined'"
-        [buttonSize]="buttonSize.SMALL" [disabled]="disconnecting()" [isLoading]="disconnecting()"
-        (onButtonClicked)="confirmDisconnectGmail()"></app-p-button>
-    </div>
-
   } @else {
 
-    <!-- ב. מחובר, ייבוא ראשוני טרם בוצע (וגם מצב ה. שגיאה → ניסיון חוזר) -->
-    <p class="gmail-account">חשבון מחובר: <strong>{{ syncState.status()?.accountEmail }}</strong></p>
-    @if (syncState.status()?.lastSyncStatus === 'ERROR') {
-      <div class="gmail-error">
-        <i class="pi pi-exclamation-triangle"></i>
-        <span>
-          הייבוא הקודם נכשל{{ syncState.status()?.lastSyncError ? ': ' + syncState.status()?.lastSyncError : '' }}.
-          ניתן לנסות שוב.
-        </span>
+    <!-- רשימת חשבונות מחוברים -->
+    @for (account of syncState.accounts(); track account.id) {
+      <div class="gmail-card">
+        <p class="gmail-account">
+          @if (account.connected) {
+            חשבון מחובר: <strong>{{ account.accountEmail }}</strong>
+          } @else {
+            חשבון: <strong>{{ account.accountEmail }}</strong>
+          }
+        </p>
+
+        @if (!account.connected) {
+
+          <!-- הרשאה פגה / אבדה (EXPIRED) — יש לחבר מחדש -->
+          <div class="gmail-error">
+            <i class="pi pi-exclamation-triangle"></i>
+            <span>
+              ההרשאה של חשבון זה פגה או בוטלה בצד Google, ולכן איננו יכולים למשוך ממנו מסמכים חדשים.
+              יש לחבר מחדש את החשבון כדי לחדש את הסנכרון. הנתונים שכבר יובאו נשמרים.
+            </span>
+          </div>
+          <div class="gmail-actions">
+            <app-p-button [buttonText]="'חבר מחדש'" [buttonColor]="buttonColor.BLACK"
+              [buttonSize]="buttonSize.SMALL" [disabled]="connecting()" [isLoading]="connecting()"
+              (onButtonClicked)="connectGmail()"></app-p-button>
+            <app-p-button [buttonText]="'נתק הרשאה'" [severity]="'danger'" [variant]="'outlined'"
+              [buttonSize]="buttonSize.SMALL" [disabled]="isDisconnecting(account.id)"
+              [isLoading]="isDisconnecting(account.id)"
+              (onButtonClicked)="confirmDisconnectGmail(account)"></app-p-button>
+          </div>
+
+        } @else if (account.lastSyncStatus === 'RUNNING') {
+
+          <!-- ייבוא רץ -->
+          <div class="gmail-running">
+            <i class="pi pi-spin pi-spinner"></i>
+            <span>
+              ייבוא הודעות מ-Gmail מתבצע כעת. התהליך עשוי להימשך מספר דקות —
+              אפשר להמשיך לעבוד, המסך יתעדכן אוטומטית בסיום.
+            </span>
+          </div>
+          <div class="gmail-actions">
+            <app-p-button [buttonText]="'נתק הרשאה'" [severity]="'danger'" [variant]="'outlined'"
+              [buttonSize]="buttonSize.SMALL" [disabled]="isDisconnecting(account.id)"
+              [isLoading]="isDisconnecting(account.id)"
+              (onButtonClicked)="confirmDisconnectGmail(account)"></app-p-button>
+          </div>
+
+        } @else if (account.initialImportCompleted) {
+
+          <!-- ייבוא ראשוני הושלם -->
+          <div class="gmail-success">
+            <i class="pi pi-check-circle"></i>
+            <span>הייבוא הראשוני הושלם בהצלחה.</span>
+          </div>
+          @if (account.lastSuccessfulSyncAt) {
+            <p class="gmail-text">
+              סנכרון אחרון: {{ account.lastSuccessfulSyncAt | date:'dd/MM/yyyy HH:mm' }}
+            </p>
+          }
+          @if (account.lastSyncStatus === 'ERROR') {
+            <div class="gmail-error">
+              <i class="pi pi-exclamation-triangle"></i>
+              <span>
+                הסנכרון האחרון נכשל{{ account.lastSyncError ? ': ' + account.lastSyncError : '' }}.
+                ננסה שוב אוטומטית בלילה הקרוב.
+              </span>
+            </div>
+          }
+          <p class="gmail-muted">
+            מעכשיו הודעות חדשות עם קבצים מצורפים יסונכרנו מחשבון זה באופן אוטומטי מדי לילה.
+          </p>
+          <div class="gmail-actions">
+            <app-p-button [buttonText]="'נתק הרשאה'" [severity]="'danger'" [variant]="'outlined'"
+              [buttonSize]="buttonSize.SMALL" [disabled]="isDisconnecting(account.id)"
+              [isLoading]="isDisconnecting(account.id)"
+              (onButtonClicked)="confirmDisconnectGmail(account)"></app-p-button>
+          </div>
+
+        } @else {
+
+          <!-- מחובר, ייבוא ראשוני טרם בוצע (וגם מצב שגיאה → ניסיון חוזר) -->
+          @if (account.lastSyncStatus === 'ERROR') {
+            <div class="gmail-error">
+              <i class="pi pi-exclamation-triangle"></i>
+              <span>
+                הייבוא הקודם נכשל{{ account.lastSyncError ? ': ' + account.lastSyncError : '' }}.
+                ניתן לנסות שוב.
+              </span>
+            </div>
+          }
+          <p class="gmail-text">
+            בחר/י את טווח התאריכים לייבוא הראשון של קבלות וחשבוניות מחשבון זה.
+            לאחר השלמת הייבוא, הודעות חדשות יסונכרנו אוטומטית מדי לילה.
+          </p>
+          <div class="gmail-date-range">
+            <div class="gmail-date-field">
+              <app-input-date [parentForm]="importFormFor(account.id)" [controlName]="'fromDate'"
+                [labelText]="'מתאריך'" [placeholder]="'dd/mm/yyyy'"
+                [minDate]="minFromDate()" [maxDate]="maxToDate()"
+                [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"></app-input-date>
+            </div>
+            <div class="gmail-date-field">
+              <app-input-date [parentForm]="importFormFor(account.id)" [controlName]="'toDate'"
+                [labelText]="'עד תאריך'" [placeholder]="'dd/mm/yyyy'"
+                [minDate]="minToDateFor(account.id)" [maxDate]="maxToDate()"
+                [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"></app-input-date>
+            </div>
+          </div>
+          <div class="gmail-actions">
+            <app-p-button [buttonText]="'התחל ייבוא מ-Gmail'" [buttonColor]="buttonColor.BLACK"
+              [buttonSize]="buttonSize.AUTO" [disabled]="syncState.isStarting(account.id)"
+              [isLoading]="syncState.isStarting(account.id)"
+              (onButtonClicked)="startImport(account)"></app-p-button>
+            <app-p-button [buttonText]="'נתק הרשאה'" [severity]="'danger'" [variant]="'outlined'"
+              [buttonSize]="buttonSize.SMALL" [disabled]="isDisconnecting(account.id)"
+              [isLoading]="isDisconnecting(account.id)"
+              (onButtonClicked)="confirmDisconnectGmail(account)"></app-p-button>
+          </div>
+
+        }
       </div>
     }
-    <p class="gmail-text">
-      בחר/י את טווח התאריכים לייבוא הראשון של קבלות וחשבוניות מהמייל.
-      לאחר השלמת הייבוא, הודעות חדשות יסונכרנו אוטומטית מדי לילה.
-    </p>
-    <div class="gmail-date-range">
-      <div class="gmail-date-field">
-        <app-input-date [parentForm]="importFormGroup" [controlName]="'fromDate'"
-          [labelText]="'מתאריך'" [placeholder]="'dd/mm/yyyy'"
-          [minDate]="minFromDate()" [maxDate]="maxToDate()"
-          [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"></app-input-date>
-      </div>
-      <div class="gmail-date-field">
-        <app-input-date [parentForm]="importFormGroup" [controlName]="'toDate'"
-          [labelText]="'עד תאריך'" [placeholder]="'dd/mm/yyyy'"
-          [minDate]="minToDate()" [maxDate]="maxToDate()"
-          [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"></app-input-date>
-      </div>
-    </div>
-    <div class="gmail-actions">
-      <app-p-button [buttonText]="'התחל ייבוא מ-Gmail'" [buttonColor]="buttonColor.BLACK"
-        [buttonSize]="buttonSize.SMALL" [disabled]="syncState.starting()" [isLoading]="syncState.starting()"
-        (onButtonClicked)="startImport()"></app-p-button>
-      <app-p-button [buttonText]="'נתק הרשאת Gmail'" [severity]="'danger'" [variant]="'outlined'"
-        [buttonSize]="buttonSize.SMALL" [disabled]="disconnecting()" [isLoading]="disconnecting()"
-        (onButtonClicked)="confirmDisconnectGmail()"></app-p-button>
+
+    <!-- פעולות גלובליות -->
+    <div class="gmail-actions gmail-global-actions">
+      <app-p-button [buttonText]="'חבר חשבון Gmail נוסף'" [buttonColor]="buttonColor.BLACK"
+        [buttonSize]="buttonSize.AUTO" [disabled]="connecting()" [isLoading]="connecting()"
+        (onButtonClicked)="connectGmail()"></app-p-button>
+      <app-p-button [buttonText]="'ייבא מכל החשבונות'" [variant]="'outlined'"
+        [buttonSize]="buttonSize.AUTO" [disabled]="importingAll()" [isLoading]="importingAll()"
+        (onButtonClicked)="importAll()"></app-p-button>
     </div>
 
   }

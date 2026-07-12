@@ -1,10 +1,13 @@
 import {
   Body,
+  ConflictException,
   Controller,
   Delete,
   Get,
   Logger,
   NotFoundException,
+  Param,
+  ParseIntPipe,
   Post,
   Query,
   Req,
@@ -99,6 +102,10 @@ export class IntegrationsController {
         this.logger.error('Google token exchange returned no refresh token');
         return redirectTo('error', 'no_refresh_token');
       }
+      if (!tokens.accountId) {
+        this.logger.error('Google token exchange returned no account id (sub)');
+        return redirectTo('error', 'no_account_id');
+      }
 
       await this.userIntegrationsService.upsertIntegration({
         firebaseId,
@@ -113,34 +120,41 @@ export class IntegrationsController {
 
       return redirectTo('success');
     } catch (err: any) {
+      // A Gmail account already linked to another KeepInTax user surfaces here
+      // as a ConflictException — give the frontend a distinct reason to explain.
+      if (err instanceof ConflictException) {
+        this.logger.warn(`Google OAuth callback rejected: ${err.message}`);
+        return redirectTo('error', 'account_linked_to_other_user');
+      }
       this.logger.error(`Google OAuth callback failed: ${err?.message ?? err}`, err?.stack);
       return redirectTo('error', 'callback_failed');
     }
   }
 
-  /** Connection state for the current user, for the future settings UI. */
+  /** All visible Google accounts (ACTIVE + EXPIRED) of the current user for the
+   * settings UI. REVOKED accounts the user disconnected are excluded. */
   @Get('google/status')
   @UseGuards(FirebaseAuthGuard)
   async status(@Req() request: AuthenticatedRequest) {
     const firebaseId = request.user?.firebaseId;
     if (!firebaseId) throw new NotFoundException('User not found in request');
 
-    const integration = await this.userIntegrationsService.findByUserAndProvider(
+    const integrations = await this.userIntegrationsService.findAllVisibleByUserAndProvider(
       firebaseId,
       IntegrationProvider.GOOGLE,
     );
 
-    if (!integration) {
-      return { connected: false, provider: IntegrationProvider.GOOGLE };
-    }
-
     return {
-      connected: integration.status === IntegrationStatus.ACTIVE,
-      provider: integration.provider,
-      accountEmail: integration.accountEmail,
-      status: integration.status,
-      // updatedAt reflects the most recent (re-)connect via upsertIntegration.
-      connectedAt: integration.updatedAt,
+      provider: IntegrationProvider.GOOGLE,
+      accounts: integrations.map((integration) => ({
+        id: integration.id,
+        accountEmail: integration.accountEmail,
+        accountId: integration.accountId,
+        status: integration.status,
+        scopes: integration.scopes ? integration.scopes.split(' ') : [],
+        createdAt: integration.createdAt,
+        updatedAt: integration.updatedAt,
+      })),
     };
   }
 
@@ -154,14 +168,20 @@ export class IntegrationsController {
   @UseGuards(FirebaseAuthGuard)
   async gmailAttachments(
     @Req() request: AuthenticatedRequest,
+    @Query('integrationId', ParseIntPipe) integrationId: number,
     @Query('q') q?: string,
     @Query('maxResults') maxResults?: string,
   ) {
     const firebaseId = request.user?.firebaseId;
     if (!firebaseId) throw new NotFoundException('User not found in request');
 
+    const integration = await this.userIntegrationsService.findOwnedByIdOrThrow(
+      integrationId,
+      firebaseId,
+    );
+
     const parsedMax = maxResults ? parseInt(maxResults, 10) : undefined;
-    const result = await this.gmailReaderService.fetchAttachments(firebaseId, {
+    const result = await this.gmailReaderService.fetchAttachments(integration, {
       query: q,
       maxResults: Number.isFinite(parsedMax) ? parsedMax : undefined,
     });
@@ -210,7 +230,9 @@ export class IntegrationsController {
     const firebaseId = request.user?.firebaseId;
     if (!firebaseId) throw new NotFoundException('User not found in request');
 
-    return this.gmailDriveImportService.importFromGmail(firebaseId, {
+    // Imports from EVERY connected Gmail account; one failing mailbox does not
+    // abort the others (aggregated per-account in the response).
+    return this.gmailDriveImportService.importAllForUser(firebaseId, {
       // Optional: when omitted, DocumentImportService resolves the target
       // business via BusinessResolverService.
       businessNumber: body.businessNumber?.trim() || undefined,
@@ -249,26 +271,33 @@ export class IntegrationsController {
     const firebaseId = request.user?.firebaseId;
     if (!firebaseId) throw new NotFoundException('User not found in request');
 
-    return this.gmailSyncService.startInitialImport(firebaseId, body.fromDate, body.toDate);
+    return this.gmailSyncService.startInitialImport(
+      firebaseId,
+      body.integrationId,
+      body.fromDate,
+      body.toDate,
+    );
   }
 
   /**
-   * Disconnect: best-effort revoke at Google, then clear stored tokens and
-   * mark the integration REVOKED. The database row is kept.
+   * Disconnect ONE connected Google account (by integration id): best-effort
+   * revoke at Google, then clear stored tokens and mark that single
+   * integration REVOKED. The database row is kept. 404 when the integration
+   * does not exist or belongs to another user — other accounts are untouched.
    */
-  @Delete('google')
+  @Delete('google/:integrationId')
   @UseGuards(FirebaseAuthGuard)
-  async disconnect(@Req() request: AuthenticatedRequest) {
+  async disconnect(
+    @Req() request: AuthenticatedRequest,
+    @Param('integrationId', ParseIntPipe) integrationId: number,
+  ) {
     const firebaseId = request.user?.firebaseId;
     if (!firebaseId) throw new NotFoundException('User not found in request');
 
-    const integration = await this.userIntegrationsService.findByUserAndProvider(
+    const integration = await this.userIntegrationsService.findOwnedByIdOrThrow(
+      integrationId,
       firebaseId,
-      IntegrationProvider.GOOGLE,
     );
-    if (!integration) {
-      throw new NotFoundException('No Google integration found for this user');
-    }
 
     if (integration.refreshToken) {
       const refreshToken = this.userIntegrationsService.getDecryptedRefreshToken(integration);
@@ -277,6 +306,11 @@ export class IntegrationsController {
 
     await this.userIntegrationsService.disconnect(integration.id);
 
-    return { connected: false, provider: IntegrationProvider.GOOGLE, status: IntegrationStatus.REVOKED };
+    return {
+      id: integration.id,
+      connected: false,
+      provider: integration.provider,
+      status: IntegrationStatus.REVOKED,
+    };
   }
 }

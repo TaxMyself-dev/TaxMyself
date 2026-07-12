@@ -66,5 +66,20 @@
   .gmail-actions {
     display: flex;
     gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .gmail-card {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 16px;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    background: #fff;
+  }
+
+  .gmail-global-actions {
+    margin-top: 4px;
   }
 }

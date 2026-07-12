@@ -1,14 +1,19 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { MessageService } from 'primeng/api';
 import { Subscription, interval } from 'rxjs';
-import { GmailSyncStatus, IntegrationsService } from './integrations.service';
+import {
+  GmailAccountSyncStatus,
+  GmailSyncStatus,
+  IntegrationsService,
+} from './integrations.service';
 
 /** בזמן ייבוא רץ — בדיקת מצב מול השרת כל 5 שניות. */
 const POLL_INTERVAL_MS = 5000;
 
 /**
- * מצב סנכרון Gmail ברמת האפליקציה (root): מחזיק את הסטטוס, מנהל את ה-polling
- * בזמן ייבוא רץ, ומציג התראות סיום דרך ה-toast הגלובלי (key 'br' ב-app.component).
+ * מצב סנכרון Gmail ברמת האפליקציה (root): מחזיק את רשימת החשבונות המחוברים,
+ * מנהל את ה-polling בזמן שאיזשהו חשבון מייבא, ומציג התראות סיום דרך ה-toast
+ * הגלובלי (key 'br' ב-app.component).
  *
  * חי מחוץ לקומפוננטה בכוונה: משתמש שמתחיל ייבוא ועוזב את מסך ההגדרות ימשיך
  * לקבל את התראת הסיום/כישלון בכל מקום באפליקציה. אינדיקציית "רץ" נשארת רק
@@ -21,13 +26,28 @@ export class GmailSyncStateService {
 
   readonly status = signal<GmailSyncStatus | null>(null);
   readonly loading = signal(false);
-  readonly starting = signal(false);
-  readonly isRunning = computed(() => this.status()?.lastSyncStatus === 'RUNNING');
+
+  /** מזהי אינטגרציה שהייבוא הראשוני שלהם מתחיל כרגע (spinner per-account). */
+  readonly starting = signal<ReadonlySet<number>>(new Set());
+
+  readonly accounts = computed<GmailAccountSyncStatus[]>(
+    () => this.status()?.accounts ?? [],
+  );
+  /** האם חשבון כלשהו מייבא כרגע (מפעיל polling ואינדיקציית "רץ"). */
+  readonly isAnyRunning = computed(() =>
+    this.accounts().some((a) => a.lastSyncStatus === 'RUNNING'),
+  );
 
   private pollSubscription: Subscription | null = null;
+  /** מצב הסנכרון הקודם לכל חשבון — לזיהוי מעבר RUNNING→סופי (התראה). */
+  private previousStatuses = new Map<number, GmailAccountSyncStatus['lastSyncStatus']>();
+
+  isStarting(integrationId: number): boolean {
+    return this.starting().has(integrationId);
+  }
 
   /**
-   * טעינת מצב עדכני מהשרת. מפעיל/מכבה polling לפי הסטטוס שחזר.
+   * טעינת מצב עדכני מהשרת. מפעיל/מכבה polling לפי הסטטוסים שחזרו.
    * loading מוצג רק בטעינה הראשונה (כשעדיין אין סטטוס בזיכרון).
    */
   refresh(): void {
@@ -50,13 +70,13 @@ export class GmailSyncStateService {
     });
   }
 
-  /** התחלת הייבוא הראשוני. רץ ברקע בשרת; ההתקדמות נמשכת דרך ה-polling. */
-  startInitialImport(fromDate: string, toDate: string): void {
-    if (this.starting() || this.isRunning()) return;
-    this.starting.set(true);
-    this.integrationsService.startInitialGmailImport(fromDate, toDate).subscribe({
+  /** התחלת הייבוא הראשוני לחשבון ספציפי. רץ ברקע; ההתקדמות נמשכת דרך polling. */
+  startInitialImport(integrationId: number, fromDate: string, toDate: string): void {
+    if (this.isStarting(integrationId)) return;
+    this.setStarting(integrationId, true);
+    this.integrationsService.startInitialGmailImport(integrationId, fromDate, toDate).subscribe({
       next: () => {
-        this.starting.set(false);
+        this.setStarting(integrationId, false);
         this.messageService.add({
           severity: 'info',
           summary: 'הייבוא התחיל',
@@ -67,7 +87,7 @@ export class GmailSyncStateService {
         this.refresh(); // יחזור RUNNING ויפעיל את ה-polling
       },
       error: (err) => {
-        this.starting.set(false);
+        this.setStarting(integrationId, false);
         const detail =
           err?.status === 409
             ? 'ייבוא כבר בוצע או רץ כרגע עבור חשבון זה'
@@ -78,31 +98,54 @@ export class GmailSyncStateService {
     });
   }
 
-  /** מעדכן סטטוס, מזהה מעבר RUNNING→סופי (התראה גלובלית) ומנהל את ה-polling. */
+  private setStarting(integrationId: number, value: boolean): void {
+    const next = new Set(this.starting());
+    if (value) next.add(integrationId);
+    else next.delete(integrationId);
+    this.starting.set(next);
+  }
+
+  /** מעדכן סטטוס, מזהה מעברי RUNNING→סופי לכל חשבון ומנהל את ה-polling. */
   private applyStatus(status: GmailSyncStatus): void {
-    const wasRunning = this.isRunning();
-    this.status.set(status);
-
-    if (status.lastSyncStatus === 'RUNNING') {
-      this.startPolling();
-      return;
+    for (const account of status.accounts) {
+      const previous = this.previousStatuses.get(account.id);
+      if (previous === 'RUNNING' && account.lastSyncStatus === 'SUCCESS') {
+        this.notifyFinished('success', account);
+      } else if (previous === 'RUNNING' && account.lastSyncStatus === 'ERROR') {
+        this.notifyFinished('error', account);
+      }
     }
-    this.stopPolling();
 
-    // ההתראות מוצגות ב-toast הגלובלי — מגיעות למשתמש גם אם עזב את ההגדרות.
-    if (wasRunning && status.lastSyncStatus === 'SUCCESS') {
+    this.status.set(status);
+    this.previousStatuses = new Map(
+      status.accounts.map((a) => [a.id, a.lastSyncStatus]),
+    );
+
+    if (status.accounts.some((a) => a.lastSyncStatus === 'RUNNING')) {
+      this.startPolling();
+    } else {
+      this.stopPolling();
+    }
+  }
+
+  /** התראה גלובלית — מגיעה למשתמש גם אם עזב את מסך ההגדרות. */
+  private notifyFinished(kind: 'success' | 'error', account: GmailAccountSyncStatus): void {
+    const email = account.accountEmail ?? '';
+    if (kind === 'success') {
       this.messageService.add({
         severity: 'success',
         summary: 'הייבוא הושלם',
-        detail: 'ייבוא ההודעות מ-Gmail הסתיים בהצלחה',
+        detail: `ייבוא ההודעות מ-Gmail הסתיים בהצלחה${email ? ` (${email})` : ''}`,
         life: 5000,
         key: 'br',
       });
-    } else if (wasRunning && status.lastSyncStatus === 'ERROR') {
+    } else {
       this.messageService.add({
         severity: 'error',
         summary: 'הייבוא נכשל',
-        detail: status.lastSyncError || 'הייבוא מ-Gmail נכשל. ניתן לנסות שוב.',
+        detail:
+          account.lastSyncError ||
+          `הייבוא מ-Gmail נכשל${email ? ` (${email})` : ''}. ניתן לנסות שוב.`,
         life: 6000,
         key: 'br',
       });

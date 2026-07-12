@@ -14,7 +14,13 @@ import {
 
 /**
  * A connection between a KeepInTax user and an external provider account
- * (Google, Microsoft, Dropbox, ...). One row per user per provider.
+ * (Google, Microsoft, Dropbox, ...). One row per connected provider account,
+ * so a single user may connect MULTIPLE accounts of the same provider (e.g.
+ * several Gmail mailboxes).
+ *
+ * A provider account belongs to exactly one KeepInTax user globally: this is
+ * enforced by UNIQUE(provider, account_id). The (firebase_id, provider) index
+ * is non-unique and only supports listing a user's accounts for a provider.
  *
  * User identity via firebase_id (varchar) — no FK to the user table,
  * following the billing module convention.
@@ -23,7 +29,8 @@ import {
  * Plaintext tokens must never be persisted, logged, or returned by the API.
  */
 @Entity('user_integrations')
-@Index('ux_user_integrations_user_provider', ['firebaseId', 'provider'], { unique: true })
+@Index('ux_user_integrations_provider_account', ['provider', 'accountId'], { unique: true })
+@Index('ix_user_integrations_user_provider', ['firebaseId', 'provider'])
 @Index('ix_user_integrations_provider_status', ['provider', 'status'])
 export class UserIntegration {
   @PrimaryGeneratedColumn()
@@ -75,9 +82,9 @@ export class UserIntegration {
   status: IntegrationStatus;
 
   // --- Gmail sync state (all null until the user runs the initial manual import) ---
-  // Reset as a group when the user reconnects a DIFFERENT Google account
-  // (see UserIntegrationsService.upsertIntegration) — the cursor of one
-  // mailbox is meaningless for another.
+  // Scoped to this single mailbox: each connected account has its own row and
+  // its own cursor/initial-import state. Reconnecting the SAME account
+  // (matched by provider + account_id) preserves these fields.
 
   /**
    * When the initial manual Gmail import finished successfully.

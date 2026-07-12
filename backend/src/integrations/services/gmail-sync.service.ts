@@ -3,7 +3,6 @@ import {
   ConflictException,
   Injectable,
   Logger,
-  NotFoundException,
 } from '@nestjs/common';
 import { UserIntegration } from '../entities/user-integration.entity';
 import {
@@ -52,18 +51,27 @@ interface GmailSyncRunContext {
   window: string;
 }
 
-export interface GmailSyncStatusResponse {
-  connected: boolean;
+/** Per-connected-mailbox sync state, one entry per Google integration row. */
+export interface GmailAccountSyncStatus {
+  id: number;
   accountEmail: string | null;
+  /** Integration status — ACTIVE or EXPIRED (REVOKED accounts are excluded). */
+  status: IntegrationStatus;
+  connected: boolean;
   initialImportCompleted: boolean;
   initialImportCompletedAt: string | null;
+  lastSuccessfulSyncAt: string | null;
+  lastSyncStatus: IntegrationSyncStatus | null;
+  lastSyncError: string | null;
+}
+
+export interface GmailSyncStatusResponse {
   /** Earliest selectable fromDate (YYYY-MM-DD) — Jan 1 of the previous year. */
   minFromDate: string;
   /** Latest selectable toDate (YYYY-MM-DD) — today. */
   maxToDate: string;
-  lastSuccessfulSyncAt: string | null;
-  lastSyncStatus: IntegrationSyncStatus | null;
-  lastSyncError: string | null;
+  /** The user's visible Gmail accounts (ACTIVE + EXPIRED), oldest first. */
+  accounts: GmailAccountSyncStatus[];
 }
 
 /**
@@ -108,21 +116,27 @@ export class GmailSyncService {
   // --- Sync status (frontend polling target) ----------------------------------
 
   async getSyncStatus(firebaseId: string): Promise<GmailSyncStatusResponse> {
-    const integration = await this.userIntegrationsService.findByUserAndProvider(
+    // Visible accounts only: a REVOKED (user-disconnected) mailbox must not
+    // reappear in the UI. EXPIRED accounts stay so the user can reconnect.
+    const integrations = await this.userIntegrationsService.findAllVisibleByUserAndProvider(
       firebaseId,
       IntegrationProvider.GOOGLE,
     );
 
     return {
-      connected: integration?.status === IntegrationStatus.ACTIVE,
-      accountEmail: integration?.accountEmail ?? null,
-      initialImportCompleted: !!integration?.initialImportCompletedAt,
-      initialImportCompletedAt: integration?.initialImportCompletedAt?.toISOString() ?? null,
       minFromDate: this.getMinFromDate(),
       maxToDate: this.getMaxToDate(),
-      lastSuccessfulSyncAt: integration?.lastSuccessfulSyncAt?.toISOString() ?? null,
-      lastSyncStatus: integration?.lastSyncStatus ?? null,
-      lastSyncError: integration?.lastSyncError ?? null,
+      accounts: integrations.map((integration) => ({
+        id: integration.id,
+        accountEmail: integration.accountEmail,
+        status: integration.status,
+        connected: integration.status === IntegrationStatus.ACTIVE,
+        initialImportCompleted: !!integration.initialImportCompletedAt,
+        initialImportCompletedAt: integration.initialImportCompletedAt?.toISOString() ?? null,
+        lastSuccessfulSyncAt: integration.lastSuccessfulSyncAt?.toISOString() ?? null,
+        lastSyncStatus: integration.lastSyncStatus ?? null,
+        lastSyncError: integration.lastSyncError ?? null,
+      })),
     };
   }
 
@@ -135,10 +149,11 @@ export class GmailSyncService {
    */
   async startInitialImport(
     firebaseId: string,
+    integrationId: number,
     fromDate: string,
     toDate: string,
   ): Promise<{ started: true }> {
-    const integration = await this.getConnectedIntegration(firebaseId);
+    const integration = await this.getConnectedIntegration(firebaseId, integrationId);
     this.validateDateRange(fromDate, toDate);
     this.assertNoConflictingRun(integration);
 
@@ -154,20 +169,22 @@ export class GmailSyncService {
 
     // Deliberately not awaited: a range import can take many minutes and must
     // not block (or time out) the HTTP request. runInitialImport never throws.
-    void this.runInitialImport(context, fromDate, toDate);
+    void this.runInitialImport(integration, context, fromDate, toDate);
 
     return { started: true };
   }
 
-  private async getConnectedIntegration(firebaseId: string): Promise<UserIntegration> {
-    const integration = await this.userIntegrationsService.findByUserAndProvider(
+  /** Loads the user's own integration by id and rejects non-ACTIVE ones. */
+  private async getConnectedIntegration(
+    firebaseId: string,
+    integrationId: number,
+  ): Promise<UserIntegration> {
+    const integration = await this.userIntegrationsService.findOwnedByIdOrThrow(
+      integrationId,
       firebaseId,
-      IntegrationProvider.GOOGLE,
     );
-    if (!integration) {
-      throw new NotFoundException(
-        'No Google integration found for this user. Connect a Google account first.',
-      );
+    if (integration.provider !== IntegrationProvider.GOOGLE) {
+      throw new BadRequestException('Integration is not a Google account.');
     }
     if (integration.status !== IntegrationStatus.ACTIVE) {
       throw new BadRequestException(
@@ -238,6 +255,7 @@ export class GmailSyncService {
    * polling frontend sees.
    */
   private async runInitialImport(
+    integration: UserIntegration,
     context: GmailSyncRunContext,
     fromDate: string,
     toDate: string,
@@ -246,7 +264,7 @@ export class GmailSyncService {
     const skipStats = new SkippedAttachmentsAccumulator();
     this.logRunStart(context);
     try {
-      const result = await this.gmailDriveImportService.importFromGmail(context.firebaseId, {
+      const result = await this.gmailDriveImportService.importFromGmail(integration, {
         query: this.buildDateRangeQuery(fromDate, toDate),
         // No maxMessages: the reader pages through the entire range.
         includeFileDetails: false,
@@ -324,14 +342,11 @@ export class GmailSyncService {
       const afterEpochSeconds = Math.floor(
         (integration.lastSuccessfulSyncAt.getTime() - NIGHTLY_SYNC_OVERLAP_MS) / 1000,
       );
-      const result = await this.gmailDriveImportService.importFromGmail(
-        integration.firebaseId,
-        {
-          query: `has:attachment after:${afterEpochSeconds}`,
-          includeFileDetails: false,
-          skipStats,
-        },
-      );
+      const result = await this.gmailDriveImportService.importFromGmail(integration, {
+        query: `has:attachment after:${afterEpochSeconds}`,
+        includeFileDetails: false,
+        skipStats,
+      });
 
       try {
         await this.userIntegrationsService.markSyncSuccess(integration.id, {

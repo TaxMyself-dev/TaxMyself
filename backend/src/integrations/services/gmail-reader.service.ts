@@ -1,14 +1,9 @@
-import {
-  BadRequestException,
-  Injectable,
-  Logger,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { gmail_v1, google } from 'googleapis';
 import * as fs from 'fs';
 import * as path from 'path';
 import { UserIntegration } from '../entities/user-integration.entity';
-import { IntegrationProvider, IntegrationStatus } from '../enums/integrations.enums';
+import { IntegrationStatus } from '../enums/integrations.enums';
 import {
   GmailSkipReason,
   SkippedAttachmentsAccumulator,
@@ -210,16 +205,17 @@ export class GmailReaderService {
    * DEBUG lines. Bulk callers (initial import, nightly sync) supply one.
    */
   async *scanMessages(
-    firebaseId: string,
+    integration: UserIntegration,
     options: { query?: string; maxMessages?: number; skipStats?: SkippedAttachmentsAccumulator } = {},
   ): AsyncGenerator<GmailMessageScanResult> {
-    const integration = await this.getUsableIntegration(firebaseId);
+    this.assertUsableIntegration(integration);
     const gmail = await this.createGmailClient(integration);
 
     const query = options.query?.trim() || DEFAULT_GMAIL_QUERY;
     const maxMessages = options.maxMessages;
     this.logger.debug(
-      `Gmail scan starting for firebaseId=${firebaseId} query="${query}"` +
+      `Gmail scan starting for integration=${integration.id} ` +
+        `account=${integration.accountEmail ?? 'unknown'} query="${query}"` +
         (maxMessages ? ` maxMessages=${maxMessages}` : ''),
     );
 
@@ -270,7 +266,7 @@ export class GmailReaderService {
    * for bulk imports (use scanMessages there).
    */
   async fetchAttachments(
-    firebaseId: string,
+    integration: UserIntegration,
     options: { query?: string; maxResults?: number } = {},
   ): Promise<GmailAttachmentsResult> {
     const query = options.query?.trim() || DEFAULT_GMAIL_QUERY;
@@ -289,7 +285,7 @@ export class GmailReaderService {
       attachments: [],
     };
 
-    for await (const scan of this.scanMessages(firebaseId, { query, maxMessages })) {
+    for await (const scan of this.scanMessages(integration, { query, maxMessages })) {
       result.messagesFound += 1;
       result.skippedWithoutFilename += scan.skippedWithoutFilename;
       result.skippedIrrelevant += scan.skippedIrrelevant;
@@ -306,7 +302,7 @@ export class GmailReaderService {
     }
 
     this.logger.debug(
-      `Gmail scan complete for firebaseId=${firebaseId}: ` +
+      `Gmail scan complete for integration=${integration.id}: ` +
         `${result.messagesFound} messages, ${result.messagesWithAttachments} with attachments, ` +
         `${result.attachmentsFound} receipt candidates returned, ` +
         `${result.skippedIrrelevant} irrelevant attachments skipped, ` +
@@ -316,23 +312,9 @@ export class GmailReaderService {
     return result;
   }
 
-  /** Loads the user's Google integration and rejects unusable states clearly. */
-  private async getUsableIntegration(firebaseId: string): Promise<UserIntegration> {
-    const integration = await this.userIntegrationsService.findByUserAndProvider(
-      firebaseId,
-      IntegrationProvider.GOOGLE,
-    );
-
-    // All three states need the user to (re-)connect — retrying won't help.
-    if (!integration) {
-      throw tagGmailSyncError(
-        new NotFoundException(
-          'No Google integration found for this user. Connect a Google account first.',
-        ),
-        'LOAD_INTEGRATION',
-        false,
-      );
-    }
+  /** Rejects unusable integration states clearly before any Gmail call. */
+  private assertUsableIntegration(integration: UserIntegration): void {
+    // All these states need the user to (re-)connect — retrying won't help.
     if (integration.status !== IntegrationStatus.ACTIVE || !integration.refreshToken) {
       throw tagGmailSyncError(
         new BadRequestException(
@@ -352,7 +334,6 @@ export class GmailReaderService {
         false,
       );
     }
-    return integration;
   }
 
   /**

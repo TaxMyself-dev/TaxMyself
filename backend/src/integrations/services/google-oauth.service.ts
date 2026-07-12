@@ -70,9 +70,11 @@ export class GoogleOauthService {
   buildAuthorizeUrl(state: string): string {
     // access_type=offline + prompt=consent so Google always returns a refresh
     // token, including on re-connect after disconnect.
+    // select_account forces the account chooser so a user can connect an
+    // ADDITIONAL Gmail account instead of silently reusing the signed-in one.
     return this.createClient().generateAuthUrl({
       access_type: 'offline',
-      prompt: 'consent',
+      prompt: 'select_account consent',
       scope: GOOGLE_OAUTH_SCOPES,
       include_granted_scopes: true,
       state,
