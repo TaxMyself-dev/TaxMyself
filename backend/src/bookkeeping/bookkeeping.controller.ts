@@ -72,6 +72,9 @@ export class BookkepingController {
       if (!businessNumber) {
         throw new BadRequestException('businessNumber is required when availableFor=CURRENT_CLIENT');
       }
+      // Phase 6 hardening: the target business must belong to the effective
+      // (impersonated) client — dto.businessNumber is caller-supplied.
+      await this.catalogContextService.assertBusinessAccess(request.user?.firebaseId, businessNumber);
       scope = this.catalogService.buildScope(OwnerType.CLIENT, {
         userId: request.user?.firebaseId,
         businessNumber,

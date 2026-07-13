@@ -1595,3 +1595,45 @@ view modes alongside D9's core column sets.
   ledger-entry-accounts / catalog reads accept any businessNumber without
   ownership verification — cross-tenant catalog-name exposure,
   pre-existing since 4.5; decide in Phase 6 review or Phase 7.
+
+## Session 11B (cont.) — 2026-07-13 — business-ownership hardening + full green build
+
+Follow-up requested by Elazar after the close-out: the catalog-overview /
+ledger-entry-accounts businessNumber-ownership gap flagged as an "open
+question" was fixed immediately rather than deferred to Phase 7.
+
+- **Fix**: `CatalogContextService.assertBusinessAccess(firebaseId,
+  businessNumber)` — a new Business repo injection checks a
+  (businessNumber, firebaseId) row exists (covers MULTI_BUSINESS/spouse
+  businesses, same firebaseId on both rows); throws `ForbiddenException`
+  otherwise. No-ops when either arg is missing (caller-validated
+  elsewhere — matches the existing style of every other guard in this
+  module). `forUser` now calls it internally, so EVERY consumer of the
+  delegation-aware context is covered in one place: catalog-overview,
+  expense-catalog, repoint, classification, OCR extraction catalog, the
+  P&L booking-account join. Also applied explicitly at the two endpoints
+  that read businessNumber directly rather than through `forUser`
+  (`reports.getLedgerAccounts`/`getLedgerEntryAccounts`, both already
+  taking firebaseId) and at the two accountant-write paths that accept a
+  caller-supplied businessNumber (`POST bookkeeping/accounts`
+  CURRENT_CLIENT scope, `createManualJournalEntry` — a foreign-business
+  manual entry would otherwise ride that tenant's entry-number sequence).
+- **Tests**: `catalog-context.service.spec.ts` gained a `businessRepo`
+  mock + an `assertBusinessAccess` describe block (owner incl. spouse
+  business passes; foreign/unknown businessNumber rejects; missing arg
+  no-ops) and a `forUser` case asserting the same rejection propagates.
+  `bookkeeping.service.spec.ts`'s CatalogContextService mock gained the
+  new method (existing tests already pass a matching firebaseId/business
+  pair, so behavior is unchanged there).
+- **Verification**: backend `tsc --noEmit` clean (same 2 pre-existing
+  users spec files). `jest src/bookkeeping src/expenses src/documents
+  src/reports`: 202/204 — the 2 failures are `reports.service.spec.ts`
+  and `reports.controller.spec.ts`, both bare zero-provider scaffold
+  tests that fail identically at HEAD before this change (confirmed via
+  `git stash`); unrelated to this session. Frontend `ng build
+  --configuration production` (11A+11B merged, post 11A's Phase 6
+  close-out): **exit 0, fully green** — only pre-existing SCSS/bundle
+  budget warnings, no errors.
+- Plan checkboxes 6.1-6.4 were already ticked and `Current phase:
+  cutover-ready` already set by 11A's close-out (`ba76665d`) — confirmed,
+  not re-touched.

@@ -192,6 +192,12 @@ export class BookkeepingService {
     issuerBusinessNumber: string,
     manager?: EntityManager,
   ): Promise<{ entryNumber: number; id: number }> {
+    // Phase 6 hardening: a manual entry into a foreign business would ride
+    // that tenant's per-business entry numbering — the caller must own the
+    // target business (impersonation already swapped firebaseId to the
+    // client after the guard's delegation check).
+    await this.catalogContextService.assertBusinessAccess(firebaseId, issuerBusinessNumber);
+
     const isExpense = dto.entryKind === 'expense';
     const isExempt = dto.entryKind === 'income_exempt';
     const expectedType = isExpense ? 'expense' : 'income';

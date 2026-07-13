@@ -1,8 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Delegation, DelegationStatus } from '../delegation/delegation.entity';
 import { User } from '../users/user.entity';
+import { Business } from '../business/business.entity';
 import { UserRole } from 'src/enum';
 import { CatalogContext } from './catalog.service';
 
@@ -23,14 +24,39 @@ export class CatalogContextService {
   constructor(
     @InjectRepository(Delegation) private readonly delegationRepo: Repository<Delegation>,
     @InjectRepository(User) private readonly userRepo: Repository<User>,
+    @InjectRepository(Business) private readonly businessRepo: Repository<Business>,
   ) {}
 
+  /**
+   * Phase 6 hardening: the effective user must OWN the business they act
+   * on. Every business row (incl. the spouse's, MULTI_BUSINESS) carries the
+   * signed-in user's firebaseId, and impersonation swaps the effective
+   * firebaseId to the client after the guard validated the delegation — so
+   * a plain (businessNumber, firebaseId) match is the complete predicate.
+   * Before this, any authenticated user could pass a foreign businessNumber
+   * to the catalog/chart endpoints and read that tenant's custom names.
+   */
+  async assertBusinessAccess(
+    firebaseId?: string | null,
+    businessNumber?: string | null,
+  ): Promise<void> {
+    if (!firebaseId || !businessNumber) return;
+    const business = await this.businessRepo.findOne({
+      where: { businessNumber, firebaseId },
+    });
+    if (!business) {
+      throw new ForbiddenException('אין הרשאה לעסק זה');
+    }
+  }
+
   /** Read-context for a user acting on a business: CLIENT chart + every
-   *  ACTIVE delegation's ACCOUNTANT chart + SYSTEM. */
+   *  ACTIVE delegation's ACCOUNTANT chart + SYSTEM. Asserts business
+   *  ownership (see assertBusinessAccess) so every consumer is covered. */
   async forUser(
     firebaseId?: string | null,
     businessNumber?: string | null,
   ): Promise<CatalogContext> {
+    await this.assertBusinessAccess(firebaseId, businessNumber);
     const accountantIds = firebaseId ? await this.accountantIdsForUser(firebaseId) : [];
     return { userId: firebaseId ?? null, businessNumber: businessNumber ?? null, accountantIds };
   }

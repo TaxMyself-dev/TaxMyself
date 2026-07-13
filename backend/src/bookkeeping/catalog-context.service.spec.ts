@@ -6,7 +6,10 @@
  *    order, deduplicated; no firebaseId → empty accountant layer
  *  - activeClientIdsForAgent (5.4 pending-approvals fan-out)
  *  - isAdmin / isAccountantOrAdmin role gates (D11)
+ *  - assertBusinessAccess (Phase 6 hardening): the effective user must own
+ *    the business; forUser enforces it for every consumer
  */
+import { ForbiddenException } from '@nestjs/common';
 import { CatalogContextService } from './catalog-context.service';
 import { DelegationStatus } from '../delegation/delegation.entity';
 import { UserRole } from '../enum';
@@ -31,6 +34,7 @@ function makeRepo<T>(rows: T[] = []) {
 describe('CatalogContextService', () => {
   let delegationRepo: ReturnType<typeof makeRepo<any>>;
   let userRepo: ReturnType<typeof makeRepo<any>>;
+  let businessRepo: ReturnType<typeof makeRepo<any>>;
   let service: CatalogContextService;
 
   beforeEach(() => {
@@ -47,7 +51,14 @@ describe('CatalogContextService', () => {
       { firebaseId: 'client-1', role: [UserRole.REGULAR] },
       { firebaseId: 'no-role', role: null },
     ]);
-    service = new CatalogContextService(delegationRepo as any, userRepo as any);
+    businessRepo = makeRepo<any>([
+      { businessNumber: '123456789', firebaseId: 'client-1' },
+      // MULTI_BUSINESS: the spouse's business rides the same firebaseId.
+      { businessNumber: '123456780', firebaseId: 'client-1' },
+      { businessNumber: '999999999', firebaseId: 'client-2' },
+      { businessNumber: '555555555', firebaseId: 'client-3' },
+    ]);
+    service = new CatalogContextService(delegationRepo as any, userRepo as any, businessRepo as any);
   });
 
   describe('forUser', () => {
@@ -67,13 +78,35 @@ describe('CatalogContextService', () => {
     });
 
     it('user with no delegations → empty accountant layer', async () => {
-      const ctx = await service.forUser('client-999', '123456789');
+      businessRepo.rows.push({ businessNumber: '111111111', firebaseId: 'client-999' });
+      const ctx = await service.forUser('client-999', '111111111');
       expect(ctx.accountantIds).toEqual([]);
     });
 
     it('REVOKED delegations grant no catalog visibility', async () => {
-      const ctx = await service.forUser('client-3', '123456789');
+      const ctx = await service.forUser('client-3', '555555555');
       expect(ctx.accountantIds).toEqual([]);
+    });
+
+    it("rejects a businessNumber the user doesn't own (Phase 6 hardening)", async () => {
+      await expect(service.forUser('client-2', '123456789')).rejects.toBeInstanceOf(ForbiddenException);
+    });
+  });
+
+  describe('assertBusinessAccess', () => {
+    it('passes for the owner, including the spouse business (same firebaseId)', async () => {
+      await expect(service.assertBusinessAccess('client-1', '123456789')).resolves.toBeUndefined();
+      await expect(service.assertBusinessAccess('client-1', '123456780')).resolves.toBeUndefined();
+    });
+
+    it('rejects a foreign or unknown businessNumber', async () => {
+      await expect(service.assertBusinessAccess('client-1', '999999999')).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(service.assertBusinessAccess('client-1', '000000000')).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('no-ops when firebaseId or businessNumber is missing (caller-validated elsewhere)', async () => {
+      await expect(service.assertBusinessAccess(null, '123456789')).resolves.toBeUndefined();
+      await expect(service.assertBusinessAccess('client-1', null)).resolves.toBeUndefined();
     });
   });
 

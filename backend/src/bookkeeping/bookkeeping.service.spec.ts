@@ -134,6 +134,7 @@ describe('BookkeepingService — createJournalEntry / persistJournalEntry', () =
           useValue: {
             forUser: jest.fn(async (userId: string, businessNumber: string) => ({ userId, businessNumber, accountantIds: [] })),
             accountantIdsForUser: jest.fn().mockResolvedValue([]),
+            assertBusinessAccess: jest.fn().mockResolvedValue(undefined),
           },
         },
       ],

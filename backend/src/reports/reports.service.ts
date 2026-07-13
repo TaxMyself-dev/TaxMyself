@@ -932,6 +932,7 @@ export class ReportsService {
     businessNumber?: string | null,
     firebaseId?: string | null,
   ): Promise<{ code: string; name: string; type: string }[]> {
+    await this.catalogContextService.assertBusinessAccess(firebaseId, businessNumber);
     const accountantIds = firebaseId
       ? await this.catalogContextService.accountantIdsForUser(firebaseId)
       : [];
@@ -964,6 +965,7 @@ export class ReportsService {
      *  cards (incl. D11 technical cards) are postable in manual entries. */
     firebaseId?: string | null,
   ): Promise<{ code: string; name: string; type: string; sectionCode: string | null; sectionName: string | null }[]> {
+    await this.catalogContextService.assertBusinessAccess(firebaseId, businessNumber);
     const accountantIds = firebaseId
       ? await this.catalogContextService.accountantIdsForUser(firebaseId)
       : [];
