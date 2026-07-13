@@ -74,4 +74,13 @@ export class CreateAccountDto {
   @IsOptional()
   @IsIn(['expense', 'income'])
   type?: 'expense' | 'income';
+
+  /** Target business for CURRENT_CLIENT (Phase 6.2: the accountant panel
+   *  sends it explicitly — the businessnumber header is owned by the auth
+   *  interceptor's view-as state and may be stale there). Ignored for
+   *  ALL_MY_CLIENTS. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  businessNumber?: string;
 }

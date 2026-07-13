@@ -591,6 +591,15 @@ export class CatalogService {
     return this.accountRepo.findOne({ where: { chartOwnerKey, code } });
   }
 
+  /** Active sections across the given charts — feeds the D11 add-account
+   *  form's section picker (Phase 6.2; a card is never sectionless). */
+  async getSections(chartOwnerKeys: string[]): Promise<AccountingSection[]> {
+    return this.sectionRepo.find({
+      where: { chartOwnerKey: In(chartOwnerKeys), isActive: true },
+      order: { displayOrder: 'ASC', code: 'ASC' },
+    });
+  }
+
   /** Persist non-law field changes (necessity/reportScope/...) without
    *  touching accountId — callers that only need updateSubCategoryLaw's
    *  card-repointing skip this and call that instead. */

@@ -187,6 +187,127 @@
   </ng-template>
 </p-dialog>
 
+<!-- Phase 6.2 (D11): accountant "add account" — the card carries the full accounting law -->
+<p-dialog
+  header="כרטיס חשבון חדש"
+  [visible]="addAccountModalVisible()"
+  [modal]="true"
+  [style]="{ width: '460px' }"
+  [rtl]="true"
+  (onHide)="closeAddAccountModal()"
+  [draggable]="false"
+  [resizable]="false"
+>
+  <div class="create-client-form">
+    <div class="form-field">
+      <label class="form-label">שם הכרטיס <span class="required">*</span></label>
+      <input type="text" class="form-input" [(ngModel)]="addAccountFormData.name" placeholder="למשל: דלק — מוכר מלא" />
+      @if (addAccountErrors()['name']) {
+        <span class="form-error">{{ addAccountErrors()['name'] }}</span>
+      }
+    </div>
+    <div class="form-field">
+      <label class="form-label">חתך (סעיף רווח והפסד) <span class="required">*</span></label>
+      <select class="form-input form-select" [(ngModel)]="addAccountFormData.sectionId">
+        <option value="">בחר/י</option>
+        @for (section of sections(); track section.id) {
+          <option [value]="section.id">{{ section.code }} - {{ section.name }}</option>
+        }
+      </select>
+      @if (addAccountErrors()['sectionId']) {
+        <span class="form-error">{{ addAccountErrors()['sectionId'] }}</span>
+      }
+    </div>
+    <div class="form-field">
+      <label class="form-label">קוד כרטיס (ריק = הקצאה אוטומטית)</label>
+      <input type="text" class="form-input" [(ngModel)]="addAccountFormData.code" placeholder="אוטומטי" />
+      @if (addAccountErrors()['code']) {
+        <span class="form-error">{{ addAccountErrors()['code'] }}</span>
+      }
+    </div>
+    <div class="form-field">
+      <label class="form-label">קוד 6111</label>
+      <input type="text" class="form-input" [(ngModel)]="addAccountFormData.code6111" placeholder="אופציונלי" />
+    </div>
+    <div class="form-field">
+      <label class="form-label">הכרה</label>
+      <select class="form-input form-select" [(ngModel)]="addAccountFormData.recognitionType">
+        <option value="RECOGNIZED">מוכרת</option>
+        <option value="NOT_RECOGNIZED">לא מוכרת</option>
+      </select>
+    </div>
+    <div class="form-field">
+      <label class="form-label">% מוכר למע"מ <span class="required">*</span></label>
+      <input type="number" class="form-input" [(ngModel)]="addAccountFormData.vatPercent" min="0" max="100" />
+      @if (addAccountErrors()['vatPercent']) {
+        <span class="form-error">{{ addAccountErrors()['vatPercent'] }}</span>
+      }
+    </div>
+    <div class="form-field">
+      <label class="form-label">% מוכר למס <span class="required">*</span></label>
+      <input type="number" class="form-input" [(ngModel)]="addAccountFormData.taxPercent" min="0" max="100" />
+      @if (addAccountErrors()['taxPercent']) {
+        <span class="form-error">{{ addAccountErrors()['taxPercent'] }}</span>
+      }
+    </div>
+    <div class="form-field">
+      <label class="form-label">% פחת</label>
+      <input type="number" class="form-input" [(ngModel)]="addAccountFormData.reductionPercent" min="0" max="100" />
+      @if (addAccountErrors()['reductionPercent']) {
+        <span class="form-error">{{ addAccountErrors()['reductionPercent'] }}</span>
+      }
+    </div>
+    <div class="form-field form-field-inline">
+      <input type="checkbox" id="acc-is-equipment" [(ngModel)]="addAccountFormData.isEquipment" />
+      <label for="acc-is-equipment" class="form-label">רכוש קבוע (ציוד)</label>
+    </div>
+    <div class="form-field">
+      <label class="form-label">זמין עבור <span class="required">*</span></label>
+      <select class="form-input form-select" [(ngModel)]="addAccountFormData.availableFor">
+        <option value="ALL_MY_CLIENTS">כל הלקוחות שלי</option>
+        <option value="CURRENT_CLIENT">הלקוח הנבחר בלבד</option>
+      </select>
+      @if (addAccountErrors()['availableFor']) {
+        <span class="form-error">{{ addAccountErrors()['availableFor'] }}</span>
+      }
+    </div>
+    <div class="form-field form-field-inline">
+      <input type="checkbox" id="acc-technical-only" [(ngModel)]="addAccountFormData.technicalOnly" />
+      <label for="acc-technical-only" class="form-label">כרטיס טכני בלבד (ללא תת-קטגוריה ללקוח)</label>
+    </div>
+    @if (!addAccountFormData.technicalOnly) {
+      <div class="form-field">
+        <label class="form-label">קטגוריה (בשפת הלקוח) <span class="required">*</span></label>
+        <input type="text" class="form-input" [(ngModel)]="addAccountFormData.categoryName"
+          list="catalog-category-names" placeholder="קטגוריית אב לתת-הקטגוריה" />
+        <datalist id="catalog-category-names">
+          @for (name of catalogCategoryNames(); track name) {
+            <option [value]="name"></option>
+          }
+        </datalist>
+        @if (addAccountErrors()['categoryName']) {
+          <span class="form-error">{{ addAccountErrors()['categoryName'] }}</span>
+        }
+      </div>
+    }
+  </div>
+  <ng-template pTemplate="footer">
+    <app-p-button
+      [buttonText]="'ביטול'"
+      [buttonColor]="ButtonColor.WHITE"
+      [buttonSize]="ButtonSize.SMALL"
+      (onButtonClicked)="closeAddAccountModal()"
+    />
+    <app-p-button
+      [buttonText]="'צור כרטיס'"
+      [buttonColor]="ButtonColor.BLACK"
+      [buttonSize]="ButtonSize.SMALL"
+      (onButtonClicked)="submitAddAccount()"
+      [isLoading]="addingAccount()"
+    />
+  </ng-template>
+</p-dialog>
+
 <div class="clients-panel-page">
   <p-tabView [activeIndex]="activeTabIndex()" (activeIndexChange)="onTabChange($event)">
     <p-tabPanel header="הלקוחות שלי">
@@ -470,6 +591,118 @@
                         <i class="pi pi-trash"></i>
                       </button>
                     </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </section>
+    </p-tabPanel>
+
+    <!-- Phase 6.2: accountant catalog management (D4 layers, D5 queue, D11 add-account) -->
+    <p-tabPanel header="קטלוג וכרטיסים">
+      <section class="pending-approvals-section">
+        <h3 class="section-title">ממתינים לטיפול</h3>
+        @if (pendingApprovalsLoading()) {
+          <p class="loading-text">טוען תור אישורים...</p>
+        } @else if (pendingApprovals().length === 0) {
+          <p class="empty-text">אין תתי-קטגוריות הממתינות למיפוי או לאישור.</p>
+        } @else {
+          <div class="clients-table-wrap">
+            <table class="clients-table">
+              <thead>
+                <tr>
+                  <th>לקוח</th>
+                  <th>עסק</th>
+                  <th>קטגוריה</th>
+                  <th>תת קטגוריה</th>
+                  <th>סטטוס</th>
+                  <th>הוצאות ממתינות</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (row of pendingApprovals(); track row.subCategoryId) {
+                  <tr>
+                    <td>{{ pendingClientName(row) }}</td>
+                    <td>{{ row.businessNumber || '—' }}</td>
+                    <td>{{ row.categoryName || '—' }}</td>
+                    <td>{{ row.subCategoryName }}</td>
+                    <td><span class="status-badge status-pending">{{ approvalStatusLabel(row) }}</span></td>
+                    <td>{{ row.pendingExpenseCount }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </section>
+
+      <header class="tab-header tasks-toolbar catalog-toolbar">
+        <div class="tasks-filters">
+          <div class="filter-group">
+            <label class="filter-label">לקוח / עסק</label>
+            <select
+              class="form-input form-select"
+              [ngModel]="catalogBusinessFilter()"
+              (ngModelChange)="onCatalogBusinessChange($event)"
+            >
+              <option value="">בחר עסק</option>
+              @for (biz of businessOptions(); track biz.businessNumber) {
+                <option [value]="biz.businessNumber">{{ biz.clientName }} — {{ biz.businessName }}</option>
+              }
+            </select>
+          </div>
+        </div>
+        <div class="panel-actions">
+          <app-p-button
+            [buttonText]="'כרטיס חדש'"
+            [buttonColor]="ButtonColor.BLACK"
+            [buttonSize]="ButtonSize.SMALL"
+            (onButtonClicked)="openAddAccountModal()"
+          />
+        </div>
+      </header>
+
+      <section class="catalog-overview-section">
+        @if (catalogOverviewLoading()) {
+          <p class="loading-text">טוען קטלוג...</p>
+        } @else if (!catalogBusinessFilter()) {
+          <p class="empty-text">בחר עסק כדי להציג את הקטלוג המלא שלו (מערכת / רו"ח / לקוח).</p>
+        } @else if (catalogOverviewRows().length === 0) {
+          <p class="empty-text">לא נמצאו רשומות קטלוג לעסק זה.</p>
+        } @else {
+          <div class="clients-table-wrap">
+            <table class="clients-table catalog-table">
+              <thead>
+                <tr>
+                  <th>קטגוריה</th>
+                  <th>תת קטגוריה</th>
+                  <th>שכבה</th>
+                  <th>כרטיס</th>
+                  <th>חתך</th>
+                  <th>% מע"מ</th>
+                  <th>% מס</th>
+                  <th>% פחת</th>
+                  <th>ציוד</th>
+                  <th>סטטוס</th>
+                  <th>בתוקף</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (row of catalogOverviewRows(); track row.id) {
+                  <tr [class.overridden-row]="!row.isEffective">
+                    <td>{{ row.categoryName || '—' }}</td>
+                    <td>{{ row.name }}</td>
+                    <td><span class="owner-badge owner-{{ row.ownerType | lowercase }}">{{ ownerTypeLabel(row.ownerType) }}</span></td>
+                    <td>{{ row.accountCode ? row.accountCode + ' - ' + (row.accountName || '') : '—' }}</td>
+                    <td>{{ row.sectionName || '—' }}</td>
+                    <td>{{ row.vatPercent != null ? row.vatPercent + '%' : '—' }}</td>
+                    <td>{{ row.taxPercent != null ? row.taxPercent + '%' : '—' }}</td>
+                    <td>{{ row.reductionPercent != null ? row.reductionPercent + '%' : '—' }}</td>
+                    <td>{{ row.isEquipment ? 'כן' : 'לא' }}</td>
+                    <td><span class="status-badge" [class.status-pending]="row.approvalStatus !== 'APPROVED'">{{ approvalStatusLabel(row) }}</span></td>
+                    <td>{{ row.isEffective ? 'כן' : 'נדרס' }}</td>
                   </tr>
                 }
               </tbody>

@@ -68,9 +68,9 @@ export class BookkepingController {
     if (dto.availableFor === AccountAvailability.CURRENT_CLIENT) {
       // CLIENT-owned rows for the impersonated business; accountantId records
       // the creator (D4: "creator when accountant created for a client").
-      const businessNumber = request.user?.businessNumber;
+      const businessNumber = dto.businessNumber?.trim() || request.user?.businessNumber;
       if (!businessNumber) {
-        throw new BadRequestException('businessNumber header is required when availableFor=CURRENT_CLIENT');
+        throw new BadRequestException('businessNumber is required when availableFor=CURRENT_CLIENT');
       }
       scope = this.catalogService.buildScope(OwnerType.CLIENT, {
         userId: request.user?.firebaseId,
@@ -128,6 +128,23 @@ export class BookkepingController {
           }
         : null,
     };
+  }
+
+  /**
+   * Phase 6.2 (D11): sections for the add-account form's picker — SYSTEM +
+   * the acting accountant's own chart. Actor-gated like POST accounts (the
+   * only consumer is that form).
+   */
+  @Get('sections')
+  @UseGuards(FirebaseAuthGuard)
+  async getSections(@Req() request: AuthenticatedRequest) {
+    const actorFirebaseId = request.user?.actorFirebaseId ?? request.user?.firebaseId;
+    if (!actorFirebaseId) throw new UnauthorizedException('Not authenticated');
+    if (!(await this.catalogContextService.isAccountantOrAdmin(actorFirebaseId))) {
+      throw new ForbiddenException('רק רואה חשבון (או מנהל מערכת) יכול לצפות ברשימת החתכים');
+    }
+    const rows = await this.catalogService.getSections(['SYSTEM', `ACCOUNTANT_${actorFirebaseId}`]);
+    return rows.map((s) => ({ id: s.id, code: s.code, name: s.name }));
   }
 
   /**
@@ -202,16 +219,42 @@ export class BookkepingController {
     return this.bookkeepingService.createManualJournalEntries(body, firebaseId, businessNumber);
   }
 
-  /** Merged (CLIENT > ACCOUNTANT > SYSTEM) expense sub-categories for the
-   *  manual-entry modal's optional sub_category picker (Phase 4.5). Private
-   *  rows are excluded — they are never journaled (D5), so offering them on
-   *  a journal-entry form would be a contradiction. */
+  /**
+   * Merged (CLIENT > ACCOUNTANT > SYSTEM) expense sub-categories.
+   *
+   * Consumers:
+   *   - Manual-entry modal's sub_category picker (Phase 4.5) — default call;
+   *     private rows are excluded (they are never journaled, D5).
+   *   - AddCategoryComponent's D9 simple picker (Phase 6.2) — reads
+   *     `accountId` to map behind the scenes.
+   *   - The D9 approval screen (Phase 6.1) — `includePrivate=true`; the
+   *     card-law/section fields feed the professional view's card picker
+   *     (accounts grouped by section) and the client-side live-resolution
+   *     preview on re-classification.
+   */
   @Get('expense-catalog')
   @UseGuards(FirebaseAuthGuard)
   async getExpenseCatalog(
     @Req() request: AuthenticatedRequest,
     @Query('businessNumber') businessNumber: string,
-  ): Promise<{ subCategoryId: number; category: string | null; subCategory: string; accountId: number | null }[]> {
+    @Query('includePrivate') includePrivate?: string,
+  ): Promise<{
+    subCategoryId: number;
+    category: string | null;
+    subCategory: string;
+    accountId: number | null;
+    isPrivate: boolean;
+    approvalStatus: string;
+    ownerType: string;
+    accountCode: string | null;
+    accountName: string | null;
+    sectionCode: string | null;
+    sectionName: string | null;
+    vatPercent: number | null;
+    taxPercent: number | null;
+    reductionPercent: number | null;
+    isEquipment: boolean | null;
+  }[]> {
     const firebaseId = request.user?.firebaseId;
     if (!firebaseId) throw new UnauthorizedException('Not authenticated');
     if (!businessNumber?.trim()) throw new BadRequestException('businessNumber is required');
@@ -219,7 +262,7 @@ export class BookkepingController {
       await this.catalogContextService.forUser(firebaseId, businessNumber.trim()),
     );
     return rows
-      .filter((s) => !s.isPrivate)
+      .filter((s) => includePrivate === 'true' || !s.isPrivate)
       .map((s) => ({
         subCategoryId: s.id,
         category: s.category?.name ?? null,
@@ -228,6 +271,17 @@ export class BookkepingController {
         // picked row's card id as the new sub_category's mapping. NULL =
         // unmapped row (MISSING_ACCOUNTING_MAPPING) — not pickable.
         accountId: s.accountId ?? null,
+        isPrivate: !!s.isPrivate,
+        approvalStatus: s.approvalStatus,
+        ownerType: s.ownerType,
+        accountCode: s.account?.code ?? null,
+        accountName: s.account?.name ?? null,
+        sectionCode: s.account?.section?.code ?? null,
+        sectionName: s.account?.section?.name ?? null,
+        vatPercent: s.account?.vatPercent != null ? Number(s.account.vatPercent) : null,
+        taxPercent: s.account?.taxPercent != null ? Number(s.account.taxPercent) : null,
+        reductionPercent: s.account?.reductionPercent != null ? Number(s.account.reductionPercent) : null,
+        isEquipment: s.account?.isEquipment ?? null,
       }));
   }
 
