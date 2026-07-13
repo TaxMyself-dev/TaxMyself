@@ -26,6 +26,17 @@ export enum BillingEventType {
   RETRY_SCHEDULED = 'RETRY_SCHEDULED',
   PLAN_CHANGE_REQUESTED = 'PLAN_CHANGE_REQUESTED',
   PLAN_CHANGED = 'PLAN_CHANGED',
+  /**
+   * Restored 2026-07-13: present in the shared keepintax-dev DB's
+   * `billing_event.event_type` ENUM (and in a real row, id=164, subscription
+   * 49) from earlier uncommitted/WIP payment-method-update work, but absent
+   * from every branch's git history. No current code writes these — kept so
+   * `synchronize` never truncates existing rows using them. If a
+   * payment-method-update flow is (re)built, wire it to these.
+   */
+  PAYMENT_METHOD_UPDATE_REQUESTED = 'PAYMENT_METHOD_UPDATE_REQUESTED',
+  PAYMENT_METHOD_UPDATED = 'PAYMENT_METHOD_UPDATED',
+  PAYMENT_METHOD_UPDATE_FAILED = 'PAYMENT_METHOD_UPDATE_FAILED',
   COUPON_REDEEMED = 'COUPON_REDEEMED',
   PROMOTION_APPLIED = 'PROMOTION_APPLIED',
   DISCOUNT_APPLIED = 'DISCOUNT_APPLIED',
