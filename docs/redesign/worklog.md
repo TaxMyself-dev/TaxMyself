@@ -1531,3 +1531,67 @@ session (see "parallel-session note" below).
   guard only validates x-client-user-id delegations) — cross-tenant
   catalog-name exposure. Pre-existing pattern (since 4.5), not changed
   this session; flagging for a Phase 6/7 decision.
+
+---
+
+## Session 11A — 2026-07-13 — Phase 6.1: the D9 approval screen
+
+Three commits (plus two swept into 11B's commits during the parallel-
+session index races — see 11B's note; nothing lost). Two decisions
+confirmed with Elazar up front: the accountant inline completion runs the
+**approve→complete-mapping chain** (approve lands the MISSING expense,
+complete-mapping approves + journals — reuses the 5.3 primitives exactly
+as built; a mid-chain failure leaves a retryable MISSING expense), and
+the operational columns (doc identity, period, actions) **stay** in both
+view modes alongside D9's core column sets.
+
+- **6.1a — backend (rode into `e02a2698` + `94d39b7e`)**: every preview
+  row now carries `classification: ReviewClassification` — the
+  delegation-aware merged-catalog resolution the approve path will run:
+  effective subCategoryId, canonical names, status (READY /
+  MISSING_MAPPING / PRIVATE / UNCLASSIFIED), the D7 description preview,
+  `mappedByAccountant`, and the card's section/account/law. One catalog
+  load per preview, in-memory matching; **names win over the OCR-time
+  stamped id** (saved-supplier override), stamped id is the renamed-row
+  fallback. `ReportPreviewResponse.clientHasActiveDelegation` drives the
+  "אצל הרו״ח" vs simple-picker branch. `bookkeeping/expense-catalog`
+  gained the card-law/section fields + `includePrivate` (additive on top
+  of 11B's `accountId`); `getMergedExpenseCatalog` joins
+  `account.section`. 13 new tests (`report-review-classification.spec.ts`).
+- **6.1b — frontend (`e08cbcbb`)**: the review dialog IS the D9 screen.
+  Toggle persisted per REAL user (`reviewViewMode:<firebaseId>`);
+  accountants/admins land on professional. Professional view: single D7
+  description column, section column, **card picker** (accounts grouped
+  by section via optgroups; resolves to a representative sub_category —
+  same-named > alphabetical — preserving approved⇒subCategoryId;
+  technical cards excluded), read-only card-law percent columns. Status
+  badges per D9+D8; non-approvable rows (MISSING / UNCLASSIFIED / annual
+  / unidentified) render disabled checkboxes and are excluded from bulk
+  approve + select-all ("נבחרו X מתוך Y ניתנות לאישור"). Accountant
+  "השלם מיפוי" dialog = card picker + "החל גם על סיווגים עתידיים"
+  checkbox → the approve→complete chain. Unaccompanied client
+  "למה ההוצאה שייכת?" = 5 curated system choices (דלק / טיפולים / הוצאות
+  משרד / שיווק ופרסום / שכירות משרד) + full by-section list → the 4.2
+  repoint primitive, adopting the CLIENT-override id the backend actually
+  mapped and re-badging every affected row. D8: annual rows get תייק
+  (file-doc) + re-kind; unidentified rows get expense/annual triage in
+  place. Every classification change re-applies the extended catalog row
+  locally (live-resolution preview); approve sends `subCategoryId` ahead
+  of the name pair. Catalog source switched documents/me/catalog →
+  extended expense-catalog. `ReviewDocSummary` mirror gained
+  `documentKind`.
+- **Verification**: `ng build` green on the merged tree (both sessions'
+  work; only the long-standing budget/CommonJS warnings). Backend:
+  report-review-classification 13/13, report-review-dockind 4/4;
+  `tsc --noEmit` clean except the pre-existing users spec files. 11B
+  separately ran jest bookkeeping+expenses 139/139.
+- **Checkbox bookkeeping (primary session)**: ticked 6.1 (this session)
+  and 6.2/6.3/6.4 per 11B's close-out — all Phase 6 tasks delivered.
+  `Current phase: cutover-ready` per the runbook. **Still owed for the
+  Phase 6 Definition of Done: Elazar's full manual E2E pass** (upload →
+  OCR → review → classify → approve → ledger/VAT/P&L, both view modes,
+  as client and as accountant) — schedule before Session 12.
+- **Open question carried from 11B** (for Elazar): catalog-overview /
+  ledger-entry-accounts / catalog reads accept any businessNumber without
+  ownership verification — cross-tenant catalog-name exposure,
+  pre-existing since 4.5; decide in Phase 6 review or Phase 7.

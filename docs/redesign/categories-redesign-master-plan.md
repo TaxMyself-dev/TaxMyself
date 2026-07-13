@@ -801,16 +801,22 @@ client without an accountant is never blocked (D9 simple picker path).
       repoints their sub_category at a system card via the 4.2 repoint
       primitive. Live resolution recomputes client-side from the extended
       catalog on every classification change.)
-- [ ] 6.2 Category management screens on new endpoints: client add
+- [x] 6.2 Category management screens on new endpoints: client add
       category (name + default recognition) / add sub_category (the D5
       three-option flow: private / not recognized / recognized→mapping or
       defer-to-accountant); accountant screens from 5.4; admin SYSTEM
       catalog screen replacing CategoryManagementComponent's direct
       default_sub_category editing.
-- [ ] 6.3 ModalExpensesComponent / add-supplier: cascading pickers on new
+      (Done Session 11B — commits 6.2a `ae7428bf` / 6.2b `894eca3f` /
+      6.2c `e02a2698`; ticked by 11A as the primary session per the
+      parallelism rules. See 11B's worklog entry for detail.)
+- [x] 6.3 ModalExpensesComponent / add-supplier: cascading pickers on new
       catalog, autofill percents from sub_category, emit subCategoryId.
-- [ ] 6.4 Ledger/P&L pages: section grouping in P&L, description column in
+      (Done Session 11B; ticked by 11A. See 11B's worklog entry.)
+- [x] 6.4 Ledger/P&L pages: section grouping in P&L, description column in
       ledger, account picker shows new codes.
+      (Done Session 11B — `e2382afe` business-scoped the ledger filter's
+      chart; ticked by 11A. See 11B's worklog entry.)
 
 **Definition of done:** no Angular service calls a removed endpoint; a full
 manual E2E pass of: upload doc → OCR → review → classify → approve →
