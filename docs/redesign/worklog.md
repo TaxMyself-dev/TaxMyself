@@ -1340,3 +1340,109 @@ bumped to `Current phase: 5`.
 delegation-aware authorization on catalog/approval endpoints, the D11
 add-account flow, the client-unmapped flow (D5), and the accountant catalog
 management backend.
+
+
+---
+
+## Session 10 — 2026-07-13 — Phase 5 complete: accountant layer (5.1–5.4)
+
+Four commits, each with its checkbox tick. Phase 5 is DONE — plan header
+bumped to `Current phase: 6`. Two decisions confirmed with Elazar up front
+(AskUserQuestion): the D11 DTO carries a `categoryName` (the paired
+sub_category needs a parent category, which D11's field list omitted — a
+category picker joins the Phase 6 screen), and D9 mapping-completion
+auto-approves + journals (consistent with 4.2's overrideExpenseMapping).
+
+- **5.1 — delegation-aware authorization (`c2c35a9d`)**: the ACCOUNTANT
+  catalog layer goes live. `CatalogContext.accountantId` existed since 2.3
+  but NO caller ever populated it — the accountant layer was invisible
+  everywhere. New `CatalogContextService` (bookkeeping):
+  `forUser(firebaseId, businessNumber)` fills `ctx.accountantIds` from the
+  user's ACTIVE delegations — each agent's `ACCOUNTANT_<id>` chart joins
+  the D4 merge between CLIENT and SYSTEM (deterministic delegation-id order
+  for the rare multi-accountant case; visibility deliberately NOT gated on
+  write scopes — scopes gate capabilities, D9). Threaded through EVERY
+  resolution/merge point: expense classification (all 4
+  resolveExpenseClassification callers pass the owner userId),
+  override-mapping account lookups, get-categories/get-sub-categories,
+  isEquipment/reportScope resolvers, the buildExpenseJournalLines legacy
+  retry, manual-entry sub_category resolution + repoint + expense-catalog
+  endpoints, OCR buildExtractionCatalog (firebaseId is now load-bearing
+  there), the P&L booking-account join (closing 4.4's explicit "accountant
+  chart joins in 5.1" TODO), and getLedgerEntryAccounts (accountant cards
+  postable in manual entries). Safety: `repointSubCategoryAccount` now
+  protects ACCOUNTANT rows exactly like SYSTEM rows — a client-context
+  repoint lands a same-named CLIENT override, never edits the shared row
+  (which would silently re-map every other client of that accountant).
+  SYSTEM-catalog admin endpoints check `isAdmin` against `actorFirebaseId`
+  (admin-while-impersonating passes; accountant is refused) and the
+  previously commented-out `getAllDefaultSubCategories` admin check is
+  enforced (verified: only the admin panel calls it). DI note: only
+  documents.module provides CatalogService directly — it now also provides
+  CatalogContextService; everyone else gets it via BookkeepingModule's
+  exports.
+- **5.2 — D11 add-account flow (`034b9446`)**:
+  `POST /bookkeeping/accounts` → `CatalogService.createAccountWithSubCategory`
+  — ONE dataSource.transaction writes the law-bearing card (percents/
+  isEquipment/recognition/section/6111 all ON the account, revised D1) +
+  the same-named thin sub_category, unless `technicalOnly`. Scoping:
+  ALL_MY_CLIENTS → ACCOUNTANT rows/70000-range/ALL_ACCOUNTANT_CLIENTS;
+  CURRENT_CLIENT → CLIENT rows/80000-range with `accountantId`=creator +
+  SPECIFIC_CLIENT (D4). Manual codes accepted when unique within the
+  chartOwnerKey (out-of-range 90xxx tolerated per D2) else allocated
+  in-transaction. Section always required — sectionless cards are invisible
+  to the manual-entry dropdown, which is where technical cards get used
+  (resolves Session 3A's open question about a 90000-range allocator: not
+  needed, manual codes cover it). Actor-gated to ACCOUNTANT/ADMIN roles.
+  CatalogService now injects DataSource (spec constructions updated).
+- **5.3 — client-unmapped flow (`6eeaef06`)**:
+  `CreateUserSubCategoryDto.deferToAccountant` saves the row with no law
+  and no card → MISSING_ACCOUNTING_MAPPING, allowed ONLY when the client
+  has an ACTIVE delegation (else 400 — an unaccompanied client is never
+  stuck: their path is the D9 simple picker, i.e. a normal mapped create).
+  `POST /expenses/:id/complete-mapping` (the D9 inline completion row):
+  applyToFuture=false → the 4.2 one-off override path; true →
+  `repointSubCategoryAccount` (future expenses follow; CLIENT override row
+  when the sub_category is SYSTEM/ACCOUNTANT-owned) then `reclassifyExpense`
+  onto the EFFECTIVE row — snapshots + description + journal in one tx,
+  approval + D10 override stamped with the actor. The repoint commits
+  before the expense tx: a second-step failure leaves a completed mapping
+  and a still-pending expense — retryable, never corrupt (flagged, not
+  hidden).
+- **5.4 — accountant catalog management backend (`26f2ec9b`)**: backend
+  only, the screen is Phase 6.2. `GET /bookkeeping/catalog-overview`: every
+  active category/sub_category row across the visible layers, deliberately
+  UNcollapsed, each with owner badge fields + `isEffective` (the D4 winner
+  per (categoryName, name)); sub-rows surface their card's full law.
+  `GET /bookkeeping/pending-approvals`: actor-keyed (ACCOUNTANT/ADMIN gate),
+  MISSING_ACCOUNTING_MAPPING / PENDING_ACCOUNTANT_APPROVAL sub_categories
+  across ALL the agent's ACTIVE-delegation clients, each with its
+  blocked-expense count (CatalogService gained an Expense repo injection
+  for the counts).
+- **Tests**: new `catalog-context.service.spec.ts` (10), +15 CatalogService
+  cases (accountant-layer precedence, ACCOUNTANT-repoint protection, the 7
+  D11 cases, overview/queue), +5 completeExpenseMapping/defer cases. Full
+  backend suite: 266/269 tests, 24/29 suites green — the 5 failing suites
+  (users.service/users.controller/auth.service/reports.service/
+  reports.controller scaffold specs) are the SAME pre-existing failures
+  noted every prior session; nothing newly broken. `tsc --noEmit`: only the
+  2 pre-existing users spec files.
+- **Verification**: full AppModule booted against `keepintax_prodcopy`
+  (NODE_ENV=production + SKIP_BOOT_SEED=true; boot log confirmed
+  `synchronize=false`) — regenerated `baseline-reports-post-migration` +
+  `compare-baseline-reports.ts`: **all 9 businesses ✅, zero un-registered
+  diffs** (D15). The regenerated fixtures differ from Session 9's ONLY in
+  the `generatedAt` timestamp — Phase 5 is empirically output-identical on
+  data with no ACCOUNTANT-owned rows (prodcopy has none yet; the 5
+  delegations there gate impersonation, not catalog rows). The boot also
+  re-verified the Session-10 DI changes end-to-end.
+
+**Phase 5 checklist status**: 5.1–5.4 ALL ticked — Phase 5 complete per its
+Definition of Done (an accountant can fully service a client — create
+accounts, complete mappings, approve — with enforced scopes; a client
+without an accountant is never blocked). No cutover.sql changes: Phase 5 is
+code-only, zero schema/data changes. `Current phase: 6`.
+
+**Next**: Sessions 11A/11B — Phase 6 frontend (approval screen per D9;
+category management / modal-add-expenses / ledger+P&L pages on the new
+APIs). The 5.4 endpoints and the D11 POST are consumed by 6.1/6.2.

@@ -18,7 +18,7 @@
 - Decisions D1–D15 in the plan are FINAL. Do not re-litigate them.
   If reality conflicts with the plan (missing column, undocumented flow),
   STOP and ask Elazar — do not improvise schema decisions.
-- Current phase: 5
+- Current phase: 6
   (Update this line manually when a phase completes.)
 - Audit of the pre-redesign system: docs/categories-audit.md
 - Where older docs in /docs (bookkeeping-system.md,
