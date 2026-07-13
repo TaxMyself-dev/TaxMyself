@@ -1446,3 +1446,88 @@ code-only, zero schema/data changes. `Current phase: 6`.
 **Next**: Sessions 11A/11B — Phase 6 frontend (approval screen per D9;
 category management / modal-add-expenses / ledger+P&L pages on the new
 APIs). The 5.4 endpoints and the D11 POST are consumed by 6.1/6.2.
+
+## Session 11B — 2026-07-13 — Phase 6 tasks 6.2–6.4 (parallel with 11A)
+
+Ran as the 11B half of the 11A‖11B pair, same working tree as a live 11A
+session (see "parallel-session note" below).
+
+- **6.2a — client add-category/sub_category, D5 three-option flow
+  (`ae7428bf`)**: AddCategoryComponent rebuilt — per-row radio
+  מוכרת / לא מוכרת / פרטית replaces the isRecognized checkbox. RECOGNIZED
+  requires either the D9 simple picker "למה ההוצאה שייכת?" (options =
+  GET bookkeeping/expense-catalog, which now returns `accountId` per row;
+  card-bearing rows only) or "השאר לרואה החשבון" — shown only when
+  delegations/my-permissions reports an agent, mirroring the backend's
+  ACTIVE-delegation 400. Percent/isEquipment/pnlCategory inputs removed
+  (the card carries the law, D1). Thin backend glue:
+  CreateUserSubCategoryDto += isPrivate + accountId (accountId
+  scope-checked via findAccountByIdInScope); CreateUserCategoryDto +=
+  defaultRecognitionType (UI hint stamped on the category). Income mode
+  keeps the legacy payload untouched.
+- **6.2b — accountant catalog tab (`894eca3f`)**: clients-panel gains
+  "קטלוג וכרטיסים": the 5.4 pending-approvals queue (client / category /
+  sub / status / blocked-expense count), a per-client catalog-overview
+  table (D4 owner badges, card+section+law columns, isEffective — losers
+  greyed), and the D11 "כרטיס חדש" dialog (name, section picker, manual
+  code, 6111, recognition, percents, isEquipment, all-my-clients /
+  current-client, technicalOnly, parent category + datalist). New backend
+  GET bookkeeping/sections (ACCOUNTANT/ADMIN-gated; nothing listed
+  sections with ids before) and CreateAccountDto.businessNumber (the
+  businessnumber header belongs to the interceptor's view-as state — the
+  panel passes the target business explicitly). Overview/CURRENT_CLIENT
+  requests ride a per-request x-client-user-id so CatalogContextService
+  merges all three layers and the guard enforces the delegation. New
+  frontend BookkeepingCatalogService.
+- **6.2c — admin SYSTEM catalog screen (`e02a2698`)**:
+  toLegacySubCategory += accountName/sectionName/code6111/isPrivate
+  (additive; findSubCategoriesByChartOwnerKey now loads account.section).
+  CategoryManagementComponent: כרטיס + חתך columns replace the dead
+  pnlCategory string (D3); פרטית badge; edit dialog shows the current
+  card, names are read-only (the endpoint never applied them), pnlCategory
+  inputs gone from add/edit; Excel export reads card fields off the rows
+  (getLedgerAccounts lookup + retired subAccountCode column removed, D2;
+  the previously-blank 6111 sheet column is now real data).
+- **6.3 — modal-add-expenses / add-supplier emit subCategoryId
+  (`f4802c3c`)**: both resolve the picked row's id by name from their
+  loaded list at submit time and send it as `subCategoryId` (backend
+  prefers the FK since 4.1); the modal's inline save-supplier and
+  AddSupplierComponent persist it on the supplier row too (only when a
+  match is found — never nulls an existing pointer).
+  UpdateSupplierDto += optional subCategoryId (whitelist pipe stripped
+  it; add-supplier's untyped body already passed it through). Cascading
+  pickers + percent autofill were already on the new catalog (2.4).
+- **6.4 — ledger/P&L pages (`e2382afe`)**: found that
+  GET reports/ledger-accounts returned the ENTIRE booking_account table —
+  under the D4 multi-tenant chart that leaks every tenant's custom card
+  names into every user's ledger filter. Now scoped like
+  ledger-entry-accounts (SYSTEM + CLIENT_<biz> + delegation ACCOUNTANT
+  charts) but keeping inactive accounts (they may carry history); the
+  page reloads options on business switch and clears an out-of-scope
+  pick. P&L section grouping, the ledger פירוט column, and new codes in
+  the pickers were verified already delivered by 4.4/4.5 — no changes
+  needed there.
+- **Drive-by fix (`61560874`)**: settings.page.ts read `this.tabs.some`
+  on a computed Signal (missing `()`) — `ng build --configuration
+  production` failed at HEAD on it, PRE-existing this session.
+- **Verification**: backend `tsc --noEmit` clean (same 2 pre-existing
+  users spec files); jest src/bookkeeping+src/expenses: 139/139 green.
+  Frontend prod build: after the settings fix, the only remaining errors
+  are in 11A's two in-flight report-review frontend files (documentKind
+  not yet on ReviewDocSummary) — none in 11B files. A fully green build
+  needs 11A to land; re-verify then.
+- **Parallel-session note**: 11A was committing in this same tree.
+  Two of my early commits raced its index: `e02a2698` (6.2c) also swept
+  11A's backend report-review.service.ts+dto (11A then continued with
+  `94d39b7e`), and `cbccd1e6` carries only 11A's reports/CLAUDE.md under
+  a 6.2c message. Nothing lost; history left un-rewritten deliberately.
+  Remedy adopted mid-session: commit with explicit pathspecs
+  (`git commit -- <paths>`). Plan checkboxes for 6.2–6.4 left un-ticked —
+  the parallelism rules give checkbox updates to the primary session
+  (11A); tick them there or at review.
+- **Open question for Elazar**: catalog-overview /
+  ledger-entry-accounts / catalog reads accept any businessNumber
+  query/header without verifying the caller owns that business (the
+  guard only validates x-client-user-id delegations) — cross-tenant
+  catalog-name exposure. Pre-existing pattern (since 4.5), not changed
+  this session; flagging for a Phase 6/7 decision.
