@@ -751,11 +751,18 @@ baseline reports reproduce.
       reclassifyExpense: snapshots + description + journal in one tx,
       approval + D10 override stamped with the actor. Elazar-approved:
       completion auto-approves + journals, consistent with 4.2.)
-- [ ] 5.4 Accountant catalog management screen: list categories/
+- [x] 5.4 Accountant catalog management screen: list categories/
       sub_categories across the three layers with owner badges;
       pending-approval queue (sub_categories with
       MISSING_ACCOUNTING_MAPPING / PENDING_ACCOUNTANT_APPROVAL across their
       clients).
+      (Done Session 10 — backend only, the screen itself is Phase 6.2:
+      GET bookkeeping/catalog-overview returns EVERY active row across the
+      visible layers, uncollapsed, each with ownerType/chartOwnerKey badge
+      fields + isEffective (the D4 merge winner per (categoryName, name));
+      GET bookkeeping/pending-approvals is actor-keyed (ACCOUNTANT/ADMIN
+      gate) — MISSING/PENDING sub_categories across all the agent's
+      ACTIVE-delegation clients, each with its blocked-expense count.)
 
 **Definition of done:** an accountant can fully service a client
 (create accounts, complete mappings, approve) with enforced scopes; a

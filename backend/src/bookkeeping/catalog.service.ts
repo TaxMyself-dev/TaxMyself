@@ -6,9 +6,11 @@ import { SubCategory } from './sub-category.entity';
 import { BookingAccount } from './account.entity';
 import { AccountingSection } from './accounting-section.entity';
 import { AccountCodeAllocatorService } from './account-code-allocator.service';
+import { Expense } from 'src/expenses/expenses.entity';
 import {
   ApprovalStatus,
   CategoryType,
+  ExpenseApprovalStatus,
   ExpenseNecessity,
   ExpenseReportScope,
   OwnerType,
@@ -101,6 +103,8 @@ export class CatalogService {
     private readonly accountCodeAllocator: AccountCodeAllocatorService,
     // Phase 5.2 (D11): createAccountWithSubCategory writes two rows atomically.
     private readonly dataSource: DataSource,
+    // Phase 5.4: pending-approvals queue counts the blocked expenses per row.
+    @InjectRepository(Expense) private readonly expenseRepo: Repository<Expense>,
   ) {}
 
   private chartOwnerKeysFor(ctx: CatalogContext): string[] {
@@ -834,5 +838,134 @@ export class CatalogService {
     sub.accountId = account.id;
     sub.approvalStatus = ApprovalStatus.APPROVED;
     return this.subCategoryRepo.save(sub);
+  }
+
+  // ==========================================================================
+  // Phase 5.4 — accountant catalog management backend.
+  // ==========================================================================
+
+  /**
+   * The management-screen listing: EVERY active row across the context's
+   * visible layers (CLIENT / ACCOUNTANT / SYSTEM), NOT collapsed by name —
+   * each row carries its owner badge fields plus `isEffective`: whether it
+   * wins the D4 merge for its (categoryName, name) so the UI can render
+   * shadowed rows as overridden.
+   */
+  async getCatalogOverview(ctx: CatalogContext): Promise<{
+    categories: {
+      id: number; name: string; type: CategoryType;
+      ownerType: OwnerType; chartOwnerKey: string; isEffective: boolean;
+    }[];
+    subCategories: {
+      id: number; name: string; categoryId: number; categoryName: string | null;
+      ownerType: OwnerType; chartOwnerKey: string;
+      isPrivate: boolean; reportScope: ExpenseReportScope | null;
+      approvalStatus: ApprovalStatus;
+      accountId: number | null; accountCode: string | null; accountName: string | null;
+      sectionName: string | null;
+      vatPercent: number | null; taxPercent: number | null;
+      reductionPercent: number | null; isEquipment: boolean | null;
+      recognitionType: RecognitionType | null;
+      isEffective: boolean;
+    }[];
+  }> {
+    const chartOwnerKeys = this.chartOwnerKeysFor(ctx);
+    const [categories, subCategories] = await Promise.all([
+      this.categoryRepo.find({ where: { chartOwnerKey: In(chartOwnerKeys), isActive: true } }),
+      this.subCategoryRepo.find({
+        where: { chartOwnerKey: In(chartOwnerKeys), isActive: true },
+        relations: ['account', 'account.section', 'category'],
+      }),
+    ]);
+
+    const effectiveCategoryIds = new Set(
+      this.mergeByName(categories, chartOwnerKeys, (c) => `${c.type}::${c.name}`).map((c) => c.id),
+    );
+    const effectiveSubCategoryIds = new Set(
+      this.mergeByName(subCategories, chartOwnerKeys, (s) => `${s.category?.name ?? s.categoryId}::${s.name}`).map((s) => s.id),
+    );
+
+    return {
+      categories: categories.map((c) => ({
+        id: c.id,
+        name: c.name,
+        type: c.type,
+        ownerType: c.ownerType,
+        chartOwnerKey: c.chartOwnerKey,
+        isEffective: effectiveCategoryIds.has(c.id),
+      })),
+      subCategories: subCategories.map((s) => ({
+        id: s.id,
+        name: s.name,
+        categoryId: s.categoryId,
+        categoryName: s.category?.name ?? null,
+        ownerType: s.ownerType,
+        chartOwnerKey: s.chartOwnerKey,
+        isPrivate: !!s.isPrivate,
+        reportScope: s.reportScope ?? null,
+        approvalStatus: s.approvalStatus,
+        accountId: s.accountId ?? null,
+        accountCode: s.account?.code ?? null,
+        accountName: s.account?.name ?? null,
+        sectionName: s.account?.section?.name ?? null,
+        vatPercent: s.account?.vatPercent != null ? Number(s.account.vatPercent) : null,
+        taxPercent: s.account?.taxPercent != null ? Number(s.account.taxPercent) : null,
+        reductionPercent: s.account?.reductionPercent != null ? Number(s.account.reductionPercent) : null,
+        isEquipment: s.account?.isEquipment ?? null,
+        recognitionType: s.account?.recognitionType ?? null,
+        isEffective: effectiveSubCategoryIds.has(s.id),
+      })),
+    };
+  }
+
+  /**
+   * The accountant's pending-approval queue (D5/D9): sub_categories with
+   * MISSING_ACCOUNTING_MAPPING / PENDING_ACCOUNTANT_APPROVAL across the given
+   * clients (the caller fans out over its ACTIVE delegations), each with the
+   * number of expenses currently blocked on it.
+   */
+  async getPendingApprovals(clientUserIds: string[]): Promise<{
+    subCategoryId: number;
+    subCategoryName: string;
+    categoryId: number;
+    categoryName: string | null;
+    approvalStatus: ApprovalStatus;
+    clientUserId: string | null;
+    businessNumber: string | null;
+    pendingExpenseCount: number;
+  }[]> {
+    if (!clientUserIds.length) return [];
+
+    const rows = await this.subCategoryRepo.find({
+      where: {
+        userId: In(clientUserIds),
+        isActive: true,
+        approvalStatus: In([ApprovalStatus.MISSING_ACCOUNTING_MAPPING, ApprovalStatus.PENDING_ACCOUNTANT_APPROVAL]),
+      },
+      relations: ['category'],
+    });
+    if (!rows.length) return [];
+
+    const ids = rows.map((r) => r.id);
+    const counts = await this.expenseRepo
+      .createQueryBuilder('e')
+      .select('e.subCategoryId', 'subCategoryId')
+      .addSelect('COUNT(*)', 'cnt')
+      .where('e.subCategoryId IN (:...ids)', { ids })
+      .andWhere('e.approvalStatus = :status', { status: ExpenseApprovalStatus.MISSING_ACCOUNTING_MAPPING })
+      .groupBy('e.subCategoryId')
+      .getRawMany<{ subCategoryId: number; cnt: string }>();
+    const countBySubCategoryId = new Map(counts.map((c) => [Number(c.subCategoryId), Number(c.cnt)]));
+
+    return rows.map((r) => ({
+      subCategoryId: r.id,
+      subCategoryName: r.name,
+      categoryId: r.categoryId,
+      categoryName: r.category?.name ?? null,
+      approvalStatus: r.approvalStatus,
+      clientUserId: r.userId ?? null,
+      businessNumber: r.businessNumber ?? null,
+      pendingExpenseCount: countBySubCategoryId.get(r.id) ?? 0,
+    }));
   }
 }

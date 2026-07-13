@@ -69,6 +69,7 @@ describe('CatalogService', () => {
   let accountRepo: ReturnType<typeof makeRepo<any>>;
   let sectionRepo: ReturnType<typeof makeRepo<any>>;
   let allocator: jest.Mocked<AccountCodeAllocatorService>;
+  let expenseRepo: any;
   let service: CatalogService;
 
   const SYS = SYSTEM_CHART_OWNER_KEY;
@@ -112,6 +113,18 @@ describe('CatalogService', () => {
       transaction: jest.fn().mockImplementation((cb: (m: any) => Promise<any>) => cb(mockManager)),
     };
 
+    // 5.4 pending-approvals blocked-expense counts.
+    expenseRepo = {
+      createQueryBuilder: jest.fn().mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        addSelect: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        groupBy: jest.fn().mockReturnThis(),
+        getRawMany: jest.fn().mockResolvedValue([]),
+      }),
+    };
+
     service = new CatalogService(
       categoryRepo as any,
       subCategoryRepo as any,
@@ -119,6 +132,7 @@ describe('CatalogService', () => {
       sectionRepo as any,
       allocator,
       dataSource as any,
+      expenseRepo as any,
     );
   });
 
@@ -607,6 +621,95 @@ describe('CatalogService', () => {
 
       const catalog = await service.getMergedExpenseCatalog({ businessNumber: '123456789' });
       expect(catalog.find((s) => s.name === 'משכורת')).toBeUndefined();
+    });
+  });
+
+  // ── getCatalogOverview + getPendingApprovals (Phase 5.4) ─────────────────
+
+  describe('getCatalogOverview', () => {
+    it('returns ALL rows across the visible layers with isEffective marking the D4 winner', async () => {
+      categoryRepo.rows.push(
+        { id: 2, name: 'רכב ותחבורה', type: CategoryType.EXPENSE, chartOwnerKey: CLIENT, isActive: true, ownerType: OwnerType.CLIENT },
+      );
+      subCategoryRepo.rows.push(
+        {
+          id: 10, name: 'דלק', categoryId: 1, chartOwnerKey: SYS, isActive: true, ownerType: OwnerType.SYSTEM,
+          accountId: 1, account: accountRepo.rows[0], category: categoryRepo.rows[0],
+          approvalStatus: ApprovalStatus.APPROVED,
+        },
+        {
+          id: 11, name: 'דלק', categoryId: 2, chartOwnerKey: CLIENT, isActive: true, ownerType: OwnerType.CLIENT,
+          accountId: null, account: null, category: categoryRepo.rows[1],
+          approvalStatus: ApprovalStatus.MISSING_ACCOUNTING_MAPPING,
+        },
+      );
+
+      const overview = await service.getCatalogOverview({ businessNumber: '123456789' });
+
+      // Both rows are listed (NOT collapsed), the CLIENT one is effective.
+      const delek = overview.subCategories.filter((s) => s.name === 'דלק');
+      expect(delek).toHaveLength(2);
+      expect(delek.find((s) => s.id === 11)?.isEffective).toBe(true);
+      expect(delek.find((s) => s.id === 10)?.isEffective).toBe(false);
+      // Card law is surfaced from the account on the mapped row only.
+      expect(delek.find((s) => s.id === 10)?.taxPercent).toBe(45);
+      expect(delek.find((s) => s.id === 11)?.accountCode).toBeNull();
+      // Categories carry the same effective marking.
+      const cats = overview.categories.filter((c) => c.name === 'רכב ותחבורה');
+      expect(cats).toHaveLength(2);
+      expect(cats.find((c) => c.chartOwnerKey === CLIENT)?.isEffective).toBe(true);
+      expect(cats.find((c) => c.chartOwnerKey === SYS)?.isEffective).toBe(false);
+    });
+  });
+
+  describe('getPendingApprovals', () => {
+    it('returns MISSING/PENDING rows for the given clients with blocked-expense counts', async () => {
+      subCategoryRepo.rows.push(
+        {
+          id: 20, name: 'איתוראן', categoryId: 1, chartOwnerKey: 'CLIENT_111', isActive: true,
+          userId: 'client-1', businessNumber: '111',
+          approvalStatus: ApprovalStatus.MISSING_ACCOUNTING_MAPPING,
+          category: categoryRepo.rows[0],
+        },
+        {
+          id: 21, name: 'ממופה', categoryId: 1, chartOwnerKey: 'CLIENT_111', isActive: true,
+          userId: 'client-1', businessNumber: '111',
+          approvalStatus: ApprovalStatus.APPROVED,
+          category: categoryRepo.rows[0],
+        },
+        {
+          id: 22, name: 'של לקוח אחר', categoryId: 1, chartOwnerKey: 'CLIENT_222', isActive: true,
+          userId: 'client-other', businessNumber: '222',
+          approvalStatus: ApprovalStatus.MISSING_ACCOUNTING_MAPPING,
+          category: categoryRepo.rows[0],
+        },
+      );
+      expenseRepo.createQueryBuilder.mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        addSelect: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        groupBy: jest.fn().mockReturnThis(),
+        getRawMany: jest.fn().mockResolvedValue([{ subCategoryId: 20, cnt: '3' }]),
+      });
+
+      const queue = await service.getPendingApprovals(['client-1']);
+
+      expect(queue).toHaveLength(1);
+      expect(queue[0]).toMatchObject({
+        subCategoryId: 20,
+        subCategoryName: 'איתוראן',
+        approvalStatus: ApprovalStatus.MISSING_ACCOUNTING_MAPPING,
+        clientUserId: 'client-1',
+        businessNumber: '111',
+        pendingExpenseCount: 3,
+      });
+    });
+
+    it('empty client list → empty queue, no queries', async () => {
+      const queue = await service.getPendingApprovals([]);
+      expect(queue).toEqual([]);
+      expect(expenseRepo.createQueryBuilder).not.toHaveBeenCalled();
     });
   });
 

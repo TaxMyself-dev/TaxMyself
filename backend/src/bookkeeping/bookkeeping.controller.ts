@@ -130,6 +130,47 @@ export class BookkepingController {
     };
   }
 
+  /**
+   * Phase 5.4: the accountant catalog-management listing — every active
+   * category/sub_category row across the three visible layers
+   * (CLIENT/ACCOUNTANT/SYSTEM), each with its owner badge fields and an
+   * isEffective flag (whether it wins the D4 merge for its name). Available
+   * to anyone the guard lets act on the business — capabilities, not
+   * visibility, are what's accountant-gated (D9).
+   */
+  @Get('catalog-overview')
+  @UseGuards(FirebaseAuthGuard)
+  async getCatalogOverview(
+    @Req() request: AuthenticatedRequest,
+    @Query('businessNumber') businessNumber: string,
+  ) {
+    const firebaseId = request.user?.firebaseId;
+    if (!firebaseId) throw new UnauthorizedException('Not authenticated');
+    const effectiveBusinessNumber = businessNumber?.trim() || request.user?.businessNumber;
+    if (!effectiveBusinessNumber) throw new BadRequestException('businessNumber is required');
+    return this.catalogService.getCatalogOverview(
+      await this.catalogContextService.forUser(firebaseId, effectiveBusinessNumber),
+    );
+  }
+
+  /**
+   * Phase 5.4: the acting accountant's pending-approval queue —
+   * sub_categories with MISSING_ACCOUNTING_MAPPING / PENDING_ACCOUNTANT_APPROVAL
+   * across ALL their ACTIVE-delegation clients, with the number of expenses
+   * blocked on each. Keyed to the ACTOR (works while impersonating a client).
+   */
+  @Get('pending-approvals')
+  @UseGuards(FirebaseAuthGuard)
+  async getPendingApprovals(@Req() request: AuthenticatedRequest) {
+    const actorFirebaseId = request.user?.actorFirebaseId ?? request.user?.firebaseId;
+    if (!actorFirebaseId) throw new UnauthorizedException('Not authenticated');
+    if (!(await this.catalogContextService.isAccountantOrAdmin(actorFirebaseId))) {
+      throw new ForbiddenException('רק רואה חשבון (או מנהל מערכת) יכול לצפות בתור האישורים');
+    }
+    const clientUserIds = await this.catalogContextService.activeClientIdsForAgent(actorFirebaseId);
+    return this.catalogService.getPendingApprovals(clientUserIds);
+  }
+
   /** Manual, single-sided journal entry (no counter-account) — for cases the
    *  automatic EXPENSE/document postings don't cover. */
   @Post('manual-journal-entry')
