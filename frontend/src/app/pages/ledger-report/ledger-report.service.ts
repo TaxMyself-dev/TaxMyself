@@ -146,9 +146,11 @@ export class LedgerReportService {
   }
 
   /** Full chart of accounts for the ledger FILTER dropdown (incl. technical accounts). */
-  getLedgerAccounts(): Observable<ILedgerAccountOption[]> {
+  getLedgerAccounts(businessNumber?: string): Observable<ILedgerAccountOption[]> {
     const url = `${environment.apiUrl}reports/ledger-accounts`;
-    return this.http.get<ILedgerAccountOption[]>(url);
+    let params = new HttpParams();
+    if (businessNumber) params = params.set('businessNumber', businessNumber);
+    return this.http.get<ILedgerAccountOption[]>(url, { params });
   }
 
   /** Posting accounts for the MANUAL JOURNAL ENTRY dropdown (excludes

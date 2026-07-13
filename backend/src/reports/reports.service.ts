@@ -922,9 +922,27 @@ export class ReportsService {
 
   /** Full chart of accounts for the ledger FILTER dropdown, in display order.
    *  Includes technical accounts (2400/2410 VAT, 1000) so the ledger can be
-   *  filtered to any account that may carry movements. */
-  async getLedgerAccounts(): Promise<{ code: string; name: string; type: string }[]> {
-    const chart = await this.defaultBookingAccountRepo.find();
+   *  filtered to any account that may carry movements. Phase 6.4: scoped to
+   *  the charts visible to the business (SYSTEM + its CLIENT chart + its
+   *  agents' ACCOUNTANT charts) — an unscoped read leaked every tenant's
+   *  custom card names into everyone's dropdown. Unlike the posting
+   *  dropdown, inactive accounts stay listed: they may still carry history
+   *  the user needs to filter to. */
+  async getLedgerAccounts(
+    businessNumber?: string | null,
+    firebaseId?: string | null,
+  ): Promise<{ code: string; name: string; type: string }[]> {
+    const accountantIds = firebaseId
+      ? await this.catalogContextService.accountantIdsForUser(firebaseId)
+      : [];
+    const chartOwnerKeys = [
+      'SYSTEM',
+      ...(businessNumber ? [`CLIENT_${businessNumber}`] : []),
+      ...accountantIds.map((id) => `ACCOUNTANT_${id}`),
+    ];
+    const chart = await this.defaultBookingAccountRepo.find({
+      where: { chartOwnerKey: In(chartOwnerKeys) },
+    });
     return chart
       .sort((a, b) => this.compareLedgerAccountCodes(a.code, b.code))
       .map((a) => ({ code: a.code, name: a.name, type: a.type }));

@@ -144,13 +144,27 @@ export class LedgerReportPage implements OnInit {
           if (business) {
             this.businessNumber.set(business.businessNumber);
             this.businessName.set(business.businessName);
+            // Phase 6.4: the account list is business-scoped now (SYSTEM +
+            // the business's own chart + its agents') — reload on switch.
+            this.loadAccountOptions(business.businessNumber);
           }
         }
       });
 
     // Load the account-selector options asynchronously into the signal used in
     // filterConfig above. This does NOT delay control registration.
-    this.ledgerReportService.getLedgerAccounts()
+    this.loadAccountOptions(this.businessNumber() || undefined);
+
+    // Posting accounts for the manual journal-entry modal are loaded on
+    // modal open (openJournalEntryModal) — they are business-scoped since
+    // Phase 4.5, so loading them here (before a business is picked) would
+    // fetch the wrong scope.
+  }
+
+  /** (Re)load the filter dropdown's chart, keeping the "all accounts" head
+   *  option; a reset also clears a stale account pick from another business. */
+  private loadAccountOptions(businessNumber?: string): void {
+    this.ledgerReportService.getLedgerAccounts(businessNumber)
       .pipe(
         takeUntilDestroyed(this.destroyRef),
         catchError(() => EMPTY),
@@ -160,12 +174,11 @@ export class LedgerReportPage implements OnInit {
           { name: 'כל הכרטיסים', value: '' },
           ...(accounts ?? []).map((a) => ({ name: `${a.code} - ${a.name}`, value: a.code })),
         ]);
+        const currentPick = this.form.get('accountCode')?.value;
+        if (currentPick && !(accounts ?? []).some((a) => a.code === currentPick)) {
+          this.form.get('accountCode')?.setValue('', { emitEvent: false });
+        }
       });
-
-    // Posting accounts for the manual journal-entry modal are loaded on
-    // modal open (openJournalEntryModal) — they are business-scoped since
-    // Phase 4.5, so loading them here (before a business is picked) would
-    // fetch the wrong scope.
   }
 
   onSubmit(formValues: any): void {
