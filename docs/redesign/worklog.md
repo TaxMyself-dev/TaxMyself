@@ -1637,3 +1637,41 @@ question" was fixed immediately rather than deferred to Phase 7.
 - Plan checkboxes 6.1-6.4 were already ticked and `Current phase:
   cutover-ready` already set by 11A's close-out (`ba76665d`) — confirmed,
   not re-touched.
+
+## Session 12 — 2026-07-13 — Cutover.sql final review + cutover-day checklist
+
+Assembled the section-by-section review of `cutover.sql` and wrote
+`docs/redesign/cutover-day-checklist.md` (the plan's generic 7-step
+checklist filled in with real file names/databases). Found and fixed two
+real gaps in `cutover.sql` before treating it as final:
+
+- **Stale conflicting Section 2 (business dedup)**: the file had TWO
+  sections resolving the same `businessNumber='314719279'` duplicate —
+  the original Session-1 placeholder (delete id=12, constraint
+  `uq_business_businessNumber`) and the actual Session-8 D12.4 section
+  (delete id=5, constraint `ux_business_number`, matching
+  `business.entity.ts`). Running the file end-to-end as it stood would
+  delete BOTH business rows, not one. Removed the stale Section 2 (left a
+  pointer comment explaining why); the D12.4 section at the end of the
+  file is the one true version. Elazar confirmed this read and the fix.
+- **Missing `journal_entry.referenceId` nullability ALTER**:
+  `schema-drift.md` Gap 3 deferred this to "whichever phase introduces
+  manual journal entries" (Phase 4.5, live since Session 9 —
+  `BookkeepingService.createManualJournalEntry` sets `referenceId: null`),
+  but nobody actually appended the ALTER to `cutover.sql` when that phase
+  shipped. Production's column is still `int NOT NULL` — first manual
+  entry post-cutover would have hard-failed. Added new **Section 7**
+  (`ALTER TABLE journal_entry MODIFY referenceId bigint NULL`) with a
+  verification query. Elazar confirmed.
+- Ran a systematic audit pass: every `*.entity.ts` file touched by any
+  redesign commit since Session 1 (2026-07-10) cross-checked against
+  `cutover.sql`'s sections. The 2026-07-12 accidental-synchronize incident
+  fix (`12840dec`, named `@Unique`/`@Index` decorators on
+  category/sub_category/booking_account/accounting_section/
+  account_code_migration/extracted_document/`Source`) is naming-only and
+  already matches the constraint names `cutover.sql` creates — no action
+  needed. No other gaps found.
+
+No code changes this session — `cutover.sql` and this checklist doc only.
+Still `Current phase: cutover-ready`; Elazar executes the actual cutover
+checklist manually per the plan.

@@ -49,50 +49,16 @@ ALTER TABLE `user_sub_category`
 -- SECTION 2 (Phase 0.3 / D12.4) — dedupe `business.businessNumber` and add
 -- the missing UNIQUE constraint.
 --
--- STAGED HERE NOW, DEPLOYED IN SESSION 8: D12 security fixes ship
--- independently of the main cutover, but this one needs an actual data
--- decision first (verified 2026-07-10, see production-baseline.md), so it's
--- written and rehearsed here rather than re-discovered from scratch later.
---
--- businessNumber '314719279' has two `business` rows — id 5 (נגרות, EXEMPT,
--- firebaseId aywY4Mhz90RzzrVU99RswfL2YUs1) and id 12 (פוטובלוק שמואל,
--- LICENSED, firebaseId CY2jmdBQ4AYH70BZARRp28j0GIi1). Both are confirmed
--- empty test/duplicate data — zero dependent rows in expense, journal_entry,
--- journal_line, documents, extracted_document, supplier,
--- classified_transactions, user_category, user_sub_category, bill,
--- accountant_task, report_workflow, delegation, annual_report,
--- slim_transactions, full_transactions_cache. Elazar's decision: delete id
--- 12, keep id 5.
+-- Superseded by the actual Session 8 investigation and moved to the end of
+-- this file under "PHASE 0.3 / D12.4 - UNIQUE(businessNumber) on business
+-- (Session 8)" — see that section for the real decision (delete id=5, not
+-- id=12; index named `ux_business_number`, matching business.entity.ts).
+-- This placeholder previously staged the wrong id and a differently-named
+-- constraint from before the D12.4 investigation happened; removed
+-- 2026-07-13 so a full run of this file doesn't delete BOTH business rows
+-- under 314719279 (Section 2's DELETE id=12 followed by the end section's
+-- guarded DELETE id=5, which still matches after Section 2 runs).
 -- ============================================================================
-
--- Pre-delete verification (expect 0 rows from every SELECT — if any of
--- these return rows when this is actually run, STOP: the "zero dependents"
--- premise no longer holds and this section needs re-review before deleting).
--- SELECT COUNT(*) FROM expense WHERE businessNumber = '314719279' AND userId = 'CY2jmdBQ4AYH70BZARRp28j0GIi1';
--- SELECT COUNT(*) FROM journal_entry WHERE issuerBusinessNumber = '314719279' AND firebaseId = 'CY2jmdBQ4AYH70BZARRp28j0GIi1';
--- SELECT COUNT(*) FROM journal_line WHERE issuerBusinessNumber = '314719279' AND firebaseId = 'CY2jmdBQ4AYH70BZARRp28j0GIi1';
--- SELECT COUNT(*) FROM documents WHERE issuerBusinessNumber = '314719279';
--- SELECT COUNT(*) FROM extracted_document WHERE business_number = '314719279';
--- SELECT COUNT(*) FROM supplier WHERE businessNumber = '314719279' AND userId = 'CY2jmdBQ4AYH70BZARRp28j0GIi1';
--- SELECT COUNT(*) FROM classified_transactions WHERE businessNumber = '314719279' AND userId = 'CY2jmdBQ4AYH70BZARRp28j0GIi1';
--- SELECT COUNT(*) FROM user_category WHERE businessNumber = '314719279' AND firebaseId = 'CY2jmdBQ4AYH70BZARRp28j0GIi1';
--- SELECT COUNT(*) FROM user_sub_category WHERE businessNumber = '314719279' AND firebaseId = 'CY2jmdBQ4AYH70BZARRp28j0GIi1';
--- SELECT COUNT(*) FROM bill WHERE businessNumber = '314719279' AND userId = 'CY2jmdBQ4AYH70BZARRp28j0GIi1';
--- SELECT COUNT(*) FROM accountant_task WHERE businessNumber = '314719279';
--- SELECT COUNT(*) FROM report_workflow WHERE businessNumber = '314719279';
--- SELECT COUNT(*) FROM delegation WHERE userId = 'CY2jmdBQ4AYH70BZARRp28j0GIi1';
--- SELECT COUNT(*) FROM annual_report WHERE businessNumber = '314719279';
--- SELECT COUNT(*) FROM slim_transactions WHERE businessNumber = '314719279';
--- SELECT COUNT(*) FROM full_transactions_cache WHERE businessNumber = '314719279';
-
-DELETE FROM `business` WHERE `id` = 12;
-
-ALTER TABLE `business`
-  ADD CONSTRAINT `uq_business_businessNumber`
-  UNIQUE (`businessNumber`);
-
--- Verification (run after applying, expect 0 rows):
--- SELECT businessNumber, COUNT(*) c FROM business GROUP BY businessNumber HAVING c > 1;
 
 
 -- ============================================================================
@@ -1385,6 +1351,36 @@ COMMIT;
 -- generate-baseline-reports.ts + compare-baseline-reports.ts for the report-
 -- reproduction check (Definition of Done per the master plan).
 -- ============================================================================
+
+
+-- ============================================================================
+-- SECTION 7 (Phase 4.5, schema-drift.md Gap 3) — journal_entry.referenceId
+-- nullability.
+--
+-- Gap 3 was flagged in Phase 0.6 (schema-drift.md) as a yes/no deferred to
+-- "whichever phase actually introduces manual journal entries" — that was
+-- Phase 4.5 (`BookkeepingService.createManualJournalEntry`, live since
+-- Session 9, sets `referenceId: null` for MANUAL entries). The ALTER was
+-- never actually appended to cutover.sql at that time — added here
+-- 2026-07-13 during cutover review, before it ships to production as a real
+-- gap: `journal_entry.referenceId` is still `int NOT NULL` in production, so
+-- the first manual journal entry posted after cutover would fail with a
+-- NOT NULL constraint violation.
+--
+-- No data changes needed: no MANUAL referenceType rows exist in production
+-- today (schema-drift.md Gap 3), so no existing row has a value that would
+-- conflict with the relaxed constraint.
+-- ============================================================================
+
+ALTER TABLE `journal_entry`
+  MODIFY COLUMN `referenceId` bigint NULL;
+
+-- Verification (run after applying, expect 1 row, Null = YES):
+-- SHOW COLUMNS FROM journal_entry LIKE 'referenceId';
+--
+-- Expect 0 — confirms no existing row's referenceId is unexpectedly NULL
+-- from anything other than a genuine MANUAL entry going forward.
+-- SELECT COUNT(*) FROM journal_entry WHERE referenceId IS NULL AND referenceType <> 'MANUAL';
 
 
 -- ============================================================================
