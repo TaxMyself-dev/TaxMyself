@@ -48,4 +48,10 @@ export class UpdateSupplierDto {
     @IsNumber()
     reductionPercent: number;
 
+    /** Phase 6.3: FK pointer at the classified sub_category — the string
+     *  category/subCategory pair above stays as the display copy. */
+    @IsOptional()
+    @IsNumber()
+    subCategoryId?: number | null;
+
 }

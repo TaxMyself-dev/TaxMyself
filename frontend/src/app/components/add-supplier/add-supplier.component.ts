@@ -149,6 +149,15 @@ export class AddSupplierComponent {
       return acc;
     }, {} as Partial<ISupplier>);
 
+    // Phase 6.3: attach the picked sub_category's FK (resolved by name from
+    // the loaded list). Only when found — never null out an existing pointer
+    // just because the list didn't load.
+    const selectedSub = this.addSupplierService.subCategoriesResource.value()
+      ?.find((item: ISubCategory) => item.subCategoryName === (raw.subCategory ?? ''));
+    if (selectedSub) {
+      (supplierData as any).subCategoryId = selectedSub.id;
+    }
+
     if (this.editMode && this.supplierId != null) {
       this.doUpdateSupplier(supplierData);
       return;
