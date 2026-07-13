@@ -1001,6 +1001,7 @@ export class ExpensesService {
             businessNumber: cat.businessNumber ?? null,
             isExpense: cat.type === CategoryType.EXPENSE,
             accountCode: null,
+            defaultRecognitionType: cat.defaultRecognitionType ?? null,
         };
     }
 
@@ -1094,11 +1095,32 @@ export class ExpensesService {
         const created: SubCategory[] = [];
         for (const subDto of subCategories) {
             let sub: SubCategory;
-            if (subDto.deferToAccountant) {
+            if (subDto.isPrivate) {
+                // D5 option 1: private expense type — no card at all, never
+                // journaled. Wins over any other mapping field on the row.
+                sub = await this.catalogService.createSubCategory(scope, category, subDto.subCategoryName, {
+                    isPrivate: true,
+                    reportScope: subDto.reportScope ?? ExpenseReportScope.PNL,
+                    createdByUserId: firebaseId,
+                });
+            } else if (subDto.deferToAccountant) {
                 // No law, no accountId → CatalogService lands the row as
                 // MISSING_ACCOUNTING_MAPPING; the accountant completes it via
                 // the D9 inline row (complete-mapping / repoint endpoints).
                 sub = await this.catalogService.createSubCategory(scope, category, subDto.subCategoryName, {
+                    reportScope: subDto.reportScope ?? ExpenseReportScope.PNL,
+                    createdByUserId: firebaseId,
+                });
+            } else if (subDto.accountId != null) {
+                // D5/D9 simple picker: explicit card choice — the card brings
+                // its own law (D1), so no percent fields ride along. Scope-check
+                // the id so one tenant can't point at another's card.
+                const account = await this.catalogService.findAccountByIdInScope(subDto.accountId, ctx);
+                if (!account) {
+                    throw new BadRequestException(`Account ${subDto.accountId} is not available for this business`);
+                }
+                sub = await this.catalogService.createSubCategory(scope, category, subDto.subCategoryName, {
+                    accountId: account.id,
                     reportScope: subDto.reportScope ?? ExpenseReportScope.PNL,
                     createdByUserId: firebaseId,
                 });
@@ -1143,7 +1165,11 @@ export class ExpensesService {
         const ctx = { userId: firebaseId, businessNumber };
         const scope = this.catalogService.buildScope(OwnerType.CLIENT, ctx);
         const type = createUserCategoryDto.isExpense === false ? CategoryType.INCOME : CategoryType.EXPENSE;
-        await this.catalogService.findOrCreateCategory(scope, createUserCategoryDto.categoryName, type, firebaseId);
+        const category = await this.catalogService.findOrCreateCategory(scope, createUserCategoryDto.categoryName, type, firebaseId);
+        if (createUserCategoryDto.defaultRecognitionType && !category.defaultRecognitionType) {
+            category.defaultRecognitionType = createUserCategoryDto.defaultRecognitionType;
+            await this.catalogService.saveCategory(category);
+        }
 
         return this.saveUserSubCategories(
             firebaseId,

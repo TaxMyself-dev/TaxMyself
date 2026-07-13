@@ -186,7 +186,10 @@ export class CatalogService {
     if (categoryIds.length === 0) return [];
     const rows = await this.subCategoryRepo.find({
       where: { chartOwnerKey: In(chartOwnerKeys), categoryId: In(categoryIds), isActive: true },
-      relations: ['account', 'category'],
+      // account.section joins the card's חתך so consumers (review-screen
+      // resolution preview, professional card picker — Phase 6.1) can
+      // group/display by section without a second query.
+      relations: ['account', 'account.section', 'category'],
     });
     return this.mergeByName(rows, chartOwnerKeys, (s) => s.name);
   }

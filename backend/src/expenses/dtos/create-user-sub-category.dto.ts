@@ -52,4 +52,22 @@ export class CreateUserSubCategoryDto {
   @IsOptional()
   deferToAccountant?: boolean;
 
+  /**
+   * Phase 6.2 (D5 option 1): הוצאה פרטית — no card, never journaled,
+   * excluded from business reports entirely. Wins over every other
+   * mapping field on the row.
+   */
+  @IsBoolean()
+  @IsOptional()
+  isPrivate?: boolean;
+
+  /**
+   * Phase 6.2 (D5/D9 simple picker): explicit card choice — "למה ההוצאה
+   * שייכת?". The card carries the full accounting law (D1), so no percent
+   * fields accompany it. Must be visible to the caller's catalog context.
+   */
+  @IsNumber()
+  @IsOptional()
+  accountId?: number;
+
 }

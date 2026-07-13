@@ -161,6 +161,24 @@ export class ExpenseDataService {
   }
 
 
+  /**
+   * Merged (CLIENT > ACCOUNTANT > SYSTEM) expense sub-categories with their
+   * card pointer — feeds the D9 simple picker ("למה ההוצאה שייכת?") in the
+   * add-category flow. Rows with accountId === null are unmapped and not
+   * pickable.
+   */
+  getExpenseCatalog(businessNumber: string): Observable<{
+    subCategoryId: number;
+    category: string | null;
+    subCategory: string;
+    accountId: number | null;
+  }[]> {
+    const url = `${environment.apiUrl}bookkeeping/expense-catalog`;
+    const params = new HttpParams().set('businessNumber', businessNumber);
+    return this.http.get<any[]>(url, { params });
+  }
+
+
   getcategry(isDefault?: boolean, isExpense: boolean = true): Observable<any[]> {
     const url = `${environment.apiUrl}expenses/get-categories`;
     const param = new HttpParams()

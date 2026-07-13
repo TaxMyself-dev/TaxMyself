@@ -211,7 +211,7 @@ export class BookkepingController {
   async getExpenseCatalog(
     @Req() request: AuthenticatedRequest,
     @Query('businessNumber') businessNumber: string,
-  ): Promise<{ subCategoryId: number; category: string | null; subCategory: string }[]> {
+  ): Promise<{ subCategoryId: number; category: string | null; subCategory: string; accountId: number | null }[]> {
     const firebaseId = request.user?.firebaseId;
     if (!firebaseId) throw new UnauthorizedException('Not authenticated');
     if (!businessNumber?.trim()) throw new BadRequestException('businessNumber is required');
@@ -224,6 +224,10 @@ export class BookkepingController {
         subCategoryId: s.id,
         category: s.category?.name ?? null,
         subCategory: s.name,
+        // Phase 6.2: the D9 simple picker ("למה ההוצאה שייכת?") sends the
+        // picked row's card id as the new sub_category's mapping. NULL =
+        // unmapped row (MISSING_ACCOUNTING_MAPPING) — not pickable.
+        accountId: s.accountId ?? null,
       }));
   }
 
