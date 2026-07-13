@@ -30,6 +30,11 @@ export interface ReviewDocSummary {
   isEquipment: boolean | null;
   uploadDate: string | null;
   documentType: string | null;
+  /** D8 routing kind: EXPENSE_INVOICE | ANNUAL_DOCUMENT | UNIDENTIFIED.
+   *  On the wire since Phase 4.3; the 6.1 screen renders the annual badge
+   *  + "תייק" action and the unidentified triage from it. Null for legacy
+   *  rows — treated as EXPENSE_INVOICE. */
+  documentKind: string | null;
   /** ISO-4217 currency code (e.g. "ILS", "USD"). Drives the
    *  foreign-currency sumLabel in the review modal — non-ILS docs show
    *  "$50" on top with "(₪185.40)" underneath via the SUM_WITH_FX
@@ -60,10 +65,43 @@ export interface ReviewTxSummary {
   originalCurrency: string | null;
 }
 
+/** D9 mapping verdict for a row's current classification (Phase 6.1). */
+export type ReviewMappingStatus =
+  | 'READY'
+  | 'MISSING_MAPPING'
+  | 'PRIVATE'
+  | 'UNCLASSIFIED';
+
+/**
+ * Server-side resolution preview for one review row (Phase 6.1 / D9) —
+ * the same delegation-aware merged-catalog resolution the approve path
+ * runs, so the professional-view columns show exactly what approval
+ * would post. Recomputed client-side when the user re-classifies a row.
+ */
+export interface ReviewClassification {
+  subCategoryId: number | null;
+  categoryName: string | null;
+  subCategoryName: string | null;
+  status: ReviewMappingStatus;
+  /** D7 description preview — frozen into expense+journal at approval. */
+  description: string;
+  /** Drives the "מופה ע״י רו״ח" badge + override icon. */
+  mappedByAccountant: boolean;
+  sectionCode: string | null;
+  sectionName: string | null;
+  accountId: number | null;
+  accountCode: string | null;
+  accountName: string | null;
+  vatPercent: number | null;
+  taxPercent: number | null;
+  reductionPercent: number | null;
+  isEquipment: boolean | null;
+}
+
 export type ReviewRow =
-  | { type: 'matched'; document: ReviewDocSummary; transaction: ReviewTxSummary }
-  | { type: 'doc_only'; document: ReviewDocSummary }
-  | { type: 'tx_only'; transaction: ReviewTxSummary };
+  | { type: 'matched'; document: ReviewDocSummary; transaction: ReviewTxSummary; classification: ReviewClassification }
+  | { type: 'doc_only'; document: ReviewDocSummary; classification: ReviewClassification }
+  | { type: 'tx_only'; transaction: ReviewTxSummary; classification: ReviewClassification };
 
 export interface ReportPreviewResponse {
   mode: 'documents_only' | 'with_banking';
@@ -72,6 +110,35 @@ export interface ReportPreviewResponse {
   /** Byte-identical re-uploads the inbox scan auto-rejected this pass.
    *  Surfaced as a non-blocking notice; never appear as review rows. */
   duplicatesSkipped: number;
+  /** D9: the business owner has at least one ACTIVE delegation. Missing-
+   *  mapping rows then show "חסר מיפוי — אצל הרו״ח" (disabled checkbox);
+   *  without one the client gets the simple "למה ההוצאה שייכת?" picker. */
+  clientHasActiveDelegation: boolean;
+}
+
+/**
+ * One row of GET /bookkeeping/expense-catalog?includePrivate=true — the
+ * merged (CLIENT > ACCOUNTANT > SYSTEM) expense catalog WITH each row's
+ * card law + section. Single data source for the approval screen's
+ * pickers (regular sub-category cascade, professional card-by-section)
+ * and the client-side live-resolution preview.
+ */
+export interface CatalogRow {
+  subCategoryId: number;
+  category: string | null;
+  subCategory: string;
+  accountId: number | null;
+  isPrivate: boolean;
+  approvalStatus: string;
+  ownerType: string;
+  accountCode: string | null;
+  accountName: string | null;
+  sectionCode: string | null;
+  sectionName: string | null;
+  vatPercent: number | null;
+  taxPercent: number | null;
+  reductionPercent: number | null;
+  isEquipment: boolean | null;
 }
 
 /**
@@ -82,6 +149,9 @@ export interface ReportPreviewResponse {
  * instead of computing from the date + business cadence.
  */
 export interface ReviewOverrides {
+  /** D1/Phase 6.1: direct sub_category pointer — wins over the name pair
+   *  in the backend's resolution. Sent whenever the picker knows the id. */
+  subCategoryId?: number;
   category?: string;
   subCategory?: string;
   vatPercent?: number;
@@ -211,6 +281,74 @@ export class ReportReviewService {
     return this.http.post<{ ok: true }>(
       `${environment.apiUrl}reports/me/review/unpair/${documentId}`,
       {},
+    );
+  }
+
+  /** D8 "תייק" — file an ANNUAL_DOCUMENT row for the annual report. The
+   *  doc leaves the review table with the terminal not_an_expense status;
+   *  no expense, no journal entry, ever. */
+  fileDoc(documentId: number): Observable<{ ok: true; documentId: number }> {
+    return this.http.post<{ ok: true; documentId: number }>(
+      `${environment.apiUrl}reports/me/review/file-doc/${documentId}`,
+      {},
+    );
+  }
+
+  /** D8 triage on an UNIDENTIFIED row — the human decides what the doc is:
+   *  EXPENSE_INVOICE (normal approval flow) or ANNUAL_DOCUMENT (תייק flow). */
+  setDocKind(
+    documentId: number,
+    documentKind: 'EXPENSE_INVOICE' | 'ANNUAL_DOCUMENT',
+  ): Observable<{ ok: true; documentId: number; documentKind: string }> {
+    return this.http.patch<{ ok: true; documentId: number; documentKind: string }>(
+      `${environment.apiUrl}reports/me/review/doc-kind/${documentId}`,
+      { documentKind },
+    );
+  }
+
+  /**
+   * D9 inline mapping completion (accountant-only backend gate). Called
+   * right after an approve that landed MISSING_ACCOUNTING_MAPPING:
+   * applyToFuture=false → one-off snapshot override on this expense;
+   * true → repoint the sub_category (future expenses follow) + re-resolve.
+   * Either way the expense is approved + journaled by the backend.
+   */
+  completeExpenseMapping(
+    expenseId: number,
+    accountId: number,
+    applyToFuture: boolean,
+  ): Observable<{ id: number }> {
+    return this.http.post<{ id: number }>(
+      `${environment.apiUrl}expenses/${expenseId}/complete-mapping`,
+      { accountId, applyToFuture },
+    );
+  }
+
+  /**
+   * D9 future-mapping primitive: repoint a sub_category at a card so
+   * future classifications resolve there. Used by the simple picker
+   * (unaccompanied client completing their own unmapped row). SYSTEM/
+   * ACCOUNTANT-owned rows land a same-named CLIENT override — the
+   * response carries the row that was ACTUALLY mapped (its id may differ
+   * from the one sent).
+   */
+  repointSubCategory(
+    subCategoryId: number,
+    accountId: number,
+  ): Observable<{ id: number }> {
+    return this.http.patch<{ id: number }>(
+      `${environment.apiUrl}bookkeeping/sub-categories/${subCategoryId}/account`,
+      { accountId },
+    );
+  }
+
+  /** Merged expense catalog with card law + section per row — the approval
+   *  screen's single picker/preview data source (includePrivate so a user
+   *  can classify a personal purchase as private). */
+  getCatalog(businessNumber: string): Observable<CatalogRow[]> {
+    return this.http.get<CatalogRow[]>(
+      `${environment.apiUrl}bookkeeping/expense-catalog`,
+      { params: { businessNumber, includePrivate: 'true' } },
     );
   }
 

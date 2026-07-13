@@ -20,18 +20,41 @@ import { ButtonComponent } from '../button/button.component';
 import { ButtonColor, ButtonSize } from '../button/button.enum';
 import { GenericTableComponent } from '../generic-table/generic-table.component';
 import { GenericService } from 'src/app/services/generic.service';
-import {
-  DriveDocsService,
-  SubCategoryCatalogEntry,
-} from 'src/app/services/drive-docs.service';
+import { AuthService } from 'src/app/services/auth.service';
 import { FormTypes, ICellRenderer, VATReportingType } from 'src/app/shared/enums';
 import { IColumnDataTable, IRowDataTable } from 'src/app/shared/interface';
 import {
+  CatalogRow,
   ReportPreviewResponse,
   ReportReviewService,
+  ReviewMappingStatus,
   ReviewOverrides,
   ReviewRow,
 } from 'src/app/services/report-review.service';
+
+/** D9 view modes — one screen, two column sets. Persisted per user. */
+type ReviewViewMode = 'regular' | 'professional';
+
+/** A card (booking account) entry for the professional-view classification
+ *  dropdown and the mapping-completion picker — derived by grouping the
+ *  merged catalog's mapped rows by accountId. Picking a card resolves to
+ *  `subCategoryId` (its representative sub_category) since an expense is
+ *  always classified through a sub_category (D1 thin-pointer model). */
+interface CardOption {
+  accountId: number;
+  accountCode: string;
+  accountName: string;
+  sectionName: string;
+  vatPercent: number;
+  taxPercent: number;
+  reductionPercent: number;
+  isEquipment: boolean;
+  /** Representative catalog row: same-named sub_category when one exists,
+   *  otherwise the card's first sub_category alphabetically. */
+  subCategoryId: number;
+  categoryName: string;
+  subCategoryName: string;
+}
 
 /**
  * Flat row shape consumed by GenericTableComponent. Built from the
@@ -71,6 +94,11 @@ interface EditableReviewRow {
    *  to show the "פצל" (unpair) action — only invoice_receipt_pair rows
    *  expose it. Null for tx_only and for legacy rows without an OCR'd type. */
   documentType: string | null;
+  /** D8 routing kind: EXPENSE_INVOICE | ANNUAL_DOCUMENT | UNIDENTIFIED.
+   *  ANNUAL rows get the "לא הוצאה — נשמר לדוח השנתי" badge + "תייק" action
+   *  (never approve); UNIDENTIFIED rows get the triage actions. Null for
+   *  tx_only rows and legacy docs — treated as EXPENSE_INVOICE. */
+  documentKind: string | null;
 
   // Display fields used by the read-only columns.
   supplier: string;
@@ -88,13 +116,35 @@ interface EditableReviewRow {
   currency: string;
   ilsAmount: number | null;
 
-  // Editable classification — initially populated from doc-side (matched,
-  // doc_only) or slim-side (tx_only). User can change inline before approve.
+  // Editable classification — initially populated from the preview's
+  // server-side classification block (canonical merged-catalog names), with
+  // the raw doc/slim names as the UNCLASSIFIED fallback. User can change
+  // inline before approve; every change re-resolves against the local
+  // catalog (D9 live-resolution preview).
   category: string;
   subCategory: string;
+  /** Effective merged-catalog sub_category id — sent in overrides so the
+   *  backend resolves by id, not by name pair. Null when UNCLASSIFIED. */
+  subCategoryId: number | null;
   vatPercent: number;
   taxPercent: number;
   isEquipment: boolean;
+
+  // ---- D9 resolution preview (recomputed on every classification change,
+  //      frozen server-side into snapshots at approval) ----
+  mappingStatus: ReviewMappingStatus;
+  /** D7 description — the professional view's single classification column. */
+  description: string;
+  /** Effective sub_category is accountant-owned / accountant-approved —
+   *  drives the "מופה ע״י רו״ח" badge + override icon. */
+  mappedByAccountant: boolean;
+  sectionName: string;
+  accountId: number | null;
+  accountCode: string;
+  accountName: string;
+  /** Card display label for the professional account column: "name (code)". */
+  accountLabel: string;
+  reductionPercent: number;
 
   // Editable period label ("M/YYYY" or "M1-M2/YYYY"). overridden=true when
   // the user picks a non-derived value — only then do we send it as an
@@ -174,7 +224,7 @@ export class ReportReviewDialogComponent {
 
   // ---- Deps ------------------------------------------------------------
   private reviewService = inject(ReportReviewService);
-  private driveDocsService = inject(DriveDocsService);
+  private authService = inject(AuthService);
   private messageService = inject(MessageService);
   private genericService = inject(GenericService);
   private sanitizer = inject(DomSanitizer);
@@ -192,9 +242,44 @@ export class ReportReviewDialogComponent {
     matched: 0, docOnly: 0, txOnly: 0,
   });
 
-  /** Sub-category catalog — populates the cascading dropdowns. Same source
-   *  as PullDriveDocsDialog uses. Loaded once per dialog open. */
-  catalog = signal<SubCategoryCatalogEntry[]>([]);
+  /** Merged expense catalog WITH card law + section per row
+   *  (GET bookkeeping/expense-catalog?includePrivate=true) — single data
+   *  source for the cascading pickers, the professional card dropdown and
+   *  the client-side live-resolution preview. Loaded once per dialog open. */
+  catalog = signal<CatalogRow[]>([]);
+
+  /** D9: does the business owner have an ACTIVE delegation (an accountant
+   *  services them)? From the preview response. Missing-mapping rows show
+   *  "אצל הרו״ח" when true; the simple picker when false. */
+  clientHasActiveDelegation = signal<boolean>(false);
+
+  /**
+   * D9 view mode. Persisted per user in localStorage; first-ever default is
+   * professional for accountants/admins (the ACTOR's role — while
+   * impersonating a client, the accountant still lands on professional),
+   * regular for everyone else. The toggle itself is available to everyone —
+   * permissions gate capabilities, not visibility.
+   */
+  viewMode = signal<ReviewViewMode>('regular');
+
+  /** True when the ACTOR (real logged-in user, not the impersonated client)
+   *  is an accountant/admin — gates the inline mapping-completion flow.
+   *  The backend enforces the same gate on complete-mapping. */
+  isActorAccountant = false;
+
+  // ---- Mapping-completion dialog state (accountant, D9 inline row) ----
+  completionVisible = signal<boolean>(false);
+  completionAccountId = signal<number | null>(null);
+  /** "החל גם על סיווגים עתידיים" — checked = repoint the sub_category. */
+  completionApplyFuture = signal<boolean>(true);
+  private completionRow: EditableReviewRow | null = null;
+  completionRowLabel = signal<string>('');
+
+  // ---- Simple-picker dialog state (client without an accountant, D9) ----
+  simplePickerVisible = signal<boolean>(false);
+  simplePickerChoice = signal<number | null>(null); // accountId
+  private simplePickerRow: EditableReviewRow | null = null;
+  simplePickerRowLabel = signal<string>('');
 
   /** Inline link picker state: which tx is in link-mode + the doc selected. */
   linkingTxId = signal<number | null>(null);
@@ -256,22 +341,77 @@ export class ReportReviewDialogComponent {
   /** Unique sorted category names from the catalog. */
   categoryOptions = computed<string[]>(() => {
     const seen = new Set<string>();
-    for (const c of this.catalog()) seen.add(c.categoryName);
+    for (const c of this.catalog()) { if (c.category) seen.add(c.category); }
     return Array.from(seen).sort((a, b) => a.localeCompare(b, 'he'));
   });
 
   /** Sub-categories grouped by parent — O(1) lookup per render. */
-  private subCategoriesByCategory = computed<Map<string, SubCategoryCatalogEntry[]>>(() => {
-    const out = new Map<string, SubCategoryCatalogEntry[]>();
+  private subCategoriesByCategory = computed<Map<string, CatalogRow[]>>(() => {
+    const out = new Map<string, CatalogRow[]>();
     for (const c of this.catalog()) {
-      const list = out.get(c.categoryName) ?? [];
+      const key = c.category ?? '';
+      const list = out.get(key) ?? [];
       list.push(c);
-      out.set(c.categoryName, list);
+      out.set(key, list);
     }
     for (const list of out.values()) {
-      list.sort((a, b) => a.subCategoryName.localeCompare(b.subCategoryName, 'he'));
+      list.sort((a, b) => a.subCategory.localeCompare(b.subCategory, 'he'));
     }
     return out;
+  });
+
+  /**
+   * D9 professional view: classification is by CARD. Group the catalog's
+   * mapped rows by accountId — one option per card, labelled
+   * "name (code)", grouped by section for the <optgroup> render. The
+   * representative sub_category (same-named > alphabetical) is what the
+   * expense actually gets classified to (D1 thin-pointer model). Cards
+   * with no sub_category (technical cards) never appear here — they are
+   * not classifiable, only postable via manual journal entries.
+   */
+  cardOptions = computed<CardOption[]>(() => {
+    const byAccount = new Map<number, CatalogRow[]>();
+    for (const c of this.catalog()) {
+      if (c.accountId == null || c.isPrivate) continue;
+      const list = byAccount.get(c.accountId) ?? [];
+      list.push(c);
+      byAccount.set(c.accountId, list);
+    }
+    const options: CardOption[] = [];
+    for (const rows of byAccount.values()) {
+      rows.sort((a, b) => a.subCategory.localeCompare(b.subCategory, 'he'));
+      const rep = rows.find(r => r.subCategory === r.accountName) ?? rows[0];
+      options.push({
+        accountId: rep.accountId!,
+        accountCode: rep.accountCode ?? '',
+        accountName: rep.accountName ?? '',
+        sectionName: rep.sectionName ?? '',
+        vatPercent: Number(rep.vatPercent ?? 0),
+        taxPercent: Number(rep.taxPercent ?? 0),
+        reductionPercent: Number(rep.reductionPercent ?? 0),
+        isEquipment: !!rep.isEquipment,
+        subCategoryId: rep.subCategoryId,
+        categoryName: rep.category ?? '',
+        subCategoryName: rep.subCategory,
+      });
+    }
+    options.sort((a, b) =>
+      a.sectionName.localeCompare(b.sectionName, 'he') ||
+      a.accountName.localeCompare(b.accountName, 'he'),
+    );
+    return options;
+  });
+
+  /** Card options grouped by section — feeds <optgroup> in the professional
+   *  account dropdown and the completion/simple pickers. */
+  cardOptionsBySection = computed<{ section: string; cards: CardOption[] }[]>(() => {
+    const groups = new Map<string, CardOption[]>();
+    for (const opt of this.cardOptions()) {
+      const list = groups.get(opt.sectionName) ?? [];
+      list.push(opt);
+      groups.set(opt.sectionName, list);
+    }
+    return Array.from(groups.entries()).map(([section, cards]) => ({ section, cards }));
   });
 
   /** Doc_only rows — feeds the link picker dropdown on tx_only rows. */
@@ -280,6 +420,22 @@ export class ReportReviewDialogComponent {
   );
 
   constructor() {
+    // D9 view mode: the ACTOR's role decides the first-ever default
+    // (accountant → professional); after that the user's persisted choice
+    // wins. Keyed per real user so an accountant's preference doesn't leak
+    // into the client's own session on a shared browser.
+    const realUser = this.authService.getRealUserDataFromLocalStorage();
+    this.isActorAccountant =
+      !!realUser?.role?.includes('ACCOUNTANT') || !!realUser?.role?.includes('ADMIN');
+    const stored = realUser?.firebaseId
+      ? (localStorage.getItem(ReportReviewDialogComponent.VIEW_MODE_KEY_PREFIX + realUser.firebaseId) as ReviewViewMode | null)
+      : null;
+    this.viewMode.set(
+      stored === 'regular' || stored === 'professional'
+        ? stored
+        : this.isActorAccountant ? 'professional' : 'regular',
+    );
+
     // Auto-load preview + catalog when the dialog becomes visible.
     let wasOpen = false;
     effect(() => {
@@ -291,6 +447,18 @@ export class ReportReviewDialogComponent {
         wasOpen = false;
       }
     });
+  }
+
+  private static readonly VIEW_MODE_KEY_PREFIX = 'reviewViewMode:';
+
+  /** The regular/professional toggle — available to everyone (D9);
+   *  persisted per real user. */
+  setViewMode(mode: ReviewViewMode): void {
+    this.viewMode.set(mode);
+    const realUser = this.authService.getRealUserDataFromLocalStorage();
+    if (realUser?.firebaseId) {
+      localStorage.setItem(ReportReviewDialogComponent.VIEW_MODE_KEY_PREFIX + realUser.firebaseId, mode);
+    }
   }
 
   // ---- Lifecycle -------------------------------------------------------
@@ -310,6 +478,12 @@ export class ReportReviewDialogComponent {
     this.customPeriodVisible.set(false);
     this.customPeriodValue.set('');
     this.customPeriodRow = null;
+    this.completionVisible.set(false);
+    this.completionAccountId.set(null);
+    this.completionRow = null;
+    this.simplePickerVisible.set(false);
+    this.simplePickerChoice.set(null);
+    this.simplePickerRow = null;
   }
 
   /** Open the Drive preview side panel for a doc-side row. tx_only rows
@@ -349,7 +523,7 @@ export class ReportReviewDialogComponent {
     this.genericService.getLoader().subscribe();
 
     // Fetch catalog in parallel — independent of preview, doesn't block.
-    this.driveDocsService.getMySubCategoryCatalog(bn)
+    this.reviewService.getCatalog(bn)
       .pipe(catchError(() => EMPTY))
       .subscribe(catalog => this.catalog.set(catalog));
 
@@ -371,6 +545,7 @@ export class ReportReviewDialogComponent {
       .subscribe(preview => {
         this.mode.set(preview.mode);
         this.counts.set(preview.counts);
+        this.clientHasActiveDelegation.set(!!preview.clientHasActiveDelegation);
 
         // Non-blocking notice: the inbox scan auto-rejected byte-identical
         // re-uploads (same file dropped twice). They never become review
@@ -452,17 +627,28 @@ export class ReportReviewDialogComponent {
       currency = 'ILS';
       ilsAmount = null;
     }
-    const category    = docSide?.category    ?? txSide?.category    ?? '';
-    const subCategory = docSide?.subCategory ?? txSide?.subCategory ?? '';
-    const vatPercent  = Number(docSide?.vatPercent  ?? txSide?.vatPercent  ?? 0);
-    const taxPercent  = Number(docSide?.taxPercent  ?? txSide?.taxPercent  ?? 0);
-    const isEquipment = !!(docSide?.isEquipment ?? txSide?.isEquipment ?? false);
+    // D9: the server's classification block carries the canonical names +
+    // the resolved card law (exactly what approval would post). Raw doc/slim
+    // strings remain the display fallback for UNCLASSIFIED rows; their
+    // percents remain the fallback law so legacy behavior survives until
+    // the row is (re)classified against the catalog.
+    const c = r.classification;
+    const category    = c.categoryName    ?? docSide?.category    ?? txSide?.category    ?? '';
+    const subCategory = c.subCategoryName ?? docSide?.subCategory ?? txSide?.subCategory ?? '';
+    const vatPercent  = Number(c.vatPercent  ?? docSide?.vatPercent  ?? txSide?.vatPercent  ?? 0);
+    const taxPercent  = Number(c.taxPercent  ?? docSide?.taxPercent  ?? txSide?.taxPercent  ?? 0);
+    const isEquipment = !!(c.isEquipment ?? docSide?.isEquipment ?? txSide?.isEquipment ?? false);
 
     return {
       rowKey: `${r.type}:${docSide?.documentId ?? 'x'}:${txSide?.slimTransactionId ?? 'x'}`,
       type: r.type,
-      // Default-checked per spec (V = ✓). User unchecks to skip bulk approve.
-      selected: true,
+      // Default-checked per spec (V = ✓) — but ONLY approvable rows (D9:
+      // missing-mapping / unclassified / annual / unidentified rows cannot
+      // be approved, so they never enter the bulk queue pre-checked).
+      selected:
+        (c.status === 'READY' || c.status === 'PRIVATE') &&
+        docSide?.documentKind !== 'ANNUAL_DOCUMENT' &&
+        docSide?.documentKind !== 'UNIDENTIFIED',
       documentId: docSide?.documentId ?? null,
       slimTransactionId: txSide?.slimTransactionId ?? null,
       driveFileId: docSide?.driveFileId ?? '',
@@ -471,6 +657,7 @@ export class ReportReviewDialogComponent {
       allocationNumber: docSide?.allocationNumber ?? '',
       documentTypeLabel: this.documentTypeLabel(docSide?.documentType ?? null),
       documentType: docSide?.documentType ?? null,
+      documentKind: docSide?.documentKind ?? null,
       supplier,
       supplierId: docSide?.supplierId ?? '',
       date,
@@ -480,9 +667,19 @@ export class ReportReviewDialogComponent {
       ilsAmount,
       category,
       subCategory,
+      subCategoryId: c.subCategoryId,
       vatPercent,
       taxPercent,
       isEquipment,
+      mappingStatus: c.status,
+      description: c.description,
+      mappedByAccountant: c.mappedByAccountant,
+      sectionName: c.sectionName ?? '',
+      accountId: c.accountId,
+      accountCode: c.accountCode ?? '',
+      accountName: c.accountName ?? '',
+      accountLabel: c.accountName ? `${c.accountName} (${c.accountCode})` : '',
+      reductionPercent: Number(c.reductionPercent ?? 0),
       reportPeriod: this.derivePeriod(date),
       reportPeriodOverridden: false,
       matchedTypeLabel: this.matchedTypeLabel(r.type),
@@ -550,67 +747,124 @@ export class ReportReviewDialogComponent {
 
   // ---- Cascading dropdown handlers ------------------------------------
 
-  subCategoriesForCategory(cat: string): SubCategoryCatalogEntry[] {
+  subCategoriesForCategory(cat: string): CatalogRow[] {
     if (!cat) return [];
     return this.subCategoriesByCategory().get(cat) ?? [];
   }
 
-  /** Category changed — clear sub-category + derived fields. The user
-   *  must repick a sub-category (which then cascades VAT%/tax%/isEquipment
-   *  back onto the row). Matches PullDriveDocsDialog behavior.
-   *  Cascade: every other row sharing this supplierId picks up the same
-   *  category change. User's stated intent — "all my Bezeq invoices are
-   *  the same category". Touched siblings are visually highlighted (blue)
-   *  via the existing markSupplierTouched + row-highlighted class. */
-  onCategoryChange(row: EditableReviewRow, picked: string): void {
-    row.category = picked;
+  /**
+   * D9 live-resolution preview: write one catalog row's full resolution
+   * onto a review row — names + id + card law + section/account display
+   * fields + mapping status + the D7 description. This is the single
+   * client-side mirror of the backend's classifyReviewRow, applied on
+   * every classification change so the professional columns always show
+   * what approval would post.
+   */
+  private applyCatalogRow(row: EditableReviewRow, entry: CatalogRow): void {
+    row.category = entry.category ?? '';
+    row.subCategory = entry.subCategory;
+    row.subCategoryId = entry.subCategoryId;
+    row.vatPercent = Number(entry.vatPercent ?? 0);
+    row.taxPercent = Number(entry.taxPercent ?? 0);
+    row.reductionPercent = Number(entry.reductionPercent ?? 0);
+    row.isEquipment = !!entry.isEquipment;
+    row.sectionName = entry.sectionName ?? '';
+    row.accountId = entry.accountId;
+    row.accountCode = entry.accountCode ?? '';
+    row.accountName = entry.accountName ?? '';
+    row.accountLabel = entry.accountName ? `${entry.accountName} (${entry.accountCode})` : '';
+    row.mappingStatus = entry.isPrivate
+      ? 'PRIVATE'
+      : entry.accountId != null && entry.approvalStatus === 'APPROVED'
+        ? 'READY'
+        : 'MISSING_MAPPING';
+    row.mappedByAccountant = entry.ownerType === 'ACCOUNTANT';
+    // D7 branch 1 — a classified row's description is always the pair.
+    row.description = `${row.category}/${row.subCategory}`;
+  }
+
+  /** Clear a row's classification back to UNCLASSIFIED (keeps the picked
+   *  category when `keepCategory`). */
+  private clearClassification(row: EditableReviewRow, keepCategory: string): void {
+    row.category = keepCategory;
     row.subCategory = '';
+    row.subCategoryId = null;
     row.vatPercent = 0;
     row.taxPercent = 0;
+    row.reductionPercent = 0;
     row.isEquipment = false;
-    this.cascadeToSupplierSiblings(row, (s) => {
-      s.category = picked;
-      s.subCategory = '';
-      s.vatPercent = 0;
-      s.taxPercent = 0;
-      s.isEquipment = false;
-    });
+    row.sectionName = '';
+    row.accountId = null;
+    row.accountCode = '';
+    row.accountName = '';
+    row.accountLabel = '';
+    row.mappingStatus = 'UNCLASSIFIED';
+    row.mappedByAccountant = false;
+    row.description = this.documentTypeLabel(row.documentType) || 'מסמך לא מזוהה';
+  }
+
+  /** Category changed — clear sub-category + derived fields. The user
+   *  must repick a sub-category (which then cascades the card's law
+   *  back onto the row). Cascade: every other row sharing this supplierId
+   *  picks up the same category change. User's stated intent — "all my
+   *  Bezeq invoices are the same category". Touched siblings are visually
+   *  highlighted via markSupplierTouched + row-highlighted class. */
+  onCategoryChange(row: EditableReviewRow, picked: string): void {
+    this.clearClassification(row, picked);
+    this.cascadeToSupplierSiblings(row, (s) => this.clearClassification(s, picked));
     this.markSupplierTouched(row);
     this.bumpRows();
   }
 
-  /** Sub-category changed — cascade the catalog's canonical values onto
-   *  the row so the resulting Expense gets consistent VAT/tax/equipment
-   *  values from the same catalog entry. Same supplier-sibling cascade
-   *  as onCategoryChange: change one Bezeq invoice's sub-category, every
-   *  Bezeq invoice in the table picks it up. */
+  /** Sub-category changed — apply the catalog row's full resolution (card
+   *  law + section/account + status) onto the row. Same supplier-sibling
+   *  cascade as onCategoryChange: change one Bezeq invoice's sub-category,
+   *  every Bezeq invoice in the table picks it up. */
   onSubCategoryChange(row: EditableReviewRow, picked: string): void {
     if (!picked) {
-      row.subCategory = '';
-      this.cascadeToSupplierSiblings(row, (s) => { s.subCategory = ''; });
+      this.clearClassification(row, row.category);
+      this.cascadeToSupplierSiblings(row, (s) => this.clearClassification(s, s.category));
       this.markSupplierTouched(row);
       this.bumpRows();
       return;
     }
-    const entry = this.catalog().find(c => c.subCategoryName === picked && c.categoryName === row.category)
-      ?? this.catalog().find(c => c.subCategoryName === picked);
+    const entry = this.catalog().find(c => c.subCategory === picked && c.category === row.category)
+      ?? this.catalog().find(c => c.subCategory === picked);
     if (entry) {
-      row.subCategory = entry.subCategoryName;
-      row.category = entry.categoryName;
-      row.vatPercent = Number(entry.vatPercent);
-      row.taxPercent = Number(entry.taxPercent);
-      row.isEquipment = !!entry.isEquipment;
-      this.cascadeToSupplierSiblings(row, (s) => {
-        s.subCategory = entry.subCategoryName;
-        s.category = entry.categoryName;
-        s.vatPercent = Number(entry.vatPercent);
-        s.taxPercent = Number(entry.taxPercent);
-        s.isEquipment = !!entry.isEquipment;
-      });
+      this.applyCatalogRow(row, entry);
+      this.cascadeToSupplierSiblings(row, (s) => this.applyCatalogRow(s, entry));
     } else {
       row.subCategory = picked;
-      this.cascadeToSupplierSiblings(row, (s) => { s.subCategory = picked; });
+      row.subCategoryId = null;
+      row.mappingStatus = 'UNCLASSIFIED';
+      this.cascadeToSupplierSiblings(row, (s) => { s.subCategory = picked; s.subCategoryId = null; s.mappingStatus = 'UNCLASSIFIED'; });
     }
+    this.markSupplierTouched(row);
+    this.bumpRows();
+  }
+
+  /** D9 professional view — classification by CARD. Picking a card is a
+   *  complete classification (the card carries the full accounting law);
+   *  under the hood the row is classified to the card's representative
+   *  sub_category. Same supplier-sibling cascade as the regular pickers. */
+  onCardChange(row: EditableReviewRow, accountId: number | null): void {
+    if (accountId == null) {
+      this.clearClassification(row, '');
+      this.cascadeToSupplierSiblings(row, (s) => this.clearClassification(s, ''));
+      this.markSupplierTouched(row);
+      this.bumpRows();
+      return;
+    }
+    const card = this.cardOptions().find(o => o.accountId === accountId);
+    if (!card) return;
+    // Prefer a sub_category the row is ALREADY on when it points at this
+    // card (re-picking the same card must not silently rename the row's
+    // classification); otherwise the card's representative row.
+    const entry =
+      this.catalog().find(c => c.accountId === accountId && c.subCategoryId === row.subCategoryId)
+      ?? this.catalog().find(c => c.subCategoryId === card.subCategoryId)!;
+    this.applyCatalogRow(row, entry);
+    this.cascadeToSupplierSiblings(row, (s) => this.applyCatalogRow(s, entry));
     this.markSupplierTouched(row);
     this.bumpRows();
   }
@@ -706,13 +960,310 @@ export class ReportReviewDialogComponent {
     }
   }
 
-  /** Hebrew description used as the tooltip for the status icon. */
+  /** Hebrew description used as the tooltip for the source icon. */
   statusTooltipFor(type: EditableReviewRow['type']): string {
     switch (type) {
       case 'matched':  return 'מסמך הותאם לתנועת בנק';
       case 'doc_only': return 'מסמך בלבד - לא נמצאה תנועה מתאימה';
       case 'tx_only':  return 'תנועת בנק בלבד - לא נמצא מסמך מתאים';
     }
+  }
+
+  // ---- D9 status badge + approvability ---------------------------------
+
+  /** True when the row is a D8 annual document — never an expense. */
+  isAnnualRow(row: EditableReviewRow): boolean {
+    return row.documentKind === 'ANNUAL_DOCUMENT';
+  }
+
+  /** True when the row is a D8 unidentified document — pending triage. */
+  isUnidentifiedRow(row: EditableReviewRow): boolean {
+    return row.documentKind === 'UNIDENTIFIED';
+  }
+
+  /**
+   * The D9 status badge. One of:
+   *   לא הוצאה — נשמר לדוח השנתי (D8 annual) / לא מזוהה — יש להחליט (D8
+   *   triage) / מוכן / מופה ע״י רו״ח (override icon) / פרטי /
+   *   חסר מיפוי — אצל הרו״ח (client w/ accountant) / חסר מיפוי / יש לסווג.
+   */
+  statusBadge(row: EditableReviewRow): { label: string; cls: string; icon: string | null } {
+    if (this.isAnnualRow(row)) {
+      return { label: 'לא הוצאה — נשמר לדוח השנתי', cls: 'badge-annual', icon: 'pi pi-bookmark' };
+    }
+    if (this.isUnidentifiedRow(row)) {
+      return { label: 'לא מזוהה — יש להחליט', cls: 'badge-unidentified', icon: 'pi pi-question-circle' };
+    }
+    switch (row.mappingStatus) {
+      case 'READY':
+        return row.mappedByAccountant
+          ? { label: 'מופה ע״י רו״ח', cls: 'badge-ready badge-accountant', icon: 'pi pi-user-edit' }
+          : { label: 'מוכן', cls: 'badge-ready', icon: 'pi pi-check' };
+      case 'PRIVATE':
+        return { label: 'פרטי — לא עסקי', cls: 'badge-private', icon: 'pi pi-lock' };
+      case 'MISSING_MAPPING':
+        return this.isActorAccountant
+          ? { label: 'חסר מיפוי', cls: 'badge-missing', icon: 'pi pi-exclamation-circle' }
+          : this.clientHasActiveDelegation()
+            ? { label: 'חסר מיפוי — אצל הרו״ח', cls: 'badge-missing', icon: 'pi pi-exclamation-circle' }
+            : { label: 'חסר מיפוי', cls: 'badge-missing', icon: 'pi pi-exclamation-circle' };
+      case 'UNCLASSIFIED':
+      default:
+        return { label: 'יש לסווג', cls: 'badge-unclassified', icon: 'pi pi-pencil' };
+    }
+  }
+
+  /** D9: rows with missing mapping cannot be approved; D8 annual/
+   *  unidentified rows are not expenses. Only READY and PRIVATE rows pass. */
+  canApprove(row: EditableReviewRow): boolean {
+    if (this.isAnnualRow(row) || this.isUnidentifiedRow(row)) return false;
+    return row.mappingStatus === 'READY' || row.mappingStatus === 'PRIVATE';
+  }
+
+  /** The accountant's inline completion entry point is offered on
+   *  missing-mapping rows only (D9). */
+  showCompletionButton(row: EditableReviewRow): boolean {
+    return this.isActorAccountant
+      && row.mappingStatus === 'MISSING_MAPPING'
+      && !this.isAnnualRow(row) && !this.isUnidentifiedRow(row);
+  }
+
+  /** The unaccompanied client's simple picker — never stuck (D9). Needs a
+   *  concrete sub_category to repoint, so UNCLASSIFIED rows (no row at all)
+   *  go through the normal pickers instead. */
+  showSimplePickerButton(row: EditableReviewRow): boolean {
+    return !this.isActorAccountant
+      && !this.clientHasActiveDelegation()
+      && row.mappingStatus === 'MISSING_MAPPING'
+      && row.subCategoryId != null
+      && !this.isAnnualRow(row) && !this.isUnidentifiedRow(row);
+  }
+
+  // ---- D8 actions: תייק + kind triage ----------------------------------
+
+  /** "תייק" on an ANNUAL_DOCUMENT row — files it for the annual report
+   *  (terminal not_an_expense; no expense, no journal, ever). */
+  fileDocRow(row: EditableReviewRow): void {
+    if (!row.documentId) return;
+    this.runAction(row, this.reviewService.fileDoc(row.documentId), 'תיוק המסמך נכשל');
+  }
+
+  /** UNIDENTIFIED-row triage (or fixing a mis-detected annual doc): re-kind
+   *  the document in place. The row STAYS in the table with its badge and
+   *  available actions recomputed — unlike runAction flows, nothing leaves
+   *  the review here. */
+  markDocKind(row: EditableReviewRow, kind: 'EXPENSE_INVOICE' | 'ANNUAL_DOCUMENT'): void {
+    if (!row.documentId || this.isActioning()) return;
+    row.saveStatus = 'pending';
+    this.isActioning.set(true);
+    this.bumpRows();
+    this.reviewService.setDocKind(row.documentId, kind)
+      .pipe(
+        catchError(err => {
+          this.applySaveFailure(row, err, 'עדכון סוג המסמך נכשל');
+          this.messageService.add({
+            severity: 'error', summary: 'שגיאה', detail: row.saveError ?? '', life: 5000, key: 'br',
+          });
+          return EMPTY;
+        }),
+        finalize(() => this.isActioning.set(false)),
+      )
+      .subscribe(() => {
+        row.documentKind = kind;
+        row.saveStatus = null;
+        row.saveError = null;
+        this.bumpRows();
+      });
+  }
+
+  // ---- D9 inline mapping completion (accountant) ------------------------
+
+  openCompletion(row: EditableReviewRow): void {
+    this.completionRow = row;
+    this.completionRowLabel.set(`${row.supplier || row.description} — ${row.sumLabel}`);
+    this.completionAccountId.set(row.accountId);
+    this.completionApplyFuture.set(true);
+    this.completionVisible.set(true);
+  }
+
+  cancelCompletion(): void {
+    this.completionVisible.set(false);
+    this.completionRow = null;
+    this.completionAccountId.set(null);
+  }
+
+  /**
+   * The approve→complete chain (approved design): approve creates the
+   * expense (lands MISSING_ACCOUNTING_MAPPING, unjournaled), then
+   * POST complete-mapping applies the picked card — one-off snapshot
+   * override, or repoint-the-sub_category when "החל גם על סיווגים
+   * עתידיים" is checked — and the backend approves + journals in one tx.
+   * A failure between the calls leaves a retryable MISSING expense (the
+   * row leaves the review; completion continues from the expenses table).
+   */
+  confirmCompletion(): void {
+    const row = this.completionRow;
+    const accountId = this.completionAccountId();
+    if (!row || accountId == null || this.isActioning()) return;
+    const applyFuture = this.completionApplyFuture();
+    this.completionVisible.set(false);
+    this.completionRow = null;
+
+    const approve$ = this.approveObsForRow(row);
+    if (!approve$) return;
+
+    row.saveStatus = 'pending';
+    this.isActioning.set(true);
+    this.bumpRows();
+    approve$
+      .pipe(
+        catchError(err => {
+          this.applySaveFailure(row, err, 'אישור השורה נכשל');
+          this.isActioning.set(false);
+          return EMPTY;
+        }),
+      )
+      .subscribe(({ expenseId }) => {
+        this.reviewService.completeExpenseMapping(expenseId, accountId, applyFuture)
+          .pipe(
+            catchError(err => {
+              // The expense exists but is still MISSING — honest state:
+              // drop the row (its source doc/tx is consumed) and tell the
+              // user where to finish.
+              const detail = err?.error?.message ?? err?.message ?? '';
+              this.messageService.add({
+                severity: 'warn',
+                summary: 'ההוצאה נשמרה אך המיפוי לא הושלם',
+                detail: `ניתן להשלים את המיפוי מטבלת ההוצאות. ${detail}`,
+                life: 8000, key: 'br',
+              });
+              return EMPTY;
+            }),
+            finalize(() => {
+              this.isActioning.set(false);
+              this.rows.update(rs => rs.filter(r => r !== row));
+              this.adjustCount(row.type, -1);
+              this.maybeAutoClose();
+            }),
+          )
+          .subscribe();
+      });
+  }
+
+  // ---- D9 simple picker (client without an accountant) ------------------
+
+  /** Curated "למה ההוצאה שייכת?" quick choices, resolved against the live
+   *  catalog by SYSTEM seed names (fuel / vehicle maintenance / office /
+   *  advertising / rent). Only entries that exist AND carry a card are
+   *  offered; the full by-section select below the buttons covers "אחר". */
+  simplePickerOptions = computed<{ label: string; accountId: number }[]>(() => {
+    const curated: { label: string; category: string; subCategory: string }[] = [
+      { label: 'דלק',            category: 'רכב ותחבורה', subCategory: 'דלק' },
+      { label: 'אחזקת רכב',      category: 'רכב ותחבורה', subCategory: 'טיפולים' },
+      { label: 'ציוד משרדי',     category: 'עסק',          subCategory: 'הוצאות משרד' },
+      { label: 'פרסום ושיווק',   category: 'עסק',          subCategory: 'שיווק ופרסום' },
+      { label: 'שכירות',         category: 'עסק',          subCategory: 'שכירות משרד' },
+    ];
+    const out: { label: string; accountId: number }[] = [];
+    for (const c of curated) {
+      const entry = this.catalog().find(e => e.category === c.category && e.subCategory === c.subCategory);
+      if (entry?.accountId != null) out.push({ label: c.label, accountId: entry.accountId });
+    }
+    return out;
+  });
+
+  openSimplePicker(row: EditableReviewRow): void {
+    this.simplePickerRow = row;
+    this.simplePickerRowLabel.set(`${row.supplier || row.description} — ${row.sumLabel}`);
+    this.simplePickerChoice.set(null);
+    this.simplePickerVisible.set(true);
+  }
+
+  cancelSimplePicker(): void {
+    this.simplePickerVisible.set(false);
+    this.simplePickerRow = null;
+    this.simplePickerChoice.set(null);
+  }
+
+  pickSimpleOption(accountId: number): void {
+    this.simplePickerChoice.set(accountId);
+    this.confirmSimplePicker();
+  }
+
+  /**
+   * Repoint the row's unmapped sub_category at the chosen card
+   * (PATCH bookkeeping/sub-categories/:id/account — the D9 future-mapping
+   * primitive; the client keeps their own name, e.g. "איתוראן", now backed
+   * by a system card). On success every review row on that sub_category
+   * flips to מוכן, and the local catalog row is patched so re-picks see
+   * the completed mapping.
+   */
+  confirmSimplePicker(): void {
+    const row = this.simplePickerRow;
+    const accountId = this.simplePickerChoice();
+    if (!row || row.subCategoryId == null || accountId == null || this.isActioning()) return;
+    const subCategoryId = row.subCategoryId;
+    this.simplePickerVisible.set(false);
+    this.simplePickerRow = null;
+
+    const card = this.cardOptions().find(o => o.accountId === accountId);
+    this.isActioning.set(true);
+    this.reviewService.repointSubCategory(subCategoryId, accountId)
+      .pipe(
+        catchError(err => {
+          const detail = err?.error?.message ?? err?.message ?? 'השלמת המיפוי נכשלה';
+          this.messageService.add({ severity: 'error', summary: 'שגיאה', detail, life: 5000, key: 'br' });
+          return EMPTY;
+        }),
+        finalize(() => this.isActioning.set(false)),
+      )
+      .subscribe((updated) => {
+        // The repoint may have landed a CLIENT override row (SYSTEM/
+        // ACCOUNTANT-owned originals are never edited) — adopt the id the
+        // backend actually mapped.
+        const effectiveSubId = updated?.id ?? subCategoryId;
+        this.catalog.update(rows => rows.map(c =>
+          c.subCategoryId === subCategoryId || c.subCategoryId === effectiveSubId
+            ? {
+                ...c,
+                subCategoryId: effectiveSubId,
+                accountId,
+                approvalStatus: 'APPROVED',
+                accountCode: card?.accountCode ?? c.accountCode,
+                accountName: card?.accountName ?? c.accountName,
+                sectionName: card?.sectionName ?? c.sectionName,
+                vatPercent: card?.vatPercent ?? c.vatPercent,
+                taxPercent: card?.taxPercent ?? c.taxPercent,
+                reductionPercent: card?.reductionPercent ?? c.reductionPercent,
+                isEquipment: card?.isEquipment ?? c.isEquipment,
+              }
+            : c,
+        ));
+        for (const r of this.rows()) {
+          if (r.subCategoryId !== subCategoryId && r.subCategoryId !== effectiveSubId) continue;
+          const entry = this.catalog().find(c => c.subCategoryId === effectiveSubId);
+          if (entry) this.applyCatalogRow(r, entry);
+        }
+        this.bumpRows();
+      });
+  }
+
+  /** The approve observable for a row per its type — shared by the bulk
+   *  queue and the completion chain. Null when ids are missing. */
+  private approveObsForRow(row: EditableReviewRow): import('rxjs').Observable<{ expenseId: number }> | null {
+    return row.type === 'matched' && row.documentId && row.slimTransactionId
+      ? this.reviewService.approveMatched(
+          this.businessNumber(), row.documentId, row.slimTransactionId, this.overridesFromRow(row),
+        )
+      : row.type === 'doc_only' && row.documentId
+        ? this.reviewService.approveDocCash(
+            this.businessNumber(), row.documentId, this.overridesFromRow(row),
+          )
+      : row.type === 'tx_only' && row.slimTransactionId
+        ? this.reviewService.approveTxNoDoc(
+            this.businessNumber(), row.slimTransactionId, this.overridesFromRow(row),
+          )
+        : null;
   }
 
   // ---- Period dropdown -------------------------------------------------
@@ -1100,6 +1651,10 @@ export class ReportReviewDialogComponent {
 
   private overridesFromRow(row: EditableReviewRow): ReviewOverrides {
     return {
+      // D1/Phase 6.1: the id wins over the name pair in the backend's
+      // resolution — sent whenever the row's classification is a concrete
+      // catalog row (always, except UNCLASSIFIED free-text leftovers).
+      subCategoryId: row.subCategoryId ?? undefined,
       category: row.category,
       subCategory: row.subCategory,
       vatPercent: row.vatPercent,
@@ -1163,68 +1718,120 @@ export class ReportReviewDialogComponent {
   // ---- Columns builder -------------------------------------------------
 
   /** Cache so generic-table doesn't see a new array reference on every
-   *  CD cycle. Same pattern PullDriveDocsDialog uses. */
-  private columnsCache: { tpls: TemplateRef<any>[]; cols: IColumnDataTable<string, string>[] } | null = null;
+   *  CD cycle. Same pattern PullDriveDocsDialog uses. Keyed by view mode —
+   *  the D9 toggle swaps the whole column set. */
+  private columnsCache: {
+    mode: ReviewViewMode;
+    tpls: TemplateRef<any>[];
+    cols: IColumnDataTable<string, string>[];
+  } | null = null;
 
+  /**
+   * D9 column sets — one screen, two view modes.
+   *
+   * Regular (client language): checkbox · supplier · supplier-id · doc-type ·
+   *   doc-number · allocation-number · date · sum · category · sub-category ·
+   *   vat% · tax% · period · STATUS BADGE · source icon · actions.
+   *
+   * Professional (accountant language): checkbox · supplier · doc-type ·
+   *   doc-number · date · DESCRIPTION (single D7 column replacing the
+   *   category/sub pair) · sum · SECTION · ACCOUNT (card picker — grouped by
+   *   section; picking a card IS the classification) · vat% · tax% ·
+   *   depreciation% · period · STATUS BADGE · source icon · actions.
+   *   Percents are read-only here — they are the card's law (D1); supplier-id
+   *   and allocation-number stay one toggle away in the regular view to keep
+   *   the professional row width sane.
+   */
   buildColumns(
+    selectCellTpl: TemplateRef<any>,
     categoryCellTpl: TemplateRef<any>,
     subCategoryCellTpl: TemplateRef<any>,
+    cardCellTpl: TemplateRef<any>,
     periodCellTpl: TemplateRef<any>,
     supplierCellTpl: TemplateRef<any>,
-    statusIconCellTpl: TemplateRef<any>,
+    statusBadgeCellTpl: TemplateRef<any>,
+    sourceIconCellTpl: TemplateRef<any>,
     actionsCellTpl: TemplateRef<any>,
   ): IColumnDataTable<string, string>[] {
-    const tpls = [categoryCellTpl, subCategoryCellTpl, periodCellTpl, supplierCellTpl, statusIconCellTpl, actionsCellTpl];
-    if (this.columnsCache && tpls.every((t, i) => this.columnsCache!.tpls[i] === t)) {
+    const mode = this.viewMode();
+    const tpls = [
+      selectCellTpl, categoryCellTpl, subCategoryCellTpl, cardCellTpl, periodCellTpl,
+      supplierCellTpl, statusBadgeCellTpl, sourceIconCellTpl, actionsCellTpl,
+    ];
+    if (
+      this.columnsCache &&
+      this.columnsCache.mode === mode &&
+      tpls.every((t, i) => this.columnsCache!.tpls[i] === t)
+    ) {
       return this.columnsCache.cols;
     }
-    // Column order:
-    //   1 checkbox · 2 supplier (name + new-supplier icon) · 3 supplier-id ·
-    //   4 doc-type · 5 doc-number · 6 date · 7 sum · 8 category ·
-    //   9 sub-category · 10 vat% · 11 tax% · 12 period · 13 status-icon ·
-    //   14 actions
-    // The old "ספק חדש/מוכר" chip column (was #14) is gone — the new-supplier
-    // signal now lives as an icon next to the supplier name (#2). The
-    // matched-type label column (was #13) is now an icon-only column.
-    const cols: IColumnDataTable<string, string>[] = [
-      { name: 'selected', value: '', type: FormTypes.CHECKBOX, editable: true,
-        width: '50px', onChange: this.fieldChangeHandler },
-      // Supplier name + "ספק חדש" icon when matchedSupplierKnown is false.
-      { name: 'supplier', value: 'ספק', cellTemplate: supplierCellTpl, width: '210px' },
-      { name: 'supplierId', value: 'מס׳ עוסק', width: '110px' },
-      // Widened from 90px → 140px so "חשבונית + קבלה" (the longest label
-      // after pairing was added) fits on one line without truncation.
-      { name: 'documentTypeLabel', value: 'סוג', width: '140px' },
-      // Bumped to 200px — invoice numbers like "01020566646-043005-26" (~18 chars)
-      // were overflowing 165px and visually bleeding into the date column.
-      { name: 'invoiceNumber', value: 'מס׳ חשבונית', width: '200px' },
-      // New column: Israeli tax allocation number (מספר הקצאה / Confirmation
-      // Number). Surfaced separately so the user can see at a glance whether
-      // a high-value invoice carries the legally-required allocation number
-      // before approving it. 120px is comfortable for the canonical 9-digit
-      // value (normalizeAllocationNumber in documents.service.ts truncates
-      // anything longer to the rightmost 9 digits).
-      { name: 'allocationNumber', value: 'מס׳ הקצאה', width: '120px' },
-      { name: 'date', value: 'תאריך', width: '115px' },
-      { name: 'sumLabel', value: 'סכום', cellRenderer: ICellRenderer.SUM_WITH_FX, width: '110px' },
-      { name: 'category', value: 'קטגוריה', cellTemplate: categoryCellTpl, width: '125px' },
-      { name: 'subCategory', value: 'תת קטגוריה', cellTemplate: subCategoryCellTpl, width: '140px' },
-      { name: 'vatPercent', value: '% מע״מ', type: FormTypes.NUMBER, editable: true, width: '85px' },
-      { name: 'taxPercent', value: '% מס',   type: FormTypes.NUMBER, editable: true, width: '85px' },
-      { name: 'reportPeriod', value: 'תקופה', cellTemplate: periodCellTpl, width: '105px' },
-      // Status — icon only. Was a wide text label ("מסמך + תנועה"); the
-      // tooltip on the icon carries the same meaning. Narrower to match.
-      { name: 'matchedTypeLabel', value: 'סטטוס', cellTemplate: statusIconCellTpl, width: '70px' },
-      { name: 'actions', value: 'פעולות', cellTemplate: actionsCellTpl, width: '90px' },
-    ];
-    this.columnsCache = { tpls, cols };
+
+    const shared = {
+      select:   { name: 'selected', value: '', cellTemplate: selectCellTpl, width: '50px' },
+      supplier: { name: 'supplier', value: 'ספק', cellTemplate: supplierCellTpl, width: '210px' },
+      docType:  { name: 'documentTypeLabel', value: 'סוג', width: '140px' },
+      invoice:  { name: 'invoiceNumber', value: 'מס׳ חשבונית', width: '200px' },
+      date:     { name: 'date', value: 'תאריך', width: '115px' },
+      sum:      { name: 'sumLabel', value: 'סכום', cellRenderer: ICellRenderer.SUM_WITH_FX, width: '110px' },
+      period:   { name: 'reportPeriod', value: 'תקופה', cellTemplate: periodCellTpl, width: '105px' },
+      badge:    { name: 'mappingStatus', value: 'סטטוס', cellTemplate: statusBadgeCellTpl, width: '170px' },
+      source:   { name: 'matchedTypeLabel', value: 'מקור', cellTemplate: sourceIconCellTpl, width: '60px' },
+      actions:  { name: 'actions', value: 'פעולות', cellTemplate: actionsCellTpl, width: '90px' },
+    };
+
+    const cols: IColumnDataTable<string, string>[] =
+      mode === 'regular'
+        ? [
+            shared.select,
+            shared.supplier,
+            { name: 'supplierId', value: 'מס׳ עוסק', width: '110px' },
+            shared.docType,
+            shared.invoice,
+            // Israeli tax allocation number (מספר הקצאה) — the user can spot
+            // a missing allocation number on a high-value invoice pre-approve.
+            { name: 'allocationNumber', value: 'מס׳ הקצאה', width: '120px' },
+            shared.date,
+            shared.sum,
+            { name: 'category', value: 'קטגוריה', cellTemplate: categoryCellTpl, width: '125px' },
+            { name: 'subCategory', value: 'תת קטגוריה', cellTemplate: subCategoryCellTpl, width: '140px' },
+            { name: 'vatPercent', value: '% מע״מ', type: FormTypes.NUMBER, editable: true, width: '85px' },
+            { name: 'taxPercent', value: '% מס',   type: FormTypes.NUMBER, editable: true, width: '85px' },
+            shared.period,
+            shared.badge,
+            shared.source,
+            shared.actions,
+          ]
+        : [
+            shared.select,
+            shared.supplier,
+            shared.docType,
+            shared.invoice,
+            shared.date,
+            // D7 — the single classification column of the professional view.
+            { name: 'description', value: 'תיאור', width: '190px' },
+            shared.sum,
+            { name: 'sectionName', value: 'חתך', width: '135px' },
+            { name: 'accountLabel', value: 'כרטיס', cellTemplate: cardCellTpl, width: '220px' },
+            { name: 'vatPercent', value: '% מע״מ', width: '80px' },
+            { name: 'taxPercent', value: '% מס', width: '80px' },
+            { name: 'reductionPercent', value: '% פחת', width: '80px' },
+            shared.period,
+            shared.badge,
+            shared.source,
+            shared.actions,
+          ];
+
+    this.columnsCache = { mode, tpls, cols };
     return cols;
   }
 
-  /** Shared change handler for editable cells — re-emits the rows signal
-   *  so derived computeds (selectedCount, bulk-approve disabled state)
-   *  refresh. Same pattern PullDriveDocsDialog uses. */
-  private readonly fieldChangeHandler = (): void => this.bumpRows();
+  /** Checkbox template handler — the select column is a cellTemplate now
+   *  (not FormTypes.CHECKBOX) so non-approvable rows can render a DISABLED
+   *  box per D9. */
+  onRowSelectedChange(row: EditableReviewRow, checked: boolean): void {
+    row.selected = checked;
+    this.bumpRows();
+  }
 
   /** Count of rows the user wants in the bulk approve. Drives the footer
    *  button's label + disabled state. */
@@ -1232,11 +1839,19 @@ export class ReportReviewDialogComponent {
     this.rows().filter(r => r.selected).length,
   );
 
-  /** "Select all" toggle for the footer. Updates every row's selected
-   *  flag in one signal write. */
+  /** "Select all" toggle for the footer. Updates every APPROVABLE row's
+   *  selected flag in one signal write — non-approvable rows (missing
+   *  mapping, annual, unidentified, unclassified) stay unchecked (D9). */
   toggleAll(checked: boolean): void {
-    this.rows.update(rs => rs.map(r => ({ ...r, selected: checked })));
+    this.rows.update(rs => rs.map(r =>
+      this.canApprove(r) ? { ...r, selected: checked } : { ...r, selected: false },
+    ));
   }
+
+  /** Rows eligible for the bulk queue — drives "בחר הכל" checked state. */
+  approvableCount = computed<number>(() =>
+    this.rows().filter(r => this.canApprove(r)).length,
+  );
 
   /**
    * Bulk-approve all checked rows. Each row's approve flavor depends on
@@ -1253,7 +1868,9 @@ export class ReportReviewDialogComponent {
    * backend's error message in the row's `saveError` field.
    */
   bulkApproveSelected(): void {
-    const queue = this.rows().filter(r => r.selected && r.saveStatus !== 'pending');
+    const queue = this.rows().filter(r =>
+      r.selected && r.saveStatus !== 'pending' && this.canApprove(r),
+    );
     if (queue.length === 0) {
       this.messageService.add({
         severity: 'warn',
@@ -1335,20 +1952,7 @@ export class ReportReviewDialogComponent {
     }
     const row = queue[idx];
     this.isActioning.set(true);
-    const obs$ =
-      row.type === 'matched' && row.documentId && row.slimTransactionId
-        ? this.reviewService.approveMatched(
-            this.businessNumber(), row.documentId, row.slimTransactionId, this.overridesFromRow(row),
-          )
-      : row.type === 'doc_only' && row.documentId
-        ? this.reviewService.approveDocCash(
-            this.businessNumber(), row.documentId, this.overridesFromRow(row),
-          )
-      : row.type === 'tx_only' && row.slimTransactionId
-        ? this.reviewService.approveTxNoDoc(
-            this.businessNumber(), row.slimTransactionId, this.overridesFromRow(row),
-          )
-        : null;
+    const obs$ = this.approveObsForRow(row);
 
     if (!obs$) {
       // Missing ids — should never happen for a well-formed row, but skip

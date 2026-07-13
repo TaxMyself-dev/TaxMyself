@@ -774,7 +774,7 @@ client without an accountant is never blocked (D9 simple picker path).
 
 **Goal:** the approval screen and catalog UIs per D9, on the new APIs.
 
-- [ ] 6.1 Approval screen rebuild per D9: regular/professional toggle
+- [x] 6.1 Approval screen rebuild per D9: regular/professional toggle
       (persisted per user), regular = category+subCategory columns,
       professional = single description column + section/account/vat/tax/
       depreciation columns; status badges (מוכן / חסר מיפוי / אצל הרו״ח /
@@ -783,6 +783,24 @@ client without an accountant is never blocked (D9 simple picker path).
       capability-gated) with the future-mapping checkbox; simple "למה
       ההוצאה שייכת?" picker for unaccompanied clients; live-resolution
       preview pre-approval, snapshot display post-approval.
+      (Done Session 11A. Backend: every preview row carries a
+      `classification` block — the merged-catalog resolution the approve
+      path will run (status READY/MISSING_MAPPING/PRIVATE/UNCLASSIFIED,
+      canonical names, D7 description, mappedByAccountant, card law +
+      section) + `clientHasActiveDelegation`; expense-catalog gained the
+      card-law/section fields + includePrivate. Frontend: the review
+      dialog is the D9 screen — toggle persisted per REAL user
+      (accountants land professional), professional classifies by CARD
+      (accounts grouped by section; representative sub_category keeps the
+      approved⇒subCategoryId invariant, technical cards excluded), badges
+      per D9 + D8 (annual="לא הוצאה — נשמר לדוח השנתי" with תייק,
+      unidentified triage), non-approvable rows have disabled checkboxes
+      and are excluded from bulk approve, accountant completion =
+      approve→complete-mapping chain (Elazar-approved; one-off vs
+      future-mapping checkbox), unaccompanied-client simple picker
+      repoints their sub_category at a system card via the 4.2 repoint
+      primitive. Live resolution recomputes client-side from the extended
+      catalog on every classification change.)
 - [ ] 6.2 Category management screens on new endpoints: client add
       category (name + default recognition) / add sub_category (the D5
       three-option flow: private / not recognized / recognized→mapping or
