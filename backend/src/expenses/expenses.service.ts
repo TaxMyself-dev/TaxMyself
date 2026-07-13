@@ -1025,6 +1025,12 @@ export class ExpensesService {
             accountCode: acc?.code ?? null,
             subAccountCode: null,
             approvalStatus: sub.approvalStatus,
+            // Phase 6.2c — card display fields for the admin catalog screen
+            // (additive; populated when the account.section relation is loaded).
+            accountName: acc?.name ?? null,
+            sectionName: acc?.section?.name ?? null,
+            code6111: acc?.code6111 ?? null,
+            isPrivate: !!sub.isPrivate,
         };
     }
 

@@ -82,20 +82,74 @@ export interface ReviewTxSummary {
   originalCurrency: string | null;
 }
 
+/** D9 mapping verdict for a review row's CURRENT classification names.
+ *  Drives the status badge + whether the approve checkbox is enabled. */
+export type ReviewMappingStatus =
+  /** Resolves to an APPROVED sub_category with a card — approvable, journals. */
+  | 'READY'
+  /** Sub_category exists but has no usable card (MISSING_ACCOUNTING_MAPPING /
+   *  PENDING_ACCOUNTANT_APPROVAL / REJECTED). Cannot be approved until an
+   *  accountant completes the mapping (D5/D9). */
+  | 'MISSING_MAPPING'
+  /** isPrivate sub_category — approvable, but never journaled (D5). */
+  | 'PRIVATE'
+  /** The names don't resolve to any catalog row — user must classify first. */
+  | 'UNCLASSIFIED';
+
+/**
+ * Phase 6.1 (D9): server-side resolution preview for one review row.
+ * Computed against the business's merged catalog (CLIENT > ACCOUNTANT >
+ * SYSTEM, delegation-aware) from the row's effective classification names —
+ * the same resolution the approve path will run, so the professional-view
+ * columns (section/account/percents) show exactly what approval would post.
+ * Snapshot-frozen only at approval; until then this is a live preview the
+ * frontend recomputes locally when the user re-classifies a row.
+ */
+export interface ReviewClassification {
+  /** Effective merged-catalog row id, null when UNCLASSIFIED. */
+  subCategoryId: number | null;
+  /** Canonical names from the merged catalog row (may differ from the raw
+   *  OCR/slim strings in casing/spacing). Null when UNCLASSIFIED. */
+  categoryName: string | null;
+  subCategoryName: string | null;
+  status: ReviewMappingStatus;
+  /** D7 description preview — "{category}/{subCategory}", else the document
+   *  type label, else "מסמך לא מזוהה". Frozen into expense + journal at
+   *  approval. */
+  description: string;
+  /** True when the effective sub_category is accountant-owned or was
+   *  approved by someone other than the client — drives the
+   *  "מופה ע״י רו״ח" badge with the override icon (D9). */
+  mappedByAccountant: boolean;
+  // ---- The card's law (null unless status is READY) + its section. ----
+  sectionCode: string | null;
+  sectionName: string | null;
+  accountId: number | null;
+  accountCode: string | null;
+  accountName: string | null;
+  vatPercent: number | null;
+  taxPercent: number | null;
+  reductionPercent: number | null;
+  isEquipment: boolean | null;
+}
+
 export type ReviewRowMatched = {
   type: 'matched';
   document: ReviewDocSummary;
   transaction: ReviewTxSummary;
+  classification: ReviewClassification;
 };
 
 export type ReviewRowDocOnly = {
   type: 'doc_only';
   document: ReviewDocSummary;
+  classification: ReviewClassification;
 };
 
 export type ReviewRowTxOnly = {
   type: 'tx_only';
   transaction: ReviewTxSummary;
+  classification: ReviewClassification;
 };
 
 export type ReviewRow = ReviewRowMatched | ReviewRowDocOnly | ReviewRowTxOnly;
@@ -116,4 +170,9 @@ export interface ReportPreviewResponse {
    *  pass (same file dropped twice). These never become review rows; the
    *  modal surfaces the count as a non-blocking notice. */
   duplicatesSkipped: number;
+  /** D9: true when the business owner has at least one ACTIVE delegation
+   *  (an accountant services them). Missing-mapping rows then show
+   *  "חסר מיפוי — אצל הרו״ח" with a disabled checkbox; without a delegation
+   *  the client gets the simple "למה ההוצאה שייכת?" picker instead. */
+  clientHasActiveDelegation: boolean;
 }

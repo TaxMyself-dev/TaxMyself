@@ -37,14 +37,15 @@
               <th class="columns-header">הוצאה</th>
               <th class="columns-header">הכרחיות</th>
               <th class="columns-header">סוג דוח</th>
-              <th class="columns-header">קטגוריה לרווח והפסד</th>
+              <th class="columns-header">כרטיס</th>
+              <th class="columns-header">חתך</th>
               <th class="columns-header actions-col">פעולות</th>
             </tr>
           </thead>
           <tbody>
             @if (filteredSubCategories().length === 0) {
               <tr>
-                <td colspan="12" class="empty-message">
+                <td colspan="13" class="empty-message">
                   <div class="empty-data-container">
                     <p class="empty-data-text">
                       {{ subCategories().length === 0 ? 'אין תתי קטגוריות' : 'אין תתי קטגוריות התואמות לסינון' }}
@@ -61,11 +62,12 @@
                   <td>{{ row.taxPercent }}</td>
                   <td>{{ row.vatPercent }}</td>
                   <td>{{ row.isEquipment ? 'כן' : 'לא' }}</td>
-                  <td>{{ row.isRecognized ? 'כן' : 'לא' }}</td>
+                  <td>{{ row.isPrivate ? 'פרטית' : (row.isRecognized ? 'כן' : 'לא') }}</td>
                   <td>{{ row.isExpense ? 'כן' : 'לא' }}</td>
                   <td>{{ necessityLabel(row.necessity) }}</td>
                   <td>{{ reportScopeLabel(row.reportScope) }}</td>
-                  <td>{{ row.pnlCategory || '—' }}</td>
+                  <td>{{ row.accountCode ? row.accountCode + ' - ' + (row.accountName || '') : '—' }}</td>
+                  <td>{{ row.sectionName || '—' }}</td>
                   <td class="actions-cell">
                     <app-p-button [icon]="'pi pi-pencil'" [iconOnly]="true" [buttonSize]="buttonSize.AUTO"
                       [buttonColor]="ButtonColor.TRANSPARET" (onButtonClicked)="openUpdateConfirm(row)"
@@ -90,12 +92,21 @@
   <div class="dialog-form">
     <div class="form-row">
       <label>תת קטגוריה</label>
-      <input type="text" pInputText [(ngModel)]="editForm.subCategoryName" />
+      <input type="text" pInputText [(ngModel)]="editForm.subCategoryName" [readonly]="true" />
     </div>
     <div class="form-row">
       <label>קטגוריה</label>
-      <input type="text" pInputText [(ngModel)]="editForm.categoryName" />
+      <input type="text" pInputText [(ngModel)]="editForm.categoryName" [readonly]="true" />
     </div>
+    @if (editRow()?.accountCode) {
+      <div class="form-row">
+        <label>כרטיס נוכחי</label>
+        <span class="current-card-note">
+          {{ editRow()?.accountCode }} - {{ editRow()?.accountName || '' }}
+          @if (editRow()?.sectionName) { ({{ editRow()?.sectionName }}) }
+        </span>
+      </div>
+    }
     <div class="form-row check-row-group">
       <div class="check-item">
         <p-checkbox [(ngModel)]="editForm.isEquipment" [binary]="true" inputId="editEquipment"></p-checkbox>
@@ -126,10 +137,7 @@
       <label>סוג דוח</label>
       <p-select [(ngModel)]="editForm.reportScope" [options]="reportScopeOptions" optionLabel="label" optionValue="value" placeholder="בחר"></p-select>
     </div>
-    <div class="form-row">
-      <label>קטגוריה לרווח והפסד</label>
-      <input type="text" pInputText [(ngModel)]="editForm.pnlCategory" placeholder="ריק = לפי הקטגוריה" />
-    </div>
+    <p class="law-edit-note">שינוי אחוזים/הכרה מפנה את תת-הקטגוריה לכרטיס מתאים (קיים או חדש) — אחוזי כרטיס לעולם לא נערכים במקום.</p>
   </div>
   <ng-template pTemplate="footer">
     <app-p-button [buttonText]="'ביטול'" [buttonSize]="buttonSize.SMALL" (onButtonClicked)="closeEditDialog()"></app-p-button>
@@ -185,10 +193,6 @@
     <div class="form-row">
       <label>סוג דוח</label>
       <p-select [(ngModel)]="addForm.reportScope" [options]="reportScopeOptions" optionLabel="label" optionValue="value" placeholder="בחר"></p-select>
-    </div>
-    <div class="form-row">
-      <label>קטגוריה לרווח והפסד</label>
-      <input type="text" pInputText [(ngModel)]="addForm.pnlCategory" placeholder="ריק = לפי הקטגוריה" />
     </div>
   </div>
   <ng-template pTemplate="footer">

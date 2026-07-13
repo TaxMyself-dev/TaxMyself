@@ -203,7 +203,9 @@ export class CatalogService {
   async findSubCategoriesByChartOwnerKey(chartOwnerKey: string): Promise<SubCategory[]> {
     return this.subCategoryRepo.find({
       where: { chartOwnerKey, isActive: true },
-      relations: ['account', 'category'],
+      // account.section rides along for the admin catalog screen's card
+      // columns (Phase 6.2c — accountName/sectionName in the legacy shape).
+      relations: ['account', 'account.section', 'category'],
       order: { name: 'ASC' },
     });
   }
