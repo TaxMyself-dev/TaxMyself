@@ -95,9 +95,13 @@ interface EditableReviewRow {
    *  expose it. Null for tx_only and for legacy rows without an OCR'd type. */
   documentType: string | null;
   /** D8 routing kind: EXPENSE_INVOICE | ANNUAL_DOCUMENT | UNIDENTIFIED.
-   *  ANNUAL rows get the "לא הוצאה — נשמר לדוח השנתי" badge + "תייק" action
+   *  ANNUAL rows get the "מסמך שנתי — ממתין לתיוק" badge + "תייק" action
    *  (never approve); UNIDENTIFIED rows get the triage actions. Null for
-   *  tx_only rows and legacy docs — treated as EXPENSE_INVOICE. */
+   *  tx_only rows and legacy docs — treated as EXPENSE_INVOICE.
+   *  A row can only ever be ANNUAL here pre-filing (fileDocumentAsAnnual
+   *  flips status to NOT_AN_EXPENSE, which drops it from the
+   *  PENDING_REVIEW query this table is sourced from) — the badge must not
+   *  claim the doc is already saved before תייק is actually clicked. */
   documentKind: string | null;
 
   // Display fields used by the read-only columns.
@@ -983,13 +987,16 @@ export class ReportReviewDialogComponent {
 
   /**
    * The D9 status badge. One of:
-   *   לא הוצאה — נשמר לדוח השנתי (D8 annual) / לא מזוהה — יש להחליט (D8
-   *   triage) / מוכן / מופה ע״י רו״ח (override icon) / פרטי /
+   *   מסמך שנתי — ממתין לתיוק (D8 annual, pre-filing) / לא מזוהה — יש להחליט
+   *   (D8 triage) / מוכן / מופה ע״י רו״ח (override icon) / פרטי /
    *   חסר מיפוי — אצל הרו״ח (client w/ accountant) / חסר מיפוי / יש לסווג.
    */
   statusBadge(row: EditableReviewRow): { label: string; cls: string; icon: string | null } {
     if (this.isAnnualRow(row)) {
-      return { label: 'לא הוצאה — נשמר לדוח השנתי', cls: 'badge-annual', icon: 'pi pi-bookmark' };
+      // Every row this table can show is still PENDING_REVIEW (filed docs
+      // drop out of the query entirely) — never claim the doc is "already
+      // saved"; the תייק action next to this badge is what actually files it.
+      return { label: 'מסמך שנתי — ממתין לתיוק', cls: 'badge-annual', icon: 'pi pi-bookmark' };
     }
     if (this.isUnidentifiedRow(row)) {
       return { label: 'לא מזוהה — יש להחליט', cls: 'badge-unidentified', icon: 'pi pi-question-circle' };
