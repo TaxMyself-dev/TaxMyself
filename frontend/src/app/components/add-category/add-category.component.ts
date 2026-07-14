@@ -2,7 +2,7 @@ import { Component, computed, effect, inject, input, OnInit, output, signal } fr
 import { ButtonComponent } from "../button/button.component";
 import { InputSelectComponent } from "../input-select/input-select.component";
 import { LeftPanelComponent } from "../left-panel/left-panel.component";
-import { AbstractControl, FormArray, FormBuilder, FormControl, FormGroup, FormsModule, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
+import { FormArray, FormBuilder, FormControl, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ButtonColor, ButtonSize } from '../button/button.enum';
 import { inputsSize } from 'src/app/shared/enums';
 import { IRowDataTable, ISelectItem } from 'src/app/shared/interface';
@@ -10,18 +10,12 @@ import { InputTextComponent } from "../input-text/input-text.component";
 import { TransactionsService } from 'src/app/pages/transactions/transactions.page.service';
 import { CommonModule } from '@angular/common';
 import { CheckboxModule } from 'primeng/checkbox';
-import { RadioButtonModule } from 'primeng/radiobutton';
 import { catchError, EMPTY, finalize } from 'rxjs';
 import { MessageService } from 'primeng/api';
 import { ToastModule } from 'primeng/toast';
 import { AuthService } from 'src/app/services/auth.service';
 import { GenericService } from 'src/app/services/generic.service';
-import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { MyPermissionsService } from 'src/app/services/my-permissions.service';
-
-/** D5 per-sub-category recognition choice (PRIVATE is a sub_category concept,
- *  not a card recognition — see the redesign plan). */
-type RecognitionChoice = 'RECOGNIZED' | 'NOT_RECOGNIZED' | 'PRIVATE';
 
 @Component({
   selector: 'app-add-category',
@@ -31,7 +25,6 @@ type RecognitionChoice = 'RECOGNIZED' | 'NOT_RECOGNIZED' | 'PRIVATE';
   imports: [
     ToastModule,
     CheckboxModule,
-    RadioButtonModule,
     CommonModule,
     ReactiveFormsModule,
     FormsModule,
@@ -47,7 +40,6 @@ export class AddCategoryComponent implements OnInit {
   authService = inject(AuthService);
   genericService = inject(GenericService);
   messageService = inject(MessageService);
-  expenseDataService = inject(ExpenseDataService);
   myPermissionsService = inject(MyPermissionsService);
   fb = inject(FormBuilder);
 
@@ -76,14 +68,10 @@ export class AddCategoryComponent implements OnInit {
    *  the "השאר לרואה החשבון" option (D5: a client without an accountant must
    *  pick a mapping, the backend 400s a defer without a delegation). */
   hasAccountant = signal<boolean>(false);
-  /** D9 simple-picker options: merged expense catalog rows that carry a card.
-   *  value = accountId (the card the new sub_category will point at). */
-  mappingOptions = signal<ISelectItem[]>([]);
 
-  recognitionOptions: { label: string; value: RecognitionChoice }[] = [
-    { label: 'הוצאה מוכרת', value: 'RECOGNIZED' },
-    { label: 'הוצאה עסקית לא מוכרת', value: 'NOT_RECOGNIZED' },
-    { label: 'הוצאה פרטית', value: 'PRIVATE' },
+  isEquipmentValues: ISelectItem[] = [
+    { value: true, name: 'כן' },
+    { value: false, name: 'לא' },
   ];
 
   defaultRecognitionOptions: ISelectItem[] = [
@@ -125,7 +113,6 @@ export class AddCategoryComponent implements OnInit {
   ngOnInit(): void {
     this.categoryList = this.transactionService.categories;
     if (!this.incomeMode()) {
-      this.loadMappingOptions();
       this.loadHasAccountant();
     }
   }
@@ -146,56 +133,29 @@ export class AddCategoryComponent implements OnInit {
   }
 
   /**
-   * One sub-category row, D5 three-option flow:
-   * PRIVATE — no card, never journaled;
-   * NOT_RECOGNIZED — 0% card, posts to the ledger but not deductible;
-   * RECOGNIZED — either pick a card (the simple "למה ההוצאה שייכת?" picker)
-   * or leave the mapping to the accountant. The card carries the full
-   * accounting law (D1) — there are no percent inputs here.
+   * One sub-category row. The checkbox ("האם ההוצאה הינה הוצאה מוכרת?")
+   * picks between D5's two client-facing outcomes:
+   * unchecked — isPrivate, no card, never journaled;
+   * checked — a business expense whose accounting law (D1: vat/tax/
+   * reduction/equipment %) is submitted as the legacy `law` shape, which
+   * the backend resolves to a card via findOrCreateVariantAccount (find or
+   * create a booking_account matching that exact law, then point this
+   * sub_category's accountId at it) — unless deferred to the accountant.
    */
   private createSubCategoryGroup(): FormGroup {
-    const preset = (this.mainForm?.get('defaultRecognitionType')?.value || 'RECOGNIZED') as RecognitionChoice;
+    const hint = this.mainForm?.get('defaultRecognitionType')?.value;
+    const isRecognized = hint === 'RECOGNIZED';
     return this.fb.group({
       subCategoryName: ['', Validators.required],
-      recognition: [preset as RecognitionChoice, Validators.required],
+      isRecognized: [isRecognized],
       deferToAccountant: [false],
-      accountId: [null as number | null],
+      isEquipment: [false],
+      taxPercent: [0, [Validators.pattern(/^\d+$/)]],
+      vatPercent: [0, [Validators.pattern(/^\d+$/)]],
+      reductionPercent: [0, [Validators.pattern(/^\d+$/)]],
+      pnlCategory: [null as string | null],
       isExpense: [!this.incomeMode()],
-    }, { validators: [this.mappingRequiredValidator] });
-  }
-
-  /** RECOGNIZED without defer must carry a picked card (income rows and the
-   *  other recognition choices need no mapping from the client). */
-  private mappingRequiredValidator = (group: AbstractControl): ValidationErrors | null => {
-    if (this.incomeMode()) return null;
-    const recognition = group.get('recognition')?.value;
-    const defer = group.get('deferToAccountant')?.value;
-    const accountId = group.get('accountId')?.value;
-    if (recognition === 'RECOGNIZED' && !defer && accountId == null) {
-      return { mappingRequired: true };
-    }
-    return null;
-  };
-
-  private loadMappingOptions(): void {
-    const businessNumber =
-      this.authService.getActiveBusinessNumber() ||
-      this.authService.getUserDataFromLocalStorage()?.businessNumber;
-    if (!businessNumber) return;
-    this.expenseDataService.getExpenseCatalog(businessNumber)
-      .pipe(catchError(() => EMPTY))
-      .subscribe((rows) => {
-        // One option per card-bearing row; the client picks in their own
-        // language ("דלק", "שכירות") and the card rides behind the scenes.
-        this.mappingOptions.set(
-          (rows ?? [])
-            .filter((r) => r.accountId != null)
-            .map((r) => ({
-              name: r.category ? `${r.category} / ${r.subCategory}` : r.subCategory,
-              value: r.accountId as number,
-            })),
-        );
-      });
+    });
   }
 
   private loadHasAccountant(): void {
@@ -221,49 +181,60 @@ export class AddCategoryComponent implements OnInit {
     if (this.subCategories.length > 1) this.subCategories.removeAt(i);
   }
 
-  isRecognizedRow(i: number): boolean {
-    return this.getSubCategoryFormByIndex(i).get('recognition')?.value === 'RECOGNIZED';
-  }
-
   isDeferredRow(i: number): boolean {
     return !!this.getSubCategoryFormByIndex(i).get('deferToAccountant')?.value;
   }
 
-  onRecognitionChange(i: number): void {
-    // Leaving RECOGNIZED clears mapping state so a stale pick isn't sent.
-    const group = this.getSubCategoryFormByIndex(i);
-    if (group.get('recognition')?.value !== 'RECOGNIZED') {
-      group.patchValue({ deferToAccountant: false, accountId: null });
+  onCheckboxClicked(event: any, index: number): void {
+    const group = this.getSubCategoryFormByIndex(index);
+    const checked = !!event.checked;
+    group.get('isRecognized')?.setValue(checked);
+    if (!checked) {
+      group.patchValue({
+        deferToAccountant: false,
+        isEquipment: false,
+        taxPercent: 0,
+        vatPercent: 0,
+        reductionPercent: 0,
+        pnlCategory: null,
+      });
     }
   }
 
   onDeferChange(i: number): void {
     const group = this.getSubCategoryFormByIndex(i);
     if (group.get('deferToAccountant')?.value) {
-      group.patchValue({ accountId: null });
+      group.patchValue({ isEquipment: false, taxPercent: 0, vatPercent: 0, reductionPercent: 0, pnlCategory: null });
     }
   }
 
-  /** Map a form row to the CreateUserSubCategoryDto shape (D5). */
+  /** Map a form row to the CreateUserSubCategoryDto shape. Unchecked → D5
+   *  isPrivate (no card). Checked + deferred → D5 deferToAccountant.
+   *  Checked + mapped → the legacy law shape, which findOrCreateVariantAccount
+   *  resolves to a card (D1: the card carries vat/tax/reduction/equipment). */
   private toSubCategoryDto(row: any): any {
     const base = {
       subCategoryName: (row.subCategoryName ?? '').trim(),
       isExpense: !this.incomeMode(),
     };
     if (this.incomeMode()) {
-      // Income rows keep the legacy shape — the D5 flow is an expense concept.
       return { ...base, isRecognized: false, taxPercent: 0, vatPercent: 0, reductionPercent: 0 };
     }
-    switch (row.recognition as RecognitionChoice) {
-      case 'PRIVATE':
-        return { ...base, isPrivate: true };
-      case 'NOT_RECOGNIZED':
-        return { ...base, isRecognized: false };
-      default:
-        return row.deferToAccountant
-          ? { ...base, deferToAccountant: true }
-          : { ...base, accountId: row.accountId };
+    if (!row.isRecognized) {
+      return { ...base, isPrivate: true };
     }
+    if (row.deferToAccountant) {
+      return { ...base, deferToAccountant: true };
+    }
+    return {
+      ...base,
+      isRecognized: true,
+      isEquipment: !!row.isEquipment,
+      taxPercent: Number(row.taxPercent) || 0,
+      vatPercent: Number(row.vatPercent) || 0,
+      reductionPercent: Number(row.reductionPercent) || 0,
+      pnlCategory: row.pnlCategory || null,
+    };
   }
 
   private buildPayload(): any {

@@ -16,7 +16,7 @@ import { BookingAccount } from './account.entity';
 import { AccountingSection } from './accounting-section.entity';
 import { CatalogService } from './catalog.service';
 import { AccountCodeAllocatorService } from './account-code-allocator.service';
-import { ApprovalStatus, CategoryType, ExpenseReportScope, OwnerType, RecognitionType, SYSTEM_CHART_OWNER_KEY, VisibilityScope } from '../enum';
+import { ApprovalStatus, CategoryType, OwnerType, RecognitionType, SYSTEM_CHART_OWNER_KEY, VisibilityScope } from '../enum';
 
 function makeRepo<T extends { id?: number }>(rows: T[] = []) {
   let nextId = (Math.max(0, ...rows.map((r) => r.id ?? 0)) || 0) + 1;
@@ -70,6 +70,8 @@ describe('CatalogService', () => {
   let sectionRepo: ReturnType<typeof makeRepo<any>>;
   let allocator: jest.Mocked<AccountCodeAllocatorService>;
   let expenseRepo: any;
+  let userRepo: ReturnType<typeof makeRepo<any>>;
+  let businessRepo: ReturnType<typeof makeRepo<any>>;
   let service: CatalogService;
 
   const SYS = SYSTEM_CHART_OWNER_KEY;
@@ -125,6 +127,10 @@ describe('CatalogService', () => {
       }),
     };
 
+    // "כרטיסים" admin screen (Session 13) — owner-name resolution.
+    userRepo = makeRepo<any>([]);
+    businessRepo = makeRepo<any>([]);
+
     service = new CatalogService(
       categoryRepo as any,
       subCategoryRepo as any,
@@ -133,6 +139,8 @@ describe('CatalogService', () => {
       allocator,
       dataSource as any,
       expenseRepo as any,
+      userRepo as any,
+      businessRepo as any,
     );
   });
 
@@ -388,12 +396,17 @@ describe('CatalogService', () => {
       expect(allocator.getNextAccountCode).not.toHaveBeenCalled();
     });
 
-    it('ANNUAL reportScope never resolves an account and is APPROVED', async () => {
+    it('an explicit accountId (e.g. an ANNUAL card) is pointed at directly, no law resolution involved', async () => {
+      // Model change (2026-07-14): ANNUAL is no longer a special case here —
+      // it's a normal accountId pointer whose target card happens to carry
+      // reportScope=ANNUAL (BookingAccount.reportScope, not tested at this
+      // layer). createSubCategory just needs to accept an explicit accountId.
       const sub = await service.createSubCategory(scope, category as any, 'תרומה', {
-        reportScope: ExpenseReportScope.ANNUAL,
+        accountId: 1,
       });
-      expect(sub.accountId).toBeNull();
+      expect(sub.accountId).toBe(1);
       expect(sub.approvalStatus).toBe(ApprovalStatus.APPROVED);
+      expect(allocator.getNextAccountCode).not.toHaveBeenCalled();
     });
 
     it('a law with no resolvable base card/section lands MISSING_ACCOUNTING_MAPPING, not an error', async () => {

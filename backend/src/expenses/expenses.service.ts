@@ -150,7 +150,7 @@ export class ExpensesService {
         expense.reductionPercentSnapshot = dtoOverrides.reductionPercent ?? Number(resolved.reductionPercent ?? 0);
         expense.isEquipmentSnapshot = dtoOverrides.isEquipment ?? (resolved.isEquipment ?? false);
 
-        expense.reportScope = dtoOverrides.reportScope ?? sub.reportScope ?? ExpenseReportScope.PNL;
+        expense.reportScope = dtoOverrides.reportScope ?? resolved.reportScope ?? ExpenseReportScope.PNL;
 
         expense.description = buildExpenseDescription(
             { category: expense.category, subCategory: expense.subCategory },
@@ -1020,9 +1020,14 @@ export class ExpensesService {
             isRecognized: sub.isPrivate ? false : acc?.recognitionType === RecognitionType.RECOGNIZED,
             isExpense: sub.category ? sub.category.type === CategoryType.EXPENSE : true,
             necessity: sub.necessity,
-            reportScope: sub.reportScope,
+            // Model change (2026-07-14): reportScope now lives on the card,
+            // not the sub_category — sourced from the resolved account.
+            reportScope: acc?.reportScope ?? null,
             pnlCategory: null, // D3 — pnlCategory string namespace retired, never populated on new rows
             accountCode: acc?.code ?? null,
+            // Session 13: the admin card-picker (category-management edit
+            // dialog) needs the current accountId to pre-select the picker.
+            accountId: sub.accountId ?? null,
             subAccountCode: null,
             approvalStatus: sub.approvalStatus,
             // Phase 6.2c — card display fields for the admin catalog screen
@@ -1106,7 +1111,6 @@ export class ExpensesService {
                 // journaled. Wins over any other mapping field on the row.
                 sub = await this.catalogService.createSubCategory(scope, category, subDto.subCategoryName, {
                     isPrivate: true,
-                    reportScope: subDto.reportScope ?? ExpenseReportScope.PNL,
                     createdByUserId: firebaseId,
                 });
             } else if (subDto.deferToAccountant) {
@@ -1114,7 +1118,6 @@ export class ExpensesService {
                 // MISSING_ACCOUNTING_MAPPING; the accountant completes it via
                 // the D9 inline row (complete-mapping / repoint endpoints).
                 sub = await this.catalogService.createSubCategory(scope, category, subDto.subCategoryName, {
-                    reportScope: subDto.reportScope ?? ExpenseReportScope.PNL,
                     createdByUserId: firebaseId,
                 });
             } else if (subDto.accountId != null) {
@@ -1127,7 +1130,6 @@ export class ExpensesService {
                 }
                 sub = await this.catalogService.createSubCategory(scope, category, subDto.subCategoryName, {
                     accountId: account.id,
-                    reportScope: subDto.reportScope ?? ExpenseReportScope.PNL,
                     createdByUserId: firebaseId,
                 });
             } else {
@@ -1140,7 +1142,6 @@ export class ExpensesService {
                 };
                 sub = await this.catalogService.createSubCategory(scope, category, subDto.subCategoryName, {
                     law,
-                    reportScope: subDto.reportScope ?? ExpenseReportScope.PNL,
                     createdByUserId: firebaseId,
                 });
             }
@@ -1320,7 +1321,7 @@ export class ExpensesService {
 
         const ctx = await this.catalogContextService.forUser(firebaseId, businessNumber);
         const resolved = await this.catalogService.resolveByName(categoryName, subCategoryName, ctx);
-        return resolved?.subCategory?.reportScope ?? ExpenseReportScope.PNL;
+        return resolved?.reportScope ?? ExpenseReportScope.PNL;
     }
 
     /**
@@ -1564,10 +1565,18 @@ export class ExpensesService {
         return subCategories.map((s) => this.toLegacySubCategory(s));
     }
 
-    /** Admin: update a default (SYSTEM) sub-category by id — accepts the same
-     *  legacy-shaped body (subCategoryName/taxPercent/vatPercent/...); percent
-     *  fields resolve to a SYSTEM-scoped card via CatalogService, same as the
-     *  CLIENT path (see updateUserSubCategory). */
+    /** Admin: update a default (SYSTEM) sub-category by id — names stay
+     *  read-only; necessity applies directly. reportScope is no longer a
+     *  sub_category field (model change, 2026-07-14) — it's fully determined
+     *  by the chosen card; `dto.reportScope` (if a legacy caller still sends
+     *  it) is ignored. Session 13: card assignment is now a direct pick from
+     *  the "כרטיסים" screen's card list (`dto.accountId`) rather than a
+     *  described law resolved through findOrCreateVariantAccount — the admin
+     *  screen edits an EXISTING card's own fields directly now
+     *  (CatalogService.updateAccountFields), so this endpoint only needs to
+     *  repoint, same as CatalogService.repointSubCategoryAccount's
+     *  direct-save branch for a row the caller already owns. `accountId:
+     *  null` lands the row as MISSING_ACCOUNTING_MAPPING (unmapped). */
     async updateDefaultSubCategory(id: number, dto: any): Promise<any> {
         const existing = await this.catalogService.findSubCategoryInScope(id, 'SYSTEM');
         if (!existing) {
@@ -1575,31 +1584,20 @@ export class ExpensesService {
         }
 
         if (dto.necessity !== undefined) existing.necessity = dto.necessity;
-        if (dto.reportScope !== undefined) existing.reportScope = dto.reportScope;
 
-        const hasLawFields = ['vatPercent', 'taxPercent', 'reductionPercent', 'isEquipment', 'isRecognized'].some(
-            (k) => dto[k] !== undefined,
-        );
-        if (hasLawFields) {
-            const scope = this.catalogService.buildScope(OwnerType.SYSTEM, {});
-            const current = existing.account;
-            const law: AccountLaw = {
-                vatPercent: dto.vatPercent ?? current?.vatPercent ?? 0,
-                taxPercent: dto.taxPercent ?? current?.taxPercent ?? 0,
-                reductionPercent: dto.reductionPercent ?? current?.reductionPercent ?? 0,
-                isEquipment: dto.isEquipment ?? current?.isEquipment ?? false,
-                recognitionType:
-                    dto.isRecognized === false
-                        ? RecognitionType.NOT_RECOGNIZED
-                        : dto.isRecognized === true
-                          ? RecognitionType.RECOGNIZED
-                          : (current?.recognitionType ?? RecognitionType.RECOGNIZED),
-            };
-            await this.catalogService.updateSubCategoryLaw(existing, scope, law);
-        } else {
-            await this.catalogService.saveSubCategory(existing);
+        if (dto.accountId !== undefined) {
+            if (dto.accountId === null) {
+                existing.accountId = null;
+                existing.approvalStatus = ApprovalStatus.MISSING_ACCOUNTING_MAPPING;
+            } else {
+                const account = await this.catalogService.getAccountById(dto.accountId);
+                if (!account) throw new NotFoundException(`Account ${dto.accountId} not found`);
+                existing.accountId = account.id;
+                existing.approvalStatus = ApprovalStatus.APPROVED;
+            }
         }
 
+        await this.catalogService.saveSubCategory(existing);
         return this.toLegacySubCategory(await this.reloadSubCategory(id, 'SYSTEM'));
     }
 
@@ -1644,7 +1642,6 @@ export class ExpensesService {
         };
         const sub = await this.catalogService.createSubCategory(scope, category, dto.subCategoryName, {
             law,
-            reportScope: dto.reportScope ?? ExpenseReportScope.PNL,
         });
         return this.toLegacySubCategory(await this.reloadSubCategory(sub.id, 'SYSTEM'));
     }
@@ -1965,7 +1962,8 @@ export class ExpensesService {
         }
 
         if (dto.necessity !== undefined) sub.necessity = dto.necessity;
-        if (dto.reportScope !== undefined) sub.reportScope = dto.reportScope;
+        // reportScope is no longer a sub_category field (model change,
+        // 2026-07-14) — dto.reportScope (legacy wire shape) is ignored.
 
         const hasLawFields = ['vatPercent', 'taxPercent', 'reductionPercent', 'isEquipment', 'isRecognized'].some(
             (k) => (dto as any)[k] !== undefined,
@@ -2007,6 +2005,13 @@ export class ExpensesService {
      * D3 note: `config.pnlCategory` is accepted for wire compatibility but
      * ignored — the pnlCategory string namespace is retired (accounting_
      * section replaces it); deleting the field entirely is Phase 4.4 scope.
+     *
+     * `config.reportScope` is likewise accepted but ignored (model change,
+     * 2026-07-14) — reportScope is now the resolved CARD's property, not
+     * something settable per sub_category; changing it for real means
+     * repointing the sub_category at a different card (D10), a much bigger
+     * operation than this endpoint's clone-on-write. The one still-live
+     * effect of this call is ensuring a CLIENT-scoped override row exists.
      */
     async setSubCategoryReportConfig(
         firebaseId: string,
@@ -2047,12 +2052,10 @@ export class ExpensesService {
                 law: merged?.isPrivate ? undefined : law,
                 accountId: merged?.isPrivate ? null : undefined,
                 necessity: merged?.necessity,
-                reportScope: merged?.reportScope ?? ExpenseReportScope.PNL,
                 createdByUserId: firebaseId,
             });
         }
 
-        if (config.reportScope !== undefined) sub.reportScope = config.reportScope;
         await this.catalogService.saveSubCategory(sub);
 
         return this.toLegacySubCategory(await this.reloadSubCategory(sub.id, chartOwnerKey));

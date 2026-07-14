@@ -1,4 +1,4 @@
-.category-management {
+.card-management {
   display: flex;
   flex-direction: column;
   gap: 24px;
@@ -6,24 +6,6 @@
   width: 100%;
 }
 
-/* בחירת והעלאת קובץ – צד ימין (ב-RTL ה-start הוא ימין) */
-.upload-section {
-  display: flex;
-  justify-content: flex-start;
-  width: 100%;
-  direction: rtl;
-}
-
-.load-category-file {
-  width: auto;
-  max-width: 100%;
-  position: static !important;
-  left: auto !important;
-  top: auto !important;
-  align-self: flex-start;
-}
-
-/* טבלה – כמו בעמוד הנהלת חשבונות (הכנסות/הוצאות) */
 .table-wrap {
   width: 98%;
   display: flex;
@@ -65,7 +47,7 @@
   }
 }
 
-.categories-table {
+.accounts-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 1rem;
@@ -125,14 +107,6 @@
   margin: 0;
 }
 
-.table-footer {
-  display: flex;
-  justify-content: flex-start;
-  padding: 12px 18px;
-  border-top: 1px solid #ebebeb;
-}
-
-/* דיאלוגים – טופס */
 .dialog-form {
   display: flex;
   flex-direction: column;
@@ -156,18 +130,19 @@
   gap: 8px;
 }
 
-// Inline group of 3 boolean flags (ציוד / מוכר / הוצאה) on one row under the
-// category field. Each .check-item is its own [checkbox + label] pair.
-.form-row.check-row-group {
-  flex-direction: row;
-  align-items: center;
-  gap: 24px;
-  padding: 4px 0;
+.shared-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background-color: #fff7ed;
+  border: 1px solid #fdba74;
+  color: #9a3412;
+  font-size: 13px;
 
-  .check-item {
-    display: flex;
-    align-items: center;
-    gap: 6px;
+  .pi {
+    margin-top: 2px;
   }
 }
 
@@ -180,7 +155,7 @@
     color: #aaa;
   }
 
-  .categories-table {
+  .accounts-table {
     thead tr {
       background-color: #2f2f2f;
       border-bottom-color: #404040;
@@ -202,13 +177,9 @@
     color: #f4f4f5;
   }
 
-  .table-footer {
-    border-top-color: #2f2f2f;
+  .shared-warning {
+    background-color: #3a2a12;
+    border-color: #92400e;
+    color: #fdba74;
   }
-}
-
-.law-edit-note {
-  font-size: 12px;
-  color: #6b7280;
-  margin: 4px 0 0;
 }

@@ -4,6 +4,7 @@ import { CatalogService, CatalogScope } from './catalog.service';
 import { CatalogContextService } from './catalog-context.service';
 import { CreateManualJournalEntryDto } from './dto/manual-journal-entry.dto';
 import { CreateAccountDto, AccountAvailability } from './dto/create-account.dto';
+import { UpdateAccountDto } from './dto/update-account.dto';
 import { RepointSubCategoryAccountDto } from './dto/repoint-sub-category-account.dto';
 import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.interface';
 import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
@@ -131,6 +132,68 @@ export class BookkepingController {
           }
         : null,
     };
+  }
+
+  /**
+   * "כרטיסים" admin screen (Session 13): every card across all owner scopes
+   * (optionally filtered by ownerType), with a resolved owner display name.
+   * Admin-only — unlike POST accounts/GET sections (accountant-or-admin),
+   * this exposes every business's private CLIENT cards in one flat list, so
+   * it's gated tighter.
+   */
+  @Get('accounts')
+  @UseGuards(FirebaseAuthGuard)
+  async listAccounts(
+    @Req() request: AuthenticatedRequest,
+    @Query('ownerType') ownerType?: OwnerType,
+  ) {
+    const actorFirebaseId = request.user?.actorFirebaseId ?? request.user?.firebaseId;
+    if (!actorFirebaseId) throw new UnauthorizedException('Not authenticated');
+    if (!(await this.catalogContextService.isAdmin(actorFirebaseId))) {
+      throw new ForbiddenException('רק מנהל מערכת יכול לצפות במסך ניהול הכרטיסים');
+    }
+    return this.catalogService.listAccountsForAdmin(ownerType);
+  }
+
+  /**
+   * "כרטיסים" admin screen: the impact-count confirmation shown before
+   * editing a shared card — "N sub_categories across M businesses point at
+   * this". See CatalogService.getAccountUsage for what this count does and
+   * doesn't capture.
+   */
+  @Get('accounts/:id/usage')
+  @UseGuards(FirebaseAuthGuard)
+  async getAccountUsage(
+    @Req() request: AuthenticatedRequest,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    const actorFirebaseId = request.user?.actorFirebaseId ?? request.user?.firebaseId;
+    if (!actorFirebaseId) throw new UnauthorizedException('Not authenticated');
+    if (!(await this.catalogContextService.isAdmin(actorFirebaseId))) {
+      throw new ForbiddenException('רק מנהל מערכת יכול לצפות במסך ניהול הכרטיסים');
+    }
+    return this.catalogService.getAccountUsage(id);
+  }
+
+  /**
+   * "כרטיסים" admin screen: direct in-place edit of an existing card's own
+   * fields. Unlike every sub_category-triggered write in this module (D10 —
+   * never edits a card's percents in place), this IS the deliberate direct
+   * mutation path, admin-only.
+   */
+  @Patch('accounts/:id')
+  @UseGuards(FirebaseAuthGuard)
+  async updateAccount(
+    @Req() request: AuthenticatedRequest,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateAccountDto,
+  ) {
+    const actorFirebaseId = request.user?.actorFirebaseId ?? request.user?.firebaseId;
+    if (!actorFirebaseId) throw new UnauthorizedException('Not authenticated');
+    if (!(await this.catalogContextService.isAdmin(actorFirebaseId))) {
+      throw new ForbiddenException('רק מנהל מערכת יכול לערוך כרטיס ישירות');
+    }
+    return this.catalogService.updateAccountFields(id, dto);
   }
 
   /**

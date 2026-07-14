@@ -3,6 +3,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, FormGroup } from '@angular/forms';
 import { Workbook, Worksheet } from 'exceljs';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
+import { BookkeepingCatalogService, IBookingAccountRow } from 'src/app/services/bookkeeping-catalog.service';
 import { ConfirmationService } from 'primeng/api';
 import { ButtonSize, ButtonColor } from 'src/app/components/button/button.enum';
 import { FilterField } from 'src/app/components/filter-tab/filter-fields-model.component';
@@ -23,12 +24,8 @@ const NECESSITY_OPTIONS = [
 const REPORT_SCOPE_LABELS: Record<string, string> = {
   pnl: 'רווח והפסד',
   annual: 'דוח שנתי בלבד',
+  technical: 'טכני',
 };
-
-const REPORT_SCOPE_OPTIONS = [
-  { label: 'רווח והפסד', value: 'pnl' },
-  { label: 'דוח שנתי בלבד', value: 'annual' },
-];
 
 @Component({
   selector: 'app-category-management',
@@ -39,13 +36,13 @@ const REPORT_SCOPE_OPTIONS = [
 export class CategoryManagementComponent implements OnInit {
   private destroyRef = inject(DestroyRef);
   private expenseDataService = inject(ExpenseDataService);
+  private bookkeepingCatalogService = inject(BookkeepingCatalogService);
   private confirmationService = inject(ConfirmationService);
   private fb = inject(FormBuilder);
 
   readonly buttonSize = ButtonSize;
   readonly ButtonColor = ButtonColor;
   necessityOptions = NECESSITY_OPTIONS;
-  reportScopeOptions = REPORT_SCOPE_OPTIONS;
   readonly NEW_CATEGORY_VALUE = '__NEW__';
 
   subCategories = signal<any[]>([]);
@@ -78,11 +75,13 @@ export class CategoryManagementComponent implements OnInit {
     { name: 'לא',  value: 'false' },
   ];
 
-  /** reportScope options for the filter (PNL / ANNUAL / all). */
+  /** reportScope options for the filter (PNL / ANNUAL / TECHNICAL / all) —
+   *  read-only display filter, sourced from the row's card (see reportScopeLabel). */
   private readonly reportScopeFilterOptions = [
     { name: 'הכל', value: '' },
     { name: 'רווח והפסד', value: 'pnl' },
     { name: 'דוח שנתי בלבד', value: 'annual' },
+    { name: 'טכני', value: 'technical' },
   ];
 
   /** Shared filter-tab configuration — passed to <app-filter-tab>. */
@@ -130,7 +129,6 @@ export class CategoryManagementComponent implements OnInit {
     isRecognized: boolean;
     isExpense: boolean;
     necessity: string;
-    reportScope: string;
   }> = {};
 
   /** רשימת קטגוריות קיימות + "קטגוריה חדשה" לבחירה בדיאלוג הוספה */
@@ -140,8 +138,41 @@ export class CategoryManagementComponent implements OnInit {
     return [...existing, { label: 'קטגוריה חדשה', value: this.NEW_CATEGORY_VALUE }];
   });
 
+  // ── Card picker (Session 13) ────────────────────────────────────────────
+  // The edit dialog used to let an admin describe a NEW law (percents/
+  // equipment/recognition) and have findOrCreateVariantAccount resolve or
+  // allocate a matching card (D10). It now picks an EXISTING card directly
+  // instead — direct card editing lives on the new "כרטיסים" screen
+  // (card-management), which is the deliberate in-place-edit tool. Only
+  // SYSTEM cards are offered here: this screen edits SYSTEM sub_category
+  // rows, and pointing one at a private ACCOUNTANT/CLIENT card would be
+  // meaningless for every other tenant that inherits it by name.
+  systemAccounts = signal<IBookingAccountRow[]>([]);
+  accountPickerForm: FormGroup = this.fb.group({ accountId: [null] });
+
+  accountPickerItems = computed(() => {
+    const bySection = new Map<string, { name: string; value: number }[]>();
+    for (const a of this.systemAccounts()) {
+      const key = a.sectionName || 'ללא חתך';
+      if (!bySection.has(key)) bySection.set(key, []);
+      // PNL cards (the common case) show unlabeled; ANNUAL/TECHNICAL cards
+      // are tagged so an admin can tell them apart when picking (they're
+      // deliberately excluded from P&L — see reportScope on booking_account).
+      const scopeTag = a.reportScope !== 'pnl' ? ` [${this.reportScopeLabel(a.reportScope)}]` : '';
+      bySection.get(key)!.push({ name: `${a.code} - ${a.name}${scopeTag}`, value: a.id });
+    }
+    return [...bySection.entries()].map(([label, items]) => ({ label, items }));
+  });
+
   ngOnInit() {
     this.loadSubCategories();
+    this.bookkeepingCatalogService
+      .listAccounts('SYSTEM')
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (accounts) => this.systemAccounts.set(Array.isArray(accounts) ? accounts : []),
+        error: () => this.systemAccounts.set([]),
+      });
   }
 
   loadSubCategories(): void {
@@ -176,21 +207,15 @@ export class CategoryManagementComponent implements OnInit {
 
   openUpdateConfirm(row: any): void {
     this.editRow.set(row);
-    // Names are display-only (updateDefaultSubCategory never applies them);
-    // law-field edits re-resolve/repoint the row's card (D10 — a card's
-    // percents are never edited in place).
+    // Names are display-only (updateDefaultSubCategory never applies them).
+    // Card assignment (Session 13) is a direct pick from accountPickerForm
+    // below, not a described law — see the card-picker comment above.
     this.editForm = {
       subCategoryName: row.subCategoryName,
       categoryName: row.categoryName,
-      taxPercent: row.taxPercent,
-      vatPercent: row.vatPercent,
-      reductionPercent: row.reductionPercent,
-      isEquipment: row.isEquipment,
-      isRecognized: row.isRecognized,
-      isExpense: row.isExpense,
       necessity: row.necessity,
-      reportScope: row.reportScope ?? 'pnl',
     };
+    this.accountPickerForm.patchValue({ accountId: row.accountId ?? null });
     this.showEditDialog.set(true);
   }
 
@@ -209,7 +234,8 @@ export class CategoryManagementComponent implements OnInit {
       acceptLabel: 'כן',
       rejectLabel: 'לא',
       accept: () => {
-        this.updateSubCategory(row, this.editForm);
+        const updated = { ...this.editForm, accountId: this.accountPickerForm.value.accountId ?? null };
+        this.updateSubCategory(row, updated);
         this.closeEditDialog();
       },
     });
@@ -241,7 +267,6 @@ export class CategoryManagementComponent implements OnInit {
       isRecognized: false,
       isExpense: true,
       necessity: 'IMPORTANT',
-      reportScope: 'pnl',
     };
     this.showAddDialog.set(true);
   }

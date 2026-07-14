@@ -107,7 +107,6 @@ describe('ExpensesService — journal entry linking', () => {
         name: 'דלק',
         isPrivate: false,
         approvalStatus: ApprovalStatus.APPROVED,
-        reportScope: ExpenseReportScope.PNL,
         category: { name: 'הוצאות' },
       },
       account: { id: 7, code: '5100', name: 'דלק' },
@@ -118,6 +117,9 @@ describe('ExpensesService — journal entry linking', () => {
       isEquipment: false,
       reductionPercent: 0,
       recognitionType: null,
+      // reportScope now lives on the resolved account (model change,
+      // 2026-07-14), not sub_category — top-level here, matching ResolvedSubCategory.
+      reportScope: ExpenseReportScope.PNL,
     };
     const catalogService: Partial<CatalogService> = {
       resolveByName: jest.fn().mockResolvedValue(resolvedSubCategory as any),

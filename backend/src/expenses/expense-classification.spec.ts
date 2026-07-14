@@ -49,7 +49,6 @@ function makeResolved(overrides: any = {}) {
       name: 'דלק',
       isPrivate: false,
       approvalStatus: ApprovalStatus.APPROVED,
-      reportScope: ExpenseReportScope.PNL,
       category: { name: 'הוצאות רכב' },
       ...(overrides.subCategory ?? {}),
     },
@@ -65,6 +64,9 @@ function makeResolved(overrides: any = {}) {
     isEquipment: overrides.isEquipment ?? false,
     reductionPercent: overrides.reductionPercent ?? 0,
     recognitionType: null,
+    // reportScope now lives on the resolved account (model change,
+    // 2026-07-14), not sub_category — top-level here, matching ResolvedSubCategory.
+    reportScope: overrides.reportScope ?? ExpenseReportScope.PNL,
   };
 }
 
@@ -604,7 +606,6 @@ describe('ExpensesService — Phase 4.1 classification', () => {
         id: 90, name: 'איתוראן', categoryId: 1, isPrivate: false, accountId: null, account: null,
         category: { id: 1, name: 'הוצאות רכב', type: 'EXPENSE' },
         approvalStatus: ApprovalStatus.MISSING_ACCOUNTING_MAPPING,
-        reportScope: ExpenseReportScope.PNL,
       });
     });
 

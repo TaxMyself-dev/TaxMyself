@@ -7,6 +7,8 @@ import { BookingAccount } from './account.entity';
 import { AccountingSection } from './accounting-section.entity';
 import { AccountCodeAllocatorService } from './account-code-allocator.service';
 import { Expense } from 'src/expenses/expenses.entity';
+import { User } from 'src/users/user.entity';
+import { Business } from 'src/business/business.entity';
 import {
   ApprovalStatus,
   CategoryType,
@@ -42,6 +44,10 @@ export interface ResolvedSubCategory {
   isEquipment: boolean | null;
   reductionPercent: number | null;
   recognitionType: RecognitionType | null;
+  /** Report routing — now the CARD's property (model change, 2026-07-14),
+   *  not sub_category's. PNL when there is no account (private/unmapped),
+   *  matching the entity column's own default. */
+  reportScope: ExpenseReportScope;
 }
 
 /**
@@ -75,10 +81,10 @@ export interface CreateSubCategoryInput {
    *  to a card via findOrCreateVariantAccount rather than living on the row. */
   law?: AccountLaw;
   /** Direct pointer, when the caller already resolved an account (e.g. future
-   *  D11 accountant flow). Takes precedence over `law` when both are given. */
+   *  D11 accountant flow, or a SYSTEM seed row pointing at an ANNUAL/TECHNICAL
+   *  card). Takes precedence over `law` when both are given. */
   accountId?: number | null;
   necessity?: ExpenseNecessity;
-  reportScope?: ExpenseReportScope;
   createdByUserId?: string | null;
 }
 
@@ -105,6 +111,9 @@ export class CatalogService {
     private readonly dataSource: DataSource,
     // Phase 5.4: pending-approvals queue counts the blocked expenses per row.
     @InjectRepository(Expense) private readonly expenseRepo: Repository<Expense>,
+    // "כרטיסים" admin screen: resolve ACCOUNTANT/CLIENT owner display names.
+    @InjectRepository(User) private readonly userRepo: Repository<User>,
+    @InjectRepository(Business) private readonly businessRepo: Repository<Business>,
   ) {}
 
   private chartOwnerKeysFor(ctx: CatalogContext): string[] {
@@ -332,6 +341,7 @@ export class CatalogService {
       isEquipment: account?.isEquipment ?? null,
       reductionPercent: account?.reductionPercent ?? null,
       recognitionType: account?.recognitionType ?? null,
+      reportScope: account?.reportScope ?? ExpenseReportScope.PNL,
     };
   }
 
@@ -475,6 +485,7 @@ export class CatalogService {
         reductionPercent: law.reductionPercent,
         isEquipment: law.isEquipment,
         recognitionType: law.recognitionType,
+        reportScope: baseAccount?.reportScope ?? ExpenseReportScope.PNL,
         ownerType: scope.ownerType,
         chartOwnerKey: scope.chartOwnerKey,
         accountantId: scope.accountantId ?? null,
@@ -509,6 +520,11 @@ export class CatalogService {
    * name (if any) as the base card for section/6111 inheritance. Falls back
    * to MISSING_ACCOUNTING_MAPPING (not an error) when no card can be
    * resolved without inventing a section.
+   *
+   * ANNUAL rows are no longer a special case here (model change,
+   * 2026-07-14) — they're a normal `accountId` pointer whose target card
+   * happens to carry `reportScope=ANNUAL`; only PRIVATE rows (D5) never
+   * carry an account.
    */
   async createSubCategory(scope: CatalogScope, category: Category, name: string, input: CreateSubCategoryInput): Promise<SubCategory> {
     const trimmed = name?.trim();
@@ -516,12 +532,11 @@ export class CatalogService {
 
     let accountId: number | null = input.accountId ?? null;
     let approvalStatus = ApprovalStatus.APPROVED;
-    const isAnnual = input.reportScope === ExpenseReportScope.ANNUAL;
 
-    if (input.isPrivate || isAnnual) {
-      // Neither PRIVATE nor ANNUAL rows ever carry an account (D5 / D14
-      // decision 2 respectively) — accountId stays whatever was passed
-      // (normally null) and this is APPROVED, not MISSING_ACCOUNTING_MAPPING.
+    if (input.isPrivate) {
+      // PRIVATE rows never carry an account (D5) — accountId stays whatever
+      // was passed (normally null) and this is APPROVED, not
+      // MISSING_ACCOUNTING_MAPPING.
     } else if (accountId == null && input.law) {
       const baseAccount = await this.findSystemSubCategoryByName(trimmed).then((s) => s?.account ?? null);
       const account = await this.findOrCreateVariantAccount(scope, input.law, trimmed, baseAccount, category.name);
@@ -541,7 +556,6 @@ export class CatalogService {
         isPrivate: input.isPrivate ?? false,
         accountId: input.isPrivate ? null : accountId,
         necessity: input.necessity ?? ExpenseNecessity.IMPORTANT,
-        reportScope: input.reportScope ?? ExpenseReportScope.PNL,
         ownerType: scope.ownerType,
         chartOwnerKey: scope.chartOwnerKey,
         accountantId: scope.accountantId ?? null,
@@ -591,6 +605,13 @@ export class CatalogService {
    *  chart codes, never through the variant-law resolution path). */
   async findAccountByCode(chartOwnerKey: string, code: string): Promise<BookingAccount | null> {
     return this.accountRepo.findOne({ where: { chartOwnerKey, code } });
+  }
+
+  /** Unscoped lookup by id — for admin flows (the "כרטיסים" card-picker
+   *  repoint on the default-sub-category screen) that already gate the
+   *  caller at the controller level rather than via a CatalogContext. */
+  async getAccountById(id: number): Promise<BookingAccount | null> {
+    return this.accountRepo.findOne({ where: { id, isActive: true } });
   }
 
   /** Active sections across the given charts — feeds the D11 add-account
@@ -745,7 +766,6 @@ export class CatalogService {
           isPrivate: false,
           accountId: account.id,
           necessity: ExpenseNecessity.IMPORTANT,
-          reportScope: ExpenseReportScope.PNL,
           ownerType: scope.ownerType,
           chartOwnerKey: scope.chartOwnerKey,
           accountantId: scope.accountantId ?? null,
@@ -844,7 +864,6 @@ export class CatalogService {
       return this.createSubCategory(scope, category, sub.name, {
         accountId: account.id,
         necessity: sub.necessity,
-        reportScope: sub.reportScope,
         createdByUserId: ctx.userId ?? null,
       });
     }
@@ -916,7 +935,7 @@ export class CatalogService {
         ownerType: s.ownerType,
         chartOwnerKey: s.chartOwnerKey,
         isPrivate: !!s.isPrivate,
-        reportScope: s.reportScope ?? null,
+        reportScope: s.account?.reportScope ?? null,
         approvalStatus: s.approvalStatus,
         accountId: s.accountId ?? null,
         accountCode: s.account?.code ?? null,
@@ -981,5 +1000,141 @@ export class CatalogService {
       businessNumber: r.businessNumber ?? null,
       pendingExpenseCount: countBySubCategoryId.get(r.id) ?? 0,
     }));
+  }
+
+  // ==========================================================================
+  // "כרטיסים" admin screen (Session 13) — standalone booking_account CRUD,
+  // separate from the sub_category-triggered variant-resolution flow above.
+  // ==========================================================================
+
+  /**
+   * Every active card across all owner scopes (or one scope, filtered), each
+   * with a resolved owner display name for ACCOUNTANT/CLIENT rows (SYSTEM
+   * rows have none). Admin-only listing — unlike every read above, this is
+   * not merged/scoped to one business's visible charts, it's the flat global
+   * table.
+   */
+  async listAccountsForAdmin(ownerType?: OwnerType): Promise<{
+    id: number; code: string; name: string; type: string;
+    sectionId: number | null; sectionName: string | null;
+    code6111: string | null;
+    vatPercent: number | null; taxPercent: number | null; reductionPercent: number | null;
+    isEquipment: boolean | null; recognitionType: RecognitionType | null;
+    reportScope: ExpenseReportScope;
+    ownerType: OwnerType; chartOwnerKey: string;
+    accountantId: string | null; businessNumber: string | null;
+    ownerName: string | null;
+  }[]> {
+    const where: { isActive: boolean; ownerType?: OwnerType } = { isActive: true };
+    if (ownerType && Object.values(OwnerType).includes(ownerType)) {
+      where.ownerType = ownerType;
+    }
+    const rows = await this.accountRepo.find({
+      where,
+      relations: ['section'],
+      order: { ownerType: 'ASC', code: 'ASC' },
+    });
+
+    const accountantIds = [...new Set(
+      rows.filter((r) => r.ownerType === OwnerType.ACCOUNTANT && r.accountantId).map((r) => r.accountantId as string),
+    )];
+    const businessNumbers = [...new Set(
+      rows.filter((r) => r.ownerType === OwnerType.CLIENT && r.businessNumber).map((r) => r.businessNumber as string),
+    )];
+    const [accountants, businesses] = await Promise.all([
+      accountantIds.length
+        ? this.userRepo.find({ where: { firebaseId: In(accountantIds) }, select: ['firebaseId', 'email', 'fName', 'lName'] })
+        : [],
+      businessNumbers.length
+        ? this.businessRepo.find({ where: { businessNumber: In(businessNumbers) }, select: ['businessNumber', 'businessName'] })
+        : [],
+    ]);
+    const accountantNameById = new Map(
+      accountants.map((a): [string, string] => [a.firebaseId, [a.fName, a.lName].filter(Boolean).join(' ').trim() || a.email]),
+    );
+    const businessNameByNumber = new Map(
+      businesses.map((b): [string, string] => [b.businessNumber, b.businessName || b.businessNumber]),
+    );
+
+    return rows.map((r) => ({
+      id: r.id,
+      code: r.code,
+      name: r.name,
+      type: r.type,
+      sectionId: r.sectionId,
+      sectionName: r.section?.name ?? null,
+      code6111: r.code6111,
+      vatPercent: r.vatPercent != null ? Number(r.vatPercent) : null,
+      taxPercent: r.taxPercent != null ? Number(r.taxPercent) : null,
+      reductionPercent: r.reductionPercent != null ? Number(r.reductionPercent) : null,
+      isEquipment: r.isEquipment,
+      recognitionType: r.recognitionType,
+      reportScope: r.reportScope,
+      ownerType: r.ownerType,
+      chartOwnerKey: r.chartOwnerKey,
+      accountantId: r.accountantId,
+      businessNumber: r.businessNumber,
+      ownerName:
+        r.ownerType === OwnerType.ACCOUNTANT ? (r.accountantId ? accountantNameById.get(r.accountantId) ?? null : null)
+        : r.ownerType === OwnerType.CLIENT ? (r.businessNumber ? businessNameByNumber.get(r.businessNumber) ?? null : null)
+        : null,
+    }));
+  }
+
+  /**
+   * Impact count shown before an admin edits a shared card — "this affects N
+   * sub_categories across M businesses". A direct COUNT of sub_category rows
+   * whose accountId points here. Does NOT count businesses that implicitly
+   * inherit a SYSTEM card via the D4 merge-by-name without an explicit
+   * override row — that set is effectively "every business without an
+   * override" and isn't a countable row, so this is a floor, not the true
+   * blast radius, for SYSTEM cards specifically.
+   */
+  async getAccountUsage(accountId: number): Promise<{ subCategoryCount: number; businessCount: number }> {
+    const [subCategoryCount, businessCountRow] = await Promise.all([
+      this.subCategoryRepo.count({ where: { accountId, isActive: true } }),
+      this.subCategoryRepo
+        .createQueryBuilder('s')
+        .select('COUNT(DISTINCT s.businessNumber)', 'cnt')
+        .where('s.accountId = :accountId', { accountId })
+        .andWhere('s.isActive = true')
+        .andWhere('s.businessNumber IS NOT NULL')
+        .getRawOne<{ cnt: string }>(),
+    ]);
+    return { subCategoryCount, businessCount: Number(businessCountRow?.cnt ?? 0) };
+  }
+
+  /**
+   * Direct in-place edit of an existing card's own fields (admin-only
+   * "כרטיסים" screen) — the deliberate mutation path D10's comment on
+   * updateSubCategoryLaw presupposes doesn't otherwise exist. `sectionId`
+   * (if changed) must resolve to a section visible to the card's own scope,
+   * same rule as createAccountWithSubCategory; `code` (if changed) must stay
+   * unique within the card's chartOwnerKey.
+   */
+  async updateAccountFields(accountId: number, dto: {
+    name?: string; code?: string; sectionId?: number; code6111?: string | null;
+    recognitionType?: RecognitionType; vatPercent?: number; taxPercent?: number;
+    reductionPercent?: number; isEquipment?: boolean; reportScope?: ExpenseReportScope;
+  }): Promise<BookingAccount> {
+    const account = await this.accountRepo.findOne({ where: { id: accountId } });
+    if (!account) throw new NotFoundException(`Account ${accountId} not found`);
+
+    if (dto.sectionId !== undefined && dto.sectionId !== account.sectionId) {
+      const section = await this.sectionRepo.findOne({
+        where: { id: dto.sectionId, isActive: true, chartOwnerKey: In([SYSTEM_CHART_OWNER_KEY, account.chartOwnerKey]) },
+      });
+      if (!section) throw new NotFoundException(`Accounting section ${dto.sectionId} not found`);
+    }
+    if (dto.code !== undefined && dto.code !== account.code) {
+      const collision = await this.accountRepo.findOne({ where: { chartOwnerKey: account.chartOwnerKey, code: dto.code } });
+      if (collision) throw new ConflictException(`חשבון עם קוד ${dto.code} כבר קיים בתרשים החשבונות`);
+    }
+
+    const fields = ['name', 'code', 'sectionId', 'code6111', 'recognitionType', 'vatPercent', 'taxPercent', 'reductionPercent', 'isEquipment', 'reportScope'] as const;
+    for (const field of fields) {
+      if (dto[field] !== undefined) (account as any)[field] = dto[field];
+    }
+    return this.accountRepo.save(account);
   }
 }

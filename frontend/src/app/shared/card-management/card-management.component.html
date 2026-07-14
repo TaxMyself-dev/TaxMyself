@@ -1,0 +1,142 @@
+<div class="card-management">
+  <div class="table-wrap">
+    <div class="table-header-row">
+      <p class="table-title">כרטיסים</p>
+    </div>
+
+    <app-filter-tab [config]="filterConfig" [parentForm]="filterForm" (apply)="onApplyFilter($event)"></app-filter-tab>
+    <div style="color: #6b7280; font-size: 12px; padding: 4px 0;">
+      מציג {{ filteredAccounts().length }} מתוך {{ accounts().length }}
+    </div>
+
+    <div class="table-container-inner">
+      @if (loading()) {
+        <div class="table-loading">
+          <i class="pi pi-spin pi-spinner-dotted"></i>
+          <span>טוען...</span>
+        </div>
+      } @else {
+        <table class="accounts-table">
+          <thead>
+            <tr>
+              <th class="columns-header">קוד</th>
+              <th class="columns-header">שם</th>
+              <th class="columns-header">חתך</th>
+              <th class="columns-header">קוד 6111</th>
+              <th class="columns-header">% מע"מ</th>
+              <th class="columns-header">% מס</th>
+              <th class="columns-header">% הפחתה</th>
+              <th class="columns-header">ציוד</th>
+              <th class="columns-header">הכרה</th>
+              <th class="columns-header">סוג דוח</th>
+              <th class="columns-header">היקף בעלות</th>
+              <th class="columns-header actions-col">פעולות</th>
+            </tr>
+          </thead>
+          <tbody>
+            @if (filteredAccounts().length === 0) {
+              <tr>
+                <td colspan="12" class="empty-message">
+                  <div class="empty-data-container">
+                    <p class="empty-data-text">
+                      {{ accounts().length === 0 ? 'אין כרטיסים' : 'אין כרטיסים התואמים לסינון' }}
+                    </p>
+                  </div>
+                </td>
+              </tr>
+            } @else {
+              @for (row of filteredAccounts(); track row.id) {
+                <tr class="table-row">
+                  <td>{{ row.code }}</td>
+                  <td>{{ row.name }}</td>
+                  <td>{{ row.sectionName || '—' }}</td>
+                  <td>{{ row.code6111 || '—' }}</td>
+                  <td>{{ row.vatPercent ?? '—' }}</td>
+                  <td>{{ row.taxPercent ?? '—' }}</td>
+                  <td>{{ row.reductionPercent ?? '—' }}</td>
+                  <td>{{ row.isEquipment ? 'כן' : 'לא' }}</td>
+                  <td>{{ recognitionLabel(row.recognitionType) }}</td>
+                  <td>{{ reportScopeLabel(row.reportScope) }}</td>
+                  <td>{{ ownerLabel(row) }}</td>
+                  <td class="actions-cell">
+                    <app-p-button [icon]="'pi pi-pencil'" [iconOnly]="true" [buttonSize]="buttonSize.AUTO"
+                      [buttonColor]="ButtonColor.TRANSPARET" (onButtonClicked)="openEdit(row)"
+                      [buttonText]="'עדכון'"></app-p-button>
+                  </td>
+                </tr>
+              }
+            }
+          </tbody>
+        </table>
+      }
+    </div>
+  </div>
+</div>
+
+<!-- דיאלוג עדכון כרטיס -->
+<p-dialog header="עדכון כרטיס" [visible]="showEditDialog()" [modal]="true" [style]="{ width: '520px' }" [rtl]="true"
+  (onHide)="closeEditDialog()" [draggable]="false" [resizable]="false">
+  <div class="dialog-form">
+    @if (editRow()?.ownerType === 'SYSTEM') {
+      <div class="shared-warning">
+        <i class="pi pi-exclamation-triangle"></i>
+        @if (loadingUsage()) {
+          <span>בודק היקף השפעה...</span>
+        } @else if (usage()) {
+          <span>
+            כרטיס משותף למערכת — משפיע על <strong>{{ usage()!.subCategoryCount }}</strong> תתי-קטגוריות
+            ב-<strong>{{ usage()!.businessCount }}</strong> עסקים לפחות.
+          </span>
+        } @else {
+          <span>כרטיס זה משותף לכלל המערכת — שינוי כאן משפיע על כל מי שמשתמש בו.</span>
+        }
+      </div>
+    }
+    <div class="form-row">
+      <label>שם</label>
+      <input type="text" pInputText [(ngModel)]="editForm.name" />
+    </div>
+    <div class="form-row">
+      <label>קוד</label>
+      <input type="text" pInputText [(ngModel)]="editForm.code" />
+    </div>
+    <div class="form-row">
+      <label>חתך</label>
+      <p-select [(ngModel)]="editForm.sectionId" [options]="sections()" optionLabel="name" optionValue="id" placeholder="בחר חתך"></p-select>
+    </div>
+    <div class="form-row">
+      <label>קוד 6111</label>
+      <input type="text" pInputText [(ngModel)]="editForm.code6111" />
+    </div>
+    <div class="form-row">
+      <label>% מע"מ</label>
+      <p-inputNumber [(ngModel)]="editForm.vatPercent" [minFractionDigits]="0" [maxFractionDigits]="2"></p-inputNumber>
+    </div>
+    <div class="form-row">
+      <label>% מס</label>
+      <p-inputNumber [(ngModel)]="editForm.taxPercent" [minFractionDigits]="0" [maxFractionDigits]="2"></p-inputNumber>
+    </div>
+    <div class="form-row">
+      <label>% הפחתה</label>
+      <p-inputNumber [(ngModel)]="editForm.reductionPercent" [minFractionDigits]="0" [maxFractionDigits]="2"></p-inputNumber>
+    </div>
+    <div class="form-row check-row">
+      <p-checkbox [(ngModel)]="editForm.isEquipment" [binary]="true" inputId="editCardEquipment"></p-checkbox>
+      <label for="editCardEquipment">ציוד</label>
+    </div>
+    <div class="form-row">
+      <label>הכרה</label>
+      <p-select [(ngModel)]="editForm.recognitionType" [options]="recognitionOptions" optionLabel="label" optionValue="value" placeholder="בחר"></p-select>
+    </div>
+    <div class="form-row">
+      <label>סוג דוח</label>
+      <p-select [(ngModel)]="editForm.reportScope" [options]="reportScopeOptions" optionLabel="label" optionValue="value" placeholder="בחר"></p-select>
+    </div>
+  </div>
+  <ng-template pTemplate="footer">
+    <app-p-button [buttonText]="'ביטול'" [buttonSize]="buttonSize.SMALL" (onButtonClicked)="closeEditDialog()"></app-p-button>
+    <app-p-button [buttonText]="'עדכון'" [buttonSize]="buttonSize.SMALL" (onButtonClicked)="confirmAndSaveEdit()"></app-p-button>
+  </ng-template>
+</p-dialog>
+
+<p-confirmDialog></p-confirmDialog>

@@ -22,24 +22,23 @@
         <div [formGroupName]="i" class="wrap-subcat-block">
 
           <div class="subcat-block">
+            @if (!incomeMode()) {
+            <!-- Checkbox per subcategory -->
+            <div class="checkbox-container">
+              <p-checkbox [size]="'small'" inputId="ny-{{ i }}" [binary]="true" formControlName="isRecognized"
+                (onChange)="onCheckboxClicked($event, i)" />
+              <label for="ny-{{ i }}" class="ml-2">
+                האם ההוצאה הינה הוצאה מוכרת?
+              </label>
+            </div>
+            }
+
             <app-input-text [ariaLabel]="'תת-קטגוריה'" [labelText]="'תת-קטגוריה'" [controlName]="'subCategoryName'"
               [parentForm]="getSubCategoryFormByIndex(i)" [size]="inputsSize.MEDIUM">
             </app-input-text>
 
-            @if (!incomeMode()) {
-            <!-- D5 three-option flow -->
-            <div class="recognition-options">
-              @for (opt of recognitionOptions; track opt.value) {
-              <div class="recognition-option">
-                <p-radioButton [inputId]="'rec-' + i + '-' + opt.value" [value]="opt.value"
-                  formControlName="recognition" (onClick)="onRecognitionChange(i)" />
-                <label [for]="'rec-' + i + '-' + opt.value" class="ml-2">{{ opt.label }}</label>
-              </div>
-              }
-            </div>
-
-            @if (isRecognizedRow(i)) {
-            <!-- RECOGNIZED: mapping — pick a card, or leave it to the accountant -->
+            @if (!incomeMode() && getSubCategoryFormByIndex(i).get('isRecognized')?.value) {
+            <!-- Recognized: fold in "leave it to the accountant" (D5) -->
             @if (hasAccountant()) {
             <div class="checkbox-container">
               <p-checkbox [size]="'small'" inputId="defer-{{ i }}" [binary]="true"
@@ -49,14 +48,32 @@
             }
 
             @if (!isDeferredRow(i)) {
-            <app-input-select [parentForm]="getSubCategoryFormByIndex(i)" [controlName]="'accountId'"
-              [labelText]="'למה ההוצאה שייכת?'" [items]="mappingOptions()" [placeholder]="'בחר'"
-              [size]="inputsSize.MEDIUM">
+            <app-input-select [parentForm]="getSubCategoryFormByIndex(i)" [controlName]="'isEquipment'"
+              [labelText]="'רכוש קבוע?'" [items]="isEquipmentValues" [placeholder]="'בחר'" [size]="inputsSize.SMALL">
             </app-input-select>
+
+            <app-input-text [parentForm]="getSubCategoryFormByIndex(i)" [controlName]="'taxPercent'"
+              [labelText]="'% מס'" [size]="inputsSize.SMALL" [type]="'number'" [errorText]="'מספרים בלבד'"
+              placeholder="אחוז מס">
+            </app-input-text>
+
+            <app-input-text [parentForm]="getSubCategoryFormByIndex(i)" [controlName]="'vatPercent'"
+              [labelText]="'% מע״מ'" [size]="inputsSize.SMALL" [type]="'number'" placeholder="אחוז מע״מ">
+            </app-input-text>
+
+            <app-input-text [parentForm]="getSubCategoryFormByIndex(i)" [controlName]="'reductionPercent'"
+              [labelText]="'% פחת'" [size]="inputsSize.SMALL" [type]="'number'" placeholder="אחוז פחת">
+            </app-input-text>
+
+            <!-- Optional P&L presentation category (e.g. חשמל → הוצאות משרד).
+                 Blank = roll up under the bookkeeping category, same as today. -->
+            <app-input-text [parentForm]="getSubCategoryFormByIndex(i)" [controlName]="'pnlCategory'"
+              [labelText]="'קטגוריה לדוח רווח והפסד (אופציונלי)'" [size]="inputsSize.MEDIUM" [type]="'text'"
+              placeholder="ריק = לפי הקטגוריה">
+            </app-input-text>
             }
             @else {
             <div class="defer-note">תת הקטגוריה תישמר ותמתין להשלמת מיפוי ע"י רואה החשבון</div>
-            }
             }
             }
           </div>

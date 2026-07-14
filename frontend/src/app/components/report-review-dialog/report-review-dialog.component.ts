@@ -1902,7 +1902,7 @@ export class ReportReviewDialogComponent {
       return;
     }
 
-    this.runBulkQueue(queue, 0);
+    this.runBulkQueue(queue, 0, { succeeded: 0, failed: 0 });
   }
 
   /**
@@ -1951,9 +1951,14 @@ export class ReportReviewDialogComponent {
     this.supplierConflictsVisible.set(false);
   }
 
-  private runBulkQueue(queue: EditableReviewRow[], idx: number): void {
+  private runBulkQueue(
+    queue: EditableReviewRow[],
+    idx: number,
+    stats: { succeeded: number; failed: number },
+  ): void {
     if (idx >= queue.length) {
       this.isActioning.set(false);
+      this.reportBulkApproveResult(stats);
       this.maybeAutoClose();
       return;
     }
@@ -1964,7 +1969,7 @@ export class ReportReviewDialogComponent {
     if (!obs$) {
       // Missing ids — should never happen for a well-formed row, but skip
       // gracefully rather than abort the whole queue.
-      this.runBulkQueue(queue, idx + 1);
+      this.runBulkQueue(queue, idx + 1, stats);
       return;
     }
 
@@ -1977,6 +1982,7 @@ export class ReportReviewDialogComponent {
           // hard failures keep the row flagged. Either way the queue moves
           // on to the next selected row.
           this.applySaveFailure(row, err, 'אישור השורה נכשל');
+          stats.failed++;
           return EMPTY;
         }),
       )
@@ -1984,9 +1990,39 @@ export class ReportReviewDialogComponent {
         next: () => {
           this.rows.update(rs => rs.filter(r => r !== row));
           this.adjustCount(row.type, -1);
+          stats.succeeded++;
         },
-        complete: () => this.runBulkQueue(queue, idx + 1),
+        complete: () => this.runBulkQueue(queue, idx + 1, stats),
       });
+  }
+
+  /**
+   * QA feedback (2026-07-14): a partial batch approve that leaves rows
+   * behind (e.g. one the user didn't check) looked "stuck" — rows just
+   * silently vanished, then the dialog sat there with a disabled button
+   * and no confirmation anything happened. maybeAutoClose only closes when
+   * the table is completely empty (correct — rows can remain because real
+   * triage work is still needed, not just because of this batch), so this
+   * fills the gap with an explicit summary instead of auto-closing over
+   * genuine remaining work.
+   */
+  private reportBulkApproveResult(stats: { succeeded: number; failed: number }): void {
+    if (!this.hasAnyRows()) return; // dialog is about to auto-close — no need to toast
+    if (stats.succeeded === 0 && stats.failed === 0) return;
+
+    const remaining = this.rows().length;
+    const parts: string[] = [];
+    if (stats.succeeded > 0) parts.push(`אושרו ${stats.succeeded} הוצאות`);
+    if (stats.failed > 0) parts.push(`${stats.failed} נכשלו — ראה פירוט בטבלה`);
+    parts.push(`נותרו ${remaining} שורות לטיפול`);
+
+    this.messageService.add({
+      severity: stats.failed > 0 ? 'warn' : 'success',
+      summary: 'האישור הסתיים',
+      detail: parts.join(', '),
+      life: 6000,
+      key: 'br',
+    });
   }
 
   /** Used to expose row.linkingTxId state into the template. */

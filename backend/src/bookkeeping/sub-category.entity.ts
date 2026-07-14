@@ -1,5 +1,5 @@
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, Unique, Index, CreateDateColumn, UpdateDateColumn } from 'typeorm';
-import { OwnerType, VisibilityScope, SYSTEM_CHART_OWNER_KEY, ExpenseNecessity, ExpenseReportScope, ApprovalStatus } from 'src/enum';
+import { OwnerType, VisibilityScope, SYSTEM_CHART_OWNER_KEY, ExpenseNecessity, ApprovalStatus } from 'src/enum';
 import { Category } from './category.entity';
 import { BookingAccount } from './account.entity';
 
@@ -46,9 +46,6 @@ export class SubCategory {
 
   @Column({ type: 'enum', enum: ExpenseNecessity, default: ExpenseNecessity.IMPORTANT })
   necessity: ExpenseNecessity;
-
-  @Column({ type: 'enum', enum: ExpenseReportScope, default: ExpenseReportScope.PNL })
-  reportScope: ExpenseReportScope;
 
   @Column({ type: 'enum', enum: OwnerType, default: OwnerType.SYSTEM })
   ownerType: OwnerType;

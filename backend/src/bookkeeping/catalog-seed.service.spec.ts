@@ -63,7 +63,7 @@ describe('CatalogSeedService', () => {
     sectionRepo = makeRepo<any>([]);
     const allocator = { getNextAccountCode: jest.fn() } as unknown as AccountCodeAllocatorService;
 
-    catalogService = new CatalogService(categoryRepo as any, subCategoryRepo as any, accountRepo as any, sectionRepo as any, allocator, { transaction: jest.fn() } as any, { createQueryBuilder: jest.fn() } as any);
+    catalogService = new CatalogService(categoryRepo as any, subCategoryRepo as any, accountRepo as any, sectionRepo as any, allocator, { transaction: jest.fn() } as any, { createQueryBuilder: jest.fn() } as any, makeRepo<any>([]) as any, makeRepo<any>([]) as any);
     seeder = new CatalogSeedService(sectionRepo as any, accountRepo as any, catalogService);
     delete process.env.SKIP_BOOT_SEED;
   });

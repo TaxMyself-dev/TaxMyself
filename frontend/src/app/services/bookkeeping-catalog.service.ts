@@ -58,6 +58,48 @@ export interface IAccountingSectionOption {
   name: string;
 }
 
+/** One row of GET bookkeeping/accounts — the "כרטיסים" admin screen. */
+export interface IBookingAccountRow {
+  id: number;
+  code: string;
+  name: string;
+  type: string;
+  sectionId: number | null;
+  sectionName: string | null;
+  code6111: string | null;
+  vatPercent: number | null;
+  taxPercent: number | null;
+  reductionPercent: number | null;
+  isEquipment: boolean | null;
+  recognitionType: 'RECOGNIZED' | 'NOT_RECOGNIZED' | 'NOT_APPLICABLE' | null;
+  reportScope: 'pnl' | 'annual' | 'technical';
+  ownerType: 'SYSTEM' | 'ACCOUNTANT' | 'CLIENT';
+  chartOwnerKey: string;
+  accountantId: string | null;
+  businessNumber: string | null;
+  ownerName: string | null;
+}
+
+/** GET bookkeeping/accounts/:id/usage — impact count before editing a shared card. */
+export interface IAccountUsage {
+  subCategoryCount: number;
+  businessCount: number;
+}
+
+/** PATCH bookkeeping/accounts/:id payload — direct in-place card edit. */
+export interface IUpdateAccountPayload {
+  name?: string;
+  code?: string;
+  sectionId?: number;
+  code6111?: string | null;
+  recognitionType?: 'RECOGNIZED' | 'NOT_RECOGNIZED' | 'NOT_APPLICABLE';
+  vatPercent?: number;
+  taxPercent?: number;
+  reductionPercent?: number;
+  isEquipment?: boolean;
+  reportScope?: 'pnl' | 'annual' | 'technical';
+}
+
 /** POST bookkeeping/accounts payload (D11). */
 export interface ICreateAccountPayload {
   name: string;
@@ -116,5 +158,26 @@ export class BookkeepingCatalogService {
   createAccount(payload: ICreateAccountPayload, clientUserId?: string): Observable<any> {
     const url = `${environment.apiUrl}bookkeeping/accounts`;
     return this.http.post<any>(url, payload, { headers: this.clientHeaders(clientUserId) });
+  }
+
+  /** "כרטיסים" admin screen (Session 13): every card, optionally filtered by
+   *  owner scope. Admin-only on the backend. */
+  listAccounts(ownerType?: 'SYSTEM' | 'ACCOUNTANT' | 'CLIENT'): Observable<IBookingAccountRow[]> {
+    const url = `${environment.apiUrl}bookkeeping/accounts`;
+    const params = ownerType ? new HttpParams().set('ownerType', ownerType) : undefined;
+    return this.http.get<IBookingAccountRow[]>(url, { params });
+  }
+
+  /** Impact count shown before editing a shared card — "N sub_categories
+   *  across M businesses point at this". */
+  getAccountUsage(id: number): Observable<IAccountUsage> {
+    const url = `${environment.apiUrl}bookkeeping/accounts/${id}/usage`;
+    return this.http.get<IAccountUsage>(url);
+  }
+
+  /** Direct in-place edit of an existing card's own fields (admin-only). */
+  updateAccount(id: number, dto: IUpdateAccountPayload): Observable<IBookingAccountRow> {
+    const url = `${environment.apiUrl}bookkeeping/accounts/${id}`;
+    return this.http.patch<IBookingAccountRow>(url, dto);
   }
 }

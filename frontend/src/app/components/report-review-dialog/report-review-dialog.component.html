@@ -234,6 +234,19 @@
         </button>
       </ng-container>
 
+      <!-- D8: expense-classified (or legacy null-kind) documents — OCR can
+           misclassify a genuinely annual document as an expense invoice.
+           Without this, the only re-kind direction available was ANNUAL ->
+           EXPENSE (above); this closes the other direction. -->
+      <ng-container *ngIf="!isAnnualRow(row) && !isUnidentifiedRow(row) && row.type !== 'tx_only'">
+        <button type="button" class="icon-act icon-file-annual"
+                pTooltip="זה לא הוצאה — מסמך שנתי"
+                tooltipPosition="top"
+                [disabled]="isActioning()" (click)="markDocKind(row, 'ANNUAL_DOCUMENT')">
+          <i class="pi pi-bookmark"></i>
+        </button>
+      </ng-container>
+
       <!-- Doc-side rows (matched + doc_only): archive + delete.
            Archive   → status=ARCHIVED, file→archive/, slim reset if matched.
            Delete    → status=REJECTED, file→archive/, slim reset if matched.

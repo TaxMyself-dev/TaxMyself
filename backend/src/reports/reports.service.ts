@@ -561,12 +561,15 @@ export class ReportsService {
       .innerJoin(JournalEntry, 'je', 'je.id = jl.journalEntryId')
       .innerJoin(
         BookingAccount, 'dba',
-        'dba.code = jl.accountCode AND dba.chartOwnerKey IN (:...chartOwnerKeys)',
-        { chartOwnerKeys },
+        'dba.code = jl.accountCode AND dba.chartOwnerKey IN (:...chartOwnerKeys) AND dba.reportScope = :reportScope',
+        { chartOwnerKeys, reportScope: ExpenseReportScope.PNL },
       )
       // D3: group by accounting_section. Posting accounts always have one;
       // technical accounts (1000/1100/2400/2410/90000-range) have
-      // sectionId NULL and drop out via this INNER join.
+      // sectionId NULL and drop out via this INNER join. reportScope=PNL
+      // above is a second, explicit guard (model change, 2026-07-14) — ANNUAL/
+      // TECHNICAL cards must never leak into P&L even if a sectionId were
+      // ever mistakenly set on one.
       .innerJoin(AccountingSection, 'sec', 'sec.id = dba.sectionId')
       .where('je.issuerBusinessNumber = :businessNumber', { businessNumber })
       .andWhere('je.firebaseId = :firebaseId', { firebaseId })

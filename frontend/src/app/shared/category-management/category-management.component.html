@@ -98,46 +98,17 @@
       <label>קטגוריה</label>
       <input type="text" pInputText [(ngModel)]="editForm.categoryName" [readonly]="true" />
     </div>
-    @if (editRow()?.accountCode) {
-      <div class="form-row">
-        <label>כרטיס נוכחי</label>
-        <span class="current-card-note">
-          {{ editRow()?.accountCode }} - {{ editRow()?.accountName || '' }}
-          @if (editRow()?.sectionName) { ({{ editRow()?.sectionName }}) }
-        </span>
-      </div>
-    }
-    <div class="form-row check-row-group">
-      <div class="check-item">
-        <p-checkbox [(ngModel)]="editForm.isEquipment" [binary]="true" inputId="editEquipment"></p-checkbox>
-        <label for="editEquipment">ציוד</label>
-      </div>
-      <div class="check-item">
-        <p-checkbox [(ngModel)]="editForm.isRecognized" [binary]="true" inputId="editRecognized"></p-checkbox>
-        <label for="editRecognized">מוכר</label>
-      </div>
-      <div class="check-item">
-        <p-checkbox [(ngModel)]="editForm.isExpense" [binary]="true" inputId="editExpense"></p-checkbox>
-        <label for="editExpense">הוצאה</label>
-      </div>
-    </div>
     <div class="form-row">
-      <label>{{ editForm.isEquipment ? 'אחוז פחת' : '% מס' }}</label>
-      <p-inputNumber [(ngModel)]="editForm.taxPercent" [minFractionDigits]="0" [maxFractionDigits]="2"></p-inputNumber>
-    </div>
-    <div class="form-row">
-      <label>% מע"מ</label>
-      <p-inputNumber [(ngModel)]="editForm.vatPercent" [minFractionDigits]="0" [maxFractionDigits]="2"></p-inputNumber>
+      <label>כרטיס</label>
+      <app-input-select [parentForm]="accountPickerForm" [controlName]="'accountId'"
+        [items]="accountPickerItems()" [group]="true" [filter]="true" [showClear]="true"
+        [placeholder]="'בחר כרטיס'"></app-input-select>
     </div>
     <div class="form-row">
       <label>הכרחיות</label>
       <p-select [(ngModel)]="editForm.necessity" [options]="necessityOptions" optionLabel="label" optionValue="value" placeholder="בחר"></p-select>
     </div>
-    <div class="form-row">
-      <label>סוג דוח</label>
-      <p-select [(ngModel)]="editForm.reportScope" [options]="reportScopeOptions" optionLabel="label" optionValue="value" placeholder="בחר"></p-select>
-    </div>
-    <p class="law-edit-note">שינוי אחוזים/הכרה מפנה את תת-הקטגוריה לכרטיס מתאים (קיים או חדש) — אחוזי כרטיס לעולם לא נערכים במקום.</p>
+    <p class="law-edit-note">בחירת כרטיס מפנה את תת-הקטגוריה אליו ישירות (סוג הדוח — רווח והפסד / שנתי / טכני — נקבע לפי הכרטיס הנבחר). לעריכת הכרטיס עצמו (אחוזים / הכרה / שם / סוג דוח) יש להשתמש במסך "כרטיסים".</p>
   </div>
   <ng-template pTemplate="footer">
     <app-p-button [buttonText]="'ביטול'" [buttonSize]="buttonSize.SMALL" (onButtonClicked)="closeEditDialog()"></app-p-button>
@@ -189,10 +160,6 @@
     <div class="form-row">
       <label>הכרחיות</label>
       <p-select [(ngModel)]="addForm.necessity" [options]="necessityOptions" optionLabel="label" optionValue="value" placeholder="בחר"></p-select>
-    </div>
-    <div class="form-row">
-      <label>סוג דוח</label>
-      <p-select [(ngModel)]="addForm.reportScope" [options]="reportScopeOptions" optionLabel="label" optionValue="value" placeholder="בחר"></p-select>
     </div>
   </div>
   <ng-template pTemplate="footer">
