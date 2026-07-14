@@ -50,9 +50,6 @@ Databases involved:
      un-registered diffs** across all businesses. Any diff must already be
      listed, with its exact expected delta, in
      `docs/redesign/intentional-diffs.md` (D15) — otherwise STOP.
-   - `backend/scripts/verify-phase2-catalog-migration.ts` — expect all
-     checks green (row counts, zero duplicates, zero orphaned `accountId`,
-     resolution-parity).
    - `backend/scripts/verify-phase3-backfill.ts` — expect all checks green
      (zero un-backfilled `APPROVED` expenses, zero orphaned `subCategoryId`).
 6. If anything is unclean: fix `cutover.sql` (never hand-patch the rehearsal

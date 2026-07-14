@@ -1739,3 +1739,81 @@ cutover-ready, ad hoc):
 No plan-checkbox changes (this work is outside the phase list). Next:
 Elazar runs `cutover-day-checklist.md` Step 1 (fresh-dump rehearsal),
 which will exercise this cutover.sql version for the first time.
+
+## Session 14 — 2026-07-15 — Cutover-day-checklist Step 1: fresh-dump rehearsal (twice), Section 6c regenerated, real cutover starting
+
+Two rehearsal passes this session, both raw-mysql2-driven (no local MySQL
+client on this machine — same pattern as every prior session), plus the
+regeneration that made `cutover.sql` cutover-ready.
+
+- **First pass** — fresh dump `_prod_dump/keepintax-prod-latest.sql`
+  (10 days newer than the original rehearsal baseline) imported into a
+  new `keepintax_prodcopy_final` (existing `keepintax_prodcopy` untouched,
+  per Elazar's explicit instruction). Ran every section end to end, in the
+  checklist's documented order (1 → business dedup → 3 → 4 → 5 → 6 → 7),
+  reporting each section's before/after verification inline. Grand totals,
+  row counts, and the D14/D15 Bituach Leumi guard all matched exactly.
+  Boot check clean (`synchronize=false`). `generate-baseline-reports.ts` +
+  `compare-baseline-reports.ts` → zero un-registered diffs, all 9 golden
+  businesses. `verify-phase3-backfill.ts` → all 7 checks green.
+  Two findings surfaced, deliberately not patched unilaterally (plan
+  rule 5):
+  1. `backend/scripts/verify-phase2-catalog-migration.ts` failed to
+     compile — calls `CatalogService.resolveAccountCode`, deleted in
+     Phase 4.6. Elazar confirmed: dead script, delete it, nothing to fix.
+     Deleted; removed its now-stale mention from
+     `cutover-day-checklist.md`'s Step 1 verification list.
+  2. `classified_transactions` ids 199/200 (added to production after
+     Section 6c's backfill data was generated) had no resolved
+     `subCategoryId` — 3 total NULLs instead of the 1 known pre-existing
+     exception (id 13).
+- **Section 6c is a static bake**, by design (same precedent as the
+  Phase 2 catalog-migration generator): `2026-07-13_generate-phase3-sql.ts`
+  reads back whatever `2026-07-13_phase3_backfill.ts` already resolved
+  into `keepintax_prodcopy` and freezes it as literal
+  `UPDATE ... WHERE id=<n>` statements — protects against catalog drift
+  between rehearsal and cutover, not against new rows appearing.
+  Section 4b, by contrast, is untouched SYSTEM seed data (explicit ids,
+  `chartOwnerKey='SYSTEM'`, transcribed from `chart.seed.ts`/
+  `catalog.seed.ts`) — deterministic regardless of which dump you run
+  against, confirmed by reading its source; it did not need regenerating,
+  despite a comment nearby suggesting the two sections are coupled.
+- **Regeneration for the real cutover**: Elazar exported a genuinely fresh
+  dump (`_prod_dump/keepintax-prod-cutover-final.sql`) — first attempt was
+  byte-identical to the prior dump (same MD5 beyond the phpMyAdmin
+  timestamp header) and got flagged rather than trusted; Elazar then
+  confirmed directly against live `keepintax-prod` that production had
+  simply been quiet overnight (`classified_transactions` count genuinely
+  198, matching). Re-imported into `keepintax_prodcopy` (drop + recreate —
+  no `DROP TABLE IF EXISTS` in this dump format), ran Sections 1/3/4/6a,
+  then ran `2026-07-13_phase3_backfill.ts` MODE=review → MODE=apply
+  CONFIRM=yes live against it: id 200 now resolves (`subCategoryId=48`);
+  id 199 turned out to be a genuine unmatched-by-name row (`עסק`/
+  `הוצאות רכב`), not a freshness artifact — stays NULL by design (3.5 is
+  best-effort, not a hard stop). `2026-07-13_generate-phase3-sql.ts`
+  produced a fresh `2026-07-13_phase3_data.sql`; diffed against the old
+  Section 6c body — single substantive change (the new id=200 UPDATE)
+  plus the count/timestamp comments. Spliced into `cutover.sql` verbatim.
+- **Final confirmation pass**: fresh import of the same dump into a clean
+  `keepintax_prodcopy_cutovercheck`, full `cutover.sql` (with the spliced
+  Section 6c) run end to end as literal SQL text — not the live script —
+  in the checklist's exact order. Every section clean, identical results
+  to the live regeneration (only ids 13/199 left NULL). Two transient
+  `ETIMEDOUT` blips from the shared rehearsal host mid-run (Section A,
+  Section 4a, Section 7) — each one confirmed no partial state landed
+  before retrying, never assumed. Boot clean. Regenerated
+  `docs/redesign/baseline-reports-post-migration/` against this DB
+  (correcting a mistake: `compare-baseline-reports.ts`'s comparison
+  target is a hardcoded path, not the `OUT_DIR_NAME` env var — an
+  intermediate run against a differently-named directory silently
+  compared against stale data from the first pass and was redone).
+  `compare-baseline-reports.ts` → zero un-registered diffs.
+  `verify-phase3-backfill.ts` → all 7 checks green.
+- **Step 1 is now clean** with no open findings. `keepintax_prodcopy_final`
+  and `keepintax_prodcopy_cutovercheck` both left in place for inspection.
+  Elazar is proceeding directly to the real cutover (Steps 2-6) tonight.
+
+No plan-checkbox changes (this work is outside the phase-tracked list —
+there is no dedicated checkbox for the cutover-day-checklist itself).
+`CLAUDE.md`'s "Current phase" line updated to `cutover-in-progress` to
+record this instead.

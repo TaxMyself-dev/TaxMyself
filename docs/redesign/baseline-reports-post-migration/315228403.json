@@ -1,0 +1,135 @@
+{
+  "businessNumber": "315228403",
+  "firebaseId": "PmpvC9boTtOn5dBvHMxxwNeCc7S2",
+  "businessName": "עיינא ",
+  "businessType": "EXEMPT",
+  "vatReportingType": "NOT_REQUIRED",
+  "taxReportingType": "DUAL_MONTH_REPORT",
+  "dateRange": {
+    "start": "2026-07-10",
+    "end": "2026-07-10"
+  },
+  "periods": [
+    {
+      "label": "7/2026",
+      "startDate": "2026-07-01",
+      "endDate": "2026-07-31",
+      "vat": {
+        "vatableTurnover": 8000,
+        "nonVatableTurnover": 0,
+        "vatRefundOnAssets": 0,
+        "vatRefundOnExpenses": 0,
+        "vatPayment": 0,
+        "vatRate": 0.18
+      },
+      "pnl": {
+        "income": 8000,
+        "expenses": [],
+        "netProfitBeforeTax": 8000
+      }
+    }
+  ],
+  "aggregate": {
+    "vat": {
+      "vatableTurnover": 8000,
+      "nonVatableTurnover": 0,
+      "vatRefundOnAssets": 0,
+      "vatRefundOnExpenses": 0,
+      "vatPayment": 0,
+      "vatRate": 0.18
+    },
+    "pnl": {
+      "income": 8000,
+      "expenses": [],
+      "netProfitBeforeTax": 8000
+    }
+  },
+  "ledger": {
+    "accounts": [
+      {
+        "accountCode": "40000",
+        "accountName": "הכנסות",
+        "lines": [
+          {
+            "entryNumber": 10000000,
+            "date": "2026-07-10",
+            "valueDate": "2026-07-10",
+            "vatDate": "2026-07-10",
+            "vatReportingPeriod": "7/2026",
+            "allocationNum": "",
+            "notes": "",
+            "referenceType": "RECEIPT",
+            "referenceId": 70001,
+            "journalEntryId": 10000268,
+            "description": "קבלה",
+            "counterAccounts": "בנק - 1100",
+            "counterPartyName": "ניצוצות אירועים בע\"מ",
+            "subCategoryName": null,
+            "movementType": "קבלה",
+            "debit": 0,
+            "credit": 8000,
+            "totalAmount": 8000,
+            "currency": "ILS",
+            "exchangeRate": 1,
+            "amountBeforeVat": 8000,
+            "amountForTax": 8000,
+            "vatAmount": 0,
+            "taxPercent": 100,
+            "vatPercent": 0,
+            "documentTotal": 8000,
+            "balance": 8000,
+            "periodBalance": 8000
+          }
+        ],
+        "totalDebit": 0,
+        "totalCredit": 8000,
+        "closingBalance": 8000,
+        "openingBalance": 0,
+        "lineCount": 1
+      },
+      {
+        "accountCode": "1100",
+        "accountName": "בנק",
+        "lines": [
+          {
+            "entryNumber": 10000000,
+            "date": "2026-07-10",
+            "valueDate": "2026-07-10",
+            "vatDate": "2026-07-10",
+            "vatReportingPeriod": "7/2026",
+            "allocationNum": "",
+            "notes": "",
+            "referenceType": "RECEIPT",
+            "referenceId": 70001,
+            "journalEntryId": 10000268,
+            "description": "קבלה מלקוח",
+            "counterAccounts": "הכנסות - 40000",
+            "counterPartyName": "ניצוצות אירועים בע\"מ",
+            "subCategoryName": null,
+            "movementType": "קבלה",
+            "debit": 8000,
+            "credit": 0,
+            "totalAmount": 8000,
+            "currency": "ILS",
+            "exchangeRate": 1,
+            "amountBeforeVat": 0,
+            "amountForTax": 0,
+            "vatAmount": 0,
+            "taxPercent": 0,
+            "vatPercent": 0,
+            "documentTotal": 8000,
+            "balance": 8000,
+            "periodBalance": 8000
+          }
+        ],
+        "totalDebit": 8000,
+        "totalCredit": 0,
+        "closingBalance": 8000,
+        "openingBalance": 0,
+        "lineCount": 1
+      }
+    ]
+  },
+  "generatedAt": "2026-07-14T22:43:53.598Z",
+  "sourceDb": "keepintax_prodcopy_cutovercheck"
+}

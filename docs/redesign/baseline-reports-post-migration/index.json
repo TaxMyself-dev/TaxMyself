@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-07-13T03:22:12.603Z",
-  "sourceDb": "keepintax_prodcopy",
+  "generatedAt": "2026-07-14T22:43:54.130Z",
+  "sourceDb": "keepintax_prodcopy_cutovercheck",
   "businesses": [
     {
       "businessNumber": "039076963",
@@ -141,6 +141,35 @@
         "2/2026"
       ],
       "file": "308360981.json"
+    },
+    {
+      "businessNumber": "313597536",
+      "firebaseId": "OAEYtr4dhbXBMQtle8DSCm3MTij2",
+      "businessName": "אדיר הרוש צלם",
+      "dateRange": {
+        "start": "2026-06-29",
+        "end": "2026-07-09"
+      },
+      "periodCount": 2,
+      "periodLabels": [
+        "6/2026",
+        "7/2026"
+      ],
+      "file": "313597536.json"
+    },
+    {
+      "businessNumber": "315228403",
+      "firebaseId": "PmpvC9boTtOn5dBvHMxxwNeCc7S2",
+      "businessName": "עיינא ",
+      "dateRange": {
+        "start": "2026-07-10",
+        "end": "2026-07-10"
+      },
+      "periodCount": 1,
+      "periodLabels": [
+        "7/2026"
+      ],
+      "file": "315228403.json"
     },
     {
       "businessNumber": "318970860",
