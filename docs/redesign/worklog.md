@@ -1675,3 +1675,67 @@ real gaps in `cutover.sql` before treating it as final:
 No code changes this session — `cutover.sql` and this checklist doc only.
 Still `Current phase: cutover-ready`; Elazar executes the actual cutover
 checklist manually per the plan.
+
+## Session 13 — 2026-07-14 — "כרטיסים" admin screen + reportScope/NOT_APPLICABLE model change reconciled into cutover.sql
+
+Two threads this session, both outside the phase-tracked plan (post
+cutover-ready, ad hoc):
+
+- **New admin screen**: `GET/PATCH bookkeeping/accounts` +
+  `GET bookkeeping/accounts/:id/usage` (admin-only, direct in-place card
+  edit — distinct from every other write path in this module, which
+  repoints rather than mutates a card, D10) and a new "כרטיסים" admin-panel
+  tab (`frontend/src/app/shared/card-management/`). `category-management`'s
+  edit dialog no longer lets an admin describe a law (percent/equipment/
+  recognition) for a sub_category — it now picks an existing card directly
+  via a grouped dropdown; `update-default-sub-category` accepts
+  `accountId` instead of law fields.
+- **Model change reconciliation**: Elazar made a direct code change
+  (`RecognitionType.NOT_APPLICABLE`, `reportScope` moved from
+  `sub_category` onto `booking_account`, `ExpenseReportScope.TECHNICAL`,
+  5 new ANNUAL cards 61340-61380 in `chart.seed.ts`) without going through
+  a session. Updated `docs/redesign/phase1-chart-review.md` (§3e expanded
+  + 90500/90600 added, new §3f, §5 entity fields, §7 counts: 66 accounts
+  now) to match, then found `cutover.sql` had drifted from it in the same
+  way as Session 12's two gaps — fixed before the fresh-dump rehearsal:
+  - `booking_account.recognitionType` ENUM widened to include
+    `NOT_APPLICABLE`; `booking_account.reportScope` column added
+    (`ENUM('pnl','annual','technical') NOT NULL DEFAULT 'pnl'`) to Section
+    A's DDL.
+  - `sub_category.reportScope` removed from Section 4a's DDL (field fully
+    retired from the entity).
+  - Section B's 59-row `booking_account` INSERT: added `reportScope` to
+    every row, corrected 90100-90400's `recognitionType` from `NULL` to
+    `NOT_APPLICABLE`.
+  - Section 4b's `booking_account` INSERT (90500/90600, explicit ids
+    62/63) got the same `reportScope`/`recognitionType` fix, plus 5 new
+    rows (ids 64-68, codes 61340-61380) — added here rather than Section B
+    specifically to avoid colliding with the explicit-id references
+    Section 4b's `sub_category` data already depends on.
+  - Section 4b's 96-row `sub_category` INSERT: `reportScope` column
+    stripped from all 96 rows; the 5 SYSTEM ANNUAL rows (ids 51/52/73/74/75
+    — הפקדה לפנסיה/לקרן השתלמות/תרומות מוכרות/ביטוח חיים/אובדן כושר עבודה)
+    repointed from `accountId=NULL` to the new cards (67/68/64/65/66),
+    matching `catalog.seed.ts`'s `SYSTEM_SUB_CATEGORIES` (already updated)
+    and `CatalogService.createSubCategory` (ANNUAL no longer special-cased
+    to skip account resolution — only PRIVATE still does, D5).
+  - Cross-checked every other file `git status` showed modified
+    (`catalog-seed.service.ts`, the two user-sub-category DTOs,
+    `reports.service.ts`'s new `reportScope=PNL` P&L filter) — all already
+    internally consistent with the model change, no further cutover.sql
+    action needed.
+  - **Left unresolved, flagged rather than improvised (plan rule 5)**: two
+    CLIENT-scoped ANNUAL sub_category rows (id 90 "ביטוח חיים"/
+    CLIENT_200866028, id 92 "תרומה"/CLIENT_200866028) are still
+    `accountId=NULL`. Fixing them correctly means allocating brand-new
+    CLIENT-scoped cards (an actual code-allocation decision), not a
+    straight repoint at an existing SYSTEM card — Elazar's call, not
+    mine to improvise.
+  - Verified programmatically (row/column counts, id-reference integrity,
+    code-set diff against `chart.seed.ts`, paren/quote balance) rather than
+    by running the file (no DB access in this environment) — the fresh-dump
+    rehearsal is still the real verification.
+
+No plan-checkbox changes (this work is outside the phase list). Next:
+Elazar runs `cutover-day-checklist.md` Step 1 (fresh-dump rehearsal),
+which will exercise this cutover.sql version for the first time.

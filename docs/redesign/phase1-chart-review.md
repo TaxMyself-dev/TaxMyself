@@ -7,6 +7,19 @@ day. Supersedes the original 2026-07-10 Session 2 version of this file in
 full (D1/D3/D5/D9/D11 and tasks 1.2/1.3 were revised that same day:
 accounting law moved from `sub_category` onto the card).
 
+**Addendum 2026-07-14 (model change, applied directly to `chart.seed.ts` /
+`account.entity.ts` / `src/enum.ts`):** `RecognitionType` gained a third
+value, `NOT_APPLICABLE`, and `reportScope` (`'pnl' | 'annual' | 'technical'`,
+previously a `sub_category`-only field) moved onto `booking_account` — "the
+card carries the full accounting law" (D1) now applies to report routing
+too, not just VAT/tax/equipment percents. This addendum applies the change
+to the two card groups that needed it: the 90000-range technical accounts
+(§3e, now explicit `NOT_APPLICABLE`/`TECHNICAL` instead of implicit
+`sectionId = NULL`) and five new ANNUAL cards (§3f, replacing the retired
+`sub_category`-level "no card at all, `reportScope=ANNUAL`" bucket). See §3e,
+§3f, and §5 below for the updated tables and rationale; §0–§4 and §6 are
+unchanged from 2026-07-10 and left as originally approved.
+
 Source data: `backend/src/bookkeeping/chart.seed.ts` (as rebuilt this
 session), and a **live read-only query against `keepintax_prodcopy`.
 default_sub_category** (87 rows, queried via `mysql2`, 2026-07-10). This
@@ -197,12 +210,55 @@ No children (merged into parent): **60500, 60700, 60900, 61000**.
 
 ### 3e. New technical accounts (90000-range)
 
-| Code | Name | Type | Notes |
-|---|---|---|---|
-| 90100 | מקדמות מס הכנסה | asset | D14, confirmed |
-| 90200 | גביית מע"מ | asset | D14, confirmed VAT-remittance clearing |
-| 90300 | מקדמות ביטוח לאומי | asset | D14, confirmed |
-| 90400 | מס במקור שנוכה מלקוחות | asset | NEW this session — withholding tax clients deducted at source |
+**Updated 2026-07-14** — added `90500`/`90600` (Phase 2.2, already committed
+to `chart.seed.ts`/`docs/redesign/phase2-catalog-review.md` but never added
+to this table) and two new columns: `recognitionType` and `reportScope`.
+Before this addendum both were implicit — a technical account's exclusion
+from the P&L relied only on `sectionId = NULL` dropping it out of
+`createPnLReportFromJournal`'s `INNER JOIN accounting_section`, and
+`recognitionType` was simply `NULL` (the generic "not applicable to a
+non-expense account" convention `code6111` also uses). Now both are
+explicit: `recognitionType = NOT_APPLICABLE` (not `NOT_RECOGNIZED` — these
+aren't disallowed business expenses like קנסות, they're not business
+expenses at all, and conflating the two would wrongly lump them into any
+future "unrecognized expenses" report) and `reportScope = TECHNICAL`, which
+`createPnLReportFromJournal` now also filters on directly as a second,
+defense-in-depth guard alongside the `sectionId` join.
+
+| Code | Name | Type | Recognition | Report scope | Notes |
+|---|---|---|---|---|---|
+| 90100 | מקדמות מס הכנסה | asset | NOT_APPLICABLE | TECHNICAL | D14, confirmed |
+| 90200 | גביית מע"מ | asset | NOT_APPLICABLE | TECHNICAL | D14, confirmed VAT-remittance clearing |
+| 90300 | מקדמות ביטוח לאומי | asset | NOT_APPLICABLE | TECHNICAL | D14, confirmed |
+| 90400 | מס במקור שנוכה מלקוחות | asset | NOT_APPLICABLE | TECHNICAL | withholding tax clients deducted at source |
+| 90500 | תנועות פנימיות בין חשבונות | asset | NOT_APPLICABLE | TECHNICAL | Phase 2.2 (cutover.sql Section 3/4b, not yet cut over to real production) — internal transfers (ביט/בין חשבונותי/חיוב אשראי חודשי/משיכת מזומן/פייבוקס), see `phase2-catalog-review.md` |
+| 90600 | פרעון הלוואות (קרן) | liability | NOT_APPLICABLE | TECHNICAL | Phase 2.2 — loan principal repayment; account `1000` checked and rejected as a target (vestigial, never-posted-to placeholder) |
+
+### 3f. ANNUAL cards (model change, 2026-07-14)
+
+**NEW section.** Real `booking_account` rows for the five D14 group-2
+sub_categories that previously carried `accountId = NULL` with a
+`sub_category`-level `reportScope = ANNUAL` marker (that marker is now
+retired — `reportScope` lives only on the card). `sectionId = NULL` (never
+rolls up into any P&L חתך; `reportScope = ANNUAL` is belt-and-braces
+exclusion even if a `sectionId` were ever mistakenly set). Zero law
+(`0/0/0`) — these are personal-deduction items routed to the annual report,
+not business P&L expenses, but still get full double-entry treatment when
+journaled (D1: the card carries the law even when that law is "excluded
+from P&L"). `recognitionType = NOT_APPLICABLE`, not `NOT_RECOGNIZED` — same
+reasoning as §3e: these aren't disallowed business expenses, they're
+personal tax-credit items entirely outside the business P&L. Codes
+allocated sequentially from the SYSTEM expense range's ceiling at the time
+(`61330`, `פחת/רכב`) — the same jumps-of-10 mechanism
+`AccountCodeAllocatorService` would produce.
+
+| Code | Name | vat% | tax% | red% | eq | Recognition | Report scope |
+|---|---|---|---|---|---|---|---|
+| 61340 | תרומות מוכרות | 0 | 0 | 0 | — | NOT_APPLICABLE | ANNUAL |
+| 61350 | ביטוח חיים | 0 | 0 | 0 | — | NOT_APPLICABLE | ANNUAL |
+| 61360 | ביטוח אובדן כושר עבודה | 0 | 0 | 0 | — | NOT_APPLICABLE | ANNUAL |
+| 61370 | הפקדה לפנסיה | 0 | 0 | 0 | — | NOT_APPLICABLE | ANNUAL |
+| 61380 | הפקדה לקרן השתלמות | 0 | 0 | 0 | — | NOT_APPLICABLE | ANNUAL |
 
 ---
 
@@ -240,6 +296,28 @@ recognitionType: 'RECOGNIZED' | 'NOT_RECOGNIZED' | null
 All five are **nullable** — NULL on every non-expense account (income,
 balance-sheet, technical), same "NULL = not applicable" convention already
 used for `code6111`. New enum `RecognitionType` added to `src/enum.ts`.
+
+**Updated 2026-07-14:**
+
+```
+recognitionType: 'RECOGNIZED' | 'NOT_RECOGNIZED' | 'NOT_APPLICABLE' | null
+reportScope: 'pnl' | 'annual' | 'technical'   -- NOT NULL, default 'pnl'
+```
+
+- `RecognitionType.NOT_APPLICABLE` (third enum value): for cards that are
+  not business expenses at all — the 90000-range technical accounts (§3e)
+  and the ANNUAL personal-deduction cards (§3f) — as distinct from
+  `NOT_RECOGNIZED`, which means "a real business expense the tax authority
+  disallows" (e.g. `60000`/קנסות-type rows). `NULL` remains reserved for
+  TRUE non-expense accounts where the concept doesn't apply structurally
+  (income, balance-sheet) — not a synonym for `NOT_APPLICABLE`.
+- `reportScope` moved from `sub_category` onto `booking_account` (same "law
+  lives on the card, not the pointer" principle as every other law field).
+  Replaces the old `sub_category`-level ANNUAL marker (a `sub_category`
+  with `reportScope=ANNUAL` and `accountId=NULL`, D14 group 2) — that
+  bucket is retired; ANNUAL sub_categories now point at a real §3f card
+  instead. `TECHNICAL` is a new third value (previously the 90000-range's
+  P&L exclusion was implicit via `sectionId=NULL` alone).
 
 ---
 
@@ -337,3 +415,14 @@ All four this-session decisions applied to `chart.seed.ts` and verified
 (59 accounts, 16 sections, 50 migration rows, zero duplicate/colliding
 codes, `tsc --noEmit` clean). Committing 1.2 + 1.3 together. Next: Session 4
 (task 1.4, the actual renumbering script).
+
+**2026-07-14 addendum status**: `chart.seed.ts` now carries **66 accounts**
+(the original 59 + `90500`/`90600` from Phase 2.2 — already committed to
+`chart.seed.ts`/`cutover.sql` per `phase2-catalog-review.md`, but not yet in
+real production pending the still-unexecuted cutover — plus the 5 new §3f
+ANNUAL cards) — 16 sections and 50 migration rows unchanged (every new row
+in this
+addendum has `legacyCode: null`, so none of them touch
+`ACCOUNT_CODE_MIGRATION`). This doc was out of sync with `chart.seed.ts`
+until this update — §3e/§3f/§5 above are now the source-of-truth transcript
+for review; no further action needed on `chart.seed.ts` itself.
