@@ -256,14 +256,21 @@ export enum ExpenseNecessity {
 }
 
 /**
- * Whether an expense participates in the P&L (רווח והפסד) report or is
- * relevant only to the annual report (e.g. תרומות מוכרות, מקדמות מס הכנסה,
- * מקדמות ביטוח לאומי). ANNUAL items are excluded from P&L totals and shown
- * in a separate bookkeeping section. Extensible — more scopes may be added.
+ * Which report a posting participates in. Lives on `booking_account` (the
+ * card) since the reportScope model change — "accounting law lives on the
+ * card" (D1) applies to report routing too, not just vat/tax/equipment.
+ * `expense.reportScope` is a snapshot of the resolved card's value at
+ * classify/approve time (D6).
+ *   PNL       — רווח והפסד (ברירת מחדל).
+ *   ANNUAL    — דוח שנתי בלבד (e.g. תרומות מוכרות, ביטוח חיים, הפקדה לפנסיה)
+ *               — excluded from P&L, still a real card with full law.
+ *   TECHNICAL — balance/clearing accounts (e.g. מקדמות מס הכנסה, גביית
+ *               מע"מ) — never P&L, never client-classifiable.
  */
 export enum ExpenseReportScope {
-  PNL = 'pnl',       // רווח והפסד (ברירת מחדל)
-  ANNUAL = 'annual', // דוח שנתי בלבד
+  PNL = 'pnl',
+  ANNUAL = 'annual',
+  TECHNICAL = 'technical',
 }
 
 /**
@@ -285,12 +292,24 @@ export const SYSTEM_CHART_OWNER_KEY = 'SYSTEM';
  * D1/D5 (accounting law moved to the card, 2026-07-10): whether spend posted
  * to this card counts toward deductible totals. NOT_RECOGNIZED cards still
  * post to the ledger (D5) — this is not the same as `sub_category.isPrivate`
- * (which means no card / never journaled at all). NULL on non-expense
- * accounts (income, balance-sheet, technical) — not applicable there.
+ * (which means no card / never journaled at all). NULL on true non-expense
+ * accounts (income, balance-sheet) — not applicable there structurally.
+ *
+ * NOT_APPLICABLE (added 2026-07-14, reportScope model change) is distinct
+ * from NOT_RECOGNIZED: NOT_RECOGNIZED means "a real business expense the
+ * Tax Authority disallows" (e.g. קנסות) — it belongs in any future
+ * "unrecognized expenses" report. NOT_APPLICABLE means "not a business
+ * expense at all" — used on the 90000-range TECHNICAL cards (advance-tax/
+ * VAT-remittance/Bituach-Leumi clearing accounts) and the ANNUAL cards
+ * (personal tax-credit items routed to the annual report, not deductible
+ * business spend). A report summing "unrecognized" totals must filter
+ * `=== NOT_RECOGNIZED` specifically, never a blanket `!== RECOGNIZED`,
+ * or it will silently pull in these non-expense cards too.
  */
 export enum RecognitionType {
   RECOGNIZED = 'RECOGNIZED',
   NOT_RECOGNIZED = 'NOT_RECOGNIZED',
+  NOT_APPLICABLE = 'NOT_APPLICABLE',
 }
 
 /**
@@ -351,6 +370,23 @@ export enum DocumentKind {
   EXPENSE_INVOICE = 'EXPENSE_INVOICE',
   ANNUAL_DOCUMENT = 'ANNUAL_DOCUMENT',
   UNIDENTIFIED = 'UNIDENTIFIED',
+}
+
+/**
+ * Derived (not persisted) lifecycle label for the ארכיון מסמכים tab. Folds
+ * extracted_document.status together with the linked Expense's
+ * approvalStatus (via confirmedExpenseId), since ExtractedDocStatus.APPROVED
+ * alone only means "an Expense was created" — it says nothing about whether
+ * that Expense actually cleared approval (e.g. still MISSING_ACCOUNTING_MAPPING).
+ * Priority: REJECTED > FILED_ANNUAL (D8 "תייק") > APPROVED_EXPENSE (linked
+ * Expense.approvalStatus = APPROVED) > IN_PROGRESS (everything else —
+ * PENDING_REVIEW, ARCHIVED, ERROR, or a linked Expense not yet approved).
+ */
+export enum DocumentArchiveStatus {
+  IN_PROGRESS = 'IN_PROGRESS',
+  APPROVED_EXPENSE = 'APPROVED_EXPENSE',
+  FILED_ANNUAL = 'FILED_ANNUAL',
+  REJECTED = 'REJECTED',
 }
 
 

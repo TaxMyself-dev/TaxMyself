@@ -40,7 +40,12 @@ export interface SubCategoryCatalogEntry {
   isEquipment: boolean;
 }
 
-/** A row archived from the review modal — `GET /documents/me/archived`. */
+/** Derived lifecycle label for a document archive row — see
+ *  `DocumentArchiveStatus` in the backend's `src/enum.ts` for the exact
+ *  precedence rules (REJECTED > FILED_ANNUAL > APPROVED_EXPENSE > IN_PROGRESS). */
+export type DocumentArchiveStatus = 'IN_PROGRESS' | 'APPROVED_EXPENSE' | 'FILED_ANNUAL' | 'REJECTED';
+
+/** A row from the document archive tab — `GET /documents/me/archived`. */
 export interface ArchivedDocSummary {
   id: number;
   driveFileId: string;
@@ -55,6 +60,7 @@ export interface ArchivedDocSummary {
   subCategory: string | null;
   documentType: string | null;
   uploadDate: string | null;
+  archiveStatus: DocumentArchiveStatus;
 }
 
 /** Raw shape of a single invoice returned by the OCR endpoint. Matches

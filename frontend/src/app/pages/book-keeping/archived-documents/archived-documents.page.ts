@@ -1,13 +1,21 @@
-import { Component, OnInit, signal, inject } from '@angular/core';
+import { Component, OnInit, TemplateRef, computed, signal, inject, viewChild } from '@angular/core';
 import { of } from 'rxjs';
 import { catchError, finalize, map } from 'rxjs/operators';
-import { DriveDocsService } from 'src/app/services/drive-docs.service';
+import { DriveDocsService, DocumentArchiveStatus } from 'src/app/services/drive-docs.service';
 import { GenericService } from 'src/app/services/generic.service';
 import { IColumnDataTable, IMobileCardConfig, IRowDataTable, ITableRowAction, IUserData } from 'src/app/shared/interface';
 import { BusinessStatus, FormTypes } from 'src/app/shared/enums';
 import { AuthService } from 'src/app/services/auth.service';
 import { FilterField } from 'src/app/components/filter-tab/filter-fields-model.component';
 import { FormBuilder, FormGroup } from '@angular/forms';
+
+/** Hebrew labels for `DocumentArchiveStatus` (see backend `src/enum.ts`). */
+export const ARCHIVE_STATUS_LABELS: Record<DocumentArchiveStatus, string> = {
+  IN_PROGRESS: 'בטיפול',
+  APPROVED_EXPENSE: 'אושר כהוצאה',
+  FILED_ANNUAL: 'סווג לדוח שנתי',
+  REJECTED: 'נדחה',
+};
 
 @Component({
   selector: 'app-archived-documents',
@@ -41,6 +49,15 @@ export class ArchivedDocumentsPage implements OnInit {
   myArchivedDocs: any;
   fileActions = signal<ITableRowAction[]>([]);
 
+  readonly archiveStatusLabels = ARCHIVE_STATUS_LABELS;
+
+  // Angular 19 signal-based view query — the status badge cell needs a
+  // TemplateRef, which only exists after the view is initialized, so the
+  // column list below is a computed() that re-derives once it resolves.
+  // Mobile cards don't support cellTemplate (see MobileRowCardComponent),
+  // so `archiveStatus` is hidden there rather than rendered as raw text.
+  private readonly statusTpl = viewChild<TemplateRef<any>>('statusTpl');
+
   // ===========================
   // Table config
   // ===========================
@@ -48,18 +65,19 @@ export class ArchivedDocumentsPage implements OnInit {
     primaryFields: ['supplier'],
     highlightedField: 'amount',
     dateField: 'date',
-    hiddenFields: ['id', 'driveFileId'],
+    hiddenFields: ['id', 'driveFileId', 'archiveStatus'],
     highlightedValueFormat: 'plain'
   };
 
-  archivedDocsTableFields: IColumnDataTable<string, string>[] = [
+  readonly archivedDocsTableFields = computed<IColumnDataTable<string, string>[]>(() => [
+    { name: 'archiveStatus', value: 'סטטוס', cellTemplate: this.statusTpl() },
     { name: 'supplier', value: 'ספק', type: FormTypes.TEXT },
     { name: 'date', value: 'תאריך', type: FormTypes.DATE },
     { name: 'invoiceNumber', value: 'מספר חשבונית', type: FormTypes.TEXT },
     { name: 'amount', value: 'סכום', type: FormTypes.TEXT },
     { name: 'category', value: 'קטגוריה', type: FormTypes.TEXT },
     { name: 'subCategory', value: 'תת קטגוריה', type: FormTypes.TEXT },
-  ];
+  ]);
 
   // ===========================
   // Filter config (used by FilterTab)
