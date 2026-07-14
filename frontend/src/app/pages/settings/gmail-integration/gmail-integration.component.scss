@@ -83,3 +83,123 @@
     margin-top: 4px;
   }
 }
+
+/* דיאלוג "משוך מסמכים עכשיו" — התוכן מוזרק לתוך p-dialog אך נשאר בסקופ הקומפוננטה */
+.gmail-import-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  .gmail-import-description {
+    margin: 0;
+    font-size: 0.9rem;
+    line-height: 1.5;
+  }
+
+  .gmail-muted {
+    margin: 0;
+    font-size: 0.85rem;
+    color: #6b7280;
+  }
+
+  .gmail-import-bulk-actions {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .gmail-import-accounts {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .gmail-import-account {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    background: #fff;
+
+    // EXPIRED או ACTIVE ללא משיכה ראשונית — לא ניתנים לבחירה
+    &.gmail-import-account--disabled {
+      background: #f9fafb;
+
+      .gmail-import-account-email {
+        color: #6b7280;
+        cursor: default;
+      }
+    }
+  }
+
+  .gmail-import-account-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    // חיוני למובייל: מאפשר לכתובת ארוכה להישבר במקום לגלוש מחוץ לדיאלוג
+    min-width: 0;
+    flex: 1;
+  }
+
+  .gmail-import-account-email {
+    font-size: 0.9rem;
+    font-weight: 500;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+    cursor: pointer;
+  }
+
+  .gmail-import-account-note {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    font-size: 0.8rem;
+    line-height: 1.4;
+    color: #b45309;
+
+    i {
+      margin-top: 2px;
+      flex-shrink: 0;
+    }
+  }
+}
+
+.gmail-link-button {
+  background: none;
+  border: none;
+  padding: 4px 0;
+  font-size: 0.85rem;
+  color: #1d4ed8;
+  cursor: pointer;
+  align-self: flex-start;
+
+  &:hover:not(:disabled) {
+    text-decoration: underline;
+  }
+
+  &:disabled {
+    color: #9ca3af;
+    cursor: default;
+  }
+}
+
+.gmail-import-footer {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+@media (max-width: 768px) {
+  .gmail-import-dialog .gmail-import-bulk-actions {
+    gap: 24px;
+  }
+
+  // מגדיל את שטח הלחיצה של כפתורי הקישור במסכי מגע
+  .gmail-link-button {
+    font-size: 0.9rem;
+    padding: 8px 0;
+  }
+}

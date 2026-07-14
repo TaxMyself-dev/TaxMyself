@@ -32,7 +32,7 @@ export interface GmailSyncStatus {
   accounts: GmailAccountSyncStatus[];
 }
 
-/** תוצאת ייבוא מכל החשבונות (POST integrations/google/gmail/import). */
+/** תוצאת ייבוא מהחשבונות שנבחרו (POST integrations/google/gmail/import). */
 export interface GmailAccountImportResult {
   integrationId: number;
   accountEmail: string | null;
@@ -84,11 +84,11 @@ export class IntegrationsService {
     );
   }
 
-  /** ייבוא מכל חשבונות ה-Gmail המחוברים בבת אחת. */
-  importAllGmail(): Observable<GmailImportAllResult> {
+  /** ייבוא ידני מחשבונות Gmail נבחרים (הבחירה נעשית בדיאלוג "משוך מסמכים עכשיו"). */
+  importGmail(integrationIds: number[]): Observable<GmailImportAllResult> {
     return this.http.post<GmailImportAllResult>(
       `${environment.apiUrl}integrations/google/gmail/import`,
-      {},
+      { integrationIds },
     );
   }
 
