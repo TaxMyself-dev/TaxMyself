@@ -22,6 +22,7 @@ import { JournalEntry } from './jouranl-entry.entity';
 import { JournalLine } from './jouranl-line.entity';
 import { BookingAccount } from './account.entity';
 import { CatalogService } from './catalog.service';
+import { CatalogContextService } from './catalog-context.service';
 import { SharedService } from '../shared/shared.service';
 import { JournalReferenceType } from '../enum';
 import { Business } from '../business/business.entity';
@@ -128,6 +129,14 @@ describe('BookkeepingService — createJournalEntry / persistJournalEntry', () =
         { provide: SharedService, useValue: sharedService },
         { provide: DataSource, useValue: dataSource },
         { provide: CatalogService, useValue: catalogService },
+        {
+          provide: CatalogContextService,
+          useValue: {
+            forUser: jest.fn(async (userId: string, businessNumber: string) => ({ userId, businessNumber, accountantIds: [] })),
+            accountantIdsForUser: jest.fn().mockResolvedValue([]),
+            assertBusinessAccess: jest.fn().mockResolvedValue(undefined),
+          },
+        },
       ],
     }).compile();
 
@@ -327,9 +336,11 @@ describe('BookkeepingService — createJournalEntry / persistJournalEntry', () =
 
       await service.createManualJournalEntry(dto, 'uid-1', '999999999', mockManager);
 
+      // 5.1: the ctx is delegation-aware (built by CatalogContextService).
       expect(catalogService.resolveSubCategory).toHaveBeenCalledWith(42, {
         userId: 'uid-1',
         businessNumber: '999999999',
+        accountantIds: [],
       });
       const savedLines = journalLineRepo.save.mock.calls[0][0] as any[];
       expect(savedLines[0]).toEqual(expect.objectContaining({ accountCode: '60200', subCategoryName: 'דלק' }));

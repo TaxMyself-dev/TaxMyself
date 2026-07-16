@@ -6,7 +6,7 @@ import { BookingAccount } from './account.entity';
 import { ACCOUNTING_SECTIONS, CHART_ACCOUNTS } from './chart.seed';
 import { SYSTEM_CATEGORIES, SYSTEM_SUB_CATEGORIES } from './catalog.seed';
 import { CatalogService } from './catalog.service';
-import { ExpenseReportScope, OwnerType, SYSTEM_CHART_OWNER_KEY } from 'src/enum';
+import { OwnerType, SYSTEM_CHART_OWNER_KEY } from 'src/enum';
 
 /**
  * Phase 2.6 (D13) — flat idempotent seeder replacing AccountSeedService's
@@ -156,7 +156,6 @@ export class CatalogSeedService implements OnModuleInit {
       await this.catalogService.createSubCategory(scope, category!, sub.name, {
         isPrivate: sub.isPrivate ?? false,
         accountId,
-        reportScope: sub.reportScope ?? ExpenseReportScope.PNL,
       });
       created++;
     }

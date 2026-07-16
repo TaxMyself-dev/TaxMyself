@@ -1,10 +1,9 @@
 import { Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, FormGroup } from '@angular/forms';
-import { catchError, of } from 'rxjs';
 import { Workbook, Worksheet } from 'exceljs';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
-import { LedgerReportService } from 'src/app/pages/ledger-report/ledger-report.service';
+import { BookkeepingCatalogService, IBookingAccountRow } from 'src/app/services/bookkeeping-catalog.service';
 import { ConfirmationService } from 'primeng/api';
 import { ButtonSize, ButtonColor } from 'src/app/components/button/button.enum';
 import { FilterField } from 'src/app/components/filter-tab/filter-fields-model.component';
@@ -25,12 +24,8 @@ const NECESSITY_OPTIONS = [
 const REPORT_SCOPE_LABELS: Record<string, string> = {
   pnl: 'רווח והפסד',
   annual: 'דוח שנתי בלבד',
+  technical: 'טכני',
 };
-
-const REPORT_SCOPE_OPTIONS = [
-  { label: 'רווח והפסד', value: 'pnl' },
-  { label: 'דוח שנתי בלבד', value: 'annual' },
-];
 
 @Component({
   selector: 'app-category-management',
@@ -41,14 +36,13 @@ const REPORT_SCOPE_OPTIONS = [
 export class CategoryManagementComponent implements OnInit {
   private destroyRef = inject(DestroyRef);
   private expenseDataService = inject(ExpenseDataService);
-  private ledgerReportService = inject(LedgerReportService);
+  private bookkeepingCatalogService = inject(BookkeepingCatalogService);
   private confirmationService = inject(ConfirmationService);
   private fb = inject(FormBuilder);
 
   readonly buttonSize = ButtonSize;
   readonly ButtonColor = ButtonColor;
   necessityOptions = NECESSITY_OPTIONS;
-  reportScopeOptions = REPORT_SCOPE_OPTIONS;
   readonly NEW_CATEGORY_VALUE = '__NEW__';
 
   subCategories = signal<any[]>([]);
@@ -81,11 +75,13 @@ export class CategoryManagementComponent implements OnInit {
     { name: 'לא',  value: 'false' },
   ];
 
-  /** reportScope options for the filter (PNL / ANNUAL / all). */
+  /** reportScope options for the filter (PNL / ANNUAL / TECHNICAL / all) —
+   *  read-only display filter, sourced from the row's card (see reportScopeLabel). */
   private readonly reportScopeFilterOptions = [
     { name: 'הכל', value: '' },
     { name: 'רווח והפסד', value: 'pnl' },
     { name: 'דוח שנתי בלבד', value: 'annual' },
+    { name: 'טכני', value: 'technical' },
   ];
 
   /** Shared filter-tab configuration — passed to <app-filter-tab>. */
@@ -133,8 +129,6 @@ export class CategoryManagementComponent implements OnInit {
     isRecognized: boolean;
     isExpense: boolean;
     necessity: string;
-    reportScope: string;
-    pnlCategory: string | null;
   }> = {};
 
   /** רשימת קטגוריות קיימות + "קטגוריה חדשה" לבחירה בדיאלוג הוספה */
@@ -144,8 +138,41 @@ export class CategoryManagementComponent implements OnInit {
     return [...existing, { label: 'קטגוריה חדשה', value: this.NEW_CATEGORY_VALUE }];
   });
 
+  // ── Card picker (Session 13) ────────────────────────────────────────────
+  // The edit dialog used to let an admin describe a NEW law (percents/
+  // equipment/recognition) and have findOrCreateVariantAccount resolve or
+  // allocate a matching card (D10). It now picks an EXISTING card directly
+  // instead — direct card editing lives on the new "כרטיסים" screen
+  // (card-management), which is the deliberate in-place-edit tool. Only
+  // SYSTEM cards are offered here: this screen edits SYSTEM sub_category
+  // rows, and pointing one at a private ACCOUNTANT/CLIENT card would be
+  // meaningless for every other tenant that inherits it by name.
+  systemAccounts = signal<IBookingAccountRow[]>([]);
+  accountPickerForm: FormGroup = this.fb.group({ accountId: [null] });
+
+  accountPickerItems = computed(() => {
+    const bySection = new Map<string, { name: string; value: number }[]>();
+    for (const a of this.systemAccounts()) {
+      const key = a.sectionName || 'ללא חתך';
+      if (!bySection.has(key)) bySection.set(key, []);
+      // PNL cards (the common case) show unlabeled; ANNUAL/TECHNICAL cards
+      // are tagged so an admin can tell them apart when picking (they're
+      // deliberately excluded from P&L — see reportScope on booking_account).
+      const scopeTag = a.reportScope !== 'pnl' ? ` [${this.reportScopeLabel(a.reportScope)}]` : '';
+      bySection.get(key)!.push({ name: `${a.code} - ${a.name}${scopeTag}`, value: a.id });
+    }
+    return [...bySection.entries()].map(([label, items]) => ({ label, items }));
+  });
+
   ngOnInit() {
     this.loadSubCategories();
+    this.bookkeepingCatalogService
+      .listAccounts('SYSTEM')
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (accounts) => this.systemAccounts.set(Array.isArray(accounts) ? accounts : []),
+        error: () => this.systemAccounts.set([]),
+      });
   }
 
   loadSubCategories(): void {
@@ -180,19 +207,15 @@ export class CategoryManagementComponent implements OnInit {
 
   openUpdateConfirm(row: any): void {
     this.editRow.set(row);
+    // Names are display-only (updateDefaultSubCategory never applies them).
+    // Card assignment (Session 13) is a direct pick from accountPickerForm
+    // below, not a described law — see the card-picker comment above.
     this.editForm = {
       subCategoryName: row.subCategoryName,
       categoryName: row.categoryName,
-      taxPercent: row.taxPercent,
-      vatPercent: row.vatPercent,
-      reductionPercent: row.reductionPercent,
-      isEquipment: row.isEquipment,
-      isRecognized: row.isRecognized,
-      isExpense: row.isExpense,
       necessity: row.necessity,
-      reportScope: row.reportScope ?? 'pnl',
-      pnlCategory: row.pnlCategory ?? null,
     };
+    this.accountPickerForm.patchValue({ accountId: row.accountId ?? null });
     this.showEditDialog.set(true);
   }
 
@@ -211,7 +234,8 @@ export class CategoryManagementComponent implements OnInit {
       acceptLabel: 'כן',
       rejectLabel: 'לא',
       accept: () => {
-        this.updateSubCategory(row, this.editForm);
+        const updated = { ...this.editForm, accountId: this.accountPickerForm.value.accountId ?? null };
+        this.updateSubCategory(row, updated);
         this.closeEditDialog();
       },
     });
@@ -243,8 +267,6 @@ export class CategoryManagementComponent implements OnInit {
       isRecognized: false,
       isExpense: true,
       necessity: 'IMPORTANT',
-      reportScope: 'pnl',
-      pnlCategory: null,
     };
     this.showAddDialog.set(true);
   }
@@ -311,22 +333,19 @@ export class CategoryManagementComponent implements OnInit {
   exportToExcel(): void {
     if (this.exportingExcel() || !this.subCategories().length) return;
     this.exportingExcel.set(true);
-    this.ledgerReportService.getLedgerAccounts()
-      .pipe(
-        catchError(() => of([])),
-        finalize(() => this.exportingExcel.set(false)),
-        takeUntilDestroyed(this.destroyRef),
-      )
-      .subscribe((accounts) => {
-        const accountNameByCode = new Map((accounts ?? []).map((a) => [a.code, a.name]));
-        this.buildAndDownloadSubCategoriesWorkbook(accountNameByCode);
-      });
+    try {
+      // Since Phase 6.2c the rows themselves carry accountName/sectionName/
+      // code6111 (card fields on the legacy shape) — no chart lookup needed.
+      this.buildAndDownloadSubCategoriesWorkbook();
+    } finally {
+      this.exportingExcel.set(false);
+    }
   }
 
-  private buildAndDownloadSubCategoriesWorkbook(accountNameByCode: Map<string, string>): void {
+  private buildAndDownloadSubCategoriesWorkbook(): void {
     const header = [
       'קטגוריה', 'תת קטגוריה', 'אחוז מוכר (מס)', 'אחוז מע"מ מוכר', 'אחוז הפחתה',
-      'קוד חשבון', 'שם חשבון', 'קטגוריית רווח והפסד', 'ציוד (פחת)', 'הכרחיות', 'תחום דיווח',
+      'קוד כרטיס', 'שם כרטיס', 'חתך', 'ציוד (פחת)', 'הכרחיות', 'תחום דיווח',
     ];
 
     const HEADER_FILL: any = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF4F6F9' } };
@@ -352,8 +371,8 @@ export class CategoryManagementComponent implements OnInit {
           row.vatPercent,
           row.reductionPercent,
           row.accountCode || '',
-          row.accountCode ? (accountNameByCode.get(row.accountCode) || '') : '',
-          row.pnlCategory || '',
+          row.accountName || '',
+          row.sectionName || '',
           row.isEquipment ? 'כן' : 'לא',
           this.necessityLabel(row.necessity),
           this.reportScopeLabel(row.reportScope),
@@ -366,7 +385,7 @@ export class CategoryManagementComponent implements OnInit {
       this.alignAllCellsRight(ws);
     }
 
-    this.addAccountantSheet(wb, accountNameByCode);
+    this.addAccountantSheet(wb);
 
     wb.xlsx.writeBuffer().then((buffer) => {
       const blob = new Blob([buffer], {
@@ -392,18 +411,14 @@ export class CategoryManagementComponent implements OnInit {
    * (recognized AND not-recognized combined — unlike the other two sheets),
    * sorted by accountCode then subCategoryName, with each accountCode's rows
    * sharing one solid pastel background so card boundaries are visible at a
-   * glance even across many accounts.
-   *
-   * "קטגoריה ל-6111" has no backing field anywhere in the system yet (see
-   * exportToExcel's repo-wide search — no form6111/reportCode/6111 column
-   * exists on default_sub_category, default_booking_account, or elsewhere).
-   * Left blank here for the accountant to fill in manually until such a
-   * field is added.
+   * glance even across many accounts. Since Phase 6.2c the card fields
+   * (accountName / sectionName / code6111) come straight from the rows —
+   * the retired subAccountCode column is gone (D2).
    */
-  private addAccountantSheet(wb: Workbook, accountNameByCode: Map<string, string>): void {
+  private addAccountantSheet(wb: Workbook): void {
     const header = [
-      'שם הכרטיס', 'מספר הכרטיס', 'הוצאה', 'קוד תת-חשבון', 'אחוז מוכר למס הכנסה', 'אחוז מוכר למע"מ',
-      'פחת', 'אחוז פחת', 'קטגוריה לדוח רווח והפסד', 'קטגוריה ל-6111',
+      'שם הכרטיס', 'מספר הכרטיס', 'הוצאה', 'אחוז מוכר למס הכנסה', 'אחוז מוכר למע"מ',
+      'פחת', 'אחוז פחת', 'חתך (רווח והפסד)', 'קוד 6111',
     ];
     const HEADER_FILL: any = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF4F6F9' } };
 
@@ -433,16 +448,15 @@ export class CategoryManagementComponent implements OnInit {
       }
 
       const dataRow = ws.addRow([
-        code ? (accountNameByCode.get(code) || '') : '',
+        row.accountName || '',
         code,
         row.subCategoryName,
-        row.subAccountCode || '',
         row.taxPercent,
         row.vatPercent,
         row.isEquipment ? 'כן' : 'לא',
         row.reductionPercent,
-        row.pnlCategory || '',
-        '', // קטגוריה ל-6111 — no backing field in the system yet; filled manually.
+        row.sectionName || '',
+        row.code6111 || '',
       ]);
       dataRow.fill = {
         type: 'pattern',

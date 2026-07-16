@@ -32,8 +32,22 @@
 
     <div class="dialog-main">
 
-  <div *ngIf="mode() !== null" class="subtitle">
-    {{ subtitleText() }}
+  <!-- Subtitle + the D9 regular/professional toggle. The toggle is
+       available to EVERYONE (permissions gate capabilities, not
+       visibility); the chosen mode persists per user, and accountants
+       land on professional by default. -->
+  <div *ngIf="mode() !== null" class="toolbar-row">
+    <div class="subtitle">{{ subtitleText() }}</div>
+    <div class="view-toggle" role="group" aria-label="מצב תצוגה">
+      <button type="button"
+              class="view-toggle__btn"
+              [class.view-toggle__btn--active]="viewMode() === 'regular'"
+              (click)="setViewMode('regular')">תצוגה רגילה</button>
+      <button type="button"
+              class="view-toggle__btn"
+              [class.view-toggle__btn--active]="viewMode() === 'professional'"
+              (click)="setViewMode('professional')">תצוגה מקצועית</button>
+    </div>
   </div>
 
   <!-- Loading state is shown via the app's global loader (driven from
@@ -45,10 +59,23 @@
        docType label, invoice number, date, sum, matched-type label — use
        generic-table's built-in cell rendering. -->
 
+  <!-- Bulk-select checkbox — a template (not the generic CHECKBOX column)
+       so non-approvable rows render it DISABLED per D9: missing-mapping /
+       unclassified / annual / unidentified rows can't join the queue. -->
+  <ng-template #selectCell let-row>
+    <input type="checkbox" class="row-select"
+           [checked]="row.selected"
+           [disabled]="!canApprove(row)"
+           [title]="canApprove(row) ? '' : 'לא ניתן לאשר — ראה עמודת סטטוס'"
+           (change)="onRowSelectedChange(row, $any($event.target).checked)" />
+  </ng-template>
+
   <ng-template #categoryCell let-row>
     <select class="cell-editable"
             [ngModel]="row.category"
-            (ngModelChange)="onCategoryChange(row, $event)">
+            (ngModelChange)="onCategoryChange(row, $event)"
+            [disabled]="isAnnualRow(row) || isUnidentifiedRow(row)"
+            [title]="isAnnualRow(row) ? 'מסמך שנתי — אינו מסווג כהוצאה' : ''">
       <option [ngValue]="''">— בחר —</option>
       <option *ngFor="let cat of categoryOptions()" [ngValue]="cat">{{ cat }}</option>
     </select>
@@ -58,14 +85,54 @@
     <select class="cell-editable"
             [ngModel]="row.subCategory"
             (ngModelChange)="onSubCategoryChange(row, $event)"
-            [disabled]="!row.category"
+            [disabled]="!row.category || isAnnualRow(row) || isUnidentifiedRow(row)"
             [title]="!row.category ? 'בחר קטגוריה תחילה' : ''">
       <option [ngValue]="''">— בחר —</option>
       <option *ngFor="let sub of subCategoriesForCategory(row.category)"
-              [ngValue]="sub.subCategoryName">
-        {{ sub.subCategoryName }}
+              [ngValue]="sub.subCategory">
+        {{ sub.subCategory }}
       </option>
     </select>
+  </ng-template>
+
+  <!-- Professional view: classification by CARD (D9 revised) — booking
+       accounts grouped by section; picking a card IS the classification
+       (the card carries the full accounting law, D1). -->
+  <ng-template #cardCell let-row>
+    <select class="cell-editable card-select"
+            [ngModel]="row.accountId"
+            (ngModelChange)="onCardChange(row, $event)"
+            [disabled]="isAnnualRow(row) || isUnidentifiedRow(row)"
+            [title]="isAnnualRow(row) ? 'מסמך שנתי — אינו מסווג כהוצאה' : ''">
+      <option [ngValue]="null">— בחר כרטיס —</option>
+      <optgroup *ngFor="let g of cardOptionsBySection()" [label]="g.section || 'ללא חתך'">
+        <option *ngFor="let card of g.cards" [ngValue]="card.accountId">
+          {{ card.accountName }} ({{ card.accountCode }})
+        </option>
+      </optgroup>
+    </select>
+  </ng-template>
+
+  <!-- D9 status badge + the per-status inline actions:
+       accountant → "השלם מיפוי" (approve→complete chain);
+       unaccompanied client → "למה ההוצאה שייכת?" (simple picker). -->
+  <ng-template #statusBadgeCell let-row>
+    <ng-container *ngIf="statusBadge(row) as b">
+      <div class="status-badge-cell">
+        <span class="status-badge" [ngClass]="b.cls">
+          <i *ngIf="b.icon" [class]="b.icon"></i>
+          {{ b.label }}
+        </span>
+        <button *ngIf="showCompletionButton(row)"
+                type="button" class="badge-action"
+                [disabled]="isActioning()"
+                (click)="openCompletion(row)">השלם מיפוי</button>
+        <button *ngIf="showSimplePickerButton(row)"
+                type="button" class="badge-action"
+                [disabled]="isActioning()"
+                (click)="openSimplePicker(row)">למה ההוצאה שייכת?</button>
+      </div>
+    </ng-container>
   </ng-template>
 
   <ng-template #periodCell let-row>
@@ -132,6 +199,54 @@
     </button>
 
     <ng-container *ngIf="row.saveStatus !== 'pending'">
+      <!-- D8: annual documents are FILED (תייק), never approved — the doc
+           is kept, tagged for the annual report; no expense, no journal.
+           A mis-detection can be flipped back to a regular expense doc. -->
+      <ng-container *ngIf="isAnnualRow(row)">
+        <button type="button" class="icon-act icon-file-annual"
+                pTooltip="תייק — שמור לדוח השנתי (לא הוצאה)"
+                tooltipPosition="top"
+                [disabled]="isActioning()" (click)="fileDocRow(row)">
+          <i class="pi pi-bookmark"></i>
+        </button>
+        <button type="button" class="icon-act icon-rekind"
+                pTooltip="זו כן הוצאה — העבר למסלול אישור רגיל"
+                tooltipPosition="top"
+                [disabled]="isActioning()" (click)="markDocKind(row, 'EXPENSE_INVOICE')">
+          <i class="pi pi-receipt"></i>
+        </button>
+      </ng-container>
+
+      <!-- D8: unidentified documents wait for a human decision — expense
+           (classify), annual document (file), or delete (below). -->
+      <ng-container *ngIf="isUnidentifiedRow(row)">
+        <button type="button" class="icon-act icon-rekind"
+                pTooltip="זו הוצאה — העבר למסלול אישור רגיל"
+                tooltipPosition="top"
+                [disabled]="isActioning()" (click)="markDocKind(row, 'EXPENSE_INVOICE')">
+          <i class="pi pi-receipt"></i>
+        </button>
+        <button type="button" class="icon-act icon-file-annual"
+                pTooltip="מסמך שנתי — סמן לתיוק לדוח השנתי"
+                tooltipPosition="top"
+                [disabled]="isActioning()" (click)="markDocKind(row, 'ANNUAL_DOCUMENT')">
+          <i class="pi pi-bookmark"></i>
+        </button>
+      </ng-container>
+
+      <!-- D8: expense-classified (or legacy null-kind) documents — OCR can
+           misclassify a genuinely annual document as an expense invoice.
+           Without this, the only re-kind direction available was ANNUAL ->
+           EXPENSE (above); this closes the other direction. -->
+      <ng-container *ngIf="!isAnnualRow(row) && !isUnidentifiedRow(row) && row.type !== 'tx_only'">
+        <button type="button" class="icon-act icon-file-annual"
+                pTooltip="זה לא הוצאה — מסמך שנתי"
+                tooltipPosition="top"
+                [disabled]="isActioning()" (click)="markDocKind(row, 'ANNUAL_DOCUMENT')">
+          <i class="pi pi-bookmark"></i>
+        </button>
+      </ng-container>
+
       <!-- Doc-side rows (matched + doc_only): archive + delete.
            Archive   → status=ARCHIVED, file→archive/, slim reset if matched.
            Delete    → status=REJECTED, file→archive/, slim reset if matched.
@@ -235,7 +350,7 @@
   <app-generic-table
     *ngIf="rows().length > 0"
     class="review-table"
-    [columnsTitle]="buildColumns(categoryCell, subCategoryCell, periodCell, supplierCell, statusIconCell, actionsCell)"
+    [columnsTitle]="buildColumns(selectCell, categoryCell, subCategoryCell, cardCell, periodCell, supplierCell, statusBadgeCell, statusIconCell, actionsCell)"
     [dataTable]="$any(rows())"
     [rowClass]="rowClassFn"
     [tableHeight]="'480px'">
@@ -248,11 +363,12 @@
     <div class="select-info">
       <label class="select-all-toggle">
         <input type="checkbox"
-               [checked]="selectedCount() === rows().length"
+               [checked]="approvableCount() > 0 && selectedCount() === approvableCount()"
+               [disabled]="approvableCount() === 0"
                (change)="toggleAll($any($event.target).checked)" />
         בחר הכל
       </label>
-      <span>נבחרו {{ selectedCount() }} מתוך {{ rows().length }}</span>
+      <span>נבחרו {{ selectedCount() }} מתוך {{ approvableCount() }} ניתנות לאישור</span>
     </div>
     <div class="footer-actions">
       <app-p-button
@@ -374,6 +490,133 @@
         [buttonColor]="ButtonColor.BLACK"
         [buttonSize]="ButtonSize.AUTO"
         (onButtonClicked)="closeSupplierConflicts()">
+      </app-p-button>
+    </div>
+  </ng-template>
+
+</p-dialog>
+
+<!-- D9 inline mapping completion (accountant-only entry point). Picking a
+     card completes the classification — the card brings its own percents
+     (D1), so there are no percent inputs here. The checkbox decides:
+     checked → the sub_category is repointed at the card (future expenses
+     follow); unchecked → one-off snapshot override on this expense only. -->
+<p-dialog
+  header="השלמת מיפוי חשבונאי"
+  [visible]="completionVisible()"
+  (visibleChange)="$event ? null : cancelCompletion()"
+  [modal]="true"
+  [style]="{ width: '520px', maxWidth: '95vw' }"
+  [rtl]="true"
+  [draggable]="false"
+  [resizable]="false">
+
+  <div class="completion-body">
+    <p class="completion-row-label">{{ completionRowLabel() }}</p>
+
+    <label class="completion-label" for="completionAccountSelect">כרטיס חשבון</label>
+    <select id="completionAccountSelect"
+            class="cell-editable completion-select"
+            [ngModel]="completionAccountId()"
+            (ngModelChange)="completionAccountId.set($event)">
+      <option [ngValue]="null">— בחר כרטיס —</option>
+      <optgroup *ngFor="let g of cardOptionsBySection()" [label]="g.section || 'ללא חתך'">
+        <option *ngFor="let card of g.cards" [ngValue]="card.accountId">
+          {{ card.accountName }} ({{ card.accountCode }}) — מע״מ {{ card.vatPercent }}% · מס {{ card.taxPercent }}%
+        </option>
+      </optgroup>
+    </select>
+
+    <label class="apply-future-toggle">
+      <input type="checkbox"
+             [checked]="completionApplyFuture()"
+             (change)="completionApplyFuture.set($any($event.target).checked)" />
+      החל גם על סיווגים עתידיים
+    </label>
+    <p class="completion-hint">
+      מסומן — תת־הקטגוריה של הלקוח תצביע על הכרטיס שנבחר גם בסיווגים הבאים.
+      לא מסומן — חריגה חד־פעמית להוצאה זו בלבד; הסיווגים הבאים יישארו ללא מיפוי.
+    </p>
+  </div>
+
+  <ng-template pTemplate="footer">
+    <div class="completion-footer">
+      <app-p-button
+        [buttonText]="'ביטול'"
+        [buttonColor]="ButtonColor.BLACK"
+        [buttonSize]="ButtonSize.AUTO"
+        [variant]="'outlined'"
+        (onButtonClicked)="cancelCompletion()">
+      </app-p-button>
+      <app-p-button
+        [buttonText]="'השלם ואשר'"
+        [buttonColor]="ButtonColor.BLACK"
+        [buttonSize]="ButtonSize.AUTO"
+        [isLoading]="isActioning()"
+        [disabled]="completionAccountId() === null"
+        (onButtonClicked)="confirmCompletion()">
+      </app-p-button>
+    </div>
+  </ng-template>
+
+</p-dialog>
+
+<!-- D9 simple picker — a client WITHOUT an accountant must never be stuck:
+     a missing-mapping row offers "למה ההוצאה שייכת?" with a handful of
+     everyday choices that map to system accounts behind the scenes, plus
+     the full by-section list for anything else. -->
+<p-dialog
+  header="למה ההוצאה שייכת?"
+  [visible]="simplePickerVisible()"
+  (visibleChange)="$event ? null : cancelSimplePicker()"
+  [modal]="true"
+  [style]="{ width: '480px', maxWidth: '95vw' }"
+  [rtl]="true"
+  [draggable]="false"
+  [resizable]="false">
+
+  <div class="simple-picker-body">
+    <p class="simple-picker-row-label">{{ simplePickerRowLabel() }}</p>
+
+    <div class="simple-picker-options">
+      <button *ngFor="let opt of simplePickerOptions()"
+              type="button" class="simple-option"
+              [disabled]="isActioning()"
+              (click)="pickSimpleOption(opt.accountId)">
+        {{ opt.label }}
+      </button>
+    </div>
+
+    <label class="simple-picker-other-label" for="simplePickerSelect">אחר — בחר מהרשימה המלאה</label>
+    <select id="simplePickerSelect"
+            class="cell-editable simple-picker-select"
+            [ngModel]="simplePickerChoice()"
+            (ngModelChange)="simplePickerChoice.set($event)">
+      <option [ngValue]="null">— בחר —</option>
+      <optgroup *ngFor="let g of cardOptionsBySection()" [label]="g.section || 'ללא חתך'">
+        <option *ngFor="let card of g.cards" [ngValue]="card.accountId">
+          {{ card.accountName }} ({{ card.accountCode }})
+        </option>
+      </optgroup>
+    </select>
+  </div>
+
+  <ng-template pTemplate="footer">
+    <div class="simple-picker-footer">
+      <app-p-button
+        [buttonText]="'ביטול'"
+        [buttonColor]="ButtonColor.BLACK"
+        [buttonSize]="ButtonSize.AUTO"
+        [variant]="'outlined'"
+        (onButtonClicked)="cancelSimplePicker()">
+      </app-p-button>
+      <app-p-button
+        [buttonText]="'אישור'"
+        [buttonColor]="ButtonColor.BLACK"
+        [buttonSize]="ButtonSize.AUTO"
+        [isLoading]="isActioning()"
+        [disabled]="simplePickerChoice() === null"
+        (onButtonClicked)="confirmSimplePicker()">
       </app-p-button>
     </div>
   </ng-template>

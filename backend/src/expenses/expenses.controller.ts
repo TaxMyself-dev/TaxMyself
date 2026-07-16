@@ -13,7 +13,7 @@ import { SupplierResponseDto } from './dtos/response-supplier.dto';
 import { CreateUserCategoryDto } from './dtos/create-user-category.dto';
 import { UpdateUserCategoryDto } from './dtos/update-user-category.dto';
 import { UpdateUserSubCategoryDto } from './dtos/update-user-sub-category.dto';
-import { ReclassifyExpenseDto, OverrideExpenseMappingDto } from './dtos/reclassify-expense.dto';
+import { ReclassifyExpenseDto, OverrideExpenseMappingDto, CompleteExpenseMappingDto } from './dtos/reclassify-expense.dto';
 //Guards
 import { AdminGuard } from '../guards/admin.guard';
 import { GetExpensesDto } from './dtos/get-expenses.dto';
@@ -115,6 +115,21 @@ export class ExpensesController {
     const firebaseId = request.user?.firebaseId;
     const actorFirebaseId = request.user?.actorFirebaseId ?? firebaseId;
     return this.expensesService.overrideExpenseMapping(id, firebaseId, actorFirebaseId, body);
+  }
+
+  /** Phase 5.3 (D9's inline completion row): complete a missing accounting
+   *  mapping. applyToFuture=true repoints the sub_category (future expenses
+   *  follow) and re-resolves this expense; false = one-off override only. */
+  @Post(':id/complete-mapping')
+  @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
+  async completeExpenseMapping(
+    @Req() request: AuthenticatedRequest,
+    @Param('id') id: number,
+    @Body() body: CompleteExpenseMappingDto,
+  ) {
+    const firebaseId = request.user?.firebaseId;
+    const actorFirebaseId = request.user?.actorFirebaseId ?? firebaseId;
+    return this.expensesService.completeExpenseMapping(id, firebaseId, actorFirebaseId, body);
   }
 
   @Patch('update-expense/:id')
@@ -297,14 +312,21 @@ export class ExpensesController {
     return this.expensesService.getSubCategories(firebaseId, isEquipmentValue, isExpenseValue, categoryName, businessNumber);
   }
 
+  // SYSTEM-catalog admin endpoints (D11/5.1: only a platform admin edits
+  // SYSTEM rows — accountants get their own ACCOUNTANT layer instead). The
+  // admin check runs against actorFirebaseId — the caller's OWN identity —
+  // so an admin browsing while impersonating a client (x-client-user-id
+  // swaps firebaseId) is still recognized, and an accountant impersonating
+  // a client is still refused.
+
   @Get('get-all-default-sub-categories')
   @UseGuards(FirebaseAuthGuard)
   async getAllDefaultSubCategories(@Req() request: AuthenticatedRequest) {
-    const firebaseId = request.user?.firebaseId;
-    const isAdmin = await this.usersService.isAdmin(firebaseId);
-    // if (!isAdmin) {
-    //   throw new ForbiddenException('Admin access required');
-    // }
+    const actorFirebaseId = request.user?.actorFirebaseId ?? request.user?.firebaseId;
+    const isAdmin = await this.usersService.isAdmin(actorFirebaseId);
+    if (!isAdmin) {
+      throw new ForbiddenException('Admin access required');
+    }
     return this.expensesService.getAllDefaultSubCategories();
   }
 
@@ -315,8 +337,8 @@ export class ExpensesController {
     @Param('id') id: string,
     @Body() body: any,
   ) {
-    const firebaseId = request.user?.firebaseId;
-    const isAdmin = await this.usersService.isAdmin(firebaseId);
+    const actorFirebaseId = request.user?.actorFirebaseId ?? request.user?.firebaseId;
+    const isAdmin = await this.usersService.isAdmin(actorFirebaseId);
     if (!isAdmin) {
       throw new ForbiddenException('Admin access required');
     }
@@ -326,8 +348,8 @@ export class ExpensesController {
   @Post('add-default-sub-category')
   @UseGuards(FirebaseAuthGuard)
   async addDefaultSubCategory(@Req() request: AuthenticatedRequest, @Body() body: any) {
-    const firebaseId = request.user?.firebaseId;
-    const isAdmin = await this.usersService.isAdmin(firebaseId);
+    const actorFirebaseId = request.user?.actorFirebaseId ?? request.user?.firebaseId;
+    const isAdmin = await this.usersService.isAdmin(actorFirebaseId);
     if (!isAdmin) {
       throw new ForbiddenException('Admin access required');
     }
@@ -337,8 +359,8 @@ export class ExpensesController {
   @Delete('delete-default-sub-category/:id')
   @UseGuards(FirebaseAuthGuard)
   async deleteDefaultSubCategory(@Req() request: AuthenticatedRequest, @Param('id') id: string) {
-    const firebaseId = request.user?.firebaseId;
-    const isAdmin = await this.usersService.isAdmin(firebaseId);
+    const actorFirebaseId = request.user?.actorFirebaseId ?? request.user?.firebaseId;
+    const isAdmin = await this.usersService.isAdmin(actorFirebaseId);
     if (!isAdmin) {
       throw new ForbiddenException('Admin access required');
     }

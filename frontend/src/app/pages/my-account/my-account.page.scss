@@ -289,8 +289,12 @@ p.block-title {
 .banking-banner {
   position: relative;
   overflow: hidden;
-  background-color: #d9ef70;   
-  border-radius: 10px;          
+  background-color: #d9ef70;                              // fallback while image loads
+  background-image: url('/assets/open-banking-banner-bg.jpeg');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  border-radius: 10px;
   padding: 30px 30px 19px;
   display: flex;
   flex-direction: column;
@@ -298,10 +302,26 @@ p.block-title {
   gap: 16px;
   direction: rtl;
   text-align: right;
-  height: 233px;              
-  flex-shrink: 0;               
+  height: 233px;
+  flex-shrink: 0;
   box-sizing: border-box;
   margin: 0;
+
+  // Subtle overlay to keep the dark teal text readable over the image
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: rgba(255, 255, 255, 0.35);
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  // Keep every direct child (text block + CTA button) above the overlay
+  > * {
+    position: relative;
+    z-index: 1;
+  }
 }
 
 .banking-banner__text {

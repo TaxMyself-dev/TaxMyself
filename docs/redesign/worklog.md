@@ -1340,3 +1340,480 @@ bumped to `Current phase: 5`.
 delegation-aware authorization on catalog/approval endpoints, the D11
 add-account flow, the client-unmapped flow (D5), and the accountant catalog
 management backend.
+
+
+---
+
+## Session 10 — 2026-07-13 — Phase 5 complete: accountant layer (5.1–5.4)
+
+Four commits, each with its checkbox tick. Phase 5 is DONE — plan header
+bumped to `Current phase: 6`. Two decisions confirmed with Elazar up front
+(AskUserQuestion): the D11 DTO carries a `categoryName` (the paired
+sub_category needs a parent category, which D11's field list omitted — a
+category picker joins the Phase 6 screen), and D9 mapping-completion
+auto-approves + journals (consistent with 4.2's overrideExpenseMapping).
+
+- **5.1 — delegation-aware authorization (`c2c35a9d`)**: the ACCOUNTANT
+  catalog layer goes live. `CatalogContext.accountantId` existed since 2.3
+  but NO caller ever populated it — the accountant layer was invisible
+  everywhere. New `CatalogContextService` (bookkeeping):
+  `forUser(firebaseId, businessNumber)` fills `ctx.accountantIds` from the
+  user's ACTIVE delegations — each agent's `ACCOUNTANT_<id>` chart joins
+  the D4 merge between CLIENT and SYSTEM (deterministic delegation-id order
+  for the rare multi-accountant case; visibility deliberately NOT gated on
+  write scopes — scopes gate capabilities, D9). Threaded through EVERY
+  resolution/merge point: expense classification (all 4
+  resolveExpenseClassification callers pass the owner userId),
+  override-mapping account lookups, get-categories/get-sub-categories,
+  isEquipment/reportScope resolvers, the buildExpenseJournalLines legacy
+  retry, manual-entry sub_category resolution + repoint + expense-catalog
+  endpoints, OCR buildExtractionCatalog (firebaseId is now load-bearing
+  there), the P&L booking-account join (closing 4.4's explicit "accountant
+  chart joins in 5.1" TODO), and getLedgerEntryAccounts (accountant cards
+  postable in manual entries). Safety: `repointSubCategoryAccount` now
+  protects ACCOUNTANT rows exactly like SYSTEM rows — a client-context
+  repoint lands a same-named CLIENT override, never edits the shared row
+  (which would silently re-map every other client of that accountant).
+  SYSTEM-catalog admin endpoints check `isAdmin` against `actorFirebaseId`
+  (admin-while-impersonating passes; accountant is refused) and the
+  previously commented-out `getAllDefaultSubCategories` admin check is
+  enforced (verified: only the admin panel calls it). DI note: only
+  documents.module provides CatalogService directly — it now also provides
+  CatalogContextService; everyone else gets it via BookkeepingModule's
+  exports.
+- **5.2 — D11 add-account flow (`034b9446`)**:
+  `POST /bookkeeping/accounts` → `CatalogService.createAccountWithSubCategory`
+  — ONE dataSource.transaction writes the law-bearing card (percents/
+  isEquipment/recognition/section/6111 all ON the account, revised D1) +
+  the same-named thin sub_category, unless `technicalOnly`. Scoping:
+  ALL_MY_CLIENTS → ACCOUNTANT rows/70000-range/ALL_ACCOUNTANT_CLIENTS;
+  CURRENT_CLIENT → CLIENT rows/80000-range with `accountantId`=creator +
+  SPECIFIC_CLIENT (D4). Manual codes accepted when unique within the
+  chartOwnerKey (out-of-range 90xxx tolerated per D2) else allocated
+  in-transaction. Section always required — sectionless cards are invisible
+  to the manual-entry dropdown, which is where technical cards get used
+  (resolves Session 3A's open question about a 90000-range allocator: not
+  needed, manual codes cover it). Actor-gated to ACCOUNTANT/ADMIN roles.
+  CatalogService now injects DataSource (spec constructions updated).
+- **5.3 — client-unmapped flow (`6eeaef06`)**:
+  `CreateUserSubCategoryDto.deferToAccountant` saves the row with no law
+  and no card → MISSING_ACCOUNTING_MAPPING, allowed ONLY when the client
+  has an ACTIVE delegation (else 400 — an unaccompanied client is never
+  stuck: their path is the D9 simple picker, i.e. a normal mapped create).
+  `POST /expenses/:id/complete-mapping` (the D9 inline completion row):
+  applyToFuture=false → the 4.2 one-off override path; true →
+  `repointSubCategoryAccount` (future expenses follow; CLIENT override row
+  when the sub_category is SYSTEM/ACCOUNTANT-owned) then `reclassifyExpense`
+  onto the EFFECTIVE row — snapshots + description + journal in one tx,
+  approval + D10 override stamped with the actor. The repoint commits
+  before the expense tx: a second-step failure leaves a completed mapping
+  and a still-pending expense — retryable, never corrupt (flagged, not
+  hidden).
+- **5.4 — accountant catalog management backend (`26f2ec9b`)**: backend
+  only, the screen is Phase 6.2. `GET /bookkeeping/catalog-overview`: every
+  active category/sub_category row across the visible layers, deliberately
+  UNcollapsed, each with owner badge fields + `isEffective` (the D4 winner
+  per (categoryName, name)); sub-rows surface their card's full law.
+  `GET /bookkeeping/pending-approvals`: actor-keyed (ACCOUNTANT/ADMIN gate),
+  MISSING_ACCOUNTING_MAPPING / PENDING_ACCOUNTANT_APPROVAL sub_categories
+  across ALL the agent's ACTIVE-delegation clients, each with its
+  blocked-expense count (CatalogService gained an Expense repo injection
+  for the counts).
+- **Tests**: new `catalog-context.service.spec.ts` (10), +15 CatalogService
+  cases (accountant-layer precedence, ACCOUNTANT-repoint protection, the 7
+  D11 cases, overview/queue), +5 completeExpenseMapping/defer cases. Full
+  backend suite: 266/269 tests, 24/29 suites green — the 5 failing suites
+  (users.service/users.controller/auth.service/reports.service/
+  reports.controller scaffold specs) are the SAME pre-existing failures
+  noted every prior session; nothing newly broken. `tsc --noEmit`: only the
+  2 pre-existing users spec files.
+- **Verification**: full AppModule booted against `keepintax_prodcopy`
+  (NODE_ENV=production + SKIP_BOOT_SEED=true; boot log confirmed
+  `synchronize=false`) — regenerated `baseline-reports-post-migration` +
+  `compare-baseline-reports.ts`: **all 9 businesses ✅, zero un-registered
+  diffs** (D15). The regenerated fixtures differ from Session 9's ONLY in
+  the `generatedAt` timestamp — Phase 5 is empirically output-identical on
+  data with no ACCOUNTANT-owned rows (prodcopy has none yet; the 5
+  delegations there gate impersonation, not catalog rows). The boot also
+  re-verified the Session-10 DI changes end-to-end.
+
+**Phase 5 checklist status**: 5.1–5.4 ALL ticked — Phase 5 complete per its
+Definition of Done (an accountant can fully service a client — create
+accounts, complete mappings, approve — with enforced scopes; a client
+without an accountant is never blocked). No cutover.sql changes: Phase 5 is
+code-only, zero schema/data changes. `Current phase: 6`.
+
+**Next**: Sessions 11A/11B — Phase 6 frontend (approval screen per D9;
+category management / modal-add-expenses / ledger+P&L pages on the new
+APIs). The 5.4 endpoints and the D11 POST are consumed by 6.1/6.2.
+
+## Session 11B — 2026-07-13 — Phase 6 tasks 6.2–6.4 (parallel with 11A)
+
+Ran as the 11B half of the 11A‖11B pair, same working tree as a live 11A
+session (see "parallel-session note" below).
+
+- **6.2a — client add-category/sub_category, D5 three-option flow
+  (`ae7428bf`)**: AddCategoryComponent rebuilt — per-row radio
+  מוכרת / לא מוכרת / פרטית replaces the isRecognized checkbox. RECOGNIZED
+  requires either the D9 simple picker "למה ההוצאה שייכת?" (options =
+  GET bookkeeping/expense-catalog, which now returns `accountId` per row;
+  card-bearing rows only) or "השאר לרואה החשבון" — shown only when
+  delegations/my-permissions reports an agent, mirroring the backend's
+  ACTIVE-delegation 400. Percent/isEquipment/pnlCategory inputs removed
+  (the card carries the law, D1). Thin backend glue:
+  CreateUserSubCategoryDto += isPrivate + accountId (accountId
+  scope-checked via findAccountByIdInScope); CreateUserCategoryDto +=
+  defaultRecognitionType (UI hint stamped on the category). Income mode
+  keeps the legacy payload untouched.
+- **6.2b — accountant catalog tab (`894eca3f`)**: clients-panel gains
+  "קטלוג וכרטיסים": the 5.4 pending-approvals queue (client / category /
+  sub / status / blocked-expense count), a per-client catalog-overview
+  table (D4 owner badges, card+section+law columns, isEffective — losers
+  greyed), and the D11 "כרטיס חדש" dialog (name, section picker, manual
+  code, 6111, recognition, percents, isEquipment, all-my-clients /
+  current-client, technicalOnly, parent category + datalist). New backend
+  GET bookkeeping/sections (ACCOUNTANT/ADMIN-gated; nothing listed
+  sections with ids before) and CreateAccountDto.businessNumber (the
+  businessnumber header belongs to the interceptor's view-as state — the
+  panel passes the target business explicitly). Overview/CURRENT_CLIENT
+  requests ride a per-request x-client-user-id so CatalogContextService
+  merges all three layers and the guard enforces the delegation. New
+  frontend BookkeepingCatalogService.
+- **6.2c — admin SYSTEM catalog screen (`e02a2698`)**:
+  toLegacySubCategory += accountName/sectionName/code6111/isPrivate
+  (additive; findSubCategoriesByChartOwnerKey now loads account.section).
+  CategoryManagementComponent: כרטיס + חתך columns replace the dead
+  pnlCategory string (D3); פרטית badge; edit dialog shows the current
+  card, names are read-only (the endpoint never applied them), pnlCategory
+  inputs gone from add/edit; Excel export reads card fields off the rows
+  (getLedgerAccounts lookup + retired subAccountCode column removed, D2;
+  the previously-blank 6111 sheet column is now real data).
+- **6.3 — modal-add-expenses / add-supplier emit subCategoryId
+  (`f4802c3c`)**: both resolve the picked row's id by name from their
+  loaded list at submit time and send it as `subCategoryId` (backend
+  prefers the FK since 4.1); the modal's inline save-supplier and
+  AddSupplierComponent persist it on the supplier row too (only when a
+  match is found — never nulls an existing pointer).
+  UpdateSupplierDto += optional subCategoryId (whitelist pipe stripped
+  it; add-supplier's untyped body already passed it through). Cascading
+  pickers + percent autofill were already on the new catalog (2.4).
+- **6.4 — ledger/P&L pages (`e2382afe`)**: found that
+  GET reports/ledger-accounts returned the ENTIRE booking_account table —
+  under the D4 multi-tenant chart that leaks every tenant's custom card
+  names into every user's ledger filter. Now scoped like
+  ledger-entry-accounts (SYSTEM + CLIENT_<biz> + delegation ACCOUNTANT
+  charts) but keeping inactive accounts (they may carry history); the
+  page reloads options on business switch and clears an out-of-scope
+  pick. P&L section grouping, the ledger פירוט column, and new codes in
+  the pickers were verified already delivered by 4.4/4.5 — no changes
+  needed there.
+- **Drive-by fix (`61560874`)**: settings.page.ts read `this.tabs.some`
+  on a computed Signal (missing `()`) — `ng build --configuration
+  production` failed at HEAD on it, PRE-existing this session.
+- **Verification**: backend `tsc --noEmit` clean (same 2 pre-existing
+  users spec files); jest src/bookkeeping+src/expenses: 139/139 green.
+  Frontend prod build: after the settings fix, the only remaining errors
+  are in 11A's two in-flight report-review frontend files (documentKind
+  not yet on ReviewDocSummary) — none in 11B files. A fully green build
+  needs 11A to land; re-verify then.
+- **Parallel-session note**: 11A was committing in this same tree.
+  Two of my early commits raced its index: `e02a2698` (6.2c) also swept
+  11A's backend report-review.service.ts+dto (11A then continued with
+  `94d39b7e`), and `cbccd1e6` carries only 11A's reports/CLAUDE.md under
+  a 6.2c message. Nothing lost; history left un-rewritten deliberately.
+  Remedy adopted mid-session: commit with explicit pathspecs
+  (`git commit -- <paths>`). Plan checkboxes for 6.2–6.4 left un-ticked —
+  the parallelism rules give checkbox updates to the primary session
+  (11A); tick them there or at review.
+- **Open question for Elazar**: catalog-overview /
+  ledger-entry-accounts / catalog reads accept any businessNumber
+  query/header without verifying the caller owns that business (the
+  guard only validates x-client-user-id delegations) — cross-tenant
+  catalog-name exposure. Pre-existing pattern (since 4.5), not changed
+  this session; flagging for a Phase 6/7 decision.
+
+---
+
+## Session 11A — 2026-07-13 — Phase 6.1: the D9 approval screen
+
+Three commits (plus two swept into 11B's commits during the parallel-
+session index races — see 11B's note; nothing lost). Two decisions
+confirmed with Elazar up front: the accountant inline completion runs the
+**approve→complete-mapping chain** (approve lands the MISSING expense,
+complete-mapping approves + journals — reuses the 5.3 primitives exactly
+as built; a mid-chain failure leaves a retryable MISSING expense), and
+the operational columns (doc identity, period, actions) **stay** in both
+view modes alongside D9's core column sets.
+
+- **6.1a — backend (rode into `e02a2698` + `94d39b7e`)**: every preview
+  row now carries `classification: ReviewClassification` — the
+  delegation-aware merged-catalog resolution the approve path will run:
+  effective subCategoryId, canonical names, status (READY /
+  MISSING_MAPPING / PRIVATE / UNCLASSIFIED), the D7 description preview,
+  `mappedByAccountant`, and the card's section/account/law. One catalog
+  load per preview, in-memory matching; **names win over the OCR-time
+  stamped id** (saved-supplier override), stamped id is the renamed-row
+  fallback. `ReportPreviewResponse.clientHasActiveDelegation` drives the
+  "אצל הרו״ח" vs simple-picker branch. `bookkeeping/expense-catalog`
+  gained the card-law/section fields + `includePrivate` (additive on top
+  of 11B's `accountId`); `getMergedExpenseCatalog` joins
+  `account.section`. 13 new tests (`report-review-classification.spec.ts`).
+- **6.1b — frontend (`e08cbcbb`)**: the review dialog IS the D9 screen.
+  Toggle persisted per REAL user (`reviewViewMode:<firebaseId>`);
+  accountants/admins land on professional. Professional view: single D7
+  description column, section column, **card picker** (accounts grouped
+  by section via optgroups; resolves to a representative sub_category —
+  same-named > alphabetical — preserving approved⇒subCategoryId;
+  technical cards excluded), read-only card-law percent columns. Status
+  badges per D9+D8; non-approvable rows (MISSING / UNCLASSIFIED / annual
+  / unidentified) render disabled checkboxes and are excluded from bulk
+  approve + select-all ("נבחרו X מתוך Y ניתנות לאישור"). Accountant
+  "השלם מיפוי" dialog = card picker + "החל גם על סיווגים עתידיים"
+  checkbox → the approve→complete chain. Unaccompanied client
+  "למה ההוצאה שייכת?" = 5 curated system choices (דלק / טיפולים / הוצאות
+  משרד / שיווק ופרסום / שכירות משרד) + full by-section list → the 4.2
+  repoint primitive, adopting the CLIENT-override id the backend actually
+  mapped and re-badging every affected row. D8: annual rows get תייק
+  (file-doc) + re-kind; unidentified rows get expense/annual triage in
+  place. Every classification change re-applies the extended catalog row
+  locally (live-resolution preview); approve sends `subCategoryId` ahead
+  of the name pair. Catalog source switched documents/me/catalog →
+  extended expense-catalog. `ReviewDocSummary` mirror gained
+  `documentKind`.
+- **Verification**: `ng build` green on the merged tree (both sessions'
+  work; only the long-standing budget/CommonJS warnings). Backend:
+  report-review-classification 13/13, report-review-dockind 4/4;
+  `tsc --noEmit` clean except the pre-existing users spec files. 11B
+  separately ran jest bookkeeping+expenses 139/139.
+- **Checkbox bookkeeping (primary session)**: ticked 6.1 (this session)
+  and 6.2/6.3/6.4 per 11B's close-out — all Phase 6 tasks delivered.
+  `Current phase: cutover-ready` per the runbook. **Still owed for the
+  Phase 6 Definition of Done: Elazar's full manual E2E pass** (upload →
+  OCR → review → classify → approve → ledger/VAT/P&L, both view modes,
+  as client and as accountant) — schedule before Session 12.
+- **Open question carried from 11B** (for Elazar): catalog-overview /
+  ledger-entry-accounts / catalog reads accept any businessNumber without
+  ownership verification — cross-tenant catalog-name exposure,
+  pre-existing since 4.5; decide in Phase 6 review or Phase 7.
+
+## Session 11B (cont.) — 2026-07-13 — business-ownership hardening + full green build
+
+Follow-up requested by Elazar after the close-out: the catalog-overview /
+ledger-entry-accounts businessNumber-ownership gap flagged as an "open
+question" was fixed immediately rather than deferred to Phase 7.
+
+- **Fix**: `CatalogContextService.assertBusinessAccess(firebaseId,
+  businessNumber)` — a new Business repo injection checks a
+  (businessNumber, firebaseId) row exists (covers MULTI_BUSINESS/spouse
+  businesses, same firebaseId on both rows); throws `ForbiddenException`
+  otherwise. No-ops when either arg is missing (caller-validated
+  elsewhere — matches the existing style of every other guard in this
+  module). `forUser` now calls it internally, so EVERY consumer of the
+  delegation-aware context is covered in one place: catalog-overview,
+  expense-catalog, repoint, classification, OCR extraction catalog, the
+  P&L booking-account join. Also applied explicitly at the two endpoints
+  that read businessNumber directly rather than through `forUser`
+  (`reports.getLedgerAccounts`/`getLedgerEntryAccounts`, both already
+  taking firebaseId) and at the two accountant-write paths that accept a
+  caller-supplied businessNumber (`POST bookkeeping/accounts`
+  CURRENT_CLIENT scope, `createManualJournalEntry` — a foreign-business
+  manual entry would otherwise ride that tenant's entry-number sequence).
+- **Tests**: `catalog-context.service.spec.ts` gained a `businessRepo`
+  mock + an `assertBusinessAccess` describe block (owner incl. spouse
+  business passes; foreign/unknown businessNumber rejects; missing arg
+  no-ops) and a `forUser` case asserting the same rejection propagates.
+  `bookkeeping.service.spec.ts`'s CatalogContextService mock gained the
+  new method (existing tests already pass a matching firebaseId/business
+  pair, so behavior is unchanged there).
+- **Verification**: backend `tsc --noEmit` clean (same 2 pre-existing
+  users spec files). `jest src/bookkeeping src/expenses src/documents
+  src/reports`: 202/204 — the 2 failures are `reports.service.spec.ts`
+  and `reports.controller.spec.ts`, both bare zero-provider scaffold
+  tests that fail identically at HEAD before this change (confirmed via
+  `git stash`); unrelated to this session. Frontend `ng build
+  --configuration production` (11A+11B merged, post 11A's Phase 6
+  close-out): **exit 0, fully green** — only pre-existing SCSS/bundle
+  budget warnings, no errors.
+- Plan checkboxes 6.1-6.4 were already ticked and `Current phase:
+  cutover-ready` already set by 11A's close-out (`ba76665d`) — confirmed,
+  not re-touched.
+
+## Session 12 — 2026-07-13 — Cutover.sql final review + cutover-day checklist
+
+Assembled the section-by-section review of `cutover.sql` and wrote
+`docs/redesign/cutover-day-checklist.md` (the plan's generic 7-step
+checklist filled in with real file names/databases). Found and fixed two
+real gaps in `cutover.sql` before treating it as final:
+
+- **Stale conflicting Section 2 (business dedup)**: the file had TWO
+  sections resolving the same `businessNumber='314719279'` duplicate —
+  the original Session-1 placeholder (delete id=12, constraint
+  `uq_business_businessNumber`) and the actual Session-8 D12.4 section
+  (delete id=5, constraint `ux_business_number`, matching
+  `business.entity.ts`). Running the file end-to-end as it stood would
+  delete BOTH business rows, not one. Removed the stale Section 2 (left a
+  pointer comment explaining why); the D12.4 section at the end of the
+  file is the one true version. Elazar confirmed this read and the fix.
+- **Missing `journal_entry.referenceId` nullability ALTER**:
+  `schema-drift.md` Gap 3 deferred this to "whichever phase introduces
+  manual journal entries" (Phase 4.5, live since Session 9 —
+  `BookkeepingService.createManualJournalEntry` sets `referenceId: null`),
+  but nobody actually appended the ALTER to `cutover.sql` when that phase
+  shipped. Production's column is still `int NOT NULL` — first manual
+  entry post-cutover would have hard-failed. Added new **Section 7**
+  (`ALTER TABLE journal_entry MODIFY referenceId bigint NULL`) with a
+  verification query. Elazar confirmed.
+- Ran a systematic audit pass: every `*.entity.ts` file touched by any
+  redesign commit since Session 1 (2026-07-10) cross-checked against
+  `cutover.sql`'s sections. The 2026-07-12 accidental-synchronize incident
+  fix (`12840dec`, named `@Unique`/`@Index` decorators on
+  category/sub_category/booking_account/accounting_section/
+  account_code_migration/extracted_document/`Source`) is naming-only and
+  already matches the constraint names `cutover.sql` creates — no action
+  needed. No other gaps found.
+
+No code changes this session — `cutover.sql` and this checklist doc only.
+Still `Current phase: cutover-ready`; Elazar executes the actual cutover
+checklist manually per the plan.
+
+## Session 13 — 2026-07-14 — "כרטיסים" admin screen + reportScope/NOT_APPLICABLE model change reconciled into cutover.sql
+
+Two threads this session, both outside the phase-tracked plan (post
+cutover-ready, ad hoc):
+
+- **New admin screen**: `GET/PATCH bookkeeping/accounts` +
+  `GET bookkeeping/accounts/:id/usage` (admin-only, direct in-place card
+  edit — distinct from every other write path in this module, which
+  repoints rather than mutates a card, D10) and a new "כרטיסים" admin-panel
+  tab (`frontend/src/app/shared/card-management/`). `category-management`'s
+  edit dialog no longer lets an admin describe a law (percent/equipment/
+  recognition) for a sub_category — it now picks an existing card directly
+  via a grouped dropdown; `update-default-sub-category` accepts
+  `accountId` instead of law fields.
+- **Model change reconciliation**: Elazar made a direct code change
+  (`RecognitionType.NOT_APPLICABLE`, `reportScope` moved from
+  `sub_category` onto `booking_account`, `ExpenseReportScope.TECHNICAL`,
+  5 new ANNUAL cards 61340-61380 in `chart.seed.ts`) without going through
+  a session. Updated `docs/redesign/phase1-chart-review.md` (§3e expanded
+  + 90500/90600 added, new §3f, §5 entity fields, §7 counts: 66 accounts
+  now) to match, then found `cutover.sql` had drifted from it in the same
+  way as Session 12's two gaps — fixed before the fresh-dump rehearsal:
+  - `booking_account.recognitionType` ENUM widened to include
+    `NOT_APPLICABLE`; `booking_account.reportScope` column added
+    (`ENUM('pnl','annual','technical') NOT NULL DEFAULT 'pnl'`) to Section
+    A's DDL.
+  - `sub_category.reportScope` removed from Section 4a's DDL (field fully
+    retired from the entity).
+  - Section B's 59-row `booking_account` INSERT: added `reportScope` to
+    every row, corrected 90100-90400's `recognitionType` from `NULL` to
+    `NOT_APPLICABLE`.
+  - Section 4b's `booking_account` INSERT (90500/90600, explicit ids
+    62/63) got the same `reportScope`/`recognitionType` fix, plus 5 new
+    rows (ids 64-68, codes 61340-61380) — added here rather than Section B
+    specifically to avoid colliding with the explicit-id references
+    Section 4b's `sub_category` data already depends on.
+  - Section 4b's 96-row `sub_category` INSERT: `reportScope` column
+    stripped from all 96 rows; the 5 SYSTEM ANNUAL rows (ids 51/52/73/74/75
+    — הפקדה לפנסיה/לקרן השתלמות/תרומות מוכרות/ביטוח חיים/אובדן כושר עבודה)
+    repointed from `accountId=NULL` to the new cards (67/68/64/65/66),
+    matching `catalog.seed.ts`'s `SYSTEM_SUB_CATEGORIES` (already updated)
+    and `CatalogService.createSubCategory` (ANNUAL no longer special-cased
+    to skip account resolution — only PRIVATE still does, D5).
+  - Cross-checked every other file `git status` showed modified
+    (`catalog-seed.service.ts`, the two user-sub-category DTOs,
+    `reports.service.ts`'s new `reportScope=PNL` P&L filter) — all already
+    internally consistent with the model change, no further cutover.sql
+    action needed.
+  - **Left unresolved, flagged rather than improvised (plan rule 5)**: two
+    CLIENT-scoped ANNUAL sub_category rows (id 90 "ביטוח חיים"/
+    CLIENT_200866028, id 92 "תרומה"/CLIENT_200866028) are still
+    `accountId=NULL`. Fixing them correctly means allocating brand-new
+    CLIENT-scoped cards (an actual code-allocation decision), not a
+    straight repoint at an existing SYSTEM card — Elazar's call, not
+    mine to improvise.
+  - Verified programmatically (row/column counts, id-reference integrity,
+    code-set diff against `chart.seed.ts`, paren/quote balance) rather than
+    by running the file (no DB access in this environment) — the fresh-dump
+    rehearsal is still the real verification.
+
+No plan-checkbox changes (this work is outside the phase list). Next:
+Elazar runs `cutover-day-checklist.md` Step 1 (fresh-dump rehearsal),
+which will exercise this cutover.sql version for the first time.
+
+## Session 14 — 2026-07-15 — Cutover-day-checklist Step 1: fresh-dump rehearsal (twice), Section 6c regenerated, real cutover starting
+
+Two rehearsal passes this session, both raw-mysql2-driven (no local MySQL
+client on this machine — same pattern as every prior session), plus the
+regeneration that made `cutover.sql` cutover-ready.
+
+- **First pass** — fresh dump `_prod_dump/keepintax-prod-latest.sql`
+  (10 days newer than the original rehearsal baseline) imported into a
+  new `keepintax_prodcopy_final` (existing `keepintax_prodcopy` untouched,
+  per Elazar's explicit instruction). Ran every section end to end, in the
+  checklist's documented order (1 → business dedup → 3 → 4 → 5 → 6 → 7),
+  reporting each section's before/after verification inline. Grand totals,
+  row counts, and the D14/D15 Bituach Leumi guard all matched exactly.
+  Boot check clean (`synchronize=false`). `generate-baseline-reports.ts` +
+  `compare-baseline-reports.ts` → zero un-registered diffs, all 9 golden
+  businesses. `verify-phase3-backfill.ts` → all 7 checks green.
+  Two findings surfaced, deliberately not patched unilaterally (plan
+  rule 5):
+  1. `backend/scripts/verify-phase2-catalog-migration.ts` failed to
+     compile — calls `CatalogService.resolveAccountCode`, deleted in
+     Phase 4.6. Elazar confirmed: dead script, delete it, nothing to fix.
+     Deleted; removed its now-stale mention from
+     `cutover-day-checklist.md`'s Step 1 verification list.
+  2. `classified_transactions` ids 199/200 (added to production after
+     Section 6c's backfill data was generated) had no resolved
+     `subCategoryId` — 3 total NULLs instead of the 1 known pre-existing
+     exception (id 13).
+- **Section 6c is a static bake**, by design (same precedent as the
+  Phase 2 catalog-migration generator): `2026-07-13_generate-phase3-sql.ts`
+  reads back whatever `2026-07-13_phase3_backfill.ts` already resolved
+  into `keepintax_prodcopy` and freezes it as literal
+  `UPDATE ... WHERE id=<n>` statements — protects against catalog drift
+  between rehearsal and cutover, not against new rows appearing.
+  Section 4b, by contrast, is untouched SYSTEM seed data (explicit ids,
+  `chartOwnerKey='SYSTEM'`, transcribed from `chart.seed.ts`/
+  `catalog.seed.ts`) — deterministic regardless of which dump you run
+  against, confirmed by reading its source; it did not need regenerating,
+  despite a comment nearby suggesting the two sections are coupled.
+- **Regeneration for the real cutover**: Elazar exported a genuinely fresh
+  dump (`_prod_dump/keepintax-prod-cutover-final.sql`) — first attempt was
+  byte-identical to the prior dump (same MD5 beyond the phpMyAdmin
+  timestamp header) and got flagged rather than trusted; Elazar then
+  confirmed directly against live `keepintax-prod` that production had
+  simply been quiet overnight (`classified_transactions` count genuinely
+  198, matching). Re-imported into `keepintax_prodcopy` (drop + recreate —
+  no `DROP TABLE IF EXISTS` in this dump format), ran Sections 1/3/4/6a,
+  then ran `2026-07-13_phase3_backfill.ts` MODE=review → MODE=apply
+  CONFIRM=yes live against it: id 200 now resolves (`subCategoryId=48`);
+  id 199 turned out to be a genuine unmatched-by-name row (`עסק`/
+  `הוצאות רכב`), not a freshness artifact — stays NULL by design (3.5 is
+  best-effort, not a hard stop). `2026-07-13_generate-phase3-sql.ts`
+  produced a fresh `2026-07-13_phase3_data.sql`; diffed against the old
+  Section 6c body — single substantive change (the new id=200 UPDATE)
+  plus the count/timestamp comments. Spliced into `cutover.sql` verbatim.
+- **Final confirmation pass**: fresh import of the same dump into a clean
+  `keepintax_prodcopy_cutovercheck`, full `cutover.sql` (with the spliced
+  Section 6c) run end to end as literal SQL text — not the live script —
+  in the checklist's exact order. Every section clean, identical results
+  to the live regeneration (only ids 13/199 left NULL). Two transient
+  `ETIMEDOUT` blips from the shared rehearsal host mid-run (Section A,
+  Section 4a, Section 7) — each one confirmed no partial state landed
+  before retrying, never assumed. Boot clean. Regenerated
+  `docs/redesign/baseline-reports-post-migration/` against this DB
+  (correcting a mistake: `compare-baseline-reports.ts`'s comparison
+  target is a hardcoded path, not the `OUT_DIR_NAME` env var — an
+  intermediate run against a differently-named directory silently
+  compared against stale data from the first pass and was redone).
+  `compare-baseline-reports.ts` → zero un-registered diffs.
+  `verify-phase3-backfill.ts` → all 7 checks green.
+- **Step 1 is now clean** with no open findings. `keepintax_prodcopy_final`
+  and `keepintax_prodcopy_cutovercheck` both left in place for inspection.
+  Elazar is proceeding directly to the real cutover (Steps 2-6) tonight.
+
+No plan-checkbox changes (this work is outside the phase-tracked list —
+there is no dedicated checkbox for the cutover-day-checklist itself).
+`CLAUDE.md`'s "Current phase" line updated to `cutover-in-progress` to
+record this instead.

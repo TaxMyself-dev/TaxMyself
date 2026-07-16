@@ -1,7 +1,7 @@
 import { AccountingSection } from './accounting-section.entity';
 import { BookingAccount } from './account.entity';
 import { AccountCodeMigration } from './account-code-migration.entity';
-import { OwnerType, RecognitionType, SYSTEM_CHART_OWNER_KEY } from 'src/enum';
+import { OwnerType, RecognitionType, SYSTEM_CHART_OWNER_KEY, ExpenseReportScope } from 'src/enum';
 
 // ============================================================================
 // Phase 1.3 (chart-revision session, 2026-07-10) — the new SYSTEM chart of
@@ -68,7 +68,7 @@ export const ACCOUNTING_SECTIONS: Pick<
 type ChartAccountSeed = Pick<
   BookingAccount,
   'code' | 'name' | 'type' | 'pnlCategory' | 'displayOrder' | 'code6111' | 'ownerType' | 'chartOwnerKey' | 'isActive'
-  | 'vatPercent' | 'taxPercent' | 'reductionPercent' | 'isEquipment' | 'recognitionType'
+  | 'vatPercent' | 'taxPercent' | 'reductionPercent' | 'isEquipment' | 'recognitionType' | 'reportScope'
 > & {
   sectionCode: string | null;
   /** Primary historical origin for this account's own row in
@@ -84,6 +84,7 @@ const SYSTEM_DEFAULTS = {
   chartOwnerKey: SYSTEM_CHART_OWNER_KEY,
   isActive: true,
   code6111: null, // NULL everywhere — see file header. Do not invent values.
+  reportScope: ExpenseReportScope.PNL, // overridden explicitly on TECHNICAL/ANNUAL rows below
 } as const;
 
 /** Income / balance-sheet / technical accounts: no deductibility law applies. */
@@ -257,20 +258,53 @@ export const CHART_ACCOUNTS: ChartAccountSeed[] = [
   // ── 3e. New technical accounts (D14 decision 3 + this session's 90400) ──
   // Codes/readings for 90100–90300 confirmed with Elazar 2026-07-10 (Session
   // 2): 90200 = VAT-remittance clearing, distinct from 2400/2410.
-  { code: '90100', legacyCode: null, legacySource: null, name: 'מקדמות מס הכנסה',           type: 'asset', pnlCategory: null, displayOrder: null, sectionCode: null, ...SYSTEM_DEFAULTS, ...NOT_APPLICABLE_LAW },
-  { code: '90200', legacyCode: null, legacySource: null, name: 'גביית מע"מ',                type: 'asset', pnlCategory: null, displayOrder: null, sectionCode: null, ...SYSTEM_DEFAULTS, ...NOT_APPLICABLE_LAW },
-  { code: '90300', legacyCode: null, legacySource: null, name: 'מקדמות ביטוח לאומי',       type: 'asset', pnlCategory: null, displayOrder: null, sectionCode: null, ...SYSTEM_DEFAULTS, ...NOT_APPLICABLE_LAW },
+  // reportScope=TECHNICAL (model change, 2026-07-14): previously these were
+  // excluded from P&L only implicitly (sectionId=null drops out of the P&L's
+  // INNER JOIN to accounting_section) — now explicit, and createPnLReportFromJournal
+  // also filters on it directly as a second, defense-in-depth guard.
+  // recognitionType=NOT_APPLICABLE (Elazar's correction, same session): these
+  // are not "unrecognized business expenses" (that would wrongly lump them
+  // into any future disallowed-expenses report alongside real NOT_RECOGNIZED
+  // cards like קנסות) — they're not business expenses at all. Overrides the
+  // NOT_APPLICABLE_LAW spread's `recognitionType: null`, which stays reserved
+  // for TRUE non-expense accounts (income, balance-sheet) where the concept
+  // doesn't apply structurally, not just semantically.
+  { code: '90100', legacyCode: null, legacySource: null, name: 'מקדמות מס הכנסה',           type: 'asset', pnlCategory: null, displayOrder: null, sectionCode: null, ...SYSTEM_DEFAULTS, ...NOT_APPLICABLE_LAW, recognitionType: RecognitionType.NOT_APPLICABLE, reportScope: ExpenseReportScope.TECHNICAL },
+  { code: '90200', legacyCode: null, legacySource: null, name: 'גביית מע"מ',                type: 'asset', pnlCategory: null, displayOrder: null, sectionCode: null, ...SYSTEM_DEFAULTS, ...NOT_APPLICABLE_LAW, recognitionType: RecognitionType.NOT_APPLICABLE, reportScope: ExpenseReportScope.TECHNICAL },
+  { code: '90300', legacyCode: null, legacySource: null, name: 'מקדמות ביטוח לאומי',       type: 'asset', pnlCategory: null, displayOrder: null, sectionCode: null, ...SYSTEM_DEFAULTS, ...NOT_APPLICABLE_LAW, recognitionType: RecognitionType.NOT_APPLICABLE, reportScope: ExpenseReportScope.TECHNICAL },
   // NEW this session — withholding tax the business's CLIENTS deducted at
   // source from payments made to it (an asset: offsettable against the
   // business's own income-tax liability), same technical-account pattern as
   // the three above. Section/percents not applicable, same as its siblings.
-  { code: '90400', legacyCode: null, legacySource: null, name: 'מס במקור שנוכה מלקוחות',   type: 'asset', pnlCategory: null, displayOrder: null, sectionCode: null, ...SYSTEM_DEFAULTS, ...NOT_APPLICABLE_LAW },
+  { code: '90400', legacyCode: null, legacySource: null, name: 'מס במקור שנוכה מלקוחות',   type: 'asset', pnlCategory: null, displayOrder: null, sectionCode: null, ...SYSTEM_DEFAULTS, ...NOT_APPLICABLE_LAW, recognitionType: RecognitionType.NOT_APPLICABLE, reportScope: ExpenseReportScope.TECHNICAL },
   // NEW Phase 2.2 — targets for two old-chart row groups phase1-chart-review.md
   // §0.9/§0.10 explicitly left undecided (not real expense cards, but not
   // usefully "private" either — confirmed account 1000 חשבון מעבר is a
   // vestigial, never-posted-to A/R-contra placeholder, not a semantic fit).
-  { code: '90500', legacyCode: null, legacySource: null, name: 'תנועות פנימיות בין חשבונות', type: 'asset', pnlCategory: null, displayOrder: null, sectionCode: null, ...SYSTEM_DEFAULTS, ...NOT_APPLICABLE_LAW },
-  { code: '90600', legacyCode: null, legacySource: null, name: 'פרעון הלוואות (קרן)',        type: 'liability', pnlCategory: null, displayOrder: null, sectionCode: null, ...SYSTEM_DEFAULTS, ...NOT_APPLICABLE_LAW },
+  { code: '90500', legacyCode: null, legacySource: null, name: 'תנועות פנימיות בין חשבונות', type: 'asset', pnlCategory: null, displayOrder: null, sectionCode: null, ...SYSTEM_DEFAULTS, ...NOT_APPLICABLE_LAW, recognitionType: RecognitionType.NOT_APPLICABLE, reportScope: ExpenseReportScope.TECHNICAL },
+  { code: '90600', legacyCode: null, legacySource: null, name: 'פרעון הלוואות (קרן)',        type: 'liability', pnlCategory: null, displayOrder: null, sectionCode: null, ...SYSTEM_DEFAULTS, ...NOT_APPLICABLE_LAW, recognitionType: RecognitionType.NOT_APPLICABLE, reportScope: ExpenseReportScope.TECHNICAL },
+
+  // ── 3f. ANNUAL cards (model change, 2026-07-14) — real cards for the D14
+  // group-2 sub_categories that previously carried accountId=null with a
+  // sub_category-level reportScope=ANNUAL marker (retired). sectionId=null
+  // (never rolls up into any P&L חתך; also belt-and-braces reportScope=ANNUAL
+  // keeps them out even if a sectionId were ever mistakenly set). Zero law
+  // (0/0/0) — these are personal-deduction items routed to the annual
+  // report, not business P&L expenses; still get full double-entry treatment
+  // when journaled (D1: the card carries the law even when that law is
+  // "excluded from P&L"). Codes allocated sequentially from the SYSTEM
+  // expense range's current ceiling (61330, פחת/רכב) — same mechanism
+  // AccountCodeAllocatorService would produce.
+  // recognitionType=NOT_APPLICABLE (not NOT_RECOGNIZED — Elazar's correction):
+  // these aren't disallowed business expenses (that's NOT_RECOGNIZED, e.g.
+  // קנסות), they're not business expenses at all — personal tax-credit items.
+  // Tagging them NOT_RECOGNIZED would make them indistinguishable from real
+  // disallowed expenses in any future "unrecognized expenses" report.
+  { code: '61340', legacyCode: null, legacySource: null, name: 'תרומות מוכרות',              type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: null, ...SYSTEM_DEFAULTS, vatPercent: 0, taxPercent: 0, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.NOT_APPLICABLE, reportScope: ExpenseReportScope.ANNUAL },
+  { code: '61350', legacyCode: null, legacySource: null, name: 'ביטוח חיים',                 type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: null, ...SYSTEM_DEFAULTS, vatPercent: 0, taxPercent: 0, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.NOT_APPLICABLE, reportScope: ExpenseReportScope.ANNUAL },
+  { code: '61360', legacyCode: null, legacySource: null, name: 'ביטוח אובדן כושר עבודה',     type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: null, ...SYSTEM_DEFAULTS, vatPercent: 0, taxPercent: 0, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.NOT_APPLICABLE, reportScope: ExpenseReportScope.ANNUAL },
+  { code: '61370', legacyCode: null, legacySource: null, name: 'הפקדה לפנסיה',               type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: null, ...SYSTEM_DEFAULTS, vatPercent: 0, taxPercent: 0, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.NOT_APPLICABLE, reportScope: ExpenseReportScope.ANNUAL },
+  { code: '61380', legacyCode: null, legacySource: null, name: 'הפקדה לקרן השתלמות',         type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: null, ...SYSTEM_DEFAULTS, vatPercent: 0, taxPercent: 0, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.NOT_APPLICABLE, reportScope: ExpenseReportScope.ANNUAL },
 ];
 
 /**

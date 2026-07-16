@@ -1,6 +1,6 @@
 # Phase 3.2 — expense.subCategoryId orphan resolution
 
-Generated 2026-07-12T13:40:14.051Z by `backend/scripts/migrations/2026-07-13_phase3_backfill.ts` (MODE=apply), against `keepintax_prodcopy`.
+Generated 2026-07-14T22:21:02.594Z by `backend/scripts/migrations/2026-07-13_phase3_backfill.ts` (MODE=apply), against `keepintax_prodcopy`.
 
 **Zero orphans.** All 85 expense rows (22 distinct (category, subCategory, businessNumber) pairs) resolved to a real sub_category row via the merged catalog (CLIENT > SYSTEM by name, D4). Matches D14's "production has zero orphans" expectation exactly.
 

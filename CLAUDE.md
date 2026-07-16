@@ -18,8 +18,13 @@
 - Decisions D1–D15 in the plan are FINAL. Do not re-litigate them.
   If reality conflicts with the plan (missing column, undocumented flow),
   STOP and ask Elazar — do not improvise schema decisions.
-- Current phase: 5
-  (Update this line manually when a phase completes.)
+- Current phase: cutover-in-progress
+  (Update this line manually when a phase completes. Phase 6 code is
+  complete — 6.1–6.4 all ticked. cutover-day-checklist.md Step 1
+  (fresh-dump rehearsal) ran clean on 2026-07-15 against a dump Elazar
+  confirmed live-current against production directly — see
+  worklog.md Session 14. Elazar is proceeding straight to the real
+  cutover, Steps 2-6.)
 - Audit of the pre-redesign system: docs/categories-audit.md
 - Where older docs in /docs (bookkeeping-system.md,
   manual-journal-entry-plan.md, etc.) conflict with the redesign plan,

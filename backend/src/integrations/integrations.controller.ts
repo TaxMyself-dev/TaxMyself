@@ -230,9 +230,10 @@ export class IntegrationsController {
     const firebaseId = request.user?.firebaseId;
     if (!firebaseId) throw new NotFoundException('User not found in request');
 
-    // Imports from EVERY connected Gmail account; one failing mailbox does not
-    // abort the others (aggregated per-account in the response).
-    return this.gmailDriveImportService.importAllForUser(firebaseId, {
+    // Imports from the Gmail accounts the user selected in the manual import
+    // dialog (ownership + ACTIVE status validated in the service); one failing
+    // mailbox does not abort the others (aggregated per-account in the response).
+    return this.gmailDriveImportService.importAllForUser(firebaseId, body.integrationIds, {
       // Optional: when omitted, DocumentImportService resolves the target
       // business via BusinessResolverService.
       businessNumber: body.businessNumber?.trim() || undefined,

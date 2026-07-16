@@ -22,6 +22,14 @@ import {
   TaskListQuery,
   TaskStatusFilter,
 } from 'src/app/services/task-data.service';
+import {
+  BookkeepingCatalogService,
+  ICatalogOverview,
+  ICatalogOverviewSubCategory,
+  IPendingApproval,
+  IAccountingSectionOption,
+  ICreateAccountPayload,
+} from 'src/app/services/bookkeeping-catalog.service';
 import { ReportWorkflowService } from 'src/app/services/report-workflow.service';
 import {
   IAccountantTask,
@@ -80,6 +88,7 @@ export class ClientPanelPage implements OnInit {
   private readonly router = inject(Router);
   private readonly taskDataService = inject(TaskDataService);
   private readonly workflowService = inject(ReportWorkflowService);
+  private readonly catalogService = inject(BookkeepingCatalogService);
 
   readonly ButtonColor = ButtonColor;
   readonly ButtonSize = ButtonSize;
@@ -117,7 +126,7 @@ export class ClientPanelPage implements OnInit {
   readonly businessTypeOptions = businessTypeOptionsList;
 
   // ---------- Tasks tab state ----------
-  /** 0 = הלקוחות שלי, 1 = משימות */
+  /** 0 = הלקוחות שלי, 1 = משימות, 2 = קטלוג */
   readonly activeTabIndex = signal<number>(0);
 
   readonly tasks = signal<IAccountantTask[]>([]);
@@ -398,6 +407,11 @@ export class ClientPanelPage implements OnInit {
     this.activeTabIndex.set(index);
     if (index === 1 && this.tasks().length === 0 && !this.tasksLoading()) {
       this.fetchTasks();
+    }
+    if (index === 2 && !this.catalogTabLoaded) {
+      this.catalogTabLoaded = true;
+      this.fetchPendingApprovals();
+      this.fetchSections();
     }
   }
 
@@ -751,6 +765,237 @@ export class ClientPanelPage implements OnInit {
           summary: 'שגיאה',
           detail,
           life: 4000,
+          key: 'br',
+        });
+      },
+    });
+  }
+
+  // ===================== Catalog tab (Phase 6.2, D11/D4/D5) =====================
+
+  /** One-shot lazy-load guard for the catalog tab's queue + sections. */
+  private catalogTabLoaded = false;
+
+  readonly pendingApprovals = signal<IPendingApproval[]>([]);
+  readonly pendingApprovalsLoading = signal(false);
+
+  /** businessNumber whose merged catalog is shown; '' = none picked yet. */
+  readonly catalogBusinessFilter = signal<string>('');
+  readonly catalogOverview = signal<ICatalogOverview | null>(null);
+  readonly catalogOverviewLoading = signal(false);
+
+  readonly sections = signal<IAccountingSectionOption[]>([]);
+
+  readonly addAccountModalVisible = signal(false);
+  readonly addingAccount = signal(false);
+  addAccountFormData = this.getEmptyAccountFormData();
+  readonly addAccountErrors = signal<Record<string, string>>({});
+
+  /** Overview rows sorted for display: category, then sub-category name. */
+  readonly catalogOverviewRows = computed<ICatalogOverviewSubCategory[]>(() => {
+    const overview = this.catalogOverview();
+    if (!overview) return [];
+    return [...overview.subCategories].sort((a, b) => {
+      const catCmp = (a.categoryName ?? '').localeCompare(b.categoryName ?? '', 'he');
+      return catCmp !== 0 ? catCmp : a.name.localeCompare(b.name, 'he');
+    });
+  });
+
+  /** Existing category names (effective layer) for the add-account dialog. */
+  readonly catalogCategoryNames = computed<string[]>(() => {
+    const overview = this.catalogOverview();
+    if (!overview) return [];
+    return [...new Set(
+      overview.categories.filter((c) => c.type === 'EXPENSE' && c.isEffective).map((c) => c.name),
+    )].sort((a, b) => a.localeCompare(b, 'he'));
+  });
+
+  private getEmptyAccountFormData() {
+    return {
+      name: '',
+      code: '',
+      sectionId: '' as string | number,
+      code6111: '',
+      recognitionType: 'RECOGNIZED' as 'RECOGNIZED' | 'NOT_RECOGNIZED',
+      vatPercent: 100,
+      taxPercent: 100,
+      reductionPercent: 0,
+      isEquipment: false,
+      availableFor: 'ALL_MY_CLIENTS' as 'ALL_MY_CLIENTS' | 'CURRENT_CLIENT',
+      technicalOnly: false,
+      categoryName: '',
+    };
+  }
+
+  fetchPendingApprovals(): void {
+    this.pendingApprovalsLoading.set(true);
+    this.catalogService.getPendingApprovals().subscribe({
+      next: (rows) => {
+        this.pendingApprovals.set(rows ?? []);
+        this.pendingApprovalsLoading.set(false);
+      },
+      error: (err) => {
+        console.error('Failed to fetch pending approvals:', err);
+        this.pendingApprovalsLoading.set(false);
+        this.messageService.add({
+          severity: 'error',
+          summary: 'שגיאה',
+          detail: 'טעינת תור האישורים נכשלה',
+          life: 3000,
+          key: 'br',
+        });
+      },
+    });
+  }
+
+  private fetchSections(): void {
+    this.catalogService.getSections().subscribe({
+      next: (rows) => this.sections.set(rows ?? []),
+      error: (err) => console.error('Failed to fetch sections:', err),
+    });
+  }
+
+  onCatalogBusinessChange(businessNumber: string): void {
+    this.catalogBusinessFilter.set(businessNumber);
+    this.catalogOverview.set(null);
+    if (!businessNumber) return;
+    const business = this.businessOptions().find((b) => b.businessNumber === businessNumber);
+    if (!business) return;
+    this.catalogOverviewLoading.set(true);
+    // The client's user id rides as x-client-user-id so the delegation-aware
+    // context merges all three layers (CLIENT > ACCOUNTANT > SYSTEM).
+    this.catalogService.getCatalogOverview(businessNumber, business.clientFirebaseId).subscribe({
+      next: (overview) => {
+        this.catalogOverview.set(overview);
+        this.catalogOverviewLoading.set(false);
+      },
+      error: (err) => {
+        console.error('Failed to fetch catalog overview:', err);
+        this.catalogOverviewLoading.set(false);
+        this.messageService.add({
+          severity: 'error',
+          summary: 'שגיאה',
+          detail: 'טעינת הקטלוג נכשלה',
+          life: 3000,
+          key: 'br',
+        });
+      },
+    });
+  }
+
+  /** Hebrew owner badge (D4 layer). */
+  ownerTypeLabel(ownerType: string): string {
+    switch (ownerType) {
+      case 'SYSTEM': return 'מערכת';
+      case 'ACCOUNTANT': return 'רו"ח';
+      case 'CLIENT': return 'לקוח';
+      default: return ownerType;
+    }
+  }
+
+  /** Hebrew sub_category approval-status badge (D5). */
+  approvalStatusLabel(row: ICatalogOverviewSubCategory | IPendingApproval): string {
+    const status = 'approvalStatus' in row ? row.approvalStatus : '';
+    if ('isPrivate' in row && row.isPrivate) return 'פרטית';
+    switch (status) {
+      case 'APPROVED': return 'מאושרת';
+      case 'MISSING_ACCOUNTING_MAPPING': return 'חסר מיפוי';
+      case 'PENDING_ACCOUNTANT_APPROVAL': return 'ממתינה לאישור';
+      case 'REJECTED': return 'נדחתה';
+      default: return status;
+    }
+  }
+
+  /** Client display name for a pending-queue row. */
+  pendingClientName(row: IPendingApproval): string {
+    const byBusiness = row.businessNumber
+      ? this.businessOptions().find((b) => b.businessNumber === row.businessNumber)
+      : undefined;
+    if (byBusiness) return byBusiness.clientName;
+    const group = this.groupedClients().find((g) => g.user.id === row.clientUserId);
+    return group ? (group.user.fullName || group.user.email) : (row.clientUserId ?? '');
+  }
+
+  openAddAccountModal(): void {
+    this.addAccountFormData = this.getEmptyAccountFormData();
+    // Default the scope to the business already picked in the overview.
+    if (this.catalogBusinessFilter()) {
+      this.addAccountFormData.availableFor = 'CURRENT_CLIENT';
+    }
+    this.addAccountErrors.set({});
+    this.addAccountModalVisible.set(true);
+  }
+
+  closeAddAccountModal(): void {
+    this.addAccountModalVisible.set(false);
+  }
+
+  private validateAddAccountForm(): boolean {
+    const form = this.addAccountFormData;
+    const err: Record<string, string> = {};
+    if (!form.name?.trim()) err['name'] = 'שם הכרטיס חובה';
+    if (!form.sectionId) err['sectionId'] = 'נא לבחור חתך';
+    if (!form.technicalOnly && !form.categoryName?.trim()) err['categoryName'] = 'קטגוריה חובה (אלא אם כרטיס טכני)';
+    const pct = (v: any) => v == null || v === '' || Number.isNaN(Number(v)) || Number(v) < 0 || Number(v) > 100;
+    if (pct(form.vatPercent)) err['vatPercent'] = 'ערך בין 0 ל-100';
+    if (pct(form.taxPercent)) err['taxPercent'] = 'ערך בין 0 ל-100';
+    if (form.reductionPercent != null && pct(form.reductionPercent)) err['reductionPercent'] = 'ערך בין 0 ל-100';
+    if (form.code && !/^\d{1,15}$/.test(form.code.trim())) err['code'] = 'קוד מספרי בלבד';
+    if (form.availableFor === 'CURRENT_CLIENT' && !this.catalogBusinessFilter()) {
+      err['availableFor'] = 'נא לבחור לקוח בטבלת הקטלוג תחילה';
+    }
+    this.addAccountErrors.set(err);
+    return Object.keys(err).length === 0;
+  }
+
+  submitAddAccount(): void {
+    if (!this.validateAddAccountForm()) return;
+    const form = this.addAccountFormData;
+    const business = form.availableFor === 'CURRENT_CLIENT'
+      ? this.businessOptions().find((b) => b.businessNumber === this.catalogBusinessFilter())
+      : undefined;
+
+    const payload: ICreateAccountPayload = {
+      name: form.name.trim(),
+      code: form.code?.trim() || undefined,
+      sectionId: Number(form.sectionId),
+      code6111: form.code6111?.trim() || undefined,
+      recognitionType: form.recognitionType,
+      vatPercent: Number(form.vatPercent),
+      taxPercent: Number(form.taxPercent),
+      reductionPercent: Number(form.reductionPercent) || 0,
+      isEquipment: !!form.isEquipment,
+      availableFor: form.availableFor,
+      technicalOnly: !!form.technicalOnly,
+      categoryName: form.technicalOnly ? undefined : form.categoryName.trim(),
+      businessNumber: business?.businessNumber,
+    };
+
+    this.addingAccount.set(true);
+    this.catalogService.createAccount(payload, business?.clientFirebaseId).subscribe({
+      next: (res) => {
+        this.addingAccount.set(false);
+        this.closeAddAccountModal();
+        this.messageService.add({
+          severity: 'success',
+          summary: 'הצלחה',
+          detail: `הכרטיס נוצר (קוד ${res?.account?.code ?? ''})`,
+          life: 3500,
+          key: 'br',
+        });
+        // Refresh the overview so the new card/sub_category shows up.
+        if (this.catalogBusinessFilter()) {
+          this.onCatalogBusinessChange(this.catalogBusinessFilter());
+        }
+      },
+      error: (err) => {
+        this.addingAccount.set(false);
+        const detail = err?.error?.message ?? err?.message ?? 'יצירת הכרטיס נכשלה';
+        this.messageService.add({
+          severity: 'error',
+          summary: 'שגיאה',
+          detail,
+          life: 5000,
           key: 'br',
         });
       },

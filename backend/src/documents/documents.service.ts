@@ -8,7 +8,7 @@ import { DocLines } from './doc-lines.entity';
 import { JournalEntry } from 'src/bookkeeping/jouranl-entry.entity';
 import { JournalLine } from 'src/bookkeeping/jouranl-line.entity';
 import { BookingAccount } from 'src/bookkeeping/account.entity'
-import { DocumentType, DocumentStatusType, DocumentKind, JournalReferenceType, PaymentMethodType, VatOptions, Currency, UnitOfMeasure, CardCompany, CreditTransactionType, BusinessType, isExemptBusinessType } from 'src/enum';
+import { DocumentType, DocumentStatusType, DocumentKind, JournalReferenceType, PaymentMethodType, VatOptions, Currency, UnitOfMeasure, CardCompany, CreditTransactionType, BusinessType, isExemptBusinessType, ExpenseApprovalStatus, DocumentArchiveStatus } from 'src/enum';
 import { Business } from 'src/business/business.entity';
 import { SharedService } from 'src/shared/shared.service';
 import { FxRateService } from 'src/shared/fx-rate.service';
@@ -29,7 +29,9 @@ import { DocumentProcessorService, CatalogEntry } from './document-processor.ser
 import { deriveDocumentKind } from './document-kind.util';
 import { GoogleDriveService } from '../google-drive/google-drive.service';
 import { Supplier } from '../expenses/suppliers.entity';
+import { Expense } from '../expenses/expenses.entity';
 import { CatalogService } from 'src/bookkeeping/catalog.service';
+import { CatalogContextService } from 'src/bookkeeping/catalog-context.service';
 import { UsersService } from '../users/users.service';
 // Business is already imported above as part of Bookkeeping/Issued-Documents logic.
 
@@ -147,7 +149,10 @@ export class DocumentsService {
     private supplierRepo: Repository<Supplier>,
     @InjectRepository(SlimTransaction)
     private slimTransactionRepo: Repository<SlimTransaction>,
+    @InjectRepository(Expense)
+    private expenseRepo: Repository<Expense>,
     private readonly catalogService: CatalogService,
+    private readonly catalogContextService: CatalogContextService,
     private readonly documentProcessor: DocumentProcessorService,
     private readonly googleDriveService: GoogleDriveService,
     @Inject(forwardRef(() => UsersService))
@@ -3426,15 +3431,17 @@ ${finalOwnerName}`;
    * served to the frontend so the review dialog can render dropdowns sourced
    * from the same list. Ported to CatalogService's merged catalog (D1/D4)
    * in the same 2.4 legacy-DTO-shape strategy — CLIENT > ACCOUNTANT > SYSTEM
-   * by name, EXPENSE categories only. `firebaseId` is accepted for call-site
-   * parity only: catalog scoping is by businessNumber (chartOwnerKey), never
-   * by firebaseId, per D4.
+   * by name, EXPENSE categories only. Since 5.1 `firebaseId` is load-bearing:
+   * it drives the delegation lookup that adds the client's ACCOUNTANT chart
+   * layer to the merge.
    */
   async buildExtractionCatalog(
     firebaseId: string,
     businessNumber: string,
   ): Promise<CatalogEntry[]> {
-    const subCategories = await this.catalogService.getMergedExpenseCatalog({ businessNumber });
+    const subCategories = await this.catalogService.getMergedExpenseCatalog(
+      await this.catalogContextService.forUser(firebaseId, businessNumber),
+    );
     return subCategories.map((sub) => ({
       subCategoryName: sub.name,
       categoryName: sub.category?.name ?? '',
@@ -3562,26 +3569,59 @@ ${finalOwnerName}`;
   }
 
   /**
-   * All rows for this user+business that were archived from the review
-   * modal (`status = archived`) — kept for reference/audit but not counted
-   * as an expense. Rejected/junk rows are intentionally excluded; those
-   * aren't real documents worth browsing here.
+   * All rows for this user+business, for the ארכיון מסמכים tab. PAIRED rows
+   * (secondary half of an invoice<->receipt pair) are excluded — they're
+   * intentionally hidden everywhere, same as the review modal. Previously
+   * this only returned `status = archived` rows, which meant the tab showed
+   * nothing for the overwhelming majority of real businesses (documents
+   * mostly end up APPROVED or PENDING_REVIEW, rarely explicitly archived) —
+   * broadened so every document is visible, distinguished by `archiveStatus`.
    */
   async getArchivedForUser(
     firebaseId: string,
     businessNumber: string,
-  ): Promise<ExtractedDocument[]> {
+  ): Promise<Array<ExtractedDocument & { archiveStatus: DocumentArchiveStatus }>> {
     const user = await this.userRepo.findOne({ where: { firebaseId } });
     if (!user) throw new NotFoundException(`User not found for firebaseId`);
 
-    return this.extractedDocRepo
+    const docs = await this.extractedDocRepo
       .createQueryBuilder('d')
       .where('d.userId = :uid', { uid: user.index })
       .andWhere('d.businessNumber = :bn', { bn: businessNumber })
-      .andWhere('d.status = :st', { st: ExtractedDocStatus.ARCHIVED })
+      .andWhere('d.status != :paired', { paired: ExtractedDocStatus.PAIRED })
       .orderBy('d.date', 'DESC')
       .addOrderBy('d.id', 'DESC')
       .getMany();
+
+    const expenseIds = Array.from(
+      new Set(docs.map(d => d.confirmedExpenseId).filter((id): id is number => id != null)),
+    );
+    const expenses = expenseIds.length
+      ? await this.expenseRepo.find({ where: { id: In(expenseIds) }, select: ['id', 'approvalStatus'] })
+      : [];
+    const approvalStatusByExpenseId = new Map(expenses.map(e => [e.id, e.approvalStatus]));
+
+    return docs.map(d => ({
+      ...d,
+      archiveStatus: this.deriveArchiveStatus(d, approvalStatusByExpenseId),
+    }));
+  }
+
+  /**
+   * See DocumentArchiveStatus (src/enum.ts) for the priority rules this
+   * implements: REJECTED > FILED_ANNUAL > APPROVED_EXPENSE > IN_PROGRESS.
+   */
+  private deriveArchiveStatus(
+    doc: ExtractedDocument,
+    approvalStatusByExpenseId: Map<number, ExpenseApprovalStatus | null>,
+  ): DocumentArchiveStatus {
+    if (doc.status === ExtractedDocStatus.REJECTED) return DocumentArchiveStatus.REJECTED;
+    if (doc.status === ExtractedDocStatus.NOT_AN_EXPENSE) return DocumentArchiveStatus.FILED_ANNUAL;
+    const linkedApprovalStatus = doc.confirmedExpenseId != null
+      ? approvalStatusByExpenseId.get(doc.confirmedExpenseId)
+      : null;
+    if (linkedApprovalStatus === ExpenseApprovalStatus.APPROVED) return DocumentArchiveStatus.APPROVED_EXPENSE;
+    return DocumentArchiveStatus.IN_PROGRESS;
   }
 
 }

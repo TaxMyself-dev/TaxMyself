@@ -24,10 +24,15 @@ import { DocumentsService } from '../documents/documents.service';
 import { DocumentPairingService } from '../documents/document-pairing.service';
 import { GoogleDriveService } from '../google-drive/google-drive.service';
 import { SharedService } from '../shared/shared.service';
-import { BusinessType, DocumentKind, VATReportingType } from '../enum';
+import { CatalogService } from '../bookkeeping/catalog.service';
+import { CatalogContextService } from '../bookkeeping/catalog-context.service';
+import { SubCategory } from '../bookkeeping/sub-category.entity';
+import { buildExpenseDescription } from '../expenses/expense-description.util';
+import { ApprovalStatus, BusinessType, DocumentKind, OwnerType, VATReportingType } from '../enum';
 import { MatchingService } from './matching.service';
 import {
   ReportPreviewResponse,
+  ReviewClassification,
   ReviewDocSummary,
   ReviewRow,
   ReviewTxSummary,
@@ -101,6 +106,10 @@ export class ReportReviewService {
     private readonly documentsService: DocumentsService,
     private readonly documentPairingService: DocumentPairingService,
     private readonly googleDriveService: GoogleDriveService,
+    // Phase 6.1 (D9): server-side resolution preview per review row — the
+    // same delegation-aware merge the approve path runs.
+    private readonly catalogService: CatalogService,
+    private readonly catalogContextService: CatalogContextService,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -304,6 +313,14 @@ export class ReportReviewService {
       if (key) knownSupplierById.set(key, s);
     }
 
+    // Step 3.5 — load the merged catalog ONCE (delegation-aware: the
+    // client's ACCOUNTANT chart layers join the merge, Phase 5.1) so every
+    // row's classification can be resolved in-memory. This is the same
+    // resolution the approve path runs — the professional-view columns show
+    // exactly what approval would post (D9 live-resolution preview).
+    const catalogCtx = await this.catalogContextService.forUser(firebaseId, businessNumber);
+    const mergedCatalog = await this.catalogService.getMergedExpenseCatalog(catalogCtx);
+
     // Step 4 — assemble rows.
     const matchedDocIds = new Set<number>();
     const matchedTxIds = new Set<number>();
@@ -319,10 +336,12 @@ export class ReportReviewService {
       if (!doc.matchedTransactionId) continue;
       const tx = txBySlimId.get(doc.matchedTransactionId);
       if (!tx) continue;
+      const document = this.toDocSummary(doc, knownSupplierById);
       rows.push({
         type: 'matched',
-        document: this.toDocSummary(doc, knownSupplierById),
+        document,
         transaction: this.toTxSummary(tx.slim, tx.cache),
+        classification: this.classifyReviewRow(mergedCatalog, firebaseId, document, doc.subCategoryId),
       });
       matchedDocIds.add(doc.id);
       matchedTxIds.add(doc.matchedTransactionId);
@@ -331,7 +350,12 @@ export class ReportReviewService {
     // Second pass: doc_only — every pending doc not consumed above.
     for (const doc of docs) {
       if (matchedDocIds.has(doc.id)) continue;
-      rows.push({ type: 'doc_only', document: this.toDocSummary(doc, knownSupplierById) });
+      const document = this.toDocSummary(doc, knownSupplierById);
+      rows.push({
+        type: 'doc_only',
+        document,
+        classification: this.classifyReviewRow(mergedCatalog, firebaseId, document, doc.subCategoryId),
+      });
     }
 
     // Third pass: tx_only — every eligible tx not consumed above (only in
@@ -339,7 +363,15 @@ export class ReportReviewService {
     if (mode === 'with_banking') {
       for (const { slim, cache } of txCacheRows) {
         if (matchedTxIds.has(slim.id)) continue;
-        rows.push({ type: 'tx_only', transaction: this.toTxSummary(slim, cache) });
+        const transaction = this.toTxSummary(slim, cache);
+        rows.push({
+          type: 'tx_only',
+          transaction,
+          classification: this.classifyReviewRow(mergedCatalog, firebaseId, {
+            category: transaction.category,
+            subCategory: transaction.subCategory,
+          }, null),
+        });
       }
     }
 
@@ -352,6 +384,110 @@ export class ReportReviewService {
         txOnly: rows.filter(r => r.type === 'tx_only').length,
       },
       duplicatesSkipped,
+      // D9: with an ACTIVE delegation, missing-mapping rows read
+      // "חסר מיפוי — אצל הרו״ח" (disabled checkbox); without one the client
+      // gets the simple picker so they are never stuck.
+      clientHasActiveDelegation: (catalogCtx.accountantIds?.length ?? 0) > 0,
+    };
+  }
+
+  /**
+   * Phase 6.1 (D9): resolve one review row's classification names against
+   * the merged catalog, in-memory. Match order:
+   *   1. exact (category, subCategory) name pair — the names are the
+   *      EFFECTIVE classification (a saved supplier's names override the
+   *      OCR guess in toDocSummary, so they must win over the OCR-time
+   *      stamped id);
+   *   2. subCategory name alone (Claude/legacy rows sometimes carry a bare
+   *      sub name or a stale parent) — same fallback matchCatalogSubCategoryId
+   *      uses at OCR-insert time;
+   *   3. the stamped extracted_document.subCategoryId, when the names match
+   *      nothing (e.g. a CLIENT row renamed since OCR).
+   */
+  private classifyReviewRow(
+    catalog: SubCategory[],
+    ownerFirebaseId: string,
+    source: {
+      category?: string | null;
+      subCategory?: string | null;
+      documentType?: string | null;
+      supplier?: string | null;
+      invoiceNumber?: string | null;
+    },
+    stampedSubCategoryId: number | null | undefined,
+  ): ReviewClassification {
+    const catName = source.category?.trim() || null;
+    const subName = source.subCategory?.trim() || null;
+
+    let sub: SubCategory | undefined;
+    if (subName) {
+      const bySubName = catalog.filter(s => s.name === subName);
+      sub = (catName ? bySubName.find(s => s.category?.name === catName) : undefined)
+        ?? bySubName[0];
+    }
+    if (!sub && stampedSubCategoryId != null) {
+      sub = catalog.find(s => s.id === stampedSubCategoryId);
+    }
+
+    const docInput = source.documentType
+      ? {
+          documentType: source.documentType as any,
+          supplier: source.supplier ?? null,
+          invoiceNumber: source.invoiceNumber ?? null,
+        }
+      : null;
+
+    if (!sub) {
+      return {
+        subCategoryId: null,
+        categoryName: null,
+        subCategoryName: null,
+        status: 'UNCLASSIFIED',
+        description: buildExpenseDescription({ category: null, subCategory: null }, docInput),
+        mappedByAccountant: false,
+        sectionCode: null,
+        sectionName: null,
+        accountId: null,
+        accountCode: null,
+        accountName: null,
+        vatPercent: null,
+        taxPercent: null,
+        reductionPercent: null,
+        isEquipment: null,
+      };
+    }
+
+    const account = sub.account ?? null;
+    const section = account?.section ?? null;
+    const status: ReviewClassification['status'] = sub.isPrivate
+      ? 'PRIVATE'
+      : account != null && sub.approvalStatus === ApprovalStatus.APPROVED
+        ? 'READY'
+        : 'MISSING_MAPPING';
+
+    return {
+      subCategoryId: sub.id,
+      categoryName: sub.category?.name ?? catName,
+      subCategoryName: sub.name,
+      status,
+      description: buildExpenseDescription(
+        { category: sub.category?.name ?? catName, subCategory: sub.name },
+        docInput,
+      ),
+      // Accountant-owned row, or a mapping completed/approved by someone
+      // other than the client themself (D9's "מופה ע״י רו״ח" badge).
+      mappedByAccountant:
+        sub.ownerType === OwnerType.ACCOUNTANT ||
+        (sub.approvedByUserId != null && sub.approvedByUserId !== ownerFirebaseId),
+      sectionCode: section?.code ?? null,
+      sectionName: section?.name ?? null,
+      accountId: account?.id ?? null,
+      accountCode: account?.code ?? null,
+      accountName: account?.name ?? null,
+      vatPercent: account?.vatPercent != null ? Number(account.vatPercent) : null,
+      taxPercent: account?.taxPercent != null ? Number(account.taxPercent) : null,
+      reductionPercent: account?.reductionPercent != null ? Number(account.reductionPercent) : null,
+      isEquipment: account?.isEquipment ?? null,
     };
   }
 

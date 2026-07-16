@@ -5,6 +5,7 @@ import { JournalEntry } from './jouranl-entry.entity';
 import { JournalLine } from './jouranl-line.entity';
 import { BookingAccount } from './account.entity';
 import { CatalogService } from './catalog.service';
+import { CatalogContextService } from './catalog-context.service';
 import { SharedService } from '../shared/shared.service';
 import { JournalEntryInput, JournalLineInput } from './dto/journal-entry-input.interface';
 import { CreateManualJournalEntryDto } from './dto/manual-journal-entry.dto';
@@ -30,6 +31,9 @@ export class BookkeepingService {
     // Phase 4.5: resolves the manual-entry modal's optional sub_category
     // pointer (tenant-scope-checked) to its display name.
     private readonly catalogService: CatalogService,
+    // Phase 5.1: delegation-aware ctx so accountant-layer sub_categories
+    // resolve for the client's manual entries too.
+    private readonly catalogContextService: CatalogContextService,
   ) { }
 
 
@@ -188,6 +192,12 @@ export class BookkeepingService {
     issuerBusinessNumber: string,
     manager?: EntityManager,
   ): Promise<{ entryNumber: number; id: number }> {
+    // Phase 6 hardening: a manual entry into a foreign business would ride
+    // that tenant's per-business entry numbering — the caller must own the
+    // target business (impersonation already swapped firebaseId to the
+    // client after the guard's delegation check).
+    await this.catalogContextService.assertBusinessAccess(firebaseId, issuerBusinessNumber);
+
     const isExpense = dto.entryKind === 'expense';
     const isExempt = dto.entryKind === 'income_exempt';
     const expectedType = isExpense ? 'expense' : 'income';
@@ -235,10 +245,10 @@ export class BookkeepingService {
       // Optional sub_category pointer (expense lines only) → display name.
       let lineSubCategoryName: string | null = null;
       if (isExpense && line.subCategoryId != null) {
-        const resolved = await this.catalogService.resolveSubCategory(line.subCategoryId, {
-          userId: firebaseId,
-          businessNumber: issuerBusinessNumber,
-        });
+        const resolved = await this.catalogService.resolveSubCategory(
+          line.subCategoryId,
+          await this.catalogContextService.forUser(firebaseId, issuerBusinessNumber),
+        );
         lineSubCategoryName = resolved.subCategory?.name ?? null;
         if (lineSubCategoryName && !resolvedSubCategoryPair) {
           resolvedSubCategoryPair = {

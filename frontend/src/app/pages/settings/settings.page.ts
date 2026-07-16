@@ -239,7 +239,7 @@ export class SettingsPage implements OnInit {
     const reason = params['reason'];
     if (!tab && !googleIntegration) return;
 
-    if (tab && this.tabs.some((t) => t.value === tab)) {
+    if (tab && this.tabs().some((t) => t.value === tab)) {
       this.onTabChange(tab);
     }
 

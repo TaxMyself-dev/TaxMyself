@@ -13,6 +13,7 @@ import { AccountingSection } from 'src/bookkeeping/accounting-section.entity';
 import { Category } from 'src/bookkeeping/category.entity';
 import { SubCategory } from 'src/bookkeeping/sub-category.entity';
 import { CatalogService } from 'src/bookkeeping/catalog.service';
+import { CatalogContextService } from 'src/bookkeeping/catalog-context.service';
 import { AccountCodeAllocatorService } from 'src/bookkeeping/account-code-allocator.service';
 import { SharedService } from 'src/shared/shared.service';
 import { FxRateService } from 'src/shared/fx-rate.service';
@@ -51,6 +52,7 @@ import { BillingModule } from 'src/billing/billing.module';
     FxRateService,
     BookkeepingService,
     CatalogService,
+    CatalogContextService,
     AccountCodeAllocatorService,
     BusinessService,
     DocumentProcessorService,

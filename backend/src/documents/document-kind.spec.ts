@@ -7,6 +7,8 @@
  *  - fileDocumentAsAnnual: terminal NOT_AN_EXPENSE + ANNUAL_DOCUMENT,
  *    slim reset + pair cascade, idempotent, APPROVED docs rejected
  *  - setDocumentKind: PENDING_REVIEW only, value validation
+ *  - QA regression: the full re-kind -> file chain, and its effect on the
+ *    approval-queue query + archive-tab status derivation
  *
  * Uses the prototype.call(fakeThis) pattern from documents-catalog.service.spec
  * so no full DocumentsService provider tree is needed.
@@ -15,7 +17,7 @@ import { BadRequestException, HttpException } from '@nestjs/common';
 import { DocumentsService } from './documents.service';
 import { deriveDocumentKind } from './document-kind.util';
 import { ExtractedDocStatus, ExtractedDocumentType } from './extracted-document.entity';
-import { DocumentKind } from '../enum';
+import { DocumentKind, DocumentArchiveStatus } from '../enum';
 
 describe('deriveDocumentKind (D8)', () => {
   it.each([
@@ -143,5 +145,58 @@ describe('DocumentsService.setDocumentKind (D8 triage)', () => {
   it('rejects an invalid kind value', async () => {
     const fakeThis = makeFakeThis({ id: 1, userId: 7, status: ExtractedDocStatus.PENDING_REVIEW });
     await expect(run(fakeThis, 'NOT_A_KIND')).rejects.toThrow(BadRequestException);
+  });
+});
+
+/**
+ * QA regression (keepintax_prodcopy repro, 2026-07-14): filing looked
+ * broken because a re-kinded-to-ANNUAL row's badge already read "saved"
+ * before the terminal write ever happened. Persistence itself was verified
+ * live against prodcopy and was correct — this guards the full chain a
+ * real user drives: triage re-kind -> actually file -> the row disappears
+ * from the PENDING_REVIEW query the approval screen sources from -> the
+ * archive tab derives FILED_ANNUAL once the write has landed.
+ */
+describe('QA regression: D8 "תייק" end-to-end (setDocumentKind -> fileDocumentAsAnnual)', () => {
+  it('files a document, drops it from the approval queue, and archives it as FILED_ANNUAL', async () => {
+    // One in-memory row both calls mutate in place, like a real UPDATE would.
+    const doc: any = {
+      id: 42, userId: 7, status: ExtractedDocStatus.PENDING_REVIEW,
+      documentKind: DocumentKind.UNIDENTIFIED, confirmedExpenseId: null,
+      matchedTransactionId: null, pairedWithDocumentId: null,
+    };
+    const fakeThis = {
+      userRepo: { findOne: jest.fn().mockResolvedValue({ index: 7, firebaseId: 'uid-1' }) },
+      extractedDocRepo: {
+        findOne: jest.fn().mockResolvedValue(doc),
+        update: jest.fn((_criteria: any, patch: any) => {
+          Object.assign(doc, patch);
+          return Promise.resolve(undefined);
+        }),
+      },
+      slimTransactionRepo: { update: jest.fn().mockResolvedValue(undefined) },
+      resetMatchedSlimAndCascadePair: (DocumentsService.prototype as any).resetMatchedSlimAndCascadePair,
+    };
+
+    // Step 1: triage re-kind (what the "מסמך שנתי — סמן לתיוק" button does).
+    await DocumentsService.prototype.setDocumentKind.call(fakeThis as any, 'uid-1', 42, DocumentKind.ANNUAL_DOCUMENT);
+    expect(doc.documentKind).toBe(DocumentKind.ANNUAL_DOCUMENT);
+    // Re-kinding alone must NOT file the doc — this is exactly the state
+    // the old badge mislabeled as already "saved".
+    expect(doc.status).toBe(ExtractedDocStatus.PENDING_REVIEW);
+
+    // Step 2: the actual "תייק" click.
+    await DocumentsService.prototype.fileDocumentAsAnnual.call(fakeThis as any, 'uid-1', 42);
+    expect(doc.status).toBe(ExtractedDocStatus.NOT_AN_EXPENSE);
+    expect(doc.documentKind).toBe(DocumentKind.ANNUAL_DOCUMENT);
+
+    // The approval screen's query (ReportReviewService.getReportPreview)
+    // filters strictly on status = PENDING_REVIEW — this row no longer matches.
+    expect(doc.status).not.toBe(ExtractedDocStatus.PENDING_REVIEW);
+
+    // The archive tab must now label it FILED_ANNUAL (DocumentsService.deriveArchiveStatus).
+    const archiveStatus = (DocumentsService.prototype as any).deriveArchiveStatus
+      .call(fakeThis, doc, new Map());
+    expect(archiveStatus).toBe(DocumentArchiveStatus.FILED_ANNUAL);
   });
 });

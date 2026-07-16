@@ -700,26 +700,69 @@ baseline reports reproduce.
 
 **Goal:** accountants operate on the catalog per D4/D11, safely.
 
-- [ ] 5.1 Authorization: delegation-aware guard usage on all catalog and
+- [x] 5.1 Authorization: delegation-aware guard usage on all catalog and
       approval endpoints (building on Phase 0 fixes). An accountant acting
       via `x-client-user-id` may: complete/override mappings, approve
       expenses, create ACCOUNTANT/CLIENT catalog rows. May NOT edit SYSTEM
       rows (admin only).
-- [ ] 5.2 D11 add-account flow: `POST bookkeeping/accounts` — atomic
+      (Done Session 10: new CatalogContextService builds delegation-aware
+      contexts — every ACTIVE delegation's ACCOUNTANT_<agentId> chart joins
+      the D4 merge between CLIENT and SYSTEM, threaded through every
+      resolution/merge point: expense classification, catalog reads,
+      override-mapping lookups, repoint, manual-entry sub_category + account
+      dropdown, OCR extraction catalog, and the P&L booking-account join.
+      repointSubCategoryAccount now protects ACCOUNTANT rows like SYSTEM
+      rows (client-context repoint lands a CLIENT override). SYSTEM-catalog
+      admin endpoints gate on actorFirebaseId — admin-while-impersonating
+      works, accountant-while-impersonating is refused; the previously
+      commented-out getAllDefaultSubCategories admin check is enforced.)
+- [x] 5.2 D11 add-account flow: `POST bookkeeping/accounts` — atomic
       account (+ optional paired sub_category) creation, getNextAccountCode
       allocation, "all my clients / current client" scoping, technical
       account option.
-- [ ] 5.3 Client-creates-unmapped flow (D5): client with an active
+      (Done Session 10: CatalogService.createAccountWithSubCategory — one
+      dataSource.transaction writes the law-bearing booking_account +
+      same-named thin sub_category; manual codes accepted when unique within
+      the chartOwnerKey (out-of-range 90xxx tolerated per D2), else
+      allocated (ACCOUNTANT 70000 / CLIENT 80000). "current client" scope =
+      CLIENT rows + accountantId=creator + SPECIFIC_CLIENT; "all my clients"
+      = ACCOUNTANT rows + ALL_ACCOUNTANT_CLIENTS. technicalOnly skips the
+      sub_category but still requires a section — sectionless cards are
+      invisible to the manual-entry dropdown, which is where technical cards
+      are used. Endpoint gated to ACCOUNTANT/ADMIN actors (actorFirebaseId).
+      Decision approved by Elazar this session: the DTO carries categoryName
+      (a category picker joins the Phase 6 screen) — D11's field list had no
+      parent-category field but sub_category.categoryId requires one.)
+- [x] 5.3 Client-creates-unmapped flow (D5): client with an active
       delegation may save a RECOGNIZED sub_category without mapping →
       MISSING_ACCOUNTING_MAPPING; accountant completion UI (the inline row
       from D9) sets mapping + approvalStatus=APPROVED; the "החל גם על
       סיווגים עתידיים" checkbox decides sub_category update vs one-off
       snapshot override.
-- [ ] 5.4 Accountant catalog management screen: list categories/
+      (Done Session 10: CreateUserSubCategoryDto.deferToAccountant — saves
+      the row unmapped (no law, MISSING_ACCOUNTING_MAPPING) but ONLY when
+      the client has an ACTIVE delegation; without one → 400 so a client
+      without an accountant is never stuck (they use the D9 simple picker =
+      a normal mapped create). POST expenses/:id/complete-mapping —
+      applyToFuture=false delegates to the 4.2 overrideExpenseMapping
+      one-off path; applyToFuture=true repoints the sub_category
+      (repointSubCategoryAccount — SYSTEM/ACCOUNTANT rows land a CLIENT
+      override) then re-resolves THIS expense onto the effective row via
+      reclassifyExpense: snapshots + description + journal in one tx,
+      approval + D10 override stamped with the actor. Elazar-approved:
+      completion auto-approves + journals, consistent with 4.2.)
+- [x] 5.4 Accountant catalog management screen: list categories/
       sub_categories across the three layers with owner badges;
       pending-approval queue (sub_categories with
       MISSING_ACCOUNTING_MAPPING / PENDING_ACCOUNTANT_APPROVAL across their
       clients).
+      (Done Session 10 — backend only, the screen itself is Phase 6.2:
+      GET bookkeeping/catalog-overview returns EVERY active row across the
+      visible layers, uncollapsed, each with ownerType/chartOwnerKey badge
+      fields + isEffective (the D4 merge winner per (categoryName, name));
+      GET bookkeeping/pending-approvals is actor-keyed (ACCOUNTANT/ADMIN
+      gate) — MISSING/PENDING sub_categories across all the agent's
+      ACTIVE-delegation clients, each with its blocked-expense count.)
 
 **Definition of done:** an accountant can fully service a client
 (create accounts, complete mappings, approve) with enforced scopes; a
@@ -731,7 +774,7 @@ client without an accountant is never blocked (D9 simple picker path).
 
 **Goal:** the approval screen and catalog UIs per D9, on the new APIs.
 
-- [ ] 6.1 Approval screen rebuild per D9: regular/professional toggle
+- [x] 6.1 Approval screen rebuild per D9: regular/professional toggle
       (persisted per user), regular = category+subCategory columns,
       professional = single description column + section/account/vat/tax/
       depreciation columns; status badges (מוכן / חסר מיפוי / אצל הרו״ח /
@@ -740,16 +783,40 @@ client without an accountant is never blocked (D9 simple picker path).
       capability-gated) with the future-mapping checkbox; simple "למה
       ההוצאה שייכת?" picker for unaccompanied clients; live-resolution
       preview pre-approval, snapshot display post-approval.
-- [ ] 6.2 Category management screens on new endpoints: client add
+      (Done Session 11A. Backend: every preview row carries a
+      `classification` block — the merged-catalog resolution the approve
+      path will run (status READY/MISSING_MAPPING/PRIVATE/UNCLASSIFIED,
+      canonical names, D7 description, mappedByAccountant, card law +
+      section) + `clientHasActiveDelegation`; expense-catalog gained the
+      card-law/section fields + includePrivate. Frontend: the review
+      dialog is the D9 screen — toggle persisted per REAL user
+      (accountants land professional), professional classifies by CARD
+      (accounts grouped by section; representative sub_category keeps the
+      approved⇒subCategoryId invariant, technical cards excluded), badges
+      per D9 + D8 (annual="לא הוצאה — נשמר לדוח השנתי" with תייק,
+      unidentified triage), non-approvable rows have disabled checkboxes
+      and are excluded from bulk approve, accountant completion =
+      approve→complete-mapping chain (Elazar-approved; one-off vs
+      future-mapping checkbox), unaccompanied-client simple picker
+      repoints their sub_category at a system card via the 4.2 repoint
+      primitive. Live resolution recomputes client-side from the extended
+      catalog on every classification change.)
+- [x] 6.2 Category management screens on new endpoints: client add
       category (name + default recognition) / add sub_category (the D5
       three-option flow: private / not recognized / recognized→mapping or
       defer-to-accountant); accountant screens from 5.4; admin SYSTEM
       catalog screen replacing CategoryManagementComponent's direct
       default_sub_category editing.
-- [ ] 6.3 ModalExpensesComponent / add-supplier: cascading pickers on new
+      (Done Session 11B — commits 6.2a `ae7428bf` / 6.2b `894eca3f` /
+      6.2c `e02a2698`; ticked by 11A as the primary session per the
+      parallelism rules. See 11B's worklog entry for detail.)
+- [x] 6.3 ModalExpensesComponent / add-supplier: cascading pickers on new
       catalog, autofill percents from sub_category, emit subCategoryId.
-- [ ] 6.4 Ledger/P&L pages: section grouping in P&L, description column in
+      (Done Session 11B; ticked by 11A. See 11B's worklog entry.)
+- [x] 6.4 Ledger/P&L pages: section grouping in P&L, description column in
       ledger, account picker shows new codes.
+      (Done Session 11B — `e2382afe` business-scoped the ledger filter's
+      chart; ticked by 11A. See 11B's worklog entry.)
 
 **Definition of done:** no Angular service calls a removed endpoint; a full
 manual E2E pass of: upload doc → OCR → review → classify → approve →

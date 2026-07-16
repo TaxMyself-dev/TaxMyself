@@ -7,11 +7,11 @@ Admin-only screen for maintaining the global list of default sub-categories (the
 - `category-management.component.scss` — styling.
 
 ## Main flows
-- Load and filter default sub-categories (by category, isExpense, isRecognized, reportScope, isEquipment).
-- Add a sub-category (pick existing parent category or create a new one).
-- Edit / delete a sub-category (PrimeNG `ConfirmationService` confirm dialogs).
-- Export all sub-categories to a 3-sheet Excel workbook (recognized / not-recognized / accountant view), using `LedgerReportService.getLedgerAccounts()` to resolve account names for the accountant sheet.
+- Load and filter default sub-categories (by category, isExpense, isRecognized, reportScope, isEquipment). Since Phase 6.2c the table shows the row's CARD (accountCode - accountName) and חתך (sectionName) — fields the backend's legacy shape now carries — instead of the retired `pnlCategory` string (D3); private rows (D5) show 'פרטית' in the מוכר column.
+- Add a sub-category (pick existing parent category or create a new one); percent/recognition fields resolve to a SYSTEM card via the variant-card path (D1/D10) — `pnlCategory` input removed.
+- Edit a sub-category: names are read-only (the backend never applied them); law-field edits repoint the row at a matching/new card, never editing a card's percents in place (D10). Delete via confirm dialog (soft delete server-side).
+- Export all sub-categories to a 3-sheet Excel workbook (recognized / not-recognized / accountant view) — card name/section/code6111 come straight from the rows; the retired subAccountCode column is gone (D2).
 
 ## Related topics
 - Backend: expenses (default-sub-category CRUD via `ExpenseDataService`)
-- Frontend pages: admin-panel (embeds `<app-category-management>`), ledger-report (`LedgerReportService.getLedgerAccounts` used only for the Excel export's account-name lookup)
+- Frontend pages: admin-panel (embeds `<app-category-management>`)

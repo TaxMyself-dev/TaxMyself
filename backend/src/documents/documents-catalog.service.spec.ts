@@ -37,7 +37,15 @@ describe('DocumentsService.buildExtractionCatalog', () => {
         account: null,
       },
     ]);
-    const fakeThis = { catalogService: { getMergedExpenseCatalog } };
+    const forUser = jest.fn().mockResolvedValue({
+      userId: 'someFirebaseId',
+      businessNumber: '123456789',
+      accountantIds: ['agent-1'],
+    });
+    const fakeThis = {
+      catalogService: { getMergedExpenseCatalog },
+      catalogContextService: { forUser },
+    };
 
     const catalog = await DocumentsService.prototype.buildExtractionCatalog.call(
       fakeThis as any,
@@ -45,7 +53,14 @@ describe('DocumentsService.buildExtractionCatalog', () => {
       '123456789',
     );
 
-    expect(getMergedExpenseCatalog).toHaveBeenCalledWith({ businessNumber: '123456789' });
+    // 5.1: the ctx is delegation-aware — built by CatalogContextService from
+    // the effective user's ACTIVE delegations, not a bare businessNumber.
+    expect(forUser).toHaveBeenCalledWith('someFirebaseId', '123456789');
+    expect(getMergedExpenseCatalog).toHaveBeenCalledWith({
+      userId: 'someFirebaseId',
+      businessNumber: '123456789',
+      accountantIds: ['agent-1'],
+    });
     expect(catalog).toEqual([
       { subCategoryName: 'דלק', categoryName: 'רכב ותחבורה', taxPercent: 45, vatPercent: 66.66, isEquipment: false, subCategoryId: 11 },
       { subCategoryName: 'ציוד', categoryName: 'ציוד ורכוש קבוע', taxPercent: 100, vatPercent: 100, isEquipment: true, subCategoryId: 12 },
@@ -56,7 +71,10 @@ describe('DocumentsService.buildExtractionCatalog', () => {
   it('never touches a legacy DefaultSubCategory/UserSubCategory repo', async () => {
     // No defaultSubCategoryRepo/userSubCategoryRepo on fakeThis at all — if
     // buildExtractionCatalog ever referenced them again, this call throws.
-    const fakeThis = { catalogService: { getMergedExpenseCatalog: jest.fn().mockResolvedValue([]) } };
+    const fakeThis = {
+      catalogService: { getMergedExpenseCatalog: jest.fn().mockResolvedValue([]) },
+      catalogContextService: { forUser: jest.fn().mockResolvedValue({ businessNumber: '123456789', accountantIds: [] }) },
+    };
 
     await expect(
       DocumentsService.prototype.buildExtractionCatalog.call(fakeThis as any, 'x', '123456789'),

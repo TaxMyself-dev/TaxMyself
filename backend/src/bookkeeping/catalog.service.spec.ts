@@ -16,7 +16,7 @@ import { BookingAccount } from './account.entity';
 import { AccountingSection } from './accounting-section.entity';
 import { CatalogService } from './catalog.service';
 import { AccountCodeAllocatorService } from './account-code-allocator.service';
-import { ApprovalStatus, CategoryType, ExpenseReportScope, OwnerType, RecognitionType, SYSTEM_CHART_OWNER_KEY } from '../enum';
+import { ApprovalStatus, CategoryType, OwnerType, RecognitionType, SYSTEM_CHART_OWNER_KEY, VisibilityScope } from '../enum';
 
 function makeRepo<T extends { id?: number }>(rows: T[] = []) {
   let nextId = (Math.max(0, ...rows.map((r) => r.id ?? 0)) || 0) + 1;
@@ -69,6 +69,9 @@ describe('CatalogService', () => {
   let accountRepo: ReturnType<typeof makeRepo<any>>;
   let sectionRepo: ReturnType<typeof makeRepo<any>>;
   let allocator: jest.Mocked<AccountCodeAllocatorService>;
+  let expenseRepo: any;
+  let userRepo: ReturnType<typeof makeRepo<any>>;
+  let businessRepo: ReturnType<typeof makeRepo<any>>;
   let service: CatalogService;
 
   const SYS = SYSTEM_CHART_OWNER_KEY;
@@ -99,12 +102,45 @@ describe('CatalogService', () => {
     sectionRepo = makeRepo<any>([{ id: 99, code: '60200', name: 'רכב ותחבורה', chartOwnerKey: SYS, isActive: true }]);
     allocator = { getNextAccountCode: jest.fn().mockResolvedValue('80000') } as any;
 
+    // dataSource.transaction hands back a manager whose getRepository returns
+    // the same in-memory repos (5.2's createAccountWithSubCategory).
+    const reposByEntity = new Map<any, any>([
+      [Category, categoryRepo],
+      [SubCategory, subCategoryRepo],
+      [BookingAccount, accountRepo],
+      [AccountingSection, sectionRepo],
+    ]);
+    const mockManager = { getRepository: (entity: any) => reposByEntity.get(entity) };
+    const dataSource = {
+      transaction: jest.fn().mockImplementation((cb: (m: any) => Promise<any>) => cb(mockManager)),
+    };
+
+    // 5.4 pending-approvals blocked-expense counts.
+    expenseRepo = {
+      createQueryBuilder: jest.fn().mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        addSelect: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        groupBy: jest.fn().mockReturnThis(),
+        getRawMany: jest.fn().mockResolvedValue([]),
+      }),
+    };
+
+    // "כרטיסים" admin screen (Session 13) — owner-name resolution.
+    userRepo = makeRepo<any>([]);
+    businessRepo = makeRepo<any>([]);
+
     service = new CatalogService(
       categoryRepo as any,
       subCategoryRepo as any,
       accountRepo as any,
       sectionRepo as any,
       allocator,
+      dataSource as any,
+      expenseRepo as any,
+      userRepo as any,
+      businessRepo as any,
     );
   });
 
@@ -123,6 +159,32 @@ describe('CatalogService', () => {
     it('falls back to SYSTEM when no CLIENT override exists', async () => {
       const merged = await service.getMergedCategories({ businessNumber: '123456789' });
       expect(merged.find((c) => c.name === 'רכב ותחבורה')?.chartOwnerKey).toBe(SYS);
+    });
+
+    // ── Phase 5.1: the ACCOUNTANT layer joins the merge via accountantIds ──
+
+    it('ACCOUNTANT overrides SYSTEM but loses to CLIENT (D4 precedence)', async () => {
+      categoryRepo.rows.push(
+        { id: 3, name: 'רכב ותחבורה', type: CategoryType.EXPENSE, chartOwnerKey: 'ACCOUNTANT_agent-1', isActive: true },
+        { id: 4, name: 'ייעוץ', type: CategoryType.EXPENSE, chartOwnerKey: 'ACCOUNTANT_agent-1', isActive: true },
+        { id: 5, name: 'ייעוץ', type: CategoryType.EXPENSE, chartOwnerKey: CLIENT, isActive: true },
+      );
+
+      const merged = await service.getMergedCategories({
+        businessNumber: '123456789',
+        accountantIds: ['agent-1'],
+      });
+
+      expect(merged.find((c) => c.name === 'רכב ותחבורה')?.chartOwnerKey).toBe('ACCOUNTANT_agent-1');
+      expect(merged.find((c) => c.name === 'ייעוץ')?.chartOwnerKey).toBe(CLIENT);
+    });
+
+    it('without accountantIds the ACCOUNTANT layer stays invisible (pre-5.1 ctx literals)', async () => {
+      categoryRepo.rows.push(
+        { id: 4, name: 'ייעוץ', type: CategoryType.EXPENSE, chartOwnerKey: 'ACCOUNTANT_agent-1', isActive: true },
+      );
+      const merged = await service.getMergedCategories({ businessNumber: '123456789' });
+      expect(merged.find((c) => c.name === 'ייעוץ')).toBeUndefined();
     });
   });
 
@@ -238,6 +300,27 @@ describe('CatalogService', () => {
       });
       await expect(service.repointSubCategoryAccount(63, 3, ctx)).rejects.toThrow('Account 3 not found');
     });
+
+    // ── Phase 5.1: ACCOUNTANT rows get the same never-edit protection ──────
+
+    it('ACCOUNTANT sub_category → never edited from a client ctx; creates a CLIENT override row', async () => {
+      const accountantCtx = { ...ctx, accountantIds: ['agent-1'] };
+      subCategoryRepo.rows.push({
+        id: 70, name: 'איתוראן', categoryId: 1, chartOwnerKey: 'ACCOUNTANT_agent-1',
+        isActive: true, isPrivate: false, accountId: 1,
+        category: { id: 1, name: 'רכב ותחבורה', type: CategoryType.EXPENSE },
+      });
+
+      const result = await service.repointSubCategoryAccount(70, 2, accountantCtx);
+
+      // The shared ACCOUNTANT row is untouched — editing it would re-map
+      // every other client of that accountant.
+      const accountantRow = subCategoryRepo.rows.find((r: any) => r.id === 70);
+      expect(accountantRow.accountId).toBe(1);
+      expect(result.id).not.toBe(70);
+      expect(result.chartOwnerKey).toBe(CLIENT);
+      expect(result.accountId).toBe(2);
+    });
   });
 
   // ── findOrCreateVariantAccount ─────────────────────────────────────────
@@ -313,12 +396,17 @@ describe('CatalogService', () => {
       expect(allocator.getNextAccountCode).not.toHaveBeenCalled();
     });
 
-    it('ANNUAL reportScope never resolves an account and is APPROVED', async () => {
+    it('an explicit accountId (e.g. an ANNUAL card) is pointed at directly, no law resolution involved', async () => {
+      // Model change (2026-07-14): ANNUAL is no longer a special case here —
+      // it's a normal accountId pointer whose target card happens to carry
+      // reportScope=ANNUAL (BookingAccount.reportScope, not tested at this
+      // layer). createSubCategory just needs to accept an explicit accountId.
       const sub = await service.createSubCategory(scope, category as any, 'תרומה', {
-        reportScope: ExpenseReportScope.ANNUAL,
+        accountId: 1,
       });
-      expect(sub.accountId).toBeNull();
+      expect(sub.accountId).toBe(1);
       expect(sub.approvalStatus).toBe(ApprovalStatus.APPROVED);
+      expect(allocator.getNextAccountCode).not.toHaveBeenCalled();
     });
 
     it('a law with no resolvable base card/section lands MISSING_ACCOUNTING_MAPPING, not an error', async () => {
@@ -348,6 +436,153 @@ describe('CatalogService', () => {
       expect(sub.accountId).not.toBeNull();
       const created = accountRepo.rows.find((a: any) => a.id === sub.accountId);
       expect(created?.sectionId).toBe(99); // inherited from the base דלק card
+    });
+  });
+
+  // ── createAccountWithSubCategory (Phase 5.2 / D11) ───────────────────────
+
+  describe('createAccountWithSubCategory', () => {
+    const law = { vatPercent: 100, taxPercent: 100, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED };
+    const accountantScope = {
+      ownerType: OwnerType.ACCOUNTANT,
+      chartOwnerKey: 'ACCOUNTANT_agent-1',
+      accountantId: 'agent-1',
+      visibilityScope: VisibilityScope.ALL_ACCOUNTANT_CLIENTS,
+    };
+
+    it('creates account + paired sub_category atomically (ACCOUNTANT scope, auto code)', async () => {
+      allocator.getNextAccountCode.mockResolvedValue('70000');
+
+      const { account, subCategory } = await service.createAccountWithSubCategory({
+        scope: accountantScope,
+        name: 'איתוראן',
+        type: 'expense',
+        sectionId: 99,
+        law,
+        categoryName: 'רכב ותחבורה',
+        createdByUserId: 'agent-1',
+      });
+
+      expect(allocator.getNextAccountCode).toHaveBeenCalledWith(
+        { ownerType: OwnerType.ACCOUNTANT, type: 'expense', chartOwnerKey: 'ACCOUNTANT_agent-1' },
+        expect.anything(),
+      );
+      expect(account.code).toBe('70000');
+      expect(account.chartOwnerKey).toBe('ACCOUNTANT_agent-1');
+      expect(account.recognitionType).toBe(RecognitionType.RECOGNIZED);
+      expect(subCategory).not.toBeNull();
+      expect(subCategory!.accountId).toBe(account.id);
+      expect(subCategory!.name).toBe('איתוראן');
+      // Parent category resolved to the existing SYSTEM row by name — no new
+      // category row was created.
+      expect(subCategory!.categoryId).toBe(1);
+      expect(subCategory!.approvalStatus).toBe(ApprovalStatus.APPROVED);
+      expect(subCategory!.visibilityScope).toBe(VisibilityScope.ALL_ACCOUNTANT_CLIENTS);
+    });
+
+    it('technicalOnly creates the account row only', async () => {
+      allocator.getNextAccountCode.mockResolvedValue('70010');
+      const before = subCategoryRepo.rows.length;
+
+      const { account, subCategory } = await service.createAccountWithSubCategory({
+        scope: accountantScope,
+        name: 'כרטיס טכני',
+        type: 'expense',
+        sectionId: 99,
+        law,
+        technicalOnly: true,
+      });
+
+      expect(account.code).toBe('70010');
+      expect(subCategory).toBeNull();
+      expect(subCategoryRepo.rows.length).toBe(before);
+    });
+
+    it('manual code is accepted when free, rejected on collision within the chartOwnerKey', async () => {
+      const { account } = await service.createAccountWithSubCategory({
+        scope: accountantScope,
+        name: 'קוד ידני',
+        code: '90910',
+        type: 'expense',
+        sectionId: 99,
+        law,
+        technicalOnly: true,
+      });
+      expect(account.code).toBe('90910');
+      expect(allocator.getNextAccountCode).not.toHaveBeenCalled();
+
+      await expect(
+        service.createAccountWithSubCategory({
+          scope: accountantScope,
+          name: 'קוד ידני כפול',
+          code: '90910',
+          type: 'expense',
+          sectionId: 99,
+          law,
+          technicalOnly: true,
+        }),
+      ).rejects.toThrow('כבר קיים');
+    });
+
+    it('requires categoryName unless technicalOnly', async () => {
+      await expect(
+        service.createAccountWithSubCategory({
+          scope: accountantScope,
+          name: 'בלי קטגוריה',
+          type: 'expense',
+          sectionId: 99,
+          law,
+        }),
+      ).rejects.toThrow('categoryName is required');
+    });
+
+    it('404s on a section that is not visible to the scope', async () => {
+      await expect(
+        service.createAccountWithSubCategory({
+          scope: accountantScope,
+          name: 'סקשן לא קיים',
+          type: 'expense',
+          sectionId: 12345,
+          law,
+          categoryName: 'רכב ותחבורה',
+        }),
+      ).rejects.toThrow('section 12345 not found');
+    });
+
+    it('creates the parent category in the target scope when no visible one matches', async () => {
+      allocator.getNextAccountCode.mockResolvedValue('70020');
+
+      const { subCategory } = await service.createAccountWithSubCategory({
+        scope: accountantScope,
+        name: 'ייעוץ עסקי',
+        type: 'expense',
+        sectionId: 99,
+        law,
+        categoryName: 'קטגוריה חדשה של רו"ח',
+      });
+
+      const createdCategory = categoryRepo.rows.find((c: any) => c.name === 'קטגוריה חדשה של רו"ח');
+      expect(createdCategory).toBeDefined();
+      expect(createdCategory.chartOwnerKey).toBe('ACCOUNTANT_agent-1');
+      expect(subCategory!.categoryId).toBe(createdCategory.id);
+    });
+
+    it('rejects a duplicate same-named sub_category in the target scope', async () => {
+      allocator.getNextAccountCode.mockResolvedValue('70030');
+      subCategoryRepo.rows.push({
+        id: 200, name: 'איתוראן', categoryId: 1, chartOwnerKey: 'ACCOUNTANT_agent-1', isActive: true,
+      });
+
+      await expect(
+        service.createAccountWithSubCategory({
+          scope: accountantScope,
+          name: 'איתוראן',
+          type: 'expense',
+          sectionId: 99,
+          law,
+          categoryName: 'רכב ותחבורה',
+        }),
+      ).rejects.toThrow('כבר קיימת');
     });
   });
 
@@ -399,6 +634,95 @@ describe('CatalogService', () => {
 
       const catalog = await service.getMergedExpenseCatalog({ businessNumber: '123456789' });
       expect(catalog.find((s) => s.name === 'משכורת')).toBeUndefined();
+    });
+  });
+
+  // ── getCatalogOverview + getPendingApprovals (Phase 5.4) ─────────────────
+
+  describe('getCatalogOverview', () => {
+    it('returns ALL rows across the visible layers with isEffective marking the D4 winner', async () => {
+      categoryRepo.rows.push(
+        { id: 2, name: 'רכב ותחבורה', type: CategoryType.EXPENSE, chartOwnerKey: CLIENT, isActive: true, ownerType: OwnerType.CLIENT },
+      );
+      subCategoryRepo.rows.push(
+        {
+          id: 10, name: 'דלק', categoryId: 1, chartOwnerKey: SYS, isActive: true, ownerType: OwnerType.SYSTEM,
+          accountId: 1, account: accountRepo.rows[0], category: categoryRepo.rows[0],
+          approvalStatus: ApprovalStatus.APPROVED,
+        },
+        {
+          id: 11, name: 'דלק', categoryId: 2, chartOwnerKey: CLIENT, isActive: true, ownerType: OwnerType.CLIENT,
+          accountId: null, account: null, category: categoryRepo.rows[1],
+          approvalStatus: ApprovalStatus.MISSING_ACCOUNTING_MAPPING,
+        },
+      );
+
+      const overview = await service.getCatalogOverview({ businessNumber: '123456789' });
+
+      // Both rows are listed (NOT collapsed), the CLIENT one is effective.
+      const delek = overview.subCategories.filter((s) => s.name === 'דלק');
+      expect(delek).toHaveLength(2);
+      expect(delek.find((s) => s.id === 11)?.isEffective).toBe(true);
+      expect(delek.find((s) => s.id === 10)?.isEffective).toBe(false);
+      // Card law is surfaced from the account on the mapped row only.
+      expect(delek.find((s) => s.id === 10)?.taxPercent).toBe(45);
+      expect(delek.find((s) => s.id === 11)?.accountCode).toBeNull();
+      // Categories carry the same effective marking.
+      const cats = overview.categories.filter((c) => c.name === 'רכב ותחבורה');
+      expect(cats).toHaveLength(2);
+      expect(cats.find((c) => c.chartOwnerKey === CLIENT)?.isEffective).toBe(true);
+      expect(cats.find((c) => c.chartOwnerKey === SYS)?.isEffective).toBe(false);
+    });
+  });
+
+  describe('getPendingApprovals', () => {
+    it('returns MISSING/PENDING rows for the given clients with blocked-expense counts', async () => {
+      subCategoryRepo.rows.push(
+        {
+          id: 20, name: 'איתוראן', categoryId: 1, chartOwnerKey: 'CLIENT_111', isActive: true,
+          userId: 'client-1', businessNumber: '111',
+          approvalStatus: ApprovalStatus.MISSING_ACCOUNTING_MAPPING,
+          category: categoryRepo.rows[0],
+        },
+        {
+          id: 21, name: 'ממופה', categoryId: 1, chartOwnerKey: 'CLIENT_111', isActive: true,
+          userId: 'client-1', businessNumber: '111',
+          approvalStatus: ApprovalStatus.APPROVED,
+          category: categoryRepo.rows[0],
+        },
+        {
+          id: 22, name: 'של לקוח אחר', categoryId: 1, chartOwnerKey: 'CLIENT_222', isActive: true,
+          userId: 'client-other', businessNumber: '222',
+          approvalStatus: ApprovalStatus.MISSING_ACCOUNTING_MAPPING,
+          category: categoryRepo.rows[0],
+        },
+      );
+      expenseRepo.createQueryBuilder.mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        addSelect: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        groupBy: jest.fn().mockReturnThis(),
+        getRawMany: jest.fn().mockResolvedValue([{ subCategoryId: 20, cnt: '3' }]),
+      });
+
+      const queue = await service.getPendingApprovals(['client-1']);
+
+      expect(queue).toHaveLength(1);
+      expect(queue[0]).toMatchObject({
+        subCategoryId: 20,
+        subCategoryName: 'איתוראן',
+        approvalStatus: ApprovalStatus.MISSING_ACCOUNTING_MAPPING,
+        clientUserId: 'client-1',
+        businessNumber: '111',
+        pendingExpenseCount: 3,
+      });
+    });
+
+    it('empty client list → empty queue, no queries', async () => {
+      const queue = await service.getPendingApprovals([]);
+      expect(queue).toEqual([]);
+      expect(expenseRepo.createQueryBuilder).not.toHaveBeenCalled();
     });
   });
 

@@ -444,17 +444,23 @@ export class ReportsController {
         return this.reportsService.getJournalEntryDetail(firebaseId, businessNumber, Number(entryId));
     }
 
-    /** Chart of accounts for the ledger filter dropdown. Global (not business-scoped). */
+    /** Chart of accounts for the ledger filter dropdown, scoped to the
+     *  business's visible charts (Phase 6.4 — was global, leaking every
+     *  tenant's custom card names into everyone's dropdown). */
     @Get('ledger-accounts')
     @UseGuards(FirebaseAuthGuard)
     async getLedgerAccounts(
         @Req() request: AuthenticatedRequest,
+        @Query('businessNumber') businessNumber?: string,
     ): Promise<{ code: string; name: string; type: string }[]> {
         const firebaseId = request.user?.firebaseId;
         if (!firebaseId) {
             throw new BadRequestException('Firebase ID is missing');
         }
-        return this.reportsService.getLedgerAccounts();
+        return this.reportsService.getLedgerAccounts(
+            businessNumber?.trim() || request.user?.businessNumber || null,
+            firebaseId,
+        );
     }
 
     /** Posting accounts for the manual journal-entry dropdown (technical
@@ -470,7 +476,7 @@ export class ReportsController {
         if (!firebaseId) {
             throw new BadRequestException('Firebase ID is missing');
         }
-        return this.reportsService.getLedgerEntryAccounts(businessNumber?.trim() || null);
+        return this.reportsService.getLedgerEntryAccounts(businessNumber?.trim() || null, firebaseId);
     }
 
 

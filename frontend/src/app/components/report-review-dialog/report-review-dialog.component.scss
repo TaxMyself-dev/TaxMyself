@@ -514,3 +514,207 @@
     i { color: #d97706; }       // amber-600
   }
 }
+
+// ---------------------------------------------------------------------
+// Phase 6.1 (D9) — view-mode toggle, status badges, completion + simple
+// picker dialogs.
+// ---------------------------------------------------------------------
+
+// Subtitle + toggle share one row; the toggle hugs the RTL-left edge.
+.toolbar-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 10px;
+
+  .subtitle { margin: 0; }
+}
+
+// Segmented two-state control — regular / professional (D9: available to
+// everyone; the choice persists per user).
+.view-toggle {
+  display: inline-flex;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  overflow: hidden;
+  flex-shrink: 0;
+
+  &__btn {
+    padding: 5px 14px;
+    border: none;
+    background: white;
+    color: #374151;
+    font-size: 0.82rem;
+    cursor: pointer;
+
+    & + & { border-inline-start: 1px solid #d1d5db; }
+    &:hover:not(.view-toggle__btn--active) { background: #f3f4f6; }
+
+    &--active {
+      background: #111827;
+      color: white;
+      cursor: default;
+    }
+  }
+}
+
+// Per-row bulk-select checkbox (template-rendered so it can be disabled).
+.row-select {
+  cursor: pointer;
+  &:disabled { cursor: not-allowed; opacity: 0.45; }
+}
+
+// D9 status badge — one pill per row, color-coded by mapping verdict.
+.status-badge-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+
+  i { font-size: 0.72rem; }
+
+  &.badge-ready        { background: #dcfce7; color: #15803d; }
+  &.badge-accountant   { background: #dbeafe; color: #1d4ed8; }
+  &.badge-private      { background: #f3f4f6; color: #4b5563; }
+  &.badge-missing      { background: #fef3c7; color: #b45309; }
+  &.badge-unclassified { background: #fee2e2; color: #b91c1c; }
+  &.badge-annual       { background: #ede9fe; color: #6d28d9; }
+  &.badge-unidentified { background: #fce7f3; color: #be185d; }
+}
+
+// The badge's inline action ("השלם מיפוי" / "למה ההוצאה שייכת?").
+.badge-action {
+  padding: 2px 8px;
+  border: 1px solid #93c5fd;
+  border-radius: 4px;
+  background: white;
+  color: #1d4ed8;
+  font-size: 0.72rem;
+  cursor: pointer;
+
+  &:hover:not(:disabled) { background: #dbeafe; }
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+}
+
+// D8 action icons (תייק / re-kind) reuse .icon-act sizing; tint by intent.
+.icon-act.icon-file-annual { color: #6d28d9; &:hover:not(:disabled) { background: #ede9fe; } }
+.icon-act.icon-rekind      { color: #0f766e; &:hover:not(:disabled) { background: #ccfbf1; } }
+
+// ---- Mapping-completion dialog (accountant) --------------------------
+
+.completion-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px 2px;
+}
+
+.completion-row-label {
+  margin: 0;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #111827;
+}
+
+.completion-label {
+  font-size: 0.8rem;
+  color: #4b5563;
+}
+
+.completion-select {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 0.85rem;
+}
+
+.apply-future-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: #111827;
+  cursor: pointer;
+
+  input { cursor: pointer; }
+}
+
+.completion-hint {
+  margin: 0;
+  font-size: 0.76rem;
+  color: #6b7280;
+  line-height: 1.5;
+}
+
+.completion-footer {
+  display: flex;
+  justify-content: flex-start;
+  gap: 8px;
+}
+
+// ---- Simple picker dialog (client without an accountant) -------------
+
+.simple-picker-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 4px 2px;
+}
+
+.simple-picker-row-label {
+  margin: 0;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #111827;
+}
+
+.simple-picker-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.simple-option {
+  padding: 8px 16px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: white;
+  color: #111827;
+  font-size: 0.88rem;
+  cursor: pointer;
+
+  &:hover:not(:disabled) { background: #eff6ff; border-color: #93c5fd; }
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+}
+
+.simple-picker-other-label {
+  font-size: 0.8rem;
+  color: #4b5563;
+}
+
+.simple-picker-select {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 0.85rem;
+}
+
+.simple-picker-footer {
+  display: flex;
+  justify-content: flex-start;
+  gap: 8px;
+}

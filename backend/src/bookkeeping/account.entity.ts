@@ -1,5 +1,5 @@
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, Unique } from 'typeorm';
-import { OwnerType, VisibilityScope, SYSTEM_CHART_OWNER_KEY, RecognitionType } from 'src/enum';
+import { OwnerType, VisibilityScope, SYSTEM_CHART_OWNER_KEY, RecognitionType, ExpenseReportScope } from 'src/enum';
 import { AccountingSection } from './accounting-section.entity';
 
 /**
@@ -78,6 +78,20 @@ export class BookingAccount {
    *  means no card at all. NULL on non-expense accounts. */
   @Column({ type: 'enum', enum: RecognitionType, nullable: true, default: null })
   recognitionType: RecognitionType | null;
+
+  /**
+   * Which report this card feeds — moved here from sub_category (model
+   * change, 2026-07-14): "accounting law lives on the card" (D1) applies to
+   * report routing too. TECHNICAL = the 90100-90600 balance/clearing
+   * accounts (explicit now — previously identified only implicitly by
+   * sectionId=null). ANNUAL = a card with full law that is still excluded
+   * from P&L (e.g. תרומות מוכרות) — replaces the old sub_category-level
+   * "no card at all" ANNUAL bucket. Every other card (income, expense,
+   * balance-sheet) defaults PNL; balance-sheet accounts never join a
+   * section anyway so the default is harmless there.
+   */
+  @Column({ type: 'enum', enum: ExpenseReportScope, default: ExpenseReportScope.PNL })
+  reportScope: ExpenseReportScope;
 
   @Column({ type: 'enum', enum: OwnerType, default: OwnerType.SYSTEM })
   ownerType: OwnerType;

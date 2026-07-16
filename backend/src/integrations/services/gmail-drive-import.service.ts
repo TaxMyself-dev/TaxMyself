@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import {
   DocumentImportService,
   DocumentImportStatus,
@@ -87,25 +87,54 @@ export class GmailDriveImportService {
   ) {}
 
   /**
-   * Imports from EVERY ACTIVE Gmail account the user has connected, isolating
-   * each mailbox: one failing account is recorded in its perAccount.error and
-   * never aborts the others. Dedup (firebaseId + businessNumber + contentHash)
-   * runs in DocumentImportService, so the same file arriving in two mailboxes
-   * is imported once.
+   * Imports from the SELECTED ACTIVE Gmail accounts of the user (the manual
+   * import dialog sends the chosen integration ids), isolating each mailbox:
+   * one failing account is recorded in its perAccount.error and never aborts
+   * the others. Every requested id must be an ACTIVE Google integration owned
+   * by the caller that already completed its initial import (manual pulls are
+   * a top-up on top of the initial range, not a replacement for it) —
+   * otherwise the whole request is rejected before any import starts.
+   * Dedup (firebaseId + businessNumber + contentHash) runs in
+   * DocumentImportService, so the same file arriving in two mailboxes is
+   * imported once.
    */
   async importAllForUser(
     firebaseId: string,
+    integrationIds: number[],
     options: { businessNumber?: string; query?: string; maxMessages?: number },
   ): Promise<GmailImportAllResult> {
-    const integrations = await this.userIntegrationsService.findAllActiveByUserAndProvider(
-      firebaseId,
-      IntegrationProvider.GOOGLE,
-    );
-    if (integrations.length === 0) {
-      throw new BadRequestException(
-        'No active Gmail accounts are connected. Connect a Gmail account first.',
+    const activeIntegrations =
+      await this.userIntegrationsService.findAllActiveByUserAndProvider(
+        firebaseId,
+        IntegrationProvider.GOOGLE,
+      );
+
+    // 404 (not 403) for foreign/EXPIRED/unknown ids alike — a foreign id must
+    // not leak that the integration exists (findOwnedByIdOrThrow philosophy).
+    const activeIds = new Set(activeIntegrations.map((i) => i.id));
+    const uniqueIds = [...new Set(integrationIds)];
+    const invalidIds = uniqueIds.filter((id) => !activeIds.has(id));
+    if (invalidIds.length > 0) {
+      throw new NotFoundException(
+        `Gmail integrations not found or not active: ${invalidIds.join(', ')}`,
       );
     }
+
+    // Business rule enforced server-side, not only in the dialog: manual
+    // import is available only after the account's one-time initial import
+    // (same initialImportCompletedAt gate as the nightly incremental sync).
+    const readyIds = new Set(
+      activeIntegrations.filter((i) => i.initialImportCompletedAt).map((i) => i.id),
+    );
+    const notReadyIds = uniqueIds.filter((id) => !readyIds.has(id));
+    if (notReadyIds.length > 0) {
+      throw new BadRequestException(
+        `Gmail integrations have not completed their initial import: ${notReadyIds.join(', ')}`,
+      );
+    }
+
+    const requestedIds = new Set(integrationIds);
+    const integrations = activeIntegrations.filter((i) => requestedIds.has(i.id));
 
     const aggregate: GmailImportAllResult = {
       totalImported: 0,

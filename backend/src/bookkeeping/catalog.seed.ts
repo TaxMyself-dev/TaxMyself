@@ -1,4 +1,4 @@
-import { CategoryType, ExpenseReportScope } from 'src/enum';
+import { CategoryType } from 'src/enum';
 
 // ============================================================================
 // Phase 2.6 (D13) — the flat SYSTEM category/sub_category seed, replacing
@@ -31,11 +31,11 @@ export interface SystemSubCategorySeed {
   name: string;
   /** No card at all — never journaled (D5's D14-group-1 household bucket). */
   isPrivate?: boolean;
-  /** ANNUAL items have no P&L account by design (D14 decision 2) — routed to
-   *  the D8 "תייק" flow instead. Omitted ⇒ PNL (the entity column default). */
-  reportScope?: ExpenseReportScope;
   /** booking_account.code within chartOwnerKey=SYSTEM this card points at.
-   *  Omitted for isPrivate / ANNUAL rows (neither carries an account). */
+   *  Omitted only for isPrivate rows (no card at all). ANNUAL items (model
+   *  change, 2026-07-14) point at a real reportScope=ANNUAL card just like
+   *  any other row — the report routing is now the CARD's property (D1),
+   *  not a marker on this seed row. */
   accountCode?: string;
 }
 
@@ -125,15 +125,15 @@ export const SYSTEM_SUB_CATEGORIES: SystemSubCategorySeed[] = [
   { category: 'שונות', name: 'שונות', accountCode: '60000' },
   { category: 'ילדים ומשפחה', name: 'מעון', isPrivate: true },
   { category: 'בריאות וביטוחים', name: 'קופת חולים', isPrivate: true },
-  { category: 'החזרי מס ודוח שנתי', name: 'תרומות מוכרות', reportScope: ExpenseReportScope.ANNUAL },
-  { category: 'החזרי מס ודוח שנתי', name: 'ביטוח חיים', reportScope: ExpenseReportScope.ANNUAL },
-  { category: 'החזרי מס ודוח שנתי', name: 'ביטוח אובדן כושר עבודה', reportScope: ExpenseReportScope.ANNUAL },
+  { category: 'החזרי מס ודוח שנתי', name: 'תרומות מוכרות', accountCode: '61340' },
+  { category: 'החזרי מס ודוח שנתי', name: 'ביטוח חיים', accountCode: '61350' },
+  { category: 'החזרי מס ודוח שנתי', name: 'ביטוח אובדן כושר עבודה', accountCode: '61360' },
   { category: 'פנאי וחופשות', name: 'ספרות וקריאה', isPrivate: true },
   { category: 'פנאי וחופשות', name: 'שירותי סטרימינג', isPrivate: true },
   { category: 'הכנסות', name: 'קצבת ילדים', accountCode: '40000' },
   { category: 'עסק', name: 'שכירות משרד', accountCode: '60170' },
   { category: 'עסק', name: 'שליחויות', accountCode: '60180' },
   { category: 'עסק', name: 'ייעוץ מקצועי', accountCode: '60620' },
-  { category: 'החזרי מס ודוח שנתי', name: 'הפקדה לקרן השתלמות', reportScope: ExpenseReportScope.ANNUAL },
-  { category: 'החזרי מס ודוח שנתי', name: 'הפקדה לפנסיה', reportScope: ExpenseReportScope.ANNUAL },
+  { category: 'החזרי מס ודוח שנתי', name: 'הפקדה לקרן השתלמות', accountCode: '61380' },
+  { category: 'החזרי מס ודוח שנתי', name: 'הפקדה לפנסיה', accountCode: '61370' },
 ];

@@ -20,6 +20,7 @@ import { Expense } from './expenses.entity';
 import { Supplier } from './suppliers.entity';
 import { BookkeepingService } from '../bookkeeping/bookkeeping.service';
 import { CatalogService } from '../bookkeeping/catalog.service';
+import { CatalogContextService } from '../bookkeeping/catalog-context.service';
 import { SharedService } from '../shared/shared.service';
 import { FxRateService } from '../shared/fx-rate.service';
 import { User } from '../users/user.entity';
@@ -106,7 +107,6 @@ describe('ExpensesService — journal entry linking', () => {
         name: 'דלק',
         isPrivate: false,
         approvalStatus: ApprovalStatus.APPROVED,
-        reportScope: ExpenseReportScope.PNL,
         category: { name: 'הוצאות' },
       },
       account: { id: 7, code: '5100', name: 'דלק' },
@@ -117,6 +117,9 @@ describe('ExpensesService — journal entry linking', () => {
       isEquipment: false,
       reductionPercent: 0,
       recognitionType: null,
+      // reportScope now lives on the resolved account (model change,
+      // 2026-07-14), not sub_category — top-level here, matching ResolvedSubCategory.
+      reportScope: ExpenseReportScope.PNL,
     };
     const catalogService: Partial<CatalogService> = {
       resolveByName: jest.fn().mockResolvedValue(resolvedSubCategory as any),
@@ -167,6 +170,13 @@ describe('ExpensesService — journal entry linking', () => {
         { provide: DataSource, useValue: dataSource },
         { provide: BookkeepingService, useValue: bookkeepingService },
         { provide: CatalogService, useValue: catalogService },
+        {
+          provide: CatalogContextService,
+          useValue: {
+            forUser: jest.fn(async (userId: string, businessNumber: string) => ({ userId, businessNumber, accountantIds: [] })),
+            accountantIdsForUser: jest.fn().mockResolvedValue([]),
+          },
+        },
       ],
     }).compile();
 
