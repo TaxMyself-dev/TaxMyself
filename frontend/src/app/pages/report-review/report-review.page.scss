@@ -27,6 +27,14 @@
   gap: 14px;
   align-items: stretch;
 }
+// No preview open — hug the table's own (fixed-column) width instead of
+// stretching to the page's 1700px cap and leaving a dead blank strip
+// beside a narrower table. Only applies here; the with-preview split
+// below still needs the full page width for its 58/40 ratio.
+.dialog-body:not(.with-preview) {
+  width: fit-content;
+  max-width: 100%;
+}
 .dialog-main {
   flex: 1 1 auto;
   min-width: 0; // lets the table actually compress instead of overflowing
@@ -134,6 +142,15 @@
     height: auto !important;
   }
 
+  // The shared hover row-actions strip (generic-table.component.scss)
+  // hardcodes height:76px to match THAT component's default row height.
+  // Since we just shrank our own rows well below 76px, the fixed-height
+  // strip spilled past the hovered row into the next one. Shrink it to
+  // fit its own (icon-only) button content instead.
+  .floating-buttons {
+    height: auto !important;
+  }
+
   th, td {
     // Bumped vertical padding (5px → 12px) so rows have visible
     // breathing room — at 5px the table felt cramped against the
@@ -141,9 +158,11 @@
     // inter-column gap.
     padding: 12px 14px !important;
     vertical-align: middle;
-    // Keep cells on one line — auto-layout will widen the column
-    // instead of wrapping. No ellipsis / overflow:hidden because
-    // truncation is exactly what the user said they don't want.
+    // Keep cells on one line — auto-layout would otherwise wrap instead
+    // of respecting the fixed column width. Long content is clipped with
+    // an ellipsis inside its own column (see .cell-readonly below and
+    // generic-table's .truncate for plain-text columns) rather than
+    // spilling into the next column's padding gap.
     white-space: nowrap;
   }
   th { font-size: 0.74rem; font-weight: 600; }
@@ -185,10 +204,18 @@
   // line-height. Deliberately a plain <span>, not a disabled input/select
   // — disabled native controls (especially date/number) can't be relied
   // on to render identically to text across browsers.
+  // `display: block` + `max-width: 100%` bounds the span to its own <td>'s
+  // content box (fixed column width minus the 14px horizontal padding);
+  // overflow/ellipsis then clips long content with "…" instead of it
+  // spilling past the column edge into the next cell's padding gap.
   .cell-readonly {
+    display: block;
     font-size: large;
     line-height: 1.2;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
   }
   .cell-readonly .sum-ils {
     font-size: 0.78rem;
@@ -208,16 +235,12 @@
 }
 
 
-// Period dropdown — amber tint when the user overrode the auto-derived
+// Period column — amber tint when the user overrode the auto-derived
 // value, so the row visually advertises "this one's not automatic".
-:host ::ng-deep .review-table select.period-select {
+:host ::ng-deep .review-table .cell-readonly.overridden {
   font-variant-numeric: tabular-nums;
-  &.overridden {
-    border: 1px solid #f59e0b;
-    background: #fffbeb;
-    font-weight: 600;
-    color: #92400e;
-  }
+  font-weight: 600;
+  color: #92400e;
 }
 
 // Per-row action buttons. Compact + monochrome by default; semantic
@@ -433,9 +456,9 @@
   strong { color: #111827; }
 }
 .supplier-conflict-flag-icon {
-  color: #dc2626; // red-600 — matches the in-table flag
-  font-size: 0.85rem;
   margin: 0 2px;
+  cursor: default; // illustrative only in this description — not clickable here
+  vertical-align: middle;
 }
 .supplier-conflict-footer {
   display: flex;
@@ -462,51 +485,39 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-// Small pencil badge shown once a row's classification has been edited
-// via the explicit "edit" action — a quiet, permanent marker (unlike the
-// icon-act buttons, not a click target).
-:host ::ng-deep .review-table .edited-marker {
-  color: #4338ca;
-  font-size: 0.75rem;
-  flex-shrink: 0;
-}
-// Two states for the new-supplier flag — both visible (so the user can
-// always see "this is a new supplier"), only differing in color so the
+// Two states for the new-supplier toggle — both visible (so the user can
+// always see "this is a new supplier"), only differing in fill so the
 // click choice ("yes save" / "no don't save") is glanceable too.
-//   Default       — red, will be added to Supplier table on approve
-//   Opt-out       — grey, will NOT be added
-// Click toggles between them (see toggleSaveAsSupplier).
-:host ::ng-deep .review-table .supplier-new-icon {
-  color: #dc2626;
-  font-size: 0.95rem;
+//   Default       — filled green square, will be added to Supplier table on approve
+//   Opt-out       — hollow grey square, will NOT be added
+// Click toggles between them (see toggleSaveAsSupplier). Same state logic
+// as before (saveAsSupplier true/false) — only the visual form changed
+// from an outline flag glyph to a small filled square.
+:host ::ng-deep .review-table .supplier-new-square {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
   cursor: pointer;
   flex-shrink: 0;
-  transition: color 0.15s ease;
+  background-color: #16a34a; // green-600: will be added
+  border: 1px solid #16a34a;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
 
   &:hover {
     // Slight darken on hover so the click affordance is obvious without
     // a heavier visual treatment.
-    color: #991b1b;
+    background-color: #15803d; // green-700
+    border-color: #15803d;
   }
 
   &--opt-out {
-    color: #9ca3af;            // grey-400: clearly de-emphasized
+    background-color: transparent;
+    border-color: #9ca3af;     // grey-400: clearly de-emphasized
     &:hover {
-      color: #6b7280;          // grey-500
+      border-color: #6b7280;   // grey-500
     }
   }
-}
-
-// Status icon column — one icon per row.type, color-coded so the
-// at-a-glance signal that used to come from row backgrounds now lives
-// here. Hover gives the Hebrew description via PrimeNG tooltip.
-:host ::ng-deep .review-table .status-icon {
-  font-size: 1.05rem;
-  cursor: help;
-
-  &--matched  { color: #15803d; }   // green: doc successfully paired with bank tx
-  &--doc_only { color: #92400e; }   // amber: doc without tx
-  &--tx_only  { color: #1d4ed8; }   // blue:  tx without doc
 }
 
 .cell-empty { color: #d1d5db; }
@@ -584,8 +595,7 @@
 }
 
 // ---------------------------------------------------------------------
-// Phase 6.1 (D9) — view-mode toggle, status badges, completion + simple
-// picker dialogs.
+// Phase 6.1 (D9) — view-mode toggle.
 // ---------------------------------------------------------------------
 
 // Subtitle + toggle share one row; the toggle hugs the RTL-left edge.
@@ -633,75 +643,28 @@
   &:disabled { cursor: not-allowed; opacity: 0.45; }
 }
 
-// D9 status badge — one pill per row, color-coded by mapping verdict.
-.status-badge-cell {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 3px;
-}
+// ---- Link-picker dialog (tx_only "קשר למסמך קיים") --------------------
 
-.status-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 8px;
-  border-radius: 999px;
-  font-size: 0.72rem;
-  font-weight: 600;
-  white-space: nowrap;
-
-  i { font-size: 0.72rem; }
-
-  &.badge-ready        { background: #dcfce7; color: #15803d; }
-  &.badge-accountant   { background: #dbeafe; color: #1d4ed8; }
-  &.badge-private      { background: #f3f4f6; color: #4b5563; }
-  &.badge-missing      { background: #fef3c7; color: #b45309; }
-  &.badge-unclassified { background: #fee2e2; color: #b91c1c; }
-  &.badge-annual       { background: #ede9fe; color: #6d28d9; }
-  &.badge-unidentified { background: #fce7f3; color: #be185d; }
-}
-
-// The badge's inline action ("השלם מיפוי" / "למה ההוצאה שייכת?").
-.badge-action {
-  padding: 2px 8px;
-  border: 1px solid #93c5fd;
-  border-radius: 4px;
-  background: white;
-  color: #1d4ed8;
-  font-size: 0.72rem;
-  cursor: pointer;
-
-  &:hover:not(:disabled) { background: #dbeafe; }
-  &:disabled { opacity: 0.5; cursor: not-allowed; }
-}
-
-// D8 action icons (תייק / re-kind) reuse .icon-act sizing; tint by intent.
-.icon-act.icon-file-annual { color: #6d28d9; &:hover:not(:disabled) { background: #ede9fe; } }
-.icon-act.icon-rekind      { color: #0f766e; &:hover:not(:disabled) { background: #ccfbf1; } }
-
-// ---- Mapping-completion dialog (accountant) --------------------------
-
-.completion-body {
+.link-dialog-body {
   display: flex;
   flex-direction: column;
   gap: 10px;
   padding: 4px 2px;
 }
 
-.completion-row-label {
+.link-dialog-row-label {
   margin: 0;
   font-size: 0.88rem;
   font-weight: 600;
   color: #111827;
 }
 
-.completion-label {
+.link-dialog-label {
   font-size: 0.8rem;
   color: #4b5563;
 }
 
-.completion-select {
+.link-dialog-select {
   width: 100%;
   padding: 6px 8px;
   border: 1px solid #d1d5db;
@@ -709,80 +672,27 @@
   font-size: 0.85rem;
 }
 
-.apply-future-toggle {
+.link-dialog-footer {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.85rem;
-  color: #111827;
-  cursor: pointer;
-
-  input { cursor: pointer; }
-}
-
-.completion-hint {
-  margin: 0;
-  font-size: 0.76rem;
-  color: #6b7280;
-  line-height: 1.5;
-}
-
-.completion-footer {
-  display: flex;
-  justify-content: flex-start;
+  justify-content: flex-end;
   gap: 8px;
 }
 
-// ---- Simple picker dialog (client without an accountant) -------------
+// ---- Triage dialog (D8 "מיין" — UNIDENTIFIED rows) --------------------
 
-.simple-picker-body {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+.triage-dialog-body {
   padding: 4px 2px;
 }
 
-.simple-picker-row-label {
+.triage-dialog-row-label {
   margin: 0;
   font-size: 0.88rem;
   font-weight: 600;
   color: #111827;
 }
 
-.simple-picker-options {
+.triage-dialog-footer {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.simple-option {
-  padding: 8px 16px;
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
-  background: white;
-  color: #111827;
-  font-size: 0.88rem;
-  cursor: pointer;
-
-  &:hover:not(:disabled) { background: #eff6ff; border-color: #93c5fd; }
-  &:disabled { opacity: 0.5; cursor: not-allowed; }
-}
-
-.simple-picker-other-label {
-  font-size: 0.8rem;
-  color: #4b5563;
-}
-
-.simple-picker-select {
-  width: 100%;
-  padding: 6px 8px;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  font-size: 0.85rem;
-}
-
-.simple-picker-footer {
-  display: flex;
-  justify-content: flex-start;
+  justify-content: flex-end;
   gap: 8px;
 }

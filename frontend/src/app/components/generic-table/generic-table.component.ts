@@ -89,6 +89,11 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   unassignedBillRed = input<boolean>(false);
   /** Optional per-row CSS class callback. Return a class name string for the row; return '' or null for no extra class. */
   rowClass = input<((row: IRowDataTable) => string) | null>(null);
+  /** When true, the hover row-actions strip renders each action's icon
+   *  alongside its (always-visible) label (default: label-only, unchanged
+   *  for every other consumer of `rowActions`). Opt-in per page — see
+   *  report-review. */
+  showRowActionIcons = input<boolean>(false);
 
   rowBillUnassigned(row: IRowDataTable): boolean {
     const b = row?.['billName'];

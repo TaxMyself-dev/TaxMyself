@@ -13,6 +13,7 @@ import { ReportReviewPage } from './report-review.page';
 import { ButtonComponent } from '../../components/button/button.component';
 import { GenericTableComponent } from '../../components/generic-table/generic-table.component';
 import { DateFormatPipe } from '../../pipes/date-format.pipe';
+import { ReportReviewEditDialogComponent } from '../../components/report-review-edit-dialog/report-review-edit-dialog.component';
 
 @NgModule({
   imports: [
@@ -25,6 +26,7 @@ import { DateFormatPipe } from '../../pipes/date-format.pipe';
     ButtonComponent,
     GenericTableComponent,
     DateFormatPipe,
+    ReportReviewEditDialogComponent,
   ],
   declarations: [ReportReviewPage]
 })

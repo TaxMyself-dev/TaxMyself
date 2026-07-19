@@ -65,220 +65,72 @@
            (change)="onRowSelectedChange(row, $any($event.target).checked)" />
   </ng-template>
 
-  <!-- Every editable cell below follows the same pattern: locked (default)
-       renders a plain read-only <span> — identical markup/font/sizing to
-       a genuinely non-editable column like "תיאור" — and only swaps to a
-       real form control while the row is in edit mode. This is
-       deliberate: a disabled native <input>/<select> can't be reliably
-       styled to look/size exactly like plain text across browsers (date/
-       number inputs especially clip their own content instead of
-       wrapping or ellipsis-ing), so the locked state is real text, not a
-       disguised disabled control. -->
+  <!-- Every column below is permanently read-only now — editing moved
+       into the app-report-review-edit-dialog popup (see the "עריכה" row
+       action). Kept as plain <span>s (not disabled inputs/selects):
+       identical markup/font/sizing to a genuinely non-editable column
+       like "תיאור", and disabled native controls (especially date/number)
+       can't be relied on to render identically to text across browsers. -->
 
   <ng-template #categoryCell let-row>
-    <ng-container *ngIf="isRowEditing(row) && !isAnnualRow(row) && !isUnidentifiedRow(row); else categoryReadOnly">
-      <select class="cell-editable"
-              [ngModel]="row.category"
-              (ngModelChange)="onCategoryChange(row, $event)">
-        <option [ngValue]="''">— בחר —</option>
-        <option *ngFor="let cat of categoryOptions()" [ngValue]="cat">{{ cat }}</option>
-      </select>
-    </ng-container>
-    <ng-template #categoryReadOnly>
-      <span class="cell-readonly" title="לחץ על עריכה כדי לשנות">{{ row.category || '—' }}</span>
-    </ng-template>
+    <span class="cell-readonly">{{ row.category || '—' }}</span>
   </ng-template>
 
   <ng-template #subCategoryCell let-row>
-    <ng-container *ngIf="isRowEditing(row) && !isAnnualRow(row) && !isUnidentifiedRow(row); else subCategoryReadOnly">
-      <select class="cell-editable"
-              [ngModel]="row.subCategory"
-              (ngModelChange)="onSubCategoryChange(row, $event)"
-              [disabled]="!row.category"
-              [title]="!row.category ? 'בחר קטגוריה תחילה' : ''">
-        <option [ngValue]="''">— בחר —</option>
-        <option *ngFor="let sub of subCategoriesForCategory(row.category)"
-                [ngValue]="sub.subCategory">
-          {{ sub.subCategory }}
-        </option>
-      </select>
-    </ng-container>
-    <ng-template #subCategoryReadOnly>
-      <span class="cell-readonly" title="לחץ על עריכה כדי לשנות">{{ row.subCategory || '—' }}</span>
-    </ng-template>
+    <span class="cell-readonly">{{ row.subCategory || '—' }}</span>
   </ng-template>
 
   <!-- Professional view: classification by CARD (D9 revised) — booking
        accounts grouped by section; picking a card IS the classification
        (the card carries the full accounting law, D1). -->
   <ng-template #cardCell let-row>
-    <ng-container *ngIf="isRowEditing(row) && !isAnnualRow(row) && !isUnidentifiedRow(row); else cardReadOnly">
-      <select class="cell-editable card-select"
-              [ngModel]="row.accountId"
-              (ngModelChange)="onCardChange(row, $event)">
-        <option [ngValue]="null">— בחר כרטיס —</option>
-        <optgroup *ngFor="let g of cardOptionsBySection()" [label]="g.section || 'ללא חתך'">
-          <option *ngFor="let card of g.cards" [ngValue]="card.accountId">
-            {{ card.accountName }} ({{ card.accountCode }})
-          </option>
-        </optgroup>
-      </select>
-    </ng-container>
-    <ng-template #cardReadOnly>
-      <span class="cell-readonly" title="לחץ על עריכה כדי לשנות">{{ row.accountLabel || '—' }}</span>
-    </ng-template>
+    <span class="cell-readonly">{{ row.accountLabel || '—' }}</span>
   </ng-template>
 
-  <!-- vat%/tax% — free-editable in both views (unlocked only in edit mode).
-       Note: reductionPercent (% פחת, professional view only) stays
-       read-only — it's derived from the chosen card/sub_category's
-       accounting law (D1), the backend has no override slot for it. -->
+  <!-- Note: reductionPercent (% פחת, professional view only) stays
+       read-only everywhere — it's derived from the chosen card/
+       sub_category's accounting law (D1), the backend has no override
+       slot for it. -->
   <ng-template #vatPercentCell let-row>
-    <ng-container *ngIf="isRowEditing(row) && !isAnnualRow(row) && !isUnidentifiedRow(row); else vatPercentReadOnly">
-      <input type="number" step="0.01" class="cell-editable"
-             [ngModel]="row.vatPercent"
-             (ngModelChange)="onVatPercentChange(row, $event)" />
-    </ng-container>
-    <ng-template #vatPercentReadOnly>
-      <span class="cell-readonly" title="לחץ על עריכה כדי לשנות">{{ row.vatPercent }}</span>
-    </ng-template>
+    <span class="cell-readonly">{{ row.vatPercent }}</span>
   </ng-template>
 
   <ng-template #taxPercentCell let-row>
-    <ng-container *ngIf="isRowEditing(row) && !isAnnualRow(row) && !isUnidentifiedRow(row); else taxPercentReadOnly">
-      <input type="number" step="0.01" class="cell-editable"
-             [ngModel]="row.taxPercent"
-             (ngModelChange)="onTaxPercentChange(row, $event)" />
-    </ng-container>
-    <ng-template #taxPercentReadOnly>
-      <span class="cell-readonly" title="לחץ על עריכה כדי לשנות">{{ row.taxPercent }}</span>
-    </ng-template>
+    <span class="cell-readonly">{{ row.taxPercent }}</span>
   </ng-template>
 
-  <!-- Date/amount overrides apply to every row type (per explicit product
-       decision) even though matched/tx_only rows are anchored to a real
-       synced bank transaction with no reconciliation check anywhere in
-       the codebase — see ReviewOverrides.date/amount on the backend. -->
   <ng-template #dateCell let-row>
-    <ng-container *ngIf="isRowEditing(row); else dateReadOnly">
-      <input type="date" class="cell-editable"
-             [ngModel]="row.date"
-             (ngModelChange)="onDateChange(row, $event)" />
-    </ng-container>
-    <ng-template #dateReadOnly>
-      <span class="cell-readonly" title="לחץ על עריכה כדי לשנות">{{ row.date | dateFormat }}</span>
-    </ng-template>
+    <span class="cell-readonly">{{ row.date | dateFormat }}</span>
   </ng-template>
 
   <ng-template #amountCell let-row>
-    <ng-container *ngIf="isRowEditing(row); else amountReadOnly">
-      <input type="number" step="0.01" class="cell-editable"
-             [ngModel]="row.amount"
-             (ngModelChange)="onAmountChange(row, $event)" />
-    </ng-container>
-    <ng-template #amountReadOnly>
-      <span class="cell-readonly" title="לחץ על עריכה כדי לשנות">
-        {{ row.sumLabel }}
-        <span *ngIf="row.currency !== 'ILS' && row.ilsAmount != null" class="sum-ils">
-          ({{ row.ilsAmount | number:'1.0-2' }} ₪)
-        </span>
+    <span class="cell-readonly">
+      {{ row.sumLabel }}
+      <span *ngIf="row.currency !== 'ILS' && row.ilsAmount != null" class="sum-ils">
+        ({{ row.ilsAmount | number:'1.0-2' }} ₪)
       </span>
-    </ng-template>
+    </span>
   </ng-template>
 
+  <!-- Professional-view-only column (shared.invoice). Regular view drops
+       invoice/supplier-id/allocation-number from the table entirely — see
+       buildColumns — those stay edit-dialog-only fields there. -->
   <ng-template #invoiceNumberCell let-row>
-    <ng-container *ngIf="isRowEditing(row); else invoiceNumberReadOnly">
-      <input type="text" class="cell-editable"
-             [ngModel]="row.invoiceNumber"
-             (ngModelChange)="onInvoiceNumberChange(row, $event)" />
-    </ng-container>
-    <ng-template #invoiceNumberReadOnly>
-      <span class="cell-readonly" title="לחץ על עריכה כדי לשנות">{{ row.invoiceNumber || '—' }}</span>
-    </ng-template>
+    <span class="cell-readonly">{{ row.invoiceNumber || '—' }}</span>
   </ng-template>
 
-  <ng-template #allocationNumberCell let-row>
-    <ng-container *ngIf="isRowEditing(row) && row.type !== 'tx_only'; else allocationNumberReadOnly">
-      <input type="text" class="cell-editable"
-             [ngModel]="row.allocationNumber"
-             (ngModelChange)="onAllocationNumberChange(row, $event)" />
-    </ng-container>
-    <ng-template #allocationNumberReadOnly>
-      <span class="cell-readonly"
-            [title]="row.type === 'tx_only' ? 'לא ניתן לשנות — אין מסמך לשורה זו' : 'לחץ על עריכה כדי לשנות'">
-        {{ row.allocationNumber || '—' }}
-      </span>
-    </ng-template>
-  </ng-template>
-
-  <ng-template #supplierIdCell let-row>
-    <ng-container *ngIf="isRowEditing(row); else supplierIdReadOnly">
-      <input type="text" class="cell-editable"
-             [ngModel]="row.supplierId"
-             (ngModelChange)="onSupplierIdChange(row, $event)" />
-    </ng-container>
-    <ng-template #supplierIdReadOnly>
-      <span class="cell-readonly" title="לחץ על עריכה כדי לשנות">{{ row.supplierId || '—' }}</span>
-    </ng-template>
-  </ng-template>
-
-  <!-- Document type (סוג) — written back onto the source document
-       (matched/doc_only only; no document on tx_only rows). -->
+  <!-- Document type / source (סוג) — "תנועה" for tx_only rows (folds in
+       what used to be a separate "מקור" source-icon column), the OCR'd
+       document type otherwise. Document type itself is edited via the
+       popup (matched/doc_only only; no document on tx_only rows). -->
   <ng-template #docTypeCell let-row>
-    <ng-container *ngIf="isRowEditing(row) && row.type !== 'tx_only'; else docTypeReadOnly">
-      <select class="cell-editable"
-              [ngModel]="row.documentType"
-              (ngModelChange)="onDocumentTypeChange(row, $event)">
-        <option [ngValue]="null">—</option>
-        <option *ngFor="let opt of documentTypeOptions" [ngValue]="opt.value">{{ opt.label }}</option>
-      </select>
-    </ng-container>
-    <ng-template #docTypeReadOnly>
-      <span class="cell-readonly"
-            [title]="row.type === 'tx_only' ? 'לא ניתן לשנות — אין מסמך לשורה זו' : 'לחץ על עריכה כדי לשנות'">
-        {{ row.documentTypeLabel || '—' }}
-      </span>
-    </ng-template>
-  </ng-template>
-
-  <!-- D9 status badge + the per-status inline actions:
-       accountant → "השלם מיפוי" (approve→complete chain);
-       unaccompanied client → "למה ההוצאה שייכת?" (simple picker). -->
-  <ng-template #statusBadgeCell let-row>
-    <ng-container *ngIf="statusBadge(row) as b">
-      <div class="status-badge-cell">
-        <span class="status-badge" [ngClass]="b.cls">
-          <i *ngIf="b.icon" [class]="b.icon"></i>
-          {{ b.label }}
-        </span>
-        <button *ngIf="showCompletionButton(row)"
-                type="button" class="badge-action"
-                [disabled]="isActioning()"
-                (click)="openCompletion(row)">השלם מיפוי</button>
-        <button *ngIf="showSimplePickerButton(row)"
-                type="button" class="badge-action"
-                [disabled]="isActioning()"
-                (click)="openSimplePicker(row)">למה ההוצאה שייכת?</button>
-      </div>
-    </ng-container>
+    <span class="cell-readonly">{{ sourceTypeLabel(row) }}</span>
   </ng-template>
 
   <ng-template #periodCell let-row>
-    <ng-container *ngIf="isRowEditing(row); else periodReadOnly">
-      <select class="cell-editable period-select"
-              [class.overridden]="row.reportPeriodOverridden"
-              [ngModel]="row.reportPeriod"
-              (ngModelChange)="onPeriodChange(row, $event)"
-              [disabled]="!row.date"
-              [title]="row.reportPeriodOverridden ? 'תקופה הוגדרה ידנית' : ''">
-        <option *ngFor="let opt of periodOptionsForRow(row)" [ngValue]="opt">
-          {{ periodOptionLabel(opt) }}
-        </option>
-      </select>
-    </ng-container>
-    <ng-template #periodReadOnly>
-      <span class="cell-readonly" title="לחץ על עריכה כדי לשנות">{{ periodOptionLabel(row.reportPeriod) }}</span>
-    </ng-template>
+    <span class="cell-readonly" [class.overridden]="row.reportPeriodOverridden">
+      {{ periodOptionLabel(row.reportPeriod) }}
+    </span>
   </ng-template>
 
   <!-- Supplier name + "new supplier" icon. The icon (pi pi-question-circle)
@@ -288,61 +140,24 @@
        therefore never show the icon. -->
   <!-- Icons come BEFORE the name in DOM order so under RTL they render
        to the right of the supplier name (the start of the visual line).
-       The Drive-preview eye lives in the actions column; only the
+       The Drive-preview eye lives in the row-actions hover strip; only the
        new-supplier flag stays attached to the name here. -->
   <ng-template #supplierCell let-row>
     <span class="supplier-cell">
-      <i *ngIf="row.supplierStatusLabel === 'ספק חדש'"
-         class="pi pi-flag supplier-new-icon"
-         [class.supplier-new-icon--opt-out]="!row.saveAsSupplier"
+      <span *ngIf="row.supplierStatusLabel === 'ספק חדש'"
+         class="supplier-new-square"
+         [class.supplier-new-square--opt-out]="!row.saveAsSupplier"
          [pTooltip]="row.saveAsSupplier
            ? 'ספק חדש - יתווסף לרשימת הספקים בעת האישור. לחץ כדי לדלג.'
            : 'ספק חדש - לא יתווסף לרשימת הספקים. לחץ להחזיר.'"
          tooltipPosition="top"
-         (click)="toggleSaveAsSupplier(row, $event)"></i>
-      <ng-container *ngIf="isRowEditing(row); else supplierNameReadOnly">
-        <input type="text" class="cell-editable supplier-name-input"
-               [ngModel]="row.supplier"
-               (ngModelChange)="onSupplierChange(row, $event)" />
-      </ng-container>
-      <ng-template #supplierNameReadOnly>
-        <span class="cell-readonly supplier-name-input" title="לחץ על עריכה כדי לשנות">{{ row.supplier }}</span>
-      </ng-template>
-      <i *ngIf="row.edited" class="pi pi-pencil edited-marker"
-         pTooltip="שורה זו נערכה" tooltipPosition="top"></i>
+         (click)="toggleSaveAsSupplier(row, $event)"></span>
+      <span class="cell-readonly supplier-name-input">{{ row.supplier }}</span>
+      <!-- Hard failure — small icon + hover tooltip with backend error.
+           Soft duplicates render the inline prompt below instead. -->
+      <span *ngIf="row.saveStatus === 'failed' && !row.duplicateWarning"
+            class="action-error" [title]="row.saveError ?? ''">⚠</span>
     </span>
-  </ng-template>
-
-  <!-- Status icon — one of three per row.type, with a hover tooltip
-       carrying the Hebrew description that the old text label used to
-       display directly. -->
-  <ng-template #statusIconCell let-row>
-    <i [class]="statusIconFor(row.type) + ' status-icon status-icon--' + row.type"
-       [pTooltip]="statusTooltipFor(row.type)"
-       tooltipPosition="top"></i>
-  </ng-template>
-
-  <!-- Hidden page-level upload input for the tx_only "upload" hover action
-       (see reviewRowActions in the .ts) — one shared input, not one per
-       row, since only the hover panel (not the row) triggers it. -->
-  <input type="file"
-         #uploadInput
-         class="hidden-file-input"
-         accept="application/pdf,image/jpeg,image/png,image/webp"
-         (change)="onHiddenUploadChange(uploadInput)" />
-
-  <ng-template #actionsCell let-row>
-    <!-- The actions column itself carries no always-visible icons — every
-         action (edit/preview/archive/delete/D8 triage/unpair/upload/link)
-         lives in the hover-reveal floating strip (see
-         [rowActions]="reviewRowActions" below). Only genuine status/
-         in-progress sub-flows stay inline here. -->
-
-    <!-- Hard failure — small icon + hover tooltip with backend error.
-         Soft duplicates render the inline prompt below instead. -->
-    <span *ngIf="row.saveStatus === 'failed' && !row.duplicateWarning"
-          class="action-error" [title]="row.saveError ?? ''">⚠</span>
-
     <!-- Soft-duplicate prompt — the backend flagged this row as a possible
          duplicate (same supplier/sum/date, different/missing document
          number). The user decides: save anyway (acknowledges the warning
@@ -359,43 +174,22 @@
               [disabled]="isActioning()"
               (click)="dismissDuplicate(row)">דלג</button>
     </div>
-
-    <!-- Inline link picker for tx_only rows in link-mode. Renders inside
-         the actions cell to avoid disrupting the row stripe. -->
-    <div *ngIf="row.type === 'tx_only' && isLinking(row)" class="link-picker">
-      <select class="cell-editable"
-              [ngModel]="selectedDocForLink()"
-              (ngModelChange)="selectedDocForLink.set($event)">
-        <option [ngValue]="null">— בחר מסמך —</option>
-        <option *ngFor="let dr of docOnlyRows()" [ngValue]="dr.documentId">
-          {{ dr.supplier || '(ללא ספק)' }} — ₪{{ dr.amount }} — {{ dr.date }}
-        </option>
-      </select>
-      <button type="button" class="act act-approve"
-              [disabled]="isActioning() || !selectedDocForLink()"
-              (click)="confirmLink(row)">אישור</button>
-      <button type="button" class="act act-archive"
-              [disabled]="isActioning()" (click)="cancelLink()">ביטול</button>
-    </div>
-
-    <!-- Inline D8 triage picker for an UNIDENTIFIED row — the human decides
-         what this document actually is. -->
-    <div *ngIf="isUnidentifiedRow(row) && isTriaging(row)" class="link-picker">
-      <button type="button" class="act act-approve"
-              [disabled]="isActioning()"
-              (click)="confirmTriage(row, 'EXPENSE_INVOICE')">חשבונית הוצאה</button>
-      <button type="button" class="act act-approve"
-              [disabled]="isActioning()"
-              (click)="confirmTriage(row, 'ANNUAL_DOCUMENT')">מסמך שנתי</button>
-      <button type="button" class="act act-archive"
-              [disabled]="isActioning()" (click)="cancelTriage()">ביטול</button>
-    </div>
   </ng-template>
+
+  <!-- Hidden page-level upload input for the tx_only "upload" hover action
+       (see reviewRowActions in the .ts) — one shared input, not one per
+       row, since only the hover panel (not the row) triggers it. -->
+  <input type="file"
+         #uploadInput
+         class="hidden-file-input"
+         accept="application/pdf,image/jpeg,image/png,image/webp"
+         (change)="onHiddenUploadChange(uploadInput)" />
 
   <app-generic-table
     *ngIf="rows().length > 0"
     class="review-table"
-    [columnsTitle]="buildColumns(selectCell, categoryCell, subCategoryCell, cardCell, periodCell, supplierCell, statusBadgeCell, statusIconCell, actionsCell, vatPercentCell, taxPercentCell, dateCell, amountCell, invoiceNumberCell, allocationNumberCell, supplierIdCell, docTypeCell)"
+    [showRowActionIcons]="true"
+    [columnsTitle]="buildColumns(selectCell, categoryCell, subCategoryCell, cardCell, periodCell, supplierCell, vatPercentCell, taxPercentCell, dateCell, amountCell, invoiceNumberCell, docTypeCell)"
     [dataTable]="$any(rows())"
     [rowClass]="rowClassFn"
     [rowActions]="reviewRowActions"
@@ -439,9 +233,42 @@
   </div><!-- /.dialog-body -->
 </div><!-- /.report-review-page -->
 
+<!-- Edit-expense popup. Opened by the "עריכה" row action (openEditDialog);
+     replaces the old inline classification editing entirely. Two-column
+     (with Drive preview) vs single full-width column is decided by
+     hasDocument = !!row.driveFileId. Fully controlled: the dialog holds no
+     state of its own, every keystroke relays up to editDraft and the
+     updated draft flows back down via [fields] — Save/Cancel semantics
+     live in onEditDialogSave/onEditDialogCancel. -->
+<app-report-review-edit-dialog
+  [visible]="editDialogVisible()"
+  [hasDocument]="!!editDialogRow()?.driveFileId"
+  [driveFileId]="editDialogRow()?.driveFileId ?? null"
+  [driveFileName]="editDialogRow()?.driveFileName ?? ''"
+  [titleLabel]="editDialogTitleLabel()"
+  [viewMode]="viewMode()"
+  [fields]="editDraft()"
+  [categoryOptions]="categoryOptions()"
+  [subCategoryOptions]="editDraftSubCategoryOptions()"
+  [cardOptionsBySection]="cardOptionsBySection()"
+  [documentTypeOptions]="documentTypeOptions"
+  [periodOptions]="editDraftPeriodOptions()"
+  [showNewSupplierFlag]="editDialogRow()?.supplierStatusLabel === 'ספק חדש'"
+  (visibleChange)="$event ? null : onEditDialogCancel()"
+  (save)="onEditDialogSave()"
+  (categoryChange)="onEditDraftCategoryChange($event)"
+  (subCategoryChange)="onEditDraftSubCategoryChange($event)"
+  (cardChange)="onEditDraftCardChange($event)"
+  (periodChange)="onEditDraftPeriodChange($event)"
+  (customPeriodRequested)="openCustomPeriod()"
+  (fieldsChange)="onEditDraftFieldsPatch($event)">
+</app-report-review-edit-dialog>
+
 <!-- Custom-period entry dialog. Opened when the user picks "אחר" in the
-     period dropdown (see onPeriodChange → openCustomPeriod). Styled to
-     match the rest of the app's modals instead of using window.prompt. -->
+     edit dialog's period dropdown (see openCustomPeriod). Styled to match
+     the rest of the app's modals instead of using window.prompt. Stacks
+     on top of the edit dialog (both are plain p-dialogs — PrimeNG handles
+     the z-index). -->
 <p-dialog
   header="הזנת תקופת דיווח ידנית"
   [visible]="customPeriodVisible()"
@@ -523,8 +350,8 @@
     </ul>
 
     <p class="supplier-conflict-howto">
-      כדי להמשיך: השוו את הערכים בין השורות, או לחצו על דגל הספק
-      (<i class="pi pi-flag-fill supplier-conflict-flag-icon"></i>)
+      כדי להמשיך: השוו את הערכים בין השורות, או לחצו על סימון הספק
+      (<span class="supplier-new-square supplier-conflict-flag-icon"></span>)
       בשורות שאתם <strong>לא</strong> רוצים שיישמרו לכרטיס הספק.
     </p>
   </div>
@@ -542,127 +369,96 @@
 
 </p-dialog>
 
-<!-- D9 inline mapping completion (accountant-only entry point). Picking a
-     card completes the classification — the card brings its own percents
-     (D1), so there are no percent inputs here. The checkbox decides:
-     checked → the sub_category is repointed at the card (future expenses
-     follow); unchecked → one-off snapshot override on this expense only. -->
+<!-- tx_only "קשר למסמך קיים" — was an inline picker in the (now-removed)
+     status column; same p-dialog idiom as the rest of this stack, opened
+     from the row-actions hover strip's "link" action (startLink). -->
 <p-dialog
-  header="השלמת מיפוי חשבונאי"
-  [visible]="completionVisible()"
-  (visibleChange)="$event ? null : cancelCompletion()"
-  [modal]="true"
-  [style]="{ width: '520px', maxWidth: '95vw' }"
-  [rtl]="true"
-  [draggable]="false"
-  [resizable]="false">
-
-  <div class="completion-body">
-    <p class="completion-row-label">{{ completionRowLabel() }}</p>
-
-    <label class="completion-label" for="completionAccountSelect">כרטיס חשבון</label>
-    <select id="completionAccountSelect"
-            class="cell-editable completion-select"
-            [ngModel]="completionAccountId()"
-            (ngModelChange)="completionAccountId.set($event)">
-      <option [ngValue]="null">— בחר כרטיס —</option>
-      <optgroup *ngFor="let g of cardOptionsBySection()" [label]="g.section || 'ללא חתך'">
-        <option *ngFor="let card of g.cards" [ngValue]="card.accountId">
-          {{ card.accountName }} ({{ card.accountCode }}) — מע״מ {{ card.vatPercent }}% · מס {{ card.taxPercent }}%
-        </option>
-      </optgroup>
-    </select>
-
-    <label class="apply-future-toggle">
-      <input type="checkbox"
-             [checked]="completionApplyFuture()"
-             (change)="completionApplyFuture.set($any($event.target).checked)" />
-      החל גם על סיווגים עתידיים
-    </label>
-    <p class="completion-hint">
-      מסומן — תת־הקטגוריה של הלקוח תצביע על הכרטיס שנבחר גם בסיווגים הבאים.
-      לא מסומן — חריגה חד־פעמית להוצאה זו בלבד; הסיווגים הבאים יישארו ללא מיפוי.
-    </p>
-  </div>
-
-  <ng-template pTemplate="footer">
-    <div class="completion-footer">
-      <app-p-button
-        [buttonText]="'ביטול'"
-        [buttonColor]="ButtonColor.BLACK"
-        [buttonSize]="ButtonSize.AUTO"
-        [variant]="'outlined'"
-        (onButtonClicked)="cancelCompletion()">
-      </app-p-button>
-      <app-p-button
-        [buttonText]="'השלם ואשר'"
-        [buttonColor]="ButtonColor.BLACK"
-        [buttonSize]="ButtonSize.AUTO"
-        [isLoading]="isActioning()"
-        [disabled]="completionAccountId() === null"
-        (onButtonClicked)="confirmCompletion()">
-      </app-p-button>
-    </div>
-  </ng-template>
-
-</p-dialog>
-
-<!-- D9 simple picker — a client WITHOUT an accountant must never be stuck:
-     a missing-mapping row offers "למה ההוצאה שייכת?" with a handful of
-     everyday choices that map to system accounts behind the scenes, plus
-     the full by-section list for anything else. -->
-<p-dialog
-  header="למה ההוצאה שייכת?"
-  [visible]="simplePickerVisible()"
-  (visibleChange)="$event ? null : cancelSimplePicker()"
+  header="קישור לתנועה"
+  [visible]="linkingTxId() !== null"
+  (visibleChange)="$event ? null : cancelLink()"
   [modal]="true"
   [style]="{ width: '480px', maxWidth: '95vw' }"
   [rtl]="true"
   [draggable]="false"
   [resizable]="false">
 
-  <div class="simple-picker-body">
-    <p class="simple-picker-row-label">{{ simplePickerRowLabel() }}</p>
-
-    <div class="simple-picker-options">
-      <button *ngFor="let opt of simplePickerOptions()"
-              type="button" class="simple-option"
-              [disabled]="isActioning()"
-              (click)="pickSimpleOption(opt.accountId)">
-        {{ opt.label }}
-      </button>
-    </div>
-
-    <label class="simple-picker-other-label" for="simplePickerSelect">אחר — בחר מהרשימה המלאה</label>
-    <select id="simplePickerSelect"
-            class="cell-editable simple-picker-select"
-            [ngModel]="simplePickerChoice()"
-            (ngModelChange)="simplePickerChoice.set($event)">
-      <option [ngValue]="null">— בחר —</option>
-      <optgroup *ngFor="let g of cardOptionsBySection()" [label]="g.section || 'ללא חתך'">
-        <option *ngFor="let card of g.cards" [ngValue]="card.accountId">
-          {{ card.accountName }} ({{ card.accountCode }})
-        </option>
-      </optgroup>
+  <div class="link-dialog-body" *ngIf="linkingRow() as row">
+    <p class="link-dialog-row-label">{{ row.supplier || '(ללא ספק)' }} — {{ row.sumLabel }}</p>
+    <label class="link-dialog-label" for="linkDocSelect">מסמך לקישור</label>
+    <select id="linkDocSelect"
+            class="cell-editable link-dialog-select"
+            [ngModel]="selectedDocForLink()"
+            (ngModelChange)="selectedDocForLink.set($event)">
+      <option [ngValue]="null">— בחר מסמך —</option>
+      <option *ngFor="let dr of docOnlyRows()" [ngValue]="dr.documentId">
+        {{ dr.supplier || '(ללא ספק)' }} — ₪{{ dr.amount }} — {{ dr.date }}
+      </option>
     </select>
   </div>
 
   <ng-template pTemplate="footer">
-    <div class="simple-picker-footer">
+    <div class="link-dialog-footer">
       <app-p-button
         [buttonText]="'ביטול'"
         [buttonColor]="ButtonColor.BLACK"
         [buttonSize]="ButtonSize.AUTO"
         [variant]="'outlined'"
-        (onButtonClicked)="cancelSimplePicker()">
+        (onButtonClicked)="cancelLink()">
       </app-p-button>
       <app-p-button
         [buttonText]="'אישור'"
         [buttonColor]="ButtonColor.BLACK"
         [buttonSize]="ButtonSize.AUTO"
         [isLoading]="isActioning()"
-        [disabled]="simplePickerChoice() === null"
-        (onButtonClicked)="confirmSimplePicker()">
+        [disabled]="!selectedDocForLink() || !linkingRow()"
+        (onButtonClicked)="confirmLink(linkingRow()!)">
+      </app-p-button>
+    </div>
+  </ng-template>
+
+</p-dialog>
+
+<!-- D8 triage — "מיין" on an UNIDENTIFIED row. Same conversion: was an
+     inline picker in the (now-removed) status column, now a p-dialog
+     opened from the row-actions hover strip's "triage" action (startTriage). -->
+<p-dialog
+  header="מה המסמך הזה?"
+  [visible]="triagingRowKey() !== null"
+  (visibleChange)="$event ? null : cancelTriage()"
+  [modal]="true"
+  [style]="{ width: '420px', maxWidth: '95vw' }"
+  [rtl]="true"
+  [draggable]="false"
+  [resizable]="false">
+
+  <div class="triage-dialog-body" *ngIf="triagingRow() as row">
+    <p class="triage-dialog-row-label">{{ row.supplier || '(ללא ספק)' }} — {{ row.sumLabel }}</p>
+  </div>
+
+  <ng-template pTemplate="footer">
+    <div class="triage-dialog-footer">
+      <app-p-button
+        [buttonText]="'ביטול'"
+        [buttonColor]="ButtonColor.BLACK"
+        [buttonSize]="ButtonSize.AUTO"
+        [variant]="'outlined'"
+        (onButtonClicked)="cancelTriage()">
+      </app-p-button>
+      <app-p-button
+        [buttonText]="'מסמך שנתי'"
+        [buttonColor]="ButtonColor.BLACK"
+        [buttonSize]="ButtonSize.AUTO"
+        [isLoading]="isActioning()"
+        [disabled]="!triagingRow()"
+        (onButtonClicked)="confirmTriage(triagingRow()!, 'ANNUAL_DOCUMENT')">
+      </app-p-button>
+      <app-p-button
+        [buttonText]="'חשבונית הוצאה'"
+        [buttonColor]="ButtonColor.BLACK"
+        [buttonSize]="ButtonSize.AUTO"
+        [isLoading]="isActioning()"
+        [disabled]="!triagingRow()"
+        (onButtonClicked)="confirmTriage(triagingRow()!, 'EXPENSE_INVOICE')">
       </app-p-button>
     </div>
   </ng-template>
