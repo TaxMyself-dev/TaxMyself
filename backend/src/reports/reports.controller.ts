@@ -50,13 +50,15 @@ export class ReportsController {
     @UseGuards(FirebaseAuthGuard)
     async previewCheck(
       @Req() request: AuthenticatedRequest,
-      @Query() query: { businessNumber: string },
+      @Query() query: { businessNumber: string; endDate: string },
     ): Promise<{ hasPendingDocs: boolean; hasUnconfirmedExpenses: boolean }> {
       const firebaseId = request.user?.firebaseId;
       if (!firebaseId) throw new BadRequestException('Not authenticated');
       const bn = query?.businessNumber?.trim();
       if (!bn) throw new BadRequestException('businessNumber is required');
-      return this.reviewService.previewCheck(firebaseId, bn);
+      const periodEnd = this.sharedService.convertStringToDateObject(query.endDate);
+      if (!periodEnd) throw new BadRequestException('endDate is required (ISO date)');
+      return this.reviewService.previewCheck(firebaseId, bn, periodEnd);
     }
 
     /** Preview: process inbox, run matching (if Open Banking), return the
@@ -377,8 +379,12 @@ export class ReportsController {
         }
         const startDate = this.sharedService.convertStringToDateObject(query.startDate);
         const endDate = this.sharedService.convertStringToDateObject(query.endDate);
+        const parsedVatableTurnoverOverride = Number(query.vatableTurnoverOverride);
+        const vatableTurnoverOverride = query.vatableTurnoverOverride !== undefined && query.vatableTurnoverOverride !== '' && !isNaN(parsedVatableTurnoverOverride)
+            ? parsedVatableTurnoverOverride
+            : undefined;
         const pdfBuffer = await this.reportsService.generateVatReportPdfForExport(
-            firebaseId, query.businessNumber, startDate, endDate,
+            firebaseId, query.businessNumber, startDate, endDate, vatableTurnoverOverride,
         );
         res.setHeader('Content-Type', 'application/pdf');
         return res.send(pdfBuffer);

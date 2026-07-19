@@ -1450,3 +1450,45 @@ COMMIT;
 
 -- Post-check: expect 1 row deleted, index present in SHOW INDEX FROM business,
 -- and the duplicate SELECT above now returns 0 rows.
+
+
+-- ============================================================================
+-- SECTION 8 (2026-07-18, Elazar) — close the "רכוש קבוע (פחת)" catalog gap.
+--
+-- NO NEW SQL IN THIS SECTION — same mechanism as Section 5. The three
+-- depreciable-equipment cards (61310 מחשב / 61320 ריהוט / 61330 רכב, section
+-- "פחת") already existed with zero sub_category rows pointing at them
+-- (flagged in chart.seed.ts §61300 as "zero rows in prod"); a bug report
+-- against the mannual-expense edit form's equipment checkbox surfaced this —
+-- checking "רכוש קבוע" tried to classify under a category that had never
+-- actually been seeded, and the frontend also failed to reset a stale
+-- subCategory left over from whatever category was active before the
+-- checkbox forced the swap (that frontend bug is fixed separately, not a
+-- catalog change).
+--
+-- This session adds, to the reviewed source data:
+--   - `chart.seed.ts` CHART_ACCOUNTS: one new card, code 61390 "רכישת משרד"
+--     (office purchase — a capitalized asset, not a renumbered legacy one),
+--     under section 61300. 61340-61380 in this block's anchor+10..+90 range
+--     are already taken by the unrelated §3f ANNUAL technical accounts, so
+--     61390 is the last free slot before the next block's anchor.
+--     vatPercent=100, taxPercent=0, reductionPercent=2 (depreciation),
+--     isEquipment=1, recognitionType=RECOGNIZED — taxPercent=0 matches the
+--     other 3 equipment cards (capitalized assets are deducted via
+--     depreciation, not directly).
+--   - `catalog.seed.ts` SYSTEM_CATEGORIES: one new category, 'רכוש קבוע (פחת)'.
+--   - `catalog.seed.ts` SYSTEM_SUB_CATEGORIES: four new sub-categories under
+--     it — מחשב/ריהוט/רכב (pointing at the pre-existing 61310/61320/61330
+--     cards) and רכישת משרד (pointing at the new 61390 card above).
+--
+-- Per `catalog-seed.service.ts`'s documented boot sequence, `seedAccounts()`
+-- find-or-**creates** `booking_account` rows by (chartOwnerKey, code) — not
+-- update-only — and `seedSystemCatalog()` find-or-creates `category` rows
+-- and create-if-missing `sub_category` rows. So the next backend boot after
+-- this code deploys (dev now; production at cutover, same ordering
+-- requirement as Section 5: this boot must happen AFTER the rest of
+-- cutover.sql has run) creates all 5 new rows (1 account + 1 category + 4
+-- sub-categories) automatically — no manual INSERT needed, and this is
+-- purely additive: no existing category/sub_category/booking_account name
+-- collides with these, so no existing row is touched.
+-- ============================================================================

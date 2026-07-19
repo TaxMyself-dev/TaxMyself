@@ -34,11 +34,11 @@ export class Expense {
    * exactly what it always meant: the percent used for this expense's own
    * VAT/tax calculation and journal lines.
    */
-  @Column('decimal')
+  @Column('decimal', { precision: 5, scale: 2 })
   taxPercentSnapshot: number;
 
   /** Renamed in place from `vatPercent` — see taxPercentSnapshot. */
-  @Column('decimal')
+  @Column('decimal', { precision: 5, scale: 2 })
   vatPercentSnapshot: number;
 
   @Column('date')

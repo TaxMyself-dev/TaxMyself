@@ -1,5 +1,6 @@
 import { Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { ActivatedRoute, Router } from '@angular/router';
 import { PnLReportJournalService } from './pnl-report-journal.service';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 import { IPnlReportData, IRowDataTable, ISelectItem, IUserData } from 'src/app/shared/interface';
@@ -72,9 +73,6 @@ export class PnLReportJournalPage implements OnInit {
    *  need to show up in the P&L numbers. */
   visibleInboxDialog = signal<boolean>(false);
 
-  /** Visibility for the new unified report-review modal. Supersedes the
-   *  two-step chain (visibleInboxDialog → visibleConfirmTransDialog). */
-  visibleReviewDialog = signal<boolean>(false);
 
   /** True when the report for the currently-selected period has already been
    *  marked as submitted. Swaps the "סמן כדווח" button for "הדוח הוגש". */
@@ -105,6 +103,8 @@ export class PnLReportJournalPage implements OnInit {
     private messageService: MessageService,
     private confirmationService: ConfirmationService,
     private reportReviewService: ReportReviewService,
+    private router: Router,
+    private route: ActivatedRoute,
   ) {
   }
 
@@ -174,6 +174,21 @@ export class PnLReportJournalPage implements OnInit {
         this.arrayLength.set(0);
         this.reportSubmitted.set(false);
       });
+
+    // Returning from /report-review — reload the report for the same
+    // business/period the user was reviewing instead of waiting for them
+    // to re-submit the filter form.
+    const returnParams = this.route.snapshot.queryParamMap;
+    if (returnParams.get('reviewed')) {
+      const bn = returnParams.get('businessNumber') ?? this.businessNumber();
+      const start = returnParams.get('startDate') ?? '';
+      const end = returnParams.get('endDate') ?? '';
+      this.businessNumber.set(bn);
+      this.startDate.set(start);
+      this.endDate.set(end);
+      this.isRequestSent.set(true);
+      this.getPnLReportData(start, end, bn);
+    }
   }
 
 
@@ -195,7 +210,7 @@ export class PnLReportJournalPage implements OnInit {
     // Cheap pre-flight (folder listing + SELECT 1) — same pattern as the
     // VAT report. Skips the review modal entirely when there's nothing to
     // review; otherwise prompts the user before opening it.
-    this.reportReviewService.previewCheck(effectiveBusiness)
+    this.reportReviewService.previewCheck(effectiveBusiness, endDate)
       .pipe(catchError(() => of({ hasPendingDocs: true, hasUnconfirmedExpenses: true })))
       .subscribe(check => {
         if (!check.hasPendingDocs && !check.hasUnconfirmedExpenses) {
@@ -236,22 +251,19 @@ export class PnLReportJournalPage implements OnInit {
       acceptButtonProps: { severity: 'contrast', label: 'כן' },
       rejectButtonProps: { severity: 'contrast', label: 'לא כרגע' },
       accept: () => {
-        this.visibleReviewDialog.set(true);
+        this.router.navigate(['report-review'], {
+          queryParams: {
+            businessNumber: this.businessNumber(),
+            startDate: this.startDate(),
+            endDate: this.endDate(),
+            returnTo: 'pnl-report',
+          },
+        });
       },
       reject: () => {
         this.proceedDirectlyToReport();
       },
     });
-  }
-
-  /** Unified review dialog closed (auto when nothing to review, or
-   *  manual after the user works through every row). Proceed straight to
-   *  the P&L data load — no trans-confirm middle step. */
-  onReviewDialogVisibleChange(visible: boolean): void {
-    this.visibleReviewDialog.set(visible);
-    if (!visible) {
-      this.getPnLReportData(this.startDate(), this.endDate(), this.businessNumber());
-    }
   }
 
 

@@ -1,3 +1,21 @@
+// Page shell — replaces the old p-dialog's [style]="{ width: '96vw',
+// maxWidth: '1700px' }"; same effective content width, just as a routed
+// page instead of an overlay.
+.report-review-page {
+  max-width: 1700px;
+  margin: 0 auto;
+  padding: 16px 20px 32px;
+  direction: rtl;
+}
+.report-review-header {
+  margin-bottom: 12px;
+}
+.report-review-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #111827;
+}
+
 // Default layout: just the table-side content (`.dialog-main` fills the
 // dialog). When the preview panel opens (`.with-preview`), the body
 // switches to a horizontal flex split: table on the left, Drive iframe
@@ -130,6 +148,12 @@
   }
   th { font-size: 0.74rem; font-weight: 600; }
 
+  // Row is in edit mode — a real input box. Only rendered at all while
+  // editing (see the *ngIf on every cell template); the [disabled]
+  // bindings that remain (e.g. sub-category until a category is picked)
+  // are genuine "not applicable yet" states mid-edit, not the locked-row
+  // state — kept visually distinct (smaller, greyed) from both the
+  // enabled input and the locked plain-text look below.
   input.cell-editable,
   select.cell-editable {
     font-size: 0.78rem;
@@ -137,11 +161,39 @@
     min-height: 22px;
     width: 100%;            // fill the column; otherwise inputs sit
                             // surrounded by their own implicit padding
+    background: white;
+    border: 1px solid #d1d5db;
+    color: inherit;
+    cursor: pointer;
+  }
+  select.cell-editable:disabled,
+  input.cell-editable:disabled {
+    background: #f3f4f6;
+    border-color: #e5e7eb;
+    color: #9ca3af;
+    cursor: not-allowed;
   }
   // Percent inputs are visually narrower because the column is narrow;
   // strip the right-padding the browser adds for spinner buttons.
   input[type='number'] {
     padding-inline-end: 2px;
+  }
+  // Locked state (default, until the row's "edit" action is used) — every
+  // field renders through this class as plain table text, matching
+  // generic-table's own .data-text (used by genuinely non-editable
+  // columns like "תיאור") exactly: same hard-coded `large` font-size and
+  // line-height. Deliberately a plain <span>, not a disabled input/select
+  // — disabled native controls (especially date/number) can't be relied
+  // on to render identically to text across browsers.
+  .cell-readonly {
+    font-size: large;
+    line-height: 1.2;
+    white-space: nowrap;
+  }
+  .cell-readonly .sum-ils {
+    font-size: 0.78rem;
+    color: #6b7280;
+    margin-inline-start: 4px;
   }
 
   // Row backgrounds are no longer type-driven (the status-column icon
@@ -244,6 +296,12 @@
     background: #dbeafe;
     color: #1d4ed8;
     border-color: #93c5fd;
+  }
+  // Edit (pencil) — unlocks the row's classification fields.
+  &.icon-edit:hover:not(:disabled) {
+    background: #e0e7ff;
+    color: #4338ca;
+    border-color: #a5b4fc;
   }
   // Drive preview (eye) — blue hover, matching the preview panel accent.
   &.icon-preview {
@@ -394,13 +452,23 @@
   gap: 6px;
   max-width: 100%;
 }
-:host ::ng-deep .review-table .supplier-name {
+:host ::ng-deep .review-table .supplier-name-input {
   // Single-line name; the column width is sized to fit the longest
   // observed supplier without truncation. If a longer name shows up,
   // truncating is preferable to wrapping inside a fixed-height row.
+  flex: 1 1 auto;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+// Small pencil badge shown once a row's classification has been edited
+// via the explicit "edit" action — a quiet, permanent marker (unlike the
+// icon-act buttons, not a click target).
+:host ::ng-deep .review-table .edited-marker {
+  color: #4338ca;
+  font-size: 0.75rem;
+  flex-shrink: 0;
 }
 // Two states for the new-supplier flag — both visible (so the user can
 // always see "this is a new supplier"), only differing in color so the

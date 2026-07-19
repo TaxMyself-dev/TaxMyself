@@ -166,6 +166,26 @@ export interface ReviewOverrides {
    *  missing document number). Sent as true after the user confirms "save
    *  anyway" on a row the backend flagged with DUPLICATE_WARNING. */
   acknowledgeDuplicate?: boolean;
+  /** Invoice/receipt number override — every row type. */
+  invoiceNumber?: string;
+  /** Israeli tax allocation number override — written back onto the source
+   *  document (matched/doc_only only, no document on tx_only rows). */
+  allocationNumber?: string;
+  /** Supplier tax-ID override — every row type. */
+  supplierId?: string;
+  /** Supplier display-name override — every row type. */
+  supplier?: string;
+  /** OCR document-type override — written back onto the source document
+   *  (matched/doc_only only, no document on tx_only rows). */
+  documentType?: string;
+  /** ISO date (YYYY-MM-DD) override — every row type, including
+   *  matched/tx_only (both anchored to a real bank transaction — there is
+   *  no reconciliation check anywhere, so this can silently desync the
+   *  posted expense from the bank statement it came from; applied anyway
+   *  per explicit product decision). */
+  date?: string;
+  /** Amount override — every row type, same caveat as `date`. */
+  amount?: number;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -188,13 +208,17 @@ export class ReportReviewService {
   /** Cheap "is there anything worth reviewing?" check — DB SELECT 1
    *  for pending extracted_documents + Drive folder listing (only on a
    *  DB miss). Used by the report-page submit flow to skip the full
-   *  review modal when both signals are false. */
+   *  review modal when both signals are false. `endDate` bounds the pending-
+   *  docs/unconfirmed-tx counts to the same "date <= period end" window
+   *  getReportPreview uses, so a "yes" here always means the review page
+   *  will actually show something for the period the user is looking at. */
   previewCheck(
     businessNumber: string,
+    endDate: string,
   ): Observable<{ hasPendingDocs: boolean; hasUnconfirmedExpenses: boolean }> {
     return this.http.get<{ hasPendingDocs: boolean; hasUnconfirmedExpenses: boolean }>(
       `${environment.apiUrl}reports/me/preview-check`,
-      { params: { businessNumber } },
+      { params: { businessNumber, endDate } },
     );
   }
 

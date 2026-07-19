@@ -112,29 +112,11 @@
 
 </div>
 
-<!-- Unified report-review pre-flight: opened from onSubmit() before the
-     report renders. Handles inbox OCR, doc↔tx matching, and all three
-     row types (matched/doc-only/tx-only) in one modal. Replaces the
-     legacy two-step chain (PullDriveDocsDialog + ConfirmTransDialog). -->
-@if (visibleReviewDialog()) {
-  <app-report-review-dialog
-    [visible]="visibleReviewDialog()"
-    [businessNumber]="businessNumber()"
-    [startDate]="startDate()"
-    [endDate]="endDate()"
-    (visibleChange)="onReviewDialogVisibleChange($event)">
-  </app-report-review-dialog>
-}
-
-<!-- In-flight loader. Visible while the submit pipeline is working but
-     no review dialog is open yet — covers (a) the previewCheck round-
-     trip before the review/confirm dialog appears, and (b) the
-     getVatReportData call after the review step closes. Hidden as soon
-     as the review dialog opens (the dialog has its own spinner) and
-     hidden again once `isLoadingStatePeryodSelectButton` clears in
-     getVatReportData's finalize, at which point either the rows table
-     or the empty-state message renders. -->
-@if (isLoadingStatePeryodSelectButton() && !visibleReviewDialog()) {
+<!-- In-flight loader. Visible while the submit pipeline is working —
+     covers (a) the previewCheck round-trip before the user is routed to
+     the /report-review page, and (b) the getVatReportData call after
+     returning from that page. -->
+@if (isLoadingStatePeryodSelectButton()) {
   <div class="report-loading">
     <i class="pi pi-spin pi-spinner"></i>
     <span>טוען נתוני דוח...</span>
