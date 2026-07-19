@@ -460,7 +460,7 @@
 
       <!-- Row Actions Section — rendered from rowActions filtered by showWhen(row) -->
       @for (action of getRowActions(hoveredRowInfo()?.row); track action.name) {
-      <app-p-button [icon]="action.icon" [iconOnly]="true"
+      <app-p-button
         (onButtonClicked)="action.action(null, getCurrentRow())"
         [buttonText]="action.title || action.name"
         [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO"
