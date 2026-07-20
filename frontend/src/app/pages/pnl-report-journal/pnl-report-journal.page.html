@@ -117,24 +117,11 @@
     </ng-container>
   </div>
 
-<!-- Unified report-review pre-flight: opened from onSubmit() before the
-     report renders. Handles inbox OCR, doc↔tx matching, and all three
-     row types (matched/doc-only/tx-only) in one modal. Replaces the
-     legacy two-step chain (PullDriveDocsDialog + ConfirmTransDialog). -->
-@if (visibleReviewDialog()) {
-  <app-report-review-dialog
-    [visible]="visibleReviewDialog()"
-    [businessNumber]="businessNumber()"
-    [startDate]="startDate()"
-    [endDate]="endDate()"
-    (visibleChange)="onReviewDialogVisibleChange($event)">
-  </app-report-review-dialog>
-}
-
-<!-- In-flight loader for the previewCheck + prompt window. The
-     getPnLReportData step has its own genericService loader, so we
-     clear this signal as soon as we hand off (see proceedDirectlyToReport). -->
-@if (isReportLoading() && !visibleReviewDialog()) {
+<!-- In-flight loader for the previewCheck + prompt window (and for the
+     review round-trip via /report-review). The getPnLReportData step has
+     its own genericService loader, so we clear this signal as soon as we
+     hand off (see proceedDirectlyToReport). -->
+@if (isReportLoading()) {
   <div class="report-loading">
     <i class="pi pi-spin pi-spinner"></i>
     <span>טוען נתוני דוח...</span>

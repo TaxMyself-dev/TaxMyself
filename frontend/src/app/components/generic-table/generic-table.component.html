@@ -458,14 +458,16 @@
       }
       }
 
-      <!-- Row Actions Section — rendered from rowActions filtered by showWhen(row) -->
+      <!-- Row Actions Section — rendered from rowActions filtered by showWhen(row).
+           The label is always visible, so no hover tooltip is added here —
+           it would just duplicate text that's already on-screen. -->
       @for (action of getRowActions(hoveredRowInfo()?.row); track action.name) {
       <app-p-button
         (onButtonClicked)="action.action(null, getCurrentRow())"
+        [icon]="showRowActionIcons() ? action.icon : null"
         [buttonText]="action.title || action.name"
         [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO"
-        [isLoading]="action.isLoading ? action.isLoading() : false"
-        [pTooltip]="action.title || action.name" tooltipPosition="top">
+        [isLoading]="action.isLoading ? action.isLoading() : false">
       </app-p-button>
       }
     </div>

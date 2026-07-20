@@ -1,6 +1,6 @@
 
 
-<p-drawer styleClass="app-left-panel-drawer" [showCloseIcon]="false" [visible]="visible()" position="left" [modal]="true" (visibleChange)="onVisibleChange($event)">
+<p-drawer styleClass="app-left-panel-drawer" [style]="{width: 'min(550px, 100vw)', maxWidth: '100vw'}" [showCloseIcon]="false" [visible]="visible()" position="left" [modal]="true" (visibleChange)="onVisibleChange($event)">
   <ng-template #header>
     <div class="wrap-header">
       @if(backEnabled()) {
@@ -25,8 +25,5 @@
 
 
 
-
 <!-- (onShow)="onShow.emit()" -->
 <!-- (onHide)="onHide.emit()" -->
-<!-- [style]="style" -->
-<!-- [styleClass]="styleClass" -->
