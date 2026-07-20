@@ -34,6 +34,15 @@ export class ModuleAccessGuard {
     // Ensure billing state is loaded before checking module access.
     await this.billingState.loadBillingState();
 
+    // Module access could not be verified (offline / backend unavailable).
+    // Deny rather than fail open, and send the user to the dashboard instead of
+    // /login — their session is fine, we just cannot confirm entitlements. No
+    // upgrade popup here: this is not a "you need to pay" state, it is unknown.
+    if (this.billingState.isUnverified()) {
+      console.warn('[ModuleAccessGuard] billing state unverified — denying module route.');
+      return this.router.createUrlTree([FALLBACK_ROUTE]);
+    }
+
     const appRoute = route.data['appRoute'] as AppRoute | undefined;
     console.log("🚀 ~ ModuleAccessGuard ~ canActivate ~ appRoute:", appRoute)
     if (appRoute == null) {

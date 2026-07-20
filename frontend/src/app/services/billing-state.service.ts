@@ -103,15 +103,41 @@ export class BillingStateService {
     () => this.billingState()?.billingPaymentResult ?? null
   );
 
+  /**
+   * True when we have no verified billing state at all — the load failed and
+   * nothing was ever confirmed by the backend.
+   *
+   * Guards must treat this as "cannot verify", never as "allowed". Note that
+   * `hasModuleAccess()` already returns false in this situation, so every
+   * module-gated feature stays locked until the backend confirms otherwise.
+   */
+  readonly isUnverified = computed(() => this.billingState() === null);
+
   // Shared promise for any in-flight load. Multiple callers receive the same
   // Promise so only one HTTP request is made regardless of how many times
   // loadBillingState() is called concurrently (e.g. AppComponent + BillingGuard).
   private _loadPromise: Promise<void> | null = null;
 
+  /**
+   * How long a failed load suppresses further attempts. Long enough to stop a
+   * request storm while offline (guards call this on every navigation), short
+   * enough that the state can never be wedged permanently by one failure if
+   * the reconnect handler never fires.
+   */
+  private static readonly RETRY_AFTER_ERROR_MS = 30_000;
+  private lastErrorAt = 0;
+
   async loadBillingState(): Promise<void> {
-    // Already settled (success or network error) — return immediately.
+    // Verified state already in hand — nothing to do.
     // Call refreshBillingState() to force a reload.
-    if (this.billingState() !== null || this.error() !== null) return;
+    if (this.billingState() !== null) return;
+
+    // A recent failure suppresses retries briefly, then we try again. This used
+    // to be permanent, which meant one offline failure left billing state
+    // unverified for the rest of the session even after connectivity returned.
+    if (this.error() !== null && Date.now() - this.lastErrorAt < BillingStateService.RETRY_AFTER_ERROR_MS) {
+      return;
+    }
 
     // In-flight request — join it instead of starting a duplicate.
     if (this._loadPromise) return this._loadPromise;
@@ -127,6 +153,7 @@ export class BillingStateService {
     this._loadPromise = null;
     this.billingState.set(null);
     this.error.set(null);
+    this.lastErrorAt = 0;
     await this.loadBillingState();
   }
 
@@ -144,6 +171,7 @@ export class BillingStateService {
       // so the dialog does not appear due to a transient auth issue.
       if (err?.status !== 401) {
         this.error.set('שגיאה בטעינת נתוני החיוב');
+        this.lastErrorAt = Date.now();
       }
     } finally {
       this.isLoading.set(false);

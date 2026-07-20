@@ -25,6 +25,19 @@ export class AuthService {
   private tokenListenerInitialized = false; // Ensure the listener is initialized only once
 
 
+  /**
+   * The Firebase-restored user, or null when Firebase has confirmed there is
+   * no session. `undefined` means Firebase has not finished restoring yet —
+   * "unknown", which is NOT the same as "signed out".
+   */
+  private readonly authUser = signal<User | null | undefined>(undefined);
+
+  /** True once Firebase has finished restoring the persisted session. */
+  readonly authInitialized = signal<boolean>(false);
+
+  /** Resolves when {@link authInitialized} first becomes true. */
+  private authReady!: Promise<void>;
+
   constructor(
     private genericService: GenericService,
     public afs: AngularFirestore,
@@ -33,7 +46,69 @@ export class AuthService {
     private http: HttpClient,
     public ngZone: NgZone,
     private injector: Injector,
-  ) { }
+  ) {
+    this.initAuthState();
+  }
+
+  /**
+   * Subscribe to Firebase's restored auth state and make it the single source
+   * of truth for "is the user signed in".
+   *
+   * Firebase persists the session in IndexedDB (LOCAL persistence by default),
+   * which survives tab close, PWA close and Android task-kill. `authState`
+   * emits the restored user even when the device is offline and the SDK could
+   * not refresh the ID token, so this stays correct without connectivity.
+   */
+  private initAuthState(): void {
+    this.authReady = new Promise<void>((resolve) => {
+      this.afAuth.authState.subscribe({
+        next: (user) => {
+          this.authUser.set((user as User | null) ?? null);
+          if (!this.authInitialized()) {
+            this.authInitialized.set(true);
+          }
+          resolve();
+        },
+        error: (err) => {
+          // Never strand the app on an auth-stream error: mark initialization
+          // done with "no user" so guards can make a decision. This does NOT
+          // sign anybody out — no signOut() call, no storage cleared.
+          console.error('[AuthService] authState stream error:', err);
+          this.authUser.set(null);
+          this.authInitialized.set(true);
+          resolve();
+        },
+      });
+    });
+  }
+
+  /**
+   * Wait (bounded) for Firebase to restore the persisted session.
+   *
+   * The bound exists only so a hung SDK can never leave the router on a blank
+   * screen forever. Restoration is a local IndexedDB read and normally
+   * completes in milliseconds, offline included.
+   */
+  async waitForAuthInit(timeoutMs = 15_000): Promise<void> {
+    if (this.authInitialized()) {
+      return;
+    }
+    let timer: ReturnType<typeof setTimeout>;
+    await Promise.race([
+      this.authReady,
+      new Promise<void>((resolve) => {
+        timer = setTimeout(() => {
+          console.warn(`[AuthService] auth init exceeded ${timeoutMs}ms — proceeding as "unknown".`);
+          resolve();
+        }, timeoutMs);
+      }),
+    ]).finally(() => clearTimeout(timer!));
+  }
+
+  /** The restored Firebase user, or null when signed out / not yet known. */
+  getCurrentAuthUser(): User | null {
+    return this.authUser() ?? null;
+  }
 
   /** Reset any persisted view-as / x-client-user-id state. Called from
    *  logout() and the start of a fresh login so a stale delegated-client id
@@ -375,8 +450,26 @@ export class AuthService {
   }
 
 
+  /**
+   * Whether a Firebase session is currently restored.
+   *
+   * Previously this read a `sessionStorage` flag written only by the login
+   * screen. sessionStorage is destroyed when the browsing context ends — which
+   * is exactly what Android does when the installed PWA is swiped out of
+   * recents — so a perfectly valid Firebase session was reported as signed
+   * out and AuthGuard bounced the user to /login. Firebase's restored state is
+   * now the authority; storage holds UI data only.
+   *
+   * Returns false while restoration is still pending; callers that must not
+   * race initialization should `await waitForAuthInit()` first (AuthGuard does).
+   */
   get isLoggedIn(): boolean {
-    return sessionStorage.getItem('isLoggedIn') ? true : false;
+    return !!this.authUser();
+  }
+
+  /** True only once Firebase has confirmed there is no session. */
+  get isDefinitelySignedOut(): boolean {
+    return this.authInitialized() && this.authUser() === null;
   }
 
 

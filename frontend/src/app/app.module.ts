@@ -30,6 +30,8 @@ import { ProgressSpinner } from 'primeng/progressspinner';
 import { Dialog } from 'primeng/dialog';
 import { AuthErrorInterceptor } from './interceptors/authError.interceptor';
 import { UpgradeRequiredDialogComponent } from './components/upgrade-required-dialog/upgrade-required-dialog.component';
+import { provideServiceWorker } from '@angular/service-worker';
+import { PwaBannersComponent } from './components/pwa-banners/pwa-banners.component';
 
 
 @NgModule({
@@ -58,6 +60,7 @@ import { UpgradeRequiredDialogComponent } from './components/upgrade-required-di
     ProgressSpinner,
     Dialog,
     UpgradeRequiredDialogComponent,
+    PwaBannersComponent,
 ],
   providers: [
     providePrimeNG({theme: {preset: Aura}}),
@@ -67,7 +70,14 @@ import { UpgradeRequiredDialogComponent } from './components/upgrade-required-di
 
     provideHttpClient(withInterceptorsFromDi()),
     MessageService,
-    ConfirmationService
+    ConfirmationService,
+    // PWA service worker — registered only in production, after the app
+    // stabilizes (won't block first paint / initial billing load). Caches
+    // only the versioned app shell + static assets (see ngsw-config.json).
+    provideServiceWorker('ngsw-worker.js', {
+      enabled: environment.production,
+      registrationStrategy: 'registerWhenStable:30000',
+    }),
   ],
 })
 export class AppModule {}

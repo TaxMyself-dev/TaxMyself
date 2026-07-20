@@ -1,12 +1,11 @@
-
-// This file can be replaced during build by using the `fileReplacements` array.
-// `ng build` replaces `environment.ts` with `environment.prod.ts`.
-// The list of file replacements can be found in `angular.json`.
-
+// DEV cloud build (`ng build --configuration dev`).
+// Optimized/PWA build of the DEV stack: DEV Cloud Run backend + DEV Firebase
+// project. `production: true` enables prod mode and the service worker — it
+// does NOT mean production resources.
 export const environment = {
-  production: false,
+  production: true,
   enableDevTools: true,
-  apiUrl: 'http://localhost:3000/',
+  apiUrl: 'https://taxmys16elf-dev-146140406969.me-west1.run.app/',
   firebase: {
     apiKey: "AIzaSyClSnN3fRAb9aQVt2kMEkLygsNExwQD7fo",
     authDomain: "taxmyself-5d8a0.firebaseapp.com",
@@ -17,4 +16,3 @@ export const environment = {
     measurementId: "G-K8B1TC0DKB"
   },
 };
-// apiUrl: 'http://192.168.1.106:3000/',
