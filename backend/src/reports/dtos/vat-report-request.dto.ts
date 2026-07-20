@@ -1,4 +1,4 @@
-import { IsDateString, IsNumber, IsNotEmpty, Validate, IsString, IsBooleanString } from 'class-validator';
+import { IsDateString, IsNumber, IsNotEmpty, Validate, IsString, IsBooleanString, IsOptional } from 'class-validator';
 
 class IsNumberString {
     validate(value: string) {
@@ -19,6 +19,13 @@ export class VatReportRequestDto {
     @IsString()
     @IsNotEmpty()
     businessNumber: string;
+
+    /** Manual edit of the on-screen "עסקאות חייבות" field — mirrors P&L's
+     *  incomeOverride so the exported PDF matches what the user is looking
+     *  at instead of re-deriving (usually 0) from the journal. */
+    @IsOptional()
+    @IsString()
+    vatableTurnoverOverride?: string;
 
     // @IsNotEmpty()
     // @Validate(IsNumberString)

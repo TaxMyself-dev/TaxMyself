@@ -202,9 +202,10 @@ export class ReportsService {
     businessNumber: string,
     startDate: Date,
     endDate: Date,
+    vatableTurnoverOverride?: number,
   ): Promise<Buffer> {
     const [data, business, expenseRows] = await Promise.all([
-      this.createVatReportFromJournal(firebaseId, businessNumber, startDate, endDate),
+      this.createVatReportFromJournal(firebaseId, businessNumber, startDate, endDate, vatableTurnoverOverride),
       this.businessRepo.findOne({ where: { businessNumber, firebaseId } }),
       this.expensesService.getExpensesForVatReport(firebaseId, businessNumber, startDate, endDate),
     ]);
@@ -215,10 +216,9 @@ export class ReportsService {
         supplier: e.supplier ?? '',
         date: e.date ? this.formatLedgerDate(e.date) : '',
         sum: Number(e.sum) || 0,
-        category: e.category ?? '',
         subCategory: e.subCategory ?? '',
         totalVatPayable: Number(e.totalVatPayable) || 0,
-        totalTaxPayable: Number(e.totalTaxPayable) || 0,
+        vatPercent: Number(e.vatPercentSnapshot) || 0,
       }));
 
     return buildVatReportPdf(data, {
@@ -461,6 +461,7 @@ export class ReportsService {
     businessNumber: string,
     startDate: Date,
     endDate: Date,
+    vatableTurnoverOverride?: number,
   ): Promise<VatReportDto> {
     const business = await this.businessRepo.findOne({ where: { businessNumber, firebaseId } });
     if (!business) {
@@ -495,18 +496,29 @@ export class ReportsService {
     const outputVat = Number(row?.outputVat ?? 0);
     const vatRefundOnExpenses = Number(row?.vatRefundOnExpenses ?? 0);
     const vatRefundOnAssets = Number(row?.vatRefundOnAssets ?? 0);
+    const vatRate = this.sharedService.getVatRateByYear(startDate);
 
-    // vatPayment from ACTUAL posted output VAT (2400) minus input VAT, unlike
-    // the legacy report which recomputes output VAT as turnover × rate.
-    const vatPayment = outputVat - vatRefundOnExpenses - vatRefundOnAssets;
+    // vatableTurnover isn't always journaled (many businesses don't post
+    // sales through this app), so the on-screen report exposes it as an
+    // editable field. `vatableTurnoverOverride` mirrors that manual edit —
+    // same pattern as P&L's incomeOverride — so the exported PDF matches
+    // what the user is actually looking at instead of silently re-deriving
+    // (usually 0) from the journal. When overridden, output VAT is derived
+    // from the override × rate (the actual posted 2400 balance is 0 in
+    // exactly the same case), matching the frontend's local recompute.
+    const effectiveVatableTurnover = vatableTurnoverOverride ?? vatableTurnover;
+    const effectiveOutputVat = vatableTurnoverOverride != null
+      ? effectiveVatableTurnover * vatRate
+      : outputVat;
+    const vatPayment = effectiveOutputVat - vatRefundOnExpenses - vatRefundOnAssets;
 
     return {
-      vatableTurnover,
+      vatableTurnover: effectiveVatableTurnover,
       nonVatableTurnover,
       vatRefundOnAssets,
       vatRefundOnExpenses,
       vatPayment,
-      vatRate: this.sharedService.getVatRateByYear(startDate),
+      vatRate,
     };
   }
 

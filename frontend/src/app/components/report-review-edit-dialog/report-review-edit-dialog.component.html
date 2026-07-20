@@ -1,0 +1,158 @@
+<p-dialog
+  [header]="titleLabel || 'עריכת הוצאה'"
+  [visible]="visible"
+  (visibleChange)="$event ? null : visibleChange.emit(false)"
+  [modal]="true"
+  [style]="hasDocument ? { width: '1100px', maxWidth: '95vw' } : { width: '640px', maxWidth: '95vw' }"
+  [rtl]="true"
+  [draggable]="false"
+  [resizable]="false">
+
+  <div class="edit-dialog-body" [class.with-preview]="hasDocument" *ngIf="fields as f">
+    <div class="edit-dialog-main">
+      <div class="field-grid">
+        <label class="field">
+          <span class="field-label">ספק</span>
+          <input type="text" class="field-input"
+                 [ngModel]="f.supplier"
+                 (ngModelChange)="fieldsChange.emit({ supplier: $event })" />
+        </label>
+        <label class="field">
+          <span class="field-label">מס׳ עוסק</span>
+          <input type="text" class="field-input"
+                 [ngModel]="f.supplierId"
+                 (ngModelChange)="fieldsChange.emit({ supplierId: $event })" />
+        </label>
+
+        <label class="field">
+          <span class="field-label">תאריך</span>
+          <input type="date" class="field-input"
+                 [ngModel]="f.date"
+                 (ngModelChange)="fieldsChange.emit({ date: $event })" />
+        </label>
+        <label class="field">
+          <span class="field-label">סכום</span>
+          <input type="number" step="0.01" class="field-input"
+                 [ngModel]="f.amount"
+                 (ngModelChange)="fieldsChange.emit({ amount: $event })" />
+        </label>
+
+        <ng-container *ngIf="hasDocument">
+          <label class="field">
+            <span class="field-label">סוג מסמך</span>
+            <select class="field-input"
+                    [ngModel]="f.documentType"
+                    (ngModelChange)="fieldsChange.emit({ documentType: $event })">
+              <option [ngValue]="null">—</option>
+              <option *ngFor="let opt of documentTypeOptions" [ngValue]="opt.value">{{ opt.label }}</option>
+            </select>
+          </label>
+          <label class="field">
+            <span class="field-label">מס׳ הקצאה</span>
+            <input type="text" class="field-input"
+                   [ngModel]="f.allocationNumber"
+                   (ngModelChange)="fieldsChange.emit({ allocationNumber: $event })" />
+          </label>
+        </ng-container>
+
+        <ng-container *ngIf="viewMode === 'regular'; else cardPicker">
+          <label class="field">
+            <span class="field-label">קטגוריה</span>
+            <select class="field-input"
+                    [ngModel]="f.category"
+                    (ngModelChange)="categoryChange.emit($event)">
+              <option [ngValue]="''">— בחר —</option>
+              <option *ngFor="let cat of categoryOptions" [ngValue]="cat">{{ cat }}</option>
+            </select>
+          </label>
+          <label class="field">
+            <span class="field-label">תת קטגוריה</span>
+            <select class="field-input"
+                    [ngModel]="f.subCategory"
+                    (ngModelChange)="subCategoryChange.emit($event)"
+                    [disabled]="!f.category">
+              <option [ngValue]="''">— בחר —</option>
+              <option *ngFor="let sub of subCategoryOptions" [ngValue]="sub">{{ sub }}</option>
+            </select>
+          </label>
+        </ng-container>
+        <ng-template #cardPicker>
+          <label class="field field--wide">
+            <span class="field-label">כרטיס הנהלת חשבונות</span>
+            <select class="field-input"
+                    [ngModel]="f.accountId"
+                    (ngModelChange)="cardChange.emit($event)">
+              <option [ngValue]="null">— בחר כרטיס —</option>
+              <optgroup *ngFor="let g of cardOptionsBySection" [label]="g.section || 'ללא חתך'">
+                <option *ngFor="let card of g.cards" [ngValue]="card.accountId">
+                  {{ card.accountName }} ({{ card.accountCode }})
+                </option>
+              </optgroup>
+            </select>
+          </label>
+        </ng-template>
+
+        <label class="field">
+          <span class="field-label">% מע״מ</span>
+          <input type="number" step="0.01" class="field-input"
+                 [ngModel]="f.vatPercent"
+                 (ngModelChange)="fieldsChange.emit({ vatPercent: $event })" />
+        </label>
+        <label class="field">
+          <span class="field-label">% מס</span>
+          <input type="number" step="0.01" class="field-input"
+                 [ngModel]="f.taxPercent"
+                 (ngModelChange)="fieldsChange.emit({ taxPercent: $event })" />
+        </label>
+
+        <label class="field field--wide">
+          <span class="field-label">תקופת דיווח</span>
+          <select class="field-input"
+                  [ngModel]="f.reportPeriod"
+                  (ngModelChange)="onPeriodPicked($event)">
+            <option *ngFor="let opt of periodOptions" [ngValue]="opt.value">{{ opt.label }}</option>
+          </select>
+        </label>
+
+        <label class="field field--wide checkbox-field">
+          <input type="checkbox"
+                 [ngModel]="f.applyCascadeToSuppliers"
+                 (ngModelChange)="fieldsChange.emit({ applyCascadeToSuppliers: $event })" />
+          <span>החל סיווג זה גם על שורות זהות בטבלה</span>
+        </label>
+
+        <label class="field field--wide checkbox-field" *ngIf="showNewSupplierFlag">
+          <input type="checkbox"
+                 [ngModel]="f.saveAsSupplier"
+                 (ngModelChange)="fieldsChange.emit({ saveAsSupplier: $event })" />
+          <span>הוסף ספק זה לרשימת הספקים שלי</span>
+        </label>
+      </div>
+    </div>
+
+    <aside class="edit-dialog-preview" *ngIf="hasDocument">
+      <header class="edit-dialog-preview__header">
+        <span class="edit-dialog-preview__title" [title]="driveFileName">{{ driveFileName }}</span>
+      </header>
+      <iframe class="edit-dialog-preview__iframe" [src]="previewUrl()" title="Drive preview"></iframe>
+    </aside>
+  </div>
+
+  <ng-template pTemplate="footer">
+    <div class="edit-dialog-footer">
+      <app-p-button
+        [buttonText]="'ביטול'"
+        [buttonColor]="ButtonColor.BLACK"
+        [buttonSize]="ButtonSize.AUTO"
+        [variant]="'outlined'"
+        (onButtonClicked)="visibleChange.emit(false)">
+      </app-p-button>
+      <app-p-button
+        [buttonText]="'שמור'"
+        [buttonColor]="ButtonColor.BLACK"
+        [buttonSize]="ButtonSize.AUTO"
+        (onButtonClicked)="save.emit()">
+      </app-p-button>
+    </div>
+  </ng-template>
+</p-dialog>

@@ -87,6 +87,11 @@ const routes: Routes = [
     canActivate: [AuthGuard, BillingGuard]
   },
   {
+    path: 'report-review',
+    loadChildren: () => import('./pages/report-review/report-review.module').then(m => m.ReportReviewPageModule),
+    canActivate: [AuthGuard, BillingGuard]
+  },
+  {
     path: 'depreciation-report',
     loadChildren: () => import('./pages/depreciation-report/depreciation-report.module').then(m => m.DepreciationReportPageModule),
     canActivate: [AuthGuard, BillingGuard]

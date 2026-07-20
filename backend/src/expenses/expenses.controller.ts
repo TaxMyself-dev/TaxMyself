@@ -198,7 +198,15 @@ export class ExpensesController {
     const firebaseId = request.user?.firebaseId;
     const startDate = this.sharedService.convertStringToDateObject(query.startDate);
     const endDate = this.sharedService.convertStringToDateObject(query.endDate);
-    return await this.expensesService.getExpensesForVatReport(firebaseId, query.businessNumber, startDate, endDate);
+    const expenses = await this.expensesService.getExpensesForVatReport(firebaseId, query.businessNumber, startDate, endDate);
+    // The AMOUNT_WITH_PERCENT table cell renderer (generic-table.component.ts)
+    // reads `vatPercent`/`taxPercent` off each row — alias them here from the
+    // entity's `*Snapshot` columns so the frontend percent lines aren't stuck at 0.
+    return expenses.map((e) => ({
+      ...e,
+      vatPercent: Number(e.vatPercentSnapshot) || 0,
+      taxPercent: Number(e.taxPercentSnapshot) || 0,
+    }));
   }
 
 

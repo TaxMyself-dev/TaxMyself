@@ -1,0 +1,466 @@
+<div class="report-review-page" *ngIf="!isLoading()">
+  <div class="report-review-header">
+    <span class="report-review-title">סקירה לפני הצגת הדוח</span>
+  </div>
+
+  <div class="dialog-body" [class.with-preview]="previewDriveFileId() !== null">
+    <!-- Drive preview panel — visible only when an eye icon was clicked.
+         Lives on the RTL-right of the body (DOM order = visual right under
+         RTL) so the table on the left keeps its natural reading order. -->
+    <aside *ngIf="previewDriveFileId()" class="preview-panel">
+      <header class="preview-panel__header">
+        <button type="button" class="preview-panel__close"
+                pTooltip="סגור תצוגה מקדימה"
+                tooltipPosition="bottom"
+                (click)="closePreview()">
+          <i class="pi pi-times"></i>
+        </button>
+        <span class="preview-panel__title" [title]="previewDriveFileName()">
+          {{ previewDriveFileName() }}
+        </span>
+      </header>
+      <iframe
+        class="preview-panel__iframe"
+        [src]="previewUrl()"
+        title="Drive preview"></iframe>
+    </aside>
+
+    <div class="dialog-main">
+
+  <!-- Subtitle + the D9 regular/professional toggle. The toggle is
+       available to EVERYONE (permissions gate capabilities, not
+       visibility); the chosen mode persists per user, and accountants
+       land on professional by default. -->
+  <div *ngIf="mode() !== null" class="toolbar-row">
+    <div class="subtitle">{{ subtitleText() }}</div>
+    <div class="view-toggle" role="group" aria-label="מצב תצוגה">
+      <button type="button"
+              class="view-toggle__btn"
+              [class.view-toggle__btn--active]="viewMode() === 'regular'"
+              (click)="setViewMode('regular')">תצוגה רגילה</button>
+      <button type="button"
+              class="view-toggle__btn"
+              [class.view-toggle__btn--active]="viewMode() === 'professional'"
+              (click)="setViewMode('professional')">תצוגה מקצועית</button>
+    </div>
+  </div>
+
+  <!-- Loading state is shown via the app's global loader (driven from
+       loadPreview), not an in-dialog spinner — the dialog stays hidden
+       until the preview returns rows to review. -->
+
+  <!-- Cell templates declared once, projected into generic-table via
+       buildColumns(). Plain (non-template) columns — supplier, supplierId,
+       docType label, invoice number, date, sum, matched-type label — use
+       generic-table's built-in cell rendering. -->
+
+  <!-- Bulk-select checkbox — a template (not the generic CHECKBOX column)
+       so non-approvable rows render it DISABLED per D9: missing-mapping /
+       unclassified / annual / unidentified rows can't join the queue. -->
+  <ng-template #selectCell let-row>
+    <input type="checkbox" class="row-select"
+           [checked]="row.selected"
+           [disabled]="!canApprove(row)"
+           [title]="canApprove(row) ? '' : 'לא ניתן לאשר — ראה עמודת סטטוס'"
+           (change)="onRowSelectedChange(row, $any($event.target).checked)" />
+  </ng-template>
+
+  <!-- Every column below is permanently read-only now — editing moved
+       into the app-report-review-edit-dialog popup (see the "עריכה" row
+       action). Kept as plain <span>s (not disabled inputs/selects):
+       identical markup/font/sizing to a genuinely non-editable column
+       like "תיאור", and disabled native controls (especially date/number)
+       can't be relied on to render identically to text across browsers. -->
+
+  <ng-template #categoryCell let-row>
+    <span class="cell-readonly">{{ row.category || '—' }}</span>
+  </ng-template>
+
+  <ng-template #subCategoryCell let-row>
+    <span class="cell-readonly">{{ row.subCategory || '—' }}</span>
+  </ng-template>
+
+  <!-- Professional view: classification by CARD (D9 revised) — booking
+       accounts grouped by section; picking a card IS the classification
+       (the card carries the full accounting law, D1). -->
+  <ng-template #cardCell let-row>
+    <span class="cell-readonly">{{ row.accountLabel || '—' }}</span>
+  </ng-template>
+
+  <!-- Note: reductionPercent (% פחת, professional view only) stays
+       read-only everywhere — it's derived from the chosen card/
+       sub_category's accounting law (D1), the backend has no override
+       slot for it. -->
+  <ng-template #vatPercentCell let-row>
+    <span class="cell-readonly">{{ row.vatPercent }}</span>
+  </ng-template>
+
+  <ng-template #taxPercentCell let-row>
+    <span class="cell-readonly">{{ row.taxPercent }}</span>
+  </ng-template>
+
+  <ng-template #dateCell let-row>
+    <span class="cell-readonly">{{ row.date | dateFormat }}</span>
+  </ng-template>
+
+  <ng-template #amountCell let-row>
+    <span class="cell-readonly">
+      {{ row.sumLabel }}
+      <span *ngIf="row.currency !== 'ILS' && row.ilsAmount != null" class="sum-ils">
+        ({{ row.ilsAmount | number:'1.0-2' }} ₪)
+      </span>
+    </span>
+  </ng-template>
+
+  <!-- Professional-view-only column (shared.invoice). Regular view drops
+       invoice/supplier-id/allocation-number from the table entirely — see
+       buildColumns — those stay edit-dialog-only fields there. -->
+  <ng-template #invoiceNumberCell let-row>
+    <span class="cell-readonly">{{ row.invoiceNumber || '—' }}</span>
+  </ng-template>
+
+  <!-- Document type / source (סוג) — "תנועה" for tx_only rows (folds in
+       what used to be a separate "מקור" source-icon column), the OCR'd
+       document type otherwise. Document type itself is edited via the
+       popup (matched/doc_only only; no document on tx_only rows). -->
+  <ng-template #docTypeCell let-row>
+    <span class="cell-readonly">{{ sourceTypeLabel(row) }}</span>
+  </ng-template>
+
+  <ng-template #periodCell let-row>
+    <span class="cell-readonly" [class.overridden]="row.reportPeriodOverridden">
+      {{ periodOptionLabel(row.reportPeriod) }}
+    </span>
+  </ng-template>
+
+  <!-- Supplier name + "new supplier" icon. The icon (pi pi-question-circle)
+       only renders when supplierStatusLabel === 'ספק חדש' — i.e. the doc's
+       supplier_id wasn't found in the user's Supplier table. tx_only rows
+       have supplierStatusLabel = null (no doc-side supplier concept) and
+       therefore never show the icon. -->
+  <!-- Icons come BEFORE the name in DOM order so under RTL they render
+       to the right of the supplier name (the start of the visual line).
+       The Drive-preview eye lives in the row-actions hover strip; only the
+       new-supplier flag stays attached to the name here. -->
+  <ng-template #supplierCell let-row>
+    <span class="supplier-cell">
+      <span *ngIf="row.supplierStatusLabel === 'ספק חדש'"
+         class="supplier-new-square"
+         [class.supplier-new-square--opt-out]="!row.saveAsSupplier"
+         [pTooltip]="row.saveAsSupplier
+           ? 'ספק חדש - יתווסף לרשימת הספקים בעת האישור. לחץ כדי לדלג.'
+           : 'ספק חדש - לא יתווסף לרשימת הספקים. לחץ להחזיר.'"
+         tooltipPosition="top"
+         (click)="toggleSaveAsSupplier(row, $event)"></span>
+      <span class="cell-readonly supplier-name-input">{{ row.supplier }}</span>
+      <!-- Hard failure — small icon + hover tooltip with backend error.
+           Soft duplicates render the inline prompt below instead. -->
+      <span *ngIf="row.saveStatus === 'failed' && !row.duplicateWarning"
+            class="action-error" [title]="row.saveError ?? ''">⚠</span>
+    </span>
+    <!-- Soft-duplicate prompt — the backend flagged this row as a possible
+         duplicate (same supplier/sum/date, different/missing document
+         number). The user decides: save anyway (acknowledges the warning
+         and retries), or skip and leave the row un-approved. -->
+    <div *ngIf="row.duplicateWarning" class="dup-warning">
+      <span class="dup-warning__text">
+        <i class="pi pi-exclamation-triangle"></i>
+        {{ row.saveError || 'ייתכן שזו הוצאה כפולה' }}
+      </span>
+      <button type="button" class="act act-approve"
+              [disabled]="isActioning()"
+              (click)="confirmSaveAnyway(row)">שמור בכל זאת</button>
+      <button type="button" class="act act-archive"
+              [disabled]="isActioning()"
+              (click)="dismissDuplicate(row)">דלג</button>
+    </div>
+  </ng-template>
+
+  <!-- Hidden page-level upload input for the tx_only "upload" hover action
+       (see reviewRowActions in the .ts) — one shared input, not one per
+       row, since only the hover panel (not the row) triggers it. -->
+  <input type="file"
+         #uploadInput
+         class="hidden-file-input"
+         accept="application/pdf,image/jpeg,image/png,image/webp"
+         (change)="onHiddenUploadChange(uploadInput)" />
+
+  <app-generic-table
+    *ngIf="rows().length > 0"
+    class="review-table"
+    [showRowActionIcons]="true"
+    [columnsTitle]="buildColumns(selectCell, categoryCell, subCategoryCell, cardCell, periodCell, supplierCell, vatPercentCell, taxPercentCell, dateCell, amountCell, invoiceNumberCell, docTypeCell)"
+    [dataTable]="$any(rows())"
+    [rowClass]="rowClassFn"
+    [rowActions]="reviewRowActions"
+    [tableHeight]="'480px'">
+  </app-generic-table>
+
+  <!-- Bulk approve + skip. Both buttons live here side-by-side rather than
+       in the p-dialog footer template so the user reads them in one row
+       together with the selection-status text on the right. -->
+  <div *ngIf="rows().length > 0" class="footer-bar">
+    <div class="select-info">
+      <label class="select-all-toggle">
+        <input type="checkbox"
+               [checked]="approvableCount() > 0 && selectedCount() === approvableCount()"
+               [disabled]="approvableCount() === 0"
+               (change)="toggleAll($any($event.target).checked)" />
+        בחר הכל
+      </label>
+      <span>נבחרו {{ selectedCount() }} מתוך {{ approvableCount() }} ניתנות לאישור</span>
+    </div>
+    <div class="footer-actions">
+      <app-p-button
+        [buttonText]="'אישור הוצאות נבחרות'"
+        [buttonColor]="ButtonColor.BLACK"
+        [buttonSize]="ButtonSize.AUTO"
+        [isLoading]="isActioning()"
+        [disabled]="selectedCount() === 0"
+        (onButtonClicked)="bulkApproveSelected()">
+      </app-p-button>
+      <app-p-button
+        [buttonText]="'דלג'"
+        [buttonColor]="ButtonColor.BLACK"
+        [buttonSize]="ButtonSize.AUTO"
+        [variant]="'outlined'"
+        (onButtonClicked)="onClose()">
+      </app-p-button>
+    </div>
+  </div>
+
+    </div><!-- /.dialog-main -->
+  </div><!-- /.dialog-body -->
+</div><!-- /.report-review-page -->
+
+<!-- Edit-expense popup. Opened by the "עריכה" row action (openEditDialog);
+     replaces the old inline classification editing entirely. Two-column
+     (with Drive preview) vs single full-width column is decided by
+     hasDocument = !!row.driveFileId. Fully controlled: the dialog holds no
+     state of its own, every keystroke relays up to editDraft and the
+     updated draft flows back down via [fields] — Save/Cancel semantics
+     live in onEditDialogSave/onEditDialogCancel. -->
+<app-report-review-edit-dialog
+  [visible]="editDialogVisible()"
+  [hasDocument]="!!editDialogRow()?.driveFileId"
+  [driveFileId]="editDialogRow()?.driveFileId ?? null"
+  [driveFileName]="editDialogRow()?.driveFileName ?? ''"
+  [titleLabel]="editDialogTitleLabel()"
+  [viewMode]="viewMode()"
+  [fields]="editDraft()"
+  [categoryOptions]="categoryOptions()"
+  [subCategoryOptions]="editDraftSubCategoryOptions()"
+  [cardOptionsBySection]="cardOptionsBySection()"
+  [documentTypeOptions]="documentTypeOptions"
+  [periodOptions]="editDraftPeriodOptions()"
+  [showNewSupplierFlag]="editDialogRow()?.supplierStatusLabel === 'ספק חדש'"
+  (visibleChange)="$event ? null : onEditDialogCancel()"
+  (save)="onEditDialogSave()"
+  (categoryChange)="onEditDraftCategoryChange($event)"
+  (subCategoryChange)="onEditDraftSubCategoryChange($event)"
+  (cardChange)="onEditDraftCardChange($event)"
+  (periodChange)="onEditDraftPeriodChange($event)"
+  (customPeriodRequested)="openCustomPeriod()"
+  (fieldsChange)="onEditDraftFieldsPatch($event)">
+</app-report-review-edit-dialog>
+
+<!-- Custom-period entry dialog. Opened when the user picks "אחר" in the
+     edit dialog's period dropdown (see openCustomPeriod). Styled to match
+     the rest of the app's modals instead of using window.prompt. Stacks
+     on top of the edit dialog (both are plain p-dialogs — PrimeNG handles
+     the z-index). -->
+<p-dialog
+  header="הזנת תקופת דיווח ידנית"
+  [visible]="customPeriodVisible()"
+  (visibleChange)="$event ? null : cancelCustomPeriod()"
+  [modal]="true"
+  [style]="{ width: '460px', maxWidth: '95vw' }"
+  [rtl]="true"
+  [draggable]="false"
+  [resizable]="false">
+
+  <div class="custom-period-body">
+    <p class="custom-period-explanation">
+      לפי הוראות רשות המיסים, ניתן לדווח הוצאות במע״מ
+      <strong>עד 6 חודשים אחורה</strong> ממועד הפקת המסמך.
+      במקרים חריגים ניתן להזין כאן תקופת דיווח אחרת ידנית.
+    </p>
+    <label class="custom-period-label" for="customPeriodInput">תקופת דיווח</label>
+    <input
+      id="customPeriodInput"
+      type="text"
+      class="custom-period-input"
+      [ngModel]="customPeriodValue()"
+      (ngModelChange)="customPeriodValue.set($event)"
+      (keydown.enter)="confirmCustomPeriod()"
+      placeholder="לדוגמה: 5-6/2026 או 5/2026"
+      autocomplete="off" />
+  </div>
+
+  <ng-template pTemplate="footer">
+    <div class="custom-period-footer">
+      <app-p-button
+        [buttonText]="'ביטול'"
+        [buttonColor]="ButtonColor.BLACK"
+        [buttonSize]="ButtonSize.AUTO"
+        [variant]="'outlined'"
+        (onButtonClicked)="cancelCustomPeriod()">
+      </app-p-button>
+      <app-p-button
+        [buttonText]="'אישור'"
+        [buttonColor]="ButtonColor.BLACK"
+        [buttonSize]="ButtonSize.AUTO"
+        [disabled]="!customPeriodValue().trim()"
+        (onButtonClicked)="confirmCustomPeriod()">
+      </app-p-button>
+    </div>
+  </ng-template>
+
+</p-dialog>
+
+<!-- Supplier-conflict pre-flight dialog. Opens when the bulk approve
+     queue has multiple rows for the same NEW supplier with divergent
+     classification fields (only the first row's values would land in the
+     Supplier master). User must close + resolve before approve runs. -->
+<p-dialog
+  header="התאמת נתוני ספק"
+  [visible]="supplierConflictsVisible()"
+  (visibleChange)="$event ? null : closeSupplierConflicts()"
+  [modal]="true"
+  [style]="{ width: '520px', maxWidth: '95vw' }"
+  [rtl]="true"
+  [draggable]="false"
+  [resizable]="false">
+
+  <div class="supplier-conflict-body">
+    <p class="supplier-conflict-explanation">
+      איתרנו ספקים חדשים שמופיעים במספר שורות עם <strong>נתונים שונים</strong>.
+      רק שורה אחת תישמר לרשימת הספקים שלך, כך שהערכים בשורות האחרות
+      <strong>לא ייכנסו לכרטיס הספק</strong>.
+    </p>
+
+    <ul class="supplier-conflict-list">
+      <li *ngFor="let c of supplierConflicts()">
+        <span class="supplier-conflict-name">{{ c.supplierName }}</span>
+        <span class="supplier-conflict-meta">({{ c.rowCount }} שורות)</span>
+        <div class="supplier-conflict-fields">
+          שדות שונים: {{ c.conflictingFields.join(', ') }}
+        </div>
+      </li>
+    </ul>
+
+    <p class="supplier-conflict-howto">
+      כדי להמשיך: השוו את הערכים בין השורות, או לחצו על סימון הספק
+      (<span class="supplier-new-square supplier-conflict-flag-icon"></span>)
+      בשורות שאתם <strong>לא</strong> רוצים שיישמרו לכרטיס הספק.
+    </p>
+  </div>
+
+  <ng-template pTemplate="footer">
+    <div class="supplier-conflict-footer">
+      <app-p-button
+        [buttonText]="'סגור'"
+        [buttonColor]="ButtonColor.BLACK"
+        [buttonSize]="ButtonSize.AUTO"
+        (onButtonClicked)="closeSupplierConflicts()">
+      </app-p-button>
+    </div>
+  </ng-template>
+
+</p-dialog>
+
+<!-- tx_only "קשר למסמך קיים" — was an inline picker in the (now-removed)
+     status column; same p-dialog idiom as the rest of this stack, opened
+     from the row-actions hover strip's "link" action (startLink). -->
+<p-dialog
+  header="קישור לתנועה"
+  [visible]="linkingTxId() !== null"
+  (visibleChange)="$event ? null : cancelLink()"
+  [modal]="true"
+  [style]="{ width: '480px', maxWidth: '95vw' }"
+  [rtl]="true"
+  [draggable]="false"
+  [resizable]="false">
+
+  <div class="link-dialog-body" *ngIf="linkingRow() as row">
+    <p class="link-dialog-row-label">{{ row.supplier || '(ללא ספק)' }} — {{ row.sumLabel }}</p>
+    <label class="link-dialog-label" for="linkDocSelect">מסמך לקישור</label>
+    <select id="linkDocSelect"
+            class="cell-editable link-dialog-select"
+            [ngModel]="selectedDocForLink()"
+            (ngModelChange)="selectedDocForLink.set($event)">
+      <option [ngValue]="null">— בחר מסמך —</option>
+      <option *ngFor="let dr of docOnlyRows()" [ngValue]="dr.documentId">
+        {{ dr.supplier || '(ללא ספק)' }} — ₪{{ dr.amount }} — {{ dr.date }}
+      </option>
+    </select>
+  </div>
+
+  <ng-template pTemplate="footer">
+    <div class="link-dialog-footer">
+      <app-p-button
+        [buttonText]="'ביטול'"
+        [buttonColor]="ButtonColor.BLACK"
+        [buttonSize]="ButtonSize.AUTO"
+        [variant]="'outlined'"
+        (onButtonClicked)="cancelLink()">
+      </app-p-button>
+      <app-p-button
+        [buttonText]="'אישור'"
+        [buttonColor]="ButtonColor.BLACK"
+        [buttonSize]="ButtonSize.AUTO"
+        [isLoading]="isActioning()"
+        [disabled]="!selectedDocForLink() || !linkingRow()"
+        (onButtonClicked)="confirmLink(linkingRow()!)">
+      </app-p-button>
+    </div>
+  </ng-template>
+
+</p-dialog>
+
+<!-- D8 triage — "מיין" on an UNIDENTIFIED row. Same conversion: was an
+     inline picker in the (now-removed) status column, now a p-dialog
+     opened from the row-actions hover strip's "triage" action (startTriage). -->
+<p-dialog
+  header="מה המסמך הזה?"
+  [visible]="triagingRowKey() !== null"
+  (visibleChange)="$event ? null : cancelTriage()"
+  [modal]="true"
+  [style]="{ width: '420px', maxWidth: '95vw' }"
+  [rtl]="true"
+  [draggable]="false"
+  [resizable]="false">
+
+  <div class="triage-dialog-body" *ngIf="triagingRow() as row">
+    <p class="triage-dialog-row-label">{{ row.supplier || '(ללא ספק)' }} — {{ row.sumLabel }}</p>
+  </div>
+
+  <ng-template pTemplate="footer">
+    <div class="triage-dialog-footer">
+      <app-p-button
+        [buttonText]="'ביטול'"
+        [buttonColor]="ButtonColor.BLACK"
+        [buttonSize]="ButtonSize.AUTO"
+        [variant]="'outlined'"
+        (onButtonClicked)="cancelTriage()">
+      </app-p-button>
+      <app-p-button
+        [buttonText]="'מסמך שנתי'"
+        [buttonColor]="ButtonColor.BLACK"
+        [buttonSize]="ButtonSize.AUTO"
+        [isLoading]="isActioning()"
+        [disabled]="!triagingRow()"
+        (onButtonClicked)="confirmTriage(triagingRow()!, 'ANNUAL_DOCUMENT')">
+      </app-p-button>
+      <app-p-button
+        [buttonText]="'חשבונית הוצאה'"
+        [buttonColor]="ButtonColor.BLACK"
+        [buttonSize]="ButtonSize.AUTO"
+        [isLoading]="isActioning()"
+        [disabled]="!triagingRow()"
+        (onButtonClicked)="confirmTriage(triagingRow()!, 'EXPENSE_INVOICE')">
+      </app-p-button>
+    </div>
+  </ng-template>
+
+</p-dialog>
