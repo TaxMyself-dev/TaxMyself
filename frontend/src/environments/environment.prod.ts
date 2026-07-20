@@ -1,6 +1,12 @@
 export const environment = {
   production: true,
   apiUrl: 'https://taxmys16elf-prod-tau7bgxb3q-zf.a.run.app/',
+  /**
+   * CardCom Open Fields embedded change-payment-method dialog.
+   * Disabled in production until CardCom confirms CreateTokenOnly support and
+   * terminal enablement for Open Fields — the redirect flow is used meanwhile.
+   */
+  openFieldsChangePaymentMethod: false,
   firebase: {
     apiKey: "AIzaSyAd1L-ZpbvU_rLSEin0_MjvzZQYfNX51i0",
     authDomain: "taxmyself-prod.firebaseapp.com",

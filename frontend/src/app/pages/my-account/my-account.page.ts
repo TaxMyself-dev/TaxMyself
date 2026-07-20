@@ -179,6 +179,13 @@ export class MyAccountPage implements OnInit {
   readonly resendingReceiptEmail = signal(false);
   readonly retryingInvoice = signal(false);
   private readonly cardcomRedirectFailure = signal<{ responseCode: string | null; status: string | null } | null>(null);
+  /**
+   * Which CardCom flow the current return belongs to. Set from a sessionStorage
+   * marker written before redirect (change-payment-method sets 'CHANGE_PM';
+   * checkout leaves it unset → 'CHECKOUT'). Drives which banner is shown, since
+   * both flows share the same success/failed redirect URL.
+   */
+  private readonly cardcomFlow = signal<'CHECKOUT' | 'CHANGE_PM'>('CHECKOUT');
   private paymentReturnDetectedAt = 0;
   private paymentPollAttempts = 0;
   /**
@@ -215,6 +222,8 @@ export class MyAccountPage implements OnInit {
     | null
   >(() => {
     if (!this.cardcomReturnDetected() || this.paymentBannerDismissed()) return null;
+    // Change-payment-method returns are handled by paymentMethodResultBanner.
+    if (this.cardcomFlow() === 'CHANGE_PM') return null;
 
     const redirectFailure = this.cardcomRedirectFailure();
     if (redirectFailure) {
@@ -276,6 +285,56 @@ export class MyAccountPage implements OnInit {
     }
 
     return processingState;
+  });
+
+  /**
+   * Banner shown after returning from a change-payment-method (CreateTokenOnly)
+   * flow. Never involves a charge/receipt — it only confirms the saved card was
+   * replaced. Driven by billing/me's paymentMethodUpdateResult.
+   */
+  readonly paymentMethodResultBanner = computed<
+    | { kind: 'success'; message: string }
+    | { kind: 'failed'; message: string; detail?: string }
+    | { kind: 'unknown'; message: string }
+    | { kind: 'processing'; message: string }
+    | null
+  >(() => {
+    if (!this.cardcomReturnDetected() || this.paymentBannerDismissed()) return null;
+    if (this.cardcomFlow() !== 'CHANGE_PM') return null;
+
+    const redirectFailure = this.cardcomRedirectFailure();
+    if (redirectFailure) {
+      return {
+        kind: 'failed',
+        message: 'החלפת אמצעי התשלום נכשלה',
+        detail: redirectFailure.responseCode ? `קוד שגיאה: ${redirectFailure.responseCode}` : undefined,
+      };
+    }
+
+    const result = this.billingStateService.paymentMethodUpdateResult();
+    const isFresh =
+      !!result &&
+      new Date(result.createdAt).getTime() >= this.paymentReturnDetectedAt - this.PAYMENT_FRESHNESS_WINDOW_MS;
+
+    if (isFresh && result) {
+      if (result.status === 'SUCCESS') {
+        const cardLabel = result.last4 ? ` (מסתיים ב-${result.last4})` : '';
+        return { kind: 'success', message: `אמצעי התשלום עודכן בהצלחה${cardLabel}.` };
+      }
+      return { kind: 'failed', message: 'החלפת אמצעי התשלום נכשלה', detail: result.failureReason ?? undefined };
+    }
+
+    // No charge occurs in this flow, so a lost webhook is low-risk — show a calm
+    // "still processing" message that resolves to an informational note on timeout.
+    if (this.paymentTimedOut()) {
+      return {
+        kind: 'unknown',
+        message:
+          'לא הצלחנו לאשר את עדכון אמצעי התשלום באופן אוטומטי.\n' +
+          'ייתכן שהעדכון עדיין מתבצע — רענן/י את העמוד בעוד מספר דקות.',
+      };
+    }
+    return { kind: 'processing', message: 'מעדכנים את אמצעי התשלום שלך...' };
   });
 
 
@@ -514,6 +573,13 @@ export class MyAccountPage implements OnInit {
     this.paymentBannerDismissed.set(false);
     this.paymentReturnDetectedAt = Date.now();
 
+    // Which flow are we returning from? Set before redirect (change-payment-method
+    // writes 'CHANGE_PM'; checkout leaves it unset). Consume the one-shot marker.
+    const flowMarker =
+      typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('tm.cardcomFlow') : null;
+    this.cardcomFlow.set(flowMarker === 'CHANGE_PM' ? 'CHANGE_PM' : 'CHECKOUT');
+    if (typeof sessionStorage !== 'undefined') sessionStorage.removeItem('tm.cardcomFlow');
+
     // CardCom convention: ResponseCode/Status === '0' means success.
     const redirectIndicatesFailure =
       (responseCode != null && responseCode !== '0') || (status != null && status !== '0');
@@ -555,6 +621,30 @@ export class MyAccountPage implements OnInit {
   }
 
   private pollPaymentResultTick(): void {
+    // Change-payment-method flow: resolve on a fresh paymentMethodUpdateResult.
+    if (this.cardcomFlow() === 'CHANGE_PM') {
+      const pm = this.billingStateService.paymentMethodUpdateResult();
+      const pmFresh =
+        !!pm &&
+        new Date(pm.createdAt).getTime() >= this.paymentReturnDetectedAt - this.PAYMENT_FRESHNESS_WINDOW_MS;
+
+      if (pmFresh || this.paymentPollAttempts >= this.PAYMENT_POLL_MAX_ATTEMPTS) {
+        this.paymentPolling.set(false);
+        if (this.paymentTimeoutHandle) {
+          clearTimeout(this.paymentTimeoutHandle);
+          this.paymentTimeoutHandle = null;
+        }
+        return;
+      }
+
+      this.paymentPolling.set(true);
+      this.paymentPollAttempts++;
+      setTimeout(() => {
+        this.billingStateService.refreshBillingState().finally(() => this.pollPaymentResultTick());
+      }, this.PAYMENT_POLL_INTERVAL_MS);
+      return;
+    }
+
     const result = this.billingStateService.billingPaymentResult();
     const isFresh =
       !!result &&

@@ -1,8 +1,10 @@
 import { CommonModule } from '@angular/common';
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { MessageService } from 'primeng/api';
+import { environment } from 'src/environments/environment';
 import { ButtonComponent } from 'src/app/components/button/button.component';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
+import { ChangePaymentMethodDialogComponent } from 'src/app/components/change-payment-method-dialog/change-payment-method-dialog.component';
 import { GenericTableComponent } from 'src/app/components/generic-table/generic-table.component';
 import { FilesService } from 'src/app/services/files.service';
 import {
@@ -28,7 +30,12 @@ const STATUS_LABELS: Record<string, string> = {
 @Component({
   selector: 'app-my-subscription-tab',
   standalone: true,
-  imports: [CommonModule, GenericTableComponent, ButtonComponent],
+  imports: [
+    CommonModule,
+    GenericTableComponent,
+    ButtonComponent,
+    ChangePaymentMethodDialogComponent,
+  ],
   templateUrl: './my-subscription-tab.component.html',
   styleUrls: ['./my-subscription-tab.component.scss'],
 })
@@ -48,6 +55,19 @@ export class MySubscriptionTabComponent implements OnInit {
   readonly historyLoading = signal(false);
   /** eventId whose receipt download is in flight (disables that row's button). */
   readonly downloadingEventId = signal<number | null>(null);
+  /** True while the change-payment-method request is in flight (before redirect). */
+  readonly changingPaymentMethod = signal(false);
+  /** Open Fields dialog visibility (feature-flagged embedded flow). */
+  readonly changePmDialogOpen = signal(false);
+
+  /**
+   * Whether replacing the saved card is allowed — only for ACTIVE / PAST_DUE
+   * subscriptions (a saved card exists to replace). Mirrors the backend rule.
+   */
+  readonly canChangePaymentMethod = computed(() => {
+    const s = this.status();
+    return s === 'ACTIVE' || s === 'PAST_DUE';
+  });
 
   // ─── Status card view model ─────────────────────────────────────────────────
 
@@ -191,6 +211,48 @@ export class MySubscriptionTabComponent implements OnInit {
       .then((rows) => this.paymentHistory.set(rows ?? []))
       .catch(() => this.paymentHistory.set([]))
       .finally(() => this.historyLoading.set(false));
+  }
+
+  /**
+   * Starts the change-payment-method flow.
+   *
+   * Feature flag ON  → opens the embedded Open Fields dialog (no redirect; the
+   *   dialog creates the LowProfile, hosts the CardCom iframes, and waits for
+   *   the webhook via billing/me polling).
+   * Feature flag OFF → legacy flow: calls the backend, then redirects to the
+   *   CardCom hosted page. On return, my-account resolves the outcome via
+   *   billing/me (paymentMethodUpdateResult).
+   */
+  changePaymentMethod(): void {
+    if (this.changingPaymentMethod() || !this.canChangePaymentMethod()) return;
+
+    if (environment.openFieldsChangePaymentMethod) {
+      this.changePmDialogOpen.set(true);
+      return;
+    }
+
+    this.changingPaymentMethod.set(true);
+    this.billingStateService
+      .changePaymentMethod()
+      .then((result) => {
+        // Marker read by my-account on return to show the change-payment-method
+        // banner instead of the checkout payment banner (both share the CardCom
+        // success/failed redirect URL).
+        if (typeof sessionStorage !== 'undefined') {
+          sessionStorage.setItem('tm.cardcomFlow', 'CHANGE_PM');
+        }
+        window.location.href = result.paymentUrl;
+      })
+      .catch((err) => {
+        this.changingPaymentMethod.set(false);
+        this.messageService.add({
+          severity: 'error',
+          summary: 'שגיאה',
+          detail: err?.error?.message ?? 'לא ניתן להחליף אמצעי תשלום כעת. נסה שוב מאוחר יותר.',
+          life: 5000,
+          key: 'br',
+        });
+      });
   }
 
   private downloadReceipt(eventId: number): void {

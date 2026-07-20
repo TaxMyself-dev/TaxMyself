@@ -244,6 +244,106 @@ export class BillingEventService {
     }
   }
 
+  /**
+   * Returns the most recent PAYMENT_METHOD_UPDATED or PAYMENT_METHOD_UPDATE_FAILED
+   * event for the user. Used by billing/me to report the outcome of a
+   * change-payment-method flow after the user returns from CardCom. Read-only.
+   */
+  async findLatestPaymentMethodUpdateResultEvent(firebaseId: string): Promise<BillingEvent | null> {
+    try {
+      return await this.billingEventRepo.findOne({
+        where: {
+          firebaseId,
+          eventType: In([
+            BillingEventType.PAYMENT_METHOD_UPDATED,
+            BillingEventType.PAYMENT_METHOD_UPDATE_FAILED,
+          ]),
+        },
+        order: { createdAt: 'DESC' },
+      });
+    } catch (error) {
+      this.logger.error(
+        `findLatestPaymentMethodUpdateResultEvent failed for firebaseId=${firebaseId}: ${(error as Error)?.message ?? error}`,
+      );
+      return null;
+    }
+  }
+
+  /**
+   * The PAYMENT_METHOD_UPDATE_REQUESTED event that opened a specific
+   * change-payment-method attempt, identified by its CardCom LowProfileId.
+   *
+   * This is the anchor for correlating one attempt end-to-end: it carries both
+   * the subscription and the moment the attempt started, which is what lets the
+   * status endpoint decide whether a later `payment_method` write belongs to
+   * THIS attempt rather than an earlier one.
+   *
+   * Scoped by firebaseId so a LowProfileId guessed by another user resolves to
+   * nothing.
+   */
+  async findPaymentMethodUpdateRequest(
+    firebaseId: string,
+    lowProfileId: string,
+  ): Promise<BillingEvent | null> {
+    try {
+      return await this.billingEventRepo
+        .createQueryBuilder('e')
+        .where('e.firebaseId = :firebaseId', { firebaseId })
+        .andWhere('e.eventType = :eventType', {
+          eventType: BillingEventType.PAYMENT_METHOD_UPDATE_REQUESTED,
+        })
+        .andWhere(
+          "JSON_UNQUOTE(JSON_EXTRACT(e.metadata, '$.cardcomLowProfileId')) = :lowProfileId",
+          { lowProfileId },
+        )
+        .orderBy('e.createdAt', 'DESC')
+        .getOne();
+    } catch (error) {
+      this.logger.error(
+        `findPaymentMethodUpdateRequest failed for lowProfileId=${lowProfileId}: ${(error as Error)?.message ?? error}`,
+      );
+      return null;
+    }
+  }
+
+  /**
+   * Terminal outcome (updated or failed) recorded for a specific LowProfileId.
+   * Both the webhook and the reconciliation path stamp `metadata.lowProfileId`,
+   * so this resolves whichever one got there first.
+   *
+   * Callers must NOT treat a null here as "not finished" — the event write is
+   * best-effort (see logEvent) and can fail after the card was already replaced.
+   * BillingService.getChangePaymentMethodStatus cross-checks the actual
+   * payment_method row for exactly that reason.
+   */
+  async findPaymentMethodUpdateOutcome(
+    firebaseId: string,
+    lowProfileId: string,
+  ): Promise<BillingEvent | null> {
+    try {
+      return await this.billingEventRepo
+        .createQueryBuilder('e')
+        .where('e.firebaseId = :firebaseId', { firebaseId })
+        .andWhere('e.eventType IN (:...eventTypes)', {
+          eventTypes: [
+            BillingEventType.PAYMENT_METHOD_UPDATED,
+            BillingEventType.PAYMENT_METHOD_UPDATE_FAILED,
+          ],
+        })
+        .andWhere(
+          "JSON_UNQUOTE(JSON_EXTRACT(e.metadata, '$.lowProfileId')) = :lowProfileId",
+          { lowProfileId },
+        )
+        .orderBy('e.createdAt', 'DESC')
+        .getOne();
+    } catch (error) {
+      this.logger.error(
+        `findPaymentMethodUpdateOutcome failed for lowProfileId=${lowProfileId}: ${(error as Error)?.message ?? error}`,
+      );
+      return null;
+    }
+  }
+
   async findPaymentEventById(eventId: number): Promise<BillingEvent | null> {
     try {
       return await this.billingEventRepo.findOne({ where: { id: eventId } });

@@ -2,10 +2,16 @@
 
   <!-- ─── 1. Subscription status ─── -->
   <section class="sub-card status-card">
-    <h3 class="subsection-title">סטטוס המנוי</h3>
+    <div class="subsection-header">
+      <span class="subsection-icon"><i class="pi pi-shield"></i></span>
+      <h3 class="subsection-title">סטטוס המנוי</h3>
+    </div>
 
     @if (billingLoading() && !billingState()) {
-      <p class="muted">טוען...</p>
+      <div class="card-loading">
+        <i class="pi pi-spin pi-spinner"></i>
+        <span>טוען...</span>
+      </div>
     } @else {
       <div class="status-grid">
         <div class="status-row">
@@ -66,7 +72,10 @@
 
   <!-- ─── 2. Payment method ─── -->
   <section class="sub-card">
-    <h3 class="subsection-title">אמצעי תשלום</h3>
+    <div class="subsection-header">
+      <span class="subsection-icon"><i class="pi pi-credit-card"></i></span>
+      <h3 class="subsection-title">אמצעי תשלום</h3>
+    </div>
 
     @if (paymentMethod(); as pm) {
       <div class="credit-card" dir="ltr">
@@ -89,28 +98,44 @@
         </div>
       </div>
     } @else {
-      <p class="muted">לא נשמר אמצעי תשלום.</p>
+      <div class="pm-empty">
+        <span class="pm-empty-icon"><i class="pi pi-credit-card"></i></span>
+        <p class="pm-empty-text">לא נשמר אמצעי תשלום.</p>
+      </div>
     }
 
     <div class="card-actions">
-      <!-- TODO(Phase 2): wire up "Change payment method" (CardCom token update flow). -->
       <app-p-button
         [buttonText]="'החלף אמצעי תשלום'"
         [buttonColor]="buttonColor.WHITE_BORDER"
         [buttonSize]="buttonSize.SMALL"
-        [disabled]="true">
+        [isLoading]="changingPaymentMethod()"
+        [disabled]="!canChangePaymentMethod() || changingPaymentMethod()"
+        (onButtonClicked)="changePaymentMethod()">
       </app-p-button>
     </div>
   </section>
 
+  <!-- Embedded Open Fields change-payment-method dialog (feature-flagged). -->
+  <app-change-payment-method-dialog [(visible)]="changePmDialogOpen" />
+
   <!-- ─── 3. Payment history ─── -->
   <section class="sub-card">
-    <h3 class="subsection-title">היסטוריית תשלומים</h3>
+    <div class="subsection-header">
+      <span class="subsection-icon"><i class="pi pi-history"></i></span>
+      <h3 class="subsection-title">היסטוריית תשלומים</h3>
+    </div>
 
     @if (historyLoading()) {
-      <p class="muted">טוען...</p>
+      <div class="card-loading">
+        <i class="pi pi-spin pi-spinner"></i>
+        <span>טוען...</span>
+      </div>
     } @else if (paymentHistory().length === 0) {
-      <p class="muted">אין תשלומים להצגה.</p>
+      <div class="pm-empty">
+        <span class="pm-empty-icon"><i class="pi pi-receipt"></i></span>
+        <p class="pm-empty-text">אין תשלומים להצגה.</p>
+      </div>
     } @else {
       <app-generic-table
         [dataTable]="historyRows()"

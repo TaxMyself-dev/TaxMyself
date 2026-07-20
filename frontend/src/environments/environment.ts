@@ -5,7 +5,12 @@
 
 export const environment = {
   production: false,
-  apiUrl: 'http://localhost:3000/',
+  apiUrl: 'http://localhost:4000/',
+  /**
+   * CardCom Open Fields embedded change-payment-method dialog.
+   * false → the legacy hosted-page redirect flow is used unchanged.
+   */
+  openFieldsChangePaymentMethod: true,
   firebase: {
     apiKey: "AIzaSyClSnN3fRAb9aQVt2kMEkLygsNExwQD7fo",
     authDomain: "taxmyself-5d8a0.firebaseapp.com",

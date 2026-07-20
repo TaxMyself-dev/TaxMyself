@@ -351,6 +351,38 @@
     </div>
     }
 
+    <!-- ─── Change-payment-method result banner (CreateTokenOnly — never a charge) ─── -->
+    @if (paymentMethodResultBanner(); as pmBanner) {
+    <div class="payment-result-banner"
+         [class.payment-result-banner--success]="pmBanner.kind === 'success'"
+         [class.payment-result-banner--error]="pmBanner.kind === 'failed'"
+         [class.payment-result-banner--unknown]="pmBanner.kind === 'unknown'"
+         [class.payment-result-banner--processing]="pmBanner.kind === 'processing'">
+        <div class="payment-result-banner__icon">
+            @if (pmBanner.kind === 'success') {
+                <i class="pi pi-check-circle"></i>
+            } @else if (pmBanner.kind === 'failed') {
+                <i class="pi pi-times-circle"></i>
+            } @else if (pmBanner.kind === 'unknown') {
+                <i class="pi pi-info-circle"></i>
+            } @else {
+                <p-progressSpinner strokeWidth="6" [style]="{width: '22px', height: '22px'}"></p-progressSpinner>
+            }
+        </div>
+        <div class="payment-result-banner__text">
+            <p class="payment-result-banner__message">{{ pmBanner.message }}</p>
+            @if (pmBanner.kind === 'failed' && pmBanner.detail) {
+                <p class="payment-result-banner__detail">{{ pmBanner.detail }}</p>
+            }
+        </div>
+        @if (pmBanner.kind !== 'processing' && pmBanner.kind !== 'unknown') {
+            <button class="payment-result-banner__close" (click)="dismissPaymentResultBanner()" aria-label="סגור">
+                <i class="pi pi-times"></i>
+            </button>
+        }
+    </div>
+    }
+
     <div class="user-info-block">
         <div class="user-info-row">
             <p-avatar class="my-account-avatar" [label]="(userData?.fName?.charAt(0) || '') + (userData?.lName?.charAt(0) || '')" size="xlarge" shape="circle"></p-avatar>
