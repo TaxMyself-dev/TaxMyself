@@ -9,7 +9,7 @@ import { BusinessStatus, FormTypes, ICellRenderer, inputsSize, ReportingPeriodTy
 import { ButtonSize } from 'src/app/components/button/button.enum';
 import { ExpenseFormColumns, ExpenseFormHebrewColumns } from 'src/app/shared/enums';
 import { IColumnDataTable, IRowDataTable, ISelectItem, ITableRowAction, IUserData, IVatReportData } from 'src/app/shared/interface';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { FilesService, IFileUploadItem } from 'src/app/services/files.service';
 import { ModalController } from '@ionic/angular';
 import { PopupConfirmComponent } from 'src/app/shared/popup-confirm/popup-confirm.component';
@@ -37,6 +37,7 @@ export class VatReportJournalPage implements OnInit {
 
   confirmationService = inject(ConfirmationService);
   private reportReviewService = inject(ReportReviewService);
+  private route = inject(ActivatedRoute);
 
   // Business related
   businessNumber = signal<string>("");
@@ -57,10 +58,6 @@ export class VatReportJournalPage implements OnInit {
    *  as confirmed expenses before they get classified into the VAT report. */
   visibleInboxDialog = signal<boolean>(false);
 
-  /** Visibility for the new unified report-review modal. Supersedes the
-   *  two-step chain (visibleInboxDialog → visibleConfirmTransDialog) — one
-   *  modal now handles both documents and transactions in one table. */
-  visibleReviewDialog = signal<boolean>(false);
 
   /** True when the report for the currently-selected period has already been
    *  marked as submitted (any transaction in the period has `isLocked = true`).
@@ -76,6 +73,13 @@ export class VatReportJournalPage implements OnInit {
 
   years: number[] = Array.from({ length: 15 }, (_, i) => new Date().getFullYear() - i);
   vatReportData = signal<IVatReportData>(null);
+  /** Raw (unformatted) vatableTurnover from the last fetch — mirrors P&L's
+   *  incomeRaw/incomeEdited so a manual edit of "עסקאות חייבות" survives
+   *  into the exported PDF instead of being silently re-derived (usually 0)
+   *  from the journal. */
+  vatableTurnoverRaw: number = 0;
+  /** True once the user has manually edited "עסקאות חייבות" in-browser. */
+  vatableTurnoverEdited: boolean = false;
   arrayLength = signal<number>(0);
   isLoadingButtonConfirmDialog = signal<boolean>(false);
   isLoadingStatePeryodSelectButton = signal<boolean>(false);
@@ -147,6 +151,23 @@ export class VatReportJournalPage implements OnInit {
     const businesses = this.gs.businesses();
     this.businessNumber.set(businesses[0].businessNumber);
 
+    // Returning from /report-review (the query params it navigates back
+    // with) — reload the report for the same business/period the user was
+    // reviewing instead of waiting for them to re-submit the filter form.
+    const returnParams = this.route.snapshot.queryParamMap;
+    if (returnParams.get('reviewed')) {
+      const bn = returnParams.get('businessNumber') ?? this.businessNumber();
+      const start = returnParams.get('startDate') ?? '';
+      const end = returnParams.get('endDate') ?? '';
+      this.businessNumber.set(bn);
+      this.startDate.set(start);
+      this.endDate.set(end);
+      this.isRequestSent.set(true);
+      this.isLoadingStatePeryodSelectButton.set(true);
+      this.getVatReportData(start, end, bn);
+      this.getDataTable(start, end, bn);
+    }
+
     const currentYear = new Date().getFullYear();
     const currentMonth = new Date().getMonth() + 1;
     const defaultMonthValue = this.gs.getDefaultMonthValue(currentMonth, ReportingPeriodType.BIMONTHLY);
@@ -185,6 +206,8 @@ export class VatReportJournalPage implements OnInit {
         this.rows = [];
         this.isRequestSent.set(false);
         this.arrayLength.set(0);
+        this.vatableTurnoverRaw = 0;
+        this.vatableTurnoverEdited = false;
         // New period selected — submission state is unknown until the next
         // report fetch resolves it.
         this.reportSubmitted.set(false);
@@ -296,7 +319,7 @@ export class VatReportJournalPage implements OnInit {
     // On any network failure the safe fallback is to open the modal
     // (better to surface review rows the user might miss than to skip
     // them silently).
-    this.reportReviewService.previewCheck(effectiveBusiness)
+    this.reportReviewService.previewCheck(effectiveBusiness, endDate)
       .pipe(catchError(() => of({ hasPendingDocs: true, hasUnconfirmedExpenses: true })))
       .subscribe(check => {
         if (!check.hasPendingDocs && !check.hasUnconfirmedExpenses) {
@@ -322,18 +345,16 @@ export class VatReportJournalPage implements OnInit {
   }
 
   /** Pre-flight found pending work. Ask the user whether to review now
-   *  (opens the full modal) or skip (jump to the report). The Hebrew
-   *  message references whichever signals tripped so the user knows what
-   *  they're being asked about. */
+   *  (navigates to /report-review) or skip (jump to the report). The
+   *  Hebrew message references whichever signals tripped so the user
+   *  knows what they're being asked about. */
   private promptReviewBeforeReport(
     check: { hasPendingDocs: boolean; hasUnconfirmedExpenses: boolean },
   ): void {
     // Clear the page-loader before the prompt opens so the user sees the
-    // confirm dialog without a spinner stacked behind it. The loader
-    // re-engages on Yes (review dialog has its own spinner — see the
-    // `&& !visibleReviewDialog()` guard in the HTML) and on No
-    // (proceedDirectlyToReport reverts to getVatReportData which keeps
-    // isLoadingStatePeryodSelectButton true until its finalize fires).
+    // confirm dialog without a spinner stacked behind it. On No,
+    // proceedDirectlyToReport reverts to getVatReportData which keeps
+    // isLoadingStatePeryodSelectButton true until its finalize fires.
     this.isLoadingStatePeryodSelectButton.set(false);
     const reasons: string[] = [];
     if (check.hasPendingDocs) reasons.push('מסמכים שעדיין לא אושרו');
@@ -349,23 +370,19 @@ export class VatReportJournalPage implements OnInit {
       acceptButtonProps: { severity: 'contrast', label: 'כן' },
       rejectButtonProps: { severity: 'contrast', label: 'לא כרגע' },
       accept: () => {
-        this.visibleReviewDialog.set(true);
+        this.router.navigate(['report-review'], {
+          queryParams: {
+            businessNumber: this.businessNumber(),
+            startDate: this.startDate(),
+            endDate: this.endDate(),
+            returnTo: 'vat-report',
+          },
+        });
       },
       reject: () => {
         this.proceedDirectlyToReport();
       },
     });
-  }
-
-  /** Unified review dialog closed (auto when nothing to review, or
-   *  manual after the user works through every row). Proceed straight to
-   *  the report data load — no trans-confirm middle step. */
-  onReviewDialogVisibleChange(visible: boolean): void {
-    this.visibleReviewDialog.set(visible);
-    if (!visible) {
-      this.getVatReportData(this.startDate(), this.endDate(), this.businessNumber());
-      this.getDataTable(this.startDate(), this.endDate(), this.businessNumber());
-    }
   }
 
   
@@ -434,6 +451,8 @@ export class VatReportJournalPage implements OnInit {
         console.log("🚀 ~ VatReportJournalPage ~ getVatReportData ~ res:", res);
 
         this.vatReportData.set(res);
+        this.vatableTurnoverRaw = this.genericService.convertStringToNumber(res.vatableTurnover);
+        this.vatableTurnoverEdited = false;
         console.log("🚀 ~ VatReportJournalPage ~ .subscribe ~ this.vatReportData in subscribe:", this.vatReportData())
       });
 
@@ -451,6 +470,11 @@ export class VatReportJournalPage implements OnInit {
       console.log("event is empty string, setting to 0");
       event = '0';
     }
+
+    // Mirrors P&L's incomeRaw/incomeEdited — the exported PDF uses this
+    // override instead of re-deriving vatableTurnover (usually 0) from the journal.
+    this.vatableTurnoverRaw = this.genericService.convertStringToNumber(event);
+    this.vatableTurnoverEdited = true;
 
     // Step 1: Update vatableTurnover
     this.vatReportData.update((prev) => ({
@@ -694,9 +718,11 @@ export class VatReportJournalPage implements OnInit {
             if (row.file != undefined && row.file != null && row.file != "") {
               tableData[this.UPLOAD_FILE_FIELD_NAME] = row.file; // to show that this expense already has a file
             }
-            // totalVatPayable / totalTaxPayable stay as raw numbers — the
-            // AMOUNT_WITH_PERCENT cell renderer formats them via the number pipe.
-            tableData.sum = this.genericService.addComma(tableData.sum as string);
+            // sum / totalVatPayable / totalTaxPayable all stay as raw numbers —
+            // the AMOUNT_ILS / AMOUNT_WITH_PERCENT cell renderers format them
+            // via the number pipe. Pre-formatting sum with addComma() here used
+            // to hand the pipe a comma-containing string (e.g. "53,100"), which
+            // it can't parse — any sum ≥ 1000 silently rendered as "0 ש״ח".
             rows.push(tableData);
           })
           this.rows = rows;
@@ -872,7 +898,8 @@ export class VatReportJournalPage implements OnInit {
     if (!this.vatReportData()) return;
 
     this.isLoadingPDF.set(true);
-    this.vatReportService.generateVatReportPDF(this.startDate(), this.endDate(), this.businessNumber())
+    const vatableTurnoverOverride = this.vatableTurnoverEdited ? this.vatableTurnoverRaw : undefined;
+    this.vatReportService.generateVatReportPDF(this.startDate(), this.endDate(), this.businessNumber(), vatableTurnoverOverride)
       .pipe(
         catchError((err) => {
           console.error('error generating vat report pdf: ', err);

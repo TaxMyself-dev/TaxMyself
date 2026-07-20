@@ -2197,7 +2197,12 @@ export class ExpensesService {
                     note: undefined as any,
                     file: undefined as any,
                     reductionPercent: 0,
-                    isEquipment: !!item.isEquipment,
+                    // Don't force a hard boolean here — undefined lets
+                    // applyClassificationToExpense fall back to the resolved
+                    // card's isEquipment instead of this being silently
+                    // overridden by a stale/default caller value (same class
+                    // of bug fixed in report-review.service.ts's approve*).
+                    isEquipment: item.isEquipment,
                 };
 
                 const expense = await this.addExpense(dto, firebaseId, businessNumber);
@@ -2234,7 +2239,11 @@ export class ExpensesService {
                                     vatPercent: item.vatPercent,
                                     userId: firebaseId,
                                     businessNumber,
-                                    isEquipment: !!item.isEquipment,
+                                    // The resolved expense's snapshot (post-
+                                    // classification), not the raw input —
+                                    // matches addExpense's own supplier
+                                    // auto-create pattern (see resolveExpenseClassification).
+                                    isEquipment: !!expense.isEquipmentSnapshot,
                                     reductionPercent: 0,
                                 }),
                             );
@@ -2365,7 +2374,10 @@ export interface BulkConfirmFromDriveItem {
     subCategory: string;
     vatPercent: number;
     taxPercent: number;
-    isEquipment: boolean;
+    /** Optional — leave unset to let the resolved card's isEquipment win
+     *  (see addExpense/applyClassificationToExpense). Only set this for a
+     *  genuine explicit override. */
+    isEquipment?: boolean;
     saveAsSupplier: boolean;
     /** Period label override ("M/YYYY" or "M1-M2/YYYY"). When omitted the
      *  service derives the label from `date` + the business's VAT cadence. */

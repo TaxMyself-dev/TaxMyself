@@ -21,13 +21,18 @@ export class VatReportJournalService {
   }
 
 
-  /** Server-rendered (pdfkit) VAT report PDF — includes the expense line-item breakdown. */
-  generateVatReportPDF(startDate: string, endDate: string, businessNumber: string): Observable<Blob> {
+  /** Server-rendered (pdfkit) VAT report PDF — includes the expense line-item breakdown.
+   *  `vatableTurnoverOverride` mirrors a manual edit made in the on-screen
+   *  "עסקאות חייבות" field so the exported PDF matches it. */
+  generateVatReportPDF(startDate: string, endDate: string, businessNumber: string, vatableTurnoverOverride?: number): Observable<Blob> {
     const url = `${environment.apiUrl}reports/vat-report-pdf`;
-    const params = new HttpParams()
+    let params = new HttpParams()
       .set('startDate', startDate)
       .set('endDate', endDate)
       .set('businessNumber', businessNumber);
+    if (vatableTurnoverOverride !== undefined) {
+      params = params.set('vatableTurnoverOverride', String(vatableTurnoverOverride));
+    }
     return this.http.get(url, { params, responseType: 'blob' });
   }
 

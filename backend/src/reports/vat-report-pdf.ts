@@ -6,10 +6,10 @@ export interface VatReportPdfExpenseRow {
   supplier: string;
   date: string;
   sum: number;
-  category: string;
   subCategory: string;
   totalVatPayable: number;
-  totalTaxPayable: number;
+  /** `vatPercentSnapshot` off the expense — the recognized-for-VAT percentage shown under the ₪ amount. */
+  vatPercent: number;
 }
 
 export interface VatReportPdfMeta {
@@ -36,13 +36,11 @@ const VAT_LABELS: { key: keyof VatReportDto | 'vatOnVatableTurnover'; label: str
 ];
 
 const EXPENSE_COLUMNS: { key: keyof VatReportPdfExpenseRow; label: string; width: number; money?: boolean }[] = [
-  { key: 'supplier', label: 'ספק', width: 0.20 },
-  { key: 'date', label: 'תאריך', width: 0.12 },
-  { key: 'sum', label: 'סכום', width: 0.12, money: true },
-  { key: 'category', label: 'קטגוריה', width: 0.16 },
-  { key: 'subCategory', label: 'תת קטגוריה', width: 0.16 },
-  { key: 'totalVatPayable', label: 'מע"מ', width: 0.12, money: true },
-  { key: 'totalTaxPayable', label: 'הוצאה מוכרת', width: 0.12, money: true },
+  { key: 'supplier', label: 'ספק', width: 0.28 },
+  { key: 'date', label: 'תאריך', width: 0.14 },
+  { key: 'subCategory', label: 'סיווג', width: 0.22 },
+  { key: 'sum', label: 'סה"כ כולל מע"מ', width: 0.18, money: true },
+  { key: 'totalVatPayable', label: 'מוכר למע"מ', width: 0.18, money: true },
 ];
 
 /**
@@ -174,7 +172,9 @@ function renderExpenseTable(
   const { fontR, fontB, pageLeft, pageRight, contentWidth } = ctx;
   const bottomLimit = doc.page.height - doc.page.margins.bottom - 20; // leave room for the footer
   const headerHeight = 22;
-  const rowHeight = 18;
+  // Taller than a single text line because the "מוכר למע"מ" cell stacks the
+  // ₪ amount over the recognized percentage.
+  const rowHeight = 26;
 
   const drawHeader = () => {
     let y = doc.y + 16;
@@ -188,7 +188,10 @@ function renderExpenseTable(
     for (const col of EXPENSE_COLUMNS) {
       const w = col.width * contentWidth;
       x -= w;
+      doc.save();
+      doc.rect(x, y, w, headerHeight).clip();
       drawRtl(doc, col.label, x, y + 6, w, { align: 'right' });
+      doc.restore();
     }
     doc.y = y + headerHeight;
   };
@@ -209,11 +212,26 @@ function renderExpenseTable(
       const w = col.width * contentWidth;
       x -= w;
       const raw = row[col.key];
-      if (col.money) {
-        doc.text(fmtPlain(Number(raw) || 0), x, y + 4, { width: w, align: 'right', lineBreak: false });
+
+      // Clip every cell to its own column box — without this, a long
+      // supplier/subcategory string overflows past its column's left edge
+      // and visually collides with the next cell (drawRtl never clips).
+      doc.save();
+      doc.rect(x, y, w, rowHeight).clip();
+
+      if (col.key === 'totalVatPayable') {
+        doc.font(fontR).fontSize(9).fillColor('#000000');
+        doc.text(fmtPlain(Number(raw) || 0), x, y + 3, { width: w, align: 'right', lineBreak: false });
+        doc.font(fontR).fontSize(7.5).fillColor('#888888');
+        doc.text(`${Math.round(Number(row.vatPercent) || 0)}%`, x, y + 14, { width: w, align: 'right', lineBreak: false });
+        doc.fillColor('#000000').fontSize(9);
+      } else if (col.money) {
+        doc.text(fmtPlain(Number(raw) || 0), x, y + 8, { width: w, align: 'right', lineBreak: false });
       } else {
-        drawRtl(doc, String(raw ?? ''), x, y + 4, w, { align: 'right' });
+        drawRtl(doc, String(raw ?? ''), x, y + 8, w, { align: 'right' });
       }
+
+      doc.restore();
     }
     doc
       .moveTo(pageLeft, y + rowHeight)

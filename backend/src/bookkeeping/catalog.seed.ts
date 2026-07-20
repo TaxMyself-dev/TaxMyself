@@ -52,6 +52,7 @@ export const SYSTEM_CATEGORIES: SystemCategorySeed[] = [
   { name: 'החזרי מס ודוח שנתי', type: CategoryType.EXPENSE },
   { name: 'שונות', type: CategoryType.EXPENSE },
   { name: 'הכנסות', type: CategoryType.INCOME },
+  { name: 'רכוש קבוע (פחת)', type: CategoryType.EXPENSE },
 ];
 
 export const SYSTEM_SUB_CATEGORIES: SystemSubCategorySeed[] = [
@@ -136,4 +137,11 @@ export const SYSTEM_SUB_CATEGORIES: SystemSubCategorySeed[] = [
   { category: 'עסק', name: 'ייעוץ מקצועי', accountCode: '60620' },
   { category: 'החזרי מס ודוח שנתי', name: 'הפקדה לקרן השתלמות', accountCode: '61380' },
   { category: 'החזרי מס ודוח שנתי', name: 'הפקדה לפנסיה', accountCode: '61370' },
+  // Closes the "category 'רכוש קבוע (פחת)' has zero rows in prod" gap
+  // flagged in chart.seed.ts — the 4 cards (61310/61320/61330/61390)
+  // already existed but had no client-facing sub_category pointing at them.
+  { category: 'רכוש קבוע (פחת)', name: 'מחשב', accountCode: '61310' },
+  { category: 'רכוש קבוע (פחת)', name: 'ריהוט', accountCode: '61320' },
+  { category: 'רכוש קבוע (פחת)', name: 'רכב', accountCode: '61330' },
+  { category: 'רכוש קבוע (פחת)', name: 'רכישת משרד', accountCode: '61390' },
 ];

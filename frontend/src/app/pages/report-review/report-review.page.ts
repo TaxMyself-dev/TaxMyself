@@ -1,28 +1,23 @@
-import { CommonModule } from '@angular/common';
 import {
   Component,
   computed,
-  effect,
+  ElementRef,
   inject,
-  input,
-  output,
+  OnInit,
   signal,
   TemplateRef,
+  ViewChild,
 } from '@angular/core';
-import { FormsModule } from '@angular/forms';
+import { ActivatedRoute, Router } from '@angular/router';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
-import { DialogModule } from 'primeng/dialog';
-import { TooltipModule } from 'primeng/tooltip';
 import { MessageService } from 'primeng/api';
 import { EMPTY, catchError, finalize } from 'rxjs';
 
-import { ButtonComponent } from '../button/button.component';
-import { ButtonColor, ButtonSize } from '../button/button.enum';
-import { GenericTableComponent } from '../generic-table/generic-table.component';
+import { ButtonColor, ButtonSize } from '../../components/button/button.enum';
 import { GenericService } from 'src/app/services/generic.service';
 import { AuthService } from 'src/app/services/auth.service';
-import { FormTypes, ICellRenderer, VATReportingType } from 'src/app/shared/enums';
-import { IColumnDataTable, IRowDataTable } from 'src/app/shared/interface';
+import { VATReportingType } from 'src/app/shared/enums';
+import { IColumnDataTable, IRowDataTable, ITableRowAction } from 'src/app/shared/interface';
 import {
   CatalogRow,
   ReportPreviewResponse,
@@ -31,6 +26,7 @@ import {
   ReviewOverrides,
   ReviewRow,
 } from 'src/app/services/report-review.service';
+import { ExpenseEditFieldValues } from 'src/app/components/report-review-edit-dialog/report-review-edit-dialog.component';
 
 /** D9 view modes — one screen, two column sets. Persisted per user. */
 type ReviewViewMode = 'regular' | 'professional';
@@ -158,8 +154,6 @@ interface EditableReviewRow {
 
   // Status-column labels (read-only display). Computed once in
   // toEditableRow so the cellTemplate doesn't have to re-derive them.
-  /** "מסמך + תנועה" | "מסמך בלבד" | "תנועה בלבד" */
-  matchedTypeLabel: string;
   /** "ספק מוכר" | "ספק חדש" — null for tx_only rows (no supplier concept). */
   supplierStatusLabel: string | null;
 
@@ -203,35 +197,34 @@ interface SupplierConflict {
 }
 
 @Component({
-  selector: 'app-report-review-dialog',
-  standalone: true,
-  templateUrl: './report-review-dialog.component.html',
-  styleUrls: ['./report-review-dialog.component.scss'],
-  imports: [
-    CommonModule,
-    FormsModule,
-    DialogModule,
-    TooltipModule,
-    ButtonComponent,
-    GenericTableComponent,
-  ],
+  selector: 'app-report-review',
+  templateUrl: './report-review.page.html',
+  styleUrls: ['./report-review.page.scss'],
+  standalone: false,
 })
-export class ReportReviewDialogComponent {
-  // ---- Inputs / outputs ------------------------------------------------
-  visible = input.required<boolean>();
-  businessNumber = input.required<string>();
-  startDate = input.required<string>();
-  endDate = input.required<string>();
-
-  visibleChange = output<boolean>();
-  processComplete = output<{ hasRows: boolean }>();
+export class ReportReviewPage implements OnInit {
+  // ---- Route-derived state ----------------------------------------------
+  businessNumber = signal<string>('');
+  startDate = signal<string>('');
+  endDate = signal<string>('');
+  /** Route to navigate back to once the review is done — 'vat-report' or
+   *  'pnl-report', carried in as a query param by the page that sent the
+   *  user here. Defaults to 'vat-report' if missing. */
+  private returnRoute = signal<string>('vat-report');
 
   // ---- Deps ------------------------------------------------------------
+  private route = inject(ActivatedRoute);
+  private router = inject(Router);
   private reviewService = inject(ReportReviewService);
   private authService = inject(AuthService);
   private messageService = inject(MessageService);
   private genericService = inject(GenericService);
   private sanitizer = inject(DomSanitizer);
+
+  @ViewChild('uploadInput') uploadInputRef?: ElementRef<HTMLInputElement>;
+  /** Row a tx_only "upload" hover action was triggered on — read by
+   *  onHiddenUploadChange once the (shared, page-level) file input fires. */
+  private pendingUploadRow: EditableReviewRow | null = null;
 
   readonly ButtonColor = ButtonColor;
   readonly ButtonSize = ButtonSize;
@@ -252,11 +245,6 @@ export class ReportReviewDialogComponent {
    *  the client-side live-resolution preview. Loaded once per dialog open. */
   catalog = signal<CatalogRow[]>([]);
 
-  /** D9: does the business owner have an ACTIVE delegation (an accountant
-   *  services them)? From the preview response. Missing-mapping rows show
-   *  "אצל הרו״ח" when true; the simple picker when false. */
-  clientHasActiveDelegation = signal<boolean>(false);
-
   /**
    * D9 view mode. Persisted per user in localStorage; first-ever default is
    * professional for accountants/admins (the ACTOR's role — while
@@ -267,27 +255,25 @@ export class ReportReviewDialogComponent {
   viewMode = signal<ReviewViewMode>('regular');
 
   /** True when the ACTOR (real logged-in user, not the impersonated client)
-   *  is an accountant/admin — gates the inline mapping-completion flow.
-   *  The backend enforces the same gate on complete-mapping. */
+   *  is an accountant/admin — decides the first-ever view-mode default. */
   isActorAccountant = false;
-
-  // ---- Mapping-completion dialog state (accountant, D9 inline row) ----
-  completionVisible = signal<boolean>(false);
-  completionAccountId = signal<number | null>(null);
-  /** "החל גם על סיווגים עתידיים" — checked = repoint the sub_category. */
-  completionApplyFuture = signal<boolean>(true);
-  private completionRow: EditableReviewRow | null = null;
-  completionRowLabel = signal<string>('');
-
-  // ---- Simple-picker dialog state (client without an accountant, D9) ----
-  simplePickerVisible = signal<boolean>(false);
-  simplePickerChoice = signal<number | null>(null); // accountId
-  private simplePickerRow: EditableReviewRow | null = null;
-  simplePickerRowLabel = signal<string>('');
 
   /** Inline link picker state: which tx is in link-mode + the doc selected. */
   linkingTxId = signal<number | null>(null);
   selectedDocForLink = signal<number | null>(null);
+  /** The tx_only row currently in link-mode, for the link-picker dialog body. */
+  linkingRow = computed<EditableReviewRow | null>(() =>
+    this.rows().find(r => r.slimTransactionId === this.linkingTxId()) ?? null,
+  );
+
+  /** Inline D8 triage picker state: which UNIDENTIFIED row is mid-decision
+   *  ("קבע כחשבונית הוצאה" / "קבע כמסמך שנתי"). rowKey, matching the
+   *  edit-lock/link-picker pattern above. */
+  triagingRowKey = signal<string | null>(null);
+  /** The row currently mid-triage, for the triage-picker dialog body. */
+  triagingRow = computed<EditableReviewRow | null>(() =>
+    this.rows().find(r => r.rowKey === this.triagingRowKey()) ?? null,
+  );
 
   /** SupplierIds the user has touched (picked a category/sub-category on at
    *  least one row sharing that supplier). All rows with a matching
@@ -306,12 +292,12 @@ export class ReportReviewDialogComponent {
 
   // Custom-period entry dialog state. Replaces the browser's native
   // `window.prompt` so it matches the rest of the app's modal styling.
-  // `customPeriodRow` is the row we'll write the typed value back to
-  // (null = dialog closed). `customPeriodValue` is the text the user is
-  // typing right now; bound via [ngModel].
+  // Only ever opened from inside the edit dialog now — the confirmed
+  // value is written onto `editDraft`, not a row directly (null = dialog
+  // closed). `customPeriodValue` is the text the user is typing right
+  // now; bound via [ngModel].
   customPeriodVisible = signal<boolean>(false);
   customPeriodValue = signal<string>('');
-  private customPeriodRow: EditableReviewRow | null = null;
 
   // Supplier-conflict pre-flight dialog state. Opened by bulkApproveSelected
   // when the queue contains multiple rows for the same NEW supplier with
@@ -432,25 +418,22 @@ export class ReportReviewDialogComponent {
     this.isActorAccountant =
       !!realUser?.role?.includes('ACCOUNTANT') || !!realUser?.role?.includes('ADMIN');
     const stored = realUser?.firebaseId
-      ? (localStorage.getItem(ReportReviewDialogComponent.VIEW_MODE_KEY_PREFIX + realUser.firebaseId) as ReviewViewMode | null)
+      ? (localStorage.getItem(ReportReviewPage.VIEW_MODE_KEY_PREFIX + realUser.firebaseId) as ReviewViewMode | null)
       : null;
     this.viewMode.set(
       stored === 'regular' || stored === 'professional'
         ? stored
         : this.isActorAccountant ? 'professional' : 'regular',
     );
+  }
 
-    // Auto-load preview + catalog when the dialog becomes visible.
-    let wasOpen = false;
-    effect(() => {
-      const open = this.visible();
-      if (open && !wasOpen) {
-        wasOpen = true;
-        this.loadPreview();
-      } else if (!open) {
-        wasOpen = false;
-      }
-    });
+  ngOnInit(): void {
+    const params = this.route.snapshot.queryParamMap;
+    this.businessNumber.set(params.get('businessNumber') ?? '');
+    this.startDate.set(params.get('startDate') ?? '');
+    this.endDate.set(params.get('endDate') ?? '');
+    this.returnRoute.set(params.get('returnTo') ?? 'vat-report');
+    this.loadPreview();
   }
 
   private static readonly VIEW_MODE_KEY_PREFIX = 'reviewViewMode:';
@@ -461,33 +444,23 @@ export class ReportReviewDialogComponent {
     this.viewMode.set(mode);
     const realUser = this.authService.getRealUserDataFromLocalStorage();
     if (realUser?.firebaseId) {
-      localStorage.setItem(ReportReviewDialogComponent.VIEW_MODE_KEY_PREFIX + realUser.firebaseId, mode);
+      localStorage.setItem(ReportReviewPage.VIEW_MODE_KEY_PREFIX + realUser.firebaseId, mode);
     }
   }
 
   // ---- Lifecycle -------------------------------------------------------
 
+  /** Review done (nothing left to review, or the user skipped/finished) —
+   *  navigate back to whichever report page sent us here. */
   onClose(): void {
-    this.visibleChange.emit(false);
-    this.rows.set([]);
-    this.mode.set(null);
-    this.catalog.set([]);
-    this.linkingTxId.set(null);
-    this.selectedDocForLink.set(null);
-    this.isLoading.set(false);
-    this.isActioning.set(false);
-    this.highlightedSupplierIds.set(new Set<string>());
-    this.previewDriveFileId.set(null);
-    this.previewDriveFileName.set('');
-    this.customPeriodVisible.set(false);
-    this.customPeriodValue.set('');
-    this.customPeriodRow = null;
-    this.completionVisible.set(false);
-    this.completionAccountId.set(null);
-    this.completionRow = null;
-    this.simplePickerVisible.set(false);
-    this.simplePickerChoice.set(null);
-    this.simplePickerRow = null;
+    this.router.navigate([this.returnRoute()], {
+      queryParams: {
+        businessNumber: this.businessNumber(),
+        startDate: this.startDate(),
+        endDate: this.endDate(),
+        reviewed: 1,
+      },
+    });
   }
 
   /** Open the Drive preview side panel for a doc-side row. tx_only rows
@@ -512,7 +485,6 @@ export class ReportReviewDialogComponent {
   private loadPreview(): void {
     const bn = this.businessNumber()?.trim();
     if (!bn) {
-      this.processComplete.emit({ hasRows: false });
       this.onClose();
       return;
     }
@@ -523,7 +495,7 @@ export class ReportReviewDialogComponent {
     // Loading state shows the app's global loader (with a tailored message)
     // instead of an in-dialog spinner — the dialog itself stays hidden until
     // there are rows to review (see [visible] gate in the template).
-    this.genericService.updateLoaderMessage(ReportReviewDialogComponent.LOADING_MESSAGE);
+    this.genericService.updateLoaderMessage(ReportReviewPage.LOADING_MESSAGE);
     this.genericService.getLoader().subscribe();
 
     // Fetch catalog in parallel — independent of preview, doesn't block.
@@ -537,7 +509,6 @@ export class ReportReviewDialogComponent {
         catchError(err => {
           const detail = err?.error?.message ?? err?.message ?? 'טעינת הסקירה נכשלה';
           this.messageService.add({ severity: 'error', summary: 'שגיאה', detail, life: 5000, key: 'br' });
-          this.processComplete.emit({ hasRows: false });
           this.onClose();
           return EMPTY;
         }),
@@ -549,7 +520,6 @@ export class ReportReviewDialogComponent {
       .subscribe(preview => {
         this.mode.set(preview.mode);
         this.counts.set(preview.counts);
-        this.clientHasActiveDelegation.set(!!preview.clientHasActiveDelegation);
 
         // Non-blocking notice: the inbox scan auto-rejected byte-identical
         // re-uploads (same file dropped twice). They never become review
@@ -577,10 +547,7 @@ export class ReportReviewDialogComponent {
         );
         this.rows.set(editable);
         if (editable.length === 0) {
-          this.processComplete.emit({ hasRows: false });
           this.onClose();
-        } else {
-          this.processComplete.emit({ hasRows: true });
         }
       });
   }
@@ -686,7 +653,6 @@ export class ReportReviewDialogComponent {
       reductionPercent: Number(c.reductionPercent ?? 0),
       reportPeriod: this.derivePeriod(date),
       reportPeriodOverridden: false,
-      matchedTypeLabel: this.matchedTypeLabel(r.type),
       // Supplier-known/new is a doc-side concept; tx_only rows have a
       // merchant (from the bank statement) but no Supplier-table linkage.
       supplierStatusLabel:
@@ -703,6 +669,326 @@ export class ReportReviewDialogComponent {
       saveError: null,
     };
   }
+
+  // ---- Edit dialog (report-review-edit-dialog) --------------------------
+
+  /** Row the edit dialog is open for; null = dialog closed. */
+  editDialogRow = signal<EditableReviewRow | null>(null);
+  editDialogVisible = signal<boolean>(false);
+  editDialogTitleLabel = computed<string>(() => {
+    const row = this.editDialogRow();
+    if (!row) return '';
+    return `${row.supplier || row.description} — ${row.sumLabel}`;
+  });
+  /** The dialog's local draft — seeded from the row on open, mutated only
+   *  here (never touches the row directly) so Cancel can discard it with
+   *  zero side effects. Save is the only path that writes it onto the row. */
+  editDraft = signal<ExpenseEditFieldValues | null>(null);
+
+  /** Sub-categories for the draft's current category — recomputed as the
+   *  user picks a category inside the (still-open) dialog. */
+  editDraftSubCategoryOptions = computed<string[]>(() => {
+    const draft = this.editDraft();
+    if (!draft) return [];
+    return this.subCategoriesForCategory(draft.category).map(c => c.subCategory);
+  });
+
+  /** Period dropdown options for the draft — same 6-month-forward window
+   *  as the old inline picker, now keyed off the draft's date instead of
+   *  the row directly so it updates live as the user edits the date. */
+  editDraftPeriodOptions = computed<{ value: string; label: string; isCustom?: boolean }[]>(() => {
+    const draft = this.editDraft();
+    if (!draft) return [];
+    return this.periodOptionsForRow(draft).map(opt => ({
+      value: opt,
+      label: this.periodOptionLabel(opt),
+      isCustom: opt === ReportReviewPage.CUSTOM_PERIOD_SENTINEL,
+    }));
+  });
+
+  /** "ערוך הוצאה" — open the popup with a fresh draft seeded from the row. */
+  openEditDialog(row: EditableReviewRow): void {
+    this.editDialogRow.set(row);
+    this.editDraft.set({
+      category: row.category,
+      subCategory: row.subCategory,
+      subCategoryId: row.subCategoryId,
+      accountId: row.accountId,
+      vatPercent: row.vatPercent,
+      taxPercent: row.taxPercent,
+      date: row.date,
+      amount: row.amount,
+      supplierId: row.supplierId,
+      supplier: row.supplier,
+      reportPeriod: row.reportPeriod,
+      reportPeriodOverridden: row.reportPeriodOverridden,
+      applyCascadeToSuppliers: true,
+      allocationNumber: row.allocationNumber,
+      documentType: row.documentType,
+      saveAsSupplier: row.saveAsSupplier,
+    });
+    this.editDialogVisible.set(true);
+  }
+
+  private closeEditDialog(): void {
+    this.editDialogVisible.set(false);
+    this.editDialogRow.set(null);
+    this.editDraft.set(null);
+  }
+
+  /** X / Escape / "ביטול" — discard the draft. Nothing was ever written
+   *  to the row, so there's nothing to roll back. */
+  onEditDialogCancel(): void {
+    this.closeEditDialog();
+  }
+
+  /** "שמור" — write the draft onto the row and close. Purely a local
+   *  mutation: no approve/network call here, matching the exact semantics
+   *  of the old inline toggleEditRow/saveEditRow pair. The actual
+   *  approve/commit only ever happens later via bulkApproveSelected or
+   *  confirmSaveAnyway. */
+  onEditDialogSave(): void {
+    const row = this.editDialogRow();
+    const draft = this.editDraft();
+    if (!row || !draft) return;
+
+    const entry = draft.subCategoryId != null
+      ? this.catalog().find(c => c.subCategoryId === draft.subCategoryId)
+      : undefined;
+    if (entry) this.applyCatalogRow(row, entry);
+    else this.clearClassification(row, draft.category);
+
+    row.vatPercent = draft.vatPercent;
+    row.taxPercent = draft.taxPercent;
+    row.date = draft.date;
+    this.onAmountChange(row, draft.amount);
+    row.supplierId = draft.supplierId;
+    row.supplier = draft.supplier;
+    row.reportPeriod = draft.reportPeriod;
+    row.reportPeriodOverridden = draft.reportPeriodOverridden;
+    if (row.type !== 'tx_only') {
+      row.allocationNumber = draft.allocationNumber ?? '';
+      row.documentType = draft.documentType ?? null;
+      row.documentTypeLabel = this.documentTypeLabel(draft.documentType ?? null);
+      row.saveAsSupplier = draft.saveAsSupplier ?? true;
+    }
+
+    if (draft.applyCascadeToSuppliers) {
+      if (entry) this.cascadeToSupplierSiblings(row, (s) => this.applyCatalogRow(s, entry));
+      else this.cascadeToSupplierSiblings(row, (s) => this.clearClassification(s, draft.category));
+      this.markSupplierTouched(row);
+    }
+
+    this.bumpRows();
+    this.closeEditDialog();
+  }
+
+  /** Classification pickers inside the dialog — same resolution rules as
+   *  the old onCategoryChange/onSubCategoryChange/onCardChange, just
+   *  targeting the local draft instead of the row directly (no cascade
+   *  here — cascade only runs once, at Save, see onEditDialogSave). */
+  onEditDraftCategoryChange(picked: string): void {
+    this.editDraft.update(d => d && ({
+      ...d,
+      category: picked,
+      subCategory: '',
+      subCategoryId: null,
+      accountId: null,
+      vatPercent: 0,
+      taxPercent: 0,
+    }));
+  }
+
+  onEditDraftSubCategoryChange(picked: string): void {
+    this.editDraft.update(d => {
+      if (!d) return d;
+      if (!picked) {
+        return { ...d, subCategory: '', subCategoryId: null, accountId: null, vatPercent: 0, taxPercent: 0 };
+      }
+      const entry = this.catalog().find(c => c.subCategory === picked && c.category === d.category)
+        ?? this.catalog().find(c => c.subCategory === picked);
+      if (entry) {
+        return {
+          ...d,
+          category: entry.category ?? d.category,
+          subCategory: entry.subCategory,
+          subCategoryId: entry.subCategoryId,
+          accountId: entry.accountId,
+          vatPercent: Number(entry.vatPercent ?? 0),
+          taxPercent: Number(entry.taxPercent ?? 0),
+        };
+      }
+      return { ...d, subCategory: picked, subCategoryId: null };
+    });
+  }
+
+  onEditDraftCardChange(accountId: number | null): void {
+    this.editDraft.update(d => {
+      if (!d) return d;
+      if (accountId == null) {
+        return { ...d, category: '', subCategory: '', subCategoryId: null, accountId: null, vatPercent: 0, taxPercent: 0 };
+      }
+      const card = this.cardOptions().find(o => o.accountId === accountId);
+      if (!card) return d;
+      const entry =
+        this.catalog().find(c => c.accountId === accountId && c.subCategoryId === d.subCategoryId)
+        ?? this.catalog().find(c => c.subCategoryId === card.subCategoryId)!;
+      return {
+        ...d,
+        category: entry.category ?? '',
+        subCategory: entry.subCategory,
+        subCategoryId: entry.subCategoryId,
+        accountId: entry.accountId,
+        vatPercent: Number(entry.vatPercent ?? 0),
+        taxPercent: Number(entry.taxPercent ?? 0),
+      };
+    });
+  }
+
+  /** Non-sentinel period pick — sentinel ("אחר") is intercepted by the
+   *  dialog itself, which fires customPeriodRequested instead. */
+  onEditDraftPeriodChange(picked: string): void {
+    this.editDraft.update(d => {
+      if (!d) return d;
+      const derived = this.derivePeriod(d.date);
+      return { ...d, reportPeriod: picked, reportPeriodOverridden: picked !== derived };
+    });
+  }
+
+  /** Generic patch for every draft field with no cascade/resolution
+   *  side-effect (see ExpenseEditFieldValues.fieldsChange on the dialog). */
+  onEditDraftFieldsPatch(patch: Partial<ExpenseEditFieldValues>): void {
+    this.editDraft.update(d => {
+      if (!d) return d;
+      const next = { ...d, ...patch };
+      // Keep the auto-derived period in sync with a new date unless the
+      // user separately picked an explicit period override (same rule as
+      // the old inline onDateChange).
+      if (patch.date !== undefined && !next.reportPeriodOverridden) {
+        next.reportPeriod = this.derivePeriod(patch.date);
+      }
+      return next;
+    });
+  }
+
+  /** tx_only "upload new doc" — routes through one shared, page-level
+   *  hidden file input (see #uploadInput in the template) since the
+   *  trigger now lives in the hover panel, not inside the row itself. */
+  triggerUpload(row: EditableReviewRow): void {
+    this.pendingUploadRow = row;
+    this.uploadInputRef?.nativeElement.click();
+  }
+
+  onHiddenUploadChange(input: HTMLInputElement): void {
+    const row = this.pendingUploadRow;
+    this.pendingUploadRow = null;
+    if (!row) {
+      input.value = '';
+      return;
+    }
+    this.onUploadDocForTx(row, input);
+  }
+
+  /** Hover-reveal row actions (matches the rest of the app's row-actions
+   *  pattern — GenericTableComponent's floating strip, sliding in from the
+   *  left on row hover) — replaces the old always-visible inline icon
+   *  column entirely. Annual-document rows get none of these (preview
+   *  included) — per explicit request, nothing "annual report"-related is
+   *  surfaced here; the D8 file/re-kind triage actions that used to live
+   *  inline are dropped from this page entirely, not just hidden for
+   *  annual rows. */
+  readonly reviewRowActions: ITableRowAction[] = [
+    {
+      name: 'edit',
+      icon: 'pi pi-pencil',
+      title: 'ערוך הוצאה',
+      isLoading: () => this.isActioning(),
+      showWhen: (row) => {
+        const r = row as unknown as EditableReviewRow;
+        return !this.isAnnualRow(r) && !this.isUnidentifiedRow(r);
+      },
+      action: (_event, row) => this.openEditDialog(row as unknown as EditableReviewRow),
+    },
+    {
+      name: 'preview',
+      icon: 'pi pi-eye',
+      title: 'צפה במסמך לצד הטבלה',
+      showWhen: (row) => {
+        const r = row as unknown as EditableReviewRow;
+        return !!r.driveFileId && !this.isAnnualRow(r);
+      },
+      action: (_event, row) => this.openPreview(row as unknown as EditableReviewRow),
+    },
+    {
+      name: 'triage',
+      icon: 'pi pi-question-circle',
+      title: 'מיין — קבע מה המסמך הזה',
+      isLoading: () => this.isActioning(),
+      showWhen: (row) => {
+        const r = row as unknown as EditableReviewRow;
+        return this.isUnidentifiedRow(r) && !this.isTriaging(r);
+      },
+      action: (_event, row) => this.startTriage(row as unknown as EditableReviewRow),
+    },
+    {
+      name: 'unpair',
+      icon: 'pi pi-link',
+      title: 'פצל — הפרד בחזרה לחשבונית וקבלה נפרדות',
+      isLoading: () => this.isActioning(),
+      showWhen: (row) => {
+        const r = row as unknown as EditableReviewRow;
+        return r.type !== 'tx_only' && r.documentType === 'invoice_receipt_pair';
+      },
+      action: (_event, row) => this.unpairRow(row as unknown as EditableReviewRow),
+    },
+    {
+      name: 'upload',
+      icon: 'pi pi-upload',
+      title: 'העלה מסמך חדש — סורק ומקשר לתנועה',
+      isLoading: () => this.isActioning(),
+      showWhen: (row) => (row as unknown as EditableReviewRow).type === 'tx_only',
+      action: (_event, row) => this.triggerUpload(row as unknown as EditableReviewRow),
+    },
+    {
+      name: 'link',
+      icon: 'pi pi-link',
+      title: 'קשר למסמך קיים — שייך לאחת השורות מסוג \'מסמך בלבד\'',
+      showWhen: (row) => {
+        const r = row as unknown as EditableReviewRow;
+        return r.type === 'tx_only' && this.docOnlyRows().length > 0;
+      },
+      action: (_event, row) => this.startLink(row as unknown as EditableReviewRow),
+    },
+    {
+      name: 'archive',
+      icon: 'pi pi-inbox',
+      title: 'העבר לארכיון',
+      isLoading: () => this.isActioning(),
+      // tx_only rows have no document to archive — there is no distinct
+      // "archive a transaction" backend concept, so this maps onto the
+      // same rejectTx call as "מחק" for that row type (product decision:
+      // both buttons stay visible so the action is always available, even
+      // though they're functionally identical for a tx_only row).
+      showWhen: (row) => !this.isAnnualRow(row as unknown as EditableReviewRow),
+      action: (_event, row) => {
+        const r = row as unknown as EditableReviewRow;
+        if (r.type === 'tx_only') this.rejectTx(r);
+        else this.archiveDoc(r);
+      },
+    },
+    {
+      name: 'delete',
+      icon: 'pi pi-trash',
+      title: 'מחק',
+      isLoading: () => this.isActioning(),
+      showWhen: (row) => !this.isAnnualRow(row as unknown as EditableReviewRow),
+      action: (_event, row) => {
+        const r = row as unknown as EditableReviewRow;
+        if (r.type === 'tx_only') this.rejectTx(r);
+        else this.deleteRow(r);
+      },
+    },
+  ];
 
   /** Symbol for a currency code — used in the foreign-currency sumLabel.
    *  Only the codes the rest of the app handles get short symbols; the
@@ -738,15 +1024,13 @@ export class ReportReviewDialogComponent {
     return map[raw] ?? raw;
   }
 
-  /** Hebrew label for the matched-type status column. Visible per the
-   *  user's column-13 spec; the row tinting (green/yellow/blue background)
-   *  still also signals the type at a glance. */
-  private matchedTypeLabel(type: EditableReviewRow['type']): string {
-    switch (type) {
-      case 'matched':  return 'מסמך + תנועה';
-      case 'doc_only': return 'מסמך בלבד';
-      case 'tx_only':  return 'תנועה בלבד';
-    }
+  /** "סוג" column value — what produced this row: a bank/card transaction
+   *  ("תנועה") or a document, in which case its OCR'd document type
+   *  (falling back to "מסמך לא מזוהה" for docs the OCR pipeline didn't
+   *  recognize). Replaces the old separate "מקור" source-icon column —
+   *  folded the two into one now that the icon column is gone. */
+  sourceTypeLabel(row: EditableReviewRow): string {
+    return row.type === 'tx_only' ? 'תנועה' : (row.documentTypeLabel || 'מסמך לא מזוהה');
   }
 
   // ---- Cascading dropdown handlers ------------------------------------
@@ -807,71 +1091,29 @@ export class ReportReviewDialogComponent {
     row.description = this.documentTypeLabel(row.documentType) || 'מסמך לא מזוהה';
   }
 
-  /** Category changed — clear sub-category + derived fields. The user
-   *  must repick a sub-category (which then cascades the card's law
-   *  back onto the row). Cascade: every other row sharing this supplierId
-   *  picks up the same category change. User's stated intent — "all my
-   *  Bezeq invoices are the same category". Touched siblings are visually
-   *  highlighted via markSupplierTouched + row-highlighted class. */
-  onCategoryChange(row: EditableReviewRow, picked: string): void {
-    this.clearClassification(row, picked);
-    this.cascadeToSupplierSiblings(row, (s) => this.clearClassification(s, picked));
-    this.markSupplierTouched(row);
-    this.bumpRows();
+  /** Applies to every row type, per explicit product decision — see
+   *  ReviewOverrides.amount for the matched/tx_only reconciliation caveat.
+   *  Kept as the one shared helper the edit dialog's Save path reuses to
+   *  recompute the display sumLabel — every other per-field inline
+   *  handler that used to live here (category/subCategory/card/vat/tax/
+   *  date/invoiceNumber/allocationNumber/supplierId/supplier/documentType/
+   *  period) moved into the edit dialog's draft handlers above, since
+   *  editing only ever happens through the popup now. */
+  private onAmountChange(row: EditableReviewRow, value: number): void {
+    row.amount = value;
+    const amt = Number(value) || 0;
+    row.sumLabel = row.currency !== 'ILS'
+      ? `${this.currencySymbol(row.currency)}${amt.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`
+      : `${amt.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ש״ח`;
   }
 
-  /** Sub-category changed — apply the catalog row's full resolution (card
-   *  law + section/account + status) onto the row. Same supplier-sibling
-   *  cascade as onCategoryChange: change one Bezeq invoice's sub-category,
-   *  every Bezeq invoice in the table picks it up. */
-  onSubCategoryChange(row: EditableReviewRow, picked: string): void {
-    if (!picked) {
-      this.clearClassification(row, row.category);
-      this.cascadeToSupplierSiblings(row, (s) => this.clearClassification(s, s.category));
-      this.markSupplierTouched(row);
-      this.bumpRows();
-      return;
-    }
-    const entry = this.catalog().find(c => c.subCategory === picked && c.category === row.category)
-      ?? this.catalog().find(c => c.subCategory === picked);
-    if (entry) {
-      this.applyCatalogRow(row, entry);
-      this.cascadeToSupplierSiblings(row, (s) => this.applyCatalogRow(s, entry));
-    } else {
-      row.subCategory = picked;
-      row.subCategoryId = null;
-      row.mappingStatus = 'UNCLASSIFIED';
-      this.cascadeToSupplierSiblings(row, (s) => { s.subCategory = picked; s.subCategoryId = null; s.mappingStatus = 'UNCLASSIFIED'; });
-    }
-    this.markSupplierTouched(row);
-    this.bumpRows();
-  }
-
-  /** D9 professional view — classification by CARD. Picking a card is a
-   *  complete classification (the card carries the full accounting law);
-   *  under the hood the row is classified to the card's representative
-   *  sub_category. Same supplier-sibling cascade as the regular pickers. */
-  onCardChange(row: EditableReviewRow, accountId: number | null): void {
-    if (accountId == null) {
-      this.clearClassification(row, '');
-      this.cascadeToSupplierSiblings(row, (s) => this.clearClassification(s, ''));
-      this.markSupplierTouched(row);
-      this.bumpRows();
-      return;
-    }
-    const card = this.cardOptions().find(o => o.accountId === accountId);
-    if (!card) return;
-    // Prefer a sub_category the row is ALREADY on when it points at this
-    // card (re-picking the same card must not silently rename the row's
-    // classification); otherwise the card's representative row.
-    const entry =
-      this.catalog().find(c => c.accountId === accountId && c.subCategoryId === row.subCategoryId)
-      ?? this.catalog().find(c => c.subCategoryId === card.subCategoryId)!;
-    this.applyCatalogRow(row, entry);
-    this.cascadeToSupplierSiblings(row, (s) => this.applyCatalogRow(s, entry));
-    this.markSupplierTouched(row);
-    this.bumpRows();
-  }
+  /** Options for the document-type dropdown (edit dialog) — every raw
+   *  enum value the OCR pipeline can produce, labelled via the same
+   *  mapping documentTypeLabel() uses for read-only display. */
+  readonly documentTypeOptions: { value: string; label: string }[] = [
+    'invoice', 'receipt', 'tax_invoice_receipt', 'credit_invoice',
+    'invoice_receipt_pair', 'form_106', 'tax_form', 'contract', 'unknown',
+  ].map(value => ({ value, label: this.documentTypeLabel(value) }));
 
   /** Apply `mutate` to every row that represents the same supplier as
    *  `source` (other than `source` itself).
@@ -953,26 +1195,6 @@ export class ReportReviewDialogComponent {
     return this.highlightedSupplierIds().has(key);
   }
 
-  /** Icon class for the status column — three buckets aligned with the
-   *  ReviewRow discriminator. Hebrew tooltip lives next to the icon in
-   *  the cell template via [pTooltip]. */
-  statusIconFor(type: EditableReviewRow['type']): string {
-    switch (type) {
-      case 'matched':  return 'pi pi-check-circle';
-      case 'doc_only': return 'pi pi-file';
-      case 'tx_only':  return 'pi pi-arrow-right-arrow-left';
-    }
-  }
-
-  /** Hebrew description used as the tooltip for the source icon. */
-  statusTooltipFor(type: EditableReviewRow['type']): string {
-    switch (type) {
-      case 'matched':  return 'מסמך הותאם לתנועת בנק';
-      case 'doc_only': return 'מסמך בלבד - לא נמצאה תנועה מתאימה';
-      case 'tx_only':  return 'תנועת בנק בלבד - לא נמצא מסמך מתאים';
-    }
-  }
-
   // ---- D9 status badge + approvability ---------------------------------
 
   /** True when the row is a D8 annual document — never an expense. */
@@ -985,41 +1207,6 @@ export class ReportReviewDialogComponent {
     return row.documentKind === 'UNIDENTIFIED';
   }
 
-  /**
-   * The D9 status badge. One of:
-   *   מסמך שנתי — ממתין לתיוק (D8 annual, pre-filing) / לא מזוהה — יש להחליט
-   *   (D8 triage) / מוכן / מופה ע״י רו״ח (override icon) / פרטי /
-   *   חסר מיפוי — אצל הרו״ח (client w/ accountant) / חסר מיפוי / יש לסווג.
-   */
-  statusBadge(row: EditableReviewRow): { label: string; cls: string; icon: string | null } {
-    if (this.isAnnualRow(row)) {
-      // Every row this table can show is still PENDING_REVIEW (filed docs
-      // drop out of the query entirely) — never claim the doc is "already
-      // saved"; the תייק action next to this badge is what actually files it.
-      return { label: 'מסמך שנתי — ממתין לתיוק', cls: 'badge-annual', icon: 'pi pi-bookmark' };
-    }
-    if (this.isUnidentifiedRow(row)) {
-      return { label: 'לא מזוהה — יש להחליט', cls: 'badge-unidentified', icon: 'pi pi-question-circle' };
-    }
-    switch (row.mappingStatus) {
-      case 'READY':
-        return row.mappedByAccountant
-          ? { label: 'מופה ע״י רו״ח', cls: 'badge-ready badge-accountant', icon: 'pi pi-user-edit' }
-          : { label: 'מוכן', cls: 'badge-ready', icon: 'pi pi-check' };
-      case 'PRIVATE':
-        return { label: 'פרטי — לא עסקי', cls: 'badge-private', icon: 'pi pi-lock' };
-      case 'MISSING_MAPPING':
-        return this.isActorAccountant
-          ? { label: 'חסר מיפוי', cls: 'badge-missing', icon: 'pi pi-exclamation-circle' }
-          : this.clientHasActiveDelegation()
-            ? { label: 'חסר מיפוי — אצל הרו״ח', cls: 'badge-missing', icon: 'pi pi-exclamation-circle' }
-            : { label: 'חסר מיפוי', cls: 'badge-missing', icon: 'pi pi-exclamation-circle' };
-      case 'UNCLASSIFIED':
-      default:
-        return { label: 'יש לסווג', cls: 'badge-unclassified', icon: 'pi pi-pencil' };
-    }
-  }
-
   /** D9: rows with missing mapping cannot be approved; D8 annual/
    *  unidentified rows are not expenses. Only READY and PRIVATE rows pass. */
   canApprove(row: EditableReviewRow): boolean {
@@ -1027,236 +1214,8 @@ export class ReportReviewDialogComponent {
     return row.mappingStatus === 'READY' || row.mappingStatus === 'PRIVATE';
   }
 
-  /** The accountant's inline completion entry point is offered on
-   *  missing-mapping rows only (D9). */
-  showCompletionButton(row: EditableReviewRow): boolean {
-    return this.isActorAccountant
-      && row.mappingStatus === 'MISSING_MAPPING'
-      && !this.isAnnualRow(row) && !this.isUnidentifiedRow(row);
-  }
-
-  /** The unaccompanied client's simple picker — never stuck (D9). Needs a
-   *  concrete sub_category to repoint, so UNCLASSIFIED rows (no row at all)
-   *  go through the normal pickers instead. */
-  showSimplePickerButton(row: EditableReviewRow): boolean {
-    return !this.isActorAccountant
-      && !this.clientHasActiveDelegation()
-      && row.mappingStatus === 'MISSING_MAPPING'
-      && row.subCategoryId != null
-      && !this.isAnnualRow(row) && !this.isUnidentifiedRow(row);
-  }
-
-  // ---- D8 actions: תייק + kind triage ----------------------------------
-
-  /** "תייק" on an ANNUAL_DOCUMENT row — files it for the annual report
-   *  (terminal not_an_expense; no expense, no journal, ever). */
-  fileDocRow(row: EditableReviewRow): void {
-    if (!row.documentId) return;
-    this.runAction(row, this.reviewService.fileDoc(row.documentId), 'תיוק המסמך נכשל');
-  }
-
-  /** UNIDENTIFIED-row triage (or fixing a mis-detected annual doc): re-kind
-   *  the document in place. The row STAYS in the table with its badge and
-   *  available actions recomputed — unlike runAction flows, nothing leaves
-   *  the review here. */
-  markDocKind(row: EditableReviewRow, kind: 'EXPENSE_INVOICE' | 'ANNUAL_DOCUMENT'): void {
-    if (!row.documentId || this.isActioning()) return;
-    row.saveStatus = 'pending';
-    this.isActioning.set(true);
-    this.bumpRows();
-    this.reviewService.setDocKind(row.documentId, kind)
-      .pipe(
-        catchError(err => {
-          this.applySaveFailure(row, err, 'עדכון סוג המסמך נכשל');
-          this.messageService.add({
-            severity: 'error', summary: 'שגיאה', detail: row.saveError ?? '', life: 5000, key: 'br',
-          });
-          return EMPTY;
-        }),
-        finalize(() => this.isActioning.set(false)),
-      )
-      .subscribe(() => {
-        row.documentKind = kind;
-        row.saveStatus = null;
-        row.saveError = null;
-        this.bumpRows();
-      });
-  }
-
-  // ---- D9 inline mapping completion (accountant) ------------------------
-
-  openCompletion(row: EditableReviewRow): void {
-    this.completionRow = row;
-    this.completionRowLabel.set(`${row.supplier || row.description} — ${row.sumLabel}`);
-    this.completionAccountId.set(row.accountId);
-    this.completionApplyFuture.set(true);
-    this.completionVisible.set(true);
-  }
-
-  cancelCompletion(): void {
-    this.completionVisible.set(false);
-    this.completionRow = null;
-    this.completionAccountId.set(null);
-  }
-
-  /**
-   * The approve→complete chain (approved design): approve creates the
-   * expense (lands MISSING_ACCOUNTING_MAPPING, unjournaled), then
-   * POST complete-mapping applies the picked card — one-off snapshot
-   * override, or repoint-the-sub_category when "החל גם על סיווגים
-   * עתידיים" is checked — and the backend approves + journals in one tx.
-   * A failure between the calls leaves a retryable MISSING expense (the
-   * row leaves the review; completion continues from the expenses table).
-   */
-  confirmCompletion(): void {
-    const row = this.completionRow;
-    const accountId = this.completionAccountId();
-    if (!row || accountId == null || this.isActioning()) return;
-    const applyFuture = this.completionApplyFuture();
-    this.completionVisible.set(false);
-    this.completionRow = null;
-
-    const approve$ = this.approveObsForRow(row);
-    if (!approve$) return;
-
-    row.saveStatus = 'pending';
-    this.isActioning.set(true);
-    this.bumpRows();
-    approve$
-      .pipe(
-        catchError(err => {
-          this.applySaveFailure(row, err, 'אישור השורה נכשל');
-          this.isActioning.set(false);
-          return EMPTY;
-        }),
-      )
-      .subscribe(({ expenseId }) => {
-        this.reviewService.completeExpenseMapping(expenseId, accountId, applyFuture)
-          .pipe(
-            catchError(err => {
-              // The expense exists but is still MISSING — honest state:
-              // drop the row (its source doc/tx is consumed) and tell the
-              // user where to finish.
-              const detail = err?.error?.message ?? err?.message ?? '';
-              this.messageService.add({
-                severity: 'warn',
-                summary: 'ההוצאה נשמרה אך המיפוי לא הושלם',
-                detail: `ניתן להשלים את המיפוי מטבלת ההוצאות. ${detail}`,
-                life: 8000, key: 'br',
-              });
-              return EMPTY;
-            }),
-            finalize(() => {
-              this.isActioning.set(false);
-              this.rows.update(rs => rs.filter(r => r !== row));
-              this.adjustCount(row.type, -1);
-              this.maybeAutoClose();
-            }),
-          )
-          .subscribe();
-      });
-  }
-
-  // ---- D9 simple picker (client without an accountant) ------------------
-
-  /** Curated "למה ההוצאה שייכת?" quick choices, resolved against the live
-   *  catalog by SYSTEM seed names (fuel / vehicle maintenance / office /
-   *  advertising / rent). Only entries that exist AND carry a card are
-   *  offered; the full by-section select below the buttons covers "אחר". */
-  simplePickerOptions = computed<{ label: string; accountId: number }[]>(() => {
-    const curated: { label: string; category: string; subCategory: string }[] = [
-      { label: 'דלק',            category: 'רכב ותחבורה', subCategory: 'דלק' },
-      { label: 'אחזקת רכב',      category: 'רכב ותחבורה', subCategory: 'טיפולים' },
-      { label: 'ציוד משרדי',     category: 'עסק',          subCategory: 'הוצאות משרד' },
-      { label: 'פרסום ושיווק',   category: 'עסק',          subCategory: 'שיווק ופרסום' },
-      { label: 'שכירות',         category: 'עסק',          subCategory: 'שכירות משרד' },
-    ];
-    const out: { label: string; accountId: number }[] = [];
-    for (const c of curated) {
-      const entry = this.catalog().find(e => e.category === c.category && e.subCategory === c.subCategory);
-      if (entry?.accountId != null) out.push({ label: c.label, accountId: entry.accountId });
-    }
-    return out;
-  });
-
-  openSimplePicker(row: EditableReviewRow): void {
-    this.simplePickerRow = row;
-    this.simplePickerRowLabel.set(`${row.supplier || row.description} — ${row.sumLabel}`);
-    this.simplePickerChoice.set(null);
-    this.simplePickerVisible.set(true);
-  }
-
-  cancelSimplePicker(): void {
-    this.simplePickerVisible.set(false);
-    this.simplePickerRow = null;
-    this.simplePickerChoice.set(null);
-  }
-
-  pickSimpleOption(accountId: number): void {
-    this.simplePickerChoice.set(accountId);
-    this.confirmSimplePicker();
-  }
-
-  /**
-   * Repoint the row's unmapped sub_category at the chosen card
-   * (PATCH bookkeeping/sub-categories/:id/account — the D9 future-mapping
-   * primitive; the client keeps their own name, e.g. "איתוראן", now backed
-   * by a system card). On success every review row on that sub_category
-   * flips to מוכן, and the local catalog row is patched so re-picks see
-   * the completed mapping.
-   */
-  confirmSimplePicker(): void {
-    const row = this.simplePickerRow;
-    const accountId = this.simplePickerChoice();
-    if (!row || row.subCategoryId == null || accountId == null || this.isActioning()) return;
-    const subCategoryId = row.subCategoryId;
-    this.simplePickerVisible.set(false);
-    this.simplePickerRow = null;
-
-    const card = this.cardOptions().find(o => o.accountId === accountId);
-    this.isActioning.set(true);
-    this.reviewService.repointSubCategory(subCategoryId, accountId)
-      .pipe(
-        catchError(err => {
-          const detail = err?.error?.message ?? err?.message ?? 'השלמת המיפוי נכשלה';
-          this.messageService.add({ severity: 'error', summary: 'שגיאה', detail, life: 5000, key: 'br' });
-          return EMPTY;
-        }),
-        finalize(() => this.isActioning.set(false)),
-      )
-      .subscribe((updated) => {
-        // The repoint may have landed a CLIENT override row (SYSTEM/
-        // ACCOUNTANT-owned originals are never edited) — adopt the id the
-        // backend actually mapped.
-        const effectiveSubId = updated?.id ?? subCategoryId;
-        this.catalog.update(rows => rows.map(c =>
-          c.subCategoryId === subCategoryId || c.subCategoryId === effectiveSubId
-            ? {
-                ...c,
-                subCategoryId: effectiveSubId,
-                accountId,
-                approvalStatus: 'APPROVED',
-                accountCode: card?.accountCode ?? c.accountCode,
-                accountName: card?.accountName ?? c.accountName,
-                sectionName: card?.sectionName ?? c.sectionName,
-                vatPercent: card?.vatPercent ?? c.vatPercent,
-                taxPercent: card?.taxPercent ?? c.taxPercent,
-                reductionPercent: card?.reductionPercent ?? c.reductionPercent,
-                isEquipment: card?.isEquipment ?? c.isEquipment,
-              }
-            : c,
-        ));
-        for (const r of this.rows()) {
-          if (r.subCategoryId !== subCategoryId && r.subCategoryId !== effectiveSubId) continue;
-          const entry = this.catalog().find(c => c.subCategoryId === effectiveSubId);
-          if (entry) this.applyCatalogRow(r, entry);
-        }
-        this.bumpRows();
-      });
-  }
-
   /** The approve observable for a row per its type — shared by the bulk
-   *  queue and the completion chain. Null when ids are missing. */
+   *  queue. Null when ids are missing. */
   private approveObsForRow(row: EditableReviewRow): import('rxjs').Observable<{ expenseId: number }> | null {
     return row.type === 'matched' && row.documentId && row.slimTransactionId
       ? this.reviewService.approveMatched(
@@ -1296,7 +1255,7 @@ export class ReportReviewDialogComponent {
    * generated list (manual edit on a prior open of this dialog), we
    * also include it at the top so the dropdown can re-display it.
    */
-  periodOptionsForRow(row: EditableReviewRow): string[] {
+  periodOptionsForRow(row: { date: string; reportPeriod: string }): string[] {
     const opts: string[] = [];
     const date = this.parseRowDate(row.date);
     const isDual = this.vatReportingType() === VATReportingType.DUAL_MONTH_REPORT;
@@ -1332,7 +1291,7 @@ export class ReportReviewDialogComponent {
     if (row.reportPeriod && !opts.includes(row.reportPeriod)) {
       opts.unshift(row.reportPeriod);
     }
-    opts.push(ReportReviewDialogComponent.CUSTOM_PERIOD_SENTINEL);
+    opts.push(ReportReviewPage.CUSTOM_PERIOD_SENTINEL);
     return opts;
   }
 
@@ -1340,62 +1299,40 @@ export class ReportReviewDialogComponent {
    *  string verbatim for everything else. Template binds via this so
    *  the underlying value stays a sentinel until the user picks it. */
   periodOptionLabel(opt: string): string {
-    return opt === ReportReviewDialogComponent.CUSTOM_PERIOD_SENTINEL ? 'אחר' : opt;
+    return opt === ReportReviewPage.CUSTOM_PERIOD_SENTINEL ? 'אחר' : opt;
   }
 
-  /** User picked from the period dropdown — flag as overridden only if
-   *  the choice differs from what we'd derive automatically, so unchanged
-   *  rows still let the backend compute the period from the date.
-   *  "אחר" branches to a window.prompt for free-form entry. */
-  onPeriodChange(row: EditableReviewRow, picked: string): void {
-    if (picked === ReportReviewDialogComponent.CUSTOM_PERIOD_SENTINEL) {
-      // Open the styled custom-period dialog instead of window.prompt
-      // so the look matches the rest of the modal stack. The <select>
-      // briefly shows the sentinel as its value; bumpRows() inside
-      // confirmCustomPeriod/cancelCustomPeriod resets the display.
-      this.openCustomPeriod(row);
-      return;
-    }
-    const derived = this.derivePeriod(row.date);
-    row.reportPeriod = picked;
-    row.reportPeriodOverridden = picked !== derived;
-    this.bumpRows();
-  }
-
-  /** Open the "אחר" dialog for the given row, prefilled with the row's
-   *  current period (so the user can edit instead of retyping). */
-  openCustomPeriod(row: EditableReviewRow): void {
-    this.customPeriodRow = row;
-    this.customPeriodValue.set(row.reportPeriod ?? '');
+  /** Open the "אחר" dialog for the edit dialog's current draft, prefilled
+   *  with its current period. Only ever reached from inside the edit
+   *  dialog now (see (customPeriodRequested) wiring) — all other editing
+   *  moved into the popup, so there's no longer a bare-row caller. */
+  openCustomPeriod(): void {
+    const draft = this.editDraft();
+    if (!draft) return;
+    this.customPeriodValue.set(draft.reportPeriod ?? '');
     this.customPeriodVisible.set(true);
   }
 
   /** User pressed cancel / clicked X / pressed Escape on the custom-period
-   *  dialog. Discard input and rewind the <select>'s display from the
-   *  sentinel back to the row's previous period. */
+   *  dialog. Discard input; the draft's period is untouched. */
   cancelCustomPeriod(): void {
     this.customPeriodVisible.set(false);
-    this.customPeriodRow = null;
     this.customPeriodValue.set('');
-    this.bumpRows();
   }
 
-  /** User confirmed — write the typed period onto the row, mark it as
-   *  overridden so the approve call passes it through, then close. Empty
-   *  / whitespace-only input is treated as cancel. */
+  /** User confirmed — write the typed period onto the edit dialog's
+   *  draft (not the row — same draft/cancel semantics as every other
+   *  field in the popup) and mark it overridden. Empty/whitespace-only
+   *  input is treated as cancel. */
   confirmCustomPeriod(): void {
     const value = this.customPeriodValue().trim();
-    const row = this.customPeriodRow;
-    if (!row || !value) {
+    if (!value) {
       this.cancelCustomPeriod();
       return;
     }
-    row.reportPeriod = value;
-    row.reportPeriodOverridden = true;
+    this.editDraft.update(d => d && ({ ...d, reportPeriod: value, reportPeriodOverridden: true }));
     this.customPeriodVisible.set(false);
-    this.customPeriodRow = null;
     this.customPeriodValue.set('');
-    this.bumpRows();
   }
 
   /** YYYY-MM-DD → Date in UTC. Returns null on bad/missing input. */
@@ -1654,6 +1591,49 @@ export class ReportReviewDialogComponent {
       });
   }
 
+  // ---- D8 triage flow (UNIDENTIFIED rows) -------------------------------
+
+  /** Used to expose triagingRowKey state into the template. */
+  isTriaging(row: EditableReviewRow): boolean {
+    return this.triagingRowKey() === row.rowKey;
+  }
+
+  startTriage(row: EditableReviewRow): void {
+    this.triagingRowKey.set(row.rowKey);
+  }
+
+  cancelTriage(): void {
+    this.triagingRowKey.set(null);
+  }
+
+  /** "קבע כחשבונית הוצאה" / "קבע כמסמך שנתי" — the human decides what an
+   *  UNIDENTIFIED document actually is (D8). Patches documentKind in place
+   *  rather than re-running loadPreview(), which would re-trigger inbox OCR
+   *  for every pending document — same reasoning as confirmLink above. Once
+   *  documentKind flips off UNIDENTIFIED, isUnidentifiedRow(row) goes false
+   *  and the row picks up its normal edit/classify/approve actions (an
+   *  EXPENSE_INVOICE row) or renders as an inert annual-document badge row
+   *  (ANNUAL_DOCUMENT — filed separately from the annual-report page). */
+  confirmTriage(row: EditableReviewRow, documentKind: 'EXPENSE_INVOICE' | 'ANNUAL_DOCUMENT'): void {
+    if (!row.documentId || this.isActioning()) return;
+    this.isActioning.set(true);
+
+    this.reviewService.setDocKind(row.documentId, documentKind)
+      .pipe(
+        catchError(err => {
+          const detail = err?.error?.message ?? err?.message ?? 'סיווג המסמך נכשל';
+          this.messageService.add({ severity: 'error', summary: 'שגיאה', detail, life: 5000, key: 'br' });
+          return EMPTY;
+        }),
+        finalize(() => this.isActioning.set(false)),
+      )
+      .subscribe(() => {
+        row.documentKind = documentKind;
+        this.triagingRowKey.set(null);
+        this.bumpRows();
+      });
+  }
+
   // ---- Helpers ---------------------------------------------------------
 
   private overridesFromRow(row: EditableReviewRow): ReviewOverrides {
@@ -1672,6 +1652,13 @@ export class ReportReviewDialogComponent {
       reportPeriod: row.reportPeriodOverridden ? row.reportPeriod : undefined,
       saveAsSupplier: row.saveAsSupplier,
       acknowledgeDuplicate: row.acknowledgeDuplicate,
+      invoiceNumber: row.invoiceNumber || undefined,
+      allocationNumber: row.allocationNumber || undefined,
+      supplierId: row.supplierId || undefined,
+      supplier: row.supplier || undefined,
+      documentType: row.documentType || undefined,
+      date: row.date || undefined,
+      amount: row.amount,
     };
   }
 
@@ -1691,7 +1678,6 @@ export class ReportReviewDialogComponent {
 
   private maybeAutoClose(): void {
     if (this.hasAnyRows()) return;
-    this.processComplete.emit({ hasRows: false });
     this.onClose();
   }
 
@@ -1736,18 +1722,25 @@ export class ReportReviewDialogComponent {
   /**
    * D9 column sets — one screen, two view modes.
    *
-   * Regular (client language): checkbox · supplier · supplier-id · doc-type ·
-   *   doc-number · allocation-number · date · sum · category · sub-category ·
-   *   vat% · tax% · period · STATUS BADGE · source icon · actions.
+   * Regular (client language): checkbox · supplier · doc-type/source
+   *   ("סוג" — folds in what used to be a separate source icon: "תנועה"
+   *   for tx_only, the OCR'd document type otherwise) · date · sum ·
+   *   category · sub-category · vat% · tax% · period. No status/mapping
+   *   badge column — the D9 mapping-status pill and its accountant
+   *   "השלם מיפוי"/client "למה ההוצאה שייכת?" flows were removed entirely
+   *   (product decision — not just relocated). The failure icon / soft-
+   *   duplicate prompt now live in the supplier cell; the tx_only link
+   *   picker and D8 triage picker are their own p-dialogs, opened from
+   *   the row-actions hover strip. Supplier-id/invoice-number/allocation-
+   *   number are edit-dialog-only fields — not worth a column in the
+   *   client's day-to-day table view.
    *
    * Professional (accountant language): checkbox · supplier · doc-type ·
    *   doc-number · date · DESCRIPTION (single D7 column replacing the
    *   category/sub pair) · sum · SECTION · ACCOUNT (card picker — grouped by
    *   section; picking a card IS the classification) · vat% · tax% ·
-   *   depreciation% · period · STATUS BADGE · source icon · actions.
-   *   Percents are read-only here — they are the card's law (D1); supplier-id
-   *   and allocation-number stay one toggle away in the regular view to keep
-   *   the professional row width sane.
+   *   depreciation% · period. Percents are read-only here — they are the
+   *   card's law (D1).
    */
   buildColumns(
     selectCellTpl: TemplateRef<any>,
@@ -1756,14 +1749,19 @@ export class ReportReviewDialogComponent {
     cardCellTpl: TemplateRef<any>,
     periodCellTpl: TemplateRef<any>,
     supplierCellTpl: TemplateRef<any>,
-    statusBadgeCellTpl: TemplateRef<any>,
-    sourceIconCellTpl: TemplateRef<any>,
-    actionsCellTpl: TemplateRef<any>,
+    vatPercentCellTpl: TemplateRef<any>,
+    taxPercentCellTpl: TemplateRef<any>,
+    dateCellTpl: TemplateRef<any>,
+    amountCellTpl: TemplateRef<any>,
+    invoiceNumberCellTpl: TemplateRef<any>,
+    docTypeCellTpl: TemplateRef<any>,
   ): IColumnDataTable<string, string>[] {
     const mode = this.viewMode();
     const tpls = [
       selectCellTpl, categoryCellTpl, subCategoryCellTpl, cardCellTpl, periodCellTpl,
-      supplierCellTpl, statusBadgeCellTpl, sourceIconCellTpl, actionsCellTpl,
+      supplierCellTpl,
+      vatPercentCellTpl, taxPercentCellTpl, dateCellTpl, amountCellTpl,
+      invoiceNumberCellTpl, docTypeCellTpl,
     ];
     if (
       this.columnsCache &&
@@ -1773,17 +1771,19 @@ export class ReportReviewDialogComponent {
       return this.columnsCache.cols;
     }
 
+    // Widths bumped from the original (input-box-sized) values — locked
+    // cells now render at .data-text's `large` font-size (see the .scss),
+    // which needs more room per column than the old 0.78rem inputs did.
     const shared = {
       select:   { name: 'selected', value: '', cellTemplate: selectCellTpl, width: '50px' },
-      supplier: { name: 'supplier', value: 'ספק', cellTemplate: supplierCellTpl, width: '210px' },
-      docType:  { name: 'documentTypeLabel', value: 'סוג', width: '140px' },
-      invoice:  { name: 'invoiceNumber', value: 'מס׳ חשבונית', width: '200px' },
-      date:     { name: 'date', value: 'תאריך', width: '115px' },
-      sum:      { name: 'sumLabel', value: 'סכום', cellRenderer: ICellRenderer.SUM_WITH_FX, width: '110px' },
-      period:   { name: 'reportPeriod', value: 'תקופה', cellTemplate: periodCellTpl, width: '105px' },
-      badge:    { name: 'mappingStatus', value: 'סטטוס', cellTemplate: statusBadgeCellTpl, width: '170px' },
-      source:   { name: 'matchedTypeLabel', value: 'מקור', cellTemplate: sourceIconCellTpl, width: '60px' },
-      actions:  { name: 'actions', value: 'פעולות', cellTemplate: actionsCellTpl, width: '90px' },
+      supplier: { name: 'supplier', value: 'ספק', cellTemplate: supplierCellTpl, width: '250px' },
+      docType:  { name: 'documentTypeLabel', value: 'סוג', cellTemplate: docTypeCellTpl, width: '160px' },
+      invoice:  { name: 'invoiceNumber', value: 'מס׳ חשבונית', cellTemplate: invoiceNumberCellTpl, width: '220px' },
+      date:     { name: 'date', value: 'תאריך', cellTemplate: dateCellTpl, width: '145px' },
+      sum:      { name: 'sumLabel', value: 'סכום', cellTemplate: amountCellTpl, width: '130px' },
+      period:   { name: 'reportPeriod', value: 'תקופה', cellTemplate: periodCellTpl, width: '125px' },
+      vatPercent: { name: 'vatPercent', value: '% מע״מ', cellTemplate: vatPercentCellTpl, width: '100px' },
+      taxPercent: { name: 'taxPercent', value: '% מס',   cellTemplate: taxPercentCellTpl, width: '100px' },
     };
 
     const cols: IColumnDataTable<string, string>[] =
@@ -1791,22 +1791,14 @@ export class ReportReviewDialogComponent {
         ? [
             shared.select,
             shared.supplier,
-            { name: 'supplierId', value: 'מס׳ עוסק', width: '110px' },
             shared.docType,
-            shared.invoice,
-            // Israeli tax allocation number (מספר הקצאה) — the user can spot
-            // a missing allocation number on a high-value invoice pre-approve.
-            { name: 'allocationNumber', value: 'מס׳ הקצאה', width: '120px' },
             shared.date,
             shared.sum,
-            { name: 'category', value: 'קטגוריה', cellTemplate: categoryCellTpl, width: '125px' },
-            { name: 'subCategory', value: 'תת קטגוריה', cellTemplate: subCategoryCellTpl, width: '140px' },
-            { name: 'vatPercent', value: '% מע״מ', type: FormTypes.NUMBER, editable: true, width: '85px' },
-            { name: 'taxPercent', value: '% מס',   type: FormTypes.NUMBER, editable: true, width: '85px' },
+            { name: 'category', value: 'קטגוריה', cellTemplate: categoryCellTpl, width: '150px' },
+            { name: 'subCategory', value: 'תת קטגוריה', cellTemplate: subCategoryCellTpl, width: '170px' },
+            shared.vatPercent,
+            shared.taxPercent,
             shared.period,
-            shared.badge,
-            shared.source,
-            shared.actions,
           ]
         : [
             shared.select,
@@ -1815,17 +1807,21 @@ export class ReportReviewDialogComponent {
             shared.invoice,
             shared.date,
             // D7 — the single classification column of the professional view.
-            { name: 'description', value: 'תיאור', width: '190px' },
+            // Widened (190px → 260px) — at 190px the clipped text sat right
+            // up against the sum column with no visual breathing room.
+            { name: 'description', value: 'תיאור', width: '260px' },
             shared.sum,
-            { name: 'sectionName', value: 'חתך', width: '135px' },
+            // sectionName (חתך) dropped from the table — it's not an
+            // independent field, just a display label derived from
+            // whichever card is picked (see accountLabel below); showing
+            // it as its own column implied it was separately editable.
             { name: 'accountLabel', value: 'כרטיס', cellTemplate: cardCellTpl, width: '220px' },
-            { name: 'vatPercent', value: '% מע״מ', width: '80px' },
-            { name: 'taxPercent', value: '% מס', width: '80px' },
+            shared.vatPercent,
+            shared.taxPercent,
+            // Read-only — derived from the chosen card/sub_category's
+            // accounting law (D1); the backend has no override slot for it.
             { name: 'reductionPercent', value: '% פחת', width: '80px' },
             shared.period,
-            shared.badge,
-            shared.source,
-            shared.actions,
           ];
 
     this.columnsCache = { mode, tpls, cols };
