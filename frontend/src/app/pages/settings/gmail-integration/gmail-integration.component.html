@@ -155,66 +155,99 @@
   }
 </div>
 
-<!-- דיאלוג "משוך מסמכים עכשיו" — בחירת חשבונות לייבוא ידני -->
-<p-dialog header="בחירת חשבונות למשיכת מסמכים" [visible]="importDialogVisible()"
+<!-- דיאלוג "משוך מסמכים עכשיו" — בחירת חשבונות, ובסיום אותו דיאלוג מציג את הסיכום -->
+<p-dialog [header]="importResult() ? 'משיכת המסמכים מ-Gmail' : 'בחירת חשבונות למשיכת מסמכים'"
+  [visible]="importDialogVisible()"
   [modal]="true" [rtl]="true" [closable]="false"
   [style]="{ width: 'min(440px, 95vw)' }"
   [contentStyle]="{ 'max-height': '60vh', 'overflow-y': 'auto' }"
-  (onHide)="importDialogVisible.set(false)">
-  <div class="gmail-import-dialog">
-    <p class="gmail-import-description">בחר מאילו חשבונות Gmail למשוך מסמכים כעת.</p>
+  (onHide)="closeImportDialog()">
 
-    @if (selectableAccounts().length === 0) {
-      <p class="gmail-muted">
-        אין כרגע חשבונות זמינים למשיכה ידנית — ראו את ההסבר ליד כל חשבון ברשימה.
-      </p>
-    }
+  @if (importResult(); as result) {
 
-    <div class="gmail-import-bulk-actions">
-      <button type="button" class="gmail-link-button" [disabled]="importing()"
-        (click)="selectAllImportAccounts()">בחר הכל</button>
-      <button type="button" class="gmail-link-button" [disabled]="importing()"
-        (click)="clearImportSelection()">נקה בחירה</button>
-    </div>
+    <!-- סיכום המשיכה — אותו רכיב שמציג את תוצאת המשיכה הראשונית -->
+    <app-gmail-import-summary [summary]="result" />
 
-    <div class="gmail-import-accounts">
-      @for (account of syncState.accounts(); track account.id) {
-        <div class="gmail-import-account"
-          [class.gmail-import-account--disabled]="!isImportSelectable(account)">
-          <p-checkbox [binary]="true" [inputId]="'import-account-' + account.id"
-            [ngModel]="isSelectedForImport(account.id)"
-            [disabled]="!isImportSelectable(account) || importing()"
-            (onChange)="toggleImportAccount(account)"></p-checkbox>
-          <div class="gmail-import-account-info">
-            <label class="gmail-import-account-email" [for]="'import-account-' + account.id">
-              {{ account.accountEmail ?? 'חשבון ללא כתובת' }}
-            </label>
-            @if (!account.connected) {
-              <span class="gmail-import-account-note">
-                <i class="pi pi-exclamation-triangle"></i>
-                ההרשאה פגה או בוטלה — לא ניתן למשוך מחשבון זה עד שיחובר מחדש.
-              </span>
-              <button type="button" class="gmail-link-button" [disabled]="connecting() || importing()"
-                (click)="connectGmail()">חבר מחדש</button>
-            } @else if (!account.initialImportCompleted) {
-              <span class="gmail-import-account-note">
-                <i class="pi pi-info-circle"></i>
-                יש לבצע תחילה משיכה ראשונית לחשבון זה.
-              </span>
-            }
+  } @else {
+
+    <!-- בחירת חשבונות -->
+    <div class="gmail-import-dialog">
+      <p class="gmail-import-description">בחר מאילו חשבונות Gmail למשוך מסמכים כעת.</p>
+
+      @if (importErrorMessage()) {
+        <div class="gmail-error">
+          <i class="pi pi-exclamation-triangle"></i>
+          <span>{{ importErrorMessage() }}</span>
+        </div>
+      }
+
+      @if (selectableAccounts().length === 0) {
+        <p class="gmail-muted">
+          אין כרגע חשבונות זמינים למשיכה ידנית — ראו את ההסבר ליד כל חשבון ברשימה.
+        </p>
+      }
+
+      <div class="gmail-import-bulk-actions">
+        <button type="button" class="gmail-link-button" [disabled]="importing()"
+          (click)="selectAllImportAccounts()">בחר הכל</button>
+        <button type="button" class="gmail-link-button" [disabled]="importing()"
+          (click)="clearImportSelection()">נקה בחירה</button>
+      </div>
+
+      <div class="gmail-import-accounts">
+        @for (account of syncState.accounts(); track account.id) {
+          <div class="gmail-import-account"
+            [class.gmail-import-account--disabled]="!isImportSelectable(account)">
+            <p-checkbox [binary]="true" [inputId]="'import-account-' + account.id"
+              [ngModel]="isSelectedForImport(account.id)"
+              [disabled]="!isImportSelectable(account) || importing()"
+              (onChange)="toggleImportAccount(account)"></p-checkbox>
+            <div class="gmail-import-account-info">
+              <label class="gmail-import-account-email" [for]="'import-account-' + account.id">
+                {{ account.accountEmail ?? 'חשבון ללא כתובת' }}
+              </label>
+              @if (!account.connected) {
+                <span class="gmail-import-account-note">
+                  <i class="pi pi-exclamation-triangle"></i>
+                  ההרשאה פגה או בוטלה — לא ניתן למשוך מחשבון זה עד שיחובר מחדש.
+                </span>
+                <button type="button" class="gmail-link-button" [disabled]="connecting() || importing()"
+                  (click)="connectGmail()">חבר מחדש</button>
+              } @else if (!account.initialImportCompleted) {
+                <span class="gmail-import-account-note">
+                  <i class="pi pi-info-circle"></i>
+                  יש לבצע תחילה משיכה ראשונית לחשבון זה.
+                </span>
+              }
+            </div>
           </div>
+        }
+      </div>
+
+      @if (importing()) {
+        <div class="gmail-running">
+          <i class="pi pi-spin pi-spinner"></i>
+          <span>מושכים מסמכים מהחשבונות שנבחרו — התהליך עשוי להימשך מספר דקות.</span>
         </div>
       }
     </div>
-  </div>
+
+  }
+
   <ng-template pTemplate="footer">
     <div class="gmail-import-footer">
-      <app-p-button [buttonText]="'ביטול'" [buttonColor]="buttonColor.WHITE_BORDER"
-        [buttonSize]="buttonSize.SMALL" [disabled]="importing()"
-        (onButtonClicked)="closeImportDialog()"></app-p-button>
-      <app-p-button [buttonText]="'משוך מסמכים'" [buttonColor]="buttonColor.BLACK"
-        [buttonSize]="buttonSize.SMALL" [disabled]="importing() || !hasImportSelection()"
-        [isLoading]="importing()" (onButtonClicked)="importSelected()"></app-p-button>
+      @if (importResult()) {
+        <app-p-button [buttonText]="'סגור'" [buttonColor]="buttonColor.BLACK"
+          [buttonSize]="buttonSize.SMALL"
+          (onButtonClicked)="closeImportDialog()"></app-p-button>
+      } @else {
+        <app-p-button [buttonText]="'ביטול'" [buttonColor]="buttonColor.WHITE_BORDER"
+          [buttonSize]="buttonSize.SMALL" [disabled]="importing()"
+          (onButtonClicked)="closeImportDialog()"></app-p-button>
+        <app-p-button [buttonText]="'משוך מסמכים'" [buttonColor]="buttonColor.BLACK"
+          [buttonSize]="buttonSize.SMALL" [disabled]="importing() || !hasImportSelection()"
+          [isLoading]="importing()" (onButtonClicked)="importSelected()"></app-p-button>
+      }
     </div>
   </ng-template>
 </p-dialog>

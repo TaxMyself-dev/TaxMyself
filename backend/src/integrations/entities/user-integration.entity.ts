@@ -6,6 +6,7 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { GmailImportSummary } from '../dto/gmail-import-summary';
 import {
   IntegrationProvider,
   IntegrationStatus,
@@ -126,9 +127,22 @@ export class UserIntegration {
   })
   lastSyncStatus: IntegrationSyncStatus | null;
 
-  /** Failure detail of the last sync run; null while running and after success. */
+  /**
+   * Failure detail of the last sync run; null while running and after success.
+   * SERVER-SIDE ONLY — technical text for support, never returned to the UI.
+   */
   @Column({ name: 'last_sync_error', type: 'text', nullable: true, default: null })
   lastSyncError: string | null;
+
+  /**
+   * User-facing outcome of the last USER-INITIATED run (the initial import).
+   * The initial import runs in the background, so this column is how its final
+   * result reaches the UI: the frontend polls sync-status and renders this with
+   * the same component the manual import's response uses. Cleared by the
+   * nightly sync — nobody is waiting for that run's numbers.
+   */
+  @Column({ name: 'last_import_summary', type: 'json', nullable: true })
+  lastImportSummary: GmailImportSummary | null;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

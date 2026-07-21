@@ -20,6 +20,12 @@ export interface GmailAccountSyncStatus {
   lastSuccessfulSyncAt: string | null;
   lastSyncStatus: GmailSyncRunStatus | null;
   lastSyncError: string | null;
+  /**
+   * התוצאה הסופית של המשיכה הראשונית (שרצה ברקע). זה הערוץ שדרכו המסלול
+   * האסינכרוני מוסר את הסיכום שלו — הפרונט מציג אותו באותו רכיב שבו הוא מציג
+   * את תשובת המשיכה הידנית. null כשלא רצה משיכה ראשונית או אחרי סנכרון לילי.
+   */
+  lastImportSummary: GmailImportSummary | null;
 }
 
 /** Response of GET integrations/google/gmail/sync-status. */
@@ -32,25 +38,51 @@ export interface GmailSyncStatus {
   accounts: GmailAccountSyncStatus[];
 }
 
-/** תוצאת ייבוא מהחשבונות שנבחרו (POST integrations/google/gmail/import). */
-export interface GmailAccountImportResult {
-  integrationId: number;
-  accountEmail: string | null;
-  imported: number;
-  alreadyImported: number;
-  skipped: number;
-  attachmentsFound: number;
-  messagesFound: number;
-  messagesFailed: number;
-  error: string | null;
+/**
+ * העסק שתחתיו נשמרו המסמכים — כפי שדווח על ידי צינור הייבוא עצמו בשרת.
+ * הפרונט לא בוחר עסק, לא שולח מספר עסק ולא מסיק אותו; הוא רק מציג.
+ * אין כאן שום פרט אחסון פנימי (תיקיות/מזהי Drive) — למשתמש אין גישה אליהם.
+ */
+export interface GmailImportDestination {
+  businessNumber: string;
+  businessName: string | null;
 }
 
-export interface GmailImportAllResult {
+/** סוג הריצה שהפיקה את הסיכום. */
+export type GmailImportRunType = 'INITIAL' | 'MANUAL';
+
+/** סיבת כשל של חשבון בודד — קוד בלבד, בלי טקסט טכני מהשרת. */
+export type GmailImportErrorCode = 'ACCOUNT_NEEDS_RECONNECT' | 'IMPORT_FAILED';
+
+/** תוצאת חשבון בודד. הספירות זרות זו לזו — כל קובץ נספר פעם אחת בדיוק. */
+export interface GmailImportAccountSummary {
+  integrationId: number;
+  accountEmail: string | null;
+  /** מסמכים חדשים שנשמרו. */
+  imported: number;
+  /** מסמכים שכבר היו קיימים במערכת (כפילות — לא תקלה). */
+  alreadyImported: number;
+  /** קבצים שדולגו במכוון (לוגו, נספחים שאינם חשבונית/קבלה) — לא תקלה. */
+  skippedIrrelevant: number;
+  /** מה שבאמת נכשל: קבצים שלא נשמרו + הודעות שלא ניתן היה לקרוא. */
+  failed: number;
+  errorCode: GmailImportErrorCode | null;
+}
+
+/**
+ * מודל התוצאה המשותף לשני המסלולים: תשובת המשיכה הידנית, וגם התוצאה הסופית
+ * של המשיכה הראשונית (שרצה ברקע ונשמרת על החשבון עד שהפרונט קורא אותה).
+ */
+export interface GmailImportSummary {
+  runType: GmailImportRunType;
+  finishedAt: string;
   totalImported: number;
   totalAlreadyImported: number;
-  totalSkipped: number;
-  totalAttachmentsFound: number;
-  perAccount: GmailAccountImportResult[];
+  totalSkippedIrrelevant: number;
+  totalFailed: number;
+  /** בדרך כלל עסק אחד; ריק כשלא טופל אף קובץ. */
+  destinations: GmailImportDestination[];
+  perAccount: GmailImportAccountSummary[];
 }
 
 /** חיבור חשבונות חיצוניים (Google/Gmail) — endpoints של מודול integrations בשרת. */
@@ -84,9 +116,12 @@ export class IntegrationsService {
     );
   }
 
-  /** ייבוא ידני מחשבונות Gmail נבחרים (הבחירה נעשית בדיאלוג "משוך מסמכים עכשיו"). */
-  importGmail(integrationIds: number[]): Observable<GmailImportAllResult> {
-    return this.http.post<GmailImportAllResult>(
+  /**
+   * ייבוא ידני מחשבונות Gmail נבחרים (הבחירה נעשית בדיאלוג "משוך מסמכים עכשיו").
+   * נשלחים מזהי החשבונות בלבד — העסק נקבע בשרת ואינו ניתן להשפעה מהפרונט.
+   */
+  importGmail(integrationIds: number[]): Observable<GmailImportSummary> {
+    return this.http.post<GmailImportSummary>(
       `${environment.apiUrl}integrations/google/gmail/import`,
       { integrationIds },
     );

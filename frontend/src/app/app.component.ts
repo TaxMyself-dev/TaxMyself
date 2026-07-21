@@ -38,7 +38,7 @@ export class AppComponent implements OnInit {
   // but never on auth or billing routes (avoids dialog-loop when navigating to /billing/plans).
   protected readonly showBillingDialog = computed(() => {
     const url = this.currentUrl();
-    if (!url || ['/login', '/register'].includes(url) || url.startsWith('/billing')) {
+    if (!url || ['/login', '/register', '/privacy', '/terms'].includes(url) || url.startsWith('/billing')) {
       return false;
     }
     if (
@@ -223,7 +223,8 @@ export class AppComponent implements OnInit {
     ).subscribe((e: NavigationEnd) => {
       const url = e.urlAfterRedirects || e.url;
       this.currentUrl.set(url);
-      this.showTopNav.set(!(['/login', '/register'].includes(url)));
+      // Public, chrome-less routes: no authenticated TopNav shell.
+      this.showTopNav.set(!(['/login', '/register', '/privacy', '/terms'].includes(url)));
       // עדכון תפריט (כולל משרד לרואה חשבון) בכל ניווט – כך שהטאב יופיע גם אחרי כניסה מהדף לוגין
       const userFromStorage = this.authService.getUserDataFromLocalStorage();
       if (userFromStorage) {

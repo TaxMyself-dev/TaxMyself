@@ -25,6 +25,11 @@ export class ServiceAccountQuotaError extends Error {
   }
 }
 
+/** The two operational sub-folders every business folder is scaffolded with.
+ *  Exported because user-facing text names the inbox folder explicitly. */
+export const INBOX_FOLDER_NAME = 'inbox';
+export const PROCESSED_FOLDER_NAME = 'processed';
+
 /** Folder IDs returned by ensureBusinessFolder(): the parent business
  *  folder plus inbox/ and processed/ children. */
 export interface DriveBusinessFolders {
@@ -192,8 +197,8 @@ export class GoogleDriveService {
   async ensureInboxAndProcessed(
     businessFolderId: string,
   ): Promise<{ inboxFolderId: string; processedFolderId: string }> {
-    const inboxFolderId     = await this.getOrCreateChildFolder(businessFolderId, 'inbox');
-    const processedFolderId = await this.getOrCreateChildFolder(businessFolderId, 'processed');
+    const inboxFolderId     = await this.getOrCreateChildFolder(businessFolderId, INBOX_FOLDER_NAME);
+    const processedFolderId = await this.getOrCreateChildFolder(businessFolderId, PROCESSED_FOLDER_NAME);
     return { inboxFolderId, processedFolderId };
   }
 

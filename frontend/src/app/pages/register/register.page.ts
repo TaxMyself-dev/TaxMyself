@@ -6,7 +6,7 @@ import { RegisterService } from './register.service';
 import { IRegisterLoginImage, ISelectItem } from 'src/app/shared/interface';
 import { AuthService } from 'src/app/services/auth.service';
 import { GenericService } from 'src/app/services/generic.service';
-import { Router } from '@angular/router';
+import { Router, RouterModule } from '@angular/router';
 import { RegisterFormControls, RegisterFormModules } from './regiater.enum';
 import { catchError, EMPTY, finalize, map, startWith, Subject, takeUntil, tap } from 'rxjs';
 import { cloneDeep } from 'lodash';
@@ -34,6 +34,7 @@ import { ToggleSwitchModule } from 'primeng/toggleswitch';
     FormsModule,
     ReactiveFormsModule,
     IonicModule,
+    RouterModule,
     StepperComponent,
     SharedModule,
     InputTextComponent,

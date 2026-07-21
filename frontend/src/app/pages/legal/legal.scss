@@ -1,0 +1,224 @@
+// Shared styles for the public legal pages (Privacy Policy / Terms of Service).
+// Content is Hebrew, so these pages render RTL.
+
+// The app shell (`.app-content`) is `overflow:hidden` and pins each routed
+// component's host to the viewport height (flex:1 1 auto / min-height:0), so
+// every page must own its internal scroll. These pages are the scroll container.
+:host {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch; // momentum scrolling on iOS
+  background: #f5f6f8;
+  color: #1f2733;
+  font-family: 'Inter', 'Open Sans Hebrew', 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.legal-page {
+  direction: rtl;
+  text-align: right;
+}
+
+.legal-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 22px 24px 8px;
+  text-align: center;
+}
+
+.legal-header__logo img {
+  height: 36px;
+  width: auto;
+  display: block;
+}
+
+.legal-header__nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  font-size: 14px;
+}
+
+.legal-header__nav a {
+  color: #3b5bdb;
+  text-decoration: none;
+}
+
+.legal-header__nav a:hover {
+  text-decoration: underline;
+}
+
+.legal-container {
+  max-width: 860px;
+  margin: 16px auto 48px;
+  padding: 40px 48px 56px;
+  background: #ffffff;
+  border: 1px solid #e6e8ec;
+  border-radius: 14px;
+  box-shadow: 0 1px 3px rgba(16, 24, 40, 0.04);
+}
+
+.legal-container h1 {
+  font-size: 30px;
+  line-height: 1.3;
+  font-weight: 700;
+  margin: 0 0 8px;
+}
+
+.legal-meta {
+  margin: 0 0 28px;
+  padding: 16px 20px;
+  background: #f8f9fb;
+  border: 1px solid #eceef2;
+  border-radius: 10px;
+  font-size: 14px;
+  line-height: 1.8;
+  color: #47505c;
+}
+
+.legal-meta p {
+  margin: 2px 0;
+}
+
+.legal-container h2 {
+  font-size: 21px;
+  line-height: 1.4;
+  font-weight: 700;
+  margin: 40px 0 12px;
+  padding-top: 8px;
+}
+
+.legal-container h3 {
+  font-size: 17px;
+  line-height: 1.5;
+  font-weight: 600;
+  margin: 26px 0 10px;
+}
+
+.legal-container p,
+.legal-container li {
+  font-size: 15.5px;
+  line-height: 1.85;
+  color: #2b3440;
+}
+
+.legal-container p {
+  margin: 0 0 14px;
+}
+
+.legal-container ul,
+.legal-container ol {
+  margin: 0 0 16px;
+  padding-right: 24px;
+  padding-left: 0;
+}
+
+.legal-container li {
+  margin: 0 0 8px;
+}
+
+.legal-container a {
+  color: #3b5bdb;
+  word-break: break-word;
+}
+
+// Technical values (scopes, URLs, API method names) stay LTR even inside RTL text.
+.legal-container code {
+  font-family: 'Roboto Mono', 'Courier New', monospace;
+  font-size: 0.9em;
+  background: #f2f4f7;
+  border: 1px solid #e6e8ec;
+  border-radius: 4px;
+  padding: 1px 5px;
+  direction: ltr;
+  unicode-bidi: isolate;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.legal-table-wrap {
+  overflow-x: auto;
+  margin: 0 0 18px;
+}
+
+.legal-container table {
+  border-collapse: collapse;
+  width: 100%;
+  min-width: 480px;
+  font-size: 14.5px;
+}
+
+.legal-container th,
+.legal-container td {
+  border: 1px solid #e2e5ea;
+  padding: 9px 12px;
+  text-align: right;
+  vertical-align: top;
+  line-height: 1.6;
+}
+
+.legal-container th {
+  background: #f8f9fb;
+  font-weight: 600;
+}
+
+.legal-container hr {
+  border: none;
+  border-top: 1px solid #eceef2;
+  margin: 28px 0;
+}
+
+.legal-footer {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 0 48px 48px;
+  font-size: 14px;
+  color: #6b7480;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.legal-footer a {
+  color: #3b5bdb;
+  text-decoration: none;
+}
+
+.legal-footer a:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 640px) {
+  .legal-header {
+    padding: 16px 16px 4px;
+  }
+
+  .legal-container {
+    margin: 12px 12px 32px;
+    padding: 24px 20px 36px;
+    border-radius: 12px;
+  }
+
+  .legal-container h1 {
+    font-size: 25px;
+  }
+
+  .legal-container h2 {
+    font-size: 19px;
+  }
+
+  .legal-footer {
+    padding: 0 20px 36px;
+  }
+}

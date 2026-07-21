@@ -213,13 +213,15 @@ export class IntegrationsController {
   /**
    * Phase D: import Gmail attachment candidates into the business's Drive
    * inbox/ folder via the shared DocumentImportService pipeline. Documents
-   * already in the system (tracked in imported_documents) are skipped; the
-   * response summarizes what happened per file. Claude analysis is NOT
-   * triggered here — it keeps running from the Drive inbox as before.
+   * already in the system (tracked in imported_documents) are skipped.
+   * Claude analysis is NOT triggered here — it keeps running from the Drive
+   * inbox as before.
    *
-   * businessNumber is optional: when omitted, the pipeline resolves the target
-   * business via BusinessResolverService (single business, or the primary for
-   * multi-business users).
+   * The response is the shared GmailImportSummary — the same model the
+   * background initial import persists — with per-account counts (imported /
+   * already existed / skipped as irrelevant / failed) and the businesses the
+   * documents were actually stored under, taken from the import pipeline's own
+   * results. The request cannot influence that destination.
    */
   @Post('google/gmail/import')
   @UseGuards(FirebaseAuthGuard)
@@ -234,9 +236,6 @@ export class IntegrationsController {
     // dialog (ownership + ACTIVE status validated in the service); one failing
     // mailbox does not abort the others (aggregated per-account in the response).
     return this.gmailDriveImportService.importAllForUser(firebaseId, body.integrationIds, {
-      // Optional: when omitted, DocumentImportService resolves the target
-      // business via BusinessResolverService.
-      businessNumber: body.businessNumber?.trim() || undefined,
       query: body.q,
       // Default 10, DTO clamps to 25 — this endpoint stays a small manual scan.
       maxMessages: body.maxResults ?? 10,

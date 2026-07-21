@@ -1,0 +1,99 @@
+.gmail-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.gmail-summary-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 8px;
+  background: #ecfdf5;
+  color: #047857;
+
+  i {
+    margin-top: 3px;
+    flex-shrink: 0;
+  }
+
+  // הצלחה חלקית — חלק מהקבצים לא נקלטו
+  &.gmail-summary-banner--partial {
+    background: #fffbeb;
+    color: #b45309;
+  }
+
+  &.gmail-summary-banner--failure {
+    background: #fef2f2;
+    color: #b91c1c;
+  }
+}
+
+.gmail-summary-lines {
+  margin: 0;
+  // נשען על direction ולא על צד קשיח, כדי שה-RTL יעבוד גם בתוך מיכלים שונים
+  padding-inline-start: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.9rem;
+  line-height: 1.5;
+
+  li::marker {
+    font-size: 0.75em;
+  }
+}
+
+.gmail-summary-business {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: #374151;
+  // חיוני במובייל: שם עסק ארוך נשבר במקום לגלוש מחוץ לדיאלוג
+  overflow-wrap: anywhere;
+}
+
+.gmail-summary-accounts {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.gmail-summary-account {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+
+  &.gmail-summary-account--failed {
+    background: #fef2f2;
+    border-color: #fecaca;
+
+    .gmail-summary-account-counts {
+      color: #b91c1c;
+    }
+  }
+}
+
+.gmail-summary-account-email {
+  font-size: 0.9rem;
+  font-weight: 500;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.gmail-summary-account-counts {
+  font-size: 0.85rem;
+  color: #4b5563;
+}
+
+.gmail-summary-note {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: #6b7280;
+}

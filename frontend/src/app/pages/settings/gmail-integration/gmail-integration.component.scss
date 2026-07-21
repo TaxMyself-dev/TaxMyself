@@ -164,6 +164,34 @@
       flex-shrink: 0;
     }
   }
+
+  // הודעות מצב בתוך הדיאלוג (שגיאה / "מושכים כעת") — מחוץ לסקופ .gmail-integration
+  .gmail-error,
+  .gmail-running {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    line-height: 1.5;
+
+    i {
+      margin-top: 2px;
+      flex-shrink: 0;
+    }
+  }
+
+  .gmail-error {
+    background: #fef2f2;
+    color: #b91c1c;
+  }
+
+  .gmail-running {
+    background: #eff6ff;
+    color: #1d4ed8;
+  }
+
 }
 
 .gmail-link-button {

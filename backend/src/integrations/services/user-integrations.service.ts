@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Not, Repository } from 'typeorm';
+import { GmailImportSummary } from '../dto/gmail-import-summary';
 import { UserIntegration } from '../entities/user-integration.entity';
 import {
   IntegrationProvider,
@@ -276,6 +277,11 @@ export class UserIntegrationsService {
     options: {
       lastSuccessfulSyncAt: Date;
       initialImport?: { fromDate: string; toDate: string };
+      /**
+       * User-facing outcome to publish for this run, or null to clear a
+       * previous one. Omit to leave the stored summary untouched.
+       */
+      importSummary?: GmailImportSummary | null;
     },
   ): Promise<void> {
     const update: Partial<UserIntegration> = {
@@ -283,6 +289,9 @@ export class UserIntegrationsService {
       lastSyncError: null,
       lastSuccessfulSyncAt: options.lastSuccessfulSyncAt,
     };
+    if (options.importSummary !== undefined) {
+      update.lastImportSummary = options.importSummary;
+    }
     if (options.initialImport) {
       update.initialImportCompletedAt = new Date();
       update.initialImportFromDate = options.initialImport.fromDate;
@@ -291,14 +300,24 @@ export class UserIntegrationsService {
     await this.userIntegrationRepo.update({ id: integrationId }, update);
   }
 
-  /** A sync run failed — record why. The cursor is deliberately NOT advanced. */
-  async markSyncError(integrationId: number, error: string): Promise<void> {
+  /**
+   * A sync run failed — record why. The cursor is deliberately NOT advanced.
+   * `importSummary` carries the user-facing outcome when the run produced one
+   * before failing (so the UI can still show what was imported); the technical
+   * `error` text stays server-side.
+   */
+  async markSyncError(
+    integrationId: number,
+    error: string,
+    importSummary: GmailImportSummary | null = null,
+  ): Promise<void> {
     await this.userIntegrationRepo.update(
       { id: integrationId },
       {
         lastSyncStatus: IntegrationSyncStatus.ERROR,
         // TEXT column, but keep pathological messages bounded anyway.
         lastSyncError: error.length > 2000 ? error.slice(0, 2000) : error,
+        lastImportSummary: importSummary,
       },
     );
   }

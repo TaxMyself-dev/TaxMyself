@@ -16,6 +16,15 @@ const routes: Routes = [
     path: 'register',
     loadComponent: () => import('./pages/register/register.page').then(m => m.RegisterPage)
   },
+  // Public legal pages — intentionally NO guards (AuthGuard/BillingGuard/ModuleAccessGuard).
+  {
+    path: 'privacy',
+    loadComponent: () => import('./pages/legal/privacy/privacy.page').then(m => m.PrivacyPage)
+  },
+  {
+    path: 'terms',
+    loadComponent: () => import('./pages/legal/terms/terms.page').then(m => m.TermsPage)
+  },
 
   {
     path: 'reports',

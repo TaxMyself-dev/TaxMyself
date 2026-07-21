@@ -11,9 +11,11 @@ import { GenericService } from 'src/app/services/generic.service';
 import { GmailSyncStateService } from 'src/app/services/gmail-sync-state.service';
 import {
   GmailAccountSyncStatus,
+  GmailImportSummary,
   IntegrationsService,
 } from 'src/app/services/integrations.service';
 import { inputsSize } from 'src/app/shared/enums';
+import { GmailImportSummaryComponent } from 'src/app/shared/gmail-import-summary/gmail-import-summary.component';
 
 /**
  * חיבור Gmail לקליטת מסמכים (טאב "ניהול הרשאות וחשבונות" בהגדרות).
@@ -36,6 +38,7 @@ import { inputsSize } from 'src/app/shared/enums';
     CheckboxModule,
     ButtonComponent,
     InputDateComponent,
+    GmailImportSummaryComponent,
   ],
 })
 export class GmailIntegrationComponent implements OnInit {
@@ -61,6 +64,15 @@ export class GmailIntegrationComponent implements OnInit {
   readonly importDialogVisible = signal(false);
   /** מזהי החשבונות המסומנים בדיאלוג; מאותחל מחדש בכל פתיחה. */
   readonly selectedImportIds = signal<ReadonlySet<number>>(new Set());
+
+  /**
+   * תוצאת המשיכה האחרונה. כל עוד היא null הדיאלוג מציג את בחירת החשבונות;
+   * ברגע שהיא מתמלאת אותו דיאלוג עובר להצגת הסיכום — בלי toast נוסף ובלי
+   * דיאלוג שני, כך שהמשתמש רואה את התוצאה במקום שבו התחיל את הפעולה.
+   */
+  readonly importResult = signal<GmailImportSummary | null>(null);
+  /** הודעת שגיאה ידידותית (ללא פרטים טכניים) כשהבקשה כולה נכשלה. */
+  readonly importErrorMessage = signal<string | null>(null);
 
   /**
    * חשבונות שאפשר למשוך מהם ידנית: ACTIVE שגם השלימו משיכה ראשונית.
@@ -136,12 +148,17 @@ export class GmailIntegrationComponent implements OnInit {
   openImportDialog(): void {
     if (this.importing()) return;
     this.selectedImportIds.set(new Set(this.selectableAccounts().map((a) => a.id)));
+    this.importResult.set(null);
+    this.importErrorMessage.set(null);
     this.importDialogVisible.set(true);
   }
 
   closeImportDialog(): void {
+    // בזמן ריצה הדיאלוג נעול — הסיכום חייב להגיע לפני שהוא נסגר.
     if (this.importing()) return;
     this.importDialogVisible.set(false);
+    this.importResult.set(null);
+    this.importErrorMessage.set(null);
   }
 
   isSelectedForImport(integrationId: number): boolean {
@@ -167,43 +184,50 @@ export class GmailIntegrationComponent implements OnInit {
     this.selectedImportIds.set(new Set());
   }
 
-  /** ייבוא מהחשבונות שנבחרו בדיאלוג (כפתור האישור). */
+  /**
+   * ייבוא מהחשבונות שנבחרו בדיאלוג (כפתור האישור). מצב הטעינה נשאר פעיל עד
+   * שהשרת מחזיר את הסיכום המלא, ואז אותו דיאלוג עובר למסך התוצאה.
+   */
   importSelected(): void {
     if (this.importing() || !this.hasImportSelection()) return;
     this.importing.set(true);
+    this.importErrorMessage.set(null);
     this.integrationsService.importGmail([...this.selectedImportIds()]).subscribe({
       next: (result) => {
         this.importing.set(false);
-        this.importDialogVisible.set(false);
-        const failed = result.perAccount.filter((a) => a.error);
-        this.messageService.add({
-          severity: failed.length > 0 ? 'warn' : 'success',
-          summary: 'ייבוא הושלם',
-          detail:
-            `יובאו ${result.totalImported} מסמכים חדשים` +
-            (failed.length > 0
-              ? ` (נכשלו: ${failed.map((a) => a.accountEmail ?? `חשבון ${a.integrationId}`).join(', ')})`
-              : ''),
-          life: 5000,
-          key: 'br',
-        });
+        // הדיאלוג נשאר פתוח ומציג את הסיכום; אין toast כדי לא לכפול הודעות.
+        this.importResult.set(result);
         this.syncState.refresh();
       },
       error: (err) => {
         // הדיאלוג נשאר פתוח לניסיון חוזר; רענון תופס רשימת חשבונות לא עדכנית
         // (למשל חשבון שנבחר והפך EXPIRED בינתיים — השרת מחזיר 404).
         this.importing.set(false);
-        this.messageService.add({
-          severity: 'error',
-          summary: 'שגיאה',
-          detail: err?.error?.message ?? 'לא ניתן היה לייבא מהחשבונות. נסה שוב.',
-          life: 5000,
-          key: 'br',
-        });
+        this.importErrorMessage.set(this.describeImportError(err));
         this.syncState.refresh();
       },
     });
   }
+
+  /**
+   * הודעה בעברית לפי סוג הכשל. הודעת השרת עצמה לא מוצגת — היא טכנית
+   * ובאנגלית, ולעיתים כוללת מזהים פנימיים.
+   */
+  private describeImportError(err: any): string {
+    switch (err?.status) {
+      case 404:
+        return 'אחד החשבונות שנבחרו כבר אינו מחובר. רענן/י את המסך ונסה/י שוב.';
+      case 400:
+        return 'לא ניתן היה למשוך מסמכים — ודא/י שמוגדר עסק בחשבון, ונסה/י שוב.';
+      case 409:
+        return 'משיכת מסמכים כבר מתבצעת עבור אחד החשבונות שנבחרו.';
+      default:
+        return 'לא הצלחנו למשוך את המסמכים. נסה/י שוב בעוד מספר דקות.';
+    }
+  }
+
+  // הצגת הסיכום עצמו חיה ב-GmailImportSummaryComponent המשותף, כדי שהמשיכה
+  // הידנית והמשיכה הראשונית יציגו בדיוק אותו דבר.
 
   startImport(account: GmailAccountSyncStatus): void {
     if (this.syncState.isStarting(account.id) || account.lastSyncStatus === 'RUNNING') return;

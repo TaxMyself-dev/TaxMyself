@@ -44,17 +44,34 @@ export interface DocumentImportRequest {
   metadata?: DocumentImportMetadata;
 }
 
-export type DocumentImportStatus = 'IMPORTED' | 'ALREADY_IMPORTED' | 'SKIPPED';
+export type DocumentImportStatus = 'IMPORTED' | 'ALREADY_IMPORTED' | 'FAILED';
+
+/**
+ * The business this document was actually stored under — decided by the same
+ * call that performed the upload, never re-derived for display. A batch caller
+ * reads it off the real per-file results, so what the user is told matches
+ * where the bytes went.
+ *
+ * Deliberately contains NO storage detail (folder ids, urls, folder names):
+ * the user has no access to the underlying Drive, and the destination is a
+ * business as far as the product is concerned.
+ */
+export interface DocumentImportDestination {
+  businessNumber: string;
+  businessName: string | null;
+}
 
 export interface DocumentImportResult {
   status: DocumentImportStatus;
-  /** Populated for SKIPPED; null otherwise. */
+  /** Populated for FAILED; null otherwise. */
   reason: string | null;
   contentHash: string;
   /** For ALREADY_IMPORTED these point at the ORIGINAL import's Drive file. */
   driveFileId: string | null;
   driveFileName: string | null;
   importedDocumentId: number | null;
+  /** The business this document was stored under — set on every outcome. */
+  destination: DocumentImportDestination;
 }
 
 /**
@@ -86,14 +103,24 @@ export class DocumentImportService {
    *
    * Throws for environment problems the caller can't work around (business
    * missing, Drive structure unprovisioned). Per-document failures (Drive
-   * upload, DB insert) never throw — they come back as status SKIPPED so a
+   * upload, DB insert) never throw — they come back as status FAILED so a
    * batch caller can continue with its remaining documents.
+   *
+   * Every outcome carries the `destination` this call resolved. That is the
+   * ONLY sanctioned way to learn where a document went: resolution happens
+   * here, once, and the answer travels with the result instead of being
+   * recomputed by whoever wants to display it.
    */
   async importDocument(request: DocumentImportRequest): Promise<DocumentImportResult> {
     // Decide the target business first — dedup, Drive folder lookup and the
-    // ledger row all key off businessNumber. When the caller supplies one it is
-    // honored unchanged; when it is absent the resolver picks it.
-    const businessNumber = await this.resolveBusinessNumber(request);
+    // ledger row all key off it. When the caller supplies a number it is
+    // honored unchanged; when it is absent the resolver picks the business.
+    const business = await this.resolveDestinationBusiness(request);
+    const businessNumber = business.businessNumber;
+    const destination: DocumentImportDestination = {
+      businessNumber,
+      businessName: business.businessName ?? null,
+    };
 
     const contentHash = createHash('sha256').update(request.content).digest('hex');
 
@@ -115,13 +142,11 @@ export class DocumentImportService {
         driveFileId: existing.driveFileId,
         driveFileName: existing.driveFileName,
         importedDocumentId: existing.id,
+        destination,
       };
     }
 
-    const inboxFolderId = await this.resolveInboxFolderId(
-      request.firebaseId,
-      businessNumber,
-    );
+    const inboxFolderId = await this.resolveInboxFolderId(business);
 
     // Collision-safe name against the CURRENT inbox listing. Listed per
     // import (not cached) so sequential batch imports see each other's
@@ -145,12 +170,13 @@ export class DocumentImportService {
           `(source=${request.source}, business=${businessNumber}): ${error?.message ?? error}`,
       );
       return {
-        status: 'SKIPPED',
+        status: 'FAILED',
         reason: `drive_upload_failed: ${error?.message ?? error}`,
         contentHash,
         driveFileId: null,
         driveFileName: null,
         importedDocumentId: null,
+        destination,
       };
     }
 
@@ -186,6 +212,7 @@ export class DocumentImportService {
         driveFileId,
         driveFileName,
         importedDocumentId: saved.id,
+        destination,
       };
     } catch (error: any) {
       // Unique-index race: a concurrent import recorded these bytes between
@@ -206,6 +233,7 @@ export class DocumentImportService {
           driveFileId: winner?.driveFileId ?? null,
           driveFileName: winner?.driveFileName ?? null,
           importedDocumentId: winner?.id ?? null,
+          destination,
         };
       }
       this.logger.error(
@@ -215,39 +243,56 @@ export class DocumentImportService {
       );
       await this.cleanupDriveFile(driveFileId, driveFileName);
       return {
-        status: 'SKIPPED',
+        status: 'FAILED',
         reason: `db_insert_failed: ${error?.message ?? error}`,
         contentHash,
         driveFileId: null,
         driveFileName: null,
         importedDocumentId: null,
+        destination,
       };
     }
   }
 
   /**
-   * Decide which business this import targets.
+   * Decide which business this import targets — the ONE resolution path.
+   * Returns the Business row itself (not just its number) so the caller can
+   * both upload into it and report it back without a second lookup or a
+   * second, drifting copy of these rules.
    *
-   * - Explicit businessNumber supplied by the caller → honored as-is (the
-   *   existing behavior; ownership is validated downstream in
-   *   resolveInboxFolderId's business lookup).
-   * - No businessNumber → delegate to BusinessResolverService, the single
-   *   home for "which business does this document belong to" (single business,
-   *   or the primary for multi-business users).
+   * - Explicit businessNumber supplied by the caller → honored as-is, loaded
+   *   scoped to the caller's firebaseId (which is what validates ownership).
+   * - No businessNumber → delegate to BusinessResolverService, the single home
+   *   for "which business does this document belong to" (single business, or
+   *   the primary for multi-business users).
    */
-  private async resolveBusinessNumber(request: DocumentImportRequest): Promise<string> {
+  private async resolveDestinationBusiness(
+    request: DocumentImportRequest,
+  ): Promise<Business & { businessNumber: string }> {
     const explicit = request.businessNumber?.trim();
-    if (explicit) {
-      return explicit;
-    }
+    const business = explicit
+      ? await this.loadBusinessOrThrow(request.firebaseId, explicit)
+      : await this.businessResolver.resolveTargetBusiness(request.firebaseId);
 
-    const business = await this.businessResolver.resolveTargetBusiness(request.firebaseId);
     if (!business.businessNumber) {
       throw new BadRequestException(
         `Resolved business (id=${business.id}) has no business number — cannot import into it.`,
       );
     }
-    return business.businessNumber;
+    return business as Business & { businessNumber: string };
+  }
+
+  private async loadBusinessOrThrow(
+    firebaseId: string,
+    businessNumber: string,
+  ): Promise<Business> {
+    const business = await this.businessRepo.findOne({
+      where: { firebaseId, businessNumber },
+    });
+    if (!business) {
+      throw new NotFoundException(`Business ${businessNumber} not found for this user`);
+    }
+    return business;
   }
 
   /**
@@ -255,16 +300,8 @@ export class DocumentImportService {
    * exists but the inbox/processed pair was never provisioned, backfill it
    * via the existing GoogleDriveService helper (same as the documents flow).
    */
-  private async resolveInboxFolderId(
-    firebaseId: string,
-    businessNumber: string,
-  ): Promise<string> {
-    const business = await this.businessRepo.findOne({
-      where: { firebaseId, businessNumber },
-    });
-    if (!business) {
-      throw new NotFoundException(`Business ${businessNumber} not found for this user`);
-    }
+  private async resolveInboxFolderId(business: Business): Promise<string> {
+    const businessNumber = business.businessNumber;
     if (business.driveInboxFolderId) {
       return business.driveInboxFolderId;
     }

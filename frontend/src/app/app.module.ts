@@ -30,6 +30,7 @@ import { ProgressSpinner } from 'primeng/progressspinner';
 import { Dialog } from 'primeng/dialog';
 import { AuthErrorInterceptor } from './interceptors/authError.interceptor';
 import { UpgradeRequiredDialogComponent } from './components/upgrade-required-dialog/upgrade-required-dialog.component';
+import { GmailImportSummaryDialogComponent } from './shared/gmail-import-summary/gmail-import-summary-dialog.component';
 
 
 @NgModule({
@@ -58,6 +59,7 @@ import { UpgradeRequiredDialogComponent } from './components/upgrade-required-di
     ProgressSpinner,
     Dialog,
     UpgradeRequiredDialogComponent,
+    GmailImportSummaryDialogComponent,
 ],
   providers: [
     providePrimeNG({theme: {preset: Aura}}),

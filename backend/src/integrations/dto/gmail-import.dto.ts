@@ -3,7 +3,6 @@ import {
   ArrayNotEmpty,
   IsArray,
   IsInt,
-  IsNotEmpty,
   IsOptional,
   IsString,
   Max,
@@ -23,15 +22,9 @@ export class GmailImportDto {
   @IsInt({ each: true })
   integrationIds: number[];
 
-  /**
-   * Which business's Drive inbox receives the files — inbox/ lives per business.
-   * Optional: when omitted, BusinessResolverService resolves the target business
-   * (single business, or the primary for multi-business users).
-   */
-  @IsOptional()
-  @IsString()
-  @IsNotEmpty()
-  businessNumber?: string;
+  // NO businessNumber: which business receives the files is decided solely by
+  // BusinessResolverService inside the import pipeline. A client cannot
+  // choose, hint at, or override the destination.
 
   /** Optional Gmail search override; defaults to the reader's broad receipts query. */
   @IsOptional()

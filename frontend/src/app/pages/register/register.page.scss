@@ -179,6 +179,31 @@ width: 220px;
   color: #204F56;
 }
 
+.legal-links {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  text-align: center;
+  font-size: 13px;
+
+  a {
+    color: #204F56;
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+
+  .sep {
+    color: #c4c8ce;
+  }
+}
+
 .business-title {
   font-size: 20px;
   font-weight: 600;

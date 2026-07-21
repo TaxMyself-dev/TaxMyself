@@ -25,6 +25,9 @@
 
   <app-upgrade-required-dialog />
 
+  <!-- תוצאת המשיכה הראשונית מ-Gmail: רצה ברקע, ולכן הדיאלוג חי ברמת האפליקציה -->
+  <app-gmail-import-summary-dialog />
+
   @if (showBillingDialog()) {
     <p-dialog
       [visible]="true"

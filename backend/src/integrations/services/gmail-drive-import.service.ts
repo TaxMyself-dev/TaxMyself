@@ -1,9 +1,16 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import {
+  DocumentImportDestination,
   DocumentImportService,
   DocumentImportStatus,
 } from 'src/document-import/document-import.service';
 import { DocumentImportSource } from 'src/document-import/enums/document-import.enums';
+import {
+  buildGmailImportSummary,
+  GmailImportAccountSummary,
+  GmailImportErrorCode,
+  GmailImportSummary,
+} from '../dto/gmail-import-summary';
 import { UserIntegration } from '../entities/user-integration.entity';
 import { IntegrationProvider } from '../enums/integrations.enums';
 import {
@@ -40,32 +47,22 @@ export interface GmailImportResult {
   attachmentsFound: number;
   imported: number;
   alreadyImported: number;
-  skipped: number;
+  /** Per-file import failures (Drive upload / ledger insert). */
+  failedFiles: number;
+  /**
+   * The businesses these documents were stored under, as reported by the
+   * import pipeline itself (never re-resolved here). Distinct, first-seen
+   * order; empty when the scan handled no attachment.
+   */
+  destinations: DocumentImportDestination[];
   /** Per-file detail; empty when the caller opted out (bulk imports). */
   files: GmailImportFileResult[];
 }
 
-/** One connected mailbox's outcome inside a user-level "import all" run. */
-export interface GmailAccountImportResult {
-  integrationId: number;
-  accountEmail: string | null;
-  imported: number;
-  alreadyImported: number;
-  skipped: number;
-  attachmentsFound: number;
-  messagesFound: number;
-  messagesFailed: number;
-  /** Non-null when this mailbox failed; the other mailboxes still run. */
-  error: string | null;
-}
-
-/** Aggregate of a "import from all connected Gmail accounts" run. */
-export interface GmailImportAllResult {
-  totalImported: number;
-  totalAlreadyImported: number;
-  totalSkipped: number;
-  totalAttachmentsFound: number;
-  perAccount: GmailAccountImportResult[];
+/** One mailbox's outcome plus the destinations its documents actually reached. */
+export interface GmailAccountImportOutcome {
+  summary: GmailImportAccountSummary;
+  destinations: DocumentImportDestination[];
 }
 
 /**
@@ -97,12 +94,16 @@ export class GmailDriveImportService {
    * Dedup (firebaseId + businessNumber + contentHash) runs in
    * DocumentImportService, so the same file arriving in two mailboxes is
    * imported once.
+   *
+   * The target business is NOT chosen here and cannot be influenced by the
+   * caller: the import pipeline resolves it per document and reports it back,
+   * and the summary's destinations are collected from those real results.
    */
   async importAllForUser(
     firebaseId: string,
     integrationIds: number[],
-    options: { businessNumber?: string; query?: string; maxMessages?: number },
-  ): Promise<GmailImportAllResult> {
+    options: { query?: string; maxMessages?: number } = {},
+  ): Promise<GmailImportSummary> {
     const activeIntegrations =
       await this.userIntegrationsService.findAllActiveByUserAndProvider(
         firebaseId,
@@ -136,55 +137,87 @@ export class GmailDriveImportService {
     const requestedIds = new Set(integrationIds);
     const integrations = activeIntegrations.filter((i) => requestedIds.has(i.id));
 
-    const aggregate: GmailImportAllResult = {
-      totalImported: 0,
-      totalAlreadyImported: 0,
-      totalSkipped: 0,
-      totalAttachmentsFound: 0,
-      perAccount: [],
-    };
+    const summaries: GmailImportAccountSummary[] = [];
+    const destinations: DocumentImportDestination[] = [];
 
     for (const integration of integrations) {
-      const account: GmailAccountImportResult = {
-        integrationId: integration.id,
-        accountEmail: integration.accountEmail,
-        imported: 0,
-        alreadyImported: 0,
-        skipped: 0,
-        attachmentsFound: 0,
-        messagesFound: 0,
-        messagesFailed: 0,
-        error: null,
-      };
-      try {
-        const result = await this.importFromGmail(integration, {
-          businessNumber: options.businessNumber,
-          query: options.query,
-          maxMessages: options.maxMessages,
-          includeFileDetails: false,
-        });
-        account.imported = result.imported;
-        account.alreadyImported = result.alreadyImported;
-        account.skipped = result.skipped;
-        account.attachmentsFound = result.attachmentsFound;
-        account.messagesFound = result.messagesFound;
-        account.messagesFailed = result.messagesFailed;
-      } catch (error: any) {
-        account.error = error?.message ?? String(error);
-        this.logger.error(
-          `Gmail import-all: account ${integration.accountEmail ?? 'unknown'} ` +
-            `(integration ${integration.id}) failed: ${account.error}`,
-        );
-      }
-
-      aggregate.totalImported += account.imported;
-      aggregate.totalAlreadyImported += account.alreadyImported;
-      aggregate.totalSkipped += account.skipped;
-      aggregate.totalAttachmentsFound += account.attachmentsFound;
-      aggregate.perAccount.push(account);
+      const outcome = await this.importAccount(integration, options);
+      summaries.push(outcome.summary);
+      destinations.push(...outcome.destinations);
     }
 
-    return aggregate;
+    return buildGmailImportSummary('MANUAL', summaries, destinations);
+  }
+
+  /**
+   * One mailbox, one user-facing outcome — the unit both the manual pull and
+   * the background initial import are built from, so the two flows can never
+   * count or classify anything differently.
+   *
+   * Never throws: a mailbox that fails mid-run is reported through
+   * `summary.errorCode` (the exception itself is logged here and nowhere near
+   * the response), and the counts it produced before failing are kept.
+   */
+  async importAccount(
+    integration: UserIntegration,
+    options: {
+      query?: string;
+      maxMessages?: number;
+      /** Pass one in to also emit the aggregated SKIPPED SUMMARY log. */
+      skipStats?: SkippedAttachmentsAccumulator;
+    } = {},
+  ): Promise<GmailAccountImportOutcome> {
+    const summary: GmailImportAccountSummary = {
+      integrationId: integration.id,
+      accountEmail: integration.accountEmail,
+      imported: 0,
+      alreadyImported: 0,
+      skippedIrrelevant: 0,
+      failed: 0,
+      errorCode: null,
+    };
+    // The reader's expected skips (logos, non-invoice files) are otherwise
+    // log-only, and the user is owed that number.
+    const skipStats = options.skipStats ?? new SkippedAttachmentsAccumulator();
+    let destinations: DocumentImportDestination[] = [];
+
+    try {
+      const result = await this.importFromGmail(integration, {
+        query: options.query,
+        maxMessages: options.maxMessages,
+        includeFileDetails: false,
+        skipStats,
+      });
+      summary.imported = result.imported;
+      summary.alreadyImported = result.alreadyImported;
+      // Files that could not be stored + messages that could not be read.
+      // Duplicates and deliberate skips are counted elsewhere, never here.
+      summary.failed = result.failedFiles + result.messagesFailed;
+      destinations = result.destinations;
+    } catch (error: any) {
+      summary.errorCode = this.classifyAccountError(error);
+      this.logger.error(
+        `Gmail import: account ${integration.accountEmail ?? 'unknown'} ` +
+          `(integration ${integration.id}) failed: ${error?.message ?? error}`,
+      );
+    }
+
+    // Recorded whether the account succeeded or failed mid-run: attachments
+    // skipped before the failure were still legitimately skipped.
+    summary.skippedIrrelevant = skipStats.totalSkipped;
+    return { summary, destinations };
+  }
+
+  /**
+   * Collapses an exception into the coarse reason the UI can phrase. The
+   * message itself never leaves the server — it is logged (and, for background
+   * runs, persisted to lastSyncError) for support to read.
+   */
+  private classifyAccountError(error: any): GmailImportErrorCode {
+    const message = String(error?.message ?? error);
+    return /invalid_grant|unauthorized|expired|revoked|reconnect/i.test(message)
+      ? 'ACCOUNT_NEEDS_RECONNECT'
+      : 'IMPORT_FAILED';
   }
 
   /**
@@ -203,7 +236,6 @@ export class GmailDriveImportService {
   async importFromGmail(
     integration: UserIntegration,
     options: {
-      businessNumber?: string;
       query?: string;
       maxMessages?: number;
       includeFileDetails?: boolean;
@@ -222,9 +254,13 @@ export class GmailDriveImportService {
       attachmentsFound: 0,
       imported: 0,
       alreadyImported: 0,
-      skipped: 0,
+      failedFiles: 0,
+      destinations: [],
       files: [],
     };
+    // Keyed by business number so the same destination reported by hundreds of
+    // documents is recorded once, in first-seen order.
+    const destinationsSeen = new Map<string, DocumentImportDestination>();
 
     // Integration/token errors (not connected, expired, revoked) bubble up
     // from the reader with clear messages; junk filtering happens there too.
@@ -245,14 +281,17 @@ export class GmailDriveImportService {
       for (const attachment of scan.attachments) {
         result.attachmentsFound += 1;
 
-        // Per-attachment failures come back as status SKIPPED — importDocument
+        // Per-attachment failures come back as status FAILED — importDocument
         // only throws for environment problems (business missing, Drive
         // unprovisioned), which rightly abort the whole request.
+        //
+        // No businessNumber is passed: the pipeline resolves the destination
+        // itself and hands it back on the result. This adapter must not have
+        // an opinion about which business a document belongs to.
         let imported;
         try {
           imported = await this.documentImportService.importDocument({
             firebaseId,
-            businessNumber: options.businessNumber,
             source: DocumentImportSource.GMAIL,
             filename: attachment.filename,
             mimeType: attachment.mimeType,
@@ -283,9 +322,16 @@ export class GmailDriveImportService {
             reason: imported.reason,
           });
         }
+        // Recorded for EVERY outcome: the destination is where this document
+        // is (or already was) stored, which is exactly what the user is told.
+        const { businessNumber } = imported.destination;
+        if (!destinationsSeen.has(businessNumber)) {
+          destinationsSeen.set(businessNumber, imported.destination);
+        }
+
         if (imported.status === 'IMPORTED') result.imported += 1;
         else if (imported.status === 'ALREADY_IMPORTED') result.alreadyImported += 1;
-        else result.skipped += 1;
+        else result.failedFiles += 1;
       }
 
       if (result.messagesFound % LOG_PROGRESS_EVERY_MESSAGES === 0) {
@@ -296,12 +342,15 @@ export class GmailDriveImportService {
       }
     }
 
+    result.destinations = [...destinationsSeen.values()];
+
     // DEBUG only — the run-level INFO summary (with sync type, integration id
     // and duration) is logged once by the orchestrator (GmailSyncService).
     this.logger.debug(
-      `Gmail import for firebaseId=${firebaseId} business=${options.businessNumber ?? 'auto-resolved'}: ` +
+      `Gmail import for firebaseId=${firebaseId} ` +
+        `business=${result.destinations.map((d) => d.businessNumber).join(',') || 'none'}: ` +
         `${result.imported} imported, ${result.alreadyImported} already imported, ` +
-        `${result.skipped} skipped (of ${result.attachmentsFound} candidates, ` +
+        `${result.failedFiles} failed files (of ${result.attachmentsFound} candidates, ` +
         `${result.messagesFound} messages, ${result.messagesFailed} failed)`,
     );
     return result;

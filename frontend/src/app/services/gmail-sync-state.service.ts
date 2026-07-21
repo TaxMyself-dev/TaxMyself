@@ -3,6 +3,7 @@ import { MessageService } from 'primeng/api';
 import { Subscription, interval } from 'rxjs';
 import {
   GmailAccountSyncStatus,
+  GmailImportSummary,
   GmailSyncStatus,
   IntegrationsService,
 } from './integrations.service';
@@ -38,12 +39,25 @@ export class GmailSyncStateService {
     this.accounts().some((a) => a.lastSyncStatus === 'RUNNING'),
   );
 
+  /**
+   * הסיכום של המשיכה הראשונית שהרגע הסתיימה, לתצוגה בדיאלוג הגלובלי.
+   * נקבע ברגע שריצה עוברת מ-RUNNING למצב סופי ויש לה סיכום מהשרת; מתאפס
+   * כשהמשתמש סוגר את הדיאלוג. זהו הערוץ שבו המסלול האסינכרוני מוסר את התוצאה
+   * הסופית שלו — בלי שהמשתמש חייב להישאר במסך ההגדרות.
+   */
+  readonly finishedImportSummary = signal<GmailImportSummary | null>(null);
+
   private pollSubscription: Subscription | null = null;
   /** מצב הסנכרון הקודם לכל חשבון — לזיהוי מעבר RUNNING→סופי (התראה). */
   private previousStatuses = new Map<number, GmailAccountSyncStatus['lastSyncStatus']>();
 
   isStarting(integrationId: number): boolean {
     return this.starting().has(integrationId);
+  }
+
+  /** סגירת דיאלוג סיכום המשיכה הראשונית. */
+  dismissFinishedImportSummary(): void {
+    this.finishedImportSummary.set(null);
   }
 
   /**
@@ -128,8 +142,18 @@ export class GmailSyncStateService {
     }
   }
 
-  /** התראה גלובלית — מגיעה למשתמש גם אם עזב את מסך ההגדרות. */
+  /**
+   * התראה גלובלית — מגיעה למשתמש גם אם עזב את מסך ההגדרות.
+   *
+   * כשלריצה יש סיכום מהשרת, מוצג הדיאלוג המשותף בלבד (אותו רכיב שמציג את
+   * תוצאת המשיכה הידנית) ולא נשלח toast — הודעה אחת לכל אירוע.
+   */
   private notifyFinished(kind: 'success' | 'error', account: GmailAccountSyncStatus): void {
+    if (account.lastImportSummary) {
+      this.finishedImportSummary.set(account.lastImportSummary);
+      return;
+    }
+
     const email = account.accountEmail ?? '';
     if (kind === 'success') {
       this.messageService.add({

@@ -1,0 +1,37 @@
+<div class="gmail-summary" dir="rtl">
+  <div class="gmail-summary-banner"
+    [class.gmail-summary-banner--partial]="outcome() === 'partial'"
+    [class.gmail-summary-banner--failure]="outcome() === 'failure'">
+    <i class="pi"
+      [class.pi-check-circle]="outcome() === 'success'"
+      [class.pi-exclamation-triangle]="outcome() !== 'success'"></i>
+    <ul class="gmail-summary-lines">
+      @for (line of lines(); track line) {
+        <li>{{ line }}</li>
+      }
+    </ul>
+  </div>
+
+  @if (businessText()) {
+    <p class="gmail-summary-business">{{ businessText() }}</p>
+  }
+
+  @if (showPerAccount()) {
+    <div class="gmail-summary-accounts">
+      @for (account of summary().perAccount; track account.integrationId) {
+        <div class="gmail-summary-account" [class.gmail-summary-account--failed]="account.errorCode">
+          <span class="gmail-summary-account-email">
+            {{ account.accountEmail ?? 'חשבון ללא כתובת' }}
+          </span>
+          <span class="gmail-summary-account-counts">{{ accountText(account) }}</span>
+        </div>
+      }
+    </div>
+  }
+
+  @if (outcome() !== 'success') {
+    <p class="gmail-summary-note">
+      ניתן לנסות למשוך שוב מאוחר יותר — מסמכים שכבר נשמרו לא ייקלטו פעמיים.
+    </p>
+  }
+</div>

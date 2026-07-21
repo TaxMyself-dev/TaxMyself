@@ -17,6 +17,10 @@ import {
   SkippedAttachmentsAccumulator,
   tagGmailSyncError,
 } from '../utils/gmail-sync-logging.util';
+import {
+  buildGmailImportSummary,
+  GmailImportSummary,
+} from '../dto/gmail-import-summary';
 import { GmailDriveImportService, GmailImportResult } from './gmail-drive-import.service';
 import { UserIntegrationsService } from './user-integrations.service';
 
@@ -63,6 +67,14 @@ export interface GmailAccountSyncStatus {
   lastSuccessfulSyncAt: string | null;
   lastSyncStatus: IntegrationSyncStatus | null;
   lastSyncError: string | null;
+  /**
+   * Outcome of the last USER-INITIATED run (the initial import). This is how
+   * the background initial import delivers its final result to the UI: the
+   * frontend polls until the run leaves RUNNING and then renders this exactly
+   * like it renders the manual import's response. Null for accounts that have
+   * not run one, and cleared by the nightly sync (nobody is waiting for that).
+   */
+  lastImportSummary: GmailImportSummary | null;
 }
 
 export interface GmailSyncStatusResponse {
@@ -136,6 +148,7 @@ export class GmailSyncService {
         lastSuccessfulSyncAt: integration.lastSuccessfulSyncAt?.toISOString() ?? null,
         lastSyncStatus: integration.lastSyncStatus ?? null,
         lastSyncError: integration.lastSyncError ?? null,
+        lastImportSummary: integration.lastImportSummary ?? null,
       })),
     };
   }
@@ -263,36 +276,59 @@ export class GmailSyncService {
     const runStartedAt = new Date();
     const skipStats = new SkippedAttachmentsAccumulator();
     this.logRunStart(context);
-    try {
-      const result = await this.gmailDriveImportService.importFromGmail(integration, {
-        query: this.buildDateRangeQuery(fromDate, toDate),
-        // No maxMessages: the reader pages through the entire range.
-        includeFileDetails: false,
-        skipStats,
-      });
 
-      // Cursor for the nightly sync. End of the imported range is the day
-      // AFTER toDate at midnight; but when toDate is today, mail keeps
-      // arriving after the scan — so never place the cursor past the moment
-      // this run started. (Boundary slop is absorbed by content-hash dedup.)
-      const rangeEnd = new Date(`${this.dayAfter(toDate)}T00:00:00Z`);
-      const lastSuccessfulSyncAt = runStartedAt < rangeEnd ? runStartedAt : rangeEnd;
+    // Same unit of work the manual pull uses, so both flows count and
+    // classify identically. It never throws — a failed mailbox comes back as
+    // an errorCode on the summary.
+    const outcome = await this.gmailDriveImportService.importAccount(integration, {
+      query: this.buildDateRangeQuery(fromDate, toDate),
+      // No maxMessages: the reader pages through the entire range.
+      skipStats,
+    });
+    const summary = buildGmailImportSummary(
+      'INITIAL',
+      [outcome.summary],
+      outcome.destinations,
+    );
 
-      try {
-        await this.userIntegrationsService.markSyncSuccess(context.integrationId, {
-          lastSuccessfulSyncAt,
-          initialImport: { fromDate, toDate },
-        });
-      } catch (error) {
-        throw tagGmailSyncError(error, 'SAVE_SYNC_STATE');
-      }
-      this.logRunFinish(context, result, Date.now() - runStartedAt.getTime());
-      this.logSkippedSummary(context, skipStats);
-    } catch (error: any) {
+    if (outcome.summary.errorCode) {
       // Cursor and initialImportCompletedAt untouched — the user can retry.
-      this.logRunFailure(context, error);
-      await this.persistRunError(context, error);
+      // The summary is still persisted so the UI can explain what happened
+      // instead of only saying "failed".
+      this.logger.error(
+        `${this.runPrefix(context)} FAILED window=${context.window} ` +
+          `errorCode=${outcome.summary.errorCode}`,
+      );
+      await this.persistRunError(
+        context,
+        new Error(`import failed (${outcome.summary.errorCode})`),
+        summary,
+      );
+      return;
     }
+
+    // Cursor for the nightly sync. End of the imported range is the day
+    // AFTER toDate at midnight; but when toDate is today, mail keeps
+    // arriving after the scan — so never place the cursor past the moment
+    // this run started. (Boundary slop is absorbed by content-hash dedup.)
+    const rangeEnd = new Date(`${this.dayAfter(toDate)}T00:00:00Z`);
+    const lastSuccessfulSyncAt = runStartedAt < rangeEnd ? runStartedAt : rangeEnd;
+
+    try {
+      await this.userIntegrationsService.markSyncSuccess(context.integrationId, {
+        lastSuccessfulSyncAt,
+        initialImport: { fromDate, toDate },
+        importSummary: summary,
+      });
+    } catch (error: any) {
+      const tagged = tagGmailSyncError(error, 'SAVE_SYNC_STATE');
+      this.logRunFailure(context, tagged);
+      await this.persistRunError(context, tagged, null);
+      return;
+    }
+
+    this.logSummaryFinish(context, summary, Date.now() - runStartedAt.getTime());
+    this.logSkippedSummary(context, skipStats);
   }
 
   // --- Nightly incremental sync -------------------------------------------------
@@ -351,6 +387,10 @@ export class GmailSyncService {
       try {
         await this.userIntegrationsService.markSyncSuccess(integration.id, {
           lastSuccessfulSyncAt: windowEnd,
+          // Nobody is waiting for a nightly run, and a leftover summary from
+          // the initial import must not resurface as a "your import finished"
+          // dialog days later — clear it.
+          importSummary: null,
         });
       } catch (error) {
         throw tagGmailSyncError(error, 'SAVE_SYNC_STATE');
@@ -395,11 +435,26 @@ export class GmailSyncService {
       `${this.runPrefix(context)} FINISH window=${context.window} durationMs=${durationMs} ` +
       `messages=${result.messagesFound} messagesFailed=${result.messagesFailed} ` +
       `attachments=${result.attachmentsFound} imported=${result.imported} ` +
-      `alreadyImported=${result.alreadyImported} skipped=${result.skipped}` +
+      `alreadyImported=${result.alreadyImported} failedFiles=${result.failedFiles}` +
       (result.failedMessageIds.length > 0
         ? ` failedMessageIds=${result.failedMessageIds.join(',')}`
         : '');
     if (result.messagesFailed > 0) this.logger.warn(line);
+    else this.logger.log(line);
+  }
+
+  /** FINISH line for a run described by a user-facing summary (initial import). */
+  private logSummaryFinish(
+    context: GmailSyncRunContext,
+    summary: GmailImportSummary,
+    durationMs: number,
+  ): void {
+    const line =
+      `${this.runPrefix(context)} FINISH window=${context.window} durationMs=${durationMs} ` +
+      `imported=${summary.totalImported} alreadyImported=${summary.totalAlreadyImported} ` +
+      `skippedIrrelevant=${summary.totalSkippedIrrelevant} failed=${summary.totalFailed} ` +
+      `destinations=${summary.destinations.map((d) => d.businessNumber).join(',') || 'none'}`;
+    if (summary.totalFailed > 0) this.logger.warn(line);
     else this.logger.log(line);
   }
 
@@ -427,10 +482,18 @@ export class GmailSyncService {
     );
   }
 
-  /** Persists "STAGE: message" into lastSyncError; a persist failure only logs. */
-  private async persistRunError(context: GmailSyncRunContext, error: any): Promise<void> {
+  /**
+   * Persists "STAGE: message" into lastSyncError (server-side only — it is
+   * never sent to the browser) plus, when the run got far enough to produce
+   * one, the user-facing summary that explains what did and did not happen.
+   */
+  private async persistRunError(
+    context: GmailSyncRunContext,
+    error: any,
+    summary: GmailImportSummary | null = null,
+  ): Promise<void> {
     await this.userIntegrationsService
-      .markSyncError(context.integrationId, describeGmailSyncError(error))
+      .markSyncError(context.integrationId, describeGmailSyncError(error), summary)
       .catch((persistError) =>
         this.logger.error(
           `${this.runPrefix(context)} stage=SAVE_SYNC_STATE could not persist ` +
