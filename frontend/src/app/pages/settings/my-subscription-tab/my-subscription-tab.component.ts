@@ -1,7 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { MessageService } from 'primeng/api';
-import { environment } from 'src/environments/environment';
 import { ButtonComponent } from 'src/app/components/button/button.component';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 import { ChangePaymentMethodDialogComponent } from 'src/app/components/change-payment-method-dialog/change-payment-method-dialog.component';
@@ -214,41 +213,15 @@ export class MySubscriptionTabComponent implements OnInit {
   }
 
   /**
-   * Starts the change-payment-method flow.
-   *
-   * Feature flag ON  → opens the embedded Open Fields dialog (no redirect; the
-   *   dialog creates the LowProfile, hosts the CardCom iframes, and waits for
-   *   the webhook via billing/me polling).
-   * Feature flag OFF → legacy flow: calls the backend, then redirects to the
-   *   CardCom hosted page. On return, my-account resolves the outcome via
-   *   billing/me (paymentMethodUpdateResult).
+   * Starts the change-payment-method flow by opening the embedded Open Fields
+   * dialog. The dialog owns everything from here: it creates the LowProfile,
+   * hosts the CardCom iframes, and waits for the webhook via billing/me polling.
+   * This action never redirects the page.
    */
   changePaymentMethod(): void {
     if (this.changingPaymentMethod() || !this.canChangePaymentMethod()) return;
 
     this.changePmDialogOpen.set(true);
-    this.changingPaymentMethod.set(true);
-    this.billingStateService
-      .changePaymentMethod()
-      .then((result) => {
-        // Marker read by my-account on return to show the change-payment-method
-        // banner instead of the checkout payment banner (both share the CardCom
-        // success/failed redirect URL).
-        if (typeof sessionStorage !== 'undefined') {
-          sessionStorage.setItem('tm.cardcomFlow', 'CHANGE_PM');
-        }
-        window.location.href = result.paymentUrl;
-      })
-      .catch((err) => {
-        this.changingPaymentMethod.set(false);
-        this.messageService.add({
-          severity: 'error',
-          summary: 'שגיאה',
-          detail: err?.error?.message ?? 'לא ניתן להחליף אמצעי תשלום כעת. נסה שוב מאוחר יותר.',
-          life: 5000,
-          key: 'br',
-        });
-      });
   }
 
   private downloadReceipt(eventId: number): void {
