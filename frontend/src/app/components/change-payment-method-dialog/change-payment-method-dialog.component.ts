@@ -253,8 +253,27 @@ export class ChangePaymentMethodDialogComponent {
   private framesLoaded = { master: false, cardNumber: false, cvv: false };
   private messageListenerAttached = false;
 
+  /**
+   * Pending autofill-revalidation timers. Cleared on teardown / reset / when
+   * both hosted fields have reported valid, so they never hit a stale session.
+   */
+  private validationRetryHandles: ReturnType<typeof setTimeout>[] = [];
+
   /** How long we wait for the CardCom iframes before offering the fallback. */
   private static readonly INIT_TIMEOUT_MS = 12_000;
+
+  /**
+   * CardCom auto-validates hosted card-number / CVV fields only on focusout.
+   * Chrome credit-card autofill can fill those cross-origin iframes without
+   * that event, so we never receive `handleValidations` and `canSave` stays
+   * false. CardCom's supported workaround is an explicit
+   * `validateCardNumber` / `validateCvv` postMessage to the master frame;
+   * results still flow through the existing `handleValidations` path.
+   *
+   * These delays cover autofill that lands shortly after the form becomes
+   * visible — bounded retries, not a permanent interval.
+   */
+  private static readonly VALIDATION_RETRY_DELAYS_MS = [0, 300, 700, 1_200] as const;
 
   constructor() {
     effect(() => {
@@ -301,10 +320,12 @@ export class ChangePaymentMethodDialogComponent {
     this.started = false;
     this.generation++; // cancels any in-flight poll / init / LP creation callback
     this.clearInitTimeout();
+    this.clearValidationRetries();
     this.detachMessageListener();
   }
 
   private resetState(): void {
+    this.clearValidationRetries();
     this.state.set('loading');
     this.initFailed.set(false);
     this.errorMessage.set(null);
@@ -401,6 +422,9 @@ export class ChangePaymentMethodDialogComponent {
     ) {
       this.clearInitTimeout();
       this.state.set('ready');
+      // Ask CardCom to re-check hosted fields so Chrome autofill that skipped
+      // focusout still updates cardNumberValid / cvvValid via handleValidations.
+      this.scheduleAutofillValidationRetries();
     }
   }
 
@@ -485,6 +509,10 @@ export class ChangePaymentMethodDialogComponent {
         this.reCaptchaValid.set(isValid);
         break;
     }
+    // Stop remaining autofill retries once both hosted fields are known-valid.
+    if (this.cardNumberValid() === true && this.cvvValid() === true) {
+      this.clearValidationRetries();
+    }
   }
 
   private onSubmitResultMessage(msg: { data?: { IsSuccess?: boolean; Description?: string } }): void {
@@ -522,14 +550,55 @@ export class ChangePaymentMethodDialogComponent {
     masterWindow.postMessage(payload, CARDCOM_ORIGIN);
   }
 
+  /**
+   * Ask CardCom to re-read the hosted card-number and CVV values and emit
+   * `handleValidations`. Does not read iframe DOM (PCI); only posts the
+   * official Open Fields actions to the master frame.
+   */
+  private requestFieldValidations(): void {
+    if (this.state() !== 'ready' || !this.masterInitSent) return;
+    this.postToMaster({ action: 'validateCardNumber' });
+    this.postToMaster({ action: 'validateCvv' });
+  }
+
+  /**
+   * Bounded post-ready revalidation for delayed Chrome autofill. Each tick
+   * only runs if this dialog generation is still current and the form is ready.
+   */
+  private scheduleAutofillValidationRetries(): void {
+    this.clearValidationRetries();
+    const generation = this.generation;
+    for (const delayMs of ChangePaymentMethodDialogComponent.VALIDATION_RETRY_DELAYS_MS) {
+      const handle = setTimeout(() => {
+        if (generation !== this.generation) return;
+        if (this.state() !== 'ready') return;
+        // Already complete — no need to keep asking.
+        if (this.cardNumberValid() === true && this.cvvValid() === true) return;
+        this.requestFieldValidations();
+      }, delayMs);
+      this.validationRetryHandles.push(handle);
+    }
+  }
+
+  private clearValidationRetries(): void {
+    for (const handle of this.validationRetryHandles) {
+      clearTimeout(handle);
+    }
+    this.validationRetryHandles = [];
+  }
+
   // ─── Expiry selects ────────────────────────────────────────────────────────
 
   onExpiryMonthChange(value: unknown): void {
     this.expiryMonth.set(typeof value === 'string' ? value : null);
+    // Parent-side interaction often happens right after autofill; one extra
+    // CardCom validate pass picks up a CVV that never received focusout.
+    this.requestFieldValidations();
   }
 
   onExpiryYearChange(value: unknown): void {
     this.expiryYear.set(typeof value === 'string' ? value : null);
+    this.requestFieldValidations();
   }
 
   // ─── Submit + webhook wait ─────────────────────────────────────────────────
