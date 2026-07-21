@@ -12,11 +12,9 @@
     </div>
   }
 
-  @if (isOffline()) {
+  @if (showConnectivityBanner()) {
     <div class="pwa-banner pwa-banner--offline" role="alert">
-      <span class="pwa-banner__text">
-        אין כרגע חיבור לאינטרנט. נתונים ופעולות הדורשים חיבור לשרת אינם זמינים.
-      </span>
+      <span class="pwa-banner__text">{{ connectivityMessage() }}</span>
       <button type="button" class="pwa-banner__close" aria-label="סגור" (click)="dismissOffline()">✕</button>
     </div>
   } @else if (showReconnected()) {

@@ -10,7 +10,22 @@
         "files": [
           "/index.html",
           "/manifest.webmanifest",
-          "/*.css",
+          "/favicon.ico",
+          "/runtime.*.js",
+          "/polyfills.*.js",
+          "/main.*.js",
+          "/vendor.*.js",
+          "/scripts.*.js",
+          "/*.css"
+        ]
+      }
+    },
+    {
+      "name": "lazy-chunks",
+      "installMode": "lazy",
+      "updateMode": "prefetch",
+      "resources": {
+        "files": [
           "/*.js"
         ]
       }

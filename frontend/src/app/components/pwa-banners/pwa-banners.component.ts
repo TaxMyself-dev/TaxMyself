@@ -1,12 +1,14 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
-import { NetworkStatusService } from '../../services/pwa/network-status.service';
+import { ConnectivityState, NetworkStatusService } from '../../services/pwa/network-status.service';
 import { PwaUpdateService } from '../../services/pwa/pwa-update.service';
 import { PwaInstallService } from '../../services/pwa/pwa-install.service';
 
 /**
- * Global PWA status surface: offline notice, "new version" prompt, and a subtle
- * install action / iOS hint. Rendered once in the app shell. Pure PWA
- * infrastructure — it holds no business state and performs no data operations.
+ * Global PWA status surface: connectivity notice, "new version" prompt, and a
+ * subtle install action / iOS hint. Rendered once in the app shell. Pure PWA
+ * infrastructure — it holds no business state, performs no data operations, and
+ * never classifies connectivity itself: it derives entirely from
+ * {@link NetworkStatusService}.
  */
 @Component({
   selector: 'app-pwa-banners',
@@ -23,18 +25,38 @@ export class PwaBannersComponent {
   readonly updateReady = this.update.updateReady;
   readonly activating = this.update.activating;
 
+  /** Current connectivity classification (single source of truth). */
+  private readonly state = this.network.state;
+
   /**
-   * Dismissal is scoped to the *current* outage. It is cleared on every
-   * offline→online transition, so a new outage always surfaces the banner
-   * again rather than being silenced forever.
+   * Dismissal is scoped to the *current* outage occurrence. It is cleared on
+   * recovery and whenever the failure kind changes (OFFLINE ↔ SERVER_UNREACHABLE),
+   * so a new or different outage always surfaces the banner again rather than
+   * being silenced forever.
    */
   private readonly offlineDismissed = signal(false);
 
-  readonly isOffline = computed(() => this.network.isOffline() && !this.offlineDismissed());
+  /** True while a connectivity-failure banner should be shown. */
+  readonly showConnectivityBanner = computed(
+    () => this.network.isConnectivityFailure() && !this.offlineDismissed(),
+  );
+
+  /** Localized message for the current connectivity failure. */
+  readonly connectivityMessage = computed(() => {
+    switch (this.state()) {
+      case ConnectivityState.OFFLINE:
+        return 'אין חיבור לאינטרנט';
+      case ConnectivityState.SERVER_UNREACHABLE:
+        return 'לא ניתן להתחבר לשרת כרגע';
+      default:
+        return '';
+    }
+  });
 
   /** Brief green confirmation shown when connectivity returns. */
   readonly showReconnected = signal(false);
-  private wasOffline = false;
+  private wasFailing = false;
+  private lastFailureState: ConnectivityState | null = null;
   private reconnectedTimer: ReturnType<typeof setTimeout> | null = null;
 
   private readonly installDismissed = signal(false);
@@ -46,15 +68,24 @@ export class PwaBannersComponent {
   readonly showIosHint = computed(() => this.install.showIosHint() && !this.iosHintDismissed());
 
   constructor() {
-    // Flash a short "back online" confirmation on the offline→online transition.
     effect(() => {
-      const offline = this.network.isOffline();
-      if (offline) {
-        this.wasOffline = true;
+      const state = this.state();
+      const failing =
+        state === ConnectivityState.OFFLINE || state === ConnectivityState.SERVER_UNREACHABLE;
+
+      if (failing) {
+        // A different kind of outage is a new occurrence — make it visible even
+        // if the previous one was dismissed.
+        if (state !== this.lastFailureState) {
+          this.offlineDismissed.set(false);
+        }
+        this.lastFailureState = state;
+        this.wasFailing = true;
         this.showReconnected.set(false);
-      } else if (this.wasOffline) {
-        this.wasOffline = false;
-        // New outage should be visible again even if the last one was dismissed.
+      } else if (state === ConnectivityState.ONLINE && this.wasFailing) {
+        // Recovery confirmed by a real reachable backend.
+        this.wasFailing = false;
+        this.lastFailureState = null;
         this.offlineDismissed.set(false);
         this.showReconnected.set(true);
         if (this.reconnectedTimer) {
@@ -62,6 +93,7 @@ export class PwaBannersComponent {
         }
         this.reconnectedTimer = setTimeout(() => this.showReconnected.set(false), 3000);
       }
+      // CHECKING is intentionally ignored here: no banner change while probing.
     });
   }
 

@@ -6,6 +6,7 @@ import { AngularFireAuth } from '@angular/fire/compat/auth';
 import { AuthService } from '../services/auth.service';
 import { ClientPanelService } from '../services/clients-panel.service';
 import { AuthUnavailableError } from '../shared/errors/auth-unavailable.error';
+import { NetworkStatusService } from '../services/pwa/network-status.service';
 
 /**
  * How long to wait for Firebase to hand us an ID token before giving up.
@@ -27,6 +28,7 @@ export class AuthInterceptor implements HttpInterceptor {
     private afAuth: AngularFireAuth,
     private authService: AuthService,
     private clientPanelService: ClientPanelService,
+    private network: NetworkStatusService,
   ) {}
 
   intercept(req: HttpRequest<any>, next: HttpHandler) {
@@ -40,7 +42,13 @@ export class AuthInterceptor implements HttpInterceptor {
           // as a 401 and be indistinguishable from a real credential failure.
           // A typed, status-less error keeps AuthErrorInterceptor from
           // treating this as a rejected session.
+          //
+          // This failure happens BEFORE next.handle(), so AuthErrorInterceptor
+          // (which is downstream) never observes it — report the connectivity
+          // classification here so it is not lost. The service decides between
+          // OFFLINE and a backend probe; it never logs the user out.
           console.warn(`[AuthInterceptor] no ID token within ${TOKEN_WAIT_MS}ms — aborting locally:`, req.url);
+          this.network.reportAuthUnavailable();
           return throwError(() => new AuthUnavailableError(req.url));
         }
         return throwError(() => err);

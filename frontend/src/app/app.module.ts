@@ -71,12 +71,15 @@ import { PwaBannersComponent } from './components/pwa-banners/pwa-banners.compon
     provideHttpClient(withInterceptorsFromDi()),
     MessageService,
     ConfirmationService,
-    // PWA service worker — registered only in production, after the app
-    // stabilizes (won't block first paint / initial billing load). Caches
-    // only the versioned app shell + static assets (see ngsw-config.json).
+    // PWA service worker — registered only in production, shortly after the app
+    // stabilizes. A short 5s fallback ensures the worker registers and starts
+    // prefetching the app shell early enough to survive an offline cold start;
+    // the previous 30s fallback often left the shell uncached if the user closed
+    // the app first. Caches only the versioned app shell + lazy chunks on demand
+    // + static assets (see ngsw-config.json).
     provideServiceWorker('ngsw-worker.js', {
       enabled: environment.production,
-      registrationStrategy: 'registerWhenStable:30000',
+      registrationStrategy: 'registerWhenStable:5000',
     }),
   ],
 })
