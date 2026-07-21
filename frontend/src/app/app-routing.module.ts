@@ -5,18 +5,17 @@ import { AuthGuard } from './shared/guard/auth.guard';
 import { BillingGuard } from './shared/guard/billing.guard';
 import { ViewOnlyBlockDocGuard } from './shared/guard/view-only-block-doc.guard';
 import { ModuleAccessGuard } from './shared/guard/module-access.guard';
+import { StartupRedirectGuard } from './shared/guard/startup-redirect.guard';
+import { OfflineNavigationGuard } from './shared/guard/offline-navigation.guard';
 import { AppRoute } from './shared/access-control';
-const routes: Routes = [
-  {
-    path: '',
-    redirectTo: '/login',
-    pathMatch: 'full'
-  },
-  {
-    path: 'register',
-    loadComponent: () => import('./pages/register/register.page').then(m => m.RegisterPage)
-  },
 
+/**
+ * In-app routes that require connectivity for deliberate navigation while a
+ * session is already open. Wrapped by {@link OfflineNavigationGuard} via the
+ * parent `canActivateChild` so offline attempts never reach billing/module
+ * guards or briefly activate the target page.
+ */
+const appRoutes: Routes = [
   {
     path: 'reports',
     loadChildren: () => import('./pages/reports/reports.module').then(m => m.ReportsPageModule),
@@ -41,10 +40,6 @@ const routes: Routes = [
     path: 'settings',
     loadComponent: () => import('./pages/settings/settings.page').then(m => m.SettingsPage),
     canActivate: [AuthGuard, BillingGuard]
-  },
-  {
-    path: 'login',
-    loadChildren: () => import('./pages/login/login.module').then(m => m.LoginPageModule)
   },
   {
     path: 'transactions',
@@ -119,10 +114,6 @@ const routes: Routes = [
     loadComponent: () => import('./pages/add-expense/add-expense.component').then(m => m.AddExpenseComponent)
   },
   {
-    path: 'shaam/callback',
-    loadChildren: () => import('./pages/shaam-callback/shaam-callback.module').then(m => m.ShaamCallbackPageModule)
-  },
-  {
     path: 'flow-analysis',
     canActivate: [AuthGuard, BillingGuard, ModuleAccessGuard],
     data: { appRoute: AppRoute.FLOW_ANALYSIS },
@@ -139,7 +130,36 @@ const routes: Routes = [
       },
     ],
   },
+];
 
+const routes: Routes = [
+  {
+    // Cold-start gate: waits for Firebase auth, then UrlTree → restored route
+    // (online + authenticated) or /login. Replaces the unconditional redirect
+    // that caused the login-page flash.
+    path: '',
+    pathMatch: 'full',
+    canActivate: [StartupRedirectGuard],
+    children: [],
+  },
+  {
+    path: 'register',
+    loadComponent: () => import('./pages/register/register.page').then(m => m.RegisterPage)
+  },
+  {
+    path: 'login',
+    loadChildren: () => import('./pages/login/login.module').then(m => m.LoginPageModule)
+  },
+  {
+    path: 'shaam/callback',
+    loadChildren: () => import('./pages/shaam-callback/shaam-callback.module').then(m => m.ShaamCallbackPageModule)
+  },
+  {
+    // In-app shell: one offline gate for all deliberate in-session navigations.
+    path: '',
+    canActivateChild: [OfflineNavigationGuard],
+    children: appRoutes,
+  },
 ];
 
 @NgModule({

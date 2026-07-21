@@ -183,25 +183,32 @@ export class BillingStateService {
   );
 
   /**
-   * True when we have no verified billing state at all — the load failed and
-   * nothing was ever confirmed by the backend.
+   * True when we have no verified billing state at all — nothing was ever
+   * confirmed by the backend for this session (or the last successful payload
+   * was cleared intentionally).
    *
-   * Guards must treat this as "cannot verify", never as "allowed". Note that
-   * `hasModuleAccess()` already returns false in this situation, so every
-   * module-gated feature stays locked until the backend confirms otherwise.
+   * Guards must treat this as "cannot verify", never as "allowed" and never as
+   * an authoritative module denial. Prefer last-known `billingState` when it
+   * exists; a transient error must not erase it (see {@link refreshBillingState}).
    */
   readonly isUnverified = computed(() => this.billingState() === null);
 
+  /**
+   * True when the last load/refresh failed technically while we may still hold
+   * a previously successful payload. Never interpret this as confirmed denial.
+   */
+  readonly hasTechnicalError = computed(() => this.error() !== null);
+
   // Shared promise for any in-flight load. Multiple callers receive the same
   // Promise so only one HTTP request is made regardless of how many times
-  // loadBillingState() is called concurrently (e.g. AppComponent + BillingGuard).
+  // loadBillingState() / refreshBillingState() are called concurrently.
   private _loadPromise: Promise<void> | null = null;
 
   /**
-   * How long a failed load suppresses further attempts. Long enough to stop a
-   * request storm while offline (guards call this on every navigation), short
-   * enough that the state can never be wedged permanently by one failure if
-   * the reconnect handler never fires.
+   * How long a failed load suppresses further *cold* load attempts. Long enough
+   * to stop a request storm while offline (guards call this on every
+   * navigation), short enough that the state can never be wedged permanently by
+   * one failure if the reconnect handler never fires.
    */
   private static readonly RETRY_AFTER_ERROR_MS = 30_000;
   private lastErrorAt = 0;
@@ -228,14 +235,34 @@ export class BillingStateService {
     return this._loadPromise;
   }
 
+  /**
+   * Force a fresh `/billing/me` fetch (reconnect recovery, payment return, etc.).
+   *
+   * Preserves the last successful payload until a new response arrives. A
+   * technical failure must not erase modules/access or look like confirmed
+   * denial. Concurrent callers join the same in-flight request.
+   */
   async refreshBillingState(): Promise<void> {
-    this._loadPromise = null;
-    this.billingState.set(null);
+    if (this._loadPromise) {
+      return this._loadPromise;
+    }
+
     this.error.set(null);
     this.lastErrorAt = 0;
-    await this.loadBillingState();
+
+    this._loadPromise = this._executeLoad().finally(() => {
+      this._loadPromise = null;
+    });
+
+    return this._loadPromise;
   }
 
+  /**
+   * Fetches `/billing/me`. On success replaces `billingState`. On technical
+   * failure sets `error` but never clears a previously successful payload —
+   * that distinction is what keeps reconnect failures from looking like
+   * confirmed module denial.
+   */
   private async _executeLoad(): Promise<void> {
     this.isLoading.set(true);
     this.error.set(null);
@@ -251,6 +278,7 @@ export class BillingStateService {
       if (err?.status !== 401) {
         this.error.set('שגיאה בטעינת נתוני החיוב');
         this.lastErrorAt = Date.now();
+        // Do NOT billingState.set(null) — keep last successful permissions.
       }
     } finally {
       this.isLoading.set(false);

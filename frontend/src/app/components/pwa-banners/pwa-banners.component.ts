@@ -45,7 +45,7 @@ export class PwaBannersComponent {
   readonly connectivityMessage = computed(() => {
     switch (this.state()) {
       case ConnectivityState.OFFLINE:
-        return 'אין חיבור לאינטרנט';
+        return 'אין חיבור לאינטרנט. בדוק את החיבור ונסה שוב';
       case ConnectivityState.SERVER_UNREACHABLE:
         return 'לא ניתן להתחבר לשרת כרגע';
       default:
@@ -58,6 +58,13 @@ export class PwaBannersComponent {
   private wasFailing = false;
   private lastFailureState: ConnectivityState | null = null;
   private reconnectedTimer: ReturnType<typeof setTimeout> | null = null;
+  /**
+   * First connectivity observation is established silently. Starting offline
+   * may show the offline banner, but must never flash "connection restored".
+   * That banner is reserved for a real failure → ONLINE transition later in
+   * the same running session.
+   */
+  private connectivitySeeded = false;
 
   private readonly installDismissed = signal(false);
   private readonly iosHintDismissed = signal(false);
@@ -73,6 +80,16 @@ export class PwaBannersComponent {
       const failing =
         state === ConnectivityState.OFFLINE || state === ConnectivityState.SERVER_UNREACHABLE;
 
+      if (!this.connectivitySeeded) {
+        this.connectivitySeeded = true;
+        if (failing) {
+          this.wasFailing = true;
+          this.lastFailureState = state;
+        }
+        // Silent seed — never showReconnected on first observation.
+        return;
+      }
+
       if (failing) {
         // A different kind of outage is a new occurrence — make it visible even
         // if the previous one was dismissed.
@@ -83,7 +100,7 @@ export class PwaBannersComponent {
         this.wasFailing = true;
         this.showReconnected.set(false);
       } else if (state === ConnectivityState.ONLINE && this.wasFailing) {
-        // Recovery confirmed by a real reachable backend.
+        // Recovery confirmed by a real reachable backend after a session outage.
         this.wasFailing = false;
         this.lastFailureState = null;
         this.offlineDismissed.set(false);
@@ -94,6 +111,19 @@ export class PwaBannersComponent {
         this.reconnectedTimer = setTimeout(() => this.showReconnected.set(false), 3000);
       }
       // CHECKING is intentionally ignored here: no banner change while probing.
+    });
+
+    // Each blocked offline navigation attempt re-shows the offline banner,
+    // even when the user previously dismissed it for the same outage.
+    effect(() => {
+      const blockedAt = this.network.offlineNavigationBlockedAt();
+      if (blockedAt === 0) {
+        return;
+      }
+      this.offlineDismissed.set(false);
+      this.showReconnected.set(false);
+      this.wasFailing = true;
+      this.lastFailureState = ConnectivityState.OFFLINE;
     });
   }
 
