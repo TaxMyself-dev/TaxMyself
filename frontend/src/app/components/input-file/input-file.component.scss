@@ -222,10 +222,16 @@
   flex-direction: column;
   gap: 12px;
   cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
 
   &:hover {
     border-color: rgba(0, 0, 0, 0.28);
     background: rgba(0, 0, 0, 0.03);
+  }
+
+  &--dragging {
+    border-color: #14b8a6;
+    background: rgba(20, 184, 166, 0.06);
   }
 }
 
