@@ -400,10 +400,16 @@
             </div>
         </div>
         <div class="dashboard-actions">
-            <app-p-button class="vat-report-payment-button" [buttonText]="'+ הוספת הוצאה'" [buttonColor]="buttonColor.BLACK"
-                [buttonSize]="buttonSize.AUTO" (onButtonClicked)="openMannualExpenses()">
-                <i class="pi pi-plus"></i>
-            </app-p-button>
+            <app-menu-button
+                class="vat-report-payment-button"
+                icon="pi pi-chevron-down"
+                buttonText="הוספת הוצאה"
+                ariaLabel="תפריט הוספת הוצאה"
+                [buttonColor]="buttonColor.BLACK"
+                [buttonSize]="buttonSize.AUTO"
+                [items]="addExpenseMenuItems()"
+                [positions]="addExpenseMenuPositions">
+            </app-menu-button>
             @if (userData?.isDemo) {
                 <app-p-button class="demo-reset-button" [buttonText]="'אפס נתוני בדיקה'"
                     [buttonColor]="buttonColor.WHITE_BORDER_LIGHT" [buttonSize]="buttonSize.AUTO"

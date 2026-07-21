@@ -1,0 +1,25 @@
+.quick-upload {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 4px 0 8px;
+  min-width: min(100%, 420px);
+}
+
+.quick-upload__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+@media (max-width: 520px) {
+  .quick-upload__actions {
+    flex-direction: column-reverse;
+
+    app-p-button {
+      width: 100%;
+    }
+  }
+}

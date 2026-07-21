@@ -3368,9 +3368,12 @@ ${finalOwnerName}`;
   /**
    * Drop one or more user-picked files straight into the business's Drive
    * inbox/ folder — no OCR, no extracted_document row. Used by the
-   * settings-page "העלאת מסמכים ל-Drive" button, where the user just wants
-   * files sitting in Drive (e.g. for an accountant to browse, or to be
-   * picked up later by `processInboxForUser`).
+   * settings-page "העלאת מסמכים ל-Drive" button and the Home Quick Upload
+   * dialog, where the user just wants files sitting in Drive (e.g. for an
+   * accountant to browse, or to be picked up later by `processInboxForUser`).
+   *
+   * Only PDF / JPEG / PNG are accepted — both MIME type and file extension
+   * must match (defense in depth vs. the frontend accept/filter).
    */
   async uploadFilesToInbox(
     firebaseId: string,
@@ -3384,6 +3387,7 @@ ${finalOwnerName}`;
 
     const uploaded: { fileId: string; fileName: string }[] = [];
     for (const file of files) {
+      this.assertAllowedInboxUploadFile(file);
       const fileId = await this.googleDriveService.uploadFile(
         inboxFolderId,
         file.originalname,
@@ -3393,6 +3397,29 @@ ${finalOwnerName}`;
       uploaded.push({ fileId, fileName: file.originalname });
     }
     return uploaded;
+  }
+
+  /** Whitelist for direct inbox uploads (Home Quick Upload / Settings). */
+  private static readonly INBOX_UPLOAD_MIME_BY_EXT: Record<string, readonly string[]> = {
+    '.pdf': ['application/pdf'],
+    '.jpg': ['image/jpeg'],
+    '.jpeg': ['image/jpeg'],
+    '.png': ['image/png'],
+  };
+
+  private assertAllowedInboxUploadFile(file: {
+    originalname: string;
+    mimetype: string;
+  }): void {
+    const name = file.originalname?.trim() || '';
+    const ext = path.extname(name).toLowerCase();
+    const mime = (file.mimetype || '').toLowerCase().trim();
+    const allowedMimes = DocumentsService.INBOX_UPLOAD_MIME_BY_EXT[ext];
+    if (!allowedMimes || !mime || !allowedMimes.includes(mime)) {
+      throw new BadRequestException(
+        `Unsupported file type: "${name || 'unknown'}". Allowed: PDF, JPG, JPEG, PNG.`,
+      );
+    }
   }
 
   /**

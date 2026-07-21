@@ -44,11 +44,21 @@ export class MenuButtonComponent {
 
   // ── Trigger appearance (defaults mirror the Expense-Analysis filter button) ──
   readonly icon = input<string>('pi pi-filter-fill');
+  /**
+   * Optional label. When set, the trigger renders as a normal text button
+   * (icon + label) instead of icon-only — used by primary CTAs like Home
+   * "הוספת הוצאה".
+   */
+  readonly buttonText = input<string | null>(null);
   readonly buttonColor = input<ButtonColor>(ButtonColor.WHITE_BORDER);
   readonly buttonSize = input<ButtonSize>(ButtonSize.ICON);
   readonly variant = input<'outlined' | 'text' | null>(null);
   readonly ariaLabel = input<string>('פתיחת תפריט');
   readonly disabled = input<boolean>(false);
+  /** Icon placement when `buttonText` is set. Ignored for icon-only triggers. */
+  readonly iconPosition = input<'left' | 'right' | 'bottom' | 'top'>('right');
+
+  readonly isIconOnly = computed(() => !this.buttonText());
 
   /** Min-width of the popup card (items mode only). */
   readonly menuMinWidth = input<string>('200px');

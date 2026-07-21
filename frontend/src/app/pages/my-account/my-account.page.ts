@@ -17,7 +17,11 @@ import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 import { ClassifyTranComponent } from 'src/app/components/classify-tran/classify-tran.component';
 import { DashboardNavigateComponent } from 'src/app/components/dashboard-navigate/dashboard-navigate.component';
 import { GenericTableComponent } from 'src/app/components/generic-table/generic-table.component';
+import { ConnectedPosition } from '@angular/cdk/overlay';
 import { MannualExpenseComponent } from 'src/app/components/mannual-expense/mannual-expense.component';
+import { MenuButtonComponent } from 'src/app/components/menu-button/menu-button.component';
+import { MenuButtonItem } from 'src/app/components/menu-button/menu-button.model';
+import { QuickUploadDriveDialogComponent } from 'src/app/components/quick-upload-drive-dialog/quick-upload-drive-dialog.component';
 import { AuthService } from 'src/app/services/auth.service';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { GenericService } from 'src/app/services/generic.service';
@@ -49,6 +53,7 @@ import { AppFeature } from 'src/app/shared/access-control';
     AvatarModule,
     AvatarGroupModule,
     ButtonComponent,
+    MenuButtonComponent,
     GenericTableComponent,
     AccountAssociationDialogComponent,
     AddBillComponent,
@@ -1347,6 +1352,30 @@ export class MyAccountPage implements OnInit {
     });
   }
 
+  /** Home CTA menu: Manual Expense + Quick Upload to Drive. */
+  readonly addExpenseMenuItems = computed<MenuButtonItem[]>(() => [
+    {
+      type: 'action',
+      id: 'manual-expense',
+      label: 'הוצאה ידנית',
+      icon: 'pi pi-pencil',
+      action: () => this.openMannualExpenses(),
+    },
+    {
+      type: 'action',
+      id: 'quick-upload',
+      label: 'העלאה מהירה ל-Drive',
+      icon: 'pi pi-cloud-upload',
+      action: () => this.openQuickUploadToDrive(),
+    },
+  ]);
+
+  readonly addExpenseMenuPositions: ConnectedPosition[] = [
+    { originX: 'start', originY: 'bottom', overlayX: 'start', overlayY: 'top', offsetY: 8 },
+    { originX: 'end', originY: 'bottom', overlayX: 'end', overlayY: 'top', offsetY: 8 },
+    { originX: 'start', originY: 'top', overlayX: 'start', overlayY: 'bottom', offsetY: -8 },
+  ];
+
   openMannualExpenses(): void {
     const result = this.accessHandlerService.handleFeatureAccess(AppFeature.ADD_EXPENSE_BUTTON);
     if (!result.allowed) return;
@@ -1358,6 +1387,34 @@ export class MyAccountPage implements OnInit {
       closable: true,
       dismissableMask: true,
       modal: true,
+      // Prevent DynamicDialog from focusing the first field on open — that
+      // focus was opening the datepicker overlay via showOnFocus=true.
+      focusOnShow: false,
+    });
+  }
+
+  openQuickUploadToDrive(): void {
+    const result = this.accessHandlerService.handleFeatureAccess(AppFeature.ADD_EXPENSE_BUTTON);
+    if (!result.allowed) return;
+    if (!this.genericService.businessSelectItems().length) {
+      this.messageService.add({
+        severity: 'warn',
+        summary: 'אין עסק',
+        detail: 'יש להגדיר עסק לפני העלאת מסמכים ל-Drive.',
+        life: 3500,
+        key: 'br',
+      });
+      return;
+    }
+    this.dialogService.open(QuickUploadDriveDialogComponent, {
+      header: 'העלאה מהירה ל-Drive',
+      width: '480px',
+      style: { maxWidth: '95vw' },
+      rtl: true,
+      closable: true,
+      dismissableMask: true,
+      modal: true,
+      focusOnShow: false,
     });
   }
 }
