@@ -226,11 +226,7 @@ export class MySubscriptionTabComponent implements OnInit {
   changePaymentMethod(): void {
     if (this.changingPaymentMethod() || !this.canChangePaymentMethod()) return;
 
-    if (environment.openFieldsChangePaymentMethod) {
-      this.changePmDialogOpen.set(true);
-      return;
-    }
-
+    this.changePmDialogOpen.set(true);
     this.changingPaymentMethod.set(true);
     this.billingStateService
       .changePaymentMethod()

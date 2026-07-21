@@ -7,7 +7,6 @@ export const environment = {
    * Disabled in production until CardCom confirms CreateTokenOnly support and
    * terminal enablement for Open Fields — the redirect flow is used meanwhile.
    */
-  openFieldsChangePaymentMethod: false,
   firebase: {
     apiKey: "AIzaSyAd1L-ZpbvU_rLSEin0_MjvzZQYfNX51i0",
     authDomain: "taxmyself-prod.firebaseapp.com",
