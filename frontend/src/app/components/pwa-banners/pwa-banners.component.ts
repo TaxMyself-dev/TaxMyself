@@ -45,7 +45,7 @@ export class PwaBannersComponent {
   readonly connectivityMessage = computed(() => {
     switch (this.state()) {
       case ConnectivityState.OFFLINE:
-        return 'אין חיבור לאינטרנט';
+        return 'אין חיבור לאינטרנט. בדוק את החיבור ונסה שוב';
       case ConnectivityState.SERVER_UNREACHABLE:
         return 'לא ניתן להתחבר לשרת כרגע';
       default:
@@ -111,6 +111,19 @@ export class PwaBannersComponent {
         this.reconnectedTimer = setTimeout(() => this.showReconnected.set(false), 3000);
       }
       // CHECKING is intentionally ignored here: no banner change while probing.
+    });
+
+    // Each blocked offline navigation attempt re-shows the offline banner,
+    // even when the user previously dismissed it for the same outage.
+    effect(() => {
+      const blockedAt = this.network.offlineNavigationBlockedAt();
+      if (blockedAt === 0) {
+        return;
+      }
+      this.offlineDismissed.set(false);
+      this.showReconnected.set(false);
+      this.wasFailing = true;
+      this.lastFailureState = ConnectivityState.OFFLINE;
     });
   }
 

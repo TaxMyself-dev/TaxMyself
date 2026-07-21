@@ -9,6 +9,8 @@ import {
 } from '../shared/access-control';
 import { AccessService } from './access.service';
 import { UpgradeRequiredService } from './upgrade-required.service';
+import { BillingStateService } from './billing-state.service';
+import { NetworkStatusService } from './pwa/network-status.service';
 
 /**
  * Executes access decisions with side-effects.
@@ -24,14 +26,25 @@ import { UpgradeRequiredService } from './upgrade-required.service';
 export class AccessHandlerService {
   private readonly accessService = inject(AccessService);
   private readonly upgradeRequired = inject(UpgradeRequiredService);
+  private readonly billingState = inject(BillingStateService);
+  private readonly network = inject(NetworkStatusService);
 
   /**
    * Checks feature access and opens the upgrade popup when behavior is UPGRADE_POPUP.
    * Returns the access result so the caller can also apply HIDE / DISABLE locally.
    */
   handleFeatureAccess(feature: AppFeature): AccessResult {
+    if (this.blockOfflineAttempt()) {
+      return { allowed: false };
+    }
+
     if (this.accessService.canAccessFeature(feature)) {
       return { allowed: true };
+    }
+
+    // No authoritative billing payload → never treat as confirmed denial.
+    if (this.billingState.isUnverified()) {
+      return { allowed: false };
     }
 
     const blockedBehavior = this.accessService.getFeatureBlockedBehavior(feature);
@@ -46,8 +59,16 @@ export class AccessHandlerService {
    * Primarily used by ModuleAccessGuard; can also be called before programmatic navigation.
    */
   handleRouteAccess(route: AppRoute): AccessResult {
+    if (this.blockOfflineAttempt()) {
+      return { allowed: false };
+    }
+
     if (this.accessService.canAccessRoute(route)) {
       return { allowed: true };
+    }
+
+    if (this.billingState.isUnverified()) {
+      return { allowed: false };
     }
 
     const blockedBehavior = this.accessService.getRouteBlockedBehavior(route);
@@ -55,5 +76,18 @@ export class AccessHandlerService {
       this.upgradeRequired.open({ source: 'route', id: route, displayName: ROUTE_ACCESS_CONFIG[route].displayName });
     }
     return { allowed: false, blockedBehavior };
+  }
+
+  /**
+   * Clicks that decide access before calling Router still need offline feedback
+   * and must not open the upgrade popup. The router guard covers routerLink /
+   * back-forward; this covers AccessHandler-gated buttons.
+   */
+  private blockOfflineAttempt(): boolean {
+    if (this.network.isBrowserOnline()) {
+      return false;
+    }
+    this.network.notifyOfflineNavigationBlocked();
+    return true;
   }
 }

@@ -81,6 +81,13 @@ export class NetworkStatusService {
    */
   readonly reconnectedAt = signal<number>(0);
 
+  /**
+   * Bumped when an in-app navigation (or access-gated click) is blocked because
+   * the browser is offline. {@link PwaBannersComponent} uses this to re-show
+   * the offline banner even if the user previously dismissed it.
+   */
+  readonly offlineNavigationBlockedAt = signal<number>(0);
+
   constructor() {
     // Guard against non-browser environments (defensive; app is browser-only).
     if (typeof window === 'undefined' || typeof window.addEventListener !== 'function') {
@@ -144,6 +151,18 @@ export class NetworkStatusService {
    */
   isBrowserOnline(): boolean {
     return this.browserOnline();
+  }
+
+  /**
+   * Re-surface the offline banner after a blocked in-app navigation attempt.
+   * Also forces OFFLINE when the browser agrees, so the banner has a failure
+   * state to display even if the user previously dismissed it.
+   */
+  notifyOfflineNavigationBlocked(): void {
+    if (!this.browserOnline()) {
+      this.forceState(ConnectivityState.OFFLINE);
+    }
+    this.offlineNavigationBlockedAt.set(Date.now());
   }
 
   /**
