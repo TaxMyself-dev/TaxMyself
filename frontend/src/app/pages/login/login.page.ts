@@ -13,6 +13,9 @@ import { ButtonClass } from 'src/app/shared/button/button.enum';
 import { MessageService } from 'primeng/api';
 import { Location } from '@angular/common';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { NetworkStatusService } from 'src/app/services/pwa/network-status.service';
+import { RoutePersistenceService } from 'src/app/services/route-persistence.service';
+import { StartupService } from 'src/app/services/startup.service';
 
 
 @Component({
@@ -44,6 +47,9 @@ export class LoginPage implements OnInit {
   resendCountdown = signal(0);
   isVerificationButtonDisabled = computed(() => this.resendCountdown() > 0);
   private destroyRef = inject(DestroyRef);
+  private readonly network = inject(NetworkStatusService);
+  private readonly routePersistence = inject(RoutePersistenceService);
+  private readonly startup = inject(StartupService);
 
   constructor(
     private location: Location,
@@ -80,18 +86,17 @@ export class LoginPage implements OnInit {
   }
 
   /**
-   * The PWA `start_url` ("/?source=pwa") and a plain visit to "/" both redirect
-   * to /login. Without this, a user whose Firebase session was restored
-   * perfectly well still landed on the login form and looked "logged out".
-   *
-   * Requires cached `userData` as well as a Firebase user: AuthGuard sends
-   * signed-in-but-no-profile users here (it cannot render profile-dependent
-   * pages), so redirecting on the Firebase user alone would ping-pong between
-   * /login and the target route.
+   * Auto-enter the app only when online with a restored Firebase session and
+   * cached profile. Offline: stay on login even if Firebase restored a cached
+   * user — do not sign them out, and do not follow a later auth emission into
+   * the protected app.
    */
   private async redirectIfAlreadyAuthenticated(): Promise<void> {
-    await this.authService.waitForAuthInit();
+    await this.startup.whenReady();
 
+    if (!this.network.isBrowserOnline()) {
+      return;
+    }
     if (!this.authService.isLoggedIn) {
       return;
     }
@@ -102,7 +107,19 @@ export class LoginPage implements OnInit {
     if (this.showModal()) {
       return;
     }
-    this.router.navigate(['my-account'], { replaceUrl: true });
+    await this.router.navigateByUrl(this.routePersistence.getPostLoginUrl(), {
+      replaceUrl: true,
+    });
+  }
+
+  /** Block Firebase login while offline; reuse the existing error slot. */
+  private blockIfOffline(): boolean {
+    if (this.network.isBrowserOnline()) {
+      return false;
+    }
+    this.authService.error.set('offline');
+    this.isLoading.set(false);
+    return true;
   }
 
 
@@ -138,6 +155,9 @@ export class LoginPage implements OnInit {
 
 
   login(): void {
+    if (this.blockIfOffline()) {
+      return;
+    }
 
     this.isLoading.set(true);
     this.authService.error.set(null);
@@ -191,9 +211,9 @@ export class LoginPage implements OnInit {
           from(this.genericService.loadBusinessesFromServer())
         ),
 
-      // 5️⃣ After businesses loaded → navigate
+      // 5️⃣ After businesses loaded → navigate (restored route or /my-account)
       tap(() => {
-        this.router.navigate(['my-account']);
+        void this.router.navigateByUrl(this.routePersistence.getPostLoginUrl());
       }),
 
         finalize(() => this.isLoading.set(false))
@@ -314,6 +334,10 @@ export class LoginPage implements OnInit {
 
 
   async googleSignIn(): Promise<void> {
+    if (this.blockIfOffline()) {
+      return;
+    }
+
     this.isLoading.set(true);
     this.authService.error.set(null);
     try {
@@ -334,7 +358,7 @@ export class LoginPage implements OnInit {
       }
       localStorage.setItem('userData', JSON.stringify(userData));
       await this.genericService.loadBusinessesFromServer();
-      this.router.navigate(['my-account']);
+      await this.router.navigateByUrl(this.routePersistence.getPostLoginUrl());
     } catch (err: any) {
       console.error('❌ Google sign-in error code:', err?.code, err);
       switch (err?.code) {

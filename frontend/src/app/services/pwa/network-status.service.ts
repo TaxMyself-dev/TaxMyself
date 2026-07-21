@@ -137,8 +137,25 @@ export class NetworkStatusService {
     );
   }
 
-  /** Report any real HTTP response — proof the backend was reached. */
+  /**
+   * Synchronous link-layer connectivity hint (`navigator.onLine`). Used by
+   * startup routing decisions — never awaits a probe and never treats
+   * SERVER_UNREACHABLE as offline for cold-start purposes.
+   */
+  isBrowserOnline(): boolean {
+    return this.browserOnline();
+  }
+
+  /**
+   * Report any real HTTP response — proof the backend was reached.
+   * Ignored while the browser itself reports offline, so a spurious/cached
+   * response cannot flip an airplane-mode cold start to ONLINE and trigger
+   * the "connection restored" banner.
+   */
   reportRequestSuccess(): void {
+    if (!this.browserOnline()) {
+      return;
+    }
     this.forceState(ConnectivityState.ONLINE);
   }
 
@@ -224,11 +241,18 @@ export class NetworkStatusService {
   }
 
   private setState(next: ConnectivityState): void {
+    // Never claim ONLINE while the browser link layer is down.
+    if (next === ConnectivityState.ONLINE && !this.browserOnline()) {
+      next = ConnectivityState.OFFLINE;
+    }
     const previous = this._state();
     if (previous === next) {
       return;
     }
     this._state.set(next);
+    // reconnectedAt stays 0 until a real transition into ONLINE during the
+    // session. The initial constructor value does not go through setState, so
+    // an online cold start never looks like a reconnect.
     if (next === ConnectivityState.ONLINE && previous !== ConnectivityState.ONLINE) {
       this.reconnectedAt.set(Date.now());
     }

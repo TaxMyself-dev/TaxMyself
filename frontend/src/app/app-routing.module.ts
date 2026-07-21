@@ -5,12 +5,17 @@ import { AuthGuard } from './shared/guard/auth.guard';
 import { BillingGuard } from './shared/guard/billing.guard';
 import { ViewOnlyBlockDocGuard } from './shared/guard/view-only-block-doc.guard';
 import { ModuleAccessGuard } from './shared/guard/module-access.guard';
+import { StartupRedirectGuard } from './shared/guard/startup-redirect.guard';
 import { AppRoute } from './shared/access-control';
 const routes: Routes = [
   {
+    // Cold-start gate: waits for Firebase auth, then UrlTree → restored route
+    // (online + authenticated) or /login. Replaces the unconditional redirect
+    // that caused the login-page flash.
     path: '',
-    redirectTo: '/login',
-    pathMatch: 'full'
+    pathMatch: 'full',
+    canActivate: [StartupRedirectGuard],
+    children: [],
   },
   {
     path: 'register',

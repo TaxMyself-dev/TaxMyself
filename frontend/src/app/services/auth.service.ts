@@ -202,6 +202,9 @@ export class AuthService {
       'shaam_access_token',
       'shaam_token_expires_in',
       'shaam_token_timestamp',
+      // Keep in sync with LAST_PROTECTED_ROUTE_KEY in route-persistence.service
+      // (string inlined here to avoid a circular DI/import with that service).
+      'tm.lastProtectedRoute',
     ];
     const sessionKeys = [
       'isLoggedIn',
