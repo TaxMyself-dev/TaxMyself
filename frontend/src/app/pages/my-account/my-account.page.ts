@@ -1,5 +1,4 @@
 import { CommonModule } from '@angular/common';
-import { environment } from 'src/environments/environment';
 import { Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -109,7 +108,6 @@ export class MyAccountPage implements OnInit {
   // mobileMenuOpen = signal<boolean>(false);
   isLoadingFeezback = signal<boolean>(false);
   isLoadingUserAccounts = signal<boolean>(false);
-  isProd = signal<boolean>(environment.production);
   /** Spinner state for the dashboard's "אפס נתוני בדיקה" button (demo users only). */
   isResettingDemo = signal<boolean>(false);
 

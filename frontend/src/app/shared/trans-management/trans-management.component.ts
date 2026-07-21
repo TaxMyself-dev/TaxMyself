@@ -28,7 +28,7 @@ export class TransManagementComponent  implements OnInit {
   consentChecked = signal<boolean>(false);
 
   /** Dev-only sync simulator panel — hidden in production. */
-  readonly showSimPanel = !environment.production;
+  readonly showSimPanel = environment.enableDevTools;
   isLoadingSim = signal<SimScenario | 'reset' | null>(null);
 
   constructor(
