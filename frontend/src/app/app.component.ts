@@ -1,4 +1,4 @@
-import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, effect, inject, OnInit, signal } from '@angular/core';
 import { ActivatedRoute, Router, NavigationEnd, NavigationError } from '@angular/router';
 import { IColumnDataTable, IRowDataTable, IUserData } from './shared/interface';
 import { Location } from '@angular/common';
@@ -15,6 +15,8 @@ import { GenericService } from './services/generic.service';
 import { BillingStateService, BILLING_BLOCKING_STATUSES } from './services/billing-state.service';
 import { AccessService } from './services/access.service';
 import { AppFeature } from './shared/access-control';
+import { NetworkStatusService } from './services/pwa/network-status.service';
+import { AppRefreshService } from './services/pwa/app-refresh.service';
 
 
 
@@ -30,6 +32,8 @@ export class AppComponent implements OnInit {
   protected genericService = inject(GenericService);
   protected billingStateService = inject(BillingStateService);
   private readonly accessService = inject(AccessService);
+  private readonly networkStatus = inject(NetworkStatusService);
+  private readonly appRefresh = inject(AppRefreshService);
 
   // Tracks the settled URL after each navigation — drives billing dialog visibility.
   private readonly currentUrl = signal<string>('');
@@ -140,8 +144,28 @@ export class AppComponent implements OnInit {
     public authService: AuthService,
     private messageService: MessageService,
     private clientPanelService: ClientPanelService,
-  ) {}
+  ) {
+    this.recoverOnReconnect();
+  }
   showTopNav = signal(true);
+
+  /**
+   * When connectivity returns, re-fetch shared state so the app stops showing
+   * whatever failed to load during the outage.
+   *
+   * Only the allow-listed idempotent GETs in AppRefreshService run — no failed
+   * request is replayed and no mutation is ever repeated. `reconnectedAt`
+   * changes once per outage, so this fires once, not on every network event.
+   */
+  private recoverOnReconnect(): void {
+    effect(() => {
+      const reconnectedAt = this.networkStatus.reconnectedAt();
+      if (reconnectedAt === 0) {
+        return; // Initial value — no outage has ended yet.
+      }
+      void this.appRefresh.refreshSharedState();
+    });
+  }
 
   ngOnInit() {
     this.currentUrl.set(this.router.url);

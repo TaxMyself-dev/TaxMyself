@@ -17,6 +17,21 @@ export interface BillingAmounts {
 /** The user's effective billing business type — drives which plan price applies. */
 export type BillingBusinessType = 'LICENSED' | 'EXEMPT';
 
+/**
+ * Subscription discount as surfaced to the frontend (billing/me).
+ * `kind` mirrors the precedence in applySubscriptionDiscount: a fixed amount
+ * wins over a percentage when both happen to be set.
+ */
+export interface SubscriptionDiscountInfo {
+  kind: 'PERCENT' | 'AMOUNT';
+  percent: number | null;
+  amountAgorot: number | null;
+  startDate: string | null;
+  endDate: string | null;
+  /** True when today falls within [startDate, endDate] (inclusive, DATE semantics). */
+  isActiveNow: boolean;
+}
+
 export interface CheckoutPricingResult {
   originalAmountAgorot: number;
   discountAmountAgorot: number;
@@ -75,6 +90,42 @@ export class PricingService {
       return plan.licensedDealerPriceMonthlyAgorot;
     }
     return plan.priceMonthlyAgorot;
+  }
+
+  /**
+   * Resolves the subscription's configured discount for display in billing/me.
+   *
+   * Returns null when no discount is set. `isActiveNow` uses the same
+   * [discountStartDate, discountEndDate] DATE-window semantics as
+   * applySubscriptionDiscount, so the UI and the actual checkout price agree.
+   */
+  resolveSubscriptionDiscount(
+    subscription: Pick<
+      Subscription,
+      'discountPercent' | 'discountAmountAgorot' | 'discountStartDate' | 'discountEndDate'
+    >,
+  ): SubscriptionDiscountInfo | null {
+    const { discountPercent, discountAmountAgorot, discountStartDate, discountEndDate } =
+      subscription;
+
+    if (discountPercent == null && discountAmountAgorot == null) {
+      return null;
+    }
+
+    // TypeORM returns 'YYYY-MM-DD' strings for type:'date' columns — cast defensively.
+    const start = discountStartDate ? String(discountStartDate) : null;
+    const end = discountEndDate ? String(discountEndDate) : null;
+    const today = this.getTodayDateString();
+    const isActiveNow = (!start || today >= start) && (!end || today <= end);
+
+    return {
+      kind: discountAmountAgorot != null ? 'AMOUNT' : 'PERCENT',
+      percent: discountPercent ?? null,
+      amountAgorot: discountAmountAgorot ?? null,
+      startDate: start,
+      endDate: end,
+      isActiveNow,
+    };
   }
 
   /**

@@ -63,10 +63,24 @@ interface CardcomWebhookPayload {
   };
 }
 
-interface ParsedReturnValue {
-  firebaseId: string;
-  planId: number;
-  subscriptionId: number;
+/**
+ * Routing context echoed back from CardCom in ReturnValue.
+ *   CHECKOUT   → paid checkout; activates the subscription (requires planId).
+ *   CHANGE_PM  → replace saved card only; never charges/activates (no planId).
+ * `intent` is REQUIRED. Payloads with a missing or unknown intent are rejected —
+ * there is no legacy fallback to CHECKOUT.
+ */
+type ParsedReturnValue =
+  | { intent: 'CHECKOUT'; firebaseId: string; planId: number; subscriptionId: number }
+  | { intent: 'CHANGE_PM'; firebaseId: string; subscriptionId: number };
+
+/** Card fields persisted onto payment_method after a verified CardCom result. */
+interface CardDetails {
+  token: string | null;
+  last4: string | null;
+  brand: string | null;
+  expiryMonth: number | null;
+  expiryYear: number | null;
 }
 
 @Injectable()
@@ -117,8 +131,9 @@ export class CardcomWebhookService implements OnModuleInit {
     const lowProfileId = this.extractLowProfileId(payload);
     const returnValue = this.extractReturnValue(payload);
 
-    // Parse ReturnValue JSON to extract routing context
-    const parsedReturn = this.parseReturnValue(returnValue);
+    // Parse ReturnValue JSON to extract routing context (strict — intent required)
+    const { value: parsedReturn, error: returnValueError } =
+      this.parseReturnValue(returnValue);
 
     const responseCode = payload.ResponseCode ?? null;
     const transactionId =
@@ -136,7 +151,7 @@ export class CardcomWebhookService implements OnModuleInit {
       idempotencyKey,
       lowProfileId,
       parsedReturn?.firebaseId ?? null,
-      parsedReturn?.planId ?? null,
+      parsedReturn?.intent === 'CHECKOUT' ? parsedReturn.planId : null,
       parsedReturn?.subscriptionId ?? null,
       transactionId != null ? String(transactionId) : null,
       responseCode,
@@ -147,20 +162,22 @@ export class CardcomWebhookService implements OnModuleInit {
       return;
     }
 
-    // ── Validate ReturnValue ───────────────────────────────────────────────────
+    // ── Validate ReturnValue (strict) ──────────────────────────────────────────
+    // Payloads without a valid intent are rejected outright — no legacy fallback.
     if (!parsedReturn) {
-      this.logger.warn(
-        `Webhook ReturnValue invalid or missing: ${returnValue?.slice(0, 100) ?? 'null'}`,
+      this.logger.error(
+        `Webhook rejected — ${returnValueError}. ` +
+          `lowProfileId=${lowProfileId ?? 'none'} ReturnValue=${returnValue?.slice(0, 100) ?? 'null'}`,
       );
       await this.markWebhookStatus(
         webhookLog.id,
         WebhookLogStatus.IGNORED,
-        'ReturnValue missing or not valid routing JSON',
+        returnValueError ?? 'ReturnValue rejected',
       );
       return;
     }
 
-    const { firebaseId, planId, subscriptionId } = parsedReturn;
+    const { firebaseId, subscriptionId } = parsedReturn;
 
     // ── Require LowProfileId for GetLpResult verification ────────────────────
     if (!lowProfileId) {
@@ -193,21 +210,35 @@ export class CardcomWebhookService implements OnModuleInit {
 
     const verified = verifiedResult as CardcomWebhookPayload;
 
-    // A successful payment requires ResponseCode=0 at the top level AND
-    // at the TranzactionInfo level (if present).
     const topLevelOk = (verified.ResponseCode ?? -1) === 0;
-    const txOk =
-      !verified.TranzactionInfo ||
-      (verified.TranzactionInfo.ResponseCode ?? -1) === 0;
 
     // Verify ReturnValue in GetLpResult matches what we originally sent.
     const verifiedReturnMatch =
       !verified.ReturnValue || verified.ReturnValue === returnValue;
 
+    // ── CHANGE_PM: replace saved card only — never charges/activates ──────────
+    if (parsedReturn.intent === 'CHANGE_PM') {
+      await this.applyVerifiedChangePaymentMethod(
+        firebaseId,
+        subscriptionId,
+        verified,
+        webhookLog,
+        returnValue,
+      );
+      return;
+    }
+
+    // ── CHECKOUT: full activation flow ────────────────────────────────────────
+    // A successful payment requires ResponseCode=0 at the top level AND
+    // at the TranzactionInfo level (if present).
+    const txOk =
+      !verified.TranzactionInfo ||
+      (verified.TranzactionInfo.ResponseCode ?? -1) === 0;
+
     if (topLevelOk && txOk && verifiedReturnMatch) {
       await this.processVerifiedSuccess(
         firebaseId,
-        planId,
+        parsedReturn.planId,
         subscriptionId,
         verified,
         webhookLog,
@@ -304,17 +335,9 @@ export class CardcomWebhookService implements OnModuleInit {
       const now = new Date();
 
       // ── 1. Extract token and card info ─────────────────────────────────────
-      const token =
-        verified.TokenInfo?.Token ?? verified.TranzactionInfo?.Token ?? null;
-      const last4 =
-        verified.TranzactionInfo?.Last4CardDigitsString ??
-        (verified.TranzactionInfo?.Last4CardDigits != null
-          ? String(verified.TranzactionInfo.Last4CardDigits).padStart(4, '0')
-          : null);
-      const cardBrand =
-        verified.TranzactionInfo?.Brand ?? verified.TranzactionInfo?.CardName ?? null;
+      const card = this.extractCardDetails(verified);
 
-      if (!token) {
+      if (!card.token) {
         this.logger.warn(
           `Subscription #${subscriptionId} — payment succeeded but no token in GetLpResult. ` +
             `Monthly renewal will not be possible until a token is stored.`,
@@ -322,33 +345,28 @@ export class CardcomWebhookService implements OnModuleInit {
       }
 
       // ── 2. Create or update payment_method ────────────────────────────────
-      const cardExpiryMonth =
-        verified.TokenInfo?.CardMonth ?? verified.TranzactionInfo?.CardMonth ?? null;
-      const cardExpiryYear =
-        verified.TokenInfo?.CardYear ?? verified.TranzactionInfo?.CardYear ?? null;
-
       let paymentMethod: PaymentMethod | null = null;
-      if (token) {
-        const encryptedToken = encryptCardcomToken(token);
+      if (card.token) {
+        const encryptedToken = encryptCardcomToken(card.token);
         if (subscription.paymentMethodId != null) {
           // Subscription already has a payment method — update it in place.
           paymentMethod = await qr.manager.findOneOrFail(PaymentMethod, {
             where: { id: subscription.paymentMethodId },
           });
           paymentMethod.cardcomToken = encryptedToken;
-          paymentMethod.last4 = last4;
-          paymentMethod.cardBrand = typeof cardBrand === 'string' ? cardBrand : null;
-          paymentMethod.cardExpiryMonth = cardExpiryMonth;
-          paymentMethod.cardExpiryYear = cardExpiryYear;
+          paymentMethod.last4 = card.last4;
+          paymentMethod.cardBrand = card.brand;
+          paymentMethod.cardExpiryMonth = card.expiryMonth;
+          paymentMethod.cardExpiryYear = card.expiryYear;
           paymentMethod = await qr.manager.save(PaymentMethod, paymentMethod);
         } else {
           paymentMethod = qr.manager.create(PaymentMethod, {
             firebaseId,
             cardcomToken: encryptedToken,
-            last4,
-            cardBrand: typeof cardBrand === 'string' ? cardBrand : null,
-            cardExpiryMonth,
-            cardExpiryYear,
+            last4: card.last4,
+            cardBrand: card.brand,
+            cardExpiryMonth: card.expiryMonth,
+            cardExpiryYear: card.expiryYear,
           });
           paymentMethod = await qr.manager.save(PaymentMethod, paymentMethod);
         }
@@ -604,6 +622,496 @@ export class CardcomWebhookService implements OnModuleInit {
     });
   }
 
+  // ─── Card details extraction ────────────────────────────────────────────────
+
+  /**
+   * Official Mutag24 → brand mapping from the CardCom LowProfile docs
+   * ("0 - Private card of an issuing company (PL), 1 - Mastercard, 2 - Visa,
+   * 3 - Maestro, 5 - Isracard"); 4/6/7/8 follow the v11 Brand enum order
+   * (AmericanExpress, Isracard, JBC, Discover, Diners). Used only when the
+   * verified result carries no Brand/CardName.
+   */
+  private static readonly MUTAG_BRAND: Record<number, string> = {
+    0: 'PrivateCard',
+    1: 'MasterCard',
+    2: 'Visa',
+    3: 'Maestro',
+    4: 'AmericanExpress',
+    5: 'Isracard',
+    6: 'JBC',
+    7: 'Discover',
+    8: 'Diners',
+  };
+
+  /**
+   * Extracts token + card fields from a verified LowProfile result.
+   * TokenInfo is the authoritative source for token/expiry (always populated for
+   * ChargeAndCreateToken / CreateTokenOnly); last4/brand only exist on
+   * TranzactionInfo, which the v11 spec guarantees for charge operations but
+   * NOT for CreateTokenOnly — missing fields stay null (see completeCardDetails).
+   */
+  private extractCardDetails(verified: CardcomWebhookPayload): CardDetails {
+    const brand =
+      verified.TranzactionInfo?.Brand ?? verified.TranzactionInfo?.CardName ?? null;
+    return {
+      token: verified.TokenInfo?.Token ?? verified.TranzactionInfo?.Token ?? null,
+      last4:
+        verified.TranzactionInfo?.Last4CardDigitsString ??
+        (verified.TranzactionInfo?.Last4CardDigits != null
+          ? String(verified.TranzactionInfo.Last4CardDigits).padStart(4, '0')
+          : null),
+      brand: typeof brand === 'string' ? brand : null,
+      expiryMonth:
+        verified.TokenInfo?.CardMonth ?? verified.TranzactionInfo?.CardMonth ?? null,
+      expiryYear:
+        verified.TokenInfo?.CardYear ?? verified.TranzactionInfo?.CardYear ?? null,
+    };
+  }
+
+  /**
+   * Fills card fields the LowProfile result did not provide by calling
+   * Transactions/GetTransactionInfoById with the J2 validation TranzactionId.
+   * The returned ExtShvaParams carry the REAL card data of the new card:
+   * CardNumber5 (last 4 digits), Mutag24/CardName (brand), Tokef30 (MMYY expiry).
+   *
+   * Best-effort: on any failure the original details are returned unchanged —
+   * the token replacement itself must never be blocked by this lookup.
+   * Values already present are never overwritten, and nothing is ever copied
+   * from the previous payment method.
+   */
+  private async completeCardDetails(
+    details: CardDetails,
+    verified: CardcomWebhookPayload,
+    subscriptionId: number,
+  ): Promise<CardDetails> {
+    const missing =
+      !details.last4 ||
+      !details.brand ||
+      details.expiryMonth == null ||
+      details.expiryYear == null;
+    if (!missing) return details;
+
+    const tranzactionId =
+      verified.TranzactionId ?? verified.TranzactionInfo?.TranzactionId ?? null;
+    if (tranzactionId == null) {
+      this.logger.warn(
+        `Card details incomplete for subscription #${subscriptionId} and no TranzactionId ` +
+          `to query — storing partial card info (last4=${details.last4 ?? 'null'})`,
+      );
+      return details;
+    }
+
+    try {
+      const rows = await this.cardcomService.getTransactionInfoById(tranzactionId);
+      const row =
+        rows.find(r => r?.InternalDealNumber === tranzactionId) ?? rows[0] ?? null;
+      if (!row) {
+        this.logger.warn(
+          `GetTransactionInfoById returned no rows for tranzactionId=${tranzactionId} ` +
+            `(subscription #${subscriptionId})`,
+        );
+        return details;
+      }
+
+      const completed: CardDetails = { ...details };
+
+      if (!completed.last4 && row.CardNumber5 != null) {
+        const digits = String(row.CardNumber5).replace(/\D/g, '');
+        if (digits.length > 0) completed.last4 = digits.slice(-4).padStart(4, '0');
+      }
+
+      if (!completed.brand) {
+        const mutag = row.Mutag24 != null ? Number(row.Mutag24) : NaN;
+        completed.brand =
+          CardcomWebhookService.MUTAG_BRAND[mutag] ??
+          (typeof row.CardName === 'string' && row.CardName.length > 0
+            ? row.CardName
+            : null);
+      }
+
+      if (
+        (completed.expiryMonth == null || completed.expiryYear == null) &&
+        typeof row.Tokef30 === 'string' &&
+        /^\d{4}$/.test(row.Tokef30)
+      ) {
+        // Tokef30 is MMYY, e.g. "1024" = 10/2024 (per CardCom's documented example).
+        completed.expiryMonth ??= parseInt(row.Tokef30.slice(0, 2), 10);
+        completed.expiryYear ??= 2000 + parseInt(row.Tokef30.slice(2), 10);
+      }
+
+      this.logger.log(
+        `Card details completed via GetTransactionInfoById: subscription #${subscriptionId} ` +
+          `last4=${completed.last4 ?? 'null'} brand=${completed.brand ?? 'null'}`,
+      );
+      return completed;
+    } catch (err) {
+      this.logger.warn(
+        `GetTransactionInfoById failed for tranzactionId=${tranzactionId} ` +
+          `(subscription #${subscriptionId}): ${(err as Error).message} — storing partial card info`,
+      );
+      return details;
+    }
+  }
+
+  // ─── Change-payment-method path ─────────────────────────────────────────────
+
+  /**
+   * The single CHANGE_PM decision point, shared by the webhook and the
+   * reconciliation fallback. Both arrive here with a result they fetched from
+   * GetLpResult, so neither can apply looser rules than the other.
+   *
+   * CreateTokenOnly + J2 produces a validation transaction whose
+   * TranzactionInfo.ResponseCode is 700/701 (NOT 0), so it is intentionally NOT
+   * required. Success = top-level ResponseCode 0, ReturnValue match, AND a token.
+   */
+  private async applyVerifiedChangePaymentMethod(
+    firebaseId: string,
+    subscriptionId: number,
+    verified: CardcomWebhookPayload,
+    webhookLog: CardcomWebhookLog,
+    returnValue: string | null,
+  ): Promise<void> {
+    const topLevelOk = (verified.ResponseCode ?? -1) === 0;
+    const verifiedReturnMatch =
+      !verified.ReturnValue || !returnValue || verified.ReturnValue === returnValue;
+    const token = verified.TokenInfo?.Token ?? verified.TranzactionInfo?.Token ?? null;
+
+    if (topLevelOk && verifiedReturnMatch && token) {
+      await this.processVerifiedPaymentMethodUpdate(
+        firebaseId,
+        subscriptionId,
+        verified,
+        webhookLog,
+      );
+      return;
+    }
+
+    const reason = !topLevelOk
+      ? `ResponseCode=${verified.ResponseCode ?? 'missing'} desc=${verified.Description ?? ''}`
+      : !verifiedReturnMatch
+        ? 'ReturnValue mismatch'
+        : 'No token in verified result';
+
+    await this.processVerifiedPaymentMethodUpdateFailure(
+      firebaseId,
+      subscriptionId,
+      webhookLog,
+      reason,
+      verified.LowProfileId ?? null,
+    );
+  }
+
+  /**
+   * Reconciliation fallback for a CHANGE_PM attempt whose webhook never arrived
+   * (the common cause in development is CARDCOM_WEBHOOK_BASE_URL pointing at a
+   * dead tunnel — see backend/src/billing/CLAUDE.md).
+   *
+   * This does NOT bypass or weaken the webhook path: it pulls the same
+   * GetLpResult, writes the same webhook-log row under the SAME idempotency key
+   * the webhook would have used, and hands off to the same
+   * applyVerifiedChangePaymentMethod. Consequences:
+   *
+   *   - If the webhook already processed this attempt, the log insert hits the
+   *     unique idempotency key and returns null → we stop. No second token
+   *     write, no duplicate events.
+   *   - If reconciliation wins the race, a webhook arriving later is deduped by
+   *     that very same row through the existing gate in handleWebhook.
+   *
+   * Ownership is enforced from the VERIFIED result's ReturnValue, not from the
+   * caller's claim, so a user cannot reconcile someone else's LowProfileId.
+   */
+  async reconcileChangePaymentMethod(
+    lowProfileId: string,
+    expectedFirebaseId: string,
+  ): Promise<'APPLIED' | 'ALREADY_PROCESSED' | 'UNVERIFIABLE'> {
+    let verified: CardcomWebhookPayload;
+    try {
+      verified = (await this.cardcomService.getLowProfileResult(
+        lowProfileId,
+      )) as CardcomWebhookPayload;
+    } catch (err) {
+      // Transient gateway problem — stay PENDING so the next poll retries.
+      this.logger.warn(
+        `Reconciliation GetLpResult failed for lowProfileId=${lowProfileId}: ${(err as Error).message}`,
+      );
+      return 'UNVERIFIABLE';
+    }
+
+    const returnValue = verified.ReturnValue ?? null;
+    const { value: parsedReturn, error: returnValueError } =
+      this.parseReturnValue(returnValue);
+
+    if (!parsedReturn || parsedReturn.intent !== 'CHANGE_PM') {
+      this.logger.warn(
+        `Reconciliation skipped for lowProfileId=${lowProfileId} — ` +
+          `${returnValueError ?? 'ReturnValue is not a CHANGE_PM intent'}`,
+      );
+      return 'UNVERIFIABLE';
+    }
+
+    if (parsedReturn.firebaseId !== expectedFirebaseId) {
+      this.logger.error(
+        `Reconciliation ownership mismatch for lowProfileId=${lowProfileId} — ` +
+          `caller=${expectedFirebaseId} ReturnValue=${parsedReturn.firebaseId}`,
+      );
+      return 'UNVERIFIABLE';
+    }
+
+    const transactionId =
+      verified.TranzactionId ?? verified.TranzactionInfo?.TranzactionId ?? null;
+
+    // Same key the webhook would compute for this attempt — that shared key IS
+    // the mutual-exclusion mechanism between the two paths.
+    const idempotencyKey = this.buildIdempotencyKey({
+      LowProfileId: lowProfileId,
+      TranzactionId: transactionId ?? undefined,
+      ReturnValue: returnValue ?? undefined,
+    });
+
+    const webhookLog = await this.saveWebhookLog(
+      verified as Record<string, any>,
+      idempotencyKey,
+      lowProfileId,
+      parsedReturn.firebaseId,
+      null,
+      parsedReturn.subscriptionId,
+      transactionId != null ? String(transactionId) : null,
+      verified.ResponseCode ?? null,
+      'RECONCILIATION',
+    );
+
+    if (!webhookLog) {
+      this.logger.log(
+        `Reconciliation no-op for lowProfileId=${lowProfileId} — already processed ` +
+          `(idempotencyKey=${idempotencyKey.slice(0, 24)}...)`,
+      );
+      return 'ALREADY_PROCESSED';
+    }
+
+    this.logger.log(
+      `Reconciling CHANGE_PM without webhook: lowProfileId=${lowProfileId} ` +
+        `subscriptionId=${parsedReturn.subscriptionId}`,
+    );
+
+    await this.applyVerifiedChangePaymentMethod(
+      parsedReturn.firebaseId,
+      parsedReturn.subscriptionId,
+      verified,
+      webhookLog,
+      returnValue,
+    );
+
+    return 'APPLIED';
+  }
+
+  /**
+   * Replaces the subscription's saved CardCom token (CreateTokenOnly flow).
+   *
+   * This ONLY updates payment_method + subscription.paymentMethodId. It never:
+   *   - activates the subscription or changes its status
+   *   - modifies billing periods / nextBillingDate / plan
+   *   - charges the customer or generates a receipt
+   *   - emits PAYMENT_SUCCESS / PAYMENT_VERIFIED events
+   *
+   * Reuses the same token extraction + encryption + update-in-place logic as the
+   * checkout activation flow. Card details come from TokenInfo/TranzactionInfo,
+   * completed via GetTransactionInfoById when CreateTokenOnly omits last4/brand —
+   * the old card's details are never carried over onto the new token.
+   */
+  private async processVerifiedPaymentMethodUpdate(
+    firebaseId: string,
+    subscriptionId: number,
+    verified: CardcomWebhookPayload,
+    webhookLog: CardcomWebhookLog,
+  ): Promise<void> {
+    // Resolve the full card details BEFORE opening the DB transaction — the
+    // completion step is an HTTP call and must not run while holding a row lock.
+    const extracted = this.extractCardDetails(verified);
+    if (!extracted.token) {
+      // Should not happen (handleWebhook already checked), but guard anyway.
+      await this.markWebhookStatus(webhookLog.id, WebhookLogStatus.FAILED, 'No token to store');
+      await this.logPaymentMethodUpdateFailed(
+        firebaseId,
+        subscriptionId,
+        'No token to store',
+        verified.LowProfileId ?? null,
+      );
+      return;
+    }
+    const card = await this.completeCardDetails(extracted, verified, subscriptionId);
+
+    let committedData: { paymentMethodId: number; last4: string | null; brand: string | null } | null =
+      null;
+
+    const qr = this.dataSource.createQueryRunner();
+    await qr.connect();
+    await qr.startTransaction();
+
+    try {
+      const subscription = await qr.manager.findOne(Subscription, {
+        where: { id: subscriptionId },
+        lock: { mode: 'pessimistic_write' },
+      });
+
+      if (!subscription) {
+        await qr.rollbackTransaction();
+        this.logger.error(`Subscription #${subscriptionId} not found — cannot update payment method`);
+        await this.markWebhookStatus(
+          webhookLog.id,
+          WebhookLogStatus.FAILED,
+          `Subscription ${subscriptionId} not found`,
+        );
+        await this.logPaymentMethodUpdateFailed(
+          firebaseId,
+          subscriptionId,
+          'Subscription not found',
+          verified.LowProfileId ?? null,
+        );
+        return;
+      }
+
+      if (subscription.firebaseId !== firebaseId) {
+        await qr.rollbackTransaction();
+        this.logger.error(
+          `Subscription #${subscriptionId} firebaseId mismatch on payment-method update`,
+        );
+        await this.markWebhookStatus(
+          webhookLog.id,
+          WebhookLogStatus.FAILED,
+          'firebaseId mismatch on subscription',
+        );
+        await this.logPaymentMethodUpdateFailed(
+          firebaseId,
+          subscriptionId,
+          'firebaseId mismatch',
+          verified.LowProfileId ?? null,
+        );
+        return;
+      }
+
+      // ── Persist the new card (details resolved above, before the lock) ──────
+      const encryptedToken = encryptCardcomToken(card.token!);
+
+      let paymentMethod: PaymentMethod;
+      if (subscription.paymentMethodId != null) {
+        // Update the existing card in place.
+        paymentMethod = await qr.manager.findOneOrFail(PaymentMethod, {
+          where: { id: subscription.paymentMethodId },
+        });
+        paymentMethod.cardcomToken = encryptedToken;
+        paymentMethod.last4 = card.last4;
+        paymentMethod.cardBrand = card.brand;
+        paymentMethod.cardExpiryMonth = card.expiryMonth;
+        paymentMethod.cardExpiryYear = card.expiryYear;
+        paymentMethod = await qr.manager.save(PaymentMethod, paymentMethod);
+      } else {
+        // No saved card yet — create one and link it (status/dates untouched).
+        paymentMethod = qr.manager.create(PaymentMethod, {
+          firebaseId,
+          cardcomToken: encryptedToken,
+          last4: card.last4,
+          cardBrand: card.brand,
+          cardExpiryMonth: card.expiryMonth,
+          cardExpiryYear: card.expiryYear,
+        });
+        paymentMethod = await qr.manager.save(PaymentMethod, paymentMethod);
+      }
+
+      // Link the (possibly new) payment method — the ONLY subscription field we touch.
+      if (subscription.paymentMethodId !== paymentMethod.id) {
+        await qr.manager.update(Subscription, subscription.id, {
+          paymentMethodId: paymentMethod.id,
+        });
+      }
+
+      await qr.commitTransaction();
+
+      committedData = {
+        paymentMethodId: paymentMethod.id,
+        last4: paymentMethod.last4,
+        brand: paymentMethod.cardBrand,
+      };
+    } catch (err) {
+      await qr.rollbackTransaction();
+      this.logger.error(
+        `Payment-method update failed for subscription #${subscriptionId}: ${(err as Error).message}`,
+        (err as Error).stack,
+      );
+      await this.markWebhookStatus(
+        webhookLog.id,
+        WebhookLogStatus.FAILED,
+        `Payment-method update error: ${(err as Error).message}`,
+      );
+      await this.logPaymentMethodUpdateFailed(
+        firebaseId,
+        subscriptionId,
+        `Transaction error: ${(err as Error).message}`,
+        verified.LowProfileId ?? null,
+      );
+    } finally {
+      await qr.release();
+    }
+
+    if (!committedData) return;
+
+    await this.markWebhookStatus(webhookLog.id, WebhookLogStatus.PROCESSED);
+
+    await this.billingEventService.logEvent({
+      firebaseId,
+      eventType: BillingEventType.WEBHOOK_RECEIVED,
+      subscriptionId,
+      metadata: { idempotencyKey: webhookLog.idempotencyKey, intent: 'CHANGE_PM' },
+    });
+    await this.billingEventService.logEvent({
+      firebaseId,
+      eventType: BillingEventType.PAYMENT_METHOD_UPDATED,
+      subscriptionId,
+      paymentMethodId: committedData.paymentMethodId,
+      metadata: {
+        last4: committedData.last4,
+        brand: committedData.brand,
+        lowProfileId: verified.LowProfileId,
+      },
+    });
+
+    this.logger.log(
+      `Payment method replaced: subscription #${subscriptionId} ` +
+        `paymentMethodId=${committedData.paymentMethodId} last4=${committedData.last4 ?? 'null'}`,
+    );
+  }
+
+  private async processVerifiedPaymentMethodUpdateFailure(
+    firebaseId: string,
+    subscriptionId: number,
+    webhookLog: CardcomWebhookLog,
+    reason: string,
+    lowProfileId: string | null,
+  ): Promise<void> {
+    this.logger.warn(`Payment-method update failed for subscription #${subscriptionId}: ${reason}`);
+    await this.markWebhookStatus(webhookLog.id, WebhookLogStatus.PROCESSED, reason);
+    await this.logPaymentMethodUpdateFailed(firebaseId, subscriptionId, reason, lowProfileId);
+  }
+
+  /**
+   * `lowProfileId` is stamped into metadata so a failure can be correlated back
+   * to the exact attempt that produced it. Without it the frontend can only ask
+   * "did ANY payment-method update fail recently", which is ambiguous whenever a
+   * user retries.
+   */
+  private async logPaymentMethodUpdateFailed(
+    firebaseId: string,
+    subscriptionId: number,
+    reason: string,
+    lowProfileId: string | null,
+  ): Promise<void> {
+    await this.billingEventService.logEvent({
+      firebaseId,
+      eventType: BillingEventType.PAYMENT_METHOD_UPDATE_FAILED,
+      subscriptionId,
+      metadata: { reason, lowProfileId },
+    });
+  }
+
   // ─── Helpers ──────────────────────────────────────────────────────────────
 
   /**
@@ -632,30 +1140,63 @@ export class CardcomWebhookService implements OnModuleInit {
   }
 
   /**
-   * Parses ReturnValue JSON string into routing fields.
-   * Returns null if the value is missing, not valid JSON, or lacks required fields.
+   * Parses ReturnValue JSON string into routing fields, branching on `intent`.
+   *
+   *   CHECKOUT  → requires firebaseId + planId + subscriptionId.
+   *   CHANGE_PM → requires firebaseId + subscriptionId (NO planId).
+   *
+   * `intent` is mandatory: a payload with a missing or unknown intent is
+   * rejected (value=null) with a specific error — never assumed to be CHECKOUT.
    */
-  private parseReturnValue(returnValue: string | null): ParsedReturnValue | null {
-    if (!returnValue) return null;
-    try {
-      const raw = JSON.parse(returnValue);
-      const { firebaseId, planId, subscriptionId } = raw;
-      if (
-        typeof firebaseId === 'string' &&
-        firebaseId.length > 0 &&
-        typeof planId === 'number' &&
-        Number.isInteger(planId) &&
-        planId > 0 &&
-        typeof subscriptionId === 'number' &&
-        Number.isInteger(subscriptionId) &&
-        subscriptionId > 0
-      ) {
-        return { firebaseId, planId, subscriptionId };
-      }
-      return null;
-    } catch {
-      return null;
+  private parseReturnValue(
+    returnValue: string | null,
+  ): { value: ParsedReturnValue | null; error: string | null } {
+    if (!returnValue) {
+      return { value: null, error: 'ReturnValue is missing' };
     }
+
+    let raw: any;
+    try {
+      raw = JSON.parse(returnValue);
+    } catch {
+      return { value: null, error: 'ReturnValue is not valid JSON' };
+    }
+
+    const { intent, firebaseId, planId, subscriptionId } = raw ?? {};
+
+    if (intent !== 'CHECKOUT' && intent !== 'CHANGE_PM') {
+      return {
+        value: null,
+        error: `ReturnValue intent is missing or invalid (got ${JSON.stringify(intent ?? null)}) — expected CHECKOUT or CHANGE_PM`,
+      };
+    }
+
+    const firebaseOk = typeof firebaseId === 'string' && firebaseId.length > 0;
+    const subscriptionOk =
+      typeof subscriptionId === 'number' &&
+      Number.isInteger(subscriptionId) &&
+      subscriptionId > 0;
+
+    if (!firebaseOk || !subscriptionOk) {
+      return {
+        value: null,
+        error: `ReturnValue ${intent} payload lacks a valid firebaseId/subscriptionId`,
+      };
+    }
+
+    if (intent === 'CHANGE_PM') {
+      return { value: { intent: 'CHANGE_PM', firebaseId, subscriptionId }, error: null };
+    }
+
+    const planOk = typeof planId === 'number' && Number.isInteger(planId) && planId > 0;
+    if (!planOk) {
+      return { value: null, error: 'ReturnValue CHECKOUT payload lacks a valid planId' };
+    }
+
+    return {
+      value: { intent: 'CHECKOUT', firebaseId, planId, subscriptionId },
+      error: null,
+    };
   }
 
   /**
@@ -671,11 +1212,18 @@ export class CardcomWebhookService implements OnModuleInit {
     subscriptionId: number | null,
     cardcomTransactionId: string | null,
     responseCode: number | null,
+    /**
+     * Overrides the CardCom `Operation` value in the log's event_type column.
+     * Used by the reconciliation path so a row created without an inbound
+     * webhook is distinguishable in the audit trail.
+     */
+    eventTypeOverride?: string,
   ): Promise<CardcomWebhookLog | null> {
     try {
       const log = this.webhookLogRepo.create({
         idempotencyKey,
-        eventType: (rawPayload as CardcomWebhookPayload).Operation ?? null,
+        eventType:
+          eventTypeOverride ?? (rawPayload as CardcomWebhookPayload).Operation ?? null,
         payload: rawPayload,
         status: WebhookLogStatus.RECEIVED,
         receivedAt: new Date(),

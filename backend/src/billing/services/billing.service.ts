@@ -6,30 +6,76 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { LessThan, Repository } from 'typeorm';
+import { In, LessThan, Repository } from 'typeorm';
 import { SubscriptionPlan } from '../entities/subscription-plan.entity';
 import { Subscription } from '../entities/subscription.entity';
+import { PaymentMethod } from '../entities/payment-method.entity';
 import { CardcomWebhookLog } from '../entities/cardcom-webhook-log.entity';
 import { User } from 'src/users/user.entity';
 import { ModuleName } from 'src/enum';
+import { DocumentsService } from 'src/documents/documents.service';
 import { BillingEventService } from './billing-event.service';
 import { BillingReceiptService } from './billing-receipt.service';
 import { PricingService } from './pricing.service';
 import { SubscriptionAccessService } from './subscription-access.service';
 import { CardcomService, CardcomApiError } from './cardcom.service';
+import { CardcomWebhookService } from './cardcom-webhook.service';
 import { BillingEventType, SubscriptionStatus, WebhookLogStatus } from '../enums/billing.enums';
 import { CheckoutPreviewDto } from '../dtos/checkout-preview.dto';
 import { CreateCheckoutDto } from '../dtos/create-checkout.dto';
 
+/** One row of the user-facing payment history (GET /billing/payments). */
+export interface PaymentHistoryRow {
+  eventId: number;
+  date: Date;
+  planName: string | null;
+  amountAgorot: number | null;
+  currency: string;
+  status: 'SUCCESS' | 'FAILED';
+  receiptDocId: number | null;
+  /**
+   * True only when the receipt is genuinely downloadable: receiptDocId is set,
+   * the Documents row exists, AND it has a file path. Not merely receiptDocId != null.
+   */
+  receiptAvailable: boolean;
+  /**
+   * Whether this event supports a (future) retry-payment action. Determined
+   * explicitly from the event type, not inferred from SUCCESS/FAILED status.
+   */
+  canRetry: boolean;
+}
+
+/** Event types that support a retry-payment action (Phase 2 wires the real flow). */
+const RETRYABLE_EVENT_TYPES: readonly BillingEventType[] = [
+  BillingEventType.PAYMENT_FAILED,
+  BillingEventType.RENEWAL_FAILED,
+];
+
 @Injectable()
 export class BillingService {
   private readonly logger = new Logger(BillingService.name);
+
+  /**
+   * Nominal amount (agorot = 1 NIS) sent with CreateTokenOnly + JValidateType=2.
+   *
+   * Verified against the official CardCom v11 OpenAPI spec + LowProfile docs:
+   *   - Amount is REQUIRED by the CreateLowProfile schema (no documented 0 value;
+   *     CardCom's own token-creation example sends a positive amount).
+   *   - With J2 ("testing the card number validation") the amount is technical
+   *     only — NO charge and NO authorization/hold ever occurs.
+   *   - Only J5 ("test and booking of the transferred amount") would place a
+   *     hold for Amount — and J5 is the DEFAULT, so JValidateType=2 must always
+   *     be sent explicitly alongside this amount.
+   */
+  private static readonly CHANGE_PM_NOMINAL_AGOROT = 100;
 
   constructor(
     @InjectRepository(SubscriptionPlan)
     private readonly planRepo: Repository<SubscriptionPlan>,
     @InjectRepository(Subscription)
     private readonly subscriptionRepo: Repository<Subscription>,
+    @InjectRepository(PaymentMethod)
+    private readonly paymentMethodRepo: Repository<PaymentMethod>,
     @InjectRepository(CardcomWebhookLog)
     private readonly webhookLogRepo: Repository<CardcomWebhookLog>,
     @InjectRepository(User)
@@ -39,6 +85,8 @@ export class BillingService {
     private readonly billingReceiptService: BillingReceiptService,
     private readonly subscriptionAccessService: SubscriptionAccessService,
     private readonly cardcomService: CardcomService,
+    private readonly documentsService: DocumentsService,
+    private readonly cardcomWebhookService: CardcomWebhookService,
   ) {}
 
   // ─── Plans ──────────────────────────────────────────────────────────────────
@@ -217,11 +265,17 @@ export class BillingService {
 
     try {
       cardcomResult = await this.cardcomService.createLowProfileCheckout({
-        firebaseId,
-        planId: plan.id,
         subscriptionId: subscription.id,
         amountAgorot: pricing.finalAmountAgorot,
         planName: plan.name,
+        operation: 'ChargeAndCreateToken',
+        // Explicit intent so the webhook routes to the checkout/activation flow.
+        returnValue: JSON.stringify({
+          intent: 'CHECKOUT',
+          firebaseId,
+          planId: plan.id,
+          subscriptionId: subscription.id,
+        }),
         customerEmail: user?.email ?? null,
         customerName: user?.fName ? `${user.fName} ${user.lName ?? ''}`.trim() : null,
         customerPhone: user?.phone ?? null,
@@ -282,6 +336,287 @@ export class BillingService {
       finalAmountAgorot: pricing.finalAmountAgorot,
       currency: pricing.currency,
     };
+  }
+
+  // ─── Change payment method ─────────────────────────────────────────────────
+
+  /**
+   * Starts the "replace saved card" flow: creates a CardCom LowProfile with
+   * Operation=CreateTokenOnly (J2 validation) so a NEW token is created WITHOUT
+   * charging the customer. Returns the hosted-page URL to redirect to.
+   *
+   * This flow ONLY replaces the stored payment token. It never charges, retries
+   * a failed payment, activates/renews the subscription, generates a receipt, or
+   * modifies billing periods — those are separate, explicit actions.
+   *
+   * Allowed only for ACTIVE and PAST_DUE subscriptions (a saved card exists to
+   * replace). Blocked for TRIAL / TRIAL_EXPIRED / CANCELED.
+   *
+   * The payment_method row is updated later, exclusively via the CardCom webhook
+   * (CHANGE_PM branch), mirroring how checkout activation works.
+   *
+   * Returns BOTH presentation channels of the SAME LowProfile deal:
+   *   paymentUrl   — hosted-page redirect (legacy flow + Open Fields fallback).
+   *   lowProfileId — used by the frontend to init CardCom Open Fields iframes.
+   */
+  async changePaymentMethod(
+    firebaseId: string,
+  ): Promise<{ paymentUrl: string; lowProfileId: string }> {
+    const subscription = await this.subscriptionRepo.findOne({
+      where: { firebaseId },
+    });
+
+    if (!subscription) {
+      throw new BadRequestException('לא נמצא מנוי עבור המשתמש.');
+    }
+
+    const allowedStatuses: SubscriptionStatus[] = [
+      SubscriptionStatus.ACTIVE,
+      SubscriptionStatus.PAST_DUE,
+    ];
+    if (!allowedStatuses.includes(subscription.status)) {
+      throw new BadRequestException(
+        'ניתן להחליף אמצעי תשלום רק כאשר המנוי פעיל או בפיגור תשלום.',
+      );
+    }
+
+    // Fetch user profile for customer info (best-effort — optional fields).
+    const user = await this.userRepo.findOne({ where: { firebaseId } }).catch(() => null);
+
+    let cardcomResult: { lowProfileId: string; paymentUrl: string; rawResponse: Record<string, any> };
+
+    try {
+      cardcomResult = await this.cardcomService.createLowProfileCheckout({
+        subscriptionId: subscription.id,
+        // Nominal amount required by the schema. With Operation=CreateTokenOnly
+        // and J2 validation this is NEVER charged — it only satisfies the field.
+        amountAgorot: BillingService.CHANGE_PM_NOMINAL_AGOROT,
+        planName: 'עדכון אמצעי תשלום',
+        operation: 'CreateTokenOnly',
+        jValidateType: 2,
+        // CHANGE_PM intent has no planId — the webhook must not touch the plan.
+        returnValue: JSON.stringify({
+          intent: 'CHANGE_PM',
+          firebaseId,
+          subscriptionId: subscription.id,
+        }),
+        customerEmail: user?.email ?? null,
+        customerName: user?.fName ? `${user.fName} ${user.lName ?? ''}`.trim() : null,
+        customerPhone: user?.phone ?? null,
+      });
+    } catch (err) {
+      await this.billingEventService.logEvent({
+        firebaseId,
+        eventType: BillingEventType.PAYMENT_METHOD_UPDATE_FAILED,
+        subscriptionId: subscription.id,
+        metadata: {
+          stage: 'lowprofile_create',
+          cardcomError:
+            err instanceof CardcomApiError
+              ? {
+                  message: err.message,
+                  responseCode: err.responseCode,
+                  cardcomDescription: err.cardcomDescription,
+                }
+              : { message: (err as Error)?.message ?? 'Unknown error' },
+        },
+      });
+
+      this.logger.error(
+        `CardCom CreateTokenOnly failed for subscription=${subscription.id}: ${(err as Error)?.message}`,
+      );
+      throw new BadGatewayException(
+        'Payment gateway unavailable. Please try again in a few minutes.',
+      );
+    }
+
+    await this.billingEventService.logEvent({
+      firebaseId,
+      eventType: BillingEventType.PAYMENT_METHOD_UPDATE_REQUESTED,
+      subscriptionId: subscription.id,
+      metadata: {
+        cardcomLowProfileId: cardcomResult.lowProfileId,
+      },
+    });
+
+    this.logger.log(
+      `Change-payment-method ready: subscription=${subscription.id} ` +
+        `lowProfileId=${cardcomResult.lowProfileId}`,
+    );
+
+    return {
+      paymentUrl: cardcomResult.paymentUrl,
+      lowProfileId: cardcomResult.lowProfileId,
+    };
+  }
+
+  // ─── Change-payment-method status (per-attempt) ──────────────────────────────
+
+  /**
+   * How long an attempt may sit with no terminal outcome before the status
+   * endpoint stops waiting for CardCom's webhook and pulls the result itself.
+   * Long enough that the webhook wins the race in every healthy environment.
+   */
+  private static readonly CHANGE_PM_RECONCILE_AFTER_MS = 20_000;
+
+  /**
+   * Terminal state of ONE change-payment-method attempt, addressed by its
+   * LowProfileId. Replaces "latest payment-method event for this user", which
+   * could not tell two attempts apart and could report a stale outcome as if it
+   * belonged to the attempt currently on screen.
+   *
+   * Completion is decided from TWO independent signals, because neither alone
+   * is trustworthy:
+   *
+   *   1. A PAYMENT_METHOD_UPDATED/_FAILED event carrying this LowProfileId.
+   *      Precise, but written through the best-effort BillingEventService — a
+   *      swallowed insert error would strand a genuinely-updated card as
+   *      "pending" forever.
+   *   2. `payment_method.updatedAt` being at/after the attempt started. This is
+   *      the authoritative state change: the row the renewal charge will
+   *      actually use. It cannot report success unless the card really was
+   *      written.
+   *
+   * Either one is sufficient for SUCCESS. Signal 2 is what makes the dialog
+   * immune to a lost audit-log write.
+   *
+   * When neither has landed and the attempt is older than
+   * CHANGE_PM_RECONCILE_AFTER_MS, this triggers the idempotent reconciliation
+   * fallback and re-reads. That makes the frontend's polling the driver of
+   * recovery — no cron required, and nothing runs for users who are not waiting.
+   */
+  async getChangePaymentMethodStatus(
+    firebaseId: string,
+    lowProfileId: string,
+  ): Promise<{
+    lowProfileId: string;
+    status: 'PENDING' | 'SUCCESS' | 'FAILED';
+    last4: string | null;
+    brand: string | null;
+    failureReason: string | null;
+    reconciled: boolean;
+  }> {
+    const request = await this.billingEventService.findPaymentMethodUpdateRequest(
+      firebaseId,
+      lowProfileId,
+    );
+
+    // Unknown to us, or not this user's attempt — never leak which it was.
+    if (!request) {
+      throw new NotFoundException('Change-payment-method attempt not found');
+    }
+
+    const firstPass = await this.resolveChangePaymentMethodOutcome(
+      firebaseId,
+      lowProfileId,
+      request.subscriptionId,
+      request.createdAt,
+    );
+    if (firstPass.status !== 'PENDING') {
+      return { lowProfileId, ...firstPass, reconciled: false };
+    }
+
+    const waitedMs = Date.now() - new Date(request.createdAt).getTime();
+    if (waitedMs < BillingService.CHANGE_PM_RECONCILE_AFTER_MS) {
+      return { lowProfileId, ...firstPass, reconciled: false };
+    }
+
+    this.logger.warn(
+      `No webhook for lowProfileId=${lowProfileId} after ${Math.round(waitedMs / 1000)}s — ` +
+        `reconciling from GetLpResult. If this recurs in development, check that ` +
+        `CARDCOM_WEBHOOK_BASE_URL points at the live ngrok URL.`,
+    );
+
+    const outcome = await this.cardcomWebhookService.reconcileChangePaymentMethod(
+      lowProfileId,
+      firebaseId,
+    );
+
+    // UNVERIFIABLE = CardCom unreachable or result not yet conclusive. Stay
+    // PENDING so the next poll retries rather than failing a live attempt.
+    if (outcome === 'UNVERIFIABLE') {
+      return { lowProfileId, ...firstPass, reconciled: false };
+    }
+
+    const secondPass = await this.resolveChangePaymentMethodOutcome(
+      firebaseId,
+      lowProfileId,
+      request.subscriptionId,
+      request.createdAt,
+    );
+    return { lowProfileId, ...secondPass, reconciled: true };
+  }
+
+  /** Reads both completion signals for one attempt. No side effects. */
+  private async resolveChangePaymentMethodOutcome(
+    firebaseId: string,
+    lowProfileId: string,
+    subscriptionId: number | null,
+    requestedAt: Date,
+  ): Promise<{
+    status: 'PENDING' | 'SUCCESS' | 'FAILED';
+    last4: string | null;
+    brand: string | null;
+    failureReason: string | null;
+  }> {
+    const event = await this.billingEventService.findPaymentMethodUpdateOutcome(
+      firebaseId,
+      lowProfileId,
+    );
+
+    if (event?.eventType === BillingEventType.PAYMENT_METHOD_UPDATED) {
+      return {
+        status: 'SUCCESS',
+        last4: (event.metadata?.last4 as string) ?? null,
+        brand: (event.metadata?.brand as string) ?? null,
+        failureReason: null,
+      };
+    }
+
+    if (event?.eventType === BillingEventType.PAYMENT_METHOD_UPDATE_FAILED) {
+      return {
+        status: 'FAILED',
+        last4: null,
+        brand: null,
+        failureReason: (event.metadata?.reason as string) ?? null,
+      };
+    }
+
+    // No event. Fall back to the authoritative row: if the linked card was
+    // written at/after this attempt began, the update happened regardless of
+    // whether the audit event survived.
+    if (subscriptionId != null) {
+      const subscription = await this.subscriptionRepo.findOne({
+        where: { id: subscriptionId, firebaseId },
+      });
+      if (subscription?.paymentMethodId != null) {
+        const paymentMethod = await this.paymentMethodRepo.findOne({
+          where: { id: subscription.paymentMethodId },
+        });
+        // Second-granularity DATETIME columns can round a write down to just
+        // under the request timestamp; a small tolerance avoids reporting a
+        // completed update as pending.
+        const toleranceMs = 1000;
+        if (
+          paymentMethod &&
+          paymentMethod.updatedAt.getTime() + toleranceMs >= new Date(requestedAt).getTime()
+        ) {
+          this.logger.warn(
+            `Change-payment-method for lowProfileId=${lowProfileId} resolved from ` +
+              `payment_method.updatedAt — no PAYMENT_METHOD_UPDATED event was found. ` +
+              `The card WAS replaced; the audit event is missing.`,
+          );
+          return {
+            status: 'SUCCESS',
+            last4: paymentMethod.last4,
+            brand: paymentMethod.cardBrand,
+            failureReason: null,
+          };
+        }
+      }
+    }
+
+    return { status: 'PENDING', last4: null, brand: null, failureReason: null };
   }
 
   // ─── Receipt retry ───────────────────────────────────────────────────────────
@@ -401,6 +736,130 @@ export class BillingService {
     return { created: true, sent: emailResult.sent, error: emailResult.error };
   }
 
+  // ─── Payment history ───────────────────────────────────────────────────────
+
+  /**
+   * Returns the authenticated user's payment history for the read-only
+   * "My Subscription" tab. Reuses BillingEventService for the ledger rows and
+   * resolves plan names from the planId stored on each event's metadata.
+   */
+  async getUserPaymentHistory(firebaseId: string): Promise<PaymentHistoryRow[]> {
+    const events = await this.billingEventService.findUserPaymentHistory(firebaseId);
+    if (events.length === 0) return [];
+
+    // Plan resolution strategy, most reliable first:
+    //   1. event.metadata.planId — the plan charged at the time of the event.
+    //      Set on every checkout-driven PAYMENT_SUCCESS, and stays historically
+    //      correct even after the user later changes plans.
+    //   2. Fallback: the plan of the event's subscription. RENEWAL_SUCCESS and
+    //      PAYMENT_FAILED never carry planId in metadata, and some legacy
+    //      PAYMENT_SUCCESS rows predate it. Only resolves while the subscription
+    //      still exists — deleted subscriptions fall through to null ("—").
+    const planIds = new Set<number>();
+    const subscriptionIds = new Set<number>();
+    for (const event of events) {
+      const planId = event.metadata?.planId;
+      if (typeof planId === 'number') planIds.add(planId);
+      if (event.subscriptionId != null) subscriptionIds.add(event.subscriptionId);
+    }
+
+    // subscriptionId → planId, for events lacking metadata.planId.
+    const subscriptionPlanId = new Map<number, number>();
+    if (subscriptionIds.size > 0) {
+      const subs = await this.subscriptionRepo.find({
+        where: { id: In([...subscriptionIds]) },
+        select: ['id', 'planId'],
+      });
+      for (const sub of subs) {
+        if (sub.planId != null) {
+          subscriptionPlanId.set(sub.id, sub.planId);
+          planIds.add(sub.planId);
+        }
+      }
+    }
+
+    const planNameById = new Map<number, string>();
+    if (planIds.size > 0) {
+      const plans = await this.planRepo.find({ where: { id: In([...planIds]) } });
+      for (const plan of plans) planNameById.set(plan.id, plan.name);
+    }
+
+    // Truthful receipt availability: a receipt is only downloadable when its
+    // Documents row exists AND has a file path. receiptDocId alone is unreliable —
+    // rows can reference deleted or never-finalized documents. Resolved via
+    // DocumentsService so no new Firebase/document logic is introduced here.
+    const receiptDocIds = events
+      .map(e => e.receiptDocId)
+      .filter((id): id is number => id != null);
+    const downloadableReceiptIds =
+      await this.documentsService.findDownloadableBillingReceiptDocIds(receiptDocIds);
+
+    const successTypes: BillingEventType[] = [
+      BillingEventType.PAYMENT_SUCCESS,
+      BillingEventType.RENEWAL_SUCCESS,
+    ];
+
+    return events.map((event): PaymentHistoryRow => {
+      const planId =
+        typeof event.metadata?.planId === 'number'
+          ? event.metadata.planId
+          : event.subscriptionId != null
+            ? (subscriptionPlanId.get(event.subscriptionId) ?? null)
+            : null;
+      return {
+        eventId: event.id,
+        date: event.createdAt,
+        planName: planId != null ? (planNameById.get(planId) ?? null) : null,
+        amountAgorot: event.amountAgorot,
+        currency: event.currency,
+        status: successTypes.includes(event.eventType) ? 'SUCCESS' : 'FAILED',
+        receiptDocId: event.receiptDocId,
+        receiptAvailable:
+          event.receiptDocId != null && downloadableReceiptIds.has(event.receiptDocId),
+        canRetry: RETRYABLE_EVENT_TYPES.includes(event.eventType),
+      };
+    });
+  }
+
+  /**
+   * Returns the receipt PDF for a payment event the authenticated user owns.
+   * Verifies ownership, then reuses DocumentsService.getBillingReceiptPdf —
+   * no new Firebase download logic is introduced here.
+   */
+  async getPaymentReceiptPdf(
+    firebaseId: string,
+    eventId: number,
+  ): Promise<{ buffer: Buffer; docType: string; docNumber: string; generalDocIndex: string }> {
+    const event = await this.billingEventService.findPaymentEventById(eventId);
+
+    if (!event || event.firebaseId !== firebaseId) {
+      throw new NotFoundException('Payment event not found');
+    }
+
+    if (!event.receiptDocId) {
+      throw new NotFoundException('לא קיים מסמך עבור תשלום זה');
+    }
+
+    // Verify the document exists AND has a downloadable file BEFORE downloading,
+    // so a missing/incomplete receipt returns a clean 404 rather than letting an
+    // EntityNotFoundError bubble up as a 500. No exceptions used for control flow.
+    const downloadable = await this.documentsService.isBillingReceiptDownloadable(
+      event.receiptDocId,
+    );
+    if (!downloadable) {
+      throw new NotFoundException('לא קיים מסמך עבור תשלום זה');
+    }
+
+    const receipt = await this.documentsService.getBillingReceiptPdf(event.receiptDocId);
+
+    return {
+      buffer: receipt.buffer,
+      docType: receipt.docType,
+      docNumber: receipt.docNumber,
+      generalDocIndex: receipt.generalDocIndex,
+    };
+  }
+
   // ─── Helpers ─────────────────────────────────────────────────────────────────
 
   private async buildBillingStateResponse(
@@ -413,10 +872,43 @@ export class BillingService {
       plan,
     );
 
-    const billingPaymentResult = await this.buildPaymentResultPayload(firebaseId);
+    const [billingPaymentResult, paymentMethodUpdateResult, billingBusinessType, paymentMethod] = await Promise.all([
+      this.buildPaymentResultPayload(firebaseId),
+      this.buildPaymentMethodUpdateResultPayload(firebaseId),
+      this.pricingService.resolveUserBillingBusinessType(firebaseId),
+      subscription.paymentMethodId
+        ? this.paymentMethodRepo.findOne({ where: { id: subscription.paymentMethodId } })
+        : Promise.resolve(null),
+    ]);
+
+    // Monthly plan price effective for the user's billing business type, BEFORE
+    // VAT — exactly the value stored in subscription_plan (price_monthly_agorot
+    // for EXEMPT, licensed_dealer_price_monthly_agorot for LICENSED when set).
+    // Resolved on the backend so the frontend never chooses between exempt/
+    // licensed pricing, and never adds VAT for display. Any active discount is
+    // reported separately in `discount` — it is NOT subtracted here.
+    const effectiveMonthlyPriceBeforeVatAgorot = plan
+      ? this.pricingService.resolveEffectivePlanPrice(plan, billingBusinessType)
+      : null;
+
+    const discount = this.pricingService.resolveSubscriptionDiscount(subscription);
 
     return {
       hasSubscription: true,
+      billingBusinessType,
+      effectiveMonthlyPriceBeforeVatAgorot,
+      discount,
+      // No cardholder-name column on payment_method — omitted by design (Phase 1).
+      paymentMethod: paymentMethod
+        ? {
+            brand: paymentMethod.cardBrand,
+            last4: paymentMethod.last4,
+            expiryMonth: paymentMethod.cardExpiryMonth,
+            expiryYear: paymentMethod.cardExpiryYear,
+            createdAt: paymentMethod.createdAt,
+            updatedAt: paymentMethod.updatedAt,
+          }
+        : null,
       subscription: {
         id: subscription.id,
         status: subscription.status,
@@ -452,6 +944,9 @@ export class BillingService {
         gracePeriodActive: this.subscriptionAccessService.gracePeriodActive(subscription),
       },
       billingPaymentResult,
+      // Latest outcome of a "replace saved card" flow (CreateTokenOnly). Lets the
+      // frontend distinguish a change-payment-method return from a checkout return.
+      paymentMethodUpdateResult,
     };
   }
 
@@ -529,6 +1024,34 @@ export class BillingService {
       receiptEmailSent: isSuccess ? event.receiptEmailSent : null,
       receiptEmail,
       receiptFailed,
+      failureReason: !isSuccess ? ((event.metadata?.reason as string) ?? null) : null,
+      createdAt: event.createdAt,
+    };
+  }
+
+  /**
+   * Latest outcome of a change-payment-method flow, built from the most recent
+   * PAYMENT_METHOD_UPDATED / PAYMENT_METHOD_UPDATE_FAILED event. Used by the
+   * frontend to show a dedicated banner after the user returns from CardCom,
+   * separate from the checkout payment banner. Returns null when the user has
+   * never attempted to replace their card.
+   */
+  private async buildPaymentMethodUpdateResultPayload(firebaseId: string): Promise<{
+    status: 'SUCCESS' | 'FAILED';
+    last4: string | null;
+    brand: string | null;
+    failureReason: string | null;
+    createdAt: Date;
+  } | null> {
+    const event = await this.billingEventService.findLatestPaymentMethodUpdateResultEvent(firebaseId);
+    if (!event) return null;
+
+    const isSuccess = event.eventType === BillingEventType.PAYMENT_METHOD_UPDATED;
+
+    return {
+      status: isSuccess ? 'SUCCESS' : 'FAILED',
+      last4: isSuccess ? ((event.metadata?.last4 as string) ?? null) : null,
+      brand: isSuccess ? ((event.metadata?.brand as string) ?? null) : null,
       failureReason: !isSuccess ? ((event.metadata?.reason as string) ?? null) : null,
       createdAt: event.createdAt,
     };

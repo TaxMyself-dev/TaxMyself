@@ -319,7 +319,7 @@
               @if (biz?.id != null && biz?.businessNumber) {
                 <div class="detail-row inbox-folder-row">
                   <input type="file" #docsFileInput class="hidden-file-input" multiple
-                    accept="application/pdf,image/jpeg,image/png,image/webp"
+                    accept="application/pdf,image/jpeg,image/png"
                     (change)="onUploadDocsToDrive(biz, docsFileInput)" />
                   <app-p-button
                     [buttonText]="'העלאת מסמכים ל-Drive'"
@@ -418,6 +418,12 @@
         </div>
       </div>
     </div>
+  </div>
+  }
+
+  @if (selectedTab === 'subscription') {
+  <div class="section-block">
+    <app-my-subscription-tab></app-my-subscription-tab>
   </div>
   }
 </div>

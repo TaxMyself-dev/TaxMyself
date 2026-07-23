@@ -76,6 +76,33 @@ export class LoginPage implements OnInit {
 
   ngOnInit() {
     this.getStateData();
+    void this.redirectIfAlreadyAuthenticated();
+  }
+
+  /**
+   * The PWA `start_url` ("/?source=pwa") and a plain visit to "/" both redirect
+   * to /login. Without this, a user whose Firebase session was restored
+   * perfectly well still landed on the login form and looked "logged out".
+   *
+   * Requires cached `userData` as well as a Firebase user: AuthGuard sends
+   * signed-in-but-no-profile users here (it cannot render profile-dependent
+   * pages), so redirecting on the Firebase user alone would ping-pong between
+   * /login and the target route.
+   */
+  private async redirectIfAlreadyAuthenticated(): Promise<void> {
+    await this.authService.waitForAuthInit();
+
+    if (!this.authService.isLoggedIn) {
+      return;
+    }
+    if (!this.authService.getUserDataFromLocalStorage()) {
+      return;
+    }
+    // Navigated here deliberately (e.g. straight after registering)? Stay put.
+    if (this.showModal()) {
+      return;
+    }
+    this.router.navigate(['my-account'], { replaceUrl: true });
   }
 
 
@@ -153,8 +180,9 @@ export class LoginPage implements OnInit {
         }),
 
       // 3️⃣ Save user data
+      // Firebase's restored session is the auth authority (see
+      // AuthService.isLoggedIn); userData is cached UI profile data only.
       tap((res: any) => {
-        sessionStorage.setItem('isLoggedIn', 'true');
         localStorage.setItem('userData', JSON.stringify(res));
       }),
 
@@ -304,7 +332,6 @@ export class LoginPage implements OnInit {
         });
         return;
       }
-      sessionStorage.setItem('isLoggedIn', 'true');
       localStorage.setItem('userData', JSON.stringify(userData));
       await this.genericService.loadBusinessesFromServer();
       this.router.navigate(['my-account']);

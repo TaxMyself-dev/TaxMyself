@@ -1,0 +1,212 @@
+<p-dialog
+  [visible]="visible()"
+  (onHide)="onDialogHide()"
+  [modal]="true"
+  [showHeader]="false"
+  [draggable]="false"
+  [resizable]="false"
+  [closable]="true"
+  styleClass="cpm-shell"
+  [style]="{ width: '94vw', maxWidth: '460px', borderRadius: '20px', overflow: 'hidden' }">
+
+  <div dir="rtl" class="cpm-dialog">
+
+    <!-- ─── Header ─── -->
+    <div class="cpm-header">
+      <span class="cpm-header-icon">
+        <i class="pi pi-credit-card"></i>
+      </span>
+      <div class="cpm-header-text">
+        <h3 class="cpm-title">עדכון אמצעי תשלום</h3>
+        <p class="cpm-subtitle">
+          הזינו את פרטי הכרטיס החדש. הכרטיס לא יחויב — הפרטים מאומתים ונשמרים בלבד.
+        </p>
+      </div>
+    </div>
+
+    @if (initFailed()) {
+      <!-- ─── Init failed: retry or fall back to the hosted CardCom page ─── -->
+      <div class="cpm-state-block">
+        <span class="cpm-state-icon cpm-state-icon-error">
+          <i class="pi pi-exclamation-triangle"></i>
+        </span>
+        <p class="cpm-state-text">{{ errorMessage() ?? 'טעינת הטופס המאובטח נכשלה.' }}</p>
+        <div class="cpm-actions cpm-actions-stacked">
+          <app-p-button
+            [buttonText]="'נסה שוב'"
+            [buttonColor]="buttonColor.BLACK"
+            [buttonSize]="buttonSize.AUTO"
+            (onButtonClicked)="retryInit()">
+          </app-p-button>
+          @if (paymentUrl()) {
+            <app-p-button
+              [buttonText]="'מעבר לדף מאובטח של קארדקום'"
+              [buttonColor]="buttonColor.WHITE_BORDER"
+              [buttonSize]="buttonSize.AUTO"
+              (onButtonClicked)="redirectFallback()">
+            </app-p-button>
+          }
+          <app-p-button
+            [buttonText]="'ביטול'"
+            [buttonColor]="buttonColor.WHITE_BORDER"
+            [buttonSize]="buttonSize.AUTO"
+            (onButtonClicked)="cancel()">
+          </app-p-button>
+        </div>
+      </div>
+    } @else if (state() === 'timeout') {
+      <!-- ─── Webhook did not confirm within the polling window ─── -->
+      <div class="cpm-state-block">
+        <span class="cpm-state-icon cpm-state-icon-info">
+          <i class="pi pi-clock"></i>
+        </span>
+        <p class="cpm-state-text">
+          הבקשה התקבלה ונמצאת בעיבוד מול חברת האשראי.
+          אנחנו ממשיכים לבדוק — החלון יתעדכן אוטומטית ברגע שהעדכון יושלם.
+          אפשר גם לסגור; העדכון יימשך ברקע.
+        </p>
+        <div class="cpm-actions cpm-actions-stacked">
+          <app-p-button
+            [buttonText]="'סגור'"
+            [buttonColor]="buttonColor.BLACK"
+            [buttonSize]="buttonSize.AUTO"
+            (onButtonClicked)="cancel()">
+          </app-p-button>
+        </div>
+      </div>
+    } @else {
+      <!-- ─── Card form (CardCom iframes + our expiry selects) ─── -->
+      <div class="cpm-form" [class.cpm-form-hidden]="state() === 'loading'">
+        @if (lowProfileId()) {
+          <div class="cpm-field">
+            <label class="cpm-label">מספר כרטיס</label>
+            <iframe
+              #cardNumberFrame
+              id="CardComCardNumber"
+              name="CardComCardNumber"
+              title="מספר כרטיס אשראי"
+              src="https://secure.cardcom.solutions/api/openfields/cardNumber"
+              class="cpm-frame cpm-frame-card"
+              (load)="onCardNumberFrameLoad()">
+            </iframe>
+          </div>
+
+          <!-- Expiry and CVV are each a full-width row of their own; they must
+               not share a flex row (the selects and the hosted iframe overlap). -->
+          <div class="cpm-field cpm-field-expiry">
+            <label class="cpm-label">תוקף</label>
+            <div class="cpm-control">
+              <div class="cpm-expiry-selects" dir="ltr">
+                <app-input-select
+                  [parentForm]="expiryForm"
+                  controlName="expiryMonth"
+                  [items]="monthItems"
+                  placeholder="MM"
+                  [filter]="false"
+                  [showClear]="false"
+                  ariaLabel="חודש תוקף"
+                  (onChangeInputSelect)="onExpiryMonthChange($event)">
+                </app-input-select>
+                <span class="cpm-expiry-sep">/</span>
+                <app-input-select
+                  [parentForm]="expiryForm"
+                  controlName="expiryYear"
+                  [items]="yearItems"
+                  placeholder="YYYY"
+                  [filter]="false"
+                  [showClear]="false"
+                  ariaLabel="שנת תוקף"
+                  (onChangeInputSelect)="onExpiryYearChange($event)">
+                </app-input-select>
+              </div>
+            </div>
+          </div>
+
+          @if (expiryInPast()) {
+            <span class="cpm-field-error">
+              <i class="pi pi-exclamation-circle"></i>
+              תוקף הכרטיס עבר
+            </span>
+          }
+
+          <div class="cpm-field cpm-field-cvv">
+            <label class="cpm-label">CVV</label>
+            <div class="cpm-control">
+              <iframe
+                #cvvFrame
+                id="CardComCvv"
+                name="CardComCvv"
+                title="קוד אבטחה CVV"
+                src="https://secure.cardcom.solutions/api/openfields/CVV"
+                class="cpm-frame cpm-frame-cvv"
+                (load)="onCvvFrameLoad()">
+              </iframe>
+            </div>
+          </div>
+
+          <!-- Hidden Open Fields master frame — the postMessage channel.
+               The `name` attributes on all three iframes are REQUIRED, not
+               decorative: CardCom's scripts address each other exclusively via
+               `window.parent.frames.<Name>`, which resolves a named browsing
+               context (the iframe's `name`), never its `id`. -->
+          <iframe
+            #masterFrame
+            id="CardComMasterFrame"
+            name="CardComMasterFrame"
+            title="CardCom"
+            src="https://secure.cardcom.solutions/api/openfields/master"
+            class="cpm-frame-master"
+            (load)="onMasterFrameLoad()">
+          </iframe>
+        }
+
+        @if (state() === 'waiting') {
+          <div class="cpm-waiting-overlay">
+            <i class="pi pi-spin pi-spinner cpm-spinner"></i>
+            <p class="cpm-waiting-title">מאמת את פרטי הכרטיס</p>
+            <p class="cpm-waiting-sub">ההליך מתבצע מול חברת האשראי ועשוי להימשך מספר שניות</p>
+          </div>
+        }
+      </div>
+
+      @if (state() === 'loading') {
+        <div class="cpm-loading">
+          <i class="pi pi-spin pi-spinner cpm-spinner"></i>
+          <p>טוען טופס מאובטח...</p>
+        </div>
+      }
+
+      @if (errorMessage(); as error) {
+        <div class="cpm-alert" role="alert">
+          <i class="pi pi-exclamation-circle"></i>
+          <span>{{ error }}</span>
+        </div>
+      }
+
+      <!-- DOM order keeps the primary action first (focus/tab order); the row is
+           reversed visually so "שמור כרטיס" sits on the left in this RTL dialog. -->
+      <div class="cpm-actions">
+        <app-p-button
+          [buttonText]="'שמור כרטיס'"
+          [buttonColor]="buttonColor.BLACK"
+          [buttonSize]="buttonSize.AUTO"
+          [isLoading]="isBusy()"
+          [disabled]="!canSave() || isBusy()"
+          (onButtonClicked)="submit()">
+        </app-p-button>
+        <app-p-button
+          [buttonText]="'ביטול'"
+          [buttonColor]="buttonColor.WHITE_BORDER"
+          [buttonSize]="buttonSize.AUTO"
+          [disabled]="state() === 'submitting'"
+          (onButtonClicked)="cancel()">
+        </app-p-button>
+      </div>
+
+      <p class="cpm-secure-note">
+        <i class="pi pi-lock"></i>
+        פרטי הכרטיס מוזנים ישירות בטופס מאובטח של קארדקום ואינם נשמרים אצלנו
+      </p>
+    }
+  </div>
+</p-dialog>

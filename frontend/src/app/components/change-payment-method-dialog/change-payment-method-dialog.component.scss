@@ -1,0 +1,409 @@
+// ─── Tokens ─────────────────────────────────────────────────────────────────
+// Palette shared with my-subscription-tab (the page this dialog opens from) so
+// the two read as one design. Field geometry is NOT redefined here: the expiry
+// dropdowns are stock app selects, and the hosted fields are matched to them.
+$accent: #b8912f;
+$accent-soft-bg: #fdf5e0;
+$accent-soft-border: #f5e6bb;
+$ink: #1a1a1a;
+$ink-muted: #667085;
+$border-soft: #f0f1f3;
+$danger: #e24c4c;
+
+// The one height every control in this dialog shares. Derived from a default
+// `app-input-select` (`.p-select`): Aura form.field.padding.y (0.5rem) top and
+// bottom + a `large` (18px) line box + 1px border top and bottom.
+//
+// MUST stay equal to FIELD_HEIGHT_PX in the component .ts — that constant sizes
+// the input INSIDE the CardCom iframe, this one sizes the iframe element around
+// it. If they diverge the hosted field is clipped or floats in dead space.
+$field-height: 40px;
+
+// Aura form.field.padding.y — also the label→control gap used by
+// `.input-label` in input-text.component.scss / input-select.component.scss.
+$label-gap: 10px;
+
+// ─── Dialog shell ───────────────────────────────────────────────────────────
+// PrimeNG-owned markup, so ::ng-deep. The dialog renders inside this
+// component's template (no appendTo), so these stay scoped to this dialog.
+
+:host ::ng-deep .p-dialog.cpm-shell {
+  border-radius: 20px;
+  border: none;
+  background: #fff;
+  box-shadow:
+    0 1px 3px rgba(16, 24, 40, 0.06),
+    0 24px 48px -12px rgba(16, 24, 40, 0.18);
+
+  .p-dialog-content {
+    padding: 30px 28px 24px;
+    border-radius: 20px;
+    background: #fff;
+  }
+}
+
+.cpm-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+}
+
+/* ─── Header ─── */
+/* Mirrors the `.subsection-header` pattern in my-subscription-tab. */
+
+.cpm-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.cpm-header-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: $accent-soft-bg;
+  border: 1px solid $accent-soft-border;
+
+  i {
+    font-size: 17px;
+    color: $accent;
+  }
+}
+
+.cpm-header-text {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.cpm-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  color: $ink;
+}
+
+.cpm-subtitle {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: $ink-muted;
+}
+
+/* ─── Form ─── */
+
+.cpm-form {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Keep iframes mounted (protocol state lives in them) but invisible while loading. */
+.cpm-form-hidden {
+  visibility: hidden;
+  height: 0;
+  overflow: hidden;
+}
+
+.cpm-field {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* Deliberately unstyled beyond the gap: `.input-label` in the app's own input
+   components is plain body text with a 10px gap, nothing more. Any font-size or
+   weight here would make these labels read as "not from this app". */
+.cpm-label {
+  padding-bottom: $label-gap;
+}
+
+/* The control slot. `flex: 1` + the row's stretch is what lets the CVV iframe
+   inherit the native selects' height instead of a hard-coded value. */
+.cpm-control {
+  flex: 1 1 auto;
+  display: flex;
+  min-height: 0;
+}
+
+.cpm-field-error {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: -8px;
+  font-size: 13px;
+  color: red; // matches `.error-text` in input-text.component.html
+
+  i {
+    font-size: 12px;
+  }
+}
+
+/* Card number, expiry and CVV are three stacked full-width rows. `.cpm-form`
+   already lays them out in a column with a 20px gap, so neither field needs any
+   flex sizing of its own — sharing a row is what made the hosted CVV iframe
+   overlap the month select. */
+
+.cpm-expiry-selects {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  app-input-select {
+    flex: 1;
+    min-width: 0;
+  }
+}
+
+.cpm-expiry-sep {
+  color: rgb(186, 183, 183);
+}
+
+/* The app's selects are used as-is — the ONLY declaration is a width reset,
+   because global.scss ships fixed pixel widths on the size classes and these
+   two sit in a fluid row. Geometry, border, radius and typography are stock. */
+:host ::ng-deep .cpm-expiry-selects .p-select {
+  width: 100% !important;
+  min-width: 0;
+}
+
+/* ─── CardCom iframes ─── */
+/* The visible control lives INSIDE the iframe (styled by CARD_FIELD_CSS /
+   CVV_FIELD_CSS in the component). The iframe element itself must therefore
+   contribute nothing: no border, no background, no radius. Anything here would
+   render a second, offset frame around the hosted input — the tell-tale sign
+   that the field is not native. */
+
+.cpm-frame {
+  display: block;
+  width: 100%;
+  height: $field-height;
+  border: none;
+  background: transparent;
+  overflow: hidden;
+  color-scheme: normal;
+}
+
+/* Fills its own row, so it matches the card-number field's width exactly. */
+.cpm-frame-cvv {
+  flex: 1 1 auto;
+}
+
+/* Hidden master frame — the postMessage channel, never visible. */
+.cpm-frame-master {
+  display: block;
+  width: 0;
+  height: 0;
+  border: none;
+}
+
+/* ─── Loading / waiting / terminal states ─── */
+
+.cpm-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  min-height: 180px;
+  color: $ink-muted;
+  font-size: 14px;
+
+  p {
+    margin: 0;
+  }
+}
+
+.cpm-waiting-overlay {
+  position: absolute;
+  inset: -8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(2px);
+  border-radius: 16px;
+  z-index: 1;
+  text-align: center;
+  padding: 16px;
+}
+
+.cpm-waiting-title {
+  margin: 10px 0 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: $ink;
+}
+
+.cpm-waiting-sub {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: $ink-muted;
+}
+
+.cpm-spinner {
+  font-size: 26px;
+  color: $accent;
+}
+
+/* Shared layout for the init-failed / timeout blocks. */
+.cpm-state-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  padding: 8px 0 0;
+  text-align: center;
+}
+
+.cpm-state-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+
+  i {
+    font-size: 22px;
+  }
+
+  &.cpm-state-icon-error {
+    background: #fdecea;
+
+    i {
+      color: #c0392b;
+    }
+  }
+
+  &.cpm-state-icon-info {
+    background: #e8f0fe;
+
+    i {
+      color: #1a56db;
+    }
+  }
+}
+
+.cpm-state-text {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.65;
+  color: #475467;
+  max-width: 340px;
+}
+
+/* ─── Error alert ─── */
+
+.cpm-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #fef3f2;
+  border: 1px solid #fecdca;
+  font-size: 13px;
+  line-height: 1.55;
+  color: #b42318;
+
+  i {
+    flex-shrink: 0;
+    font-size: 14px;
+    margin-top: 2px;
+  }
+}
+
+/* ─── Actions / footer ─── */
+
+.cpm-actions {
+  display: flex;
+  // DOM keeps the primary button first (tab order); reversing the row places it
+  // on the visual left of this RTL dialog, per the app's dialog UX.
+  flex-direction: row-reverse;
+  gap: 12px;
+
+  app-p-button {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+}
+
+.cpm-actions-stacked {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+}
+
+/* Width and height only — the pill shape, colours and hover states are the
+   app's own `[rounded]` p-button, left untouched. */
+:host ::ng-deep .cpm-actions .p-button {
+  width: 100%;
+  min-width: 0; // ButtonSize.AUTO ships `min-width: max-content`
+  height: 50px;
+
+  &:disabled,
+  &.p-disabled {
+    opacity: 0.45;
+  }
+}
+
+.cpm-secure-note {
+  margin: 0;
+  padding-top: 18px;
+  border-top: 1px solid $border-soft;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #98a2b3;
+  text-align: center;
+
+  i {
+    font-size: 12px;
+  }
+}
+
+/* ─── Mobile ─── */
+/* Identical to desktop down to ~420px. Below that the expiry pair plus CVV
+   cannot hold full-size controls side by side, so the row stacks rather than
+   shrinking the fields. */
+
+@media (max-width: 420px) {
+  :host ::ng-deep .p-dialog.cpm-shell .p-dialog-content {
+    padding: 24px 18px 20px;
+  }
+
+  .cpm-dialog {
+    gap: 22px;
+  }
+
+  .cpm-title {
+    font-size: 19px;
+  }
+
+  // The fields are already stacked full-width at every breakpoint, so there is
+  // no row to unwind here.
+
+  .cpm-actions {
+    flex-direction: column;
+
+    app-p-button {
+      flex: 0 0 auto;
+    }
+  }
+}

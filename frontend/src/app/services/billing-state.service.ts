@@ -52,6 +52,45 @@ export interface BillingAccess {
   gracePeriodActive: boolean;
 }
 
+export type BillingBusinessType = 'LICENSED' | 'EXEMPT';
+
+/** Saved CardCom card details for the "My Subscription" payment-method card. */
+export interface BillingPaymentMethod {
+  brand: string | null;
+  last4: string | null;
+  expiryMonth: number | null;
+  expiryYear: number | null;
+  /** Not stored today — present only if a future column adds it. */
+  cardholderName?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Active/scheduled subscription discount, mirrored from the backend PricingService. */
+export interface BillingDiscount {
+  kind: 'PERCENT' | 'AMOUNT';
+  percent: number | null;
+  amountAgorot: number | null;
+  startDate: string | null;
+  endDate: string | null;
+  isActiveNow: boolean;
+}
+
+/** One row of the payment-history table (GET /billing/payments). */
+export interface PaymentHistoryRow {
+  eventId: number;
+  date: string;
+  planName: string | null;
+  amountAgorot: number | null;
+  currency: string;
+  status: 'SUCCESS' | 'FAILED';
+  receiptDocId: number | null;
+  /** True only when the backend confirmed the receipt document exists and is downloadable. */
+  receiptAvailable: boolean;
+  /** True when the event supports a (future) retry-payment action. Backend-resolved from event type. */
+  canRetry: boolean;
+}
+
 /** Latest CardCom payment/invoice outcome, used to render the post-return-from-CardCom banner. */
 export interface BillingPaymentResult {
   latestPaymentEventId: number | null;
@@ -70,12 +109,49 @@ export interface BillingPaymentResult {
   createdAt: string;
 }
 
+/** Latest outcome of a change-payment-method flow (CreateTokenOnly, no charge). */
+export interface PaymentMethodUpdateResult {
+  status: 'SUCCESS' | 'FAILED';
+  last4: string | null;
+  brand: string | null;
+  failureReason: string | null;
+  createdAt: string;
+}
+
+/**
+ * Terminal state of ONE change-payment-method attempt, keyed by its
+ * LowProfileId. Unlike PaymentMethodUpdateResult (which is "the latest outcome
+ * for this user" and cannot distinguish concurrent or retried attempts), this
+ * answers only for the attempt the dialog actually submitted.
+ */
+export interface ChangePaymentMethodStatus {
+  lowProfileId: string;
+  status: 'PENDING' | 'SUCCESS' | 'FAILED';
+  last4: string | null;
+  brand: string | null;
+  failureReason: string | null;
+  /** True when the backend had to pull the result from CardCom itself. */
+  reconciled: boolean;
+}
+
 export interface BillingStateResponse {
   hasSubscription: boolean;
   subscription: BillingSubscription | null;
   plan: BillingPlan | null;
   access: BillingAccess;
   billingPaymentResult: BillingPaymentResult | null;
+  /** Outcome of the most recent "replace saved card" flow, or null if never attempted. */
+  paymentMethodUpdateResult: PaymentMethodUpdateResult | null;
+  /** The user's effective billing business type — resolved by the backend. */
+  billingBusinessType: BillingBusinessType;
+  /**
+   * Monthly plan price for the user's billing business type, BEFORE VAT, in
+   * agorot — exactly as stored in subscription_plan. Null during trial (no plan).
+   * Any active discount is reported separately in `discount`, not subtracted here.
+   */
+  effectiveMonthlyPriceBeforeVatAgorot: number | null;
+  discount: BillingDiscount | null;
+  paymentMethod: BillingPaymentMethod | null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -102,16 +178,45 @@ export class BillingStateService {
   readonly billingPaymentResult = computed(
     () => this.billingState()?.billingPaymentResult ?? null
   );
+  readonly paymentMethodUpdateResult = computed(
+    () => this.billingState()?.paymentMethodUpdateResult ?? null
+  );
+
+  /**
+   * True when we have no verified billing state at all — the load failed and
+   * nothing was ever confirmed by the backend.
+   *
+   * Guards must treat this as "cannot verify", never as "allowed". Note that
+   * `hasModuleAccess()` already returns false in this situation, so every
+   * module-gated feature stays locked until the backend confirms otherwise.
+   */
+  readonly isUnverified = computed(() => this.billingState() === null);
 
   // Shared promise for any in-flight load. Multiple callers receive the same
   // Promise so only one HTTP request is made regardless of how many times
   // loadBillingState() is called concurrently (e.g. AppComponent + BillingGuard).
   private _loadPromise: Promise<void> | null = null;
 
+  /**
+   * How long a failed load suppresses further attempts. Long enough to stop a
+   * request storm while offline (guards call this on every navigation), short
+   * enough that the state can never be wedged permanently by one failure if
+   * the reconnect handler never fires.
+   */
+  private static readonly RETRY_AFTER_ERROR_MS = 30_000;
+  private lastErrorAt = 0;
+
   async loadBillingState(): Promise<void> {
-    // Already settled (success or network error) — return immediately.
+    // Verified state already in hand — nothing to do.
     // Call refreshBillingState() to force a reload.
-    if (this.billingState() !== null || this.error() !== null) return;
+    if (this.billingState() !== null) return;
+
+    // A recent failure suppresses retries briefly, then we try again. This used
+    // to be permanent, which meant one offline failure left billing state
+    // unverified for the rest of the session even after connectivity returned.
+    if (this.error() !== null && Date.now() - this.lastErrorAt < BillingStateService.RETRY_AFTER_ERROR_MS) {
+      return;
+    }
 
     // In-flight request — join it instead of starting a duplicate.
     if (this._loadPromise) return this._loadPromise;
@@ -127,6 +232,7 @@ export class BillingStateService {
     this._loadPromise = null;
     this.billingState.set(null);
     this.error.set(null);
+    this.lastErrorAt = 0;
     await this.loadBillingState();
   }
 
@@ -144,6 +250,7 @@ export class BillingStateService {
       // so the dialog does not appear due to a transient auth issue.
       if (err?.status !== 401) {
         this.error.set('שגיאה בטעינת נתוני החיוב');
+        this.lastErrorAt = Date.now();
       }
     } finally {
       this.isLoading.set(false);
@@ -153,6 +260,134 @@ export class BillingStateService {
   hasModuleAccess(moduleName: string): boolean {
     return (
       this.billingState()?.access?.modulesAccess?.includes(moduleName) ?? false
+    );
+  }
+
+  /**
+   * Starts the "replace saved card" flow. Creates a NEW token only — never
+   * charges the customer. Both fields refer to the SAME CardCom LowProfile deal:
+   *   lowProfileId — initializes the embedded Open Fields dialog.
+   *   paymentUrl   — hosted-page redirect (legacy flow + Open Fields fallback).
+   */
+  changePaymentMethod(): Promise<{ paymentUrl: string; lowProfileId: string }> {
+    return firstValueFrom(
+      this.http.post<{ paymentUrl: string; lowProfileId: string }>(
+        `${environment.apiUrl}billing/change-payment-method`,
+        {}
+      )
+    );
+  }
+
+  /**
+   * Reloads billing/me WITHOUT clearing the current state first — unlike
+   * refreshBillingState(), consumers keep rendering the previous state until the
+   * new response lands. Used by short-interval polling (change-payment-method
+   * dialog) so the UI behind the dialog never flashes its loading skeleton.
+   */
+  async reloadBillingStateQuietly(): Promise<void> {
+    try {
+      const state = await firstValueFrom(
+        this.http.get<BillingStateResponse>(`${environment.apiUrl}billing/me`)
+      );
+      this.billingState.set(state);
+    } catch {
+      // Keep the previous state — a failed poll tick is not an error condition.
+    }
+  }
+
+  /** One-shot read of a specific attempt's terminal state. */
+  getChangePaymentMethodStatus(lowProfileId: string): Promise<ChangePaymentMethodStatus> {
+    return firstValueFrom(
+      this.http.get<ChangePaymentMethodStatus>(
+        `${environment.apiUrl}billing/change-payment-method/status`,
+        { params: { lowProfileId } }
+      )
+    );
+  }
+
+  /**
+   * Polls one change-payment-method attempt, addressed by its LowProfileId,
+   * until it reaches SUCCESS or FAILED — or until the caller cancels.
+   *
+   * Deliberately has NO overall deadline. The previous implementation gave up
+   * after ~90s and left the dialog claiming the card "will update automatically"
+   * while nothing was still watching. Instead the cadence relaxes: fast ticks
+   * while a webhook is plausibly in flight, then a slower heartbeat that keeps
+   * running for as long as the dialog is open, so a late webhook still completes
+   * the flow on its own.
+   *
+   * `onSlowdown` fires once at that transition — the dialog uses it to show its
+   * "still processing" copy without tearing down the poll.
+   *
+   * Past the slowdown point each tick also drives the backend's idempotent
+   * reconciliation, so a webhook that never arrives at all is recovered here
+   * rather than being waited on forever.
+   */
+  async pollChangePaymentMethodStatus(options: {
+    lowProfileId: string;
+    isCancelled?: () => boolean;
+    onSlowdown?: () => void;
+    fastIntervalMs?: number;
+    fastAttempts?: number;
+    slowIntervalMs?: number;
+  }): Promise<ChangePaymentMethodStatus | null> {
+    const fastIntervalMs = options.fastIntervalMs ?? 2500;
+    const fastAttempts = options.fastAttempts ?? 36; // ~90s
+    const slowIntervalMs = options.slowIntervalMs ?? 5000;
+
+    let attempt = 0;
+    let slowdownAnnounced = false;
+
+    while (true) {
+      const isSlow = attempt >= fastAttempts;
+      if (isSlow && !slowdownAnnounced) {
+        slowdownAnnounced = true;
+        options.onSlowdown?.();
+      }
+
+      await new Promise((resolve) =>
+        setTimeout(resolve, isSlow ? slowIntervalMs : fastIntervalMs)
+      );
+      if (options.isCancelled?.()) return null;
+
+      let status: ChangePaymentMethodStatus;
+      try {
+        status = await this.getChangePaymentMethodStatus(options.lowProfileId);
+      } catch {
+        // Network blip or a transient 5xx — keep polling rather than declaring
+        // a live attempt failed.
+        attempt++;
+        continue;
+      }
+      if (options.isCancelled?.()) return null;
+
+      if (status.status !== 'PENDING') {
+        // Refresh billing state so the subscription page reflects the new card
+        // before the dialog closes.
+        await this.reloadBillingStateQuietly();
+        return status;
+      }
+
+      attempt++;
+    }
+  }
+
+  /** Loads the user's payment history for the "My Subscription" tab. */
+  getPaymentHistory(): Promise<PaymentHistoryRow[]> {
+    return firstValueFrom(
+      this.http.get<PaymentHistoryRow[]>(`${environment.apiUrl}billing/payments`)
+    );
+  }
+
+  /**
+   * Downloads a payment's receipt PDF as a Blob. The caller is responsible for
+   * saving it (reuse FilesService.downloadFile). Backend enforces ownership.
+   */
+  getReceiptBlob(eventId: number): Promise<Blob> {
+    return firstValueFrom(
+      this.http.get(`${environment.apiUrl}billing/payments/${eventId}/receipt`, {
+        responseType: 'blob',
+      })
     );
   }
 
