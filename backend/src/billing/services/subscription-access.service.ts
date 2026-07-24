@@ -4,6 +4,17 @@ import { Subscription } from '../entities/subscription.entity';
 import { SubscriptionPlan } from '../entities/subscription-plan.entity';
 import { SubscriptionStatus } from '../enums/billing.enums';
 
+/**
+ * Slack allowed past `nextBillingDate`/`currentPeriodEnd` before an ACTIVE
+ * subscription's access is cut. Exists purely to absorb normal timing (the
+ * renewal cron runs once daily) — it is NOT meant to give a real grace
+ * period the way PAST_DUE's gracePeriodEndsAt does. If billing genuinely
+ * stalls (cron down, or a payment blocked pending a manual receipt fix —
+ * see BillingEventService.getUnresolvedReceiptFailure), access lapses here
+ * instead of continuing forever with no independent check.
+ */
+const ACTIVE_BILLING_GRACE_DAYS = 3;
+
 @Injectable()
 export class SubscriptionAccessService {
   /**
@@ -32,8 +43,19 @@ export class SubscriptionAccessService {
         }
         return allModules;
 
-      case SubscriptionStatus.ACTIVE:
+      case SubscriptionStatus.ACTIVE: {
+        // Guard against indefinite free access if billing has silently
+        // stalled (renewal cron down, or intentionally blocked pending a
+        // manual receipt fix) — ACTIVE alone is not proof the subscription
+        // is actually current.
+        const dueDate = subscription.nextBillingDate ?? subscription.currentPeriodEnd;
+        if (dueDate != null) {
+          const graceLimit = new Date(dueDate);
+          graceLimit.setDate(graceLimit.getDate() + ACTIVE_BILLING_GRACE_DAYS);
+          if (graceLimit < now) return [];
+        }
         return plan?.modules?.length ? plan.modules : allModules;
+      }
 
       case SubscriptionStatus.PAST_DUE: {
         const graceActive =

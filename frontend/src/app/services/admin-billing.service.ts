@@ -85,7 +85,13 @@ export interface AdminSubscriptionDiscountResponse {
   discountEndDate: string | null;
 }
 
-export type RenewalOutcome = 'success' | 'retry_scheduled' | 'past_due' | 'skipped' | 'error';
+export type RenewalOutcome =
+  | 'success'
+  | 'retry_scheduled'
+  | 'past_due'
+  | 'skipped'
+  | 'blocked_pending_receipt'
+  | 'error';
 
 export interface RenewalResult {
   subscriptionId: number;
@@ -104,8 +110,30 @@ export interface RenewalBatchResult {
   retryScheduled: number;
   pastDue: number;
   skipped: number;
+  blockedPendingReceipt: number;
   errors: number;
   results: RenewalResult[];
+}
+
+// ─── Pending receipt failures ────────────────────────────────────────────────
+
+export interface PendingReceiptFailure {
+  billingEventId: number;
+  eventType: string;
+  subscriptionId: number | null;
+  firebaseId: string;
+  userName: string | null;
+  userEmail: string | null;
+  planId: number | null;
+  planName: string | null;
+  amountAgorot: number | null;
+  cardcomDealNumber: string | null;
+  createdAt: string;
+}
+
+export interface GenerateReceiptResponse {
+  receiptDocId: number;
+  docNumber: string;
 }
 
 // ─── Service ─────────────────────────────────────────────────────────────────
@@ -159,5 +187,17 @@ export class AdminBillingService {
   /** Manual test trigger for the full daily renewal batch — same logic as the 03:00 cron. */
   runDueRenewals(): Observable<RenewalBatchResult> {
     return this.http.post<RenewalBatchResult>(`${this.base}/renewals/run-due`, {});
+  }
+
+  // ─── Pending receipt failures ────────────────────────────────────────────────
+
+  /** Successful charges whose receipt generation failed and was never resolved. */
+  getPendingReceiptFailures(): Observable<PendingReceiptFailure[]> {
+    return this.http.get<PendingReceiptFailure[]>(`${this.base}/receipts/pending`);
+  }
+
+  /** Manually generates the missing receipt for one failed charge event. */
+  generateReceiptForEvent(billingEventId: number): Observable<GenerateReceiptResponse> {
+    return this.http.post<GenerateReceiptResponse>(`${this.base}/receipts/${billingEventId}/generate`, {});
   }
 }

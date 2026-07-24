@@ -19,6 +19,7 @@ import {
 import { CardcomService } from './cardcom.service';
 import { BillingEventService } from './billing-event.service';
 import { BillingReceiptService } from './billing-receipt.service';
+import { BillingIssuerConfigService } from './billing-issuer-config.service';
 import { ModuleName } from 'src/enum';
 
 // ── Swagger-verified field names from LowProfileResult / TransactionInfo / TokenInfo ─
@@ -87,6 +88,7 @@ export class CardcomWebhookService implements OnModuleInit {
     private readonly cardcomService: CardcomService,
     private readonly billingEventService: BillingEventService,
     private readonly billingReceiptService: BillingReceiptService,
+    private readonly billingIssuerConfigService: BillingIssuerConfigService,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -124,7 +126,7 @@ export class CardcomWebhookService implements OnModuleInit {
     const transactionId =
       payload.TranzactionId ?? payload.TranzactionInfo?.TranzactionId ?? null;
 
-    this.logger.log(
+    console.log(
       `Webhook received: lowProfileId=${lowProfileId ?? 'none'} ` +
         `subscriptionId=${parsedReturn?.subscriptionId ?? 'none'} ` +
         `idempotencyKey=${idempotencyKey.slice(0, 24)}...`,
@@ -143,7 +145,7 @@ export class CardcomWebhookService implements OnModuleInit {
     );
 
     if (!webhookLog) {
-      this.logger.log(`Duplicate webhook ignored: idempotencyKey=${idempotencyKey}`);
+      console.log(`Duplicate webhook ignored: idempotencyKey=${idempotencyKey}`);
       return;
     }
 
@@ -285,7 +287,7 @@ export class CardcomWebhookService implements OnModuleInit {
         subscription.planId === planId
       ) {
         await qr.rollbackTransaction();
-        this.logger.log(
+        console.log(
           `Subscription #${subscriptionId} already ACTIVE on plan ${planId} — skipping`,
         );
         await this.markWebhookStatus(
@@ -293,6 +295,29 @@ export class CardcomWebhookService implements OnModuleInit {
           WebhookLogStatus.IGNORED,
           'Subscription already active on this plan',
         );
+        // CardCom already verified a real, successful charge (we only reach
+        // this branch after GetLpResult confirmed it) — log it even though we
+        // take no other action, so a real charge is never invisible in the
+        // audit trail just because it happened to be a no-op internally.
+        const duplicateTranzactionId =
+          verified.TranzactionId ?? verified.TranzactionInfo?.TranzactionId ?? null;
+        const duplicateAmountAgorot =
+          verified.TranzactionInfo?.Amount != null
+            ? Math.round(verified.TranzactionInfo.Amount * 100)
+            : null;
+        await this.billingEventService.logEvent({
+          firebaseId,
+          eventType: BillingEventType.DUPLICATE_PAYMENT_IGNORED,
+          subscriptionId,
+          amountAgorot: duplicateAmountAgorot,
+          currency: 'ILS',
+          cardcomDealNumber: duplicateTranzactionId != null ? String(duplicateTranzactionId) : null,
+          metadata: {
+            planId,
+            lowProfileId: verified.LowProfileId ?? null,
+            reason: 'Subscription already active on this plan',
+          },
+        });
         return;
       }
 
@@ -451,7 +476,7 @@ export class CardcomWebhookService implements OnModuleInit {
       },
     });
 
-    this.logger.log(
+    console.log(
       `Payment processed: subscription #${subscriptionId} ACTIVE, plan=${planSlug}`,
     );
 
@@ -476,7 +501,7 @@ export class CardcomWebhookService implements OnModuleInit {
   }): Promise<void> {
     const { firebaseId, subscriptionId, planName, cardcomDealNumber, paymentSuccessEvent } = params;
 
-    this.logger.log(
+    console.log(
       `Receipt generation started: subscriptionId=${subscriptionId} dealNumber=${cardcomDealNumber ?? 'null'}`,
     );
 
@@ -501,7 +526,7 @@ export class CardcomWebhookService implements OnModuleInit {
 
       // 2. Idempotency: receipt was already created for this payment event.
       if (paymentSuccessEvent.receiptDocId != null) {
-        this.logger.log(
+        console.log(
           `Receipt generation skipped — already exists: receiptDocId=${paymentSuccessEvent.receiptDocId} ` +
             `subscriptionId=${subscriptionId}`,
         );
@@ -528,8 +553,12 @@ export class CardcomWebhookService implements OnModuleInit {
         return;
       }
 
+      // 3b. Resolve the issuer identity for this receipt. Always Keepintax today —
+      // this is the seam to change once other businesses can charge via CardCom.
+      const issuer = await this.billingIssuerConfigService.getKeepintaxIssuer();
+
       // 4. Create the TAX_INVOICE_RECEIPT document (DB rows only — no PDF yet).
-      const receipt = await this.billingReceiptService.createReceiptForPayment({
+      const receipt = await this.billingReceiptService.createReceiptForPayment(issuer, {
         firebaseId,
         subscriptionId,
         amountBeforeVatAgorot: breakdown.amountBeforeVatAgorot,
@@ -546,12 +575,12 @@ export class CardcomWebhookService implements OnModuleInit {
       );
 
       // 6. Generate PDFs and upload to Firebase (original + copy).
-      await this.billingReceiptService.finalizeBillingReceiptPdfs(receipt.receiptDocId, firebaseId);
+      await this.billingReceiptService.finalizeBillingReceiptPdfs(receipt.receiptDocId, issuer, firebaseId);
 
       // 7. Send receipt email (self-contained — updates metadata on failure, never throws).
-      await this.billingReceiptService.sendReceiptEmailForPaymentEvent(paymentSuccessEvent.id);
+      await this.billingReceiptService.sendReceiptEmailForPaymentEvent(paymentSuccessEvent.id, issuer.issuerName);
 
-      this.logger.log(
+      console.log(
         `Receipt lifecycle complete: receiptDocId=${receipt.receiptDocId} ` +
           `docNumber=${receipt.docNumber} subscriptionId=${subscriptionId} ` +
           `dealNumber=${cardcomDealNumber ?? 'null'}`,

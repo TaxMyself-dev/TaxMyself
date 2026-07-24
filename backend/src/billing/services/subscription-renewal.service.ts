@@ -13,6 +13,7 @@ import { ModuleName } from 'src/enum';
 import { CardcomService, CardcomApiError, CardcomTransactionInfo } from './cardcom.service';
 import { BillingEventService } from './billing-event.service';
 import { BillingReceiptService } from './billing-receipt.service';
+import { BillingIssuerConfigService } from './billing-issuer-config.service';
 import { PricingService } from './pricing.service';
 
 /** Total charge attempts allowed per billing cycle before moving to PAST_DUE. */
@@ -29,6 +30,7 @@ export type RenewalOutcome =
   | 'retry_scheduled'
   | 'past_due'
   | 'skipped'
+  | 'blocked_pending_receipt'
   | 'error';
 
 export interface RenewalResult {
@@ -48,6 +50,7 @@ export interface RenewalBatchResult {
   retryScheduled: number;
   pastDue: number;
   skipped: number;
+  blockedPendingReceipt: number;
   errors: number;
   results: RenewalResult[];
 }
@@ -62,6 +65,7 @@ export class SubscriptionRenewalService {
     private readonly cardcomService: CardcomService,
     private readonly billingEventService: BillingEventService,
     private readonly billingReceiptService: BillingReceiptService,
+    private readonly billingIssuerConfigService: BillingIssuerConfigService,
     private readonly pricingService: PricingService,
     private readonly dataSource: DataSource,
   ) {}
@@ -115,6 +119,7 @@ export class SubscriptionRenewalService {
     let retryScheduled = 0;
     let pastDue = 0;
     let skipped = 0;
+    let blockedPendingReceipt = 0;
     let errors = 0;
 
     for (let i = 0; i < due.length; i += BATCH_SIZE) {
@@ -137,6 +142,9 @@ export class SubscriptionRenewalService {
           case 'skipped':
             skipped++;
             break;
+          case 'blocked_pending_receipt':
+            blockedPendingReceipt++;
+            break;
           case 'error':
             errors++;
             break;
@@ -151,6 +159,7 @@ export class SubscriptionRenewalService {
       retryScheduled,
       pastDue,
       skipped,
+      blockedPendingReceipt,
       errors,
       results,
     };
@@ -252,6 +261,23 @@ export class SubscriptionRenewalService {
       const billingPeriod = this.formatBillingPeriod(previousNextBillingDate);
       const idempotencyKey = `renewal:${subscription.id}:${billingPeriod}`;
       const attemptNumber = subscription.renewalAttempts + 1;
+
+      // ── 2b. Refuse to charge again while a prior successful charge still has
+      // no receipt — surfacing that failure for manual resolution takes
+      // priority over collecting more money the customer can't be invoiced for.
+      const unresolvedFailure = await this.billingEventService.getUnresolvedReceiptFailure(subscription.id);
+      if (unresolvedFailure) {
+        await qr.rollbackTransaction();
+        this.logger.warn(
+          `Subscription #${subscriptionId} renewal blocked — unresolved receipt failure on ` +
+            `billing_event #${unresolvedFailure.id}. Resolve via admin before charging again.`,
+        );
+        return {
+          subscriptionId,
+          outcome: 'blocked_pending_receipt',
+          message: `Prior charge (billing_event #${unresolvedFailure.id}) has no receipt yet`,
+        };
+      }
 
       // ── 3. Local idempotency: already charged for this period? ─────────────
       const alreadySucceeded = await this.billingEventService.hasSuccessfulRenewal(
@@ -599,7 +625,9 @@ export class SubscriptionRenewalService {
     } = params;
 
     try {
-      const receipt = await this.billingReceiptService.createReceiptForPayment({
+      const issuer = await this.billingIssuerConfigService.getKeepintaxIssuer();
+
+      const receipt = await this.billingReceiptService.createReceiptForPayment(issuer, {
         firebaseId,
         subscriptionId,
         amountBeforeVatAgorot,
@@ -614,8 +642,8 @@ export class SubscriptionRenewalService {
         receipt.receiptDocId,
       );
 
-      await this.billingReceiptService.finalizeBillingReceiptPdfs(receipt.receiptDocId, firebaseId);
-      await this.billingReceiptService.sendReceiptEmailForPaymentEvent(renewalSuccessEvent.id);
+      await this.billingReceiptService.finalizeBillingReceiptPdfs(receipt.receiptDocId, issuer, firebaseId);
+      await this.billingReceiptService.sendReceiptEmailForPaymentEvent(renewalSuccessEvent.id, issuer.issuerName);
 
       this.logger.log(
         `Renewal receipt complete: receiptDocId=${receipt.receiptDocId} docNumber=${receipt.docNumber} ` +

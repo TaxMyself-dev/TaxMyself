@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from 'src/users/user.entity';
@@ -7,18 +7,26 @@ import { DocumentsService } from 'src/documents/documents.service';
 import { MailService } from 'src/mail/mail.service';
 import { BillingEventService } from './billing-event.service';
 
-@Injectable()
-export class BillingReceiptService implements OnModuleInit {
-  private readonly logger = new Logger(BillingReceiptService.name);
+/**
+ * Identity of the business issuing a billing receipt. Passed in by the caller
+ * (currently always Keepintax's own identity, resolved by
+ * BillingIssuerConfigService) rather than cached inside this service — so
+ * issuing receipts for other businesses later only requires changing what the
+ * caller passes in, not this service.
+ */
+export interface ReceiptIssuer {
+  systemUserId: string;
+  issuerBusinessNumber: string;
+  issuerBusinessType: BusinessType;
+  issuerName: string;
+  issuerPhone: string | null;
+  issuerEmail: string | null;
+  issuerAddress: string | null;
+}
 
-  private systemUserId: string;
-  private issuerBusinessNumber: string;
-  private issuerBusinessType: BusinessType;
-  private issuerName: string;
-  private issuerPhone: string | null;
-  private issuerEmail: string | null;
-  private issuerAddress: string | null;
-  private initialReceiptIndex: number;
+@Injectable()
+export class BillingReceiptService {
+  private readonly logger = new Logger(BillingReceiptService.name);
 
   constructor(
     private readonly documentsService: DocumentsService,
@@ -28,40 +36,9 @@ export class BillingReceiptService implements OnModuleInit {
     private readonly userRepo: Repository<User>,
   ) {}
 
-  onModuleInit(): void {
-    const systemUserId = process.env.COMPANY_BILLING_FIREBASE_ID;
-    const issuerBusinessNumber = process.env.COMPANY_BILLING_BUSINESS_NUMBER;
-    const issuerName = process.env.COMPANY_BILLING_NAME;
-
-    const missing = [
-      !systemUserId && 'COMPANY_BILLING_FIREBASE_ID',
-      !issuerBusinessNumber && 'COMPANY_BILLING_BUSINESS_NUMBER',
-      !issuerName && 'COMPANY_BILLING_NAME',
-    ].filter(Boolean);
-
-    if (missing.length > 0) {
-      throw new Error(
-        `BillingReceiptService: missing required env vars: ${missing.join(', ')}`,
-      );
-    }
-
-    this.systemUserId = systemUserId!;
-    this.issuerBusinessNumber = issuerBusinessNumber!;
-    this.issuerName = issuerName!;
-    this.issuerBusinessType =
-      (process.env.COMPANY_BILLING_BUSINESS_TYPE as BusinessType) ?? BusinessType.LIMITED_COMPANY;
-    this.issuerPhone = process.env.COMPANY_BILLING_PHONE || null;
-    this.issuerEmail = process.env.COMPANY_BILLING_EMAIL || null;
-    this.issuerAddress = process.env.COMPANY_BILLING_ADDRESS || null;
-    this.initialReceiptIndex = parseInt(
-      process.env.COMPANY_BILLING_RECEIPT_INITIAL_INDEX ?? '50001',
-      10,
-    );
-  }
-
   // ─── Step 1: Create document row + DocLines + DocPayments ────────────────────
 
-  async createReceiptForPayment(params: {
+  async createReceiptForPayment(issuer: ReceiptIssuer, params: {
     firebaseId: string;
     subscriptionId: number;
     amountBeforeVatAgorot: number;
@@ -85,9 +62,9 @@ export class BillingReceiptService implements OnModuleInit {
     const recipientEmail = user.email ?? null;
 
     const result = await this.documentsService.createBillingSystemReceipt({
-      systemUserId: this.systemUserId,
-      issuerBusinessNumber: this.issuerBusinessNumber,
-      issuerBusinessType: this.issuerBusinessType,
+      systemUserId: issuer.systemUserId,
+      issuerBusinessNumber: issuer.issuerBusinessNumber,
+      issuerBusinessType: issuer.issuerBusinessType,
       recipientName,
       recipientEmail,
       amountBeforeVatAgorot,
@@ -95,10 +72,9 @@ export class BillingReceiptService implements OnModuleInit {
       amountIncludingVatAgorot,
       planName,
       docDate: new Date(),
-      initialReceiptIndex: this.initialReceiptIndex,
     });
 
-    this.logger.log(
+    console.log(
       `Billing receipt document created: docId=${result.receiptDocId} docNumber=${result.docNumber} ` +
         `for firebaseId=${firebaseId} subscriptionId=${subscriptionId} ` +
         `dealNumber=${cardcomDealNumber ?? 'null'}`,
@@ -109,18 +85,22 @@ export class BillingReceiptService implements OnModuleInit {
 
   // ─── Step 2: Generate PDFs + upload to Firebase ──────────────────────────────
 
-  async finalizeBillingReceiptPdfs(receiptDocId: number, customerFirebaseId?: string | null): Promise<void> {
+  async finalizeBillingReceiptPdfs(
+    receiptDocId: number,
+    issuer: ReceiptIssuer,
+    customerFirebaseId?: string | null,
+  ): Promise<void> {
     await this.documentsService.finalizeBillingReceipt({
       docId: receiptDocId,
-      issuerName: this.issuerName,
-      issuerPhone: this.issuerPhone,
-      issuerEmail: this.issuerEmail,
-      issuerAddress: this.issuerAddress,
-      businessType: this.issuerBusinessType,
+      issuerName: issuer.issuerName,
+      issuerPhone: issuer.issuerPhone,
+      issuerEmail: issuer.issuerEmail,
+      issuerAddress: issuer.issuerAddress,
+      businessType: issuer.issuerBusinessType,
       customerFirebaseId,
     });
 
-    this.logger.log(`Billing receipt PDFs generated and uploaded: docId=${receiptDocId}`);
+    console.log(`Billing receipt PDFs generated and uploaded: docId=${receiptDocId}`);
   }
 
   // ─── Step 3: Send email (self-contained — updates billing_event metadata) ────
@@ -139,6 +119,7 @@ export class BillingReceiptService implements OnModuleInit {
    */
   async sendReceiptEmailForPaymentEvent(
     paymentEventId: number,
+    issuerName: string,
   ): Promise<{ sent: boolean; error?: string }> {
     try {
       const event = await this.billingEventService.findPaymentEventById(paymentEventId);
@@ -153,7 +134,7 @@ export class BillingReceiptService implements OnModuleInit {
       const receipt = await this.documentsService.getBillingReceiptPdf(event.receiptDocId);
 
       if (!receipt.recipientEmail) {
-        this.logger.log(
+        console.log(
           `Receipt email skipped — no recipient email on docId=${event.receiptDocId} ` +
             `paymentEventId=${paymentEventId}`,
         );
@@ -169,7 +150,7 @@ export class BillingReceiptService implements OnModuleInit {
         `מצורף בזאת ${docTypeName} מספר ${receipt.docNumber}.`,
         '',
         'בברכה,',
-        this.issuerName,
+        issuerName,
       ].join('\n');
 
       await this.mailService.sendMailWithAttachment(
@@ -182,7 +163,7 @@ export class BillingReceiptService implements OnModuleInit {
 
       await this.billingEventService.markReceiptEmailSent(paymentEventId);
 
-      this.logger.log(
+      console.log(
         `Receipt email sent: docId=${event.receiptDocId} paymentEventId=${paymentEventId} ` +
           `recipient=${receipt.recipientEmail}`,
       );

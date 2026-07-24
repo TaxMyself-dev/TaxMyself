@@ -25,6 +25,7 @@ import { AdminBillingController } from './admin-billing.controller';
 import { BillingService } from './services/billing.service';
 import { BillingEventService } from './services/billing-event.service';
 import { BillingReceiptService } from './services/billing-receipt.service';
+import { BillingIssuerConfigService } from './services/billing-issuer-config.service';
 import { CardcomService } from './services/cardcom.service';
 import { CardcomWebhookService } from './services/cardcom-webhook.service';
 import { PricingService } from './services/pricing.service';
@@ -36,6 +37,7 @@ import { SubscriptionRenewalService } from './services/subscription-renewal.serv
 import { UsersModule } from 'src/users/users.module';
 import { DocumentsModule } from 'src/documents/documents.module';
 import { MailModule } from 'src/mail/mail.module';
+import { BusinessModule } from 'src/business/business.module';
 
 @Module({
   imports: [
@@ -44,6 +46,7 @@ import { MailModule } from 'src/mail/mail.module';
     forwardRef(() => UsersModule),
     DocumentsModule,
     MailModule,
+    BusinessModule,
     TypeOrmModule.forFeature([
       // Billing entities
       SubscriptionPlan,
@@ -62,6 +65,7 @@ import { MailModule } from 'src/mail/mail.module';
     BillingService,
     BillingEventService,
     BillingReceiptService,
+    BillingIssuerConfigService,
     CardcomService,
     CardcomWebhookService,
     PricingService,

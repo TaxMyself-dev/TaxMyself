@@ -208,6 +208,39 @@ export class BillingEventService {
   }
 
   /**
+   * Returns the subscription's most recent successful charge event
+   * (PAYMENT_SUCCESS or RENEWAL_SUCCESS) if — and only if — it still has no
+   * receiptDocId, meaning receipt generation failed for it and was never
+   * resolved. Returns null when the subscription has no unresolved failure
+   * (either the latest charge already has a receipt, or there's no charge at
+   * all yet).
+   *
+   * This is the single source of truth for "is this subscription blocked from
+   * further payments pending manual receipt generation" — deliberately not a
+   * separate flag column, so resolving the failure (via
+   * updatePaymentEventWithReceipt) automatically and atomically clears the
+   * block with no separate state to keep in sync.
+   */
+  async getUnresolvedReceiptFailure(subscriptionId: number): Promise<BillingEvent | null> {
+    try {
+      return await this.billingEventRepo.findOne({
+        where: {
+          subscriptionId,
+          eventType: In([BillingEventType.PAYMENT_SUCCESS, BillingEventType.RENEWAL_SUCCESS]),
+        },
+        order: { createdAt: 'DESC' },
+      }).then((event) => (event && event.receiptDocId == null ? event : null));
+    } catch (error) {
+      this.logger.error(
+        `getUnresolvedReceiptFailure failed for subscriptionId=${subscriptionId}: ${(error as Error)?.message ?? error}`,
+      );
+      // Fail open — a logging/lookup error here must never itself block a
+      // legitimate payment.
+      return null;
+    }
+  }
+
+  /**
    * Renewal idempotency check: true if a RENEWAL_SUCCESS event already exists
    * for this subscription + idempotency key (renewal:{subscriptionId}:{billingPeriod}).
    * Runs against the given EntityManager so it participates in the caller's

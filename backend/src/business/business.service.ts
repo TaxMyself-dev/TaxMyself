@@ -89,6 +89,12 @@ export class BusinessService {
     if (dto?.businessType !== undefined) {
       await this.assertBusinessTypeAllowed(firebaseId, dto.businessType as BusinessType | null);
     }
+    if (dto?.businessNumber) {
+      const existing = await this.getBusinessByNumber(dto.businessNumber);
+      if (existing && existing.firebaseId !== firebaseId) {
+        throw new BadRequestException('מספר עסק זה כבר רשום במערכת תחת משתמש אחר');
+      }
+    }
     const business = this.businessRepo.create({
       firebaseId,
       businessName: dto?.businessName ?? null,

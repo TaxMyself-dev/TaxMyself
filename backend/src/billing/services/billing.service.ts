@@ -1,6 +1,7 @@
 import {
   BadGatewayException,
   BadRequestException,
+  ConflictException,
   Injectable,
   Logger,
   NotFoundException,
@@ -13,6 +14,7 @@ import { User } from 'src/users/user.entity';
 import { ModuleName } from 'src/enum';
 import { BillingEventService } from './billing-event.service';
 import { BillingReceiptService } from './billing-receipt.service';
+import { BillingIssuerConfigService } from './billing-issuer-config.service';
 import { PricingService } from './pricing.service';
 import { SubscriptionAccessService } from './subscription-access.service';
 import { CardcomService, CardcomApiError } from './cardcom.service';
@@ -34,6 +36,7 @@ export class BillingService {
     private readonly pricingService: PricingService,
     private readonly billingEventService: BillingEventService,
     private readonly billingReceiptService: BillingReceiptService,
+    private readonly billingIssuerConfigService: BillingIssuerConfigService,
     private readonly subscriptionAccessService: SubscriptionAccessService,
     private readonly cardcomService: CardcomService,
   ) {}
@@ -181,6 +184,13 @@ export class BillingService {
       );
     }
 
+    const unresolvedFailure = await this.billingEventService.getUnresolvedReceiptFailure(subscription.id);
+    if (unresolvedFailure) {
+      throw new ConflictException(
+        'קיים תשלום קודם שעבורו לא הופקה קבלה. לא ניתן לבצע תשלום נוסף עד שהקבלה תופק — אנא פנה לתמיכה.',
+      );
+    }
+
     const plan = await this.planRepo.findOne({
       where: { id: dto.planId, isActive: true },
     });
@@ -295,7 +305,8 @@ export class BillingService {
       );
     }
 
-    return this.billingReceiptService.sendReceiptEmailForPaymentEvent(eventId);
+    const issuer = await this.billingIssuerConfigService.getKeepintaxIssuer();
+    return this.billingReceiptService.sendReceiptEmailForPaymentEvent(eventId, issuer.issuerName);
   }
 
   // ─── Helpers ─────────────────────────────────────────────────────────────────
