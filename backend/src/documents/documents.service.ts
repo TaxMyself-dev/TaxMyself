@@ -2019,6 +2019,37 @@ ${finalOwnerName}`;
    * returns it together with the document fields needed to compose an email.
    * Throws if the document has no file path (finalizeBillingReceipt not yet run).
    */
+  /**
+   * True when a billing-receipt document actually exists AND has a downloadable
+   * file path. Lets callers verify availability BEFORE calling
+   * getBillingReceiptPdf, so a missing/incomplete document is reported as a
+   * clean 404 instead of surfacing as an unhandled EntityNotFoundError.
+   */
+  async isBillingReceiptDownloadable(docId: number): Promise<boolean> {
+    const doc = await this.documentsRepo.findOne({
+      where: { id: docId },
+      select: ['id', 'file'],
+    });
+    return !!doc && !!doc.file && String(doc.file).trim() !== '';
+  }
+
+  /**
+   * Returns the subset of the given billing-receipt document ids that are
+   * actually downloadable — the Documents row exists AND has a non-empty file
+   * path. Used by the payment-history endpoint to report a truthful
+   * `receiptAvailable` without relying on exceptions for control flow.
+   */
+  async findDownloadableBillingReceiptDocIds(docIds: number[]): Promise<Set<number>> {
+    if (docIds.length === 0) return new Set<number>();
+    const docs = await this.documentsRepo.find({
+      where: { id: In(docIds) },
+      select: ['id', 'file'],
+    });
+    return new Set<number>(
+      docs.filter(d => !!d.file && String(d.file).trim() !== '').map(d => d.id),
+    );
+  }
+
   async getBillingReceiptPdf(docId: number): Promise<{
     buffer: Buffer;
     recipientEmail: string | null;
@@ -3337,9 +3368,12 @@ ${finalOwnerName}`;
   /**
    * Drop one or more user-picked files straight into the business's Drive
    * inbox/ folder — no OCR, no extracted_document row. Used by the
-   * settings-page "העלאת מסמכים ל-Drive" button, where the user just wants
-   * files sitting in Drive (e.g. for an accountant to browse, or to be
-   * picked up later by `processInboxForUser`).
+   * settings-page "העלאת מסמכים ל-Drive" button and the Home Quick Upload
+   * dialog, where the user just wants files sitting in Drive (e.g. for an
+   * accountant to browse, or to be picked up later by `processInboxForUser`).
+   *
+   * Only PDF / JPEG / PNG are accepted — both MIME type and file extension
+   * must match (defense in depth vs. the frontend accept/filter).
    */
   async uploadFilesToInbox(
     firebaseId: string,
@@ -3353,6 +3387,7 @@ ${finalOwnerName}`;
 
     const uploaded: { fileId: string; fileName: string }[] = [];
     for (const file of files) {
+      this.assertAllowedInboxUploadFile(file);
       const fileId = await this.googleDriveService.uploadFile(
         inboxFolderId,
         file.originalname,
@@ -3362,6 +3397,29 @@ ${finalOwnerName}`;
       uploaded.push({ fileId, fileName: file.originalname });
     }
     return uploaded;
+  }
+
+  /** Whitelist for direct inbox uploads (Home Quick Upload / Settings). */
+  private static readonly INBOX_UPLOAD_MIME_BY_EXT: Record<string, readonly string[]> = {
+    '.pdf': ['application/pdf'],
+    '.jpg': ['image/jpeg'],
+    '.jpeg': ['image/jpeg'],
+    '.png': ['image/png'],
+  };
+
+  private assertAllowedInboxUploadFile(file: {
+    originalname: string;
+    mimetype: string;
+  }): void {
+    const name = file.originalname?.trim() || '';
+    const ext = path.extname(name).toLowerCase();
+    const mime = (file.mimetype || '').toLowerCase().trim();
+    const allowedMimes = DocumentsService.INBOX_UPLOAD_MIME_BY_EXT[ext];
+    if (!allowedMimes || !mime || !allowedMimes.includes(mime)) {
+      throw new BadRequestException(
+        `Unsupported file type: "${name || 'unknown'}". Allowed: PDF, JPG, JPEG, PNG.`,
+      );
+    }
   }
 
   /**

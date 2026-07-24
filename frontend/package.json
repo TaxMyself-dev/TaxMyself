@@ -8,6 +8,7 @@
     "mobile": "ng serve --host 0.0.0.0 --port 4200 -o",
     "start": "ng serve -o",
     "build": "ng build",
+    "build:dev": "ng build --configuration dev",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
     "lint": "ng lint"
@@ -25,6 +26,7 @@
     "@angular/platform-browser": "^19.2.2",
     "@angular/platform-browser-dynamic": "^19.2.2",
     "@angular/router": "^19.2.2",
+    "@angular/service-worker": "^19.2.14",
     "@ionic/angular": "^7.7.3",
     "@ionic/core": "^7.7.3",
     "@primeng/themes": "^19.0.10",

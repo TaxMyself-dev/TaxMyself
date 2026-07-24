@@ -2,12 +2,29 @@ import { HttpService } from '@nestjs/axios';
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { firstValueFrom } from 'rxjs';
 
+/** LowProfile operations we use. ChargeAndCreateToken = paid checkout;
+ * CreateTokenOnly = replace saved card without charging. */
+export type CardcomLowProfileOperation = 'ChargeAndCreateToken' | 'CreateTokenOnly';
+
 export interface CardcomLowProfileInput {
-  firebaseId: string;
-  planId: number;
   subscriptionId: number;
   amountAgorot: number;
   planName: string;
+  /**
+   * Pre-built ReturnValue JSON, echoed back in the webhook + redirect. The
+   * caller owns the intent contract (CHECKOUT vs CHANGE_PM) so CardcomService
+   * stays agnostic of routing. Max 250 chars (CardCom limit).
+   */
+  returnValue: string;
+  /** Defaults to ChargeAndCreateToken (paid checkout). */
+  operation?: CardcomLowProfileOperation;
+  /**
+   * Token-creation validation type, placed under AdvancedDefinition:
+   *   2 = J2 (card validation only, NO charge / NO hold) — used by CreateTokenOnly.
+   *   5 = J5 (authorization hold for the passed amount).
+   * Omit for a normal charge.
+   */
+  jValidateType?: number;
   customerName?: string | null;
   customerEmail?: string | null;
   customerPhone?: string | null;
@@ -48,6 +65,26 @@ export interface CardcomTransactionInfo {
   [key: string]: any;
 }
 
+/**
+ * One row of the POST /api/v11/Transactions/GetTransactionInfoById response
+ * (schema: ExtShvaParams — the endpoint returns an ARRAY of these).
+ * Only the fields we consume are typed. Verified against the official CardCom
+ * OpenAPI spec v11 and the documented LowProfile token-creation example.
+ */
+export interface CardcomExtShvaParams {
+  /** Last 4 card digits, e.g. "0000" (the card's real last 4 — not a placeholder). */
+  CardNumber5?: string | number;
+  /** Card brand code: 0=PrivateCard 1=Mastercard 2=Visa 3=Maestro 5=Isracard (documented table). */
+  Mutag24?: string | number;
+  /** Card expiry as MMYY, e.g. "1024" = 10/2024. */
+  Tokef30?: string;
+  /** Human-readable card name, e.g. "ויזה רגיל". */
+  CardName?: string;
+  CardToken?: string;
+  InternalDealNumber?: number;
+  [key: string]: any;
+}
+
 export class CardcomApiError extends Error {
   constructor(
     message: string,
@@ -81,16 +118,19 @@ export class CardcomService implements OnModuleInit {
     'https://secure.cardcom.solutions/api/v11/LowProfile/Create';
   private static readonly DEFAULT_TRANSACTION_URL =
     'https://secure.cardcom.solutions/api/v11/Transactions/Transaction';
+  private static readonly DEFAULT_TRANSACTION_INFO_URL =
+    'https://secure.cardcom.solutions/api/v11/Transactions/GetTransactionInfoById';
 
   private terminalNumber!: string;
   private apiName!: string;
-  /** Stored for Refund/Documents endpoints — never sent to LowProfile/Create. */
+  /** Used by GetTransactionInfoById (UserPassword) — never sent to LowProfile/Create. */
   private apiPassword!: string;
   private createUrl!: string;
   private successUrl!: string;
   private failedUrl!: string;
   private webhookUrl!: string;
   private transactionUrl!: string;
+  private transactionInfoUrl!: string;
 
   constructor(private readonly http: HttpService) {}
 
@@ -129,6 +169,7 @@ export class CardcomService implements OnModuleInit {
     this.webhookUrl = `${required.CARDCOM_WEBHOOK_BASE_URL!.replace(/\/+$/, '')}/billing/cardcom/webhook`;
     this.createUrl = CardcomService.DEFAULT_CREATE_URL;
     this.transactionUrl = CardcomService.DEFAULT_TRANSACTION_URL;
+    this.transactionInfoUrl = CardcomService.DEFAULT_TRANSACTION_INFO_URL;
 
     this.logger.log(
       `CardCom configured: terminal=***${this.terminalNumber.slice(-4)} ` +
@@ -145,6 +186,8 @@ export class CardcomService implements OnModuleInit {
     // Fix 3: TerminalNumber is typed as integer in the CreateLowProfile schema.
     const terminalNumberInt = parseInt(this.terminalNumber, 10);
 
+    const operation: CardcomLowProfileOperation = input.operation ?? 'ChargeAndCreateToken';
+
     const payload: Record<string, any> = {
       // ── Required fields ────────────────────────────────────────────────────
       TerminalNumber: terminalNumberInt,
@@ -159,16 +202,27 @@ export class CardcomService implements OnModuleInit {
 
       // ── Optional top-level fields ──────────────────────────────────────────
       ProductName: input.planName,
-      // ReturnValue is echoed back in webhook + redirect URLs.
-      // Contains the routing context needed to activate the subscription without a session table.
-      ReturnValue: JSON.stringify({ firebaseId: input.firebaseId, planId: input.planId, subscriptionId: input.subscriptionId }),
+      // ReturnValue is echoed back in webhook + redirect URLs. The caller builds
+      // it with an explicit intent (CHECKOUT / CHANGE_PM) so the webhook can route.
+      ReturnValue: input.returnValue,
       // Fix 4: ISOCoinId is the documented field name (not CoinID). 1 = ILS.
       ISOCoinId: 1,
       // Fix 5: Operation enum replaces non-existent TokenizationMode.
-      // ChargeAndCreateToken charges the card and returns a token for recurring billing.
-      Operation: 'ChargeAndCreateToken',
+      //   ChargeAndCreateToken → charges the card and returns a token (checkout).
+      //   CreateTokenOnly      → saves a token WITHOUT charging (change-payment-method).
+      Operation: operation,
     };
-    console.log("🚀 ~ CardcomService ~ createLowProfileCheckout ~ payload:", payload)
+
+    // JValidateType lives inside AdvancedDefinition (verified against the v11
+    // Swagger: AdvancedLPDefinition.JValidateType; CreateLowProfile is
+    // additionalProperties:false — placing it top-level would 400).
+    // IMPORTANT: the Swagger default is 5 (J5 = authorization HOLD for Amount).
+    // For change-payment-method we send 2 (J2 = simple card validation) so the
+    // card is validated WITHOUT any charge or hold. Must be sent explicitly —
+    // omitting it would fall back to J5 and place a hold.
+    if (input.jValidateType != null) {
+      payload['AdvancedDefinition'] = { JValidateType: input.jValidateType };
+    }
     
 
     // Fix 7: Customer fields are not top-level. They go inside UIDefinition.
@@ -182,7 +236,7 @@ export class CardcomService implements OnModuleInit {
 
     // Log safe fields only — credentials and customer PII never appear here.
     this.logger.log(
-      `CardCom LowProfile/Create → subscriptionId=${input.subscriptionId} planId=${input.planId} ` +
+      `CardCom LowProfile/Create → subscriptionId=${input.subscriptionId} operation=${operation} ` +
         `amount=${amountNis} NIS terminal=***${this.terminalNumber.slice(-4)}`,
     );
 
@@ -348,6 +402,53 @@ export class CardcomService implements OnModuleInit {
     );
 
     return rawResponse as CardcomTransactionInfo;
+  }
+
+  /**
+   * Calls CardCom Transactions/GetTransactionInfoById to fetch the raw SHVA
+   * parameters of a transaction. Used to complete card details (last4 / brand /
+   * expiry) after a CreateTokenOnly (J2) validation when the LowProfile result
+   * carries no TranzactionInfo — the v11 spec only guarantees TranzactionInfo
+   * for ChargeOnly / ChargeAndCreateToken.
+   *
+   * Request schema (TransactionInfoRequest): TerminalNumber, UserName,
+   * UserPassword, InternalDealNumber — this endpoint DOES require ApiPassword
+   * (as UserPassword), unlike LowProfile/Create. Response: array of ExtShvaParams.
+   *
+   * Never logs credentials.
+   */
+  async getTransactionInfoById(tranzactionId: number): Promise<CardcomExtShvaParams[]> {
+    const payload = {
+      TerminalNumber: parseInt(this.terminalNumber, 10),
+      UserName: this.apiName,
+      UserPassword: this.apiPassword,
+      InternalDealNumber: tranzactionId,
+    };
+
+    this.logger.log(`CardCom GetTransactionInfoById → tranzactionId=${tranzactionId}`);
+
+    try {
+      const response = await firstValueFrom(
+        this.http.post<CardcomExtShvaParams[] | CardcomExtShvaParams>(
+          this.transactionInfoUrl,
+          payload,
+          {
+            headers: { 'Content-Type': 'application/json' },
+            timeout: 30_000,
+          },
+        ),
+      );
+      const data = response.data;
+      return Array.isArray(data) ? data : data != null ? [data] : [];
+    } catch (err: any) {
+      const detail: string = err?.response?.data
+        ? JSON.stringify(err.response.data).slice(0, 500)
+        : (err?.message ?? 'HTTP request failed');
+      this.logger.error(
+        `CardCom GetTransactionInfoById HTTP error for tranzactionId=${tranzactionId}: ${detail}`,
+      );
+      throw new CardcomApiError(`CardCom GetTransactionInfoById failed: ${detail}`);
+    }
   }
 
   /**

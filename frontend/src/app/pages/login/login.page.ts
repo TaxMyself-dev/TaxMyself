@@ -13,6 +13,9 @@ import { ButtonClass } from 'src/app/shared/button/button.enum';
 import { MessageService } from 'primeng/api';
 import { Location } from '@angular/common';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { NetworkStatusService } from 'src/app/services/pwa/network-status.service';
+import { RoutePersistenceService } from 'src/app/services/route-persistence.service';
+import { StartupService } from 'src/app/services/startup.service';
 
 
 @Component({
@@ -44,6 +47,9 @@ export class LoginPage implements OnInit {
   resendCountdown = signal(0);
   isVerificationButtonDisabled = computed(() => this.resendCountdown() > 0);
   private destroyRef = inject(DestroyRef);
+  private readonly network = inject(NetworkStatusService);
+  private readonly routePersistence = inject(RoutePersistenceService);
+  private readonly startup = inject(StartupService);
 
   constructor(
     private location: Location,
@@ -76,6 +82,44 @@ export class LoginPage implements OnInit {
 
   ngOnInit() {
     this.getStateData();
+    void this.redirectIfAlreadyAuthenticated();
+  }
+
+  /**
+   * Auto-enter the app only when online with a restored Firebase session and
+   * cached profile. Offline: stay on login even if Firebase restored a cached
+   * user — do not sign them out, and do not follow a later auth emission into
+   * the protected app.
+   */
+  private async redirectIfAlreadyAuthenticated(): Promise<void> {
+    await this.startup.whenReady();
+
+    if (!this.network.isBrowserOnline()) {
+      return;
+    }
+    if (!this.authService.isLoggedIn) {
+      return;
+    }
+    if (!this.authService.getUserDataFromLocalStorage()) {
+      return;
+    }
+    // Navigated here deliberately (e.g. straight after registering)? Stay put.
+    if (this.showModal()) {
+      return;
+    }
+    await this.router.navigateByUrl(this.routePersistence.getPostLoginUrl(), {
+      replaceUrl: true,
+    });
+  }
+
+  /** Block Firebase login while offline; reuse the existing error slot. */
+  private blockIfOffline(): boolean {
+    if (this.network.isBrowserOnline()) {
+      return false;
+    }
+    this.authService.error.set('offline');
+    this.isLoading.set(false);
+    return true;
   }
 
 
@@ -111,6 +155,9 @@ export class LoginPage implements OnInit {
 
 
   login(): void {
+    if (this.blockIfOffline()) {
+      return;
+    }
 
     this.isLoading.set(true);
     this.authService.error.set(null);
@@ -153,8 +200,9 @@ export class LoginPage implements OnInit {
         }),
 
       // 3️⃣ Save user data
+      // Firebase's restored session is the auth authority (see
+      // AuthService.isLoggedIn); userData is cached UI profile data only.
       tap((res: any) => {
-        sessionStorage.setItem('isLoggedIn', 'true');
         localStorage.setItem('userData', JSON.stringify(res));
       }),
 
@@ -163,9 +211,9 @@ export class LoginPage implements OnInit {
           from(this.genericService.loadBusinessesFromServer())
         ),
 
-      // 5️⃣ After businesses loaded → navigate
+      // 5️⃣ After businesses loaded → navigate (restored route or /my-account)
       tap(() => {
-        this.router.navigate(['my-account']);
+        void this.router.navigateByUrl(this.routePersistence.getPostLoginUrl());
       }),
 
         finalize(() => this.isLoading.set(false))
@@ -286,6 +334,10 @@ export class LoginPage implements OnInit {
 
 
   async googleSignIn(): Promise<void> {
+    if (this.blockIfOffline()) {
+      return;
+    }
+
     this.isLoading.set(true);
     this.authService.error.set(null);
     try {
@@ -304,10 +356,9 @@ export class LoginPage implements OnInit {
         });
         return;
       }
-      sessionStorage.setItem('isLoggedIn', 'true');
       localStorage.setItem('userData', JSON.stringify(userData));
       await this.genericService.loadBusinessesFromServer();
-      this.router.navigate(['my-account']);
+      await this.router.navigateByUrl(this.routePersistence.getPostLoginUrl());
     } catch (err: any) {
       console.error('❌ Google sign-in error code:', err?.code, err);
       switch (err?.code) {

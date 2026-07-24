@@ -1,0 +1,315 @@
+// ─── Design tokens (local) ──────────────────────────────────────────────────
+$accent: #b8912f;
+$accent-soft-bg: #fdf5e0;
+$accent-soft-border: #f5e6bb;
+$ink: #1a1a1a;
+$ink-muted: #667085;
+$border: #e9eaee;
+$border-soft: #f2f2f2;
+
+:host {
+  display: block;
+  width: 100%;
+}
+
+.subscription-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+}
+
+.sub-card {
+  background: #fff;
+  border: 1px solid $border;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 4px 16px rgba(16, 24, 40, 0.04);
+}
+
+// ─── Section header (icon + title) ──────────────────────────────────────────
+
+.subsection-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.subsection-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: $accent-soft-bg;
+  border: 1px solid $accent-soft-border;
+
+  i {
+    font-size: 15px;
+    color: $accent;
+  }
+}
+
+.subsection-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: $ink;
+}
+
+// ─── Loading / empty states ─────────────────────────────────────────────────
+
+.card-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: $ink-muted;
+  font-size: 14px;
+
+  i {
+    font-size: 15px;
+    color: $accent;
+  }
+}
+
+.pm-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 28px 16px;
+  border: 1px dashed $border;
+  border-radius: 14px;
+  background: #fafafb;
+  text-align: center;
+}
+
+.pm-empty-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #f2f3f5;
+
+  i {
+    font-size: 19px;
+    color: #98a2b3;
+  }
+}
+
+.pm-empty-text {
+  margin: 0;
+  color: $ink-muted;
+  font-size: 14px;
+}
+
+// ─── Status card ────────────────────────────────────────────────────────────
+
+.status-grid {
+  display: flex;
+  flex-direction: column;
+}
+
+.status-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid $border-soft;
+
+  &:first-child {
+    padding-top: 0;
+  }
+
+  &:last-child {
+    padding-bottom: 0;
+    border-bottom: none;
+  }
+
+  .label {
+    color: $ink-muted;
+    font-size: 14px;
+  }
+
+  .value {
+    font-weight: 600;
+    color: $ink;
+    font-size: 15px;
+    text-align: end;
+  }
+}
+
+.discount-value {
+  color: #1a7f37;
+}
+
+.discount-range {
+  color: #98a2b3;
+  font-weight: 400;
+  font-size: 13px;
+  margin-inline-start: 6px;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  background: #eee;
+  color: #444;
+
+  // Leading status dot.
+  &::before {
+    content: '';
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+
+  &.status-ACTIVE {
+    background: #e6f4ea;
+    color: #1a7f37;
+  }
+
+  &.status-TRIAL {
+    background: #e8f0fe;
+    color: #1a56db;
+  }
+
+  &.status-PAST_DUE {
+    background: #fdecea;
+    color: #c0392b;
+  }
+
+  &.status-CANCELED,
+  &.status-TRIAL_EXPIRED {
+    background: #f2f2f2;
+    color: #777;
+  }
+}
+
+// ─── Payment-method visual card ─────────────────────────────────────────────
+
+.credit-card {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  max-width: 340px;
+  aspect-ratio: 1.586;
+  border-radius: 18px;
+  padding: 22px;
+  color: #fff;
+  background: linear-gradient(135deg, #1f2337 0%, #2b2d42 45%, #4a4e69 100%);
+  box-shadow:
+    0 12px 28px rgba(31, 35, 55, 0.28),
+    0 2px 6px rgba(31, 35, 55, 0.18);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+
+  // Soft diagonal sheen — gives the flat gradient some depth.
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(120% 90% at 85% -10%, rgba(255, 255, 255, 0.14) 0%, transparent 55%);
+    pointer-events: none;
+  }
+}
+
+.cc-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.cc-chip {
+  position: relative;
+  width: 42px;
+  height: 30px;
+  border-radius: 6px;
+  background: linear-gradient(135deg, #e8cd7f, #b8912f);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25);
+
+  // Chip contact lines.
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 6px 8px;
+    border: 1px solid rgba(90, 66, 12, 0.45);
+    border-radius: 3px;
+  }
+}
+
+.cc-brand {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  opacity: 0.95;
+}
+
+.cc-number {
+  font-size: 21px;
+  letter-spacing: 3px;
+  font-family: 'Courier New', monospace;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+
+.cc-bottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 16px;
+}
+
+.cc-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.cc-field-label {
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  opacity: 0.65;
+}
+
+.cc-field-value {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.cc-expiry {
+  text-align: left;
+}
+
+.card-actions {
+  margin-top: 20px;
+  display: flex;
+  justify-content: flex-start;
+}
+
+@media (max-width: 768px) {
+  .sub-card {
+    padding: 18px;
+  }
+
+  .credit-card {
+    max-width: 100%;
+  }
+}

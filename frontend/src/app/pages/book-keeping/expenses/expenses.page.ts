@@ -405,6 +405,7 @@ export class ExpensesPage implements OnInit {
       closable: true,
       dismissableMask: true,
       modal: true,
+      focusOnShow: false,
       data: { editMode: true, expense: row }
     });
     ref.onClose.subscribe((result) => {

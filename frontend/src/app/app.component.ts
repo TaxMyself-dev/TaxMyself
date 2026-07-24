@@ -1,4 +1,4 @@
-import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, effect, inject, OnInit, signal } from '@angular/core';
 import { ActivatedRoute, Router, NavigationEnd, NavigationError } from '@angular/router';
 import { IColumnDataTable, IRowDataTable, IUserData } from './shared/interface';
 import { Location } from '@angular/common';
@@ -9,12 +9,16 @@ import { ExpenseDataService } from './services/expense-data.service';
 import { ModalExpensesComponent } from './shared/modal-add-expenses/modal.component';
 import { ExpenseFormColumns, ExpenseFormHebrewColumns } from './shared/enums';
 import { catchError, EMPTY, finalize, from, map, Observable, Subject, switchMap } from 'rxjs';
-import { filter, pairwise, takeUntil } from 'rxjs/operators';
+import { filter, pairwise, take, takeUntil } from 'rxjs/operators';
 import { MessageService } from 'primeng/api';
 import { GenericService } from './services/generic.service';
 import { BillingStateService, BILLING_BLOCKING_STATUSES } from './services/billing-state.service';
 import { AccessService } from './services/access.service';
 import { AppFeature } from './shared/access-control';
+import { NetworkStatusService } from './services/pwa/network-status.service';
+import { AppRefreshService } from './services/pwa/app-refresh.service';
+import { StartupService } from './services/startup.service';
+import { RoutePersistenceService } from './services/route-persistence.service';
 
 
 
@@ -30,6 +34,12 @@ export class AppComponent implements OnInit {
   protected genericService = inject(GenericService);
   protected billingStateService = inject(BillingStateService);
   private readonly accessService = inject(AccessService);
+  private readonly networkStatus = inject(NetworkStatusService);
+  private readonly appRefresh = inject(AppRefreshService);
+  /** Eagerly construct the cold-start gate so the global loader is on immediately. */
+  private readonly startup = inject(StartupService);
+  /** Eagerly construct so NavigationEnd persistence is active for the session. */
+  private readonly routePersistence = inject(RoutePersistenceService);
 
   // Tracks the settled URL after each navigation — drives billing dialog visibility.
   private readonly currentUrl = signal<string>('');
@@ -140,8 +150,45 @@ export class AppComponent implements OnInit {
     public authService: AuthService,
     private messageService: MessageService,
     private clientPanelService: ClientPanelService,
-  ) {}
+  ) {
+    this.recoverOnReconnect();
+    this.releaseStartupLoaderAfterFirstNavigation();
+  }
   showTopNav = signal(true);
+
+  /**
+   * When connectivity returns, re-fetch shared state so the app stops showing
+   * whatever failed to load during the outage.
+   *
+   * Only the allow-listed idempotent GETs in AppRefreshService run — no failed
+   * request is replayed and no mutation is ever repeated. `reconnectedAt`
+   * changes once per outage, so this fires once, not on every network event.
+   */
+  private recoverOnReconnect(): void {
+    effect(() => {
+      const reconnectedAt = this.networkStatus.reconnectedAt();
+      if (reconnectedAt === 0) {
+        return; // Initial value — no outage has ended yet.
+      }
+      void this.appRefresh.refreshSharedState();
+    });
+  }
+
+  /**
+   * Keep the existing global loader up through auth init + the first settled
+   * navigation, then release it once. Subscribed in the constructor so the
+   * first NavigationEnd cannot be missed.
+   */
+  private releaseStartupLoaderAfterFirstNavigation(): void {
+    this.router.events
+      .pipe(
+        filter((e): e is NavigationEnd => e instanceof NavigationEnd),
+        take(1),
+      )
+      .subscribe(() => {
+        void this.startup.whenReady().then(() => this.startup.releaseStartupLoader());
+      });
+  }
 
   ngOnInit() {
     this.currentUrl.set(this.router.url);

@@ -13,19 +13,35 @@
   <meta name="msapplication-tap-highlight" content="no" />
   <meta name="google" content="notranslate" />
 
-  <!-- <link rel="icon" type="image/png" href="assets/icon/favicon.png" /> -->
-  <link rel="icon" type="image/svg" href="assets/logo.svg" />
-  <link href="https://fonts.googleapis.com/earlyaccess/opensanshebrew.css" rel="stylesheet">
+  <!-- PWA: installable web app manifest + theme -->
+  <link rel="manifest" href="manifest.webmanifest" />
+  <meta name="theme-color" content="#FFFFFF" />
 
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  
+  <!-- Favicons: high-quality SVG mark with PNG fallbacks -->
+  <link rel="icon" type="image/svg+xml" href="assets/logo.svg" />
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/pwa-icons/favicon-32x32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="assets/pwa-icons/favicon-16x16.png" />
+
+  <!--
+    No external font stylesheets on purpose. They were render-blocking, which
+    kept an offline cold start stuck on the splash screen until each request
+    timed out (the service worker cannot cache cross-origin `files` globs).
+    Removing them is visually a no-op:
+      - 'Simpler'          — the actual UI font, self-hosted in global.scss.
+      - 'Open Sans Hebrew' — Google's /earlyaccess/ CSS still returns 200 but
+                             every font binary it references now 404s, so this
+                             family has not resolved for a long time.
+      - 'Inter', Material Icons — zero references anywhere in the frontend.
+      - 'Roboto'           — only a mid-chain fallback behind 'Simpler'; it is
+                             a system font on Android and falls through to
+                             Arial/Helvetica elsewhere.
+  -->
+
   <!-- add to homescreen for ios -->
   <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black" />
-  <link rel="preconnect" href="https://fonts.gstatic.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
-  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  <meta name="apple-mobile-web-app-title" content="Keepintax" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <link rel="apple-touch-icon" href="assets/pwa-icons/apple-touch-icon-180x180.png" />
 </head>
 
 <body class="mat-typography">

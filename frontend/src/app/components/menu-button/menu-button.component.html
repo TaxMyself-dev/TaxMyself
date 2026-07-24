@@ -1,7 +1,9 @@
 <div cdkOverlayOrigin #trigger="cdkOverlayOrigin" class="menu-button__trigger">
   <app-p-button
-    [iconOnly]="true"
+    [iconOnly]="isIconOnly()"
     [icon]="icon()"
+    [iconPosition]="iconPosition()"
+    [buttonText]="buttonText() ?? ariaLabel()"
     [buttonSize]="buttonSize()"
     [buttonColor]="buttonColor()"
     [variant]="variant()"

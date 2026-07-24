@@ -1,5 +1,4 @@
 import { CommonModule } from '@angular/common';
-import { environment } from 'src/environments/environment';
 import { Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -18,7 +17,11 @@ import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 import { ClassifyTranComponent } from 'src/app/components/classify-tran/classify-tran.component';
 import { DashboardNavigateComponent } from 'src/app/components/dashboard-navigate/dashboard-navigate.component';
 import { GenericTableComponent } from 'src/app/components/generic-table/generic-table.component';
+import { ConnectedPosition } from '@angular/cdk/overlay';
 import { MannualExpenseComponent } from 'src/app/components/mannual-expense/mannual-expense.component';
+import { MenuButtonComponent } from 'src/app/components/menu-button/menu-button.component';
+import { MenuButtonItem } from 'src/app/components/menu-button/menu-button.model';
+import { QuickUploadDriveDialogComponent } from 'src/app/components/quick-upload-drive-dialog/quick-upload-drive-dialog.component';
 import { AuthService } from 'src/app/services/auth.service';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { GenericService } from 'src/app/services/generic.service';
@@ -50,6 +53,7 @@ import { AppFeature } from 'src/app/shared/access-control';
     AvatarModule,
     AvatarGroupModule,
     ButtonComponent,
+    MenuButtonComponent,
     GenericTableComponent,
     AccountAssociationDialogComponent,
     AddBillComponent,
@@ -109,7 +113,6 @@ export class MyAccountPage implements OnInit {
   // mobileMenuOpen = signal<boolean>(false);
   isLoadingFeezback = signal<boolean>(false);
   isLoadingUserAccounts = signal<boolean>(false);
-  isProd = signal<boolean>(environment.production);
   /** Spinner state for the dashboard's "אפס נתוני בדיקה" button (demo users only). */
   isResettingDemo = signal<boolean>(false);
 
@@ -179,6 +182,13 @@ export class MyAccountPage implements OnInit {
   readonly resendingReceiptEmail = signal(false);
   readonly retryingInvoice = signal(false);
   private readonly cardcomRedirectFailure = signal<{ responseCode: string | null; status: string | null } | null>(null);
+  /**
+   * Which CardCom flow the current return belongs to. Set from a sessionStorage
+   * marker written before redirect (change-payment-method sets 'CHANGE_PM';
+   * checkout leaves it unset → 'CHECKOUT'). Drives which banner is shown, since
+   * both flows share the same success/failed redirect URL.
+   */
+  private readonly cardcomFlow = signal<'CHECKOUT' | 'CHANGE_PM'>('CHECKOUT');
   private paymentReturnDetectedAt = 0;
   private paymentPollAttempts = 0;
   /**
@@ -215,6 +225,8 @@ export class MyAccountPage implements OnInit {
     | null
   >(() => {
     if (!this.cardcomReturnDetected() || this.paymentBannerDismissed()) return null;
+    // Change-payment-method returns are handled by paymentMethodResultBanner.
+    if (this.cardcomFlow() === 'CHANGE_PM') return null;
 
     const redirectFailure = this.cardcomRedirectFailure();
     if (redirectFailure) {
@@ -276,6 +288,56 @@ export class MyAccountPage implements OnInit {
     }
 
     return processingState;
+  });
+
+  /**
+   * Banner shown after returning from a change-payment-method (CreateTokenOnly)
+   * flow. Never involves a charge/receipt — it only confirms the saved card was
+   * replaced. Driven by billing/me's paymentMethodUpdateResult.
+   */
+  readonly paymentMethodResultBanner = computed<
+    | { kind: 'success'; message: string }
+    | { kind: 'failed'; message: string; detail?: string }
+    | { kind: 'unknown'; message: string }
+    | { kind: 'processing'; message: string }
+    | null
+  >(() => {
+    if (!this.cardcomReturnDetected() || this.paymentBannerDismissed()) return null;
+    if (this.cardcomFlow() !== 'CHANGE_PM') return null;
+
+    const redirectFailure = this.cardcomRedirectFailure();
+    if (redirectFailure) {
+      return {
+        kind: 'failed',
+        message: 'החלפת אמצעי התשלום נכשלה',
+        detail: redirectFailure.responseCode ? `קוד שגיאה: ${redirectFailure.responseCode}` : undefined,
+      };
+    }
+
+    const result = this.billingStateService.paymentMethodUpdateResult();
+    const isFresh =
+      !!result &&
+      new Date(result.createdAt).getTime() >= this.paymentReturnDetectedAt - this.PAYMENT_FRESHNESS_WINDOW_MS;
+
+    if (isFresh && result) {
+      if (result.status === 'SUCCESS') {
+        const cardLabel = result.last4 ? ` (מסתיים ב-${result.last4})` : '';
+        return { kind: 'success', message: `אמצעי התשלום עודכן בהצלחה${cardLabel}.` };
+      }
+      return { kind: 'failed', message: 'החלפת אמצעי התשלום נכשלה', detail: result.failureReason ?? undefined };
+    }
+
+    // No charge occurs in this flow, so a lost webhook is low-risk — show a calm
+    // "still processing" message that resolves to an informational note on timeout.
+    if (this.paymentTimedOut()) {
+      return {
+        kind: 'unknown',
+        message:
+          'לא הצלחנו לאשר את עדכון אמצעי התשלום באופן אוטומטי.\n' +
+          'ייתכן שהעדכון עדיין מתבצע — רענן/י את העמוד בעוד מספר דקות.',
+      };
+    }
+    return { kind: 'processing', message: 'מעדכנים את אמצעי התשלום שלך...' };
   });
 
 
@@ -514,6 +576,13 @@ export class MyAccountPage implements OnInit {
     this.paymentBannerDismissed.set(false);
     this.paymentReturnDetectedAt = Date.now();
 
+    // Which flow are we returning from? Set before redirect (change-payment-method
+    // writes 'CHANGE_PM'; checkout leaves it unset). Consume the one-shot marker.
+    const flowMarker =
+      typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('tm.cardcomFlow') : null;
+    this.cardcomFlow.set(flowMarker === 'CHANGE_PM' ? 'CHANGE_PM' : 'CHECKOUT');
+    if (typeof sessionStorage !== 'undefined') sessionStorage.removeItem('tm.cardcomFlow');
+
     // CardCom convention: ResponseCode/Status === '0' means success.
     const redirectIndicatesFailure =
       (responseCode != null && responseCode !== '0') || (status != null && status !== '0');
@@ -555,6 +624,30 @@ export class MyAccountPage implements OnInit {
   }
 
   private pollPaymentResultTick(): void {
+    // Change-payment-method flow: resolve on a fresh paymentMethodUpdateResult.
+    if (this.cardcomFlow() === 'CHANGE_PM') {
+      const pm = this.billingStateService.paymentMethodUpdateResult();
+      const pmFresh =
+        !!pm &&
+        new Date(pm.createdAt).getTime() >= this.paymentReturnDetectedAt - this.PAYMENT_FRESHNESS_WINDOW_MS;
+
+      if (pmFresh || this.paymentPollAttempts >= this.PAYMENT_POLL_MAX_ATTEMPTS) {
+        this.paymentPolling.set(false);
+        if (this.paymentTimeoutHandle) {
+          clearTimeout(this.paymentTimeoutHandle);
+          this.paymentTimeoutHandle = null;
+        }
+        return;
+      }
+
+      this.paymentPolling.set(true);
+      this.paymentPollAttempts++;
+      setTimeout(() => {
+        this.billingStateService.refreshBillingState().finally(() => this.pollPaymentResultTick());
+      }, this.PAYMENT_POLL_INTERVAL_MS);
+      return;
+    }
+
     const result = this.billingStateService.billingPaymentResult();
     const isFresh =
       !!result &&
@@ -1259,6 +1352,30 @@ export class MyAccountPage implements OnInit {
     });
   }
 
+  /** Home CTA menu: Manual Expense + Quick Upload to Drive. */
+  readonly addExpenseMenuItems = computed<MenuButtonItem[]>(() => [
+    {
+      type: 'action',
+      id: 'manual-expense',
+      label: 'הוצאה ידנית',
+      icon: 'pi pi-pencil',
+      action: () => this.openMannualExpenses(),
+    },
+    {
+      type: 'action',
+      id: 'quick-upload',
+      label: 'העלאה מהירה ל-Drive',
+      icon: 'pi pi-cloud-upload',
+      action: () => this.openQuickUploadToDrive(),
+    },
+  ]);
+
+  readonly addExpenseMenuPositions: ConnectedPosition[] = [
+    { originX: 'start', originY: 'bottom', overlayX: 'start', overlayY: 'top', offsetY: 8 },
+    { originX: 'end', originY: 'bottom', overlayX: 'end', overlayY: 'top', offsetY: 8 },
+    { originX: 'start', originY: 'top', overlayX: 'start', overlayY: 'bottom', offsetY: -8 },
+  ];
+
   openMannualExpenses(): void {
     const result = this.accessHandlerService.handleFeatureAccess(AppFeature.ADD_EXPENSE_BUTTON);
     if (!result.allowed) return;
@@ -1270,6 +1387,34 @@ export class MyAccountPage implements OnInit {
       closable: true,
       dismissableMask: true,
       modal: true,
+      // Prevent DynamicDialog from focusing the first field on open — that
+      // focus was opening the datepicker overlay via showOnFocus=true.
+      focusOnShow: false,
+    });
+  }
+
+  openQuickUploadToDrive(): void {
+    const result = this.accessHandlerService.handleFeatureAccess(AppFeature.ADD_EXPENSE_BUTTON);
+    if (!result.allowed) return;
+    if (!this.genericService.businessSelectItems().length) {
+      this.messageService.add({
+        severity: 'warn',
+        summary: 'אין עסק',
+        detail: 'יש להגדיר עסק לפני העלאת מסמכים ל-Drive.',
+        life: 3500,
+        key: 'br',
+      });
+      return;
+    }
+    this.dialogService.open(QuickUploadDriveDialogComponent, {
+      header: 'העלאה מהירה ל-Drive',
+      width: '480px',
+      style: { maxWidth: '95vw' },
+      rtl: true,
+      closable: true,
+      dismissableMask: true,
+      modal: true,
+      focusOnShow: false,
     });
   }
 }

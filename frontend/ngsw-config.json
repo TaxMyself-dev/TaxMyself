@@ -1,0 +1,46 @@
+{
+  "$schema": "./node_modules/@angular/service-worker/config/schema.json",
+  "index": "/index.html",
+  "assetGroups": [
+    {
+      "name": "app-shell",
+      "installMode": "prefetch",
+      "updateMode": "prefetch",
+      "resources": {
+        "files": [
+          "/index.html",
+          "/manifest.webmanifest",
+          "/favicon.ico",
+          "/runtime.*.js",
+          "/polyfills.*.js",
+          "/main.*.js",
+          "/vendor.*.js",
+          "/scripts.*.js",
+          "/*.css"
+        ]
+      }
+    },
+    {
+      "name": "lazy-chunks",
+      "installMode": "lazy",
+      "updateMode": "prefetch",
+      "resources": {
+        "files": [
+          "/*.js"
+        ]
+      }
+    },
+    {
+      "name": "static-assets",
+      "installMode": "lazy",
+      "updateMode": "prefetch",
+      "resources": {
+        "files": [
+          "/assets/**",
+          "/svg/**",
+          "/*.(png|jpg|jpeg|webp|gif|ico|svg|otf|ttf|woff|woff2|eot)"
+        ]
+      }
+    }
+  ]
+}
