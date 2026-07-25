@@ -70,17 +70,22 @@
                   @for (source of syncSourceResults(); track source.type + '_' + source.sourceId + '_' + source.status) {
                     <div class="source-result-item"
                          [class.source-result-item--success]="source.status === 'success'"
-                         [class.source-result-item--failed]="source.status === 'failed'">
+                         [class.source-result-item--failed]="source.status === 'failed'"
+                         [class.source-result-item--skipped]="source.status === 'skipped_direct'">
                       <i class="pi"
                          [class.pi-check-circle]="source.status === 'success'"
                          [class.pi-times-circle]="source.status === 'failed'"
-                         [class.pi-clock]="source.status === 'not_synced'">
+                         [class.pi-clock]="source.status === 'not_synced'"
+                         [class.pi-info-circle]="source.status === 'skipped_direct'">
                       </i>
                       <span class="source-result-item__name">
                         {{ source.sourceId }}
                       </span>
                       @if (source.status === 'success') {
                         <span class="source-result-item__count">{{ source.transactionCount }} תנועות</span>
+                      }
+                      @if (source.status === 'skipped_direct') {
+                        <span class="source-result-item__direct-note">כרטיס דיירקט — התנועות נמשכות דרך חשבון הבנק</span>
                       }
                       @if (source.status === 'failed' && source.consentId) {
                         <app-p-button
@@ -124,17 +129,22 @@
                   @for (source of syncSourceResults(); track source.type + '_' + source.sourceId + '_' + source.status) {
                     <div class="source-result-item"
                          [class.source-result-item--success]="source.status === 'success'"
-                         [class.source-result-item--failed]="source.status === 'failed'">
+                         [class.source-result-item--failed]="source.status === 'failed'"
+                         [class.source-result-item--skipped]="source.status === 'skipped_direct'">
                       <i class="pi"
                          [class.pi-check-circle]="source.status === 'success'"
                          [class.pi-times-circle]="source.status === 'failed'"
-                         [class.pi-clock]="source.status === 'not_synced'">
+                         [class.pi-clock]="source.status === 'not_synced'"
+                         [class.pi-info-circle]="source.status === 'skipped_direct'">
                       </i>
                       <span class="source-result-item__name">
                         {{ source.sourceId }}
                       </span>
                       @if (source.status === 'success') {
                         <span class="source-result-item__count">{{ source.transactionCount }} תנועות</span>
+                      }
+                      @if (source.status === 'skipped_direct') {
+                        <span class="source-result-item__direct-note">כרטיס דיירקט — התנועות נמשכות דרך חשבון הבנק</span>
                       }
                       @if (source.status === 'failed' && source.consentId && !dialogAllSyncFailed()) {
                         <app-p-button
@@ -468,15 +478,20 @@
       @for (source of syncSourceResults(); track source.sourceId) {
         <div class="source-result-item"
              [class.source-result-item--success]="source.status === 'success'"
-             [class.source-result-item--failed]="source.status === 'failed'">
+             [class.source-result-item--failed]="source.status === 'failed'"
+             [class.source-result-item--skipped]="source.status === 'skipped_direct'">
           <i class="pi"
              [class.pi-check-circle]="source.status === 'success'"
              [class.pi-times-circle]="source.status === 'failed'"
-             [class.pi-clock]="source.status === 'not_synced'">
+             [class.pi-clock]="source.status === 'not_synced'"
+             [class.pi-info-circle]="source.status === 'skipped_direct'">
           </i>
           <span class="source-result-item__name">{{ source.sourceId }}</span>
           @if (source.status === 'success') {
             <span class="source-result-item__count">{{ source.transactionCount }} תנועות</span>
+          }
+          @if (source.status === 'skipped_direct') {
+            <span class="source-result-item__direct-note">כרטיס דיירקט — התנועות נמשכות דרך חשבון הבנק</span>
           }
           @if (source.status === 'failed' && source.consentId) {
             <app-p-button

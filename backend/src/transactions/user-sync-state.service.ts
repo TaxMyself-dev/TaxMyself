@@ -104,10 +104,16 @@ export class UserSyncStateService {
    * Registers discovered sources (from a Feezback webhook) into user_source_sync_state.
    * New entries are written with status='not_synced'; existing entries get their
    * consentId (and optional identifiers) updated without changing their sync status.
+   *
+   * Direct/Debit cards (isDirect === true, determined from Feezback balances at
+   * discovery) are pinned to the terminal status 'skipped_direct' — never
+   * not_synced/failed — so no retry path ever selects them. If a card previously
+   * marked skipped_direct is re-discovered with balances (isDirect === false),
+   * it flips back to 'not_synced' so the next sync pulls it normally.
    */
   async upsertSourceConsents(
     userId: string,
-    sources: Array<Pick<SourceResult, 'type' | 'sourceId' | 'resourceId' | 'consentId'>>,
+    sources: Array<Pick<SourceResult, 'type' | 'sourceId' | 'resourceId' | 'consentId'> & { isDirect?: boolean | null }>,
   ): Promise<void> {
     for (const src of sources) {
       const existing = await this.sourceRepo.findOne({ where: { userId, sourceId: src.sourceId } });
@@ -115,9 +121,16 @@ export class UserSyncStateService {
         // Discovery (getUserAccounts) is the source of truth — when it provides
         // a fresh consentId / resourceId, overwrite the stored ones (consent
         // rotation changes consentId).
+        const statusPatch: Partial<UserSourceSyncState> =
+          src.isDirect === true
+            ? { status: 'skipped_direct', transactionCount: 0, error: null }
+            : src.isDirect === false && existing.status === 'skipped_direct'
+              ? { status: 'not_synced', error: null }
+              : {};
         await this.sourceRepo.update({ userId, sourceId: src.sourceId }, {
           consentId: src.consentId ?? existing.consentId,
           resourceId: src.resourceId ?? existing.resourceId,
+          ...statusPatch,
         });
       } else {
         await this.sourceRepo.save(this.sourceRepo.create({
@@ -126,7 +139,7 @@ export class UserSyncStateService {
           type: src.type,
           resourceId: src.resourceId ?? null,
           consentId: src.consentId ?? null,
-          status: 'not_synced',
+          status: src.isDirect === true ? 'skipped_direct' : 'not_synced',
           transactionCount: 0,
           error: null,
         }));
@@ -303,13 +316,20 @@ export class UserSyncStateService {
    * specific consent (called when that consent has been revoked or expired by
    * the bank/Feezback). Affected rows flip back to status='not_synced' so the
    * dialog renders the "בצע חיבור מחדש" button instead of "נסה שוב".
+   *
+   * Direct-card rows keep their terminal 'skipped_direct' status (they must
+   * never look retryable/pending) — only their consentId is nulled.
    */
   async clearConsentOnSources(userId: string, consentId: string): Promise<number> {
-    const result = await this.sourceRepo.update(
-      { userId, consentId },
+    const resetResult = await this.sourceRepo.update(
+      { userId, consentId, status: Not('skipped_direct') },
       { consentId: null, status: 'not_synced', error: null },
     );
-    return result.affected ?? 0;
+    const directResult = await this.sourceRepo.update(
+      { userId, consentId, status: 'skipped_direct' },
+      { consentId: null },
+    );
+    return (resetResult.affected ?? 0) + (directResult.affected ?? 0);
   }
 
   /** Called when an admin clears a user's transaction cache — forces a fresh sync on next login. */
@@ -324,7 +344,9 @@ export class UserSyncStateService {
     });
     // Reset per-source status so next sync re-processes all sources.
     // Keeps consentId and identifiers intact — only clears sync outcome data.
-    await this.sourceRepo.update({ userId }, {
+    // skipped_direct rows stay terminal — a Direct card is skipped by design,
+    // not an outcome to re-attempt; the next sync re-confirms it from balances.
+    await this.sourceRepo.update({ userId, status: Not('skipped_direct') }, {
       status: 'not_synced',
       transactionCount: 0,
       error: null,

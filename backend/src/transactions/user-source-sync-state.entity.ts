@@ -1,5 +1,17 @@
 import { Column, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
 
+/**
+ * Per-source sync outcome statuses:
+ *   not_synced     — discovered but never pulled (retryable).
+ *   success        — transactions fetched successfully.
+ *   failed         — a fetch was attempted and failed (retryable).
+ *   skipped_direct — TERMINAL, intentional: this source is a Direct/Debit card.
+ *                    Its transactions are deliberately NOT imported from the
+ *                    card feed because they arrive through the bank-account
+ *                    feed. Never selected for automatic or manual retry.
+ */
+export type SourceSyncStatus = 'not_synced' | 'success' | 'failed' | 'skipped_direct';
+
 export interface SourceResult {
   type: 'bank' | 'card';
   /** IBAN last-7 for bank; maskedPan last-4 for card. */
@@ -8,7 +20,7 @@ export interface SourceResult {
   resourceId?: string;
   /** Feezback consentId covering this source. Updated on each webhook without changing sync status. */
   consentId?: string;
-  status: 'not_synced' | 'success' | 'failed';
+  status: SourceSyncStatus;
   transactionCount: number;
   error?: string;
   /**
@@ -46,7 +58,7 @@ export class UserSourceSyncState {
   consentId: string | null;
 
   @Column({ type: 'varchar', default: 'not_synced' })
-  status: 'not_synced' | 'success' | 'failed';
+  status: SourceSyncStatus;
 
   @Column({ type: 'int', default: 0 })
   transactionCount: number;
