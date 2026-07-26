@@ -1,23 +1,29 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { AuthService } from './auth.service';
 import { GenericService } from './generic.service';
+import { isFirebaseAuthPersistenceReady } from '../shared/auth/firebase-auth-persistence';
 
 /**
  * Single, explicit "startup ready" gate for the whole app.
  *
- * Startup is ready once Firebase has resolved the initial (cached) auth state.
+ * Startup is ready once Firebase has resolved the initial (restored) auth state.
+ * Creating the Auth instance is done synchronously in `main.ts` before bootstrap,
+ * so it is already finished by the time this service can be constructed
+ * (asserted below).
+ *
  * Connectivity does not need awaiting here — {@link NetworkStatusService}
  * establishes its initial value synchronously from `navigator.onLine` in its
  * constructor, so by the time any guard reads it the value is already correct.
  *
- * Guards and the login page both await {@link whenReady} so that NO routing
- * decision (enter app vs. show login) is ever made before initialization
- * finishes — this is what removes the login-page flash and the races between
+ * Guards and the login redirect all await {@link whenReady} so that NO routing
+ * decision (enter app vs. show login) is ever made before Firebase has resolved
+ * the session — this is what removes the login-page flash and the races between
  * Firebase's first emission, the guards, and the login redirect.
  *
  * The existing global loader (GenericService.isLoading) is turned on here at the
  * earliest point of a cold start and cleared by AppComponent once the first
- * navigation settles — no new loader is introduced.
+ * navigation settles — no new loader is introduced, and nothing is gated on a
+ * timer.
  */
 @Injectable({ providedIn: 'root' })
 export class StartupService {
@@ -25,7 +31,7 @@ export class StartupService {
   private readonly generic = inject(GenericService);
 
   private readonly _ready = signal<boolean>(false);
-  /** True once the initial auth state has been resolved. */
+  /** True once Firebase has resolved the initial auth state. */
   readonly ready = this._ready.asReadonly();
 
   private readyPromise: Promise<void> | null = null;
@@ -38,6 +44,13 @@ export class StartupService {
   private holdingStartupLoader = false;
 
   constructor() {
+    if (!isFirebaseAuthPersistenceReady()) {
+      // main.ts runs initializeFirebaseAuthPersistence() before bootstrap; if
+      // that ever stops being true, Auth is running on the SDK default
+      // persistence — a permanent login shared across tabs.
+      console.error('[StartupService] Firebase Auth persistence was not initialized before bootstrap.');
+    }
+
     // Show the existing loader from the very start of a cold launch, so the
     // shell never briefly renders the login page while auth is still resolving.
     this.generic.isLoading.set(true);

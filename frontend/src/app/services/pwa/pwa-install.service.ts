@@ -1,4 +1,5 @@
 import { DestroyRef, Injectable, computed, inject, signal } from '@angular/core';
+import { RuntimeContextService } from './runtime-context.service';
 
 /** Minimal typing for the non-standard `beforeinstallprompt` event. */
 interface BeforeInstallPromptEvent extends Event {
@@ -10,24 +11,37 @@ interface BeforeInstallPromptEvent extends Event {
 /**
  * Owns the browser install experience: captures the deferred
  * `beforeinstallprompt` event (Android/Chromium desktop) and exposes whether an
- * install is offered, plus display-mode / iOS detection for UX decisions.
- * Purely presentational — no business logic, no storage.
+ * install is offered. Purely presentational — no business logic, no storage.
+ *
+ * Runtime detection (installed / iOS / mobile) is NOT done here: it belongs to
+ * {@link RuntimeContextService}, which this service reads.
  */
 @Injectable({ providedIn: 'root' })
 export class PwaInstallService {
   private readonly destroyRef = inject(DestroyRef);
+  private readonly runtime = inject(RuntimeContextService);
 
   private deferredPrompt: BeforeInstallPromptEvent | null = null;
 
   /** True when the browser has offered a programmatic install prompt. */
   readonly canInstall = signal<boolean>(false);
-  /** True once the app is running as an installed standalone window. */
-  readonly isStandalone = signal<boolean>(this.detectStandalone());
 
   /** iOS Safari has no `beforeinstallprompt`; it needs manual instructions. */
-  readonly isIos = this.detectIos();
-  /** Show the iOS "Add to Home Screen" hint: iOS, in Safari, not yet installed. */
-  readonly showIosHint = computed(() => this.isIos && !this.isStandalone());
+  readonly isIos = this.runtime.isIosDevice;
+
+  /**
+   * Show the iOS "Add to Home Screen" hint: an iOS device, in a real browser
+   * tab (never inside the installed app), and never on desktop.
+   */
+  readonly showIosHint = computed(() => this.isIos && this.runtime.isMobileBrowser());
+
+  /**
+   * Our own install prompt may be offered only in a normal mobile browser, when
+   * the browser actually has an install event to fire. Desktop is deliberately
+   * excluded — Chrome's own address-bar install icon is left alone, we simply
+   * never render our UI there.
+   */
+  readonly canOfferInstall = computed(() => this.canInstall() && this.runtime.isMobileBrowser());
 
   constructor() {
     if (typeof window === 'undefined' || typeof window.addEventListener !== 'function') {
@@ -43,19 +57,14 @@ export class PwaInstallService {
     const onInstalled = () => {
       this.deferredPrompt = null;
       this.canInstall.set(false);
-      this.isStandalone.set(true);
     };
-    const mq = window.matchMedia?.('(display-mode: standalone)');
-    const onDisplayModeChange = () => this.isStandalone.set(this.detectStandalone());
 
     window.addEventListener('beforeinstallprompt', onBeforeInstallPrompt);
     window.addEventListener('appinstalled', onInstalled);
-    mq?.addEventListener?.('change', onDisplayModeChange);
 
     this.destroyRef.onDestroy(() => {
       window.removeEventListener('beforeinstallprompt', onBeforeInstallPrompt);
       window.removeEventListener('appinstalled', onInstalled);
-      mq?.removeEventListener?.('change', onDisplayModeChange);
     });
   }
 
@@ -81,26 +90,5 @@ export class PwaInstallService {
       this.canInstall.set(false);
       return null;
     }
-  }
-
-  private detectStandalone(): boolean {
-    if (typeof window === 'undefined') {
-      return false;
-    }
-    const displayModeStandalone = window.matchMedia?.('(display-mode: standalone)')?.matches ?? false;
-    // iOS Safari exposes navigator.standalone instead of the display-mode query.
-    const iosStandalone = (window.navigator as unknown as { standalone?: boolean }).standalone === true;
-    return displayModeStandalone || iosStandalone;
-  }
-
-  private detectIos(): boolean {
-    if (typeof navigator === 'undefined') {
-      return false;
-    }
-    const ua = navigator.userAgent || '';
-    const isIosDevice = /iPad|iPhone|iPod/.test(ua);
-    // iPadOS 13+ reports as Mac; disambiguate via touch support.
-    const isIpadOs = /Macintosh/.test(ua) && typeof document !== 'undefined' && 'ontouchend' in document;
-    return isIosDevice || isIpadOs;
   }
 }
