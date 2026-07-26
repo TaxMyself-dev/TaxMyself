@@ -33,7 +33,8 @@ export class DocumentsController {
       throw new BadRequestException('issuerBusinessNumber is required');
     }
 
-    return this.documentsService.getDocuments(issuerBusinessNumber, startDate, endDate, docType);
+    const firebaseId = request.user?.firebaseId;
+    return this.documentsService.getDocuments(issuerBusinessNumber, firebaseId, startDate, endDate, docType);
   }
 
   @Get('get-doc-lines')

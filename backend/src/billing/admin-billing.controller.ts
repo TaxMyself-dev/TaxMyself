@@ -131,6 +131,39 @@ export class AdminBillingController {
     return this.adminBillingService.triggerDueRenewalsRun();
   }
 
+  // ─── Receipt failures (manual resolution) ────────────────────────────────────
+
+  /**
+   * GET /admin/billing/receipts/pending
+   *
+   * Lists every successful charge whose automatic receipt generation failed
+   * and was never resolved. Each one blocks its subscription from further
+   * payments (see BillingEventService.getUnresolvedReceiptFailure) until
+   * resolved via POST .../:billingEventId/generate.
+   */
+  @Get('receipts/pending')
+  async getPendingReceiptFailures(@Req() request: AuthenticatedRequest) {
+    await this.assertAdmin(request);
+    return this.adminBillingService.findPendingReceiptFailures();
+  }
+
+  /**
+   * POST /admin/billing/receipts/:billingEventId/generate
+   *
+   * Manually runs the exact same receipt-creation pipeline the webhook/renewal
+   * flows use automatically, for one specific failed charge event. On success
+   * the subscription is immediately un-blocked from further payments.
+   */
+  @Post('receipts/:billingEventId/generate')
+  @HttpCode(HttpStatus.OK)
+  async generateReceiptForEvent(
+    @Req() request: AuthenticatedRequest,
+    @Param('billingEventId', ParseIntPipe) billingEventId: number,
+  ) {
+    await this.assertAdmin(request);
+    return this.adminBillingService.generateReceiptForEvent(billingEventId);
+  }
+
   // ─── Admin guard ────────────────────────────────────────────────────────────
 
   private async assertAdmin(request: AuthenticatedRequest): Promise<void> {

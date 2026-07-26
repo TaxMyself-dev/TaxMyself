@@ -41,4 +41,11 @@ export enum BillingEventType {
   PROMOTION_APPLIED = 'PROMOTION_APPLIED',
   DISCOUNT_APPLIED = 'DISCOUNT_APPLIED',
   RECEIPT_FAILED = 'RECEIPT_FAILED',
+  /**
+   * A CardCom webhook verified a real, successful charge, but the subscription
+   * was already ACTIVE on the same plan — so no re-activation or receipt was
+   * created. Logged purely so a real charge is never invisible in the audit
+   * trail, even though internally it was treated as a no-op.
+   */
+  DUPLICATE_PAYMENT_IGNORED = 'DUPLICATE_PAYMENT_IGNORED',
 }

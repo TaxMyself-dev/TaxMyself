@@ -370,6 +370,11 @@ export class BillingSubscriptionsComponent implements OnInit {
         summary: 'לא בוצע חיוב',
         detail: `מנוי #${id}: ${result.message ?? 'המנוי אינו זכאי לחיוב כרגע'}`,
       },
+      blocked_pending_receipt: {
+        severity: 'warn',
+        summary: 'חיוב חסום',
+        detail: `מנוי #${id}: קיים תשלום קודם ללא קבלה — יש להפיק אותה בטאב "קבלות חסרות" לפני חיוב נוסף`,
+      },
       error: {
         severity: 'error',
         summary: 'שגיאה',
@@ -440,6 +445,7 @@ export class BillingSubscriptionsComponent implements OnInit {
       `${summary.retryScheduled} נקבעו לניסיון חוזר, ` +
       `${summary.pastDue} עברו לפיגור, ` +
       `${summary.skipped} דולגו, ` +
+      `${summary.blockedPendingReceipt} חסומים עקב קבלה חסרה, ` +
       `${summary.errors} נכשלו בשגיאה.`;
     const severity = summary.errors > 0 || summary.pastDue > 0 ? 'warn' : 'success';
     return { severity, detail };

@@ -90,9 +90,9 @@ export class BusinessService {
       await this.assertBusinessTypeAllowed(firebaseId, dto.businessType as BusinessType | null);
     }
     if (dto?.businessNumber) {
-      const existing = await this.businessRepo.findOne({ where: { businessNumber: dto.businessNumber } });
-      if (existing) {
-        throw new ConflictException(`עסק עם מספר ${dto.businessNumber} כבר קיים במערכת`);
+      const existing = await this.getBusinessByNumber(dto.businessNumber);
+      if (existing && existing.firebaseId !== firebaseId) {
+        throw new BadRequestException('מספר עסק זה כבר רשום במערכת תחת משתמש אחר');
       }
     }
     const business = this.businessRepo.create({

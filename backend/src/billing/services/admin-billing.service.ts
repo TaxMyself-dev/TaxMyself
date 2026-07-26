@@ -10,6 +10,24 @@ import { CreatePlanDto } from '../dtos/admin/create-plan.dto';
 import { UpdatePlanDto } from '../dtos/admin/update-plan.dto';
 import { UpdateSubscriptionDiscountDto } from '../dtos/admin/update-subscription-discount.dto';
 import { RenewalBatchResult, RenewalResult, SubscriptionRenewalService } from './subscription-renewal.service';
+import { BillingEventService } from './billing-event.service';
+import { BillingReceiptService } from './billing-receipt.service';
+import { BillingIssuerConfigService } from './billing-issuer-config.service';
+import { BillingEventType } from '../enums/billing.enums';
+
+export interface PendingReceiptFailure {
+  billingEventId: number;
+  eventType: string;
+  subscriptionId: number | null;
+  firebaseId: string;
+  userName: string | null;
+  userEmail: string | null;
+  planId: number | null;
+  planName: string | null;
+  amountAgorot: number | null;
+  cardcomDealNumber: string | null;
+  createdAt: Date;
+}
 
 export interface AdminSubscriptionResponse {
   subscriptionId: number;
@@ -60,6 +78,9 @@ export class AdminBillingService {
     private readonly subscriptionRepo: Repository<Subscription>,
     private readonly dataSource: DataSource,
     private readonly subscriptionRenewalService: SubscriptionRenewalService,
+    private readonly billingEventService: BillingEventService,
+    private readonly billingReceiptService: BillingReceiptService,
+    private readonly billingIssuerConfigService: BillingIssuerConfigService,
   ) {}
 
   // ─── Plans ──────────────────────────────────────────────────────────────────
@@ -282,5 +303,126 @@ export class AdminBillingService {
    */
   async triggerDueRenewalsRun(): Promise<RenewalBatchResult> {
     return this.subscriptionRenewalService.processDueRenewals();
+  }
+
+  // ─── Receipt failures (manual resolution) ────────────────────────────────────
+
+  /**
+   * Lists every successful charge (PAYMENT_SUCCESS / RENEWAL_SUCCESS) that
+   * still has no receiptDocId — i.e. receipt generation failed and was never
+   * resolved. A subscription with one of these is blocked from further
+   * payments (see BillingEventService.getUnresolvedReceiptFailure) until an
+   * admin generates the receipt via generateReceiptForEvent().
+   */
+  async findPendingReceiptFailures(): Promise<PendingReceiptFailure[]> {
+    const raw: any[] = await this.dataSource
+      .createQueryBuilder()
+      .select('e.id', 'billingEventId')
+      .addSelect('e.eventType', 'eventType')
+      .addSelect('e.subscriptionId', 'subscriptionId')
+      .addSelect('e.firebaseId', 'firebaseId')
+      .addSelect('e.amountAgorot', 'amountAgorot')
+      .addSelect('e.cardcomDealNumber', 'cardcomDealNumber')
+      .addSelect('e.createdAt', 'createdAt')
+      .addSelect('s.planId', 'planId')
+      .addSelect('p.name', 'planName')
+      .from('billing_event', 'e')
+      .leftJoin(Subscription, 's', 's.id = e.subscriptionId')
+      .leftJoin(SubscriptionPlan, 'p', 'p.id = s.planId')
+      .where('e.eventType IN (:...types)', {
+        types: [BillingEventType.PAYMENT_SUCCESS, BillingEventType.RENEWAL_SUCCESS],
+      })
+      .andWhere('e.receiptDocId IS NULL')
+      .orderBy('e.createdAt', 'DESC')
+      .getRawMany();
+
+    if (raw.length === 0) return [];
+
+    const firebaseIds = [...new Set(raw.map((r) => r.firebaseId as string))].filter(Boolean);
+    const userMap = new Map<string, { fName: string; lName: string; email: string }>();
+    if (firebaseIds.length > 0) {
+      const users: any[] = await this.dataSource
+        .createQueryBuilder()
+        .select('u.firebaseId', 'firebaseId')
+        .addSelect('u.fName', 'fName')
+        .addSelect('u.lName', 'lName')
+        .addSelect('u.email', 'email')
+        .from(User, 'u')
+        .where('u.firebaseId IN (:...ids)', { ids: firebaseIds })
+        .getRawMany();
+      for (const u of users) userMap.set(u.firebaseId, u);
+    }
+
+    return raw.map((r): PendingReceiptFailure => {
+      const user = userMap.get(r.firebaseId);
+      return {
+        billingEventId: Number(r.billingEventId),
+        eventType: r.eventType,
+        subscriptionId: r.subscriptionId != null ? Number(r.subscriptionId) : null,
+        firebaseId: r.firebaseId,
+        userName: user ? `${user.fName ?? ''} ${user.lName ?? ''}`.trim() || null : null,
+        userEmail: user?.email ?? null,
+        planId: r.planId != null ? Number(r.planId) : null,
+        planName: r.planName ?? null,
+        amountAgorot: r.amountAgorot != null ? Number(r.amountAgorot) : null,
+        cardcomDealNumber: r.cardcomDealNumber ?? null,
+        createdAt: r.createdAt,
+      };
+    });
+  }
+
+  /**
+   * Manually creates the receipt for a successful charge whose automatic
+   * receipt generation failed — the exact same three-step pipeline
+   * (createReceiptForPayment → finalizeBillingReceiptPdfs →
+   * sendReceiptEmailForPaymentEvent) that both CardcomWebhookService and
+   * SubscriptionRenewalService use automatically, just triggered by hand.
+   * On success, receiptDocId is set on the event, which is what
+   * BillingEventService.getUnresolvedReceiptFailure checks — so the
+   * subscription is immediately un-blocked from further payments too.
+   */
+  async generateReceiptForEvent(billingEventId: number): Promise<{ receiptDocId: number; docNumber: string }> {
+    const event = await this.billingEventService.findPaymentEventById(billingEventId);
+    if (!event) throw new NotFoundException(`אירוע חיוב ${billingEventId} לא נמצא`);
+
+    if (
+      event.eventType !== BillingEventType.PAYMENT_SUCCESS &&
+      event.eventType !== BillingEventType.RENEWAL_SUCCESS
+    ) {
+      throw new BadRequestException('ניתן להפיק קבלה רק עבור אירוע PAYMENT_SUCCESS או RENEWAL_SUCCESS');
+    }
+    if (event.receiptDocId != null) {
+      throw new BadRequestException(`כבר קיימת קבלה (docId=${event.receiptDocId}) עבור אירוע זה`);
+    }
+    if (event.subscriptionId == null) {
+      throw new BadRequestException('לאירוע זה אין מנוי משויך');
+    }
+    if (event.amountBeforeVatAgorot == null || event.vatAmountAgorot == null || event.amountAgorot == null) {
+      throw new BadRequestException('לאירוע זה חסר פירוט מע"מ — לא ניתן להפיק קבלה');
+    }
+
+    const subscription = await this.subscriptionRepo.findOneBy({ id: event.subscriptionId });
+    if (!subscription) throw new NotFoundException(`מנוי ${event.subscriptionId} לא נמצא`);
+
+    const plan = subscription.planId ? await this.planRepo.findOneBy({ id: subscription.planId }) : null;
+    if (!plan) throw new BadRequestException('לא נמצאה תוכנית עבור המנוי — לא ניתן להפיק קבלה');
+
+    const issuer = await this.billingIssuerConfigService.getKeepintaxIssuer();
+
+    const receipt = await this.billingReceiptService.createReceiptForPayment(issuer, {
+      firebaseId: event.firebaseId,
+      subscriptionId: event.subscriptionId,
+      amountBeforeVatAgorot: event.amountBeforeVatAgorot,
+      vatAmountAgorot: event.vatAmountAgorot,
+      amountIncludingVatAgorot: event.amountAgorot,
+      planName: plan.name,
+      cardcomDealNumber: event.cardcomDealNumber,
+    });
+
+    await this.billingEventService.updatePaymentEventWithReceipt(event.id, receipt.receiptDocId);
+    await this.billingReceiptService.finalizeBillingReceiptPdfs(receipt.receiptDocId, issuer, event.firebaseId);
+    await this.billingReceiptService.sendReceiptEmailForPaymentEvent(event.id, issuer.issuerName);
+
+    return { receiptDocId: receipt.receiptDocId, docNumber: receipt.docNumber };
   }
 }

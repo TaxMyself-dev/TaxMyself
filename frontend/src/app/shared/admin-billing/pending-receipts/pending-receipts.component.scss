@@ -1,0 +1,26 @@
+.pending-receipts {
+  display: flex;
+  flex-direction: column;
+}
+
+.table-header-row {
+  display: flex;
+  align-items: center;
+  flex-direction: row-reverse;
+  justify-content: space-between;
+  padding: 0 8px 12px;
+}
+
+.table-title {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+  color: #1f2937;
+}
+
+.empty-state {
+  padding: 24px 8px;
+  color: #6b7280;
+  font-size: 14px;
+  text-align: center;
+}

@@ -113,6 +113,30 @@ export function buildDocumentJournalLines(params: {
   return null;
 }
 
+/**
+ * Standard starting document number per docType for a business's first
+ * document of that type. Shared by ensureDocumentSettingsExist() and any
+ * other caller that needs a business's default numbering series (e.g.
+ * billing-system receipts) — never hardcode a separate starting number
+ * elsewhere.
+ *
+ * This is the source of truth — kept in sync with the frontend's
+ * DocTypeDefaultStart (frontend/src/app/pages/doc-create/doc-cerate.enum.ts),
+ * which mirrors these same values for the "first document of this type"
+ * setup dialog. If you change one, change the other.
+ */
+export const DEFAULT_INITIAL_DOC_INDEX: Record<DocumentType, number> = {
+  [DocumentType.RECEIPT]: 10000,
+  [DocumentType.TAX_INVOICE]: 20000,
+  [DocumentType.TAX_INVOICE_RECEIPT]: 30000,
+  [DocumentType.TRANSACTION_INVOICE]: 40000,
+  [DocumentType.CREDIT_INVOICE]: 50000,
+  [DocumentType.PRICE_QUOTE]: 60000,
+  [DocumentType.WORK_ORDER]: 70000,
+  [DocumentType.GENERAL]: 1000000,
+  [DocumentType.JOURNAL_ENTRY]: 10000000,
+};
+
 @Injectable()
 export class DocumentsService {
   private readonly logger = new Logger(DocumentsService.name);
@@ -167,10 +191,18 @@ export class DocumentsService {
 
   async getDocuments(
     issuerBusinessNumber: string,
+    firebaseId: string,
     startDate?: string,
     endDate?: string,
     docType?: DocumentType
   ): Promise<Documents[]> {
+
+    // Ownership check: issuerBusinessNumber must belong to the caller, not
+    // just be a string they happen to know/guess.
+    const business = await this.businessService.getBusinessByNumber(issuerBusinessNumber, firebaseId);
+    if (!business) {
+      throw new HttpException('Business not found or not owned by user', HttpStatus.FORBIDDEN);
+    }
 
     // -------------------------------
     // 1) Convert dates safely
@@ -1175,7 +1207,14 @@ export class DocumentsService {
       if (!docDetails) {
         throw new HttpException('Error in update currentIndex', HttpStatus.INTERNAL_SERVER_ERROR);
       }
-      console.log(new Date().toLocaleTimeString(), "Step 2 complete - Current index incremented");
+      // The docNumber the caller sent along was only ever a "peek" of the
+      // counter at some earlier point (frontend page load / createBillingSystemReceipt's
+      // getCurrentIndexes call) — it can go stale if another document was created
+      // in between. The row lock above guarantees currentIndex-1 is the number
+      // this call actually reserved, so that — not the caller-supplied value —
+      // is the only safe source of truth for the document being saved.
+      data.docData.docNumber = String(docDetails.currentIndex - 1);
+      console.log(new Date().toLocaleTimeString(), "Step 2 complete - Current index incremented, assigned docNumber:", data.docData.docNumber);
 
       // 3. Save main document info (now with the correct incremented generalDocIndex)
       const newDoc = await this.saveDocInfo(userId, data.docData, queryRunner.manager);
@@ -1431,8 +1470,11 @@ ${finalOwnerName}`;
       // ✅ All good – commit the transaction
       await queryRunner.commitTransaction();
 
+      console.log(`📄 Document created — user: ${userId}, docType: ${data.docData.docType}, docNumber: ${data.docData.docNumber}`);
+
       return {
         success: true,
+        id: newDoc.id,
         docType: data.docData.docType,
         message: 'Document created successfully',
         generalDocIndex: data.docData.generalDocIndex,
@@ -1720,8 +1762,14 @@ ${finalOwnerName}`;
         ? manager.getRepository(SettingDocuments)
         : this.settingDocuments;
 
+      // Lock the counter row for the duration of this transaction so two
+      // concurrent createDoc calls for the same business/docType can never
+      // read the same currentIndex and both assign the same docNumber.
+      // Requires `manager` (i.e. must run inside a transaction) — the only
+      // caller (createDoc) always passes queryRunner.manager.
       let docSetting = await repo.findOne({
         where: { userId, issuerBusinessNumber, docType },
+        ...(manager ? { lock: { mode: 'pessimistic_write' as const } } : {}),
       });
 
       // First time
@@ -1731,13 +1779,18 @@ ${finalOwnerName}`;
             `Initial document index required for first-time setup of ${docType}`
           );
         }
+        // initialDocIndex arrives as data.docData.docNumber, which is always a
+        // string (createDoc/transformDocumentData stringify it) — coerce to a
+        // number before arithmetic, or "30000" + 1 concatenates to "300001"
+        // instead of adding to 30001.
+        const initialIndexNum = Number(initialDocIndex);
         // Create new setting with initial index
         docSetting = repo.create({
           userId,
           issuerBusinessNumber,
           docType,
-          initialIndex: initialDocIndex,
-          currentIndex: initialDocIndex + 1,
+          initialIndex: initialIndexNum,
+          currentIndex: initialIndexNum + 1,
         });
         return await repo.save(docSetting);
       }
@@ -2076,8 +2129,10 @@ ${finalOwnerName}`;
   }
 
   /**
-   * Creates a billing receipt for a KeepInTax subscription payment without
-   * creating journal entries, generating PDFs, or uploading to Firebase.
+   * Creates a billing receipt for a KeepInTax subscription payment through the
+   * same createDoc() flow used by manual document creation — so it gets a
+   * journal entry too. PDF generation/Firebase upload are still deferred to
+   * finalizeBillingReceipt() (generatePdf=false here), same as before.
    * Issuer details come from the caller — no Business entity lookup required.
    * Returns the DB document id, doc number, and general doc index for storage
    * on the corresponding PAYMENT_SUCCESS billing_event row.
@@ -2095,7 +2150,6 @@ ${finalOwnerName}`;
     periodStart: Date;
     periodEnd: Date;
     docDate: Date;
-    initialReceiptIndex: number;
   }): Promise<{ receiptDocId: number; docNumber: string; generalDocIndex: string }> {
     const {
       systemUserId, issuerBusinessNumber, issuerBusinessType,
@@ -2219,26 +2273,26 @@ ${finalOwnerName}`;
       }];
       await this.saveLinesInfo(systemUserId, lineData, qr.manager);
 
-      // 5. Persist one DocPayments row (VAT-inclusive total — what was actually charged)
-      const paymentData = [{
-        issuerBusinessNumber,
-        generalDocIndex,
-        paymentLineNumber: '1',
-        paymentMethod: 'CREDIT_CARD',
-        paymentDate: docDate,
-        paymentAmount: amountIncludingVatShekels,
-      }];
-      await this.savePaymentsInfo(systemUserId, paymentData, qr.manager);
+    // VAT-inclusive total — what was actually charged.
+    const paymentData = [{
+      issuerBusinessNumber,
+      paymentLineNumber: '1',
+      paymentMethod: 'CREDIT_CARD',
+      paymentDate: docDate,
+      paymentAmount: amountIncludingVatShekels,
+    }];
 
-      await qr.commitTransaction();
+    const result = await this.createDoc(
+      { docData, linesData, paymentData },
+      systemUserId,
+      /* generatePdf */ false,
+    );
 
-      return { receiptDocId: savedDoc.id, docNumber, generalDocIndex };
-    } catch (error) {
-      await qr.rollbackTransaction();
-      throw error;
-    } finally {
-      await qr.release();
-    }
+    return {
+      receiptDocId: result.id,
+      docNumber: result.docNumber,
+      generalDocIndex: result.generalDocIndex,
+    };
   }
 
 
@@ -2487,18 +2541,6 @@ ${finalOwnerName}`;
       DocumentType.JOURNAL_ENTRY,
     ];
 
-    const defaultInitialValues: Record<DocumentType, number> = {
-      [DocumentType.RECEIPT]: 10000,
-      [DocumentType.TAX_INVOICE]: 20000,
-      [DocumentType.TAX_INVOICE_RECEIPT]: 30000,
-      [DocumentType.TRANSACTION_INVOICE]: 40000,
-      [DocumentType.CREDIT_INVOICE]: 50000,
-      [DocumentType.PRICE_QUOTE]: 60000,
-      [DocumentType.WORK_ORDER]: 70000,
-      [DocumentType.GENERAL]: 1000000,
-      [DocumentType.JOURNAL_ENTRY]: 10000000,
-    };
-
     for (const docType of docTypes) {
       const whereClause = { userId, issuerBusinessNumber, docType };
 
@@ -2509,8 +2551,8 @@ ${finalOwnerName}`;
           userId,
           issuerBusinessNumber,
           docType,
-          initialIndex: defaultInitialValues[docType],
-          currentIndex: defaultInitialValues[docType],
+          initialIndex: DEFAULT_INITIAL_DOC_INDEX[docType],
+          currentIndex: DEFAULT_INITIAL_DOC_INDEX[docType],
         };
         await this.settingDocuments.save(payload);
       }

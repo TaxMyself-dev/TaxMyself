@@ -20,14 +20,18 @@ export const DocTypeDisplayName = {
   [DocumentType.WORK_ORDER]: 'הזמנת עבודה',
 };
 
+// Kept in sync with backend DEFAULT_INITIAL_DOC_INDEX (documents.service.ts) —
+// the backend is the source of truth (used directly by automated flows like
+// billing receipts, which never show this dialog). If you change one, change
+// the other.
 export const DocTypeDefaultStart: Record<DocumentType, number> = {
-  [DocumentType.RECEIPT]: 70001,
-  [DocumentType.TAX_INVOICE]: 10001,
-  [DocumentType.TAX_INVOICE_RECEIPT]: 50001,
-  [DocumentType.TRANSACTION_INVOICE]: 90001,
-  [DocumentType.CREDIT_INVOICE]: 80001,
-  [DocumentType.PRICE_QUOTE]: 40001,
-  [DocumentType.WORK_ORDER]: 20001,
+  [DocumentType.RECEIPT]: 10000,
+  [DocumentType.TAX_INVOICE]: 20000,
+  [DocumentType.TAX_INVOICE_RECEIPT]: 30000,
+  [DocumentType.TRANSACTION_INVOICE]: 40000,
+  [DocumentType.CREDIT_INVOICE]: 50000,
+  [DocumentType.PRICE_QUOTE]: 60000,
+  [DocumentType.WORK_ORDER]: 70000,
 };
 
 

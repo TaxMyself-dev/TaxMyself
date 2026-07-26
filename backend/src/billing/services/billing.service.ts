@@ -1,6 +1,7 @@
 import {
   BadGatewayException,
   BadRequestException,
+  ConflictException,
   Injectable,
   Logger,
   NotFoundException,
@@ -16,6 +17,7 @@ import { ModuleName } from 'src/enum';
 import { DocumentsService } from 'src/documents/documents.service';
 import { BillingEventService } from './billing-event.service';
 import { BillingReceiptService } from './billing-receipt.service';
+import { BillingIssuerConfigService } from './billing-issuer-config.service';
 import { PricingService } from './pricing.service';
 import { SubscriptionAccessService } from './subscription-access.service';
 import { CardcomService, CardcomApiError } from './cardcom.service';
@@ -83,6 +85,7 @@ export class BillingService {
     private readonly pricingService: PricingService,
     private readonly billingEventService: BillingEventService,
     private readonly billingReceiptService: BillingReceiptService,
+    private readonly billingIssuerConfigService: BillingIssuerConfigService,
     private readonly subscriptionAccessService: SubscriptionAccessService,
     private readonly cardcomService: CardcomService,
     private readonly documentsService: DocumentsService,
@@ -242,6 +245,13 @@ export class BillingService {
     if (!subscription) {
       throw new BadRequestException(
         'No subscription found. Call POST /billing/trial to start your trial before checkout.',
+      );
+    }
+
+    const unresolvedFailure = await this.billingEventService.getUnresolvedReceiptFailure(subscription.id);
+    if (unresolvedFailure) {
+      throw new ConflictException(
+        'קיים תשלום קודם שעבורו לא הופקה קבלה. לא ניתן לבצע תשלום נוסף עד שהקבלה תופק — אנא פנה לתמיכה.',
       );
     }
 
@@ -648,7 +658,8 @@ export class BillingService {
       );
     }
 
-    return this.billingReceiptService.sendReceiptEmailForPaymentEvent(eventId);
+    const issuer = await this.billingIssuerConfigService.getKeepintaxIssuer();
+    return this.billingReceiptService.sendReceiptEmailForPaymentEvent(eventId, issuer.issuerName);
   }
 
   /**

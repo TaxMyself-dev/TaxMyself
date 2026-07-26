@@ -26,6 +26,7 @@ import { AdminBillingController } from './admin-billing.controller';
 import { BillingService } from './services/billing.service';
 import { BillingEventService } from './services/billing-event.service';
 import { BillingReceiptService } from './services/billing-receipt.service';
+import { BillingIssuerConfigService } from './services/billing-issuer-config.service';
 import { CardcomService } from './services/cardcom.service';
 import { CardcomWebhookService } from './services/cardcom-webhook.service';
 import { PricingService } from './services/pricing.service';
@@ -65,6 +66,7 @@ import { BusinessModule } from 'src/business/business.module';
     BillingService,
     BillingEventService,
     BillingReceiptService,
+    BillingIssuerConfigService,
     CardcomService,
     CardcomWebhookService,
     PricingService,
