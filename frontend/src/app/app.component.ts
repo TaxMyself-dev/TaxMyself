@@ -18,7 +18,6 @@ import { AppFeature } from './shared/access-control';
 import { NetworkStatusService } from './services/pwa/network-status.service';
 import { AppRefreshService } from './services/pwa/app-refresh.service';
 import { StartupService } from './services/startup.service';
-import { RoutePersistenceService } from './services/route-persistence.service';
 
 
 
@@ -38,8 +37,6 @@ export class AppComponent implements OnInit {
   private readonly appRefresh = inject(AppRefreshService);
   /** Eagerly construct the cold-start gate so the global loader is on immediately. */
   private readonly startup = inject(StartupService);
-  /** Eagerly construct so NavigationEnd persistence is active for the session. */
-  private readonly routePersistence = inject(RoutePersistenceService);
 
   // Tracks the settled URL after each navigation — drives billing dialog visibility.
   private readonly currentUrl = signal<string>('');

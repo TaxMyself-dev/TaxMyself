@@ -2,11 +2,13 @@
  * Framework-free runtime-mode detection — the single place that decides
  * "installed PWA vs. regular browser tab" and "mobile vs. desktop".
  *
- * Deliberately outside Angular DI: Firebase Auth persistence has to be chosen
- * in `main.ts`, before the injector exists (see `firebase-auth-persistence.ts`).
- * {@link RuntimeContextService} wraps these same functions as signals for
- * components and services, so the detection logic itself exists only here and
- * is never duplicated per component.
+ * Used for UX only (which PWA banner to offer, whether to show the in-app
+ * refresh action) — never for auth: all runtimes share one Firebase Auth
+ * persistence, see `shared/auth/firebase-auth-persistence.ts`.
+ *
+ * {@link RuntimeContextService} wraps these functions as signals for components
+ * and services, so the detection logic itself exists only here and is never
+ * duplicated per component.
  */
 
 /**

@@ -65,13 +65,11 @@ export class AuthService {
    * Subscribe to Firebase's restored auth state and make it the single source
    * of truth for "is the user signed in".
    *
-   * Where that session is persisted depends on the runtime mode chosen in
-   * `main.ts` (see `shared/auth/firebase-auth-persistence.ts`): the installed
-   * PWA restores from localStorage and survives app close / Android task-kill;
-   * a regular browser tab restores from sessionStorage and survives a refresh
-   * of that tab only. Either way `authState` emits the restored user even when
-   * the device is offline and the SDK could not refresh the ID token, so this
-   * stays correct without connectivity.
+   * The session lives in sessionStorage in every runtime (see
+   * `shared/auth/firebase-auth-persistence.ts`), so it survives a refresh of the
+   * same tab/app window and dies with the browsing context. `authState` emits
+   * the restored user even when the device is offline and the SDK could not
+   * refresh the ID token, so this stays correct without connectivity.
    */
   private initAuthState(): void {
     this.authInitPromise = new Promise<void>((resolve) => {
@@ -207,11 +205,7 @@ export class AuthService {
    */
   async logout(): Promise<void> {
     // 1. Firebase — await so the persisted session is fully cleared before we
-    //    tear the app down. signOut() only removes the record from the store
-    //    this runtime was initialized with (see firebase-auth-persistence.ts),
-    //    so logging out of a browser tab clears sessionStorage and leaves the
-    //    installed app's own session intact, and vice versa. That is deliberate:
-    //    on a shared origin there is no way to end one without ending the other.
+    //    tear the app down.
     try {
       await this.afAuth.signOut();
     } catch (err) {
@@ -241,9 +235,7 @@ export class AuthService {
       'shaam_access_token',
       'shaam_token_expires_in',
       'shaam_token_timestamp',
-      // Keep in sync with LAST_PROTECTED_ROUTE_KEY in route-persistence.service
-      // (string inlined here to avoid a circular DI/import with that service).
-      'tm.lastProtectedRoute',
+      'tm.lastProtectedRoute',    // legacy route-restore key, no longer written
     ];
     const sessionKeys = [
       'isLoggedIn',
@@ -493,14 +485,9 @@ export class AuthService {
 
 
   /**
-   * Whether a Firebase session is currently restored.
-   *
-   * Previously this read a `sessionStorage` flag written only by the login
-   * screen. sessionStorage is destroyed when the browsing context ends — which
-   * is exactly what Android does when the installed PWA is swiped out of
-   * recents — so a perfectly valid Firebase session was reported as signed
-   * out and AuthGuard bounced the user to /login. Firebase's restored state is
-   * now the authority; storage holds UI data only.
+   * Whether a Firebase session is currently restored. Firebase's restored state
+   * is the single authority — app storage (`userData`, `businesses`) holds
+   * cached UI data only and never decides whether the user is signed in.
    *
    * Returns false while restoration is still pending; callers that must not
    * race initialization should `await waitForAuthInit()` first (AuthGuard does).

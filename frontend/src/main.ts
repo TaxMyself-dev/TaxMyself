@@ -9,12 +9,11 @@ if (environment.production) {
   enableProdMode();
 }
 
-// Steps 1 + 2 of startup: detect installed PWA vs. regular browser, then create
-// the Firebase Auth instance with the matching persistence. This has to happen
-// before bootstrap — the first service that touches AngularFireAuth would
-// otherwise create Auth with the SDK default (a permanent login shared with the
-// installed app). Synchronous; restoring the stored session is what the app
-// waits for afterwards via StartupService.
+// Create the Firebase Auth instance with sessionStorage persistence. This has to
+// happen before bootstrap — the first service that touches AngularFireAuth would
+// otherwise create Auth with the SDK default (a permanent login shared across
+// tabs). Synchronous; restoring the stored session is what the app waits for
+// afterwards via StartupService.
 initializeFirebaseAuthPersistence();
 
 platformBrowserDynamic().bootstrapModule(AppModule)

@@ -5,19 +5,19 @@ import {
   isIosDevice,
   isMobileDevice,
 } from '../../shared/runtime/runtime-mode';
-import {
-  FirebaseAuthPersistenceMode,
-  firebaseAuthPersistenceMode,
-} from '../../shared/auth/firebase-auth-persistence';
 
 /**
  * The single source of truth for "how is the app running right now": installed
  * PWA vs. regular browser tab, mobile vs. desktop.
  *
+ * Consumed for UX decisions only — which PWA banner to offer (install prompt is
+ * mobile-browser-only, update prompt is installed-PWA-only) and whether to show
+ * the in-app refresh action. Auth is deliberately runtime-independent: every
+ * runtime uses the same `browserSessionPersistence`.
+ *
  * Every component/service must read these instead of calling `matchMedia` or
- * sniffing the user agent itself. The detection primitives live in
- * `shared/runtime/runtime-mode.ts` because `main.ts` needs them before the
- * Angular injector exists (to pick the Firebase Auth persistence).
+ * sniffing the user agent itself; the detection primitives live in
+ * `shared/runtime/runtime-mode.ts`.
  */
 @Injectable({ providedIn: 'root' })
 export class RuntimeContextService {
@@ -41,18 +41,6 @@ export class RuntimeContextService {
 
   /** Desktop, in a normal browser tab. */
   readonly isDesktopBrowser = computed(() => !this.isMobileDevice && !this.isInstalledPwa());
-
-  /**
-   * The runtime mode as it was at startup, frozen. Firebase Auth persistence
-   * was selected from this value and cannot be changed afterwards without
-   * moving the stored session between origins-shared stores — which is exactly
-   * what we must not do. A later display-mode change therefore updates
-   * {@link isInstalledPwa} (UI) but never the persistence.
-   */
-  readonly authPersistenceMode: FirebaseAuthPersistenceMode | null = firebaseAuthPersistenceMode();
-
-  /** True when this instance holds a persistent (installed-app) auth session. */
-  readonly hasPersistentAuthSession = this.authPersistenceMode === 'installed-pwa-local';
 
   constructor() {
     if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {

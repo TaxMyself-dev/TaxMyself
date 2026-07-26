@@ -14,7 +14,7 @@ import { MessageService } from 'primeng/api';
 import { Location } from '@angular/common';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NetworkStatusService } from 'src/app/services/pwa/network-status.service';
-import { RoutePersistenceService } from 'src/app/services/route-persistence.service';
+import { DEFAULT_AUTHENTICATED_PATH } from 'src/app/shared/auth/default-authenticated-route';
 
 
 @Component({
@@ -47,7 +47,6 @@ export class LoginPage implements OnInit {
   isVerificationButtonDisabled = computed(() => this.resendCountdown() > 0);
   private destroyRef = inject(DestroyRef);
   private readonly network = inject(NetworkStatusService);
-  private readonly routePersistence = inject(RoutePersistenceService);
 
   constructor(
     private location: Location,
@@ -85,30 +84,26 @@ export class LoginPage implements OnInit {
   // "Already signed in → go straight into the app" now lives in LoginPageGuard
   // (shared/guard/login-page.guard.ts). Deciding it there means this component
   // is never created for an authenticated user, which is what removes the
-  // login-page flash on a PWA cold start.
+  // login-page flash on a cold start with a live session.
 
   /**
-   * Complete the entry into the authenticated app and resolve only once the
-   * router has finished — guards included.
+   * Enter the authenticated app — always at the default page, never a
+   * previously visited route — and resolve only once the router has finished,
+   * guards included.
    *
    * `navigateByUrl()` does not resolve early on a guard redirect: Angular
    * chains a redirecting cancellation onto this same promise and settles it
    * when the final destination has been activated. So awaiting it covers
-   * BillingGuard's `/billing/me` round trip, ModuleAccessGuard, the lazy chunk
-   * for the target page and the final activation.
+   * BillingGuard's `/billing/me` round trip, the lazy chunk for the target page
+   * and the final activation.
    *
-   * `false` means a guard refused outright without redirecting (e.g. the
-   * module-access upgrade popup on a restored route the plan no longer
-   * covers), which would strand a signed-in user on /login — fall back to the
-   * dashboard, which no guard blocks.
+   * `false` means a guard refused outright without redirecting, which would
+   * strand a signed-in user on /login — surface it instead of silently leaving
+   * them there.
    */
   private async enterApp(): Promise<void> {
-    const entered = await this.router.navigateByUrl(this.routePersistence.getPostLoginUrl());
-    if (entered) {
-      return;
-    }
-    const enteredFallback = await this.router.navigateByUrl(this.routePersistence.defaultAuthenticatedPath);
-    if (!enteredFallback) {
+    const entered = await this.router.navigateByUrl(DEFAULT_AUTHENTICATED_PATH);
+    if (!entered) {
       throw new Error('Post-login navigation was refused by a guard');
     }
   }

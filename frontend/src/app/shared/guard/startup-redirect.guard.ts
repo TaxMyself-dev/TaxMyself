@@ -8,12 +8,13 @@ import {
 } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
 import { NetworkStatusService } from '../../services/pwa/network-status.service';
-import { RoutePersistenceService } from '../../services/route-persistence.service';
 import { StartupService } from '../../services/startup.service';
+import { DEFAULT_AUTHENTICATED_PATH } from '../auth/default-authenticated-route';
 
 /**
  * Root `''` route decision: wait for Firebase auth init, then return a UrlTree
- * for either the restored protected route (online + authenticated) or `/login`.
+ * for either the default authenticated page (online + authenticated) or
+ * `/login`. The previously visited route is deliberately not restored.
  *
  * Never returns `true` — the empty path has no component; this guard is the
  * single authoritative cold-start redirect.
@@ -23,7 +24,6 @@ export class StartupRedirectGuard implements CanActivate {
   private readonly startup = inject(StartupService);
   private readonly auth = inject(AuthService);
   private readonly network = inject(NetworkStatusService);
-  private readonly routes = inject(RoutePersistenceService);
   private readonly router = inject(Router);
 
   async canActivate(
@@ -33,7 +33,7 @@ export class StartupRedirectGuard implements CanActivate {
     await this.startup.whenReady();
 
     // Offline cold start always lands on login — even if Firebase restored a
-    // cached user from IndexedDB. Do NOT sign them out.
+    // session from sessionStorage. Do NOT sign them out.
     if (!this.network.isBrowserOnline()) {
       return this.router.createUrlTree(['/login']);
     }
@@ -48,6 +48,6 @@ export class StartupRedirectGuard implements CanActivate {
       return this.router.createUrlTree(['/login']);
     }
 
-    return this.routes.getRestoreUrlTree();
+    return this.router.createUrlTree([DEFAULT_AUTHENTICATED_PATH]);
   }
 }
