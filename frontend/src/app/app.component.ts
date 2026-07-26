@@ -154,7 +154,15 @@ export class AppComponent implements OnInit {
     this.recoverOnReconnect();
     this.releaseStartupLoaderAfterFirstNavigation();
   }
-  showTopNav = signal(true);
+  /**
+   * Hidden until the first navigation settles. The startup loader overlay is
+   * translucent, so a nav bar rendered underneath it would be visible while
+   * auth is still resolving — the "logged-in navigation, then bounce to login"
+   * flash. It is switched on (or left off, on /login and /register) by
+   * {@link hideTopNav} on the first NavigationEnd, which is the moment the
+   * route is decided.
+   */
+  showTopNav = signal(false);
 
   /**
    * When connectivity returns, re-fetch shared state so the app stops showing

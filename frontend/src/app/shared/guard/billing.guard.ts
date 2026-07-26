@@ -9,18 +9,26 @@ import {
   BillingStateService,
   BILLING_BLOCKING_STATUSES,
 } from '../../services/billing-state.service';
+import { StartupService } from '../../services/startup.service';
 
 const DASHBOARD_ROUTE = '/my-account';
 
 @Injectable({ providedIn: 'root' })
 export class BillingGuard {
   private readonly billingStateService = inject(BillingStateService);
+  private readonly startup = inject(StartupService);
   private readonly router = inject(Router);
 
   async canActivate(
     _route: ActivatedRouteSnapshot,
     state: RouterStateSnapshot,
   ): Promise<boolean | UrlTree> {
+    // Never evaluate billing before auth initialization finished: /billing/me
+    // would go out without an ID token and come back 401, which reads as a
+    // rejected session. AuthGuard already awaits this on every protected route;
+    // repeating it here keeps the guard correct on its own.
+    await this.startup.whenReady();
+
     // Wait for billing state. If AppComponent already started a load, this joins
     // that same in-flight Promise rather than issuing a second HTTP request.
     await this.billingStateService.loadBillingState();

@@ -6,6 +6,7 @@ import { BillingGuard } from './shared/guard/billing.guard';
 import { ViewOnlyBlockDocGuard } from './shared/guard/view-only-block-doc.guard';
 import { ModuleAccessGuard } from './shared/guard/module-access.guard';
 import { StartupRedirectGuard } from './shared/guard/startup-redirect.guard';
+import { LoginPageGuard } from './shared/guard/login-page.guard';
 import { OfflineNavigationGuard } from './shared/guard/offline-navigation.guard';
 import { AppRoute } from './shared/access-control';
 
@@ -147,7 +148,10 @@ const routes: Routes = [
     loadComponent: () => import('./pages/register/register.page').then(m => m.RegisterPage)
   },
   {
+    // Waits for auth initialization before the login page is even created, so
+    // a restored session never flashes the login screen on its way into the app.
     path: 'login',
+    canActivate: [LoginPageGuard],
     loadChildren: () => import('./pages/login/login.module').then(m => m.LoginPageModule)
   },
   {
