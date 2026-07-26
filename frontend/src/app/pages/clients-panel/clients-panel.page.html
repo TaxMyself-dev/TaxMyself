@@ -328,6 +328,7 @@
         } @else if (myClients().length === 0) {
           <p class="empty-text">אין עדיין לקוחות. השתמש ב״הקמת לקוח״ כדי להוסיף.</p>
         } @else {
+          <app-filter-input [inputLabelName]="'חיפוש לפי שם הלקוח'" (filterBy)="onClientSearch($event)"></app-filter-input>
           <div class="clients-table-wrap">
             <table class="clients-table">
               <thead>
@@ -345,7 +346,7 @@
                 </tr>
               </thead>
               <tbody>
-                @for (group of groupedClients(); track group.user.id) {
+                @for (group of filteredGroupedClients(); track group.user.id) {
                   <!-- First business row — also carries user info and actions -->
                   @if (group.businesses.length === 0) {
                     <tr class="user-row">

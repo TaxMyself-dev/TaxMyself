@@ -117,6 +117,20 @@ export class ClientPanelPage implements OnInit {
   });
   readonly loadingClients = signal(false);
 
+  /** "הלקוחות שלי" table search term, same filterBy logic as flow-report.page.ts's filterBy(). */
+  readonly clientSearchTerm = signal<string>('');
+
+  /** groupedClients filtered by client name for display in the clients table. */
+  readonly filteredGroupedClients = computed(() => {
+    const term = this.clientSearchTerm();
+    if (!term) return this.groupedClients();
+    return this.groupedClients().filter((g) => String(g.user.fullName).includes(term));
+  });
+
+  onClientSearch(term: string): void {
+    this.clientSearchTerm.set(term);
+  }
+
   readonly createClientModalVisible = signal(false);
   readonly creatingClient = signal(false);
   createClientFormData: CreateClientPayload = this.getEmptyClientFormData();

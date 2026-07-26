@@ -1,6 +1,8 @@
 <div class="card-management">
   <div class="table-wrap">
     <div class="table-header-row">
+      <app-p-button [icon]="'pi pi-file-excel'" [buttonText]="'ייצוא לאקסל'" [buttonSize]="buttonSize.SMALL"
+        [disabled]="exportingExcel()" (onButtonClicked)="exportToExcel()"></app-p-button>
       <p class="table-title">כרטיסים</p>
     </div>
 

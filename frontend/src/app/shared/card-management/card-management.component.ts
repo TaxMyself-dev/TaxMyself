@@ -1,6 +1,7 @@
 import { Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, FormGroup } from '@angular/forms';
+import { Workbook } from 'exceljs';
 import { ConfirmationService } from 'primeng/api';
 import { finalize } from 'rxjs/operators';
 import { ButtonSize, ButtonColor } from 'src/app/components/button/button.enum';
@@ -210,5 +211,65 @@ export class CardManagementComponent implements OnInit {
         error: () => this.loading.set(false),
         complete: () => this.loading.set(false),
       });
+  }
+
+  // ── Excel export — same exceljs pattern (RTL, bold header, download via
+  // Blob) as category-management.component.ts's exportToExcel(). ──────────
+  exportingExcel = signal<boolean>(false);
+
+  exportToExcel(): void {
+    if (this.exportingExcel() || !this.filteredAccounts().length) return;
+    this.exportingExcel.set(true);
+    try {
+      this.buildAndDownloadAccountsWorkbook();
+    } finally {
+      this.exportingExcel.set(false);
+    }
+  }
+
+  private buildAndDownloadAccountsWorkbook(): void {
+    const header = [
+      'קוד', 'שם', 'חתך', 'קוד 6111', '% מע"מ', '% מס', '% הפחתה',
+      'ציוד', 'הכרה', 'סוג דוח', 'היקף בעלות',
+    ];
+
+    const wb = new Workbook();
+    const ws = wb.addWorksheet('כרטיסים', { views: [{ rightToLeft: true }] });
+    const headerRow = ws.addRow(header);
+    headerRow.font = { bold: true };
+    headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF4F6F9' } };
+
+    for (const row of this.filteredAccounts()) {
+      ws.addRow([
+        row.code,
+        row.name,
+        row.sectionName || '',
+        row.code6111 || '',
+        row.vatPercent ?? '',
+        row.taxPercent ?? '',
+        row.reductionPercent ?? '',
+        row.isEquipment ? 'כן' : 'לא',
+        this.recognitionLabel(row.recognitionType),
+        this.reportScopeLabel(row.reportScope),
+        this.ownerLabel(row),
+      ]);
+    }
+
+    for (let i = 1; i <= header.length; i++) {
+      ws.getColumn(i).width = 16;
+      ws.getColumn(i).alignment = { horizontal: 'right' };
+    }
+
+    wb.xlsx.writeBuffer().then((buffer) => {
+      const blob = new Blob([buffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'כרטיסים.xlsx';
+      a.click();
+      URL.revokeObjectURL(url);
+    });
   }
 }
