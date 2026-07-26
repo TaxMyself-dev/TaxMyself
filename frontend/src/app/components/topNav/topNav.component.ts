@@ -13,7 +13,7 @@ import { filter, map } from 'rxjs/operators';
 import { AccessService, FeatureState } from 'src/app/services/access.service';
 import { AccessHandlerService } from 'src/app/services/access-handler.service';
 import { AppFeature } from 'src/app/shared/access-control';
-import { PwaInstallService } from 'src/app/services/pwa/pwa-install.service';
+import { RuntimeContextService } from 'src/app/services/pwa/runtime-context.service';
 import { AppRefreshService } from 'src/app/services/pwa/app-refresh.service';
 
 @Component({
@@ -36,7 +36,7 @@ export class TopNavComponent {
     private readonly cdr = inject(ChangeDetectorRef);
     private readonly accessService = inject(AccessService);
     private readonly accessHandlerService = inject(AccessHandlerService);
-    private readonly pwaInstall = inject(PwaInstallService);
+    private readonly runtime = inject(RuntimeContextService);
     private readonly appRefresh = inject(AppRefreshService);
 
     readonly ButtonColor = ButtonColor;
@@ -55,7 +55,7 @@ export class TopNavComponent {
      * mutation is repeated.
      */
     readonly settingsMenuItems = computed<MenuButtonItem[]>(() => [
-        ...(this.pwaInstall.isStandalone()
+        ...(this.runtime.isInstalledPwa()
             ? [{
                 type: 'action' as const,
                 id: 'refresh',

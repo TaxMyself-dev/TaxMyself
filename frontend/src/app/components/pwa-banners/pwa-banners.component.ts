@@ -69,9 +69,16 @@ export class PwaBannersComponent {
   private readonly installDismissed = signal(false);
   private readonly iosHintDismissed = signal(false);
 
+  /**
+   * Our install prompt: normal mobile browser only, an install event actually
+   * available, not already running as the installed app, not dismissed for this
+   * session. Never on desktop, never inside the installed PWA.
+   */
   readonly showInstallChip = computed(
-    () => this.install.canInstall() && !this.install.isStandalone() && !this.installDismissed(),
+    () => this.install.canOfferInstall() && !this.installDismissed(),
   );
+
+  /** iOS has no install event — same conditions, manual instructions instead. */
   readonly showIosHint = computed(() => this.install.showIosHint() && !this.iosHintDismissed());
 
   constructor() {

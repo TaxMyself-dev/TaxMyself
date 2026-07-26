@@ -1,9 +1,9 @@
-import { Injectable, Injector, NgZone, signal } from '@angular/core';
+import { Injectable, Injector, NgZone, computed, signal } from '@angular/core';
 import { ClientPanelService } from './clients-panel.service';
 import { AngularFirestore } from '@angular/fire/compat/firestore';
 import { AngularFireAuth } from '@angular/fire/compat/auth';
 import { Router } from '@angular/router';
-import { Observable, catchError, firstValueFrom, from, switchMap, EMPTY, tap, BehaviorSubject, finalize, throwError } from 'rxjs';
+import { Observable, catchError, filter, firstValueFrom, from, switchMap, take, EMPTY, tap, BehaviorSubject, finalize, throwError } from 'rxjs';
 import { HttpClient } from '@angular/common/http';
 import { User, UserCredential } from '@firebase/auth-types';
 import { GoogleAuthProvider, sendEmailVerification } from '@angular/fire/auth';
@@ -35,8 +35,19 @@ export class AuthService {
   /** True once Firebase has finished restoring the persisted session. */
   readonly authInitialized = signal<boolean>(false);
 
+  /**
+   * Read-only view of {@link authInitialized} for guards/components. Together
+   * with {@link currentUser} this is the app's auth initialization state:
+   * `authReady() === false` → "initializing"; afterwards `currentUser()` is
+   * either the signed-in user ("authenticated") or null ("unauthenticated").
+   */
+  readonly authReady = this.authInitialized.asReadonly();
+
+  /** The restored Firebase user as a signal (null once known to be signed out). */
+  readonly currentUser = computed<User | null>(() => this.authUser() ?? null);
+
   /** Resolves when {@link authInitialized} first becomes true. */
-  private authReady!: Promise<void>;
+  private authInitPromise!: Promise<void>;
 
   constructor(
     private genericService: GenericService,
@@ -54,13 +65,16 @@ export class AuthService {
    * Subscribe to Firebase's restored auth state and make it the single source
    * of truth for "is the user signed in".
    *
-   * Firebase persists the session in IndexedDB (LOCAL persistence by default),
-   * which survives tab close, PWA close and Android task-kill. `authState`
-   * emits the restored user even when the device is offline and the SDK could
-   * not refresh the ID token, so this stays correct without connectivity.
+   * Where that session is persisted depends on the runtime mode chosen in
+   * `main.ts` (see `shared/auth/firebase-auth-persistence.ts`): the installed
+   * PWA restores from localStorage and survives app close / Android task-kill;
+   * a regular browser tab restores from sessionStorage and survives a refresh
+   * of that tab only. Either way `authState` emits the restored user even when
+   * the device is offline and the SDK could not refresh the ID token, so this
+   * stays correct without connectivity.
    */
   private initAuthState(): void {
-    this.authReady = new Promise<void>((resolve) => {
+    this.authInitPromise = new Promise<void>((resolve) => {
       this.afAuth.authState.subscribe({
         next: (user) => {
           this.authUser.set((user as User | null) ?? null);
@@ -86,7 +100,7 @@ export class AuthService {
    * Wait (bounded) for Firebase to restore the persisted session.
    *
    * The bound exists only so a hung SDK can never leave the router on a blank
-   * screen forever. Restoration is a local IndexedDB read and normally
+   * screen forever. Restoration is a local web-storage read and normally
    * completes in milliseconds, offline included.
    */
   async waitForAuthInit(timeoutMs = 15_000): Promise<void> {
@@ -95,7 +109,7 @@ export class AuthService {
     }
     let timer: ReturnType<typeof setTimeout>;
     await Promise.race([
-      this.authReady,
+      this.authInitPromise,
       new Promise<void>((resolve) => {
         timer = setTimeout(() => {
           console.warn(`[AuthService] auth init exceeded ${timeoutMs}ms — proceeding as "unknown".`);
@@ -108,6 +122,27 @@ export class AuthService {
   /** The restored Firebase user, or null when signed out / not yet known. */
   getCurrentAuthUser(): User | null {
     return this.authUser() ?? null;
+  }
+
+  /**
+   * Resolves once the app's auth state actually reflects a signed-in user.
+   *
+   * `signInWithEmailAndPassword()` resolving is not the same thing: AngularFire
+   * delivers `authState` through its own schedulers, so for a few ticks
+   * afterwards {@link isLoggedIn} can still be false. Anything that routes into
+   * the authenticated app right after a login must await this first, or
+   * AuthGuard may run against the pre-login state and bounce back to /login.
+   *
+   * Only call this on a path where a credential was just accepted — it waits
+   * for a user to appear, not for a verdict.
+   */
+  async waitForAuthenticatedUser(): Promise<void> {
+    if (this.authUser()) {
+      return;
+    }
+    await firstValueFrom(
+      this.afAuth.authState.pipe(filter((user): user is User => !!user), take(1)),
+    );
   }
 
   /** Reset any persisted view-as / x-client-user-id state. Called from
@@ -171,8 +206,12 @@ export class AuthService {
    * return to a protected page.
    */
   async logout(): Promise<void> {
-    // 1. Firebase — await so the persisted session (IndexedDB) is fully cleared
-    //    before we tear the app down.
+    // 1. Firebase — await so the persisted session is fully cleared before we
+    //    tear the app down. signOut() only removes the record from the store
+    //    this runtime was initialized with (see firebase-auth-persistence.ts),
+    //    so logging out of a browser tab clears sessionStorage and leaves the
+    //    installed app's own session intact, and vice versa. That is deliberate:
+    //    on a shared origin there is no way to end one without ending the other.
     try {
       await this.afAuth.signOut();
     } catch (err) {
