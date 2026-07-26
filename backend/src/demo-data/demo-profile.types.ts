@@ -76,6 +76,13 @@ export interface DemoProfile {
   sourceSyncStates?: DemoSourceSyncState[];
 
   /**
+   * Opts this profile into the two admin-only "before/after the Direct-card
+   * fix" actions. Optional — profiles that omit it show no such buttons and
+   * the endpoints refuse them. See `DemoLegacyDuplicateScenario`.
+   */
+  legacyDuplicateScenario?: DemoLegacyDuplicateScenario;
+
+  /**
    * Role override for the primary user. Default is `[REGULAR]`.
    * Use `[ACCOUNTANT]` (optionally + `REGULAR`) for accountant profiles —
    * the "משרד" tab on the frontend is gated by the `ACCOUNTANT` role.
@@ -239,6 +246,43 @@ export interface DemoSourceSyncState {
   consentId?: string;
   /** Error text for `status: 'failed'` rows. Defaults to null. */
   error?: string;
+}
+
+/**
+ * Declares the "legacy duplicate" demo scenario: the state this user's data
+ * was in BEFORE the Direct-card fix shipped, when the card feed was still
+ * imported alongside the bank feed and every Direct-card purchase therefore
+ * appeared twice.
+ *
+ * Two admin-only actions operate on a profile that declares this:
+ *
+ *   1. "צור מצב ישן עם כפילויות" — card `isDirect = NULL`, card sync status
+ *      `success`, and the cache rebuilt with BOTH feeds (bank rows + a
+ *      card-feed twin for each merchant listed here).
+ *   2. "הפעל תיקון כרטיס דיירקט" — card `isDirect = true`, card status
+ *      `skipped_direct` / count 0, and the cache rebuilt from the bank feed
+ *      only, which is what makes the duplicates disappear.
+ *
+ * The second action rebuilds the cache on purpose. The production fix only
+ * stops FUTURE card imports — it never deletes already-cached rows — so
+ * without a rebuild the pre-existing duplicates would survive it. The demo
+ * mirrors "fix + re-sync", not "fix alone".
+ */
+export interface DemoLegacyDuplicateScenario {
+  /**
+   * `sourceName` of the card source the fix flips to Direct. Must be a
+   * CREDIT_CARD source declared on this profile.
+   */
+  cardSourceName: string;
+  /**
+   * Merchant names, taken from this profile's `transactions`, whose bank rows
+   * get a card-feed twin in the legacy state. Each twin is CLONED from the
+   * bank row — identical merchant, amount, daysAgo and currency — with only
+   * `paymentIdentifier` swapped to `cardSourceName`, so the pair is guaranteed
+   * to look like the same purchase imported twice. Every name must match at
+   * least one transaction that isn't already on the card.
+   */
+  duplicateMerchants: string[];
 }
 
 export interface DemoTransactionTemplate {

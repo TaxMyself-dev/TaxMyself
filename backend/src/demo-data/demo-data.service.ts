@@ -32,7 +32,10 @@ import { UserSyncState } from 'src/transactions/user-sync-state.entity';
 import { ClassifiedTransactions } from 'src/transactions/classified-transactions.entity';
 import { Transactions } from 'src/transactions/transactions.entity';
 import { UserTransactionCacheState } from 'src/transactions/user-transaction-cache-state.entity';
-import { UserSourceSyncState } from 'src/transactions/user-source-sync-state.entity';
+import {
+  SourceSyncStatus,
+  UserSourceSyncState,
+} from 'src/transactions/user-source-sync-state.entity';
 import { Category } from 'src/bookkeeping/category.entity';
 import { SubCategory } from 'src/bookkeeping/sub-category.entity';
 import { AccountingSection } from 'src/bookkeeping/accounting-section.entity';
@@ -54,7 +57,12 @@ import { AccountantTask } from 'src/accountant-tasks/accountant-task.entity';
 import { ReportWorkflow } from 'src/report-workflow/report-workflow.entity';
 import { AnnualReport } from 'src/annual-report/annual-report.entity';
 import { DEMO_PROFILES, findDemoProfileByEmail } from './profiles';
-import { DemoClient, DemoProfile, DemoSeedable } from './demo-profile.types';
+import {
+  DemoClient,
+  DemoLegacyDuplicateScenario,
+  DemoProfile,
+  DemoSeedable,
+} from './demo-profile.types';
 import { GoogleDriveService, ServiceAccountQuotaError } from 'src/google-drive/google-drive.service';
 import { FxRateService } from 'src/shared/fx-rate.service';
 
@@ -76,6 +84,13 @@ export interface DemoProfileListItem {
   firebaseId?: string;
   /** Delegated clients (email + label) when this profile has them. */
   clients?: DemoSubUser[];
+  /**
+   * True when the profile declares a `legacyDuplicateScenario` — the admin UI
+   * renders the two Direct-card scenario buttons only for these. Every other
+   * profile gets `false` and the endpoints refuse it, so the actions can never
+   * be pointed at an unrelated demo user.
+   */
+  supportsDirectCardScenario: boolean;
 }
 
 export interface DemoSeedResult {
@@ -93,6 +108,26 @@ export interface DemoSeedResult {
 export interface DemoResetResult {
   existed: boolean;
   deletedRows: Record<string, number>;
+}
+
+/**
+ * Outcome of the two Direct-card scenario actions
+ * (`applyLegacyDuplicateState` / `applyDirectCardFix`).
+ */
+export interface DemoScenarioResult {
+  /** Which state the user is now in. */
+  state: 'legacy-duplicates' | 'direct-card-fixed';
+  firebaseId: string;
+  /** True when the action had to seed the demo user first. */
+  seededUser: boolean;
+  /** Cache rows rebuilt from the bank feed. */
+  bankRows: number;
+  /** Card-feed duplicate rows written (always 0 after the fix). */
+  cardRows: number;
+  /** Value written to `Source.isDirect` for the scenario's card. */
+  cardIsDirect: boolean | null;
+  /** Value written to the card's `user_source_sync_state.status`. */
+  cardStatus: SourceSyncStatus;
 }
 
 export interface DemoTestResetResult {
@@ -169,6 +204,7 @@ export class DemoDataService {
         exists: !!existing,
         firebaseId: existing?.firebaseId,
         clients,
+        supportsDirectCardScenario: !!p.legacyDuplicateScenario,
       });
     }
     return out;
@@ -684,6 +720,325 @@ export class DemoDataService {
     );
 
     return { filesDeleted, dbRowsReset, filesUploaded, driveInbox };
+  }
+
+  // ---------- Direct-card scenario actions (admin only) ----------
+  //
+  // Two actions that flip a profile declaring `legacyDuplicateScenario`
+  // between the pre-fix and post-fix Direct-card states, so the bug and its
+  // fix can be demonstrated on a live account.
+  //
+  // Both are full REBUILDS of the demo user's transaction cache, which is why
+  // they're idempotent: each one deletes every cache/slim row for the user and
+  // re-inserts from the profile template, so running either twice lands on
+  // byte-identical data (modulo `daysAgo` re-anchoring to today). Nothing here
+  // touches any user that isn't a demo profile.
+  //
+  // IMPORTANT — why the fix action rebuilds rather than deletes selectively:
+  // the production Direct-card implementation only stops FUTURE card-feed
+  // imports; it never removes rows already sitting in the cache. A real user
+  // sheds their duplicates on the next full re-sync, which repopulates the
+  // cache from the bank feed alone. The demo reproduces that same re-sync.
+
+  /**
+   * "צור מצב ישן עם כפילויות" — put the demo user into the pre-fix state:
+   * the card is NOT recognised as Direct, its feed was imported, and every
+   * scenario merchant therefore shows up twice on the Transactions page.
+   *
+   * Seeds the demo user first if they don't exist yet, so an admin can go
+   * straight to this action on a clean environment.
+   */
+  async applyLegacyDuplicateState(profileId: string): Promise<DemoScenarioResult> {
+    const { profile, scenario } = this.findScenarioProfile(profileId);
+    const { firebaseId, seededUser } = await this.ensureProfileUser(profile);
+
+    let bankRows = 0;
+    let cardRows = 0;
+    await this.dataSource.transaction(async (m) => {
+      const bank = await this.buildCacheRowsFromProfile(m, firebaseId, profile);
+      const duplicates = this.buildLegacyDuplicateRows(profile, scenario, bank);
+      bankRows = bank.length;
+      cardRows = duplicates.length;
+
+      await this.rebuildTransactionCache(m, firebaseId, [...bank, ...duplicates]);
+
+      // The card looks like any other credit card: undetected (isDirect NULL,
+      // exactly what a row written before the isDirect column existed looks
+      // like) and its feed reported as a successful import.
+      await m.update(
+        Source,
+        { userId: firebaseId, sourceName: scenario.cardSourceName },
+        { isDirect: null },
+      );
+      await this.writeSourceSyncRows(m, firebaseId, profile, [
+        ...this.bankSyncRowsFromProfile(profile, scenario, bank),
+        {
+          sourceId: scenario.cardSourceName,
+          type: 'card',
+          status: 'success',
+          transactionCount: duplicates.length,
+        },
+      ]);
+      await this.markUserSyncCompleted(m, firebaseId, bank.length + duplicates.length);
+    });
+
+    this.logger.log(
+      `[demo-data][scenario] ${profile.id} → legacy-duplicates | ` +
+        `bankRows=${bankRows} cardRows=${cardRows} seededUser=${seededUser}`,
+    );
+    return {
+      state: 'legacy-duplicates',
+      firebaseId,
+      seededUser,
+      bankRows,
+      cardRows,
+      cardIsDirect: null,
+      cardStatus: 'success',
+    };
+  }
+
+  /**
+   * "הפעל תיקון כרטיס דיירקט" — apply the Direct-card behaviour and re-sync:
+   * the card is flagged Direct and pinned to the terminal `skipped_direct`
+   * status, and the cache is rebuilt from the bank feed only, so the card-feed
+   * duplicates vanish.
+   *
+   * Lands on exactly the state a plain seed / "אפס נתוני בדיקה" produces —
+   * the per-source rows come from the same `applyProfileSourceState` helper.
+   */
+  async applyDirectCardFix(profileId: string): Promise<DemoScenarioResult> {
+    const { profile, scenario } = this.findScenarioProfile(profileId);
+    const { firebaseId, seededUser } = await this.ensureProfileUser(profile);
+
+    let bankRows = 0;
+    await this.dataSource.transaction(async (m) => {
+      const bank = await this.buildCacheRowsFromProfile(m, firebaseId, profile);
+      bankRows = bank.length;
+
+      // Rebuild from the bank feed ONLY — no duplicates re-inserted.
+      await this.rebuildTransactionCache(m, firebaseId, bank);
+
+      // isDirect + skipped_direct + count 0 for the card, and the bank count
+      // re-derived from the rows just written. Same helper the seed uses, so
+      // this cannot drift from the seeded state.
+      await m.update(
+        Source,
+        { userId: firebaseId, sourceName: scenario.cardSourceName },
+        { isDirect: true },
+      );
+      await this.applyProfileSourceState(m, firebaseId, profile, bank);
+      await this.markUserSyncCompleted(m, firebaseId, bank.length);
+    });
+
+    this.logger.log(
+      `[demo-data][scenario] ${profile.id} → direct-card-fixed | ` +
+        `bankRows=${bankRows} cardRows=0 seededUser=${seededUser}`,
+    );
+    return {
+      state: 'direct-card-fixed',
+      firebaseId,
+      seededUser,
+      bankRows,
+      cardRows: 0,
+      cardIsDirect: true,
+      cardStatus: 'skipped_direct',
+    };
+  }
+
+  /** Resolve a profile that opted into the Direct-card scenario, or 404. */
+  private findScenarioProfile(profileId: string): {
+    profile: DemoProfile;
+    scenario: DemoLegacyDuplicateScenario;
+  } {
+    const profile = this.findProfile(profileId);
+    const scenario = profile.legacyDuplicateScenario;
+    if (!scenario) {
+      throw new NotFoundException(
+        `Demo profile "${profileId}" does not declare a legacyDuplicateScenario`,
+      );
+    }
+    return { profile, scenario };
+  }
+
+  /**
+   * Find the profile's primary user, seeding the whole profile first if they
+   * don't exist. Lets an admin hit either scenario action on a clean
+   * environment without a separate "צור משתמש" click.
+   */
+  private async ensureProfileUser(
+    profile: DemoProfile,
+  ): Promise<{ firebaseId: string; seededUser: boolean }> {
+    const userRepo = this.dataSource.getRepository(User);
+    const existing = await userRepo.findOne({ where: { email: profile.email } });
+    if (existing) return { firebaseId: existing.firebaseId, seededUser: false };
+
+    this.logger.log(`[demo-data][scenario] ${profile.id} not seeded yet — seeding first`);
+    const seeded = await this.seedProfile(profile.id);
+    return { firebaseId: seeded.firebaseId, seededUser: true };
+  }
+
+  /**
+   * Clone the scenario's bank rows onto the card source. Each twin copies the
+   * bank row verbatim — same merchant, amount, date, currency, FX stamp and
+   * bill — and only swaps `paymentIdentifier`, so the pair reads as one
+   * purchase imported through two feeds (exactly the production duplicate).
+   *
+   * `externalTransactionId` gets a stable `-dup` suffix derived from the bank
+   * row's own id, so re-running the action produces the same ids instead of
+   * accumulating new rows.
+   */
+  private buildLegacyDuplicateRows(
+    profile: DemoProfile,
+    scenario: DemoLegacyDuplicateScenario,
+    bankRows: Array<Partial<FullTransactionCache>>,
+  ): Array<Partial<FullTransactionCache>> {
+    // Guard the profile data: a merchant that matches nothing (typo, renamed
+    // transaction) would silently produce fewer duplicate pairs than intended.
+    const eligible = bankRows.filter(
+      (r) => r.paymentIdentifier !== scenario.cardSourceName,
+    );
+    for (const merchant of scenario.duplicateMerchants) {
+      if (!eligible.some((r) => r.merchantName === merchant)) {
+        throw new Error(
+          `legacyDuplicateScenario merchant "${merchant}" (profile ${profile.id}) matches no ` +
+            `non-card transaction — nothing to duplicate`,
+        );
+      }
+    }
+
+    const wanted = new Set(scenario.duplicateMerchants);
+    return eligible
+      .filter((r) => wanted.has(r.merchantName!))
+      .map((r) => ({
+        ...r,
+        externalTransactionId: `${r.externalTransactionId}-dup`,
+        paymentIdentifier: scenario.cardSourceName,
+      }));
+  }
+
+  /**
+   * Wipe and re-insert the demo user's transaction cache. Slim rows go too —
+   * same as `testReset` does — because slim is the classification/confirmation
+   * side of the very same transactions and is what the report queries read.
+   * Keeping the duplicates' slim rows would leave them counted in reports
+   * after they'd disappeared from the transactions page.
+   */
+  private async rebuildTransactionCache(
+    m: EntityManager,
+    firebaseId: string,
+    rows: Array<Partial<FullTransactionCache>>,
+  ): Promise<void> {
+    await m.delete(SlimTransaction, { userId: firebaseId });
+    await m.delete(FullTransactionCache, { userId: firebaseId });
+    if (rows.length > 0) {
+      await m.insert(FullTransactionCache, rows);
+    }
+  }
+
+  /**
+   * The scenario's non-card sync rows, taken from the profile's declared
+   * `sourceSyncStates` so consent/resource ids stay identical across both
+   * states, with `transactionCount` re-derived from the rows just written.
+   */
+  private bankSyncRowsFromProfile(
+    profile: DemoProfile,
+    scenario: DemoLegacyDuplicateScenario,
+    bankRows: Array<Partial<FullTransactionCache>>,
+  ): Array<{
+    sourceId: string;
+    type: 'bank' | 'card';
+    status: SourceSyncStatus;
+    transactionCount: number;
+  }> {
+    return (profile.sourceSyncStates ?? [])
+      .filter((s) => s.sourceId !== scenario.cardSourceName)
+      .map((s) => ({
+        sourceId: s.sourceId,
+        type: s.type,
+        status: s.status,
+        transactionCount: bankRows.filter((r) => r.paymentIdentifier === s.sourceId).length,
+      }));
+  }
+
+  /**
+   * Delete-then-insert the given `user_source_sync_state` rows, preserving the
+   * profile's declared consent/resource ids. Delete-then-insert (rather than
+   * update) keeps the action idempotent whichever state the row was in.
+   */
+  private async writeSourceSyncRows(
+    m: EntityManager,
+    firebaseId: string,
+    profile: DemoProfile,
+    rows: Array<{
+      sourceId: string;
+      type: 'bank' | 'card';
+      status: SourceSyncStatus;
+      transactionCount: number;
+    }>,
+  ): Promise<void> {
+    if (rows.length === 0) return;
+    const declared = new Map(
+      (profile.sourceSyncStates ?? []).map((s) => [s.sourceId, s]),
+    );
+    await m.delete(UserSourceSyncState, {
+      userId: firebaseId,
+      sourceId: In(rows.map((r) => r.sourceId)),
+    });
+    await m.insert(
+      UserSourceSyncState,
+      rows.map((r) => ({
+        userId: firebaseId,
+        sourceId: r.sourceId,
+        type: r.type,
+        resourceId: declared.get(r.sourceId)?.resourceId ?? null,
+        consentId: declared.get(r.sourceId)?.consentId ?? null,
+        status: r.status,
+        transactionCount: r.transactionCount,
+        error: null,
+      })),
+    );
+  }
+
+  /**
+   * Force the user-level sync row to completed/success so the transactions
+   * fetch gate stays open on the freshly rebuilt cache. Upsert — a demo user
+   * seeded with `hasOpenBanking: false` has no row. Never clobbers a row
+   * mid-sync.
+   */
+  private async markUserSyncCompleted(
+    m: EntityManager,
+    firebaseId: string,
+    rowsWritten: number,
+  ): Promise<void> {
+    const now = new Date();
+    const updated = await m
+      .createQueryBuilder()
+      .update(UserSyncState)
+      .set({
+        fullProcessStatus: 'completed',
+        fullResultStatus: 'success',
+        fullRowsWritten: rowsWritten,
+        fullFinishedAt: now,
+        fullSkipReason: null,
+        fullFailureReason: null,
+      })
+      .where('userId = :userId', { userId: firebaseId })
+      .andWhere('fullProcessStatus != :running', { running: 'running' })
+      .execute();
+    if ((updated.affected ?? 0) > 0) return;
+
+    const exists = await m.findOne(UserSyncState, { where: { userId: firebaseId } });
+    if (exists) return; // row exists but is 'running' — leave the sync alone
+    await m.insert(UserSyncState, {
+      userId: firebaseId,
+      triggeredBy: 'manual',
+      fullProcessStatus: 'completed',
+      fullResultStatus: 'success',
+      fullRowsWritten: rowsWritten,
+      fullStartedAt: now,
+      fullFinishedAt: now,
+      lastSourcesRefreshAt: now,
+    });
   }
 
   async resetProfile(profileId: string): Promise<DemoResetResult> {

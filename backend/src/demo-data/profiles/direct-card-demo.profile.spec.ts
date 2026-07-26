@@ -73,13 +73,54 @@ describe('DIRECT_CARD_DEMO_PROFILE', () => {
   });
 });
 
+describe('DIRECT_CARD_DEMO_PROFILE legacyDuplicateScenario', () => {
+  const profile = DIRECT_CARD_DEMO_PROFILE;
+  const scenario = profile.legacyDuplicateScenario!;
+  const card = profile.bills
+    .flatMap((b) => b.sources)
+    .find((s) => s.sourceType === SourceType.CREDIT_CARD)!;
+
+  it('targets the profile’s Direct card', () => {
+    expect(scenario).toBeDefined();
+    expect(scenario.cardSourceName).toBe(card.sourceName);
+  });
+
+  it('names only merchants that exist on a non-card transaction', () => {
+    expect(scenario.duplicateMerchants.length).toBeGreaterThanOrEqual(2);
+    for (const merchant of scenario.duplicateMerchants) {
+      const matches = profile.transactions.filter(
+        (t) => t.merchantName === merchant && t.paymentIdentifier !== scenario.cardSourceName,
+      );
+      expect(matches.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('names distinct merchants (one duplicate pair each)', () => {
+    const unique = new Set(scenario.duplicateMerchants);
+    expect(unique.size).toBe(scenario.duplicateMerchants.length);
+    // Each name must resolve to exactly one bank row, otherwise the
+    // "N duplicate pairs" claim in the docs/UI stops holding.
+    for (const merchant of scenario.duplicateMerchants) {
+      const matches = profile.transactions.filter((t) => t.merchantName === merchant);
+      expect(matches).toHaveLength(1);
+    }
+  });
+
+  it('leaves some transactions un-duplicated so the contrast is visible', () => {
+    const duplicated = new Set(scenario.duplicateMerchants);
+    const untouched = profile.transactions.filter((t) => !duplicated.has(t.merchantName));
+    expect(untouched.length).toBeGreaterThan(0);
+  });
+});
+
 /** Backwards compatibility: the new optional fields must stay opt-in. */
 describe('existing demo profiles', () => {
   const others = DEMO_PROFILES.filter((p) => p.id !== DIRECT_CARD_DEMO_PROFILE.id);
 
-  it('declare no sourceSyncStates and no isDirect flags', () => {
+  it('declare no sourceSyncStates, isDirect flags or scenario', () => {
     for (const p of others) {
       expect(p.sourceSyncStates).toBeUndefined();
+      expect(p.legacyDuplicateScenario).toBeUndefined();
       const allSources = [...p.bills.flatMap((b) => b.sources), ...(p.standaloneSources ?? [])];
       for (const s of allSources) {
         expect(s.isDirect).toBeUndefined();

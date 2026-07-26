@@ -51,6 +51,12 @@ const DEMO_CARD_RESOURCE_ID = 'demo-resource-card-9012';
  * TransactionProcessingService.runDailyCacheCleanup), so this profile stays
  * usable indefinitely; "אפס נתוני בדיקה" re-anchors the transaction dates to
  * today and restores this exact state.
+ *
+ * The state described above is the POST-fix state — it is what a plain seed
+ * and a plain reset both produce. `legacyDuplicateScenario` (bottom of this
+ * file) additionally opts the profile into two admin-only actions that flip it
+ * between the pre-fix state (duplicates visible) and this one, so the fix can
+ * be demonstrated end-to-end. See `DemoLegacyDuplicateScenario`.
  */
 export const DIRECT_CARD_DEMO_PROFILE: DemoProfile = {
   id: 'direct-card-demo',
@@ -147,4 +153,21 @@ export const DIRECT_CARD_DEMO_PROFILE: DemoProfile = {
       consentId: DEMO_CONSENT_ID,
     },
   ],
+
+  // Opts this profile into the two admin-only actions that demonstrate the
+  // Direct-card bug and its fix. The listed merchants get a card-feed twin in
+  // the legacy state — five obvious duplicate pairs spread across the period,
+  // including one foreign-currency row so the FX columns are covered too.
+  // Everything else on the bank feed stays single, which makes the contrast
+  // legible: after the fix the list shrinks by exactly these five rows.
+  legacyDuplicateScenario: {
+    cardSourceName: NOAM_DIRECT_CARD,
+    duplicateMerchants: [
+      'שופרסל דיל',
+      'תחנת דלק סונול',
+      'Adobe Creative Cloud',
+      'סטימצקי',
+      'רכישת מסך מחשב - KSP',
+    ],
+  },
 };
