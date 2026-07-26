@@ -22,7 +22,8 @@ export class PwaBannersComponent {
   private readonly update = inject(PwaUpdateService);
   private readonly install = inject(PwaInstallService);
 
-  readonly updateReady = this.update.updateReady;
+  /** Installed-app only — a browser tab updates itself on its next load. */
+  readonly updateReady = this.update.updateAvailable;
   readonly activating = this.update.activating;
 
   /** Current connectivity classification (single source of truth). */

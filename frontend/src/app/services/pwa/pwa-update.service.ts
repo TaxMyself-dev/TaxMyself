@@ -1,7 +1,8 @@
-import { DestroyRef, Injectable, inject, signal } from '@angular/core';
+import { DestroyRef, Injectable, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { SwUpdate, VersionReadyEvent } from '@angular/service-worker';
 import { filter } from 'rxjs/operators';
+import { RuntimeContextService } from './runtime-context.service';
 
 /**
  * Detects when a newly deployed app version has been fully downloaded by the
@@ -14,10 +15,25 @@ import { filter } from 'rxjs/operators';
 @Injectable({ providedIn: 'root' })
 export class PwaUpdateService {
   private readonly swUpdate = inject(SwUpdate);
+  private readonly runtime = inject(RuntimeContextService);
   private readonly destroyRef = inject(DestroyRef);
 
   /** True once a new version is downloaded and ready to activate. */
   readonly updateReady = signal<boolean>(false);
+
+  /**
+   * Whether to *offer* the update — an installed-app affordance only.
+   *
+   * A browser tab has no "restart the app" concept: it picks up a new version
+   * on its next ordinary load, because index.html and ngsw.json are never
+   * HTTP-cached and every chunk is content-hashed (see firebase.json). Asking a
+   * web user to click "update now" is noise, and it is what leaked the
+   * installed-app prompt into regular web on DEV. The installed app can stay
+   * open for days, so there it is the only way to move a user off an old build.
+   *
+   * Same single source of truth as the install prompt: {@link RuntimeContextService}.
+   */
+  readonly updateAvailable = computed(() => this.updateReady() && this.runtime.isInstalledPwa());
   /** True while activation + reload is in flight (prevents repeat clicks). */
   readonly activating = signal<boolean>(false);
 
