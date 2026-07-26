@@ -55,7 +55,8 @@ export class ReportsController {
       if (!firebaseId) throw new BadRequestException('Not authenticated');
       const bn = query?.businessNumber?.trim();
       if (!bn) throw new BadRequestException('businessNumber is required');
-      return this.reviewService.previewCheck(firebaseId, bn);
+      const isAgentRequest = request.user?.role === 'agent';
+      return this.reviewService.previewCheck(firebaseId, bn, isAgentRequest);
     }
 
     /** Preview: process inbox, run matching (if Open Banking), return the

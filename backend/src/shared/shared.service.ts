@@ -7,11 +7,13 @@ import { parse, format, getDayOfYear } from 'date-fns';
 import { Expense } from '../expenses/expenses.entity';
 // TODO_FINTAX_REMOVE_LEGACY_TRANSACTIONS: Transactions is injected into SharedService solely to power the generic getRepository() helper. Remove the import, the @InjectRepository injection, and the Transactions case in getRepository() when the legacy table is dropped.
 import { Transactions } from '../transactions/transactions.entity';
-import { VATReportingType, SingleMonthReport, DualMonthReport, VAT_RATES, BusinessType, ReportPeriodLabel, isExemptBusinessType } from 'src/enum';
+import { VATReportingType, SingleMonthReport, DualMonthReport, VAT_RATES, BusinessType, ReportPeriodLabel, isExemptBusinessType, UserRole } from 'src/enum';
 import * as annualParams from 'src/annual.params.json';
 import { SettingDocuments } from '../documents/settingDocuments.entity';
 import { DocumentType } from 'src/enum';
 import { EntityManager } from 'typeorm';
+import { Delegation, DelegationStatus } from '../delegation/delegation.entity';
+import { User } from '../users/user.entity';
 
 
 @Injectable()
@@ -24,7 +26,24 @@ export class SharedService {
         private readonly transactionRepository: Repository<Transactions>,
         @InjectRepository(SettingDocuments)
         private readonly settingDocumentsRepo: Repository<SettingDocuments>,
+        @InjectRepository(Delegation)
+        private readonly delegationRepository: Repository<Delegation>,
+        @InjectRepository(User)
+        private readonly userRepository: Repository<User>,
     ) { }
+
+    /**
+     * True only when the client has an ACTIVE delegation AND the delegate
+     * actually holds the ACCOUNTANT role — not just "has any delegation".
+     */
+    async isRepresentedByAccountant(clientFirebaseId: string): Promise<boolean> {
+        const delegation = await this.delegationRepository.findOne({
+            where: { userId: clientFirebaseId, status: DelegationStatus.ACTIVE },
+        });
+        if (!delegation) return false;
+        const agent = await this.userRepository.findOne({ where: { firebaseId: delegation.agentId } });
+        return agent?.role?.includes(UserRole.ACCOUNTANT) ?? false;
+    }
 
 
     async findEntities<T>(entity: EntityTarget<T>, conditions: any): Promise<T[]> {

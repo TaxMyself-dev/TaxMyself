@@ -133,15 +133,30 @@ export class ReportReviewService {
    * load. Skips Open-Banking-only users' second signal when
    * `hasOpenBanking=false`.
    *
+   * `isAgentRequest` is true when the caller is an accountant acting on
+   * behalf of the client (via the office panel's `x-client-user-id`
+   * header — see FirebaseAuthGuard). In that case the represented-client
+   * suppression below must NOT apply: the accountant is exactly who is
+   * authorized to approve the expenses, so they still need to see the
+   * review table when submitting a report for that client.
+   *
    * Intentionally CHEAP — no OCR, no matcher — just a folder listing
    * and two `SELECT 1`s. Sub-second so it's free to call on every submit.
    */
   async previewCheck(
     firebaseId: string,
     businessNumber: string,
+    isAgentRequest = false,
   ): Promise<{ hasPendingDocs: boolean; hasUnconfirmedExpenses: boolean }> {
     const user = await this.userRepo.findOne({ where: { firebaseId } });
     if (!user) throw new NotFoundException(`User not found for firebaseId`);
+
+    if (!isAgentRequest && await this.sharedService.isRepresentedByAccountant(firebaseId)) {
+      // Only the accountant may approve this client's expenses — never show
+      // the review table to the represented client's own self-service
+      // submit; go straight to the report.
+      return { hasPendingDocs: false, hasUnconfirmedExpenses: false };
+    }
 
     let hasPendingDocs = false;
 
