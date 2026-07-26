@@ -623,6 +623,38 @@ export class DemoDataService {
           await m.insert(FullTransactionCache, rebuiltCacheRows);
         }
         dbRowsReset.fullCacheReseeded = rebuiltCacheRows.length;
+
+        // Re-assert the profile's per-source state so a reset lands on the
+        // same shape as a fresh seed: Direct cards keep isDirect = true and
+        // their terminal `skipped_direct` row, and the bank row's
+        // transactionCount re-syncs with the freshly rebuilt cache.
+        dbRowsReset.sourceSyncStates = await this.applyProfileSourceState(
+          m,
+          firebaseId,
+          profile,
+          rebuiltCacheRows,
+        );
+
+        // Re-assert the user-level sync state too. The seed writes
+        // 'completed'; an admin cache-clear (markSyncEmpty) would have left it
+        // 'empty', which closes the fetch gate and hides the transactions the
+        // reset just re-seeded. Never touch a row mid-sync.
+        if (profile.hasOpenBanking ?? true) {
+          dbRowsReset.userSyncState = (await m
+            .createQueryBuilder()
+            .update(UserSyncState)
+            .set({
+              fullProcessStatus: 'completed',
+              fullResultStatus: 'success',
+              fullRowsWritten: rebuiltCacheRows.length,
+              fullFinishedAt: new Date(),
+              fullSkipReason: null,
+              fullFailureReason: null,
+            })
+            .where('userId = :userId', { userId: firebaseId })
+            .andWhere('fullProcessStatus != :running', { running: 'running' })
+            .execute()).affected ?? 0;
+        }
       } finally {
         await m.query('SET FOREIGN_KEY_CHECKS = 1');
       }
@@ -876,6 +908,10 @@ export class DemoDataService {
             userId: firebaseId,
             sourceName: s.sourceName,
             sourceType: s.sourceType,
+            // Persisted exactly the way refreshUserSources persists a real
+            // Feezback detection: `true` for a Direct/Debit card, NULL when
+            // the profile doesn't say (every pre-existing profile).
+            isDirect: s.isDirect ?? null,
             bill: saved,
           }),
         );
@@ -893,6 +929,7 @@ export class DemoDataService {
           userId: firebaseId,
           sourceName: s.sourceName,
           sourceType: s.sourceType,
+          isDirect: s.isDirect ?? null,
         }),
       );
     }
@@ -986,6 +1023,90 @@ export class DemoDataService {
         lastSourcesRefreshAt: new Date(),
       });
     }
+
+    // 6. UserSourceSyncState — the per-source outcome rows the dashboard sync
+    //    panel and the settings sources table read. Opt-in: profiles that
+    //    don't declare `sourceSyncStates` get no rows, exactly as before.
+    await this.applyProfileSourceState(m, firebaseId, data, cacheRows);
+  }
+
+  /**
+   * Write the profile's declared per-source state:
+   *   - re-assert `Source.isDirect` for every declared source that carries it,
+   *   - replace the `user_source_sync_state` rows for the declared sourceIds.
+   *
+   * Shared by the initial seed and `testReset` so a reset lands on exactly the
+   * same state as a fresh seed (Requirement: a Direct card must survive both
+   * with `isDirect = true` and status `skipped_direct`).
+   *
+   * `transactionCount` defaults to the number of `cacheRows` whose resolved
+   * `paymentIdentifier` matches the sourceId — so a Direct card, which by
+   * design gets no generated transactions, reports 0 without hardcoding it.
+   *
+   * No-ops entirely when the profile declares no `sourceSyncStates`.
+   */
+  private async applyProfileSourceState(
+    m: EntityManager,
+    firebaseId: string,
+    data: DemoSeedable,
+    cacheRows: Array<Partial<FullTransactionCache>>,
+  ): Promise<number> {
+    const states = data.sourceSyncStates ?? [];
+    if (states.length === 0) return 0;
+
+    // Every declared sourceId must belong to a source this profile actually
+    // creates — otherwise the settings-page join (sourceName == sourceId)
+    // silently renders an unlinked row. Fail loudly at seed time instead.
+    const declaredSources = [
+      ...data.bills.flatMap((b) => b.sources),
+      ...(data.standaloneSources ?? []),
+    ];
+    const knownSourceNames = new Set(declaredSources.map((s) => s.sourceName));
+    for (const s of states) {
+      if (!knownSourceNames.has(s.sourceId)) {
+        throw new Error(
+          `sourceSyncStates entry "${s.sourceId}" (user ${data.email}) does not match any ` +
+            `Source.sourceName on this profile — the frontend joins on that value`,
+        );
+      }
+    }
+
+    // Re-assert isDirect (idempotent — already correct on a fresh seed, but
+    // testReset relies on this to restore the flag if anything cleared it).
+    for (const s of declaredSources) {
+      if (s.isDirect === undefined) continue;
+      await m.update(
+        Source,
+        { userId: firebaseId, sourceName: s.sourceName },
+        { isDirect: s.isDirect },
+      );
+    }
+
+    const countBySource = new Map<string, number>();
+    for (const row of cacheRows) {
+      const pid = row.paymentIdentifier;
+      if (!pid) continue;
+      countBySource.set(pid, (countBySource.get(pid) ?? 0) + 1);
+    }
+
+    await m.delete(UserSourceSyncState, {
+      userId: firebaseId,
+      sourceId: In(states.map((s) => s.sourceId)),
+    });
+    await m.insert(
+      UserSourceSyncState,
+      states.map((s) => ({
+        userId: firebaseId,
+        sourceId: s.sourceId,
+        type: s.type,
+        resourceId: s.resourceId ?? null,
+        consentId: s.consentId ?? null,
+        status: s.status,
+        transactionCount: s.transactionCount ?? countBySource.get(s.sourceId) ?? 0,
+        error: s.error ?? null,
+      })),
+    );
+    return states.length;
   }
 
   /**

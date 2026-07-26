@@ -8,6 +8,9 @@ import {
   SourceType,
   UserRole,
 } from 'src/enum';
+// Type-only import — erased at compile time, so this file stays free of any
+// runtime dependency on the transactions module (no entity/DI cycle).
+import type { SourceSyncStatus } from 'src/transactions/user-source-sync-state.entity';
 
 /**
  * Static profile description used by the demo-data seeder.
@@ -66,6 +69,13 @@ export interface DemoProfile {
   standaloneSources?: DemoStandaloneSource[];
 
   /**
+   * Per-source Open-Banking sync outcome rows (`user_source_sync_state`).
+   * Optional — profiles that omit it get no rows at all, exactly as before.
+   * See `DemoSourceSyncState` for the matching rules.
+   */
+  sourceSyncStates?: DemoSourceSyncState[];
+
+  /**
    * Role override for the primary user. Default is `[REGULAR]`.
    * Use `[ACCOUNTANT]` (optionally + `REGULAR`) for accountant profiles —
    * the "משרד" tab on the frontend is gated by the `ACCOUNTANT` role.
@@ -117,6 +127,7 @@ export interface DemoClient {
   bills: DemoBill[];
   transactions: DemoTransactionTemplate[];
   standaloneSources?: DemoStandaloneSource[];
+  sourceSyncStates?: DemoSourceSyncState[];
 }
 
 export interface DemoUser {
@@ -164,7 +175,29 @@ export interface DemoBill {
   billName: string;
   /** Points at one of the businesses' businessNumber. */
   businessNumberRef: string;
-  sources: Array<{ sourceName: string; sourceType: SourceType }>;
+  sources: DemoSource[];
+}
+
+/**
+ * A Source row seeded for a demo user. Mirrors what `refreshUserSources`
+ * writes after a real Feezback discovery.
+ */
+export interface DemoSource {
+  /** Payment identifier (bank account digits / card last-4). Must match what
+   *  the corresponding DemoTransactionTemplate carries on `paymentIdentifier`. */
+  sourceName: string;
+  sourceType: SourceType;
+  /**
+   * Card sources only — mirrors `Source.isDirect`.
+   *   true  — Direct/Debit card: its transactions arrive through the BANK feed,
+   *           so the demo must NOT generate any transaction on this source.
+   *           The frontend then shows the "כרטיס דיירקט" label and hides the
+   *           per-source pull button.
+   *   false — regular credit card.
+   *   omitted → persisted as NULL ("not yet determined"), the pre-existing
+   *           behaviour for every profile written before this field existed.
+   */
+  isDirect?: boolean;
 }
 
 /**
@@ -173,11 +206,39 @@ export interface DemoBill {
  * the demo's "associate to bill" flow can find a matching Source row by
  * `(userId, sourceName)` — the attach endpoint refuses to invent sources.
  */
-export interface DemoStandaloneSource {
-  /** Payment identifier (bank account digits / card last-4). Must match what
-   *  the corresponding DemoTransactionTemplate carries on `paymentIdentifier`. */
-  sourceName: string;
-  sourceType: SourceType;
+export type DemoStandaloneSource = DemoSource;
+
+/**
+ * One `user_source_sync_state` row — the per-source Open-Banking sync outcome
+ * the dashboard sync panel and the settings "חשבונות מקושרים" table read.
+ *
+ * Real syncs write these rows from Feezback results; demo profiles declare
+ * them statically so a permanent demo user can show a realistic (and stable)
+ * per-source status without ever calling Feezback.
+ *
+ * `sourceId` MUST equal the `sourceName` of a source declared on this profile
+ * (bill source or standalone) — both the settings-page join
+ * (`getSourcesWithTypes`) and the seeder's own validation match on that value.
+ */
+export interface DemoSourceSyncState {
+  /** → DemoSource.sourceName of the source this row describes. */
+  sourceId: string;
+  type: 'bank' | 'card';
+  /** `skipped_direct` is the terminal status of a Direct/Debit card. */
+  status: SourceSyncStatus;
+  /**
+   * Omit to derive it from the seeded data: the number of transactions whose
+   * resolved `paymentIdentifier` equals `sourceId`. That keeps the declared
+   * count honest when the transaction list changes (and keeps a Direct card's
+   * count at 0 automatically, since nothing is generated for it).
+   */
+  transactionCount?: number;
+  /** Feezback resource UUID. Demo profiles use a fake but stable value. */
+  resourceId?: string;
+  /** Feezback consent id. Demo profiles use a fake but stable value. */
+  consentId?: string;
+  /** Error text for `status: 'failed'` rows. Defaults to null. */
+  error?: string;
 }
 
 export interface DemoTransactionTemplate {
@@ -276,6 +337,8 @@ export type DemoSeedable = {
   transactions: DemoTransactionTemplate[];
   /** Orphan sources (no parent bill) — see DemoStandaloneSource. */
   standaloneSources?: DemoStandaloneSource[];
+  /** Per-source sync outcome rows — see DemoSourceSyncState. */
+  sourceSyncStates?: DemoSourceSyncState[];
   role?: UserRole[];
   hasOpenBanking?: boolean;
 };
