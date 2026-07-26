@@ -7,22 +7,28 @@ import {
 } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { AuthService } from '../../services/auth.service';
+import { StartupService } from '../../services/startup.service';
 import { isTransportError } from '../errors/auth-unavailable.error';
 
 @Injectable({
   providedIn: 'root',
 })
 export class AuthGuard {
-  constructor(public authService: AuthService, public router: Router) {}
+  constructor(
+    public authService: AuthService,
+    public router: Router,
+    private startup: StartupService,
+  ) {}
 
   async canActivate(
     next: ActivatedRouteSnapshot,
     state: RouterStateSnapshot
   ): Promise<boolean | UrlTree> {
-    // Firebase restores the persisted session from IndexedDB asynchronously.
-    // Deciding before that finishes is what previously logged users out on a
-    // PWA cold start, so always wait for initialization first.
-    await this.authService.waitForAuthInit();
+    // Firebase restores the persisted session asynchronously. Deciding before
+    // that finishes is what previously logged users out on a PWA cold start, so
+    // always wait for the startup gate (runtime mode + persistence + initial
+    // auth state) before any redirect decision.
+    await this.startup.whenReady();
 
     if (!this.authService.isLoggedIn) {
       console.warn('AuthGuard: no restored Firebase session - redirecting to login');

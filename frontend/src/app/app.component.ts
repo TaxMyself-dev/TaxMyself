@@ -18,7 +18,6 @@ import { AppFeature } from './shared/access-control';
 import { NetworkStatusService } from './services/pwa/network-status.service';
 import { AppRefreshService } from './services/pwa/app-refresh.service';
 import { StartupService } from './services/startup.service';
-import { RoutePersistenceService } from './services/route-persistence.service';
 
 
 
@@ -38,8 +37,6 @@ export class AppComponent implements OnInit {
   private readonly appRefresh = inject(AppRefreshService);
   /** Eagerly construct the cold-start gate so the global loader is on immediately. */
   private readonly startup = inject(StartupService);
-  /** Eagerly construct so NavigationEnd persistence is active for the session. */
-  private readonly routePersistence = inject(RoutePersistenceService);
 
   // Tracks the settled URL after each navigation — drives billing dialog visibility.
   private readonly currentUrl = signal<string>('');
@@ -154,7 +151,15 @@ export class AppComponent implements OnInit {
     this.recoverOnReconnect();
     this.releaseStartupLoaderAfterFirstNavigation();
   }
-  showTopNav = signal(true);
+  /**
+   * Hidden until the first navigation settles. The startup loader overlay is
+   * translucent, so a nav bar rendered underneath it would be visible while
+   * auth is still resolving — the "logged-in navigation, then bounce to login"
+   * flash. It is switched on (or left off, on /login and /register) by
+   * {@link hideTopNav} on the first NavigationEnd, which is the moment the
+   * route is decided.
+   */
+  showTopNav = signal(false);
 
   /**
    * When connectivity returns, re-fetch shared state so the app stops showing
