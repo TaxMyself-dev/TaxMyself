@@ -191,6 +191,7 @@ export class ReportReviewService {
   async previewCheck(
     firebaseId: string,
     businessNumber: string,
+    periodEnd: Date,
     isAgentRequest = false,
   ): Promise<{ hasPendingDocs: boolean; hasUnconfirmedExpenses: boolean }> {
     const user = await this.userRepo.findOne({ where: { firebaseId } });

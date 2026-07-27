@@ -681,12 +681,14 @@ export class BillingService {
       throw new BadRequestException('Only PAYMENT_SUCCESS events can have receipts generated');
     }
 
+    const issuer = await this.billingIssuerConfigService.getKeepintaxIssuer();
+
     // Idempotent: receipt already exists — skip creation, only resend email.
     if (event.receiptDocId != null) {
       this.logger.log(
         `generateMissingReceipt: receipt already exists (receiptDocId=${event.receiptDocId}), skipping creation`,
       );
-      const emailResult = await this.billingReceiptService.sendReceiptEmailForPaymentEvent(eventId);
+      const emailResult = await this.billingReceiptService.sendReceiptEmailForPaymentEvent(eventId, issuer.issuerName);
       return { created: false, sent: emailResult.sent, error: emailResult.error };
     }
 
@@ -719,7 +721,7 @@ export class BillingService {
     const periodStart = subscription.currentPeriodStart ?? new Date();
     const periodEnd = subscription.currentPeriodEnd ?? new Date();
 
-    const receipt = await this.billingReceiptService.createReceiptForPayment({
+    const receipt = await this.billingReceiptService.createReceiptForPayment(issuer, {
       firebaseId,
       subscriptionId: event.subscriptionId,
       amountBeforeVatAgorot: breakdown.amountBeforeVatAgorot,
@@ -735,10 +737,10 @@ export class BillingService {
     await this.billingEventService.updatePaymentEventWithReceipt(eventId, receipt.receiptDocId);
 
     // Generate PDFs and upload to Firebase.
-    await this.billingReceiptService.finalizeBillingReceiptPdfs(receipt.receiptDocId, firebaseId);
+    await this.billingReceiptService.finalizeBillingReceiptPdfs(receipt.receiptDocId, issuer, firebaseId);
 
     // Send receipt email.
-    const emailResult = await this.billingReceiptService.sendReceiptEmailForPaymentEvent(eventId);
+    const emailResult = await this.billingReceiptService.sendReceiptEmailForPaymentEvent(eventId, issuer.issuerName);
 
     this.logger.log(
       `generateMissingReceipt: receipt created and sent: receiptDocId=${receipt.receiptDocId} eventId=${eventId}`,

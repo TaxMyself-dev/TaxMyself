@@ -2155,8 +2155,9 @@ ${finalOwnerName}`;
       systemUserId, issuerBusinessNumber, issuerBusinessType,
       recipientName, recipientEmail,
       amountBeforeVatAgorot, vatAmountAgorot, amountIncludingVatAgorot,
-      planName, periodStart, periodEnd, docDate, initialReceiptIndex,
+      planName, periodStart, periodEnd, docDate,
     } = params;
+    const initialReceiptIndex = DEFAULT_INITIAL_DOC_INDEX[DocumentType.TAX_INVOICE_RECEIPT];
 
     const formattedPeriodStart = this.formatDateDotDDMMYYYY(periodStart);
     const formattedPeriodEnd = this.formatDateDotDDMMYYYY(periodEnd);
@@ -2177,101 +2178,52 @@ ${finalOwnerName}`;
     const vatAmountShekels = +(vatAmountAgorot / 100).toFixed(2);
     const amountIncludingVatShekels = +(amountIncludingVatAgorot / 100).toFixed(2);
 
-    const qr = this.dataSource.createQueryRunner();
-    await qr.connect();
-    await qr.startTransaction();
+    // Peek the next TAX_INVOICE_RECEIPT number — createDoc() expects the
+    // caller to already know it (it only syncs the counter, same contract
+    // the manual create-document flow relies on via this same helper).
+    // First-ever receipt for this business uses the same standard starting
+    // number any business gets for this docType (DEFAULT_INITIAL_DOC_INDEX) —
+    // not a business-specific override. This is a lock-free peek: createDoc()
+    // takes the real pessimistic_write lock and reserves the actual number,
+    // so a stale peek here is harmless (see createDoc's docNumber comment).
+    const { docIndex, isInitial } = await this.getCurrentIndexes(
+      systemUserId, DocumentType.TAX_INVOICE_RECEIPT, issuerBusinessNumber,
+    );
+    const docNumber = String(isInitial ? initialReceiptIndex : docIndex);
 
-    try {
-      // 1. Increment the shared generalDocIndex counter for this business
-      const generalIndexResult = await this.incrementGeneralIndex(
-        systemUserId, issuerBusinessNumber, qr.manager,
-      );
-      const generalDocIndex = String(generalIndexResult.currentIndex);
+    const docData = {
+      issuerBusinessNumber,
+      businessType: issuerBusinessType,
+      docType: DocumentType.TAX_INVOICE_RECEIPT,
+      docNumber,
+      docVatRate: 18,
+      currency: Currency.ILS,
+      sumBefDisBefVat: amountBeforeVatShekels,
+      disSum: 0,
+      sumAftDisBefVAT: amountBeforeVatShekels,
+      vatSum: vatAmountShekels,
+      sumAftDisWithVAT: amountIncludingVatShekels,
+      withholdingTaxAmount: 0,
+      recipientName,
+      recipientEmail,
+      docDate,
+    };
 
-      // 2. Determine the next TAX_INVOICE_RECEIPT doc number from the per-type counter.
-      // Locked with pessimistic_write so two payments succeeding at the same
-      // moment can't both read the same currentIndex (same shared company
-      // billing business number is used for every customer's receipt).
-      const settingRepo = qr.manager.getRepository(SettingDocuments);
-      let docSetting = await settingRepo.findOne({
-        where: { userId: systemUserId, issuerBusinessNumber, docType: DocumentType.TAX_INVOICE_RECEIPT },
-        lock: { mode: 'pessimistic_write' },
-      });
-
-      let docNumber: string;
-      if (!docSetting) {
-        // First billing receipt — initialize counter at configured starting index.
-        // A concurrent transaction may be creating this same row right now; the
-        // unique constraint on (userId, issuerBusinessNumber, docType) turns
-        // that race into a duplicate-key error instead of a silent collision.
-        try {
-          docSetting = await settingRepo.save(
-            settingRepo.create({
-              userId: systemUserId,
-              issuerBusinessNumber,
-              docType: DocumentType.TAX_INVOICE_RECEIPT,
-              initialIndex: initialReceiptIndex,
-              currentIndex: initialReceiptIndex + 1,
-            }),
-          );
-          docNumber = String(initialReceiptIndex);
-        } catch (err) {
-          if (!this.isDuplicateKeyError(err)) throw err;
-          // Lost the race — re-select with the lock. This blocks until the
-          // winning transaction commits, then returns its committed value.
-          docSetting = await settingRepo.findOneOrFail({
-            where: { userId: systemUserId, issuerBusinessNumber, docType: DocumentType.TAX_INVOICE_RECEIPT },
-            lock: { mode: 'pessimistic_write' },
-          });
-          docNumber = String(docSetting.currentIndex);
-          docSetting.currentIndex += 1;
-          await settingRepo.save(docSetting);
-        }
-      } else {
-        docNumber = String(docSetting.currentIndex);
-        docSetting.currentIndex += 1;
-        await settingRepo.save(docSetting);
-      }
-
-      // 3. Persist the Documents row (no PDF, no Firebase, no journal entry)
-      const docData = {
-        issuerBusinessNumber,
-        businessType: issuerBusinessType,
-        docType: DocumentType.TAX_INVOICE_RECEIPT,
-        docNumber,
-        generalDocIndex,
-        docVatRate: 18,
-        currency: Currency.ILS,
-        sumBefDisBefVat: amountBeforeVatShekels,
-        disSum: 0,
-        sumAftDisBefVAT: amountBeforeVatShekels,
-        vatSum: vatAmountShekels,
-        sumAftDisWithVAT: amountIncludingVatShekels,
-        withholdingTaxAmount: 0,
-        recipientName,
-        recipientEmail,
-        docDate,
-      };
-      const savedDoc = await this.saveDocInfo(systemUserId, docData, qr.manager);
-
-      // 4. Persist one DocLines row
-      const lineData = [{
-        issuerBusinessNumber,
-        generalDocIndex,
-        docType: DocumentType.TAX_INVOICE_RECEIPT,
-        lineNumber: '1',
-        transType: '3',
-        description: lineDescription,
-        unitType: UnitOfMeasure.UNIT,
-        unitQuantity: 1,
-        sumBefVatPerUnit: amountBeforeVatShekels,
-        disBefVatPerLine: 0,
-        sumAftDisBefVatPerLine: amountBeforeVatShekels,
-        vatOpts: VatOptions.EXCLUDE,
-        vatRate: 18,
-        vatPerLine: vatAmountShekels,
-      }];
-      await this.saveLinesInfo(systemUserId, lineData, qr.manager);
+    const linesData = [{
+      issuerBusinessNumber,
+      docType: DocumentType.TAX_INVOICE_RECEIPT,
+      lineNumber: '1',
+      transType: '3',
+      description: lineDescription,
+      unitType: UnitOfMeasure.UNIT,
+      unitQuantity: 1,
+      sumBefVatPerUnit: amountBeforeVatShekels,
+      disBefVatPerLine: 0,
+      sumAftDisBefVatPerLine: amountBeforeVatShekels,
+      vatOpts: VatOptions.EXCLUDE,
+      vatRate: 18,
+      vatPerLine: vatAmountShekels,
+    }];
 
     // VAT-inclusive total — what was actually charged.
     const paymentData = [{
@@ -2294,7 +2246,6 @@ ${finalOwnerName}`;
       generalDocIndex: result.generalDocIndex,
     };
   }
-
 
   // Save draft before SHAAM redirect
   async saveDraft(userId: string, data: any): Promise<Documents> {
