@@ -147,7 +147,7 @@ export class SettingsPage implements OnInit {
   /** Account sources (credit cards + bank accounts) from backend `transactions/source` table. */
   accountSourcesLoading = signal(false);
   accountSources = signal<
-    { sourceName: string; sourceType: paymentIdentifierType; billName: string | null; hasConsent: boolean }[]
+    { sourceName: string; sourceType: paymentIdentifierType; billName: string | null; hasConsent: boolean; isDirect: boolean | null }[]
   >([]);
 
   /** Flat IRowDataTable rows derived from accountSources for GenericTable. */
@@ -155,10 +155,14 @@ export class SettingsPage implements OnInit {
     this.accountSources().map(s => ({
       id: s.sourceName,
       sourceName: s.sourceName,
-      sourceTypeLabel: this.getSourceTypeLabel(s.sourceType),
+      sourceTypeLabel: this.getSourceTypeLabel(s.sourceType, s.isDirect),
       billName: s.billName || 'לא משויך',
-      consentStatus: s.hasConsent ? '✓ פעיל' : '✗ ללא הרשאה',
-      
+      // Direct card: its transactions are received via the bank-account feed —
+      // there is nothing to pull from the card feed, so no error/consent nag.
+      consentStatus: s.isDirect === true
+        ? 'נמשך דרך חשבון הבנק'
+        : s.hasConsent ? '✓ פעיל' : '✗ ללא הרשאה',
+      isDirect: s.isDirect === true,
     }))
   );
 
@@ -182,7 +186,11 @@ export class SettingsPage implements OnInit {
       name: 'pullSource',
       icon: 'pi pi-refresh',
       title: 'משוך תנועות',
-      showWhen: (row) => !this.retryingSourceId() || this.retryingSourceId() === row['sourceName'],
+      // Direct cards never expose a pull button — their transactions are
+      // intentionally received via the bank-account feed, and the backend
+      // refuses the pull anyway (skipped_direct).
+      showWhen: (row) => row!['isDirect'] !== true &&
+        (!this.retryingSourceId() || this.retryingSourceId() === row!['sourceName']),
       isLoading: () => !!this.retryingSourceId(),
       action: (_, row) => {
         const source = this.accountSources().find(s => s.sourceName === row!['sourceName']);
@@ -312,8 +320,16 @@ export class SettingsPage implements OnInit {
    * `sourceType` maps to bank/card. Routes to POST /transactions/retry-source
    * → feezbackService.retrySource → pullOneSource (no getUserAccounts re-pull).
    */
-  onPullSource(s: { sourceName: string; sourceType: paymentIdentifierType }): void {
+  onPullSource(s: { sourceName: string; sourceType: paymentIdentifierType; isDirect?: boolean | null }): void {
     if (this.retryingSourceId()) return; // one at a time
+    if (s.isDirect === true) {
+      // Direct card — nothing to pull from the card feed (bank feed covers it).
+      this.messageService.add({
+        severity: 'info', summary: 'כרטיס דיירקט',
+        detail: 'כרטיס דיירקט — התנועות נמשכות דרך חשבון הבנק', life: 5000, key: 'br',
+      });
+      return;
+    }
     const type: 'bank' | 'card' =
       s.sourceType === paymentIdentifierType.CREDIT_CARD ? 'card' : 'bank';
     this.retryingSourceId.set(s.sourceName);
@@ -331,6 +347,15 @@ export class SettingsPage implements OnInit {
         finalize(() => this.retryingSourceId.set(null)),
       )
       .subscribe((result) => {
+        if (result?.status === 'skipped_direct') {
+          // Backend re-detected the card as Direct mid-pull — not a failure.
+          this.messageService.add({
+            severity: 'info', summary: 'כרטיס דיירקט',
+            detail: `${s.sourceName}: כרטיס דיירקט — התנועות נמשכות דרך חשבון הבנק`, life: 6000, key: 'br',
+          });
+          this.fetchAccountSources();
+          return;
+        }
         const ok = result?.status === 'success';
         this.messageService.add({
           severity: ok ? 'success' : 'warn',
@@ -345,8 +370,11 @@ export class SettingsPage implements OnInit {
       });
   }
 
-  getSourceTypeLabel(sourceType: paymentIdentifierType): string {
-    return sourceType === paymentIdentifierType.CREDIT_CARD ? 'כרטיס אשראי' : 'חשבון בנק';
+  getSourceTypeLabel(sourceType: paymentIdentifierType, isDirect?: boolean | null): string {
+    if (sourceType === paymentIdentifierType.CREDIT_CARD) {
+      return isDirect === true ? 'כרטיס דיירקט' : 'כרטיס אשראי';
+    }
+    return 'חשבון בנק';
   }
 
   private initPersonalFormFromUserData(): void {

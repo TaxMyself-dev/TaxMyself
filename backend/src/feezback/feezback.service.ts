@@ -66,9 +66,34 @@ export class FeezbackService {
     const sub = `${firebaseId}_sub`;
     const [accountsResponse, cardsResponse] = await Promise.all([
       this.feezbackApiService.getUserAccounts(sub, { preventUpdate: true, withInvalid: false }),
-      this.feezbackApiService.getUserCards(sub, { withBalances: false, withInvalid: false, preventUpdate: true }),
+      // withBalances=true so the admin sees the Direct-card signal (balances
+      // present = credit, absent = direct) exactly as the sync paths do.
+      this.feezbackApiService.getUserCards(sub, { withBalances: true, withInvalid: false, preventUpdate: true }),
     ]);
     return { accounts: accountsResponse, cards: cardsResponse };
+  }
+
+  /**
+   * Direct/Debit-card detection per Feezback's Open Banking guarantee:
+   * credit cards ALWAYS return balances, direct/debit cards NEVER do.
+   *
+   * MUST only be called with a card object taken from a SUCCESSFUL
+   * `getUserCards(..., { withBalances: true })` response. When the cards
+   * fetch fails, nothing may be inferred — callers must abort that card's
+   * sync and write no isDirect value (never guess).
+   */
+  private determineIsDirect(card: any): boolean {
+    return !(Array.isArray(card?.balances) && card.balances.length > 0);
+  }
+
+  /**
+   * True when a per-source sync status makes the source eligible for the
+   * login-time retry pass. 'skipped_direct' is TERMINAL by design — a
+   * Direct/Debit card is intentionally never pulled from the card feed, so it
+   * must never be selected for automatic retry (nor look "pending" in the UI).
+   */
+  static isRetryablePendingStatus(status: string): boolean {
+    return status === 'failed' || status === 'not_synced';
   }
 
   /**
@@ -76,22 +101,34 @@ export class FeezbackService {
    * Race-safe and idempotent. Falsy sourceName entries are skipped.
    * The `bill` FK column is omitted so an existing linkage isn't clobbered.
    * `resourceId` is preserved on update via COALESCE — never overwritten with NULL.
+   *
+   * `isDirect` handling (card feed only):
+   *   - Bank upserts never pass isDirect → the parameter is NULL → the
+   *     COALESCE keeps whatever is stored. Bank rows themselves stay NULL.
+   *   - Card upserts pass true/false ONLY when determined from a successful
+   *     balances fetch; a null/undefined incoming value never overwrites a
+   *     stored non-null value (COALESCE(VALUES(isDirect), isDirect)).
    */
   private async upsertSources(
     userId: string,
     sourceType: SourceType,
-    items: Array<{ sourceName: string; resourceId: string | null }>,
+    items: Array<{ sourceName: string; resourceId: string | null; isDirect?: boolean | null }>,
   ): Promise<void> {
     // resourceId is intentionally not persisted here — the Feezback resourceId
     // lives in user_source_sync_state (used by pullOneSource/retrySource). The
     // `source` table only maps an account/card to a Bill for bookkeeping.
-    for (const { sourceName } of items) {
+    for (const { sourceName, isDirect } of items) {
       if (!sourceName) continue;
+      // Defense in depth: only card upserts may carry a non-null isDirect.
+      const isDirectParam =
+        sourceType === SourceType.CREDIT_CARD && typeof isDirect === 'boolean' ? isDirect : null;
       await this.sourceRepository.query(
-        `INSERT INTO source (\`userId\`, \`sourceName\`, \`sourceType\`)
-         VALUES (?, ?, ?)
-         ON DUPLICATE KEY UPDATE \`sourceType\` = VALUES(\`sourceType\`)`,
-        [userId, sourceName, sourceType],
+        `INSERT INTO source (\`userId\`, \`sourceName\`, \`sourceType\`, \`isDirect\`)
+         VALUES (?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE
+           \`sourceType\` = VALUES(\`sourceType\`),
+           \`isDirect\` = COALESCE(VALUES(\`isDirect\`), \`isDirect\`)`,
+        [userId, sourceName, sourceType, isDirectParam],
       );
     }
   }
@@ -160,7 +197,11 @@ export class FeezbackService {
 
     let cards: any[] = [];
     try {
-      const cardsResponse = await this.feezbackApiService.getUserCards(sub, { withBalances: false });
+      // withBalances=true — balances are the Direct/Debit-card signal (credit
+      // cards always return balances, direct cards never do), so discovery
+      // determines isDirect and persists it on the Source row BEFORE any
+      // transaction pull can happen.
+      const cardsResponse = await this.feezbackApiService.getUserCards(sub, { withBalances: true });
       cards = cardsResponse?.cards ?? [];
       const cardItems = cards
         .map((card: any) => {
@@ -169,9 +210,10 @@ export class FeezbackService {
           return {
             sourceName: this.deriveSourceName(rawId, card?.currency),
             resourceId: card?.resourceId ?? null,
+            isDirect: this.determineIsDirect(card),
           };
         })
-        .filter((x): x is { sourceName: string; resourceId: string | null } => x !== null);
+        .filter((x): x is { sourceName: string; resourceId: string | null; isDirect: boolean } => x !== null);
       await this.upsertSources(firebaseId, SourceType.CREDIT_CARD, cardItems);
     } catch (error: any) {
       cardError = error?.message ?? 'unknown';
@@ -245,7 +287,8 @@ export class FeezbackService {
         const rawId = card?.maskedPan?.match(/(\d{4})$/)?.[1];
         const sn = this.deriveSourceName(rawId, card?.currency);
         const cid = card?.consentId ?? card?.relatedConsents?.[0]?.resourceId ?? '—';
-        console.log(`    •  ${sn}   consentId=${cid}`);
+        const directMark = this.determineIsDirect(card) ? '   [DIRECT — card feed skipped]' : '';
+        console.log(`    •  ${sn}   consentId=${cid}${directMark}`);
       }
     }
     if (moduleAccessUpdated) console.log(`  ✓ Module access enabled`);
@@ -481,6 +524,10 @@ export class FeezbackService {
     });
     const cards = this.dedupeCardsPreferActive(cardsResponse?.cards);
     // const cards = cardsResponse?.cards || [];
+    // The cards fetch above succeeded WITH balances (withBalances: true), so
+    // the Direct determination is authoritative here — persist it on the
+    // Source rows BEFORE any transaction fetch. If the fetch had failed we'd
+    // have thrown already: no isDirect is ever guessed, no transactions pulled.
     const cardUpsertItems = (cards ?? [])
       .map((card: any) => {
         const rawId = card?.maskedPan?.match(/(\d{4})$/)?.[1];
@@ -488,13 +535,41 @@ export class FeezbackService {
         return {
           sourceName: this.deriveSourceName(rawId, card?.currency),
           resourceId: card?.resourceId ?? null,
+          isDirect: this.determineIsDirect(card),
         };
       })
-      .filter((x): x is { sourceName: string; resourceId: string | null } => x !== null);
+      .filter((x): x is { sourceName: string; resourceId: string | null; isDirect: boolean } => x !== null);
     await this.upsertSources(userId, SourceType.CREDIT_CARD, cardUpsertItems);
+
+    // Direct/Debit cards: intentionally skipped — their transactions arrive
+    // through the bank-account feed. Excluded BEFORE the transaction fetch so
+    // not even a first sync can import a duplicate from the card feed.
+    const directCards = (cards ?? []).filter((card: any) => this.determineIsDirect(card));
+    const directCardsResult = directCards
+      .map((card: any) => {
+        const rawId = card?.maskedPan?.match(/(\d{4})$/)?.[1];
+        if (!rawId) return null;
+        return {
+          cardResourceId: card?.resourceId ?? null,
+          sourceId: this.deriveSourceName(rawId, card?.currency),
+          displayName: card?.displayName || card?.name || card?.maskedPan || card?.resourceId,
+          maskedPan: card?.maskedPan ?? null,
+          currency: card?.currency ?? null,
+          consentId: card?.consentId ?? card?.relatedConsents?.[0]?.resourceId ?? null,
+        };
+      })
+      .filter((x): x is NonNullable<typeof x> => x !== null);
+    if (directCards.length > 0) {
+      console.log(
+        `  ⏭  Direct card(s) skipped — transactions come via the bank feed: ` +
+        directCardsResult.map(c => `*${c.sourceId}`).join(', '),
+      );
+    }
+
+    const syncableCards = (cards ?? []).filter((card: any) => !this.determineIsDirect(card));
     const filteredCards = cardResourceId
-      ? cards.filter(card => card?.resourceId === cardResourceId)
-      : cards;
+      ? syncableCards.filter(card => card?.resourceId === cardResourceId)
+      : syncableCards;
 
     const cardInfoMap: Record<string, any> = {};
     const cardsResult: any[] = [];
@@ -670,6 +745,10 @@ export class FeezbackService {
       cardsProcessed: filteredCards.length,
       cardsSucceeded: cardsResult.length,
       cardsFailed: cardErrors.length,
+      cardsSkippedDirect: directCardsResult.length,
+      // Direct/Debit cards intentionally excluded from the card feed
+      // (their transactions arrive via the bank-account feed).
+      directCards: directCardsResult,
 
       savedFiles,
       normalizedTransactions,
@@ -1550,7 +1629,11 @@ export class FeezbackService {
       if (!last4) continue;
       const sourceId = this.deriveSourceName(last4, card?.currency);
       const consentId = card?.consentId ?? card?.relatedConsents?.[0]?.resourceId ?? undefined;
-      sources.push({ type: 'card', sourceId, resourceId: card?.resourceId, consentId });
+      // Cards reaching here were fetched with withBalances=true (sole caller is
+      // refreshUserSources), so the Direct determination is authoritative —
+      // direct cards get the terminal 'skipped_direct' status instead of
+      // 'not_synced' (never retryable).
+      sources.push({ type: 'card', sourceId, resourceId: card?.resourceId, consentId, isDirect: this.determineIsDirect(card) });
     }
 
     if (sources.length > 0) {
@@ -1726,6 +1809,19 @@ export class FeezbackService {
           error: err.message,
         });
       }
+      // Direct/Debit cards — terminal 'skipped_direct' entries. Intentionally
+      // not pulled (transactions arrive via the bank feed); never retryable.
+      for (const dc of cardRes.directCards ?? []) {
+        if (!dc?.sourceId) continue;
+        results.push({
+          type: 'card',
+          sourceId: dc.sourceId,
+          resourceId: dc.cardResourceId ?? undefined,
+          consentId:  dc.consentId ?? undefined,
+          status: 'skipped_direct',
+          transactionCount: 0,
+        });
+      }
     }
 
     return results;
@@ -1857,7 +1953,7 @@ export class FeezbackService {
       if (syncHasRun && triggeredBy === 'login') {
         const sourceRows = await this.userSyncStateService.getSourceResults(firebaseId);
         const pendingSources = sourceRows.filter(
-          s => s.status === 'failed' || s.status === 'not_synced',
+          s => FeezbackService.isRetryablePendingStatus(s.status),
         );
         if (pendingSources.length > 0) {
           console.log(`🔁 [FullSync] Cache exists but ${pendingSources.length} source(s) pending (failed/not_synced) — retrying | firebaseId=${masked}`);
@@ -1931,12 +2027,14 @@ export class FeezbackService {
         console.log(`  SYNC RESULTS [${label}] — ${processStatus === 'completed' ? '✅ OK' : '⚠️  ERRORS'}`);
         console.log(`════════════════════════════════════`);
         for (const r of sourceResults) {
-          const icon = r.status === 'success' ? '✓' : '✗';
+          const icon = r.status === 'success' ? '✓' : r.status === 'skipped_direct' ? '⏭' : '✗';
           const typeLabel = r.type === 'bank' ? 'Bank' : 'Card';
           const id = r.type === 'bank' ? r.sourceId : `*${r.sourceId}`;
           const detail = r.status === 'success'
             ? `SUCCESS — ${r.transactionCount} transactions`
-            : `FAILED — ${r.error ?? 'unknown'}`;
+            : r.status === 'skipped_direct'
+              ? `SKIPPED — direct card (transactions come via the bank feed)`
+              : `FAILED — ${r.error ?? 'unknown'}`;
           console.log(`  ${icon}  ${typeLabel.padEnd(4)} ${id.padEnd(20)} ${detail}`);
         }
         if (sourceResults.length === 0) console.log(`  (no sources)`);
@@ -2198,6 +2296,22 @@ export class FeezbackService {
 
     if (type === 'card') {
       const userName = await this.resolveUserLabel(firebaseId);
+
+      // TERMINAL GUARD — Direct/Debit card. Even when a caller explicitly
+      // requests this source (login retry, auto-retry, settings pull button,
+      // admin pull), the backend re-checks the Source row and refuses to fetch
+      // card transactions: a direct card's transactions arrive via the
+      // bank-account feed, and pulling the card feed would duplicate them.
+      const storedSource = await this.sourceRepository
+        .findOne({ where: { userId: firebaseId, sourceName: sourceId } })
+        .catch(() => null);
+      if (storedSource?.isDirect === true) {
+        console.log(`  ⏭ Card *${sourceId} (${userName}) — skipped_direct | direct card, transactions come via the bank feed`);
+        const result: SourceResult = { type: 'card', sourceId, status: 'skipped_direct', transactionCount: 0 };
+        await this.userSyncStateService.updateSourceResults(firebaseId, [result]).catch(() => {});
+        return result;
+      }
+
       const dbSources = await this.userSyncStateService.getSourceResults(firebaseId);
       const dbSource = dbSources.find(s => s.sourceId === sourceId && s.type === 'card');
       const cardResourceId = dbSource?.resourceId;
@@ -2220,6 +2334,22 @@ export class FeezbackService {
         const cardRes = await this.getAndSaveUserCardTransactionsInternal(
           firebaseId, sub, 'booked', dateFrom, dateTo, cardResourceId,
         );
+
+        // Freshly-detected Direct card (stored isDirect was still NULL when the
+        // guard above ran): the internal fetch re-determined it from balances
+        // and excluded it from the transaction pull. Terminal — nothing fetched.
+        const skippedDirect = cardRes.directCards?.find((c: any) => c.cardResourceId === cardResourceId);
+        if (skippedDirect) {
+          console.log(`  ⏭ Card *${sourceId} (${userName}) — skipped_direct | detected as direct card during pull, card feed not fetched`);
+          const result: SourceResult = {
+            type: 'card', sourceId, resourceId: cardResourceId,
+            consentId: skippedDirect.consentId ?? undefined,
+            status: 'skipped_direct', transactionCount: 0,
+          };
+          await this.userSyncStateService.updateSourceResults(firebaseId, [result]).catch(() => {});
+          return result;
+        }
+
         const succeeded = cardRes.cards?.find((c: any) => c.cardResourceId === cardResourceId);
         const failed = cardRes.cardErrors?.find((e: any) => e.cardResourceId === cardResourceId);
 

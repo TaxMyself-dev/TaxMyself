@@ -493,6 +493,9 @@ export class ClientsDashboardComponent implements OnInit {
         this.pullResultByKey.update(m => ({ ...m, [key]: result }));
         if (result.status === 'success') {
           this.messageService.add({ severity: 'success', summary: 'הצלחה', detail: `${src.paymentIdentifier}: נמשכו ${result.transactionCount} תנועות`, life: 4000, key: 'br' });
+        } else if (result.status === 'skipped_direct') {
+          // Direct/Debit card — intentionally not pulled (bank feed covers it).
+          this.messageService.add({ severity: 'info', summary: 'כרטיס דיירקט', detail: `${src.paymentIdentifier}: כרטיס דיירקט — התנועות נמשכות דרך חשבון הבנק`, life: 6000, key: 'br' });
         } else {
           this.messageService.add({ severity: 'warn', summary: 'משיכה נכשלה', detail: `${src.paymentIdentifier}: ${result.error ?? 'שגיאה לא ידועה'}`, life: 6000, key: 'br' });
         }

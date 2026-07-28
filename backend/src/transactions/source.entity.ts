@@ -30,6 +30,21 @@ export class Source {
   })
   sourceType: SourceType;
 
+  /**
+   * Card sources only (always NULL for bank accounts).
+   *   true  — Direct/Debit card (Feezback returns NO balances for it). Its
+   *           card-feed transactions are intentionally NOT imported — they
+   *           arrive through the checking-account (bank) feed instead.
+   *   false — Credit card (Feezback returns balances). Imported normally.
+   *   NULL  — not yet determined (row predates the isDirect column, or the
+   *           card hasn't been inspected with withBalances=true yet).
+   * Detection rule (Open Banking standard, confirmed by Feezback): credit
+   * cards always return balances; direct cards never do. The value is only
+   * ever written from a SUCCESSFUL cards+balances fetch — never guessed.
+   */
+  @Column({ type: 'boolean', nullable: true, default: null })
+  isDirect: boolean | null;
+
   @ManyToOne(() => Bill, bill => bill.sources)
   bill: Bill;
 

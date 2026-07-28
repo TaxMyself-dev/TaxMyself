@@ -18,10 +18,19 @@ export type ProcessStatus = 'running' | 'completed' | 'failed' | 'skipped';
 /** Backend-facing outcome quality. Passed through for logging/debugging; must not drive polling logic. */
 export type ResultStatus = 'none' | 'success' | 'partial_success' | 'failed';
 
+/**
+ * Per-source sync statuses.
+ * 'skipped_direct' is TERMINAL and intentional: the source is a Direct/Debit
+ * card whose transactions are received through the bank-account feed — the
+ * card feed is deliberately not imported. Never render it as failed/pending
+ * and never offer a retry/pull button for it.
+ */
+export type SourceSyncStatus = 'not_synced' | 'success' | 'failed' | 'skipped_direct';
+
 export interface SourceResult {
   type: 'bank' | 'card';
   sourceId: string;
-  status: 'not_synced' | 'success' | 'failed';
+  status: SourceSyncStatus;
   transactionCount: number;
   consentId: string | null;
   error?: string;

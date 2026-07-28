@@ -16,6 +16,7 @@ import {
   DemoDataService,
   DemoProfileListItem,
   DemoResetResult,
+  DemoScenarioResult,
   DemoSeedResult,
   DemoTestResetResult,
 } from './demo-data.service';
@@ -55,6 +56,41 @@ export class DemoDataController {
   ): Promise<DemoResetResult> {
     await this.assertAdmin(request);
     return this.service.resetProfile(id);
+  }
+
+  /**
+   * Admin-only: put a demo profile into the pre-Direct-card-fix state, where
+   * the card feed was still imported and every scenario purchase shows up
+   * twice. Seeds the demo user first if they don't exist yet. Rebuilds the
+   * user's transaction cache — see DemoDataService.applyLegacyDuplicateState.
+   *
+   * 404s for any profile that doesn't declare a `legacyDuplicateScenario`.
+   */
+  @Post('profiles/:id/legacy-duplicate-state')
+  @HttpCode(HttpStatus.OK)
+  async legacyDuplicateState(
+    @Req() request: AuthenticatedRequest,
+    @Param('id') id: string,
+  ): Promise<DemoScenarioResult> {
+    await this.assertAdmin(request);
+    return this.service.applyLegacyDuplicateState(id);
+  }
+
+  /**
+   * Admin-only: apply the Direct-card behaviour to a demo profile (card
+   * flagged Direct + `skipped_direct`) and re-sync its cache from the bank
+   * feed alone, which is what makes the duplicates disappear.
+   *
+   * 404s for any profile that doesn't declare a `legacyDuplicateScenario`.
+   */
+  @Post('profiles/:id/apply-direct-card-fix')
+  @HttpCode(HttpStatus.OK)
+  async applyDirectCardFix(
+    @Req() request: AuthenticatedRequest,
+    @Param('id') id: string,
+  ): Promise<DemoScenarioResult> {
+    await this.assertAdmin(request);
+    return this.service.applyDirectCardFix(id);
   }
 
   /**

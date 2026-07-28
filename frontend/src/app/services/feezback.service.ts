@@ -76,7 +76,8 @@ export interface AdminPullSourceResult {
   sourceId: string;
   resourceId?: string;
   consentId?: string;
-  status: 'not_synced' | 'success' | 'failed';
+  /** 'skipped_direct' = Direct/Debit card — card feed intentionally not pulled (bank feed covers it). */
+  status: 'not_synced' | 'success' | 'failed' | 'skipped_direct';
   transactionCount: number;
   error?: string;
   /**
