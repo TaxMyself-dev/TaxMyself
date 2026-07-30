@@ -12,6 +12,13 @@
         <span class="business-name">{{ selectedBusinessName() }}</span>
     </h2>
 
+    <!-- TABLE ACTIONS -->
+    <div class="table-actions">
+        <app-p-button #addClientBtn [buttonText]="'הוסף לקוח'" [buttonColor]="buttonColor.BLACK"
+            [buttonSize]="buttonSize.AUTO" (onButtonClicked)="onAddClient()">
+        </app-p-button>
+    </div>
+
     <!-- CLIENTS TABLE -->
     <app-generic-table class="table" [isLoadingState]="isLoadingDataTable()" [columnsTitle]="clientsTableFields"
         [dataTable]="myClients | async" [fileActions]="fileActions()" [selectionModeCheckBox]="null"

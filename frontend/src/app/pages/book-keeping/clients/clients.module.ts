@@ -11,6 +11,7 @@ import { ConfirmDialog } from 'primeng/confirmdialog';
 // import { ConfirmationService, MessageService } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
 import { DynamicDialogModule } from 'primeng/dynamicdialog';
+import { ButtonComponent } from 'src/app/components/button/button.component';
 
 @NgModule({
   imports: [
@@ -23,7 +24,8 @@ import { DynamicDialogModule } from 'primeng/dynamicdialog';
     FilterTabComponent,
     ToastModule,
     ConfirmDialog,
-    DynamicDialogModule
+    DynamicDialogModule,
+    ButtonComponent
   ],
   declarations: [ClientsPage],
   providers: [DialogService]
