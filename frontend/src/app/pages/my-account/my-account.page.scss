@@ -896,10 +896,13 @@ p.block-title {
 
   &--success .pi { color: #16a34a; }
   &--failed  .pi { color: #dc2626; }
+  // Direct/Debit card — intentionally skipped (bank feed covers it): neutral, not an error.
+  &--skipped .pi { color: #6b7280; }
 
   &__name  { font-weight: 600; }
   &__pan   { color: #6b7280; font-size: 13px; }
   &__count { color: #6b7280; font-size: 13px; margin-right: auto; }
+  &__direct-note { color: #6b7280; font-size: 13px; margin-right: auto; }
 
   app-p-button { margin-right: auto; }
 }

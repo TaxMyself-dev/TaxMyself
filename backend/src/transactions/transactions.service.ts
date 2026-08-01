@@ -707,14 +707,18 @@ export class TransactionsService {
    * billName is joined from `source` (sourceName == sourceId); no Bill link →
    * null (frontend shows «לא משויך»). hasConsent = user_source_sync_state
    * .consentId non-null (revoke/expire nulls it via clearConsentOnSources).
+   * isDirect is joined from `source` — true marks a Direct/Debit card whose
+   * transactions are intentionally received via the bank feed (the frontend
+   * hides the per-source pull button and shows a "כרטיס דיירקט" note).
    */
   async getSourcesWithTypes(
     userId: string,
-  ): Promise<{ sourceName: string; sourceType: SourceType; billName: string | null; hasConsent: boolean }[]> {
+  ): Promise<{ sourceName: string; sourceType: SourceType; billName: string | null; hasConsent: boolean; isDirect: boolean | null }[]> {
     // The list is driven by user_source_sync_state — it's refreshed on every
     // discovery (getUserAccounts) so it reflects the currently-connected
     // accounts + their consent validity. `source` is consulted only for the
-    // Bill mapping (billName), joined by sourceName == sourceId.
+    // Bill mapping (billName) and the isDirect flag, joined by
+    // sourceName == sourceId.
     const [syncStates, sourceRows] = await Promise.all([
       this.userSourceSyncStateRepo.find({ where: { userId } }),
       this.sourceRepo.find({ where: { userId }, relations: ['bill'] }),
@@ -722,11 +726,15 @@ export class TransactionsService {
     const billBySourceName = new Map(
       sourceRows.map((r) => [r.sourceName, r.bill?.billName ?? null]),
     );
+    const isDirectBySourceName = new Map(
+      sourceRows.map((r) => [r.sourceName, r.isDirect ?? null]),
+    );
     return syncStates.map((s) => ({
       sourceName: s.sourceId,
       sourceType: s.type === 'card' ? SourceType.CREDIT_CARD : SourceType.BANK_ACCOUNT,
       billName: billBySourceName.get(s.sourceId) ?? null,
       hasConsent: !!s.consentId,
+      isDirect: isDirectBySourceName.get(s.sourceId) ?? null,
     }));
   }
 

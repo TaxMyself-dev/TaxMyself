@@ -23,6 +23,15 @@
   text-align: right;
 }
 
+/* Action row above the table. The app is globally RTL (html dir="rtl"),
+   so flex-end puts the button on the visual left edge of the table area. */
+.table-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 .business-name {
   margin-right: 6px; /* space between the words */
   font-weight: 600;  /* optional: bold the business name */

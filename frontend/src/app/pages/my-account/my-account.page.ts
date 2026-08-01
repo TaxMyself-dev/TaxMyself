@@ -857,7 +857,10 @@ export class MyAccountPage implements OnInit {
       this.feezbackDialogIcon.set('success');
       return;
     }
-    const allSuccess = rows.every(r => r.status === 'success');
+    // skipped_direct counts as success: a Direct card is intentionally not
+    // pulled from the card feed (its transactions arrive via the bank feed) —
+    // it must never make the dialog look like something went wrong.
+    const allSuccess = rows.every(r => r.status === 'success' || r.status === 'skipped_direct');
     if (allSuccess) {
       this.feezbackDialogStatus.set('success');
       this.feezbackDialogTitle.set('הנתונים שלך נטענו בהצלחה!');

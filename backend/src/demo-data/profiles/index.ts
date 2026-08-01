@@ -5,6 +5,7 @@ import { SINGLE_LICENSED_NO_BANKING_PROFILE } from './single-licensed-no-banking
 import { COUPLE_OPEN_BANKING_NO_BILLS_PROFILE } from './couple-open-banking-no-bills.profile';
 import { SINGLE_OB_OCR_TEST_PROFILE } from './single-ob-ocr-test.profile';
 import { LEDGER_TEST_PROFILE } from './ledger-test.profile';
+import { DIRECT_CARD_DEMO_PROFILE } from './direct-card-demo.profile';
 
 /**
  * Registry of available demo profiles. To add a new profile:
@@ -19,13 +20,20 @@ export const DEMO_PROFILES: readonly DemoProfile[] = [
   COUPLE_OPEN_BANKING_NO_BILLS_PROFILE,
   SINGLE_OB_OCR_TEST_PROFILE,
   LEDGER_TEST_PROFILE,
+  DIRECT_CARD_DEMO_PROFILE,
 ];
 
 /**
  * True when `email` belongs to ANY DEMO_PROFILES entry — primary email or
  * a delegated-client email. Drives `userData.isDemo` on the signed-in user
- * payload (which the frontend uses to show the "אפס נתוני בדיקה" button)
- * and the guard on the test-reset endpoint (which only demo users can hit).
+ * payload (which the frontend uses to show the "אפס נתוני בדיקה" button),
+ * the guard on the test-reset endpoint (which only demo users can hit), and
+ * the nightly-cache-cleanup exclusion in
+ * `TransactionProcessingService.runDailyCacheCleanup` (demo users must stay
+ * permanently usable — the cleanup would otherwise wipe their transactions
+ * and flip their sync state to 'empty').
+ *
+ * This is the single demo-user detection mechanism — don't add a second one.
  */
 export function isDemoEmail(email: string | null | undefined): boolean {
   if (!email) return false;

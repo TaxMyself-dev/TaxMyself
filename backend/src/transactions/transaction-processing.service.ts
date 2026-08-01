@@ -33,6 +33,11 @@ import { ClassificationType } from './enums/classification-type.enum';
 import { UserSyncStateService } from './user-sync-state.service';
 import { UserSyncState } from './user-sync-state.entity';
 import { ExpensesService } from '../expenses/expenses.service';
+import { User } from 'src/users/user.entity';
+// Pure function over the static profile registry — no Nest provider, no
+// module dependency on DemoDataModule. It is the project's single demo-user
+// detection mechanism (also drives userData.isDemo and the test-reset guard).
+import { isDemoEmail } from 'src/demo-data/profiles';
 
 /** Hours before a user's full_transactions_cache is considered stale. */
 const CACHE_TTL_HOURS = 24;
@@ -1864,6 +1869,7 @@ export class TransactionProcessingService {
       let cleanedCount = 0;
       let cacheDeleted = 0;
       let stateDeleted = 0;
+      let demoSkipped = 0;
 
       await this.dataSource.transaction(async (manager) => {
         // Step 1 — SQL-efficient: get eligible user IDs directly from DB, no JS filtering.
@@ -1873,7 +1879,29 @@ export class TransactionProcessingService {
           .where('uss.fullProcessStatus != :r', { r: 'running' })
           .getRawMany<{ userId: string }>();
 
-        const eligibleUserIds = rows.map(r => r.userId);
+        let eligibleUserIds = rows.map(r => r.userId);
+
+        // Step 1b — never clean demo users. Their transactions are seeded, not
+        // synced: wiping the cache and flipping the sync state to 'empty' would
+        // leave a permanently-broken demo account that no login sync can refill
+        // (there is no Feezback consent behind it). Only "אפס נתוני בדיקה" /
+        // an admin re-seed is allowed to rewind their data.
+        if (eligibleUserIds.length > 0) {
+          const users = await manager
+            .createQueryBuilder(User, 'u')
+            .select('u.firebaseId', 'firebaseId')
+            .addSelect('u.email', 'email')
+            .where('u.firebaseId IN (:...ids)', { ids: eligibleUserIds })
+            .getRawMany<{ firebaseId: string; email: string | null }>();
+          const demoIds = new Set(
+            users.filter(u => isDemoEmail(u.email)).map(u => u.firebaseId),
+          );
+          if (demoIds.size > 0) {
+            demoSkipped = demoIds.size;
+            eligibleUserIds = eligibleUserIds.filter(id => !demoIds.has(id));
+          }
+        }
+
         cleanedCount = eligibleUserIds.length;
 
         if (eligibleUserIds.length === 0) return;
@@ -1897,13 +1925,17 @@ export class TransactionProcessingService {
       });
 
       if (cleanedCount === 0) {
-        this.logger.log(`Daily cache cleanup (${label}) — no eligible users (all currently running)`);
+        this.logger.log(
+          `Daily cache cleanup (${label}) — no eligible users ` +
+          `(all currently running or demo users; demo skipped: ${demoSkipped})`,
+        );
         return;
       }
 
       this.logger.log(
         `Daily cache cleanup (${label}) done — ` +
         `users cleaned: ${cleanedCount}, ` +
+        `demo users skipped: ${demoSkipped}, ` +
         `cache rows deleted: ${cacheDeleted}, ` +
         `cache-state rows deleted: ${stateDeleted}`,
       );
