@@ -854,12 +854,16 @@ export class DocumentsService {
 
 
   async transformLinesToItemsTable(lines: any[]): Promise<any[]> {
-    return lines.map(line => ({
-      'סה"כ': `₪${this.formatNumberWithCommas(line.sumBefVatPerUnit * line.unitQuantity)}`,
-      'מחיר': `₪${this.formatNumberWithCommas(line.sumBefVatPerUnit)}`,
-      'כמות': String(line.unitQuantity),
-      'פירוט': line.description || ""
-    }));
+    return lines.map(line => {
+      const unitQuantity = Number(line.unitQuantity);
+      const sumBefVatPerUnit = Number(line.sumBefVatPerUnit);
+      return {
+        'סה"כ': `₪${this.formatNumberWithCommas(sumBefVatPerUnit * unitQuantity)}`,
+        'מחיר': `₪${this.formatNumberWithCommas(sumBefVatPerUnit)}`,
+        'כמות': this.formatNumberWithCommas(unitQuantity),
+        'פירוט': line.description || ""
+      };
+    });
   }
 
 

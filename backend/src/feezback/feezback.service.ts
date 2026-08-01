@@ -1914,7 +1914,8 @@ export class FeezbackService {
           const pr = await this.processingService.process(firebaseId, phase.normalizedTransactions);
           rowsWritten = pr.newlySavedToCache;
           const dedupNote = pr.deduplicatedCount > 0 ? ` | deduped=${pr.deduplicatedCount}` : '';
-          console.log(`  ✓ Process done — ${((Date.now() - tDb) / 1000).toFixed(2)}s | saved=${pr.newlySavedToCache} | cached=${pr.alreadyExistingInCache}${dedupNote}\n`);
+          const dupMatchNote = pr.skippedDuplicateMatch > 0 ? ` | dupMatch=${pr.skippedDuplicateMatch}` : '';
+          console.log(`  ✓ Process done — ${((Date.now() - tDb) / 1000).toFixed(2)}s | saved=${pr.newlySavedToCache} | cached=${pr.alreadyExistingInCache}${dedupNote}${dupMatchNote}\n`);
           processStatus = 'completed';
         } else if (!phase.hasErrors) {
           console.log(`  ℹ ${label} — no transactions in date range\n`);

@@ -163,13 +163,16 @@ export class SyncStatusService {
   /**
    * Raw polling loop: polls every `intervalMs` ms, emits every response (including
    * nulls on HTTP error), completes when the sync is terminal OR after
-   * `maxAttempts` polls (3-minute ceiling at 3 s interval). The 3 min budget
-   * covers the typical Feezback `UserDataIsAvailable` webhook latency with
-   * margin; on timeout the consumer's catchError flips the dialog to error.
+   * `maxAttempts` polls (10-minute ceiling at 3 s interval). A full sync
+   * (Feezback pull + FX/classification processing across several bank/card
+   * sources) has been observed taking ~5 minutes for a fresh full-year pull;
+   * the 10 min budget leaves real margin above that instead of cutting it
+   * close. On timeout the consumer's catchError treats it as "still probably
+   * running" rather than a hard failure (see my-account.page.ts / transactions.page.ts).
    */
   private pollUntilDone(
     intervalMs = 3000,
-    maxAttempts = 40,
+    maxAttempts = 200,
   ): Observable<SyncResponse | null> {
     let attemptNum = 0;
 

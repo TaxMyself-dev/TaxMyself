@@ -371,6 +371,15 @@ export class AuthService {
       // x-client-user-id from a previous session and the new user
       // (no delegation, no admin role) will get a 403.
       this.clearDelegationState();
+      // This request makes the backend fire the post-login Feezback sync
+      // (see the doc-comment above). my-account.page.ts reads and clears
+      // this flag on its next ngOnInit to know it should wait for that
+      // sync's 'running' state instead of trusting whatever stale/no-sync
+      // status /transactions/sync-status happens to return first — the
+      // backend sync only starts a bit after this request resolves (Drive
+      // provisioning check runs first), so an immediate poll can otherwise
+      // race it and see "nothing running" before the sync has even begun.
+      sessionStorage.setItem('tm.freshLoginSync', 'true');
     }
     const url = `${environment.apiUrl}auth/signin${freshLogin ? '?freshLogin=true' : ''}`;
     return this.http.get(url);

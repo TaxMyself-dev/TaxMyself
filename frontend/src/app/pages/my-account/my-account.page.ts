@@ -466,14 +466,27 @@ export class MyAccountPage implements OnInit {
     this.accountsList = this.transactionService.accountsList;
 
     if (this.hasOpenBanking()) {
+      // Show the loader synchronously, before the first poll response comes
+      // back — otherwise the table renders its default "no data" empty state
+      // for the brief gap between mount and that first network round-trip,
+      // which is exactly the flash the user is not supposed to see. Whichever
+      // branch below runs will correct this shortly (to null/failed) once we
+      // actually know the sync state.
+      this.syncProcessStatus.set('running');
+
       if (this.consumeDemoBankLoaderFlag()) {
         // Demo entrance: hold the "נתונים נמשכים מהבנק" loader for 5s
         // before letting the real sync polling resolve (which would
         // instantly flip to 'completed' for seeded demo data).
-        this.syncProcessStatus.set('running');
         setTimeout(() => this.startSyncStatusPolling(), 5000);
       } else {
-        this.startSyncStatusPolling();
+        // requireRunningFirst=true only right after a fresh login: the
+        // backend's post-login sync starts a moment after /auth/signin
+        // resolves (it runs a Drive provisioning check first), so polling
+        // immediately can otherwise see "nothing running yet" and treat it
+        // as already-completed with zero data. Ordinary page loads/navigation
+        // (flag absent) keep acting on whatever the current state already is.
+        this.startSyncStatusPolling(this.consumeFreshLoginFlag());
       }
     }
 
@@ -483,6 +496,17 @@ export class MyAccountPage implements OnInit {
     this.destroyRef.onDestroy(() => {
       if (this.paymentTimeoutHandle) clearTimeout(this.paymentTimeoutHandle);
     });
+  }
+
+  /** Reads and clears the one-shot flag set by AuthService.signIn(true) on an
+   *  actual fresh login (see its doc-comment) — tells us a post-login sync
+   *  was just triggered, so the first poll should wait for 'running'. */
+  private consumeFreshLoginFlag(): boolean {
+    if (typeof sessionStorage === 'undefined') return false;
+    const flag = sessionStorage.getItem('tm.freshLoginSync');
+    if (!flag) return false;
+    sessionStorage.removeItem('tm.freshLoginSync');
+    return true;
   }
 
   /** Reads and clears the one-shot flag set by the admin demo-data panel when
@@ -895,7 +919,7 @@ export class MyAccountPage implements OnInit {
    *   on stale terminal state left over from a previous sync.
    *   When false (page load / navigation back), act on whatever the current state is.
    */
-  private startSyncStatusPolling(requireRunningFirst = false): void {
+  private startSyncStatusPolling(requireRunningFirst = false, timeoutRetryCount = 0): void {
     // Cancels any previous polling session before starting a new one.
     this.restartPolling$.next();
 
@@ -921,13 +945,30 @@ export class MyAccountPage implements OnInit {
           /* inclusive */ true,
         ),
         catchError(err => {
-          console.warn('[MyAccount] Sync status stream error — treating as failed', err);
-          this.syncProcessStatus.set('failed');
-          this.transToClassify = of([]);
-          if (this.feezbackDialogVisible() && this.feezbackDialogStatus() === 'loading') {
-            this.feezbackDialogStatus.set('failure');
-            this.feezbackDialogTitle.set('משהו בדרך השתבש, אנא נסה שנית');
-            this.feezbackDialogIcon.set('error');
+          // This only fires when the client gives up polling locally (see
+          // pollUntilDone's 10-min ceiling) — NOT when the backend reports a
+          // genuine processStatus:'failed' (that's handled in the subscribe
+          // branch below, untouched by this). A long sync that's still
+          // running server-side shouldn't look like a failure, so don't wipe
+          // any data here; just quietly restart polling once before giving up.
+          if (timeoutRetryCount === 0) {
+            console.warn('[MyAccount] Sync status poll timed out — retrying once before giving up', err);
+            this.syncProcessStatus.set('running');
+            setTimeout(() => this.startSyncStatusPolling(requireRunningFirst, timeoutRetryCount + 1), 3000);
+          } else {
+            console.warn('[MyAccount] Sync status poll timed out again — giving up without clearing data', err);
+            this.messageService.add({
+              severity: 'warn',
+              summary: 'הסנכרון לוקח זמן רב מהצפוי',
+              detail: 'התנועות עשויות להופיע עם רענון הדף בעוד מספר דקות.',
+              life: 10_000,
+              key: 'br',
+            });
+            if (this.feezbackDialogVisible() && this.feezbackDialogStatus() === 'loading') {
+              this.feezbackDialogStatus.set('failure');
+              this.feezbackDialogTitle.set('משהו בדרך השתבש, אנא נסה שנית');
+              this.feezbackDialogIcon.set('error');
+            }
           }
           return EMPTY;
         }),

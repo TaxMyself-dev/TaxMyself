@@ -96,6 +96,29 @@ export class TransactionProcessingService {
   ) {}
 
   /**
+   * Runs `fn` over `items` with at most `limit` concurrent executions,
+   * preserving input order in the returned array.
+   */
+  private async mapWithConcurrency<T, R>(
+    items: T[],
+    limit: number,
+    fn: (item: T, index: number) => Promise<R>,
+  ): Promise<R[]> {
+    const results: R[] = new Array(items.length);
+    let next = 0;
+    const worker = async (): Promise<void> => {
+      while (true) {
+        const i = next++;
+        if (i >= items.length) return;
+        results[i] = await fn(items[i], i);
+      }
+    };
+    const workerCount = Math.max(1, Math.min(limit, items.length));
+    await Promise.all(Array.from({ length: workerCount }, () => worker()));
+    return results;
+  }
+
+  /**
    * slimRepo.upsert() runs TypeORM's returning-entity updater after INSERT,
    * which requires PrimaryGeneratedColumn `id` on each row — absent for these payloads.
    * Same fix as FullTransactionCache batch upserts: query builder + updateEntity(false).
@@ -257,9 +280,16 @@ export class TransactionProcessingService {
    *
    * Processes a batch of NormalizedTransactions for a user, applying STEP 0–3:
    *   STEP 0 – no billId → full_transactions_cache only (no classification).
-   *   STEP 1 – slim row exists → overlay classification onto cache row.
-   *            If classificationType = ONE_TIME, rule matching is SKIPPED.
-   *   STEP 2 – no slim → attempt rule matching → create slim + update cache.
+   *   STEP 1 – slim row exists for this externalTransactionId → overlay
+   *            classification onto cache row. If classificationType =
+   *            ONE_TIME, rule matching is SKIPPED.
+   *   STEP 1b – no slim row for this externalTransactionId, but a slim row
+   *            already exists for this user with the same paymentIdentifier +
+   *            merchantName + amount + transactionDate (the same real-world
+   *            transaction re-arriving under a different provider-issued ID)
+   *            → overlay that existing classification instead of creating a
+   *            second slim row. Only applies when paymentIdentifier is set.
+   *   STEP 2 – no slim match → attempt rule matching → create slim + update cache.
    *   STEP 3 – no rule match → cache only.
    *
    * Cache UPSERTs are batched. Slim INSERTs are batch-inserted with
@@ -278,6 +308,7 @@ export class TransactionProcessingService {
       newlySavedToCache: 0,
       alreadyExistingInCache: 0,
       deduplicatedCount: 0,
+      skippedDuplicateMatch: 0,
     };
 
 
@@ -305,6 +336,11 @@ export class TransactionProcessingService {
     const externalIds = enriched.map((tx) => tx.externalTransactionId);
     const slimMap = await this.loadSlimMap(userId, externalIds);
 
+    // Batch: load existing slim rows matching on (paymentIdentifier,
+    // merchantName, amount, transactionDate) — catches the same real-world
+    // transaction re-arriving under a different externalTransactionId.
+    const compositeSlimMap = await this.loadSlimByCompositeKey(userId, enriched);
+
     // Batch: load rules only for bills present in this batch (avoids loading
     // every rule the user has ever created).
     const billIds = [
@@ -320,10 +356,43 @@ export class TransactionProcessingService {
         : [];
 
     // Prefetch FX stamps for every non-ILS transaction in the batch.
-    // Resolved sequentially so the FxRateService's in-memory cache + DB cache
-    // handle repeat (date, currency) pairs in O(1) after the first hit, and
-    // we don't hammer BOI in parallel. Failures degrade gracefully — the row
-    // gets a null stamp and the column renderer falls back to the raw amount.
+    // FxRateService's in-memory cache makes repeat (date, currency) pairs
+    // free, but the *first* resolution of each pair still costs a DB
+    // round-trip and possibly a live BOI call. Resolving those one
+    // transaction at a time serialized the whole batch behind however many
+    // unique pairs existed (a year of transactions can easily be 100+,
+    // each ~1s — this was the dominant cost of processing). Instead, dedup to
+    // the unique pairs first, then resolve those with a small concurrency cap
+    // — still not hammering BOI in parallel, just no longer one-at-a-time.
+    const dateKey = (d: Date) => d.toISOString().slice(0, 10);
+    const seenPairKeys = new Set<string>();
+    const pendingPairs: { key: string; date: Date; currency: string }[] = [];
+    for (const tx of enriched) {
+      const currency = (tx.currency ?? 'ILS').toUpperCase();
+      if (currency === 'ILS') continue;
+      const key = `${dateKey(tx.transactionDate)}|${currency}`;
+      if (!seenPairKeys.has(key)) {
+        seenPairKeys.add(key);
+        pendingPairs.push({ key, date: tx.transactionDate, currency });
+      }
+    }
+
+    const FX_RESOLVE_CONCURRENCY = 4;
+    const rateByPairKey = new Map<string, number | null>();
+    await this.mapWithConcurrency(pendingPairs, FX_RESOLVE_CONCURRENCY, async (pair) => {
+      try {
+        const rate = await this.fxRateService.getRate(pair.date, pair.currency);
+        rateByPairKey.set(pair.key, rate);
+      } catch (err) {
+        this.logger.warn(
+          `FX resolution failed for ${pair.currency} on ${dateKey(pair.date)}: ${(err as Error)?.message ?? err}`,
+        );
+        rateByPairKey.set(pair.key, null);
+      }
+    });
+
+    // Failures degrade gracefully — the row gets a null stamp and the column
+    // renderer falls back to the raw amount.
     const fxStampByExternalId = new Map<string, { ilsAmount: number; fxRateToIls: number } | null>();
     for (const tx of enriched) {
       const currency = (tx.currency ?? 'ILS').toUpperCase();
@@ -331,20 +400,13 @@ export class TransactionProcessingService {
         fxStampByExternalId.set(tx.externalTransactionId, null);
         continue;
       }
-      try {
-        const rate = await this.fxRateService.getRate(tx.transactionDate, currency);
-        if (rate == null) {
-          fxStampByExternalId.set(tx.externalTransactionId, null);
-          continue;
-        }
-        const ilsAmount = Number((tx.amount * rate).toFixed(2));
-        fxStampByExternalId.set(tx.externalTransactionId, { ilsAmount, fxRateToIls: rate });
-      } catch (err) {
-        this.logger.warn(
-          `FX resolution failed for ${tx.externalTransactionId} (${currency} on ${tx.transactionDate}): ${(err as Error)?.message ?? err}`,
-        );
+      const rate = rateByPairKey.get(`${dateKey(tx.transactionDate)}|${currency}`) ?? null;
+      if (rate == null) {
         fxStampByExternalId.set(tx.externalTransactionId, null);
+        continue;
       }
+      const ilsAmount = Number((tx.amount * rate).toFixed(2));
+      fxStampByExternalId.set(tx.externalTransactionId, { ilsAmount, fxRateToIls: rate });
     }
 
     const cacheUpserts: Partial<FullTransactionCache>[] = [];
@@ -367,6 +429,21 @@ export class TransactionProcessingService {
       if (slim) {
         cacheUpserts.push(this.buildCacheRowWithSlim(userId, tx, slim, fxStamp));
         continue;
+      }
+
+      // STEP 1b – no slim for this externalTransactionId, but the same
+      // (paymentIdentifier, merchantName, amount, transactionDate) tuple was
+      // already classified under a different externalTransactionId → treat
+      // as the same transaction, overlay that classification, do not create
+      // a second slim row.
+      if (tx.paymentIdentifier) {
+        const dupKey = this.buildDupKey(tx.paymentIdentifier, tx.merchantName, tx.amount, tx.transactionDate);
+        const dupSlim = compositeSlimMap.get(dupKey);
+        if (dupSlim) {
+          cacheUpserts.push(this.buildCacheRowWithSlim(userId, tx, dupSlim, fxStamp));
+          result.skippedDuplicateMatch++;
+          continue;
+        }
       }
 
       // STEP 2 – no slim → deterministic rule matching.
@@ -1136,6 +1213,58 @@ export class TransactionProcessingService {
       where: { userId, externalTransactionId: In(externalIds) },
     });
     return new Map(rows.map((r) => [r.externalTransactionId, r]));
+  }
+
+  /** Composite dedup key: paymentIdentifier + merchantName + amount + date (day-precision). */
+  private buildDupKey(
+    paymentIdentifier: string,
+    merchantName: string,
+    amount: number,
+    date: Date | string,
+  ): string {
+    const dateStr = date instanceof Date ? date.toISOString().slice(0, 10) : String(date).slice(0, 10);
+    return `${paymentIdentifier}|${merchantName}|${Number(amount).toFixed(2)}|${dateStr}`;
+  }
+
+  /**
+   * Loads already-classified slim rows for this user that match on
+   * (paymentIdentifier, merchantName, amount, transactionDate) rather than
+   * externalTransactionId — catches the same real-world transaction
+   * re-arriving under a different provider-issued ID. Only rows with a
+   * non-null paymentIdentifier are considered (matching on null would
+   * collide unrelated transactions). Keyed by the composite dedup key.
+   */
+  private async loadSlimByCompositeKey(
+    userId: string,
+    txs: NormalizedTransaction[],
+  ): Promise<Map<string, SlimTransaction>> {
+    const paymentIdentifiers = [
+      ...new Set(
+        txs.map((tx) => tx.paymentIdentifier).filter((id): id is string => !!id),
+      ),
+    ];
+    if (paymentIdentifiers.length === 0) return new Map();
+
+    const cacheRows = await this.cacheRepo.find({
+      where: { userId, paymentIdentifier: In(paymentIdentifiers) },
+      select: ['externalTransactionId', 'paymentIdentifier', 'merchantName', 'amount', 'transactionDate'],
+    });
+    if (cacheRows.length === 0) return new Map();
+
+    const externalIds = cacheRows.map((r) => r.externalTransactionId);
+    const slimRows = await this.slimRepo.find({
+      where: { userId, externalTransactionId: In(externalIds) },
+    });
+    const slimByExternalId = new Map(slimRows.map((s) => [s.externalTransactionId, s]));
+
+    const map = new Map<string, SlimTransaction>();
+    for (const row of cacheRows) {
+      const slim = slimByExternalId.get(row.externalTransactionId);
+      if (!slim || !row.paymentIdentifier) continue;
+      const key = this.buildDupKey(row.paymentIdentifier, row.merchantName, Number(row.amount), row.transactionDate);
+      map.set(key, slim);
+    }
+    return map;
   }
 
   /**

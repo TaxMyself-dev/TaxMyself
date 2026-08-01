@@ -7,4 +7,5 @@ export interface ProcessingResult {
   newlySavedToCache: number;
   alreadyExistingInCache: number;
   deduplicatedCount: number;
+  skippedDuplicateMatch: number;
 }
