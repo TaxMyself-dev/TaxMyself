@@ -347,21 +347,23 @@ export class SharedService {
     }
 
 
-    async getJournalEntryCurrentIndex(userId: string, manager?: EntityManager): Promise<number> {
+    async getJournalEntryCurrentIndex(firebaseId: string, issuerBusinessNumber: string, manager?: EntityManager): Promise<number> {
         const repo = manager
             ? manager.getRepository(SettingDocuments)
             : this.settingDocumentsRepo;
 
         let setting = await repo.findOne({
             where: {
-                userId,
+                userId: firebaseId,
+                issuerBusinessNumber,
                 docType: DocumentType.JOURNAL_ENTRY,
             },
         });
 
         if (!setting) {
             setting = repo.create({
-                userId,
+                userId: firebaseId,
+                issuerBusinessNumber,
                 docType: DocumentType.JOURNAL_ENTRY,
                 initialIndex: 10000000,
                 currentIndex: 10000000,
@@ -374,6 +376,7 @@ export class SharedService {
     }
 
 
+    // TODO: dead code, superseded by incrementJournalEntryIndex below — confirm before deleting
     // async incrementJournalEntryIndex(userId: string): Promise<void> {
     //     const setting = await this.settingDocumentsRepo.findOneOrFail({
     //       where: {
@@ -387,14 +390,15 @@ export class SharedService {
     // }
 
 
-    async incrementJournalEntryIndex(userId: string, manager?: EntityManager): Promise<void> {
+    async incrementJournalEntryIndex(firebaseId: string, issuerBusinessNumber: string, manager?: EntityManager): Promise<void> {
         const repo = manager
             ? manager.getRepository(SettingDocuments)
             : this.settingDocumentsRepo;
 
         const setting = await repo.findOneOrFail({
             where: {
-                userId,
+                userId: firebaseId,
+                issuerBusinessNumber,
                 docType: DocumentType.JOURNAL_ENTRY,
             },
         });

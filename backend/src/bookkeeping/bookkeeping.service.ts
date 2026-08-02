@@ -120,6 +120,7 @@ export class BookkeepingService {
 
     // 2. Per-business running number for display (NOT the PK).
     const entryNumber = await this.sharedService.getJournalEntryCurrentIndex(
+      firebaseId,
       issuerBusinessNumber,
       m,
     );
@@ -153,7 +154,7 @@ export class BookkeepingService {
     );
 
     // 5. Advance the per-business running number — only after a successful post.
-    await this.sharedService.incrementJournalEntryIndex(issuerBusinessNumber, m);
+    await this.sharedService.incrementJournalEntryIndex(firebaseId, issuerBusinessNumber, m);
 
     return { entryNumber, id: journalEntry.id };
   }

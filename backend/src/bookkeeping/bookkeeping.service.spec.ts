@@ -214,7 +214,7 @@ describe('BookkeepingService — createJournalEntry / persistJournalEntry', () =
       (sharedService.getJournalEntryCurrentIndex as jest.Mock).mockResolvedValueOnce(10000042);
       const result = await service.createJournalEntry(makeInput(), mockManager);
       expect(result.entryNumber).toBe(10000042);
-      expect(sharedService.getJournalEntryCurrentIndex).toHaveBeenCalledWith('999999999', mockManager);
+      expect(sharedService.getJournalEntryCurrentIndex).toHaveBeenCalledWith('firebase-uid-1', '999999999', mockManager);
     });
 
     it('increments the running index only AFTER a successful save', async () => {

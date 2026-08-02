@@ -1529,6 +1529,10 @@ export class DemoDataService {
       // SettingDocuments keyed on userId = businessNumber (NOT the firebaseId),
       // docType = JOURNAL_ENTRY — so the userId-scoped SettingDocuments delete
       // below misses them. Clear them here so a re-seed restarts entryNumber.
+      // TODO(cleanup, do not remove yet): once existing SettingDocuments JOURNAL_ENTRY
+      // rows are migrated to userId=firebaseId (separate task), this block becomes
+      // redundant — line 1515's generic { userId: firebaseId } delete will already
+      // catch them. Remove only after that migration has run in this environment.
       await inc('journalCounters', this.deleteAndCount(m, SettingDocuments, { userId: In(businessNumbers), docType: DocumentType.JOURNAL_ENTRY }));
       // ExtractedDocument is OCR output keyed by businessNumber. Scoping by
       // businessNumber (not user.index) so re-seeds of a demo profile don't
