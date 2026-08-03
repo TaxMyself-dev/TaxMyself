@@ -10,11 +10,19 @@ export type SubscriptionStatus =
   | 'PAST_DUE'
   | 'CANCELED';
 
+/**
+ * Not a real Subscription.status value — the synthetic top-level `status`
+ * the backend returns when no subscription row exists at all (see
+ * GET /billing/me, BillingService.getMyBillingState).
+ */
+export type EffectiveBillingStatus = SubscriptionStatus | 'SUBSCRIPTION_MISSING';
+
 /** Statuses that trigger both the blocking dialog and the billing guard redirect. */
-export const BILLING_BLOCKING_STATUSES: SubscriptionStatus[] = [
+export const BILLING_BLOCKING_STATUSES: EffectiveBillingStatus[] = [
   'TRIAL_EXPIRED',
   'PAST_DUE',
   'CANCELED',
+  'SUBSCRIPTION_MISSING',
 ];
 
 export interface BillingSubscription {
@@ -136,6 +144,12 @@ export interface ChangePaymentMethodStatus {
 
 export interface BillingStateResponse {
   hasSubscription: boolean;
+  /**
+   * Present (always 'SUBSCRIPTION_MISSING') only when hasSubscription is
+   * false — synthetic status for a Subscription row that should exist but
+   * doesn't. See BillingService.getMyBillingState.
+   */
+  status?: 'SUBSCRIPTION_MISSING';
   subscription: BillingSubscription | null;
   plan: BillingPlan | null;
   access: BillingAccess;
@@ -165,6 +179,15 @@ export class BillingStateService {
   // Derived access flags — read directly from backend response, no duplication of business rules.
   readonly isPaymentRequired = computed(
     () => this.billingState()?.access?.isPaymentRequired ?? false
+  );
+  /**
+   * The status guards/dialogs should actually act on: the synthetic
+   * top-level `status` (currently only 'SUBSCRIPTION_MISSING') takes
+   * precedence, since that case has no nested `subscription` at all. Falls
+   * back to `subscription.status` for every normal case.
+   */
+  readonly effectiveStatus = computed<EffectiveBillingStatus | null>(
+    () => this.billingState()?.status ?? this.billingState()?.subscription?.status ?? null
   );
   readonly isTrialExpired = computed(
     () => this.billingState()?.subscription?.status === 'TRIAL_EXPIRED'
@@ -465,6 +488,24 @@ export class BillingStateService {
       return result;
     } catch (err: any) {
       return { created: false, sent: false, error: err?.error?.message ?? 'הפקת החשבונית נכשלה' };
+    }
+  }
+
+  /**
+   * Calls POST /billing/resolve-missing-subscription — the remediation path
+   * for hasSubscription:false. On success, refreshes billing state so
+   * `effectiveStatus` flips to the resolved TRIAL_EXPIRED value and the
+   * blocking dialog updates itself to the normal payment-required copy.
+   */
+  async resolveMissingSubscription(): Promise<{ resolved: boolean; error?: string }> {
+    try {
+      await firstValueFrom(
+        this.http.post(`${environment.apiUrl}billing/resolve-missing-subscription`, {})
+      );
+      await this.refreshBillingState();
+      return { resolved: true };
+    } catch (err: any) {
+      return { resolved: false, error: err?.error?.message ?? 'שגיאה בהסדרת המנוי' };
     }
   }
 }
