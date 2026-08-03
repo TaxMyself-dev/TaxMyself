@@ -25,7 +25,7 @@ import { DocSuccessDialogComponent } from 'src/app/components/create-doc-success
 import { InputAutoCompleteComponent } from "src/app/components/input-autoComplete/input-autoComplete.component";
 import { ShaamInvoiceApprovalDialogComponent } from 'src/app/components/shaam-invoice-approval-dialog/shaam-invoice-approval-dialog.component';
 import { ToastModule } from 'primeng/toast';
-import { ConfirmationService, MessageService } from 'primeng/api';
+import { ConfirmationService } from 'primeng/api';
 import { ConfirmDialog } from 'primeng/confirmdialog';
 import { CheckboxModule } from 'primeng/checkbox';
 import { Card } from "primeng/card";
@@ -71,7 +71,7 @@ import { DocCreatePaymentsMobileComponent } from 'src/app/components/doc-create-
     DocCreatePaymentsMobileComponent,
   ],
   declarations: [DocCreatePage,],
-  providers: [DialogService, ConfirmationService, MessageService]
+  providers: [DialogService, ConfirmationService]
 })
 export class DocCreatePageModule { }
 
