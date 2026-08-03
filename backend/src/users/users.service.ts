@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, forwardRef, HttpException, HttpStatus, Inject, Injectable, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
-import { Any, Repository } from 'typeorm';
-import { InjectRepository } from '@nestjs/typeorm';
+import { Any, DataSource, EntityManager, Repository } from 'typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { User } from './user.entity';
 import { Child } from './child.entity';
 import { UserRole, BusinessType, VATReportingType, TaxReportingType, FamilyStatus, EmploymentType, BusinessStatus, DocumentType, isBusinessTypeAllowedForUser } from '../enum';
@@ -38,6 +38,7 @@ export class UsersService {
       private readonly googleDriveService: GoogleDriveService,
       @Inject(forwardRef(() => BillingService))
       private readonly billingService: BillingService,
+      @InjectDataSource() private readonly dataSource: DataSource,
     ) {
     this.firebaseAuth = admin.auth();
   }
@@ -69,8 +70,8 @@ export class UsersService {
    * creation, and demo-data seeding. Delegates entirely to BillingService so
    * there is exactly one trial definition in the codebase.
    */
-  async ensureTrialSubscription(firebaseId: string): Promise<void> {
-    await this.billingService.ensureTrialSubscription(firebaseId);
+  async ensureTrialSubscription(firebaseId: string, manager?: EntityManager): Promise<void> {
+    await this.billingService.ensureTrialSubscription(firebaseId, manager);
   }
 
   async signup({ personal, spouse, children, business }: any) {
@@ -131,134 +132,136 @@ export class UsersService {
     }
 
     // -------------------------------------------------------
-    // 4️⃣ Save user
+    // 4️⃣–8️⃣ Save user + subscription + children + businesses atomically —
+    // a failure anywhere in here rolls back everything, so a failed signup
+    // never leaves a dangling User row with no Subscription.
     // -------------------------------------------------------
-    const user = this.user_repo.create(newUser);
-    const savedUser = (await this.user_repo.save(user)) as unknown as User;
+    const savedUser = await this.dataSource.transaction(async (manager) => {
+      const userRepo = manager.getRepository(User);
+      const childRepo = manager.getRepository(Child);
+      const businessRepo = manager.getRepository(Business);
 
-    // -------------------------------------------------------
-    // 4️⃣b Create the Subscription row — single source of truth for trial state.
-    // -------------------------------------------------------
-    await this.ensureTrialSubscription(savedUser.firebaseId);
+      const user = userRepo.create(newUser);
+      const saved = (await userRepo.save(user)) as unknown as User;
 
-    // -------------------------------------------------------
-    // 7️⃣ Save children
-    // -------------------------------------------------------
-    for (const child of newChildren) {
-      const newChild = this.child_repo.create({
-        ...child,
-        parentUserID: personal.firebaseId,
-      });
+      // Subscription row — single source of truth for trial state.
+      await this.ensureTrialSubscription(saved.firebaseId, manager);
 
-      await this.child_repo.save(newChild);
-    }
-
-    // -------------------------------------------------------
-    // 8️⃣ Save businesses
-    // -------------------------------------------------------
-    for (const biz of newBusinesses) {
-      if (!biz) continue;
-      if (!biz.businessName && !biz.businessNumber && !biz.businessType) continue;
-
-      const newBusiness = this.business_repo.create({
-        ...biz,
-        firebaseId: personal.firebaseId,
-      });
-
-      // Company registration: the business IS the company, so phone/email/
-      // name come straight from the company's own personal fields — no
-      // id-matching needed (a company has no personal id).
-      if (isCompany) {
-        if (!newBusiness.businessPhone && personal?.phone) {
-          newBusiness.businessPhone = personal.phone;
-        }
-        if (!newBusiness.businessEmail && personal?.email) {
-          newBusiness.businessEmail = personal.email;
-        }
-        if (!newBusiness.businessName && personal?.fName) {
-          newBusiness.businessName = personal.fName;
-        }
-      }
-
-      // Fill null business fields from personal or spouse data
-      // Check if businessNumber matches personal.id or spouse.id
-      const businessNumber = newBusiness.businessNumber;
-      const personalId = personal?.id;
-      const spouseId = safeSpouse?.spouseId || safeSpouse?.id;
-
-      if (!isCompany && businessNumber && (businessNumber === personalId || businessNumber === spouseId)) {
-        // Determine source: personal or spouse
-        const isPersonalMatch = businessNumber === personalId;
-
-        // Fill null business fields from source
-        if (!newBusiness.businessPhone) {
-          if (isPersonalMatch && personal?.phone) {
-            newBusiness.businessPhone = personal.phone;
-          } else if (!isPersonalMatch && safeSpouse?.spousePhone) {
-            newBusiness.businessPhone = safeSpouse.spousePhone;
-          }
-        }
-
-        if (!newBusiness.businessEmail) {
-          if (isPersonalMatch && personal?.email) {
-            newBusiness.businessEmail = personal.email;
-          } else if (!isPersonalMatch && safeSpouse?.spouseEmail) {
-            newBusiness.businessEmail = safeSpouse.spouseEmail;
-          }
-        }
-
-        // For address, use city if available
-        if (!newBusiness.businessAddress) {
-          if (isPersonalMatch && personal?.city) {
-            newBusiness.businessAddress = personal.city;
-          } else if (!isPersonalMatch && safeSpouse?.city) {
-            newBusiness.businessAddress = safeSpouse.city;
-          }
-        }
-
-        // For business name, use person's name if not provided
-        if (!newBusiness.businessName) {
-          if (isPersonalMatch && personal?.fName && personal?.lName) {
-            newBusiness.businessName = `${personal.fName} ${personal.lName}`;
-          } else if (!isPersonalMatch && safeSpouse?.spouseFName && safeSpouse?.spouseLName) {
-            newBusiness.businessName = `${safeSpouse.spouseFName} ${safeSpouse.spouseLName}`;
-          }
-        }
-      }
-
-      // VAT & tax logic
-      switch (newBusiness.businessType) {
-        case BusinessType.EXEMPT:
-        case BusinessType.EXEMPT_PARTNERSHIP:
-          newBusiness.vatReportingType = VATReportingType.NOT_REQUIRED;
-          newBusiness.taxReportingType = TaxReportingType.DUAL_MONTH_REPORT;
-          break;
-
-        case BusinessType.LICENSED:
-        case BusinessType.LIMITED_COMPANY:
-        case BusinessType.AUTHORIZED_PARTNERSHIP:
-          newBusiness.vatReportingType = VATReportingType.DUAL_MONTH_REPORT;
-          newBusiness.taxReportingType = TaxReportingType.DUAL_MONTH_REPORT;
-          break;
-
-        default:
-          newBusiness.vatReportingType = VATReportingType.NOT_REQUIRED;
-          newBusiness.taxReportingType = TaxReportingType.NOT_REQUIRED;
-          break;
-      }
-
-      // Friendly duplicate check ahead of ux_business_number (raw ER_DUP_ENTRY → 500)
-      if (newBusiness.businessNumber) {
-        const existingBusiness = await this.business_repo.findOne({
-          where: { businessNumber: newBusiness.businessNumber },
+      for (const child of newChildren) {
+        const newChild = childRepo.create({
+          ...child,
+          parentUserID: personal.firebaseId,
         });
-        if (existingBusiness) {
-          throw new ConflictException(`עסק עם מספר ${newBusiness.businessNumber} כבר קיים במערכת`);
-        }
+
+        await childRepo.save(newChild);
       }
 
-      await this.business_repo.save(newBusiness);
-    }
+      for (const biz of newBusinesses) {
+        if (!biz) continue;
+        if (!biz.businessName && !biz.businessNumber && !biz.businessType) continue;
+
+        const newBusiness = businessRepo.create({
+          ...biz,
+          firebaseId: personal.firebaseId,
+        });
+
+        // Company registration: the business IS the company, so phone/email/
+        // name come straight from the company's own personal fields — no
+        // id-matching needed (a company has no personal id).
+        if (isCompany) {
+          if (!newBusiness.businessPhone && personal?.phone) {
+            newBusiness.businessPhone = personal.phone;
+          }
+          if (!newBusiness.businessEmail && personal?.email) {
+            newBusiness.businessEmail = personal.email;
+          }
+          if (!newBusiness.businessName && personal?.fName) {
+            newBusiness.businessName = personal.fName;
+          }
+        }
+
+        // Fill null business fields from personal or spouse data
+        // Check if businessNumber matches personal.id or spouse.id
+        const businessNumber = newBusiness.businessNumber;
+        const personalId = personal?.id;
+        const spouseId = safeSpouse?.spouseId || safeSpouse?.id;
+
+        if (!isCompany && businessNumber && (businessNumber === personalId || businessNumber === spouseId)) {
+          // Determine source: personal or spouse
+          const isPersonalMatch = businessNumber === personalId;
+
+          // Fill null business fields from source
+          if (!newBusiness.businessPhone) {
+            if (isPersonalMatch && personal?.phone) {
+              newBusiness.businessPhone = personal.phone;
+            } else if (!isPersonalMatch && safeSpouse?.spousePhone) {
+              newBusiness.businessPhone = safeSpouse.spousePhone;
+            }
+          }
+
+          if (!newBusiness.businessEmail) {
+            if (isPersonalMatch && personal?.email) {
+              newBusiness.businessEmail = personal.email;
+            } else if (!isPersonalMatch && safeSpouse?.spouseEmail) {
+              newBusiness.businessEmail = safeSpouse.spouseEmail;
+            }
+          }
+
+          // For address, use city if available
+          if (!newBusiness.businessAddress) {
+            if (isPersonalMatch && personal?.city) {
+              newBusiness.businessAddress = personal.city;
+            } else if (!isPersonalMatch && safeSpouse?.city) {
+              newBusiness.businessAddress = safeSpouse.city;
+            }
+          }
+
+          // For business name, use person's name if not provided
+          if (!newBusiness.businessName) {
+            if (isPersonalMatch && personal?.fName && personal?.lName) {
+              newBusiness.businessName = `${personal.fName} ${personal.lName}`;
+            } else if (!isPersonalMatch && safeSpouse?.spouseFName && safeSpouse?.spouseLName) {
+              newBusiness.businessName = `${safeSpouse.spouseFName} ${safeSpouse.spouseLName}`;
+            }
+          }
+        }
+
+        // VAT & tax logic
+        switch (newBusiness.businessType) {
+          case BusinessType.EXEMPT:
+          case BusinessType.EXEMPT_PARTNERSHIP:
+            newBusiness.vatReportingType = VATReportingType.NOT_REQUIRED;
+            newBusiness.taxReportingType = TaxReportingType.DUAL_MONTH_REPORT;
+            break;
+
+          case BusinessType.LICENSED:
+          case BusinessType.LIMITED_COMPANY:
+          case BusinessType.AUTHORIZED_PARTNERSHIP:
+            newBusiness.vatReportingType = VATReportingType.DUAL_MONTH_REPORT;
+            newBusiness.taxReportingType = TaxReportingType.DUAL_MONTH_REPORT;
+            break;
+
+          default:
+            newBusiness.vatReportingType = VATReportingType.NOT_REQUIRED;
+            newBusiness.taxReportingType = TaxReportingType.NOT_REQUIRED;
+            break;
+        }
+
+        // Friendly duplicate check ahead of ux_business_number (raw ER_DUP_ENTRY → 500)
+        if (newBusiness.businessNumber) {
+          const existingBusiness = await businessRepo.findOne({
+            where: { businessNumber: newBusiness.businessNumber },
+          });
+          if (existingBusiness) {
+            throw new ConflictException(`עסק עם מספר ${newBusiness.businessNumber} כבר קיים במערכת`);
+          }
+        }
+
+        await businessRepo.save(newBusiness);
+      }
+
+      return saved;
+    });
 
     // -------------------------------------------------------
     // 9️⃣  Provision Google Drive structure: user root + a folder per business
