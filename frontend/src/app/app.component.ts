@@ -55,31 +55,41 @@ export class AppComponent implements OnInit {
     ) {
       return false;
     }
-    const status = this.billingStateService.billingState()?.subscription?.status;
+    const status = this.billingStateService.effectiveStatus();
     return !!status && BILLING_BLOCKING_STATUSES.includes(status);
   });
 
-  // Dialog copy — driven by the subscription status returned from the backend.
+  // Dialog copy — driven by the effective status (subscription.status, or the
+  // synthetic SUBSCRIPTION_MISSING top-level status) returned from the backend.
   protected readonly billingDialogContent = computed(() => {
-    const status = this.billingStateService.billingState()?.subscription?.status;
-    const map: Record<string, { title: string; message: string; buttonLabel: string }> = {
+    const status = this.billingStateService.effectiveStatus();
+    const map: Record<string, { title: string; message: string; buttonLabel: string; action: 'NAVIGATE_TO_PLANS' | 'RESOLVE_MISSING_SUBSCRIPTION' }> = {
+      SUBSCRIPTION_MISSING: {
+        title: 'תקלה בחשבון',
+        message: 'נראה שהתרחשה תקלה בחשבון שלך.\nיש להסדיר את המנוי כדי להמשיך.',
+        buttonLabel: 'הסדרת המנוי',
+        action: 'RESOLVE_MISSING_SUBSCRIPTION',
+      },
       TRIAL_EXPIRED: {
         title: 'תקופת הניסיון הסתיימה',
         message: 'תקופת הניסיון שלך הסתיימה.\nכדי להמשיך להשתמש במערכת יש לבחור תוכנית ולהסדיר תשלום.',
         buttonLabel: 'בחירת תוכנית',
+        action: 'NAVIGATE_TO_PLANS',
       },
       PAST_DUE: {
         title: 'קיימת בעיה בתשלום',
         message: 'לא הצלחנו לחייב את אמצעי התשלום שלך.\nיש לעדכן תשלום כדי להמשיך להשתמש במערכת.',
         buttonLabel: 'עדכון תשלום',
+        action: 'NAVIGATE_TO_PLANS',
       },
       CANCELED: {
         title: 'המנוי אינו פעיל',
         message: 'המנוי שלך אינו פעיל כרגע.\nבחר תוכנית חדשה כדי להמשיך להשתמש במערכת.',
         buttonLabel: 'בחירת תוכנית',
+        action: 'NAVIGATE_TO_PLANS',
       },
     };
-    return map[status!] ?? { title: '', message: '', buttonLabel: '' };
+    return map[status!] ?? { title: '', message: '', buttonLabel: '', action: 'NAVIGATE_TO_PLANS' as const };
   });
 
   public appPages = [
@@ -412,6 +422,39 @@ export class AppComponent implements OnInit {
       this.updateAdminMenuItems();
       // await this.genericService.loadBusinesses();
       this.triggerBillingLoad();
+    }
+  }
+
+  protected readonly resolvingMissingSubscription = signal(false);
+
+  /**
+   * Single entry point for the blocking dialog's CTA button — dispatches by
+   * the current case's `action` instead of always navigating, since
+   * SUBSCRIPTION_MISSING must call the remediation endpoint instead of
+   * going to /billing/plans.
+   */
+  onBillingDialogAction(): void {
+    if (this.billingDialogContent().action === 'RESOLVE_MISSING_SUBSCRIPTION') {
+      void this.resolveMissingSubscription();
+    } else {
+      this.navigateToBillingPlans();
+    }
+  }
+
+  private async resolveMissingSubscription(): Promise<void> {
+    if (this.resolvingMissingSubscription()) return;
+    this.resolvingMissingSubscription.set(true);
+    try {
+      const result = await this.billingStateService.resolveMissingSubscription();
+      if (!result.resolved) {
+        this.genericService.showToast(result.error ?? 'שגיאה בהסדרת המנוי', 'error');
+      }
+      // On success, billingState now reflects TRIAL_EXPIRED and
+      // billingDialogContent recomputes to the normal payment-required
+      // copy automatically (BILLING_BLOCKING_STATUSES still includes
+      // TRIAL_EXPIRED) — no further action needed here.
+    } finally {
+      this.resolvingMissingSubscription.set(false);
     }
   }
 

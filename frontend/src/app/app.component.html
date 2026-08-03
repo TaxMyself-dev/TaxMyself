@@ -44,7 +44,8 @@
         <div dir="rtl" class="billing-dialog-footer">
           <button
             class="billing-cta-btn"
-            (click)="navigateToBillingPlans()">
+            [disabled]="resolvingMissingSubscription()"
+            (click)="onBillingDialogAction()">
             {{ billingDialogContent().buttonLabel }}
           </button>
         </div>
