@@ -231,6 +231,61 @@ export class BillingService {
     }
   }
 
+  /**
+   * Remediation path for a Subscription row that should exist but doesn't
+   * (orphaned signup, manual deletion, etc — see getMyBillingState). Creates
+   * a TRIAL_EXPIRED row rather than a working trial, since reaching this
+   * path always indicates an anomaly, never a legitimate new signup —
+   * legitimate signups get their row atomically in UsersService.signup() /
+   * DelegationService.createClientByAccountant().
+   *
+   * Idempotent: if a row already exists (either a pre-existing one, or one
+   * created by a concurrent call that raced us to the unique constraint),
+   * returns the existing state unchanged rather than erroring or duplicating.
+   */
+  async provisionExpiredSubscription(firebaseId: string) {
+    const existing = await this.subscriptionRepo.findOne({ where: { firebaseId } });
+    if (existing) {
+      let plan: SubscriptionPlan | null = null;
+      if (existing.planId) {
+        plan = await this.planRepo.findOne({ where: { id: existing.planId } });
+      }
+      return this.buildBillingStateResponse(existing, plan, firebaseId);
+    }
+
+    this.logger.error(
+      `provisionExpiredSubscription: creating remediation TRIAL_EXPIRED row for firebaseId=${firebaseId.substring(0, 8)}... (no row existed — anomaly, see getMyBillingState SUBSCRIPTION_MISSING)`,
+    );
+
+    const subscription = this.subscriptionRepo.create({
+      firebaseId,
+      status: SubscriptionStatus.TRIAL_EXPIRED,
+      planId: null,
+      paymentMethodId: null,
+      trialStart: null,
+      trialEnd: null,
+    });
+
+    try {
+      const saved = await this.subscriptionRepo.save(subscription);
+      return this.buildBillingStateResponse(saved, null, firebaseId);
+    } catch (err: any) {
+      // Lost the race against a concurrent call — ux_subscription_firebase
+      // (unique on firebase_id) rejected the duplicate insert. Return the
+      // row the other call created instead of erroring.
+      const isDup = err?.code === 'ER_DUP_ENTRY' || err?.driverError?.code === 'ER_DUP_ENTRY';
+      if (!isDup) throw err;
+
+      const winner = await this.subscriptionRepo.findOne({ where: { firebaseId } });
+      if (!winner) throw err;
+      let plan: SubscriptionPlan | null = null;
+      if (winner.planId) {
+        plan = await this.planRepo.findOne({ where: { id: winner.planId } });
+      }
+      return this.buildBillingStateResponse(winner, plan, firebaseId);
+    }
+  }
+
   // ─── Access ──────────────────────────────────────────────────────────────────
 
   /**

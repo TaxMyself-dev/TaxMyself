@@ -71,6 +71,24 @@ export class BillingController {
   }
 
   /**
+   * POST /billing/resolve-missing-subscription
+   *
+   * Protected by Firebase auth only (deliberately NOT SubscriptionGuard —
+   * this exists specifically to be callable when there is no subscription
+   * row at all). Distinct from POST /billing/trial: this always resolves to
+   * TRIAL_EXPIRED (payment required), never a working trial, because
+   * reaching this state means something went wrong upstream, not that the
+   * caller is a legitimate new signup. Idempotent.
+   */
+  @Post('resolve-missing-subscription')
+  @UseGuards(FirebaseAuthGuard)
+  async resolveMissingSubscription(@Req() request: AuthenticatedRequest) {
+    const firebaseId = request.user?.firebaseId;
+    if (!firebaseId) throw new NotFoundException('User not found in request');
+    return this.billingService.provisionExpiredSubscription(firebaseId);
+  }
+
+  /**
    * POST /billing/checkout/preview
    *
    * Protected. Calculates the final price without creating a session or charging.
