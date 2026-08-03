@@ -136,9 +136,35 @@ export class BillingService {
     });
 
     if (!subscription) {
-      // Auto-provision a trial so new users always land in TRIAL state.
-      // ensureTrialSubscription is idempotent and handles the unique-constraint race.
-      return this.ensureTrialSubscription(firebaseId);
+      // No auto-provisioning anymore. A legitimate new signup already gets
+      // its Subscription row atomically inside UsersService.signup() /
+      // DelegationService.createClientByAccountant(). Reaching this branch
+      // now means something is genuinely wrong (orphaned account, manual
+      // row deletion, data issue) — it must not be silently healed into a
+      // fresh trial. See POST /billing/resolve-missing-subscription for the
+      // explicit remediation path.
+      this.logger.error(
+        `getMyBillingState: no subscription row for firebaseId=${firebaseId.substring(0, 8)}... — returning subscription_missing`,
+      );
+      return {
+        hasSubscription: false,
+        status: 'SUBSCRIPTION_MISSING',
+        billingBusinessType: null,
+        effectiveMonthlyPriceBeforeVatAgorot: null,
+        discount: null,
+        paymentMethod: null,
+        subscription: null,
+        plan: null,
+        access: {
+          modulesAccess: [],
+          isTrialActive: false,
+          isPaymentRequired: false,
+          isPastDue: false,
+          gracePeriodActive: false,
+        },
+        billingPaymentResult: null,
+        paymentMethodUpdateResult: null,
+      };
     }
 
     const current = await this.enforceSubscriptionLifecycle(firebaseId, subscription);
