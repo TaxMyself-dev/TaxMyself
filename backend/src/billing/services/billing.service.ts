@@ -208,13 +208,27 @@ export class BillingService {
       trialEnd,
     });
 
-    const saved = await subscriptionRepo.save(subscription);
+    try {
+      const saved = await subscriptionRepo.save(subscription);
+      this.logger.log(
+        `Trial subscription created for firebaseId=${firebaseId.substring(0, 8)}... trialEnd=${trialEnd.toISOString()}`,
+      );
+      return this.buildBillingStateResponse(saved, null, firebaseId);
+    } catch (err: any) {
+      // Lost the race against a concurrent call — ux_subscription_firebase
+      // (unique on firebase_id) rejected the duplicate insert. Return the
+      // row the other call created instead of erroring.
+      const isDup = err?.code === 'ER_DUP_ENTRY' || err?.driverError?.code === 'ER_DUP_ENTRY';
+      if (!isDup) throw err;
 
-    this.logger.log(
-      `Trial subscription created for firebaseId=${firebaseId.substring(0, 8)}... trialEnd=${trialEnd.toISOString()}`,
-    );
-
-    return this.buildBillingStateResponse(saved, null, firebaseId);
+      const winner = await subscriptionRepo.findOne({ where: { firebaseId } });
+      if (!winner) throw err;
+      let plan: SubscriptionPlan | null = null;
+      if (winner.planId) {
+        plan = await planRepo.findOne({ where: { id: winner.planId } });
+      }
+      return this.buildBillingStateResponse(winner, plan, firebaseId);
+    }
   }
 
   // ─── Access ──────────────────────────────────────────────────────────────────
