@@ -49,7 +49,7 @@ export class BillingGuard {
       return path === DASHBOARD_ROUTE ? true : this.router.createUrlTree([DASHBOARD_ROUTE]);
     }
 
-    const status = billingState.subscription?.status;
+    const status = this.billingStateService.effectiveStatus();
 
     if (!status || !BILLING_BLOCKING_STATUSES.includes(status)) {
       return true;
