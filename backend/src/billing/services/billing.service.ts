@@ -7,7 +7,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, LessThan, Repository } from 'typeorm';
+import { EntityManager, In, LessThan, Repository } from 'typeorm';
 import { SubscriptionPlan } from '../entities/subscription-plan.entity';
 import { Subscription } from '../entities/subscription.entity';
 import { PaymentMethod } from '../entities/payment-method.entity';
@@ -153,15 +153,18 @@ export class BillingService {
 
   // ─── Trial ───────────────────────────────────────────────────────────────────
 
-  async ensureTrialSubscription(firebaseId: string) {
-    const existing = await this.subscriptionRepo.findOne({
+  async ensureTrialSubscription(firebaseId: string, manager?: EntityManager) {
+    const subscriptionRepo = manager ? manager.getRepository(Subscription) : this.subscriptionRepo;
+    const planRepo = manager ? manager.getRepository(SubscriptionPlan) : this.planRepo;
+
+    const existing = await subscriptionRepo.findOne({
       where: { firebaseId },
     });
 
     if (existing) {
       let plan: SubscriptionPlan | null = null;
       if (existing.planId) {
-        plan = await this.planRepo.findOne({ where: { id: existing.planId } });
+        plan = await planRepo.findOne({ where: { id: existing.planId } });
       }
       return this.buildBillingStateResponse(existing, plan, firebaseId);
     }
@@ -170,7 +173,7 @@ export class BillingService {
     const trialEnd = new Date(now);
     trialEnd.setDate(trialEnd.getDate() + Number(process.env.TRIAL_DAYS));
 
-    const subscription = this.subscriptionRepo.create({
+    const subscription = subscriptionRepo.create({
       firebaseId,
       status: SubscriptionStatus.TRIAL,
       planId: null,
@@ -179,7 +182,7 @@ export class BillingService {
       trialEnd,
     });
 
-    const saved = await this.subscriptionRepo.save(subscription);
+    const saved = await subscriptionRepo.save(subscription);
 
     this.logger.log(
       `Trial subscription created for firebaseId=${firebaseId.substring(0, 8)}... trialEnd=${trialEnd.toISOString()}`,
