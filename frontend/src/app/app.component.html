@@ -18,9 +18,42 @@
   </div>
 }
 @if (showTopNav()) {
-  <app-p-topNav [menuItems]="menuItems" contentId="main-content"></app-p-topNav>
+  <app-p-topNav [menuItems]="menuItems()" (logout)="authService.logout()" contentId="main-content"></app-p-topNav>
 }
 <div class="app-content">
   <p-confirmdialog></p-confirmdialog>
+
+  <app-upgrade-required-dialog />
+
+  @if (showBillingDialog()) {
+    <p-dialog
+      [visible]="true"
+      [header]="billingDialogContent().title"
+      [modal]="true"
+      [closable]="false"
+      [closeOnEscape]="false"
+      [dismissableMask]="false"
+      [draggable]="false"
+      [resizable]="false"
+      [style]="{ width: '90vw', maxWidth: '480px' }"
+      styleClass="billing-blocked-dialog">
+      <div dir="rtl" class="billing-dialog-body">
+        <p class="billing-dialog-message">{{ billingDialogContent().message }}</p>
+      </div>
+      <ng-template pTemplate="footer">
+        <div dir="rtl" class="billing-dialog-footer">
+          <button
+            class="billing-cta-btn"
+            [disabled]="resolvingMissingSubscription()"
+            (click)="onBillingDialogAction()">
+            {{ billingDialogContent().buttonLabel }}
+          </button>
+        </div>
+      </ng-template>
+    </p-dialog>
+  }
+
   <router-outlet id="main-content"></router-outlet>
 </div>
+
+<app-pwa-banners />

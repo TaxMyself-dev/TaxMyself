@@ -11,6 +11,7 @@ import {
   AdminPanelService,
   DemoProfileListItem,
   DemoResetResult,
+  DemoScenarioResult,
   DemoSeedResult,
   DemoSubUser,
 } from 'src/app/services/admin-panel.service';
@@ -100,6 +101,74 @@ export class DemoDataComponent implements OnInit {
       .subscribe((result) => this.onResetSuccess(profile, result));
   }
 
+  // ---------- Direct-card scenario (only for profiles that declare it) ----------
+  //
+  // Two admin-only actions that flip the demo user between the pre- and
+  // post-Direct-card-fix states. Both REBUILD the demo user's transaction
+  // cache, hence the confirm on each. Rendered only when the backend reports
+  // `supportsDirectCardScenario`.
+
+  onSeedLegacyDuplicates(profile: DemoProfileListItem): void {
+    if (this.busyProfileId()) return;
+    const ok = window.confirm(
+      `להעביר את "${profile.label}" למצב הישן עם כפילויות?\n` +
+        'הכרטיס יסומן ככרטיס אשראי רגיל (לא דיירקט), ומטמון התנועות של המשתמש ייבנה מחדש ' +
+        'עם תנועות משני הפידים — כך שכל רכישה בתרחיש תופיע פעמיים.\n' +
+        'סיווגים קיימים של המשתמש יימחקו.',
+    );
+    if (!ok) return;
+
+    this.busyProfileId.set(profile.id);
+    this.adminPanelService
+      .seedDemoLegacyDuplicates(profile.id)
+      .pipe(
+        finalize(() => this.busyProfileId.set(null)),
+        catchError((err) => {
+          this.toastError(err, 'יצירת המצב הישן נכשלה');
+          return EMPTY;
+        }),
+      )
+      .subscribe((result) => this.onScenarioSuccess(result));
+  }
+
+  onApplyDirectCardFix(profile: DemoProfileListItem): void {
+    if (this.busyProfileId()) return;
+    const ok = window.confirm(
+      `להפעיל את תיקון כרטיס הדיירקט עבור "${profile.label}"?\n` +
+        'הכרטיס יסומן כדיירקט (skipped_direct), ומטמון התנועות ייבנה מחדש מפיד הבנק בלבד — ' +
+        'הכפילויות ייעלמו.\n' +
+        'סיווגים קיימים של המשתמש יימחקו.',
+    );
+    if (!ok) return;
+
+    this.busyProfileId.set(profile.id);
+    this.adminPanelService
+      .applyDemoDirectCardFix(profile.id)
+      .pipe(
+        finalize(() => this.busyProfileId.set(null)),
+        catchError((err) => {
+          this.toastError(err, 'הפעלת התיקון נכשלה');
+          return EMPTY;
+        }),
+      )
+      .subscribe((result) => this.onScenarioSuccess(result));
+  }
+
+  private onScenarioSuccess(result: DemoScenarioResult): void {
+    this.refresh();
+    const isLegacy = result.state === 'legacy-duplicates';
+    this.messageService.add({
+      severity: 'success',
+      summary: isLegacy ? 'מצב ישן עם כפילויות' : 'תיקון כרטיס דיירקט הופעל',
+      detail:
+        `${result.bankRows} תנועות בנק, ${result.cardRows} תנועות כרטיס` +
+        (isLegacy ? '' : ' (הכפילויות הוסרו)') +
+        (result.seededUser ? ' • המשתמש נוצר כעת' : ''),
+      life: 8000,
+      key: 'br',
+    });
+  }
+
   // ---------- Enter as demo user (primary or any delegated client) ----------
   //
   // Admin stays signed-in to Firebase. We use clientPanelService.setSelectedClient
@@ -128,6 +197,11 @@ export class DemoDataComponent implements OnInit {
 
   private enterAsUser(firebaseId: string, label: string): void {
     this.clientPanelService.setSelectedClient(firebaseId, label);
+    // Signal to /my-account that this is a fresh demo entrance — it should
+    // show the "נתונים נמשכים מהבנק" loader for ~5s to simulate a real
+    // user pulling their transactions, before falling through to the
+    // normal sync polling.
+    sessionStorage.setItem('tm.demoSimulateBankLoader', '1');
     // Await the view-as user data fetch BEFORE navigating, otherwise pages like
     // /my-account read userData in their ngOnInit before AuthService's
     // viewAsUserData is populated — and they'd render with the admin's name.

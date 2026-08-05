@@ -1,5 +1,5 @@
 export class AdvanceIncomeTaxReportDto {
-  /** EXEMPT | LICENSED | COMPANY – לקביעת שדות להצגה בפרונט */
+  /** EXEMPT | LICENSED – לקביעת שדות להצגה בפרונט */
   businessType: string;
   /** עוסק מורשה: סך עסקאות חייבות. עוסק פטור: 0 */
   vatableTurnover: number;

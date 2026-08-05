@@ -17,6 +17,7 @@
 .form-row {
     display: flex;
     flex-direction: row;
+    flex-wrap: wrap;
     gap: 20px;
     width: 100%;
     align-items: flex-start;
@@ -38,12 +39,12 @@
 }
 
 .form-field-quarter {
-    flex: 1;
+    flex: 1 1 180px;
     min-width: 0;
 }
 
 .form-field-half {
-    flex: 1;
+    flex: 1 1 200px;
     min-width: 0;
 }
 
@@ -75,6 +76,7 @@
 .button-row {
     flex-shrink: 0;
 }
+
 
 .suppliers-table-wrap {
     width: 100%;

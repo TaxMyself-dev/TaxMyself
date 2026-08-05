@@ -451,8 +451,25 @@ export class ModalExpensesComponent {
     formData.sum = +formData.sum;
     formData.isEquipment === "0" ? formData.isEquipment = false : formData.isEquipment = true;
     formData.token = this.formBuilder.control(token).value; // TODO: check when token is invalid
+    // Phase 6.3 (D1/D6): send the sub_category FK — the backend prefers it
+    // over the name pair. Resolved from the loaded list at submit time so
+    // supplier-prefill and edit mode are covered the same way.
+    const subCategoryId = this.resolveSelectedSubCategoryId(formData.subCategory);
+    if (subCategoryId != null) {
+      formData.subCategoryId = subCategoryId;
+    }
     console.log(formData);
     return formData;
+  }
+
+  /** The picked sub_category's id (by name within the currently-loaded
+   *  cascading list); null when the list isn't loaded or the name is gone —
+   *  the backend then falls back to name-pair resolution. */
+  private resolveSelectedSubCategoryId(subCategoryName: string): number | null {
+    const match = this.originalSubCategoryList?.find(
+      (item) => item.subCategoryName === subCategoryName,
+    );
+    return match?.id ?? null;
   }
 
   openSelectSupplier(event?: Event) {
@@ -533,6 +550,9 @@ export class ModalExpensesComponent {
     const formData = this.addExpenseForm.value;
 
     formData.isEquipment = formData.isEquipment === '1' ? true : false;
+    // Phase 6.3: persist the FK alongside the display strings so the
+    // supplier's default classification survives catalog renames.
+    formData.subCategoryId = this.resolveSelectedSubCategoryId(formData.subCategory);
     const { date, file, sum, note, expenseNumber, ...newFormData } = formData;
     //this.genericService.getLoader()
     this.expenseDataServise.addSupplier(newFormData)

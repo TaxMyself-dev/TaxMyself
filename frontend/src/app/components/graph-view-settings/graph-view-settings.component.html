@@ -1,0 +1,54 @@
+<div class="gvs-popup" dir="rtl">
+
+  <section class="gvs-section">
+    <span class="gvs-section__label">תצוגת גרף</span>
+    <div class="gvs-chart-type" role="radiogroup" aria-label="תצוגת גרף">
+      <button
+        type="button"
+        role="radio"
+        class="gvs-chart-type__btn"
+        [class.gvs-chart-type__btn--active]="chartType() === 'line'"
+        [attr.aria-checked]="chartType() === 'line'"
+        aria-label="גרף קו"
+        (click)="selectChartType('line')">
+        <i class="pi pi-chart-line"></i>
+      </button>
+      <button
+        type="button"
+        role="radio"
+        class="gvs-chart-type__btn"
+        [class.gvs-chart-type__btn--active]="chartType() === 'bar'"
+        [attr.aria-checked]="chartType() === 'bar'"
+        aria-label="גרף עמודות"
+        (click)="selectChartType('bar')">
+        <i class="pi pi-chart-bar"></i>
+      </button>
+    </div>
+  </section>
+
+  <div class="gvs-divider"></div>
+
+  <section class="gvs-section">
+    <span class="gvs-section__label">תצוגת נתונים</span>
+    <div class="gvs-checkboxes" role="group" aria-label="נתונים מוצגים">
+
+      <div class="gvs-checkbox-row">
+        <p-checkbox
+          inputId="gvs-expenses"
+          [binary]="true"
+          [formControl]="_showExpensesCtrl" />
+        <label for="gvs-expenses" class="gvs-checkbox-label">הוצאות</label>
+      </div>
+
+      <div class="gvs-checkbox-row">
+        <p-checkbox
+          inputId="gvs-incomes"
+          [binary]="true"
+          [formControl]="_showIncomesCtrl" />
+        <label for="gvs-incomes" class="gvs-checkbox-label">הכנסות</label>
+      </div>
+
+    </div>
+  </section>
+
+</div>

@@ -21,11 +21,23 @@ export class CreateExpenseDto {
     @IsString()
     expenseNumber: string;
 
-    @IsString()
-    category: string;
+    /**
+     * D1/Phase 4.1: direct pointer at the sub_category row. When present it
+     * wins over the legacy category/subCategory name pair below; the names
+     * remain accepted (and required in practice by the unchanged Angular
+     * forms) until Phase 4.6 retires the name fallback.
+     */
+    @IsOptional()
+    @IsNumber()
+    subCategoryId?: number;
 
+    @IsOptional()
     @IsString()
-    subCategory: string;
+    category?: string;
+
+    @IsOptional()
+    @IsString()
+    subCategory?: string;
 
     @IsNumber()
     sum: number;
@@ -73,4 +85,17 @@ export class CreateExpenseDto {
     @IsOptional()
     @IsNumber()
     originalSum?: number;
+
+    /**
+     * Soft-duplicate override. When a previously-saved Expense matches on
+     * (supplier, sum, date) but NOT on the document number, addExpense
+     * normally rejects with a `DUPLICATE_WARNING` so the UI can ask the
+     * user "looks like a possible duplicate — save anyway?". Re-sending
+     * the same payload with this flag set to `true` acknowledges the
+     * warning and lets the save through. It never bypasses the hard
+     * `DUPLICATE_EXACT` block (same document number → truly the same row).
+     */
+    @IsOptional()
+    @IsBoolean()
+    acknowledgeDuplicate?: boolean;
 }

@@ -1,0 +1,91 @@
+<div class="depreciation-report-wrap-screen">
+  <div class="depreciation-report-header">
+    <div class="icon-title">
+      <img src="../../../assets/annual_report.svg" alt="Depreciation Report" class="icon" />
+      <span class="title">דוח פחת — טופס 1342</span>
+    </div>
+    <p class="text-header">
+      הפקת דוח פחת על נכסי הציוד של העסק לפי שנת המס
+    </p>
+  </div>
+
+  <app-filter-tab
+    [config]="filterConfig"
+    [parentForm]="form"
+    (apply)="onSubmit($event)">
+  </app-filter-tab>
+
+  @if (report(); as data) {
+    <div class="report-summary">
+      <span><strong>שנת מס:</strong> {{ data.year }}</span>
+      <span><strong>סה"כ נכסים:</strong> {{ data.rows.length }}</span>
+      <span><strong>סה"כ פחת:</strong> <span dir="ltr">{{ formatAmount(data.totalDepreciation) }}</span></span>
+    </div>
+
+    @if (data.rows.length > 0) {
+      <div class="depreciation-table-wrap" dir="rtl">
+        <table class="depreciation-table">
+          <thead>
+            <tr>
+              @for (col of columnHeaders; track col.num) {
+                <th>{{ col.num }}. {{ col.title }}</th>
+              }
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of data.rows; track $index) {
+              <tr>
+                <td>{{ row.assetName }}</td>
+                <td>{{ formatDate(row.purchaseDate) }}</td>
+                <td>{{ formatDate(row.activationDate) }}</td>
+                <td dir="ltr">{{ formatAmount(row.originalCost) }}</td>
+                <td dir="ltr">{{ formatAmount(row.changesDuringYear) }}</td>
+                <td dir="ltr">{{ formatPercent(row.depreciationRate) }}</td>
+                <td dir="ltr">{{ formatPercent(row.depreciationRatePerLaw) }}</td>
+                <td dir="ltr">{{ formatAmount(row.currentYearDepreciation) }}</td>
+                <td dir="ltr">{{ formatAmount(row.priorYearsDepreciation) }}</td>
+                <td dir="ltr">{{ formatAmount(row.totalDepreciation) }}</td>
+                <td dir="ltr">{{ formatAmount(row.remainingBalance) }}</td>
+              </tr>
+            }
+            <tr class="totals-row">
+              <td><strong>סה"כ</strong></td>
+              <td></td>
+              <td></td>
+              <td dir="ltr"><strong>{{ formatAmount(data.totalOriginalCost) }}</strong></td>
+              <td dir="ltr">0.00</td>
+              <td></td>
+              <td></td>
+              <td dir="ltr"><strong>{{ formatAmount(data.totalCurrentYearDepreciation) }}</strong></td>
+              <td dir="ltr"><strong>{{ formatAmount(data.totalPriorYearsDepreciation) }}</strong></td>
+              <td dir="ltr"><strong>{{ formatAmount(data.totalDepreciation) }}</strong></td>
+              <td dir="ltr"><strong>{{ formatAmount(data.totalRemainingBalance) }}</strong></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="report-action-row">
+        <app-p-button
+          [buttonText]="'ייצוא לאקסל'"
+          [buttonColor]="buttonColor.BLACK"
+          [buttonSize]="ButtonSize.AUTO"
+          (onButtonClicked)="exportToExcel()">
+        </app-p-button>
+
+        <app-p-button
+          [buttonText]="'שמור כ-PDF'"
+          [buttonColor]="buttonColor.WHITE_BORDER"
+          [buttonSize]="ButtonSize.AUTO"
+          (onButtonClicked)="exportToPdf()">
+        </app-p-button>
+      </div>
+    }
+  }
+
+  @if (isRequestSent() && !isLoading() && report() && report().rows.length === 0) {
+    <div class="empty-state">
+      <p>לא קיימים נכסי ציוד עבור עסק זה בשנה זו</p>
+    </div>
+  }
+</div>

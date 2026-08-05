@@ -39,6 +39,8 @@ export class InputSelectComponent implements OnInit {
   virtualScroll = input<boolean>(false);
   ariaLabel = input<string>("");
   showClear = input<boolean>(true);
+  emptyMessage = input<string>("לא נמצאו תוצאות");
+  emptyFilterMessage = input<string>("לא נמצאו תוצאות");
   appendTo = input<string | HTMLElement | null>("body");
   autoZIndex = input<boolean>(true);
   baseZIndex = input<number>(1000);

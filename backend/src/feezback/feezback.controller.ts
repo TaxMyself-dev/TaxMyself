@@ -2,8 +2,11 @@ import { BadRequestException, Body, Controller, ForbiddenException, Get, Logger,
 import type { SourceResult } from '../transactions/user-source-sync-state.entity';
 import { FeezbackService } from './feezback.service';
 import { FirebaseAuthGuard } from '../guards/firebase-auth.guard';
+import { SubscriptionGuard } from '../guards/subscription.guard';
+import { RequireModule } from '../decorators/require-module.decorator';
 import { AuthenticatedRequest } from '../interfaces/authenticated-request.interface';
 import { UsersService } from '../users/users.service';
+import { ModuleName } from '../enum';
 import type { Request, Response } from 'express';
 import { log } from 'node:console';
 import * as fs from 'fs';
@@ -12,6 +15,7 @@ import { FeezbackWebhookRouterService } from './router/feezback-webhook-router.s
 import { UserSyncStateService } from '../transactions/user-sync-state.service';
 
 @Controller('feezback')
+@RequireModule(ModuleName.OPEN_BANKING)
 export class FeezbackController {
   private readonly logger = new Logger(FeezbackController.name);
 
@@ -35,7 +39,7 @@ export class FeezbackController {
   }
 
   @Post('consent-link')
-  @UseGuards(FirebaseAuthGuard)
+  @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
   async createConsentLink(@Req() req: AuthenticatedRequest) {
     const firebaseId = req.user?.firebaseId;
 
@@ -112,7 +116,7 @@ export class FeezbackController {
    * Requires authentication
    */
   @Get('user-accounts')
-  @UseGuards(FirebaseAuthGuard)
+  @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
   async getUserAccounts(@Req() req: AuthenticatedRequest) {
     const firebaseId = req.user?.firebaseId;
 
@@ -165,7 +169,7 @@ export class FeezbackController {
    * Requires authentication
    */
   @Get('transactions')
-  @UseGuards(FirebaseAuthGuard)
+  @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
   async getTransactions(
     @Req() req: AuthenticatedRequest,
     @Query('transactionsLink') transactionsLink: string,

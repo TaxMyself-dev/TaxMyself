@@ -1,8 +1,11 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, Index } from 'typeorm';
 import { BusinessType, TaxReportingType, VATReportingType } from 'src/enum';
 
 
+// Named explicitly per the schema-drift convention. Nullable column — MySQL
+// allows multiple NULLs under a UNIQUE index, so number-less businesses are fine.
 @Entity('business')
+@Index('ux_business_number', ['businessNumber'], { unique: true })
 export class Business {
 
   @PrimaryGeneratedColumn()
@@ -109,4 +112,15 @@ export class Business {
   // Parent folder is the user's root Drive folder (user.drive_folder_id).
   @Column({ name: 'drive_folder_id', type: 'varchar', length: 255, nullable: true, default: null })
   driveFolderId: string | null;
+
+  // Two fixed sub-folders under driveFolderId. Populated by
+  // UsersService.provisionDriveStructure() on signup/business-create, and by
+  // the admin backfill endpoint for existing businesses. Files dropped into
+  // `inbox/` get OCR'd on the next report-page visit; OK files move to
+  // `processed/`.
+  @Column({ name: 'drive_inbox_folder_id', type: 'varchar', length: 255, nullable: true, default: null })
+  driveInboxFolderId: string | null;
+
+  @Column({ name: 'drive_processed_folder_id', type: 'varchar', length: 255, nullable: true, default: null })
+  driveProcessedFolderId: string | null;
 }

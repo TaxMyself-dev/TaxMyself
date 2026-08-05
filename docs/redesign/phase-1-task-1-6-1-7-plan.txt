@@ -1,0 +1,155 @@
+Phase 1, tasks 1.6 + 1.7 - hardcoded account codes + baseline verification
+===========================================================================
+
+Context
+-------
+Phase 1.4 (already committed, rehearsed against keepintax_prodcopy) renumbered
+the chart of accounts: income 4000/4010 -> 40000/40010, expense parents
+5000-6300 -> 60000-61300 (children in jumps of 10), plus new 90000-range
+technical accounts. Confirmed by direct query that keepintax_prodcopy is
+currently sitting in the POST-MIGRATION state: booking_account has 59 rows,
+accounting_section exists, and journal_line.accountCode already shows only
+new codes (1100, 2400, 2410, 40000, 60100, 60200, 60300, 60400, 60600, 60700,
+61100, 90300 - 302 lines across 9 businesses, matching D14 exactly).
+
+Application code was never updated to match - it still posts/reads the old
+4000/4010/5000... literals. Task 1.6 is to fix every such hardcode. Task 1.7
+is to prove the fix works by regenerating the Phase 0.5 golden baseline
+reports (docs/redesign/baseline-reports/*.json, generated pre-migration)
+against the now-migrated keepintax_prodcopy and diffing, with zero
+un-registered differences (per D15 / intentional-diffs.md).
+
+One deliberate scope boundary, confirmed from account.entity.ts's own
+comment (pnlCategory "dropped Phase 7 once createPnLReportFromJournal reads
+sectionId instead (Phase 4.4)"): the P&L report's
+dba.pnlCategory IS NOT NULL join stays as-is. Only the MANUAL-ENTRY DROPDOWN
+filter switches to sectionId, per the master plan's explicit 1.6 bullet.
+This is safe for 1.7 because all 9 businesses' live journal data only
+touches parent-level account codes, which retain pnlCategory.
+
+Task 1.6 - code changes
+------------------------
+backend/src/documents/documents.service.ts - buildDocumentJournalLines
+(exported fn, ~line 48): 3 literal '4000' -> '40000' (receipt income line,
+credit-note reversal, tax-invoice income line). 1100/1200/2400 are
+balance-sheet/VAT accounts and are unchanged.
+
+backend/src/bookkeeping/bookkeeping.service.ts - createManualJournalEntry
+(~line 208): const accountCode = isExpense ? line.accountCode : '4000';
+-> '40000'. Update the JSDoc above it that quotes '4000'. vatAccountCode
+(2400/2410) unchanged.
+
+backend/src/reports/reports.service.ts (several independent spots):
+- createVatReportFromJournal (~line 478-479): SQL CASE literals
+  '4000'/'4010' -> '40000'/'40010'.
+- createPnLReportFromJournal (~line 567): code === '4000' || code ===
+  '4010' -> '40000'/'40010'. The dba.pnlCategory IS NOT NULL join itself
+  is untouched (Phase 4.4 concern, see Context).
+- buildLineDescription (~lines 974/981): accountCode === '4000' / '4010'
+  -> '40000'/'40010'. 1100/1200/2000/2400/2410 branches unchanged.
+- getLedgerEntryAccounts (~line 906-912, the MANUAL-ENTRY ACCOUNT DROPDOWN
+  the plan calls out): filter !!a.pnlCategory -> !!a.sectionId
+  (BookingAccount.sectionId, added Phase 1.2 - every real posting account,
+  parent or child, has it; pnlCategory is null on child/sub-ledger
+  accounts, which would otherwise wrongly disappear from the dropdown).
+  Update the doc comment.
+- compareLedgerAccountCodes (~line 918-935, used by both the ledger
+  account-filter dropdown and the ledger report's own account ordering):
+  translate every code in the hardcoded order array through the same
+  old->new mapping (4000/4010 -> 40000/40010, 5000..6300 -> 60000..61300
+  in the same relative positions); balance-sheet codes (1000, 1100, 1110,
+  1120, 1200, 2000, 2100, 2400, 2410) stay as-is. This isn't explicitly
+  named in the 1.6 bullet list but is the same class of hardcode and would
+  otherwise silently mis-order the dropdown/ledger.
+
+Update doc comments elsewhere in this file that quote the old codes
+(createVatReportFromJournal/createPnLReportFromJournal doc-comments,
+lines ~450-451/510).
+
+backend/src/demo-data/demo-data.service.ts (~line 463) -
+warnIfChartOfAccountsMissing's diagnostic code list: ['1000', '2400',
+'2410', '4000', '5000'] -> ['1000', '2400', '2410', '40000', '60000'].
+Non-fatal diagnostic only, but should check for codes that actually exist
+in the new chart.
+
+Verified, no code change needed:
+- SHAAM B100 export (generateB100Section, ~line 1613):
+  this.formatField(line.accountCode, 15, '!') - 15-char field comfortably
+  fits 5-digit codes.
+- Ledger balance-direction logic (~line 748-763): keys off
+  BookingAccount.type (asset/expense/income/liability), never a hardcoded
+  code. Untouched, as the plan says.
+- expenses.service.ts posting logic - account codes there are always
+  resolved dynamically from category/sub-category lookups, never
+  hardcoded literals. No change needed.
+- account.seed.ts / account-seed.service.ts (the OLD boot-time chart
+  seeder) - explicitly out of scope per this module's own CLAUDE.md
+  ("superseded by the flat seeder in Phase 2.6 (D13); untouched by the
+  Phase 1.1-1.3 work"). Left alone.
+
+Tests to update (same literal, mechanical '4000' -> '40000' swap):
+backend/src/bookkeeping/bookkeeping.service.spec.ts (3 spots),
+backend/src/documents/documents-journal.service.spec.ts (3 spots).
+
+Task 1.7 - verification
+------------------------
+1. Reuse the existing backend/scripts/generate-baseline-reports.ts
+   unchanged - run it again against keepintax_prodcopy (already migrated),
+   writing to a NEW directory,
+   docs/redesign/baseline-reports-post-migration/, so the Phase-0.5 golden
+   fixtures are never overwritten. Command (same env-var discipline as the
+   script's own header comment): DB_DATABASE=keepintax_prodcopy
+   NODE_ENV=production SKIP_BOOT_SEED=true npx ts-node -r
+   tsconfig-paths/register scripts/generate-baseline-reports.ts (pointed at
+   the new output dir via a small param/env override, or a one-line copy
+   of the script with OUT_DIR changed - whichever is less invasive once
+   I'm in the file).
+2. Write backend/scripts/compare-baseline-reports.ts, a new committed
+   comparison script (this is the "Automated comparison script, committed"
+   1.7 asks for) that, per business file in docs/redesign/baseline-reports/:
+   - Loads the old (pre-migration) fixture and the new post-migration one.
+   - Diffs every numeric VAT field and P&L field (aggregate + each period),
+     and P&L expense-category totals, flagging any delta > 0.01.
+   - Cross-checks flagged deltas against docs/redesign/intentional-diffs.md
+     (business 204245724's Bituach Leumi remap, ~ILS 11,775.40 P&L expense
+     drop, zero VAT impact; the zero-delta duplicate-category merge) -
+     anything outside that registry is a real failure.
+   - Diffs the ledger: total debit/credit sums must match exactly; each
+     ledger line's account code must equal its old code translated through
+     ACCOUNT_CODE_MIGRATION (backend/src/bookkeeping/chart.seed.ts) -
+     EXCEPT the six Bituach Leumi journal entries (ids 10000145, 10000158,
+     10000167, 10000173, 10000186, 10000203), which are special-cased:
+     their lines are expected on 90300, NOT on the generic old-5000 ->
+     60000 mapping. Match by journalEntryId, not by old account code alone.
+   - For business 204245724's P&L diff specifically: the registered
+     Correction #1 delta manifests as the "הוצאות בלתי מזוהות" expense
+     category vanishing entirely from the post-migration P&L (its full
+     amount moved to 90300, a technical account outside P&L sections).
+     Treat a category disappearing (old total present, new total absent/
+     zero) as satisfying intentional-diffs Correction #1, not as a
+     structural failure - but confirm the vanished amount actually equals
+     the registered ~ILS 11,775.40 (amountForTax) before accepting it.
+   - Prints a clear pass/fail summary per business, non-zero exit code on
+     any un-registered diff.
+3. Run it, capture the results.
+4. Update docs/redesign/worklog.md with a new dated session entry
+   documenting what changed and the verification outcome (matching the
+   style of prior entries), tick [x] on master-plan checkboxes 1.6 and 1.7,
+   and set "Current phase: 2" in CLAUDE.md (per its own instruction:
+   "Update this line manually when a phase completes" - Phase 1's
+   "Definition of done" will be fully met: production journal fully on new
+   codes (already true), reports reproduce baseline (after this task), old
+   code ranges absent from journal_line (already confirmed)).
+5. Commit locally (code + docs together), per this repo's standing
+   instruction to commit after every completed task.
+
+Verification
+------------
+- cd backend && npx tsc --noEmit clean on every touched file (no new
+  errors vs. the known pre-existing failures in users/report-workflow
+  specs).
+- cd backend && npx jest bookkeeping.service.spec documents-journal.service.spec
+  - updated expectations pass.
+- Run compare-baseline-reports.ts against keepintax_prodcopy - zero
+  un-registered diffs is the actual proof this phase is done; report the
+  full pass/fail output back before ticking checkboxes.

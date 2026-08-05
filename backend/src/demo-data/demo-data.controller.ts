@@ -16,8 +16,11 @@ import {
   DemoDataService,
   DemoProfileListItem,
   DemoResetResult,
+  DemoScenarioResult,
   DemoSeedResult,
+  DemoTestResetResult,
 } from './demo-data.service';
+import { isDemoEmail } from './profiles';
 
 @Controller('demo-data')
 @UseGuards(FirebaseAuthGuard)
@@ -53,6 +56,72 @@ export class DemoDataController {
   ): Promise<DemoResetResult> {
     await this.assertAdmin(request);
     return this.service.resetProfile(id);
+  }
+
+  /**
+   * Admin-only: put a demo profile into the pre-Direct-card-fix state, where
+   * the card feed was still imported and every scenario purchase shows up
+   * twice. Seeds the demo user first if they don't exist yet. Rebuilds the
+   * user's transaction cache — see DemoDataService.applyLegacyDuplicateState.
+   *
+   * 404s for any profile that doesn't declare a `legacyDuplicateScenario`.
+   */
+  @Post('profiles/:id/legacy-duplicate-state')
+  @HttpCode(HttpStatus.OK)
+  async legacyDuplicateState(
+    @Req() request: AuthenticatedRequest,
+    @Param('id') id: string,
+  ): Promise<DemoScenarioResult> {
+    await this.assertAdmin(request);
+    return this.service.applyLegacyDuplicateState(id);
+  }
+
+  /**
+   * Admin-only: apply the Direct-card behaviour to a demo profile (card
+   * flagged Direct + `skipped_direct`) and re-sync its cache from the bank
+   * feed alone, which is what makes the duplicates disappear.
+   *
+   * 404s for any profile that doesn't declare a `legacyDuplicateScenario`.
+   */
+  @Post('profiles/:id/apply-direct-card-fix')
+  @HttpCode(HttpStatus.OK)
+  async applyDirectCardFix(
+    @Req() request: AuthenticatedRequest,
+    @Param('id') id: string,
+  ): Promise<DemoScenarioResult> {
+    await this.assertAdmin(request);
+    return this.service.applyDirectCardFix(id);
+  }
+
+  /**
+   * In-app reset triggered by a demo user from their own dashboard. NOT
+   * admin-gated — the caller's email is checked against DEMO_PROFILES,
+   * so only demo users can hit this. Wipes Drive + DB derived state and
+   * re-uploads the sample files (see DemoDataService.testReset for the
+   * full purge list). Preserves the user identity so the session stays
+   * valid.
+   */
+  @Post('test-reset')
+  @HttpCode(HttpStatus.OK)
+  async testReset(
+    @Req() request: AuthenticatedRequest,
+  ): Promise<DemoTestResetResult> {
+    console.log(`[test-reset][controller] ENTRY — POST /demo-data/test-reset received`);
+    const firebaseId = request.user?.firebaseId;
+    if (!firebaseId) {
+      console.log(`[test-reset][controller] REJECTED — no firebaseId on request`);
+      throw new ForbiddenException('לא אותחל משתמש');
+    }
+    console.log(`[test-reset][controller] firebaseId=${firebaseId.substring(0, 8)}...`);
+    const user = await this.usersService.findByFirebaseId(firebaseId);
+    if (!isDemoEmail(user?.email)) {
+      console.log(
+        `[test-reset][controller] REJECTED — email "${user?.email}" not in DEMO_PROFILES`,
+      );
+      throw new ForbiddenException('אפס נתוני בדיקה זמין רק למשתמשי דמו');
+    }
+    console.log(`[test-reset][controller] AUTHORIZED email=${user?.email} — calling service.testReset`);
+    return this.service.testReset(firebaseId);
   }
 
   private async assertAdmin(request: AuthenticatedRequest): Promise<void> {

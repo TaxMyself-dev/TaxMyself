@@ -39,6 +39,8 @@
     display: flex;
     width: 100%;
     justify-content: space-around;
+    flex-wrap: wrap;
+    gap: 1rem;
 }
 
 .buttons {
@@ -52,10 +54,10 @@
 .checkbox-container {
     margin-top: 15px;
     margin-right: 8px;
-    /* border: 1px solid; */
-    width: 52%;
+    width: 100%;
     display: flex;
-    justify-content: space-around;
+    align-items: center;
+    gap: 8px;
 }
 
 .footer {
@@ -64,13 +66,13 @@
 }
 
 .subcategory-details {
-    // border: 1px solid;
     display: flex;
     flex-wrap: wrap;
-    height: 250px;
+    height: auto;            // was 250px — fixed height clips content on mobile
+    min-height: 0;
     align-items: flex-start;
     background: linear-gradient(to right, #ffff, #ebeaea);
-    padding:27px;
+    padding: 27px;
 }
 
 .detail-row {
@@ -114,6 +116,10 @@
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 1rem;
+
+    @media (max-width: 480px) {
+      grid-template-columns: 1fr;
+    }
   }
 }
 

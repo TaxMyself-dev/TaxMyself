@@ -1,5 +1,6 @@
 import {
   ConflictException,
+  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
@@ -7,16 +8,21 @@ import {
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, EntityManager, In } from 'typeorm';
 import * as admin from 'firebase-admin';
+import * as fs from 'fs/promises';
+import * as path from 'path';
 import {
   BusinessStatus,
   BusinessType,
-  ModuleName,
-  PayStatus,
+  DocumentType,
   TaxReportingType,
   UserRole,
   VATReportingType,
 } from 'src/enum';
+import { DocumentsService } from 'src/documents/documents.service';
+import { ExpensesService } from 'src/expenses/expenses.service';
+import { BookingAccount } from 'src/bookkeeping/account.entity';
 import { User } from 'src/users/user.entity';
+import { UsersService } from 'src/users/users.service';
 import { Business } from 'src/business/business.entity';
 import { Bill } from 'src/transactions/bill.entity';
 import { Source } from 'src/transactions/source.entity';
@@ -26,9 +32,13 @@ import { UserSyncState } from 'src/transactions/user-sync-state.entity';
 import { ClassifiedTransactions } from 'src/transactions/classified-transactions.entity';
 import { Transactions } from 'src/transactions/transactions.entity';
 import { UserTransactionCacheState } from 'src/transactions/user-transaction-cache-state.entity';
-import { UserSourceSyncState } from 'src/transactions/user-source-sync-state.entity';
-import { UserCategory } from 'src/expenses/user-categories.entity';
-import { UserSubCategory } from 'src/expenses/user-sub-categories.entity';
+import {
+  SourceSyncStatus,
+  UserSourceSyncState,
+} from 'src/transactions/user-source-sync-state.entity';
+import { Category } from 'src/bookkeeping/category.entity';
+import { SubCategory } from 'src/bookkeeping/sub-category.entity';
+import { AccountingSection } from 'src/bookkeeping/accounting-section.entity';
 import { Expense } from 'src/expenses/expenses.entity';
 import { Income } from 'src/expenses/incomes.entity';
 import { Supplier } from 'src/expenses/suppliers.entity';
@@ -36,6 +46,7 @@ import { Documents } from 'src/documents/documents.entity';
 import { DocLines } from 'src/documents/doc-lines.entity';
 import { DocPayments } from 'src/documents/doc-payments.entity';
 import { SettingDocuments } from 'src/documents/settingDocuments.entity';
+import { ExtractedDocument } from 'src/documents/extracted-document.entity';
 import { Clients } from 'src/clients/clients.entity';
 import { JournalEntry } from 'src/bookkeeping/jouranl-entry.entity';
 import { JournalLine } from 'src/bookkeeping/jouranl-line.entity';
@@ -45,8 +56,15 @@ import { Child } from 'src/users/child.entity';
 import { AccountantTask } from 'src/accountant-tasks/accountant-task.entity';
 import { ReportWorkflow } from 'src/report-workflow/report-workflow.entity';
 import { AnnualReport } from 'src/annual-report/annual-report.entity';
-import { DEMO_PROFILES } from './profiles';
-import { DemoClient, DemoProfile, DemoSeedable } from './demo-profile.types';
+import { DEMO_PROFILES, findDemoProfileByEmail } from './profiles';
+import {
+  DemoClient,
+  DemoLegacyDuplicateScenario,
+  DemoProfile,
+  DemoSeedable,
+} from './demo-profile.types';
+import { GoogleDriveService, ServiceAccountQuotaError } from 'src/google-drive/google-drive.service';
+import { FxRateService } from 'src/shared/fx-rate.service';
 
 export interface DemoSubUser {
   firebaseId?: string;
@@ -66,6 +84,13 @@ export interface DemoProfileListItem {
   firebaseId?: string;
   /** Delegated clients (email + label) when this profile has them. */
   clients?: DemoSubUser[];
+  /**
+   * True when the profile declares a `legacyDuplicateScenario` — the admin UI
+   * renders the two Direct-card scenario buttons only for these. Every other
+   * profile gets `false` and the endpoints refuse it, so the actions can never
+   * be pointed at an unrelated demo user.
+   */
+  supportsDirectCardScenario: boolean;
 }
 
 export interface DemoSeedResult {
@@ -74,6 +99,10 @@ export interface DemoSeedResult {
   password: string;
   /** firebaseId + creds for each delegated client created. */
   clients?: DemoSubUser[];
+  /** Set when the profile opted into Drive sample uploads via
+   *  `seedDriveFiles`. Includes the inbox folder URL so the admin can
+   *  jump straight to it if manual drop is needed. */
+  driveInbox?: DriveSeedInfo;
 }
 
 export interface DemoResetResult {
@@ -81,11 +110,64 @@ export interface DemoResetResult {
   deletedRows: Record<string, number>;
 }
 
+/**
+ * Outcome of the two Direct-card scenario actions
+ * (`applyLegacyDuplicateState` / `applyDirectCardFix`).
+ */
+export interface DemoScenarioResult {
+  /** Which state the user is now in. */
+  state: 'legacy-duplicates' | 'direct-card-fixed';
+  firebaseId: string;
+  /** True when the action had to seed the demo user first. */
+  seededUser: boolean;
+  /** Cache rows rebuilt from the bank feed. */
+  bankRows: number;
+  /** Card-feed duplicate rows written (always 0 after the fix). */
+  cardRows: number;
+  /** Value written to `Source.isDirect` for the scenario's card. */
+  cardIsDirect: boolean | null;
+  /** Value written to the card's `user_source_sync_state.status`. */
+  cardStatus: SourceSyncStatus;
+}
+
+export interface DemoTestResetResult {
+  /** Files removed from inbox/processed across every business. */
+  filesDeleted: number;
+  /** Per-table row counts that were purged or reset. */
+  dbRowsReset: Record<string, number>;
+  /** Number of sample PDFs re-uploaded to the demo user's inbox/. */
+  filesUploaded: number;
+  /** Populated when the profile has `seedDriveFiles` — points at the
+   *  inbox folder the admin/user might need to drag files into. */
+  driveInbox?: DriveSeedInfo;
+}
+
+/**
+ * Info about the demo user's inbox/ folder after seed/reset — surfaced
+ * so the admin (or the demo user via the dashboard reset toast) knows
+ * where to drop files when the service account can't upload them itself.
+ */
+export interface DriveSeedInfo {
+  inboxFolderId: string;
+  inboxFolderUrl: string;
+  filesUploaded: number;
+  /** True when uploads were blocked by the service-account quota wall.
+   *  Caller should tell the admin to drag the PDFs in manually. */
+  needsManualUpload: boolean;
+}
+
 @Injectable()
 export class DemoDataService {
   private readonly logger = new Logger(DemoDataService.name);
 
-  constructor(@InjectDataSource() private readonly dataSource: DataSource) {}
+  constructor(
+    @InjectDataSource() private readonly dataSource: DataSource,
+    private readonly driveService: GoogleDriveService,
+    private readonly fxRateService: FxRateService,
+    private readonly usersService: UsersService,
+    private readonly documentsService: DocumentsService,
+    private readonly expensesService: ExpensesService,
+  ) {}
 
   // ---------------- Public API ----------------
 
@@ -122,6 +204,7 @@ export class DemoDataService {
         exists: !!existing,
         firebaseId: existing?.firebaseId,
         clients,
+        supportsDirectCardScenario: !!p.legacyDuplicateScenario,
       });
     }
     return out;
@@ -213,6 +296,44 @@ export class DemoDataService {
       throw dbErr;
     }
 
+    // 3.5 Documents + Expenses (opt-in per profile). Runs OUTSIDE the seed
+    //     transaction because DocumentsService.createDoc() and
+    //     ExpensesService.addExpense() each open their OWN transaction / use
+    //     their own repos (they don't accept the seeder's EntityManager) —
+    //     calling them inside `m` would run on a separate connection and could
+    //     deadlock or orphan rows on rollback. Best-effort: failures are
+    //     logged and the already-committed user/businesses stay valid.
+    try {
+      await this.seedDocumentsAndExpenses(primaryFirebaseId, profile);
+    } catch (docErr) {
+      this.logger.error(
+        `[demo-data] document/expense seeding failed for ${profile.id} ` +
+          `(user/businesses still committed): ${(docErr as Error)?.message ?? docErr}`,
+      );
+    }
+
+    // 4. Drive provisioning + sample-file upload (opt-in per profile).
+    //    Runs OUTSIDE the DB transaction so a Drive outage doesn't roll back
+    //    the seed. Errors are caught and logged at ERROR level WITH the
+    //    stack trace — the admin keeps a valid demo user even if Drive is
+    //    down, and clicking "אפס נתוני בדיקה" from the dashboard re-runs
+    //    this same code path to fill the gap.
+    let driveInbox: DriveSeedInfo | undefined = undefined;
+    if (profile.seedDriveFiles) {
+      try {
+        const result = await this.provisionDriveAndSamplesForProfile(primaryFirebaseId, profile);
+        if (result) driveInbox = result;
+      } catch (driveErr) {
+        this.logger.error(
+          `[demo-data] Drive provisioning FAILED for ${profile.id} ` +
+            `(DB seed still committed — click "אפס נתוני בדיקה" to retry): ${
+              (driveErr as Error)?.message ?? driveErr
+            }`,
+          (driveErr as Error)?.stack,
+        );
+      }
+    }
+
     return {
       firebaseId: primaryFirebaseId,
       email: profile.email,
@@ -225,7 +346,699 @@ export class DemoDataService {
             label: `${client.user.fName} ${client.user.lName}`,
           }))
         : undefined,
+      driveInbox,
     };
+  }
+
+  /**
+   * Seed real Documents + Expenses for a profile's primary user. Runs AFTER the
+   * main seed transaction commits (see call site for why).
+   *
+   * Both paths post journal entries — income via createDoc (debit A/R 1000,
+   * credit revenue 4000 + output VAT 2400; credit notes reverse), expense via
+   * addExpense (debit expense 5000 + deductible VAT input 2410, credit 1000).
+   * These REQUIRE the chart-of-accounts rows (1000, 2400, 2410, 4000, 5000) to
+   * exist in default_booking_account — see backend/src/bookkeeping/account.seed.ts.
+   * If they're missing: createDoc rolls back each document (its journal post is
+   * NOT best-effort), and addExpense keeps the expense but skips the journal
+   * line (its post IS best-effort). Every call below is wrapped best-effort so a
+   * missing account / per-item failure logs and the rest of the seed continues.
+   */
+  private async seedDocumentsAndExpenses(
+    firebaseId: string,
+    profile: DemoProfile,
+  ): Promise<void> {
+    const docs = profile.documents ?? [];
+    const expenses = profile.expenses ?? [];
+    if (docs.length === 0 && expenses.length === 0) return;
+
+    await this.warnIfChartOfAccountsMissing();
+
+    // Pre-assign docNumbers before going parallel — sequential counter must be
+    // stable regardless of which business processes first.
+    const docsWithNumbers = docs.map((d, i) => ({ ...d, docNumber: 1001 + i }));
+
+    // Collect distinct businesses across docs + expenses.
+    const bizRefs = [...new Set([
+      ...docs.map(d => d.businessNumberRef),
+      ...expenses.map(e => e.businessNumberRef),
+    ])];
+
+    this.logger.log(
+      `[demo-data] seeding ${docs.length} docs + ${expenses.length} expenses ` +
+      `across ${bizRefs.length} businesses in parallel (expenses concurrency=5 per biz)`,
+    );
+    const t0 = Date.now();
+
+    // Different businesses share no counter rows — run them fully in parallel.
+    await Promise.all(bizRefs.map(async (bizRef) => {
+      const bizDocs = docsWithNumbers.filter(d => d.businessNumberRef === bizRef);
+      const bizExpenses = expenses.filter(e => e.businessNumberRef === bizRef);
+      const tb = Date.now();
+
+      // ── Documents: sequential within each business ─────────────────────────
+      // Documents share a per-business generalDocIndex counter; concurrent calls
+      // would serialize at the DB anyway, so sequential is simpler and safe.
+      for (const d of bizDocs) {
+        const sumWithVat = Number((d.sumAftDisBefVAT + d.vatSum).toFixed(2));
+        const docData = {
+          issuerBusinessNumber: d.businessNumberRef,
+          recipientName: d.recipientName,
+          recipientId: d.recipientId ?? null,
+          docType: d.docType,
+          docNumber: d.docNumber,
+          docVatRate: d.vatSum > 0 ? 18 : 0,
+          sumBefDisBefVat: d.sumAftDisBefVAT,
+          disSum: 0,
+          sumAftDisBefVAT: d.sumAftDisBefVAT,
+          vatSum: d.vatSum,
+          sumAftDisWithVAT: sumWithVat,
+          withholdingTaxAmount: 0,
+          docDate: d.docDate,
+          valueDate: d.docDate,
+        };
+        try {
+          await this.documentsService.createDoc(
+            { docData, linesData: [], paymentData: [] },
+            firebaseId,
+            false,
+          );
+        } catch (err: any) {
+          this.logger.warn(
+            `[demo-data] createDoc failed for ${d.docType} #${d.docNumber} ` +
+            `(biz ${bizRef}): ${err?.message ?? err}`,
+          );
+        }
+      }
+
+      // ── Expenses: worker-pool concurrency=5 within each business ──────────
+      // Reads dominate; the journal-entry counter serializes at the DB level so
+      // concurrency is safe — no duplicate entryNumbers, no lost updates.
+      await this.runConcurrently(bizExpenses, 5, async (e) => {
+        const dto: any = {
+          supplier: e.merchantName,
+          category: e.category ?? 'הוצאות',
+          subCategory: e.subCategory ?? 'כללי',
+          sum: e.sum,
+          taxPercent: e.taxPercent ?? 100,
+          vatPercent: e.vatPercent,
+          date: e.expenseDate,
+          reductionPercent: 0,
+          isEquipment: e.isEquipment ?? false,
+        };
+        try {
+          await this.expensesService.addExpense(dto, firebaseId, e.businessNumberRef, false);
+        } catch (err: any) {
+          this.logger.warn(
+            `[demo-data] addExpense failed for "${e.merchantName}" ` +
+            `(biz ${bizRef}): ${err?.message ?? err}`,
+          );
+        }
+      });
+
+      this.logger.log(
+        `[demo-data] biz ${bizRef}: ${bizDocs.length} docs + ${bizExpenses.length} expenses done in ${Date.now() - tb}ms`,
+      );
+    }));
+
+    this.logger.log(`[demo-data] seed complete in ${Date.now() - t0}ms`);
+  }
+
+  /**
+   * Worker-pool concurrency helper — runs `fn` over every item with at most
+   * `concurrency` calls in flight at once. Each worker pulls from a shared
+   * queue until exhausted. Errors propagate individually (caught by callers).
+   */
+  private async runConcurrently<T>(
+    items: T[],
+    concurrency: number,
+    fn: (item: T) => Promise<void>,
+  ): Promise<void> {
+    if (items.length === 0) return;
+    const queue = [...items];
+    const workers = Array.from(
+      { length: Math.min(concurrency, items.length) },
+      async () => {
+        while (queue.length > 0) {
+          const item = queue.shift()!;
+          await fn(item);
+        }
+      },
+    );
+    await Promise.all(workers);
+  }
+
+  /**
+   * Diagnostic: warn loudly if the bookkeeping chart of accounts isn't populated.
+   * Without these rows the ledger demo silently produces nothing (income docs
+   * roll back, expense journal lines are skipped). Non-fatal.
+   */
+  private async warnIfChartOfAccountsMissing(): Promise<void> {
+    try {
+      const rows = await this.dataSource.getRepository(BookingAccount).find();
+      const have = new Set(rows.map((r) => r.code));
+      const missing = ['1000', '2400', '2410', '40000', '60000'].filter((c) => !have.has(c));
+      if (missing.length) {
+        this.logger.warn(
+          `[demo-data][ledger] default_booking_account is missing codes [${missing.join(', ')}]. ` +
+            `Income documents will roll back and expense journal lines will be skipped until these ` +
+            `exist. See backend/src/bookkeeping/account.seed.ts for the SQL.`,
+        );
+      }
+    } catch {
+      // diagnostic only — never block seeding
+    }
+  }
+
+  /**
+   * In-app reset endpoint backing the "אפס נתוני בדיקה" dashboard button.
+   * Called by a demo user logged in as themselves (NOT an admin). Wipes
+   * every file out of Drive (inbox/processed) for every business,
+   * purges OCR/expense/document rows, then re-creates the OB cache rows
+   * from the profile and re-uploads the sample PDFs.
+   *
+   * Distinct from `resetProfile`, which destroys the user entirely
+   * (Firebase + every DB row) — testReset preserves the user identity so
+   * the caller's session stays valid; only the test-state derived data is
+   * rewound.
+   */
+  async testReset(firebaseId: string): Promise<DemoTestResetResult> {
+    console.log(`[test-reset] ENTRY fid=${firebaseId.substring(0, 8)}...`);
+
+    const userRepo = this.dataSource.getRepository(User);
+    const user = await userRepo.findOne({ where: { firebaseId } });
+    if (!user) {
+      console.log(`[test-reset] ABORT — user not found in DB for fid=${firebaseId.substring(0, 8)}...`);
+      throw new NotFoundException('User not found');
+    }
+    console.log(`[test-reset] loaded user email=${user.email} index=${user.index}`);
+
+    const profile = findDemoProfileByEmail(user.email);
+    if (!profile) {
+      console.log(`[test-reset] ABORT — email "${user.email}" not in DEMO_PROFILES`);
+      throw new ForbiddenException(
+        'אפס נתוני בדיקה זמין רק למשתמשי דמו',
+      );
+    }
+    console.log(`[test-reset] resolved profile=${profile.id}`);
+
+    const businessRepo = this.dataSource.getRepository(Business);
+    const businesses = await businessRepo.find({ where: { firebaseId } });
+    const businessNumbers = businesses
+      .map((b) => b.businessNumber)
+      .filter((n): n is string => !!n);
+    console.log(`[test-reset] loaded ${businesses.length} business(es), businessNumbers=[${businessNumbers.join(',')}]`);
+
+    // 1. Wipe every file from every demo Drive folder (inbox, processed).
+    //    Per-folder + per-file errors are logged but never abort the wider
+    //    reset — partial cleanup is better than no cleanup. Logs
+    //    use console.error so they bypass NestJS log-level filtering during
+    //    debugging; revert to logger.log once we trust the flow.
+    console.log(`[test-reset] START drive cleanup for ${businesses.length} business(es)`);
+    let filesDeleted = 0;
+    for (const b of businesses) {
+      const folderEntries: Array<{ name: 'inbox' | 'processed'; id: string | null }> = [
+        { name: 'inbox',     id: b.driveInboxFolderId },
+        { name: 'processed', id: b.driveProcessedFolderId },
+      ];
+      for (const { name, id: folderId } of folderEntries) {
+        if (!folderId) {
+          console.log(`[test-reset] biz=${b.businessNumber} ${name}: no folderId on Business row — skipping`);
+          continue;
+        }
+        try {
+          const files = await this.driveService.listFolderFiles(folderId);
+          let deletedHere = 0;
+          let failedHere = 0;
+          for (const f of files) {
+            try {
+              await this.driveService.deleteFile(f.id);
+              deletedHere++;
+              filesDeleted++;
+            } catch (delErr) {
+              failedHere++;
+              console.log(
+                `[test-reset] biz=${b.businessNumber} ${name}: FAILED to delete "${f.name}" (${f.id}): ${
+                  (delErr as Error)?.message ?? delErr
+                }`,
+              );
+            }
+          }
+          console.log(
+            `[test-reset] biz=${b.businessNumber} ${name}: listed=${files.length} deleted=${deletedHere} failed=${failedHere}`,
+          );
+        } catch (listErr) {
+          console.log(
+            `[test-reset] biz=${b.businessNumber} ${name}: list FAILED for folderId=${folderId}: ${
+              (listErr as Error)?.message ?? listErr
+            }`,
+          );
+        }
+      }
+    }
+
+    // 2. Purge derived rows. Same FK-checks-off pattern as resetProfile so
+    //    we don't trip over the document → expense chain.
+    const dbRowsReset: Record<string, number> = {};
+    await this.dataSource.transaction(async (m) => {
+      await m.query('SET FOREIGN_KEY_CHECKS = 0');
+      try {
+        // Documents (issued by the user) — scoped by issuerBusinessNumber.
+        if (businessNumbers.length > 0) {
+          dbRowsReset.docLines =
+            (await m.delete(DocLines, {
+              issuerBusinessNumber: In(businessNumbers),
+            })).affected ?? 0;
+          dbRowsReset.docPayments =
+            (await m.delete(DocPayments, {
+              issuerBusinessNumber: In(businessNumbers),
+            })).affected ?? 0;
+          dbRowsReset.documents =
+            (await m.delete(Documents, {
+              issuerBusinessNumber: In(businessNumbers),
+            })).affected ?? 0;
+        }
+
+        // ExtractedDocument is keyed by `userId = user.index` (an int) but
+        // we wipe by `businessNumber` here. Every reseed of a demo profile
+        // creates a new Firebase user with a fresh `index`; old rows from
+        // previous incarnations stay behind and get re-paired by the matcher
+        // (which queries by businessNumber), leaving the current user's
+        // brand-new rows showing as doc_only in the review UI. Scoping by
+        // businessNumber catches all those orphans at once.
+        if (businessNumbers.length > 0) {
+          dbRowsReset.extractedDocuments =
+            (await m.delete(ExtractedDocument, {
+              businessNumber: In(businessNumbers),
+            })).affected ?? 0;
+        }
+
+        // Bookkeeping rows derived from the test data.
+        dbRowsReset.expenses =
+          (await m.delete(Expense, { userId: firebaseId })).affected ?? 0;
+        dbRowsReset.incomes =
+          (await m.delete(Income, { userId: firebaseId })).affected ?? 0;
+        dbRowsReset.suppliers =
+          (await m.delete(Supplier, { userId: firebaseId })).affected ?? 0;
+
+        // Transaction chain — wipe then re-insert from profile.transactions
+        // so daysAgo offsets get recomputed relative to today.
+        dbRowsReset.slimTransactions =
+          (await m.delete(SlimTransaction, { userId: firebaseId })).affected ?? 0;
+        dbRowsReset.classifiedRules =
+          (await m.delete(ClassifiedTransactions, { userId: firebaseId })).affected ?? 0;
+        dbRowsReset.fullCache =
+          (await m.delete(FullTransactionCache, { userId: firebaseId })).affected ?? 0;
+
+        // Rebuild full_transaction_cache from the profile template — uses
+        // the same shape as seedUserAndData's step 4 so dates anchor to
+        // "today" again, and looks up live bill ids by name so the
+        // pre-association survives the wipe.
+        const rebuiltCacheRows = await this.buildCacheRowsFromProfile(m, firebaseId, profile);
+        if (rebuiltCacheRows.length > 0) {
+          await m.insert(FullTransactionCache, rebuiltCacheRows);
+        }
+        dbRowsReset.fullCacheReseeded = rebuiltCacheRows.length;
+
+        // Re-assert the profile's per-source state so a reset lands on the
+        // same shape as a fresh seed: Direct cards keep isDirect = true and
+        // their terminal `skipped_direct` row, and the bank row's
+        // transactionCount re-syncs with the freshly rebuilt cache.
+        dbRowsReset.sourceSyncStates = await this.applyProfileSourceState(
+          m,
+          firebaseId,
+          profile,
+          rebuiltCacheRows,
+        );
+
+        // Re-assert the user-level sync state too. The seed writes
+        // 'completed'; an admin cache-clear (markSyncEmpty) would have left it
+        // 'empty', which closes the fetch gate and hides the transactions the
+        // reset just re-seeded. Never touch a row mid-sync.
+        if (profile.hasOpenBanking ?? true) {
+          dbRowsReset.userSyncState = (await m
+            .createQueryBuilder()
+            .update(UserSyncState)
+            .set({
+              fullProcessStatus: 'completed',
+              fullResultStatus: 'success',
+              fullRowsWritten: rebuiltCacheRows.length,
+              fullFinishedAt: new Date(),
+              fullSkipReason: null,
+              fullFailureReason: null,
+            })
+            .where('userId = :userId', { userId: firebaseId })
+            .andWhere('fullProcessStatus != :running', { running: 'running' })
+            .execute()).affected ?? 0;
+        }
+      } finally {
+        await m.query('SET FOREIGN_KEY_CHECKS = 1');
+      }
+    });
+
+    // 3. Re-upload sample PDFs into the first business's inbox/. If the
+    //    folder isn't provisioned yet (e.g. user signed in once without
+    //    triggering provisioning), run the Drive provisioning now too.
+    let driveInbox: DriveSeedInfo | undefined = undefined;
+    if (profile.seedDriveFiles) {
+      try {
+        const result = await this.provisionDriveAndSamplesForProfile(firebaseId, profile);
+        if (result) driveInbox = result;
+      } catch (driveErr) {
+        this.logger.warn(
+          `[demo-data] testReset Drive upload failed for ${profile.id}: ${
+            (driveErr as Error)?.message ?? driveErr
+          }`,
+        );
+      }
+    }
+
+    const filesUploaded = driveInbox?.filesUploaded ?? 0;
+    console.log(
+      `[test-reset] DONE ${profile.id} fid=${firebaseId.substring(0, 8)}... | ` +
+        `filesDeleted=${filesDeleted} filesUploaded=${filesUploaded} | dbRowsReset=${JSON.stringify(dbRowsReset)}`,
+    );
+
+    return { filesDeleted, dbRowsReset, filesUploaded, driveInbox };
+  }
+
+  // ---------- Direct-card scenario actions (admin only) ----------
+  //
+  // Two actions that flip a profile declaring `legacyDuplicateScenario`
+  // between the pre-fix and post-fix Direct-card states, so the bug and its
+  // fix can be demonstrated on a live account.
+  //
+  // Both are full REBUILDS of the demo user's transaction cache, which is why
+  // they're idempotent: each one deletes every cache/slim row for the user and
+  // re-inserts from the profile template, so running either twice lands on
+  // byte-identical data (modulo `daysAgo` re-anchoring to today). Nothing here
+  // touches any user that isn't a demo profile.
+  //
+  // IMPORTANT — why the fix action rebuilds rather than deletes selectively:
+  // the production Direct-card implementation only stops FUTURE card-feed
+  // imports; it never removes rows already sitting in the cache. A real user
+  // sheds their duplicates on the next full re-sync, which repopulates the
+  // cache from the bank feed alone. The demo reproduces that same re-sync.
+
+  /**
+   * "צור מצב ישן עם כפילויות" — put the demo user into the pre-fix state:
+   * the card is NOT recognised as Direct, its feed was imported, and every
+   * scenario merchant therefore shows up twice on the Transactions page.
+   *
+   * Seeds the demo user first if they don't exist yet, so an admin can go
+   * straight to this action on a clean environment.
+   */
+  async applyLegacyDuplicateState(profileId: string): Promise<DemoScenarioResult> {
+    const { profile, scenario } = this.findScenarioProfile(profileId);
+    const { firebaseId, seededUser } = await this.ensureProfileUser(profile);
+
+    let bankRows = 0;
+    let cardRows = 0;
+    await this.dataSource.transaction(async (m) => {
+      const bank = await this.buildCacheRowsFromProfile(m, firebaseId, profile);
+      const duplicates = this.buildLegacyDuplicateRows(profile, scenario, bank);
+      bankRows = bank.length;
+      cardRows = duplicates.length;
+
+      await this.rebuildTransactionCache(m, firebaseId, [...bank, ...duplicates]);
+
+      // The card looks like any other credit card: undetected (isDirect NULL,
+      // exactly what a row written before the isDirect column existed looks
+      // like) and its feed reported as a successful import.
+      await m.update(
+        Source,
+        { userId: firebaseId, sourceName: scenario.cardSourceName },
+        { isDirect: null },
+      );
+      await this.writeSourceSyncRows(m, firebaseId, profile, [
+        ...this.bankSyncRowsFromProfile(profile, scenario, bank),
+        {
+          sourceId: scenario.cardSourceName,
+          type: 'card',
+          status: 'success',
+          transactionCount: duplicates.length,
+        },
+      ]);
+      await this.markUserSyncCompleted(m, firebaseId, bank.length + duplicates.length);
+    });
+
+    this.logger.log(
+      `[demo-data][scenario] ${profile.id} → legacy-duplicates | ` +
+        `bankRows=${bankRows} cardRows=${cardRows} seededUser=${seededUser}`,
+    );
+    return {
+      state: 'legacy-duplicates',
+      firebaseId,
+      seededUser,
+      bankRows,
+      cardRows,
+      cardIsDirect: null,
+      cardStatus: 'success',
+    };
+  }
+
+  /**
+   * "הפעל תיקון כרטיס דיירקט" — apply the Direct-card behaviour and re-sync:
+   * the card is flagged Direct and pinned to the terminal `skipped_direct`
+   * status, and the cache is rebuilt from the bank feed only, so the card-feed
+   * duplicates vanish.
+   *
+   * Lands on exactly the state a plain seed / "אפס נתוני בדיקה" produces —
+   * the per-source rows come from the same `applyProfileSourceState` helper.
+   */
+  async applyDirectCardFix(profileId: string): Promise<DemoScenarioResult> {
+    const { profile, scenario } = this.findScenarioProfile(profileId);
+    const { firebaseId, seededUser } = await this.ensureProfileUser(profile);
+
+    let bankRows = 0;
+    await this.dataSource.transaction(async (m) => {
+      const bank = await this.buildCacheRowsFromProfile(m, firebaseId, profile);
+      bankRows = bank.length;
+
+      // Rebuild from the bank feed ONLY — no duplicates re-inserted.
+      await this.rebuildTransactionCache(m, firebaseId, bank);
+
+      // isDirect + skipped_direct + count 0 for the card, and the bank count
+      // re-derived from the rows just written. Same helper the seed uses, so
+      // this cannot drift from the seeded state.
+      await m.update(
+        Source,
+        { userId: firebaseId, sourceName: scenario.cardSourceName },
+        { isDirect: true },
+      );
+      await this.applyProfileSourceState(m, firebaseId, profile, bank);
+      await this.markUserSyncCompleted(m, firebaseId, bank.length);
+    });
+
+    this.logger.log(
+      `[demo-data][scenario] ${profile.id} → direct-card-fixed | ` +
+        `bankRows=${bankRows} cardRows=0 seededUser=${seededUser}`,
+    );
+    return {
+      state: 'direct-card-fixed',
+      firebaseId,
+      seededUser,
+      bankRows,
+      cardRows: 0,
+      cardIsDirect: true,
+      cardStatus: 'skipped_direct',
+    };
+  }
+
+  /** Resolve a profile that opted into the Direct-card scenario, or 404. */
+  private findScenarioProfile(profileId: string): {
+    profile: DemoProfile;
+    scenario: DemoLegacyDuplicateScenario;
+  } {
+    const profile = this.findProfile(profileId);
+    const scenario = profile.legacyDuplicateScenario;
+    if (!scenario) {
+      throw new NotFoundException(
+        `Demo profile "${profileId}" does not declare a legacyDuplicateScenario`,
+      );
+    }
+    return { profile, scenario };
+  }
+
+  /**
+   * Find the profile's primary user, seeding the whole profile first if they
+   * don't exist. Lets an admin hit either scenario action on a clean
+   * environment without a separate "צור משתמש" click.
+   */
+  private async ensureProfileUser(
+    profile: DemoProfile,
+  ): Promise<{ firebaseId: string; seededUser: boolean }> {
+    const userRepo = this.dataSource.getRepository(User);
+    const existing = await userRepo.findOne({ where: { email: profile.email } });
+    if (existing) return { firebaseId: existing.firebaseId, seededUser: false };
+
+    this.logger.log(`[demo-data][scenario] ${profile.id} not seeded yet — seeding first`);
+    const seeded = await this.seedProfile(profile.id);
+    return { firebaseId: seeded.firebaseId, seededUser: true };
+  }
+
+  /**
+   * Clone the scenario's bank rows onto the card source. Each twin copies the
+   * bank row verbatim — same merchant, amount, date, currency, FX stamp and
+   * bill — and only swaps `paymentIdentifier`, so the pair reads as one
+   * purchase imported through two feeds (exactly the production duplicate).
+   *
+   * `externalTransactionId` gets a stable `-dup` suffix derived from the bank
+   * row's own id, so re-running the action produces the same ids instead of
+   * accumulating new rows.
+   */
+  private buildLegacyDuplicateRows(
+    profile: DemoProfile,
+    scenario: DemoLegacyDuplicateScenario,
+    bankRows: Array<Partial<FullTransactionCache>>,
+  ): Array<Partial<FullTransactionCache>> {
+    // Guard the profile data: a merchant that matches nothing (typo, renamed
+    // transaction) would silently produce fewer duplicate pairs than intended.
+    const eligible = bankRows.filter(
+      (r) => r.paymentIdentifier !== scenario.cardSourceName,
+    );
+    for (const merchant of scenario.duplicateMerchants) {
+      if (!eligible.some((r) => r.merchantName === merchant)) {
+        throw new Error(
+          `legacyDuplicateScenario merchant "${merchant}" (profile ${profile.id}) matches no ` +
+            `non-card transaction — nothing to duplicate`,
+        );
+      }
+    }
+
+    const wanted = new Set(scenario.duplicateMerchants);
+    return eligible
+      .filter((r) => wanted.has(r.merchantName!))
+      .map((r) => ({
+        ...r,
+        externalTransactionId: `${r.externalTransactionId}-dup`,
+        paymentIdentifier: scenario.cardSourceName,
+      }));
+  }
+
+  /**
+   * Wipe and re-insert the demo user's transaction cache. Slim rows go too —
+   * same as `testReset` does — because slim is the classification/confirmation
+   * side of the very same transactions and is what the report queries read.
+   * Keeping the duplicates' slim rows would leave them counted in reports
+   * after they'd disappeared from the transactions page.
+   */
+  private async rebuildTransactionCache(
+    m: EntityManager,
+    firebaseId: string,
+    rows: Array<Partial<FullTransactionCache>>,
+  ): Promise<void> {
+    await m.delete(SlimTransaction, { userId: firebaseId });
+    await m.delete(FullTransactionCache, { userId: firebaseId });
+    if (rows.length > 0) {
+      await m.insert(FullTransactionCache, rows);
+    }
+  }
+
+  /**
+   * The scenario's non-card sync rows, taken from the profile's declared
+   * `sourceSyncStates` so consent/resource ids stay identical across both
+   * states, with `transactionCount` re-derived from the rows just written.
+   */
+  private bankSyncRowsFromProfile(
+    profile: DemoProfile,
+    scenario: DemoLegacyDuplicateScenario,
+    bankRows: Array<Partial<FullTransactionCache>>,
+  ): Array<{
+    sourceId: string;
+    type: 'bank' | 'card';
+    status: SourceSyncStatus;
+    transactionCount: number;
+  }> {
+    return (profile.sourceSyncStates ?? [])
+      .filter((s) => s.sourceId !== scenario.cardSourceName)
+      .map((s) => ({
+        sourceId: s.sourceId,
+        type: s.type,
+        status: s.status,
+        transactionCount: bankRows.filter((r) => r.paymentIdentifier === s.sourceId).length,
+      }));
+  }
+
+  /**
+   * Delete-then-insert the given `user_source_sync_state` rows, preserving the
+   * profile's declared consent/resource ids. Delete-then-insert (rather than
+   * update) keeps the action idempotent whichever state the row was in.
+   */
+  private async writeSourceSyncRows(
+    m: EntityManager,
+    firebaseId: string,
+    profile: DemoProfile,
+    rows: Array<{
+      sourceId: string;
+      type: 'bank' | 'card';
+      status: SourceSyncStatus;
+      transactionCount: number;
+    }>,
+  ): Promise<void> {
+    if (rows.length === 0) return;
+    const declared = new Map(
+      (profile.sourceSyncStates ?? []).map((s) => [s.sourceId, s]),
+    );
+    await m.delete(UserSourceSyncState, {
+      userId: firebaseId,
+      sourceId: In(rows.map((r) => r.sourceId)),
+    });
+    await m.insert(
+      UserSourceSyncState,
+      rows.map((r) => ({
+        userId: firebaseId,
+        sourceId: r.sourceId,
+        type: r.type,
+        resourceId: declared.get(r.sourceId)?.resourceId ?? null,
+        consentId: declared.get(r.sourceId)?.consentId ?? null,
+        status: r.status,
+        transactionCount: r.transactionCount,
+        error: null,
+      })),
+    );
+  }
+
+  /**
+   * Force the user-level sync row to completed/success so the transactions
+   * fetch gate stays open on the freshly rebuilt cache. Upsert — a demo user
+   * seeded with `hasOpenBanking: false` has no row. Never clobbers a row
+   * mid-sync.
+   */
+  private async markUserSyncCompleted(
+    m: EntityManager,
+    firebaseId: string,
+    rowsWritten: number,
+  ): Promise<void> {
+    const now = new Date();
+    const updated = await m
+      .createQueryBuilder()
+      .update(UserSyncState)
+      .set({
+        fullProcessStatus: 'completed',
+        fullResultStatus: 'success',
+        fullRowsWritten: rowsWritten,
+        fullFinishedAt: now,
+        fullSkipReason: null,
+        fullFailureReason: null,
+      })
+      .where('userId = :userId', { userId: firebaseId })
+      .andWhere('fullProcessStatus != :running', { running: 'running' })
+      .execute();
+    if ((updated.affected ?? 0) > 0) return;
+
+    const exists = await m.findOne(UserSyncState, { where: { userId: firebaseId } });
+    if (exists) return; // row exists but is 'running' — leave the sync alone
+    await m.insert(UserSyncState, {
+      userId: firebaseId,
+      triggeredBy: 'manual',
+      fullProcessStatus: 'completed',
+      fullResultStatus: 'success',
+      fullRowsWritten: rowsWritten,
+      fullStartedAt: now,
+      fullFinishedAt: now,
+      lastSourcesRefreshAt: now,
+    });
   }
 
   async resetProfile(profileId: string): Promise<DemoResetResult> {
@@ -368,13 +1181,6 @@ export class DemoDataService {
         employmentStatus: data.user.employmentStatus,
         familyStatus: data.user.familyStatus,
         role: data.role ?? [UserRole.REGULAR],
-        payStatus: PayStatus.TRIAL,
-        // Keep modulesAccess consistent with hasOpenBanking — otherwise the
-        // frontend sees hasOpenBanking=true and tries to poll OB-gated
-        // endpoints that fail because modulesAccess lacks OPEN_BANKING.
-        modulesAccess: (data.hasOpenBanking ?? true)
-          ? [ModuleName.INVOICES, ModuleName.OPEN_BANKING]
-          : [ModuleName.INVOICES],
         businessStatus:
           data.businesses.length >= 2
             ? BusinessStatus.MULTI_BUSINESS
@@ -397,6 +1203,13 @@ export class DemoDataService {
         spouseEmploymentStatus: data.spouse?.employmentStatus ?? null,
       }),
     );
+
+    // Subscription row — same trial-creation path as signup()/delegation, so
+    // demo users get identical TRIAL/all-modules access to real users instead
+    // of a hand-rolled modulesAccess list. Runs outside the `m` transaction
+    // (BillingService manages its own repos) but is idempotent by firebaseId,
+    // so a retry after a partial failure is safe.
+    await this.usersService.ensureTrialSubscription(firebaseId);
 
     // 2. Businesses — apply VAT/tax defaults the way users.service.signup() does.
     for (const b of data.businesses) {
@@ -450,10 +1263,30 @@ export class DemoDataService {
             userId: firebaseId,
             sourceName: s.sourceName,
             sourceType: s.sourceType,
+            // Persisted exactly the way refreshUserSources persists a real
+            // Feezback detection: `true` for a Direct/Debit card, NULL when
+            // the profile doesn't say (every pre-existing profile).
+            isDirect: s.isDirect ?? null,
             bill: saved,
           }),
         );
       }
+    }
+
+    // 3b. Standalone sources — orphan Source rows (bill: null) for the
+    //     "OB-connected, no bills yet" profile. Without these, the
+    //     associate-to-bill endpoint (POST /transactions/:billId/sources)
+    //     refuses to attach because it expects the Source row to already
+    //     exist from a prior OB sync.
+    for (const s of data.standaloneSources ?? []) {
+      await m.save(
+        m.create(Source, {
+          userId: firebaseId,
+          sourceName: s.sourceName,
+          sourceType: s.sourceType,
+          isDirect: s.isDirect ?? null,
+        }),
+      );
     }
 
     // 4. FullTransactionCache rows — all unclassified for v1.
@@ -461,30 +1294,56 @@ export class DemoDataService {
     const todayUtc = new Date(
       Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()),
     );
-    const cacheRows = data.transactions.map((t, i) => {
+    // Build rows sequentially with await — FX rate lookups go through
+    // FxRateService which caches per (date, currency), so repeat calls
+    // are cheap. Using the SAME rate source the OCR pipeline uses means
+    // a demo USD transaction and an OCR'd USD invoice on the same date
+    // end up with identical ilsAmount values — without this, the matcher
+    // can't pair foreign-currency rows because both sides disagree by
+    // whatever gap exists between the BOI live rate and any hardcoded
+    // fallback we'd otherwise have used here.
+    const cacheRows: Array<Partial<FullTransactionCache>> = [];
+    for (let i = 0; i < data.transactions.length; i++) {
+      const t = data.transactions[i];
       const txDate = new Date(todayUtc);
       txDate.setUTCDate(txDate.getUTCDate() - t.daysAgo);
-      const billId = billIdByKey[t.billKey];
-      if (billId === undefined) {
-        throw new Error(
-          `Transaction at index ${i} (user ${data.email}) references unknown billKey "${t.billKey}"`,
-        );
+
+      // billKey omitted → unassigned transaction (billId/billName null).
+      // billKey set → pre-associate to that bill. The transaction's own
+      // `paymentIdentifier` wins when explicitly set (so a single bill can
+      // back multiple sources — typical: one bill with BANK + CARD sources,
+      // each transaction tagged with the matching identifier). Only fall
+      // back to the bill's first source when the transaction didn't carry
+      // its own identifier.
+      let billId: number | null = null;
+      let billName: string | null = null;
+      let paymentIdentifier: string | null = t.paymentIdentifier ?? null;
+      if (t.billKey) {
+        const resolved = billIdByKey[t.billKey];
+        if (resolved === undefined) {
+          throw new Error(
+            `Transaction at index ${i} (user ${data.email}) references unknown billKey "${t.billKey}"`,
+          );
+        }
+        billId = resolved;
+        billName = billNameByKey[t.billKey] ?? null;
+        if (paymentIdentifier == null) {
+          paymentIdentifier = paymentIdentifierByBillKey[t.billKey] ?? null;
+        }
       }
+
       const currency = t.currency ?? 'ILS';
-      // Hardcoded demo FX rates so seeding has zero external dependency.
-      // Real syncs go through FxRateService → BOI; the demo just needs
-      // believable values for the תזרים "₪Y" parenthesis to render.
-      const DEMO_FX_RATES: Record<string, number> = { USD: 3.7, EUR: 4.0, GBP: 4.7 };
-      const fxRate = currency === 'ILS' ? null : (DEMO_FX_RATES[currency] ?? null);
+      const fxRate =
+        currency === 'ILS' ? null : await this.fxRateService.getRate(txDate, currency);
       const ilsAmount = fxRate != null ? Number((t.amount * fxRate).toFixed(2)) : null;
-      return {
+      cacheRows.push({
         externalTransactionId: `${externalIdPrefix}-${i}`,
         userId: firebaseId,
         billId,
-        billName: billNameByKey[t.billKey] ?? null,
+        billName,
         businessNumber: t.businessNumberRef,
         merchantName: t.merchantName,
-        paymentIdentifier: paymentIdentifierByBillKey[t.billKey] ?? null,
+        paymentIdentifier,
         transactionDate: txDate,
         amount: t.amount,
         currency,
@@ -496,16 +1355,18 @@ export class DemoDataService {
         taxPercent: 0,
         reductionPercent: 0,
         isEquipment: false,
-      };
-    });
+      });
+    }
     if (cacheRows.length > 0) {
       await m.insert(FullTransactionCache, cacheRows);
     }
 
-    // 5. UserSyncState — seed a "completed" row for users with bank data so the
-    //    dashboard's transactions endpoint passes its sync-state gate. Skip
-    //    for users without bills (e.g. an accountant with no personal banking).
-    if (data.bills.length > 0) {
+    // 5. UserSyncState — seed a "completed" row for every Open-Banking user
+    //    so the dashboard's transactions endpoint passes its sync-state gate.
+    //    Includes profiles that have transactions but no bills yet (the user
+    //    is expected to create the bills as part of the demo). Skip only for
+    //    users who opted out of OB (e.g. an accountant with no personal banking).
+    if (data.hasOpenBanking ?? true) {
       await m.insert(UserSyncState, {
         userId: firebaseId,
         triggeredBy: 'manual',
@@ -517,6 +1378,90 @@ export class DemoDataService {
         lastSourcesRefreshAt: new Date(),
       });
     }
+
+    // 6. UserSourceSyncState — the per-source outcome rows the dashboard sync
+    //    panel and the settings sources table read. Opt-in: profiles that
+    //    don't declare `sourceSyncStates` get no rows, exactly as before.
+    await this.applyProfileSourceState(m, firebaseId, data, cacheRows);
+  }
+
+  /**
+   * Write the profile's declared per-source state:
+   *   - re-assert `Source.isDirect` for every declared source that carries it,
+   *   - replace the `user_source_sync_state` rows for the declared sourceIds.
+   *
+   * Shared by the initial seed and `testReset` so a reset lands on exactly the
+   * same state as a fresh seed (Requirement: a Direct card must survive both
+   * with `isDirect = true` and status `skipped_direct`).
+   *
+   * `transactionCount` defaults to the number of `cacheRows` whose resolved
+   * `paymentIdentifier` matches the sourceId — so a Direct card, which by
+   * design gets no generated transactions, reports 0 without hardcoding it.
+   *
+   * No-ops entirely when the profile declares no `sourceSyncStates`.
+   */
+  private async applyProfileSourceState(
+    m: EntityManager,
+    firebaseId: string,
+    data: DemoSeedable,
+    cacheRows: Array<Partial<FullTransactionCache>>,
+  ): Promise<number> {
+    const states = data.sourceSyncStates ?? [];
+    if (states.length === 0) return 0;
+
+    // Every declared sourceId must belong to a source this profile actually
+    // creates — otherwise the settings-page join (sourceName == sourceId)
+    // silently renders an unlinked row. Fail loudly at seed time instead.
+    const declaredSources = [
+      ...data.bills.flatMap((b) => b.sources),
+      ...(data.standaloneSources ?? []),
+    ];
+    const knownSourceNames = new Set(declaredSources.map((s) => s.sourceName));
+    for (const s of states) {
+      if (!knownSourceNames.has(s.sourceId)) {
+        throw new Error(
+          `sourceSyncStates entry "${s.sourceId}" (user ${data.email}) does not match any ` +
+            `Source.sourceName on this profile — the frontend joins on that value`,
+        );
+      }
+    }
+
+    // Re-assert isDirect (idempotent — already correct on a fresh seed, but
+    // testReset relies on this to restore the flag if anything cleared it).
+    for (const s of declaredSources) {
+      if (s.isDirect === undefined) continue;
+      await m.update(
+        Source,
+        { userId: firebaseId, sourceName: s.sourceName },
+        { isDirect: s.isDirect },
+      );
+    }
+
+    const countBySource = new Map<string, number>();
+    for (const row of cacheRows) {
+      const pid = row.paymentIdentifier;
+      if (!pid) continue;
+      countBySource.set(pid, (countBySource.get(pid) ?? 0) + 1);
+    }
+
+    await m.delete(UserSourceSyncState, {
+      userId: firebaseId,
+      sourceId: In(states.map((s) => s.sourceId)),
+    });
+    await m.insert(
+      UserSourceSyncState,
+      states.map((s) => ({
+        userId: firebaseId,
+        sourceId: s.sourceId,
+        type: s.type,
+        resourceId: s.resourceId ?? null,
+        consentId: s.consentId ?? null,
+        status: s.status,
+        transactionCount: s.transactionCount ?? countBySource.get(s.sourceId) ?? 0,
+        error: s.error ?? null,
+      })),
+    );
+    return states.length;
   }
 
   /**
@@ -550,9 +1495,17 @@ export class DemoDataService {
     await inc('sources', this.deleteAndCount(m, Source, { userId: firebaseId }));
     await inc('bills', this.deleteAndCount(m, Bill, { userId: firebaseId }));
 
-    // User-scoped categories.
-    await inc('userCategories', this.deleteAndCount(m, UserCategory, { firebaseId }));
-    await inc('userSubCategories', this.deleteAndCount(m, UserSubCategory, { firebaseId }));
+    // User-scoped catalog rows — the NEW model (Phase 4.6: the old
+    // user_category/user_sub_category wipes are gone; those tables are
+    // frozen and nothing writes them since Phase 2.5). Order respects FKs:
+    // sub_category → category / booking_account → accounting_section.
+    await inc('catalogSubCategories', this.deleteAndCount(m, SubCategory, { userId: firebaseId }));
+    await inc('catalogCategories', this.deleteAndCount(m, Category, { userId: firebaseId }));
+    if (businessNumbers.length > 0) {
+      const clientChartKeys = businessNumbers.map((bn) => `CLIENT_${bn}`);
+      await inc('catalogAccounts', this.deleteAndCount(m, BookingAccount, { chartOwnerKey: In(clientChartKeys) }));
+      await inc('catalogSections', this.deleteAndCount(m, AccountingSection, { chartOwnerKey: In(clientChartKeys) }));
+    }
 
     // Bookkeeping (mostly userId-scoped).
     await inc('expenses', this.deleteAndCount(m, Expense, { userId: firebaseId }));
@@ -568,6 +1521,25 @@ export class DemoDataService {
       await inc('documents', this.deleteAndCount(m, Documents, { issuerBusinessNumber: In(businessNumbers) }));
       await inc('journalLines', this.deleteAndCount(m, JournalLine, { issuerBusinessNumber: In(businessNumbers) }));
       await inc('journalEntries', this.deleteAndCount(m, JournalEntry, { issuerBusinessNumber: In(businessNumbers) }));
+      // Also purge rows keyed by firebaseId (new rows created after the firebaseId column was added).
+      // These may not match businessNumbers if businessNumber changed, or if this is a shared-number scenario.
+      await inc('journalLines', this.deleteAndCount(m, JournalLine, { firebaseId }));
+      await inc('journalEntries', this.deleteAndCount(m, JournalEntry, { firebaseId }));
+      // Per-business journal running-number counter rows. These live in
+      // SettingDocuments keyed on userId = businessNumber (NOT the firebaseId),
+      // docType = JOURNAL_ENTRY — so the userId-scoped SettingDocuments delete
+      // below misses them. Clear them here so a re-seed restarts entryNumber.
+      // TODO(cleanup, do not remove yet): once existing SettingDocuments JOURNAL_ENTRY
+      // rows are migrated to userId=firebaseId (separate task), this block becomes
+      // redundant — line 1515's generic { userId: firebaseId } delete will already
+      // catch them. Remove only after that migration has run in this environment.
+      await inc('journalCounters', this.deleteAndCount(m, SettingDocuments, { userId: In(businessNumbers), docType: DocumentType.JOURNAL_ENTRY }));
+      // ExtractedDocument is OCR output keyed by businessNumber. Scoping by
+      // businessNumber (not user.index) so re-seeds of a demo profile don't
+      // leave orphans tied to the previous Firebase user's index — the
+      // matcher reads by businessNumber and would otherwise pair stale
+      // orphans with the new user's slim transactions.
+      await inc('extractedDocuments', this.deleteAndCount(m, ExtractedDocument, { businessNumber: In(businessNumbers) }));
     }
 
     // Workflow / collaboration side.
@@ -607,6 +1579,307 @@ export class DemoDataService {
       if (e?.code === 'ER_NO_SUCH_TABLE') return 0;
       throw e;
     }
+  }
+
+  /**
+   * Provision Drive folders for the profile's primary user (idempotent
+   * find-or-create) and upload every PDF in `profile.seedDriveFiles.sourceDir`
+   * into the first business's inbox/. Returns the number of files uploaded.
+   *
+   * Called from both the initial seed (post-DB-commit) and the test-reset
+   * endpoint (post-DB-wipe). Idempotent — re-running it on an already-
+   * provisioned user just refreshes the inbox.
+   *
+   * Each step logs with `[demo-data][drive]` so a partial failure is easy
+   * to trace from the backend log. An unrecoverable step (no user found,
+   * no businesses, business-folder create throws, sample dir missing)
+   * throws here and the caller decides whether to surface or swallow.
+   */
+  private async provisionDriveAndSamplesForProfile(
+    firebaseId: string,
+    profile: DemoProfile,
+  ): Promise<DriveSeedInfo | null> {
+    if (!profile.seedDriveFiles) {
+      this.logger.log(
+        `[demo-data][drive] profile ${profile.id} has no seedDriveFiles — skipping`,
+      );
+      return null;
+    }
+
+    const tag = `profile=${profile.id} fid=${firebaseId.substring(0, 8)}...`;
+    this.logger.log(`[demo-data][drive] START ${tag}`);
+
+    // ── Step 1: locate the User row written by the DB transaction. ──
+    const userRepo = this.dataSource.getRepository(User);
+    const user = await userRepo.findOne({ where: { firebaseId } });
+    if (!user) {
+      throw new Error(
+        `[demo-data][drive] user ${firebaseId} not found in DB after seed — txn might not have committed`,
+      );
+    }
+    this.logger.log(
+      `[demo-data][drive] step 1: loaded User index=${user.index} email=${user.email} (existing driveFolderId=${user.driveFolderId ?? '∅'}) ${tag}`,
+    );
+
+    // ── Step 2: user-root Drive folder (find-or-create). ──
+    const folderName = `${user.fName ?? ''} ${user.lName ?? ''}`.trim() || user.email;
+    this.logger.log(
+      `[demo-data][drive] step 2: createUserFolder name="${folderName}" share=${user.email} ${tag}`,
+    );
+    let userFolderId: string;
+    try {
+      userFolderId = await this.driveService.createUserFolder(folderName, user.email);
+    } catch (err) {
+      this.logger.error(
+        `[demo-data][drive] step 2 FAILED ${tag}: ${(err as Error)?.message ?? err}`,
+        (err as Error)?.stack,
+      );
+      throw err;
+    }
+    this.logger.log(`[demo-data][drive] step 2 OK userFolderId=${userFolderId} ${tag}`);
+
+    if (user.driveFolderId !== userFolderId) {
+      await userRepo.update({ firebaseId }, { driveFolderId: userFolderId });
+      this.logger.log(`[demo-data][drive] persisted user.driveFolderId=${userFolderId} ${tag}`);
+    }
+
+    // ── Step 3: load Businesses written by the same DB transaction. ──
+    const businessRepo = this.dataSource.getRepository(Business);
+    const businesses = await businessRepo.find({ where: { firebaseId } });
+    this.logger.log(
+      `[demo-data][drive] step 3: loaded ${businesses.length} business(es) for ${tag}`,
+    );
+    if (businesses.length === 0) {
+      throw new Error(
+        `[demo-data][drive] no Business rows for firebaseId=${firebaseId} — profile/seed bug, can't provision inbox`,
+      );
+    }
+
+    // ── Step 4: per-business folder + inbox/processed sub-folders. ──
+    let firstInboxFolderId: string | null = null;
+    for (const b of businesses) {
+      this.logger.log(
+        `[demo-data][drive] step 4: ensureBusinessFolder biz=${b.businessNumber} name="${b.businessName}" under userFolderId=${userFolderId} ${tag}`,
+      );
+      let folders;
+      try {
+        folders = await this.driveService.ensureBusinessFolder(
+          userFolderId,
+          b.businessName,
+        );
+      } catch (err) {
+        this.logger.error(
+          `[demo-data][drive] step 4 FAILED for biz=${b.businessNumber} ("${b.businessName}") ${tag}: ${(err as Error)?.message ?? err}`,
+          (err as Error)?.stack,
+        );
+        throw err;
+      }
+      this.logger.log(
+        `[demo-data][drive] step 4 OK biz=${b.businessNumber} folderId=${folders.folderId} inbox=${folders.inboxFolderId} processed=${folders.processedFolderId} ${tag}`,
+      );
+
+      // Persist with a targeted update — avoids touching unrelated columns
+      // (createdAt audit columns, etc.) that a full `.save(entity)` might.
+      await businessRepo.update(
+        { id: b.id },
+        {
+          driveFolderId: folders.folderId,
+          driveInboxFolderId: folders.inboxFolderId,
+          driveProcessedFolderId: folders.processedFolderId,
+        },
+      );
+
+      if (firstInboxFolderId == null) firstInboxFolderId = folders.inboxFolderId;
+    }
+
+    if (!firstInboxFolderId) {
+      throw new Error(
+        `[demo-data][drive] no inbox folder resolved for ${firebaseId} after ensureBusinessFolder loop`,
+      );
+    }
+
+    // ── Step 5: upload sample PDFs. ──
+    this.logger.log(
+      `[demo-data][drive] step 5: uploadSampleFiles inbox=${firstInboxFolderId} sourceDir=${profile.seedDriveFiles.sourceDir} ${tag}`,
+    );
+    const result = await this.uploadSampleFiles(
+      firstInboxFolderId,
+      profile.seedDriveFiles.sourceDir,
+    );
+    this.logger.log(
+      `[demo-data][drive] step 5 OK uploaded=${result.uploaded} quotaBlocked=${result.quotaBlocked} ${tag}`,
+    );
+    this.logger.log(`[demo-data][drive] DONE ${tag}`);
+    return {
+      inboxFolderId: firstInboxFolderId,
+      inboxFolderUrl: this.driveService.getFolderUrl(firstInboxFolderId),
+      filesUploaded: result.uploaded,
+      needsManualUpload: result.quotaBlocked,
+    };
+  }
+
+  /**
+   * Read every .pdf in `sourceDir` and upload it to `inboxFolderId`.
+   * Resolves `sourceDir` against the current working directory first, then
+   * one level up (covers both `backend/` and repo-root cwd in dev) and the
+   * dist-relative fallback for prod. Skips silently if the directory can't
+   * be found anywhere — the seed shouldn't blow up on a missing sample dir.
+   */
+  private async uploadSampleFiles(
+    inboxFolderId: string,
+    sourceDir: string,
+  ): Promise<{ uploaded: number; quotaBlocked: boolean }> {
+    const candidates = [
+      path.resolve(process.cwd(), sourceDir),
+      path.resolve(process.cwd(), '..', sourceDir),
+      path.resolve(__dirname, '..', '..', '..', sourceDir),
+    ];
+
+    let resolvedDir: string | null = null;
+    for (const c of candidates) {
+      try {
+        const stat = await fs.stat(c);
+        if (stat.isDirectory()) { resolvedDir = c; break; }
+      } catch {
+        // not present — try the next candidate
+      }
+    }
+
+    if (!resolvedDir) {
+      this.logger.warn(
+        `[demo-data] sample dir not found at any of: ${candidates.join(' | ')}`,
+      );
+      return { uploaded: 0, quotaBlocked: false };
+    }
+
+    const files = await fs.readdir(resolvedDir);
+    let uploaded = 0;
+    let quotaBlocked = false;
+    for (const name of files) {
+      if (!name.toLowerCase().endsWith('.pdf')) continue;
+      try {
+        const buf = await fs.readFile(path.join(resolvedDir, name));
+        await this.driveService.uploadFile(inboxFolderId, name, buf, 'application/pdf');
+        uploaded++;
+      } catch (e) {
+        if (e instanceof ServiceAccountQuotaError) {
+          // First file hit the quota wall — every subsequent file will hit
+          // the same error. Bail the loop instead of spamming the same
+          // warning N times; the higher-level provisioning code surfaces a
+          // single "drop them manually" message via the seed response.
+          quotaBlocked = true;
+          break;
+        }
+        this.logger.warn(
+          `[demo-data] failed to upload sample "${name}": ${(e as Error)?.message ?? e}`,
+        );
+      }
+    }
+    if (quotaBlocked) {
+      this.logger.warn(
+        `[demo-data] sample upload skipped — service-account quota wall. ` +
+          `Open the inbox folder in your Drive UI and drag the PDFs from ${resolvedDir} ` +
+          `manually. (Folder id: ${inboxFolderId})`,
+      );
+      return { uploaded: 0, quotaBlocked: true };
+    }
+    this.logger.log(
+      `[demo-data] uploaded ${uploaded} sample file(s) from ${resolvedDir} → ${inboxFolderId}`,
+    );
+    return { uploaded, quotaBlocked: false };
+  }
+
+  /**
+   * Mirror of seedUserAndData step 4 — rebuild the FullTransactionCache
+   * insert payload from a profile's `transactions` array. Shared between
+   * the initial seed (called inline) and the test-reset endpoint (called
+   * after wiping cache rows so daysAgo re-anchors to today). Mutating
+   * either site means mutating both.
+   */
+  private async buildCacheRowsFromProfile(
+    m: EntityManager,
+    firebaseId: string,
+    profile: DemoProfile,
+  ): Promise<Array<Partial<FullTransactionCache>>> {
+    const today = new Date();
+    const todayUtc = new Date(
+      Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()),
+    );
+    const externalIdPrefix = `demo-${profile.id}`;
+
+    // Resolve profile bill keys → live DB ids by billName (the only field
+    // shared between the profile template and the DB row). The bills
+    // survive testReset, so this lookup succeeds without re-creating them.
+    const billIdByKey: Record<string, number> = {};
+    const billNameByKey: Record<string, string> = {};
+    const firstSourceByKey: Record<string, string> = {};
+    if (profile.bills.length > 0) {
+      const billNames = profile.bills.map((b) => b.billName);
+      const dbBills = await m.find(Bill, {
+        where: { userId: firebaseId, billName: In(billNames) },
+      });
+      const idByName = new Map(dbBills.map((b) => [b.billName, b.id]));
+      for (const b of profile.bills) {
+        const dbId = idByName.get(b.billName);
+        if (dbId !== undefined) {
+          billIdByKey[b.key] = dbId;
+          billNameByKey[b.key] = b.billName;
+          if (b.sources[0]) firstSourceByKey[b.key] = b.sources[0].sourceName;
+        }
+      }
+    }
+
+    // Sequential await — FX rates come from the same BOI-backed service
+    // the OCR pipeline uses, so a USD demo tx on 2026-05-20 and a USD
+    // OCR'd doc on 2026-05-20 land on the IDENTICAL ilsAmount. Without
+    // matching rate sources, the matcher's ±1 NIS tolerance can't bridge
+    // the gap between a hardcoded fallback and the live BOI rate.
+    const out: Array<Partial<FullTransactionCache>> = [];
+    for (let i = 0; i < profile.transactions.length; i++) {
+      const t = profile.transactions[i];
+      const txDate = new Date(todayUtc);
+      txDate.setUTCDate(txDate.getUTCDate() - t.daysAgo);
+      const currency = t.currency ?? 'ILS';
+      const fxRate =
+        currency === 'ILS' ? null : await this.fxRateService.getRate(txDate, currency);
+      const ilsAmount = fxRate != null ? Number((t.amount * fxRate).toFixed(2)) : null;
+
+      // Same precedence rule as seedUserAndData step 4: when billKey is
+      // set, resolve to billId; transaction's own paymentIdentifier wins
+      // over the bill's first source.
+      let billId: number | null = null;
+      let billName: string | null = null;
+      let paymentIdentifier: string | null = t.paymentIdentifier ?? null;
+      if (t.billKey && billIdByKey[t.billKey] !== undefined) {
+        billId = billIdByKey[t.billKey];
+        billName = billNameByKey[t.billKey] ?? null;
+        if (paymentIdentifier == null) {
+          paymentIdentifier = firstSourceByKey[t.billKey] ?? null;
+        }
+      }
+
+      out.push({
+        externalTransactionId: `${externalIdPrefix}-${i}`,
+        userId: firebaseId,
+        billId,
+        billName,
+        businessNumber: t.businessNumberRef,
+        merchantName: t.merchantName,
+        paymentIdentifier,
+        transactionDate: txDate,
+        amount: t.amount,
+        currency,
+        ilsAmount,
+        fxRateToIls: fxRate,
+        confirmed: false,
+        isRecognized: false,
+        vatPercent: 0,
+        taxPercent: 0,
+        reductionPercent: 0,
+        isEquipment: false,
+      } as Partial<FullTransactionCache>);
+    }
+    return out;
   }
 
   private async deleteFirebaseUserByEmail(email: string): Promise<void> {

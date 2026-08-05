@@ -1,0 +1,40 @@
+<div class="quick-upload" dir="rtl">
+  @if (showBusinessSelector()) {
+    <app-input-select
+      [customStyle]="'register'"
+      [controlName]="'businessNumber'"
+      [labelText]="'עסק'"
+      [placeholder]="'בחר עסק'"
+      [items]="businessOptions()"
+      [parentForm]="form"
+      [size]="inputSize.MOBILE"
+      [showClear]="false"
+      (onChangeInputSelect)="onBusinessSelected($event)">
+    </app-input-select>
+  }
+
+  <app-file-uploader-gpt
+    [multiple]="true"
+    [accept]="'.pdf,.jpg,.jpeg,.png'"
+    [supportedText]="'PDF, JPG, PNG'"
+    (selectedFiles)="onFilesSelected($event)">
+  </app-file-uploader-gpt>
+
+  <div class="quick-upload__actions">
+    <app-p-button
+      [buttonText]="'ביטול'"
+      [buttonColor]="buttonColor.WHITE_BORDER"
+      [buttonSize]="buttonSize.BETWEEN"
+      [disabled]="isUploading()"
+      (onButtonClicked)="cancel()">
+    </app-p-button>
+    <app-p-button
+      [buttonText]="'העלה'"
+      [buttonColor]="buttonColor.BLACK"
+      [buttonSize]="buttonSize.BETWEEN"
+      [disabled]="!canUpload()"
+      [isLoading]="isUploading()"
+      (onButtonClicked)="upload()">
+    </app-p-button>
+  </div>
+</div>

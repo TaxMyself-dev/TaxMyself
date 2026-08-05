@@ -3,7 +3,7 @@ import { TransactionsService } from './transactions/transactions.service';
 import { TransactionProcessingService } from './transactions/transaction-processing.service';
 import { FinsiteService } from './finsite/finsite.service';
 import { MailService } from './mail/mail.service';
-import { UsersService } from './users/users.service';
+import { BillingService } from './billing/services/billing.service';
 import { TasksGeneratorService } from './accountant-tasks/tasks-generator.service';
 
 @Injectable()
@@ -13,7 +13,7 @@ export class AppService {
     private readonly transactionProcessingService: TransactionProcessingService,
     private readonly finsiteService: FinsiteService,
     private readonly mailService: MailService,
-    private readonly usersService: UsersService,
+    private readonly billingService: BillingService,
     private readonly tasksGeneratorService: TasksGeneratorService,
   ) {}
 
@@ -26,13 +26,13 @@ export class AppService {
 
   try {
 
-    // 1. Update expired trials
+    // 1. Expire overdue trial subscriptions (Subscription.status/trialEnd driven)
     try {
-      await this.usersService.updateExpiredTrials();
-      statusMessages.push('✔️ updateExpiredTrials: SUCCESS');
+      const expiredCount = await this.billingService.expireOverdueTrials();
+      statusMessages.push(`✔️ expireOverdueTrials: SUCCESS (${expiredCount} expired)`);
     } catch (err) {
-      console.error('❌ updateExpiredTrials failed:', err.message);
-      statusMessages.push(`❌ updateExpiredTrials: ${err.message}`);
+      console.error('❌ expireOverdueTrials failed:', err.message);
+      statusMessages.push(`❌ expireOverdueTrials: ${err.message}`);
     }
 
     // // 2. Fetch bills and transactions

@@ -7,15 +7,16 @@ import {
 
 import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.interface';
 import { Reflector } from '@nestjs/core';
-import { UsersService } from 'src/users/users.service';
-import { PayStatus, ModuleName } from 'src/enum';
+import { BillingService } from 'src/billing/services/billing.service';
+import { ModuleName } from 'src/enum';
+import { REQUIRE_MODULE_KEY } from 'src/decorators/require-module.decorator';
 
 
 @Injectable()
 export class SubscriptionGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
-    private readonly usersService: UsersService,
+    private readonly billingService: BillingService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -27,28 +28,24 @@ export class SubscriptionGuard implements CanActivate {
       throw new ForbiddenException('Missing user ID in request context');
     }
 
-    const requiredModule = this.reflector.get<ModuleName>('requiredModule', context.getHandler());
-    console.log("requiredModule is ", requiredModule);
+    const requiredModule = this.reflector.getAllAndOverride<ModuleName>(
+      REQUIRE_MODULE_KEY,
+      [context.getHandler(), context.getClass()],
+    );
 
     if (!requiredModule) return true;
 
-    const user = await this.usersService.findByFirebaseId(firebaseId);
-    if (!user) {
-      throw new ForbiddenException('User not found');
-    }
-
-    const sub = await this.usersService.getModuleSubscription(firebaseId, requiredModule);
-    const allowedStatuses = [PayStatus.FREE, PayStatus.TRIAL, PayStatus.PAID];
-    const isAllowed = sub ? allowedStatuses.includes(sub.payStatus) : allowedStatuses.includes(user.payStatus);
-
-    const hasAccess = isAllowed && user.modulesAccess.includes(requiredModule);
+    const hasAccess = await this.billingService.hasModuleAccess(firebaseId, requiredModule);
 
     if (!hasAccess) {
-      throw new ForbiddenException('No access to this module');
+      throw new ForbiddenException({
+        statusCode: 403,
+        error: 'Forbidden',
+        code: 'MODULE_ACCESS_REQUIRED',
+        module: requiredModule,
+        message: 'Access to this module is not included in the current subscription.',
+      });
     }
-
-    console.log("payment status", user.payStatus);
-    console.log("hasAccess is ", hasAccess);
 
     return true;
   }

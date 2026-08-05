@@ -10,7 +10,7 @@ import { Router } from '@angular/router';
 import { RegisterFormControls, RegisterFormModules } from './regiater.enum';
 import { catchError, EMPTY, finalize, map, startWith, Subject, takeUntil, tap } from 'rxjs';
 import { cloneDeep } from 'lodash';
-import { businessTypeOptionsList, EmploymentType, employmentTypeOptionsList, familyStatusOptionsList } from 'src/app/shared/enums';
+import { businessTypeOptionsList, companyBusinessTypeOptionsList, EmploymentType, employmentTypeOptionsList, familyStatusOptionsList } from 'src/app/shared/enums';
 import { FamilyStatus, FormTypes } from 'src/app/shared/enums';
 import { inputsSize } from 'src/app/shared/enums';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
@@ -103,12 +103,15 @@ export class RegisterPage implements OnInit, OnDestroy {
   cities = signal<ISelectItem[]>([]);
   selectedFormModule = signal<RegisterFormModules>(this.registerFormModules.PERSONAL);
   hasChildren = signal<boolean>(false);
+  isCompany = signal<boolean>(false);
   mainTitle = signal<string>("פרטים אישיים");
   subtitle = signal<string>("היי, אז נתחיל בהיכרות ראשונית...");
   isLoading = signal<boolean>(false);
+  spouseSkipped = signal<boolean>(false);
   myForm: FormGroup;
   employmentTypeOptionsList = employmentTypeOptionsList;
   businessTypeOptionsList = businessTypeOptionsList;
+  companyBusinessTypeOptionsList = companyBusinessTypeOptionsList;
   familyStatusOptionsList = familyStatusOptionsList;
   registerPictureText = signal<string>("שמירת כל המסמכים בענן")
   registerPictureSubText = signal<string>("כל תיעוד ההכנסות וההוצאות מגובה בענן מוכן לשליחה, הורדה, או סתם לומר שלום")
@@ -140,7 +143,7 @@ matchRegisterImage = computed(() => {
           this.subtitle.set("אנחנו ממש בשלב הרציני כבר, אה?");
           break;
         case RegisterFormModules.BUSINESS:
-          this.currentStep.set(4);
+          this.currentStep.set(3);
           this.mainTitle.set("פרטי העסק");
           this.subtitle.set("רק עוד קצת וסיימנו!");
           break;
@@ -158,16 +161,16 @@ matchRegisterImage = computed(() => {
         '', this.requierdField ? [Validators.required, Validators.pattern(/^\d{9}$/)] : null,
       ),
       [RegisterFormControls.GENDER]: new FormControl(
-        '', this.requierdField ? [Validators.required] : null,
+        null, null,
       ),
       [RegisterFormControls.EMAIL]: new FormControl(
         '', this.requierdField ? [Validators.required, Validators.pattern(/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/)] : null,
       ),
       [RegisterFormControls.PHONE]: new FormControl(
-        '', this.requierdField ? [Validators.pattern(/^(050|051|052|053|054|055|058|059)\d{7}$/)] : null,
+        '', this.requierdField ? [Validators.required, Validators.pattern(/^(050|051|052|053|054|055|058|059)\d{7}$/)] : null,
       ),
       [RegisterFormControls.DATEOFBIRTH]: new FormControl(
-        '', this.requierdField ? [Validators.required] : null,
+        null, null,
       ),
       [RegisterFormControls.EMPLOYEMENTSTATUS]: new FormControl(
         null, Validators.required,
@@ -187,28 +190,28 @@ matchRegisterImage = computed(() => {
 
     const spouseForm = this.formBuilder.group({
       [RegisterFormControls.SPOUSEFIRSTNAME]: new FormControl(
-        null, this.requierdField && !this.isSingle() ? Validators.required : null,
+        null,
       ),
       [RegisterFormControls.SPOUSELASTNAME]: new FormControl(
-        null, this.requierdField && !this.isSingle() ? Validators.required : null,
+        null,
       ),
       [RegisterFormControls.SPOUSEID]: new FormControl(
-        null, this.requierdField && !this.isSingle() ? [Validators.required, Validators.pattern(/^\d{9}$/)] : null,
+        null,
       ),
       [RegisterFormControls.SPOUSEDATEOFBIRTH]: new FormControl(
-        null, this.requierdField && !this.isSingle() ? Validators.required : null,
+        null,
       ),
       [RegisterFormControls.SPOUSEEMPLOYEMENTSTATUS]: new FormControl(
-        null, this.requierdField && !this.isSingle() ? Validators.required : null,
+        null,
       ),
       [RegisterFormControls.SPOUSEPHONE]: new FormControl(
-        null, this.requierdField && !this.isSingle() ? [Validators.required, Validators.pattern(/^(050|051|052|053|054|055|058|059)\d{7}$/)] : null,
+        null,
       ),
       [RegisterFormControls.SPOUSEEMAIL]: new FormControl(
-        null, this.requierdField ? [Validators.required, Validators.pattern(/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/)] : null,
+        null,
       ),
       [RegisterFormControls.SPOUSEGENDER]: new FormControl(
-        null, this.requierdField ? [Validators.required] : null,
+        null, null,
       ),
     })
 
@@ -220,11 +223,35 @@ matchRegisterImage = computed(() => {
       ["businessArray"]: this.formBuilder.array([]),
     })
 
+    const companyForm = this.formBuilder.group({
+      [RegisterFormControls.FIRSTNAME]: new FormControl(
+        '', this.requierdField ? [Validators.required] : null
+      ),
+      [RegisterFormControls.BUSINESSNUMBER]: new FormControl(
+        '', this.requierdField ? [Validators.required, Validators.pattern(/^\d+$/)] : null,
+      ),
+      [RegisterFormControls.BUSINESSTYPE]: new FormControl(
+        null, this.requierdField ? [Validators.required] : null,
+      ),
+      [RegisterFormControls.EMAIL]: new FormControl(
+        '', this.requierdField ? [Validators.required, Validators.pattern(/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/)] : null,
+      ),
+      [RegisterFormControls.PHONE]: new FormControl(
+        '', this.requierdField ? [Validators.pattern(/^(050|051|052|053|054|055|058|059)\d{7}$/)] : null,
+      ),
+      [RegisterFormControls.PASSWORD]: new FormControl(
+        '', [Validators.required, Validators.pattern(/^(?=.*[a-zA-Z].*[a-zA-Z])(?=.*\d).{8,}$/)]
+      ),
+      [RegisterFormControls.CONFIRM_PASSWORD]: new FormControl(
+        '', [Validators.required, this.confirmPasswordValidator()])
+    });
+
     this.myForm = this.formBuilder.group({
       [RegisterFormModules.PERSONAL]: personalForm,
       [RegisterFormModules.SPOUSE]: spouseForm,
       [RegisterFormModules.CHILDREN]: childrenForm,
       [RegisterFormModules.BUSINESS]: businessForm,
+      [RegisterFormModules.COMPANY]: companyForm,
     });
   }
 
@@ -235,6 +262,22 @@ matchRegisterImage = computed(() => {
   ngOnInit() {
     this.gelAllCities();
     this.fillDevDefaults();
+  }
+
+  /**
+   * Switches the PERSONAL step between the private-individual form
+   * (personalForm) and the dedicated company form (companyForm). Each form
+   * carries its own validators, so no cross-form validator patching is
+   * needed — switching modes just changes which form the step renders and
+   * resets the other so stale values can't leak into submission.
+   */
+  toggleCompanyMode(checked: boolean): void {
+    this.isCompany.set(checked);
+    if (checked) {
+      this.personalForm.reset();
+    } else {
+      this.companyForm.reset();
+    }
   }
 
   doRefresh(event: any) {
@@ -269,6 +312,10 @@ matchRegisterImage = computed(() => {
 
   get businessArray(): FormArray {
     return this.myForm?.get(RegisterFormModules.BUSINESS).get("businessArray") as FormArray;
+  }
+
+  get companyForm(): FormGroup {
+    return this.myForm?.get(RegisterFormModules.COMPANY) as FormGroup;
   }
 
   get isNextButtonDisabled(): boolean {
@@ -309,37 +356,30 @@ matchRegisterImage = computed(() => {
 
 
 
-  addBusiness(title?: string): void {
+  addBusiness(title?: string, required = true): void {
     this.businessArray.push(
       this.formBuilder.group({
-        title: new FormControl(title || ''), // store the title for display
-        [RegisterFormControls.BUSINESSNAME]: new FormControl('', this.requierdField ? Validators.required : null),
+        title: new FormControl(title || ''),
+        [RegisterFormControls.BUSINESSNAME]: new FormControl('', required && this.requierdField ? Validators.required : null),
         [RegisterFormControls.BUSINESSNUMBER]: new FormControl(
-          '', this.requierdField ? [Validators.required, Validators.pattern(/^\d+$/)] : null
+          '', required && this.requierdField ? [Validators.required, Validators.pattern(/^\d+$/)] : null
         ),
-        [RegisterFormControls.BUSINESSTYPE]: new FormControl(null, this.requierdField ? Validators.required : null),
+        [RegisterFormControls.BUSINESSTYPE]: new FormControl(null, required && this.requierdField ? Validators.required : null),
       })
     );
   }
 
 
   prepareBusinessLines(): void {
-    // Clear previous lines if any (optional)
     this.businessArray.clear();
 
-    // User is independent → add one line
     if (this.isIndependent()) {
-      this.addBusiness('פרטי עסק משתמש/ת ראשי');
+      this.addBusiness('פרטי עסק משתמש/ת ראשי', true);
     }
 
-    // Spouse is independent → add another line
+    // Spouse business is optional — no required validators
     if (this.isSpouseIndependent()) {
-      this.addBusiness('פרטי עסק בן/בת הזוג');
-    }
-
-    // If none are independent, ensure no rows remain
-    if (!this.isIndependent() && !this.isSpouseIndependent()) {
-      this.businessArray.clear();
+      this.addBusiness('פרטי עסק בן/בת הזוג', false);
     }
   }
   
@@ -445,7 +485,44 @@ matchRegisterImage = computed(() => {
   handleFormRegister() {
     this.authService.error.set(null);
     const formData = cloneDeep(this.myForm.value);
-    
+
+    // companyForm only exists to drive the UI for company registration — it
+    // is never part of the backend payload shape (personal/spouse/children/business).
+    const companyData = formData.company;
+    delete formData.company;
+
+    if (this.isCompany()) {
+      // Company registration completes after the PERSONAL step: map
+      // companyForm into the existing personal/business payload shape and
+      // drop spouse/children entirely.
+      formData.personal = {
+        fName: companyData?.fName,
+        email: companyData?.email,
+        phone: companyData?.phone,
+        password: companyData?.password,
+        confirmPassword: companyData?.confirmPassword,
+        isCompany: true,
+      };
+      formData.business = {
+        businessArray: [{
+          businessName: companyData?.fName,
+          businessNumber: companyData?.businessNumber,
+          businessType: companyData?.businessType,
+          businessPhone: companyData?.phone,
+          businessEmail: companyData?.email,
+        }],
+      };
+      formData.spouse = {};
+      formData.children = { childrenArray: [] };
+    }
+
+    // Remove completely empty business rows before submission
+    if (formData.business?.businessArray) {
+      formData.business.businessArray = formData.business.businessArray.filter((biz: any) => {
+        return biz?.businessName || biz?.businessNumber || biz?.businessType;
+      });
+    }
+
     // Remove empty child rows before submission
     if (formData.children?.childrenArray) {
       formData.children.childrenArray = formData.children.childrenArray.filter((child: any) => {
@@ -491,18 +568,9 @@ matchRegisterImage = computed(() => {
   onBackBtnClicked(): void {
     switch (this.selectedFormModule()) {
       case RegisterFormModules.BUSINESS:
-        if (this.isSingle()) {
-          this.selectedFormModule.set(RegisterFormModules.PERSONAL);
-        } else {
-          this.selectedFormModule.set(RegisterFormModules.CHILDREN);
-        }
-        break;
-      case RegisterFormModules.CHILDREN:
-        if (this.isMarried()) {
-          this.selectedFormModule.set(RegisterFormModules.SPOUSE);
-        } else {
-          this.selectedFormModule.set(RegisterFormModules.PERSONAL);
-        }
+        this.selectedFormModule.set(
+          this.isMarried() ? RegisterFormModules.SPOUSE : RegisterFormModules.PERSONAL
+        );
         break;
       case RegisterFormModules.SPOUSE:
         this.selectedFormModule.set(RegisterFormModules.PERSONAL);
@@ -516,7 +584,9 @@ matchRegisterImage = computed(() => {
         this.handleFormRegister();
         break;
       case RegisterFormModules.PERSONAL:
-        if (this.isMarried()) {
+        if (this.isCompany()) {
+          this.handleFormRegister();
+        } else if (this.isMarried()) {
           this.selectedFormModule.set(RegisterFormModules.SPOUSE);
         } else if (this.isSingle() && this.isIndependent()) {
           this.selectedFormModule.set(RegisterFormModules.BUSINESS);
@@ -524,19 +594,22 @@ matchRegisterImage = computed(() => {
         } else if (this.isSingle() && !this.isIndependent()) {
           this.handleFormRegister();
         } else {
-          this.selectedFormModule.set(RegisterFormModules.CHILDREN);
+          // divorced, widowed, or other non-single/non-married status
+          if (this.isIndependent()) {
+            this.selectedFormModule.set(RegisterFormModules.BUSINESS);
+            this.prepareBusinessLines();
+          } else {
+            this.handleFormRegister();
+          }
         }
         break;
-      case RegisterFormModules.CHILDREN:
+      case RegisterFormModules.SPOUSE:
         if (this.isIndependent() || this.isSpouseIndependent()) {
           this.selectedFormModule.set(RegisterFormModules.BUSINESS);
           this.prepareBusinessLines();
         } else {
           this.handleFormRegister();
         }
-        break;
-      case RegisterFormModules.SPOUSE:
-        this.selectedFormModule.set(RegisterFormModules.CHILDREN);
         break;
     }
   }
@@ -548,13 +621,14 @@ matchRegisterImage = computed(() => {
   private isCurrentFormValid(): boolean {
     switch (this.selectedFormModule()) {
       case RegisterFormModules.PERSONAL:
-        return this.personalForm.valid;
+        return this.isCompany() ? this.companyForm.valid : this.personalForm.valid;
       case RegisterFormModules.CHILDREN:
         return this.isChildrenFormValidForSubmission();
       case RegisterFormModules.SPOUSE:
-        return this.spouseForm.valid;
+        return this.spouseSkipped() || this.spouseForm.valid;
       case RegisterFormModules.BUSINESS:
-        return this.businessForm.valid;
+        if (this.businessArray.length === 0) return true;
+        return this.businessArray.at(0).valid;
       default:
         return false;
     }
@@ -604,11 +678,36 @@ matchRegisterImage = computed(() => {
     };
   }
 
+  onFillSpouseLater(): void {
+    this.spouseSkipped.set(true);
+    this.spouseForm.reset();
+    if (this.isIndependent()) {
+      this.selectedFormModule.set(RegisterFormModules.BUSINESS);
+      this.prepareBusinessLines();
+    } else {
+      this.handleFormRegister();
+    }
+  }
+
+  get nextButtonLabel(): string {
+    if (this.isCompany()) return 'סיום';
+    const module = this.selectedFormModule();
+    if (module === RegisterFormModules.BUSINESS) return 'סיום';
+    if (module === RegisterFormModules.PERSONAL) {
+      if (this.isSingle() && !this.isIndependent()) return 'סיום';
+      if (!this.isSingle() && !this.isMarried() && !this.isIndependent()) return 'סיום';
+    }
+    if (module === RegisterFormModules.SPOUSE) {
+      if (!this.isIndependent() && !this.isSpouseIndependent()) return 'סיום';
+    }
+    return 'הבא';
+  }
+
   isSingle(): boolean {
     return this.personalForm?.get(RegisterFormControls.FAMILYSTATUS)?.value === FamilyStatus.SINGLE;
   }
 
-  private isMarried(): boolean {
+  isMarried(): boolean {
     return this.personalForm?.get(RegisterFormControls.FAMILYSTATUS)?.value === FamilyStatus.MARRIED;
   }
 
@@ -669,12 +768,9 @@ matchRegisterImage = computed(() => {
       fName: 'Elazar',
       lName: 'Harel',
       id: '123456789',
-      gender: 'male',
       email: 'test@example.com',
       phone: '0501234567',
-      dateOfBirth: '1990-01-01',
       employmentStatus: 'SELF_EMPLOYED',
-      city: 'Tel Aviv',
       familyStatus: 'SINGLE',
       password: 'Test1234',
       confirmPassword: 'Test1234',

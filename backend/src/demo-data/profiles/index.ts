@@ -2,6 +2,10 @@ import { DemoProfile } from '../demo-profile.types';
 import { COUPLE_TWO_BUSINESSES_PROFILE } from './couple-two-businesses.profile';
 import { ACCOUNTANT_WITH_CLIENTS_PROFILE } from './accountant-with-clients.profile';
 import { SINGLE_LICENSED_NO_BANKING_PROFILE } from './single-licensed-no-banking.profile';
+import { COUPLE_OPEN_BANKING_NO_BILLS_PROFILE } from './couple-open-banking-no-bills.profile';
+import { SINGLE_OB_OCR_TEST_PROFILE } from './single-ob-ocr-test.profile';
+import { LEDGER_TEST_PROFILE } from './ledger-test.profile';
+import { DIRECT_CARD_DEMO_PROFILE } from './direct-card-demo.profile';
 
 /**
  * Registry of available demo profiles. To add a new profile:
@@ -13,4 +17,36 @@ export const DEMO_PROFILES: readonly DemoProfile[] = [
   COUPLE_TWO_BUSINESSES_PROFILE,
   ACCOUNTANT_WITH_CLIENTS_PROFILE,
   SINGLE_LICENSED_NO_BANKING_PROFILE,
+  COUPLE_OPEN_BANKING_NO_BILLS_PROFILE,
+  SINGLE_OB_OCR_TEST_PROFILE,
+  LEDGER_TEST_PROFILE,
+  DIRECT_CARD_DEMO_PROFILE,
 ];
+
+/**
+ * True when `email` belongs to ANY DEMO_PROFILES entry — primary email or
+ * a delegated-client email. Drives `userData.isDemo` on the signed-in user
+ * payload (which the frontend uses to show the "אפס נתוני בדיקה" button),
+ * the guard on the test-reset endpoint (which only demo users can hit), and
+ * the nightly-cache-cleanup exclusion in
+ * `TransactionProcessingService.runDailyCacheCleanup` (demo users must stay
+ * permanently usable — the cleanup would otherwise wipe their transactions
+ * and flip their sync state to 'empty').
+ *
+ * This is the single demo-user detection mechanism — don't add a second one.
+ */
+export function isDemoEmail(email: string | null | undefined): boolean {
+  if (!email) return false;
+  const lc = email.toLowerCase();
+  for (const p of DEMO_PROFILES) {
+    if (p.email.toLowerCase() === lc) return true;
+    if (p.delegatedClients?.some((c) => c.email.toLowerCase() === lc)) return true;
+  }
+  return false;
+}
+
+/** Find a DEMO_PROFILE by primary email (case-insensitive). */
+export function findDemoProfileByEmail(email: string): DemoProfile | undefined {
+  const lc = email.toLowerCase();
+  return DEMO_PROFILES.find((p) => p.email.toLowerCase() === lc);
+}

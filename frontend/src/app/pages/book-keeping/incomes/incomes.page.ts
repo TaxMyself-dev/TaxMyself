@@ -12,6 +12,7 @@ import {
   FormTypes,
   ReportingPeriodType,
   getAllocationNumberThreshold,
+  isExemptBusinessType,
 } from 'src/app/shared/enums';
 import { AuthService } from 'src/app/services/auth.service';
 import { FilesService } from 'src/app/services/files.service';
@@ -692,7 +693,7 @@ export class IncomesPage implements OnInit {
   closeDoc(row: IRowDataTable): void {
 
     const businessType = this.getSelectedBusinessType();
-    const isExempt = businessType === BusinessType.EXEMPT;
+    const isExempt = isExemptBusinessType(businessType);
     const docType = typeof row.docType === 'string' ? row.docType : String(row.docType ?? '');
     const docStatus = (row as any)?.docStatusOriginal?.toUpperCase();
 
@@ -856,7 +857,7 @@ export class IncomesPage implements OnInit {
     // Handle חשבון עסקה - depends on business type
     if (docTypeKey === 'חשבון עסקה') {
       const businessType = this.getSelectedBusinessType();
-      const isExempt = businessType === BusinessType.EXEMPT;
+      const isExempt = isExemptBusinessType(businessType);
       return {
         docType: isExempt ? DocumentType.RECEIPT : DocumentType.TAX_INVOICE_RECEIPT,
         label: isExempt ? 'קבלה' : 'חשבונית מס קבלה',
@@ -885,7 +886,7 @@ export class IncomesPage implements OnInit {
 
     if (docTypeKey === 'חשבון עסקה') {
       const businessType = this.getSelectedBusinessType();
-      const isExempt = businessType === BusinessType.EXEMPT;
+      const isExempt = isExemptBusinessType(businessType);
       return {
         docType: isExempt ? DocumentType.RECEIPT : DocumentType.TAX_INVOICE_RECEIPT,
         label: isExempt ? 'קבלה' : 'חשבונית מס קבלה',

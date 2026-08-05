@@ -70,17 +70,22 @@
                   @for (source of syncSourceResults(); track source.type + '_' + source.sourceId + '_' + source.status) {
                     <div class="source-result-item"
                          [class.source-result-item--success]="source.status === 'success'"
-                         [class.source-result-item--failed]="source.status === 'failed'">
+                         [class.source-result-item--failed]="source.status === 'failed'"
+                         [class.source-result-item--skipped]="source.status === 'skipped_direct'">
                       <i class="pi"
                          [class.pi-check-circle]="source.status === 'success'"
                          [class.pi-times-circle]="source.status === 'failed'"
-                         [class.pi-clock]="source.status === 'not_synced'">
+                         [class.pi-clock]="source.status === 'not_synced'"
+                         [class.pi-info-circle]="source.status === 'skipped_direct'">
                       </i>
                       <span class="source-result-item__name">
                         {{ source.sourceId }}
                       </span>
                       @if (source.status === 'success') {
                         <span class="source-result-item__count">{{ source.transactionCount }} תנועות</span>
+                      }
+                      @if (source.status === 'skipped_direct') {
+                        <span class="source-result-item__direct-note">כרטיס דיירקט — התנועות נמשכות דרך חשבון הבנק</span>
                       }
                       @if (source.status === 'failed' && source.consentId) {
                         <app-p-button
@@ -124,17 +129,22 @@
                   @for (source of syncSourceResults(); track source.type + '_' + source.sourceId + '_' + source.status) {
                     <div class="source-result-item"
                          [class.source-result-item--success]="source.status === 'success'"
-                         [class.source-result-item--failed]="source.status === 'failed'">
+                         [class.source-result-item--failed]="source.status === 'failed'"
+                         [class.source-result-item--skipped]="source.status === 'skipped_direct'">
                       <i class="pi"
                          [class.pi-check-circle]="source.status === 'success'"
                          [class.pi-times-circle]="source.status === 'failed'"
-                         [class.pi-clock]="source.status === 'not_synced'">
+                         [class.pi-clock]="source.status === 'not_synced'"
+                         [class.pi-info-circle]="source.status === 'skipped_direct'">
                       </i>
                       <span class="source-result-item__name">
                         {{ source.sourceId }}
                       </span>
                       @if (source.status === 'success') {
                         <span class="source-result-item__count">{{ source.transactionCount }} תנועות</span>
+                      }
+                      @if (source.status === 'skipped_direct') {
+                        <span class="source-result-item__direct-note">כרטיס דיירקט — התנועות נמשכות דרך חשבון הבנק</span>
                       }
                       @if (source.status === 'failed' && source.consentId && !dialogAllSyncFailed()) {
                         <app-p-button
@@ -295,6 +305,94 @@
         </nav>
     </div> -->
 
+    <!-- ─── CardCom payment result banner — shown after return from hosted payment page ─── -->
+    @if (paymentResultBanner(); as banner) {
+    <div class="payment-result-banner"
+         [class.payment-result-banner--success]="banner.kind === 'success'"
+         [class.payment-result-banner--warning]="banner.kind === 'email-failed' || banner.kind === 'invoice-failed'"
+         [class.payment-result-banner--error]="banner.kind === 'failed'"
+         [class.payment-result-banner--unknown]="banner.kind === 'unknown'"
+         [class.payment-result-banner--processing]="banner.kind === 'processing'">
+        <div class="payment-result-banner__icon">
+            @if (banner.kind === 'success') {
+                <i class="pi pi-check-circle"></i>
+            } @else if (banner.kind === 'email-failed' || banner.kind === 'invoice-failed') {
+                <i class="pi pi-exclamation-triangle"></i>
+            } @else if (banner.kind === 'failed') {
+                <i class="pi pi-times-circle"></i>
+            } @else if (banner.kind === 'unknown') {
+                <i class="pi pi-info-circle"></i>
+            } @else {
+                <p-progressSpinner strokeWidth="6" [style]="{width: '22px', height: '22px'}"></p-progressSpinner>
+            }
+        </div>
+        <div class="payment-result-banner__text">
+            <p class="payment-result-banner__message">{{ banner.message }}</p>
+            @if (banner.kind === 'failed' && banner.detail) {
+                <p class="payment-result-banner__detail">{{ banner.detail }}</p>
+            }
+        </div>
+        @if (banner.kind === 'email-failed') {
+            <app-p-button
+                class="payment-result-banner__action"
+                [buttonText]="'נסה לשלוח שוב'"
+                [buttonColor]="buttonColor.YELLOW"
+                [buttonSize]="buttonSize.SMALL"
+                [isLoading]="resendingReceiptEmail()"
+                (onButtonClicked)="resendReceiptEmailClick(banner.eventId)">
+            </app-p-button>
+        }
+        @if (banner.kind === 'invoice-failed') {
+            <app-p-button
+                class="payment-result-banner__action"
+                [buttonText]="'הפק חשבונית'"
+                [buttonColor]="buttonColor.YELLOW"
+                [buttonSize]="buttonSize.SMALL"
+                [isLoading]="retryingInvoice()"
+                (onButtonClicked)="retryInvoiceClick(banner.eventId)">
+            </app-p-button>
+        }
+        <!-- PAYMENT_STATUS_UNKNOWN: informational only — no close/retry/contact actions, by design. -->
+        @if (banner.kind !== 'processing' && banner.kind !== 'unknown') {
+            <button class="payment-result-banner__close" (click)="dismissPaymentResultBanner()" aria-label="סגור">
+                <i class="pi pi-times"></i>
+            </button>
+        }
+    </div>
+    }
+
+    <!-- ─── Change-payment-method result banner (CreateTokenOnly — never a charge) ─── -->
+    @if (paymentMethodResultBanner(); as pmBanner) {
+    <div class="payment-result-banner"
+         [class.payment-result-banner--success]="pmBanner.kind === 'success'"
+         [class.payment-result-banner--error]="pmBanner.kind === 'failed'"
+         [class.payment-result-banner--unknown]="pmBanner.kind === 'unknown'"
+         [class.payment-result-banner--processing]="pmBanner.kind === 'processing'">
+        <div class="payment-result-banner__icon">
+            @if (pmBanner.kind === 'success') {
+                <i class="pi pi-check-circle"></i>
+            } @else if (pmBanner.kind === 'failed') {
+                <i class="pi pi-times-circle"></i>
+            } @else if (pmBanner.kind === 'unknown') {
+                <i class="pi pi-info-circle"></i>
+            } @else {
+                <p-progressSpinner strokeWidth="6" [style]="{width: '22px', height: '22px'}"></p-progressSpinner>
+            }
+        </div>
+        <div class="payment-result-banner__text">
+            <p class="payment-result-banner__message">{{ pmBanner.message }}</p>
+            @if (pmBanner.kind === 'failed' && pmBanner.detail) {
+                <p class="payment-result-banner__detail">{{ pmBanner.detail }}</p>
+            }
+        </div>
+        @if (pmBanner.kind !== 'processing' && pmBanner.kind !== 'unknown') {
+            <button class="payment-result-banner__close" (click)="dismissPaymentResultBanner()" aria-label="סגור">
+                <i class="pi pi-times"></i>
+            </button>
+        }
+    </div>
+    }
+
     <div class="user-info-block">
         <div class="user-info-row">
             <p-avatar class="my-account-avatar" [label]="(userData?.fName?.charAt(0) || '') + (userData?.lName?.charAt(0) || '')" size="xlarge" shape="circle"></p-avatar>
@@ -303,7 +401,7 @@
                 @if (userData?.previousLoginAt) {
                 <span class="last-login">כניסתך האחרונה היתה בתאריך {{ userData.previousLoginAt | date: 'd/M/yyyy' }}</span>
                 }
-                @if (hasOpenBanking()) {
+                @if (hasOpenBanking() && access.addOpenBankingButton().visible) {
                 <app-p-button [buttonText]="'+ חבר חשבון נוסף'" [buttonColor]="buttonColor.WHITE_BORDER_LIGHT" [buttonSize]="buttonSize.BETWEEN"
                     (onButtonClicked)="connectToOpenBanking()" [isLoading]="isLoadingFeezback()">
                 </app-p-button>
@@ -311,10 +409,25 @@
                 <!-- Users without Open Banking already get the big "רוצה לראות את התנועות" CTA banner below, so no extra header button is needed here. -->
             </div>
         </div>
-        <app-p-button class="vat-report-payment-button" [buttonText]="'+ הוספת הוצאה'" [buttonColor]="buttonColor.BLACK"
-            [buttonSize]="buttonSize.AUTO" (onButtonClicked)="openMannualExpenses()">
-            <i class="pi pi-plus"></i>
-        </app-p-button>
+        <div class="dashboard-actions">
+            <app-menu-button
+                class="vat-report-payment-button"
+                icon="pi pi-chevron-down"
+                buttonText="הוספת הוצאה"
+                ariaLabel="תפריט הוספת הוצאה"
+                [buttonColor]="buttonColor.BLACK"
+                [buttonSize]="buttonSize.AUTO"
+                [items]="addExpenseMenuItems()"
+                [positions]="addExpenseMenuPositions">
+            </app-menu-button>
+            @if (userData?.isDemo) {
+                <app-p-button class="demo-reset-button" [buttonText]="'אפס נתוני בדיקה'"
+                    [buttonColor]="buttonColor.WHITE_BORDER_LIGHT" [buttonSize]="buttonSize.AUTO"
+                    [isLoading]="isResettingDemo()" (onButtonClicked)="onResetTestData()">
+                    <i class="pi pi-refresh"></i>
+                </app-p-button>
+            }
+        </div>
     </div>
      <!-- ─── Open Banking CTA Banner (Figma nodes 2520:53911 → 2520:53930) ─── -->
      @if (!hasOpenBanking()) {
@@ -340,15 +453,23 @@
     <div class="nevigation-block">
         <span class="block-title">פעולות מומלצות</span>
         <div class="cards-container">
-            @for (item of itemsNavigate; track $index) {
-            <app-dashboard-navigate [cardItem]="item"></app-dashboard-navigate>
-            <!-- <app-card-navigate [cardItem]="item"></app-card-navigate> -->
+            @for (item of itemsNavigate(); track item.id) {
+              @if (item.link === '/doc-create') {
+                <app-dashboard-navigate
+                  [cardItem]="item"
+                  [locked]="access.createDocumentRecommended().disabled"
+                  [controlledNavigation]="true"
+                  (cardClick)="onDocCreateCardClick()">
+                </app-dashboard-navigate>
+              } @else {
+                <app-dashboard-navigate [cardItem]="item"></app-dashboard-navigate>
+              }
             }
         </div>
     </div>
     }
 
-@if (hasOpenBanking()) {
+@if (hasOpenBanking() && access.openBankingTable().visible) {
 
 @if (syncRanThisSession() && syncSourceResults().length > 0 && !feezbackDialogVisible()) {
   <div class="source-results-panel">
@@ -357,15 +478,20 @@
       @for (source of syncSourceResults(); track source.sourceId) {
         <div class="source-result-item"
              [class.source-result-item--success]="source.status === 'success'"
-             [class.source-result-item--failed]="source.status === 'failed'">
+             [class.source-result-item--failed]="source.status === 'failed'"
+             [class.source-result-item--skipped]="source.status === 'skipped_direct'">
           <i class="pi"
              [class.pi-check-circle]="source.status === 'success'"
              [class.pi-times-circle]="source.status === 'failed'"
-             [class.pi-clock]="source.status === 'not_synced'">
+             [class.pi-clock]="source.status === 'not_synced'"
+             [class.pi-info-circle]="source.status === 'skipped_direct'">
           </i>
           <span class="source-result-item__name">{{ source.sourceId }}</span>
           @if (source.status === 'success') {
             <span class="source-result-item__count">{{ source.transactionCount }} תנועות</span>
+          }
+          @if (source.status === 'skipped_direct') {
+            <span class="source-result-item__direct-note">כרטיס דיירקט — התנועות נמשכות דרך חשבון הבנק</span>
           }
           @if (source.status === 'failed' && source.consentId) {
             <app-p-button

@@ -100,6 +100,15 @@ export class SlimTransaction {
   @Column({ type: 'varchar', nullable: true, default: null })
   businessNumber: string | null;
 
+  /**
+   * Set when the unified review-modal matcher pairs this transaction with
+   * an OCR'd document (extracted_document.id). Drives the "matched" row
+   * type in the report-preview response. NULL = unmatched (cash-only flow,
+   * tx with no receipt yet, or the matcher hasn't run for this period).
+   */
+  @Column({ name: 'matched_document_id', type: 'int', nullable: true, default: null })
+  matchedDocumentId: number | null;
+
   @CreateDateColumn()
   createdAt: Date;
 

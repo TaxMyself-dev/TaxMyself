@@ -1,5 +1,6 @@
 import {
   BusinessType,
+  DocumentType,
   EmploymentType,
   FamilyStatus,
   Gender,
@@ -7,6 +8,9 @@ import {
   SourceType,
   UserRole,
 } from 'src/enum';
+// Type-only import — erased at compile time, so this file stays free of any
+// runtime dependency on the transactions module (no entity/DI cycle).
+import type { SourceSyncStatus } from 'src/transactions/user-source-sync-state.entity';
 
 /**
  * Static profile description used by the demo-data seeder.
@@ -41,6 +45,44 @@ export interface DemoProfile {
   transactions: DemoTransactionTemplate[];
 
   /**
+   * Real Documents to seed via DocumentsService.createDoc() AFTER the main
+   * seed transaction commits. Each income document posts a journal entry
+   * (debit A/R 1000, credit revenue 4000 + output VAT 2400; credit notes
+   * reverse). Requires the chart-of-accounts rows to exist — see
+   * account.seed.ts. Optional.
+   */
+  documents?: DemoDocumentTemplate[];
+
+  /**
+   * Real Expenses to seed via ExpensesService.addExpense() AFTER the main
+   * seed transaction commits. Each posts a journal entry (debit expense 5000
+   * + deductible VAT input 2410, credit 1000). Optional.
+   */
+  expenses?: DemoExpenseTemplate[];
+
+  /**
+   * Orphan Source rows seeded with no parent Bill — needed when transactions
+   * carry a `paymentIdentifier` but no `billKey`, so the user can later
+   * associate them via POST /transactions/:billId/sources (which refuses to
+   * invent sources). Mirrors the real OB post-sync state.
+   */
+  standaloneSources?: DemoStandaloneSource[];
+
+  /**
+   * Per-source Open-Banking sync outcome rows (`user_source_sync_state`).
+   * Optional — profiles that omit it get no rows at all, exactly as before.
+   * See `DemoSourceSyncState` for the matching rules.
+   */
+  sourceSyncStates?: DemoSourceSyncState[];
+
+  /**
+   * Opts this profile into the two admin-only "before/after the Direct-card
+   * fix" actions. Optional — profiles that omit it show no such buttons and
+   * the endpoints refuse them. See `DemoLegacyDuplicateScenario`.
+   */
+  legacyDuplicateScenario?: DemoLegacyDuplicateScenario;
+
+  /**
    * Role override for the primary user. Default is `[REGULAR]`.
    * Use `[ACCOUNTANT]` (optionally + `REGULAR`) for accountant profiles —
    * the "משרד" tab on the frontend is gated by the `ACCOUNTANT` role.
@@ -62,6 +104,20 @@ export interface DemoProfile {
    * primary user as the agent.
    */
   delegatedClients?: DemoClient[];
+
+  /**
+   * When set, the seeder also provisions the primary user's Drive folders
+   * (user root + business folder + inbox/processed) and uploads
+   * every file from `sourceDir` into the first business's inbox/. Same
+   * directory is re-uploaded by the `/demo-data/test-reset` endpoint after
+   * the inbox is wiped, so the demo user can re-run OCR end-to-end from
+   * a known starting state without admin intervention.
+   *
+   * `sourceDir` is resolved relative to the backend process CWD (`cwd` is
+   * typically the repo root in dev and the dist/ dir in prod — the seeder
+   * tries both).
+   */
+  seedDriveFiles?: { sourceDir: string };
 }
 
 /**
@@ -77,6 +133,8 @@ export interface DemoClient {
   businesses: DemoBusiness[];
   bills: DemoBill[];
   transactions: DemoTransactionTemplate[];
+  standaloneSources?: DemoStandaloneSource[];
+  sourceSyncStates?: DemoSourceSyncState[];
 }
 
 export interface DemoUser {
@@ -111,7 +169,7 @@ export interface DemoBusiness {
   businessName: string;
   /** Either the primary user's `id` or the spouse's `id`. */
   businessNumber: string;
-  /** EXEMPT → vatReportingType=NOT_REQUIRED. LICENSED/COMPANY → DUAL_MONTH_REPORT. */
+  /** EXEMPT → vatReportingType=NOT_REQUIRED. LICENSED → DUAL_MONTH_REPORT. */
   businessType: BusinessType;
   businessField?: string;
   businessAddress?: string;
@@ -124,12 +182,133 @@ export interface DemoBill {
   billName: string;
   /** Points at one of the businesses' businessNumber. */
   businessNumberRef: string;
-  sources: Array<{ sourceName: string; sourceType: SourceType }>;
+  sources: DemoSource[];
+}
+
+/**
+ * A Source row seeded for a demo user. Mirrors what `refreshUserSources`
+ * writes after a real Feezback discovery.
+ */
+export interface DemoSource {
+  /** Payment identifier (bank account digits / card last-4). Must match what
+   *  the corresponding DemoTransactionTemplate carries on `paymentIdentifier`. */
+  sourceName: string;
+  sourceType: SourceType;
+  /**
+   * Card sources only — mirrors `Source.isDirect`.
+   *   true  — Direct/Debit card: its transactions arrive through the BANK feed,
+   *           so the demo must NOT generate any transaction on this source.
+   *           The frontend then shows the "כרטיס דיירקט" label and hides the
+   *           per-source pull button.
+   *   false — regular credit card.
+   *   omitted → persisted as NULL ("not yet determined"), the pre-existing
+   *           behaviour for every profile written before this field existed.
+   */
+  isDirect?: boolean;
+}
+
+/**
+ * A Source row created without a parent Bill — mirrors the state after a
+ * real Open-Banking sync but before the user has created bills. Required so
+ * the demo's "associate to bill" flow can find a matching Source row by
+ * `(userId, sourceName)` — the attach endpoint refuses to invent sources.
+ */
+export type DemoStandaloneSource = DemoSource;
+
+/**
+ * One `user_source_sync_state` row — the per-source Open-Banking sync outcome
+ * the dashboard sync panel and the settings "חשבונות מקושרים" table read.
+ *
+ * Real syncs write these rows from Feezback results; demo profiles declare
+ * them statically so a permanent demo user can show a realistic (and stable)
+ * per-source status without ever calling Feezback.
+ *
+ * `sourceId` MUST equal the `sourceName` of a source declared on this profile
+ * (bill source or standalone) — both the settings-page join
+ * (`getSourcesWithTypes`) and the seeder's own validation match on that value.
+ */
+export interface DemoSourceSyncState {
+  /** → DemoSource.sourceName of the source this row describes. */
+  sourceId: string;
+  type: 'bank' | 'card';
+  /** `skipped_direct` is the terminal status of a Direct/Debit card. */
+  status: SourceSyncStatus;
+  /**
+   * Omit to derive it from the seeded data: the number of transactions whose
+   * resolved `paymentIdentifier` equals `sourceId`. That keeps the declared
+   * count honest when the transaction list changes (and keeps a Direct card's
+   * count at 0 automatically, since nothing is generated for it).
+   */
+  transactionCount?: number;
+  /** Feezback resource UUID. Demo profiles use a fake but stable value. */
+  resourceId?: string;
+  /** Feezback consent id. Demo profiles use a fake but stable value. */
+  consentId?: string;
+  /** Error text for `status: 'failed'` rows. Defaults to null. */
+  error?: string;
+}
+
+/**
+ * Declares the "legacy duplicate" demo scenario: the state this user's data
+ * was in BEFORE the Direct-card fix shipped, when the card feed was still
+ * imported alongside the bank feed and every Direct-card purchase therefore
+ * appeared twice.
+ *
+ * Two admin-only actions operate on a profile that declares this:
+ *
+ *   1. "צור מצב ישן עם כפילויות" — card `isDirect = NULL`, card sync status
+ *      `success`, and the cache rebuilt with BOTH feeds (bank rows + a
+ *      card-feed twin for each merchant listed here).
+ *   2. "הפעל תיקון כרטיס דיירקט" — card `isDirect = true`, card status
+ *      `skipped_direct` / count 0, and the cache rebuilt from the bank feed
+ *      only, which is what makes the duplicates disappear.
+ *
+ * The second action rebuilds the cache on purpose. The production fix only
+ * stops FUTURE card imports — it never deletes already-cached rows — so
+ * without a rebuild the pre-existing duplicates would survive it. The demo
+ * mirrors "fix + re-sync", not "fix alone".
+ */
+export interface DemoLegacyDuplicateScenario {
+  /**
+   * `sourceName` of the card source the fix flips to Direct. Must be a
+   * CREDIT_CARD source declared on this profile.
+   */
+  cardSourceName: string;
+  /**
+   * Merchant names, taken from this profile's `transactions`, whose bank rows
+   * get a card-feed twin in the legacy state. Each twin is CLONED from the
+   * bank row — identical merchant, amount, daysAgo and currency — with only
+   * `paymentIdentifier` swapped to `cardSourceName`, so the pair is guaranteed
+   * to look like the same purchase imported twice. Every name must match at
+   * least one transaction that isn't already on the card.
+   */
+  duplicateMerchants: string[];
 }
 
 export interface DemoTransactionTemplate {
-  /** → DemoBill.key */
-  billKey: string;
+  /**
+   * Optional. When present, must match a DemoBill.key — transaction is
+   * seeded onto that bill (billId + billName + paymentIdentifier inherited
+   * from the bill). When omitted, the transaction is "unassigned": billId
+   * and billName are stored as null and the row shows up in the UI under
+   * the "לא שוייך" state, ready for the user to associate to a bill.
+   */
+  billKey?: string;
+  /**
+   * Payment identifier (bank account number / card last digits) stamped on
+   * the cache row — mirrors what Feezback would return in production.
+   *
+   * When `billKey` is also set, this identifier WINS over the bill's first
+   * source. That lets a single bill back multiple sources (one bill with a
+   * BANK + a CARD source, each transaction tagged with the matching
+   * identifier — the typical real-world layout). Only when this field is
+   * omitted does the seeder fall back to the bill's first source.
+   *
+   * When `billKey` is omitted entirely, the transaction is "unassigned"
+   * (billId/billName null) and shows up in the UI under "לא שוייך" — the
+   * shape you want when demoing the bill-creation flow.
+   */
+  paymentIdentifier?: string;
   /** → DemoBusiness.businessNumber */
   businessNumberRef: string;
   /** Hebrew or Latin merchant name (whatever fits the merchant). */
@@ -146,6 +325,51 @@ export interface DemoTransactionTemplate {
   currency?: 'ILS' | 'USD' | 'EUR' | 'GBP';
 }
 
+/**
+ * A real income/sales document seeded through DocumentsService.createDoc().
+ * Only the document types that post journal entries are useful here
+ * (TAX_INVOICE, TAX_INVOICE_RECEIPT, RECEIPT, CREDIT_INVOICE).
+ */
+export interface DemoDocumentTemplate {
+  /** Which business this belongs to (→ DemoBusiness.businessNumber). */
+  businessNumberRef: string;
+  docType: DocumentType;
+  recipientName: string;
+  recipientId?: string;
+  /** Net amount before VAT (after any discount). */
+  sumAftDisBefVAT: number;
+  /** VAT amount (0 for exempt / RECEIPT). */
+  vatSum: number;
+  /** YYYY-MM-DD */
+  docDate: string;
+}
+
+/** A real expense seeded through ExpensesService.addExpense(). */
+export interface DemoExpenseTemplate {
+  /** Which business this belongs to (→ DemoBusiness.businessNumber). */
+  businessNumberRef: string;
+  merchantName: string;
+  /** Total including VAT. */
+  sum: number;
+  /** VAT recognition percent passed to addExpense (0 = no deductible VAT). */
+  vatPercent: number;
+  /** Tax (income-tax) deductibility percent (0–100). Defaults to 100. */
+  taxPercent?: number;
+  /** YYYY-MM-DD */
+  expenseDate: string;
+  /** Optional bookkeeping category id (informational; addExpense uses names). */
+  categoryId?: number;
+  /** Bookkeeping category name — drives the sub-category accountCode lookup in
+   *  addExpense. Falls back to a generic placeholder when omitted. */
+  category?: string;
+  /** Bookkeeping sub-category name (matched with `category` against
+   *  default_sub_category to resolve the journal accountCode). */
+  subCategory?: string;
+  /** When true the expense is routed to the equipment/depreciation account (6300)
+   *  instead of the regular expense accounts. Defaults to false. */
+  isEquipment?: boolean;
+}
+
 /** Subset of fields shared by DemoProfile and DemoClient — used by the seed helper. */
 export type DemoSeedable = {
   email: string;
@@ -155,9 +379,13 @@ export type DemoSeedable = {
   businesses: DemoBusiness[];
   bills: DemoBill[];
   transactions: DemoTransactionTemplate[];
+  /** Orphan sources (no parent bill) — see DemoStandaloneSource. */
+  standaloneSources?: DemoStandaloneSource[];
+  /** Per-source sync outcome rows — see DemoSourceSyncState. */
+  sourceSyncStates?: DemoSourceSyncState[];
   role?: UserRole[];
   hasOpenBanking?: boolean;
 };
 
 /** Re-exported so profile files can import enum values from one place. */
-export { BusinessType, EmploymentType, FamilyStatus, Gender, ModuleName, SourceType, UserRole };
+export { BusinessType, DocumentType, EmploymentType, FamilyStatus, Gender, ModuleName, SourceType, UserRole };

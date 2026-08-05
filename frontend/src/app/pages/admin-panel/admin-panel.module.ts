@@ -11,6 +11,7 @@ import { SharedModule } from '../../shared/shared.module';
 import { GenericTableComponent } from '../../components/generic-table/generic-table.component';
 import { FeezbackTransactionsDialogComponent } from '../../components/feezback-transactions-dialog/feezback-transactions-dialog.component';
 import { DemoDataComponent } from '../../shared/demo-data/demo-data.component';
+import { AdminBillingComponent } from '../../shared/admin-billing/admin-billing.component';
 import { ShaamInvoiceApprovalDialogComponent } from '../../components/shaam-invoice-approval-dialog/shaam-invoice-approval-dialog.component';
 import { ButtonComponent } from '../../components/button/button.component';
 import { ToastModule } from 'primeng/toast';
@@ -28,6 +29,7 @@ import { ConfirmationService } from 'primeng/api';
     GenericTableComponent,
     FeezbackTransactionsDialogComponent,
     DemoDataComponent,
+    AdminBillingComponent,
     ShaamInvoiceApprovalDialogComponent,
     ButtonComponent,
     ToastModule,

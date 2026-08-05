@@ -1,19 +1,20 @@
-import { BadRequestException, Injectable, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Between, Not, Repository } from 'typeorm';
+import { Between, In, Not, Repository } from 'typeorm';
 import { Expense } from '../expenses/expenses.entity';
 import { VatReportDto } from './dtos/vat-report.dto';
 import { buildVatReportPdf } from './vat-report-pdf';
+import { buildPnlReportPdf } from './pnl-report-pdf';
 import { AdvanceIncomeTaxReportDto } from './dtos/advance-income-tax-report.dto';
 import { ExpensePnlDto, PnLReportDto } from './dtos/pnl-report.dto';
-import { DepreciationReportDto } from './dtos/reduction-report.dto';
+import { LedgerAccountDto, LedgerLineDto, LedgerReportDto } from './dtos/ledger-report.dto';
+import { Form1342ReportDto, Form1342ReportRowDto } from './dtos/depreciation-report.dto';
 import { ExpensesService } from '../expenses/expenses.service';
 import { SharedService } from 'src/shared/shared.service';
 import { User } from '../users/user.entity';
-import { BusinessType, DOC_TYPE_INFO, DocumentSummaryRow, DocumentType, FIELD_MAP, JournalReferenceType, ListSummaryRow, PaymentMethodType, UniformFileTypeCodeMap, UniformSummaries} from 'src/enum';
+import { BusinessType, DOC_TYPE_INFO, DocumentSummaryRow, DocumentType, FIELD_MAP, isExemptBusinessType, JournalReferenceType, ListSummaryRow, PaymentMethodType, UniformFileTypeCodeMap, UniformSummaries} from 'src/enum';
 import { Documents } from 'src/documents/documents.entity';
 import { DocLines } from 'src/documents/doc-lines.entity';
-import axios from 'axios';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -23,13 +24,24 @@ import * as readline from 'readline';
 import * as iconv from 'iconv-lite';
 import { JournalEntry } from 'src/bookkeeping/jouranl-entry.entity';
 import { JournalLine } from 'src/bookkeeping/jouranl-line.entity';
-import { DefaultBookingAccount } from 'src/bookkeeping/account.entity';
+import { BookingAccount } from 'src/bookkeeping/account.entity';
+import { AccountingSection } from 'src/bookkeeping/accounting-section.entity';
+import { CatalogContextService } from 'src/bookkeeping/catalog-context.service';
 import { DocPayments } from 'src/documents/doc-payments.entity';
 import { Business } from 'src/business/business.entity';
 import { SlimTransaction } from 'src/transactions/slim-transaction.entity';
 import { FullTransactionCache } from 'src/transactions/full-transaction-cache.entity';
 import { VATReportingType, ExpenseReportScope } from 'src/enum';
 
+/** Maps referenceType strings → Hebrew label for the כרטסת סוג תנועה column. */
+const LEDGER_MOVEMENT_LABELS: Record<string, string> = {
+  TAX_INVOICE:         'חשבונית מס',
+  TAX_INVOICE_RECEIPT: 'חשבונית מס קבלה',
+  CREDIT_INVOICE:      'חשבונית זיכוי',
+  RECEIPT:             'קבלה',
+  EXPENSE:             'הוצאה',
+  PRICE_QUOTE:         'הצעת מחיר',
+};
 
 @Injectable()
 export class ReportsService {
@@ -61,12 +73,15 @@ export class ReportsService {
     private JournalEntryRepo: Repository<JournalEntry>,
     @InjectRepository(JournalLine) 
     private JournalLineRepo: Repository<JournalLine>,
-    @InjectRepository(DefaultBookingAccount)
-    private defaultBookingAccountRepo: Repository<DefaultBookingAccount>,
+    @InjectRepository(BookingAccount)
+    private defaultBookingAccountRepo: Repository<BookingAccount>,
     @InjectRepository(SlimTransaction)
     private slimRepo: Repository<SlimTransaction>,
     @InjectRepository(FullTransactionCache)
     private cacheRepo: Repository<FullTransactionCache>,
+    // Phase 5.1: delegation lookup — the client's ACCOUNTANT charts join the
+    // P&L booking-account join and the manual-entry account dropdown.
+    private readonly catalogContextService: CatalogContextService,
   ) {
     if (!fs.existsSync(this.debugFolder)) {
       fs.mkdirSync(this.debugFolder, { recursive: true });
@@ -145,95 +160,6 @@ export class ReportsService {
   }
 
 
-  async generatePnLReportPDF(data: any): Promise<Blob> {
-    const fid = 'ydAEQsvSbC';
-    const url = 'https://api.fillfaster.com/v1/generatePDF';
-    const token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6ImluZm9AdGF4bXlzZWxmLmNvLmlsIiwic3ViIjo5ODUsInJlYXNvbiI6IkFQSSIsImlhdCI6MTczODIzODAxMSwiaXNzIjoiaHR0cHM6Ly9maWxsZmFzdGVyLmNvbSJ9.DdKFDTxNWEXOVkEF2TJHCX0Mu2AbezUBeWOWbpYB2zM';
-
-    const payload = {
-      fid,
-      digitallySign: false,
-      prefill_data: data.prefill_data,
-    };
-
-    const headers = {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    };
-
-    try {
-      const response = await axios.post<Blob>(url, payload, {
-        headers,
-        responseType: 'arraybuffer',
-      });
-
-      if (!response.data) {
-        throw new Error('Failed to generate PDF');
-      }
-
-      return response.data;
-    } catch (error: any) {
-      console.error('❌ FillFaster API Error for PnL Report:');
-      console.error('   Status:', error.response?.status);
-      console.error('   Status Text:', error.response?.statusText);
-      console.error('   URL:', url);
-      console.error('   FID:', fid);
-      
-      if (error.response?.data) {
-        try {
-          const errorText = Buffer.from(error.response.data).toString('utf-8');
-          console.error('   Error Response Body:', errorText);
-        } catch (bufferError) {
-          console.error('   Could not parse error response body');
-        }
-      }
-      
-      throw new InternalServerErrorException(
-        `FillFaster API error: ${error.response?.status || 'Unknown'} - ${error.response?.statusText || error.message}`
-      );
-    }
-  }
-    
-
-  async createVatReport(
-    firebaseId: string,
-      businessNumber: string,
-      startDate: Date,
-      endDate: Date
-  ): Promise<VatReportDto> {
-
-    try {
-      const vatReport: VatReportDto = {
-          vatableTurnover: 0,
-          nonVatableTurnover: 0,
-          vatRefundOnAssets: 0,
-          vatRefundOnExpenses: 0,
-          vatPayment: 0,
-          vatRate: 0
-      };
-
-      const year = startDate.getFullYear();
-
-      ({ vatableIncome: vatReport.vatableTurnover, nonVatableIncome: vatReport.nonVatableTurnover } =
-        await this.getVatIncomeFromDocuments(businessNumber, startDate, endDate));
-
-      const expenses = await this.expensesService.getExpensesForVatReport(firebaseId, businessNumber, startDate, endDate);
-      const regularExpenses = expenses.filter(expense => !expense.isEquipment);
-      const assetsExpenses = expenses.filter(expense => expense.isEquipment);
-
-      vatReport.vatRefundOnExpenses = regularExpenses.reduce((sum, expense) => sum + Number(expense.totalVatPayable || 0), 0);
-      vatReport.vatRefundOnAssets = assetsExpenses.reduce((sum, expense) => sum + Number(expense.totalVatPayable || 0), 0);
-
-      const vatPercent = this.sharedService.getVatPercent(year);
-      vatReport.vatPayment = Math.round(vatReport.vatableTurnover * vatPercent) - vatReport.vatRefundOnExpenses - vatReport.vatRefundOnAssets;
-      vatReport.vatRate = this.sharedService.getVatRateByYear(startDate);
-
-      return vatReport;
-    } catch (error) {
-      throw error;
-    }
-  }
-
   /**
    * Compute the VAT report for a business+period and render it as a PDF buffer.
    * Used when a VAT report workflow is marked submitted, to snapshot the
@@ -246,7 +172,7 @@ export class ReportsService {
     endDate: Date,
     submittedAt: Date = new Date(),
   ): Promise<Buffer> {
-    const data = await this.createVatReport(
+    const data = await this.createVatReportFromJournal(
       firebaseId,
       businessNumber,
       startDate,
@@ -264,6 +190,72 @@ export class ReportsService {
     });
   }
 
+  /**
+   * Compute the VAT report for a business+period and render it as a PDF
+   * buffer for the interactive "ייצא כ-PDF" button — includes the expense
+   * line-item breakdown and omits the "הוגש בתאריך" line (report may not be
+   * submitted yet). Server-rendered (pdfkit), same approach as the submitted
+   * snapshot — no external template-fill service involved.
+   */
+  async generateVatReportPdfForExport(
+    firebaseId: string,
+    businessNumber: string,
+    startDate: Date,
+    endDate: Date,
+    vatableTurnoverOverride?: number,
+  ): Promise<Buffer> {
+    const [data, business, expenseRows] = await Promise.all([
+      this.createVatReportFromJournal(firebaseId, businessNumber, startDate, endDate, vatableTurnoverOverride),
+      this.businessRepo.findOne({ where: { businessNumber, firebaseId } }),
+      this.expensesService.getExpensesForVatReport(firebaseId, businessNumber, startDate, endDate),
+    ]);
+
+    const expenses = expenseRows
+      .filter((e) => Number(e.totalVatPayable ?? 0) !== 0)
+      .map((e) => ({
+        supplier: e.supplier ?? '',
+        date: e.date ? this.formatLedgerDate(e.date) : '',
+        sum: Number(e.sum) || 0,
+        subCategory: e.subCategory ?? '',
+        totalVatPayable: Number(e.totalVatPayable) || 0,
+        vatPercent: Number(e.vatPercentSnapshot) || 0,
+      }));
+
+    return buildVatReportPdf(data, {
+      businessName: business?.businessName ?? businessNumber,
+      businessNumber,
+      periodStart: startDate,
+      periodEnd: endDate,
+      expenses,
+    });
+  }
+
+  /**
+   * Compute the P&L report for a business+period and render it as a PDF
+   * buffer for the interactive "ייצא כ-PDF" button. Server-rendered
+   * (pdfkit), same approach as the VAT report — no external template-fill
+   * service involved.
+   */
+  async generatePnlReportPdfForExport(
+    firebaseId: string,
+    businessNumber: string,
+    startDate: Date,
+    endDate: Date,
+    osekZair = false,
+    incomeOverride?: number,
+  ): Promise<Buffer> {
+    const [data, business] = await Promise.all([
+      this.createPnLReportFromJournal(firebaseId, businessNumber, startDate, endDate, osekZair, incomeOverride),
+      this.businessRepo.findOne({ where: { businessNumber, firebaseId } }),
+    ]);
+    return buildPnlReportPdf(data, {
+      businessName: business?.businessName ?? businessNumber,
+      businessNumber,
+      periodStart: startDate,
+      periodEnd: endDate,
+    });
+  }
+
   async getAdvanceIncomeTaxReportData(
     firebaseId: string,
     businessNumber: string,
@@ -276,7 +268,7 @@ export class ReportsService {
       });
       const businessType = business?.businessType ?? null;
 
-      if (businessType === BusinessType.EXEMPT) {
+      if (isExemptBusinessType(businessType)) {
         return this.getAdvanceIncomeTaxReportDataForExempt(
           businessNumber,
           startDate,
@@ -376,7 +368,7 @@ export class ReportsService {
       .where('doc.issuerBusinessNumber = :businessNumber', { businessNumber })
       .andWhere('doc.isCancelled = false');
 
-    if (businessType === BusinessType.EXEMPT) {
+    if (isExemptBusinessType(businessType)) {
       const res = await base
         .clone()
         .andWhere('doc.docType = :type', { type: 'RECEIPT' })
@@ -430,109 +422,709 @@ export class ReportsService {
   }
 
 
-  async createPnLReport(
-      firebaseId: string,
-      businessNumber: string,
-      startDate: Date,
-      endDate: Date
+  // ───────────────────────────────────────────────────────────────────────────
+  // VAT / P&L reports — computed from journal entries (journal_entry + journal_line).
+  // ───────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Build the journal-entry period filter shared by both journal reports:
+   * `vatReportingPeriod IN (labels) OR (vatReportingPeriod IS NULL AND date BETWEEN)`,
+   * mirroring getExpensesByDates. Mutates `qb` in place.
+   */
+  private applyJournalPeriodFilter(
+    qb: import('typeorm').SelectQueryBuilder<JournalLine>,
+    periodLabels: string[],
+    startDate: Date,
+    endDate: Date,
+  ): void {
+    if (periodLabels.length > 0) {
+      qb.andWhere(
+        '(je.vatReportingPeriod IN (:...periodLabels) OR (je.vatReportingPeriod IS NULL AND je.date BETWEEN :startDate AND :endDate))',
+        { periodLabels, startDate, endDate },
+      );
+    } else {
+      qb.andWhere(
+        '(je.vatReportingPeriod IS NULL AND je.date BETWEEN :startDate AND :endDate)',
+        { startDate, endDate },
+      );
+    }
+  }
+
+  /**
+   * VAT report computed from journal entries.
+   * Income from 40000 (vatable) / 40010 (non-vatable) credit; output VAT from
+   * 2400 (credit − debit, so credit notes reduce it); deductible input VAT from
+   * 2410 debit split by isEquipment (expenses vs assets).
+   */
+  async createVatReportFromJournal(
+    firebaseId: string,
+    businessNumber: string,
+    startDate: Date,
+    endDate: Date,
+    vatableTurnoverOverride?: number,
+  ): Promise<VatReportDto> {
+    const business = await this.businessRepo.findOne({ where: { businessNumber, firebaseId } });
+    if (!business) {
+      throw new BadRequestException('Business not found or not owned by user');
+    }
+
+    const periodLabels = this.sharedService.expandPeriodLabelsInRange(
+      business.businessType, business.vatReportingType, startDate, endDate,
+    );
+
+    const qb = this.JournalLineRepo.createQueryBuilder('jl')
+      .innerJoin(JournalEntry, 'je', 'je.id = jl.journalEntryId')
+      .where('je.issuerBusinessNumber = :businessNumber', { businessNumber })
+      .andWhere('je.firebaseId = :firebaseId', { firebaseId });
+    this.applyJournalPeriodFilter(qb, periodLabels, startDate, endDate);
+
+    const row = await qb
+      // credit − debit so credit invoices (which post a DEBIT on 40000/40010/2400)
+      // correctly REVERSE the income / output VAT instead of adding to it.
+      .select("SUM(CASE WHEN jl.accountCode = '40000' THEN jl.credit - jl.debit ELSE 0 END)", 'vatableTurnover')
+      .addSelect("SUM(CASE WHEN jl.accountCode = '40010' THEN jl.credit - jl.debit ELSE 0 END)", 'nonVatableTurnover')
+      .addSelect("SUM(CASE WHEN jl.accountCode = '2400' THEN jl.credit - jl.debit ELSE 0 END)", 'outputVat')
+      .addSelect("SUM(CASE WHEN jl.accountCode = '2410' AND jl.isEquipment = false THEN jl.debit ELSE 0 END)", 'vatRefundOnExpenses')
+      .addSelect("SUM(CASE WHEN jl.accountCode = '2410' AND jl.isEquipment = true THEN jl.debit ELSE 0 END)", 'vatRefundOnAssets')
+      .getRawOne<{
+        vatableTurnover: string; nonVatableTurnover: string; outputVat: string;
+        vatRefundOnExpenses: string; vatRefundOnAssets: string;
+      }>();
+
+    const vatableTurnover = Number(row?.vatableTurnover ?? 0);
+    const nonVatableTurnover = Number(row?.nonVatableTurnover ?? 0);
+    const outputVat = Number(row?.outputVat ?? 0);
+    const vatRefundOnExpenses = Number(row?.vatRefundOnExpenses ?? 0);
+    const vatRefundOnAssets = Number(row?.vatRefundOnAssets ?? 0);
+    const vatRate = this.sharedService.getVatRateByYear(startDate);
+
+    // vatableTurnover isn't always journaled (many businesses don't post
+    // sales through this app), so the on-screen report exposes it as an
+    // editable field. `vatableTurnoverOverride` mirrors that manual edit —
+    // same pattern as P&L's incomeOverride — so the exported PDF matches
+    // what the user is actually looking at instead of silently re-deriving
+    // (usually 0) from the journal. When overridden, output VAT is derived
+    // from the override × rate (the actual posted 2400 balance is 0 in
+    // exactly the same case), matching the frontend's local recompute.
+    const effectiveVatableTurnover = vatableTurnoverOverride ?? vatableTurnover;
+    const effectiveOutputVat = vatableTurnoverOverride != null
+      ? effectiveVatableTurnover * vatRate
+      : outputVat;
+    const vatPayment = effectiveOutputVat - vatRefundOnExpenses - vatRefundOnAssets;
+
+    return {
+      vatableTurnover: effectiveVatableTurnover,
+      nonVatableTurnover,
+      vatRefundOnAssets,
+      vatRefundOnExpenses,
+      vatPayment,
+      vatRate,
+    };
+  }
+
+  /**
+   * P&L report computed from journal entries.
+   * Income = accounts of type 'income' (credit − debit). Expenses = accounts
+   * of type 'expense', grouped by their accounting_section (D3 — the section
+   * REPLACES the dead pnlCategory string namespace). Equipment lines are
+   * excluded. Technical accounts (no section) drop out via the INNER join.
+   *
+   * @param osekZair       "עוסק זעיר" (small trader) mode — only meaningful when
+   *                       income is under the ITA's 120,000 ILS annual threshold.
+   *                       Replaces the real expense breakdown with a single flat
+   *                       30%-of-income deduction line, per the elective rule.
+   * @param incomeOverride When set, replaces the journal-computed income for
+   *                       this report — mirrors a manual edit made in the
+   *                       on-screen preview so the exported PDF matches it.
+   *                       Only the income figure is overridden; the real
+   *                       expense breakdown (or the osek-zair 30% line, which
+   *                       is itself derived from this override) is unaffected.
+   */
+  async createPnLReportFromJournal(
+    firebaseId: string,
+    businessNumber: string,
+    startDate: Date,
+    endDate: Date,
+    osekZair = false,
+    incomeOverride?: number,
   ): Promise<PnLReportDto> {
+    const business = await this.businessRepo.findOne({ where: { businessNumber, firebaseId } });
+    if (!business) {
+      throw new BadRequestException('Business not found or not owned by user');
+    }
 
-      const year = startDate.getFullYear();
+    const periodLabels = this.sharedService.expandPeriodLabelsInRange(
+      business.businessType, business.vatReportingType, startDate, endDate,
+    );
 
-      const business = await this.businessRepo.findOne({
-        where: { businessNumber, firebaseId }
-      });
+    // Owner charts visible to this business: SYSTEM + its own CLIENT chart +
+    // (Phase 5.1) the ACCOUNTANT chart of every ACTIVE delegation on the
+    // owner — accountant-created 70000-range cards roll up like any other.
+    // Scoping the join prevents cross-tenant fan-out when two CLIENT charts
+    // allocate the same code in their 80000 range.
+    const accountantIds = await this.catalogContextService.accountantIdsForUser(firebaseId);
+    const chartOwnerKeys = [
+      'SYSTEM',
+      `CLIENT_${businessNumber}`,
+      ...accountantIds.map((id) => `ACCOUNTANT_${id}`),
+    ];
 
-      if (!business) {
-        throw new BadRequestException("Business not found or not owned by user");
+    const qb = this.JournalLineRepo.createQueryBuilder('jl')
+      .innerJoin(JournalEntry, 'je', 'je.id = jl.journalEntryId')
+      .innerJoin(
+        BookingAccount, 'dba',
+        'dba.code = jl.accountCode AND dba.chartOwnerKey IN (:...chartOwnerKeys) AND dba.reportScope = :reportScope',
+        { chartOwnerKeys, reportScope: ExpenseReportScope.PNL },
+      )
+      // D3: group by accounting_section. Posting accounts always have one;
+      // technical accounts (1000/1100/2400/2410/90000-range) have
+      // sectionId NULL and drop out via this INNER join. reportScope=PNL
+      // above is a second, explicit guard (model change, 2026-07-14) — ANNUAL/
+      // TECHNICAL cards must never leak into P&L even if a sectionId were
+      // ever mistakenly set on one.
+      .innerJoin(AccountingSection, 'sec', 'sec.id = dba.sectionId')
+      .where('je.issuerBusinessNumber = :businessNumber', { businessNumber })
+      .andWhere('je.firebaseId = :firebaseId', { firebaseId })
+      .andWhere('jl.isEquipment = false');
+    this.applyJournalPeriodFilter(qb, periodLabels, startDate, endDate);
+
+    const rows = await qb
+      .select('dba.type', 'accountType')
+      .addSelect('sec.name', 'sectionName')
+      .addSelect('jl.debit', 'debit')
+      .addSelect('jl.credit', 'credit')
+      .addSelect('jl.amountForTax', 'amountForTax')
+      .getRawMany<{ accountType: string; sectionName: string; debit: string; credit: string; amountForTax: string }>();
+
+    let totalIncome = 0;
+    const expenseSumBySection: { [sectionName: string]: number } = {};
+
+    for (const r of rows) {
+      const debit = Number(r.debit) || 0;
+      const credit = Number(r.credit) || 0;
+      if (r.accountType === 'income') {
+        totalIncome += credit - debit;       // vatable (40000) and exempt (40010) income alike
+      } else if (r.accountType === 'expense') {
+        // Use amountForTax (= debit × taxPercent/100) so partial-deductibility
+        // expenses (vehicle 45%, mixed-use) show the correct P&L amount, not
+        // the gross debit.
+        expenseSumBySection[r.sectionName] = (expenseSumBySection[r.sectionName] ?? 0) + (Number(r.amountForTax) || 0);
       }
+    }
 
-      // Get total income
-      let totalIncome : number = 0;
-      totalIncome = await this.getIncomeBeforeVat(businessNumber, startDate, endDate);
+    const effectiveIncome = incomeOverride ?? totalIncome;
 
-      // סוף יום עבור endDate כדי לכלול את כל ההוצאות בתאריך האחרון
-      const endDateEndOfDay = new Date(Date.UTC(
-        endDate.getUTCFullYear(),
-        endDate.getUTCMonth(),
-        endDate.getUTCDate(),
-        23, 59, 59, 999
-      ));
-      const expenses = await this.expensesService.getExpensesByDates(firebaseId, businessNumber, startDate, endDateEndOfDay);
+    let expenseDtos: ExpensePnlDto[] = Object.entries(expenseSumBySection).map(
+      ([sectionName, total]) => ({ sectionName, total }),
+    );
 
-      // Subcategory → P&L-presentation-category map (resolved live, user wins).
-      const pnlCategoryMap = await this.expensesService.getPnlCategoryMap(firebaseId, businessNumber);
+    if (osekZair) {
+      const flatDeduction = Number((effectiveIncome * 0.3).toFixed(2));
+      expenseDtos = [{ sectionName: 'ניכוי 30% הוצאות לעוסק זעיר', total: flatDeduction }];
+    }
 
-      // Exclude equipment (→ depreciation) AND annual-report-only expenses
-      // (תרומות מוכרות / מקדמות) — they are not P&L operating expenses.
-      const nonEquipmentExpenses = expenses.filter(
-        expense => !expense.isEquipment && expense.reportScope !== ExpenseReportScope.ANNUAL,
-      );
+    let totalExpenses = 0;
+    for (const e of expenseDtos) totalExpenses += e.total;
+    const netProfitBeforeTax = effectiveIncome - totalExpenses;
 
-      // Initialize an object to hold the expense sums by P&L category
-      const expenseSumByCategory: { [category: string]: number } = {};
-
-      // Loop through each non-equipment expense – סכום לפי totalTaxPayable השמור בטבלת ההוצאות.
-      // P&L grouping precedence: per-expense override → subcategory map → bookkeeping category.
-      for (const expense of nonEquipmentExpenses) {
-          const category = String(
-            expense.pnlCategory ?? pnlCategoryMap.get(expense.subCategory) ?? expense.category,
-          );
-          if (!expenseSumByCategory[category]) {
-              expenseSumByCategory[category] = 0;
-          }
-          expenseSumByCategory[category] += Number(expense.totalTaxPayable ?? 0);
-      }
-
-        // Map the totals by category into an array of ExpenseDto
-      const expenseDtos: ExpensePnlDto[] = Object.entries(expenseSumByCategory).map(
-          ([category, total]) => ({
-              category,
-              total,
-          })
-      );
-
-      const depreciationExpenses = await this.createReductionReport(firebaseId, businessNumber, year);
-
-      if (depreciationExpenses?.length > 0) {
-        // Calculate the total of currentReduction from reductionExpenses using a for loop
-        let totalDepreciationExpenses = 0;
-        for (const expense of depreciationExpenses) {
-          if (expense.currentDepreciation) {
-            totalDepreciationExpenses += Number(expense.currentDepreciation); // Ensure conversion to a number
-          }
-        }
-      
-        // Add reduction expenses as "הוצאות פחת"
-        if (totalDepreciationExpenses > 0) {
-          expenseDtos.push({
-            category: "הוצאות פחת",
-            total: totalDepreciationExpenses,
-          });
-        }
-      }
-      
-      // Calculate the total expenses using a for loop
-      let totalExpenses = 0;
-      for (const expense of expenseDtos) {
-        totalExpenses += expense.total;
-      }
-
-      // Calculate net profit before tax
-      const netProfitBeforeTax = totalIncome - totalExpenses;
-
-      // Construct the final report
-      const report: PnLReportDto = {
-          income: Number(totalIncome.toFixed(2)),
-          expenses: expenseDtos,
-          netProfitBeforeTax:Number(netProfitBeforeTax.toFixed(2)),
-      };
-      
-      return report;
-      
+    return {
+      income: Number(effectiveIncome.toFixed(2)),
+      expenses: expenseDtos,
+      netProfitBeforeTax: Number(netProfitBeforeTax.toFixed(2)),
+    };
   }
 
 
+  /**
+   * כרטסת (ledger) report — per-account "cards", the professional accounting
+   * layout. Each account lists its movements with a running balance that RESETS
+   * per account, plus the counter-account(s) of each entry (GROUP_CONCAT of the
+   * other lines in the same journal entry) and per-account totals.
+   *
+   * @param accountCode  when provided, only that account is returned; otherwise
+   *                     all accounts that had movements in the range, ordered
+   *                     1000, 2400, 2410, 40000, 60000, then others alphabetically.
+   */
+  async createLedgerReport(
+    firebaseId: string,
+    businessNumber: string,
+    startDate: Date,
+    endDate: Date,
+    accountCode?: string | null,
+  ): Promise<LedgerReportDto> {
+
+    const business = await this.businessRepo.findOne({
+      where: { businessNumber, firebaseId },
+    });
+    if (!business) {
+      throw new BadRequestException('Business not found or not owned by user');
+    }
+    if (!startDate || !endDate) {
+      throw new BadRequestException('startDate and endDate are required');
+    }
+
+    // JournalEntry.date is a DATE-only column — compare on 'YYYY-MM-DD' strings
+    // (inclusive both ends) to sidestep any datetime/timezone coercion.
+    const startStr = startDate.toISOString().slice(0, 10);
+    const endStr = endDate.toISOString().slice(0, 10);
+    const code = accountCode && accountCode.trim() ? accountCode.trim() : null;
+
+    // One row per journal line. Counter-account comes directly from the entry
+    // header (je.counterAccountCode) — no GROUP_CONCAT / self-join needed.
+    const rawRows: any[] = await this.JournalLineRepo.query(
+      `
+      SELECT
+        jl.accountCode        AS accountCode,
+        je.entryNumber        AS entryNumber,
+        je.date               AS date,
+        je.valueDate          AS valueDate,
+        je.vatDate            AS vatDate,
+        je.vatReportingPeriod AS vatReportingPeriod,
+        je.notes              AS notes,
+        je.description        AS description,
+        je.referenceType      AS referenceType,
+        je.referenceId        AS referenceId,
+        je.id                 AS journalEntryId,
+        jl.debit              AS debit,
+        jl.credit             AS credit,
+        jl.amountBeforeVat    AS amountBeforeVat,
+        jl.vatAmount          AS vatAmount,
+        jl.taxPercent         AS taxPercent,
+        jl.vatPercent         AS vatPercent,
+        jl.amountForTax       AS amountForTax,
+        je.subCategory        AS subCategory,
+        jl.subCategoryName    AS subCategoryName,
+        (
+          SELECT jl2.accountCode
+          FROM journal_line jl2
+          WHERE jl2.journalEntryId = jl.journalEntryId
+            AND jl2.id != jl.id
+            AND (
+              (jl.debit  > 0 AND jl2.credit > 0)
+              OR (jl.credit > 0 AND jl2.debit  > 0)
+            )
+          ORDER BY jl2.lineInEntry
+          LIMIT 1
+        ) AS counterAccounts,
+        je.counterPartyName   AS counterPartyName,
+        je.documentTotal      AS documentTotal,
+        d.currency            AS docCurrency,
+        d.amountForeign       AS docAmountForeign,
+        d.sumAftDisWithVAT    AS docSumWithVat,
+        d.allocationNum       AS allocationNum
+      FROM journal_line jl
+      JOIN journal_entry je ON je.id = jl.journalEntryId
+      -- Document-sourced entries only: match the issued document by (business,
+      -- docType=referenceType, docNumber=referenceId). Expense/manual entries
+      -- never match (their referenceType isn't a docType) → currency defaults to ILS.
+      LEFT JOIN documents d
+        ON d.issuerBusinessNumber = je.issuerBusinessNumber
+        AND d.docType = je.referenceType
+        AND d.docNumber = je.referenceId
+      WHERE je.issuerBusinessNumber = ?
+        AND je.firebaseId = ?
+        AND je.date BETWEEN ? AND ?
+        AND jl.accountCode != '1000'
+        AND (? IS NULL OR jl.accountCode = ?)
+      ORDER BY jl.accountCode, je.date, je.id, jl.lineInEntry
+      `,
+      [businessNumber, firebaseId, startStr, endStr, code, code],
+    );
+
+    // Opening balance per account = signed sum of all that account's lines
+    // BEFORE the requested period. Direction (debit-/credit-normal) is applied
+    // below per account type. Used for "יתרה לתקופה" (periodBalance).
+    const openingRows: any[] = await this.JournalLineRepo.query(
+      `
+      SELECT jl.accountCode AS accountCode,
+             COALESCE(SUM(jl.debit), 0)  AS sumDebit,
+             COALESCE(SUM(jl.credit), 0) AS sumCredit
+      FROM journal_line jl
+      JOIN journal_entry je ON je.id = jl.journalEntryId
+      WHERE je.issuerBusinessNumber = ?
+        AND je.firebaseId = ?
+        AND je.date < ?
+        AND jl.accountCode != '1000'
+        AND (? IS NULL OR jl.accountCode = ?)
+      GROUP BY jl.accountCode
+      `,
+      [businessNumber, firebaseId, startStr, code, code],
+    );
+    const openingByCode = new Map<string, { sumDebit: number; sumCredit: number }>();
+    for (const o of openingRows) {
+      openingByCode.set(o.accountCode, {
+        sumDebit: Number(o.sumDebit ?? 0),
+        sumCredit: Number(o.sumCredit ?? 0),
+      });
+    }
+
+    // Account name + type lookup from the chart of accounts.
+    const chart = await this.defaultBookingAccountRepo.find();
+    const nameByCode = new Map(chart.map((a) => [a.code, a.name]));
+    const typeByCode = new Map(chart.map((a) => [a.code, a.type]));
+
+    // Group lines by account (input is already ordered within each account).
+    // Fix 2: skip zero-amount lines (debit = 0 AND credit = 0) — e.g. the VAT
+    // line (2400) on a no-VAT RECEIPT. This keeps כרטיס 2400 from appearing
+    // with empty amounts for עוסק פטור businesses (correct accounting behavior).
+    const byCode = new Map<string, any[]>();
+    for (const r of rawRows) {
+      const ac = r.accountCode ?? '';
+      if ((Number(r.debit) || 0) === 0 && (Number(r.credit) || 0) === 0) continue;
+      const bucket = byCode.get(ac);
+      if (bucket) bucket.push(r);
+      else byCode.set(ac, [r]);
+    }
+
+    const orderedCodes = [...byCode.keys()].sort((a, b) =>
+      this.compareLedgerAccountCodes(a, b),
+    );
+
+    const accounts: LedgerAccountDto[] = orderedCodes.map((ac) => {
+      const rows = byCode.get(ac) as any[];
+      // Fix 1: balance direction follows the account's natural side.
+      //   asset / expense   → debit-normal  → balance += (debit - credit)
+      //   income / liability/equity → credit-normal → balance += (credit - debit)
+      const type = typeByCode.get(ac);
+      const debitNormal = type === 'asset' || type === 'expense';
+
+      // Opening balance (before the period), signed by the account's direction.
+      const open = openingByCode.get(ac);
+      const opening = open
+        ? Number(
+            (debitNormal
+              ? open.sumDebit - open.sumCredit
+              : open.sumCredit - open.sumDebit
+            ).toFixed(2),
+          )
+        : 0;
+
+      let running = 0;
+      let totalDebit = 0;
+      let totalCredit = 0;
+      const lines: LedgerLineDto[] = rows.map((r) => {
+        const debit = Number(r.debit ?? 0);
+        const credit = Number(r.credit ?? 0);
+        const delta = debitNormal ? debit - credit : credit - debit;
+        running = Number((running + delta).toFixed(2)); // resets per account (within period)
+        totalDebit = Number((totalDebit + debit).toFixed(2));
+        totalCredit = Number((totalCredit + credit).toFixed(2));
+        // Currency / exchange rate from the source document (when document-sourced).
+        // Foreign docs carry amountForeign + sumAftDisWithVAT (ILS); rate = ILS/foreign.
+        const amountForeign = Number(r.docAmountForeign ?? 0);
+        const docSumWithVat = Number(r.docSumWithVat ?? 0);
+        const exchangeRate = amountForeign > 0
+          ? Number((docSumWithVat / amountForeign).toFixed(4))
+          : 1;
+        return {
+          entryNumber: r.entryNumber != null ? Number(r.entryNumber) : 0,
+          date: this.formatLedgerDate(r.date),
+          valueDate: this.formatLedgerDate(r.valueDate),
+          vatDate: this.formatLedgerDate(r.vatDate),
+          vatReportingPeriod: r.vatReportingPeriod ?? '',
+          allocationNum: r.allocationNum ?? '',
+          notes: r.notes ?? '',
+          referenceType: r.referenceType ?? '',
+          referenceId: r.referenceId != null ? Number(r.referenceId) : 0,
+          journalEntryId: Number(r.journalEntryId),
+          description: this.buildLineDescription(
+            ac,
+            typeByCode.get(ac) ?? null,
+            r.referenceType ?? null,
+            r.subCategoryName ?? null,
+            r.description ?? null,
+          ),
+          counterAccounts: r.counterAccounts != null
+            ? `${nameByCode.get(r.counterAccounts) ?? r.counterAccounts} - ${r.counterAccounts}`
+            : null,
+          counterPartyName: r.counterPartyName ?? null,
+          subCategoryName: r.subCategoryName ?? null,
+          movementType: LEDGER_MOVEMENT_LABELS[r.referenceType] ?? (debit > 0 ? 'חובה' : 'זכות'),
+          debit,
+          credit,
+          totalAmount: Math.max(debit, credit),
+          currency: r.docCurrency ?? 'ILS',
+          exchangeRate,
+          amountBeforeVat: Number(r.amountBeforeVat ?? 0),
+          amountForTax: Number(r.amountForTax ?? 0),
+          vatAmount: Number(r.vatAmount ?? 0),
+          taxPercent: Number(r.taxPercent ?? 100),
+          vatPercent: Number(r.vatPercent ?? 100),
+          documentTotal: r.documentTotal != null ? Number(r.documentTotal) : null,
+          balance: running,
+          periodBalance: Number((opening + running).toFixed(2)),
+        };
+      });
+      const closingBalance = debitNormal
+        ? Number((totalDebit - totalCredit).toFixed(2))
+        : Number((totalCredit - totalDebit).toFixed(2));
+      return {
+        accountCode: ac,
+        accountName: nameByCode.get(ac) ?? '',
+        lines,
+        totalDebit,
+        totalCredit,
+        closingBalance,
+        openingBalance: opening,
+        lineCount: lines.length,
+      };
+    });
+
+    return { accounts };
+  }
+
+  /**
+   * Returns all lines of a single journal entry, enriched with account names.
+   * Scoped to firebaseId + businessNumber so a user can't read another user's data.
+   */
+  async getJournalEntryDetail(
+    firebaseId: string,
+    businessNumber: string,
+    entryId: number,
+  ): Promise<{
+    entryNumber: number; date: string; valueDate: string; vatDate: string;
+    referenceId: number; referenceType: string; description: string;
+    counterPartyName: string | null;
+    lines: { accountCode: string; accountName: string; debit: number; credit: number; description: string }[];
+    totalDebit: number; totalCredit: number; isBalanced: boolean;
+  }> {
+    const entry = await this.JournalEntryRepo.findOne({
+      where: { id: entryId, issuerBusinessNumber: businessNumber, firebaseId },
+    });
+    if (!entry) throw new NotFoundException(`Journal entry ${entryId} not found`);
+
+    const rawLines = await this.JournalLineRepo.find({
+      where: { journalEntryId: entryId },
+      order: { lineInEntry: 'ASC' },
+    });
+
+    const chart = await this.defaultBookingAccountRepo.find();
+    const nameByCode = new Map(chart.map((a) => [a.code, a.name]));
+    const typeByCode = new Map(chart.map((a) => [a.code, a.type]));
+
+    const lines = rawLines.map((l) => ({
+      accountCode: l.accountCode,
+      accountName: nameByCode.get(l.accountCode) ?? l.accountCode,
+      debit: Number(l.debit) || 0,
+      credit: Number(l.credit) || 0,
+      description: this.buildLineDescription(
+        l.accountCode,
+        typeByCode.get(l.accountCode) ?? null,
+        entry.referenceType ? String(entry.referenceType) : null,
+        l.subCategoryName ?? null,
+        entry.description ?? null,
+      ),
+    }));
+
+    const totalDebit = Number(lines.reduce((s, l) => s + l.debit, 0).toFixed(2));
+    const totalCredit = Number(lines.reduce((s, l) => s + l.credit, 0).toFixed(2));
+
+    return {
+      entryNumber: entry.entryNumber ?? 0,
+      date: entry.date ?? '',
+      valueDate: entry.valueDate ?? '',
+      vatDate: entry.vatDate ?? '',
+      referenceId: entry.referenceId ?? 0,
+      referenceType: entry.referenceType ?? '',
+      description: entry.description ?? '',
+      counterPartyName: entry.counterPartyName ?? null,
+      lines,
+      totalDebit,
+      totalCredit,
+      isBalanced: Math.abs(totalDebit - totalCredit) < 0.01,
+    };
+  }
+
+  /** Full chart of accounts for the ledger FILTER dropdown, in display order.
+   *  Includes technical accounts (2400/2410 VAT, 1000) so the ledger can be
+   *  filtered to any account that may carry movements. Phase 6.4: scoped to
+   *  the charts visible to the business (SYSTEM + its CLIENT chart + its
+   *  agents' ACCOUNTANT charts) — an unscoped read leaked every tenant's
+   *  custom card names into everyone's dropdown. Unlike the posting
+   *  dropdown, inactive accounts stay listed: they may still carry history
+   *  the user needs to filter to. */
+  async getLedgerAccounts(
+    businessNumber?: string | null,
+    firebaseId?: string | null,
+  ): Promise<{ code: string; name: string; type: string }[]> {
+    await this.catalogContextService.assertBusinessAccess(firebaseId, businessNumber);
+    const accountantIds = firebaseId
+      ? await this.catalogContextService.accountantIdsForUser(firebaseId)
+      : [];
+    const chartOwnerKeys = [
+      'SYSTEM',
+      ...(businessNumber ? [`CLIENT_${businessNumber}`] : []),
+      ...accountantIds.map((id) => `ACCOUNTANT_${id}`),
+    ];
+    const chart = await this.defaultBookingAccountRepo.find({
+      where: { chartOwnerKey: In(chartOwnerKeys) },
+    });
+    return chart
+      .sort((a, b) => this.compareLedgerAccountCodes(a.code, b.code))
+      .map((a) => ({ code: a.code, name: a.name, type: a.type }));
+  }
+
+  /** Posting accounts for the MANUAL JOURNAL ENTRY dropdown, grouped by
+   *  accounting section (Phase 4.5 — the frontend renders sections as option
+   *  groups). Scoped to the charts visible to the business (SYSTEM + its own
+   *  CLIENT chart; the ACCOUNTANT chart joins in Phase 5.1) so one tenant's
+   *  custom accounts are never offered to another. Only accounts under a
+   *  section (income/expense — every posting account, parent or sub-ledger
+   *  child, has one) are returned; technical accounts (1000 A/R-contra,
+   *  2400/2410 VAT, 90000-range — sectionId NULL) are excluded so they can't
+   *  be chosen for a manual journal line. */
+  async getLedgerEntryAccounts(
+    businessNumber?: string | null,
+    /** Effective user (the client when impersonating) — 5.1: their ACTIVE
+     *  delegations' ACCOUNTANT charts join the dropdown, so accountant-created
+     *  cards (incl. D11 technical cards) are postable in manual entries. */
+    firebaseId?: string | null,
+  ): Promise<{ code: string; name: string; type: string; sectionCode: string | null; sectionName: string | null }[]> {
+    await this.catalogContextService.assertBusinessAccess(firebaseId, businessNumber);
+    const accountantIds = firebaseId
+      ? await this.catalogContextService.accountantIdsForUser(firebaseId)
+      : [];
+    const chartOwnerKeys = [
+      'SYSTEM',
+      ...(businessNumber ? [`CLIENT_${businessNumber}`] : []),
+      ...accountantIds.map((id) => `ACCOUNTANT_${id}`),
+    ];
+    const chart = await this.defaultBookingAccountRepo.find({
+      where: { chartOwnerKey: In(chartOwnerKeys), isActive: true },
+      relations: ['section'],
+    });
+    return chart
+      .filter((a) => !!a.sectionId)
+      .sort((a, b) => {
+        // Sections in their display order (nulls last), then accounts in the
+        // canonical ledger order within each section.
+        const soA = a.section?.displayOrder ?? Number.MAX_SAFE_INTEGER;
+        const soB = b.section?.displayOrder ?? Number.MAX_SAFE_INTEGER;
+        if (soA !== soB) return soA - soB;
+        const scA = a.section?.code ?? '';
+        const scB = b.section?.code ?? '';
+        if (scA !== scB) return scA.localeCompare(scB);
+        return this.compareLedgerAccountCodes(a.code, b.code);
+      })
+      .map((a) => ({
+        code: a.code,
+        name: a.name,
+        type: a.type,
+        sectionCode: a.section?.code ?? null,
+        sectionName: a.section?.name ?? null,
+      }));
+  }
+
+  /** Ledger account display order — all 25 accounts in the chart.
+   *  Transfer/A/R/A/P accounts (1100–2100) are reserved for double-entry
+   *  mode; in single-entry mode no lines are posted there so they never
+   *  appear, but they are listed here so the ordering is stable if they do. */
+  private compareLedgerAccountCodes(a: string, b: string): number {
+    const order = [
+      // מע"מ — ראשון (עסקאות ותשומות)
+      '2400', '2410',
+      // הכנסות (legacy 4000/4010)
+      '40000', '40010',
+      // בנק וחשבונות מאזן
+      '1100', '1110', '1120',
+      // לקוחות כלליים
+      '1200',
+      // ספקים כלליים
+      '2000', '2100',
+      // technical
+      '1000',
+      // הוצאות (legacy 5000-6300, per chart.seed.ts ACCOUNT_CODE_MIGRATION)
+      '60000', '60100', '60200', '60300', '60400', '60500', '60600',
+      '60700', '60800', '60900', '61000', '61100', '61200', '61300',
+    ];
+    const ia = order.indexOf(a);
+    const ib = order.indexOf(b);
+    if (ia !== -1 && ib !== -1) return ia - ib;
+    if (ia !== -1) return -1;
+    if (ib !== -1) return 1;
+    return a.localeCompare(b);
+  }
+
+  /** Normalize a DATE column value (driver may yield Date or string) to 'YYYY-MM-DD'. */
+  private formatLedgerDate(value: unknown): string {
+    if (value instanceof Date) return value.toISOString().slice(0, 10);
+    return String(value ?? '').slice(0, 10);
+  }
+
+  /**
+   * Compute the Hebrew "פירוט" (detail) text for a ledger line.
+   *
+   * Phase 4.4 (D7): expense-account lines read the STORED
+   * journal_entry.description (frozen at approval from the expense's
+   * description — written live since Phase 4.1, backfilled in Phase 3)
+   * instead of rebuilding text from jl.subCategoryName per report.
+   * subCategoryName remains the fallback for rows that predate the
+   * description backfill; technical/income/bank lines keep their computed
+   * labels (their entry description describes the EXPENSE side, not them).
+   */
+  private buildLineDescription(
+    accountCode: string,
+    accountType: string | null,
+    referenceType: string | null,
+    subCategoryName: string | null,
+    entryDescription: string | null,
+  ): string {
+    // 1. Expense account lines → the frozen entry description (D7), falling
+    //    back to the legacy sub-category name snapshot.
+    if (accountType === 'expense') {
+      const stored = entryDescription?.trim();
+      if (stored) return stored;
+      if (subCategoryName) return subCategoryName;
+    } else if (subCategoryName) {
+      // Non-expense line that still carries a name snapshot (not produced by
+      // any current writer, but preserved as the pre-4.4 behavior).
+      return subCategoryName;
+    }
+
+    const ref = referenceType ?? '';
+
+    // 2. Input VAT line
+    if (accountCode === '2410') return 'מע"מ תשומות בגין הוצאה';
+
+    // 3. Output VAT line
+    if (accountCode === '2400') {
+      if (ref === 'CREDIT_INVOICE') return 'מע"מ עסקאות - חשבונית זיכוי';
+      return 'מע"מ עסקאות בגין הכנסה';
+    }
+
+    // 4. Income accounts
+    if (accountCode === '40000') {
+      if (ref === 'TAX_INVOICE')         return 'חשבונית מס';
+      if (ref === 'TAX_INVOICE_RECEIPT') return 'חשבונית מס קבלה';
+      if (ref === 'CREDIT_INVOICE')      return 'חשבונית זיכוי';
+      if (ref === 'RECEIPT')             return 'קבלה';
+      return 'הכנסה';
+    }
+    if (accountCode === '40010') return 'הכנסה פטורה';
+
+    // 5. Bank
+    if (accountCode === '1100') {
+      if (ref === 'EXPENSE')             return 'תשלום לספק';
+      if (ref === 'TAX_INVOICE_RECEIPT') return 'קבלה מלקוח';
+      if (ref === 'RECEIPT')             return 'קבלה מלקוח';
+      if (ref === 'CREDIT_INVOICE')      return 'החזר ללקוח';
+      if (ref === 'TAX_INVOICE')         return 'תשלום מלקוח';
+      return 'תנועה בנקאית';
+    }
+
+    // 6. Customers A/R
+    if (accountCode === '1200') {
+      if (ref === 'CREDIT_INVOICE')      return 'זיכוי ללקוח';
+      if (ref === 'RECEIPT')             return 'סגירת חוב לקוח';
+      return 'חיוב לקוח';
+    }
+
+    // 7. Suppliers A/P
+    if (accountCode === '2000') return 'חוב לספק';
+
+    // 8. Fallback to Hebrew movement label
+    return LEDGER_MOVEMENT_LABELS[ref] ?? 'תנועה';
+  }
 
   private async getVatIncomeFromDocuments(
     businessNumber: string,
@@ -596,8 +1188,8 @@ export class ReportsService {
       .andWhere('doc.isCancelled = false');
 
     // 3️⃣ Logic by type
-    if (businessType === BusinessType.EXEMPT) {
-      // 🟢 Exempt (עוסק פטור)
+    if (isExemptBusinessType(businessType)) {
+      // 🟢 Exempt (עוסק פטור / שותפות פטורה)
       // Income is based on RECEIPTs (sumAftDisBefVAT)
       const result = await baseQb
         .andWhere('doc.docType = :type', { type: 'RECEIPT' })
@@ -643,130 +1235,96 @@ export class ReportsService {
   }
         
 
-  async createReductionReport(firebaseId: string, businessNumber: string, year: number): Promise<DepreciationReportDto[]> {
 
-      const equipmentExpenses = await this.expensesService.getExpensesForReductionReport(firebaseId, businessNumber, year);
-      return this.calculateReductionsForExpenses(equipmentExpenses, year)
+  /**
+   * Form 1342 — equipment depreciation report for a single tax year.
+   * Filters expenses by `isEquipment = true` for the requested business
+   * and includes everything purchased on or before the selected tax year.
+   */
+  async createForm1342Report(
+    firebaseId: string,
+    businessNumber: string,
+    year: number,
+  ): Promise<Form1342ReportDto> {
 
-  }
+    const yearEnd = new Date(year, 11, 31, 23, 59, 59, 999);
 
-    
-  calculateReductionsForExpenses(
-      expenses: Expense[],
-      requiredYear: number
-    ): DepreciationReportDto[] {
+    const equipmentExpenses = await this.expenseRepo.find({
+      where: {
+        userId: firebaseId,
+        businessNumber,
+        isEquipmentSnapshot: true,
+      },
+      order: { date: 'ASC' },
+    });
 
-      // Use map to transform each expense into a ReductionReportDto
-      return expenses.map((expense) => {
-        const { supplier: name, date, sum, reductionPercent } = expense;
-        let pastDepreciation = 0;
-        let currentDepreciation = 0;
-        let fixedReductionPercent;
-        const validDate = typeof date === 'string' ? new Date(date) : date;
+    const rows: Form1342ReportRowDto[] = [];
 
-        // In case the reductionPercent from the user is not arrived accuratelly (for example 33 instead of 33.33), fix it to get accurate results. 
-        if (reductionPercent === 33) {
-          fixedReductionPercent = (100/3);
-        } else {
-          fixedReductionPercent = reductionPercent;
-        }
-    
-        // Calculate total reduction years for the expense
-        const totalReductionYears = this.calculateReductionYears(fixedReductionPercent, validDate);
-        const firstYear = validDate.getFullYear();
-        const lastYear = firstYear + totalReductionYears - 1;
-    
-        // Iterate through the years from the purchase year to the required year
-        for (let year = firstYear; year <= requiredYear; year++) {
-          const yearFraction = this.calculateYearlyReductionFraction(year, validDate, fixedReductionPercent, totalReductionYears);            
-          const yearReduction = Math.round((yearFraction / 100) * sum);
-    
-          if (year < requiredYear) {
-            // Accumulate reduction for past years
-            pastDepreciation += yearReduction;
-          } else if (year === requiredYear) {
-            if (year === lastYear) {
-              currentDepreciation = sum - pastDepreciation;
-            } else {
-              // Add reduction for the required year
-              currentDepreciation = yearReduction;
-            }
-          }
-        }
-    
-        // Create and return a DTO matching ReductionReportDto
-        return {
-          name,
-          date: validDate,
-          depreciationPercent: reductionPercent.toFixed(2), // Convert reduction percent to string
-          currentDepreciation: Math.min(currentDepreciation, sum - pastDepreciation), // Prevent over-reduction
-          pastDepreciation: Math.min(pastDepreciation, sum), // Ensure reduction doesn't exceed the total sum
+    for (const expense of equipmentExpenses) {
+      // typeorm returns 'date' columns as Date OR string depending on driver
+      const purchaseDate = expense.date instanceof Date
+        ? expense.date
+        : new Date(expense.date);
 
-        } as DepreciationReportDto; // Explicitly cast to ReductionReportDto
+      // Exclude assets purchased after the selected tax year
+      if (purchaseDate > yearEnd) continue;
+
+      const purchaseYear = purchaseDate.getFullYear();
+      const originalCost = Number(expense.sum) || 0;
+      const depreciationRate = Number(expense.reductionPercentSnapshot) || 0;
+      const annualDepreciation = +(originalCost * (depreciationRate / 100)).toFixed(2);
+
+      // Number of full years that have already passed before the selected year.
+      // Asset purchased in 2022, selected year 2024 → prior years = 2 (2022, 2023).
+      const fullPriorYears = Math.max(0, year - purchaseYear);
+
+      // Cap accumulated prior-year depreciation at the original cost — an asset
+      // can never depreciate more than it cost.
+      const rawPrior = +(fullPriorYears * annualDepreciation).toFixed(2);
+      const priorYearsDepreciation = Math.min(rawPrior, originalCost);
+
+      // Current-year depreciation: full annual amount, but capped at the
+      // remaining un-depreciated balance so total never exceeds original cost.
+      const remainingBeforeCurrent = +(originalCost - priorYearsDepreciation).toFixed(2);
+      const currentYearDepreciation = Math.min(annualDepreciation, remainingBeforeCurrent);
+
+      const totalDepreciation = +(priorYearsDepreciation + currentYearDepreciation).toFixed(2);
+      const remainingBalance = +(originalCost - totalDepreciation).toFixed(2);
+
+      const purchaseIso = purchaseDate.toISOString().slice(0, 10);
+
+      rows.push({
+        assetName: expense.supplier ?? '',
+        purchaseDate: purchaseIso,
+        activationDate: purchaseIso,
+        originalCost,
+        changesDuringYear: 0,
+        depreciationRate,
+        depreciationRatePerLaw: depreciationRate,
+        currentYearDepreciation,
+        priorYearsDepreciation,
+        totalDepreciation,
+        remainingBalance,
       });
-  }
-    
-    
-  calculateReductionYears(reductionPercent: number, date: Date): number {
-    
-    const purchaseMonth = date.getMonth() + 1; 
-    const isPartialYear = purchaseMonth > 1 || date.getDate() > 1;
-  
-    const fullYears = Math.round(100 / reductionPercent);
-    const totalYears = fullYears + (isPartialYear ? 1 : 0);
-  
-    return totalYears;
-  }
-
-
-  calculateYearlyReductionFraction(
-      year: number,
-      date: Date,
-      reductionPercent: number,
-      totalReductionYears: number
-    ): number {
-
-      let result: number = 0;
-      const purchaseYear = date.getFullYear();
-    
-      // If the given year is before the purchase year or after the total reduction period
-      if (year < purchaseYear || year > purchaseYear + totalReductionYears - 1) {
-        result = 0;
-      }
-    
-      const isLeap = this.isLeapYear(year);
-      const daysInYear = isLeap ? 366 : 365;
-    
-      // First year: calculate partial reduction based on days remaining in the year
-      if (year === purchaseYear) {
-          const daysRemaining =
-          Math.ceil(
-            (new Date(purchaseYear, 11, 31).getTime() - date.getTime()) /
-              (1000 * 60 * 60 * 24)
-          ) + 1; // Days from the purchase date to the end of the year, including the purchase day
-          result = (reductionPercent * daysRemaining) / daysInYear;
-      // Last year: calculate partial reduction based on days used in that year
-      } else if (year === purchaseYear + totalReductionYears - 1) {
-          const firstDayOfYear = new Date(year, 0, 1); // January 1st of the last reduction year
-          const daysUsed =
-          Math.ceil(
-            (new Date(year, 11, 31).getTime() - firstDayOfYear.getTime()) /
-              (1000 * 60 * 60 * 24)
-          ) + 1; // Total days of the year that apply for reduction
-          return (reductionPercent * daysUsed) / daysInYear;
-      // Full years: apply the full reduction percentage
-      } else {
-        result = reductionPercent;
-      }
-      
-      return result;
     }
-    
-    // Helper function to determine if a year is a leap year
-    isLeapYear(year: number): boolean {
-      return (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
-    }
-    
+
+    const totalOriginalCost = +rows.reduce((s, r) => s + r.originalCost, 0).toFixed(2);
+    const totalCurrentYearDepreciation = +rows.reduce((s, r) => s + r.currentYearDepreciation, 0).toFixed(2);
+    const totalPriorYearsDepreciation = +rows.reduce((s, r) => s + r.priorYearsDepreciation, 0).toFixed(2);
+    const totalDepreciation = +rows.reduce((s, r) => s + r.totalDepreciation, 0).toFixed(2);
+    const totalRemainingBalance = +rows.reduce((s, r) => s + r.remainingBalance, 0).toFixed(2);
+
+    return {
+      year,
+      rows,
+      totalOriginalCost,
+      totalCurrentYearDepreciation,
+      totalPriorYearsDepreciation,
+      totalDepreciation,
+      totalRemainingBalance,
+    };
+  }
+
 
     async createUniformFile(userId: string, startDate: string, endDate: string, businessNumber: string): Promise<{ filePath: string; zipBuffer: Buffer; document_summary: DocumentSummaryRow[]; list_summary: ListSummaryRow[] }> {
 

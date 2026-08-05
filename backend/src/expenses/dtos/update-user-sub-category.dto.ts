@@ -1,5 +1,5 @@
 import { IsBoolean, IsEnum, IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
-import { ExpenseNecessity, ExpenseReportScope } from 'src/enum';
+import { ExpenseNecessity } from 'src/enum';
 
 /**
  * Body for PATCH /expenses/user-sub-category/:id. Only the parameters that
@@ -17,7 +17,6 @@ export class UpdateUserSubCategoryDto {
 
   @IsOptional() @IsEnum(ExpenseNecessity) necessity?: ExpenseNecessity;
 
-  @IsOptional() @IsEnum(ExpenseReportScope) reportScope?: ExpenseReportScope;
   /** P&L presentation category override; null clears it back to bookkeeping category. */
   @IsOptional() @IsString() pnlCategory?: string | null;
 }

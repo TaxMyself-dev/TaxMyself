@@ -1,0 +1,32 @@
+<div class="pending-receipts">
+
+  <div class="table-header-row">
+    <app-p-button
+      [icon]="'pi pi-refresh'"
+      [buttonText]="'רענון'"
+      [buttonSize]="buttonSize.SMALL"
+      [isLoading]="isLoading()"
+      (onButtonClicked)="loadFailures()">
+    </app-p-button>
+    <p class="table-title">קבלות חסרות</p>
+  </div>
+
+  @if (!isLoading() && failures().length === 0) {
+    <p class="empty-state">אין תשלומים עם קבלה חסרה כרגע.</p>
+  }
+
+  <app-generic-table
+    [title]="''"
+    [columnsTitle]="columnsTitle"
+    [dataTable]="tableRows()"
+    [rowActions]="rowActions"
+    [isLoadingState]="isLoading()"
+    [placeholderSearch]="'חיפוש לפי שם משתמש'"
+    columnSearch="userName"
+    tableHeight="520px">
+  </app-generic-table>
+
+</div>
+
+<!-- p-toast (key="br") is provided globally in app.component.html -->
+<p-confirmDialog></p-confirmDialog>

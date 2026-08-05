@@ -5,7 +5,7 @@ import { InputSelectComponent } from "../input-select/input-select.component";
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, FormControl } from '@angular/forms';
 import { IRowDataTable, ISelectItem } from 'src/app/shared/interface';
 import { inputsSize } from 'src/app/shared/enums';
-import { ButtonSize } from '../button/button.enum';
+import { ButtonColor, ButtonSize } from '../button/button.enum';
 import { vi } from 'date-fns/locale';
 import { catchError, EMPTY, finalize } from 'rxjs';
 import { TransactionsService } from 'src/app/pages/transactions/transactions.page.service';
@@ -32,6 +32,7 @@ export class AccountAssociationDialogComponent implements OnInit {
   isLoading: WritableSignal<boolean> = signal(false);
 
   buttonSize = ButtonSize;
+  buttonColor = ButtonColor;
   inputsSize = inputsSize;
 
   myForm: FormGroup;

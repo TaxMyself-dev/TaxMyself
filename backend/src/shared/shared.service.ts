@@ -7,11 +7,13 @@ import { parse, format, getDayOfYear } from 'date-fns';
 import { Expense } from '../expenses/expenses.entity';
 // TODO_FINTAX_REMOVE_LEGACY_TRANSACTIONS: Transactions is injected into SharedService solely to power the generic getRepository() helper. Remove the import, the @InjectRepository injection, and the Transactions case in getRepository() when the legacy table is dropped.
 import { Transactions } from '../transactions/transactions.entity';
-import { VATReportingType, SingleMonthReport, DualMonthReport, VAT_RATES, BusinessType, ReportPeriodLabel } from 'src/enum';
+import { VATReportingType, SingleMonthReport, DualMonthReport, VAT_RATES, BusinessType, ReportPeriodLabel, isExemptBusinessType, UserRole } from 'src/enum';
 import * as annualParams from 'src/annual.params.json';
 import { SettingDocuments } from '../documents/settingDocuments.entity';
 import { DocumentType } from 'src/enum';
 import { EntityManager } from 'typeorm';
+import { Delegation, DelegationStatus } from '../delegation/delegation.entity';
+import { User } from '../users/user.entity';
 
 
 @Injectable()
@@ -24,7 +26,24 @@ export class SharedService {
         private readonly transactionRepository: Repository<Transactions>,
         @InjectRepository(SettingDocuments)
         private readonly settingDocumentsRepo: Repository<SettingDocuments>,
+        @InjectRepository(Delegation)
+        private readonly delegationRepository: Repository<Delegation>,
+        @InjectRepository(User)
+        private readonly userRepository: Repository<User>,
     ) { }
+
+    /**
+     * True only when the client has an ACTIVE delegation AND the delegate
+     * actually holds the ACCOUNTANT role — not just "has any delegation".
+     */
+    async isRepresentedByAccountant(clientFirebaseId: string): Promise<boolean> {
+        const delegation = await this.delegationRepository.findOne({
+            where: { userId: clientFirebaseId, status: DelegationStatus.ACTIVE },
+        });
+        if (!delegation) return false;
+        const agent = await this.userRepository.findOne({ where: { firebaseId: delegation.agentId } });
+        return agent?.role?.includes(UserRole.ACCOUNTANT) ?? false;
+    }
 
 
     async findEntities<T>(entity: EntityTarget<T>, conditions: any): Promise<T[]> {
@@ -161,7 +180,7 @@ export class SharedService {
         vatReportingType: VATReportingType,
         date: Date,
     ): ReportPeriodLabel {
-        if (businessType === BusinessType.EXEMPT) {
+        if (isExemptBusinessType(businessType)) {
             return `${date.getMonth() + 1}/${date.getFullYear()}`;
         }
         const vatLabel = this.getVATReportingDate(date, vatReportingType);
@@ -215,7 +234,7 @@ export class SharedService {
         const labels: ReportPeriodLabel[] = [];
         const stepDays: Record<string, number> = {};
         const isBimonthly =
-            businessType !== BusinessType.EXEMPT &&
+            !isExemptBusinessType(businessType) &&
             vatReportingType === VATReportingType.DUAL_MONTH_REPORT;
         const monthsPerStep = isBimonthly ? 2 : 1;
 
@@ -328,21 +347,23 @@ export class SharedService {
     }
 
 
-    async getJournalEntryCurrentIndex(userId: string, manager?: EntityManager): Promise<number> {
+    async getJournalEntryCurrentIndex(firebaseId: string, issuerBusinessNumber: string, manager?: EntityManager): Promise<number> {
         const repo = manager
             ? manager.getRepository(SettingDocuments)
             : this.settingDocumentsRepo;
 
         let setting = await repo.findOne({
             where: {
-                userId,
+                userId: firebaseId,
+                issuerBusinessNumber,
                 docType: DocumentType.JOURNAL_ENTRY,
             },
         });
 
         if (!setting) {
             setting = repo.create({
-                userId,
+                userId: firebaseId,
+                issuerBusinessNumber,
                 docType: DocumentType.JOURNAL_ENTRY,
                 initialIndex: 10000000,
                 currentIndex: 10000000,
@@ -355,6 +376,7 @@ export class SharedService {
     }
 
 
+    // TODO: dead code, superseded by incrementJournalEntryIndex below — confirm before deleting
     // async incrementJournalEntryIndex(userId: string): Promise<void> {
     //     const setting = await this.settingDocumentsRepo.findOneOrFail({
     //       where: {
@@ -368,14 +390,15 @@ export class SharedService {
     // }
 
 
-    async incrementJournalEntryIndex(userId: string, manager?: EntityManager): Promise<void> {
+    async incrementJournalEntryIndex(firebaseId: string, issuerBusinessNumber: string, manager?: EntityManager): Promise<void> {
         const repo = manager
             ? manager.getRepository(SettingDocuments)
             : this.settingDocumentsRepo;
 
         const setting = await repo.findOneOrFail({
             where: {
-                userId,
+                userId: firebaseId,
+                issuerBusinessNumber,
                 docType: DocumentType.JOURNAL_ENTRY,
             },
         });

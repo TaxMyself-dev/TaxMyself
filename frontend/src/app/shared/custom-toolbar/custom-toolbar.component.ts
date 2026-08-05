@@ -109,7 +109,7 @@ export class CustomToolbarComponent implements OnInit {
   loadUserData(): void {
 
     this.loggedInUserData = this.authService.getUserDataFromLocalStorage();
-    this.loggedInUserName = this.loggedInUserData.fName + " " + this.loggedInUserData.lName;     
+    this.loggedInUserName = [this.loggedInUserData.fName, this.loggedInUserData.lName].filter(Boolean).join(' ');
     const clientId = this.clientService.getSelectedClientId();
 
     if (clientId) {

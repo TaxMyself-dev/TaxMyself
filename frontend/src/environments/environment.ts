@@ -5,6 +5,7 @@
 
 export const environment = {
   production: false,
+  enableDevTools: true,
   apiUrl: 'http://localhost:3000/',
   firebase: {
     apiKey: "AIzaSyClSnN3fRAb9aQVt2kMEkLygsNExwQD7fo",
@@ -16,3 +17,4 @@ export const environment = {
     measurementId: "G-K8B1TC0DKB"
   },
 };
+// apiUrl: 'http://192.168.1.106:3000/',

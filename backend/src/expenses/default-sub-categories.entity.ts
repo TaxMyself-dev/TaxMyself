@@ -1,6 +1,12 @@
 import { ExpenseNecessity, ExpenseReportScope } from 'src/enum';
 import { Entity, PrimaryGeneratedColumn, Column} from 'typeorm';
 
+/**
+ * FROZEN legacy table (categories redesign): read-only since Phase 2.5,
+ * fully UNREFERENCED at runtime since Phase 4.6 — registered only in
+ * AppModule's forRoot entities list so the table stays schema-managed for
+ * rollback. Dropped in Phase 7. Replaced by bookkeeping/sub-category.entity.ts.
+ */
 @Entity()
 export class DefaultSubCategory {
 
@@ -13,13 +19,13 @@ export class DefaultSubCategory {
   @Column()
   categoryName: string;
 
-  @Column('decimal')
+  @Column('decimal', { precision: 5, scale: 2 })
   taxPercent: number;
 
-  @Column('decimal')
+  @Column('decimal', { precision: 5, scale: 2 })
   vatPercent: number;
 
-  @Column('decimal')
+  @Column('decimal', { precision: 5, scale: 2 })
   reductionPercent: number;
 
   @Column('boolean')
@@ -41,5 +47,21 @@ export class DefaultSubCategory {
   /** P&L presentation category override (NULL ⇒ use the bookkeeping category). */
   @Column({ type: 'varchar', nullable: true, default: null })
   pnlCategory: string | null;
+
+  /**
+   * Bookkeeping account code for journal posting (→ default_booking_account.code).
+   * Populated on boot by AccountSeedService from pnlCategory; NULL ⇒ caller
+   * falls back to '5000'.
+   */
+  @Column({ nullable: true })
+  accountCode: string;
+
+  /**
+   * Sub-ledger account code nested under `accountCode` (e.g. '5101' under
+   * parent '5100'). Populated on boot by AccountSeedService.seedSubAccountCodes
+   * from SUBCATEGORY_SUB_ACCOUNT_CODES; NULL when unmapped.
+   */
+  @Column({ type: 'varchar', length: 10, nullable: true })
+  subAccountCode: string | null;
 
 }

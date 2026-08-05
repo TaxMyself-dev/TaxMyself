@@ -1,0 +1,136 @@
+<div class="billing-plans">
+
+  <!-- Header row with Add button -->
+  <div class="table-header-row">
+    <app-p-button
+      [icon]="'pi pi-plus'"
+      [buttonText]="'הוספת תוכנית'"
+      [buttonSize]="buttonSize.SMALL"
+      (onButtonClicked)="openCreate()">
+    </app-p-button>
+    <p class="table-title">תוכניות מנויים</p>
+  </div>
+
+  <!-- Plans table via GenericTable -->
+  <app-generic-table
+    [title]="''"
+    [columnsTitle]="columnsTitle"
+    [dataTable]="tableRows()"
+    [rowActions]="rowActions"
+    [isLoadingState]="isLoading()"
+    [placeholderSearch]="'חיפוש לפי שם תוכנית'"
+    columnSearch="name"
+    tableHeight="520px">
+  </app-generic-table>
+
+</div>
+
+<!-- ── Create / Edit Dialog ──────────────────────────────────────────── -->
+<p-dialog
+  [header]="isEditMode ? 'עריכת תוכנית' : 'הוספת תוכנית'"
+  [visible]="showDialog()"
+  (visibleChange)="showDialog.set($event)"
+  [modal]="true"
+  [style]="{ width: '540px' }"
+  [draggable]="false"
+  [resizable]="false"
+  (onHide)="onHide()">
+
+  <!-- div instead of form avoids nested <form> elements when app-input-* create their own forms -->
+  <div [formGroup]="planForm" class="dialog-form" dir="rtl">
+
+    <!-- Name — app-input-text (project standard wrapper) -->
+    <app-input-text
+      [parentForm]="planForm"
+      controlName="name"
+      labelText="שם תוכנית"
+      placeholder="לדוגמה: תוכנית פרו">
+    </app-input-text>
+
+    <!-- Slug — raw input kept because app-input-text forces RTL; slug is always LTR -->
+    <div class="form-row">
+      <label>Slug <span class="required">*</span></label>
+      <input type="text" pInputText formControlName="slug" placeholder="לדוגמה: pro-monthly" dir="ltr" />
+      @if (fieldInvalid('slug')) {
+        <small class="field-error">שדה חובה (עד 100 תווים)</small>
+      }
+    </div>
+
+    <!-- Description — no app wrapper for textarea -->
+    <div class="form-row">
+      <label>תיאור</label>
+      <textarea pTextarea formControlName="description" rows="2" placeholder="תיאור קצר של התוכנית"></textarea>
+    </div>
+
+    <!-- Price -->
+    <div class="form-row">
+      <label>מחיר חודשי (₪) <span class="required">*</span></label>
+      <p-inputNumber
+        formControlName="priceMonthlyShekels"
+        mode="currency"
+        currency="ILS"
+        locale="he-IL"
+        [minFractionDigits]="2"
+        [maxFractionDigits]="2"
+        [min]="0">
+      </p-inputNumber>
+      @if (fieldInvalid('priceMonthlyShekels')) {
+        <small class="field-error">מחיר חובה (מינימום 0)</small>
+      }
+    </div>
+
+    <!-- Modules — appendTo="body" prevents panel from closing on dialog scroll -->
+    <div class="form-row">
+      <label>מודולים</label>
+      <p-multiselect
+        formControlName="modules"
+        [options]="moduleOptions"
+        optionLabel="label"
+        optionValue="value"
+        placeholder="בחר מודולים"
+        display="chip"
+        appendTo="body">
+      </p-multiselect>
+    </div>
+
+    <div class="form-row-inline">
+      <div class="form-row">
+        <label>ימי ניסיון</label>
+        <p-inputNumber formControlName="trialDays" [min]="0" [max]="365" [useGrouping]="false"></p-inputNumber>
+      </div>
+      <div class="form-row">
+        <label>סדר תצוגה</label>
+        <p-inputNumber formControlName="displayOrder" [useGrouping]="false"></p-inputNumber>
+      </div>
+    </div>
+
+    <div class="form-row check-row-group">
+      <div class="check-item">
+        <p-checkbox formControlName="isActive" [binary]="true" inputId="planIsActive"></p-checkbox>
+        <label for="planIsActive">פעיל</label>
+      </div>
+      <div class="check-item">
+        <p-checkbox formControlName="isPublic" [binary]="true" inputId="planIsPublic"></p-checkbox>
+        <label for="planIsPublic">ציבורי</label>
+      </div>
+    </div>
+
+  </div>
+
+  <ng-template pTemplate="footer">
+    <app-p-button
+      [buttonText]="'ביטול'"
+      [buttonSize]="buttonSize.SMALL"
+      (onButtonClicked)="closeDialog()">
+    </app-p-button>
+    <app-p-button
+      [buttonText]="isEditMode ? 'עדכן' : 'צור תוכנית'"
+      [buttonSize]="buttonSize.SMALL"
+      [isLoading]="saving()"
+      (onButtonClicked)="savePlan()">
+    </app-p-button>
+  </ng-template>
+</p-dialog>
+
+<p-confirmDialog></p-confirmDialog>
+<p-toast position="bottom-right"></p-toast>

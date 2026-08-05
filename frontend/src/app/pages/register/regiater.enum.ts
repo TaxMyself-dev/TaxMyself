@@ -1,5 +1,5 @@
 export enum RegisterFormControls {
-    
+
         FIRSTNAME = "fName",
         LASTNAME = "lName",
         ID = "id",
@@ -46,5 +46,6 @@ export enum RegisterFormModules {
     SPOUSE = 'spouse',
     CHILDREN = 'children',
     BUSINESS = 'business',
+    COMPANY = 'company',
     VALIDATION = 'validation'
 }

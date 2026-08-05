@@ -5,9 +5,15 @@ backend/src/auth/firebaseServiceAccount.json
 backend/src/auth/firebaseServiceAccount-*.json
 backend/src/auth/firebaseServiceAccount.json
 
+cleanup-dev.*
+fix-*.js
+
 prod-keys/
 keys/
 *.key
 *.pem
 .firebase/hosting.*.cache
 backend/src/feezback/transactions-data/transactions-*.json
+
+_prod_dump/
+*prod.sql

@@ -1,8 +1,9 @@
-import { forwardRef, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, forwardRef, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Business } from './business.entity';
 import { Repository } from 'typeorm';
 import { UsersService } from 'src/users/users.service';
+import { BusinessType, isBusinessTypeAllowedForUser } from 'src/enum';
 
 
 @Injectable()
@@ -58,6 +59,9 @@ export class BusinessService {
     if (!business) {
       throw new NotFoundException('Business not found or not owned by user');
     }
+    if (dto.businessType !== undefined) {
+      await this.assertBusinessTypeAllowed(firebaseId, dto.businessType as BusinessType | null);
+    }
     if (dto.advanceTaxPercent !== undefined) business.advanceTaxPercent = dto.advanceTaxPercent;
     if (dto.businessName !== undefined) business.businessName = dto.businessName;
     if (dto.businessAddress !== undefined) business.businessAddress = dto.businessAddress;
@@ -82,6 +86,15 @@ export class BusinessService {
       advanceTaxPercent?: number;
     },
   ): Promise<Business> {
+    if (dto?.businessType !== undefined) {
+      await this.assertBusinessTypeAllowed(firebaseId, dto.businessType as BusinessType | null);
+    }
+    if (dto?.businessNumber) {
+      const existing = await this.getBusinessByNumber(dto.businessNumber);
+      if (existing && existing.firebaseId !== firebaseId) {
+        throw new BadRequestException('מספר עסק זה כבר רשום במערכת תחת משתמש אחר');
+      }
+    }
     const business = this.businessRepo.create({
       firebaseId,
       businessName: dto?.businessName ?? null,
@@ -116,6 +129,13 @@ export class BusinessService {
         `provisionDriveForNewBusiness failed for firebaseId=${firebaseId}: ${err?.message ?? err}`,
         err?.stack,
       );
+    }
+  }
+
+  private async assertBusinessTypeAllowed(firebaseId: string, businessType: BusinessType | null): Promise<void> {
+    const user = await this.usersService.findByFirebaseId(firebaseId);
+    if (!isBusinessTypeAllowedForUser(!!user?.isCompany, businessType)) {
+      throw new BadRequestException(`סוג עסק לא תואם לסוג ההרשמה: ${businessType}`);
     }
   }
 

@@ -8,9 +8,10 @@ import { GenericTableComponent } from "src/app/components/generic-table/generic-
 import { FilterTabComponent } from "src/app/components/filter-tab/filter-tab.component";
 import { ToastModule } from 'primeng/toast';
 import { ConfirmDialog } from 'primeng/confirmdialog';
-import { ConfirmationService, MessageService } from 'primeng/api';
+// import { ConfirmationService, MessageService } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
 import { DynamicDialogModule } from 'primeng/dynamicdialog';
+import { ButtonComponent } from 'src/app/components/button/button.component';
 
 @NgModule({
   imports: [
@@ -23,10 +24,11 @@ import { DynamicDialogModule } from 'primeng/dynamicdialog';
     FilterTabComponent,
     ToastModule,
     ConfirmDialog,
-    DynamicDialogModule
+    DynamicDialogModule,
+    ButtonComponent
   ],
   declarations: [ClientsPage],
-  providers: [ConfirmationService, MessageService, DialogService]
+  providers: [DialogService]
 })
 export class ClientsPageModule {}
 

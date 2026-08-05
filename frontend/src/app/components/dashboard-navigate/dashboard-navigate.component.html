@@ -1,10 +1,24 @@
-
-<a [routerLink]="cardItem().link" class="main-container">
-  <div class="header-card">
-    <img alt="Card" class="image-card" [src]="cardItem().image" />
+@if (locked() || controlledNavigation()) {
+  <div
+    class="main-container"
+    [class.main-container--locked]="locked()"
+    (click)="controlledNavigation() ? cardClick.emit() : lockedClick.emit()">
+    <div class="header-card">
+      <img alt="Card" class="image-card" [src]="cardItem().image" />
+    </div>
+    <div class="footer-card">
+      <span class="title-card">{{cardItem().name}}</span>
+      <span class="text-card">{{cardItem().content}}</span>
+    </div>
   </div>
-  <div class="footer-card">
-    <span class="title-card">{{cardItem().name}}</span>
-    <span class="text-card">{{cardItem().content}}</span>
-  </div>
-</a>
+} @else {
+  <a [routerLink]="cardItem().link" class="main-container">
+    <div class="header-card">
+      <img alt="Card" class="image-card" [src]="cardItem().image" />
+    </div>
+    <div class="footer-card">
+      <span class="title-card">{{cardItem().name}}</span>
+      <span class="text-card">{{cardItem().content}}</span>
+    </div>
+  </a>
+}

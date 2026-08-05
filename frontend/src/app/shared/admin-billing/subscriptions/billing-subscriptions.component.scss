@@ -1,0 +1,132 @@
+.billing-subscriptions {
+  display: flex;
+  flex-direction: column;
+}
+
+.table-header-row {
+  display: flex;
+  align-items: center;
+  flex-direction: row-reverse;
+  justify-content: space-between;
+  padding: 0 8px 12px;
+}
+
+.table-title {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+  color: #1f2937;
+}
+
+// ── Status badges ─────────────────────────────────────────────────────────────
+
+.sub-status-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  line-height: 1.6;
+
+  &--TRIAL         { background: #dbeafe; color: #1d4ed8; }
+  &--ACTIVE        { background: #dcfce7; color: #15803d; }
+  &--PAST_DUE      { background: #ffedd5; color: #c2410c; }
+  &--TRIAL_EXPIRED { background: #fee2e2; color: #b91c1c; }
+  &--CANCELED      { background: #f3f4f6; color: #6b7280; }
+}
+
+// ── Drawer ────────────────────────────────────────────────────────────────────
+
+.drawer-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.drawer-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.drawer-content {
+  padding: 4px 0 24px;
+}
+
+.detail-section {
+  margin-bottom: 24px;
+
+  &:last-child { margin-bottom: 0; }
+}
+
+.section-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: #9ca3af;
+  margin: 0 0 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 7px 12px;
+  align-items: baseline;
+}
+
+.detail-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: #6b7280;
+}
+
+.detail-value {
+  font-size: 13px;
+  color: #111827;
+  word-break: break-word;
+
+  &--mono {
+    font-family: monospace;
+    font-size: 11px;
+    color: #374151;
+    background: #f9fafb;
+    padding: 1px 5px;
+    border-radius: 3px;
+    border: 1px solid #e5e7eb;
+  }
+
+  &--muted {
+    color: #9ca3af;
+    font-style: italic;
+  }
+}
+
+// ── Discount form ─────────────────────────────────────────────────────────────
+
+.discount-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-row-inline {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.discount-save-row {
+  flex-direction: row;
+  justify-content: flex-start;
+  margin-top: 4px;
+}

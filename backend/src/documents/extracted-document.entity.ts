@@ -6,23 +6,99 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { DocumentKind } from 'src/enum';
 
 export enum ExtractedDocStatus {
-  PENDING = 'pending',
-  PROCESSED = 'processed',
+  /** OCR succeeded, awaiting user review in the report-page modal. */
+  PENDING_REVIEW = 'pending_review',
+  /** User confirmed the row → became an Expense; file already in processed/. */
+  APPROVED = 'approved',
+  /** User reviewed, doesn't want to claim now but it's a real doc — keep
+   *  for future reference / audit. File stays in processed/. */
+  ARCHIVED = 'archived',
+  /** User reviewed, decided this isn't an expense doc (OCR error, junk,
+   *  duplicate). Distinguished from ARCHIVED only in the DB status so
+   *  future filters can tell them apart; the file stays in processed/
+   *  either way. */
+  REJECTED = 'rejected',
+  /** Auto-set by the pairing service: this row is the SECONDARY half of
+   *  an invoice↔receipt pair (typically the invoice). The PRIMARY half
+   *  (typically the receipt, marked documentType='invoice_receipt_pair')
+   *  is what shows up in the review modal; this row is hidden via the
+   *  status filter. When the primary is approved/archived/rejected, the
+   *  cascade also updates this row to match. Unpair reverts both halves. */
+  PAIRED = 'paired',
+  /** OCR failed on the file; row exists for diagnostics, file stays in inbox/. */
   ERROR = 'error',
+  /** D8 (Phase 4.3): terminal state of the "תייק" flow — an ANNUAL_DOCUMENT
+   *  (טופס 106, אישור מס, תרומה) filed for the annual report. Never becomes
+   *  an Expense, never journaled. Distinct from ARCHIVED ("chose not to
+   *  claim") — this doc IS claimed, just on the annual report instead of a
+   *  periodic one. The varchar status column needs no ALTER (by design).
+   *  NOTE (plan/reality): the master plan's 4.3 wording placed
+   *  NOT_AN_EXPENSE on the expense status — filed docs never get an expense
+   *  row, so the value lives HERE, on extracted_document (approved by
+   *  Elazar, Session 8; ExpenseApprovalStatus keeps its own NOT_AN_EXPENSE
+   *  for other D8 flows). */
+  NOT_AN_EXPENSE = 'not_an_expense',
+}
+
+/** Classification returned by Claude — drives downstream routing
+ *  (only `invoice`/`receipt`/`tax_invoice_receipt` rows show up as
+ *  candidate expenses today). The invoice / receipt split matters for
+ *  audit + VAT purposes: an invoice is a request to pay (חשבונית), a
+ *  receipt is confirmation of payment (קבלה), and a combined doc
+ *  (חשבונית מס קבלה) is both. Previously these were all bundled into
+ *  `invoice`, which made the document-type column misleading. */
+export enum ExtractedDocumentType {
+  INVOICE = 'invoice',
+  RECEIPT = 'receipt',
+  TAX_INVOICE_RECEIPT = 'tax_invoice_receipt',
+  /** חשבונית זיכוי — credit/refund invoice. Negative-amount invoice
+   *  issued to reverse a prior charge. Claude returns this when the doc
+   *  has wording like "חשבונית זיכוי" / "credit note" / "refund". */
+  CREDIT_INVOICE = 'credit_invoice',
+  /** חשבונית + קבלה — synthetic type set by the pairing service when
+   *  an INVOICE row and a RECEIPT row from the same supplier with the
+   *  same invoice_number get auto-paired. The receipt is the primary
+   *  (keeps this type); the invoice goes status=PAIRED. Never returned
+   *  by Claude — only the pairing service writes this value. */
+  INVOICE_RECEIPT_PAIR = 'invoice_receipt_pair',
+  FORM_106 = 'form_106',
+  TAX_FORM = 'tax_form',
+  CONTRACT = 'contract',
+  UNKNOWN = 'unknown',
 }
 
 // Stores invoice / receipt OCR results from Claude. One row per Drive file.
 // Distinct from the existing `Documents` entity, which represents invoices
 // the user ISSUES to their clients (this one represents documents RECEIVED
 // from suppliers and OCR'd into structured fields).
+// All 5 indexes below are named explicitly to match prod's literal names
+// (schema-drift.md Gap 5's original decision, implemented 2026-07-12 after
+// an accidental synchronize run against keepintax_prodcopy dropped all 5 —
+// see Gap 7 — because 3 were unnamed and the other 2 had no entity
+// declaration at all). Do not remove the names — an unnamed decorator here
+// hash-generates a different name than prod's, which is exactly the
+// drop/never-recreate failure mode that caused the incident.
 @Entity('extracted_document')
-@Index(['userId', 'businessNumber', 'month'])
+@Index('ix_extracted_document_user_business_month', ['userId', 'businessNumber', 'month'])
 // A single Drive file can contain multiple invoices (common: monthly fuel
 // statements, bundled receipts). sub_index 0..N-1 disambiguates rows that
 // share a drive_file_id. Old rows default to 0 — the migration is a no-op.
-@Index(['driveFileId', 'subIndex'], { unique: true })
+@Index('uq_extracted_document_file_subindex', ['driveFileId', 'subIndex'], { unique: true })
+// Byte-identical dedup: the inbox loop looks up prior rows by content hash
+// to catch the same file re-uploaded under a new drive_file_id. Scoped by
+// business so identical bytes across two businesses stay distinct. NOT
+// unique — a multi-invoice file produces N rows sharing one md5.
+@Index('IDX_extracted_document_biz_md5', ['businessNumber', 'driveFileMd5'])
+// Matched by MatchingService when finding the extracted_document for a
+// given slim_transactions row. Prod-only index with no prior entity
+// declaration (schema-drift.md Gap 5) — added here for the first time.
+@Index('ix_extracted_doc_matched_tx', ['matchedTransactionId'])
+// Invoice<->receipt pairing back-pointer lookups. Same as above — prod-only,
+// never previously declared.
+@Index('ix_extracted_document_paired_with', ['pairedWithDocumentId'])
 export class ExtractedDocument {
   @PrimaryGeneratedColumn()
   id: number;
@@ -37,6 +113,13 @@ export class ExtractedDocument {
 
   @Column({ name: 'drive_file_id', type: 'varchar', length: 255 })
   driveFileId: string;
+
+  // Content hash (Drive's md5Checksum) of the source file. Used by the
+  // inbox loop to detect byte-identical re-uploads (same bytes → same md5,
+  // even though Drive assigns a fresh drive_file_id per upload). Nullable:
+  // legacy rows predate it, and Google-native files have no checksum.
+  @Column({ name: 'drive_file_md5', type: 'varchar', length: 32, nullable: true })
+  driveFileMd5: string | null;
 
   // Position of this invoice within its source file (0 for single-invoice
   // files, 0..N-1 for multi-invoice files like monthly statements).
@@ -78,6 +161,55 @@ export class ExtractedDocument {
   @Column({ name: 'amount_before_vat', type: 'decimal', precision: 12, scale: 2, nullable: true })
   amountBeforeVat: string | null;
 
+  /**
+   * ISO-4217 currency code for `amount`, `vat`, and `amount_before_vat`.
+   * NULL is treated as ILS by the read paths — pre-currency rows + cases
+   * where Claude couldn't pin down the currency both end up here. At
+   * approve time the report-review service detects non-ILS and runs the
+   * BOI rate via FxRateService to stamp originalCurrency/originalSum on
+   * the resulting Expense (so the dashboard's "$X (₪Y)" rendering works
+   * for OCR'd rows too).
+   */
+  @Column({ type: 'varchar', length: 3, nullable: true })
+  currency: string | null;
+
+  /**
+   * `amount` pre-converted to ILS using the BOI rate at `date`. Populated
+   * at OCR time by DocumentsService when `currency` is non-ILS; NULL
+   * otherwise (ILS docs + legacy rows pre-this-column). Lets the matcher
+   * compare doc amounts to bank-transaction amounts in a single currency
+   * (the tx side has been ILS-normalized via cache.ilsAmount all along).
+   * Stored as DECIMAL(12,2) so it lines up with how ILS amounts are
+   * persisted everywhere else in the schema.
+   */
+  @Column({ name: 'ils_amount', type: 'decimal', precision: 12, scale: 2, nullable: true })
+  ilsAmount: string | null;
+
+  /**
+   * BOI rate used to compute `ils_amount` (foreign units → ILS). Stored
+   * for audit + future rate-drift detection; the matcher itself just
+   * reads `ils_amount`. Six decimal places matches the FxRate table's
+   * precision so we don't lose fidelity on the round-trip.
+   */
+  @Column({ name: 'fx_rate_to_ils', type: 'decimal', precision: 12, scale: 6, nullable: true })
+  fxRateToIls: string | null;
+
+  /**
+   * Back-pointer for invoice↔receipt pairing. When the pairing service
+   * detects an INVOICE and a RECEIPT with the same supplier_id +
+   * invoice_number (or amount+date fallback), it links the two rows:
+   *
+   *   receipt.pairedWithDocumentId = invoice.id
+   *   receipt.documentType         = INVOICE_RECEIPT_PAIR
+   *   invoice.pairedWithDocumentId = receipt.id
+   *   invoice.status               = PAIRED   (hides it from the review modal)
+   *
+   * Both halves point at each other so either side can be the entry
+   * point for the unpair flow. NULL for unpaired rows (the common case).
+   */
+  @Column({ name: 'paired_with_document_id', type: 'int', nullable: true })
+  pairedWithDocumentId: number | null;
+
   @Column({ type: 'varchar', length: 64, nullable: true })
   category: string | null;
 
@@ -99,12 +231,25 @@ export class ExtractedDocument {
   @Column({ type: 'text', nullable: true })
   description: string | null;
 
+  // Stored as varchar (not enum) so adding a new state in the future doesn't
+  // require an ALTER on the enum type; the app layer enforces valid values.
   @Column({
-    type: 'enum',
-    enum: ExtractedDocStatus,
-    default: ExtractedDocStatus.PENDING,
+    type: 'varchar',
+    length: 32,
+    default: ExtractedDocStatus.PENDING_REVIEW,
   })
   status: ExtractedDocStatus;
+
+  // Claude's document classification — see ExtractedDocumentType. Drives
+  // downstream filtering (e.g. only `invoice` shows in expenses review).
+  @Column({ name: 'document_type', type: 'varchar', length: 50, nullable: true })
+  documentType: ExtractedDocumentType | null;
+
+  // Drive's `createdTime` on the source file. Independent of `createdAt`
+  // (which is the OCR-row insert time) — `uploadDate` tells the user "when
+  // did this invoice land in my inbox".
+  @Column({ name: 'upload_date', type: 'datetime', nullable: true })
+  uploadDate: Date | null;
 
   @Column({ name: 'raw_response', type: 'text', nullable: true })
   rawResponse: string | null;
@@ -114,9 +259,44 @@ export class ExtractedDocument {
   @Column({ name: 'confirmed_expense_id', type: 'int', nullable: true })
   confirmedExpenseId: number | null;
 
+  /**
+   * The slim_transactions.id this document was paired with by the unified
+   * matcher (or by the user, via /reports/me/review/link-doc-to-tx).
+   * NULL = unmatched. Drives the "matched" row type in the report-preview.
+   */
+  @Column({ name: 'matched_transaction_id', type: 'int', nullable: true })
+  matchedTransactionId: number | null;
+
+  /**
+   * How this document got paired (or didn't):
+   *   "matched"      — auto-matched by MatchingService (±3 days, ±1 NIS)
+   *   "manual_link"  — user paired it via the review modal
+   *   null           — not paired (most rows for cash-only users)
+   */
+  @Column({ name: 'match_status', type: 'varchar', length: 32, nullable: true })
+  matchStatus: 'matched' | 'manual_link' | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
+
+  /**
+   * Nullable pointer at sub_category.id (D6/Phase 3.1) — display-only, no
+   * DB FK constraint (same no-real-FK precedent as Supplier.subCategoryId).
+   * Backfilled by name within scope in Phase 3.5; unmatched -> stays NULL.
+   */
+  @Column({ name: 'sub_category_id', type: 'int', nullable: true, default: null })
+  subCategoryId: number | null;
+
+  /**
+   * D8 OCR-pipeline routing. Backfilled in Phase 3.1: rows already converted
+   * to an Expense (confirmedExpenseId set) -> EXPENSE_INVOICE; rows whose
+   * documentType is a recognized annual-report type (FORM_106, TAX_FORM) ->
+   * ANNUAL_DOCUMENT; everything else -> UNIDENTIFIED. Not yet consumed by
+   * the review flow's routing logic — that's Phase 4.3.
+   */
+  @Column({ name: 'document_kind', type: 'varchar', length: 32, nullable: true, default: null })
+  documentKind: DocumentKind | null;
 }

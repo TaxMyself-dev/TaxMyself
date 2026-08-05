@@ -14,7 +14,7 @@ export interface Client {
   fName: string;
   lName: string;
   idNumber: string;
-  /** סוג העסק: EXEMPT, LICENSED, COMPANY (עוסק פטור, עוסק מורשה, חברה בע"מ) */
+  /** סוג העסק: EXEMPT, LICENSED (עוסק פטור, עוסק מורשה) */
   businessType: string;
   fullName: string;
   email: string;

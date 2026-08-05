@@ -10,7 +10,6 @@ import { FeezbackApiService } from './api/feezback-api.service';
 import { FeezbackConsentApiService } from './consent/feezback-consent-api.service';
 import { Delegation } from '../delegation/delegation.entity';
 import { User } from '../users/user.entity';
-import { UserModuleSubscription } from '../users/user-module-subscription.entity';
 import { Source } from '../transactions/source.entity';
 import { UsersModule } from '../users/users.module';
 import { SharedService } from 'src/shared/shared.service';
@@ -20,6 +19,7 @@ import { Expense } from 'src/expenses/expenses.entity';
 import { SettingDocuments } from 'src/documents/settingDocuments.entity';
 import { FeezbackWebhookRouterModule } from './router/feezback-webhook-router.module';
 import { TransactionsModule } from '../transactions/transactions.module';
+import { BillingModule } from '../billing/billing.module';
 
 @Module({
   imports: [
@@ -27,10 +27,11 @@ import { TransactionsModule } from '../transactions/transactions.module';
       timeout: 90000, // 90 seconds timeout for all requests
       maxRedirects: 5,
     }),
-    TypeOrmModule.forFeature([Delegation, User, UserModuleSubscription, Child, Expense, Business, SettingDocuments, Source]),
+    TypeOrmModule.forFeature([Delegation, User, Child, Expense, Business, SettingDocuments, Source]),
     forwardRef(() => UsersModule),
     FeezbackWebhookRouterModule,
     forwardRef(() => TransactionsModule),
+    forwardRef(() => BillingModule),
   ],
   controllers: [FeezbackController],
   providers: [

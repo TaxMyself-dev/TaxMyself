@@ -13,6 +13,8 @@ import { ButtonClass } from 'src/app/shared/button/button.enum';
 import { MessageService } from 'primeng/api';
 import { Location } from '@angular/common';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { NetworkStatusService } from 'src/app/services/pwa/network-status.service';
+import { DEFAULT_AUTHENTICATED_PATH } from 'src/app/shared/auth/default-authenticated-route';
 
 
 @Component({
@@ -44,6 +46,7 @@ export class LoginPage implements OnInit {
   resendCountdown = signal(0);
   isVerificationButtonDisabled = computed(() => this.resendCountdown() > 0);
   private destroyRef = inject(DestroyRef);
+  private readonly network = inject(NetworkStatusService);
 
   constructor(
     private location: Location,
@@ -78,6 +81,43 @@ export class LoginPage implements OnInit {
     this.getStateData();
   }
 
+  // "Already signed in → go straight into the app" now lives in LoginPageGuard
+  // (shared/guard/login-page.guard.ts). Deciding it there means this component
+  // is never created for an authenticated user, which is what removes the
+  // login-page flash on a cold start with a live session.
+
+  /**
+   * Enter the authenticated app — always at the default page, never a
+   * previously visited route — and resolve only once the router has finished,
+   * guards included.
+   *
+   * `navigateByUrl()` does not resolve early on a guard redirect: Angular
+   * chains a redirecting cancellation onto this same promise and settles it
+   * when the final destination has been activated. So awaiting it covers
+   * BillingGuard's `/billing/me` round trip, the lazy chunk for the target page
+   * and the final activation.
+   *
+   * `false` means a guard refused outright without redirecting, which would
+   * strand a signed-in user on /login — surface it instead of silently leaving
+   * them there.
+   */
+  private async enterApp(): Promise<void> {
+    const entered = await this.router.navigateByUrl(DEFAULT_AUTHENTICATED_PATH);
+    if (!entered) {
+      throw new Error('Post-login navigation was refused by a guard');
+    }
+  }
+
+  /** Block Firebase login while offline; reuse the existing error slot. */
+  private blockIfOffline(): boolean {
+    if (this.network.isBrowserOnline()) {
+      return false;
+    }
+    this.authService.error.set('offline');
+    this.isLoading.set(false);
+    return true;
+  }
+
 
   getStateData() {
     const state = this.location.getState() as {
@@ -110,7 +150,22 @@ export class LoginPage implements OnInit {
   }
 
 
+  /**
+   * The loading state covers the WHOLE login: credential check, auth-state
+   * propagation, profile fetch, businesses, and the routed entry into the app
+   * (billing + module guards, lazy chunk, activation). It is released only when
+   * that finishes or fails — never while the user is still sitting on /login
+   * waiting for the app to appear.
+   */
   login(): void {
+    // A second click while the first login is still running would start a
+    // parallel sign-in and a second navigation.
+    if (this.isLoading()) {
+      return;
+    }
+    if (this.blockIfOffline()) {
+      return;
+    }
 
     this.isLoading.set(true);
     this.authService.error.set(null);
@@ -132,7 +187,12 @@ export class LoginPage implements OnInit {
           return res?.user?.emailVerified;
         }),
 
-        // 2️⃣ Call your backend signIn() — freshLogin=true so the backend
+        // 2️⃣ Let the credential propagate into the app's auth state before
+        // anything routes on it — AuthGuard reads AuthService.isLoggedIn, which
+        // AngularFire delivers asynchronously.
+        switchMap(() => from(this.authService.waitForAuthenticatedUser())),
+
+        // 3️⃣ Call your backend signIn() — freshLogin=true so the backend
         // runs the post-login sync (this is the only real-login call site).
         switchMap(() => this.authService.signIn(true)),
 
@@ -152,22 +212,32 @@ export class LoginPage implements OnInit {
           return EMPTY;
         }),
 
-      // 3️⃣ Save user data
+      // 4️⃣ Save user data
+      // Firebase's restored session is the auth authority (see
+      // AuthService.isLoggedIn); userData is cached UI profile data only.
       tap((res: any) => {
-        sessionStorage.setItem('isLoggedIn', 'true');
         localStorage.setItem('userData', JSON.stringify(res));
       }),
 
-        // 4️⃣ Load businesses from server
+        // 5️⃣ Load businesses from server
         switchMap(() =>
           from(this.genericService.loadBusinessesFromServer())
         ),
 
-      // 5️⃣ After businesses loaded → navigate
-      tap(() => {
-        this.router.navigate(['my-account']);
-      }),
+        // 6️⃣ Enter the app and WAIT for the router to finish. Navigation used
+        // to be fired and forgotten here, so finalize() re-enabled the button
+        // while the guards were still running and the login looked like it had
+        // failed.
+        switchMap(() => from(this.enterApp())),
 
+        catchError((err) => {
+          console.error('❌ Post-login navigation failed:', err);
+          this.authService.error.set('error');
+          return EMPTY;
+        }),
+
+        // Reached only once the app is entered, or after an error path above —
+        // never while the user is still waiting on /login.
         finalize(() => this.isLoading.set(false))
       )
       .subscribe();
@@ -285,18 +355,23 @@ export class LoginPage implements OnInit {
 
 
 
+  /** Same contract as {@link login}: loading covers everything up to arrival. */
   async googleSignIn(): Promise<void> {
+    if (this.isLoading()) {
+      return;
+    }
+    if (this.blockIfOffline()) {
+      return;
+    }
+
     this.isLoading.set(true);
     this.authService.error.set(null);
     try {
       const { isNewUser, userData } = await this.authService.signInWithGoogle();
       if (isNewUser) {
-        // Sign out only — DO NOT call firebaseUser.delete() here. Even though
-        // signInWithGoogle() now returns isNewUser=true only on a real 404
-        // from /auth/signin, hard-deleting the Firebase account on any
-        // transient race is unrecoverable. Worst case after this change is an
-        // orphan Firebase auth record for a never-registered user — harmless,
-        // and they can recover via password-reset if they later register.
+        // The ghost Firebase user created by signInWithPopup() was already
+        // deleted inside signInWithGoogle() (best-effort, only on a
+        // confirmed 404). signOut() here just clears the local session.
         await this.afAuth.signOut();
         this.messageService.add({
           severity: 'warn',
@@ -307,10 +382,10 @@ export class LoginPage implements OnInit {
         });
         return;
       }
-      sessionStorage.setItem('isLoggedIn', 'true');
+      await this.authService.waitForAuthenticatedUser();
       localStorage.setItem('userData', JSON.stringify(userData));
       await this.genericService.loadBusinessesFromServer();
-      this.router.navigate(['my-account']);
+      await this.enterApp();
     } catch (err: any) {
       console.error('❌ Google sign-in error code:', err?.code, err);
       switch (err?.code) {

@@ -1,0 +1,58 @@
+.upgrade-dialog-content {
+  padding: 1rem 0.5rem 0.5rem;
+}
+
+.dialog-title {
+  margin: 0 0 0.75rem;
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: #111;
+  text-align: right;
+}
+
+.upgrade-dialog-message {
+  margin: 0 0 1.25rem;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: #444;
+  text-align: right;
+}
+
+.upgrade-dialog-footer {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+  width: 100%;
+}
+
+.upgrade-cta-btn {
+  padding: 0.6rem 1.5rem;
+  background: #2563eb;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+
+  &:hover {
+    background: #1d4ed8;
+  }
+}
+
+.upgrade-close-btn {
+  padding: 0.6rem 1.25rem;
+  background: transparent;
+  color: #555;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+
+  &:hover {
+    background: #f3f4f6;
+    color: #111;
+  }
+}

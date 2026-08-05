@@ -1,15 +1,19 @@
-import { BadRequestException, Body, Controller, Delete, Get, Headers, Param, ParseIntPipe, Patch, Post, Query, Req, Res, UseGuards, UsePipes, ValidationPipe, } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Query, Req, Res, UploadedFile, UploadedFiles, UseGuards, UseInterceptors, UsePipes, ValidationPipe, } from '@nestjs/common';
+import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
-import { DocumentType, DocumentStatusType } from 'src/enum';
+import { DocumentType, DocumentStatusType, ModuleName } from 'src/enum';
 import { DocumentsService } from './documents.service';
-import { UsersService } from 'src/users/users.service';
 import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.interface';
 import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
+import { SubscriptionGuard } from 'src/guards/subscription.guard';
+import { RequireModule } from 'src/decorators/require-module.decorator';
 import { CreateDocDto } from './dtos/create-doc.dto';
 
 
 
 @Controller('documents')
+@RequireModule(ModuleName.INVOICES)
+@UseGuards(FirebaseAuthGuard, SubscriptionGuard)
 export class DocumentsController {
   constructor(
     private readonly documentsService: DocumentsService,
@@ -17,24 +21,23 @@ export class DocumentsController {
 
 
   @Get('get-docs')
-  @UseGuards(FirebaseAuthGuard)
   async getFilteredDocs(
     @Req() request: AuthenticatedRequest,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
     @Query('docType') docType?: DocumentType,
-    @Query('issuerBusinessNumber') issuerBusinessNumber?: string, // optional query param
+    @Query('issuerBusinessNumber') issuerBusinessNumber?: string,
   ) {
 
     if (!issuerBusinessNumber) {
       throw new BadRequestException('issuerBusinessNumber is required');
     }
 
-    return this.documentsService.getDocuments(issuerBusinessNumber, startDate, endDate, docType);
+    const firebaseId = request.user?.firebaseId;
+    return this.documentsService.getDocuments(issuerBusinessNumber, firebaseId, startDate, endDate, docType);
   }
 
   @Get('get-doc-lines')
-  @UseGuards(FirebaseAuthGuard)
   async getDocLines(
     @Query('issuerBusinessNumber') issuerBusinessNumber: string,
     @Query('docNumber') docNumber: string,
@@ -45,7 +48,6 @@ export class DocumentsController {
 
 
   @Get('get-setting-doc-by-type/:typeDoc')
-  @UseGuards(FirebaseAuthGuard)
   async getSettingDocByType(
     @Param('typeDoc') typeDoc: DocumentType,
     @Query('issuerBusinessNumber') issuerBusinessNumber: string,
@@ -54,7 +56,6 @@ export class DocumentsController {
     const userId = request.user?.firebaseId;
 
     try {
-      // For non-GENERAL types, a valid issuerBusinessNumber is required
       if (typeDoc !== DocumentType.GENERAL) {
         if (!issuerBusinessNumber || !issuerBusinessNumber.trim()) {
           throw new BadRequestException('issuerBusinessNumber is required');
@@ -69,7 +70,6 @@ export class DocumentsController {
 
 
   @Post('setting-initial-index/:typeDoc')
-  @UseGuards(FirebaseAuthGuard)
   async setInitialDocDetails(
     @Param('typeDoc') typeDoc: DocumentType,
     @Body() body: any,
@@ -91,11 +91,10 @@ export class DocumentsController {
     return docDetails;
   }
 
-  
+
   @Post('create-doc')
-  @UseGuards(FirebaseAuthGuard)
-  @UsePipes(new ValidationPipe({ 
-    transform: true, 
+  @UsePipes(new ValidationPipe({
+    transform: true,
     whitelist: true,
     forbidNonWhitelisted: false,
     transformOptions: { enableImplicitConversion: true },
@@ -108,7 +107,7 @@ export class DocumentsController {
           value: err.value,
           valueType: typeof err.value
         };
-        
+
         if (err.children && err.children.length > 0) {
           errorInfo.children = err.children.map(child => ({
             property: child.property,
@@ -117,14 +116,13 @@ export class DocumentsController {
             valueType: typeof child.value
           }));
         }
-        
+
         return errorInfo;
       });
-      
+
       console.error("❌ VALIDATION ERRORS:");
       console.error(JSON.stringify(errorDetails, null, 2));
-      
-      // Log each error separately for clarity
+
       errorDetails.forEach((err, index) => {
         console.error(`  Error ${index + 1}:`);
         console.error(`    Property: ${err.property}`);
@@ -134,7 +132,7 @@ export class DocumentsController {
           console.error(`    Nested errors:`, err.children);
         }
       });
-      
+
       return new BadRequestException({
         message: 'Validation failed',
         errors: errorDetails
@@ -143,19 +141,15 @@ export class DocumentsController {
   }))
   async createDoc(@Body() createDocDto: CreateDocDto, @Req() request: AuthenticatedRequest) {
     const userId = request.user?.firebaseId;
-    
-    // Transform the DTO data before passing to service
     const transformedData = await this.documentsService.transformDocumentData(createDocDto);
-    
     const result = await this.documentsService.createDoc(transformedData, userId);
     return result;
   }
 
 
   @Post('preview-doc')
-  @UseGuards(FirebaseAuthGuard)
-  @UsePipes(new ValidationPipe({ 
-    transform: true, 
+  @UsePipes(new ValidationPipe({
+    transform: true,
     whitelist: true,
     forbidNonWhitelisted: false,
     transformOptions: { enableImplicitConversion: true },
@@ -168,8 +162,7 @@ export class DocumentsController {
           value: err.value,
           valueType: typeof err.value
         };
-        
-        // Log nested errors
+
         if (err.children && err.children.length > 0) {
           errorInfo.children = err.children.map(child => ({
             property: child.property,
@@ -178,14 +171,13 @@ export class DocumentsController {
             valueType: typeof child.value
           }));
         }
-        
+
         return errorInfo;
       });
-      
+
       console.error("❌ VALIDATION ERRORS:");
       console.error(JSON.stringify(errorDetails, null, 2));
-      
-      // Log each error separately for clarity
+
       errorDetails.forEach((err, index) => {
         console.error(`  Error ${index + 1}:`);
         console.error(`    Property: ${err.property}`);
@@ -195,7 +187,7 @@ export class DocumentsController {
           console.error(`    Nested errors:`, err.children);
         }
       });
-      
+
       return new BadRequestException({
         message: 'Validation failed',
         errors: errorDetails
@@ -204,18 +196,14 @@ export class DocumentsController {
   }))
   async previewDoc(@Body() createDocDto: CreateDocDto, @Res() res: Response, @Req() request: AuthenticatedRequest) {
     const userId = request.user?.firebaseId;
-    
-    // Transform the DTO data before passing to service
     const transformedData = await this.documentsService.transformDocumentData(createDocDto);
-    
     const pdfBuffer = await this.documentsService.previewDoc(transformedData);
     res.setHeader('Content-Type', 'application/pdf');
     return res.send(pdfBuffer);
   }
-  
+
 
   @Post('rollback')
-  @UseGuards(FirebaseAuthGuard)
   async rollback(@Body() body: { issuerBusinessNumber: string; generalDocIndex: string }) {
     const { issuerBusinessNumber, generalDocIndex } = body;
     return this.documentsService.rollbackDocumentAndIndexes(issuerBusinessNumber, generalDocIndex);
@@ -223,14 +211,12 @@ export class DocumentsController {
 
 
 
-  
   @Post('generate-multiple')
   async generateMultipleDocuments(@Body() body: { userId: string }) {
     return this.documentsService.generateMultipleDocs(body.userId);
   }
 
   @Post('finalize-allocation')
-  @UseGuards(FirebaseAuthGuard)
   async finalizeAllocation(
     @Body() body: { issuerBusinessNumber: string; docNumber: string; docType: DocumentType; allocationNum?: string | null },
     @Req() request: AuthenticatedRequest,
@@ -249,7 +235,6 @@ export class DocumentsController {
   }
 
   @Patch('update-status')
-  @UseGuards(FirebaseAuthGuard)
   async updateDocStatus(
     @Body() body: { issuerBusinessNumber: string; docNumber: string; docType: DocumentType; status: DocumentStatusType },
     @Req() request: AuthenticatedRequest
@@ -262,7 +247,6 @@ export class DocumentsController {
   }
 
   @Post('save-draft')
-  @UseGuards(FirebaseAuthGuard)
   @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
   async saveDraft(
     @Body() createDocDto: CreateDocDto,
@@ -275,7 +259,6 @@ export class DocumentsController {
   }
 
   @Get('load-draft')
-  @UseGuards(FirebaseAuthGuard)
   async loadDraft(
     @Query('issuerBusinessNumber') issuerBusinessNumber: string,
     @Query('docType') docType: DocumentType,
@@ -293,7 +276,6 @@ export class DocumentsController {
   }
 
   @Delete('delete-draft')
-  @UseGuards(FirebaseAuthGuard)
   async deleteDraft(
     @Query('issuerBusinessNumber') issuerBusinessNumber: string,
     @Query('docType') docType: DocumentType,
@@ -311,31 +293,69 @@ export class DocumentsController {
   // Drive-folder sync + OCR-extracted documents (Claude)
   // =====================================================================
 
-  // -----------------------------------------------------------------
-  // User-facing (bookkeeping → expenses → "pull docs from Drive")
-  // Declared BEFORE the param routes below so '/me/sync' and '/me/review'
-  // don't get swallowed by ':userId/:yearMonth' (Nest matches top-to-bottom).
-  // -----------------------------------------------------------------
-
-  @Post('me/sync')
-  @UseGuards(FirebaseAuthGuard)
-  async syncMyDriveMonths(
+  @Post('me/process-inbox')
+  async processMyInbox(
     @Req() request: AuthenticatedRequest,
-    @Body() body: { businessNumber: string; months: string[] },
+    @Body() body: { businessNumber: string },
   ) {
     const firebaseId = request.user?.firebaseId;
     if (!firebaseId) throw new BadRequestException('Not authenticated');
     const businessNumber = body?.businessNumber?.trim();
     if (!businessNumber) throw new BadRequestException('businessNumber is required');
-    const months = Array.isArray(body?.months) ? body.months.filter(m => /^\d{4}-\d{2}$/.test(m)) : [];
-    if (months.length === 0) {
-      throw new BadRequestException('months[] is required (YYYY-MM strings)');
-    }
-    return this.documentsService.syncMonthsForUser(firebaseId, businessNumber, months);
+    return this.documentsService.processInboxForUser(firebaseId, businessNumber);
+  }
+
+  @Post('me/archive/:documentId')
+  async archiveExtractedDoc(
+    @Req() request: AuthenticatedRequest,
+    @Param('documentId', ParseIntPipe) documentId: number,
+  ) {
+    const firebaseId = request.user?.firebaseId;
+    if (!firebaseId) throw new BadRequestException('Not authenticated');
+    return this.documentsService.archiveDocument(firebaseId, documentId);
+  }
+
+  @Post('me/ocr-file')
+  @UseInterceptors(FileInterceptor('file'))
+  async ocrSingleFile(
+    @Req() request: AuthenticatedRequest,
+    @UploadedFile() file: Express.Multer.File,
+    @Body() body: { businessNumber?: string },
+  ) {
+    const firebaseId = request.user?.firebaseId;
+    if (!firebaseId) throw new BadRequestException('Not authenticated');
+    if (!file?.buffer) throw new BadRequestException('file is required');
+    const businessNumber = body?.businessNumber?.trim();
+    if (!businessNumber) throw new BadRequestException('businessNumber is required');
+    return this.documentsService.ocrSingleFile(
+      firebaseId,
+      businessNumber,
+      file.buffer,
+      file.mimetype,
+    );
+  }
+
+  /** Drop one or more files straight into the business's Drive inbox/
+   *  folder — no OCR, just storage. multipart/form-data with `files`
+   *  (1..10) + `businessNumber` form field. */
+  @Post('me/upload-to-inbox')
+  @UseInterceptors(
+    FilesInterceptor('files', 10, { limits: { fileSize: 10 * 1024 * 1024 } }),
+  )
+  async uploadFilesToInbox(
+    @Req() request: AuthenticatedRequest,
+    @UploadedFiles() files: Express.Multer.File[],
+    @Body() body: { businessNumber?: string },
+  ) {
+    const firebaseId = request.user?.firebaseId;
+    if (!firebaseId) throw new BadRequestException('Not authenticated');
+    const businessNumber = body?.businessNumber?.trim();
+    if (!businessNumber) throw new BadRequestException('businessNumber is required');
+    if (!files?.length) throw new BadRequestException('At least one file is required');
+    return this.documentsService.uploadFilesToInbox(firebaseId, businessNumber, files);
   }
 
   @Get('me/catalog')
-  @UseGuards(FirebaseAuthGuard)
   async getMyCatalog(
     @Req() request: AuthenticatedRequest,
     @Query('businessNumber') businessNumber: string,
@@ -349,47 +369,29 @@ export class DocumentsController {
   }
 
   @Get('me/review')
-  @UseGuards(FirebaseAuthGuard)
   async listMyReviewable(
     @Req() request: AuthenticatedRequest,
     @Query('businessNumber') businessNumber: string,
-    @Query('months') monthsCsv: string,
   ) {
     const firebaseId = request.user?.firebaseId;
     if (!firebaseId) throw new BadRequestException('Not authenticated');
     if (!businessNumber?.trim()) {
       throw new BadRequestException('businessNumber query param required');
     }
-    const months = (monthsCsv ?? '')
-      .split(',')
-      .map(s => s.trim())
-      .filter(m => /^\d{4}-\d{2}$/.test(m));
-    if (months.length === 0) {
-      throw new BadRequestException('months query param required (CSV of YYYY-MM)');
+    return this.documentsService.getReviewableForUser(firebaseId, businessNumber.trim());
+  }
+
+  @Get('me/archived')
+  async listMyArchived(
+    @Req() request: AuthenticatedRequest,
+    @Query('businessNumber') businessNumber: string,
+  ) {
+    const firebaseId = request.user?.firebaseId;
+    if (!firebaseId) throw new BadRequestException('Not authenticated');
+    if (!businessNumber?.trim()) {
+      throw new BadRequestException('businessNumber query param required');
     }
-    return this.documentsService.getReviewableForUser(firebaseId, businessNumber.trim(), months);
-  }
-
-  // -----------------------------------------------------------------
-  // Admin/dev (param-based — must stay below /me/* routes)
-  // -----------------------------------------------------------------
-
-  @Post('sync/:userId/:businessNumber/:yearMonth')
-  async syncUserMonth(
-    @Param('userId', ParseIntPipe) userId: number,
-    @Param('businessNumber') businessNumber: string,
-    @Param('yearMonth') yearMonth: string,
-  ) {
-    return this.documentsService.syncUserMonth(userId, businessNumber, yearMonth);
-  }
-
-  @Get(':userId/:businessNumber/:yearMonth')
-  async listExtractedDocs(
-    @Param('userId', ParseIntPipe) userId: number,
-    @Param('businessNumber') businessNumber: string,
-    @Param('yearMonth') yearMonth: string,
-  ) {
-    return this.documentsService.listByUserMonth(userId, businessNumber, yearMonth);
+    return this.documentsService.getArchivedForUser(firebaseId, businessNumber.trim());
   }
 
 }

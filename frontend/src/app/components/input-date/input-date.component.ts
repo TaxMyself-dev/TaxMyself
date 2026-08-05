@@ -21,6 +21,9 @@ export class InputDateComponent {
   customStyle = input<string>("");
   disabled = input<boolean>(false);
   showIcon = input<boolean>(true);
+  /** Earliest/latest selectable dates; null (default) leaves the picker unconstrained. */
+  minDate = input<Date | null>(null);
+  maxDate = input<Date | null>(null);
 
   readonly selectValue = signal<any>(null);
 

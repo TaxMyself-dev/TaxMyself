@@ -1,10 +1,11 @@
-import { Injectable, NgZone, signal } from '@angular/core';
+import { Injectable, Injector, NgZone, computed, signal } from '@angular/core';
+import { ClientPanelService } from './clients-panel.service';
 import { AngularFirestore } from '@angular/fire/compat/firestore';
 import { AngularFireAuth } from '@angular/fire/compat/auth';
 import { Router } from '@angular/router';
-import { Observable, catchError, firstValueFrom, from, switchMap, EMPTY, tap, BehaviorSubject, finalize, throwError } from 'rxjs';
+import { Observable, catchError, filter, firstValueFrom, from, switchMap, take, EMPTY, tap, BehaviorSubject, finalize, throwError } from 'rxjs';
 import { HttpClient } from '@angular/common/http';
-import { UserCredential } from '@firebase/auth-types';
+import { User, UserCredential } from '@firebase/auth-types';
 import { GoogleAuthProvider, sendEmailVerification } from '@angular/fire/auth';
 import { environment } from 'src/environments/environment';
 import { ExpenseDataService } from './expense-data.service';
@@ -24,6 +25,30 @@ export class AuthService {
   private tokenListenerInitialized = false; // Ensure the listener is initialized only once
 
 
+  /**
+   * The Firebase-restored user, or null when Firebase has confirmed there is
+   * no session. `undefined` means Firebase has not finished restoring yet —
+   * "unknown", which is NOT the same as "signed out".
+   */
+  private readonly authUser = signal<User | null | undefined>(undefined);
+
+  /** True once Firebase has finished restoring the persisted session. */
+  readonly authInitialized = signal<boolean>(false);
+
+  /**
+   * Read-only view of {@link authInitialized} for guards/components. Together
+   * with {@link currentUser} this is the app's auth initialization state:
+   * `authReady() === false` → "initializing"; afterwards `currentUser()` is
+   * either the signed-in user ("authenticated") or null ("unauthenticated").
+   */
+  readonly authReady = this.authInitialized.asReadonly();
+
+  /** The restored Firebase user as a signal (null once known to be signed out). */
+  readonly currentUser = computed<User | null>(() => this.authUser() ?? null);
+
+  /** Resolves when {@link authInitialized} first becomes true. */
+  private authInitPromise!: Promise<void>;
+
   constructor(
     private genericService: GenericService,
     public afs: AngularFirestore,
@@ -31,7 +56,103 @@ export class AuthService {
     public router: Router,
     private http: HttpClient,
     public ngZone: NgZone,
-  ) { }
+    private injector: Injector,
+  ) {
+    this.initAuthState();
+  }
+
+  /**
+   * Subscribe to Firebase's restored auth state and make it the single source
+   * of truth for "is the user signed in".
+   *
+   * The session lives in sessionStorage in every runtime (see
+   * `shared/auth/firebase-auth-persistence.ts`), so it survives a refresh of the
+   * same tab/app window and dies with the browsing context. `authState` emits
+   * the restored user even when the device is offline and the SDK could not
+   * refresh the ID token, so this stays correct without connectivity.
+   */
+  private initAuthState(): void {
+    this.authInitPromise = new Promise<void>((resolve) => {
+      this.afAuth.authState.subscribe({
+        next: (user) => {
+          this.authUser.set((user as User | null) ?? null);
+          if (!this.authInitialized()) {
+            this.authInitialized.set(true);
+          }
+          resolve();
+        },
+        error: (err) => {
+          // Never strand the app on an auth-stream error: mark initialization
+          // done with "no user" so guards can make a decision. This does NOT
+          // sign anybody out — no signOut() call, no storage cleared.
+          console.error('[AuthService] authState stream error:', err);
+          this.authUser.set(null);
+          this.authInitialized.set(true);
+          resolve();
+        },
+      });
+    });
+  }
+
+  /**
+   * Wait (bounded) for Firebase to restore the persisted session.
+   *
+   * The bound exists only so a hung SDK can never leave the router on a blank
+   * screen forever. Restoration is a local web-storage read and normally
+   * completes in milliseconds, offline included.
+   */
+  async waitForAuthInit(timeoutMs = 15_000): Promise<void> {
+    if (this.authInitialized()) {
+      return;
+    }
+    let timer: ReturnType<typeof setTimeout>;
+    await Promise.race([
+      this.authInitPromise,
+      new Promise<void>((resolve) => {
+        timer = setTimeout(() => {
+          console.warn(`[AuthService] auth init exceeded ${timeoutMs}ms — proceeding as "unknown".`);
+          resolve();
+        }, timeoutMs);
+      }),
+    ]).finally(() => clearTimeout(timer!));
+  }
+
+  /** The restored Firebase user, or null when signed out / not yet known. */
+  getCurrentAuthUser(): User | null {
+    return this.authUser() ?? null;
+  }
+
+  /**
+   * Resolves once the app's auth state actually reflects a signed-in user.
+   *
+   * `signInWithEmailAndPassword()` resolving is not the same thing: AngularFire
+   * delivers `authState` through its own schedulers, so for a few ticks
+   * afterwards {@link isLoggedIn} can still be false. Anything that routes into
+   * the authenticated app right after a login must await this first, or
+   * AuthGuard may run against the pre-login state and bounce back to /login.
+   *
+   * Only call this on a path where a credential was just accepted — it waits
+   * for a user to appear, not for a verdict.
+   */
+  async waitForAuthenticatedUser(): Promise<void> {
+    if (this.authUser()) {
+      return;
+    }
+    await firstValueFrom(
+      this.afAuth.authState.pipe(filter((user): user is User => !!user), take(1)),
+    );
+  }
+
+  /** Reset any persisted view-as / x-client-user-id state. Called from
+   *  logout() and the start of a fresh login so a stale delegated-client id
+   *  from a previous session can't ride along on the next request (which
+   *  would 403 once the new logged-in user lacks delegation to that client).
+   *  Lazy-resolved via Injector to break the circular import with
+   *  ClientPanelService (which depends on AuthService). */
+  private clearDelegationState(): void {
+    this.viewAsUserData = null;
+    this.injector.get(ClientPanelService).clearSelectedClient();
+  }
 
   public isLoggedIn$ = new BehaviorSubject<string>("");
   public error = signal<string>("");
@@ -72,12 +193,61 @@ export class AuthService {
     this.setActiveBusinessNumber(null);
   }
 
-  logout(): void {
-    this.viewAsUserData = null;
-    this.afAuth.signOut().then(() => {
-      localStorage.clear();
-      sessionStorage.clear();
-    });
+  /**
+   * The single logout entry point for the entire application. Every logout
+   * trigger (settings menu, forced 401 sign-out, etc.) must funnel through here.
+   *
+   * Clears, in order: in-memory app state (root singletons survive client-side
+   * navigation and would otherwise leak into the next session in the same tab),
+   * the Firebase auth session, then every auth/user storage key explicitly.
+   * Finally redirects to /login with `replaceUrl` so the back button cannot
+   * return to a protected page.
+   */
+  async logout(): Promise<void> {
+    // 1. Firebase — await so the persisted session is fully cleared before we
+    //    tear the app down.
+    try {
+      await this.afAuth.signOut();
+    } catch (err) {
+      console.error('Firebase signOut failed during logout:', err);
+    }
+
+    // 2. Remove every auth/user-related storage item explicitly (never *.clear()).
+    this.clearAuthStorage();
+
+    // 3. Full application reload. Angular boots from scratch, so every singleton
+    //    service, signal, computed and in-memory cache is recreated clean — no
+    //    manual per-service resets needed. replace() (not assign) so the
+    //    authenticated page can't be reached via the Back button.
+    window.location.replace('/login');
+  }
+
+  /**
+   * Explicit allow-list of every auth/user-related storage key written anywhere
+   * in the app. Kept explicit (not localStorage.clear()) so unrelated keys are
+   * left untouched and every cleared key is auditable.
+   */
+  private clearAuthStorage(): void {
+    const localKeys = [
+      'userData',
+      'businesses',
+      'token',                    // legacy, never written today — cleared defensively
+      'shaam_access_token',
+      'shaam_token_expires_in',
+      'shaam_token_timestamp',
+      'tm.lastProtectedRoute',    // legacy route-restore key, no longer written
+    ];
+    const sessionKeys = [
+      'isLoggedIn',
+      'tm.selectedClientId',
+      'tm.selectedClientName',
+      'draft_businessNumber',
+      'draft_docType',
+      'tm.demoSimulateBankLoader',
+      'chunkReloadFor',
+    ];
+    localKeys.forEach((k) => localStorage.removeItem(k));
+    sessionKeys.forEach((k) => sessionStorage.removeItem(k));
   }
 
   /** טעינת נתוני המשתמש "האפקטיבי" – כשהרואה חשבון צופה בלקוח מחזיר נתוני הלקוח */
@@ -100,6 +270,14 @@ export class AuthService {
   /** האם כרגע במצב צפייה כרואה חשבון (לא יכול לערוך/להפיק) */
   isViewingAsClient(): boolean {
     return this.viewAsUserData != null;
+  }
+
+  /** True when the currently impersonated user is a demo user. Used to relax
+   *  view-as restrictions so a presenter can show all features (including
+   *  doc-create) during a live demo, even without ADMIN role. */
+  isViewingDemoUser(): boolean {
+    const email = this.viewAsUserData?.email ?? '';
+    return email.startsWith('demo+') && email.endsWith('@taxmyself.local');
   }
 
 
@@ -187,6 +365,22 @@ export class AuthService {
    * page-navigation calls to /auth/signin don't re-trigger a sync.
    */
   signIn(freshLogin = false): any {
+    if (freshLogin) {
+      // Fresh login: drop any leftover delegated-client id before the
+      // request fires, otherwise the AuthInterceptor will attach
+      // x-client-user-id from a previous session and the new user
+      // (no delegation, no admin role) will get a 403.
+      this.clearDelegationState();
+      // This request makes the backend fire the post-login Feezback sync
+      // (see the doc-comment above). my-account.page.ts reads and clears
+      // this flag on its next ngOnInit to know it should wait for that
+      // sync's 'running' state instead of trusting whatever stale/no-sync
+      // status /transactions/sync-status happens to return first — the
+      // backend sync only starts a bit after this request resolves (Drive
+      // provisioning check runs first), so an immediate poll can otherwise
+      // race it and see "nothing running" before the sync has even begun.
+      sessionStorage.setItem('tm.freshLoginSync', 'true');
+    }
     const url = `${environment.apiUrl}auth/signin${freshLogin ? '?freshLogin=true' : ''}`;
     return this.http.get(url);
   }
@@ -299,8 +493,21 @@ export class AuthService {
   }
 
 
+  /**
+   * Whether a Firebase session is currently restored. Firebase's restored state
+   * is the single authority — app storage (`userData`, `businesses`) holds
+   * cached UI data only and never decides whether the user is signed in.
+   *
+   * Returns false while restoration is still pending; callers that must not
+   * race initialization should `await waitForAuthInit()` first (AuthGuard does).
+   */
   get isLoggedIn(): boolean {
-    return sessionStorage.getItem('isLoggedIn') ? true : false;
+    return !!this.authUser();
+  }
+
+  /** True only once Firebase has confirmed there is no session. */
+  get isDefinitelySignedOut(): boolean {
+    return this.authInitialized() && this.authUser() === null;
   }
 
 
@@ -341,23 +548,35 @@ export class AuthService {
       // ONLY treat an explicit 404 (user not found in our DB) as "new user".
       // Any other error (network blip, 500, timeout, auth issue) means "we
       // don't know" — re-throw so the caller surfaces a real error instead of
-      // assuming the user is new and (potentially) deleting their Firebase
-      // account.
+      // assuming the user is new and deleting their Firebase account.
       if (err?.status === 404) {
+        // signInWithPopup() just created this Firebase Auth user, but our DB
+        // confirms they were never registered. Remove it now so the email
+        // doesn't stay stuck as a ghost account (which later causes
+        // "email already in use" when they try to register for real).
+        await this.deleteUnregisteredGoogleUser(result.user);
         return { isNewUser: true, googleUser };
       }
       throw err;
     }
   }
 
-  async SignOut() {
-    return this.afAuth.signOut().then(() => {
-      localStorage.removeItem('userData');
-      sessionStorage.removeItem('isLoggedIn');
-      this.router.navigate(['login']);
-    });
+  /** Best-effort cleanup for the ghost Firebase user created by
+   *  signInWithPopup() when the backend reports the account isn't
+   *  registered. Never throws — a freshly-created sign-in is "recent" so
+   *  delete() should not need re-authentication, but if it ever fails we log
+   *  and let the caller fall through to its existing signOut() + "please
+   *  register" handling rather than blocking the user. */
+  private async deleteUnregisteredGoogleUser(user: User | null): Promise<void> {
+    if (!user) {
+      return;
+    }
+    try {
+      await user.delete();
+    } catch (deleteErr) {
+      console.error('Failed to delete unregistered Google Firebase user:', deleteErr);
+    }
   }
-
 
 }
 

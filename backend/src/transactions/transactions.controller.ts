@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, Query, UploadedFile, UseInterceptors, Headers, BadRequestException, ConflictException, ForbiddenException, UsePipes, ValidationPipe, Put, UseGuards, Req, HttpCode, HttpStatus, HttpException, Logger } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Body, Query, UploadedFile, UseInterceptors, Headers, BadRequestException, ConflictException, ForbiddenException, UsePipes, ValidationPipe, Put, UseGuards, Req, HttpCode, HttpStatus, HttpException, Logger, Inject, forwardRef } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { TransactionsService } from './transactions.service';
 import { TransactionProcessingService } from './transaction-processing.service';
@@ -14,6 +14,8 @@ import { ClassifyTransactionDto } from './dtos/classify-transaction.dto';
 import { UpdateClassificationRuleDto } from './dtos/update-classification-rule.dto';
 import multer from 'multer';
 import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
+import { SubscriptionGuard } from 'src/guards/subscription.guard';
+import { RequireModule } from 'src/decorators/require-module.decorator';
 import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.interface';
 import { UserSyncStateService } from './user-sync-state.service';
 import { FeezbackService } from '../feezback/feezback.service';
@@ -22,7 +24,7 @@ import { SourceResult } from './user-source-sync-state.entity';
 import { FlowAnalysisDto } from './dtos/flow-analysis.dto';
 import { FlowAnalysisResponse } from './interfaces/flow-analysis-response.interface';
 import { ExpensesService } from '../expenses/expenses.service';
-import { UserSubCategory } from '../expenses/user-sub-categories.entity';
+import { BillingService } from '../billing/services/billing.service';
 
 // ── Dev simulator scenario specs (shared by the 3 staged dev endpoints) ──────
 type SimSpec = {
@@ -84,6 +86,8 @@ export class TransactionsController {
     private readonly usersService: UsersService,
     private readonly feezbackService: FeezbackService,
     private readonly expensesService: ExpensesService,
+    @Inject(forwardRef(() => BillingService))
+    private readonly billingService: BillingService,
   ) {}
 
   /**
@@ -193,7 +197,8 @@ export class TransactionsController {
   }
 
   @Post('trigger-sync')
-  @UseGuards(FirebaseAuthGuard)
+  @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
+  @RequireModule(ModuleName.OPEN_BANKING)
   @HttpCode(HttpStatus.OK)
   async triggerSync(@Req() request: AuthenticatedRequest): Promise<{ status: 'started' | 'already_running' }> {
     const userId = request.user?.firebaseId;
@@ -201,14 +206,7 @@ export class TransactionsController {
 
     this.logger.log(`[TriggerSync] Manual sync requested | firebaseId=${masked}`);
 
-    // Gate 1 — OPEN_BANKING module access
-    const user = await this.usersService.findByFirebaseId(userId);
-    if (!user?.modulesAccess?.includes(ModuleName.OPEN_BANKING)) {
-      this.logger.log(`[TriggerSync] Rejected — no OPEN_BANKING access | firebaseId=${masked}`);
-      throw new ForbiddenException('User does not have Open Banking access');
-    }
-
-    // Gate 2 — already running (checked via persisted sync state)
+    // Gate — already running (checked via persisted sync state)
     const state = await this.userSyncStateService.getSyncState(userId);
     const isRunning = state?.fullProcessStatus === 'running';
     if (isRunning) {
@@ -472,7 +470,8 @@ export class TransactionsController {
   }
 
   @Get('flow-analysis')
-  @UseGuards(FirebaseAuthGuard)
+  @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
+  @RequireModule(ModuleName.OPEN_BANKING)
   @UsePipes(new ValidationPipe({ transform: true }))
   async getFlowAnalysis(
     @Req() request: AuthenticatedRequest,
@@ -500,7 +499,8 @@ export class TransactionsController {
   }
 
   @Get('flow-analysis-merchants')
-  @UseGuards(FirebaseAuthGuard)
+  @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
+  @RequireModule(ModuleName.OPEN_BANKING)
   async getFlowAnalysisMerchants(
     @Req() request: AuthenticatedRequest,
     @Query('billId') billId?: string,
@@ -515,10 +515,13 @@ export class TransactionsController {
 
   @Get('get-all-user-sub-categories')
   @UseGuards(FirebaseAuthGuard)
+  // Returns legacy-shaped (subCategoryName/categoryName) objects mapped from
+  // the new catalog by ExpensesService — the UserSubCategory ENTITY type was
+  // only ever nominal here (Phase 4.6 removed the last legacy-table reads).
   async getAllUserSubCategories(
     @Req() request: AuthenticatedRequest,
     @Query('billId') billId?: string,
-  ): Promise<UserSubCategory[]> {
+  ): Promise<any[]> {
     const userId = request.user?.firebaseId;
     let businessNumber: string | undefined;
     if (billId) {
@@ -548,15 +551,6 @@ export class TransactionsController {
   ) {
     const userId = request.user?.firebaseId;
     return this.transactionsService.saveTransactions(file, userId);
-  }
-
-
-  @Post('load-default-categories')
-  //TODO: Add Admin guard
-  @UseInterceptors(FileInterceptor('file'))
-  async loadDefaultCategories(
-    @UploadedFile() file: Express.Multer.File) {
-    return this.transactionsService.loadDefaultCategories(file)
   }
 
 

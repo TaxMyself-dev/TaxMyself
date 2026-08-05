@@ -81,6 +81,7 @@ export class TransactionsPage implements OnInit {
     highlightedField:  TransactionsOutcomesColumns.SUM,
     dateField:         TransactionsOutcomesColumns.BILL_DATE,
     hiddenFields:      [],
+    highlightedValueFormat: 'plain'
   };
 
   // ─── Sync status table state ─────────────────────────────────────────────────
@@ -343,7 +344,7 @@ export class TransactionsPage implements OnInit {
    * takeWhile(..., inclusive=true) ensures the terminal emission is processed before
    * the stream completes.
    */
-  private startSyncStatusPolling(): void {
+  private startSyncStatusPolling(timeoutRetryCount = 0): void {
     // Cancels any previous polling session before starting a new one.
     // takeUntil(restartPolling$) in the pipe completes the old stream on this signal.
     this.restartPolling$.next();
@@ -355,22 +356,35 @@ export class TransactionsPage implements OnInit {
         takeUntilDestroyed(this.destroyRef),
         takeUntil(this.restartPolling$),
         takeWhile(
-          ({ stageState }) => stageState?.processStatus === 'running',
+          ({ stageState }) => !stageState || stageState.processStatus === 'running',
           /* inclusive */ true,
         ),
         catchError(err => {
-          console.warn('[Transactions] Sync status stream error — treating as failed', err);
-          this.syncProcessStatus.set('failed');
-          this.filteredExpensesData.set(null);
-          this.filteredIncomesData.set(null);
+          // Only fires when the client gives up polling locally (see
+          // pollUntilDone's 10-min ceiling) — a genuine backend
+          // processStatus:'failed' is handled below, not here. A sync that's
+          // still running server-side shouldn't look like a failure, so
+          // don't wipe data; quietly restart polling once before giving up.
+          if (timeoutRetryCount === 0) {
+            console.warn('[Transactions] Sync status poll timed out — retrying once before giving up', err);
+            this.syncProcessStatus.set('running');
+            setTimeout(() => this.startSyncStatusPolling(timeoutRetryCount + 1), 3000);
+          } else {
+            console.warn('[Transactions] Sync status poll timed out again — giving up without clearing data', err);
+            this.messageService.add({
+              severity: 'warn',
+              summary: 'הסנכרון לוקח זמן רב מהצפוי',
+              detail: 'התנועות עשויות להופיע עם רענון הדף בעוד מספר דקות.',
+              life: 10_000,
+              key: 'br',
+            });
+          }
           return EMPTY;
         }),
       )
       .subscribe(({ stageState }) => {
         if (!stageState) {
-          this.syncProcessStatus.set('failed');
-          this.filteredExpensesData.set(null);
-          this.filteredIncomesData.set(null);
+          // null = transient HTTP error during polling — keep current state, don't fail
           return;
         }
 

@@ -1,5 +1,4 @@
 import { CommonModule } from '@angular/common';
-import { environment } from 'src/environments/environment';
 import { Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -18,7 +17,11 @@ import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 import { ClassifyTranComponent } from 'src/app/components/classify-tran/classify-tran.component';
 import { DashboardNavigateComponent } from 'src/app/components/dashboard-navigate/dashboard-navigate.component';
 import { GenericTableComponent } from 'src/app/components/generic-table/generic-table.component';
+import { ConnectedPosition } from '@angular/cdk/overlay';
 import { MannualExpenseComponent } from 'src/app/components/mannual-expense/mannual-expense.component';
+import { MenuButtonComponent } from 'src/app/components/menu-button/menu-button.component';
+import { MenuButtonItem } from 'src/app/components/menu-button/menu-button.model';
+import { QuickUploadDriveDialogComponent } from 'src/app/components/quick-upload-drive-dialog/quick-upload-drive-dialog.component';
 import { AuthService } from 'src/app/services/auth.service';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { GenericService } from 'src/app/services/generic.service';
@@ -30,6 +33,11 @@ import { TransactionsService } from '../transactions/transactions.page.service';
 import { FeezbackService } from 'src/app/services/feezback.service';
 import { SourceResult, SyncStatusService } from 'src/app/services/sync-status.service';
 import { MessageService } from 'primeng/api';
+import { BillingStateService } from 'src/app/services/billing-state.service';
+import { AdminPanelService } from 'src/app/services/admin-panel.service';
+import { AccessService, FeatureState } from 'src/app/services/access.service';
+import { AccessHandlerService } from 'src/app/services/access-handler.service';
+import { AppFeature } from 'src/app/shared/access-control';
 
 @Component({
   selector: 'app-my-account',
@@ -45,6 +53,7 @@ import { MessageService } from 'primeng/api';
     AvatarModule,
     AvatarGroupModule,
     ButtonComponent,
+    MenuButtonComponent,
     GenericTableComponent,
     AccountAssociationDialogComponent,
     AddBillComponent,
@@ -62,7 +71,33 @@ export class MyAccountPage implements OnInit {
   feezbackService = inject(FeezbackService);
   messageService = inject(MessageService);
   private readonly syncStatusService = inject(SyncStatusService);
+  private readonly billingStateService = inject(BillingStateService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly accessService = inject(AccessService);
+  private readonly accessHandlerService = inject(AccessHandlerService);
+
+  readonly access = {
+    createDocumentRecommended: computed(() => this.accessService.getFeatureState(AppFeature.DOC_CREATE_BUTTON_RECOMMENDED_PIVOT)),
+    transactionsRecommended:   computed(() => this.accessService.getFeatureState(AppFeature.TRANSACTIONS_BUTTON_RECOMMENDED_PIVOT)),
+    addExpense:                computed(() => this.accessService.getFeatureState(AppFeature.ADD_EXPENSE_BUTTON)),
+    openBankingConnect:        computed(() => this.accessService.getFeatureState(AppFeature.OPEN_BANKING_CONNECT)),
+    addOpenBankingButton:      computed(() => this.accessService.getFeatureState(AppFeature.ADD_OPEN_BANKING_BUTTON)),
+    openBankingTable:          computed(() => this.accessService.getFeatureState(AppFeature.OPEN_BANKING_TABLE)),
+  };
+
+  onDocCreateCardClick(): void {
+    const result = this.accessHandlerService.handleFeatureAccess(AppFeature.DOC_CREATE_BUTTON_RECOMMENDED_PIVOT);
+    if (result.allowed) {
+      this.router.navigate(['/doc-create']);
+    }
+  }
+
+  onTransactionsCardClick(): void {
+    const result = this.accessHandlerService.handleFeatureAccess(AppFeature.TRANSACTIONS_BUTTON_RECOMMENDED_PIVOT);
+    if (result.allowed) {
+      this.router.navigate(['/transactions']);
+    }
+  }
 
   dialogService = inject(DialogService);
   // dialogRef = inject(DynamicDialogRef);
@@ -78,7 +113,10 @@ export class MyAccountPage implements OnInit {
   // mobileMenuOpen = signal<boolean>(false);
   isLoadingFeezback = signal<boolean>(false);
   isLoadingUserAccounts = signal<boolean>(false);
-  isProd = signal<boolean>(environment.production);
+  /** Spinner state for the dashboard's "אפס נתוני בדיקה" button (demo users only). */
+  isResettingDemo = signal<boolean>(false);
+
+  private readonly adminPanelService = inject(AdminPanelService);
 
   userData: IUserData;
   transToClassify: Observable<ITransactionData[]>;
@@ -135,6 +173,173 @@ export class MyAccountPage implements OnInit {
   consentDialogVisible = signal<boolean>(false);
   consentChecked = signal<boolean>(false);
 
+  // ─── CardCom payment result banner ───────────────────────────────────────
+  // Shown after the user returns from the CardCom hosted payment page.
+  // Query params only mark "the user returned" — billing/me is the source of truth.
+  readonly cardcomReturnDetected = signal(false);
+  readonly paymentBannerDismissed = signal(false);
+  readonly paymentPolling = signal(false);
+  readonly resendingReceiptEmail = signal(false);
+  readonly retryingInvoice = signal(false);
+  private readonly cardcomRedirectFailure = signal<{ responseCode: string | null; status: string | null } | null>(null);
+  /**
+   * Which CardCom flow the current return belongs to. Set from a sessionStorage
+   * marker written before redirect (change-payment-method sets 'CHANGE_PM';
+   * checkout leaves it unset → 'CHECKOUT'). Drives which banner is shown, since
+   * both flows share the same success/failed redirect URL.
+   */
+  private readonly cardcomFlow = signal<'CHECKOUT' | 'CHANGE_PM'>('CHECKOUT');
+  private paymentReturnDetectedAt = 0;
+  private paymentPollAttempts = 0;
+  /**
+   * Bounded poll spans the same window as PAYMENT_STATUS_TIMEOUT_MS (90s) so we
+   * keep checking for a late-arriving webhook right up until the timeout fires.
+   */
+  private readonly PAYMENT_POLL_MAX_ATTEMPTS = 30;
+  private readonly PAYMENT_POLL_INTERVAL_MS = 3000;
+  /** Accept a billingPaymentResult as "for this return" if created up to this long before detection (clock skew / webhook racing the redirect). */
+  private readonly PAYMENT_FRESHNESS_WINDOW_MS = 2 * 60_000;
+  /**
+   * Hard timeout: if we still don't know the outcome (webhook never arrived,
+   * network issue, ngrok down, provider issue, etc.) after this long, stop
+   * waiting and show PAYMENT_STATUS_UNKNOWN instead of spinning forever.
+   */
+  private readonly PAYMENT_STATUS_TIMEOUT_MS = 90_000;
+  private paymentTimeoutHandle: ReturnType<typeof setTimeout> | null = null;
+  /** Set once PAYMENT_STATUS_TIMEOUT_MS has elapsed since the CardCom redirect with no resolved outcome. */
+  readonly paymentTimedOut = signal(false);
+
+  private static readonly PAYMENT_STATUS_UNKNOWN_MESSAGE =
+    'לא הצלחנו להשלים באופן אוטומטי את תהליך הפעלת המנוי.\n' +
+    'ייתכן שהתשלום שלך כבר עובד בהצלחה.\n' +
+    'אנא אל תבצע/י תשלום נוסף.\n' +
+    'צור/י קשר עם התמיכה ואנחנו נבדוק את העסקה ונשלים את ההפעלה במידת הצורך.';
+
+  readonly paymentResultBanner = computed<
+    | { kind: 'success'; message: string }
+    | { kind: 'email-failed'; message: string; eventId: number }
+    | { kind: 'invoice-failed'; message: string; eventId: number }
+    | { kind: 'failed'; message: string; detail?: string }
+    | { kind: 'unknown'; message: string }
+    | { kind: 'processing'; message: string }
+    | null
+  >(() => {
+    if (!this.cardcomReturnDetected() || this.paymentBannerDismissed()) return null;
+    // Change-payment-method returns are handled by paymentMethodResultBanner.
+    if (this.cardcomFlow() === 'CHANGE_PM') return null;
+
+    const redirectFailure = this.cardcomRedirectFailure();
+    if (redirectFailure) {
+      return {
+        kind: 'failed',
+        message: 'התשלום נכשל',
+        detail: redirectFailure.responseCode ? `קוד שגיאה: ${redirectFailure.responseCode}` : undefined,
+      };
+    }
+
+    const result = this.billingStateService.billingPaymentResult();
+    const isFresh =
+      !!result &&
+      new Date(result.createdAt).getTime() >= this.paymentReturnDetectedAt - this.PAYMENT_FRESHNESS_WINDOW_MS;
+
+    const processingState = {
+      kind: 'processing' as const,
+      message: 'התשלום בוצע בהצלחה.\nאנחנו משלימים את הפעלת המנוי ומפיקים את החשבונית שלך...',
+    };
+
+    if (isFresh && result) {
+      if (result.paymentStatus === 'FAILED') {
+        return { kind: 'failed', message: 'התשלום נכשל', detail: result.failureReason ?? undefined };
+      }
+      // Charge was verified by CardCom but our own activation logic failed —
+      // never call this "payment failed", the user may already be charged.
+      if (result.paymentStatus === 'ACTIVATION_FAILED') {
+        return { kind: 'unknown', message: MyAccountPage.PAYMENT_STATUS_UNKNOWN_MESSAGE };
+      }
+      if (result.receiptDocId != null) {
+        if (result.receiptEmailSent === false) {
+          return {
+            kind: 'email-failed',
+            message: 'התשלום בוצע בהצלחה והחשבונית נוצרה, אבל השליחה למייל נכשלה.',
+            eventId: result.latestPaymentEventId!,
+          };
+        }
+        return {
+          kind: 'success',
+          message: `התשלום בוצע בהצלחה.${result.receiptEmail ? ` חשבונית מס קבלה נשלחה למייל: ${result.receiptEmail}` : ' חשבונית מס קבלה נשלחה למייל שלך.'}`,
+        };
+      }
+      // Payment succeeded but the receipt document hasn't been created yet.
+      // Distinguish "still generating" from "generation permanently failed" —
+      // payment success is already confirmed here, so this is never "failed payment".
+      if (result.receiptFailed || this.paymentTimedOut()) {
+        return {
+          kind: 'invoice-failed',
+          message: 'התשלום בוצע בהצלחה.\nהייתה תקלה בהפקה או בשליחה של החשבונית.',
+          eventId: result.latestPaymentEventId!,
+        };
+      }
+      return processingState;
+    }
+
+    // No resolved outcome yet — webhook may still be in flight, or may never arrive.
+    if (this.paymentTimedOut()) {
+      return { kind: 'unknown', message: MyAccountPage.PAYMENT_STATUS_UNKNOWN_MESSAGE };
+    }
+
+    return processingState;
+  });
+
+  /**
+   * Banner shown after returning from a change-payment-method (CreateTokenOnly)
+   * flow. Never involves a charge/receipt — it only confirms the saved card was
+   * replaced. Driven by billing/me's paymentMethodUpdateResult.
+   */
+  readonly paymentMethodResultBanner = computed<
+    | { kind: 'success'; message: string }
+    | { kind: 'failed'; message: string; detail?: string }
+    | { kind: 'unknown'; message: string }
+    | { kind: 'processing'; message: string }
+    | null
+  >(() => {
+    if (!this.cardcomReturnDetected() || this.paymentBannerDismissed()) return null;
+    if (this.cardcomFlow() !== 'CHANGE_PM') return null;
+
+    const redirectFailure = this.cardcomRedirectFailure();
+    if (redirectFailure) {
+      return {
+        kind: 'failed',
+        message: 'החלפת אמצעי התשלום נכשלה',
+        detail: redirectFailure.responseCode ? `קוד שגיאה: ${redirectFailure.responseCode}` : undefined,
+      };
+    }
+
+    const result = this.billingStateService.paymentMethodUpdateResult();
+    const isFresh =
+      !!result &&
+      new Date(result.createdAt).getTime() >= this.paymentReturnDetectedAt - this.PAYMENT_FRESHNESS_WINDOW_MS;
+
+    if (isFresh && result) {
+      if (result.status === 'SUCCESS') {
+        const cardLabel = result.last4 ? ` (מסתיים ב-${result.last4})` : '';
+        return { kind: 'success', message: `אמצעי התשלום עודכן בהצלחה${cardLabel}.` };
+      }
+      return { kind: 'failed', message: 'החלפת אמצעי התשלום נכשלה', detail: result.failureReason ?? undefined };
+    }
+
+    // No charge occurs in this flow, so a lost webhook is low-risk — show a calm
+    // "still processing" message that resolves to an informational note on timeout.
+    if (this.paymentTimedOut()) {
+      return {
+        kind: 'unknown',
+        message:
+          'לא הצלחנו לאשר את עדכון אמצעי התשלום באופן אוטומטי.\n' +
+          'ייתכן שהעדכון עדיין מתבצע — רענן/י את העמוד בעוד מספר דקות.',
+      };
+    }
+    return { kind: 'processing', message: 'מעדכנים את אמצעי התשלום שלך...' };
+  });
+
 
 
   private readonly allItemsNavigate: IItemNavigate[] = [
@@ -144,20 +349,27 @@ export class MyAccountPage implements OnInit {
     { name: "דוחות", link: "/reports", image: "../../../assets/icon-report-create.svg", content: 'דוחות לרשויות בקליק', id: '3', index: 'three' },
   ];
 
-  /** במצב צפייה כרואה חשבון – לא מציגים הפקת מסמך (צפייה בלבד) */
-  get itemsNavigate(): IItemNavigate[] {
-    // Hide /doc-create when an ACCOUNTANT is viewing as a client (accountants
-    // shouldn't issue docs on the client's behalf). Admins keep the card so
-    // they can use doc-create on the demo user for QA/testing.
+  /**
+   * Reactive list of recommended-action cards.
+   * Filters items based on access state so HIDE-configured features are never rendered.
+   * Also hides /doc-create when an accountant is viewing as a client.
+   */
+  readonly itemsNavigate = computed<IItemNavigate[]>(() => {
+    const showTransactions = this.access.transactionsRecommended().visible;
+    let items = this.allItemsNavigate.filter(item => {
+      if (item.link === '/transactions') return showTransactions;
+      return true;
+    });
+    // Hide /doc-create when an ACCOUNTANT is viewing as a client.
     if (this.authService.isViewingAsClient()) {
       const realUser = this.authService.getRealUserDataFromLocalStorage();
       const realUserIsAdmin = !!realUser?.role?.includes('ADMIN');
-      if (!realUserIsAdmin) {
-        return this.allItemsNavigate.filter((item) => item.link !== '/doc-create');
+      if (!realUserIsAdmin && !this.authService.isViewingDemoUser()) {
+        items = items.filter((item) => item.link !== '/doc-create');
       }
     }
-    return this.allItemsNavigate;
-  }
+    return items;
+  });
 
   // ─── User-context signals (set in ngOnInit from userData) ────────────────
   isOnlyEmployer = signal<boolean>(false);
@@ -180,6 +392,7 @@ export class MyAccountPage implements OnInit {
     highlightedField:  TransactionsOutcomesColumns.SUM,
     dateField:         TransactionsOutcomesColumns.BILL_DATE,
     hiddenFields:      [],
+    highlightedValueFormat: 'plain',   // sum is pre-formatted with the currency symbol (₪/$/€/£)
   };
 
   // ─── Dialog visibility signals ────────────────────────────────────────────
@@ -253,10 +466,57 @@ export class MyAccountPage implements OnInit {
     this.accountsList = this.transactionService.accountsList;
 
     if (this.hasOpenBanking()) {
-      this.startSyncStatusPolling();
+      // Show the loader synchronously, before the first poll response comes
+      // back — otherwise the table renders its default "no data" empty state
+      // for the brief gap between mount and that first network round-trip,
+      // which is exactly the flash the user is not supposed to see. Whichever
+      // branch below runs will correct this shortly (to null/failed) once we
+      // actually know the sync state.
+      this.syncProcessStatus.set('running');
+
+      if (this.consumeDemoBankLoaderFlag()) {
+        // Demo entrance: hold the "נתונים נמשכים מהבנק" loader for 5s
+        // before letting the real sync polling resolve (which would
+        // instantly flip to 'completed' for seeded demo data).
+        setTimeout(() => this.startSyncStatusPolling(), 5000);
+      } else {
+        // requireRunningFirst=true only right after a fresh login: the
+        // backend's post-login sync starts a moment after /auth/signin
+        // resolves (it runs a Drive provisioning check first), so polling
+        // immediately can otherwise see "nothing running yet" and treat it
+        // as already-completed with zero data. Ordinary page loads/navigation
+        // (flag absent) keep acting on whatever the current state already is.
+        this.startSyncStatusPolling(this.consumeFreshLoginFlag());
+      }
     }
 
     this.initFeezbackDialogFromReturnUrl();
+    this.initPaymentResultFromReturnUrl();
+
+    this.destroyRef.onDestroy(() => {
+      if (this.paymentTimeoutHandle) clearTimeout(this.paymentTimeoutHandle);
+    });
+  }
+
+  /** Reads and clears the one-shot flag set by AuthService.signIn(true) on an
+   *  actual fresh login (see its doc-comment) — tells us a post-login sync
+   *  was just triggered, so the first poll should wait for 'running'. */
+  private consumeFreshLoginFlag(): boolean {
+    if (typeof sessionStorage === 'undefined') return false;
+    const flag = sessionStorage.getItem('tm.freshLoginSync');
+    if (!flag) return false;
+    sessionStorage.removeItem('tm.freshLoginSync');
+    return true;
+  }
+
+  /** Reads and clears the one-shot flag set by the admin demo-data panel when
+   *  it routed into this page on behalf of a demo user. */
+  private consumeDemoBankLoaderFlag(): boolean {
+    if (typeof sessionStorage === 'undefined') return false;
+    const flag = sessionStorage.getItem('tm.demoSimulateBankLoader');
+    if (!flag) return false;
+    sessionStorage.removeItem('tm.demoSimulateBankLoader');
+    return true;
   }
 
   /** Feezback consent redirect lands on `/my-account?feezbackStatus=...` (see backend JWT redirects). */
@@ -319,6 +579,163 @@ export class MyAccountPage implements OnInit {
       this.feezbackDialogIcon.set('error');
       this.feezbackDialogVisible.set(true);
     }
+  }
+
+  /**
+   * CardCom redirects back to /my-account with hosted-page params after checkout.
+   * These params only mark "the user returned from CardCom" — billing/me (the
+   * webhook's result) is the source of truth for payment/invoice/email status.
+   */
+  private initPaymentResultFromReturnUrl(): void {
+    const params = this.route.snapshot.queryParamMap;
+    const responseCode = params.get('ResponseCode') ?? params.get('responsecode');
+    const status = params.get('Status') ?? params.get('status');
+    const lowProfileCode = params.get('lowprofilecode') ?? params.get('LowProfileCode');
+    const internalDealNumber = params.get('internalDealNumber') ?? params.get('internaldealnumber');
+
+    const cardcomReturned = !!(responseCode || status || lowProfileCode || internalDealNumber);
+    if (!cardcomReturned) return;
+
+    this.cardcomReturnDetected.set(true);
+    this.paymentBannerDismissed.set(false);
+    this.paymentReturnDetectedAt = Date.now();
+
+    // Which flow are we returning from? Set before redirect (change-payment-method
+    // writes 'CHANGE_PM'; checkout leaves it unset). Consume the one-shot marker.
+    const flowMarker =
+      typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('tm.cardcomFlow') : null;
+    this.cardcomFlow.set(flowMarker === 'CHANGE_PM' ? 'CHANGE_PM' : 'CHECKOUT');
+    if (typeof sessionStorage !== 'undefined') sessionStorage.removeItem('tm.cardcomFlow');
+
+    // CardCom convention: ResponseCode/Status === '0' means success.
+    const redirectIndicatesFailure =
+      (responseCode != null && responseCode !== '0') || (status != null && status !== '0');
+    this.cardcomRedirectFailure.set(redirectIndicatesFailure ? { responseCode, status } : null);
+
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: {},
+      replaceUrl: true,
+    });
+
+    this.billingStateService.refreshBillingState().then(() => {
+      if (!redirectIndicatesFailure) {
+        this.startPaymentTimeoutTimer();
+        this.startPaymentResultPolling();
+      }
+    });
+  }
+
+  /**
+   * Stop-loss for the "webhook never arrives" failure mode: charge succeeds at
+   * CardCom but the webhook is lost (network issue, ngrok down, provider issue),
+   * so billing/me never resolves a terminal outcome. Without this, the banner
+   * would stay on "processing" forever and the user might pay again, risking a
+   * duplicate charge. After PAYMENT_STATUS_TIMEOUT_MS, flip to PAYMENT_STATUS_UNKNOWN.
+   */
+  private startPaymentTimeoutTimer(): void {
+    if (this.paymentTimeoutHandle) clearTimeout(this.paymentTimeoutHandle);
+    this.paymentTimedOut.set(false);
+    this.paymentTimeoutHandle = setTimeout(() => {
+      this.paymentTimedOut.set(true);
+    }, this.PAYMENT_STATUS_TIMEOUT_MS);
+  }
+
+  /** Bounded poll — webhook may still be finishing receipt generation when the user lands back. */
+  private startPaymentResultPolling(): void {
+    this.paymentPollAttempts = 0;
+    this.pollPaymentResultTick();
+  }
+
+  private pollPaymentResultTick(): void {
+    // Change-payment-method flow: resolve on a fresh paymentMethodUpdateResult.
+    if (this.cardcomFlow() === 'CHANGE_PM') {
+      const pm = this.billingStateService.paymentMethodUpdateResult();
+      const pmFresh =
+        !!pm &&
+        new Date(pm.createdAt).getTime() >= this.paymentReturnDetectedAt - this.PAYMENT_FRESHNESS_WINDOW_MS;
+
+      if (pmFresh || this.paymentPollAttempts >= this.PAYMENT_POLL_MAX_ATTEMPTS) {
+        this.paymentPolling.set(false);
+        if (this.paymentTimeoutHandle) {
+          clearTimeout(this.paymentTimeoutHandle);
+          this.paymentTimeoutHandle = null;
+        }
+        return;
+      }
+
+      this.paymentPolling.set(true);
+      this.paymentPollAttempts++;
+      setTimeout(() => {
+        this.billingStateService.refreshBillingState().finally(() => this.pollPaymentResultTick());
+      }, this.PAYMENT_POLL_INTERVAL_MS);
+      return;
+    }
+
+    const result = this.billingStateService.billingPaymentResult();
+    const isFresh =
+      !!result &&
+      new Date(result.createdAt).getTime() >= this.paymentReturnDetectedAt - this.PAYMENT_FRESHNESS_WINDOW_MS;
+    const isDone =
+      isFresh &&
+      result &&
+      (result.paymentStatus === 'FAILED' ||
+        result.paymentStatus === 'ACTIVATION_FAILED' ||
+        result.receiptDocId != null ||
+        result.receiptFailed);
+
+    if (isDone || this.paymentPollAttempts >= this.PAYMENT_POLL_MAX_ATTEMPTS) {
+      this.paymentPolling.set(false);
+      if (this.paymentTimeoutHandle) {
+        clearTimeout(this.paymentTimeoutHandle);
+        this.paymentTimeoutHandle = null;
+      }
+      return;
+    }
+
+    this.paymentPolling.set(true);
+    this.paymentPollAttempts++;
+    setTimeout(() => {
+      this.billingStateService.refreshBillingState().finally(() => this.pollPaymentResultTick());
+    }, this.PAYMENT_POLL_INTERVAL_MS);
+  }
+
+  resendReceiptEmailClick(eventId: number): void {
+    this.resendingReceiptEmail.set(true);
+    this.billingStateService.resendReceiptEmail(eventId)
+      .then(result => {
+        if (!result.sent) {
+          this.messageService.add({
+            severity: 'error',
+            summary: 'שגיאה',
+            detail: result.error ?? 'שליחת החשבונית במייל נכשלה. נסה שוב.',
+            life: 5000,
+            key: 'br',
+          });
+        }
+      })
+      .finally(() => this.resendingReceiptEmail.set(false));
+  }
+
+  retryInvoiceClick(eventId: number): void {
+    this.retryingInvoice.set(true);
+    this.billingStateService.generateMissingReceipt(eventId)
+      .then(result => {
+        if (!result.sent && !result.created) {
+          this.messageService.add({
+            severity: 'error',
+            summary: 'שגיאה',
+            detail: result.error ?? 'הפקת החשבונית נכשלה. נסה שוב.',
+            life: 5000,
+            key: 'br',
+          });
+        }
+      })
+      .finally(() => this.retryingInvoice.set(false));
+  }
+
+  dismissPaymentResultBanner(): void {
+    this.paymentBannerDismissed.set(true);
   }
 
   /**
@@ -440,7 +857,10 @@ export class MyAccountPage implements OnInit {
       this.feezbackDialogIcon.set('success');
       return;
     }
-    const allSuccess = rows.every(r => r.status === 'success');
+    // skipped_direct counts as success: a Direct card is intentionally not
+    // pulled from the card feed (its transactions arrive via the bank feed) —
+    // it must never make the dialog look like something went wrong.
+    const allSuccess = rows.every(r => r.status === 'success' || r.status === 'skipped_direct');
     if (allSuccess) {
       this.feezbackDialogStatus.set('success');
       this.feezbackDialogTitle.set('הנתונים שלך נטענו בהצלחה!');
@@ -502,7 +922,7 @@ export class MyAccountPage implements OnInit {
    *   on stale terminal state left over from a previous sync.
    *   When false (page load / navigation back), act on whatever the current state is.
    */
-  private startSyncStatusPolling(requireRunningFirst = false): void {
+  private startSyncStatusPolling(requireRunningFirst = false, timeoutRetryCount = 0): void {
     // Cancels any previous polling session before starting a new one.
     this.restartPolling$.next();
 
@@ -528,13 +948,30 @@ export class MyAccountPage implements OnInit {
           /* inclusive */ true,
         ),
         catchError(err => {
-          console.warn('[MyAccount] Sync status stream error — treating as failed', err);
-          this.syncProcessStatus.set('failed');
-          this.transToClassify = of([]);
-          if (this.feezbackDialogVisible() && this.feezbackDialogStatus() === 'loading') {
-            this.feezbackDialogStatus.set('failure');
-            this.feezbackDialogTitle.set('משהו בדרך השתבש, אנא נסה שנית');
-            this.feezbackDialogIcon.set('error');
+          // This only fires when the client gives up polling locally (see
+          // pollUntilDone's 10-min ceiling) — NOT when the backend reports a
+          // genuine processStatus:'failed' (that's handled in the subscribe
+          // branch below, untouched by this). A long sync that's still
+          // running server-side shouldn't look like a failure, so don't wipe
+          // any data here; just quietly restart polling once before giving up.
+          if (timeoutRetryCount === 0) {
+            console.warn('[MyAccount] Sync status poll timed out — retrying once before giving up', err);
+            this.syncProcessStatus.set('running');
+            setTimeout(() => this.startSyncStatusPolling(requireRunningFirst, timeoutRetryCount + 1), 3000);
+          } else {
+            console.warn('[MyAccount] Sync status poll timed out again — giving up without clearing data', err);
+            this.messageService.add({
+              severity: 'warn',
+              summary: 'הסנכרון לוקח זמן רב מהצפוי',
+              detail: 'התנועות עשויות להופיע עם רענון הדף בעוד מספר דקות.',
+              life: 10_000,
+              key: 'br',
+            });
+            if (this.feezbackDialogVisible() && this.feezbackDialogStatus() === 'loading') {
+              this.feezbackDialogStatus.set('failure');
+              this.feezbackDialogTitle.set('משהו בדרך השתבש, אנא נסה שנית');
+              this.feezbackDialogIcon.set('error');
+            }
           }
           return EMPTY;
         }),
@@ -780,6 +1217,8 @@ export class MyAccountPage implements OnInit {
   }
 
   connectToOpenBanking(): void {
+    const result = this.accessHandlerService.handleFeatureAccess(AppFeature.OPEN_BANKING_CONNECT);
+    if (!result.allowed) return;
     this.consentChecked.set(false);
     this.consentDialogVisible.set(true);
   }
@@ -902,20 +1341,124 @@ export class MyAccountPage implements OnInit {
   // }
 
 
+  /**
+   * Wipes the demo user's Drive inbox/processed/archive folders, deletes
+   * all OCR/expense/transaction rows derived from prior testing, then
+   * re-uploads the canned sample PDFs and re-seeds the OB cache rows from
+   * the profile. Visible only when `userData.isDemo` is true. After the
+   * server confirms, force a full reload so every cached signal/state in
+   * the SPA picks up the fresh DB.
+   */
+  onResetTestData(): void {
+    if (this.isResettingDemo()) return;
+    const confirmed = confirm(
+      'פעולה זו תמחק את כל קבצי הדרייב והנתונים שנוצרו במהלך הבדיקות ותעלה מחדש את קבצי הדוגמה. להמשיך?',
+    );
+    if (!confirmed) return;
+    this.isResettingDemo.set(true);
+    this.adminPanelService.resetDemoTestData().subscribe({
+      next: (res) => {
+        if (res.driveInbox?.needsManualUpload) {
+          // Drive's service account couldn't upload (no storage quota on
+          // personal Google accounts). Tell the admin to drag the PDFs in
+          // by hand and open the inbox folder in a new tab so they can.
+          this.messageService.add({
+            severity: 'warn',
+            summary: 'איפוס בוצע - יש לעלות קבצים ידנית',
+            detail: `נמחקו ${res.filesDeleted} קבצים. יש לגרור את קבצי הדוגמה לתיקיית ה-inbox בדרייב (נפתחה בכרטיסיה חדשה).`,
+            life: 8000,
+          });
+          window.open(res.driveInbox.inboxFolderUrl, '_blank');
+          // Don't reload — give the admin time to drop the files first.
+          this.isResettingDemo.set(false);
+          return;
+        }
+        this.messageService.add({
+          severity: 'success',
+          summary: 'אופס נתוני הבדיקה',
+          detail: `נמחקו ${res.filesDeleted} קבצים, הועלו ${res.filesUploaded} מחדש`,
+          life: 3000,
+        });
+        // Full reload so userData, signals, OCR cache, transactions table
+        // all re-fetch from the now-clean backend.
+        setTimeout(() => window.location.reload(), 600);
+      },
+      error: (err) => {
+        console.error('resetDemoTestData failed', err);
+        this.isResettingDemo.set(false);
+        this.messageService.add({
+          severity: 'error',
+          summary: 'איפוס נתוני בדיקה נכשל',
+          detail: err?.error?.message ?? 'שגיאה לא צפויה',
+          life: 4000,
+        });
+      },
+    });
+  }
+
+  /** Home CTA menu: Manual Expense + Quick Upload to Drive. */
+  readonly addExpenseMenuItems = computed<MenuButtonItem[]>(() => [
+    {
+      type: 'action',
+      id: 'manual-expense',
+      label: 'הוצאה ידנית',
+      icon: 'pi pi-pencil',
+      action: () => this.openMannualExpenses(),
+    },
+    {
+      type: 'action',
+      id: 'quick-upload',
+      label: 'העלאה מהירה ל-Drive',
+      icon: 'pi pi-cloud-upload',
+      action: () => this.openQuickUploadToDrive(),
+    },
+  ]);
+
+  readonly addExpenseMenuPositions: ConnectedPosition[] = [
+    { originX: 'start', originY: 'bottom', overlayX: 'start', overlayY: 'top', offsetY: 8 },
+    { originX: 'end', originY: 'bottom', overlayX: 'end', overlayY: 'top', offsetY: 8 },
+    { originX: 'start', originY: 'top', overlayX: 'start', overlayY: 'bottom', offsetY: -8 },
+  ];
+
   openMannualExpenses(): void {
-    // this.dialogRef = 
+    const result = this.accessHandlerService.handleFeatureAccess(AppFeature.ADD_EXPENSE_BUTTON);
+    if (!result.allowed) return;
     this.dialogService.open(MannualExpenseComponent, {
       header: 'הוספת הוצאה ידנית',
       width: '480px',
-      style: { maxWidth: '95vw' }, // 👈 מומלץ למובייל
+      style: { maxWidth: '95vw' },
       rtl: true,
       closable: true,
       dismissableMask: true,
       modal: true,
-      // data: {
-      //   businessNumber: this.selectedBusinessNumber,
-      //   clients: this.clients()
-      // }
+      // Prevent DynamicDialog from focusing the first field on open — that
+      // focus was opening the datepicker overlay via showOnFocus=true.
+      focusOnShow: false,
+    });
+  }
+
+  openQuickUploadToDrive(): void {
+    const result = this.accessHandlerService.handleFeatureAccess(AppFeature.ADD_EXPENSE_BUTTON);
+    if (!result.allowed) return;
+    if (!this.genericService.businessSelectItems().length) {
+      this.messageService.add({
+        severity: 'warn',
+        summary: 'אין עסק',
+        detail: 'יש להגדיר עסק לפני העלאת מסמכים ל-Drive.',
+        life: 3500,
+        key: 'br',
+      });
+      return;
+    }
+    this.dialogService.open(QuickUploadDriveDialogComponent, {
+      header: 'העלאה מהירה ל-Drive',
+      width: '480px',
+      style: { maxWidth: '95vw' },
+      rtl: true,
+      closable: true,
+      dismissableMask: true,
+      modal: true,
+      focusOnShow: false,
     });
   }
 }

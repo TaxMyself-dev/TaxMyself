@@ -1,0 +1,42 @@
+<div class="pwa-banner-stack" dir="rtl">
+  @if (updateReady()) {
+    <div class="pwa-banner pwa-banner--update" role="status">
+      <span class="pwa-banner__text">גרסה חדשה של KeepInTax זמינה.</span>
+      <button
+        type="button"
+        class="pwa-banner__btn"
+        [disabled]="activating()"
+        (click)="onUpdate()">
+        {{ activating() ? 'מעדכן…' : 'עדכן עכשיו' }}
+      </button>
+    </div>
+  }
+
+  @if (showConnectivityBanner()) {
+    <div class="pwa-banner pwa-banner--offline" role="alert">
+      <span class="pwa-banner__text">{{ connectivityMessage() }}</span>
+      <button type="button" class="pwa-banner__close" aria-label="סגור" (click)="dismissOffline()">✕</button>
+    </div>
+  } @else if (showReconnected()) {
+    <div class="pwa-banner pwa-banner--online" role="status">
+      <span class="pwa-banner__text">החיבור לאינטרנט חזר.</span>
+    </div>
+  }
+
+  @if (showInstallChip()) {
+    <div class="pwa-banner pwa-banner--install" role="dialog" aria-label="התקנת האפליקציה">
+      <span class="pwa-banner__text">התקן את KeepInTax למסך הבית</span>
+      <span class="pwa-banner__actions">
+        <button type="button" class="pwa-banner__btn" (click)="onInstall()">התקן</button>
+        <button type="button" class="pwa-banner__close" aria-label="סגור" (click)="dismissInstall()">✕</button>
+      </span>
+    </div>
+  } @else if (showIosHint()) {
+    <div class="pwa-banner pwa-banner--install" role="dialog" aria-label="התקנת האפליקציה">
+      <span class="pwa-banner__text">
+        להתקנת KeepInTax: פתחו בספארי, הקישו על כפתור השיתוף ובחרו "הוסף למסך הבית".
+      </span>
+      <button type="button" class="pwa-banner__close" aria-label="סגור" (click)="dismissIosHint()">✕</button>
+    </div>
+  }
+</div>

@@ -3,7 +3,7 @@ import { EMPTY, of } from 'rxjs';
 import { catchError, finalize, map } from 'rxjs/operators';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { GenericService } from 'src/app/services/generic.service';
-import { IColumnDataTable, IRowDataTable, ITableRowAction, IUserData } from 'src/app/shared/interface';
+import { IColumnDataTable, IMobileCardConfig, IRowDataTable, ITableRowAction, IUserData } from 'src/app/shared/interface';
 import {
   BusinessStatus,
   FormTypes,
@@ -44,7 +44,7 @@ export class SuppliersPage implements OnInit {
   selectedBusinessName = signal<string>("");
   BusinessStatus = BusinessStatus;
   businessStatus: BusinessStatus = BusinessStatus.SINGLE_BUSINESS;
-  businessOptions = this.gs.businessSelectItems;
+  businessOptions = this.gs.businessSelectItems();
 
   isLoadingDataTable = signal<boolean>(false);
   mySuppliers: any;
@@ -53,6 +53,14 @@ export class SuppliersPage implements OnInit {
   // ===========================
   // Table config
   // ===========================
+  mobileCardConfig: IMobileCardConfig = {
+    primaryFields: ['supplier'],
+    highlightedField: 'supplierID',
+    dateField: 'category',
+    hiddenFields: [],
+    highlightedValueFormat: 'plain'
+  };
+
   suppliersTableFields: IColumnDataTable<string, string>[] = [
     { name: 'supplier', value: 'שם הספק', type: FormTypes.TEXT },
     { name: 'supplierID', value: 'מספר ספק', type: FormTypes.TEXT },
@@ -67,7 +75,6 @@ export class SuppliersPage implements OnInit {
   // ===========================
   form: FormGroup = this.fb.group({});
   filterConfig: FilterField[] = [];
-
   // ===========================
   // Init
   // ===========================
@@ -105,7 +112,7 @@ export class SuppliersPage implements OnInit {
         controlName: 'businessNumber',
         label: 'בחר עסק',
         required: true,
-        options: this.gs.businessSelectItems,
+        options: this.businessOptions,
         defaultValue: this.selectedBusinessNumber()
       },
     ];
@@ -199,7 +206,7 @@ export class SuppliersPage implements OnInit {
       const ref = this.dialogService.open(AddSupplierComponent, {
         header: 'עריכת ספק',
         width: 'min(1100px, 95vw)',
-        contentStyle: { minHeight: '400px', overflow: 'visible' },
+        contentStyle: { minHeight: '400px', overflow: 'auto' },
         rtl: true,
         closable: true,
         dismissableMask: true,
@@ -219,13 +226,16 @@ export class SuppliersPage implements OnInit {
   }
 
   onDeleteSupplier(supplier: IRowDataTable): void {
-    const supplierId = (supplier as any).id;
+    console.log("hsdgush");
+    
+    const supplierId = supplier.id;
+    console.log("🚀 ~ SuppliersPage ~ onDeleteSupplier ~ supplierId:", supplierId)
     if (!supplierId) {
       console.error('Supplier ID not found');
       return;
     }
 
-    const supplierName = (supplier as any).supplier || 'הספק';
+    const supplierName = supplier.supplier || 'הספק';
     
     this.confirmationService.confirm({
       message: `האם אתה בטוח שברצונך למחוק את הספק "${supplierName}"?`,
@@ -234,7 +244,7 @@ export class SuppliersPage implements OnInit {
       acceptLabel: 'כן, מחק',
       rejectLabel: 'ביטול',
       accept: () => {
-        this.expenseDataService.deleteSupplier(supplierId)
+        this.expenseDataService.deleteSupplier(supplierId as number)
           .pipe(
             catchError(err => {
               console.error('Error deleting supplier:', err);

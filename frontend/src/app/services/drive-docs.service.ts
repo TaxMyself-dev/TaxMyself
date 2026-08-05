@@ -3,22 +3,21 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from 'src/environments/environment';
 
-export interface DriveSyncMonthResult {
+/** Per-call counters returned by /me/process-inbox. `total` is the number of
+ *  files currently sitting in `inbox/` at the time of the call — NOT a
+ *  cumulative count. After a successful pass, total ≈ skipped + processed
+ *  + failed; on the next call total drops as files moved to `processed/`
+ *  fall out of the listing. */
+export interface ProcessInboxResult {
   processed: number;
   failed: number;
   skipped: number;
+  /** Byte-identical re-uploads auto-rejected this pass (same file dropped
+   *  twice). Skipped before OCR; never become review rows. */
+  duplicates: number;
   total: number;
-  monthFolderId: string;
-}
-
-export interface DriveSyncRangeResult {
-  months: Array<{ month: string; result: DriveSyncMonthResult | { error: string } }>;
-  totals: {
-    processed: number;
-    failed: number;
-    skipped: number;
-    total: number;
-  };
+  inboxFolderId: string;
+  processedFolderId: string;
 }
 
 export interface MatchedSupplier {
@@ -33,45 +32,6 @@ export interface MatchedSupplier {
   reductionPercent: number;
 }
 
-export interface ReviewableExtractedDoc {
-  id: number;
-  userId: number;
-  driveFileId: string;
-  driveFileName: string;
-  month: string;
-  supplier: string | null;
-  supplierId: string | null;
-  date: string | null;
-  invoiceNumber: string | null;
-  allocationNumber: string | null;
-  amount: string | null;
-  vat: string | null;
-  amountBeforeVat: string | null;
-  category: string | null;
-  subCategory: string | null;
-  taxPercent: string | null;
-  vatPercent: string | null;
-  isEquipment: boolean | null;
-  description: string | null;
-  status: 'pending' | 'processed' | 'error';
-  rawResponse: string | null;
-  matchedSupplier: MatchedSupplier | null;
-}
-
-export interface ConfirmFromDriveItem {
-  documentId: number;
-  supplier: string;
-  supplierID: string | null;
-  date: string;          // YYYY-MM-DD
-  sum: number;
-  category: string;
-  subCategory: string;
-  vatPercent: number;
-  taxPercent: number;
-  isEquipment: boolean;
-  saveAsSupplier: boolean;
-}
-
 export interface SubCategoryCatalogEntry {
   subCategoryName: string;
   categoryName: string;
@@ -80,45 +40,102 @@ export interface SubCategoryCatalogEntry {
   isEquipment: boolean;
 }
 
-export interface BulkConfirmResponse {
-  results: Array<{
-    documentId: number;
-    ok: boolean;
-    expenseId?: number;
-    supplierCreated?: boolean;
-    error?: string;
-  }>;
-  summary: { total: number; succeeded: number; failed: number };
+/** Derived lifecycle label for a document archive row — see
+ *  `DocumentArchiveStatus` in the backend's `src/enum.ts` for the exact
+ *  precedence rules (REJECTED > FILED_ANNUAL > APPROVED_EXPENSE > IN_PROGRESS). */
+export type DocumentArchiveStatus = 'IN_PROGRESS' | 'APPROVED_EXPENSE' | 'FILED_ANNUAL' | 'REJECTED';
+
+/** A row from the document archive tab — `GET /documents/me/archived`. */
+export interface ArchivedDocSummary {
+  id: number;
+  driveFileId: string;
+  driveFileName: string;
+  supplier: string | null;
+  supplierId: string | null;
+  date: string | null;
+  invoiceNumber: string | null;
+  amount: string | null;
+  currency: string | null;
+  category: string | null;
+  subCategory: string | null;
+  documentType: string | null;
+  uploadDate: string | null;
+  archiveStatus: DocumentArchiveStatus;
+}
+
+/** Raw shape of a single invoice returned by the OCR endpoint. Matches
+ *  Claude's `ExtractedFields` shape on the backend. */
+export interface OcrInvoiceFields {
+  supplier: string | null;
+  supplier_id: string | null;
+  date: string | null;          // YYYY-MM-DD
+  invoice_number: string | null;
+  allocation_number: string | null;
+  amount: number | null;
+  vat: number | null;
+  amount_before_vat: number | null;
+  category: string | null;
+  sub_category: string | null;
+  tax_percent: number | null;
+  vat_percent: number | null;
+  is_equipment: boolean | null;
+  description: string | null;
+}
+
+export interface OcrSingleFileResponse {
+  invoice: OcrInvoiceFields | null;
+  invoicesCount: number;
 }
 
 @Injectable({ providedIn: 'root' })
 export class DriveDocsService {
   constructor(private http: HttpClient) {}
 
-  syncMyDriveMonths(businessNumber: string, months: string[]): Observable<DriveSyncRangeResult> {
-    const url = `${environment.apiUrl}documents/me/sync`;
-    return this.http.post<DriveSyncRangeResult>(url, { businessNumber, months });
+  processInbox(businessNumber: string): Observable<ProcessInboxResult> {
+    const url = `${environment.apiUrl}documents/me/process-inbox`;
+    return this.http.post<ProcessInboxResult>(url, { businessNumber });
   }
 
-  getMyReviewableDocs(businessNumber: string, months: string[]): Observable<ReviewableExtractedDoc[]> {
-    const url = `${environment.apiUrl}documents/me/review`;
-    const params = new HttpParams()
-      .set('businessNumber', businessNumber)
-      .set('months', months.join(','));
-    return this.http.get<ReviewableExtractedDoc[]>(url, { params });
-  }
-
-  bulkConfirmFromDrive(businessNumber: string, items: ConfirmFromDriveItem[]): Observable<BulkConfirmResponse> {
-    const url = `${environment.apiUrl}expenses/bulk-confirm-from-drive`;
-    // Send businessNumber in the body so we don't depend on the auth
-    // interceptor's businessnumber header (which may be unset depending on
-    // session state). The backend treats body.businessNumber as authoritative.
-    return this.http.post<BulkConfirmResponse>(url, { businessNumber, items });
+  archiveDocument(documentId: number): Observable<{ ok: true; documentId: number; movedFile: boolean }> {
+    const url = `${environment.apiUrl}documents/me/archive/${documentId}`;
+    return this.http.post<{ ok: true; documentId: number; movedFile: boolean }>(url, {});
   }
 
   getMySubCategoryCatalog(businessNumber: string): Observable<SubCategoryCatalogEntry[]> {
     const url = `${environment.apiUrl}documents/me/catalog`;
     const params = new HttpParams().set('businessNumber', businessNumber);
     return this.http.get<SubCategoryCatalogEntry[]>(url, { params });
+  }
+
+  getArchivedDocuments(businessNumber: string): Observable<ArchivedDocSummary[]> {
+    const url = `${environment.apiUrl}documents/me/archived`;
+    const params = new HttpParams().set('businessNumber', businessNumber);
+    return this.http.get<ArchivedDocSummary[]>(url, { params });
+  }
+
+  /**
+   * Runs Claude OCR on a single uploaded file (PDF/JPEG/PNG/etc) and returns
+   * the extracted invoice fields for the manual-expense form to prefill.
+   * Does NOT persist anything on the backend.
+   */
+  ocrSingleFile(file: File, businessNumber: string): Observable<OcrSingleFileResponse> {
+    const url = `${environment.apiUrl}documents/me/ocr-file`;
+    const form = new FormData();
+    form.append('file', file, file.name);
+    form.append('businessNumber', businessNumber);
+    return this.http.post<OcrSingleFileResponse>(url, form);
+  }
+
+  /**
+   * Drops one or more files straight into the business's Drive inbox/
+   * folder — no OCR, just storage. Used by the settings-page "upload docs
+   * to Drive" button.
+   */
+  uploadFilesToInbox(files: File[], businessNumber: string): Observable<{ fileId: string; fileName: string }[]> {
+    const url = `${environment.apiUrl}documents/me/upload-to-inbox`;
+    const form = new FormData();
+    files.forEach(file => form.append('files', file, file.name));
+    form.append('businessNumber', businessNumber);
+    return this.http.post<{ fileId: string; fileName: string }[]>(url, form);
   }
 }

@@ -1,6 +1,10 @@
 import { Component, OnInit, computed, signal } from '@angular/core';
+import { Router } from '@angular/router';
 import { AdminPanelService, DriveSyncResult, ExtractedDocRow } from 'src/app/services/admin-panel.service';
+import { AdminBillingService, AdminSubscription } from 'src/app/services/admin-billing.service';
 import { FeezbackService, AdminAccountsAndCardsResponse, AdminPullSourceResult } from 'src/app/services/feezback.service';
+import { AuthService } from 'src/app/services/auth.service';
+import { ClientPanelService } from 'src/app/services/clients-panel.service';
 import { catchError, EMPTY, finalize, forkJoin } from 'rxjs';
 import { IColumnDataTable, IRowDataTable, ITableRowAction } from 'src/app/shared/interface';
 import { FormTypes } from 'src/app/shared/enums';
@@ -140,6 +144,15 @@ export class ClientsDashboardComponent implements OnInit {
 
   fileActions: ITableRowAction[] = [
     {
+      name: 'enterAsUser',
+      icon: 'pi pi-sign-in',
+      title: 'כניסה כמשתמש',
+      alwaysShow: true,
+      action: (event: any, row: IRowDataTable) => {
+        this.confirmEnterAsUser(row);
+      }
+    },
+    {
       name: 'feezback',
       icon: 'pi pi-cloud-download',
       title: 'טען תנועות מ-Feezback',
@@ -194,9 +207,13 @@ export class ClientsDashboardComponent implements OnInit {
 
   constructor(
     private adminPanelService: AdminPanelService,
+    private adminBillingService: AdminBillingService,
     private confirmationService: ConfirmationService,
     private messageService: MessageService,
     private feezbackService: FeezbackService,
+    private authService: AuthService,
+    private clientPanelService: ClientPanelService,
+    private router: Router,
   ) {}
 
   ngOnInit() {
@@ -205,7 +222,10 @@ export class ClientsDashboardComponent implements OnInit {
 
   loadUsers() {
     this.isLoading.set(true);
-    this.adminPanelService.getAllUsers()
+    forkJoin({
+      users: this.adminPanelService.getAllUsers(),
+      subscriptions: this.adminBillingService.getSubscriptions(),
+    })
       .pipe(
         catchError(err => {
           console.error('Error loading users:', err);
@@ -213,39 +233,62 @@ export class ClientsDashboardComponent implements OnInit {
         }),
         finalize(() => this.isLoading.set(false))
       )
-      .subscribe(users => {
+      .subscribe(({ users, subscriptions }) => {
+        const subscriptionByFirebaseId = new Map<string, AdminSubscription>(
+          subscriptions.map(s => [s.firebaseId, s]),
+        );
+
         this.users = users.map((user: any) => {
+          const subscription = subscriptionByFirebaseId.get(user.firebaseId) ?? null;
           const mappedUser: any = {
             ...user,
             fullName: `${user.fName || ''} ${user.lName || ''}`.trim(),
-            payStatus: this.getPayStatusLabel(user.payStatus),
+            payStatus: this.getSubscriptionStatusLabel(subscription?.status),
             openBankingStatus: user.hasOpenBanking ? 'מחובר' : 'לא מחובר',
             generalDocumentsCount:
               user.generalDocumentsCount != null ? Number(user.generalDocumentsCount) : 0,
           };
-          
+
           // Ensure dates are properly formatted
           if (user.createdAt) {
             mappedUser.createdAt = new Date(user.createdAt);
           }
-          if (user.subscriptionEndDate) {
-            mappedUser.subscriptionEndDate = new Date(user.subscriptionEndDate);
-          }
-          
+          const subscriptionEndDate = this.resolveSubscriptionEndDate(subscription);
+          mappedUser.subscriptionEndDate = subscriptionEndDate ? new Date(subscriptionEndDate) : null;
+
           return mappedUser;
         });
         this.filteredUsers = [...this.users];
       });
   }
 
-  getPayStatusLabel(status: string): string {
+  /**
+   * Maps a Subscription.status to the same Hebrew labels the dashboard's stat
+   * cards filter on. A missing status means no Subscription row was found for
+   * this user at all — that is NOT the same thing as "payment required" (a
+   * real billing state) and must not be folded into that bucket, or the
+   * dashboard's counters silently diverge from the Admin Billing subscriptions
+   * table (which only ever lists users that DO have a Subscription row).
+   */
+  getSubscriptionStatusLabel(status: string | undefined): string {
     const statusMap: { [key: string]: string } = {
       'TRIAL': 'ניסיון',
-      'PAID': 'שולם',
-      'PAYMENT_REQUIRED': 'נדרש תשלום',
-      'FREE': 'חינם',
+      'ACTIVE': 'שולם',
+      'TRIAL_EXPIRED': 'נדרש תשלום',
+      'PAST_DUE': 'נדרש תשלום',
+      'CANCELED': 'נדרש תשלום',
     };
-    return statusMap[status] || status;
+    if (!status) return 'ללא מנוי';
+    return statusMap[status] ?? status;
+  }
+
+  /** During trial, the relevant "end date" is trialEnd; otherwise the current paid period's end. */
+  private resolveSubscriptionEndDate(subscription: AdminSubscription | null): string | null {
+    if (!subscription) return null;
+    if (subscription.status === 'TRIAL' || subscription.status === 'TRIAL_EXPIRED') {
+      return subscription.trialEnd;
+    }
+    return subscription.currentPeriodEnd ?? subscription.nextBillingDate ?? null;
   }
 
   onSearch(event: any) {
@@ -279,6 +322,37 @@ export class ClientsDashboardComponent implements OnInit {
       return 0;
     }
     return this.users.filter(u => u.hasOpenBanking).length;
+  }
+
+  /**
+   * Admin "enter as user": same mechanism accountants use to act on behalf of
+   * clients (ClientPanelService.setSelectedClient → auth interceptor adds
+   * x-client-user-id to every backend call → backend's FirebaseAuthGuard lets
+   * ADMIN callers impersonate any firebaseId with no delegation record needed).
+   * The top-nav banner and exit-to-admin-panel flow in app.component already
+   * handle the rest once selectedClientId is set.
+   */
+  confirmEnterAsUser(row: IRowDataTable): void {
+    const firebaseId = row['firebaseId'] as string;
+    const name = (row['fullName'] as string) || `${row['fName'] || ''} ${row['lName'] || ''}`.trim();
+    this.confirmationService.confirm({
+      message: `להיכנס לחשבון של "${name}" ולצפות בהנהלת החשבונות והדוחות שלו?`,
+      header: 'כניסה כמשתמש',
+      icon: 'pi pi-sign-in',
+      acceptLabel: 'כניסה',
+      rejectLabel: 'ביטול',
+      accept: () => this.enterAsUser(firebaseId, name),
+    });
+  }
+
+  private enterAsUser(firebaseId: string, name: string): void {
+    this.clientPanelService.setSelectedClient(firebaseId, name);
+    // Await the view-as user data fetch BEFORE navigating, otherwise /my-account
+    // reads userData in its ngOnInit before AuthService's viewAsUserData is
+    // populated and briefly renders with the admin's own data.
+    this.authService.loadViewAsUserData().subscribe(() => {
+      this.router.navigate(['/my-account']);
+    });
   }
 
   openFeezbackDialog(row: IRowDataTable): void {
@@ -419,10 +493,40 @@ export class ClientsDashboardComponent implements OnInit {
         this.pullResultByKey.update(m => ({ ...m, [key]: result }));
         if (result.status === 'success') {
           this.messageService.add({ severity: 'success', summary: 'הצלחה', detail: `${src.paymentIdentifier}: נמשכו ${result.transactionCount} תנועות`, life: 4000, key: 'br' });
+        } else if (result.status === 'skipped_direct') {
+          // Direct/Debit card — intentionally not pulled (bank feed covers it).
+          this.messageService.add({ severity: 'info', summary: 'כרטיס דיירקט', detail: `${src.paymentIdentifier}: כרטיס דיירקט — התנועות נמשכות דרך חשבון הבנק`, life: 6000, key: 'br' });
         } else {
           this.messageService.add({ severity: 'warn', summary: 'משיכה נכשלה', detail: `${src.paymentIdentifier}: ${result.error ?? 'שגיאה לא ידועה'}`, life: 6000, key: 'br' });
         }
       });
+  }
+
+  /**
+   * Strips the heavy raw Feezback payload from a pull result so the inline
+   * summary <pre> stays compact (status / count / ids). The full raw JSON gets
+   * its own collapsible "הצג JSON תנועות מלא" block below it.
+   */
+  pullSummary(res: AdminPullSourceResult): Partial<AdminPullSourceResult> {
+    const { rawTransactionsResponse, ...summary } = res;
+    return summary;
+  }
+
+  /**
+   * Copies any JSON value to the clipboard as pretty-printed text
+   * (JSON.stringify(value, null, 2)) so an admin can paste the exact Feezback
+   * response into an email or support ticket. Works for arbitrarily large
+   * payloads via the async Clipboard API.
+   */
+  async copyJson(value: unknown): Promise<void> {
+    try {
+      const text = JSON.stringify(value, null, 2);
+      await navigator.clipboard.writeText(text);
+      this.messageService.add({ severity: 'success', summary: 'הצלחה', detail: 'JSON הועתק ללוח', life: 3000, key: 'br' });
+    } catch (err) {
+      console.error('Failed to copy JSON to clipboard:', err);
+      this.messageService.add({ severity: 'error', summary: 'שגיאה', detail: 'העתקת ה-JSON נכשלה', life: 4000, key: 'br' });
+    }
   }
 
   confirmRefreshSources(row: IRowDataTable): void {
