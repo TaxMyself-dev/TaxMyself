@@ -4,6 +4,7 @@ import { AdminPanelService } from 'src/app/services/admin-panel.service';
 import { ButtonClass, ButtonSize } from 'src/app/shared/button/button.enum';
 import { ButtonSize as ComponentButtonSize, ButtonColor } from 'src/app/components/button/button.enum';
 import { CategoryManagementComponent } from 'src/app/shared/category-management/category-management.component';
+import { CardManagementComponent } from 'src/app/shared/card-management/card-management.component';
 import { TransManagementComponent } from 'src/app/shared/trans-management/trans-management.component';
 import { ClientsDashboardComponent } from 'src/app/shared/clients-dashboard/clients-dashboard.component';
 import { DemoDataComponent } from 'src/app/shared/demo-data/demo-data.component';
@@ -24,6 +25,7 @@ export class AdminPanelPage implements OnInit {
     //{ label: 'סטטוס תשלומים', value: 'status-payments', component: StatusPaymentsComponent },
     { label: 'לוח בקרה - לקוחות', value: 'clients-dashboard', component: ClientsDashboardComponent },
     { label: 'ניהול קטגוריות', value: 'category-management', component: CategoryManagementComponent },
+    { label: 'כרטיסים', value: 'card-management', component: CardManagementComponent },
     { label: 'ניהול תנועות', value: 'trans-management', component: TransManagementComponent },
     { label: 'נתוני דמו', value: 'demo-data', component: DemoDataComponent },
     { label: 'קארדקום / מנויים', value: 'billing', component: AdminBillingComponent },

@@ -1,0 +1,28 @@
+<div class="table-block">
+
+    <!-- STATUS BADGE CELL -->
+    <ng-template #statusTpl let-row>
+        <span class="archive-status-badge archive-status-badge--{{ row['archiveStatus'] }}">
+            {{ archiveStatusLabels[row['archiveStatus']] ?? row['archiveStatus'] }}
+        </span>
+    </ng-template>
+
+    <!-- FILTER TAB -->
+    @if (businessOptions.length > 1) {
+    <app-filter-tab [config]="filterConfig" [parentForm]="form" (apply)="onSubmit($event)">
+    </app-filter-tab>
+    }
+
+    <!-- PAGE TITLE -->
+    <h2 class="table-title">
+        ארכיון מסמכים עבור העסק:
+        <span class="business-name">{{ selectedBusinessName() }}</span>
+    </h2>
+
+    <!-- ARCHIVED DOCUMENTS TABLE -->
+    <app-generic-table class="table" [isLoadingState]="isLoadingDataTable()" [columnsTitle]="archivedDocsTableFields()"
+        [dataTable]="myArchivedDocs | async" [fileActions]="fileActions()" [selectionModeCheckBox]="null"
+        [tableHeight]="'500px'" [mobileCardConfig]="mobileCardConfig" [mobileCardActions]="fileActions()">
+    </app-generic-table>
+
+</div>

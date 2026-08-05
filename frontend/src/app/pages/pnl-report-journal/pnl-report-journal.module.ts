@@ -11,9 +11,9 @@ import { SharedModule } from '../../shared/shared.module';
 import { PeriodSelectComponent } from 'src/app/components/period-select/period-select.component';
 import { ButtonComponent } from 'src/app/components/button/button.component';
 import { FilterTabComponent } from "src/app/components/filter-tab/filter-tab.component";
-import { ReportReviewDialogComponent } from "../../components/report-review-dialog/report-review-dialog.component";
 import { DialogModule } from 'primeng/dialog';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
+import { CheckboxModule } from 'primeng/checkbox';
 
 @NgModule({
   imports: [
@@ -26,9 +26,9 @@ import { ConfirmDialogModule } from 'primeng/confirmdialog';
     PeriodSelectComponent,
     ButtonComponent,
     FilterTabComponent,
-    ReportReviewDialogComponent,
     DialogModule,
-    ConfirmDialogModule
+    ConfirmDialogModule,
+    CheckboxModule
 ],
   declarations: [PnLReportJournalPage]
 })

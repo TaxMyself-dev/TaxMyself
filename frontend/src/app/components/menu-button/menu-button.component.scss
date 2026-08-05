@@ -1,0 +1,136 @@
+:host {
+  display: inline-flex;
+}
+
+.menu-button__trigger {
+  display: inline-flex;
+}
+
+// ── Items-mode popup card (matches the Expense-Analysis filter popup) ─────────
+.menu-popup {
+  background: #ffffff;
+  border-radius: 14px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.14);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  animation: menu-pop-in 0.14s ease-out;
+}
+
+// Projected content brings its own card styling — stay layout-transparent so
+// hosts (e.g. Expense Analysis graph settings) render exactly as before.
+.menu-popup__projected {
+  display: contents;
+}
+
+@keyframes menu-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.menu-popup__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #363636;
+  text-align: start;
+  transition: background 0.12s;
+
+  &:hover:not(.menu-popup__item--disabled) {
+    background: #f5f5f5;
+  }
+
+  &:focus-visible {
+    outline: 2px solid #0075ff;
+    outline-offset: -2px;
+  }
+
+  &--disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+}
+
+.menu-popup__icon {
+  font-size: 15px;
+  color: #6b7280;
+  width: 18px;
+  text-align: center;
+  flex: 0 0 auto;
+}
+
+.menu-popup__label {
+  flex: 1 1 auto;
+  white-space: nowrap;
+}
+
+.menu-popup__separator {
+  height: 1px;
+  background: #ebebeb;
+  margin: 6px 0;
+}
+
+// ── Checkbox indicator ───────────────────────────────────────────────────────
+.menu-popup__checkbox {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  border: 1px solid #ebebeb;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: #ffffff;
+  transition: background 0.12s, border-color 0.12s;
+
+  &--checked {
+    background: #363636;
+    border-color: #363636;
+  }
+}
+
+// ── Toggle switch ────────────────────────────────────────────────────────────
+.menu-popup__switch {
+  flex: 0 0 auto;
+  margin-inline-start: auto;
+  width: 34px;
+  height: 20px;
+  border-radius: 999px;
+  background: #d5d5d5;
+  position: relative;
+  transition: background 0.15s;
+
+  &--on {
+    background: #363636;
+  }
+}
+
+.menu-popup__switch-knob {
+  position: absolute;
+  top: 2px;
+  inset-inline-start: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #ffffff;
+  transition: inset-inline-start 0.15s;
+
+  .menu-popup__switch--on & {
+    inset-inline-start: 16px;
+  }
+}

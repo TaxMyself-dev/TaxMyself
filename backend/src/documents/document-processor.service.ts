@@ -151,6 +151,12 @@ export interface CatalogEntry {
   taxPercent: number;
   vatPercent: number;
   isEquipment: boolean;
+  /** sub_category.id (D1/Phase 4.3) — additive JSON, frontend-safe. Lets the
+   *  insert paths name-match Claude's returned pair back to a concrete row
+   *  and stamp extracted_document.subCategoryId at OCR time. Not included in
+   *  the prompt block (buildCatalogBlock ignores it — keeps the Anthropic
+   *  cache prefix byte-identical). */
+  subCategoryId?: number;
 }
 
 const SUPPORTED_IMAGE_TYPES = new Set([

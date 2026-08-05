@@ -6,6 +6,7 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { DocumentKind } from 'src/enum';
 
 export enum ExtractedDocStatus {
   /** OCR succeeded, awaiting user review in the report-page modal. */
@@ -29,6 +30,17 @@ export enum ExtractedDocStatus {
   PAIRED = 'paired',
   /** OCR failed on the file; row exists for diagnostics, file stays in inbox/. */
   ERROR = 'error',
+  /** D8 (Phase 4.3): terminal state of the "תייק" flow — an ANNUAL_DOCUMENT
+   *  (טופס 106, אישור מס, תרומה) filed for the annual report. Never becomes
+   *  an Expense, never journaled. Distinct from ARCHIVED ("chose not to
+   *  claim") — this doc IS claimed, just on the annual report instead of a
+   *  periodic one. The varchar status column needs no ALTER (by design).
+   *  NOTE (plan/reality): the master plan's 4.3 wording placed
+   *  NOT_AN_EXPENSE on the expense status — filed docs never get an expense
+   *  row, so the value lives HERE, on extracted_document (approved by
+   *  Elazar, Session 8; ExpenseApprovalStatus keeps its own NOT_AN_EXPENSE
+   *  for other D8 flows). */
+  NOT_AN_EXPENSE = 'not_an_expense',
 }
 
 /** Classification returned by Claude — drives downstream routing
@@ -62,17 +74,31 @@ export enum ExtractedDocumentType {
 // Distinct from the existing `Documents` entity, which represents invoices
 // the user ISSUES to their clients (this one represents documents RECEIVED
 // from suppliers and OCR'd into structured fields).
+// All 5 indexes below are named explicitly to match prod's literal names
+// (schema-drift.md Gap 5's original decision, implemented 2026-07-12 after
+// an accidental synchronize run against keepintax_prodcopy dropped all 5 —
+// see Gap 7 — because 3 were unnamed and the other 2 had no entity
+// declaration at all). Do not remove the names — an unnamed decorator here
+// hash-generates a different name than prod's, which is exactly the
+// drop/never-recreate failure mode that caused the incident.
 @Entity('extracted_document')
-@Index(['userId', 'businessNumber', 'month'])
+@Index('ix_extracted_document_user_business_month', ['userId', 'businessNumber', 'month'])
 // A single Drive file can contain multiple invoices (common: monthly fuel
 // statements, bundled receipts). sub_index 0..N-1 disambiguates rows that
 // share a drive_file_id. Old rows default to 0 — the migration is a no-op.
-@Index(['driveFileId', 'subIndex'], { unique: true })
+@Index('uq_extracted_document_file_subindex', ['driveFileId', 'subIndex'], { unique: true })
 // Byte-identical dedup: the inbox loop looks up prior rows by content hash
 // to catch the same file re-uploaded under a new drive_file_id. Scoped by
 // business so identical bytes across two businesses stay distinct. NOT
 // unique — a multi-invoice file produces N rows sharing one md5.
-@Index(['businessNumber', 'driveFileMd5'])
+@Index('IDX_extracted_document_biz_md5', ['businessNumber', 'driveFileMd5'])
+// Matched by MatchingService when finding the extracted_document for a
+// given slim_transactions row. Prod-only index with no prior entity
+// declaration (schema-drift.md Gap 5) — added here for the first time.
+@Index('ix_extracted_doc_matched_tx', ['matchedTransactionId'])
+// Invoice<->receipt pairing back-pointer lookups. Same as above — prod-only,
+// never previously declared.
+@Index('ix_extracted_document_paired_with', ['pairedWithDocumentId'])
 export class ExtractedDocument {
   @PrimaryGeneratedColumn()
   id: number;
@@ -255,4 +281,22 @@ export class ExtractedDocument {
 
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
+
+  /**
+   * Nullable pointer at sub_category.id (D6/Phase 3.1) — display-only, no
+   * DB FK constraint (same no-real-FK precedent as Supplier.subCategoryId).
+   * Backfilled by name within scope in Phase 3.5; unmatched -> stays NULL.
+   */
+  @Column({ name: 'sub_category_id', type: 'int', nullable: true, default: null })
+  subCategoryId: number | null;
+
+  /**
+   * D8 OCR-pipeline routing. Backfilled in Phase 3.1: rows already converted
+   * to an Expense (confirmedExpenseId set) -> EXPENSE_INVOICE; rows whose
+   * documentType is a recognized annual-report type (FORM_106, TAX_FORM) ->
+   * ANNUAL_DOCUMENT; everything else -> UNIDENTIFIED. Not yet consumed by
+   * the review flow's routing logic — that's Phase 4.3.
+   */
+  @Column({ name: 'document_kind', type: 'varchar', length: 32, nullable: true, default: null })
+  documentKind: DocumentKind | null;
 }

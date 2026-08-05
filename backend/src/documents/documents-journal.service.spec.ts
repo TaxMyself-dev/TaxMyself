@@ -29,7 +29,7 @@ describe('buildDocumentJournalLines', () => {
       expect(result!.counterAccountCode).toBe('1200');
       expect(result!.journalLines).toEqual([
         expect.objectContaining({ accountCode: '1200', debit: 117 }),
-        expect.objectContaining({ accountCode: '4000', credit: 100, amountBeforeVat: 100, taxPercent: 100, vatPercent: 100, amountForTax: 100 }),
+        expect.objectContaining({ accountCode: '40000', credit: 100, amountBeforeVat: 100, taxPercent: 100, vatPercent: 100, amountForTax: 100 }),
         expect.objectContaining({ accountCode: '2400', credit: 17, vatAmount: 17, vatPercent: 100 }),
       ]);
     });
@@ -107,7 +107,7 @@ describe('buildDocumentJournalLines', () => {
       expect(result!.counterAccountCode).toBe('1100');
       expect(result!.journalLines).toEqual([
         expect.objectContaining({ accountCode: '1100', debit: 100 }),
-        expect.objectContaining({ accountCode: '4000', credit: 100, amountBeforeVat: 100, taxPercent: 100 }),
+        expect.objectContaining({ accountCode: '40000', credit: 100, amountBeforeVat: 100, taxPercent: 100 }),
       ]);
     });
   });
@@ -125,7 +125,7 @@ describe('buildDocumentJournalLines', () => {
 
       expect(result!.journalLines).toEqual([
         expect.objectContaining({ accountCode: '1200', credit: 117 }),
-        expect.objectContaining({ accountCode: '4000', debit: 100, amountBeforeVat: 100, taxPercent: 100, vatPercent: 100, amountForTax: 100 }),
+        expect.objectContaining({ accountCode: '40000', debit: 100, amountBeforeVat: 100, taxPercent: 100, vatPercent: 100, amountForTax: 100 }),
         expect.objectContaining({ accountCode: '2400', debit: 17, vatAmount: 17, vatPercent: 100 }),
       ]);
     });

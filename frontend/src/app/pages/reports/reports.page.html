@@ -9,7 +9,11 @@
 
     <div class="cards-container">
       @for (item of itemsNavigate; track $index) {
-        <app-card-navigate [cardItem]="item"></app-card-navigate>
+        <app-card-navigate
+          [cardItem]="item"
+          [controlledNavigation]="!!item.appRoute"
+          (cardClick)="onReportCardClick(item)">
+        </app-card-navigate>
       }
     </div>
 

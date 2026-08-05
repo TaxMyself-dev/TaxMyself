@@ -24,10 +24,15 @@ import { DocumentsService } from '../documents/documents.service';
 import { DocumentPairingService } from '../documents/document-pairing.service';
 import { GoogleDriveService } from '../google-drive/google-drive.service';
 import { SharedService } from '../shared/shared.service';
-import { BusinessType, VATReportingType } from '../enum';
+import { CatalogService } from '../bookkeeping/catalog.service';
+import { CatalogContextService } from '../bookkeeping/catalog-context.service';
+import { SubCategory } from '../bookkeeping/sub-category.entity';
+import { buildExpenseDescription } from '../expenses/expense-description.util';
+import { ApprovalStatus, BusinessType, DocumentKind, OwnerType, VATReportingType } from '../enum';
 import { MatchingService } from './matching.service';
 import {
   ReportPreviewResponse,
+  ReviewClassification,
   ReviewDocSummary,
   ReviewRow,
   ReviewTxSummary,
@@ -42,6 +47,9 @@ import {
  * date + business cadence.
  */
 export interface ReviewOverrides {
+  /** D1/Phase 4.1: direct sub_category pointer — wins over the name pair and
+   *  over the doc/slim-side names. */
+  subCategoryId?: number;
   category?: string;
   subCategory?: string;
   vatPercent?: number;
@@ -62,6 +70,39 @@ export interface ReviewOverrides {
    *  after the user confirms "save anyway" on a flagged row. Never
    *  overrides the hard DUPLICATE_EXACT block. */
   acknowledgeDuplicate?: boolean;
+  /** Invoice/receipt number — becomes Expense.expenseNumber (also the
+   *  duplicate-detection key alongside supplier/sum/date). Safe on every
+   *  row type. */
+  invoiceNumber?: string;
+  /** Israeli tax allocation number (מספר הקצאה). Written back onto the
+   *  source ExtractedDocument (matched/doc_only only — no document on
+   *  tx_only rows to attach it to); purely display metadata, not used in
+   *  any matching/duplicate logic. */
+  allocationNumber?: string;
+  /** Supplier tax ID. Feeds addExpense's find-or-create Supplier lookup
+   *  (same as the doc/slim-derived value it replaces) — free-text, not
+   *  validated against an existing Supplier row. Safe on every row type. */
+  supplierId?: string;
+  /** Supplier display name — safe on every row type, purely descriptive. */
+  supplier?: string;
+  /** OCR document-type classification (invoice/receipt/...). Written back
+   *  onto the source ExtractedDocument, same as allocationNumber — no
+   *  document on tx_only rows to attach it to. Only affects display + the
+   *  "unpair" action's invoice_receipt_pair check; not used in accounting
+   *  math. */
+  documentType?: string;
+  /** ISO date (YYYY-MM-DD). Explicit product decision (per Elazar):
+   *  applies to EVERY row type, including matched/tx_only which are
+   *  anchored to a real synced bank transaction — there is no
+   *  reconciliation check anywhere in the codebase, so this can silently
+   *  desync the posted expense from the bank statement it came from. */
+  date?: string;
+  /** Same as `date` — applies to every row type. For non-ILS documents
+   *  (originalCurrency set) this is silently ignored: addExpense
+   *  recomputes `sum` internally from originalSum via the BOI rate, so
+   *  overriding the ILS total directly would be inconsistent with the
+   *  stored foreign amount. */
+  amount?: number;
 }
 
 /**
@@ -98,6 +139,10 @@ export class ReportReviewService {
     private readonly documentsService: DocumentsService,
     private readonly documentPairingService: DocumentPairingService,
     private readonly googleDriveService: GoogleDriveService,
+    // Phase 6.1 (D9): server-side resolution preview per review row — the
+    // same delegation-aware merge the approve path runs.
+    private readonly catalogService: CatalogService,
+    private readonly catalogContextService: CatalogContextService,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -146,6 +191,7 @@ export class ReportReviewService {
   async previewCheck(
     firebaseId: string,
     businessNumber: string,
+    periodEnd: Date,
     isAgentRequest = false,
   ): Promise<{ hasPendingDocs: boolean; hasUnconfirmedExpenses: boolean }> {
     const user = await this.userRepo.findOne({ where: { firebaseId } });
@@ -165,10 +211,18 @@ export class ReportReviewService {
     // catches the "user skipped the modal without approving anything"
     // case where inbox is empty (files moved to processed/) but rows
     // still need a decision.
+    //
+    // Date-bounded the same way getReportPreview's own docs query is
+    // (date IS NULL OR date <= periodEnd) — without this, a pending doc
+    // dated after the selected period (e.g. an invoice for next month,
+    // uploaded early) tripped this flag, sent the user to "review now?",
+    // and the review page — correctly period-scoped — showed nothing and
+    // bounced straight back to the report, looking like a false alarm.
     const pendingDocsCount = await this.docRepo
       .createQueryBuilder('d')
       .where('d.businessNumber = :bn', { bn: businessNumber })
       .andWhere('d.status = :st', { st: ExtractedDocStatus.PENDING_REVIEW })
+      .andWhere('(d.date IS NULL OR d.date <= :to)', { to: periodEnd })
       .getCount();
     if (pendingDocsCount > 0) {
       hasPendingDocs = true;
@@ -193,14 +247,20 @@ export class ReportReviewService {
     }
 
     // Unconfirmed-expense check: only meaningful when Open Banking is on
-    // (otherwise no slim rows ever exist for the user).
+    // (otherwise no slim rows ever exist for the user). Same periodEnd
+    // bound as loadTransactionsInRange's cache.transactionDate <= :to.
     let hasUnconfirmedExpenses = false;
     if (user.hasOpenBanking) {
       const count = await this.slimRepo
         .createQueryBuilder('slim')
+        .innerJoin(
+          FullTransactionCache, 'cache',
+          'cache.userId = slim.userId AND cache.externalTransactionId = slim.externalTransactionId',
+        )
         .where('slim.businessNumber = :bn', { bn: businessNumber })
         .andWhere('slim.isRecognized = true')
         .andWhere('slim.confirmed = false')
+        .andWhere('cache.transactionDate <= :to', { to: periodEnd })
         .getCount();
       hasUnconfirmedExpenses = count > 0;
     }
@@ -302,7 +362,7 @@ export class ReportReviewService {
     ));
     const knownSuppliers = docSupplierIds.length
       ? await this.supplierRepo.find({
-          where: { userId: firebaseId, supplierID: In(docSupplierIds) },
+          where: { businessNumber, supplierID: In(docSupplierIds) },
         })
       : [];
     // Index by supplierID so toDocSummary can both flag a known supplier
@@ -315,6 +375,14 @@ export class ReportReviewService {
       const key = s.supplierID?.trim();
       if (key) knownSupplierById.set(key, s);
     }
+
+    // Step 3.5 — load the merged catalog ONCE (delegation-aware: the
+    // client's ACCOUNTANT chart layers join the merge, Phase 5.1) so every
+    // row's classification can be resolved in-memory. This is the same
+    // resolution the approve path runs — the professional-view columns show
+    // exactly what approval would post (D9 live-resolution preview).
+    const catalogCtx = await this.catalogContextService.forUser(firebaseId, businessNumber);
+    const mergedCatalog = await this.catalogService.getMergedExpenseCatalog(catalogCtx);
 
     // Step 4 — assemble rows.
     const matchedDocIds = new Set<number>();
@@ -331,10 +399,12 @@ export class ReportReviewService {
       if (!doc.matchedTransactionId) continue;
       const tx = txBySlimId.get(doc.matchedTransactionId);
       if (!tx) continue;
+      const document = this.toDocSummary(doc, knownSupplierById);
       rows.push({
         type: 'matched',
-        document: this.toDocSummary(doc, knownSupplierById),
+        document,
         transaction: this.toTxSummary(tx.slim, tx.cache),
+        classification: this.classifyReviewRow(mergedCatalog, firebaseId, document, doc.subCategoryId),
       });
       matchedDocIds.add(doc.id);
       matchedTxIds.add(doc.matchedTransactionId);
@@ -343,7 +413,12 @@ export class ReportReviewService {
     // Second pass: doc_only — every pending doc not consumed above.
     for (const doc of docs) {
       if (matchedDocIds.has(doc.id)) continue;
-      rows.push({ type: 'doc_only', document: this.toDocSummary(doc, knownSupplierById) });
+      const document = this.toDocSummary(doc, knownSupplierById);
+      rows.push({
+        type: 'doc_only',
+        document,
+        classification: this.classifyReviewRow(mergedCatalog, firebaseId, document, doc.subCategoryId),
+      });
     }
 
     // Third pass: tx_only — every eligible tx not consumed above (only in
@@ -351,7 +426,15 @@ export class ReportReviewService {
     if (mode === 'with_banking') {
       for (const { slim, cache } of txCacheRows) {
         if (matchedTxIds.has(slim.id)) continue;
-        rows.push({ type: 'tx_only', transaction: this.toTxSummary(slim, cache) });
+        const transaction = this.toTxSummary(slim, cache);
+        rows.push({
+          type: 'tx_only',
+          transaction,
+          classification: this.classifyReviewRow(mergedCatalog, firebaseId, {
+            category: transaction.category,
+            subCategory: transaction.subCategory,
+          }, null),
+        });
       }
     }
 
@@ -364,6 +447,110 @@ export class ReportReviewService {
         txOnly: rows.filter(r => r.type === 'tx_only').length,
       },
       duplicatesSkipped,
+      // D9: with an ACTIVE delegation, missing-mapping rows read
+      // "חסר מיפוי — אצל הרו״ח" (disabled checkbox); without one the client
+      // gets the simple picker so they are never stuck.
+      clientHasActiveDelegation: (catalogCtx.accountantIds?.length ?? 0) > 0,
+    };
+  }
+
+  /**
+   * Phase 6.1 (D9): resolve one review row's classification names against
+   * the merged catalog, in-memory. Match order:
+   *   1. exact (category, subCategory) name pair — the names are the
+   *      EFFECTIVE classification (a saved supplier's names override the
+   *      OCR guess in toDocSummary, so they must win over the OCR-time
+   *      stamped id);
+   *   2. subCategory name alone (Claude/legacy rows sometimes carry a bare
+   *      sub name or a stale parent) — same fallback matchCatalogSubCategoryId
+   *      uses at OCR-insert time;
+   *   3. the stamped extracted_document.subCategoryId, when the names match
+   *      nothing (e.g. a CLIENT row renamed since OCR).
+   */
+  private classifyReviewRow(
+    catalog: SubCategory[],
+    ownerFirebaseId: string,
+    source: {
+      category?: string | null;
+      subCategory?: string | null;
+      documentType?: string | null;
+      supplier?: string | null;
+      invoiceNumber?: string | null;
+    },
+    stampedSubCategoryId: number | null | undefined,
+  ): ReviewClassification {
+    const catName = source.category?.trim() || null;
+    const subName = source.subCategory?.trim() || null;
+
+    let sub: SubCategory | undefined;
+    if (subName) {
+      const bySubName = catalog.filter(s => s.name === subName);
+      sub = (catName ? bySubName.find(s => s.category?.name === catName) : undefined)
+        ?? bySubName[0];
+    }
+    if (!sub && stampedSubCategoryId != null) {
+      sub = catalog.find(s => s.id === stampedSubCategoryId);
+    }
+
+    const docInput = source.documentType
+      ? {
+          documentType: source.documentType as any,
+          supplier: source.supplier ?? null,
+          invoiceNumber: source.invoiceNumber ?? null,
+        }
+      : null;
+
+    if (!sub) {
+      return {
+        subCategoryId: null,
+        categoryName: null,
+        subCategoryName: null,
+        status: 'UNCLASSIFIED',
+        description: buildExpenseDescription({ category: null, subCategory: null }, docInput),
+        mappedByAccountant: false,
+        sectionCode: null,
+        sectionName: null,
+        accountId: null,
+        accountCode: null,
+        accountName: null,
+        vatPercent: null,
+        taxPercent: null,
+        reductionPercent: null,
+        isEquipment: null,
+      };
+    }
+
+    const account = sub.account ?? null;
+    const section = account?.section ?? null;
+    const status: ReviewClassification['status'] = sub.isPrivate
+      ? 'PRIVATE'
+      : account != null && sub.approvalStatus === ApprovalStatus.APPROVED
+        ? 'READY'
+        : 'MISSING_MAPPING';
+
+    return {
+      subCategoryId: sub.id,
+      categoryName: sub.category?.name ?? catName,
+      subCategoryName: sub.name,
+      status,
+      description: buildExpenseDescription(
+        { category: sub.category?.name ?? catName, subCategory: sub.name },
+        docInput,
+      ),
+      // Accountant-owned row, or a mapping completed/approved by someone
+      // other than the client themself (D9's "מופה ע״י רו״ח" badge).
+      mappedByAccountant:
+        sub.ownerType === OwnerType.ACCOUNTANT ||
+        (sub.approvedByUserId != null && sub.approvedByUserId !== ownerFirebaseId),
+      sectionCode: section?.code ?? null,
+      sectionName: section?.name ?? null,
+      accountId: account?.id ?? null,
+      accountCode: account?.code ?? null,
+      accountName: account?.name ?? null,
+      vatPercent: account?.vatPercent != null ? Number(account.vatPercent) : null,
+      taxPercent: account?.taxPercent != null ? Number(account.taxPercent) : null,
+      reductionPercent: account?.reductionPercent != null ? Number(account.reductionPercent) : null,
+      isEquipment: account?.isEquipment ?? null,
     };
   }
 
@@ -399,6 +586,11 @@ export class ReportReviewService {
       slimTransactionId,
     );
 
+    // D8 (Phase 4.3): annual documents are never expenses — route to "תייק".
+    if (doc.documentKind === DocumentKind.ANNUAL_DOCUMENT) {
+      throw new BadRequestException('מסמך שנתי — לא הוצאה; יש לתייק אותו לדוח השנתי');
+    }
+
     // Resolve final values: override > doc > slim. Doc wins over slim
     // because matched rows are anchored on the document (it's the source
     // for VAT-deduction evidence); slim is the bank-side classification.
@@ -406,34 +598,57 @@ export class ReportReviewService {
     const finalSubCategory = overrides.subCategory ?? doc.subCategory ?? slim.subCategory;
     const finalVatPercent  = Number(overrides.vatPercent ?? doc.vatPercent ?? slim.vatPercent);
     const finalTaxPercent  = Number(overrides.taxPercent ?? doc.taxPercent ?? slim.taxPercent);
-    const finalEquipment   = overrides.isEquipment ?? !!(doc.isEquipment ?? slim.isEquipment);
+    // Don't fall back to doc/slim's stale isEquipment guess here — unlike
+    // vatPercent/taxPercent, a definite boolean unconditionally wins over the
+    // resolved card in applyClassificationToExpense (`dtoOverrides.isEquipment
+    // ?? resolved.isEquipment`, and `false ?? x` is `false`, not `x`). Leaving
+    // this undefined when there's no genuine user override lets the card's
+    // real isEquipment win, matching what classifyReviewRow already shows in
+    // the preview (D9: "the professional-view columns show exactly what
+    // approval would post" — this was the one path that didn't).
+    const finalEquipment   = overrides.isEquipment;
 
     // Non-ILS docs go through addExpense's FX conversion path; ILS docs
     // pass their amount as `sum` directly. For matched rows we still
     // prefer the document-side amount (it's the OCR'd invoice total) and
     // only fall back to the cache's ILS amount when the doc had no
-    // amount at all.
+    // amount at all. Override wins outright when present (ILS docs only —
+    // see ReviewOverrides.amount for the FX caveat).
     const amounts = doc.amount != null
       ? this.buildExpenseAmountFromDoc(doc)
       : { sum: this.absIls(cache), originalCurrency: null, originalSum: null };
+    const finalSum = overrides.amount != null && amounts.originalCurrency == null
+      ? overrides.amount
+      : amounts.sum;
+    // Product decision: date override applies even on matched rows,
+    // despite them being anchored to a real bank transaction (see
+    // ReviewOverrides.date).
+    const finalDate = overrides.date ? new Date(overrides.date) : (doc.date ? new Date(doc.date) : new Date(cache.transactionDate as any));
 
     return this.dataSource.transaction(async manager => {
+      // Phase 4.1: addExpense JOINS this transaction via `manager` (it used
+      // to open its own nested one) — expense + journal + doc/slim flips are
+      // now genuinely atomic. subCategoryId (override > doc-side backfill)
+      // wins over the name pair; the doc rides along for the D7 description
+      // fallback chain.
       const expense = await this.expensesService.addExpense(
         {
-          supplier: doc.supplier ?? cache.merchantName,
-          supplierID: doc.supplierId ?? '',
+          supplier: overrides.supplier ?? doc.supplier ?? cache.merchantName,
+          supplierID: overrides.supplierId ?? doc.supplierId ?? '',
           // expenseNumber is misnamed — it carries the invoice number from
-          // the OCR'd document, NOT a separate user-entered reference. Pass
-          // through whatever the OCR captured; null when the doc has no
-          // printed number (rare for invoices, common for cash receipts).
-          expenseNumber: doc.invoiceNumber ?? undefined as any,
+          // the OCR'd document, NOT a separate user-entered reference.
+          // Override wins; otherwise whatever OCR captured (null when the
+          // doc has no printed number — rare for invoices, common for
+          // cash receipts).
+          expenseNumber: overrides.invoiceNumber ?? doc.invoiceNumber ?? undefined as any,
+          subCategoryId: overrides.subCategoryId ?? doc.subCategoryId ?? undefined,
           category: finalCategory,
           subCategory: finalSubCategory,
-          sum: amounts.sum,
+          sum: finalSum,
           taxPercent: finalTaxPercent,
           vatPercent: finalVatPercent,
           acknowledgeDuplicate: overrides.acknowledgeDuplicate ?? false,
-          date: doc.date ? (new Date(doc.date) as any) : (cache.transactionDate as any),
+          date: finalDate as any,
           note: undefined as any,
           file: undefined as any,
           reductionPercent: 0,
@@ -447,6 +662,8 @@ export class ReportReviewService {
         firebaseId,
         businessNumber,
         overrides.saveAsSupplier ?? true,
+        manager,
+        { documentType: doc.documentType, supplier: doc.supplier, invoiceNumber: doc.invoiceNumber },
       );
 
       // Resolve the VAT report period once and stamp it on BOTH the Expense
@@ -463,21 +680,13 @@ export class ReportReviewService {
       const businessType = business?.businessType ?? BusinessType.LICENSED;
       const vatReportingType = business?.vatReportingType ?? VATReportingType.MONTHLY_REPORT;
       const expensePeriod = overrides.reportPeriod
-        ?? this.sharedService.buildReportPeriodLabel(
-          businessType,
-          vatReportingType,
-          // doc.date / cache.transactionDate are typed Date but TypeORM may
-          // hand them back as strings for MySQL DATE columns depending on
-          // driver version. Wrap unconditionally — `new Date(Date)` clones.
-          doc.date ? new Date(doc.date) : new Date(cache.transactionDate as any),
-        );
+        ?? this.sharedService.buildReportPeriodLabel(businessType, vatReportingType, finalDate);
 
       // Stamp document-side provenance + the resolved period on the fresh
       // Expense. The period is ALWAYS written now (not only on override).
-      // pnlCategory is intentionally left NULL — it's an override-only slot
-      // resolved live (expense.pnlCategory ?? subcategory map ?? category) by
-      // both the P&L report and the bookkeeping display, so storing it here
-      // would only freeze a value that should track the live mapping.
+      // (Phase 4.4/D3: expense.pnlCategory is dead — the P&L groups by the
+      // accounting-section of the posted account; nothing resolves
+      // pnlCategory anymore.)
       await manager.getRepository(Expense).update(
         { id: expense.id },
         { sourceDocumentId: doc.id, vatReportingDate: expensePeriod as any },
@@ -488,6 +697,11 @@ export class ReportReviewService {
         {
           status: ExtractedDocStatus.APPROVED,
           confirmedExpenseId: expense.id,
+          // D8: an approved doc IS an expense invoice — flips UNIDENTIFIED
+          // rows that were approved with an explicit classification.
+          documentKind: DocumentKind.EXPENSE_INVOICE,
+          ...(overrides.allocationNumber !== undefined ? { allocationNumber: overrides.allocationNumber } : {}),
+          ...(overrides.documentType !== undefined ? { documentType: overrides.documentType as any } : {}),
         },
       );
 
@@ -541,31 +755,50 @@ export class ReportReviewService {
       );
     }
 
+    // D8 (Phase 4.3): annual documents are never expenses — route to "תייק".
+    if (doc.documentKind === DocumentKind.ANNUAL_DOCUMENT) {
+      throw new BadRequestException('מסמך שנתי — לא הוצאה; יש לתייק אותו לדוח השנתי');
+    }
+
     const finalCategory    = overrides.category    ?? doc.category    ?? '';
     const finalSubCategory = overrides.subCategory ?? doc.subCategory ?? '';
     const finalVatPercent  = Number(overrides.vatPercent ?? doc.vatPercent ?? 0);
     const finalTaxPercent  = Number(overrides.taxPercent ?? doc.taxPercent ?? 0);
-    const finalEquipment   = overrides.isEquipment ?? !!doc.isEquipment;
+    // See approveMatched's comment: leaving this undefined (rather than
+    // falling back to doc.isEquipment) lets the resolved card's isEquipment
+    // win in applyClassificationToExpense.
+    const finalEquipment   = overrides.isEquipment;
+    // No linked bank transaction on a doc_only row, so a date/amount
+    // override here has always been unambiguously safe — nothing for it
+    // to diverge from. FX docs keep their derived sum (see
+    // buildExpenseAmountFromDoc + the ReviewOverrides.amount doc comment).
+    const finalDate = overrides.date ? new Date(overrides.date) : (doc.date ? new Date(doc.date) : new Date());
 
     const amounts = this.buildExpenseAmountFromDoc(doc);
+    const finalSum = overrides.amount != null && amounts.originalCurrency == null
+      ? overrides.amount
+      : amounts.sum;
 
     return this.dataSource.transaction(async manager => {
+      // Phase 4.1: joins this transaction (see approveMatched).
       const expense = await this.expensesService.addExpense(
         {
-          supplier: doc.supplier ?? '',
-          supplierID: doc.supplierId ?? '',
+          supplier: overrides.supplier ?? doc.supplier ?? '',
+          supplierID: overrides.supplierId ?? doc.supplierId ?? '',
           // expenseNumber is misnamed — it carries the invoice number from
-          // the OCR'd document, NOT a separate user-entered reference. Pass
-          // through whatever the OCR captured; null when the doc has no
-          // printed number (rare for invoices, common for cash receipts).
-          expenseNumber: doc.invoiceNumber ?? undefined as any,
+          // the OCR'd document, NOT a separate user-entered reference.
+          // Override wins; otherwise whatever OCR captured (null when the
+          // doc has no printed number — rare for invoices, common for
+          // cash receipts).
+          expenseNumber: overrides.invoiceNumber ?? doc.invoiceNumber ?? undefined as any,
+          subCategoryId: overrides.subCategoryId ?? doc.subCategoryId ?? undefined,
           category: finalCategory,
           subCategory: finalSubCategory,
-          sum: amounts.sum,
+          sum: finalSum,
           taxPercent: finalTaxPercent,
           vatPercent: finalVatPercent,
           acknowledgeDuplicate: overrides.acknowledgeDuplicate ?? false,
-          date: doc.date ? (new Date(doc.date) as any) : (new Date() as any),
+          date: finalDate as any,
           note: undefined as any,
           file: undefined as any,
           reductionPercent: 0,
@@ -576,12 +809,14 @@ export class ReportReviewService {
         firebaseId,
         businessNumber,
         overrides.saveAsSupplier ?? true,
+        manager,
+        { documentType: doc.documentType, supplier: doc.supplier, invoiceNumber: doc.invoiceNumber },
       );
 
       // Resolve + stamp the VAT report period on the Expense — ALWAYS, not
       // just on override. addExpense doesn't compute it, so without this the
       // row would carry a NULL vatReportingDate. User override wins; else
-      // derive from the business cadence + the document date.
+      // derive from the business cadence + the (possibly overridden) date.
       const business = await this.businessRepo.findOne({
         where: { firebaseId, businessNumber },
       });
@@ -589,11 +824,10 @@ export class ReportReviewService {
         ?? this.sharedService.buildReportPeriodLabel(
           business?.businessType ?? BusinessType.LICENSED,
           business?.vatReportingType ?? VATReportingType.MONTHLY_REPORT,
-          // doc.date may come back as a string from MySQL DATE — wrap it.
-          doc.date ? new Date(doc.date) : new Date(),
+          finalDate,
         );
 
-      // pnlCategory left NULL — override-only, resolved live downstream.
+      // (Phase 4.4/D3: expense.pnlCategory is dead — P&L groups by section.)
       await manager.getRepository(Expense).update(
         { id: expense.id },
         { sourceDocumentId: doc.id, vatReportingDate: reportPeriod as any },
@@ -604,6 +838,11 @@ export class ReportReviewService {
         {
           status: ExtractedDocStatus.APPROVED,
           confirmedExpenseId: expense.id,
+          // D8: an approved doc IS an expense invoice — flips UNIDENTIFIED
+          // rows that were approved with an explicit classification.
+          documentKind: DocumentKind.EXPENSE_INVOICE,
+          ...(overrides.allocationNumber !== undefined ? { allocationNumber: overrides.allocationNumber } : {}),
+          ...(overrides.documentType !== undefined ? { documentType: overrides.documentType as any } : {}),
         },
       );
 
@@ -646,21 +885,33 @@ export class ReportReviewService {
     const finalSubCategory = overrides.subCategory ?? slim.subCategory;
     const finalVatPercent  = Number(overrides.vatPercent ?? slim.vatPercent);
     const finalTaxPercent  = Number(overrides.taxPercent ?? slim.taxPercent);
-    const finalEquipment   = overrides.isEquipment ?? !!slim.isEquipment;
+    // See approveMatched's comment: leaving this undefined (rather than
+    // falling back to slim.isEquipment) lets the resolved card's isEquipment
+    // win in applyClassificationToExpense.
+    const finalEquipment   = overrides.isEquipment;
+
+    // Product decision: date override applies even on tx_only rows,
+    // despite them being a real bank transaction (see ReviewOverrides.date).
+    const finalDate = overrides.date ? new Date(overrides.date) : new Date(cache.transactionDate as any);
+    const finalSum = overrides.amount ?? this.absIls(cache);
 
     return this.dataSource.transaction(async manager => {
+      // Phase 4.1: joins this transaction (see approveMatched). tx_only rows
+      // have no document, so no subCategoryId backfill source beyond an
+      // explicit override and no D7 doc context.
       const expense = await this.expensesService.addExpense(
         {
-          supplier: cache.merchantName,
-          supplierID: '',
-          expenseNumber: undefined as any,
+          supplier: overrides.supplier ?? cache.merchantName,
+          supplierID: overrides.supplierId ?? '',
+          expenseNumber: overrides.invoiceNumber ?? undefined as any,
+          subCategoryId: overrides.subCategoryId ?? undefined,
           category: finalCategory,
           subCategory: finalSubCategory,
-          sum: this.absIls(cache),
+          sum: finalSum,
           taxPercent: finalTaxPercent,
           vatPercent: finalVatPercent,
           acknowledgeDuplicate: overrides.acknowledgeDuplicate ?? false,
-          date: cache.transactionDate as any,
+          date: finalDate as any,
           note: undefined as any,
           file: undefined as any,
           reductionPercent: slim.reductionPercent ?? 0,
@@ -672,12 +923,12 @@ export class ReportReviewService {
         firebaseId,
         businessNumber,
         overrides.saveAsSupplier ?? true,
+        manager,
       );
 
       // Resolve the VAT report period once and stamp it on BOTH the Expense
-      // and the slim transaction. tx_only rows share the bank-transaction
-      // date, so one period covers both. ALWAYS written (not just on
-      // override) — addExpense doesn't compute the Expense period.
+      // and the slim transaction. ALWAYS written (not just on override) —
+      // addExpense doesn't compute the Expense period.
       const business = await this.businessRepo.findOne({
         where: { firebaseId, businessNumber },
       });
@@ -685,13 +936,10 @@ export class ReportReviewService {
         ?? this.sharedService.buildReportPeriodLabel(
           business?.businessType ?? BusinessType.LICENSED,
           business?.vatReportingType ?? VATReportingType.MONTHLY_REPORT,
-          // cache.transactionDate is typed Date but TypeORM may hand it
-          // back as a string for MySQL DATE columns depending on driver
-          // version. Wrap unconditionally — `new Date(Date)` clones safely.
-          new Date(cache.transactionDate as any),
+          finalDate,
         );
 
-      // pnlCategory left NULL — override-only, resolved live downstream.
+      // (Phase 4.4/D3: expense.pnlCategory is dead — P&L groups by section.)
       await manager.getRepository(Expense).update(
         { id: expense.id },
         { vatReportingDate: reportPeriod as any },
@@ -743,6 +991,28 @@ export class ReportReviewService {
     documentId: number,
   ): Promise<{ ok: true; documentId: number; movedFile: boolean }> {
     return this.documentsService.archiveDocument(firebaseId, documentId);
+  }
+
+  // ====================================================================
+  // D8 (Phase 4.3) — "תייק" + kind triage, delegated to DocumentsService
+  // ====================================================================
+
+  /** File an ANNUAL_DOCUMENT (or anything the user says belongs on the
+   *  annual report) — terminal NOT_AN_EXPENSE, never an expense/journal. */
+  fileDocAsAnnual(
+    firebaseId: string,
+    documentId: number,
+  ): Promise<{ ok: true; documentId: number }> {
+    return this.documentsService.fileDocumentAsAnnual(firebaseId, documentId);
+  }
+
+  /** Re-kind a PENDING_REVIEW row (UNIDENTIFIED triage). */
+  setDocKind(
+    firebaseId: string,
+    documentId: number,
+    documentKind: DocumentKind,
+  ): Promise<{ ok: true; documentId: number; documentKind: DocumentKind }> {
+    return this.documentsService.setDocumentKind(firebaseId, documentId, documentKind);
   }
 
   // ====================================================================
@@ -1073,6 +1343,7 @@ export class ReportReviewService {
       isEquipment: savedSupplier?.isEquipment ?? d.isEquipment,
       uploadDate: d.uploadDate ? d.uploadDate.toISOString() : null,
       documentType: d.documentType,
+      documentKind: d.documentKind,
       currency: d.currency ?? 'ILS',
       ilsAmount: d.ilsAmount != null ? Number(d.ilsAmount) : null,
       matchedSupplierKnown: !!savedSupplier,

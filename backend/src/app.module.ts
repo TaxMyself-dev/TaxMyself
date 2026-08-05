@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, Logger } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ScheduleModule } from '@nestjs/schedule';
 import { AppController } from './app.controller';
@@ -25,6 +25,13 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { DemoDataModule } from './demo-data/demo-data.module';
 import { GoogleDriveModule } from './google-drive/google-drive.module';
 import { BillingModule } from './billing/billing.module';
+import { IntegrationsModule } from './integrations/integrations.module';
+import { DocumentImportModule } from './document-import/document-import.module';
+//Integrations entities
+import { UserIntegration } from './integrations/entities/user-integration.entity';
+import { OauthState } from './integrations/entities/oauth-state.entity';
+//Document import (shared intake pipeline) entities
+import { ImportedDocument } from './document-import/entities/imported-document.entity';
 //Billing entities
 import { SubscriptionPlan } from './billing/entities/subscription-plan.entity';
 import { Subscription } from './billing/entities/subscription.entity';
@@ -80,12 +87,41 @@ import { DocumentsService } from './documents/documents.service';
 import { ClientsService } from './clients/clients.service';
 import { JournalEntry } from './bookkeeping/jouranl-entry.entity';
 import { JournalLine } from './bookkeeping/jouranl-line.entity';
-import { DefaultBookingAccount } from './bookkeeping/account.entity';
+import { BookingAccount } from './bookkeeping/account.entity';
+import { AccountingSection } from './bookkeeping/accounting-section.entity';
+import { AccountCodeMigration } from './bookkeeping/account-code-migration.entity';
+import { Category } from './bookkeeping/category.entity';
+import { SubCategory } from './bookkeeping/sub-category.entity';
 import { BookkeepingService } from './bookkeeping/bookkeeping.service';
 import { UsersService } from './users/users.service';
 import { BusinessModule } from './business/business.module';
 import { BusinessService } from './business/business.service';
 
+
+// Boot-time safety valve (added 2026-07-12 after an accidental synchronize
+// run against keepintax_prodcopy dropped several unnamed unique/secondary
+// indexes — see docs/redesign/schema-drift.md Gap 7). `synchronize` is only
+// ever meant to run against keepintax-dev; refuse to even attempt a DB
+// connection if it's enabled against anything whose name looks like a
+// production/production-copy database, regardless of how NODE_ENV ended up
+// unset — this must fail before TypeORM ever opens a connection, so it runs
+// as plain top-level code (evaluated at module-load time, before Nest
+// bootstraps), not inside a provider/guard.
+const isSynchronizeEnabled = process.env.NODE_ENV !== 'production';
+if (isSynchronizeEnabled && /prod/i.test(process.env.DB_DATABASE || '')) {
+  throw new Error(
+    `Refusing to start: TypeORM synchronize is enabled (NODE_ENV=${JSON.stringify(process.env.NODE_ENV)}) ` +
+    `against DB_DATABASE=${JSON.stringify(process.env.DB_DATABASE)}, which looks like a production database. ` +
+    `Set NODE_ENV=production to disable synchronize, or point DB_DATABASE at keepintax-dev. ` +
+    `See docs/redesign/schema-drift.md Gap 7 for why this guard exists.`,
+  );
+}
+
+// "Which DB am I on?" should always be answerable at a glance — one line,
+// every boot, right next to the guard above that depends on the same two values.
+new Logger('Bootstrap').log(
+  `DB_DATABASE=${process.env.DB_DATABASE} synchronize=${isSynchronizeEnabled}`,
+);
 
 @Module({
   imports: [
@@ -100,12 +136,14 @@ import { BusinessService } from './business/business.service';
         SlimTransaction, FullTransactionCache, UserTransactionCacheState, UserSyncState, UserSourceSyncState,
         Bill, Source,
         DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory, Finsite, Delegation, SettingDocuments,
-        Clients, Documents, DocLines, DocPayments, ExtractedDocument, JournalEntry, JournalLine, DefaultBookingAccount,
+        Clients, Documents, DocLines, DocPayments, ExtractedDocument, JournalEntry, JournalLine, BookingAccount,
+        AccountingSection, AccountCodeMigration, Category, SubCategory,
         FeezbackWebhookEvent, UserModuleSubscription, AccountantTask, AnnualReport, AnnualReportFile, ReportWorkflow,
         FxRate,
         SubscriptionPlan, Subscription, PaymentMethod, CardcomWebhookLog, BillingEvent,
+        UserIntegration, OauthState, ImportedDocument,
         ],
-      synchronize: process.env.NODE_ENV !== 'production',
+      synchronize: isSynchronizeEnabled,
       timezone: 'Z',
       //logging: true
     }),
@@ -121,10 +159,10 @@ import { BusinessService } from './business/business.service';
       Bill,
       Source,
       Expense,
-      DefaultCategory,
-      UserCategory,
-      DefaultSubCategory,
-      UserSubCategory,
+      // (Phase 4.6: the four legacy catalog entities left this forFeature —
+      // no provided service injects their repos anymore. They stay in the
+      // forRoot entities list above only so the frozen tables remain
+      // schema-managed for rollback until the Phase 7 drop.)
       Finsite,
       Delegation,
       SettingDocuments,
@@ -134,13 +172,17 @@ import { BusinessService } from './business/business.service';
       DocPayments,
       JournalEntry,
       JournalLine,
-      DefaultBookingAccount,
+      BookingAccount,
       Child,
       FeezbackWebhookEvent,
       ExtractedDocument,
+      // ExpensesService (re-provided below) injects the ReportWorkflow repo
+      // for the D10 period lock (Phase 4.1) — every module that re-provides
+      // it must register the entity.
+      ReportWorkflow,
     ]),
     ScheduleModule.forRoot(),
-    HttpModule, UsersModule, ReportsModule, ExpensesModule, TransactionsModule, BusinessModule, CloudModule, SharedModule, FinsiteModule, MailModule, DelegationModule, DocumentsModule, ClientsModule, BookkeepingModule, FeezbackModule, ShaamModule, FeezbackWebhookModule, AccountantTasksModule, AnnualReportModule, ReportWorkflowModule, NotificationsModule, DemoDataModule, GoogleDriveModule, BillingModule],
+    HttpModule, UsersModule, ReportsModule, ExpensesModule, TransactionsModule, BusinessModule, CloudModule, SharedModule, FinsiteModule, MailModule, DelegationModule, DocumentsModule, ClientsModule, BookkeepingModule, FeezbackModule, ShaamModule, FeezbackWebhookModule, AccountantTasksModule, AnnualReportModule, ReportWorkflowModule, NotificationsModule, DemoDataModule, GoogleDriveModule, BillingModule, IntegrationsModule, DocumentImportModule],
   controllers: [AppController],
   providers: [AppService, FinsiteService, ExpensesService, MailService, DocumentsService, ClientsService, BookkeepingService, BusinessService],
 })

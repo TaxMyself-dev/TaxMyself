@@ -4,85 +4,78 @@ import { PreloadAllModules, RouterModule, Routes } from '@angular/router';
 import { AuthGuard } from './shared/guard/auth.guard';
 import { BillingGuard } from './shared/guard/billing.guard';
 import { ViewOnlyBlockDocGuard } from './shared/guard/view-only-block-doc.guard';
-const routes: Routes = [
-  {
-    path: '',
-    redirectTo: '/login',
-    pathMatch: 'full'
-  },
-  {
-    path: 'register',
-    loadComponent: () => import('./pages/register/register.page').then( m => m.RegisterPage)
-  },
-  
+import { ModuleAccessGuard } from './shared/guard/module-access.guard';
+import { StartupRedirectGuard } from './shared/guard/startup-redirect.guard';
+import { LoginPageGuard } from './shared/guard/login-page.guard';
+import { OfflineNavigationGuard } from './shared/guard/offline-navigation.guard';
+import { AppRoute } from './shared/access-control';
+
+/**
+ * In-app routes that require connectivity for deliberate navigation while a
+ * session is already open. Wrapped by {@link OfflineNavigationGuard} via the
+ * parent `canActivateChild` so offline attempts never reach billing/module
+ * guards or briefly activate the target page.
+ */
+const appRoutes: Routes = [
   {
     path: 'reports',
-    loadChildren: () => import('./pages/reports/reports.module').then( m => m.ReportsPageModule),
+    loadChildren: () => import('./pages/reports/reports.module').then(m => m.ReportsPageModule),
     canActivate: [AuthGuard, BillingGuard]
   },
   {
     path: 'my-storage',
-    loadChildren: () => import('./pages/my-storage/my-storage.module').then( m => m.MyStoragePageModule),
+    loadChildren: () => import('./pages/my-storage/my-storage.module').then(m => m.MyStoragePageModule),
     canActivate: [AuthGuard, BillingGuard]
   },
   {
     path: 'book-keeping',
-    loadChildren: () => import('./pages/book-keeping/book-keeping.module').then( m => m.BookKeepingPageModule),
+    loadChildren: () => import('./pages/book-keeping/book-keeping.module').then(m => m.BookKeepingPageModule),
     canActivate: [AuthGuard, BillingGuard]
   },
   {
     path: 'my-account',
-    loadComponent: () => import('./pages/my-account/my-account.page').then( m => m.MyAccountPage),
+    loadComponent: () => import('./pages/my-account/my-account.page').then(m => m.MyAccountPage),
     canActivate: [AuthGuard, BillingGuard]
   },
   {
     path: 'settings',
-    loadComponent: () => import('./pages/settings/settings.page').then( m => m.SettingsPage),
+    loadComponent: () => import('./pages/settings/settings.page').then(m => m.SettingsPage),
     canActivate: [AuthGuard, BillingGuard]
-  },
-  {
-    path: 'login',
-    loadChildren: () => import('./pages/login/login.module').then( m => m.LoginPageModule)
   },
   {
     path: 'transactions',
-    loadChildren: () => import('./pages/transactions/transactions.module').then( m => m.TransactionsPageModule),
-    canActivate: [AuthGuard, BillingGuard]
+    canActivate: [AuthGuard, BillingGuard, ModuleAccessGuard],
+    data: { appRoute: AppRoute.TRANSACTIONS },
+    loadChildren: () => import('./pages/transactions/transactions.module').then(m => m.TransactionsPageModule),
   },
   {
     path: 'vat-report',
-    loadChildren: () => import('./pages/vat-report/vat-report.module').then( m => m.VatReportPageModule),
-    canActivate: [AuthGuard, BillingGuard]
-  },
-  {
-    path: 'vat-report-journal',
     loadChildren: () => import('./pages/vat-report-journal/vat-report-journal.module').then( m => m.VatReportJournalPageModule),
-    canActivate: [AuthGuard, BillingGuard]
+    canActivate: [AuthGuard, BillingGuard, ModuleAccessGuard],
+    data: { appRoute: AppRoute.VAT_REPORT },
   },
   {
     path: 'annual-report',
-    loadChildren: () => import('./pages/annual-report/annual-report.module').then( m => m.AnnualReportPageModule),
+    loadChildren: () => import('./pages/annual-report/annual-report.module').then(m => m.AnnualReportPageModule),
     canActivate: [AuthGuard, BillingGuard]
   },
   {
     path: 'advance-income-tax-report',
-    loadChildren: () => import('./pages/advance-income-tax-report/advance-income-tax-report.module').then( m => m.AdvanceIncomeTaxReportPageModule),
-    canActivate: [AuthGuard, BillingGuard]
+    loadChildren: () => import('./pages/advance-income-tax-report/advance-income-tax-report.module').then(m => m.AdvanceIncomeTaxReportPageModule),
+    canActivate: [AuthGuard, BillingGuard, ModuleAccessGuard],
+    data: { appRoute: AppRoute.ADVANCE_INCOME_TAX_REPORT },
   },
   {
     path: 'uniform-file',
-    loadChildren: () => import('./pages/uniform-file/uniform-file.module').then( m => m.UnifromFilePageModule),
-    canActivate: [AuthGuard, BillingGuard]
+    loadChildren: () => import('./pages/uniform-file/uniform-file.module').then(m => m.UnifromFilePageModule),
+    canActivate: [AuthGuard, BillingGuard, ModuleAccessGuard],
+    data: { appRoute: AppRoute.UNIFORM_FILE },
   },
   {
     path: 'pnl-report',
-    loadChildren: () => import('./pages/pnl-report/pnl-report.module').then( m => m.PnLReportPageModule),
-    canActivate: [AuthGuard, BillingGuard]
-  },
-  {
-    path: 'pnl-report-journal',
     loadChildren: () => import('./pages/pnl-report-journal/pnl-report-journal.module').then( m => m.PnLReportJournalPageModule),
-    canActivate: [AuthGuard, BillingGuard]
+    canActivate: [AuthGuard, BillingGuard, ModuleAccessGuard],
+    data: { appRoute: AppRoute.PNL_REPORT },
   },
   {
     path: 'ledger-report',
@@ -90,38 +83,42 @@ const routes: Routes = [
     canActivate: [AuthGuard, BillingGuard]
   },
   {
+    path: 'report-review',
+    loadChildren: () => import('./pages/report-review/report-review.module').then(m => m.ReportReviewPageModule),
+    canActivate: [AuthGuard, BillingGuard]
+  },
+  {
     path: 'depreciation-report',
-    loadChildren: () => import('./pages/depreciation-report/depreciation-report.module').then( m => m.DepreciationReportPageModule),
+    loadChildren: () => import('./pages/depreciation-report/depreciation-report.module').then(m => m.DepreciationReportPageModule),
     canActivate: [AuthGuard, BillingGuard]
   },
   {
     path: 'flow-report',
-    loadChildren: () => import('./pages/flow-report/flow-report.module').then( m => m.FlowReportPageModule)
+    loadChildren: () => import('./pages/flow-report/flow-report.module').then(m => m.FlowReportPageModule)
   },
   {
     path: 'admin-panel',
-    loadChildren: () => import('./pages/admin-panel/admin-panel.module').then( m => m.AdminPanelPageModule)
+    loadChildren: () => import('./pages/admin-panel/admin-panel.module').then(m => m.AdminPanelPageModule)
   },
   {
     path: 'client-panel',
-    loadChildren: () => import('./pages/clients-panel/clients-panel.module').then( m => m.ClientPanelPageModule)
+    loadChildren: () => import('./pages/clients-panel/clients-panel.module').then(m => m.ClientPanelPageModule)
   },
   {
     path: 'doc-create',
-    loadChildren: () => import('./pages/doc-create/doc-create.module').then( m => m.DocCreatePageModule),
-    canActivate: [AuthGuard, BillingGuard, ViewOnlyBlockDocGuard]
+    loadChildren: () => import('./pages/doc-create/doc-create.module').then(m => m.DocCreatePageModule),
+    canActivate: [AuthGuard, BillingGuard, ModuleAccessGuard, ViewOnlyBlockDocGuard],
+    data: { appRoute: AppRoute.DOC_CREATE },
   },
   {
     path: 'add-expense',
-    loadComponent: () => import('./pages/add-expense/add-expense.component').then( m => m.AddExpenseComponent)
-  },
-  {
-    path: 'shaam/callback',
-    loadChildren: () => import('./pages/shaam-callback/shaam-callback.module').then(m => m.ShaamCallbackPageModule)
+    loadComponent: () => import('./pages/add-expense/add-expense.component').then(m => m.AddExpenseComponent)
   },
   {
     path: 'flow-analysis',
-    loadComponent: () => import('./pages/flow-analysis/flow-analysis.component').then( m => m.FlowAnalysisComponent)
+    canActivate: [AuthGuard, BillingGuard, ModuleAccessGuard],
+    data: { appRoute: AppRoute.FLOW_ANALYSIS },
+    loadComponent: () => import('./pages/flow-analysis/flow-analysis.component').then(m => m.FlowAnalysisComponent),
   },
   {
     path: 'billing',
@@ -134,7 +131,39 @@ const routes: Routes = [
       },
     ],
   },
+];
 
+const routes: Routes = [
+  {
+    // Cold-start gate: waits for Firebase auth, then UrlTree → restored route
+    // (online + authenticated) or /login. Replaces the unconditional redirect
+    // that caused the login-page flash.
+    path: '',
+    pathMatch: 'full',
+    canActivate: [StartupRedirectGuard],
+    children: [],
+  },
+  {
+    path: 'register',
+    loadComponent: () => import('./pages/register/register.page').then(m => m.RegisterPage)
+  },
+  {
+    // Waits for auth initialization before the login page is even created, so
+    // a restored session never flashes the login screen on its way into the app.
+    path: 'login',
+    canActivate: [LoginPageGuard],
+    loadChildren: () => import('./pages/login/login.module').then(m => m.LoginPageModule)
+  },
+  {
+    path: 'shaam/callback',
+    loadChildren: () => import('./pages/shaam-callback/shaam-callback.module').then(m => m.ShaamCallbackPageModule)
+  },
+  {
+    // In-app shell: one offline gate for all deliberate in-session navigations.
+    path: '',
+    canActivateChild: [OfflineNavigationGuard],
+    children: appRoutes,
+  },
 ];
 
 @NgModule({
@@ -143,4 +172,4 @@ const routes: Routes = [
   ],
   exports: [RouterModule]
 })
-export class AppRoutingModule {}
+export class AppRoutingModule { }

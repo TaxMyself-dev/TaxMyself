@@ -14,8 +14,8 @@
         <app-input-text [controlName]="'initialIndex'" labelText="" [placeholder]="''" [parentForm]="initialIndexForm"
           [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"></app-input-text>
       </div>
-      <div>
-        <app-p-button [buttonText]=" 'אישור'" [buttonSize]="buttonSize.AUTO"
+      <div style="margin-top: 1rem; display: flex; justify-content: flex-end;">
+        <app-p-button [buttonText]=" 'אישור'" [buttonSize]="buttonSize.AUTO" [buttonColor]="buttonColor.BLACK"
           (onButtonClicked)="onClickInitialIndex()"></app-p-button>
       </div>
     </div>
@@ -132,7 +132,7 @@
           @default {
           <app-input-text [customStyle]="isMobile() ? 'rounded-border' : ''" [controlName]="item.value"
             [labelText]="item.labelText" [placeholder]="item.placeHolder" [parentForm]="userDetailsForm"
-            [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN" [type]="
+            [size]="isMobile() ? inputsSize.MOBILE : (item.value === FieldsCreateDocValue.RECIPIENT_EMAIL ? inputsSize.MEDIUM : inputsSize.BETWEEN)" [type]="
           item.type === formTypes.NUMBER ? 'number' :
           'text'
         ">
@@ -645,8 +645,7 @@
     </ng-template>
   </p-dialog>
 
-  <!-- Toast for messages -->
-  <!-- <p-toast key="br"></p-toast> -->
+  <!-- p-toast (key="br") is provided globally in app.component.html -->
 
   <!-- Confirmation Dialog for PrimeNG ConfirmationService -->
   <p-confirmDialog></p-confirmDialog>

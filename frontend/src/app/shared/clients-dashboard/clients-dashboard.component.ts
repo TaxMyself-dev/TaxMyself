@@ -493,10 +493,40 @@ export class ClientsDashboardComponent implements OnInit {
         this.pullResultByKey.update(m => ({ ...m, [key]: result }));
         if (result.status === 'success') {
           this.messageService.add({ severity: 'success', summary: 'הצלחה', detail: `${src.paymentIdentifier}: נמשכו ${result.transactionCount} תנועות`, life: 4000, key: 'br' });
+        } else if (result.status === 'skipped_direct') {
+          // Direct/Debit card — intentionally not pulled (bank feed covers it).
+          this.messageService.add({ severity: 'info', summary: 'כרטיס דיירקט', detail: `${src.paymentIdentifier}: כרטיס דיירקט — התנועות נמשכות דרך חשבון הבנק`, life: 6000, key: 'br' });
         } else {
           this.messageService.add({ severity: 'warn', summary: 'משיכה נכשלה', detail: `${src.paymentIdentifier}: ${result.error ?? 'שגיאה לא ידועה'}`, life: 6000, key: 'br' });
         }
       });
+  }
+
+  /**
+   * Strips the heavy raw Feezback payload from a pull result so the inline
+   * summary <pre> stays compact (status / count / ids). The full raw JSON gets
+   * its own collapsible "הצג JSON תנועות מלא" block below it.
+   */
+  pullSummary(res: AdminPullSourceResult): Partial<AdminPullSourceResult> {
+    const { rawTransactionsResponse, ...summary } = res;
+    return summary;
+  }
+
+  /**
+   * Copies any JSON value to the clipboard as pretty-printed text
+   * (JSON.stringify(value, null, 2)) so an admin can paste the exact Feezback
+   * response into an email or support ticket. Works for arbitrarily large
+   * payloads via the async Clipboard API.
+   */
+  async copyJson(value: unknown): Promise<void> {
+    try {
+      const text = JSON.stringify(value, null, 2);
+      await navigator.clipboard.writeText(text);
+      this.messageService.add({ severity: 'success', summary: 'הצלחה', detail: 'JSON הועתק ללוח', life: 3000, key: 'br' });
+    } catch (err) {
+      console.error('Failed to copy JSON to clipboard:', err);
+      this.messageService.add({ severity: 'error', summary: 'שגיאה', detail: 'העתקת ה-JSON נכשלה', life: 4000, key: 'br' });
+    }
   }
 
   confirmRefreshSources(row: IRowDataTable): void {

@@ -95,6 +95,19 @@
   margin-top: 15px;
 }
 
+.osek-zair-checkbox-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  width: 50%;
+
+  .checkbox-label {
+    cursor: pointer;
+    user-select: none;
+  }
+}
+
 .pnl-report-title {
   display: flex;
   flex-direction: column;
@@ -237,19 +250,13 @@
     width: 95%;
     justify-content: center;
   }
-  
+
+  .osek-zair-checkbox-container {
+    width: 95%;
+    justify-content: center;
+  }
+
   .report-action-row {
     justify-content: center;
   }
-}
-/* Journal-based report comparison banner (TASK B) */
-.journal-report-banner {
-  background: #fff4e5;
-  border: 1px solid #ffcc80;
-  color: #8a5a00;
-  border-radius: 6px;
-  padding: 8px 12px;
-  margin: 0 0 1rem;
-  font-weight: 600;
-  text-align: center;
 }

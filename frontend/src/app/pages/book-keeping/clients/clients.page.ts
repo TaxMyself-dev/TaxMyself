@@ -1,4 +1,4 @@
-import { Component, OnInit, signal, inject } from '@angular/core';
+import { Component, ElementRef, OnInit, signal, inject, ViewChild } from '@angular/core';
 import { EMPTY, of } from 'rxjs';
 import { catchError, finalize, map } from 'rxjs/operators';
 import { DocCreateService } from 'src/app/pages/doc-create/doc-create.service';
@@ -16,6 +16,7 @@ import { AuthService } from 'src/app/services/auth.service';
 import { FilterField } from 'src/app/components/filter-tab/filter-fields-model.component';
 import { FormBuilder, FormGroup } from '@angular/forms';
 import { ConfirmationService, MessageService } from 'primeng/api';
+import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 
 @Component({
   selector: 'app-clients',
@@ -51,6 +52,12 @@ export class ClientsPage implements OnInit {
   isLoadingDataTable = signal<boolean>(false);
   myClients: any;
   fileActions = signal<ITableRowAction[]>([]);
+
+  buttonColor = ButtonColor;
+  buttonSize = ButtonSize;
+
+  // Host element of the "הוסף לקוח" button — used to return focus after the dialog closes
+  @ViewChild('addClientBtn', { read: ElementRef }) addClientBtn?: ElementRef<HTMLElement>;
 
   // ===========================
   // Table config
@@ -191,6 +198,40 @@ export class ClientsPage implements OnInit {
         }
       },
     ]);
+  }
+
+  /**
+   * Opens the shared AddClientComponent dialog in create mode — the same component
+   * and creation flow used by the document-creation page ("add new client" in the
+   * recipient dropdown). All form/validation/save/error handling lives there.
+   */
+  onAddClient(): void {
+    const ref = this.dialogService.open(AddClientComponent, {
+      header: 'יצירת לקוח חדש',
+      width: '90%',
+      style: { maxWidth: '95vw' },
+      rtl: true,
+      closable: true,
+      dismissableMask: true,
+      modal: true,
+      data: {
+        businessNumber: this.selectedBusinessNumber(),
+        clients: []
+      }
+    });
+
+    ref.onClose.subscribe((createdClient) => {
+      // The dialog closes with the saved client on success, and with undefined
+      // when cancelled/dismissed — so a cancel leaves the table untouched.
+      if (createdClient) {
+        this.fetchClients(this.selectedBusinessNumber());
+      }
+      this.focusAddClientButton();
+    });
+  }
+
+  private focusAddClientButton(): void {
+    this.addClientBtn?.nativeElement.querySelector('button')?.focus();
   }
 
   onEditClient(client: IRowDataTable): void {

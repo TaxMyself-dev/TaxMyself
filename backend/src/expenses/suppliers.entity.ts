@@ -52,4 +52,15 @@ export class Supplier {
     @Column()
     reductionPercent: number;
 
+    /**
+     * Nullable pointer at sub_category.id (D6/Phase 3.1) — display-only, no
+     * DB FK constraint (matching the established no-real-FK precedent for
+     * catalog pointers, e.g. sub_category.categoryId/accountId). Backfilled
+     * by name within scope in Phase 3.5; unmatched -> stays NULL.
+     * `category`/`subCategory` strings above remain the source of read
+     * paths until Phase 4.
+     */
+    @Column({ type: 'int', nullable: true, default: null })
+    subCategoryId: number | null;
+
 }

@@ -1,5 +1,5 @@
 import { HttpService } from '@nestjs/axios';
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { AxiosRequestConfig, AxiosResponse } from 'axios';
 import { firstValueFrom } from 'rxjs';
 import { FeezbackAuthService } from './feezback-auth.service';
@@ -22,8 +22,6 @@ interface RequestOptions {
 
 @Injectable()
 export class FeezbackHttpClient {
-  private readonly logger = new Logger(FeezbackHttpClient.name);
-
   constructor(
     private readonly http: HttpService,
     private readonly authService: FeezbackAuthService,
@@ -60,12 +58,18 @@ export class FeezbackHttpClient {
         timeout: options.timeout ?? 60_000,
       };
 
+      const sentAt = Date.now();
+      console.log(`→ [Feezback] ${method} ${endpoint} sent at ${new Date(sentAt).toISOString()} (attempt ${attempt + 1}/${maxRetries + 1}) url=${url}`);
+
       try {
         const response: AxiosResponse<T> = await firstValueFrom(
           method === 'GET'
             ? this.http.get<T>(url, config)
             : this.http.post<T>(url, body, config),
         );
+
+        const durationMs = Date.now() - sentAt;
+        console.log(`← [Feezback] ${endpoint} — status=${response.status} | ${durationMs}ms | body=${this.snippet(response.data)}`);
 
         return response.data;
       } catch (rawError) {
@@ -75,15 +79,7 @@ export class FeezbackHttpClient {
         const shouldRetry = isRetryableFeezbackError(mapped);
 
         if (!shouldRetry || attempt === maxRetries) {
-          const bodySnippet = (() => {
-            const body = mapped.responseBody;
-            if (body == null) return '(none)';
-            try {
-              const s = typeof body === 'string' ? body : JSON.stringify(body);
-              return s.length > 800 ? s.slice(0, 800) + '…' : s;
-            } catch { return String(body); }
-          })();
-          console.log(`\n❌ [Feezback] ${endpoint} — all ${attempt + 1} attempt(s) failed | status=${mapped.status ?? 'unknown'} | error=${mapped.message}\n   responseBody=${bodySnippet}\n`);
+          console.log(`\n❌ [Feezback] ${endpoint} — all ${attempt + 1} attempt(s) failed | status=${mapped.status ?? 'unknown'} | error=${mapped.message}\n   responseBody=${this.snippet(mapped.responseBody)}\n`);
           throw mapped;
         }
 
@@ -175,17 +171,14 @@ export class FeezbackHttpClient {
     }
   }
 
-  private logDebug(message: string, config: AxiosRequestConfig): void {
-    this.logger.debug(`${message} headers=${JSON.stringify(config.headers)} params=${JSON.stringify(config.params)}`);
-  }
-
-  private logSuccess(method: string, url: string, status: number): void {
-    this.logger.debug(`${method} ${url} -> status ${status}`);
-  }
-
-  private logFailure(error: FeezbackHttpError): void {
-    this.logger.error(
-      `${error.method} ${error.url} failed (status=${error.status ?? 'unknown'} code=${error.code ?? 'n/a'}): ${error.message}`,
-    );
+  /** Truncated JSON preview used for both request/response and error-body logging. */
+  private snippet(body: unknown): string {
+    if (body == null) return '(none)';
+    try {
+      const s = typeof body === 'string' ? body : JSON.stringify(body);
+      return s.length > 800 ? s.slice(0, 800) + '…' : s;
+    } catch {
+      return String(body);
+    }
   }
 }

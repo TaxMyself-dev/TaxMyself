@@ -215,6 +215,12 @@ p.block-title {
     background-color: #eef3f7;
     .payment-result-banner__icon { color: #204f56; }
   }
+  // PAYMENT_STATUS_UNKNOWN — deliberately neutral, not red: we do not know the
+  // outcome, this is not necessarily a failure, and the user may already be charged.
+  &--unknown {
+    background-color: #eef3f7;
+    .payment-result-banner__icon { color: #204f56; }
+  }
 }
 
 .payment-result-banner__icon {
@@ -239,6 +245,7 @@ p.block-title {
   color: #204f56;
   margin: 0;
   line-height: 1.4;
+  white-space: pre-line;
 }
 
 .payment-result-banner__detail {
@@ -282,8 +289,12 @@ p.block-title {
 .banking-banner {
   position: relative;
   overflow: hidden;
-  background-color: #d9ef70;   
-  border-radius: 10px;          
+  background-color: #d9ef70;                              // fallback while image loads
+  background-image: url('/assets/open-banking-banner-bg.jpeg');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  border-radius: 10px;
   padding: 30px 30px 19px;
   display: flex;
   flex-direction: column;
@@ -291,10 +302,26 @@ p.block-title {
   gap: 16px;
   direction: rtl;
   text-align: right;
-  height: 233px;              
-  flex-shrink: 0;               
+  height: 233px;
+  flex-shrink: 0;
   box-sizing: border-box;
   margin: 0;
+
+  // Subtle overlay to keep the dark teal text readable over the image
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: rgba(255, 255, 255, 0.35);
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  // Keep every direct child (text block + CTA button) above the overlay
+  > * {
+    position: relative;
+    z-index: 1;
+  }
 }
 
 .banking-banner__text {
@@ -869,10 +896,13 @@ p.block-title {
 
   &--success .pi { color: #16a34a; }
   &--failed  .pi { color: #dc2626; }
+  // Direct/Debit card — intentionally skipped (bank feed covers it): neutral, not an error.
+  &--skipped .pi { color: #6b7280; }
 
   &__name  { font-weight: 600; }
   &__pan   { color: #6b7280; font-size: 13px; }
   &__count { color: #6b7280; font-size: 13px; margin-right: auto; }
+  &__direct-note { color: #6b7280; font-size: 13px; margin-right: auto; }
 
   app-p-button { margin-right: auto; }
 }

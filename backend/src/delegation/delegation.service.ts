@@ -6,8 +6,8 @@ import {
   ConflictException,
   InternalServerErrorException,
 } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+import { DataSource, In, Repository } from 'typeorm';
 import * as admin from 'firebase-admin';
 import * as jwt from 'jsonwebtoken';
 import { Delegation, DelegationStatus } from './delegation.entity';
@@ -42,6 +42,7 @@ export class DelegationService {
     private readonly businessRepository: Repository<Business>,
     private readonly mailService: MailService,
     private readonly usersService: UsersService,
+    @InjectDataSource() private readonly dataSource: DataSource,
   ) {
     this.firebaseAuth = admin.auth();
   }
@@ -118,9 +119,13 @@ export class DelegationService {
 
     // Create and save the delegation entry
     try {
+      // Invite flow is the accountant-onboarding path — grant full scopes,
+      // matching createClientByAccountant (NULL scopes are read-only in the guard).
       const delegation = this.delegationRepository.create({
         userId,
         agentId,
+        status: DelegationStatus.ACTIVE,
+        scopes: ['DOCUMENTS_READ', 'DOCUMENTS_WRITE'],
       });
       await this.delegationRepository.save(delegation);
       return {
@@ -396,6 +401,18 @@ export class DelegationService {
       throw new ConflictException(`העסק כבר קיים במערכת`);
     }
 
+    // 1b. Friendly duplicate check ahead of ux_business_number — before the
+    // Firebase user is created, so a duplicate doesn't orphan a Firebase account.
+    const businessNumber = dto.businessNumber?.trim();
+    if (businessNumber) {
+      const existingBusiness = await this.businessRepository.findOne({
+        where: { businessNumber },
+      });
+      if (existingBusiness) {
+        throw new ConflictException(`עסק עם מספר ${businessNumber} כבר קיים במערכת`);
+      }
+    }
+
     const password = `KE${dto.phone.replace(/\D/g, '')}`;
     const displayName =
       dto.fName && dto.lName
@@ -428,60 +445,87 @@ export class DelegationService {
       : new Date();
     const addressOrCity = dto.address?.trim() ?? '';
 
-    // 3. Create User in DB (כתובת נשמרת בשדה city)
-    const newUser = this.userRepository.create({
-      firebaseId,
-      email: dto.email.trim(),
-      phone: dto.phone?.trim() ?? '',
-      fName: dto.fName?.trim() ?? '',
-      lName: dto.lName?.trim() ?? '',
-      id: dto.id?.trim() ?? '',
-      finsiteId: null,
-      gender: Gender.MALE,
-      dateOfBirth,
-      city: addressOrCity,
-      address: null,
-      employmentStatus: EmploymentType.SELF_EMPLOYED,
-      familyStatus: FamilyStatus.SINGLE,
-      role: [UserRole.REGULAR],
-      businessStatus: BusinessStatus.SINGLE_BUSINESS,
-      createdAt: new Date(),
-    });
-    await this.userRepository.save(newUser);
-
-    // Subscription row — same trial-creation path as signup(), so delegated
-    // clients get identical TRIAL/all-modules access instead of a
-    // hand-rolled (and previously inconsistent) legacy state.
-    await this.usersService.ensureTrialSubscription(firebaseId);
-
-    // 3b. יוצרים תמיד עסק בטבלת העסקים לפי השדות הרלוונטיים
+    // 3-4. Create User + Subscription + Business + Delegation atomically —
+    // a failure anywhere in here rolls back everything, so a failed client
+    // creation never leaves a dangling User row with no Subscription.
     const resolvedBusinessType = dto.businessType ?? BusinessType.EXEMPT;
     const vatDefault = isExemptBusinessType(resolvedBusinessType)
       ? VATReportingType.NOT_REQUIRED
       : VATReportingType.DUAL_MONTH_REPORT;
-    const business = this.businessRepository.create({
-      firebaseId,
-      businessName: dto.businessName?.trim() ?? null,
-      businessNumber: dto.businessNumber?.trim() ?? null,
-      businessType: resolvedBusinessType,
-      businessAddress: addressOrCity || null,
-      businessPhone: dto.phone?.trim() ?? null,
-      businessEmail: dto.email.trim() || null,
-      vatReportingType: vatDefault,
-      taxReportingType: TaxReportingType.DUAL_MONTH_REPORT,
-      nationalInsRequired: false,
-    });
-    await this.businessRepository.save(business);
 
-    // 4. Create Delegation (accountant -> client)
-    const delegation = this.delegationRepository.create({
-      userId: firebaseId,
-      agentId: accountantFirebaseId,
-      externalCustomerId: null,
-      status: DelegationStatus.ACTIVE,
-      scopes: ['DOCUMENTS_READ', 'DOCUMENTS_WRITE'],
-    });
-    await this.delegationRepository.save(delegation);
+    let newUser: User;
+    try {
+      newUser = await this.dataSource.transaction(async (manager) => {
+        const userRepo = manager.getRepository(User);
+        const businessRepo = manager.getRepository(Business);
+        const delegationRepo = manager.getRepository(Delegation);
+
+        // 3. Create User in DB (כתובת נשמרת בשדה city)
+        const user = userRepo.create({
+          firebaseId,
+          email: dto.email.trim(),
+          phone: dto.phone?.trim() ?? '',
+          fName: dto.fName?.trim() ?? '',
+          lName: dto.lName?.trim() ?? '',
+          id: dto.id?.trim() ?? '',
+          finsiteId: null,
+          gender: Gender.MALE,
+          dateOfBirth,
+          city: addressOrCity,
+          address: null,
+          employmentStatus: EmploymentType.SELF_EMPLOYED,
+          familyStatus: FamilyStatus.SINGLE,
+          role: [UserRole.REGULAR],
+          businessStatus: BusinessStatus.SINGLE_BUSINESS,
+          createdAt: new Date(),
+        });
+        const savedUser = await userRepo.save(user);
+
+        // Subscription row — same trial-creation path as signup(), so delegated
+        // clients get identical TRIAL/all-modules access instead of a
+        // hand-rolled (and previously inconsistent) legacy state.
+        await this.usersService.ensureTrialSubscription(firebaseId, manager);
+
+        // 3b. יוצרים תמיד עסק בטבלת העסקים לפי השדות הרלוונטיים
+        const business = businessRepo.create({
+          firebaseId,
+          businessName: dto.businessName?.trim() ?? null,
+          businessNumber: dto.businessNumber?.trim() ?? null,
+          businessType: resolvedBusinessType,
+          businessAddress: addressOrCity || null,
+          businessPhone: dto.phone?.trim() ?? null,
+          businessEmail: dto.email.trim() || null,
+          vatReportingType: vatDefault,
+          taxReportingType: TaxReportingType.DUAL_MONTH_REPORT,
+          nationalInsRequired: false,
+        });
+        await businessRepo.save(business);
+
+        // 4. Create Delegation (accountant -> client)
+        const delegation = delegationRepo.create({
+          userId: firebaseId,
+          agentId: accountantFirebaseId,
+          externalCustomerId: null,
+          status: DelegationStatus.ACTIVE,
+          scopes: ['DOCUMENTS_READ', 'DOCUMENTS_WRITE'],
+        });
+        await delegationRepo.save(delegation);
+
+        return savedUser;
+      });
+    } catch (err) {
+      // The DB transaction rolled back, but the Firebase Auth user (created
+      // above, before this block, since Firebase isn't transactional) still
+      // exists. Without this cleanup it would be a fully orphaned account
+      // with ZERO trace anywhere in our own DB.
+      await this.firebaseAuth.deleteUser(firebaseId).catch((cleanupErr) =>
+        this.logger.error(
+          `[createClientByAccountant] Firebase cleanup failed for orphaned uid=${firebaseId}: ${cleanupErr?.message ?? cleanupErr}`,
+          cleanupErr?.stack,
+        ),
+      );
+      throw err;
+    }
 
     // 5. Fire-and-forget Drive provisioning for the new client, plus share with
     //    the accountant's email so the folders show up in their "Shared with me".

@@ -1,6 +1,12 @@
 import { ExpenseNecessity, ExpenseReportScope } from 'src/enum';
 import { Entity, PrimaryGeneratedColumn, Column} from 'typeorm';
 
+/**
+ * FROZEN legacy table (categories redesign): read-only since Phase 2.5,
+ * fully UNREFERENCED at runtime since Phase 4.6 — registered only in
+ * AppModule's forRoot entities list so the table stays schema-managed for
+ * rollback. Dropped in Phase 7. Replaced by bookkeeping/sub-category.entity.ts.
+ */
 @Entity()
 export class DefaultSubCategory {
 
@@ -49,5 +55,13 @@ export class DefaultSubCategory {
    */
   @Column({ nullable: true })
   accountCode: string;
+
+  /**
+   * Sub-ledger account code nested under `accountCode` (e.g. '5101' under
+   * parent '5100'). Populated on boot by AccountSeedService.seedSubAccountCodes
+   * from SUBCATEGORY_SUB_ACCOUNT_CODES; NULL when unmapped.
+   */
+  @Column({ type: 'varchar', length: 10, nullable: true })
+  subAccountCode: string | null;
 
 }

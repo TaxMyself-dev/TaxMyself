@@ -4,6 +4,7 @@ import { BusinessController } from './business.controller';
 import { SharedService } from 'src/shared/shared.service';
 import { Business } from './business.entity';
 import { BusinessService } from './business.service';
+import { BusinessResolverService } from './business-resolver.service';
 import { Expense } from 'src/expenses/expenses.entity';
 // TODO_FINTAX_REMOVE_LEGACY_TRANSACTIONS: wiring leftover — Transactions registered to satisfy SharedService injection. Not used by BusinessService directly. Remove when SharedService is cleaned up.
 import { Transactions } from 'src/transactions/transactions.entity';
@@ -20,8 +21,9 @@ import { UsersModule } from 'src/users/users.module';
   controllers: [BusinessController],
   providers: [
     BusinessService,
+    BusinessResolverService,
     SharedService,
   ],
-  exports: [BusinessService],
+  exports: [BusinessService, BusinessResolverService],
 })
 export class BusinessModule {}

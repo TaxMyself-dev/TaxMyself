@@ -2,6 +2,11 @@ a {
     text-decoration: none;
 }
 
+.main-container--locked {
+    opacity: 0.5;
+    cursor: default;
+}
+
 .main-container {
     border: 1px solid;
     border-color: #f8e7e7;

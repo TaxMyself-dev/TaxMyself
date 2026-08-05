@@ -1,8 +1,9 @@
 import { Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { ActivatedRoute, Router } from '@angular/router';
 import { PnLReportJournalService } from './pnl-report-journal.service';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
-import { ICreateDataDoc, IPnlReportData, IRowDataTable, ISelectItem, IUserData } from 'src/app/shared/interface';
+import { IPnlReportData, IRowDataTable, ISelectItem, IUserData } from 'src/app/shared/interface';
 import { GenericService } from 'src/app/services/generic.service';
 import { AuthService } from 'src/app/services/auth.service';
 import { catchError, EMPTY, finalize, map, Observable, of, switchMap, tap } from 'rxjs';
@@ -10,7 +11,6 @@ import { FilesService } from 'src/app/services/files.service';
 import { BusinessStatus, ReportingPeriodType } from 'src/app/shared/enums';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 import { FilterField } from 'src/app/components/filter-tab/filter-fields-model.component';
-import { format as formatDateFns } from 'date-fns';
 import { TransactionsService } from '../transactions/transactions.page.service';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { ReportReviewService } from 'src/app/services/report-review.service';
@@ -50,6 +50,18 @@ export class PnLReportJournalPage implements OnInit {
   totalExpense: number = 0;
   reportingPeriodType = ReportingPeriodType;
 
+  /** Raw (unformatted) income from the last fetch — used to gate the
+   *  "עוסק זעיר" checkbox against the ITA's 120,000 ILS annual threshold. */
+  incomeRaw: number = 0;
+  /** True once the user has manually edited the income field in-browser —
+   *  the exported PDF then uses `incomeRaw` as an override instead of
+   *  re-deriving income from journal entries. */
+  incomeEdited: boolean = false;
+  /** "עוסק זעיר" (small trader) flat 30%-of-income deduction toggle. */
+  osekZair = signal<boolean>(false);
+  readonly osekZairThreshold = 120000;
+  readonly osekZairCategory = 'ניכוי 30% הוצאות לעוסק זעיר';
+
   buttonSize = ButtonSize;
   buttonColor = ButtonColor;
 
@@ -61,9 +73,6 @@ export class PnLReportJournalPage implements OnInit {
    *  need to show up in the P&L numbers. */
   visibleInboxDialog = signal<boolean>(false);
 
-  /** Visibility for the new unified report-review modal. Supersedes the
-   *  two-step chain (visibleInboxDialog → visibleConfirmTransDialog). */
-  visibleReviewDialog = signal<boolean>(false);
 
   /** True when the report for the currently-selected period has already been
    *  marked as submitted. Swaps the "סמן כדווח" button for "הדוח הוגש". */
@@ -94,6 +103,8 @@ export class PnLReportJournalPage implements OnInit {
     private messageService: MessageService,
     private confirmationService: ConfirmationService,
     private reportReviewService: ReportReviewService,
+    private router: Router,
+    private route: ActivatedRoute,
   ) {
   }
 
@@ -156,10 +167,28 @@ export class PnLReportJournalPage implements OnInit {
       .subscribe(() => {
         this.pnlReport = undefined;
         this.totalExpense = 0;
+        this.incomeRaw = 0;
+        this.incomeEdited = false;
+        this.osekZair.set(false);
         this.isRequestSent.set(false);
         this.arrayLength.set(0);
         this.reportSubmitted.set(false);
       });
+
+    // Returning from /report-review — reload the report for the same
+    // business/period the user was reviewing instead of waiting for them
+    // to re-submit the filter form.
+    const returnParams = this.route.snapshot.queryParamMap;
+    if (returnParams.get('reviewed')) {
+      const bn = returnParams.get('businessNumber') ?? this.businessNumber();
+      const start = returnParams.get('startDate') ?? '';
+      const end = returnParams.get('endDate') ?? '';
+      this.businessNumber.set(bn);
+      this.startDate.set(start);
+      this.endDate.set(end);
+      this.isRequestSent.set(true);
+      this.getPnLReportData(start, end, bn);
+    }
   }
 
 
@@ -181,7 +210,7 @@ export class PnLReportJournalPage implements OnInit {
     // Cheap pre-flight (folder listing + SELECT 1) — same pattern as the
     // VAT report. Skips the review modal entirely when there's nothing to
     // review; otherwise prompts the user before opening it.
-    this.reportReviewService.previewCheck(effectiveBusiness)
+    this.reportReviewService.previewCheck(effectiveBusiness, endDate)
       .pipe(catchError(() => of({ hasPendingDocs: true, hasUnconfirmedExpenses: true })))
       .subscribe(check => {
         if (!check.hasPendingDocs && !check.hasUnconfirmedExpenses) {
@@ -222,22 +251,19 @@ export class PnLReportJournalPage implements OnInit {
       acceptButtonProps: { severity: 'contrast', label: 'כן' },
       rejectButtonProps: { severity: 'contrast', label: 'לא כרגע' },
       accept: () => {
-        this.visibleReviewDialog.set(true);
+        this.router.navigate(['report-review'], {
+          queryParams: {
+            businessNumber: this.businessNumber(),
+            startDate: this.startDate(),
+            endDate: this.endDate(),
+            returnTo: 'pnl-report',
+          },
+        });
       },
       reject: () => {
         this.proceedDirectlyToReport();
       },
     });
-  }
-
-  /** Unified review dialog closed (auto when nothing to review, or
-   *  manual after the user works through every row). Proceed straight to
-   *  the P&L data load — no trans-confirm middle step. */
-  onReviewDialogVisibleChange(visible: boolean): void {
-    this.visibleReviewDialog.set(visible);
-    if (!visible) {
-      this.getPnLReportData(this.startDate(), this.endDate(), this.businessNumber());
-    }
   }
 
 
@@ -400,7 +426,7 @@ export class PnLReportJournalPage implements OnInit {
 
   getPnLReportData(startDate: string, endDate: string, businessNumber: string) {
     this.genericService.getLoader().subscribe();
-    this.pnlReportService.getPnLReportData(startDate, endDate, businessNumber)
+    this.pnlReportService.getPnLReportData(startDate, endDate, businessNumber, this.osekZair())
       .pipe(
         finalize(() => this.genericService.dismissLoader()),
         catchError((err) => {
@@ -409,6 +435,8 @@ export class PnLReportJournalPage implements OnInit {
         }),
         map((data: IPnlReportData) => {
           console.log("pnl report: ", data);
+          this.incomeRaw = Number(data.income);
+          this.incomeEdited = false;
           data.income = this.genericService.addComma(data.income);
           data.netProfitBeforeTax = this.genericService.addComma(data.netProfitBeforeTax);
           return data;
@@ -432,13 +460,33 @@ export class PnLReportJournalPage implements OnInit {
       .subscribe((status) => this.reportSubmitted.set(status.isSubmitted));
   }
 
+  /** Toggling "עוסק זעיר" re-fetches the report so the backend recomputes
+   *  the flat 30% deduction the same way for both the on-screen numbers
+   *  and the exported PDF — no duplicated calc on the frontend. */
+  onOsekZairToggle(checked: boolean): void {
+    this.osekZair.set(checked);
+    this.getPnLReportData(this.startDate(), this.endDate(), this.businessNumber());
+  }
+
   updateIncome(event: any) {
     if (event.detail.value === "") {
       event.detail.value = '0';
       this.pnlReport.income = '0';
     }
-    this.pnlReport.income = this.genericService.convertStringToNumber(event.detail.value);
-    this.pnlReport.netProfitBeforeTax = this.genericService.convertStringToNumber(this.pnlReport.netProfitBeforeTax as string);
+    const newIncome = this.genericService.convertStringToNumber(event.detail.value);
+    this.incomeRaw = newIncome;
+    this.incomeEdited = true;
+
+    // Osek-zair mode ties the pseudo-expense to income — a manual income
+    // edit (no re-fetch involved) must recompute it locally, same formula
+    // the backend uses, or the 30% line goes stale against the new number.
+    if (this.osekZair()) {
+      const flatDeduction = Number((newIncome * 0.3).toFixed(2));
+      this.pnlReport.expenses = [{ sectionName: this.osekZairCategory, total: flatDeduction }];
+      this.totalExpense = flatDeduction;
+    }
+
+    this.pnlReport.income = newIncome;
     this.pnlReport.netProfitBeforeTax = this.pnlReport.income - this.totalExpense;
     this.pnlReport.netProfitBeforeTax = this.genericService.addComma(this.pnlReport.netProfitBeforeTax);
     this.pnlReport.income = this.genericService.addComma(this.pnlReport.income);
@@ -496,48 +544,35 @@ export class PnLReportJournalPage implements OnInit {
   }
 
 
+  /**
+   * Requests a server-rendered PDF (pdfkit, RTL Hebrew) from the backend —
+   * same approach as the VAT report — and downloads it. No external
+   * template-fill service and no browser print dialog involved, so the
+   * output has no browser-injected header/footer.
+   */
   createPnlReportPDFfile(): void {
+    if (!this.pnlReport) return;
 
     this.isLoadingPDF.set(true);
-    let dataTable: (string | number)[][] = [];
-    this.pnlReport.expenses.forEach((expense) => {
-      // טבלת הוצאות לפילפאסטר: אותו פורמט כמו הכותרות (ש"ח + 2 ספרות אחרי נקודה)
-      dataTable.push([this.formatShekelAmount(expense.total), expense.category]);
-    })
-    
-    const effectiveBusinessNumber = (this.businessNumber() ?? this.userData?.businessNumber ?? '').toString();
-    // תאריך הפקת הדוח (issue date) - פורמט עקבי עם שאר תאריכי הדוחות שנשלחים לפילפאסטר
-    const issueDate = formatDateFns(new Date(), 'dd/MM/yyyy');
-     
-    const data: ICreateDataDoc = {
-      fid: "ydAEQsvSbC",
-      prefill_data: {
-        name: [this.userData.fName, this.userData.lName].filter(Boolean).join(' '),
-        businessNumber: effectiveBusinessNumber,
-        period: `${this.startDate()} - ${this.endDate()}`,
-        income: this.formatShekelAmount(this.pnlReport.income),
-        profit: this.formatShekelAmount(this.pnlReport.netProfitBeforeTax),
-        expenses: this.formatShekelAmount(this.totalExpense),
-        issueDate,
-        table: dataTable,
-      },
-    }
-
-    this.pnlReportService.generatePnLReportPDF(data)
+    const incomeOverride = this.incomeEdited ? this.incomeRaw : undefined;
+    this.pnlReportService.generatePnLReportPDF(this.startDate(), this.endDate(), this.businessNumber(), this.osekZair(), incomeOverride)
       .pipe(
         catchError((err) => {
-          console.log("error in create pdf: ", err);
-          this.isLoadingPDF.set(false);
+          console.error('error generating pnl report pdf: ', err);
+          this.messageService.add({
+            severity: 'error',
+            summary: 'Error',
+            detail: 'הפקת קובץ ה-PDF נכשלה. אנא נסה שוב.',
+            life: 5000,
+            key: 'br',
+          });
           return EMPTY;
         }),
-        finalize(() =>{
-          this.isLoadingPDF.set(false);
-        })
+        finalize(() => this.isLoadingPDF.set(false)),
       )
-      .subscribe((res) => {
-        console.log('res of create pdf: ', res);
-        this.fileService.downloadFile("my pdf", res)
-      })
+      .subscribe((blob) => {
+        this.fileService.downloadFile(`דוח רווח והפסד ${this.startDate()} - ${this.endDate()}.pdf`, blob);
+      });
   }
 
   formatReportDate(dateStr: string): string {
@@ -545,20 +580,6 @@ export class PnLReportJournalPage implements OnInit {
     // display them in dd.MM.yyyy for this page.
     if (!dateStr) return '';
     return String(dateStr).replace(/[\/-]/g, '.');
-  }
-
-  private formatShekelAmount(value: number | string | null | undefined): string {
-    const raw = value ?? 0;
-    const num = typeof raw === 'number' ? raw : Number(String(raw).replace(/,/g, ''));
-    const safeNum = Number.isFinite(num) ? num : 0;
-    const isNegative = safeNum < 0;
-    const abs = Math.abs(safeNum);
-    const fixed = abs.toFixed(2); // uses '.' as decimal separator
-    const [intPart, fracPart] = fixed.split('.');
-    const intWithCommas = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-    const formatted = `${intWithCommas}.${fracPart}`;
-    // Put minus on the right for RTL-like appearance, before currency sign
-    return isNegative ? `${formatted}- ש"ח` : `${formatted} ש"ח`;
   }
 
 

@@ -47,3 +47,5 @@ bank-full-*.json
 bank-simple-*.json
 card-full-*.json
 card-simple-*.json
+# DEBUG ONLY: local dumps of Gmail attachments (gmail-reader.service.ts debugSaveToDisk)
+debug-imports/

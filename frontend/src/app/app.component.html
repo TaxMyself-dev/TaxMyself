@@ -18,10 +18,12 @@
   </div>
 }
 @if (showTopNav()) {
-  <app-p-topNav [menuItems]="menuItems" contentId="main-content"></app-p-topNav>
+  <app-p-topNav [menuItems]="menuItems()" (logout)="authService.logout()" contentId="main-content"></app-p-topNav>
 }
 <div class="app-content">
   <p-confirmdialog></p-confirmdialog>
+
+  <app-upgrade-required-dialog />
 
   @if (showBillingDialog()) {
     <p-dialog
@@ -42,7 +44,8 @@
         <div dir="rtl" class="billing-dialog-footer">
           <button
             class="billing-cta-btn"
-            (click)="navigateToBillingPlans()">
+            [disabled]="resolvingMissingSubscription()"
+            (click)="onBillingDialogAction()">
             {{ billingDialogContent().buttonLabel }}
           </button>
         </div>
@@ -52,3 +55,5 @@
 
   <router-outlet id="main-content"></router-outlet>
 </div>
+
+<app-pwa-banners />

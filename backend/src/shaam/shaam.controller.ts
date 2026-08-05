@@ -103,7 +103,7 @@ export class ShaamController {
       timestamp: new Date().toISOString(),
     };
 
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:8100';
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:4200/my-account';
 
     if (!code) {
       console.error('ERROR: Authorization code is missing');

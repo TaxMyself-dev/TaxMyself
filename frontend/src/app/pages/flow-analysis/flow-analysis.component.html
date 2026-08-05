@@ -34,23 +34,6 @@
   </div>
 </ng-template>
 
-<ng-template
-  cdkConnectedOverlay
-  [cdkConnectedOverlayOrigin]="graphSettingsTrigger"
-  [cdkConnectedOverlayOpen]="showGraphSettings()"
-  [cdkConnectedOverlayPositions]="graphSettingsPositions"
-  [cdkConnectedOverlayPush]="true"
-  [cdkConnectedOverlayViewportMargin]="8"
-  (overlayOutsideClick)="closeGraphSettings()">
-  <app-graph-view-settings
-    [chartType]="graphChartType()"
-    [showExpenses]="showExpenses()"
-    [showIncomes]="showIncomes()"
-    (chartTypeChange)="onChartTypeChange($event)"
-    (showExpensesChange)="onExpensesChange($event)"
-    (showIncomesChange)="onIncomesChange($event)" />
-</ng-template>
-
 <main>
   <!-- Line chart -->
   <div class="chart-card">
@@ -111,16 +94,18 @@
           <app-p-button [disabled]="!canSubmit() || loading()" (onButtonClicked)="submit()" [buttonText]="'הצג'" [buttonSize]="buttonSize.SMALL" [buttonColor]="buttonColor.BLACK"></app-p-button>
         </div>
       </div>
-      <div cdkOverlayOrigin #graphSettingsTrigger="cdkOverlayOrigin">
-        <app-p-button
-          [iconOnly]="true"
-          icon="pi pi-filter-fill"
-          [buttonSize]="buttonSize.ICON"
-          [buttonColor]="buttonColor.WHITE_BORDER"
-          (onButtonClicked)="toggleGraphSettings()"
-          aria-label="הגדרות תצוגת גרף">
-        </app-p-button>
-      </div>
+      <app-menu-button
+        icon="pi pi-filter-fill"
+        ariaLabel="הגדרות תצוגת גרף"
+        [positions]="graphSettingsPositions">
+        <app-graph-view-settings
+          [chartType]="graphChartType()"
+          [showExpenses]="showExpenses()"
+          [showIncomes]="showIncomes()"
+          (chartTypeChange)="onChartTypeChange($event)"
+          (showExpensesChange)="onExpensesChange($event)"
+          (showIncomesChange)="onIncomesChange($event)" />
+      </app-menu-button>
     </div>
 
     @if (submittedFilterChips().length > 0) {

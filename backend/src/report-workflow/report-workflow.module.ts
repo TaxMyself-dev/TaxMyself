@@ -6,6 +6,8 @@ import { Business } from 'src/business/business.entity';
 import { AccountantTask } from 'src/accountant-tasks/accountant-task.entity';
 import { SlimTransaction } from 'src/transactions/slim-transaction.entity';
 import { FullTransactionCache } from 'src/transactions/full-transaction-cache.entity';
+// Entity-only: lock/unlock stamps expense.isReported (Phase 4.1 / D10).
+import { Expense } from 'src/expenses/expenses.entity';
 import { User } from 'src/users/user.entity';
 import { ReportWorkflowController } from './report-workflow.controller';
 import { ReportWorkflowService } from './report-workflow.service';
@@ -23,6 +25,7 @@ import { SharedModule } from 'src/shared/shared.module';
       AccountantTask,
       SlimTransaction,
       FullTransactionCache,
+      Expense,
       User,
     ]),
     NotificationsModule,

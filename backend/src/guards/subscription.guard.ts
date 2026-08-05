@@ -9,6 +9,7 @@ import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.inter
 import { Reflector } from '@nestjs/core';
 import { BillingService } from 'src/billing/services/billing.service';
 import { ModuleName } from 'src/enum';
+import { REQUIRE_MODULE_KEY } from 'src/decorators/require-module.decorator';
 
 
 @Injectable()
@@ -27,14 +28,23 @@ export class SubscriptionGuard implements CanActivate {
       throw new ForbiddenException('Missing user ID in request context');
     }
 
-    const requiredModule = this.reflector.get<ModuleName>('requiredModule', context.getHandler());
+    const requiredModule = this.reflector.getAllAndOverride<ModuleName>(
+      REQUIRE_MODULE_KEY,
+      [context.getHandler(), context.getClass()],
+    );
 
     if (!requiredModule) return true;
 
     const hasAccess = await this.billingService.hasModuleAccess(firebaseId, requiredModule);
 
     if (!hasAccess) {
-      throw new ForbiddenException('No access to this module');
+      throw new ForbiddenException({
+        statusCode: 403,
+        error: 'Forbidden',
+        code: 'MODULE_ACCESS_REQUIRED',
+        module: requiredModule,
+        message: 'Access to this module is not included in the current subscription.',
+      });
     }
 
     return true;

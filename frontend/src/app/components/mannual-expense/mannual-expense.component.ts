@@ -735,6 +735,11 @@ export class MannualExpenseComponent implements OnDestroy {
                 // resource would fetch without a businessNumber header and the
                 // backend rejects with 500.
                 this.mannualExpenseForm.patchValue({ category: this.EQUIPMENT_CATEGORY_NAME }, { emitEvent: true });
+                // Reset subCategory — it may hold a value that belonged to
+                // whatever category was active before the checkbox forced
+                // this swap, which would otherwise get submitted as a
+                // mismatched category/subCategory pair.
+                this.getSubCategory(this.EQUIPMENT_CATEGORY_NAME);
                 // Set taxPercent to 0 and clear validators
                 this.mannualExpenseForm.patchValue({ taxPercent: 0 }, { emitEvent: false });
                 const taxPercentControl = this.mannualExpenseForm.get('taxPercent');
@@ -778,11 +783,16 @@ export class MannualExpenseComponent implements OnDestroy {
             const ctrl = this.mannualExpenseForm.get('category');
             if (ctrl && ctrl.value !== this.EQUIPMENT_CATEGORY_NAME) {
                 ctrl.setValue(this.EQUIPMENT_CATEGORY_NAME, { emitEvent: false });
-            }
-            // Ensure subcategories also load (the resource keys off
-            // $selectedCategory, which we set here in case the initial
-            // valueChanges fired before the business was chosen).
-            if (this.mannualExpenseService.$selectedCategory() !== this.EQUIPMENT_CATEGORY_NAME) {
+                // The category actually changed here (e.g. edit-mode prefill
+                // left a different category/subCategory pair from before the
+                // equipment checkbox was checked) — reset subCategory so a
+                // stale value from that other category can't survive the swap.
+                this.getSubCategory(this.EQUIPMENT_CATEGORY_NAME);
+            } else if (this.mannualExpenseService.$selectedCategory() !== this.EQUIPMENT_CATEGORY_NAME) {
+                // Category was already correct; just ensure subcategories load
+                // (the resource keys off $selectedCategory, which may not have
+                // been set yet if the initial valueChanges fired before the
+                // business was chosen). Preserves a valid existing subCategory.
                 this.mannualExpenseService.$selectedCategory.set(this.EQUIPMENT_CATEGORY_NAME);
             }
         });

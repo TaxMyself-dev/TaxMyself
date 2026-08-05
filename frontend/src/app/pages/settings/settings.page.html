@@ -67,7 +67,7 @@
 
 <div class="page-wrapper">
   <div class="settings-tabs">
-    <app-tab-bar [tabs]="tabs" [selectedTab]="selectedTab" (selectedTabChange)="onTabChange($event)"></app-tab-bar>
+    <app-tab-bar [tabs]="tabs()" [selectedTab]="selectedTab" (selectedTabChange)="onTabChange($event)"></app-tab-bar>
   </div>
 
   @if (selectedTab === 'personal') {
@@ -316,6 +316,21 @@
                   </a>
                 </div>
               }
+              @if (biz?.id != null && biz?.businessNumber) {
+                <div class="detail-row inbox-folder-row">
+                  <input type="file" #docsFileInput class="hidden-file-input" multiple
+                    accept="application/pdf,image/jpeg,image/png"
+                    (change)="onUploadDocsToDrive(biz, docsFileInput)" />
+                  <app-p-button
+                    [buttonText]="'העלאת מסמכים ל-Drive'"
+                    [buttonColor]="buttonColor.WHITE_BORDER"
+                    [buttonSize]="buttonSize.SMALL"
+                    [disabled]="uploadingDocsBusinessId() === biz.id"
+                    [isLoading]="uploadingDocsBusinessId() === biz.id"
+                    (onButtonClicked)="docsFileInput.click()">
+                  </app-p-button>
+                </div>
+              }
               <div class="section-actions section-actions-multiple">
                 <app-p-button
                   [buttonText]="'עדכן'"
@@ -358,6 +373,10 @@
   <div class="section-block section-permissions">
     <div class="permissions-frame">
       <div class="accounts-management">
+        <app-gmail-integration></app-gmail-integration>
+      </div>
+
+      <div class="accounts-management">
         <h3 class="subsection-title">ניהול חשבונות בבנקאות פתוחה</h3>
 
         @if (accountSourcesLoading()) {
@@ -399,6 +418,12 @@
         </div>
       </div>
     </div>
+  </div>
+  }
+
+  @if (selectedTab === 'subscription') {
+  <div class="section-block">
+    <app-my-subscription-tab></app-my-subscription-tab>
   </div>
   }
 </div>

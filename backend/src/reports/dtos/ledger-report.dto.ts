@@ -118,7 +118,7 @@ export class LedgerAccountDto {
     @IsString()
     accountCode: string;
 
-    /** From DefaultBookingAccount.name; '' if the code has no chart entry. */
+    /** From BookingAccount.name; '' if the code has no chart entry. */
     @IsString()
     accountName: string;
 

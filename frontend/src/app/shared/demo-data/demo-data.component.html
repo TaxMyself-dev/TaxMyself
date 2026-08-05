@@ -79,6 +79,30 @@
               [isLoading]="isBusy(profile.id) && profile.exists"
               (onButtonClicked)="onReset(profile)"
             />
+
+            <!-- Direct-card demo scenario. Rendered only for profiles that
+                 declare a legacyDuplicateScenario on the backend; both
+                 actions rebuild the demo user's transaction cache and ask
+                 for confirmation first. Not enabled by `profile.exists` —
+                 either action seeds the user when they're missing. -->
+            @if (profile.supportsDirectCardScenario) {
+              <app-p-button
+                [buttonText]="'צור מצב ישן עם כפילויות'"
+                [buttonColor]="buttonColor.WHITE_BORDER"
+                [buttonSize]="buttonSize.SMALL"
+                [disabled]="isBusy(profile.id)"
+                [isLoading]="isBusy(profile.id)"
+                (onButtonClicked)="onSeedLegacyDuplicates(profile)"
+              />
+              <app-p-button
+                [buttonText]="'הפעל תיקון כרטיס דיירקט'"
+                [buttonColor]="buttonColor.BLACK"
+                [buttonSize]="buttonSize.SMALL"
+                [disabled]="isBusy(profile.id)"
+                [isLoading]="isBusy(profile.id)"
+                (onButtonClicked)="onApplyDirectCardFix(profile)"
+              />
+            }
           </div>
         </li>
       }

@@ -416,6 +416,8 @@ export class AdminBillingService {
       vatAmountAgorot: event.vatAmountAgorot,
       amountIncludingVatAgorot: event.amountAgorot,
       planName: plan.name,
+      periodStart: subscription.currentPeriodStart ?? new Date(),
+      periodEnd: subscription.currentPeriodEnd ?? new Date(),
       cardcomDealNumber: event.cardcomDealNumber,
     });
 

@@ -1,4 +1,4 @@
-import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, effect, inject, OnInit, signal } from '@angular/core';
 import { ActivatedRoute, Router, NavigationEnd, NavigationError } from '@angular/router';
 import { IColumnDataTable, IRowDataTable, IUserData } from './shared/interface';
 import { Location } from '@angular/common';
@@ -9,10 +9,15 @@ import { ExpenseDataService } from './services/expense-data.service';
 import { ModalExpensesComponent } from './shared/modal-add-expenses/modal.component';
 import { ExpenseFormColumns, ExpenseFormHebrewColumns } from './shared/enums';
 import { catchError, EMPTY, finalize, from, map, Observable, Subject, switchMap } from 'rxjs';
-import { filter, pairwise, takeUntil } from 'rxjs/operators';
+import { filter, pairwise, take, takeUntil } from 'rxjs/operators';
 import { MessageService } from 'primeng/api';
 import { GenericService } from './services/generic.service';
 import { BillingStateService, BILLING_BLOCKING_STATUSES } from './services/billing-state.service';
+import { AccessService } from './services/access.service';
+import { AppFeature } from './shared/access-control';
+import { NetworkStatusService } from './services/pwa/network-status.service';
+import { AppRefreshService } from './services/pwa/app-refresh.service';
+import { StartupService } from './services/startup.service';
 
 
 
@@ -27,6 +32,11 @@ export class AppComponent implements OnInit {
 
   protected genericService = inject(GenericService);
   protected billingStateService = inject(BillingStateService);
+  private readonly accessService = inject(AccessService);
+  private readonly networkStatus = inject(NetworkStatusService);
+  private readonly appRefresh = inject(AppRefreshService);
+  /** Eagerly construct the cold-start gate so the global loader is on immediately. */
+  private readonly startup = inject(StartupService);
 
   // Tracks the settled URL after each navigation — drives billing dialog visibility.
   private readonly currentUrl = signal<string>('');
@@ -45,31 +55,41 @@ export class AppComponent implements OnInit {
     ) {
       return false;
     }
-    const status = this.billingStateService.billingState()?.subscription?.status;
+    const status = this.billingStateService.effectiveStatus();
     return !!status && BILLING_BLOCKING_STATUSES.includes(status);
   });
 
-  // Dialog copy — driven by the subscription status returned from the backend.
+  // Dialog copy — driven by the effective status (subscription.status, or the
+  // synthetic SUBSCRIPTION_MISSING top-level status) returned from the backend.
   protected readonly billingDialogContent = computed(() => {
-    const status = this.billingStateService.billingState()?.subscription?.status;
-    const map: Record<string, { title: string; message: string; buttonLabel: string }> = {
+    const status = this.billingStateService.effectiveStatus();
+    const map: Record<string, { title: string; message: string; buttonLabel: string; action: 'NAVIGATE_TO_PLANS' | 'RESOLVE_MISSING_SUBSCRIPTION' }> = {
+      SUBSCRIPTION_MISSING: {
+        title: 'תקלה בחשבון',
+        message: 'נראה שהתרחשה תקלה בחשבון שלך.\nיש להסדיר את המנוי כדי להמשיך.',
+        buttonLabel: 'הסדרת המנוי',
+        action: 'RESOLVE_MISSING_SUBSCRIPTION',
+      },
       TRIAL_EXPIRED: {
         title: 'תקופת הניסיון הסתיימה',
         message: 'תקופת הניסיון שלך הסתיימה.\nכדי להמשיך להשתמש במערכת יש לבחור תוכנית ולהסדיר תשלום.',
         buttonLabel: 'בחירת תוכנית',
+        action: 'NAVIGATE_TO_PLANS',
       },
       PAST_DUE: {
         title: 'קיימת בעיה בתשלום',
         message: 'לא הצלחנו לחייב את אמצעי התשלום שלך.\nיש לעדכן תשלום כדי להמשיך להשתמש במערכת.',
         buttonLabel: 'עדכון תשלום',
+        action: 'NAVIGATE_TO_PLANS',
       },
       CANCELED: {
         title: 'המנוי אינו פעיל',
         message: 'המנוי שלך אינו פעיל כרגע.\nבחר תוכנית חדשה כדי להמשיך להשתמש במערכת.',
         buttonLabel: 'בחירת תוכנית',
+        action: 'NAVIGATE_TO_PLANS',
       },
     };
-    return map[status!] ?? { title: '', message: '', buttonLabel: '' };
+    return map[status!] ?? { title: '', message: '', buttonLabel: '', action: 'NAVIGATE_TO_PLANS' as const };
   });
 
   public appPages = [
@@ -92,18 +112,27 @@ export class AppComponent implements OnInit {
   ];
 
 
-  menuItems = [
-    { label: 'דף הבית', routerLink: '/my-account' },
-    // { label: 'פרופיל אישי' },
-    { label: 'תזרים', routerLink: '/transactions' },
-    { label: 'דוחות', routerLink: '/reports' },
-    { label: 'הנהלת חשבונות', routerLink: '/book-keeping' },
-    { label: 'ניתוח הוצאות', routerLink: '/flow-analysis' },
-    // { label: 'צור קשר' },
-  ]
+  private readonly _isUserAdmin = signal<boolean>(false);
+  private readonly _isAccountant = signal<boolean>(false);
+
+  /** Reactive menu: filters access-gated items (e.g. תזרים) and role-based items reactively. */
+  readonly menuItems = computed(() => {
+    const showTransactions = this.accessService.getFeatureState(AppFeature.TRANSACTIONS_TAB_PIVOT).visible;
+    const hasBusiness = this.genericService.businesses().length > 0;
+
+    const items = [
+      { label: 'דף הבית', routerLink: '/my-account' },
+      ...(showTransactions ? [{ label: 'תזרים', routerLink: '/transactions' }] : []),
+      { label: 'דוחות', routerLink: '/reports' },
+      ...(hasBusiness ? [{ label: 'הנהלת חשבונות', routerLink: '/book-keeping' }] : []),
+      { label: 'ניתוח הוצאות', routerLink: '/flow-analysis' },
+      ...(this._isUserAdmin() ? [{ label: 'פאנל ניהול', routerLink: '/admin-panel' }] : []),
+      ...(this._isAccountant() ? [{ label: 'משרד', routerLink: '/client-panel' }] : []),
+    ];
+    return items;
+  });
 
   fromLoginPage = false; // Flag to check if entry was from login page
-  isPopoverOpen: boolean = false;
   showMenu: boolean = false;
   columns: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[]; // Titles of expense // TODO: remove?
   userData: IUserData;
@@ -125,11 +154,56 @@ export class AppComponent implements OnInit {
     private expenseDataServise: ExpenseDataService,
     private router: Router,
     private modalCtrl: ModalController,
-    private authService: AuthService,
+    public authService: AuthService,
     private messageService: MessageService,
     private clientPanelService: ClientPanelService,
-  ) {}
-  showTopNav = signal(true);
+  ) {
+    this.recoverOnReconnect();
+    this.releaseStartupLoaderAfterFirstNavigation();
+  }
+  /**
+   * Hidden until the first navigation settles. The startup loader overlay is
+   * translucent, so a nav bar rendered underneath it would be visible while
+   * auth is still resolving — the "logged-in navigation, then bounce to login"
+   * flash. It is switched on (or left off, on /login and /register) by
+   * {@link hideTopNav} on the first NavigationEnd, which is the moment the
+   * route is decided.
+   */
+  showTopNav = signal(false);
+
+  /**
+   * When connectivity returns, re-fetch shared state so the app stops showing
+   * whatever failed to load during the outage.
+   *
+   * Only the allow-listed idempotent GETs in AppRefreshService run — no failed
+   * request is replayed and no mutation is ever repeated. `reconnectedAt`
+   * changes once per outage, so this fires once, not on every network event.
+   */
+  private recoverOnReconnect(): void {
+    effect(() => {
+      const reconnectedAt = this.networkStatus.reconnectedAt();
+      if (reconnectedAt === 0) {
+        return; // Initial value — no outage has ended yet.
+      }
+      void this.appRefresh.refreshSharedState();
+    });
+  }
+
+  /**
+   * Keep the existing global loader up through auth init + the first settled
+   * navigation, then release it once. Subscribed in the constructor so the
+   * first NavigationEnd cannot be missed.
+   */
+  private releaseStartupLoaderAfterFirstNavigation(): void {
+    this.router.events
+      .pipe(
+        filter((e): e is NavigationEnd => e instanceof NavigationEnd),
+        take(1),
+      )
+      .subscribe(() => {
+        void this.startup.whenReady().then(() => this.startup.releaseStartupLoader());
+      });
+  }
 
   ngOnInit() {
     this.currentUrl.set(this.router.url);
@@ -270,12 +344,6 @@ export class AppComponent implements OnInit {
     this.isAccountant = this.userData?.role?.includes('ACCOUNTANT') || false;
   }
 
-  openCloseLogOutPopup() {
-    console.log("popover open");
-    this.isPopoverOpen = !this.isPopoverOpen
-    console.log(this.isPopoverOpen);
-  }
-
   openModalAddExpense() {
 
     this.expenseDataServise.openModalAddExpense()
@@ -284,14 +352,6 @@ export class AppComponent implements OnInit {
       )
       .subscribe()
 
-  }
-
-  async signOut() {
-    console.log("sign out");
-    this.clientPanelService.clearSelectedClient();
-    await this.authService.SignOut();
-    this.isPopoverOpen = !this.isPopoverOpen;
-    this.router.navigate(["/login"]);
   }
 
   /**
@@ -310,6 +370,13 @@ export class AppComponent implements OnInit {
       console.log('[AppComponent] selectedClientId$ emission:', { id, persisted: this.clientPanelService.getSelectedClientId() });
       this.selectedClientId = id;
       this.selectedClientName = id ? this.clientPanelService.getSelectedClientName() : null;
+      // Billing/module-access state is per-identity (BillingStateService caches
+      // it until explicitly refreshed) — without this, every module-gated tab
+      // and route (book-keeping/expenses, book-keeping/incomes, transactions...)
+      // keeps evaluating against whichever identity's billing state loaded
+      // first, so entering or exiting client view silently shows the wrong
+      // person's access instead of "exactly what the client sees".
+      this.billingStateService.refreshBillingState();
       if (id) {
         this.authService.loadViewAsUserData().subscribe((data) => {
           if (data) {
@@ -358,6 +425,39 @@ export class AppComponent implements OnInit {
     }
   }
 
+  protected readonly resolvingMissingSubscription = signal(false);
+
+  /**
+   * Single entry point for the blocking dialog's CTA button — dispatches by
+   * the current case's `action` instead of always navigating, since
+   * SUBSCRIPTION_MISSING must call the remediation endpoint instead of
+   * going to /billing/plans.
+   */
+  onBillingDialogAction(): void {
+    if (this.billingDialogContent().action === 'RESOLVE_MISSING_SUBSCRIPTION') {
+      void this.resolveMissingSubscription();
+    } else {
+      this.navigateToBillingPlans();
+    }
+  }
+
+  private async resolveMissingSubscription(): Promise<void> {
+    if (this.resolvingMissingSubscription()) return;
+    this.resolvingMissingSubscription.set(true);
+    try {
+      const result = await this.billingStateService.resolveMissingSubscription();
+      if (!result.resolved) {
+        this.genericService.showToast(result.error ?? 'שגיאה בהסדרת המנוי', 'error');
+      }
+      // On success, billingState now reflects TRIAL_EXPIRED and
+      // billingDialogContent recomputes to the normal payment-required
+      // copy automatically (BILLING_BLOCKING_STATUSES still includes
+      // TRIAL_EXPIRED) — no further action needed here.
+    } finally {
+      this.resolvingMissingSubscription.set(false);
+    }
+  }
+
   navigateToBillingPlans(): void {
     this.router.navigate(['/billing/plans']);
   }
@@ -375,39 +475,11 @@ export class AppComponent implements OnInit {
 
   updateAdminMenuItems(): void {
     const role = this.userData?.role;
-
-    // Remove role-based items so we can re-add according to current user.
-    // Also drop "הנהלת חשבונות" — it's re-added below only when the user
-    // has at least one business (no business → hide the tab).
-    this.menuItems = this.menuItems.filter(
-      (item) => item.label !== 'פאנל ניהול'
-             && item.label !== 'משרד'
-             && item.label !== 'הנהלת חשבונות',
-    );
-
-    // "הנהלת חשבונות" — visible only when the user has ≥1 business.
-    // Insert between "דוחות" and "ניתוח הוצאות" to preserve the menu order.
-    if (this.genericService.businesses().length > 0) {
-      const flowAnalysisIdx = this.menuItems.findIndex((i) => i.label === 'ניתוח הוצאות');
-      const bookKeepingItem = { label: 'הנהלת חשבונות', routerLink: '/book-keeping' };
-      if (flowAnalysisIdx >= 0) {
-        this.menuItems.splice(flowAnalysisIdx, 0, bookKeepingItem);
-      } else {
-        this.menuItems.push(bookKeepingItem);
-      }
-    }
-
-    if (role && (role[0] === 'ADMIN' || role.includes('ADMIN'))) {
-      if (!this.menuItems.some((item) => item.label === 'פאנל ניהול')) {
-        this.menuItems.push({ label: 'פאנל ניהול', routerLink: '/admin-panel' });
-      }
-    }
-    // טאב משרד לרואה חשבון – הלקוחות שלי + הקמת לקוח
-    if (role?.includes('ACCOUNTANT')) {
-      if (!this.menuItems.some((item) => item.label === 'משרד')) {
-        this.menuItems.push({ label: 'משרד', routerLink: '/client-panel' });
-      }
-    }
+    this._isUserAdmin.set(!!(role && (role[0] === 'ADMIN' || role.includes('ADMIN'))));
+    this._isAccountant.set(!!role?.includes('ACCOUNTANT'));
+    // isUserAdmin / isAccountant are kept in sync for any remaining non-template usages.
+    this.isUserAdmin = this._isUserAdmin();
+    this.isAccountant = this._isAccountant();
   }
 
 }

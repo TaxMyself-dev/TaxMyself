@@ -1,6 +1,6 @@
 //General
 import { Response } from 'express';
-import { Controller, Post, Patch, Get, Query, Param, Body, Headers, UseGuards, ValidationPipe, Res, Req, UploadedFile, UseInterceptors, HttpException, HttpStatus, SetMetadata, UsePipes, BadRequestException} from '@nestjs/common';
+import { Controller, Post, Patch, Get, Query, Param, Body, Headers, UseGuards, ValidationPipe, Res, Req, UploadedFile, UseInterceptors, HttpException, HttpStatus, UsePipes, BadRequestException} from '@nestjs/common';
 //Services
 import { ReportsService } from './reports.service';
 import { ReportReviewService, ReviewOverrides } from './report-review.service';
@@ -21,7 +21,8 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
 import { SubscriptionGuard } from 'src/guards/subscription.guard';
-import { ModuleName } from 'src/enum';
+import { RequireModule } from 'src/decorators/require-module.decorator';
+import { DocumentKind, ModuleName } from 'src/enum';
 
 
 @Controller('reports')
@@ -49,14 +50,16 @@ export class ReportsController {
     @UseGuards(FirebaseAuthGuard)
     async previewCheck(
       @Req() request: AuthenticatedRequest,
-      @Query() query: { businessNumber: string },
+      @Query() query: { businessNumber: string; endDate: string },
     ): Promise<{ hasPendingDocs: boolean; hasUnconfirmedExpenses: boolean }> {
       const firebaseId = request.user?.firebaseId;
       if (!firebaseId) throw new BadRequestException('Not authenticated');
       const bn = query?.businessNumber?.trim();
       if (!bn) throw new BadRequestException('businessNumber is required');
+      const periodEnd = this.sharedService.convertStringToDateObject(query.endDate);
+      if (!periodEnd) throw new BadRequestException('endDate is required ISO date');
       const isAgentRequest = request.user?.role === 'agent';
-      return this.reviewService.previewCheck(firebaseId, bn, isAgentRequest);
+      return this.reviewService.previewCheck(firebaseId, bn, periodEnd, isAgentRequest);
     }
 
     /** Preview: process inbox, run matching (if Open Banking), return the
@@ -82,7 +85,8 @@ export class ReportsController {
      *  made in the review modal (category/sub-category/vat%/tax%/period)
      *  ride along in `overrides` and win over the source row's values. */
     @Post('me/review/approve-matched')
-    @UseGuards(FirebaseAuthGuard)
+    @RequireModule(ModuleName.OPEN_BANKING)
+    @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
     async approveMatched(
       @Req() request: AuthenticatedRequest,
       @Body() body: { businessNumber: string; documentId: number; transactionId: number; overrides?: ReviewOverrides },
@@ -118,7 +122,8 @@ export class ReportsController {
     /** Approve a "tx_only" row — creates an Expense from the transaction
      *  alone ("mark as no-doc-needed"). Overrides as above. */
     @Post('me/review/approve-tx-no-doc')
-    @UseGuards(FirebaseAuthGuard)
+    @RequireModule(ModuleName.OPEN_BANKING)
+    @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
     async approveTxNoDoc(
       @Req() request: AuthenticatedRequest,
       @Body() body: { businessNumber: string; transactionId: number; overrides?: ReviewOverrides },
@@ -177,6 +182,35 @@ export class ReportsController {
       return this.reviewService.deleteDoc(firebaseId, Number(documentId));
     }
 
+    /** D8 "תייק" (Phase 4.3): file a document for the ANNUAL report —
+     *  terminal NOT_AN_EXPENSE + documentKind=ANNUAL_DOCUMENT; never
+     *  creates an expense or journal entry. Idempotent. */
+    @Post('me/review/file-doc/:documentId')
+    @UseGuards(FirebaseAuthGuard)
+    async fileDocAsAnnual(
+      @Req() request: AuthenticatedRequest,
+      @Param('documentId') documentId: string,
+    ) {
+      const firebaseId = request.user?.firebaseId;
+      if (!firebaseId) throw new BadRequestException('Not authenticated');
+      return this.reviewService.fileDocAsAnnual(firebaseId, Number(documentId));
+    }
+
+    /** D8 triage (Phase 4.3): re-kind a PENDING_REVIEW document (e.g. an
+     *  UNIDENTIFIED row the user recognizes as an expense invoice). */
+    @Patch('me/review/doc-kind/:documentId')
+    @UseGuards(FirebaseAuthGuard)
+    async setDocKind(
+      @Req() request: AuthenticatedRequest,
+      @Param('documentId') documentId: string,
+      @Body() body: { documentKind: DocumentKind },
+    ) {
+      const firebaseId = request.user?.firebaseId;
+      if (!firebaseId) throw new BadRequestException('Not authenticated');
+      if (!body?.documentKind) throw new BadRequestException('documentKind is required');
+      return this.reviewService.setDocKind(firebaseId, Number(documentId), body.documentKind);
+    }
+
     /** Unpair an invoice↔receipt pair set by DocumentPairingService.
      *  Either side of the pair can be the entry point — the service
      *  follows the back-pointer to find the partner. */
@@ -198,7 +232,8 @@ export class ReportsController {
      *  Synchronous OCR — caller waits on the Claude call. Returns the
      *  new documentId so the frontend can refresh the row in-place. */
     @Post('me/review/upload-doc-to-tx/:transactionId')
-    @UseGuards(FirebaseAuthGuard)
+    @RequireModule(ModuleName.OPEN_BANKING)
+    @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
     @UseInterceptors(
       FileInterceptor('file', {
         limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB cap — generous for invoice PDFs
@@ -224,7 +259,8 @@ export class ReportsController {
     /** Reject a tx_only row — marks the slim transaction not-an-expense
      *  and locks it to the current period so it doesn't re-surface. */
     @Post('me/review/reject-tx')
-    @UseGuards(FirebaseAuthGuard)
+    @RequireModule(ModuleName.OPEN_BANKING)
+    @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
     async rejectTx(
       @Req() request: AuthenticatedRequest,
       @Body() body: { businessNumber: string; transactionId: number },
@@ -237,30 +273,6 @@ export class ReportsController {
       return this.reviewService.rejectTx(firebaseId, bn, Number(body.transactionId));
     }
 
-
-    @Get('vat-report')
-    @UseGuards(FirebaseAuthGuard)
-    @UsePipes(new ValidationPipe({ transform: true }))
-    async getVatReport(
-        @Req() request: AuthenticatedRequest,
-        @Query() query: VatReportRequestDto,
-    ): Promise<VatReportDto> {
-        try {
-            const firebaseId = request.user?.firebaseId;
-            if (!firebaseId) {
-                throw new BadRequestException('Firebase ID is missing');
-            }
-            const startDate = this.sharedService.convertStringToDateObject(query.startDate);
-            const endDate = this.sharedService.convertStringToDateObject(query.endDate);
-            const vatReport = await this.reportsService.createVatReport(firebaseId, query.businessNumber, startDate, endDate);
-            return vatReport;
-        } catch (error) {
-            console.error("❌ Error in getVatReport controller:", error);
-            console.error("Error message:", error.message);
-            console.error("Error stack:", error.stack);
-            throw error;
-        }
-    }
 
     /**
      * Form 1342 (Israeli Tax Authority) — equipment depreciation report.
@@ -312,22 +324,8 @@ export class ReportsController {
         }
     }
 
-    @Get('pnl-report')
-    @UseGuards(FirebaseAuthGuard)
-    async getPnLReport(
-        @Req() request: AuthenticatedRequest,
-        @Query() query: any,
-    ): Promise<PnLReportDto> {
-        const firebaseId = request.user?.firebaseId;
-        const startDate = this.sharedService.convertStringToDateObject(query.startDate);
-        const endDate = this.sharedService.convertStringToDateObject(query.endDate);
-        const pnlReport = await this.reportsService.createPnLReport(firebaseId, query.businessNumber, startDate, endDate);
-        return pnlReport;
-    }
-
     /**
-     * Journal-based VAT report (TASK B) — parallel to /vat-report, reads from
-     * journal entries instead of documents/expenses. Same DTO/response shape.
+     * VAT report — computed from journal entries.
      */
     @Get('vat-report-journal')
     @UseGuards(FirebaseAuthGuard)
@@ -348,8 +346,7 @@ export class ReportsController {
     }
 
     /**
-     * Journal-based P&L report (TASK B) — parallel to /pnl-report, reads from
-     * journal entries instead of documents/expenses. Same DTO/response shape.
+     * P&L report — computed from journal entries.
      */
     @Get('pnl-report-journal')
     @UseGuards(FirebaseAuthGuard)
@@ -361,8 +358,65 @@ export class ReportsController {
         const startDate = this.sharedService.convertStringToDateObject(query.startDate);
         const endDate = this.sharedService.convertStringToDateObject(query.endDate);
         return this.reportsService.createPnLReportFromJournal(
-            firebaseId, query.businessNumber, startDate, endDate,
+            firebaseId, query.businessNumber, startDate, endDate, query.osekZair === 'true',
         );
+    }
+
+    /**
+     * VAT report as a PDF (server-rendered, RTL Hebrew) — the interactive
+     * "ייצא כ-PDF" button. Includes the expense line-item breakdown.
+     */
+    @Get('vat-report-pdf')
+    @UseGuards(FirebaseAuthGuard)
+    @UsePipes(new ValidationPipe({ transform: true }))
+    async getVatReportPdf(
+        @Req() request: AuthenticatedRequest,
+        @Query() query: VatReportRequestDto,
+        @Res() res: Response,
+    ) {
+        const firebaseId = request.user?.firebaseId;
+        if (!firebaseId) {
+            throw new BadRequestException('Firebase ID is missing');
+        }
+        const startDate = this.sharedService.convertStringToDateObject(query.startDate);
+        const endDate = this.sharedService.convertStringToDateObject(query.endDate);
+        const parsedVatableTurnoverOverride = Number(query.vatableTurnoverOverride);
+        const vatableTurnoverOverride = query.vatableTurnoverOverride !== undefined && query.vatableTurnoverOverride !== '' && !isNaN(parsedVatableTurnoverOverride)
+            ? parsedVatableTurnoverOverride
+            : undefined;
+        const pdfBuffer = await this.reportsService.generateVatReportPdfForExport(
+            firebaseId, query.businessNumber, startDate, endDate, vatableTurnoverOverride,
+        );
+        res.setHeader('Content-Type', 'application/pdf');
+        return res.send(pdfBuffer);
+    }
+
+    /**
+     * P&L report as a PDF (server-rendered, RTL Hebrew) — the interactive
+     * "ייצא כ-PDF" button.
+     */
+    @Get('pnl-report-pdf')
+    @UseGuards(FirebaseAuthGuard)
+    async getPnlReportPdf(
+        @Req() request: AuthenticatedRequest,
+        @Query() query: any,
+        @Res() res: Response,
+    ) {
+        const firebaseId = request.user?.firebaseId;
+        if (!firebaseId) {
+            throw new BadRequestException('Firebase ID is missing');
+        }
+        const startDate = this.sharedService.convertStringToDateObject(query.startDate);
+        const endDate = this.sharedService.convertStringToDateObject(query.endDate);
+        const parsedIncomeOverride = Number(query.incomeOverride);
+        const incomeOverride = query.incomeOverride !== undefined && query.incomeOverride !== '' && !isNaN(parsedIncomeOverride)
+            ? parsedIncomeOverride
+            : undefined;
+        const pdfBuffer = await this.reportsService.generatePnlReportPdfForExport(
+            firebaseId, query.businessNumber, startDate, endDate, query.osekZair === 'true', incomeOverride,
+        );
+        res.setHeader('Content-Type', 'application/pdf');
+        return res.send(pdfBuffer);
     }
 
     @Get('ledger-report')
@@ -397,43 +451,39 @@ export class ReportsController {
         return this.reportsService.getJournalEntryDetail(firebaseId, businessNumber, Number(entryId));
     }
 
-    /** Chart of accounts for the ledger filter dropdown. Global (not business-scoped). */
+    /** Chart of accounts for the ledger filter dropdown, scoped to the
+     *  business's visible charts (Phase 6.4 — was global, leaking every
+     *  tenant's custom card names into everyone's dropdown). */
     @Get('ledger-accounts')
     @UseGuards(FirebaseAuthGuard)
     async getLedgerAccounts(
         @Req() request: AuthenticatedRequest,
+        @Query('businessNumber') businessNumber?: string,
     ): Promise<{ code: string; name: string; type: string }[]> {
         const firebaseId = request.user?.firebaseId;
         if (!firebaseId) {
             throw new BadRequestException('Firebase ID is missing');
         }
-        return this.reportsService.getLedgerAccounts();
+        return this.reportsService.getLedgerAccounts(
+            businessNumber?.trim() || request.user?.businessNumber || null,
+            firebaseId,
+        );
     }
 
-    /** Posting accounts for the manual journal-entry dropdown (excludes technical
-     *  accounts — pnlCategory IS NOT NULL). Global (not business-scoped). */
+    /** Posting accounts for the manual journal-entry dropdown (technical
+     *  accounts excluded — no section), grouped by accounting section and
+     *  scoped to the business's visible charts (Phase 4.5). */
     @Get('ledger-entry-accounts')
     @UseGuards(FirebaseAuthGuard)
     async getLedgerEntryAccounts(
         @Req() request: AuthenticatedRequest,
-    ): Promise<{ code: string; name: string; type: string }[]> {
+        @Query('businessNumber') businessNumber?: string,
+    ): Promise<{ code: string; name: string; type: string; sectionCode: string | null; sectionName: string | null }[]> {
         const firebaseId = request.user?.firebaseId;
         if (!firebaseId) {
             throw new BadRequestException('Firebase ID is missing');
         }
-        return this.reportsService.getLedgerEntryAccounts();
-    }
-
-    @Post('pnl-report-pdf')
-    @UseGuards(FirebaseAuthGuard)
-    async generatePnLReportPDF(
-        @Body() body: any,
-        @Res() res: Response,
-        @Req() request: AuthenticatedRequest
-    ) {
-        const pdfBuffer = await this.reportsService.generatePnLReportPDF(body);
-        res.setHeader('Content-Type', 'application/pdf');
-        return res.send(pdfBuffer);
+        return this.reportsService.getLedgerEntryAccounts(businessNumber?.trim() || null, firebaseId);
     }
 
 
@@ -477,9 +527,8 @@ export class ReportsController {
     }
 
 
-    // @SetMetadata('requiredModule', ModuleName.UNIFORM_FILE)
-    // @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
-    @UseGuards(FirebaseAuthGuard)
+    @RequireModule(ModuleName.INVOICES)
+    @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
     @Post('create-uniform-file')
     async getHelloWorldZip(
         @Req() request: AuthenticatedRequest,

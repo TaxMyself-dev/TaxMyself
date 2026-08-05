@@ -3,7 +3,13 @@
   [showUploadButton]="false" [showCancelButton]="false" [accept]="accept()" [maxFileSize]="maxFileSize()"
   (onSelect)="onSelect($event)" (onClear)="onClearFromPrime()" styleClass="ud-engine"></p-fileUpload>
 
-<div class="ud-dropzone" (click)="openPicker()">
+<div
+  class="ud-dropzone"
+  [class.ud-dropzone--dragging]="isDragging()"
+  (click)="openPicker()"
+  (dragover)="onDragOver($event)"
+  (dragleave)="onDragLeave($event)"
+  (drop)="onDrop($event)">
   <div class="ud-head" (click)="$event.stopPropagation()">
     <div class="ud-title">
       <span class="ud-titleText">{{ label() }}</span>

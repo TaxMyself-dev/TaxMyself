@@ -3,7 +3,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SubscriptionPlan } from '../entities/subscription-plan.entity';
 import { Subscription } from '../entities/subscription.entity';
-import { VAT_RATES } from 'src/enum';
+import { VAT_RATES, BusinessType } from 'src/enum';
+import { BusinessService } from 'src/business/business.service';
 
 export interface BillingAmounts {
   amountBeforeVatAgorot: number;
@@ -11,6 +12,24 @@ export interface BillingAmounts {
   vatRate: number;
   vatAmountAgorot: number;
   amountIncludingVatAgorot: number;
+}
+
+/** The user's effective billing business type — drives which plan price applies. */
+export type BillingBusinessType = 'LICENSED' | 'EXEMPT';
+
+/**
+ * Subscription discount as surfaced to the frontend (billing/me).
+ * `kind` mirrors the precedence in applySubscriptionDiscount: a fixed amount
+ * wins over a percentage when both happen to be set.
+ */
+export interface SubscriptionDiscountInfo {
+  kind: 'PERCENT' | 'AMOUNT';
+  percent: number | null;
+  amountAgorot: number | null;
+  startDate: string | null;
+  endDate: string | null;
+  /** True when today falls within [startDate, endDate] (inclusive, DATE semantics). */
+  isActiveNow: boolean;
 }
 
 export interface CheckoutPricingResult {
@@ -22,6 +41,8 @@ export interface CheckoutPricingResult {
   vatRate: number;
   vatAmountAgorot: number;
   currency: string;
+  /** Resolved from the user's businesses — see resolveUserBillingBusinessType. */
+  billingBusinessType: BillingBusinessType;
   /** Human-readable breakdown for the UI / debugging. */
   explanation: string[];
 }
@@ -35,10 +56,84 @@ export class PricingService {
     private readonly planRepo: Repository<SubscriptionPlan>,
     @InjectRepository(Subscription)
     private readonly subscriptionRepo: Repository<Subscription>,
+    private readonly businessService: BusinessService,
   ) {}
 
   /**
+   * Resolves the user's effective billing business type from all businesses they own:
+   * LICENSED ("עוסק מורשה") if at least one owned business is a licensed dealer,
+   * otherwise EXEMPT ("עוסק פטור") — including users with no businesses yet.
+   */
+  async resolveUserBillingBusinessType(firebaseId: string): Promise<BillingBusinessType> {
+    const businesses = await this.businessService.getUserBusinesses(firebaseId);
+    const hasLicensedDealer = businesses.some((b) => b.businessType === BusinessType.LICENSED);
+    const billingBusinessType: BillingBusinessType = hasLicensedDealer ? 'LICENSED' : 'EXEMPT';
+
+    this.logger.log(
+      `resolveUserBillingBusinessType: firebaseId=${firebaseId.substring(0, 8)}... ` +
+        `businesses=${businesses.length} → ${billingBusinessType}`,
+    );
+
+    return billingBusinessType;
+  }
+
+  /**
+   * Resolves the plan price that applies to a given billing business type.
+   * Licensed dealer pricing only applies when the plan defines one — plans
+   * without licensedDealerPriceMonthlyAgorot always fall back to the base price.
+   */
+  resolveEffectivePlanPrice(
+    plan: Pick<SubscriptionPlan, 'priceMonthlyAgorot' | 'licensedDealerPriceMonthlyAgorot'>,
+    billingBusinessType: BillingBusinessType,
+  ): number {
+    if (billingBusinessType === 'LICENSED' && plan.licensedDealerPriceMonthlyAgorot != null) {
+      return plan.licensedDealerPriceMonthlyAgorot;
+    }
+    return plan.priceMonthlyAgorot;
+  }
+
+  /**
+   * Resolves the subscription's configured discount for display in billing/me.
+   *
+   * Returns null when no discount is set. `isActiveNow` uses the same
+   * [discountStartDate, discountEndDate] DATE-window semantics as
+   * applySubscriptionDiscount, so the UI and the actual checkout price agree.
+   */
+  resolveSubscriptionDiscount(
+    subscription: Pick<
+      Subscription,
+      'discountPercent' | 'discountAmountAgorot' | 'discountStartDate' | 'discountEndDate'
+    >,
+  ): SubscriptionDiscountInfo | null {
+    const { discountPercent, discountAmountAgorot, discountStartDate, discountEndDate } =
+      subscription;
+
+    if (discountPercent == null && discountAmountAgorot == null) {
+      return null;
+    }
+
+    // TypeORM returns 'YYYY-MM-DD' strings for type:'date' columns — cast defensively.
+    const start = discountStartDate ? String(discountStartDate) : null;
+    const end = discountEndDate ? String(discountEndDate) : null;
+    const today = this.getTodayDateString();
+    const isActiveNow = (!start || today >= start) && (!end || today <= end);
+
+    return {
+      kind: discountAmountAgorot != null ? 'AMOUNT' : 'PERCENT',
+      percent: discountPercent ?? null,
+      amountAgorot: discountAmountAgorot ?? null,
+      startDate: start,
+      endDate: end,
+      isActiveNow,
+    };
+  }
+
+  /**
    * Calculates the final checkout price for a given user and plan.
+   *
+   * Base price is resolved from the user's effective billing business type
+   * (see resolveUserBillingBusinessType/resolveEffectivePlanPrice) — never from
+   * a price supplied by the caller — so the frontend cannot influence the amount.
    *
    * Single discount source: subscription.discountPercent or discountAmountAgorot,
    * active only when today falls within [discountStartDate, discountEndDate] (inclusive,
@@ -56,8 +151,10 @@ export class PricingService {
       throw new BadRequestException('Subscription plan not found or not available');
     }
 
-    const baseAmount = plan.priceMonthlyAgorot;
+    const billingBusinessType = await this.resolveUserBillingBusinessType(firebaseId);
+    const baseAmount = this.resolveEffectivePlanPrice(plan, billingBusinessType);
     const explanation: string[] = [
+      `Billing business type: ${billingBusinessType}`,
       `Base price: ${baseAmount} agorot (${plan.name})`,
     ];
 
@@ -95,6 +192,7 @@ export class PricingService {
       vatRate: vat.vatRate,
       vatAmountAgorot: vat.vatAmountAgorot,
       currency: plan.currency,
+      billingBusinessType,
       explanation,
     };
   }

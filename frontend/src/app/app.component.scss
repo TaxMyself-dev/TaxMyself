@@ -176,7 +176,7 @@ ion-item.selected {
   direction: rtl;
 
   .p-dialog-header {
-    justify-content: flex-end;
+    justify-content: flex-start;
     font-size: 1.2rem;
     font-weight: 600;
     padding: 1.25rem 1.5rem 0.75rem;
@@ -210,7 +210,7 @@ ion-item.selected {
 
 .billing-cta-btn {
   padding: 0.6rem 1.5rem;
-  background: #2563eb;
+  background: #000;
   color: #fff;
   border: none;
   border-radius: 8px;
@@ -220,9 +220,10 @@ ion-item.selected {
   transition: background 0.15s;
 
   &:hover {
-    background: #1d4ed8;
+    background: #1a1a1a;
   }
 }
+
 
 /* Global loading overlay */
 .global-loader-overlay {

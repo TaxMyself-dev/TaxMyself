@@ -84,6 +84,35 @@ export class AdminPanelService {
   }
 
   /**
+   * Admin-only. Puts a demo profile into the pre-Direct-card-fix state: the
+   * card isn't recognised as Direct, its feed was imported, and the scenario
+   * purchases show up twice on the Transactions page. Seeds the demo user
+   * first if needed. Rebuilds the demo user's transaction cache.
+   *
+   * Only offered for profiles with `supportsDirectCardScenario === true`;
+   * the backend 404s anything else.
+   */
+  seedDemoLegacyDuplicates(id: string): Observable<DemoScenarioResult> {
+    return this.http.post<DemoScenarioResult>(
+      `${environment.apiUrl}demo-data/profiles/${id}/legacy-duplicate-state`,
+      {},
+    );
+  }
+
+  /**
+   * Admin-only. Applies the Direct-card behaviour to a demo profile (card
+   * flagged Direct + `skipped_direct`) and re-syncs its cache from the bank
+   * feed only, so the card-feed duplicates disappear. Rebuilds the demo
+   * user's transaction cache.
+   */
+  applyDemoDirectCardFix(id: string): Observable<DemoScenarioResult> {
+    return this.http.post<DemoScenarioResult>(
+      `${environment.apiUrl}demo-data/profiles/${id}/apply-direct-card-fix`,
+      {},
+    );
+  }
+
+  /**
    * In-app reset for the signed-in demo user. Backs the "אפס נתוני בדיקה"
    * button on the dashboard — wipes Drive files + OCR/expense/transaction
    * derived rows and re-uploads the canned sample PDFs in one shot. The
@@ -117,6 +146,20 @@ export interface DemoProfileListItem {
   firebaseId?: string;
   /** Delegated clients (for accountant profiles). Empty/undefined for solo profiles. */
   clients?: DemoSubUser[];
+  /** True when this profile exposes the two Direct-card scenario actions. */
+  supportsDirectCardScenario?: boolean;
+}
+
+/** Result of the two Direct-card scenario actions. */
+export interface DemoScenarioResult {
+  state: 'legacy-duplicates' | 'direct-card-fixed';
+  firebaseId: string;
+  /** True when the action had to seed the demo user first. */
+  seededUser: boolean;
+  bankRows: number;
+  cardRows: number;
+  cardIsDirect: boolean | null;
+  cardStatus: string;
 }
 
 export interface DemoSeedResult {

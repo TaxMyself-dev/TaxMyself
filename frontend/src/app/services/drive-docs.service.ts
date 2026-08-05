@@ -40,6 +40,29 @@ export interface SubCategoryCatalogEntry {
   isEquipment: boolean;
 }
 
+/** Derived lifecycle label for a document archive row — see
+ *  `DocumentArchiveStatus` in the backend's `src/enum.ts` for the exact
+ *  precedence rules (REJECTED > FILED_ANNUAL > APPROVED_EXPENSE > IN_PROGRESS). */
+export type DocumentArchiveStatus = 'IN_PROGRESS' | 'APPROVED_EXPENSE' | 'FILED_ANNUAL' | 'REJECTED';
+
+/** A row from the document archive tab — `GET /documents/me/archived`. */
+export interface ArchivedDocSummary {
+  id: number;
+  driveFileId: string;
+  driveFileName: string;
+  supplier: string | null;
+  supplierId: string | null;
+  date: string | null;
+  invoiceNumber: string | null;
+  amount: string | null;
+  currency: string | null;
+  category: string | null;
+  subCategory: string | null;
+  documentType: string | null;
+  uploadDate: string | null;
+  archiveStatus: DocumentArchiveStatus;
+}
+
 /** Raw shape of a single invoice returned by the OCR endpoint. Matches
  *  Claude's `ExtractedFields` shape on the backend. */
 export interface OcrInvoiceFields {
@@ -84,6 +107,12 @@ export class DriveDocsService {
     return this.http.get<SubCategoryCatalogEntry[]>(url, { params });
   }
 
+  getArchivedDocuments(businessNumber: string): Observable<ArchivedDocSummary[]> {
+    const url = `${environment.apiUrl}documents/me/archived`;
+    const params = new HttpParams().set('businessNumber', businessNumber);
+    return this.http.get<ArchivedDocSummary[]>(url, { params });
+  }
+
   /**
    * Runs Claude OCR on a single uploaded file (PDF/JPEG/PNG/etc) and returns
    * the extracted invoice fields for the manual-expense form to prefill.
@@ -95,5 +124,18 @@ export class DriveDocsService {
     form.append('file', file, file.name);
     form.append('businessNumber', businessNumber);
     return this.http.post<OcrSingleFileResponse>(url, form);
+  }
+
+  /**
+   * Drops one or more files straight into the business's Drive inbox/
+   * folder — no OCR, just storage. Used by the settings-page "upload docs
+   * to Drive" button.
+   */
+  uploadFilesToInbox(files: File[], businessNumber: string): Observable<{ fileId: string; fileName: string }[]> {
+    const url = `${environment.apiUrl}documents/me/upload-to-inbox`;
+    const form = new FormData();
+    files.forEach(file => form.append('files', file, file.name));
+    form.append('businessNumber', businessNumber);
+    return this.http.post<{ fileId: string; fileName: string }[]>(url, form);
   }
 }

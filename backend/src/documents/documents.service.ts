@@ -7,8 +7,8 @@ import { Documents } from './documents.entity';
 import { DocLines } from './doc-lines.entity';
 import { JournalEntry } from 'src/bookkeeping/jouranl-entry.entity';
 import { JournalLine } from 'src/bookkeeping/jouranl-line.entity';
-import { DefaultBookingAccount } from 'src/bookkeeping/account.entity'
-import { DocumentType, DocumentStatusType, JournalReferenceType, PaymentMethodType, VatOptions, Currency, UnitOfMeasure, CardCompany, CreditTransactionType, BusinessType, isExemptBusinessType } from 'src/enum';
+import { BookingAccount } from 'src/bookkeeping/account.entity'
+import { DocumentType, DocumentStatusType, DocumentKind, JournalReferenceType, PaymentMethodType, VatOptions, Currency, UnitOfMeasure, CardCompany, CreditTransactionType, BusinessType, isExemptBusinessType, ExpenseApprovalStatus, DocumentArchiveStatus } from 'src/enum';
 import { Business } from 'src/business/business.entity';
 import { SharedService } from 'src/shared/shared.service';
 import { FxRateService } from 'src/shared/fx-rate.service';
@@ -26,10 +26,12 @@ import { User } from 'src/users/user.entity';
 import { ExtractedDocument, ExtractedDocStatus, ExtractedDocumentType } from './extracted-document.entity';
 import { SlimTransaction } from '../transactions/slim-transaction.entity';
 import { DocumentProcessorService, CatalogEntry } from './document-processor.service';
+import { deriveDocumentKind } from './document-kind.util';
 import { GoogleDriveService } from '../google-drive/google-drive.service';
 import { Supplier } from '../expenses/suppliers.entity';
-import { DefaultSubCategory } from '../expenses/default-sub-categories.entity';
-import { UserSubCategory } from '../expenses/user-sub-categories.entity';
+import { Expense } from '../expenses/expenses.entity';
+import { CatalogService } from 'src/bookkeeping/catalog.service';
+import { CatalogContextService } from 'src/bookkeeping/catalog-context.service';
 import { UsersService } from '../users/users.service';
 // Business is already imported above as part of Bookkeeping/Issued-Documents logic.
 
@@ -74,7 +76,7 @@ export function buildDocumentJournalLines(params: {
       counterAccountCode: '1100',
       journalLines: [
         { accountCode: '1100', debit: net,  amountBeforeVat: 0, vatAmount: 0, isEquipment: false, taxPercent: 0, vatPercent: 0, amountForTax: 0, subCategoryName: null },
-        { accountCode: '4000', credit: net, amountBeforeVat: net, vatAmount: 0, isEquipment: false, taxPercent: 100, vatPercent: 0, amountForTax: net, subCategoryName: null },
+        { accountCode: '40000', credit: net, amountBeforeVat: net, vatAmount: 0, isEquipment: false, taxPercent: 100, vatPercent: 0, amountForTax: net, subCategoryName: null },
       ],
     };
   }
@@ -88,7 +90,7 @@ export function buildDocumentJournalLines(params: {
       counterAccountCode: counterCode,
       journalLines: [
         { accountCode: counterCode, credit: full, amountBeforeVat: 0, vatAmount: 0, isEquipment: false, taxPercent: 0, vatPercent: 0, amountForTax: 0, subCategoryName: null },
-        { accountCode: '4000',      debit: net,  amountBeforeVat: net, vatAmount: 0,   isEquipment: false, taxPercent: 100, vatPercent: 100, amountForTax: net, subCategoryName: null },
+        { accountCode: '40000',     debit: net,  amountBeforeVat: net, vatAmount: 0,   isEquipment: false, taxPercent: 100, vatPercent: 100, amountForTax: net, subCategoryName: null },
         ...(vat > 0 ? [{ accountCode: '2400', debit: vat, amountBeforeVat: 0, vatAmount: vat, isEquipment: false, taxPercent: 0, vatPercent: 100, amountForTax: 0, subCategoryName: null }] : []),
       ],
     };
@@ -102,7 +104,7 @@ export function buildDocumentJournalLines(params: {
       counterAccountCode: counterCode,
       journalLines: [
         { accountCode: counterCode, debit: full, amountBeforeVat: 0, vatAmount: 0, isEquipment: false, taxPercent: 0, vatPercent: 0, amountForTax: 0, subCategoryName: null },
-        { accountCode: '4000',      credit: net, amountBeforeVat: net, vatAmount: 0,   isEquipment: false, taxPercent: 100, vatPercent: 100, amountForTax: net, subCategoryName: null },
+        { accountCode: '40000',     credit: net, amountBeforeVat: net, vatAmount: 0,   isEquipment: false, taxPercent: 100, vatPercent: 100, amountForTax: net, subCategoryName: null },
         ...(vat > 0 ? [{ accountCode: '2400', credit: vat, amountBeforeVat: 0, vatAmount: vat, isEquipment: false, taxPercent: 0, vatPercent: 100, amountForTax: 0, subCategoryName: null }] : []),
       ],
     };
@@ -159,8 +161,8 @@ export class DocumentsService {
     private journalEntryRepo: Repository<JournalEntry>,
     @InjectRepository(JournalLine)
     private journalLineRepo: Repository<JournalLine>,
-    @InjectRepository(DefaultBookingAccount)
-    private defaultBookingAccountRepo: Repository<DefaultBookingAccount>,
+    @InjectRepository(BookingAccount)
+    private defaultBookingAccountRepo: Repository<BookingAccount>,
     @InjectRepository(Business)
     private businessRepo: Repository<Business>,
     @InjectRepository(User)
@@ -169,12 +171,12 @@ export class DocumentsService {
     private extractedDocRepo: Repository<ExtractedDocument>,
     @InjectRepository(Supplier)
     private supplierRepo: Repository<Supplier>,
-    @InjectRepository(DefaultSubCategory)
-    private defaultSubCategoryRepo: Repository<DefaultSubCategory>,
-    @InjectRepository(UserSubCategory)
-    private userSubCategoryRepo: Repository<UserSubCategory>,
     @InjectRepository(SlimTransaction)
     private slimTransactionRepo: Repository<SlimTransaction>,
+    @InjectRepository(Expense)
+    private expenseRepo: Repository<Expense>,
+    private readonly catalogService: CatalogService,
+    private readonly catalogContextService: CatalogContextService,
     private readonly documentProcessor: DocumentProcessorService,
     private readonly googleDriveService: GoogleDriveService,
     @Inject(forwardRef(() => UsersService))
@@ -525,24 +527,42 @@ export class DocumentsService {
         ? manager.getRepository(SettingDocuments)
         : this.settingDocuments;
 
+      // Lock the counter row so two concurrent transactions can't read the
+      // same currentIndex. Only valid inside a transaction (manager present).
       let generalIndex = await repo.findOne({
         where: { userId, issuerBusinessNumber, docType: DocumentType.GENERAL },
+        lock: manager ? { mode: 'pessimistic_write' } : undefined,
       });
 
       if (!generalIndex) {
-        // First-time setup: initialize with default starting value
-        generalIndex = repo.create({
-          userId,
-          issuerBusinessNumber,
-          docType: DocumentType.GENERAL,
-          initialIndex: 1000001,
-          currentIndex: 1000002,
-        });
-      } else {
-        // Increment normally
-        generalIndex.currentIndex += 1;
+        // First-time setup: initialize with default starting value.
+        // A concurrent transaction may be creating the same row right now —
+        // the unique constraint on (userId, issuerBusinessNumber, docType)
+        // turns that race into a duplicate-key error we can recover from.
+        try {
+          generalIndex = await repo.save(
+            repo.create({
+              userId,
+              issuerBusinessNumber,
+              docType: DocumentType.GENERAL,
+              initialIndex: 1000001,
+              currentIndex: 1000002,
+            }),
+          );
+          this.isGeneralIncrement = true;
+          return generalIndex;
+        } catch (err) {
+          if (!this.isDuplicateKeyError(err)) throw err;
+          // Lost the race — re-select with the lock so we wait for the
+          // winner's transaction to commit, then increment its real value.
+          generalIndex = await repo.findOneOrFail({
+            where: { userId, issuerBusinessNumber, docType: DocumentType.GENERAL },
+            lock: manager ? { mode: 'pessimistic_write' } : undefined,
+          });
+        }
       }
 
+      generalIndex.currentIndex += 1;
       const updated = await repo.save(generalIndex);
       this.isGeneralIncrement = true;
 
@@ -552,6 +572,11 @@ export class DocumentsService {
     }
   }
 
+  /** MySQL duplicate-key error, from either the driver or TypeORM's wrapper. */
+  private isDuplicateKeyError(err: any): boolean {
+    return err?.code === 'ER_DUP_ENTRY' || err?.driverError?.code === 'ER_DUP_ENTRY';
+  }
+
 
   async generatePDF(data: any, templateType: string, isCopy: boolean = false): Promise<Blob> {
 
@@ -559,7 +584,7 @@ export class DocumentsService {
 
     console.log("data is ", data);
 
-    
+
     // FID mapping based on environment and document type
     const fidMap = {
       // Production FIDs
@@ -610,12 +635,12 @@ export class DocumentsService {
         }
 
         const hebrewNameDoc = data.docData.docType === DocumentType.RECEIPT ? 'קבלה' :
-                              data.docData.docType === DocumentType.TAX_INVOICE ? 'חשבונית מס' :
-                              data.docData.docType === DocumentType.TAX_INVOICE_RECEIPT ? 'חשבונית מס קבלה' :
-                              data.docData.docType === DocumentType.TRANSACTION_INVOICE ? 'חשבון עסקה' :
-                              data.docData.docType === DocumentType.CREDIT_INVOICE ? 'חשבונית זיכוי' :
-                              data.docData.docType === DocumentType.PRICE_QUOTE ? 'הצעת מחיר' :
-                              data.docData.docType === DocumentType.WORK_ORDER ? 'הזמנת עבודה' : '';
+          data.docData.docType === DocumentType.TAX_INVOICE ? 'חשבונית מס' :
+            data.docData.docType === DocumentType.TAX_INVOICE_RECEIPT ? 'חשבונית מס קבלה' :
+              data.docData.docType === DocumentType.TRANSACTION_INVOICE ? 'חשבון עסקה' :
+                data.docData.docType === DocumentType.CREDIT_INVOICE ? 'חשבונית זיכוי' :
+                  data.docData.docType === DocumentType.PRICE_QUOTE ? 'הצעת מחיר' :
+                    data.docData.docType === DocumentType.WORK_ORDER ? 'הזמנת עבודה' : '';
         prefill_data = {
           recipientName: data.docData.recipientName,
           recipientTaxNumber: data.docData.recipientId ? `מ.ע. / ח.פ.:  ${data.docData.recipientId}` : null,
@@ -626,9 +651,9 @@ export class DocumentsService {
           issuerName: data.docData.issuerName ? `שם העסק: ${data.docData.issuerName}` : null,
           issuerDetails: [
             data.docData.issuerBusinessNumber ? `מ.ע. / ח.פ.:  ${data.docData.issuerBusinessNumber}` : null,
-            data.docData.issuerPhone          ? `טלפון:  ${data.docData.issuerPhone}` : null,
-            data.docData.issuerEmail          ? `כתובת מייל:  ${data.docData.issuerEmail}` : null,
-            data.docData.issuerAddress        ? `כתובת:  ${data.docData.issuerAddress}` : null,
+            data.docData.issuerPhone ? `טלפון:  ${data.docData.issuerPhone}` : null,
+            data.docData.issuerEmail ? `כתובת מייל:  ${data.docData.issuerEmail}` : null,
+            data.docData.issuerAddress ? `כתובת:  ${data.docData.issuerAddress}` : null,
           ].filter(Boolean).join('\n'),
           items_table: await this.transformLinesToItemsTable(data.linesData),
           sumTable: await this.transformSumsToSumTable(data.docData, data.docData.issuerBusinessNumber),
@@ -636,7 +661,7 @@ export class DocumentsService {
           paymentMethod: data.docData.paymentMethod,
           draft_image: templateType === 'previewDoc' ? draftImageBase64 : null
         };
-        
+
         // Add VAT-related fields only for non-receipts
         const isReceipt = docType === 'RECEIPT';
         if (!isReceipt) {
@@ -665,13 +690,22 @@ export class DocumentsService {
       prefill_data,
     };
 
+    // TEMP DEBUG — remove once the period-end rendering bug is root-caused.
+    if (Array.isArray(prefill_data?.items_table)) {
+      console.log(
+        '[TEMP DEBUG][generatePDF] items_table פירוט values sent to FillFaster:',
+        JSON.stringify(prefill_data.items_table.map((row: any) => row['פירוט'])),
+      );
+    }
+    console.log('[TEMP DEBUG][generatePDF] full payload sent to FillFaster:', JSON.stringify(payload));
+
     const headers = {
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
     };
 
     try {
-      
+
       const response = await axios.post<Blob>(url, payload, {
         headers,
         responseType: 'arraybuffer',
@@ -688,14 +722,14 @@ export class DocumentsService {
       console.error('   Status Text:', error.response?.statusText);
       console.error('   URL:', url);
       console.error('   FID:', fid);
-      
+
       // Try to parse error response body
       if (error.response?.data) {
         try {
           // Try to parse as JSON first
           const errorText = Buffer.from(error.response.data).toString('utf-8');
           console.error('   Error Response Body:', errorText);
-          
+
           try {
             const errorJson = JSON.parse(errorText);
             console.error('   Parsed Error JSON:', JSON.stringify(errorJson, null, 2));
@@ -707,7 +741,7 @@ export class DocumentsService {
           console.error('   Could not parse error response body');
         }
       }
-      
+
       // Log the payload that was sent (but truncate large fields)
       const payloadForLog = {
         ...payload,
@@ -720,7 +754,7 @@ export class DocumentsService {
         }
       };
       console.error('   Payload sent:', JSON.stringify(payloadForLog, null, 2));
-      
+
       throw new HttpException(
         `FillFaster API error: ${error.response?.status || 'Unknown'} - ${error.response?.statusText || error.message}`,
         error.response?.status || HttpStatus.INTERNAL_SERVER_ERROR
@@ -779,7 +813,7 @@ export class DocumentsService {
     } else {
       // For LICENSED (עוסק מורשה) or LIMITED_COMPANY/AUTHORIZED_PARTNERSHIP (חברה)
       // For TAX_INVOICE and TAX_INVOICE_RECEIPT
-      
+
       if (docType === DocumentType.TAX_INVOICE || docType === DocumentType.TAX_INVOICE_RECEIPT || docType === DocumentType.TRANSACTION_INVOICE || docType === DocumentType.PRICE_QUOTE || docType === DocumentType.WORK_ORDER) {
         // סה"כ חייב במע"מ
         sumTable.push({
@@ -820,12 +854,16 @@ export class DocumentsService {
 
 
   async transformLinesToItemsTable(lines: any[]): Promise<any[]> {
-    return lines.map(line => ({
-      'סה"כ': `₪${this.formatNumberWithCommas(line.sumBefVatPerUnit * line.unitQuantity)}`,
-      'מחיר': `₪${this.formatNumberWithCommas(line.sumBefVatPerUnit)}`,
-      'כמות': String(line.unitQuantity),
-      'פירוט': line.description || ""
-    }));
+    return lines.map(line => {
+      const unitQuantity = Number(line.unitQuantity);
+      const sumBefVatPerUnit = Number(line.sumBefVatPerUnit);
+      return {
+        'סה"כ': `₪${this.formatNumberWithCommas(sumBefVatPerUnit * unitQuantity)}`,
+        'מחיר': `₪${this.formatNumberWithCommas(sumBefVatPerUnit)}`,
+        'כמות': this.formatNumberWithCommas(unitQuantity),
+        'פירוט': line.description || ""
+      };
+    });
   }
 
 
@@ -1036,7 +1074,7 @@ export class DocumentsService {
         // Amounts
         sumBefVatPerUnit: Number((line.sumBefVatPerUnit || line.sum || 0).toFixed(4)),
         disBefVatPerLine: Number((line.disBefVatPerLine || line.discount || 0).toFixed(2)),
-        sumAftDisBefVatPerLine: Number((line.sumAftDisBefVatPerLine || 
+        sumAftDisBefVatPerLine: Number((line.sumAftDisBefVatPerLine ||
           ((line.sumBefVatPerUnit || line.sum || 0) * (line.unitQuantity || 1) - (line.discount || 0))
         ).toFixed(2)),
 
@@ -1044,7 +1082,7 @@ export class DocumentsService {
         vatOpts: line.vatOpts, // enum VatOptions, default INCLUDE
         vatRate: Number(line.vatRate), // decimal(5,2)
         vatPerLine: Number((line.vatPerLine || 0).toFixed(2)), // decimal(10,2)
-        sumAftDisWithVat: Number((line.sumAftDisWithVat || 
+        sumAftDisWithVat: Number((line.sumAftDisWithVat ||
           (line.sumAftDisBefVatPerLine || ((line.sumBefVatPerUnit || line.sum || 0) * (line.unitQuantity || 1) - (line.discount || 0))) + (line.vatPerLine || 0)
         ).toFixed(2)), // decimal(10,2)
 
@@ -1122,7 +1160,7 @@ export class DocumentsService {
       paymentData: transformedPaymentData,
     };
   }
-  
+
 
   async createDoc(data: any, userId: string, generatePdf: boolean = true): Promise<any> {
 
@@ -1153,7 +1191,7 @@ export class DocumentsService {
       // This ensures we always use a fresh, incremented value, not the parent document's index
       const newGeneralDocIndex = String(updatedGeneralIndex.currentIndex);
       data.docData.generalDocIndex = newGeneralDocIndex;
-      
+
       // Update all lines and payments to use the new generalDocIndex
       if (data.linesData && Array.isArray(data.linesData)) {
         data.linesData.forEach(line => {
@@ -1165,7 +1203,7 @@ export class DocumentsService {
           payment.generalDocIndex = newGeneralDocIndex;
         });
       }
-      
+
       console.log(new Date().toLocaleTimeString(), "Step 1 complete - General index incremented to:", newGeneralDocIndex);
 
       // 2. Increment document-specific index
@@ -1186,7 +1224,7 @@ export class DocumentsService {
       const newDoc = await this.saveDocInfo(userId, data.docData, queryRunner.manager);
       if (!newDoc) {
         throw new HttpException('Error in saveDocInfo', HttpStatus.INTERNAL_SERVER_ERROR);
-      }            
+      }
       console.log(new Date().toLocaleTimeString(), "Step 3 complete - Document info saved");
 
       // 4. Save line items (now with the correct incremented generalDocIndex)
@@ -1295,7 +1333,7 @@ export class DocumentsService {
             'original'
           );
           console.log(new Date().toLocaleTimeString(), "Step 8.1 complete - Original PDF uploaded");
-          
+
           copyFilePath = await this.uploadToFirebase(
             copyBuffer,
             data.docData.issuerBusinessNumber,
@@ -1325,7 +1363,7 @@ export class DocumentsService {
                   docNumber: data.docData.parentDocNumber,
                 }
               });
-              
+
               if (parentDoc && parentDoc.docStatus === DocumentStatusType.OPEN) {
                 parentDoc.docStatus = DocumentStatusType.CLOSE;
                 await documentsRepo.save(parentDoc);
@@ -1339,12 +1377,12 @@ export class DocumentsService {
           console.log("  - sendEmailToRecipient:", data.docData.sendEmailToRecipient);
           console.log("  - recipientEmail:", data.docData.recipientEmail);
           console.log("  - originalFilePath:", originalFilePath);
-          
+
           if (data.docData.sendEmailToRecipient && data.docData.recipientEmail && originalFilePath) {
             try {
               console.log(new Date().toLocaleTimeString(), "Step 11.1 - Starting email sending process");
               console.log("  📧 Email will be sent to:", data.docData.recipientEmail);
-              
+
               // Get business info for email content
               const business = await this.businessService.getBusinessByNumber(data.docData.issuerBusinessNumber);
               const businessName = business?.businessName || data.docData.issuerBusinessNumber;
@@ -1377,10 +1415,10 @@ export class DocumentsService {
               }
               const finalOwnerName = ownerName?.trim() || businessName;
               console.log("  📧 Owner name:", finalOwnerName);
-              
+
               // Prepare email content
               const recipientName = data.docData.recipientName || 'לקוח נכבד';
-              
+
               const emailSubject = `${docTypeName} #${data.docData.docNumber}`;
               const emailText = `שלום ${recipientName},
 
@@ -1689,7 +1727,7 @@ ${finalOwnerName}`;
       await queryRunner.release();
     }
   }
-  
+
 
   convertPaymentMethod(paymentMethod: string): string {
     switch (paymentMethod) {
@@ -1771,7 +1809,7 @@ ${finalOwnerName}`;
 
 
   async saveDocInfo(userId: string, data: any, manager?: EntityManager): Promise<Documents> {
-    
+
     try {
       const repo = manager
         ? manager.getRepository(Documents)
@@ -1891,7 +1929,7 @@ ${finalOwnerName}`;
 
       const payments = data.map(item => {
         // Normalize date to YYYY-MM-DD for MySQL DATE column
-          const paymentDate = this.sharedService.normalizeToMySqlDate(item.paymentDate);
+        const paymentDate = this.sharedService.normalizeToMySqlDate(item.paymentDate);
 
         // Map paymentSum (from frontend) to paymentAmount (DB column)
         const paymentAmount = item.paymentAmount ?? item.paymentSum ?? 0;
@@ -2038,6 +2076,37 @@ ${finalOwnerName}`;
    * returns it together with the document fields needed to compose an email.
    * Throws if the document has no file path (finalizeBillingReceipt not yet run).
    */
+  /**
+   * True when a billing-receipt document actually exists AND has a downloadable
+   * file path. Lets callers verify availability BEFORE calling
+   * getBillingReceiptPdf, so a missing/incomplete document is reported as a
+   * clean 404 instead of surfacing as an unhandled EntityNotFoundError.
+   */
+  async isBillingReceiptDownloadable(docId: number): Promise<boolean> {
+    const doc = await this.documentsRepo.findOne({
+      where: { id: docId },
+      select: ['id', 'file'],
+    });
+    return !!doc && !!doc.file && String(doc.file).trim() !== '';
+  }
+
+  /**
+   * Returns the subset of the given billing-receipt document ids that are
+   * actually downloadable — the Documents row exists AND has a non-empty file
+   * path. Used by the payment-history endpoint to report a truthful
+   * `receiptAvailable` without relying on exceptions for control flow.
+   */
+  async findDownloadableBillingReceiptDocIds(docIds: number[]): Promise<Set<number>> {
+    if (docIds.length === 0) return new Set<number>();
+    const docs = await this.documentsRepo.find({
+      where: { id: In(docIds) },
+      select: ['id', 'file'],
+    });
+    return new Set<number>(
+      docs.filter(d => !!d.file && String(d.file).trim() !== '').map(d => d.id),
+    );
+  }
+
   async getBillingReceiptPdf(docId: number): Promise<{
     buffer: Buffer;
     recipientEmail: string | null;
@@ -2082,14 +2151,32 @@ ${finalOwnerName}`;
     vatAmountAgorot: number;
     amountIncludingVatAgorot: number;
     planName: string;
+    periodStart: Date;
+    periodEnd: Date;
     docDate: Date;
   }): Promise<{ receiptDocId: number; docNumber: string; generalDocIndex: string }> {
     const {
       systemUserId, issuerBusinessNumber, issuerBusinessType,
       recipientName, recipientEmail,
       amountBeforeVatAgorot, vatAmountAgorot, amountIncludingVatAgorot,
-      planName, docDate,
+      planName, periodStart, periodEnd, docDate,
     } = params;
+    const initialReceiptIndex = DEFAULT_INITIAL_DOC_INDEX[DocumentType.TAX_INVOICE_RECEIPT];
+
+    const formattedPeriodStart = this.formatDateDotDDMMYYYY(periodStart);
+    const formattedPeriodEnd = this.formatDateDotDDMMYYYY(periodEnd);
+    const lineDescription =
+      `מנוי KeepInTax - תוכנית ${planName}\n` +
+      `תקופת שירות: ${formattedPeriodStart} עד ${formattedPeriodEnd}`;
+
+    // TEMP DEBUG — remove once the period-end rendering bug is root-caused.
+    console.log('[TEMP DEBUG][createBillingSystemReceipt] raw periodStart:', periodStart,
+      'isDate:', periodStart instanceof Date, 'typeof:', typeof periodStart);
+    console.log('[TEMP DEBUG][createBillingSystemReceipt] raw periodEnd:', periodEnd,
+      'isDate:', periodEnd instanceof Date, 'typeof:', typeof periodEnd);
+    console.log('[TEMP DEBUG][createBillingSystemReceipt] formattedPeriodStart:', formattedPeriodStart);
+    console.log('[TEMP DEBUG][createBillingSystemReceipt] formattedPeriodEnd:', formattedPeriodEnd);
+    console.log('[TEMP DEBUG][createBillingSystemReceipt] final lineDescription:', lineDescription);
 
     const amountBeforeVatShekels = +(amountBeforeVatAgorot / 100).toFixed(2);
     const vatAmountShekels = +(vatAmountAgorot / 100).toFixed(2);
@@ -2100,11 +2187,13 @@ ${finalOwnerName}`;
     // the manual create-document flow relies on via this same helper).
     // First-ever receipt for this business uses the same standard starting
     // number any business gets for this docType (DEFAULT_INITIAL_DOC_INDEX) —
-    // not a business-specific override.
+    // not a business-specific override. This is a lock-free peek: createDoc()
+    // takes the real pessimistic_write lock and reserves the actual number,
+    // so a stale peek here is harmless (see createDoc's docNumber comment).
     const { docIndex, isInitial } = await this.getCurrentIndexes(
       systemUserId, DocumentType.TAX_INVOICE_RECEIPT, issuerBusinessNumber,
     );
-    const docNumber = String(isInitial ? DEFAULT_INITIAL_DOC_INDEX[DocumentType.TAX_INVOICE_RECEIPT] : docIndex);
+    const docNumber = String(isInitial ? initialReceiptIndex : docIndex);
 
     const docData = {
       issuerBusinessNumber,
@@ -2129,7 +2218,7 @@ ${finalOwnerName}`;
       docType: DocumentType.TAX_INVOICE_RECEIPT,
       lineNumber: '1',
       transType: '3',
-      description: planName,
+      description: lineDescription,
       unitType: UnitOfMeasure.UNIT,
       unitQuantity: 1,
       sumBefVatPerUnit: amountBeforeVatShekels,
@@ -2162,7 +2251,6 @@ ${finalOwnerName}`;
     };
   }
 
-
   // Save draft before SHAAM redirect
   async saveDraft(userId: string, data: any): Promise<Documents> {
     console.log('=== SAVING DRAFT TO DATABASE ===');
@@ -2172,7 +2260,7 @@ ${finalOwnerName}`;
     console.log('Lines Count:', data.linesData?.length || 0);
     console.log('Payments Count:', data.paymentData?.length || 0);
     console.log('Full docData:', JSON.stringify(data.docData, null, 2));
-    
+
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -2190,7 +2278,7 @@ ${finalOwnerName}`;
       const draftGeneralDocIndex = `D${String(shortHash).padStart(6, '0')}`;
       data.docData.generalDocIndex = draftGeneralDocIndex;
       console.log('Generated draft generalDocIndex:', draftGeneralDocIndex, '(from timestamp:', timestamp, ')');
-      
+
       // Update lines and payments with draft index
       if (data.linesData && Array.isArray(data.linesData)) {
         data.linesData.forEach(line => {
@@ -2205,7 +2293,7 @@ ${finalOwnerName}`;
 
       // 3. Set docStatus to DRAFT
       data.docData.docStatus = DocumentStatusType.DRAFT;
-      
+
       // 4. Set docNumber to temporary value (not incrementing real index)
       if (!data.docData.docNumber || data.docData.docNumber === '') {
         data.docData.docNumber = 'DRAFT';
@@ -2251,7 +2339,7 @@ ${finalOwnerName}`;
     console.log('Business Number:', issuerBusinessNumber);
     console.log('Document Type:', docType);
     console.log('User ID:', userId);
-    
+
     try {
       // Find draft document
       console.log('Querying database for draft document...');
@@ -2307,7 +2395,7 @@ ${finalOwnerName}`;
   // Delete draft (called before saving new draft or after creating document)
   async deleteDraft(userId: string, issuerBusinessNumber: string, docType: DocumentType, manager?: EntityManager): Promise<void> {
     try {
-      const repo = manager 
+      const repo = manager
         ? manager.getRepository(Documents)
         : this.documentsRepo;
 
@@ -2332,7 +2420,7 @@ ${finalOwnerName}`;
       }
 
       // Delete lines
-      const linesRepo = manager 
+      const linesRepo = manager
         ? manager.getRepository(DocLines)
         : this.docLinesRepo;
       await linesRepo.delete({
@@ -2342,7 +2430,7 @@ ${finalOwnerName}`;
       });
 
       // Delete payments
-      const paymentsRepo = manager 
+      const paymentsRepo = manager
         ? manager.getRepository(DocPayments)
         : this.docPaymentsRepo;
       await paymentsRepo.delete({
@@ -2561,6 +2649,20 @@ ${finalOwnerName}`;
   }
 
   /**
+   * Used for the subscription service-period text in billing receipt line items.
+   * Uses "." separators instead of "/" because the generated CardCom PDF mixes
+   * this Hebrew RTL text with the date, and "/" triggers bidi reordering that
+   * scrambles the digits (e.g. "24/07/2026" rendering as "62026/07/2").
+   */
+  private formatDateDotDDMMYYYY(dateInput: string | Date): string {
+    const date = new Date(dateInput);
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}.${month}.${year}`;
+  }
+
+  /**
    * Update document status
    */
   async updateDocStatus(
@@ -2633,7 +2735,7 @@ ${finalOwnerName}`;
     // inbox/processed sub-folders for businesses created pre-refactor).
     const business = await this.ensureBusinessAndSubFolders(user, businessNumber);
 
-    const inboxFolderId     = business.driveInboxFolderId!;
+    const inboxFolderId = business.driveInboxFolderId!;
     const processedFolderId = business.driveProcessedFolderId!;
 
     const files = await this.googleDriveService.listFolderFiles(inboxFolderId);
@@ -2649,8 +2751,8 @@ ${finalOwnerName}`;
     // retried so transient OCR failures can recover on the next pass.
     const existingRows = files.length
       ? await this.extractedDocRepo.find({
-          where: { driveFileId: In(files.map(f => f.id)) },
-        })
+        where: { driveFileId: In(files.map(f => f.id)) },
+      })
       : [];
     const existingByDriveId = new Map<string, ExtractedDocument[]>();
     for (const row of existingRows) {
@@ -2673,12 +2775,12 @@ ${finalOwnerName}`;
     );
     const priorMd5Rows = batchMd5s.length
       ? await this.extractedDocRepo.find({
-          where: {
-            businessNumber,
-            driveFileMd5: In(batchMd5s),
-            status: Not(In([ExtractedDocStatus.ERROR, ExtractedDocStatus.REJECTED])),
-          },
-        })
+        where: {
+          businessNumber,
+          driveFileMd5: In(batchMd5s),
+          status: Not(In([ExtractedDocStatus.ERROR, ExtractedDocStatus.REJECTED])),
+        },
+      })
       : [];
     const handledMd5ToFileId = new Map<string, string>();
     for (const row of priorMd5Rows) {
@@ -2775,6 +2877,7 @@ ${finalOwnerName}`;
         // row to avoid duplicating a potentially-large blob.
         for (let i = 0; i < invoices.length; i++) {
           const inv = invoices[i];
+          const normalizedDocumentType = this.normalizeDocumentType(inv.document_type);
           const normalizedCurrency = this.normalizeCurrency(inv.currency);
           // FX conversion: stamp the ILS-normalized amount on non-ILS docs
           // so MatchingService can compare doc.ilsAmount against the tx
@@ -2804,7 +2907,11 @@ ${finalOwnerName}`;
               // month if Claude couldn't parse the date.
               month: this.deriveMonthFromExtraction(inv.date, uploadDate),
               subIndex: i,
-              documentType: this.normalizeDocumentType(inv.document_type),
+              documentType: normalizedDocumentType,
+              // D8 (Phase 4.3): routing kind + catalog FK stamped at insert
+              // time — new docs no longer land with documentKind = NULL.
+              documentKind: deriveDocumentKind(normalizedDocumentType),
+              subCategoryId: this.matchCatalogSubCategoryId(catalog, inv.category, inv.sub_category),
               uploadDate,
               supplier: inv.supplier ?? null,
               supplierId: inv.supplier_id ?? null,
@@ -3015,30 +3122,7 @@ ${finalOwnerName}`;
       { status: targetStatus },
     );
 
-    // Matched row: also reset the slim transaction so the bank tx isn't
-    // left dangling with matchedDocumentId pointing at an archived doc.
-    // Without this, the next preview's matcher filter (matchedDocumentId
-    // IS NULL) would skip the slim row forever — the tx silently vanishes.
-    // Setting isRecognized=false also removes it from the review modal's
-    // tx_only column; the user can re-classify from the dashboard if they
-    // change their mind. (For non-matched rows, doc.matchedTransactionId
-    // is null and this block no-ops.)
-    if (doc.matchedTransactionId) {
-      await this.slimTransactionRepo.update(
-        { id: doc.matchedTransactionId },
-        { matchedDocumentId: null, isRecognized: false },
-      );
-    }
-
-    // Paired row: cascade the terminal status to the partner so an
-    // archived/rejected receipt doesn't leave its sibling invoice stuck
-    // in status=PAIRED with no primary to act on.
-    if (doc.pairedWithDocumentId) {
-      await this.extractedDocRepo.update(
-        { id: doc.pairedWithDocumentId },
-        { status: targetStatus },
-      );
-    }
+    await this.resetMatchedSlimAndCascadePair(doc, targetStatus);
 
     // No Drive move on archive/reject: the file stays in processed/
     // forever. The DB `status` column is the source of truth for what
@@ -3046,6 +3130,114 @@ ${finalOwnerName}`;
     // anyone reads. `movedFile` stays in the response shape for callers
     // that still read it (will always be false now).
     return { ok: true, documentId, movedFile: false };
+  }
+
+  /**
+   * Shared tail of every doc-terminal transition (archive / reject /
+   * file-as-annual), factored out of archiveDocument (Phase 4.3):
+   *
+   * Matched row: reset the slim transaction so the bank tx isn't left
+   * dangling with matchedDocumentId pointing at a terminal doc. Without
+   * this, the next preview's matcher filter (matchedDocumentId IS NULL)
+   * would skip the slim row forever — the tx silently vanishes. Setting
+   * isRecognized=false also removes it from the review modal's tx_only
+   * column; the user can re-classify from the dashboard if they change
+   * their mind. (For non-matched rows this no-ops.)
+   *
+   * Paired row: cascade the terminal status to the partner so a terminal
+   * receipt doesn't leave its sibling invoice stuck in status=PAIRED with
+   * no primary to act on.
+   */
+  private async resetMatchedSlimAndCascadePair(
+    doc: ExtractedDocument,
+    targetStatus: ExtractedDocStatus,
+  ): Promise<void> {
+    if (doc.matchedTransactionId) {
+      await this.slimTransactionRepo.update(
+        { id: doc.matchedTransactionId },
+        { matchedDocumentId: null, isRecognized: false },
+      );
+    }
+    if (doc.pairedWithDocumentId) {
+      await this.extractedDocRepo.update(
+        { id: doc.pairedWithDocumentId },
+        { status: targetStatus },
+      );
+    }
+  }
+
+  /**
+   * D8 "תייק" (Phase 4.3, minimal per Elazar's decision): file a document
+   * for the ANNUAL report instead of a periodic one. Terminal state on the
+   * extracted_document only — NEVER creates an expense or journal entry;
+   * the Drive file stays in processed/. Filed docs remain queryable by
+   * (documentKind=ANNUAL_DOCUMENT, status=NOT_AN_EXPENSE); the
+   * annual_report_file bridge is deferred to Phase 6.
+   *
+   * Idempotent: re-filing an already-filed doc is a no-op.
+   */
+  async fileDocumentAsAnnual(
+    firebaseId: string,
+    documentId: number,
+  ): Promise<{ ok: true; documentId: number }> {
+    const user = await this.userRepo.findOne({ where: { firebaseId } });
+    if (!user) throw new NotFoundException(`User not found for firebaseId`);
+
+    const doc = await this.extractedDocRepo.findOne({ where: { id: documentId } });
+    if (!doc) throw new NotFoundException(`Extracted document #${documentId} not found`);
+    if (doc.userId !== user.index) {
+      throw new HttpException('Not your document', HttpStatus.FORBIDDEN);
+    }
+    if (doc.status === ExtractedDocStatus.NOT_AN_EXPENSE) {
+      return { ok: true, documentId };
+    }
+    if (doc.status === ExtractedDocStatus.APPROVED) {
+      throw new BadRequestException(
+        'המסמך כבר אושר כהוצאה — יש לבטל את האישור לפני תיוק לדוח השנתי',
+      );
+    }
+
+    await this.extractedDocRepo.update(
+      { id: documentId },
+      {
+        status: ExtractedDocStatus.NOT_AN_EXPENSE,
+        documentKind: DocumentKind.ANNUAL_DOCUMENT,
+      },
+    );
+    await this.resetMatchedSlimAndCascadePair(doc, ExtractedDocStatus.NOT_AN_EXPENSE);
+    return { ok: true, documentId };
+  }
+
+  /**
+   * D8 triage (Phase 4.3): manually re-kind a PENDING_REVIEW document —
+   * e.g. an UNIDENTIFIED contract the user recognizes as an expense
+   * invoice, or a mis-typed 106 form. Restricted to PENDING_REVIEW rows:
+   * terminal rows' kind is part of how they were resolved.
+   */
+  async setDocumentKind(
+    firebaseId: string,
+    documentId: number,
+    documentKind: DocumentKind,
+  ): Promise<{ ok: true; documentId: number; documentKind: DocumentKind }> {
+    if (!Object.values(DocumentKind).includes(documentKind)) {
+      throw new BadRequestException(`documentKind לא חוקי: ${documentKind}`);
+    }
+    const user = await this.userRepo.findOne({ where: { firebaseId } });
+    if (!user) throw new NotFoundException(`User not found for firebaseId`);
+
+    const doc = await this.extractedDocRepo.findOne({ where: { id: documentId } });
+    if (!doc) throw new NotFoundException(`Extracted document #${documentId} not found`);
+    if (doc.userId !== user.index) {
+      throw new HttpException('Not your document', HttpStatus.FORBIDDEN);
+    }
+    if (doc.status !== ExtractedDocStatus.PENDING_REVIEW) {
+      throw new BadRequestException(
+        `ניתן לשנות סוג מסמך רק למסמך בהמתנה לבדיקה (status=${doc.status})`,
+      );
+    }
+
+    await this.extractedDocRepo.update({ id: documentId }, { documentKind });
+    return { ok: true, documentId, documentKind };
   }
 
   /**
@@ -3074,7 +3266,7 @@ ${finalOwnerName}`;
     const user = await this.userRepo.findOne({ where: { firebaseId } });
     if (!user) throw new NotFoundException(`User not found for firebaseId`);
     const business = await this.ensureBusinessAndSubFolders(user, businessNumber);
-    const inboxFolderId     = business.driveInboxFolderId!;
+    const inboxFolderId = business.driveInboxFolderId!;
     const processedFolderId = business.driveProcessedFolderId!;
 
     // 1) Drop the file in inbox/ so it ends up in the same Drive layout
@@ -3131,6 +3323,10 @@ ${finalOwnerName}`;
           month: this.deriveMonthFromExtraction(inv.date, uploadDate),
           subIndex: i,
           documentType: this.normalizeDocumentType(inv.document_type),
+          // D8 (Phase 4.3): routing kind + catalog FK at insert time — same
+          // rule as the batch inbox path.
+          documentKind: deriveDocumentKind(this.normalizeDocumentType(inv.document_type)),
+          subCategoryId: this.matchCatalogSubCategoryId(catalog, inv.category, inv.sub_category),
           uploadDate,
           supplier: inv.supplier ?? null,
           supplierId: inv.supplier_id ?? null,
@@ -3167,6 +3363,63 @@ ${finalOwnerName}`;
   }
 
   /**
+   * Drop one or more user-picked files straight into the business's Drive
+   * inbox/ folder — no OCR, no extracted_document row. Used by the
+   * settings-page "העלאת מסמכים ל-Drive" button and the Home Quick Upload
+   * dialog, where the user just wants files sitting in Drive (e.g. for an
+   * accountant to browse, or to be picked up later by `processInboxForUser`).
+   *
+   * Only PDF / JPEG / PNG are accepted — both MIME type and file extension
+   * must match (defense in depth vs. the frontend accept/filter).
+   */
+  async uploadFilesToInbox(
+    firebaseId: string,
+    businessNumber: string,
+    files: { buffer: Buffer; originalname: string; mimetype: string }[],
+  ): Promise<{ fileId: string; fileName: string }[]> {
+    const user = await this.userRepo.findOne({ where: { firebaseId } });
+    if (!user) throw new NotFoundException(`User not found for firebaseId`);
+    const business = await this.ensureBusinessAndSubFolders(user, businessNumber);
+    const inboxFolderId = business.driveInboxFolderId!;
+
+    const uploaded: { fileId: string; fileName: string }[] = [];
+    for (const file of files) {
+      this.assertAllowedInboxUploadFile(file);
+      const fileId = await this.googleDriveService.uploadFile(
+        inboxFolderId,
+        file.originalname,
+        file.buffer,
+        file.mimetype,
+      );
+      uploaded.push({ fileId, fileName: file.originalname });
+    }
+    return uploaded;
+  }
+
+  /** Whitelist for direct inbox uploads (Home Quick Upload / Settings). */
+  private static readonly INBOX_UPLOAD_MIME_BY_EXT: Record<string, readonly string[]> = {
+    '.pdf': ['application/pdf'],
+    '.jpg': ['image/jpeg'],
+    '.jpeg': ['image/jpeg'],
+    '.png': ['image/png'],
+  };
+
+  private assertAllowedInboxUploadFile(file: {
+    originalname: string;
+    mimetype: string;
+  }): void {
+    const name = file.originalname?.trim() || '';
+    const ext = path.extname(name).toLowerCase();
+    const mime = (file.mimetype || '').toLowerCase().trim();
+    const allowedMimes = DocumentsService.INBOX_UPLOAD_MIME_BY_EXT[ext];
+    if (!allowedMimes || !mime || !allowedMimes.includes(mime)) {
+      throw new BadRequestException(
+        `Unsupported file type: "${name || 'unknown'}". Allowed: PDF, JPG, JPEG, PNG.`,
+      );
+    }
+  }
+
+  /**
    * One-shot OCR for a single file uploaded directly from the UI (manual
    * expense dialog). Unlike `processInboxForUser` this does NOT persist
    * anything — it just runs Claude on the buffer and returns the first
@@ -3200,41 +3453,48 @@ ${finalOwnerName}`;
   /**
    * Build the sub-category catalog passed to Claude for classification AND
    * served to the frontend so the review dialog can render dropdowns sourced
-   * from the same list. Combines system defaults (DefaultSubCategory) with
-   * this user/business's overrides (UserSubCategory). Overrides win on
-   * duplicate subCategoryName. Filters out non-expense entries.
+   * from the same list. Ported to CatalogService's merged catalog (D1/D4)
+   * in the same 2.4 legacy-DTO-shape strategy — CLIENT > ACCOUNTANT > SYSTEM
+   * by name, EXPENSE categories only. Since 5.1 `firebaseId` is load-bearing:
+   * it drives the delegation lookup that adds the client's ACCOUNTANT chart
+   * layer to the merge.
    */
   async buildExtractionCatalog(
     firebaseId: string,
     businessNumber: string,
   ): Promise<CatalogEntry[]> {
-    const [defaults, userOverrides] = await Promise.all([
-      this.defaultSubCategoryRepo.find({ where: { isExpense: true } }),
-      this.userSubCategoryRepo.find({
-        where: { firebaseId, businessNumber, isExpense: true },
-      }),
-    ]);
+    const subCategories = await this.catalogService.getMergedExpenseCatalog(
+      await this.catalogContextService.forUser(firebaseId, businessNumber),
+    );
+    return subCategories.map((sub) => ({
+      subCategoryName: sub.name,
+      categoryName: sub.category?.name ?? '',
+      taxPercent: Number(sub.account?.taxPercent ?? 0),
+      vatPercent: Number(sub.account?.vatPercent ?? 0),
+      isEquipment: !!sub.account?.isEquipment,
+      subCategoryId: sub.id,
+    }));
+  }
 
-    const byName = new Map<string, CatalogEntry>();
-    for (const d of defaults) {
-      byName.set(d.subCategoryName, {
-        subCategoryName: d.subCategoryName,
-        categoryName: d.categoryName,
-        taxPercent: Number(d.taxPercent),
-        vatPercent: Number(d.vatPercent),
-        isEquipment: !!d.isEquipment,
-      });
-    }
-    for (const u of userOverrides) {
-      byName.set(u.subCategoryName, {
-        subCategoryName: u.subCategoryName,
-        categoryName: u.categoryName,
-        taxPercent: Number(u.taxPercent),
-        vatPercent: Number(u.vatPercent),
-        isEquipment: !!u.isEquipment,
-      });
-    }
-    return Array.from(byName.values());
+  /**
+   * D8 (Phase 4.3): name-match Claude's returned (category, sub_category)
+   * pair back to the SAME in-memory catalog it classified from, so the
+   * extracted row gets a concrete subCategoryId at insert time. Claude
+   * classifies FROM this catalog, so a hit is the normal case; misses
+   * (hallucinated / free-text answers) stay NULL.
+   */
+  private matchCatalogSubCategoryId(
+    catalog: CatalogEntry[],
+    category: string | null | undefined,
+    subCategory: string | null | undefined,
+  ): number | null {
+    const subName = subCategory?.trim();
+    if (!subName) return null;
+    const bySubName = catalog.filter((c) => c.subCategoryName === subName);
+    if (bySubName.length === 0) return null;
+    const catName = category?.trim();
+    const exact = catName ? bySubName.find((c) => c.categoryName === catName) : undefined;
+    return (exact ?? bySubName[0]).subCategoryId ?? null;
   }
 
   private async saveErrorRow(
@@ -3321,8 +3581,8 @@ ${finalOwnerName}`;
 
     const suppliers = supplierIds.length
       ? await this.supplierRepo.find({
-          where: { userId: firebaseId, supplierID: In(supplierIds) },
-        })
+        where: { userId: firebaseId, supplierID: In(supplierIds) },
+      })
       : [];
     const supplierById = new Map(suppliers.map(s => [s.supplierID, s]));
 
@@ -3330,6 +3590,62 @@ ${finalOwnerName}`;
       ...d,
       matchedSupplier: d.supplierId ? (supplierById.get(d.supplierId) ?? null) : null,
     }));
+  }
+
+  /**
+   * All rows for this user+business, for the ארכיון מסמכים tab. PAIRED rows
+   * (secondary half of an invoice<->receipt pair) are excluded — they're
+   * intentionally hidden everywhere, same as the review modal. Previously
+   * this only returned `status = archived` rows, which meant the tab showed
+   * nothing for the overwhelming majority of real businesses (documents
+   * mostly end up APPROVED or PENDING_REVIEW, rarely explicitly archived) —
+   * broadened so every document is visible, distinguished by `archiveStatus`.
+   */
+  async getArchivedForUser(
+    firebaseId: string,
+    businessNumber: string,
+  ): Promise<Array<ExtractedDocument & { archiveStatus: DocumentArchiveStatus }>> {
+    const user = await this.userRepo.findOne({ where: { firebaseId } });
+    if (!user) throw new NotFoundException(`User not found for firebaseId`);
+
+    const docs = await this.extractedDocRepo
+      .createQueryBuilder('d')
+      .where('d.userId = :uid', { uid: user.index })
+      .andWhere('d.businessNumber = :bn', { bn: businessNumber })
+      .andWhere('d.status != :paired', { paired: ExtractedDocStatus.PAIRED })
+      .orderBy('d.date', 'DESC')
+      .addOrderBy('d.id', 'DESC')
+      .getMany();
+
+    const expenseIds = Array.from(
+      new Set(docs.map(d => d.confirmedExpenseId).filter((id): id is number => id != null)),
+    );
+    const expenses = expenseIds.length
+      ? await this.expenseRepo.find({ where: { id: In(expenseIds) }, select: ['id', 'approvalStatus'] })
+      : [];
+    const approvalStatusByExpenseId = new Map(expenses.map(e => [e.id, e.approvalStatus]));
+
+    return docs.map(d => ({
+      ...d,
+      archiveStatus: this.deriveArchiveStatus(d, approvalStatusByExpenseId),
+    }));
+  }
+
+  /**
+   * See DocumentArchiveStatus (src/enum.ts) for the priority rules this
+   * implements: REJECTED > FILED_ANNUAL > APPROVED_EXPENSE > IN_PROGRESS.
+   */
+  private deriveArchiveStatus(
+    doc: ExtractedDocument,
+    approvalStatusByExpenseId: Map<number, ExpenseApprovalStatus | null>,
+  ): DocumentArchiveStatus {
+    if (doc.status === ExtractedDocStatus.REJECTED) return DocumentArchiveStatus.REJECTED;
+    if (doc.status === ExtractedDocStatus.NOT_AN_EXPENSE) return DocumentArchiveStatus.FILED_ANNUAL;
+    const linkedApprovalStatus = doc.confirmedExpenseId != null
+      ? approvalStatusByExpenseId.get(doc.confirmedExpenseId)
+      : null;
+    if (linkedApprovalStatus === ExpenseApprovalStatus.APPROVED) return DocumentArchiveStatus.APPROVED_EXPENSE;
+    return DocumentArchiveStatus.IN_PROGRESS;
   }
 
 }

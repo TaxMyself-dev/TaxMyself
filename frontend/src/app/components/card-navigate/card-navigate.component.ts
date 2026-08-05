@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, input, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, input, OnInit, output } from '@angular/core';
 import { Router } from '@angular/router';
 import { CardModule } from 'primeng/card';
 import { IItemNavigate } from 'src/app/shared/interface';
@@ -11,31 +11,17 @@ import { RouterModule } from '@angular/router';
   imports: [CardModule, RouterModule],
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush
-  
 })
-export class CardNavigateComponent  implements OnInit {
- cardItem = input<IItemNavigate>();
- router = inject(Router);
-  constructor() { }
+export class CardNavigateComponent implements OnInit {
+  cardItem = input<IItemNavigate>();
+  /** When true, all clicks are emitted via cardClick — caller owns navigation and access handling. */
+  controlledNavigation = input<boolean>(false);
+  /** Fires on every click when controlledNavigation=true. */
+  cardClick = output<void>();
+
+  router = inject(Router);
+
+  constructor() {}
 
   ngOnInit() {}
-
-  // onButtonClicked(selectedItem: IItemNavigate): void {
-  //   console.log("onButtonClicked");
-    
-  //   // if (selectedItem.link === "/add-expenses") {
-  //   //   this.openModalAddExpense();
-  //   //   return;
-  //   // }
-  //   if (selectedItem.link != "" ){
-  //     this.router.navigate([selectedItem.link])
-  //   }
-  //     // For add class to selected item
-  //     // this.navigationItems.forEach((item: IItemNavigate) => 
-  //     // item.selected = item.name === selectedItem.name
-  //     // )
-    
-  //   // this.onNavButtonClicked.emit(selectedItem);
-  // }
-
 }
