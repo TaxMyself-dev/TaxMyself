@@ -1191,31 +1191,30 @@ export class ReportReviewPage implements OnInit {
         this.messageService.add({
           severity: 'success', summary: 'הצלחה', detail: 'פרטי הספק נשמרו', life: 3000, key: 'br',
         });
-        row.supplier = payload.supplier;
-        row.supplierId = payload.supplierID ?? '';
-        row.supplierStatusLabel = 'ספק מוכר';
         this.suppliersCache = null;
 
         const entry = draft.subCategoryId != null
           ? this.catalog().find(c => c.subCategoryId === draft.subCategoryId)
           : undefined;
-        const siblings = this.findSupplierSiblingRows(payload.supplierID ?? '', payload.supplier);
-        this.bumpRows();
-
-        if (siblings.length === 0) {
-          this.closeSupplierDialog();
-          return;
-        }
-        this.runSupplierCascade(siblings, entry, draft.category);
+        // The triggering row always goes first — unconditionally, NOT
+        // gated behind findSupplierSiblingRows matching it. A doc/matched
+        // row with no supplierID would otherwise fail its own self-match
+        // (the matching rule requires a non-empty identity) and never get
+        // updated at all, even though it's the exact row the user just
+        // edited. Siblings are everything else the identity search finds.
+        const siblings = this.findSupplierSiblingRows(payload.supplierID ?? '', payload.supplier)
+          .filter(r => r !== row);
+        this.runSupplierCascade([row, ...siblings], entry, draft, payload.supplier, payload.supplierID ?? '');
       });
   }
 
-  /** Every CURRENT row matching the just-saved supplier's identity — doc/
-   *  matched rows by supplierId (trimmed, exact), tx_only rows by
+  /** Every OTHER current row matching the just-saved supplier's identity —
+   *  doc/matched rows by supplierId (trimmed, exact), tx_only rows by
    *  normalized name (they never carry a supplierId). Empty identity on
    *  either side never matches (guards against every empty-supplierId
-   *  cash-vendor row falsely matching each other). Includes the row that
-   *  triggered the dialog — it matches its own just-saved identity too. */
+   *  cash-vendor row falsely matching each other). Doesn't special-case
+   *  the triggering row — the caller adds it separately, unconditionally
+   *  (see onSupplierDialogSave). */
   private findSupplierSiblingRows(supplierId: string, supplierName: string): EditableReviewRow[] {
     const sid = supplierId?.trim();
     const sname = this.normalizeSupplierName(supplierName);
@@ -1227,27 +1226,92 @@ export class ReportReviewPage implements OnInit {
     });
   }
 
+  /**
+   * Applies a supplier-management-dialog draft's classification onto a
+   * review row — the ONE function used both for the row that triggered
+   * the dialog and for every cascade sibling in runSupplierCascadeStep
+   * (no separate implementations). Deliberately NOT applyCatalogRow/
+   * clearClassification (used by the expense edit dialog, where percents
+   * always come from the picked catalog entry) — the supplier form lets
+   * the user override vatPercent/taxPercent/isEquipment to a value fixed
+   * for THIS supplier, independent of whatever the picked sub_category's
+   * own catalog law says. So: category/subCategory/subCategoryId/
+   * section/account fields still come from `entry` (or clear to
+   * UNCLASSIFIED when no category was picked in the supplier form —
+   * nothing in that dialog blocks saving without one); vatPercent/
+   * taxPercent/isEquipment ALWAYS come straight from `draft`, entry or
+   * not.
+   */
+  private applySupplierClassification(
+    row: EditableReviewRow,
+    entry: CatalogRow | undefined,
+    draft: SupplierDraft,
+  ): void {
+    if (entry) {
+      row.category = entry.category ?? '';
+      row.subCategory = entry.subCategory;
+      row.subCategoryId = entry.subCategoryId;
+      row.sectionName = entry.sectionName ?? '';
+      row.accountId = entry.accountId;
+      row.accountCode = entry.accountCode ?? '';
+      row.accountName = entry.accountName ?? '';
+      row.accountLabel = entry.accountName ? `${entry.accountName} (${entry.accountCode})` : '';
+      row.mappingStatus = entry.isPrivate
+        ? 'PRIVATE'
+        : entry.accountId != null && entry.approvalStatus === 'APPROVED'
+          ? 'READY'
+          : 'MISSING_MAPPING';
+      row.mappedByAccountant = entry.ownerType === 'ACCOUNTANT';
+      row.reductionPercent = Number(entry.reductionPercent ?? 0);
+    } else {
+      row.category = draft.category;
+      row.subCategory = '';
+      row.subCategoryId = null;
+      row.sectionName = '';
+      row.accountId = null;
+      row.accountCode = '';
+      row.accountName = '';
+      row.accountLabel = '';
+      row.mappingStatus = 'UNCLASSIFIED';
+      row.mappedByAccountant = false;
+      row.reductionPercent = 0;
+    }
+    // Always from the draft, regardless of whether entry was found — the
+    // whole point of the supplier form's percent fields is a per-supplier
+    // override independent of the picked sub_category's own catalog law.
+    row.vatPercent = draft.vatPercent;
+    row.taxPercent = draft.taxPercent;
+    row.isEquipment = draft.isEquipment;
+    row.description = row.subCategoryId != null
+      ? `${row.category}/${row.subCategory}`
+      : (this.documentTypeLabel(row.documentType) || 'מסמך לא מזוהה');
+  }
+
   /** Sequential (not parallel — same DB back-pressure reasoning as
-   *  runBulkQueue) update of every matching row's classification, each
-   *  persisted via update-doc/update-tx. A single row's failure doesn't
-   *  stop the rest — it's flagged with saveStatus/saveError (same as
-   *  runAction) and the cascade moves on. Closes the dialog only once
-   *  every row has been attempted. */
+   *  runBulkQueue) update of every matching row (trigger row first, then
+   *  siblings), each persisted via update-doc/update-tx. A single row's
+   *  failure doesn't stop the rest — it's flagged with saveStatus/
+   *  saveError (same as runAction) and the cascade moves on. Closes the
+   *  dialog only once every row has been attempted. */
   private runSupplierCascade(
     rows: EditableReviewRow[],
     entry: CatalogRow | undefined,
-    draftCategory: string,
+    draft: SupplierDraft,
+    supplierName: string,
+    supplierId: string,
   ): void {
     this.markSupplierTouched(rows[0]);
     this.supplierCascadeProgress.set({ done: 0, total: rows.length });
-    this.runSupplierCascadeStep(rows, 0, entry, draftCategory, { succeeded: 0, failed: 0 });
+    this.runSupplierCascadeStep(rows, 0, entry, draft, supplierName, supplierId, { succeeded: 0, failed: 0 });
   }
 
   private runSupplierCascadeStep(
     rows: EditableReviewRow[],
     idx: number,
     entry: CatalogRow | undefined,
-    draftCategory: string,
+    draft: SupplierDraft,
+    supplierName: string,
+    supplierId: string,
     stats: { succeeded: number; failed: number },
   ): void {
     if (idx >= rows.length) {
@@ -1265,8 +1329,10 @@ export class ReportReviewPage implements OnInit {
     }
 
     const row = rows[idx];
-    if (entry) this.applyCatalogRow(row, entry);
-    else this.clearClassification(row, draftCategory);
+    row.supplier = supplierName;
+    row.supplierId = supplierId;
+    row.supplierStatusLabel = 'ספק מוכר';
+    this.applySupplierClassification(row, entry, draft);
     row.saveStatus = 'pending';
     this.supplierCascadeProgress.set({ done: idx, total: rows.length });
     this.bumpRows();
@@ -1298,7 +1364,7 @@ export class ReportReviewPage implements OnInit {
           row.saveError = null;
           stats.succeeded++;
         }
-        this.runSupplierCascadeStep(rows, idx + 1, entry, draftCategory, stats);
+        this.runSupplierCascadeStep(rows, idx + 1, entry, draft, supplierName, supplierId, stats);
       });
   }
 
