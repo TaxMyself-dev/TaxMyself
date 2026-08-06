@@ -655,12 +655,16 @@ export class ReportReviewPage implements OnInit {
       reductionPercent: Number(c.reductionPercent ?? 0),
       reportPeriod: this.derivePeriod(date),
       reportPeriodOverridden: false,
-      // Supplier-known/new is a doc-side concept; tx_only rows have a
-      // merchant (from the bank statement) but no Supplier-table linkage.
+      // Doc-side matches by supplierId (tax ID); tx_only rows have no
+      // supplierId (bank feed only gives a raw merchant name) so they fall
+      // back to a name-based match computed backend-side (see
+      // getReportPreview's knownSupplierByName in report-review.service.ts).
       supplierStatusLabel:
         docSide != null
           ? (docSide.matchedSupplierKnown ? 'ספק מוכר' : 'ספק חדש')
-          : null,
+          : txSide != null
+            ? (txSide.matchedSupplierKnown ? 'ספק מוכר' : 'ספק חדש')
+            : null,
       // Always true — the in-table opt-out toggle was removed; approving
       // a "ספק חדש" row always attempts find-or-create against the
       // Supplier table now (users manage the record explicitly via the
@@ -930,20 +934,33 @@ export class ReportReviewPage implements OnInit {
     );
   }
 
+  /** Case-insensitive, trimmed name key — mirrors the backend's
+   *  normalizeSupplierName (backend/src/reports/supplier-name.util.ts).
+   *  toLowerCase() is a no-op on Hebrew (no case), so this is safe for
+   *  Hebrew/Latin/mixed names alike. */
+  private normalizeSupplierName(name: string | null | undefined): string {
+    return (name ?? '').trim().toLowerCase();
+  }
+
   /** Bookmark click — "ספק מוכר" loads the persisted Supplier record for
-   *  editing; "ספק חדש" opens a blank(ish) form seeded from the row. */
+   *  editing; "ספק חדש" opens a blank(ish) form seeded from the row.
+   *  doc/matched rows match by supplierId (tax ID); tx_only rows have no
+   *  supplierId (bank feed only gives a raw merchant name) so they match
+   *  by normalized name instead — same rule the backend just used to
+   *  decide this row's "ספק מוכר" status in the first place. */
   openSupplierDialog(row: EditableReviewRow): void {
     this.supplierDialogRow = row;
     this.supplierDialogSaving.set(false);
 
-    const sid = row.supplierId?.trim();
-    if (row.supplierStatusLabel === 'ספק מוכר' && sid) {
+    if (row.supplierStatusLabel === 'ספק מוכר') {
       this.supplierDialogMode.set('edit');
       this.supplierDialogId = null;
       this.supplierDraft.set(null);
       this.ensureSuppliersLoaded().subscribe(list => {
         this.suppliersCache = list;
-        const match = list.find(s => (s.supplierID ?? '').trim() === sid);
+        const match = row.type === 'tx_only'
+          ? list.find(s => this.normalizeSupplierName(s.supplier) === this.normalizeSupplierName(row.supplier))
+          : list.find(s => (s.supplierID ?? '').trim() === row.supplierId.trim());
         if (match) {
           this.supplierDialogId = match.id;
           this.supplierDraft.set(this.toSupplierDraft(match));

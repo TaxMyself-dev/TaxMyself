@@ -28,6 +28,7 @@ import { CatalogService } from '../bookkeeping/catalog.service';
 import { CatalogContextService } from '../bookkeeping/catalog-context.service';
 import { SubCategory } from '../bookkeeping/sub-category.entity';
 import { buildExpenseDescription } from '../expenses/expense-description.util';
+import { normalizeSupplierName } from './supplier-name.util';
 import { ApprovalStatus, BusinessType, DocumentKind, OwnerType, VATReportingType } from '../enum';
 import { MatchingService } from './matching.service';
 import {
@@ -423,19 +424,37 @@ export class ReportReviewService {
 
     // Third pass: tx_only — every eligible tx not consumed above (only in
     // with_banking mode; documents_only never sees transactions).
-    if (mode === 'with_banking') {
-      for (const { slim, cache } of txCacheRows) {
-        if (matchedTxIds.has(slim.id)) continue;
-        const transaction = this.toTxSummary(slim, cache);
-        rows.push({
-          type: 'tx_only',
-          transaction,
-          classification: this.classifyReviewRow(mergedCatalog, firebaseId, {
-            category: transaction.category,
-            subCategory: transaction.subCategory,
-          }, null),
-        });
-      }
+    const pendingTxRows = mode === 'with_banking'
+      ? txCacheRows.filter(r => !matchedTxIds.has(r.slim.id))
+      : [];
+
+    // Supplier lookup for tx_only rows: a raw bank transaction has no
+    // supplierId (that's a doc-side concept), only a merchant name — so
+    // "ספק מוכר" here needs a name-based fallback. Deliberately NOT the
+    // same knownSuppliers list above (that one is scoped to docSupplierIds
+    // — a supplier with no pending doc THIS round would never appear
+    // there, which would make this fallback miss the common case of a
+    // recurring bank-only vendor). One extra batched query — not per-row —
+    // only run when there's actually a tx_only row to resolve.
+    const allBusinessSuppliers = pendingTxRows.length > 0
+      ? await this.supplierRepo.find({ where: { businessNumber } })
+      : [];
+    const knownSupplierByName = new Map<string, Supplier>();
+    for (const s of allBusinessSuppliers) {
+      const key = normalizeSupplierName(s.supplier);
+      if (key) knownSupplierByName.set(key, s);
+    }
+
+    for (const { slim, cache } of pendingTxRows) {
+      const transaction = this.toTxSummary(slim, cache, knownSupplierByName);
+      rows.push({
+        type: 'tx_only',
+        transaction,
+        classification: this.classifyReviewRow(mergedCatalog, firebaseId, {
+          category: transaction.category,
+          subCategory: transaction.subCategory,
+        }, null),
+      });
     }
 
     return {
@@ -1352,7 +1371,16 @@ export class ReportReviewService {
 
   /** Slim+cache → wire shape. Amount is the positive ILS value; original
    *  currency is surfaced separately so the modal can show "$50 (₪185)". */
-  private toTxSummary(slim: SlimTransaction, cache: FullTransactionCache): ReviewTxSummary {
+  /** knownSupplierByName is only passed for tx_only rows (see the third
+   *  pass below) — a raw bank merchant has no supplierId to match on, so
+   *  matchedSupplierKnown falls back to a name comparison there. Matched-
+   *  row calls omit it (the frontend derives supplierStatusLabel from the
+   *  doc side for those), so it defaults to false and is simply unused. */
+  private toTxSummary(
+    slim: SlimTransaction,
+    cache: FullTransactionCache,
+    knownSupplierByName?: Map<string, Supplier>,
+  ): ReviewTxSummary {
     const isNonIls = cache.currency && cache.currency !== 'ILS';
     return {
       slimTransactionId: slim.id,
@@ -1367,6 +1395,9 @@ export class ReportReviewService {
       isEquipment: slim.isEquipment,
       originalAmount: isNonIls ? Math.abs(Number(cache.amount)) : null,
       originalCurrency: isNonIls ? cache.currency : null,
+      matchedSupplierKnown: knownSupplierByName
+        ? knownSupplierByName.has(normalizeSupplierName(cache.merchantName))
+        : false,
     };
   }
 

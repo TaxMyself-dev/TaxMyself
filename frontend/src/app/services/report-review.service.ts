@@ -63,6 +63,12 @@ export interface ReviewTxSummary {
   isEquipment: boolean;
   originalAmount: number | null;
   originalCurrency: string | null;
+  /** True when the transaction's merchant name matches (case-insensitive,
+   *  trimmed) a row in the user's Supplier table — the tx_only equivalent
+   *  of ReviewDocSummary.matchedSupplierKnown (which matches by tax ID
+   *  instead, since a raw bank transaction has no supplierId). Drives the
+   *  "ספק מוכר / ספק חדש" bookmark on tx_only rows. */
+  matchedSupplierKnown: boolean;
 }
 
 /** D9 mapping verdict for a row's current classification (Phase 6.1). */
@@ -159,8 +165,10 @@ export interface ReviewOverrides {
   isEquipment?: boolean;
   reportPeriod?: string;
   /** Per-row opt-out for adding the supplier to the user's master list.
-   *  Backend defaults to true when undefined. The review modal toggles
-   *  this via the red flag icon on rows where the supplier is new. */
+   *  Backend defaults to true when undefined. The review page currently
+   *  always sends true — the in-table opt-out toggle was removed in favor
+   *  of the supplier bookmark's create/edit dialog — kept for backend
+   *  compatibility. */
   saveAsSupplier?: boolean;
   /** Acknowledges a soft duplicate (same supplier/sum/date, different or
    *  missing document number). Sent as true after the user confirms "save
