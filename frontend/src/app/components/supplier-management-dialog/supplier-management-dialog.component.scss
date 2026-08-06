@@ -55,6 +55,12 @@
 
 .supplier-dialog-footer {
   display: flex;
+  align-items: center;
   gap: 10px;
   justify-content: flex-end;
+}
+.supplier-dialog-progress {
+  margin-inline-end: auto;
+  font-size: 0.85rem;
+  color: #6b7280;
 }

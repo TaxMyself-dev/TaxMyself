@@ -51,6 +51,11 @@ export class SupplierManagementDialogComponent {
   /** Pre-filtered by the caller for the current fields.category. */
   @Input() subCategoryOptions: string[] = [];
   @Input() isSaving = false;
+  /** Non-null while the caller is running the post-save supplier cascade
+   *  (updating every other row sharing this supplier) — e.g. "מעדכן 3/12
+   *  שורות...". Replaces the footer buttons with this text and blocks
+   *  Cancel/Save until the cascade finishes. */
+  @Input() progressLabel: string | null = null;
 
   @Output() visibleChange = new EventEmitter<boolean>();
   @Output() save = new EventEmitter<void>();

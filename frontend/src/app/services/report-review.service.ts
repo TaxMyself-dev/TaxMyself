@@ -196,6 +196,34 @@ export interface ReviewOverrides {
   amount?: number;
 }
 
+/**
+ * Fields the review edit dialog can persist directly onto a pending
+ * document BEFORE approval (see ReportReviewService.updateDocFields on
+ * the backend) — every ReviewOverrides field that actually has a backing
+ * column on ExtractedDocument. Excludes saveAsSupplier/
+ * acknowledgeDuplicate (approve-time-only behavior flags).
+ */
+export type UpdateDocFields = Pick<ReviewOverrides,
+  | 'category' | 'subCategory' | 'subCategoryId'
+  | 'vatPercent' | 'taxPercent' | 'isEquipment'
+  | 'date' | 'amount' | 'supplierId' | 'supplier'
+  | 'invoiceNumber' | 'allocationNumber' | 'documentType'
+  | 'reportPeriod'
+>;
+
+/**
+ * Fields the review edit dialog can persist directly onto a pending
+ * transaction BEFORE approval (see ReportReviewService.updateTxFields).
+ * A bank transaction has no document-side concept and no date/amount
+ * column of its own (those live on the read-only bank-fed cache) — much
+ * narrower than UpdateDocFields.
+ */
+export type UpdateTxFields = Pick<ReviewOverrides,
+  | 'category' | 'subCategory' | 'subCategoryId'
+  | 'vatPercent' | 'taxPercent' | 'isEquipment'
+  | 'reportPeriod'
+>;
+
 @Injectable({ providedIn: 'root' })
 export class ReportReviewService {
   constructor(private http: HttpClient) {}
@@ -371,6 +399,33 @@ export class ReportReviewService {
     return this.http.patch<{ id: number }>(
       `${environment.apiUrl}bookkeeping/sub-categories/${subCategoryId}/account`,
       { accountId },
+    );
+  }
+
+  /** Persist an in-progress edit onto a pending document (matched/
+   *  doc_only) — NOT an approve, no status change. Lets the edit dialog's
+   *  "שמור" block on the server confirming the write instead of only
+   *  mutating the in-memory row until the user later clicks approve. */
+  updateDocFields(
+    businessNumber: string,
+    documentId: number,
+    fields: UpdateDocFields,
+  ): Observable<{ ok: true }> {
+    return this.http.patch<{ ok: true }>(
+      `${environment.apiUrl}reports/me/review/update-doc/${documentId}`,
+      { businessNumber, fields },
+    );
+  }
+
+  /** Same as updateDocFields, for the transaction side of a tx_only row. */
+  updateTxFields(
+    businessNumber: string,
+    slimTransactionId: number,
+    fields: UpdateTxFields,
+  ): Observable<{ ok: true }> {
+    return this.http.patch<{ ok: true }>(
+      `${environment.apiUrl}reports/me/review/update-tx/${slimTransactionId}`,
+      { businessNumber, fields },
     );
   }
 

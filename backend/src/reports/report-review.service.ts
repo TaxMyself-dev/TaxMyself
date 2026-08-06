@@ -107,6 +107,37 @@ export interface ReviewOverrides {
 }
 
 /**
+ * Fields the review edit dialog can persist directly onto a pending
+ * ExtractedDocument BEFORE approval (see ReportReviewService.
+ * updateDocFields) — every ReviewOverrides field that actually has a
+ * backing column on this entity. Excludes: saveAsSupplier/
+ * acknowledgeDuplicate (approve-time-only behavior flags, no column
+ * anywhere).
+ */
+export type UpdateDocFields = Pick<ReviewOverrides,
+  | 'category' | 'subCategory' | 'subCategoryId'
+  | 'vatPercent' | 'taxPercent' | 'isEquipment'
+  | 'date' | 'amount' | 'supplierId' | 'supplier'
+  | 'invoiceNumber' | 'allocationNumber' | 'documentType'
+  | 'reportPeriod'
+>;
+
+/**
+ * Fields the review edit dialog can persist directly onto a pending
+ * SlimTransaction BEFORE approval (see ReportReviewService.
+ * updateTxFields). A bank transaction has no document-side concept
+ * (supplier identity, invoice/allocation number, document type) and no
+ * date/amount column of its own (those live on FullTransactionCache,
+ * synced from the bank feed — not user-editable here) — so this is a much
+ * narrower subset than UpdateDocFields.
+ */
+export type UpdateTxFields = Pick<ReviewOverrides,
+  | 'category' | 'subCategory' | 'subCategoryId'
+  | 'vatPercent' | 'taxPercent' | 'isEquipment'
+  | 'reportPeriod'
+>;
+
+/**
  * Owns the unified report-review pre-flight: the pipeline that runs before
  * the VAT or P&L report renders, gathering anything the user still needs
  * to decide (un-reviewed OCR'd documents + un-confirmed expense
@@ -1306,6 +1337,95 @@ export class ReportReviewService {
     if (!user || doc.userId !== user.index) {
       throw new ForbiddenException(`Document ${doc.id} does not belong to caller`);
     }
+  }
+
+  // ====================================================================
+  // IN-PROGRESS EDIT SAVE (blocking — not approve, no status change)
+  // ====================================================================
+
+  /**
+   * Persist an in-progress edit onto the pending document row itself.
+   * NOT an approve — status/confirmedExpenseId/documentKind are untouched
+   * (this row still needs approve-time classification resolution, D9
+   * mapping, journal posting, etc.). Lets the review edit dialog save
+   * immediately instead of only carrying the change in-memory until the
+   * user clicks approve — which could be minutes/rows later, or never,
+   * if they navigate away first (loadPreview would then re-fetch the
+   * un-edited raw DB row and silently drop the edit).
+   *
+   * Covers matched rows too (source of truth is the document — see
+   * approveMatched's "doc wins over slim" comment).
+   */
+  async updateDocFields(
+    firebaseId: string,
+    businessNumber: string,
+    documentId: number,
+    fields: UpdateDocFields,
+  ): Promise<{ ok: true }> {
+    const doc = await this.docRepo.findOne({ where: { id: documentId } });
+    if (!doc) throw new NotFoundException(`Document ${documentId} not found`);
+    await this.assertDocOwnership(doc, firebaseId, businessNumber);
+    if (doc.status !== ExtractedDocStatus.PENDING_REVIEW) {
+      throw new BadRequestException(
+        `Document ${documentId} is not pending_review (status=${doc.status})`,
+      );
+    }
+    // Same guard approveMatched applies — an annual document is never an
+    // expense, so classifying it doesn't make sense.
+    if (doc.documentKind === DocumentKind.ANNUAL_DOCUMENT) {
+      throw new BadRequestException('מסמך שנתי — לא ניתן לערוך סיווג הוצאה עבורו');
+    }
+
+    const patch: Partial<ExtractedDocument> = {};
+    if (fields.category !== undefined) patch.category = fields.category ?? null;
+    if (fields.subCategory !== undefined) patch.subCategory = fields.subCategory ?? null;
+    if (fields.subCategoryId !== undefined) patch.subCategoryId = fields.subCategoryId ?? null;
+    if (fields.vatPercent !== undefined) patch.vatPercent = fields.vatPercent as any;
+    if (fields.taxPercent !== undefined) patch.taxPercent = fields.taxPercent as any;
+    if (fields.isEquipment !== undefined) patch.isEquipment = fields.isEquipment ?? null;
+    if (fields.date !== undefined) patch.date = fields.date ?? null;
+    if (fields.amount !== undefined) patch.amount = fields.amount as any;
+    if (fields.supplierId !== undefined) patch.supplierId = fields.supplierId ?? null;
+    if (fields.supplier !== undefined) patch.supplier = fields.supplier ?? null;
+    if (fields.invoiceNumber !== undefined) patch.invoiceNumber = fields.invoiceNumber ?? null;
+    if (fields.allocationNumber !== undefined) patch.allocationNumber = fields.allocationNumber ?? null;
+    if (fields.documentType !== undefined) patch.documentType = (fields.documentType as any) ?? null;
+    if (fields.reportPeriod !== undefined) patch.vatReportingDate = (fields.reportPeriod as any) ?? null;
+
+    if (Object.keys(patch).length > 0) {
+      await this.docRepo.update({ id: documentId }, patch);
+    }
+    return { ok: true };
+  }
+
+  /**
+   * Persist an in-progress edit onto the pending slim transaction itself.
+   * NOT an approve — `confirmed`/`isRecognized` are untouched. See
+   * updateDocFields's doc comment for the "why persist before approve"
+   * rationale. Reuses loadTxPair's existing ownership/businessNumber/
+   * not-already-confirmed guard.
+   */
+  async updateTxFields(
+    firebaseId: string,
+    businessNumber: string,
+    slimTransactionId: number,
+    fields: UpdateTxFields,
+  ): Promise<{ ok: true }> {
+    const { slim } = await this.loadTxPair(firebaseId, businessNumber, slimTransactionId);
+
+    const patch: Partial<SlimTransaction> = {};
+    if (fields.category !== undefined && fields.category != null) patch.category = fields.category;
+    if (fields.subCategory !== undefined && fields.subCategory != null) patch.subCategory = fields.subCategory;
+    if (fields.subCategoryId !== undefined) patch.subCategoryId = fields.subCategoryId ?? null;
+    if (fields.vatPercent !== undefined) patch.vatPercent = fields.vatPercent;
+    if (fields.taxPercent !== undefined) patch.taxPercent = fields.taxPercent;
+    if (fields.isEquipment !== undefined) patch.isEquipment = fields.isEquipment ?? false;
+    if (fields.reportPeriod !== undefined) patch.vatReportingDate = (fields.reportPeriod as any) ?? null;
+
+    if (Object.keys(patch).length > 0) {
+      await this.slimRepo.update({ id: slim.id }, patch);
+    }
+    return { ok: true };
   }
 
   private async linkOwnershipCheckTx(

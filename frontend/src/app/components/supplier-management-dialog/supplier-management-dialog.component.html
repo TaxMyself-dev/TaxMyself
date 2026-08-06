@@ -77,11 +77,13 @@
 
   <ng-template pTemplate="footer">
     <div class="supplier-dialog-footer">
+      <span *ngIf="progressLabel" class="supplier-dialog-progress">{{ progressLabel }}</span>
       <app-p-button
         [buttonText]="'ביטול'"
         [buttonColor]="ButtonColor.BLACK"
         [buttonSize]="ButtonSize.AUTO"
         [variant]="'outlined'"
+        [disabled]="isSaving || !!progressLabel"
         (onButtonClicked)="visibleChange.emit(false)">
       </app-p-button>
       <app-p-button
@@ -89,6 +91,7 @@
         [buttonColor]="ButtonColor.BLACK"
         [buttonSize]="ButtonSize.AUTO"
         [isLoading]="isSaving"
+        [disabled]="!!progressLabel"
         (onButtonClicked)="save.emit()">
       </app-p-button>
     </div>

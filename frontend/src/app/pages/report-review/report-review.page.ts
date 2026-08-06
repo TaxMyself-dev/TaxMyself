@@ -727,7 +727,6 @@ export class ReportReviewPage implements OnInit {
       supplier: row.supplier,
       reportPeriod: row.reportPeriod,
       reportPeriodOverridden: row.reportPeriodOverridden,
-      applyCascadeToSuppliers: true,
       allocationNumber: row.allocationNumber,
       documentType: row.documentType,
       saveAsSupplier: row.saveAsSupplier,
@@ -739,23 +738,35 @@ export class ReportReviewPage implements OnInit {
     this.editDialogVisible.set(false);
     this.editDialogRow.set(null);
     this.editDraft.set(null);
+    this.editDialogSaving.set(false);
   }
 
-  /** X / Escape / "ביטול" — discard the draft. Nothing was ever written
-   *  to the row, so there's nothing to roll back. */
+  /** X / Escape / "ביטול" — discard the draft. Nothing was persisted
+   *  server-side before this point (see onEditDialogSave), so there's
+   *  nothing to roll back. */
   onEditDialogCancel(): void {
+    if (this.editDialogSaving()) return;
     this.closeEditDialog();
   }
 
-  /** "שמור" — write the draft onto the row and close. Purely a local
-   *  mutation: no approve/network call here, matching the exact semantics
-   *  of the old inline toggleEditRow/saveEditRow pair. The actual
-   *  approve/commit only ever happens later via bulkApproveSelected or
-   *  confirmSaveAnyway. */
+  /** True while the blocking save below is in flight — disables the
+   *  dialog's footer buttons and shows a spinner on "שמור". */
+  editDialogSaving = signal<boolean>(false);
+
+  /**
+   * "שמור" — blocking: apply the draft to the row locally (so the table
+   * reflects it immediately), then persist it to the row's source DB
+   * record (ExtractedDocument for matched/doc_only — doc wins over slim,
+   * same as approveMatched; SlimTransaction for tx_only) via
+   * update-doc/update-tx. Only closes the dialog on success; on failure
+   * the dialog stays open with a toast, matching every other row action's
+   * error handling (runAction). Edits are single-row only now — no more
+   * cascade-on-save (that moved to the supplier-management dialog).
+   */
   onEditDialogSave(): void {
     const row = this.editDialogRow();
     const draft = this.editDraft();
-    if (!row || !draft) return;
+    if (!row || !draft || this.editDialogSaving()) return;
 
     const entry = draft.subCategoryId != null
       ? this.catalog().find(c => c.subCategoryId === draft.subCategoryId)
@@ -777,21 +788,54 @@ export class ReportReviewPage implements OnInit {
       row.documentTypeLabel = this.documentTypeLabel(draft.documentType ?? null);
       row.saveAsSupplier = draft.saveAsSupplier ?? true;
     }
-
-    if (draft.applyCascadeToSuppliers) {
-      if (entry) this.cascadeToSupplierSiblings(row, (s) => this.applyCatalogRow(s, entry));
-      else this.cascadeToSupplierSiblings(row, (s) => this.clearClassification(s, draft.category));
-      this.markSupplierTouched(row);
-    }
-
     this.bumpRows();
-    this.closeEditDialog();
+
+    this.editDialogSaving.set(true);
+    const obs$ = row.type === 'tx_only'
+      ? this.reviewService.updateTxFields(this.businessNumber(), row.slimTransactionId!, {
+          category: row.category,
+          subCategory: row.subCategory,
+          subCategoryId: row.subCategoryId ?? undefined,
+          vatPercent: row.vatPercent,
+          taxPercent: row.taxPercent,
+          isEquipment: row.isEquipment,
+          reportPeriod: row.reportPeriodOverridden ? row.reportPeriod : undefined,
+        })
+      : this.reviewService.updateDocFields(this.businessNumber(), row.documentId!, {
+          category: row.category,
+          subCategory: row.subCategory,
+          subCategoryId: row.subCategoryId ?? undefined,
+          vatPercent: row.vatPercent,
+          taxPercent: row.taxPercent,
+          isEquipment: row.isEquipment,
+          date: row.date,
+          amount: row.amount,
+          supplierId: row.supplierId,
+          supplier: row.supplier,
+          invoiceNumber: row.invoiceNumber,
+          allocationNumber: row.allocationNumber,
+          documentType: row.documentType ?? undefined,
+          reportPeriod: row.reportPeriodOverridden ? row.reportPeriod : undefined,
+        });
+
+    obs$
+      .pipe(
+        catchError(err => {
+          const detail = err?.error?.message ?? err?.message ?? 'שמירת העריכה נכשלה';
+          this.messageService.add({ severity: 'error', summary: 'שגיאה', detail, life: 5000, key: 'br' });
+          return EMPTY;
+        }),
+        finalize(() => this.editDialogSaving.set(false)),
+      )
+      .subscribe(() => {
+        this.closeEditDialog();
+      });
   }
 
   /** Classification pickers inside the dialog — same resolution rules as
    *  the old onCategoryChange/onSubCategoryChange/onCardChange, just
-   *  targeting the local draft instead of the row directly (no cascade
-   *  here — cascade only runs once, at Save, see onEditDialogSave). */
+   *  targeting the local draft instead of the row directly. Edits are
+   *  single-row only (see onEditDialogSave) — no cascade here. */
   onEditDraftCategoryChange(picked: string): void {
     this.editDraft.update(d => d && ({
       ...d,
@@ -919,6 +963,15 @@ export class ReportReviewPage implements OnInit {
     return this.subCategoriesForCategory(d.category).map(c => c.subCategory);
   });
 
+  /** Non-null while runSupplierCascade is updating sibling rows after a
+   *  successful supplier save. Drives the dialog's progress text + button
+   *  disable via [progressLabel]. */
+  supplierCascadeProgress = signal<{ done: number; total: number } | null>(null);
+  supplierCascadeProgressLabel = computed<string | null>(() => {
+    const p = this.supplierCascadeProgress();
+    return p ? `מעדכן ${p.done}/${p.total} שורות...` : null;
+  });
+
   /** Lazily-loaded, cached full supplier list — the review row only
    *  carries the supplier's tax-ID string (see ReviewDocSummary.supplierId
    *  in report-review.service.ts), not the Supplier table's numeric PK, so
@@ -1012,9 +1065,14 @@ export class ReportReviewPage implements OnInit {
     this.supplierDialogRow = null;
     this.supplierDialogId = null;
     this.supplierDraft.set(null);
+    this.supplierCascadeProgress.set(null);
   }
 
+  /** Blocked while the post-save cascade is running — closing mid-cascade
+   *  would abandon the progress UI, though the queued update-doc/update-tx
+   *  calls already fired would still land (see runSupplierCascadeStep). */
   onSupplierDialogCancel(): void {
+    if (this.supplierCascadeProgress()) return;
     this.closeSupplierDialog();
   }
 
@@ -1072,12 +1130,13 @@ export class ReportReviewPage implements OnInit {
     });
   }
 
-  /** "שמור" — POST/PATCH the Supplier record, then reflect the saved
-   *  identity back onto the row (supplier name/id + "ספק מוכר" status)
-   *  without a full preview re-fetch. Never touches the row's OWN
-   *  classification (category/subCategory/percents) — the Supplier
-   *  record's fields are defaults for FUTURE expenses, a separate concern
-   *  from this row's already-resolved classification. */
+  /** "שמור" — POST/PATCH the Supplier record, reflect the saved identity
+   *  back onto the triggering row (supplier name/id + "ספק מוכר" status),
+   *  then cascade the saved classification (category/subCategory/
+   *  subCategoryId/vatPercent/taxPercent/isEquipment) onto every OTHER
+   *  current row matching this supplier (see findSupplierSiblingRows) —
+   *  writing each one to its DB source row via update-doc/update-tx, not
+   *  just in-memory. Closes only once the cascade (if any) finishes. */
   onSupplierDialogSave(): void {
     const draft = this.supplierDraft();
     const row = this.supplierDialogRow;
@@ -1127,9 +1186,111 @@ export class ReportReviewPage implements OnInit {
         row.supplier = payload.supplier;
         row.supplierId = payload.supplierID ?? '';
         row.supplierStatusLabel = 'ספק מוכר';
-        this.bumpRows();
         this.suppliersCache = null;
-        this.closeSupplierDialog();
+
+        const entry = draft.subCategoryId != null
+          ? this.catalog().find(c => c.subCategoryId === draft.subCategoryId)
+          : undefined;
+        const siblings = this.findSupplierSiblingRows(payload.supplierID ?? '', payload.supplier);
+        this.bumpRows();
+
+        if (siblings.length === 0) {
+          this.closeSupplierDialog();
+          return;
+        }
+        this.runSupplierCascade(siblings, entry, draft.category);
+      });
+  }
+
+  /** Every CURRENT row matching the just-saved supplier's identity — doc/
+   *  matched rows by supplierId (trimmed, exact), tx_only rows by
+   *  normalized name (they never carry a supplierId). Empty identity on
+   *  either side never matches (guards against every empty-supplierId
+   *  cash-vendor row falsely matching each other). Includes the row that
+   *  triggered the dialog — it matches its own just-saved identity too. */
+  private findSupplierSiblingRows(supplierId: string, supplierName: string): EditableReviewRow[] {
+    const sid = supplierId?.trim();
+    const sname = this.normalizeSupplierName(supplierName);
+    return this.rows().filter(r => {
+      if (r.type === 'tx_only') {
+        return !!sname && this.normalizeSupplierName(r.supplier) === sname;
+      }
+      return !!sid && r.supplierId.trim() === sid;
+    });
+  }
+
+  /** Sequential (not parallel — same DB back-pressure reasoning as
+   *  runBulkQueue) update of every matching row's classification, each
+   *  persisted via update-doc/update-tx. A single row's failure doesn't
+   *  stop the rest — it's flagged with saveStatus/saveError (same as
+   *  runAction) and the cascade moves on. Closes the dialog only once
+   *  every row has been attempted. */
+  private runSupplierCascade(
+    rows: EditableReviewRow[],
+    entry: CatalogRow | undefined,
+    draftCategory: string,
+  ): void {
+    this.markSupplierTouched(rows[0]);
+    this.supplierCascadeProgress.set({ done: 0, total: rows.length });
+    this.runSupplierCascadeStep(rows, 0, entry, draftCategory, { succeeded: 0, failed: 0 });
+  }
+
+  private runSupplierCascadeStep(
+    rows: EditableReviewRow[],
+    idx: number,
+    entry: CatalogRow | undefined,
+    draftCategory: string,
+    stats: { succeeded: number; failed: number },
+  ): void {
+    if (idx >= rows.length) {
+      this.supplierCascadeProgress.set(null);
+      this.bumpRows();
+      if (stats.failed > 0) {
+        this.messageService.add({
+          severity: 'warn', summary: 'עדכון חלקי',
+          detail: `עודכנו ${stats.succeeded} שורות, ${stats.failed} נכשלו — ראה פירוט בטבלה`,
+          life: 6000, key: 'br',
+        });
+      }
+      this.closeSupplierDialog();
+      return;
+    }
+
+    const row = rows[idx];
+    if (entry) this.applyCatalogRow(row, entry);
+    else this.clearClassification(row, draftCategory);
+    row.saveStatus = 'pending';
+    this.supplierCascadeProgress.set({ done: idx, total: rows.length });
+    this.bumpRows();
+
+    const fields = {
+      category: row.category,
+      subCategory: row.subCategory,
+      subCategoryId: row.subCategoryId ?? undefined,
+      vatPercent: row.vatPercent,
+      taxPercent: row.taxPercent,
+      isEquipment: row.isEquipment,
+    };
+    const obs$ = row.type === 'tx_only'
+      ? this.reviewService.updateTxFields(this.businessNumber(), row.slimTransactionId!, fields)
+      : this.reviewService.updateDocFields(this.businessNumber(), row.documentId!, fields);
+
+    obs$
+      .pipe(
+        catchError(err => {
+          row.saveStatus = 'failed';
+          row.saveError = err?.error?.message ?? err?.message ?? 'עדכון השורה נכשל';
+          stats.failed++;
+          return of(null);
+        }),
+      )
+      .subscribe(result => {
+        if (result !== null) {
+          row.saveStatus = null;
+          row.saveError = null;
+          stats.succeeded++;
+        }
+        this.runSupplierCascadeStep(rows, idx + 1, entry, draftCategory, stats);
       });
   }
 
@@ -1370,29 +1531,6 @@ export class ReportReviewPage implements OnInit {
    *  The "both empty" guard prevents leaking edits between two rows
    *  with the same name but different tax IDs (those ARE different
    *  legal entities — e.g. two stores sharing a chain brand). */
-  private cascadeToSupplierSiblings(
-    source: EditableReviewRow,
-    mutate: (sibling: EditableReviewRow) => void,
-  ): void {
-    const sid = source.supplierId?.trim();
-    const sname = source.supplier?.trim();
-    if (!sid && !sname) return; // tx_only rows with no merchant info
-    for (const r of this.rows()) {
-      if (r === source) continue;
-      const rsid = r.supplierId?.trim();
-      const rsname = r.supplier?.trim();
-      if (sid) {
-        if (rsid !== sid) continue;
-      } else {
-        // source has no supplierId → only match siblings that ALSO have
-        // no supplierId AND share the trimmed name.
-        if (rsid) continue;
-        if (!rsname || rsname !== sname) continue;
-      }
-      mutate(r);
-    }
-  }
-
   /** Derive the identity key used for the blue-highlight grouping.
    *  Matches the cascade rule: supplierId when present, otherwise the
    *  trimmed supplier name. Tagged so an empty-id row named "123" can't
