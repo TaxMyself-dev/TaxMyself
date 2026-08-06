@@ -387,7 +387,12 @@ export class ExpensesController {
     @Req() request: AuthenticatedRequest,
     @Body() body: any) {
     const firebaseId = request.user?.firebaseId;
-    const businessNumber = request.user?.businessNumber;
+    // An explicit businessNumber in the body wins — callers working with a
+    // specific business context that may differ from the global "active
+    // business" the auth interceptor's header reflects (e.g. report-review's
+    // supplier-management dialog) need to say so explicitly. Falls back to
+    // the header-derived value for existing callers that never sent one.
+    const businessNumber = body?.businessNumber ?? request.user?.businessNumber;
     return await this.expensesService.addSupplier(body, firebaseId, businessNumber);
   }
 

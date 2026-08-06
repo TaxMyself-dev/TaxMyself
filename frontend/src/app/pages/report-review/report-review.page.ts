@@ -1161,11 +1161,19 @@ export class ReportReviewPage implements OnInit {
       taxPercent: draft.isEquipment ? 0 : draft.taxPercent,
       reductionPercent: draft.isEquipment ? draft.reductionPercent : 0,
       isEquipment: draft.isEquipment,
+      // Explicit — the global "active business" the auth interceptor's
+      // header would otherwise fall back to may not match the business
+      // this review page is actually working with (see add-supplier's
+      // controller: an explicit body businessNumber now wins over that
+      // header). editSupplier/update-supplier already required this;
+      // addSupplier previously silently dropped it, causing a 500 on
+      // create when the header-derived business was unset.
+      businessNumber: this.businessNumber(),
     };
 
     const mode = this.supplierDialogMode();
     const obs$ = mode === 'edit' && this.supplierDialogId != null
-      ? this.expenseDataService.editSupplier({ ...payload, businessNumber: this.businessNumber() }, this.supplierDialogId)
+      ? this.expenseDataService.editSupplier(payload, this.supplierDialogId)
       : this.expenseDataService.addSupplier(payload);
 
     obs$
