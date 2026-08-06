@@ -212,6 +212,16 @@ export class ExpenseDataService {
   }
 
 
+  /** GET expenses/get-supplier/:id — the controller also declares a
+   *  `@Body() body: UpdateSupplierDto` param, but the service never reads
+   *  it (see expenses.service.ts's getSupplierById), so no body is needed
+   *  here. */
+  getSupplierById(id: number): Observable<IGetSupplier> {
+    const url = `${environment.apiUrl}expenses/get-supplier/` + id;
+    return this.http.get<IGetSupplier>(url);
+  }
+
+
   addExpenseData(data: any): Observable<any> {
     const url = `${environment.apiUrl}expenses/add-expense`;
     return this.http.post(url, data);

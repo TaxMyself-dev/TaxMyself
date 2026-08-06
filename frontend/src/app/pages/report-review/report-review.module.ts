@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 
 import { IonicModule } from '@ionic/angular';
 
+import { CheckboxModule } from 'primeng/checkbox';
 import { DialogModule } from 'primeng/dialog';
 import { TooltipModule } from 'primeng/tooltip';
 
@@ -14,6 +15,7 @@ import { ButtonComponent } from '../../components/button/button.component';
 import { GenericTableComponent } from '../../components/generic-table/generic-table.component';
 import { DateFormatPipe } from '../../pipes/date-format.pipe';
 import { ReportReviewEditDialogComponent } from '../../components/report-review-edit-dialog/report-review-edit-dialog.component';
+import { SupplierManagementDialogComponent } from '../../components/supplier-management-dialog/supplier-management-dialog.component';
 
 @NgModule({
   imports: [
@@ -21,12 +23,14 @@ import { ReportReviewEditDialogComponent } from '../../components/report-review-
     FormsModule,
     IonicModule,
     ReportReviewPageRoutingModule,
+    CheckboxModule,
     DialogModule,
     TooltipModule,
     ButtonComponent,
     GenericTableComponent,
     DateFormatPipe,
     ReportReviewEditDialogComponent,
+    SupplierManagementDialogComponent,
   ],
   declarations: [ReportReviewPage]
 })

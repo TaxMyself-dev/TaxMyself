@@ -58,11 +58,14 @@
        so non-approvable rows render it DISABLED per D9: missing-mapping /
        unclassified / annual / unidentified rows can't join the queue. -->
   <ng-template #selectCell let-row>
-    <input type="checkbox" class="row-select"
-           [checked]="row.selected"
-           [disabled]="!canApprove(row)"
-           [title]="canApprove(row) ? '' : 'לא ניתן לאשר — ראה עמודת סטטוס'"
-           (change)="onRowSelectedChange(row, $any($event.target).checked)" />
+    <p-checkbox
+      [binary]="true"
+      [ngModel]="row.selected"
+      [disabled]="!canApprove(row)"
+      [pTooltip]="canApprove(row) ? '' : 'לא ניתן לאשר — ראה עמודת סטטוס'"
+      tooltipPosition="top"
+      (onChange)="onRowSelectedChange(row, $event.checked)">
+    </p-checkbox>
   </ng-template>
 
   <!-- Every column below is permanently read-only now — editing moved
@@ -133,25 +136,28 @@
     </span>
   </ng-template>
 
-  <!-- Supplier name + "new supplier" icon. The icon (pi pi-question-circle)
-       only renders when supplierStatusLabel === 'ספק חדש' — i.e. the doc's
-       supplier_id wasn't found in the user's Supplier table. tx_only rows
-       have supplierStatusLabel = null (no doc-side supplier concept) and
-       therefore never show the icon. -->
+  <!-- Supplier bookmark — opens the supplier-management dialog to
+       create/edit the persisted Supplier record. Rendered for every row
+       with a supplier concept (matched/doc_only; supplierStatusLabel !==
+       null), filled when the supplier is already saved ("ספק מוכר"),
+       outlined when it's new ("ספק חדש"). tx_only rows have
+       supplierStatusLabel = null (no doc-side supplier concept) and
+       therefore never show it. -->
   <!-- Icons come BEFORE the name in DOM order so under RTL they render
        to the right of the supplier name (the start of the visual line).
        The Drive-preview eye lives in the row-actions hover strip; only the
-       new-supplier flag stays attached to the name here. -->
+       supplier bookmark stays attached to the name here. -->
   <ng-template #supplierCell let-row>
     <span class="supplier-cell">
-      <span *ngIf="row.supplierStatusLabel === 'ספק חדש'"
-         class="supplier-new-square"
-         [class.supplier-new-square--opt-out]="!row.saveAsSupplier"
-         [pTooltip]="row.saveAsSupplier
-           ? 'ספק חדש - יתווסף לרשימת הספקים בעת האישור. לחץ כדי לדלג.'
-           : 'ספק חדש - לא יתווסף לרשימת הספקים. לחץ להחזיר.'"
+      <span *ngIf="row.supplierStatusLabel !== null"
+         class="supplier-bookmark pi"
+         [ngClass]="row.supplierStatusLabel === 'ספק מוכר' ? 'pi-bookmark-fill' : 'pi-bookmark'"
+         [class.supplier-bookmark--saved]="row.supplierStatusLabel === 'ספק מוכר'"
+         [pTooltip]="row.supplierStatusLabel === 'ספק מוכר'
+           ? 'ספק שמור — לחץ לעריכת הפרטים'
+           : 'ספק חדש — לחץ לשמירת פרטי הספק'"
          tooltipPosition="top"
-         (click)="toggleSaveAsSupplier(row, $event)"></span>
+         (click)="openSupplierDialog(row); $event.stopPropagation()"></span>
       <span class="cell-readonly supplier-name-input">{{ row.supplier }}</span>
       <!-- Hard failure — small icon + hover tooltip with backend error.
            Soft duplicates render the inline prompt below instead. -->
@@ -201,11 +207,14 @@
        together with the selection-status text on the right. -->
   <div *ngIf="rows().length > 0" class="footer-bar">
     <div class="select-info">
-      <label class="select-all-toggle">
-        <input type="checkbox"
-               [checked]="approvableCount() > 0 && selectedCount() === approvableCount()"
-               [disabled]="approvableCount() === 0"
-               (change)="toggleAll($any($event.target).checked)" />
+      <label class="select-all-toggle" for="selectAllCheckbox">
+        <p-checkbox
+          inputId="selectAllCheckbox"
+          [binary]="true"
+          [ngModel]="approvableCount() > 0 && selectedCount() === approvableCount()"
+          [disabled]="approvableCount() === 0"
+          (onChange)="toggleAll($event.checked)">
+        </p-checkbox>
         בחר הכל
       </label>
       <span>נבחרו {{ selectedCount() }} מתוך {{ approvableCount() }} ניתנות לאישור</span>
@@ -263,6 +272,27 @@
   (customPeriodRequested)="openCustomPeriod()"
   (fieldsChange)="onEditDraftFieldsPatch($event)">
 </app-report-review-edit-dialog>
+
+<!-- Supplier-management popup. Opened by the supplier bookmark icon in the
+     supplier cell (openSupplierDialog) — create/edit the persisted
+     Supplier record. Same fully-controlled pattern as
+     app-report-review-edit-dialog above: the dialog holds no state of its
+     own, every keystroke relays up to supplierDraft and the updated draft
+     flows back down via [fields]. -->
+<app-supplier-management-dialog
+  [visible]="supplierDialogVisible()"
+  [mode]="supplierDialogMode()"
+  [titleLabel]="supplierDialogTitleLabel()"
+  [fields]="supplierDraft()"
+  [categoryOptions]="categoryOptions()"
+  [subCategoryOptions]="supplierDraftSubCategoryOptions()"
+  [isSaving]="supplierDialogSaving()"
+  (visibleChange)="$event ? null : onSupplierDialogCancel()"
+  (save)="onSupplierDialogSave()"
+  (categoryChange)="onSupplierDraftCategoryChange($event)"
+  (subCategoryChange)="onSupplierDraftSubCategoryChange($event)"
+  (fieldsChange)="onSupplierDraftFieldsPatch($event)">
+</app-supplier-management-dialog>
 
 <!-- Custom-period entry dialog. Opened when the user picks "אחר" in the
      edit dialog's period dropdown (see openCustomPeriod). Styled to match
@@ -350,9 +380,10 @@
     </ul>
 
     <p class="supplier-conflict-howto">
-      כדי להמשיך: השוו את הערכים בין השורות, או לחצו על סימון הספק
-      (<span class="supplier-new-square supplier-conflict-flag-icon"></span>)
-      בשורות שאתם <strong>לא</strong> רוצים שיישמרו לכרטיס הספק.
+      כדי להמשיך: השוו את הערכים בין השורות (ערכו דרך פעולת ה"עריכה"), או
+      לחצו על סימנית הספק ליד שם הספק באחת השורות כדי לשמור את פרטי הספק
+      הסופיים ישירות — שורה ששמרתם דרכה כך הופכת ל"ספק מוכר" ולא תיחשב עוד
+      בבדיקת ההתנגשות.
     </p>
   </div>
 

@@ -11,13 +11,14 @@ import {
 import { ActivatedRoute, Router } from '@angular/router';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { MessageService } from 'primeng/api';
-import { EMPTY, catchError, finalize } from 'rxjs';
+import { EMPTY, catchError, finalize, of } from 'rxjs';
 
 import { ButtonColor, ButtonSize } from '../../components/button/button.enum';
 import { GenericService } from 'src/app/services/generic.service';
 import { AuthService } from 'src/app/services/auth.service';
+import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { VATReportingType } from 'src/app/shared/enums';
-import { IColumnDataTable, IRowDataTable, ITableRowAction } from 'src/app/shared/interface';
+import { IColumnDataTable, IGetSupplier, IRowDataTable, ITableRowAction } from 'src/app/shared/interface';
 import {
   CatalogRow,
   ReportPreviewResponse,
@@ -27,6 +28,7 @@ import {
   ReviewRow,
 } from 'src/app/services/report-review.service';
 import { ExpenseEditFieldValues } from 'src/app/components/report-review-edit-dialog/report-review-edit-dialog.component';
+import { SupplierDraft } from 'src/app/components/supplier-management-dialog/supplier-management-dialog.component';
 
 /** D9 view modes — one screen, two column sets. Persisted per user. */
 type ReviewViewMode = 'regular' | 'professional';
@@ -157,12 +159,11 @@ interface EditableReviewRow {
   /** "ספק מוכר" | "ספק חדש" — null for tx_only rows (no supplier concept). */
   supplierStatusLabel: string | null;
 
-  /** Per-row choice for "add this supplier to my master list on approve".
-   *  Defaults to true. The red flag icon on doc rows is a toggle: click to
-   *  flip this to false (won't add to Supplier table), click again to
-   *  flip back to true. Ignored when supplierStatusLabel !== 'ספק חדש'
-   *  (no flag rendered, nothing to toggle). The approve call sends this
-   *  through `overrides.saveAsSupplier`. */
+  /** Always true now — the in-table opt-out toggle was removed (the
+   *  supplier bookmark icon opens a supplier-management dialog instead of
+   *  toggling this). Kept because `overridesFromRow` still sends it
+   *  through `overrides.saveAsSupplier`, and the backend still
+   *  finds-or-creates the Supplier row on approve by default. */
   saveAsSupplier: boolean;
 
   // Per-row UI state
@@ -217,6 +218,7 @@ export class ReportReviewPage implements OnInit {
   private router = inject(Router);
   private reviewService = inject(ReportReviewService);
   private authService = inject(AuthService);
+  private expenseDataService = inject(ExpenseDataService);
   private messageService = inject(MessageService);
   private genericService = inject(GenericService);
   private sanitizer = inject(DomSanitizer);
@@ -659,11 +661,10 @@ export class ReportReviewPage implements OnInit {
         docSide != null
           ? (docSide.matchedSupplierKnown ? 'ספק מוכר' : 'ספק חדש')
           : null,
-      // Default true — auto-save the supplier to the master list on
-      // approve. User clicks the red flag in the supplier cell to flip
-      // to false (one-off vendor). Known suppliers don't render the flag
-      // so the value stays at default and the backend silently no-ops
-      // (existing supplier → find-or-create skips).
+      // Always true — the in-table opt-out toggle was removed; approving
+      // a "ספק חדש" row always attempts find-or-create against the
+      // Supplier table now (users manage the record explicitly via the
+      // bookmark dialog instead of opting out here).
       saveAsSupplier: true,
       saveStatus: null,
       saveError: null,
@@ -887,6 +888,232 @@ export class ReportReviewPage implements OnInit {
       return;
     }
     this.onUploadDocForTx(row, input);
+  }
+
+  // ---- Supplier management dialog (bookmark icon) -----------------------
+
+  /** Row the supplier dialog is open for; null = dialog closed. */
+  private supplierDialogRow: EditableReviewRow | null = null;
+  /** Supplier.id being edited — null in create mode. */
+  private supplierDialogId: number | null = null;
+  supplierDialogVisible = signal<boolean>(false);
+  supplierDialogMode = signal<'create' | 'edit'>('create');
+  supplierDialogSaving = signal<boolean>(false);
+  /** The dialog's local draft — same seed/mutate-only-here/discard-on-
+   *  cancel contract as editDraft above. */
+  supplierDraft = signal<SupplierDraft | null>(null);
+  supplierDialogTitleLabel = computed<string>(() => {
+    const d = this.supplierDraft();
+    if (!d) return '';
+    return this.supplierDialogMode() === 'edit' ? `עריכת ספק — ${d.supplier}` : 'ספק חדש';
+  });
+  /** Sub-categories for the draft's current category — same cascade source
+   *  (this page's catalog signal) as editDraftSubCategoryOptions. */
+  supplierDraftSubCategoryOptions = computed<string[]>(() => {
+    const d = this.supplierDraft();
+    if (!d) return [];
+    return this.subCategoriesForCategory(d.category).map(c => c.subCategory);
+  });
+
+  /** Lazily-loaded, cached full supplier list — the review row only
+   *  carries the supplier's tax-ID string (see ReviewDocSummary.supplierId
+   *  in report-review.service.ts), not the Supplier table's numeric PK, so
+   *  resolving "which Supplier record is this row's ספק מוכר" means
+   *  matching by supplierID against this list. Cleared after a successful
+   *  save so the next open refetches. */
+  private suppliersCache: IGetSupplier[] | null = null;
+
+  private ensureSuppliersLoaded() {
+    if (this.suppliersCache) return of(this.suppliersCache);
+    return this.expenseDataService.getAllSuppliers().pipe(
+      catchError(() => of([] as IGetSupplier[])),
+    );
+  }
+
+  /** Bookmark click — "ספק מוכר" loads the persisted Supplier record for
+   *  editing; "ספק חדש" opens a blank(ish) form seeded from the row. */
+  openSupplierDialog(row: EditableReviewRow): void {
+    this.supplierDialogRow = row;
+    this.supplierDialogSaving.set(false);
+
+    const sid = row.supplierId?.trim();
+    if (row.supplierStatusLabel === 'ספק מוכר' && sid) {
+      this.supplierDialogMode.set('edit');
+      this.supplierDialogId = null;
+      this.supplierDraft.set(null);
+      this.ensureSuppliersLoaded().subscribe(list => {
+        this.suppliersCache = list;
+        const match = list.find(s => (s.supplierID ?? '').trim() === sid);
+        if (match) {
+          this.supplierDialogId = match.id;
+          this.supplierDraft.set(this.toSupplierDraft(match));
+        } else {
+          // Defensive fallback — shouldn't happen for a row the preview
+          // marked "ספק מוכר", but don't leave the dialog stuck empty.
+          this.supplierDialogMode.set('create');
+          this.supplierDraft.set(this.emptySupplierDraft(row));
+        }
+      });
+    } else {
+      this.supplierDialogMode.set('create');
+      this.supplierDialogId = null;
+      this.supplierDraft.set(this.emptySupplierDraft(row));
+    }
+    this.supplierDialogVisible.set(true);
+  }
+
+  private emptySupplierDraft(row: EditableReviewRow): SupplierDraft {
+    return {
+      supplier: row.supplier ?? '',
+      supplierID: row.supplierId ?? '',
+      category: row.category ?? '',
+      subCategory: row.subCategory ?? '',
+      subCategoryId: row.subCategoryId,
+      vatPercent: row.vatPercent ?? 0,
+      taxPercent: row.taxPercent ?? 0,
+      reductionPercent: row.reductionPercent ?? 0,
+      isEquipment: row.isEquipment ?? false,
+    };
+  }
+
+  private toSupplierDraft(s: IGetSupplier): SupplierDraft {
+    return {
+      supplier: s.supplier ?? '',
+      supplierID: s.supplierID ?? '',
+      category: s.category ?? '',
+      subCategory: s.subCategory ?? '',
+      subCategoryId: s.subCategoryId ?? null,
+      vatPercent: Number(s.vatPercent ?? 0),
+      taxPercent: Number(s.taxPercent ?? 0),
+      reductionPercent: Number(s.reductionPercent ?? 0),
+      isEquipment: !!s.isEquipment,
+    };
+  }
+
+  private closeSupplierDialog(): void {
+    this.supplierDialogVisible.set(false);
+    this.supplierDialogRow = null;
+    this.supplierDialogId = null;
+    this.supplierDraft.set(null);
+  }
+
+  onSupplierDialogCancel(): void {
+    this.closeSupplierDialog();
+  }
+
+  /** Category picker inside the dialog — same resolution rule as
+   *  onEditDraftCategoryChange (clears the dependent fields; no cascade,
+   *  this dialog edits one Supplier record, not a set of rows). */
+  onSupplierDraftCategoryChange(picked: string): void {
+    this.supplierDraft.update(d => d && ({
+      ...d,
+      category: picked,
+      subCategory: '',
+      subCategoryId: null,
+      vatPercent: 0,
+      taxPercent: 0,
+      reductionPercent: 0,
+    }));
+  }
+
+  onSupplierDraftSubCategoryChange(picked: string): void {
+    this.supplierDraft.update(d => {
+      if (!d) return d;
+      if (!picked) {
+        return { ...d, subCategory: '', subCategoryId: null, vatPercent: 0, taxPercent: 0, reductionPercent: 0 };
+      }
+      const entry = this.catalog().find(c => c.subCategory === picked && c.category === d.category)
+        ?? this.catalog().find(c => c.subCategory === picked);
+      if (entry) {
+        return {
+          ...d,
+          category: entry.category ?? d.category,
+          subCategory: entry.subCategory,
+          subCategoryId: entry.subCategoryId,
+          vatPercent: Number(entry.vatPercent ?? 0),
+          taxPercent: Number(entry.taxPercent ?? 0),
+          reductionPercent: Number(entry.reductionPercent ?? 0),
+        };
+      }
+      return { ...d, subCategory: picked, subCategoryId: null };
+    });
+  }
+
+  /** Generic patch for every field with no cascade/resolution side-effect
+   *  — except isEquipment, which zeroes whichever of taxPercent/
+   *  reductionPercent just became inapplicable (same rule
+   *  AddSupplierComponent's isEquipment valueChanges handler applies). */
+  onSupplierDraftFieldsPatch(patch: Partial<SupplierDraft>): void {
+    this.supplierDraft.update(d => {
+      if (!d) return d;
+      const next = { ...d, ...patch };
+      if (patch.isEquipment !== undefined) {
+        if (patch.isEquipment) next.taxPercent = 0;
+        else next.reductionPercent = 0;
+      }
+      return next;
+    });
+  }
+
+  /** "שמור" — POST/PATCH the Supplier record, then reflect the saved
+   *  identity back onto the row (supplier name/id + "ספק מוכר" status)
+   *  without a full preview re-fetch. Never touches the row's OWN
+   *  classification (category/subCategory/percents) — the Supplier
+   *  record's fields are defaults for FUTURE expenses, a separate concern
+   *  from this row's already-resolved classification. */
+  onSupplierDialogSave(): void {
+    const draft = this.supplierDraft();
+    const row = this.supplierDialogRow;
+    if (!draft || !row || this.supplierDialogSaving()) return;
+
+    const name = draft.supplier?.trim();
+    if (!name) {
+      this.messageService.add({
+        severity: 'warn', summary: 'שדה חסר', detail: 'יש להזין שם ספק', life: 4000, key: 'br',
+      });
+      return;
+    }
+
+    this.supplierDialogSaving.set(true);
+    const payload = {
+      supplier: name,
+      supplierID: draft.supplierID?.trim() || null,
+      category: draft.category || null,
+      subCategory: draft.subCategory || null,
+      subCategoryId: draft.subCategoryId,
+      vatPercent: draft.vatPercent,
+      taxPercent: draft.isEquipment ? 0 : draft.taxPercent,
+      reductionPercent: draft.isEquipment ? draft.reductionPercent : 0,
+      isEquipment: draft.isEquipment,
+    };
+
+    const mode = this.supplierDialogMode();
+    const obs$ = mode === 'edit' && this.supplierDialogId != null
+      ? this.expenseDataService.editSupplier({ ...payload, businessNumber: this.businessNumber() }, this.supplierDialogId)
+      : this.expenseDataService.addSupplier(payload);
+
+    obs$
+      .pipe(
+        catchError(err => {
+          const detail = err?.status === 409
+            ? 'כבר קיים ספק עם מספר/שם זה'
+            : (err?.error?.message ?? 'שמירת הספק נכשלה');
+          this.messageService.add({ severity: 'error', summary: 'שגיאה', detail, life: 5000, key: 'br' });
+          return EMPTY;
+        }),
+        finalize(() => this.supplierDialogSaving.set(false)),
+      )
+      .subscribe(() => {
+        this.messageService.add({
+          severity: 'success', summary: 'הצלחה', detail: 'פרטי הספק נשמרו', life: 3000, key: 'br',
+        });
+        row.supplier = payload.supplier;
+        row.supplierId = payload.supplierID ?? '';
+        row.supplierStatusLabel = 'ספק מוכר';
+        this.bumpRows();
+        this.suppliersCache = null;
+        this.closeSupplierDialog();
+      });
   }
 
   /** Hover-reveal row actions (matches the rest of the app's row-actions
@@ -1147,18 +1374,6 @@ export class ReportReviewPage implements OnInit {
       }
       mutate(r);
     }
-  }
-
-  /** Click handler for the red flag icon — toggles the per-row choice
-   *  of whether to register this supplier in the user's master list when
-   *  approving. The flag is only rendered for "ספק חדש" rows so this
-   *  method only runs when there's a meaningful choice; no need to guard. */
-  toggleSaveAsSupplier(row: EditableReviewRow, event: MouseEvent): void {
-    // Defensive — the click bubbles from inside the cell; without this
-    // the row-level handler (if any added later) would also fire.
-    event.stopPropagation();
-    row.saveAsSupplier = !row.saveAsSupplier;
-    this.bumpRows();
   }
 
   /** Derive the identity key used for the blue-highlight grouping.

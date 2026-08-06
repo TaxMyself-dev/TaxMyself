@@ -1,0 +1,96 @@
+<p-dialog
+  [header]="titleLabel || (mode === 'edit' ? 'עריכת ספק' : 'ספק חדש')"
+  [visible]="visible"
+  (visibleChange)="$event ? null : visibleChange.emit(false)"
+  [modal]="true"
+  [style]="{ width: '560px', maxWidth: '95vw' }"
+  [rtl]="true"
+  [draggable]="false"
+  [resizable]="false">
+
+  <div class="supplier-dialog-body" *ngIf="fields as f">
+    <div class="field-grid">
+      <label class="field">
+        <span class="field-label">שם הספק</span>
+        <input type="text" class="field-input"
+               [ngModel]="f.supplier"
+               (ngModelChange)="fieldsChange.emit({ supplier: $event })" />
+      </label>
+      <label class="field">
+        <span class="field-label">מספר ספק (ת.ז / ח.פ)</span>
+        <input type="text" class="field-input"
+               [ngModel]="f.supplierID"
+               (ngModelChange)="fieldsChange.emit({ supplierID: $event })" />
+      </label>
+
+      <label class="field">
+        <span class="field-label">קטגוריה</span>
+        <select class="field-input"
+                [ngModel]="f.category"
+                (ngModelChange)="categoryChange.emit($event)">
+          <option [ngValue]="''">— בחר —</option>
+          <option *ngFor="let cat of categoryOptions" [ngValue]="cat">{{ cat }}</option>
+        </select>
+      </label>
+      <label class="field">
+        <span class="field-label">תת קטגוריה</span>
+        <select class="field-input"
+                [ngModel]="f.subCategory"
+                (ngModelChange)="subCategoryChange.emit($event)"
+                [disabled]="!f.category">
+          <option [ngValue]="''">— בחר —</option>
+          <option *ngFor="let sub of subCategoryOptions" [ngValue]="sub">{{ sub }}</option>
+        </select>
+      </label>
+
+      <label class="field field--wide checkbox-field">
+        <input type="checkbox"
+               [ngModel]="f.isEquipment"
+               (ngModelChange)="fieldsChange.emit({ isEquipment: $event })" />
+        <span>רכוש קבוע</span>
+      </label>
+
+      <ng-container *ngIf="!f.isEquipment; else reductionField">
+        <label class="field">
+          <span class="field-label">% מוכר למע״מ</span>
+          <input type="number" step="0.01" class="field-input"
+                 [ngModel]="f.vatPercent"
+                 (ngModelChange)="fieldsChange.emit({ vatPercent: $event })" />
+        </label>
+        <label class="field">
+          <span class="field-label">% מוכר למס</span>
+          <input type="number" step="0.01" class="field-input"
+                 [ngModel]="f.taxPercent"
+                 (ngModelChange)="fieldsChange.emit({ taxPercent: $event })" />
+        </label>
+      </ng-container>
+      <ng-template #reductionField>
+        <label class="field">
+          <span class="field-label">% פחת</span>
+          <input type="number" step="0.01" class="field-input"
+                 [ngModel]="f.reductionPercent"
+                 (ngModelChange)="fieldsChange.emit({ reductionPercent: $event })" />
+        </label>
+      </ng-template>
+    </div>
+  </div>
+
+  <ng-template pTemplate="footer">
+    <div class="supplier-dialog-footer">
+      <app-p-button
+        [buttonText]="'ביטול'"
+        [buttonColor]="ButtonColor.BLACK"
+        [buttonSize]="ButtonSize.AUTO"
+        [variant]="'outlined'"
+        (onButtonClicked)="visibleChange.emit(false)">
+      </app-p-button>
+      <app-p-button
+        [buttonText]="'שמור'"
+        [buttonColor]="ButtonColor.BLACK"
+        [buttonSize]="ButtonSize.AUTO"
+        [isLoading]="isSaving"
+        (onButtonClicked)="save.emit()">
+      </app-p-button>
+    </div>
+  </ng-template>
+</p-dialog>

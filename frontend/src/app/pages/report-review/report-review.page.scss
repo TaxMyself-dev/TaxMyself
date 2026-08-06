@@ -455,20 +455,16 @@
   color: #374151;
   strong { color: #111827; }
 }
-.supplier-conflict-flag-icon {
-  margin: 0 2px;
-  cursor: default; // illustrative only in this description — not clickable here
-  vertical-align: middle;
-}
 .supplier-conflict-footer {
   display: flex;
   gap: 10px;
   justify-content: flex-end;
 }
 
-// Supplier-name cell — name on the right (RTL), info icon hugging the
-// left of the cell. The icon only renders when the supplier isn't in the
-// user's Supplier table, so most rows show just the name.
+// Supplier-name cell — name on the right (RTL), bookmark icon hugging the
+// left of the cell. The icon renders for every row with a supplier
+// concept (matched/doc_only) — filled/outline state signals whether the
+// supplier is already saved.
 :host ::ng-deep .review-table .supplier-cell {
   display: inline-flex;
   align-items: center;
@@ -485,38 +481,23 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-// Two states for the new-supplier toggle — both visible (so the user can
-// always see "this is a new supplier"), only differing in fill so the
-// click choice ("yes save" / "no don't save") is glanceable too.
-//   Default       — filled green square, will be added to Supplier table on approve
-//   Opt-out       — hollow grey square, will NOT be added
-// Click toggles between them (see toggleSaveAsSupplier). Same state logic
-// as before (saveAsSupplier true/false) — only the visual form changed
-// from an outline flag glyph to a small filled square.
-:host ::ng-deep .review-table .supplier-new-square {
-  display: inline-block;
-  width: 10px;
-  height: 10px;
-  border-radius: 2px;
+// Supplier bookmark — click opens the supplier-management dialog
+// (openSupplierDialog). Two states, both visible so the user can always
+// tell at a glance whether the supplier is already saved:
+//   Saved ("ספק מוכר")  — filled green bookmark (pi-bookmark-fill)
+//   New   ("ספק חדש")   — grey outline bookmark (pi-bookmark)
+:host ::ng-deep .review-table .supplier-bookmark {
   cursor: pointer;
+  font-size: 0.85rem;
+  color: #9ca3af;   // grey-400: not yet saved
   flex-shrink: 0;
-  background-color: #16a34a; // green-600: will be added
-  border: 1px solid #16a34a;
-  transition: background-color 0.15s ease, border-color 0.15s ease;
+  transition: color 0.15s ease;
 
-  &:hover {
-    // Slight darken on hover so the click affordance is obvious without
-    // a heavier visual treatment.
-    background-color: #15803d; // green-700
-    border-color: #15803d;
-  }
+  &:hover { color: #6b7280; } // grey-500
 
-  &--opt-out {
-    background-color: transparent;
-    border-color: #9ca3af;     // grey-400: clearly de-emphasized
-    &:hover {
-      border-color: #6b7280;   // grey-500
-    }
+  &--saved {
+    color: #16a34a;  // green-600: already saved
+    &:hover { color: #15803d; } // green-700
   }
 }
 
@@ -637,10 +618,37 @@
   }
 }
 
-// Per-row bulk-select checkbox (template-rendered so it can be disabled).
-.row-select {
-  cursor: pointer;
-  &:disabled { cursor: not-allowed; opacity: 0.45; }
+// Row-select / "בחר הכל" checkboxes — PrimeNG p-checkbox re-skinned to the
+// Figma spec: 18x18, radius 4px, unchecked border #ebebeb, checked border
+// #acacac + green (#16a34a) checkmark. Scoped to .review-table (the
+// per-row checkboxes) and .footer-bar (the "בחר הכל" toggle) — the only
+// two places this page uses a checkbox.
+:host ::ng-deep .review-table .p-checkbox,
+:host ::ng-deep .footer-bar .p-checkbox {
+  width: 18px;
+  height: 18px;
+
+  .p-checkbox-box {
+    width: 18px;
+    height: 18px;
+    border-radius: 4px;
+    border-color: #ebebeb;
+  }
+  &.p-checkbox-checked .p-checkbox-box {
+    border-color: #acacac;
+  }
+  .p-checkbox-icon {
+    width: 12px;
+    height: 12px;
+    color: #16a34a;
+  }
+  &.p-checkbox-checked .p-checkbox-icon {
+    color: #16a34a;
+  }
+  &.p-disabled {
+    opacity: 0.45;
+    .p-checkbox-box { cursor: not-allowed; }
+  }
 }
 
 // ---- Link-picker dialog (tx_only "קשר למסמך קיים") --------------------

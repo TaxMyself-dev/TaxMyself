@@ -358,6 +358,11 @@ export interface IGetSupplier {
     supplierID: string;
     isEquipment: boolean;
     reductionPercent: number;
+    /** Nullable pointer at sub_category.id (see Supplier entity) — present
+     *  on the actual API response though omitted from the old response DTO
+     *  typing; needed to preselect the classification cascade when editing
+     *  an existing supplier. */
+    subCategoryId: number | null;
 }
 
 export interface IMonthData {
