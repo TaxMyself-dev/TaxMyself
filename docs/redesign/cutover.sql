@@ -1510,11 +1510,12 @@ COMMIT;
 --     (SlimTransaction/Expense/FullTransactionCache.vatReportingDate),
 --     snake_case column name matching this entity's own convention
 --     (supplier_id, sub_category_id, document_kind, ...).
---   - `slim_transactions.subCategoryId` — this table had no D1 thin-
+--   - `slim_transactions.sub_category_id` — this table had no D1 thin-
 --     pointer column at all before this section (Supplier and
---     extracted_document already do). camelCase column name — per
---     Elazar's explicit choice this round (diverges from this entity's
---     own no-explicit-name convention elsewhere, intentionally).
+--     extracted_document already do). snake_case column name, matching
+--     this entity's own convention (supplier_id, document_kind, ...) and
+--     the `@Column({ name: 'sub_category_id', ... })` mapping the entity
+--     actually declares.
 --
 -- Both NULLable with no default-value backfill in this script — existing
 -- rows simply read NULL (equivalent to "no pre-approval edit was ever
@@ -1526,9 +1527,9 @@ ALTER TABLE `extracted_document`
   ADD COLUMN `vat_reporting_date` varchar(255) NULL DEFAULT NULL;
 
 ALTER TABLE `slim_transactions`
-  ADD COLUMN `subCategoryId` int NULL DEFAULT NULL;
+  ADD COLUMN `sub_category_id` int NULL DEFAULT NULL;
 
 -- Verification (run after applying, expect 1 row from both):
 --   SHOW COLUMNS FROM extracted_document LIKE 'vat_reporting_date';
---   SHOW COLUMNS FROM slim_transactions LIKE 'subCategoryId';
+--   SHOW COLUMNS FROM slim_transactions LIKE 'sub_category_id';
 -- ============================================================================

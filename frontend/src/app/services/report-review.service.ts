@@ -58,6 +58,10 @@ export interface ReviewTxSummary {
   merchantName: string;
   category: string;
   subCategory: string;
+  /** Nullable pointer at sub_category.id — mirrors slim_transactions.
+   *  sub_category_id. Used server-side as the stamped-id fallback for
+   *  matched-row classification (tx-side wins over doc-side). */
+  subCategoryId: number | null;
   vatPercent: number;
   taxPercent: number;
   isEquipment: boolean;
@@ -446,13 +450,22 @@ export class ReportReviewService {
     businessNumber: string,
     transactionId: number,
     file: File,
-  ): Observable<{ ok: true; documentId: number }> {
+  ): Observable<UploadDocToTxResponse> {
     const fd = new FormData();
     fd.append('file', file);
     fd.append('businessNumber', businessNumber);
-    return this.http.post<{ ok: true; documentId: number }>(
+    return this.http.post<UploadDocToTxResponse>(
       `${environment.apiUrl}reports/me/review/upload-doc-to-tx/${transactionId}`,
       fd,
     );
   }
 }
+
+/** Response of uploadDocToTx — just enough of the new doc's identity/
+ *  display fields for the caller to synthesize a matched row without a
+ *  full preview re-fetch (mirrors what confirmLink already has on hand
+ *  from the doc_only row it's linking to). */
+export type UploadDocToTxResponse = { ok: true } & Pick<
+  ReviewDocSummary,
+  'documentId' | 'driveFileId' | 'driveFileName' | 'invoiceNumber' | 'allocationNumber' | 'documentType'
+>;

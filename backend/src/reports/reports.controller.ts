@@ -264,7 +264,10 @@ export class ReportsController {
      *  link the new extracted_document to the slim transaction. multipart/
      *  form-data with `file` (required) + `businessNumber` form field.
      *  Synchronous OCR — caller waits on the Claude call. Returns the
-     *  new documentId so the frontend can refresh the row in-place. */
+     *  new document's id + display fields (driveFileId/driveFileName/
+     *  invoiceNumber/allocationNumber/documentType) so the frontend can
+     *  synthesize a matched row in-place instead of a full preview
+     *  re-fetch. */
     @Post('me/review/upload-doc-to-tx/:transactionId')
     @RequireModule(ModuleName.OPEN_BANKING)
     @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
@@ -285,6 +288,11 @@ export class ReportsController {
       if (!bn) throw new BadRequestException('businessNumber is required');
       if (!transactionId) throw new BadRequestException('transactionId is required');
       if (!file) throw new BadRequestException('file is required');
+      // multer/busboy decodes multipart headers as latin1 regardless of the
+      // browser's actual UTF-8 filename bytes (no filename*= extended-param
+      // support), so a Hebrew originalname arrives mojibake'd — re-decode it
+      // as the UTF-8 it actually is. No-op for ASCII filenames.
+      file.originalname = Buffer.from(file.originalname, 'latin1').toString('utf8');
       return this.reviewService.uploadDocAndLinkToTx(
         firebaseId, bn, Number(transactionId), file,
       );

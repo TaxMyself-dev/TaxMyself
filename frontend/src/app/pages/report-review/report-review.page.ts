@@ -11,7 +11,7 @@ import {
 import { ActivatedRoute, Router } from '@angular/router';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { MessageService } from 'primeng/api';
-import { EMPTY, catchError, finalize, of } from 'rxjs';
+import { EMPTY, catchError, finalize, forkJoin, of } from 'rxjs';
 
 import { ButtonColor, ButtonSize } from '../../components/button/button.enum';
 import { GenericService } from 'src/app/services/generic.service';
@@ -26,6 +26,7 @@ import {
   ReviewMappingStatus,
   ReviewOverrides,
   ReviewRow,
+  UploadDocToTxResponse,
 } from 'src/app/services/report-review.service';
 import { ExpenseEditFieldValues } from 'src/app/components/report-review-edit-dialog/report-review-edit-dialog.component';
 import { SupplierDraft } from 'src/app/components/supplier-management-dialog/supplier-management-dialog.component';
@@ -66,6 +67,25 @@ interface EditableReviewRow {
    *  documentId, so we compose). */
   rowKey: string;
   type: 'matched' | 'doc_only' | 'tx_only';
+
+  /** Which side's display fields (supplier/date/amount/sumLabel/currency/
+   *  ilsAmount + the "סוג" column via sourceTypeLabel) this row shows in
+   *  its own cells — 'doc' by default. Manually-linked matched rows
+   *  (confirmLink / the upload-new-doc flow) set this to 'tx' so the row
+   *  keeps looking like the tx_only row it was before linking, with the
+   *  document surfacing only in the nested detail child.
+   *
+   *  Independent of D9 classification (category/subCategory/subCategoryId/
+   *  vatPercent/taxPercent/isEquipment), which is tx-wins for EVERY matched
+   *  row now (natural matches included — see classifyReviewRow on the
+   *  backend), via `buildMatchedRow`'s classificationBase — not this flag.
+   *  reductionPercent is a third, separate case: always derived purely from
+   *  the catalog by whichever subCategoryId won (never a doc-vs-tx choice —
+   *  ExtractedDocument has no reductionPercent column to compete with).
+   *  Concretely: a natural matched row shows doc-primary supplier/date/
+   *  amount (displaySource:'doc') but tx-primary category/vatPercent — the
+   *  two axes can and do diverge; that's intentional, not a bug. */
+  displaySource: 'doc' | 'tx';
 
   /** Bulk-approve marker — defaults to true on load; the user can uncheck
    *  to exclude this row from the footer "אשר נבחרות" action. */
@@ -178,6 +198,12 @@ interface EditableReviewRow {
    *  row; threaded into overrides.acknowledgeDuplicate so the retried
    *  approve bypasses the soft block. */
   acknowledgeDuplicate?: boolean;
+
+  /** True for the synthesized nested-detail row shown under an expanded
+   *  matched row (see `displayRows`/`buildDetailRow`) — display-only, never
+   *  a real approval unit. Not part of `rows()`, only of the render-time
+   *  `displayRows` projection fed to the table. */
+  isDetailRow?: boolean;
 }
 
 /**
@@ -240,6 +266,70 @@ export class ReportReviewPage implements OnInit {
   counts = signal<{ matched: number; docOnly: number; txOnly: number }>({
     matched: 0, docOnly: 0, txOnly: 0,
   });
+
+  /** rowKeys of matched rows whose nested document-detail panel is open
+   *  (the small chevron next to the checkbox). Purely a render concern —
+   *  never touches `rows()` itself, see `displayRows`. */
+  expandedRowKeys = signal<Set<string>>(new Set());
+
+  isRowExpanded(row: EditableReviewRow): boolean {
+    return this.expandedRowKeys().has(row.rowKey);
+  }
+
+  toggleRowExpanded(row: EditableReviewRow): void {
+    this.expandedRowKeys.update(set => {
+      const next = new Set(set);
+      if (next.has(row.rowKey)) next.delete(row.rowKey);
+      else next.add(row.rowKey);
+      return next;
+    });
+  }
+
+  /** What actually feeds `[dataTable]` — `rows()` with a synthesized
+   *  detail row spliced in right after every expanded matched row. Kept
+   *  separate from `rows()` so selection/counts/canApprove/approve-queue
+   *  logic never has to know about or filter out detail rows. */
+  displayRows = computed<EditableReviewRow[]>(() => {
+    const expanded = this.expandedRowKeys();
+    const out: EditableReviewRow[] = [];
+    for (const row of this.rows()) {
+      out.push(row);
+      if (row.type === 'matched' && expanded.has(row.rowKey)) {
+        out.push(this.buildDetailRow(row));
+      }
+    }
+    return out;
+  });
+
+  /** Nested-detail row for an expanded matched row — carries the parent's
+   *  doc identity/display fields (driveFileName/documentTypeLabel/
+   *  driveFileId) verbatim; every other column is irrelevant here (blanked
+   *  via CSS on the row, not the data — see tr.row-detail in the .scss)
+   *  since only the supplier-column cellTemplate actually renders content
+   *  for a detail row, as a compact file-name + doc-type summary. */
+  private buildDetailRow(parent: EditableReviewRow): EditableReviewRow {
+    return {
+      ...parent,
+      rowKey: `detail:${parent.rowKey}`,
+      isDetailRow: true,
+      selected: false,
+    };
+  }
+
+  /** Shared builder for a synthesized 'matched' row from a doc-side/tx-side
+   *  pair — used by both confirmLink (linking to an existing doc_only row)
+   *  and the upload-new-doc flow. `classificationBase` supplies every field
+   *  not explicitly overridden: both callers now pass the tx_only row —
+   *  D9 classification is tx-wins for every matched row (see
+   *  classifyReviewRow on the backend), and the tx side already carries its
+   *  own tx-sourced classification from when it was a tx_only row in the
+   *  same preview, so there's nothing to recompute here either way. */
+  private buildMatchedRow(
+    classificationBase: EditableReviewRow,
+    overrides: Partial<EditableReviewRow>,
+  ): EditableReviewRow {
+    return { ...classificationBase, ...overrides, type: 'matched' };
+  }
 
   /** Merged expense catalog WITH card law + section per row
    *  (GET bookkeeping/expense-catalog?includePrivate=true) — single data
@@ -601,20 +691,28 @@ export class ReportReviewPage implements OnInit {
       ilsAmount = null;
     }
     // D9: the server's classification block carries the canonical names +
-    // the resolved card law (exactly what approval would post). Raw doc/slim
-    // strings remain the display fallback for UNCLASSIFIED rows; their
-    // percents remain the fallback law so legacy behavior survives until
-    // the row is (re)classified against the catalog.
+    // the resolved card law (exactly what approval would post — tx wins
+    // over doc for matched rows, see classifyReviewRow). Raw tx/doc strings
+    // remain the display fallback for UNCLASSIFIED rows (tx first, matching
+    // the server's own precedence); their percents remain the fallback law
+    // so legacy behavior survives until the row is (re)classified against
+    // the catalog. Only matched rows have both sides populated — doc_only
+    // never has a txSide, tx_only never has a docSide, so this order is a
+    // no-op for either of those.
     const c = r.classification;
-    const category    = c.categoryName    ?? docSide?.category    ?? txSide?.category    ?? '';
-    const subCategory = c.subCategoryName ?? docSide?.subCategory ?? txSide?.subCategory ?? '';
-    const vatPercent  = Number(c.vatPercent  ?? docSide?.vatPercent  ?? txSide?.vatPercent  ?? 0);
-    const taxPercent  = Number(c.taxPercent  ?? docSide?.taxPercent  ?? txSide?.taxPercent  ?? 0);
-    const isEquipment = !!(c.isEquipment ?? docSide?.isEquipment ?? txSide?.isEquipment ?? false);
+    const category    = c.categoryName    ?? txSide?.category    ?? docSide?.category    ?? '';
+    const subCategory = c.subCategoryName ?? txSide?.subCategory ?? docSide?.subCategory ?? '';
+    const vatPercent  = Number(c.vatPercent  ?? txSide?.vatPercent  ?? docSide?.vatPercent  ?? 0);
+    const taxPercent  = Number(c.taxPercent  ?? txSide?.taxPercent  ?? docSide?.taxPercent  ?? 0);
+    const isEquipment = !!(c.isEquipment ?? txSide?.isEquipment ?? docSide?.isEquipment ?? false);
 
     return {
       rowKey: `${r.type}:${docSide?.documentId ?? 'x'}:${txSide?.slimTransactionId ?? 'x'}`,
       type: r.type,
+      // Every row built from the preview (natural matches included) is
+      // doc-primary by default — only the manual-link flows (confirmLink /
+      // upload-new-doc) flip this to 'tx' on the synthesized row.
+      displaySource: 'doc',
       // Default-checked per spec (V = ✓) — but ONLY approvable rows (D9:
       // missing-mapping / unclassified / annual / unidentified rows cannot
       // be approved, so they never enter the bulk queue pre-checked).
@@ -756,12 +854,21 @@ export class ReportReviewPage implements OnInit {
   /**
    * "שמור" — blocking: apply the draft to the row locally (so the table
    * reflects it immediately), then persist it to the row's source DB
-   * record (ExtractedDocument for matched/doc_only — doc wins over slim,
-   * same as approveMatched; SlimTransaction for tx_only) via
-   * update-doc/update-tx. Only closes the dialog on success; on failure
-   * the dialog stays open with a toast, matching every other row action's
-   * error handling (runAction). Edits are single-row only now — no more
-   * cascade-on-save (that moved to the supplier-management dialog).
+   * record(s) via update-doc/update-tx. Only closes the dialog on success;
+   * on failure the dialog stays open with a toast, matching every other row
+   * action's error handling (runAction). Edits are single-row only now —
+   * no more cascade-on-save (that moved to the supplier-management dialog).
+   *
+   * matched rows write classification (category/subCategory/subCategoryId/
+   * vatPercent/taxPercent/isEquipment) to BOTH sides — updateDocFields (as
+   * before) AND updateTxFields (new) — even though slim is now the
+   * authoritative source (tx-wins, see classifyReviewRow). Deliberately
+   * NOT a clean split: if the doc's own classification went stale the
+   * moment it got linked, "פצל" (unpair) would resurrect a doc_only row
+   * showing an old, pre-edit classification — the same document reading
+   * differently in different tables would confuse the user more than one
+   * extra write costs. doc_only/tx_only keep their single-endpoint save
+   * unchanged (only matched has two sides to keep in sync).
    */
   onEditDialogSave(): void {
     const row = this.editDialogRow();
@@ -818,7 +925,22 @@ export class ReportReviewPage implements OnInit {
           reportPeriod: row.reportPeriodOverridden ? row.reportPeriod : undefined,
         });
 
-    obs$
+    // matched rows also mirror classification onto the slim — see this
+    // method's doc comment for why doc keeps getting the full payload
+    // above instead of a clean split.
+    const classificationObs$ = row.type === 'matched'
+      ? this.reviewService.updateTxFields(this.businessNumber(), row.slimTransactionId!, {
+          category: row.category,
+          subCategory: row.subCategory,
+          subCategoryId: row.subCategoryId ?? undefined,
+          vatPercent: row.vatPercent,
+          taxPercent: row.taxPercent,
+          isEquipment: row.isEquipment,
+        })
+      : null;
+
+    const obsList = classificationObs$ ? [obs$, classificationObs$] : [obs$];
+    forkJoin(obsList)
       .pipe(
         catchError(err => {
           const detail = err?.error?.message ?? err?.message ?? 'שמירת העריכה נכשלה';
@@ -1384,7 +1506,7 @@ export class ReportReviewPage implements OnInit {
       isLoading: () => this.isActioning(),
       showWhen: (row) => {
         const r = row as unknown as EditableReviewRow;
-        return !this.isAnnualRow(r) && !this.isUnidentifiedRow(r);
+        return !r.isDetailRow && !this.isAnnualRow(r) && !this.isUnidentifiedRow(r);
       },
       action: (_event, row) => this.openEditDialog(row as unknown as EditableReviewRow),
     },
@@ -1394,7 +1516,7 @@ export class ReportReviewPage implements OnInit {
       title: 'צפה במסמך לצד הטבלה',
       showWhen: (row) => {
         const r = row as unknown as EditableReviewRow;
-        return !!r.driveFileId && !this.isAnnualRow(r);
+        return !r.isDetailRow && !!r.driveFileId && !this.isAnnualRow(r);
       },
       action: (_event, row) => this.openPreview(row as unknown as EditableReviewRow),
     },
@@ -1405,7 +1527,7 @@ export class ReportReviewPage implements OnInit {
       isLoading: () => this.isActioning(),
       showWhen: (row) => {
         const r = row as unknown as EditableReviewRow;
-        return this.isUnidentifiedRow(r) && !this.isTriaging(r);
+        return !r.isDetailRow && this.isUnidentifiedRow(r) && !this.isTriaging(r);
       },
       action: (_event, row) => this.startTriage(row as unknown as EditableReviewRow),
     },
@@ -1416,25 +1538,20 @@ export class ReportReviewPage implements OnInit {
       isLoading: () => this.isActioning(),
       showWhen: (row) => {
         const r = row as unknown as EditableReviewRow;
-        return r.type !== 'tx_only' && r.documentType === 'invoice_receipt_pair';
+        return !r.isDetailRow && r.type !== 'tx_only' && r.documentType === 'invoice_receipt_pair';
       },
       action: (_event, row) => this.unpairRow(row as unknown as EditableReviewRow),
     },
     {
-      name: 'upload',
-      icon: 'pi pi-upload',
-      title: 'העלה מסמך חדש — סורק ומקשר לתנועה',
-      isLoading: () => this.isActioning(),
-      showWhen: (row) => (row as unknown as EditableReviewRow).type === 'tx_only',
-      action: (_event, row) => this.triggerUpload(row as unknown as EditableReviewRow),
-    },
-    {
+      // Replaces the old separate 'upload' action — "קשר מסמך" now opens
+      // one dialog offering both "pick an existing doc_only row" and "or
+      // upload a new document" (see the link-dialog p-dialog in the .html).
       name: 'link',
       icon: 'pi pi-link',
-      title: 'קשר למסמך קיים — שייך לאחת השורות מסוג \'מסמך בלבד\'',
+      title: 'קשר מסמך',
       showWhen: (row) => {
         const r = row as unknown as EditableReviewRow;
-        return r.type === 'tx_only' && this.docOnlyRows().length > 0;
+        return !r.isDetailRow && r.type === 'tx_only';
       },
       action: (_event, row) => this.startLink(row as unknown as EditableReviewRow),
     },
@@ -1448,7 +1565,10 @@ export class ReportReviewPage implements OnInit {
       // same rejectTx call as "מחק" for that row type (product decision:
       // both buttons stay visible so the action is always available, even
       // though they're functionally identical for a tx_only row).
-      showWhen: (row) => !this.isAnnualRow(row as unknown as EditableReviewRow),
+      showWhen: (row) => {
+        const r = row as unknown as EditableReviewRow;
+        return !r.isDetailRow && !this.isAnnualRow(r);
+      },
       action: (_event, row) => {
         const r = row as unknown as EditableReviewRow;
         if (r.type === 'tx_only') this.rejectTx(r);
@@ -1460,7 +1580,10 @@ export class ReportReviewPage implements OnInit {
       icon: 'pi pi-trash',
       title: 'מחק',
       isLoading: () => this.isActioning(),
-      showWhen: (row) => !this.isAnnualRow(row as unknown as EditableReviewRow),
+      showWhen: (row) => {
+        const r = row as unknown as EditableReviewRow;
+        return !r.isDetailRow && !this.isAnnualRow(r);
+      },
       action: (_event, row) => {
         const r = row as unknown as EditableReviewRow;
         if (r.type === 'tx_only') this.rejectTx(r);
@@ -1509,7 +1632,13 @@ export class ReportReviewPage implements OnInit {
    *  recognize). Replaces the old separate "מקור" source-icon column —
    *  folded the two into one now that the icon column is gone. */
   sourceTypeLabel(row: EditableReviewRow): string {
-    return row.type === 'tx_only' ? 'תנועה' : (row.documentTypeLabel || 'מסמך לא מזוהה');
+    // A manually-linked matched row (displaySource==='tx') keeps reading as
+    // "תנועה" — matches the rest of its display fields (supplier/date/
+    // amount, see confirmLink/mergeUploadedDocIntoRow) until the user
+    // expands it to see the linked document.
+    return (row.type === 'tx_only' || row.displaySource === 'tx')
+      ? 'תנועה'
+      : (row.documentTypeLabel || 'מסמך לא מזוהה');
   }
 
   // ---- Cascading dropdown handlers ------------------------------------
@@ -1890,17 +2019,55 @@ export class ReportReviewPage implements OnInit {
       row,
       this.reviewService.uploadDocToTx(this.businessNumber(), row.slimTransactionId, file),
       'העלאת המסמך וקישורו לתנועה נכשלה',
+      (doc) => this.mergeUploadedDocIntoRow(row, doc as UploadDocToTxResponse),
     );
     // Clear so a re-pick of the same filename still fires `change`.
     input.value = '';
   }
 
+  /** Success path for onUploadDocForTx — same "synthesize a matched row
+   *  in-place" idea as confirmLink, mirrored via buildMatchedRow. The
+   *  tx_only row is the classificationBase — matches confirmLink now too
+   *  (D9 classification is tx-wins for every matched row), and here it's
+   *  doubly right since the doc was just OCR'd and never went through the
+   *  preview's classifyReviewRow pass at all. Also closes the link dialog:
+   *  `linkingRow()` matches by slimTransactionId, which the merged row
+   *  keeps, so without this the dialog would stay open showing a
+   *  now-matched row as if it were still tx_only. */
+  private mergeUploadedDocIntoRow(txRow: EditableReviewRow, doc: UploadDocToTxResponse): void {
+    // classificationBase is already txRow here — the display fields
+    // (supplier/date/amount/sumLabel/currency/ilsAmount) are already
+    // tx-primary without needing an explicit override — displaySource is
+    // set for consistency/readability with confirmLink.
+    const merged = this.buildMatchedRow(txRow, {
+      rowKey: `matched:${doc.documentId}:${txRow.slimTransactionId}`,
+      displaySource: 'tx',
+      documentId: doc.documentId,
+      driveFileId: doc.driveFileId,
+      driveFileName: doc.driveFileName,
+      invoiceNumber: doc.invoiceNumber ?? '',
+      allocationNumber: doc.allocationNumber ?? '',
+      documentType: doc.documentType,
+      documentTypeLabel: this.documentTypeLabel(doc.documentType),
+    });
+    // Replace in place at txRow's own index — see confirmLink for why
+    // filter+concat (pushing to the end) was wrong.
+    this.rows.update(rs => rs.map(r => r === txRow ? merged : r));
+    this.adjustCount('matched', 1);
+    this.adjustCount('tx_only', -1);
+    this.cancelLink();
+  }
+
   /** Common per-row action wrapper — marks row pending, fires the call,
-   *  drops the row on success, surfaces error on failure. */
+   *  and on success either drops the row (default) or hands the response
+   *  to `onSuccess` for a custom merge (e.g. onUploadDocForTx synthesizing
+   *  a matched row instead of just removing the tx_only row). Surfaces
+   *  errors on failure either way. */
   private runAction(
     row: EditableReviewRow,
     obs$: import('rxjs').Observable<unknown>,
     errPrefix: string,
+    onSuccess?: (result: unknown) => void,
   ): void {
     if (this.isActioning() || row.saveStatus === 'pending') return;
     row.saveStatus = 'pending';
@@ -1921,9 +2088,13 @@ export class ReportReviewPage implements OnInit {
         }),
         finalize(() => this.isActioning.set(false)),
       )
-      .subscribe(() => {
-        this.rows.update(rs => rs.filter(r => r !== row));
-        this.adjustCount(row.type, -1);
+      .subscribe((result) => {
+        if (onSuccess) {
+          onSuccess(result);
+        } else {
+          this.rows.update(rs => rs.filter(r => r !== row));
+          this.adjustCount(row.type, -1);
+        }
         this.maybeAutoClose();
       });
   }
@@ -2015,15 +2186,36 @@ export class ReportReviewPage implements OnInit {
         const txRow = row;
         const docRow = this.rows().find(r => r.type === 'doc_only' && r.documentId === docId);
         if (!docRow) return;
-        const merged: EditableReviewRow = {
-          ...docRow,
+        // classificationBase is now txRow — D9 classification (category/
+        // subCategory/vatPercent/taxPercent/mappingStatus/description/
+        // accountLabel/...) is tx-wins for every matched row, manual link
+        // included (see classifyReviewRow on the backend). txRow already
+        // carries its own tx-sourced classification from when it was a
+        // tx_only row in this same preview, so this is just "keep what's
+        // already there" — nothing to recompute client-side. Only the
+        // document's identity/evidence fields (never tx-derived) are
+        // overridden here; supplier/date/amount/sumLabel/currency/ilsAmount
+        // are already txRow's own (displaySource: 'tx' — separate axis,
+        // governs display only, not classification).
+        const merged = this.buildMatchedRow(txRow, {
           rowKey: `matched:${docRow.documentId}:${txRow.slimTransactionId}`,
-          type: 'matched',
           slimTransactionId: txRow.slimTransactionId,
-        };
+          displaySource: 'tx',
+          documentId: docRow.documentId,
+          driveFileId: docRow.driveFileId,
+          driveFileName: docRow.driveFileName,
+          invoiceNumber: docRow.invoiceNumber,
+          allocationNumber: docRow.allocationNumber,
+          documentType: docRow.documentType,
+          documentTypeLabel: docRow.documentTypeLabel,
+        });
+        // Replace in place at txRow's own index (not filter+concat, which
+        // pushed the merged row to the end of the table — jarring after
+        // linking, since the row visually "jumps" away from where the
+        // user was just looking). docRow simply drops out of the list.
         this.rows.update(rs => rs
-          .filter(r => r !== txRow && r !== docRow)
-          .concat([merged]),
+          .filter(r => r !== docRow)
+          .map(r => r === txRow ? merged : r),
         );
         this.counts.update(c => ({
           matched: c.matched + 1,
@@ -2146,6 +2338,7 @@ export class ReportReviewPage implements OnInit {
   rowClassFn = (row: IRowDataTable): string => {
     const r = row as unknown as EditableReviewRow;
     const classes: string[] = [];
+    if (r.isDetailRow) classes.push('row-detail');
     if (this.isSupplierHighlighted(r)) classes.push('row-highlighted');
     if (r.saveStatus === 'failed') classes.push('row-error');
     if (r.saveStatus === 'pending') classes.push('row-pending');

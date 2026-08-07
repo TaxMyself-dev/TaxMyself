@@ -72,6 +72,11 @@ export interface ReviewTxSummary {
   merchantName: string;
   category: string;
   subCategory: string;
+  /** Nullable pointer at sub_category.id (D1 thin-pointer model) — mirrors
+   *  slim_transactions.sub_category_id. Used as the stamped-id fallback in
+   *  classifyReviewRow (tx-side wins over doc-side, see the matched-row
+   *  classification flip) when name-matching finds nothing. */
+  subCategoryId: number | null;
   vatPercent: number;
   taxPercent: number;
   isEquipment: boolean;
