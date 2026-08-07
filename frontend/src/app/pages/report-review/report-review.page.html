@@ -58,11 +58,15 @@
        so non-approvable rows render it DISABLED per D9: missing-mapping /
        unclassified / annual / unidentified rows can't join the queue. -->
   <ng-template #selectCell let-row>
-    <input type="checkbox" class="row-select"
-           [checked]="row.selected"
-           [disabled]="!canApprove(row)"
-           [title]="canApprove(row) ? '' : 'לא ניתן לאשר — ראה עמודת סטטוס'"
-           (change)="onRowSelectedChange(row, $any($event.target).checked)" />
+    <p-checkbox
+      *ngIf="!row.isDetailRow"
+      [binary]="true"
+      [ngModel]="row.selected"
+      [disabled]="!canApprove(row)"
+      [pTooltip]="canApprove(row) ? '' : 'לא ניתן לאשר — ראה עמודת סטטוס'"
+      tooltipPosition="top"
+      (onChange)="onRowSelectedChange(row, $event.checked)">
+    </p-checkbox>
   </ng-template>
 
   <!-- Every column below is permanently read-only now — editing moved
@@ -133,47 +137,83 @@
     </span>
   </ng-template>
 
-  <!-- Supplier name + "new supplier" icon. The icon (pi pi-question-circle)
-       only renders when supplierStatusLabel === 'ספק חדש' — i.e. the doc's
-       supplier_id wasn't found in the user's Supplier table. tx_only rows
-       have supplierStatusLabel = null (no doc-side supplier concept) and
-       therefore never show the icon. -->
+  <!-- Supplier bookmark — opens the supplier-management dialog to
+       create/edit the persisted Supplier record. Rendered for every row
+       with a supplier concept (matched/doc_only; supplierStatusLabel !==
+       null), filled when the supplier is already saved ("ספק מוכר"),
+       outlined when it's new ("ספק חדש"). tx_only rows have
+       supplierStatusLabel = null (no doc-side supplier concept) and
+       therefore never show it. -->
   <!-- Icons come BEFORE the name in DOM order so under RTL they render
        to the right of the supplier name (the start of the visual line).
        The Drive-preview eye lives in the row-actions hover strip; only the
-       new-supplier flag stays attached to the name here. -->
+       supplier bookmark stays attached to the name here. -->
   <ng-template #supplierCell let-row>
-    <span class="supplier-cell">
-      <span *ngIf="row.supplierStatusLabel === 'ספק חדש'"
-         class="supplier-new-square"
-         [class.supplier-new-square--opt-out]="!row.saveAsSupplier"
-         [pTooltip]="row.saveAsSupplier
-           ? 'ספק חדש - יתווסף לרשימת הספקים בעת האישור. לחץ כדי לדלג.'
-           : 'ספק חדש - לא יתווסף לרשימת הספקים. לחץ להחזיר.'"
-         tooltipPosition="top"
-         (click)="toggleSaveAsSupplier(row, $event)"></span>
-      <span class="cell-readonly supplier-name-input">{{ row.supplier }}</span>
-      <!-- Hard failure — small icon + hover tooltip with backend error.
-           Soft duplicates render the inline prompt below instead. -->
-      <span *ngIf="row.saveStatus === 'failed' && !row.duplicateWarning"
-            class="action-error" [title]="row.saveError ?? ''">⚠</span>
+    <!-- Nested document-detail row — deliberately NOT the same columns as a
+         regular row (tried that; produced a wall of empty "—" placeholders
+         since a bare document has no date/amount/percent/period of its own
+         — those already show on the parent transaction row). Compact
+         single-line summary instead: eye icon (before the text in DOM
+         order, so RTL renders it at the visual right/start) + file name +
+         document type — nothing else. Every other column renders nothing
+         for this row (hidden via CSS, see tr.row-detail in the .scss). -->
+    <span *ngIf="row.isDetailRow; else normalSupplierCell" class="detail-row-compact">
+      <span *ngIf="row.driveFileId"
+            class="pi pi-eye detail-row-preview"
+            pTooltip="צפה במסמך"
+            tooltipPosition="top"
+            (click)="openPreview(row); $event.stopPropagation()"></span>
+      <span class="detail-row-filename">{{ row.driveFileName || '—' }}</span>
+      <span class="detail-row-doctype">{{ row.documentTypeLabel || '—' }}</span>
     </span>
-    <!-- Soft-duplicate prompt — the backend flagged this row as a possible
-         duplicate (same supplier/sum/date, different/missing document
-         number). The user decides: save anyway (acknowledges the warning
-         and retries), or skip and leave the row un-approved. -->
-    <div *ngIf="row.duplicateWarning" class="dup-warning">
-      <span class="dup-warning__text">
-        <i class="pi pi-exclamation-triangle"></i>
-        {{ row.saveError || 'ייתכן שזו הוצאה כפולה' }}
+    <ng-template #normalSupplierCell>
+      <span class="supplier-cell">
+        <!-- Fixed-width slot for the expand chevron — ALWAYS rendered (even
+             when empty) so the bookmark icon after it sits at the same
+             horizontal offset on every row, whether or not this particular
+             row happens to have a chevron (only matched rows do). Without
+             this slot, the bookmark visibly shifted left on matched rows
+             vs. doc_only rows. -->
+        <span class="chevron-slot">
+          <span *ngIf="row.type === 'matched' && !row.isDetailRow"
+                class="pi row-expand-toggle"
+                [ngClass]="isRowExpanded(row) ? 'pi-chevron-up' : 'pi-chevron-down'"
+                [pTooltip]="isRowExpanded(row) ? 'הסתר פרטי מסמך' : 'הצג פרטי מסמך'"
+                tooltipPosition="top"
+                (click)="toggleRowExpanded(row); $event.stopPropagation()"></span>
+        </span>
+        <span *ngIf="row.supplierStatusLabel !== null"
+           class="supplier-bookmark pi"
+           [ngClass]="row.supplierStatusLabel === 'ספק מוכר' ? 'pi-bookmark-fill' : 'pi-bookmark'"
+           [class.supplier-bookmark--saved]="row.supplierStatusLabel === 'ספק מוכר'"
+           [pTooltip]="row.supplierStatusLabel === 'ספק מוכר'
+             ? 'ספק שמור — לחץ לעריכת הפרטים'
+             : 'ספק חדש — לחץ לשמירת פרטי הספק'"
+           tooltipPosition="top"
+           (click)="openSupplierDialog(row); $event.stopPropagation()"></span>
+        <span class="cell-readonly supplier-name-input">{{ row.supplier }}</span>
+        <!-- Hard failure — small icon + hover tooltip with backend error.
+             Soft duplicates render the inline prompt below instead. -->
+        <span *ngIf="row.saveStatus === 'failed' && !row.duplicateWarning"
+              class="action-error" [title]="row.saveError ?? ''">⚠</span>
       </span>
-      <button type="button" class="act act-approve"
-              [disabled]="isActioning()"
-              (click)="confirmSaveAnyway(row)">שמור בכל זאת</button>
-      <button type="button" class="act act-archive"
-              [disabled]="isActioning()"
-              (click)="dismissDuplicate(row)">דלג</button>
-    </div>
+      <!-- Soft-duplicate prompt — the backend flagged this row as a possible
+           duplicate (same supplier/sum/date, different/missing document
+           number). The user decides: save anyway (acknowledges the warning
+           and retries), or skip and leave the row un-approved. -->
+      <div *ngIf="row.duplicateWarning" class="dup-warning">
+        <span class="dup-warning__text">
+          <i class="pi pi-exclamation-triangle"></i>
+          {{ row.saveError || 'ייתכן שזו הוצאה כפולה' }}
+        </span>
+        <button type="button" class="act act-approve"
+                [disabled]="isActioning()"
+                (click)="confirmSaveAnyway(row)">שמור בכל זאת</button>
+        <button type="button" class="act act-archive"
+                [disabled]="isActioning()"
+                (click)="dismissDuplicate(row)">דלג</button>
+      </div>
+    </ng-template>
   </ng-template>
 
   <!-- Hidden page-level upload input for the tx_only "upload" hover action
@@ -190,7 +230,7 @@
     class="review-table"
     [showRowActionIcons]="true"
     [columnsTitle]="buildColumns(selectCell, categoryCell, subCategoryCell, cardCell, periodCell, supplierCell, vatPercentCell, taxPercentCell, dateCell, amountCell, invoiceNumberCell, docTypeCell)"
-    [dataTable]="$any(rows())"
+    [dataTable]="$any(displayRows())"
     [rowClass]="rowClassFn"
     [rowActions]="reviewRowActions"
     [tableHeight]="'480px'">
@@ -201,11 +241,14 @@
        together with the selection-status text on the right. -->
   <div *ngIf="rows().length > 0" class="footer-bar">
     <div class="select-info">
-      <label class="select-all-toggle">
-        <input type="checkbox"
-               [checked]="approvableCount() > 0 && selectedCount() === approvableCount()"
-               [disabled]="approvableCount() === 0"
-               (change)="toggleAll($any($event.target).checked)" />
+      <label class="select-all-toggle" for="selectAllCheckbox">
+        <p-checkbox
+          inputId="selectAllCheckbox"
+          [binary]="true"
+          [ngModel]="approvableCount() > 0 && selectedCount() === approvableCount()"
+          [disabled]="approvableCount() === 0"
+          (onChange)="toggleAll($event.checked)">
+        </p-checkbox>
         בחר הכל
       </label>
       <span>נבחרו {{ selectedCount() }} מתוך {{ approvableCount() }} ניתנות לאישור</span>
@@ -254,6 +297,7 @@
   [documentTypeOptions]="documentTypeOptions"
   [periodOptions]="editDraftPeriodOptions()"
   [showNewSupplierFlag]="editDialogRow()?.supplierStatusLabel === 'ספק חדש'"
+  [isSaving]="editDialogSaving()"
   (visibleChange)="$event ? null : onEditDialogCancel()"
   (save)="onEditDialogSave()"
   (categoryChange)="onEditDraftCategoryChange($event)"
@@ -263,6 +307,28 @@
   (customPeriodRequested)="openCustomPeriod()"
   (fieldsChange)="onEditDraftFieldsPatch($event)">
 </app-report-review-edit-dialog>
+
+<!-- Supplier-management popup. Opened by the supplier bookmark icon in the
+     supplier cell (openSupplierDialog) — create/edit the persisted
+     Supplier record. Same fully-controlled pattern as
+     app-report-review-edit-dialog above: the dialog holds no state of its
+     own, every keystroke relays up to supplierDraft and the updated draft
+     flows back down via [fields]. -->
+<app-supplier-management-dialog
+  [visible]="supplierDialogVisible()"
+  [mode]="supplierDialogMode()"
+  [titleLabel]="supplierDialogTitleLabel()"
+  [fields]="supplierDraft()"
+  [categoryOptions]="categoryOptions()"
+  [subCategoryOptions]="supplierDraftSubCategoryOptions()"
+  [isSaving]="supplierDialogSaving()"
+  [progressLabel]="supplierCascadeProgressLabel()"
+  (visibleChange)="$event ? null : onSupplierDialogCancel()"
+  (save)="onSupplierDialogSave()"
+  (categoryChange)="onSupplierDraftCategoryChange($event)"
+  (subCategoryChange)="onSupplierDraftSubCategoryChange($event)"
+  (fieldsChange)="onSupplierDraftFieldsPatch($event)">
+</app-supplier-management-dialog>
 
 <!-- Custom-period entry dialog. Opened when the user picks "אחר" in the
      edit dialog's period dropdown (see openCustomPeriod). Styled to match
@@ -350,9 +416,10 @@
     </ul>
 
     <p class="supplier-conflict-howto">
-      כדי להמשיך: השוו את הערכים בין השורות, או לחצו על סימון הספק
-      (<span class="supplier-new-square supplier-conflict-flag-icon"></span>)
-      בשורות שאתם <strong>לא</strong> רוצים שיישמרו לכרטיס הספק.
+      כדי להמשיך: השוו את הערכים בין השורות (ערכו דרך פעולת ה"עריכה"), או
+      לחצו על סימנית הספק ליד שם הספק באחת השורות כדי לשמור את פרטי הספק
+      הסופיים ישירות — שורה ששמרתם דרכה כך הופכת ל"ספק מוכר" ולא תיחשב עוד
+      בבדיקת ההתנגשות.
     </p>
   </div>
 
@@ -369,11 +436,14 @@
 
 </p-dialog>
 
-<!-- tx_only "קשר למסמך קיים" — was an inline picker in the (now-removed)
-     status column; same p-dialog idiom as the rest of this stack, opened
-     from the row-actions hover strip's "link" action (startLink). -->
+<!-- tx_only "קשר מסמך" — was an inline picker in the (now-removed) status
+     column; same p-dialog idiom as the rest of this stack, opened from the
+     row-actions hover strip's "link" action (startLink). Offers two paths:
+     pick an existing doc_only row (confirmLink), or upload a brand new
+     document (reuses the same shared hidden #uploadInput as everywhere
+     else on the page — see triggerUpload). -->
 <p-dialog
-  header="קישור לתנועה"
+  header="קשר מסמך"
   [visible]="linkingTxId() !== null"
   (visibleChange)="$event ? null : cancelLink()"
   [modal]="true"
@@ -394,6 +464,14 @@
         {{ dr.supplier || '(ללא ספק)' }} — ₪{{ dr.amount }} — {{ dr.date }}
       </option>
     </select>
+
+    <div class="link-dialog-divider"><span>או</span></div>
+
+    <button type="button" class="link-dialog-upload-btn"
+            [disabled]="isActioning()"
+            (click)="triggerUpload(row)">
+      <i class="pi pi-upload"></i> העלה מסמך חדש — סורק ומקשר אוטומטית
+    </button>
   </div>
 
   <ng-template pTemplate="footer">
@@ -406,7 +484,7 @@
         (onButtonClicked)="cancelLink()">
       </app-p-button>
       <app-p-button
-        [buttonText]="'אישור'"
+        [buttonText]="'קשר'"
         [buttonColor]="ButtonColor.BLACK"
         [buttonSize]="ButtonSize.AUTO"
         [isLoading]="isActioning()"

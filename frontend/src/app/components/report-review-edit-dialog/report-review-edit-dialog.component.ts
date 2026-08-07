@@ -26,9 +26,6 @@ export interface ExpenseEditFieldValues {
   supplier: string;
   reportPeriod: string;
   reportPeriodOverridden: boolean;
-  /** Checked by default — the caller cascades the classification onto
-   *  every sibling row sharing this supplier when true. */
-  applyCascadeToSuppliers: boolean;
   /** Doc-only fields — undefined/ignored when hasDocument is false. */
   allocationNumber?: string;
   documentType?: string | null;
@@ -79,6 +76,9 @@ export class ReportReviewEditDialogComponent {
    *  customPeriodRequested instead of periodChange. */
   @Input() periodOptions: { value: string; label: string; isCustom?: boolean }[] = [];
   @Input() showNewSupplierFlag = false;
+  /** True while a blocking save (onEditDialogSave) is in flight — disables
+   *  the footer buttons and shows a spinner on "שמור". */
+  @Input() isSaving = false;
 
   @Output() visibleChange = new EventEmitter<boolean>();
   @Output() save = new EventEmitter<void>();
@@ -89,7 +89,7 @@ export class ReportReviewEditDialogComponent {
   @Output() customPeriodRequested = new EventEmitter<void>();
   /** Generic patch for every field with no cascade/resolution side-effect
    *  (vatPercent, taxPercent, date, amount, supplierId, supplier,
-   *  allocationNumber, documentType, saveAsSupplier, applyCascadeToSuppliers). */
+   *  allocationNumber, documentType, saveAsSupplier). */
   @Output() fieldsChange = new EventEmitter<Partial<ExpenseEditFieldValues>>();
 
   previewUrl(): SafeResourceUrl | null {

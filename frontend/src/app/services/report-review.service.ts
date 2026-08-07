@@ -58,11 +58,21 @@ export interface ReviewTxSummary {
   merchantName: string;
   category: string;
   subCategory: string;
+  /** Nullable pointer at sub_category.id — mirrors slim_transactions.
+   *  sub_category_id. Used server-side as the stamped-id fallback for
+   *  matched-row classification (tx-side wins over doc-side). */
+  subCategoryId: number | null;
   vatPercent: number;
   taxPercent: number;
   isEquipment: boolean;
   originalAmount: number | null;
   originalCurrency: string | null;
+  /** True when the transaction's merchant name matches (case-insensitive,
+   *  trimmed) a row in the user's Supplier table — the tx_only equivalent
+   *  of ReviewDocSummary.matchedSupplierKnown (which matches by tax ID
+   *  instead, since a raw bank transaction has no supplierId). Drives the
+   *  "ספק מוכר / ספק חדש" bookmark on tx_only rows. */
+  matchedSupplierKnown: boolean;
 }
 
 /** D9 mapping verdict for a row's current classification (Phase 6.1). */
@@ -159,8 +169,10 @@ export interface ReviewOverrides {
   isEquipment?: boolean;
   reportPeriod?: string;
   /** Per-row opt-out for adding the supplier to the user's master list.
-   *  Backend defaults to true when undefined. The review modal toggles
-   *  this via the red flag icon on rows where the supplier is new. */
+   *  Backend defaults to true when undefined. The review page currently
+   *  always sends true — the in-table opt-out toggle was removed in favor
+   *  of the supplier bookmark's create/edit dialog — kept for backend
+   *  compatibility. */
   saveAsSupplier?: boolean;
   /** Acknowledges a soft duplicate (same supplier/sum/date, different or
    *  missing document number). Sent as true after the user confirms "save
@@ -187,6 +199,34 @@ export interface ReviewOverrides {
   /** Amount override — every row type, same caveat as `date`. */
   amount?: number;
 }
+
+/**
+ * Fields the review edit dialog can persist directly onto a pending
+ * document BEFORE approval (see ReportReviewService.updateDocFields on
+ * the backend) — every ReviewOverrides field that actually has a backing
+ * column on ExtractedDocument. Excludes saveAsSupplier/
+ * acknowledgeDuplicate (approve-time-only behavior flags).
+ */
+export type UpdateDocFields = Pick<ReviewOverrides,
+  | 'category' | 'subCategory' | 'subCategoryId'
+  | 'vatPercent' | 'taxPercent' | 'isEquipment'
+  | 'date' | 'amount' | 'supplierId' | 'supplier'
+  | 'invoiceNumber' | 'allocationNumber' | 'documentType'
+  | 'reportPeriod'
+>;
+
+/**
+ * Fields the review edit dialog can persist directly onto a pending
+ * transaction BEFORE approval (see ReportReviewService.updateTxFields).
+ * A bank transaction has no document-side concept and no date/amount
+ * column of its own (those live on the read-only bank-fed cache) — much
+ * narrower than UpdateDocFields.
+ */
+export type UpdateTxFields = Pick<ReviewOverrides,
+  | 'category' | 'subCategory' | 'subCategoryId'
+  | 'vatPercent' | 'taxPercent' | 'isEquipment'
+  | 'reportPeriod'
+>;
 
 @Injectable({ providedIn: 'root' })
 export class ReportReviewService {
@@ -366,6 +406,33 @@ export class ReportReviewService {
     );
   }
 
+  /** Persist an in-progress edit onto a pending document (matched/
+   *  doc_only) — NOT an approve, no status change. Lets the edit dialog's
+   *  "שמור" block on the server confirming the write instead of only
+   *  mutating the in-memory row until the user later clicks approve. */
+  updateDocFields(
+    businessNumber: string,
+    documentId: number,
+    fields: UpdateDocFields,
+  ): Observable<{ ok: true }> {
+    return this.http.patch<{ ok: true }>(
+      `${environment.apiUrl}reports/me/review/update-doc/${documentId}`,
+      { businessNumber, fields },
+    );
+  }
+
+  /** Same as updateDocFields, for the transaction side of a tx_only row. */
+  updateTxFields(
+    businessNumber: string,
+    slimTransactionId: number,
+    fields: UpdateTxFields,
+  ): Observable<{ ok: true }> {
+    return this.http.patch<{ ok: true }>(
+      `${environment.apiUrl}reports/me/review/update-tx/${slimTransactionId}`,
+      { businessNumber, fields },
+    );
+  }
+
   /** Merged expense catalog with card law + section per row — the approval
    *  screen's single picker/preview data source (includePrivate so a user
    *  can classify a personal purchase as private). */
@@ -383,13 +450,22 @@ export class ReportReviewService {
     businessNumber: string,
     transactionId: number,
     file: File,
-  ): Observable<{ ok: true; documentId: number }> {
+  ): Observable<UploadDocToTxResponse> {
     const fd = new FormData();
     fd.append('file', file);
     fd.append('businessNumber', businessNumber);
-    return this.http.post<{ ok: true; documentId: number }>(
+    return this.http.post<UploadDocToTxResponse>(
       `${environment.apiUrl}reports/me/review/upload-doc-to-tx/${transactionId}`,
       fd,
     );
   }
 }
+
+/** Response of uploadDocToTx — just enough of the new doc's identity/
+ *  display fields for the caller to synthesize a matched row without a
+ *  full preview re-fetch (mirrors what confirmLink already has on hand
+ *  from the doc_only row it's linking to). */
+export type UploadDocToTxResponse = { ok: true } & Pick<
+  ReviewDocSummary,
+  'documentId' | 'driveFileId' | 'driveFileName' | 'invoiceNumber' | 'allocationNumber' | 'documentType'
+>;

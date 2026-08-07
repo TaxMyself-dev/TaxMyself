@@ -28,6 +28,7 @@ import { CatalogService } from '../bookkeeping/catalog.service';
 import { CatalogContextService } from '../bookkeeping/catalog-context.service';
 import { SubCategory } from '../bookkeeping/sub-category.entity';
 import { buildExpenseDescription } from '../expenses/expense-description.util';
+import { normalizeSupplierName } from './supplier-name.util';
 import { ApprovalStatus, BusinessType, DocumentKind, OwnerType, VATReportingType } from '../enum';
 import { MatchingService } from './matching.service';
 import {
@@ -104,6 +105,37 @@ export interface ReviewOverrides {
    *  stored foreign amount. */
   amount?: number;
 }
+
+/**
+ * Fields the review edit dialog can persist directly onto a pending
+ * ExtractedDocument BEFORE approval (see ReportReviewService.
+ * updateDocFields) — every ReviewOverrides field that actually has a
+ * backing column on this entity. Excludes: saveAsSupplier/
+ * acknowledgeDuplicate (approve-time-only behavior flags, no column
+ * anywhere).
+ */
+export type UpdateDocFields = Pick<ReviewOverrides,
+  | 'category' | 'subCategory' | 'subCategoryId'
+  | 'vatPercent' | 'taxPercent' | 'isEquipment'
+  | 'date' | 'amount' | 'supplierId' | 'supplier'
+  | 'invoiceNumber' | 'allocationNumber' | 'documentType'
+  | 'reportPeriod'
+>;
+
+/**
+ * Fields the review edit dialog can persist directly onto a pending
+ * SlimTransaction BEFORE approval (see ReportReviewService.
+ * updateTxFields). A bank transaction has no document-side concept
+ * (supplier identity, invoice/allocation number, document type) and no
+ * date/amount column of its own (those live on FullTransactionCache,
+ * synced from the bank feed — not user-editable here) — so this is a much
+ * narrower subset than UpdateDocFields.
+ */
+export type UpdateTxFields = Pick<ReviewOverrides,
+  | 'category' | 'subCategory' | 'subCategoryId'
+  | 'vatPercent' | 'taxPercent' | 'isEquipment'
+  | 'reportPeriod'
+>;
 
 /**
  * Owns the unified report-review pre-flight: the pipeline that runs before
@@ -400,42 +432,80 @@ export class ReportReviewService {
       const tx = txBySlimId.get(doc.matchedTransactionId);
       if (!tx) continue;
       const document = this.toDocSummary(doc, knownSupplierById);
+      const transaction = this.toTxSummary(tx.slim, tx.cache);
       rows.push({
         type: 'matched',
         document,
-        transaction: this.toTxSummary(tx.slim, tx.cache),
-        classification: this.classifyReviewRow(mergedCatalog, firebaseId, document, doc.subCategoryId),
+        transaction,
+        // tx wins over doc for classification (D9 flip) — the document
+        // remains only the evidence (driveFileId/invoiceNumber/
+        // allocationNumber/documentType, untouched by this). See
+        // classifyReviewRow's own doc comment for the match-order rules.
+        classification: this.classifyReviewRow(mergedCatalog, firebaseId, {
+          tx: { category: transaction.category, subCategory: transaction.subCategory, subCategoryId: transaction.subCategoryId },
+          doc: {
+            category: document.category, subCategory: document.subCategory, subCategoryId: doc.subCategoryId,
+            documentType: document.documentType, supplier: document.supplier, invoiceNumber: document.invoiceNumber,
+          },
+        }),
       });
       matchedDocIds.add(doc.id);
       matchedTxIds.add(doc.matchedTransactionId);
     }
 
-    // Second pass: doc_only — every pending doc not consumed above.
+    // Second pass: doc_only — every pending doc not consumed above. No tx
+    // side exists yet, so classification stays doc-sourced (unaffected by
+    // the matched-row tx-wins flip — there's nothing to prefer over here).
     for (const doc of docs) {
       if (matchedDocIds.has(doc.id)) continue;
       const document = this.toDocSummary(doc, knownSupplierById);
       rows.push({
         type: 'doc_only',
         document,
-        classification: this.classifyReviewRow(mergedCatalog, firebaseId, document, doc.subCategoryId),
+        classification: this.classifyReviewRow(mergedCatalog, firebaseId, {
+          doc: {
+            category: document.category, subCategory: document.subCategory, subCategoryId: doc.subCategoryId,
+            documentType: document.documentType, supplier: document.supplier, invoiceNumber: document.invoiceNumber,
+          },
+        }),
       });
     }
 
     // Third pass: tx_only — every eligible tx not consumed above (only in
     // with_banking mode; documents_only never sees transactions).
-    if (mode === 'with_banking') {
-      for (const { slim, cache } of txCacheRows) {
-        if (matchedTxIds.has(slim.id)) continue;
-        const transaction = this.toTxSummary(slim, cache);
-        rows.push({
-          type: 'tx_only',
-          transaction,
-          classification: this.classifyReviewRow(mergedCatalog, firebaseId, {
-            category: transaction.category,
-            subCategory: transaction.subCategory,
-          }, null),
-        });
-      }
+    const pendingTxRows = mode === 'with_banking'
+      ? txCacheRows.filter(r => !matchedTxIds.has(r.slim.id))
+      : [];
+
+    // Supplier lookup for tx_only rows: a raw bank transaction has no
+    // supplierId (that's a doc-side concept), only a merchant name — so
+    // "ספק מוכר" here needs a name-based fallback. Deliberately NOT the
+    // same knownSuppliers list above (that one is scoped to docSupplierIds
+    // — a supplier with no pending doc THIS round would never appear
+    // there, which would make this fallback miss the common case of a
+    // recurring bank-only vendor). One extra batched query — not per-row —
+    // only run when there's actually a tx_only row to resolve.
+    const allBusinessSuppliers = pendingTxRows.length > 0
+      ? await this.supplierRepo.find({ where: { businessNumber } })
+      : [];
+    const knownSupplierByName = new Map<string, Supplier>();
+    for (const s of allBusinessSuppliers) {
+      const key = normalizeSupplierName(s.supplier);
+      if (key) knownSupplierByName.set(key, s);
+    }
+
+    for (const { slim, cache } of pendingTxRows) {
+      const transaction = this.toTxSummary(slim, cache, knownSupplierByName);
+      rows.push({
+        type: 'tx_only',
+        transaction,
+        // Now includes subCategoryId as the stamped-id fallback (previously
+        // hardcoded null — name-matching only) so an edit persisted via
+        // updateTxFields actually round-trips on the next preview load.
+        classification: this.classifyReviewRow(mergedCatalog, firebaseId, {
+          tx: { category: transaction.category, subCategory: transaction.subCategory, subCategoryId: transaction.subCategoryId },
+        }),
+      });
     }
 
     return {
@@ -455,48 +525,69 @@ export class ReportReviewService {
   }
 
   /**
-   * Phase 6.1 (D9): resolve one review row's classification names against
-   * the merged catalog, in-memory. Match order:
-   *   1. exact (category, subCategory) name pair — the names are the
-   *      EFFECTIVE classification (a saved supplier's names override the
-   *      OCR guess in toDocSummary, so they must win over the OCR-time
-   *      stamped id);
-   *   2. subCategory name alone (Claude/legacy rows sometimes carry a bare
+   * Phase 6.1 (D9), revised for the matched-row tx-wins flip: resolve one
+   * review row's classification against the merged catalog, in-memory.
+   * `source.tx` and `source.doc` are each an independent classification
+   * candidate — matched rows send both (tx wins), doc_only sends only
+   * `doc`, tx_only sends only `tx`. Match order:
+   *   1. tx candidate's exact (category, subCategory) name pair, else its
+   *      bare subCategory name (Claude/legacy rows sometimes carry a bare
    *      sub name or a stale parent) — same fallback matchCatalogSubCategoryId
-   *      uses at OCR-insert time;
-   *   3. the stamped extracted_document.subCategoryId, when the names match
-   *      nothing (e.g. a CLIENT row renamed since OCR).
+   *      uses at OCR-insert time. If tx yields NO match at all (not even a
+   *      bare-name one), retry the same two steps against the doc
+   *      candidate — names are never mixed field-by-field across the two
+   *      candidates, one candidate's pair wins outright.
+   *   2. stamped subCategoryId (tx's, else doc's) — when neither candidate
+   *      matched by name (e.g. a CLIENT row renamed since OCR/classify).
+   *   3. UNCLASSIFIED.
+   * The doc candidate is also the sole source for the D7 description's
+   * doc-type-label fallback (documentType/supplier/invoiceNumber — doc-only
+   * concepts, independent of which candidate wins the classification).
    */
   private classifyReviewRow(
     catalog: SubCategory[],
     ownerFirebaseId: string,
     source: {
-      category?: string | null;
-      subCategory?: string | null;
-      documentType?: string | null;
-      supplier?: string | null;
-      invoiceNumber?: string | null;
+      /** tx-side classification candidate — tried first (tx wins). Present
+       *  for matched + tx_only rows; omitted for doc_only (no tx side). */
+      tx?: { category?: string | null; subCategory?: string | null; subCategoryId?: number | null } | null;
+      /** doc-side classification candidate — tried only when tx yields no
+       *  match at all. Present for matched + doc_only rows; omitted for
+       *  tx_only (no doc side). */
+      doc?: {
+        category?: string | null; subCategory?: string | null; subCategoryId?: number | null;
+        documentType?: string | null; supplier?: string | null; invoiceNumber?: string | null;
+      } | null;
     },
-    stampedSubCategoryId: number | null | undefined,
   ): ReviewClassification {
-    const catName = source.category?.trim() || null;
-    const subName = source.subCategory?.trim() || null;
-
-    let sub: SubCategory | undefined;
-    if (subName) {
+    const tryMatch = (
+      cand?: { category?: string | null; subCategory?: string | null } | null,
+    ): SubCategory | undefined => {
+      const catName = cand?.category?.trim() || null;
+      const subName = cand?.subCategory?.trim() || null;
+      if (!subName) return undefined;
       const bySubName = catalog.filter(s => s.name === subName);
-      sub = (catName ? bySubName.find(s => s.category?.name === catName) : undefined)
+      return (catName ? bySubName.find(s => s.category?.name === catName) : undefined)
         ?? bySubName[0];
-    }
-    if (!sub && stampedSubCategoryId != null) {
-      sub = catalog.find(s => s.id === stampedSubCategoryId);
+    };
+
+    let sub = tryMatch(source.tx) ?? tryMatch(source.doc);
+
+    if (!sub) {
+      const stampedId = source.tx?.subCategoryId ?? source.doc?.subCategoryId;
+      if (stampedId != null) sub = catalog.find(s => s.id === stampedId);
     }
 
-    const docInput = source.documentType
+    // Defensive fallback text for the (normally unreachable — sub always
+    // has a category FK) case sub.category is null; tx wins here too.
+    const catName = (source.tx?.category?.trim() || source.doc?.category?.trim()) || null;
+
+    const doc = source.doc;
+    const docInput = doc?.documentType
       ? {
-          documentType: source.documentType as any,
-          supplier: source.supplier ?? null,
-          invoiceNumber: source.invoiceNumber ?? null,
+          documentType: doc.documentType as any,
+          supplier: doc.supplier ?? null,
+          invoiceNumber: doc.invoiceNumber ?? null,
         }
       : null;
 
@@ -591,13 +682,19 @@ export class ReportReviewService {
       throw new BadRequestException('מסמך שנתי — לא הוצאה; יש לתייק אותו לדוח השנתי');
     }
 
-    // Resolve final values: override > doc > slim. Doc wins over slim
-    // because matched rows are anchored on the document (it's the source
-    // for VAT-deduction evidence); slim is the bank-side classification.
-    const finalCategory    = overrides.category    ?? doc.category    ?? slim.category;
-    const finalSubCategory = overrides.subCategory ?? doc.subCategory ?? slim.subCategory;
-    const finalVatPercent  = Number(overrides.vatPercent ?? doc.vatPercent ?? slim.vatPercent);
-    const finalTaxPercent  = Number(overrides.taxPercent ?? doc.taxPercent ?? slim.taxPercent);
+    // Resolve final values: override > slim > doc. Slim (tx) wins over doc
+    // for classification — the user approves these numbers themselves in
+    // the review table regardless of source, and the document remains only
+    // the evidence (driveFileId/invoiceNumber/allocationNumber/documentType,
+    // untouched by this). In practice this fallback rarely fires: the review
+    // page's overridesFromRow always sends concrete values (mirroring
+    // classifyReviewRow's own tx-wins resolution, see getReportPreview's
+    // matched-row pass) — kept for defensive correctness on any caller that
+    // sends a partial overrides object.
+    const finalCategory    = overrides.category    ?? slim.category    ?? doc.category;
+    const finalSubCategory = overrides.subCategory ?? slim.subCategory ?? doc.subCategory;
+    const finalVatPercent  = Number(overrides.vatPercent ?? slim.vatPercent ?? doc.vatPercent);
+    const finalTaxPercent  = Number(overrides.taxPercent ?? slim.taxPercent ?? doc.taxPercent);
     // Don't fall back to doc/slim's stale isEquipment guess here — unlike
     // vatPercent/taxPercent, a definite boolean unconditionally wins over the
     // resolved card in applyClassificationToExpense (`dtoOverrides.isEquipment
@@ -628,9 +725,9 @@ export class ReportReviewService {
     return this.dataSource.transaction(async manager => {
       // Phase 4.1: addExpense JOINS this transaction via `manager` (it used
       // to open its own nested one) — expense + journal + doc/slim flips are
-      // now genuinely atomic. subCategoryId (override > doc-side backfill)
-      // wins over the name pair; the doc rides along for the D7 description
-      // fallback chain.
+      // now genuinely atomic. subCategoryId (override > slim-side backfill,
+      // doc as last resort) wins over the name pair; the doc rides along for
+      // the D7 description fallback chain regardless of which side won.
       const expense = await this.expensesService.addExpense(
         {
           supplier: overrides.supplier ?? doc.supplier ?? cache.merchantName,
@@ -641,7 +738,7 @@ export class ReportReviewService {
           // doc has no printed number — rare for invoices, common for
           // cash receipts).
           expenseNumber: overrides.invoiceNumber ?? doc.invoiceNumber ?? undefined as any,
-          subCategoryId: overrides.subCategoryId ?? doc.subCategoryId ?? undefined,
+          subCategoryId: overrides.subCategoryId ?? slim.subCategoryId ?? doc.subCategoryId ?? undefined,
           category: finalCategory,
           subCategory: finalSubCategory,
           sum: finalSum,
@@ -651,7 +748,15 @@ export class ReportReviewService {
           date: finalDate as any,
           note: undefined as any,
           file: undefined as any,
-          reductionPercent: 0,
+          // reductionPercent is intentionally omitted (not 0) — there's no
+          // ReviewOverrides.reductionPercent and no doc-side column to
+          // compete with; letting the key stay absent lets
+          // applyClassificationToExpense's `dtoOverrides.reductionPercent ??
+          // resolved.reductionPercent` pull the real value off the resolved
+          // catalog card (by the now-tx-first subCategoryId), same pattern
+          // as isEquipment below. Previously hardcoded to 0, which silently
+          // discarded the catalog's resolved depreciation law on every
+          // matched-row approval.
           isEquipment: finalEquipment,
           originalCurrency: amounts.originalCurrency as any,
           originalSum: amounts.originalSum as any,
@@ -801,7 +906,10 @@ export class ReportReviewService {
           date: finalDate as any,
           note: undefined as any,
           file: undefined as any,
-          reductionPercent: 0,
+          // See approveMatched's comment — omitted (not 0) so the resolved
+          // catalog card's reductionPercent wins instead of being silently
+          // discarded. doc_only has no doc-vs-slim question either way
+          // (there is no slim side), same fix regardless.
           isEquipment: finalEquipment,
           originalCurrency: amounts.originalCurrency as any,
           originalSum: amounts.originalSum as any,
@@ -1087,7 +1195,15 @@ export class ReportReviewService {
     businessNumber: string,
     slimTransactionId: number,
     file: { buffer: Buffer; originalname: string; mimetype: string; size: number },
-  ): Promise<{ ok: true; documentId: number }> {
+  ): Promise<{
+    ok: true;
+    documentId: number;
+    driveFileId: string;
+    driveFileName: string;
+    invoiceNumber: string | null;
+    allocationNumber: string | null;
+    documentType: string | null;
+  }> {
     const { slim } = await this.loadTxPair(firebaseId, businessNumber, slimTransactionId);
     if (slim.matchedDocumentId) {
       throw new BadRequestException(
@@ -1113,7 +1229,15 @@ export class ReportReviewService {
     this.logger.log(
       `uploadDocAndLinkToTx: doc=${newDoc.id} ↔ tx=${slimTransactionId} (biz=${businessNumber}, file="${file.originalname}", size=${file.size}B)`,
     );
-    return { ok: true, documentId: newDoc.id };
+    return {
+      ok: true,
+      documentId: newDoc.id,
+      driveFileId: newDoc.driveFileId,
+      driveFileName: newDoc.driveFileName,
+      invoiceNumber: newDoc.invoiceNumber,
+      allocationNumber: newDoc.allocationNumber,
+      documentType: newDoc.documentType,
+    };
   }
 
   // ====================================================================
@@ -1289,6 +1413,95 @@ export class ReportReviewService {
     }
   }
 
+  // ====================================================================
+  // IN-PROGRESS EDIT SAVE (blocking — not approve, no status change)
+  // ====================================================================
+
+  /**
+   * Persist an in-progress edit onto the pending document row itself.
+   * NOT an approve — status/confirmedExpenseId/documentKind are untouched
+   * (this row still needs approve-time classification resolution, D9
+   * mapping, journal posting, etc.). Lets the review edit dialog save
+   * immediately instead of only carrying the change in-memory until the
+   * user clicks approve — which could be minutes/rows later, or never,
+   * if they navigate away first (loadPreview would then re-fetch the
+   * un-edited raw DB row and silently drop the edit).
+   *
+   * Covers matched rows too (source of truth is the document — see
+   * approveMatched's "doc wins over slim" comment).
+   */
+  async updateDocFields(
+    firebaseId: string,
+    businessNumber: string,
+    documentId: number,
+    fields: UpdateDocFields,
+  ): Promise<{ ok: true }> {
+    const doc = await this.docRepo.findOne({ where: { id: documentId } });
+    if (!doc) throw new NotFoundException(`Document ${documentId} not found`);
+    await this.assertDocOwnership(doc, firebaseId, businessNumber);
+    if (doc.status !== ExtractedDocStatus.PENDING_REVIEW) {
+      throw new BadRequestException(
+        `Document ${documentId} is not pending_review (status=${doc.status})`,
+      );
+    }
+    // Same guard approveMatched applies — an annual document is never an
+    // expense, so classifying it doesn't make sense.
+    if (doc.documentKind === DocumentKind.ANNUAL_DOCUMENT) {
+      throw new BadRequestException('מסמך שנתי — לא ניתן לערוך סיווג הוצאה עבורו');
+    }
+
+    const patch: Partial<ExtractedDocument> = {};
+    if (fields.category !== undefined) patch.category = fields.category ?? null;
+    if (fields.subCategory !== undefined) patch.subCategory = fields.subCategory ?? null;
+    if (fields.subCategoryId !== undefined) patch.subCategoryId = fields.subCategoryId ?? null;
+    if (fields.vatPercent !== undefined) patch.vatPercent = fields.vatPercent as any;
+    if (fields.taxPercent !== undefined) patch.taxPercent = fields.taxPercent as any;
+    if (fields.isEquipment !== undefined) patch.isEquipment = fields.isEquipment ?? null;
+    if (fields.date !== undefined) patch.date = fields.date ?? null;
+    if (fields.amount !== undefined) patch.amount = fields.amount as any;
+    if (fields.supplierId !== undefined) patch.supplierId = fields.supplierId ?? null;
+    if (fields.supplier !== undefined) patch.supplier = fields.supplier ?? null;
+    if (fields.invoiceNumber !== undefined) patch.invoiceNumber = fields.invoiceNumber ?? null;
+    if (fields.allocationNumber !== undefined) patch.allocationNumber = fields.allocationNumber ?? null;
+    if (fields.documentType !== undefined) patch.documentType = (fields.documentType as any) ?? null;
+    if (fields.reportPeriod !== undefined) patch.vatReportingDate = (fields.reportPeriod as any) ?? null;
+
+    if (Object.keys(patch).length > 0) {
+      await this.docRepo.update({ id: documentId }, patch);
+    }
+    return { ok: true };
+  }
+
+  /**
+   * Persist an in-progress edit onto the pending slim transaction itself.
+   * NOT an approve — `confirmed`/`isRecognized` are untouched. See
+   * updateDocFields's doc comment for the "why persist before approve"
+   * rationale. Reuses loadTxPair's existing ownership/businessNumber/
+   * not-already-confirmed guard.
+   */
+  async updateTxFields(
+    firebaseId: string,
+    businessNumber: string,
+    slimTransactionId: number,
+    fields: UpdateTxFields,
+  ): Promise<{ ok: true }> {
+    const { slim } = await this.loadTxPair(firebaseId, businessNumber, slimTransactionId);
+
+    const patch: Partial<SlimTransaction> = {};
+    if (fields.category !== undefined && fields.category != null) patch.category = fields.category;
+    if (fields.subCategory !== undefined && fields.subCategory != null) patch.subCategory = fields.subCategory;
+    if (fields.subCategoryId !== undefined) patch.subCategoryId = fields.subCategoryId ?? null;
+    if (fields.vatPercent !== undefined) patch.vatPercent = fields.vatPercent;
+    if (fields.taxPercent !== undefined) patch.taxPercent = fields.taxPercent;
+    if (fields.isEquipment !== undefined) patch.isEquipment = fields.isEquipment ?? false;
+    if (fields.reportPeriod !== undefined) patch.vatReportingDate = (fields.reportPeriod as any) ?? null;
+
+    if (Object.keys(patch).length > 0) {
+      await this.slimRepo.update({ id: slim.id }, patch);
+    }
+    return { ok: true };
+  }
+
   private async linkOwnershipCheckTx(
     firebaseId: string,
     businessNumber: string,
@@ -1352,7 +1565,16 @@ export class ReportReviewService {
 
   /** Slim+cache → wire shape. Amount is the positive ILS value; original
    *  currency is surfaced separately so the modal can show "$50 (₪185)". */
-  private toTxSummary(slim: SlimTransaction, cache: FullTransactionCache): ReviewTxSummary {
+  /** knownSupplierByName is only passed for tx_only rows (see the third
+   *  pass below) — a raw bank merchant has no supplierId to match on, so
+   *  matchedSupplierKnown falls back to a name comparison there. Matched-
+   *  row calls omit it (the frontend derives supplierStatusLabel from the
+   *  doc side for those), so it defaults to false and is simply unused. */
+  private toTxSummary(
+    slim: SlimTransaction,
+    cache: FullTransactionCache,
+    knownSupplierByName?: Map<string, Supplier>,
+  ): ReviewTxSummary {
     const isNonIls = cache.currency && cache.currency !== 'ILS';
     return {
       slimTransactionId: slim.id,
@@ -1362,11 +1584,15 @@ export class ReportReviewService {
       merchantName: cache.merchantName,
       category: slim.category,
       subCategory: slim.subCategory,
+      subCategoryId: slim.subCategoryId,
       vatPercent: slim.vatPercent,
       taxPercent: slim.taxPercent,
       isEquipment: slim.isEquipment,
       originalAmount: isNonIls ? Math.abs(Number(cache.amount)) : null,
       originalCurrency: isNonIls ? cache.currency : null,
+      matchedSupplierKnown: knownSupplierByName
+        ? knownSupplierByName.has(normalizeSupplierName(cache.merchantName))
+        : false,
     };
   }
 

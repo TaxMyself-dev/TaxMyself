@@ -72,6 +72,11 @@ export interface ReviewTxSummary {
   merchantName: string;
   category: string;
   subCategory: string;
+  /** Nullable pointer at sub_category.id (D1 thin-pointer model) — mirrors
+   *  slim_transactions.sub_category_id. Used as the stamped-id fallback in
+   *  classifyReviewRow (tx-side wins over doc-side, see the matched-row
+   *  classification flip) when name-matching finds nothing. */
+  subCategoryId: number | null;
   vatPercent: number;
   taxPercent: number;
   isEquipment: boolean;
@@ -80,6 +85,12 @@ export interface ReviewTxSummary {
    *  "$X (₪Y)" for non-ILS transactions; ILS rows just show `amount`. */
   originalAmount: number | null;
   originalCurrency: string | null;
+  /** True when the transaction's merchant name matches (case-insensitive,
+   *  trimmed) a row in the user's Supplier table. A raw bank transaction
+   *  has no supplierId, so unlike ReviewDocSummary.matchedSupplierKnown
+   *  (which matches by tax ID) this is a name-based fallback — drives the
+   *  same "ספק מוכר / ספק חדש" bookmark on tx_only rows. */
+  matchedSupplierKnown: boolean;
 }
 
 /** D9 mapping verdict for a review row's CURRENT classification names.

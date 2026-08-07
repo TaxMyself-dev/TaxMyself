@@ -6,7 +6,7 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { DocumentKind } from 'src/enum';
+import { DocumentKind, ReportPeriodLabel } from 'src/enum';
 
 export enum ExtractedDocStatus {
   /** OCR succeeded, awaiting user review in the report-page modal. */
@@ -299,4 +299,17 @@ export class ExtractedDocument {
    */
   @Column({ name: 'document_kind', type: 'varchar', length: 32, nullable: true, default: null })
   documentKind: DocumentKind | null;
+
+  /**
+   * VAT-report period label ("M/YYYY" / "M1-M2/YYYY"), stamped when the
+   * user picks an explicit period override in the review edit dialog
+   * before approval (see ReportReviewService.updateDocFields). Mirrors
+   * SlimTransaction/Expense/FullTransactionCache's own vatReportingDate —
+   * same property name, this entity's own snake_case column-naming
+   * convention. Nullable: most docs never get an explicit pre-approval
+   * period stamp; approve always computes/stamps the final period onto
+   * the Expense/SlimTransaction regardless of this column.
+   */
+  @Column({ name: 'vat_reporting_date', type: 'varchar', nullable: true, default: null })
+  vatReportingDate: ReportPeriodLabel | null;
 }

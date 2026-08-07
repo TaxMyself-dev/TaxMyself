@@ -114,13 +114,6 @@
           </select>
         </label>
 
-        <label class="field field--wide checkbox-field">
-          <input type="checkbox"
-                 [ngModel]="f.applyCascadeToSuppliers"
-                 (ngModelChange)="fieldsChange.emit({ applyCascadeToSuppliers: $event })" />
-          <span>החל סיווג זה גם על שורות זהות בטבלה</span>
-        </label>
-
         <label class="field field--wide checkbox-field" *ngIf="showNewSupplierFlag">
           <input type="checkbox"
                  [ngModel]="f.saveAsSupplier"
@@ -145,12 +138,14 @@
         [buttonColor]="ButtonColor.BLACK"
         [buttonSize]="ButtonSize.AUTO"
         [variant]="'outlined'"
+        [disabled]="isSaving"
         (onButtonClicked)="visibleChange.emit(false)">
       </app-p-button>
       <app-p-button
         [buttonText]="'שמור'"
         [buttonColor]="ButtonColor.BLACK"
         [buttonSize]="ButtonSize.AUTO"
+        [isLoading]="isSaving"
         (onButtonClicked)="save.emit()">
       </app-p-button>
     </div>

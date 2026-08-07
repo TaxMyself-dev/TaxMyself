@@ -11,13 +11,19 @@
 import { ReportReviewService } from './report-review.service';
 import { ApprovalStatus, OwnerType } from '../enum';
 
+// classifyReviewRow's signature changed to { tx?, doc? } (tx wins over doc
+// for matched-row classification — see report-review.service.ts). Every
+// existing test below only ever simulated a single source, so they're
+// wrapped as a doc-only candidate here — same behavior as before (a lone
+// candidate is a lone candidate regardless of which key it sits under),
+// zero change to any individual `it` block. The tx-vs-doc precedence itself
+// is covered by the new describe block below.
 const classify = (catalog: any[], owner: string, source: any, stampedId: number | null = null) =>
   (ReportReviewService.prototype as any).classifyReviewRow.call(
     {},
     catalog,
     owner,
-    source,
-    stampedId,
+    { doc: { ...source, subCategoryId: stampedId } },
   );
 
 /** Minimal merged-catalog SubCategory row with a mapped card. */
@@ -163,5 +169,61 @@ describe('ReportReviewService.classifyReviewRow — mappedByAccountant badge', (
   it('plain SYSTEM row → false', () => {
     const c = classify([mappedSub()], 'client-1', { category: 'רכב ותחבורה', subCategory: 'דלק' });
     expect(c.mappedByAccountant).toBe(false);
+  });
+});
+
+/**
+ * The A→B seam: matched rows now send BOTH candidates to classifyReviewRow
+ * (see report-review.service.ts's first getReportPreview pass), and the
+ * function itself picks tx over doc — this is the actual "tx wins" behavior
+ * covered end-to-end (the call site does no more than pass both objects
+ * through unchanged).
+ */
+describe('ReportReviewService.classifyReviewRow — tx-vs-doc precedence (matched rows)', () => {
+  const classifyBoth = (catalog: any[], tx: any, doc: any) =>
+    (ReportReviewService.prototype as any).classifyReviewRow.call({}, catalog, 'client-1', { tx, doc });
+
+  it('tx name match wins outright over a conflicting doc name match — not mixed field-by-field', () => {
+    const fuel = mappedSub(); // id 10, רכב ותחבורה/דלק
+    const repairs = mappedSub({ id: 11, name: 'טיפולים', category: { name: 'רכב ותחבורה' } });
+    const c = classifyBoth(
+      [fuel, repairs],
+      { category: 'רכב ותחבורה', subCategory: 'דלק' },      // tx → fuel
+      { category: 'רכב ותחבורה', subCategory: 'טיפולים' },  // doc → repairs (conflicting)
+    );
+    expect(c.subCategoryId).toBe(10);
+  });
+
+  it('tx with no catalog match at all falls back to doc\'s name match', () => {
+    const fuel = mappedSub();
+    const c = classifyBoth(
+      [fuel],
+      { category: 'זבל', subCategory: 'לא קיים' },        // tx → no match anywhere
+      { category: 'רכב ותחבורה', subCategory: 'דלק' },     // doc → fuel
+    );
+    expect(c.subCategoryId).toBe(10);
+  });
+
+  it('tx stamped subCategoryId wins over doc stamped subCategoryId when neither matches by name', () => {
+    const fuel = mappedSub(); // id 10
+    const repairs = mappedSub({ id: 11, name: 'טיפולים', category: { name: 'רכב ותחבורה' } });
+    const c = classifyBoth(
+      [fuel, repairs],
+      { category: 'ישן', subCategory: 'שם שהוחלף א', subCategoryId: 11 },
+      { category: 'ישן', subCategory: 'שם שהוחלף ב', subCategoryId: 10 },
+    );
+    expect(c.subCategoryId).toBe(11);
+  });
+
+  it('no tx candidate at all (doc_only shape) behaves exactly like doc-only classification', () => {
+    const fuel = mappedSub();
+    const c = classifyBoth([fuel], null, { category: 'רכב ותחבורה', subCategory: 'דלק' });
+    expect(c.subCategoryId).toBe(10);
+  });
+
+  it('no doc candidate at all (tx_only shape) behaves exactly like tx-only classification', () => {
+    const fuel = mappedSub();
+    const c = classifyBoth([fuel], { category: 'רכב ותחבורה', subCategory: 'דלק' }, null);
+    expect(c.subCategoryId).toBe(10);
   });
 });

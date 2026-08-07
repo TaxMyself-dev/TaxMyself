@@ -11,13 +11,14 @@ import {
 import { ActivatedRoute, Router } from '@angular/router';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { MessageService } from 'primeng/api';
-import { EMPTY, catchError, finalize } from 'rxjs';
+import { EMPTY, catchError, finalize, forkJoin, of } from 'rxjs';
 
 import { ButtonColor, ButtonSize } from '../../components/button/button.enum';
 import { GenericService } from 'src/app/services/generic.service';
 import { AuthService } from 'src/app/services/auth.service';
+import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { VATReportingType } from 'src/app/shared/enums';
-import { IColumnDataTable, IRowDataTable, ITableRowAction } from 'src/app/shared/interface';
+import { IColumnDataTable, IGetSupplier, IRowDataTable, ITableRowAction } from 'src/app/shared/interface';
 import {
   CatalogRow,
   ReportPreviewResponse,
@@ -25,8 +26,10 @@ import {
   ReviewMappingStatus,
   ReviewOverrides,
   ReviewRow,
+  UploadDocToTxResponse,
 } from 'src/app/services/report-review.service';
 import { ExpenseEditFieldValues } from 'src/app/components/report-review-edit-dialog/report-review-edit-dialog.component';
+import { SupplierDraft } from 'src/app/components/supplier-management-dialog/supplier-management-dialog.component';
 
 /** D9 view modes — one screen, two column sets. Persisted per user. */
 type ReviewViewMode = 'regular' | 'professional';
@@ -64,6 +67,25 @@ interface EditableReviewRow {
    *  documentId, so we compose). */
   rowKey: string;
   type: 'matched' | 'doc_only' | 'tx_only';
+
+  /** Which side's display fields (supplier/date/amount/sumLabel/currency/
+   *  ilsAmount + the "סוג" column via sourceTypeLabel) this row shows in
+   *  its own cells — 'doc' by default. Manually-linked matched rows
+   *  (confirmLink / the upload-new-doc flow) set this to 'tx' so the row
+   *  keeps looking like the tx_only row it was before linking, with the
+   *  document surfacing only in the nested detail child.
+   *
+   *  Independent of D9 classification (category/subCategory/subCategoryId/
+   *  vatPercent/taxPercent/isEquipment), which is tx-wins for EVERY matched
+   *  row now (natural matches included — see classifyReviewRow on the
+   *  backend), via `buildMatchedRow`'s classificationBase — not this flag.
+   *  reductionPercent is a third, separate case: always derived purely from
+   *  the catalog by whichever subCategoryId won (never a doc-vs-tx choice —
+   *  ExtractedDocument has no reductionPercent column to compete with).
+   *  Concretely: a natural matched row shows doc-primary supplier/date/
+   *  amount (displaySource:'doc') but tx-primary category/vatPercent — the
+   *  two axes can and do diverge; that's intentional, not a bug. */
+  displaySource: 'doc' | 'tx';
 
   /** Bulk-approve marker — defaults to true on load; the user can uncheck
    *  to exclude this row from the footer "אשר נבחרות" action. */
@@ -157,12 +179,11 @@ interface EditableReviewRow {
   /** "ספק מוכר" | "ספק חדש" — null for tx_only rows (no supplier concept). */
   supplierStatusLabel: string | null;
 
-  /** Per-row choice for "add this supplier to my master list on approve".
-   *  Defaults to true. The red flag icon on doc rows is a toggle: click to
-   *  flip this to false (won't add to Supplier table), click again to
-   *  flip back to true. Ignored when supplierStatusLabel !== 'ספק חדש'
-   *  (no flag rendered, nothing to toggle). The approve call sends this
-   *  through `overrides.saveAsSupplier`. */
+  /** Always true now — the in-table opt-out toggle was removed (the
+   *  supplier bookmark icon opens a supplier-management dialog instead of
+   *  toggling this). Kept because `overridesFromRow` still sends it
+   *  through `overrides.saveAsSupplier`, and the backend still
+   *  finds-or-creates the Supplier row on approve by default. */
   saveAsSupplier: boolean;
 
   // Per-row UI state
@@ -177,6 +198,12 @@ interface EditableReviewRow {
    *  row; threaded into overrides.acknowledgeDuplicate so the retried
    *  approve bypasses the soft block. */
   acknowledgeDuplicate?: boolean;
+
+  /** True for the synthesized nested-detail row shown under an expanded
+   *  matched row (see `displayRows`/`buildDetailRow`) — display-only, never
+   *  a real approval unit. Not part of `rows()`, only of the render-time
+   *  `displayRows` projection fed to the table. */
+  isDetailRow?: boolean;
 }
 
 /**
@@ -217,6 +244,7 @@ export class ReportReviewPage implements OnInit {
   private router = inject(Router);
   private reviewService = inject(ReportReviewService);
   private authService = inject(AuthService);
+  private expenseDataService = inject(ExpenseDataService);
   private messageService = inject(MessageService);
   private genericService = inject(GenericService);
   private sanitizer = inject(DomSanitizer);
@@ -238,6 +266,70 @@ export class ReportReviewPage implements OnInit {
   counts = signal<{ matched: number; docOnly: number; txOnly: number }>({
     matched: 0, docOnly: 0, txOnly: 0,
   });
+
+  /** rowKeys of matched rows whose nested document-detail panel is open
+   *  (the small chevron next to the checkbox). Purely a render concern —
+   *  never touches `rows()` itself, see `displayRows`. */
+  expandedRowKeys = signal<Set<string>>(new Set());
+
+  isRowExpanded(row: EditableReviewRow): boolean {
+    return this.expandedRowKeys().has(row.rowKey);
+  }
+
+  toggleRowExpanded(row: EditableReviewRow): void {
+    this.expandedRowKeys.update(set => {
+      const next = new Set(set);
+      if (next.has(row.rowKey)) next.delete(row.rowKey);
+      else next.add(row.rowKey);
+      return next;
+    });
+  }
+
+  /** What actually feeds `[dataTable]` — `rows()` with a synthesized
+   *  detail row spliced in right after every expanded matched row. Kept
+   *  separate from `rows()` so selection/counts/canApprove/approve-queue
+   *  logic never has to know about or filter out detail rows. */
+  displayRows = computed<EditableReviewRow[]>(() => {
+    const expanded = this.expandedRowKeys();
+    const out: EditableReviewRow[] = [];
+    for (const row of this.rows()) {
+      out.push(row);
+      if (row.type === 'matched' && expanded.has(row.rowKey)) {
+        out.push(this.buildDetailRow(row));
+      }
+    }
+    return out;
+  });
+
+  /** Nested-detail row for an expanded matched row — carries the parent's
+   *  doc identity/display fields (driveFileName/documentTypeLabel/
+   *  driveFileId) verbatim; every other column is irrelevant here (blanked
+   *  via CSS on the row, not the data — see tr.row-detail in the .scss)
+   *  since only the supplier-column cellTemplate actually renders content
+   *  for a detail row, as a compact file-name + doc-type summary. */
+  private buildDetailRow(parent: EditableReviewRow): EditableReviewRow {
+    return {
+      ...parent,
+      rowKey: `detail:${parent.rowKey}`,
+      isDetailRow: true,
+      selected: false,
+    };
+  }
+
+  /** Shared builder for a synthesized 'matched' row from a doc-side/tx-side
+   *  pair — used by both confirmLink (linking to an existing doc_only row)
+   *  and the upload-new-doc flow. `classificationBase` supplies every field
+   *  not explicitly overridden: both callers now pass the tx_only row —
+   *  D9 classification is tx-wins for every matched row (see
+   *  classifyReviewRow on the backend), and the tx side already carries its
+   *  own tx-sourced classification from when it was a tx_only row in the
+   *  same preview, so there's nothing to recompute here either way. */
+  private buildMatchedRow(
+    classificationBase: EditableReviewRow,
+    overrides: Partial<EditableReviewRow>,
+  ): EditableReviewRow {
+    return { ...classificationBase, ...overrides, type: 'matched' };
+  }
 
   /** Merged expense catalog WITH card law + section per row
    *  (GET bookkeeping/expense-catalog?includePrivate=true) — single data
@@ -599,20 +691,28 @@ export class ReportReviewPage implements OnInit {
       ilsAmount = null;
     }
     // D9: the server's classification block carries the canonical names +
-    // the resolved card law (exactly what approval would post). Raw doc/slim
-    // strings remain the display fallback for UNCLASSIFIED rows; their
-    // percents remain the fallback law so legacy behavior survives until
-    // the row is (re)classified against the catalog.
+    // the resolved card law (exactly what approval would post — tx wins
+    // over doc for matched rows, see classifyReviewRow). Raw tx/doc strings
+    // remain the display fallback for UNCLASSIFIED rows (tx first, matching
+    // the server's own precedence); their percents remain the fallback law
+    // so legacy behavior survives until the row is (re)classified against
+    // the catalog. Only matched rows have both sides populated — doc_only
+    // never has a txSide, tx_only never has a docSide, so this order is a
+    // no-op for either of those.
     const c = r.classification;
-    const category    = c.categoryName    ?? docSide?.category    ?? txSide?.category    ?? '';
-    const subCategory = c.subCategoryName ?? docSide?.subCategory ?? txSide?.subCategory ?? '';
-    const vatPercent  = Number(c.vatPercent  ?? docSide?.vatPercent  ?? txSide?.vatPercent  ?? 0);
-    const taxPercent  = Number(c.taxPercent  ?? docSide?.taxPercent  ?? txSide?.taxPercent  ?? 0);
-    const isEquipment = !!(c.isEquipment ?? docSide?.isEquipment ?? txSide?.isEquipment ?? false);
+    const category    = c.categoryName    ?? txSide?.category    ?? docSide?.category    ?? '';
+    const subCategory = c.subCategoryName ?? txSide?.subCategory ?? docSide?.subCategory ?? '';
+    const vatPercent  = Number(c.vatPercent  ?? txSide?.vatPercent  ?? docSide?.vatPercent  ?? 0);
+    const taxPercent  = Number(c.taxPercent  ?? txSide?.taxPercent  ?? docSide?.taxPercent  ?? 0);
+    const isEquipment = !!(c.isEquipment ?? txSide?.isEquipment ?? docSide?.isEquipment ?? false);
 
     return {
       rowKey: `${r.type}:${docSide?.documentId ?? 'x'}:${txSide?.slimTransactionId ?? 'x'}`,
       type: r.type,
+      // Every row built from the preview (natural matches included) is
+      // doc-primary by default — only the manual-link flows (confirmLink /
+      // upload-new-doc) flip this to 'tx' on the synthesized row.
+      displaySource: 'doc',
       // Default-checked per spec (V = ✓) — but ONLY approvable rows (D9:
       // missing-mapping / unclassified / annual / unidentified rows cannot
       // be approved, so they never enter the bulk queue pre-checked).
@@ -653,17 +753,20 @@ export class ReportReviewPage implements OnInit {
       reductionPercent: Number(c.reductionPercent ?? 0),
       reportPeriod: this.derivePeriod(date),
       reportPeriodOverridden: false,
-      // Supplier-known/new is a doc-side concept; tx_only rows have a
-      // merchant (from the bank statement) but no Supplier-table linkage.
+      // Doc-side matches by supplierId (tax ID); tx_only rows have no
+      // supplierId (bank feed only gives a raw merchant name) so they fall
+      // back to a name-based match computed backend-side (see
+      // getReportPreview's knownSupplierByName in report-review.service.ts).
       supplierStatusLabel:
         docSide != null
           ? (docSide.matchedSupplierKnown ? 'ספק מוכר' : 'ספק חדש')
-          : null,
-      // Default true — auto-save the supplier to the master list on
-      // approve. User clicks the red flag in the supplier cell to flip
-      // to false (one-off vendor). Known suppliers don't render the flag
-      // so the value stays at default and the backend silently no-ops
-      // (existing supplier → find-or-create skips).
+          : txSide != null
+            ? (txSide.matchedSupplierKnown ? 'ספק מוכר' : 'ספק חדש')
+            : null,
+      // Always true — the in-table opt-out toggle was removed; approving
+      // a "ספק חדש" row always attempts find-or-create against the
+      // Supplier table now (users manage the record explicitly via the
+      // bookmark dialog instead of opting out here).
       saveAsSupplier: true,
       saveStatus: null,
       saveError: null,
@@ -722,7 +825,6 @@ export class ReportReviewPage implements OnInit {
       supplier: row.supplier,
       reportPeriod: row.reportPeriod,
       reportPeriodOverridden: row.reportPeriodOverridden,
-      applyCascadeToSuppliers: true,
       allocationNumber: row.allocationNumber,
       documentType: row.documentType,
       saveAsSupplier: row.saveAsSupplier,
@@ -734,23 +836,44 @@ export class ReportReviewPage implements OnInit {
     this.editDialogVisible.set(false);
     this.editDialogRow.set(null);
     this.editDraft.set(null);
+    this.editDialogSaving.set(false);
   }
 
-  /** X / Escape / "ביטול" — discard the draft. Nothing was ever written
-   *  to the row, so there's nothing to roll back. */
+  /** X / Escape / "ביטול" — discard the draft. Nothing was persisted
+   *  server-side before this point (see onEditDialogSave), so there's
+   *  nothing to roll back. */
   onEditDialogCancel(): void {
+    if (this.editDialogSaving()) return;
     this.closeEditDialog();
   }
 
-  /** "שמור" — write the draft onto the row and close. Purely a local
-   *  mutation: no approve/network call here, matching the exact semantics
-   *  of the old inline toggleEditRow/saveEditRow pair. The actual
-   *  approve/commit only ever happens later via bulkApproveSelected or
-   *  confirmSaveAnyway. */
+  /** True while the blocking save below is in flight — disables the
+   *  dialog's footer buttons and shows a spinner on "שמור". */
+  editDialogSaving = signal<boolean>(false);
+
+  /**
+   * "שמור" — blocking: apply the draft to the row locally (so the table
+   * reflects it immediately), then persist it to the row's source DB
+   * record(s) via update-doc/update-tx. Only closes the dialog on success;
+   * on failure the dialog stays open with a toast, matching every other row
+   * action's error handling (runAction). Edits are single-row only now —
+   * no more cascade-on-save (that moved to the supplier-management dialog).
+   *
+   * matched rows write classification (category/subCategory/subCategoryId/
+   * vatPercent/taxPercent/isEquipment) to BOTH sides — updateDocFields (as
+   * before) AND updateTxFields (new) — even though slim is now the
+   * authoritative source (tx-wins, see classifyReviewRow). Deliberately
+   * NOT a clean split: if the doc's own classification went stale the
+   * moment it got linked, "פצל" (unpair) would resurrect a doc_only row
+   * showing an old, pre-edit classification — the same document reading
+   * differently in different tables would confuse the user more than one
+   * extra write costs. doc_only/tx_only keep their single-endpoint save
+   * unchanged (only matched has two sides to keep in sync).
+   */
   onEditDialogSave(): void {
     const row = this.editDialogRow();
     const draft = this.editDraft();
-    if (!row || !draft) return;
+    if (!row || !draft || this.editDialogSaving()) return;
 
     const entry = draft.subCategoryId != null
       ? this.catalog().find(c => c.subCategoryId === draft.subCategoryId)
@@ -772,21 +895,69 @@ export class ReportReviewPage implements OnInit {
       row.documentTypeLabel = this.documentTypeLabel(draft.documentType ?? null);
       row.saveAsSupplier = draft.saveAsSupplier ?? true;
     }
-
-    if (draft.applyCascadeToSuppliers) {
-      if (entry) this.cascadeToSupplierSiblings(row, (s) => this.applyCatalogRow(s, entry));
-      else this.cascadeToSupplierSiblings(row, (s) => this.clearClassification(s, draft.category));
-      this.markSupplierTouched(row);
-    }
-
     this.bumpRows();
-    this.closeEditDialog();
+
+    this.editDialogSaving.set(true);
+    const obs$ = row.type === 'tx_only'
+      ? this.reviewService.updateTxFields(this.businessNumber(), row.slimTransactionId!, {
+          category: row.category,
+          subCategory: row.subCategory,
+          subCategoryId: row.subCategoryId ?? undefined,
+          vatPercent: row.vatPercent,
+          taxPercent: row.taxPercent,
+          isEquipment: row.isEquipment,
+          reportPeriod: row.reportPeriodOverridden ? row.reportPeriod : undefined,
+        })
+      : this.reviewService.updateDocFields(this.businessNumber(), row.documentId!, {
+          category: row.category,
+          subCategory: row.subCategory,
+          subCategoryId: row.subCategoryId ?? undefined,
+          vatPercent: row.vatPercent,
+          taxPercent: row.taxPercent,
+          isEquipment: row.isEquipment,
+          date: row.date,
+          amount: row.amount,
+          supplierId: row.supplierId,
+          supplier: row.supplier,
+          invoiceNumber: row.invoiceNumber,
+          allocationNumber: row.allocationNumber,
+          documentType: row.documentType ?? undefined,
+          reportPeriod: row.reportPeriodOverridden ? row.reportPeriod : undefined,
+        });
+
+    // matched rows also mirror classification onto the slim — see this
+    // method's doc comment for why doc keeps getting the full payload
+    // above instead of a clean split.
+    const classificationObs$ = row.type === 'matched'
+      ? this.reviewService.updateTxFields(this.businessNumber(), row.slimTransactionId!, {
+          category: row.category,
+          subCategory: row.subCategory,
+          subCategoryId: row.subCategoryId ?? undefined,
+          vatPercent: row.vatPercent,
+          taxPercent: row.taxPercent,
+          isEquipment: row.isEquipment,
+        })
+      : null;
+
+    const obsList = classificationObs$ ? [obs$, classificationObs$] : [obs$];
+    forkJoin(obsList)
+      .pipe(
+        catchError(err => {
+          const detail = err?.error?.message ?? err?.message ?? 'שמירת העריכה נכשלה';
+          this.messageService.add({ severity: 'error', summary: 'שגיאה', detail, life: 5000, key: 'br' });
+          return EMPTY;
+        }),
+        finalize(() => this.editDialogSaving.set(false)),
+      )
+      .subscribe(() => {
+        this.closeEditDialog();
+      });
   }
 
   /** Classification pickers inside the dialog — same resolution rules as
    *  the old onCategoryChange/onSubCategoryChange/onCardChange, just
-   *  targeting the local draft instead of the row directly (no cascade
-   *  here — cascade only runs once, at Save, see onEditDialogSave). */
+   *  targeting the local draft instead of the row directly. Edits are
+   *  single-row only (see onEditDialogSave) — no cascade here. */
   onEditDraftCategoryChange(picked: string): void {
     this.editDraft.update(d => d && ({
       ...d,
@@ -889,6 +1060,436 @@ export class ReportReviewPage implements OnInit {
     this.onUploadDocForTx(row, input);
   }
 
+  // ---- Supplier management dialog (bookmark icon) -----------------------
+
+  /** Row the supplier dialog is open for; null = dialog closed. */
+  private supplierDialogRow: EditableReviewRow | null = null;
+  /** Supplier.id being edited — null in create mode. */
+  private supplierDialogId: number | null = null;
+  supplierDialogVisible = signal<boolean>(false);
+  supplierDialogMode = signal<'create' | 'edit'>('create');
+  supplierDialogSaving = signal<boolean>(false);
+  /** The dialog's local draft — same seed/mutate-only-here/discard-on-
+   *  cancel contract as editDraft above. */
+  supplierDraft = signal<SupplierDraft | null>(null);
+  supplierDialogTitleLabel = computed<string>(() => {
+    const d = this.supplierDraft();
+    if (!d) return '';
+    return this.supplierDialogMode() === 'edit' ? `עריכת ספק — ${d.supplier}` : 'ספק חדש';
+  });
+  /** Sub-categories for the draft's current category — same cascade source
+   *  (this page's catalog signal) as editDraftSubCategoryOptions. */
+  supplierDraftSubCategoryOptions = computed<string[]>(() => {
+    const d = this.supplierDraft();
+    if (!d) return [];
+    return this.subCategoriesForCategory(d.category).map(c => c.subCategory);
+  });
+
+  /** Non-null while runSupplierCascade is updating sibling rows after a
+   *  successful supplier save. Drives the dialog's progress text + button
+   *  disable via [progressLabel]. */
+  supplierCascadeProgress = signal<{ done: number; total: number } | null>(null);
+  supplierCascadeProgressLabel = computed<string | null>(() => {
+    const p = this.supplierCascadeProgress();
+    return p ? `מעדכן ${p.done}/${p.total} שורות...` : null;
+  });
+
+  /** Lazily-loaded, cached full supplier list — the review row only
+   *  carries the supplier's tax-ID string (see ReviewDocSummary.supplierId
+   *  in report-review.service.ts), not the Supplier table's numeric PK, so
+   *  resolving "which Supplier record is this row's ספק מוכר" means
+   *  matching by supplierID against this list. Cleared after a successful
+   *  save so the next open refetches. */
+  private suppliersCache: IGetSupplier[] | null = null;
+
+  private ensureSuppliersLoaded() {
+    if (this.suppliersCache) return of(this.suppliersCache);
+    return this.expenseDataService.getAllSuppliers().pipe(
+      catchError(() => of([] as IGetSupplier[])),
+    );
+  }
+
+  /** Case-insensitive, trimmed name key — mirrors the backend's
+   *  normalizeSupplierName (backend/src/reports/supplier-name.util.ts).
+   *  toLowerCase() is a no-op on Hebrew (no case), so this is safe for
+   *  Hebrew/Latin/mixed names alike. */
+  private normalizeSupplierName(name: string | null | undefined): string {
+    return (name ?? '').trim().toLowerCase();
+  }
+
+  /** Bookmark click — "ספק מוכר" loads the persisted Supplier record for
+   *  editing; "ספק חדש" opens a blank(ish) form seeded from the row.
+   *  doc/matched rows match by supplierId (tax ID); tx_only rows have no
+   *  supplierId (bank feed only gives a raw merchant name) so they match
+   *  by normalized name instead — same rule the backend just used to
+   *  decide this row's "ספק מוכר" status in the first place. */
+  openSupplierDialog(row: EditableReviewRow): void {
+    this.supplierDialogRow = row;
+    this.supplierDialogSaving.set(false);
+
+    if (row.supplierStatusLabel === 'ספק מוכר') {
+      this.supplierDialogMode.set('edit');
+      this.supplierDialogId = null;
+      this.supplierDraft.set(null);
+      this.ensureSuppliersLoaded().subscribe(list => {
+        this.suppliersCache = list;
+        const match = row.type === 'tx_only'
+          ? list.find(s => this.normalizeSupplierName(s.supplier) === this.normalizeSupplierName(row.supplier))
+          : list.find(s => (s.supplierID ?? '').trim() === row.supplierId.trim());
+        if (match) {
+          this.supplierDialogId = match.id;
+          this.supplierDraft.set(this.toSupplierDraft(match));
+        } else {
+          // Defensive fallback — shouldn't happen for a row the preview
+          // marked "ספק מוכר", but don't leave the dialog stuck empty.
+          this.supplierDialogMode.set('create');
+          this.supplierDraft.set(this.emptySupplierDraft(row));
+        }
+      });
+    } else {
+      this.supplierDialogMode.set('create');
+      this.supplierDialogId = null;
+      this.supplierDraft.set(this.emptySupplierDraft(row));
+    }
+    this.supplierDialogVisible.set(true);
+  }
+
+  private emptySupplierDraft(row: EditableReviewRow): SupplierDraft {
+    return {
+      supplier: row.supplier ?? '',
+      supplierID: row.supplierId ?? '',
+      category: row.category ?? '',
+      subCategory: row.subCategory ?? '',
+      subCategoryId: row.subCategoryId,
+      vatPercent: row.vatPercent ?? 0,
+      taxPercent: row.taxPercent ?? 0,
+      reductionPercent: row.reductionPercent ?? 0,
+      isEquipment: row.isEquipment ?? false,
+    };
+  }
+
+  private toSupplierDraft(s: IGetSupplier): SupplierDraft {
+    return {
+      supplier: s.supplier ?? '',
+      supplierID: s.supplierID ?? '',
+      category: s.category ?? '',
+      subCategory: s.subCategory ?? '',
+      subCategoryId: s.subCategoryId ?? null,
+      vatPercent: Number(s.vatPercent ?? 0),
+      taxPercent: Number(s.taxPercent ?? 0),
+      reductionPercent: Number(s.reductionPercent ?? 0),
+      isEquipment: !!s.isEquipment,
+    };
+  }
+
+  private closeSupplierDialog(): void {
+    this.supplierDialogVisible.set(false);
+    this.supplierDialogRow = null;
+    this.supplierDialogId = null;
+    this.supplierDraft.set(null);
+    this.supplierCascadeProgress.set(null);
+  }
+
+  /** Blocked while the post-save cascade is running — closing mid-cascade
+   *  would abandon the progress UI, though the queued update-doc/update-tx
+   *  calls already fired would still land (see runSupplierCascadeStep). */
+  onSupplierDialogCancel(): void {
+    if (this.supplierCascadeProgress()) return;
+    this.closeSupplierDialog();
+  }
+
+  /** Category picker inside the dialog — same resolution rule as
+   *  onEditDraftCategoryChange (clears the dependent fields; no cascade,
+   *  this dialog edits one Supplier record, not a set of rows). */
+  onSupplierDraftCategoryChange(picked: string): void {
+    this.supplierDraft.update(d => d && ({
+      ...d,
+      category: picked,
+      subCategory: '',
+      subCategoryId: null,
+      vatPercent: 0,
+      taxPercent: 0,
+      reductionPercent: 0,
+    }));
+  }
+
+  onSupplierDraftSubCategoryChange(picked: string): void {
+    this.supplierDraft.update(d => {
+      if (!d) return d;
+      if (!picked) {
+        return { ...d, subCategory: '', subCategoryId: null, vatPercent: 0, taxPercent: 0, reductionPercent: 0 };
+      }
+      const entry = this.catalog().find(c => c.subCategory === picked && c.category === d.category)
+        ?? this.catalog().find(c => c.subCategory === picked);
+      if (entry) {
+        return {
+          ...d,
+          category: entry.category ?? d.category,
+          subCategory: entry.subCategory,
+          subCategoryId: entry.subCategoryId,
+          vatPercent: Number(entry.vatPercent ?? 0),
+          taxPercent: Number(entry.taxPercent ?? 0),
+          reductionPercent: Number(entry.reductionPercent ?? 0),
+        };
+      }
+      return { ...d, subCategory: picked, subCategoryId: null };
+    });
+  }
+
+  /** Generic patch for every field with no cascade/resolution side-effect
+   *  — except isEquipment, which zeroes whichever of taxPercent/
+   *  reductionPercent just became inapplicable (same rule
+   *  AddSupplierComponent's isEquipment valueChanges handler applies). */
+  onSupplierDraftFieldsPatch(patch: Partial<SupplierDraft>): void {
+    this.supplierDraft.update(d => {
+      if (!d) return d;
+      const next = { ...d, ...patch };
+      if (patch.isEquipment !== undefined) {
+        if (patch.isEquipment) next.taxPercent = 0;
+        else next.reductionPercent = 0;
+      }
+      return next;
+    });
+  }
+
+  /** "שמור" — POST/PATCH the Supplier record, reflect the saved identity
+   *  back onto the triggering row (supplier name/id + "ספק מוכר" status),
+   *  then cascade the saved classification (category/subCategory/
+   *  subCategoryId/vatPercent/taxPercent/isEquipment) onto every OTHER
+   *  current row matching this supplier (see findSupplierSiblingRows) —
+   *  writing each one to its DB source row via update-doc/update-tx, not
+   *  just in-memory. Closes only once the cascade (if any) finishes. */
+  onSupplierDialogSave(): void {
+    const draft = this.supplierDraft();
+    const row = this.supplierDialogRow;
+    if (!draft || !row || this.supplierDialogSaving()) return;
+
+    const name = draft.supplier?.trim();
+    if (!name) {
+      this.messageService.add({
+        severity: 'warn', summary: 'שדה חסר', detail: 'יש להזין שם ספק', life: 4000, key: 'br',
+      });
+      return;
+    }
+
+    this.supplierDialogSaving.set(true);
+    const payload = {
+      supplier: name,
+      supplierID: draft.supplierID?.trim() || null,
+      category: draft.category || null,
+      subCategory: draft.subCategory || null,
+      subCategoryId: draft.subCategoryId,
+      vatPercent: draft.vatPercent,
+      taxPercent: draft.isEquipment ? 0 : draft.taxPercent,
+      reductionPercent: draft.isEquipment ? draft.reductionPercent : 0,
+      isEquipment: draft.isEquipment,
+      // Explicit — the global "active business" the auth interceptor's
+      // header would otherwise fall back to may not match the business
+      // this review page is actually working with (see add-supplier's
+      // controller: an explicit body businessNumber now wins over that
+      // header). editSupplier/update-supplier already required this;
+      // addSupplier previously silently dropped it, causing a 500 on
+      // create when the header-derived business was unset.
+      businessNumber: this.businessNumber(),
+    };
+
+    const mode = this.supplierDialogMode();
+    const obs$ = mode === 'edit' && this.supplierDialogId != null
+      ? this.expenseDataService.editSupplier(payload, this.supplierDialogId)
+      : this.expenseDataService.addSupplier(payload);
+
+    obs$
+      .pipe(
+        catchError(err => {
+          const detail = err?.status === 409
+            ? 'כבר קיים ספק עם מספר/שם זה'
+            : (err?.error?.message ?? 'שמירת הספק נכשלה');
+          this.messageService.add({ severity: 'error', summary: 'שגיאה', detail, life: 5000, key: 'br' });
+          return EMPTY;
+        }),
+        finalize(() => this.supplierDialogSaving.set(false)),
+      )
+      .subscribe(() => {
+        this.messageService.add({
+          severity: 'success', summary: 'הצלחה', detail: 'פרטי הספק נשמרו', life: 3000, key: 'br',
+        });
+        this.suppliersCache = null;
+
+        const entry = draft.subCategoryId != null
+          ? this.catalog().find(c => c.subCategoryId === draft.subCategoryId)
+          : undefined;
+        // The triggering row always goes first — unconditionally, NOT
+        // gated behind findSupplierSiblingRows matching it. A doc/matched
+        // row with no supplierID would otherwise fail its own self-match
+        // (the matching rule requires a non-empty identity) and never get
+        // updated at all, even though it's the exact row the user just
+        // edited. Siblings are everything else the identity search finds.
+        const siblings = this.findSupplierSiblingRows(payload.supplierID ?? '', payload.supplier)
+          .filter(r => r !== row);
+        this.runSupplierCascade([row, ...siblings], entry, draft, payload.supplier, payload.supplierID ?? '');
+      });
+  }
+
+  /** Every OTHER current row matching the just-saved supplier's identity —
+   *  doc/matched rows by supplierId (trimmed, exact), tx_only rows by
+   *  normalized name (they never carry a supplierId). Empty identity on
+   *  either side never matches (guards against every empty-supplierId
+   *  cash-vendor row falsely matching each other). Doesn't special-case
+   *  the triggering row — the caller adds it separately, unconditionally
+   *  (see onSupplierDialogSave). */
+  private findSupplierSiblingRows(supplierId: string, supplierName: string): EditableReviewRow[] {
+    const sid = supplierId?.trim();
+    const sname = this.normalizeSupplierName(supplierName);
+    return this.rows().filter(r => {
+      if (r.type === 'tx_only') {
+        return !!sname && this.normalizeSupplierName(r.supplier) === sname;
+      }
+      return !!sid && r.supplierId.trim() === sid;
+    });
+  }
+
+  /**
+   * Applies a supplier-management-dialog draft's classification onto a
+   * review row — the ONE function used both for the row that triggered
+   * the dialog and for every cascade sibling in runSupplierCascadeStep
+   * (no separate implementations). Deliberately NOT applyCatalogRow/
+   * clearClassification (used by the expense edit dialog, where percents
+   * always come from the picked catalog entry) — the supplier form lets
+   * the user override vatPercent/taxPercent/isEquipment to a value fixed
+   * for THIS supplier, independent of whatever the picked sub_category's
+   * own catalog law says. So: category/subCategory/subCategoryId/
+   * section/account fields still come from `entry` (or clear to
+   * UNCLASSIFIED when no category was picked in the supplier form —
+   * nothing in that dialog blocks saving without one); vatPercent/
+   * taxPercent/isEquipment ALWAYS come straight from `draft`, entry or
+   * not.
+   */
+  private applySupplierClassification(
+    row: EditableReviewRow,
+    entry: CatalogRow | undefined,
+    draft: SupplierDraft,
+  ): void {
+    if (entry) {
+      row.category = entry.category ?? '';
+      row.subCategory = entry.subCategory;
+      row.subCategoryId = entry.subCategoryId;
+      row.sectionName = entry.sectionName ?? '';
+      row.accountId = entry.accountId;
+      row.accountCode = entry.accountCode ?? '';
+      row.accountName = entry.accountName ?? '';
+      row.accountLabel = entry.accountName ? `${entry.accountName} (${entry.accountCode})` : '';
+      row.mappingStatus = entry.isPrivate
+        ? 'PRIVATE'
+        : entry.accountId != null && entry.approvalStatus === 'APPROVED'
+          ? 'READY'
+          : 'MISSING_MAPPING';
+      row.mappedByAccountant = entry.ownerType === 'ACCOUNTANT';
+      row.reductionPercent = Number(entry.reductionPercent ?? 0);
+    } else {
+      row.category = draft.category;
+      row.subCategory = '';
+      row.subCategoryId = null;
+      row.sectionName = '';
+      row.accountId = null;
+      row.accountCode = '';
+      row.accountName = '';
+      row.accountLabel = '';
+      row.mappingStatus = 'UNCLASSIFIED';
+      row.mappedByAccountant = false;
+      row.reductionPercent = 0;
+    }
+    // Always from the draft, regardless of whether entry was found — the
+    // whole point of the supplier form's percent fields is a per-supplier
+    // override independent of the picked sub_category's own catalog law.
+    row.vatPercent = draft.vatPercent;
+    row.taxPercent = draft.taxPercent;
+    row.isEquipment = draft.isEquipment;
+    row.description = row.subCategoryId != null
+      ? `${row.category}/${row.subCategory}`
+      : (this.documentTypeLabel(row.documentType) || 'מסמך לא מזוהה');
+  }
+
+  /** Sequential (not parallel — same DB back-pressure reasoning as
+   *  runBulkQueue) update of every matching row (trigger row first, then
+   *  siblings), each persisted via update-doc/update-tx. A single row's
+   *  failure doesn't stop the rest — it's flagged with saveStatus/
+   *  saveError (same as runAction) and the cascade moves on. Closes the
+   *  dialog only once every row has been attempted. */
+  private runSupplierCascade(
+    rows: EditableReviewRow[],
+    entry: CatalogRow | undefined,
+    draft: SupplierDraft,
+    supplierName: string,
+    supplierId: string,
+  ): void {
+    this.markSupplierTouched(rows[0]);
+    this.supplierCascadeProgress.set({ done: 0, total: rows.length });
+    this.runSupplierCascadeStep(rows, 0, entry, draft, supplierName, supplierId, { succeeded: 0, failed: 0 });
+  }
+
+  private runSupplierCascadeStep(
+    rows: EditableReviewRow[],
+    idx: number,
+    entry: CatalogRow | undefined,
+    draft: SupplierDraft,
+    supplierName: string,
+    supplierId: string,
+    stats: { succeeded: number; failed: number },
+  ): void {
+    if (idx >= rows.length) {
+      this.supplierCascadeProgress.set(null);
+      this.bumpRows();
+      if (stats.failed > 0) {
+        this.messageService.add({
+          severity: 'warn', summary: 'עדכון חלקי',
+          detail: `עודכנו ${stats.succeeded} שורות, ${stats.failed} נכשלו — ראה פירוט בטבלה`,
+          life: 6000, key: 'br',
+        });
+      }
+      this.closeSupplierDialog();
+      return;
+    }
+
+    const row = rows[idx];
+    row.supplier = supplierName;
+    row.supplierId = supplierId;
+    row.supplierStatusLabel = 'ספק מוכר';
+    this.applySupplierClassification(row, entry, draft);
+    row.saveStatus = 'pending';
+    this.supplierCascadeProgress.set({ done: idx, total: rows.length });
+    this.bumpRows();
+
+    const fields = {
+      category: row.category,
+      subCategory: row.subCategory,
+      subCategoryId: row.subCategoryId ?? undefined,
+      vatPercent: row.vatPercent,
+      taxPercent: row.taxPercent,
+      isEquipment: row.isEquipment,
+    };
+    const obs$ = row.type === 'tx_only'
+      ? this.reviewService.updateTxFields(this.businessNumber(), row.slimTransactionId!, fields)
+      : this.reviewService.updateDocFields(this.businessNumber(), row.documentId!, fields);
+
+    obs$
+      .pipe(
+        catchError(err => {
+          row.saveStatus = 'failed';
+          row.saveError = err?.error?.message ?? err?.message ?? 'עדכון השורה נכשל';
+          stats.failed++;
+          return of(null);
+        }),
+      )
+      .subscribe(result => {
+        if (result !== null) {
+          row.saveStatus = null;
+          row.saveError = null;
+          stats.succeeded++;
+        }
+        this.runSupplierCascadeStep(rows, idx + 1, entry, draft, supplierName, supplierId, stats);
+      });
+  }
+
   /** Hover-reveal row actions (matches the rest of the app's row-actions
    *  pattern — GenericTableComponent's floating strip, sliding in from the
    *  left on row hover) — replaces the old always-visible inline icon
@@ -905,7 +1506,7 @@ export class ReportReviewPage implements OnInit {
       isLoading: () => this.isActioning(),
       showWhen: (row) => {
         const r = row as unknown as EditableReviewRow;
-        return !this.isAnnualRow(r) && !this.isUnidentifiedRow(r);
+        return !r.isDetailRow && !this.isAnnualRow(r) && !this.isUnidentifiedRow(r);
       },
       action: (_event, row) => this.openEditDialog(row as unknown as EditableReviewRow),
     },
@@ -915,7 +1516,7 @@ export class ReportReviewPage implements OnInit {
       title: 'צפה במסמך לצד הטבלה',
       showWhen: (row) => {
         const r = row as unknown as EditableReviewRow;
-        return !!r.driveFileId && !this.isAnnualRow(r);
+        return !r.isDetailRow && !!r.driveFileId && !this.isAnnualRow(r);
       },
       action: (_event, row) => this.openPreview(row as unknown as EditableReviewRow),
     },
@@ -926,7 +1527,7 @@ export class ReportReviewPage implements OnInit {
       isLoading: () => this.isActioning(),
       showWhen: (row) => {
         const r = row as unknown as EditableReviewRow;
-        return this.isUnidentifiedRow(r) && !this.isTriaging(r);
+        return !r.isDetailRow && this.isUnidentifiedRow(r) && !this.isTriaging(r);
       },
       action: (_event, row) => this.startTriage(row as unknown as EditableReviewRow),
     },
@@ -937,25 +1538,20 @@ export class ReportReviewPage implements OnInit {
       isLoading: () => this.isActioning(),
       showWhen: (row) => {
         const r = row as unknown as EditableReviewRow;
-        return r.type !== 'tx_only' && r.documentType === 'invoice_receipt_pair';
+        return !r.isDetailRow && r.type !== 'tx_only' && r.documentType === 'invoice_receipt_pair';
       },
       action: (_event, row) => this.unpairRow(row as unknown as EditableReviewRow),
     },
     {
-      name: 'upload',
-      icon: 'pi pi-upload',
-      title: 'העלה מסמך חדש — סורק ומקשר לתנועה',
-      isLoading: () => this.isActioning(),
-      showWhen: (row) => (row as unknown as EditableReviewRow).type === 'tx_only',
-      action: (_event, row) => this.triggerUpload(row as unknown as EditableReviewRow),
-    },
-    {
+      // Replaces the old separate 'upload' action — "קשר מסמך" now opens
+      // one dialog offering both "pick an existing doc_only row" and "or
+      // upload a new document" (see the link-dialog p-dialog in the .html).
       name: 'link',
       icon: 'pi pi-link',
-      title: 'קשר למסמך קיים — שייך לאחת השורות מסוג \'מסמך בלבד\'',
+      title: 'קשר מסמך',
       showWhen: (row) => {
         const r = row as unknown as EditableReviewRow;
-        return r.type === 'tx_only' && this.docOnlyRows().length > 0;
+        return !r.isDetailRow && r.type === 'tx_only';
       },
       action: (_event, row) => this.startLink(row as unknown as EditableReviewRow),
     },
@@ -969,7 +1565,10 @@ export class ReportReviewPage implements OnInit {
       // same rejectTx call as "מחק" for that row type (product decision:
       // both buttons stay visible so the action is always available, even
       // though they're functionally identical for a tx_only row).
-      showWhen: (row) => !this.isAnnualRow(row as unknown as EditableReviewRow),
+      showWhen: (row) => {
+        const r = row as unknown as EditableReviewRow;
+        return !r.isDetailRow && !this.isAnnualRow(r);
+      },
       action: (_event, row) => {
         const r = row as unknown as EditableReviewRow;
         if (r.type === 'tx_only') this.rejectTx(r);
@@ -981,7 +1580,10 @@ export class ReportReviewPage implements OnInit {
       icon: 'pi pi-trash',
       title: 'מחק',
       isLoading: () => this.isActioning(),
-      showWhen: (row) => !this.isAnnualRow(row as unknown as EditableReviewRow),
+      showWhen: (row) => {
+        const r = row as unknown as EditableReviewRow;
+        return !r.isDetailRow && !this.isAnnualRow(r);
+      },
       action: (_event, row) => {
         const r = row as unknown as EditableReviewRow;
         if (r.type === 'tx_only') this.rejectTx(r);
@@ -1030,7 +1632,13 @@ export class ReportReviewPage implements OnInit {
    *  recognize). Replaces the old separate "מקור" source-icon column —
    *  folded the two into one now that the icon column is gone. */
   sourceTypeLabel(row: EditableReviewRow): string {
-    return row.type === 'tx_only' ? 'תנועה' : (row.documentTypeLabel || 'מסמך לא מזוהה');
+    // A manually-linked matched row (displaySource==='tx') keeps reading as
+    // "תנועה" — matches the rest of its display fields (supplier/date/
+    // amount, see confirmLink/mergeUploadedDocIntoRow) until the user
+    // expands it to see the linked document.
+    return (row.type === 'tx_only' || row.displaySource === 'tx')
+      ? 'תנועה'
+      : (row.documentTypeLabel || 'מסמך לא מזוהה');
   }
 
   // ---- Cascading dropdown handlers ------------------------------------
@@ -1126,41 +1734,6 @@ export class ReportReviewPage implements OnInit {
    *  The "both empty" guard prevents leaking edits between two rows
    *  with the same name but different tax IDs (those ARE different
    *  legal entities — e.g. two stores sharing a chain brand). */
-  private cascadeToSupplierSiblings(
-    source: EditableReviewRow,
-    mutate: (sibling: EditableReviewRow) => void,
-  ): void {
-    const sid = source.supplierId?.trim();
-    const sname = source.supplier?.trim();
-    if (!sid && !sname) return; // tx_only rows with no merchant info
-    for (const r of this.rows()) {
-      if (r === source) continue;
-      const rsid = r.supplierId?.trim();
-      const rsname = r.supplier?.trim();
-      if (sid) {
-        if (rsid !== sid) continue;
-      } else {
-        // source has no supplierId → only match siblings that ALSO have
-        // no supplierId AND share the trimmed name.
-        if (rsid) continue;
-        if (!rsname || rsname !== sname) continue;
-      }
-      mutate(r);
-    }
-  }
-
-  /** Click handler for the red flag icon — toggles the per-row choice
-   *  of whether to register this supplier in the user's master list when
-   *  approving. The flag is only rendered for "ספק חדש" rows so this
-   *  method only runs when there's a meaningful choice; no need to guard. */
-  toggleSaveAsSupplier(row: EditableReviewRow, event: MouseEvent): void {
-    // Defensive — the click bubbles from inside the cell; without this
-    // the row-level handler (if any added later) would also fire.
-    event.stopPropagation();
-    row.saveAsSupplier = !row.saveAsSupplier;
-    this.bumpRows();
-  }
-
   /** Derive the identity key used for the blue-highlight grouping.
    *  Matches the cascade rule: supplierId when present, otherwise the
    *  trimmed supplier name. Tagged so an empty-id row named "123" can't
@@ -1446,17 +2019,55 @@ export class ReportReviewPage implements OnInit {
       row,
       this.reviewService.uploadDocToTx(this.businessNumber(), row.slimTransactionId, file),
       'העלאת המסמך וקישורו לתנועה נכשלה',
+      (doc) => this.mergeUploadedDocIntoRow(row, doc as UploadDocToTxResponse),
     );
     // Clear so a re-pick of the same filename still fires `change`.
     input.value = '';
   }
 
+  /** Success path for onUploadDocForTx — same "synthesize a matched row
+   *  in-place" idea as confirmLink, mirrored via buildMatchedRow. The
+   *  tx_only row is the classificationBase — matches confirmLink now too
+   *  (D9 classification is tx-wins for every matched row), and here it's
+   *  doubly right since the doc was just OCR'd and never went through the
+   *  preview's classifyReviewRow pass at all. Also closes the link dialog:
+   *  `linkingRow()` matches by slimTransactionId, which the merged row
+   *  keeps, so without this the dialog would stay open showing a
+   *  now-matched row as if it were still tx_only. */
+  private mergeUploadedDocIntoRow(txRow: EditableReviewRow, doc: UploadDocToTxResponse): void {
+    // classificationBase is already txRow here — the display fields
+    // (supplier/date/amount/sumLabel/currency/ilsAmount) are already
+    // tx-primary without needing an explicit override — displaySource is
+    // set for consistency/readability with confirmLink.
+    const merged = this.buildMatchedRow(txRow, {
+      rowKey: `matched:${doc.documentId}:${txRow.slimTransactionId}`,
+      displaySource: 'tx',
+      documentId: doc.documentId,
+      driveFileId: doc.driveFileId,
+      driveFileName: doc.driveFileName,
+      invoiceNumber: doc.invoiceNumber ?? '',
+      allocationNumber: doc.allocationNumber ?? '',
+      documentType: doc.documentType,
+      documentTypeLabel: this.documentTypeLabel(doc.documentType),
+    });
+    // Replace in place at txRow's own index — see confirmLink for why
+    // filter+concat (pushing to the end) was wrong.
+    this.rows.update(rs => rs.map(r => r === txRow ? merged : r));
+    this.adjustCount('matched', 1);
+    this.adjustCount('tx_only', -1);
+    this.cancelLink();
+  }
+
   /** Common per-row action wrapper — marks row pending, fires the call,
-   *  drops the row on success, surfaces error on failure. */
+   *  and on success either drops the row (default) or hands the response
+   *  to `onSuccess` for a custom merge (e.g. onUploadDocForTx synthesizing
+   *  a matched row instead of just removing the tx_only row). Surfaces
+   *  errors on failure either way. */
   private runAction(
     row: EditableReviewRow,
     obs$: import('rxjs').Observable<unknown>,
     errPrefix: string,
+    onSuccess?: (result: unknown) => void,
   ): void {
     if (this.isActioning() || row.saveStatus === 'pending') return;
     row.saveStatus = 'pending';
@@ -1477,9 +2088,13 @@ export class ReportReviewPage implements OnInit {
         }),
         finalize(() => this.isActioning.set(false)),
       )
-      .subscribe(() => {
-        this.rows.update(rs => rs.filter(r => r !== row));
-        this.adjustCount(row.type, -1);
+      .subscribe((result) => {
+        if (onSuccess) {
+          onSuccess(result);
+        } else {
+          this.rows.update(rs => rs.filter(r => r !== row));
+          this.adjustCount(row.type, -1);
+        }
         this.maybeAutoClose();
       });
   }
@@ -1571,15 +2186,36 @@ export class ReportReviewPage implements OnInit {
         const txRow = row;
         const docRow = this.rows().find(r => r.type === 'doc_only' && r.documentId === docId);
         if (!docRow) return;
-        const merged: EditableReviewRow = {
-          ...docRow,
+        // classificationBase is now txRow — D9 classification (category/
+        // subCategory/vatPercent/taxPercent/mappingStatus/description/
+        // accountLabel/...) is tx-wins for every matched row, manual link
+        // included (see classifyReviewRow on the backend). txRow already
+        // carries its own tx-sourced classification from when it was a
+        // tx_only row in this same preview, so this is just "keep what's
+        // already there" — nothing to recompute client-side. Only the
+        // document's identity/evidence fields (never tx-derived) are
+        // overridden here; supplier/date/amount/sumLabel/currency/ilsAmount
+        // are already txRow's own (displaySource: 'tx' — separate axis,
+        // governs display only, not classification).
+        const merged = this.buildMatchedRow(txRow, {
           rowKey: `matched:${docRow.documentId}:${txRow.slimTransactionId}`,
-          type: 'matched',
           slimTransactionId: txRow.slimTransactionId,
-        };
+          displaySource: 'tx',
+          documentId: docRow.documentId,
+          driveFileId: docRow.driveFileId,
+          driveFileName: docRow.driveFileName,
+          invoiceNumber: docRow.invoiceNumber,
+          allocationNumber: docRow.allocationNumber,
+          documentType: docRow.documentType,
+          documentTypeLabel: docRow.documentTypeLabel,
+        });
+        // Replace in place at txRow's own index (not filter+concat, which
+        // pushed the merged row to the end of the table — jarring after
+        // linking, since the row visually "jumps" away from where the
+        // user was just looking). docRow simply drops out of the list.
         this.rows.update(rs => rs
-          .filter(r => r !== txRow && r !== docRow)
-          .concat([merged]),
+          .filter(r => r !== docRow)
+          .map(r => r === txRow ? merged : r),
         );
         this.counts.update(c => ({
           matched: c.matched + 1,
@@ -1702,6 +2338,7 @@ export class ReportReviewPage implements OnInit {
   rowClassFn = (row: IRowDataTable): string => {
     const r = row as unknown as EditableReviewRow;
     const classes: string[] = [];
+    if (r.isDetailRow) classes.push('row-detail');
     if (this.isSupplierHighlighted(r)) classes.push('row-highlighted');
     if (r.saveStatus === 'failed') classes.push('row-error');
     if (r.saveStatus === 'pending') classes.push('row-pending');

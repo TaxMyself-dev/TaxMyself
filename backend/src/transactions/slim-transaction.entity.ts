@@ -114,5 +114,15 @@ export class SlimTransaction {
 
   @UpdateDateColumn()
   updatedAt: Date;
+
+  /**
+   * Nullable pointer at sub_category.id (D1 thin-pointer model) — mirrors
+   * Supplier.subCategoryId / ExtractedDocument.subCategoryId. Stamped when
+   * the user edits a tx_only/matched row's classification pre-approval
+   * (see ReportReviewService.updateTxFields); approve's classification
+   * always resolves from ReviewOverrides regardless of this column.
+   */
+  @Column({ name: 'sub_category_id', type: 'int', nullable: true, default: null })
+  subCategoryId: number | null;
 }
 

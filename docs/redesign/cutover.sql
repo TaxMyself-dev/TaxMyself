@@ -1492,3 +1492,44 @@ COMMIT;
 -- purely additive: no existing category/sub_category/booking_account name
 -- collides with these, so no existing row is touched.
 -- ============================================================================
+
+
+-- ============================================================================
+-- SECTION 9 (2026-08-06, Elazar) — blocking single-row save + supplier-
+-- driven cascade in the report-review edit dialogs (new
+-- reports/me/review/update-doc and update-tx endpoints).
+--
+-- Two new NULLable columns so a review row's classification can be
+-- persisted onto its pending source row (extracted_document /
+-- slim_transactions) BEFORE approval, instead of only living in-memory
+-- until the user clicks approve:
+--
+--   - `extracted_document.vat_reporting_date` — this table had NO period
+--     column at all before this section (only slim_transactions did).
+--     Mirrors the property name already used everywhere else
+--     (SlimTransaction/Expense/FullTransactionCache.vatReportingDate),
+--     snake_case column name matching this entity's own convention
+--     (supplier_id, sub_category_id, document_kind, ...).
+--   - `slim_transactions.sub_category_id` — this table had no D1 thin-
+--     pointer column at all before this section (Supplier and
+--     extracted_document already do). snake_case column name, matching
+--     this entity's own convention (supplier_id, document_kind, ...) and
+--     the `@Column({ name: 'sub_category_id', ... })` mapping the entity
+--     actually declares.
+--
+-- Both NULLable with no default-value backfill in this script — existing
+-- rows simply read NULL (equivalent to "no pre-approval edit was ever
+-- saved for this row yet", which is true for every row that predates this
+-- feature). No data migration needed or included here.
+-- ============================================================================
+
+ALTER TABLE `extracted_document`
+  ADD COLUMN `vat_reporting_date` varchar(255) NULL DEFAULT NULL;
+
+ALTER TABLE `slim_transactions`
+  ADD COLUMN `sub_category_id` int NULL DEFAULT NULL;
+
+-- Verification (run after applying, expect 1 row from both):
+--   SHOW COLUMNS FROM extracted_document LIKE 'vat_reporting_date';
+--   SHOW COLUMNS FROM slim_transactions LIKE 'sub_category_id';
+-- ============================================================================

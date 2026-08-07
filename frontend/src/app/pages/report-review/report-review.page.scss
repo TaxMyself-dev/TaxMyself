@@ -232,6 +232,49 @@
   tr.row-highlighted { background: #dbeafe; }   // blue-100
   tr.row-pending     { opacity: 0.6; }
   tr.row-error       { background: #fee2e2 !important; }
+
+  // Nested document-detail row, synthesized under an expanded matched row
+  // (see displayRows/buildDetailRow). A compact one-line summary (file name
+  // + doc type — the rest, date/amount/percent/period, already shows on the
+  // parent transaction row) rendered only in the supplier column (2nd <td>,
+  // stable across both view modes — see buildColumns); every other column
+  // is hidden here since GenericTableComponent has no colspan support to
+  // give the summary a real full-width row.
+  tr.row-detail {
+    font-size: 0.7rem;
+    // Two prior single-property attempts (row background, then cell
+    // background+box-shadow) left a fainter but still-visible box. Root
+    // cause: PrimeNG's Aura datatable theme sets a background on the ROW
+    // itself (row.background token) AND a border on every CELL
+    // (bodyCell.borderColor, applied as a divider line) independently of
+    // each other — neither this page nor GenericTableComponent's own SCSS
+    // defines these, they come from the table theme's generated CSS, so
+    // nothing here can out-specificity them without !important. Because
+    // every OTHER cell in this row is visibility:hidden, that per-cell
+    // divider border only shows around the one visible cell instead of
+    // spanning the full row width like it does on a normal row — which is
+    // what reads as a floating "boxed" chip. Killing background/box-shadow/
+    // border/outline/pseudo-overlays on both the row and every cell (not
+    // just the visible one, in case a hidden neighbor's border is what's
+    // showing through) removes every surface PrimeNG could be drawing on.
+    background: transparent !important;
+    box-shadow: none !important;
+    border: none !important;
+    outline: none !important;
+    &::before, &::after { content: none !important; }
+
+    td {
+      visibility: hidden;
+      padding-top: 6px !important;
+      padding-bottom: 6px !important;
+      background: transparent !important;
+      box-shadow: none !important;
+      border: none !important;
+      outline: none !important;
+      &::before, &::after { content: none !important; }
+    }
+    td:nth-child(2) { visibility: visible; }
+  }
 }
 
 
@@ -455,20 +498,16 @@
   color: #374151;
   strong { color: #111827; }
 }
-.supplier-conflict-flag-icon {
-  margin: 0 2px;
-  cursor: default; // illustrative only in this description — not clickable here
-  vertical-align: middle;
-}
 .supplier-conflict-footer {
   display: flex;
   gap: 10px;
   justify-content: flex-end;
 }
 
-// Supplier-name cell — name on the right (RTL), info icon hugging the
-// left of the cell. The icon only renders when the supplier isn't in the
-// user's Supplier table, so most rows show just the name.
+// Supplier-name cell — name on the right (RTL), bookmark icon hugging the
+// left of the cell. The icon renders for every row with a supplier
+// concept (matched/doc_only) — filled/outline state signals whether the
+// supplier is already saved.
 :host ::ng-deep .review-table .supplier-cell {
   display: inline-flex;
   align-items: center;
@@ -485,39 +524,107 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-// Two states for the new-supplier toggle — both visible (so the user can
-// always see "this is a new supplier"), only differing in fill so the
-// click choice ("yes save" / "no don't save") is glanceable too.
-//   Default       — filled green square, will be added to Supplier table on approve
-//   Opt-out       — hollow grey square, will NOT be added
-// Click toggles between them (see toggleSaveAsSupplier). Same state logic
-// as before (saveAsSupplier true/false) — only the visual form changed
-// from an outline flag glyph to a small filled square.
-:host ::ng-deep .review-table .supplier-new-square {
-  display: inline-block;
-  width: 10px;
-  height: 10px;
-  border-radius: 2px;
+// Supplier bookmark — click opens the supplier-management dialog
+// (openSupplierDialog). Two states, both visible so the user can always
+// tell at a glance whether the supplier is already saved:
+//   Saved ("ספק מוכר")  — filled green bookmark (pi-bookmark-fill)
+//   New   ("ספק חדש")   — grey outline bookmark (pi-bookmark)
+:host ::ng-deep .review-table .supplier-bookmark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 17px;
+  height: 17px;
+  font-size: 17px;   // matches container so the glyph fills the 17x17 box
+  line-height: 1;
+  cursor: pointer;
+  color: #9ca3af;   // grey-400: not yet saved
+  flex-shrink: 0;
+  transition: color 0.15s ease;
+
+  &:hover { color: #6b7280; } // grey-500
+
+  &--saved {
+    color: #16a34a;  // green-600: already saved
+    &:hover { color: #15803d; } // green-700
+  }
+}
+
+// Fixed-width slot for the expand chevron — ALWAYS present as a flex child
+// of .supplier-cell (even on rows with no chevron, e.g. doc_only), so the
+// bookmark icon that follows it sits at the same horizontal offset on
+// every row. Without this, the bookmark visibly shifted left on matched
+// rows (which have a chevron) vs. doc_only rows (which don't).
+:host ::ng-deep .review-table .chevron-slot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 17px;
+  height: 17px;
+  flex-shrink: 0;
+}
+
+// Expand/collapse chevron — sits inside .chevron-slot, immediately before
+// the bookmark icon, only rendered for matched rows. Sized to match the
+// bookmark's 17x17 box for visual consistency. Follows the app-wide
+// chevron-up/down convention for expand toggles (mobile filter summary,
+// classify-tran's advanced section, etc.) rather than introducing a
+// left/right pair.
+:host ::ng-deep .review-table .row-expand-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 17px;
+  height: 17px;
+  font-size: 14px;
+  color: #6b7280;
   cursor: pointer;
   flex-shrink: 0;
-  background-color: #16a34a; // green-600: will be added
-  border: 1px solid #16a34a;
-  transition: background-color 0.15s ease, border-color 0.15s ease;
 
-  &:hover {
-    // Slight darken on hover so the click affordance is obvious without
-    // a heavier visual treatment.
-    background-color: #15803d; // green-700
-    border-color: #15803d;
-  }
+  &:hover { color: #374151; }
+}
 
-  &--opt-out {
-    background-color: transparent;
-    border-color: #9ca3af;     // grey-400: clearly de-emphasized
-    &:hover {
-      border-color: #6b7280;   // grey-500
-    }
-  }
+// Nested document-detail row's compact one-line summary (see #supplierCell)
+// — eye icon (DOM-first, so RTL renders it at the visual right/start) +
+// file name + doc type. Deliberately smaller than the table's own already-
+// compact 0.78rem base (tr.row-detail sets 0.7rem) since this is meant to
+// read as a subordinate footnote to the parent transaction row, not a peer.
+:host ::ng-deep .review-table .detail-row-compact {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  color: #6b7280;
+  // Indented to line up with where the parent row's supplier-name TEXT
+  // starts, not an arbitrary offset: the parent's .chevron-slot (17px) +
+  // gap (6px) + .supplier-bookmark (17px) + gap (6px) all precede the name
+  // there, so 46px here puts this row's text directly under it, reading
+  // as a child of the transaction row rather than a peer.
+  margin-inline-start: 46px;
+}
+:host ::ng-deep .review-table .detail-row-filename {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+:host ::ng-deep .review-table .detail-row-doctype {
+  flex-shrink: 0;
+  color: #9ca3af;
+  &::before { content: '•'; margin-inline-end: 6px; }
+}
+// Matches the row-actions hover strip's own preview (pi-eye) icon exactly —
+// that one is an <app-p-button severity="info" variant="text">, whose color
+// comes from PrimeNG's Aura theme token text.info.color ({sky.500}),
+// exposed as this CSS var. Falls back to the token's resolved default
+// (Tailwind sky-500) if the var isn't set. PrimeNG's own text-info button
+// doesn't darken its text on hover either (only gains a faint background),
+// so this doesn't either — kept consistent with the real component.
+:host ::ng-deep .review-table .detail-row-preview {
+  cursor: pointer;
+  color: var(--p-button-text-info-color, #0ea5e9);
+  font-size: 13px;
+  flex-shrink: 0;
 }
 
 .cell-empty { color: #d1d5db; }
@@ -637,10 +744,37 @@
   }
 }
 
-// Per-row bulk-select checkbox (template-rendered so it can be disabled).
-.row-select {
-  cursor: pointer;
-  &:disabled { cursor: not-allowed; opacity: 0.45; }
+// Row-select / "בחר הכל" checkboxes — PrimeNG p-checkbox re-skinned to the
+// Figma spec: 18x18, radius 4px, unchecked border #ebebeb, checked border
+// #acacac + green (#16a34a) checkmark. Scoped to .review-table (the
+// per-row checkboxes) and .footer-bar (the "בחר הכל" toggle) — the only
+// two places this page uses a checkbox.
+:host ::ng-deep .review-table .p-checkbox,
+:host ::ng-deep .footer-bar .p-checkbox {
+  width: 18px;
+  height: 18px;
+
+  .p-checkbox-box {
+    width: 18px;
+    height: 18px;
+    border-radius: 4px;
+    border-color: #ebebeb;
+  }
+  &.p-checkbox-checked .p-checkbox-box {
+    border-color: #acacac;
+  }
+  .p-checkbox-icon {
+    width: 12px;
+    height: 12px;
+    color: #16a34a;
+  }
+  &.p-checkbox-checked .p-checkbox-icon {
+    color: #16a34a;
+  }
+  &.p-disabled {
+    opacity: 0.45;
+    .p-checkbox-box { cursor: not-allowed; }
+  }
 }
 
 // ---- Link-picker dialog (tx_only "קשר למסמך קיים") --------------------
@@ -670,6 +804,38 @@
   border: 1px solid #d1d5db;
   border-radius: 6px;
   font-size: 0.85rem;
+}
+
+.link-dialog-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #9ca3af;
+  font-size: 0.78rem;
+
+  &::before, &::after {
+    content: '';
+    flex: 1 1 auto;
+    height: 1px;
+    background: #e5e7eb;
+  }
+}
+
+.link-dialog-upload-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px dashed #9ca3af;
+  border-radius: 6px;
+  background: white;
+  color: #374151;
+  font-size: 0.85rem;
+  cursor: pointer;
+
+  &:hover:not(:disabled) { background: #f9fafb; border-color: #6b7280; }
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
 }
 
 .link-dialog-footer {

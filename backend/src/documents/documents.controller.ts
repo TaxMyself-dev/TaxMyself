@@ -352,6 +352,14 @@ export class DocumentsController {
     const businessNumber = body?.businessNumber?.trim();
     if (!businessNumber) throw new BadRequestException('businessNumber is required');
     if (!files?.length) throw new BadRequestException('At least one file is required');
+    // multer/busboy decodes multipart headers as latin1 regardless of the
+    // browser's actual UTF-8 filename bytes (no filename*= extended-param
+    // support), so a Hebrew originalname arrives mojibake'd — re-decode it
+    // as the UTF-8 it actually is. No-op for ASCII filenames. Same fix as
+    // reports.controller.ts's upload-doc-to-tx.
+    for (const file of files) {
+      file.originalname = Buffer.from(file.originalname, 'latin1').toString('utf8');
+    }
     return this.documentsService.uploadFilesToInbox(firebaseId, businessNumber, files);
   }
 
