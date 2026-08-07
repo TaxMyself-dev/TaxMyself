@@ -11,6 +11,7 @@ import {
 import { CommonModule, DatePipe } from '@angular/common';
 import { AbstractControl, FormBuilder, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Observable, forkJoin } from 'rxjs';
 import { finalize } from 'rxjs/operators';
 import { DrawerModule } from 'primeng/drawer';
 import { ConfirmationService, MessageService } from 'primeng/api';
@@ -27,7 +28,6 @@ import {
   RenewalBatchResult,
   RenewalOutcome,
   RenewalResult,
-  UpdateSubscriptionDiscountPayload,
 } from 'src/app/services/admin-billing.service';
 import { IColumnDataTable, IRowDataTable, ISelectItem, ITableRowAction } from 'src/app/shared/interface';
 import { FormTypes, ICellRenderer } from 'src/app/shared/enums';
@@ -96,7 +96,9 @@ export class BillingSubscriptionsComponent implements OnInit {
   isLoading = signal(false);
   selectedSub = signal<AdminSubscription | null>(null);
   showDrawer = signal(false);
-  savingDiscount = signal(false);
+  savingEdit = signal(false);
+  /** Plan dropdown options for the edit-dialog "תוכנית" field. */
+  planOptions = signal<ISelectItem[]>([]);
   /** subscriptionId currently being charged, or null. Mirrors the isClearingCache
    *  pattern used elsewhere — disables the "charge now" action across all rows
    *  while any one charge is in flight. */
@@ -104,7 +106,9 @@ export class BillingSubscriptionsComponent implements OnInit {
   /** True while the manual "run cron now" batch request is in flight. */
   runningDueRenewals = signal(false);
 
-  readonly discountForm = this.fb.group({
+  readonly editForm = this.fb.group({
+    planId:                 [null as number | null],
+    trialEnd:                [null as Date | null],
     discountKind:          ['NONE' as DiscountKind],
     discountPercent:       [null as number | null, [Validators.min(0), Validators.max(100)]],
     discountAmountShekels: [null as number | null, [Validators.min(0)]],
@@ -113,37 +117,40 @@ export class BillingSubscriptionsComponent implements OnInit {
   });
 
   constructor() {
-    this.discountForm.get('discountKind')?.valueChanges
+    this.editForm.get('discountKind')?.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((kind: DiscountKind | null) => {
-        if (kind !== 'PERCENT') this.discountForm.get('discountPercent')?.setValue(null);
-        if (kind !== 'AMOUNT') this.discountForm.get('discountAmountShekels')?.setValue(null);
+        if (kind !== 'PERCENT') this.editForm.get('discountPercent')?.setValue(null);
+        if (kind !== 'AMOUNT') this.editForm.get('discountAmountShekels')?.setValue(null);
       });
 
-    this.discountForm.get('discountStartDate')?.valueChanges
+    this.editForm.get('discountStartDate')?.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => this.discountForm.get('discountEndDate')?.updateValueAndValidity());
+      .subscribe(() => this.editForm.get('discountEndDate')?.updateValueAndValidity());
   }
 
   // Columns re-derived automatically when statusTpl signal updates after view init
   readonly columnsTitle = computed<IColumnDataTable<string, string>[]>(() => [
-    { name: 'userName',        value: 'משתמש',       type: FormTypes.TEXT },
-    { name: 'userEmail',       value: 'אימייל',       type: FormTypes.TEXT },
-    { name: 'businessName',    value: 'עסק',          type: FormTypes.TEXT },
-    { name: 'status',          value: 'סטטוס',        cellTemplate: this.statusTpl() },
-    { name: 'planName',        value: 'תוכנית',       type: FormTypes.TEXT },
-    { name: 'trialEnd',        value: 'סיום ניסיון',  type: FormTypes.DATE },
-    { name: 'currentPeriodEnd', value: 'תום תקופה',   type: FormTypes.DATE },
-    { name: 'cardTokenExists', value: 'כרטיס',        cellRenderer: ICellRenderer.CHECKBOX },
-    { name: 'createdAt',       value: 'נוצר',         type: FormTypes.DATE },
+    { name: 'userName',           value: 'שם משתמש',        type: FormTypes.TEXT },
+    { name: 'businessName',       value: 'שם עסק',          type: FormTypes.TEXT },
+    { name: 'status',             value: 'סטטוס',           cellTemplate: this.statusTpl() },
+    { name: 'planName',           value: 'תוכנית',          type: FormTypes.TEXT },
+    { name: 'createdAt',          value: 'תאריך רישום',     type: FormTypes.DATE },
+    { name: 'trialEnd',           value: 'תאריך סיום ניסיון', type: FormTypes.DATE },
+    { name: 'nextBillingDate',    value: 'תאריך חיוב הבא',  type: FormTypes.DATE },
+    { name: 'nextBillingAmount',  value: 'סכום חיוב הבא',   type: FormTypes.TEXT },
+    { name: 'discountPercentDisplay', value: 'אחוז הנחה',   type: FormTypes.TEXT },
+    { name: 'discountAmountDisplay',  value: 'סכום הנחה',   type: FormTypes.TEXT },
+    { name: 'currentPeriodEnd',   value: 'תום תקופה',       type: FormTypes.DATE },
+    { name: 'cardTokenExists',    value: 'כרטיס',           cellRenderer: ICellRenderer.CHECKBOX },
   ]);
 
   readonly rowActions: ITableRowAction[] = [
     {
-      name: 'view',
-      icon: 'pi pi-eye',
-      title: 'פרטים',
-      action: (_: any, row: IRowDataTable) => this.openDetails(row['subscriptionId'] as number),
+      name: 'edit',
+      icon: 'pi pi-pencil',
+      title: 'עריכה',
+      action: (_: any, row: IRowDataTable) => this.openEdit(row['subscriptionId'] as number),
     },
     {
       name: 'chargeNow',
@@ -157,21 +164,25 @@ export class BillingSubscriptionsComponent implements OnInit {
 
   readonly tableRows = computed<IRowDataTable[]>(() =>
     this.subscriptions().map(s => ({
-      subscriptionId:   s.subscriptionId,
-      userName:         s.userName ?? '—',
-      userEmail:        s.userEmail ?? '—',
-      businessName:     s.businessName ?? '—',
-      status:           s.status,
-      planName:         s.planName ?? 'ללא תוכנית',
-      trialEnd:         s.trialEnd,
-      currentPeriodEnd: s.currentPeriodEnd,
-      cardTokenExists:  s.cardTokenExists,
-      createdAt:        s.createdAt,
+      subscriptionId:          s.subscriptionId,
+      userName:                s.userName ?? '—',
+      businessName:            s.businessName ?? '—',
+      status:                  s.status,
+      planName:                s.planName ?? 'ללא תוכנית',
+      trialEnd:                s.trialEnd,
+      nextBillingDate:         s.nextBillingDate,
+      nextBillingAmount:       this.formatAmount(s.nextBillingAmountAgorot),
+      discountPercentDisplay:  s.discountPercent != null ? `${s.discountPercent}%` : '—',
+      discountAmountDisplay:   this.formatAmount(s.discountAmountAgorot),
+      currentPeriodEnd:        s.currentPeriodEnd,
+      cardTokenExists:         s.cardTokenExists,
+      createdAt:               s.createdAt,
     }))
   );
 
   ngOnInit(): void {
     this.loadSubscriptions();
+    this.loadPlans();
   }
 
   loadSubscriptions(): void {
@@ -187,11 +198,20 @@ export class BillingSubscriptionsComponent implements OnInit {
       });
   }
 
-  openDetails(subscriptionId: number): void {
+  private loadPlans(): void {
+    this.adminBillingService.getPlans()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: plans => this.planOptions.set(plans.map(p => ({ name: p.name, value: p.id }))),
+        error: () => {},
+      });
+  }
+
+  openEdit(subscriptionId: number): void {
     const sub = this.subscriptions().find(s => s.subscriptionId === subscriptionId);
     if (!sub) return;
     this.selectedSub.set(sub);
-    this.resetDiscountForm(sub);
+    this.resetEditForm(sub);
     this.showDrawer.set(true);
   }
 
@@ -210,14 +230,16 @@ export class BillingSubscriptionsComponent implements OnInit {
     return `₪${(agorot / 100).toFixed(2)}`;
   }
 
-  // ─── Discount editing ──────────────────────────────────────────────────────
+  // ─── Edit dialog (plan / trial end / discount) ──────────────────────────────
 
-  private resetDiscountForm(sub: AdminSubscription): void {
+  private resetEditForm(sub: AdminSubscription): void {
     const discountKind: DiscountKind =
       sub.discountPercent != null ? 'PERCENT' :
       sub.discountAmountAgorot != null ? 'AMOUNT' : 'NONE';
 
-    this.discountForm.reset({
+    this.editForm.reset({
+      planId:                 sub.planId,
+      trialEnd:                sub.trialEnd ? new Date(sub.trialEnd) : null,
       discountKind,
       discountPercent:       sub.discountPercent,
       discountAmountShekels: sub.discountAmountAgorot != null ? sub.discountAmountAgorot / 100 : null,
@@ -226,17 +248,17 @@ export class BillingSubscriptionsComponent implements OnInit {
     });
   }
 
-  saveDiscount(): void {
-    if (this.discountForm.invalid) {
-      this.discountForm.markAllAsTouched();
+  saveEdit(): void {
+    if (this.editForm.invalid) {
+      this.editForm.markAllAsTouched();
       return;
     }
     const sub = this.selectedSub();
     if (!sub) return;
 
-    const raw = this.discountForm.getRawValue();
-    // Discount dates are business date ranges (date-only), not timestamps — format
-    // using local date parts to avoid the UTC-shift toISOString() would introduce.
+    const raw = this.editForm.getRawValue();
+    // Business dates are date-only, not timestamps — format using local date
+    // parts to avoid the UTC-shift toISOString() would introduce.
     const toLocalDateString = (d: Date | null): string | null => {
       if (!d) return null;
       const y = d.getFullYear();
@@ -252,48 +274,45 @@ export class BillingSubscriptionsComponent implements OnInit {
     };
     const percent = toNumber(raw.discountPercent);
     const amountShekels = toNumber(raw.discountAmountShekels);
-    const payload: UpdateSubscriptionDiscountPayload = {
-      discountPercent: raw.discountKind === 'PERCENT' ? percent : null,
-      discountAmountAgorot: raw.discountKind === 'AMOUNT' && amountShekels != null
-        ? Math.round(amountShekels * 100)
-        : null,
-      discountStartDate: toLocalDateString(raw.discountStartDate),
-      discountEndDate: toLocalDateString(raw.discountEndDate),
-    };
 
-    this.savingDiscount.set(true);
-    this.adminBillingService.updateSubscriptionDiscount(sub.subscriptionId, payload)
+    const requests: Observable<unknown>[] = [
+      this.adminBillingService.updateSubscriptionPlan(sub.subscriptionId, { planId: raw.planId ?? null }),
+      this.adminBillingService.updateSubscriptionTrialEnd(sub.subscriptionId, { trialEnd: toLocalDateString(raw.trialEnd) }),
+      this.adminBillingService.updateSubscriptionDiscount(sub.subscriptionId, {
+        discountPercent: raw.discountKind === 'PERCENT' ? percent : null,
+        discountAmountAgorot: raw.discountKind === 'AMOUNT' && amountShekels != null
+          ? Math.round(amountShekels * 100)
+          : null,
+        discountStartDate: toLocalDateString(raw.discountStartDate),
+        discountEndDate: toLocalDateString(raw.discountEndDate),
+      }),
+    ];
+
+    this.savingEdit.set(true);
+    forkJoin(requests)
       .pipe(
-        finalize(() => this.savingDiscount.set(false)),
+        finalize(() => this.savingEdit.set(false)),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe({
-        next: updated => {
-          const merge = (s: AdminSubscription): AdminSubscription => ({
-            ...s,
-            discountPercent: updated.discountPercent,
-            discountAmountAgorot: updated.discountAmountAgorot,
-            discountStartDate: updated.discountStartDate,
-            discountEndDate: updated.discountEndDate,
-          });
-          this.subscriptions.update(subs =>
-            subs.map(s => s.subscriptionId === updated.subscriptionId ? merge(s) : s)
-          );
-          this.selectedSub.update(s => s ? merge(s) : s);
+        next: () => {
           this.messageService.add({
             key: 'br',
             severity: 'success',
             summary: 'הצלחה',
-            detail: 'הנחת המנוי עודכנה בהצלחה',
+            detail: 'המנוי עודכן בהצלחה',
             life: 3000,
           });
+          this.showDrawer.set(false);
+          this.selectedSub.set(null);
+          this.loadSubscriptions();
         },
-        error: () => {
+        error: err => {
           this.messageService.add({
             key: 'br',
             severity: 'error',
             summary: 'שגיאה',
-            detail: 'שגיאה בעדכון הנחת המנוי',
+            detail: err?.error?.message ?? 'שגיאה בעדכון המנוי',
             life: 4000,
           });
         },

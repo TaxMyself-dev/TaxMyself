@@ -51,6 +51,8 @@ export interface AdminSubscription {
   planName: string | null;
   planSlug: string | null;
   planPriceAgorot: number | null;
+  /** Approximation only — planPriceAgorot with the discount applied as of nextBillingDate. */
+  nextBillingAmountAgorot: number | null;
   trialEnd: string | null;
   currentPeriodStart: string | null;
   currentPeriodEnd: string | null;
@@ -83,6 +85,27 @@ export interface AdminSubscriptionDiscountResponse {
   discountAmountAgorot: number | null;
   discountStartDate: string | null;
   discountEndDate: string | null;
+}
+
+export interface UpdateSubscriptionTrialEndPayload {
+  trialEnd: string | null;
+}
+
+export interface AdminSubscriptionTrialEndResponse {
+  subscriptionId: number;
+  trialEnd: string | null;
+}
+
+export interface UpdateSubscriptionPlanPayload {
+  planId: number | null;
+}
+
+export interface AdminSubscriptionPlanResponse {
+  subscriptionId: number;
+  planId: number | null;
+  planName: string | null;
+  planSlug: string | null;
+  planPriceAgorot: number | null;
 }
 
 export type RenewalOutcome =
@@ -177,6 +200,20 @@ export class AdminBillingService {
     payload: UpdateSubscriptionDiscountPayload,
   ): Observable<AdminSubscriptionDiscountResponse> {
     return this.http.patch<AdminSubscriptionDiscountResponse>(`${this.base}/subscriptions/${id}/discount`, payload);
+  }
+
+  updateSubscriptionTrialEnd(
+    id: number,
+    payload: UpdateSubscriptionTrialEndPayload,
+  ): Observable<AdminSubscriptionTrialEndResponse> {
+    return this.http.patch<AdminSubscriptionTrialEndResponse>(`${this.base}/subscriptions/${id}/trial-end`, payload);
+  }
+
+  updateSubscriptionPlan(
+    id: number,
+    payload: UpdateSubscriptionPlanPayload,
+  ): Observable<AdminSubscriptionPlanResponse> {
+    return this.http.patch<AdminSubscriptionPlanResponse>(`${this.base}/subscriptions/${id}/plan`, payload);
   }
 
   /** Manual test trigger for the renewal cron's charge-by-token flow, for one subscription. */

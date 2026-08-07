@@ -227,7 +227,7 @@ export class PricingService {
    * discountAmountAgorot takes precedence over discountPercent; mutual exclusivity is
    * enforced at the admin write path (AdminBillingService).
    */
-  private applySubscriptionDiscount(
+  applySubscriptionDiscount(
     baseAmount: number,
     subscription: Pick<
       Subscription,

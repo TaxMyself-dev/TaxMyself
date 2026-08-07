@@ -90,8 +90,6 @@
             {{ statusLabels[sub.status] ?? sub.status }}
           </span>
         </span>
-        <span class="detail-label">תוכנית</span>
-        <span class="detail-value">{{ sub.planName ?? '—' }}</span>
         @if (sub.planSlug) {
           <span class="detail-label">Slug</span>
           <span class="detail-value detail-value--mono">{{ sub.planSlug }}</span>
@@ -105,8 +103,6 @@
     <section class="detail-section">
       <h3 class="section-title">תאריכי חיוב</h3>
       <div class="detail-grid">
-        <span class="detail-label">סיום ניסיון</span>
-        <span class="detail-value">{{ formatDate(sub.trialEnd) }}</span>
         <span class="detail-label">תחילת תקופה</span>
         <span class="detail-value">{{ formatDate(sub.currentPeriodStart) }}</span>
         <span class="detail-label">סיום תקופה</span>
@@ -152,13 +148,30 @@
       </div>
     </section>
 
-    <!-- Discount -->
+    <!-- Edit: plan / trial end / discount -->
     <section class="detail-section">
-      <h3 class="section-title">הנחה למנוי</h3>
-      <form [formGroup]="discountForm" class="discount-form">
+      <h3 class="section-title">עריכת מנוי</h3>
+      <form [formGroup]="editForm" class="discount-form">
 
         <app-input-select
-          [parentForm]="discountForm"
+          [parentForm]="editForm"
+          controlName="planId"
+          labelText="תוכנית"
+          placeholder="בחר תוכנית"
+          [items]="planOptions()"
+          [showClear]="true"
+          [filter]="false">
+        </app-input-select>
+
+        <app-input-date
+          [parentForm]="editForm"
+          controlName="trialEnd"
+          labelText="תאריך סיום ניסיון"
+          placeholder="dd/mm/yyyy">
+        </app-input-date>
+
+        <app-input-select
+          [parentForm]="editForm"
           controlName="discountKind"
           labelText="סוג הנחה"
           placeholder="בחר סוג הנחה"
@@ -167,9 +180,9 @@
           [filter]="false">
         </app-input-select>
 
-        @if (discountForm.get('discountKind')?.value === 'PERCENT') {
+        @if (editForm.get('discountKind')?.value === 'PERCENT') {
           <app-input-text
-            [parentForm]="discountForm"
+            [parentForm]="editForm"
             controlName="discountPercent"
             type="number"
             [min]="0"
@@ -180,9 +193,9 @@
           </app-input-text>
         }
 
-        @if (discountForm.get('discountKind')?.value === 'AMOUNT') {
+        @if (editForm.get('discountKind')?.value === 'AMOUNT') {
           <app-input-text
-            [parentForm]="discountForm"
+            [parentForm]="editForm"
             controlName="discountAmountShekels"
             type="number"
             [min]="0"
@@ -194,13 +207,13 @@
 
         <div class="form-row-inline">
           <app-input-date
-            [parentForm]="discountForm"
+            [parentForm]="editForm"
             controlName="discountStartDate"
             labelText="תחילת הנחה"
             placeholder="dd/mm/yyyy">
           </app-input-date>
           <app-input-date
-            [parentForm]="discountForm"
+            [parentForm]="editForm"
             controlName="discountEndDate"
             labelText="סיום הנחה"
             placeholder="dd/mm/yyyy"
@@ -210,10 +223,10 @@
 
         <div class="form-row discount-save-row">
           <app-p-button
-            [buttonText]="'שמור הנחה'"
+            [buttonText]="'שמירה'"
             [buttonSize]="buttonSize.SMALL"
-            [isLoading]="savingDiscount()"
-            (onButtonClicked)="saveDiscount()">
+            [isLoading]="savingEdit()"
+            (onButtonClicked)="saveEdit()">
           </app-p-button>
         </div>
       </form>
