@@ -21,6 +21,8 @@ import { AdminBillingService } from './services/admin-billing.service';
 import { CreatePlanDto } from './dtos/admin/create-plan.dto';
 import { UpdatePlanDto } from './dtos/admin/update-plan.dto';
 import { UpdateSubscriptionDiscountDto } from './dtos/admin/update-subscription-discount.dto';
+import { UpdateSubscriptionTrialEndDto } from './dtos/admin/update-subscription-trial-end.dto';
+import { UpdateSubscriptionPlanDto } from './dtos/admin/update-subscription-plan.dto';
 
 @Controller('admin/billing')
 @UseGuards(FirebaseAuthGuard)
@@ -96,6 +98,28 @@ export class AdminBillingController {
   ) {
     await this.assertAdmin(request);
     return this.adminBillingService.updateSubscriptionDiscount(id, dto);
+  }
+
+  @Patch('subscriptions/:id/trial-end')
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  async updateSubscriptionTrialEnd(
+    @Req() request: AuthenticatedRequest,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateSubscriptionTrialEndDto,
+  ) {
+    await this.assertAdmin(request);
+    return this.adminBillingService.updateSubscriptionTrialEnd(id, dto);
+  }
+
+  @Patch('subscriptions/:id/plan')
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  async updateSubscriptionPlan(
+    @Req() request: AuthenticatedRequest,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateSubscriptionPlanDto,
+  ) {
+    await this.assertAdmin(request);
+    return this.adminBillingService.updateSubscriptionPlan(id, dto);
   }
 
   /**

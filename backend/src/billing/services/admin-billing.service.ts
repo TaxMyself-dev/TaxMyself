@@ -9,10 +9,13 @@ import { Business } from 'src/business/business.entity';
 import { CreatePlanDto } from '../dtos/admin/create-plan.dto';
 import { UpdatePlanDto } from '../dtos/admin/update-plan.dto';
 import { UpdateSubscriptionDiscountDto } from '../dtos/admin/update-subscription-discount.dto';
+import { UpdateSubscriptionTrialEndDto } from '../dtos/admin/update-subscription-trial-end.dto';
+import { UpdateSubscriptionPlanDto } from '../dtos/admin/update-subscription-plan.dto';
 import { RenewalBatchResult, RenewalResult, SubscriptionRenewalService } from './subscription-renewal.service';
 import { BillingEventService } from './billing-event.service';
 import { BillingReceiptService } from './billing-receipt.service';
 import { BillingIssuerConfigService } from './billing-issuer-config.service';
+import { PricingService } from './pricing.service';
 import { BillingEventType } from '../enums/billing.enums';
 
 export interface PendingReceiptFailure {
@@ -42,6 +45,14 @@ export interface AdminSubscriptionResponse {
   planName: string | null;
   planSlug: string | null;
   planPriceAgorot: number | null;
+  /**
+   * Approximation of the amount the next renewal will charge: planPriceAgorot
+   * with the subscription's discount applied as of nextBillingDate. Does NOT
+   * account for business-type-specific pricing (PricingService.resolveEffectivePlanPrice)
+   * — the real charge amount is always computed at renewal time via
+   * PricingService.calculateCheckoutPrice. This field is for admin display only.
+   */
+  nextBillingAmountAgorot: number | null;
   trialEnd: Date | null;
   currentPeriodStart: Date | null;
   currentPeriodEnd: Date | null;
@@ -69,6 +80,19 @@ export interface AdminSubscriptionDiscountResponse {
   discountEndDate: Date | null;
 }
 
+export interface AdminSubscriptionTrialEndResponse {
+  subscriptionId: number;
+  trialEnd: Date | null;
+}
+
+export interface AdminSubscriptionPlanResponse {
+  subscriptionId: number;
+  planId: number | null;
+  planName: string | null;
+  planSlug: string | null;
+  planPriceAgorot: number | null;
+}
+
 @Injectable()
 export class AdminBillingService {
   constructor(
@@ -81,6 +105,7 @@ export class AdminBillingService {
     private readonly billingEventService: BillingEventService,
     private readonly billingReceiptService: BillingReceiptService,
     private readonly billingIssuerConfigService: BillingIssuerConfigService,
+    private readonly pricingService: PricingService,
   ) {}
 
   // ─── Plans ──────────────────────────────────────────────────────────────────
@@ -199,6 +224,24 @@ export class AdminBillingService {
       const user = userMap.get(r.firebaseId);
       const biz  = businessMap.get(r.firebaseId);
       const sid  = Number(r.subscriptionId);
+      const planPriceAgorot = r.planPriceAgorot != null ? Number(r.planPriceAgorot) : null;
+
+      // Approximation only — see AdminSubscriptionResponse.nextBillingAmountAgorot doc comment.
+      let nextBillingAmountAgorot: number | null = null;
+      if (planPriceAgorot != null && r.nextBillingDate) {
+        const nextBillingDateString = new Date(r.nextBillingDate).toISOString().slice(0, 10);
+        nextBillingAmountAgorot = this.pricingService.applySubscriptionDiscount(
+          planPriceAgorot,
+          {
+            discountPercent: r.discountPercent != null ? Number(r.discountPercent) : null,
+            discountAmountAgorot: r.discountAmountAgorot != null ? Number(r.discountAmountAgorot) : null,
+            discountStartDate: r.discountStartDate ?? null,
+            discountEndDate: r.discountEndDate ?? null,
+          },
+          nextBillingDateString,
+        ).finalAmountAgorot;
+      }
+
       return {
         subscriptionId:     sid,
         firebaseId:         r.firebaseId,
@@ -211,7 +254,8 @@ export class AdminBillingService {
         planId:             r.planId != null ? Number(r.planId) : null,
         planName:           r.planName ?? null,
         planSlug:           r.planSlug ?? null,
-        planPriceAgorot:    r.planPriceAgorot != null ? Number(r.planPriceAgorot) : null,
+        planPriceAgorot,
+        nextBillingAmountAgorot,
         trialEnd:           r.trialEnd ?? null,
         currentPeriodStart: r.currentPeriodStart ?? null,
         currentPeriodEnd:   r.currentPeriodEnd ?? null,
@@ -276,6 +320,49 @@ export class AdminBillingService {
       discountAmountAgorot: subscription.discountAmountAgorot,
       discountStartDate: subscription.discountStartDate,
       discountEndDate: subscription.discountEndDate,
+    };
+  }
+
+  /** Admin override of trialEnd, editable inline from the admin subscriptions table. */
+  async updateSubscriptionTrialEnd(
+    subscriptionId: number,
+    dto: UpdateSubscriptionTrialEndDto,
+  ): Promise<AdminSubscriptionTrialEndResponse> {
+    const subscription = await this.subscriptionRepo.findOneBy({ id: subscriptionId });
+    if (!subscription) throw new NotFoundException(`מנוי ${subscriptionId} לא נמצא`);
+
+    subscription.trialEnd = dto.trialEnd ? new Date(dto.trialEnd) : null;
+    await this.subscriptionRepo.save(subscription);
+
+    return { subscriptionId: subscription.id, trialEnd: subscription.trialEnd };
+  }
+
+  /**
+   * Admin override of a subscription's plan, editable inline from the admin
+   * subscriptions table. Only updates the FK — see UpdateSubscriptionPlanDto.
+   */
+  async updateSubscriptionPlan(
+    subscriptionId: number,
+    dto: UpdateSubscriptionPlanDto,
+  ): Promise<AdminSubscriptionPlanResponse> {
+    const subscription = await this.subscriptionRepo.findOneBy({ id: subscriptionId });
+    if (!subscription) throw new NotFoundException(`מנוי ${subscriptionId} לא נמצא`);
+
+    let plan: SubscriptionPlan | null = null;
+    if (dto.planId != null) {
+      plan = await this.planRepo.findOneBy({ id: dto.planId });
+      if (!plan) throw new NotFoundException(`תוכנית ${dto.planId} לא נמצאה`);
+    }
+
+    subscription.planId = dto.planId ?? null;
+    await this.subscriptionRepo.save(subscription);
+
+    return {
+      subscriptionId: subscription.id,
+      planId: subscription.planId,
+      planName: plan?.name ?? null,
+      planSlug: plan?.slug ?? null,
+      planPriceAgorot: plan?.priceMonthlyAgorot ?? null,
     };
   }
 
