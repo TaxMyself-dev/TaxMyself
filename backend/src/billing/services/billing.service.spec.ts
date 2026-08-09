@@ -135,14 +135,15 @@ describe('BillingService.getMyBillingState — isDelegatedAccess threading', () 
 });
 
 /**
- * Unit tests: BillingService.getPlans — referral-track "own plan" visibility.
+ * Unit tests: BillingService.getPlans — exclusivity for non-public assigned plans.
  *
  * Confirms a user whose Subscription.planId points at a non-public plan
- * (e.g. referral-basic) sees that plan in GET /billing/plans even though it's
- * excluded from the general isPublic=true catalog, and that a normal
- * public-plan user's result is completely unaffected.
+ * (e.g. referral-basic) sees ONLY that plan in GET /billing/plans — the
+ * general public catalog is never fetched, so they can't accidentally check
+ * out on a full-price public plan. A normal public-plan (or no-plan) user's
+ * result is completely unaffected.
  */
-describe('BillingService.getPlans — surfaces the user\'s own non-public plan', () => {
+describe('BillingService.getPlans — exclusivity for non-public assigned plans', () => {
   let service: BillingService;
   let planRepo: { find: jest.Mock; findOne: jest.Mock };
   let subscriptionRepo: { findOne: jest.Mock };
@@ -153,11 +154,18 @@ describe('BillingService.getPlans — surfaces the user\'s own non-public plan',
     { id: 2, slug: 'consumer-plus', displayOrder: 1, isPublic: true },
   ];
   const REFERRAL_PLAN = { id: 99, slug: 'referral-basic', displayOrder: 100, isPublic: false, isActive: true };
+  const PLANS_BY_ID: Record<number, any> = {
+    1: PUBLIC_PLANS[0],
+    2: PUBLIC_PLANS[1],
+    99: REFERRAL_PLAN,
+  };
 
   beforeEach(() => {
     planRepo = {
       find: jest.fn().mockResolvedValue(PUBLIC_PLANS.map(p => ({ ...p }))),
-      findOne: jest.fn().mockResolvedValue({ ...REFERRAL_PLAN }),
+      findOne: jest.fn().mockImplementation(({ where }: { where: { id: number } }) =>
+        Promise.resolve(PLANS_BY_ID[where.id] ? { ...PLANS_BY_ID[where.id] } : null),
+      ),
     };
     subscriptionRepo = { findOne: jest.fn().mockResolvedValue(null) };
     pricingService = {
@@ -182,30 +190,32 @@ describe('BillingService.getPlans — surfaces the user\'s own non-public plan',
     );
   });
 
-  it('user with no subscription row sees only the public catalog', async () => {
+  it('user with no subscription row sees the public catalog; never looks up a current plan', async () => {
     const result = await service.getPlans('client-1');
     expect(result.map(p => p.slug)).toEqual(['consumer-basic', 'consumer-plus']);
+    expect(planRepo.findOne).not.toHaveBeenCalled();
   });
 
-  it('user whose plan is already public sees only the public catalog, unaffected', async () => {
-    subscriptionRepo.findOne.mockResolvedValue({ planId: 1 }); // consumer-basic, already in PUBLIC_PLANS
+  it('user whose plan is already public sees the public catalog', async () => {
+    subscriptionRepo.findOne.mockResolvedValue({ planId: 1 }); // consumer-basic, already public
     const result = await service.getPlans('client-1');
     expect(result.map(p => p.slug)).toEqual(['consumer-basic', 'consumer-plus']);
-    expect(planRepo.findOne).not.toHaveBeenCalled(); // never looked up — already a member of the public list
+    expect(planRepo.findOne).toHaveBeenCalledWith({ where: { id: 1, isActive: true } });
   });
 
-  it('referral-track user (planId points at a non-public plan) sees it prepended to the public catalog', async () => {
-    subscriptionRepo.findOne.mockResolvedValue({ planId: 99 }); // referral-basic, not in PUBLIC_PLANS
+  it('referral-track user (planId points at a non-public plan) sees ONLY that plan — public catalog never fetched', async () => {
+    subscriptionRepo.findOne.mockResolvedValue({ planId: 99 }); // referral-basic, non-public
     const result = await service.getPlans('client-1');
-    expect(result.map(p => p.slug)).toEqual(['referral-basic', 'consumer-basic', 'consumer-plus']);
+    expect(result.map(p => p.slug)).toEqual(['referral-basic']);
     expect(planRepo.findOne).toHaveBeenCalledWith({ where: { id: 99, isActive: true } });
+    expect(planRepo.find).not.toHaveBeenCalled();
   });
 
-  it('referral-track user whose plan no longer exists/is inactive falls back to just the public catalog', async () => {
-    subscriptionRepo.findOne.mockResolvedValue({ planId: 99 });
-    planRepo.findOne.mockResolvedValue(null); // deleted/deactivated
+  it('referral-track user whose plan no longer exists/is inactive falls back to the public catalog', async () => {
+    subscriptionRepo.findOne.mockResolvedValue({ planId: 42 }); // not found -> findOne resolves null
     const result = await service.getPlans('client-1');
     expect(result.map(p => p.slug)).toEqual(['consumer-basic', 'consumer-plus']);
+    expect(planRepo.find).toHaveBeenCalled();
   });
 });
 

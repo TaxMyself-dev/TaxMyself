@@ -95,38 +95,38 @@ export class BillingService {
   // ─── Plans ──────────────────────────────────────────────────────────────────
 
   /**
-   * Returns all active, public plans with the price effective for the
-   * requesting user's billing business type — resolved once from their
-   * businesses and applied to every plan, so the frontend never has to
-   * decide between the exempt-dealer and licensed-dealer price itself.
+   * Returns the plans the requesting user is allowed to choose from, with
+   * the price effective for their billing business type — resolved once
+   * from their businesses and applied to every plan, so the frontend never
+   * has to decide between the exempt-dealer and licensed-dealer price
+   * itself.
    *
-   * Also prepends the user's OWN currently-assigned plan when it isn't
-   * public (e.g. referral-basic/referral-open-banking — see
-   * scripts/migrations/2026-08-09_seed-referral-plans.ts) so a referral-track
-   * client reaching this screen (post-trial "choose a plan") can actually see
-   * and check out on their own discounted plan instead of only the general
-   * public catalog. No-op for every non-referral user: their current plan is
-   * already public, so it's already in `plans` and the membership check
-   * below is false.
+   * If the user's OWN currently-assigned plan is non-public (e.g.
+   * referral-basic/referral-open-banking — see
+   * scripts/migrations/2026-08-09_seed-referral-plans.ts), the general
+   * public catalog is never fetched: a referral-track client reaching this
+   * screen (post-trial "choose a plan") must see ONLY their own discounted
+   * plan, not the full-price public grid — showing both would let them
+   * accidentally check out on the wrong one. Every other user (no
+   * subscription, no plan, or an already-public plan) sees the normal
+   * public catalog.
    */
   async getPlans(firebaseId: string) {
-    const [plans, billingBusinessType, subscription] = await Promise.all([
-      this.planRepo.find({
-        where: { isActive: true, isPublic: true },
-        order: { displayOrder: 'ASC' },
-      }),
+    const [billingBusinessType, subscription] = await Promise.all([
       this.pricingService.resolveUserBillingBusinessType(firebaseId),
       this.subscriptionRepo.findOne({ where: { firebaseId } }),
     ]);
 
-    if (subscription?.planId && !plans.some(p => p.id === subscription.planId)) {
-      const currentPlan = await this.planRepo.findOne({
-        where: { id: subscription.planId, isActive: true },
-      });
-      if (currentPlan) {
-        plans.unshift(currentPlan);
-      }
-    }
+    const currentPlan = subscription?.planId
+      ? await this.planRepo.findOne({ where: { id: subscription.planId, isActive: true } })
+      : null;
+
+    const plans = currentPlan && !currentPlan.isPublic
+      ? [currentPlan]
+      : await this.planRepo.find({
+          where: { isActive: true, isPublic: true },
+          order: { displayOrder: 'ASC' },
+        });
 
     return plans.map(p => ({
       id: p.id,
