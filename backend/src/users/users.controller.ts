@@ -10,6 +10,7 @@ import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.inter
 import { FeezbackService } from '../feezback/feezback.service';
 import { GoogleDriveService } from '../google-drive/google-drive.service';
 import { User } from './user.entity';
+import { SignupDto } from './dtos/signup.dto';
 
 @Controller('auth')
 export class UsersController {
@@ -25,9 +26,9 @@ export class UsersController {
 
 
     @Post('/signup')
-    async createUser(@Body() body: any) {
-        const user = await this.userService.signup(body);
-        return body; //TODO: Elazar - check if it's necessary to return the body
+    async createUser(@Body() dto: SignupDto) {
+        await this.userService.signup(dto);
+        return dto; //TODO: Elazar - check if it's necessary to return the body
     }
 
 

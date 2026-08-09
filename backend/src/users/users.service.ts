@@ -16,6 +16,9 @@ import { GoogleDriveService } from '../google-drive/google-drive.service';
 import { Delegation, DelegationStatus } from '../delegation/delegation.entity';
 import { isDemoEmail } from '../demo-data/profiles';
 import { BillingService } from '../billing/services/billing.service';
+import { Subscription } from '../billing/entities/subscription.entity';
+import { SubscriptionPlan } from '../billing/entities/subscription-plan.entity';
+import { SignupDto } from './dtos/signup.dto';
 
 
 @Injectable()
@@ -74,13 +77,76 @@ export class UsersService {
     await this.billingService.ensureTrialSubscription(firebaseId, manager);
   }
 
-  async signup({ personal, spouse, children, business }: any) {
+  /** Days a referral-signup trial runs before a card is required, vs. the standard TRIAL_DAYS env value. */
+  private static readonly REFERRAL_TRIAL_DAYS = 30;
+
+  /**
+   * Referral-signup extras applied inside signup()'s existing transaction:
+   * extends the just-created trial to REFERRAL_TRIAL_DAYS, pre-assigns the
+   * referral-basic plan, and creates a full-access Delegation to the
+   * referring accountant — the same User+Subscription+Business+Delegation
+   * atomicity pattern as DelegationService.createClientByAccountant.
+   *
+   * A missing/inactive referral-basic plan (e.g. the seed migration hasn't
+   * run yet) does not fail the signup — the accountant relationship is the
+   * important part; the trial/plan just fall back to the standard values.
+   */
+  private async applyReferralSignupExtras(
+    manager: EntityManager,
+    clientFirebaseId: string,
+    accountantFirebaseId: string,
+  ): Promise<void> {
+    const trialEnd = new Date();
+    trialEnd.setDate(trialEnd.getDate() + UsersService.REFERRAL_TRIAL_DAYS);
+
+    const referralPlan = await manager
+      .getRepository(SubscriptionPlan)
+      .findOne({ where: { slug: 'referral-basic', isActive: true } });
+
+    if (!referralPlan) {
+      this.logger.error(
+        `applyReferralSignupExtras: referral-basic plan not found/inactive — skipping trial/plan ` +
+          `override for firebaseId=${clientFirebaseId.substring(0, 8)}... ` +
+          `(run scripts/migrations/2026-08-09_seed-referral-plans.ts). Delegation is still created.`,
+      );
+    } else {
+      await manager
+        .getRepository(Subscription)
+        .update({ firebaseId: clientFirebaseId }, { trialEnd, planId: referralPlan.id });
+    }
+
+    const delegationRepo = manager.getRepository(Delegation);
+    const delegation = delegationRepo.create({
+      userId: clientFirebaseId,
+      agentId: accountantFirebaseId,
+      externalCustomerId: null,
+      status: DelegationStatus.ACTIVE,
+      scopes: ['DOCUMENTS_READ', 'DOCUMENTS_WRITE'],
+    });
+    await delegationRepo.save(delegation);
+  }
+
+  async signup({ personal, spouse, children, business, referralCode }: SignupDto) {
 
     // -------------------------------------------------------
     // 1️⃣ SAFE NORMALIZATION
     // -------------------------------------------------------
 
     const isCompany = !!personal?.isCompany;
+
+    // Referral-signup: resolve the referring accountant BEFORE the transaction
+    // (a read, not a write). An unresolved/stale code is never fatal — this is
+    // still a normal signup, just without the referral extras applied below.
+    const trimmedReferralCode = typeof referralCode === 'string' ? referralCode.trim() : '';
+    let referredAccountant: User | null = null;
+    if (trimmedReferralCode) {
+      referredAccountant = await this.user_repo.findOne({ where: { referralCode: trimmedReferralCode } });
+      if (!referredAccountant) {
+        this.logger.warn(
+          `signup: referralCode="${trimmedReferralCode}" did not resolve to an accountant — proceeding as a normal signup`,
+        );
+      }
+    }
 
     // spouse may be null/undefined
     const safeSpouse = spouse ?? {};
@@ -146,6 +212,14 @@ export class UsersService {
 
       // Subscription row — single source of truth for trial state.
       await this.ensureTrialSubscription(saved.firebaseId, manager);
+
+      // Referral-signup extras (30-day trial, referral-basic plan, full-access
+      // Delegation) — applied AFTER ensureTrialSubscription so they override
+      // the just-created row rather than racing it. Same transaction as the
+      // rest of signup: a failure anywhere here rolls back the User row too.
+      if (referredAccountant) {
+        await this.applyReferralSignupExtras(manager, saved.firebaseId, referredAccountant.firebaseId);
+      }
 
       for (const child of newChildren) {
         const newChild = childRepo.create({

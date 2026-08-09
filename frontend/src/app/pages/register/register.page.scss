@@ -10,6 +10,18 @@ app-stepper {
 width: 220px;
 }
 
+.referral-banner {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 12px;
+  padding: 10px 16px;
+  border-radius: 8px;
+  background-color: #EBFD71;
+  color: #1A2641;
+  font-weight: 600;
+  text-align: center;
+}
+
 .register-screen {
   display: flex;
   justify-content: space-between;

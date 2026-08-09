@@ -3,10 +3,11 @@ import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, Validators, FormControl, FormArray, AbstractControl, ValidatorFn, ValidationErrors, FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { IonicModule } from '@ionic/angular';
 import { RegisterService } from './register.service';
+import { ReferralService } from 'src/app/services/referral.service';
 import { IRegisterLoginImage, ISelectItem } from 'src/app/shared/interface';
 import { AuthService } from 'src/app/services/auth.service';
 import { GenericService } from 'src/app/services/generic.service';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { RegisterFormControls, RegisterFormModules } from './regiater.enum';
 import { catchError, EMPTY, finalize, map, startWith, Subject, takeUntil, tap } from 'rxjs';
 import { cloneDeep } from 'lodash';
@@ -118,12 +119,17 @@ export class RegisterPage implements OnInit, OnDestroy {
   requierdField: boolean = process.env.NODE_ENV !== 'production' ? false : true;
   // requierdField: boolean = true;
 
+  /** Set from ?ref=<code> on load; attached to the signup payload on submit. */
+  referralCode = signal<string | null>(null);
+  /** Populated once GET /referral/:code/info resolves — drives the referral banner. */
+  referralAccountantName = signal<string | null>(null);
+
 matchRegisterImage = computed(() => {
   const currentModule = this.selectedFormModule();
   return this.registerImages.find(image => image.page === currentModule);
 })
 
-  constructor(private router: Router, public authService: AuthService, private formBuilder: FormBuilder, private registerService: RegisterService, private messageService: MessageService, private genericService: GenericService) {
+  constructor(private router: Router, private route: ActivatedRoute, public authService: AuthService, private formBuilder: FormBuilder, private registerService: RegisterService, private referralService: ReferralService, private messageService: MessageService, private genericService: GenericService) {
     effect(() => {
       const currentModule = this.selectedFormModule();
       switch (currentModule) {
@@ -262,6 +268,24 @@ matchRegisterImage = computed(() => {
   ngOnInit() {
     this.gelAllCities();
     this.fillDevDefaults();
+    this.captureReferralCode();
+  }
+
+  /**
+   * Reads ?ref=<code> (an accountant's referral link) and fetches the
+   * accountant's display name for the banner. A bad/stale code just never
+   * shows a banner and signup proceeds as normal — the backend independently
+   * tolerates an unresolved referralCode the same way.
+   */
+  private captureReferralCode(): void {
+    const ref = this.route.snapshot.queryParamMap.get('ref');
+    if (!ref) return;
+
+    this.referralCode.set(ref);
+    this.referralService.getReferralInfo(ref).subscribe({
+      next: (info) => this.referralAccountantName.set(info.accountantName),
+      error: () => this.referralCode.set(null),
+    });
   }
 
   /**
@@ -545,6 +569,9 @@ matchRegisterImage = computed(() => {
     }
 
     formData.validation = { password: formData?.personal?.password };
+    if (this.referralCode()) {
+      formData.referralCode = this.referralCode();
+    }
     console.log("formData is :::: ", formData);
     this.isLoading.set(true);
 
