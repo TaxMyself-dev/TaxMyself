@@ -102,6 +102,25 @@ export class DelegationController {
   }
 
   /**
+   * Returns the accountant's referral signup link, generating the underlying
+   * code lazily on first call. Accountant-only.
+   */
+  @Get('my-referral-code')
+  @UseGuards(FirebaseAuthGuard)
+  async getMyReferralCode(
+    @Req() request: AuthenticatedRequest,
+  ): Promise<{ code: string; link: string }> {
+    const firebaseId = request.user?.firebaseId;
+    if (!firebaseId) throw new ForbiddenException('לא אותחל משתמש');
+    const isAccountant = await this.usersService.isAccountant(firebaseId);
+    if (!isAccountant) throw new ForbiddenException('גישה מותרת רק לרואה חשבון');
+
+    const code = await this.delegationService.getOrCreateReferralCode(firebaseId);
+    const frontendUrl = process.env.FRONTEND_URL ?? 'https://app.keepintax.co.il';
+    return { code, link: `${frontendUrl}/register?ref=${code}` };
+  }
+
+  /**
    * Create a new client by an accountant (רואה חשבון).
    * Requires: Bearer token, user must have role ACCOUNTANT.
    * Creates Firebase user (email + password = "KE" + phone), User in DB, and Delegation.

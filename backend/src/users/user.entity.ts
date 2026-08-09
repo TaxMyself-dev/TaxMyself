@@ -1,6 +1,7 @@
-import { 
-    Entity, 
-    Column, 
+import {
+    Entity,
+    Column,
+    Index,
     PrimaryGeneratedColumn,
     OneToMany
  } from 'typeorm';
@@ -9,6 +10,7 @@ import { UserRole, TaxReportingType, VATReportingType, BusinessType, FamilyStatu
 
 
 @Entity()
+@Index('ux_user_referral_code', ['referralCode'], { unique: true })
 export class User {
 
     @PrimaryGeneratedColumn()
@@ -121,6 +123,15 @@ export class User {
     
     @Column({ name: 'drive_folder_id', type: 'varchar', length: 255, nullable: true, default: null })
     driveFolderId: string | null;
+
+    /**
+     * Non-guessable referral slug for an accountant's signup link
+     * (/register?ref=<code>). NULL for non-accountants and for accountants who
+     * have never fetched their link yet — lazily generated on first
+     * GET /delegations/my-referral-code call, not at signup/role-grant time.
+     */
+    @Column({ name: 'referral_code', type: 'varchar', length: 32, nullable: true, default: null })
+    referralCode: string | null;
 
     ////////////////////////////////////
     /////////   Spouse details  ////////
