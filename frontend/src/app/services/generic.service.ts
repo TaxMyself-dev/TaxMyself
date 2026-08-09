@@ -6,7 +6,7 @@ import { Business, BusinessInfo, ISelectItem, IToastData, IUserData, User } from
 import { PopupMessageComponent } from '../shared/popup-message/popup-message.component';
 import { PopupConfirmComponent } from '../shared/popup-confirm/popup-confirm.component';
 import { environment } from 'src/environments/environment';
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { BusinessStatus, doubleMonthsList, ReportingPeriodType, singleMonthsList } from '../shared/enums';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { DateService } from './date.service';
@@ -80,8 +80,13 @@ export class GenericService {
     if (!localStorage.getItem('userData')) return;
 
     try {
+      // This URL is identical for every caller (accountant's own dashboard,
+      // client impersonation, ...) — explicitly defeat any browser/intermediate
+      // caching so a switch between identities never serves a stale response.
       const res = await firstValueFrom(
-        this.http.get<Business[]>(`${environment.apiUrl}business/get-businesses`)
+        this.http.get<Business[]>(`${environment.apiUrl}business/get-businesses`, {
+          headers: new HttpHeaders({ 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }),
+        })
       );
 
       this.saveBusinesses(res ?? []);
