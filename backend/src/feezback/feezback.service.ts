@@ -243,6 +243,24 @@ export class FeezbackService {
       this.logger.error(`${prefix} Failed to update hasOpenBanking firebaseId=${masked}: ${error?.message}`, error?.stack);
     }
 
+    // Referral-track clients (Subscription.planId = referral-basic) who
+    // connect a bank/card get moved straight to referral-open-banking here,
+    // so they're already on the correct ₪59 plan once their trial ends and
+    // billing starts — they don't have to remember to hit the manual
+    // upgrade endpoint. No-op for everyone else (see
+    // BillingService.autoUpgradeReferralOpenBankingIfEligible for the guard).
+    // Called unconditionally (not gated on moduleAccessUpdated above) since
+    // it's independently idempotent and this method only ever runs on a real
+    // consent-completion webhook or an admin-triggered re-sync.
+    try {
+      await this.billingService.autoUpgradeReferralOpenBankingIfEligible(firebaseId);
+    } catch (error: any) {
+      this.logger.error(
+        `${prefix} Referral open-banking auto-upgrade check failed firebaseId=${masked}: ${error?.message}`,
+        error?.stack,
+      );
+    }
+
     console.log(`\n════════════════════════════════════`);
     if (eventLabel === 'UserDataIsAvailable') {
       console.log(`  DATA AVAILABLE WEBHOOK ARRIVED`);
