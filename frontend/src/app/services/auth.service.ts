@@ -337,7 +337,11 @@ export class AuthService {
   restoreUserData(): Observable<IUserData | null> {
     return this.signIn().pipe(
       tap((userData: IUserData) => {
-        if (userData) {
+        // Never persist into the base `userData` slot while impersonating —
+        // this request resolves to the impersonated client (via the
+        // x-client-user-id header) and would otherwise clobber the
+        // accountant's own cached profile with the client's data.
+        if (userData && !this.isViewingAsClient()) {
           localStorage.setItem('userData', JSON.stringify(userData));
           // console.log('✅ userData restored from backend');
         }
