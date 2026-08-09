@@ -1,5 +1,13 @@
-import { IsEmail, IsOptional, IsString, IsNotEmpty, IsEnum } from 'class-validator';
+import { IsEmail, IsOptional, IsString, IsNotEmpty, IsEnum, Matches } from 'class-validator';
 import { BusinessType } from 'src/enum';
+
+// Header-safe (ISO-8859-1) and digits-only — AuthInterceptor forwards this
+// value verbatim as the `businessnumber` HTTP header on every request while
+// it's active, so anything outside plain ASCII digits breaks request
+// dispatch for the rest of the session (XMLHttpRequest.setRequestHeader
+// throws synchronously on non-Latin1 values).
+const BUSINESS_NUMBER_PATTERN = /^\d*$/;
+const BUSINESS_NUMBER_MESSAGE = 'מספר עסק חייב להכיל ספרות בלבד';
 
 /**
  * DTO for creating a new client by an accountant (רואה חשבון).
@@ -44,6 +52,7 @@ export class CreateClientByAccountantDto {
   /** מספר עסק */
   @IsOptional()
   @IsString()
+  @Matches(BUSINESS_NUMBER_PATTERN, { message: BUSINESS_NUMBER_MESSAGE })
   businessNumber?: string;
 
   /** כתובת */
