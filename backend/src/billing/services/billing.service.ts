@@ -130,7 +130,7 @@ export class BillingService {
 
   // ─── Billing state ───────────────────────────────────────────────────────────
 
-  async getMyBillingState(firebaseId: string) {
+  async getMyBillingState(firebaseId: string, isDelegatedAccess = false) {
     const subscription = await this.subscriptionRepo.findOne({
       where: { firebaseId },
     });
@@ -174,7 +174,7 @@ export class BillingService {
       plan = await this.planRepo.findOne({ where: { id: current.planId } });
     }
 
-    return this.buildBillingStateResponse(current, plan, firebaseId);
+    return this.buildBillingStateResponse(current, plan, firebaseId, isDelegatedAccess);
   }
 
   // ─── Trial ───────────────────────────────────────────────────────────────────
@@ -292,7 +292,11 @@ export class BillingService {
    * Single source of truth for module access checks. Resolves the user's
    * Subscription + SubscriptionPlan and delegates to SubscriptionAccessService.
    */
-  async hasModuleAccess(firebaseId: string, module: ModuleName): Promise<boolean> {
+  async hasModuleAccess(
+    firebaseId: string,
+    module: ModuleName,
+    isDelegatedAccess = false,
+  ): Promise<boolean> {
     const subscription = await this.subscriptionRepo.findOne({ where: { firebaseId } });
     if (!subscription) return false;
 
@@ -301,7 +305,11 @@ export class BillingService {
       plan = await this.planRepo.findOne({ where: { id: subscription.planId } });
     }
 
-    const modulesAccess = this.subscriptionAccessService.resolveModulesAccess(subscription, plan);
+    const modulesAccess = this.subscriptionAccessService.resolveModulesAccess(
+      subscription,
+      plan,
+      isDelegatedAccess,
+    );
     return modulesAccess.includes(module);
   }
 
@@ -1029,10 +1037,17 @@ export class BillingService {
     subscription: Subscription,
     plan: SubscriptionPlan | null,
     firebaseId: string,
+    isDelegatedAccess = false,
   ) {
+    // Non-delegated callers (ensureTrialSubscription, provisionExpiredSubscription,
+    // and getMyBillingState for a client's own direct access) never pass true here,
+    // so those responses are byte-for-byte unchanged — only a real delegation-based
+    // impersonation request (see FirebaseAuthGuard.isDelegatedAccess) unlocks
+    // EXPENSES/ACCOUNTANT in the returned modulesAccess.
     const modulesAccess = this.subscriptionAccessService.resolveModulesAccess(
       subscription,
       plan,
+      isDelegatedAccess,
     );
 
     const [billingPaymentResult, paymentMethodUpdateResult, billingBusinessType, paymentMethod] = await Promise.all([

@@ -54,7 +54,7 @@ export class BillingController {
   async getMyBillingState(@Req() request: AuthenticatedRequest) {
     const firebaseId = request.user?.firebaseId;
     if (!firebaseId) throw new NotFoundException('User not found in request');
-    return this.billingService.getMyBillingState(firebaseId);
+    return this.billingService.getMyBillingState(firebaseId, request.isDelegatedAccess === true);
   }
 
   /**
