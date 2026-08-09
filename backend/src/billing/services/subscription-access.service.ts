@@ -15,16 +15,6 @@ import { SubscriptionStatus } from '../enums/billing.enums';
  */
 const ACTIVE_BILLING_GRACE_DAYS = 3;
 
-/**
- * Modules an accountant always retains on a delegated client's data,
- * regardless of that client's own Subscription.status — an authorization
- * rule, not a subscription state (see FirebaseAuthGuard.isDelegatedAccess).
- * INVOICES and OPEN_BANKING are deliberately excluded and stay gated by the
- * client's actual plan/status exactly as today, for both direct and
- * delegated access.
- */
-const DELEGATED_ALWAYS_ON_MODULES: ModuleName[] = [ModuleName.EXPENSES, ModuleName.ACCOUNTANT];
-
 @Injectable()
 export class SubscriptionAccessService {
   /**
@@ -40,20 +30,20 @@ export class SubscriptionAccessService {
    *   TRIAL_EXPIRED      → no access
    *
    * `isDelegatedAccess` (true only for a real accountant-impersonation
-   * request, see FirebaseAuthGuard) unions in DELEGATED_ALWAYS_ON_MODULES on
-   * top of whatever the switch above computed — including on branches that
-   * would otherwise return no access at all (TRIAL_EXPIRED/PAST_DUE-expired/
-   * CANCELED-lapsed). Does not affect the client's own direct access, since
-   * that path never sets the flag.
+   * request backed by an ACTIVE Delegation row, see FirebaseAuthGuard) grants
+   * every module unconditionally, ignoring the client's own status entirely —
+   * an authorization rule, not a subscription state. Admin impersonation
+   * (which does not set this flag) is deliberately excluded and continues to
+   * see the client's real status. Does not affect the client's own direct
+   * access, since that path never sets the flag.
    */
   resolveModulesAccess(
     subscription: Subscription,
     plan?: SubscriptionPlan | null,
     isDelegatedAccess = false,
   ): ModuleName[] {
-    const baseAccess = this.resolveOwnModulesAccess(subscription, plan);
-    if (!isDelegatedAccess) return baseAccess;
-    return Array.from(new Set([...baseAccess, ...DELEGATED_ALWAYS_ON_MODULES]));
+    if (isDelegatedAccess) return Object.values(ModuleName);
+    return this.resolveOwnModulesAccess(subscription, plan);
   }
 
   private resolveOwnModulesAccess(

@@ -155,8 +155,12 @@ export class BillingService {
         paymentMethod: null,
         subscription: null,
         plan: null,
+        isDelegatedAccess,
         access: {
-          modulesAccess: [],
+          // No subscription row exists to resolve against — SubscriptionAccessService
+          // is never reached here, so the delegated-access override is applied
+          // directly rather than "naturally" flowing through resolveModulesAccess().
+          modulesAccess: isDelegatedAccess ? Object.values(ModuleName) : [],
           isTrialActive: false,
           isPaymentRequired: false,
           isPastDue: false,
@@ -1076,6 +1080,7 @@ export class BillingService {
       billingBusinessType,
       effectiveMonthlyPriceBeforeVatAgorot,
       discount,
+      isDelegatedAccess,
       // No cardholder-name column on payment_method — omitted by design (Phase 1).
       paymentMethod: paymentMethod
         ? {

@@ -11,6 +11,7 @@
  */
 import { SubscriptionStatus } from '../enums/billing.enums';
 import { BillingService } from './billing.service';
+import { ModuleName } from 'src/enum';
 
 describe('BillingService.getMyBillingState — isDelegatedAccess threading', () => {
   let service: BillingService;
@@ -106,11 +107,29 @@ describe('BillingService.getMyBillingState — isDelegatedAccess threading', () 
     expect(result.access.modulesAccess).toEqual(['EXPENSES', 'ACCOUNTANT']);
   });
 
-  it('no subscription row (SUBSCRIPTION_MISSING) short-circuits before resolveModulesAccess, delegated or not', async () => {
+  it('no subscription row (SUBSCRIPTION_MISSING), non-delegated: short-circuits before resolveModulesAccess with no module access', async () => {
+    subscriptionRepo.findOne.mockResolvedValue(null);
+    const result = await service.getMyBillingState('client-1', false);
+    expect(result.hasSubscription).toBe(false);
+    expect(result.access.modulesAccess).toEqual([]);
+    expect(result.isDelegatedAccess).toBe(false);
+    expect(subscriptionAccessService.resolveModulesAccess).not.toHaveBeenCalled();
+  });
+
+  it('no subscription row (SUBSCRIPTION_MISSING), delegated: still short-circuits before resolveModulesAccess, but grants every module directly', async () => {
     subscriptionRepo.findOne.mockResolvedValue(null);
     const result = await service.getMyBillingState('client-1', true);
     expect(result.hasSubscription).toBe(false);
-    expect(result.access.modulesAccess).toEqual([]);
+    expect([...result.access.modulesAccess].sort()).toEqual(Object.values(ModuleName).sort());
+    expect(result.isDelegatedAccess).toBe(true);
     expect(subscriptionAccessService.resolveModulesAccess).not.toHaveBeenCalled();
+  });
+
+  it('normal (subscription exists) response surfaces isDelegatedAccess passed through', async () => {
+    const directResult = await service.getMyBillingState('client-1', false);
+    expect(directResult.isDelegatedAccess).toBe(false);
+
+    const delegatedResult = await service.getMyBillingState('client-1', true);
+    expect(delegatedResult.isDelegatedAccess).toBe(true);
   });
 });
