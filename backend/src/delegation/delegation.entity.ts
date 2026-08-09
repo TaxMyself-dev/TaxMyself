@@ -7,6 +7,7 @@ export enum DelegationStatus {
 
 @Entity()
 @Index('ux_delegation_agent_external', ['agentId', 'externalCustomerId'], { unique: true })
+@Index('ux_delegation_agent_user', ['agentId', 'userId'], { unique: true })
 export class Delegation {
 
   @PrimaryGeneratedColumn()
