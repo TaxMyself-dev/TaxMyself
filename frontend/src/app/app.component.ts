@@ -421,7 +421,13 @@ export class AppComponent implements OnInit {
       // Update admin menu items after userData is set
       this.updateAdminMenuItems();
       // await this.genericService.loadBusinesses();
-      this.triggerBillingLoad();
+      // Only fetch billing state for an actually-live Firebase session — stale
+      // `userData` can outlive the session (e.g. a signed-out browser that
+      // never cleared it), and billing/me would 401 and force a logout on
+      // whatever public route happened to be loading (see onAppEntryFromLogin).
+      if (this.authService.isLoggedIn) {
+        this.triggerBillingLoad();
+      }
     }
   }
 
