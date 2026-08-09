@@ -128,6 +128,22 @@ export class BillingController {
   }
 
   /**
+   * POST /billing/upgrade-to-open-banking
+   *
+   * Protected. Customer-facing upgrade scoped ONLY to moving a referral-signup
+   * subscriber from the referral-basic plan to referral-open-banking — not a
+   * generic plan switcher. No request body; both the current and target plan
+   * are resolved server-side. Returns the new plan's { planId, planSlug, planName }.
+   */
+  @Post('upgrade-to-open-banking')
+  @UseGuards(FirebaseAuthGuard)
+  upgradeToOpenBanking(@Req() request: AuthenticatedRequest) {
+    const firebaseId = request.user?.firebaseId;
+    if (!firebaseId) throw new NotFoundException('User not found in request');
+    return this.billingService.upgradeToReferralOpenBankingPlan(firebaseId);
+  }
+
+  /**
    * POST /billing/change-payment-method
    *
    * Protected. Starts the "replace saved card" flow. Creates a CardCom LowProfile

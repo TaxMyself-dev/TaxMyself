@@ -446,6 +446,53 @@ export class BillingService {
     };
   }
 
+  // ─── Referral-plan upgrade (customer-facing, scoped) ─────────────────────────
+
+  /**
+   * Customer-facing upgrade, scoped ONLY to moving a referral-signup
+   * subscriber from referral-basic to referral-open-banking (see
+   * scripts/migrations/2026-08-09_seed-referral-plans.ts). Deliberately not a
+   * generic plan-switcher — plan-existence validation mirrors
+   * AdminBillingService.updateSubscriptionPlan, plus the referral-specific
+   * "must currently be on referral-basic" guard.
+   */
+  async upgradeToReferralOpenBankingPlan(firebaseId: string): Promise<{
+    planId: number;
+    planSlug: string;
+    planName: string;
+  }> {
+    const subscription = await this.subscriptionRepo.findOne({ where: { firebaseId } });
+    if (!subscription) {
+      throw new BadRequestException('לא נמצא מנוי עבור המשתמש.');
+    }
+
+    const currentPlan = subscription.planId
+      ? await this.planRepo.findOne({ where: { id: subscription.planId } })
+      : null;
+    if (currentPlan?.slug !== 'referral-basic') {
+      throw new BadRequestException(
+        'שדרוג זה זמין רק למנויים בתוכנית הבסיסית שהתקבלה דרך הפניית רואה חשבון.',
+      );
+    }
+
+    const targetPlan = await this.planRepo.findOne({
+      where: { slug: 'referral-open-banking', isActive: true },
+    });
+    if (!targetPlan) {
+      throw new NotFoundException('תוכנית השדרוג אינה זמינה כרגע.');
+    }
+
+    subscription.planId = targetPlan.id;
+    await this.subscriptionRepo.save(subscription);
+
+    this.logger.log(
+      `upgradeToReferralOpenBankingPlan: firebaseId=${firebaseId.substring(0, 8)}... ` +
+        `referral-basic -> referral-open-banking (planId=${targetPlan.id})`,
+    );
+
+    return { planId: targetPlan.id, planSlug: targetPlan.slug, planName: targetPlan.name };
+  }
+
   // ─── Change payment method ─────────────────────────────────────────────────
 
   /**
