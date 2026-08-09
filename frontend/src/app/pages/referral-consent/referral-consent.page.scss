@@ -1,0 +1,28 @@
+.referral-consent-page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.referral-consent-card {
+  max-width: 480px;
+  margin: 10vh auto;
+  padding: 32px;
+  text-align: center;
+
+  h2 {
+    margin-bottom: 16px;
+  }
+
+  .actions {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 24px;
+  }
+
+  .error {
+    color: var(--ion-color-danger, #eb445a);
+    margin-bottom: 16px;
+  }
+}

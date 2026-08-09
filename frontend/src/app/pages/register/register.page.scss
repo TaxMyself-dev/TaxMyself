@@ -22,6 +22,23 @@ width: 220px;
   text-align: center;
 }
 
+.referral-duplicate-banner {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 12px;
+  padding: 10px 16px;
+  border-radius: 8px;
+  background-color: #fff4e5;
+  color: #1A2641;
+  text-align: center;
+
+  a {
+    cursor: pointer;
+    text-decoration: underline;
+    font-weight: 600;
+  }
+}
+
 .register-screen {
   display: flex;
   justify-content: space-between;

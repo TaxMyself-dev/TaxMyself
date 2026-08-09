@@ -1,13 +1,16 @@
 /**
- * Unit tests: DelegationService referral-signup methods (Phase 1.1).
+ * Unit tests: DelegationService referral-signup methods (Phase 1.1/1.4).
  *
  * Covers: lazy referral-code generation (idempotent, race-safe on both the
  * "same accountant, concurrent calls" and "code collides with someone
- * else's" paths) and the public referral-info lookup.
+ * else's" paths), the public referral-info lookup, and existing-user
+ * consent (self-referral rejected, dedup on an existing delegation row,
+ * full-scope ACTIVE delegation created otherwise).
  */
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import * as admin from 'firebase-admin';
 import { DelegationService } from './delegation.service';
+import { DelegationStatus } from './delegation.entity';
 
 describe('DelegationService — referral signup', () => {
   let service: DelegationService;
@@ -107,6 +110,42 @@ describe('DelegationService — referral signup', () => {
     it('throws NotFoundException for an unknown code', async () => {
       userRepo.findOne.mockResolvedValue(null);
       await expect(service.getReferralInfo('bad-code')).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('consentToReferral', () => {
+    it('throws NotFoundException for an unknown code', async () => {
+      userRepo.findOne.mockResolvedValue(null);
+      await expect(service.consentToReferral('user-1', 'bad-code')).rejects.toThrow(NotFoundException);
+    });
+
+    it('rejects self-referral', async () => {
+      userRepo.findOne.mockResolvedValue({ firebaseId: 'user-1', fName: 'X' });
+      await expect(service.consentToReferral('user-1', 'CODE1234')).rejects.toThrow(BadRequestException);
+    });
+
+    it('is a no-op (no new row) when a delegation already exists for this pair', async () => {
+      userRepo.findOne.mockResolvedValue({ firebaseId: 'acc-1', fName: 'דנה', lName: 'כהן' });
+      delegationRepo.findOne.mockResolvedValue({ id: 1 });
+
+      const result = await service.consentToReferral('user-1', 'CODE1234');
+      expect(result.message).toBe('הגישה לרואה החשבון כבר קיימת');
+      expect(delegationRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('creates an ACTIVE full-scope delegation when none exists', async () => {
+      userRepo.findOne.mockResolvedValue({ firebaseId: 'acc-1', fName: 'דנה', lName: 'כהן' });
+      delegationRepo.findOne.mockResolvedValue(null);
+
+      await service.consentToReferral('user-1', 'CODE1234');
+      expect(delegationRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 'user-1',
+          agentId: 'acc-1',
+          status: DelegationStatus.ACTIVE,
+          scopes: ['DOCUMENTS_READ', 'DOCUMENTS_WRITE'],
+        }),
+      );
     });
   });
 });

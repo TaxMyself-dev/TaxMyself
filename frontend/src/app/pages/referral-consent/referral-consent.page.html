@@ -1,0 +1,43 @@
+<ion-content class="referral-consent-page">
+  <div class="referral-consent-card">
+    <ng-container *ngIf="!isLoadingInfo(); else loading">
+      <ng-container *ngIf="!loadError(); else errorState">
+        <h2>הרשאת גישה לרואה חשבון</h2>
+        <p>
+          <strong>{{ accountantName() }}</strong> מבקש/ת גישה מלאה לנתוני ההנהלת חשבונות שלך ב-Keepintax.
+        </p>
+        <div class="actions">
+          <app-p-button
+            [buttonText]="'אשר/י גישה'"
+            [buttonColor]="buttonColor.YELLOW"
+            [buttonSize]="buttonSize.BIG"
+            [isLoading]="isSubmitting()"
+            [disabled]="isSubmitting()"
+            (onButtonClicked)="confirm()"
+          ></app-p-button>
+          <app-p-button
+            [buttonText]="'לא עכשיו'"
+            [variant]="'text'"
+            [severity]="'info'"
+            [buttonSize]="buttonSize.AUTO"
+            (onButtonClicked)="decline()"
+          ></app-p-button>
+        </div>
+      </ng-container>
+
+      <ng-template #errorState>
+        <p class="error">{{ loadError() }}</p>
+        <app-p-button
+          [buttonText]="'חזרה לאזור האישי'"
+          [buttonColor]="buttonColor.YELLOW"
+          [buttonSize]="buttonSize.BIG"
+          (onButtonClicked)="decline()"
+        ></app-p-button>
+      </ng-template>
+    </ng-container>
+
+    <ng-template #loading>
+      <p>טוען...</p>
+    </ng-template>
+  </div>
+</ion-content>

@@ -121,6 +121,27 @@ export class DelegationController {
   }
 
   /**
+   * Existing-user consent for a referral link (POST /delegations/referral-consent).
+   * Reached only from the authenticated /referral-consent/:code page — an
+   * already-registered user grants the referring accountant full access.
+   * Delegation-only; does not touch Subscription/plan/trial.
+   */
+  @Post('referral-consent')
+  @UseGuards(FirebaseAuthGuard)
+  @HttpCode(HttpStatus.CREATED)
+  async referralConsent(
+    @Req() request: AuthenticatedRequest,
+    @Body('code') code: string,
+  ): Promise<{ message: string; accountantName: string }> {
+    const firebaseId = request.user?.firebaseId;
+    if (!firebaseId) throw new ForbiddenException('לא אותחל משתמש');
+    if (!code || typeof code !== 'string' || !code.trim()) {
+      throw new ForbiddenException('קוד הפניה חסר');
+    }
+    return this.delegationService.consentToReferral(firebaseId, code.trim());
+  }
+
+  /**
    * Create a new client by an accountant (רואה חשבון).
    * Requires: Bearer token, user must have role ACCOUNTANT.
    * Creates Firebase user (email + password = "KE" + phone), User in DB, and Delegation.

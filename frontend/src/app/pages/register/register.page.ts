@@ -123,6 +123,9 @@ export class RegisterPage implements OnInit, OnDestroy {
   referralCode = signal<string | null>(null);
   /** Populated once GET /referral/:code/info resolves — drives the referral banner. */
   referralAccountantName = signal<string | null>(null);
+  /** Shown instead of the generic duplicate-email toast when signup fails
+   *  with auth/email-already-in-use AND a referral code is present. */
+  showReferralLoginPrompt = signal<boolean>(false);
 
 matchRegisterImage = computed(() => {
   const currentModule = this.selectedFormModule();
@@ -286,6 +289,10 @@ matchRegisterImage = computed(() => {
       next: (info) => this.referralAccountantName.set(info.accountantName),
       error: () => this.referralCode.set(null),
     });
+  }
+
+  goToLoginForReferral(): void {
+    this.router.navigate(['/login'], { queryParams: { ref: this.referralCode() } });
   }
 
   /**
@@ -574,11 +581,21 @@ matchRegisterImage = computed(() => {
     }
     console.log("formData is :::: ", formData);
     this.isLoading.set(true);
+    this.showReferralLoginPrompt.set(false);
 
     this.authService.SignUp(formData)
       .pipe(
         catchError((error) => {
           console.log("🚀 ~ RegisterPage ~ handleFormRegister ~ error:", error);
+
+          // Already-registered visitor arriving via a referral link: point
+          // them at login (preserving ?ref=) instead of the generic
+          // duplicate-email toast, per the locked existing-user-consent flow.
+          if (error.code === 'auth/email-already-in-use' && this.referralCode()) {
+            this.showReferralLoginPrompt.set(true);
+            return EMPTY;
+          }
+
           const errMessage = this.authService.getSignupErrorMessage(error.code);
           this.messageService.add({ severity: 'error', summary: 'Error', detail: errMessage, sticky: true, key: 'br' });
           return EMPTY;

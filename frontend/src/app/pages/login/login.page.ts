@@ -87,10 +87,13 @@ export class LoginPage implements OnInit {
   // login-page flash on a cold start with a live session.
 
   /**
-   * Enter the authenticated app — always at the default page, never a
-   * previously visited route — and resolve only once the router has finished,
-   * guards included.
+   * Enter the authenticated app — the default page, never a previously
+   * visited route — UNLESS a `?ref=<code>` query param is present on /login,
+   * in which case this login was the redirect leg of the referral-consent
+   * flow (ReferralConsentGuard sent an unauthenticated visitor here) and we
+   * complete the round trip back to /referral-consent/:code instead.
    *
+   * Resolves only once the router has finished, guards included.
    * `navigateByUrl()` does not resolve early on a guard redirect: Angular
    * chains a redirecting cancellation onto this same promise and settles it
    * when the final destination has been activated. So awaiting it covers
@@ -102,7 +105,9 @@ export class LoginPage implements OnInit {
    * them there.
    */
   private async enterApp(): Promise<void> {
-    const entered = await this.router.navigateByUrl(DEFAULT_AUTHENTICATED_PATH);
+    const referralCode = this.route.snapshot.queryParamMap.get('ref');
+    const target = referralCode ? `/referral-consent/${referralCode}` : DEFAULT_AUTHENTICATED_PATH;
+    const entered = await this.router.navigateByUrl(target);
     if (!entered) {
       throw new Error('Post-login navigation was refused by a guard');
     }

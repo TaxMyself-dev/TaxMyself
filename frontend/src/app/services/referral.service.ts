@@ -7,6 +7,11 @@ export interface ReferralInfo {
   accountantName: string;
 }
 
+export interface ReferralConsentResult {
+  message: string;
+  accountantName: string;
+}
+
 export interface MyReferralCode {
   code: string;
   link: string;
@@ -24,5 +29,10 @@ export class ReferralService {
   /** Authenticated, accountant-only. Lazily generates the code on first call. */
   getMyReferralCode(): Observable<MyReferralCode> {
     return this.http.get<MyReferralCode>(`${environment.apiUrl}delegations/my-referral-code`);
+  }
+
+  /** Authenticated. Grants the referring accountant full access to the current user's data. */
+  consentToReferral(code: string): Observable<ReferralConsentResult> {
+    return this.http.post<ReferralConsentResult>(`${environment.apiUrl}delegations/referral-consent`, { code });
   }
 }

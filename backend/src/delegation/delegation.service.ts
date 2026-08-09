@@ -4,6 +4,7 @@ import {
   NotFoundException,
   UnauthorizedException,
   ConflictException,
+  BadRequestException,
   InternalServerErrorException,
 } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
@@ -324,6 +325,47 @@ export class DelegationService {
     const accountantName =
       [agent.fName, agent.lName].filter(Boolean).join(' ').trim() || 'רואה החשבון שלך';
     return { accountantName };
+  }
+
+  /**
+   * Existing-user consent path for a referral link: an already-registered
+   * user (redirected here post-login) grants the referring accountant full
+   * access. Delegation-only — never touches the user's Subscription/plan/
+   * trial (that only happens for brand-new signups, in UsersService.signup).
+   * Dedup check mirrors grantViewPermissionByEmail: any existing row for this
+   * (userId, agentId) pair — active or not — is treated as already granted.
+   */
+  async consentToReferral(
+    userFirebaseId: string,
+    code: string,
+  ): Promise<{ message: string; accountantName: string }> {
+    const agent = await this.userRepository.findOne({ where: { referralCode: code } });
+    if (!agent) {
+      throw new NotFoundException('קישור ההפניה אינו תקין');
+    }
+    if (agent.firebaseId === userFirebaseId) {
+      throw new BadRequestException('לא ניתן להעניק גישה לעצמך');
+    }
+    const accountantName =
+      [agent.fName, agent.lName].filter(Boolean).join(' ').trim() || agent.email;
+
+    const existing = await this.delegationRepository.findOne({
+      where: { userId: userFirebaseId, agentId: agent.firebaseId },
+    });
+    if (existing) {
+      return { message: 'הגישה לרואה החשבון כבר קיימת', accountantName };
+    }
+
+    const delegation = this.delegationRepository.create({
+      userId: userFirebaseId,
+      agentId: agent.firebaseId,
+      externalCustomerId: null,
+      status: DelegationStatus.ACTIVE,
+      scopes: ['DOCUMENTS_READ', 'DOCUMENTS_WRITE'],
+    });
+    await this.delegationRepository.save(delegation);
+
+    return { message: 'הגישה ניתנה בהצלחה', accountantName };
   }
 
   /**

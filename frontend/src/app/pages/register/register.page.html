@@ -19,6 +19,12 @@
         </div>
         }
 
+        @if (showReferralLoginPrompt()) {
+        <div class="referral-duplicate-banner">
+          כבר יש לך חשבון קיים - <a (click)="goToLoginForReferral()">התחבר כדי לתת גישה לרואה החשבון</a>
+        </div>
+        }
+
         <!-------------- PRESONAL MODULE ------------->
         <div class="module" *ngSwitchCase="registerFormModules.PERSONAL">
 
