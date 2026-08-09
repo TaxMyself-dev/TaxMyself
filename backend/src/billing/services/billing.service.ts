@@ -504,8 +504,11 @@ export class BillingService {
    * a failed payment, activates/renews the subscription, generates a receipt, or
    * modifies billing periods — those are separate, explicit actions.
    *
-   * Allowed only for ACTIVE and PAST_DUE subscriptions (a saved card exists to
-   * replace). Blocked for TRIAL / TRIAL_EXPIRED / CANCELED.
+   * Allowed for ACTIVE, PAST_DUE, TRIAL, and TRIAL_EXPIRED subscriptions —
+   * TRIAL/TRIAL_EXPIRED are included so a card can be attached (or replaced)
+   * ahead of/at trial expiry without an immediate charge, e.g. the referral
+   * signup's "free trial without a card, forced entry after 30 days" flow.
+   * Blocked only for CANCELED (no active or about-to-need billing relationship).
    *
    * The payment_method row is updated later, exclusively via the CardCom webhook
    * (CHANGE_PM branch), mirroring how checkout activation works.
@@ -528,10 +531,12 @@ export class BillingService {
     const allowedStatuses: SubscriptionStatus[] = [
       SubscriptionStatus.ACTIVE,
       SubscriptionStatus.PAST_DUE,
+      SubscriptionStatus.TRIAL,
+      SubscriptionStatus.TRIAL_EXPIRED,
     ];
     if (!allowedStatuses.includes(subscription.status)) {
       throw new BadRequestException(
-        'ניתן להחליף אמצעי תשלום רק כאשר המנוי פעיל או בפיגור תשלום.',
+        'ניתן להחליף אמצעי תשלום רק כאשר המנוי פעיל, בתקופת ניסיון, או בפיגור תשלום.',
       );
     }
 
