@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Delete, ForbiddenException, Get, Param, ParseIntPipe, Patch, Post, Req, UseGuards, UsePipes, ValidationPipe } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, ForbiddenException, Get, Header, Param, ParseIntPipe, Patch, Post, Req, UseGuards, UsePipes, ValidationPipe } from '@nestjs/common';
 import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
 import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.interface';
 import { BusinessService } from './business.service';
@@ -13,6 +13,10 @@ export class BusinessController {
 
   @Get('get-businesses')
   @UseGuards(FirebaseAuthGuard)
+  // Identical URL for the accountant's own session and for view-as/impersonation
+  // (same firebaseId-swapped identity resolution) — never let the browser (or any
+  // intermediate cache) serve back an earlier caller's response for this URL.
+  @Header('Cache-Control', 'no-store')
   async getBusinessesByUser(@Req() request: AuthenticatedRequest) {
     const firebaseId = request.user?.firebaseId;
     return this.businessService.getUserBusinesses(firebaseId);

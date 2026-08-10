@@ -1,6 +1,6 @@
 import { Body, Controller, Post, Get, Patch, Delete, Headers, Query,
          Param, ParseIntPipe, NotFoundException, Session, UseGuards, Req, HttpException, HttpStatus, Logger,
-         Inject, forwardRef } from '@nestjs/common';
+         Inject, forwardRef, Header } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { UsersService } from './users.service';
@@ -10,6 +10,7 @@ import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.inter
 import { FeezbackService } from '../feezback/feezback.service';
 import { GoogleDriveService } from '../google-drive/google-drive.service';
 import { User } from './user.entity';
+import { SignupDto } from './dtos/signup.dto';
 
 @Controller('auth')
 export class UsersController {
@@ -25,14 +26,18 @@ export class UsersController {
 
 
     @Post('/signup')
-    async createUser(@Body() body: any) {
-        const user = await this.userService.signup(body);
-        return body; //TODO: Elazar - check if it's necessary to return the body
+    async createUser(@Body() dto: SignupDto) {
+        await this.userService.signup(dto);
+        return dto; //TODO: Elazar - check if it's necessary to return the body
     }
 
 
     @Get('/signin')
     @UseGuards(FirebaseAuthGuard)
+    // Identical URL for the accountant's own session and for view-as/impersonation
+    // (same firebaseId-swapped identity resolution) — never let the browser (or any
+    // intermediate cache) serve back an earlier caller's response for this URL.
+    @Header('Cache-Control', 'no-store')
     async signin(@Req() request: AuthenticatedRequest) {
         const userId = request.user?.firebaseId;
         const maskedId = userId?.length >= 8 ? userId.substring(0, 8) + '...' : userId ?? '?';

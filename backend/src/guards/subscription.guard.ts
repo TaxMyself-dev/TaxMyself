@@ -35,7 +35,11 @@ export class SubscriptionGuard implements CanActivate {
 
     if (!requiredModule) return true;
 
-    const hasAccess = await this.billingService.hasModuleAccess(firebaseId, requiredModule);
+    const hasAccess = await this.billingService.hasModuleAccess(
+      firebaseId,
+      requiredModule,
+      request.isDelegatedAccess === true,
+    );
 
     if (!hasAccess) {
       throw new ForbiddenException({

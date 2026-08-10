@@ -215,15 +215,20 @@ export class SettingsPage implements OnInit {
     this.handleReturnFromGoogleOauth();
     // מקורות חשבון (get-sources-with-types) נטענים בלחיצה על טאב "ניהול הרשאות וחשבונות" — ראה onTabChange
     // רענון נתונים מהשרת כדי להציג תאריך בן/בת זוג ועוד שדות שעודכנו (למשל בדאטאבייס)
-    this.authService.restoreUserData().subscribe({
-      next: (data) => {
-        if (data) {
-          this.userData = data;
-          this.initPersonalFormFromUserData();
-          this.initSpouseFormFromUserData();
+    // Skipped while impersonating a client — restoreUserData() would resolve
+    // via the x-client-user-id header and re-assign this.userData, clobbering
+    // the correct value already set above from getUserDataFromLocalStorage().
+    if (!this.authService.isViewingAsClient()) {
+      this.authService.restoreUserData().subscribe({
+        next: (data) => {
+          if (data) {
+            this.userData = data;
+            this.initPersonalFormFromUserData();
+            this.initSpouseFormFromUserData();
+          }
         }
-      }
-    });
+      });
+    }
   }
 
   onTabChange(newTabValue: string): void {
@@ -486,6 +491,14 @@ export class SettingsPage implements OnInit {
         key: 'br'
       });
     };
+    // Same clobbering risk as ngOnInit — skip the server refresh while
+    // impersonating and just re-read the (already-correct) impersonated
+    // userData directly.
+    if (this.authService.isViewingAsClient()) {
+      setDone();
+      return;
+    }
+
     this.authService.restoreUserData().subscribe({
       next: setDone,
       error: () => {

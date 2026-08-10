@@ -8,6 +8,7 @@ import { ModuleAccessGuard } from './shared/guard/module-access.guard';
 import { StartupRedirectGuard } from './shared/guard/startup-redirect.guard';
 import { LoginPageGuard } from './shared/guard/login-page.guard';
 import { OfflineNavigationGuard } from './shared/guard/offline-navigation.guard';
+import { ReferralConsentGuard } from './shared/guard/referral-consent.guard';
 import { AppRoute } from './shared/access-control';
 
 /**
@@ -146,6 +147,15 @@ const routes: Routes = [
   {
     path: 'register',
     loadComponent: () => import('./pages/register/register.page').then(m => m.RegisterPage)
+  },
+  {
+    // Existing-user consent for an accountant referral link. Requires an
+    // authenticated session — ReferralConsentGuard redirects to /login
+    // (preserving ?ref=) first when needed, per the locked decision that
+    // login happens before consent, never inline on /register.
+    path: 'referral-consent/:code',
+    canActivate: [ReferralConsentGuard],
+    loadComponent: () => import('./pages/referral-consent/referral-consent.page').then(m => m.ReferralConsentPage)
   },
   {
     // Waits for auth initialization before the login page is even created, so

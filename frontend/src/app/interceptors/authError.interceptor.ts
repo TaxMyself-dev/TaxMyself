@@ -52,9 +52,13 @@ export class AuthErrorInterceptor implements HttpInterceptor {
         if (err.status === 401) {
           return from(this.afAuth.currentUser).pipe(
             switchMap(user => {
+              // Compare by path only — router.url includes the query string
+              // (e.g. /register?ref=<code>), which would never exact-match
+              // an entry in PUBLIC_ROUTES and would wrongly fall through to logout.
+              const currentPath = this.router.url.split('?')[0].split('#')[0];
 
               // 🔴 אין משתמש באמת → logout (single entry point)
-              if (!user && !PUBLIC_ROUTES.includes(this.router.url)) {
+              if (!user && !PUBLIC_ROUTES.includes(currentPath)) {
                 this.injector.get(AuthService).logout();
               }
 

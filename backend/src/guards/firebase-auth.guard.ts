@@ -108,6 +108,10 @@ export class FirebaseAuthGuard implements CanActivate {
     request.user.firebaseId = clientUserId; // ✅ Switch Firebase ID to client
     request.user.role = 'agent'; // ✅ Mark that the request is on behalf of a client
     request.user.delegationScopes = scopes;
+    // Real delegation-based impersonation only — NOT the admin-bypass branch
+    // above. Drives the EXPENSES/ACCOUNTANT always-open module-access
+    // guarantee in SubscriptionAccessService.resolveModulesAccess.
+    request.isDelegatedAccess = true;
     this.logger.log(`Acting as client, firebaseId=${maskedClient}`);
 
     return true;

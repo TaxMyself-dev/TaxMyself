@@ -76,16 +76,26 @@ export class FeezbackController {
   }
 
 
+  /**
+   * Admin debug tool: mint a Feezback consent JWT for an arbitrary
+   * firebaseId without going through the real consent-link flow. Admin-only
+   * (same pattern as the other admin/* diagnostics below) — this was
+   * previously unguarded with a hardcoded target, which let anyone mint a
+   * token for a fixed test user.
+   */
   @Post('debug-token')
-  // @UseGuards(FirebaseAuthGuard)
-  async debugToken(@Req() req: AuthenticatedRequest) {
+  @UseGuards(FirebaseAuthGuard)
+  async debugToken(
+    @Req() req: AuthenticatedRequest,
+    @Query('firebaseId') firebaseId: string,
+  ) {
+    const adminFirebaseId = req.user?.firebaseId;
+    if (!adminFirebaseId) throw new ForbiddenException('Admin authentication required');
 
-    // const firebaseId = req.user?.firebaseId;
-    const firebaseId = "AxFm5xBcYlMTV5kb5OAnde5Rbh62"
+    const isAdmin = await this.usersService.isAdmin(adminFirebaseId);
+    if (!isAdmin) throw new ForbiddenException('Admin access required');
 
-    if (!firebaseId) {
-      throw new Error('User ID not found — Firebase authentication required');
-    }
+    if (!firebaseId) throw new BadRequestException('firebaseId query parameter is required');
 
     const token = await (this.feezbackService as any).feezbackJwtService.generateConsentJwt(
       firebaseId,
@@ -320,7 +330,7 @@ export class FeezbackController {
    * This endpoint helps understand what fields are available in transactions
    */
   @Get('analyze-transactions-structure')
-  @UseGuards(FirebaseAuthGuard)
+  @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
   async analyzeTransactionsStructure(@Req() req: AuthenticatedRequest) {
     const firebaseId = req.user?.firebaseId;
 
@@ -490,7 +500,7 @@ export class FeezbackController {
    * Returns a sample transaction and field analysis
    */
   @Get('transactions-structure')
-  @UseGuards(FirebaseAuthGuard)
+  @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
   async getTransactionsStructure(@Req() req: AuthenticatedRequest) {
     const firebaseId = req.user?.firebaseId;
 
@@ -607,7 +617,7 @@ export class FeezbackController {
    * List all saved transaction files
    */
   @Get('saved-transactions-files')
-  @UseGuards(FirebaseAuthGuard)
+  @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
   async listSavedTransactionFiles(@Req() req: AuthenticatedRequest) {
     try {
       const baseDir = process.cwd();

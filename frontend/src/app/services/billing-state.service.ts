@@ -152,6 +152,13 @@ export interface BillingStateResponse {
   status?: 'SUBSCRIPTION_MISSING';
   subscription: BillingSubscription | null;
   plan: BillingPlan | null;
+  /**
+   * True only for a real accountant-impersonation request backed by an
+   * ACTIVE Delegation row (see backend FirebaseAuthGuard.isDelegatedAccess).
+   * Admin impersonation does not set this. Drives an unconditional billing
+   * bypass — see BillingGuard / AppComponent.showBillingDialog.
+   */
+  isDelegatedAccess: boolean;
   access: BillingAccess;
   billingPaymentResult: BillingPaymentResult | null;
   /** Outcome of the most recent "replace saved card" flow, or null if never attempted. */
@@ -188,6 +195,16 @@ export class BillingStateService {
    */
   readonly effectiveStatus = computed<EffectiveBillingStatus | null>(
     () => this.billingState()?.status ?? this.billingState()?.subscription?.status ?? null
+  );
+  /**
+   * True only for a real accountant-impersonation session backed by an ACTIVE
+   * Delegation row — mirrors the backend's isDelegatedAccess exactly, so it
+   * must never be derived from AuthService.isViewingAsClient() (which is also
+   * true for admin impersonation, a different, broader mechanism that must
+   * continue to see the client's real billing status unchanged).
+   */
+  readonly isDelegatedAccess = computed(
+    () => this.billingState()?.isDelegatedAccess ?? false
   );
   readonly isTrialExpired = computed(
     () => this.billingState()?.subscription?.status === 'TRIAL_EXPIRED'

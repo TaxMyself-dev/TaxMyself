@@ -4,7 +4,7 @@ import { AngularFirestore } from '@angular/fire/compat/firestore';
 import { AngularFireAuth } from '@angular/fire/compat/auth';
 import { Router } from '@angular/router';
 import { Observable, catchError, filter, firstValueFrom, from, switchMap, take, EMPTY, tap, BehaviorSubject, finalize, throwError } from 'rxjs';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { User, UserCredential } from '@firebase/auth-types';
 import { GoogleAuthProvider, sendEmailVerification } from '@angular/fire/auth';
 import { environment } from 'src/environments/environment';
@@ -337,7 +337,11 @@ export class AuthService {
   restoreUserData(): Observable<IUserData | null> {
     return this.signIn().pipe(
       tap((userData: IUserData) => {
-        if (userData) {
+        // Never persist into the base `userData` slot while impersonating —
+        // this request resolves to the impersonated client (via the
+        // x-client-user-id header) and would otherwise clobber the
+        // accountant's own cached profile with the client's data.
+        if (userData && !this.isViewingAsClient()) {
           localStorage.setItem('userData', JSON.stringify(userData));
           // console.log('✅ userData restored from backend');
         }
@@ -382,7 +386,12 @@ export class AuthService {
       sessionStorage.setItem('tm.freshLoginSync', 'true');
     }
     const url = `${environment.apiUrl}auth/signin${freshLogin ? '?freshLogin=true' : ''}`;
-    return this.http.get(url);
+    // Identical URL for the accountant's own session and for view-as/impersonation
+    // (freshLogin aside) — explicitly defeat any browser/intermediate caching so a
+    // switch between identities never serves back an earlier caller's response.
+    return this.http.get(url, {
+      headers: new HttpHeaders({ 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }),
+    });
   }
 
   getSignupErrorMessage(err: string): string {

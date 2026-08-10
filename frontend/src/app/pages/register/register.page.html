@@ -13,6 +13,18 @@
           </div>
         </div>
 
+        @if (referralAccountantName()) {
+        <div class="referral-banner">
+          {{ referralAccountantName() }} מזמין/ה אותך להצטרף ל-Keepintax
+        </div>
+        }
+
+        @if (showReferralLoginPrompt()) {
+        <div class="referral-duplicate-banner">
+          כבר יש לך חשבון קיים - <a (click)="goToLoginForReferral()">התחבר כדי לתת גישה לרואה החשבון</a>
+        </div>
+        }
+
         <!-------------- PRESONAL MODULE ------------->
         <div class="module" *ngSwitchCase="registerFormModules.PERSONAL">
 

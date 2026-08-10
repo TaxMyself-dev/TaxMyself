@@ -112,4 +112,30 @@ describe('FirebaseAuthGuard', () => {
     expect(request.user.actorFirebaseId).toBe(AGENT);
     expect(delegationRepo.findOne).not.toHaveBeenCalled();
   });
+
+  // isDelegatedAccess (referral-signup Phase 2): drives the EXPENSES/
+  // ACCOUNTANT always-open module-access guarantee in
+  // SubscriptionAccessService — must be set ONLY for real delegation-based
+  // impersonation, never for a plain self-request or the admin-bypass path.
+  describe('isDelegatedAccess flag', () => {
+    it('real ACTIVE delegation → request.isDelegatedAccess = true', async () => {
+      delegationRepo.findOne.mockResolvedValue({ status: DelegationStatus.ACTIVE, scopes: ['DOCUMENTS_READ'] });
+      const { request, context } = makeContext('GET');
+      await expect(guard.canActivate(context)).resolves.toBe(true);
+      expect(request.isDelegatedAccess).toBe(true);
+    });
+
+    it('admin bypass → request.isDelegatedAccess is NOT set', async () => {
+      userRepo.findOne.mockResolvedValue({ firebaseId: AGENT, role: [UserRole.ADMIN] });
+      const { request, context } = makeContext('POST');
+      await expect(guard.canActivate(context)).resolves.toBe(true);
+      expect(request.isDelegatedAccess).toBeUndefined();
+    });
+
+    it('no impersonation (plain self-request) → request.isDelegatedAccess is NOT set', async () => {
+      const { request, context } = makeContext('GET', false);
+      await expect(guard.canActivate(context)).resolves.toBe(true);
+      expect(request.isDelegatedAccess).toBeUndefined();
+    });
+  });
 });

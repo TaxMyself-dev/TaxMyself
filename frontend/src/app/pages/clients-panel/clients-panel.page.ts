@@ -1,6 +1,7 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { ClientPanelService, Client, CreateClientPayload } from 'src/app/services/clients-panel.service';
+import { ReferralService } from 'src/app/services/referral.service';
 import { AuthService } from 'src/app/services/auth.service';
 import { MessageService, ConfirmationService } from 'primeng/api';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
@@ -82,6 +83,7 @@ const TASK_TYPE_PRESETS: ReadonlyArray<{
 })
 export class ClientPanelPage implements OnInit {
   private readonly clientService = inject(ClientPanelService);
+  private readonly referralService = inject(ReferralService);
   private readonly authService = inject(AuthService);
   private readonly messageService = inject(MessageService);
   private readonly confirmationService = inject(ConfirmationService);
@@ -101,6 +103,10 @@ export class ClientPanelPage implements OnInit {
   readonly ReportWorkflowStatusLabels = ReportWorkflowStatusLabels;
 
   readonly myClients = signal<Client[]>([]);
+
+  // ---------- Referral link (accountant-only, lazily generated) ----------
+  readonly referralLink = signal<string | null>(null);
+  readonly loadingReferralLink = signal(false);
 
   /** Groups flat client rows by firebaseId — one entry per user, with a list of businesses. */
   readonly groupedClients = computed(() => {
@@ -259,6 +265,49 @@ export class ClientPanelPage implements OnInit {
       this.clientService.clearSelectedClient();
     }
     this.fetchClients();
+    this.fetchReferralLink();
+  }
+
+  /** Fetches (and lazily generates, server-side) this accountant's referral signup link. */
+  fetchReferralLink(): void {
+    this.loadingReferralLink.set(true);
+    this.referralService.getMyReferralCode().subscribe({
+      next: (result) => {
+        this.referralLink.set(result.link);
+        this.loadingReferralLink.set(false);
+      },
+      error: (err) => {
+        // Non-fatal — e.g. an admin impersonating this view without the
+        // ACCOUNTANT role. Just hide the widget rather than toasting an error.
+        console.error('Failed to fetch referral link:', err);
+        this.loadingReferralLink.set(false);
+      },
+    });
+  }
+
+  copyReferralLink(): void {
+    const link = this.referralLink();
+    if (!link) return;
+    navigator.clipboard.writeText(link).then(
+      () => {
+        this.messageService.add({
+          severity: 'success',
+          summary: 'הועתק',
+          detail: 'קישור ההפניה הועתק ללוח',
+          life: 2500,
+          key: 'br',
+        });
+      },
+      () => {
+        this.messageService.add({
+          severity: 'error',
+          summary: 'שגיאה',
+          detail: 'העתקת הקישור נכשלה',
+          life: 3000,
+          key: 'br',
+        });
+      },
+    );
   }
 
   fetchClients(): void {

@@ -4,12 +4,14 @@ import {
   NotFoundException,
   UnauthorizedException,
   ConflictException,
+  BadRequestException,
   InternalServerErrorException,
 } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, Repository } from 'typeorm';
 import * as admin from 'firebase-admin';
 import * as jwt from 'jsonwebtoken';
+import * as crypto from 'crypto';
 import { Delegation, DelegationStatus } from './delegation.entity';
 import { User } from 'src/users/user.entity';
 import { Business } from 'src/business/business.entity';
@@ -249,6 +251,122 @@ export class DelegationService {
 </html>`;
   }
 
+
+  // ─── Referral signup ─────────────────────────────────────────────────────
+
+  /** Excludes visually-ambiguous characters (0/O, 1/I/l). ~40 bits of entropy at length 8. */
+  private static readonly REFERRAL_CODE_ALPHABET = '23456789ABCDEFGHJKMNPQRSTUVWXYZ';
+  private static readonly REFERRAL_CODE_LENGTH = 8;
+
+  private generateReferralCode(): string {
+    const bytes = crypto.randomBytes(DelegationService.REFERRAL_CODE_LENGTH);
+    let code = '';
+    for (const b of bytes) {
+      code += DelegationService.REFERRAL_CODE_ALPHABET[b % DelegationService.REFERRAL_CODE_ALPHABET.length];
+    }
+    return code;
+  }
+
+  /**
+   * Returns the accountant's referral code, generating one lazily on first
+   * call. Retries on the rare case the random code collides with another
+   * accountant's (unique index ux_user_referral_code), and is safe against a
+   * concurrent call for the SAME accountant racing to set the first code
+   * (the conditional UPDATE only ever writes when referralCode is still NULL).
+   */
+  async getOrCreateReferralCode(agentFirebaseId: string): Promise<string> {
+    const agent = await this.userRepository.findOne({ where: { firebaseId: agentFirebaseId } });
+    if (!agent) {
+      throw new NotFoundException('משתמש לא נמצא');
+    }
+    if (agent.referralCode) {
+      return agent.referralCode;
+    }
+
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const code = this.generateReferralCode();
+      try {
+        const result = await this.userRepository
+          .createQueryBuilder()
+          .update(User)
+          .set({ referralCode: code })
+          .where('firebaseId = :firebaseId', { firebaseId: agentFirebaseId })
+          .andWhere('referralCode IS NULL')
+          .execute();
+
+        if (result.affected === 1) {
+          return code;
+        }
+
+        // Someone else set it concurrently (same accountant, racing request)
+        // — return the winner's code rather than erroring or double-writing.
+        const refreshed = await this.userRepository.findOne({ where: { firebaseId: agentFirebaseId } });
+        if (refreshed?.referralCode) {
+          return refreshed.referralCode;
+        }
+      } catch (err: any) {
+        const isDup = err?.code === 'ER_DUP_ENTRY' || err?.driverError?.code === 'ER_DUP_ENTRY';
+        if (!isDup) throw err;
+        // Collided with a DIFFERENT accountant's code — regenerate and retry.
+      }
+    }
+    throw new InternalServerErrorException('נכשל ביצירת קוד הפניה — נסה שוב');
+  }
+
+  /**
+   * Public lookup for the referral landing banner — deliberately returns only
+   * the accountant's display name, never email/phone/other PII.
+   */
+  async getReferralInfo(code: string): Promise<{ accountantName: string }> {
+    const agent = await this.userRepository.findOne({ where: { referralCode: code } });
+    if (!agent) {
+      throw new NotFoundException('קישור ההפניה אינו תקין');
+    }
+    const accountantName =
+      [agent.fName, agent.lName].filter(Boolean).join(' ').trim() || 'רואה החשבון שלך';
+    return { accountantName };
+  }
+
+  /**
+   * Existing-user consent path for a referral link: an already-registered
+   * user (redirected here post-login) grants the referring accountant full
+   * access. Delegation-only — never touches the user's Subscription/plan/
+   * trial (that only happens for brand-new signups, in UsersService.signup).
+   * Dedup check mirrors grantViewPermissionByEmail: any existing row for this
+   * (userId, agentId) pair — active or not — is treated as already granted.
+   */
+  async consentToReferral(
+    userFirebaseId: string,
+    code: string,
+  ): Promise<{ message: string; accountantName: string }> {
+    const agent = await this.userRepository.findOne({ where: { referralCode: code } });
+    if (!agent) {
+      throw new NotFoundException('קישור ההפניה אינו תקין');
+    }
+    if (agent.firebaseId === userFirebaseId) {
+      throw new BadRequestException('לא ניתן להעניק גישה לעצמך');
+    }
+    const accountantName =
+      [agent.fName, agent.lName].filter(Boolean).join(' ').trim() || agent.email;
+
+    const existing = await this.delegationRepository.findOne({
+      where: { userId: userFirebaseId, agentId: agent.firebaseId },
+    });
+    if (existing) {
+      return { message: 'הגישה לרואה החשבון כבר קיימת', accountantName };
+    }
+
+    const delegation = this.delegationRepository.create({
+      userId: userFirebaseId,
+      agentId: agent.firebaseId,
+      externalCustomerId: null,
+      status: DelegationStatus.ACTIVE,
+      scopes: ['DOCUMENTS_READ', 'DOCUMENTS_WRITE'],
+    });
+    await this.delegationRepository.save(delegation);
+
+    return { message: 'הגישה ניתנה בהצלחה', accountantName };
+  }
 
   /**
    * Returns one row per (user, business) for the accountant's clients.

@@ -186,6 +186,32 @@
   color: #e24c4c;
 }
 
+.referral-link-section {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  background-color: #f5f5f7;
+
+  .referral-link-label {
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .referral-link-input {
+    flex: 1;
+    min-width: 220px;
+    padding: 6px 10px;
+    border: 1px solid #d0d0d5;
+    border-radius: 6px;
+    background: #fff;
+    font-family: monospace;
+  }
+}
+
 /* Tab header (replaces page-header inside each tab panel) */
 .tab-header {
   display: flex;

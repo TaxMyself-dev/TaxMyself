@@ -14,7 +14,7 @@
         <p>לא נמצאו תוכניות זמינות. אנא נסה שוב מאוחר יותר.</p>
       </div>
     } @else {
-      <div class="pricing__grid">
+      <div class="pricing__grid" [class.pricing__grid--single]="plans().length === 1">
         @for (plan of plans(); track plan.id) {
 
           <div

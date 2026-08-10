@@ -49,6 +49,14 @@ export class BillingGuard {
       return path === DASHBOARD_ROUTE ? true : this.router.createUrlTree([DASHBOARD_ROUTE]);
     }
 
+    // Real accountant delegation (ACTIVE Delegation row) always passes,
+    // regardless of the impersonated client's own billing status — the
+    // accountant must be able to manage this client's data unconditionally.
+    // Admin impersonation does not set this and is unaffected.
+    if (this.billingStateService.isDelegatedAccess()) {
+      return true;
+    }
+
     const status = this.billingStateService.effectiveStatus();
 
     if (!status || !BILLING_BLOCKING_STATUSES.includes(status)) {

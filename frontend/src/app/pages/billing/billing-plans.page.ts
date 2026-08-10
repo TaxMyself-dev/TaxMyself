@@ -36,6 +36,7 @@ interface Plan {
   notes: string | null;
   trialDays: number;
   displayOrder: number;
+  isPublic: boolean;
 }
 
 export interface FeatureVM {
@@ -77,13 +78,23 @@ export class BillingPlansPage implements OnInit {
       // Backend resolves this from the user's businesses — never decided on the frontend.
       displayPrice: formatShekels(plan.effectivePriceMonthlyAgorot),
       notes: plan.notes,
-      features: PLAN_CARD_ITEMS.map(item => ({
-        key: item.key,
-        label: item.label,
-        included: item.type === 'module'
-          ? plan.modules.includes(item.key)
-          : (plan.features ?? []).includes(item.key),
-      })),
+      features: PLAN_CARD_ITEMS
+        .map(item => ({
+          type: item.type,
+          key: item.key,
+          label: item.label,
+          included: item.type === 'module'
+            ? plan.modules.includes(item.key)
+            : (plan.features ?? []).includes(item.key),
+        }))
+        // Excluded marketing "feature" rows (e.g. support chat) are an upsell
+        // signal for side-by-side comparison shopping. Non-public plans
+        // (referral track) are always shown alone — see BillingService.getPlans
+        // exclusivity — so there's nothing to compare against; hide the row
+        // instead of showing a meaningless X. Module rows (real
+        // access-control) always show, public or not.
+        .filter(f => plan.isPublic || f.type === 'module' || f.included)
+        .map(({ type: _type, ...feature }) => feature),
       recommended: !!plan.recommended,
     }));
   });

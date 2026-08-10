@@ -21,6 +21,15 @@ import { NetworkStatusService } from '../services/pwa/network-status.service';
  */
 const TOKEN_WAIT_MS = 10_000;
 
+/**
+ * HTTP header values must be ISO-8859-1 — `XMLHttpRequest.setRequestHeader`
+ * throws synchronously otherwise, which (for `businessnumber`, sourced from
+ * free-text business data) has taken down the whole request pipeline for a
+ * session when a business record held non-Latin1 text in that field. Header
+ * values are gated through this before being attached.
+ */
+const isHeaderSafe = (value: string): boolean => /^[\x20-\x7E]*$/.test(value);
+
 @Injectable()
 export class AuthInterceptor implements HttpInterceptor {
 
@@ -67,7 +76,14 @@ export class AuthInterceptor implements HttpInterceptor {
           headers['Authorization'] = `Bearer ${token}`;
         }
         if (businessNumber) {
-          headers['businessnumber'] = businessNumber;
+          if (isHeaderSafe(businessNumber)) {
+            headers['businessnumber'] = businessNumber;
+          } else {
+            // Drop rather than throw — a bad businessNumber (free text landing
+            // in what should be a numeric field) must not silently break every
+            // request for the rest of the session (see AuthService.loadViewAsUserData()).
+            console.warn('[AuthInterceptor] dropping non-header-safe businessnumber value');
+          }
         }
         /** כשהרואה חשבון צופה בלקוח – כל הבקשות עם מזהה הלקוח כדי להציג את נתוניו */
         if (clientId) {

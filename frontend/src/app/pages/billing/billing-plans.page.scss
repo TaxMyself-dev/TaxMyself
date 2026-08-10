@@ -89,6 +89,15 @@
   }
 }
 
+// Single plan (e.g. a referral-track user, who only ever sees their own
+// plan — see BillingService.getPlans exclusivity): center it instead of
+// leaving it stranded in the first of three empty grid columns.
+.pricing__grid--single {
+  grid-template-columns: 1fr;
+  max-width: 420px;
+  margin-inline: auto;
+}
+
 // ─── Card ─────────────────────────────────────────────────────────────────────
 .pricing-card {
   background: #fff;

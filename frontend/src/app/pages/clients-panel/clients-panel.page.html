@@ -322,6 +322,23 @@
         </div>
       </header>
 
+      @if (loadingReferralLink() || referralLink()) {
+        <section class="referral-link-section">
+          <span class="referral-link-label">קישור הפניית לקוחות שלך:</span>
+          @if (loadingReferralLink()) {
+            <span class="loading-text">טוען...</span>
+          } @else {
+            <input type="text" class="referral-link-input" [value]="referralLink()" readonly (click)="$any($event.target).select()" />
+            <app-p-button
+              [buttonText]="'העתק קישור'"
+              [buttonColor]="ButtonColor.BLACK"
+              [buttonSize]="ButtonSize.SMALL"
+              (onButtonClicked)="copyReferralLink()"
+            />
+          }
+        </section>
+      }
+
       <section class="clients-list-section">
         @if (loadingClients()) {
           <p class="loading-text">טוען לקוחות...</p>
