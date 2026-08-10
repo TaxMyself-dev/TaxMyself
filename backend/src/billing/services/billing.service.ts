@@ -95,6 +95,24 @@ export class BillingService {
   // ─── Plans ──────────────────────────────────────────────────────────────────
 
   /**
+   * For a referral-track user (already known to be on SOME non-public
+   * plan), resolves which of the two referral plans actually reflects
+   * reality RIGHT NOW — from the live User.hasOpenBanking flag, never from
+   * whichever referral plan happens to be stored on the subscription. The
+   * stored planId can lag reality (e.g. the consent-webhook auto-upgrade
+   * — see FeezbackService.refreshUserSources — hasn't run yet or failed),
+   * so this is the single source of truth for "which referral plan" used
+   * by both getPlans() (display) and createCheckout() (what's actually
+   * purchased). Returns null only if neither referral plan can be found
+   * (deactivated/missing) — callers fall back to whatever they already have.
+   */
+  private async resolveReferralEffectivePlan(firebaseId: string): Promise<SubscriptionPlan | null> {
+    const user = await this.userRepo.findOne({ where: { firebaseId } });
+    const targetSlug = user?.hasOpenBanking ? 'referral-open-banking' : 'referral-basic';
+    return this.planRepo.findOne({ where: { slug: targetSlug, isActive: true } });
+  }
+
+  /**
    * Returns the plans the requesting user is allowed to choose from, with
    * the price effective for their billing business type — resolved once
    * from their businesses and applied to every plan, so the frontend never
@@ -110,6 +128,9 @@ export class BillingService {
    * accidentally check out on the wrong one. Every other user (no
    * subscription, no plan, or an already-public plan) sees the normal
    * public catalog.
+   *
+   * WHICH referral plan is resolved live via resolveReferralEffectivePlan
+   * (User.hasOpenBanking), not by trusting the stored planId — see there.
    */
   async getPlans(firebaseId: string) {
     const [billingBusinessType, subscription] = await Promise.all([
@@ -117,16 +138,19 @@ export class BillingService {
       this.subscriptionRepo.findOne({ where: { firebaseId } }),
     ]);
 
-    const currentPlan = subscription?.planId
+    const storedPlan = subscription?.planId
       ? await this.planRepo.findOne({ where: { id: subscription.planId, isActive: true } })
       : null;
 
-    const plans = currentPlan && !currentPlan.isPublic
-      ? [currentPlan]
-      : await this.planRepo.find({
-          where: { isActive: true, isPublic: true },
-          order: { displayOrder: 'ASC' },
-        });
+    let plans: SubscriptionPlan[];
+    if (storedPlan && !storedPlan.isPublic) {
+      plans = [(await this.resolveReferralEffectivePlan(firebaseId)) ?? storedPlan];
+    } else {
+      plans = await this.planRepo.find({
+        where: { isActive: true, isPublic: true },
+        order: { displayOrder: 'ASC' },
+      });
+    }
 
     return plans.map(p => ({
       id: p.id,
@@ -144,6 +168,7 @@ export class BillingService {
       trialDays: p.trialDays,
       displayOrder: p.displayOrder,
       active: p.isActive,
+      isPublic: p.isPublic,
     }));
   }
 
@@ -384,17 +409,39 @@ export class BillingService {
       );
     }
 
-    const plan = await this.planRepo.findOne({
+    const requestedPlan = await this.planRepo.findOne({
       where: { id: dto.planId, isActive: true },
     });
 
-    if (!plan) {
+    if (!requestedPlan) {
       throw new BadRequestException('Subscription plan not found or not available');
+    }
+
+    // Checking out on a referral plan: always resolve the LIVE-correct one
+    // (basic vs open-banking, from User.hasOpenBanking) rather than trusting
+    // dto.planId as-is — closes the race where the client rendered a
+    // stale/cached option. Persist it now so subscription.planId is already
+    // right even before the CardCom webhook activates payment (see
+    // resolveReferralEffectivePlan). Public-plan checkouts are unaffected.
+    let plan = requestedPlan;
+    if (!requestedPlan.isPublic) {
+      const effectivePlan = await this.resolveReferralEffectivePlan(firebaseId);
+      if (effectivePlan) {
+        plan = effectivePlan;
+        if (subscription.planId !== plan.id) {
+          this.logger.log(
+            `createCheckout: referral plan resolved live to ${plan.slug} (requested ${requestedPlan.slug}) ` +
+              `for firebaseId=${firebaseId.substring(0, 8)}... — updating subscription.planId`,
+          );
+          subscription.planId = plan.id;
+          await this.subscriptionRepo.save(subscription);
+        }
+      }
     }
 
     const pricing = await this.pricingService.calculateCheckoutPrice(
       firebaseId,
-      dto.planId,
+      plan.id,
     );
 
     // Fetch user profile for customer info (best-effort — optional fields).
