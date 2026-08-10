@@ -937,7 +937,7 @@ export class ReportReviewPage implements OnInit {
     {
       name: 'preview',
       icon: 'pi pi-eye',
-      title: 'צפה במסמך לצד הטבלה',
+      title: 'צפה במסמך',
       showWhen: (row) => {
         const r = row as unknown as EditableReviewRow;
         return !!r.driveFileId && !this.isAnnualRow(r);
@@ -3208,7 +3208,7 @@ export interface ReviewOverrides {
 | name | icon | title/tooltip | מתי מוצג (`showWhen`) | פעולה (`action`) |
 |---|---|---|---|---|
 | `edit` | `pi pi-pencil` | ערוך הוצאה | לא ANNUAL וגם לא UNIDENTIFIED | `openEditDialog(row)` — פותח את דיאלוג העריכה |
-| `preview` | `pi pi-eye` | צפה במסמך לצד הטבלה | יש `driveFileId` וגם לא ANNUAL | `openPreview(row)` — פותח פאנל תצוגה מקדימה של Drive בצד הטבלה |
+| `preview` | `pi pi-eye` | צפה במסמך | יש `driveFileId` וגם לא ANNUAL | `openPreview(row)` — פותח פאנל תצוגה מקדימה של Drive בצד הטבלה |
 | `triage` | `pi pi-question-circle` | מיין — קבע מה המסמך הזה | שורה UNIDENTIFIED שאינה כרגע ב-triage | `startTriage(row)` — פותח דיאלוג "מה המסמך הזה?" (D8) |
 | `unpair` | `pi pi-link` | פצל — הפרד בחזרה לחשבונית וקבלה נפרדות | `type !== 'tx_only'` וגם `documentType === 'invoice_receipt_pair'` | `unpairRow(row)` — קורא ל-`unpair` endpoint |
 | `upload` | `pi pi-upload` | העלה מסמך חדש — סורק ומקשר לתנועה | `type === 'tx_only'` | `triggerUpload(row)` — פותח את בורר הקבצים המוסתר |

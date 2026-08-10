@@ -12,7 +12,7 @@ import { SharedService } from '../shared/shared.service';
 import { FxRateService } from '../shared/fx-rate.service';
 import { Business } from 'src/business/business.entity';
 import { ReportWorkflow, ReportWorkflowStatus, ReportWorkflowType } from '../report-workflow/report-workflow.entity';
-import { BusinessType, VATReportingType, ExpenseReportScope, ExpenseApprovalStatus, ApprovalStatus, JournalReferenceType, isExemptBusinessType, CategoryType, OwnerType, RecognitionType } from 'src/enum';
+import { BusinessType, VATReportingType, ExpenseReportScope, ExpenseApprovalStatus, ApprovalStatus, JournalReferenceType, isExemptBusinessType, CategoryType, OwnerType, RecognitionType, RecordSource } from 'src/enum';
 import { BookkeepingService } from '../bookkeeping/bookkeeping.service';
 import { CatalogService, AccountLaw, CatalogScope, ResolvedSubCategory } from '../bookkeeping/catalog.service';
 import { CatalogContextService } from '../bookkeeping/catalog-context.service';
@@ -528,8 +528,18 @@ export class ExpensesService {
         manager?: EntityManager,
         /** Source-document context for the D7 description fallback chain. */
         doc?: DescriptionDocInput | null,
+        /** Explicit provenance override — needed by callers (e.g.
+         *  bulkConfirmFromDrive) that don't pass a `doc` context but still
+         *  know the expense is document-derived. When omitted, inferred:
+         *  `doc` present -> DRIVE, `externalTransactionId` on the DTO ->
+         *  OPEN_BANKING, else -> MANUAL. */
+        source?: RecordSource,
     ): Promise<Expense> {
         const newExpense = this.expense_repo.create(expense);
+        newExpense.source = source
+            ?? (doc ? RecordSource.DRIVE
+                : newExpense.externalTransactionId ? RecordSource.OPEN_BANKING
+                : RecordSource.MANUAL);
 
         // Foreign-currency manual entry: when the form sends originalCurrency
         // + originalSum, ignore any client-supplied `sum` and let the BOI rate
@@ -2205,7 +2215,9 @@ export class ExpensesService {
                     isEquipment: item.isEquipment,
                 };
 
-                const expense = await this.addExpense(dto, firebaseId, businessNumber);
+                const expense = await this.addExpense(
+                    dto, firebaseId, businessNumber, true, undefined, undefined, RecordSource.DRIVE,
+                );
 
                 // Stamp the report-period label. The drive-extract flow is the
                 // only path that pre-computes vatReportingDate at confirm-time

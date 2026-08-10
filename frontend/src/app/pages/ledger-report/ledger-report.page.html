@@ -243,7 +243,7 @@
             (onChangeInputSelect)="onEntryKindChange(card)">
           </app-input-select>
 
-          <app-input-date [parentForm]="card" [controlName]="'valueDate'" [labelText]="'תאריך'"
+          <app-input-date [parentForm]="card" [controlName]="'valueDate'" [labelText]="'תאריך ערך'"
             [placeholder]="'00/00/0000'">
           </app-input-date>
 
@@ -258,7 +258,7 @@
           </label>
 
           <label class="je-field">
-            <span>סכום</span>
+            <span>סכום{{ isVatLiableIncomeCard(card) ? ' (סה"כ לפני מע"מ)' : '' }}</span>
             <input type="number" dir="ltr" formControlName="amount" />
           </label>
 
@@ -292,9 +292,16 @@
             <span>ציוד (רכוש קבוע)</span>
           </label>
 
+          <!-- Auto-filled from valueDate per the business's VAT cadence
+               (see wireDatePeriodSync in the .ts); editable so a period
+               outside the offered list can be typed free-text in the same
+               "1-2/2025" format — picking/typing a period here also pushes
+               valueDate to that period's last day, unless valueDate was the
+               field that drove the last change (guarded by the `syncing`
+               flag in wireDatePeriodSync). -->
           <app-input-select *ngIf="!isExemptCard(card)" [parentForm]="card" [controlName]="'vatReportingPeriod'"
             [labelText]="'תקופת דיווח למע&quot;מ' + (isVatReportingPeriodRequired(card) ? ' *' : '')"
-            [items]="vatPeriodOptions()" [placeholder]="'בחר תקופה'">
+            [items]="vatPeriodOptions()" [placeholder]="'בחר או הקלד תקופה, לדוגמה 1-2/2025'" [editable]="true">
           </app-input-select>
         </div>
       </div>
@@ -303,8 +310,9 @@
 
       <!-- Footer -->
       <div class="je-footer">
-        <p-button label="ביטול" styleClass="je-footer-btn" (click)="closeJournalEntryModal()"></p-button>
-        <p-button label="אישור" styleClass="je-footer-btn" [disabled]="!hasValidEntries" (click)="saveJournalEntry()"></p-button>
+        <p-button label="ביטול" styleClass="je-footer-btn" [disabled]="isSavingJournalEntry()" (click)="closeJournalEntryModal()"></p-button>
+        <p-button label="אישור" styleClass="je-footer-btn" [disabled]="!hasValidEntries || isSavingJournalEntry()"
+          [loading]="isSavingJournalEntry()" (click)="saveJournalEntry()"></p-button>
       </div>
 
     </div>

@@ -54,6 +54,22 @@ p.block-title {
   }
 }
 
+// Row of header action buttons ("+ חבר חשבון נוסף" / "הארכיון שלי"), first
+// child sits at the visual right (RTL flex row starts at the inline-start,
+// i.e. the right edge), later children flow to its left.
+.user-info-buttons {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 10px;
+
+  // Narrower than the shared .between (175px) size class — these two labels
+  // don't need that much room and the pair reads better slightly tighter.
+  ::ng-deep .p-button.between {
+    width: 150px;
+  }
+}
+
 .last-login {
   font-size: 14px;
   color: #808080;

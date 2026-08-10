@@ -24,7 +24,7 @@ export class BookKeepingPage implements OnInit, OnDestroy {
     { label: 'הוצאות', icon: 'pi pi-arrow-down', routerLink: 'expenses' },
     { label: 'לקוחות', icon: 'pi pi-users', routerLink: 'clients' },
     { label: 'ספקים', icon: 'pi pi-building', routerLink: 'suppliers' },
-    { label: 'ארכיון מסמכים', icon: 'pi pi-folder-open', routerLink: 'archived-documents' },
+    { label: 'הארכיון שלי', icon: 'pi pi-folder-open', routerLink: 'archived-documents' },
   ];
 
   readonly items = computed<MenuItem[]>(() => {

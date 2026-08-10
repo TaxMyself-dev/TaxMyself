@@ -1,14 +1,14 @@
 import { forwardRef, Inject, Injectable, HttpException, HttpStatus, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import axios, { AxiosInstance } from 'axios';
-import { EntityManager, Repository, In, Not } from 'typeorm';
+import { EntityManager, Repository, In, Not, IsNull } from 'typeorm';
 import { SettingDocuments } from './settingDocuments.entity';
 import { Documents } from './documents.entity';
 import { DocLines } from './doc-lines.entity';
 import { JournalEntry } from 'src/bookkeeping/jouranl-entry.entity';
 import { JournalLine } from 'src/bookkeeping/jouranl-line.entity';
 import { BookingAccount } from 'src/bookkeeping/account.entity'
-import { DocumentType, DocumentStatusType, DocumentKind, JournalReferenceType, PaymentMethodType, VatOptions, Currency, UnitOfMeasure, CardCompany, CreditTransactionType, BusinessType, isExemptBusinessType, ExpenseApprovalStatus, DocumentArchiveStatus } from 'src/enum';
+import { DocumentType, DocumentStatusType, DocumentKind, JournalReferenceType, PaymentMethodType, VatOptions, Currency, UnitOfMeasure, CardCompany, CreditTransactionType, BusinessType, isExemptBusinessType, ExpenseApprovalStatus, DocumentArchiveStatus, RecordSource, ArchiveItemStatus } from 'src/enum';
 import { Business } from 'src/business/business.entity';
 import { SharedService } from 'src/shared/shared.service';
 import { FxRateService } from 'src/shared/fx-rate.service';
@@ -3593,18 +3593,20 @@ ${finalOwnerName}`;
   }
 
   /**
-   * All rows for this user+business, for the ארכיון מסמכים tab. PAIRED rows
-   * (secondary half of an invoice<->receipt pair) are excluded — they're
-   * intentionally hidden everywhere, same as the review modal. Previously
-   * this only returned `status = archived` rows, which meant the tab showed
-   * nothing for the overwhelming majority of real businesses (documents
-   * mostly end up APPROVED or PENDING_REVIEW, rarely explicitly archived) —
-   * broadened so every document is visible, distinguished by `archiveStatus`.
+   * All rows for this user+business, for the ארכיון שלי (unified archive)
+   * page: every uploaded document (ExtractedDocument) PLUS every Expense
+   * with no underlying source document — bank/card transactions classified
+   * as an expense (ReportReviewService.approveTxNoDoc, source=OPEN_BANKING)
+   * and plain manual entries (ExpensesController's add-expense, no
+   * transaction either, source=MANUAL). Document-derived expenses are NOT
+   * duplicated here — they already surface via their ExtractedDocument row,
+   * keyed by `confirmedExpenseId`. PAIRED document rows (secondary half of
+   * an invoice<->receipt pair) are excluded, same as the review modal.
    */
   async getArchivedForUser(
     firebaseId: string,
     businessNumber: string,
-  ): Promise<Array<ExtractedDocument & { archiveStatus: DocumentArchiveStatus }>> {
+  ): Promise<ArchivedItem[]> {
     const user = await this.userRepo.findOne({ where: { firebaseId } });
     if (!user) throw new NotFoundException(`User not found for firebaseId`);
 
@@ -3620,15 +3622,51 @@ ${finalOwnerName}`;
     const expenseIds = Array.from(
       new Set(docs.map(d => d.confirmedExpenseId).filter((id): id is number => id != null)),
     );
-    const expenses = expenseIds.length
+    const linkedExpenses = expenseIds.length
       ? await this.expenseRepo.find({ where: { id: In(expenseIds) }, select: ['id', 'approvalStatus'] })
       : [];
-    const approvalStatusByExpenseId = new Map(expenses.map(e => [e.id, e.approvalStatus]));
+    const approvalStatusByExpenseId = new Map(linkedExpenses.map(e => [e.id, e.approvalStatus]));
 
-    return docs.map(d => ({
-      ...d,
-      archiveStatus: this.deriveArchiveStatus(d, approvalStatusByExpenseId),
+    const docItems: ArchivedItem[] = docs.map(d => ({
+      id: d.id,
+      itemType: 'DOCUMENT',
+      documentType: d.documentType,
+      name: d.supplier || d.driveFileName,
+      uploadDate: d.uploadDate ?? (d.date ? new Date(d.date) : null),
+      source: d.source,
+      status: this.simplifyDocStatus(this.deriveArchiveStatus(d, approvalStatusByExpenseId)),
+      driveFileId: d.driveFileId,
     }));
+
+    // Every Expense not backed by a source document: bank/card transactions
+    // classified as an expense (approveTxNoDoc, source=OPEN_BANKING) AND
+    // plain manual entries (source=MANUAL, no transaction either) — both are
+    // "the ידני / בנקאות פתוחה" rows the archive's מקור העלאה filter offers.
+    const nonDocExpenses = await this.expenseRepo.find({
+      where: {
+        userId: firebaseId,
+        businessNumber,
+        sourceDocumentId: IsNull(),
+      },
+      order: { date: 'DESC', id: 'DESC' },
+    });
+
+    const txItems: ArchivedItem[] = nonDocExpenses.map(e => ({
+      id: e.id,
+      itemType: 'EXPENSE',
+      documentType: null,
+      name: e.supplier,
+      uploadDate: e.loadingDate,
+      source: e.source ?? (e.externalTransactionId ? RecordSource.OPEN_BANKING : RecordSource.MANUAL),
+      status: this.simplifyExpenseStatus(e.approvalStatus),
+      driveFileId: null,
+    }));
+
+    return [...docItems, ...txItems].sort((a, b) => {
+      const at = a.uploadDate ? new Date(a.uploadDate).getTime() : 0;
+      const bt = b.uploadDate ? new Date(b.uploadDate).getTime() : 0;
+      return bt - at;
+    });
   }
 
   /**
@@ -3648,4 +3686,38 @@ ${finalOwnerName}`;
     return DocumentArchiveStatus.IN_PROGRESS;
   }
 
+  /** Folds the 4-state DocumentArchiveStatus into the archive page's 3-state vocabulary. */
+  private simplifyDocStatus(archiveStatus: DocumentArchiveStatus): ArchiveItemStatus {
+    if (archiveStatus === DocumentArchiveStatus.REJECTED) return ArchiveItemStatus.REJECTED;
+    if (
+      archiveStatus === DocumentArchiveStatus.APPROVED_EXPENSE
+      || archiveStatus === DocumentArchiveStatus.FILED_ANNUAL
+    ) return ArchiveItemStatus.APPROVED;
+    return ArchiveItemStatus.PENDING;
+  }
+
+  /** Folds ExpenseApprovalStatus into the archive page's 3-state vocabulary. */
+  private simplifyExpenseStatus(status: ExpenseApprovalStatus | null): ArchiveItemStatus {
+    if (status === ExpenseApprovalStatus.REJECTED || status === ExpenseApprovalStatus.NOT_AN_EXPENSE) {
+      return ArchiveItemStatus.REJECTED;
+    }
+    if (status === ExpenseApprovalStatus.APPROVED) return ArchiveItemStatus.APPROVED;
+    return ArchiveItemStatus.PENDING;
+  }
+
+}
+
+/** A row on the ארכיון שלי (unified archive) page — `GET /documents/me/archived`. */
+export interface ArchivedItem {
+  /** ExtractedDocument.id (DOCUMENT rows) or Expense.id (EXPENSE rows) — not
+   *  globally unique across the two, disambiguate with `itemType`. */
+  id: number;
+  itemType: 'DOCUMENT' | 'EXPENSE';
+  /** ExtractedDocumentType value, or null for a transaction with no document. */
+  documentType: string | null;
+  name: string;
+  uploadDate: Date | string | null;
+  source: RecordSource;
+  status: ArchiveItemStatus;
+  driveFileId: string | null;
 }

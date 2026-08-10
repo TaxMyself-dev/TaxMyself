@@ -1216,6 +1216,10 @@ export class MyAccountPage implements OnInit {
 
   }
 
+  goToArchive(): void {
+    this.router.navigate(['/book-keeping/archived-documents']);
+  }
+
   connectToOpenBanking(): void {
     const result = this.accessHandlerService.handleFeatureAccess(AppFeature.OPEN_BANKING_CONNECT);
     if (!result.allowed) return;

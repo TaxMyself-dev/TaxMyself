@@ -6,7 +6,7 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { DocumentKind, ReportPeriodLabel } from 'src/enum';
+import { DocumentKind, ReportPeriodLabel, RecordSource } from 'src/enum';
 
 export enum ExtractedDocStatus {
   /** OCR succeeded, awaiting user review in the report-page modal. */
@@ -250,6 +250,13 @@ export class ExtractedDocument {
   // did this invoice land in my inbox".
   @Column({ name: 'upload_date', type: 'datetime', nullable: true })
   uploadDate: Date | null;
+
+  // Every ExtractedDocument today is produced by the Drive inbox OCR
+  // pipeline (see documents.service.ts's 4 insert sites), hence the DRIVE
+  // default — no ALTER needed if/when a non-Drive ingestion path (e.g.
+  // WhatsApp) is added, since new rows would just set a different value.
+  @Column({ type: 'varchar', length: 20, default: RecordSource.DRIVE })
+  source: RecordSource;
 
   @Column({ name: 'raw_response', type: 'text', nullable: true })
   rawResponse: string | null;

@@ -164,9 +164,12 @@ export class BookkeepingService {
    * applicable, plus an automatic bank (1100) counter line — same overall
    * shape as buildExpenseJournalLines/buildDocumentJournalLines, so a manual
    * entry moves the bank balance exactly like a normal expense/income
-   * posting does. `amount` is the GROSS total (matches Expense.sum's
-   * convention); net/vatAmount are derived from it using the effective VAT
-   * rate: net = total / (1 + vatRate × (vatPercent / 100)); vatAmount = total − net.
+   * posting does. For expense/income_exempt lines, `amount` is the GROSS
+   * total (matches Expense.sum's convention); net/vatAmount are derived from
+   * it using the effective VAT rate: net = total / (1 + vatRate ×
+   * (vatPercent / 100)); vatAmount = total − net. For income (VAT-liable)
+   * lines, `amount` is instead the NET pre-VAT total (the manual-entry form
+   * labels the field accordingly) — vatAmount = net × vatRate, added on top.
    * Each dto line becomes 1 or 2 JournalLineInput rows:
    *   - line 1: the P&L account, net of VAT (matches every other P&L line —
    *     VAT is never mixed into it). income/income_exempt always post to
@@ -266,10 +269,21 @@ export class BookkeepingService {
       // (default 100) for expense.
       const taxPercent = isExpense ? Number(line.taxPercent ?? 100) : 100;
 
-      // total is GROSS — derive net/vatAmount from it (same math the Expense
-      // entity itself uses, expenses.service.ts:135).
-      const net = Number((total / (1 + vatRate * (vatPercent / 100))).toFixed(2));
-      const vatAmount = Number((total - net).toFixed(2));
+      // For expense/income_exempt, `total` is GROSS — derive net/vatAmount
+      // from it (same math the Expense entity itself uses,
+      // expenses.service.ts:135). For income (VAT-liable), the manual-entry
+      // form labels the field "סה"כ לפני מע"מ" — the user enters the NET
+      // pre-VAT total directly, and VAT is added on top rather than
+      // extracted from a gross figure.
+      let net: number;
+      let vatAmount: number;
+      if (!isExpense && !isExempt) {
+        net = total;
+        vatAmount = Number((net * vatRate).toFixed(2));
+      } else {
+        net = Number((total / (1 + vatRate * (vatPercent / 100))).toFixed(2));
+        vatAmount = Number((total - net).toFixed(2));
+      }
       const amountForTax = Number((net * taxPercent / 100).toFixed(2));
       const isEquipment = isExpense ? !!line.isEquipment : false;
 

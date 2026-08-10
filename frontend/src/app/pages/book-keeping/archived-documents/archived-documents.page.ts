@@ -1,21 +1,47 @@
 import { Component, OnInit, TemplateRef, computed, signal, inject, viewChild } from '@angular/core';
 import { of } from 'rxjs';
-import { catchError, finalize, map } from 'rxjs/operators';
-import { DriveDocsService, DocumentArchiveStatus } from 'src/app/services/drive-docs.service';
+import { catchError, finalize } from 'rxjs/operators';
+import { DriveDocsService, ArchivedItem, RecordSource, ArchiveItemStatus } from 'src/app/services/drive-docs.service';
 import { GenericService } from 'src/app/services/generic.service';
-import { IColumnDataTable, IMobileCardConfig, IRowDataTable, ITableRowAction, IUserData } from 'src/app/shared/interface';
+import { IColumnDataTable, IMobileCardConfig, IRowDataTable, ITableRowAction, IUserData, ISelectItem } from 'src/app/shared/interface';
 import { BusinessStatus, FormTypes } from 'src/app/shared/enums';
 import { AuthService } from 'src/app/services/auth.service';
 import { FilterField } from 'src/app/components/filter-tab/filter-fields-model.component';
 import { FormBuilder, FormGroup } from '@angular/forms';
 
-/** Hebrew labels for `DocumentArchiveStatus` (see backend `src/enum.ts`). */
-export const ARCHIVE_STATUS_LABELS: Record<DocumentArchiveStatus, string> = {
-  IN_PROGRESS: 'בטיפול',
-  APPROVED_EXPENSE: 'אושר כהוצאה',
-  FILED_ANNUAL: 'סווג לדוח שנתי',
+/** Hebrew labels for `ArchiveItemStatus` (see backend `src/enum.ts`). */
+export const ARCHIVE_STATUS_LABELS: Record<ArchiveItemStatus, string> = {
+  PENDING: 'ממתין לאישור',
+  APPROVED: 'אושר',
   REJECTED: 'נדחה',
 };
+
+/** Hebrew labels for `RecordSource` (see backend `src/enum.ts`). */
+export const RECORD_SOURCE_LABELS: Record<RecordSource, string> = {
+  DRIVE: 'דרייב',
+  MANUAL: 'ידני',
+  OPEN_BANKING: 'בנקאות פתוחה',
+  WHATSAPP: 'ווטסאפ',
+};
+
+/** Hebrew labels for `ExtractedDocumentType` (see backend `extracted-document.entity.ts`). */
+export const DOCUMENT_TYPE_LABELS: Record<string, string> = {
+  invoice: 'חשבונית',
+  receipt: 'קבלה',
+  tax_invoice_receipt: 'חשבונית מס קבלה',
+  credit_invoice: 'חשבונית זיכוי',
+  invoice_receipt_pair: 'חשבונית + קבלה',
+  form_106: 'טופס 106',
+  tax_form: 'אישור מס',
+  contract: 'חוזה',
+  unknown: 'לא ידוע',
+};
+
+/** Synthetic "document type" for EXPENSE rows — an expense with no underlying
+ *  document (manual entry or a classified bank/card transaction; which one
+ *  is already distinguished by the מקור העלאה column, not this one). */
+const TRANSACTION_TYPE_VALUE = 'NO_DOCUMENT';
+const TRANSACTION_TYPE_LABEL = 'הוצאה';
 
 @Component({
   selector: 'app-archived-documents',
@@ -46,44 +72,74 @@ export class ArchivedDocumentsPage implements OnInit {
   businessOptions = this.gs.businessSelectItems();
 
   isLoadingDataTable = signal<boolean>(false);
-  myArchivedDocs: any;
+  rawItems = signal<ArchivedItem[]>([]);
+  selectedStatus = signal<string>('');
+  selectedDocumentType = signal<string>('');
   fileActions = signal<ITableRowAction[]>([]);
 
   readonly archiveStatusLabels = ARCHIVE_STATUS_LABELS;
+  readonly recordSourceLabels = RECORD_SOURCE_LABELS;
 
   // Angular 19 signal-based view query — the status badge cell needs a
   // TemplateRef, which only exists after the view is initialized, so the
   // column list below is a computed() that re-derives once it resolves.
-  // Mobile cards don't support cellTemplate (see MobileRowCardComponent),
-  // so `archiveStatus` is hidden there rather than rendered as raw text.
   private readonly statusTpl = viewChild<TemplateRef<any>>('statusTpl');
 
   // ===========================
   // Table config
   // ===========================
   mobileCardConfig: IMobileCardConfig = {
-    primaryFields: ['supplier'],
-    highlightedField: 'amount',
-    dateField: 'date',
-    hiddenFields: ['id', 'driveFileId', 'archiveStatus'],
+    primaryFields: ['name'],
+    highlightedField: 'sourceLabel',
+    dateField: 'uploadDate',
+    hiddenFields: ['id', 'driveFileId', 'itemType', 'status', 'documentType'],
     highlightedValueFormat: 'plain'
   };
 
   readonly archivedDocsTableFields = computed<IColumnDataTable<string, string>[]>(() => [
-    { name: 'archiveStatus', value: 'סטטוס', cellTemplate: this.statusTpl() },
-    { name: 'supplier', value: 'ספק', type: FormTypes.TEXT },
-    { name: 'date', value: 'תאריך', type: FormTypes.DATE },
-    { name: 'invoiceNumber', value: 'מספר חשבונית', type: FormTypes.TEXT },
-    { name: 'amount', value: 'סכום', type: FormTypes.TEXT },
-    { name: 'category', value: 'קטגוריה', type: FormTypes.TEXT },
-    { name: 'subCategory', value: 'תת קטגוריה', type: FormTypes.TEXT },
+    { name: 'name', value: 'שם המסמך / תנועה', type: FormTypes.TEXT },
+    { name: 'documentTypeLabel', value: 'סוג מסמך', type: FormTypes.TEXT },
+    { name: 'status', value: 'סטטוס', cellTemplate: this.statusTpl() },
+    { name: 'uploadDate', value: 'תאריך העלאה', type: FormTypes.DATE },
+    { name: 'sourceLabel', value: 'מקור העלאה', type: FormTypes.TEXT },
   ]);
+
+  // Client-side filter over the fully-fetched per-business row set — mirrors
+  // the small dataset size this page has always worked with (no pagination).
+  readonly filteredItems = computed(() => {
+    const status = this.selectedStatus();
+    const docType = this.selectedDocumentType();
+    return this.rawItems()
+      .filter(item => !status || item.status === status)
+      .filter(item => !docType || (item.documentType ?? TRANSACTION_TYPE_VALUE) === docType)
+      .map(item => ({
+        ...item,
+        documentTypeLabel: item.documentType
+          ? (DOCUMENT_TYPE_LABELS[item.documentType] ?? item.documentType)
+          : TRANSACTION_TYPE_LABEL,
+        sourceLabel: this.recordSourceLabels[item.source] ?? item.source,
+        uploadDate: item.uploadDate ? item.uploadDate.slice(0, 10) : '-',
+      }));
+  });
 
   // ===========================
   // Filter config (used by FilterTab)
   // ===========================
   form: FormGroup = this.fb.group({});
   filterConfig: FilterField[] = [];
+
+  private readonly statusOptions: ISelectItem[] = [
+    { name: 'הכל', value: '' },
+    { name: ARCHIVE_STATUS_LABELS.APPROVED, value: 'APPROVED' },
+    { name: ARCHIVE_STATUS_LABELS.REJECTED, value: 'REJECTED' },
+    { name: ARCHIVE_STATUS_LABELS.PENDING, value: 'PENDING' },
+  ];
+
+  private readonly documentTypeOptions: ISelectItem[] = [
+    { name: 'הכל', value: '' },
+    ...Object.entries(DOCUMENT_TYPE_LABELS).map(([value, name]) => ({ name, value })),
+    { name: TRANSACTION_TYPE_LABEL, value: TRANSACTION_TYPE_VALUE },
+  ];
 
   // ===========================
   // Init
@@ -99,6 +155,8 @@ export class ArchivedDocumentsPage implements OnInit {
 
     this.form = this.fb.group({
       businessNumber: [this.selectedBusinessNumber()],
+      status: [''],
+      documentType: [''],
     });
 
     this.form.get('businessNumber')?.valueChanges.subscribe(businessNumber => {
@@ -111,64 +169,75 @@ export class ArchivedDocumentsPage implements OnInit {
       this.selectedBusinessNumber.set(business?.businessNumber ?? '');
       this.selectedBusinessName.set(business?.businessName ?? '');
 
-      this.fetchArchivedDocs(this.selectedBusinessNumber());
+      this.fetchArchivedItems(this.selectedBusinessNumber());
     });
 
+    this.form.get('status')?.valueChanges.subscribe(value => this.selectedStatus.set(value ?? ''));
+    this.form.get('documentType')?.valueChanges.subscribe(value => this.selectedDocumentType.set(value ?? ''));
+
     this.filterConfig = [
-      {
-        type: 'select',
+      ...(this.businessOptions.length > 1 ? [{
+        type: 'select' as const,
         controlName: 'businessNumber',
         label: 'בחר עסק',
         required: true,
         options: this.businessOptions,
-        defaultValue: this.selectedBusinessNumber()
+        defaultValue: this.selectedBusinessNumber(),
+      }] : []),
+      {
+        type: 'select',
+        controlName: 'status',
+        label: 'סטטוס',
+        options: this.statusOptions,
+        defaultValue: '',
+      },
+      {
+        type: 'select',
+        controlName: 'documentType',
+        label: 'סוג מסמך',
+        options: this.documentTypeOptions,
+        defaultValue: '',
       },
     ];
 
-    this.fetchArchivedDocs(this.selectedBusinessNumber());
+    this.fetchArchivedItems(this.selectedBusinessNumber());
   }
 
   // ===========================
   // Handle filter submit
   // ===========================
   onSubmit(formValues: any): void {
-    this.selectedBusinessNumber.set(formValues.businessNumber);
-
-    const business = this.gs.businesses().find(
-      b => b.businessNumber === formValues.businessNumber
-    );
-
-    if (business) {
-      this.selectedBusinessName.set(business.businessName);
+    if (formValues.businessNumber && formValues.businessNumber !== this.selectedBusinessNumber()) {
+      const business = this.gs.businesses().find(
+        b => b.businessNumber === formValues.businessNumber
+      );
+      this.selectedBusinessNumber.set(formValues.businessNumber);
+      if (business) {
+        this.selectedBusinessName.set(business.businessName);
+      }
+      this.fetchArchivedItems(this.selectedBusinessNumber());
     }
 
-    this.fetchArchivedDocs(this.selectedBusinessNumber());
+    this.selectedStatus.set(formValues.status ?? '');
+    this.selectedDocumentType.set(formValues.documentType ?? '');
   }
 
   // ===========================
-  // Fetch archived documents from server
+  // Fetch archived items from server
   // ===========================
-  fetchArchivedDocs(businessNumber: string): void {
+  fetchArchivedItems(businessNumber: string): void {
     this.isLoadingDataTable.set(true);
 
-    this.myArchivedDocs = this.driveDocsService
-      .getArchivedDocuments(businessNumber)
+    this.driveDocsService
+      .getArchivedItems(businessNumber)
       .pipe(
-        map((docs) => docs.map((doc) => ({
-          ...doc,
-          supplier: doc.supplier || '-',
-          date: doc.date || '-',
-          invoiceNumber: doc.invoiceNumber || '-',
-          amount: doc.amount != null ? `${doc.amount} ${doc.currency || '₪'}` : '-',
-          category: doc.category || '-',
-          subCategory: doc.subCategory || '-',
-        }))),
         catchError(err => {
-          console.error("Error fetching archived documents:", err);
+          console.error("Error fetching archived items:", err);
           return of([]);
         }),
         finalize(() => this.isLoadingDataTable.set(false))
-      );
+      )
+      .subscribe(items => this.rawItems.set(items));
   }
 
   private setFileActions(): void {
@@ -178,6 +247,7 @@ export class ArchivedDocumentsPage implements OnInit {
         icon: 'pi pi-eye',
         title: 'הצג קובץ',
         alwaysShow: true,
+        showWhen: (row: IRowDataTable) => !!(row as any).driveFileId,
         action: (event: any, row: IRowDataTable) => {
           this.onPreviewClicked(row);
         }

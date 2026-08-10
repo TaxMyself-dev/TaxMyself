@@ -1,4 +1,4 @@
-import { SingleMonthReport, DualMonthReport, ExpenseReportScope, ExpenseApprovalStatus } from 'src/enum';
+import { SingleMonthReport, DualMonthReport, ExpenseReportScope, ExpenseApprovalStatus, RecordSource } from 'src/enum';
 import {
   Entity,
   Column,
@@ -233,5 +233,16 @@ export class Expense {
 
   @Column({ type: 'datetime', nullable: true, default: null })
   classificationOverrideAt: Date | null;
+
+  /**
+   * Where this Expense was created from — powers the ארכיון שלי "מקור
+   * העלאה" column. Set by ExpensesService.addExpense: DRIVE when created
+   * from a reviewed ExtractedDocument (doc-cash or matched approve paths),
+   * OPEN_BANKING when created from a bank/card transaction with no document
+   * (approveTxNoDoc), MANUAL otherwise (manual add, demo-data). Nullable:
+   * legacy rows predate this column.
+   */
+  @Column({ type: 'varchar', length: 20, nullable: true, default: null })
+  source: RecordSource | null;
 
 }

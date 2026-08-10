@@ -45,7 +45,7 @@
     }
 
     <p-select [group]="group()" [ariaLabel]="ariaLabel()" [formControlName]="controlName()"
-      [options]="items()" optionValue="value" optionLabel="name"
+      [options]="items()" optionValue="value" optionLabel="name" [editable]="editable()"
       [placeholder]="labelText() ? placeholder() : placeholder() + (isRequired ? ' *' : '')" [filter]="filter()"
       [virtualScroll]="virtualScroll()" [disabled]="disabled()" [styleClass]="inputClasses()"
       (onChange)="onChange($event)" [virtualScroll]="virtualScroll()" [virtualScrollItemSize]="virtualScrollItemSize()"

@@ -389,6 +389,34 @@ export enum DocumentArchiveStatus {
   REJECTED = 'REJECTED',
 }
 
+/**
+ * Where an `ExtractedDocument` or `Expense` row originated from — powers the
+ * "מקור העלאה" column on the ארכיון שלי (unified archive) page. Every
+ * `ExtractedDocument` today comes from the Drive inbox pipeline, so it
+ * defaults to DRIVE; `Expense.source` is set in `ExpensesService.addExpense`
+ * (DRIVE when created from a reviewed document, OPEN_BANKING when created
+ * from a bank/card transaction, MANUAL otherwise). WHATSAPP has no producer
+ * yet — reserved for a future ingestion path.
+ */
+export enum RecordSource {
+  DRIVE = 'DRIVE',
+  MANUAL = 'MANUAL',
+  OPEN_BANKING = 'OPEN_BANKING',
+  WHATSAPP = 'WHATSAPP',
+}
+
+/**
+ * Simplified 3-state status shown on the ארכיון שלי page, folding together
+ * ExtractedDocStatus/DocumentArchiveStatus (document rows) and
+ * ExpenseApprovalStatus (transaction-derived expense rows with no document)
+ * into one display vocabulary: אושר / נדחה / ממתין לאישור.
+ */
+export enum ArchiveItemStatus {
+  PENDING = 'PENDING',
+  APPROVED = 'APPROVED',
+  REJECTED = 'REJECTED',
+}
+
 
 // ************ Uniform file ************ //
 

@@ -1493,11 +1493,12 @@ export class ReportReviewPage implements OnInit {
   /** Hover-reveal row actions (matches the rest of the app's row-actions
    *  pattern — GenericTableComponent's floating strip, sliding in from the
    *  left on row hover) — replaces the old always-visible inline icon
-   *  column entirely. Annual-document rows get none of these (preview
-   *  included) — per explicit request, nothing "annual report"-related is
-   *  surfaced here; the D8 file/re-kind triage actions that used to live
-   *  inline are dropped from this page entirely, not just hidden for
-   *  annual rows. */
+   *  column entirely. Annual-document rows still get preview/archive/
+   *  delete (fixed 2026-08-09 — hiding every action left the user unable
+   *  to reject a misclassified row or even see the file it points at);
+   *  only "edit" (there's no classification to edit) and the D8 file/
+   *  re-kind triage actions (dropped from this page entirely, not just
+   *  hidden for annual rows) stay off annual rows. */
   readonly reviewRowActions: ITableRowAction[] = [
     {
       name: 'edit',
@@ -1513,10 +1514,10 @@ export class ReportReviewPage implements OnInit {
     {
       name: 'preview',
       icon: 'pi pi-eye',
-      title: 'צפה במסמך לצד הטבלה',
+      title: 'צפה במסמך',
       showWhen: (row) => {
         const r = row as unknown as EditableReviewRow;
-        return !r.isDetailRow && !!r.driveFileId && !this.isAnnualRow(r);
+        return !r.isDetailRow && !!r.driveFileId;
       },
       action: (_event, row) => this.openPreview(row as unknown as EditableReviewRow),
     },
@@ -1567,7 +1568,7 @@ export class ReportReviewPage implements OnInit {
       // though they're functionally identical for a tx_only row).
       showWhen: (row) => {
         const r = row as unknown as EditableReviewRow;
-        return !r.isDetailRow && !this.isAnnualRow(r);
+        return !r.isDetailRow;
       },
       action: (_event, row) => {
         const r = row as unknown as EditableReviewRow;
@@ -1582,7 +1583,7 @@ export class ReportReviewPage implements OnInit {
       isLoading: () => this.isActioning(),
       showWhen: (row) => {
         const r = row as unknown as EditableReviewRow;
-        return !r.isDetailRow && !this.isAnnualRow(r);
+        return !r.isDetailRow;
       },
       action: (_event, row) => {
         const r = row as unknown as EditableReviewRow;

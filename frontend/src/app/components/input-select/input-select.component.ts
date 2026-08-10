@@ -32,6 +32,9 @@ export class InputSelectComponent implements OnInit {
   customStyle = input<string>("");
   icon = input<string>("pi pi-sort-down-fill");
   filter = input<boolean>(true);
+  /** Lets the user type a value that isn't in `items` — the typed text
+   *  becomes the control's value directly (PrimeNG p-select "editable"). */
+  editable = input<boolean>(false);
   multiSelect = input<boolean>(false);
   isSubCategory = input<boolean>(false);
   disabled = input<boolean>(false);

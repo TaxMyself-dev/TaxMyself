@@ -39,8 +39,7 @@
   white-space: nowrap;
   line-height: 1.6;
 
-  &--IN_PROGRESS     { background: #fef3c7; color: #b45309; }
-  &--APPROVED_EXPENSE { background: #dcfce7; color: #15803d; }
-  &--FILED_ANNUAL    { background: #ede9fe; color: #6d28d9; }
-  &--REJECTED        { background: #fee2e2; color: #b91c1c; }
+  &--PENDING  { background: #fef3c7; color: #b45309; }
+  &--APPROVED { background: #dcfce7; color: #15803d; }
+  &--REJECTED { background: #fee2e2; color: #b91c1c; }
 }

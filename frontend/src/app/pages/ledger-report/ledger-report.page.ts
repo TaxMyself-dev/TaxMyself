@@ -3,11 +3,12 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormArray, FormBuilder, FormGroup } from '@angular/forms';
 import { catchError, EMPTY, finalize } from 'rxjs';
 import { Workbook } from 'exceljs';
+import { MessageService } from 'primeng/api';
 import { GenericService } from 'src/app/services/generic.service';
 import { AuthService } from 'src/app/services/auth.service';
-import { BusinessStatus, ReportingPeriodType } from 'src/app/shared/enums';
+import { BusinessStatus, isExemptBusinessType, ReportingPeriodType, VATReportingType } from 'src/app/shared/enums';
 import { FilterField } from 'src/app/components/filter-tab/filter-fields-model.component';
-import { ISelectItem, IUserData } from 'src/app/shared/interface';
+import { Business, ISelectItem, IUserData } from 'src/app/shared/interface';
 import {
   ICreateManualJournalEntryPayload,
   IJournalEntryDetail,
@@ -30,6 +31,7 @@ export class LedgerReportPage implements OnInit {
   private gs = inject(GenericService);
   private fb = inject(FormBuilder);
   private destroyRef = inject(DestroyRef);
+  private messageService = inject(MessageService);
 
   // Business related
   businessNumber = signal<string>("");
@@ -545,6 +547,9 @@ export class LedgerReportPage implements OnInit {
   vatPeriodOptions = signal<ISelectItem[]>([]);
 
   showJournalEntryModal = false;
+  /** Drives the "אישור" button's inline spinner while a save is in flight —
+   *  replaces the old full-page loader for this specific action. */
+  isSavingJournalEntry = signal(false);
   manualEntriesForm: FormArray<FormGroup> = this.fb.array([this.buildEntryCardGroup()]);
 
   get entryCards(): FormGroup[] {
@@ -552,7 +557,7 @@ export class LedgerReportPage implements OnInit {
   }
 
   private buildEntryCardGroup(): FormGroup {
-    return this.fb.group({
+    const group = this.fb.group({
       entryKind: ['expense' as ManualJournalEntryKind],
       valueDate: [new Date()],
       reference: [''],
@@ -567,6 +572,76 @@ export class LedgerReportPage implements OnInit {
       isEquipment: [false],
       vatReportingPeriod: [null],
       notes: [''],
+    });
+    this.wireDatePeriodSync(group);
+    // Stamp the period matching the default valueDate right away — the
+    // subscriptions below only fire on a subsequent user-driven change.
+    const business = this.currentBusiness();
+    if (business) {
+      group.get('vatReportingPeriod')?.setValue(
+        this.computeReportPeriodLabel(business, group.get('valueDate')!.value as Date),
+        { emitEvent: false },
+      );
+    }
+    return group;
+  }
+
+  private currentBusiness(): Business | undefined {
+    return this.gs.businesses().find((b) => b.businessNumber === this.businessNumber());
+  }
+
+  /** Mirrors the backend's SharedService.buildReportPeriodLabel cadence
+   *  logic (see backend/src/shared/shared.service.ts) so the label picked
+   *  here is exactly what the VAT/P&L reports will bucket the entry into. */
+  private computeReportPeriodLabel(business: Business, date: Date): string {
+    const month = date.getMonth() + 1;
+    const year = date.getFullYear();
+    if (isExemptBusinessType(business.businessType) || business.vatReportingType !== VATReportingType.DUAL_MONTH_REPORT) {
+      return `${month}/${year}`;
+    }
+    const pairStart = month % 2 === 0 ? month - 1 : month;
+    return `${pairStart}-${pairStart + 1}/${year}`;
+  }
+
+  /** Parses "M/YYYY" or "M1-M2/YYYY" into the last calendar day of the
+   *  period (the second month for a bimonthly pair). Returns null for any
+   *  free text that doesn't match — the date field is then left untouched. */
+  private lastDayOfReportPeriod(label: string): Date | null {
+    const match = /^(\d{1,2})(?:-(\d{1,2}))?\/(\d{4})$/.exec(label.trim());
+    if (!match) return null;
+    const endMonth = Number(match[2] ?? match[1]);
+    const year = Number(match[3]);
+    if (endMonth < 1 || endMonth > 12) return null;
+    return new Date(year, endMonth, 0);
+  }
+
+  /** Two-way sync between valueDate and vatReportingPeriod on one entry
+   *  card. Changing the date recomputes the period from the business's VAT
+   *  cadence; changing the period (pick or free-text) pushes valueDate to
+   *  that period's last day. `syncing` guards each direction against
+   *  re-triggering the other (both writes use emitEvent:false too, but the
+   *  flag also covers any future non-setValue-driven valueChanges source). */
+  private wireDatePeriodSync(card: FormGroup): void {
+    let syncing = false;
+
+    card.get('valueDate')?.valueChanges.subscribe((value) => {
+      if (syncing || !value) return;
+      const business = this.currentBusiness();
+      if (!business) return;
+      const date = value instanceof Date ? value : new Date(value);
+      if (Number.isNaN(date.getTime())) return;
+      syncing = true;
+      card.get('vatReportingPeriod')?.setValue(this.computeReportPeriodLabel(business, date), { emitEvent: false });
+      syncing = false;
+    });
+
+    card.get('vatReportingPeriod')?.valueChanges.subscribe((value) => {
+      if (syncing || !value) return;
+      const lastDay = this.lastDayOfReportPeriod(String(value));
+      if (!lastDay) return;
+      syncing = true;
+      card.get('valueDate')?.setValue(lastDay, { emitEvent: false });
+      syncing = false;
     });
   }
 
@@ -641,6 +716,13 @@ export class LedgerReportPage implements OnInit {
 
   isExemptCard(card: FormGroup): boolean {
     return card.get('entryKind')?.value === 'income_exempt';
+  }
+
+  /** VAT-liable income — the only kind where "סכום" is entered NET of VAT
+   *  (backend adds VAT on top, see createManualJournalEntry); expense and
+   *  income_exempt amounts stay GROSS. */
+  isVatLiableIncomeCard(card: FormGroup): boolean {
+    return card.get('entryKind')?.value === 'income';
   }
 
   /** Account options filtered to the card's kind — income cards only offer
@@ -743,18 +825,33 @@ export class LedgerReportPage implements OnInit {
 
     const payloads = this.validCards.map((card) => this.buildPayload(card, businessNumber));
 
-    this.genericService.getLoader().subscribe();
+    // Inline "אישור" button spinner instead of the full-page loader — same
+    // save-confirmation pattern as adding a client (clients-panel.page.ts):
+    // a p-toast success message via MessageService, not a blocking overlay.
+    this.isSavingJournalEntry.set(true);
     this.ledgerReportService.createManualJournalEntries(payloads)
       .pipe(
-        finalize(() => this.genericService.dismissLoader()),
+        finalize(() => this.isSavingJournalEntry.set(false)),
         catchError((err) => {
-          this.genericService.showToast(err?.error?.message || 'שמירת הפקודות נכשלה', 'error');
+          this.messageService.add({
+            severity: 'error',
+            summary: 'שגיאה',
+            detail: err?.error?.message || 'שמירת הפקודות נכשלה',
+            life: 5000,
+            key: 'br',
+          });
           return EMPTY;
         }),
       )
       .subscribe((res) => {
         if (!res) return;
-        this.genericService.showToast('פקודות היומן נשמרו בהצלחה', 'success');
+        this.messageService.add({
+          severity: 'success',
+          summary: 'הצלחה',
+          detail: 'פקודות היומן נשמרו בהצלחה',
+          life: 3000,
+          key: 'br',
+        });
         this.closeJournalEntryModal();
         if (this.isRequestSent()) {
           this.getLedgerReportData(this.startDate(), this.endDate(), this.businessNumber(), this.selectedAccountCode());

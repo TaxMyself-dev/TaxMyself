@@ -40,27 +40,28 @@ export interface SubCategoryCatalogEntry {
   isEquipment: boolean;
 }
 
-/** Derived lifecycle label for a document archive row — see
- *  `DocumentArchiveStatus` in the backend's `src/enum.ts` for the exact
- *  precedence rules (REJECTED > FILED_ANNUAL > APPROVED_EXPENSE > IN_PROGRESS). */
-export type DocumentArchiveStatus = 'IN_PROGRESS' | 'APPROVED_EXPENSE' | 'FILED_ANNUAL' | 'REJECTED';
+/** Where an archive row originated from — see `RecordSource` in the
+ *  backend's `src/enum.ts`. */
+export type RecordSource = 'DRIVE' | 'MANUAL' | 'OPEN_BANKING' | 'WHATSAPP';
 
-/** A row from the document archive tab — `GET /documents/me/archived`. */
-export interface ArchivedDocSummary {
+/** Simplified 3-state status for the ארכיון שלי page — see
+ *  `ArchiveItemStatus` in the backend's `src/enum.ts`. */
+export type ArchiveItemStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
+/** A row on the ארכיון שלי (unified archive) page — `GET /documents/me/archived`.
+ *  DOCUMENT rows come from an uploaded/OCR'd document; EXPENSE rows are a
+ *  bank/card transaction classified as an expense with no underlying
+ *  document. `id` is scoped per `itemType` (an ExtractedDocument.id and an
+ *  Expense.id can collide) — key rows by `${itemType}-${id}`. */
+export interface ArchivedItem {
   id: number;
-  driveFileId: string;
-  driveFileName: string;
-  supplier: string | null;
-  supplierId: string | null;
-  date: string | null;
-  invoiceNumber: string | null;
-  amount: string | null;
-  currency: string | null;
-  category: string | null;
-  subCategory: string | null;
+  itemType: 'DOCUMENT' | 'EXPENSE';
   documentType: string | null;
+  name: string;
   uploadDate: string | null;
-  archiveStatus: DocumentArchiveStatus;
+  source: RecordSource;
+  status: ArchiveItemStatus;
+  driveFileId: string | null;
 }
 
 /** Raw shape of a single invoice returned by the OCR endpoint. Matches
@@ -107,10 +108,10 @@ export class DriveDocsService {
     return this.http.get<SubCategoryCatalogEntry[]>(url, { params });
   }
 
-  getArchivedDocuments(businessNumber: string): Observable<ArchivedDocSummary[]> {
+  getArchivedItems(businessNumber: string): Observable<ArchivedItem[]> {
     const url = `${environment.apiUrl}documents/me/archived`;
     const params = new HttpParams().set('businessNumber', businessNumber);
-    return this.http.get<ArchivedDocSummary[]>(url, { params });
+    return this.http.get<ArchivedItem[]>(url, { params });
   }
 
   /**

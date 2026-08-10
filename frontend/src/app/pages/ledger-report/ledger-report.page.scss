@@ -152,13 +152,18 @@
 
   .je-add-card {
     margin-top: 0.25rem;
-    border: 1px dashed #b9c4d2;
-    background: #f7f9fc;
-    color: #34516e;
+    border: 1px solid #000;
+    background: #000;
+    color: #fff;
     border-radius: 4px;
     padding: 6px 12px;
     cursor: pointer;
     font: inherit;
+
+    &:hover {
+      background: #222;
+      border-color: #222;
+    }
   }
 
   .je-footer {
@@ -166,16 +171,19 @@
     justify-content: flex-end; // visually bottom-LEFT in this RTL dialog
     gap: 0.75rem;
     margin-top: 1.25rem;
+  }
 
-    ::ng-deep .je-footer-btn .p-button {
-      background: #000;
-      border-color: #000;
-      color: #fff;
+  // p-button renders styleClass directly onto its inner <button> alongside
+  // its own "p-button" class (siblings, not nested) — a descendant selector
+  // like ".je-footer-btn .p-button" never matches. Target the button itself.
+  ::ng-deep .je-footer .je-footer-btn {
+    background: #000;
+    border-color: #000;
+    color: #fff;
 
-      &:hover {
-        background: #222;
-        border-color: #222;
-      }
+    &:hover {
+      background: #222;
+      border-color: #222;
     }
   }
 }
