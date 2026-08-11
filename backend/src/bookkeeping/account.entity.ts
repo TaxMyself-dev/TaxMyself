@@ -1,5 +1,5 @@
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, Unique } from 'typeorm';
-import { OwnerType, VisibilityScope, SYSTEM_CHART_OWNER_KEY, RecognitionType, ExpenseReportScope } from 'src/enum';
+import { OwnerType, VisibilityScope, SYSTEM_CHART_OWNER_KEY, RecognitionType, ExpenseReportScope, FormPart } from 'src/enum';
 import { AccountingSection } from './accounting-section.entity';
 
 /**
@@ -23,8 +23,13 @@ export class BookingAccount {
   @Column()
   name: string;
 
-  @Column()
-  type: 'asset' | 'liability' | 'equity' | 'income' | 'expense';
+  /** NULL only on the isActive=false Form 6111 reference cards (2026-08-11
+   *  import) whose 5-way asset/liability/equity/income/expense split isn't
+   *  mechanically derivable from the official form data — same "NULL means
+   *  not yet determined, never invent" convention as code6111/vatPercent.
+   *  Every postable (isActive=true) card must have a real value. */
+  @Column({ nullable: true, default: null })
+  type: 'asset' | 'liability' | 'equity' | 'income' | 'expense' | null;
 
   /** DEAD as of Phase 4.4 — createPnLReportFromJournal now groups by
    *  `section`/`sectionId` (D3); no runtime code reads pnlCategory anymore.
@@ -49,6 +54,11 @@ export class BookingAccount {
    *  NULL = not yet sourced — never invent a value here (D2/1.3). */
   @Column({ nullable: true, default: null })
   code6111: string | null;
+
+  /** Which part of Form 6111 this card is officially classified under
+   *  (A/B/C). NULL = not placed on the form — see FormPart doc comment. */
+  @Column({ type: 'enum', enum: FormPart, nullable: true, default: null })
+  formPart: FormPart | null;
 
   /**
    * The card carries the FULL accounting law (revised D1/D5, 2026-07-10):

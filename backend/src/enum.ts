@@ -274,6 +274,24 @@ export enum ExpenseReportScope {
 }
 
 /**
+ * חלק בטופס 6111 (Israel Tax Authority uniform-classification form) a
+ * `booking_account` officially belongs to. Added 2026-08-11 for the
+ * tax-authority reference-card import — a separate, smaller project from the
+ * categories-redesign master plan (docs/redesign/), not one of its D1-D15
+ * decisions. NULL = not placed on the form (e.g. the 90000-range technical
+ * clearing accounts, or the 61350-61380 personal-deduction cards that feed
+ * the annual report but are not part of 6111 itself) — never invent a value.
+ *   A = רווח והפסד (income/costs/expenses)
+ *   B = התאמה למס (tax reconciliation adjustments)
+ *   C = מאזן (balance sheet)
+ */
+export enum FormPart {
+  A = 'A',
+  B = 'B',
+  C = 'C',
+}
+
+/**
  * Who owns a row of the categories/accounting chart (accounting_section,
  * booking_account, category, sub_category — D4 of the redesign plan).
  * Drives the CLIENT > ACCOUNTANT > SYSTEM merge precedence.

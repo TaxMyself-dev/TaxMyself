@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Between, In, Not, Repository } from 'typeorm';
+import { Between, In, Like, Not, Repository } from 'typeorm';
 import { Expense } from '../expenses/expenses.entity';
 import { VatReportDto } from './dtos/vat-report.dto';
 import { buildVatReportPdf } from './vat-report-pdf';
@@ -942,7 +942,10 @@ export class ReportsService {
    *  agents' ACCOUNTANT charts) — an unscoped read leaked every tenant's
    *  custom card names into everyone's dropdown. Unlike the posting
    *  dropdown, inactive accounts stay listed: they may still carry history
-   *  the user needs to filter to. */
+   *  the user needs to filter to. Excludes the 2026-08-11 Form 6111
+   *  reference-card import (`code LIKE '6111-%'`) — those are isActive=false,
+   *  never posted to, and carry no real `type`; they'd otherwise clutter this
+   *  dropdown with 321 unselectable-in-practice entries. */
   async getLedgerAccounts(
     businessNumber?: string | null,
     firebaseId?: string | null,
@@ -957,11 +960,11 @@ export class ReportsService {
       ...accountantIds.map((id) => `ACCOUNTANT_${id}`),
     ];
     const chart = await this.defaultBookingAccountRepo.find({
-      where: { chartOwnerKey: In(chartOwnerKeys) },
+      where: { chartOwnerKey: In(chartOwnerKeys), code: Not(Like('6111-%')) },
     });
     return chart
       .sort((a, b) => this.compareLedgerAccountCodes(a.code, b.code))
-      .map((a) => ({ code: a.code, name: a.name, type: a.type }));
+      .map((a) => ({ code: a.code, name: a.name, type: a.type ?? '' }));
   }
 
   /** Posting accounts for the MANUAL JOURNAL ENTRY dropdown, grouped by
