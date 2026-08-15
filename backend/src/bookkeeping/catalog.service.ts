@@ -1018,6 +1018,11 @@ export class CatalogService {
     id: number; code: string; name: string; type: string;
     sectionId: number | null; sectionName: string | null;
     code6111: string | null;
+    /** Official Tax Authority Form 6111 category/sub-category names for this
+     *  card's code6111 (2026-08-14) — independent of this app's own `name`/
+     *  section grouping. NULL together with code6111 on cards with no
+     *  official 6111 identity. */
+    category6111: string | null; subCategory6111: string | null;
     vatPercent: number | null; taxPercent: number | null; reductionPercent: number | null;
     isEquipment: boolean | null; recognitionType: RecognitionType | null;
     reportScope: ExpenseReportScope;
@@ -1064,6 +1069,8 @@ export class CatalogService {
       sectionId: r.sectionId,
       sectionName: r.section?.name ?? null,
       code6111: r.code6111,
+      category6111: r.category6111,
+      subCategory6111: r.subCategory6111,
       vatPercent: r.vatPercent != null ? Number(r.vatPercent) : null,
       taxPercent: r.taxPercent != null ? Number(r.taxPercent) : null,
       reductionPercent: r.reductionPercent != null ? Number(r.reductionPercent) : null,

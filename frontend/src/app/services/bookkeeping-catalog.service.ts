@@ -67,6 +67,12 @@ export interface IBookingAccountRow {
   sectionId: number | null;
   sectionName: string | null;
   code6111: string | null;
+  /** Official Tax Authority Form 6111 category/sub-category names for this
+   *  card's code6111 (2026-08-14) — independent of this app's own `name`/
+   *  section grouping. NULL together with code6111 on cards with no
+   *  official 6111 identity. */
+  category6111: string | null;
+  subCategory6111: string | null;
   vatPercent: number | null;
   taxPercent: number | null;
   reductionPercent: number | null;

@@ -55,6 +55,18 @@ export class BookingAccount {
   @Column({ nullable: true, default: null })
   code6111: string | null;
 
+  /** Official Tax Authority category/sub-category names for this card's
+   *  code6111 (2026-08-14) — sourced from tax_authority_6111_full.csv for
+   *  reference rows, and from the accountant's own operational_code6111_map.csv
+   *  for operational rows. Purely display identity, independent of this
+   *  app's own `section`/`name` grouping. NULL together with code6111 on
+   *  every card with no official 6111 identity — never invent a value. */
+  @Column({ nullable: true, default: null })
+  category6111: string | null;
+
+  @Column({ nullable: true, default: null })
+  subCategory6111: string | null;
+
   /** Which part of Form 6111 this card is officially classified under
    *  (A/B/C). NULL = not placed on the form — see FormPart doc comment. */
   @Column({ type: 'enum', enum: FormPart, nullable: true, default: null })

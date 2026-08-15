@@ -150,11 +150,31 @@ async function main() {
   });
 
   // Idempotency short-circuit: already fully imported?
+  //
+  // Row COUNT matching the CSV is necessary but not sufficient — it's
+  // exactly what let a broken earlier run survive undetected (2026-08-13):
+  // an uncommitted pre-fix draft of this script inserted all 321 rows with
+  // formPart=NULL, and every later run of this (correct) version saw
+  // "321 == 321" and reported success without ever looking at the content.
+  // Also verify no existing '6111-%' row has formPart IS NULL before
+  // declaring the import done.
   const [[{ n: existingRefCount }]] = await conn.query(
     `SELECT COUNT(*) n FROM booking_account WHERE chartOwnerKey='SYSTEM' AND code LIKE '6111-%'`,
   );
   if (existingRefCount === rows.length) {
-    console.log(`[6111-import] ${existingRefCount} '6111-%' rows already present, matching CSV row count — already imported, nothing to do.`);
+    const [[{ n: nullFormPartCount }]] = await conn.query(
+      `SELECT COUNT(*) n FROM booking_account WHERE chartOwnerKey='SYSTEM' AND code LIKE '6111-%' AND formPart IS NULL`,
+    );
+    if (nullFormPartCount > 0) {
+      console.error(
+        `\n[6111-import] ❌ ${existingRefCount} '6111-%' rows already present (count matches CSV), but ${nullFormPartCount} of them ` +
+          `have formPart=NULL — content is broken, NOT correctly imported. This script will not auto-repair existing rows; ` +
+          `run 2026-08-13_backfill-formpart-on-reference-rows.js to fix the data, then re-run this check.`,
+      );
+      await conn.end();
+      process.exit(1);
+    }
+    console.log(`[6111-import] ${existingRefCount} '6111-%' rows already present, matching CSV row count, and formPart is populated on all of them — already imported correctly, nothing to do.`);
     const [counts] = await conn.query(
       `SELECT formPart, COUNT(*) as n FROM booking_account WHERE chartOwnerKey='SYSTEM' AND code LIKE '6111-%' GROUP BY formPart`,
     );

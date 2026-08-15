@@ -83,7 +83,16 @@ const SYSTEM_DEFAULTS = {
   ownerType: OwnerType.SYSTEM,
   chartOwnerKey: SYSTEM_CHART_OWNER_KEY,
   isActive: true,
-  code6111: null, // NULL everywhere — see file header. Do not invent values.
+  // code6111 default is null — overridden explicitly per-row below for the
+  // 59 rows the accountant has an authoritative mapping for (2026-08-14,
+  // operational_code6111_map.csv; see
+  // docs/redesign/form-6111-category-backfill-findings.md). The 9 codes
+  // deliberately NOT overridden (60000, 1000, 90200/90300/90500,
+  // 61350-61380) genuinely have no official 6111 identity — stay null.
+  // Since the seeder is now create-only (2026-08-14), this value only ever
+  // applies to a fresh row on an empty DB, never re-forced onto an existing
+  // one — never invent a value here regardless.
+  code6111: null,
   reportScope: ExpenseReportScope.PNL, // overridden explicitly on TECHNICAL/ANNUAL rows below
 } as const;
 
@@ -99,18 +108,18 @@ const NOT_APPLICABLE_LAW = {
 export const CHART_ACCOUNTS: ChartAccountSeed[] = [
   // ── 3a. Balance-sheet / technical — codes unchanged, no section, no law ──
   { code: '1000', legacyCode: '1000', legacySource: 'accountCode', name: 'חשבון מעבר',              type: 'asset',     pnlCategory: null, displayOrder: null, sectionCode: null, ...SYSTEM_DEFAULTS, ...NOT_APPLICABLE_LAW },
-  { code: '1100', legacyCode: '1100', legacySource: 'accountCode', name: 'בנק',                      type: 'asset',     pnlCategory: null, displayOrder: null, sectionCode: null, ...SYSTEM_DEFAULTS, ...NOT_APPLICABLE_LAW },
-  { code: '1110', legacyCode: '1110', legacySource: 'accountCode', name: 'מזומן',                    type: 'asset',     pnlCategory: null, displayOrder: null, sectionCode: null, ...SYSTEM_DEFAULTS, ...NOT_APPLICABLE_LAW },
-  { code: '1120', legacyCode: '1120', legacySource: 'accountCode', name: 'כרטיס אשראי / סליקה',     type: 'asset',     pnlCategory: null, displayOrder: null, sectionCode: null, ...SYSTEM_DEFAULTS, ...NOT_APPLICABLE_LAW },
-  { code: '1200', legacyCode: '1200', legacySource: 'accountCode', name: 'לקוחות כלליים',            type: 'asset',     pnlCategory: null, displayOrder: null, sectionCode: null, ...SYSTEM_DEFAULTS, ...NOT_APPLICABLE_LAW },
-  { code: '2000', legacyCode: '2000', legacySource: 'accountCode', name: 'ספקים כלליים',             type: 'liability', pnlCategory: null, displayOrder: null, sectionCode: null, ...SYSTEM_DEFAULTS, ...NOT_APPLICABLE_LAW },
-  { code: '2100', legacyCode: '2100', legacySource: 'accountCode', name: 'כרטיסי אשראי לתשלום',     type: 'liability', pnlCategory: null, displayOrder: null, sectionCode: null, ...SYSTEM_DEFAULTS, ...NOT_APPLICABLE_LAW },
-  { code: '2400', legacyCode: '2400', legacySource: 'accountCode', name: 'מע"מ עסקאות',              type: 'liability', pnlCategory: null, displayOrder: null, sectionCode: null, ...SYSTEM_DEFAULTS, ...NOT_APPLICABLE_LAW },
-  { code: '2410', legacyCode: '2410', legacySource: 'accountCode', name: 'מע"מ תשומות',              type: 'asset',     pnlCategory: null, displayOrder: null, sectionCode: null, ...SYSTEM_DEFAULTS, ...NOT_APPLICABLE_LAW },
+  { code: '1100', legacyCode: '1100', legacySource: 'accountCode', name: 'בנק',                      type: 'asset',     pnlCategory: null, displayOrder: null, sectionCode: null, ...SYSTEM_DEFAULTS, code6111: '7110', ...NOT_APPLICABLE_LAW },
+  { code: '1110', legacyCode: '1110', legacySource: 'accountCode', name: 'מזומן',                    type: 'asset',     pnlCategory: null, displayOrder: null, sectionCode: null, ...SYSTEM_DEFAULTS, code6111: '7110', ...NOT_APPLICABLE_LAW },
+  { code: '1120', legacyCode: '1120', legacySource: 'accountCode', name: 'כרטיס אשראי / סליקה',     type: 'asset',     pnlCategory: null, displayOrder: null, sectionCode: null, ...SYSTEM_DEFAULTS, code6111: '7360', ...NOT_APPLICABLE_LAW },
+  { code: '1200', legacyCode: '1200', legacySource: 'accountCode', name: 'לקוחות כלליים',            type: 'asset',     pnlCategory: null, displayOrder: null, sectionCode: null, ...SYSTEM_DEFAULTS, code6111: '7310', ...NOT_APPLICABLE_LAW },
+  { code: '2000', legacyCode: '2000', legacySource: 'accountCode', name: 'ספקים כלליים',             type: 'liability', pnlCategory: null, displayOrder: null, sectionCode: null, ...SYSTEM_DEFAULTS, code6111: '9210', ...NOT_APPLICABLE_LAW },
+  { code: '2100', legacyCode: '2100', legacySource: 'accountCode', name: 'כרטיסי אשראי לתשלום',     type: 'liability', pnlCategory: null, displayOrder: null, sectionCode: null, ...SYSTEM_DEFAULTS, code6111: '9290', ...NOT_APPLICABLE_LAW },
+  { code: '2400', legacyCode: '2400', legacySource: 'accountCode', name: 'מע"מ עסקאות',              type: 'liability', pnlCategory: null, displayOrder: null, sectionCode: null, ...SYSTEM_DEFAULTS, code6111: '9350', ...NOT_APPLICABLE_LAW },
+  { code: '2410', legacyCode: '2410', legacySource: 'accountCode', name: 'מע"מ תשומות',              type: 'asset',     pnlCategory: null, displayOrder: null, sectionCode: null, ...SYSTEM_DEFAULTS, code6111: '7440', ...NOT_APPLICABLE_LAW },
 
   // ── 3b. Income — no deductibility law applies ───────────────────────────
-  { code: '40000', legacyCode: '4000', legacySource: 'accountCode', name: 'הכנסות',          type: 'income', pnlCategory: 'הכנסות',          displayOrder: 1, sectionCode: '40000', ...SYSTEM_DEFAULTS, ...NOT_APPLICABLE_LAW },
-  { code: '40010', legacyCode: '4010', legacySource: 'accountCode', name: 'הכנסות פטורות',  type: 'income', pnlCategory: 'הכנסות פטורות',  displayOrder: 2, sectionCode: '40010', ...SYSTEM_DEFAULTS, ...NOT_APPLICABLE_LAW },
+  { code: '40000', legacyCode: '4000', legacySource: 'accountCode', name: 'הכנסות',          type: 'income', pnlCategory: 'הכנסות',          displayOrder: 1, sectionCode: '40000', ...SYSTEM_DEFAULTS, code6111: '1030', ...NOT_APPLICABLE_LAW },
+  { code: '40010', legacyCode: '4010', legacySource: 'accountCode', name: 'הכנסות פטורות',  type: 'income', pnlCategory: 'הכנסות פטורות',  displayOrder: 2, sectionCode: '40010', ...SYSTEM_DEFAULTS, code6111: '1030', ...NOT_APPLICABLE_LAW },
 
   // ── 3c. Expense block anchors (parent accounts = section codes) ────────
   // 60000 — kept as the true "unidentified"/NOT_RECOGNIZED catch-all (0/0),
@@ -131,7 +140,7 @@ export const CHART_ACCOUNTS: ChartAccountSeed[] = [
   // NEW child (2026-07-10 session, approved) — not from any old subAccountCode
   // (עסק/ספקים previously pointed at bare accountCode '5000', never had a
   // sub-ledger code of its own).
-  { code: '60010', legacyCode: null,   legacySource: null,          name: 'ספקים — כללי (הוצאה מוכרת)', type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: '60000', ...SYSTEM_DEFAULTS, vatPercent: 100, taxPercent: 100, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
+  { code: '60010', legacyCode: null,   legacySource: null,          name: 'ספקים — כללי (הוצאה מוכרת)', type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: '60000', ...SYSTEM_DEFAULTS, code6111: '3680', vatPercent: 100, taxPercent: 100, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
 
   // 60100 — הוצאות משרד. Parent absorbs the old subAccountCode 5103
   // (עסק/הוצאות משרד) because its name is IDENTICAL to the block/section
@@ -140,42 +149,42 @@ export const CHART_ACCOUNTS: ChartAccountSeed[] = [
   // numbering (10 old children would overflow the 9-slot jump-of-10 ceiling
   // before hitting 60200, see file header). See §3d for the 8 real children
   // and §0 for the 3 anomalous rows (גינה/משכנתא/שכירות) redirected to 60000.
-  { code: '60100', legacyCode: '5100', legacySource: 'accountCode', name: 'הוצאות משרד',              type: 'expense', pnlCategory: 'הוצאות משרד',              displayOrder: 3,  sectionCode: '60100', ...SYSTEM_DEFAULTS, vatPercent: 100, taxPercent: 100, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
+  { code: '60100', legacyCode: '5100', legacySource: 'accountCode', name: 'הוצאות משרד',              type: 'expense', pnlCategory: 'הוצאות משרד',              displayOrder: 3,  sectionCode: '60100', ...SYSTEM_DEFAULTS, code6111: '3680', vatPercent: 100, taxPercent: 100, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
   // 60200 — רכב ותחבורה. No live sub-category posts directly to the bare
   // parent; default matches the block's normalized child combo (45/66.67).
-  { code: '60200', legacyCode: '5200', legacySource: 'accountCode', name: 'רכב ותחבורה',              type: 'expense', pnlCategory: 'רכב ותחבורה',              displayOrder: 4,  sectionCode: '60200', ...SYSTEM_DEFAULTS, vatPercent: 66.67, taxPercent: 45,  reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
+  { code: '60200', legacyCode: '5200', legacySource: 'accountCode', name: 'רכב ותחבורה',              type: 'expense', pnlCategory: 'רכב ותחבורה',              displayOrder: 4,  sectionCode: '60200', ...SYSTEM_DEFAULTS, code6111: '3566', vatPercent: 66.67, taxPercent: 45,  reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
   // 60300 — תקשורת. Default matches the canonical "דיור והוצאות הבית" combo
   // (25/25) — NOT the stale "בית" duplicate-category combo (100/100); see §0.
-  { code: '60300', legacyCode: '5300', legacySource: 'accountCode', name: 'תקשורת',                   type: 'expense', pnlCategory: 'תקשורת',                   displayOrder: 5,  sectionCode: '60300', ...SYSTEM_DEFAULTS, vatPercent: 25,  taxPercent: 25,  reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
-  { code: '60400', legacyCode: '5400', legacySource: 'accountCode', name: 'תוכנות ושירותי ענן',      type: 'expense', pnlCategory: 'תוכנות ושירותי ענן',      displayOrder: 6,  sectionCode: '60400', ...SYSTEM_DEFAULTS, vatPercent: 100, taxPercent: 100, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
+  { code: '60300', legacyCode: '5300', legacySource: 'accountCode', name: 'תקשורת',                   type: 'expense', pnlCategory: 'תקשורת',                   displayOrder: 5,  sectionCode: '60300', ...SYSTEM_DEFAULTS, code6111: '3650', vatPercent: 25,  taxPercent: 25,  reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
+  { code: '60400', legacyCode: '5400', legacySource: 'accountCode', name: 'תוכנות ושירותי ענן',      type: 'expense', pnlCategory: 'תוכנות ושירותי ענן',      displayOrder: 6,  sectionCode: '60400', ...SYSTEM_DEFAULTS, code6111: '3680', vatPercent: 100, taxPercent: 100, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
   // 60500 — שיווק ופרסום. Absorbs old subAccountCode 5501 (name-identical).
-  { code: '60500', legacyCode: '5500', legacySource: 'accountCode', name: 'שיווק ופרסום',             type: 'expense', pnlCategory: 'שיווק ופרסום',             displayOrder: 7,  sectionCode: '60500', ...SYSTEM_DEFAULTS, vatPercent: 100, taxPercent: 100, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
-  { code: '60600', legacyCode: '5600', legacySource: 'accountCode', name: 'ייעוץ ושירותים מקצועיים', type: 'expense', pnlCategory: 'ייעוץ ושירותים מקצועיים', displayOrder: 8,  sectionCode: '60600', ...SYSTEM_DEFAULTS, vatPercent: 100, taxPercent: 100, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
+  { code: '60500', legacyCode: '5500', legacySource: 'accountCode', name: 'שיווק ופרסום',             type: 'expense', pnlCategory: 'שיווק ופרסום',             displayOrder: 7,  sectionCode: '60500', ...SYSTEM_DEFAULTS, code6111: '3620', vatPercent: 100, taxPercent: 100, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
+  { code: '60600', legacyCode: '5600', legacySource: 'accountCode', name: 'ייעוץ ושירותים מקצועיים', type: 'expense', pnlCategory: 'ייעוץ ושירותים מקצועיים', displayOrder: 8,  sectionCode: '60600', ...SYSTEM_DEFAULTS, code6111: '3540', vatPercent: 100, taxPercent: 100, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
   // 60700 — הנהלת חשבונות. Absorbs old subAccountCode 5701 (name-identical)
   // AND the live row עסק/רואה חשבון (no old subAccountCode, identical 100/100
   // percents — same card, no conflict, see §0).
-  { code: '60700', legacyCode: '5700', legacySource: 'accountCode', name: 'הנהלת חשבונות',            type: 'expense', pnlCategory: 'הנהלת חשבונות',            displayOrder: 9,  sectionCode: '60700', ...SYSTEM_DEFAULTS, vatPercent: 100, taxPercent: 100, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
-  { code: '60800', legacyCode: '5800', legacySource: 'accountCode', name: 'שכר',                      type: 'expense', pnlCategory: 'שכר',                      displayOrder: 10, sectionCode: '60800', ...SYSTEM_DEFAULTS, vatPercent: 0,   taxPercent: 100, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
+  { code: '60700', legacyCode: '5700', legacySource: 'accountCode', name: 'הנהלת חשבונות',            type: 'expense', pnlCategory: 'הנהלת חשבונות',            displayOrder: 9,  sectionCode: '60700', ...SYSTEM_DEFAULTS, code6111: '3540', vatPercent: 100, taxPercent: 100, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
+  { code: '60800', legacyCode: '5800', legacySource: 'accountCode', name: 'שכר',                      type: 'expense', pnlCategory: 'שכר',                      displayOrder: 10, sectionCode: '60800', ...SYSTEM_DEFAULTS, code6111: '3511', vatPercent: 0,   taxPercent: 100, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
   // 60900 — ספרות מקצועית. Absorbs old subAccountCode 5901 (name-identical).
   // See §0 for two anomalous "הפקדה לקרן השתלמות" rows and one "פנאי וחופשות"
   // row that currently squat on this code in prod but do NOT belong here.
-  { code: '60900', legacyCode: '5900', legacySource: 'accountCode', name: 'ספרות מקצועית',            type: 'expense', pnlCategory: 'ספרות מקצועית',            displayOrder: 11, sectionCode: '60900', ...SYSTEM_DEFAULTS, vatPercent: 100, taxPercent: 100, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
+  { code: '60900', legacyCode: '5900', legacySource: 'accountCode', name: 'ספרות מקצועית',            type: 'expense', pnlCategory: 'ספרות מקצועית',            displayOrder: 11, sectionCode: '60900', ...SYSTEM_DEFAULTS, code6111: '3600', vatPercent: 100, taxPercent: 100, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
   // 61000 — כיבוד. Absorbs old subAccountCode 6001 (name-identical).
   // taxPercent=80 confirmed against live data AND Elazar's explicit
   // instruction this session (was wrongly hardcoded as 100 previously).
-  { code: '61000', legacyCode: '6000', legacySource: 'accountCode', name: 'כיבוד',                    type: 'expense', pnlCategory: 'כיבוד',                    displayOrder: 12, sectionCode: '61000', ...SYSTEM_DEFAULTS, vatPercent: 0,   taxPercent: 80,  reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
+  { code: '61000', legacyCode: '6000', legacySource: 'accountCode', name: 'כיבוד',                    type: 'expense', pnlCategory: 'כיבוד',                    displayOrder: 12, sectionCode: '61000', ...SYSTEM_DEFAULTS, code6111: '3625', vatPercent: 0,   taxPercent: 80,  reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
   // NEW child (2026-07-10 session, requested; percents confirmed same day by
   // Elazar: tax=100/vat=0) — code/section not derived from any existing row
   // (no "מתנות מוכרות" row exists anywhere in default_sub_category — the
   // live "קניות/מתנות" row is the unrelated PERSONAL-gifts item,
   // isRecognized=0). Placed under כיבוד per common Israeli practice grouping
   // "כיבוד ומתנות" together.
-  { code: '61010', legacyCode: null,   legacySource: null,          name: 'מתנות מוכרות',                type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: '61000', ...SYSTEM_DEFAULTS, vatPercent: 0,   taxPercent: 100, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
-  { code: '61100', legacyCode: '6100', legacySource: 'accountCode', name: 'עמלות ודמי כרטיס',        type: 'expense', pnlCategory: 'עמלות ודמי כרטיס',        displayOrder: 13, sectionCode: '61100', ...SYSTEM_DEFAULTS, vatPercent: 0,   taxPercent: 100, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
-  { code: '61200', legacyCode: '6200', legacySource: 'accountCode', name: 'הוצאות מימון',             type: 'expense', pnlCategory: 'הוצאות מימון',             displayOrder: 15, sectionCode: '61200', ...SYSTEM_DEFAULTS, vatPercent: 0,   taxPercent: 100, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
+  { code: '61010', legacyCode: null,   legacySource: null,          name: 'מתנות מוכרות',                type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: '61000', ...SYSTEM_DEFAULTS, code6111: '3625', vatPercent: 0,   taxPercent: 100, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
+  { code: '61100', legacyCode: '6100', legacySource: 'accountCode', name: 'עמלות ודמי כרטיס',        type: 'expense', pnlCategory: 'עמלות ודמי כרטיס',        displayOrder: 13, sectionCode: '61100', ...SYSTEM_DEFAULTS, code6111: '3100', vatPercent: 0,   taxPercent: 100, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
+  { code: '61200', legacyCode: '6200', legacySource: 'accountCode', name: 'הוצאות מימון',             type: 'expense', pnlCategory: 'הוצאות מימון',             displayOrder: 15, sectionCode: '61200', ...SYSTEM_DEFAULTS, code6111: '5090', vatPercent: 0,   taxPercent: 100, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
   // 61300 — פחת. Parent unused directly by any live row (all 3 real
   // depreciation sub-categories are its children below); nominal 0/0.
-  { code: '61300', legacyCode: '6300', legacySource: 'accountCode', name: 'פחת',                      type: 'expense', pnlCategory: 'פחת',                      displayOrder: 16, sectionCode: '61300', ...SYSTEM_DEFAULTS, vatPercent: 0,   taxPercent: 0,   reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
+  { code: '61300', legacyCode: '6300', legacySource: 'accountCode', name: 'פחת',                      type: 'expense', pnlCategory: 'פחת',                      displayOrder: 16, sectionCode: '61300', ...SYSTEM_DEFAULTS, code6111: '3580', vatPercent: 0,   taxPercent: 0,   reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
 
   // ── 3d. Expense children — jumps of 10 from their block anchor ─────────
   // Percents sourced live from keepintax_prodcopy.default_sub_category
@@ -187,43 +196,43 @@ export const CHART_ACCOUNTS: ChartAccountSeed[] = [
   // data shows it tax0/vat0/isRecognized=0, NOT the 25/0 the old hardcoded
   // defaults assumed, so it does not belong in the 25/0 "home office" group
   // below and is not a recognized business card at all).
-  { code: '60110', legacyCode: '5101', legacySource: 'subAccountCode', name: 'ארנונה',       type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: '60100', ...SYSTEM_DEFAULTS, vatPercent: 0,   taxPercent: 25,  reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
-  { code: '60120', legacyCode: '5102', legacySource: 'subAccountCode', name: 'גז',           type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: '60100', ...SYSTEM_DEFAULTS, vatPercent: 25,   taxPercent: 25,  reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
-  { code: '60130', legacyCode: '5104', legacySource: 'subAccountCode', name: 'ועד בית',      type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: '60100', ...SYSTEM_DEFAULTS, vatPercent: 0,   taxPercent: 25,  reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
-  { code: '60140', legacyCode: '5105', legacySource: 'subAccountCode', name: 'חשמל',         type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: '60100', ...SYSTEM_DEFAULTS, vatPercent: 25,   taxPercent: 25,  reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
-  { code: '60150', legacyCode: '5106', legacySource: 'subAccountCode', name: 'מים',          type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: '60100', ...SYSTEM_DEFAULTS, vatPercent: 0,   taxPercent: 25,  reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
-  { code: '60160', legacyCode: '5110', legacySource: 'subAccountCode', name: 'תחזוקה',       type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: '60100', ...SYSTEM_DEFAULTS, vatPercent: 25,   taxPercent: 25,  reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
-  { code: '60170', legacyCode: '5108', legacySource: 'subAccountCode', name: 'שכירות משרד',  type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: '60100', ...SYSTEM_DEFAULTS, vatPercent: 100, taxPercent: 100, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
-  { code: '60180', legacyCode: '5109', legacySource: 'subAccountCode', name: 'שליחויות',     type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: '60100', ...SYSTEM_DEFAULTS, vatPercent: 100, taxPercent: 100, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
+  { code: '60110', legacyCode: '5101', legacySource: 'subAccountCode', name: 'ארנונה',       type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: '60100', ...SYSTEM_DEFAULTS, code6111: '3575', vatPercent: 0,   taxPercent: 25,  reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
+  { code: '60120', legacyCode: '5102', legacySource: 'subAccountCode', name: 'גז',           type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: '60100', ...SYSTEM_DEFAULTS, code6111: '3590', vatPercent: 25,   taxPercent: 25,  reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
+  { code: '60130', legacyCode: '5104', legacySource: 'subAccountCode', name: 'ועד בית',      type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: '60100', ...SYSTEM_DEFAULTS, code6111: '3680', vatPercent: 0,   taxPercent: 25,  reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
+  { code: '60140', legacyCode: '5105', legacySource: 'subAccountCode', name: 'חשמל',         type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: '60100', ...SYSTEM_DEFAULTS, code6111: '3590', vatPercent: 25,   taxPercent: 25,  reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
+  { code: '60150', legacyCode: '5106', legacySource: 'subAccountCode', name: 'מים',          type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: '60100', ...SYSTEM_DEFAULTS, code6111: '3590', vatPercent: 0,   taxPercent: 25,  reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
+  { code: '60160', legacyCode: '5110', legacySource: 'subAccountCode', name: 'תחזוקה',       type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: '60100', ...SYSTEM_DEFAULTS, code6111: '3550', vatPercent: 25,   taxPercent: 25,  reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
+  { code: '60170', legacyCode: '5108', legacySource: 'subAccountCode', name: 'שכירות משרד',  type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: '60100', ...SYSTEM_DEFAULTS, code6111: '3570', vatPercent: 100, taxPercent: 100, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
+  { code: '60180', legacyCode: '5109', legacySource: 'subAccountCode', name: 'שליחויות',     type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: '60100', ...SYSTEM_DEFAULTS, code6111: '3650', vatPercent: 100, taxPercent: 100, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
 
   // 60200 block — רכב ותחבורה (7 children). Live data had a split — five
   // rows at vat=67.00, מערכות alone at vat=66.66 — normalized 2026-07-10 to
   // 66.67 uniformly across all six deductible-VAT car-expense cards.
-  { code: '60210', legacyCode: '5201', legacySource: 'subAccountCode', name: 'ביטוח רכב',          type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: '60200', ...SYSTEM_DEFAULTS, vatPercent: 0,     taxPercent: 45, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
-  { code: '60220', legacyCode: '5202', legacySource: 'subAccountCode', name: 'דלק',                 type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: '60200', ...SYSTEM_DEFAULTS, vatPercent: 66.67, taxPercent: 45, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
-  { code: '60230', legacyCode: '5203', legacySource: 'subAccountCode', name: 'חניה',                 type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: '60200', ...SYSTEM_DEFAULTS, vatPercent: 66.67, taxPercent: 45, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
-  { code: '60240', legacyCode: '5204', legacySource: 'subAccountCode', name: 'טיפולים',              type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: '60200', ...SYSTEM_DEFAULTS, vatPercent: 66.67, taxPercent: 45, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
-  { code: '60250', legacyCode: '5205', legacySource: 'subAccountCode', name: 'כבישי אגרה',           type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: '60200', ...SYSTEM_DEFAULTS, vatPercent: 66.67, taxPercent: 45, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
-  { code: '60260', legacyCode: '5206', legacySource: 'subAccountCode', name: 'מערכות',               type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: '60200', ...SYSTEM_DEFAULTS, vatPercent: 66.67, taxPercent: 45, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
-  { code: '60270', legacyCode: '5207', legacySource: 'subAccountCode', name: 'תחבורה ציבורית',       type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: '60200', ...SYSTEM_DEFAULTS, vatPercent: 66.67, taxPercent: 45, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
+  { code: '60210', legacyCode: '5201', legacySource: 'subAccountCode', name: 'ביטוח רכב',          type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: '60200', ...SYSTEM_DEFAULTS, code6111: '3566', vatPercent: 0,     taxPercent: 45, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
+  { code: '60220', legacyCode: '5202', legacySource: 'subAccountCode', name: 'דלק',                 type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: '60200', ...SYSTEM_DEFAULTS, code6111: '3567', vatPercent: 66.67, taxPercent: 45, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
+  { code: '60230', legacyCode: '5203', legacySource: 'subAccountCode', name: 'חניה',                 type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: '60200', ...SYSTEM_DEFAULTS, code6111: '3566', vatPercent: 66.67, taxPercent: 45, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
+  { code: '60240', legacyCode: '5204', legacySource: 'subAccountCode', name: 'טיפולים',              type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: '60200', ...SYSTEM_DEFAULTS, code6111: '3566', vatPercent: 66.67, taxPercent: 45, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
+  { code: '60250', legacyCode: '5205', legacySource: 'subAccountCode', name: 'כבישי אגרה',           type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: '60200', ...SYSTEM_DEFAULTS, code6111: '3566', vatPercent: 66.67, taxPercent: 45, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
+  { code: '60260', legacyCode: '5206', legacySource: 'subAccountCode', name: 'מערכות',               type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: '60200', ...SYSTEM_DEFAULTS, code6111: '3566', vatPercent: 66.67, taxPercent: 45, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
+  { code: '60270', legacyCode: '5207', legacySource: 'subAccountCode', name: 'תחבורה ציבורית',       type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: '60200', ...SYSTEM_DEFAULTS, code6111: '3560', vatPercent: 66.67, taxPercent: 45, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
 
   // 60300 block — תקשורת (3 children). Uses the canonical "דיור והוצאות הבית"
   // combo (25/25) — see §0 re: the stale "בית" duplicate-category rows
   // (100/100) that also currently reference old code 5300.
-  { code: '60310', legacyCode: '5301', legacySource: 'subAccountCode', name: 'אינטרנט',     type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: '60300', ...SYSTEM_DEFAULTS, vatPercent: 25, taxPercent: 25, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
-  { code: '60320', legacyCode: '5302', legacySource: 'subAccountCode', name: 'טלפון קווי',  type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: '60300', ...SYSTEM_DEFAULTS, vatPercent: 25, taxPercent: 25, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
-  { code: '60330', legacyCode: '5303', legacySource: 'subAccountCode', name: 'פלאפון',      type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: '60300', ...SYSTEM_DEFAULTS, vatPercent: 25, taxPercent: 25, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
+  { code: '60310', legacyCode: '5301', legacySource: 'subAccountCode', name: 'אינטרנט',     type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: '60300', ...SYSTEM_DEFAULTS, code6111: '3650', vatPercent: 25, taxPercent: 25, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
+  { code: '60320', legacyCode: '5302', legacySource: 'subAccountCode', name: 'טלפון קווי',  type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: '60300', ...SYSTEM_DEFAULTS, code6111: '3650', vatPercent: 25, taxPercent: 25, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
+  { code: '60330', legacyCode: '5303', legacySource: 'subAccountCode', name: 'פלאפון',      type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: '60300', ...SYSTEM_DEFAULTS, code6111: '3650', vatPercent: 25, taxPercent: 25, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
 
   // 60400 block — תוכנות ושירותי ענן (1 child; distinct from parent, names
   // are similar but not identical so no merge per the collision rule).
-  { code: '60410', legacyCode: '5401', legacySource: 'subAccountCode', name: 'תוכנות', type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: '60400', ...SYSTEM_DEFAULTS, vatPercent: 100, taxPercent: 100, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
+  { code: '60410', legacyCode: '5401', legacySource: 'subAccountCode', name: 'תוכנות', type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: '60400', ...SYSTEM_DEFAULTS, code6111: '3680', vatPercent: 100, taxPercent: 100, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
 
   // 60500 block — שיווק ופרסום: ZERO children (old 5501 merged into parent).
 
   // 60600 block — ייעוץ ושירותים מקצועיים (2 children).
-  { code: '60610', legacyCode: '5601', legacySource: 'subAccountCode', name: 'ייעוץ והשתלמויות', type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: '60600', ...SYSTEM_DEFAULTS, vatPercent: 100, taxPercent: 100, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
-  { code: '60620', legacyCode: '5602', legacySource: 'subAccountCode', name: 'ייעוץ מקצועי',     type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: '60600', ...SYSTEM_DEFAULTS, vatPercent: 100, taxPercent: 100, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
-  { code: '60630', legacyCode: '5603', legacySource: 'subAccountCode', name: 'שכר טרחה',     type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: '60600', ...SYSTEM_DEFAULTS, vatPercent: 100, taxPercent: 100, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
+  { code: '60610', legacyCode: '5601', legacySource: 'subAccountCode', name: 'ייעוץ והשתלמויות', type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: '60600', ...SYSTEM_DEFAULTS, code6111: '3600', vatPercent: 100, taxPercent: 100, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
+  { code: '60620', legacyCode: '5602', legacySource: 'subAccountCode', name: 'ייעוץ מקצועי',     type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: '60600', ...SYSTEM_DEFAULTS, code6111: '3540', vatPercent: 100, taxPercent: 100, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
+  { code: '60630', legacyCode: '5603', legacySource: 'subAccountCode', name: 'שכר טרחה',     type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: '60600', ...SYSTEM_DEFAULTS, code6111: '3540', vatPercent: 100, taxPercent: 100, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
 
   // 60700 block — הנהלת חשבונות: ZERO children (old 5701 merged into parent;
   // live row עסק/רואה חשבון also merges — see parent comment above).
@@ -232,7 +241,7 @@ export const CHART_ACCOUNTS: ChartAccountSeed[] = [
   // SUBCATEGORY_SUB_ACCOUNT_CODES used subCategoryName 'שכר', but the live
   // row is actually named 'הוצאות שכר' — the old mapping's WHERE clause
   // never matched any real row under that name. Corrected here.
-  { code: '60810', legacyCode: '5801', legacySource: 'subAccountCode', name: 'הוצאות שכר', type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: '60800', ...SYSTEM_DEFAULTS, vatPercent: 0, taxPercent: 100, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
+  { code: '60810', legacyCode: '5801', legacySource: 'subAccountCode', name: 'הוצאות שכר', type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: '60800', ...SYSTEM_DEFAULTS, code6111: '3511', vatPercent: 0, taxPercent: 100, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
 
   // 60900 block — ספרות מקצועית: ZERO children (old 5901 merged into parent).
 
@@ -241,25 +250,25 @@ export const CHART_ACCOUNTS: ChartAccountSeed[] = [
   // 61100 block — עמלות ודמי כרטיס (2 children — kept distinct with
   // disambiguating suffixes despite the "עסק" one's name otherwise colliding
   // with the parent, because a second real card is needed here regardless).
-  { code: '61110', legacyCode: '6101', legacySource: 'subAccountCode', name: 'עמלות ודמי כרטיס (עסק)',                type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: '61100', ...SYSTEM_DEFAULTS, vatPercent: 0, taxPercent: 100, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
-  { code: '61120', legacyCode: '6102', legacySource: 'subAccountCode', name: 'עמלות ודמי כרטיס (בנק, אשראי ותנועות)', type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: '61100', ...SYSTEM_DEFAULTS, vatPercent: 0, taxPercent: 25,  reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
+  { code: '61110', legacyCode: '6101', legacySource: 'subAccountCode', name: 'עמלות ודמי כרטיס (עסק)',                type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: '61100', ...SYSTEM_DEFAULTS, code6111: '3100', vatPercent: 0, taxPercent: 100, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
+  { code: '61120', legacyCode: '6102', legacySource: 'subAccountCode', name: 'עמלות ודמי כרטיס (בנק, אשראי ותנועות)', type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: '61100', ...SYSTEM_DEFAULTS, code6111: '5010', vatPercent: 0, taxPercent: 25,  reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
 
   // 61200 block — הוצאות מימון (1 child).
-  { code: '61210', legacyCode: '6201', legacySource: 'subAccountCode', name: 'ריבית', type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: '61200', ...SYSTEM_DEFAULTS, vatPercent: 0, taxPercent: 100, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
+  { code: '61210', legacyCode: '6201', legacySource: 'subAccountCode', name: 'ריבית', type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: '61200', ...SYSTEM_DEFAULTS, code6111: '5010', vatPercent: 0, taxPercent: 100, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED },
 
   // 61300 block — פחת (3 children). NO live default_sub_category rows exist
   // for these yet (category 'רכוש קבוע (פחת)' has zero rows in prod, despite
   // being coded in account-seed.service.ts's EXPENSE_SUBCATEGORY_PNL) — the
   // percents below are sourced from the hardcoded SUBCATEGORY_TAX_VAT_DEFAULTS
   // fallback (the only source available), NOT live DB. Flagged.
-  { code: '61310', legacyCode: '6301', legacySource: 'subAccountCode', name: 'מחשב', type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: '61300', ...SYSTEM_DEFAULTS, vatPercent: 100, taxPercent: 0, reductionPercent: 33.33, isEquipment: true, recognitionType: RecognitionType.RECOGNIZED },
-  { code: '61320', legacyCode: '6302', legacySource: 'subAccountCode', name: 'ריהוט', type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: '61300', ...SYSTEM_DEFAULTS, vatPercent: 100, taxPercent: 0, reductionPercent: 7,     isEquipment: true, recognitionType: RecognitionType.RECOGNIZED },
-  { code: '61330', legacyCode: '6303', legacySource: 'subAccountCode', name: 'רכב',   type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: '61300', ...SYSTEM_DEFAULTS, vatPercent: 0,   taxPercent: 0, reductionPercent: 15,    isEquipment: true, recognitionType: RecognitionType.RECOGNIZED },
+  { code: '61310', legacyCode: '6301', legacySource: 'subAccountCode', name: 'מחשב', type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: '61300', ...SYSTEM_DEFAULTS, code6111: '3580', vatPercent: 100, taxPercent: 0, reductionPercent: 33.33, isEquipment: true, recognitionType: RecognitionType.RECOGNIZED },
+  { code: '61320', legacyCode: '6302', legacySource: 'subAccountCode', name: 'ריהוט', type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: '61300', ...SYSTEM_DEFAULTS, code6111: '3580', vatPercent: 100, taxPercent: 0, reductionPercent: 7,     isEquipment: true, recognitionType: RecognitionType.RECOGNIZED },
+  { code: '61330', legacyCode: '6303', legacySource: 'subAccountCode', name: 'רכב',   type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: '61300', ...SYSTEM_DEFAULTS, code6111: '3580', vatPercent: 0,   taxPercent: 0, reductionPercent: 15,    isEquipment: true, recognitionType: RecognitionType.RECOGNIZED },
   // New card (2026-07-18, Elazar) — not from any old subAccountCode. Code
   // 61340-61380 in this block's anchor+10..+90 range are already taken by
   // the unrelated §3f ANNUAL technical accounts, so this lands on 61390,
   // the last free slot before the next block's anchor.
-  { code: '61390', legacyCode: null,   legacySource: null,          name: 'רכישת משרד', type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: '61300', ...SYSTEM_DEFAULTS, vatPercent: 100, taxPercent: 0, reductionPercent: 2,     isEquipment: true, recognitionType: RecognitionType.RECOGNIZED },
+  { code: '61390', legacyCode: null,   legacySource: null,          name: 'רכישת משרד', type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: '61300', ...SYSTEM_DEFAULTS, code6111: '3580', vatPercent: 100, taxPercent: 0, reductionPercent: 2,     isEquipment: true, recognitionType: RecognitionType.RECOGNIZED },
 
   // ── 3e. New technical accounts (D14 decision 3 + this session's 90400) ──
   // Codes/readings for 90100–90300 confirmed with Elazar 2026-07-10 (Session
@@ -275,20 +284,20 @@ export const CHART_ACCOUNTS: ChartAccountSeed[] = [
   // NOT_APPLICABLE_LAW spread's `recognitionType: null`, which stays reserved
   // for TRUE non-expense accounts (income, balance-sheet) where the concept
   // doesn't apply structurally, not just semantically.
-  { code: '90100', legacyCode: null, legacySource: null, name: 'מקדמות מס הכנסה',           type: 'asset', pnlCategory: null, displayOrder: null, sectionCode: null, ...SYSTEM_DEFAULTS, ...NOT_APPLICABLE_LAW, recognitionType: RecognitionType.NOT_APPLICABLE, reportScope: ExpenseReportScope.TECHNICAL },
+  { code: '90100', legacyCode: null, legacySource: null, name: 'מקדמות מס הכנסה',           type: 'asset', pnlCategory: null, displayOrder: null, sectionCode: null, ...SYSTEM_DEFAULTS, code6111: '7430', ...NOT_APPLICABLE_LAW, recognitionType: RecognitionType.NOT_APPLICABLE, reportScope: ExpenseReportScope.TECHNICAL },
   { code: '90200', legacyCode: null, legacySource: null, name: 'גביית מע"מ',                type: 'asset', pnlCategory: null, displayOrder: null, sectionCode: null, ...SYSTEM_DEFAULTS, ...NOT_APPLICABLE_LAW, recognitionType: RecognitionType.NOT_APPLICABLE, reportScope: ExpenseReportScope.TECHNICAL },
   { code: '90300', legacyCode: null, legacySource: null, name: 'מקדמות ביטוח לאומי',       type: 'asset', pnlCategory: null, displayOrder: null, sectionCode: null, ...SYSTEM_DEFAULTS, ...NOT_APPLICABLE_LAW, recognitionType: RecognitionType.NOT_APPLICABLE, reportScope: ExpenseReportScope.TECHNICAL },
   // NEW this session — withholding tax the business's CLIENTS deducted at
   // source from payments made to it (an asset: offsettable against the
   // business's own income-tax liability), same technical-account pattern as
   // the three above. Section/percents not applicable, same as its siblings.
-  { code: '90400', legacyCode: null, legacySource: null, name: 'מס במקור שנוכה מלקוחות',   type: 'asset', pnlCategory: null, displayOrder: null, sectionCode: null, ...SYSTEM_DEFAULTS, ...NOT_APPLICABLE_LAW, recognitionType: RecognitionType.NOT_APPLICABLE, reportScope: ExpenseReportScope.TECHNICAL },
+  { code: '90400', legacyCode: null, legacySource: null, name: 'מס במקור שנוכה מלקוחות',   type: 'asset', pnlCategory: null, displayOrder: null, sectionCode: null, ...SYSTEM_DEFAULTS, code6111: '7430', ...NOT_APPLICABLE_LAW, recognitionType: RecognitionType.NOT_APPLICABLE, reportScope: ExpenseReportScope.TECHNICAL },
   // NEW Phase 2.2 — targets for two old-chart row groups phase1-chart-review.md
   // §0.9/§0.10 explicitly left undecided (not real expense cards, but not
   // usefully "private" either — confirmed account 1000 חשבון מעבר is a
   // vestigial, never-posted-to A/R-contra placeholder, not a semantic fit).
   { code: '90500', legacyCode: null, legacySource: null, name: 'תנועות פנימיות בין חשבונות', type: 'asset', pnlCategory: null, displayOrder: null, sectionCode: null, ...SYSTEM_DEFAULTS, ...NOT_APPLICABLE_LAW, recognitionType: RecognitionType.NOT_APPLICABLE, reportScope: ExpenseReportScope.TECHNICAL },
-  { code: '90600', legacyCode: null, legacySource: null, name: 'פרעון הלוואות (קרן)',        type: 'liability', pnlCategory: null, displayOrder: null, sectionCode: null, ...SYSTEM_DEFAULTS, ...NOT_APPLICABLE_LAW, recognitionType: RecognitionType.NOT_APPLICABLE, reportScope: ExpenseReportScope.TECHNICAL },
+  { code: '90600', legacyCode: null, legacySource: null, name: 'פרעון הלוואות (קרן)',        type: 'liability', pnlCategory: null, displayOrder: null, sectionCode: null, ...SYSTEM_DEFAULTS, code6111: '9120', ...NOT_APPLICABLE_LAW, recognitionType: RecognitionType.NOT_APPLICABLE, reportScope: ExpenseReportScope.TECHNICAL },
 
   // ── 3f. ANNUAL cards (model change, 2026-07-14) — real cards for the D14
   // group-2 sub_categories that previously carried accountId=null with a
@@ -306,7 +315,7 @@ export const CHART_ACCOUNTS: ChartAccountSeed[] = [
   // קנסות), they're not business expenses at all — personal tax-credit items.
   // Tagging them NOT_RECOGNIZED would make them indistinguishable from real
   // disallowed expenses in any future "unrecognized expenses" report.
-  { code: '61340', legacyCode: null, legacySource: null, name: 'תרומות מוכרות',              type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: null, ...SYSTEM_DEFAULTS, vatPercent: 0, taxPercent: 0, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.NOT_APPLICABLE, reportScope: ExpenseReportScope.ANNUAL },
+  { code: '61340', legacyCode: null, legacySource: null, name: 'תרומות מוכרות',              type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: null, ...SYSTEM_DEFAULTS, code6111: '183', vatPercent: 0, taxPercent: 0, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.NOT_APPLICABLE, reportScope: ExpenseReportScope.ANNUAL },
   { code: '61350', legacyCode: null, legacySource: null, name: 'ביטוח חיים',                 type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: null, ...SYSTEM_DEFAULTS, vatPercent: 0, taxPercent: 0, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.NOT_APPLICABLE, reportScope: ExpenseReportScope.ANNUAL },
   { code: '61360', legacyCode: null, legacySource: null, name: 'ביטוח אובדן כושר עבודה',     type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: null, ...SYSTEM_DEFAULTS, vatPercent: 0, taxPercent: 0, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.NOT_APPLICABLE, reportScope: ExpenseReportScope.ANNUAL },
   { code: '61370', legacyCode: null, legacySource: null, name: 'הפקדה לפנסיה',               type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: null, ...SYSTEM_DEFAULTS, vatPercent: 0, taxPercent: 0, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.NOT_APPLICABLE, reportScope: ExpenseReportScope.ANNUAL },
