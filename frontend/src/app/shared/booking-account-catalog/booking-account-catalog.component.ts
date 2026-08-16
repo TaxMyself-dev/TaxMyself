@@ -13,6 +13,7 @@ import {
   IAccountUsage,
   IActivateBookingAccountPayload,
   IBlockingSubCategory,
+  ICreateAccountPayload,
   FormPart,
 } from 'src/app/services/bookkeeping-catalog.service';
 
@@ -79,6 +80,28 @@ interface ActivateFormState {
   categoryName: string;
 }
 
+/** Same two options (no NOT_APPLICABLE) the existing clients-panel "כרטיס
+ *  חדש" dialog offers — matches ICreateAccountPayload's own narrower
+ *  recognitionType type, not the full RecognitionType enum. */
+const ADD_RECOGNITION_OPTIONS = [
+  { label: 'מוכרת', value: 'RECOGNIZED' },
+  { label: 'לא מוכרת', value: 'NOT_RECOGNIZED' },
+];
+
+interface AddCardFormState {
+  name: string;
+  code: string;
+  sectionId: number | null;
+  code6111: string;
+  recognitionType: 'RECOGNIZED' | 'NOT_RECOGNIZED';
+  vatPercent: number | null;
+  taxPercent: number | null;
+  reductionPercent: number | null;
+  isEquipment: boolean;
+  technicalOnly: boolean;
+  categoryName: string;
+}
+
 /**
  * Form 6111 reference-card project, Phase 2 (2026-08-14) — shared admin/
  * accountant booking-account catalog screen. Originally built alongside the
@@ -93,9 +116,15 @@ interface ActivateFormState {
  *
  * `mode='admin'`: lists chartOwnerKey='SYSTEM' rows (68 operational + 321
  * reference), full row actions (activate/edit/deactivate).
- * `mode='accountant'`: lists the reference catalog only for one client
- * business (`businessNumber` required), activate-only — the backend never
- * exposed an accountant-side edit/deactivate endpoint for these cards.
+ * `mode='accountant'`: lists, for one client business (`businessNumber`
+ * required): the browsable SYSTEM reference cards (activate-only) PLUS the
+ * business's own active CLIENT_<businessNumber>/ACCOUNTANT_<agentId> cards
+ * (edit/deactivate/add-new, 2026-08-17) — never a SYSTEM row, enforced
+ * server-side inside CatalogService itself (updateAccountFields/
+ * deactivateAccount/getAccountUsage's `allowedChartOwnerKeys` parameter),
+ * not just by which buttons this component renders. `isOwnedRow()` below
+ * drives the same active/reference-style branching admin mode uses for its
+ * own row actions.
  */
 @Component({
   selector: 'app-booking-account-catalog',
@@ -116,6 +145,7 @@ export class BookingAccountCatalogComponent implements OnInit, OnChanges {
   readonly buttonSize = ButtonSize;
   readonly ButtonColor = ButtonColor;
   readonly recognitionOptions = RECOGNITION_OPTIONS;
+  readonly addRecognitionOptions = ADD_RECOGNITION_OPTIONS;
   readonly typeOptions = TYPE_OPTIONS;
   readonly reportScopeOptions = REPORT_SCOPE_OPTIONS;
   readonly scopeLabel = scopeLabel;
@@ -233,14 +263,15 @@ export class BookingAccountCatalogComponent implements OnInit, OnChanges {
       return;
     }
 
-    // Accountant mode: only referenceCards feed this table — categories/
-    // subCategories (the business's own effective catalog) are a different
-    // shape, out of scope for this booking_account-shaped screen.
+    // Accountant mode: referenceCards (browsable, activate-only) + the
+    // business's own ownedAccounts (edit/deactivate-able) feed this table —
+    // categories/subCategories (the business's own effective catalog) are a
+    // different shape, out of scope for this booking_account-shaped screen.
     this.catalogService
       .getAccountantBookingAccountsCatalog(this.businessNumber!)
       .pipe(finalize(() => this.loading.set(false)), takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: (data) => this.rows.set(data?.referenceCards ?? []),
+        next: (data) => this.rows.set([...(data?.ownedAccounts ?? []), ...(data?.referenceCards ?? [])]),
         error: () => this.rows.set([]),
       });
   }
@@ -248,6 +279,17 @@ export class BookingAccountCatalogComponent implements OnInit, OnChanges {
   // ── Row helpers ──────────────────────────────────────────────────────────
   isReferenceRow(row: IBookingAccountRow): boolean {
     return row.code.startsWith('6111-');
+  }
+
+  /** A row this component's actor may edit/deactivate directly — never
+   *  SYSTEM (admin mode's rows ARE all SYSTEM, so this is always true there;
+   *  accountant mode's rows are a mix of owned CLIENT/ACCOUNTANT cards and
+   *  browsable SYSTEM reference cards, so this is what tells them apart in
+   *  the template). Mirrors the server-side allow-list check — see
+   *  AccountantBookingAccountsController.ownedChartOwnerKeys — but is only
+   *  ever a UI convenience: the real guarantee lives server-side. */
+  isOwnedRow(row: IBookingAccountRow): boolean {
+    return row.ownerType !== 'SYSTEM';
   }
 
   categoryLabel(row: IBookingAccountRow): string {
@@ -330,7 +372,8 @@ export class BookingAccountCatalogComponent implements OnInit, OnChanges {
     return REPORT_SCOPE_LABELS[scope] ?? scope;
   }
 
-  // ── Edit dialog (admin-only) ─────────────────────────────────────────────
+  // ── Edit dialog (admin: any SYSTEM row; accountant: owned rows only,
+  // enforced server-side) ──────────────────────────────────────────────────
   editRow = signal<IBookingAccountRow | null>(null);
   showEditDialog = signal<boolean>(false);
   editForm: Record<string, any> = {};
@@ -375,8 +418,11 @@ export class BookingAccountCatalogComponent implements OnInit, OnChanges {
     const row = this.editRow();
     if (!row) return;
     this.loadingUsage.set(true);
-    this.catalogService
-      .getAccountUsage(row.id)
+    const usage$ =
+      this.mode === 'admin'
+        ? this.catalogService.getAccountUsage(row.id)
+        : this.catalogService.getAccountantBookingAccountUsage(this.businessNumber!, row.id);
+    usage$
       .pipe(finalize(() => this.loadingUsage.set(false)), takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (usage) => this.proceedWithSave(row, usage),
@@ -408,8 +454,11 @@ export class BookingAccountCatalogComponent implements OnInit, OnChanges {
 
   private saveEdit(row: IBookingAccountRow): void {
     this.loading.set(true);
-    this.catalogService
-      .updateAdminBookingAccount(row.id, this.editForm)
+    const request$ =
+      this.mode === 'admin'
+        ? this.catalogService.updateAdminBookingAccount(row.id, this.editForm)
+        : this.catalogService.updateAccountantBookingAccount(this.businessNumber!, row.id, this.editForm);
+    request$
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => this.loadRows(),
@@ -503,7 +552,8 @@ export class BookingAccountCatalogComponent implements OnInit, OnChanges {
       });
   }
 
-  // ── Deactivate + blocking-list dialog (admin-only) ──────────────────────
+  // ── Deactivate + blocking-list dialog (admin: any SYSTEM row; accountant:
+  // owned rows only, enforced server-side) ────────────────────────────────
   showBlockingDialog = signal<boolean>(false);
   blockingSubCategories = signal<IBlockingSubCategory[]>([]);
   blockingAccountLabel = signal<string>('');
@@ -521,8 +571,11 @@ export class BookingAccountCatalogComponent implements OnInit, OnChanges {
 
   private doDeactivate(row: IBookingAccountRow): void {
     this.loading.set(true);
-    this.catalogService
-      .deactivateAdminBookingAccount(row.id)
+    const request$ =
+      this.mode === 'admin'
+        ? this.catalogService.deactivateAdminBookingAccount(row.id)
+        : this.catalogService.deactivateAccountantBookingAccount(this.businessNumber!, row.id);
+    request$
       .pipe(finalize(() => this.loading.set(false)), takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => this.loadRows(),
@@ -603,5 +656,93 @@ export class BookingAccountCatalogComponent implements OnInit, OnChanges {
       a.click();
       URL.revokeObjectURL(url);
     });
+  }
+
+  // ── Add-from-scratch dialog (accountant mode only, 2026-08-17) — reuses
+  // the exact same POST bookkeeping/accounts / createAccount() path the
+  // clients-panel "כרטיס חדש" dialog uses (D11: full law + section +
+  // category, one atomic createAccountWithSubCategory call). Only the
+  // dialog UI is new — that existing flow isn't a standalone Angular
+  // component (it's inline markup/state on ClientPanelPage itself), so
+  // there was nothing to import; the backend/service path is untouched.
+  // Fixed to availableFor=CURRENT_CLIENT for this tab's own businessNumber
+  // — the ALL_MY_CLIENTS option stays exclusive to the clients-panel
+  // dialog, since this tab is already scoped to one business. ────────────
+  showAddDialog = signal<boolean>(false);
+  addingCard = signal<boolean>(false);
+  addError = signal<string | null>(null);
+  addForm: AddCardFormState = this.emptyAddForm();
+
+  private emptyAddForm(): AddCardFormState {
+    return {
+      name: '',
+      code: '',
+      sectionId: null,
+      code6111: '',
+      recognitionType: 'RECOGNIZED',
+      vatPercent: 100,
+      taxPercent: 100,
+      reductionPercent: 0,
+      isEquipment: false,
+      technicalOnly: false,
+      categoryName: '',
+    };
+  }
+
+  openAdd(): void {
+    this.addForm = this.emptyAddForm();
+    this.addError.set(null);
+    this.showAddDialog.set(true);
+  }
+
+  closeAddDialog(): void {
+    this.showAddDialog.set(false);
+  }
+
+  isAddFormValid(): boolean {
+    const f = this.addForm;
+    const pctOk = (v: number | null) => v != null && v >= 0 && v <= 100;
+    return (
+      !!f.name.trim() &&
+      f.sectionId != null &&
+      pctOk(f.vatPercent) &&
+      pctOk(f.taxPercent) &&
+      (f.reductionPercent == null || pctOk(f.reductionPercent)) &&
+      (f.technicalOnly || !!f.categoryName.trim())
+    );
+  }
+
+  submitAdd(): void {
+    if (!this.isAddFormValid()) return;
+    const f = this.addForm;
+    const payload: ICreateAccountPayload = {
+      name: f.name.trim(),
+      code: f.code.trim() || undefined,
+      sectionId: f.sectionId!,
+      code6111: f.code6111.trim() || undefined,
+      recognitionType: f.recognitionType,
+      vatPercent: f.vatPercent!,
+      taxPercent: f.taxPercent!,
+      reductionPercent: f.reductionPercent ?? 0,
+      isEquipment: f.isEquipment,
+      availableFor: 'CURRENT_CLIENT',
+      technicalOnly: f.technicalOnly,
+      categoryName: f.technicalOnly ? undefined : f.categoryName.trim(),
+      businessNumber: this.businessNumber,
+    };
+
+    this.addingCard.set(true);
+    this.catalogService
+      .createAccount(payload)
+      .pipe(finalize(() => this.addingCard.set(false)), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.closeAddDialog();
+          this.loadRows();
+        },
+        error: (err) => {
+          this.addError.set(err?.error?.message ?? 'יצירת הכרטיס נכשלה. נסה שוב.');
+        },
+      });
   }
 }

@@ -1043,12 +1043,22 @@ export class CatalogService {
    * `formPart`/`search` (2026-08-13, Form 6111 reference-card project):
    * `search` matches `code` OR `name`, case-insensitive (MySQL's default
    * collation), substring.
+   *
+   * `chartOwnerKeys` (2026-08-17, accountant catalog Phase 2 cont'd): an
+   * explicit allow-list, not a merge/precedence read — used by
+   * AccountantBookingAccountsController.getCatalog to fetch one business's
+   * own CLIENT_<businessNumber>/ACCOUNTANT_<agentId> rows in the same
+   * IBookingAccountRow shape as the admin listing. Safe to reuse here
+   * despite the "admin-only" framing above: this method itself does no
+   * actor-scoping, the exposing ROUTE does — same division of responsibility
+   * as every other CatalogService read.
    */
   async listAccountsForAdmin(filters: {
     ownerType?: OwnerType;
     isActive?: boolean;
     formPart?: FormPart;
     search?: string;
+    chartOwnerKeys?: string[];
   } = {}): Promise<{
     id: number; code: string; name: string; type: string | null;
     sectionId: number | null; sectionName: string | null;
@@ -1070,6 +1080,9 @@ export class CatalogService {
     }
     if (filters.formPart && Object.values(FormPart).includes(filters.formPart)) {
       base.formPart = filters.formPart;
+    }
+    if (filters.chartOwnerKeys && filters.chartOwnerKeys.length) {
+      base.chartOwnerKey = In(filters.chartOwnerKeys);
     }
     const search = filters.search?.trim();
     const where: FindOptionsWhere<BookingAccount> | FindOptionsWhere<BookingAccount>[] = search
@@ -1133,15 +1146,34 @@ export class CatalogService {
   }
 
   /**
-   * Impact count shown before an admin edits a shared card — "this affects N
-   * sub_categories across M businesses". A direct COUNT of sub_category rows
-   * whose accountId points here. Does NOT count businesses that implicitly
-   * inherit a SYSTEM card via the D4 merge-by-name without an explicit
-   * override row — that set is effectively "every business without an
-   * override" and isn't a countable row, so this is a floor, not the true
-   * blast radius, for SYSTEM cards specifically.
+   * Impact count shown before an admin (or, since 2026-08-17, an accountant)
+   * edits a shared card — "this affects N sub_categories across M
+   * businesses". A direct COUNT of sub_category rows whose accountId points
+   * here. Does NOT count businesses that implicitly inherit a SYSTEM card
+   * via the D4 merge-by-name without an explicit override row — that set is
+   * effectively "every business without an override" and isn't a countable
+   * row, so this is a floor, not the true blast radius, for SYSTEM cards
+   * specifically.
+   *
+   * `allowedChartOwnerKeys` — same ownership-gate contract as
+   * updateAccountFields/deactivateAccount below: `null` = unrestricted
+   * (admin, trusted with any row), a string array = the caller may only
+   * query a row whose chartOwnerKey is in that list. Every caller MUST pass
+   * this explicitly — see those two methods' doc comments for why it's a
+   * parameter rather than inferred from ambient auth state.
    */
-  async getAccountUsage(accountId: number): Promise<{ subCategoryCount: number; businessCount: number }> {
+  async getAccountUsage(
+    accountId: number,
+    allowedChartOwnerKeys: string[] | null,
+  ): Promise<{ subCategoryCount: number; businessCount: number }> {
+    if (allowedChartOwnerKeys !== null) {
+      const account = await this.accountRepo.findOne({ where: { id: accountId }, select: ['id', 'chartOwnerKey'] });
+      // Same "404, not 403" choice as updateAccountFields/deactivateAccount —
+      // see their comments for the existence-leak rationale.
+      if (!account || !allowedChartOwnerKeys.includes(account.chartOwnerKey)) {
+        throw new NotFoundException(`Account ${accountId} not found`);
+      }
+    }
     const [subCategoryCount, businessCountRow] = await Promise.all([
       this.subCategoryRepo.count({ where: { accountId, isActive: true } }),
       this.subCategoryRepo
@@ -1156,20 +1188,47 @@ export class CatalogService {
   }
 
   /**
-   * Direct in-place edit of an existing card's own fields (admin-only
-   * "כרטיסים" screen) — the deliberate mutation path D10's comment on
-   * updateSubCategoryLaw presupposes doesn't otherwise exist. `sectionId`
-   * (if changed) must resolve to a section visible to the card's own scope,
-   * same rule as createAccountWithSubCategory; `code` (if changed) must stay
-   * unique within the card's chartOwnerKey.
+   * Direct in-place edit of an existing card's own fields — the deliberate
+   * mutation path D10's comment on updateSubCategoryLaw presupposes doesn't
+   * otherwise exist. `sectionId` (if changed) must resolve to a section
+   * visible to the card's own scope, same rule as createAccountWithSubCategory;
+   * `code` (if changed) must stay unique within the card's chartOwnerKey.
+   *
+   * `allowedChartOwnerKeys` (2026-08-17, accountant catalog Phase 2 cont'd) —
+   * the ownership gate is enforced HERE, inside the shared method, not left
+   * to each controller, so the guarantee holds regardless of which
+   * controller calls this in future:
+   *   - `null` = unrestricted — the admin controllers pass this explicitly.
+   *     Admins are trusted with any row (SYSTEM included), same as before
+   *     this parameter existed.
+   *   - a string array = the caller may only mutate a row whose
+   *     chartOwnerKey is in that list — the accountant controller passes
+   *     `[CLIENT_<businessNumber>, ACCOUNTANT_<actorId>]` for the business/
+   *     agent it just verified via assertBusinessAccess. A SYSTEM row's
+   *     chartOwnerKey ('SYSTEM') can never appear in that list, so this
+   *     alone is what makes a SYSTEM card unwritable by an accountant —
+   *     not UI gating, not the controller's role check alone.
+   * This is a required parameter, not an optional one defaulting to
+   * unrestricted — an omitted argument is a compile error, not a silent
+   * admin-equivalent no-op.
    */
   async updateAccountFields(accountId: number, dto: {
     name?: string; code?: string; sectionId?: number; code6111?: string | null;
     recognitionType?: RecognitionType; vatPercent?: number; taxPercent?: number;
     reductionPercent?: number; isEquipment?: boolean; reportScope?: ExpenseReportScope;
-  }): Promise<BookingAccount> {
+  }, allowedChartOwnerKeys: string[] | null): Promise<BookingAccount> {
     const account = await this.accountRepo.findOne({ where: { id: accountId } });
     if (!account) throw new NotFoundException(`Account ${accountId} not found`);
+
+    // Ownership gate — checked before the reference-row guard below, since a
+    // reference row's chartOwnerKey is always 'SYSTEM' and would never be in
+    // an accountant's allow-list anyway; this way both cases (wrong owner,
+    // reference row) surface the identical "not found" an out-of-scope id
+    // gets everywhere else in this file (findAccountByIdInScope,
+    // resolveSubCategory) — existence isn't leaked across tenants.
+    if (allowedChartOwnerKeys !== null && !allowedChartOwnerKeys.includes(account.chartOwnerKey)) {
+      throw new NotFoundException(`Account ${accountId} not found`);
+    }
 
     // Form 6111 reference cards (code LIKE '6111-%', always isActive=false)
     // are informational Tax Authority lines, not editable cards — they're
@@ -1255,10 +1314,19 @@ export class CatalogService {
    * point at a SYSTEM card's id just as easily as a SYSTEM row can), still
    * actively points at it. Never cascade-deactivates those rows — the
    * caller has to repoint/deactivate them first, on purpose.
+   *
+   * `allowedChartOwnerKeys` — identical contract to updateAccountFields
+   * above (`null` = unrestricted/admin, array = the caller's owned
+   * chartOwnerKeys only); see that method's comment for the full rationale.
+   * Required, not optional, for the same reason.
    */
-  async deactivateAccount(accountId: number): Promise<BookingAccount> {
+  async deactivateAccount(accountId: number, allowedChartOwnerKeys: string[] | null): Promise<BookingAccount> {
     const account = await this.accountRepo.findOne({ where: { id: accountId } });
     if (!account) throw new NotFoundException(`Account ${accountId} not found`);
+
+    if (allowedChartOwnerKeys !== null && !allowedChartOwnerKeys.includes(account.chartOwnerKey)) {
+      throw new NotFoundException(`Account ${accountId} not found`);
+    }
 
     const blocking = await this.subCategoryRepo.find({
       where: { accountId, isActive: true },

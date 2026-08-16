@@ -6,6 +6,10 @@
         <app-p-button [icon]="'pi pi-file-excel'" [buttonText]="'ייצוא לאקסל'" [buttonSize]="buttonSize.SMALL"
           [buttonColor]="ButtonColor.BLACK" [disabled]="exportingExcel()" (onButtonClicked)="exportToExcel()"></app-p-button>
       }
+      @if (mode === 'accountant') {
+        <app-p-button [buttonText]="'כרטיס חדש'" [buttonSize]="buttonSize.SMALL"
+          [buttonColor]="ButtonColor.BLACK" (onButtonClicked)="openAdd()"></app-p-button>
+      }
     </div>
 
     <app-filter-tab [config]="filterConfig" [parentForm]="filterForm" (apply)="onApplyFilter($event)"></app-filter-tab>
@@ -84,7 +88,7 @@
               <app-p-button [buttonText]="'הפעל'" [buttonSize]="buttonSize.AUTO"
                 [buttonColor]="ButtonColor.TRANSPARET" (onButtonClicked)="openActivate(row)"></app-p-button>
             }
-            @if (row.isActive && mode === 'admin') {
+            @if (row.isActive && (mode === 'admin' || isOwnedRow(row))) {
               <app-p-button [icon]="'pi pi-pencil'" [iconOnly]="true" [buttonSize]="buttonSize.AUTO"
                 [buttonColor]="ButtonColor.TRANSPARET" (onButtonClicked)="openEdit(row)" [buttonText]="'ערוך'"></app-p-button>
               <app-p-button [icon]="'pi pi-power-off'" [iconOnly]="true" [buttonSize]="buttonSize.AUTO"
@@ -97,7 +101,7 @@
   </div>
 </div>
 
-<!-- דיאלוג עדכון כרטיס (admin בלבד) -->
+<!-- דיאלוג עדכון כרטיס (admin: כל כרטיס SYSTEM; רו"ח: כרטיסים בבעלותו בלבד) -->
 <p-dialog header="עדכון כרטיס" [visible]="showEditDialog()" [modal]="true" [style]="{ width: '520px' }" [rtl]="true"
   (onHide)="closeEditDialog()" [draggable]="false" [resizable]="false">
   <div class="dialog-form">
@@ -229,6 +233,70 @@
   </table>
   <ng-template pTemplate="footer">
     <app-p-button [buttonText]="'סגור'" [buttonSize]="buttonSize.SMALL" (onButtonClicked)="closeBlockingDialog()"></app-p-button>
+  </ng-template>
+</p-dialog>
+
+<!-- דיאלוג כרטיס חדש (מצב רו"ח בלבד) -->
+<p-dialog header="כרטיס חדש" [visible]="showAddDialog()" [modal]="true" [style]="{ width: '520px' }" [rtl]="true"
+  (onHide)="closeAddDialog()" [draggable]="false" [resizable]="false">
+  <div class="dialog-form">
+    @if (addError()) {
+      <div class="activate-error">
+        <i class="pi pi-times-circle"></i>
+        <span>{{ addError() }}</span>
+      </div>
+    }
+    <div class="form-row">
+      <label>שם *</label>
+      <input type="text" pInputText [(ngModel)]="addForm.name" placeholder="למשל: דלק — מוכר מלא" />
+    </div>
+    <div class="form-row">
+      <label>חתך *</label>
+      <p-select [(ngModel)]="addForm.sectionId" [options]="sections()" optionLabel="name" optionValue="id" placeholder="בחר חתך"></p-select>
+    </div>
+    <div class="form-row">
+      <label>קוד כרטיס (ריק = הקצאה אוטומטית)</label>
+      <input type="text" pInputText [(ngModel)]="addForm.code" placeholder="אוטומטי" />
+    </div>
+    <div class="form-row">
+      <label>קוד 6111</label>
+      <input type="text" pInputText [(ngModel)]="addForm.code6111" placeholder="אופציונלי" />
+    </div>
+    <div class="form-row">
+      <label>% מע"מ *</label>
+      <p-inputNumber [(ngModel)]="addForm.vatPercent" [minFractionDigits]="0" [maxFractionDigits]="2"></p-inputNumber>
+    </div>
+    <div class="form-row">
+      <label>% מס *</label>
+      <p-inputNumber [(ngModel)]="addForm.taxPercent" [minFractionDigits]="0" [maxFractionDigits]="2"></p-inputNumber>
+    </div>
+    <div class="form-row">
+      <label>פחת</label>
+      <p-inputNumber [(ngModel)]="addForm.reductionPercent" [minFractionDigits]="0" [maxFractionDigits]="2"></p-inputNumber>
+    </div>
+    <div class="form-row check-row">
+      <p-checkbox [(ngModel)]="addForm.isEquipment" [binary]="true" inputId="addCardEquipment"></p-checkbox>
+      <label for="addCardEquipment">ציוד</label>
+    </div>
+    <div class="form-row">
+      <label>הכרה</label>
+      <p-select [(ngModel)]="addForm.recognitionType" [options]="addRecognitionOptions" optionLabel="label" optionValue="value" placeholder="בחר"></p-select>
+    </div>
+    <div class="form-row check-row">
+      <p-checkbox [(ngModel)]="addForm.technicalOnly" [binary]="true" inputId="addCardTechnicalOnly"></p-checkbox>
+      <label for="addCardTechnicalOnly">כרטיס טכני בלבד (ללא תת-קטגוריה ללקוח)</label>
+    </div>
+    @if (!addForm.technicalOnly) {
+      <div class="form-row">
+        <label>קטגוריה (בשפת הלקוח) *</label>
+        <input type="text" pInputText [(ngModel)]="addForm.categoryName" placeholder="קטגוריית אב לתת-הקטגוריה" />
+      </div>
+    }
+  </div>
+  <ng-template pTemplate="footer">
+    <app-p-button [buttonText]="'ביטול'" [buttonSize]="buttonSize.SMALL" (onButtonClicked)="closeAddDialog()"></app-p-button>
+    <app-p-button [buttonText]="'צור כרטיס'" [buttonSize]="buttonSize.SMALL" [disabled]="!isAddFormValid() || addingCard()"
+      (onButtonClicked)="submitAdd()"></app-p-button>
   </ng-template>
 </p-dialog>
 

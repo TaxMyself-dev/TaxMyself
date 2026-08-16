@@ -201,11 +201,15 @@ export interface IAccountantEffectiveSubCategory {
 
 /** GET accountant/business/:businessNumber/booking-accounts/catalog
  *  response — (a) the business's current effective catalog, (b) the
- *  browsable Form 6111 reference catalog to activate a card from. */
+ *  browsable Form 6111 reference catalog to activate a card from, (c) —
+ *  since 2026-08-17 — the business's own active CLIENT/ACCOUNTANT-owned
+ *  cards, full IBookingAccountRow shape, editable/deactivatable; SYSTEM rows
+ *  never appear here. */
 export interface IAccountantBookingAccountsCatalog {
   categories: { id: number; name: string; type: 'EXPENSE' | 'INCOME' }[];
   subCategories: IAccountantEffectiveSubCategory[];
   referenceCards: IBookingAccountRow[];
+  ownedAccounts: IBookingAccountRow[];
 }
 
 /**
@@ -329,5 +333,28 @@ export class BookkeepingCatalogService {
   ): Observable<IActivatedBookingAccountResult> {
     const url = `${environment.apiUrl}accountant/business/${encodeURIComponent(businessNumber)}/booking-accounts/activate`;
     return this.http.post<IActivatedBookingAccountResult>(url, payload);
+  }
+
+  /** Edit a card this accountant owns for this business (CLIENT_<business>
+   *  or their own ACCOUNTANT_<agentId>) — server rejects (404, ownership
+   *  not leaked) anything else, SYSTEM rows included. */
+  updateAccountantBookingAccount(businessNumber: string, id: number, dto: IUpdateAccountPayload): Observable<IBookingAccountRow> {
+    const url = `${environment.apiUrl}accountant/business/${encodeURIComponent(businessNumber)}/booking-accounts/${id}`;
+    return this.http.patch<IBookingAccountRow>(url, dto);
+  }
+
+  /** Same shared-impact count as getAccountUsage, scoped to a card this
+   *  accountant owns for this business. */
+  getAccountantBookingAccountUsage(businessNumber: string, id: number): Observable<IAccountUsage> {
+    const url = `${environment.apiUrl}accountant/business/${encodeURIComponent(businessNumber)}/booking-accounts/${id}/usage`;
+    return this.http.get<IAccountUsage>(url);
+  }
+
+  /** Deactivate a card this accountant owns for this business. Rejects
+   *  (409) with `{ message, blockingSubCategories }` the same way the admin
+   *  route does if any active sub_category still points at it. */
+  deactivateAccountantBookingAccount(businessNumber: string, id: number): Observable<IBookingAccountRow> {
+    const url = `${environment.apiUrl}accountant/business/${encodeURIComponent(businessNumber)}/booking-accounts/${id}/deactivate`;
+    return this.http.patch<IBookingAccountRow>(url, {});
   }
 }

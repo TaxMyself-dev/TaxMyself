@@ -74,7 +74,10 @@ export class AdminBookingAccountsController {
     if (!(await this.catalogContextService.isAdmin(actorFirebaseId))) {
       throw new ForbiddenException('רק מנהל מערכת יכול לערוך כרטיס ישירות');
     }
-    return this.catalogService.updateAccountFields(id, dto);
+    // null = unrestricted — this controller is isAdmin-gated above, so the
+    // caller is trusted with any row including SYSTEM. See
+    // CatalogService.updateAccountFields's own comment for the full contract.
+    return this.catalogService.updateAccountFields(id, dto, null);
   }
 
   /** Activate a reference card (`:id` — a `code LIKE '6111-%'` row) into a
@@ -152,6 +155,7 @@ export class AdminBookingAccountsController {
     if (!(await this.catalogContextService.isAdmin(actorFirebaseId))) {
       throw new ForbiddenException('רק מנהל מערכת יכול להשבית כרטיס');
     }
-    return this.catalogService.deactivateAccount(id);
+    // null = unrestricted — admin-gated above, trusted with any row.
+    return this.catalogService.deactivateAccount(id, null);
   }
 }

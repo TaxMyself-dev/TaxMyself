@@ -175,7 +175,8 @@ export class BookkepingController {
     if (!(await this.catalogContextService.isAdmin(actorFirebaseId))) {
       throw new ForbiddenException('רק מנהל מערכת יכול לצפות במסך ניהול הכרטיסים');
     }
-    return this.catalogService.getAccountUsage(id);
+    // null = unrestricted — admin-gated above, trusted with any row.
+    return this.catalogService.getAccountUsage(id, null);
   }
 
   /**
@@ -196,7 +197,8 @@ export class BookkepingController {
     if (!(await this.catalogContextService.isAdmin(actorFirebaseId))) {
       throw new ForbiddenException('רק מנהל מערכת יכול לערוך כרטיס ישירות');
     }
-    return this.catalogService.updateAccountFields(id, dto);
+    // null = unrestricted — admin-gated above, trusted with any row.
+    return this.catalogService.updateAccountFields(id, dto, null);
   }
 
   /**
