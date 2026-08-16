@@ -206,8 +206,12 @@ export class FeezbackConsentApiService {
   ): Promise<any> {
     const userIdentifier = this.buildUserIdentifier(sub);
 
+    // TEMP: this specific client's account needs the v2 cards-transactions endpoint
+    // (v1 doesn't work for them). Remove this override once resolved upstream.
+    const cardTransactionsApiVersion = sub === 'JpIEJt3lSDMsI9uG67Etqx4ZbuC3' ? 'v2' : 'v1';
+
     const transactionsBaseUrl =
-      `${this.getTppApiUrl()}/tpp/v1/users/${userIdentifier}` +
+      `${this.getTppApiUrl()}/tpp/${cardTransactionsApiVersion}/users/${userIdentifier}` +
       `/consents/${consentId}/cards/${cardResourceId}/transactions`;
 
     const url = new URL(transactionsBaseUrl);
@@ -215,7 +219,9 @@ export class FeezbackConsentApiService {
     if (dateFrom?.trim()) url.searchParams.set('dateFrom', dateFrom);
     if (dateTo?.trim()) url.searchParams.set('dateTo', dateTo);
     // Always use cached data — prevents 429 "Refresh Account task is already in progress"
-    url.searchParams.set('preventUpdate', 'true');
+    // TEMP: except for this specific client, who needs a live (non-cached) pull.
+    // This bypasses the 429 protection above for them — remove once resolved upstream.
+    url.searchParams.set('preventUpdate', sub === 'JpIEJt3lSDMsI9uG67Etqx4ZbuC3' ? 'false' : 'true');
 
     // 429 / transient-error retry is handled centrally by FeezbackHttpClient.
     try {
@@ -254,8 +260,12 @@ export class FeezbackConsentApiService {
   ): Promise<any> {
     const userIdentifier = this.buildUserIdentifier(sub);
 
+    // TEMP: this specific client's account needs the v2 accounts-transactions endpoint
+    // (v1 doesn't work for them). Remove this override once resolved upstream.
+    const accountTransactionsApiVersion = sub === 'JpIEJt3lSDMsI9uG67Etqx4ZbuC3' ? 'v2' : 'v1';
+
     const transactionsBaseUrl =
-      `${this.getTppApiUrl()}/tpp/v1/users/${userIdentifier}` +
+      `${this.getTppApiUrl()}/tpp/${accountTransactionsApiVersion}/users/${userIdentifier}` +
       `/consents/${consentId}/accounts/${accountResourceId}/transactions`;
 
     const url = new URL(transactionsBaseUrl);
@@ -263,7 +273,9 @@ export class FeezbackConsentApiService {
     if (dateFrom?.trim()) url.searchParams.set('dateFrom', dateFrom);
     if (dateTo?.trim()) url.searchParams.set('dateTo', dateTo);
     // Always use cached data — prevents 429 "Refresh Account task is already in progress"
-    url.searchParams.set('preventUpdate', 'true');
+    // TEMP: except for this specific client, who needs a live (non-cached) pull.
+    // This bypasses the 429 protection above for them — remove once resolved upstream.
+    url.searchParams.set('preventUpdate', sub === 'JpIEJt3lSDMsI9uG67Etqx4ZbuC3' ? 'false' : 'true');
 
     // 429 / transient-error retry is handled centrally by FeezbackHttpClient.
     try {
