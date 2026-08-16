@@ -59,7 +59,7 @@
             } @else {
               @for (row of filteredRows(); track row.id) {
                 <tr class="table-row" (mouseenter)="onRowEnter(row, $event)" (mouseleave)="onRowLeave()">
-                  <td>{{ row.code }}</td>
+                  <td>{{ isReferenceRow(row) ? '—' : row.code }}</td>
                   <td>{{ row.name }}</td>
                   <td>{{ row.sectionName || '—' }}</td>
                   <td>{{ row.code6111 || '—' }}</td>
