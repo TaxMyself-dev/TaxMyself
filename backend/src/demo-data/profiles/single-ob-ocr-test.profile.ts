@@ -1,4 +1,5 @@
 import {
+  BusinessFieldType,
   BusinessType,
   EmploymentType,
   FamilyStatus,
@@ -71,7 +72,7 @@ export const SINGLE_OB_OCR_TEST_PROFILE: DemoProfile = {
       businessName: 'יוסי כהן - יעוץ עסקי',
       businessNumber: YOSI_ID,
       businessType: BusinessType.LICENSED,
-      businessField: 'יעוץ עסקי',
+      businessField: BusinessFieldType.SERVICE_PROVIDER,
       businessAddress: 'תל אביב',
       advanceTaxPercent: 8,
     },

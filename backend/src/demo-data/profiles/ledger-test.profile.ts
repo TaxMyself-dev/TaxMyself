@@ -1,4 +1,5 @@
 import {
+  BusinessFieldType,
   BusinessType,
   DocumentType,
   EmploymentType,
@@ -48,13 +49,13 @@ export const LEDGER_TEST_PROFILE: DemoProfile = {
       businessName: 'יוסי לוי - מאמן כושר',
       businessNumber: EXEMPT_ID,
       businessType: BusinessType.EXEMPT,
-      businessField: 'ספורט ובריאות',
+      businessField: BusinessFieldType.SERVICE_PROVIDER,
     },
     {
       businessName: 'רחל לוי - מעצבת פנים',
       businessNumber: LICENSED_ID,
       businessType: BusinessType.LICENSED,
-      businessField: 'עיצוב פנים',
+      businessField: BusinessFieldType.SERVICE_PROVIDER,
     },
   ],
 

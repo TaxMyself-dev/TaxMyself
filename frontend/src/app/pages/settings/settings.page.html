@@ -282,6 +282,11 @@
                     [items]="businessTypeOptions()" [labelText]="'סוג עסק'" [placeholder]="'בחר/י'"
                     [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"></app-input-select>
                 </div>
+                <div class="detail-field">
+                  <app-input-select [parentForm]="bizGroup" [controlName]="'businessField'"
+                    [items]="businessFieldOptions" [labelText]="'תחום עיסוק'" [placeholder]="'בחר/י'"
+                    [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"></app-input-select>
+                </div>
               </div>
               <!-- שורה 2: ביטוח לאומי, מע"מ (תלוי בסוג), מקדמות, אחוז מקדמות -->
               <div class="detail-row three-fields">

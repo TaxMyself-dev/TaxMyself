@@ -46,7 +46,7 @@ export class BusinessService {
 
   async updateBusiness(
     firebaseId: string,
-    dto: { id?: number; businessNumber?: string; advanceTaxPercent?: number; businessName?: string; businessAddress?: string; businessPhone?: string; businessEmail?: string; businessType?: string },
+    dto: { id?: number; businessNumber?: string; advanceTaxPercent?: number; businessName?: string; businessAddress?: string; businessPhone?: string; businessEmail?: string; businessType?: string; businessField?: string },
   ): Promise<Business> {
     let business: Business | null;
     if (dto.id != null) {
@@ -68,6 +68,7 @@ export class BusinessService {
     if (dto.businessPhone !== undefined) business.businessPhone = dto.businessPhone;
     if (dto.businessEmail !== undefined) business.businessEmail = dto.businessEmail;
     if (dto.businessType !== undefined) business.businessType = dto.businessType as any;
+    if (dto.businessField !== undefined) business.businessField = dto.businessField as any;
     if ((dto as any).vatReportingType !== undefined) business.vatReportingType = (dto as any).vatReportingType;
     if ((dto as any).taxReportingType !== undefined) business.taxReportingType = (dto as any).taxReportingType;
     if ((dto as any).nationalInsRequired !== undefined) business.nationalInsRequired = (dto as any).nationalInsRequired;
@@ -83,6 +84,7 @@ export class BusinessService {
       businessPhone?: string;
       businessEmail?: string;
       businessType?: string;
+      businessField?: string;
       advanceTaxPercent?: number;
     },
   ): Promise<Business> {
@@ -103,6 +105,7 @@ export class BusinessService {
       businessPhone: dto?.businessPhone ?? null,
       businessEmail: dto?.businessEmail ?? null,
       businessType: (dto?.businessType as any) ?? null,
+      businessField: (dto?.businessField as any) ?? null,
       advanceTaxPercent: dto?.advanceTaxPercent ?? null,
     });
     const saved = await this.businessRepo.save(business);

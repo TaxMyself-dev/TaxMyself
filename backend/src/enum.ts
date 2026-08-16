@@ -27,6 +27,24 @@ export enum BusinessType {
   EXEMPT_PARTNERSHIP = 'EXEMPT_PARTNERSHIP',
 }
 
+/**
+ * Business-model taxonomy (Phase 3, Step 1 — 2026-08-17): what kind of
+ * business this is (service/retail/contracting), independent of
+ * `BusinessType` above (which is the tax-registration classification —
+ * exempt/licensed/company/partnership). Foundational field only in this
+ * step — no catalog scoping reads it yet; that's a later Phase 3 step and
+ * depends on chartOwnerKey centralization not done here. A handful of
+ * product-defined categories (not externally authored), so a plain enum
+ * matches the existing BusinessType/VATReportingType/TaxReportingType
+ * convention rather than a lookup table — adding a 4th type later is a
+ * one-line change + deploy, same cost as adding a BusinessType value today.
+ */
+export enum BusinessFieldType {
+  SERVICE_PROVIDER = 'SERVICE_PROVIDER',
+  COMMERCIAL = 'COMMERCIAL',
+  CONTRACTOR = 'CONTRACTOR',
+}
+
 export const PRIVATE_BUSINESS_TYPES: readonly BusinessType[] = [BusinessType.EXEMPT, BusinessType.LICENSED];
 export const COMPANY_BUSINESS_TYPES: readonly BusinessType[] = [
   BusinessType.LIMITED_COMPANY,

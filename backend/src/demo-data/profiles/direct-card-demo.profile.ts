@@ -1,4 +1,5 @@
 import {
+  BusinessFieldType,
   BusinessType,
   EmploymentType,
   FamilyStatus,
@@ -85,7 +86,7 @@ export const DIRECT_CARD_DEMO_PROFILE: DemoProfile = {
       businessName: 'נועם ברק - עיצוב גרפי',
       businessNumber: NOAM_ID,
       businessType: BusinessType.LICENSED,
-      businessField: 'עיצוב גרפי',
+      businessField: BusinessFieldType.SERVICE_PROVIDER,
       businessAddress: 'חיפה',
       advanceTaxPercent: 7,
     },
