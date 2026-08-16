@@ -1,4 +1,5 @@
 import {
+  BusinessFieldType,
   BusinessType,
   EmploymentType,
   FamilyStatus,
@@ -47,7 +48,7 @@ export const COUPLE_TWO_BUSINESSES_PROFILE: DemoProfile = {
       businessName: 'דניאל כהן - יועץ עסקי',
       businessNumber: DANIEL_ID,
       businessType: BusinessType.EXEMPT,
-      businessField: 'ייעוץ עסקי',
+      businessField: BusinessFieldType.SERVICE_PROVIDER,
       businessAddress: 'תל אביב',
       advanceTaxPercent: 5,
     },
@@ -55,7 +56,7 @@ export const COUPLE_TWO_BUSINESSES_PROFILE: DemoProfile = {
       businessName: 'שרה כהן - מעצבת גרפית',
       businessNumber: SARA_ID,
       businessType: BusinessType.LICENSED,
-      businessField: 'עיצוב גרפי',
+      businessField: BusinessFieldType.SERVICE_PROVIDER,
       businessAddress: 'תל אביב',
       advanceTaxPercent: 7,
     },

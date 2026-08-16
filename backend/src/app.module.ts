@@ -107,18 +107,51 @@ import { BusinessService } from './business/business.service';
 // unset — this must fail before TypeORM ever opens a connection, so it runs
 // as plain top-level code (evaluated at module-load time, before Nest
 // bootstraps), not inside a provider/guard.
-const isSynchronizeEnabled = process.env.NODE_ENV !== 'production';
+//
+// DISABLE_SYNCHRONIZE (added 2026-08-17 — dev-tooling hardening after the
+// 4th variant of the same bug class: an import-script clobber, the catalog
+// seeder null-ing fields on every boot [fixed 7d58a08b, unrelated to and
+// unaffected by this change], the 2026-07-12 index-drop incident above, and
+// most recently a long-lived `nest start --watch` process silently
+// drop-and-recreating a column — and backfilling every row with its new
+// default — the moment an entity's column type changed, with zero review).
+// A dedicated flag rather than reusing NODE_ENV: NODE_ENV is also read
+// directly in documents.service.ts, feezback.service.ts, and three dev-only
+// endpoints in transactions.controller.ts, so repurposing it to kill
+// synchronize locally would silently change unrelated behavior too. This
+// flag controls synchronize and nothing else.
+//
+// Same "safe requires an explicit flag" shape as SKIP_BOOT_SEED: unset (or
+// anything other than 'true') preserves the original NODE_ENV-only
+// behavior — nothing breaks for an existing `nest start`/`npm start`
+// invocation. `npm run start:watch` (backend/scripts/start-watch.js) is now
+// the canonical way to run the live-reload dev server and sets
+// DISABLE_SYNCHRONIZE=true by default, so the dangerous case (a background
+// watcher silently altering the shared keepintax-dev schema on every save)
+// can no longer happen through the recommended entry point.
+//
+// Escape hatch — genuinely need synchronize once (e.g. bootstrapping a
+// fresh/scratch schema from nothing, as used for the seeder create-only-path
+// verification): don't use start:watch. Run the nest CLI directly with
+// DISABLE_SYNCHRONIZE left unset/false for that one boot, e.g.
+//   DISABLE_SYNCHRONIZE=false DB_DATABASE=<scratch-db-name> npx nest start
+// — a deliberate, named override, not an ambient default. (On Windows,
+// npm's default script-shell doesn't support `VAR=value command` syntax —
+// run that line from Git Bash, or set the env var as a separate PowerShell
+// statement first: `$env:DISABLE_SYNCHRONIZE='false'`.)
+const isSynchronizeEnabled = process.env.NODE_ENV !== 'production' && process.env.DISABLE_SYNCHRONIZE !== 'true';
 if (isSynchronizeEnabled && /prod/i.test(process.env.DB_DATABASE || '')) {
   throw new Error(
-    `Refusing to start: TypeORM synchronize is enabled (NODE_ENV=${JSON.stringify(process.env.NODE_ENV)}) ` +
+    `Refusing to start: TypeORM synchronize is enabled (NODE_ENV=${JSON.stringify(process.env.NODE_ENV)}, ` +
+    `DISABLE_SYNCHRONIZE=${JSON.stringify(process.env.DISABLE_SYNCHRONIZE)}) ` +
     `against DB_DATABASE=${JSON.stringify(process.env.DB_DATABASE)}, which looks like a production database. ` +
-    `Set NODE_ENV=production to disable synchronize, or point DB_DATABASE at keepintax-dev. ` +
+    `Set NODE_ENV=production or DISABLE_SYNCHRONIZE=true to disable synchronize, or point DB_DATABASE at keepintax-dev. ` +
     `See docs/redesign/schema-drift.md Gap 7 for why this guard exists.`,
   );
 }
 
 // "Which DB am I on?" should always be answerable at a glance — one line,
-// every boot, right next to the guard above that depends on the same two values.
+// every boot, right next to the guard above that depends on the same values.
 new Logger('Bootstrap').log(
   `DB_DATABASE=${process.env.DB_DATABASE} synchronize=${isSynchronizeEnabled}`,
 );

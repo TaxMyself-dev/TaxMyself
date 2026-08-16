@@ -17,6 +17,8 @@ import {
   BusinessTypeLabels,
   VATReportingTypeLabels,
   TaxReportingTypeLabels,
+  BusinessFieldType,
+  businessFieldTypeOptionsList,
 } from 'src/app/shared/enums';
 import {
   TaskDataService,
@@ -853,6 +855,23 @@ export class ClientPanelPage implements OnInit {
   readonly addingAccount = signal(false);
   addAccountFormData = this.getEmptyAccountFormData();
   readonly addAccountErrors = signal<Record<string, string>>({});
+  /** Phase 3 Step 3 (2026-08-17, revised model): the 3 business types a card
+   *  can be made visible to — נותן שירותים / עסק מסחרי / קבלן. Separate from
+   *  `businessTypeOptionsList` above (that one is BusinessType, the tax-
+   *  registration classification — unrelated enum, same-ish name by
+   *  coincidence). */
+  readonly businessFieldTypeOptions = businessFieldTypeOptionsList;
+
+  isBusinessFieldTypeChecked(type: BusinessFieldType): boolean {
+    return this.addAccountFormData.visibleBusinessTypes.includes(type);
+  }
+
+  toggleBusinessFieldType(type: BusinessFieldType): void {
+    const current = this.addAccountFormData.visibleBusinessTypes;
+    this.addAccountFormData.visibleBusinessTypes = current.includes(type)
+      ? current.filter((t) => t !== type)
+      : [...current, type];
+  }
 
   /** Overview rows sorted for display: category, then sub-category name. */
   readonly catalogOverviewRows = computed<ICatalogOverviewSubCategory[]>(() => {
@@ -887,6 +906,7 @@ export class ClientPanelPage implements OnInit {
       availableFor: 'ALL_MY_CLIENTS' as 'ALL_MY_CLIENTS' | 'CURRENT_CLIENT',
       technicalOnly: false,
       categoryName: '',
+      visibleBusinessTypes: [] as BusinessFieldType[],
     };
   }
 
@@ -1007,6 +1027,7 @@ export class ClientPanelPage implements OnInit {
     if (form.availableFor === 'CURRENT_CLIENT' && !this.catalogBusinessFilter()) {
       err['availableFor'] = 'נא לבחור לקוח בטבלת הקטלוג תחילה';
     }
+    if (!form.visibleBusinessTypes.length) err['visibleBusinessTypes'] = 'נא לבחור לפחות סוג עסק אחד';
     this.addAccountErrors.set(err);
     return Object.keys(err).length === 0;
   }
@@ -1032,6 +1053,7 @@ export class ClientPanelPage implements OnInit {
       technicalOnly: !!form.technicalOnly,
       categoryName: form.technicalOnly ? undefined : form.categoryName.trim(),
       businessNumber: business?.businessNumber,
+      visibleBusinessTypes: form.visibleBusinessTypes,
     };
 
     this.addingAccount.set(true);

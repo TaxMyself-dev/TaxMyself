@@ -46,6 +46,10 @@ export class UpdateBusinessDto {
 
   @IsOptional()
   @IsString()
+  businessField?: string;
+
+  @IsOptional()
+  @IsString()
   vatReportingType?: string;
 
   @IsOptional()

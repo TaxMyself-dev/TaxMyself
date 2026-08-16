@@ -4,6 +4,8 @@ import { BookkeepingService,  } from './bookkeeping.service';
 import { CatalogSeedService } from './catalog-seed.service';
 import { AccountCodeAllocatorService } from './account-code-allocator.service';
 import { BookkepingController } from './bookkeeping.controller';
+import { AdminBookingAccountsController } from './admin-booking-accounts.controller';
+import { AccountantBookingAccountsController } from './accountant-booking-accounts.controller';
 import { JournalEntry } from './jouranl-entry.entity';
 import { JournalLine } from './jouranl-line.entity';
 import { SharedService } from 'src/shared/shared.service';
@@ -27,7 +29,7 @@ import { Business } from 'src/business/business.entity';
 
 @Module({
   imports: [TypeOrmModule.forFeature([JournalEntry, JournalLine, BookingAccount, AccountingSection, AccountCodeMigration, Category, SubCategory, Expense, Transactions, SettingDocuments, User, Delegation, Business])],
-  controllers: [BookkepingController],
+  controllers: [BookkepingController, AdminBookingAccountsController, AccountantBookingAccountsController],
   providers: [
     BookkeepingService,
     CatalogSeedService,

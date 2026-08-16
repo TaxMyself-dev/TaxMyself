@@ -1,4 +1,5 @@
 import {
+  BusinessFieldType,
   BusinessType,
   EmploymentType,
   FamilyStatus,
@@ -34,7 +35,7 @@ export const SINGLE_LICENSED_NO_BANKING_PROFILE: DemoProfile = {
       businessName: 'יוסי לוי - ייעוץ פיננסי',
       businessNumber: YOSSI_ID,
       businessType: BusinessType.LICENSED,
-      businessField: 'ייעוץ פיננסי',
+      businessField: BusinessFieldType.SERVICE_PROVIDER,
       businessAddress: 'תל אביב',
       advanceTaxPercent: 7,
     },

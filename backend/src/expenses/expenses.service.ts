@@ -1179,6 +1179,11 @@ export class ExpensesService {
             throw new ConflictException(`Category with name ${createUserCategoryDto.categoryName} already exists`);
         }
 
+        // Hand-rolled ctx (not catalogContextService.forUser()) is safe here
+        // ONLY because buildScope(CLIENT, ...) never reads accountantIds —
+        // do not copy this into a read path (getMergedCategories, resolveByName,
+        // etc.), which would silently drop the ACCOUNTANT layer (see
+        // CatalogContext.accountantIds' doc comment in catalog.service.ts).
         const ctx = { userId: firebaseId, businessNumber };
         const scope = this.catalogService.buildScope(OwnerType.CLIENT, ctx);
         const type = createUserCategoryDto.isExpense === false ? CategoryType.INCOME : CategoryType.EXPENSE;

@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, In, Repository } from 'typeorm';
+import { DataSource, FindOptionsWhere, In, Like, Repository } from 'typeorm';
 import { Category } from './category.entity';
 import { SubCategory } from './sub-category.entity';
 import { BookingAccount } from './account.entity';
@@ -11,15 +11,27 @@ import { User } from 'src/users/user.entity';
 import { Business } from 'src/business/business.entity';
 import {
   ApprovalStatus,
+  BusinessFieldType,
   CategoryType,
   ExpenseApprovalStatus,
   ExpenseNecessity,
   ExpenseReportScope,
+  FormPart,
   OwnerType,
   RecognitionType,
   SYSTEM_CHART_OWNER_KEY,
   VisibilityScope,
 } from 'src/enum';
+
+/** Form 6111 reference-card project (2026-08-11/13): a reference card's
+ *  formPart determines which report bucket the activated operational card
+ *  belongs to. Same mapping used by 2026-08-11_import-6111-reference-cards.js
+ *  and the formPart backfill — kept in sync deliberately, not re-derived. */
+const REPORT_SCOPE_BY_FORM_PART: Record<FormPart, ExpenseReportScope> = {
+  [FormPart.A]: ExpenseReportScope.PNL,
+  [FormPart.B]: ExpenseReportScope.ANNUAL,
+  [FormPart.C]: ExpenseReportScope.TECHNICAL,
+};
 
 export interface CatalogContext {
   userId?: string | null;
@@ -32,6 +44,19 @@ export interface CatalogContext {
    *  omit it simply see no ACCOUNTANT layer (pre-5.1 behavior). */
   accountantIds?: string[] | null;
   businessNumber?: string | null;
+  /** Phase 3 Step 3 (revised model, 2026-08-17): the acting business's
+   *  BusinessFieldType. NOT a chartOwnerKey/ownership dimension — ownership
+   *  stays CLIENT/ACCOUNTANT/SYSTEM via chartOwnerKeysFor, unchanged.
+   *  businessType is a separate VISIBILITY FILTER: every read that builds
+   *  what a business sees (getMergedCategories/getMergedSubCategories/
+   *  getMergedExpenseCatalog) applies this alongside the chartOwnerKey
+   *  filter — a card is included only if BOTH its chartOwnerKey is in
+   *  chartOwnerKeysFor(ctx) AND ctx.businessType is in the card's
+   *  visibleBusinessTypes (booking_account SET column). Built by
+   *  CatalogContextService.forUser from Business.businessField; hand-rolled
+   *  ctx literals that omit it simply can't pass the visibility filter for
+   *  any type-restricted card (see the filter's own null-handling). */
+  businessType?: BusinessFieldType | null;
 }
 
 export interface ResolvedSubCategory {
@@ -116,7 +141,22 @@ export class CatalogService {
     @InjectRepository(Business) private readonly businessRepo: Repository<Business>,
   ) {}
 
-  private chartOwnerKeysFor(ctx: CatalogContext): string[] {
+  /**
+   * Phase 3 Step 2 — the single source of truth for a read-precedence
+   * chartOwnerKey array (D4: CLIENT > ACCOUNTANT > SYSTEM). Every caller that
+   * needs "every chart visible to this business" — not just this service's
+   * own read methods below — must build it here, so a future precedence
+   * change (e.g. the planned business-type tier) only has one place to land.
+   * Public since 2026-08-17 so callers outside this file (e.g.
+   * ReportsService's ledger/P&L account joins) can reach it too.
+   *
+   * NOT for write-target scopes (see `buildScope`) and NOT for write
+   * allow-lists (deliberately narrower lists like
+   * `AccountantBookingAccountsController.ownedChartOwnerKeys`, which excludes
+   * SYSTEM and other accountants' charts on purpose) — both have different
+   * semantics and must stay separate from this read-merge precedence.
+   */
+  chartOwnerKeysFor(ctx: CatalogContext): string[] {
     // Precedence order — earlier entries win (D4: CLIENT > ACCOUNTANT > SYSTEM).
     const keys: string[] = [];
     if (ctx.businessNumber) keys.push(`CLIENT_${ctx.businessNumber}`);
@@ -159,14 +199,62 @@ export class CatalogService {
     };
   }
 
-  /** Merged category list for a business context, CLIENT > ACCOUNTANT > SYSTEM
-   *  by name (D4). */
+  /**
+   * Phase 3 Step 3 (2026-08-17, revised model) — business-type VISIBILITY
+   * filter, independent of the chartOwnerKey ownership filter (D4). A
+   * sub_category with no linked account (isPrivate, or
+   * MISSING_ACCOUNTING_MAPPING) has no card to check and is always visible —
+   * the filter is a property of the CARD, not the sub_category itself.
+   * `businessType` absent on ctx (e.g. an admin/no-specific-business
+   * context) skips the filter entirely — never silently hide everything for
+   * a context that doesn't know its business type; only a *present* type
+   * that the card's `visibleBusinessTypes` doesn't list excludes it. Empty
+   * `visibleBusinessTypes` on the card excludes it from every business type.
+   */
+  private isVisibleToBusinessType(
+    account: BookingAccount | null | undefined,
+    businessType: BusinessFieldType | null | undefined,
+  ): boolean {
+    if (!account || !businessType) return true;
+    return account.visibleBusinessTypes?.includes(businessType) ?? false;
+  }
+
+  /**
+   * Merged category list for a business context, CLIENT > ACCOUNTANT > SYSTEM
+   * by name (D4). A `Category` carries no `booking_account` of its own (D1
+   * revised: only `sub_category` points at a card) — its business-type
+   * visibility is DERIVED, not stored: a category is included only if it has
+   * at least one sub-category that itself passes the Step 3 visibility
+   * filter (isVisibleToBusinessType, same rule getMergedSubCategories uses).
+   * Deliberately no `visibleBusinessTypes` column on `Category` — a second
+   * stored copy of what the sub-category/account SET already encodes would
+   * be exactly the kind of dual-source-of-truth drift this project has been
+   * burned by before (code6111/seeder). `ctx.businessType` absent skips the
+   * filter entirely (graceful degrade, matches every other Step 3 site) —
+   * only ever narrows when a type is actually known.
+   *
+   * Bounded query cost regardless of category count: the merged-category
+   * query (unchanged) + ONE additional sub_category query keyed by
+   * `categoryId IN (...)` across every candidate category at once — never
+   * one query per category.
+   */
   async getMergedCategories(ctx: CatalogContext, type?: CategoryType): Promise<Category[]> {
     const chartOwnerKeys = this.chartOwnerKeysFor(ctx);
     const rows = await this.categoryRepo.find({
       where: { chartOwnerKey: In(chartOwnerKeys), isActive: true, ...(type ? { type } : {}) },
     });
-    return this.mergeByName(rows, chartOwnerKeys, (c) => c.name);
+    const categories = this.mergeByName(rows, chartOwnerKeys, (c) => c.name);
+    if (!ctx.businessType || categories.length === 0) return categories;
+
+    const categoryIds = categories.map((c) => c.id);
+    const subRows = await this.subCategoryRepo.find({
+      where: { chartOwnerKey: In(chartOwnerKeys), categoryId: In(categoryIds), isActive: true },
+      relations: ['account'],
+    });
+    const categoryIdsWithVisibleChild = new Set(
+      subRows.filter((s) => this.isVisibleToBusinessType(s.account, ctx.businessType)).map((s) => s.categoryId),
+    );
+    return categories.filter((c) => categoryIdsWithVisibleChild.has(c.id));
   }
 
   async getMergedSubCategories(ctx: CatalogContext, categoryId: number): Promise<SubCategory[]> {
@@ -175,7 +263,8 @@ export class CatalogService {
       where: { chartOwnerKey: In(chartOwnerKeys), categoryId, isActive: true },
       relations: ['account', 'category'],
     });
-    return this.mergeByName(rows, chartOwnerKeys, (s) => s.name);
+    const visible = rows.filter((s) => this.isVisibleToBusinessType(s.account, ctx.businessType));
+    return this.mergeByName(visible, chartOwnerKeys, (s) => s.name);
   }
 
   /**
@@ -200,7 +289,8 @@ export class CatalogService {
       // group/display by section without a second query.
       relations: ['account', 'account.section', 'category'],
     });
-    return this.mergeByName(rows, chartOwnerKeys, (s) => s.name);
+    const visible = rows.filter((s) => this.isVisibleToBusinessType(s.account, ctx.businessType));
+    return this.mergeByName(visible, chartOwnerKeys, (s) => s.name);
   }
 
   /** All active rows for one chartOwnerKey (admin/user "list everything I own"
@@ -661,6 +751,15 @@ export class CatalogService {
     technicalOnly?: boolean;
     categoryName?: string | null;
     createdByUserId?: string | null;
+    /** Which report this card feeds — defaults to PNL (the only value the
+     *  existing D11 accountant/admin add-account flow ever needed). The
+     *  Form 6111 reference-card activation flow (activateReferenceCard)
+     *  passes the reference row's formPart-derived value instead, since a
+     *  card activated from a B/C reference line must not default to PNL. */
+    reportScope?: ExpenseReportScope;
+    /** Phase 3 Step 3 (revised model): visibility filter, required —
+     *  callers (DTOs) enforce non-empty; see BookingAccount.visibleBusinessTypes. */
+    visibleBusinessTypes: BusinessFieldType[];
   }): Promise<{ account: BookingAccount; subCategory: SubCategory | null }> {
     const { scope } = input;
     const name = input.name?.trim();
@@ -712,6 +811,7 @@ export class CatalogService {
           reductionPercent: input.law.reductionPercent,
           isEquipment: input.law.isEquipment,
           recognitionType: input.law.recognitionType,
+          reportScope: input.reportScope ?? ExpenseReportScope.PNL,
           ownerType: scope.ownerType,
           chartOwnerKey: scope.chartOwnerKey,
           accountantId: scope.accountantId ?? null,
@@ -719,6 +819,7 @@ export class CatalogService {
           businessNumber: scope.businessNumber ?? null,
           visibilityScope: scope.visibilityScope ?? null,
           isActive: true,
+          visibleBusinessTypes: input.visibleBusinessTypes,
         }),
       );
 
@@ -1008,27 +1109,74 @@ export class CatalogService {
   // ==========================================================================
 
   /**
-   * Every active card across all owner scopes (or one scope, filtered), each
-   * with a resolved owner display name for ACCOUNTANT/CLIENT rows (SYSTEM
-   * rows have none). Admin-only listing — unlike every read above, this is
-   * not merged/scoped to one business's visible charts, it's the flat global
+   * Every card across all owner scopes (or one scope, filtered), each with a
+   * resolved owner display name for ACCOUNTANT/CLIENT rows (SYSTEM rows have
+   * none). Admin-only listing — unlike every read above, this is not
+   * merged/scoped to one business's visible charts, it's the flat global
    * table.
+   *
+   * `isActive` is opt-in filtering, not a baked-in default: omit it to get
+   * every row regardless of active state (what the Form 6111 admin screen
+   * needs — 68 active operational + 321 inactive reference cards in one
+   * view), or pass it explicitly to filter one way. The original caller
+   * (GET /bookkeeping/accounts) now passes `isActive: true` explicitly at
+   * the call site to keep its exact prior behavior — the default used to be
+   * baked in here, which would have been wrong for the new admin screen.
+   *
+   * `formPart`/`search` (2026-08-13, Form 6111 reference-card project):
+   * `search` matches `code` OR `name`, case-insensitive (MySQL's default
+   * collation), substring.
+   *
+   * `chartOwnerKeys` (2026-08-17, accountant catalog Phase 2 cont'd): an
+   * explicit allow-list, not a merge/precedence read — used by
+   * AccountantBookingAccountsController.getCatalog to fetch one business's
+   * own CLIENT_<businessNumber>/ACCOUNTANT_<agentId> rows in the same
+   * IBookingAccountRow shape as the admin listing. Safe to reuse here
+   * despite the "admin-only" framing above: this method itself does no
+   * actor-scoping, the exposing ROUTE does — same division of responsibility
+   * as every other CatalogService read.
    */
-  async listAccountsForAdmin(ownerType?: OwnerType): Promise<{
-    id: number; code: string; name: string; type: string;
+  async listAccountsForAdmin(filters: {
+    ownerType?: OwnerType;
+    isActive?: boolean;
+    formPart?: FormPart;
+    search?: string;
+    chartOwnerKeys?: string[];
+  } = {}): Promise<{
+    id: number; code: string; name: string; type: string | null;
     sectionId: number | null; sectionName: string | null;
-    code6111: string | null;
+    code6111: string | null; category6111: string | null; subCategory6111: string | null; formPart: FormPart | null;
     vatPercent: number | null; taxPercent: number | null; reductionPercent: number | null;
     isEquipment: boolean | null; recognitionType: RecognitionType | null;
     reportScope: ExpenseReportScope;
+    isActive: boolean;
     ownerType: OwnerType; chartOwnerKey: string;
     accountantId: string | null; businessNumber: string | null;
     ownerName: string | null;
+    /** Phase 3 Step 3 — admin sees every card's visibility setting
+     *  regardless of ownerType/chartOwnerKey; this listing is never itself
+     *  filtered by it (see isVisibleToBusinessType's callers — this method
+     *  isn't one of them). */
+    visibleBusinessTypes: BusinessFieldType[];
   }[]> {
-    const where: { isActive: boolean; ownerType?: OwnerType } = { isActive: true };
-    if (ownerType && Object.values(OwnerType).includes(ownerType)) {
-      where.ownerType = ownerType;
+    const base: FindOptionsWhere<BookingAccount> = {};
+    if (filters.ownerType && Object.values(OwnerType).includes(filters.ownerType)) {
+      base.ownerType = filters.ownerType;
     }
+    if (filters.isActive !== undefined) {
+      base.isActive = filters.isActive;
+    }
+    if (filters.formPart && Object.values(FormPart).includes(filters.formPart)) {
+      base.formPart = filters.formPart;
+    }
+    if (filters.chartOwnerKeys && filters.chartOwnerKeys.length) {
+      base.chartOwnerKey = In(filters.chartOwnerKeys);
+    }
+    const search = filters.search?.trim();
+    const where: FindOptionsWhere<BookingAccount> | FindOptionsWhere<BookingAccount>[] = search
+      ? [{ ...base, code: Like(`%${search}%`) }, { ...base, name: Like(`%${search}%`) }]
+      : base;
+
     const rows = await this.accountRepo.find({
       where,
       relations: ['section'],
@@ -1064,12 +1212,16 @@ export class CatalogService {
       sectionId: r.sectionId,
       sectionName: r.section?.name ?? null,
       code6111: r.code6111,
+      category6111: r.category6111,
+      subCategory6111: r.subCategory6111,
+      formPart: r.formPart,
       vatPercent: r.vatPercent != null ? Number(r.vatPercent) : null,
       taxPercent: r.taxPercent != null ? Number(r.taxPercent) : null,
       reductionPercent: r.reductionPercent != null ? Number(r.reductionPercent) : null,
       isEquipment: r.isEquipment,
       recognitionType: r.recognitionType,
       reportScope: r.reportScope,
+      isActive: r.isActive,
       ownerType: r.ownerType,
       chartOwnerKey: r.chartOwnerKey,
       accountantId: r.accountantId,
@@ -1078,19 +1230,39 @@ export class CatalogService {
         r.ownerType === OwnerType.ACCOUNTANT ? (r.accountantId ? accountantNameById.get(r.accountantId) ?? null : null)
         : r.ownerType === OwnerType.CLIENT ? (r.businessNumber ? businessNameByNumber.get(r.businessNumber) ?? null : null)
         : null,
+      visibleBusinessTypes: r.visibleBusinessTypes,
     }));
   }
 
   /**
-   * Impact count shown before an admin edits a shared card — "this affects N
-   * sub_categories across M businesses". A direct COUNT of sub_category rows
-   * whose accountId points here. Does NOT count businesses that implicitly
-   * inherit a SYSTEM card via the D4 merge-by-name without an explicit
-   * override row — that set is effectively "every business without an
-   * override" and isn't a countable row, so this is a floor, not the true
-   * blast radius, for SYSTEM cards specifically.
+   * Impact count shown before an admin (or, since 2026-08-17, an accountant)
+   * edits a shared card — "this affects N sub_categories across M
+   * businesses". A direct COUNT of sub_category rows whose accountId points
+   * here. Does NOT count businesses that implicitly inherit a SYSTEM card
+   * via the D4 merge-by-name without an explicit override row — that set is
+   * effectively "every business without an override" and isn't a countable
+   * row, so this is a floor, not the true blast radius, for SYSTEM cards
+   * specifically.
+   *
+   * `allowedChartOwnerKeys` — same ownership-gate contract as
+   * updateAccountFields/deactivateAccount below: `null` = unrestricted
+   * (admin, trusted with any row), a string array = the caller may only
+   * query a row whose chartOwnerKey is in that list. Every caller MUST pass
+   * this explicitly — see those two methods' doc comments for why it's a
+   * parameter rather than inferred from ambient auth state.
    */
-  async getAccountUsage(accountId: number): Promise<{ subCategoryCount: number; businessCount: number }> {
+  async getAccountUsage(
+    accountId: number,
+    allowedChartOwnerKeys: string[] | null,
+  ): Promise<{ subCategoryCount: number; businessCount: number }> {
+    if (allowedChartOwnerKeys !== null) {
+      const account = await this.accountRepo.findOne({ where: { id: accountId }, select: ['id', 'chartOwnerKey'] });
+      // Same "404, not 403" choice as updateAccountFields/deactivateAccount —
+      // see their comments for the existence-leak rationale.
+      if (!account || !allowedChartOwnerKeys.includes(account.chartOwnerKey)) {
+        throw new NotFoundException(`Account ${accountId} not found`);
+      }
+    }
     const [subCategoryCount, businessCountRow] = await Promise.all([
       this.subCategoryRepo.count({ where: { accountId, isActive: true } }),
       this.subCategoryRepo
@@ -1105,20 +1277,60 @@ export class CatalogService {
   }
 
   /**
-   * Direct in-place edit of an existing card's own fields (admin-only
-   * "כרטיסים" screen) — the deliberate mutation path D10's comment on
-   * updateSubCategoryLaw presupposes doesn't otherwise exist. `sectionId`
-   * (if changed) must resolve to a section visible to the card's own scope,
-   * same rule as createAccountWithSubCategory; `code` (if changed) must stay
-   * unique within the card's chartOwnerKey.
+   * Direct in-place edit of an existing card's own fields — the deliberate
+   * mutation path D10's comment on updateSubCategoryLaw presupposes doesn't
+   * otherwise exist. `sectionId` (if changed) must resolve to a section
+   * visible to the card's own scope, same rule as createAccountWithSubCategory;
+   * `code` (if changed) must stay unique within the card's chartOwnerKey.
+   *
+   * `allowedChartOwnerKeys` (2026-08-17, accountant catalog Phase 2 cont'd) —
+   * the ownership gate is enforced HERE, inside the shared method, not left
+   * to each controller, so the guarantee holds regardless of which
+   * controller calls this in future:
+   *   - `null` = unrestricted — the admin controllers pass this explicitly.
+   *     Admins are trusted with any row (SYSTEM included), same as before
+   *     this parameter existed.
+   *   - a string array = the caller may only mutate a row whose
+   *     chartOwnerKey is in that list — the accountant controller passes
+   *     `[CLIENT_<businessNumber>, ACCOUNTANT_<actorId>]` for the business/
+   *     agent it just verified via assertBusinessAccess. A SYSTEM row's
+   *     chartOwnerKey ('SYSTEM') can never appear in that list, so this
+   *     alone is what makes a SYSTEM card unwritable by an accountant —
+   *     not UI gating, not the controller's role check alone.
+   * This is a required parameter, not an optional one defaulting to
+   * unrestricted — an omitted argument is a compile error, not a silent
+   * admin-equivalent no-op.
    */
   async updateAccountFields(accountId: number, dto: {
     name?: string; code?: string; sectionId?: number; code6111?: string | null;
     recognitionType?: RecognitionType; vatPercent?: number; taxPercent?: number;
     reductionPercent?: number; isEquipment?: boolean; reportScope?: ExpenseReportScope;
-  }): Promise<BookingAccount> {
+    /** Phase 3 Step 3 (revised model): visibility filter. Omit to leave
+     *  unchanged; UpdateAccountDto's @ArrayNotEmpty already rejects an empty
+     *  array before this is reached. */
+    visibleBusinessTypes?: BusinessFieldType[];
+  }, allowedChartOwnerKeys: string[] | null): Promise<BookingAccount> {
     const account = await this.accountRepo.findOne({ where: { id: accountId } });
     if (!account) throw new NotFoundException(`Account ${accountId} not found`);
+
+    // Ownership gate — checked before the reference-row guard below, since a
+    // reference row's chartOwnerKey is always 'SYSTEM' and would never be in
+    // an accountant's allow-list anyway; this way both cases (wrong owner,
+    // reference row) surface the identical "not found" an out-of-scope id
+    // gets everywhere else in this file (findAccountByIdInScope,
+    // resolveSubCategory) — existence isn't leaked across tenants.
+    if (allowedChartOwnerKeys !== null && !allowedChartOwnerKeys.includes(account.chartOwnerKey)) {
+      throw new NotFoundException(`Account ${accountId} not found`);
+    }
+
+    // Form 6111 reference cards (code LIKE '6111-%', always isActive=false)
+    // are informational Tax Authority lines, not editable cards — they're
+    // turned into a real card via activateReferenceCard, never patched here.
+    if (account.code.startsWith('6111-')) {
+      throw new BadRequestException(
+        `כרטיס ${account.code} הוא כרטיס ייחוס מטופס 6111 — יש להפעיל אותו (activate), לא לערוך אותו ישירות`,
+      );
+    }
 
     if (dto.sectionId !== undefined && dto.sectionId !== account.sectionId) {
       const section = await this.sectionRepo.findOne({
@@ -1131,10 +1343,101 @@ export class CatalogService {
       if (collision) throw new ConflictException(`חשבון עם קוד ${dto.code} כבר קיים בתרשים החשבונות`);
     }
 
-    const fields = ['name', 'code', 'sectionId', 'code6111', 'recognitionType', 'vatPercent', 'taxPercent', 'reductionPercent', 'isEquipment', 'reportScope'] as const;
+    const fields = ['name', 'code', 'sectionId', 'code6111', 'recognitionType', 'vatPercent', 'taxPercent', 'reductionPercent', 'isEquipment', 'reportScope', 'visibleBusinessTypes'] as const;
     for (const field of fields) {
       if (dto[field] !== undefined) (account as any)[field] = dto[field];
     }
+    return this.accountRepo.save(account);
+  }
+
+  // ==========================================================================
+  // Form 6111 reference-card project, Phase 2 (2026-08-13) — activate/
+  // deactivate. Shared between the admin (SYSTEM scope) and accountant
+  // (CLIENT scope) controllers, which build `scope`/gate the actor
+  // themselves and call these directly — no duplicated business logic.
+  // ==========================================================================
+
+  /**
+   * Turn a Form 6111 reference card (isActive=false, code LIKE '6111-%')
+   * into a real operational booking_account + paired sub_category, via
+   * createAccountWithSubCategory — one atomic call, not a two-step
+   * PATCH-then-activate, since the law is required up front either way.
+   * The reference row itself is left untouched (informational, not
+   * superseded/deleted) — its code/code6111/name/formPart are only ever
+   * read here, never mutated.
+   */
+  async activateReferenceCard(input: {
+    referenceAccountId: number;
+    scope: CatalogScope;
+    type: 'expense' | 'income';
+    sectionId: number;
+    law: AccountLaw;
+    categoryName: string;
+    createdByUserId?: string | null;
+    /** Phase 3 Step 3 (revised model): visibility filter, required — see
+     *  createAccountWithSubCategory. */
+    visibleBusinessTypes: BusinessFieldType[];
+  }): Promise<{ account: BookingAccount; subCategory: SubCategory | null }> {
+    const ref = await this.accountRepo.findOne({ where: { id: input.referenceAccountId } });
+    if (!ref) throw new NotFoundException(`Reference account ${input.referenceAccountId} not found`);
+    if (ref.chartOwnerKey !== SYSTEM_CHART_OWNER_KEY || !ref.code.startsWith('6111-')) {
+      throw new BadRequestException(`כרטיס ${ref.id} אינו כרטיס ייחוס מטופס 6111 (קוד ${ref.code})`);
+    }
+    if (!ref.formPart) {
+      // Never invent a report-scope fallback — a reference row with no
+      // formPart means the data itself is incomplete (see
+      // 2026-08-13_backfill-formpart-on-reference-rows.js), not something
+      // this call can silently paper over.
+      throw new BadRequestException(`לכרטיס הייחוס ${ref.code} אין formPart מוגדר — לא ניתן לגזור ממנו את היקף הדיווח`);
+    }
+
+    return this.createAccountWithSubCategory({
+      scope: input.scope,
+      name: ref.name,
+      type: input.type,
+      sectionId: input.sectionId,
+      code6111: ref.code6111,
+      law: input.law,
+      categoryName: input.categoryName,
+      reportScope: REPORT_SCOPE_BY_FORM_PART[ref.formPart],
+      createdByUserId: input.createdByUserId ?? null,
+      visibleBusinessTypes: input.visibleBusinessTypes,
+    });
+  }
+
+  /**
+   * Deactivate an already-active card (isActive=false) — refuses if any
+   * sub_category, in ANY chartOwnerKey (a CLIENT/ACCOUNTANT override can
+   * point at a SYSTEM card's id just as easily as a SYSTEM row can), still
+   * actively points at it. Never cascade-deactivates those rows — the
+   * caller has to repoint/deactivate them first, on purpose.
+   *
+   * `allowedChartOwnerKeys` — identical contract to updateAccountFields
+   * above (`null` = unrestricted/admin, array = the caller's owned
+   * chartOwnerKeys only); see that method's comment for the full rationale.
+   * Required, not optional, for the same reason.
+   */
+  async deactivateAccount(accountId: number, allowedChartOwnerKeys: string[] | null): Promise<BookingAccount> {
+    const account = await this.accountRepo.findOne({ where: { id: accountId } });
+    if (!account) throw new NotFoundException(`Account ${accountId} not found`);
+
+    if (allowedChartOwnerKeys !== null && !allowedChartOwnerKeys.includes(account.chartOwnerKey)) {
+      throw new NotFoundException(`Account ${accountId} not found`);
+    }
+
+    const blocking = await this.subCategoryRepo.find({
+      where: { accountId, isActive: true },
+      select: ['id', 'name', 'chartOwnerKey'],
+      order: { chartOwnerKey: 'ASC', name: 'ASC' },
+    });
+    if (blocking.length > 0) {
+      throw new ConflictException({
+        message: `לא ניתן להשבית את הכרטיס — ${blocking.length} תת-קטגוריות פעילות עדיין מצביעות אליו`,
+        blockingSubCategories: blocking.map((b) => ({ id: b.id, name: b.name, chartOwnerKey: b.chartOwnerKey })),
+      });
+    }
+
+    account.isActive = false;
     return this.accountRepo.save(account);
   }
 }

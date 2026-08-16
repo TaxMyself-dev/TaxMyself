@@ -1,5 +1,5 @@
 import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, Index } from 'typeorm';
-import { BusinessType, TaxReportingType, VATReportingType } from 'src/enum';
+import { BusinessType, BusinessFieldType, TaxReportingType, VATReportingType } from 'src/enum';
 
 
 // Named explicitly per the schema-drift convention. Nullable column — MySQL
@@ -17,8 +17,24 @@ export class Business {
   @Column({ type: 'varchar', nullable: true, default: null })
   businessName: string | null;
 
-  @Column({ type: 'varchar', nullable: true, default: null })
-  businessField: string | null;
+  // Business-model taxonomy (service/retail/contracting) — Form 6111
+  // reference-card project, Phase 3 Step 1 (2026-08-17; independent of the
+  // categories-redesign master plan under docs/redesign/, same as the rest
+  // of this project). Converted from a freeform varchar (never captured by
+  // any live flow — only the demo-data seed wrote it) to a controlled enum,
+  // same pattern as businessType/vatReportingType/taxReportingType below.
+  // Column converted + every existing row backfilled to SERVICE_PROVIDER via
+  // backend/scripts/migrations/2026-08-17_convert-business-field-to-enum.js.
+  // No catalog/chartOwnerKey scoping reads this yet; that's a later,
+  // separate Phase 3 step.
+  @Column({
+    type: 'enum',
+    enum: BusinessFieldType,
+    enumName: 'BusinessFieldType',
+    nullable: true,
+    default: BusinessFieldType.SERVICE_PROVIDER
+  })
+  businessField: BusinessFieldType | null;
 
   @Column({ type: 'varchar', nullable: true, default: null })
   businessNumber: string | null;

@@ -16,7 +16,7 @@ import { BookingAccount } from './account.entity';
 import { AccountingSection } from './accounting-section.entity';
 import { CatalogService } from './catalog.service';
 import { AccountCodeAllocatorService } from './account-code-allocator.service';
-import { ApprovalStatus, CategoryType, OwnerType, RecognitionType, SYSTEM_CHART_OWNER_KEY, VisibilityScope } from '../enum';
+import { ApprovalStatus, BusinessFieldType, CategoryType, OwnerType, RecognitionType, SYSTEM_CHART_OWNER_KEY, VisibilityScope } from '../enum';
 
 function makeRepo<T extends { id?: number }>(rows: T[] = []) {
   let nextId = (Math.max(0, ...rows.map((r) => r.id ?? 0)) || 0) + 1;
@@ -443,6 +443,7 @@ describe('CatalogService', () => {
 
   describe('createAccountWithSubCategory', () => {
     const law = { vatPercent: 100, taxPercent: 100, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED };
+    const visibleBusinessTypes = [BusinessFieldType.SERVICE_PROVIDER];
     const accountantScope = {
       ownerType: OwnerType.ACCOUNTANT,
       chartOwnerKey: 'ACCOUNTANT_agent-1',
@@ -459,6 +460,7 @@ describe('CatalogService', () => {
         type: 'expense',
         sectionId: 99,
         law,
+        visibleBusinessTypes,
         categoryName: 'רכב ותחבורה',
         createdByUserId: 'agent-1',
       });
@@ -490,6 +492,7 @@ describe('CatalogService', () => {
         type: 'expense',
         sectionId: 99,
         law,
+        visibleBusinessTypes,
         technicalOnly: true,
       });
 
@@ -506,6 +509,7 @@ describe('CatalogService', () => {
         type: 'expense',
         sectionId: 99,
         law,
+        visibleBusinessTypes,
         technicalOnly: true,
       });
       expect(account.code).toBe('90910');
@@ -519,6 +523,7 @@ describe('CatalogService', () => {
           type: 'expense',
           sectionId: 99,
           law,
+          visibleBusinessTypes,
           technicalOnly: true,
         }),
       ).rejects.toThrow('כבר קיים');
@@ -532,6 +537,7 @@ describe('CatalogService', () => {
           type: 'expense',
           sectionId: 99,
           law,
+          visibleBusinessTypes,
         }),
       ).rejects.toThrow('categoryName is required');
     });
@@ -544,6 +550,7 @@ describe('CatalogService', () => {
           type: 'expense',
           sectionId: 12345,
           law,
+          visibleBusinessTypes,
           categoryName: 'רכב ותחבורה',
         }),
       ).rejects.toThrow('section 12345 not found');
@@ -558,6 +565,7 @@ describe('CatalogService', () => {
         type: 'expense',
         sectionId: 99,
         law,
+        visibleBusinessTypes,
         categoryName: 'קטגוריה חדשה של רו"ח',
       });
 
@@ -580,6 +588,7 @@ describe('CatalogService', () => {
           type: 'expense',
           sectionId: 99,
           law,
+          visibleBusinessTypes,
           categoryName: 'רכב ותחבורה',
         }),
       ).rejects.toThrow('כבר קיימת');

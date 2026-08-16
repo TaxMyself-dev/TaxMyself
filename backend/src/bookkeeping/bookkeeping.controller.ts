@@ -103,6 +103,7 @@ export class BookkepingController {
       technicalOnly: dto.technicalOnly ?? false,
       categoryName: dto.categoryName ?? null,
       createdByUserId: actorFirebaseId,
+      visibleBusinessTypes: dto.visibleBusinessTypes,
     });
 
     return {
@@ -152,7 +153,10 @@ export class BookkepingController {
     if (!(await this.catalogContextService.isAdmin(actorFirebaseId))) {
       throw new ForbiddenException('רק מנהל מערכת יכול לצפות במסך ניהול הכרטיסים');
     }
-    return this.catalogService.listAccountsForAdmin(ownerType);
+    // isActive:true kept explicit here to preserve this endpoint's exact
+    // prior behavior — listAccountsForAdmin no longer bakes in a default
+    // (the new Form 6111 admin screen needs both active and inactive rows).
+    return this.catalogService.listAccountsForAdmin({ ownerType, isActive: true });
   }
 
   /**
@@ -172,7 +176,8 @@ export class BookkepingController {
     if (!(await this.catalogContextService.isAdmin(actorFirebaseId))) {
       throw new ForbiddenException('רק מנהל מערכת יכול לצפות במסך ניהול הכרטיסים');
     }
-    return this.catalogService.getAccountUsage(id);
+    // null = unrestricted — admin-gated above, trusted with any row.
+    return this.catalogService.getAccountUsage(id, null);
   }
 
   /**
@@ -193,7 +198,8 @@ export class BookkepingController {
     if (!(await this.catalogContextService.isAdmin(actorFirebaseId))) {
       throw new ForbiddenException('רק מנהל מערכת יכול לערוך כרטיס ישירות');
     }
-    return this.catalogService.updateAccountFields(id, dto);
+    // null = unrestricted — admin-gated above, trusted with any row.
+    return this.catalogService.updateAccountFields(id, dto, null);
   }
 
   /**

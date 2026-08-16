@@ -290,6 +290,21 @@
         }
       </div>
     }
+    <div class="form-field">
+      <label class="form-label">נראה לסוגי עסק <span class="required">*</span></label>
+      <div class="business-field-types-checkboxes">
+        @for (opt of businessFieldTypeOptions; track opt.value) {
+          <div class="form-field-inline">
+            <input type="checkbox" [id]="'acc-biz-type-' + opt.value" [checked]="isBusinessFieldTypeChecked(opt.value)"
+              (change)="toggleBusinessFieldType(opt.value)" />
+            <label [for]="'acc-biz-type-' + opt.value" class="form-label">{{ opt.name }}</label>
+          </div>
+        }
+      </div>
+      @if (addAccountErrors()['visibleBusinessTypes']) {
+        <span class="form-error">{{ addAccountErrors()['visibleBusinessTypes'] }}</span>
+      }
+    </div>
   </div>
   <ng-template pTemplate="footer">
     <app-p-button
@@ -726,6 +741,15 @@
               </tbody>
             </table>
           </div>
+        }
+      </section>
+
+      <section class="booking-account-catalog-section">
+        @if (catalogBusinessFilter()) {
+          <app-booking-account-catalog mode="accountant" [businessNumber]="catalogBusinessFilter()">
+          </app-booking-account-catalog>
+        } @else {
+          <p class="empty-text">בחר עסק כדי לעיין בכרטיסי הייחוס מטופס 6111 ולהפעיל כרטיס עבורו.</p>
         }
       </section>
     </p-tabPanel>

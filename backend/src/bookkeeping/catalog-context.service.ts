@@ -35,30 +35,45 @@ export class CatalogContextService {
    * a plain (businessNumber, firebaseId) match is the complete predicate.
    * Before this, any authenticated user could pass a foreign businessNumber
    * to the catalog/chart endpoints and read that tenant's custom names.
+   *
+   * Returns the matched `Business` row (Phase 3 Step 3: callers reuse it for
+   * `businessField` instead of a second query — see `forUser`) — `null` when
+   * the (firebaseId, businessNumber) check was skipped (either arg absent).
+   * Existing callers that only awaited this for its access-check side effect
+   * are unaffected by the added return value.
    */
   async assertBusinessAccess(
     firebaseId?: string | null,
     businessNumber?: string | null,
-  ): Promise<void> {
-    if (!firebaseId || !businessNumber) return;
+  ): Promise<Business | null> {
+    if (!firebaseId || !businessNumber) return null;
     const business = await this.businessRepo.findOne({
       where: { businessNumber, firebaseId },
     });
     if (!business) {
       throw new ForbiddenException('אין הרשאה לעסק זה');
     }
+    return business;
   }
 
   /** Read-context for a user acting on a business: CLIENT chart + every
    *  ACTIVE delegation's ACCOUNTANT chart + SYSTEM. Asserts business
-   *  ownership (see assertBusinessAccess) so every consumer is covered. */
+   *  ownership (see assertBusinessAccess) so every consumer is covered.
+   *  Also carries (Phase 3 Step 3) the business's own `businessType` — not a
+   *  chartOwnerKey tier, a separate visibility-filter input consumed
+   *  downstream by CatalogService's merged-read methods. */
   async forUser(
     firebaseId?: string | null,
     businessNumber?: string | null,
   ): Promise<CatalogContext> {
-    await this.assertBusinessAccess(firebaseId, businessNumber);
+    const business = await this.assertBusinessAccess(firebaseId, businessNumber);
     const accountantIds = firebaseId ? await this.accountantIdsForUser(firebaseId) : [];
-    return { userId: firebaseId ?? null, businessNumber: businessNumber ?? null, accountantIds };
+    return {
+      userId: firebaseId ?? null,
+      businessNumber: businessNumber ?? null,
+      accountantIds,
+      businessType: business?.businessField ?? null,
+    };
   }
 
   /** Agent firebaseIds holding an ACTIVE delegation on this user, ordered by

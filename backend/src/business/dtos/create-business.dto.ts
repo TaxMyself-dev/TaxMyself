@@ -35,6 +35,10 @@ export class CreateBusinessDto {
   businessType?: string;
 
   @IsOptional()
+  @IsString()
+  businessField?: string;
+
+  @IsOptional()
   @IsNumber()
   @Min(0)
   @Max(100)

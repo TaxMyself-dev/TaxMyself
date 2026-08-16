@@ -1,4 +1,5 @@
 import {
+  BusinessFieldType,
   BusinessType,
   EmploymentType,
   FamilyStatus,
@@ -71,7 +72,7 @@ export const COUPLE_OPEN_BANKING_NO_BILLS_PROFILE: DemoProfile = {
       businessName: 'אריאל לוין - תיקון מחשבים',
       businessNumber: ARIEL_ID,
       businessType: BusinessType.LICENSED,
-      businessField: 'תיקון מחשבים',
+      businessField: BusinessFieldType.SERVICE_PROVIDER,
       businessAddress: 'ירושלים',
       advanceTaxPercent: 7,
     },
@@ -79,7 +80,7 @@ export const COUPLE_OPEN_BANKING_NO_BILLS_PROFILE: DemoProfile = {
       businessName: 'מיכל לוין - ייעוץ זוגי',
       businessNumber: MICHAL_ID,
       businessType: BusinessType.EXEMPT,
-      businessField: 'ייעוץ זוגי',
+      businessField: BusinessFieldType.SERVICE_PROVIDER,
       businessAddress: 'ירושלים',
       advanceTaxPercent: 5,
     },

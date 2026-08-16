@@ -17,7 +17,7 @@ import { ToastModule } from 'primeng/toast';
 import { DialogModule } from 'primeng/dialog';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { SelectModule } from 'primeng/select';
-import { familyStatusOptionsList, employmentTypeOptionsList, businessTypeOptionsList, companyBusinessTypeOptionsList, isExemptBusinessType, paymentIdentifierType, VATReportingType, TaxReportingType, inputsSize } from 'src/app/shared/enums';
+import { familyStatusOptionsList, employmentTypeOptionsList, businessTypeOptionsList, companyBusinessTypeOptionsList, businessFieldTypeOptionsList, isExemptBusinessType, paymentIdentifierType, VATReportingType, TaxReportingType, inputsSize } from 'src/app/shared/enums';
 import { TransactionsService } from 'src/app/pages/transactions/transactions.page.service';
 import { SyncStatusService } from 'src/app/services/sync-status.service';
 import { catchError, EMPTY, finalize } from 'rxjs';
@@ -118,6 +118,7 @@ export class SettingsPage implements OnInit {
     { name: 'חד חודשי', value: TaxReportingType.MONTHLY_REPORT },
     { name: 'דו חודשי', value: TaxReportingType.DUAL_MONTH_REPORT },
   ];
+  businessFieldOptions = businessFieldTypeOptionsList;
 
   /** Exposed for the template (businessType !== EXEMPT check must also cover EXEMPT_PARTNERSHIP). */
   readonly isExemptBusinessType = isExemptBusinessType;
@@ -774,6 +775,7 @@ export class SettingsPage implements OnInit {
         businessPhone:       (v.businessPhone as string)?.trim()   || undefined,
         businessEmail:       (v.businessEmail as string)?.trim()   || undefined,
         businessType:        (v.businessType as string)            || undefined,
+        businessField:       (v.businessField as string)           || undefined,
         vatReportingType:    (v.vatReportingType as string)        || undefined,
         taxReportingType:    (v.taxReportingType as string)        || undefined,
         nationalInsRequired: (v.nationalInsRequired as boolean | null) ?? undefined,
@@ -969,6 +971,7 @@ export class SettingsPage implements OnInit {
       businessAddress:     this.fb.nonNullable.control(business?.businessAddress ?? ''),
       businessPhone:       this.fb.nonNullable.control(business?.businessPhone ?? ''),
       businessType:        this.fb.nonNullable.control<string>(business?.businessType ?? ''),
+      businessField:       this.fb.nonNullable.control<string>(business?.businessField ?? ''),
       nationalInsRequired: this.fb.control<boolean | null>(business?.nationalInsRequired ?? null),
       vatReportingType:    this.fb.nonNullable.control<string>(business?.vatReportingType ?? ''),
       taxReportingType:    this.fb.nonNullable.control<string>(business?.taxReportingType ?? ''),

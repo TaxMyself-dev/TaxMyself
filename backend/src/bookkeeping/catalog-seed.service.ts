@@ -10,19 +10,26 @@ import { OwnerType, SYSTEM_CHART_OWNER_KEY } from 'src/enum';
 
 /**
  * Phase 2.6 (D13) — flat idempotent seeder replacing AccountSeedService's
- * 640-line keyword-matching cascade. Four steps, each upserting/inserting
+ * 640-line keyword-matching cascade. Four steps, each create-if-missing
  * from literal data reviewed with Elazar (chart.seed.ts for sections/
  * accounts — Phase 1.3; catalog.seed.ts for the SYSTEM category/sub_category
  * catalog — Phase 2.2's reviewed migration output, restated portably).
  *
- * GUARD INVARIANT throughout: sections/accounts are upserted by
- * (chartOwnerKey, code) so an admin edit to name/percents survives a reboot
- * only if this seed's own values already match — same as the old seeder's
- * "never touch a row that already has a value" contract, expressed instead
- * as "the seed IS the value" since these are curated, reviewed constants,
- * not keyword guesses. category/sub_category rows are create-if-missing
- * only (never upserted) — an admin who edits a SYSTEM sub-category's mapping
- * via the admin panel owns that row from then on.
+ * GUARD INVARIANT throughout, all four steps (create-only, 2026-08-14 —
+ * see docs/redesign/booking-account-write-paths-audit.md): every row is
+ * matched by its natural key (chartOwnerKey+code for sections/accounts,
+ * chartOwnerKey+name(+categoryId) for category/sub_category) and, if a
+ * match already exists, is left COMPLETELY untouched — not even a partial
+ * field refresh. This seeder owns creation of the base chart on an empty
+ * DB only; every update (law fields, isActive, code6111/category6111/
+ * subCategory6111, name/code corrections, ...) belongs exclusively to the
+ * admin screen or a one-off script — one writer per operation, never both.
+ * Previously (pre-2026-08-14) seedSections/seedAccounts force-wrote every
+ * tracked field on every boot via Object.assign, which silently reverted
+ * any admin edit to an existing row's law fields/isActive on the next
+ * restart — a live production risk the moment this ever ran against a DB
+ * with 6111 data, since production boots this seeder on every deploy
+ * without SKIP_BOOT_SEED (see cutover-day-checklist.md Step 5).
  */
 @Injectable()
 export class CatalogSeedService implements OnModuleInit {
@@ -69,48 +76,51 @@ export class CatalogSeedService implements OnModuleInit {
   }
 
   /**
-   * Explicit find-then-create/update loop rather than `.upsert()` — TypeORM's
-   * upsert() throws ("Cannot update entity because entity id is not set in
-   * the entity") when the conflict target is a non-PK composite unique index
-   * and the driver needs to re-fetch "returning" columns (e.g. `updatedAt`)
-   * after an UPDATE branch; confirmed against `keepintax_prodcopy` during
-   * Phase 2.6 rehearsal — no data was corrupted (row counts held steady) but
-   * every row threw. This pattern sidesteps that TypeORM code path entirely.
+   * Create-if-missing only (2026-08-14) — an existing row (matched by
+   * chartOwnerKey+code) is left untouched, full stop. No partial refresh of
+   * name/displayOrder either; an admin correction to a section's name is
+   * exactly as permanent as an admin correction to an account's vatPercent
+   * now, for the same reason (see class doc comment).
    */
   private async seedSections(): Promise<void> {
-    let created = 0, refreshed = 0;
+    let created = 0, skipped = 0;
     for (const s of ACCOUNTING_SECTIONS) {
       const existing = await this.sectionRepo.findOne({ where: { chartOwnerKey: s.chartOwnerKey, code: s.code } });
       if (existing) {
-        Object.assign(existing, s);
-        await this.sectionRepo.save(existing);
-        refreshed++;
-      } else {
-        await this.sectionRepo.save(this.sectionRepo.create(s));
-        created++;
+        skipped++;
+        continue;
       }
+      await this.sectionRepo.save(this.sectionRepo.create(s));
+      created++;
     }
-    this.logger.log(`Accounting sections ensured (${created} created, ${refreshed} refreshed, ${ACCOUNTING_SECTIONS.length} total).`);
+    this.logger.log(`Accounting sections ensured (${created} created, ${skipped} already existed and were left untouched, ${ACCOUNTING_SECTIONS.length} total).`);
   }
 
+  /**
+   * Create-if-missing only (2026-08-14) — an existing row (matched by
+   * chartOwnerKey+code) is left completely untouched: not code6111, not
+   * vatPercent/taxPercent/reductionPercent/isEquipment/recognitionType, not
+   * isActive, nothing. `chart.seed.ts` is the source of truth for what a
+   * NEW row looks like on an empty DB only; every field on an existing row
+   * belongs exclusively to the admin screen / a one-off script from here on
+   * (see class doc comment for why this changed).
+   */
   private async seedAccounts(): Promise<void> {
     const sections = await this.sectionRepo.find({ where: { chartOwnerKey: SYSTEM_CHART_OWNER_KEY } });
     const sectionIdByCode = new Map(sections.map((s) => [s.code, s.id]));
 
-    let created = 0, refreshed = 0;
+    let created = 0, skipped = 0;
     for (const { sectionCode, legacyCode, legacySource, ...rest } of CHART_ACCOUNTS) {
-      const sectionId = sectionCode ? (sectionIdByCode.get(sectionCode) ?? null) : null;
       const existing = await this.accountRepo.findOne({ where: { chartOwnerKey: rest.chartOwnerKey, code: rest.code } });
       if (existing) {
-        Object.assign(existing, rest, { sectionId });
-        await this.accountRepo.save(existing);
-        refreshed++;
-      } else {
-        await this.accountRepo.save(this.accountRepo.create({ ...rest, sectionId }));
-        created++;
+        skipped++;
+        continue;
       }
+      const sectionId = sectionCode ? (sectionIdByCode.get(sectionCode) ?? null) : null;
+      await this.accountRepo.save(this.accountRepo.create({ ...rest, sectionId }));
+      created++;
     }
-    this.logger.log(`Chart of accounts ensured (${created} created, ${refreshed} refreshed, ${CHART_ACCOUNTS.length} total).`);
+    this.logger.log(`Chart of accounts ensured (${created} created, ${skipped} already existed and were left untouched, ${CHART_ACCOUNTS.length} total).`);
   }
 
   private async seedSystemCatalog(): Promise<void> {

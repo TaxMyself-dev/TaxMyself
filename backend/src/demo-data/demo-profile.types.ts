@@ -1,4 +1,5 @@
 import {
+  BusinessFieldType,
   BusinessType,
   DocumentType,
   EmploymentType,
@@ -171,7 +172,7 @@ export interface DemoBusiness {
   businessNumber: string;
   /** EXEMPT → vatReportingType=NOT_REQUIRED. LICENSED → DUAL_MONTH_REPORT. */
   businessType: BusinessType;
-  businessField?: string;
+  businessField?: BusinessFieldType;
   businessAddress?: string;
   advanceTaxPercent?: number;
 }

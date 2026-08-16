@@ -1,5 +1,5 @@
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, Unique } from 'typeorm';
-import { OwnerType, VisibilityScope, SYSTEM_CHART_OWNER_KEY, RecognitionType, ExpenseReportScope, FormPart } from 'src/enum';
+import { OwnerType, VisibilityScope, SYSTEM_CHART_OWNER_KEY, RecognitionType, ExpenseReportScope, FormPart, BusinessFieldType } from 'src/enum';
 import { AccountingSection } from './accounting-section.entity';
 
 /**
@@ -54,6 +54,18 @@ export class BookingAccount {
    *  NULL = not yet sourced — never invent a value here (D2/1.3). */
   @Column({ nullable: true, default: null })
   code6111: string | null;
+
+  /** Official Tax Authority category/sub-category names for this card's
+   *  code6111 (2026-08-14) — sourced from tax_authority_6111_full.csv for
+   *  reference rows, and from the accountant's own operational_code6111_map.csv
+   *  for operational rows. Purely display identity, independent of this
+   *  app's own `section`/`name` grouping. NULL together with code6111 on
+   *  every card with no official 6111 identity — never invent a value. */
+  @Column({ nullable: true, default: null })
+  category6111: string | null;
+
+  @Column({ nullable: true, default: null })
+  subCategory6111: string | null;
 
   /** Which part of Form 6111 this card is officially classified under
    *  (A/B/C). NULL = not placed on the form — see FormPart doc comment. */
@@ -125,5 +137,33 @@ export class BookingAccount {
 
   @Column({ default: true })
   isActive: boolean;
+
+  /**
+   * Phase 3 Step 3 (2026-08-17, revised model) — VISIBILITY filter,
+   * independent of chartOwnerKey/ownerType (ownership is unchanged: SYSTEM/
+   * ACCOUNTANT/CLIENT). A business sees this card only if its
+   * `Business.businessField` is a member of this SET — enforced in
+   * CatalogService's getMerged* read methods, never bypassed for admin
+   * listings (listAccountsForAdmin shows every card regardless).
+   *
+   * EMPTY = visible to NOBODY (opt-in per type, not opt-out) — never treat
+   * an empty set as "all types". Every isActive=true row was backfilled to
+   * all three types as a temporary safe default (2026-08-17_add-visible-
+   * business-types-to-booking-account.js) — NOT a curation decision, just
+   * preserving pre-existing "everyone sees everything" behavior until the
+   * pending accountant mapping review narrows individual cards via the
+   * admin UI. The 321 isActive=false Form 6111 reference rows are left
+   * empty; activating one requires picking at least one type (enforced in
+   * ActivateBookingAccountDto/ActivateClientBookingAccountDto — empty is
+   * rejected there, since an activated-but-invisible-to-everyone card would
+   * be pointless).
+   *
+   * TypeORM's MySQL driver maps `type: 'set'` to/from a plain JS array
+   * natively (DateUtils.simpleArrayToString/stringToSimpleArray) — no
+   * transformer needed, verified against a real SET column in keepintax-dev
+   * before this was added (empty round-trips as `[]`, not null).
+   */
+  @Column({ type: 'set', enum: BusinessFieldType, default: '' })
+  visibleBusinessTypes: BusinessFieldType[];
 
 }

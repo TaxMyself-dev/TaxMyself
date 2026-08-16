@@ -465,6 +465,31 @@ export function isExemptBusinessType(businessType: BusinessType | string | null 
   return businessType === BusinessType.EXEMPT || businessType === BusinessType.EXEMPT_PARTNERSHIP;
 }
 
+/**
+ * Business-model taxonomy (Phase 3, Step 1) — what kind of business this is
+ * (service/retail/contracting), independent of `BusinessType` above (the
+ * tax-registration classification). Since Phase 3 Step 3 (2026-08-17), also
+ * drives the booking_account.visibleBusinessTypes catalog visibility filter
+ * — see BookingAccountCatalogComponent's activate/add/edit dialogs.
+ */
+export enum BusinessFieldType {
+  SERVICE_PROVIDER = 'SERVICE_PROVIDER',
+  COMMERCIAL = 'COMMERCIAL',
+  CONTRACTOR = 'CONTRACTOR'
+}
+
+export const BusinessFieldTypeLabels = {
+  [BusinessFieldType.SERVICE_PROVIDER]: 'נותן שירותים',
+  [BusinessFieldType.COMMERCIAL]: 'עסק מסחרי',
+  [BusinessFieldType.CONTRACTOR]: 'קבלן'
+};
+
+export const businessFieldTypeOptionsList = [
+  { value: BusinessFieldType.SERVICE_PROVIDER, name: BusinessFieldTypeLabels[BusinessFieldType.SERVICE_PROVIDER] },
+  { value: BusinessFieldType.COMMERCIAL, name: BusinessFieldTypeLabels[BusinessFieldType.COMMERCIAL] },
+  { value: BusinessFieldType.CONTRACTOR, name: BusinessFieldTypeLabels[BusinessFieldType.CONTRACTOR] }
+];
+
 export enum EmploymentType {
   SELF_EMPLOYED = 'SELF_EMPLOYED',
   BOTH = 'BOTH',

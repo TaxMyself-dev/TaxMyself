@@ -118,6 +118,7 @@ export class GenericService {
     businessPhone?: string;
     businessEmail?: string;
     businessType?: string;
+    businessField?: string;
     vatReportingType?: string;
     taxReportingType?: string;
     nationalInsRequired?: boolean;
