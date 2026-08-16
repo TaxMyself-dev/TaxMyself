@@ -110,6 +110,7 @@ export class AdminBookingAccountsController {
       },
       categoryName: dto.categoryName,
       createdByUserId: actorFirebaseId,
+      visibleBusinessTypes: dto.visibleBusinessTypes,
     });
 
     return {
@@ -128,6 +129,7 @@ export class AdminBookingAccountsController {
         reportScope: account.reportScope,
         ownerType: account.ownerType,
         chartOwnerKey: account.chartOwnerKey,
+        visibleBusinessTypes: account.visibleBusinessTypes,
       },
       subCategory: subCategory
         ? {

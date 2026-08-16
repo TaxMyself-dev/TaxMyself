@@ -468,8 +468,9 @@ export function isExemptBusinessType(businessType: BusinessType | string | null 
 /**
  * Business-model taxonomy (Phase 3, Step 1) — what kind of business this is
  * (service/retail/contracting), independent of `BusinessType` above (the
- * tax-registration classification). Foundational field only — no catalog
- * scoping reads this yet.
+ * tax-registration classification). Since Phase 3 Step 3 (2026-08-17), also
+ * drives the booking_account.visibleBusinessTypes catalog visibility filter
+ * — see BookingAccountCatalogComponent's activate/add/edit dialogs.
  */
 export enum BusinessFieldType {
   SERVICE_PROVIDER = 'SERVICE_PROVIDER',

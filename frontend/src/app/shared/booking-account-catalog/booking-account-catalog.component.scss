@@ -184,6 +184,20 @@
   gap: 8px;
 }
 
+.business-types-row .business-types-checkboxes {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 16px;
+
+  .check-row {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+  }
+}
+
 .reference-row-summary {
   display: flex;
   flex-direction: column;

@@ -11,6 +11,7 @@ import { User } from 'src/users/user.entity';
 import { Business } from 'src/business/business.entity';
 import {
   ApprovalStatus,
+  BusinessFieldType,
   CategoryType,
   ExpenseApprovalStatus,
   ExpenseNecessity,
@@ -43,6 +44,19 @@ export interface CatalogContext {
    *  omit it simply see no ACCOUNTANT layer (pre-5.1 behavior). */
   accountantIds?: string[] | null;
   businessNumber?: string | null;
+  /** Phase 3 Step 3 (revised model, 2026-08-17): the acting business's
+   *  BusinessFieldType. NOT a chartOwnerKey/ownership dimension — ownership
+   *  stays CLIENT/ACCOUNTANT/SYSTEM via chartOwnerKeysFor, unchanged.
+   *  businessType is a separate VISIBILITY FILTER: every read that builds
+   *  what a business sees (getMergedCategories/getMergedSubCategories/
+   *  getMergedExpenseCatalog) applies this alongside the chartOwnerKey
+   *  filter — a card is included only if BOTH its chartOwnerKey is in
+   *  chartOwnerKeysFor(ctx) AND ctx.businessType is in the card's
+   *  visibleBusinessTypes (booking_account SET column). Built by
+   *  CatalogContextService.forUser from Business.businessField; hand-rolled
+   *  ctx literals that omit it simply can't pass the visibility filter for
+   *  any type-restricted card (see the filter's own null-handling). */
+  businessType?: BusinessFieldType | null;
 }
 
 export interface ResolvedSubCategory {
@@ -185,14 +199,62 @@ export class CatalogService {
     };
   }
 
-  /** Merged category list for a business context, CLIENT > ACCOUNTANT > SYSTEM
-   *  by name (D4). */
+  /**
+   * Phase 3 Step 3 (2026-08-17, revised model) — business-type VISIBILITY
+   * filter, independent of the chartOwnerKey ownership filter (D4). A
+   * sub_category with no linked account (isPrivate, or
+   * MISSING_ACCOUNTING_MAPPING) has no card to check and is always visible —
+   * the filter is a property of the CARD, not the sub_category itself.
+   * `businessType` absent on ctx (e.g. an admin/no-specific-business
+   * context) skips the filter entirely — never silently hide everything for
+   * a context that doesn't know its business type; only a *present* type
+   * that the card's `visibleBusinessTypes` doesn't list excludes it. Empty
+   * `visibleBusinessTypes` on the card excludes it from every business type.
+   */
+  private isVisibleToBusinessType(
+    account: BookingAccount | null | undefined,
+    businessType: BusinessFieldType | null | undefined,
+  ): boolean {
+    if (!account || !businessType) return true;
+    return account.visibleBusinessTypes?.includes(businessType) ?? false;
+  }
+
+  /**
+   * Merged category list for a business context, CLIENT > ACCOUNTANT > SYSTEM
+   * by name (D4). A `Category` carries no `booking_account` of its own (D1
+   * revised: only `sub_category` points at a card) — its business-type
+   * visibility is DERIVED, not stored: a category is included only if it has
+   * at least one sub-category that itself passes the Step 3 visibility
+   * filter (isVisibleToBusinessType, same rule getMergedSubCategories uses).
+   * Deliberately no `visibleBusinessTypes` column on `Category` — a second
+   * stored copy of what the sub-category/account SET already encodes would
+   * be exactly the kind of dual-source-of-truth drift this project has been
+   * burned by before (code6111/seeder). `ctx.businessType` absent skips the
+   * filter entirely (graceful degrade, matches every other Step 3 site) —
+   * only ever narrows when a type is actually known.
+   *
+   * Bounded query cost regardless of category count: the merged-category
+   * query (unchanged) + ONE additional sub_category query keyed by
+   * `categoryId IN (...)` across every candidate category at once — never
+   * one query per category.
+   */
   async getMergedCategories(ctx: CatalogContext, type?: CategoryType): Promise<Category[]> {
     const chartOwnerKeys = this.chartOwnerKeysFor(ctx);
     const rows = await this.categoryRepo.find({
       where: { chartOwnerKey: In(chartOwnerKeys), isActive: true, ...(type ? { type } : {}) },
     });
-    return this.mergeByName(rows, chartOwnerKeys, (c) => c.name);
+    const categories = this.mergeByName(rows, chartOwnerKeys, (c) => c.name);
+    if (!ctx.businessType || categories.length === 0) return categories;
+
+    const categoryIds = categories.map((c) => c.id);
+    const subRows = await this.subCategoryRepo.find({
+      where: { chartOwnerKey: In(chartOwnerKeys), categoryId: In(categoryIds), isActive: true },
+      relations: ['account'],
+    });
+    const categoryIdsWithVisibleChild = new Set(
+      subRows.filter((s) => this.isVisibleToBusinessType(s.account, ctx.businessType)).map((s) => s.categoryId),
+    );
+    return categories.filter((c) => categoryIdsWithVisibleChild.has(c.id));
   }
 
   async getMergedSubCategories(ctx: CatalogContext, categoryId: number): Promise<SubCategory[]> {
@@ -201,7 +263,8 @@ export class CatalogService {
       where: { chartOwnerKey: In(chartOwnerKeys), categoryId, isActive: true },
       relations: ['account', 'category'],
     });
-    return this.mergeByName(rows, chartOwnerKeys, (s) => s.name);
+    const visible = rows.filter((s) => this.isVisibleToBusinessType(s.account, ctx.businessType));
+    return this.mergeByName(visible, chartOwnerKeys, (s) => s.name);
   }
 
   /**
@@ -226,7 +289,8 @@ export class CatalogService {
       // group/display by section without a second query.
       relations: ['account', 'account.section', 'category'],
     });
-    return this.mergeByName(rows, chartOwnerKeys, (s) => s.name);
+    const visible = rows.filter((s) => this.isVisibleToBusinessType(s.account, ctx.businessType));
+    return this.mergeByName(visible, chartOwnerKeys, (s) => s.name);
   }
 
   /** All active rows for one chartOwnerKey (admin/user "list everything I own"
@@ -693,6 +757,9 @@ export class CatalogService {
      *  passes the reference row's formPart-derived value instead, since a
      *  card activated from a B/C reference line must not default to PNL. */
     reportScope?: ExpenseReportScope;
+    /** Phase 3 Step 3 (revised model): visibility filter, required —
+     *  callers (DTOs) enforce non-empty; see BookingAccount.visibleBusinessTypes. */
+    visibleBusinessTypes: BusinessFieldType[];
   }): Promise<{ account: BookingAccount; subCategory: SubCategory | null }> {
     const { scope } = input;
     const name = input.name?.trim();
@@ -752,6 +819,7 @@ export class CatalogService {
           businessNumber: scope.businessNumber ?? null,
           visibilityScope: scope.visibilityScope ?? null,
           isActive: true,
+          visibleBusinessTypes: input.visibleBusinessTypes,
         }),
       );
 
@@ -1085,6 +1153,11 @@ export class CatalogService {
     ownerType: OwnerType; chartOwnerKey: string;
     accountantId: string | null; businessNumber: string | null;
     ownerName: string | null;
+    /** Phase 3 Step 3 — admin sees every card's visibility setting
+     *  regardless of ownerType/chartOwnerKey; this listing is never itself
+     *  filtered by it (see isVisibleToBusinessType's callers — this method
+     *  isn't one of them). */
+    visibleBusinessTypes: BusinessFieldType[];
   }[]> {
     const base: FindOptionsWhere<BookingAccount> = {};
     if (filters.ownerType && Object.values(OwnerType).includes(filters.ownerType)) {
@@ -1157,6 +1230,7 @@ export class CatalogService {
         r.ownerType === OwnerType.ACCOUNTANT ? (r.accountantId ? accountantNameById.get(r.accountantId) ?? null : null)
         : r.ownerType === OwnerType.CLIENT ? (r.businessNumber ? businessNameByNumber.get(r.businessNumber) ?? null : null)
         : null,
+      visibleBusinessTypes: r.visibleBusinessTypes,
     }));
   }
 
@@ -1231,6 +1305,10 @@ export class CatalogService {
     name?: string; code?: string; sectionId?: number; code6111?: string | null;
     recognitionType?: RecognitionType; vatPercent?: number; taxPercent?: number;
     reductionPercent?: number; isEquipment?: boolean; reportScope?: ExpenseReportScope;
+    /** Phase 3 Step 3 (revised model): visibility filter. Omit to leave
+     *  unchanged; UpdateAccountDto's @ArrayNotEmpty already rejects an empty
+     *  array before this is reached. */
+    visibleBusinessTypes?: BusinessFieldType[];
   }, allowedChartOwnerKeys: string[] | null): Promise<BookingAccount> {
     const account = await this.accountRepo.findOne({ where: { id: accountId } });
     if (!account) throw new NotFoundException(`Account ${accountId} not found`);
@@ -1265,7 +1343,7 @@ export class CatalogService {
       if (collision) throw new ConflictException(`חשבון עם קוד ${dto.code} כבר קיים בתרשים החשבונות`);
     }
 
-    const fields = ['name', 'code', 'sectionId', 'code6111', 'recognitionType', 'vatPercent', 'taxPercent', 'reductionPercent', 'isEquipment', 'reportScope'] as const;
+    const fields = ['name', 'code', 'sectionId', 'code6111', 'recognitionType', 'vatPercent', 'taxPercent', 'reductionPercent', 'isEquipment', 'reportScope', 'visibleBusinessTypes'] as const;
     for (const field of fields) {
       if (dto[field] !== undefined) (account as any)[field] = dto[field];
     }
@@ -1296,6 +1374,9 @@ export class CatalogService {
     law: AccountLaw;
     categoryName: string;
     createdByUserId?: string | null;
+    /** Phase 3 Step 3 (revised model): visibility filter, required — see
+     *  createAccountWithSubCategory. */
+    visibleBusinessTypes: BusinessFieldType[];
   }): Promise<{ account: BookingAccount; subCategory: SubCategory | null }> {
     const ref = await this.accountRepo.findOne({ where: { id: input.referenceAccountId } });
     if (!ref) throw new NotFoundException(`Reference account ${input.referenceAccountId} not found`);
@@ -1320,6 +1401,7 @@ export class CatalogService {
       categoryName: input.categoryName,
       reportScope: REPORT_SCOPE_BY_FORM_PART[ref.formPart],
       createdByUserId: input.createdByUserId ?? null,
+      visibleBusinessTypes: input.visibleBusinessTypes,
     });
   }
 

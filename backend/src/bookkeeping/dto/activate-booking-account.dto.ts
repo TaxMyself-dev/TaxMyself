@@ -1,5 +1,5 @@
-import { IsBoolean, IsEnum, IsIn, IsInt, IsNumber, IsString, MaxLength } from 'class-validator';
-import { RecognitionType } from 'src/enum';
+import { ArrayNotEmpty, IsArray, IsBoolean, IsEnum, IsIn, IsInt, IsNumber, IsString, MaxLength } from 'class-validator';
+import { RecognitionType, BusinessFieldType } from 'src/enum';
 
 /**
  * Form 6111 reference-card project, Phase 2 (2026-08-13): body for
@@ -44,6 +44,16 @@ export class ActivateBookingAccountDto {
   @IsString()
   @MaxLength(120)
   categoryName: string;
+
+  /** Phase 3 Step 3 (2026-08-17, revised model): which business types can
+   *  see the activated card (visibility filter, independent of the
+   *  CLIENT/ACCOUNTANT/SYSTEM ownership scope). Required, at least one — an
+   *  activated-but-empty card would be visible to nobody, which defeats the
+   *  point of deliberately activating it. */
+  @IsArray()
+  @ArrayNotEmpty({ message: 'at least one business type must be selected' })
+  @IsEnum(BusinessFieldType, { each: true })
+  visibleBusinessTypes: BusinessFieldType[];
 }
 
 /**

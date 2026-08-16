@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from 'src/environments/environment';
+import { BusinessFieldType } from 'src/app/shared/enums';
 
 /** One row of GET bookkeeping/catalog-overview (Phase 5.4). */
 export interface ICatalogOverviewSubCategory {
@@ -91,6 +92,10 @@ export interface IBookingAccountRow {
   accountantId: string | null;
   businessNumber: string | null;
   ownerName: string | null;
+  /** Phase 3 Step 3 (2026-08-17, revised model): which business types can
+   *  see this card — a VISIBILITY filter independent of ownerType/
+   *  chartOwnerKey. Empty = visible to nobody. */
+  visibleBusinessTypes: BusinessFieldType[];
 }
 
 /** GET bookkeeping/accounts/:id/usage — impact count before editing a shared card. */
@@ -111,6 +116,10 @@ export interface IUpdateAccountPayload {
   reductionPercent?: number;
   isEquipment?: boolean;
   reportScope?: 'pnl' | 'annual' | 'technical';
+  /** Phase 3 Step 3: edit which business types see this card. Omit to leave
+   *  unchanged; must be non-empty when provided (server rejects an empty
+   *  array — clearing visibility via edit isn't allowed, deactivate instead). */
+  visibleBusinessTypes?: BusinessFieldType[];
 }
 
 /** POST bookkeeping/accounts payload (D11). */
@@ -129,6 +138,9 @@ export interface ICreateAccountPayload {
   categoryName?: string;
   type?: 'expense' | 'income';
   businessNumber?: string;
+  /** Phase 3 Step 3: which business types can see this card — required, at
+   *  least one (server rejects an empty array). */
+  visibleBusinessTypes: BusinessFieldType[];
 }
 
 export type FormPart = 'A' | 'B' | 'C';
@@ -155,6 +167,10 @@ export interface IActivateBookingAccountPayload {
   isEquipment: boolean;
   recognitionType: 'RECOGNIZED' | 'NOT_RECOGNIZED' | 'NOT_APPLICABLE';
   categoryName: string;
+  /** Phase 3 Step 3: which business types can see the activated card —
+   *  required, at least one (server rejects an empty array — an activated-
+   *  but-invisible-to-everyone card would be pointless). */
+  visibleBusinessTypes: BusinessFieldType[];
 }
 
 /** POST accountant/business/:businessNumber/booking-accounts/activate body
@@ -171,6 +187,7 @@ export interface IActivatedBookingAccountResult {
     vatPercent: number; taxPercent: number; reductionPercent: number;
     isEquipment: boolean; recognitionType: string; reportScope: string;
     ownerType: string; chartOwnerKey: string;
+    visibleBusinessTypes: BusinessFieldType[];
   };
   subCategory: { id: number; name: string; categoryId: number; ownerType: string; chartOwnerKey: string; approvalStatus: string } | null;
 }

@@ -1,5 +1,5 @@
-import { IsBoolean, IsEnum, IsInt, IsNumber, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
-import { RecognitionType, ExpenseReportScope } from 'src/enum';
+import { ArrayNotEmpty, IsArray, IsBoolean, IsEnum, IsInt, IsNumber, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
+import { RecognitionType, ExpenseReportScope, BusinessFieldType } from 'src/enum';
 
 /**
  * PATCH /bookkeeping/accounts/:id (admin-only "כרטיסים" screen): a direct
@@ -56,4 +56,15 @@ export class UpdateAccountDto {
   @IsOptional()
   @IsEnum(ExpenseReportScope)
   reportScope?: ExpenseReportScope;
+
+  /** Phase 3 Step 3 (2026-08-17, revised model): edit which business types
+   *  see this card. Omit to leave unchanged; when provided, must be
+   *  non-empty — clearing a card to "visible to nobody" via edit isn't
+   *  allowed (same "at least one type required" rule as activation/create;
+   *  deactivate the card instead to fully hide it). */
+  @IsOptional()
+  @IsArray()
+  @ArrayNotEmpty({ message: 'at least one business type must be selected' })
+  @IsEnum(BusinessFieldType, { each: true })
+  visibleBusinessTypes?: BusinessFieldType[];
 }

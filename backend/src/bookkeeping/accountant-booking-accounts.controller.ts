@@ -232,6 +232,7 @@ export class AccountantBookingAccountsController {
       },
       categoryName: dto.categoryName,
       createdByUserId: actorFirebaseId,
+      visibleBusinessTypes: dto.visibleBusinessTypes,
     });
 
     return {
@@ -250,6 +251,7 @@ export class AccountantBookingAccountsController {
         reportScope: account.reportScope,
         ownerType: account.ownerType,
         chartOwnerKey: account.chartOwnerKey,
+        visibleBusinessTypes: account.visibleBusinessTypes,
       },
       subCategory: subCategory
         ? {

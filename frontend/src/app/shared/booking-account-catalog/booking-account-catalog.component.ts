@@ -16,6 +16,7 @@ import {
   ICreateAccountPayload,
   FormPart,
 } from 'src/app/services/bookkeeping-catalog.service';
+import { BusinessFieldType, businessFieldTypeOptionsList } from 'src/app/shared/enums';
 
 const RECOGNITION_OPTIONS = [
   { label: 'מוכר', value: 'RECOGNIZED' },
@@ -78,6 +79,8 @@ interface ActivateFormState {
   isEquipment: boolean;
   recognitionType: string | null;
   categoryName: string;
+  /** Phase 3 Step 3 (2026-08-17, revised model) — required, at least one. */
+  visibleBusinessTypes: BusinessFieldType[];
 }
 
 /** Same two options (no NOT_APPLICABLE) the existing clients-panel "כרטיס
@@ -100,6 +103,8 @@ interface AddCardFormState {
   isEquipment: boolean;
   technicalOnly: boolean;
   categoryName: string;
+  /** Phase 3 Step 3 (2026-08-17, revised model) — required, at least one. */
+  visibleBusinessTypes: BusinessFieldType[];
 }
 
 /**
@@ -149,6 +154,26 @@ export class BookingAccountCatalogComponent implements OnInit, OnChanges {
   readonly typeOptions = TYPE_OPTIONS;
   readonly reportScopeOptions = REPORT_SCOPE_OPTIONS;
   readonly scopeLabel = scopeLabel;
+  /** Phase 3 Step 3 (2026-08-17, revised model): the 3 business types a card
+   *  can be made visible to — נותן שירותים / עסק מסחרי / קבלן. Reused as-is
+   *  from the business-settings screen's own option list (single source for
+   *  the enum's Hebrew labels). */
+  readonly businessTypeOptions = businessFieldTypeOptionsList;
+
+  /** Toggle one business type's membership in a form's visibleBusinessTypes
+   *  array — shared by the activate/add/edit dialogs' checkbox rows.
+   *  Untyped `form` param (not `{ visibleBusinessTypes: ... }`) so this
+   *  also accepts `editForm`'s `Record<string, any>` shape — Angular's
+   *  template type checker (stricter here than plain tsc) rejects an index-
+   *  signature type against a required specific property. */
+  isBusinessTypeChecked(form: any, type: BusinessFieldType): boolean {
+    return (form.visibleBusinessTypes ?? []).includes(type);
+  }
+
+  toggleBusinessType(form: any, type: BusinessFieldType): void {
+    const current: BusinessFieldType[] = form.visibleBusinessTypes ?? [];
+    form.visibleBusinessTypes = current.includes(type) ? current.filter((t) => t !== type) : [...current, type];
+  }
 
   rows = signal<IBookingAccountRow[]>([]);
   sections = signal<IAccountingSectionOption[]>([]);
@@ -372,6 +397,18 @@ export class BookingAccountCatalogComponent implements OnInit, OnChanges {
     return REPORT_SCOPE_LABELS[scope] ?? scope;
   }
 
+  /** Table-column display for a row's visibility (Phase 3 Step 3) — "הכל"
+   *  when all 3 types are set (today's backfilled default for every active
+   *  card), the Hebrew label list when narrowed to a subset, "—" (never
+   *  "הכל") when empty — empty means visible to NOBODY, the opposite of
+   *  universal, so it must never read the same as the all-3 case. */
+  businessTypesLabel(row: IBookingAccountRow): string {
+    const types = row.visibleBusinessTypes ?? [];
+    if (types.length === 0) return '— (לא נראה לאף עסק)';
+    if (types.length === this.businessTypeOptions.length) return 'הכל';
+    return types.map((t) => this.businessTypeOptions.find((o) => o.value === t)?.name ?? t).join(', ');
+  }
+
   // ── Edit dialog (admin: any SYSTEM row; accountant: owned rows only,
   // enforced server-side) ──────────────────────────────────────────────────
   editRow = signal<IBookingAccountRow | null>(null);
@@ -395,11 +432,19 @@ export class BookingAccountCatalogComponent implements OnInit, OnChanges {
       isEquipment: row.isEquipment,
       recognitionType: row.recognitionType,
       reportScope: row.reportScope,
+      visibleBusinessTypes: [...row.visibleBusinessTypes],
     };
     // No usage check here — that only happens at save-time (confirmAndSaveEdit),
     // so opening the dialog to just look at a card never fires an extra
     // request or shows a warning the user hasn't earned yet.
     this.showEditDialog.set(true);
+  }
+
+  /** Same "at least one business type" rule as activate/add — editing a
+   *  card to an empty set isn't allowed (deactivate instead to fully hide
+   *  it). The other edit fields stay unvalidated here, unchanged behavior. */
+  isEditFormValid(): boolean {
+    return (this.editForm['visibleBusinessTypes']?.length ?? 0) > 0;
   }
 
   closeEditDialog(): void {
@@ -484,6 +529,7 @@ export class BookingAccountCatalogComponent implements OnInit, OnChanges {
       isEquipment: false,
       recognitionType: null,
       categoryName: '',
+      visibleBusinessTypes: [],
     };
   }
 
@@ -514,7 +560,8 @@ export class BookingAccountCatalogComponent implements OnInit, OnChanges {
       f.taxPercent != null &&
       f.reductionPercent != null &&
       !!f.recognitionType &&
-      !!f.categoryName?.trim()
+      !!f.categoryName?.trim() &&
+      f.visibleBusinessTypes.length > 0
     );
   }
 
@@ -531,6 +578,7 @@ export class BookingAccountCatalogComponent implements OnInit, OnChanges {
       isEquipment: this.activateForm.isEquipment,
       recognitionType: this.activateForm.recognitionType as any,
       categoryName: this.activateForm.categoryName.trim(),
+      visibleBusinessTypes: this.activateForm.visibleBusinessTypes,
     };
 
     this.activating.set(true);
@@ -686,6 +734,7 @@ export class BookingAccountCatalogComponent implements OnInit, OnChanges {
       isEquipment: false,
       technicalOnly: false,
       categoryName: '',
+      visibleBusinessTypes: [],
     };
   }
 
@@ -708,7 +757,8 @@ export class BookingAccountCatalogComponent implements OnInit, OnChanges {
       pctOk(f.vatPercent) &&
       pctOk(f.taxPercent) &&
       (f.reductionPercent == null || pctOk(f.reductionPercent)) &&
-      (f.technicalOnly || !!f.categoryName.trim())
+      (f.technicalOnly || !!f.categoryName.trim()) &&
+      f.visibleBusinessTypes.length > 0
     );
   }
 
@@ -729,6 +779,7 @@ export class BookingAccountCatalogComponent implements OnInit, OnChanges {
       technicalOnly: f.technicalOnly,
       categoryName: f.technicalOnly ? undefined : f.categoryName.trim(),
       businessNumber: this.businessNumber,
+      visibleBusinessTypes: f.visibleBusinessTypes,
     };
 
     this.addingCard.set(true);

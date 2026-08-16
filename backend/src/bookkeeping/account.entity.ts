@@ -1,5 +1,5 @@
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, Unique } from 'typeorm';
-import { OwnerType, VisibilityScope, SYSTEM_CHART_OWNER_KEY, RecognitionType, ExpenseReportScope, FormPart } from 'src/enum';
+import { OwnerType, VisibilityScope, SYSTEM_CHART_OWNER_KEY, RecognitionType, ExpenseReportScope, FormPart, BusinessFieldType } from 'src/enum';
 import { AccountingSection } from './accounting-section.entity';
 
 /**
@@ -137,5 +137,33 @@ export class BookingAccount {
 
   @Column({ default: true })
   isActive: boolean;
+
+  /**
+   * Phase 3 Step 3 (2026-08-17, revised model) — VISIBILITY filter,
+   * independent of chartOwnerKey/ownerType (ownership is unchanged: SYSTEM/
+   * ACCOUNTANT/CLIENT). A business sees this card only if its
+   * `Business.businessField` is a member of this SET — enforced in
+   * CatalogService's getMerged* read methods, never bypassed for admin
+   * listings (listAccountsForAdmin shows every card regardless).
+   *
+   * EMPTY = visible to NOBODY (opt-in per type, not opt-out) — never treat
+   * an empty set as "all types". Every isActive=true row was backfilled to
+   * all three types as a temporary safe default (2026-08-17_add-visible-
+   * business-types-to-booking-account.js) — NOT a curation decision, just
+   * preserving pre-existing "everyone sees everything" behavior until the
+   * pending accountant mapping review narrows individual cards via the
+   * admin UI. The 321 isActive=false Form 6111 reference rows are left
+   * empty; activating one requires picking at least one type (enforced in
+   * ActivateBookingAccountDto/ActivateClientBookingAccountDto — empty is
+   * rejected there, since an activated-but-invisible-to-everyone card would
+   * be pointless).
+   *
+   * TypeORM's MySQL driver maps `type: 'set'` to/from a plain JS array
+   * natively (DateUtils.simpleArrayToString/stringToSimpleArray) — no
+   * transformer needed, verified against a real SET column in keepintax-dev
+   * before this was added (empty round-trips as `[]`, not null).
+   */
+  @Column({ type: 'set', enum: BusinessFieldType, default: '' })
+  visibleBusinessTypes: BusinessFieldType[];
 
 }

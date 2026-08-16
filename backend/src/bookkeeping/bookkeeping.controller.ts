@@ -103,6 +103,7 @@ export class BookkepingController {
       technicalOnly: dto.technicalOnly ?? false,
       categoryName: dto.categoryName ?? null,
       createdByUserId: actorFirebaseId,
+      visibleBusinessTypes: dto.visibleBusinessTypes,
     });
 
     return {

@@ -1,5 +1,5 @@
-import { IsBoolean, IsEnum, IsIn, IsInt, IsNumber, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
-import { RecognitionType } from 'src/enum';
+import { ArrayNotEmpty, IsArray, IsBoolean, IsEnum, IsIn, IsInt, IsNumber, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
+import { BusinessFieldType, RecognitionType } from 'src/enum';
 
 /** D11 "available for" — decides the created rows' owner scope. */
 export enum AccountAvailability {
@@ -83,4 +83,14 @@ export class CreateAccountDto {
   @IsString()
   @MaxLength(20)
   businessNumber?: string;
+
+  /** Phase 3 Step 3 (2026-08-17, revised model): which business types can
+   *  see this card (visibility filter, independent of chartOwnerKey/scope —
+   *  see BookingAccount.visibleBusinessTypes). At least one is required —
+   *  an empty set means "visible to nobody", which would make a card you're
+   *  deliberately creating pointless. */
+  @IsArray()
+  @ArrayNotEmpty({ message: 'at least one business type must be selected' })
+  @IsEnum(BusinessFieldType, { each: true })
+  visibleBusinessTypes: BusinessFieldType[];
 }

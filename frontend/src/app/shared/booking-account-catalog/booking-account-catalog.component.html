@@ -42,12 +42,13 @@
               <th class="columns-header">% מע"מ</th>
               <th class="columns-header">% מס</th>
               <th class="columns-header">פחת</th>
+              <th class="columns-header">נראה לסוגי עסק</th>
             </tr>
           </thead>
           <tbody>
             @if (filteredRows().length === 0) {
               <tr>
-                <td colspan="11" class="empty-message">
+                <td colspan="12" class="empty-message">
                   <div class="empty-data-container">
                     <p class="empty-data-text">
                       {{ rows().length === 0 ? 'אין כרטיסים' : 'אין כרטיסים התואמים לסינון' }}
@@ -73,6 +74,7 @@
                   <td>{{ row.vatPercent ?? '—' }}</td>
                   <td>{{ row.taxPercent ?? '—' }}</td>
                   <td>{{ row.reductionPercent ?? '—' }}</td>
+                  <td>{{ businessTypesLabel(row) }}</td>
                 </tr>
               }
             }
@@ -145,11 +147,23 @@
       <label>סוג דוח</label>
       <p-select [(ngModel)]="editForm.reportScope" [options]="reportScopeOptions" optionLabel="label" optionValue="value" placeholder="בחר"></p-select>
     </div>
+    <div class="form-row business-types-row">
+      <label>נראה לסוגי עסק *</label>
+      <div class="business-types-checkboxes">
+        @for (opt of businessTypeOptions; track opt.value) {
+          <div class="check-row">
+            <p-checkbox [ngModel]="isBusinessTypeChecked(editForm, opt.value)" (ngModelChange)="toggleBusinessType(editForm, opt.value)"
+              [binary]="true" [inputId]="'editBizType_' + opt.value"></p-checkbox>
+            <label [for]="'editBizType_' + opt.value">{{ opt.name }}</label>
+          </div>
+        }
+      </div>
+    </div>
   </div>
   <ng-template pTemplate="footer">
     <app-p-button [buttonText]="'ביטול'" [buttonSize]="buttonSize.SMALL" (onButtonClicked)="closeEditDialog()"></app-p-button>
     <app-p-button [buttonText]="loadingUsage() ? 'בודק היקף השפעה...' : 'עדכון'" [buttonSize]="buttonSize.SMALL"
-      [disabled]="loadingUsage()" (onButtonClicked)="confirmAndSaveEdit()"></app-p-button>
+      [disabled]="loadingUsage() || !isEditFormValid()" (onButtonClicked)="confirmAndSaveEdit()"></app-p-button>
   </ng-template>
 </p-dialog>
 
@@ -200,6 +214,18 @@
     <div class="form-row">
       <label>קטגוריה *</label>
       <input type="text" pInputText [(ngModel)]="activateForm.categoryName" />
+    </div>
+    <div class="form-row business-types-row">
+      <label>נראה לסוגי עסק *</label>
+      <div class="business-types-checkboxes">
+        @for (opt of businessTypeOptions; track opt.value) {
+          <div class="check-row">
+            <p-checkbox [ngModel]="isBusinessTypeChecked(activateForm, opt.value)" (ngModelChange)="toggleBusinessType(activateForm, opt.value)"
+              [binary]="true" [inputId]="'activateBizType_' + opt.value"></p-checkbox>
+            <label [for]="'activateBizType_' + opt.value">{{ opt.name }}</label>
+          </div>
+        }
+      </div>
     </div>
   </div>
   <ng-template pTemplate="footer">
@@ -292,6 +318,18 @@
         <input type="text" pInputText [(ngModel)]="addForm.categoryName" placeholder="קטגוריית אב לתת-הקטגוריה" />
       </div>
     }
+    <div class="form-row business-types-row">
+      <label>נראה לסוגי עסק *</label>
+      <div class="business-types-checkboxes">
+        @for (opt of businessTypeOptions; track opt.value) {
+          <div class="check-row">
+            <p-checkbox [ngModel]="isBusinessTypeChecked(addForm, opt.value)" (ngModelChange)="toggleBusinessType(addForm, opt.value)"
+              [binary]="true" [inputId]="'addBizType_' + opt.value"></p-checkbox>
+            <label [for]="'addBizType_' + opt.value">{{ opt.name }}</label>
+          </div>
+        }
+      </div>
+    </div>
   </div>
   <ng-template pTemplate="footer">
     <app-p-button [buttonText]="'ביטול'" [buttonSize]="buttonSize.SMALL" (onButtonClicked)="closeAddDialog()"></app-p-button>

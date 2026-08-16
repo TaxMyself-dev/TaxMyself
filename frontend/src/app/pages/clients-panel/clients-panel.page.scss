@@ -395,3 +395,10 @@
   align-items: center;
   gap: 8px;
 }
+
+.business-field-types-checkboxes {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 16px;
+}
