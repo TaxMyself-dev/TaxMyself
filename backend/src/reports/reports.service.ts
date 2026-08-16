@@ -27,6 +27,7 @@ import { JournalLine } from 'src/bookkeeping/jouranl-line.entity';
 import { BookingAccount } from 'src/bookkeeping/account.entity';
 import { AccountingSection } from 'src/bookkeeping/accounting-section.entity';
 import { CatalogContextService } from 'src/bookkeeping/catalog-context.service';
+import { CatalogService } from 'src/bookkeeping/catalog.service';
 import { DocPayments } from 'src/documents/doc-payments.entity';
 import { Business } from 'src/business/business.entity';
 import { SlimTransaction } from 'src/transactions/slim-transaction.entity';
@@ -82,6 +83,10 @@ export class ReportsService {
     // Phase 5.1: delegation lookup — the client's ACCOUNTANT charts join the
     // P&L booking-account join and the manual-entry account dropdown.
     private readonly catalogContextService: CatalogContextService,
+    // Phase 3 Step 2 (chartOwnerKey centralization): chartOwnerKeysFor is the
+    // single source of truth for the CLIENT>ACCOUNTANT>SYSTEM read-precedence
+    // array these joins/queries filter by.
+    private readonly catalogService: CatalogService,
   ) {
     if (!fs.existsSync(this.debugFolder)) {
       fs.mkdirSync(this.debugFolder, { recursive: true });
@@ -563,11 +568,7 @@ export class ReportsService {
     // Scoping the join prevents cross-tenant fan-out when two CLIENT charts
     // allocate the same code in their 80000 range.
     const accountantIds = await this.catalogContextService.accountantIdsForUser(firebaseId);
-    const chartOwnerKeys = [
-      'SYSTEM',
-      `CLIENT_${businessNumber}`,
-      ...accountantIds.map((id) => `ACCOUNTANT_${id}`),
-    ];
+    const chartOwnerKeys = this.catalogService.chartOwnerKeysFor({ businessNumber, accountantIds });
 
     const qb = this.JournalLineRepo.createQueryBuilder('jl')
       .innerJoin(JournalEntry, 'je', 'je.id = jl.journalEntryId')
@@ -954,11 +955,7 @@ export class ReportsService {
     const accountantIds = firebaseId
       ? await this.catalogContextService.accountantIdsForUser(firebaseId)
       : [];
-    const chartOwnerKeys = [
-      'SYSTEM',
-      ...(businessNumber ? [`CLIENT_${businessNumber}`] : []),
-      ...accountantIds.map((id) => `ACCOUNTANT_${id}`),
-    ];
+    const chartOwnerKeys = this.catalogService.chartOwnerKeysFor({ businessNumber, accountantIds });
     const chart = await this.defaultBookingAccountRepo.find({
       where: { chartOwnerKey: In(chartOwnerKeys), code: Not(Like('6111-%')) },
     });
@@ -987,11 +984,7 @@ export class ReportsService {
     const accountantIds = firebaseId
       ? await this.catalogContextService.accountantIdsForUser(firebaseId)
       : [];
-    const chartOwnerKeys = [
-      'SYSTEM',
-      ...(businessNumber ? [`CLIENT_${businessNumber}`] : []),
-      ...accountantIds.map((id) => `ACCOUNTANT_${id}`),
-    ];
+    const chartOwnerKeys = this.catalogService.chartOwnerKeysFor({ businessNumber, accountantIds });
     const chart = await this.defaultBookingAccountRepo.find({
       where: { chartOwnerKey: In(chartOwnerKeys), isActive: true },
       relations: ['section'],

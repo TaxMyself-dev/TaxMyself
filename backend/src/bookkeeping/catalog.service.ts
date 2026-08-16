@@ -127,7 +127,22 @@ export class CatalogService {
     @InjectRepository(Business) private readonly businessRepo: Repository<Business>,
   ) {}
 
-  private chartOwnerKeysFor(ctx: CatalogContext): string[] {
+  /**
+   * Phase 3 Step 2 — the single source of truth for a read-precedence
+   * chartOwnerKey array (D4: CLIENT > ACCOUNTANT > SYSTEM). Every caller that
+   * needs "every chart visible to this business" — not just this service's
+   * own read methods below — must build it here, so a future precedence
+   * change (e.g. the planned business-type tier) only has one place to land.
+   * Public since 2026-08-17 so callers outside this file (e.g.
+   * ReportsService's ledger/P&L account joins) can reach it too.
+   *
+   * NOT for write-target scopes (see `buildScope`) and NOT for write
+   * allow-lists (deliberately narrower lists like
+   * `AccountantBookingAccountsController.ownedChartOwnerKeys`, which excludes
+   * SYSTEM and other accountants' charts on purpose) — both have different
+   * semantics and must stay separate from this read-merge precedence.
+   */
+  chartOwnerKeysFor(ctx: CatalogContext): string[] {
     // Precedence order — earlier entries win (D4: CLIENT > ACCOUNTANT > SYSTEM).
     const keys: string[] = [];
     if (ctx.businessNumber) keys.push(`CLIENT_${ctx.businessNumber}`);
