@@ -142,11 +142,15 @@ export class CategoryManagementComponent implements OnInit {
   // The edit dialog used to let an admin describe a NEW law (percents/
   // equipment/recognition) and have findOrCreateVariantAccount resolve or
   // allocate a matching card (D10). It now picks an EXISTING card directly
-  // instead — direct card editing lives on the new "כרטיסים" screen
-  // (card-management), which is the deliberate in-place-edit tool. Only
-  // SYSTEM cards are offered here: this screen edits SYSTEM sub_category
-  // rows, and pointing one at a private ACCOUNTANT/CLIENT card would be
-  // meaningless for every other tenant that inherits it by name.
+  // instead — direct card editing lives on the "כרטיסי טופס 6111" screen
+  // (booking-account-catalog, admin mode; superseded the old standalone
+  // card-management screen, 2026-08-16), which is the deliberate in-place-
+  // edit tool. Only SYSTEM cards are offered here: this screen edits SYSTEM
+  // sub_category rows, and pointing one at a private ACCOUNTANT/CLIENT card
+  // would be meaningless for every other tenant that inherits it by name.
+  // Still fetched via listAccounts()/GET bookkeeping/accounts — that
+  // endpoint stays alive for this picker even though the old card-management
+  // screen that used to be its other caller is gone.
   systemAccounts = signal<IBookingAccountRow[]>([]);
   accountPickerForm: FormGroup = this.fb.group({ accountId: [null] });
 

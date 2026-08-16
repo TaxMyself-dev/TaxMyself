@@ -1,0 +1,607 @@
+import { Component, DestroyRef, ElementRef, Input, OnChanges, OnInit, SimpleChanges, ViewChild, computed, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { FormBuilder, FormGroup } from '@angular/forms';
+import { Workbook } from 'exceljs';
+import { ConfirmationService } from 'primeng/api';
+import { finalize } from 'rxjs/operators';
+import { ButtonSize, ButtonColor } from 'src/app/components/button/button.enum';
+import { FilterField } from 'src/app/components/filter-tab/filter-fields-model.component';
+import {
+  BookkeepingCatalogService,
+  IBookingAccountRow,
+  IAccountingSectionOption,
+  IAccountUsage,
+  IActivateBookingAccountPayload,
+  IBlockingSubCategory,
+  FormPart,
+} from 'src/app/services/bookkeeping-catalog.service';
+
+const RECOGNITION_OPTIONS = [
+  { label: 'מוכר', value: 'RECOGNIZED' },
+  { label: 'לא מוכר', value: 'NOT_RECOGNIZED' },
+  { label: 'לא רלוונטי (לא הוצאה עסקית)', value: 'NOT_APPLICABLE' },
+];
+
+const TYPE_OPTIONS = [
+  { label: 'הוצאה', value: 'expense' },
+  { label: 'הכנסה', value: 'income' },
+];
+
+const FORM_PART_LABELS: Record<string, string> = {
+  A: 'רווח והפסד',
+  B: 'התאמה למס',
+  C: 'מאזן',
+};
+
+/** Same three values card-management's REPORT_SCOPE_LABELS/OPTIONS use —
+ *  duplicated rather than shared since each admin card screen owns its own
+ *  small label/option constants (same pattern as RECOGNITION_OPTIONS above). */
+const REPORT_SCOPE_LABELS: Record<string, string> = {
+  pnl: 'רווח והפסד',
+  annual: 'דוח שנתי בלבד',
+  technical: 'טכני',
+};
+
+const REPORT_SCOPE_OPTIONS = [
+  { label: 'רווח והפסד', value: 'pnl' },
+  { label: 'דוח שנתי בלבד', value: 'annual' },
+  { label: 'טכני', value: 'technical' },
+];
+
+/** Owner-scope display label for a chartOwnerKey, e.g. 'ACCOUNTANT_<id>' /
+ *  'CLIENT_<businessNumber>' / 'SYSTEM' — used in the deactivate blocking-
+ *  list dialog. Same three-way split as card-management's OWNER_TYPE_LABELS,
+ *  derived from the raw key since blockingSubCategories only carries that. */
+function scopeLabel(chartOwnerKey: string): string {
+  if (chartOwnerKey === 'SYSTEM') return 'מערכת';
+  if (chartOwnerKey.startsWith('ACCOUNTANT_')) return 'רואה חשבון';
+  if (chartOwnerKey.startsWith('CLIENT_')) return 'לקוח';
+  return chartOwnerKey;
+}
+
+/** A reference row's `name` is always "category – subcategory" (or just
+ *  "category" with no subcategory) — see
+ *  2026-08-11_import-6111-reference-cards.js. Used both for the table's
+ *  קטגוריה column and to pre-fill the activate dialog's categoryName. */
+function deriveCategoryFromName(name: string): string {
+  const idx = name.indexOf(' – ');
+  return idx >= 0 ? name.slice(0, idx) : name;
+}
+
+interface ActivateFormState {
+  type: 'expense' | 'income' | null;
+  sectionId: number | null;
+  vatPercent: number | null;
+  taxPercent: number | null;
+  reductionPercent: number | null;
+  isEquipment: boolean;
+  recognitionType: string | null;
+  categoryName: string;
+}
+
+/**
+ * Form 6111 reference-card project, Phase 2 (2026-08-14) — shared admin/
+ * accountant booking-account catalog screen. Originally built alongside the
+ * older standalone "כרטיסים" admin screen (shared/card-management), mirroring
+ * its patterns as closely as the two extra capabilities (activate a
+ * reference card, deactivate with a blocking-list dialog) allowed. That
+ * screen was consolidated into this one and removed 2026-08-16 (single
+ * unified card-management surface, SYSTEM-only by design — ACCOUNTANT/CLIENT
+ * card visibility was deliberately left out of scope, see
+ * docs/redesign/card-management-tabs-gap-analysis.md) — this component now
+ * covers everything that screen used to.
+ *
+ * `mode='admin'`: lists chartOwnerKey='SYSTEM' rows (68 operational + 321
+ * reference), full row actions (activate/edit/deactivate).
+ * `mode='accountant'`: lists the reference catalog only for one client
+ * business (`businessNumber` required), activate-only — the backend never
+ * exposed an accountant-side edit/deactivate endpoint for these cards.
+ */
+@Component({
+  selector: 'app-booking-account-catalog',
+  templateUrl: './booking-account-catalog.component.html',
+  styleUrls: ['./booking-account-catalog.component.scss'],
+  standalone: false,
+})
+export class BookingAccountCatalogComponent implements OnInit, OnChanges {
+  @Input() mode: 'admin' | 'accountant' = 'admin';
+  /** Required when mode='accountant'. */
+  @Input() businessNumber?: string;
+
+  private destroyRef = inject(DestroyRef);
+  private catalogService = inject(BookkeepingCatalogService);
+  private confirmationService = inject(ConfirmationService);
+  private fb = inject(FormBuilder);
+
+  readonly buttonSize = ButtonSize;
+  readonly ButtonColor = ButtonColor;
+  readonly recognitionOptions = RECOGNITION_OPTIONS;
+  readonly typeOptions = TYPE_OPTIONS;
+  readonly reportScopeOptions = REPORT_SCOPE_OPTIONS;
+  readonly scopeLabel = scopeLabel;
+
+  rows = signal<IBookingAccountRow[]>([]);
+  sections = signal<IAccountingSectionOption[]>([]);
+  loading = signal<boolean>(false);
+
+  // ── Filters (client-side, same pattern as card-management) ─────────────
+  filterForm: FormGroup = this.fb.group({});
+
+  private readonly formPartFilterOptions = [
+    { name: 'הכל', value: '' },
+    { name: FORM_PART_LABELS['A'], value: 'A' },
+    { name: FORM_PART_LABELS['B'], value: 'B' },
+    { name: FORM_PART_LABELS['C'], value: 'C' },
+  ];
+
+  private readonly isActiveFilterOptions = [
+    { name: 'הכל', value: '' },
+    { name: 'פעיל', value: 'true' },
+    { name: 'לא פעיל (כרטיס ייחוס)', value: 'false' },
+  ];
+
+  /** Computed once in ngOnInit (not a static field initializer like
+   *  card-management's filterConfig, since it depends on `mode` — an
+   *  @Input, not populated until after Angular constructs the component).
+   *  isActive filter only makes sense in admin mode — accountant mode's
+   *  referenceCards are already always isActive=false. */
+  filterConfig: FilterField[] = [];
+
+  private buildFilterConfig(): FilterField[] {
+    return [
+      { type: 'select', controlName: 'formPart', label: 'חלק בטופס 6111', options: this.formPartFilterOptions, defaultValue: '' },
+      ...(this.mode === 'admin'
+        ? [{ type: 'select' as const, controlName: 'isActive', label: 'סטטוס', options: this.isActiveFilterOptions, defaultValue: '' }]
+        : []),
+    ];
+  }
+
+  private filterFormPart = signal<string>('');
+  private filterIsActive = signal<string>('');
+
+  onApplyFilter(value: any): void {
+    this.filterFormPart.set(value?.formPart ?? '');
+    this.filterIsActive.set(value?.isActive ?? '');
+  }
+
+  // ── Free-text search — deliberately OUTSIDE app-filter-tab's config
+  // (FilterTabComponent only emits `apply` on its "הצג" button click) so
+  // this filters live as the admin types, same as app-filter-input's
+  // (ionInput)-driven search used by the cash-flow table (shared/table).
+  // Own row, below the dropdown filters, per design review 2026-08-16.
+  filterSearch = signal<string>('');
+  /** Plain ngModel-bound field for the standalone search input — the signal
+   *  above is the derived, trimmed/lowercased value filteredRows() reads. */
+  searchText = '';
+
+  onSearchInput(value: string): void {
+    this.filterSearch.set((value ?? '').trim().toLowerCase());
+  }
+
+  filteredRows = computed(() => {
+    let list = this.rows();
+    const formPart = this.filterFormPart();
+    if (formPart) list = list.filter((r) => r.formPart === formPart);
+    if (this.mode === 'admin') {
+      const isActive = this.filterIsActive();
+      if (isActive !== '') list = list.filter((r) => String(r.isActive) === isActive);
+    }
+    const search = this.filterSearch();
+    if (search) list = list.filter((r) => r.code.toLowerCase().includes(search) || r.name.toLowerCase().includes(search));
+    return list;
+  });
+
+  ngOnInit(): void {
+    this.filterConfig = this.buildFilterConfig();
+    this.loadSections();
+    this.loadRows();
+  }
+
+  ngOnChanges(changes: SimpleChanges): void {
+    // Accountant mode's businessNumber can change after init (e.g. switching
+    // the selected client in the accountant panel) — reload when it does.
+    if (changes['businessNumber'] && !changes['businessNumber'].firstChange) {
+      this.loadRows();
+    }
+  }
+
+  private loadSections(): void {
+    this.catalogService
+      .getSections()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (sections) => this.sections.set(sections),
+        error: () => this.sections.set([]),
+      });
+  }
+
+  loadRows(): void {
+    if (this.mode === 'accountant' && !this.businessNumber) {
+      this.rows.set([]);
+      return;
+    }
+    this.loading.set(true);
+
+    if (this.mode === 'admin') {
+      this.catalogService
+        .listAdminBookingAccounts({})
+        .pipe(finalize(() => this.loading.set(false)), takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: (data) => this.rows.set(Array.isArray(data) ? data : []),
+          error: () => this.rows.set([]),
+        });
+      return;
+    }
+
+    // Accountant mode: only referenceCards feed this table — categories/
+    // subCategories (the business's own effective catalog) are a different
+    // shape, out of scope for this booking_account-shaped screen.
+    this.catalogService
+      .getAccountantBookingAccountsCatalog(this.businessNumber!)
+      .pipe(finalize(() => this.loading.set(false)), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (data) => this.rows.set(data?.referenceCards ?? []),
+        error: () => this.rows.set([]),
+      });
+  }
+
+  // ── Row helpers ──────────────────────────────────────────────────────────
+  isReferenceRow(row: IBookingAccountRow): boolean {
+    return row.code.startsWith('6111-');
+  }
+
+  categoryLabel(row: IBookingAccountRow): string {
+    return deriveCategoryFromName(row.name);
+  }
+
+  formPartLabel(formPart: FormPart | null): string {
+    return formPart ? FORM_PART_LABELS[formPart] : '—';
+  }
+
+  // ── Hover-only row actions (design review 2026-08-16) — no dedicated
+  // actions column/header; instead a floating strip is positioned over the
+  // hovered row's own bounds and shown only while hovering it. Computed via
+  // getBoundingClientRect() rather than relying on <tr> offsetTop, since
+  // table-layout offsetParent resolution is inconsistent across browsers.
+  //
+  // The strip is NOT a descendant of the <tr> (it can't be — a <tr> may only
+  // contain <td>/<th>), so it sits elsewhere in the DOM, overlapping the row
+  // purely via CSS position. That means the row's own mouseleave fires the
+  // instant the pointer crosses onto the strip (hit-testing now resolves to
+  // a different element), and if the strip disappeared immediately on that
+  // leave, it would vanish before the pointer ever reached a button —
+  // exactly the "can't click the actions" bug hit in review. The fix, taken
+  // directly from generic-table.component.ts's own floating-buttons strip
+  // (onRowEnter/onFloatingEnter/onFloatingLeave there): track "hovering the
+  // row" and "hovering the strip" as two independent flags, and only clear
+  // hoveredRow after a short delay AND only if neither flag is true by then
+  // — so leaving the row to enter the strip (or vice versa) cancels the
+  // pending clear instead of racing it.
+  @ViewChild('tableContainer') private tableContainerRef?: ElementRef<HTMLElement>;
+
+  hoveredRow = signal<IBookingAccountRow | null>(null);
+  hoveredRowTop = signal<number>(0);
+  /** Measured from the actual hovered <tr>, not hardcoded — so the strip
+   *  always matches this row's real rendered height exactly, flush with no
+   *  gap, rather than an approximated fixed height that can mismatch. */
+  hoveredRowHeight = signal<number>(0);
+  private isRowHovered = false;
+  private isOverlayHovered = false;
+  private hoverClearTimeout: ReturnType<typeof setTimeout> | undefined;
+
+  onRowEnter(row: IBookingAccountRow, event: MouseEvent): void {
+    clearTimeout(this.hoverClearTimeout);
+    this.isRowHovered = true;
+    const container = this.tableContainerRef?.nativeElement;
+    const tr = event.currentTarget as HTMLElement;
+    if (container) {
+      const trRect = tr.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
+      this.hoveredRowTop.set(trRect.top - containerRect.top + container.scrollTop);
+      this.hoveredRowHeight.set(trRect.height);
+    }
+    this.hoveredRow.set(row);
+  }
+
+  onRowLeave(): void {
+    this.isRowHovered = false;
+    this.scheduleHoverClear();
+  }
+
+  onOverlayEnter(): void {
+    clearTimeout(this.hoverClearTimeout);
+    this.isOverlayHovered = true;
+  }
+
+  onOverlayLeave(): void {
+    this.isOverlayHovered = false;
+    this.scheduleHoverClear();
+  }
+
+  private scheduleHoverClear(): void {
+    this.hoverClearTimeout = setTimeout(() => {
+      if (!this.isRowHovered && !this.isOverlayHovered) {
+        this.hoveredRow.set(null);
+      }
+    }, 100);
+  }
+
+  reportScopeLabel(scope: string): string {
+    return REPORT_SCOPE_LABELS[scope] ?? scope;
+  }
+
+  // ── Edit dialog (admin-only) ─────────────────────────────────────────────
+  editRow = signal<IBookingAccountRow | null>(null);
+  showEditDialog = signal<boolean>(false);
+  editForm: Record<string, any> = {};
+  /** True while the save-time usage check (confirmAndSaveEdit) is in
+   *  flight — disables the "עדכון" button so a second click can't fire a
+   *  second usage request/confirm while the first is still resolving. */
+  loadingUsage = signal<boolean>(false);
+
+  openEdit(row: IBookingAccountRow): void {
+    this.editRow.set(row);
+    this.editForm = {
+      name: row.name,
+      code: row.code,
+      sectionId: row.sectionId,
+      code6111: row.code6111,
+      vatPercent: row.vatPercent,
+      taxPercent: row.taxPercent,
+      reductionPercent: row.reductionPercent,
+      isEquipment: row.isEquipment,
+      recognitionType: row.recognitionType,
+      reportScope: row.reportScope,
+    };
+    // No usage check here — that only happens at save-time (confirmAndSaveEdit),
+    // so opening the dialog to just look at a card never fires an extra
+    // request or shows a warning the user hasn't earned yet.
+    this.showEditDialog.set(true);
+  }
+
+  closeEditDialog(): void {
+    this.showEditDialog.set(false);
+    this.editRow.set(null);
+  }
+
+  /**
+   * Save-time impact check (moved off dialog-open, 2026-08-16): fetch usage
+   * first, then only interrupt with a confirm dialog when the card actually
+   * has associated sub_categories. Zero usage saves straight through — no
+   * point confirming an edit that can't ripple anywhere. A failed usage
+   * fetch fails safe (generic confirm, no numbers) rather than saving blind.
+   */
+  confirmAndSaveEdit(): void {
+    const row = this.editRow();
+    if (!row) return;
+    this.loadingUsage.set(true);
+    this.catalogService
+      .getAccountUsage(row.id)
+      .pipe(finalize(() => this.loadingUsage.set(false)), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (usage) => this.proceedWithSave(row, usage),
+        error: () => this.proceedWithSave(row, null),
+      });
+  }
+
+  private proceedWithSave(row: IBookingAccountRow, usage: IAccountUsage | null): void {
+    if (usage && usage.subCategoryCount === 0) {
+      this.saveEdit(row);
+      this.closeEditDialog();
+      return;
+    }
+    const message = usage
+      ? `כרטיס זה משותף לכלל המערכת — העדכון ישפיע על ${usage.subCategoryCount} תתי-קטגוריות ב-${usage.businessCount} עסקים לפחות (לא כולל עסקים שיורשים את הכרטיס באופן משתמע, ללא שורת דריסה משלהם). האם להמשיך?`
+      : 'כרטיס זה משותף לכלל המערכת. לא ניתן היה לבדוק את היקף ההשפעה. האם אתה בטוח שברצונך לעדכן אותו?';
+    this.confirmationService.confirm({
+      message,
+      header: 'אישור עדכון כרטיס',
+      icon: 'pi pi-exclamation-triangle',
+      acceptLabel: 'אישור',
+      rejectLabel: 'ביטול',
+      accept: () => {
+        this.saveEdit(row);
+        this.closeEditDialog();
+      },
+    });
+  }
+
+  private saveEdit(row: IBookingAccountRow): void {
+    this.loading.set(true);
+    this.catalogService
+      .updateAdminBookingAccount(row.id, this.editForm)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => this.loadRows(),
+        error: () => this.loading.set(false),
+        complete: () => this.loading.set(false),
+      });
+  }
+
+  // ── Activate dialog (both modes) ────────────────────────────────────────
+  activateRow = signal<IBookingAccountRow | null>(null);
+  showActivateDialog = signal<boolean>(false);
+  activateForm: ActivateFormState = this.emptyActivateForm();
+  activating = signal<boolean>(false);
+  activateError = signal<string | null>(null);
+
+  private emptyActivateForm(): ActivateFormState {
+    return {
+      type: null,
+      sectionId: null,
+      vatPercent: null,
+      taxPercent: null,
+      reductionPercent: null,
+      isEquipment: false,
+      recognitionType: null,
+      categoryName: '',
+    };
+  }
+
+  openActivate(row: IBookingAccountRow): void {
+    this.activateRow.set(row);
+    // Prefer the official category6111 (backfilled from the Tax Authority
+    // CSV) — falls back to the name-derived heuristic only if a reference
+    // row somehow doesn't have it set.
+    const categoryName = row.category6111 || this.categoryLabel(row);
+    this.activateForm = { ...this.emptyActivateForm(), categoryName };
+    this.activateError.set(null);
+    this.showActivateDialog.set(true);
+  }
+
+  closeActivateDialog(): void {
+    this.showActivateDialog.set(false);
+    this.activateRow.set(null);
+  }
+
+  /** Every field required — no defaults invented for a Form 6111 activation
+   *  (same "no defaults invented here" rule the backend DTO enforces). */
+  isActivateFormValid(): boolean {
+    const f = this.activateForm;
+    return (
+      !!f.type &&
+      f.sectionId != null &&
+      f.vatPercent != null &&
+      f.taxPercent != null &&
+      f.reductionPercent != null &&
+      !!f.recognitionType &&
+      !!f.categoryName?.trim()
+    );
+  }
+
+  submitActivate(): void {
+    const row = this.activateRow();
+    if (!row || !this.isActivateFormValid()) return;
+
+    const payload: IActivateBookingAccountPayload = {
+      type: this.activateForm.type!,
+      sectionId: this.activateForm.sectionId!,
+      vatPercent: this.activateForm.vatPercent!,
+      taxPercent: this.activateForm.taxPercent!,
+      reductionPercent: this.activateForm.reductionPercent!,
+      isEquipment: this.activateForm.isEquipment,
+      recognitionType: this.activateForm.recognitionType as any,
+      categoryName: this.activateForm.categoryName.trim(),
+    };
+
+    this.activating.set(true);
+    const request$ =
+      this.mode === 'admin'
+        ? this.catalogService.activateAdminBookingAccount(row.id, payload)
+        : this.catalogService.activateAccountantBookingAccount(this.businessNumber!, { ...payload, referenceAccountId: row.id });
+
+    request$
+      .pipe(finalize(() => this.activating.set(false)), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.closeActivateDialog();
+          this.loadRows();
+        },
+        error: (err) => {
+          this.activateError.set(err?.error?.message ?? 'הפעלת הכרטיס נכשלה. נסה שוב.');
+        },
+      });
+  }
+
+  // ── Deactivate + blocking-list dialog (admin-only) ──────────────────────
+  showBlockingDialog = signal<boolean>(false);
+  blockingSubCategories = signal<IBlockingSubCategory[]>([]);
+  blockingAccountLabel = signal<string>('');
+
+  deactivate(row: IBookingAccountRow): void {
+    this.confirmationService.confirm({
+      message: `האם להשבית את הכרטיס "${row.name}" (${row.code})?`,
+      header: 'אישור השבתת כרטיס',
+      icon: 'pi pi-exclamation-triangle',
+      acceptLabel: 'כן, השבת',
+      rejectLabel: 'ביטול',
+      accept: () => this.doDeactivate(row),
+    });
+  }
+
+  private doDeactivate(row: IBookingAccountRow): void {
+    this.loading.set(true);
+    this.catalogService
+      .deactivateAdminBookingAccount(row.id)
+      .pipe(finalize(() => this.loading.set(false)), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => this.loadRows(),
+        error: (err) => {
+          // The admin needs to actually see what's blocking it, not just a
+          // generic toast — show the itemized list in a dialog.
+          if (err?.status === 409 && Array.isArray(err?.error?.blockingSubCategories)) {
+            this.blockingAccountLabel.set(`${row.name} (${row.code})`);
+            this.blockingSubCategories.set(err.error.blockingSubCategories);
+            this.showBlockingDialog.set(true);
+          }
+        },
+      });
+  }
+
+  closeBlockingDialog(): void {
+    this.showBlockingDialog.set(false);
+    this.blockingSubCategories.set([]);
+  }
+
+  // ── Excel export — same exceljs pattern (RTL, bold header, download via
+  // Blob) as card-management.component.ts's exportToExcel(), ported here
+  // with this tab's own column set (official 6111 category/sub-category +
+  // formPart, which the old export never had). ──────────────────────────
+  exportingExcel = signal<boolean>(false);
+
+  exportToExcel(): void {
+    if (this.exportingExcel() || !this.filteredRows().length) return;
+    this.exportingExcel.set(true);
+    try {
+      this.buildAndDownloadRowsWorkbook();
+    } finally {
+      this.exportingExcel.set(false);
+    }
+  }
+
+  private buildAndDownloadRowsWorkbook(): void {
+    const header = [
+      'קוד מערכת', 'שם הכרטיס', 'חתך', 'קוד 6111', 'קטגוריה (6111)', 'תת-קטגוריה (6111)',
+      'חלק', 'סטטוס', '% מע"מ', '% מס', 'פחת',
+    ];
+
+    const wb = new Workbook();
+    const ws = wb.addWorksheet('כרטיסי טופס 6111', { views: [{ rightToLeft: true }] });
+    const headerRow = ws.addRow(header);
+    headerRow.font = { bold: true };
+    headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF4F6F9' } };
+
+    for (const row of this.filteredRows()) {
+      ws.addRow([
+        row.code,
+        row.name,
+        row.sectionName || '',
+        row.code6111 || '',
+        row.category6111 || '',
+        row.subCategory6111 || '',
+        this.formPartLabel(row.formPart),
+        row.isActive ? 'פעיל' : 'לא פעיל (ייחוס)',
+        row.vatPercent ?? '',
+        row.taxPercent ?? '',
+        row.reductionPercent ?? '',
+      ]);
+    }
+
+    for (let i = 1; i <= header.length; i++) {
+      ws.getColumn(i).width = 16;
+      ws.getColumn(i).alignment = { horizontal: 'right' };
+    }
+
+    wb.xlsx.writeBuffer().then((buffer) => {
+      const blob = new Blob([buffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'כרטיסי-טופס-6111.xlsx';
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+  }
+}

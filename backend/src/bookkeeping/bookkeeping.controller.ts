@@ -152,7 +152,10 @@ export class BookkepingController {
     if (!(await this.catalogContextService.isAdmin(actorFirebaseId))) {
       throw new ForbiddenException('רק מנהל מערכת יכול לצפות במסך ניהול הכרטיסים');
     }
-    return this.catalogService.listAccountsForAdmin(ownerType);
+    // isActive:true kept explicit here to preserve this endpoint's exact
+    // prior behavior — listAccountsForAdmin no longer bakes in a default
+    // (the new Form 6111 admin screen needs both active and inactive rows).
+    return this.catalogService.listAccountsForAdmin({ ownerType, isActive: true });
   }
 
   /**

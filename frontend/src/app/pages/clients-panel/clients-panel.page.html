@@ -728,6 +728,15 @@
           </div>
         }
       </section>
+
+      <section class="booking-account-catalog-section">
+        @if (catalogBusinessFilter()) {
+          <app-booking-account-catalog mode="accountant" [businessNumber]="catalogBusinessFilter()">
+          </app-booking-account-catalog>
+        } @else {
+          <p class="empty-text">בחר עסק כדי לעיין בכרטיסי הייחוס מטופס 6111 ולהפעיל כרטיס עבורו.</p>
+        }
+      </section>
     </p-tabPanel>
   </p-tabView>
 </div>

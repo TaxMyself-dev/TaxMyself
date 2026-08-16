@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, In, Repository } from 'typeorm';
+import { DataSource, FindOptionsWhere, In, Like, Repository } from 'typeorm';
 import { Category } from './category.entity';
 import { SubCategory } from './sub-category.entity';
 import { BookingAccount } from './account.entity';
@@ -15,11 +15,22 @@ import {
   ExpenseApprovalStatus,
   ExpenseNecessity,
   ExpenseReportScope,
+  FormPart,
   OwnerType,
   RecognitionType,
   SYSTEM_CHART_OWNER_KEY,
   VisibilityScope,
 } from 'src/enum';
+
+/** Form 6111 reference-card project (2026-08-11/13): a reference card's
+ *  formPart determines which report bucket the activated operational card
+ *  belongs to. Same mapping used by 2026-08-11_import-6111-reference-cards.js
+ *  and the formPart backfill — kept in sync deliberately, not re-derived. */
+const REPORT_SCOPE_BY_FORM_PART: Record<FormPart, ExpenseReportScope> = {
+  [FormPart.A]: ExpenseReportScope.PNL,
+  [FormPart.B]: ExpenseReportScope.ANNUAL,
+  [FormPart.C]: ExpenseReportScope.TECHNICAL,
+};
 
 export interface CatalogContext {
   userId?: string | null;
@@ -661,6 +672,12 @@ export class CatalogService {
     technicalOnly?: boolean;
     categoryName?: string | null;
     createdByUserId?: string | null;
+    /** Which report this card feeds — defaults to PNL (the only value the
+     *  existing D11 accountant/admin add-account flow ever needed). The
+     *  Form 6111 reference-card activation flow (activateReferenceCard)
+     *  passes the reference row's formPart-derived value instead, since a
+     *  card activated from a B/C reference line must not default to PNL. */
+    reportScope?: ExpenseReportScope;
   }): Promise<{ account: BookingAccount; subCategory: SubCategory | null }> {
     const { scope } = input;
     const name = input.name?.trim();
@@ -712,6 +729,7 @@ export class CatalogService {
           reductionPercent: input.law.reductionPercent,
           isEquipment: input.law.isEquipment,
           recognitionType: input.law.recognitionType,
+          reportScope: input.reportScope ?? ExpenseReportScope.PNL,
           ownerType: scope.ownerType,
           chartOwnerKey: scope.chartOwnerKey,
           accountantId: scope.accountantId ?? null,
@@ -1008,32 +1026,56 @@ export class CatalogService {
   // ==========================================================================
 
   /**
-   * Every active card across all owner scopes (or one scope, filtered), each
-   * with a resolved owner display name for ACCOUNTANT/CLIENT rows (SYSTEM
-   * rows have none). Admin-only listing — unlike every read above, this is
-   * not merged/scoped to one business's visible charts, it's the flat global
+   * Every card across all owner scopes (or one scope, filtered), each with a
+   * resolved owner display name for ACCOUNTANT/CLIENT rows (SYSTEM rows have
+   * none). Admin-only listing — unlike every read above, this is not
+   * merged/scoped to one business's visible charts, it's the flat global
    * table.
+   *
+   * `isActive` is opt-in filtering, not a baked-in default: omit it to get
+   * every row regardless of active state (what the Form 6111 admin screen
+   * needs — 68 active operational + 321 inactive reference cards in one
+   * view), or pass it explicitly to filter one way. The original caller
+   * (GET /bookkeeping/accounts) now passes `isActive: true` explicitly at
+   * the call site to keep its exact prior behavior — the default used to be
+   * baked in here, which would have been wrong for the new admin screen.
+   *
+   * `formPart`/`search` (2026-08-13, Form 6111 reference-card project):
+   * `search` matches `code` OR `name`, case-insensitive (MySQL's default
+   * collation), substring.
    */
-  async listAccountsForAdmin(ownerType?: OwnerType): Promise<{
-    id: number; code: string; name: string; type: string;
+  async listAccountsForAdmin(filters: {
+    ownerType?: OwnerType;
+    isActive?: boolean;
+    formPart?: FormPart;
+    search?: string;
+  } = {}): Promise<{
+    id: number; code: string; name: string; type: string | null;
     sectionId: number | null; sectionName: string | null;
-    code6111: string | null;
-    /** Official Tax Authority Form 6111 category/sub-category names for this
-     *  card's code6111 (2026-08-14) — independent of this app's own `name`/
-     *  section grouping. NULL together with code6111 on cards with no
-     *  official 6111 identity. */
-    category6111: string | null; subCategory6111: string | null;
+    code6111: string | null; category6111: string | null; subCategory6111: string | null; formPart: FormPart | null;
     vatPercent: number | null; taxPercent: number | null; reductionPercent: number | null;
     isEquipment: boolean | null; recognitionType: RecognitionType | null;
     reportScope: ExpenseReportScope;
+    isActive: boolean;
     ownerType: OwnerType; chartOwnerKey: string;
     accountantId: string | null; businessNumber: string | null;
     ownerName: string | null;
   }[]> {
-    const where: { isActive: boolean; ownerType?: OwnerType } = { isActive: true };
-    if (ownerType && Object.values(OwnerType).includes(ownerType)) {
-      where.ownerType = ownerType;
+    const base: FindOptionsWhere<BookingAccount> = {};
+    if (filters.ownerType && Object.values(OwnerType).includes(filters.ownerType)) {
+      base.ownerType = filters.ownerType;
     }
+    if (filters.isActive !== undefined) {
+      base.isActive = filters.isActive;
+    }
+    if (filters.formPart && Object.values(FormPart).includes(filters.formPart)) {
+      base.formPart = filters.formPart;
+    }
+    const search = filters.search?.trim();
+    const where: FindOptionsWhere<BookingAccount> | FindOptionsWhere<BookingAccount>[] = search
+      ? [{ ...base, code: Like(`%${search}%`) }, { ...base, name: Like(`%${search}%`) }]
+      : base;
+
     const rows = await this.accountRepo.find({
       where,
       relations: ['section'],
@@ -1071,12 +1113,14 @@ export class CatalogService {
       code6111: r.code6111,
       category6111: r.category6111,
       subCategory6111: r.subCategory6111,
+      formPart: r.formPart,
       vatPercent: r.vatPercent != null ? Number(r.vatPercent) : null,
       taxPercent: r.taxPercent != null ? Number(r.taxPercent) : null,
       reductionPercent: r.reductionPercent != null ? Number(r.reductionPercent) : null,
       isEquipment: r.isEquipment,
       recognitionType: r.recognitionType,
       reportScope: r.reportScope,
+      isActive: r.isActive,
       ownerType: r.ownerType,
       chartOwnerKey: r.chartOwnerKey,
       accountantId: r.accountantId,
@@ -1127,6 +1171,15 @@ export class CatalogService {
     const account = await this.accountRepo.findOne({ where: { id: accountId } });
     if (!account) throw new NotFoundException(`Account ${accountId} not found`);
 
+    // Form 6111 reference cards (code LIKE '6111-%', always isActive=false)
+    // are informational Tax Authority lines, not editable cards — they're
+    // turned into a real card via activateReferenceCard, never patched here.
+    if (account.code.startsWith('6111-')) {
+      throw new BadRequestException(
+        `כרטיס ${account.code} הוא כרטיס ייחוס מטופס 6111 — יש להפעיל אותו (activate), לא לערוך אותו ישירות`,
+      );
+    }
+
     if (dto.sectionId !== undefined && dto.sectionId !== account.sectionId) {
       const section = await this.sectionRepo.findOne({
         where: { id: dto.sectionId, isActive: true, chartOwnerKey: In([SYSTEM_CHART_OWNER_KEY, account.chartOwnerKey]) },
@@ -1142,6 +1195,84 @@ export class CatalogService {
     for (const field of fields) {
       if (dto[field] !== undefined) (account as any)[field] = dto[field];
     }
+    return this.accountRepo.save(account);
+  }
+
+  // ==========================================================================
+  // Form 6111 reference-card project, Phase 2 (2026-08-13) — activate/
+  // deactivate. Shared between the admin (SYSTEM scope) and accountant
+  // (CLIENT scope) controllers, which build `scope`/gate the actor
+  // themselves and call these directly — no duplicated business logic.
+  // ==========================================================================
+
+  /**
+   * Turn a Form 6111 reference card (isActive=false, code LIKE '6111-%')
+   * into a real operational booking_account + paired sub_category, via
+   * createAccountWithSubCategory — one atomic call, not a two-step
+   * PATCH-then-activate, since the law is required up front either way.
+   * The reference row itself is left untouched (informational, not
+   * superseded/deleted) — its code/code6111/name/formPart are only ever
+   * read here, never mutated.
+   */
+  async activateReferenceCard(input: {
+    referenceAccountId: number;
+    scope: CatalogScope;
+    type: 'expense' | 'income';
+    sectionId: number;
+    law: AccountLaw;
+    categoryName: string;
+    createdByUserId?: string | null;
+  }): Promise<{ account: BookingAccount; subCategory: SubCategory | null }> {
+    const ref = await this.accountRepo.findOne({ where: { id: input.referenceAccountId } });
+    if (!ref) throw new NotFoundException(`Reference account ${input.referenceAccountId} not found`);
+    if (ref.chartOwnerKey !== SYSTEM_CHART_OWNER_KEY || !ref.code.startsWith('6111-')) {
+      throw new BadRequestException(`כרטיס ${ref.id} אינו כרטיס ייחוס מטופס 6111 (קוד ${ref.code})`);
+    }
+    if (!ref.formPart) {
+      // Never invent a report-scope fallback — a reference row with no
+      // formPart means the data itself is incomplete (see
+      // 2026-08-13_backfill-formpart-on-reference-rows.js), not something
+      // this call can silently paper over.
+      throw new BadRequestException(`לכרטיס הייחוס ${ref.code} אין formPart מוגדר — לא ניתן לגזור ממנו את היקף הדיווח`);
+    }
+
+    return this.createAccountWithSubCategory({
+      scope: input.scope,
+      name: ref.name,
+      type: input.type,
+      sectionId: input.sectionId,
+      code6111: ref.code6111,
+      law: input.law,
+      categoryName: input.categoryName,
+      reportScope: REPORT_SCOPE_BY_FORM_PART[ref.formPart],
+      createdByUserId: input.createdByUserId ?? null,
+    });
+  }
+
+  /**
+   * Deactivate an already-active card (isActive=false) — refuses if any
+   * sub_category, in ANY chartOwnerKey (a CLIENT/ACCOUNTANT override can
+   * point at a SYSTEM card's id just as easily as a SYSTEM row can), still
+   * actively points at it. Never cascade-deactivates those rows — the
+   * caller has to repoint/deactivate them first, on purpose.
+   */
+  async deactivateAccount(accountId: number): Promise<BookingAccount> {
+    const account = await this.accountRepo.findOne({ where: { id: accountId } });
+    if (!account) throw new NotFoundException(`Account ${accountId} not found`);
+
+    const blocking = await this.subCategoryRepo.find({
+      where: { accountId, isActive: true },
+      select: ['id', 'name', 'chartOwnerKey'],
+      order: { chartOwnerKey: 'ASC', name: 'ASC' },
+    });
+    if (blocking.length > 0) {
+      throw new ConflictException({
+        message: `לא ניתן להשבית את הכרטיס — ${blocking.length} תת-קטגוריות פעילות עדיין מצביעות אליו`,
+        blockingSubCategories: blocking.map((b) => ({ id: b.id, name: b.name, chartOwnerKey: b.chartOwnerKey })),
+      });
+    }
+
+    account.isActive = false;
     return this.accountRepo.save(account);
   }
 }
