@@ -4,11 +4,16 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { UserIntegration } from '../entities/user-integration.entity';
 import { IntegrationStatus } from '../enums/integrations.enums';
+import { matchesAccountingDocumentKeyword } from '../utils/accounting-document-keywords.util';
 import {
+  GmailKeywordMatchSource,
+  GmailPdfScanOutcome,
   GmailSkipReason,
+  PdfContentScanAccumulator,
   SkippedAttachmentsAccumulator,
   tagGmailSyncError,
 } from '../utils/gmail-sync-logging.util';
+import { extractPdfText, PdfTextExtractionOutcome } from '../utils/pdf-text-extraction.util';
 import { GoogleOauthService } from './google-oauth.service';
 import { UserIntegrationsService } from './user-integrations.service';
 
@@ -49,89 +54,45 @@ const RETRY_DELAYS_MS = [1000, 2000, 4000];
 /** Guard against pathological/malicious MIME nesting. */
 const MAX_MIME_DEPTH = 20;
 
-/**
- * Keywords that mark an attachment/email as a likely invoice or receipt.
- * Deliberately excludes weak abbreviations ("inv", "rcpt") that would create
- * false positives. Hebrew, English and common transliterations are all listed
- * so a real receipt is matched regardless of how the sender named it.
- */
-const INVOICE_RECEIPT_KEYWORDS = [
-  // Hebrew
-  'קבלה',
-  'חשבונית',
-  'חשבונית מס',
-  'חשבונית מס קבלה',
-  'מס קבלה',
-  // English
-  'invoice',
-  'receipt',
-  'tax invoice',
-  'tax-invoice',
-  'tax_invoice',
-  'invoice receipt',
-  'tax receipt',
-  // Transliteration / common variants
-  'kabala',
-  'kabbala',
-  'kabalah',
-  'kabbalah',
-  'kaballa',
-  'cheshbonit',
-  'heshbonit',
-  'hashbonit',
-  'hesbonit',
-  'chashbonit',
-  'chashbunit',
-];
+/** Extraction outcomes that end the PDF-content fallback without a match. */
+const PDF_OUTCOME_TO_SCAN_OUTCOME: Record<
+  Exclude<PdfTextExtractionOutcome, 'EXTRACTED'>,
+  GmailPdfScanOutcome
+> = {
+  NO_TEXT: GmailPdfScanOutcome.NO_TEXT,
+  TOO_LARGE: GmailPdfScanOutcome.TOO_LARGE,
+  FAILED: GmailPdfScanOutcome.FAILED,
+  UNAVAILABLE: GmailPdfScanOutcome.UNAVAILABLE,
+};
 
 /**
- * Normalizes text for keyword matching: lowercased, hyphen/underscore/dot
- * turned into spaces, whitespace collapsed. Also returns a `compact` form with
- * all spaces removed so glued spellings like "taxinvoice" or
- * "chashbonitkabbala" still match multi-word keywords.
+ * Simple boolean gate (no scoring): an attachment is a likely accounting
+ * document when the filename, the email subject, OR the snippet/body names one
+ * (see ACCOUNTING_DOCUMENT_KEYWORDS — the single shared list, also used for
+ * PDF text below). Each field is matched independently so a keyword is never
+ * accidentally formed across field boundaries.
+ *
+ * Returns WHICH field matched (or null) — the reader records it on the
+ * accepted attachment so production logs can answer "why was this imported?".
  */
-function normalizeForKeywordMatch(text: string | null | undefined): {
-  spaced: string;
-  compact: string;
-} {
-  const spaced = (text ?? '')
-    .toLowerCase()
-    .replace(/[-_.]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-  return { spaced, compact: spaced.replace(/ /g, '') };
+export function findKeywordMatchSource(
+  filename: string | null | undefined,
+  subject: string | null | undefined,
+  snippetOrBody: string | null | undefined,
+): GmailKeywordMatchSource | null {
+  if (matchesAccountingDocumentKeyword(filename)) return GmailKeywordMatchSource.FILENAME;
+  if (matchesAccountingDocumentKeyword(subject)) return GmailKeywordMatchSource.SUBJECT;
+  if (matchesAccountingDocumentKeyword(snippetOrBody)) return GmailKeywordMatchSource.BODY;
+  return null;
 }
 
-/** Pre-normalized keyword forms — computed once, reused for every attachment. */
-const INVOICE_RECEIPT_KEYWORD_FORMS = INVOICE_RECEIPT_KEYWORDS.map((keyword) =>
-  normalizeForKeywordMatch(keyword),
-);
-
-/** True when a single piece of text contains any invoice/receipt keyword. */
-function textMatchesInvoiceOrReceipt(text: string | null | undefined): boolean {
-  const { spaced, compact } = normalizeForKeywordMatch(text);
-  if (!spaced) return false;
-  return INVOICE_RECEIPT_KEYWORD_FORMS.some(
-    (keyword) => spaced.includes(keyword.spaced) || compact.includes(keyword.compact),
-  );
-}
-
-/**
- * Simple boolean gate (no scoring): an attachment is a likely invoice/receipt
- * when the filename, the email subject, OR the snippet/body contains any of
- * INVOICE_RECEIPT_KEYWORDS. Each field is matched independently so keywords
- * are never accidentally formed across field boundaries.
- */
+/** Back-compatible boolean form of findKeywordMatchSource. */
 export function isLikelyInvoiceOrReceiptAttachment(
   filename: string | null | undefined,
   subject: string | null | undefined,
   snippetOrBody: string | null | undefined,
 ): boolean {
-  return (
-    textMatchesInvoiceOrReceipt(filename) ||
-    textMatchesInvoiceOrReceipt(subject) ||
-    textMatchesInvoiceOrReceipt(snippetOrBody)
-  );
+  return findKeywordMatchSource(filename, subject, snippetOrBody) !== null;
 }
 
 export interface GmailAttachmentFile {
@@ -144,6 +105,11 @@ export interface GmailAttachmentFile {
   filename: string;
   mimeType: string | null;
   size: number;
+  /**
+   * Which source carried the accounting-document keyword — 'pdf-content' means
+   * the metadata said nothing and the PDF's own text rescued the file.
+   */
+  matchedBy: GmailKeywordMatchSource;
   /**
    * Raw file bytes. Internal representation — the controller serializes to
    * base64 for now; a later phase streams these to Google Drive instead.
@@ -159,6 +125,8 @@ export interface GmailAttachmentsResult {
   skippedWithoutFilename: number;
   /** Attachments dropped by the receipt-likeness filter (logos, inline assets, tiny images...). */
   skippedIrrelevant: number;
+  /** Of `attachmentsFound`, how many were rescued by their PDF text. */
+  matchedByPdfContent: number;
   attachments: GmailAttachmentFile[];
 }
 
@@ -169,6 +137,8 @@ export interface GmailMessageScanResult {
   attachments: GmailAttachmentFile[];
   skippedWithoutFilename: number;
   skippedIrrelevant: number;
+  /** Of `attachments`, how many matched only on their extracted PDF text. */
+  matchedByPdfContent: number;
   /** True when the message could not be fetched/parsed — logged, attachments empty. */
   failed: boolean;
 }
@@ -203,10 +173,16 @@ export class GmailReaderService {
    * `skipStats` (optional) collects EXPECTED attachment skips for the run's
    * single aggregated SKIPPED SUMMARY — passing it replaces the old per-skip
    * DEBUG lines. Bulk callers (initial import, nightly sync) supply one.
+   * `pdfStats` (optional) does the same for the PDF-content fallback.
    */
   async *scanMessages(
     integration: UserIntegration,
-    options: { query?: string; maxMessages?: number; skipStats?: SkippedAttachmentsAccumulator } = {},
+    options: {
+      query?: string;
+      maxMessages?: number;
+      skipStats?: SkippedAttachmentsAccumulator;
+      pdfStats?: PdfContentScanAccumulator;
+    } = {},
   ): AsyncGenerator<GmailMessageScanResult> {
     this.assertUsableIntegration(integration);
     const gmail = await this.createGmailClient(integration);
@@ -238,6 +214,7 @@ export class GmailReaderService {
             gmail,
             messageId,
             options.skipStats,
+            options.pdfStats,
           );
           yield { messageId, failed: false, ...collected };
         } catch (error: any) {
@@ -253,6 +230,7 @@ export class GmailReaderService {
             attachments: [],
             skippedWithoutFilename: 0,
             skippedIrrelevant: 0,
+            matchedByPdfContent: 0,
           };
         }
         if (maxMessages && scanned >= maxMessages) return;
@@ -282,13 +260,18 @@ export class GmailReaderService {
       attachmentsFound: 0,
       skippedWithoutFilename: 0,
       skippedIrrelevant: 0,
+      matchedByPdfContent: 0,
       attachments: [],
     };
 
-    for await (const scan of this.scanMessages(integration, { query, maxMessages })) {
+    // This helper has no orchestrator to emit the run summary, so it owns one.
+    const pdfStats = new PdfContentScanAccumulator();
+
+    for await (const scan of this.scanMessages(integration, { query, maxMessages, pdfStats })) {
       result.messagesFound += 1;
       result.skippedWithoutFilename += scan.skippedWithoutFilename;
       result.skippedIrrelevant += scan.skippedIrrelevant;
+      result.matchedByPdfContent += scan.matchedByPdfContent;
       if (scan.attachments.length === 0) continue;
 
       result.messagesWithAttachments += 1;
@@ -304,10 +287,14 @@ export class GmailReaderService {
     this.logger.debug(
       `Gmail scan complete for integration=${integration.id}: ` +
         `${result.messagesFound} messages, ${result.messagesWithAttachments} with attachments, ` +
-        `${result.attachmentsFound} receipt candidates returned, ` +
+        `${result.attachmentsFound} receipt candidates returned ` +
+        `(${result.matchedByPdfContent} matched on PDF text), ` +
         `${result.skippedIrrelevant} irrelevant attachments skipped, ` +
         `${result.skippedWithoutFilename} parts skipped (no filename)`,
     );
+    if (pdfStats.hasScans()) {
+      this.logger.debug(pdfStats.format());
+    }
 
     return result;
   }
@@ -444,10 +431,12 @@ export class GmailReaderService {
     gmail: gmail_v1.Gmail,
     messageId: string,
     skipStats?: SkippedAttachmentsAccumulator,
+    pdfStats?: PdfContentScanAccumulator,
   ): Promise<{
     attachments: GmailAttachmentFile[];
     skippedWithoutFilename: number;
     skippedIrrelevant: number;
+    matchedByPdfContent: number;
   }> {
     const { data: message } = await this.withRetry(
       () => gmail.users.messages.get({ userId: 'me', id: messageId, format: 'full' }),
@@ -482,6 +471,7 @@ export class GmailReaderService {
     const snippet = message.snippet ?? null;
     const attachments: GmailAttachmentFile[] = [];
     let skippedIrrelevant = 0;
+    let matchedByPdfContent = 0;
     // Expected skips are aggregated into the run's single SKIPPED SUMMARY
     // (see SkippedAttachmentsAccumulator) — never one log line per attachment,
     // which would flood production during a multi-year import.
@@ -500,19 +490,25 @@ export class GmailReaderService {
         continue;
       }
 
-      // Stage 1b — require an invoice/receipt keyword in the filename, subject
-      // or body snippet. Also runs before download, so unrelated attachments
-      // never reach the network or the Drive upload downstream.
-      if (!isLikelyInvoiceOrReceiptAttachment(filename, subject, snippet)) {
+      // Stage 1b — accounting-document keyword in the filename, subject or
+      // body snippet. Still decided before any download, so a non-PDF that
+      // nothing points at never reaches the network or the Drive upload.
+      const ext = this.getExtension(filename);
+      const metadataMatch = findKeywordMatchSource(filename, subject, snippet);
+      if (!metadataMatch && ext !== 'pdf') {
         skip(filename, GmailSkipReason.NOT_INVOICE_OR_RECEIPT);
         continue;
       }
 
+      // A PDF with no metadata signal is downloaded ONCE here and gets a
+      // second chance from its own text further down — the bytes are needed
+      // for the import anyway, so nothing is fetched twice.
       const content = await this.downloadPartContent(gmail, messageId, part);
       if (!content) continue;
 
-      // Stage 2 — checks that need the actual bytes.
-      const ext = this.getExtension(filename);
+      // Stage 2 — deterministic technical checks that need the actual bytes.
+      // These run BEFORE any text extraction: a too-small or non-PDF payload
+      // is skipped on its technical merits, exactly as before.
       if (ext === 'pdf') {
         if (content.length < MIN_PDF_BYTES) {
           skip(filename, GmailSkipReason.PDF_TOO_SMALL);
@@ -527,6 +523,20 @@ export class GmailReaderService {
         continue;
       }
 
+      // Stage 3 — last resort for a technically valid PDF nothing else
+      // pointed at: look for the same keywords inside its own text. Any
+      // failure here (scanned, encrypted, malformed, too large) falls back to
+      // the pre-existing skip, never to an exception.
+      let matchedBy = metadataMatch;
+      if (!matchedBy) {
+        matchedBy = await this.matchPdfContent(filename, content, pdfStats);
+        if (!matchedBy) {
+          skip(filename, GmailSkipReason.NOT_INVOICE_OR_RECEIPT);
+          continue;
+        }
+        matchedByPdfContent += 1;
+      }
+
       attachments.push({
         messageId,
         threadId: message.threadId ?? null,
@@ -537,11 +547,45 @@ export class GmailReaderService {
         filename,
         mimeType: part.mimeType ?? null,
         size: content.length,
+        matchedBy,
         content,
       });
     }
 
-    return { attachments, skippedWithoutFilename, skippedIrrelevant };
+    return { attachments, skippedWithoutFilename, skippedIrrelevant, matchedByPdfContent };
+  }
+
+  /**
+   * Extracts text from an already-downloaded, already-validated PDF and looks
+   * for an accounting-document keyword in it. Returns 'pdf-content' on a hit
+   * and null for every other outcome (no keyword, no text layer, oversized,
+   * unreadable, extractor unavailable) — the caller then applies the existing
+   * skip. Outcomes are tallied for the run's PDF CONTENT SCAN summary; the
+   * extracted text itself is never logged or persisted.
+   */
+  private async matchPdfContent(
+    filename: string,
+    content: Buffer,
+    pdfStats?: PdfContentScanAccumulator,
+  ): Promise<GmailKeywordMatchSource | null> {
+    const extraction = await extractPdfText(content, this.logger);
+
+    if (extraction.outcome !== 'EXTRACTED') {
+      pdfStats?.record(
+        PDF_OUTCOME_TO_SCAN_OUTCOME[extraction.outcome],
+        filename,
+        extraction.error,
+      );
+      return null;
+    }
+
+    if (!matchesAccountingDocumentKeyword(extraction.text)) {
+      pdfStats?.record(GmailPdfScanOutcome.NO_KEYWORD, filename);
+      return null;
+    }
+
+    pdfStats?.record(GmailPdfScanOutcome.MATCHED, filename);
+    return GmailKeywordMatchSource.PDF_CONTENT;
   }
 
   /**

@@ -48,6 +48,7 @@ describe('GmailSyncService — incremental sync targets the specific integration
       messagesFailed: 0,
       failedMessageIds: [],
       attachmentsFound: 0,
+      matchedByPdfContent: 0,
       imported: 0,
       alreadyImported: 0,
       skipped: 0,

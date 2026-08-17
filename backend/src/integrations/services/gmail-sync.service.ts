@@ -14,6 +14,7 @@ import {
   describeGmailSyncError,
   getGmailSyncRetryable,
   getGmailSyncStage,
+  PdfContentScanAccumulator,
   SkippedAttachmentsAccumulator,
   tagGmailSyncError,
 } from '../utils/gmail-sync-logging.util';
@@ -262,6 +263,7 @@ export class GmailSyncService {
   ): Promise<void> {
     const runStartedAt = new Date();
     const skipStats = new SkippedAttachmentsAccumulator();
+    const pdfStats = new PdfContentScanAccumulator();
     this.logRunStart(context);
     try {
       const result = await this.gmailDriveImportService.importFromGmail(integration, {
@@ -269,6 +271,7 @@ export class GmailSyncService {
         // No maxMessages: the reader pages through the entire range.
         includeFileDetails: false,
         skipStats,
+        pdfStats,
       });
 
       // Cursor for the nightly sync. End of the imported range is the day
@@ -288,6 +291,7 @@ export class GmailSyncService {
       }
       this.logRunFinish(context, result, Date.now() - runStartedAt.getTime());
       this.logSkippedSummary(context, skipStats);
+      this.logPdfContentSummary(context, pdfStats);
     } catch (error: any) {
       // Cursor and initialImportCompletedAt untouched — the user can retry.
       this.logRunFailure(context, error);
@@ -334,6 +338,7 @@ export class GmailSyncService {
     };
 
     const skipStats = new SkippedAttachmentsAccumulator();
+    const pdfStats = new PdfContentScanAccumulator();
     await this.userIntegrationsService.markSyncRunning(integration.id);
     this.logRunStart(context);
     try {
@@ -346,6 +351,7 @@ export class GmailSyncService {
         query: `has:attachment after:${afterEpochSeconds}`,
         includeFileDetails: false,
         skipStats,
+        pdfStats,
       });
 
       try {
@@ -357,6 +363,7 @@ export class GmailSyncService {
       }
       this.logRunFinish(context, result, Date.now() - windowEnd.getTime());
       this.logSkippedSummary(context, skipStats);
+      this.logPdfContentSummary(context, pdfStats);
       return {
         outcome: 'success',
         detail: `${result.imported} imported of ${result.attachmentsFound} candidates`,
@@ -394,7 +401,8 @@ export class GmailSyncService {
     const line =
       `${this.runPrefix(context)} FINISH window=${context.window} durationMs=${durationMs} ` +
       `messages=${result.messagesFound} messagesFailed=${result.messagesFailed} ` +
-      `attachments=${result.attachmentsFound} imported=${result.imported} ` +
+      `attachments=${result.attachmentsFound} matchedByPdfContent=${result.matchedByPdfContent} ` +
+      `imported=${result.imported} ` +
       `alreadyImported=${result.alreadyImported} skipped=${result.skipped}` +
       (result.failedMessageIds.length > 0
         ? ` failedMessageIds=${result.failedMessageIds.join(',')}`
@@ -415,6 +423,20 @@ export class GmailSyncService {
   ): void {
     if (!skipStats.hasSkips()) return;
     this.logger.debug(`${this.runPrefix(context)}\n\n${skipStats.format()}`);
+  }
+
+  /**
+   * One aggregated DEBUG summary of the PDF-content fallback (how many PDFs
+   * were scanned for keywords in their own text, how many that rescued, and
+   * how many had no text / could not be read). Emitted only when the fallback
+   * actually ran. Contains counts and filenames — never extracted text.
+   */
+  private logPdfContentSummary(
+    context: GmailSyncRunContext,
+    pdfStats: PdfContentScanAccumulator,
+  ): void {
+    if (!pdfStats.hasScans()) return;
+    this.logger.debug(`${this.runPrefix(context)}\n\n${pdfStats.format()}`);
   }
 
   private logRunFailure(context: GmailSyncRunContext, error: any): void {

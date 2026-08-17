@@ -35,6 +35,7 @@ describe('GmailDriveImportService — importAllForUser', () => {
     messagesFailed: 0,
     failedMessageIds: [],
     attachmentsFound: 1,
+    matchedByPdfContent: 0,
     imported: 1,
     alreadyImported: 0,
     skipped: 0,

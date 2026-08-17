@@ -80,6 +80,120 @@ export const GmailSkipReason = {
 export type GmailSkipReason = (typeof GmailSkipReason)[keyof typeof GmailSkipReason];
 
 /**
+ * Where the accounting-document keyword that let an attachment through was
+ * found. Carried on every accepted attachment so a production question like
+ * "why did this file come in?" is answerable without re-running the filter.
+ */
+export const GmailKeywordMatchSource = {
+  FILENAME: 'filename',
+  SUBJECT: 'subject',
+  BODY: 'body',
+  PDF_CONTENT: 'pdf-content',
+} as const;
+
+export type GmailKeywordMatchSource =
+  (typeof GmailKeywordMatchSource)[keyof typeof GmailKeywordMatchSource];
+
+// --- PDF content-matching aggregation ----------------------------------------
+
+/**
+ * Outcome of the PDF-content fallback, run only for PDFs whose filename,
+ * subject and body carried no keyword. Mirrors PdfTextExtractionOutcome plus
+ * the two matching verdicts.
+ */
+export const GmailPdfScanOutcome = {
+  MATCHED: 'matched by pdf text',
+  NO_KEYWORD: 'pdf text has no accounting keyword',
+  NO_TEXT: 'pdf has no extractable text',
+  TOO_LARGE: 'pdf too large to scan',
+  FAILED: 'pdf text extraction failed',
+  UNAVAILABLE: 'pdf text extraction unavailable',
+} as const;
+
+export type GmailPdfScanOutcome =
+  (typeof GmailPdfScanOutcome)[keyof typeof GmailPdfScanOutcome];
+
+/** Unique example error messages kept per failing outcome. */
+const MAX_PDF_ERROR_EXAMPLES = 3;
+
+/**
+ * Bounded per-run tally of the PDF-content fallback, in the same spirit as
+ * SkippedAttachmentsAccumulator: counts and a handful of example filenames,
+ * never a per-attachment log line and never any extracted text.
+ */
+export class PdfContentScanAccumulator {
+  private readonly outcomes = new Map<string, { count: number; examples: Set<string> }>();
+  private readonly errors = new Set<string>();
+  private total = 0;
+  private matched = 0;
+
+  /**
+   * Records one PDF-content attempt. `detail` is a short extraction error
+   * label — never document content.
+   */
+  record(outcome: GmailPdfScanOutcome, filename?: string | null, detail?: string | null): void {
+    this.total += 1;
+    if (outcome === GmailPdfScanOutcome.MATCHED) this.matched += 1;
+
+    let entry = this.outcomes.get(outcome);
+    if (!entry) {
+      entry = { count: 0, examples: new Set<string>() };
+      this.outcomes.set(outcome, entry);
+    }
+    entry.count += 1;
+    const name = filename?.trim();
+    if (name && entry.examples.size < MAX_SKIP_EXAMPLES) {
+      entry.examples.add(name);
+    }
+    const error = detail?.trim();
+    if (error && this.errors.size < MAX_PDF_ERROR_EXAMPLES) {
+      this.errors.add(error);
+    }
+  }
+
+  /** Attachments rescued by their PDF text (counted as imported downstream). */
+  get matchedCount(): number {
+    return this.matched;
+  }
+
+  hasScans(): boolean {
+    return this.total > 0;
+  }
+
+  /** One-line summary body; '' when the fallback never ran. */
+  format(): string {
+    if (this.total === 0) return '';
+
+    const sorted = [...this.outcomes.entries()].sort((a, b) => b[1].count - a[1].count);
+    const lines: string[] = [
+      'PDF CONTENT SCAN',
+      '',
+      `PDFs scanned for accounting keywords: ${this.total} (matched: ${this.matched})`,
+      '',
+      'Outcomes:',
+    ];
+    const labelWidth = Math.max(...sorted.map(([outcome]) => outcome.length));
+    for (const [outcome, { count }] of sorted) {
+      const dots = '.'.repeat(Math.max(3, labelWidth - outcome.length + 3));
+      lines.push(`- ${outcome} ${dots} ${count}`);
+    }
+
+    const withExamples = sorted.filter(([, { examples }]) => examples.size > 0);
+    if (withExamples.length > 0) {
+      lines.push('', 'Examples:');
+      for (const [outcome, { examples }] of withExamples) {
+        lines.push(`- ${outcome}: ${[...examples].join(', ')}`);
+      }
+    }
+    if (this.errors.size > 0) {
+      lines.push('', `Extraction errors: ${[...this.errors].join(' | ')}`);
+    }
+
+    return lines.join('\n');
+  }
+}
+
+/**
  * Lightweight, bounded aggregator for EXPECTED skipped attachments during a
  * Gmail run. A large import legitimately skips thousands of attachments
  * (inline assets, logos, tiny images); logging each one floods production for
