@@ -195,6 +195,7 @@ export class IntegrationsController {
       attachmentsFound: result.attachmentsFound,
       skippedWithoutFilename: result.skippedWithoutFilename,
       skippedIrrelevant: result.skippedIrrelevant,
+      matchedByPdfContent: result.matchedByPdfContent,
       attachments: result.attachments.map((a) => ({
         messageId: a.messageId,
         threadId: a.threadId,
@@ -205,6 +206,7 @@ export class IntegrationsController {
         filename: a.filename,
         mimeType: a.mimeType,
         size: a.size,
+        matchedBy: a.matchedBy,
         contentBase64: a.content.toString('base64'),
       })),
     };

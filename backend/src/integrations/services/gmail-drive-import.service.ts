@@ -7,6 +7,7 @@ import { DocumentImportSource } from 'src/document-import/enums/document-import.
 import { UserIntegration } from '../entities/user-integration.entity';
 import { IntegrationProvider } from '../enums/integrations.enums';
 import {
+  PdfContentScanAccumulator,
   SkippedAttachmentsAccumulator,
   tagGmailSyncError,
 } from '../utils/gmail-sync-logging.util';
@@ -38,6 +39,12 @@ export interface GmailImportResult {
   /** First few failed Gmail message ids, for troubleshooting logs. */
   failedMessageIds: string[];
   attachmentsFound: number;
+  /**
+   * Of `attachmentsFound`, how many were candidates only because an accounting
+   * keyword was found inside the PDF's own text. They are imported (or deduped)
+   * exactly like any other candidate — this is a diagnostic counter only.
+   */
+  matchedByPdfContent: number;
   imported: number;
   alreadyImported: number;
   skipped: number;
@@ -198,7 +205,8 @@ export class GmailDriveImportService {
    *
    * `skipStats` (optional) collects EXPECTED attachment skips so the caller
    * (the sync orchestrator) can emit one aggregated SKIPPED SUMMARY at FINISH
-   * instead of a DEBUG line per skipped attachment.
+   * instead of a DEBUG line per skipped attachment. `pdfStats` does the same
+   * for the PDF-content fallback.
    */
   async importFromGmail(
     integration: UserIntegration,
@@ -208,6 +216,7 @@ export class GmailDriveImportService {
       maxMessages?: number;
       includeFileDetails?: boolean;
       skipStats?: SkippedAttachmentsAccumulator;
+      pdfStats?: PdfContentScanAccumulator;
     },
   ): Promise<GmailImportResult> {
     const firebaseId = integration.firebaseId;
@@ -220,6 +229,7 @@ export class GmailDriveImportService {
       messagesFailed: 0,
       failedMessageIds: [],
       attachmentsFound: 0,
+      matchedByPdfContent: 0,
       imported: 0,
       alreadyImported: 0,
       skipped: 0,
@@ -232,8 +242,10 @@ export class GmailDriveImportService {
       query,
       maxMessages: options.maxMessages,
       skipStats: options.skipStats,
+      pdfStats: options.pdfStats,
     })) {
       result.messagesFound += 1;
+      result.matchedByPdfContent += scan.matchedByPdfContent;
       if (scan.failed) {
         result.messagesFailed += 1;
         if (result.failedMessageIds.length < MAX_FAILED_MESSAGE_IDS) {
@@ -302,6 +314,7 @@ export class GmailDriveImportService {
       `Gmail import for firebaseId=${firebaseId} business=${options.businessNumber ?? 'auto-resolved'}: ` +
         `${result.imported} imported, ${result.alreadyImported} already imported, ` +
         `${result.skipped} skipped (of ${result.attachmentsFound} candidates, ` +
+        `${result.matchedByPdfContent} matched on PDF text, ` +
         `${result.messagesFound} messages, ${result.messagesFailed} failed)`,
     );
     return result;
