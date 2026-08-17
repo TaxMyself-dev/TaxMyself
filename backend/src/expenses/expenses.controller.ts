@@ -23,6 +23,8 @@ import { SubscriptionGuard } from 'src/guards/subscription.guard';
 import { RequireModule } from 'src/decorators/require-module.decorator';
 import { CreateUserSubCategoryDto } from './dtos/create-user-sub-category.dto';
 import { ExpenseReportScope, ModuleName } from 'src/enum';
+import { RequiredDelegationScope } from 'src/decorators/required-delegation-scope.decorator';
+import { DelegationScope } from 'src/delegation/delegation.entity';
 
 
 @Controller('expenses')
@@ -382,6 +384,12 @@ export class ExpensesController {
 
 
   @Post('add-supplier')
+  // Reachable from the report-review "ספק חדש" dialog — an accountant with
+  // only a view-only delegation (EXPENSES_APPROVE, no DOCUMENTS_WRITE) must
+  // still be able to create the supplier a pending expense needs, so this
+  // is scoped to EXPENSES_APPROVE instead of the per-verb DOCUMENTS_WRITE
+  // default. Does not grant any document-issuance capability.
+  @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
   @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
   async addSupplier(
     @Req() request: AuthenticatedRequest,
@@ -398,6 +406,9 @@ export class ExpensesController {
 
 
   @Patch('update-supplier/:id')
+  // Same reasoning as add-supplier above — the report-review edit-supplier
+  // dialog must work under a view-only (EXPENSES_APPROVE-only) delegation.
+  @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
   @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
   async updateSupplier(
     @Req() request: AuthenticatedRequest,

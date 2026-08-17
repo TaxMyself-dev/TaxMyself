@@ -182,6 +182,38 @@ describe('FirebaseAuthGuard', () => {
     });
   });
 
+  // Document issuance (POST /documents/create-doc) carries NO
+  // @RequiredDelegationScope override and no role==='agent' block in
+  // DocumentsController — so it falls through to the generic per-verb
+  // default like any other unmarked POST. These tests pin down the ACTUAL
+  // current behavior (not the desired one): an accountant impersonating a
+  // client with a full DOCUMENTS_WRITE delegation CAN currently issue a
+  // document in the client's name, and a view-only/EXPENSES_APPROVE-only
+  // delegation cannot. Flagged separately to the product owner — this
+  // ticket only confirms/pins the gap, it does not change it (out of scope:
+  // "if it currently is scope-gated by DOCUMENTS_WRITE, flag that
+  // separately, don't silently change it as part of this fix").
+  describe('document issuance route (no override — generic per-verb default, NOT unconditionally blocked)', () => {
+    it('full DOCUMENTS_WRITE delegation → currently PASSES an unmarked POST route (e.g. create-doc)', async () => {
+      delegationRepo.findOne.mockResolvedValue({
+        status: DelegationStatus.ACTIVE,
+        scopes: [DelegationScope.DOCUMENTS_READ, DelegationScope.DOCUMENTS_WRITE, DelegationScope.EXPENSES_APPROVE],
+      });
+      const { request, context } = makeContext('POST'); // no requiredScope override, mirrors create-doc
+      await expect(guard.canActivate(context)).resolves.toBe(true);
+      expect(request.user.firebaseId).toBe(CLIENT);
+    });
+
+    it('view-only delegation (EXPENSES_APPROVE, no DOCUMENTS_WRITE) → still blocked from an unmarked POST route', async () => {
+      delegationRepo.findOne.mockResolvedValue({
+        status: DelegationStatus.ACTIVE,
+        scopes: [DelegationScope.DOCUMENTS_READ, DelegationScope.EXPENSES_APPROVE],
+      });
+      const { context } = makeContext('POST');
+      await expect(guard.canActivate(context)).rejects.toThrow('לרואה חשבון הרשאה לצפייה בלבד');
+    });
+  });
+
   // isDelegatedAccess (referral-signup Phase 2): drives the EXPENSES/
   // ACCOUNTANT always-open module-access guarantee in
   // SubscriptionAccessService — must be set ONLY for real delegation-based
