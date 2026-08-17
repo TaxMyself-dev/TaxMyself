@@ -150,8 +150,14 @@ export class ReportsController {
     /** Persist an in-progress edit onto a pending document (matched/
      *  doc_only) — NOT an approve, status/documentKind untouched. Lets the
      *  edit dialog save immediately instead of only carrying the change
-     *  in-memory until the user clicks approve. */
+     *  in-memory until the user clicks approve. Same bucket as approve-* —
+     *  classifying/editing a pending row before approval, not a document-
+     *  issuance write — so a view-only delegation with EXPENSES_APPROVE
+     *  must be able to do this too (previously missed: fell through to the
+     *  generic DOCUMENTS_WRITE default, breaking the supplier-save cascade
+     *  and the edit dialog's own save for view-only accountants). */
     @Patch('me/review/update-doc/:documentId')
+    @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
     @UseGuards(FirebaseAuthGuard)
     async updateDoc(
       @Req() request: AuthenticatedRequest,
@@ -167,6 +173,7 @@ export class ReportsController {
 
     /** Same as update-doc, for the transaction side of a tx_only row. */
     @Patch('me/review/update-tx/:slimTransactionId')
+    @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
     @RequireModule(ModuleName.OPEN_BANKING)
     @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
     async updateTx(
@@ -181,8 +188,11 @@ export class ReportsController {
       return this.reviewService.updateTxFields(firebaseId, bn, Number(slimTransactionId), body.fields ?? {});
     }
 
-    /** Manual link from a tx_only row to an existing doc_only document. */
+    /** Manual link from a tx_only row to an existing doc_only document.
+     *  Pre-approval organizing of pending rows, same bucket as update-doc/
+     *  update-tx — EXPENSES_APPROVE, not the generic DOCUMENTS_WRITE default. */
     @Post('me/review/link-doc-to-tx')
+    @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
     @UseGuards(FirebaseAuthGuard)
     async linkDocToTx(
       @Req() request: AuthenticatedRequest,
@@ -201,8 +211,10 @@ export class ReportsController {
     }
 
     /** Archive a document row — delegates to the existing per-row archive
-     *  in DocumentsService (status flip; file stays in processed/). */
+     *  in DocumentsService (status flip; file stays in processed/).
+     *  Pending-queue housekeeping, same bucket as update-doc/update-tx. */
     @Post('me/review/archive-doc/:documentId')
+    @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
     @UseGuards(FirebaseAuthGuard)
     async archiveDoc(
       @Req() request: AuthenticatedRequest,
@@ -215,8 +227,15 @@ export class ReportsController {
 
     /** Delete a document row — flips status to REJECTED; the Drive file
      *  stays in processed/. See ReportReviewService.deleteDoc for the
-     *  semantic distinction vs archive. */
+     *  semantic distinction vs archive.
+     *  Confirmed soft-delete (product decision, 2026-08-17): deleteDoc →
+     *  DocumentsService.archiveDocument only UPDATEs extracted_document.status
+     *  — no hard row delete, no Drive file removal (explicitly commented
+     *  there: "file stays in processed/ forever"), and no Expense/JournalEntry
+     *  exists yet at this pre-approval stage to cascade into. Same bucket as
+     *  archive-doc/unpair. */
     @Post('me/review/delete-doc/:documentId')
+    @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
     @UseGuards(FirebaseAuthGuard)
     async deleteDoc(
       @Req() request: AuthenticatedRequest,
@@ -229,8 +248,10 @@ export class ReportsController {
 
     /** D8 "תייק" (Phase 4.3): file a document for the ANNUAL report —
      *  terminal NOT_AN_EXPENSE + documentKind=ANNUAL_DOCUMENT; never
-     *  creates an expense or journal entry. Idempotent. */
+     *  creates an expense or journal entry. Idempotent. Pre-approval triage
+     *  decision on a pending row, same bucket as doc-kind/approve-*. */
     @Post('me/review/file-doc/:documentId')
+    @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
     @UseGuards(FirebaseAuthGuard)
     async fileDocAsAnnual(
       @Req() request: AuthenticatedRequest,
@@ -244,6 +265,7 @@ export class ReportsController {
     /** D8 triage (Phase 4.3): re-kind a PENDING_REVIEW document (e.g. an
      *  UNIDENTIFIED row the user recognizes as an expense invoice). */
     @Patch('me/review/doc-kind/:documentId')
+    @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
     @UseGuards(FirebaseAuthGuard)
     async setDocKind(
       @Req() request: AuthenticatedRequest,
@@ -258,8 +280,10 @@ export class ReportsController {
 
     /** Unpair an invoice↔receipt pair set by DocumentPairingService.
      *  Either side of the pair can be the entry point — the service
-     *  follows the back-pointer to find the partner. */
+     *  follows the back-pointer to find the partner. Pre-approval
+     *  organizing, same bucket as link-doc-to-tx. */
     @Post('me/review/unpair/:documentId')
+    @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
     @UseGuards(FirebaseAuthGuard)
     async unpair(
       @Req() request: AuthenticatedRequest,
@@ -278,8 +302,17 @@ export class ReportsController {
      *  new document's id + display fields (driveFileId/driveFileName/
      *  invoiceNumber/allocationNumber/documentType) so the frontend can
      *  synthesize a matched row in-place instead of a full preview
-     *  re-fetch. */
+     *  re-fetch.
+     *  Product decision (2026-08-17): EXPENSES_APPROVE, same bucket as its
+     *  siblings — supplying the missing receipt for a pending tx_only row is
+     *  part of the pre-approval review workflow, not document issuance (the
+     *  upload is inbound evidence attached to the client's own data, never
+     *  anything sent out in the client's name). Actively called from
+     *  report-review.page.ts's tx_only upload flow — this was live and
+     *  reachable already, unlike file-doc/fileDocAsAnnual (which has no
+     *  frontend caller yet). */
     @Post('me/review/upload-doc-to-tx/:transactionId')
+    @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
     @RequireModule(ModuleName.OPEN_BANKING)
     @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
     @UseInterceptors(
@@ -310,8 +343,10 @@ export class ReportsController {
     }
 
     /** Reject a tx_only row — marks the slim transaction not-an-expense
-     *  and locks it to the current period so it doesn't re-surface. */
+     *  and locks it to the current period so it doesn't re-surface. The
+     *  "decline to approve" mirror of approve-tx-no-doc — same bucket. */
     @Post('me/review/reject-tx')
+    @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
     @RequireModule(ModuleName.OPEN_BANKING)
     @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
     async rejectTx(

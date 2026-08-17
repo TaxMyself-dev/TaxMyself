@@ -180,6 +180,19 @@ describe('FirebaseAuthGuard', () => {
       const { context } = makeContext('GET');
       await expect(guard.canActivate(context)).resolves.toBe(true);
     });
+
+    // The review-workflow sweep (update-doc/update-tx and siblings) is all
+    // PATCH/POST — every prior EXPENSES_APPROVE test above exercised POST
+    // only, so PATCH was never actually proven through this exact mechanism.
+    it('view-only delegation (no DOCUMENTS_WRITE) + EXPENSES_APPROVE present → PATCH route overridden to EXPENSES_APPROVE passes (mirrors update-doc/update-tx)', async () => {
+      delegationRepo.findOne.mockResolvedValue({
+        status: DelegationStatus.ACTIVE,
+        scopes: [DelegationScope.DOCUMENTS_READ, DelegationScope.EXPENSES_APPROVE],
+      });
+      const { request, context } = makeContext('PATCH', true, DelegationScope.EXPENSES_APPROVE);
+      await expect(guard.canActivate(context)).resolves.toBe(true);
+      expect(request.user.firebaseId).toBe(CLIENT);
+    });
   });
 
   // Document issuance (POST /documents/create-doc) carries NO
