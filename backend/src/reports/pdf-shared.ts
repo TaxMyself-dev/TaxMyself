@@ -1,5 +1,8 @@
 import * as path from 'path';
 import * as fs from 'fs';
+import { Logger } from '@nestjs/common';
+
+const logger = new Logger('PdfShared');
 
 const FONT_DIR = path.join(process.cwd(), 'assets', 'fonts');
 const FONT_REGULAR = path.join(FONT_DIR, 'Simpler-Regular.otf');
@@ -121,6 +124,10 @@ export function registerHebrewFonts(doc: any): { fontR: string; fontB: string } 
   if (hasFonts) {
     doc.registerFont('he', FONT_REGULAR);
     doc.registerFont('he-bold', FONT_BOLD);
+  } else {
+    logger.warn(
+      `Hebrew fonts not found at ${FONT_DIR} — falling back to Helvetica, which has no Hebrew glyphs. Hebrew text will render incorrectly.`,
+    );
   }
   return { fontR: hasFonts ? 'he' : 'Helvetica', fontB: hasFonts ? 'he-bold' : 'Helvetica-Bold' };
 }
