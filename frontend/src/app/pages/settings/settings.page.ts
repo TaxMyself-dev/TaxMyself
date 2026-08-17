@@ -142,8 +142,9 @@ export class SettingsPage implements OnInit {
   businessesFormArray = this.fb.array<FormGroup>([]);
 
   /** ההרשאות שלי */
-  myPermissions = signal<{ agentId: string; email: string; fullName: string; scopes: string[] }[]>([]);
+  myPermissions = signal<{ id: number; agentId: string; email: string; fullName: string; scopes: string[] }[]>([]);
   permissionsLoading = signal(false);
+  revokingPermissionId = signal<number | null>(null);
 
   /** Account sources (credit cards + bank accounts) from backend `transactions/source` table. */
   accountSourcesLoading = signal(false);
@@ -600,6 +601,45 @@ export class SettingsPage implements OnInit {
         } else {
           this.addPermissionError.set(msg || 'אירעה שגיאה. נסה שוב.');
         }
+      }
+    });
+  }
+
+  confirmRevokePermission(p: { id: number; fullName: string; email: string }): void {
+    this.confirmationService.confirm({
+      message: 'האם אתה בטוח שברצונך לבטל את ההרשאה?',
+      header: 'אישור ביטול הרשאה',
+      icon: 'pi pi-exclamation-triangle',
+      acceptLabel: 'בטל הרשאה',
+      rejectLabel: 'חזרה',
+      accept: () => this.doRevokePermission(p.id)
+    });
+  }
+
+  private doRevokePermission(delegationId: number): void {
+    this.revokingPermissionId.set(delegationId);
+    this.myPermissionsService.revokePermission(delegationId).subscribe({
+      next: () => {
+        this.revokingPermissionId.set(null);
+        this.myPermissions.set(this.myPermissions().filter(p => p.id !== delegationId));
+        this.messageService.add({
+          severity: 'success',
+          summary: 'הצלחה',
+          detail: 'ההרשאה בוטלה בהצלחה',
+          life: 3000,
+          key: 'br'
+        });
+      },
+      error: (err) => {
+        this.revokingPermissionId.set(null);
+        const msg = err?.error?.message ?? 'אירעה שגיאה בביטול ההרשאה. נסה שוב.';
+        this.messageService.add({
+          severity: 'error',
+          summary: 'שגיאה',
+          detail: msg,
+          life: 3000,
+          key: 'br'
+        });
       }
     });
   }

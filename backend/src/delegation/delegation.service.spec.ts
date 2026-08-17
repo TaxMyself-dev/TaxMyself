@@ -10,7 +10,7 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import * as admin from 'firebase-admin';
 import { DelegationService } from './delegation.service';
-import { DelegationStatus } from './delegation.entity';
+import { DelegationStatus, DelegationScope } from './delegation.entity';
 
 describe('DelegationService — referral signup', () => {
   let service: DelegationService;
@@ -133,7 +133,7 @@ describe('DelegationService — referral signup', () => {
       expect(delegationRepo.save).not.toHaveBeenCalled();
     });
 
-    it('creates an ACTIVE full-scope delegation when none exists', async () => {
+    it('creates an ACTIVE full-scope delegation when none exists, including EXPENSES_APPROVE', async () => {
       userRepo.findOne.mockResolvedValue({ firebaseId: 'acc-1', fName: 'דנה', lName: 'כהן' });
       delegationRepo.findOne.mockResolvedValue(null);
 
@@ -143,9 +143,52 @@ describe('DelegationService — referral signup', () => {
           userId: 'user-1',
           agentId: 'acc-1',
           status: DelegationStatus.ACTIVE,
-          scopes: ['DOCUMENTS_READ', 'DOCUMENTS_WRITE'],
+          // EXPENSES_APPROVE is always granted, regardless of the client's
+          // chosen document scopes — see DelegationScope's doc comment.
+          scopes: [DelegationScope.DOCUMENTS_READ, DelegationScope.DOCUMENTS_WRITE, DelegationScope.EXPENSES_APPROVE],
         }),
       );
+    });
+  });
+
+  describe('revokeDelegation', () => {
+    it('flips an owner-held ACTIVE delegation to REVOKED', async () => {
+      const row = { id: 42, userId: 'client-1', agentId: 'acc-1', status: DelegationStatus.ACTIVE };
+      delegationRepo.findOne.mockResolvedValue(row);
+
+      await service.revokeDelegation('client-1', 42);
+
+      expect(delegationRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 42, status: DelegationStatus.REVOKED }),
+      );
+    });
+
+    it('throws NotFoundException when the delegation does not exist', async () => {
+      delegationRepo.findOne.mockResolvedValue(null);
+      await expect(service.revokeDelegation('client-1', 999)).rejects.toThrow(NotFoundException);
+      expect(delegationRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('throws NotFoundException when the delegation belongs to a different owner (never leaks a 403)', async () => {
+      delegationRepo.findOne.mockResolvedValue({
+        id: 42,
+        userId: 'someone-else',
+        agentId: 'acc-1',
+        status: DelegationStatus.ACTIVE,
+      });
+      await expect(service.revokeDelegation('client-1', 42)).rejects.toThrow(NotFoundException);
+      expect(delegationRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('throws BadRequestException when already REVOKED', async () => {
+      delegationRepo.findOne.mockResolvedValue({
+        id: 42,
+        userId: 'client-1',
+        agentId: 'acc-1',
+        status: DelegationStatus.REVOKED,
+      });
+      await expect(service.revokeDelegation('client-1', 42)).rejects.toThrow(BadRequestException);
+      expect(delegationRepo.save).not.toHaveBeenCalled();
     });
   });
 });

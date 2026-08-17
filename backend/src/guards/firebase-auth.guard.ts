@@ -6,13 +6,15 @@ import {
   UnauthorizedException,
   ForbiddenException,
 } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import * as admin from 'firebase-admin';
-import { Delegation, DelegationStatus } from '../delegation/delegation.entity';
+import { Delegation, DelegationStatus, DelegationScope } from '../delegation/delegation.entity';
 import { User } from '../users/user.entity';
 import { UserRole } from '../enum';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.interface';
+import { REQUIRED_DELEGATION_SCOPE_KEY } from '../decorators/required-delegation-scope.decorator';
 
 
 @Injectable()
@@ -24,6 +26,7 @@ export class FirebaseAuthGuard implements CanActivate {
     private readonly delegationRepository: Repository<Delegation>,
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+    private readonly reflector: Reflector,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -98,10 +101,25 @@ export class FirebaseAuthGuard implements CanActivate {
     }
 
     const scopes = hasPermission.scopes ?? [];
-    // Write-scope enforcement: NULL-scopes legacy rows are treated as read-only.
+
+    // Per-route override (e.g. EXPENSES_APPROVE on the review-approve
+    // endpoints, or DOCUMENTS_READ on a POST that's semantically a read —
+    // see RequiredDelegationScope) wins over the generic per-verb default.
+    // Default: GET → DOCUMENTS_READ, POST/PUT/PATCH/DELETE → DOCUMENTS_WRITE.
+    const requiredScope = this.reflector.get<DelegationScope | undefined>(
+      REQUIRED_DELEGATION_SCOPE_KEY,
+      context.getHandler(),
+    );
     const isWriteMethod = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method);
-    if (isWriteMethod && !scopes.includes('DOCUMENTS_WRITE')) {
-      throw new ForbiddenException('לרואה חשבון הרשאה לצפייה בלבד');
+    const effectiveScope = requiredScope
+      ?? (isWriteMethod ? DelegationScope.DOCUMENTS_WRITE : DelegationScope.DOCUMENTS_READ);
+
+    // DOCUMENTS_READ has never been individually enforced — any ACTIVE
+    // delegation implies read access (including legacy NULL-scopes rows),
+    // matching the historical GET behavior. Only DOCUMENTS_WRITE and
+    // EXPENSES_APPROVE actually gate on scope presence.
+    if (effectiveScope !== DelegationScope.DOCUMENTS_READ && !scopes.includes(effectiveScope)) {
+      throw new ForbiddenException(this.scopeErrorMessage(effectiveScope));
     }
 
     // ✅ Modify `request.user` to represent the client
@@ -122,6 +140,16 @@ export class FirebaseAuthGuard implements CanActivate {
       return await admin.auth().verifyIdToken(token);
     } catch (error) {
       throw new UnauthorizedException('Invalid authorization token');
+    }
+  }
+
+  private scopeErrorMessage(scope: DelegationScope): string {
+    switch (scope) {
+      case DelegationScope.EXPENSES_APPROVE:
+        return 'לרואה חשבון אין הרשאה לאישור הוצאות';
+      case DelegationScope.DOCUMENTS_WRITE:
+      default:
+        return 'לרואה חשבון הרשאה לצפייה בלבד';
     }
   }
 }

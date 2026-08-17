@@ -407,8 +407,17 @@
           <p class="permissions-empty">אין הרשאות. הוסף משתמש עם כפתור "הוספת הרשאה".</p>
         } @else {
           <ul class="permissions-list">
-            @for (p of myPermissions(); track p.agentId) {
-              <li>{{ p.fullName || p.email || p.agentId }}</li>
+            @for (p of myPermissions(); track p.id) {
+              <li class="permissions-list-item">
+                <span>{{ p.fullName || p.email || p.agentId }}</span>
+                <app-p-button
+                  [buttonText]="'בטל הרשאה'"
+                  [buttonColor]="buttonColor.WHITE_BORDER"
+                  [buttonSize]="buttonSize.SMALL"
+                  [disabled]="revokingPermissionId() === p.id"
+                  (onButtonClicked)="confirmRevokePermission(p)">
+                </app-p-button>
+              </li>
             }
           </ul>
         }

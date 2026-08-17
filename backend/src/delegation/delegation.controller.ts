@@ -3,11 +3,13 @@ import {
   Post,
   Get,
   Delete,
+  Patch,
   Body,
   Headers,
   UseGuards,
   Query,
   Param,
+  ParseIntPipe,
   Req,
   HttpCode,
   HttpStatus,
@@ -99,6 +101,28 @@ export class DelegationController {
       throw new ForbiddenException('נא להזין כתובת אימייל');
     }
     return this.delegationService.grantViewPermissionByEmail(firebaseId, email);
+  }
+
+  /**
+   * Revoke a delegation the current user (client) previously granted.
+   * Client-only: the caller must be the delegation's own owner, authenticated
+   * normally — never callable while impersonating (role === 'agent' covers
+   * both accountant-delegation impersonation and the admin-bypass path, see
+   * FirebaseAuthGuard), so an accountant can never revoke their own access.
+   */
+  @Patch(':id/revoke')
+  @UseGuards(FirebaseAuthGuard)
+  async revokeDelegation(
+    @Req() request: AuthenticatedRequest,
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<{ message: string }> {
+    if (request.user?.role === 'agent') {
+      throw new ForbiddenException('לרואה חשבון אין הרשאה לבטל הרשאות');
+    }
+    const firebaseId = request.user?.firebaseId;
+    if (!firebaseId) throw new ForbiddenException('לא אותחל משתמש');
+    await this.delegationService.revokeDelegation(firebaseId, id);
+    return { message: 'ההרשאה בוטלה בהצלחה' };
   }
 
   /**

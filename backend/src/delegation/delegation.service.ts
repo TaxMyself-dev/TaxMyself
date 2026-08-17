@@ -12,7 +12,7 @@ import { DataSource, In, Repository } from 'typeorm';
 import * as admin from 'firebase-admin';
 import * as jwt from 'jsonwebtoken';
 import * as crypto from 'crypto';
-import { Delegation, DelegationStatus } from './delegation.entity';
+import { Delegation, DelegationStatus, DelegationScope } from './delegation.entity';
 import { User } from 'src/users/user.entity';
 import { Business } from 'src/business/business.entity';
 import { MailService } from 'src/mail/mail.service';
@@ -123,11 +123,13 @@ export class DelegationService {
     try {
       // Invite flow is the accountant-onboarding path — grant full scopes,
       // matching createClientByAccountant (NULL scopes are read-only in the guard).
+      // EXPENSES_APPROVE is always included — approval authority over pending
+      // expenses is not a client-configurable permission (see DelegationScope).
       const delegation = this.delegationRepository.create({
         userId,
         agentId,
         status: DelegationStatus.ACTIVE,
-        scopes: ['DOCUMENTS_READ', 'DOCUMENTS_WRITE'],
+        scopes: [DelegationScope.DOCUMENTS_READ, DelegationScope.DOCUMENTS_WRITE, DelegationScope.EXPENSES_APPROVE],
       });
       await this.delegationRepository.save(delegation);
       return {
@@ -145,6 +147,7 @@ export class DelegationService {
    * Delegations where userId = ownerFirebaseId.
    */
   async getDelegationsForOwner(ownerFirebaseId: string): Promise<{
+    id: number;
     agentId: string;
     email: string;
     fullName: string;
@@ -163,12 +166,41 @@ export class DelegationService {
     return delegations.map((d) => {
       const agent = agentByFirebaseId.get(d.agentId);
       return {
+        id: d.id,
         agentId: d.agentId,
         email: agent?.email ?? '',
         fullName: ([agent?.fName, agent?.lName].filter(Boolean).join(' ').trim() || agent?.email) ?? '',
         scopes: d.scopes ?? [],
       };
     });
+  }
+
+  /**
+   * Revoke a single delegation by id — client-only (the delegation's own
+   * `userId`), never callable by the accountant on the other end. Flips
+   * status to REVOKED rather than deleting the row, matching how the rest
+   * of the system already treats delegation history (FirebaseAuthGuard and
+   * every listing query here filter on `status = ACTIVE`, so a REVOKED row
+   * loses access on the accountant's very next request — there is no
+   * separate cache or Firebase custom-claim to invalidate).
+   * Scoped by `id`, not `(agentId, userId)`, so revoking one delegation
+   * never touches a different business/delegation the client has with the
+   * same accountant.
+   */
+  async revokeDelegation(ownerFirebaseId: string, delegationId: number): Promise<void> {
+    const delegation = await this.delegationRepository.findOne({
+      where: { id: delegationId },
+    });
+    // Not found or belongs to a different owner — same 404, so the caller
+    // can't probe for the existence of another user's delegation ids.
+    if (!delegation || delegation.userId !== ownerFirebaseId) {
+      throw new NotFoundException('ההרשאה לא נמצאה');
+    }
+    if (delegation.status !== DelegationStatus.ACTIVE) {
+      throw new BadRequestException('ההרשאה כבר בוטלה');
+    }
+    delegation.status = DelegationStatus.REVOKED;
+    await this.delegationRepository.save(delegation);
   }
 
   /**
@@ -200,11 +232,14 @@ export class DelegationService {
     const ownerName = owner
       ? [owner.fName, owner.lName].filter(Boolean).join(' ').trim() || owner.email
       : 'משתמש';
+    // EXPENSES_APPROVE is always included even on a view-only grant —
+    // approval authority over pending expenses is not a client-configurable
+    // permission (see DelegationScope doc comment).
     const delegation = this.delegationRepository.create({
       userId: ownerFirebaseId,
       agentId: agent.firebaseId,
       status: DelegationStatus.ACTIVE,
-      scopes: ['DOCUMENTS_READ'],
+      scopes: [DelegationScope.DOCUMENTS_READ, DelegationScope.EXPENSES_APPROVE],
     });
     await this.delegationRepository.save(delegation);
     await this.sendViewPermissionGrantedEmail(agent, ownerName);
@@ -361,7 +396,7 @@ export class DelegationService {
       agentId: agent.firebaseId,
       externalCustomerId: null,
       status: DelegationStatus.ACTIVE,
-      scopes: ['DOCUMENTS_READ', 'DOCUMENTS_WRITE'],
+      scopes: [DelegationScope.DOCUMENTS_READ, DelegationScope.DOCUMENTS_WRITE, DelegationScope.EXPENSES_APPROVE],
     });
     await this.delegationRepository.save(delegation);
 
@@ -625,7 +660,7 @@ export class DelegationService {
           agentId: accountantFirebaseId,
           externalCustomerId: null,
           status: DelegationStatus.ACTIVE,
-          scopes: ['DOCUMENTS_READ', 'DOCUMENTS_WRITE'],
+          scopes: [DelegationScope.DOCUMENTS_READ, DelegationScope.DOCUMENTS_WRITE, DelegationScope.EXPENSES_APPROVE],
         });
         await delegationRepo.save(delegation);
 

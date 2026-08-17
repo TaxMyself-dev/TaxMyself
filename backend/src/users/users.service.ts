@@ -13,7 +13,7 @@ import { cities } from '../cities/cities.data';
 import { Business } from 'src/business/business.entity';
 import { SettingDocuments } from 'src/documents/settingDocuments.entity';
 import { GoogleDriveService } from '../google-drive/google-drive.service';
-import { Delegation, DelegationStatus } from '../delegation/delegation.entity';
+import { Delegation, DelegationStatus, DelegationScope } from '../delegation/delegation.entity';
 import { isDemoEmail } from '../demo-data/profiles';
 import { BillingService } from '../billing/services/billing.service';
 import { Subscription } from '../billing/entities/subscription.entity';
@@ -121,7 +121,7 @@ export class UsersService {
       agentId: accountantFirebaseId,
       externalCustomerId: null,
       status: DelegationStatus.ACTIVE,
-      scopes: ['DOCUMENTS_READ', 'DOCUMENTS_WRITE'],
+      scopes: [DelegationScope.DOCUMENTS_READ, DelegationScope.DOCUMENTS_WRITE, DelegationScope.EXPENSES_APPROVE],
     });
     await delegationRepo.save(delegation);
   }

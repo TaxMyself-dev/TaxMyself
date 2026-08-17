@@ -22,6 +22,8 @@ import { diskStorage } from 'multer';
 import { extname } from 'path';
 import { SubscriptionGuard } from 'src/guards/subscription.guard';
 import { RequireModule } from 'src/decorators/require-module.decorator';
+import { RequiredDelegationScope } from 'src/decorators/required-delegation-scope.decorator';
+import { DelegationScope } from 'src/delegation/delegation.entity';
 import { DocumentKind, ModuleName } from 'src/enum';
 
 
@@ -63,8 +65,14 @@ export class ReportsController {
     }
 
     /** Preview: process inbox, run matching (if Open Banking), return the
-     *  unified review rows. Body: { businessNumber, startDate, endDate }. */
+     *  unified review rows. Body: { businessNumber, startDate, endDate }.
+     *  POST verb but semantically a read (the inbox-processing/matcher side
+     *  effects are on the CLIENT's own data, not a permission-relevant write
+     *  by the accountant) — loosened to DOCUMENTS_READ so a view-only
+     *  delegation can still open the review modal; approving a row is
+     *  separately gated on EXPENSES_APPROVE at the approve-* endpoints. */
     @Post('me/preview')
+    @RequiredDelegationScope(DelegationScope.DOCUMENTS_READ)
     @UseGuards(FirebaseAuthGuard)
     async getReportPreview(
       @Req() request: AuthenticatedRequest,
@@ -85,6 +93,7 @@ export class ReportsController {
      *  made in the review modal (category/sub-category/vat%/tax%/period)
      *  ride along in `overrides` and win over the source row's values. */
     @Post('me/review/approve-matched')
+    @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
     @RequireModule(ModuleName.OPEN_BANKING)
     @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
     async approveMatched(
@@ -106,6 +115,7 @@ export class ReportsController {
     /** Approve a "doc_only" row — creates an Expense from the document
      *  alone (typical cash-receipt path). Overrides as above. */
     @Post('me/review/approve-doc-cash')
+    @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
     @UseGuards(FirebaseAuthGuard)
     async approveDocCash(
       @Req() request: AuthenticatedRequest,
@@ -122,6 +132,7 @@ export class ReportsController {
     /** Approve a "tx_only" row — creates an Expense from the transaction
      *  alone ("mark as no-doc-needed"). Overrides as above. */
     @Post('me/review/approve-tx-no-doc')
+    @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
     @RequireModule(ModuleName.OPEN_BANKING)
     @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
     async approveTxNoDoc(

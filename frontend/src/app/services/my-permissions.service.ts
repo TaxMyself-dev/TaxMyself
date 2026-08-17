@@ -10,7 +10,7 @@ export class MyPermissionsService {
   constructor(private http: HttpClient) {}
 
   /** רשימת המשתמשים שיש להם הרשאה על הנתונים שלי (ההרשאות שלי) */
-  getMyPermissions(): Observable<{ agentId: string; email: string; fullName: string; scopes: string[] }[]> {
+  getMyPermissions(): Observable<{ id: number; agentId: string; email: string; fullName: string; scopes: string[] }[]> {
     const url = `${environment.apiUrl}delegations/my-permissions`;
     return this.http.get<any>(url);
   }
@@ -19,5 +19,11 @@ export class MyPermissionsService {
   grantViewPermission(email: string): Observable<{ message: string }> {
     const url = `${environment.apiUrl}delegations/grant-view`;
     return this.http.post<{ message: string }>(url, { email: email.trim() });
+  }
+
+  /** ביטול הרשאה קיימת (בעל העסק בלבד יכול לבטל הרשאה שהעניק). */
+  revokePermission(delegationId: number): Observable<{ message: string }> {
+    const url = `${environment.apiUrl}delegations/${delegationId}/revoke`;
+    return this.http.patch<{ message: string }>(url, {});
   }
 }

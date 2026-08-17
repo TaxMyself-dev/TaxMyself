@@ -1,17 +1,26 @@
 /**
- * Unit tests: FirebaseAuthGuard (Phase 0.3 / D12.2)
+ * Unit tests: FirebaseAuthGuard (Phase 0.3 / D12.2, extended for
+ * EXPENSES_APPROVE scope support)
  *
  * Covers the impersonation hardening:
  *  - delegation lookup filters status = ACTIVE (REVOKED rows no longer grant access)
- *  - write methods (POST/PUT/PATCH/DELETE) require DOCUMENTS_WRITE scope;
- *    NULL-scopes legacy rows are read-only
+ *  - write methods (POST/PUT/PATCH/DELETE) require DOCUMENTS_WRITE scope by
+ *    default; NULL-scopes legacy rows are read-only
+ *  - GET (and any route with no @RequiredDelegationScope override) requires
+ *    only DOCUMENTS_READ, which is never actually gated — any ACTIVE
+ *    delegation passes, including NULL/empty scopes
+ *  - @RequiredDelegationScope lets a specific route override the per-verb
+ *    default (e.g. EXPENSES_APPROVE on approve-* endpoints, or DOCUMENTS_READ
+ *    on a POST that's semantically a read)
  *  - actorFirebaseId preserves the caller's own identity through the swap
  *  - admin bypass unaffected by scope enforcement
  */
 import { ForbiddenException } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import * as admin from 'firebase-admin';
 import { FirebaseAuthGuard } from './firebase-auth.guard';
-import { DelegationStatus } from '../delegation/delegation.entity';
+import { DelegationStatus, DelegationScope } from '../delegation/delegation.entity';
+import { REQUIRED_DELEGATION_SCOPE_KEY } from '../decorators/required-delegation-scope.decorator';
 import { UserRole } from '../enum';
 
 const AGENT = 'agent-firebase-uid';
@@ -25,7 +34,7 @@ describe('FirebaseAuthGuard', () => {
   beforeEach(() => {
     delegationRepo = { findOne: jest.fn().mockResolvedValue(null) };
     userRepo = { findOne: jest.fn().mockResolvedValue({ firebaseId: AGENT, role: [UserRole.REGULAR] }) };
-    guard = new FirebaseAuthGuard(delegationRepo as any, userRepo as any);
+    guard = new FirebaseAuthGuard(delegationRepo as any, userRepo as any, new Reflector());
     jest.spyOn(admin, 'auth').mockReturnValue({
       verifyIdToken: jest.fn().mockResolvedValue({ uid: AGENT }),
     } as any);
@@ -33,7 +42,11 @@ describe('FirebaseAuthGuard', () => {
 
   afterEach(() => jest.restoreAllMocks());
 
-  function makeContext(method: string, impersonate = true) {
+  /** `requiredScope` simulates a route decorated with @RequiredDelegationScope
+   *  by stamping the same metadata key the real decorator (SetMetadata)
+   *  would attach to the handler function. Omit it to exercise the
+   *  per-verb default (no decorator present). */
+  function makeContext(method: string, impersonate = true, requiredScope?: DelegationScope) {
     const request: any = {
       method,
       headers: {
@@ -42,8 +55,13 @@ describe('FirebaseAuthGuard', () => {
         ...(impersonate ? { 'x-client-user-id': CLIENT } : {}),
       },
     };
+    const handler = () => undefined;
+    if (requiredScope) {
+      Reflect.defineMetadata(REQUIRED_DELEGATION_SCOPE_KEY, requiredScope, handler);
+    }
     const context: any = {
       switchToHttp: () => ({ getRequest: () => request }),
+      getHandler: () => handler,
     };
     return { request, context };
   }
@@ -111,6 +129,57 @@ describe('FirebaseAuthGuard', () => {
     expect(request.user.firebaseId).toBe(CLIENT);
     expect(request.user.actorFirebaseId).toBe(AGENT);
     expect(delegationRepo.findOne).not.toHaveBeenCalled();
+  });
+
+  // EXPENSES_APPROVE (fix for accountant blocked from approving expenses on
+  // view-only delegation): a dedicated scope, independent of DOCUMENTS_WRITE,
+  // that every delegation-creation path now grants automatically — see
+  // DelegationScope's doc comment. Applied per-route via
+  // @RequiredDelegationScope, which overrides the generic per-verb default.
+  describe('EXPENSES_APPROVE scope', () => {
+    it('view-only delegation (no DOCUMENTS_WRITE) + EXPENSES_APPROVE present → approve endpoint passes', async () => {
+      delegationRepo.findOne.mockResolvedValue({
+        status: DelegationStatus.ACTIVE,
+        scopes: [DelegationScope.DOCUMENTS_READ, DelegationScope.EXPENSES_APPROVE],
+      });
+      const { request, context } = makeContext('POST', true, DelegationScope.EXPENSES_APPROVE);
+      await expect(guard.canActivate(context)).resolves.toBe(true);
+      expect(request.user.firebaseId).toBe(CLIENT);
+    });
+
+    it('a pre-migration row missing EXPENSES_APPROVE is blocked from the approve endpoint even with DOCUMENTS_WRITE', async () => {
+      delegationRepo.findOne.mockResolvedValue({
+        status: DelegationStatus.ACTIVE,
+        scopes: [DelegationScope.DOCUMENTS_READ, DelegationScope.DOCUMENTS_WRITE],
+      });
+      const { context } = makeContext('POST', true, DelegationScope.EXPENSES_APPROVE);
+      await expect(guard.canActivate(context)).rejects.toThrow('לרואה חשבון אין הרשאה לאישור הוצאות');
+    });
+
+    it('view-only delegation (no DOCUMENTS_WRITE) CAN load a POST route overridden to DOCUMENTS_READ', async () => {
+      delegationRepo.findOne.mockResolvedValue({
+        status: DelegationStatus.ACTIVE,
+        scopes: [DelegationScope.DOCUMENTS_READ],
+      });
+      const { request, context } = makeContext('POST', true, DelegationScope.DOCUMENTS_READ);
+      await expect(guard.canActivate(context)).resolves.toBe(true);
+      expect(request.user.firebaseId).toBe(CLIENT);
+    });
+
+    it('a POST route overridden to DOCUMENTS_READ passes even with NULL scopes (matches GET default)', async () => {
+      delegationRepo.findOne.mockResolvedValue({ status: DelegationStatus.ACTIVE, scopes: null });
+      const { context } = makeContext('POST', true, DelegationScope.DOCUMENTS_READ);
+      await expect(guard.canActivate(context)).resolves.toBe(true);
+    });
+
+    it('a GET route with no override still requires nothing beyond an ACTIVE delegation (unaffected by the new scope)', async () => {
+      delegationRepo.findOne.mockResolvedValue({
+        status: DelegationStatus.ACTIVE,
+        scopes: [DelegationScope.EXPENSES_APPROVE], // no DOCUMENTS_READ/WRITE at all
+      });
+      const { context } = makeContext('GET');
+      await expect(guard.canActivate(context)).resolves.toBe(true);
+    });
   });
 
   // isDelegatedAccess (referral-signup Phase 2): drives the EXPENSES/

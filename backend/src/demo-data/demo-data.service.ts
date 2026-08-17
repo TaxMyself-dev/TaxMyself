@@ -50,7 +50,7 @@ import { ExtractedDocument } from 'src/documents/extracted-document.entity';
 import { Clients } from 'src/clients/clients.entity';
 import { JournalEntry } from 'src/bookkeeping/jouranl-entry.entity';
 import { JournalLine } from 'src/bookkeeping/jouranl-line.entity';
-import { Delegation, DelegationStatus } from 'src/delegation/delegation.entity';
+import { Delegation, DelegationStatus, DelegationScope } from 'src/delegation/delegation.entity';
 import { UserModuleSubscription } from 'src/users/user-module-subscription.entity';
 import { Child } from 'src/users/child.entity';
 import { AccountantTask } from 'src/accountant-tasks/accountant-task.entity';
@@ -266,7 +266,10 @@ export class DemoDataService {
               agentId: primaryFirebaseId,
               status: DelegationStatus.ACTIVE,
               externalCustomerId: null,
-              scopes: [],
+              // EXPENSES_APPROVE is always granted — not client-configurable,
+              // see DelegationScope doc comment. Other scopes stay empty here
+              // (unrelated to this demo profile's intent).
+              scopes: [DelegationScope.EXPENSES_APPROVE],
             }),
           );
         }

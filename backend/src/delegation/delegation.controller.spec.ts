@@ -53,3 +53,57 @@ describe('DelegationController.getUsersForAgent', () => {
     await expect(controller.getUsersForAgent(req(undefined), AGENT)).rejects.toThrow(ForbiddenException);
   });
 });
+
+/**
+ * Unit tests: DelegationController.revokeDelegation
+ *
+ * Client-only action: the accountant on the other end of the delegation
+ * must never be able to revoke it, including while impersonating the
+ * client (x-client-user-id) — FirebaseAuthGuard marks any impersonated
+ * request role: 'agent', regardless of whether it went through the
+ * delegation path or the admin-bypass path, so blocking on role === 'agent'
+ * here covers both.
+ */
+describe('DelegationController.revokeDelegation', () => {
+  let controller: DelegationController;
+  let delegationService: { revokeDelegation: jest.Mock };
+  let usersService: { isAdmin: jest.Mock };
+
+  const CLIENT = 'client-firebase-uid';
+
+  beforeEach(() => {
+    delegationService = { revokeDelegation: jest.fn().mockResolvedValue(undefined) };
+    usersService = { isAdmin: jest.fn().mockResolvedValue(false) };
+    controller = new DelegationController(delegationService as any, usersService as any);
+  });
+
+  function req(opts: { firebaseId?: string; role?: 'user' | 'agent' }) {
+    return {
+      user: opts.firebaseId ? { firebaseId: opts.firebaseId, role: opts.role ?? 'user' } : undefined,
+    } as any;
+  }
+
+  it('route is protected by FirebaseAuthGuard', () => {
+    const guards = Reflect.getMetadata(GUARDS_METADATA, controller.revokeDelegation);
+    expect(guards).toContain(FirebaseAuthGuard);
+  });
+
+  it('client revoking their own delegation → ok, delegates to the service', async () => {
+    await expect(controller.revokeDelegation(req({ firebaseId: CLIENT }), 42)).resolves.toEqual({
+      message: 'ההרשאה בוטלה בהצלחה',
+    });
+    expect(delegationService.revokeDelegation).toHaveBeenCalledWith(CLIENT, 42);
+  });
+
+  it('impersonated request (role: agent) → 403, service never called', async () => {
+    await expect(
+      controller.revokeDelegation(req({ firebaseId: CLIENT, role: 'agent' }), 42),
+    ).rejects.toThrow(ForbiddenException);
+    expect(delegationService.revokeDelegation).not.toHaveBeenCalled();
+  });
+
+  it('missing user context → 403', async () => {
+    await expect(controller.revokeDelegation(req({}), 42)).rejects.toThrow(ForbiddenException);
+    expect(delegationService.revokeDelegation).not.toHaveBeenCalled();
+  });
+});
