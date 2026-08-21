@@ -17,6 +17,7 @@ import { ButtonComponent } from '../../components/button/button.component';
 import { ToastModule } from 'primeng/toast';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { ConfirmationService } from 'primeng/api';
+import { AdminDocumentationComponent } from './admin-documentation.component';
 
 @NgModule({
   imports: [
@@ -34,6 +35,7 @@ import { ConfirmationService } from 'primeng/api';
     ButtonComponent,
     ToastModule,
     ConfirmDialogModule,
+    AdminDocumentationComponent,
   ],
   declarations: [AdminPanelPage],
   providers: [ConfirmationService],

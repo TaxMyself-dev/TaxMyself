@@ -11,6 +11,7 @@ import { DemoDataComponent } from 'src/app/shared/demo-data/demo-data.component'
 import { AdminBillingComponent } from 'src/app/shared/admin-billing/admin-billing.component';
 import { MessageService } from 'primeng/api';
 import { IShaamApprovalResponse } from 'src/app/shared/interface';
+import { AdminDocumentationComponent } from './admin-documentation.component';
 
 
 @Component({
@@ -29,6 +30,7 @@ export class AdminPanelPage implements OnInit {
     { label: 'ניהול תנועות', value: 'trans-management', component: TransManagementComponent },
     { label: 'נתוני דמו', value: 'demo-data', component: DemoDataComponent },
     { label: 'קארדקום / מנויים', value: 'billing', component: AdminBillingComponent },
+    { label: 'דוקומנטציה', value: 'documentation', component: AdminDocumentationComponent },
   ];
 
   selectedTab: string = 'clients-dashboard'; // Set default tab value

@@ -1860,3 +1860,24 @@ record this instead.
   (pre-existing bundle/style budget warnings only); 59 focused Jest tests
   passed across depreciation calculation and expense journal/classification
   suites; `git diff --check` passed.
+
+## 2026-08-21 — admin product-documentation center
+
+- Added a new `דוקומנטציה` tab to the internal admin panel with three primary
+  modules: accounting, open banking, and CardCom billing/subscriptions.
+- Added 13 navigable topics covering document issuance, expenses and
+  depreciation, reports, chart-of-accounts behavior, consent, synchronization,
+  transaction review, checkout/webhooks, renewals, and billing administration.
+  Content was checked against the current module flows rather than presented as
+  generic marketing copy.
+- The page includes full-text topic search, behavior/edge-case cards, responsive
+  RTL navigation, and CSS flow diagrams. Documentation content is data-driven so
+  new modules/topics inherit navigation and search automatically.
+- Split the shell and topic reader into separate lazy standalone components to
+  keep both stylesheets below the Angular `anyComponentStyle` warning budget.
+- Verification: Angular production build passed with no new warnings (only the
+  repository's existing style/initial-bundle/CommonJS warnings). Browser QA
+  confirmed that the admin route remains protected and redirects an unauthenticated
+  local origin to login; authentication was not bypassed. The repository's Karma
+  suite remains blocked by pre-existing unrelated spec/type errors, including old
+  `async` imports and Node typings.

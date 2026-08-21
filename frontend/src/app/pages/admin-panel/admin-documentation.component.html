@@ -1,0 +1,35 @@
+<section class="documentation-shell" dir="rtl" [style.--module-accent]="activeModule.accent" [style.--module-tint]="activeModule.tint">
+  <header class="documentation-hero">
+    <div class="hero-copy">
+      <span class="hero-kicker"><ion-icon name="book-outline"></ion-icon> מרכז הידע של המערכת</span>
+      <h1>איך TaxMyself עובדת?</h1>
+      <p>תיעוד תפעולי של המודולים המרכזיים, התהליכים האוטומטיים ונקודות הבקרה — בשפה ברורה ועם תרשימי זרימה.</p>
+    </div>
+    <div class="hero-meta" aria-label="סיכום הדוקומנטציה">
+      <div><strong>{{ modules.length }}</strong><span>מודולים</span></div>
+      <div><strong>{{ modules[0].topics.length + modules[1].topics.length + modules[2].topics.length }}</strong><span>נושאים</span></div>
+      <div><ion-icon name="refresh-outline"></ion-icon><span>מתועד לפי הקוד</span></div>
+    </div>
+  </header>
+  <div class="search-area">
+    <ion-icon name="search-outline"></ion-icon>
+    <input type="search" [(ngModel)]="searchTerm" placeholder="חיפוש בתיעוד: פחת, webhook, כרטיסים..." aria-label="חיפוש בתיעוד">
+    <button *ngIf="searchTerm" type="button" (click)="searchTerm = ''" aria-label="ניקוי חיפוש"><ion-icon name="close-circle"></ion-icon></button>
+    <div class="search-results" *ngIf="searchTerm">
+      <button type="button" *ngFor="let result of searchResults" (click)="openSearchResult(result)">
+        <span class="result-icon" [style.background]="result.module.tint" [style.color]="result.module.accent"><ion-icon [name]="result.module.icon"></ion-icon></span>
+        <span><strong>{{ result.topic.title }}</strong><small>{{ result.module.title }} · {{ result.topic.eyebrow }}</small></span>
+        <ion-icon name="chevron-back-outline"></ion-icon>
+      </button>
+      <div class="no-results" *ngIf="searchResults.length === 0"><ion-icon name="search-outline"></ion-icon><span>לא נמצאו נושאים מתאימים</span></div>
+    </div>
+  </div>
+  <nav class="module-grid" aria-label="מודולים">
+    <button type="button" *ngFor="let module of modules; trackBy: trackById" [class.active]="module.id === activeModuleId" (click)="selectModule(module)">
+      <span class="module-icon" [style.background]="module.tint" [style.color]="module.accent"><ion-icon [name]="module.icon"></ion-icon></span>
+      <span class="module-copy"><strong>{{ module.title }}</strong><small>{{ module.description }}</small></span>
+      <span class="module-count">{{ module.topics.length }} נושאים</span>
+    </button>
+  </nav>
+  <app-documentation-topic [module]="activeModule" [topic]="activeTopic" (topicSelected)="selectTopic($event)"></app-documentation-topic>
+</section>

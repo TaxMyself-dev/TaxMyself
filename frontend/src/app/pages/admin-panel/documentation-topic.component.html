@@ -1,0 +1,36 @@
+<div class="documentation-workspace">
+  <aside class="topic-sidebar">
+    <div class="sidebar-heading"><span>בתוך המודול</span><strong>{{ module.shortTitle }}</strong></div>
+    <nav aria-label="נושאים במודול">
+      <button type="button" *ngFor="let item of module.topics; let index = index; trackBy: trackById" [class.active]="item.id === topic.id" (click)="topicSelected.emit(item)">
+        <span>{{ (index + 1).toString().padStart(2, '0') }}</span><strong>{{ item.title }}</strong><ion-icon name="chevron-back-outline"></ion-icon>
+      </button>
+    </nav>
+  </aside>
+  <article class="topic-content">
+    <header class="topic-header">
+      <div><span class="topic-eyebrow">{{ topic.eyebrow }}</span><h2>{{ topic.title }}</h2><p>{{ topic.description }}</p></div>
+      <div class="topic-mark"><ion-icon [name]="module.icon"></ion-icon></div>
+    </header>
+    <section class="behavior-section">
+      <div class="section-title"><span class="section-number">01</span><div><h3>התנהגות המערכת</h3><p>הכללים החשובים בתהליך הזה</p></div></div>
+      <div class="behavior-grid"><div class="behavior-card" *ngFor="let item of topic.behavior; let index = index"><span>{{ index + 1 }}</span><p>{{ item }}</p></div></div>
+    </section>
+    <section class="flow-section">
+      <div class="section-title"><span class="section-number">02</span><div><h3>{{ topic.flowTitle }}</h3><p>השלבים והקשר ביניהם</p></div></div>
+      <div class="flow-diagram">
+        <ng-container *ngFor="let step of topic.flow; let last = last">
+          <div class="flow-step"><span class="flow-icon"><ion-icon [name]="step.icon"></ion-icon></span><strong>{{ step.title }}</strong><small>{{ step.description }}</small></div>
+          <div class="flow-arrow" *ngIf="!last" aria-hidden="true"><span></span><ion-icon name="chevron-back-outline"></ion-icon></div>
+        </ng-container>
+      </div>
+    </section>
+    <section class="callout-grid" *ngIf="topic.callouts.length">
+      <div *ngFor="let callout of topic.callouts" [class]="'callout ' + callout.tone"><span><ion-icon [name]="callout.icon"></ion-icon></span><div><strong>{{ callout.title }}</strong><p>{{ callout.text }}</p></div></div>
+    </section>
+    <section class="notes-section">
+      <div class="section-title"><span class="section-number">03</span><div><h3>כדאי לדעת</h3><p>חריגים ודגשים תפעוליים</p></div></div>
+      <ul><li *ngFor="let note of topic.notes"><ion-icon name="checkmark-circle"></ion-icon><span>{{ note }}</span></li></ul>
+    </section>
+  </article>
+</div>
