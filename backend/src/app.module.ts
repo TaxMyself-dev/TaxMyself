@@ -96,6 +96,8 @@ import { BookkeepingService } from './bookkeeping/bookkeeping.service';
 import { UsersService } from './users/users.service';
 import { BusinessModule } from './business/business.module';
 import { BusinessService } from './business/business.service';
+import { DepreciationModule } from './depreciation/depreciation.module';
+import { AssetDepreciationPosting } from './depreciation/asset-depreciation-posting.entity';
 
 
 // Boot-time safety valve (added 2026-07-12 after an accidental synchronize
@@ -175,6 +177,7 @@ new Logger('Bootstrap').log(
         FxRate,
         SubscriptionPlan, Subscription, PaymentMethod, CardcomWebhookLog, BillingEvent,
         UserIntegration, OauthState, ImportedDocument,
+        AssetDepreciationPosting,
         ],
       synchronize: isSynchronizeEnabled,
       timezone: 'Z',
@@ -215,7 +218,7 @@ new Logger('Bootstrap').log(
       ReportWorkflow,
     ]),
     ScheduleModule.forRoot(),
-    HttpModule, UsersModule, ReportsModule, ExpensesModule, TransactionsModule, BusinessModule, CloudModule, SharedModule, FinsiteModule, MailModule, DelegationModule, DocumentsModule, ClientsModule, BookkeepingModule, FeezbackModule, ShaamModule, FeezbackWebhookModule, AccountantTasksModule, AnnualReportModule, ReportWorkflowModule, NotificationsModule, DemoDataModule, GoogleDriveModule, BillingModule, IntegrationsModule, DocumentImportModule],
+    HttpModule, UsersModule, ReportsModule, ExpensesModule, TransactionsModule, BusinessModule, CloudModule, SharedModule, FinsiteModule, MailModule, DelegationModule, DocumentsModule, ClientsModule, BookkeepingModule, FeezbackModule, ShaamModule, FeezbackWebhookModule, AccountantTasksModule, AnnualReportModule, ReportWorkflowModule, NotificationsModule, DemoDataModule, GoogleDriveModule, BillingModule, IntegrationsModule, DocumentImportModule, DepreciationModule],
   controllers: [AppController],
   providers: [AppService, FinsiteService, ExpensesService, MailService, DocumentsService, ClientsService, BookkeepingService, BusinessService],
 })

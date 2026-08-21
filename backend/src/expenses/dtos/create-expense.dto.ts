@@ -3,7 +3,9 @@ import {
     IsNumber,
     IsDateString,
     IsBoolean,
-    IsOptional
+    IsOptional,
+    Min,
+    Max
 } from 'class-validator'
 
 
@@ -51,6 +53,11 @@ export class CreateExpenseDto {
     @IsDateString()
     date: Date;
 
+    /** Equipment in-service date. Defaults to `date` when omitted. */
+    @IsOptional()
+    @IsDateString()
+    activationDate?: Date;
+
     @IsOptional()
     @IsString()
     note: string;
@@ -69,6 +76,8 @@ export class CreateExpenseDto {
 
     @IsOptional()
     @IsNumber()
+    @Min(0)
+    @Max(100)
     reductionPercent: number;
 
     /**

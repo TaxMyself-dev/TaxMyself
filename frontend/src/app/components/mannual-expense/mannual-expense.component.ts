@@ -632,6 +632,10 @@ export class MannualExpenseComponent implements OnDestroy {
         // Holds a Date at runtime (p-datepicker uses dataType="date"); typed as
         // string | Date so edit/OCR can patch a Date object into it.
         date: ["" as string | Date, Validators.required],
+        // Equipment in-service date. Optional on the wire; backend defaults
+        // it to the purchase date. Kept separate so prorated depreciation can
+        // start after acquisition when the asset was not immediately in use.
+        activationDate: ["" as string | Date],
         sum: ["", [Validators.required, Validators.min(0)]],
         // Currency of the entered sum. Default ILS — the existing flow. When
         // non-ILS, the payload maps `sum` → `originalSum` and lets the backend
@@ -728,6 +732,11 @@ export class MannualExpenseComponent implements OnDestroy {
             this.isEquipmentChecked.set(isChecked || false);
             
             if (isChecked) {
+                if (!this.mannualExpenseForm.get('activationDate')?.value) {
+                    this.mannualExpenseForm.patchValue({
+                        activationDate: this.mannualExpenseForm.get('date')?.value ?? '',
+                    }, { emitEvent: false });
+                }
                 // Set category to the equipment category automatically.
                 // The subcategory fetch (via $selectedCategory) is deferred to
                 // the effect below — it waits until $categoriesOptions has
@@ -750,6 +759,7 @@ export class MannualExpenseComponent implements OnDestroy {
                 reductionPercentControl?.setValidators([Validators.required, Validators.min(0), Validators.max(100)]);
                 reductionPercentControl?.updateValueAndValidity({ emitEvent: false });
             } else {
+                this.mannualExpenseForm.patchValue({ activationDate: '' }, { emitEvent: false });
                 // Clear category only if it was the equipment category
                 const currentCategory = this.mannualExpenseForm.get('category')?.value;
                 if (currentCategory === this.EQUIPMENT_CATEGORY_NAME) {
@@ -837,9 +847,11 @@ export class MannualExpenseComponent implements OnDestroy {
             const taxVal = this.parsePercentFromDisplay(row.taxPercent);
             const vatVal = this.parsePercentFromDisplay(row.vatPercent);
             const dateValue = this.apiDateToDateObject(row.date);
+            const activationDateValue = this.apiDateToDateObject(row.activationDate ?? row.date);
             this.mannualExpenseForm.patchValue({
                 businessNumber: row.businessNumber ?? this.mannualExpenseService.$selectedBusinessNumber(),
                 date: dateValue ?? '',
+                activationDate: activationDateValue ?? dateValue ?? '',
                 sum: sumVal != null ? String(sumVal) : '',
                 supplier: row.supplier ?? '',
                 supplierId: row.supplierID ?? row.supplierId ?? '',
@@ -1367,6 +1379,7 @@ export class MannualExpenseComponent implements OnDestroy {
         // category: undefined to the backend and tripped @IsString().
         const raw = this.mannualExpenseForm.getRawValue();
         const dateForApi = this.toApiDateString(raw.date) ?? raw.date;
+        const activationDateForApi = this.toApiDateString(raw.activationDate) || dateForApi;
         const enteredSum = this.toNumberOrNull(raw.sum);
         const currency = (raw.currency ?? 'ILS').toUpperCase();
         const isForeign = currency !== 'ILS' && enteredSum != null;
@@ -1377,6 +1390,7 @@ export class MannualExpenseComponent implements OnDestroy {
         const payload: any = {
             ...raw,
             date: dateForApi,
+            activationDate: raw.isEquipment ? activationDateForApi : null,
             file: filePath,
             taxPercent: this.toNumberOrNull(raw.taxPercent),
             vatPercent: this.toNumberOrNull(raw.vatPercent),

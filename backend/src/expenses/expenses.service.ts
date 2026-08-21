@@ -29,6 +29,7 @@ import { CreateUserCategoryDto } from './dtos/create-user-category.dto';
 import { CreateUserSubCategoryDto } from './dtos/create-user-sub-category.dto';
 import { UpdateUserCategoryDto } from './dtos/update-user-category.dto';
 import { UpdateUserSubCategoryDto } from './dtos/update-user-sub-category.dto';
+import { DepreciationService } from '../depreciation/depreciation.service';
 
 
 @Injectable()
@@ -50,6 +51,7 @@ export class ExpensesService {
             private readonly fxRateService: FxRateService,
             private readonly dataSource: DataSource,
             private readonly bookkeepingService: BookkeepingService,
+            private readonly depreciationService: DepreciationService,
             private readonly catalogService: CatalogService,
             private readonly catalogContextService: CatalogContextService,
         ) { }
@@ -316,6 +318,7 @@ export class ExpensesService {
         if (rc.journalable) {
             await this.syncExpenseJournalEntry(saved);
         }
+        await this.depreciationService.syncExistingYears(saved);
         return saved;
     }
 
@@ -361,6 +364,7 @@ export class ExpensesService {
             if (rc.journalable) {
                 await this.rewriteExpenseJournal(saved, m);
             }
+            await this.depreciationService.syncExistingYears(saved, m);
             return saved;
         });
     }
@@ -432,6 +436,7 @@ export class ExpensesService {
 
             const saved = await m.getRepository(Expense).save(expense);
             await this.rewriteExpenseJournal(saved, m);
+            await this.depreciationService.syncExistingYears(saved, m);
             return saved;
         });
     }
@@ -593,6 +598,11 @@ export class ExpensesService {
 
         newExpense.userId = userId;
         newExpense.date = expense.date;
+        if (newExpense.isEquipmentSnapshot) {
+            newExpense.activationDate = (expense.activationDate ?? expense.date) as any;
+        } else {
+            newExpense.activationDate = null;
+        }
         newExpense.loadingDate = new Date();
         newExpense.businessNumber = businessNumber;
 
@@ -693,6 +703,10 @@ export class ExpensesService {
                 const { entryNumber } = await this.bookkeepingService.createJournalEntry(input, m);
                 await expRepo.update(saved.id, { journalEntryNumber: entryNumber });
                 saved.journalEntryNumber = entryNumber;
+
+                // No Cron/manual run: the activation year's prorated
+                // depreciation entry is part of the same atomic create.
+                await this.depreciationService.ensureActivationYear(saved, m);
             }
 
             // Auto-register the supplier in this business's master list.
@@ -769,7 +783,8 @@ export class ExpensesService {
             dto.subCategoryId !== undefined || dto.category !== undefined || dto.subCategory !== undefined;
         const journalAffecting =
             classificationTouched ||
-            ['sum', 'vatPercent', 'taxPercent', 'date', 'isEquipment', 'supplier'].some((k) => dto[k] !== undefined);
+            ['sum', 'vatPercent', 'taxPercent', 'date', 'activationDate', 'isEquipment', 'reductionPercent', 'supplier']
+                .some((k) => dto[k] !== undefined);
 
         // D10: expenses in an already-REPORTED VAT period reject every
         // journal-affecting edit with 423.
@@ -806,6 +821,7 @@ export class ExpensesService {
                 {
                     vatPercent: dto.vatPercent,
                     taxPercent: dto.taxPercent,
+                    reductionPercent: dto.reductionPercent,
                     isEquipment: typeof dto.isEquipment === 'boolean' ? dto.isEquipment : undefined,
                 },
                 userId,
@@ -815,6 +831,7 @@ export class ExpensesService {
             if (dto.vatPercent !== undefined) expense.vatPercentSnapshot = dto.vatPercent;
             if (dto.taxPercent !== undefined) expense.taxPercentSnapshot = dto.taxPercent;
             if (typeof dto.isEquipment === 'boolean') expense.isEquipmentSnapshot = dto.isEquipment;
+            if (dto.reductionPercent !== undefined) expense.reductionPercentSnapshot = dto.reductionPercent;
             // Journalability from current state: an existing entry keeps being
             // synced; otherwise only an APPROVED row with an account snapshot
             // qualifies (private/MISSING rows have no accountCodeSnapshot).
@@ -824,6 +841,22 @@ export class ExpensesService {
         }
 
         if (dto.sum !== undefined) expense.sum = dto.sum;
+        if (dto.date !== undefined) expense.date = dto.date as any;
+        if (dto.activationDate !== undefined) expense.activationDate = dto.activationDate || null;
+        if (expense.isEquipmentSnapshot && !expense.activationDate) {
+            expense.activationDate = (dto.date ?? expense.date) as any;
+        }
+        if (!expense.isEquipmentSnapshot) expense.activationDate = null;
+
+        // Validate the date/rate combination before persisting. This is
+        // especially important because the legacy update flow saves the
+        // Expense before it refreshes its journal entries.
+        if (expense.isEquipmentSnapshot) {
+            const activationYear = Number(
+                String(expense.activationDate ?? expense.date).slice(0, 4),
+            );
+            this.depreciationService.calculateThroughYear(expense, activationYear);
+        }
 
         // Recalculate totals when any amount-affecting input changed.
         if (classificationTouched || dto.vatPercent !== undefined || dto.taxPercent !== undefined || dto.sum !== undefined) {
@@ -838,6 +871,7 @@ export class ExpensesService {
         // fields that are still name-aligned.
         const {
             vatPercent: _vp, taxPercent: _tp, isEquipment: _ie,
+            reductionPercent: _rp,
             subCategoryId: _sc, category: _c, subCategory: _s,
             ...restUpdateDto
         } = dto;
@@ -862,6 +896,7 @@ export class ExpensesService {
         if (journalable) {
             await this.syncExpenseJournalEntry(saved);
         }
+        await this.depreciationService.syncExistingYears(saved);
 
         return saved;
     }
@@ -917,6 +952,7 @@ export class ExpensesService {
         }
 
         return this.dataSource.transaction(async (m) => {
+            await this.depreciationService.deleteForExpense(expense, m);
             if (entryNumber != null) {
                 const deleted = await this.bookkeepingService.deleteJournalEntry(
                     entryNumber,

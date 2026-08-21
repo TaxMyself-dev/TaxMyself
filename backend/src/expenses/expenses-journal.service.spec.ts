@@ -28,6 +28,7 @@ import { Business } from '../business/business.entity';
 import { ClassifiedTransactions } from '../transactions/classified-transactions.entity';
 import { ExtractedDocument } from '../documents/extracted-document.entity';
 import { ReportWorkflow } from '../report-workflow/report-workflow.entity';
+import { DepreciationService } from '../depreciation/depreciation.service';
 import { JournalReferenceType, BusinessType, VATReportingType, ExpenseReportScope, ApprovalStatus } from '../enum';
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
@@ -169,6 +170,14 @@ describe('ExpensesService — journal entry linking', () => {
         { provide: FxRateService, useValue: fxRateService },
         { provide: DataSource, useValue: dataSource },
         { provide: BookkeepingService, useValue: bookkeepingService },
+        {
+          provide: DepreciationService,
+          useValue: {
+            ensureActivationYear: jest.fn().mockResolvedValue(undefined),
+            syncExistingYears: jest.fn().mockResolvedValue(undefined),
+            deleteForExpense: jest.fn().mockResolvedValue(undefined),
+          },
+        },
         { provide: CatalogService, useValue: catalogService },
         {
           provide: CatalogContextService,

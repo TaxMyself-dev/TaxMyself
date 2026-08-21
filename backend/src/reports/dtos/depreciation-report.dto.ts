@@ -9,7 +9,7 @@ export class Form1342ReportRowDto {
     /** 2 — Purchase date (ISO yyyy-mm-dd) */
     purchaseDate: string;
 
-    /** 3 — Activation date. Same as purchase date — Expense entity has no separate column */
+    /** 3 — Activation/in-service date. Defaults to purchase date for legacy rows. */
     activationDate: string;
 
     /** 4 — Original cost / acquisition price */

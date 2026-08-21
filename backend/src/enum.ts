@@ -186,6 +186,7 @@ export enum JournalReferenceType {
   VAT_PAYMENT = 'VAT_PAYMENT',
   ADJUSTMENT = 'ADJUSTMENT',
   OPENING_BALANCE = 'OPENING_BALANCE',
+  DEPRECIATION = 'DEPRECIATION',
 }
 
 export const UniformFileTypeCodeMap: Partial<Record<DocumentType | JournalReferenceType, number>> = {

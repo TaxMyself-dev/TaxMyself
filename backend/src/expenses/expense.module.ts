@@ -24,6 +24,7 @@ import { ReportWorkflow } from '../report-workflow/report-workflow.entity';
 import { BillingModule } from '../billing/billing.module';
 // ExpensesService now posts a journal entry on expense create — needs BookkeepingService.
 import { BookkeepingModule } from '../bookkeeping/bookkeeping.module';
+import { DepreciationModule } from '../depreciation/depreciation.module';
 
 @Module({
   imports: [
@@ -34,7 +35,8 @@ import { BookkeepingModule } from '../bookkeeping/bookkeeping.module';
     SharedModule,
     UsersModule,
     BillingModule,
-    BookkeepingModule
+    BookkeepingModule,
+    DepreciationModule,
   ],
   controllers: [ExpensesController],
   providers: [

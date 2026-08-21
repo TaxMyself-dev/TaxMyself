@@ -1830,3 +1830,33 @@ record this instead.
   ממוחשב` — 15%). Computers remain on the separate 61310 / 33.33% card.
 - Added cutover Section 10 documenting the additive create-if-missing seed
   behavior; no standalone production SQL was introduced.
+
+## 2026-08-21 — automatic daily-prorated depreciation postings
+
+- Added `expense.activationDate` as the asset's separate in-service date;
+  equipment defaults it to purchase date, while an activation before purchase
+  or an invalid calendar date is rejected.
+- Added one shared daily-proration engine for journal postings and Form 1342.
+  It uses inclusive calendar days, 365/366 as applicable, rounds annual rows
+  to two decimals, and caps the final row at original cost.
+- Added the idempotency/audit entity `asset_depreciation_posting`, unique by
+  `(expenseId, taxYear)`. The activation-year posting is created atomically
+  with an approved equipment expense; missing later years are prepared by
+  `POST /reports/pnl-report-journal/prepare` and by direct P&L PDF export.
+  There is no Cron and no manual depreciation action.
+- Depreciation journals debit SYSTEM card `61300` with a tax-recognized,
+  non-equipment line and credit the original equipment card with an excluded
+  equipment line. The P&L therefore remains journal-only while the source
+  asset purchase is not deducted twice.
+- Equipment edits/reclassification refresh already-materialized years;
+  declassification and deletion remove the linked postings transactionally
+  where the existing expense workflow permits the change.
+- Added migration
+  `backend/scripts/migrations/2026-08-21_add-automatic-depreciation-posting.sql`
+  and matching cutover Section 11. The locked behavior and edge cases are in
+  `docs/depreciation-posting-behavior.md`; the stale depreciation status in
+  `docs/bookkeeping-system.md` was updated.
+- Verification: backend Nest build passed; Angular production build passed
+  (pre-existing bundle/style budget warnings only); 59 focused Jest tests
+  passed across depreciation calculation and expense journal/classification
+  suites; `git diff --check` passed.

@@ -1552,3 +1552,61 @@ ALTER TABLE `slim_transactions`
 -- equipment. This card deliberately excludes computers, which retain their
 -- separate 61310 / 33.33% treatment.
 -- ============================================================================
+
+
+-- ============================================================================
+-- SECTION 11 (2026-08-21, Elazar) — automatic prorated depreciation.
+--
+-- Adds a real activation date, an idempotency/audit row per equipment
+-- expense+tax-year, and the DEPRECIATION journal reference type. Existing
+-- equipment rows default activationDate to their purchase date. Journal
+-- postings themselves are created by application code: activation year on
+-- expense approval; later years by POST /reports/pnl-report-journal/prepare.
+-- See docs/depreciation-posting-behavior.md for the locked behavior and edge
+-- cases.
+-- ============================================================================
+
+ALTER TABLE `expense`
+  ADD COLUMN `activationDate` date NULL DEFAULT NULL AFTER `date`;
+
+UPDATE `expense`
+SET `activationDate` = `date`
+WHERE `isEquipmentSnapshot` = 1 AND `activationDate` IS NULL;
+
+ALTER TABLE `journal_entry`
+  MODIFY COLUMN `referenceType` ENUM(
+    'RECEIPT', 'TAX_INVOICE', 'TAX_INVOICE_RECEIPT',
+    'TRANSACTION_INVOICE', 'CREDIT_INVOICE', 'EXPENSE', 'PAYMENT',
+    'MANUAL', 'VAT_PAYMENT', 'ADJUSTMENT', 'OPENING_BALANCE',
+    'DEPRECIATION'
+  ) NULL;
+
+CREATE TABLE `asset_depreciation_posting` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `expenseId` int NOT NULL,
+  `firebaseId` varchar(255) NOT NULL,
+  `businessNumber` varchar(255) NOT NULL,
+  `taxYear` int NOT NULL,
+  `activationDateSnapshot` date NOT NULL,
+  `originalCostSnapshot` decimal(12,2) NOT NULL,
+  `depreciationRateSnapshot` decimal(5,2) NOT NULL,
+  `activeDays` int NOT NULL,
+  `daysInYear` int NOT NULL,
+  `amount` decimal(12,2) NOT NULL,
+  `sourceAccountCode` varchar(255) NOT NULL,
+  `journalEntryNumber` int NULL DEFAULT NULL,
+  `createdAt` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  `updatedAt` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+    ON UPDATE CURRENT_TIMESTAMP(6),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_asset_depreciation_expense_year` (`expenseId`, `taxYear`),
+  KEY `ix_asset_depreciation_business_year` (`businessNumber`, `taxYear`),
+  CONSTRAINT `fk_asset_depreciation_expense`
+    FOREIGN KEY (`expenseId`) REFERENCES `expense` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- Verification — first query must return 0; SHOW INDEX must include the
+-- unique expense/year key.
+-- SELECT COUNT(*) AS equipment_without_activation_date
+-- FROM expense WHERE isEquipmentSnapshot = 1 AND activationDate IS NULL;
+-- SHOW INDEX FROM asset_depreciation_posting;

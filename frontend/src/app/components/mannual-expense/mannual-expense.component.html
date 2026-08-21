@@ -10,6 +10,13 @@
   [parentForm]="mannualExpenseForm">
 </app-input-date>
 
+@if (isEquipmentChecked()) {
+<app-input-date [customStyle]="'register'" [controlName]="'activationDate'"
+  [size]="isMobile() ? inputSize.MOBILE : inputSize.BETWEEN" [labelText]="'תאריך הפעלת הנכס'" placeholder="00/00/0000"
+  [parentForm]="mannualExpenseForm">
+</app-input-date>
+}
+
 
 <app-input-text [customStyle]="'rounded-border'" [controlName]="'sum'" [labelText]="'סכום'" [placeholder]="'הקלד סכום'"
   [parentForm]="mannualExpenseForm" [size]="isMobile() ? inputSize.MOBILE : inputSize.BETWEEN" [type]="'number'">

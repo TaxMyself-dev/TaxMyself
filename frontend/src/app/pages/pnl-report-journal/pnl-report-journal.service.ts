@@ -21,21 +21,8 @@ export class PnLReportJournalService {
 
 
   getPnLReportData(startDate: string, endDate: string, businessNumber: string, osekZair: boolean = false): Observable<any> {
-    // const token = localStorage.getItem('token');
-    const url = `${environment.apiUrl}reports/pnl-report-journal`;
-    let params = new HttpParams()
-      .set('startDate', startDate)
-      .set('endDate', endDate)
-      .set('businessNumber', businessNumber)
-    if (osekZair) {
-      params = params.set('osekZair', 'true');
-    }
-
-    // const headers = {
-    //   'token': token
-    // }
-
-    return this.http.get<any>(url, { params: params })
+    const url = `${environment.apiUrl}reports/pnl-report-journal/prepare`;
+    return this.http.post<any>(url, { startDate, endDate, businessNumber, osekZair });
   }
 
   /** Server-rendered (pdfkit) P&L report PDF — same approach as the VAT report.

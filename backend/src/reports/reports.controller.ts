@@ -451,6 +451,26 @@ export class ReportsController {
     }
 
     /**
+     * P&L screen entry point: automatically materializes missing depreciation
+     * postings, then returns the journal-based report. POST is intentional —
+     * unlike the compatibility GET above, this operation can write journals.
+     */
+    @Post('pnl-report-journal/prepare')
+    @UseGuards(FirebaseAuthGuard)
+    @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+    async preparePnLReportFromJournal(
+        @Req() request: AuthenticatedRequest,
+        @Body() body: PnLReportRequestDto,
+    ): Promise<PnLReportDto> {
+        const firebaseId = request.user?.firebaseId;
+        const startDate = this.sharedService.convertStringToDateObject(body.startDate);
+        const endDate = this.sharedService.convertStringToDateObject(body.endDate);
+        return this.reportsService.preparePnLReportFromJournal(
+            firebaseId, body.businessNumber, startDate, endDate, body.osekZair ?? false,
+        );
+    }
+
+    /**
      * VAT report as a PDF (server-rendered, RTL Hebrew) — the interactive
      * "ייצא כ-PDF" button. Includes the expense line-item breakdown.
      */

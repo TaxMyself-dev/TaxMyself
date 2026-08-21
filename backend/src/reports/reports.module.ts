@@ -39,6 +39,7 @@ import { FullTransactionCache } from 'src/transactions/full-transaction-cache.en
 // D10 period lock (Phase 4.1) — entity-only registration.
 import { ReportWorkflow } from 'src/report-workflow/report-workflow.entity';
 import { BillingModule } from '../billing/billing.module';
+import { DepreciationModule } from '../depreciation/depreciation.module';
 
 @Module({
   imports: [
@@ -59,6 +60,7 @@ import { BillingModule } from '../billing/billing.module';
     GoogleDriveModule,
     BookkeepingModule,
     BillingModule,
+    DepreciationModule,
   ],
   controllers: [ReportsController],
   providers: [

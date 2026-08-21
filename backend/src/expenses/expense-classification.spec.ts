@@ -32,6 +32,7 @@ import { Business } from '../business/business.entity';
 import { ClassifiedTransactions } from '../transactions/classified-transactions.entity';
 import { ExtractedDocument } from '../documents/extracted-document.entity';
 import { ReportWorkflow, ReportWorkflowStatus, ReportWorkflowType } from '../report-workflow/report-workflow.entity';
+import { DepreciationService } from '../depreciation/depreciation.service';
 import {
   ApprovalStatus,
   BusinessType,
@@ -184,6 +185,14 @@ describe('ExpensesService — Phase 4.1 classification', () => {
         { provide: FxRateService, useValue: { getRate: jest.fn().mockResolvedValue(null) } },
         { provide: DataSource, useValue: dataSource },
         { provide: BookkeepingService, useValue: bookkeepingService },
+        {
+          provide: DepreciationService,
+          useValue: {
+            ensureActivationYear: jest.fn().mockResolvedValue(undefined),
+            syncExistingYears: jest.fn().mockResolvedValue(undefined),
+            deleteForExpense: jest.fn().mockResolvedValue(undefined),
+          },
+        },
         { provide: CatalogService, useValue: catalogService },
         { provide: CatalogContextService, useValue: catalogContextService },
       ],

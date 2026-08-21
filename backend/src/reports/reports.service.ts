@@ -33,6 +33,7 @@ import { Business } from 'src/business/business.entity';
 import { SlimTransaction } from 'src/transactions/slim-transaction.entity';
 import { FullTransactionCache } from 'src/transactions/full-transaction-cache.entity';
 import { VATReportingType, ExpenseReportScope } from 'src/enum';
+import { DepreciationService } from '../depreciation/depreciation.service';
 
 /** Maps referenceType strings → Hebrew label for the כרטסת סוג תנועה column. */
 const LEDGER_MOVEMENT_LABELS: Record<string, string> = {
@@ -41,6 +42,7 @@ const LEDGER_MOVEMENT_LABELS: Record<string, string> = {
   CREDIT_INVOICE:      'חשבונית זיכוי',
   RECEIPT:             'קבלה',
   EXPENSE:             'הוצאה',
+  DEPRECIATION:        'פחת',
   PRICE_QUOTE:         'הצעת מחיר',
 };
 
@@ -87,6 +89,7 @@ export class ReportsService {
     // single source of truth for the CLIENT>ACCOUNTANT>SYSTEM read-precedence
     // array these joins/queries filter by.
     private readonly catalogService: CatalogService,
+    private readonly depreciationService: DepreciationService,
   ) {
     if (!fs.existsSync(this.debugFolder)) {
       fs.mkdirSync(this.debugFolder, { recursive: true });
@@ -249,10 +252,10 @@ export class ReportsService {
     osekZair = false,
     incomeOverride?: number,
   ): Promise<Buffer> {
-    const [data, business] = await Promise.all([
-      this.createPnLReportFromJournal(firebaseId, businessNumber, startDate, endDate, osekZair, incomeOverride),
-      this.businessRepo.findOne({ where: { businessNumber, firebaseId } }),
-    ]);
+    const data = await this.preparePnLReportFromJournal(
+      firebaseId, businessNumber, startDate, endDate, osekZair, incomeOverride,
+    );
+    const business = await this.businessRepo.findOne({ where: { businessNumber, firebaseId } });
     return buildPnlReportPdf(data, {
       businessName: business?.businessName ?? businessNumber,
       businessNumber,
@@ -633,6 +636,35 @@ export class ReportsService {
       expenses: expenseDtos,
       netProfitBeforeTax: Number(netProfitBeforeTax.toFixed(2)),
     };
+  }
+
+  /**
+   * Mutating preparation boundary used by the P&L screen. It materializes
+   * missing annual depreciation journal entries first, then delegates to the
+   * read-only journal report builder. Kept separate so the compatibility GET
+   * remains read-only; the screen and PDF export use this explicit boundary.
+   */
+  async preparePnLReportFromJournal(
+    firebaseId: string,
+    businessNumber: string,
+    startDate: Date,
+    endDate: Date,
+    osekZair = false,
+    incomeOverride?: number,
+  ): Promise<PnLReportDto> {
+    const business = await this.businessRepo.findOne({ where: { businessNumber, firebaseId } });
+    if (!business) {
+      throw new BadRequestException('Business not found or not owned by user');
+    }
+    await this.depreciationService.ensureForReport(firebaseId, businessNumber, endDate);
+    return this.createPnLReportFromJournal(
+      firebaseId,
+      businessNumber,
+      startDate,
+      endDate,
+      osekZair,
+      incomeOverride,
+    );
   }
 
 
@@ -1265,34 +1297,28 @@ export class ReportsService {
       // Exclude assets purchased after the selected tax year
       if (purchaseDate > yearEnd) continue;
 
-      const purchaseYear = purchaseDate.getFullYear();
       const originalCost = Number(expense.sum) || 0;
       const depreciationRate = Number(expense.reductionPercentSnapshot) || 0;
-      const annualDepreciation = +(originalCost * (depreciationRate / 100)).toFixed(2);
-
-      // Number of full years that have already passed before the selected year.
-      // Asset purchased in 2022, selected year 2024 → prior years = 2 (2022, 2023).
-      const fullPriorYears = Math.max(0, year - purchaseYear);
-
-      // Cap accumulated prior-year depreciation at the original cost — an asset
-      // can never depreciate more than it cost.
-      const rawPrior = +(fullPriorYears * annualDepreciation).toFixed(2);
-      const priorYearsDepreciation = Math.min(rawPrior, originalCost);
-
-      // Current-year depreciation: full annual amount, but capped at the
-      // remaining un-depreciated balance so total never exceeds original cost.
-      const remainingBeforeCurrent = +(originalCost - priorYearsDepreciation).toFixed(2);
-      const currentYearDepreciation = Math.min(annualDepreciation, remainingBeforeCurrent);
-
-      const totalDepreciation = +(priorYearsDepreciation + currentYearDepreciation).toFixed(2);
-      const remainingBalance = +(originalCost - totalDepreciation).toFixed(2);
+      const schedule = this.depreciationService.calculateThroughYear(expense, year);
+      const currentYearDepreciation = schedule.find((r) => r.taxYear === year)?.amount ?? 0;
+      const priorYearsDepreciation = Number(schedule
+        .filter((r) => r.taxYear < year)
+        .reduce((sum, r) => sum + r.amount, 0)
+        .toFixed(2));
+      const totalDepreciation = Number((priorYearsDepreciation + currentYearDepreciation).toFixed(2));
+      const remainingBalance = Number(Math.max(0, originalCost - totalDepreciation).toFixed(2));
 
       const purchaseIso = purchaseDate.toISOString().slice(0, 10);
+      const activationIso = expense.activationDate
+        ? (typeof expense.activationDate === 'string'
+            ? String(expense.activationDate).slice(0, 10)
+            : expense.activationDate.toISOString().slice(0, 10))
+        : purchaseIso;
 
       rows.push({
         assetName: expense.supplier ?? '',
         purchaseDate: purchaseIso,
-        activationDate: purchaseIso,
+        activationDate: activationIso,
         originalCost,
         changesDuringYear: 0,
         depreciationRate,

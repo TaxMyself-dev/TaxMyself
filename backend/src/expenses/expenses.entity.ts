@@ -44,6 +44,14 @@ export class Expense {
   @Column('date')
   date: Date;
 
+  /**
+   * Date on which an equipment asset became available for use. Depreciation
+   * starts here, not necessarily on the invoice/purchase date. Null only on
+   * legacy/non-equipment rows; equipment write paths default it to `date`.
+   */
+  @Column({ type: 'date', nullable: true, default: null })
+  activationDate: Date | null;
+
   @Column()
   businessNumber: string;
 

@@ -3,7 +3,10 @@ import {
     IsNumber,
     IsBoolean,
     IsEnum,
-    IsOptional
+    IsOptional,
+    IsDateString,
+    Min,
+    Max
 } from 'class-validator'
 import { ExpenseReportScope } from 'src/enum';
 
@@ -48,6 +51,16 @@ export class UpdateExpenseDto {
     @IsOptional()
     @IsString()
     date: string
+
+    @IsOptional()
+    @IsDateString()
+    activationDate?: string;
+
+    @IsOptional()
+    @IsNumber()
+    @Min(0)
+    @Max(100)
+    reductionPercent?: number;
     
     @IsOptional()
     @IsString()
