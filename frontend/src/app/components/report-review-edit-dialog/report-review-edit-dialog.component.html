@@ -113,13 +113,6 @@
             <option *ngFor="let opt of periodOptions" [ngValue]="opt.value">{{ opt.label }}</option>
           </select>
         </label>
-
-        <label class="field field--wide checkbox-field" *ngIf="showNewSupplierFlag">
-          <input type="checkbox"
-                 [ngModel]="f.saveAsSupplier"
-                 (ngModelChange)="fieldsChange.emit({ saveAsSupplier: $event })" />
-          <span>הוסף ספק זה לרשימת הספקים שלי</span>
-        </label>
       </div>
     </div>
 

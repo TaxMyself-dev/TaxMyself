@@ -144,4 +144,5 @@ export const SYSTEM_SUB_CATEGORIES: SystemSubCategorySeed[] = [
   { category: 'רכוש קבוע (פחת)', name: 'ריהוט', accountCode: '61320' },
   { category: 'רכוש קבוע (פחת)', name: 'רכב', accountCode: '61330' },
   { category: 'רכוש קבוע (פחת)', name: 'רכישת משרד', accountCode: '61390' },
+  { category: 'רכוש קבוע (פחת)', name: 'ציוד אלקטרוני מקצועי – פחת 15%', accountCode: '61400' },
 ];

@@ -28,7 +28,7 @@ import { MySubscriptionTabComponent } from './my-subscription-tab/my-subscriptio
 import { InputTextComponent } from 'src/app/components/input-text/input-text.component';
 import { InputDateComponent } from 'src/app/components/input-date/input-date.component';
 import { InputSelectComponent } from 'src/app/components/input-select/input-select.component';
-import { DriveDocsService } from 'src/app/services/drive-docs.service';
+import { DriveDocsService, MAX_UPLOAD_TO_INBOX_FILES } from 'src/app/services/drive-docs.service';
 
 @Component({
   selector: 'app-settings',
@@ -848,6 +848,17 @@ export class SettingsPage implements OnInit {
     const files = input.files ? Array.from(input.files) : [];
     input.value = '';
     if (!files.length || biz?.id == null || !biz.businessNumber) return;
+
+    if (files.length > MAX_UPLOAD_TO_INBOX_FILES) {
+      this.messageService.add({
+        severity: 'warn',
+        summary: 'יותר מדי קבצים',
+        detail: `ניתן להעלות עד ${MAX_UPLOAD_TO_INBOX_FILES} קבצים בבת אחת`,
+        life: 4000,
+        key: 'br',
+      });
+      return;
+    }
 
     this.uploadingDocsBusinessId.set(biz.id);
     this.driveDocsService.uploadFilesToInbox(files, biz.businessNumber).subscribe({

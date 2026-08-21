@@ -8,7 +8,7 @@ import { ButtonComponent } from 'src/app/components/button/button.component';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 import { appFileUploadGptComponent } from 'src/app/components/input-file/input-file.component';
 import { InputSelectComponent } from 'src/app/components/input-select/input-select.component';
-import { DriveDocsService } from 'src/app/services/drive-docs.service';
+import { DriveDocsService, MAX_UPLOAD_TO_INBOX_FILES } from 'src/app/services/drive-docs.service';
 import { GenericService } from 'src/app/services/generic.service';
 import { inputsSize } from 'src/app/shared/enums';
 
@@ -73,7 +73,16 @@ export class QuickUploadDriveDialogComponent {
   }
 
   onFilesSelected(files: File[]): void {
-    this.selectedFiles.set(files ?? []);
+    if (files?.length > MAX_UPLOAD_TO_INBOX_FILES) {
+      this.messageService.add({
+        severity: 'warn',
+        summary: 'יותר מדי קבצים',
+        detail: `ניתן להעלות עד ${MAX_UPLOAD_TO_INBOX_FILES} קבצים בבת אחת`,
+        life: 4000,
+        key: 'br',
+      });
+    }
+    this.selectedFiles.set((files ?? []).slice(0, MAX_UPLOAD_TO_INBOX_FILES));
   }
 
   upload(): void {
@@ -83,6 +92,16 @@ export class QuickUploadDriveDialogComponent {
     if (!businessNumber) return;
 
     const files = this.selectedFiles();
+    if (files.length > MAX_UPLOAD_TO_INBOX_FILES) {
+      this.messageService.add({
+        severity: 'warn',
+        summary: 'יותר מדי קבצים',
+        detail: `ניתן להעלות עד ${MAX_UPLOAD_TO_INBOX_FILES} קבצים בבת אחת`,
+        life: 4000,
+        key: 'br',
+      });
+      return;
+    }
     this.isUploading.set(true);
 
     this.driveDocsService.uploadFilesToInbox(files, businessNumber).pipe(

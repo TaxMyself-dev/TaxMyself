@@ -168,12 +168,6 @@ export interface ReviewOverrides {
   taxPercent?: number;
   isEquipment?: boolean;
   reportPeriod?: string;
-  /** Per-row opt-out for adding the supplier to the user's master list.
-   *  Backend defaults to true when undefined. The review page currently
-   *  always sends true — the in-table opt-out toggle was removed in favor
-   *  of the supplier bookmark's create/edit dialog — kept for backend
-   *  compatibility. */
-  saveAsSupplier?: boolean;
   /** Acknowledges a soft duplicate (same supplier/sum/date, different or
    *  missing document number). Sent as true after the user confirms "save
    *  anyway" on a row the backend flagged with DUPLICATE_WARNING. */
@@ -204,8 +198,8 @@ export interface ReviewOverrides {
  * Fields the review edit dialog can persist directly onto a pending
  * document BEFORE approval (see ReportReviewService.updateDocFields on
  * the backend) — every ReviewOverrides field that actually has a backing
- * column on ExtractedDocument. Excludes saveAsSupplier/
- * acknowledgeDuplicate (approve-time-only behavior flags).
+ * column on ExtractedDocument. Excludes acknowledgeDuplicate
+ * (approve-time-only behavior flag).
  */
 export type UpdateDocFields = Pick<ReviewOverrides,
   | 'category' | 'subCategory' | 'subCategoryId'

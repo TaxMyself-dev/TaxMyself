@@ -1,7 +1,7 @@
 import { AccountingSection } from './accounting-section.entity';
 import { BookingAccount } from './account.entity';
 import { AccountCodeMigration } from './account-code-migration.entity';
-import { OwnerType, RecognitionType, SYSTEM_CHART_OWNER_KEY, ExpenseReportScope } from 'src/enum';
+import { BusinessFieldType, FormPart, OwnerType, RecognitionType, SYSTEM_CHART_OWNER_KEY, ExpenseReportScope } from 'src/enum';
 
 // ============================================================================
 // Phase 1.3 (chart-revision session, 2026-07-10) — the new SYSTEM chart of
@@ -71,6 +71,12 @@ type ChartAccountSeed = Pick<
   | 'vatPercent' | 'taxPercent' | 'reductionPercent' | 'isEquipment' | 'recognitionType' | 'reportScope'
 > & {
   sectionCode: string | null;
+  /** Optional Form 6111 metadata for rows added after the authoritative
+   *  backfill, so a fresh database does not create an unusable card. */
+  category6111?: string | null;
+  subCategory6111?: string | null;
+  formPart?: FormPart | null;
+  visibleBusinessTypes?: BusinessFieldType[];
   /** Primary historical origin for this account's own row in
    *  account_code_migration. Secondary old codes that got MERGED into this
    *  account (rather than becoming their own child) are NOT recorded here —
@@ -269,6 +275,7 @@ export const CHART_ACCOUNTS: ChartAccountSeed[] = [
   // the unrelated §3f ANNUAL technical accounts, so this lands on 61390,
   // the last free slot before the next block's anchor.
   { code: '61390', legacyCode: null,   legacySource: null,          name: 'רכישת משרד', type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: '61300', ...SYSTEM_DEFAULTS, code6111: '3580', vatPercent: 100, taxPercent: 0, reductionPercent: 2,     isEquipment: true, recognitionType: RecognitionType.RECOGNIZED },
+  { code: '61400', legacyCode: null,   legacySource: null,          name: 'ציוד אלקטרוני מקצועי – פחת 15%', type: 'expense', pnlCategory: null, displayOrder: null, sectionCode: '61300', ...SYSTEM_DEFAULTS, code6111: '3580', category6111: 'הוצאות הנהלה וכלליות', subCategory6111: 'פחת', formPart: FormPart.A, vatPercent: 100, taxPercent: 0, reductionPercent: 15, isEquipment: true, recognitionType: RecognitionType.RECOGNIZED, visibleBusinessTypes: [BusinessFieldType.SERVICE_PROVIDER, BusinessFieldType.COMMERCIAL, BusinessFieldType.CONTRACTOR] },
 
   // ── 3e. New technical accounts (D14 decision 3 + this session's 90400) ──
   // Codes/readings for 90100–90300 confirmed with Elazar 2026-07-10 (Session

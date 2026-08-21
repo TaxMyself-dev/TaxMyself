@@ -3,6 +3,12 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from 'src/environments/environment';
 
+/** Mirrors the backend's FilesInterceptor('files', 30, ...) cap on
+ *  POST /documents/me/upload-to-inbox — kept here so both upload entry
+ *  points (settings page + quick-upload dialog) can validate before
+ *  sending instead of surfacing the backend's raw 400. */
+export const MAX_UPLOAD_TO_INBOX_FILES = 30;
+
 /** Per-call counters returned by /me/process-inbox. `total` is the number of
  *  files currently sitting in `inbox/` at the time of the call — NOT a
  *  cumulative count. After a successful pass, total ≈ skipped + processed

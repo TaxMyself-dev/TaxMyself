@@ -179,13 +179,6 @@ interface EditableReviewRow {
   /** "ספק מוכר" | "ספק חדש" — null for tx_only rows (no supplier concept). */
   supplierStatusLabel: string | null;
 
-  /** Always true now — the in-table opt-out toggle was removed (the
-   *  supplier bookmark icon opens a supplier-management dialog instead of
-   *  toggling this). Kept because `overridesFromRow` still sends it
-   *  through `overrides.saveAsSupplier`, and the backend still
-   *  finds-or-creates the Supplier row on approve by default. */
-  saveAsSupplier: boolean;
-
   // Per-row UI state
   saveStatus: null | 'pending' | 'failed';
   saveError: string | null;
@@ -204,23 +197,6 @@ interface EditableReviewRow {
    *  a real approval unit. Not part of `rows()`, only of the render-time
    *  `displayRows` projection fed to the table. */
   isDetailRow?: boolean;
-}
-
-/**
- * One supplier group in the bulk-approve queue whose rows disagree on at
- * least one field that would be persisted to the Supplier master row.
- * Only the first row processed per supplierId actually writes to the
- * master (the backend's find-or-create skips the rest), so divergent
- * values on the others would be silently dropped. We surface this to the
- * user before the approve runs so they can either align the values or
- * opt the divergent rows out of supplier-save via the per-row flag.
- */
-interface SupplierConflict {
-  supplierId: string;
-  supplierName: string;
-  rowCount: number;
-  /** Hebrew field labels that differ across the group's rows. */
-  conflictingFields: string[];
 }
 
 @Component({
@@ -390,13 +366,6 @@ export class ReportReviewPage implements OnInit {
   // now; bound via [ngModel].
   customPeriodVisible = signal<boolean>(false);
   customPeriodValue = signal<string>('');
-
-  // Supplier-conflict pre-flight dialog state. Opened by bulkApproveSelected
-  // when the queue contains multiple rows for the same NEW supplier with
-  // divergent classification — the user has to resolve before approval can
-  // proceed (either align the values or click the flag on divergent rows).
-  supplierConflictsVisible = signal<boolean>(false);
-  supplierConflicts = signal<SupplierConflict[]>([]);
 
   /** SafeResourceUrl for the iframe — Angular's default sanitizer refuses
    *  to render any src on <iframe> without explicit trust. Recomputes
@@ -763,11 +732,6 @@ export class ReportReviewPage implements OnInit {
           : txSide != null
             ? (txSide.matchedSupplierKnown ? 'ספק מוכר' : 'ספק חדש')
             : null,
-      // Always true — the in-table opt-out toggle was removed; approving
-      // a "ספק חדש" row always attempts find-or-create against the
-      // Supplier table now (users manage the record explicitly via the
-      // bookmark dialog instead of opting out here).
-      saveAsSupplier: true,
       saveStatus: null,
       saveError: null,
     };
@@ -827,7 +791,6 @@ export class ReportReviewPage implements OnInit {
       reportPeriodOverridden: row.reportPeriodOverridden,
       allocationNumber: row.allocationNumber,
       documentType: row.documentType,
-      saveAsSupplier: row.saveAsSupplier,
     });
     this.editDialogVisible.set(true);
   }
@@ -893,7 +856,6 @@ export class ReportReviewPage implements OnInit {
       row.allocationNumber = draft.allocationNumber ?? '';
       row.documentType = draft.documentType ?? null;
       row.documentTypeLabel = this.documentTypeLabel(draft.documentType ?? null);
-      row.saveAsSupplier = draft.saveAsSupplier ?? true;
     }
     this.bumpRows();
 
@@ -2287,7 +2249,6 @@ export class ReportReviewPage implements OnInit {
       // Only send a period override when the user actually picked one —
       // otherwise the backend recomputes from date + business cadence.
       reportPeriod: row.reportPeriodOverridden ? row.reportPeriod : undefined,
-      saveAsSupplier: row.saveAsSupplier,
       acknowledgeDuplicate: row.acknowledgeDuplicate,
       invoiceNumber: row.invoiceNumber || undefined,
       allocationNumber: row.allocationNumber || undefined,
@@ -2524,65 +2485,7 @@ export class ReportReviewPage implements OnInit {
     }
     if (this.isActioning()) return;
 
-    // Pre-flight: catch the "multiple rows for the same new supplier with
-    // different classification" case before any DB writes happen. Only one
-    // row per supplierId ever reaches the Supplier master (find-or-create
-    // — see expenses.service.ts:1340-1359) so divergent rows would lose
-    // their edits silently. Surface the conflict and let the user resolve.
-    const conflicts = this.findSupplierConflicts(queue);
-    if (conflicts.length > 0) {
-      this.supplierConflicts.set(conflicts);
-      this.supplierConflictsVisible.set(true);
-      return;
-    }
-
     this.runBulkQueue(queue, 0, { succeeded: 0, failed: 0 });
-  }
-
-  /**
-   * Group the queue's "ספק חדש" rows by supplierId. A supplier with 2+
-   * rows is a conflict when any of the fields persisted to the Supplier
-   * master differ across the group — those edits would be silently dropped
-   * by the backend's find-or-create. Returns one entry per conflicting
-   * supplier with the list of diverging field labels. Tx-only rows and
-   * rows the user already opted out via the flag (saveAsSupplier=false)
-   * are excluded — they don't try to write to the master.
-   */
-  private findSupplierConflicts(queue: EditableReviewRow[]): SupplierConflict[] {
-    const candidates = queue.filter(r =>
-      r.saveAsSupplier
-      && r.supplierId?.trim()
-      && r.supplierStatusLabel === 'ספק חדש',
-    );
-    const byId = new Map<string, EditableReviewRow[]>();
-    for (const r of candidates) {
-      const sid = r.supplierId.trim();
-      const list = byId.get(sid) ?? [];
-      list.push(r);
-      byId.set(sid, list);
-    }
-    const conflicts: SupplierConflict[] = [];
-    for (const [sid, rows] of byId) {
-      if (rows.length < 2) continue;
-      const fields: string[] = [];
-      if (new Set(rows.map(r => (r.category ?? '').trim())).size > 1) fields.push('קטגוריה');
-      if (new Set(rows.map(r => (r.subCategory ?? '').trim())).size > 1) fields.push('תת קטגוריה');
-      if (new Set(rows.map(r => String(r.vatPercent ?? ''))).size > 1) fields.push('מע״מ %');
-      if (new Set(rows.map(r => String(r.taxPercent ?? ''))).size > 1) fields.push('מס %');
-      if (new Set(rows.map(r => r.isEquipment === true)).size > 1) fields.push('ציוד');
-      if (fields.length === 0) continue;
-      conflicts.push({
-        supplierId: sid,
-        supplierName: rows[0].supplier?.trim() || sid,
-        rowCount: rows.length,
-        conflictingFields: fields,
-      });
-    }
-    return conflicts;
-  }
-
-  closeSupplierConflicts(): void {
-    this.supplierConflictsVisible.set(false);
   }
 
   private runBulkQueue(

@@ -1817,3 +1817,16 @@ No plan-checkbox changes (this work is outside the phase-tracked list —
 there is no dedicated checkbox for the cutover-day-checklist itself).
 `CLAUDE.md`'s "Current phase" line updated to `cutover-in-progress` to
 record this instead.
+
+## 2026-08-21 — SYSTEM card 61400: professional electronic equipment
+
+- Added `61400 — ציוד אלקטרוני מקצועי – פחת 15%` to the reviewed
+  flat chart under section `61300 — פחת`, with `code6111=3580`,
+  VAT 100%, current tax deduction 0%, `isEquipment=true`, and depreciation
+  15%. Added the paired SYSTEM sub-category under `רכוש קבוע (פחת)`
+  and the operational 6111 mapping.
+- Tax treatment was reviewed against Schedule B III(3)(יד)(1) of the
+  Income Tax (Depreciation) Regulations, 1941 (`ציוד אלקטרוני וציוד
+  ממוחשב` — 15%). Computers remain on the separate 61310 / 33.33% card.
+- Added cutover Section 10 documenting the additive create-if-missing seed
+  behavior; no standalone production SQL was introduced.

@@ -187,9 +187,21 @@ export class BillingService {
       // row deletion, data issue) — it must not be silently healed into a
       // fresh trial. See POST /billing/resolve-missing-subscription for the
       // explicit remediation path.
-      this.logger.error(
-        `getMyBillingState: no subscription row for firebaseId=${firebaseId.substring(0, 8)}... — returning subscription_missing`,
-      );
+      //
+      // Delegated (accountant) callers are logged at `warn`, not `error`:
+      // per the unconditional delegated-access policy (see
+      // SubscriptionAccessService.resolveModulesAccess), a client with no
+      // subscription row is a fully working state for their accountant —
+      // not an incident. It's still worth surfacing (the row is still
+      // missing and should eventually be remediated), just not as loudly.
+      // A client's own direct access hitting this branch is unaffected and
+      // stays at `error`, since that's still a real anomaly for that user.
+      const logMsg = `getMyBillingState: no subscription row for firebaseId=${firebaseId.substring(0, 8)}... — returning subscription_missing`;
+      if (isDelegatedAccess) {
+        this.logger.warn(logMsg);
+      } else {
+        this.logger.error(logMsg);
+      }
       return {
         hasSubscription: false,
         status: 'SUBSCRIPTION_MISSING',
@@ -346,7 +358,13 @@ export class BillingService {
     isDelegatedAccess = false,
   ): Promise<boolean> {
     const subscription = await this.subscriptionRepo.findOne({ where: { firebaseId } });
-    if (!subscription) return false;
+    if (!subscription) {
+      // Mirrors getMyBillingState's no-subscription branch: a missing row is a
+      // data issue on the client's own account, but per SubscriptionAccessService
+      // delegated (accountant) access is an authorization rule that ignores the
+      // client's subscription status entirely — it must not be blocked by it.
+      return isDelegatedAccess;
+    }
 
     let plan: SubscriptionPlan | null = null;
     if (subscription.planId) {

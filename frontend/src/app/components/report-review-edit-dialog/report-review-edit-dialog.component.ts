@@ -29,7 +29,6 @@ export interface ExpenseEditFieldValues {
   /** Doc-only fields — undefined/ignored when hasDocument is false. */
   allocationNumber?: string;
   documentType?: string | null;
-  saveAsSupplier?: boolean;
 }
 
 export interface ExpenseEditCardOption {
@@ -75,7 +74,6 @@ export class ReportReviewEditDialogComponent {
   /** `isCustom` marks the "אחר" sentinel option — picking it fires
    *  customPeriodRequested instead of periodChange. */
   @Input() periodOptions: { value: string; label: string; isCustom?: boolean }[] = [];
-  @Input() showNewSupplierFlag = false;
   /** True while a blocking save (onEditDialogSave) is in flight — disables
    *  the footer buttons and shows a spinner on "שמור". */
   @Input() isSaving = false;
@@ -89,7 +87,7 @@ export class ReportReviewEditDialogComponent {
   @Output() customPeriodRequested = new EventEmitter<void>();
   /** Generic patch for every field with no cascade/resolution side-effect
    *  (vatPercent, taxPercent, date, amount, supplierId, supplier,
-   *  allocationNumber, documentType, saveAsSupplier). */
+   *  allocationNumber, documentType). */
   @Output() fieldsChange = new EventEmitter<Partial<ExpenseEditFieldValues>>();
 
   previewUrl(): SafeResourceUrl | null {

@@ -337,10 +337,10 @@ export class DocumentsController {
 
   /** Drop one or more files straight into the business's Drive inbox/
    *  folder — no OCR, just storage. multipart/form-data with `files`
-   *  (1..10) + `businessNumber` form field. */
+   *  (1..30) + `businessNumber` form field. */
   @Post('me/upload-to-inbox')
   @UseInterceptors(
-    FilesInterceptor('files', 10, { limits: { fileSize: 10 * 1024 * 1024 } }),
+    FilesInterceptor('files', 30, { limits: { fileSize: 10 * 1024 * 1024 } }),
   )
   async uploadFilesToInbox(
     @Req() request: AuthenticatedRequest,

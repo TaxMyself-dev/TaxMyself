@@ -1533,3 +1533,22 @@ ALTER TABLE `slim_transactions`
 --   SHOW COLUMNS FROM extracted_document LIKE 'vat_reporting_date';
 --   SHOW COLUMNS FROM slim_transactions LIKE 'sub_category_id';
 -- ============================================================================
+
+
+-- ============================================================================
+-- SECTION 10 (2026-08-21, Elazar) — professional electronic equipment.
+--
+-- NO NEW SQL IN THIS SECTION — same create-if-missing seed mechanism as
+-- Sections 5 and 8. The reviewed flat seed now adds:
+--   - booking_account 61400, "ציוד אלקטרוני מקצועי – פחת 15%",
+--     SYSTEM-owned under section 61300 (פחת), code6111=3580,
+--     vatPercent=100, taxPercent=0, reductionPercent=15, isEquipment=1,
+--     recognitionType=RECOGNIZED;
+--   - a same-named SYSTEM sub_category under "רכוש קבוע (פחת)"
+--     pointing at account 61400.
+--
+-- Tax basis reviewed 2026-08-21: Schedule B, III(3)(יד)(1) of the Income
+-- Tax (Depreciation) Regulations, 1941 sets 15% for electronic/computerized
+-- equipment. This card deliberately excludes computers, which retain their
+-- separate 61310 / 33.33% treatment.
+-- ============================================================================

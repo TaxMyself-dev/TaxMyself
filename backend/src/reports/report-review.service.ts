@@ -58,13 +58,6 @@ export interface ReviewOverrides {
   isEquipment?: boolean;
   /** "M/YYYY" or "M1-M2/YYYY" — overrides the auto-derived period label. */
   reportPeriod?: string;
-  /** Per-row opt-out for the "register supplier in master list" auto-create
-   *  inside addExpense. When undefined or true, the supplier (if it has a
-   *  supplierID) is added to the Supplier table on first sight. The review
-   *  modal toggles this by clicking the red flag icon next to the supplier
-   *  name — useful for one-off vendors the user doesn't want polluting
-   *  their master list. */
-  saveAsSupplier?: boolean;
   /** Acknowledges a soft duplicate (same supplier/sum/date, different or
    *  missing document number). When true, addExpense saves despite the
    *  match instead of throwing DUPLICATE_WARNING. Set by the review modal
@@ -110,9 +103,8 @@ export interface ReviewOverrides {
  * Fields the review edit dialog can persist directly onto a pending
  * ExtractedDocument BEFORE approval (see ReportReviewService.
  * updateDocFields) — every ReviewOverrides field that actually has a
- * backing column on this entity. Excludes: saveAsSupplier/
- * acknowledgeDuplicate (approve-time-only behavior flags, no column
- * anywhere).
+ * backing column on this entity. Excludes acknowledgeDuplicate
+ * (approve-time-only behavior flag, no column anywhere).
  */
 export type UpdateDocFields = Pick<ReviewOverrides,
   | 'category' | 'subCategory' | 'subCategoryId'
@@ -766,7 +758,14 @@ export class ReportReviewService {
         } as any,
         firebaseId,
         businessNumber,
-        overrides.saveAsSupplier ?? true,
+        // Approving an expense never auto-creates/updates a Supplier row —
+        // that's an explicit, separate action only via the supplier
+        // bookmark dialog (ExpensesController's add-supplier/update-supplier,
+        // called directly from the UI). Product decision 2026-08-21:
+        // approval used to default this to true, silently polluting the
+        // supplier master list on every "ספק חדש" row regardless of
+        // whether the user ever touched the bookmark dialog.
+        false,
         manager,
         { documentType: doc.documentType, supplier: doc.supplier, invoiceNumber: doc.invoiceNumber },
       );
@@ -916,7 +915,9 @@ export class ReportReviewService {
         } as any,
         firebaseId,
         businessNumber,
-        overrides.saveAsSupplier ?? true,
+        // See approveMatched's comment — supplier creation is opt-in only
+        // via the explicit bookmark dialog, never a side effect of approval.
+        false,
         manager,
         { documentType: doc.documentType, supplier: doc.supplier, invoiceNumber: doc.invoiceNumber },
       );
@@ -1030,7 +1031,9 @@ export class ReportReviewService {
         } as any,
         firebaseId,
         businessNumber,
-        overrides.saveAsSupplier ?? true,
+        // See approveMatched's comment — supplier creation is opt-in only
+        // via the explicit bookmark dialog, never a side effect of approval.
+        false,
         manager,
       );
 
