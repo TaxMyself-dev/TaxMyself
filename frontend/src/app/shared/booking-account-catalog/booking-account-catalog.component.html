@@ -93,8 +93,13 @@
             @if (row.isActive && (mode === 'admin' || isOwnedRow(row))) {
               <app-p-button [icon]="'pi pi-pencil'" [iconOnly]="true" [buttonSize]="buttonSize.AUTO"
                 [buttonColor]="ButtonColor.TRANSPARET" (onButtonClicked)="openEdit(row)" [buttonText]="'ערוך'"></app-p-button>
-              <app-p-button [icon]="'pi pi-power-off'" [iconOnly]="true" [buttonSize]="buttonSize.AUTO"
-                [buttonColor]="ButtonColor.TRANSPARET" (onButtonClicked)="deactivate(row)" [buttonText]="'כבה'"></app-p-button>
+              @if (mode === 'admin') {
+                <app-p-button [icon]="'pi pi-trash'" [iconOnly]="true" [buttonSize]="buttonSize.AUTO"
+                  [buttonColor]="ButtonColor.TRANSPARET" (onButtonClicked)="deleteCard(row)" [buttonText]="'מחק'"></app-p-button>
+              } @else {
+                <app-p-button [icon]="'pi pi-power-off'" [iconOnly]="true" [buttonSize]="buttonSize.AUTO"
+                  [buttonColor]="ButtonColor.TRANSPARET" (onButtonClicked)="deactivate(row)" [buttonText]="'כבה'"></app-p-button>
+              }
             }
           </div>
         }
@@ -235,11 +240,12 @@
   </ng-template>
 </p-dialog>
 
-<!-- דיאלוג רשימת חסימה להשבתה -->
-<p-dialog header="לא ניתן להשבית את הכרטיס" [visible]="showBlockingDialog()" [modal]="true" [style]="{ width: '460px' }" [rtl]="true"
+<!-- דיאלוג רשימת חסימה למחיקה/השבתה -->
+<p-dialog [header]="blockingAction() === 'delete' ? 'לא ניתן למחוק את הכרטיס' : 'לא ניתן להשבית את הכרטיס'" [visible]="showBlockingDialog()" [modal]="true" [style]="{ width: '460px' }" [rtl]="true"
   (onHide)="closeBlockingDialog()" [draggable]="false" [resizable]="false">
   <p class="blocking-intro">
-    הכרטיס <strong>{{ blockingAccountLabel() }}</strong> לא הושבת — תתי-הקטגוריות הבאות עדיין פעילות ומצביעות אליו:
+    הכרטיס <strong>{{ blockingAccountLabel() }}</strong> לא {{ blockingAction() === 'delete' ? 'נמחק' : 'הושבת' }} —
+    קיימות תתי-קטגוריות מקושרות לכרטיס ולכן לא ניתן {{ blockingAction() === 'delete' ? 'למחוק' : 'להשבית' }} אותו:
   </p>
   <table class="blocking-table">
     <thead>

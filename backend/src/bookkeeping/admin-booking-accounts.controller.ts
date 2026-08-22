@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   ForbiddenException,
   Get,
   Param,
@@ -51,12 +52,16 @@ export class AdminBookingAccountsController {
     if (!(await this.catalogContextService.isAdmin(actorFirebaseId))) {
       throw new ForbiddenException('רק מנהל מערכת יכול לצפות במסך ניהול כרטיסי טופס 6111');
     }
-    return this.catalogService.listAccountsForAdmin({
+    const rows = await this.catalogService.listAccountsForAdmin({
       ownerType: OwnerType.SYSTEM,
       isActive: isActive === undefined ? undefined : isActive === 'true',
       formPart: formPart && Object.values(FormPart).includes(formPart) ? formPart : undefined,
       search: search?.trim() || undefined,
     });
+    // Inactive `6111-*` rows are browsable reference cards. Any other
+    // inactive row was soft-deleted and must stay out of the management
+    // table even after a refresh.
+    return rows.filter((row) => row.isActive || row.code.startsWith('6111-'));
   }
 
   /** Edit an already-active operational SYSTEM card's law fields — reuses
@@ -78,6 +83,24 @@ export class AdminBookingAccountsController {
     // caller is trusted with any row including SYSTEM. See
     // CatalogService.updateAccountFields's own comment for the full contract.
     return this.catalogService.updateAccountFields(id, dto, null);
+  }
+
+  /** Soft-delete an operational SYSTEM card. The row is retained for
+   *  accounting history and seed idempotency, but disappears from active
+   *  catalogs. CatalogService refuses the operation while any
+   *  sub_category (active or inactive) still points at the card. */
+  @Delete(':id')
+  @UseGuards(FirebaseAuthGuard)
+  async delete(
+    @Req() request: AuthenticatedRequest,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    const actorFirebaseId = request.user?.actorFirebaseId ?? request.user?.firebaseId;
+    if (!actorFirebaseId) throw new UnauthorizedException('Not authenticated');
+    if (!(await this.catalogContextService.isAdmin(actorFirebaseId))) {
+      throw new ForbiddenException('רק מנהל מערכת יכול למחוק כרטיס');
+    }
+    return this.catalogService.deactivateAccount(id, null, 'למחוק');
   }
 
   /** Activate a reference card (`:id` — a `code LIKE '6111-%'` row) into a
@@ -145,7 +168,7 @@ export class AdminBookingAccountsController {
   }
 
   /** Deactivate an already-active SYSTEM card — refuses (409) with the
-   *  blocking sub_category list if any active row still points at it. */
+   *  blocking sub_category list if any row still points at it. */
   @Patch(':id/deactivate')
   @UseGuards(FirebaseAuthGuard)
   async deactivate(
@@ -158,6 +181,6 @@ export class AdminBookingAccountsController {
       throw new ForbiddenException('רק מנהל מערכת יכול להשבית כרטיס');
     }
     // null = unrestricted — admin-gated above, trusted with any row.
-    return this.catalogService.deactivateAccount(id, null);
+    return this.catalogService.deactivateAccount(id, null, 'להשבית');
   }
 }

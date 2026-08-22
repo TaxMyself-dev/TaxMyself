@@ -1406,18 +1406,21 @@ export class CatalogService {
   }
 
   /**
-   * Deactivate an already-active card (isActive=false) — refuses if any
-   * sub_category, in ANY chartOwnerKey (a CLIENT/ACCOUNTANT override can
-   * point at a SYSTEM card's id just as easily as a SYSTEM row can), still
-   * actively points at it. Never cascade-deactivates those rows — the
-   * caller has to repoint/deactivate them first, on purpose.
+   * Deactivate/soft-delete an already-active card (isActive=false) — refuses
+   * if any sub_category, active OR inactive, in ANY chartOwnerKey points at
+   * it. An inactive row remains a real FK/history dependency and must be
+   * repointed or removed explicitly; this operation never cascades.
    *
    * `allowedChartOwnerKeys` — identical contract to updateAccountFields
    * above (`null` = unrestricted/admin, array = the caller's owned
    * chartOwnerKeys only); see that method's comment for the full rationale.
    * Required, not optional, for the same reason.
    */
-  async deactivateAccount(accountId: number, allowedChartOwnerKeys: string[] | null): Promise<BookingAccount> {
+  async deactivateAccount(
+    accountId: number,
+    allowedChartOwnerKeys: string[] | null,
+    actionLabel = 'להשבית',
+  ): Promise<BookingAccount> {
     const account = await this.accountRepo.findOne({ where: { id: accountId } });
     if (!account) throw new NotFoundException(`Account ${accountId} not found`);
 
@@ -1426,13 +1429,13 @@ export class CatalogService {
     }
 
     const blocking = await this.subCategoryRepo.find({
-      where: { accountId, isActive: true },
+      where: { accountId },
       select: ['id', 'name', 'chartOwnerKey'],
       order: { chartOwnerKey: 'ASC', name: 'ASC' },
     });
     if (blocking.length > 0) {
       throw new ConflictException({
-        message: `לא ניתן להשבית את הכרטיס — ${blocking.length} תת-קטגוריות פעילות עדיין מצביעות אליו`,
+        message: `לא ניתן ${actionLabel} את הכרטיס — קיימות ${blocking.length} תתי-קטגוריות מקושרות`,
         blockingSubCategories: blocking.map((b) => ({ id: b.id, name: b.name, chartOwnerKey: b.chartOwnerKey })),
       });
     }

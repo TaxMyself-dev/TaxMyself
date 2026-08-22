@@ -319,6 +319,13 @@ export class BookkeepingCatalogService {
     return this.http.patch<IBookingAccountRow>(url, dto);
   }
 
+  /** Admin card deletion is intentionally soft on the server: the card is
+   *  hidden from active catalogs while its accounting identity is retained. */
+  deleteAdminBookingAccount(id: number): Observable<IBookingAccountRow> {
+    const url = `${environment.apiUrl}admin/booking-accounts/${id}`;
+    return this.http.delete<IBookingAccountRow>(url);
+  }
+
   /** Turn a reference card into a real SYSTEM operational card + paired
    *  sub_category, one atomic call (admin-only). */
   activateAdminBookingAccount(id: number, payload: IActivateBookingAccountPayload): Observable<IActivatedBookingAccountResult> {
@@ -328,7 +335,7 @@ export class BookkeepingCatalogService {
 
   /** Deactivate an already-active SYSTEM card (admin-only). Rejects (409)
    *  with `{ message, blockingSubCategories }` in the error body if any
-   *  active sub_category, in any chartOwnerKey, still points at it. */
+   *  sub_category, in any chartOwnerKey, still points at it. */
   deactivateAdminBookingAccount(id: number): Observable<IBookingAccountRow> {
     const url = `${environment.apiUrl}admin/booking-accounts/${id}/deactivate`;
     return this.http.patch<IBookingAccountRow>(url, {});
@@ -369,7 +376,7 @@ export class BookkeepingCatalogService {
 
   /** Deactivate a card this accountant owns for this business. Rejects
    *  (409) with `{ message, blockingSubCategories }` the same way the admin
-   *  route does if any active sub_category still points at it. */
+   *  route does if any sub_category still points at it. */
   deactivateAccountantBookingAccount(businessNumber: string, id: number): Observable<IBookingAccountRow> {
     const url = `${environment.apiUrl}accountant/business/${encodeURIComponent(businessNumber)}/booking-accounts/${id}/deactivate`;
     return this.http.patch<IBookingAccountRow>(url, {});

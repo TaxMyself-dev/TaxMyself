@@ -1914,3 +1914,14 @@ record this instead.
   `AdminPanelPageModule` lazy route. Local browser navigation loaded the clean
   application bundle without the reported JIT error; the unauthenticated test
   session then followed the application's normal redirect to login.
+
+## 2026-08-22 — Admin card deletion with linked-sub-category guard
+
+- Added a trash/delete action to the admin Form 6111 card tab. Deletion is
+  deliberately soft (`booking_account.isActive=false`) so posted accounting
+  history and the create-if-missing seed remain intact.
+- The server now refuses deletion/deactivation when any `sub_category`
+  (active or inactive, in any owner scope) still points at the card and
+  returns the blocking rows. The UI presents those rows in a Hebrew dialog.
+- Added CatalogService regression coverage for successful soft deletion and
+  for blocking an inactive linked sub-category.

@@ -754,4 +754,31 @@ describe('CatalogService', () => {
       expect(names.filter((n) => n === 'רכב ותחבורה')).toHaveLength(1);
     });
   });
+
+  describe('deactivateAccount', () => {
+    it('soft-deletes an unreferenced card', async () => {
+      const account = await service.deactivateAccount(1, null, 'למחוק');
+
+      expect(account.isActive).toBe(false);
+      expect(accountRepo.save).toHaveBeenCalledWith(expect.objectContaining({ id: 1, isActive: false }));
+    });
+
+    it('refuses deletion when any sub-category points at the card, including an inactive one', async () => {
+      subCategoryRepo.rows.push({
+        id: 44,
+        name: 'תת-קטגוריה לא פעילה',
+        accountId: 1,
+        chartOwnerKey: SYS,
+        isActive: false,
+      });
+
+      await expect(service.deactivateAccount(1, null, 'למחוק')).rejects.toMatchObject({
+        response: expect.objectContaining({
+          message: expect.stringContaining('תתי-קטגוריות מקושרות'),
+          blockingSubCategories: [expect.objectContaining({ id: 44 })],
+        }),
+      });
+      expect(accountRepo.save).not.toHaveBeenCalled();
+    });
+  });
 });

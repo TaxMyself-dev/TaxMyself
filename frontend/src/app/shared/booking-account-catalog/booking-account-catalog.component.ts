@@ -605,6 +605,28 @@ export class BookingAccountCatalogComponent implements OnInit, OnChanges {
   showBlockingDialog = signal<boolean>(false);
   blockingSubCategories = signal<IBlockingSubCategory[]>([]);
   blockingAccountLabel = signal<string>('');
+  blockingAction = signal<'delete' | 'deactivate'>('deactivate');
+
+  deleteCard(row: IBookingAccountRow): void {
+    this.confirmationService.confirm({
+      message: `האם למחוק את הכרטיס "${row.name}" (${row.code})?`,
+      header: 'אישור מחיקת כרטיס',
+      icon: 'pi pi-exclamation-triangle',
+      acceptLabel: 'כן, מחק',
+      rejectLabel: 'ביטול',
+      accept: () => this.doDelete(row),
+    });
+  }
+
+  private doDelete(row: IBookingAccountRow): void {
+    this.loading.set(true);
+    this.catalogService.deleteAdminBookingAccount(row.id)
+      .pipe(finalize(() => this.loading.set(false)), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => this.loadRows(),
+        error: (err) => this.handleBlockingError(err, row, 'delete'),
+      });
+  }
 
   deactivate(row: IBookingAccountRow): void {
     this.confirmationService.confirm({
@@ -627,21 +649,25 @@ export class BookingAccountCatalogComponent implements OnInit, OnChanges {
       .pipe(finalize(() => this.loading.set(false)), takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => this.loadRows(),
-        error: (err) => {
-          // The admin needs to actually see what's blocking it, not just a
-          // generic toast — show the itemized list in a dialog.
-          if (err?.status === 409 && Array.isArray(err?.error?.blockingSubCategories)) {
-            this.blockingAccountLabel.set(`${row.name} (${row.code})`);
-            this.blockingSubCategories.set(err.error.blockingSubCategories);
-            this.showBlockingDialog.set(true);
-          }
-        },
+        error: (err) => this.handleBlockingError(err, row, 'deactivate'),
       });
+  }
+
+  private handleBlockingError(err: any, row: IBookingAccountRow, action: 'delete' | 'deactivate'): void {
+    // Show the linked rows, not a generic error, so the admin knows exactly
+    // what must be repointed before retrying.
+    if (err?.status === 409 && Array.isArray(err?.error?.blockingSubCategories)) {
+      this.blockingAction.set(action);
+      this.blockingAccountLabel.set(`${row.name} (${row.code})`);
+      this.blockingSubCategories.set(err.error.blockingSubCategories);
+      this.showBlockingDialog.set(true);
+    }
   }
 
   closeBlockingDialog(): void {
     this.showBlockingDialog.set(false);
     this.blockingSubCategories.set([]);
+    this.blockingAction.set('deactivate');
   }
 
   // ── Excel export — same exceljs pattern (RTL, bold header, download via
