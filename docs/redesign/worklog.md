@@ -1881,3 +1881,21 @@ record this instead.
   local origin to login; authentication was not bypassed. The repository's Karma
   suite remains blocked by pre-existing unrelated spec/type errors, including old
   `async` imports and Node typings.
+
+## 2026-08-22 — ExpensesService module ownership / depreciation DI fix
+
+- Removed duplicate `ExpensesService` providers from `AppModule`,
+  `TransactionsModule`, and `ReportsModule`; consumers now import the canonical
+  `ExpensesModule`, which owns and exports the service together with all of its
+  dependencies, including `DepreciationService`.
+- Marked the existing `ExpensesModule -> UsersModule -> FeezbackModule ->
+  TransactionsModule -> ExpensesModule` cycle with `forwardRef` on the relevant
+  module edges. This prevents an undefined module during dependency scanning
+  without creating additional service instances.
+- Added a module-metadata regression test that verifies transactions and reports
+  consume `ExpensesService` through `ExpensesModule` and that circular imports
+  unwrap to defined modules.
+- Verification: Nest backend build passed; focused Jest test passed. A full
+  bootstrap progressed beyond module/dependency scanning and stopped only when
+  the sandbox denied the external MySQL connection (`EACCES`). No database writes
+  or schema changes were made.

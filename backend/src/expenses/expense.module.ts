@@ -1,5 +1,5 @@
 //General
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { SharedModule } from '../shared/shared.module';
 //Entities
@@ -33,7 +33,9 @@ import { DepreciationModule } from '../depreciation/depreciation.module';
     // longer injects any of their repos.
     TypeOrmModule.forFeature([Expense, User, Business, Supplier, Child, Delegation, ClassifiedTransactions, ExtractedDocument, ReportWorkflow]),
     SharedModule,
-    UsersModule,
+    // TransactionsModule consumes this module and is also reached through
+    // UsersModule -> FeezbackModule, so this edge is necessarily circular.
+    forwardRef(() => UsersModule),
     BillingModule,
     BookkeepingModule,
     DepreciationModule,

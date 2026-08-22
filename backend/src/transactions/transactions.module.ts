@@ -21,7 +21,7 @@ import { UserTransactionCacheState } from './user-transaction-cache-state.entity
 import { UserSyncState } from './user-sync-state.entity';
 import { UserSourceSyncState } from './user-source-sync-state.entity';
 import { UserSyncStateService } from './user-sync-state.service';
-import { ExpensesService } from '../expenses/expenses.service';
+import { ExpensesModule } from '../expenses/expense.module';
 import { ExtractedDocument } from '../documents/extracted-document.entity';
 import { Supplier } from '../expenses/suppliers.entity';
 import { FinsiteService } from 'src/finsite/finsite.service';
@@ -29,11 +29,8 @@ import { Finsite } from 'src/finsite/finsite.entity';
 import { Delegation } from 'src/delegation/delegation.entity';
 import { SettingDocuments } from 'src/documents/settingDocuments.entity';
 import { Business } from 'src/business/business.entity';
-// ExpensesService (provided here) injects the ReportWorkflow repo for the
-// D10 period lock (Phase 4.1) — entity-only registration.
 import { ReportWorkflow } from 'src/report-workflow/report-workflow.entity';
 import { BillingModule } from '../billing/billing.module';
-// ExpensesService (provided here) posts a journal entry on expense create — needs BookkeepingService.
 import { BookkeepingModule } from '../bookkeeping/bookkeeping.module';
 
 @Module({
@@ -50,6 +47,9 @@ import { BookkeepingModule } from '../bookkeeping/bookkeeping.module';
     // resolve through the same SharedModule instance — which is what the
     // FxRate DB-cache singleton actually needs.
     SharedModule,
+    // Consume the canonical ExpensesService provider. forwardRef is required
+    // because ExpensesModule reaches FeezbackModule, which imports this module.
+    forwardRef(() => ExpensesModule),
     forwardRef(() => UsersModule),
     forwardRef(() => FeezbackModule),
     forwardRef(() => BillingModule),
@@ -59,7 +59,6 @@ import { BookkeepingModule } from '../bookkeeping/bookkeeping.module';
     TransactionsService,
     TransactionProcessingService,
     UserSyncStateService,
-    ExpensesService,
     AuthService,
     FinsiteService,
   ],

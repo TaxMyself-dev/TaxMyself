@@ -21,11 +21,10 @@ import { ReportsController } from './reports.controller';
 import { ReportsService } from './reports.service';
 import { ReportReviewService } from './report-review.service';
 import { MatchingService } from './matching.service';
-import { ExpensesService } from '../expenses/expenses.service';
+import { ExpensesModule } from '../expenses/expense.module';
 import { UsersModule } from '../users/users.module';
 import { DocumentsModule } from '../documents/documents.module';
 import { GoogleDriveModule } from '../google-drive/google-drive.module';
-// ExpensesService (provided here) posts a journal entry on expense create — needs BookkeepingService.
 import { BookkeepingModule } from '../bookkeeping/bookkeeping.module';
 import { FinsiteService } from 'src/finsite/finsite.service';
 import { JournalEntry } from 'src/bookkeeping/jouranl-entry.entity';
@@ -35,8 +34,6 @@ import { DocPayments } from 'src/documents/doc-payments.entity';
 import { Business } from 'src/business/business.entity';
 import { SlimTransaction } from 'src/transactions/slim-transaction.entity';
 import { FullTransactionCache } from 'src/transactions/full-transaction-cache.entity';
-// ExpensesService (provided here) injects the ReportWorkflow repo for the
-// D10 period lock (Phase 4.1) — entity-only registration.
 import { ReportWorkflow } from 'src/report-workflow/report-workflow.entity';
 import { BillingModule } from '../billing/billing.module';
 import { DepreciationModule } from '../depreciation/depreciation.module';
@@ -50,6 +47,7 @@ import { DepreciationModule } from '../depreciation/depreciation.module';
                                       Delegation, JournalEntry, JournalLine, BookingAccount,
                                       SlimTransaction, FullTransactionCache, ExtractedDocument, ReportWorkflow]),
     SharedModule,
+    ExpensesModule,
     UsersModule,
     // DocumentsService is needed by ReportReviewService to trigger inbox
     // processing + per-row archive/reject. Imported (not re-provided) so we
@@ -67,7 +65,6 @@ import { DepreciationModule } from '../depreciation/depreciation.module';
     ReportsService,
     ReportReviewService,
     MatchingService,
-    ExpensesService,
     FinsiteService,
   ],
   exports: [ReportsService, ReportReviewService],
