@@ -55,6 +55,9 @@ export interface ReviewOverrides {
   subCategory?: string;
   vatPercent?: number;
   taxPercent?: number;
+  /** Slim transactions store this value; document-only rows derive it from
+   *  the selected catalog card because ExtractedDocument has no column. */
+  reductionPercent?: number;
   isEquipment?: boolean;
   /** "M/YYYY" or "M1-M2/YYYY" — overrides the auto-derived period label. */
   reportPeriod?: string;
@@ -125,7 +128,7 @@ export type UpdateDocFields = Pick<ReviewOverrides,
  */
 export type UpdateTxFields = Pick<ReviewOverrides,
   | 'category' | 'subCategory' | 'subCategoryId'
-  | 'vatPercent' | 'taxPercent' | 'isEquipment'
+  | 'vatPercent' | 'taxPercent' | 'reductionPercent' | 'isEquipment'
   | 'reportPeriod'
 >;
 
@@ -1496,6 +1499,7 @@ export class ReportReviewService {
     if (fields.subCategoryId !== undefined) patch.subCategoryId = fields.subCategoryId ?? null;
     if (fields.vatPercent !== undefined) patch.vatPercent = fields.vatPercent;
     if (fields.taxPercent !== undefined) patch.taxPercent = fields.taxPercent;
+    if (fields.reductionPercent !== undefined) patch.reductionPercent = fields.reductionPercent;
     if (fields.isEquipment !== undefined) patch.isEquipment = fields.isEquipment ?? false;
     if (fields.reportPeriod !== undefined) patch.vatReportingDate = (fields.reportPeriod as any) ?? null;
 

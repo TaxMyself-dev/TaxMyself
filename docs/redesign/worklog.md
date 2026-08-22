@@ -1925,3 +1925,14 @@ record this instead.
   returns the blocking rows. The UI presents those rows in a Hebrew dialog.
 - Added CatalogService regression coverage for successful soft deletion and
   for blocking an inactive linked sub-category.
+
+## 2026-08-22 — Depreciation rate in expense-approval edit dialog
+
+- The expense-approval edit dialog now switches its second percentage field
+  from `% מס` to `% פחת` whenever the selected card is equipment.
+- The displayed value is the selected card's `reductionPercent`; it updates
+  immediately when the user changes the bookkeeping card and is read-only
+  because the depreciation rate is law carried by the card.
+- Transaction-backed review rows now persist that card-derived depreciation
+  rate onto `slim_transaction`, keeping the later approval calculation in
+  sync with the value shown in the dialog.

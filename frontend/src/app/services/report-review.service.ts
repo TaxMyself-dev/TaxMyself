@@ -166,6 +166,9 @@ export interface ReviewOverrides {
   subCategory?: string;
   vatPercent?: number;
   taxPercent?: number;
+  /** Persisted on the slim transaction when the chosen card is equipment.
+   *  Document-only rows derive it from the selected catalog card. */
+  reductionPercent?: number;
   isEquipment?: boolean;
   reportPeriod?: string;
   /** Acknowledges a soft duplicate (same supplier/sum/date, different or
@@ -218,7 +221,7 @@ export type UpdateDocFields = Pick<ReviewOverrides,
  */
 export type UpdateTxFields = Pick<ReviewOverrides,
   | 'category' | 'subCategory' | 'subCategoryId'
-  | 'vatPercent' | 'taxPercent' | 'isEquipment'
+  | 'vatPercent' | 'taxPercent' | 'reductionPercent' | 'isEquipment'
   | 'reportPeriod'
 >;
 

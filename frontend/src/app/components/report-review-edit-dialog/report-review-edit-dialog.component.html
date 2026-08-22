@@ -99,10 +99,11 @@
                  (ngModelChange)="fieldsChange.emit({ vatPercent: $event })" />
         </label>
         <label class="field">
-          <span class="field-label">% מס</span>
+          <span class="field-label">{{ f.isEquipment ? '% פחת' : '% מס' }}</span>
           <input type="number" step="0.01" class="field-input"
-                 [ngModel]="f.taxPercent"
-                 (ngModelChange)="fieldsChange.emit({ taxPercent: $event })" />
+                 [readOnly]="f.isEquipment"
+                 [ngModel]="f.isEquipment ? f.reductionPercent : f.taxPercent"
+                 (ngModelChange)="onTaxPercentChanged($event)" />
         </label>
 
         <label class="field field--wide">

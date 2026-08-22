@@ -783,6 +783,8 @@ export class ReportReviewPage implements OnInit {
       accountId: row.accountId,
       vatPercent: row.vatPercent,
       taxPercent: row.taxPercent,
+      reductionPercent: row.reductionPercent,
+      isEquipment: row.isEquipment,
       date: row.date,
       amount: row.amount,
       supplierId: row.supplierId,
@@ -846,6 +848,8 @@ export class ReportReviewPage implements OnInit {
 
     row.vatPercent = draft.vatPercent;
     row.taxPercent = draft.taxPercent;
+    row.reductionPercent = draft.reductionPercent;
+    row.isEquipment = draft.isEquipment;
     row.date = draft.date;
     this.onAmountChange(row, draft.amount);
     row.supplierId = draft.supplierId;
@@ -867,6 +871,7 @@ export class ReportReviewPage implements OnInit {
           subCategoryId: row.subCategoryId ?? undefined,
           vatPercent: row.vatPercent,
           taxPercent: row.taxPercent,
+          reductionPercent: row.reductionPercent,
           isEquipment: row.isEquipment,
           reportPeriod: row.reportPeriodOverridden ? row.reportPeriod : undefined,
         })
@@ -897,6 +902,7 @@ export class ReportReviewPage implements OnInit {
           subCategoryId: row.subCategoryId ?? undefined,
           vatPercent: row.vatPercent,
           taxPercent: row.taxPercent,
+          reductionPercent: row.reductionPercent,
           isEquipment: row.isEquipment,
         })
       : null;
@@ -929,6 +935,8 @@ export class ReportReviewPage implements OnInit {
       accountId: null,
       vatPercent: 0,
       taxPercent: 0,
+      reductionPercent: 0,
+      isEquipment: false,
     }));
   }
 
@@ -936,7 +944,7 @@ export class ReportReviewPage implements OnInit {
     this.editDraft.update(d => {
       if (!d) return d;
       if (!picked) {
-        return { ...d, subCategory: '', subCategoryId: null, accountId: null, vatPercent: 0, taxPercent: 0 };
+        return { ...d, subCategory: '', subCategoryId: null, accountId: null, vatPercent: 0, taxPercent: 0, reductionPercent: 0, isEquipment: false };
       }
       const entry = this.catalog().find(c => c.subCategory === picked && c.category === d.category)
         ?? this.catalog().find(c => c.subCategory === picked);
@@ -949,6 +957,8 @@ export class ReportReviewPage implements OnInit {
           accountId: entry.accountId,
           vatPercent: Number(entry.vatPercent ?? 0),
           taxPercent: Number(entry.taxPercent ?? 0),
+          reductionPercent: Number(entry.reductionPercent ?? 0),
+          isEquipment: !!entry.isEquipment,
         };
       }
       return { ...d, subCategory: picked, subCategoryId: null };
@@ -959,7 +969,7 @@ export class ReportReviewPage implements OnInit {
     this.editDraft.update(d => {
       if (!d) return d;
       if (accountId == null) {
-        return { ...d, category: '', subCategory: '', subCategoryId: null, accountId: null, vatPercent: 0, taxPercent: 0 };
+        return { ...d, category: '', subCategory: '', subCategoryId: null, accountId: null, vatPercent: 0, taxPercent: 0, reductionPercent: 0, isEquipment: false };
       }
       const card = this.cardOptions().find(o => o.accountId === accountId);
       if (!card) return d;
@@ -974,6 +984,8 @@ export class ReportReviewPage implements OnInit {
         accountId: entry.accountId,
         vatPercent: Number(entry.vatPercent ?? 0),
         taxPercent: Number(entry.taxPercent ?? 0),
+        reductionPercent: Number(entry.reductionPercent ?? 0),
+        isEquipment: !!entry.isEquipment,
       };
     });
   }

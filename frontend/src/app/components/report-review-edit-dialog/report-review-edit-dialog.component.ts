@@ -20,6 +20,8 @@ export interface ExpenseEditFieldValues {
   accountId: number | null;
   vatPercent: number;
   taxPercent: number;
+  reductionPercent: number;
+  isEquipment: boolean;
   date: string;
   amount: number;
   supplierId: string;
@@ -104,5 +106,13 @@ export class ReportReviewEditDialogComponent {
       return;
     }
     this.periodChange.emit(value);
+  }
+
+  /** Tax remains editable for ordinary cards. A depreciation card's rate
+   *  is accounting law carried by the selected card, so the template shows
+   *  it read-only and this handler deliberately leaves it untouched. */
+  onTaxPercentChanged(value: number): void {
+    if (this.fields?.isEquipment) return;
+    this.fieldsChange.emit({ taxPercent: value });
   }
 }
