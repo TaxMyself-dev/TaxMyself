@@ -1,5 +1,7 @@
+import { CommonModule } from '@angular/common';
 import { Component, OnInit, signal } from '@angular/core';
-import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
+import { FormBuilder, FormControl, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
+import { IonicModule } from '@ionic/angular';
 import { AdminPanelService } from 'src/app/services/admin-panel.service';
 import { ButtonClass, ButtonSize } from 'src/app/shared/button/button.enum';
 import { ButtonSize as ComponentButtonSize, ButtonColor } from 'src/app/components/button/button.enum';
@@ -9,16 +11,36 @@ import { TransManagementComponent } from 'src/app/shared/trans-management/trans-
 import { ClientsDashboardComponent } from 'src/app/shared/clients-dashboard/clients-dashboard.component';
 import { DemoDataComponent } from 'src/app/shared/demo-data/demo-data.component';
 import { AdminBillingComponent } from 'src/app/shared/admin-billing/admin-billing.component';
-import { MessageService } from 'primeng/api';
+import { ConfirmationService, MessageService } from 'primeng/api';
+import { ConfirmDialogModule } from 'primeng/confirmdialog';
+import { ToastModule } from 'primeng/toast';
 import { IShaamApprovalResponse } from 'src/app/shared/interface';
 import { AdminDocumentationComponent } from './admin-documentation.component';
+import { SharedModule } from '../../shared/shared.module';
+import { ShaamInvoiceApprovalDialogComponent } from '../../components/shaam-invoice-approval-dialog/shaam-invoice-approval-dialog.component';
+import { ButtonComponent } from '../../components/button/button.component';
 
 
 @Component({
     selector: 'app-admin-panel',
     templateUrl: './admin-panel.page.html',
     styleUrls: ['./admin-panel.page.scss'],
-    standalone: false
+    standalone: true,
+    imports: [
+      CommonModule,
+      FormsModule,
+      ReactiveFormsModule,
+      IonicModule,
+      SharedModule,
+      DemoDataComponent,
+      AdminBillingComponent,
+      ShaamInvoiceApprovalDialogComponent,
+      ButtonComponent,
+      ToastModule,
+      ConfirmDialogModule,
+      AdminDocumentationComponent,
+    ],
+    providers: [ConfirmationService],
 })
 export class AdminPanelPage implements OnInit {
 

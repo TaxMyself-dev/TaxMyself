@@ -99,7 +99,7 @@ const appRoutes: Routes = [
   },
   {
     path: 'admin-panel',
-    loadChildren: () => import('./pages/admin-panel/admin-panel.module').then(m => m.AdminPanelPageModule)
+    loadComponent: () => import('./pages/admin-panel/admin-panel.page').then(m => m.AdminPanelPage)
   },
   {
     path: 'client-panel',

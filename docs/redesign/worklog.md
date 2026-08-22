@@ -1899,3 +1899,18 @@ record this instead.
   bootstrap progressed beyond module/dependency scanning and stopped only when
   the sandbox denied the external MySQL connection (`EACCES`). No database writes
   or schema changes were made.
+
+## 2026-08-22 — admin-panel lazy-route JIT fix
+
+- Converted `AdminPanelPage` to a standalone Angular component and changed the
+  application route from lazy `loadChildren(AdminPanelPageModule)` to direct
+  `loadComponent(AdminPanelPage)`. This removes the runtime JIT compilation path
+  that prevented navigation to the admin panel.
+- Moved the page's template dependencies and `ConfirmationService` provider onto
+  the standalone component. Kept `AdminPanelPageModule` as a valid thin wrapper
+  for compatibility, without declaring the standalone page.
+- Verification: Angular development and production builds passed. The production
+  bundle now emits `pages-admin-panel-admin-panel-page` and contains no active
+  `AdminPanelPageModule` lazy route. Local browser navigation loaded the clean
+  application bundle without the reported JIT error; the unauthenticated test
+  session then followed the application's normal redirect to login.
