@@ -7,6 +7,8 @@ import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.inter
 import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
 import { SubscriptionGuard } from 'src/guards/subscription.guard';
 import { RequireModule } from 'src/decorators/require-module.decorator';
+import { RequiredDelegationScope } from 'src/decorators/required-delegation-scope.decorator';
+import { DelegationScope } from 'src/delegation/delegation.entity';
 import { CreateDocDto } from './dtos/create-doc.dto';
 
 
@@ -294,6 +296,7 @@ export class DocumentsController {
   // =====================================================================
 
   @Post('me/process-inbox')
+  @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
   async processMyInbox(
     @Req() request: AuthenticatedRequest,
     @Body() body: { businessNumber: string },
@@ -306,6 +309,7 @@ export class DocumentsController {
   }
 
   @Post('me/archive/:documentId')
+  @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
   async archiveExtractedDoc(
     @Req() request: AuthenticatedRequest,
     @Param('documentId', ParseIntPipe) documentId: number,
@@ -316,6 +320,7 @@ export class DocumentsController {
   }
 
   @Post('me/ocr-file')
+  @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
   @UseInterceptors(FileInterceptor('file'))
   async ocrSingleFile(
     @Req() request: AuthenticatedRequest,
@@ -339,6 +344,7 @@ export class DocumentsController {
    *  folder — no OCR, just storage. multipart/form-data with `files`
    *  (1..30) + `businessNumber` form field. */
   @Post('me/upload-to-inbox')
+  @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
   @UseInterceptors(
     FilesInterceptor('files', 30, { limits: { fileSize: 10 * 1024 * 1024 } }),
   )
