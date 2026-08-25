@@ -202,12 +202,15 @@ export class ExpensesController {
     const endDate = this.sharedService.convertStringToDateObject(query.endDate);
     const expenses = await this.expensesService.getExpensesForVatReport(firebaseId, query.businessNumber, startDate, endDate);
     // The AMOUNT_WITH_PERCENT table cell renderer (generic-table.component.ts)
-    // reads `vatPercent`/`taxPercent` off each row — alias them here from the
-    // entity's `*Snapshot` columns so the frontend percent lines aren't stuck at 0.
+    // reads the legacy display names off each row — alias them here from the
+    // entity's immutable `*Snapshot` columns. Equipment/depreciation must use
+    // the expense snapshot too, so later card edits never rewrite history.
     return expenses.map((e) => ({
       ...e,
       vatPercent: Number(e.vatPercentSnapshot) || 0,
       taxPercent: Number(e.taxPercentSnapshot) || 0,
+      isEquipment: !!e.isEquipmentSnapshot,
+      reductionPercent: Number(e.reductionPercentSnapshot) || 0,
     }));
   }
 

@@ -159,26 +159,50 @@ export class DepreciationService {
     const repo = manager.getRepository(AssetDepreciationPosting);
     const sourceAccountCode = expense.accountCodeSnapshot!;
 
-    // Atomic insert-or-refresh of the calculation snapshot. journalEntryNumber
-    // is deliberately omitted so an existing link can never be nulled by the
-    // upsert. The following SELECT FOR UPDATE serializes concurrent report
+    const snapshot = {
+      expenseId: expense.id,
+      firebaseId: expense.userId,
+      businessNumber: expense.businessNumber,
+      taxYear: calculation.taxYear,
+      activationDateSnapshot: calculation.activationDate,
+      originalCostSnapshot: calculation.originalCost,
+      depreciationRateSnapshot: calculation.depreciationRate,
+      activeDays: calculation.activeDays,
+      daysInYear: calculation.daysInYear,
+      amount: calculation.amount,
+      sourceAccountCode,
+    };
+
+    // Atomic insert-or-refresh of the calculation snapshot. Repository.upsert()
+    // cannot be used here: on MySQL, TypeORM tries to re-select generated/default
+    // columns after the UPDATE branch, but this payload has the composite conflict
+    // key rather than the generated primary id. That raises "entity id is not set".
+    // The query-builder form keeps the same atomic database upsert while
+    // updateEntity(false) disables that broken in-memory RETURNING emulation.
+    // journalEntryNumber is deliberately omitted so an existing link can never
+    // be nulled. The following SELECT FOR UPDATE serializes concurrent report
     // preparations before either can create a journal entry.
-    await repo.upsert(
-      {
-        expenseId: expense.id,
-        firebaseId: expense.userId,
-        businessNumber: expense.businessNumber,
-        taxYear: calculation.taxYear,
-        activationDateSnapshot: calculation.activationDate,
-        originalCostSnapshot: calculation.originalCost,
-        depreciationRateSnapshot: calculation.depreciationRate,
-        activeDays: calculation.activeDays,
-        daysInYear: calculation.daysInYear,
-        amount: calculation.amount,
-        sourceAccountCode,
-      },
-      ['expenseId', 'taxYear'],
-    );
+    await repo
+      .createQueryBuilder()
+      .insert()
+      .into(AssetDepreciationPosting)
+      .values(snapshot)
+      .orUpdate(
+        [
+          'firebaseId',
+          'businessNumber',
+          'activationDateSnapshot',
+          'originalCostSnapshot',
+          'depreciationRateSnapshot',
+          'activeDays',
+          'daysInYear',
+          'amount',
+          'sourceAccountCode',
+        ],
+        ['expenseId', 'taxYear'],
+      )
+      .updateEntity(false)
+      .execute();
 
     const posting = await repo.findOne({
       where: { expenseId: expense.id, taxYear: calculation.taxYear },

@@ -1936,3 +1936,26 @@ record this instead.
 - Transaction-backed review rows now persist that card-derived depreciation
   rate onto `slim_transaction`, keeping the later approval calculation in
   sync with the value shown in the dialog.
+
+## 2026-08-23 — Depreciation preparation and expense-list display fixes
+
+- Replaced `Repository.upsert()` in annual depreciation preparation with the
+  established MySQL-safe query-builder upsert plus `updateEntity(false)`.
+  This preserves the atomic `(expenseId, taxYear)` idempotency boundary and
+  row lock while avoiding TypeORM's generated-id re-select failure on the
+  UPDATE branch (`Cannot update entity because entity id is not set`).
+- The expenses-list API now aliases `isEquipmentSnapshot` and
+  `reductionPercentSnapshot` alongside the existing VAT/tax snapshot aliases.
+  Equipment rows show the purple equipment icon and their frozen `פחת X%`
+  value; regular rows continue to show the tax-recognition percentage.
+- Added regression coverage for both the safe depreciation persistence path
+  and the snapshot display contract. Verification: 17 focused Jest tests,
+  Nest build, and Angular production build passed. Angular emitted only the
+  repository's existing budget/CommonJS warnings. No schema or cutover SQL
+  change was required.
+
+## 2026-08-25 — Depreciation fixes manual verification
+
+- Elazar confirmed in the running application that both the P&L depreciation
+  preparation fix and the equipment/depreciation-rate expense-list display
+  work as intended. The verified changes were approved for local commit.

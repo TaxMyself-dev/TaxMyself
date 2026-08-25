@@ -300,6 +300,11 @@ export class ExpensesPage implements OnInit {
               totalVatPayable: row.totalVatPayable ?? 0,
               taxPercent: row.taxPercent ?? 0,
               vatPercent: row.vatPercent ?? 0,
+              // Compatibility aliases are supplied by the current endpoint;
+              // snapshot fallbacks also keep this screen correct if it ever
+              // consumes the raw Expense entity directly.
+              isEquipment: row.isEquipment ?? row.isEquipmentSnapshot ?? false,
+              reductionPercent: row.reductionPercent ?? row.reductionPercentSnapshot ?? 0,
               reportScopeRaw: rawScope,
               reportScope: rawScope === 'annual' ? 'דוח שנתי' : 'רווח והפסד',
               // Raw per-expense override (for the Edit dialog prefill) vs the

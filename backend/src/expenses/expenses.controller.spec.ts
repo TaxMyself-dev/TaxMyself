@@ -19,14 +19,23 @@ import { DelegationScope } from '../delegation/delegation.entity';
 
 describe('ExpensesController — supplier create/edit scope', () => {
   let controller: ExpensesController;
-  let expensesService: { addSupplier: jest.Mock; updateSupplier: jest.Mock };
+  let expensesService: {
+    addSupplier: jest.Mock;
+    updateSupplier: jest.Mock;
+    getExpensesForVatReport: jest.Mock;
+  };
 
   beforeEach(() => {
     expensesService = {
       addSupplier: jest.fn().mockResolvedValue({ id: 1 }),
       updateSupplier: jest.fn().mockResolvedValue({ id: 1 }),
+      getExpensesForVatReport: jest.fn().mockResolvedValue([]),
     };
-    controller = new ExpensesController(expensesService as any, {} as any, {} as any);
+    controller = new ExpensesController(
+      expensesService as any,
+      {} as any,
+      { convertStringToDateObject: jest.fn((value) => new Date(value)) } as any,
+    );
   });
 
   function req(firebaseId: string, businessNumber?: string) {
@@ -73,6 +82,39 @@ describe('ExpensesController — supplier create/edit scope', () => {
     it('has no @RequiredDelegationScope override', () => {
       const requiredScope = Reflect.getMetadata(REQUIRED_DELEGATION_SCOPE_KEY, controller.deleteSupplier);
       expect(requiredScope).toBeUndefined();
+    });
+  });
+
+  describe('getExpensesByMonthReport display contract', () => {
+    it('aliases immutable equipment/depreciation snapshots for the expenses table', async () => {
+      expensesService.getExpensesForVatReport.mockResolvedValue([
+        {
+          id: 17,
+          vatPercentSnapshot: '100.00',
+          taxPercentSnapshot: '0.00',
+          isEquipmentSnapshot: true,
+          reductionPercentSnapshot: '33.33',
+        },
+      ]);
+
+      const result = await controller.getExpensesByMonthReport(
+        req('client-1'),
+        {
+          startDate: '2025-01-01',
+          endDate: '2025-12-31',
+          businessNumber: '123456789',
+        },
+      );
+
+      expect(result).toEqual([
+        expect.objectContaining({
+          id: 17,
+          vatPercent: 100,
+          taxPercent: 0,
+          isEquipment: true,
+          reductionPercent: 33.33,
+        }),
+      ]);
     });
   });
 });
