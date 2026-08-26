@@ -25,6 +25,7 @@ const EXPENSE_APPROVAL_OPERATIONS: ScopedHandler[] = [
   ['documents.archiveExtractedDoc', DocumentsController.prototype.archiveExtractedDoc],
   ['documents.ocrSingleFile', DocumentsController.prototype.ocrSingleFile],
   ['documents.uploadFilesToInbox', DocumentsController.prototype.uploadFilesToInbox],
+  ['documents.deleteMyArchivedDocument', DocumentsController.prototype.deleteMyArchivedDocument],
 
   // Expense creation, classification, mapping and evidence maintenance.
   ['expenses.addExpense', ExpensesController.prototype.addExpense],

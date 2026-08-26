@@ -8,6 +8,7 @@ import { BusinessStatus, FormTypes } from 'src/app/shared/enums';
 import { AuthService } from 'src/app/services/auth.service';
 import { FilterField } from 'src/app/components/filter-tab/filter-fields-model.component';
 import { FormBuilder, FormGroup } from '@angular/forms';
+import { ConfirmationService, MessageService } from 'primeng/api';
 
 /** Hebrew labels for `ArchiveItemStatus` (see backend `src/enum.ts`). */
 export const ARCHIVE_STATUS_LABELS: Record<ArchiveItemStatus, string> = {
@@ -58,6 +59,8 @@ export class ArchivedDocumentsPage implements OnInit {
   private authService = inject(AuthService);
   private driveDocsService = inject(DriveDocsService);
   private fb = inject(FormBuilder);
+  private confirmationService = inject(ConfirmationService);
+  private messageService = inject(MessageService);
 
   // ===========================
   // Global state
@@ -252,6 +255,17 @@ export class ArchivedDocumentsPage implements OnInit {
           this.onPreviewClicked(row);
         }
       },
+      {
+        name: 'delete',
+        icon: 'pi pi-trash',
+        title: 'מחק מסמך',
+        alwaysShow: true,
+        showWhen: (row: IRowDataTable) =>
+          (row as any).itemType === 'DOCUMENT' && !!(row as any).driveFileId,
+        action: (event: any, row: IRowDataTable) => {
+          this.onDeleteClicked(row);
+        }
+      },
     ]);
   }
 
@@ -259,5 +273,52 @@ export class ArchivedDocumentsPage implements OnInit {
     const driveFileId = (doc as any).driveFileId;
     if (!driveFileId) return;
     window.open(`https://drive.google.com/file/d/${driveFileId}/view`, '_blank');
+  }
+
+  onDeleteClicked(doc: IRowDataTable): void {
+    const documentId = Number(doc.id ?? 0);
+    if (!documentId || (doc as any).itemType !== 'DOCUMENT') return;
+
+    this.confirmationService.confirm({
+      header: 'מחיקת מסמך',
+      message: 'האם אתה בטוח שאתה מעוניין למחוק את המסמך? המחיקה היא לצמיתות.',
+      icon: 'pi pi-exclamation-triangle',
+      acceptLabel: 'מחק',
+      rejectLabel: 'ביטול',
+      acceptButtonStyleClass: 'p-button-danger',
+      accept: () => this.deleteArchivedDocument(documentId),
+    });
+  }
+
+  private deleteArchivedDocument(documentId: number): void {
+    this.isLoadingDataTable.set(true);
+    this.driveDocsService.deleteArchivedDocument(documentId)
+      .pipe(
+        catchError(err => {
+          console.error('Error deleting archived document:', err);
+          this.isLoadingDataTable.set(false);
+          this.messageService.add({
+            severity: 'error',
+            summary: 'שגיאה',
+            detail: 'מחיקת המסמך נכשלה',
+            life: 3000,
+            key: 'br',
+          });
+          return of(null);
+        }),
+      )
+      .subscribe(result => {
+        if (!result) return;
+        // Refetch so linked expenses whose source pointer was cleared are
+        // represented by the server's unified archive view immediately.
+        this.fetchArchivedItems(this.selectedBusinessNumber());
+        this.messageService.add({
+          severity: 'success',
+          summary: 'המסמך נמחק',
+          detail: 'המסמך והקובץ נמחקו בהצלחה',
+          life: 3000,
+          key: 'br',
+        });
+      });
   }
 }

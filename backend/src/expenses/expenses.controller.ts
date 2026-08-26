@@ -1,11 +1,13 @@
 //General
-import { Controller, Post, Patch, Get, Delete, Query, Param, Body, Req, Headers, UseGuards, UploadedFile, UseInterceptors, NotFoundException, HttpException, HttpStatus, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { Controller, Post, Patch, Get, Delete, Query, Param, Body, Req, Res, Headers, UseGuards, UploadedFile, UseInterceptors, NotFoundException, HttpException, HttpStatus, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { Response } from 'express';
 //Entities
 import { Expense } from './expenses.entity';
 //Services
 import { ExpensesService, BulkConfirmFromDriveItem, DuplicateExpenseCheckItem } from './expenses.service';
 import { UsersService } from '../users/users.service';
 import { SharedService } from '../shared/shared.service';
+import { GoogleDriveService } from '../google-drive/google-drive.service';
 //DTOs
 import { CreateExpenseDto } from './dtos/create-expense.dto';
 import { UpdateSupplierDto } from './dtos/update-supplier.dto';
@@ -33,7 +35,8 @@ export class ExpensesController {
   constructor(
     private expensesService: ExpensesService,
     private usersService: UsersService,
-    private sharedService: SharedService) { }
+    private sharedService: SharedService,
+    private googleDriveService: GoogleDriveService) { }
 
 
   @Post('add-expense')
@@ -219,6 +222,44 @@ export class ExpensesController {
       isEquipment: !!e.isEquipmentSnapshot,
       reductionPercent: Number(e.reductionPercentSnapshot) || 0,
     }));
+  }
+
+  /**
+   * Streams the original Drive file for an expense approved from the review
+   * screen. The browser never needs direct Drive permission: the effective
+   * client identity is authenticated first, then the server downloads the
+   * already-linked source document through the application's Drive account.
+   */
+  @Get(':id/source-document-file')
+  @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
+  async getSourceDocumentFile(
+    @Req() request: AuthenticatedRequest,
+    @Param('id') expenseId: string,
+    @Res() response: Response,
+  ) {
+    const firebaseId = request.user?.firebaseId;
+    const source = await this.expensesService.getSourceDocumentForExpense(
+      Number(expenseId),
+      firebaseId,
+    );
+    const buffer = await this.googleDriveService.downloadFile(source.driveFileId);
+    const safeName = (source.driveFileName || 'document')
+      .replace(/[\r\n"]/g, '_');
+
+    response.setHeader('Content-Type', this.sourceDocumentContentType(safeName));
+    response.setHeader(
+      'Content-Disposition',
+      `inline; filename*=UTF-8''${encodeURIComponent(safeName)}`,
+    );
+    return response.send(buffer);
+  }
+
+  private sourceDocumentContentType(fileName: string): string {
+    const extension = fileName.split('.').pop()?.toLowerCase();
+    if (extension === 'pdf') return 'application/pdf';
+    if (extension === 'png') return 'image/png';
+    if (extension === 'jpg' || extension === 'jpeg') return 'image/jpeg';
+    return 'application/octet-stream';
   }
 
 

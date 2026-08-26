@@ -391,10 +391,11 @@ export class ExpensesPage implements OnInit {
     ]);
   }
 
-  /** True when the row has a stored file path. */
+  /** True for either a legacy Firebase attachment or a Drive source document. */
   private hasFile(row: IRowDataTable): boolean {
     const filePath = row?.file as string | undefined;
-    return !!filePath && filePath !== '';
+    const sourceDocumentId = Number(row?.sourceDocumentId ?? 0);
+    return (!!filePath && filePath !== '') || sourceDocumentId > 0;
   }
 
   // ===========================
@@ -528,15 +529,39 @@ export class ExpensesPage implements OnInit {
     const filePath = row.file as string | undefined;
     if (filePath && filePath !== '') {
       this.filesService.previewFile(filePath).subscribe();
-    } else {
-      this.messageService.add({
-        severity: 'info',
-        summary: 'אין קובץ',
-        detail: 'לא נשמר קובץ עבור הוצאה זו',
-        life: 3000,
-        key: 'br'
-      });
+      return;
     }
+
+    const sourceDocumentId = Number(row.sourceDocumentId ?? 0);
+    const expenseId = Number(row.id ?? 0);
+    if (sourceDocumentId > 0 && expenseId > 0) {
+      this.gs.getLoader().subscribe();
+      this.expenseDataService.getSourceDocumentFile(expenseId)
+        .pipe(
+          catchError(err => {
+            console.error('Error previewing source Drive document:', err);
+            this.messageService.add({
+              severity: 'error',
+              summary: 'שגיאה',
+              detail: 'לא ניתן לפתוח את מסמך המקור',
+              life: 3000,
+              key: 'br'
+            });
+            return EMPTY;
+          }),
+          finalize(() => this.gs.dismissLoader())
+        )
+        .subscribe(blob => this.filesService.previewFile1(blob));
+      return;
+    }
+
+    this.messageService.add({
+      severity: 'info',
+      summary: 'אין קובץ',
+      detail: 'לא נשמר קובץ עבור הוצאה זו',
+      life: 3000,
+      key: 'br'
+    });
   }
 }
 

@@ -82,6 +82,11 @@ export class ExpenseDataService {
     return this.http.get<IRowDataTable[]>(url, { params: params });
   }
 
+  getSourceDocumentFile(expenseId: number): Observable<Blob> {
+    const url = `${environment.apiUrl}expenses/${expenseId}/source-document-file`;
+    return this.http.get(url, { responseType: 'blob' });
+  }
+
 
   getExpenseForVatReport(startDate: string, endDate: string, businessNumber: string): Observable<IRowDataTable[]> {
     const url = `${environment.apiUrl}expenses/get-expenses-for-vat-report`;

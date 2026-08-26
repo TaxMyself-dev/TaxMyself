@@ -3670,6 +3670,69 @@ ${finalOwnerName}`;
   }
 
   /**
+   * Permanently delete one physical Drive file selected in "My archive".
+   * A multi-invoice upload can have several ExtractedDocument rows sharing
+   * the same driveFileId, so deletion is file-scoped rather than row-scoped.
+   *
+   * Existing Expenses and journal entries are accounting records and are
+   * never deleted here. Their sourceDocumentId is cleared so the expenses
+   * screen does not advertise an attachment that no longer exists. The same
+   * applies to slim/pair back-pointers before the extracted rows are removed.
+   */
+  async deleteArchivedDocument(
+    firebaseId: string,
+    documentId: number,
+  ): Promise<{ ok: true; documentId: number; deletedDocumentRows: number }> {
+    const user = await this.userRepo.findOne({ where: { firebaseId } });
+    if (!user) throw new NotFoundException(`User not found for firebaseId`);
+
+    const selected = await this.extractedDocRepo.findOne({ where: { id: documentId } });
+    if (!selected) throw new NotFoundException(`Extracted document #${documentId} not found`);
+    if (selected.userId !== user.index) {
+      throw new HttpException('Not your document', HttpStatus.FORBIDDEN);
+    }
+
+    const fileRows = await this.extractedDocRepo.find({
+      where: { driveFileId: selected.driveFileId },
+    });
+    if (fileRows.some(row => row.userId !== user.index)) {
+      throw new HttpException('Drive file is referenced by another user', HttpStatus.FORBIDDEN);
+    }
+    const documentIds = fileRows.map(row => row.id);
+    if (!documentIds.length) {
+      throw new NotFoundException(`No document rows found for Drive file`);
+    }
+
+    // Delete the physical file first. GoogleDriveService treats 404 as an
+    // idempotent success, so a rare DB failure can be repaired by retrying.
+    await this.googleDriveService.deleteFile(selected.driveFileId);
+
+    await this.dataSource.transaction(async manager => {
+      await manager.getRepository(Expense).update(
+        { sourceDocumentId: In(documentIds) },
+        { sourceDocumentId: null },
+      );
+      await manager.getRepository(SlimTransaction).update(
+        { matchedDocumentId: In(documentIds) },
+        { matchedDocumentId: null },
+      );
+      await manager.getRepository(ExtractedDocument).update(
+        { pairedWithDocumentId: In(documentIds) },
+        { pairedWithDocumentId: null },
+      );
+      await manager.getRepository(ExtractedDocument).delete({
+        id: In(documentIds),
+      });
+    });
+
+    return {
+      ok: true,
+      documentId,
+      deletedDocumentRows: documentIds.length,
+    };
+  }
+
+  /**
    * See DocumentArchiveStatus (src/enum.ts) for the priority rules this
    * implements: REJECTED > FILED_ANNUAL > APPROVED_EXPENSE > IN_PROGRESS.
    */

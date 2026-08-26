@@ -1809,6 +1809,47 @@ export class ExpensesService {
         return await this.expense_repo.find({ where: { supplier: supplier } });
     }
 
+    /**
+     * Resolve the original Drive document behind an approved expense.
+     *
+     * Drive-review approvals intentionally keep provenance in
+     * `sourceDocumentId`; they do not copy a Drive id into `Expense.file`,
+     * because that legacy field contains Firebase Storage paths. Keeping the
+     * lookup here also makes the download endpoint safe: callers can only
+     * resolve an expense owned by their effective (possibly delegated)
+     * client identity, and the source document must belong to the same
+     * business.
+     */
+    async getSourceDocumentForExpense(
+        expenseId: number,
+        userId: string,
+    ): Promise<{ driveFileId: string; driveFileName: string }> {
+        const expense = await this.expense_repo.findOne({
+            where: { id: expenseId, userId },
+        });
+        if (!expense) {
+            throw new NotFoundException(`Expense ${expenseId} not found`);
+        }
+        if (!expense.sourceDocumentId) {
+            throw new NotFoundException(`Expense ${expenseId} has no source document`);
+        }
+
+        const document = await this.extractedDocRepo.findOne({
+            where: {
+                id: expense.sourceDocumentId,
+                businessNumber: expense.businessNumber,
+            },
+        });
+        if (!document?.driveFileId) {
+            throw new NotFoundException(`Source document for expense ${expenseId} not found`);
+        }
+
+        return {
+            driveFileId: document.driveFileId,
+            driveFileName: document.driveFileName,
+        };
+    }
+
     async getExpensesByUserID(
         userId: string,
         startDate?: Date,

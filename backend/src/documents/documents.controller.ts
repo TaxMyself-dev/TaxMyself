@@ -408,4 +408,17 @@ export class DocumentsController {
     return this.documentsService.getArchivedForUser(firebaseId, businessNumber.trim());
   }
 
+  /** Permanently delete an archived inbound expense document. Accountants
+   *  may do this for a delegated client as part of EXPENSES_APPROVE. */
+  @Delete('me/archived/:documentId')
+  @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
+  async deleteMyArchivedDocument(
+    @Req() request: AuthenticatedRequest,
+    @Param('documentId', ParseIntPipe) documentId: number,
+  ) {
+    const firebaseId = request.user?.firebaseId;
+    if (!firebaseId) throw new BadRequestException('Not authenticated');
+    return this.documentsService.deleteArchivedDocument(firebaseId, documentId);
+  }
+
 }

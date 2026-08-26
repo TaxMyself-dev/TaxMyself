@@ -25,6 +25,7 @@ import { BillingModule } from '../billing/billing.module';
 // ExpensesService now posts a journal entry on expense create — needs BookkeepingService.
 import { BookkeepingModule } from '../bookkeeping/bookkeeping.module';
 import { DepreciationModule } from '../depreciation/depreciation.module';
+import { GoogleDriveModule } from '../google-drive/google-drive.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { DepreciationModule } from '../depreciation/depreciation.module';
     BillingModule,
     BookkeepingModule,
     DepreciationModule,
+    GoogleDriveModule,
   ],
   controllers: [ExpensesController],
   providers: [

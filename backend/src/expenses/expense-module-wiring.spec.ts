@@ -3,6 +3,7 @@ import { ExpensesModule } from './expense.module';
 import { ExpensesService } from './expenses.service';
 import { ReportsModule } from '../reports/reports.module';
 import { TransactionsModule } from '../transactions/transactions.module';
+import { GoogleDriveModule } from '../google-drive/google-drive.module';
 
 type ForwardReference = { forwardRef: () => unknown };
 
@@ -42,5 +43,6 @@ describe('ExpensesModule provider wiring', () => {
     ).map(unwrapForwardReference);
 
     expect(imports).not.toContain(undefined);
+    expect(imports).toContain(GoogleDriveModule);
   });
 });

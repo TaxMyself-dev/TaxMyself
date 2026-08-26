@@ -35,6 +35,7 @@ describe('ExpensesController — supplier create/edit scope', () => {
       expensesService as any,
       {} as any,
       { convertStringToDateObject: jest.fn((value) => new Date(value)) } as any,
+      {} as any,
     );
   });
 

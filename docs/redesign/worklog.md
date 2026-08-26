@@ -1974,3 +1974,33 @@ record this instead.
 - Added a centralized metadata audit covering 31 critical operations plus
   restrictive-control cases. Verification: 93 focused Jest tests and the Nest
   backend build passed. No database/schema change is required.
+
+## 2026-08-27 — Approved Drive-document visibility in expenses
+
+- Fixed approved review rows appearing file-less in the bookkeeping expenses
+  table. Review approval stores the source as `expense.sourceDocumentId`, while
+  the table previously recognized only the legacy Firebase `expense.file`
+  path.
+- The table now treats either source as an attachment. Drive-backed documents
+  are streamed through a new authenticated expense endpoint that verifies the
+  effective client's expense ownership and the source document's business
+  before downloading through the server's Drive connection; accountants do
+  not need direct browser access to the client's Drive file.
+- The fallback works for already-approved expenses as well as future ones and
+  preserves the distinct meanings of Firebase file paths and Drive file IDs.
+  Verification: 14 focused Jest tests, Nest build, and Angular development
+  build passed. No database/schema or cutover SQL change is required.
+
+## 2026-08-27 — Permanent document deletion from My archive
+
+- Added a trash action for Drive-backed document rows in "My archive", with
+  an explicit permanent-deletion confirmation and success/error feedback.
+- Deletion is physical-file scoped: the Drive file and all OCR rows sharing
+  its Drive id are removed together. Existing expenses and journal entries
+  are retained; their source pointer, plus slim/pair back-pointers, is cleared
+  transactionally so no broken attachment link remains.
+- The endpoint verifies effective-client ownership and uses
+  `EXPENSES_APPROVE`, allowing an accountant to perform the operation for a
+  delegated client without granting document-issuance authority.
+- Verification: 49 focused Jest tests, Nest build, and Angular development
+  build passed. No database/schema or cutover SQL change is required.

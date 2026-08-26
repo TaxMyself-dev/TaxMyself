@@ -120,6 +120,19 @@ export class DriveDocsService {
     return this.http.get<ArchivedItem[]>(url, { params });
   }
 
+  deleteArchivedDocument(documentId: number): Observable<{
+    ok: true;
+    documentId: number;
+    deletedDocumentRows: number;
+  }> {
+    const url = `${environment.apiUrl}documents/me/archived/${documentId}`;
+    return this.http.delete<{
+      ok: true;
+      documentId: number;
+      deletedDocumentRows: number;
+    }>(url);
+  }
+
   /**
    * Runs Claude OCR on a single uploaded file (PDF/JPEG/PNG/etc) and returns
    * the extracted invoice fields for the manual-expense form to prefill.
