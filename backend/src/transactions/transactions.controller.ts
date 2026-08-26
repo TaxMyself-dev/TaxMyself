@@ -16,6 +16,8 @@ import multer from 'multer';
 import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
 import { SubscriptionGuard } from 'src/guards/subscription.guard';
 import { RequireModule } from 'src/decorators/require-module.decorator';
+import { RequiredDelegationScope } from 'src/decorators/required-delegation-scope.decorator';
+import { DelegationScope } from 'src/delegation/delegation.entity';
 import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.interface';
 import { UserSyncStateService } from './user-sync-state.service';
 import { FeezbackService } from '../feezback/feezback.service';
@@ -680,6 +682,7 @@ export class TransactionsController {
    *   409 — ONE_TIME override confirmation required (classifyWithRule only)
    */
   @Post('classify-trans')
+  @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
   @UseGuards(FirebaseAuthGuard)
   async classifyTransaction(
     @Req() request: AuthenticatedRequest,
@@ -776,6 +779,7 @@ export class TransactionsController {
    * Delegates to classifyManually() with ONE_TIME classification.
    */
   @Post('quick-classify')
+  @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
   @UseGuards(FirebaseAuthGuard)
   async quickClassifyTransaction(
     @Req() request: AuthenticatedRequest,
@@ -832,6 +836,7 @@ export class TransactionsController {
   // ---------------------------------------------------------------------------
 
   @Patch('update-trans')
+  @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
   @UseGuards(FirebaseAuthGuard)
   async updateTransaction(
     @Req() request: AuthenticatedRequest,
@@ -879,6 +884,7 @@ export class TransactionsController {
 
 
   @Post('save-trans-to-expenses')
+  @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
   @UseGuards(FirebaseAuthGuard)
   async saveTransToExpenses(
     @Req() request: AuthenticatedRequest,

@@ -17,6 +17,8 @@ import { ActivateClientBookingAccountDto } from './dto/activate-booking-account.
 import { UpdateAccountDto } from './dto/update-account.dto';
 import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.interface';
 import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
+import { RequiredDelegationScope } from 'src/decorators/required-delegation-scope.decorator';
+import { DelegationScope } from 'src/delegation/delegation.entity';
 import { OwnerType, VisibilityScope } from 'src/enum';
 
 /**
@@ -128,6 +130,7 @@ export class AccountantBookingAccountsController {
    * correct allow-list to pass in.
    */
   @Patch(':id')
+  @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
   @UseGuards(FirebaseAuthGuard)
   async update(
     @Req() request: AuthenticatedRequest,
@@ -177,6 +180,7 @@ export class AccountantBookingAccountsController {
    * restricted to owned rows.
    */
   @Patch(':id/deactivate')
+  @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
   @UseGuards(FirebaseAuthGuard)
   async deactivate(
     @Req() request: AuthenticatedRequest,
@@ -198,6 +202,7 @@ export class AccountantBookingAccountsController {
    *  with accountantId=creator (D4: "creator when accountant created for a
    *  client"), mirroring POST /bookkeeping/accounts' CURRENT_CLIENT branch. */
   @Post('activate')
+  @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
   @UseGuards(FirebaseAuthGuard)
   async activate(
     @Req() request: AuthenticatedRequest,

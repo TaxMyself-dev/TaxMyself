@@ -15,6 +15,8 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
+import { RequiredDelegationScope } from 'src/decorators/required-delegation-scope.decorator';
+import { DelegationScope } from 'src/delegation/delegation.entity';
 import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.interface';
 import { AnnualReportService } from './annual-report.service';
 import { GetOrCreateAnnualReportDto } from './dtos/get-or-create.dto';
@@ -84,6 +86,7 @@ export class AnnualReportController {
   }
 
   @Patch(':id/reported')
+  @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
   async setReported(
     @Req() request: AuthenticatedRequest,
     @Param('id') id: string,

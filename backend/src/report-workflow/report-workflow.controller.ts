@@ -17,6 +17,8 @@ import {
 } from '@nestjs/common';
 import { Response } from 'express';
 import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
+import { RequiredDelegationScope } from 'src/decorators/required-delegation-scope.decorator';
+import { DelegationScope } from 'src/delegation/delegation.entity';
 import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.interface';
 import { ReportWorkflowService } from './report-workflow.service';
 import { ListWorkflowsDto } from './dtos/list-workflows.dto';
@@ -93,6 +95,7 @@ export class ReportWorkflowController {
 
   /** Accountant marks the workflow as reported (or unmarks it). */
   @Patch(':id/reported')
+  @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
   async setReported(
     @Req() request: AuthenticatedRequest,
     @Param('id') id: string,

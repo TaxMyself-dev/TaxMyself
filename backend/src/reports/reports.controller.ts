@@ -456,6 +456,7 @@ export class ReportsController {
      * unlike the compatibility GET above, this operation can write journals.
      */
     @Post('pnl-report-journal/prepare')
+    @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
     @UseGuards(FirebaseAuthGuard)
     @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
     async preparePnLReportFromJournal(
@@ -504,6 +505,7 @@ export class ReportsController {
      * "ייצא כ-PDF" button.
      */
     @Get('pnl-report-pdf')
+    @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
     @UseGuards(FirebaseAuthGuard)
     async getPnlReportPdf(
         @Req() request: AuthenticatedRequest,
@@ -601,6 +603,7 @@ export class ReportsController {
      * the matching period label. Idempotent — already-locked rows stay locked.
      */
     @Post('mark-submitted')
+    @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
     @UseGuards(FirebaseAuthGuard)
     async markSubmitted(
         @Req() request: AuthenticatedRequest,
@@ -638,6 +641,7 @@ export class ReportsController {
     @RequireModule(ModuleName.INVOICES)
     @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
     @Post('create-uniform-file')
+    @RequiredDelegationScope(DelegationScope.DOCUMENTS_READ)
     async getHelloWorldZip(
         @Req() request: AuthenticatedRequest,
         @Body() body: any,

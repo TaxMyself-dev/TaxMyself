@@ -8,6 +8,8 @@ import { UpdateAccountDto } from './dto/update-account.dto';
 import { RepointSubCategoryAccountDto } from './dto/repoint-sub-category-account.dto';
 import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.interface';
 import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
+import { RequiredDelegationScope } from 'src/decorators/required-delegation-scope.decorator';
+import { DelegationScope } from 'src/delegation/delegation.entity';
 import { OwnerType, RecognitionType, VisibilityScope } from 'src/enum';
 
 
@@ -28,6 +30,7 @@ export class BookkepingController {
    * scoping is Phase 5.1/5.2).
    */
   @Patch('sub-categories/:id/account')
+  @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
   @UseGuards(FirebaseAuthGuard)
   async repointSubCategoryAccount(
     @Req() request: AuthenticatedRequest,
@@ -50,10 +53,11 @@ export class BookkepingController {
    * Phase 5.2 (D11): accountant "add account" — a booking_account carrying
    * the full accounting law + (unless technicalOnly) a paired same-named
    * sub_category, created atomically. Actor-gated to ACCOUNTANT/ADMIN roles;
-   * "current client only" additionally rides the delegation guard (the
-   * impersonation write already required DOCUMENTS_WRITE, D12.2).
+   * "current client only" additionally rides the delegation guard and the
+   * accountant's mandatory EXPENSES_APPROVE authority.
    */
   @Post('accounts')
+  @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
   @UseGuards(FirebaseAuthGuard)
   async createAccount(
     @Req() request: AuthenticatedRequest,
@@ -263,6 +267,7 @@ export class BookkepingController {
   /** Manual, single-sided journal entry (no counter-account) — for cases the
    *  automatic EXPENSE/document postings don't cover. */
   @Post('manual-journal-entry')
+  @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
   @UseGuards(FirebaseAuthGuard)
   async createManualJournalEntry(
     @Req() request: AuthenticatedRequest,
@@ -278,6 +283,7 @@ export class BookkepingController {
   /** Atomic batch version — the frontend's list-of-entries modal uses this one.
    *  Kept alongside the singular endpoint above for backward compatibility. */
   @Post('manual-journal-entries')
+  @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
   @UseGuards(FirebaseAuthGuard)
   async createManualJournalEntries(
     @Req() request: AuthenticatedRequest,

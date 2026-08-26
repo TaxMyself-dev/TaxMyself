@@ -37,6 +37,7 @@ export class ExpensesController {
 
 
   @Post('add-expense')
+  @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
   @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
   async addExpense(
     @Req() request: AuthenticatedRequest,
@@ -49,6 +50,7 @@ export class ExpensesController {
 
 
   @Post('bulk-confirm-from-drive')
+  @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
   @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
   async bulkConfirmFromDrive(
     @Req() request: AuthenticatedRequest,
@@ -76,6 +78,7 @@ export class ExpensesController {
    * heuristic (see service comment for the tradeoff).
    */
   @Post('check-duplicates-from-drive')
+  @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
   @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
   async checkDuplicatesFromDrive(
     @Req() request: AuthenticatedRequest,
@@ -94,6 +97,7 @@ export class ExpensesController {
    *  card law only. Stamps classificationOverrideByUserId with the ACTOR's
    *  own id (the accountant's, not the impersonated client's). */
   @Patch(':id/reclassify')
+  @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
   @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
   async reclassifyExpense(
     @Req() request: AuthenticatedRequest,
@@ -108,6 +112,7 @@ export class ExpensesController {
   /** Phase 4.2 (D10): mapping-only override — keep the sub_category, point
    *  the accounting snapshots at an explicitly-chosen card. */
   @Patch(':id/override-mapping')
+  @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
   @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
   async overrideExpenseMapping(
     @Req() request: AuthenticatedRequest,
@@ -123,6 +128,7 @@ export class ExpensesController {
    *  mapping. applyToFuture=true repoints the sub_category (future expenses
    *  follow) and re-resolves this expense; false = one-off override only. */
   @Post(':id/complete-mapping')
+  @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
   @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
   async completeExpenseMapping(
     @Req() request: AuthenticatedRequest,
@@ -135,6 +141,7 @@ export class ExpensesController {
   }
 
   @Patch('update-expense/:id')
+  @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
   @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
   async updateExpense(
     @Req() request: AuthenticatedRequest,
@@ -216,6 +223,7 @@ export class ExpensesController {
 
 
   @Patch('add-file-to-expense')
+  @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
   @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
   async addFileToExpense(
     @Req() request: AuthenticatedRequest,
@@ -227,6 +235,7 @@ export class ExpensesController {
   }
 
   @Patch('delete-file-from-expense/:id')
+  @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
   @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
   async deleteFileFromExpense(
     @Req() request: AuthenticatedRequest,

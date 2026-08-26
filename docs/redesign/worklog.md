@@ -1959,3 +1959,18 @@ record this instead.
 - Elazar confirmed in the running application that both the P&L depreciation
   preparation fix and the equipment/depreciation-rate expense-list display
   work as intended. The verified changes were approved for local commit.
+
+## 2026-08-26 — Delegated accountant critical-action scope audit
+
+- Reclassified critical accountant-on-behalf-of-client operations from the
+  generic `DOCUMENTS_WRITE` fallback to the mandatory `EXPENSES_APPROVE`
+  authority: inbound expense documents, expense creation/classification and
+  mapping, client/accountant bookkeeping cards, manual journal entries,
+  transaction classification, P&L depreciation preparation, and report status
+  actions. Uniform-file export is explicitly `DOCUMENTS_READ`.
+- Kept document issuance, client/business identity changes, billing/integration
+  ownership actions, and unapproved destructive deletes on their restrictive
+  defaults.
+- Added a centralized metadata audit covering 31 critical operations plus
+  restrictive-control cases. Verification: 93 focused Jest tests and the Nest
+  backend build passed. No database/schema change is required.
