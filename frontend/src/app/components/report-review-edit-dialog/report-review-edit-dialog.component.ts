@@ -63,7 +63,28 @@ export class ReportReviewEditDialogComponent {
   @Input() visible = false;
   /** Two-column (with document preview) vs single full-width column. */
   @Input() hasDocument = false;
-  @Input() driveFileId: string | null = null;
+  private currentDriveFileId: string | null = null;
+  previewUrl: SafeResourceUrl | null = null;
+
+  /**
+   * Cache the trusted URL until the actual Drive file changes. Calling a
+   * sanitizer method directly from the template creates a new SafeValue on
+   * every change-detection pass; Angular then writes iframe.src again and
+   * Google Drive reloads the PDF in a loop.
+   */
+  @Input()
+  set driveFileId(value: string | null) {
+    if (value === this.currentDriveFileId) return;
+    this.currentDriveFileId = value;
+    this.previewUrl = value
+      ? this.sanitizer.bypassSecurityTrustResourceUrl(
+          `https://drive.google.com/file/d/${value}/preview`,
+        )
+      : null;
+  }
+  get driveFileId(): string | null {
+    return this.currentDriveFileId;
+  }
   @Input() driveFileName = '';
   @Input() titleLabel = '';
   @Input() viewMode: 'regular' | 'professional' = 'regular';
@@ -91,13 +112,6 @@ export class ReportReviewEditDialogComponent {
    *  (vatPercent, taxPercent, date, amount, supplierId, supplier,
    *  allocationNumber, documentType). */
   @Output() fieldsChange = new EventEmitter<Partial<ExpenseEditFieldValues>>();
-
-  previewUrl(): SafeResourceUrl | null {
-    if (!this.driveFileId) return null;
-    return this.sanitizer.bypassSecurityTrustResourceUrl(
-      `https://drive.google.com/file/d/${this.driveFileId}/preview`,
-    );
-  }
 
   onPeriodPicked(value: string): void {
     const opt = this.periodOptions.find(o => o.value === value);

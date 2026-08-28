@@ -75,7 +75,7 @@ export class AuthInterceptor implements HttpInterceptor {
         if (token && !req.headers.has('Authorization')) {
           headers['Authorization'] = `Bearer ${token}`;
         }
-        if (businessNumber) {
+        if (businessNumber && !req.headers.has('businessnumber')) {
           if (isHeaderSafe(businessNumber)) {
             headers['businessnumber'] = businessNumber;
           } else {
@@ -86,7 +86,11 @@ export class AuthInterceptor implements HttpInterceptor {
           }
         }
         /** כשהרואה חשבון צופה בלקוח – כל הבקשות עם מזהה הלקוח כדי להציג את נתוניו */
-        if (clientId) {
+        // A page that acts on one specific client row (without globally
+        // entering that client's account) may provide its own explicit
+        // x-client-user-id. Preserve it instead of replacing it with any
+        // stale/global impersonation context.
+        if (clientId && !req.headers.has('x-client-user-id')) {
           headers['x-client-user-id'] = clientId;
         }
 

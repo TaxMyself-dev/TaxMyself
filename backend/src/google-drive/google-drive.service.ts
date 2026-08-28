@@ -479,12 +479,28 @@ export class GoogleDriveService {
   }
 
   /**
-   * Permanently delete a Drive file. Used by the demo-data reset endpoint
-   * to wipe a demo user's Drive folders before re-uploading the canned
+   * Permanently delete a Drive file. Binary uploads are owned by the system
+   * OAuth account, with a service-account fallback for legacy files.
    * test samples. Idempotent against 404 — if Drive can't find the file
    * we treat it as already-gone.
    */
   async deleteFile(fileId: string): Promise<void> {
+    let systemError: any;
+
+    try {
+      const drive = this.getSystemDrive();
+      await drive.files.delete({ fileId, supportsAllDrives: true });
+      return;
+    } catch (error: any) {
+      const status = error?.code ?? error?.response?.status;
+      if (status === 404) return;
+      systemError = error;
+      this.logger.warn(
+        `deleteFile system-account attempt failed for fileId=${fileId}; ` +
+          `trying service-account fallback: ${this.describeDriveError(error)}`,
+      );
+    }
+
     try {
       const { drive } = this.getDrive();
       await drive.files.delete({ fileId, supportsAllDrives: true });
@@ -492,7 +508,9 @@ export class GoogleDriveService {
       const status = error?.code ?? error?.response?.status;
       if (status === 404) return;
       this.logger.error(
-        `deleteFile failed for fileId=${fileId}: ${error?.message ?? error}`,
+        `deleteFile failed for fileId=${fileId}: ` +
+          `system=[${this.describeDriveError(systemError)}] ` +
+          `service=[${this.describeDriveError(error)}]`,
         (error as Error)?.stack,
       );
       throw new InternalServerErrorException('Failed to delete Drive file');

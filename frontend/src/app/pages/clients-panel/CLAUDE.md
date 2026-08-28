@@ -7,7 +7,7 @@ Accountant-facing panel: manage the list of clients (create/delete, drill into a
 - Depends on `ClientPanelService` (`src/app/services/clients-panel.service.ts` — `Client`, `CreateClientPayload` types), `TaskDataService`, `ReportWorkflowService`, `AuthService`.
 
 ## Main flows
-- Fetch and list clients grouped by user with their linked businesses (`groupedClients`); create a new client (`submitCreateClient`) or remove a client link (`confirmDeleteClient`/`deleteClient`).
+- Fetch and list clients grouped by user with their linked businesses (`groupedClients`); create a new client (`submitCreateClient`) or remove a client link (`confirmDeleteClient`/`deleteClient`). Each business row has its own Drive-upload action, passing both that business's `businessNumber` and its owner's firebase id explicitly to the shared quick-upload dialog.
 - "Enter" a client's account (impersonation-like view-as) — sets selected client + active business number, then navigates to `/my-account`.
 - Tasks tab: fetch/filter accountant tasks by status/business/type/year, add a manual task, toggle completion, delete/hide auto-generated tasks, manually trigger the periodic task generator (`runGeneration`).
 - For report-workflow-backed tasks (VAT/advance-tax/annual): mark/unmark as "reported", view the stored report file, or jump into the client's `/annual-report` page.

@@ -408,8 +408,9 @@ export class DocumentsController {
     return this.documentsService.getArchivedForUser(firebaseId, businessNumber.trim());
   }
 
-  /** Permanently delete an archived inbound expense document. Accountants
-   *  may do this for a delegated client as part of EXPENSES_APPROVE. */
+  /** Soft-delete an archived inbound expense document. The Drive file and
+   *  accounting links remain intact. Accountants may do this for a delegated
+   *  client as part of EXPENSES_APPROVE. */
   @Delete('me/archived/:documentId')
   @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
   async deleteMyArchivedDocument(

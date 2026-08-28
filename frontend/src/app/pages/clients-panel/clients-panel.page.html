@@ -410,12 +410,13 @@
                         <td>{{ biz.nationalInsRequired ? 'חייב' : 'לא חייב' }}</td>
                         <td>{{ vatReportingTypeLabel(biz.vatReportingType) }}</td>
                         <td>{{ taxReportingTypeLabel(biz.taxReportingType) }}</td>
-                        @if (first) {
-                          <td class="cell-actions" [attr.rowspan]="group.businesses.length">
-                            <button type="button" class="btn-enter-client" (click)="enterClient(group.user)" title="כניסה לחשבון הלקוח" aria-label="כניסה לחשבון הלקוח"><i class="pi pi-arrow-left"></i></button>
+                        <td class="cell-actions">
+                            <button type="button" class="btn-upload-drive" (click)="openBusinessDriveUpload(group.user, biz)" title="העלאת מסמכים ל-Drive של העסק" aria-label="העלאת מסמכים ל-Drive של העסק"><i class="pi pi-upload"></i></button>
+                            <button type="button" class="btn-enter-client" (click)="enterClientBusiness(group.user, biz)" title="כניסה לעסק" aria-label="כניסה לעסק"><i class="pi pi-arrow-left"></i></button>
+                          @if (first) {
                             <button type="button" class="btn-delete-client" (click)="confirmDeleteClient(group.user)" title="מחיקת לקוח" aria-label="מחיקת לקוח"><i class="pi pi-trash"></i></button>
-                          </td>
-                        }
+                          }
+                        </td>
                       </tr>
                     }
                   }

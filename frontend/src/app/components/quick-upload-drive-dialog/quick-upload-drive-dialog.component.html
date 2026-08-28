@@ -1,4 +1,10 @@
 <div class="quick-upload" dir="rtl">
+  @if (fixedBusinessNumber) {
+    <div class="quick-upload__fixed-business">
+      העלאה לעסק: <strong>{{ fixedBusinessName }}</strong>
+      <span>({{ fixedBusinessNumber }})</span>
+    </div>
+  }
   @if (showBusinessSelector()) {
     <app-input-select
       [customStyle]="'register'"

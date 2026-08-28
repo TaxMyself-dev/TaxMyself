@@ -2004,3 +2004,49 @@ record this instead.
   delegated client without granting document-issuance authority.
 - Verification: 49 focused Jest tests, Nest build, and Angular development
   build passed. No database/schema or cutover SQL change is required.
+
+## 2026-08-27 — Stable PDF preview in expense-review edit dialog
+
+- Fixed the Drive PDF preview repeatedly reloading/jumping inside "Edit
+  expense". The template previously called a sanitizer method on every
+  Angular change-detection pass, producing a new `SafeResourceUrl` identity
+  and causing `iframe.src` to be rewritten continuously.
+- The component now caches the trusted preview URL and replaces it only when
+  the `driveFileId` input actually changes. No schema change is required.
+
+## 2026-08-27 — Per-business Drive upload from accountant office
+
+- Added a Drive-upload action to every business row in the accountant's
+  clients tab. Multi-business clients therefore get one independently scoped
+  action per business rather than a user-level action with ambiguous routing.
+- Reused the quick-upload dialog in a fixed-business mode. The request sends
+  the client's firebase id explicitly in `x-client-user-id` and the selected
+  business number explicitly in both the request header and multipart body;
+  it does not depend on the accountant's own business list or global
+  active-business state.
+- The auth interceptor now preserves an explicit per-request client header,
+  and entering a client from a business row also selects that exact business.
+  No database/schema change is required.
+
+## 2026-08-28 — Archive deletion uses the Drive file owner
+
+- Fixed permanent archive deletion for files uploaded by the KeepInTax system
+  OAuth account. Uploads are owned by `app@keepintax.co.il`, but deletion had
+  incorrectly used the service account, which only had writer access and
+  received `403 insufficient permissions` from Drive.
+- Deletion now uses the system OAuth client first and falls back to the service
+  account for legacy files. A 404 from either identity remains an idempotent
+  success, while a real double failure logs both Drive errors.
+- No database/schema change is required.
+
+## 2026-08-28 — Archive soft deletion and deleted-items filter
+
+- Changed the archive trash action from physical deletion to a file-scoped
+  soft delete. Every OCR row sharing the selected Drive file is marked with
+  `extracted_document.status = deleted`; the Drive file, expense and journal
+  records, source-document link, transaction match and pairing links remain.
+- The normal archive view now excludes deleted documents. The status filter
+  has a dedicated "נמחק" option that reveals them, retains the preview action
+  and omits the trash action to prevent repeated deletion.
+- `extracted_document.status` is already a VARCHAR, so no database/schema or
+  cutover SQL change is required.

@@ -1,9 +1,10 @@
 import { HttpException, NotFoundException } from '@nestjs/common';
 import { In } from 'typeorm';
 import { DocumentsService } from './documents.service';
-import { ExtractedDocument } from './extracted-document.entity';
+import { ExtractedDocument, ExtractedDocStatus } from './extracted-document.entity';
 import { Expense } from '../expenses/expenses.entity';
 import { SlimTransaction } from '../transactions/slim-transaction.entity';
+import { ArchiveItemStatus, DocumentArchiveStatus } from '../enum';
 
 describe('DocumentsService.deleteArchivedDocument', () => {
   function subject(options: {
@@ -24,6 +25,7 @@ describe('DocumentsService.deleteArchivedDocument', () => {
         { id: 10, userId: 7, driveFileId: 'drive-1' },
         { id: 11, userId: 7, driveFileId: 'drive-1' },
       ]),
+      update: jest.fn().mockResolvedValue({ affected: 2 }),
     };
     const expenseRepo = { update: jest.fn().mockResolvedValue({ affected: 1 }) };
     const slimRepo = { update: jest.fn().mockResolvedValue({ affected: 1 }) };
@@ -68,7 +70,7 @@ describe('DocumentsService.deleteArchivedDocument', () => {
     };
   }
 
-  it('deletes the physical file and every OCR row that shares it without deleting expenses', async () => {
+  it('soft-deletes every OCR row that shares the file without deleting Drive or accounting data', async () => {
     const test = subject();
 
     await expect(test.run()).resolves.toEqual({
@@ -76,22 +78,27 @@ describe('DocumentsService.deleteArchivedDocument', () => {
       documentId: 10,
       deletedDocumentRows: 2,
     });
-    expect(test.googleDriveService.deleteFile).toHaveBeenCalledWith('drive-1');
-    expect(test.expenseRepo.update).toHaveBeenCalledWith(
-      { sourceDocumentId: In([10, 11]) },
-      { sourceDocumentId: null },
+    expect(test.extractedDocRepo.update).toHaveBeenCalledWith(
+      { id: In([10, 11]) },
+      { status: ExtractedDocStatus.DELETED },
     );
-    expect(test.slimRepo.update).toHaveBeenCalledWith(
-      { matchedDocumentId: In([10, 11]) },
-      { matchedDocumentId: null },
+    expect(test.googleDriveService.deleteFile).not.toHaveBeenCalled();
+    expect(test.dataSource.transaction).not.toHaveBeenCalled();
+  });
+
+  it('maps the persisted deleted state to the archive deleted filter status', () => {
+    const archiveStatus = (DocumentsService.prototype as any).deriveArchiveStatus.call(
+      {},
+      { status: ExtractedDocStatus.DELETED, confirmedExpenseId: null },
+      new Map(),
     );
-    expect(test.transactionalDocRepo.update).toHaveBeenCalledWith(
-      { pairedWithDocumentId: In([10, 11]) },
-      { pairedWithDocumentId: null },
+    const displayStatus = (DocumentsService.prototype as any).simplifyDocStatus.call(
+      {},
+      archiveStatus,
     );
-    expect(test.transactionalDocRepo.delete).toHaveBeenCalledWith({
-      id: In([10, 11]),
-    });
+
+    expect(archiveStatus).toBe(DocumentArchiveStatus.DELETED);
+    expect(displayStatus).toBe(ArchiveItemStatus.DELETED);
   });
 
   it('does not allow deleting another user’s archived file', async () => {

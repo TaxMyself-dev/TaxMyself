@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from 'src/environments/environment';
 
@@ -52,7 +52,7 @@ export type RecordSource = 'DRIVE' | 'MANUAL' | 'OPEN_BANKING' | 'WHATSAPP';
 
 /** Simplified 3-state status for the ארכיון שלי page — see
  *  `ArchiveItemStatus` in the backend's `src/enum.ts`. */
-export type ArchiveItemStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+export type ArchiveItemStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'DELETED';
 
 /** A row on the ארכיון שלי (unified archive) page — `GET /documents/me/archived`.
  *  DOCUMENT rows come from an uploaded/OCR'd document; EXPENSE rows are a
@@ -151,11 +151,19 @@ export class DriveDocsService {
    * folder — no OCR, just storage. Used by the settings-page "upload docs
    * to Drive" button.
    */
-  uploadFilesToInbox(files: File[], businessNumber: string): Observable<{ fileId: string; fileName: string }[]> {
+  uploadFilesToInbox(
+    files: File[],
+    businessNumber: string,
+    clientUserId?: string,
+  ): Observable<{ fileId: string; fileName: string }[]> {
     const url = `${environment.apiUrl}documents/me/upload-to-inbox`;
     const form = new FormData();
     files.forEach(file => form.append('files', file, file.name));
     form.append('businessNumber', businessNumber);
-    return this.http.post<{ fileId: string; fileName: string }[]>(url, form);
+    let headers = new HttpHeaders({ businessnumber: businessNumber });
+    if (clientUserId) {
+      headers = headers.set('x-client-user-id', clientUserId);
+    }
+    return this.http.post<{ fileId: string; fileName: string }[]>(url, form, { headers });
   }
 }

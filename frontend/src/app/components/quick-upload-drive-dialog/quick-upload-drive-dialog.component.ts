@@ -2,7 +2,7 @@ import { CommonModule } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MessageService } from 'primeng/api';
-import { DynamicDialogRef } from 'primeng/dynamicdialog';
+import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 import { finalize } from 'rxjs';
 import { ButtonComponent } from 'src/app/components/button/button.component';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
@@ -33,6 +33,7 @@ import { inputsSize } from 'src/app/shared/enums';
 export class QuickUploadDriveDialogComponent {
   private readonly fb = inject(FormBuilder);
   private readonly dialogRef = inject(DynamicDialogRef);
+  private readonly dialogConfig = inject(DynamicDialogConfig);
   private readonly driveDocsService = inject(DriveDocsService);
   private readonly messageService = inject(MessageService);
   readonly genericService = inject(GenericService);
@@ -41,17 +42,30 @@ export class QuickUploadDriveDialogComponent {
   readonly buttonColor = ButtonColor;
   readonly inputSize = inputsSize;
 
+  /** Optional accountant-panel context. When present the dialog is locked
+   *  to this exact client business instead of reading the signed-in user's
+   *  own business selector. */
+  readonly fixedBusinessNumber: string | null =
+    this.dialogConfig.data?.businessNumber?.trim() || null;
+  readonly fixedBusinessName: string =
+    this.dialogConfig.data?.businessName?.trim() || this.fixedBusinessNumber || '';
+  private readonly clientUserId: string | undefined =
+    this.dialogConfig.data?.clientUserId?.trim() || undefined;
+
   readonly selectedFiles = signal<File[]>([]);
   readonly isUploading = signal(false);
 
   readonly businessOptions = this.genericService.businessSelectItems;
-  readonly showBusinessSelector = computed(() => this.businessOptions().length > 1);
+  readonly showBusinessSelector = computed(
+    () => !this.fixedBusinessNumber && this.businessOptions().length > 1,
+  );
 
   /** Tracked as a signal so Upload-button enablement reacts to selection. */
   readonly selectedBusinessNumber = signal<string | null>(
-    this.businessOptions().length === 1
+    this.fixedBusinessNumber
+      ?? (this.businessOptions().length === 1
       ? String(this.businessOptions()[0].value)
-      : null,
+      : null),
   );
 
   readonly form: FormGroup = this.fb.group({
@@ -104,7 +118,11 @@ export class QuickUploadDriveDialogComponent {
     }
     this.isUploading.set(true);
 
-    this.driveDocsService.uploadFilesToInbox(files, businessNumber).pipe(
+    this.driveDocsService.uploadFilesToInbox(
+      files,
+      businessNumber,
+      this.clientUserId,
+    ).pipe(
       finalize(() => this.isUploading.set(false)),
     ).subscribe({
       next: (uploaded) => {

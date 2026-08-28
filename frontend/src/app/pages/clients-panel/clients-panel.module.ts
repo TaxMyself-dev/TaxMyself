@@ -10,6 +10,7 @@ import { ToastModule } from 'primeng/toast';
 import { TabViewModule } from 'primeng/tabview';
 import { MessageService } from 'primeng/api';
 import { ButtonComponent } from '../../components/button/button.component';
+import { DialogService, DynamicDialogModule } from 'primeng/dynamicdialog';
 
 @NgModule({
   imports: [
@@ -23,8 +24,9 @@ import { ButtonComponent } from '../../components/button/button.component';
     ToastModule,
     TabViewModule,
     ButtonComponent,
+    DynamicDialogModule,
   ],
   declarations: [ClientPanelPage],
-  providers: [MessageService],
+  providers: [MessageService, DialogService],
 })
 export class ClientPanelPageModule {}

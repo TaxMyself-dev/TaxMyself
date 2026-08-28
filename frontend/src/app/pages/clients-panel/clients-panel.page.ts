@@ -1,5 +1,6 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
+import { DialogService } from 'primeng/dynamicdialog';
 import { ClientPanelService, Client, CreateClientPayload } from 'src/app/services/clients-panel.service';
 import { ReferralService } from 'src/app/services/referral.service';
 import { AuthService } from 'src/app/services/auth.service';
@@ -34,6 +35,7 @@ import {
   ICreateAccountPayload,
 } from 'src/app/services/bookkeeping-catalog.service';
 import { ReportWorkflowService } from 'src/app/services/report-workflow.service';
+import { QuickUploadDriveDialogComponent } from 'src/app/components/quick-upload-drive-dialog/quick-upload-drive-dialog.component';
 import {
   IAccountantTask,
   ICreateAccountantTask,
@@ -93,6 +95,7 @@ export class ClientPanelPage implements OnInit {
   private readonly taskDataService = inject(TaskDataService);
   private readonly workflowService = inject(ReportWorkflowService);
   private readonly catalogService = inject(BookkeepingCatalogService);
+  private readonly dialogService = inject(DialogService);
 
   readonly ButtonColor = ButtonColor;
   readonly ButtonSize = ButtonSize;
@@ -351,6 +354,47 @@ export class ClientPanelPage implements OnInit {
     this.clientService.setSelectedClient(client.id, client.fullName);
     this.authService.setActiveBusinessNumber(client.businessNumber ?? null);
     this.router.navigate(['/my-account']);
+  }
+
+  /** Enter one exact business from a multi-business client row. */
+  enterClientBusiness(client: Client, business: Client): void {
+    this.clientService.setSelectedClient(client.id, client.fullName);
+    this.authService.setActiveBusinessNumber(business.businessNumber ?? null);
+    this.router.navigate(['/my-account']);
+  }
+
+  /** Upload evidence directly to the selected business's Drive inbox. Both
+   *  ownership axes are explicit: client firebaseId in the request header,
+   *  businessNumber in the multipart body. No global selected-business state
+   *  is consulted by the upload itself. */
+  openBusinessDriveUpload(client: Client, business: Client): void {
+    const businessNumber = business.businessNumber?.trim();
+    if (!businessNumber) {
+      this.messageService.add({
+        severity: 'warn',
+        summary: 'אין מספר עסק',
+        detail: 'לא ניתן להעלות מסמכים לעסק ללא מספר עסק.',
+        life: 3000,
+        key: 'br',
+      });
+      return;
+    }
+
+    this.dialogService.open(QuickUploadDriveDialogComponent, {
+      header: `העלאת מסמכים ל-Drive — ${business.businessName || businessNumber}`,
+      width: '480px',
+      style: { maxWidth: '95vw' },
+      rtl: true,
+      closable: true,
+      dismissableMask: true,
+      modal: true,
+      focusOnShow: false,
+      data: {
+        clientUserId: client.id,
+        businessNumber,
+        businessName: business.businessName || businessNumber,
+      },
+    });
   }
 
   /** מחיקת לקוח מהרשימה (הסרת הקישור בלבד) */

@@ -3670,14 +3670,13 @@ ${finalOwnerName}`;
   }
 
   /**
-   * Permanently delete one physical Drive file selected in "My archive".
-   * A multi-invoice upload can have several ExtractedDocument rows sharing
-   * the same driveFileId, so deletion is file-scoped rather than row-scoped.
+   * Soft-delete one Drive-backed document from "My archive". A multi-invoice
+   * upload can have several ExtractedDocument rows sharing one driveFileId,
+   * so the status change is physical-file scoped rather than row scoped.
    *
-   * Existing Expenses and journal entries are accounting records and are
-   * never deleted here. Their sourceDocumentId is cleared so the expenses
-   * screen does not advertise an attachment that no longer exists. The same
-   * applies to slim/pair back-pointers before the extracted rows are removed.
+   * The Drive file, OCR rows, accounting records and every link between them
+   * are retained. The default archive view hides DELETED rows; users can
+   * still select the deleted-status filter and preview the retained file.
    */
   async deleteArchivedDocument(
     firebaseId: string,
@@ -3703,27 +3702,10 @@ ${finalOwnerName}`;
       throw new NotFoundException(`No document rows found for Drive file`);
     }
 
-    // Delete the physical file first. GoogleDriveService treats 404 as an
-    // idempotent success, so a rare DB failure can be repaired by retrying.
-    await this.googleDriveService.deleteFile(selected.driveFileId);
-
-    await this.dataSource.transaction(async manager => {
-      await manager.getRepository(Expense).update(
-        { sourceDocumentId: In(documentIds) },
-        { sourceDocumentId: null },
-      );
-      await manager.getRepository(SlimTransaction).update(
-        { matchedDocumentId: In(documentIds) },
-        { matchedDocumentId: null },
-      );
-      await manager.getRepository(ExtractedDocument).update(
-        { pairedWithDocumentId: In(documentIds) },
-        { pairedWithDocumentId: null },
-      );
-      await manager.getRepository(ExtractedDocument).delete({
-        id: In(documentIds),
-      });
-    });
+    await this.extractedDocRepo.update(
+      { id: In(documentIds) },
+      { status: ExtractedDocStatus.DELETED },
+    );
 
     return {
       ok: true,
@@ -3734,12 +3716,13 @@ ${finalOwnerName}`;
 
   /**
    * See DocumentArchiveStatus (src/enum.ts) for the priority rules this
-   * implements: REJECTED > FILED_ANNUAL > APPROVED_EXPENSE > IN_PROGRESS.
+   * implements: DELETED > REJECTED > FILED_ANNUAL > APPROVED_EXPENSE > IN_PROGRESS.
    */
   private deriveArchiveStatus(
     doc: ExtractedDocument,
     approvalStatusByExpenseId: Map<number, ExpenseApprovalStatus | null>,
   ): DocumentArchiveStatus {
+    if (doc.status === ExtractedDocStatus.DELETED) return DocumentArchiveStatus.DELETED;
     if (doc.status === ExtractedDocStatus.REJECTED) return DocumentArchiveStatus.REJECTED;
     if (doc.status === ExtractedDocStatus.NOT_AN_EXPENSE) return DocumentArchiveStatus.FILED_ANNUAL;
     const linkedApprovalStatus = doc.confirmedExpenseId != null
@@ -3749,8 +3732,9 @@ ${finalOwnerName}`;
     return DocumentArchiveStatus.IN_PROGRESS;
   }
 
-  /** Folds the 4-state DocumentArchiveStatus into the archive page's 3-state vocabulary. */
+  /** Folds DocumentArchiveStatus into the archive page's display vocabulary. */
   private simplifyDocStatus(archiveStatus: DocumentArchiveStatus): ArchiveItemStatus {
+    if (archiveStatus === DocumentArchiveStatus.DELETED) return ArchiveItemStatus.DELETED;
     if (archiveStatus === DocumentArchiveStatus.REJECTED) return ArchiveItemStatus.REJECTED;
     if (
       archiveStatus === DocumentArchiveStatus.APPROVED_EXPENSE

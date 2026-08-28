@@ -12,6 +12,7 @@ import { ConfirmationService, MessageService } from 'primeng/api';
 
 /** Hebrew labels for `ArchiveItemStatus` (see backend `src/enum.ts`). */
 export const ARCHIVE_STATUS_LABELS: Record<ArchiveItemStatus, string> = {
+  DELETED: 'נמחק',
   PENDING: 'ממתין לאישור',
   APPROVED: 'אושר',
   REJECTED: 'נדחה',
@@ -113,7 +114,9 @@ export class ArchivedDocumentsPage implements OnInit {
     const status = this.selectedStatus();
     const docType = this.selectedDocumentType();
     return this.rawItems()
-      .filter(item => !status || item.status === status)
+      // "All" means the normal archive. Soft-deleted documents are opt-in
+      // through the explicit DELETED status filter.
+      .filter(item => status ? item.status === status : item.status !== 'DELETED')
       .filter(item => !docType || (item.documentType ?? TRANSACTION_TYPE_VALUE) === docType)
       .map(item => ({
         ...item,
@@ -136,6 +139,7 @@ export class ArchivedDocumentsPage implements OnInit {
     { name: ARCHIVE_STATUS_LABELS.APPROVED, value: 'APPROVED' },
     { name: ARCHIVE_STATUS_LABELS.REJECTED, value: 'REJECTED' },
     { name: ARCHIVE_STATUS_LABELS.PENDING, value: 'PENDING' },
+    { name: ARCHIVE_STATUS_LABELS.DELETED, value: 'DELETED' },
   ];
 
   private readonly documentTypeOptions: ISelectItem[] = [
@@ -261,7 +265,9 @@ export class ArchivedDocumentsPage implements OnInit {
         title: 'מחק מסמך',
         alwaysShow: true,
         showWhen: (row: IRowDataTable) =>
-          (row as any).itemType === 'DOCUMENT' && !!(row as any).driveFileId,
+          (row as any).itemType === 'DOCUMENT'
+          && (row as any).status !== 'DELETED'
+          && !!(row as any).driveFileId,
         action: (event: any, row: IRowDataTable) => {
           this.onDeleteClicked(row);
         }
@@ -281,7 +287,7 @@ export class ArchivedDocumentsPage implements OnInit {
 
     this.confirmationService.confirm({
       header: 'מחיקת מסמך',
-      message: 'האם אתה בטוח שאתה מעוניין למחוק את המסמך? המחיקה היא לצמיתות.',
+      message: 'האם אתה בטוח שאתה מעוניין למחוק את המסמך? הקובץ יישמר וניתן יהיה למצוא אותו בסינון לפי סטטוס נמחק.',
       icon: 'pi pi-exclamation-triangle',
       acceptLabel: 'מחק',
       rejectLabel: 'ביטול',
@@ -309,13 +315,13 @@ export class ArchivedDocumentsPage implements OnInit {
       )
       .subscribe(result => {
         if (!result) return;
-        // Refetch so linked expenses whose source pointer was cleared are
-        // represented by the server's unified archive view immediately.
+        // Refetch so the soft-deleted row disappears from the default view
+        // and remains available through the DELETED status filter.
         this.fetchArchivedItems(this.selectedBusinessNumber());
         this.messageService.add({
           severity: 'success',
-          summary: 'המסמך נמחק',
-          detail: 'המסמך והקובץ נמחקו בהצלחה',
+          summary: 'המסמך נמחק מהארכיון',
+          detail: 'הקובץ נשמר וניתן לצפות בו דרך סינון מסמכים שנמחקו',
           life: 3000,
           key: 'br',
         });
