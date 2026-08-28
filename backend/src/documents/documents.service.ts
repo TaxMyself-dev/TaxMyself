@@ -2720,6 +2720,7 @@ ${finalOwnerName}`;
     failed: number;
     skipped: number;
     duplicates: number;
+    restored: number;
     total: number;
     inboxFolderId: string;
     processedFolderId: string;
@@ -2776,9 +2777,11 @@ ${finalOwnerName}`;
     const priorMd5Rows = batchMd5s.length
       ? await this.extractedDocRepo.find({
         where: {
+          userId: user.index,
           businessNumber,
           driveFileMd5: In(batchMd5s),
           status: Not(In([ExtractedDocStatus.ERROR, ExtractedDocStatus.REJECTED])),
+          deletedAt: IsNull(),
         },
       })
       : [];
@@ -2786,6 +2789,26 @@ ${finalOwnerName}`;
     for (const row of priorMd5Rows) {
       if (row.driveFileMd5 && !handledMd5ToFileId.has(row.driveFileMd5)) {
         handledMd5ToFileId.set(row.driveFileMd5, row.driveFileId);
+      }
+    }
+    const deletedMd5Rows = batchMd5s.length
+      ? await this.extractedDocRepo.find({
+        where: {
+          userId: user.index,
+          businessNumber,
+          driveFileMd5: In(batchMd5s),
+          deletedAt: Not(IsNull()),
+        },
+      })
+      : [];
+    const deletedMd5ToRows = new Map<string, ExtractedDocument[]>();
+    for (const row of deletedMd5Rows) {
+      if (!row.driveFileMd5 || handledMd5ToFileId.has(row.driveFileMd5)) continue;
+      if (!deletedMd5ToRows.has(row.driveFileMd5)) {
+        deletedMd5ToRows.set(
+          row.driveFileMd5,
+          deletedMd5Rows.filter(candidate => candidate.driveFileId === row.driveFileId),
+        );
       }
     }
     // md5s OCR'd successfully earlier in THIS batch, so two identical files
@@ -2796,16 +2819,34 @@ ${finalOwnerName}`;
     let failed = 0;
     let skipped = 0;
     let duplicates = 0;
+    let restored = 0;
 
     for (const file of files) {
       const priorRows = existingByDriveId.get(file.id) ?? [];
+      const activePriorRows = priorRows.filter(row => row.deletedAt == null);
+      const deletedPriorRows = priorRows.filter(row => row.deletedAt != null);
       // Any non-error row means we've handled this file already. Move it to
       // processed/ if it's still hanging out in inbox (recovery from a prior
       // run that crashed between save+move).
-      const alreadyHandled = priorRows.some(r => r.status !== ExtractedDocStatus.ERROR);
+      const alreadyHandled = activePriorRows.some(r => r.status !== ExtractedDocStatus.ERROR);
       if (alreadyHandled) {
         skipped++;
         await this.safelyMoveToProcessed(file.id, inboxFolderId, processedFolderId);
+        continue;
+      }
+
+      if (deletedPriorRows.length > 0) {
+        if (activePriorRows.length > 0) {
+          await this.extractedDocRepo.remove(activePriorRows);
+        }
+        await this.restoreDeletedDocumentRows(deletedPriorRows);
+        await this.safelyMoveToProcessed(file.id, inboxFolderId, processedFolderId);
+        if (file.md5Checksum) {
+          deletedMd5ToRows.delete(file.md5Checksum);
+          handledMd5ToFileId.set(file.md5Checksum, file.id);
+        }
+        restored++;
+        this.logger.log(`Restored soft-deleted document ${file.name} (id=${file.id})`);
         continue;
       }
 
@@ -2842,6 +2883,25 @@ ${finalOwnerName}`;
         duplicates++;
         this.logger.log(
           `Skipped duplicate ${file.name} (id=${file.id}) — same content hash as ${originalFileId}`,
+        );
+        continue;
+      }
+
+      const deletedOriginalRows = md5 ? deletedMd5ToRows.get(md5) : undefined;
+      if (deletedOriginalRows?.length) {
+        if (priorRows.length > 0) {
+          await this.extractedDocRepo.remove(priorRows);
+        }
+        await this.restoreDeletedDocumentRows(deletedOriginalRows);
+        await this.safelyMoveToProcessed(file.id, inboxFolderId, processedFolderId);
+        if (md5) {
+          deletedMd5ToRows.delete(md5);
+          handledMd5ToFileId.set(md5, deletedOriginalRows[0].driveFileId);
+        }
+        restored++;
+        this.logger.log(
+          `Restored soft-deleted document for ${file.name} (id=${file.id}) ` +
+          `from retained Drive file ${deletedOriginalRows[0].driveFileId}`,
         );
         continue;
       }
@@ -2967,6 +3027,7 @@ ${finalOwnerName}`;
       failed,
       skipped,
       duplicates,
+      restored,
       total: files.length,
       inboxFolderId,
       processedFolderId,
@@ -3108,6 +3169,9 @@ ${finalOwnerName}`;
     if (doc.userId !== user.index) {
       throw new HttpException('Not your document', HttpStatus.FORBIDDEN);
     }
+    if (doc.deletedAt) {
+      throw new BadRequestException('Document is deleted; restore it before changing its status');
+    }
     // Idempotent on terminal states. Re-clicking archive on an already-
     // archived row, or reject on a rejected row, is a no-op.
     if (doc.status === targetStatus) {
@@ -3188,6 +3252,9 @@ ${finalOwnerName}`;
     if (doc.userId !== user.index) {
       throw new HttpException('Not your document', HttpStatus.FORBIDDEN);
     }
+    if (doc.deletedAt) {
+      throw new BadRequestException('Document is deleted; restore it before filing it');
+    }
     if (doc.status === ExtractedDocStatus.NOT_AN_EXPENSE) {
       return { ok: true, documentId };
     }
@@ -3229,6 +3296,9 @@ ${finalOwnerName}`;
     if (!doc) throw new NotFoundException(`Extracted document #${documentId} not found`);
     if (doc.userId !== user.index) {
       throw new HttpException('Not your document', HttpStatus.FORBIDDEN);
+    }
+    if (doc.deletedAt) {
+      throw new BadRequestException('Document is deleted; restore it before editing it');
     }
     if (doc.status !== ExtractedDocStatus.PENDING_REVIEW) {
       throw new BadRequestException(
@@ -3571,6 +3641,7 @@ ${finalOwnerName}`;
       .where('d.userId = :uid', { uid: user.index })
       .andWhere('d.businessNumber = :bn', { bn: businessNumber })
       .andWhere('d.status = :st', { st: ExtractedDocStatus.PENDING_REVIEW })
+      .andWhere('d.deletedAt IS NULL')
       .orderBy('d.date', 'DESC')
       .addOrderBy('d.id', 'DESC')
       .getMany();
@@ -3634,7 +3705,9 @@ ${finalOwnerName}`;
       name: d.supplier || d.driveFileName,
       uploadDate: d.uploadDate ?? (d.date ? new Date(d.date) : null),
       source: d.source,
-      status: this.simplifyDocStatus(this.deriveArchiveStatus(d, approvalStatusByExpenseId)),
+      status: d.deletedAt
+        ? ArchiveItemStatus.DELETED
+        : this.simplifyDocStatus(this.deriveArchiveStatus(d, approvalStatusByExpenseId)),
       driveFileId: d.driveFileId,
     }));
 
@@ -3672,7 +3745,7 @@ ${finalOwnerName}`;
   /**
    * Soft-delete one Drive-backed document from "My archive". A multi-invoice
    * upload can have several ExtractedDocument rows sharing one driveFileId,
-   * so the status change is physical-file scoped rather than row scoped.
+   * so the deletion timestamp is physical-file scoped rather than row scoped.
    *
    * The Drive file, OCR rows, accounting records and every link between them
    * are retained. The default archive view hides DELETED rows; users can
@@ -3704,7 +3777,7 @@ ${finalOwnerName}`;
 
     await this.extractedDocRepo.update(
       { id: In(documentIds) },
-      { status: ExtractedDocStatus.DELETED },
+      { deletedAt: new Date() },
     );
 
     return {
@@ -3714,15 +3787,51 @@ ${finalOwnerName}`;
     };
   }
 
+  /** Restore a soft-deleted physical Drive document and every OCR row that
+   * belongs to it. Its original lifecycle status and accounting links stay
+   * untouched, which is why deletion is modeled separately from `status`. */
+  async restoreArchivedDocument(
+    firebaseId: string,
+    documentId: number,
+  ): Promise<{ ok: true; documentId: number; restoredDocumentRows: number }> {
+    const user = await this.userRepo.findOne({ where: { firebaseId } });
+    if (!user) throw new NotFoundException(`User not found for firebaseId`);
+
+    const selected = await this.extractedDocRepo.findOne({ where: { id: documentId } });
+    if (!selected) throw new NotFoundException(`Extracted document #${documentId} not found`);
+    if (selected.userId !== user.index) {
+      throw new HttpException('Not your document', HttpStatus.FORBIDDEN);
+    }
+
+    const fileRows = await this.extractedDocRepo.find({
+      where: { driveFileId: selected.driveFileId },
+    });
+    if (fileRows.some(row => row.userId !== user.index)) {
+      throw new HttpException('Drive file is referenced by another user', HttpStatus.FORBIDDEN);
+    }
+
+    const restoredDocumentRows = await this.restoreDeletedDocumentRows(fileRows);
+    return { ok: true, documentId, restoredDocumentRows };
+  }
+
+  private async restoreDeletedDocumentRows(rows: ExtractedDocument[]): Promise<number> {
+    const documentIds = rows.filter(row => row.deletedAt != null).map(row => row.id);
+    if (!documentIds.length) return 0;
+    await this.extractedDocRepo.update(
+      { id: In(documentIds) },
+      { deletedAt: null },
+    );
+    return documentIds.length;
+  }
+
   /**
    * See DocumentArchiveStatus (src/enum.ts) for the priority rules this
-   * implements: DELETED > REJECTED > FILED_ANNUAL > APPROVED_EXPENSE > IN_PROGRESS.
+   * implements: REJECTED > FILED_ANNUAL > APPROVED_EXPENSE > IN_PROGRESS.
    */
   private deriveArchiveStatus(
     doc: ExtractedDocument,
     approvalStatusByExpenseId: Map<number, ExpenseApprovalStatus | null>,
   ): DocumentArchiveStatus {
-    if (doc.status === ExtractedDocStatus.DELETED) return DocumentArchiveStatus.DELETED;
     if (doc.status === ExtractedDocStatus.REJECTED) return DocumentArchiveStatus.REJECTED;
     if (doc.status === ExtractedDocStatus.NOT_AN_EXPENSE) return DocumentArchiveStatus.FILED_ANNUAL;
     const linkedApprovalStatus = doc.confirmedExpenseId != null
@@ -3734,7 +3843,6 @@ ${finalOwnerName}`;
 
   /** Folds DocumentArchiveStatus into the archive page's display vocabulary. */
   private simplifyDocStatus(archiveStatus: DocumentArchiveStatus): ArchiveItemStatus {
-    if (archiveStatus === DocumentArchiveStatus.DELETED) return ArchiveItemStatus.DELETED;
     if (archiveStatus === DocumentArchiveStatus.REJECTED) return ArchiveItemStatus.REJECTED;
     if (
       archiveStatus === DocumentArchiveStatus.APPROVED_EXPENSE

@@ -1,4 +1,4 @@
-import { Component, OnInit, TemplateRef, computed, signal, inject, viewChild } from '@angular/core';
+import { Component, OnInit, computed, signal, inject } from '@angular/core';
 import { of } from 'rxjs';
 import { catchError, finalize } from 'rxjs/operators';
 import { DriveDocsService, ArchivedItem, RecordSource, ArchiveItemStatus } from 'src/app/services/drive-docs.service';
@@ -77,17 +77,12 @@ export class ArchivedDocumentsPage implements OnInit {
 
   isLoadingDataTable = signal<boolean>(false);
   rawItems = signal<ArchivedItem[]>([]);
-  selectedStatus = signal<string>('');
+  selectedStatus = signal<string>('ACTIVE');
   selectedDocumentType = signal<string>('');
   fileActions = signal<ITableRowAction[]>([]);
 
   readonly archiveStatusLabels = ARCHIVE_STATUS_LABELS;
   readonly recordSourceLabels = RECORD_SOURCE_LABELS;
-
-  // Angular 19 signal-based view query — the status badge cell needs a
-  // TemplateRef, which only exists after the view is initialized, so the
-  // column list below is a computed() that re-derives once it resolves.
-  private readonly statusTpl = viewChild<TemplateRef<any>>('statusTpl');
 
   // ===========================
   // Table config
@@ -96,14 +91,14 @@ export class ArchivedDocumentsPage implements OnInit {
     primaryFields: ['name'],
     highlightedField: 'sourceLabel',
     dateField: 'uploadDate',
-    hiddenFields: ['id', 'driveFileId', 'itemType', 'status', 'documentType'],
+    hiddenFields: ['id', 'driveFileId', 'itemType', 'status', 'statusLabel', 'documentType'],
     highlightedValueFormat: 'plain'
   };
 
   readonly archivedDocsTableFields = computed<IColumnDataTable<string, string>[]>(() => [
     { name: 'name', value: 'שם המסמך / תנועה', type: FormTypes.TEXT },
     { name: 'documentTypeLabel', value: 'סוג מסמך', type: FormTypes.TEXT },
-    { name: 'status', value: 'סטטוס', cellTemplate: this.statusTpl() },
+    { name: 'statusLabel', value: 'סטטוס', type: FormTypes.TEXT },
     { name: 'uploadDate', value: 'תאריך העלאה', type: FormTypes.DATE },
     { name: 'sourceLabel', value: 'מקור העלאה', type: FormTypes.TEXT },
   ]);
@@ -114,9 +109,13 @@ export class ArchivedDocumentsPage implements OnInit {
     const status = this.selectedStatus();
     const docType = this.selectedDocumentType();
     return this.rawItems()
-      // "All" means the normal archive. Soft-deleted documents are opt-in
-      // through the explicit DELETED status filter.
-      .filter(item => status ? item.status === status : item.status !== 'DELETED')
+      // "All" means all ACTIVE archive items, never soft-deleted items.
+      // Deleted documents are visible only through the dedicated option.
+      .filter(item => {
+        if (status === 'DELETED') return item.status === 'DELETED';
+        if (item.status === 'DELETED') return false;
+        return status === 'ACTIVE' || item.status === status;
+      })
       .filter(item => !docType || (item.documentType ?? TRANSACTION_TYPE_VALUE) === docType)
       .map(item => ({
         ...item,
@@ -124,6 +123,7 @@ export class ArchivedDocumentsPage implements OnInit {
           ? (DOCUMENT_TYPE_LABELS[item.documentType] ?? item.documentType)
           : TRANSACTION_TYPE_LABEL,
         sourceLabel: this.recordSourceLabels[item.source] ?? item.source,
+        statusLabel: this.archiveStatusLabels[item.status] ?? item.status,
         uploadDate: item.uploadDate ? item.uploadDate.slice(0, 10) : '-',
       }));
   });
@@ -135,11 +135,11 @@ export class ArchivedDocumentsPage implements OnInit {
   filterConfig: FilterField[] = [];
 
   private readonly statusOptions: ISelectItem[] = [
-    { name: 'הכל', value: '' },
+    { name: 'הכל', value: 'ACTIVE' },
     { name: ARCHIVE_STATUS_LABELS.APPROVED, value: 'APPROVED' },
     { name: ARCHIVE_STATUS_LABELS.REJECTED, value: 'REJECTED' },
     { name: ARCHIVE_STATUS_LABELS.PENDING, value: 'PENDING' },
-    { name: ARCHIVE_STATUS_LABELS.DELETED, value: 'DELETED' },
+    { name: 'מסמכים שנמחקו', value: 'DELETED' },
   ];
 
   private readonly documentTypeOptions: ISelectItem[] = [
@@ -162,7 +162,7 @@ export class ArchivedDocumentsPage implements OnInit {
 
     this.form = this.fb.group({
       businessNumber: [this.selectedBusinessNumber()],
-      status: [''],
+      status: ['ACTIVE'],
       documentType: [''],
     });
 
@@ -179,7 +179,7 @@ export class ArchivedDocumentsPage implements OnInit {
       this.fetchArchivedItems(this.selectedBusinessNumber());
     });
 
-    this.form.get('status')?.valueChanges.subscribe(value => this.selectedStatus.set(value ?? ''));
+    this.form.get('status')?.valueChanges.subscribe(value => this.selectedStatus.set(value ?? 'ACTIVE'));
     this.form.get('documentType')?.valueChanges.subscribe(value => this.selectedDocumentType.set(value ?? ''));
 
     this.filterConfig = [
@@ -196,7 +196,7 @@ export class ArchivedDocumentsPage implements OnInit {
         controlName: 'status',
         label: 'סטטוס',
         options: this.statusOptions,
-        defaultValue: '',
+        defaultValue: 'ACTIVE',
       },
       {
         type: 'select',
@@ -225,7 +225,7 @@ export class ArchivedDocumentsPage implements OnInit {
       this.fetchArchivedItems(this.selectedBusinessNumber());
     }
 
-    this.selectedStatus.set(formValues.status ?? '');
+    this.selectedStatus.set(formValues.status ?? 'ACTIVE');
     this.selectedDocumentType.set(formValues.documentType ?? '');
   }
 
@@ -270,6 +270,18 @@ export class ArchivedDocumentsPage implements OnInit {
           && !!(row as any).driveFileId,
         action: (event: any, row: IRowDataTable) => {
           this.onDeleteClicked(row);
+        }
+      },
+      {
+        name: 'restore',
+        icon: 'pi pi-refresh',
+        title: 'שחזר מסמך',
+        alwaysShow: true,
+        showWhen: (row: IRowDataTable) =>
+          (row as any).itemType === 'DOCUMENT'
+          && (row as any).status === 'DELETED',
+        action: (event: any, row: IRowDataTable) => {
+          this.onRestoreClicked(row);
         }
       },
     ]);
@@ -322,6 +334,39 @@ export class ArchivedDocumentsPage implements OnInit {
           severity: 'success',
           summary: 'המסמך נמחק מהארכיון',
           detail: 'הקובץ נשמר וניתן לצפות בו דרך סינון מסמכים שנמחקו',
+          life: 3000,
+          key: 'br',
+        });
+      });
+  }
+
+  onRestoreClicked(doc: IRowDataTable): void {
+    const documentId = Number(doc.id ?? 0);
+    if (!documentId || (doc as any).itemType !== 'DOCUMENT') return;
+
+    this.isLoadingDataTable.set(true);
+    this.driveDocsService.restoreArchivedDocument(documentId)
+      .pipe(
+        catchError(err => {
+          console.error('Error restoring archived document:', err);
+          this.isLoadingDataTable.set(false);
+          this.messageService.add({
+            severity: 'error',
+            summary: 'שגיאה',
+            detail: 'שחזור המסמך נכשל',
+            life: 3000,
+            key: 'br',
+          });
+          return of(null);
+        }),
+      )
+      .subscribe(result => {
+        if (!result) return;
+        this.fetchArchivedItems(this.selectedBusinessNumber());
+        this.messageService.add({
+          severity: 'success',
+          summary: 'המסמך שוחזר',
+          detail: 'המסמך חזר לסטטוס שהיה לו לפני המחיקה',
           life: 3000,
           key: 'br',
         });

@@ -156,6 +156,7 @@ export class ExpensesController {
 
 
   @Delete('delete-expense/:id')
+  @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
   @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
   async deleteExpense(
     @Req() request: AuthenticatedRequest,

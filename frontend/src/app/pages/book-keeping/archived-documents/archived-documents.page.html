@@ -1,12 +1,5 @@
 <div class="table-block">
 
-    <!-- STATUS BADGE CELL -->
-    <ng-template #statusTpl let-row>
-        <span class="archive-status-badge archive-status-badge--{{ row['status'] }}">
-            {{ archiveStatusLabels[row['status']] ?? row['status'] }}
-        </span>
-    </ng-template>
-
     <!-- FILTER TAB -->
     <app-filter-tab [config]="filterConfig" [parentForm]="form" (apply)="onSubmit($event)">
     </app-filter-tab>

@@ -120,6 +120,8 @@ export interface ReportPreviewResponse {
   /** Byte-identical re-uploads the inbox scan auto-rejected this pass.
    *  Surfaced as a non-blocking notice; never appear as review rows. */
   duplicatesSkipped: number;
+  /** Soft-deleted documents automatically restored by this inbox scan. */
+  deletedDocumentsRestored: number;
   /** D9: the business owner has at least one ACTIVE delegation. Missing-
    *  mapping rows then show "חסר מיפוי — אצל הרו״ח" (disabled checkbox);
    *  without one the client gets the simple "למה ההוצאה שייכת?" picker. */

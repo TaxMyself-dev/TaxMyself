@@ -41,10 +41,6 @@ export enum ExtractedDocStatus {
    *  Elazar, Session 8; ExpenseApprovalStatus keeps its own NOT_AN_EXPENSE
    *  for other D8 flows). */
   NOT_AN_EXPENSE = 'not_an_expense',
-  /** Soft-deleted from the archive. The Drive file and accounting links are
-   *  intentionally retained; the archive hides this state by default and
-   *  exposes it through its deleted-items filter. */
-  DELETED = 'deleted',
 }
 
 /** Classification returned by Claude — drives downstream routing
@@ -243,6 +239,16 @@ export class ExtractedDocument {
     default: ExtractedDocStatus.PENDING_REVIEW,
   })
   status: ExtractedDocStatus;
+
+  /**
+   * Archive visibility is independent of the document lifecycle above.
+   * A non-null value soft-deletes the physical Drive document from the
+   * default archive view without losing its OCR state, expense link, or
+   * accounting history. Clearing it restores the document to exactly the
+   * lifecycle state it had before deletion.
+   */
+  @Column({ name: 'deleted_at', type: 'datetime', nullable: true, default: null })
+  deletedAt: Date | null;
 
   // Claude's document classification — see ExtractedDocumentType. Drives
   // downstream filtering (e.g. only `invoice` shows in expenses review).

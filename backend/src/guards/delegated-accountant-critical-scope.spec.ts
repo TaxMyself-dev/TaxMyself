@@ -35,6 +35,7 @@ const EXPENSE_APPROVAL_OPERATIONS: ScopedHandler[] = [
   ['expenses.overrideExpenseMapping', ExpensesController.prototype.overrideExpenseMapping],
   ['expenses.completeExpenseMapping', ExpensesController.prototype.completeExpenseMapping],
   ['expenses.updateExpense', ExpensesController.prototype.updateExpense],
+  ['expenses.deleteExpense', ExpensesController.prototype.deleteExpense],
   ['expenses.addFileToExpense', ExpensesController.prototype.addFileToExpense],
   ['expenses.deleteFileFromExpense', ExpensesController.prototype.deleteFileFromExpense],
   ['expenses.addSupplier', ExpensesController.prototype.addSupplier],
@@ -84,7 +85,6 @@ describe('delegated accountant critical-scope audit', () => {
 
   it.each([
     ['documents.createDoc', DocumentsController.prototype.createDoc],
-    ['expenses.deleteExpense', ExpensesController.prototype.deleteExpense],
     ['expenses.deleteSupplier', ExpensesController.prototype.deleteSupplier],
     ['annualReport.saveAnswers', AnnualReportController.prototype.saveAnswers],
   ] as ScopedHandler[])(

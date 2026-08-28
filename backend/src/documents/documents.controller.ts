@@ -422,4 +422,17 @@ export class DocumentsController {
     return this.documentsService.deleteArchivedDocument(firebaseId, documentId);
   }
 
+  /** Restore a soft-deleted archive document to its previous lifecycle
+   * state. Uses the same delegated expense-management authority as delete. */
+  @Patch('me/archived/:documentId/restore')
+  @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
+  async restoreMyArchivedDocument(
+    @Req() request: AuthenticatedRequest,
+    @Param('documentId', ParseIntPipe) documentId: number,
+  ) {
+    const firebaseId = request.user?.firebaseId;
+    if (!firebaseId) throw new BadRequestException('Not authenticated');
+    return this.documentsService.restoreArchivedDocument(firebaseId, documentId);
+  }
+
 }

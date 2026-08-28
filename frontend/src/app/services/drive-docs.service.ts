@@ -21,6 +21,8 @@ export interface ProcessInboxResult {
   /** Byte-identical re-uploads auto-rejected this pass (same file dropped
    *  twice). Skipped before OCR; never become review rows. */
   duplicates: number;
+  /** Previously deleted documents restored from an identical re-upload. */
+  restored: number;
   total: number;
   inboxFolderId: string;
   processedFolderId: string;
@@ -131,6 +133,19 @@ export class DriveDocsService {
       documentId: number;
       deletedDocumentRows: number;
     }>(url);
+  }
+
+  restoreArchivedDocument(documentId: number): Observable<{
+    ok: true;
+    documentId: number;
+    restoredDocumentRows: number;
+  }> {
+    const url = `${environment.apiUrl}documents/me/archived/${documentId}/restore`;
+    return this.http.patch<{
+      ok: true;
+      documentId: number;
+      restoredDocumentRows: number;
+    }>(url, {});
   }
 
   /**

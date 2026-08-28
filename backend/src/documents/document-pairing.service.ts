@@ -212,6 +212,7 @@ export class DocumentPairingService {
       .where('d.userId = :uid', { uid: userIndex })
       .andWhere('d.businessNumber = :bn', { bn: businessNumber })
       .andWhere('d.status = :st', { st: ExtractedDocStatus.PENDING_REVIEW })
+      .andWhere('d.deletedAt IS NULL')
       .andWhere('d.pairedWithDocumentId IS NULL')
       .getRawMany<PairingCandidate>();
   }

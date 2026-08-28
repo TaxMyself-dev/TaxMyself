@@ -74,6 +74,7 @@ export class MatchingService {
       .createQueryBuilder('d')
       .where('d.businessNumber = :bn', { bn: businessNumber })
       .andWhere('d.status = :st', { st: ExtractedDocStatus.PENDING_REVIEW })
+      .andWhere('d.deletedAt IS NULL')
       .andWhere('d.matchedTransactionId IS NULL')
       .andWhere('d.date <= :to', { to: range.to })
       .andWhere('d.amount IS NOT NULL')

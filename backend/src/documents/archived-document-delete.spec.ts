@@ -1,10 +1,9 @@
 import { HttpException, NotFoundException } from '@nestjs/common';
 import { In } from 'typeorm';
 import { DocumentsService } from './documents.service';
-import { ExtractedDocument, ExtractedDocStatus } from './extracted-document.entity';
+import { ExtractedDocument } from './extracted-document.entity';
 import { Expense } from '../expenses/expenses.entity';
 import { SlimTransaction } from '../transactions/slim-transaction.entity';
-import { ArchiveItemStatus, DocumentArchiveStatus } from '../enum';
 
 describe('DocumentsService.deleteArchivedDocument', () => {
   function subject(options: {
@@ -53,6 +52,8 @@ describe('DocumentsService.deleteArchivedDocument', () => {
       dataSource,
       googleDriveService,
     };
+    (fakeThis as any).restoreDeletedDocumentRows =
+      (DocumentsService.prototype as any).restoreDeletedDocumentRows.bind(fakeThis as any);
 
     return {
       userRepo,
@@ -63,6 +64,11 @@ describe('DocumentsService.deleteArchivedDocument', () => {
       dataSource,
       googleDriveService,
       run: () => DocumentsService.prototype.deleteArchivedDocument.call(
+        fakeThis as any,
+        'client-1',
+        10,
+      ),
+      restore: () => DocumentsService.prototype.restoreArchivedDocument.call(
         fakeThis as any,
         'client-1',
         10,
@@ -80,25 +86,29 @@ describe('DocumentsService.deleteArchivedDocument', () => {
     });
     expect(test.extractedDocRepo.update).toHaveBeenCalledWith(
       { id: In([10, 11]) },
-      { status: ExtractedDocStatus.DELETED },
+      { deletedAt: expect.any(Date) },
     );
     expect(test.googleDriveService.deleteFile).not.toHaveBeenCalled();
     expect(test.dataSource.transaction).not.toHaveBeenCalled();
   });
 
-  it('maps the persisted deleted state to the archive deleted filter status', () => {
-    const archiveStatus = (DocumentsService.prototype as any).deriveArchiveStatus.call(
-      {},
-      { status: ExtractedDocStatus.DELETED, confirmedExpenseId: null },
-      new Map(),
-    );
-    const displayStatus = (DocumentsService.prototype as any).simplifyDocStatus.call(
-      {},
-      archiveStatus,
-    );
+  it('restores every deleted OCR row without changing its lifecycle status', async () => {
+    const test = subject({
+      rows: [
+        { id: 10, userId: 7, driveFileId: 'drive-1', deletedAt: new Date() },
+        { id: 11, userId: 7, driveFileId: 'drive-1', deletedAt: new Date() },
+      ],
+    });
 
-    expect(archiveStatus).toBe(DocumentArchiveStatus.DELETED);
-    expect(displayStatus).toBe(ArchiveItemStatus.DELETED);
+    await expect(test.restore()).resolves.toEqual({
+      ok: true,
+      documentId: 10,
+      restoredDocumentRows: 2,
+    });
+    expect(test.extractedDocRepo.update).toHaveBeenCalledWith(
+      { id: In([10, 11]) },
+      { deletedAt: null },
+    );
   });
 
   it('does not allow deleting another user’s archived file', async () => {

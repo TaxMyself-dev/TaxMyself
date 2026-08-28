@@ -2042,11 +2042,48 @@ record this instead.
 ## 2026-08-28 — Archive soft deletion and deleted-items filter
 
 - Changed the archive trash action from physical deletion to a file-scoped
-  soft delete. Every OCR row sharing the selected Drive file is marked with
-  `extracted_document.status = deleted`; the Drive file, expense and journal
-  records, source-document link, transaction match and pairing links remain.
+  soft delete. Every OCR row sharing the selected Drive file receives a
+  nullable `extracted_document.deleted_at` timestamp; the independent OCR
+  lifecycle status, Drive file, expense and journal records, source-document
+  link, transaction match and pairing links remain unchanged.
 - The normal archive view now excludes deleted documents. The status filter
   has a dedicated "נמחק" option that reveals them, retains the preview action
-  and omits the trash action to prevent repeated deletion.
-- `extracted_document.status` is already a VARCHAR, so no database/schema or
-  cutover SQL change is required.
+  and replaces the trash action with a restore action.
+- Re-uploading byte-identical content now restores the retained deleted
+  document instead of reporting it as a duplicate or rerunning OCR. Review,
+  pairing and transaction-matching queries explicitly exclude deleted rows.
+- Schema change: nullable DATETIME `extracted_document.deleted_at`, recorded
+  in cutover.sql Section 12 and the guarded dev migration dated 2026-08-28.
+- Verification: dev schema check passed; Nest production build, Angular
+  production build and 44 distinct focused Jest tests passed (the 5 archive
+  delete/restore tests ran in both focused batches).
+
+## 2026-08-28 — Delegated accountant expense deletion
+
+- Added the explicit `EXPENSES_APPROVE` delegation scope to
+  `DELETE /expenses/delete-expense/:id`. Expense editing already used this
+  scope; deletion had fallen through to the generic `DOCUMENTS_WRITE` rule
+  and incorrectly returned the view-only 403 to accountants.
+- Added the delete handler to the critical-scope regression audit. The
+  service continues to enforce client ownership and reported-period locks,
+  and removes the expense's journal entry transactionally as before.
+- No database/schema change is required.
+
+## 2026-08-28 — Deleted-document restore and re-upload follow-up
+
+- Completed the `deleted_at` separation, manual archive restore action and
+  MD5-based automatic restore for byte-identical re-uploads. A still-active
+  copy continues through the ordinary duplicate path.
+- Added stale-action guards so deleted pending rows cannot be approved,
+  paired, matched, filed or edited until restored.
+- Dev schema verification, final Nest build, Angular production build and
+  focused restore/delete regression tests all passed.
+
+## 2026-08-28 — Archive deleted-filter display correction
+
+- Replaced the archive's empty-value "all" filter with explicit `ACTIVE`
+  semantics: default and "הכל" both exclude soft-deleted documents, while
+  only "מסמכים שנמחקו" selects `DELETED` rows.
+- Status cells now receive a pretranslated Hebrew `statusLabel`, avoiding the
+  late TemplateRef initialization that could expose raw `DELETED` text.
+- Angular production build passed; no schema change was added by this fix.

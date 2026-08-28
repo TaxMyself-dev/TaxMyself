@@ -1610,3 +1610,19 @@ CREATE TABLE `asset_depreciation_posting` (
 -- SELECT COUNT(*) AS equipment_without_activation_date
 -- FROM expense WHERE isEquipmentSnapshot = 1 AND activationDate IS NULL;
 -- SHOW INDEX FROM asset_depreciation_posting;
+
+
+-- ============================================================================
+-- SECTION 12 (2026-08-28, Elazar) — reversible archive deletion.
+--
+-- Archive deletion no longer overwrites extracted_document.status. The
+-- nullable timestamp hides a Drive-backed document while retaining its OCR
+-- lifecycle, Expense link and accounting history; clearing it restores that
+-- exact prior state. Existing rows remain visible because NULL means active.
+-- ============================================================================
+
+ALTER TABLE `extracted_document`
+  ADD COLUMN `deleted_at` datetime NULL DEFAULT NULL AFTER `status`;
+
+-- Verification (must return exactly one nullable datetime column):
+-- SHOW COLUMNS FROM extracted_document LIKE 'deleted_at';

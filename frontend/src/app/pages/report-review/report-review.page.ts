@@ -596,6 +596,16 @@ export class ReportReviewPage implements OnInit {
           });
         }
 
+        if (preview.deletedDocumentsRestored > 0) {
+          this.messageService.add({
+            severity: 'success',
+            summary: 'מסמך שוחזר מהארכיון',
+            detail: `שוחזרו ${preview.deletedDocumentsRestored} מסמכים שנמחקו והועלו מחדש`,
+            life: 6000,
+            key: 'br',
+          });
+        }
+
         const editable = preview.rows.map(r => this.toEditableRow(r));
         // Sort alphabetically by supplier name so rows from the same vendor
         // group together — easier to spot duplicates, easier to bulk-edit

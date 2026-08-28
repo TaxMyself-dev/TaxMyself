@@ -15,7 +15,7 @@ Manages business expenses (and legacy incomes), the category/sub-category taxono
 
 ## Main flows
 - `POST /expenses/add-expense` — create an expense; resolves account code, posts a journal entry (debit expense, credit A/P or cash) via `BookkeepingModule`.
-- `PATCH /expenses/update-expense/:id`, `DELETE /expenses/delete-expense/:id` — edit/delete an expense, syncing its journal entry.
+- `PATCH /expenses/update-expense/:id`, `DELETE /expenses/delete-expense/:id` — edit/delete an expense, syncing its journal entry. Both explicitly require `EXPENSES_APPROVE`, so a delegated accountant can manage the client's expenses without document-issuance permission.
 - `POST /expenses/bulk-confirm-from-drive`, `POST /expenses/check-duplicates-from-drive` — turn reviewed `ExtractedDocument` OCR rows into confirmed expenses, with a pre-flight supplier+sum+date duplicate check.
 - `GET /expenses/get_by_userID`, `get-expenses-for-vat-report` — filtered expense listings for the dashboard and VAT reporting.
 - Category/sub-category CRUD: `add-user-category`, `add-user-sub-categories`, `get-categories`, `get-sub-categories`, `user-category/:id`, `user-sub-category/:id`, plus admin-only default-sub-category CRUD and `sub-category-report-config` (P&L scope/category override).

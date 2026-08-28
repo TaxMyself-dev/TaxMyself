@@ -424,7 +424,6 @@ export enum DocumentArchiveStatus {
   APPROVED_EXPENSE = 'APPROVED_EXPENSE',
   FILED_ANNUAL = 'FILED_ANNUAL',
   REJECTED = 'REJECTED',
-  DELETED = 'DELETED',
 }
 
 /**

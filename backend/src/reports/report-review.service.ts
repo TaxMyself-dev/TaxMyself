@@ -249,6 +249,7 @@ export class ReportReviewService {
       .createQueryBuilder('d')
       .where('d.businessNumber = :bn', { bn: businessNumber })
       .andWhere('d.status = :st', { st: ExtractedDocStatus.PENDING_REVIEW })
+      .andWhere('d.deletedAt IS NULL')
       .andWhere('(d.date IS NULL OR d.date <= :to)', { to: periodEnd })
       .getCount();
     if (pendingDocsCount > 0) {
@@ -312,9 +313,11 @@ export class ReportReviewService {
     // pass — surfaced to the user as a non-blocking notice (the rows never
     // enter the review table; they're skipped before OCR).
     let duplicatesSkipped = 0;
+    let deletedDocumentsRestored = 0;
     try {
       const inboxResult = await this.documentsService.processInboxForUser(firebaseId, businessNumber);
       duplicatesSkipped = inboxResult?.duplicates ?? 0;
+      deletedDocumentsRestored = inboxResult?.restored ?? 0;
     } catch (err: any) {
       this.logger.warn(
         `getReportPreview step 1 (processInboxForUser) failed for biz=${businessNumber}: ${err?.message ?? err}`,
@@ -368,6 +371,7 @@ export class ReportReviewService {
       .where('d.userId = :uid', { uid: user.index })
       .andWhere('d.businessNumber = :bn', { bn: businessNumber })
       .andWhere('d.status = :st', { st: ExtractedDocStatus.PENDING_REVIEW })
+      .andWhere('d.deletedAt IS NULL')
       .andWhere('(d.date IS NULL OR d.date <= :to)', { to: range.to })
       .orderBy('d.date', 'ASC')
       .addOrderBy('d.id', 'ASC')
@@ -512,6 +516,7 @@ export class ReportReviewService {
         txOnly: rows.filter(r => r.type === 'tx_only').length,
       },
       duplicatesSkipped,
+      deletedDocumentsRestored,
       // D9: with an ACTIVE delegation, missing-mapping rows read
       // "חסר מיפוי — אצל הרו״ח" (disabled checkbox); without one the client
       // gets the simple picker so they are never stuck.
@@ -856,6 +861,9 @@ export class ReportReviewService {
     const doc = await this.docRepo.findOne({ where: { id: documentId } });
     if (!doc) throw new NotFoundException(`Document ${documentId} not found`);
     await this.assertDocOwnership(doc, firebaseId, businessNumber);
+    if (doc.deletedAt) {
+      throw new BadRequestException(`Document ${documentId} is deleted; restore it before approval`);
+    }
     if (doc.status !== ExtractedDocStatus.PENDING_REVIEW) {
       throw new BadRequestException(
         `Document ${documentId} is not pending_review (status=${doc.status})`,
@@ -1358,6 +1366,9 @@ export class ReportReviewService {
     const doc = await this.docRepo.findOne({ where: { id: documentId } });
     if (!doc) throw new NotFoundException(`Document ${documentId} not found`);
     await this.assertDocOwnership(doc, firebaseId, businessNumber);
+    if (doc.deletedAt) {
+      throw new BadRequestException(`Document ${documentId} is deleted; restore it before approval`);
+    }
     if (doc.status !== ExtractedDocStatus.PENDING_REVIEW) {
       throw new BadRequestException(
         `Document ${documentId} is not pending_review (status=${doc.status})`,
@@ -1445,6 +1456,9 @@ export class ReportReviewService {
     const doc = await this.docRepo.findOne({ where: { id: documentId } });
     if (!doc) throw new NotFoundException(`Document ${documentId} not found`);
     await this.assertDocOwnership(doc, firebaseId, businessNumber);
+    if (doc.deletedAt) {
+      throw new BadRequestException(`Document ${documentId} is deleted; restore it before editing`);
+    }
     if (doc.status !== ExtractedDocStatus.PENDING_REVIEW) {
       throw new BadRequestException(
         `Document ${documentId} is not pending_review (status=${doc.status})`,

@@ -181,6 +181,9 @@ export interface ReportPreviewResponse {
    *  pass (same file dropped twice). These never become review rows; the
    *  modal surfaces the count as a non-blocking notice. */
   duplicatesSkipped: number;
+  /** Number of previously soft-deleted documents restored because their
+   *  byte-identical file was uploaded again during this inbox scan. */
+  deletedDocumentsRestored: number;
   /** D9: true when the business owner has at least one ACTIVE delegation
    *  (an accountant services them). Missing-mapping rows then show
    *  "חסר מיפוי — אצל הרו״ח" with a disabled checkbox; without a delegation
