@@ -2087,3 +2087,17 @@ record this instead.
 - Status cells now receive a pretranslated Hebrew `statusLabel`, avoiding the
   late TemplateRef initialization that could expose raw `DELETED` text.
 - Angular production build passed; no schema change was added by this fix.
+
+## 2026-08-29 -- Supplier fractional percentage correction
+
+- Made supplier VAT and income-tax percentage columns explicitly
+  `decimal(5,2)` in the entity so future schema creation preserves fractions.
+- Supplier create, update and read paths now use the linked booking account as
+  the authoritative source for these percentages. This makes 66.67 visible
+  even while an old supplier cache row still contains the rounded value 67.
+- Added cutover Section 13 for the later manual production `ALTER TABLE` and
+  backfill from `sub_category -> booking_account`; it was not executed in this
+  session.
+- Three focused Jest regressions and the Nest production TypeScript build pass.
+  The all-spec TypeScript check remains blocked by pre-existing errors in the
+  users specs.

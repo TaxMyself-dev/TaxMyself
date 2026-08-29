@@ -14,7 +14,7 @@ import { Business } from 'src/business/business.entity';
 import { ReportWorkflow, ReportWorkflowStatus, ReportWorkflowType } from '../report-workflow/report-workflow.entity';
 import { BusinessType, VATReportingType, ExpenseReportScope, ExpenseApprovalStatus, ApprovalStatus, JournalReferenceType, isExemptBusinessType, CategoryType, OwnerType, RecognitionType, RecordSource } from 'src/enum';
 import { BookkeepingService } from '../bookkeeping/bookkeeping.service';
-import { CatalogService, AccountLaw, CatalogScope, ResolvedSubCategory } from '../bookkeeping/catalog.service';
+import { CatalogService, AccountLaw, CatalogContext, CatalogScope, ResolvedSubCategory } from '../bookkeeping/catalog.service';
 import { CatalogContextService } from '../bookkeeping/catalog-context.service';
 import { Category } from '../bookkeeping/category.entity';
 import { SubCategory } from '../bookkeeping/sub-category.entity';
@@ -1702,6 +1702,34 @@ export class ExpensesService {
     /////////////////////////////               Suppliers             /////////////////////////////
     ///////////////////////////////////////////////////////////////////////////////////////////////
 
+    /**
+     * A supplier is only a convenience cache. When it points at a catalog
+     * sub-category, the linked booking account remains authoritative for the
+     * deductible VAT and income-tax percentages (D1).
+     */
+    private async applySupplierAccountPercentages<T extends Partial<Supplier>>(
+        supplier: T,
+        userId: string,
+        businessNumber: string,
+        context?: CatalogContext,
+    ): Promise<T> {
+        if (supplier.subCategoryId == null) return supplier;
+
+        const ctx = context ?? await this.catalogContextService.forUser(userId, businessNumber);
+        const resolved = await this.catalogService.resolveSubCategory(supplier.subCategoryId, ctx);
+        if (!resolved.account || resolved.vatPercent == null || resolved.taxPercent == null) {
+            throw new BadRequestException(
+                `Supplier sub-category ${supplier.subCategoryId} has no accounting percentage mapping`,
+            );
+        }
+
+        return {
+            ...supplier,
+            vatPercent: Number(resolved.vatPercent),
+            taxPercent: Number(resolved.taxPercent),
+        };
+    }
+
 
     async addSupplier(supplier: Partial<Supplier>, userId: string, businessNumber: string) {
         // Dedup priority: supplierID is the legal identity (tax ID), so
@@ -1728,7 +1756,12 @@ export class ExpensesService {
                 error: `Supplier with ${reason} already exists for this business`
             }, HttpStatus.CONFLICT);
         }
-        const newSupplier = this.supplier_repo.create(supplier);
+        const supplierWithAccountPercentages = await this.applySupplierAccountPercentages(
+            supplier,
+            userId,
+            businessNumber,
+        );
+        const newSupplier = this.supplier_repo.create(supplierWithAccountPercentages);
         newSupplier.userId = userId;
         newSupplier.businessNumber = businessNumber;
         if (supplierIdTrimmed) newSupplier.supplierID = supplierIdTrimmed;
@@ -1761,10 +1794,11 @@ export class ExpensesService {
         if (supplier.userId !== userId) {
             throw new UnauthorizedException(`You do not have permission to update this supplier`);
         }
-        return this.supplier_repo.save({
+        const supplierWithAccountPercentages = await this.applySupplierAccountPercentages({
             ...supplier,
             ...updateSupplierDto,
-        });
+        }, userId, supplier.businessNumber);
+        return this.supplier_repo.save(supplierWithAccountPercentages as Supplier);
     }
 
 
@@ -1783,7 +1817,13 @@ export class ExpensesService {
 
     async getSupplierNamesByUserId(userId: string, businessNumber?: string): Promise<SupplierResponseDto[]> {
         const suppliers = await this.supplier_repo.find({ where: { userId, businessNumber } });
-        return suppliers.map((supplier) => {
+        const context = suppliers.some((supplier) => supplier.subCategoryId != null)
+            ? await this.catalogContextService.forUser(userId, businessNumber)
+            : undefined;
+        const suppliersWithAccountPercentages = await Promise.all(suppliers.map((supplier) =>
+            this.applySupplierAccountPercentages(supplier, userId, supplier.businessNumber, context),
+        ));
+        return suppliersWithAccountPercentages.map((supplier) => {
             const { userId, businessNumber, ...supplierData } = supplier; // Exclude userId
             return supplierData;
         });
@@ -1797,7 +1837,12 @@ export class ExpensesService {
         if (supplier.userId !== userId) {
             throw new UnauthorizedException(`You do not have permission to access this supplier`);
         }
-        const { userId: omitUserId, ...supplierData } = supplier;
+        const supplierWithAccountPercentages = await this.applySupplierAccountPercentages(
+            supplier,
+            userId,
+            supplier.businessNumber,
+        );
+        const { userId: omitUserId, ...supplierData } = supplierWithAccountPercentages;
         return supplierData;
     }
 

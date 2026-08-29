@@ -1626,3 +1626,36 @@ ALTER TABLE `extracted_document`
 
 -- Verification (must return exactly one nullable datetime column):
 -- SHOW COLUMNS FROM extracted_document LIKE 'deleted_at';
+
+
+-- ============================================================================
+-- SECTION 13 (2026-08-29, Elazar) -- preserve fractional supplier percentages.
+--
+-- Supplier percentages are a convenience cache only (D1). The application
+-- now returns and writes the linked booking_account percentages, while these
+-- columns retain the exact cached values instead of rounding 66.67 to 67.
+-- Existing mapped suppliers are refreshed from their authoritative account.
+-- ============================================================================
+
+ALTER TABLE `supplier`
+  MODIFY COLUMN `taxPercent` decimal(5,2) NOT NULL,
+  MODIFY COLUMN `vatPercent` decimal(5,2) NOT NULL;
+
+UPDATE `supplier` s
+JOIN `sub_category` sc ON sc.`id` = s.`subCategoryId`
+JOIN `booking_account` ba ON ba.`id` = sc.`accountId`
+SET s.`taxPercent` = ba.`taxPercent`,
+    s.`vatPercent` = ba.`vatPercent`
+WHERE s.`subCategoryId` IS NOT NULL
+  AND ba.`taxPercent` IS NOT NULL
+  AND ba.`vatPercent` IS NOT NULL;
+
+-- Verification: column Type values must be decimal(5,2), and the final query
+-- must return zero rows.
+-- SHOW COLUMNS FROM supplier WHERE Field IN ('taxPercent', 'vatPercent');
+-- SELECT s.id, s.supplier, s.taxPercent, ba.taxPercent,
+--        s.vatPercent, ba.vatPercent
+-- FROM supplier s
+-- JOIN sub_category sc ON sc.id = s.subCategoryId
+-- JOIN booking_account ba ON ba.id = sc.accountId
+-- WHERE s.taxPercent <> ba.taxPercent OR s.vatPercent <> ba.vatPercent;
