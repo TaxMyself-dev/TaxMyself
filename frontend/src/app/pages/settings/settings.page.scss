@@ -324,24 +324,6 @@
   display: none;
 }
 
-.inbox-folder-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  font-weight: 500;
-  color: #0a6ed1;
-  text-decoration: none;
-
-  i {
-    font-size: 16px;
-  }
-
-  &:hover {
-    text-decoration: underline;
-  }
-}
-
 .business-details {
   display: flex;
   flex-direction: column;

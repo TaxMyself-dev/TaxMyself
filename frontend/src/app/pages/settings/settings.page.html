@@ -313,21 +313,15 @@
                     [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"></app-input-text>
                 </div>
               </div>
-              @if (getInboxFolderUrl(biz); as inboxUrl) {
-                <div class="detail-row inbox-folder-row">
-                  <a class="inbox-folder-link" [href]="inboxUrl" target="_blank" rel="noopener noreferrer">
-                    <i class="pi pi-folder-open"></i>
-                    <span>תיקיית מסמכים נכנסים (Drive)</span>
-                  </a>
-                </div>
-              }
               @if (biz?.id != null && biz?.businessNumber) {
                 <div class="detail-row inbox-folder-row">
                   <input type="file" #docsFileInput class="hidden-file-input" multiple
                     accept="application/pdf,image/jpeg,image/png"
                     (change)="onUploadDocsToDrive(biz, docsFileInput)" />
                   <app-p-button
-                    [buttonText]="'העלאת מסמכים ל-Drive'"
+                    [buttonText]="'העלאת מסמכים'"
+                    [icon]="'pi pi-folder-open'"
+                    [iconPosition]="'right'"
                     [buttonColor]="buttonColor.WHITE_BORDER"
                     [buttonSize]="buttonSize.SMALL"
                     [disabled]="uploadingDocsBusinessId() === biz.id"

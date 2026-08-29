@@ -831,15 +831,8 @@ export class SettingsPage implements OnInit {
     }
   }
 
-  /** בונה קישור לתיקיית ה-Inbox של העסק ב-Google Drive (null אם עדיין לא הוקצתה) */
-  getInboxFolderUrl(biz: Business | undefined): string | null {
-    return biz?.driveInboxFolderId
-      ? `https://drive.google.com/drive/folders/${biz.driveInboxFolderId}`
-      : null;
-  }
-
   /**
-   * "העלאת מסמכים ל-Drive" — user picked one or more files off their
+   * "העלאת מסמכים" — user picked one or more files off their
    * machine; drop them straight into the business's Drive inbox/ folder
    * (no OCR, just storage). Resets the input afterward so re-picking the
    * same filename still fires `change`.
