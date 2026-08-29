@@ -365,7 +365,7 @@ export class AppComponent implements OnInit {
    * accountants go back to /client-panel.
    */
   exitClientView(): void {
-    this.clientPanelService.clearSelectedClient();
+    this.authService.clearDelegatedClientContext();
     const realUser = this.authService.getRealUserDataFromLocalStorage();
     const destination = realUser?.role?.includes('ADMIN') ? '/admin-panel' : '/client-panel';
     this.router.navigate([destination]);

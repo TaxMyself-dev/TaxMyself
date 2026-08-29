@@ -85,6 +85,20 @@ type ChartAccountSeed = Pick<
   legacySource: 'accountCode' | 'subAccountCode' | null;
 };
 
+/**
+ * Safe visibility default for every ACTIVE operational card created by the
+ * flat seed. The one-off 2026-08-17 migration backfilled existing rows, but
+ * a fresh database previously recreated these cards with MySQL's empty SET
+ * default, making every mapped expense card invisible to every business.
+ * Inactive Form 6111 reference rows are imported separately and deliberately
+ * keep an empty set until activation explicitly chooses their visibility.
+ */
+const ALL_BUSINESS_FIELD_TYPES: BusinessFieldType[] = [
+  BusinessFieldType.SERVICE_PROVIDER,
+  BusinessFieldType.COMMERCIAL,
+  BusinessFieldType.CONTRACTOR,
+];
+
 const SYSTEM_DEFAULTS = {
   ownerType: OwnerType.SYSTEM,
   chartOwnerKey: SYSTEM_CHART_OWNER_KEY,
@@ -100,6 +114,7 @@ const SYSTEM_DEFAULTS = {
   // one — never invent a value here regardless.
   code6111: null,
   reportScope: ExpenseReportScope.PNL, // overridden explicitly on TECHNICAL/ANNUAL rows below
+  visibleBusinessTypes: ALL_BUSINESS_FIELD_TYPES,
 } as const;
 
 /** Income / balance-sheet / technical accounts: no deductibility law applies. */

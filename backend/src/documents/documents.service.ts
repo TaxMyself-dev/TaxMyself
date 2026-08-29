@@ -1,4 +1,4 @@
-import { forwardRef, Inject, Injectable, HttpException, HttpStatus, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
+import { forwardRef, Inject, Injectable, HttpException, HttpStatus, Logger, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import axios, { AxiosInstance } from 'axios';
 import { EntityManager, Repository, In, Not, IsNull } from 'typeorm';
@@ -3622,6 +3622,20 @@ ${finalOwnerName}`;
     );
   }
 
+  /** A business number alone is not an ownership boundary. */
+  private async assertBusinessOwnership(
+    firebaseId: string,
+    businessNumber: string,
+  ): Promise<void> {
+    const ownedBusiness = await this.businessRepo.findOne({
+      where: { firebaseId, businessNumber },
+      select: ['id'],
+    });
+    if (!ownedBusiness) {
+      throw new ForbiddenException('Business does not belong to the current user');
+    }
+  }
+
   /**
    * All rows for this user+business that are awaiting review, enriched with
    * the matching Supplier (if any) so the review dialog can pre-fill category
@@ -3635,6 +3649,7 @@ ${finalOwnerName}`;
   ): Promise<Array<ExtractedDocument & { matchedSupplier: Supplier | null }>> {
     const user = await this.userRepo.findOne({ where: { firebaseId } });
     if (!user) throw new NotFoundException(`User not found for firebaseId`);
+    await this.assertBusinessOwnership(firebaseId, businessNumber);
 
     const docs = await this.extractedDocRepo
       .createQueryBuilder('d')
@@ -3680,6 +3695,7 @@ ${finalOwnerName}`;
   ): Promise<ArchivedItem[]> {
     const user = await this.userRepo.findOne({ where: { firebaseId } });
     if (!user) throw new NotFoundException(`User not found for firebaseId`);
+    await this.assertBusinessOwnership(firebaseId, businessNumber);
 
     const docs = await this.extractedDocRepo
       .createQueryBuilder('d')
@@ -3694,7 +3710,10 @@ ${finalOwnerName}`;
       new Set(docs.map(d => d.confirmedExpenseId).filter((id): id is number => id != null)),
     );
     const linkedExpenses = expenseIds.length
-      ? await this.expenseRepo.find({ where: { id: In(expenseIds) }, select: ['id', 'approvalStatus'] })
+      ? await this.expenseRepo.find({
+          where: { id: In(expenseIds), userId: firebaseId, businessNumber },
+          select: ['id', 'approvalStatus'],
+        })
       : [];
     const approvalStatusByExpenseId = new Map(linkedExpenses.map(e => [e.id, e.approvalStatus]));
 

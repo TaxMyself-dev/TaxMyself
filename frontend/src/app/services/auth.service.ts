@@ -150,7 +150,18 @@ export class AuthService {
    *  Lazy-resolved via Injector to break the circular import with
    *  ClientPanelService (which depends on AuthService). */
   private clearDelegationState(): void {
+    this.clearDelegatedClientContext();
+  }
+
+  /**
+   * Return to the signed-in identity and synchronously discard every piece
+   * of state that belonged to the represented client. The selected-client
+   * emission then causes AppComponent to reload the signed-in user's data.
+   */
+  clearDelegatedClientContext(): void {
     this.viewAsUserData = null;
+    this.setActiveBusinessNumber(null);
+    this.genericService.clearBusinesses();
     this.injector.get(ClientPanelService).clearSelectedClient();
   }
 

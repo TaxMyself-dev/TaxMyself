@@ -4,6 +4,7 @@ import { DialogService } from 'primeng/dynamicdialog';
 import { ClientPanelService, Client, CreateClientPayload } from 'src/app/services/clients-panel.service';
 import { ReferralService } from 'src/app/services/referral.service';
 import { AuthService } from 'src/app/services/auth.service';
+import { GenericService } from 'src/app/services/generic.service';
 import { MessageService, ConfirmationService } from 'primeng/api';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 import {
@@ -89,6 +90,7 @@ export class ClientPanelPage implements OnInit {
   private readonly clientService = inject(ClientPanelService);
   private readonly referralService = inject(ReferralService);
   private readonly authService = inject(AuthService);
+  private readonly genericService = inject(GenericService);
   private readonly messageService = inject(MessageService);
   private readonly confirmationService = inject(ConfirmationService);
   private readonly router = inject(Router);
@@ -267,7 +269,7 @@ export class ClientPanelPage implements OnInit {
     const realUser = this.authService.getRealUserDataFromLocalStorage();
     const realUserIsAdmin = !!realUser?.role?.includes('ADMIN');
     if (!realUserIsAdmin) {
-      this.clientService.clearSelectedClient();
+      this.authService.clearDelegatedClientContext();
     }
     this.fetchClients();
     this.fetchReferralLink();
@@ -351,6 +353,7 @@ export class ClientPanelPage implements OnInit {
 
   /** כניסה לחשבון הלקוח בתור הרואה חשבון – מגדיר גם את מספר העסק של הלקוח להקשר הבקשות */
   enterClient(client: Client): void {
+    this.genericService.clearBusinesses();
     this.clientService.setSelectedClient(client.id, client.fullName);
     this.authService.setActiveBusinessNumber(client.businessNumber ?? null);
     this.router.navigate(['/my-account']);
@@ -358,6 +361,7 @@ export class ClientPanelPage implements OnInit {
 
   /** Enter one exact business from a multi-business client row. */
   enterClientBusiness(client: Client, business: Client): void {
+    this.genericService.clearBusinesses();
     this.clientService.setSelectedClient(client.id, client.fullName);
     this.authService.setActiveBusinessNumber(business.businessNumber ?? null);
     this.router.navigate(['/my-account']);

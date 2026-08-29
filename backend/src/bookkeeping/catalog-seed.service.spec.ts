@@ -10,7 +10,7 @@ import { CatalogService } from './catalog.service';
 import { AccountCodeAllocatorService } from './account-code-allocator.service';
 import { SYSTEM_CATEGORIES, SYSTEM_SUB_CATEGORIES } from './catalog.seed';
 import { CHART_ACCOUNTS, ACCOUNTING_SECTIONS } from './chart.seed';
-import { SYSTEM_CHART_OWNER_KEY } from '../enum';
+import { BusinessFieldType, SYSTEM_CHART_OWNER_KEY } from '../enum';
 
 function makeRepo<T extends { id?: number }>(rows: T[] = []) {
   let nextId = (Math.max(0, ...rows.map((r) => r.id ?? 0)) || 0) + 1;
@@ -110,5 +110,35 @@ describe('CatalogSeedService', () => {
     const categoryNames = new Set(SYSTEM_CATEGORIES.map((c) => c.name));
     const missing = SYSTEM_SUB_CATEGORIES.filter((s) => !categoryNames.has(s.category));
     expect(missing).toEqual([]);
+  });
+
+  it('every active seed account is visible to every business field on a fresh database', () => {
+    const expected = [
+      BusinessFieldType.SERVICE_PROVIDER,
+      BusinessFieldType.COMMERCIAL,
+      BusinessFieldType.CONTRACTOR,
+    ];
+
+    for (const account of CHART_ACCOUNTS.filter((row) => row.isActive)) {
+      expect(account.visibleBusinessTypes).toEqual(expected);
+    }
+  });
+
+  it('fails loudly instead of serving an empty catalog when an existing active card has no visibility', async () => {
+    accountRepo.rows.push({
+      id: 9999,
+      code: '79999',
+      chartOwnerKey: 'ACCOUNTANT_test',
+      isActive: true,
+      visibleBusinessTypes: [],
+    });
+
+    await expect(seeder.runSeed()).rejects.toThrow(
+      /active booking_account row\(s\) have empty visibleBusinessTypes/,
+    );
+
+    // The create-only seeder diagnoses the row but never rewrites an
+    // accountant/admin-owned value behind their back.
+    expect(accountRepo.rows.find((row: any) => row.id === 9999)?.visibleBusinessTypes).toEqual([]);
   });
 });

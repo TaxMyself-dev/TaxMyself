@@ -156,7 +156,16 @@ export class ArchivedDocumentsPage implements OnInit {
 
     this.userData = this.authService.getUserDataFromLocalStorage();
     this.businessStatus = this.userData.businessStatus;
+
+    // Businesses are identity-scoped. Always refresh them after navigation
+    // so an accountant leaving a client view cannot use the client's cached
+    // first business while the signed-in accountant's request is in flight.
+    await this.gs.loadBusinessesFromServer();
     const businesses = this.gs.businesses();
+    if (businesses.length === 0) {
+      this.rawItems.set([]);
+      return;
+    }
     this.selectedBusinessNumber.set(businesses[0].businessNumber);
     this.selectedBusinessName.set(businesses[0].businessName);
 

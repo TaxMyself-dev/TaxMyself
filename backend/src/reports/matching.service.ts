@@ -58,6 +58,7 @@ export class MatchingService {
    */
   async matchDocumentsForBusiness(
     firebaseId: string,
+    userIndex: number,
     businessNumber: string,
     range: { from: Date; to: Date },
   ): Promise<{ paired: number; docsConsidered: number; txsConsidered: number }> {
@@ -72,7 +73,8 @@ export class MatchingService {
     // rule on the tx-candidate query below.
     const docs = await this.docRepo
       .createQueryBuilder('d')
-      .where('d.businessNumber = :bn', { bn: businessNumber })
+      .where('d.userId = :uid', { uid: userIndex })
+      .andWhere('d.businessNumber = :bn', { bn: businessNumber })
       .andWhere('d.status = :st', { st: ExtractedDocStatus.PENDING_REVIEW })
       .andWhere('d.deletedAt IS NULL')
       .andWhere('d.matchedTransactionId IS NULL')
@@ -84,7 +86,8 @@ export class MatchingService {
     if (docs.length === 0) {
       const wider = await this.docRepo
         .createQueryBuilder('d')
-        .where('d.businessNumber = :bn', { bn: businessNumber })
+        .where('d.userId = :uid', { uid: userIndex })
+        .andWhere('d.businessNumber = :bn', { bn: businessNumber })
         .orderBy('d.date', 'DESC')
         .limit(30)
         .getMany();
@@ -130,7 +133,8 @@ export class MatchingService {
         'COALESCE(ABS(cache.ilsAmount), ABS(cache.amount)) AS amount',
         'cache.transactionDate AS date',
       ])
-      .where('slim.businessNumber = :bn', { bn: businessNumber })
+      .where('slim.userId = :uid', { uid: firebaseId })
+      .andWhere('slim.businessNumber = :bn', { bn: businessNumber })
       .andWhere('slim.isRecognized = true')
       .andWhere('slim.confirmed = false')
       .andWhere('slim.matchedDocumentId IS NULL')

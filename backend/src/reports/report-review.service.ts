@@ -223,6 +223,7 @@ export class ReportReviewService {
   ): Promise<{ hasPendingDocs: boolean; hasUnconfirmedExpenses: boolean }> {
     const user = await this.userRepo.findOne({ where: { firebaseId } });
     if (!user) throw new NotFoundException(`User not found for firebaseId`);
+    await this.assertBusinessOwnership(firebaseId, businessNumber);
 
     if (!isAgentRequest && await this.sharedService.isRepresentedByAccountant(firebaseId)) {
       // Only the accountant may approve this client's expenses — never show
@@ -247,7 +248,8 @@ export class ReportReviewService {
     // bounced straight back to the report, looking like a false alarm.
     const pendingDocsCount = await this.docRepo
       .createQueryBuilder('d')
-      .where('d.businessNumber = :bn', { bn: businessNumber })
+      .where('d.userId = :uid', { uid: user.index })
+      .andWhere('d.businessNumber = :bn', { bn: businessNumber })
       .andWhere('d.status = :st', { st: ExtractedDocStatus.PENDING_REVIEW })
       .andWhere('d.deletedAt IS NULL')
       .andWhere('(d.date IS NULL OR d.date <= :to)', { to: periodEnd })
@@ -285,7 +287,8 @@ export class ReportReviewService {
           FullTransactionCache, 'cache',
           'cache.userId = slim.userId AND cache.externalTransactionId = slim.externalTransactionId',
         )
-        .where('slim.businessNumber = :bn', { bn: businessNumber })
+        .where('slim.userId = :uid', { uid: firebaseId })
+        .andWhere('slim.businessNumber = :bn', { bn: businessNumber })
         .andWhere('slim.isRecognized = true')
         .andWhere('slim.confirmed = false')
         .andWhere('cache.transactionDate <= :to', { to: periodEnd })
@@ -303,6 +306,7 @@ export class ReportReviewService {
   ): Promise<ReportPreviewResponse> {
     const user = await this.userRepo.findOne({ where: { firebaseId } });
     if (!user) throw new NotFoundException(`User not found for firebaseId`);
+    await this.assertBusinessOwnership(firebaseId, businessNumber);
 
     // Step 1 — pull anything new from inbox/. Failures here don't sink the
     // preview; the inbox processor logs per-file errors and the user can
@@ -350,6 +354,7 @@ export class ReportReviewService {
       try {
         await this.matchingService.matchDocumentsForBusiness(
           firebaseId,
+          user.index,
           businessNumber,
           range,
         );
@@ -1321,6 +1326,20 @@ export class ReportReviewService {
   // HELPERS
   // ====================================================================
 
+  /** A business number alone is not an ownership boundary. */
+  private async assertBusinessOwnership(
+    firebaseId: string,
+    businessNumber: string,
+  ): Promise<void> {
+    const ownedBusiness = await this.businessRepo.findOne({
+      where: { firebaseId, businessNumber },
+      select: ['id'],
+    });
+    if (!ownedBusiness) {
+      throw new ForbiddenException('Business does not belong to the current user');
+    }
+  }
+
   /** Load eligible (expense-classified, not-yet-confirmed) slim
    *  transactions whose date is on or before the period end. Upper
    *  bound only — late-classified transactions from prior periods stay
@@ -1339,7 +1358,8 @@ export class ReportReviewService {
         'cache',
         'cache.userId = slim.userId AND cache.externalTransactionId = slim.externalTransactionId',
       )
-      .where('slim.businessNumber = :bn', { bn: businessNumber })
+      .where('slim.userId = :uid', { uid: firebaseId })
+      .andWhere('slim.businessNumber = :bn', { bn: businessNumber })
       .andWhere('slim.isRecognized = true')
       .andWhere('slim.confirmed = false')
       .andWhere('cache.transactionDate <= :to', { to: range.to })

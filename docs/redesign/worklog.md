@@ -2039,6 +2039,26 @@ record this instead.
   success, while a real double failure logs both Drive errors.
 - No database/schema change is required.
 
+## 2026-08-29 — Permanent active-card visibility repair
+
+- Diagnosed the recurring empty professional card picker in dev: all 71
+  active `booking_account` rows had an empty `visibleBusinessTypes` SET, so
+  the business-field visibility filter correctly hid every mapped card while
+  the unscoped admin screen continued to display them.
+- Backfilled `keepintax-dev` transactionally to all three business fields and
+  verified 71/71 active cards are populated, with 40 distinct mapped expense
+  cards visible for business 322253238.
+- Fixed the fresh-database source of recurrence: every active operational
+  card in `chart.seed.ts` now receives all three business fields by default;
+  inactive Form 6111 reference rows remain empty until explicit activation.
+- Catalog seed startup now fails loudly when an existing active card has
+  empty visibility, without mutating existing admin/accountant-owned rows.
+  The review page also reports catalog-load and zero-mapped-card failures
+  instead of silently showing an empty picker.
+- The 7 focused seed tests, Nest build and Angular dev build passed. No new
+  schema change is required; production's existing visibility backfill
+  remains the required data migration.
+
 ## 2026-08-28 — Archive soft deletion and deleted-items filter
 
 - Changed the archive trash action from physical deletion to a file-scoped
@@ -2087,6 +2107,53 @@ record this instead.
 - Status cells now receive a pretranslated Hebrew `statusLabel`, avoiding the
   late TemplateRef initialization that could expose raw `DELETED` text.
 - Angular production build passed; no schema change was added by this fix.
+
+## 2026-08-29 — Accountant/client document-context isolation
+
+- Fixed stale delegated-client state leaking into the accountant's own
+  archive and expense-review navigation. Leaving client mode now clears the
+  represented user, active business number and identity-scoped business
+  cache synchronously before the signed-in accountant's businesses reload.
+- Entering a client also clears the previous identity's business cache, and
+  the archive refreshes the effective user's businesses before choosing its
+  default business.
+- Hardened archive and report-review backend boundaries: the requested
+  business must belong to the effective authenticated user, and pending
+  documents, matching candidates and unconfirmed transactions are filtered
+  by both owner identity and business number.
+- Added focused regression tests for business ownership and owner-scoped
+  review/matching queries. The tests, Nest build and Angular dev build pass.
+- No database/schema change is required.
+
+## 2026-08-29 — P&L small-trader PDF flag correction
+
+- Normalized the `osekZair` query flag at both P&L GET boundaries so the
+  server honors either the raw string value (`"true"`) or a boolean value
+  produced by request transformation.
+- Added focused regression coverage proving the PDF export forwards the
+  enabled small-trader mode and therefore receives the synthetic 30% expense
+  line from the shared journal report calculation.
+- Focused Jest tests and the Nest build pass; no schema change is required.
+
+## 2026-08-29 — Restore P&L filter after expense review
+
+- Preserved the selected report filter state while navigating from the P&L
+  report to the routed expense-review page and back.
+- A returned annual report now initializes the visible filter with its
+  original mode/year (for example, annual 2025) instead of the current-month
+  defaults, while the already-carried report dates continue to drive the data.
+- Added regression coverage for annual and bimonthly filter-state round trips.
+  The Angular dev build passes. The focused Karma run is blocked by unrelated
+  pre-existing frontend spec/type errors; no schema change is required.
+
+## 2026-08-29 — Settings document-upload action cleanup
+
+- Removed the separate Google Drive folder link from each business card in
+  Settings > My businesses.
+- Kept the existing upload action as the sole control, relabeled it to
+  "העלאת מסמכים", and moved the existing folder-open icon onto the button.
+- Removed the now-unused Drive-link helper and styles. The Angular dev build
+  passes; no schema change is required.
 
 ## 2026-08-29 -- Supplier fractional percentage correction
 

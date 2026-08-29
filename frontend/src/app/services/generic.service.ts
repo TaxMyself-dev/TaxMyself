@@ -103,6 +103,17 @@ export class GenericService {
     localStorage.setItem('businesses', JSON.stringify(data));
   }
 
+  /**
+   * Drop the identity-scoped business cache immediately when entering or
+   * leaving delegated-client mode. Without this, the next page can render
+   * once with the previous identity's businesses before the fresh HTTP
+   * request completes and consequently query that business's documents.
+   */
+  clearBusinesses(): void {
+    this._businesses.set(null);
+    localStorage.removeItem('businesses');
+  }
+
   /** עדכון אחוז מקדמות מס לעסק */
   async updateBusinessAdvanceTaxPercent(businessNumber: string, advanceTaxPercent: number): Promise<void> {
     await this.updateBusiness({ businessNumber, advanceTaxPercent });

@@ -73,6 +73,27 @@ export class CatalogSeedService implements OnModuleInit {
     } catch (err: any) {
       this.logger.error(`SYSTEM catalog seed failed: ${err?.message ?? err}`);
     }
+
+    // Empty visibility on an active card makes it disappear from every
+    // business catalog. Never repair existing rows here (the seeder's
+    // create-only ownership contract remains intact), but fail startup
+    // loudly so a missed data migration cannot become a silent expense-entry
+    // outage again.
+    await this.assertActiveAccountVisibility();
+  }
+
+  private async assertActiveAccountVisibility(): Promise<void> {
+    const activeAccounts = await this.accountRepo.find({ where: { isActive: true } });
+    const invisible = activeAccounts.filter(
+      (account) => !account.visibleBusinessTypes?.length,
+    );
+    if (invisible.length === 0) return;
+
+    const sampleCodes = invisible.slice(0, 10).map((account) => account.code).join(', ');
+    throw new Error(
+      `Catalog integrity failure: ${invisible.length} active booking_account row(s) have empty ` +
+      `visibleBusinessTypes (sample codes: ${sampleCodes}). Run the visible-business-types backfill before startup.`,
+    );
   }
 
   /**
