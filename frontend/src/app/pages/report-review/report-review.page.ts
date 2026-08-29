@@ -30,6 +30,7 @@ import {
 } from 'src/app/services/report-review.service';
 import { ExpenseEditFieldValues } from 'src/app/components/report-review-edit-dialog/report-review-edit-dialog.component';
 import { SupplierDraft } from 'src/app/components/supplier-management-dialog/supplier-management-dialog.component';
+import { reportFilterQueryFromParamMap } from 'src/app/shared/report-filter-navigation';
 
 /** D9 view modes — one screen, two column sets. Persisted per user. */
 type ReviewViewMode = 'regular' | 'professional';
@@ -520,6 +521,7 @@ export class ReportReviewPage implements OnInit {
         startDate: this.startDate(),
         endDate: this.endDate(),
         reviewed: 1,
+        ...reportFilterQueryFromParamMap(this.route.snapshot.queryParamMap),
       },
     });
   }

@@ -14,6 +14,10 @@ import { FilterField } from 'src/app/components/filter-tab/filter-fields-model.c
 import { TransactionsService } from '../transactions/transactions.page.service';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { ReportReviewService } from 'src/app/services/report-review.service';
+import {
+  reportFilterQueryFromFormValue,
+  reportPeriodDefaultsFromQuery,
+} from 'src/app/shared/report-filter-navigation';
 
 
 @Component({
@@ -140,6 +144,24 @@ export class PnLReportJournalPage implements OnInit {
     
     const currentYear = new Date().getFullYear();
     const currentMonth = new Date().getMonth() + 1;
+    const returnParams = this.route.snapshot.queryParamMap;
+    const isReviewReturn = !!returnParams.get('reviewed');
+    const returnedBusinessNumber = isReviewReturn
+      ? returnParams.get('businessNumber') ?? ''
+      : '';
+
+    if (returnedBusinessNumber) {
+      this.businessNumber.set(returnedBusinessNumber);
+      const returnedBusiness = businesses.find(
+        (business) => business.businessNumber === returnedBusinessNumber,
+      );
+      if (returnedBusiness) this.businessName.set(returnedBusiness.businessName);
+    }
+
+    const defaultPeriodConfig = this.gs.getDefaultPeriodConfig({
+      year: currentYear,
+      month: String(currentMonth),
+    });
 
     this.filterConfig = [
       {
@@ -148,14 +170,18 @@ export class PnLReportJournalPage implements OnInit {
         label: 'בחר עסק',
         required: true,
         options: this.gs.businessSelectItems,
-        defaultValue: businesses.length === 1 ? businesses[0].businessNumber : undefined
+        defaultValue:
+          returnedBusinessNumber ||
+          (businesses.length === 1 ? businesses[0].businessNumber : undefined),
       },
       {
         type: 'period',
         controlName: 'period',
         required: true,
         allowedPeriodModes: [ReportingPeriodType.MONTHLY, ReportingPeriodType.BIMONTHLY, ReportingPeriodType.ANNUAL, ReportingPeriodType.DATE_RANGE],
-        periodDefaults: this.gs.getDefaultPeriodConfig({ year: currentYear, month: String(currentMonth) })
+        periodDefaults: isReviewReturn
+          ? reportPeriodDefaultsFromQuery(returnParams, defaultPeriodConfig)
+          : defaultPeriodConfig,
       },
     ];
 
@@ -178,8 +204,7 @@ export class PnLReportJournalPage implements OnInit {
     // Returning from /report-review — reload the report for the same
     // business/period the user was reviewing instead of waiting for them
     // to re-submit the filter form.
-    const returnParams = this.route.snapshot.queryParamMap;
-    if (returnParams.get('reviewed')) {
+    if (isReviewReturn) {
       const bn = returnParams.get('businessNumber') ?? this.businessNumber();
       const start = returnParams.get('startDate') ?? '';
       const end = returnParams.get('endDate') ?? '';
@@ -257,6 +282,7 @@ export class PnLReportJournalPage implements OnInit {
             startDate: this.startDate(),
             endDate: this.endDate(),
             returnTo: 'pnl-report',
+            ...reportFilterQueryFromFormValue(this.form.getRawValue()),
           },
         });
       },
