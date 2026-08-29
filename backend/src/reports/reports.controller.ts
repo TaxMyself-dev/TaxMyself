@@ -25,6 +25,7 @@ import { RequireModule } from 'src/decorators/require-module.decorator';
 import { RequiredDelegationScope } from 'src/decorators/required-delegation-scope.decorator';
 import { DelegationScope } from 'src/delegation/delegation.entity';
 import { DocumentKind, ModuleName } from 'src/enum';
+import { parseBooleanQueryFlag } from './pnl-report-query.util';
 
 
 @Controller('reports')
@@ -446,7 +447,11 @@ export class ReportsController {
         const startDate = this.sharedService.convertStringToDateObject(query.startDate);
         const endDate = this.sharedService.convertStringToDateObject(query.endDate);
         return this.reportsService.createPnLReportFromJournal(
-            firebaseId, query.businessNumber, startDate, endDate, query.osekZair === 'true',
+            firebaseId,
+            query.businessNumber,
+            startDate,
+            endDate,
+            parseBooleanQueryFlag(query.osekZair),
         );
     }
 
@@ -523,7 +528,12 @@ export class ReportsController {
             ? parsedIncomeOverride
             : undefined;
         const pdfBuffer = await this.reportsService.generatePnlReportPdfForExport(
-            firebaseId, query.businessNumber, startDate, endDate, query.osekZair === 'true', incomeOverride,
+            firebaseId,
+            query.businessNumber,
+            startDate,
+            endDate,
+            parseBooleanQueryFlag(query.osekZair),
+            incomeOverride,
         );
         res.setHeader('Content-Type', 'application/pdf');
         return res.send(pdfBuffer);
