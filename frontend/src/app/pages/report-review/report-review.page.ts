@@ -344,6 +344,10 @@ export class ReportReviewPage implements OnInit {
     this.rows().find(r => r.rowKey === this.triagingRowKey()) ?? null,
   );
 
+  /** Optional-reason dialog state for rejecting a document-side row. */
+  rejectingRow = signal<EditableReviewRow | null>(null);
+  rejectionReason = signal<string>('');
+
   /** SupplierIds the user has touched (picked a category/sub-category on at
    *  least one row sharing that supplier). All rows with a matching
    *  supplierId render with the warning background — lets the user see at
@@ -1563,19 +1567,29 @@ export class ReportReviewPage implements OnInit {
       },
     },
     {
-      name: 'delete',
+      name: 'reject',
+      icon: 'pi pi-trash',
+      title: 'דחה',
+      isLoading: () => this.isActioning(),
+      showWhen: (row) => {
+        const r = row as unknown as EditableReviewRow;
+        return !r.isDetailRow && r.type !== 'tx_only';
+      },
+      action: (_event, row) => this.startReject(row as unknown as EditableReviewRow),
+    },
+    {
+      // A transaction-only row has no document or archive record on which
+      // to retain a document rejection reason; keep its existing action
+      // semantically separate.
+      name: 'delete-transaction',
       icon: 'pi pi-trash',
       title: 'מחק',
       isLoading: () => this.isActioning(),
       showWhen: (row) => {
         const r = row as unknown as EditableReviewRow;
-        return !r.isDetailRow;
+        return !r.isDetailRow && r.type === 'tx_only';
       },
-      action: (_event, row) => {
-        const r = row as unknown as EditableReviewRow;
-        if (r.type === 'tx_only') this.rejectTx(r);
-        else this.deleteRow(r);
-      },
+      action: (_event, row) => this.rejectTx(row as unknown as EditableReviewRow),
     },
   ];
 
@@ -1954,12 +1968,33 @@ export class ReportReviewPage implements OnInit {
     this.runAction(row, this.reviewService.archiveDoc(row.documentId), 'ארכוב המסמך נכשל');
   }
 
-  /** Hard-delete the document row (DB row removed, Drive file → archive/).
-   *  Only available for rows with a document side; tx_only rows use reject
-   *  instead, which has equivalent UX intent (remove from view). */
-  deleteRow(row: EditableReviewRow): void {
-    if (!row.documentId) return;
-    this.runAction(row, this.reviewService.deleteDoc(row.documentId), 'מחיקת המסמך נכשלה');
+  startReject(row: EditableReviewRow): void {
+    if (!row.documentId || this.isActioning()) return;
+    this.rejectionReason.set('');
+    this.rejectingRow.set(row);
+  }
+
+  cancelReject(): void {
+    if (this.isActioning()) return;
+    this.rejectingRow.set(null);
+    this.rejectionReason.set('');
+  }
+
+  confirmReject(): void {
+    const row = this.rejectingRow();
+    if (!row?.documentId) return;
+    const reason = this.rejectionReason().trim() || null;
+    this.runAction(
+      row,
+      this.reviewService.deleteDoc(row.documentId, reason),
+      'דחיית המסמך נכשלה',
+      () => {
+        this.rejectingRow.set(null);
+        this.rejectionReason.set('');
+        this.rows.update(rs => rs.filter(r => r !== row));
+        this.adjustCount(row.type, -1);
+      },
+    );
   }
 
   /** "פצל" on an invoice_receipt_pair row — splits the pair back into

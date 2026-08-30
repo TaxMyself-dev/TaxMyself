@@ -2168,3 +2168,19 @@ record this instead.
 - Three focused Jest regressions and the Nest production TypeScript build pass.
   The all-spec TypeScript check remains blocked by pre-existing errors in the
   users specs.
+
+## 2026-08-30 -- Optional document rejection reason
+
+- Renamed the document-side review action from "delete" to "reject" and
+  added a modal that accepts an optional reason up to 500 characters. An
+  empty reason is explicitly supported through the "skip and reject" action.
+- Rejection still retains the Drive file and OCR row. The normalized reason is
+  stored on `extracted_document`, cascaded to a paired document, and returned
+  in the unified archive response.
+- Added a dedicated rejection-reason column to the archive; rows without a
+  reason display a dash. Transaction-only rows retain their separate delete
+  action because they have no document archive record.
+- Added cutover Section 14 for the required nullable `rejection_reason`
+  column; no database was altered in this session.
+- Twenty-six focused backend tests, the Nest production TypeScript build and
+  the Angular development build passed.

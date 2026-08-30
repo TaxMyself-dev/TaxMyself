@@ -70,6 +70,7 @@ export interface ArchivedItem {
   source: RecordSource;
   status: ArchiveItemStatus;
   driveFileId: string | null;
+  rejectionReason: string | null;
 }
 
 /** Raw shape of a single invoice returned by the OCR endpoint. Matches

@@ -99,6 +99,7 @@ export class ArchivedDocumentsPage implements OnInit {
     { name: 'name', value: 'שם המסמך / תנועה', type: FormTypes.TEXT },
     { name: 'documentTypeLabel', value: 'סוג מסמך', type: FormTypes.TEXT },
     { name: 'statusLabel', value: 'סטטוס', type: FormTypes.TEXT },
+    { name: 'rejectionReasonLabel', value: 'סיבת דחייה', type: FormTypes.TEXT },
     { name: 'uploadDate', value: 'תאריך העלאה', type: FormTypes.DATE },
     { name: 'sourceLabel', value: 'מקור העלאה', type: FormTypes.TEXT },
   ]);
@@ -124,6 +125,7 @@ export class ArchivedDocumentsPage implements OnInit {
           : TRANSACTION_TYPE_LABEL,
         sourceLabel: this.recordSourceLabels[item.source] ?? item.source,
         statusLabel: this.archiveStatusLabels[item.status] ?? item.status,
+        rejectionReasonLabel: item.rejectionReason?.trim() || '-',
         uploadDate: item.uploadDate ? item.uploadDate.slice(0, 10) : '-',
       }));
   });

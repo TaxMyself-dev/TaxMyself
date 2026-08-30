@@ -383,6 +383,59 @@
 
 </p-dialog>
 
+<!-- Reject a document without deleting its Drive file. The explanation is
+     optional and is shown later in the archive's dedicated reason column. -->
+<p-dialog
+  header="דחיית מסמך"
+  [visible]="rejectingRow() !== null"
+  (visibleChange)="$event ? null : cancelReject()"
+  [modal]="true"
+  [style]="{ width: '480px', maxWidth: '95vw' }"
+  [rtl]="true"
+  [draggable]="false"
+  [resizable]="false">
+
+  <div class="reject-dialog-body" *ngIf="rejectingRow() as row">
+    <p class="reject-dialog-row-label">
+      {{ row.supplier || '(ללא ספק)' }} — {{ row.sumLabel }}
+    </p>
+    <label class="reject-dialog-label" for="rejectionReasonInput">
+      סיבת הדחייה <span>(לא חובה)</span>
+    </label>
+    <textarea
+      id="rejectionReasonInput"
+      class="reject-dialog-textarea"
+      rows="4"
+      maxlength="500"
+      [ngModel]="rejectionReason()"
+      (ngModelChange)="rejectionReason.set($event)"
+      placeholder="לדוגמה: מסמך כפול או מסמך שאינו הוצאה מוכרת">
+    </textarea>
+    <small class="reject-dialog-counter">{{ rejectionReason().length }}/500</small>
+  </div>
+
+  <ng-template pTemplate="footer">
+    <div class="reject-dialog-footer">
+      <app-p-button
+        [buttonText]="'ביטול'"
+        [buttonColor]="ButtonColor.BLACK"
+        [buttonSize]="ButtonSize.AUTO"
+        [variant]="'outlined'"
+        [disabled]="isActioning()"
+        (onButtonClicked)="cancelReject()">
+      </app-p-button>
+      <app-p-button
+        [buttonText]="rejectionReason().trim() ? 'דחה' : 'דלג ודחה'"
+        [buttonColor]="ButtonColor.BLACK"
+        [buttonSize]="ButtonSize.AUTO"
+        [isLoading]="isActioning()"
+        (onButtonClicked)="confirmReject()">
+      </app-p-button>
+    </div>
+  </ng-template>
+
+</p-dialog>
+
 <!-- tx_only "קשר מסמך" — was an inline picker in the (now-removed) status
      column; same p-dialog idiom as the rest of this stack, opened from the
      row-actions hover strip's "link" action (startLink). Offers two paths:

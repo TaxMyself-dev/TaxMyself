@@ -26,6 +26,7 @@ import { RequiredDelegationScope } from 'src/decorators/required-delegation-scop
 import { DelegationScope } from 'src/delegation/delegation.entity';
 import { DocumentKind, ModuleName } from 'src/enum';
 import { parseBooleanQueryFlag } from './pnl-report-query.util';
+import { RejectReviewDocumentDto } from './dtos/reject-review-document.dto';
 
 
 @Controller('reports')
@@ -241,10 +242,15 @@ export class ReportsController {
     async deleteDoc(
       @Req() request: AuthenticatedRequest,
       @Param('documentId') documentId: string,
+      @Body() body?: RejectReviewDocumentDto,
     ) {
       const firebaseId = request.user?.firebaseId;
       if (!firebaseId) throw new BadRequestException('Not authenticated');
-      return this.reviewService.deleteDoc(firebaseId, Number(documentId));
+      return this.reviewService.deleteDoc(
+        firebaseId,
+        Number(documentId),
+        body?.rejectionReason,
+      );
     }
 
     /** D8 "תייק" (Phase 4.3): file a document for the ANNUAL report —

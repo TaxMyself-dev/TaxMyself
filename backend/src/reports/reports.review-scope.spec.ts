@@ -117,6 +117,16 @@ describe('ReportsController — review-workflow EXPENSES_APPROVE scope sweep', (
       await callFn();
       expect((reviewService as any)[serviceMockName]).toHaveBeenCalledTimes(1);
     });
+
+    it('deleteDoc forwards the optional rejection reason', async () => {
+      await controller.deleteDoc(req(), '17', { rejectionReason: 'מסמך כפול' });
+
+      expect(reviewService.deleteDoc).toHaveBeenCalledWith(
+        'client-1',
+        17,
+        'מסמך כפול',
+      );
+    });
   });
 
   it('every review-workflow route stays behind FirebaseAuthGuard regardless of scope override', () => {

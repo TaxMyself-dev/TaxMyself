@@ -3145,8 +3145,8 @@ ${finalOwnerName}`;
    *              but real".
    *
    * The underlying Drive file STAYS in processed/ in both cases. The DB
-   * `status` column is the only signal — file location no longer reflects
-   * the row's lifecycle.
+   * `status` column (plus the optional rejection explanation) is the signal;
+   * file location no longer reflects the row's lifecycle.
    *
    * If the doc was matched to a slim transaction, that slim row gets reset
    * too (matchedDocumentId=null, isRecognized=false) so the bank tx returns
@@ -3160,6 +3160,7 @@ ${finalOwnerName}`;
     firebaseId: string,
     documentId: number,
     targetStatus: ExtractedDocStatus.ARCHIVED | ExtractedDocStatus.REJECTED = ExtractedDocStatus.ARCHIVED,
+    rejectionReason?: string | null,
   ): Promise<{ ok: true; documentId: number; movedFile: boolean }> {
     const user = await this.userRepo.findOne({ where: { firebaseId } });
     if (!user) throw new NotFoundException(`User not found for firebaseId`);
@@ -3172,9 +3173,26 @@ ${finalOwnerName}`;
     if (doc.deletedAt) {
       throw new BadRequestException('Document is deleted; restore it before changing its status');
     }
+    const normalizedRejectionReason = targetStatus === ExtractedDocStatus.REJECTED
+      ? (rejectionReason?.trim() || null)
+      : null;
+    if (normalizedRejectionReason && normalizedRejectionReason.length > 500) {
+      throw new BadRequestException('Rejection reason must not exceed 500 characters');
+    }
+
     // Idempotent on terminal states. Re-clicking archive on an already-
-    // archived row, or reject on a rejected row, is a no-op.
+    // archived row is a no-op. A repeated rejection may still update its
+    // optional explanation.
     if (doc.status === targetStatus) {
+      if (
+        targetStatus === ExtractedDocStatus.REJECTED
+        && doc.rejectionReason !== normalizedRejectionReason
+      ) {
+        await this.extractedDocRepo.update(
+          { id: documentId },
+          { rejectionReason: normalizedRejectionReason },
+        );
+      }
       return { ok: true, documentId, movedFile: false };
     }
 
@@ -3183,10 +3201,10 @@ ${finalOwnerName}`;
     // and the user may want to approve some and archive/reject others.
     await this.extractedDocRepo.update(
       { id: documentId },
-      { status: targetStatus },
+      { status: targetStatus, rejectionReason: normalizedRejectionReason },
     );
 
-    await this.resetMatchedSlimAndCascadePair(doc, targetStatus);
+    await this.resetMatchedSlimAndCascadePair(doc, targetStatus, normalizedRejectionReason);
 
     // No Drive move on archive/reject: the file stays in processed/
     // forever. The DB `status` column is the source of truth for what
@@ -3215,6 +3233,7 @@ ${finalOwnerName}`;
   private async resetMatchedSlimAndCascadePair(
     doc: ExtractedDocument,
     targetStatus: ExtractedDocStatus,
+    rejectionReason: string | null = null,
   ): Promise<void> {
     if (doc.matchedTransactionId) {
       await this.slimTransactionRepo.update(
@@ -3225,7 +3244,7 @@ ${finalOwnerName}`;
     if (doc.pairedWithDocumentId) {
       await this.extractedDocRepo.update(
         { id: doc.pairedWithDocumentId },
-        { status: targetStatus },
+        { status: targetStatus, rejectionReason },
       );
     }
   }
@@ -3728,6 +3747,7 @@ ${finalOwnerName}`;
         ? ArchiveItemStatus.DELETED
         : this.simplifyDocStatus(this.deriveArchiveStatus(d, approvalStatusByExpenseId)),
       driveFileId: d.driveFileId,
+      rejectionReason: d.rejectionReason,
     }));
 
     // Every Expense not backed by a source document: bank/card transactions
@@ -3752,6 +3772,7 @@ ${finalOwnerName}`;
       source: e.source ?? (e.externalTransactionId ? RecordSource.OPEN_BANKING : RecordSource.MANUAL),
       status: this.simplifyExpenseStatus(e.approvalStatus),
       driveFileId: null,
+      rejectionReason: null,
     }));
 
     return [...docItems, ...txItems].sort((a, b) => {
@@ -3894,4 +3915,5 @@ export interface ArchivedItem {
   source: RecordSource;
   status: ArchiveItemStatus;
   driveFileId: string | null;
+  rejectionReason: string | null;
 }

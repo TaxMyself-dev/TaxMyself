@@ -317,13 +317,14 @@ export class ReportReviewService {
     );
   }
 
-  /** Hard-delete a document row. Returns the same shape as archiveDoc. */
+  /** Reject a document row while retaining both its DB row and Drive file. */
   deleteDoc(
     documentId: number,
+    rejectionReason?: string | null,
   ): Observable<{ ok: true; documentId: number; movedFile: boolean }> {
     return this.http.post<{ ok: true; documentId: number; movedFile: boolean }>(
       `${environment.apiUrl}reports/me/review/delete-doc/${documentId}`,
-      {},
+      { rejectionReason: rejectionReason?.trim() || null },
     );
   }
 

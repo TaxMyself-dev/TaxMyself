@@ -1281,11 +1281,13 @@ export class ReportReviewService {
   async deleteDoc(
     firebaseId: string,
     documentId: number,
+    rejectionReason?: string | null,
   ): Promise<{ ok: true; documentId: number; movedFile: boolean }> {
     return this.documentsService.archiveDocument(
       firebaseId,
       documentId,
       ExtractedDocStatus.REJECTED,
+      rejectionReason,
     );
   }
 

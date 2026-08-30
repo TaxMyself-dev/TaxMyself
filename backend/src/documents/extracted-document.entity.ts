@@ -240,6 +240,12 @@ export class ExtractedDocument {
   })
   status: ExtractedDocStatus;
 
+  /** Optional user-entered explanation captured when a review row is
+   * rejected. It is intentionally independent of `deletedAt`: rejection is
+   * a lifecycle decision, while archive deletion is only a visibility flag. */
+  @Column({ name: 'rejection_reason', type: 'varchar', length: 500, nullable: true })
+  rejectionReason: string | null;
+
   /**
    * Archive visibility is independent of the document lifecycle above.
    * A non-null value soft-deletes the physical Drive document from the

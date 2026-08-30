@@ -1659,3 +1659,18 @@ WHERE s.`subCategoryId` IS NOT NULL
 -- JOIN sub_category sc ON sc.id = s.subCategoryId
 -- JOIN booking_account ba ON ba.id = sc.accountId
 -- WHERE s.taxPercent <> ba.taxPercent OR s.vatPercent <> ba.vatPercent;
+
+
+-- ============================================================================
+-- SECTION 14 (2026-08-30, Elazar) -- optional document rejection reason.
+--
+-- Review-screen rejection remains a soft lifecycle transition: the OCR row
+-- and Drive file are retained. This nullable explanation is displayed in a
+-- dedicated archive column. Existing rejected documents remain NULL.
+-- ============================================================================
+
+ALTER TABLE `extracted_document`
+  ADD COLUMN `rejection_reason` varchar(500) NULL DEFAULT NULL AFTER `status`;
+
+-- Verification (must return exactly one nullable varchar(500) column):
+-- SHOW COLUMNS FROM extracted_document LIKE 'rejection_reason';
