@@ -168,11 +168,12 @@ export class DriveDocsService {
   reclassifyArchivedDocument(
     documentId: number,
     classification: ArchiveDocumentClassification,
+    rejectionReason?: string | null,
   ): Observable<{ ok: true; documentId: number; classification: ArchiveDocumentClassification }> {
     const url = `${environment.apiUrl}documents/me/archived/${documentId}/classification`;
     return this.http.patch<{ ok: true; documentId: number; classification: ArchiveDocumentClassification }>(
       url,
-      { classification },
+      { classification, rejectionReason },
     );
   }
 

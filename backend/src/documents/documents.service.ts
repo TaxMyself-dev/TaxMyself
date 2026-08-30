@@ -3822,6 +3822,7 @@ ${finalOwnerName}`;
     firebaseId: string,
     documentId: number,
     classification: ArchiveDocumentClassification,
+    rejectionReason?: string | null,
   ): Promise<{ ok: true; documentId: number; classification: ArchiveDocumentClassification }> {
     if (classification === ArchiveDocumentClassification.FILED_ANNUAL) {
       await this.fileDocumentAsAnnual(firebaseId, documentId);
@@ -3832,7 +3833,12 @@ ${finalOwnerName}`;
       return { ok: true, documentId, classification };
     }
     if (classification === ArchiveDocumentClassification.REJECTED) {
-      await this.archiveDocument(firebaseId, documentId, ExtractedDocStatus.REJECTED);
+      await this.archiveDocument(
+        firebaseId,
+        documentId,
+        ExtractedDocStatus.REJECTED,
+        rejectionReason,
+      );
       return { ok: true, documentId, classification };
     }
 

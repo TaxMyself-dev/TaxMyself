@@ -30,12 +30,13 @@ describe('DocumentsService.reclassifyArchivedDocument', () => {
     return {
       fakeThis,
       extractedDocRepo,
-      run: (classification: ArchiveDocumentClassification) =>
+      run: (classification: ArchiveDocumentClassification, rejectionReason?: string | null) =>
         DocumentsService.prototype.reclassifyArchivedDocument.call(
           fakeThis as any,
           'client-1',
           10,
           classification,
+          rejectionReason,
         ),
     };
   }
@@ -75,6 +76,17 @@ describe('DocumentsService.reclassifyArchivedDocument', () => {
     const test = subject();
     await test.run(classification);
     expect(test.fakeThis[method]).toHaveBeenCalled();
+  });
+
+  it('passes the entered reason to the rejected transition', async () => {
+    const test = subject();
+    await test.run(ArchiveDocumentClassification.REJECTED, 'מסמך פרטי');
+    expect(test.fakeThis.archiveDocument).toHaveBeenCalledWith(
+      'client-1',
+      10,
+      ExtractedDocStatus.REJECTED,
+      'מסמך פרטי',
+    );
   });
 
   it('blocks approved evidence', async () => {

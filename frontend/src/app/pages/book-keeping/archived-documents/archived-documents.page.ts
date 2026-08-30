@@ -87,6 +87,8 @@ export class ArchivedDocumentsPage implements OnInit {
   fileActions = signal<ITableRowAction[]>([]);
   approvalDialogItem = signal<ArchivedItem | null>(null);
   classificationDialogItem = signal<ArchivedItem | null>(null);
+  rejectionReasonEditorVisible = signal(false);
+  rejectionReasonDraft = signal('');
 
   readonly archiveStatusLabels = ARCHIVE_STATUS_LABELS;
   readonly recordSourceLabels = RECORD_SOURCE_LABELS;
@@ -132,7 +134,7 @@ export class ArchivedDocumentsPage implements OnInit {
         sourceLabel: this.recordSourceLabels[item.source] ?? item.source,
         statusLabel: this.archiveStatusLabels[item.status] ?? item.status,
         statusDetail: item.status === 'REJECTED'
-          ? (item.rejectionReason?.trim() || null)
+          ? (item.rejectionReason?.trim() || 'לא הוזנה סיבת דחייה')
           : null,
         uploadDate: item.uploadDate ? item.uploadDate.slice(0, 10) : '-',
       }));
@@ -292,7 +294,7 @@ export class ArchivedDocumentsPage implements OnInit {
         showWhen: (row: IRowDataTable) =>
           (row as any).itemType === 'DOCUMENT' && !!(row as any).canReclassify,
         action: (_event: any, row: IRowDataTable) =>
-          this.classificationDialogItem.set(row as unknown as ArchivedItem),
+          this.openClassificationDialog(row as unknown as ArchivedItem),
       },
       {
         name: 'preview',
@@ -348,20 +350,45 @@ export class ArchivedDocumentsPage implements OnInit {
     this.fetchArchivedItems(this.selectedBusinessNumber());
   }
 
+  openClassificationDialog(item: ArchivedItem): void {
+    this.classificationDialogItem.set(item);
+    this.rejectionReasonEditorVisible.set(false);
+    this.rejectionReasonDraft.set(item.rejectionReason?.trim() ?? '');
+  }
+
   closeClassificationDialog(): void {
     this.classificationDialogItem.set(null);
+    this.rejectionReasonEditorVisible.set(false);
+    this.rejectionReasonDraft.set('');
   }
 
   isCurrentClassification(classification: ArchiveDocumentClassification): boolean {
     return this.classificationDialogItem()?.status === classification;
   }
 
-  reclassifyDocument(classification: ArchiveDocumentClassification): void {
+  beginRejectDocument(): void {
+    this.rejectionReasonEditorVisible.set(true);
+  }
+
+  cancelRejectDocument(): void {
+    this.rejectionReasonEditorVisible.set(false);
+  }
+
+  saveRejectedDocument(): void {
+    this.reclassifyDocument('REJECTED', this.rejectionReasonDraft().trim() || null);
+  }
+
+  reclassifyDocument(
+    classification: ArchiveDocumentClassification,
+    rejectionReason?: string | null,
+  ): void {
     const item = this.classificationDialogItem();
-    if (!item?.canReclassify || this.isCurrentClassification(classification)) return;
+    if (!item?.canReclassify) return;
+    if (classification !== 'REJECTED' && this.isCurrentClassification(classification)) return;
     this.classificationDialogItem.set(null);
+    this.rejectionReasonEditorVisible.set(false);
     this.isLoadingDataTable.set(true);
-    this.driveDocsService.reclassifyArchivedDocument(item.id, classification)
+    this.driveDocsService.reclassifyArchivedDocument(item.id, classification, rejectionReason)
       .pipe(
         catchError(err => {
           console.error('Document reclassification failed', err);

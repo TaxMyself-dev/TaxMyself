@@ -37,11 +37,29 @@
     [draggable]="false"
     [resizable]="false">
 
-    <p class="archive-classification__intro">
-        המסמך נשאר בארכיון. בחר את הסיווג החדש שלו:
-    </p>
+    @if (rejectionReasonEditorVisible()) {
+      <div class="archive-rejection">
+        <p class="archive-classification__intro">אפשר להוסיף סיבת דחייה שתוצג מתחת לסטטוס בארכיון.</p>
+        <label for="archive-rejection-reason">סיבת דחייה (אופציונלי)</label>
+        <textarea
+            id="archive-rejection-reason"
+            rows="4"
+            maxlength="500"
+            [ngModel]="rejectionReasonDraft()"
+            (ngModelChange)="rejectionReasonDraft.set($event)"
+            placeholder="לדוגמה: המסמך אינו הוצאה עסקית"></textarea>
+        <small>{{ rejectionReasonDraft().length }}/500</small>
+        <div class="archive-rejection__actions">
+          <button type="button" class="archive-rejection__cancel" (click)="cancelRejectDocument()">חזרה</button>
+          <button type="button" class="archive-rejection__save" (click)="saveRejectedDocument()">שמור כדחוי</button>
+        </div>
+      </div>
+    } @else {
+      <p class="archive-classification__intro">
+          המסמך נשאר בארכיון. בחר את הסיווג החדש שלו:
+      </p>
 
-    <div class="archive-classification__choices">
+      <div class="archive-classification__choices">
         <button type="button" class="archive-classification__choice"
             [disabled]="isCurrentClassification('PENDING')"
             (click)="reclassifyDocument('PENDING')">
@@ -61,10 +79,10 @@
             <span><strong>לטיפול בהמשך</strong><small>הסר מתור האישור ושמור להמשך טיפול</small></span>
         </button>
         <button type="button" class="archive-classification__choice archive-classification__choice--danger"
-            [disabled]="isCurrentClassification('REJECTED')"
-            (click)="reclassifyDocument('REJECTED')">
+            (click)="beginRejectDocument()">
             <i class="pi pi-times-circle" aria-hidden="true"></i>
-            <span><strong>נדחה</strong><small>סמן כמסמך שאינו מיועד לרישום</small></span>
+            <span><strong>{{ isCurrentClassification('REJECTED') ? 'עריכת סיבת דחייה' : 'נדחה' }}</strong><small>סמן כמסמך שאינו מיועד לרישום</small></span>
         </button>
-    </div>
+      </div>
+    }
 </p-dialog>

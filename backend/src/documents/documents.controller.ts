@@ -415,17 +415,21 @@ export class DocumentsController {
   async reclassifyMyArchivedDocument(
     @Req() request: AuthenticatedRequest,
     @Param('documentId', ParseIntPipe) documentId: number,
-    @Body() body: { classification: ArchiveDocumentClassification },
+    @Body() body: { classification: ArchiveDocumentClassification; rejectionReason?: string | null },
   ) {
     const firebaseId = request.user?.firebaseId;
     if (!firebaseId) throw new BadRequestException('Not authenticated');
     if (!Object.values(ArchiveDocumentClassification).includes(body?.classification)) {
       throw new BadRequestException('classification is invalid');
     }
+    if (body.rejectionReason != null && typeof body.rejectionReason !== 'string') {
+      throw new BadRequestException('rejectionReason must be a string');
+    }
     return this.documentsService.reclassifyArchivedDocument(
       firebaseId,
       documentId,
       body.classification,
+      body.rejectionReason,
     );
   }
 

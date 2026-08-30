@@ -2258,3 +2258,15 @@ record this instead.
   is never rendered for another lifecycle status.
 - The Angular build passed with only the project's existing bundle-budget and
   CommonJS warnings. No backend or schema change is required.
+
+## 2026-08-31 -- Persist rejection reasons during archive reclassification
+
+- Fixed archive reclassification so choosing rejected now opens a reason
+  editor and sends the optional text through the classification API to the
+  existing guarded rejection transition.
+- Already-rejected documents expose the same flow for editing their reason.
+  Legacy rejected rows with no stored reason explicitly display that no reason
+  was entered instead of leaving unexplained empty space under the badge.
+- Fourteen focused Jest tests, the Nest build and Angular build passed. Only
+  the project's existing frontend build warnings remain; no schema change is
+  required.
