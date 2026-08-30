@@ -16,7 +16,7 @@
  */
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { DataSource, EntityManager, Repository } from 'typeorm';
+import { DataSource, EntityManager, In, Repository } from 'typeorm';
 import { BadRequestException, HttpException } from '@nestjs/common';
 
 import { ExpensesService } from './expenses.service';
@@ -30,7 +30,8 @@ import { FxRateService } from '../shared/fx-rate.service';
 import { User } from '../users/user.entity';
 import { Business } from '../business/business.entity';
 import { ClassifiedTransactions } from '../transactions/classified-transactions.entity';
-import { ExtractedDocument } from '../documents/extracted-document.entity';
+import { ExtractedDocument, ExtractedDocumentType, ExtractedDocStatus } from '../documents/extracted-document.entity';
+import { SlimTransaction } from '../transactions/slim-transaction.entity';
 import { ReportWorkflow, ReportWorkflowStatus, ReportWorkflowType } from '../report-workflow/report-workflow.entity';
 import { DepreciationService } from '../depreciation/depreciation.service';
 import {
@@ -490,6 +491,66 @@ describe('ExpensesService — Phase 4.1 classification', () => {
 
     expect(dataSource.transaction).toHaveBeenCalledTimes(1);
     expect(bookkeepingService.deleteJournalEntry).toHaveBeenCalledWith(10000007, '999999999', mockManager);
+    expect(expenseRepo.remove).toHaveBeenCalledWith(expense);
+  });
+
+  it('deleteExpense soft-deletes and detaches its approved source documents atomically', async () => {
+    const expense = {
+      id: 35, userId: 'uid-1', businessNumber: '999999999', isReported: null,
+      vatReportingDate: '5/2024', journalEntryNumber: 10000009, sourceDocumentId: 70,
+    } as any;
+    const documentRepo = makeRepo<ExtractedDocument>({
+      find: jest.fn().mockResolvedValue([
+        {
+          id: 70,
+          confirmedExpenseId: 35,
+          pairedWithDocumentId: 71,
+          documentType: ExtractedDocumentType.INVOICE_RECEIPT_PAIR,
+          matchedTransactionId: 80,
+        },
+        {
+          id: 71,
+          confirmedExpenseId: 35,
+          pairedWithDocumentId: 70,
+          documentType: ExtractedDocumentType.INVOICE,
+          matchedTransactionId: null,
+        },
+      ] as any),
+    });
+    const slimRepo = makeRepo<SlimTransaction>();
+    mockManager.getRepository = jest.fn().mockImplementation((entity: any) => {
+      if (entity === Expense) return expenseRepo;
+      if (entity === ExtractedDocument) return documentRepo;
+      if (entity === SlimTransaction) return slimRepo;
+      if (entity === Business) return businessRepo;
+      return makeRepo();
+    }) as any;
+    expenseRepo.findOne.mockResolvedValue(expense);
+    bookkeepingService.deleteJournalEntry.mockResolvedValue(true);
+
+    await service.deleteExpense(35, 'uid-1');
+
+    expect(documentRepo.find).toHaveBeenCalledWith({ where: { confirmedExpenseId: 35 } });
+    expect(slimRepo.update).toHaveBeenCalledWith(
+      { id: In([80]) },
+      expect.objectContaining({ confirmed: false, matchedDocumentId: null, isRecognized: false }),
+    );
+    expect(documentRepo.update).toHaveBeenCalledWith(
+      { id: 70 },
+      expect.objectContaining({
+        deletedAt: expect.any(Date),
+        status: ExtractedDocStatus.PENDING_REVIEW,
+        confirmedExpenseId: null,
+      }),
+    );
+    expect(documentRepo.update).toHaveBeenCalledWith(
+      { id: 71 },
+      expect.objectContaining({
+        deletedAt: expect.any(Date),
+        status: ExtractedDocStatus.PAIRED,
+        confirmedExpenseId: null,
+      }),
+    );
     expect(expenseRepo.remove).toHaveBeenCalledWith(expense);
   });
 

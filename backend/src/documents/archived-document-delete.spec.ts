@@ -1,4 +1,4 @@
-import { HttpException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, HttpException, NotFoundException } from '@nestjs/common';
 import { In } from 'typeorm';
 import { DocumentsService } from './documents.service';
 import { ExtractedDocument } from './extracted-document.entity';
@@ -121,6 +121,52 @@ describe('DocumentsService.deleteArchivedDocument', () => {
     await expect(test.run()).rejects.toBeInstanceOf(HttpException);
     expect(test.googleDriveService.deleteFile).not.toHaveBeenCalled();
     expect(test.dataSource.transaction).not.toHaveBeenCalled();
+  });
+
+  it('does not allow deleting an approved document independently of its expense', async () => {
+    const test = subject({
+      selected: {
+        id: 10,
+        userId: 7,
+        driveFileId: 'drive-1',
+        status: ExtractedDocStatus.APPROVED,
+        confirmedExpenseId: 55,
+      },
+    });
+
+    await expect(test.run()).rejects.toBeInstanceOf(BadRequestException);
+    expect(test.extractedDocRepo.update).not.toHaveBeenCalled();
+  });
+
+  it('does not delete a shared Drive file through an unapproved sibling', async () => {
+    const test = subject({
+      selected: {
+        id: 10,
+        userId: 7,
+        driveFileId: 'drive-1',
+        status: ExtractedDocStatus.ARCHIVED,
+        confirmedExpenseId: null,
+      },
+      rows: [
+        {
+          id: 10,
+          userId: 7,
+          driveFileId: 'drive-1',
+          status: ExtractedDocStatus.ARCHIVED,
+          confirmedExpenseId: null,
+        },
+        {
+          id: 11,
+          userId: 7,
+          driveFileId: 'drive-1',
+          status: ExtractedDocStatus.APPROVED,
+          confirmedExpenseId: 55,
+        },
+      ],
+    });
+
+    await expect(test.run()).rejects.toBeInstanceOf(BadRequestException);
+    expect(test.extractedDocRepo.update).not.toHaveBeenCalled();
   });
 
   it('refuses a Drive file that is also referenced by another user', async () => {

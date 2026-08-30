@@ -2233,3 +2233,19 @@ record this instead.
 - Angular development and production builds passed. Only the project's
   pre-existing bundle-budget and CommonJS warnings remain. No backend, schema
   or cutover SQL change is required.
+
+## 2026-08-31 -- Editable archive classifications and approved-document safety
+
+- Removed the brief empty approval-dialog flash by keeping the shared expense
+  editor closed until the focused archive draft has finished loading.
+- Added an archive classification dialog for non-approved documents. Users can
+  move a document between pending approval, annual report, handle later and
+  rejected without leaving the archive.
+- Made approved documents view-only in the archive at both UI and API levels.
+  Physical files containing any approved OCR row are protected as well, so an
+  unapproved sibling cannot be used to delete approved evidence.
+- Expense deletion now soft-deletes every linked source-document row in the
+  same database transaction and clears its expense/transaction links. A later
+  restore returns the document to a valid reviewable state.
+- Verification: 55 focused Jest tests, Nest production build and Angular
+  production build passed. No schema or cutover SQL change is required.

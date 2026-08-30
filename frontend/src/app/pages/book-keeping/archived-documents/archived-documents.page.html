@@ -26,3 +26,45 @@
     (closed)="closeApprovalDialog()"
     (approved)="onExpenseApproved()">
 </app-archive-expense-approval-dialog>
+
+<p-dialog
+    header="שינוי סיווג מסמך"
+    [visible]="classificationDialogItem() !== null"
+    (visibleChange)="$event ? null : closeClassificationDialog()"
+    [modal]="true"
+    [style]="{ width: '520px', maxWidth: '95vw' }"
+    [rtl]="true"
+    [draggable]="false"
+    [resizable]="false">
+
+    <p class="archive-classification__intro">
+        המסמך נשאר בארכיון. בחר את הסיווג החדש שלו:
+    </p>
+
+    <div class="archive-classification__choices">
+        <button type="button" class="archive-classification__choice"
+            [disabled]="isCurrentClassification('PENDING')"
+            (click)="reclassifyDocument('PENDING')">
+            <i class="pi pi-inbox" aria-hidden="true"></i>
+            <span><strong>ממתין לאישור</strong><small>החזר לרשימת המסמכים שממתינים לאישור הוצאה</small></span>
+        </button>
+        <button type="button" class="archive-classification__choice"
+            [disabled]="isCurrentClassification('FILED_ANNUAL')"
+            (click)="reclassifyDocument('FILED_ANNUAL')">
+            <i class="pi pi-file" aria-hidden="true"></i>
+            <span><strong>שייך לדוח השנתי</strong><small>לא תיווצר הוצאה או פקודת יומן</small></span>
+        </button>
+        <button type="button" class="archive-classification__choice"
+            [disabled]="isCurrentClassification('ARCHIVED')"
+            (click)="reclassifyDocument('ARCHIVED')">
+            <i class="pi pi-clock" aria-hidden="true"></i>
+            <span><strong>לטיפול בהמשך</strong><small>הסר מתור האישור ושמור להמשך טיפול</small></span>
+        </button>
+        <button type="button" class="archive-classification__choice archive-classification__choice--danger"
+            [disabled]="isCurrentClassification('REJECTED')"
+            (click)="reclassifyDocument('REJECTED')">
+            <i class="pi pi-times-circle" aria-hidden="true"></i>
+            <span><strong>נדחה</strong><small>סמן כמסמך שאינו מיועד לרישום</small></span>
+        </button>
+    </div>
+</p-dialog>

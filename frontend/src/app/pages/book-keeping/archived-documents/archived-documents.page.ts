@@ -1,7 +1,7 @@
 import { Component, OnInit, computed, signal, inject } from '@angular/core';
 import { of } from 'rxjs';
 import { catchError, finalize } from 'rxjs/operators';
-import { DriveDocsService, ArchivedItem, RecordSource, ArchiveItemStatus } from 'src/app/services/drive-docs.service';
+import { ArchiveDocumentClassification, DriveDocsService, ArchivedItem, RecordSource, ArchiveItemStatus } from 'src/app/services/drive-docs.service';
 import { GenericService } from 'src/app/services/generic.service';
 import { IColumnDataTable, IMobileCardConfig, IRowDataTable, ITableRowAction, IUserData, ISelectItem } from 'src/app/shared/interface';
 import { BusinessStatus, FormTypes, ICellRenderer } from 'src/app/shared/enums';
@@ -10,7 +10,6 @@ import { FilterField } from 'src/app/components/filter-tab/filter-fields-model.c
 import { FormBuilder, FormGroup } from '@angular/forms';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { ActivatedRoute } from '@angular/router';
-import { ReportReviewService } from 'src/app/services/report-review.service';
 
 /** Hebrew labels for `ArchiveItemStatus` (see backend `src/enum.ts`). */
 export const ARCHIVE_STATUS_LABELS: Record<ArchiveItemStatus, string> = {
@@ -67,7 +66,6 @@ export class ArchivedDocumentsPage implements OnInit {
   private fb = inject(FormBuilder);
   private confirmationService = inject(ConfirmationService);
   private messageService = inject(MessageService);
-  private reportReviewService = inject(ReportReviewService);
   private route = inject(ActivatedRoute);
 
   // ===========================
@@ -88,6 +86,7 @@ export class ArchivedDocumentsPage implements OnInit {
   selectedDocumentType = signal<string>('');
   fileActions = signal<ITableRowAction[]>([]);
   approvalDialogItem = signal<ArchivedItem | null>(null);
+  classificationDialogItem = signal<ArchivedItem | null>(null);
 
   readonly archiveStatusLabels = ARCHIVE_STATUS_LABELS;
   readonly recordSourceLabels = RECORD_SOURCE_LABELS;
@@ -285,22 +284,14 @@ export class ArchivedDocumentsPage implements OnInit {
         action: (_event: any, row: IRowDataTable) => this.onApproveClicked(row),
       },
       {
-        name: 'file-annual',
-        icon: 'pi pi-folder',
-        title: 'שייך לדוח שנתי',
+        name: 'reclassify-document',
+        icon: 'pi pi-tag',
+        title: 'שנה סיווג',
         alwaysShow: true,
         showWhen: (row: IRowDataTable) =>
-          (row as any).itemType === 'DOCUMENT' && !!(row as any).canResolve,
-        action: (_event: any, row: IRowDataTable) => this.onFileAnnualClicked(row),
-      },
-      {
-        name: 'reject-document',
-        icon: 'pi pi-times-circle',
-        title: 'דחה מסמך',
-        alwaysShow: true,
-        showWhen: (row: IRowDataTable) =>
-          (row as any).itemType === 'DOCUMENT' && !!(row as any).canResolve,
-        action: (_event: any, row: IRowDataTable) => this.onRejectClicked(row),
+          (row as any).itemType === 'DOCUMENT' && !!(row as any).canReclassify,
+        action: (_event: any, row: IRowDataTable) =>
+          this.classificationDialogItem.set(row as unknown as ArchivedItem),
       },
       {
         name: 'preview',
@@ -320,6 +311,7 @@ export class ArchivedDocumentsPage implements OnInit {
         showWhen: (row: IRowDataTable) =>
           (row as any).itemType === 'DOCUMENT'
           && (row as any).status !== 'DELETED'
+          && (row as any).status !== 'APPROVED'
           && !!(row as any).driveFileId,
         action: (event: any, row: IRowDataTable) => {
           this.onDeleteClicked(row);
@@ -355,54 +347,26 @@ export class ArchivedDocumentsPage implements OnInit {
     this.fetchArchivedItems(this.selectedBusinessNumber());
   }
 
-  onFileAnnualClicked(doc: IRowDataTable): void {
-    const documentId = Number(doc.id ?? 0);
-    if (!documentId || !(doc as any).canResolve) return;
-    this.confirmationService.confirm({
-      header: 'שיוך לדוח שנתי',
-      message: 'המסמך יסומן כשייך לדוח השנתי ולא תיווצר ממנו הוצאה או פקודת יומן.',
-      icon: 'pi pi-info-circle',
-      acceptLabel: 'שייך לדוח שנתי',
-      rejectLabel: 'ביטול',
-      accept: () => this.resolvePendingDocument(
-        this.reportReviewService.fileDoc(documentId),
-        'המסמך שויך לדוח השנתי',
-        'שיוך המסמך לדוח השנתי נכשל',
-      ),
-    });
+  closeClassificationDialog(): void {
+    this.classificationDialogItem.set(null);
   }
 
-  onRejectClicked(doc: IRowDataTable): void {
-    const documentId = Number(doc.id ?? 0);
-    if (!documentId || !(doc as any).canResolve) return;
-    this.confirmationService.confirm({
-      header: 'דחיית מסמך',
-      message: 'האם לדחות את המסמך? המסמך יישמר בארכיון ולא תיווצר ממנו הוצאה.',
-      icon: 'pi pi-exclamation-triangle',
-      acceptLabel: 'דחה',
-      rejectLabel: 'ביטול',
-      acceptButtonStyleClass: 'p-button-danger',
-      accept: () => this.resolvePendingDocument(
-        this.reportReviewService.deleteDoc(documentId),
-        'המסמך נדחה',
-        'דחיית המסמך נכשלה',
-      ),
-    });
+  isCurrentClassification(classification: ArchiveDocumentClassification): boolean {
+    return this.classificationDialogItem()?.status === classification;
   }
 
-  private resolvePendingDocument(
-    request$: import('rxjs').Observable<unknown>,
-    successMessage: string,
-    errorMessage: string,
-  ): void {
+  reclassifyDocument(classification: ArchiveDocumentClassification): void {
+    const item = this.classificationDialogItem();
+    if (!item?.canReclassify || this.isCurrentClassification(classification)) return;
+    this.classificationDialogItem.set(null);
     this.isLoadingDataTable.set(true);
-    request$
+    this.driveDocsService.reclassifyArchivedDocument(item.id, classification)
       .pipe(
         catchError(err => {
-          console.error(errorMessage, err);
+          console.error('Document reclassification failed', err);
           this.messageService.add({
             severity: 'error', summary: 'שגיאה',
-            detail: err?.error?.message ?? errorMessage, life: 4000, key: 'br',
+            detail: err?.error?.message ?? 'שינוי סיווג המסמך נכשל', life: 4000, key: 'br',
           });
           return of(null);
         }),
@@ -412,8 +376,8 @@ export class ArchivedDocumentsPage implements OnInit {
         if (!result) return;
         this.fetchArchivedItems(this.selectedBusinessNumber());
         this.messageService.add({
-          severity: 'success', summary: successMessage,
-          detail: successMessage, life: 3000, key: 'br',
+          severity: 'success', summary: 'סיווג המסמך עודכן',
+          detail: 'המסמך נשאר בארכיון תחת הסיווג החדש', life: 3000, key: 'br',
         });
       });
   }
@@ -426,7 +390,7 @@ export class ArchivedDocumentsPage implements OnInit {
 
   onDeleteClicked(doc: IRowDataTable): void {
     const documentId = Number(doc.id ?? 0);
-    if (!documentId || (doc as any).itemType !== 'DOCUMENT') return;
+    if (!documentId || (doc as any).itemType !== 'DOCUMENT' || (doc as any).status === 'APPROVED') return;
 
     this.confirmationService.confirm({
       header: 'מחיקת מסמך',

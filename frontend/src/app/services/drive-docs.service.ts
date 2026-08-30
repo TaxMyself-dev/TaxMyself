@@ -62,6 +62,12 @@ export type ArchiveItemStatus =
   | 'ERROR'
   | 'DELETED';
 
+export type ArchiveDocumentClassification =
+  | 'PENDING'
+  | 'FILED_ANNUAL'
+  | 'ARCHIVED'
+  | 'REJECTED';
+
 /** A row on the ארכיון שלי (unified archive) page — `GET /documents/me/archived`.
  *  DOCUMENT rows come from an uploaded/OCR'd document; EXPENSE rows are a
  *  bank/card transaction classified as an expense with no underlying
@@ -78,6 +84,7 @@ export interface ArchivedItem {
   source: RecordSource;
   status: ArchiveItemStatus;
   canResolve: boolean;
+  canReclassify: boolean;
   driveFileId: string | null;
   rejectionReason: string | null;
 }
@@ -156,6 +163,17 @@ export class DriveDocsService {
       documentId: number;
       restoredDocumentRows: number;
     }>(url, {});
+  }
+
+  reclassifyArchivedDocument(
+    documentId: number,
+    classification: ArchiveDocumentClassification,
+  ): Observable<{ ok: true; documentId: number; classification: ArchiveDocumentClassification }> {
+    const url = `${environment.apiUrl}documents/me/archived/${documentId}/classification`;
+    return this.http.patch<{ ok: true; documentId: number; classification: ArchiveDocumentClassification }>(
+      url,
+      { classification },
+    );
   }
 
   /**

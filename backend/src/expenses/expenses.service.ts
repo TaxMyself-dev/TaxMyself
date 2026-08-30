@@ -7,7 +7,8 @@ import { Expense } from './expenses.entity';
 import { Supplier } from './suppliers.entity';
 import { User } from '../users/user.entity';
 import { ClassifiedTransactions } from '../transactions/classified-transactions.entity';
-import { ExtractedDocument, ExtractedDocStatus } from '../documents/extracted-document.entity';
+import { ExtractedDocument, ExtractedDocStatus, ExtractedDocumentType } from '../documents/extracted-document.entity';
+import { SlimTransaction } from '../transactions/slim-transaction.entity';
 import { SharedService } from '../shared/shared.service';
 import { FxRateService } from '../shared/fx-rate.service';
 import { Business } from 'src/business/business.entity';
@@ -964,6 +965,50 @@ export class ExpensesService {
                         `deleteExpense: journal entry ${entryNumber} not found for expense ${expense.id} — deleting expense only`,
                     );
                 }
+            }
+
+            // A Drive-backed Expense and its source evidence are one lifecycle
+            // from the user's perspective. Soft-delete every OCR row linked to
+            // this Expense inside the SAME transaction, while resetting it to
+            // a reviewable state underneath. If the document is restored later
+            // it can be approved again instead of pointing at a deleted Expense.
+            const documentRepo = m.getRepository(ExtractedDocument);
+            const linkedDocuments = await documentRepo.find({
+                where: { confirmedExpenseId: expense.id },
+            });
+            const matchedTransactionIds = Array.from(new Set(
+                linkedDocuments
+                    .map(document => document.matchedTransactionId)
+                    .filter((matchedId): matchedId is number => matchedId != null),
+            ));
+            if (matchedTransactionIds.length) {
+                await m.getRepository(SlimTransaction).update(
+                    { id: In(matchedTransactionIds) },
+                    {
+                        confirmed: false,
+                        matchedDocumentId: null,
+                        isRecognized: false,
+                        vatReportingDate: null,
+                    },
+                );
+            }
+            const deletedAt = new Date();
+            for (const document of linkedDocuments) {
+                const isPairedSecondary = document.pairedWithDocumentId != null
+                    && document.documentType !== ExtractedDocumentType.INVOICE_RECEIPT_PAIR;
+                await documentRepo.update(
+                    { id: document.id },
+                    {
+                        deletedAt,
+                        status: isPairedSecondary
+                            ? ExtractedDocStatus.PAIRED
+                            : ExtractedDocStatus.PENDING_REVIEW,
+                        confirmedExpenseId: null,
+                        matchedTransactionId: null,
+                        matchStatus: null,
+                        rejectionReason: null,
+                    },
+                );
             }
             return m.getRepository(Expense).remove(expense);
         });

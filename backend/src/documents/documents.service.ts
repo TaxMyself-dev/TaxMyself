@@ -8,7 +8,7 @@ import { DocLines } from './doc-lines.entity';
 import { JournalEntry } from 'src/bookkeeping/jouranl-entry.entity';
 import { JournalLine } from 'src/bookkeeping/jouranl-line.entity';
 import { BookingAccount } from 'src/bookkeeping/account.entity'
-import { DocumentType, DocumentStatusType, DocumentKind, JournalReferenceType, PaymentMethodType, VatOptions, Currency, UnitOfMeasure, CardCompany, CreditTransactionType, BusinessType, isExemptBusinessType, ExpenseApprovalStatus, RecordSource, ArchiveItemStatus } from 'src/enum';
+import { ArchiveDocumentClassification, DocumentType, DocumentStatusType, DocumentKind, JournalReferenceType, PaymentMethodType, VatOptions, Currency, UnitOfMeasure, CardCompany, CreditTransactionType, BusinessType, isExemptBusinessType, ExpenseApprovalStatus, RecordSource, ArchiveItemStatus } from 'src/enum';
 import { Business } from 'src/business/business.entity';
 import { SharedService } from 'src/shared/shared.service';
 import { FxRateService } from 'src/shared/fx-rate.service';
@@ -3173,6 +3173,9 @@ ${finalOwnerName}`;
     if (doc.deletedAt) {
       throw new BadRequestException('Document is deleted; restore it before changing its status');
     }
+    if (doc.status === ExtractedDocStatus.APPROVED || doc.confirmedExpenseId != null) {
+      throw new BadRequestException('מסמך מאושר ניתן לשינוי רק דרך ההוצאה המקושרת');
+    }
     const normalizedRejectionReason = targetStatus === ExtractedDocStatus.REJECTED
       ? (rejectionReason?.trim() || null)
       : null;
@@ -3241,10 +3244,19 @@ ${finalOwnerName}`;
         { matchedDocumentId: null, isRecognized: false },
       );
     }
+    await this.extractedDocRepo.update(
+      { id: doc.id },
+      { matchedTransactionId: null, matchStatus: null },
+    );
     if (doc.pairedWithDocumentId) {
       await this.extractedDocRepo.update(
         { id: doc.pairedWithDocumentId },
-        { status: targetStatus, rejectionReason },
+        {
+          status: targetStatus,
+          rejectionReason,
+          matchedTransactionId: null,
+          matchStatus: null,
+        },
       );
     }
   }
@@ -3273,6 +3285,9 @@ ${finalOwnerName}`;
     }
     if (doc.deletedAt) {
       throw new BadRequestException('Document is deleted; restore it before filing it');
+    }
+    if (doc.confirmedExpenseId != null) {
+      throw new BadRequestException('מסמך המקושר להוצאה ניתן לשינוי רק דרך ההוצאה');
     }
     if (doc.status === ExtractedDocStatus.NOT_AN_EXPENSE) {
       return { ok: true, documentId };
@@ -3315,6 +3330,9 @@ ${finalOwnerName}`;
     if (!doc) throw new NotFoundException(`Extracted document #${documentId} not found`);
     if (doc.userId !== user.index) {
       throw new HttpException('Not your document', HttpStatus.FORBIDDEN);
+    }
+    if (doc.confirmedExpenseId != null) {
+      throw new BadRequestException('מסמך המקושר להוצאה ניתן לשינוי רק דרך ההוצאה');
     }
     if (doc.deletedAt) {
       throw new BadRequestException('Document is deleted; restore it before editing it');
@@ -3749,6 +3767,14 @@ ${finalOwnerName}`;
         ? ArchiveItemStatus.DELETED
         : this.archiveItemStatusForDocument(d, approvalStatusByExpenseId),
       canResolve: !d.deletedAt && d.status === ExtractedDocStatus.PENDING_REVIEW,
+      canReclassify: !d.deletedAt
+        && d.confirmedExpenseId == null
+        && [
+          ExtractedDocStatus.PENDING_REVIEW,
+          ExtractedDocStatus.NOT_AN_EXPENSE,
+          ExtractedDocStatus.ARCHIVED,
+          ExtractedDocStatus.REJECTED,
+        ].includes(d.status),
       driveFileId: d.driveFileId,
       rejectionReason: d.rejectionReason,
     }));
@@ -3777,6 +3803,7 @@ ${finalOwnerName}`;
       source: e.source ?? (e.externalTransactionId ? RecordSource.OPEN_BANKING : RecordSource.MANUAL),
       status: this.simplifyExpenseStatus(e.approvalStatus),
       canResolve: false,
+      canReclassify: false,
       driveFileId: null,
       rejectionReason: null,
     }));
@@ -3786,6 +3813,68 @@ ${finalOwnerName}`;
       const bt = b.uploadDate ? new Date(b.uploadDate).getTime() : 0;
       return bt - at;
     });
+  }
+
+  /** Change a non-approved document between the archive's business
+   * classifications. Moving back to PENDING also makes it an expense
+   * candidate again; approval itself remains a separate atomic operation. */
+  async reclassifyArchivedDocument(
+    firebaseId: string,
+    documentId: number,
+    classification: ArchiveDocumentClassification,
+  ): Promise<{ ok: true; documentId: number; classification: ArchiveDocumentClassification }> {
+    if (classification === ArchiveDocumentClassification.FILED_ANNUAL) {
+      await this.fileDocumentAsAnnual(firebaseId, documentId);
+      return { ok: true, documentId, classification };
+    }
+    if (classification === ArchiveDocumentClassification.ARCHIVED) {
+      await this.archiveDocument(firebaseId, documentId, ExtractedDocStatus.ARCHIVED);
+      return { ok: true, documentId, classification };
+    }
+    if (classification === ArchiveDocumentClassification.REJECTED) {
+      await this.archiveDocument(firebaseId, documentId, ExtractedDocStatus.REJECTED);
+      return { ok: true, documentId, classification };
+    }
+
+    const user = await this.userRepo.findOne({ where: { firebaseId } });
+    if (!user) throw new NotFoundException(`User not found for firebaseId`);
+    const doc = await this.extractedDocRepo.findOne({ where: { id: documentId } });
+    if (!doc) throw new NotFoundException(`Extracted document #${documentId} not found`);
+    if (doc.userId !== user.index) {
+      throw new HttpException('Not your document', HttpStatus.FORBIDDEN);
+    }
+    if (doc.deletedAt) {
+      throw new BadRequestException('Document is deleted; restore it before changing its classification');
+    }
+    if (doc.status === ExtractedDocStatus.APPROVED || doc.confirmedExpenseId != null) {
+      throw new BadRequestException('מסמך מאושר ניתן לשינוי רק דרך ההוצאה המקושרת');
+    }
+
+    await this.resetMatchedSlimAndCascadePair(doc, ExtractedDocStatus.PENDING_REVIEW);
+    await this.extractedDocRepo.update(
+      { id: documentId },
+      {
+        status: ExtractedDocStatus.PENDING_REVIEW,
+        documentKind: DocumentKind.EXPENSE_INVOICE,
+        confirmedExpenseId: null,
+        rejectionReason: null,
+        matchedTransactionId: null,
+        matchStatus: null,
+      },
+    );
+    if (doc.pairedWithDocumentId) {
+      await this.extractedDocRepo.update(
+        { id: doc.pairedWithDocumentId },
+        {
+          status: ExtractedDocStatus.PAIRED,
+          confirmedExpenseId: null,
+          rejectionReason: null,
+          matchedTransactionId: null,
+          matchStatus: null,
+        },
+      );
+    }
+    return { ok: true, documentId, classification };
   }
 
   /**
@@ -3809,12 +3898,18 @@ ${finalOwnerName}`;
     if (selected.userId !== user.index) {
       throw new HttpException('Not your document', HttpStatus.FORBIDDEN);
     }
+    if (selected.status === ExtractedDocStatus.APPROVED || selected.confirmedExpenseId != null) {
+      throw new BadRequestException('לא ניתן למחוק מסמך מאושר מהארכיון; יש למחוק את ההוצאה המקושרת');
+    }
 
     const fileRows = await this.extractedDocRepo.find({
       where: { driveFileId: selected.driveFileId },
     });
     if (fileRows.some(row => row.userId !== user.index)) {
       throw new HttpException('Drive file is referenced by another user', HttpStatus.FORBIDDEN);
+    }
+    if (fileRows.some(row => row.status === ExtractedDocStatus.APPROVED || row.confirmedExpenseId != null)) {
+      throw new BadRequestException('לא ניתן למחוק קובץ הכולל מסמך מאושר; יש למחוק את ההוצאה המקושרת');
     }
     const documentIds = fileRows.map(row => row.id);
     if (!documentIds.length) {
@@ -3917,6 +4012,8 @@ export interface ArchivedItem {
   status: ArchiveItemStatus;
   /** True only for a visible ExtractedDocument still in PENDING_REVIEW. */
   canResolve: boolean;
+  /** True for non-approved business classifications that may be changed. */
+  canReclassify: boolean;
   driveFileId: string | null;
   rejectionReason: string | null;
 }

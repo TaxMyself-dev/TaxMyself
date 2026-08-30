@@ -1,5 +1,5 @@
 <app-report-review-edit-dialog
-  [visible]="visible"
+  [visible]="visible && draft() !== null"
   [hasDocument]="true"
   [driveFileId]="document()?.driveFileId ?? null"
   [driveFileName]="document()?.driveFileName ?? ''"

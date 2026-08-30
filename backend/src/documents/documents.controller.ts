@@ -1,7 +1,7 @@
 import { BadRequestException, Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Query, Req, Res, UploadedFile, UploadedFiles, UseGuards, UseInterceptors, UsePipes, ValidationPipe, } from '@nestjs/common';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
-import { DocumentType, DocumentStatusType, ModuleName } from 'src/enum';
+import { ArchiveDocumentClassification, DocumentType, DocumentStatusType, ModuleName } from 'src/enum';
 import { DocumentsService } from './documents.service';
 import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.interface';
 import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
@@ -406,6 +406,27 @@ export class DocumentsController {
       throw new BadRequestException('businessNumber query param required');
     }
     return this.documentsService.getArchivedForUser(firebaseId, businessNumber.trim());
+  }
+
+  /** Change the business classification of a non-approved archive document.
+   * Deletion remains a separate endpoint because it is a visibility flag. */
+  @Patch('me/archived/:documentId/classification')
+  @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
+  async reclassifyMyArchivedDocument(
+    @Req() request: AuthenticatedRequest,
+    @Param('documentId', ParseIntPipe) documentId: number,
+    @Body() body: { classification: ArchiveDocumentClassification },
+  ) {
+    const firebaseId = request.user?.firebaseId;
+    if (!firebaseId) throw new BadRequestException('Not authenticated');
+    if (!Object.values(ArchiveDocumentClassification).includes(body?.classification)) {
+      throw new BadRequestException('classification is invalid');
+    }
+    return this.documentsService.reclassifyArchivedDocument(
+      firebaseId,
+      documentId,
+      body.classification,
+    );
   }
 
   /** Soft-delete an archived inbound expense document. The Drive file and

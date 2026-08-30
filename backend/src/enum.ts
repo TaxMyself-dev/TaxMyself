@@ -457,6 +457,17 @@ export enum ArchiveItemStatus {
   DELETED = 'DELETED',
 }
 
+/** User-selectable classifications for an inbound document in the unified
+ * archive. APPROVED/DELETED/ERROR are deliberately absent: approved evidence
+ * follows its Expense lifecycle, deletion is a separate visibility flag and
+ * OCR errors are not a business classification. */
+export enum ArchiveDocumentClassification {
+  PENDING = 'PENDING',
+  FILED_ANNUAL = 'FILED_ANNUAL',
+  ARCHIVED = 'ARCHIVED',
+  REJECTED = 'REJECTED',
+}
+
 
 // ************ Uniform file ************ //
 
