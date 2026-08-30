@@ -2184,3 +2184,14 @@ record this instead.
   column; no database was altered in this session.
 - Twenty-six focused backend tests, the Nest production TypeScript build and
   the Angular development build passed.
+
+## 2026-08-30 -- Restore archive status colors
+
+- Added a lifecycle-status renderer to the shared desktop table and mobile
+  row card. It displays the translated `statusLabel` while using the stable
+  raw `status` value as the color key.
+- Reconnected the archive status column to colored pills: pending is yellow,
+  approved green, rejected red and deleted gray. This avoids the former
+  late-`TemplateRef` initialization issue.
+- Removed the now-unused archive-local badge styles. The Angular development
+  build passed; no backend or schema change is required.

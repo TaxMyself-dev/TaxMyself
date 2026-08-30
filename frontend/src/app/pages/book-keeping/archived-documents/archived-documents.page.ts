@@ -4,7 +4,7 @@ import { catchError, finalize } from 'rxjs/operators';
 import { DriveDocsService, ArchivedItem, RecordSource, ArchiveItemStatus } from 'src/app/services/drive-docs.service';
 import { GenericService } from 'src/app/services/generic.service';
 import { IColumnDataTable, IMobileCardConfig, IRowDataTable, ITableRowAction, IUserData, ISelectItem } from 'src/app/shared/interface';
-import { BusinessStatus, FormTypes } from 'src/app/shared/enums';
+import { BusinessStatus, FormTypes, ICellRenderer } from 'src/app/shared/enums';
 import { AuthService } from 'src/app/services/auth.service';
 import { FilterField } from 'src/app/components/filter-tab/filter-fields-model.component';
 import { FormBuilder, FormGroup } from '@angular/forms';
@@ -98,7 +98,7 @@ export class ArchivedDocumentsPage implements OnInit {
   readonly archivedDocsTableFields = computed<IColumnDataTable<string, string>[]>(() => [
     { name: 'name', value: 'שם המסמך / תנועה', type: FormTypes.TEXT },
     { name: 'documentTypeLabel', value: 'סוג מסמך', type: FormTypes.TEXT },
-    { name: 'statusLabel', value: 'סטטוס', type: FormTypes.TEXT },
+    { name: 'statusLabel', value: 'סטטוס', type: FormTypes.TEXT, cellRenderer: ICellRenderer.STATUS_BADGE },
     { name: 'rejectionReasonLabel', value: 'סיבת דחייה', type: FormTypes.TEXT },
     { name: 'uploadDate', value: 'תאריך העלאה', type: FormTypes.DATE },
     { name: 'sourceLabel', value: 'מקור העלאה', type: FormTypes.TEXT },

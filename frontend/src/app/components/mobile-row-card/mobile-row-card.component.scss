@@ -170,6 +170,21 @@
   text-align: start;
 }
 
+.mrc__status-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  line-height: 1.6;
+
+  &--PENDING  { background: #fef3c7; color: #b45309; }
+  &--APPROVED { background: #dcfce7; color: #15803d; }
+  &--REJECTED { background: #fee2e2; color: #b91c1c; }
+  &--DELETED  { background: #e5e7eb; color: #4b5563; }
+}
+
 // ─── Expand / collapse toggle ─────────────────────────────────────────────────
 
 .mrc__expand-btn {

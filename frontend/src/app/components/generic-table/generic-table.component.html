@@ -330,6 +330,11 @@
                   }
                 </span>
               }
+              @else if (col.cellRenderer === ICellRenderer.STATUS_BADGE) {
+                <span class="generic-status-badge generic-status-badge--{{ row.status }}">
+                  {{ row[col.name] }}
+                </span>
+              }
               <!-- Default row: format dates by column name *or* explicit FormTypes.DATE -->
               @else if (col.name?.toLowerCase().includes('date') || col.type === FormTypes.DATE) {
                 {{ row[col.name] | dateFormat }}
