@@ -2249,3 +2249,12 @@ record this instead.
   restore returns the document to a valid reviewable state.
 - Verification: 55 focused Jest tests, Nest production build and Angular
   production build passed. No schema or cutover SQL change is required.
+
+## 2026-08-31 -- Rejection reason under archive status
+
+- Removed the mostly-empty rejection-reason column from the document archive.
+- A non-empty rejection reason now appears as secondary text directly below
+  the rejected status badge, on both desktop tables and mobile row cards. It
+  is never rendered for another lifecycle status.
+- The Angular build passed with only the project's existing bundle-budget and
+  CommonJS warnings. No backend or schema change is required.

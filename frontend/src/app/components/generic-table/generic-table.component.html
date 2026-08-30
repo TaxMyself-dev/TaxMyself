@@ -331,8 +331,13 @@
                 </span>
               }
               @else if (col.cellRenderer === ICellRenderer.STATUS_BADGE) {
-                <span class="generic-status-badge generic-status-badge--{{ row.status }}">
-                  {{ row[col.name] }}
+                <span class="generic-status-cell">
+                  <span class="generic-status-badge generic-status-badge--{{ row.status }}">
+                    {{ row[col.name] }}
+                  </span>
+                  @if (row.statusDetail) {
+                    <small class="generic-status-detail">{{ row.statusDetail }}</small>
+                  }
                 </span>
               }
               <!-- Default row: format dates by column name *or* explicit FormTypes.DATE -->

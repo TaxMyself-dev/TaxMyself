@@ -102,8 +102,13 @@
       } @else if (col.cellRenderer === CellRenderer.DATE) {
         {{ resolveValue(col) | dateFormat }}
       } @else if (col.cellRenderer === CellRenderer.STATUS_BADGE) {
-        <span class="mrc__status-badge mrc__status-badge--{{ row().status }}">
-          {{ resolveValue(col) }}
+        <span class="mrc__status-cell">
+          <span class="mrc__status-badge mrc__status-badge--{{ row().status }}">
+            {{ resolveValue(col) }}
+          </span>
+          @if (row().statusDetail) {
+            <small class="mrc__status-detail">{{ row().statusDetail }}</small>
+          }
         </span>
       } @else if (col.name === 'billName' && unassignedBillRed() && billUnassigned()) {
         <span class="mrc__value--bill-unassigned">לא משוייך</span>
