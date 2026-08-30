@@ -307,6 +307,52 @@
   (fieldsChange)="onEditDraftFieldsPatch($event)">
 </app-report-review-edit-dialog>
 
+<!-- A document never needs to be "moved to the archive" — every uploaded
+     document is already available there. This chooser records why the user
+     is taking it out of the current expense-review queue. -->
+<p-dialog
+  header="סיווג מסמך"
+  [visible]="classifyingRow() !== null"
+  (visibleChange)="$event ? null : cancelClassification()"
+  [modal]="true"
+  [style]="{ width: '520px', maxWidth: '95vw' }"
+  [rtl]="true"
+  [draggable]="false"
+  [resizable]="false">
+
+  <p class="classification-dialog__intro">
+    המסמך יישאר זמין בארכיון. בחר כיצד לטפל בו:
+  </p>
+
+  <div class="classification-dialog__choices">
+    <button type="button" class="classification-choice" (click)="classifyForAnnualReport()">
+      <i class="pi pi-file classification-choice__icon" aria-hidden="true"></i>
+      <span>
+        <strong>שייך לדוח השנתי</strong>
+        <small>המסמך לא יירשם כהוצאה ולא תיווצר פקודת יומן</small>
+      </span>
+    </button>
+
+    <button type="button" class="classification-choice" (click)="classifyForLater()">
+      <i class="pi pi-clock classification-choice__icon" aria-hidden="true"></i>
+      <span>
+        <strong>לטיפול בהמשך</strong>
+        <small>המסמך יוסר מרשימת האישור וימתין בארכיון</small>
+      </span>
+    </button>
+  </div>
+
+  <ng-template pTemplate="footer">
+    <app-p-button
+      [buttonText]="'ביטול'"
+      [buttonColor]="ButtonColor.BLACK"
+      [buttonSize]="ButtonSize.AUTO"
+      [variant]="'outlined'"
+      (onButtonClicked)="cancelClassification()">
+    </app-p-button>
+  </ng-template>
+</p-dialog>
+
 <!-- Supplier-management popup. Opened by the supplier bookmark icon in the
      supplier cell (openSupplierDialog) — create/edit the persisted
      Supplier record. Same fully-controlled pattern as

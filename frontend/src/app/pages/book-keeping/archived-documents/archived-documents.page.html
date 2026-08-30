@@ -17,3 +17,12 @@
     </app-generic-table>
 
 </div>
+
+<app-archive-expense-approval-dialog
+    [visible]="approvalDialogItem() !== null"
+    [businessNumber]="selectedBusinessNumber()"
+    [documentId]="approvalDialogItem()?.id ?? null"
+    [documentDate]="approvalDialogItem()?.documentDate ?? approvalDialogItem()?.uploadDate ?? null"
+    (closed)="closeApprovalDialog()"
+    (approved)="onExpenseApproved()">
+</app-archive-expense-approval-dialog>

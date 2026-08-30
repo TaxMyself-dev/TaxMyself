@@ -2212,3 +2212,24 @@ record this instead.
   statuses instead of being folded into generic approved/pending labels.
 - Verification: 36 focused Jest tests, Nest production build and Angular
   production build passed. No schema or cutover SQL change is required.
+
+## 2026-08-30 -- In-place archive approval and document classification
+
+- Replaced the archive's navigation to the full expense-review page with an
+  in-place approval dialog that reuses the existing expense edit form. It
+  loads a focused, side-effect-free preview plus the merged accounting
+  catalog, then calls the existing atomic document approval path (including
+  the matched-transaction path when applicable) with the edited values.
+- The archive dialog closes and refreshes only after a successful approval.
+  Soft duplicate warnings require an explicit "save and approve anyway"
+  confirmation; mapping-less classifications remain unapprovable.
+- Replaced the review screen's ambiguous "move to archive" action with
+  "classify document" (`pi-tag`). Its choices are "belongs to the annual
+  report" and "handle later"; transaction-only rows no longer show the
+  redundant document-archive action.
+- The internal `ARCHIVED` lifecycle value is unchanged, but its archive label
+  is now "handle later" instead of "archived", since every uploaded document
+  already appears in the archive.
+- Angular development and production builds passed. Only the project's
+  pre-existing bundle-budget and CommonJS warnings remain. No backend, schema
+  or cutover SQL change is required.

@@ -100,6 +100,10 @@ export class ReportReviewEditDialogComponent {
   /** True while a blocking save (onEditDialogSave) is in flight — disables
    *  the footer buttons and shows a spinner on "שמור". */
   @Input() isSaving = false;
+  /** Allows callers to reuse the form for a terminal action such as
+   * approving an expense directly from the archive. */
+  @Input() saveLabel = 'שמור';
+  @Input() saveDisabled = false;
 
   @Output() visibleChange = new EventEmitter<boolean>();
   @Output() save = new EventEmitter<void>();

@@ -856,3 +856,59 @@
   justify-content: flex-end;
   gap: 8px;
 }
+.classification-dialog__intro {
+  margin: 0 0 1rem;
+  color: #475569;
+}
+
+.classification-dialog__choices {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.classification-choice {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  width: 100%;
+  padding: 1rem;
+  border: 1px solid #dbe3ee;
+  border-radius: 12px;
+  background: #fff;
+  color: #172033;
+  text-align: right;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+
+  &:hover,
+  &:focus-visible {
+    border-color: #38a3ff;
+    background: #f7fbff;
+    outline: none;
+  }
+
+  span {
+    display: grid;
+    gap: 0.25rem;
+  }
+
+  strong {
+    font-size: 1rem;
+  }
+
+  small {
+    color: #64748b;
+    line-height: 1.4;
+  }
+}
+
+.classification-choice__icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: #e7f5ff;
+  color: #0284c7;
+  font-size: 1.1rem;
+}

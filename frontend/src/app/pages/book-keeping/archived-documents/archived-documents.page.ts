@@ -9,7 +9,7 @@ import { AuthService } from 'src/app/services/auth.service';
 import { FilterField } from 'src/app/components/filter-tab/filter-fields-model.component';
 import { FormBuilder, FormGroup } from '@angular/forms';
 import { ConfirmationService, MessageService } from 'primeng/api';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute } from '@angular/router';
 import { ReportReviewService } from 'src/app/services/report-review.service';
 
 /** Hebrew labels for `ArchiveItemStatus` (see backend `src/enum.ts`). */
@@ -18,7 +18,7 @@ export const ARCHIVE_STATUS_LABELS: Record<ArchiveItemStatus, string> = {
   PENDING: 'ממתין לאישור',
   APPROVED: 'אושר',
   FILED_ANNUAL: 'שייך לדוח שנתי',
-  ARCHIVED: 'אורכב',
+  ARCHIVED: 'לטיפול בהמשך',
   REJECTED: 'נדחה',
   ERROR: 'שגיאה בעיבוד',
 };
@@ -68,7 +68,6 @@ export class ArchivedDocumentsPage implements OnInit {
   private confirmationService = inject(ConfirmationService);
   private messageService = inject(MessageService);
   private reportReviewService = inject(ReportReviewService);
-  private router = inject(Router);
   private route = inject(ActivatedRoute);
 
   // ===========================
@@ -88,6 +87,7 @@ export class ArchivedDocumentsPage implements OnInit {
   selectedStatus = signal<string>('ACTIVE');
   selectedDocumentType = signal<string>('');
   fileActions = signal<ITableRowAction[]>([]);
+  approvalDialogItem = signal<ArchivedItem | null>(null);
 
   readonly archiveStatusLabels = ARCHIVE_STATUS_LABELS;
   readonly recordSourceLabels = RECORD_SOURCE_LABELS;
@@ -343,18 +343,16 @@ export class ArchivedDocumentsPage implements OnInit {
   onApproveClicked(doc: IRowDataTable): void {
     const documentId = Number(doc.id ?? 0);
     if (!documentId || !(doc as any).canResolve) return;
+    this.approvalDialogItem.set(doc as unknown as ArchivedItem);
+  }
 
-    const date = this.validDate((doc as any).documentDate) ?? new Date();
-    const year = date.getUTCFullYear();
-    this.router.navigate(['/report-review'], {
-      queryParams: {
-        businessNumber: this.selectedBusinessNumber(),
-        startDate: `${year}-01-01`,
-        endDate: `${year}-12-31`,
-        focusDocumentId: documentId,
-        returnTo: '/book-keeping/archived-documents',
-      },
-    });
+  closeApprovalDialog(): void {
+    this.approvalDialogItem.set(null);
+  }
+
+  onExpenseApproved(): void {
+    this.approvalDialogItem.set(null);
+    this.fetchArchivedItems(this.selectedBusinessNumber());
   }
 
   onFileAnnualClicked(doc: IRowDataTable): void {
@@ -418,12 +416,6 @@ export class ArchivedDocumentsPage implements OnInit {
           detail: successMessage, life: 3000, key: 'br',
         });
       });
-  }
-
-  private validDate(value: unknown): Date | null {
-    if (!value) return null;
-    const date = new Date(String(value));
-    return Number.isNaN(date.getTime()) ? null : date;
   }
 
   onPreviewClicked(doc: IRowDataTable): void {

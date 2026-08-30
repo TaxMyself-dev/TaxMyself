@@ -351,6 +351,9 @@ export class ReportReviewPage implements OnInit {
   rejectingRow = signal<EditableReviewRow | null>(null);
   rejectionReason = signal<string>('');
 
+  /** Document awaiting the user's non-expense classification choice. */
+  classifyingRow = signal<EditableReviewRow | null>(null);
+
   /** SupplierIds the user has touched (picked a category/sub-category on at
    *  least one row sharing that supplier). All rows with a matching
    *  supplierId render with the warning background — lets the user see at
@@ -1560,24 +1563,15 @@ export class ReportReviewPage implements OnInit {
       action: (_event, row) => this.startLink(row as unknown as EditableReviewRow),
     },
     {
-      name: 'archive',
-      icon: 'pi pi-inbox',
-      title: 'העבר לארכיון',
+      name: 'classify-document',
+      icon: 'pi pi-tag',
+      title: 'סווג מסמך',
       isLoading: () => this.isActioning(),
-      // tx_only rows have no document to archive — there is no distinct
-      // "archive a transaction" backend concept, so this maps onto the
-      // same rejectTx call as "מחק" for that row type (product decision:
-      // both buttons stay visible so the action is always available, even
-      // though they're functionally identical for a tx_only row).
       showWhen: (row) => {
         const r = row as unknown as EditableReviewRow;
-        return !r.isDetailRow;
+        return !r.isDetailRow && r.type !== 'tx_only';
       },
-      action: (_event, row) => {
-        const r = row as unknown as EditableReviewRow;
-        if (r.type === 'tx_only') this.rejectTx(r);
-        else this.archiveDoc(r);
-      },
+      action: (_event, row) => this.startClassification(row as unknown as EditableReviewRow),
     },
     {
       name: 'reject',
@@ -1976,9 +1970,28 @@ export class ReportReviewPage implements OnInit {
     ), 'אישור התנועה ללא מסמך נכשל');
   }
 
-  archiveDoc(row: EditableReviewRow): void {
-    if (!row.documentId) return;
-    this.runAction(row, this.reviewService.archiveDoc(row.documentId), 'ארכוב המסמך נכשל');
+  startClassification(row: EditableReviewRow): void {
+    if (!row.documentId || this.isActioning()) return;
+    this.classifyingRow.set(row);
+  }
+
+  cancelClassification(): void {
+    if (this.isActioning()) return;
+    this.classifyingRow.set(null);
+  }
+
+  classifyForAnnualReport(): void {
+    const row = this.classifyingRow();
+    if (!row?.documentId) return;
+    this.classifyingRow.set(null);
+    this.runAction(row, this.reviewService.fileDoc(row.documentId), 'שיוך המסמך לדוח השנתי נכשל');
+  }
+
+  classifyForLater(): void {
+    const row = this.classifyingRow();
+    if (!row?.documentId) return;
+    this.classifyingRow.set(null);
+    this.runAction(row, this.reviewService.archiveDoc(row.documentId), 'העברת המסמך לטיפול בהמשך נכשלה');
   }
 
   startReject(row: EditableReviewRow): void {

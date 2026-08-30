@@ -136,10 +136,11 @@
         (onButtonClicked)="visibleChange.emit(false)">
       </app-p-button>
       <app-p-button
-        [buttonText]="'שמור'"
+        [buttonText]="saveLabel"
         [buttonColor]="ButtonColor.BLACK"
         [buttonSize]="ButtonSize.AUTO"
         [isLoading]="isSaving"
+        [disabled]="saveDisabled || isSaving"
         (onButtonClicked)="save.emit()">
       </app-p-button>
     </div>

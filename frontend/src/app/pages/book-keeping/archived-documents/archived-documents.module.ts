@@ -6,6 +6,7 @@ import { ArchivedDocumentsPageRoutingModule } from './archived-documents-routing
 import { SharedModule } from '../../../shared/shared.module';
 import { GenericTableComponent } from "src/app/components/generic-table/generic-table.component";
 import { FilterTabComponent } from "src/app/components/filter-tab/filter-tab.component";
+import { ArchiveExpenseApprovalDialogComponent } from 'src/app/components/archive-expense-approval-dialog/archive-expense-approval-dialog.component';
 
 @NgModule({
   imports: [
@@ -16,6 +17,7 @@ import { FilterTabComponent } from "src/app/components/filter-tab/filter-tab.com
     SharedModule,
     GenericTableComponent,
     FilterTabComponent,
+    ArchiveExpenseApprovalDialogComponent,
   ],
   declarations: [ArchivedDocumentsPage],
 })
