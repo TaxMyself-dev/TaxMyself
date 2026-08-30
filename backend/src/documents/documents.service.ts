@@ -8,7 +8,7 @@ import { DocLines } from './doc-lines.entity';
 import { JournalEntry } from 'src/bookkeeping/jouranl-entry.entity';
 import { JournalLine } from 'src/bookkeeping/jouranl-line.entity';
 import { BookingAccount } from 'src/bookkeeping/account.entity'
-import { DocumentType, DocumentStatusType, DocumentKind, JournalReferenceType, PaymentMethodType, VatOptions, Currency, UnitOfMeasure, CardCompany, CreditTransactionType, BusinessType, isExemptBusinessType, ExpenseApprovalStatus, DocumentArchiveStatus, RecordSource, ArchiveItemStatus } from 'src/enum';
+import { DocumentType, DocumentStatusType, DocumentKind, JournalReferenceType, PaymentMethodType, VatOptions, Currency, UnitOfMeasure, CardCompany, CreditTransactionType, BusinessType, isExemptBusinessType, ExpenseApprovalStatus, RecordSource, ArchiveItemStatus } from 'src/enum';
 import { Business } from 'src/business/business.entity';
 import { SharedService } from 'src/shared/shared.service';
 import { FxRateService } from 'src/shared/fx-rate.service';
@@ -3740,12 +3740,15 @@ ${finalOwnerName}`;
       id: d.id,
       itemType: 'DOCUMENT',
       documentType: d.documentType,
+      documentKind: d.documentKind,
       name: d.supplier || d.driveFileName,
+      documentDate: d.date,
       uploadDate: d.uploadDate ?? (d.date ? new Date(d.date) : null),
       source: d.source,
       status: d.deletedAt
         ? ArchiveItemStatus.DELETED
-        : this.simplifyDocStatus(this.deriveArchiveStatus(d, approvalStatusByExpenseId)),
+        : this.archiveItemStatusForDocument(d, approvalStatusByExpenseId),
+      canResolve: !d.deletedAt && d.status === ExtractedDocStatus.PENDING_REVIEW,
       driveFileId: d.driveFileId,
       rejectionReason: d.rejectionReason,
     }));
@@ -3767,10 +3770,13 @@ ${finalOwnerName}`;
       id: e.id,
       itemType: 'EXPENSE',
       documentType: null,
+      documentKind: null,
       name: e.supplier,
+      documentDate: e.date ? String(e.date) : null,
       uploadDate: e.loadingDate,
       source: e.source ?? (e.externalTransactionId ? RecordSource.OPEN_BANKING : RecordSource.MANUAL),
       status: this.simplifyExpenseStatus(e.approvalStatus),
+      canResolve: false,
       driveFileId: null,
       rejectionReason: null,
     }));
@@ -3864,30 +3870,21 @@ ${finalOwnerName}`;
     return documentIds.length;
   }
 
-  /**
-   * See DocumentArchiveStatus (src/enum.ts) for the priority rules this
-   * implements: REJECTED > FILED_ANNUAL > APPROVED_EXPENSE > IN_PROGRESS.
-   */
-  private deriveArchiveStatus(
+  /** Keep terminal document outcomes distinct so the archive never offers
+   * pending-only actions for an archived/error row or labels an annual filing
+   * as a generic approved expense. */
+  private archiveItemStatusForDocument(
     doc: ExtractedDocument,
     approvalStatusByExpenseId: Map<number, ExpenseApprovalStatus | null>,
-  ): DocumentArchiveStatus {
-    if (doc.status === ExtractedDocStatus.REJECTED) return DocumentArchiveStatus.REJECTED;
-    if (doc.status === ExtractedDocStatus.NOT_AN_EXPENSE) return DocumentArchiveStatus.FILED_ANNUAL;
+  ): ArchiveItemStatus {
+    if (doc.status === ExtractedDocStatus.REJECTED) return ArchiveItemStatus.REJECTED;
+    if (doc.status === ExtractedDocStatus.NOT_AN_EXPENSE) return ArchiveItemStatus.FILED_ANNUAL;
+    if (doc.status === ExtractedDocStatus.ARCHIVED) return ArchiveItemStatus.ARCHIVED;
+    if (doc.status === ExtractedDocStatus.ERROR) return ArchiveItemStatus.ERROR;
     const linkedApprovalStatus = doc.confirmedExpenseId != null
       ? approvalStatusByExpenseId.get(doc.confirmedExpenseId)
       : null;
-    if (linkedApprovalStatus === ExpenseApprovalStatus.APPROVED) return DocumentArchiveStatus.APPROVED_EXPENSE;
-    return DocumentArchiveStatus.IN_PROGRESS;
-  }
-
-  /** Folds DocumentArchiveStatus into the archive page's display vocabulary. */
-  private simplifyDocStatus(archiveStatus: DocumentArchiveStatus): ArchiveItemStatus {
-    if (archiveStatus === DocumentArchiveStatus.REJECTED) return ArchiveItemStatus.REJECTED;
-    if (
-      archiveStatus === DocumentArchiveStatus.APPROVED_EXPENSE
-      || archiveStatus === DocumentArchiveStatus.FILED_ANNUAL
-    ) return ArchiveItemStatus.APPROVED;
+    if (linkedApprovalStatus === ExpenseApprovalStatus.APPROVED) return ArchiveItemStatus.APPROVED;
     return ArchiveItemStatus.PENDING;
   }
 
@@ -3910,10 +3907,16 @@ export interface ArchivedItem {
   itemType: 'DOCUMENT' | 'EXPENSE';
   /** ExtractedDocumentType value, or null for a transaction with no document. */
   documentType: string | null;
+  /** D8 routing kind. Null for expense-only rows. */
+  documentKind: DocumentKind | null;
   name: string;
+  /** OCR'd document/expense date, independent of the upload timestamp. */
+  documentDate: Date | string | null;
   uploadDate: Date | string | null;
   source: RecordSource;
   status: ArchiveItemStatus;
+  /** True only for a visible ExtractedDocument still in PENDING_REVIEW. */
+  canResolve: boolean;
   driveFileId: string | null;
   rejectionReason: string | null;
 }

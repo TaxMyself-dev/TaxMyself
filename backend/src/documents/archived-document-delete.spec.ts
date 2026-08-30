@@ -4,6 +4,8 @@ import { DocumentsService } from './documents.service';
 import { ExtractedDocument } from './extracted-document.entity';
 import { Expense } from '../expenses/expenses.entity';
 import { SlimTransaction } from '../transactions/slim-transaction.entity';
+import { ArchiveItemStatus, ExpenseApprovalStatus } from '../enum';
+import { ExtractedDocStatus } from './extracted-document.entity';
 
 describe('DocumentsService.deleteArchivedDocument', () => {
   function subject(options: {
@@ -140,5 +142,30 @@ describe('DocumentsService.deleteArchivedDocument', () => {
 
     await expect(test.run()).rejects.toBeInstanceOf(NotFoundException);
     expect(test.googleDriveService.deleteFile).not.toHaveBeenCalled();
+  });
+});
+
+describe('DocumentsService archive status projection', () => {
+  const project = (doc: any, linkedStatus?: ExpenseApprovalStatus) =>
+    (DocumentsService.prototype as any).archiveItemStatusForDocument.call(
+      {},
+      doc,
+      new Map(doc.confirmedExpenseId != null ? [[doc.confirmedExpenseId, linkedStatus]] : []),
+    );
+
+  it('keeps annual filing distinct from approved expenses', () => {
+    expect(project({ status: ExtractedDocStatus.NOT_AN_EXPENSE, confirmedExpenseId: null }))
+      .toBe(ArchiveItemStatus.FILED_ANNUAL);
+    expect(project(
+      { status: ExtractedDocStatus.APPROVED, confirmedExpenseId: 12 },
+      ExpenseApprovalStatus.APPROVED,
+    )).toBe(ArchiveItemStatus.APPROVED);
+  });
+
+  it('does not present archived or OCR-error rows as pending', () => {
+    expect(project({ status: ExtractedDocStatus.ARCHIVED, confirmedExpenseId: null }))
+      .toBe(ArchiveItemStatus.ARCHIVED);
+    expect(project({ status: ExtractedDocStatus.ERROR, confirmedExpenseId: null }))
+      .toBe(ArchiveItemStatus.ERROR);
   });
 });

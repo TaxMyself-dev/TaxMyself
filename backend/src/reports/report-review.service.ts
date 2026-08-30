@@ -303,6 +303,7 @@ export class ReportReviewService {
     firebaseId: string,
     businessNumber: string,
     range: { from: Date; to: Date },
+    options: { focusDocumentId?: number } = {},
   ): Promise<ReportPreviewResponse> {
     const user = await this.userRepo.findOne({ where: { firebaseId } });
     if (!user) throw new NotFoundException(`User not found for firebaseId`);
@@ -318,14 +319,16 @@ export class ReportReviewService {
     // enter the review table; they're skipped before OCR).
     let duplicatesSkipped = 0;
     let deletedDocumentsRestored = 0;
-    try {
-      const inboxResult = await this.documentsService.processInboxForUser(firebaseId, businessNumber);
-      duplicatesSkipped = inboxResult?.duplicates ?? 0;
-      deletedDocumentsRestored = inboxResult?.restored ?? 0;
-    } catch (err: any) {
-      this.logger.warn(
-        `getReportPreview step 1 (processInboxForUser) failed for biz=${businessNumber}: ${err?.message ?? err}`,
-      );
+    if (options.focusDocumentId == null) {
+      try {
+        const inboxResult = await this.documentsService.processInboxForUser(firebaseId, businessNumber);
+        duplicatesSkipped = inboxResult?.duplicates ?? 0;
+        deletedDocumentsRestored = inboxResult?.restored ?? 0;
+      } catch (err: any) {
+        this.logger.warn(
+          `getReportPreview step 1 (processInboxForUser) failed for biz=${businessNumber}: ${err?.message ?? err}`,
+        );
+      }
     }
 
     // Step 1.5 — pair invoices↔receipts that describe the same purchase.
@@ -334,15 +337,17 @@ export class ReportReviewService {
     // as a single candidate, not as two siblings fighting each other.
     // Best-effort: a pairing failure shows up as extra unpaired doc_only
     // rows, which the user can still link manually.
-    try {
-      if (user.index != null) {
-        await this.documentPairingService
-          .pairInvoicesAndReceiptsForBusiness(user.index, businessNumber);
+    if (options.focusDocumentId == null) {
+      try {
+        if (user.index != null) {
+          await this.documentPairingService
+            .pairInvoicesAndReceiptsForBusiness(user.index, businessNumber);
+        }
+      } catch (err: any) {
+        this.logger.warn(
+          `getReportPreview step 1.5 (pairing) failed for biz=${businessNumber}: ${err?.message ?? err}`,
+        );
       }
-    } catch (err: any) {
-      this.logger.warn(
-        `getReportPreview step 1.5 (pairing) failed for biz=${businessNumber}: ${err?.message ?? err}`,
-      );
     }
 
     // Step 2 — decide mode + (if Open Banking is on) run the matcher.
@@ -350,7 +355,7 @@ export class ReportReviewService {
       ? 'with_banking'
       : 'documents_only';
 
-    if (mode === 'with_banking') {
+    if (mode === 'with_banking' && options.focusDocumentId == null) {
       try {
         await this.matchingService.matchDocumentsForBusiness(
           firebaseId,
@@ -371,13 +376,18 @@ export class ReportReviewService {
     // them); docs AFTER the period end are hidden (they belong to a
     // later report). Lower bound intentionally omitted so late-arriving
     // docs from prior periods still surface.
-    const docs = await this.docRepo
+    const docsQuery = this.docRepo
       .createQueryBuilder('d')
       .where('d.userId = :uid', { uid: user.index })
       .andWhere('d.businessNumber = :bn', { bn: businessNumber })
       .andWhere('d.status = :st', { st: ExtractedDocStatus.PENDING_REVIEW })
-      .andWhere('d.deletedAt IS NULL')
-      .andWhere('(d.date IS NULL OR d.date <= :to)', { to: range.to })
+      .andWhere('d.deletedAt IS NULL');
+    if (options.focusDocumentId != null) {
+      docsQuery.andWhere('d.id = :focusDocumentId', { focusDocumentId: options.focusDocumentId });
+    } else {
+      docsQuery.andWhere('(d.date IS NULL OR d.date <= :to)', { to: range.to });
+    }
+    const docs = await docsQuery
       .orderBy('d.date', 'ASC')
       .addOrderBy('d.id', 'ASC')
       .getMany();
@@ -385,10 +395,17 @@ export class ReportReviewService {
     // For with_banking mode, also pull eligible slim transactions in the
     // window. `isRecognized && !confirmed` is the existing definition of
     // "classified as expense but not yet committed to expense table".
-    const txCacheRows =
-      mode === 'with_banking'
-        ? await this.loadTransactionsInRange(firebaseId, businessNumber, range)
-        : [];
+    let txCacheRows: Array<{ slim: SlimTransaction; cache: FullTransactionCache }> = [];
+    if (mode === 'with_banking') {
+      const focusedMatchedTransactionId = options.focusDocumentId != null
+        ? docs[0]?.matchedTransactionId
+        : null;
+      txCacheRows = focusedMatchedTransactionId != null
+        ? [await this.loadTxPair(firebaseId, businessNumber, focusedMatchedTransactionId)]
+        : options.focusDocumentId == null
+          ? await this.loadTransactionsInRange(firebaseId, businessNumber, range)
+          : [];
+    }
 
     // Pre-compute the set of supplierIDs already in the user's Supplier
     // table — drives the "ספק מוכר / ספק חדש" column. One batched IN query

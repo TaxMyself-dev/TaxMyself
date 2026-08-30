@@ -211,6 +211,9 @@ export class ReportReviewPage implements OnInit {
   businessNumber = signal<string>('');
   startDate = signal<string>('');
   endDate = signal<string>('');
+  /** Archive entry point: render exactly one pending document and skip the
+   * backend inbox/matching sweep. Null keeps the normal report pre-flight. */
+  focusDocumentId = signal<number | null>(null);
   /** Route to navigate back to once the review is done — 'vat-report' or
    *  'pnl-report', carried in as a query param by the page that sent the
    *  user here. Defaults to 'vat-report' if missing. */
@@ -499,6 +502,10 @@ export class ReportReviewPage implements OnInit {
     this.startDate.set(params.get('startDate') ?? '');
     this.endDate.set(params.get('endDate') ?? '');
     this.returnRoute.set(params.get('returnTo') ?? 'vat-report');
+    const focusDocumentId = Number(params.get('focusDocumentId'));
+    this.focusDocumentId.set(
+      Number.isInteger(focusDocumentId) && focusDocumentId > 0 ? focusDocumentId : null,
+    );
     this.loadPreview();
   }
 
@@ -571,7 +578,7 @@ export class ReportReviewPage implements OnInit {
       .subscribe(catalog => this.catalog.set(catalog));
 
     this.reviewService
-      .getPreview(bn, this.startDate(), this.endDate())
+      .getPreview(bn, this.startDate(), this.endDate(), this.focusDocumentId() ?? undefined)
       .pipe(
         catchError(err => {
           const detail = err?.error?.message ?? err?.message ?? 'טעינת הסקירה נכשלה';
@@ -624,6 +631,12 @@ export class ReportReviewPage implements OnInit {
         );
         this.rows.set(editable);
         if (editable.length === 0) {
+          if (this.focusDocumentId() != null) {
+            this.messageService.add({
+              severity: 'info', summary: 'המסמך כבר טופל',
+              detail: 'המסמך אינו ממתין עוד לאישור.', life: 4000, key: 'br',
+            });
+          }
           this.onClose();
         }
       });

@@ -9,13 +9,18 @@ import { AuthService } from 'src/app/services/auth.service';
 import { FilterField } from 'src/app/components/filter-tab/filter-fields-model.component';
 import { FormBuilder, FormGroup } from '@angular/forms';
 import { ConfirmationService, MessageService } from 'primeng/api';
+import { ActivatedRoute, Router } from '@angular/router';
+import { ReportReviewService } from 'src/app/services/report-review.service';
 
 /** Hebrew labels for `ArchiveItemStatus` (see backend `src/enum.ts`). */
 export const ARCHIVE_STATUS_LABELS: Record<ArchiveItemStatus, string> = {
   DELETED: 'נמחק',
   PENDING: 'ממתין לאישור',
   APPROVED: 'אושר',
+  FILED_ANNUAL: 'שייך לדוח שנתי',
+  ARCHIVED: 'אורכב',
   REJECTED: 'נדחה',
+  ERROR: 'שגיאה בעיבוד',
 };
 
 /** Hebrew labels for `RecordSource` (see backend `src/enum.ts`). */
@@ -62,6 +67,9 @@ export class ArchivedDocumentsPage implements OnInit {
   private fb = inject(FormBuilder);
   private confirmationService = inject(ConfirmationService);
   private messageService = inject(MessageService);
+  private reportReviewService = inject(ReportReviewService);
+  private router = inject(Router);
+  private route = inject(ActivatedRoute);
 
   // ===========================
   // Global state
@@ -139,8 +147,11 @@ export class ArchivedDocumentsPage implements OnInit {
   private readonly statusOptions: ISelectItem[] = [
     { name: 'הכל', value: 'ACTIVE' },
     { name: ARCHIVE_STATUS_LABELS.APPROVED, value: 'APPROVED' },
+    { name: ARCHIVE_STATUS_LABELS.FILED_ANNUAL, value: 'FILED_ANNUAL' },
+    { name: ARCHIVE_STATUS_LABELS.ARCHIVED, value: 'ARCHIVED' },
     { name: ARCHIVE_STATUS_LABELS.REJECTED, value: 'REJECTED' },
     { name: ARCHIVE_STATUS_LABELS.PENDING, value: 'PENDING' },
+    { name: ARCHIVE_STATUS_LABELS.ERROR, value: 'ERROR' },
     { name: 'מסמכים שנמחקו', value: 'DELETED' },
   ];
 
@@ -168,8 +179,10 @@ export class ArchivedDocumentsPage implements OnInit {
       this.rawItems.set([]);
       return;
     }
-    this.selectedBusinessNumber.set(businesses[0].businessNumber);
-    this.selectedBusinessName.set(businesses[0].businessName);
+    const requestedBusinessNumber = this.route.snapshot.queryParamMap.get('businessNumber');
+    const initialBusiness = businesses.find(b => b.businessNumber === requestedBusinessNumber) ?? businesses[0];
+    this.selectedBusinessNumber.set(initialBusiness.businessNumber);
+    this.selectedBusinessName.set(initialBusiness.businessName);
 
     this.form = this.fb.group({
       businessNumber: [this.selectedBusinessNumber()],
@@ -261,6 +274,35 @@ export class ArchivedDocumentsPage implements OnInit {
   private setFileActions(): void {
     this.fileActions.set([
       {
+        name: 'approve-expense',
+        icon: 'pi pi-check-circle',
+        title: 'אשר כהוצאה',
+        alwaysShow: true,
+        showWhen: (row: IRowDataTable) =>
+          (row as any).itemType === 'DOCUMENT'
+          && !!(row as any).canResolve
+          && (row as any).documentKind !== 'ANNUAL_DOCUMENT',
+        action: (_event: any, row: IRowDataTable) => this.onApproveClicked(row),
+      },
+      {
+        name: 'file-annual',
+        icon: 'pi pi-folder',
+        title: 'שייך לדוח שנתי',
+        alwaysShow: true,
+        showWhen: (row: IRowDataTable) =>
+          (row as any).itemType === 'DOCUMENT' && !!(row as any).canResolve,
+        action: (_event: any, row: IRowDataTable) => this.onFileAnnualClicked(row),
+      },
+      {
+        name: 'reject-document',
+        icon: 'pi pi-times-circle',
+        title: 'דחה מסמך',
+        alwaysShow: true,
+        showWhen: (row: IRowDataTable) =>
+          (row as any).itemType === 'DOCUMENT' && !!(row as any).canResolve,
+        action: (_event: any, row: IRowDataTable) => this.onRejectClicked(row),
+      },
+      {
         name: 'preview',
         icon: 'pi pi-eye',
         title: 'הצג קובץ',
@@ -296,6 +338,92 @@ export class ArchivedDocumentsPage implements OnInit {
         }
       },
     ]);
+  }
+
+  onApproveClicked(doc: IRowDataTable): void {
+    const documentId = Number(doc.id ?? 0);
+    if (!documentId || !(doc as any).canResolve) return;
+
+    const date = this.validDate((doc as any).documentDate) ?? new Date();
+    const year = date.getUTCFullYear();
+    this.router.navigate(['/report-review'], {
+      queryParams: {
+        businessNumber: this.selectedBusinessNumber(),
+        startDate: `${year}-01-01`,
+        endDate: `${year}-12-31`,
+        focusDocumentId: documentId,
+        returnTo: '/book-keeping/archived-documents',
+      },
+    });
+  }
+
+  onFileAnnualClicked(doc: IRowDataTable): void {
+    const documentId = Number(doc.id ?? 0);
+    if (!documentId || !(doc as any).canResolve) return;
+    this.confirmationService.confirm({
+      header: 'שיוך לדוח שנתי',
+      message: 'המסמך יסומן כשייך לדוח השנתי ולא תיווצר ממנו הוצאה או פקודת יומן.',
+      icon: 'pi pi-info-circle',
+      acceptLabel: 'שייך לדוח שנתי',
+      rejectLabel: 'ביטול',
+      accept: () => this.resolvePendingDocument(
+        this.reportReviewService.fileDoc(documentId),
+        'המסמך שויך לדוח השנתי',
+        'שיוך המסמך לדוח השנתי נכשל',
+      ),
+    });
+  }
+
+  onRejectClicked(doc: IRowDataTable): void {
+    const documentId = Number(doc.id ?? 0);
+    if (!documentId || !(doc as any).canResolve) return;
+    this.confirmationService.confirm({
+      header: 'דחיית מסמך',
+      message: 'האם לדחות את המסמך? המסמך יישמר בארכיון ולא תיווצר ממנו הוצאה.',
+      icon: 'pi pi-exclamation-triangle',
+      acceptLabel: 'דחה',
+      rejectLabel: 'ביטול',
+      acceptButtonStyleClass: 'p-button-danger',
+      accept: () => this.resolvePendingDocument(
+        this.reportReviewService.deleteDoc(documentId),
+        'המסמך נדחה',
+        'דחיית המסמך נכשלה',
+      ),
+    });
+  }
+
+  private resolvePendingDocument(
+    request$: import('rxjs').Observable<unknown>,
+    successMessage: string,
+    errorMessage: string,
+  ): void {
+    this.isLoadingDataTable.set(true);
+    request$
+      .pipe(
+        catchError(err => {
+          console.error(errorMessage, err);
+          this.messageService.add({
+            severity: 'error', summary: 'שגיאה',
+            detail: err?.error?.message ?? errorMessage, life: 4000, key: 'br',
+          });
+          return of(null);
+        }),
+        finalize(() => this.isLoadingDataTable.set(false)),
+      )
+      .subscribe(result => {
+        if (!result) return;
+        this.fetchArchivedItems(this.selectedBusinessNumber());
+        this.messageService.add({
+          severity: 'success', summary: successMessage,
+          detail: successMessage, life: 3000, key: 'br',
+        });
+      });
+  }
+
+  private validDate(value: unknown): Date | null {
+    if (!value) return null;
+    const date = new Date(String(value));
+    return Number.isNaN(date.getTime()) ? null : date;
   }
 
   onPreviewClicked(doc: IRowDataTable): void {

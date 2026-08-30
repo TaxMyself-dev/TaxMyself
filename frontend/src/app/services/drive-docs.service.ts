@@ -52,9 +52,15 @@ export interface SubCategoryCatalogEntry {
  *  backend's `src/enum.ts`. */
 export type RecordSource = 'DRIVE' | 'MANUAL' | 'OPEN_BANKING' | 'WHATSAPP';
 
-/** Simplified 3-state status for the ארכיון שלי page — see
- *  `ArchiveItemStatus` in the backend's `src/enum.ts`. */
-export type ArchiveItemStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'DELETED';
+/** User-facing lifecycle status for the ארכיון שלי page. */
+export type ArchiveItemStatus =
+  | 'PENDING'
+  | 'APPROVED'
+  | 'FILED_ANNUAL'
+  | 'ARCHIVED'
+  | 'REJECTED'
+  | 'ERROR'
+  | 'DELETED';
 
 /** A row on the ארכיון שלי (unified archive) page — `GET /documents/me/archived`.
  *  DOCUMENT rows come from an uploaded/OCR'd document; EXPENSE rows are a
@@ -65,10 +71,13 @@ export interface ArchivedItem {
   id: number;
   itemType: 'DOCUMENT' | 'EXPENSE';
   documentType: string | null;
+  documentKind: 'EXPENSE_INVOICE' | 'ANNUAL_DOCUMENT' | 'UNIDENTIFIED' | null;
   name: string;
+  documentDate: string | null;
   uploadDate: string | null;
   source: RecordSource;
   status: ArchiveItemStatus;
+  canResolve: boolean;
   driveFileId: string | null;
   rejectionReason: string | null;
 }

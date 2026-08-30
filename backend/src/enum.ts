@@ -443,15 +443,17 @@ export enum RecordSource {
 }
 
 /**
- * Simplified 3-state status shown on the ארכיון שלי page, folding together
- * ExtractedDocStatus/DocumentArchiveStatus (document rows) and
- * ExpenseApprovalStatus (transaction-derived expense rows with no document)
- * into one display vocabulary: אושר / נדחה / ממתין לאישור.
+ * User-facing lifecycle status shown on the ארכיון שלי page. Annual filing,
+ * archival and OCR failure stay distinct here because the archive now offers
+ * resolution actions only for genuinely pending documents.
  */
 export enum ArchiveItemStatus {
   PENDING = 'PENDING',
   APPROVED = 'APPROVED',
+  FILED_ANNUAL = 'FILED_ANNUAL',
+  ARCHIVED = 'ARCHIVED',
   REJECTED = 'REJECTED',
+  ERROR = 'ERROR',
   DELETED = 'DELETED',
 }
 

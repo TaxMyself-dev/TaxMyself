@@ -67,7 +67,8 @@ export class ReportsController {
     }
 
     /** Preview: process inbox, run matching (if Open Banking), return the
-     *  unified review rows. Body: { businessNumber, startDate, endDate }.
+     *  unified review rows. `focusDocumentId` opens one already-ingested
+     *  archive document without scanning the inbox or surfacing other rows.
      *  POST verb but semantically a read (the inbox-processing/matcher side
      *  effects are on the CLIENT's own data, not a permission-relevant write
      *  by the accountant) — loosened to DOCUMENTS_READ so a view-only
@@ -78,7 +79,7 @@ export class ReportsController {
     @UseGuards(FirebaseAuthGuard)
     async getReportPreview(
       @Req() request: AuthenticatedRequest,
-      @Body() body: { businessNumber: string; startDate: string; endDate: string },
+      @Body() body: { businessNumber: string; startDate: string; endDate: string; focusDocumentId?: number },
     ) {
       const firebaseId = request.user?.firebaseId;
       if (!firebaseId) throw new BadRequestException('Not authenticated');
@@ -87,7 +88,18 @@ export class ReportsController {
       const from = this.sharedService.convertStringToDateObject(body.startDate);
       const to = this.sharedService.convertStringToDateObject(body.endDate);
       if (!from || !to) throw new BadRequestException('startDate/endDate are required ISO dates');
-      return this.reviewService.getReportPreview(firebaseId, bn, { from, to });
+      const focusDocumentId = body.focusDocumentId == null
+        ? undefined
+        : Number(body.focusDocumentId);
+      if (focusDocumentId !== undefined && (!Number.isInteger(focusDocumentId) || focusDocumentId <= 0)) {
+        throw new BadRequestException('focusDocumentId must be a positive integer');
+      }
+      return this.reviewService.getReportPreview(
+        firebaseId,
+        bn,
+        { from, to },
+        { focusDocumentId },
+      );
     }
 
     /** Approve a "matched" row — creates one Expense linked to both the

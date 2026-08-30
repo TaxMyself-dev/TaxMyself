@@ -580,6 +580,9 @@
 
   &--PENDING  { background: #fef3c7; color: #b45309; }
   &--APPROVED { background: #dcfce7; color: #15803d; }
+  &--FILED_ANNUAL { background: #ede9fe; color: #6d28d9; }
+  &--ARCHIVED { background: #e0f2fe; color: #0369a1; }
   &--REJECTED { background: #fee2e2; color: #b91c1c; }
+  &--ERROR    { background: #ffedd5; color: #c2410c; }
   &--DELETED  { background: #e5e7eb; color: #4b5563; }
 }

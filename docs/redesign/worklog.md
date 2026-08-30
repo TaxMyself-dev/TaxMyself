@@ -2195,3 +2195,20 @@ record this instead.
   late-`TemplateRef` initialization issue.
 - Removed the now-unused archive-local badge styles. The Angular development
   build passed; no backend or schema change is required.
+
+## 2026-08-30 -- Resolve pending documents from the archive
+
+- Added pending-document actions to the unified archive: approve as an
+  expense, file for the annual report, or reject. Only visible
+  `PENDING_REVIEW` document rows expose these actions; approved/filed/rejected,
+  expense-only and deleted rows remain read-only apart from the existing
+  soft-delete restore operation.
+- "Approve as expense" enters the existing report-review page in focused
+  single-document mode. The focused backend preview skips inbox OCR, new
+  invoice/receipt pairing and automatic bank matching, while preserving an
+  already-matched transaction so the normal transactional approve path is
+  reused without duplicating accounting logic in the archive.
+- Annual filings, archived rows and OCR errors now have distinct archive
+  statuses instead of being folded into generic approved/pending labels.
+- Verification: 36 focused Jest tests, Nest production build and Angular
+  production build passed. No schema or cutover SQL change is required.

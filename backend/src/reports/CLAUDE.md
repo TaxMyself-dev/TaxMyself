@@ -12,7 +12,7 @@ Generates every report view/export (VAT, P&L, ledger, advance income tax, deprec
 - `reports.module.ts` — wires Documents/GoogleDrive/Bookkeeping/Billing/Shared/Users modules.
 
 ## Main flows
-- `GET /reports/me/preview-check`, `POST /reports/me/preview` — cheap/full review pre-flight before report submission.
+- `GET /reports/me/preview-check`, `POST /reports/me/preview` — cheap/full review pre-flight before report submission. Optional `focusDocumentId` loads one pending archive document without scanning the inbox, pairing/matching new rows or returning unrelated transactions.
 - `POST /reports/me/review/*` (approve-matched, approve-doc-cash, approve-tx-no-doc, link-doc-to-tx, upload-doc-to-tx/:id, archive-doc/:id, delete-doc/:id, unpair/:id, reject-tx) — resolve rows surfaced by the review modal.
 - `GET /reports/vat-report-journal`, `/pnl-report-journal`, `/ledger-report`, `/advance-income-tax-report`, `/depreciation-report`, `/journal-entry/:entryId`, `/ledger-accounts`, `/ledger-entry-accounts` — report data endpoints, computed from journal entries.
 - `GET /reports/vat-report-pdf`, `/pnl-report-pdf` — server-rendered PDF export.

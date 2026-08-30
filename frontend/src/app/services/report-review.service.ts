@@ -237,10 +237,11 @@ export class ReportReviewService {
     businessNumber: string,
     startDate: string,
     endDate: string,
+    focusDocumentId?: number,
   ): Observable<ReportPreviewResponse> {
     return this.http.post<ReportPreviewResponse>(
       `${environment.apiUrl}reports/me/preview`,
-      { businessNumber, startDate, endDate },
+      { businessNumber, startDate, endDate, focusDocumentId },
     );
   }
 
