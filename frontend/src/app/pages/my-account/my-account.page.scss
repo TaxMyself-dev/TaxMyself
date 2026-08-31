@@ -24,6 +24,11 @@ p.block-title {
   // border: solid 1px red;
 }
 
+.page-wrapper--delegated {
+  padding-top: 32px;
+  row-gap: 32px;
+}
+
 .user-info-block {
   display: flex;
   justify-content: space-between;
@@ -39,8 +44,8 @@ p.block-title {
   gap: 12px;
 }
 
-.user-info-row--delegated {
-  align-self: flex-start;
+.user-info-block--delegated {
+  justify-content: flex-start;
 }
 
 .user-info-text {
@@ -98,6 +103,12 @@ p.block-title {
   app-p-button {
     white-space: nowrap;
   }
+}
+
+.dashboard-actions--delegated {
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: wrap;
 }
 
 .hidden {
@@ -169,6 +180,17 @@ p.block-title {
 
 .cards-container app-dashboard-navigate {
   flex: 0 0 23%;
+}
+
+.cards-container--delegated {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 360px));
+  justify-content: start;
+  gap: 24px;
+}
+
+.cards-container--delegated app-dashboard-navigate {
+  width: 100%;
 }
 
 
@@ -572,6 +594,17 @@ p.block-title {
     gap: 16px;
   }
 
+  .user-info-block--delegated {
+    padding-top: 16px;
+    padding-bottom: 0;
+  }
+
+  .dashboard-actions--delegated {
+    flex-direction: row;
+    align-items: center;
+    width: 100%;
+  }
+
   .avatar-text {
     font-size: 18px;
     font-weight: 700;
@@ -595,6 +628,11 @@ p.block-title {
 
   .cards-container app-dashboard-navigate {
     flex: 1 1 100%;
+  }
+
+  .cards-container--delegated {
+    display: grid;
+    grid-template-columns: 1fr;
   }
 
   .block-title {

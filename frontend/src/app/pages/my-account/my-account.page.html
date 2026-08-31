@@ -1,4 +1,4 @@
-<div class="page-wrapper">
+<div class="page-wrapper" [class.page-wrapper--delegated]="isDelegatedClientView()">
     @if (feezbackDialogVisible()) {
       <div class="feezback-dialog-backdrop" (click)="closeFeezbackDialog()">
         <div class="feezback-dialog" (click)="$event.stopPropagation()">
@@ -393,20 +393,17 @@
     </div>
     }
 
-    <div class="user-info-block">
-        <div class="user-info-row" [class.user-info-row--delegated]="isDelegatedClientView()">
-            @if (!isDelegatedClientView()) {
+    <div class="user-info-block" [class.user-info-block--delegated]="isDelegatedClientView()">
+        @if (!isDelegatedClientView()) {
+        <div class="user-info-row">
             <p-avatar class="my-account-avatar" [label]="(userData?.fName?.charAt(0) || '') + (userData?.lName?.charAt(0) || '')" size="xlarge" shape="circle"></p-avatar>
-            }
             <div class="user-info-text">
-                @if (!isDelegatedClientView()) {
                 <span class="avatar-text">שלום {{ userData?.fName }} {{ userData?.lName }}</span>
                 @if (userData?.previousLoginAt) {
                 <span class="last-login">כניסתך האחרונה היתה בתאריך {{ userData.previousLoginAt | date: 'd/M/yyyy' }}</span>
                 }
-                }
                 <div class="user-info-buttons">
-                    @if (!isDelegatedClientView() && hasOpenBanking() && access.addOpenBankingButton().visible) {
+                    @if (hasOpenBanking() && access.addOpenBankingButton().visible) {
                     <app-p-button [buttonText]="'+ חבר חשבון נוסף'" [buttonColor]="buttonColor.WHITE_BORDER_LIGHT" [buttonSize]="buttonSize.BETWEEN"
                         (onButtonClicked)="connectToOpenBanking()" [isLoading]="isLoadingFeezback()">
                     </app-p-button>
@@ -418,7 +415,8 @@
                 <!-- Users without Open Banking already get the big "רוצה לראות את התנועות" CTA banner below, so no extra header button is needed here. -->
             </div>
         </div>
-        <div class="dashboard-actions">
+        }
+        <div class="dashboard-actions" [class.dashboard-actions--delegated]="isDelegatedClientView()">
             <app-menu-button
                 class="vat-report-payment-button"
                 icon="pi pi-chevron-down"
@@ -429,6 +427,12 @@
                 [items]="addExpenseMenuItems()"
                 [positions]="addExpenseMenuPositions">
             </app-menu-button>
+            @if (isDelegatedClientView()) {
+                <app-p-button [buttonText]="'הארכיון שלי'" [icon]="'pi pi-folder-open'" [iconPosition]="'right'"
+                    [buttonColor]="buttonColor.WHITE_BORDER_LIGHT" [buttonSize]="buttonSize.BETWEEN"
+                    (onButtonClicked)="goToArchive()">
+                </app-p-button>
+            }
             @if (userData?.isDemo) {
                 <app-p-button class="demo-reset-button" [buttonText]="'אפס נתוני בדיקה'"
                     [buttonColor]="buttonColor.WHITE_BORDER_LIGHT" [buttonSize]="buttonSize.AUTO"
@@ -459,9 +463,9 @@
     </div>
     }
     @if (businessStatus() !== BusinessStatus.NO_BUSINESS) {
-    <div class="nevigation-block">
+    <div class="nevigation-block" [class.nevigation-block--delegated]="isDelegatedClientView()">
         <span class="block-title">פעולות מומלצות</span>
-        <div class="cards-container">
+        <div class="cards-container" [class.cards-container--delegated]="isDelegatedClientView()">
             @for (item of itemsNavigate(); track item.id) {
               @if (item.link === '/doc-create') {
                 <app-dashboard-navigate

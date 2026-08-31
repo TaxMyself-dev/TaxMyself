@@ -2281,3 +2281,14 @@ record this instead.
   onboarding UI unchanged.
 - The Angular build passed with only the project's existing bundle-budget and
   CommonJS warnings. No backend or schema change is required.
+
+## 2026-08-31 -- Compact delegated-client dashboard layout
+
+- Consolidated the delegated-client archive and add-expense controls into one
+  right-aligned action row instead of leaving them at opposite screen edges.
+- Reduced the delegated view's top padding and vertical gaps, and changed its
+  recommended-action cards to a bounded responsive grid so wide screens no
+  longer stretch three cards across the full viewport. Mobile remains a
+  single-column stack.
+- The Angular build passed with only the project's existing bundle-budget and
+  CommonJS warnings. No backend or schema change is required.
