@@ -2270,3 +2270,14 @@ record this instead.
 - Fourteen focused Jest tests, the Nest build and Angular build passed. Only
   the project's existing frontend build warnings remain; no schema change is
   required.
+
+## 2026-08-31 -- Simplify delegated-client dashboard header
+
+- When an accountant or admin is operating in a represented client's context,
+  the dashboard header now hides the client's avatar, greeting, last-login
+  timestamp and open-banking account-add action. The archive button remains.
+- The open-banking onboarding banner is also hidden in delegated-client mode.
+  A client viewing their own dashboard keeps the existing identity and
+  onboarding UI unchanged.
+- The Angular build passed with only the project's existing bundle-budget and
+  CommonJS warnings. No backend or schema change is required.

@@ -394,15 +394,19 @@
     }
 
     <div class="user-info-block">
-        <div class="user-info-row">
+        <div class="user-info-row" [class.user-info-row--delegated]="isDelegatedClientView()">
+            @if (!isDelegatedClientView()) {
             <p-avatar class="my-account-avatar" [label]="(userData?.fName?.charAt(0) || '') + (userData?.lName?.charAt(0) || '')" size="xlarge" shape="circle"></p-avatar>
+            }
             <div class="user-info-text">
+                @if (!isDelegatedClientView()) {
                 <span class="avatar-text">שלום {{ userData?.fName }} {{ userData?.lName }}</span>
                 @if (userData?.previousLoginAt) {
                 <span class="last-login">כניסתך האחרונה היתה בתאריך {{ userData.previousLoginAt | date: 'd/M/yyyy' }}</span>
                 }
+                }
                 <div class="user-info-buttons">
-                    @if (hasOpenBanking() && access.addOpenBankingButton().visible) {
+                    @if (!isDelegatedClientView() && hasOpenBanking() && access.addOpenBankingButton().visible) {
                     <app-p-button [buttonText]="'+ חבר חשבון נוסף'" [buttonColor]="buttonColor.WHITE_BORDER_LIGHT" [buttonSize]="buttonSize.BETWEEN"
                         (onButtonClicked)="connectToOpenBanking()" [isLoading]="isLoadingFeezback()">
                     </app-p-button>
@@ -433,9 +437,9 @@
                 </app-p-button>
             }
         </div>
-    </div>
+     </div>
      <!-- ─── Open Banking CTA Banner (Figma nodes 2520:53911 → 2520:53930) ─── -->
-     @if (!hasOpenBanking()) {
+     @if (!isDelegatedClientView() && !hasOpenBanking()) {
      <div class="banking-banner">
 
         <div class="banking-banner__text">

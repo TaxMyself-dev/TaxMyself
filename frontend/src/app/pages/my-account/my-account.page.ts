@@ -377,6 +377,13 @@ export class MyAccountPage implements OnInit {
   hasOpenBanking = signal<boolean>(false);
   readonly BusinessStatus = BusinessStatus;
 
+  /** True whenever an accountant or admin is operating in a represented
+   * client's context. Personal identity and onboarding prompts belong to the
+   * account owner, so the delegated dashboard deliberately hides them. */
+  isDelegatedClientView(): boolean {
+    return this.authService.isViewingAsClient();
+  }
+
   // ─── Column definitions: derived from shared config ───────────────────────
   fieldsNamesExpenses = computed(() =>
     buildTransactionColumns({

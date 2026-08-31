@@ -39,6 +39,10 @@ p.block-title {
   gap: 12px;
 }
 
+.user-info-row--delegated {
+  align-self: flex-start;
+}
+
 .user-info-text {
   display: flex;
   flex-direction: column;
