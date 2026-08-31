@@ -2292,3 +2292,15 @@ record this instead.
   single-column stack.
 - The Angular build passed with only the project's existing bundle-budget and
   CommonJS warnings. No backend or schema change is required.
+
+## 2026-08-31 -- Stable document-creation card in delegated view
+
+- Removed the timing-sensitive delegated-client filter that caused the
+  document-creation recommendation to appear on first entry and disappear
+  after navigating away and back.
+- The card now remains visible so the delegated dashboard consistently keeps
+  its four-card layout. Clicking it as an accountant or admin shows a clear
+  permission message and never navigates to document creation; an account
+  owner still follows the normal feature-access flow.
+- The Angular build passed with only the project's existing bundle-budget and
+  CommonJS warnings. No backend or schema change is required.

@@ -86,6 +86,16 @@ export class MyAccountPage implements OnInit {
   };
 
   onDocCreateCardClick(): void {
+    if (this.isDelegatedClientView()) {
+      this.messageService.add({
+        severity: 'warn',
+        summary: 'אין הרשאה להפקת מסמך',
+        detail: 'לא ניתן להפיק מסמך כאשר מנהל או רואה חשבון עובדים מתוך חשבון הלקוח.',
+        life: 4500,
+        key: 'br',
+      });
+      return;
+    }
     const result = this.accessHandlerService.handleFeatureAccess(AppFeature.DOC_CREATE_BUTTON_RECOMMENDED_PIVOT);
     if (result.allowed) {
       this.router.navigate(['/doc-create']);
@@ -352,23 +362,15 @@ export class MyAccountPage implements OnInit {
   /**
    * Reactive list of recommended-action cards.
    * Filters items based on access state so HIDE-configured features are never rendered.
-   * Also hides /doc-create when an accountant is viewing as a client.
+   * Document creation deliberately stays visible in delegated-client mode;
+   * its controlled click handler explains that the acting user lacks permission.
    */
   readonly itemsNavigate = computed<IItemNavigate[]>(() => {
     const showTransactions = this.access.transactionsRecommended().visible;
-    let items = this.allItemsNavigate.filter(item => {
+    return this.allItemsNavigate.filter(item => {
       if (item.link === '/transactions') return showTransactions;
       return true;
     });
-    // Hide /doc-create when an ACCOUNTANT is viewing as a client.
-    if (this.authService.isViewingAsClient()) {
-      const realUser = this.authService.getRealUserDataFromLocalStorage();
-      const realUserIsAdmin = !!realUser?.role?.includes('ADMIN');
-      if (!realUserIsAdmin && !this.authService.isViewingDemoUser()) {
-        items = items.filter((item) => item.link !== '/doc-create');
-      }
-    }
-    return items;
   });
 
   // ─── User-context signals (set in ngOnInit from userData) ────────────────
