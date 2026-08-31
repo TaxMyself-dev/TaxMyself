@@ -2304,3 +2304,18 @@ record this instead.
   owner still follows the normal feature-access flow.
 - The Angular build passed with only the project's existing bundle-budget and
   CommonJS warnings. No backend or schema change is required.
+
+## 2026-08-31 -- Stabilize delegated dashboard entry and permissions
+
+- Accountant client entry now waits for the represented user's data before
+  routing to the dashboard, matching the existing admin flow and eliminating
+  the brief flash of the accountant's own page.
+- Delegated-mode UI and permission checks now use the synchronous persisted
+  selected-client marker rather than asynchronously populated view-as data.
+  This makes the document-creation permission toast reliable across route
+  changes.
+- The delegated recommended-actions grid uses four equal desktop columns, so
+  all four cards remain on one row; the existing mobile one-column override is
+  unchanged.
+- The Angular build passed with only the project's existing bundle-budget and
+  CommonJS warnings. No backend or schema change is required.

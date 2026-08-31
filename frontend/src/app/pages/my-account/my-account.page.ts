@@ -23,6 +23,7 @@ import { MenuButtonComponent } from 'src/app/components/menu-button/menu-button.
 import { MenuButtonItem } from 'src/app/components/menu-button/menu-button.model';
 import { QuickUploadDriveDialogComponent } from 'src/app/components/quick-upload-drive-dialog/quick-upload-drive-dialog.component';
 import { AuthService } from 'src/app/services/auth.service';
+import { ClientPanelService } from 'src/app/services/clients-panel.service';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { GenericService } from 'src/app/services/generic.service';
 import { BusinessStatus, TransactionsOutcomesColumns } from 'src/app/shared/enums';
@@ -75,6 +76,7 @@ export class MyAccountPage implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
   private readonly accessService = inject(AccessService);
   private readonly accessHandlerService = inject(AccessHandlerService);
+  private readonly clientPanelService = inject(ClientPanelService);
 
   readonly access = {
     createDocumentRecommended: computed(() => this.accessService.getFeatureState(AppFeature.DOC_CREATE_BUTTON_RECOMMENDED_PIVOT)),
@@ -381,9 +383,11 @@ export class MyAccountPage implements OnInit {
 
   /** True whenever an accountant or admin is operating in a represented
    * client's context. Personal identity and onboarding prompts belong to the
-   * account owner, so the delegated dashboard deliberately hides them. */
+   * account owner, so the delegated dashboard deliberately hides them.
+   * The selected-client marker is synchronous and survives route changes;
+   * unlike viewAsUserData it cannot briefly become false during loading. */
   isDelegatedClientView(): boolean {
-    return this.authService.isViewingAsClient();
+    return this.clientPanelService.getSelectedClientId() != null;
   }
 
   // ─── Column definitions: derived from shared config ───────────────────────

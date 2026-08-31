@@ -1,6 +1,7 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { DialogService } from 'primeng/dynamicdialog';
+import { take } from 'rxjs';
 import { ClientPanelService, Client, CreateClientPayload } from 'src/app/services/clients-panel.service';
 import { ReferralService } from 'src/app/services/referral.service';
 import { AuthService } from 'src/app/services/auth.service';
@@ -353,18 +354,35 @@ export class ClientPanelPage implements OnInit {
 
   /** כניסה לחשבון הלקוח בתור הרואה חשבון – מגדיר גם את מספר העסק של הלקוח להקשר הבקשות */
   enterClient(client: Client): void {
-    this.genericService.clearBusinesses();
-    this.clientService.setSelectedClient(client.id, client.fullName);
-    this.authService.setActiveBusinessNumber(client.businessNumber ?? null);
-    this.router.navigate(['/my-account']);
+    this.enterClientDashboard(client, client.businessNumber ?? null);
   }
 
   /** Enter one exact business from a multi-business client row. */
   enterClientBusiness(client: Client, business: Client): void {
+    this.enterClientDashboard(client, business.businessNumber ?? null);
+  }
+
+  /** Load the represented identity before routing. Otherwise MyAccountPage
+   * mounts with the accountant's own userData and flashes the wrong dashboard
+   * until AppComponent's parallel view-as request finishes. */
+  private enterClientDashboard(client: Client, businessNumber: string | null): void {
     this.genericService.clearBusinesses();
     this.clientService.setSelectedClient(client.id, client.fullName);
-    this.authService.setActiveBusinessNumber(business.businessNumber ?? null);
-    this.router.navigate(['/my-account']);
+    this.authService.setActiveBusinessNumber(businessNumber);
+    this.authService.loadViewAsUserData().pipe(take(1)).subscribe((data) => {
+      if (!data) {
+        this.authService.clearDelegatedClientContext();
+        this.messageService.add({
+          severity: 'error',
+          summary: 'הכניסה לחשבון נכשלה',
+          detail: 'לא הצלחנו לטעון את נתוני הלקוח. נסה שוב.',
+          life: 4500,
+          key: 'br',
+        });
+        return;
+      }
+      this.router.navigate(['/my-account']);
+    });
   }
 
   /** Upload evidence directly to the selected business's Drive inbox. Both
