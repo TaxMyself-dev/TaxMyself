@@ -14,6 +14,14 @@ async function bootstrap() {
   app.useGlobalFilters(new HttpExceptionFilter());
   app.use(require('cors')('*'));
 
+  // Mailgun posts route notifications as urlencoded data when there are no
+  // attachments. Multipart notifications are parsed later by the controller's
+  // Multer interceptor, because this middleware ignores other content types.
+  app.use(
+    '/webhooks/mailgun',
+    bodyParser.urlencoded({ extended: false, limit: '1mb' }),
+  );
+
   // Capture raw body for agent authentication (only for /agent routes)
   // This middleware runs only for agent routes to support HMAC signature verification
   app.use((req: any, _res: any, next: any) => {

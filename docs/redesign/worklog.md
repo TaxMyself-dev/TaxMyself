@@ -2168,3 +2168,18 @@ record this instead.
 - Three focused Jest regressions and the Nest production TypeScript build pass.
   The all-spec TypeScript check remains blocked by pre-existing errors in the
   users specs.
+
+## 2026-09-01 — Mailgun inbound email vertical spike
+
+- Fast-forwarded `eharel-branch-0` to the current `origin/main` before starting
+  the feature work; the branch had no unique commits or merge conflicts.
+- Added a feature-flagged Mailgun inbound webhook for one configured test
+  recipient/business. It verifies Mailgun HMAC signatures and imports supported
+  PDF/JPEG/PNG attachments through the existing `DocumentImportService` with
+  source `EMAIL_FORWARDING`.
+- Added focused setup/acceptance documentation and seven unit tests covering
+  signature validation, recipient isolation, supported/unsupported files and
+  retry behavior. The focused Jest run and Nest build pass.
+- This spike intentionally adds no schema change. The durable event ledger,
+  generated business addresses and asynchronous worker remain gated on the
+  real Mailgun end-to-end result.
