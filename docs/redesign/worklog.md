@@ -2183,3 +2183,21 @@ record this instead.
 - This spike intentionally adds no schema change. The durable event ledger,
   generated business addresses and asynchronous worker remain gated on the
   real Mailgun end-to-end result.
+
+## 2026-09-02 — Dedicated inbound email production slice
+
+- The Mailgun EU spike passed end to end. Promoted recipient resolution from
+  one environment-configured address to a stable opaque address per owned
+  business, allocated lazily and displayed with a copy action in Settings.
+- Added the additive `inbound_email_addresses` table and a production SQL
+  script. Applied it to `keepintax-dev` only; production was not touched.
+- Preserved original email provenance through the shared Drive inbox OCR
+  transport. Gmail and Mailgun documents now stamp `RecordSource.EMAIL`, and
+  the unified archive renders the source as `מייל`. Backfilled two existing
+  dev OCR rows from `imported_documents`.
+- Kept webhook processing synchronous through the existing durable Drive
+  inbox: Mailgun receives 200 only after Drive + import ledger success and
+  retries transient 500 responses; content-hash dedup makes retries safe.
+- Corrected the setup docs to use Mailgun `forward(URL)` multipart delivery,
+  documented the domain-wide route and production environment variables.
+- Nest build, Angular development build and 17 focused Jest tests pass.

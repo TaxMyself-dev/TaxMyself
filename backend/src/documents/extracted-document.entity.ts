@@ -261,10 +261,10 @@ export class ExtractedDocument {
   @Column({ name: 'upload_date', type: 'datetime', nullable: true })
   uploadDate: Date | null;
 
-  // Every ExtractedDocument today is produced by the Drive inbox OCR
-  // pipeline (see documents.service.ts's 4 insert sites), hence the DRIVE
-  // default — no ALTER needed if/when a non-Drive ingestion path (e.g.
-  // WhatsApp) is added, since new rows would just set a different value.
+  // Every ExtractedDocument is produced by the Drive inbox OCR pipeline, but
+  // Drive may be transport rather than origin. DocumentsService stamps EMAIL
+  // when imported_documents says Gmail/Mailgun; direct Drive files retain the
+  // legacy DRIVE default.
   @Column({ type: 'varchar', length: 20, default: RecordSource.DRIVE })
   source: RecordSource;
 

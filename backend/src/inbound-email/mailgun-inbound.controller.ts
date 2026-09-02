@@ -13,6 +13,7 @@ import {
 import { AnyFilesInterceptor } from '@nestjs/platform-express';
 import { DocumentImportService } from 'src/document-import/document-import.service';
 import { DocumentImportSource } from 'src/document-import/enums/document-import.enums';
+import { InboundEmailAddressService } from './inbound-email-address.service';
 import { MailgunSignatureService } from './mailgun-signature.service';
 
 interface MailgunInboundBody {
@@ -27,7 +28,7 @@ interface MailgunInboundBody {
   'message-url'?: string;
 }
 
-interface SpikeImportSummary {
+interface InboundEmailImportSummary {
   accepted: true;
   receivedFiles: number;
   imported: number;
@@ -36,11 +37,8 @@ interface SpikeImportSummary {
 }
 
 /**
- * Mailgun inbound vertical spike.
- *
- * The endpoint is deliberately mapped to one configured recipient/business.
- * It proves DNS -> Mailgun route -> signed multipart webhook -> shared Drive
- * intake without committing to the full address/event/worker data model yet.
+ * Receives a signed Mailgun route POST, resolves its opaque per-business
+ * recipient and feeds supported attachments into the shared intake pipeline.
  */
 @Controller('webhooks/mailgun')
 export class MailgunInboundController {
@@ -49,6 +47,7 @@ export class MailgunInboundController {
   constructor(
     private readonly signatureService: MailgunSignatureService,
     private readonly documentImportService: DocumentImportService,
+    private readonly addressService: InboundEmailAddressService,
   ) {}
 
   @Post('inbound')
@@ -65,23 +64,12 @@ export class MailgunInboundController {
   async receive(
     @Body() body: MailgunInboundBody,
     @UploadedFiles() files: Express.Multer.File[] = [],
-  ): Promise<SpikeImportSummary> {
-    this.assertSpikeEnabled();
+  ): Promise<InboundEmailImportSummary> {
+    this.assertEnabled();
     this.signatureService.assertValid(body);
 
-    const expectedRecipient = this.requiredEnv(
-      'MAILGUN_INBOUND_SPIKE_RECIPIENT',
-    );
     const recipient = this.normalizeEmail(body.recipient);
-    if (recipient !== this.normalizeEmail(expectedRecipient)) {
-      // 406 tells Mailgun that retrying this route payload is not useful.
-      throw new NotAcceptableException('Unknown Mailgun spike recipient');
-    }
-
-    const firebaseId = this.requiredEnv('MAILGUN_INBOUND_SPIKE_FIREBASE_ID');
-    const businessNumber = this.requiredEnv(
-      'MAILGUN_INBOUND_SPIKE_BUSINESS_NUMBER',
-    );
+    const { firebaseId, businessNumber } = await this.resolveTarget(recipient);
     const candidates = files
       .map((file) => ({
         file,
@@ -113,13 +101,14 @@ export class MailgunInboundController {
     }
 
     this.logger.log(
-      `Mailgun spike accepted: files=${files.length} candidates=${candidates.length} ` +
+      `Mailgun inbound accepted: recipient=${recipient} files=${files.length} ` +
+        `candidates=${candidates.length} ` +
         `imported=${imported} duplicates=${duplicates}`,
     );
 
     // A retry is safe because DocumentImportService deduplicates by content.
     if (failures.length > 0) {
-      this.logger.error(`Mailgun spike import failed: ${failures.join('; ')}`);
+      this.logger.error(`Mailgun inbound import failed: ${failures.join('; ')}`);
       throw new InternalServerErrorException(
         'Mailgun attachment import failed',
       );
@@ -134,9 +123,40 @@ export class MailgunInboundController {
     };
   }
 
-  private assertSpikeEnabled(): void {
-    if (process.env.MAILGUN_INBOUND_SPIKE_ENABLED !== 'true') {
+  private assertEnabled(): void {
+    if (
+      process.env.MAILGUN_INBOUND_ENABLED !== 'true' &&
+      process.env.MAILGUN_INBOUND_SPIKE_ENABLED !== 'true'
+    ) {
       throw new NotFoundException();
+    }
+  }
+
+  private async resolveTarget(recipient: string): Promise<{
+    firebaseId: string;
+    businessNumber: string;
+  }> {
+    try {
+      return await this.addressService.resolveRecipient(recipient);
+    } catch (error) {
+      // Temporary compatibility for the already-verified single-recipient
+      // development spike. Production uses only DB-backed opaque addresses.
+      const spikeRecipient = this.normalizeEmail(
+        process.env.MAILGUN_INBOUND_SPIKE_RECIPIENT,
+      );
+      if (
+        process.env.MAILGUN_INBOUND_SPIKE_ENABLED === 'true' &&
+        recipient === spikeRecipient
+      ) {
+        return {
+          firebaseId: this.requiredEnv('MAILGUN_INBOUND_SPIKE_FIREBASE_ID'),
+          businessNumber: this.requiredEnv(
+            'MAILGUN_INBOUND_SPIKE_BUSINESS_NUMBER',
+          ),
+        };
+      }
+      if (error instanceof NotAcceptableException) throw error;
+      throw error;
     }
   }
 

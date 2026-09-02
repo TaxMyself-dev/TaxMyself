@@ -429,14 +429,16 @@ export enum DocumentArchiveStatus {
 /**
  * Where an `ExtractedDocument` or `Expense` row originated from — powers the
  * "מקור העלאה" column on the ארכיון שלי (unified archive) page. Every
- * `ExtractedDocument` today comes from the Drive inbox pipeline, so it
- * defaults to DRIVE; `Expense.source` is set in `ExpensesService.addExpense`
- * (DRIVE when created from a reviewed document, OPEN_BANKING when created
- * from a bank/card transaction, MANUAL otherwise). WHATSAPP has no producer
- * yet — reserved for a future ingestion path.
+ * `ExtractedDocument` is processed through the Drive inbox pipeline, but the
+ * original intake channel is preserved: Gmail and dedicated inbound mail use
+ * EMAIL while files placed directly in Drive use DRIVE. `Expense.source` is
+ * set in `ExpensesService.addExpense` (DRIVE when created from a reviewed
+ * document, OPEN_BANKING for bank/card, MANUAL otherwise). WHATSAPP has no
+ * producer yet — reserved for a future ingestion path.
  */
 export enum RecordSource {
   DRIVE = 'DRIVE',
+  EMAIL = 'EMAIL',
   MANUAL = 'MANUAL',
   OPEN_BANKING = 'OPEN_BANKING',
   WHATSAPP = 'WHATSAPP',

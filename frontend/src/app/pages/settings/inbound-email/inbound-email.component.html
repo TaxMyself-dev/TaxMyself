@@ -1,0 +1,30 @@
+<section class="inbound-email">
+  <h3 class="subsection-title">כתובת מייל ייעודית לקבלת מסמכים</h3>
+  <p class="description">
+    אפשר להעביר חשבוניות וקבלות לכתובת של העסק בלי לחבר את תיבת המייל הפרטית.
+    קובצי PDF, JPG ו-PNG ייכנסו אוטומטית למסמכי העסק.
+  </p>
+
+  @if (loading()) {
+    <p class="muted">טוען כתובות...</p>
+  } @else if (loadError()) {
+    <p class="error">לא הצלחנו לטעון את כתובות המייל. נסה לרענן את העמוד.</p>
+  } @else if (addresses().length === 0) {
+    <p class="muted">יש להגדיר עסק לפני יצירת כתובת לקבלת מסמכים.</p>
+  } @else {
+    <div class="address-list">
+      @for (item of addresses(); track item.businessNumber) {
+        <div class="address-card">
+          <div class="address-details">
+            <strong>{{ item.businessName || item.businessNumber }}</strong>
+            <span dir="ltr">{{ item.address }}</span>
+          </div>
+          <button type="button" class="copy-button" (click)="copy(item.address)">
+            <i class="pi pi-copy" aria-hidden="true"></i>
+            העתק כתובת
+          </button>
+        </div>
+      }
+    </div>
+  }
+</section>

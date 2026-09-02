@@ -24,6 +24,7 @@ import { catchError, EMPTY, finalize } from 'rxjs';
 import { SharedModule } from 'src/app/shared/shared.module';
 import { MyCategoriesTabComponent } from './my-categories-tab/my-categories-tab.component';
 import { GmailIntegrationComponent } from './gmail-integration/gmail-integration.component';
+import { InboundEmailComponent } from './inbound-email/inbound-email.component';
 import { MySubscriptionTabComponent } from './my-subscription-tab/my-subscription-tab.component';
 import { InputTextComponent } from 'src/app/components/input-text/input-text.component';
 import { InputDateComponent } from 'src/app/components/input-date/input-date.component';
@@ -48,6 +49,7 @@ import { DriveDocsService, MAX_UPLOAD_TO_INBOX_FILES } from 'src/app/services/dr
     SharedModule,
     MyCategoriesTabComponent,
     GmailIntegrationComponent,
+    InboundEmailComponent,
     MySubscriptionTabComponent,
     GenericTableComponent,
     InputTextComponent,

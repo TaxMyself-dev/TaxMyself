@@ -25,17 +25,16 @@ triggering, or frontend UI. Those are only approved after the end-to-end test.
 7. Create a high-priority route that matches only the spike address and uses:
 
    ```text
-   store(notify="https://<dev-api-host>/webhooks/mailgun/inbound")
+   forward("https://<dev-api-host>/webhooks/mailgun/inbound")
    stop()
    ```
 
 8. Copy the account's HTTP webhook signing key. This is not the domain sending
    key and not an SMTP password.
 
-Mailgun temporarily stores messages and includes a `message-url` in the route
-notification. The spike consumes the attachments included in the signed
-multipart notification; the production worker will retain the URL so it can
-retrieve a message after transient failures.
+Mailgun posts the parsed message and attachments as signed multipart data to
+the forward URL. `store(notify=...)` is a different flow that posts a retrieval
+URL and is not used by this implementation.
 
 ## Backend configuration
 

@@ -1,0 +1,74 @@
+.inbound-email {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.subsection-title,
+.description,
+.muted,
+.error {
+  margin: 0;
+}
+
+.description,
+.muted,
+.error {
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+.muted { color: #6b7280; }
+.error { color: #b91c1c; }
+
+.address-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.address-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.address-details {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 5px;
+
+  span {
+    overflow-wrap: anywhere;
+    color: #374151;
+  }
+}
+
+.copy-button {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 14px;
+  border: 1px solid #111827;
+  border-radius: 999px;
+  background: #fff;
+  color: #111827;
+  cursor: pointer;
+  font: inherit;
+}
+
+@media (max-width: 640px) {
+  .address-card {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .copy-button { justify-content: center; }
+}

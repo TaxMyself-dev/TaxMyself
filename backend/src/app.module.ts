@@ -28,6 +28,7 @@ import { BillingModule } from './billing/billing.module';
 import { IntegrationsModule } from './integrations/integrations.module';
 import { DocumentImportModule } from './document-import/document-import.module';
 import { InboundEmailModule } from './inbound-email/inbound-email.module';
+import { InboundEmailAddress } from './inbound-email/inbound-email-address.entity';
 //Integrations entities
 import { UserIntegration } from './integrations/entities/user-integration.entity';
 import { OauthState } from './integrations/entities/oauth-state.entity';
@@ -176,7 +177,7 @@ new Logger('Bootstrap').log(
         FeezbackWebhookEvent, UserModuleSubscription, AccountantTask, AnnualReport, AnnualReportFile, ReportWorkflow,
         FxRate,
         SubscriptionPlan, Subscription, PaymentMethod, CardcomWebhookLog, BillingEvent,
-        UserIntegration, OauthState, ImportedDocument,
+        UserIntegration, OauthState, ImportedDocument, InboundEmailAddress,
         AssetDepreciationPosting,
         ],
       synchronize: isSynchronizeEnabled,

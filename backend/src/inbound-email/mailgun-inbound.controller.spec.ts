@@ -11,6 +11,7 @@ describe('MailgunInboundController spike', () => {
   const originalEnv = process.env;
   const signatureService = { assertValid: jest.fn() };
   const importDocument = jest.fn();
+  const resolveRecipient = jest.fn();
   let controller: MailgunInboundController;
 
   beforeEach(() => {
@@ -25,7 +26,9 @@ describe('MailgunInboundController spike', () => {
     controller = new MailgunInboundController(
       signatureService as unknown as MailgunSignatureService,
       { importDocument } as unknown as DocumentImportService,
+      { resolveRecipient } as any,
     );
+    resolveRecipient.mockRejectedValue(new NotAcceptableException());
   });
 
   afterEach(() => {
@@ -57,6 +60,29 @@ describe('MailgunInboundController spike', () => {
       duplicates: 0,
       ignored: 0,
     });
+  });
+
+  it('routes an opaque production recipient to its owning business', async () => {
+    process.env.MAILGUN_INBOUND_ENABLED = 'true';
+    resolveRecipient.mockResolvedValue({
+      firebaseId: 'mailbox-owner',
+      businessNumber: '987654321',
+    });
+    importDocument.mockResolvedValue({ status: 'IMPORTED', reason: null });
+
+    await controller.receive(
+      { recipient: 'd-opaque@docs-dev.keepintax.co.il' },
+      [attachment('invoice.pdf', 'application/pdf')],
+    );
+
+    expect(importDocument).toHaveBeenCalledWith(
+      expect.objectContaining({
+        firebaseId: 'mailbox-owner',
+        businessNumber: '987654321',
+        source: DocumentImportSource.EMAIL_FORWARDING,
+      }),
+    );
+    delete process.env.MAILGUN_INBOUND_ENABLED;
   });
 
   it('repairs a UTF-8 Hebrew filename decoded as latin1 by multipart parsing', async () => {

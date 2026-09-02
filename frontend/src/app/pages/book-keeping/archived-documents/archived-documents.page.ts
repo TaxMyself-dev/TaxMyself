@@ -21,6 +21,7 @@ export const ARCHIVE_STATUS_LABELS: Record<ArchiveItemStatus, string> = {
 /** Hebrew labels for `RecordSource` (see backend `src/enum.ts`). */
 export const RECORD_SOURCE_LABELS: Record<RecordSource, string> = {
   DRIVE: 'דרייב',
+  EMAIL: 'מייל',
   MANUAL: 'ידני',
   OPEN_BANKING: 'בנקאות פתוחה',
   WHATSAPP: 'ווטסאפ',
