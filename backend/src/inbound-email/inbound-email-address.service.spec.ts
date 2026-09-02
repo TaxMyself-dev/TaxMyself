@@ -144,6 +144,26 @@ describe('InboundEmailAddressService', () => {
     ).rejects.toBeInstanceOf(ConflictException);
   });
 
+  it('does not let an owner change an established friendly address', async () => {
+    businessRepo.findOne.mockResolvedValue({
+      firebaseId: 'fid',
+      businessNumber: '123',
+      businessName: 'Porto Pivo',
+    });
+    addressRepo.findOne.mockResolvedValueOnce({
+      id: 8,
+      localPart: 'porto-pivo',
+      firebaseId: 'fid',
+      businessNumber: '123',
+      isActive: true,
+    });
+
+    await expect(
+      service.updateForOwner('fid', '123', 'another-name'),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(addressRepo.save).not.toHaveBeenCalled();
+  });
+
   it('resolves an active recipient without exposing identity in the address', async () => {
     addressRepo.findOne.mockResolvedValue({
       localPart: 'd-opaque',

@@ -48,19 +48,6 @@ export class InboundEmailComponent implements OnInit {
     });
   }
 
-  beginEdit(item: InboundEmailAddress): void {
-    this.setDraft(item.businessNumber, item.localPart ?? item.suggestedLocalPart);
-    this.editing.update(value => ({ ...value, [item.businessNumber]: true }));
-    this.clearError(item.businessNumber);
-  }
-
-  cancelEdit(item: InboundEmailAddress): void {
-    if (!item.address) return;
-    this.setDraft(item.businessNumber, item.localPart ?? '');
-    this.editing.update(value => ({ ...value, [item.businessNumber]: false }));
-    this.clearError(item.businessNumber);
-  }
-
   setDraft(businessNumber: string, value: string): void {
     const normalized = value.toLowerCase().replace(/\s+/g, '-');
     this.drafts.update(drafts => ({ ...drafts, [businessNumber]: normalized }));

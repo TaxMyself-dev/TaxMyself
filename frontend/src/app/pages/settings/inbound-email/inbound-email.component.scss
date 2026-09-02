@@ -105,8 +105,7 @@
   font: inherit;
 }
 
-.primary-button,
-.text-button {
+.primary-button {
   border-radius: 999px;
   cursor: pointer;
   font: inherit;
@@ -122,13 +121,6 @@
     cursor: wait;
     opacity: 0.65;
   }
-}
-
-.text-button {
-  padding: 9px 12px;
-  border: 0;
-  background: transparent;
-  color: #374151;
 }
 
 .sr-only {

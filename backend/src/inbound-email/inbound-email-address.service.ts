@@ -97,6 +97,12 @@ export class InboundEmailAddressService {
     if (mailbox?.localPart === localPart) {
       return this.toView(business, mailbox, this.slugify(business.businessName ?? ''));
     }
+    if (
+      mailbox &&
+      !InboundEmailAddressService.LEGACY_LOCAL_PART.test(mailbox.localPart)
+    ) {
+      throw new ConflictException('Inbound email address is permanent');
+    }
 
     const occupied = await this.addressRepo.findOne({ where: { localPart } });
     if (occupied && occupied.id !== mailbox?.id) {
@@ -205,6 +211,9 @@ export class InboundEmailAddressService {
     }
     if (this.isReserved(localPart)) {
       throw new ConflictException('This inbound email address is reserved');
+    }
+    if (InboundEmailAddressService.LEGACY_LOCAL_PART.test(localPart)) {
+      throw new ConflictException('Legacy generated email names are reserved');
     }
   }
 

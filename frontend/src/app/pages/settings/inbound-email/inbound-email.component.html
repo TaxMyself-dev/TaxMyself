@@ -55,15 +55,11 @@
               >
                 {{ saving()[item.businessNumber] ? 'שומר...' : 'שמור כתובת' }}
               </button>
-              @if (item.address && !item.isLegacyGenerated) {
-                <button type="button" class="text-button" (click)="cancelEdit(item)">ביטול</button>
-              }
             } @else {
               <button type="button" class="copy-button" (click)="copy(item.address)">
                 <i class="pi pi-copy" aria-hidden="true"></i>
                 העתק כתובת
               </button>
-              <button type="button" class="text-button" (click)="beginEdit(item)">שינוי כתובת</button>
             }
           </div>
         </div>

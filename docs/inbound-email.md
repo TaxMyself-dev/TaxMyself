@@ -23,11 +23,12 @@ Addresses are allocated lazily by the authenticated endpoint:
 GET /inbound-email/me/addresses
 ```
 
-The settings page calls it when the permissions/accounts tab opens and offers
-copy and rename actions for each business. Address changes take effect
-immediately; the former address stops resolving.
+The settings page calls it when the permissions/accounts tab opens. It offers
+a one-time choice for businesses without an address and for legacy `d-...`
+addresses created by the spike. Once a friendly address is saved it is
+permanent and the UI offers only a copy action.
 
-Owners create or rename an address through:
+Owners create an address, or replace a legacy generated address once, through:
 
 ```text
 PUT /inbound-email/me/addresses/:businessNumber
@@ -37,7 +38,8 @@ PUT /inbound-email/me/addresses/:businessNumber
 Aliases are global, case-insensitive and accept 3-50 lowercase English
 letters, digits and hyphens. A collision returns HTTP 409 so the UI can ask
 the owner for another friendly variation; the backend never appends a random
-suffix.
+suffix. A later attempt to change an established friendly address also
+returns HTTP 409.
 
 ## Mailgun route
 

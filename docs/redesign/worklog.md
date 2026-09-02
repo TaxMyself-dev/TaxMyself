@@ -2217,3 +2217,6 @@ record this instead.
   Hebrew names and collisions remain unassigned until the owner chooses an
   English variation. Added guarded rename/create API, reserved-name and
   collision checks, and UI editing for existing legacy `d-...` addresses.
+- Made friendly inbound aliases immutable after their one-time selection.
+  Removed the change-address action and enforced the same rule in the API;
+  only unassigned businesses and legacy spike addresses can still be saved.
