@@ -2212,3 +2212,8 @@ record this instead.
   is not on the slow path.
 - Registered `annual.params.json` explicitly as a Nest build asset so compiled
   startup cannot fail because the runtime JSON file is absent from `dist`.
+- Replaced opaque mailbox presentation with owner-selected friendly aliases.
+  ASCII business names are claimed automatically when globally available;
+  Hebrew names and collisions remain unassigned until the owner chooses an
+  English variation. Added guarded rename/create API, reserved-name and
+  collision checks, and UI editing for existing legacy `d-...` addresses.

@@ -50,6 +50,47 @@
   }
 }
 
+.address-editor,
+.address-input-row,
+.actions {
+  display: flex;
+  align-items: center;
+}
+
+.address-editor { direction: ltr; }
+
+.address-input-row {
+  overflow: hidden;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+
+  input {
+    min-width: 180px;
+    padding: 9px 10px;
+    border: 0;
+    outline: 0;
+    font: inherit;
+  }
+}
+
+.domain {
+  padding: 9px 10px;
+  background: #f8fafc;
+  color: #475569;
+  white-space: nowrap;
+}
+
+.hint,
+.field-error { font-size: 0.78rem; }
+.hint { color: #64748b; }
+.field-error { color: #b91c1c; }
+
+.actions {
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
 .copy-button {
   display: inline-flex;
   flex: 0 0 auto;
@@ -64,6 +105,44 @@
   font: inherit;
 }
 
+.primary-button,
+.text-button {
+  border-radius: 999px;
+  cursor: pointer;
+  font: inherit;
+}
+
+.primary-button {
+  padding: 9px 16px;
+  border: 1px solid #111827;
+  background: #111827;
+  color: #fff;
+
+  &:disabled {
+    cursor: wait;
+    opacity: 0.65;
+  }
+}
+
+.text-button {
+  padding: 9px 12px;
+  border: 0;
+  background: transparent;
+  color: #374151;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 @media (max-width: 640px) {
   .address-card {
     align-items: stretch;
@@ -71,4 +150,8 @@
   }
 
   .copy-button { justify-content: center; }
+  .address-input-row { width: 100%; }
+  .address-input-row input { min-width: 0; width: 100%; }
+  .domain { font-size: 0.78rem; }
+  .actions { align-items: stretch; flex-direction: column; }
 }

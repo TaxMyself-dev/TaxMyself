@@ -1,5 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { Component, OnInit, inject, signal } from '@angular/core';
+import { HttpErrorResponse } from '@angular/common/http';
 import { MessageService } from 'primeng/api';
 import {
   InboundEmailAddress,
@@ -20,11 +21,24 @@ export class InboundEmailComponent implements OnInit {
   readonly loading = signal(true);
   readonly addresses = signal<InboundEmailAddress[]>([]);
   readonly loadError = signal(false);
+  readonly editing = signal<Record<string, boolean>>({});
+  readonly drafts = signal<Record<string, string>>({});
+  readonly saving = signal<Record<string, boolean>>({});
+  readonly errors = signal<Record<string, string>>({});
 
   ngOnInit(): void {
     this.inboundEmailService.getMyAddresses().subscribe({
       next: addresses => {
         this.addresses.set(addresses);
+        this.drafts.set(Object.fromEntries(addresses.map(item => [
+          item.businessNumber,
+          item.isLegacyGenerated
+            ? item.suggestedLocalPart
+            : (item.localPart ?? item.suggestedLocalPart),
+        ])));
+        this.editing.set(Object.fromEntries(addresses
+          .filter(item => !item.address || item.isLegacyGenerated)
+          .map(item => [item.businessNumber, true])));
         this.loading.set(false);
       },
       error: () => {
@@ -34,7 +48,74 @@ export class InboundEmailComponent implements OnInit {
     });
   }
 
-  async copy(address: string): Promise<void> {
+  beginEdit(item: InboundEmailAddress): void {
+    this.setDraft(item.businessNumber, item.localPart ?? item.suggestedLocalPart);
+    this.editing.update(value => ({ ...value, [item.businessNumber]: true }));
+    this.clearError(item.businessNumber);
+  }
+
+  cancelEdit(item: InboundEmailAddress): void {
+    if (!item.address) return;
+    this.setDraft(item.businessNumber, item.localPart ?? '');
+    this.editing.update(value => ({ ...value, [item.businessNumber]: false }));
+    this.clearError(item.businessNumber);
+  }
+
+  setDraft(businessNumber: string, value: string): void {
+    const normalized = value.toLowerCase().replace(/\s+/g, '-');
+    this.drafts.update(drafts => ({ ...drafts, [businessNumber]: normalized }));
+    this.clearError(businessNumber);
+  }
+
+  save(item: InboundEmailAddress): void {
+    const localPart = (this.drafts()[item.businessNumber] ?? '').trim();
+    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(localPart) || localPart.length < 3) {
+      this.setError(item.businessNumber, 'יש להזין לפחות 3 תווים באנגלית, מספרים או מקפים.');
+      return;
+    }
+
+    this.saving.update(value => ({ ...value, [item.businessNumber]: true }));
+    this.inboundEmailService.updateAddress(item.businessNumber, localPart).subscribe({
+      next: updated => {
+        this.addresses.update(items => items.map(current =>
+          current.businessNumber === updated.businessNumber ? updated : current,
+        ));
+        this.drafts.update(value => ({
+          ...value,
+          [item.businessNumber]: updated.localPart ?? '',
+        }));
+        this.editing.update(value => ({ ...value, [item.businessNumber]: false }));
+        this.saving.update(value => ({ ...value, [item.businessNumber]: false }));
+        this.messageService.add({
+          severity: 'success',
+          summary: 'כתובת המייל נשמרה',
+          detail: updated.address ?? undefined,
+          life: 3000,
+          key: 'br',
+        });
+      },
+      error: (error: HttpErrorResponse) => {
+        this.saving.update(value => ({ ...value, [item.businessNumber]: false }));
+        this.setError(
+          item.businessNumber,
+          error.status === 409
+            ? 'הכתובת הזו כבר תפוסה. יש לבחור שם אחר.'
+            : 'לא הצלחנו לשמור את הכתובת. נסה שוב.',
+        );
+      },
+    });
+  }
+
+  private setError(businessNumber: string, message: string): void {
+    this.errors.update(value => ({ ...value, [businessNumber]: message }));
+  }
+
+  private clearError(businessNumber: string): void {
+    this.errors.update(value => ({ ...value, [businessNumber]: '' }));
+  }
+
+  async copy(address: string | null): Promise<void> {
+    if (!address) return;
     try {
       await navigator.clipboard.writeText(address);
       this.messageService.add({

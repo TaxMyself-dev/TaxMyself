@@ -1,4 +1,8 @@
-import { InternalServerErrorException, NotAcceptableException } from '@nestjs/common';
+import {
+  ConflictException,
+  InternalServerErrorException,
+  NotAcceptableException,
+} from '@nestjs/common';
 import { InboundEmailAddressService } from './inbound-email-address.service';
 
 describe('InboundEmailAddressService', () => {
@@ -9,7 +13,7 @@ describe('InboundEmailAddressService', () => {
     create: jest.fn((value) => value),
     save: jest.fn(),
   };
-  const businessRepo = { find: jest.fn() };
+  const businessRepo = { find: jest.fn(), findOne: jest.fn() };
   let service: InboundEmailAddressService;
 
   beforeEach(() => {
@@ -28,12 +32,12 @@ describe('InboundEmailAddressService', () => {
     }
   });
 
-  it('returns a stable opaque address for every owned business', async () => {
+  it('returns an existing address and flags the legacy generated format', async () => {
     businessRepo.find.mockResolvedValue([
       { id: 1, firebaseId: 'fid', businessNumber: '123', businessName: 'עסק' },
     ]);
     addressRepo.findOne.mockResolvedValue({
-      localPart: 'd-existing-token',
+      localPart: 'd-0123456789abcdef01234567',
       firebaseId: 'fid',
       businessNumber: '123',
       isActive: true,
@@ -43,10 +47,101 @@ describe('InboundEmailAddressService', () => {
       {
         businessNumber: '123',
         businessName: 'עסק',
-        address: 'd-existing-token@docs-dev.keepintax.co.il',
+        domain: 'docs-dev.keepintax.co.il',
+        address: 'd-0123456789abcdef01234567@docs-dev.keepintax.co.il',
+        localPart: 'd-0123456789abcdef01234567',
+        suggestedLocalPart: '',
+        isLegacyGenerated: true,
       },
     ]);
     expect(addressRepo.save).not.toHaveBeenCalled();
+  });
+
+  it('automatically claims an available ASCII business-name alias', async () => {
+    businessRepo.find.mockResolvedValue([{
+      id: 1,
+      firebaseId: 'fid',
+      businessNumber: '123',
+      businessName: 'Porto Pivo Ltd.',
+    }]);
+    addressRepo.findOne
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null);
+    addressRepo.save.mockImplementation(async value => ({ id: 9, ...value }));
+
+    await expect(service.listForOwner('fid')).resolves.toEqual([
+      expect.objectContaining({
+        address: 'porto-pivo-ltd@docs-dev.keepintax.co.il',
+        localPart: 'porto-pivo-ltd',
+        suggestedLocalPart: 'porto-pivo-ltd',
+        isLegacyGenerated: false,
+      }),
+    ]);
+  });
+
+  it('leaves selection to the user when the suggested business name is taken', async () => {
+    businessRepo.find.mockResolvedValue([{
+      id: 1,
+      firebaseId: 'fid',
+      businessNumber: '123',
+      businessName: 'Same Name',
+    }]);
+    addressRepo.findOne
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ id: 77, localPart: 'same-name' });
+
+    await expect(service.listForOwner('fid')).resolves.toEqual([
+      expect.objectContaining({
+        address: null,
+        localPart: null,
+        suggestedLocalPart: 'same-name',
+      }),
+    ]);
+    expect(addressRepo.save).not.toHaveBeenCalled();
+  });
+
+  it('lets the owner replace a legacy address with a friendly unique alias', async () => {
+    const business = {
+      id: 1,
+      firebaseId: 'fid',
+      businessNumber: '123',
+      businessName: 'Porto Pivo',
+    };
+    const mailbox = {
+      id: 8,
+      localPart: 'd-0123456789abcdef01234567',
+      firebaseId: 'fid',
+      businessNumber: '123',
+      isActive: true,
+    };
+    businessRepo.findOne.mockResolvedValue(business);
+    addressRepo.findOne
+      .mockResolvedValueOnce(mailbox)
+      .mockResolvedValueOnce(null);
+    addressRepo.save.mockImplementation(async value => value);
+
+    await expect(
+      service.updateForOwner('fid', '123', 'porto-pivo'),
+    ).resolves.toEqual(expect.objectContaining({
+      address: 'porto-pivo@docs-dev.keepintax.co.il',
+      localPart: 'porto-pivo',
+      isLegacyGenerated: false,
+    }));
+  });
+
+  it('rejects an alias already owned by another business', async () => {
+    businessRepo.findOne.mockResolvedValue({
+      firebaseId: 'fid',
+      businessNumber: '123',
+      businessName: 'Business',
+    });
+    addressRepo.findOne
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ id: 88, localPart: 'taken-name' });
+
+    await expect(
+      service.updateForOwner('fid', '123', 'taken-name'),
+    ).rejects.toBeInstanceOf(ConflictException);
   });
 
   it('resolves an active recipient without exposing identity in the address', async () => {

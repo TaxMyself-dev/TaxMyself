@@ -1,10 +1,12 @@
 import {
+  BadRequestException,
+  ConflictException,
   Injectable,
   InternalServerErrorException,
   NotAcceptableException,
+  NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { randomBytes } from 'crypto';
 import { Business } from 'src/business/business.entity';
 import { Repository } from 'typeorm';
 import { InboundEmailAddress } from './inbound-email-address.entity';
@@ -12,7 +14,11 @@ import { InboundEmailAddress } from './inbound-email-address.entity';
 export interface InboundEmailAddressView {
   businessNumber: string;
   businessName: string | null;
-  address: string;
+  domain: string;
+  address: string | null;
+  localPart: string | null;
+  suggestedLocalPart: string;
+  isLegacyGenerated: boolean;
 }
 
 export interface InboundEmailTarget {
@@ -22,6 +28,21 @@ export interface InboundEmailTarget {
 
 @Injectable()
 export class InboundEmailAddressService {
+  private static readonly LEGACY_LOCAL_PART = /^d-[0-9a-f]{24}$/;
+  private static readonly RESERVED_LOCAL_PARTS = new Set([
+    'abuse',
+    'admin',
+    'billing',
+    'contact',
+    'help',
+    'info',
+    'mailer-daemon',
+    'postmaster',
+    'security',
+    'spike',
+    'support',
+  ]);
+
   constructor(
     @InjectRepository(InboundEmailAddress)
     private readonly addressRepo: Repository<InboundEmailAddress>,
@@ -41,14 +62,70 @@ export class InboundEmailAddressService {
 
     const result: InboundEmailAddressView[] = [];
     for (const business of usable) {
-      const mailbox = await this.getOrCreate(firebaseId, business.businessNumber);
-      result.push({
-        businessNumber: business.businessNumber,
-        businessName: business.businessName,
-        address: this.toAddress(mailbox.localPart),
+      const mailbox = await this.addressRepo.findOne({
+        where: { firebaseId, businessNumber: business.businessNumber },
       });
+      const suggestedLocalPart = this.slugify(business.businessName ?? '');
+      const allocated = mailbox ?? await this.claimSuggestionIfAvailable(
+        firebaseId,
+        business.businessNumber,
+        suggestedLocalPart,
+      );
+      result.push(this.toView(business, allocated, suggestedLocalPart));
     }
     return result;
+  }
+
+  async updateForOwner(
+    firebaseId: string,
+    businessNumber: string,
+    requestedLocalPart: string,
+  ): Promise<InboundEmailAddressView> {
+    const business = await this.businessRepo.findOne({
+      where: { firebaseId, businessNumber },
+    });
+    if (!business?.businessNumber) {
+      throw new NotFoundException('Business not found');
+    }
+
+    const localPart = String(requestedLocalPart ?? '').trim().toLowerCase();
+    this.assertFriendlyLocalPart(localPart);
+
+    let mailbox = await this.addressRepo.findOne({
+      where: { firebaseId, businessNumber },
+    });
+    if (mailbox?.localPart === localPart) {
+      return this.toView(business, mailbox, this.slugify(business.businessName ?? ''));
+    }
+
+    const occupied = await this.addressRepo.findOne({ where: { localPart } });
+    if (occupied && occupied.id !== mailbox?.id) {
+      throw new ConflictException('This inbound email address is already taken');
+    }
+
+    try {
+      mailbox = await this.addressRepo.save(
+        mailbox
+          ? Object.assign(mailbox, { localPart, isActive: true })
+          : this.addressRepo.create({
+              firebaseId,
+              businessNumber,
+              localPart,
+              isActive: true,
+            }),
+      );
+    } catch (error: any) {
+      if (error?.code === 'ER_DUP_ENTRY') {
+        throw new ConflictException('This inbound email address is already taken');
+      }
+      throw error;
+    }
+
+    return this.toView(
+      business,
+      mailbox,
+      this.slugify(business.businessName ?? ''),
+    );
   }
 
   async resolveRecipient(recipient: string): Promise<InboundEmailTarget> {
@@ -70,34 +147,79 @@ export class InboundEmailAddressService {
     };
   }
 
-  private async getOrCreate(
+  private async claimSuggestionIfAvailable(
     firebaseId: string,
     businessNumber: string,
-  ): Promise<InboundEmailAddress> {
-    const existing = await this.addressRepo.findOne({
-      where: { firebaseId, businessNumber },
+    suggestedLocalPart: string,
+  ): Promise<InboundEmailAddress | null> {
+    if (!suggestedLocalPart || this.isReserved(suggestedLocalPart)) return null;
+    const occupied = await this.addressRepo.findOne({
+      where: { localPart: suggestedLocalPart },
     });
-    if (existing) return existing;
+    if (occupied) return null;
 
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-      try {
-        return await this.addressRepo.save(
-          this.addressRepo.create({
-            firebaseId,
-            businessNumber,
-            localPart: `d-${randomBytes(12).toString('hex')}`,
-            isActive: true,
-          }),
-        );
-      } catch (error: any) {
-        if (error?.code !== 'ER_DUP_ENTRY') throw error;
-        const raced = await this.addressRepo.findOne({
+    try {
+      return await this.addressRepo.save(
+        this.addressRepo.create({
+          firebaseId,
+          businessNumber,
+          localPart: suggestedLocalPart,
+          isActive: true,
+        }),
+      );
+    } catch (error: any) {
+      if (error?.code === 'ER_DUP_ENTRY') {
+        return this.addressRepo.findOne({
           where: { firebaseId, businessNumber },
         });
-        if (raced) return raced;
       }
+      throw error;
     }
-    throw new InternalServerErrorException('Could not allocate inbound email address');
+  }
+
+  private toView(
+    business: Pick<Business, 'businessNumber' | 'businessName'>,
+    mailbox: InboundEmailAddress | null,
+    suggestedLocalPart: string,
+  ): InboundEmailAddressView {
+    return {
+      businessNumber: business.businessNumber!,
+      businessName: business.businessName,
+      domain: this.domain(),
+      address: mailbox ? this.toAddress(mailbox.localPart) : null,
+      localPart: mailbox?.localPart ?? null,
+      suggestedLocalPart,
+      isLegacyGenerated: !!mailbox && InboundEmailAddressService.LEGACY_LOCAL_PART.test(mailbox.localPart),
+    };
+  }
+
+  private assertFriendlyLocalPart(localPart: string): void {
+    if (
+      localPart.length < 3 ||
+      localPart.length > 50 ||
+      !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(localPart)
+    ) {
+      throw new BadRequestException(
+        'Email name must be 3-50 lowercase English letters, numbers or hyphen-separated words',
+      );
+    }
+    if (this.isReserved(localPart)) {
+      throw new ConflictException('This inbound email address is reserved');
+    }
+  }
+
+  private isReserved(localPart: string): boolean {
+    return InboundEmailAddressService.RESERVED_LOCAL_PARTS.has(localPart);
+  }
+
+  private slugify(value: string): string {
+    return value
+      .normalize('NFKD')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 50)
+      .replace(/-+$/g, '');
   }
 
   private toAddress(localPart: string): string {

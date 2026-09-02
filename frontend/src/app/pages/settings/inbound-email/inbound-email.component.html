@@ -2,7 +2,7 @@
   <h3 class="subsection-title">כתובת מייל ייעודית לקבלת מסמכים</h3>
   <p class="description">
     אפשר להעביר חשבוניות וקבלות לכתובת של העסק בלי לחבר את תיבת המייל הפרטית.
-    קובצי PDF, JPG ו-PNG ייכנסו אוטומטית למסמכי העסק.
+    בחרו שם כתובת ייחודי באנגלית; קובצי PDF, JPG ו-PNG ייכנסו אוטומטית למסמכי העסק.
   </p>
 
   @if (loading()) {
@@ -17,12 +17,55 @@
         <div class="address-card">
           <div class="address-details">
             <strong>{{ item.businessName || item.businessNumber }}</strong>
-            <span dir="ltr">{{ item.address }}</span>
+            @if (!editing()[item.businessNumber] && item.address) {
+              <span dir="ltr">{{ item.address }}</span>
+            } @else {
+              <label class="address-editor">
+                <span class="sr-only">שם כתובת המייל</span>
+                <span class="address-input-row" dir="ltr">
+                  <input
+                    type="text"
+                    inputmode="email"
+                    autocomplete="off"
+                    maxlength="50"
+                    placeholder="business-name"
+                    [value]="drafts()[item.businessNumber] || ''"
+                    (input)="setDraft(item.businessNumber, $any($event.target).value)"
+                  />
+                  <span class="domain">&#64;{{ item.domain }}</span>
+                </span>
+              </label>
+              @if (item.isLegacyGenerated) {
+                <small class="hint">בחר שם ידידותי באנגלית במקום הכתובת הזמנית.</small>
+              } @else if (!item.address) {
+                <small class="hint">השם חייב להיות ייחודי ב-Keepintax.</small>
+              }
+              @if (errors()[item.businessNumber]) {
+                <small class="field-error">{{ errors()[item.businessNumber] }}</small>
+              }
+            }
           </div>
-          <button type="button" class="copy-button" (click)="copy(item.address)">
-            <i class="pi pi-copy" aria-hidden="true"></i>
-            העתק כתובת
-          </button>
+          <div class="actions">
+            @if (editing()[item.businessNumber]) {
+              <button
+                type="button"
+                class="primary-button"
+                [disabled]="saving()[item.businessNumber]"
+                (click)="save(item)"
+              >
+                {{ saving()[item.businessNumber] ? 'שומר...' : 'שמור כתובת' }}
+              </button>
+              @if (item.address && !item.isLegacyGenerated) {
+                <button type="button" class="text-button" (click)="cancelEdit(item)">ביטול</button>
+              }
+            } @else {
+              <button type="button" class="copy-button" (click)="copy(item.address)">
+                <i class="pi pi-copy" aria-hidden="true"></i>
+                העתק כתובת
+              </button>
+              <button type="button" class="text-button" (click)="beginEdit(item)">שינוי כתובת</button>
+            }
+          </div>
         </div>
       }
     </div>

@@ -2,8 +2,12 @@
 
 ## Product behavior
 
-- Every owned business gets one stable, opaque Keepintax address.
-- The address does not contain the Firebase id or business number.
+- Every owned business gets one stable, friendly Keepintax address.
+- An ASCII business name is claimed automatically when available. For Hebrew
+  names or global name collisions, the owner chooses a unique English alias.
+- Addresses contain neither the Firebase id nor business number. Reserved
+  operational names cannot be claimed, and released/disabled aliases remain
+  reserved so old mail is never routed to a different business.
 - Sending PDF/JPG/PNG attachments to that address imports them immediately
   through Mailgun into the business Drive inbox.
 - `imported_documents.source` is `EMAIL_FORWARDING`.
@@ -20,7 +24,20 @@ GET /inbound-email/me/addresses
 ```
 
 The settings page calls it when the permissions/accounts tab opens and offers
-a copy button for each business.
+copy and rename actions for each business. Address changes take effect
+immediately; the former address stops resolving.
+
+Owners create or rename an address through:
+
+```text
+PUT /inbound-email/me/addresses/:businessNumber
+{ "localPart": "porto-pivo" }
+```
+
+Aliases are global, case-insensitive and accept 3-50 lowercase English
+letters, digits and hyphens. A collision returns HTTP 409 so the UI can ask
+the owner for another friendly variation; the backend never appends a random
+suffix.
 
 ## Mailgun route
 
