@@ -213,6 +213,7 @@ new Logger('Bootstrap').log(
       Child,
       FeezbackWebhookEvent,
       ExtractedDocument,
+      ImportedDocument,
       ReportWorkflow,
     ]),
     ScheduleModule.forRoot(),

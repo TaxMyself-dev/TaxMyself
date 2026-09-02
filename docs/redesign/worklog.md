@@ -2201,3 +2201,8 @@ record this instead.
 - Corrected the setup docs to use Mailgun `forward(URL)` multipart delivery,
   documented the domain-wide route and production environment variables.
 - Nest build, Angular development build and 17 focused Jest tests pass.
+- A compiled-runtime smoke test exposed two Nest wiring gaps that static build
+  does not detect: the root DocumentsService instance lacked the
+  ImportedDocument repository, and the inbound-email module lacked the
+  repositories required by FirebaseAuthGuard. Added both registrations and
+  verified a real startup against keepintax-dev with and without boot seeding.

@@ -1,11 +1,10 @@
 import { Controller, Get, Req, UseGuards } from '@nestjs/common';
 import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
-import { SubscriptionGuard } from 'src/guards/subscription.guard';
 import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.interface';
 import { InboundEmailAddressService } from './inbound-email-address.service';
 
 @Controller('inbound-email')
-@UseGuards(FirebaseAuthGuard, SubscriptionGuard)
+@UseGuards(FirebaseAuthGuard)
 export class InboundEmailAddressController {
   constructor(private readonly addressService: InboundEmailAddressService) {}
 
