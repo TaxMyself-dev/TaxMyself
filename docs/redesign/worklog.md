@@ -2206,3 +2206,9 @@ record this instead.
   ImportedDocument repository, and the inbound-email module lacked the
   repositories required by FirebaseAuthGuard. Added both registrations and
   verified a real startup against keepintax-dev with and without boot seeding.
+- Recorded backend startup diagnostics in `docs/backend-dev-startup-performance.md`:
+  the initial TypeScript build is the dominant delay (~64s), while compiled
+  startup measured 5.76s without the catalog seed and 9.25s with it. Mailgun
+  is not on the slow path.
+- Registered `annual.params.json` explicitly as a Nest build asset so compiled
+  startup cannot fail because the runtime JSON file is absent from `dist`.
