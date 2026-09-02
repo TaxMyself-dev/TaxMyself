@@ -82,17 +82,24 @@ export class MailgunInboundController {
     const businessNumber = this.requiredEnv(
       'MAILGUN_INBOUND_SPIKE_BUSINESS_NUMBER',
     );
-    const candidates = files.filter((file) => this.isSupportedDocument(file));
+    const candidates = files
+      .map((file) => ({
+        file,
+        filename: this.decodeAttachmentFilename(file.originalname),
+      }))
+      .filter(({ file, filename }) =>
+        this.isSupportedDocument(file, filename),
+      );
 
     let imported = 0;
     let duplicates = 0;
     const failures: string[] = [];
-    for (const file of candidates) {
+    for (const { file, filename } of candidates) {
       const result = await this.documentImportService.importDocument({
         firebaseId,
         businessNumber,
         source: DocumentImportSource.EMAIL_FORWARDING,
-        filename: file.originalname || 'attachment',
+        filename,
         mimeType: file.mimetype || null,
         content: file.buffer,
       });
@@ -100,7 +107,7 @@ export class MailgunInboundController {
       if (result.status === 'ALREADY_IMPORTED') duplicates += 1;
       if (result.status === 'SKIPPED') {
         failures.push(
-          `${file.originalname}: ${result.reason ?? 'unknown failure'}`,
+          `${filename}: ${result.reason ?? 'unknown failure'}`,
         );
       }
     }
@@ -147,9 +154,29 @@ export class MailgunInboundController {
       .toLowerCase();
   }
 
-  private isSupportedDocument(file: Express.Multer.File): boolean {
+  /**
+   * Busboy/Multer interprets multipart header filenames as latin1. Mailgun
+   * sends UTF-8 bytes there, so a Hebrew filename can arrive as
+   * "×\u0097×©...". Only accept the UTF-8 repair when it round-trips
+   * losslessly; already-correct Unicode filenames must remain untouched.
+   */
+  private decodeAttachmentFilename(value: string | undefined): string {
+    const filename = String(value ?? '').trim();
+    if (!filename) return 'attachment';
+
+    const decoded = Buffer.from(filename, 'latin1').toString('utf8');
+    const roundTrip = Buffer.from(decoded, 'utf8').toString('latin1');
+    return !decoded.includes('\uFFFD') && roundTrip === filename
+      ? decoded
+      : filename;
+  }
+
+  private isSupportedDocument(
+    file: Express.Multer.File,
+    decodedFilename = file.originalname ?? '',
+  ): boolean {
     const mime = (file.mimetype ?? '').toLowerCase();
-    const name = (file.originalname ?? '').toLowerCase();
+    const name = decodedFilename.toLowerCase();
     return (
       (mime === 'application/pdf' && name.endsWith('.pdf')) ||
       (mime === 'image/jpeg' &&

@@ -191,7 +191,7 @@ export class DocumentImportService {
       // Unique-index race: a concurrent import recorded these bytes between
       // our lookup and the insert — the document IS in the system.
       if (this.isDuplicateKeyError(error)) {
-        await this.cleanupDriveFile(driveFileId, driveFileName);
+        await this.cleanupDriveFile(driveFileId, driveFileName, 'duplicate');
         const winner = await this.importedDocumentRepo.findOne({
           where: {
             firebaseId: request.firebaseId,
@@ -213,7 +213,11 @@ export class DocumentImportService {
           `(driveFileId=${driveFileId}, source=${request.source}): ${error?.message ?? error}`,
         (error as Error)?.stack,
       );
-      await this.cleanupDriveFile(driveFileId, driveFileName);
+      await this.cleanupDriveFile(
+        driveFileId,
+        driveFileName,
+        'db-insert-failure',
+      );
       return {
         status: 'SKIPPED',
         reason: `db_insert_failed: ${error?.message ?? error}`,
@@ -299,16 +303,29 @@ export class DocumentImportService {
     }
   }
 
-  /** Best-effort removal of a Drive file whose DB record could not be saved. */
-  private async cleanupDriveFile(driveFileId: string, driveFileName: string): Promise<void> {
+  /** Best-effort removal of a redundant or untracked Drive upload. */
+  private async cleanupDriveFile(
+    driveFileId: string,
+    driveFileName: string,
+    reason: 'duplicate' | 'db-insert-failure',
+  ): Promise<void> {
     try {
       await this.googleDriveService.deleteFile(driveFileId);
-      this.logger.warn(
-        `Rolled back Drive upload "${driveFileName}" (${driveFileId}) after failed DB insert`,
-      );
+      if (reason === 'duplicate') {
+        this.logger.debug(
+          `Removed redundant Drive upload "${driveFileName}" (${driveFileId}) ` +
+            'after a concurrent import won the deduplication race',
+        );
+      } else {
+        this.logger.warn(
+          `Rolled back Drive upload "${driveFileName}" (${driveFileId}) after failed DB insert`,
+        );
+      }
     } catch (cleanupError: any) {
+      const uploadKind =
+        reason === 'duplicate' ? 'duplicate Drive file' : 'orphaned Drive file';
       this.logger.error(
-        `Could not delete orphaned Drive file "${driveFileName}" (${driveFileId}) — ` +
+        `Could not delete ${uploadKind} "${driveFileName}" (${driveFileId}) — ` +
           `it will sit in inbox/ untracked: ${cleanupError?.message ?? cleanupError}`,
       );
     }

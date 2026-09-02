@@ -59,6 +59,38 @@ describe('MailgunInboundController spike', () => {
     });
   });
 
+  it('repairs a UTF-8 Hebrew filename decoded as latin1 by multipart parsing', async () => {
+    importDocument.mockResolvedValue({ status: 'IMPORTED', reason: null });
+    const hebrewFilename = 'חשבונית בדיקה.pdf';
+    const mojibakeFilename = Buffer.from(hebrewFilename, 'utf8').toString(
+      'latin1',
+    );
+    const file = attachment(mojibakeFilename, 'application/pdf');
+
+    await controller.receive(
+      { recipient: 'spike@docs-dev.keepintax.co.il' },
+      [file],
+    );
+
+    expect(importDocument).toHaveBeenCalledWith(
+      expect.objectContaining({ filename: hebrewFilename }),
+    );
+  });
+
+  it('does not corrupt an already-correct Unicode filename', async () => {
+    importDocument.mockResolvedValue({ status: 'IMPORTED', reason: null });
+    const filename = 'חשבונית.pdf';
+
+    await controller.receive(
+      { recipient: 'spike@docs-dev.keepintax.co.il' },
+      [attachment(filename, 'application/pdf')],
+    );
+
+    expect(importDocument).toHaveBeenCalledWith(
+      expect.objectContaining({ filename }),
+    );
+  });
+
   it('ignores unsupported attachments without importing them', async () => {
     const result = await controller.receive(
       { recipient: 'spike@docs-dev.keepintax.co.il' },
