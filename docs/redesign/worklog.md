@@ -2220,3 +2220,6 @@ record this instead.
 - Made friendly inbound aliases immutable after their one-time selection.
   Removed the change-address action and enforced the same rule in the API;
   only unassigned businesses and legacy spike addresses can still be saved.
+- Made the production provenance backfill compare Google Drive ids as binary
+  strings. This preserves their case-sensitive semantics and avoids failures
+  when the two legacy columns use different utf8mb4 collations.

@@ -20,7 +20,8 @@ CREATE TABLE IF NOT EXISTS `inbound_email_addresses` (
 -- Preserve email provenance in archive rows that already passed through the
 -- Drive inbox. Covers both connected Gmail and dedicated Mailgun forwarding.
 UPDATE `extracted_document` d
-JOIN `imported_documents` i ON i.`drive_file_id` = d.`drive_file_id`
+JOIN `imported_documents` i
+  ON BINARY i.`drive_file_id` = BINARY d.`drive_file_id`
 SET d.`source` = 'EMAIL'
 WHERE i.`source` IN ('GMAIL', 'EMAIL_FORWARDING')
   AND d.`source` <> 'EMAIL';
