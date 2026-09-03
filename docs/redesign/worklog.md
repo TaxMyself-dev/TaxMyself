@@ -2319,3 +2319,57 @@ record this instead.
   unchanged.
 - The Angular build passed with only the project's existing bundle-budget and
   CommonJS warnings. No backend or schema change is required.
+## 2026-09-01 — Mailgun inbound email vertical spike
+
+- Fast-forwarded `eharel-branch-0` to the current `origin/main` before starting
+  the feature work; the branch had no unique commits or merge conflicts.
+- Added a feature-flagged Mailgun inbound webhook for one configured test
+  recipient/business. It verifies Mailgun HMAC signatures and imports supported
+  PDF/JPEG/PNG attachments through the existing `DocumentImportService` with
+  source `EMAIL_FORWARDING`.
+- Added focused setup/acceptance documentation and seven unit tests covering
+  signature validation, recipient isolation, supported/unsupported files and
+  retry behavior. The focused Jest run and Nest build pass.
+- This spike intentionally adds no schema change. The durable event ledger,
+  generated business addresses and asynchronous worker remain gated on the
+  real Mailgun end-to-end result.
+
+## 2026-09-02 — Dedicated inbound email production slice
+
+- The Mailgun EU spike passed end to end. Promoted recipient resolution from
+  one environment-configured address to a stable opaque address per owned
+  business, allocated lazily and displayed with a copy action in Settings.
+- Added the additive `inbound_email_addresses` table and a production SQL
+  script. Applied it to `keepintax-dev` only; production was not touched.
+- Preserved original email provenance through the shared Drive inbox OCR
+  transport. Gmail and Mailgun documents now stamp `RecordSource.EMAIL`, and
+  the unified archive renders the source as `מייל`. Backfilled two existing
+  dev OCR rows from `imported_documents`.
+- Kept webhook processing synchronous through the existing durable Drive
+  inbox: Mailgun receives 200 only after Drive + import ledger success and
+  retries transient 500 responses; content-hash dedup makes retries safe.
+- Corrected the setup docs to use Mailgun `forward(URL)` multipart delivery,
+  documented the domain-wide route and production environment variables.
+- Nest build, Angular development build and 17 focused Jest tests pass.
+- A compiled-runtime smoke test exposed two Nest wiring gaps that static build
+  does not detect: the root DocumentsService instance lacked the
+  ImportedDocument repository, and the inbound-email module lacked the
+  repositories required by FirebaseAuthGuard. Added both registrations and
+  verified a real startup against keepintax-dev with and without boot seeding.
+- Recorded backend startup diagnostics in `docs/backend-dev-startup-performance.md`:
+  the initial TypeScript build is the dominant delay (~64s), while compiled
+  startup measured 5.76s without the catalog seed and 9.25s with it. Mailgun
+  is not on the slow path.
+- Registered `annual.params.json` explicitly as a Nest build asset so compiled
+  startup cannot fail because the runtime JSON file is absent from `dist`.
+- Replaced opaque mailbox presentation with owner-selected friendly aliases.
+  ASCII business names are claimed automatically when globally available;
+  Hebrew names and collisions remain unassigned until the owner chooses an
+  English variation. Added guarded rename/create API, reserved-name and
+  collision checks, and UI editing for existing legacy `d-...` addresses.
+- Made friendly inbound aliases immutable after their one-time selection.
+  Removed the change-address action and enforced the same rule in the API;
+  only unassigned businesses and legacy spike addresses can still be saved.
+- Made the production provenance backfill compare Google Drive ids as binary
+  strings. This preserves their case-sensitive semantics and avoids failures
+  when the two legacy columns use different utf8mb4 collations.

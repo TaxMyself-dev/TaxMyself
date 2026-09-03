@@ -50,7 +50,7 @@ export interface SubCategoryCatalogEntry {
 
 /** Where an archive row originated from — see `RecordSource` in the
  *  backend's `src/enum.ts`. */
-export type RecordSource = 'DRIVE' | 'MANUAL' | 'OPEN_BANKING' | 'WHATSAPP';
+export type RecordSource = 'DRIVE' | 'EMAIL' | 'MANUAL' | 'OPEN_BANKING' | 'WHATSAPP';
 
 /** User-facing lifecycle status for the ארכיון שלי page. */
 export type ArchiveItemStatus =

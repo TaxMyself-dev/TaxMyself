@@ -35,11 +35,12 @@ import { GoogleDriveModule } from '../google-drive/google-drive.module';
 import { Supplier } from '../expenses/suppliers.entity';
 import { UsersModule } from '../users/users.module';
 import { BillingModule } from 'src/billing/billing.module';
+import { ImportedDocument } from 'src/document-import/entities/imported-document.entity';
 
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([SettingDocuments, Documents, Expense, Transactions, DocLines, DocPayments, Business, Delegation, JournalEntry, JournalLine, BookingAccount, AccountingSection, Category, SubCategory, User, ExtractedDocument, Supplier, FxRate, SlimTransaction]),
+    TypeOrmModule.forFeature([SettingDocuments, Documents, Expense, Transactions, DocLines, DocPayments, Business, Delegation, JournalEntry, JournalLine, BookingAccount, AccountingSection, Category, SubCategory, User, ExtractedDocument, Supplier, FxRate, SlimTransaction, ImportedDocument]),
     MailModule,
     GoogleDriveModule,
     forwardRef(() => UsersModule),

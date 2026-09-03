@@ -17,6 +17,8 @@ import { DocPayments } from './doc-payments.entity';
 import { DataSource } from 'typeorm';
 import * as admin from 'firebase-admin';
 import { randomUUID } from 'crypto';
+import { ImportedDocument } from 'src/document-import/entities/imported-document.entity';
+import { DocumentImportSource } from 'src/document-import/enums/document-import.enums';
 import * as fs from 'fs';
 import * as path from 'path';
 import { CreateDocDto } from './dtos/create-doc.dto';
@@ -175,6 +177,8 @@ export class DocumentsService {
     private slimTransactionRepo: Repository<SlimTransaction>,
     @InjectRepository(Expense)
     private expenseRepo: Repository<Expense>,
+    @InjectRepository(ImportedDocument)
+    private importedDocumentRepo: Repository<ImportedDocument>,
     private readonly catalogService: CatalogService,
     private readonly catalogContextService: CatalogContextService,
     private readonly documentProcessor: DocumentProcessorService,
@@ -2762,6 +2766,27 @@ ${finalOwnerName}`;
       existingByDriveId.set(row.driveFileId, list);
     }
 
+    // Preserve the original intake channel after the Drive inbox hands the
+    // file to OCR. Drive is transport/storage here, not necessarily source.
+    const importRows = files.length
+      ? await this.importedDocumentRepo.find({
+        where: {
+          firebaseId,
+          businessNumber,
+          driveFileId: In(files.map(f => f.id)),
+        },
+      })
+      : [];
+    const sourceByDriveId = new Map(
+      importRows.map(row => [
+        row.driveFileId,
+        row.source === DocumentImportSource.GMAIL ||
+        row.source === DocumentImportSource.EMAIL_FORWARDING
+          ? RecordSource.EMAIL
+          : RecordSource.DRIVE,
+      ]),
+    );
+
     // Byte-identical dedup setup. A file re-uploaded to inbox gets a fresh
     // driveFileId, so the driveFileId check above can't see it — but its
     // md5Checksum matches a prior row. Look up which content hashes are
@@ -2822,6 +2847,7 @@ ${finalOwnerName}`;
     let restored = 0;
 
     for (const file of files) {
+      const recordSource = sourceByDriveId.get(file.id) ?? RecordSource.DRIVE;
       const priorRows = existingByDriveId.get(file.id) ?? [];
       const activePriorRows = priorRows.filter(row => row.deletedAt == null);
       const deletedPriorRows = priorRows.filter(row => row.deletedAt != null);
@@ -2878,6 +2904,7 @@ ${finalOwnerName}`;
         }
         await this.saveDuplicateRow(
           user.index, businessNumber, file, uploadDate, originalFileId,
+          recordSource,
         );
         await this.safelyMoveToProcessed(file.id, inboxFolderId, processedFolderId);
         duplicates++;
@@ -2920,7 +2947,14 @@ ${finalOwnerName}`;
         );
 
         if (!invoices) {
-          await this.saveErrorRow(user.index, businessNumber, file, uploadDate, rawResponse);
+          await this.saveErrorRow(
+            user.index,
+            businessNumber,
+            file,
+            uploadDate,
+            rawResponse,
+            recordSource,
+          );
           failed++;
           continue;
         }
@@ -2928,6 +2962,7 @@ ${finalOwnerName}`;
           await this.saveErrorRow(
             user.index, businessNumber, file, uploadDate,
             rawResponse || 'Claude returned 0 invoices for this file',
+            recordSource,
           );
           failed++;
           continue;
@@ -2992,6 +3027,7 @@ ${finalOwnerName}`;
               isEquipment: typeof inv.is_equipment === 'boolean' ? inv.is_equipment : null,
               description: inv.description ?? null,
               status: ExtractedDocStatus.PENDING_REVIEW,
+              source: recordSource,
               rawResponse: i === 0 ? rawResponse : null,
             }),
           );
@@ -3013,6 +3049,7 @@ ${finalOwnerName}`;
         await this.saveErrorRow(
           user.index, businessNumber, file, uploadDate,
           err?.message ?? String(err),
+          recordSource,
         );
         failed++;
         this.logger.error(
@@ -3610,6 +3647,7 @@ ${finalOwnerName}`;
     file: { id: string; name: string },
     uploadDate: Date | null,
     rawResponse: string,
+    source: RecordSource = RecordSource.DRIVE,
   ): Promise<void> {
     const fallbackMonth = (uploadDate ?? new Date());
     await this.extractedDocRepo.save(
@@ -3624,6 +3662,7 @@ ${finalOwnerName}`;
         subIndex: 0,
         uploadDate,
         status: ExtractedDocStatus.ERROR,
+        source,
         rawResponse,
       }),
     );
@@ -3640,6 +3679,7 @@ ${finalOwnerName}`;
     file: { id: string; name: string; md5Checksum: string | null },
     uploadDate: Date | null,
     originalDriveFileId: string,
+    source: RecordSource = RecordSource.DRIVE,
   ): Promise<void> {
     const fallbackMonth = (uploadDate ?? new Date());
     await this.extractedDocRepo.save(
@@ -3654,6 +3694,7 @@ ${finalOwnerName}`;
         subIndex: 0,
         uploadDate,
         status: ExtractedDocStatus.REJECTED,
+        source,
         rawResponse: `Duplicate of drive file ${originalDriveFileId} (identical content hash) — skipped OCR.`,
       }),
     );

@@ -6,6 +6,9 @@
     "deleteOutDir": true,
     "assets": [
       {
+        "include": "annual.params.json"
+      },
+      {
         "include": "cities/cities.json"
       },
       {

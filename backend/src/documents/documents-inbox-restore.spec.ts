@@ -1,8 +1,10 @@
 import { DocumentsService } from './documents.service';
+import { RecordSource } from 'src/enum';
+import { DocumentImportSource } from 'src/document-import/enums/document-import.enums';
 import { ExtractedDocStatus } from './extracted-document.entity';
 
 describe('DocumentsService.processInboxForUser deleted-document restoration', () => {
-  function subject(findResults: any[][], file: any) {
+  function subject(findResults: any[][], file: any, importRows: any[] = []) {
     const extractedDocRepo = {
       find: jest.fn(),
       remove: jest.fn(),
@@ -15,7 +17,11 @@ describe('DocumentsService.processInboxForUser deleted-document restoration', ()
         driveInboxFolderId: 'inbox',
         driveProcessedFolderId: 'processed',
       }),
-      googleDriveService: { listFolderFiles: jest.fn().mockResolvedValue([file]) },
+      googleDriveService: {
+        listFolderFiles: jest.fn().mockResolvedValue([file]),
+        downloadFile: jest.fn().mockResolvedValue(Buffer.from('pdf')),
+      },
+      importedDocumentRepo: { find: jest.fn().mockResolvedValue(importRows) },
       buildExtractionCatalog: jest.fn().mockResolvedValue([]),
       extractedDocRepo,
       documentProcessor: {
@@ -25,6 +31,7 @@ describe('DocumentsService.processInboxForUser deleted-document restoration', ()
       restoreDeletedDocumentRows: jest.fn().mockResolvedValue(1),
       safelyMoveToProcessed: jest.fn().mockResolvedValue(undefined),
       saveDuplicateRow: jest.fn(),
+      saveErrorRow: jest.fn(),
       logger: { log: jest.fn(), warn: jest.fn(), error: jest.fn() },
     };
 
@@ -90,5 +97,34 @@ describe('DocumentsService.processInboxForUser deleted-document restoration', ()
     await expect(test.run()).resolves.toMatchObject({ restored: 1, duplicates: 0 });
     expect(test.fakeThis.restoreDeletedDocumentRows).toHaveBeenCalledWith(deletedRows);
     expect(test.fakeThis.documentProcessor.extract).not.toHaveBeenCalled();
+  });
+
+  it('preserves EMAIL as the OCR/archive source for a Mailgun-imported file', async () => {
+    const file = {
+      id: 'mailgun-file',
+      name: 'invoice.pdf',
+      mimeType: 'application/pdf',
+      md5Checksum: null,
+      createdTime: '2026-09-02T10:00:00.000Z',
+    };
+    // Current file-id rows, active MD5 rows, deleted MD5 rows.
+    const test = subject([[], [], []], file, [{
+      driveFileId: file.id,
+      source: DocumentImportSource.EMAIL_FORWARDING,
+    }]);
+    test.fakeThis.documentProcessor.extract.mockResolvedValue({
+      invoices: null,
+      rawResponse: 'diagnostic OCR failure',
+    });
+
+    await expect(test.run()).resolves.toMatchObject({ failed: 1 });
+    expect(test.fakeThis.saveErrorRow).toHaveBeenCalledWith(
+      7,
+      '123456789',
+      file,
+      new Date(file.createdTime),
+      'diagnostic OCR failure',
+      RecordSource.EMAIL,
+    );
   });
 });
