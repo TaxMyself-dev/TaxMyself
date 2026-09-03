@@ -83,7 +83,7 @@ const registerUrl = 'https://app.keepintax.co.il/register';
           {plan.footnote && (
             <p class="pricing-card__footnote">{plan.footnote}</p>
           )}
-        </article>
+        </a>
       ))}
     </div>
     <p class="pricing__vat-note">המחירים אינם כוללים מע״מ</p>
@@ -93,10 +93,10 @@ const registerUrl = 'https://app.keepintax.co.il/register';
 <style>
   .pricing__grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 1.5rem;
     /* Stretch so every card has the same height — keeps the bottom price line
-       on a single horizontal baseline across all three plans. */
+       on a single horizontal baseline across all plans. */
     align-items: stretch;
   }
 
@@ -106,7 +106,7 @@ const registerUrl = 'https://app.keepintax.co.il/register';
     border-radius: var(--radius);
     /* Tight top + roomy bottom: title sits higher in the card and the
        absolute-positioned footnote has space to breathe under the prices. */
-    padding: 2rem 4rem 4.5rem;
+    padding: 2rem clamp(1.5rem, 2.8vw, 4rem) 4.5rem;
     position: relative;
     min-height: 480px;
     height: 100%;
@@ -134,8 +134,8 @@ const registerUrl = 'https://app.keepintax.co.il/register';
   /* Corner sticker (Figma): top-left, ~10–15° counter-clockwise */
   .pricing-card__badge-row {
     position: absolute;
-    top: 2.1rem;
-    left: 2.85rem;
+    top: 0.75rem;
+    left: 1rem;
     z-index: 2;
     margin: 0;
   }
@@ -327,7 +327,7 @@ const registerUrl = 'https://app.keepintax.co.il/register';
   .pricing-card__footnote {
     position: absolute;
     bottom: 1rem;
-    inset-inline: 4rem;
+    inset-inline: clamp(1.5rem, 2.8vw, 4rem);
     margin: 0;
     font-size: 0.75rem;
     font-weight: 500;
@@ -346,7 +346,13 @@ const registerUrl = 'https://app.keepintax.co.il/register';
     line-height: 1.3;
   }
 
-  @media (max-width: 900px) {
+  @media (max-width: 1100px) {
+    .pricing__grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 700px) {
     .pricing__grid {
       grid-template-columns: 1fr;
       max-width: 420px;

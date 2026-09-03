@@ -27,7 +27,20 @@ export const pricingPlans: PricingPlan[] = [
     id: 'lite',
     name: 'בקטנה',
     subtitle: 'תוכנית בסיסית למתחילים',
-    priceLines: [{ amount: '18', suffix: '/לחודש' }],
+    priceLines: [{ amount: '21', suffix: '/לחודש' }],
+    featured: false,
+    features: [
+      { label: 'הפקת מסמכים', included: true },
+      { label: 'ניהול הוצאות', included: false },
+      { label: 'סנכרון לחשבונות הבנק', included: false },
+      { label: 'צ׳אט תמיכה לשאלות מקצועיות', included: false },
+    ],
+  },
+  {
+    id: 'basic',
+    name: 'עסקי',
+    subtitle: 'תכנית מתקדמת לניהול העסק',
+    priceLines: [{ amount: '35', suffix: '/לחודש' }],
     featured: false,
     features: [
       { label: 'הפקת מסמכים', included: true },
@@ -37,7 +50,7 @@ export const pricingPlans: PricingPlan[] = [
     ],
   },
   {
-    id: 'basic',
+    id: 'pro',
     name: 'עצמאי בעצמי',
     subtitle: 'תוכנית לניהול עצמי',
     priceLines: [
@@ -52,10 +65,10 @@ export const pricingPlans: PricingPlan[] = [
       { label: 'סנכרון לחשבונות הבנק', included: true },
       { label: 'צ׳אט תמיכה לשאלות מקצועיות', included: true },
     ],
-    footnote: '*הגשת דוח שנתי דרכנו בעלות של 500 ש״ח (לעסק ללא מורכבויות נוספות)',
+    footnote: '*הגשת דוח שנתי דרכנו בעלות של 500 ש״ח, לעסק ללא מורכבויות נוספות',
   },
   {
-    id: 'pro',
+    id: 'full-service',
     name: 'ליווי מלא',
     subtitle: 'תוכנית לעסקים מקצועיים',
     priceLines: [
