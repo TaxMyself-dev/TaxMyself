@@ -2373,3 +2373,17 @@ record this instead.
 - Made the production provenance backfill compare Google Drive ids as binary
   strings. This preserves their case-sensitive semantics and avoids failures
   when the two legacy columns use different utf8mb4 collations.
+
+## 2026-09-04 — Drive inbox cross-identity visibility fix
+
+- Diagnosed a production Mailgun import that reached the correct business
+  inbox and `imported_documents` ledger but was absent from
+  `extracted_document`. The uploader used the system OAuth account while the
+  later inbox scan, download and move operations used only the service account.
+- Updated binary-file access to list through both Drive identities and merge
+  results by file id. Downloads and inbox-to-processed moves now prefer the
+  owning system account with a service-account fallback for legacy/manual
+  files. Folder administration remains on the service account.
+- Added focused coverage for cross-identity listing, deduplication, partial
+  identity failure, download fallback and move fallback. All 12 Drive access
+  tests and the Nest build pass.

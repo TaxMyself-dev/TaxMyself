@@ -84,14 +84,16 @@ export class GoogleDriveService {
   /**
    * Drive client authenticated as the KeepInTax **system user account**
    * (GOOGLE_DRIVE_SYSTEM_ACCOUNT_EMAIL — app@keepintax.co.il) via OAuth,
-   * used exclusively for file **uploads**.
+   * used for binary-file lifecycle operations (upload/list/download/move/delete).
    *
    * Why a separate client from `getDrive()`: the service account can create
    * and manage folders (folders store no bytes) but CANNOT write file bytes —
    * it owns no storage quota, so `files.create` with a media body fails with
    * "Service Accounts do not have storage quota". A real user account does
-   * have quota, so uploads run as this account instead. Folder/list/move/
-   * permission operations keep using the service-account client.
+   * have quota, so uploads run as this account instead. Folder creation and
+   * permission administration remain on the service-account client. Reads and
+   * moves support both identities because production contains files created by
+   * each of them (including legacy/manual uploads).
    *
    * The refresh token is minted ONCE, out of band, by app@keepintax.co.il
    * (see backend/docs/google-drive-system-oauth.md) and supplied via env —
@@ -218,6 +220,26 @@ export class GoogleDriveService {
     fromParentId: string | null,
     toParentId: string,
   ): Promise<void> {
+    let systemError: any;
+
+    try {
+      const drive = this.getSystemDrive();
+      await drive.files.update({
+        fileId,
+        addParents: toParentId,
+        removeParents: fromParentId ?? undefined,
+        fields: 'id, parents',
+        supportsAllDrives: true,
+      });
+      return;
+    } catch (error: any) {
+      systemError = error;
+      this.logger.warn(
+        `moveFile system-account attempt failed for fileId=${fileId}; ` +
+          `trying service-account fallback: ${this.describeDriveError(error)}`,
+      );
+    }
+
     try {
       const { drive } = this.getDrive();
       await drive.files.update({
@@ -227,9 +249,11 @@ export class GoogleDriveService {
         fields: 'id, parents',
         supportsAllDrives: true,
       });
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(
-        `moveFile failed (fileId=${fileId}, from=${fromParentId}, to=${toParentId}): ${error?.message ?? error}`,
+        `moveFile failed (fileId=${fileId}, from=${fromParentId}, to=${toParentId}): ` +
+          `system=[${this.describeDriveError(systemError)}] ` +
+          `service=[${this.describeDriveError(error)}]`,
         (error as Error)?.stack,
       );
       throw new InternalServerErrorException('Failed to move Drive file');
@@ -314,50 +338,94 @@ export class GoogleDriveService {
   }
 
   async listFolderFiles(folderId: string): Promise<DriveFileMeta[]> {
+    const results: DriveFileMeta[][] = [];
+    const errors: Array<{ identity: string; error: any }> = [];
+
+    try {
+      results.push(
+        await this.listFolderFilesWithDrive(this.getSystemDrive(), folderId),
+      );
+    } catch (error: any) {
+      errors.push({ identity: 'system', error });
+      this.logger.warn(
+        `listFolderFiles system-account attempt failed for folderId=${folderId}: ` +
+          this.describeDriveError(error),
+      );
+    }
+
     try {
       const { drive } = this.getDrive();
-      const q = [
-        `'${folderId}' in parents`,
-        `mimeType != 'application/vnd.google-apps.folder'`,
-        `trashed = false`,
-      ].join(' and ');
+      results.push(await this.listFolderFilesWithDrive(drive, folderId));
+    } catch (error: any) {
+      errors.push({ identity: 'service', error });
+      this.logger.warn(
+        `listFolderFiles service-account attempt failed for folderId=${folderId}: ` +
+          this.describeDriveError(error),
+      );
+    }
 
-      const out: DriveFileMeta[] = [];
-      let pageToken: string | undefined = undefined;
-      do {
-        const res = await drive.files.list({
-          q,
-          // createdTime feeds extracted_document.upload_date — the timestamp
-          // we show the user as "when this invoice arrived in the inbox".
-          // md5Checksum feeds the byte-identical dedup in the inbox loop.
-          fields: 'nextPageToken, files(id, name, mimeType, size, createdTime, md5Checksum)',
-          spaces: 'drive',
-          pageSize: 100,
-          pageToken,
-          supportsAllDrives: true,
-          includeItemsFromAllDrives: true,
-        });
-        for (const f of res.data.files ?? []) {
-          if (!f.id || !f.name || !f.mimeType) continue;
-          out.push({
-            id: f.id,
-            name: f.name,
-            mimeType: f.mimeType,
-            size: f.size ? Number(f.size) : null,
-            createdTime: f.createdTime ?? null,
-            md5Checksum: f.md5Checksum ?? null,
-          });
-        }
-        pageToken = res.data.nextPageToken ?? undefined;
-      } while (pageToken);
-      return out;
-    } catch (error) {
+    if (results.length === 0) {
       this.logger.error(
-        `listFolderFiles failed for folderId=${folderId}: ${error?.message ?? error}`,
-        (error as Error)?.stack,
+        `listFolderFiles failed for folderId=${folderId}: ` +
+          errors
+            .map(
+              ({ identity, error }) =>
+                `${identity}=[${this.describeDriveError(error)}]`,
+            )
+            .join(' '),
       );
       throw new InternalServerErrorException('Failed to list Drive folder');
     }
+
+    // A shared folder can expose the same file to both identities. Merge by
+    // Drive id so the inbox processor never OCRs it twice.
+    const byId = new Map<string, DriveFileMeta>();
+    for (const files of results) {
+      for (const file of files) byId.set(file.id, file);
+    }
+    return [...byId.values()];
+  }
+
+  private async listFolderFilesWithDrive(
+    drive: drive_v3.Drive,
+    folderId: string,
+  ): Promise<DriveFileMeta[]> {
+    const q = [
+      `'${folderId}' in parents`,
+      `mimeType != 'application/vnd.google-apps.folder'`,
+      `trashed = false`,
+    ].join(' and ');
+
+    const out: DriveFileMeta[] = [];
+    let pageToken: string | undefined = undefined;
+    do {
+      const res = await drive.files.list({
+        q,
+        // createdTime feeds extracted_document.upload_date — the timestamp
+        // we show the user as "when this invoice arrived in the inbox".
+        // md5Checksum feeds the byte-identical dedup in the inbox loop.
+        fields:
+          'nextPageToken, files(id, name, mimeType, size, createdTime, md5Checksum)',
+        spaces: 'drive',
+        pageSize: 100,
+        pageToken,
+        supportsAllDrives: true,
+        includeItemsFromAllDrives: true,
+      });
+      for (const f of res.data.files ?? []) {
+        if (!f.id || !f.name || !f.mimeType) continue;
+        out.push({
+          id: f.id,
+          name: f.name,
+          mimeType: f.mimeType,
+          size: f.size ? Number(f.size) : null,
+          createdTime: f.createdTime ?? null,
+          md5Checksum: f.md5Checksum ?? null,
+        });
+      }
+      pageToken = res.data.nextPageToken ?? undefined;
+    } while (pageToken);
+    return out;
   }
 
   /**
@@ -518,6 +586,23 @@ export class GoogleDriveService {
   }
 
   async downloadFile(fileId: string): Promise<Buffer> {
+    let systemError: any;
+
+    try {
+      const drive = this.getSystemDrive();
+      const res = await drive.files.get(
+        { fileId, alt: 'media', supportsAllDrives: true },
+        { responseType: 'arraybuffer' },
+      );
+      return Buffer.from(res.data as ArrayBuffer);
+    } catch (error: any) {
+      systemError = error;
+      this.logger.warn(
+        `downloadFile system-account attempt failed for fileId=${fileId}; ` +
+          `trying service-account fallback: ${this.describeDriveError(error)}`,
+      );
+    }
+
     try {
       const { drive } = this.getDrive();
       const res = await drive.files.get(
@@ -525,9 +610,11 @@ export class GoogleDriveService {
         { responseType: 'arraybuffer' },
       );
       return Buffer.from(res.data as ArrayBuffer);
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(
-        `downloadFile failed for fileId=${fileId}: ${error?.message ?? error}`,
+        `downloadFile failed for fileId=${fileId}: ` +
+          `system=[${this.describeDriveError(systemError)}] ` +
+          `service=[${this.describeDriveError(error)}]`,
         (error as Error)?.stack,
       );
       throw new InternalServerErrorException('Failed to download Drive file');
