@@ -226,9 +226,18 @@ export class ReportReviewService {
     await this.assertBusinessOwnership(firebaseId, businessNumber);
 
     if (!isAgentRequest && await this.sharedService.isRepresentedByAccountant(firebaseId)) {
-      // Only the accountant may approve this client's expenses — never show
-      // the review table to the represented client's own self-service
-      // submit; go straight to the report.
+      // Only the accountant may approve this client's expenses, so keep the
+      // review signals suppressed for the represented client's self-service
+      // submit. We must still ingest the inbox, though: Mailgun deliberately
+      // leaves new files there for this polling path, and the old early return
+      // meant represented clients' documents were never OCR'd at all.
+      try {
+        await this.documentsService.processInboxForUser(firebaseId, businessNumber);
+      } catch (err: any) {
+        this.logger.warn(
+          `previewCheck: represented-client inbox processing failed for biz=${businessNumber}: ${err?.message ?? err}`,
+        );
+      }
       return { hasPendingDocs: false, hasUnconfirmedExpenses: false };
     }
 

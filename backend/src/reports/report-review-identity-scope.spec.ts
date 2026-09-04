@@ -20,6 +20,28 @@ function queryBuilder(result: unknown[] = []) {
 }
 
 describe('report review identity boundaries', () => {
+  it('ingests a represented client inbox without exposing self-service review signals', async () => {
+    const processInboxForUser = jest.fn().mockResolvedValue({ processed: 1 });
+    const service: any = Object.create(ReportReviewService.prototype);
+    Object.assign(service, {
+      userRepo: {
+        findOne: jest.fn().mockResolvedValue({ index: 41, hasOpenBanking: false }),
+      },
+      businessRepo: { findOne: jest.fn().mockResolvedValue({ id: 7 }) },
+      sharedService: { isRepresentedByAccountant: jest.fn().mockResolvedValue(true) },
+      documentsService: { processInboxForUser },
+      docRepo: { createQueryBuilder: jest.fn() },
+      logger: { warn: jest.fn() },
+    });
+
+    await expect(
+      service.previewCheck('represented-user', '515151515', new Date('2026-08-31')),
+    ).resolves.toEqual({ hasPendingDocs: false, hasUnconfirmedExpenses: false });
+
+    expect(processInboxForUser).toHaveBeenCalledWith('represented-user', '515151515');
+    expect(service.docRepo.createQueryBuilder).not.toHaveBeenCalled();
+  });
+
   it('scopes the cheap pending-document check by effective user and business', async () => {
     const docsQb = queryBuilder();
     const service: any = Object.create(ReportReviewService.prototype);

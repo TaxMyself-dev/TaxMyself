@@ -2387,3 +2387,9 @@ record this instead.
 - Added focused coverage for cross-identity listing, deduplication, partial
   identity failure, download fallback and move fallback. All 12 Drive access
   tests and the Nest build pass.
+- A production retest showed cross-identity access was not the blocking root
+  cause. `previewCheck` intentionally returned early for clients represented
+  by an accountant, before any Drive scan, so Mailgun files for those clients
+  stayed in inbox indefinitely. The represented-client branch now runs inbox
+  ingestion while preserving its `{ false, false }` response, so documents are
+  OCR'd but approval remains exclusively with the accountant.
