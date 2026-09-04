@@ -43,6 +43,11 @@ export class VatReportJournalPage implements OnInit {
 
   // Business related
   businessNumber = signal<string>("");
+  readonly reportBusinessName = computed(() =>
+    this.gs.businesses().find(
+      business => business.businessNumber === this.businessNumber(),
+    )?.businessName?.trim() ?? '',
+  );
   BusinessStatus = BusinessStatus;
   businessStatus: BusinessStatus = BusinessStatus.SINGLE_BUSINESS;
   businessOptions = this.gs.vatReportBusinessSelectItems;

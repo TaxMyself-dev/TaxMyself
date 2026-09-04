@@ -128,6 +128,19 @@ vat-report-search-bar-input {
   margin-top: 15px;
 }
 
+.vat-report-business-title {
+  width: 50%;
+  margin: 24px 0 0;
+  font-size: 1.25rem;
+  font-weight: 400;
+  line-height: 1.4;
+  text-align: right;
+
+  strong {
+    font-weight: 600;
+  }
+}
+
 .output-report {
   display: flex;
   justify-content: space-between;
@@ -207,6 +220,11 @@ vat-report-search-bar-input {
   // (50% of a 375px screen is only ~187px — not enough for bilingual labels).
   .wrap-output-report {
     width: 100%;
+  }
+
+  .vat-report-business-title {
+    width: 100%;
+    text-align: center;
   }
 
   // Stretch the expenses table to use full width inside the padded wrapper.
