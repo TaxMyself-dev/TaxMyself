@@ -2469,10 +2469,11 @@ record this instead.
 
 ## 2026-09-04 — VAT report business-name context
 
-- Added a visible “דוח מע״מ עבור עסק” heading immediately above the rendered
-  VAT summary, using the name of the business number that was actually selected
-  for the report. This keeps the sole-eligible-business flow unambiguous when
-  the business selector is intentionally omitted.
+- Added a visible “דוח מע״מ עבור עסק” heading on initial page entry, immediately
+  after the filters and above the eventual VAT summary, using the name of the
+  business number that was actually selected for the report. This keeps the
+  sole-eligible-business flow unambiguous when the business selector is
+  intentionally omitted; the heading no longer waits for “הצג”.
 - Added focused coverage for resolving the displayed business name. The full
   Angular development build passes; the repository-wide Karma compilation is
   still blocked by the pre-existing legacy spec and third-party declaration
