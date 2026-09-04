@@ -2424,3 +2424,11 @@ record this instead.
   and releases automatically when its dedicated DB connection closes.
 - Removed the queue worker, OIDC validation, Cloud Tasks environment variables
   and module wiring. Focused backend tests and both production builds pass.
+
+## 2026-09-04 — Issued-document date ordering
+
+- The issued-documents backend query now orders by the document date newest
+  first, with descending document id as a deterministic tie-breaker.
+- Existing ownership, document-type, and date filters and entity mapping remain
+  unchanged. Added focused Jest coverage for both ordering clauses and their
+  execution before the query is fetched.

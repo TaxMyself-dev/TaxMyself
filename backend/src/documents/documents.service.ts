@@ -296,7 +296,10 @@ export class DocumentsService {
     // -------------------------------
     // 4) Execute
     // -------------------------------
-    const docs = await query.getMany();
+    const docs = await query
+      .orderBy('doc.docDate', 'DESC')
+      .addOrderBy('doc.id', 'DESC')
+      .getMany();
 
     return docs;
   }
