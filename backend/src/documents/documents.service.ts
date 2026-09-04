@@ -16,7 +16,7 @@ import { BookkeepingService } from 'src/bookkeeping/bookkeeping.service';
 import { DocPayments } from './doc-payments.entity';
 import { DataSource } from 'typeorm';
 import * as admin from 'firebase-admin';
-import { randomUUID } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import { ImportedDocument } from 'src/document-import/entities/imported-document.entity';
 import { DocumentImportSource } from 'src/document-import/enums/document-import.enums';
 import * as fs from 'fs';
@@ -139,9 +139,24 @@ export const DEFAULT_INITIAL_DOC_INDEX: Record<DocumentType, number> = {
   [DocumentType.JOURNAL_ENTRY]: 10000000,
 };
 
+export interface InboxProcessingResult {
+  processed: number;
+  failed: number;
+  skipped: number;
+  duplicates: number;
+  restored: number;
+  total: number;
+  inboxFolderId: string;
+  processedFolderId: string;
+  alreadyProcessing: boolean;
+}
+
 @Injectable()
 export class DocumentsService {
   private readonly logger = new Logger(DocumentsService.name);
+  private readonly maxConcurrentInboxOcr = 3;
+  private activeInboxOcr = 0;
+  private readonly inboxOcrWaiters: Array<() => void> = [];
 
   private readonly apiClient: AxiosInstance;
   sessionID: string;
@@ -2719,6 +2734,127 @@ ${finalOwnerName}`;
   async processInboxForUser(
     firebaseId: string,
     businessNumber: string,
+  ): Promise<InboxProcessingResult> {
+    if (!businessNumber) {
+      throw new BadRequestException('businessNumber is required');
+    }
+
+    // A named MySQL lock occupies one pool connection while OCR is active.
+    // Keep enough connections free for the OCR pipeline's normal repository
+    // queries even when Cloud Run accepts many requests concurrently.
+    await this.acquireInboxOcrSlot();
+    try {
+      return await this.processInboxWithDistributedLock(firebaseId, businessNumber);
+    } finally {
+      this.releaseInboxOcrSlot();
+    }
+  }
+
+  private async processInboxWithDistributedLock(
+    firebaseId: string,
+    businessNumber: string,
+  ): Promise<InboxProcessingResult> {
+
+    // MySQL advisory locks make the OCR scan single-flight across every
+    // Cloud Run instance. The lock lives on this dedicated connection for
+    // the duration of the HTTP request and is automatically released if the
+    // instance/connection disappears.
+    const lockName = this.inboxProcessingLockName(firebaseId, businessNumber);
+    const lockRunner = this.dataSource.createQueryRunner();
+    await lockRunner.connect();
+    let acquired = false;
+    try {
+      const rows = await lockRunner.query(
+        'SELECT GET_LOCK(?, 0) AS acquired',
+        [lockName],
+      );
+      acquired = Number(rows?.[0]?.acquired) === 1;
+      if (!acquired) {
+        return {
+          processed: 0,
+          failed: 0,
+          skipped: 0,
+          duplicates: 0,
+          restored: 0,
+          total: 0,
+          inboxFolderId: '',
+          processedFolderId: '',
+          alreadyProcessing: true,
+        };
+      }
+
+      const result = await this.processInboxForUserUnlocked(
+        firebaseId,
+        businessNumber,
+      );
+      return { ...result, alreadyProcessing: false };
+    } finally {
+      if (acquired) {
+        try {
+          await lockRunner.query('SELECT RELEASE_LOCK(?)', [lockName]);
+        } catch (error: any) {
+          this.logger.warn(
+            `Failed to release inbox OCR lock for biz=${businessNumber}: ${error?.message ?? error}`,
+          );
+        }
+      }
+      await lockRunner.release();
+    }
+  }
+
+  async getInboxProcessingStatus(
+    firebaseId: string,
+    businessNumber: string,
+  ): Promise<{ pendingDocuments: number; processing: boolean }> {
+    if (!businessNumber) {
+      throw new BadRequestException('businessNumber is required');
+    }
+    const user = await this.userRepo.findOne({ where: { firebaseId } });
+    if (!user) throw new NotFoundException(`User not found for firebaseId`);
+    const business = await this.ensureBusinessAndSubFolders(user, businessNumber);
+    const [files, lockRows] = await Promise.all([
+      this.googleDriveService.listFolderFiles(business.driveInboxFolderId!),
+      this.dataSource.query('SELECT IS_USED_LOCK(?) AS owner', [
+        this.inboxProcessingLockName(firebaseId, businessNumber),
+      ]),
+    ]);
+    return {
+      pendingDocuments: files.length,
+      processing: lockRows?.[0]?.owner != null,
+    };
+  }
+
+  private inboxProcessingLockName(
+    firebaseId: string,
+    businessNumber: string,
+  ): string {
+    const digest = createHash('sha256')
+      .update(`${firebaseId}\0${businessNumber}`)
+      .digest('hex');
+    return `inbox-ocr:${digest.slice(0, 48)}`;
+  }
+
+  private async acquireInboxOcrSlot(): Promise<void> {
+    if (this.activeInboxOcr < this.maxConcurrentInboxOcr) {
+      this.activeInboxOcr += 1;
+      return;
+    }
+    await new Promise<void>(resolve => this.inboxOcrWaiters.push(resolve));
+  }
+
+  private releaseInboxOcrSlot(): void {
+    const next = this.inboxOcrWaiters.shift();
+    if (next) {
+      // Transfer the released slot directly to the oldest waiting request.
+      next();
+      return;
+    }
+    this.activeInboxOcr = Math.max(0, this.activeInboxOcr - 1);
+  }
+
+  private async processInboxForUserUnlocked(
+    firebaseId: string,
+    businessNumber: string,
   ): Promise<{
     processed: number;
     failed: number;
@@ -2729,10 +2865,6 @@ ${finalOwnerName}`;
     inboxFolderId: string;
     processedFolderId: string;
   }> {
-    if (!businessNumber) {
-      throw new BadRequestException('businessNumber is required');
-    }
-
     const user = await this.userRepo.findOne({ where: { firebaseId } });
     if (!user) throw new NotFoundException(`User not found for firebaseId`);
 

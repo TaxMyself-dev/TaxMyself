@@ -2409,3 +2409,18 @@ record this instead.
 - Queueing remains opt-in through environment variables. With the flag off,
   local development preserves synchronous behavior and needs no Cloud Tasks
   credentials. This slice adds no database tables or columns.
+
+## 2026-09-04 — Report-driven inbox OCR (supersedes Cloud Tasks slice)
+
+- Replaced the Cloud Tasks integration above with a user-driven processing
+  request: Mailgun durably stores attachments in Drive, while VAT/P&L report
+  entry detects waiting inbox files and starts `POST /documents/me/process-inbox`
+  without blocking report rendering.
+- Added a persistent Hebrew status banner for processing, success and retryable
+  failure. A completed pass refreshes the visible report and links directly to
+  document approval; a concurrent pass is polled until completion.
+- Added a MySQL advisory lock keyed by Firebase user and business number. This
+  prevents duplicate OCR across Cloud Run instances without a schema change,
+  and releases automatically when its dedicated DB connection closes.
+- Removed the queue worker, OIDC validation, Cloud Tasks environment variables
+  and module wiring. Focused backend tests and both production builds pass.

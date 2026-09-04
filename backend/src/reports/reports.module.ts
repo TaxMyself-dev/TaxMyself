@@ -24,7 +24,6 @@ import { MatchingService } from './matching.service';
 import { ExpensesModule } from '../expenses/expense.module';
 import { UsersModule } from '../users/users.module';
 import { DocumentsModule } from '../documents/documents.module';
-import { GoogleDriveModule } from '../google-drive/google-drive.module';
 import { BookkeepingModule } from '../bookkeeping/bookkeeping.module';
 import { FinsiteService } from 'src/finsite/finsite.service';
 import { JournalEntry } from 'src/bookkeeping/jouranl-entry.entity';
@@ -37,7 +36,6 @@ import { FullTransactionCache } from 'src/transactions/full-transaction-cache.en
 import { ReportWorkflow } from 'src/report-workflow/report-workflow.entity';
 import { BillingModule } from '../billing/billing.module';
 import { DepreciationModule } from '../depreciation/depreciation.module';
-import { DocumentProcessingModule } from '../document-processing/document-processing.module';
 
 @Module({
   imports: [
@@ -54,13 +52,9 @@ import { DocumentProcessingModule } from '../document-processing/document-proces
     // processing + per-row archive/reject. Imported (not re-provided) so we
     // share the same instance as DocumentsModule consumers.
     DocumentsModule,
-    // GoogleDriveModule for Drive reads in the review flow (e.g. listing
-    // the inbox folder's files).
-    GoogleDriveModule,
     BookkeepingModule,
     BillingModule,
     DepreciationModule,
-    DocumentProcessingModule,
   ],
   controllers: [ReportsController],
   providers: [

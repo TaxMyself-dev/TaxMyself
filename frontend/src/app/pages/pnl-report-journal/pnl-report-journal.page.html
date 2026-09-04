@@ -48,6 +48,28 @@
       (apply)="onSubmit($event)">
     </app-filter-tab>
 
+    @if (inboxProcessingState() !== 'idle') {
+      <div class="inbox-processing-banner" [class.inbox-processing-banner--failed]="inboxProcessingState() === 'failed'" aria-live="polite">
+        <div class="inbox-processing-banner__content">
+          @if (inboxProcessingState() === 'processing') {
+            <i class="pi pi-spin pi-spinner"></i>
+            <span>מצאנו {{ inboxDocumentsPending() }} מסמכים חדשים. הם עוברים עיבוד ברקע ואפשר להמשיך לצפות בדוח.</span>
+          } @else if (inboxProcessingState() === 'ready') {
+            <i class="pi pi-check-circle"></i>
+            <span>עיבוד המסמכים הסתיים והם מוכנים לבדיקה ולאישור.</span>
+          } @else {
+            <i class="pi pi-exclamation-triangle"></i>
+            <span>לא הצלחנו לעבד את כל המסמכים. הם נשארו באינבוקס ואפשר לנסות שוב.</span>
+          }
+        </div>
+        @if (inboxProcessingState() === 'ready') {
+          <button type="button" class="inbox-processing-banner__action" (click)="openProcessedDocuments()">מעבר לאישור מסמכים</button>
+        } @else if (inboxProcessingState() === 'failed') {
+          <button type="button" class="inbox-processing-banner__action" (click)="retryInboxProcessing()">נסה שוב</button>
+        }
+      </div>
+    }
+
     @if (pnlReport && incomeRaw < osekZairThreshold) {
       <div class="osek-zair-checkbox-container">
         <p-checkbox [binary]="true" inputId="osekZairCheckbox" [ngModel]="osekZair()" (ngModelChange)="onOsekZairToggle($event)">

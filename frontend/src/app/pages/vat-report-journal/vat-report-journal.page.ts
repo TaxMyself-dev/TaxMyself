@@ -3,7 +3,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { VatReportJournalService } from './vat-report-journal.service';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
-import { EMPTY, Observable, catchError, filter, finalize, forkJoin, from, fromEvent, map, of, switchMap, take, tap } from 'rxjs';
+import { EMPTY, Observable, catchError, filter, finalize, forkJoin, from, fromEvent, map, of, switchMap, take, tap, timer } from 'rxjs';
 import { BusinessStatus, FormTypes, ICellRenderer, inputsSize, ReportingPeriodType, ReportingPeriodTypeLabels } from 'src/app/shared/enums';
 //import { ButtonSize } from 'src/app/shared/button/button.enum';
 import { ButtonSize } from 'src/app/components/button/button.enum';
@@ -20,6 +20,7 @@ import { ButtonColor } from 'src/app/components/button/button.enum';
 import { TransactionsService } from '../transactions/transactions.page.service';
 import { MessageService, ConfirmationService } from 'primeng/api';
 import { ReportPreviewCheck, ReportReviewService } from 'src/app/services/report-review.service';
+import { DriveDocsService } from 'src/app/services/drive-docs.service';
 import { FilterField } from 'src/app/components/filter-tab/filter-fields-model.component';
 
 
@@ -84,6 +85,9 @@ export class VatReportJournalPage implements OnInit {
   isLoadingButtonConfirmDialog = signal<boolean>(false);
   isLoadingStatePeryodSelectButton = signal<boolean>(false);
   isRequestSent = signal<boolean>(false);
+  inboxProcessingState = signal<'idle' | 'processing' | 'ready' | 'failed'>('idle');
+  inboxDocumentsPending = signal<number>(0);
+  private inboxProcessingBusinessNumber: string | null = null;
   displayExpenses: boolean = false;
   tableActions: ITableRowAction[];
   fileActions: ITableRowAction[];
@@ -138,7 +142,7 @@ export class VatReportJournalPage implements OnInit {
   inputSize = inputsSize;
   buttonColor = ButtonColor;
 
-  constructor(private genericService: GenericService, private dateService: DateService, private filesService: FilesService, private router: Router, public vatReportService: VatReportJournalService, private formBuilder: FormBuilder, private expenseDataService: ExpenseDataService, private modalController: ModalController, public authService: AuthService, private transactionService: TransactionsService, private messageService: MessageService
+  constructor(private genericService: GenericService, private dateService: DateService, private filesService: FilesService, private router: Router, public vatReportService: VatReportJournalService, private formBuilder: FormBuilder, private expenseDataService: ExpenseDataService, private modalController: ModalController, public authService: AuthService, private transactionService: TransactionsService, private messageService: MessageService, private driveDocsService: DriveDocsService
   ) { }
 
 
@@ -324,9 +328,10 @@ export class VatReportJournalPage implements OnInit {
         hasPendingDocs: true,
         hasUnconfirmedExpenses: true,
         documentsProcessing: false,
+        inboxDocumentsPending: 0,
       })))
       .subscribe(check => {
-        this.notifyBackgroundProcessing(check);
+        this.handleInboxProcessing(check, effectiveBusiness);
         if (!check.hasPendingDocs && !check.hasUnconfirmedExpenses) {
           this.proceedDirectlyToReport();
           return;
@@ -390,13 +395,99 @@ export class VatReportJournalPage implements OnInit {
     });
   }
 
-  private notifyBackgroundProcessing(check: ReportPreviewCheck): void {
-    if (!check.documentsProcessing) return;
-    this.messageService.add({
-      severity: 'info',
-      summary: 'המסמכים התקבלו',
-      detail: 'המסמכים עוברים עיבוד ברקע ויופיעו במערכת בסיום. אפשר להמשיך לצפות בדוח.',
-      life: 8000,
+  private handleInboxProcessing(check: ReportPreviewCheck, businessNumber: string): void {
+    this.inboxProcessingBusinessNumber = businessNumber;
+    if (check.inboxDocumentsPending <= 0) {
+      this.inboxProcessingState.set('idle');
+      this.inboxDocumentsPending.set(0);
+      return;
+    }
+    this.inboxDocumentsPending.set(check.inboxDocumentsPending);
+    this.inboxProcessingState.set('processing');
+    if (check.documentsProcessing) {
+      this.pollInboxProcessing(businessNumber);
+      return;
+    }
+    this.runInboxProcessing(businessNumber);
+  }
+
+  private runInboxProcessing(businessNumber: string): void {
+    this.driveDocsService.processInbox(businessNumber)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: result => {
+          if (this.inboxProcessingBusinessNumber !== businessNumber) return;
+          if (result.alreadyProcessing) {
+            this.pollInboxProcessing(businessNumber);
+            return;
+          }
+          if (result.failed > 0) {
+            this.inboxProcessingState.set('failed');
+            this.inboxDocumentsPending.set(result.failed);
+            return;
+          }
+          this.finishInboxProcessing(businessNumber);
+        },
+        error: () => {
+          if (this.inboxProcessingBusinessNumber === businessNumber) {
+            this.inboxProcessingState.set('failed');
+          }
+        },
+      });
+  }
+
+  private pollInboxProcessing(businessNumber: string): void {
+    timer(3000)
+      .pipe(
+        switchMap(() => this.reportReviewService.previewCheck(businessNumber, this.endDate())),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: check => {
+          if (this.inboxProcessingBusinessNumber !== businessNumber) return;
+          this.inboxDocumentsPending.set(check.inboxDocumentsPending);
+          if (check.inboxDocumentsPending === 0) {
+            this.finishInboxProcessing(businessNumber);
+          } else if (check.documentsProcessing) {
+            this.pollInboxProcessing(businessNumber);
+          } else {
+            this.runInboxProcessing(businessNumber);
+          }
+        },
+        error: () => {
+          if (this.inboxProcessingBusinessNumber === businessNumber) {
+            this.inboxProcessingState.set('failed');
+          }
+        },
+      });
+  }
+
+  private finishInboxProcessing(businessNumber: string): void {
+    if (this.inboxProcessingBusinessNumber !== businessNumber) return;
+    this.inboxDocumentsPending.set(0);
+    this.inboxProcessingState.set('ready');
+    if (this.businessNumber() === businessNumber && this.vatReportData()) {
+      this.getVatReportData(this.startDate(), this.endDate(), businessNumber);
+      this.getDataTable(this.startDate(), this.endDate(), businessNumber);
+    }
+  }
+
+  retryInboxProcessing(): void {
+    const businessNumber = this.businessNumber();
+    if (!businessNumber) return;
+    this.inboxProcessingBusinessNumber = businessNumber;
+    this.inboxProcessingState.set('processing');
+    this.runInboxProcessing(businessNumber);
+  }
+
+  openProcessedDocuments(): void {
+    this.router.navigate(['report-review'], {
+      queryParams: {
+        businessNumber: this.businessNumber(),
+        startDate: this.startDate(),
+        endDate: this.endDate(),
+        returnTo: 'vat-report',
+      },
     });
   }
 

@@ -21,7 +21,10 @@ function queryBuilder(result: unknown[] = []) {
 
 describe('report review identity boundaries', () => {
   it('ingests a represented client inbox without exposing self-service review signals', async () => {
-    const processInboxForUser = jest.fn().mockResolvedValue({ processed: 1, total: 1 });
+    const getInboxProcessingStatus = jest.fn().mockResolvedValue({
+      pendingDocuments: 1,
+      processing: false,
+    });
     const service: any = Object.create(ReportReviewService.prototype);
     Object.assign(service, {
       userRepo: {
@@ -29,8 +32,7 @@ describe('report review identity boundaries', () => {
       },
       businessRepo: { findOne: jest.fn().mockResolvedValue({ id: 7 }) },
       sharedService: { isRepresentedByAccountant: jest.fn().mockResolvedValue(true) },
-      documentsService: { processInboxForUser },
-      ocrQueueService: { isEnabled: jest.fn().mockReturnValue(false) },
+      documentsService: { getInboxProcessingStatus },
       docRepo: { createQueryBuilder: jest.fn() },
       logger: { warn: jest.fn() },
     });
@@ -41,34 +43,26 @@ describe('report review identity boundaries', () => {
       hasPendingDocs: false,
       hasUnconfirmedExpenses: false,
       documentsProcessing: false,
+      inboxDocumentsPending: 1,
     });
 
-    expect(processInboxForUser).toHaveBeenCalledWith('represented-user', '515151515');
+    expect(getInboxProcessingStatus).toHaveBeenCalledWith('represented-user', '515151515');
     expect(service.docRepo.createQueryBuilder).not.toHaveBeenCalled();
   });
 
-  it('queues represented-client OCR without waiting when Cloud Tasks is enabled', async () => {
-    const enqueue = jest.fn().mockResolvedValue({ queued: true, duplicate: false });
-    const processInboxForUser = jest.fn();
+  it('reports an existing represented-client OCR request without exposing review signals', async () => {
     const service: any = Object.create(ReportReviewService.prototype);
     Object.assign(service, {
       userRepo: {
         findOne: jest.fn().mockResolvedValue({ index: 41, hasOpenBanking: false }),
       },
-      businessRepo: {
-        findOne: jest.fn().mockResolvedValue({
-          id: 7,
-          driveInboxFolderId: 'inbox-folder',
-        }),
-      },
+      businessRepo: { findOne: jest.fn().mockResolvedValue({ id: 7 }) },
       sharedService: { isRepresentedByAccountant: jest.fn().mockResolvedValue(true) },
-      documentsService: { processInboxForUser },
-      googleDriveService: {
-        listFolderFiles: jest.fn().mockResolvedValue([{ id: 'drive-file' }]),
-      },
-      ocrQueueService: {
-        isEnabled: jest.fn().mockReturnValue(true),
-        enqueue,
+      documentsService: {
+        getInboxProcessingStatus: jest.fn().mockResolvedValue({
+          pendingDocuments: 2,
+          processing: true,
+        }),
       },
       docRepo: { createQueryBuilder: jest.fn() },
       logger: { warn: jest.fn() },
@@ -80,13 +74,8 @@ describe('report review identity boundaries', () => {
       hasPendingDocs: false,
       hasUnconfirmedExpenses: false,
       documentsProcessing: true,
+      inboxDocumentsPending: 2,
     });
-
-    expect(enqueue).toHaveBeenCalledWith(
-      { firebaseId: 'represented-user', businessNumber: '515151515' },
-      expect.stringMatching(/^report:represented-user:515151515:/),
-    );
-    expect(processInboxForUser).not.toHaveBeenCalled();
   });
 
   it('scopes the cheap pending-document check by effective user and business', async () => {
@@ -96,7 +85,12 @@ describe('report review identity boundaries', () => {
       userRepo: { findOne: jest.fn().mockResolvedValue({ index: 41, hasOpenBanking: false }) },
       businessRepo: { findOne: jest.fn().mockResolvedValue({ id: 7, driveInboxFolderId: null }) },
       sharedService: { isRepresentedByAccountant: jest.fn().mockResolvedValue(false) },
-      ocrQueueService: { isEnabled: jest.fn().mockReturnValue(false) },
+      documentsService: {
+        getInboxProcessingStatus: jest.fn().mockResolvedValue({
+          pendingDocuments: 0,
+          processing: false,
+        }),
+      },
       docRepo: { createQueryBuilder: jest.fn(() => docsQb) },
     });
 
@@ -112,9 +106,8 @@ describe('report review identity boundaries', () => {
     );
   });
 
-  it('queues inbox OCR and does not report unprocessed files as reviewable rows', async () => {
+  it('reports inbox files separately from reviewable OCR rows', async () => {
     const docsQb = queryBuilder();
-    const enqueue = jest.fn().mockResolvedValue({ queued: true, duplicate: false });
     const service: any = Object.create(ReportReviewService.prototype);
     Object.assign(service, {
       userRepo: { findOne: jest.fn().mockResolvedValue({ index: 41, hasOpenBanking: false }) },
@@ -123,12 +116,11 @@ describe('report review identity boundaries', () => {
       },
       sharedService: { isRepresentedByAccountant: jest.fn().mockResolvedValue(false) },
       docRepo: { createQueryBuilder: jest.fn(() => docsQb) },
-      googleDriveService: {
-        listFolderFiles: jest.fn().mockResolvedValue([{ id: 'drive-file' }]),
-      },
-      ocrQueueService: {
-        isEnabled: jest.fn().mockReturnValue(true),
-        enqueue,
+      documentsService: {
+        getInboxProcessingStatus: jest.fn().mockResolvedValue({
+          pendingDocuments: 1,
+          processing: false,
+        }),
       },
     });
 
@@ -137,9 +129,9 @@ describe('report review identity boundaries', () => {
     ).resolves.toEqual({
       hasPendingDocs: false,
       hasUnconfirmedExpenses: false,
-      documentsProcessing: true,
+      documentsProcessing: false,
+      inboxDocumentsPending: 1,
     });
-    expect(enqueue).toHaveBeenCalled();
   });
 
   it('rejects a business that is not owned by the effective user before querying rows', async () => {

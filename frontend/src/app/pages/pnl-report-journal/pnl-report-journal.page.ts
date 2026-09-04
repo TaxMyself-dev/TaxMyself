@@ -6,7 +6,7 @@ import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms'
 import { IPnlReportData, IRowDataTable, ISelectItem, IUserData } from 'src/app/shared/interface';
 import { GenericService } from 'src/app/services/generic.service';
 import { AuthService } from 'src/app/services/auth.service';
-import { catchError, EMPTY, finalize, map, Observable, of, switchMap, tap } from 'rxjs';
+import { catchError, EMPTY, finalize, map, Observable, of, switchMap, tap, timer } from 'rxjs';
 import { FilesService } from 'src/app/services/files.service';
 import { BusinessStatus, ReportingPeriodType } from 'src/app/shared/enums';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
@@ -14,6 +14,7 @@ import { FilterField } from 'src/app/components/filter-tab/filter-fields-model.c
 import { TransactionsService } from '../transactions/transactions.page.service';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { ReportPreviewCheck, ReportReviewService } from 'src/app/services/report-review.service';
+import { DriveDocsService } from 'src/app/services/drive-docs.service';
 import {
   reportFilterQueryFromFormValue,
   reportPeriodDefaultsFromQuery,
@@ -96,6 +97,9 @@ export class PnLReportJournalPage implements OnInit {
   private redirectPromptOpen = false;
 
   isLoadingPDF = signal<boolean>(false);
+  inboxProcessingState = signal<'idle' | 'processing' | 'ready' | 'failed'>('idle');
+  inboxDocumentsPending = signal<number>(0);
+  private inboxProcessingBusinessNumber: string | null = null;
 
   constructor(
     public pnlReportService: PnLReportJournalService,
@@ -107,6 +111,7 @@ export class PnLReportJournalPage implements OnInit {
     private messageService: MessageService,
     private confirmationService: ConfirmationService,
     private reportReviewService: ReportReviewService,
+    private driveDocsService: DriveDocsService,
     private router: Router,
     private route: ActivatedRoute,
   ) {
@@ -240,9 +245,10 @@ export class PnLReportJournalPage implements OnInit {
         hasPendingDocs: true,
         hasUnconfirmedExpenses: true,
         documentsProcessing: false,
+        inboxDocumentsPending: 0,
       })))
       .subscribe(check => {
-        this.notifyBackgroundProcessing(check);
+        this.handleInboxProcessing(check, effectiveBusiness);
         if (!check.hasPendingDocs && !check.hasUnconfirmedExpenses) {
           this.proceedDirectlyToReport();
           return;
@@ -297,13 +303,99 @@ export class PnLReportJournalPage implements OnInit {
     });
   }
 
-  private notifyBackgroundProcessing(check: ReportPreviewCheck): void {
-    if (!check.documentsProcessing) return;
-    this.messageService.add({
-      severity: 'info',
-      summary: 'המסמכים התקבלו',
-      detail: 'המסמכים עוברים עיבוד ברקע ויופיעו במערכת בסיום. אפשר להמשיך לצפות בדוח.',
-      life: 8000,
+  private handleInboxProcessing(check: ReportPreviewCheck, businessNumber: string): void {
+    this.inboxProcessingBusinessNumber = businessNumber;
+    if (check.inboxDocumentsPending <= 0) {
+      this.inboxProcessingState.set('idle');
+      this.inboxDocumentsPending.set(0);
+      return;
+    }
+    this.inboxDocumentsPending.set(check.inboxDocumentsPending);
+    this.inboxProcessingState.set('processing');
+    if (check.documentsProcessing) {
+      this.pollInboxProcessing(businessNumber);
+      return;
+    }
+    this.runInboxProcessing(businessNumber);
+  }
+
+  private runInboxProcessing(businessNumber: string): void {
+    this.driveDocsService.processInbox(businessNumber)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: result => {
+          if (this.inboxProcessingBusinessNumber !== businessNumber) return;
+          if (result.alreadyProcessing) {
+            this.pollInboxProcessing(businessNumber);
+            return;
+          }
+          if (result.failed > 0) {
+            this.inboxProcessingState.set('failed');
+            this.inboxDocumentsPending.set(result.failed);
+            return;
+          }
+          this.finishInboxProcessing(businessNumber);
+        },
+        error: () => {
+          if (this.inboxProcessingBusinessNumber === businessNumber) {
+            this.inboxProcessingState.set('failed');
+          }
+        },
+      });
+  }
+
+  private pollInboxProcessing(businessNumber: string): void {
+    timer(3000)
+      .pipe(
+        switchMap(() => this.reportReviewService.previewCheck(businessNumber, this.endDate())),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: check => {
+          if (this.inboxProcessingBusinessNumber !== businessNumber) return;
+          this.inboxDocumentsPending.set(check.inboxDocumentsPending);
+          if (check.inboxDocumentsPending === 0) {
+            this.finishInboxProcessing(businessNumber);
+          } else if (check.documentsProcessing) {
+            this.pollInboxProcessing(businessNumber);
+          } else {
+            this.runInboxProcessing(businessNumber);
+          }
+        },
+        error: () => {
+          if (this.inboxProcessingBusinessNumber === businessNumber) {
+            this.inboxProcessingState.set('failed');
+          }
+        },
+      });
+  }
+
+  private finishInboxProcessing(businessNumber: string): void {
+    if (this.inboxProcessingBusinessNumber !== businessNumber) return;
+    this.inboxDocumentsPending.set(0);
+    this.inboxProcessingState.set('ready');
+    if (this.businessNumber() === businessNumber && this.pnlReport) {
+      this.getPnLReportData(this.startDate(), this.endDate(), businessNumber);
+    }
+  }
+
+  retryInboxProcessing(): void {
+    const businessNumber = this.businessNumber();
+    if (!businessNumber) return;
+    this.inboxProcessingBusinessNumber = businessNumber;
+    this.inboxProcessingState.set('processing');
+    this.runInboxProcessing(businessNumber);
+  }
+
+  openProcessedDocuments(): void {
+    this.router.navigate(['report-review'], {
+      queryParams: {
+        businessNumber: this.businessNumber(),
+        startDate: this.startDate(),
+        endDate: this.endDate(),
+        returnTo: 'pnl-report',
+        ...reportFilterQueryFromFormValue(this.form.getRawValue()),
+      },
     });
   }
 

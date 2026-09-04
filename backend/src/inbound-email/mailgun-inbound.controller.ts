@@ -13,7 +13,6 @@ import {
 import { AnyFilesInterceptor } from '@nestjs/platform-express';
 import { DocumentImportService } from 'src/document-import/document-import.service';
 import { DocumentImportSource } from 'src/document-import/enums/document-import.enums';
-import { DocumentOcrQueueService } from 'src/document-processing/document-ocr-queue.service';
 import { InboundEmailAddressService } from './inbound-email-address.service';
 import { MailgunSignatureService } from './mailgun-signature.service';
 
@@ -49,7 +48,6 @@ export class MailgunInboundController {
     private readonly signatureService: MailgunSignatureService,
     private readonly documentImportService: DocumentImportService,
     private readonly addressService: InboundEmailAddressService,
-    private readonly ocrQueueService: DocumentOcrQueueService,
   ) {}
 
   @Post('inbound')
@@ -83,7 +81,6 @@ export class MailgunInboundController {
 
     let imported = 0;
     let duplicates = 0;
-    const importedDocumentIds: number[] = [];
     const failures: string[] = [];
     for (const { file, filename } of candidates) {
       const result = await this.documentImportService.importDocument({
@@ -96,9 +93,6 @@ export class MailgunInboundController {
       });
       if (result.status === 'IMPORTED') imported += 1;
       if (result.status === 'ALREADY_IMPORTED') duplicates += 1;
-      if (result.importedDocumentId != null) {
-        importedDocumentIds.push(result.importedDocumentId);
-      }
       if (result.status === 'SKIPPED') {
         failures.push(
           `${filename}: ${result.reason ?? 'unknown failure'}`,
@@ -111,15 +105,6 @@ export class MailgunInboundController {
       this.logger.error(`Mailgun inbound import failed: ${failures.join('; ')}`);
       throw new InternalServerErrorException(
         'Mailgun attachment import failed',
-      );
-    }
-
-    // One task scans the whole business inbox, even when the email contains
-    // several attachments. A deterministic key makes Mailgun retries safe.
-    if (importedDocumentIds.length > 0) {
-      await this.ocrQueueService.enqueue(
-        { firebaseId, businessNumber },
-        `mailgun-imports:${importedDocumentIds.sort((a, b) => a - b).join(',')}`,
       );
     }
 

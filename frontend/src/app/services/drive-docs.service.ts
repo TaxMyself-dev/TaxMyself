@@ -26,6 +26,8 @@ export interface ProcessInboxResult {
   total: number;
   inboxFolderId: string;
   processedFolderId: string;
+  /** Another Cloud Run request already owns this business's OCR lock. */
+  alreadyProcessing: boolean;
 }
 
 export interface MatchedSupplier {

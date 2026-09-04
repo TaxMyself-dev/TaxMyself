@@ -22,7 +22,6 @@ import { Supplier } from '../expenses/suppliers.entity';
 import { ExpensesService } from '../expenses/expenses.service';
 import { DocumentsService } from '../documents/documents.service';
 import { DocumentPairingService } from '../documents/document-pairing.service';
-import { GoogleDriveService } from '../google-drive/google-drive.service';
 import { SharedService } from '../shared/shared.service';
 import { CatalogService } from '../bookkeeping/catalog.service';
 import { CatalogContextService } from '../bookkeeping/catalog-context.service';
@@ -31,7 +30,6 @@ import { buildExpenseDescription } from '../expenses/expense-description.util';
 import { normalizeSupplierName } from './supplier-name.util';
 import { ApprovalStatus, BusinessType, DocumentKind, OwnerType, VATReportingType } from '../enum';
 import { MatchingService } from './matching.service';
-import { DocumentOcrQueueService } from '../document-processing/document-ocr-queue.service';
 import {
   ReportPreviewResponse,
   ReviewClassification,
@@ -166,13 +164,11 @@ export class ReportReviewService {
     @Inject(forwardRef(() => DocumentsService))
     private readonly documentsService: DocumentsService,
     private readonly documentPairingService: DocumentPairingService,
-    private readonly googleDriveService: GoogleDriveService,
     // Phase 6.1 (D9): server-side resolution preview per review row — the
     // same delegation-aware merge the approve path runs.
     private readonly catalogService: CatalogService,
     private readonly catalogContextService: CatalogContextService,
     private readonly dataSource: DataSource,
-    private readonly ocrQueueService: DocumentOcrQueueService,
   ) {}
 
   // ====================================================================
@@ -226,6 +222,7 @@ export class ReportReviewService {
     hasPendingDocs: boolean;
     hasUnconfirmedExpenses: boolean;
     documentsProcessing: boolean;
+    inboxDocumentsPending: number;
   }> {
     const user = await this.userRepo.findOne({ where: { firebaseId } });
     if (!user) throw new NotFoundException(`User not found for firebaseId`);
@@ -234,22 +231,21 @@ export class ReportReviewService {
     if (!isAgentRequest && await this.sharedService.isRepresentedByAccountant(firebaseId)) {
       // Only the accountant may approve this client's expenses, so keep the
       // review signals suppressed for the represented client's self-service
-      // submit. We must still ingest the inbox, though: Mailgun deliberately
-      // leaves new files there for this polling path, and the old early return
-      // meant represented clients' documents were never OCR'd at all.
-      const documentsProcessing = await this.startInboxProcessing(
+      // submit. Still return the inbox status: the report page starts the
+      // separate processing request while keeping approval signals hidden.
+      const inboxStatus = await this.documentsService.getInboxProcessingStatus(
         firebaseId,
         businessNumber,
       );
       return {
         hasPendingDocs: false,
         hasUnconfirmedExpenses: false,
-        documentsProcessing,
+        documentsProcessing: inboxStatus.processing,
+        inboxDocumentsPending: inboxStatus.pendingDocuments,
       };
     }
 
     let hasPendingDocs = false;
-    let documentsProcessing = false;
 
     // Already-OCR'd-but-pending docs: keyed by businessNumber so the
     // check survives Firebase user re-creations (testReset etc.). This
@@ -271,34 +267,24 @@ export class ReportReviewService {
       .andWhere('d.deletedAt IS NULL')
       .andWhere('(d.date IS NULL OR d.date <= :to)', { to: periodEnd })
       .getCount();
-    if (pendingDocsCount > 0) {
-      hasPendingDocs = true;
-    } else {
-      // Only hit Drive when the DB came up empty — sub-second either way
-      // but the API call has a small latency, so short-circuit when we
-      // already know there's work.
-      try {
-        const business = await this.businessRepo.findOne({
-          where: { firebaseId, businessNumber },
-        });
-        const inboxFolderId = business?.driveInboxFolderId;
-        if (inboxFolderId) {
-          const files = await this.googleDriveService.listFolderFiles(inboxFolderId);
-          if (files.length > 0 && this.ocrQueueService.isEnabled()) {
-            await this.ocrQueueService.enqueue(
-              { firebaseId, businessNumber },
-              `report:${firebaseId}:${businessNumber}:${Math.floor(Date.now() / 60_000)}`,
-            );
-            documentsProcessing = true;
-          } else {
-            hasPendingDocs = files.length > 0;
-          }
-        }
-      } catch (err: any) {
-        this.logger.warn(
-          `previewCheck: inbox listing failed for biz=${businessNumber}: ${err?.message ?? err}`,
-        );
-      }
+    hasPendingDocs = pendingDocsCount > 0;
+
+    // Inbox files are not reviewable yet. Report them separately so the
+    // browser can start one long-running processing request while the report
+    // itself loads immediately.
+    let inboxDocumentsPending = 0;
+    let documentsProcessing = false;
+    try {
+      const inboxStatus = await this.documentsService.getInboxProcessingStatus(
+        firebaseId,
+        businessNumber,
+      );
+      inboxDocumentsPending = inboxStatus.pendingDocuments;
+      documentsProcessing = inboxStatus.processing;
+    } catch (err: any) {
+      this.logger.warn(
+        `previewCheck: inbox status failed for biz=${businessNumber}: ${err?.message ?? err}`,
+      );
     }
 
     // Unconfirmed-expense check: only meaningful when Open Banking is on
@@ -321,47 +307,12 @@ export class ReportReviewService {
       hasUnconfirmedExpenses = count > 0;
     }
 
-    return { hasPendingDocs, hasUnconfirmedExpenses, documentsProcessing };
-  }
-
-  /**
-   * Represented clients may view reports but may not approve expenses. Queue
-   * their inbox work and return immediately; local development retains the
-   * synchronous behavior when Cloud Tasks is intentionally disabled.
-   */
-  private async startInboxProcessing(
-    firebaseId: string,
-    businessNumber: string,
-  ): Promise<boolean> {
-    try {
-      if (!this.ocrQueueService.isEnabled()) {
-        await this.documentsService.processInboxForUser(
-          firebaseId,
-          businessNumber,
-        );
-        return false;
-      }
-
-      const business = await this.businessRepo.findOne({
-        where: { firebaseId, businessNumber },
-      });
-      if (!business?.driveInboxFolderId) return false;
-      const files = await this.googleDriveService.listFolderFiles(
-        business.driveInboxFolderId,
-      );
-      if (files.length === 0) return false;
-
-      await this.ocrQueueService.enqueue(
-        { firebaseId, businessNumber },
-        `report:${firebaseId}:${businessNumber}:${Math.floor(Date.now() / 60_000)}`,
-      );
-      return true;
-    } catch (err: any) {
-      this.logger.warn(
-        `previewCheck: represented-client inbox scheduling failed for biz=${businessNumber}: ${err?.message ?? err}`,
-      );
-      return false;
-    }
+    return {
+      hasPendingDocs,
+      hasUnconfirmedExpenses,
+      documentsProcessing,
+      inboxDocumentsPending,
+    };
   }
 
   async getReportPreview(

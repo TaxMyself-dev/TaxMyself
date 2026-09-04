@@ -59,6 +59,7 @@ export class ReportsController {
       hasPendingDocs: boolean;
       hasUnconfirmedExpenses: boolean;
       documentsProcessing: boolean;
+      inboxDocumentsPending: number;
     }> {
       const firebaseId = request.user?.firebaseId;
       if (!firebaseId) throw new BadRequestException('Not authenticated');

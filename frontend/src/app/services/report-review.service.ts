@@ -231,6 +231,7 @@ export interface ReportPreviewCheck {
   hasPendingDocs: boolean;
   hasUnconfirmedExpenses: boolean;
   documentsProcessing: boolean;
+  inboxDocumentsPending: number;
 }
 
 @Injectable({ providedIn: 'root' })

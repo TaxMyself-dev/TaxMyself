@@ -67,14 +67,6 @@ MAILGUN_INBOUND_ENABLED=true
 MAILGUN_INBOUND_DOMAIN=docs-dev.keepintax.co.il
 MAILGUN_INBOUND_SIGNING_KEY=<account HTTP webhook signing key>
 MAILGUN_INBOUND_SIGNATURE_MAX_AGE_SECONDS=900
-
-DOCUMENT_OCR_QUEUE_ENABLED=true
-DOCUMENT_OCR_QUEUE_PROJECT_ID=<google-cloud-project-id>
-DOCUMENT_OCR_QUEUE_LOCATION=me-west1
-DOCUMENT_OCR_QUEUE_NAME=document-ocr
-DOCUMENT_OCR_QUEUE_TARGET_URL=https://<backend-run-app-host>/internal/tasks/document-ocr
-DOCUMENT_OCR_QUEUE_AUDIENCE=https://<backend-run-app-host>
-DOCUMENT_OCR_QUEUE_SERVICE_ACCOUNT_EMAIL=document-ocr-invoker@<project-id>.iam.gserviceaccount.com
 ```
 
 The old `MAILGUN_INBOUND_SPIKE_*` variables remain as temporary local
@@ -92,47 +84,33 @@ Then configure the production receiving domain (`docs.keepintax.co.il`), its
 EU MX records, the catch-all domain route, and the production variables above
 on the backend Cloud Run service.
 
-## Background OCR queue
+## Report-triggered background OCR
 
-Create a Cloud Tasks queue named `document-ocr` in the backend's Cloud Run
-region. Start with **one concurrent dispatch**: each task scans the whole
-business inbox, and serial dispatch avoids two workers OCRing the same Drive
-file at once. Configure retries for transient Claude, Drive, or database
-failures.
+Mailgun only persists accepted attachments in the business Drive inbox. When
+the VAT or P&L report is opened, the lightweight preview check returns the
+number of waiting inbox files. The browser then starts
+`POST /documents/me/process-inbox` as a separate request and continues loading
+the report without waiting for OCR.
 
-Use a dedicated service account such as `document-ocr-invoker` for the task's
-OIDC identity. The required IAM edges are:
+The processing request remains open until the inbox pass finishes, so Cloud Run
+continues treating it as active work. The report page shows a persistent status
+banner, polls when another request already owns the work, and refreshes after
+completion. Failed files remain in the inbox and can be retried from the banner
+or on the next report visit.
 
-- the task identity has `roles/run.invoker` on the backend Cloud Run service;
-- the backend runtime service account has `roles/cloudtasks.enqueuer`;
-- the backend runtime service account may act as the task identity
-  (`roles/iam.serviceAccountUser` on `document-ocr-invoker`).
-
-Cloud Tasks calls:
-
-```text
-POST /internal/tasks/document-ocr
-Authorization: Bearer <Google-issued OIDC identity token>
-{ "firebaseId": "...", "businessNumber": "..." }
-```
-
-The application verifies both the token audience and the exact service-account
-email before processing. Use the stable Cloud Run `run.app` origin as the OIDC
-audience, even if Mailgun calls the API through another public/custom URL.
-
-`DOCUMENT_OCR_QUEUE_ENABLED` is intentionally off unless its value is exactly
-`true`. With it off, local report flows retain synchronous inbox processing;
-this keeps local development usable without Google Cloud credentials.
+Processing is single-flight per Firebase user and business. A MySQL advisory
+lock prevents separate Cloud Run instances from processing the same inbox at
+the same time. The lock is tied to a dedicated database connection and is
+released automatically if that connection disappears. No Cloud Tasks resource
+or OCR queue environment variables are required.
 
 ## Delivery semantics
 
-The webhook stores each attachment synchronously and returns 200 only after the
-shared import pipeline has imported it (or identified a duplicate) **and** the
-business OCR task has been accepted by Cloud Tasks. Transient Drive/DB/queue
-failures return 500 so Mailgun retries. Content-hash dedup plus deterministic
-Cloud Task names make retries idempotent.
+The webhook stores each attachment synchronously and returns 200 after the
+shared import pipeline has imported it or identified a duplicate. Transient
+Drive/database failures return 500 so Mailgun retries; content-hash dedup keeps
+those retries idempotent.
 
-The worker scans the existing durable Drive inbox and calls the same
-`DocumentsService.processInboxForUser` pipeline as before. A failed OCR returns
-500 to Cloud Tasks so it can retry; successful files are still moved to the
-processed folder. No database migration is required for the queue slice.
+The durable Drive inbox is the retry source of truth. Successful files move to
+the processed folder; failed files remain in the inbox for the next user-driven
+attempt. No additional database migration is required for this processing flow.

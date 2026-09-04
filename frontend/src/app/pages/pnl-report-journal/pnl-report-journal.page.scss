@@ -220,6 +220,43 @@
   }
 }
 
+.inbox-processing-banner {
+  width: min(920px, 95%);
+  margin: 16px auto 0;
+  padding: 14px 18px;
+  border: 1px solid #b9d8ff;
+  border-radius: 12px;
+  background: #f2f8ff;
+  color: #173b63;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.inbox-processing-banner--failed {
+  border-color: #efb5b5;
+  background: #fff5f5;
+  color: #8b1e1e;
+}
+
+.inbox-processing-banner__content {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.inbox-processing-banner__action {
+  border: 0;
+  border-radius: 999px;
+  padding: 9px 16px;
+  background: #111827;
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
 @media only screen and (max-width: 768px) {
 
   .pnl-report-wrap-screen {
@@ -258,5 +295,10 @@
 
   .report-action-row {
     justify-content: center;
+  }
+
+  .inbox-processing-banner {
+    align-items: stretch;
+    flex-direction: column;
   }
 }
