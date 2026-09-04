@@ -2466,3 +2466,15 @@ record this instead.
   TypeScript compile, and a full Angular development bundle pass. The default
   repository-wide test compilation remains blocked by pre-existing legacy spec
   and third-party declaration issues.
+
+## 2026-09-04 — VAT report business-name context
+
+- Added a visible “דוח מע״מ עבור עסק” heading on initial page entry, immediately
+  after the filters and above the eventual VAT summary, using the name of the
+  business number that was actually selected for the report. This keeps the
+  sole-eligible-business flow unambiguous when the business selector is
+  intentionally omitted; the heading no longer waits for “הצג”.
+- Added focused coverage for resolving the displayed business name. The full
+  Angular development build passes; the repository-wide Karma compilation is
+  still blocked by the pre-existing legacy spec and third-party declaration
+  errors documented in the preceding VAT-report work.

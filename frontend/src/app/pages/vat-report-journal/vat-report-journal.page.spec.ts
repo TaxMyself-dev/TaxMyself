@@ -115,6 +115,7 @@ describe('VatReportJournalPage business selection', () => {
     await component.ngOnInit();
 
     expect(component.businessNumber()).toBe('licensed');
+    expect(component.reportBusinessName()).toBe('licensed');
     expect(component.filterConfig.some((field) => field.controlName === 'businessNumber')).toBeFalse();
   });
 
