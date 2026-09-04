@@ -39,6 +39,7 @@ export class SubscriptionGuard implements CanActivate {
       firebaseId,
       requiredModule,
       request.isDelegatedAccess === true,
+      request.isAdminImpersonation === true,
     );
 
     if (!hasAccess) {

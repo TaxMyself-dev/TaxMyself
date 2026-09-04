@@ -1,6 +1,6 @@
 /**
  * Unit tests: SubscriptionAccessService.resolveModulesAccess —
- * unconditional delegated-access module bypass.
+ * unconditional professional-access module bypass.
  *
  * Covers: non-delegated access is untouched; delegated access (a real
  * accountant impersonation request backed by an ACTIVE Delegation row)
@@ -41,7 +41,7 @@ function makeSubscription(overrides: Partial<Subscription> = {}): Subscription {
   } as Subscription;
 }
 
-describe('SubscriptionAccessService.resolveModulesAccess — delegated-access override', () => {
+describe('SubscriptionAccessService.resolveModulesAccess — professional-access override', () => {
   let service: SubscriptionAccessService;
 
   beforeEach(() => {
@@ -62,6 +62,14 @@ describe('SubscriptionAccessService.resolveModulesAccess — delegated-access ov
     const sub = makeSubscription({ status: SubscriptionStatus.TRIAL_EXPIRED });
     const access = service.resolveModulesAccess(sub, null, true);
     expect([...access].sort()).toEqual(Object.values(ModuleName).sort());
+  });
+
+  it('admin impersonation on TRIAL_EXPIRED grants every module while direct access stays blocked', () => {
+    const sub = makeSubscription({ status: SubscriptionStatus.TRIAL_EXPIRED });
+    const adminAccess = service.resolveModulesAccess(sub, null, false, true);
+    const directAccess = service.resolveModulesAccess(sub, null, false, false);
+    expect([...adminAccess].sort()).toEqual(Object.values(ModuleName).sort());
+    expect(directAccess).toEqual([]);
   });
 
   it('delegated access on lapsed CANCELED grants every module, including OPEN_BANKING/INVOICES', () => {

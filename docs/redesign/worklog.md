@@ -2432,3 +2432,18 @@ record this instead.
 - Existing ownership, document-type, and date filters and entity mapping remain
   unchanged. Added focused Jest coverage for both ordering clauses and their
   execution before the query is fetched.
+
+## 2026-09-04 — Admin impersonation billing override
+
+- Added a request-scoped `isAdminImpersonation` state derived only by
+  `FirebaseAuthGuard` after verifying the authenticated actor's persisted
+  `ADMIN` role and applying `x-client-user-id`; no client-supplied billing
+  bypass is accepted.
+- Threaded the explicit state through `/billing/me`, backend module enforcement,
+  the frontend billing guard, and the global expiration dialog. Admins can now
+  work inside expired client accounts without changing the client's trial or
+  subscription; direct expired-client access remains blocked and accountant
+  delegation behavior is unchanged.
+- Added focused backend and frontend coverage for admin impersonation, direct
+  expired-client access, and delegated accountant access. The focused Jest and
+  Karma suites, Nest build, and production Angular build pass.

@@ -29,20 +29,18 @@ export class SubscriptionAccessService {
    *   CANCELED           → plan modules if still within currentPeriodEnd, else no access
    *   TRIAL_EXPIRED      → no access
    *
-   * `isDelegatedAccess` (true only for a real accountant-impersonation
-   * request backed by an ACTIVE Delegation row, see FirebaseAuthGuard) grants
-   * every module unconditionally, ignoring the client's own status entirely —
-   * an authorization rule, not a subscription state. Admin impersonation
-   * (which does not set this flag) is deliberately excluded and continues to
-   * see the client's real status. Does not affect the client's own direct
-   * access, since that path never sets the flag.
+   * Delegated accountant access and verified admin impersonation each grant
+   * every module unconditionally, ignoring the client's own status entirely.
+   * These are request-scoped authorization rules, not subscription state, and
+   * therefore never change what the client can access directly.
    */
   resolveModulesAccess(
     subscription: Subscription,
     plan?: SubscriptionPlan | null,
     isDelegatedAccess = false,
+    isAdminImpersonation = false,
   ): ModuleName[] {
-    if (isDelegatedAccess) return Object.values(ModuleName);
+    if (isDelegatedAccess || isAdminImpersonation) return Object.values(ModuleName);
     return this.resolveOwnModulesAccess(subscription, plan);
   }
 

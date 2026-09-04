@@ -82,6 +82,10 @@ export class FirebaseAuthGuard implements CanActivate {
     if (authUser?.role?.includes(UserRole.ADMIN)) {
       request.user.firebaseId = clientUserId;
       request.user.role = 'agent'; // same downstream semantics as an agent acting on behalf of a client
+      // This is the only place the admin billing override is derived. It is
+      // based on the verified actor's persisted ADMIN role, never on a header
+      // or any other client-controlled bypass flag.
+      request.isAdminImpersonation = true;
       return true;
     }
 
@@ -126,9 +130,9 @@ export class FirebaseAuthGuard implements CanActivate {
     request.user.firebaseId = clientUserId; // ✅ Switch Firebase ID to client
     request.user.role = 'agent'; // ✅ Mark that the request is on behalf of a client
     request.user.delegationScopes = scopes;
-    // Real delegation-based impersonation only — NOT the admin-bypass branch
-    // above. Drives the EXPENSES/ACCOUNTANT always-open module-access
-    // guarantee in SubscriptionAccessService.resolveModulesAccess.
+    // Real delegation-based impersonation only — distinct from the admin
+    // impersonation flag above. Both authorize a billing override, while the
+    // distinction remains visible to downstream policy and the frontend.
     request.isDelegatedAccess = true;
     this.logger.log(`Acting as client, firebaseId=${maskedClient}`);
 

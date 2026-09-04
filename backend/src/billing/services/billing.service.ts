@@ -174,7 +174,12 @@ export class BillingService {
 
   // ─── Billing state ───────────────────────────────────────────────────────────
 
-  async getMyBillingState(firebaseId: string, isDelegatedAccess = false) {
+  async getMyBillingState(
+    firebaseId: string,
+    isDelegatedAccess = false,
+    isAdminImpersonation = false,
+  ) {
+    const hasBillingOverride = isDelegatedAccess || isAdminImpersonation;
     const subscription = await this.subscriptionRepo.findOne({
       where: { firebaseId },
     });
@@ -188,16 +193,16 @@ export class BillingService {
       // fresh trial. See POST /billing/resolve-missing-subscription for the
       // explicit remediation path.
       //
-      // Delegated (accountant) callers are logged at `warn`, not `error`:
-      // per the unconditional delegated-access policy (see
+      // Professional impersonation callers are logged at `warn`, not `error`:
+      // per the unconditional request-scoped override policy (see
       // SubscriptionAccessService.resolveModulesAccess), a client with no
-      // subscription row is a fully working state for their accountant —
-      // not an incident. It's still worth surfacing (the row is still
+      // subscription row is a working support state for their accountant or
+      // an admin — not an incident. It's still worth surfacing (the row is still
       // missing and should eventually be remediated), just not as loudly.
       // A client's own direct access hitting this branch is unaffected and
       // stays at `error`, since that's still a real anomaly for that user.
       const logMsg = `getMyBillingState: no subscription row for firebaseId=${firebaseId.substring(0, 8)}... — returning subscription_missing`;
-      if (isDelegatedAccess) {
+      if (hasBillingOverride) {
         this.logger.warn(logMsg);
       } else {
         this.logger.error(logMsg);
@@ -212,11 +217,12 @@ export class BillingService {
         subscription: null,
         plan: null,
         isDelegatedAccess,
+        isAdminImpersonation,
         access: {
           // No subscription row exists to resolve against — SubscriptionAccessService
           // is never reached here, so the delegated-access override is applied
           // directly rather than "naturally" flowing through resolveModulesAccess().
-          modulesAccess: isDelegatedAccess ? Object.values(ModuleName) : [],
+          modulesAccess: hasBillingOverride ? Object.values(ModuleName) : [],
           isTrialActive: false,
           isPaymentRequired: false,
           isPastDue: false,
@@ -234,7 +240,13 @@ export class BillingService {
       plan = await this.planRepo.findOne({ where: { id: current.planId } });
     }
 
-    return this.buildBillingStateResponse(current, plan, firebaseId, isDelegatedAccess);
+    return this.buildBillingStateResponse(
+      current,
+      plan,
+      firebaseId,
+      isDelegatedAccess,
+      isAdminImpersonation,
+    );
   }
 
   // ─── Trial ───────────────────────────────────────────────────────────────────
@@ -356,14 +368,16 @@ export class BillingService {
     firebaseId: string,
     module: ModuleName,
     isDelegatedAccess = false,
+    isAdminImpersonation = false,
   ): Promise<boolean> {
+    const hasBillingOverride = isDelegatedAccess || isAdminImpersonation;
     const subscription = await this.subscriptionRepo.findOne({ where: { firebaseId } });
     if (!subscription) {
       // Mirrors getMyBillingState's no-subscription branch: a missing row is a
-      // data issue on the client's own account, but per SubscriptionAccessService
-      // delegated (accountant) access is an authorization rule that ignores the
-      // client's subscription status entirely — it must not be blocked by it.
-      return isDelegatedAccess;
+      // data issue on the client's own account, but professional impersonation
+      // is a request-scoped authorization rule that ignores the client's
+      // subscription status entirely — it must not be blocked by it.
+      return hasBillingOverride;
     }
 
     let plan: SubscriptionPlan | null = null;
@@ -375,6 +389,7 @@ export class BillingService {
       subscription,
       plan,
       isDelegatedAccess,
+      isAdminImpersonation,
     );
     return modulesAccess.includes(module);
   }
@@ -1185,16 +1200,16 @@ export class BillingService {
     plan: SubscriptionPlan | null,
     firebaseId: string,
     isDelegatedAccess = false,
+    isAdminImpersonation = false,
   ) {
-    // Non-delegated callers (ensureTrialSubscription, provisionExpiredSubscription,
-    // and getMyBillingState for a client's own direct access) never pass true here,
-    // so those responses are byte-for-byte unchanged — only a real delegation-based
-    // impersonation request (see FirebaseAuthGuard.isDelegatedAccess) unlocks
-    // EXPENSES/ACCOUNTANT in the returned modulesAccess.
+    // Ordinary callers (ensureTrialSubscription, provisionExpiredSubscription,
+    // and direct client access) never pass either override. Only a verified
+    // delegation or admin impersonation unlocks every returned module.
     const modulesAccess = this.subscriptionAccessService.resolveModulesAccess(
       subscription,
       plan,
       isDelegatedAccess,
+      isAdminImpersonation,
     );
 
     const [billingPaymentResult, paymentMethodUpdateResult, billingBusinessType, paymentMethod] = await Promise.all([
@@ -1224,6 +1239,7 @@ export class BillingService {
       effectiveMonthlyPriceBeforeVatAgorot,
       discount,
       isDelegatedAccess,
+      isAdminImpersonation,
       // No cardholder-name column on payment_method — omitted by design (Phase 1).
       paymentMethod: paymentMethod
         ? {

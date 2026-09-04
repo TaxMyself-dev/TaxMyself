@@ -13,7 +13,7 @@
  *    default (e.g. EXPENSES_APPROVE on approve-* endpoints, or DOCUMENTS_READ
  *    on a POST that's semantically a read)
  *  - actorFirebaseId preserves the caller's own identity through the swap
- *  - admin bypass unaffected by scope enforcement
+ *  - admin impersonation is explicitly marked from the verified actor role
  */
 import { ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
@@ -128,6 +128,7 @@ describe('FirebaseAuthGuard', () => {
     await expect(guard.canActivate(context)).resolves.toBe(true);
     expect(request.user.firebaseId).toBe(CLIENT);
     expect(request.user.actorFirebaseId).toBe(AGENT);
+    expect(request.isAdminImpersonation).toBe(true);
     expect(delegationRepo.findOne).not.toHaveBeenCalled();
   });
 
@@ -227,29 +228,31 @@ describe('FirebaseAuthGuard', () => {
     });
   });
 
-  // isDelegatedAccess (referral-signup Phase 2): drives the EXPENSES/
-  // ACCOUNTANT always-open module-access guarantee in
-  // SubscriptionAccessService — must be set ONLY for real delegation-based
-  // impersonation, never for a plain self-request or the admin-bypass path.
-  describe('isDelegatedAccess flag', () => {
+  // The two server-derived impersonation states stay distinct: delegation is
+  // backed by an ACTIVE Delegation row, while admin impersonation is backed by
+  // the verified actor's persisted ADMIN role.
+  describe('billing override flags', () => {
     it('real ACTIVE delegation → request.isDelegatedAccess = true', async () => {
       delegationRepo.findOne.mockResolvedValue({ status: DelegationStatus.ACTIVE, scopes: ['DOCUMENTS_READ'] });
       const { request, context } = makeContext('GET');
       await expect(guard.canActivate(context)).resolves.toBe(true);
       expect(request.isDelegatedAccess).toBe(true);
+      expect(request.isAdminImpersonation).toBeUndefined();
     });
 
-    it('admin bypass → request.isDelegatedAccess is NOT set', async () => {
+    it('admin bypass → only request.isAdminImpersonation is set', async () => {
       userRepo.findOne.mockResolvedValue({ firebaseId: AGENT, role: [UserRole.ADMIN] });
       const { request, context } = makeContext('POST');
       await expect(guard.canActivate(context)).resolves.toBe(true);
       expect(request.isDelegatedAccess).toBeUndefined();
+      expect(request.isAdminImpersonation).toBe(true);
     });
 
-    it('no impersonation (plain self-request) → request.isDelegatedAccess is NOT set', async () => {
+    it('no impersonation (plain self-request) → neither override is set', async () => {
       const { request, context } = makeContext('GET', false);
       await expect(guard.canActivate(context)).resolves.toBe(true);
       expect(request.isDelegatedAccess).toBeUndefined();
+      expect(request.isAdminImpersonation).toBeUndefined();
     });
   });
 });

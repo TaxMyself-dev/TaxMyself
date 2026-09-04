@@ -55,10 +55,9 @@ export class AppComponent implements OnInit {
     ) {
       return false;
     }
-    // Real accountant delegation (ACTIVE Delegation row) never sees this
-    // dialog, regardless of the impersonated client's own billing status.
-    // Admin impersonation does not set this and is unaffected.
-    if (this.billingStateService.isDelegatedAccess()) {
+    // Verified accountant delegation and verified admin impersonation never
+    // see this dialog, regardless of the client's own billing status.
+    if (this.billingStateService.hasBillingOverride()) {
       return false;
     }
     const status = this.billingStateService.effectiveStatus();

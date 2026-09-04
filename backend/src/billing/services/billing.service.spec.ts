@@ -1,6 +1,5 @@
 /**
- * Unit test: BillingService.getMyBillingState — isDelegatedAccess threading
- * (referral-signup Phase 2 extension).
+ * Unit test: BillingService.getMyBillingState — professional-access overrides.
  *
  * Confirms GET /billing/me's own response reflects the delegated-access
  * module-access override (not just the SubscriptionGuard authorization
@@ -13,7 +12,7 @@ import { SubscriptionStatus } from '../enums/billing.enums';
 import { BillingService } from './billing.service';
 import { ModuleName } from 'src/enum';
 
-describe('BillingService.getMyBillingState — isDelegatedAccess threading', () => {
+describe('BillingService.getMyBillingState — professional-access overrides', () => {
   let service: BillingService;
   let subscriptionRepo: { findOne: jest.Mock };
   let subscriptionAccessService: { resolveModulesAccess: jest.Mock; isTrialActive: jest.Mock; isPaymentRequired: jest.Mock; gracePeriodActive: jest.Mock };
@@ -80,6 +79,7 @@ describe('BillingService.getMyBillingState — isDelegatedAccess threading', () 
       expect.objectContaining({ firebaseId: 'client-1' }),
       null,
       false,
+      false,
     );
   });
 
@@ -89,6 +89,7 @@ describe('BillingService.getMyBillingState — isDelegatedAccess threading', () 
       expect.objectContaining({ firebaseId: 'client-1' }),
       null,
       false,
+      false,
     );
   });
 
@@ -97,6 +98,17 @@ describe('BillingService.getMyBillingState — isDelegatedAccess threading', () 
     expect(subscriptionAccessService.resolveModulesAccess).toHaveBeenCalledWith(
       expect.objectContaining({ firebaseId: 'client-1' }),
       null,
+      true,
+      false,
+    );
+  });
+
+  it('admin impersonation forwards its distinct override to module resolution', async () => {
+    await service.getMyBillingState('client-1', false, true);
+    expect(subscriptionAccessService.resolveModulesAccess).toHaveBeenCalledWith(
+      expect.objectContaining({ firebaseId: 'client-1' }),
+      null,
+      false,
       true,
     );
   });
@@ -113,6 +125,7 @@ describe('BillingService.getMyBillingState — isDelegatedAccess threading', () 
     expect(result.hasSubscription).toBe(false);
     expect(result.access.modulesAccess).toEqual([]);
     expect(result.isDelegatedAccess).toBe(false);
+    expect(result.isAdminImpersonation).toBe(false);
     expect(subscriptionAccessService.resolveModulesAccess).not.toHaveBeenCalled();
   });
 
@@ -122,15 +135,50 @@ describe('BillingService.getMyBillingState — isDelegatedAccess threading', () 
     expect(result.hasSubscription).toBe(false);
     expect([...result.access.modulesAccess].sort()).toEqual(Object.values(ModuleName).sort());
     expect(result.isDelegatedAccess).toBe(true);
+    expect(result.isAdminImpersonation).toBe(false);
+    expect(subscriptionAccessService.resolveModulesAccess).not.toHaveBeenCalled();
+  });
+
+  it('no subscription row, admin impersonation: grants every module without creating or extending a subscription', async () => {
+    subscriptionRepo.findOne.mockResolvedValue(null);
+    const result = await service.getMyBillingState('client-1', false, true);
+    expect(result.hasSubscription).toBe(false);
+    expect([...result.access.modulesAccess].sort()).toEqual(Object.values(ModuleName).sort());
+    expect(result.isDelegatedAccess).toBe(false);
+    expect(result.isAdminImpersonation).toBe(true);
     expect(subscriptionAccessService.resolveModulesAccess).not.toHaveBeenCalled();
   });
 
   it('normal (subscription exists) response surfaces isDelegatedAccess passed through', async () => {
     const directResult = await service.getMyBillingState('client-1', false);
     expect(directResult.isDelegatedAccess).toBe(false);
+    expect(directResult.isAdminImpersonation).toBe(false);
 
     const delegatedResult = await service.getMyBillingState('client-1', true);
     expect(delegatedResult.isDelegatedAccess).toBe(true);
+    expect(delegatedResult.isAdminImpersonation).toBe(false);
+
+    const adminResult = await service.getMyBillingState('client-1', false, true);
+    expect(adminResult.isDelegatedAccess).toBe(false);
+    expect(adminResult.isAdminImpersonation).toBe(true);
+  });
+
+  it('module enforcement blocks a direct client with no subscription but permits admin impersonation', async () => {
+    subscriptionRepo.findOne.mockResolvedValue(null);
+
+    await expect(
+      service.hasModuleAccess('client-1', ModuleName.EXPENSES, false, false),
+    ).resolves.toBe(false);
+    await expect(
+      service.hasModuleAccess('client-1', ModuleName.EXPENSES, false, true),
+    ).resolves.toBe(true);
+  });
+
+  it('module enforcement preserves delegated access when the client has no subscription', async () => {
+    subscriptionRepo.findOne.mockResolvedValue(null);
+    await expect(
+      service.hasModuleAccess('client-1', ModuleName.EXPENSES, true, false),
+    ).resolves.toBe(true);
   });
 });
 

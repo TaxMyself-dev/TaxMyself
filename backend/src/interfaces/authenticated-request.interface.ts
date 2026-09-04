@@ -16,4 +16,10 @@ export interface AuthenticatedRequest extends Request {
    * SubscriptionAccessService.resolveModulesAccess (see FirebaseAuthGuard).
    */
   isDelegatedAccess?: boolean;
+  /**
+   * True only when FirebaseAuthGuard verified that the authenticated actor has
+   * the ADMIN role and then applied x-client-user-id impersonation. This is
+   * server-derived; no client-supplied billing-bypass flag is accepted.
+   */
+  isAdminImpersonation?: boolean;
 }
