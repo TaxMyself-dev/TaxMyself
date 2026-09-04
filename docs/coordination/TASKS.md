@@ -18,7 +18,7 @@ external condition.
 | KT-002 | Issued documents ordered by `docDate DESC, id DESC` | `.codex/worktrees/8c93/taxmyself-dev` | `CLOSED` | `bae142fb` on `origin/main` | Focused query test passed in combined backend run; Nest build passed |
 | KT-003 | VAT report eligibility and business selection | `.codex/worktrees/7596/taxmyself-dev` | `CLOSED` | `28320a01` on `origin/main` | Worker focused Angular tests passed; combined Angular build passed; broad Karma compilation has documented pre-existing failures |
 | KT-004 | Investigate slow backend startup and propose solutions | `.codex/worktrees/e40f/taxmyself-dev` | `IN_PROGRESS` | Research only; no commit expected | Waiting for worker handoff/report |
-| KT-005 | Fix admin CardCom subscription editing | Pending fresh worktree | `APPROVED` | Dispatch base `2fb90fdb` | Distinct accountant-plan labels; black save button; future trial-end reactivates an expired trial through an admin-only API |
+| KT-005 | Fix admin CardCom subscription editing | Setup queued (`client-new-thread:5a9ca3a2-22d8-4efb-84fc-5a3e6c8c2fa4`) | `DISPATCHED` | Dispatch base `2fb90fdb` | Distinct accountant-plan labels; black save button; future trial-end reactivates an expired trial through an admin-only API |
 
 ## KT-005 acceptance criteria
 
