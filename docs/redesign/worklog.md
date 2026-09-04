@@ -2393,3 +2393,19 @@ record this instead.
   stayed in inbox indefinitely. The represented-client branch now runs inbox
   ingestion while preserving its `{ false, false }` response, so documents are
   OCR'd but approval remains exclusively with the accountant.
+
+## 2026-09-04 — Asynchronous inbox OCR
+
+- Moved Mailgun's expensive OCR step off the report request path. After the
+  attachment is durably imported into the business Drive inbox, the webhook
+  now enqueues one idempotent Cloud Tasks job for the whole business inbox.
+- Added an OIDC-protected internal worker endpoint that verifies both audience
+  and service-account email before calling the existing idempotent
+  `processInboxForUser` pipeline. Failed files return a retryable 500.
+- When queueing is enabled, report pre-flight schedules files still waiting in
+  Drive and returns immediately. VAT and P&L reports show a non-blocking Hebrew
+  notification that processing continues in the background. Represented
+  clients still cannot approve the resulting expense rows.
+- Queueing remains opt-in through environment variables. With the flag off,
+  local development preserves synchronous behavior and needs no Cloud Tasks
+  credentials. This slice adds no database tables or columns.

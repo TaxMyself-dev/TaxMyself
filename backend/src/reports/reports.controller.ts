@@ -55,7 +55,11 @@ export class ReportsController {
     async previewCheck(
       @Req() request: AuthenticatedRequest,
       @Query() query: { businessNumber: string; endDate: string },
-    ): Promise<{ hasPendingDocs: boolean; hasUnconfirmedExpenses: boolean }> {
+    ): Promise<{
+      hasPendingDocs: boolean;
+      hasUnconfirmedExpenses: boolean;
+      documentsProcessing: boolean;
+    }> {
       const firebaseId = request.user?.firebaseId;
       if (!firebaseId) throw new BadRequestException('Not authenticated');
       const bn = query?.businessNumber?.trim();

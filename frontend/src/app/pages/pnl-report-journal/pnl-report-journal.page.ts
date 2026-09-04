@@ -13,7 +13,7 @@ import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 import { FilterField } from 'src/app/components/filter-tab/filter-fields-model.component';
 import { TransactionsService } from '../transactions/transactions.page.service';
 import { ConfirmationService, MessageService } from 'primeng/api';
-import { ReportReviewService } from 'src/app/services/report-review.service';
+import { ReportPreviewCheck, ReportReviewService } from 'src/app/services/report-review.service';
 import {
   reportFilterQueryFromFormValue,
   reportPeriodDefaultsFromQuery,
@@ -236,8 +236,13 @@ export class PnLReportJournalPage implements OnInit {
     // VAT report. Skips the review modal entirely when there's nothing to
     // review; otherwise prompts the user before opening it.
     this.reportReviewService.previewCheck(effectiveBusiness, endDate)
-      .pipe(catchError(() => of({ hasPendingDocs: true, hasUnconfirmedExpenses: true })))
+      .pipe(catchError(() => of({
+        hasPendingDocs: true,
+        hasUnconfirmedExpenses: true,
+        documentsProcessing: false,
+      })))
       .subscribe(check => {
+        this.notifyBackgroundProcessing(check);
         if (!check.hasPendingDocs && !check.hasUnconfirmedExpenses) {
           this.proceedDirectlyToReport();
           return;
@@ -254,7 +259,7 @@ export class PnLReportJournalPage implements OnInit {
   }
 
   private promptReviewBeforeReport(
-    check: { hasPendingDocs: boolean; hasUnconfirmedExpenses: boolean },
+    check: ReportPreviewCheck,
   ): void {
     // Clear our local loader before the prompt opens — the user needs to
     // see the confirm dialog without a spinner stacked behind it. Both
@@ -289,6 +294,16 @@ export class PnLReportJournalPage implements OnInit {
       reject: () => {
         this.proceedDirectlyToReport();
       },
+    });
+  }
+
+  private notifyBackgroundProcessing(check: ReportPreviewCheck): void {
+    if (!check.documentsProcessing) return;
+    this.messageService.add({
+      severity: 'info',
+      summary: 'המסמכים התקבלו',
+      detail: 'המסמכים עוברים עיבוד ברקע ויופיעו במערכת בסיום. אפשר להמשיך לצפות בדוח.',
+      life: 8000,
     });
   }
 

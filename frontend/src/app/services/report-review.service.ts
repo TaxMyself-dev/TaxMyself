@@ -227,6 +227,12 @@ export type UpdateTxFields = Pick<ReviewOverrides,
   | 'reportPeriod'
 >;
 
+export interface ReportPreviewCheck {
+  hasPendingDocs: boolean;
+  hasUnconfirmedExpenses: boolean;
+  documentsProcessing: boolean;
+}
+
 @Injectable({ providedIn: 'root' })
 export class ReportReviewService {
   constructor(private http: HttpClient) {}
@@ -255,8 +261,8 @@ export class ReportReviewService {
   previewCheck(
     businessNumber: string,
     endDate: string,
-  ): Observable<{ hasPendingDocs: boolean; hasUnconfirmedExpenses: boolean }> {
-    return this.http.get<{ hasPendingDocs: boolean; hasUnconfirmedExpenses: boolean }>(
+  ): Observable<ReportPreviewCheck> {
+    return this.http.get<ReportPreviewCheck>(
       `${environment.apiUrl}reports/me/preview-check`,
       { params: { businessNumber, endDate } },
     );

@@ -19,7 +19,7 @@ import { AuthService } from 'src/app/services/auth.service';
 import { ButtonColor } from 'src/app/components/button/button.enum';
 import { TransactionsService } from '../transactions/transactions.page.service';
 import { MessageService, ConfirmationService } from 'primeng/api';
-import { ReportReviewService } from 'src/app/services/report-review.service';
+import { ReportPreviewCheck, ReportReviewService } from 'src/app/services/report-review.service';
 import { FilterField } from 'src/app/components/filter-tab/filter-fields-model.component';
 
 
@@ -320,8 +320,13 @@ export class VatReportJournalPage implements OnInit {
     // (better to surface review rows the user might miss than to skip
     // them silently).
     this.reportReviewService.previewCheck(effectiveBusiness, endDate)
-      .pipe(catchError(() => of({ hasPendingDocs: true, hasUnconfirmedExpenses: true })))
+      .pipe(catchError(() => of({
+        hasPendingDocs: true,
+        hasUnconfirmedExpenses: true,
+        documentsProcessing: false,
+      })))
       .subscribe(check => {
+        this.notifyBackgroundProcessing(check);
         if (!check.hasPendingDocs && !check.hasUnconfirmedExpenses) {
           this.proceedDirectlyToReport();
           return;
@@ -349,7 +354,7 @@ export class VatReportJournalPage implements OnInit {
    *  Hebrew message references whichever signals tripped so the user
    *  knows what they're being asked about. */
   private promptReviewBeforeReport(
-    check: { hasPendingDocs: boolean; hasUnconfirmedExpenses: boolean },
+    check: ReportPreviewCheck,
   ): void {
     // Clear the page-loader before the prompt opens so the user sees the
     // confirm dialog without a spinner stacked behind it. On No,
@@ -382,6 +387,16 @@ export class VatReportJournalPage implements OnInit {
       reject: () => {
         this.proceedDirectlyToReport();
       },
+    });
+  }
+
+  private notifyBackgroundProcessing(check: ReportPreviewCheck): void {
+    if (!check.documentsProcessing) return;
+    this.messageService.add({
+      severity: 'info',
+      summary: 'המסמכים התקבלו',
+      detail: 'המסמכים עוברים עיבוד ברקע ויופיעו במערכת בסיום. אפשר להמשיך לצפות בדוח.',
+      life: 8000,
     });
   }
 

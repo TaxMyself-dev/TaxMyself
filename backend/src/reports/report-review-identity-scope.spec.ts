@@ -21,7 +21,7 @@ function queryBuilder(result: unknown[] = []) {
 
 describe('report review identity boundaries', () => {
   it('ingests a represented client inbox without exposing self-service review signals', async () => {
-    const processInboxForUser = jest.fn().mockResolvedValue({ processed: 1 });
+    const processInboxForUser = jest.fn().mockResolvedValue({ processed: 1, total: 1 });
     const service: any = Object.create(ReportReviewService.prototype);
     Object.assign(service, {
       userRepo: {
@@ -30,16 +30,63 @@ describe('report review identity boundaries', () => {
       businessRepo: { findOne: jest.fn().mockResolvedValue({ id: 7 }) },
       sharedService: { isRepresentedByAccountant: jest.fn().mockResolvedValue(true) },
       documentsService: { processInboxForUser },
+      ocrQueueService: { isEnabled: jest.fn().mockReturnValue(false) },
       docRepo: { createQueryBuilder: jest.fn() },
       logger: { warn: jest.fn() },
     });
 
     await expect(
       service.previewCheck('represented-user', '515151515', new Date('2026-08-31')),
-    ).resolves.toEqual({ hasPendingDocs: false, hasUnconfirmedExpenses: false });
+    ).resolves.toEqual({
+      hasPendingDocs: false,
+      hasUnconfirmedExpenses: false,
+      documentsProcessing: false,
+    });
 
     expect(processInboxForUser).toHaveBeenCalledWith('represented-user', '515151515');
     expect(service.docRepo.createQueryBuilder).not.toHaveBeenCalled();
+  });
+
+  it('queues represented-client OCR without waiting when Cloud Tasks is enabled', async () => {
+    const enqueue = jest.fn().mockResolvedValue({ queued: true, duplicate: false });
+    const processInboxForUser = jest.fn();
+    const service: any = Object.create(ReportReviewService.prototype);
+    Object.assign(service, {
+      userRepo: {
+        findOne: jest.fn().mockResolvedValue({ index: 41, hasOpenBanking: false }),
+      },
+      businessRepo: {
+        findOne: jest.fn().mockResolvedValue({
+          id: 7,
+          driveInboxFolderId: 'inbox-folder',
+        }),
+      },
+      sharedService: { isRepresentedByAccountant: jest.fn().mockResolvedValue(true) },
+      documentsService: { processInboxForUser },
+      googleDriveService: {
+        listFolderFiles: jest.fn().mockResolvedValue([{ id: 'drive-file' }]),
+      },
+      ocrQueueService: {
+        isEnabled: jest.fn().mockReturnValue(true),
+        enqueue,
+      },
+      docRepo: { createQueryBuilder: jest.fn() },
+      logger: { warn: jest.fn() },
+    });
+
+    await expect(
+      service.previewCheck('represented-user', '515151515', new Date('2026-08-31')),
+    ).resolves.toEqual({
+      hasPendingDocs: false,
+      hasUnconfirmedExpenses: false,
+      documentsProcessing: true,
+    });
+
+    expect(enqueue).toHaveBeenCalledWith(
+      { firebaseId: 'represented-user', businessNumber: '515151515' },
+      expect.stringMatching(/^report:represented-user:515151515:/),
+    );
+    expect(processInboxForUser).not.toHaveBeenCalled();
   });
 
   it('scopes the cheap pending-document check by effective user and business', async () => {
@@ -49,6 +96,7 @@ describe('report review identity boundaries', () => {
       userRepo: { findOne: jest.fn().mockResolvedValue({ index: 41, hasOpenBanking: false }) },
       businessRepo: { findOne: jest.fn().mockResolvedValue({ id: 7, driveInboxFolderId: null }) },
       sharedService: { isRepresentedByAccountant: jest.fn().mockResolvedValue(false) },
+      ocrQueueService: { isEnabled: jest.fn().mockReturnValue(false) },
       docRepo: { createQueryBuilder: jest.fn(() => docsQb) },
     });
 
@@ -62,6 +110,36 @@ describe('report review identity boundaries', () => {
       'd.businessNumber = :bn',
       { bn: '515151515' },
     );
+  });
+
+  it('queues inbox OCR and does not report unprocessed files as reviewable rows', async () => {
+    const docsQb = queryBuilder();
+    const enqueue = jest.fn().mockResolvedValue({ queued: true, duplicate: false });
+    const service: any = Object.create(ReportReviewService.prototype);
+    Object.assign(service, {
+      userRepo: { findOne: jest.fn().mockResolvedValue({ index: 41, hasOpenBanking: false }) },
+      businessRepo: {
+        findOne: jest.fn().mockResolvedValue({ id: 7, driveInboxFolderId: 'inbox-folder' }),
+      },
+      sharedService: { isRepresentedByAccountant: jest.fn().mockResolvedValue(false) },
+      docRepo: { createQueryBuilder: jest.fn(() => docsQb) },
+      googleDriveService: {
+        listFolderFiles: jest.fn().mockResolvedValue([{ id: 'drive-file' }]),
+      },
+      ocrQueueService: {
+        isEnabled: jest.fn().mockReturnValue(true),
+        enqueue,
+      },
+    });
+
+    await expect(
+      service.previewCheck('effective-user', '515151515', new Date('2026-08-31')),
+    ).resolves.toEqual({
+      hasPendingDocs: false,
+      hasUnconfirmedExpenses: false,
+      documentsProcessing: true,
+    });
+    expect(enqueue).toHaveBeenCalled();
   });
 
   it('rejects a business that is not owned by the effective user before querying rows', async () => {

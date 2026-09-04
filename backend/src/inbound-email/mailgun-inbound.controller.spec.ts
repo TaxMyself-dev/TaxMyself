@@ -6,12 +6,14 @@ import { DocumentImportService } from 'src/document-import/document-import.servi
 import { DocumentImportSource } from 'src/document-import/enums/document-import.enums';
 import { MailgunInboundController } from './mailgun-inbound.controller';
 import { MailgunSignatureService } from './mailgun-signature.service';
+import { DocumentOcrQueueService } from 'src/document-processing/document-ocr-queue.service';
 
 describe('MailgunInboundController spike', () => {
   const originalEnv = process.env;
   const signatureService = { assertValid: jest.fn() };
   const importDocument = jest.fn();
   const resolveRecipient = jest.fn();
+  const enqueue = jest.fn();
   let controller: MailgunInboundController;
 
   beforeEach(() => {
@@ -27,7 +29,9 @@ describe('MailgunInboundController spike', () => {
       signatureService as unknown as MailgunSignatureService,
       { importDocument } as unknown as DocumentImportService,
       { resolveRecipient } as any,
+      { enqueue } as unknown as DocumentOcrQueueService,
     );
+    enqueue.mockResolvedValue({ queued: false, duplicate: false });
     resolveRecipient.mockRejectedValue(new NotAcceptableException());
   });
 
@@ -36,7 +40,11 @@ describe('MailgunInboundController spike', () => {
   });
 
   it('imports a supported attachment through the shared intake pipeline', async () => {
-    importDocument.mockResolvedValue({ status: 'IMPORTED', reason: null });
+    importDocument.mockResolvedValue({
+      status: 'IMPORTED',
+      reason: null,
+      importedDocumentId: 17,
+    });
     const file = attachment('invoice.pdf', 'application/pdf');
 
     const result = await controller.receive(
@@ -53,6 +61,10 @@ describe('MailgunInboundController spike', () => {
       mimeType: 'application/pdf',
       content: file.buffer,
     });
+    expect(enqueue).toHaveBeenCalledWith(
+      { firebaseId: 'firebase-test-user', businessNumber: '123456789' },
+      'mailgun-imports:17',
+    );
     expect(result).toEqual({
       accepted: true,
       receivedFiles: 1,
@@ -68,7 +80,11 @@ describe('MailgunInboundController spike', () => {
       firebaseId: 'mailbox-owner',
       businessNumber: '987654321',
     });
-    importDocument.mockResolvedValue({ status: 'IMPORTED', reason: null });
+    importDocument.mockResolvedValue({
+      status: 'IMPORTED',
+      reason: null,
+      importedDocumentId: 18,
+    });
 
     await controller.receive(
       { recipient: 'd-opaque@docs-dev.keepintax.co.il' },
@@ -138,6 +154,21 @@ describe('MailgunInboundController spike', () => {
       status: 'SKIPPED',
       reason: 'drive_upload_failed',
     });
+
+    await expect(
+      controller.receive({ recipient: 'spike@docs-dev.keepintax.co.il' }, [
+        attachment('invoice.pdf', 'application/pdf'),
+      ]),
+    ).rejects.toBeInstanceOf(InternalServerErrorException);
+  });
+
+  it('requests a Mailgun retry when OCR scheduling fails', async () => {
+    importDocument.mockResolvedValue({
+      status: 'IMPORTED',
+      reason: null,
+      importedDocumentId: 19,
+    });
+    enqueue.mockRejectedValue(new InternalServerErrorException());
 
     await expect(
       controller.receive({ recipient: 'spike@docs-dev.keepintax.co.il' }, [

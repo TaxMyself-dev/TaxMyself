@@ -37,6 +37,7 @@ import { FullTransactionCache } from 'src/transactions/full-transaction-cache.en
 import { ReportWorkflow } from 'src/report-workflow/report-workflow.entity';
 import { BillingModule } from '../billing/billing.module';
 import { DepreciationModule } from '../depreciation/depreciation.module';
+import { DocumentProcessingModule } from '../document-processing/document-processing.module';
 
 @Module({
   imports: [
@@ -59,6 +60,7 @@ import { DepreciationModule } from '../depreciation/depreciation.module';
     BookkeepingModule,
     BillingModule,
     DepreciationModule,
+    DocumentProcessingModule,
   ],
   controllers: [ReportsController],
   providers: [
