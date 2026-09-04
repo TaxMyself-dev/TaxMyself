@@ -1,9 +1,9 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, computed, inject } from '@angular/core';
 import { Router } from '@angular/router';
-import { AuthService } from 'src/app/services/auth.service';
 import { AccessHandlerService } from 'src/app/services/access-handler.service';
+import { GenericService } from 'src/app/services/generic.service';
 import { AppRoute } from 'src/app/shared/access-control';
-import { IItemNavigate, IUserData } from 'src/app/shared/interface';
+import { IItemNavigate } from 'src/app/shared/interface';
 
 interface ReportItem extends IItemNavigate {
   appRoute?: AppRoute;
@@ -15,18 +15,12 @@ interface ReportItem extends IItemNavigate {
     styleUrls: ['./reports.page.scss'],
     standalone: false
 })
-export class ReportsPage implements OnInit {
+export class ReportsPage {
   private readonly router = inject(Router);
   private readonly accessHandlerService = inject(AccessHandlerService);
+  private readonly genericService = inject(GenericService);
 
-  userData: IUserData;
-  itemsNavigate: ReportItem[];
-
-  constructor(private authService: AuthService) {}
-
-  ngOnInit() {
-    this.userData = this.authService.getUserDataFromLocalStorage();
-    this.itemsNavigate = [
+  private readonly allReportItems: ReportItem[] = [
       { name: 'דו"ח מע"מ', link: '/vat-report', image: '../../../assets/vat_report.svg', id: '0', index: 'zero', content: 'דיווח ותשלום מע"מ', appRoute: AppRoute.VAT_REPORT },
 
       { name: 'דו"ח רווח והפסד', link: '/pnl-report', image: '../../../assets/p&l_report.svg', id: '1', index: 'one', content: 'צפייה בהכנסות והוצאות העסק לפי תקופה', appRoute: AppRoute.PNL_REPORT },
@@ -41,9 +35,14 @@ export class ReportsPage implements OnInit {
       { name: 'דו"ח פחת (טופס 1342)', link: '/depreciation-report', image: '../../../assets/depreciation_report.svg', id: '5', index: 'five', content: 'הפקת דוח פחת על נכסי הציוד של העסק' },
     
       { name: 'כרטסת', link: '/ledger-report', image: '../../../assets/p&l_report.svg', id: '6', index: 'six', content: 'צפייה בתנועות יומן (כרטסת) לפי תקופה' },
-    ];
+  ];
 
-  }
+  readonly itemsNavigate = computed(() => {
+    const hasVatEligibleBusiness = this.genericService.vatReportEligibleBusinesses().length > 0;
+    return hasVatEligibleBusiness
+      ? this.allReportItems
+      : this.allReportItems.filter((item) => item.appRoute !== AppRoute.VAT_REPORT);
+  });
 
   onReportCardClick(item: ReportItem): void {
     if (!item.appRoute) {

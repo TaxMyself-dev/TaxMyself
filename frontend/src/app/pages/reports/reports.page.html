@@ -8,7 +8,7 @@
     </div>
 
     <div class="cards-container">
-      @for (item of itemsNavigate; track $index) {
+      @for (item of itemsNavigate(); track item.id) {
         <app-card-navigate
           [cardItem]="item"
           [controlledNavigation]="!!item.appRoute"

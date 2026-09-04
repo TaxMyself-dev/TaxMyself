@@ -2,7 +2,7 @@
 Page listing the user's stored expenses (with attached receipt files) for a selectable period/business, supporting add/edit/delete and file preview/download.
 
 ## Key entities/files
-- `my-storage.page.ts` — expense table (via `ExpenseDataService`) filtered by reporting period (annual/monthly/bimonthly/date-range) and business (multi-business support); add/edit expense via `ModalExpensesComponent`; delete expense (also deletes its file from Firebase); preview/download attached file via `FilesService`; two navigation cards ("מסמכים שיצרתי" / "מסמכים שהעלתי") to `/vat-report` and `/pnl-report`.
+- `my-storage.page.ts` — expense table (via `ExpenseDataService`) filtered by reporting period (annual/monthly/bimonthly/date-range) and business (multi-business support); add/edit expense via `ModalExpensesComponent`; delete expense (also deletes its file from Firebase); preview/download attached file via `FilesService`; navigation cards to `/vat-report` and `/pnl-report`. The VAT-linked card is omitted when the effective user has no canonically VAT-eligible business.
 - `my-storage.module.ts` / `my-storage-routing.module.ts` — module wiring, routed at `/my-storage`.
 
 ## Main flows

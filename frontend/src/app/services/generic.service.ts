@@ -11,6 +11,10 @@ import { BusinessStatus, doubleMonthsList, ReportingPeriodType, singleMonthsList
 import { toSignal } from '@angular/core/rxjs-interop';
 import { DateService } from './date.service';
 import { PeriodDefaults } from '../components/filter-tab/filter-fields-model.component';
+import {
+  getVatReportBusinessSelectItems,
+  getVatReportEligibleBusinesses,
+} from '../shared/vat-report-eligibility';
 
 
 @Injectable({ providedIn: 'root' })
@@ -43,6 +47,16 @@ export class GenericService {
       name: b.businessName,
       value: b.businessNumber,
     }))
+  );
+
+  /** Businesses belonging to the effective user that may file VAT reports. */
+  readonly vatReportEligibleBusinesses = computed(() =>
+    getVatReportEligibleBusinesses(this._businesses() ?? [])
+  );
+
+  /** VAT-only selector options; exempt/non-reporting businesses never enter it. */
+  readonly vatReportBusinessSelectItems = computed<ISelectItem[]>(() =>
+    getVatReportBusinessSelectItems(this._businesses() ?? [])
   );
 
   private _bills = signal<[] | null>(null);

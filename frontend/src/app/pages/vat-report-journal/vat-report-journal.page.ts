@@ -22,6 +22,7 @@ import { MessageService, ConfirmationService } from 'primeng/api';
 import { ReportPreviewCheck, ReportReviewService } from 'src/app/services/report-review.service';
 import { DriveDocsService } from 'src/app/services/drive-docs.service';
 import { FilterField } from 'src/app/components/filter-tab/filter-fields-model.component';
+import { resolveVatReportBusinessNumber } from 'src/app/shared/vat-report-eligibility';
 
 
 @Component({
@@ -44,7 +45,7 @@ export class VatReportJournalPage implements OnInit {
   businessNumber = signal<string>("");
   BusinessStatus = BusinessStatus;
   businessStatus: BusinessStatus = BusinessStatus.SINGLE_BUSINESS;
-  businessOptions = this.gs.businessSelectItems;
+  businessOptions = this.gs.vatReportBusinessSelectItems;
 
   // Filter related
   form: FormGroup = this.fb.group({});
@@ -152,15 +153,36 @@ export class VatReportJournalPage implements OnInit {
 
     this.userData = this.authService.getUserDataFromLocalStorage();
     this.businessStatus = this.userData.businessStatus;
+    // Refresh against the effective identity before making the eligibility
+    // decision. This is especially important after a restored delegated-client
+    // session, where a cached business list can briefly belong to the actor.
+    await this.gs.loadBusinessesFromServer();
+
     const businesses = this.gs.businesses();
-    this.businessNumber.set(businesses[0].businessNumber);
+    const eligibleBusinesses = this.gs.vatReportEligibleBusinesses();
+    if (eligibleBusinesses.length === 0) {
+      this.messageService.add({
+        severity: 'warn',
+        summary: 'דוח מע"מ אינו זמין',
+        detail: 'לא קיים בחשבון עסק החייב בדיווח מע"מ.',
+        life: 4000,
+        key: 'br',
+      });
+      await this.router.navigate(['/reports']);
+      return;
+    }
+
+    this.businessNumber.set(eligibleBusinesses[0].businessNumber);
 
     // Returning from /report-review (the query params it navigates back
     // with) — reload the report for the same business/period the user was
     // reviewing instead of waiting for them to re-submit the filter form.
     const returnParams = this.route.snapshot.queryParamMap;
     if (returnParams.get('reviewed')) {
-      const bn = returnParams.get('businessNumber') ?? this.businessNumber();
+      const bn = resolveVatReportBusinessNumber(
+        businesses,
+        returnParams.get('businessNumber'),
+      );
       const start = returnParams.get('startDate') ?? '';
       const end = returnParams.get('endDate') ?? '';
       this.businessNumber.set(bn);
@@ -176,15 +198,17 @@ export class VatReportJournalPage implements OnInit {
     const currentMonth = new Date().getMonth() + 1;
     const defaultMonthValue = this.gs.getDefaultMonthValue(currentMonth, ReportingPeriodType.BIMONTHLY);
 
-    this.filterConfig = [
-      {
+    const businessFilter: FilterField[] = eligibleBusinesses.length > 1 ? [{
         type: 'select',
         controlName: 'businessNumber',
         label: 'בחר עסק',
         required: true,
-        options: this.gs.businessSelectItems,
+        options: this.gs.vatReportBusinessSelectItems,
         defaultValue: this.businessNumber(),
-      },
+      }] : [];
+
+    this.filterConfig = [
+      ...businessFilter,
       {
         type: 'period',
         controlName: 'period',
@@ -305,7 +329,13 @@ export class VatReportJournalPage implements OnInit {
   }
 
   onSubmit(formValues: any): void {
-    const effectiveBusiness = this.gs.getEffectiveBusinessNumber(this.form, formValues.businessNumber, this.userData);
+    const effectiveBusiness = resolveVatReportBusinessNumber(
+      this.gs.businesses(),
+      formValues?.businessNumber,
+    );
+    if (!effectiveBusiness) {
+      return;
+    }
     const { startDate, endDate } = this.gs.getPeriodDatesFromForm(this.form);
 
     this.isLoadingStatePeryodSelectButton.set(true);

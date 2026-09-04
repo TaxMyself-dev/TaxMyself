@@ -2447,3 +2447,22 @@ record this instead.
 - Added focused backend and frontend coverage for admin impersonation, direct
   expired-client access, and delegated accountant access. The focused Jest and
   Karma suites, Nest build, and production Angular build pass.
+
+## 2026-09-04 — VAT report business eligibility and selection
+
+- Centralized VAT-report eligibility on the canonical `BusinessType` and
+  `VATReportingType` enums. Eligible businesses require both a VAT-registered
+  entity type and a monthly or bimonthly VAT reporting cadence.
+- Hid VAT-report entry cards when the effective user has no eligible business,
+  including the secondary My Storage entry. Delegated accountant/admin client
+  views continue to derive eligibility from the represented client's business
+  list.
+- The VAT page now redirects direct navigation safely when no eligible business
+  exists, auto-selects the sole eligible business without a selector, and shows
+  only eligible businesses when multiple choices exist. Returned and submitted
+  business numbers are revalidated before report API calls.
+- Added 11 focused Angular tests covering zero, one, multiple and mixed
+  exempt/registered business sets. The focused suite, an all-app-source
+  TypeScript compile, and a full Angular development bundle pass. The default
+  repository-wide test compilation remains blocked by pre-existing legacy spec
+  and third-party declaration issues.

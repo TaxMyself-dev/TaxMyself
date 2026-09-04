@@ -1,5 +1,5 @@
 import {} from '@angular/common/http';
-import { Component, OnInit } from '@angular/core';
+import { Component, computed, OnInit } from '@angular/core';
 import { ModalController } from '@ionic/angular';
 import { EMPTY, Observable, Subject, catchError, finalize, from, switchMap, takeUntil, tap } from 'rxjs';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
@@ -25,7 +25,16 @@ import { IItemNavigate } from 'src/app/shared/interface';
 })
 export class MyStoragePage implements OnInit {
 
-  itemsNavigate: IItemNavigate[] 
+  private readonly allItemsNavigate: IItemNavigate[] = [
+    { name: 'מסמכים שיצרתי', link: "/vat-report", image: "../../../assets/vat_report.svg", id: '0', index: 'zero', content: ''},
+    { name: 'מסמכים שהעלתי', link: "/pnl-report", image: "../../../assets/p&l_report.svg", id: '1', index: 'one', content: ""},
+  ];
+
+  readonly itemsNavigate = computed(() =>
+    this.genericService.vatReportEligibleBusinesses().length > 0
+      ? this.allItemsNavigate
+      : this.allItemsNavigate.filter((item) => item.link !== '/vat-report')
+  );
   
 
   readonly COLUMNS_WIDTH = new Map<ExpenseFormColumns, number>([
@@ -92,11 +101,6 @@ export class MyStoragePage implements OnInit {
   ngOnInit() {
 
     this.userData = this.authService.getUserDataFromLocalStorage();
-
-    this.itemsNavigate = [
-      { name: 'מסמכים שיצרתי', link: "/vat-report", image: "../../../assets/vat_report.svg", id: '0', index: 'zero', disable: this.userData.businessType === "EXEMPT" ? true : false, content: ''},
-      { name:  'מסמכים שהעלתי', link: "/pnl-report", image: "../../../assets/p&l_report.svg", id: '1', index: 'one', content: ""}, 
-    ];
 
     if (this.userData.businessStatus === 'MULTI_BUSINESS') {
       this.storageForm?.get('businessNumber').setValidators([Validators.required]);
