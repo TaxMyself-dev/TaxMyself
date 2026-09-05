@@ -19,7 +19,7 @@ external condition.
 | KT-003 | VAT report eligibility and business selection | `.codex/worktrees/7596/taxmyself-dev` | `CLOSED` | `28320a01` on `origin/main` | Worker focused Angular tests passed; combined Angular build passed; broad Karma compilation has documented pre-existing failures |
 | KT-004 | Investigate slow backend startup and propose solutions | `.codex/worktrees/94e5/taxmyself-dev` | `CLOSED` | Research complete; no code commit | Build 53-159s vs direct TypeScript 16-17s; warm module load 3.2-5.5s; boot seed ~3.5s; recommendations documented |
 | KT-005 | Fix admin CardCom subscription editing | Replacement setup queued (`client-new-thread:5fbf0538-bfa8-4675-a58d-0b639e6e3108`) | `DISPATCHED` | Replacement dispatch from current integration | Original `.codex/worktrees/42b3/taxmyself-dev` left an uncommitted draft; replacement must reimplement/review it read-only |
-| KT-006 | Add opt-in backend startup profiling and a reproducible dev baseline | Pending fresh worktree | `APPROVED` | Dispatch base `1e404e47` | Measurement only: no optimization, business behavior, schema/data, or production access |
+| KT-006 | Add opt-in backend startup profiling and a reproducible dev baseline | Setup queued (`client-new-thread:e4b0aba0-6867-4b11-8639-64e7907fe3a5`) | `DISPATCHED` | Dispatch base `1e404e47` | Measurement only: no optimization, business behavior, schema/data, or production access |
 
 ## KT-005 acceptance criteria
 
