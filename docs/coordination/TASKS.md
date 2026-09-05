@@ -17,8 +17,8 @@ external condition.
 | KT-001 | Admin access to expired client accounts | `.codex/worktrees/14cc/taxmyself-dev` | `CLOSED` | `dc2fda37` on `origin/main` | 60-test combined backend run included billing/auth guards; Nest and Angular builds passed |
 | KT-002 | Issued documents ordered by `docDate DESC, id DESC` | `.codex/worktrees/8c93/taxmyself-dev` | `CLOSED` | `bae142fb` on `origin/main` | Focused query test passed in combined backend run; Nest build passed |
 | KT-003 | VAT report eligibility and business selection | `.codex/worktrees/7596/taxmyself-dev` | `CLOSED` | `28320a01` on `origin/main` | Worker focused Angular tests passed; combined Angular build passed; broad Karma compilation has documented pre-existing failures |
-| KT-004 | Investigate slow backend startup and propose solutions | `.codex/worktrees/e40f/taxmyself-dev` | `IN_PROGRESS` | Research only; no commit expected | Waiting for worker handoff/report |
-| KT-005 | Fix admin CardCom subscription editing | Setup queued (`client-new-thread:5a9ca3a2-22d8-4efb-84fc-5a3e6c8c2fa4`) | `DISPATCHED` | Dispatch base `2fb90fdb` | Distinct accountant-plan labels; black save button; future trial-end reactivates an expired trial through an admin-only API |
+| KT-004 | Investigate slow backend startup and propose solutions | Replacement setup queued (`client-new-thread:d3175902-3f4c-40e7-9e0f-b4b7081c3dbf`) | `DISPATCHED` | Research only; no commit expected | Original `.codex/worktrees/e40f/taxmyself-dev` produced no handoff; replacement dispatched from current integration |
+| KT-005 | Fix admin CardCom subscription editing | Replacement setup queued (`client-new-thread:5fbf0538-bfa8-4675-a58d-0b639e6e3108`) | `DISPATCHED` | Replacement dispatch from current integration | Original `.codex/worktrees/42b3/taxmyself-dev` left an uncommitted draft; replacement must reimplement/review it read-only |
 
 ## KT-005 acceptance criteria
 
