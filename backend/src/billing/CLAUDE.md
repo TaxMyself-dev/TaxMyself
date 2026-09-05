@@ -41,6 +41,17 @@ Symptom of a stale/dead tunnel: the change-payment-method dialog sits in "still 
 - `POST /billing/events/:eventId/receipt/resend-email` / `/generate` — resend or backfill a payment receipt.
 - `/admin/billing/*` — admin plan CRUD (create/update/activate/deactivate), subscription discount edits, manual/forced renewal triggers (mirrors the daily 03:00 cron in `SubscriptionRenewalService`).
 
+## Admin trial-end override
+
+`PATCH /admin/billing/subscriptions/:id/trial-end` remains behind the controller's
+server-side Firebase/admin authorization check. The service locks the subscription
+row and saves the date atomically with one narrowly scoped status transition: a
+`TRIAL_EXPIRED` subscription returns to `TRIAL` only when the new `trialEnd` is in
+the future. Null or non-future dates and all other statuses preserve status. This
+admin correction does not activate paid billing, charge CardCom, or alter payment
+method, current-period, next-billing, retry, cancellation, or end fields. The
+response includes the resulting `status` so clients can refresh accurately.
+
 ## Related topics
 - users (FirebaseAuthGuard deps User/Delegation; admin role check for admin-billing)
 - documents (receipt PDF generation/storage)

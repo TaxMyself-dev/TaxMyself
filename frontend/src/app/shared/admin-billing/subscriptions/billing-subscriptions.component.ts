@@ -31,6 +31,10 @@ import {
 } from 'src/app/services/admin-billing.service';
 import { IColumnDataTable, IRowDataTable, ISelectItem, ITableRowAction } from 'src/app/shared/interface';
 import { FormTypes, ICellRenderer } from 'src/app/shared/enums';
+import {
+  ADMIN_SUBSCRIPTION_SAVE_BUTTON_COLOR,
+  adminPlanDisplayName,
+} from './billing-subscriptions.presentation';
 
 export type DiscountKind = 'NONE' | 'PERCENT' | 'AMOUNT';
 
@@ -86,6 +90,7 @@ export class BillingSubscriptionsComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
 
   readonly buttonSize = ButtonSize;
+  readonly saveButtonColor = ADMIN_SUBSCRIPTION_SAVE_BUTTON_COLOR;
   readonly statusLabels = STATUS_LABELS;
   readonly discountKindOptions = DISCOUNT_KIND_OPTIONS;
 
@@ -168,7 +173,7 @@ export class BillingSubscriptionsComponent implements OnInit {
       userName:                s.userName ?? '—',
       businessName:            s.businessName ?? '—',
       status:                  s.status,
-      planName:                s.planName ?? 'ללא תוכנית',
+      planName:                adminPlanDisplayName({ name: s.planName, slug: s.planSlug }) ?? 'ללא תוכנית',
       trialEnd:                s.trialEnd,
       nextBillingDate:         s.nextBillingDate,
       nextBillingAmount:       this.formatAmount(s.nextBillingAmountAgorot),
@@ -202,7 +207,10 @@ export class BillingSubscriptionsComponent implements OnInit {
     this.adminBillingService.getPlans()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: plans => this.planOptions.set(plans.map(p => ({ name: p.name, value: p.id }))),
+        next: plans => this.planOptions.set(plans.map(p => ({
+          name: adminPlanDisplayName(p) ?? p.name,
+          value: p.id,
+        }))),
         error: () => {},
       });
   }

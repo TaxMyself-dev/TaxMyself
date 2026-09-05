@@ -94,6 +94,7 @@ export interface UpdateSubscriptionTrialEndPayload {
 export interface AdminSubscriptionTrialEndResponse {
   subscriptionId: number;
   trialEnd: string | null;
+  status: string;
 }
 
 export interface UpdateSubscriptionPlanPayload {

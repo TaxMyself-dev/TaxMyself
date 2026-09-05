@@ -16,7 +16,7 @@ import { BillingEventService } from './billing-event.service';
 import { BillingReceiptService } from './billing-receipt.service';
 import { BillingIssuerConfigService } from './billing-issuer-config.service';
 import { PricingService } from './pricing.service';
-import { BillingEventType } from '../enums/billing.enums';
+import { BillingEventType, SubscriptionStatus } from '../enums/billing.enums';
 
 export interface PendingReceiptFailure {
   billingEventId: number;
@@ -83,6 +83,7 @@ export interface AdminSubscriptionDiscountResponse {
 export interface AdminSubscriptionTrialEndResponse {
   subscriptionId: number;
   trialEnd: Date | null;
+  status: SubscriptionStatus;
 }
 
 export interface AdminSubscriptionPlanResponse {
@@ -323,18 +324,42 @@ export class AdminBillingService {
     };
   }
 
-  /** Admin override of trialEnd, editable inline from the admin subscriptions table. */
+  /**
+   * Admin override of trialEnd, editable from the admin subscriptions drawer.
+   * A future date restores only an expired trial. The row lock keeps the date
+   * and status decision atomic without touching paid-billing fields.
+   */
   async updateSubscriptionTrialEnd(
     subscriptionId: number,
     dto: UpdateSubscriptionTrialEndDto,
   ): Promise<AdminSubscriptionTrialEndResponse> {
-    const subscription = await this.subscriptionRepo.findOneBy({ id: subscriptionId });
-    if (!subscription) throw new NotFoundException(`מנוי ${subscriptionId} לא נמצא`);
+    return this.dataSource.transaction(async manager => {
+      const subscription = await manager.findOne(Subscription, {
+        where: { id: subscriptionId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!subscription) throw new NotFoundException(`מנוי ${subscriptionId} לא נמצא`);
 
-    subscription.trialEnd = dto.trialEnd ? new Date(dto.trialEnd) : null;
-    await this.subscriptionRepo.save(subscription);
+      const trialEnd = dto.trialEnd ? new Date(dto.trialEnd) : null;
+      const restoresExpiredTrial =
+        subscription.status === SubscriptionStatus.TRIAL_EXPIRED &&
+        trialEnd !== null &&
+        trialEnd > new Date();
 
-    return { subscriptionId: subscription.id, trialEnd: subscription.trialEnd };
+      await manager.update(
+        Subscription,
+        subscription.id,
+        restoresExpiredTrial
+          ? { trialEnd, status: SubscriptionStatus.TRIAL }
+          : { trialEnd },
+      );
+
+      return {
+        subscriptionId: subscription.id,
+        trialEnd,
+        status: restoresExpiredTrial ? SubscriptionStatus.TRIAL : subscription.status,
+      };
+    });
   }
 
   /**
