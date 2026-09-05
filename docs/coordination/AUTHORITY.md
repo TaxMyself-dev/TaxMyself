@@ -4,6 +4,21 @@ Elazar authorizes the main manager chat to carry an approved task through local
 implementation, review, integration, and normal Git push without asking again
 at every mechanical step.
 
+## No repeated approval for the standard workflow
+
+Once Elazar approves a task, every ordinary delivery operation listed below is
+pre-authorized for that task. The manager must execute the workflow continuously
+and must not pause to ask Elazar again for each command or phase. This includes
+worker creation, isolated dependency installation, tests, builds, staging,
+local commits, fetches, non-destructive integration, fast-forwarding, normal
+pushes, documentation updates, task-state updates, and cleanup of a verified
+clean worker worktree.
+
+If the Codex host displays an operating-system or sandbox permission dialog,
+that is a technical platform boundary rather than a new product approval. The
+manager should use the narrowest reusable permission rule available so the same
+standard operation does not repeatedly interrupt Elazar.
+
 ## Manager may decide and execute automatically
 
 - Investigate code and run read-only diagnostics.

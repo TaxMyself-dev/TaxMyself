@@ -7,6 +7,11 @@ staging branch. Workers operate in isolated Codex worktrees, normally at
 
 ## Roles
 
+An approved task moves through all phases below without repeated approval
+prompts. The manager pauses only for a stop condition or an explicit approval
+boundary in `AUTHORITY.md`; routine Git, worktree, dependency, test, build, and
+documentation operations are part of the standing workflow authorization.
+
 ### Manager
 
 The manager owns requirements, task tracking, delegation, review, integration,
