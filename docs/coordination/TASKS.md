@@ -20,7 +20,7 @@ external condition.
 | KT-004 | Investigate slow backend startup and propose solutions | `.codex/worktrees/94e5/taxmyself-dev` | `CLOSED` | Research complete; no code commit | Build 53-159s vs direct TypeScript 16-17s; warm module load 3.2-5.5s; boot seed ~3.5s; recommendations documented |
 | KT-005 | Fix admin CardCom subscription editing | `.codex/worktrees/b9a0/taxmyself-dev` | `CLOSED` | `9505ea0a` on `origin/main`; worker `0211d9d6` | 10 focused backend tests passed; Nest and Angular builds passed; focused Karma compile exposed only documented pre-existing legacy failures |
 | KT-006 | Add opt-in backend startup profiling and a reproducible dev baseline | `.codex/worktrees/ec9f/taxmyself-dev` | `MANAGER_REVIEW` | Worker commit `0c4df5cc` from base `1e404e47` | Measurement only; manager is reviewing instrumentation, guards, tests, and build before integration |
-| KT-007 | Audit the existing SHAAM invoice-allocation integration and plan the shortest safe path to production | Pending fresh worker from `f5d04ad8` | `APPROVED` | Research and sandbox-validation plan only | No production access, credentials, live production calls, schema/data changes, or implementation in this task |
+| KT-007 | Audit the existing SHAAM invoice-allocation integration and plan the shortest safe path to production | Setup queued (`client-new-thread:ad27b018-7287-49ed-aefd-69f8543c6803`) | `DISPATCHED` | Dispatch base `4c9ad8c9` | Research and sandbox-validation plan only; no production access, credentials, live production calls, schema/data changes, or implementation |
 
 ## KT-005 acceptance criteria
 
