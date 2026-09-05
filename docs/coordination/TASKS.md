@@ -18,8 +18,8 @@ external condition.
 | KT-002 | Issued documents ordered by `docDate DESC, id DESC` | `.codex/worktrees/8c93/taxmyself-dev` | `CLOSED` | `bae142fb` on `origin/main` | Focused query test passed in combined backend run; Nest build passed |
 | KT-003 | VAT report eligibility and business selection | `.codex/worktrees/7596/taxmyself-dev` | `CLOSED` | `28320a01` on `origin/main` | Worker focused Angular tests passed; combined Angular build passed; broad Karma compilation has documented pre-existing failures |
 | KT-004 | Investigate slow backend startup and propose solutions | `.codex/worktrees/94e5/taxmyself-dev` | `CLOSED` | Research complete; no code commit | Build 53-159s vs direct TypeScript 16-17s; warm module load 3.2-5.5s; boot seed ~3.5s; recommendations documented |
-| KT-005 | Fix admin CardCom subscription editing | `.codex/worktrees/b9a0/taxmyself-dev` | `VERIFIED` | Worker `0211d9d6`; integrated as `3e8a9ccb` | 10 focused backend tests passed; Nest and Angular builds passed; focused Karma compile exposed only documented pre-existing legacy failures |
-| KT-006 | Add opt-in backend startup profiling and a reproducible dev baseline | Setup queued (`client-new-thread:e4b0aba0-6867-4b11-8639-64e7907fe3a5`) | `DISPATCHED` | Dispatch base `1e404e47` | Measurement only: no optimization, business behavior, schema/data, or production access |
+| KT-005 | Fix admin CardCom subscription editing | `.codex/worktrees/b9a0/taxmyself-dev` | `CLOSED` | `9505ea0a` on `origin/main`; worker `0211d9d6` | 10 focused backend tests passed; Nest and Angular builds passed; focused Karma compile exposed only documented pre-existing legacy failures |
+| KT-006 | Add opt-in backend startup profiling and a reproducible dev baseline | `.codex/worktrees/ec9f/taxmyself-dev` | `MANAGER_REVIEW` | Worker commit `0c4df5cc` from base `1e404e47` | Measurement only; manager is reviewing instrumentation, guards, tests, and build before integration |
 
 ## KT-005 acceptance criteria
 
