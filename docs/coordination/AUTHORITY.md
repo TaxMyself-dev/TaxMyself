@@ -51,6 +51,20 @@ standard operation does not repeatedly interrupt Elazar.
 - Deploying to production, running production cutover, or restarting production
   services. Pushing `main` does not authorize deployment.
 
+## Production access is disabled
+
+Elazar has explicitly decided that Codex must not have or attempt to obtain
+production access at this time. Managers and workers must not test production
+credentials or permissions, connect to or query the live production database,
+open a production shell, inspect live production services, deploy, restart, or
+request production credentials. This restriction applies even to read-only
+connectivity checks.
+
+Development environments and explicitly isolated production copies such as
+`keepintax_prodcopy` are not the live production environment, but their existing
+safety rules still apply. Production access may be considered only after Elazar
+explicitly reverses this standing restriction in a future instruction.
+
 ## Approval inheritance
 
 Approval covers the stated acceptance criteria and necessary reversible
