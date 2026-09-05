@@ -106,3 +106,57 @@ starting Nest against a database and without contacting production or
 Compiled `node dist/main.js` also needs a separate deployment verification:
 there are hundreds of emitted `src/...` alias imports, and raw Node does not
 resolve those aliases without a supported rewrite, loader, or bundling step.
+
+## Opt-in startup profiler
+
+KT-006 adds instrumentation only; it does not change database retries, seed
+contents, query order, compiler settings, or external integrations. Normal
+startup remains uninstrumented unless `STARTUP_TIMING=true`.
+
+Runtime records are single-line JSON prefixed by `[startup-timing]`. Stable
+events are:
+
+- `bootstrap.entry` (milestone from process start)
+- `nest_factory.create.complete`
+- `database.ready_milestone` (the database is available by this point, but
+  this is deliberately not described as an isolated connection duration)
+- `application.init.complete`
+- `listen.complete`
+- `startup.total_ready`
+- `catalog_seed.total`, `catalog_seed.sections`, `catalog_seed.accounts`,
+  `catalog_seed.categories_subcategories`, and
+  `catalog_seed.visibility_integrity`
+- `http.first_request.complete`, emitted once, with request duration and time
+  from process start to request arrival
+
+The request record does not inspect or log the method, path, query string,
+headers, body, user, or credentials. Durations use the monotonic high-resolution
+clock and are reported in milliseconds to three decimal places.
+
+For a repeatable development baseline, set only safe development credentials
+in the current shell and run from `backend`:
+
+```powershell
+$env:DB_DATABASE = 'keepintax-dev'
+$env:STARTUP_PROFILE_RUNS = '3' # optional; default 3, allowed 1-20
+npm run profile:startup
+```
+
+The Node-based supervisor refuses a missing database name, every name other
+than exactly `keepintax-dev`, and production-like names including
+`keepintax_prodcopy`. It forces `DISABLE_SYNCHRONIZE=true`, builds once, starts
+the compiled app repeatedly with the normal catalog seed enabled, sends one
+local HTTP probe after readiness, and prints a `[startup-profile]` JSON summary
+with sample count/minimum/median/maximum per event. It writes no result files
+and terminates children on completion, failure, or timeout
+(`STARTUP_PROFILE_TIMEOUT_MS`, default 120000).
+`STARTUP_PROFILE_SKIP_BUILD=true` is available only when intentionally reusing
+an already verified local build.
+
+This isolated worker had no safe development `.env`/credentials, so the real
+database-backed profile was intentionally not run. The unit coverage verifies
+the fail-closed database guard, parser/summary, timeout cleanup, disabled
+runtime path, stable records, one-time request measurement, and unchanged seed
+operations. A manager or developer with explicitly configured
+`keepintax-dev` credentials should run the command above to capture the manual
+baseline; never substitute production or `keepintax_prodcopy`.

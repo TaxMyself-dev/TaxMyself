@@ -11,18 +11,27 @@ import { AccountCodeAllocatorService } from './account-code-allocator.service';
 import { SYSTEM_CATEGORIES, SYSTEM_SUB_CATEGORIES } from './catalog.seed';
 import { CHART_ACCOUNTS, ACCOUNTING_SECTIONS } from './chart.seed';
 import { BusinessFieldType, SYSTEM_CHART_OWNER_KEY } from '../enum';
+import { startupTiming } from '../startup-timing';
 
 function makeRepo<T extends { id?: number }>(rows: T[] = []) {
   let nextId = (Math.max(0, ...rows.map((r) => r.id ?? 0)) || 0) + 1;
   return {
     rows,
-    find: jest.fn(async (opts: any) => rows.filter((r) => matches(r, opts?.where))),
-    findOne: jest.fn(async (opts: any) => rows.find((r) => matches(r, opts?.where)) ?? null),
+    find: jest.fn(async (opts: any) =>
+      rows.filter((r) => matches(r, opts?.where)),
+    ),
+    findOne: jest.fn(
+      async (opts: any) => rows.find((r) => matches(r, opts?.where)) ?? null,
+    ),
     create: jest.fn((partial: any) => ({ isActive: true, ...partial })),
-    save: jest.fn(async (entity: any) => (Array.isArray(entity) ? entity.map(saveOne) : saveOne(entity))),
+    save: jest.fn(async (entity: any) =>
+      Array.isArray(entity) ? entity.map(saveOne) : saveOne(entity),
+    ),
     upsert: jest.fn(async (entities: any[], conflictCols: string[]) => {
       for (const e of entities) {
-        const existing = rows.find((r) => conflictCols.every((c) => (r as any)[c] === e[c]));
+        const existing = rows.find((r) =>
+          conflictCols.every((c) => (r as any)[c] === e[c]),
+        );
         if (existing) Object.assign(existing, e);
         else saveOne({ ...e });
       }
@@ -61,18 +70,42 @@ describe('CatalogSeedService', () => {
     subCategoryRepo = makeRepo<any>([]);
     accountRepo = makeRepo<any>([]);
     sectionRepo = makeRepo<any>([]);
-    const allocator = { getNextAccountCode: jest.fn() } as unknown as AccountCodeAllocatorService;
+    const allocator = {
+      getNextAccountCode: jest.fn(),
+    } as unknown as AccountCodeAllocatorService;
 
-    catalogService = new CatalogService(categoryRepo as any, subCategoryRepo as any, accountRepo as any, sectionRepo as any, allocator, { transaction: jest.fn() } as any, { createQueryBuilder: jest.fn() } as any, makeRepo<any>([]) as any, makeRepo<any>([]) as any);
-    seeder = new CatalogSeedService(sectionRepo as any, accountRepo as any, catalogService);
+    catalogService = new CatalogService(
+      categoryRepo as any,
+      subCategoryRepo as any,
+      accountRepo as any,
+      sectionRepo as any,
+      allocator,
+      { transaction: jest.fn() } as any,
+      { createQueryBuilder: jest.fn() } as any,
+      makeRepo<any>([]) as any,
+      makeRepo<any>([]) as any,
+    );
+    seeder = new CatalogSeedService(
+      sectionRepo as any,
+      accountRepo as any,
+      catalogService,
+    );
     delete process.env.SKIP_BOOT_SEED;
   });
 
   it('seeds every SYSTEM category and sub-category on the first run', async () => {
     await seeder.onModuleInit();
 
-    expect(categoryRepo.rows.filter((c: any) => c.chartOwnerKey === SYSTEM_CHART_OWNER_KEY)).toHaveLength(SYSTEM_CATEGORIES.length);
-    expect(subCategoryRepo.rows.filter((s: any) => s.chartOwnerKey === SYSTEM_CHART_OWNER_KEY)).toHaveLength(SYSTEM_SUB_CATEGORIES.length);
+    expect(
+      categoryRepo.rows.filter(
+        (c: any) => c.chartOwnerKey === SYSTEM_CHART_OWNER_KEY,
+      ),
+    ).toHaveLength(SYSTEM_CATEGORIES.length);
+    expect(
+      subCategoryRepo.rows.filter(
+        (s: any) => s.chartOwnerKey === SYSTEM_CHART_OWNER_KEY,
+      ),
+    ).toHaveLength(SYSTEM_SUB_CATEGORIES.length);
     expect(sectionRepo.rows).toHaveLength(ACCOUNTING_SECTIONS.length);
     expect(accountRepo.rows).toHaveLength(CHART_ACCOUNTS.length);
   });
@@ -90,7 +123,9 @@ describe('CatalogSeedService', () => {
 
     expect(categoryRepo.rows).toHaveLength(categoryCountAfterFirst);
     expect(subCategoryRepo.rows).toHaveLength(subCategoryCountAfterFirst);
-    expect(subCategoryRepo.rows.find((s: any) => s.name === 'דלק').necessity).toBe('MANDATORY');
+    expect(
+      subCategoryRepo.rows.find((s: any) => s.name === 'דלק').necessity,
+    ).toBe('MANDATORY');
   });
 
   it('respects SKIP_BOOT_SEED', async () => {
@@ -102,13 +137,17 @@ describe('CatalogSeedService', () => {
 
   it('every accountCode referenced by a seed row resolves to a real CHART_ACCOUNTS code', () => {
     const validCodes = new Set(CHART_ACCOUNTS.map((a) => a.code));
-    const missing = SYSTEM_SUB_CATEGORIES.filter((s) => s.accountCode && !validCodes.has(s.accountCode));
+    const missing = SYSTEM_SUB_CATEGORIES.filter(
+      (s) => s.accountCode && !validCodes.has(s.accountCode),
+    );
     expect(missing).toEqual([]);
   });
 
   it('every sub-category references a category present in SYSTEM_CATEGORIES', () => {
     const categoryNames = new Set(SYSTEM_CATEGORIES.map((c) => c.name));
-    const missing = SYSTEM_SUB_CATEGORIES.filter((s) => !categoryNames.has(s.category));
+    const missing = SYSTEM_SUB_CATEGORIES.filter(
+      (s) => !categoryNames.has(s.category),
+    );
     expect(missing).toEqual([]);
   });
 
@@ -139,6 +178,33 @@ describe('CatalogSeedService', () => {
 
     // The create-only seeder diagnoses the row but never rewrites an
     // accountant/admin-owned value behind their back.
-    expect(accountRepo.rows.find((row: any) => row.id === 9999)?.visibleBusinessTypes).toEqual([]);
+    expect(
+      accountRepo.rows.find((row: any) => row.id === 9999)
+        ?.visibleBusinessTypes,
+    ).toEqual([]);
+  });
+
+  it('instruments the existing seed phases without changing their operations', async () => {
+    const measured: string[] = [];
+    const timingSpy = jest
+      .spyOn(startupTiming, 'measureAsync')
+      .mockImplementation(async (event, operation) => {
+        measured.push(event);
+        return operation();
+      });
+
+    await seeder.runSeed();
+
+    expect(measured).toEqual([
+      'catalog_seed.total',
+      'catalog_seed.sections',
+      'catalog_seed.accounts',
+      'catalog_seed.categories_subcategories',
+      'catalog_seed.visibility_integrity',
+    ]);
+    expect(sectionRepo.rows).toHaveLength(ACCOUNTING_SECTIONS.length);
+    expect(accountRepo.rows).toHaveLength(CHART_ACCOUNTS.length);
+    expect(subCategoryRepo.rows).toHaveLength(SYSTEM_SUB_CATEGORIES.length);
+    timingSpy.mockRestore();
   });
 });

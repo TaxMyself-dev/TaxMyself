@@ -7,6 +7,7 @@ import { ACCOUNTING_SECTIONS, CHART_ACCOUNTS } from './chart.seed';
 import { SYSTEM_CATEGORIES, SYSTEM_SUB_CATEGORIES } from './catalog.seed';
 import { CatalogService } from './catalog.service';
 import { OwnerType, SYSTEM_CHART_OWNER_KEY } from 'src/enum';
+import { startupTiming } from '../startup-timing';
 
 /**
  * Phase 2.6 (D13) — flat idempotent seeder replacing AccountSeedService's
@@ -36,8 +37,10 @@ export class CatalogSeedService implements OnModuleInit {
   private readonly logger = new Logger(CatalogSeedService.name);
 
   constructor(
-    @InjectRepository(AccountingSection) private readonly sectionRepo: Repository<AccountingSection>,
-    @InjectRepository(BookingAccount) private readonly accountRepo: Repository<BookingAccount>,
+    @InjectRepository(AccountingSection)
+    private readonly sectionRepo: Repository<AccountingSection>,
+    @InjectRepository(BookingAccount)
+    private readonly accountRepo: Repository<BookingAccount>,
     private readonly catalogService: CatalogService,
   ) {}
 
@@ -49,50 +52,73 @@ export class CatalogSeedService implements OnModuleInit {
     // migration/verification scripts that WANT the seed to run against such a
     // database call `runSeed()` directly instead of relying on this hook.
     if (process.env.SKIP_BOOT_SEED === 'true') {
-      this.logger.log('SKIP_BOOT_SEED=true — CatalogSeedService.onModuleInit is a no-op.');
+      this.logger.log(
+        'SKIP_BOOT_SEED=true — CatalogSeedService.onModuleInit is a no-op.',
+      );
       return;
     }
     await this.runSeed();
   }
 
   async runSeed(): Promise<void> {
-    try {
-      await this.seedSections();
-    } catch (err: any) {
-      this.logger.error(`Accounting-section seed failed: ${err?.message ?? err}`);
-    }
+    await startupTiming.measureAsync('catalog_seed.total', async () => {
+      try {
+        await startupTiming.measureAsync('catalog_seed.sections', () =>
+          this.seedSections(),
+        );
+      } catch (err: any) {
+        this.logger.error(
+          `Accounting-section seed failed: ${err?.message ?? err}`,
+        );
+      }
 
-    try {
-      await this.seedAccounts();
-    } catch (err: any) {
-      this.logger.error(`Chart-of-accounts seed failed: ${err?.message ?? err}`);
-    }
+      try {
+        await startupTiming.measureAsync('catalog_seed.accounts', () =>
+          this.seedAccounts(),
+        );
+      } catch (err: any) {
+        this.logger.error(
+          `Chart-of-accounts seed failed: ${err?.message ?? err}`,
+        );
+      }
 
-    try {
-      await this.seedSystemCatalog();
-    } catch (err: any) {
-      this.logger.error(`SYSTEM catalog seed failed: ${err?.message ?? err}`);
-    }
+      try {
+        await startupTiming.measureAsync(
+          'catalog_seed.categories_subcategories',
+          () => this.seedSystemCatalog(),
+        );
+      } catch (err: any) {
+        this.logger.error(`SYSTEM catalog seed failed: ${err?.message ?? err}`);
+      }
 
-    // Empty visibility on an active card makes it disappear from every
-    // business catalog. Never repair existing rows here (the seeder's
-    // create-only ownership contract remains intact), but fail startup
-    // loudly so a missed data migration cannot become a silent expense-entry
-    // outage again.
-    await this.assertActiveAccountVisibility();
+      // Empty visibility on an active card makes it disappear from every
+      // business catalog. Never repair existing rows here (the seeder's
+      // create-only ownership contract remains intact), but fail startup
+      // loudly so a missed data migration cannot become a silent expense-entry
+      // outage again.
+      await startupTiming.measureAsync(
+        'catalog_seed.visibility_integrity',
+        () => this.assertActiveAccountVisibility(),
+      );
+    });
   }
 
   private async assertActiveAccountVisibility(): Promise<void> {
-    const activeAccounts = await this.accountRepo.find({ where: { isActive: true } });
+    const activeAccounts = await this.accountRepo.find({
+      where: { isActive: true },
+    });
     const invisible = activeAccounts.filter(
       (account) => !account.visibleBusinessTypes?.length,
     );
     if (invisible.length === 0) return;
 
-    const sampleCodes = invisible.slice(0, 10).map((account) => account.code).join(', ');
+    const sampleCodes = invisible
+      .slice(0, 10)
+      .map((account) => account.code)
+      .join(', ');
     throw new Error(
       `Catalog integrity failure: ${invisible.length} active booking_account row(s) have empty ` +
-      `visibleBusinessTypes (sample codes: ${sampleCodes}). Run the visible-business-types backfill before startup.`,
+        `visibleBusinessTypes (sample codes: ${sampleCodes}). Run the visible-business-types backfill before startup.`,
     );
   }
 
@@ -104,9 +130,12 @@ export class CatalogSeedService implements OnModuleInit {
    * now, for the same reason (see class doc comment).
    */
   private async seedSections(): Promise<void> {
-    let created = 0, skipped = 0;
+    let created = 0,
+      skipped = 0;
     for (const s of ACCOUNTING_SECTIONS) {
-      const existing = await this.sectionRepo.findOne({ where: { chartOwnerKey: s.chartOwnerKey, code: s.code } });
+      const existing = await this.sectionRepo.findOne({
+        where: { chartOwnerKey: s.chartOwnerKey, code: s.code },
+      });
       if (existing) {
         skipped++;
         continue;
@@ -114,7 +143,9 @@ export class CatalogSeedService implements OnModuleInit {
       await this.sectionRepo.save(this.sectionRepo.create(s));
       created++;
     }
-    this.logger.log(`Accounting sections ensured (${created} created, ${skipped} already existed and were left untouched, ${ACCOUNTING_SECTIONS.length} total).`);
+    this.logger.log(
+      `Accounting sections ensured (${created} created, ${skipped} already existed and were left untouched, ${ACCOUNTING_SECTIONS.length} total).`,
+    );
   }
 
   /**
@@ -127,21 +158,37 @@ export class CatalogSeedService implements OnModuleInit {
    * (see class doc comment for why this changed).
    */
   private async seedAccounts(): Promise<void> {
-    const sections = await this.sectionRepo.find({ where: { chartOwnerKey: SYSTEM_CHART_OWNER_KEY } });
+    const sections = await this.sectionRepo.find({
+      where: { chartOwnerKey: SYSTEM_CHART_OWNER_KEY },
+    });
     const sectionIdByCode = new Map(sections.map((s) => [s.code, s.id]));
 
-    let created = 0, skipped = 0;
-    for (const { sectionCode, legacyCode, legacySource, ...rest } of CHART_ACCOUNTS) {
-      const existing = await this.accountRepo.findOne({ where: { chartOwnerKey: rest.chartOwnerKey, code: rest.code } });
+    let created = 0,
+      skipped = 0;
+    for (const {
+      sectionCode,
+      legacyCode,
+      legacySource,
+      ...rest
+    } of CHART_ACCOUNTS) {
+      const existing = await this.accountRepo.findOne({
+        where: { chartOwnerKey: rest.chartOwnerKey, code: rest.code },
+      });
       if (existing) {
         skipped++;
         continue;
       }
-      const sectionId = sectionCode ? (sectionIdByCode.get(sectionCode) ?? null) : null;
-      await this.accountRepo.save(this.accountRepo.create({ ...rest, sectionId }));
+      const sectionId = sectionCode
+        ? sectionIdByCode.get(sectionCode) ?? null
+        : null;
+      await this.accountRepo.save(
+        this.accountRepo.create({ ...rest, sectionId }),
+      );
       created++;
     }
-    this.logger.log(`Chart of accounts ensured (${created} created, ${skipped} already existed and were left untouched, ${CHART_ACCOUNTS.length} total).`);
+    this.logger.log(
+      `Chart of accounts ensured (${created} created, ${skipped} already existed and were left untouched, ${CHART_ACCOUNTS.length} total).`,
+    );
   }
 
   private async seedSystemCatalog(): Promise<void> {
@@ -149,17 +196,25 @@ export class CatalogSeedService implements OnModuleInit {
 
     const categoryIdByName = new Map<string, number>();
     for (const cat of SYSTEM_CATEGORIES) {
-      const row = await this.catalogService.findOrCreateCategory(scope, cat.name, cat.type);
+      const row = await this.catalogService.findOrCreateCategory(
+        scope,
+        cat.name,
+        cat.type,
+      );
       categoryIdByName.set(cat.name, row.id);
     }
-    this.logger.log(`SYSTEM categories ensured (${SYSTEM_CATEGORIES.length} checked).`);
+    this.logger.log(
+      `SYSTEM categories ensured (${SYSTEM_CATEGORIES.length} checked).`,
+    );
 
     let created = 0;
     let skipped = 0;
     for (const sub of SYSTEM_SUB_CATEGORIES) {
       const categoryId = categoryIdByName.get(sub.category);
       if (!categoryId) {
-        this.logger.error(`Catalog seed: SYSTEM category "${sub.category}" not found for sub-category "${sub.name}" — skipped.`);
+        this.logger.error(
+          `Catalog seed: SYSTEM category "${sub.category}" not found for sub-category "${sub.name}" — skipped.`,
+        );
         skipped++;
         continue;
       }
@@ -167,12 +222,19 @@ export class CatalogSeedService implements OnModuleInit {
       // GUARD INVARIANT: create-if-missing only — an existing row (from a
       // prior boot, or an admin edit via the default-sub-category endpoints)
       // is never touched again.
-      const existing = await this.catalogService.findSubCategoryInSingleScope(SYSTEM_CHART_OWNER_KEY, categoryId, sub.name);
+      const existing = await this.catalogService.findSubCategoryInSingleScope(
+        SYSTEM_CHART_OWNER_KEY,
+        categoryId,
+        sub.name,
+      );
       if (existing) continue;
 
       let accountId: number | null = null;
       if (sub.accountCode) {
-        const account = await this.catalogService.findAccountByCode(SYSTEM_CHART_OWNER_KEY, sub.accountCode);
+        const account = await this.catalogService.findAccountByCode(
+          SYSTEM_CHART_OWNER_KEY,
+          sub.accountCode,
+        );
         if (!account) {
           this.logger.error(
             `Catalog seed: account code "${sub.accountCode}" not found for "${sub.category} / ${sub.name}" — skipped (check seedAccounts ran first).`,

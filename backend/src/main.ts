@@ -1,16 +1,28 @@
-import 'dotenv/config'
+import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 import * as bodyParser from 'body-parser';
 import { HttpExceptionFilter } from './filters/http-exception.filter';
+import { startupTiming } from './startup-timing';
 
 async function bootstrap() {
-  console.log("🔥 NestJS bootstrap started");
-  const app = await NestFactory.create(AppModule, {
-    bodyParser: false,
-    logger: ['warn', 'error', 'debug', 'verbose', 'fatal'],
-  });
+  startupTiming.mark('bootstrap.entry', 'milestone');
+  console.log('🔥 NestJS bootstrap started');
+  const app = await startupTiming.measureAsync(
+    'nest_factory.create.complete',
+    () =>
+      NestFactory.create(AppModule, {
+        bodyParser: false,
+        logger: ['warn', 'error', 'debug', 'verbose', 'fatal'],
+      }),
+  );
+  // TypeORM establishes its connection while Nest builds the application
+  // graph. This is a readiness milestone, not an isolated DB duration.
+  startupTiming.mark('database.ready_milestone', 'milestone');
+  if (startupTiming.isEnabled()) {
+    app.use(startupTiming.firstRequestMiddleware());
+  }
   app.useGlobalFilters(new HttpExceptionFilter());
   app.use(require('cors')('*'));
 
@@ -87,7 +99,6 @@ async function bootstrap() {
     })(req, res, next);
   });
 
-
   // // Only use bodyParser for non-JSON content types (or skip if we already parsed)
   // app.use((req: any, res: any, next: any) => {
   //   // If body was already parsed by our middleware, skip bodyParser
@@ -117,13 +128,15 @@ async function bootstrap() {
   //   console.error('❌ Failed to fetch external IP:', err.message);
   // }
 
-  // await app.listen(parseInt(process.env.PORT) || 8080);
-  await app.listen(
-    parseInt(process.env.PORT) || 8080,
-    '0.0.0.0',
+  await startupTiming.measureAsync('application.init.complete', () =>
+    app.init(),
   );
-  console.log(`✅ Server is listening on port ${parseInt(process.env.PORT) || 8080}`);
-
-
+  await startupTiming.measureAsync('listen.complete', () =>
+    app.listen(parseInt(process.env.PORT) || 8080, '0.0.0.0'),
+  );
+  startupTiming.completeFromProcessStart('startup.total_ready');
+  console.log(
+    `✅ Server is listening on port ${parseInt(process.env.PORT) || 8080}`,
+  );
 }
 bootstrap();
