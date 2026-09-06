@@ -35,6 +35,7 @@ import { DocCreateItemsMobileComponent } from 'src/app/components/doc-create-ite
 import { SegmentedControlComponent } from 'src/app/components/segmented-control/segmented-control.component';
 import { ItemsTotalSummaryComponent } from 'src/app/components/items-total-summary/items-total-summary.component';
 import { DocCreatePaymentsMobileComponent } from 'src/app/components/doc-create-payments-mobile/doc-create-payments-mobile.component';
+import { PdfPreviewDialogComponent } from 'src/app/components/pdf-preview-dialog/pdf-preview-dialog.component';
 
 
 @NgModule({
@@ -69,6 +70,7 @@ import { DocCreatePaymentsMobileComponent } from 'src/app/components/doc-create-
     SegmentedControlComponent,
     ItemsTotalSummaryComponent,
     DocCreatePaymentsMobileComponent,
+    PdfPreviewDialogComponent,
   ],
   declarations: [DocCreatePage,],
   providers: [DialogService, ConfirmationService]

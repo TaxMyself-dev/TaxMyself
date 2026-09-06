@@ -1,0 +1,43 @@
+@if (visible()) {
+  <div class="pdf-preview" dir="rtl" role="dialog" aria-modal="true" [attr.aria-label]="title()">
+
+    <div class="pdf-preview__backdrop" (click)="close()"></div>
+
+    <div class="pdf-preview__panel">
+
+      <header class="pdf-preview__toolbar">
+        <span class="pdf-preview__title">{{ title() }}</span>
+
+        @if (pages().length > 1) {
+          <span class="pdf-preview__pages">{{ pages().length }} עמודים</span>
+        }
+
+        <button
+          #closeButton
+          type="button"
+          class="pdf-preview__close"
+          aria-label="סגור תצוגה מקדימה"
+          (click)="close()">
+          <span aria-hidden="true">✕</span>
+        </button>
+      </header>
+
+      <div class="pdf-preview__scroll" #scroller>
+
+        @if (isLoading()) {
+          <p class="pdf-preview__state">טוען תצוגה מקדימה...</p>
+        }
+
+        @if (errorMessage()) {
+          <p class="pdf-preview__state pdf-preview__state--error">{{ errorMessage() }}</p>
+        }
+
+        @for (page of pages(); track page) {
+          <canvas #pageCanvas class="pdf-preview__page" [attr.aria-label]="'עמוד ' + page"></canvas>
+        }
+
+      </div>
+
+    </div>
+  </div>
+}
