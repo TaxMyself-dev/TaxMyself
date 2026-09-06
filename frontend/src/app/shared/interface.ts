@@ -205,6 +205,9 @@ export interface IBaseFieldData {
 }
 
 export interface IPnlReportData {
+    businessOwnerName: string;
+    businessName: string;
+    businessNumber: string;
     income: number | string;
     netProfitBeforeTax: number | string;
     expenses: {

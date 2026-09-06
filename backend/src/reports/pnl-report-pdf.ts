@@ -3,6 +3,7 @@ import { PnLReportDto } from './dtos/pnl-report.dto';
 import { drawRtl, fmtDate, fmtMoney, registerHebrewFonts, stampFooterOnAllPages } from './pdf-shared';
 
 export interface PnLReportPdfMeta {
+  businessOwnerName: string;
   businessName: string;
   businessNumber: string;
   periodStart: Date;
@@ -48,9 +49,11 @@ export function buildPnlReportPdf(
 
       // Business + period meta
       doc.font(fontR).fontSize(12);
-      drawRtl(doc, `עסק: ${meta.businessName}`, pageLeft, y, contentWidth, { align: 'right' });
+      drawRtl(doc, `שם העוסק: ${meta.businessOwnerName}`, pageLeft, y, contentWidth, { align: 'right' });
       y += 18;
-      drawRtl(doc, `מספר עוסק: ${meta.businessNumber}`, pageLeft, y, contentWidth, { align: 'right' });
+      drawRtl(doc, `שם העסק: ${meta.businessName}`, pageLeft, y, contentWidth, { align: 'right' });
+      y += 18;
+      drawRtl(doc, `מ.ע / ח.פ: ${meta.businessNumber}`, pageLeft, y, contentWidth, { align: 'right' });
       y += 18;
       drawRtl(
         doc,

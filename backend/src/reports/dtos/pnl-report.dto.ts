@@ -14,6 +14,15 @@ export class ExpensePnlDto {
 
 export class PnLReportDto {
 
+    @IsString()
+    businessOwnerName: string;
+
+    @IsString()
+    businessName: string;
+
+    @IsString()
+    businessNumber: string;
+
     @IsNumber()
     income: number;
 

@@ -255,10 +255,10 @@ export class ReportsService {
     const data = await this.preparePnLReportFromJournal(
       firebaseId, businessNumber, startDate, endDate, osekZair, incomeOverride,
     );
-    const business = await this.businessRepo.findOne({ where: { businessNumber, firebaseId } });
     return buildPnlReportPdf(data, {
-      businessName: business?.businessName ?? businessNumber,
-      businessNumber,
+      businessOwnerName: data.businessOwnerName,
+      businessName: data.businessName,
+      businessNumber: data.businessNumber,
       periodStart: startDate,
       periodEnd: endDate,
     });
@@ -630,8 +630,19 @@ export class ReportsService {
     let totalExpenses = 0;
     for (const e of expenseDtos) totalExpenses += e.total;
     const netProfitBeforeTax = effectiveIncome - totalExpenses;
+    const owner = await this.userRepo.findOne({
+      where: { firebaseId },
+      select: ['fName', 'lName'],
+    });
+    const businessOwnerName = [owner?.fName, owner?.lName]
+      .filter((part): part is string => !!part?.trim())
+      .join(' ')
+      .trim() || business.businessName || businessNumber;
 
     return {
+      businessOwnerName,
+      businessName: business.businessName || businessNumber,
+      businessNumber,
       income: Number(effectiveIncome.toFixed(2)),
       expenses: expenseDtos,
       netProfitBeforeTax: Number(netProfitBeforeTax.toFixed(2)),

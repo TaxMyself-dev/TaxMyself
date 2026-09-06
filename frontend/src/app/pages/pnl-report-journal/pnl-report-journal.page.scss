@@ -120,13 +120,11 @@
     margin: 0;
   }
 
-  /* להקטין את המרווח בין שורה של שם העסק לשורת מספר העסק */
-  p:nth-child(1) + p:nth-child(2) {
-    margin-top: 2px;
+  .report-detail-label {
+    font-weight: 600;
   }
 
-  /* להוסיף מעט רווח לפני שורת "דו\"ח רווח והפסד לתקופה" */
-  p:nth-child(2) + p:nth-child(3) {
+  .report-period {
     margin-top: 20px;
   }
 }
@@ -155,6 +153,12 @@
 
 .profit-field {
   font-weight: bold;
+}
+
+.expense-total-row {
+  background-color: #fff7f7;
+  border-top: 2px solid #f2d4d4;
+  font-weight: 700;
 }
 
 .input-container {

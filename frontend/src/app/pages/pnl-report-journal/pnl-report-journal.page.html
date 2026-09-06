@@ -83,12 +83,15 @@
     <ng-container *ngIf="pnlReport">
       <div class="pnl-report-title">
         <p>
-         {{ businessName() }}
+          <span class="report-detail-label">שם העוסק:</span> {{ pnlReport.businessOwnerName }}
         </p>
         <p>
-         מ.ע: {{ businessNumber() }}
+          <span class="report-detail-label">שם העסק:</span> {{ pnlReport.businessName }}
         </p>
         <p>
+          <span class="report-detail-label">מ.ע / ח.פ:</span> {{ pnlReport.businessNumber }}
+        </p>
+        <p class="report-period">
           דו"ח רווח והפסד לתקופה: {{ formatReportDate(endDate()) }} - {{ formatReportDate(startDate()) }}
         </p>
       </div>
@@ -107,6 +110,11 @@
             <div >{{ section.total | number }}</div>
           </div>
         </ng-container>
+        <!-- Display Total Expenses -->
+        <div class="output-pnl-report expense-total-row">
+          <div>סה״כ הוצאות:</div>
+          <div dir="ltr">{{ totalExpense | number }}</div>
+        </div>
         <!-- Display Net Profit Before Tax -->
         <div class="output-pnl-report">
           <div>רווח נקי לפני מס:</div>

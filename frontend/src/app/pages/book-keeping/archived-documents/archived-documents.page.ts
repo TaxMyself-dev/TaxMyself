@@ -101,7 +101,7 @@ export class ArchivedDocumentsPage implements OnInit {
     primaryFields: ['name'],
     highlightedField: 'sourceLabel',
     dateField: 'uploadDate',
-    hiddenFields: ['id', 'driveFileId', 'itemType', 'status', 'statusLabel', 'documentType'],
+    hiddenFields: ['id', 'driveFileId', 'itemType', 'status', 'statusLabel', 'documentType', 'reportPeriod'],
     highlightedValueFormat: 'plain'
   };
 
@@ -136,7 +136,9 @@ export class ArchivedDocumentsPage implements OnInit {
         statusLabel: this.archiveStatusLabels[item.status] ?? item.status,
         statusDetail: item.status === 'REJECTED'
           ? (item.rejectionReason?.trim() || 'לא הוזנה סיבת דחייה')
-          : null,
+          : item.status === 'APPROVED' && item.reportPeriod
+            ? `משויכת לדוח: ${item.reportPeriod}`
+            : null,
         uploadDate: item.uploadDate ? item.uploadDate.slice(0, 10) : '-',
       }));
   });

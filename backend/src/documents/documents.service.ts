@@ -3925,10 +3925,13 @@ ${finalOwnerName}`;
     const linkedExpenses = expenseIds.length
       ? await this.expenseRepo.find({
           where: { id: In(expenseIds), userId: firebaseId, businessNumber },
-          select: ['id', 'approvalStatus'],
+          select: ['id', 'approvalStatus', 'vatReportingDate'],
         })
       : [];
     const approvalStatusByExpenseId = new Map(linkedExpenses.map(e => [e.id, e.approvalStatus]));
+    const reportPeriodByExpenseId = new Map(
+      linkedExpenses.map(e => [e.id, e.vatReportingDate ? String(e.vatReportingDate) : null]),
+    );
 
     const docItems: ArchivedItem[] = docs.map(d => ({
       id: d.id,
@@ -3953,6 +3956,9 @@ ${finalOwnerName}`;
         ].includes(d.status),
       driveFileId: d.driveFileId,
       rejectionReason: d.rejectionReason,
+      reportPeriod: d.confirmedExpenseId != null
+        ? (reportPeriodByExpenseId.get(d.confirmedExpenseId) ?? null)
+        : null,
     }));
 
     // Every Expense not backed by a source document: bank/card transactions
@@ -3982,6 +3988,7 @@ ${finalOwnerName}`;
       canReclassify: false,
       driveFileId: null,
       rejectionReason: null,
+      reportPeriod: e.vatReportingDate ? String(e.vatReportingDate) : null,
     }));
 
     return [...docItems, ...txItems].sort((a, b) => {
@@ -4198,4 +4205,6 @@ export interface ArchivedItem {
   canReclassify: boolean;
   driveFileId: string | null;
   rejectionReason: string | null;
+  /** Expense.vatReportingDate for approved expenses and their source document. */
+  reportPeriod: string | null;
 }

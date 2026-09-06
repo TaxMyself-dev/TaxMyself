@@ -89,6 +89,8 @@ export interface ArchivedItem {
   canReclassify: boolean;
   driveFileId: string | null;
   rejectionReason: string | null;
+  /** Reporting-period label copied from the approved linked expense. */
+  reportPeriod: string | null;
 }
 
 /** Raw shape of a single invoice returned by the OCR endpoint. Matches
