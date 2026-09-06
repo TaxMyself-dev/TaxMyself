@@ -11,6 +11,7 @@ import { ExtractedDocument, ExtractedDocStatus, ExtractedDocumentType } from '..
 import { SlimTransaction } from '../transactions/slim-transaction.entity';
 import { SharedService } from '../shared/shared.service';
 import { FxRateService } from '../shared/fx-rate.service';
+import { normalizeSupplierName, normalizeSupplierTaxId } from '../shared/supplier-identity.util';
 import { Business } from 'src/business/business.entity';
 import { ReportWorkflow, ReportWorkflowStatus, ReportWorkflowType } from '../report-workflow/report-workflow.entity';
 import { BusinessType, VATReportingType, ExpenseReportScope, ExpenseApprovalStatus, ApprovalStatus, JournalReferenceType, isExemptBusinessType, CategoryType, OwnerType, RecognitionType, RecordSource } from 'src/enum';
@@ -1784,32 +1785,32 @@ export class ExpensesService {
         // allowed. When supplierID is empty (cash vendor, foreign merchant)
         // fall back to name-uniqueness so users don't accidentally create
         // "אנונימי" twice.
-        const supplierIdTrimmed = supplier.supplierID?.trim();
-        const existing = supplierIdTrimmed
-            ? await this.supplier_repo.findOne({
-                  where: { businessNumber, supplierID: supplierIdTrimmed },
-              })
-            : await this.supplier_repo.findOne({
-                  where: { businessNumber, supplier: supplier.supplier },
-              });
+        const supplierIdTrimmed = normalizeSupplierTaxId(supplier.supplierID) || null;
+        const supplierName = supplier.supplier?.trim() ?? '';
+        const supplierNameKey = normalizeSupplierName(supplierName);
+        const businessSuppliers = await this.supplier_repo.find({ where: { businessNumber } });
+        const existing = businessSuppliers.find(candidate => supplierIdTrimmed
+            ? normalizeSupplierTaxId(candidate.supplierID) === supplierIdTrimmed
+            : !!supplierNameKey && normalizeSupplierName(candidate.supplier) === supplierNameKey,
+        );
         if (existing) {
             const reason = supplierIdTrimmed
                 ? `supplierID "${supplierIdTrimmed}"`
-                : `name "${supplier.supplier}"`;
+                : `name "${supplierName}"`;
             throw new HttpException({
                 status: HttpStatus.CONFLICT,
                 error: `Supplier with ${reason} already exists for this business`
             }, HttpStatus.CONFLICT);
         }
         const supplierWithAccountPercentages = await this.applySupplierAccountPercentages(
-            supplier,
+            { ...supplier, supplier: supplierName, supplierID: supplierIdTrimmed },
             userId,
             businessNumber,
         );
         const newSupplier = this.supplier_repo.create(supplierWithAccountPercentages);
         newSupplier.userId = userId;
         newSupplier.businessNumber = businessNumber;
-        if (supplierIdTrimmed) newSupplier.supplierID = supplierIdTrimmed;
+        newSupplier.supplierID = supplierIdTrimmed;
         try {
             return await this.supplier_repo.save(newSupplier);
         } catch (err: any) {
@@ -1839,10 +1840,30 @@ export class ExpensesService {
         if (supplier.userId !== userId) {
             throw new UnauthorizedException(`You do not have permission to update this supplier`);
         }
-        const supplierWithAccountPercentages = await this.applySupplierAccountPercentages({
+        const mergedSupplier = {
             ...supplier,
             ...updateSupplierDto,
-        }, userId, supplier.businessNumber);
+            supplier: (updateSupplierDto.supplier ?? supplier.supplier)?.trim(),
+            supplierID: normalizeSupplierTaxId(updateSupplierDto.supplierID ?? supplier.supplierID) || null,
+        };
+        const candidateNameKey = normalizeSupplierName(mergedSupplier.supplier);
+        const candidates = await this.supplier_repo.find({ where: { businessNumber: supplier.businessNumber } });
+        const conflict = candidates.find(candidate => candidate.id !== supplier.id && (
+            mergedSupplier.supplierID
+                ? normalizeSupplierTaxId(candidate.supplierID) === mergedSupplier.supplierID
+                : !!candidateNameKey && normalizeSupplierName(candidate.supplier) === candidateNameKey
+        ));
+        if (conflict) {
+            throw new HttpException({
+                status: HttpStatus.CONFLICT,
+                error: 'Supplier with this number/name already exists for this business',
+            }, HttpStatus.CONFLICT);
+        }
+        const supplierWithAccountPercentages = await this.applySupplierAccountPercentages(
+            mergedSupplier,
+            userId,
+            supplier.businessNumber,
+        );
         return this.supplier_repo.save(supplierWithAccountPercentages as Supplier);
     }
 

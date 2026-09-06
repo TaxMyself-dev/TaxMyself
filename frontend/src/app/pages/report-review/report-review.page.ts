@@ -706,6 +706,9 @@ export class ReportReviewPage implements OnInit {
     const vatPercent  = Number(c.vatPercent  ?? txSide?.vatPercent  ?? docSide?.vatPercent  ?? 0);
     const taxPercent  = Number(c.taxPercent  ?? txSide?.taxPercent  ?? docSide?.taxPercent  ?? 0);
     const isEquipment = !!(c.isEquipment ?? txSide?.isEquipment ?? docSide?.isEquipment ?? false);
+    const supplierKnown = docSide != null
+      ? docSide.matchedSupplierKnown
+      : !!txSide?.matchedSupplierKnown;
 
     return {
       rowKey: `${r.type}:${docSide?.documentId ?? 'x'}:${txSide?.slimTransactionId ?? 'x'}`,
@@ -720,7 +723,8 @@ export class ReportReviewPage implements OnInit {
       selected:
         (c.status === 'READY' || c.status === 'PRIVATE') &&
         docSide?.documentKind !== 'ANNUAL_DOCUMENT' &&
-        docSide?.documentKind !== 'UNIDENTIFIED',
+        docSide?.documentKind !== 'UNIDENTIFIED' &&
+        supplierKnown,
       documentId: docSide?.documentId ?? null,
       slimTransactionId: txSide?.slimTransactionId ?? null,
       driveFileId: docSide?.driveFileId ?? '',
@@ -1115,12 +1119,22 @@ export class ReportReviewPage implements OnInit {
     );
   }
 
-  /** Case-insensitive, trimmed name key — mirrors the backend's
-   *  normalizeSupplierName (backend/src/reports/supplier-name.util.ts).
-   *  toLowerCase() is a no-op on Hebrew (no case), so this is safe for
-   *  Hebrew/Latin/mixed names alike. */
+  /** Mirrors backend/src/shared/supplier-identity.util.ts. */
   private normalizeSupplierName(name: string | null | undefined): string {
-    return (name ?? '').trim().toLowerCase();
+    return (name ?? '')
+      .normalize('NFKC')
+      .trim()
+      .toLowerCase()
+      .replace(/[\p{P}\p{S}]+/gu, ' ')
+      .replace(/\s+/gu, ' ')
+      .trim();
+  }
+
+  private normalizeSupplierTaxId(value: string | null | undefined): string {
+    return (value ?? '')
+      .normalize('NFKC')
+      .toUpperCase()
+      .replace(/[^\p{L}\p{N}]/gu, '');
   }
 
   /** Bookmark click — "ספק מוכר" loads the persisted Supplier record for
@@ -1139,9 +1153,11 @@ export class ReportReviewPage implements OnInit {
       this.supplierDraft.set(null);
       this.ensureSuppliersLoaded().subscribe(list => {
         this.suppliersCache = list;
-        const match = row.type === 'tx_only'
-          ? list.find(s => this.normalizeSupplierName(s.supplier) === this.normalizeSupplierName(row.supplier))
-          : list.find(s => (s.supplierID ?? '').trim() === row.supplierId.trim());
+        const taxIdKey = this.normalizeSupplierTaxId(row.supplierId);
+        const matches = taxIdKey
+          ? list.filter(s => this.normalizeSupplierTaxId(s.supplierID) === taxIdKey)
+          : list.filter(s => this.normalizeSupplierName(s.supplier) === this.normalizeSupplierName(row.supplier));
+        const match = matches.length === 1 ? matches[0] : undefined;
         if (match) {
           this.supplierDialogId = match.id;
           this.supplierDraft.set(this.toSupplierDraft(match));
@@ -1344,13 +1360,12 @@ export class ReportReviewPage implements OnInit {
    *  the triggering row — the caller adds it separately, unconditionally
    *  (see onSupplierDialogSave). */
   private findSupplierSiblingRows(supplierId: string, supplierName: string): EditableReviewRow[] {
-    const sid = supplierId?.trim();
+    const sid = this.normalizeSupplierTaxId(supplierId);
     const sname = this.normalizeSupplierName(supplierName);
     return this.rows().filter(r => {
-      if (r.type === 'tx_only') {
-        return !!sname && this.normalizeSupplierName(r.supplier) === sname;
-      }
-      return !!sid && r.supplierId.trim() === sid;
+      const rowSid = this.normalizeSupplierTaxId(r.supplierId);
+      if (sid && rowSid) return rowSid === sid;
+      return !!sname && !rowSid && this.normalizeSupplierName(r.supplier) === sname;
     });
   }
 

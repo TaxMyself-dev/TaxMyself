@@ -8,7 +8,7 @@ import {
   Inject,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource, IsNull, In } from 'typeorm';
+import { Repository, DataSource, IsNull } from 'typeorm';
 import { User } from '../users/user.entity';
 import { Business } from '../business/business.entity';
 import { Expense } from '../expenses/expenses.entity';
@@ -27,7 +27,11 @@ import { CatalogService } from '../bookkeeping/catalog.service';
 import { CatalogContextService } from '../bookkeeping/catalog-context.service';
 import { SubCategory } from '../bookkeeping/sub-category.entity';
 import { buildExpenseDescription } from '../expenses/expense-description.util';
-import { normalizeSupplierName } from './supplier-name.util';
+import {
+  buildSupplierIdentityIndexes,
+  findSupplierByIdentity,
+  normalizeSupplierName,
+} from '../shared/supplier-identity.util';
 import { ApprovalStatus, BusinessType, DocumentKind, OwnerType, VATReportingType } from '../enum';
 import { MatchingService } from './matching.service';
 import {
@@ -423,27 +427,13 @@ export class ReportReviewService {
           : [];
     }
 
-    // Pre-compute the set of supplierIDs already in the user's Supplier
-    // table — drives the "ספק מוכר / ספק חדש" column. One batched IN query
-    // beats N per-doc lookups during row assembly.
-    const docSupplierIds = Array.from(new Set(
-      docs.map(d => d.supplierId?.trim()).filter((v): v is string => !!v),
-    ));
-    const knownSuppliers = docSupplierIds.length
-      ? await this.supplierRepo.find({
-          where: { businessNumber, supplierID: In(docSupplierIds) },
-        })
+    // Load the supplier master once for both document and transaction rows.
+    const allBusinessSuppliers = docs.length > 0 || txCacheRows.length > 0
+      ? await this.supplierRepo.find({ where: { businessNumber } })
       : [];
-    // Index by supplierID so toDocSummary can both flag a known supplier
-    // AND hydrate the row's classification (category/sub/vat/tax/isEquipment)
-    // from the user's saved master record. The saved supplier is the
-    // authoritative classification for that vendor — it wins over whatever
-    // the OCR guessed on this particular invoice.
-    const knownSupplierById = new Map<string, Supplier>();
-    for (const s of knownSuppliers) {
-      const key = s.supplierID?.trim();
-      if (key) knownSupplierById.set(key, s);
-    }
+    // Only unambiguous normalised IDs/names enter these indexes. A saved
+    // supplier's classification remains authoritative over the OCR guess.
+    const supplierIndexes = buildSupplierIdentityIndexes(allBusinessSuppliers);
 
     // Step 3.5 — load the merged catalog ONCE (delegation-aware: the
     // client's ACCOUNTANT chart layers join the merge, Phase 5.1) so every
@@ -468,7 +458,7 @@ export class ReportReviewService {
       if (!doc.matchedTransactionId) continue;
       const tx = txBySlimId.get(doc.matchedTransactionId);
       if (!tx) continue;
-      const document = this.toDocSummary(doc, knownSupplierById);
+      const document = this.toDocSummary(doc, supplierIndexes);
       const transaction = this.toTxSummary(tx.slim, tx.cache);
       rows.push({
         type: 'matched',
@@ -495,7 +485,7 @@ export class ReportReviewService {
     // the matched-row tx-wins flip — there's nothing to prefer over here).
     for (const doc of docs) {
       if (matchedDocIds.has(doc.id)) continue;
-      const document = this.toDocSummary(doc, knownSupplierById);
+      const document = this.toDocSummary(doc, supplierIndexes);
       rows.push({
         type: 'doc_only',
         document,
@@ -514,25 +504,10 @@ export class ReportReviewService {
       ? txCacheRows.filter(r => !matchedTxIds.has(r.slim.id))
       : [];
 
-    // Supplier lookup for tx_only rows: a raw bank transaction has no
-    // supplierId (that's a doc-side concept), only a merchant name — so
-    // "ספק מוכר" here needs a name-based fallback. Deliberately NOT the
-    // same knownSuppliers list above (that one is scoped to docSupplierIds
-    // — a supplier with no pending doc THIS round would never appear
-    // there, which would make this fallback miss the common case of a
-    // recurring bank-only vendor). One extra batched query — not per-row —
-    // only run when there's actually a tx_only row to resolve.
-    const allBusinessSuppliers = pendingTxRows.length > 0
-      ? await this.supplierRepo.find({ where: { businessNumber } })
-      : [];
-    const knownSupplierByName = new Map<string, Supplier>();
-    for (const s of allBusinessSuppliers) {
-      const key = normalizeSupplierName(s.supplier);
-      if (key) knownSupplierByName.set(key, s);
-    }
-
+    // A raw bank transaction has no tax ID, so tx_only rows use the same
+    // unambiguous normalised-name index.
     for (const { slim, cache } of pendingTxRows) {
-      const transaction = this.toTxSummary(slim, cache, knownSupplierByName);
+      const transaction = this.toTxSummary(slim, cache, supplierIndexes.byName);
       rows.push({
         type: 'tx_only',
         transaction,
@@ -1591,9 +1566,8 @@ export class ReportReviewService {
   }
 
   /** Document row → wire shape. Number casts protect against TypeORM
-   *  returning decimals as strings from MySQL. `knownSupplierById` maps
-   *  supplierID → the user's saved Supplier master row, pre-computed by the
-   *  caller so we don't run an extra query per document.
+   *  returning decimals as strings from MySQL. `supplierIndexes` contains
+   *  the pre-computed unambiguous saved-supplier identity matches.
    *
    *  When the doc's supplier is in that map, the row's classification
    *  (category / sub-category / vat% / tax% / isEquipment) is hydrated from
@@ -1604,10 +1578,13 @@ export class ReportReviewService {
    *  saved field is blank). */
   private toDocSummary(
     d: ExtractedDocument,
-    knownSupplierById: Map<string, Supplier>,
+    supplierIndexes: { byTaxId: Map<string, Supplier>; byName: Map<string, Supplier> },
   ): ReviewDocSummary {
-    const supplierKey = d.supplierId?.trim();
-    const savedSupplier = supplierKey ? knownSupplierById.get(supplierKey) : undefined;
+    const savedSupplier = findSupplierByIdentity(
+      d.supplierId,
+      d.supplier,
+      supplierIndexes,
+    );
 
     return {
       documentId: d.id,

@@ -188,7 +188,7 @@
            [class.supplier-bookmark--saved]="row.supplierStatusLabel === 'ספק מוכר'"
            [pTooltip]="row.supplierStatusLabel === 'ספק מוכר'
              ? 'ספק שמור — לחץ לעריכת הפרטים'
-             : 'ספק חדש — לחץ לשמירת פרטי הספק'"
+             : 'ספק חדש — סיווג OCR דורש בדיקה; לחץ לשמירת פרטי הספק'"
            tooltipPosition="top"
            (click)="openSupplierDialog(row); $event.stopPropagation()"></span>
         <span class="cell-readonly supplier-name-input">{{ row.supplier }}</span>

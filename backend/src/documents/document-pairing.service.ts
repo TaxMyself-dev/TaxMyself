@@ -6,6 +6,7 @@ import {
   ExtractedDocStatus,
   ExtractedDocumentType,
 } from './extracted-document.entity';
+import { normalizeSupplierName, normalizeSupplierTaxId } from '../shared/supplier-identity.util';
 
 /**
  * Window for the amount+date fallback pairing rule (used when both rows
@@ -238,11 +239,11 @@ export class DocumentPairingService {
    *     still gets us there.
    */
   private isSameSupplier(a: PairingCandidate, b: PairingCandidate): boolean {
-    const aId = a.supplierId?.trim();
-    const bId = b.supplierId?.trim();
+    const aId = normalizeSupplierTaxId(a.supplierId);
+    const bId = normalizeSupplierTaxId(b.supplierId);
     if (aId && bId) return aId === bId;
-    const aName = a.supplier?.trim().toLowerCase();
-    const bName = b.supplier?.trim().toLowerCase();
+    const aName = normalizeSupplierName(a.supplier);
+    const bName = normalizeSupplierName(b.supplier);
     return !!aName && !!bName && aName === bName;
   }
 

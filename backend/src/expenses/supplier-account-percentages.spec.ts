@@ -22,7 +22,7 @@ describe('ExpensesService supplier account percentages', () => {
   beforeEach(() => {
     supplierRepo = {
       findOne: jest.fn(),
-      find: jest.fn(),
+      find: jest.fn().mockResolvedValue([]),
       create: jest.fn((value) => ({ ...value })),
       save: jest.fn(async (value) => value),
     };
@@ -56,8 +56,6 @@ describe('ExpensesService supplier account percentages', () => {
   });
 
   it('uses the linked booking account percentages when adding a supplier', async () => {
-    supplierRepo.findOne.mockResolvedValue(null);
-
     await service.addSupplier({
       supplier: 'Supplier',
       supplierID: ' 5151540809 ',
@@ -73,6 +71,33 @@ describe('ExpensesService supplier account percentages', () => {
       taxPercent: 45,
       supplierID: '5151540809',
     }));
+  });
+
+  it('stores a foreign tax identifier in canonical alphanumeric form', async () => {
+    await service.addSupplier({
+      supplier: 'Google Cloud EMEA Limited',
+      supplierID: ' ie-123 4567.ab ',
+      subCategoryId: 42,
+    } as Partial<Supplier>, 'user-1', '123456789');
+
+    expect(supplierRepo.save).toHaveBeenCalledWith(expect.objectContaining({
+      supplier: 'Google Cloud EMEA Limited',
+      supplierID: 'IE1234567AB',
+    }));
+  });
+
+  it('rejects a duplicate foreign supplier by normalised name when it has no tax ID', async () => {
+    supplierRepo.find.mockResolvedValue([{
+      id: 7,
+      supplier: 'Google Cloud EMEA Limited',
+      supplierID: null,
+      businessNumber: '123456789',
+    }]);
+
+    await expect(service.addSupplier({
+      supplier: ' google-cloud  emea limited ',
+      supplierID: null,
+    } as Partial<Supplier>, 'user-1', '123456789')).rejects.toMatchObject({ status: 409 });
   });
 
   it('returns account percentages instead of a rounded supplier cache value', async () => {

@@ -100,7 +100,7 @@ describe('ReportReviewService.toDocSummary — documentKind on the wire', () => 
         documentType: 'form_106', documentKind: DocumentKind.ANNUAL_DOCUMENT,
         currency: null, ilsAmount: null,
       },
-      new Map(),
+      { byTaxId: new Map(), byName: new Map() },
     );
     expect(summary.documentKind).toBe(DocumentKind.ANNUAL_DOCUMENT);
   });

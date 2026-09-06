@@ -55,10 +55,8 @@ export interface ReviewDocSummary {
    *  review modal to render the "(₪Y)" parenthesis under the foreign
    *  amount without a second FX lookup. */
   ilsAmount: number | null;
-  /** True when the document's supplier_id matches a row in the user's
-   *  Supplier table. Drives the "ספק מוכר / ספק חדש" status column in the
-   *  review modal — same mental model as the old PullDriveDocsDialog
-   *  had. False when supplier_id is null, blank, or absent from suppliers. */
+  /** True when the document matches a saved supplier by normalised tax ID,
+   *  or, without an ID, by one unambiguous normalised supplier name. */
   matchedSupplierKnown: boolean;
 }
 

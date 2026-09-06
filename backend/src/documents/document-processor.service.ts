@@ -59,7 +59,13 @@ For each invoice extract:
   (or "tax_invoice_receipt" if "חשבונית" also appears, or "credit_invoice"
   if it's a reversal of a prior charge).
 - supplier (string): supplier/vendor name
-- supplier_id (string): supplier's Israeli business / tax ID number (מספר עוסק / ח.פ.) — digits only, no dashes or spaces
+- supplier_id (string): the SELLER'S official tax identifier. For an Israeli
+  supplier use its business / tax ID number (מספר עוסק / ח.פ.), digits only.
+  For a foreign supplier use its VAT/tax-registration identifier, preserving
+  any printed country prefix and letters but removing spaces, dots and dashes
+  (example shape: "IE1234567AB"). Never copy the invoice number, customer tax
+  ID, customer/account number or payment reference into this field. Return
+  null when no seller tax identifier is printed or its ownership is unclear.
 - date (string): invoice date in YYYY-MM-DD format
 - invoice_number (string): the INVOICE number printed on the document.
     IMPORTANT for receipts: if the document is a receipt (document_type=

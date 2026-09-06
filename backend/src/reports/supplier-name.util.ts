@@ -10,6 +10,4 @@
  * one Drive-scan batch) — exported here so other callers (getReportPreview's
  * tx_only "ספק מוכר" fallback) don't have to re-derive the same rule.
  */
-export function normalizeSupplierName(name: string | null | undefined): string {
-  return (name ?? '').trim().toLowerCase();
-}
+export { normalizeSupplierName } from '../shared/supplier-identity.util';
