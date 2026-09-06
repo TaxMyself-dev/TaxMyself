@@ -645,6 +645,11 @@
     </ng-template>
   </p-dialog>
 
+  <!-- In-app PDF preview (mobile / installed PWA). The form stays mounted behind it. -->
+  <app-pdf-preview-dialog [visible]="pdfPreviewVisible()" [pdf]="pdfPreviewBlob()"
+    (closed)="closePdfPreview()">
+  </app-pdf-preview-dialog>
+
   <!-- p-toast (key="br") is provided globally in app.component.html -->
 
   <!-- Confirmation Dialog for PrimeNG ConfirmationService -->

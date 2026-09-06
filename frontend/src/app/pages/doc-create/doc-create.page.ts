@@ -88,6 +88,8 @@ export class DocCreatePage implements OnInit, OnDestroy {
   docIndexes: IDocIndexes = { docIndex: 0, generalIndex: 0, isInitial: false };
   createPDFIsLoading = signal(false);
   createPreviewPDFIsLoading = signal(false);
+  pdfPreviewVisible = signal(false); // In-app PDF preview (mobile / PWA)
+  pdfPreviewBlob = signal<Blob | null>(null);
   showCreateDocErrorDialog = signal(false); // Error dialog when document creation fails
   allocationNumberLoading = signal(false); // Loading state for allocation number request
   clients = signal<IClient[]>([]);
@@ -850,9 +852,29 @@ export class DocCreatePage implements OnInit, OnDestroy {
       )
       .subscribe((res) => {
         console.log("PDF creation result (Preview):", res);
-        this.fileService.previewFile3(res);
-        //this.fileService.previewFile1(res);
+        if (this.usesInAppPdfPreview()) {
+          // Mobile / installed PWA: render the PDF inside the app. Chrome on
+          // Android never displays an embedded PDF inline, and window.open()
+          // would leave the app shell entirely.
+          this.pdfPreviewBlob.set(res);
+          this.pdfPreviewVisible.set(true);
+        } else {
+          // Desktop browser: unchanged behaviour.
+          this.fileService.previewFile3(res);
+        }
       });
+  }
+
+
+  /** Desktop browsers keep the popup preview; mobile and installed PWAs get the in-app viewer. */
+  private usesInAppPdfPreview(): boolean {
+    return this.genericService.isMobile() || this.genericService.isStandalonePwa();
+  }
+
+
+  closePdfPreview(): void {
+    this.pdfPreviewVisible.set(false);
+    this.pdfPreviewBlob.set(null);
   }
 
 

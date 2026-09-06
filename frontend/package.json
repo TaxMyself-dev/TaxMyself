@@ -43,6 +43,7 @@
     "ngx-echarts": "^19.0.0",
     "ngx-image-compress": "^15.1.6",
     "ngx-pipes": "^3.2.2",
+    "pdfjs-dist": "^4.7.76",
     "primeicons": "^7.0.0",
     "primeng": "^19.0.10",
     "rxjs": "~7.8.0",
