@@ -39,6 +39,15 @@ export class UpdateExpenseDto {
     @IsOptional()
     @IsNumber()
     sum: number;
+
+    /** `ILS` explicitly clears any previous original-currency metadata. */
+    @IsOptional()
+    @IsString()
+    originalCurrency?: string;
+
+    @IsOptional()
+    @IsNumber()
+    originalSum?: number;
     
     @IsOptional()
     @IsNumber()

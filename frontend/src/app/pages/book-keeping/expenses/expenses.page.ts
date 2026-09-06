@@ -288,6 +288,9 @@ export class ExpensesPage implements OnInit {
             return {
               ...row,
               sum: sumDisplay,
+              // Keep the numeric API value for edit prefill. Formatted table
+              // text (including foreign symbols) is display-only.
+              sumRaw: Math.abs(Number(ilsSum)),
               // Surfacing these makes the SUM_WITH_FX renderer fire its
               // foreign-currency branch and read the converted ILS value.
               currency: isForeign ? oc : 'ILS',

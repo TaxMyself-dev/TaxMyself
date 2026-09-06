@@ -189,6 +189,72 @@ export class ExpensesService {
     }
 
     /**
+     * Keep Expense.sum normalized to ILS on both create and update.
+     * Foreign `sum` is derived data, so updates fetch a rate only when the
+     * original amount or currency actually changes. VAT-only and date-only
+     * edits preserve the historical ILS conversion exactly.
+     */
+    private async normalizeExpenseCurrency(
+        expense: Expense,
+        input: {
+            sum?: number | null;
+            originalSum?: number | null;
+            originalCurrency?: string | null;
+            date?: Date | string | null;
+        },
+        mode: 'create' | 'update',
+    ): Promise<boolean> {
+        const hasOwn = (key: keyof typeof input) => Object.prototype.hasOwnProperty.call(input, key);
+        const currencyTouched = hasOwn('originalCurrency');
+        const originalSumTouched = hasOwn('originalSum');
+        const currentCurrency = (expense.originalCurrency ?? '').trim().toUpperCase();
+        const targetCurrency = currencyTouched
+            ? (input.originalCurrency ?? '').trim().toUpperCase()
+            : currentCurrency;
+        const currentOriginalSum = expense.originalSum == null ? null : Number(expense.originalSum);
+        const targetOriginalSum = originalSumTouched
+            ? (input.originalSum == null ? null : Math.abs(Number(input.originalSum)))
+            : currentOriginalSum;
+        const targetIsForeign = targetCurrency !== '' && targetCurrency !== 'ILS';
+
+        if (!targetIsForeign) {
+            const changed = currentCurrency !== '' || currentOriginalSum != null || hasOwn('sum');
+            if (hasOwn('sum')) {
+                const ilsSum = Number(input.sum);
+                if (!Number.isFinite(ilsSum)) {
+                    throw new BadRequestException('יש להזין סכום תקין עבור הוצאה בשקלים');
+                }
+                expense.sum = ilsSum;
+            }
+            expense.originalCurrency = null;
+            expense.originalSum = null;
+            return changed;
+        }
+
+        if (targetOriginalSum == null || !Number.isFinite(targetOriginalSum)) {
+            throw new BadRequestException('יש להזין סכום מקורי תקין עבור הוצאה במטבע זר');
+        }
+
+        const fxInputsChanged = mode === 'create'
+            || targetCurrency !== currentCurrency
+            || targetOriginalSum !== currentOriginalSum;
+        if (fxInputsChanged) {
+            const rate = await this.fxRateService.getRate(
+                new Date(input.date ?? expense.date),
+                targetCurrency,
+            );
+            if (rate == null) {
+                throw new BadRequestException(`Unsupported currency for FX conversion: ${targetCurrency}`);
+            }
+            expense.sum = Number((targetOriginalSum * rate).toFixed(2));
+        }
+
+        expense.originalCurrency = targetCurrency;
+        expense.originalSum = targetOriginalSum;
+        return fxInputsChanged;
+    }
+
+    /**
      * D10 period lock. Throws 423 (`type: 'expense_period_locked'`, mirroring
      * the transaction-side `natural_period_locked` contract) when the expense
      * belongs to an already-REPORTED VAT period:
@@ -555,20 +621,7 @@ export class ExpensesService {
         // table can render "$X (₪Y)" without losing the original amount.
         // FxRateService throws ServiceUnavailable on persistent failure — the
         // exception propagates to the controller as 503 with a Hebrew message.
-        const oc = expense.originalCurrency?.toUpperCase();
-        if (oc && oc !== 'ILS' && expense.originalSum != null) {
-            const rate = await this.fxRateService.getRate(new Date(expense.date), oc);
-            if (rate == null) {
-                throw new Error(`Unsupported currency for FX conversion: ${oc}`);
-            }
-            newExpense.sum = Number((Math.abs(Number(expense.originalSum)) * rate).toFixed(2));
-            newExpense.originalCurrency = oc;
-            newExpense.originalSum = Math.abs(Number(expense.originalSum));
-        } else {
-            // Plain ILS entry — clear in case the form spread leaked stale values.
-            newExpense.originalCurrency = null;
-            newExpense.originalSum = null;
-        }
+        await this.normalizeExpenseCurrency(newExpense, expense, 'create');
 
         // ── Classification (Phase 4.1 — D1/D5/D6/D7) ─────────────────────────
         // subCategoryId wins; the legacy name pair is the fallback (until 4.6).
@@ -785,7 +838,7 @@ export class ExpensesService {
             dto.subCategoryId !== undefined || dto.category !== undefined || dto.subCategory !== undefined;
         const journalAffecting =
             classificationTouched ||
-            ['sum', 'vatPercent', 'taxPercent', 'date', 'activationDate', 'isEquipment', 'reductionPercent', 'supplier']
+            ['sum', 'originalSum', 'originalCurrency', 'vatPercent', 'taxPercent', 'date', 'activationDate', 'isEquipment', 'reductionPercent', 'supplier']
                 .some((k) => dto[k] !== undefined);
 
         // D10: expenses in an already-REPORTED VAT period reject every
@@ -793,6 +846,10 @@ export class ExpensesService {
         if (journalAffecting) {
             await this.assertExpensePeriodUnlocked(expense);
         }
+
+        // Do this before any persistence. A missing FX rate rejects without
+        // saving the Expense or mutating its journal entry.
+        const currencyAmountChanged = await this.normalizeExpenseCurrency(expense, dto, 'update');
 
         let journalable: boolean;
         if (classificationTouched) {
@@ -842,7 +899,6 @@ export class ExpensesService {
                 (expense.approvalStatus === ExpenseApprovalStatus.APPROVED && !!expense.accountCodeSnapshot);
         }
 
-        if (dto.sum !== undefined) expense.sum = dto.sum;
         if (dto.date !== undefined) expense.date = dto.date as any;
         if (dto.activationDate !== undefined) expense.activationDate = dto.activationDate || null;
         if (expense.isEquipmentSnapshot && !expense.activationDate) {
@@ -861,7 +917,7 @@ export class ExpensesService {
         }
 
         // Recalculate totals when any amount-affecting input changed.
-        if (classificationTouched || dto.vatPercent !== undefined || dto.taxPercent !== undefined || dto.sum !== undefined) {
+        if (classificationTouched || dto.vatPercent !== undefined || dto.taxPercent !== undefined || currencyAmountChanged) {
             const updateBusiness = await this.businessRepo.findOne({ where: { businessNumber: expense.businessNumber } });
             this.recomputeExpenseTotals(expense, updateBusiness?.businessType);
         }
@@ -875,6 +931,7 @@ export class ExpensesService {
             vatPercent: _vp, taxPercent: _tp, isEquipment: _ie,
             reductionPercent: _rp,
             subCategoryId: _sc, category: _c, subCategory: _s,
+            sum: _sum, originalSum: _os, originalCurrency: _oc,
             ...restUpdateDto
         } = dto;
         const saved = await this.expense_repo.save({

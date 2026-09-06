@@ -24,6 +24,7 @@ import { AddSupplierComponent } from "../add-supplier/add-supplier.component";
 import { CheckboxModule } from "primeng/checkbox";
 import { ProgressSpinnerModule } from "primeng/progressspinner";
 import { DialogModule } from "primeng/dialog";
+import { expenseCurrencyFormValue, expenseCurrencyPayload } from "./expense-currency.util";
 
 @Component({
     selector: 'app-mannual-expense',
@@ -843,7 +844,7 @@ export class MannualExpenseComponent implements OnDestroy {
             this.editMode = true;
             this.expenseId = row.id != null ? Number(row.id) : null;
             this.existingFilePath = (row.file && row.file !== '') ? row.file : null;
-            const sumVal = this.parseSumFromDisplay(row.sum);
+            const currencyValue = expenseCurrencyFormValue(row);
             const taxVal = this.parsePercentFromDisplay(row.taxPercent);
             const vatVal = this.parsePercentFromDisplay(row.vatPercent);
             const dateValue = this.apiDateToDateObject(row.date);
@@ -852,7 +853,8 @@ export class MannualExpenseComponent implements OnDestroy {
                 businessNumber: row.businessNumber ?? this.mannualExpenseService.$selectedBusinessNumber(),
                 date: dateValue ?? '',
                 activationDate: activationDateValue ?? dateValue ?? '',
-                sum: sumVal != null ? String(sumVal) : '',
+                sum: currencyValue.sum != null ? String(currencyValue.sum) : '',
+                currency: currencyValue.currency,
                 supplier: row.supplier ?? '',
                 supplierId: row.supplierID ?? row.supplierId ?? '',
                 expenseNumber: row.expenseNumber ?? '',
@@ -885,15 +887,6 @@ export class MannualExpenseComponent implements OnDestroy {
                 this.getSubCategory(row.category, true);
             }
         }
-    }
-
-    /** Parse display sum like "1,234 ש"ח" to number */
-    private parseSumFromDisplay(v: any): number | null {
-        if (v == null || v === '') return null;
-        if (typeof v === 'number') return v;
-        const s = String(v).replace(/\s*ש"ח\s*/g, '').replace(/,/g, '').trim();
-        const n = parseFloat(s);
-        return isNaN(n) ? null : n;
     }
 
     /** Parse display percent like "100%" to number */
@@ -1382,11 +1375,10 @@ export class MannualExpenseComponent implements OnDestroy {
         const activationDateForApi = this.toApiDateString(raw.activationDate) || dateForApi;
         const enteredSum = this.toNumberOrNull(raw.sum);
         const currency = (raw.currency ?? 'ILS').toUpperCase();
-        const isForeign = currency !== 'ILS' && enteredSum != null;
 
-        // Foreign-currency mode: backend converts via BOI rate. Send the value
-        // as `originalSum` + `originalCurrency`; omit `sum` so the server is
-        // the single source of truth for the stored ILS amount.
+        // Foreign-currency mode: backend converts via BOI rate. `sum` remains
+        // a DTO-validation placeholder; originalSum/originalCurrency are the
+        // authoritative inputs and the server ignores the placeholder.
         const payload: any = {
             ...raw,
             date: dateForApi,
@@ -1397,15 +1389,7 @@ export class MannualExpenseComponent implements OnDestroy {
             reductionPercent: this.toNumberOrNull(raw.reductionPercent),
             isEquipment: raw.isEquipment || false,
         };
-        if (isForeign) {
-            payload.originalSum = enteredSum;
-            payload.originalCurrency = currency;
-            // Send a placeholder sum so the DTO's @IsNumber doesn't reject —
-            // the backend overwrites it with the converted value.
-            payload.sum = enteredSum;
-        } else {
-            payload.sum = enteredSum;
-        }
+        Object.assign(payload, expenseCurrencyPayload(enteredSum, currency, this.editMode));
         // Form-only fields — don't leak to the backend.
         delete payload.currency;
         delete payload.applyPnlToSubcategory;

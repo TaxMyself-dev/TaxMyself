@@ -81,6 +81,7 @@ describe('ExpensesService — journal entry linking', () => {
   let service: ExpensesService;
   let expenseRepo: jest.Mocked<Repository<Expense>>;
   let bookkeepingService: jest.Mocked<BookkeepingService>;
+  let fxRateService: jest.Mocked<FxRateService>;
   let dataSource: jest.Mocked<DataSource>;
   let mockManager: jest.Mocked<EntityManager>;
 
@@ -144,9 +145,9 @@ describe('ExpensesService — journal entry linking', () => {
       expandPeriodLabelsInRange: jest.fn().mockReturnValue(['1/2024']),
     };
 
-    const fxRateService: Partial<FxRateService> = {
+    fxRateService = {
       getRate: jest.fn().mockResolvedValue(null),
-    };
+    } as any;
 
     const businessRepo = makeRepo<Business>();
     businessRepo.findOne.mockResolvedValue({
@@ -242,6 +243,28 @@ describe('ExpensesService — journal entry linking', () => {
       await expect(
         service.addExpense(dto, 'firebase-uid-1', '999999999'),
       ).rejects.toThrow('account not found');
+    });
+
+    it('normalizes a foreign create to ILS before save and journal posting', async () => {
+      expenseRepo.find.mockResolvedValue([]);
+      expenseRepo.save.mockImplementation(async (value: any) => ({ ...value, id: 7 }));
+      fxRateService.getRate.mockResolvedValue(3.7);
+
+      const result = await service.addExpense({
+        ...dto,
+        sum: 20,
+        originalSum: 20,
+        originalCurrency: 'usd',
+      } as any, 'firebase-uid-1', '999999999');
+
+      expect(fxRateService.getRate).toHaveBeenCalledTimes(1);
+      expect(result).toEqual(expect.objectContaining({
+        sum: 74,
+        originalSum: 20,
+        originalCurrency: 'USD',
+      }));
+      const [input] = bookkeepingService.createJournalEntry.mock.calls[0];
+      expect(input.documentTotal).toBe(74);
     });
   });
 
@@ -376,6 +399,187 @@ describe('ExpensesService — journal entry linking', () => {
       );
 
       expect(bookkeepingService.updateJournalEntryFull).toHaveBeenCalledTimes(1);
+    });
+
+    it('preserves a foreign expense ILS sum on VAT-only edit without an FX lookup', async () => {
+      const expense = makeExpense({
+        journalEntryNumber: 10000001,
+        sum: 62.16,
+        originalSum: 16.8,
+        originalCurrency: 'USD',
+      });
+      expenseRepo.findOne.mockResolvedValue(expense);
+      expenseRepo.save.mockImplementation(async (value: any) => value);
+
+      const result = await service.updateExpense(1, 'firebase-uid-1', {
+        vatPercent: 66,
+        originalSum: 16.8,
+        originalCurrency: 'USD',
+        sum: 16.8,
+        taxSumRec: 0,
+        vatSumRec: 0,
+      } as any);
+
+      expect(fxRateService.getRate).not.toHaveBeenCalled();
+      expect(result.sum).toBe(62.16);
+      expect(result.originalSum).toBe(16.8);
+      expect(result.originalCurrency).toBe('USD');
+      const [, , input] = bookkeepingService.updateJournalEntryFull.mock.calls[0];
+      expect(input.documentTotal).toBe(62.16);
+      expect(input.lines).toEqual(expect.arrayContaining([
+        expect.objectContaining({ accountCode: '1100', credit: 62.16 }),
+      ]));
+    });
+
+    it('does not re-rate a foreign expense when only its date changes', async () => {
+      const expense = makeExpense({
+        journalEntryNumber: 10000001,
+        sum: 62.16,
+        originalSum: 16.8,
+        originalCurrency: 'USD',
+      });
+      expenseRepo.findOne.mockResolvedValue(expense);
+      expenseRepo.save.mockImplementation(async (value: any) => value);
+
+      const result = await service.updateExpense(1, 'firebase-uid-1', {
+        date: '2024-02-01', taxSumRec: 0, vatSumRec: 0,
+      } as any);
+
+      expect(fxRateService.getRate).not.toHaveBeenCalled();
+      expect(result.sum).toBe(62.16);
+    });
+
+    it('converts a changed original amount once and journals the converted ILS total', async () => {
+      const expense = makeExpense({
+        journalEntryNumber: 10000001,
+        sum: 62.16,
+        originalSum: 16.8,
+        originalCurrency: 'USD',
+        vatPercentSnapshot: 0,
+      });
+      expenseRepo.findOne.mockResolvedValue(expense);
+      expenseRepo.save.mockImplementation(async (value: any) => value);
+      fxRateService.getRate.mockResolvedValue(3.5);
+
+      const result = await service.updateExpense(1, 'firebase-uid-1', {
+        originalSum: 20,
+        originalCurrency: 'USD',
+        sum: 20,
+        vatPercent: 0,
+        taxSumRec: 0,
+        vatSumRec: 0,
+      } as any);
+
+      expect(fxRateService.getRate).toHaveBeenCalledTimes(1);
+      expect(result.sum).toBe(70);
+      expect(result.totalVatPayable).toBe(0);
+      const [, , input] = bookkeepingService.updateJournalEntryFull.mock.calls[0];
+      expect(input.documentTotal).toBe(70);
+      expect(input.lines).toEqual(expect.arrayContaining([
+        expect.objectContaining({ accountCode: '1100', credit: 70 }),
+      ]));
+    });
+
+    it('converts once when only the original currency changes', async () => {
+      const expense = makeExpense({
+        journalEntryNumber: 10000001,
+        sum: 62.16,
+        originalSum: 16.8,
+        originalCurrency: 'USD',
+      });
+      expenseRepo.findOne.mockResolvedValue(expense);
+      expenseRepo.save.mockImplementation(async (value: any) => value);
+      fxRateService.getRate.mockResolvedValue(4);
+
+      const result = await service.updateExpense(1, 'firebase-uid-1', {
+        originalCurrency: 'EUR', taxSumRec: 0, vatSumRec: 0,
+      } as any);
+
+      expect(fxRateService.getRate).toHaveBeenCalledTimes(1);
+      expect(fxRateService.getRate).toHaveBeenCalledWith(expect.any(Date), 'EUR');
+      expect(result.sum).toBe(67.2);
+    });
+
+    it('switches a foreign expense to ILS and clears original fields', async () => {
+      const expense = makeExpense({
+        journalEntryNumber: 10000001,
+        sum: 62.16,
+        originalSum: 16.8,
+        originalCurrency: 'USD',
+      });
+      expenseRepo.findOne.mockResolvedValue(expense);
+      expenseRepo.save.mockImplementation(async (value: any) => value);
+
+      const result = await service.updateExpense(1, 'firebase-uid-1', {
+        sum: 75,
+        originalCurrency: 'ILS',
+        taxSumRec: 0,
+        vatSumRec: 0,
+      } as any);
+
+      expect(fxRateService.getRate).not.toHaveBeenCalled();
+      expect(result).toEqual(expect.objectContaining({
+        sum: 75, originalSum: null, originalCurrency: null,
+      }));
+    });
+
+    it('fails before save when a changed foreign amount has no rate', async () => {
+      const expense = makeExpense({
+        journalEntryNumber: 10000001,
+        sum: 62.16,
+        originalSum: 16.8,
+        originalCurrency: 'USD',
+      });
+      expenseRepo.findOne.mockResolvedValue(expense);
+      fxRateService.getRate.mockResolvedValue(null);
+
+      await expect(service.updateExpense(1, 'firebase-uid-1', {
+        originalSum: 20,
+        originalCurrency: 'USD',
+        taxSumRec: 0,
+        vatSumRec: 0,
+      } as any)).rejects.toThrow('Unsupported currency');
+
+      expect(expenseRepo.save).not.toHaveBeenCalled();
+      expect(bookkeepingService.updateJournalEntryFull).not.toHaveBeenCalled();
+    });
+
+    it('checks the D10 period lock before a foreign-currency edit or FX lookup', async () => {
+      const expense = makeExpense({
+        journalEntryNumber: 10000001,
+        isReported: true,
+        originalSum: 16.8,
+        originalCurrency: 'USD',
+      });
+      expenseRepo.findOne.mockResolvedValue(expense);
+
+      await expect(service.updateExpense(1, 'firebase-uid-1', {
+        originalSum: 20,
+        originalCurrency: 'USD',
+        taxSumRec: 0,
+        vatSumRec: 0,
+      } as any)).rejects.toMatchObject({ status: 423 });
+
+      expect(fxRateService.getRate).not.toHaveBeenCalled();
+      expect(expenseRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('keeps the ILS update path unchanged and performs no FX lookup', async () => {
+      const expense = makeExpense({ journalEntryNumber: 10000001, sum: 100 });
+      expenseRepo.findOne.mockResolvedValue(expense);
+      expenseRepo.save.mockImplementation(async (value: any) => value);
+
+      const result = await service.updateExpense(1, 'firebase-uid-1', {
+        sum: 250,
+        originalCurrency: 'ILS',
+        taxSumRec: 0,
+        vatSumRec: 0,
+      } as any);
+
+      expect(fxRateService.getRate).not.toHaveBeenCalled();
+      expect(result.sum).toBe(250);
+      const [, , input] = bookkeepingService.updateJournalEntryFull.mock.calls[0];
+      expect(input.documentTotal).toBe(250);
     });
 
     it('throws NotFoundException when expense does not exist', async () => {
