@@ -120,12 +120,32 @@ Checked every table that could hold dependent data for either row
 `full_transactions_cache`) — **zero dependent rows on either side**; both
 are empty test/duplicate data, confirming Elazar's read.
 
-**Decision (2026-07-10):** delete id 12, keep id 5. Staged as `cutover.sql`
-§2 (`DELETE FROM business WHERE id = 12` + `UNIQUE(businessNumber)`),
-rehearsed and verified clean against `keepintax_prodcopy`. Per Elazar's
-standing decision, D12 security fixes deploy independently of the main
-cutover — this section ships in Session 8, not immediately, but is fully
-written and rehearsed now so Session 8 doesn't rediscover it from scratch.
+**Superseded — original decision (2026-07-10):** delete id 12, keep id 5,
+staged as `cutover.sql` §2 (`DELETE FROM business WHERE id = 12` +
+`UNIQUE(businessNumber)`). This was the pre-investigation Session-1 guess.
+It was **reversed in Session 8**, and that stale `cutover.sql` §2 was
+removed on 2026-07-13 (see `cutover-day-checklist.md`, "Fixes applied to
+`cutover.sql` during this review"). Do not act on it.
+
+**Final decision (Session 8):** delete id **5** (`נגרות`, EXEMPT, zero
+activity); id **12** (`פוטובלוק שמואל`, LICENSED) survives and keeps
+`businessNumber = '314719279'`. Staged as the trailing
+`PHASE 0.3 / D12.4` section at the end of `cutover.sql`
+(`DELETE FROM business WHERE id = 5 AND businessNumber = '314719279'` +
+named index `ux_business_number`), rehearsed and verified clean against
+`keepintax_prodcopy`.
+
+**Status — APPLIED IN PRODUCTION (verified 2026-09-06):** business id 5 is
+deleted; **id 12 is the surviving row** holding `businessNumber
+'314719279'`. Consequences for cutover day: the `DELETE` in `cutover.sql`
+is now an expected **no-op** (0 rows affected), and the pre-flight
+duplicate `SELECT` returns **zero** groups rather than the one group that
+section originally told you to expect. The index half was *not* part of
+this verification — check `SHOW INDEX FROM business` for
+`ux_business_number` before running the `ALTER`.
+
+Per Elazar's standing decision, D12 security fixes deploy independently of
+the main cutover.
 
 ---
 

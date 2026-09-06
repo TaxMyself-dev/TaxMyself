@@ -1424,10 +1424,17 @@ ALTER TABLE `journal_entry`
 -- ============================================================================
 -- PHASE 0.3 / D12.4 - UNIQUE(businessNumber) on business  (Session 8)
 -- ============================================================================
+-- STATUS 2026-09-06: this dedup has ALREADY BEEN APPLIED IN PRODUCTION -
+-- business id 5 is deleted and id 12 survives holding 314719279 (verified
+-- directly against production by Elazar). The DELETE below is therefore now
+-- an expected NO-OP; it is left in place unchanged as the guard it always
+-- was, so this file stays safe to run end-to-end against an older restore.
+--
 -- VERIFICATION FIRST (run manually, review output BEFORE the statements below):
--- production may have drifted since the dump. Expect exactly ONE group -
--- businessNumber 314719279 held by ids 5 and 12. If ANY other group appears,
--- STOP and resolve it with Elazar before proceeding.
+-- production may have drifted since the dump. Expect ZERO groups now that the
+-- 314719279 dedup is done - if ANY group appears, STOP and resolve it with
+-- Elazar before proceeding. (Before 2026-09-06 this step expected exactly ONE
+-- group, businessNumber 314719279 held by ids 5 and 12; that is now history.)
 --
 -- SELECT businessNumber, COUNT(*) AS n, GROUP_CONCAT(id) AS ids
 --   FROM business
@@ -1448,8 +1455,10 @@ ALTER TABLE business ADD UNIQUE INDEX ux_business_number (businessNumber);
 
 COMMIT;
 
--- Post-check: expect 1 row deleted, index present in SHOW INDEX FROM business,
--- and the duplicate SELECT above now returns 0 rows.
+-- Post-check: expect 0 rows deleted (the dedup was already applied in
+-- production on/before 2026-09-06 - 1 row deleted only if you are running this
+-- against an older restore that still has id 5), index present in
+-- SHOW INDEX FROM business, and the duplicate SELECT above returns 0 rows.
 
 
 -- ============================================================================
