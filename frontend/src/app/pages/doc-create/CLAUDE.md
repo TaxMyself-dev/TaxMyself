@@ -15,6 +15,10 @@ Page for creating and managing SHAAM-compliant business documents (receipts, tax
 - Configure payment details per method (bank transfer, credit card, check, cash, app).
 - Save/load/delete drafts before finalizing.
 - Preview PDF, create the document, and roll back a created document if needed.
+  Preview rendering is platform-split: desktop browsers keep the popup window
+  (`FilesService.previewFile3`), while mobile viewports and installed PWAs render
+  the same Blob in-app via `components/pdf-preview-dialog` (pdf.js → canvas),
+  because Chrome on Android never displays an embedded PDF inline.
 - Manage allocation numbers: request manually via Israeli Tax Authority link/manual entry, or via SHAAM OAuth flow (`ShaamService`) for invoice approval.
 - "Opposite document" flow: generate a related document (e.g. credit invoice) prefilled from a parent/source document, optionally closing the parent.
 

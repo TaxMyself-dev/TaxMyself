@@ -65,6 +65,17 @@ export class GenericService {
     return this.isMobileSignal();
   }
 
+  /**
+   * True when running as an installed PWA (standalone/fullscreen display mode)
+   * rather than inside a browser tab. Opening a new window from there drops the
+   * user out of the app shell, so such flows need an in-app alternative.
+   */
+  isStandalonePwa(): boolean {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia?.('(display-mode: standalone), (display-mode: fullscreen), (display-mode: minimal-ui)').matches
+      || (window.navigator as unknown as { standalone?: boolean }).standalone === true;
+  }
+
   mapLabelToName(
     options: ISelectItem[]
   ): Array<{ value: string | number | boolean | Date; label: string | number }> {
