@@ -20,7 +20,7 @@ external condition.
 | KT-004 | Investigate slow backend startup and propose solutions | `.codex/worktrees/94e5/taxmyself-dev` | `CLOSED` | Research complete; no code commit | Build 53-159s vs direct TypeScript 16-17s; warm module load 3.2-5.5s; boot seed ~3.5s; recommendations documented |
 | KT-005 | Fix admin CardCom subscription editing | `.codex/worktrees/b9a0/taxmyself-dev` | `CLOSED` | `9505ea0a` on `origin/main`; worker `0211d9d6` | 10 focused backend tests passed; Nest and Angular builds passed; focused Karma compile exposed only documented pre-existing legacy failures |
 | KT-006 | Add opt-in backend startup profiling and a reproducible dev baseline | `.codex/worktrees/ec9f/taxmyself-dev` | `CLOSED` | `156aba28` on `origin/main`; worker `0c4df5cc` | 3 profiler-guard/supervisor tests and 11 timing/seed tests passed; Nest build passed; no production/prodcopy call or behavior optimization |
-| KT-007 | Audit the existing SHAAM invoice-allocation integration and plan the shortest safe path to production | `.codex/worktrees/0607/taxmyself-dev` | `VERIFIED` | Worker `bf155e84`; integrated as `03ff91f2` | Documentation-only audit reviewed; Nest build passed in worker; no external SHAAM call; critical credential/logging/auth gaps require remediation before sandbox or production |
+| KT-007 | Audit the existing SHAAM invoice-allocation integration and plan the shortest safe path to production | `.codex/worktrees/0607/taxmyself-dev` | `CLOSED` | `d3c30f9b` on `origin/main`; worker `bf155e84` | Documentation-only audit reviewed; Nest build passed in worker; no external SHAAM call; critical credential/logging/auth gaps require remediation before sandbox or production |
 
 ## KT-005 acceptance criteria
 
