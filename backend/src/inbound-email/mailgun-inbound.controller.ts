@@ -13,6 +13,7 @@ import {
 import { AnyFilesInterceptor } from '@nestjs/platform-express';
 import { DocumentImportService } from 'src/document-import/document-import.service';
 import { DocumentImportSource } from 'src/document-import/enums/document-import.enums';
+import { GmailForwardingVerificationService } from './gmail-forwarding-verification.service';
 import { InboundEmailAddressService } from './inbound-email-address.service';
 import { MailgunSignatureService } from './mailgun-signature.service';
 
@@ -24,6 +25,8 @@ interface MailgunInboundBody {
   sender?: string;
   from?: string;
   subject?: string;
+  'body-plain'?: string;
+  'stripped-text'?: string;
   attachments?: string;
   'message-url'?: string;
 }
@@ -48,6 +51,7 @@ export class MailgunInboundController {
     private readonly signatureService: MailgunSignatureService,
     private readonly documentImportService: DocumentImportService,
     private readonly addressService: InboundEmailAddressService,
+    private readonly gmailVerificationService: GmailForwardingVerificationService,
   ) {}
 
   @Post('inbound')
@@ -70,6 +74,24 @@ export class MailgunInboundController {
 
     const recipient = this.normalizeEmail(body.recipient);
     const { firebaseId, businessNumber } = await this.resolveTarget(recipient);
+    const verificationForwarded =
+      await this.gmailVerificationService.relayIfApplicable({
+        firebaseId,
+        sender: body.sender,
+        from: body.from,
+        plainBody: body['body-plain'],
+        strippedText: body['stripped-text'],
+      });
+    if (verificationForwarded) {
+      return {
+        accepted: true,
+        receivedFiles: files.length,
+        imported: 0,
+        duplicates: 0,
+        ignored: files.length,
+      };
+    }
+
     const candidates = files
       .map((file) => ({
         file,

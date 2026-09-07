@@ -4,7 +4,9 @@ import { Business } from 'src/business/business.entity';
 import { Delegation } from 'src/delegation/delegation.entity';
 import { DocumentImportModule } from 'src/document-import/document-import.module';
 import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
+import { MailModule } from 'src/mail/mail.module';
 import { User } from 'src/users/user.entity';
+import { GmailForwardingVerificationService } from './gmail-forwarding-verification.service';
 import { InboundEmailAddressController } from './inbound-email-address.controller';
 import { InboundEmailAddress } from './inbound-email-address.entity';
 import { InboundEmailAddressService } from './inbound-email-address.service';
@@ -14,6 +16,7 @@ import { MailgunSignatureService } from './mailgun-signature.service';
 @Module({
   imports: [
     DocumentImportModule,
+    MailModule,
     TypeOrmModule.forFeature([
       InboundEmailAddress,
       Business,
@@ -24,6 +27,7 @@ import { MailgunSignatureService } from './mailgun-signature.service';
   controllers: [MailgunInboundController, InboundEmailAddressController],
   providers: [
     FirebaseAuthGuard,
+    GmailForwardingVerificationService,
     MailgunSignatureService,
     InboundEmailAddressService,
   ],

@@ -4,6 +4,7 @@ import {
 } from '@nestjs/common';
 import { DocumentImportService } from 'src/document-import/document-import.service';
 import { DocumentImportSource } from 'src/document-import/enums/document-import.enums';
+import { GmailForwardingVerificationService } from './gmail-forwarding-verification.service';
 import { MailgunInboundController } from './mailgun-inbound.controller';
 import { MailgunSignatureService } from './mailgun-signature.service';
 
@@ -12,6 +13,7 @@ describe('MailgunInboundController spike', () => {
   const signatureService = { assertValid: jest.fn() };
   const importDocument = jest.fn();
   const resolveRecipient = jest.fn();
+  const relayIfApplicable = jest.fn();
   let controller: MailgunInboundController;
 
   beforeEach(() => {
@@ -27,8 +29,10 @@ describe('MailgunInboundController spike', () => {
       signatureService as unknown as MailgunSignatureService,
       { importDocument } as unknown as DocumentImportService,
       { resolveRecipient } as any,
+      { relayIfApplicable } as unknown as GmailForwardingVerificationService,
     );
     resolveRecipient.mockRejectedValue(new NotAcceptableException());
+    relayIfApplicable.mockResolvedValue(false);
   });
 
   afterEach(() => {
@@ -133,6 +137,38 @@ describe('MailgunInboundController spike', () => {
 
     expect(importDocument).not.toHaveBeenCalled();
     expect(result.ignored).toBe(1);
+  });
+
+  it('relays a Gmail forwarding confirmation without importing content', async () => {
+    process.env.MAILGUN_INBOUND_ENABLED = 'true';
+    resolveRecipient.mockResolvedValue({
+      firebaseId: 'mailbox-owner',
+      businessNumber: '987654321',
+    });
+    relayIfApplicable.mockResolvedValue(true);
+
+    const result = await controller.receive({
+      recipient: 'business@docs-dev.keepintax.co.il',
+      sender: 'forwarding-noreply@google.com',
+      'body-plain': 'https://mail-settings.google.com/mail/vf-safeToken',
+    }, []);
+
+    expect(relayIfApplicable).toHaveBeenCalledWith({
+      firebaseId: 'mailbox-owner',
+      sender: 'forwarding-noreply@google.com',
+      from: undefined,
+      plainBody: 'https://mail-settings.google.com/mail/vf-safeToken',
+      strippedText: undefined,
+    });
+    expect(importDocument).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      accepted: true,
+      receivedFiles: 0,
+      imported: 0,
+      duplicates: 0,
+      ignored: 0,
+    });
+    delete process.env.MAILGUN_INBOUND_ENABLED;
   });
 
   it('returns 406 for an unknown recipient', async () => {

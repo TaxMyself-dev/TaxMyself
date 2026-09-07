@@ -17,6 +17,12 @@
 - Connected Gmail imports are also displayed as `מייל`, because Gmail is the
   original intake channel even though Drive is the shared transport/storage.
 - Content-hash dedup remains scoped to user + business.
+- Gmail forwarding confirmation messages are not documents and do not require
+  a Mailgun inbox. When Google sends a confirmation from its dedicated
+  forwarding sender, the webhook extracts only a recognized HTTPS Google Mail
+  confirmation URL and relays a new plain-text Keepintax message to the owner's
+  registered account email. Raw inbound HTML and arbitrary attachment-free
+  messages are never relayed.
 
 Addresses are allocated lazily by the authenticated endpoint:
 
