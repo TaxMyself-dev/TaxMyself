@@ -313,9 +313,11 @@ p.block-title {
 }
 
 @media (max-width: 768px) {
+  // 24px matches the inline gutter every other mobile section uses
+  // (.user-info-block, .nevigation-block, .table-block, .banking-banner).
   .payment-result-banner {
     flex-wrap: wrap;
-    margin: 0 16px 16px;
+    margin: 0 24px 16px;
   }
   .payment-result-banner__action {
     width: 100%;
@@ -595,8 +597,16 @@ p.block-title {
   //   [avatar] כניסתך האחרונה ...
   //   [ הארכיון שלי ][ + חבר חשבון נוסף ]
   //   [ הוספת הוצאה ]
-  // The avatar spans the two text rows, so its top lines up with the greeting.
+  // The avatar spans the two text rows, so it sits level with the greeting.
   .user-info-block {
+    padding: 16px 24px 0;
+  }
+
+  // Delegated view renders no avatar, greeting or secondary buttons — only the
+  // action row — so it deliberately keeps the desktop flex layout. Applying the
+  // grid template there would lay out three permanently empty rows whose
+  // row-gaps push the action row down by dead space.
+  .user-info-block:not(.user-info-block--delegated) {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr);
     grid-template-areas:
@@ -608,7 +618,6 @@ p.block-title {
     justify-items: start;
     column-gap: 12px;
     row-gap: 4px;
-    padding: 16px 24px 0;
   }
 
   .user-info-row,
@@ -616,19 +625,17 @@ p.block-title {
     display: contents;
   }
 
+  // Centred across the two rows it spans, mirroring the desktop row's
+  // `align-items: center` — and staying level with the greeting on accounts
+  // that have no previous-login line to fill the second row.
   .my-account-avatar {
     grid-area: avatar;
+    align-self: center;
   }
 
   .user-info-block--delegated {
     padding-top: 16px;
     padding-bottom: 0;
-  }
-
-  .dashboard-actions--delegated {
-    flex-direction: row;
-    align-items: center;
-    width: 100%;
   }
 
   .avatar-text {
@@ -637,8 +644,13 @@ p.block-title {
     font-weight: 700;
   }
 
+  // The desktop rule pins this to one line. Beside a 64px avatar inside a 24px
+  // gutter the sentence is wider than the column at phone widths, so let it
+  // wrap rather than run off the edge — where `overflow-x: hidden` would
+  // silently clip it instead of showing a scrollbar.
   .last-login {
     grid-area: last-login;
+    white-space: normal;
   }
 
   // Both secondary buttons share one right-aligned row: they split the header
@@ -669,6 +681,16 @@ p.block-title {
     align-items: flex-start;
     width: 100%;
     margin-top: 6px;
+  }
+
+  // Delegated header is nothing but this row, so it has no greeting block above
+  // to offset from. Declared after `.dashboard-actions` so the reset wins —
+  // both selectors carry the same specificity.
+  .dashboard-actions--delegated {
+    flex-direction: row;
+    align-items: center;
+    width: 100%;
+    margin-top: 0;
   }
 
   .user-actions {
@@ -711,8 +733,23 @@ p.block-title {
     padding: 0 24px;
   }
 
+  // The 233px from Figma is a floor, not a cap: at phone widths the Hebrew body
+  // copy wraps onto enough lines that the block no longer fits, and the
+  // banner's own `overflow: hidden` cuts the "אני רוצה" CTA off the bottom.
   .banking-banner {
     margin: 0 24px;
+    height: auto;
+    min-height: 233px;
+  }
+
+  // Page-level sync panel: give it the same gutter as its neighbours instead of
+  // letting it run edge to edge. `width: auto` lets the flex-column stretch fill
+  // what is left after the margins — an explicit 100% would overflow by 48px.
+  // The `--dialog` variant lives inside the modal and keeps its own spacing.
+  .source-results-panel:not(.source-results-panel--dialog) {
+    margin-inline: 24px;
+    width: auto;
+    max-width: none;
   }
 }
 
@@ -736,7 +773,15 @@ p.block-title {
   box-shadow: 0 16px 60px rgba(0, 0, 0, 0.25);
   padding: 22px 22px 18px 22px;
   position: relative;
-  overflow: hidden;
+  // The consent variant is far taller than a phone viewport. Clipped, it hides
+  // the confirmation checkbox and the "המשך לחיבור" button with no way to reach
+  // them, so cap the box to the backdrop's inner height and scroll instead.
+  // Inert while the content fits, which is every dialog state on desktop.
+  // 100% of the fixed backdrop's content box, rather than a vh unit — mobile
+  // browsers resolve vh against the toolbar-less viewport, which overshoots.
+  max-height: 100%;
+  overflow-x: hidden; // still clips the confetti burst sideways
+  overflow-y: auto;
 }
 
 .feezback-dialog-header {
