@@ -152,8 +152,12 @@ export class MannualExpenseComponent implements OnDestroy {
         // convert via the BOI rate on `date`. `Expense.sum` is always stored ILS.
         currency: ["ILS"],
         supplier: ["", Validators.required],
-        supplierId: ["", Validators.pattern("^[0-9]*$")],
-        expenseNumber: ["", Validators.pattern("^[0-9]*$")],
+        // Foreign suppliers and invoices commonly use alphanumeric identifiers
+        // (for example IE3668997OH). The backend stores both fields as strings,
+        // so restricting them to Israeli-style digits makes an existing foreign
+        // expense invalid and disables the Update button.
+        supplierId: [""],
+        expenseNumber: [""],
         isEquipment: [false],
         category: [null as string | null, Validators.required],
         subCategory: [null, Validators.required],
