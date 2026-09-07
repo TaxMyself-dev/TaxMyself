@@ -1,6 +1,6 @@
 # Keepintax task dashboard
 
-Last updated: 2026-09-06. This file is maintained by the manager chat.
+Last updated: 2026-09-07. This file is maintained by the manager chat.
 
 ## Status vocabulary
 
@@ -21,6 +21,7 @@ external condition.
 | KT-005 | Fix admin CardCom subscription editing | `.codex/worktrees/b9a0/taxmyself-dev` | `CLOSED` | `9505ea0a` on `origin/main`; worker `0211d9d6` | 10 focused backend tests passed; Nest and Angular builds passed; focused Karma compile exposed only documented pre-existing legacy failures |
 | KT-006 | Add opt-in backend startup profiling and a reproducible dev baseline | `.codex/worktrees/ec9f/taxmyself-dev` | `CLOSED` | `156aba28` on `origin/main`; worker `0c4df5cc` | 3 profiler-guard/supervisor tests and 11 timing/seed tests passed; Nest build passed; no production/prodcopy call or behavior optimization |
 | KT-007 | Audit the existing SHAAM invoice-allocation integration and plan the shortest safe path to production | `.codex/worktrees/0607/taxmyself-dev` | `CLOSED` | `d3c30f9b` on `origin/main`; worker `bf155e84` | Documentation-only audit reviewed; Nest build passed in worker; no external SHAAM call; critical credential/logging/auth gaps require remediation before sandbox or production |
+| KT-008 | Preserve foreign-currency expense values and ILS journal totals during edit | `.codex/worktrees/e5cd/taxmyself-dev` | `CLOSED` | `04bcf4a1` on `origin/main`; worker `aa5febee` | Manager reran 28/28 focused backend tests, Nest build, frontend currency typecheck, and 4 runtime assertions; VAT-only and changed-FX journal totals explicitly verified |
 
 ## KT-005 acceptance criteria
 
@@ -83,6 +84,23 @@ external condition.
   document the test procedure without executing it.
 - Commit only the audit/report documentation and any task-local evidence that
   contains no secrets, tokens, personal data, generated output, or caches.
+
+## KT-008 acceptance criteria
+
+- Editing a foreign-currency expense prefills the original amount and currency
+  from raw API fields rather than parsing a formatted table value.
+- A VAT-only or date-only edit preserves the historical ILS conversion and
+  performs no FX lookup; changing the original amount or currency converts
+  exactly once before persistence.
+- Switching an expense back to ILS clears the original-currency metadata, while
+  the ordinary ILS edit path remains unchanged.
+- D10 period locking applies before any FX lookup or persistence, and a missing
+  rate fails before either the expense or its journal entry is written.
+- Journal synchronization always receives the normalized ILS amount, including
+  the preserved ILS total on VAT-only edits and the newly converted total when
+  FX inputs change.
+- No database schema, migration, production data, or historical-data repair is
+  included in this task.
 
 ## Delivery baseline
 

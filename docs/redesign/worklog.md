@@ -2478,3 +2478,21 @@ record this instead.
   Angular development build passes; the repository-wide Karma compilation is
   still blocked by the pre-existing legacy spec and third-party declaration
   errors documented in the preceding VAT-report work.
+
+## 2026-09-07 — Foreign-currency expense edit preservation
+
+- The bookkeeping expenses table now keeps a raw ILS amount alongside its
+  formatted display value. The edit dialog uses `originalSum` and
+  `originalCurrency` for foreign expenses, so currency symbols are never parsed
+  as numeric form input.
+- Expense creation and update now share currency normalization: `Expense.sum`
+  remains ILS, unchanged foreign originals preserve the historical conversion,
+  and changing the original amount or currency performs one rate lookup before
+  persistence. Date-only and VAT-only edits do not re-rate history.
+- An explicit transition to ILS clears the original-currency fields. D10 period
+  locking runs before FX lookup, and an unavailable rate fails before expense
+  or journal persistence.
+- Focused tests prove both journal paths: a VAT-only edit keeps the existing ILS
+  `documentTotal` and bank line, while changed FX inputs send the newly converted
+  ILS value to the journal. No schema, migration, production-data, or historical
+  repair change is included.
