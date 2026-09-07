@@ -297,6 +297,7 @@
   [documentTypeOptions]="documentTypeOptions"
   [periodOptions]="editDraftPeriodOptions()"
   [isSaving]="editDialogSaving()"
+  [currencyEditable]="editDialogRow()?.type !== 'tx_only'"
   (visibleChange)="$event ? null : onEditDialogCancel()"
   (save)="onEditDialogSave()"
   (categoryChange)="onEditDraftCategoryChange($event)"

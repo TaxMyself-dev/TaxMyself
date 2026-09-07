@@ -61,12 +61,17 @@ export class ArchiveExpenseApprovalDialogComponent implements OnChanges {
 
   private acknowledgeDuplicate = false;
   private loadSequence = 0;
+  private fxPreviewTimer: ReturnType<typeof setTimeout> | null = null;
+  private fxPreviewSequence = 0;
 
   readonly titleLabel = computed(() => {
     const doc = this.document();
     if (!doc) return 'אישור מסמך כהוצאה';
-    const amount = Number(doc.amount ?? 0).toLocaleString('he-IL', { maximumFractionDigits: 2 });
-    return `${doc.supplier || doc.driveFileName} — ${amount} ₪`;
+    const draft = this.draft();
+    const amount = Number(draft?.amount ?? doc.amount ?? 0).toLocaleString('he-IL', { maximumFractionDigits: 2 });
+    const currency = draft?.currency ?? doc.currency ?? 'ILS';
+    const formatted = currency === 'ILS' ? `${amount} ₪` : `${this.currencySymbol(currency)}${amount}`;
+    return `${doc.supplier || doc.driveFileName} — ${formatted}`;
   });
 
   readonly categoryOptions = computed(() => Array.from(new Set(
@@ -200,8 +205,15 @@ export class ArchiveExpenseApprovalDialogComponent implements OnChanges {
       if (patch.date !== undefined && !next.reportPeriodOverridden) {
         next.reportPeriod = this.derivePeriod(patch.date);
       }
+      if (patch.currency !== undefined || patch.date !== undefined) {
+        next.ilsAmount = null;
+        next.fxRateToIls = null;
+      }
       return next;
     });
+    if (patch.amount !== undefined || patch.currency !== undefined || patch.date !== undefined) {
+      this.scheduleFxPreview();
+    }
   }
 
   approveExpense(): void {
@@ -225,6 +237,7 @@ export class ArchiveExpenseApprovalDialogComponent implements OnChanges {
       documentType: draft.documentType || undefined,
       date: draft.date || undefined,
       amount: draft.amount,
+      currency: draft.currency,
     };
 
     this.isBusy.set(true);
@@ -299,6 +312,9 @@ export class ArchiveExpenseApprovalDialogComponent implements OnChanges {
         isEquipment: !!(classification.isEquipment ?? row.document.isEquipment),
         date,
         amount: Number(row.document.amount ?? 0),
+        currency: row.document.currency ?? 'ILS',
+        ilsAmount: row.document.ilsAmount ?? null,
+        fxRateToIls: row.document.fxRateToIls ?? null,
         supplierId: row.document.supplierId ?? '',
         supplier: row.document.supplier ?? '',
         reportPeriod: this.derivePeriod(date),
@@ -372,11 +388,59 @@ export class ArchiveExpenseApprovalDialogComponent implements OnChanges {
   }
 
   private reset(): void {
+    if (this.fxPreviewTimer) clearTimeout(this.fxPreviewTimer);
+    this.fxPreviewTimer = null;
+    this.fxPreviewSequence++;
     this.loadSequence++;
     this.draft.set(null);
     this.catalog.set([]);
     this.document.set(null);
     this.matchedTransactionId.set(null);
     this.acknowledgeDuplicate = false;
+  }
+
+  private scheduleFxPreview(): void {
+    if (this.fxPreviewTimer) clearTimeout(this.fxPreviewTimer);
+    const sequence = ++this.fxPreviewSequence;
+    const draft = this.draft();
+    if (!draft) return;
+    const amount = Number(draft.amount);
+    const currency = (draft.currency || 'ILS').toUpperCase();
+    if (!Number.isFinite(amount) || !draft.date) {
+      this.draft.update(value => value && ({ ...value, ilsAmount: null }));
+      return;
+    }
+    if (currency === 'ILS') {
+      this.draft.update(value => value && ({ ...value, currency, ilsAmount: null, fxRateToIls: null }));
+      return;
+    }
+    if (draft.fxRateToIls != null) {
+      this.draft.update(value => value && ({
+        ...value,
+        ilsAmount: Number((amount * draft.fxRateToIls!).toFixed(2)),
+      }));
+    }
+    this.fxPreviewTimer = setTimeout(() => {
+      this.reviewService.previewFx(amount, currency, draft.date)
+        .pipe(catchError(() => EMPTY))
+        .subscribe(quote => {
+          if (sequence !== this.fxPreviewSequence) return;
+          this.draft.update(value => value && ({
+            ...value,
+            currency: quote.currency,
+            ilsAmount: quote.ilsAmount,
+            fxRateToIls: quote.fxRateToIls,
+          }));
+        });
+    }, 300);
+  }
+
+  private currencySymbol(code: string): string {
+    switch (code.toUpperCase()) {
+      case 'USD': return '$';
+      case 'EUR': return '€';
+      case 'GBP': return '£';
+      default: return `${code} `;
+    }
   }
 }

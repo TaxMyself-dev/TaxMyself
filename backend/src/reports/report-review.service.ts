@@ -23,6 +23,7 @@ import { ExpensesService } from '../expenses/expenses.service';
 import { DocumentsService } from '../documents/documents.service';
 import { DocumentPairingService } from '../documents/document-pairing.service';
 import { SharedService } from '../shared/shared.service';
+import { FxRateService } from '../shared/fx-rate.service';
 import { CatalogService } from '../bookkeeping/catalog.service';
 import { CatalogContextService } from '../bookkeeping/catalog-context.service';
 import { SubCategory } from '../bookkeeping/sub-category.entity';
@@ -97,12 +98,12 @@ export interface ReviewOverrides {
    *  reconciliation check anywhere in the codebase, so this can silently
    *  desync the posted expense from the bank statement it came from. */
   date?: string;
-  /** Same as `date` — applies to every row type. For non-ILS documents
-   *  (originalCurrency set) this is silently ignored: addExpense
-   *  recomputes `sum` internally from originalSum via the BOI rate, so
-   *  overriding the ILS total directly would be inconsistent with the
-   *  stored foreign amount. */
+  /** Same as `date` — applies to every row type. For foreign documents this
+   *  is the edited amount in the source currency; addExpense derives ILS. */
   amount?: number;
+  /** ISO-4217 currency for `amount`. Pending documents keep amount in the
+   *  source currency; the ILS value is always derived server-side. */
+  currency?: string;
 }
 
 /**
@@ -116,6 +117,7 @@ export type UpdateDocFields = Pick<ReviewOverrides,
   | 'category' | 'subCategory' | 'subCategoryId'
   | 'vatPercent' | 'taxPercent' | 'isEquipment'
   | 'date' | 'amount' | 'supplierId' | 'supplier'
+  | 'currency'
   | 'invoiceNumber' | 'allocationNumber' | 'documentType'
   | 'reportPeriod'
 >;
@@ -162,6 +164,7 @@ export class ReportReviewService {
     @InjectRepository(Supplier) private readonly supplierRepo: Repository<Supplier>,
     private readonly expensesService: ExpensesService,
     private readonly sharedService: SharedService,
+    private readonly fxRateService: FxRateService,
     private readonly matchingService: MatchingService,
     // DocumentsService imports UsersService which lives in a different module
     // graph; forwardRef avoids a circular DI error at boot.
@@ -722,14 +725,12 @@ export class ReportReviewService {
     // pass their amount as `sum` directly. For matched rows we still
     // prefer the document-side amount (it's the OCR'd invoice total) and
     // only fall back to the cache's ILS amount when the doc had no
-    // amount at all. Override wins outright when present (ILS docs only —
-    // see ReviewOverrides.amount for the FX caveat).
-    const amounts = doc.amount != null
-      ? this.buildExpenseAmountFromDoc(doc)
+    // amount at all. Amount/currency overrides replace the document-side
+    // source values and still go through addExpense's authoritative FX path.
+    const amounts = overrides.amount != null || doc.amount != null
+      ? this.buildExpenseAmountFromDoc(doc, overrides)
       : { sum: this.absIls(cache), originalCurrency: null, originalSum: null };
-    const finalSum = overrides.amount != null && amounts.originalCurrency == null
-      ? overrides.amount
-      : amounts.sum;
+    const finalSum = amounts.sum;
     // Product decision: date override applies even on matched rows,
     // despite them being anchored to a real bank transaction (see
     // ReviewOverrides.date).
@@ -902,10 +903,8 @@ export class ReportReviewService {
     // buildExpenseAmountFromDoc + the ReviewOverrides.amount doc comment).
     const finalDate = overrides.date ? new Date(overrides.date) : (doc.date ? new Date(doc.date) : new Date());
 
-    const amounts = this.buildExpenseAmountFromDoc(doc);
-    const finalSum = overrides.amount != null && amounts.originalCurrency == null
-      ? overrides.amount
-      : amounts.sum;
+    const amounts = this.buildExpenseAmountFromDoc(doc, overrides);
+    const finalSum = amounts.sum;
 
     return this.dataSource.transaction(async manager => {
       // Phase 4.1: joins this transaction (see approveMatched).
@@ -1482,7 +1481,7 @@ export class ReportReviewService {
     businessNumber: string,
     documentId: number,
     fields: UpdateDocFields,
-  ): Promise<{ ok: true }> {
+  ): Promise<{ ok: true; amount: number | null; currency: string; ilsAmount: number | null; fxRateToIls: number | null }> {
     const doc = await this.docRepo.findOne({ where: { id: documentId } });
     if (!doc) throw new NotFoundException(`Document ${documentId} not found`);
     await this.assertDocOwnership(doc, firebaseId, businessNumber);
@@ -1509,6 +1508,7 @@ export class ReportReviewService {
     if (fields.isEquipment !== undefined) patch.isEquipment = fields.isEquipment ?? null;
     if (fields.date !== undefined) patch.date = fields.date ?? null;
     if (fields.amount !== undefined) patch.amount = fields.amount as any;
+    if (fields.currency !== undefined) patch.currency = this.normalizeReviewCurrency(fields.currency);
     if (fields.supplierId !== undefined) patch.supplierId = fields.supplierId ?? null;
     if (fields.supplier !== undefined) patch.supplier = fields.supplier ?? null;
     if (fields.invoiceNumber !== undefined) patch.invoiceNumber = fields.invoiceNumber ?? null;
@@ -1516,10 +1516,31 @@ export class ReportReviewService {
     if (fields.documentType !== undefined) patch.documentType = (fields.documentType as any) ?? null;
     if (fields.reportPeriod !== undefined) patch.vatReportingDate = (fields.reportPeriod as any) ?? null;
 
+    const fxInputsChanged = fields.amount !== undefined || fields.currency !== undefined || fields.date !== undefined;
+    if (fxInputsChanged) {
+      const amount = Number(fields.amount ?? doc.amount ?? 0);
+      const currency = this.normalizeReviewCurrency(fields.currency ?? doc.currency ?? 'ILS');
+      const date = new Date(fields.date ?? doc.date ?? new Date());
+      const quote = await this.quoteFxAmount(amount, currency, date);
+      patch.currency = quote.currency;
+      patch.ilsAmount = quote.ilsAmount == null ? null : String(quote.ilsAmount);
+      patch.fxRateToIls = quote.fxRateToIls == null ? null : String(quote.fxRateToIls);
+    }
+
     if (Object.keys(patch).length > 0) {
       await this.docRepo.update({ id: documentId }, patch);
     }
-    return { ok: true };
+    return {
+      ok: true,
+      amount: fields.amount !== undefined ? Number(fields.amount) : (doc.amount == null ? null : Number(doc.amount)),
+      currency: (patch.currency ?? doc.currency ?? 'ILS') as string,
+      ilsAmount: patch.ilsAmount !== undefined
+        ? (patch.ilsAmount == null ? null : Number(patch.ilsAmount))
+        : (doc.ilsAmount == null ? null : Number(doc.ilsAmount)),
+      fxRateToIls: patch.fxRateToIls !== undefined
+        ? (patch.fxRateToIls == null ? null : Number(patch.fxRateToIls))
+        : (doc.fxRateToIls == null ? null : Number(doc.fxRateToIls)),
+    };
   }
 
   /**
@@ -1612,6 +1633,7 @@ export class ReportReviewService {
       documentKind: d.documentKind,
       currency: d.currency ?? 'ILS',
       ilsAmount: d.ilsAmount != null ? Number(d.ilsAmount) : null,
+      fxRateToIls: d.fxRateToIls != null ? Number(d.fxRateToIls) : null,
       matchedSupplierKnown: !!savedSupplier,
     };
   }
@@ -1667,13 +1689,13 @@ export class ReportReviewService {
    * ILS docs we just pass `sum` and leave the original fields null so
    * that branch doesn't fire.
    */
-  private buildExpenseAmountFromDoc(doc: ExtractedDocument): {
+  private buildExpenseAmountFromDoc(doc: ExtractedDocument, overrides: ReviewOverrides = {}): {
     sum: number;
     originalCurrency: string | null;
     originalSum: number | null;
   } {
-    const rawAmount = Number(doc.amount ?? 0);
-    const currency = (doc.currency ?? 'ILS').toUpperCase();
+    const rawAmount = Number(overrides.amount ?? doc.amount ?? 0);
+    const currency = this.normalizeReviewCurrency(overrides.currency ?? doc.currency ?? 'ILS');
     if (currency !== 'ILS') {
       return {
         // sum gets overwritten by the FX conversion inside addExpense,
@@ -1685,6 +1707,35 @@ export class ReportReviewService {
       };
     }
     return { sum: rawAmount, originalCurrency: null, originalSum: null };
+  }
+
+  /** Authoritative FX preview for pending-document edits. Approval performs
+   *  its own conversion again through ExpensesService, so this value is for
+   *  synchronized display/persistence and is never trusted as accounting input. */
+  async quoteFxAmount(
+    amountInput: number,
+    currencyInput: string,
+    dateInput: Date,
+  ): Promise<{ amount: number; currency: string; ilsAmount: number | null; fxRateToIls: number | null }> {
+    const amount = Number(amountInput);
+    if (!Number.isFinite(amount)) throw new BadRequestException('Invalid expense amount');
+    const currency = this.normalizeReviewCurrency(currencyInput);
+    if (currency === 'ILS') {
+      return { amount, currency, ilsAmount: null, fxRateToIls: null };
+    }
+    if (Number.isNaN(dateInput.getTime())) throw new BadRequestException('Invalid expense date');
+    const rate = await this.fxRateService.getRate(dateInput, currency);
+    if (rate == null) throw new BadRequestException(`Unsupported currency for FX conversion: ${currency}`);
+    return {
+      amount,
+      currency,
+      ilsAmount: Number((amount * rate).toFixed(2)),
+      fxRateToIls: rate,
+    };
+  }
+
+  private normalizeReviewCurrency(value: string | null | undefined): string {
+    return (value ?? 'ILS').trim().toUpperCase() || 'ILS';
   }
 
   private dateToYmd(d: Date): string {

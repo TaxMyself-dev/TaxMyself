@@ -45,6 +45,7 @@ export interface ReviewDocSummary {
    *  pre-migration legacy rows. Feeds the "(₪Y)" parenthesis under the
    *  foreign amount in the review modal — no front-end FX needed. */
   ilsAmount: number | null;
+  fxRateToIls: number | null;
   /** True when the doc's supplier_id matches a row in the user's Supplier
    *  table — drives the "ספק מוכר / ספק חדש" badge in the review modal. */
   matchedSupplierKnown: boolean;
@@ -195,8 +196,10 @@ export interface ReviewOverrides {
    *  posted expense from the bank statement it came from; applied anyway
    *  per explicit product decision). */
   date?: string;
-  /** Amount override — every row type, same caveat as `date`. */
+  /** Amount override. For foreign documents this is the source-currency amount. */
   amount?: number;
+  /** ISO-4217 currency of `amount`; ILS conversion is derived server-side. */
+  currency?: string;
 }
 
 /**
@@ -210,6 +213,7 @@ export type UpdateDocFields = Pick<ReviewOverrides,
   | 'category' | 'subCategory' | 'subCategoryId'
   | 'vatPercent' | 'taxPercent' | 'isEquipment'
   | 'date' | 'amount' | 'supplierId' | 'supplier'
+  | 'currency'
   | 'invoiceNumber' | 'allocationNumber' | 'documentType'
   | 'reportPeriod'
 >;
@@ -226,6 +230,13 @@ export type UpdateTxFields = Pick<ReviewOverrides,
   | 'vatPercent' | 'taxPercent' | 'reductionPercent' | 'isEquipment'
   | 'reportPeriod'
 >;
+
+export interface FxAmountPreview {
+  amount: number;
+  currency: string;
+  ilsAmount: number | null;
+  fxRateToIls: number | null;
+}
 
 export interface ReportPreviewCheck {
   hasPendingDocs: boolean;
@@ -422,10 +433,17 @@ export class ReportReviewService {
     businessNumber: string,
     documentId: number,
     fields: UpdateDocFields,
-  ): Observable<{ ok: true }> {
-    return this.http.patch<{ ok: true }>(
+  ): Observable<{ ok: true } & FxAmountPreview> {
+    return this.http.patch<{ ok: true } & FxAmountPreview>(
       `${environment.apiUrl}reports/me/review/update-doc/${documentId}`,
       { businessNumber, fields },
+    );
+  }
+
+  previewFx(amount: number, currency: string, date: string): Observable<FxAmountPreview> {
+    return this.http.post<FxAmountPreview>(
+      `${environment.apiUrl}reports/me/review/fx-preview`,
+      { amount, currency, date },
     );
   }
 

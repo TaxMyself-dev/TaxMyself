@@ -190,6 +190,22 @@ export class ReportsController {
       return this.reviewService.updateDocFields(firebaseId, bn, Number(documentId), body.fields ?? {});
     }
 
+    /** Currency-aware preview for the pending-expense edit dialogs. */
+    @Post('me/review/fx-preview')
+    @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
+    @UseGuards(FirebaseAuthGuard)
+    async previewFx(
+      @Req() request: AuthenticatedRequest,
+      @Body() body: { amount: number; currency: string; date: string },
+    ) {
+      if (!request.user?.firebaseId) throw new BadRequestException('Not authenticated');
+      return this.reviewService.quoteFxAmount(
+        Number(body?.amount),
+        body?.currency,
+        new Date(body?.date),
+      );
+    }
+
     /** Same as update-doc, for the transaction side of a tx_only row. */
     @Patch('me/review/update-tx/:slimTransactionId')
     @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)

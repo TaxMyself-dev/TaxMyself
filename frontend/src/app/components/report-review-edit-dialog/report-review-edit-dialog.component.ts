@@ -24,6 +24,9 @@ export interface ExpenseEditFieldValues {
   isEquipment: boolean;
   date: string;
   amount: number;
+  currency: string;
+  ilsAmount: number | null;
+  fxRateToIls: number | null;
   supplierId: string;
   supplier: string;
   reportPeriod: string;
@@ -104,6 +107,14 @@ export class ReportReviewEditDialogComponent {
    * approving an expense directly from the archive. */
   @Input() saveLabel = 'שמור';
   @Input() saveDisabled = false;
+  @Input() currencyEditable = true;
+
+  readonly currencyOptions = [
+    { value: 'ILS', label: 'שקל ₪' },
+    { value: 'USD', label: 'דולר $' },
+    { value: 'EUR', label: 'יורו €' },
+    { value: 'GBP', label: 'פאונד £' },
+  ];
 
   @Output() visibleChange = new EventEmitter<boolean>();
   @Output() save = new EventEmitter<void>();

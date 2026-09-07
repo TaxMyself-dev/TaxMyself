@@ -55,6 +55,9 @@ export interface ReviewDocSummary {
    *  review modal to render the "(₪Y)" parenthesis under the foreign
    *  amount without a second FX lookup. */
   ilsAmount: number | null;
+  /** BOI multiplier used for ilsAmount; lets the edit UI update the ILS
+   *  preview immediately when only the source amount changes. */
+  fxRateToIls: number | null;
   /** True when the document matches a saved supplier by normalised tax ID,
    *  or, without an ID, by one unambiguous normalised supplier name. */
   matchedSupplierKnown: boolean;

@@ -138,6 +138,7 @@ interface EditableReviewRow {
   sumLabel: string;
   currency: string;
   ilsAmount: number | null;
+  fxRateToIls: number | null;
 
   // Editable classification — initially populated from the preview's
   // server-side classification block (canonical merged-catalog names), with
@@ -741,6 +742,7 @@ export class ReportReviewPage implements OnInit {
       sumLabel,
       currency,
       ilsAmount,
+      fxRateToIls: docSide?.fxRateToIls ?? null,
       category,
       subCategory,
       subCategoryId: c.subCategoryId,
@@ -823,6 +825,9 @@ export class ReportReviewPage implements OnInit {
       isEquipment: row.isEquipment,
       date: row.date,
       amount: row.amount,
+      currency: row.currency,
+      ilsAmount: row.ilsAmount,
+      fxRateToIls: row.fxRateToIls,
       supplierId: row.supplierId,
       supplier: row.supplier,
       reportPeriod: row.reportPeriod,
@@ -834,6 +839,9 @@ export class ReportReviewPage implements OnInit {
   }
 
   private closeEditDialog(): void {
+    if (this.editFxPreviewTimer) clearTimeout(this.editFxPreviewTimer);
+    this.editFxPreviewTimer = null;
+    this.editFxPreviewSequence++;
     this.editDialogVisible.set(false);
     this.editDialogRow.set(null);
     this.editDraft.set(null);
@@ -851,6 +859,8 @@ export class ReportReviewPage implements OnInit {
   /** True while the blocking save below is in flight — disables the
    *  dialog's footer buttons and shows a spinner on "שמור". */
   editDialogSaving = signal<boolean>(false);
+  private editFxPreviewTimer: ReturnType<typeof setTimeout> | null = null;
+  private editFxPreviewSequence = 0;
 
   /**
    * "שמור" — blocking: apply the draft to the row locally (so the table
@@ -887,6 +897,9 @@ export class ReportReviewPage implements OnInit {
     row.reductionPercent = draft.reductionPercent;
     row.isEquipment = draft.isEquipment;
     row.date = draft.date;
+    row.currency = draft.currency;
+    row.ilsAmount = draft.ilsAmount;
+    row.fxRateToIls = draft.fxRateToIls;
     this.onAmountChange(row, draft.amount);
     row.supplierId = draft.supplierId;
     row.supplier = draft.supplier;
@@ -920,6 +933,7 @@ export class ReportReviewPage implements OnInit {
           isEquipment: row.isEquipment,
           date: row.date,
           amount: row.amount,
+          currency: row.currency,
           supplierId: row.supplierId,
           supplier: row.supplier,
           invoiceNumber: row.invoiceNumber,
@@ -953,7 +967,20 @@ export class ReportReviewPage implements OnInit {
         }),
         finalize(() => this.editDialogSaving.set(false)),
       )
-      .subscribe(() => {
+      .subscribe((results) => {
+        if (row.type !== 'tx_only') {
+          const result = results[0] as unknown as {
+            amount: number | null;
+            currency: string;
+            ilsAmount: number | null;
+            fxRateToIls: number | null;
+          };
+          row.currency = result.currency;
+          row.ilsAmount = result.ilsAmount;
+          row.fxRateToIls = result.fxRateToIls;
+          this.onAmountChange(row, Number(result.amount ?? row.amount));
+          this.bumpRows();
+        }
         this.closeEditDialog();
       });
   }
@@ -1048,8 +1075,51 @@ export class ReportReviewPage implements OnInit {
       if (patch.date !== undefined && !next.reportPeriodOverridden) {
         next.reportPeriod = this.derivePeriod(patch.date);
       }
+      if (patch.currency !== undefined || patch.date !== undefined) {
+        next.ilsAmount = null;
+        next.fxRateToIls = null;
+      }
       return next;
     });
+    if (patch.amount !== undefined || patch.currency !== undefined || patch.date !== undefined) {
+      this.scheduleEditFxPreview();
+    }
+  }
+
+  private scheduleEditFxPreview(): void {
+    if (this.editFxPreviewTimer) clearTimeout(this.editFxPreviewTimer);
+    const sequence = ++this.editFxPreviewSequence;
+    const draft = this.editDraft();
+    if (!draft) return;
+    const amount = Number(draft.amount);
+    const currency = (draft.currency || 'ILS').toUpperCase();
+    if (!Number.isFinite(amount) || !draft.date) {
+      this.editDraft.update(value => value && ({ ...value, ilsAmount: null }));
+      return;
+    }
+    if (currency === 'ILS') {
+      this.editDraft.update(value => value && ({ ...value, currency, ilsAmount: null, fxRateToIls: null }));
+      return;
+    }
+    if (draft.fxRateToIls != null) {
+      this.editDraft.update(value => value && ({
+        ...value,
+        ilsAmount: Number((amount * draft.fxRateToIls!).toFixed(2)),
+      }));
+    }
+    this.editFxPreviewTimer = setTimeout(() => {
+      this.reviewService.previewFx(amount, currency, draft.date)
+        .pipe(catchError(() => EMPTY))
+        .subscribe(quote => {
+          if (sequence !== this.editFxPreviewSequence) return;
+          this.editDraft.update(value => value && ({
+            ...value,
+            currency: quote.currency,
+            ilsAmount: quote.ilsAmount,
+            fxRateToIls: quote.fxRateToIls,
+          }));
+        });
+    }, 300);
   }
 
   /** tx_only "upload new doc" — routes through one shared, page-level
@@ -1736,6 +1806,11 @@ export class ReportReviewPage implements OnInit {
     row.sumLabel = row.currency !== 'ILS'
       ? `${this.currencySymbol(row.currency)}${amt.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`
       : `${amt.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ש״ח`;
+    if (row.currency !== 'ILS' && row.fxRateToIls != null) {
+      row.ilsAmount = Number((amt * row.fxRateToIls).toFixed(2));
+    } else if (row.currency === 'ILS') {
+      row.ilsAmount = null;
+    }
   }
 
   /** Options for the document-type dropdown (edit dialog) — every raw
@@ -2357,6 +2432,7 @@ export class ReportReviewPage implements OnInit {
       documentType: row.documentType || undefined,
       date: row.date || undefined,
       amount: row.amount,
+      currency: row.currency,
     };
   }
 

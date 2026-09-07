@@ -31,10 +31,26 @@
                  (ngModelChange)="fieldsChange.emit({ date: $event })" />
         </label>
         <label class="field">
-          <span class="field-label">סכום</span>
+          <span class="field-label">{{ f.currency === 'ILS' ? 'סכום' : 'סכום במטבע המקור' }}</span>
           <input type="number" step="0.01" class="field-input"
                  [ngModel]="f.amount"
                  (ngModelChange)="fieldsChange.emit({ amount: $event })" />
+        </label>
+
+        <label class="field">
+          <span class="field-label">מטבע</span>
+          <select class="field-input"
+                  [disabled]="!currencyEditable"
+                  [ngModel]="f.currency"
+                  (ngModelChange)="fieldsChange.emit({ currency: $event })">
+            <option *ngFor="let opt of currencyOptions" [ngValue]="opt.value">{{ opt.label }}</option>
+          </select>
+        </label>
+
+        <label class="field" *ngIf="f.currency !== 'ILS'">
+          <span class="field-label">סכום מחושב בש״ח</span>
+          <input type="text" class="field-input" readonly
+                 [value]="f.ilsAmount == null ? 'מחשב…' : ((f.ilsAmount | number:'1.0-2') + ' ₪')" />
         </label>
 
         <ng-container *ngIf="hasDocument">
