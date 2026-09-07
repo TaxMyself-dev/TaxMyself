@@ -38,7 +38,6 @@ import { ScrollingModule } from '@angular/cdk/scrolling';
 import { TransManagementComponent } from './trans-management/trans-management.component';
 import { ToastComponent } from './toast/toast.component';
 import { PopupMessageComponent } from './popup-message/popup-message.component';
-import { SelectClientComponent } from './select-client/select-client.component';
 import { ButtonComponent } from '../components/button/button.component';
 import { FilterTabComponent } from '../components/filter-tab/filter-tab.component';
 import { InputSelectComponent } from '../components/input-select/input-select.component';
@@ -56,7 +55,7 @@ import { CheckboxModule } from 'primeng/checkbox';
 import { SelectModule } from 'primeng/select';
 
 @NgModule({
-  declarations: [CustomToolbarComponent,ModalExpensesComponent,TableComponent,SortDateComponent,SelectMonthComponent,SelectYearComponent,PopupConfirmComponent,selectSupplierComponent,addSupplierComponent,ItemNavigateComponent, SearchBarComponent, GenericSelectComponent, SelectMonthFormatComponent, GenericInputComponent,collapseComponent, AddBillComponent,AddTransactionComponent, CustomInputComponent,editRowComponent, TabBarComponent, UpdateDataComponent, LoadFileComponent, CategoryManagementComponent, BookingAccountCatalogComponent, FilterInputComponent, PopupSelectComponent, MultiInputComponent, TransManagementComponent,ToastComponent, PopupMessageComponent, SelectClientComponent, ButtonComponentIonic, ClientsDashboardComponent],
+  declarations: [CustomToolbarComponent,ModalExpensesComponent,TableComponent,SortDateComponent,SelectMonthComponent,SelectYearComponent,PopupConfirmComponent,selectSupplierComponent,addSupplierComponent,ItemNavigateComponent, SearchBarComponent, GenericSelectComponent, SelectMonthFormatComponent, GenericInputComponent,collapseComponent, AddBillComponent,AddTransactionComponent, CustomInputComponent,editRowComponent, TabBarComponent, UpdateDataComponent, LoadFileComponent, CategoryManagementComponent, BookingAccountCatalogComponent, FilterInputComponent, PopupSelectComponent, MultiInputComponent, TransManagementComponent,ToastComponent, PopupMessageComponent, ButtonComponentIonic, ClientsDashboardComponent],
   imports: [
     CommonModule,
     IonicModule,
@@ -80,6 +79,6 @@ import { SelectModule } from 'primeng/select';
     SelectModule
     // ButtonComponentIonic
 ],
-  exports: [DateFormatPipe, CustomToolbarComponent,ModalExpensesComponent,TableComponent,SortDateComponent,SelectMonthComponent,SelectYearComponent,PopupConfirmComponent,selectSupplierComponent,addSupplierComponent,ItemNavigateComponent, SearchBarComponent, GenericSelectComponent, SelectMonthFormatComponent, GenericInputComponent,collapseComponent,AddBillComponent, AddTransactionComponent, CustomInputComponent,editRowComponent, TabBarComponent, UpdateDataComponent, LoadFileComponent, CategoryManagementComponent, BookingAccountCatalogComponent, FilterInputComponent, PopupSelectComponent, MultiInputComponent, TransManagementComponent, ToastComponent, PopupMessageComponent, SelectClientComponent, ButtonComponentIonic, ClientsDashboardComponent]
+  exports: [DateFormatPipe, CustomToolbarComponent,ModalExpensesComponent,TableComponent,SortDateComponent,SelectMonthComponent,SelectYearComponent,PopupConfirmComponent,selectSupplierComponent,addSupplierComponent,ItemNavigateComponent, SearchBarComponent, GenericSelectComponent, SelectMonthFormatComponent, GenericInputComponent,collapseComponent,AddBillComponent, AddTransactionComponent, CustomInputComponent,editRowComponent, TabBarComponent, UpdateDataComponent, LoadFileComponent, CategoryManagementComponent, BookingAccountCatalogComponent, FilterInputComponent, PopupSelectComponent, MultiInputComponent, TransManagementComponent, ToastComponent, PopupMessageComponent, ButtonComponentIonic, ClientsDashboardComponent]
 })
 export class SharedModule {}

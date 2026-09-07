@@ -14,4 +14,4 @@ Ionic modal form for editing a supplier's default categorization (category, sub-
 
 ## Related topics
 - Backend: expenses (`ExpenseDataService` supplier/category endpoints)
-- Frontend shared: select-client and select-supplier both open this component via `ModalController.create({ component: addSupplierComponent, componentProps: { supplier, editMode: true } })` for their "edit" row action.
+- Frontend shared: select-supplier opens this component via `ModalController.create({ component: addSupplierComponent, componentProps: { supplier, editMode: true } })` for its "edit" row action.

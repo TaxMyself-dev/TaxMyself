@@ -314,6 +314,17 @@ export class FlowReportPage implements OnInit {
       return; // Exit the function since file uploads are skipped
     }
 
+    // Receipt files are stored under `usersUploads/<businessNumber>/`, so the
+    // upload needs the business this report was opened for (route query param,
+    // read in ngOnInit). Bail out before the loader opens rather than writing
+    // into an undefined folder. Checked here, after the no-file early return,
+    // so transactions without files keep working exactly as before.
+    if (!this.businessNumber?.trim()) {
+      console.log("addTransToExpense: missing businessNumber, aborting file upload");
+      this.genericService.showToast("לא נמצא מספר עסק, לא ניתן להעלות את הקבצים. אנא רענן את הדף ונסה שוב", "error");
+      return;
+    }
+
     // Update loader for transactions with files
     this.genericService.getLoader().subscribe();
     this.genericService.updateLoaderMessage(`מעלה קבצים... ${0}%`);
@@ -321,7 +332,7 @@ export class FlowReportPage implements OnInit {
     // Create an array of observables for each file upload
     const fileUploadObservables = this.chosenTrans.map((tran) => {
       if (tran.file) {
-        return this.fileService.uploadFileViaFront(tran.file as File, '314719279').pipe(
+        return this.fileService.uploadFileViaFront(tran.file as File, this.businessNumber).pipe(
           finalize(() => {
             this.genericService.dismissLoader();
             this.genericService.updateLoaderMessage("please wait...");
