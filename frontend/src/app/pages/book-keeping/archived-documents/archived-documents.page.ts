@@ -137,7 +137,7 @@ export class ArchivedDocumentsPage implements OnInit {
         statusDetail: item.status === 'REJECTED'
           ? (item.rejectionReason?.trim() || 'לא הוזנה סיבת דחייה')
           : item.status === 'APPROVED' && item.reportPeriod
-            ? `משויכת לדוח: ${item.reportPeriod}`
+            ? `דווח לתקופה: ${item.reportPeriod}`
             : null,
         uploadDate: item.uploadDate ? item.uploadDate.slice(0, 10) : '-',
       }));
