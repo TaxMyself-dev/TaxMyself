@@ -82,8 +82,12 @@ Databases involved:
      `SELECT`s return 0 rows.
   2. **Business dedup + `ux_business_number`** (Phase 0.3/D12.4, now at the
      end of the file, independent of everything else — safe to run here or
-     earlier). Verify: the pre-check `SELECT` shows exactly the one known
-     group (businessNumber `314719279`, ids 5 & 12) before running; after,
+     earlier). **The dedup half is already done in production** — verified
+     2026-09-06: business id **5** was deleted, id **12** is the surviving
+     row holding `businessNumber` `314719279`. So the `DELETE` is an
+     expected no-op (0 rows), and the pre-check `SELECT` should now return
+     **zero** groups — *not* the one group (ids 5 & 12) this step used to
+     tell you to expect. If any group appears at all, STOP. After:
      `SHOW INDEX FROM business` lists `ux_business_number` and the dedup
      `SELECT` returns 0 rows.
   3. **Section 3** (Phase 1.4, chart renumbering) — run the pre-flight

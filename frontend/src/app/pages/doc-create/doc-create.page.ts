@@ -1,10 +1,9 @@
 import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
-import { ModalController } from '@ionic/angular';
 import { ConfirmationService, MenuItem, MessageService } from 'primeng/api';
 import { DialogService, DynamicDialogRef } from 'primeng/dynamicdialog';
-import { catchError, EMPTY, finalize, firstValueFrom, from, of, switchMap, tap } from 'rxjs';
+import { catchError, EMPTY, finalize, firstValueFrom, of, tap } from 'rxjs';
 import { AddClientComponent } from 'src/app/components/add-client/add-client.component';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 import { DocSuccessDialogComponent } from 'src/app/components/create-doc-success-dialog/create-doc-success-dialog.component';
@@ -15,7 +14,6 @@ import { GenericService } from 'src/app/services/generic.service';
 import { ShaamService } from 'src/app/services/shaam.service';
 import { BusinessStatus, BusinessType, fieldLineDocName, fieldLineDocValue, FieldsCreateDocName, FieldsCreateDocValue, FormTypes, getAllocationNumberThreshold, inputsSize, isExemptBusinessType, paymentMethodOptions, vatOptions, VatType } from 'src/app/shared/enums';
 import { Business, ICreateDocField, IDocIndexes, ISettingDoc, IShaamApprovalRequest, IShaamApprovalResponse, ITotals, IUserData } from 'src/app/shared/interface';
-import { SelectClientComponent } from 'src/app/shared/select-client/select-client.component';
 import { bankOptionsList, DocCreateFields, DocTypeDefaultStart, DocTypeDisplayName, DocumentSummary, DocumentTotals, DocumentTotalsLabels, DocumentType, PartialLineItem } from './doc-cerate.enum';
 import { DocCreateBuilderService } from './doc-create-builder.service';
 import { IClient, IDocCreateFieldData, SectionKeysEnum } from './doc-create.interface';
@@ -263,7 +261,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
 
 
 
-  constructor(private authService: AuthService, private fileService: FilesService, private genericService: GenericService, private modalController: ModalController, private router: Router, public docCreateService: DocCreateService, private formBuilder: FormBuilder, private docCreateBuilderService: DocCreateBuilderService, private dialogService: DialogService) {
+  constructor(private authService: AuthService, private fileService: FilesService, private genericService: GenericService, private router: Router, public docCreateService: DocCreateService, private formBuilder: FormBuilder, private docCreateBuilderService: DocCreateBuilderService, private dialogService: DialogService) {
 
 
     this.initialIndexForm = this.formBuilder.group({
@@ -1971,49 +1969,11 @@ export class DocCreatePage implements OnInit, OnDestroy {
       )
   }
 
-  openSelectClients() {
-
-    from(this.modalController.create({
-      component: SelectClientComponent,
-      // componentProps: {},
-      cssClass: 'expense-modal'
-    })).pipe(
-      catchError((err) => {
-        console.log("Open select clients failed in create ", err);
-        return EMPTY;
-      }),
-      switchMap((modal) => {
-        if (modal) {
-          return from(modal.present())
-            .pipe(
-              catchError((err) => {
-                console.log("Open select clients failed in present ", err);
-                return EMPTY;
-              }),
-              switchMap(() => from(modal.onDidDismiss())),
-            );
-        }
-        else {
-          console.log('Popover modal is null');
-          return EMPTY;
-        }
-      })
-    ).subscribe((res) => {
-      console.log("res in close select client", res);
-      if (res) {
-        if (res.role === 'success') {// Only if the modal was closed with click on the select button
-          console.log("res in close select client in success", res);
-          this.fillClientDetails(res.data);
-        }
-
-      }
-    })
-  }
-
   fillClientDetails(client: any) {
     console.log("🚀 ~ DocCreatePage ~ fillClientDetails ~ client:", client)
 
-    // Handle both cases: autocomplete (client.value) and modal (direct client object)
+    // Handle both shapes: the autocomplete's select event (client.value) and the
+    // add-client dialog's close result (a direct client object)
     const clientData = client.value || client;
 
     // Save client data for later use when expanding fields

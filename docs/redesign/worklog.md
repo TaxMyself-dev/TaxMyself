@@ -37,6 +37,11 @@ existing shared host, not `keepintax-dev`).
   id 5. Staged as `cutover.sql` §2 (delete id 12, then the constraint),
   rehearsed and verified against `keepintax_prodcopy`. Ships in Session 8
   with the rest of D12, not now.
+  ⚠ **SUPERSEDED (Session 8):** this direction was reversed. Elazar's final
+  decision was to delete id **5** and keep id **12**; the `cutover.sql` §2
+  described above was removed as stale on 2026-07-13. Applied in production
+  and verified 2026-09-06 (id 5 deleted, id 12 surviving). See Session 8's
+  entry, the 2026-07-13 entry, and `production-baseline.md`.
 
 **Tooling fix**: `AccountSeedService.onModuleInit` now honors
 `SKIP_BOOT_SEED=true` (no-op) — booting the full Nest app against
@@ -2478,7 +2483,6 @@ record this instead.
   Angular development build passes; the repository-wide Karma compilation is
   still blocked by the pre-existing legacy spec and third-party declaration
   errors documented in the preceding VAT-report work.
-
 ## 2026-09-07 — Foreign-currency expense edit preservation
 
 - The bookkeeping expenses table now keeps a raw ILS amount alongside its
@@ -2496,3 +2500,49 @@ record this instead.
   `documentTotal` and bank line, while changed FX inputs send the newly converted
   ILS value to the journal. No schema, migration, production-data, or historical
   repair change is included.
+
+---
+
+## Session 15 — 2026-09-06 — D12.4 business dedup reconciled to actual production state
+
+Elazar verified directly against production that the D12.4 business dedup
+has already been applied: **business id 5 is deleted, id 12 is the
+surviving row** holding `businessNumber = '314719279'`. Documentation-only
+pass to make every cutover doc say that, since one file still carried the
+reversed (pre-investigation) direction.
+
+- **`production-baseline.md`** — the "Resolved: duplicate
+  `business.businessNumber` (D12.4)" section still stated the original
+  2026-07-10 decision ("delete id 12, keep id 5") as if current. It is now
+  split into three explicitly labelled parts: the **superseded** original
+  decision (kept for history, marked "do not act on it"), the **final**
+  Session-8 decision (delete id 5, id 12 survives), and an **applied in
+  production / verified 2026-09-06** status paragraph. This was the only
+  doc still asserting the wrong direction as live guidance.
+- **`worklog.md` Session 1 entry** — left the original text intact (it is
+  an accurate record of what was decided that day) and appended a
+  ⚠ SUPERSEDED note pointing at the reversal and the applied state.
+- **`cutover.sql`** — statements **unchanged**. Only the surrounding
+  comments: the pre-flight now expects **ZERO** duplicate groups (it used
+  to expect exactly one, ids 5 & 12) and the post-check now expects **0**
+  rows deleted rather than 1. The guarded
+  `DELETE ... WHERE id = 5 AND businessNumber = '314719279'` stays as-is —
+  it is a safe no-op against current production and still the correct
+  statement against an older restore.
+- **`cutover-day-checklist.md`** — Step 4 item 2 rewritten to the same
+  expectation (zero groups, no-op DELETE). The 2026-07-13 "Fixes applied
+  to `cutover.sql` during this review" list was left untouched: it already
+  describes the reversal correctly as history.
+
+Verified as already correct, no edit needed: `cutover.sql`'s stale-Section-2
+pointer comment (lines 49-60), `worklog.md` Sessions 8 and 12, and
+`categories-redesign-master-plan.md` Phase 0.3 — all four already say
+id=5 deleted / id=12 kept.
+
+⚠ **Not verified, still open:** whether `ux_business_number` itself exists
+in production. Only the row deletion was confirmed. Run
+`SHOW INDEX FROM business` before executing the `ALTER` in the D12.4
+section — if the index is already there the `ALTER` will fail rather than
+no-op, unlike the `DELETE`.
+
+No plan-checkbox changes (documentation reconciliation only).

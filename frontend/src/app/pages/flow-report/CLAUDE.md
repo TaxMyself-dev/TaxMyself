@@ -9,7 +9,7 @@ Page for reviewing bank/card transactions flagged as recognized expenses for a d
 ## Main flows
 - Load transactions to confirm for a date range + business (multi-business adds a business-name column).
 - Select individual or all eligible (non-disabled) rows; attach a receipt file per row.
-- Submit: upload attached files via `FilesService`, then post the chosen transaction IDs (with file paths) to `save-trans-to-expenses`; rolls back uploaded files on submission failure.
+- Submit: upload attached files via `FilesService` under the report's selected business number, then post the chosen transaction IDs (with file paths) to `save-trans-to-expenses`; missing business context aborts file upload, and submission failure rolls back uploaded files.
 - Filter the visible table by supplier/name text.
 
 ## Related topics

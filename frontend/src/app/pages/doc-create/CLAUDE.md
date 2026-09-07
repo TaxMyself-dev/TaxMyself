@@ -25,4 +25,4 @@ Page for creating and managing SHAAM-compliant business documents (receipts, tax
 ## Related topics
 Backend: documents, clients, shaam
 Frontend pages: my-account (entry point via "create document" dashboard card)
-Frontend shared: select-client (via `SelectClientComponent` / `AddClientComponent`)
+Frontend components: add-client (`AddClientComponent` — opened via PrimeNG `DialogService` for "add new client", in both create and edit mode), input-autoComplete (`app-input-autocomplete` — the recipient picker that selects an existing client)

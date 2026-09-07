@@ -586,11 +586,38 @@ p.block-title {
     width: 100%;
   }
 
+  // ── Header block (mobile) ──────────────────────────────────────────────────
+  // Re-flowed into a single grid so the layout can change without touching the
+  // desktop DOM: `display: contents` on the two desktop wrappers hoists the
+  // greeting, the last-login line, the secondary buttons and the primary CTA
+  // into this grid, laid out as
+  //   [avatar] שלום ...
+  //   [avatar] כניסתך האחרונה ...
+  //   [ הארכיון שלי ][ + חבר חשבון נוסף ]
+  //   [ הוספת הוצאה ]
+  // The avatar spans the two text rows, so its top lines up with the greeting.
   .user-info-block {
-    flex-direction: column;
-    align-items: flex-end;
-    padding: 20px 24px;
-    gap: 16px;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas:
+      "avatar greeting"
+      "avatar last-login"
+      "secondary-actions secondary-actions"
+      "primary-action primary-action";
+    align-items: start;
+    justify-items: start;
+    column-gap: 12px;
+    row-gap: 4px;
+    padding: 16px 24px 0;
+  }
+
+  .user-info-row,
+  .user-info-text {
+    display: contents;
+  }
+
+  .my-account-avatar {
+    grid-area: avatar;
   }
 
   .user-info-block--delegated {
@@ -605,8 +632,43 @@ p.block-title {
   }
 
   .avatar-text {
+    grid-area: greeting;
     font-size: 18px;
     font-weight: 700;
+  }
+
+  .last-login {
+    grid-area: last-login;
+  }
+
+  // Both secondary buttons share one right-aligned row: they split the header
+  // width evenly and stay capped at the desktop pill width (150px).
+  .user-info-buttons {
+    grid-area: secondary-actions;
+    width: 100%;
+    flex-wrap: nowrap;
+    gap: 8px;
+    margin-top: 8px;
+
+    app-p-button {
+      flex: 1 1 0;
+      width: auto;
+      min-width: 0;
+      max-width: 150px;
+    }
+
+    ::ng-deep .p-button.between {
+      width: 100%;
+      min-width: 0;
+    }
+  }
+
+  // Primary CTA on its own row, right-aligned with the buttons above.
+  .dashboard-actions {
+    grid-area: primary-action;
+    align-items: flex-start;
+    width: 100%;
+    margin-top: 6px;
   }
 
   .user-actions {

@@ -11,7 +11,7 @@ The core "add/edit expense (or income)" modal — a generic, column-config-drive
 - Edit an existing row (`@Input data` prefills the form, including re-loading an existing attached file for preview).
 - Cascading category → sub-category selection (equipment vs. non-equipment lists).
 - Pick or create a supplier via the `select-supplier` modal.
-- Upload and preview a receipt file (PDF renders via `DomSanitizer.bypassSecurityTrustResourceUrl`; images shown directly).
+- Upload and preview a receipt file (PDF renders via `DomSanitizer.bypassSecurityTrustResourceUrl`; images shown directly). Uploads use the form-selected business, then the active/single business as fallback; unresolved business context aborts the save instead of using a hardcoded folder.
 - Submit; caller (`ExpenseDataService.openModalAddExpense`) supplies the expense-specific column config and handles the result. Since Phase 6.3 (categories redesign) the payload carries `subCategoryId` — resolved at submit time by name from the loaded cascading list (`resolveSelectedSubCategoryId`) — which the backend prefers over the name pair (D1/D6); the modal's inline "save supplier" sends the same FK.
 
 ## Related topics

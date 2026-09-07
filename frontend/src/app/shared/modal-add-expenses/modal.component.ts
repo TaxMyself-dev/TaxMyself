@@ -291,7 +291,36 @@ export class ModalExpensesComponent {
   }
 
   getFileData(): Observable<any> {//Checks if a file is selected and if so returns his firebase path. if not returns null
-    return this.fileToUpload ? this.fileService.uploadFileViaFront(this.fileToUpload, '314719279') : of(null);
+    if (!this.fileToUpload) {
+      return of(null);
+    }
+    const businessNumber = this.resolveBusinessNumber();
+    if (!businessNumber) {
+      // No business to file the receipt under. Abort rather than upload into a
+      // wrong/undefined folder: EMPTY completes without emitting, so add()/
+      // update() never build a payload, never save and never navigate away —
+      // the modal stays open with the form intact.
+      console.log("getFileData: missing businessNumber, aborting file upload");
+      this.genericService.showToast("לא נמצא מספר עסק, לא ניתן להעלות את הקובץ. אנא בחר עסק ונסה שוב", "error");
+      return EMPTY;
+    }
+    return this.fileService.uploadFileViaFront(this.fileToUpload, businessNumber);
+  }
+
+  /**
+   * The business this expense is being booked to — receipt files live under
+   * `usersUploads/<businessNumber>/`, so the folder has to match the row
+   * `setFormData()` builds. MULTI_BUSINESS users pick the business in the form
+   * (the field is added in ngOnInit and made required in initForm); everyone
+   * else falls back to the active business and then to their own single
+   * business — the same value `setFormData()` stamps on the expense itself.
+   */
+  private resolveBusinessNumber(): string {
+    const fromForm = this.addExpenseForm?.get(ExpenseFormColumns.BUSINESS_NUMBER)?.value;
+    const resolved = fromForm
+      || this.authService.getActiveBusinessNumber()
+      || this.userData?.businessNumber;
+    return typeof resolved === 'string' ? resolved.trim() : '';
   }
 
   update(): void {
