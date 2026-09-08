@@ -22,7 +22,7 @@ external condition.
 | KT-006 | Add opt-in backend startup profiling and a reproducible dev baseline | `.codex/worktrees/ec9f/taxmyself-dev` | `CLOSED` | `156aba28` on `origin/main`; worker `0c4df5cc` | 3 profiler-guard/supervisor tests and 11 timing/seed tests passed; Nest build passed; no production/prodcopy call or behavior optimization |
 | KT-007 | Audit the existing SHAAM invoice-allocation integration and plan the shortest safe path to production | `.codex/worktrees/0607/taxmyself-dev` | `CLOSED` | `d3c30f9b` on `origin/main`; worker `bf155e84` | Documentation-only audit reviewed; Nest build passed in worker; no external SHAAM call; critical credential/logging/auth gaps require remediation before sandbox or production |
 | KT-008 | Preserve foreign-currency expense values and ILS journal totals during edit | `.codex/worktrees/e5cd/taxmyself-dev` | `CLOSED` | `04bcf4a1` on `origin/main`; worker `aa5febee` | Manager reran 28/28 focused backend tests, Nest build, frontend currency typecheck, and 4 runtime assertions; VAT-only and changed-FX journal totals explicitly verified |
-| KT-009 | Deliver Gmail forwarding verification for business inbound addresses | manager integration worktree | `BLOCKED` — user's `main` checkout has active developer changes | Local commit `ba655334`; not pushed | Current Gmail/Mailgun tests 14/14 passed; address-routing tests 9/9 passed; Nest and Angular builds passed |
+| KT-009 | Deliver Gmail forwarding verification for business inbound addresses | manager integration worktree | `PUSHED` | Feature `ba655334`; integrated with current main via `d56e65af` | Combined 23/23 focused tests passed; Nest and Angular builds passed |
 
 ## KT-005 acceptance criteria
 
