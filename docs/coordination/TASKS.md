@@ -1,6 +1,6 @@
 # Keepintax task dashboard
 
-Last updated: 2026-09-07. This file is maintained by the manager chat.
+Last updated: 2026-09-08. This file is maintained by the manager chat.
 
 ## Status vocabulary
 
@@ -22,6 +22,7 @@ external condition.
 | KT-006 | Add opt-in backend startup profiling and a reproducible dev baseline | `.codex/worktrees/ec9f/taxmyself-dev` | `CLOSED` | `156aba28` on `origin/main`; worker `0c4df5cc` | 3 profiler-guard/supervisor tests and 11 timing/seed tests passed; Nest build passed; no production/prodcopy call or behavior optimization |
 | KT-007 | Audit the existing SHAAM invoice-allocation integration and plan the shortest safe path to production | `.codex/worktrees/0607/taxmyself-dev` | `CLOSED` | `d3c30f9b` on `origin/main`; worker `bf155e84` | Documentation-only audit reviewed; Nest build passed in worker; no external SHAAM call; critical credential/logging/auth gaps require remediation before sandbox or production |
 | KT-008 | Preserve foreign-currency expense values and ILS journal totals during edit | `.codex/worktrees/e5cd/taxmyself-dev` | `CLOSED` | `04bcf4a1` on `origin/main`; worker `aa5febee` | Manager reran 28/28 focused backend tests, Nest build, frontend currency typecheck, and 4 runtime assertions; VAT-only and changed-FX journal totals explicitly verified |
+| KT-009 | Deliver Gmail forwarding verification for business inbound addresses | manager integration worktree | `BLOCKED` — user's `main` checkout has active developer changes | Local commit `ba655334`; not pushed | Current Gmail/Mailgun tests 14/14 passed; address-routing tests 9/9 passed; Nest and Angular builds passed |
 
 ## KT-005 acceptance criteria
 
@@ -101,6 +102,25 @@ external condition.
   FX inputs change.
 - No database schema, migration, production data, or historical-data repair is
   included in this task.
+
+## KT-009 acceptance criteria
+
+- A Gmail forwarding-verification message sent to a business's Keepintax inbound
+  address is relayed automatically to the authenticated owner's registered
+  account email; the customer does not need Mailgun access or a temporary route.
+- Relaying is restricted to Google's forwarding-verification sender and a
+  recognized HTTPS Google Mail confirmation URL. Untrusted links and arbitrary
+  attachment-free messages are never relayed.
+- Existing PDF/JPG/PNG attachment imports remain unchanged, including tenant
+  resolution, signature verification, deduplication, and Mailgun retry behavior.
+- Delivery failure returns a retryable server error to Mailgun; logs and the
+  relayed message do not expose Firebase IDs, business numbers, or raw inbound
+  HTML.
+- The settings screen explains where the verification message will arrive.
+- Focused backend tests cover success, non-Google rejection, unsafe-link
+  rejection, owner lookup, and unchanged attachment import. Nest and Angular
+  builds must pass. No schema, production configuration, route, credential, or
+  live webhook change is included.
 
 ## Delivery baseline
 
