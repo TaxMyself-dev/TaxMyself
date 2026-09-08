@@ -5,6 +5,7 @@ import { environment } from 'src/environments/environment';
 
 /** One row of the Form 1342 depreciation report — mirrors the backend DTO. */
 export interface IForm1342ReportRow {
+  expenseId: number;
   assetName: string;
   purchaseDate: string;
   activationDate: string;
@@ -12,6 +13,7 @@ export interface IForm1342ReportRow {
   changesDuringYear: number;
   depreciableCost: number;
   depreciationRatePerLaw: number;
+  taxRecognitionPercent: number;
   currentYearDepreciation: number;
   priorYearsDepreciation: number;
   totalDepreciation: number;

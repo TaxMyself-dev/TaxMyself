@@ -3,6 +3,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, FormGroup } from '@angular/forms';
 import { catchError, EMPTY, finalize } from 'rxjs';
 import { MessageService } from 'primeng/api';
+import { DialogService } from 'primeng/dynamicdialog';
 import * as XLSX from 'xlsx';
 
 import { AuthService } from 'src/app/services/auth.service';
@@ -12,8 +13,10 @@ import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 import { BusinessStatus, inputsSize } from 'src/app/shared/enums';
 import { IUserData } from 'src/app/shared/interface';
 import { FilterField } from 'src/app/components/filter-tab/filter-fields-model.component';
+import { ExpenseDataService } from 'src/app/services/expense-data.service';
+import { MannualExpenseComponent } from 'src/app/components/mannual-expense/mannual-expense.component';
 
-import { DepreciationReportService, IForm1342Report } from './depreciation-report.service';
+import { DepreciationReportService, IForm1342Report, IForm1342ReportRow } from './depreciation-report.service';
 
 @Component({
   selector: 'app-depreciation-report',
@@ -30,6 +33,8 @@ export class DepreciationReportPage implements OnInit {
   private depreciationService = inject(DepreciationReportService);
   private messageService = inject(MessageService);
   private filesService = inject(FilesService);
+  private expenseDataService = inject(ExpenseDataService);
+  private dialogService = inject(DialogService);
 
   readonly ButtonSize = ButtonSize;
   readonly buttonColor = ButtonColor;
@@ -236,6 +241,48 @@ export class DepreciationReportPage implements OnInit {
       )
       .subscribe((blob) => {
         this.filesService.downloadFile(`דוח פחת - ${businessName} - ${data.year}.pdf`, blob);
+      });
+  }
+
+  editAsset(row: IForm1342ReportRow): void {
+    this.authService.setActiveBusinessNumber(this.businessNumber());
+    this.expenseDataService.getExpenseById(row.expenseId)
+      .pipe(
+        catchError((err) => {
+          console.error('Source asset fetch failed:', err);
+          this.messageService.add({
+            severity: 'error',
+            summary: 'שגיאה',
+            detail: 'טעינת נתוני הנכס לעריכה נכשלה',
+            life: 5000,
+            key: 'br',
+          });
+          return EMPTY;
+        }),
+      )
+      .subscribe((expense) => {
+        const editableExpense = {
+          ...expense,
+          taxPercent: Number(expense.taxPercentSnapshot) || 0,
+          vatPercent: Number(expense.vatPercentSnapshot) || 0,
+          isEquipment: !!expense.isEquipmentSnapshot,
+          reductionPercent: Number(expense.reductionPercentSnapshot) || 0,
+          reportScopeRaw: expense.reportScope,
+        };
+        const ref = this.dialogService.open(MannualExpenseComponent, {
+          header: 'עריכת נכס',
+          width: '480px',
+          style: { maxWidth: '95vw' },
+          rtl: true,
+          closable: true,
+          dismissableMask: true,
+          modal: true,
+          focusOnShow: false,
+          data: { editMode: true, expense: editableExpense },
+        });
+        ref.onClose.subscribe((result) => {
+          if (result != null) this.fetchReport();
+        });
       });
   }
 }

@@ -233,6 +233,8 @@ export class DepreciationService {
   ): JournalEntryInput {
     const postingDate = `${posting.taxYear}-12-31`;
     const description = `פחת ${posting.taxYear} — ${expense.accountNameSnapshot ?? expense.subCategory ?? expense.supplier}`;
+    const taxPercent = Math.min(100, Math.max(0, Number(expense.taxPercentSnapshot) || 0));
+    const amountForTax = Math.round(amount * (taxPercent / 100) * 100) / 100;
 
     return {
       firebaseId: expense.userId,
@@ -255,9 +257,9 @@ export class DepreciationService {
           amountBeforeVat: amount,
           vatAmount: 0,
           isEquipment: false,
-          taxPercent: 100,
+          taxPercent,
           vatPercent: 0,
-          amountForTax: amount,
+          amountForTax,
           subCategoryName: expense.subCategory ?? null,
         },
         {

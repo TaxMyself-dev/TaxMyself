@@ -14,6 +14,7 @@ describe('DepreciationService', () => {
       sum: 1200,
       isEquipmentSnapshot: true,
       reductionPercentSnapshot: 33.33,
+      taxPercentSnapshot: 45,
       accountCodeSnapshot: '61310',
       accountNameSnapshot: 'מחשבים',
       approvalStatus: ExpenseApprovalStatus.APPROVED,
@@ -82,7 +83,18 @@ describe('DepreciationService', () => {
     expect(bookkeepingService.updateJournalEntryFull).toHaveBeenCalledWith(
       posting.journalEntryNumber,
       expense.businessNumber,
-      expect.objectContaining({ referenceId: posting.id }),
+      expect.objectContaining({
+        referenceId: posting.id,
+        documentTotal: 399.96,
+        lines: expect.arrayContaining([
+          expect.objectContaining({
+            accountCode: '61300',
+            debit: 399.96,
+            taxPercent: 45,
+            amountForTax: 179.98,
+          }),
+        ]),
+      }),
       manager,
     );
     expect(bookkeepingService.createJournalEntry).not.toHaveBeenCalled();

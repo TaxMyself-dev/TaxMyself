@@ -2029,10 +2029,11 @@ export class ExpensesService {
         startDate?: Date,
         endDate?: Date,
         businessNumber?: string,
-        page: number = 1 // default to the first page
+        page?: number,
     ): Promise<Expense[]> {
         const take = 50;
-        const skip = (page - 1) * take;
+        const hasPagination = Number.isInteger(page) && Number(page) > 0;
+        const skip = hasPagination ? (Number(page) - 1) * take : undefined;
 
         const where: any = {
             userId: userId,
@@ -2045,13 +2046,26 @@ export class ExpensesService {
         const result = await this.expense_repo.find({
             where,
             order: { date: 'DESC' },
-            take,
-            skip,
+            ...(hasPagination ? { take, skip } : {}),
         });
 
         console.log('[getExpensesByUserID] מספר הוצאות מהדאטאבייס:', result.length, 'דוגמאות:', result.slice(0, 3).map((e) => ({ id: e.id, date: e.date, businessNumber: e.businessNumber, sum: e.sum })));
 
         return result;
+    }
+
+    async getExpenseByIdForUser(
+        id: number,
+        userId: string,
+        businessNumber: string,
+    ): Promise<Expense> {
+        const expense = await this.expense_repo.findOne({
+            where: { id, userId, businessNumber },
+        });
+        if (!expense) {
+            throw new NotFoundException(`Expense ${id} not found`);
+        }
+        return expense;
     }
 
 

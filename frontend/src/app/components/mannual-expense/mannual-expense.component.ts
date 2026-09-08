@@ -263,11 +263,6 @@ export class MannualExpenseComponent implements OnDestroy {
                 // this swap, which would otherwise get submitted as a
                 // mismatched category/subCategory pair.
                 this.getSubCategory(this.EQUIPMENT_CATEGORY_NAME);
-                // Set taxPercent to 0 and clear validators
-                this.mannualExpenseForm.patchValue({ taxPercent: 0 }, { emitEvent: false });
-                const taxPercentControl = this.mannualExpenseForm.get('taxPercent');
-                taxPercentControl?.clearValidators();
-                taxPercentControl?.updateValueAndValidity({ emitEvent: false });
                 // Make reductionPercent required
                 const reductionPercentControl = this.mannualExpenseForm.get('reductionPercent');
                 reductionPercentControl?.setValidators([Validators.required, Validators.min(0), Validators.max(100)]);
@@ -279,10 +274,6 @@ export class MannualExpenseComponent implements OnDestroy {
                 if (currentCategory === this.EQUIPMENT_CATEGORY_NAME) {
                     this.mannualExpenseForm.patchValue({ category: null as any }, { emitEvent: true });
                 }
-                // Restore taxPercent validators
-                const taxPercentControl = this.mannualExpenseForm.get('taxPercent');
-                taxPercentControl?.setValidators([Validators.required, Validators.min(0), Validators.max(100)]);
-                taxPercentControl?.updateValueAndValidity({ emitEvent: false });
                 // Clear reductionPercent and remove required validator
                 this.mannualExpenseForm.patchValue({ reductionPercent: 0 }, { emitEvent: false });
                 const reductionPercentControl = this.mannualExpenseForm.get('reductionPercent');

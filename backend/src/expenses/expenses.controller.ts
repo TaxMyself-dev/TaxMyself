@@ -193,12 +193,26 @@ export class ExpensesController {
       businessNumber: query.businessNumber ?? '(ריק/לא נשלח)',
     });
 
-    const result = await this.expensesService.getExpensesByUserID(firebaseId, startDate, endDate, query.businessNumber, Number(query.pagination));
+    const page = query.pagination == null ? undefined : Number(query.pagination);
+    const result = await this.expensesService.getExpensesByUserID(firebaseId, startDate, endDate, query.businessNumber, page);
 
     // לוג: הוצאות שהתקבלו
     console.log('[get_by_userID] הוצאות שהתקבלו:', result.length, 'פריטים. ids:', result.map((e) => e.id).join(', ') || '(אין)');
 
     return result;
+  }
+
+  @Get('by-id/:id')
+  @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
+  async getExpenseById(
+    @Req() request: AuthenticatedRequest,
+    @Param('id') id: number,
+  ): Promise<Expense> {
+    return this.expensesService.getExpenseByIdForUser(
+      Number(id),
+      request.user?.firebaseId,
+      request.user?.businessNumber,
+    );
   }
 
 

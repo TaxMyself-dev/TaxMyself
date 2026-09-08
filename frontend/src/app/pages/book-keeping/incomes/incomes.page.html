@@ -19,6 +19,8 @@
         [isLoadingState]="isLoadingDataTable()"
         [columnsTitle]="documentsTableFields"
         [dataTable]="myDocuments | async"
+        [placeholderSearch]="'חיפוש חופשי בטבלה'"
+        [searchColumns]="documentSearchColumns"
         [fileActions]="fileActions()"
         [selectionModeCheckBox]="null"
         [mobileCardConfig]="mobileCardConfig"

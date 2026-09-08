@@ -48,8 +48,8 @@ export class JournalEntry {
   /**
    * VAT reporting-period label, same format as expense.vatReportingDate
    * ("3/2026", "1-2/2026"). Built via SharedService.buildReportPeriodLabel
-   * at post time. Used by the journal-based VAT/P&L reports to bucket entries
-   * into the same periods the legacy reports use (with a `date` fallback when null).
+   * at post time. Used by the journal-based VAT report; P&L uses `date`
+   * independently so a VAT cadence change cannot move an annual-report entry.
    */
   @Column({ type: 'varchar', nullable: true, default: null })
   vatReportingPeriod: string | null;

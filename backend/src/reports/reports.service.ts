@@ -431,11 +431,11 @@ export class ReportsService {
   // ───────────────────────────────────────────────────────────────────────────
 
   /**
-   * Build the journal-entry period filter shared by both journal reports:
-   * `vatReportingPeriod IN (labels) OR (vatReportingPeriod IS NULL AND date BETWEEN)`,
-   * mirroring getExpensesByDates. Mutates `qb` in place.
+   * Build the VAT-period filter used by the VAT report. A late input claim may
+   * deliberately belong to a VAT period other than the document month, so the
+   * stored VAT label wins and the journal date is only a legacy NULL fallback.
    */
-  private applyJournalPeriodFilter(
+  private applyVatJournalPeriodFilter(
     qb: import('typeorm').SelectQueryBuilder<JournalLine>,
     periodLabels: string[],
     startDate: Date,
@@ -496,7 +496,7 @@ export class ReportsService {
       .where('je.issuerBusinessNumber = :businessNumber', { businessNumber })
       .andWhere('je.firebaseId = :firebaseId', { firebaseId })
       .andWhere("jl.accountCode = '2410'");
-    this.applyJournalPeriodFilter(qb, periodLabels, startDate, endDate);
+    this.applyVatJournalPeriodFilter(qb, periodLabels, startDate, endDate);
 
     const rows = await qb
       .select('expense.id', 'expenseId')
@@ -564,7 +564,7 @@ export class ReportsService {
       .innerJoin(JournalEntry, 'je', 'je.id = jl.journalEntryId')
       .where('je.issuerBusinessNumber = :businessNumber', { businessNumber })
       .andWhere('je.firebaseId = :firebaseId', { firebaseId });
-    this.applyJournalPeriodFilter(qb, periodLabels, startDate, endDate);
+    this.applyVatJournalPeriodFilter(qb, periodLabels, startDate, endDate);
 
     const [row, vatInputRows] = await Promise.all([
       qb
@@ -654,10 +654,6 @@ export class ReportsService {
       throw new BadRequestException('Business not found or not owned by user');
     }
 
-    const periodLabels = this.sharedService.expandPeriodLabelsInRange(
-      business.businessType, business.vatReportingType, startDate, endDate,
-    );
-
     // Owner charts visible to this business: SYSTEM + its own CLIENT chart +
     // (Phase 5.1) the ACCOUNTANT chart of every ACTIVE delegation on the
     // owner — accountant-created 70000-range cards roll up like any other.
@@ -682,8 +678,11 @@ export class ReportsService {
       .innerJoin(AccountingSection, 'sec', 'sec.id = dba.sectionId')
       .where('je.issuerBusinessNumber = :businessNumber', { businessNumber })
       .andWhere('je.firebaseId = :firebaseId', { firebaseId })
-      .andWhere('jl.isEquipment = false');
-    this.applyJournalPeriodFilter(qb, periodLabels, startDate, endDate);
+      .andWhere('jl.isEquipment = false')
+      // P&L belongs to the accounting year of the journal/document date. It
+      // must never depend on the business's current VAT cadence or on a VAT
+      // claim period that may legitimately move to a later filing window.
+      .andWhere('je.date BETWEEN :startDate AND :endDate', { startDate, endDate });
 
     const rows = await qb
       .select('dba.type', 'accountType')
@@ -1422,6 +1421,7 @@ export class ReportsService {
         : purchaseIso;
 
       rows.push({
+        expenseId: expense.id,
         assetName: expense.supplier ?? '',
         purchaseDate: purchaseIso,
         activationDate: activationIso,
@@ -1429,6 +1429,7 @@ export class ReportsService {
         changesDuringYear,
         depreciableCost,
         depreciationRatePerLaw: depreciationRate,
+        taxRecognitionPercent: Number(expense.taxPercentSnapshot) || 0,
         currentYearDepreciation,
         priorYearsDepreciation,
         totalDepreciation,

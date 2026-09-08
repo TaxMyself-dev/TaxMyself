@@ -100,6 +100,15 @@ export class IncomesPage implements OnInit {
     { name: DocumentsTableColumns.DOC_SUM, value: DocumentsTableHebrewColumns.sumAftDisWithVAT, type: FormTypes.NUMBER },
     { name: DocumentsTableColumns.DOC_STATUS, value: DocumentsTableHebrewColumns.docStatus, type: FormTypes.TEXT },
   ];
+  readonly documentSearchColumns: string[] = [
+    DocumentsTableColumns.DOC_DATE,
+    DocumentsTableColumns.DOC_TYPE,
+    DocumentsTableColumns.DOC_NUMBER,
+    DocumentsTableColumns.PARENT_DOC,
+    DocumentsTableColumns.RECIPIENT_NAME,
+    DocumentsTableColumns.DOC_SUM,
+    DocumentsTableColumns.DOC_STATUS,
+  ];
   showMiniMenu = signal(false);
   // Holds the selected row for download
   selectedRowForDownload = signal<IRowDataTable | null>(null);

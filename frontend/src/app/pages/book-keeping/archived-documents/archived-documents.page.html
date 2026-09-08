@@ -12,7 +12,8 @@
 
     <!-- ARCHIVE TABLE -->
     <app-generic-table class="table" [isLoadingState]="isLoadingDataTable()" [columnsTitle]="archivedDocsTableFields()"
-        [dataTable]="filteredItems()" [fileActions]="fileActions()" [selectionModeCheckBox]="null"
+        [dataTable]="filteredItems()" [placeholderSearch]="'חיפוש חופשי בטבלה'"
+        [searchColumns]="archiveSearchColumns" [fileActions]="fileActions()" [selectionModeCheckBox]="null"
         [tableHeight]="'500px'" [mobileCardConfig]="mobileCardConfig" [mobileCardActions]="fileActions()">
     </app-generic-table>
 

@@ -152,6 +152,7 @@ export function buildDepreciationReportPdf(
       data.rows.forEach((row) => drawRow(row));
 
       const totalsRow: Form1342ReportRowDto = {
+        expenseId: 0,
         assetName: 'סה"כ',
         purchaseDate: '',
         activationDate: '',
@@ -159,6 +160,7 @@ export function buildDepreciationReportPdf(
         changesDuringYear: data.totalChangesDuringYear,
         depreciableCost: data.totalDepreciableCost,
         depreciationRatePerLaw: null as any,
+        taxRecognitionPercent: 0,
         currentYearDepreciation: data.totalCurrentYearDepreciation,
         priorYearsDepreciation: data.totalPriorYearsDepreciation,
         totalDepreciation: data.totalDepreciation,

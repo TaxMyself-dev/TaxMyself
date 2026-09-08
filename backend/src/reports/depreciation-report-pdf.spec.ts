@@ -6,6 +6,7 @@ describe('buildDepreciationReportPdf', () => {
       {
         year: 2026,
         rows: [{
+          expenseId: 42,
           assetName: 'מחשב נייד',
           purchaseDate: '2026-01-01',
           activationDate: '2026-01-01',
@@ -13,6 +14,7 @@ describe('buildDepreciationReportPdf', () => {
           changesDuringYear: 0,
           depreciableCost: 10000,
           depreciationRatePerLaw: 15,
+          taxRecognitionPercent: 45,
           currentYearDepreciation: 1500,
           priorYearsDepreciation: 0,
           totalDepreciation: 1500,
