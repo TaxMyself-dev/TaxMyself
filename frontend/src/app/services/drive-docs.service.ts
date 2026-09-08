@@ -89,8 +89,10 @@ export interface ArchivedItem {
   canReclassify: boolean;
   driveFileId: string | null;
   rejectionReason: string | null;
-  /** Reporting-period label copied from the approved linked expense. */
-  reportPeriod: string | null;
+  /** VAT reporting-period label copied from the approved linked expense. */
+  vatReportPeriod: string | null;
+  /** Annual income-tax reporting year copied from the approved linked expense. */
+  annualReportingYear: number | null;
 }
 
 /** Raw shape of a single invoice returned by the OCR endpoint. Matches

@@ -98,6 +98,10 @@ export class FullTransactionCache {
   })
   vatReportingDate: ReportPeriodLabel | null;
 
+  /** Mirror of SlimTransaction.annualReportingYear for the cache read path. */
+  @Column({ type: 'int', nullable: true, default: null })
+  annualReportingYear: number | null;
+
   /** Mirror of SlimTransaction.isLocked — surfaced here for the read path. */
   @Column({ type: 'boolean', default: false })
   isLocked: boolean;

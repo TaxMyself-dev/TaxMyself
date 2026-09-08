@@ -36,6 +36,10 @@ export class CreateBusinessDto {
 
   @IsOptional()
   @IsString()
+  vatReportingType?: string;
+
+  @IsOptional()
+  @IsString()
   businessField?: string;
 
   @IsOptional()

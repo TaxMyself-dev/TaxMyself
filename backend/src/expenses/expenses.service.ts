@@ -653,6 +653,7 @@ export class ExpensesService {
 
         newExpense.userId = userId;
         newExpense.date = expense.date;
+        newExpense.annualReportingYear = this.getCalendarYear(expense.date);
         if (newExpense.isEquipmentSnapshot) {
             newExpense.activationDate = (expense.activationDate ?? expense.date) as any;
         } else {
@@ -838,7 +839,7 @@ export class ExpensesService {
             dto.subCategoryId !== undefined || dto.category !== undefined || dto.subCategory !== undefined;
         const journalAffecting =
             classificationTouched ||
-            ['sum', 'originalSum', 'originalCurrency', 'vatPercent', 'taxPercent', 'date', 'activationDate', 'isEquipment', 'reductionPercent', 'supplier']
+            ['sum', 'originalSum', 'originalCurrency', 'vatPercent', 'taxPercent', 'date', 'activationDate', 'isEquipment', 'reductionPercent', 'supplier', 'vatReportingDate']
                 .some((k) => dto[k] !== undefined);
 
         // D10: expenses in an already-REPORTED VAT period reject every
@@ -899,7 +900,12 @@ export class ExpensesService {
                 (expense.approvalStatus === ExpenseApprovalStatus.APPROVED && !!expense.accountCodeSnapshot);
         }
 
-        if (dto.date !== undefined) expense.date = dto.date as any;
+        if (dto.date !== undefined) {
+            expense.date = dto.date as any;
+            expense.annualReportingYear = this.getCalendarYear(dto.date);
+        } else if (expense.annualReportingYear == null) {
+            expense.annualReportingYear = this.getCalendarYear(expense.date);
+        }
         if (dto.activationDate !== undefined) expense.activationDate = dto.activationDate || null;
         if (expense.isEquipmentSnapshot && !expense.activationDate) {
             expense.activationDate = (dto.date ?? expense.date) as any;
@@ -2622,6 +2628,17 @@ export class ExpensesService {
             });
         }
         return matches;
+    }
+
+    /** Calendar-year fallback until a separate tax-recognition date exists. */
+    private getCalendarYear(value: Date | string): number {
+        const year = Number(String(value).slice(0, 4));
+        if (Number.isInteger(year) && year >= 1900 && year <= 9999) return year;
+        const parsed = new Date(value);
+        if (Number.isNaN(parsed.getTime())) {
+            throw new BadRequestException('Invalid expense date');
+        }
+        return parsed.getUTCFullYear();
     }
 
 }

@@ -8,10 +8,6 @@ export class MailService {
   constructor() {
     // TEMP DEBUG: verify BREVO_API_KEY is loaded without leaking the full secret
     const rawKey = process.env.BREVO_API_KEY;
-    console.log('🔑 [MailService] Expected env var: BREVO_API_KEY');
-    console.log('🔑 [MailService] BREVO_API_KEY present:', !!rawKey);
-    console.log('🔑 [MailService] BREVO_API_KEY prefix:', rawKey ? rawKey.slice(0, 5) : 'N/A');
-
     const defaultClient = Brevo.ApiClient.instance;
     const apiKey = defaultClient.authentications['api-key'];
     apiKey.apiKey = rawKey; // Store API key in .env file

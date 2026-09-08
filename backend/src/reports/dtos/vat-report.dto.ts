@@ -5,6 +5,24 @@ import {
     Max
 } from 'class-validator'
 
+export interface VatInputBreakdownRow {
+    id: number | null;
+    supplier: string;
+    date: Date | string;
+    sum: number;
+    category: string;
+    subCategory: string;
+    totalVatPayable: number;
+    totalTaxPayable: number;
+    vatPercent: number;
+    taxPercent: number;
+    isEquipment: boolean;
+    file: string | null;
+    journalEntryId: number;
+    journalLineId: number;
+    manualJournalEntry: boolean;
+}
+
 export class VatReportDto {
 
     @IsNumber()
@@ -24,5 +42,8 @@ export class VatReportDto {
 
     @IsNumber()
     vatRate: number;
+
+    /** Exact account-2410 rows used for vatRefundOnExpenses/assets. */
+    expenses: VatInputBreakdownRow[];
 
 }

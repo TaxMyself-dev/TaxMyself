@@ -10,7 +10,7 @@ export interface IForm1342ReportRow {
   activationDate: string;
   originalCost: number;
   changesDuringYear: number;
-  depreciationRate: number;
+  depreciableCost: number;
   depreciationRatePerLaw: number;
   currentYearDepreciation: number;
   priorYearsDepreciation: number;
@@ -22,6 +22,8 @@ export interface IForm1342Report {
   year: number;
   rows: IForm1342ReportRow[];
   totalOriginalCost: number;
+  totalChangesDuringYear: number;
+  totalDepreciableCost: number;
   totalCurrentYearDepreciation: number;
   totalPriorYearsDepreciation: number;
   totalDepreciation: number;
@@ -41,5 +43,13 @@ export class DepreciationReportService {
       .set('businessNumber', businessNumber)
       .set('year', String(year));
     return this.http.get<IForm1342Report>(url, { params });
+  }
+
+  generateDepreciationReportPdf(businessNumber: string, year: number): Observable<Blob> {
+    const url = `${environment.apiUrl}reports/depreciation-report-pdf`;
+    const params = new HttpParams()
+      .set('businessNumber', businessNumber)
+      .set('year', String(year));
+    return this.http.get(url, { params, responseType: 'blob' });
   }
 }

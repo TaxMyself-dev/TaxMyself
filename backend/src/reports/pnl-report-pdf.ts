@@ -1,6 +1,6 @@
 import PDFDocument = require('pdfkit');
 import { PnLReportDto } from './dtos/pnl-report.dto';
-import { drawRtl, fmtDate, fmtMoney, registerHebrewFonts, stampFooterOnAllPages } from './pdf-shared';
+import { drawRtl, fmtDate, fmtMoney, PDF_CREATOR_FOOTER, registerHebrewFonts, stampFooterOnAllPages } from './pdf-shared';
 
 export interface PnLReportPdfMeta {
   businessOwnerName: string;
@@ -117,7 +117,7 @@ export function buildPnlReportPdf(
 
       drawRow('רווח נקי לפני מס', Number(data.netProfitBeforeTax) || 0, { emphasize: true });
 
-      stampFooterOnAllPages(doc, fontR);
+      stampFooterOnAllPages(doc, fontR, PDF_CREATOR_FOOTER);
       doc.end();
     } catch (err) {
       reject(err);

@@ -73,6 +73,10 @@ export class SlimTransaction {
   })
   vatReportingDate: ReportPeriodLabel | null;
 
+  /** Annual income-tax reporting year; never stored in vatReportingDate. */
+  @Column({ type: 'int', nullable: true, default: null })
+  annualReportingYear: number | null;
+
   /**
    * Hard lock flag — true once the report covering this transaction has
    * been officially submitted (self-employed: "סמן כדווח" button on the

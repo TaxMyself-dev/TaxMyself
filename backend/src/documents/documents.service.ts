@@ -3925,12 +3925,15 @@ ${finalOwnerName}`;
     const linkedExpenses = expenseIds.length
       ? await this.expenseRepo.find({
           where: { id: In(expenseIds), userId: firebaseId, businessNumber },
-          select: ['id', 'approvalStatus', 'vatReportingDate'],
+          select: ['id', 'approvalStatus', 'vatReportingDate', 'annualReportingYear'],
         })
       : [];
     const approvalStatusByExpenseId = new Map(linkedExpenses.map(e => [e.id, e.approvalStatus]));
-    const reportPeriodByExpenseId = new Map(
+    const vatReportPeriodByExpenseId = new Map(
       linkedExpenses.map(e => [e.id, e.vatReportingDate ? String(e.vatReportingDate) : null]),
+    );
+    const annualReportingYearByExpenseId = new Map(
+      linkedExpenses.map(e => [e.id, e.annualReportingYear ?? null]),
     );
 
     const docItems: ArchivedItem[] = docs.map(d => ({
@@ -3956,8 +3959,11 @@ ${finalOwnerName}`;
         ].includes(d.status),
       driveFileId: d.driveFileId,
       rejectionReason: d.rejectionReason,
-      reportPeriod: d.confirmedExpenseId != null
-        ? (reportPeriodByExpenseId.get(d.confirmedExpenseId) ?? null)
+      vatReportPeriod: d.confirmedExpenseId != null
+        ? (vatReportPeriodByExpenseId.get(d.confirmedExpenseId) ?? null)
+        : null,
+      annualReportingYear: d.confirmedExpenseId != null
+        ? (annualReportingYearByExpenseId.get(d.confirmedExpenseId) ?? null)
         : null,
     }));
 
@@ -3988,7 +3994,8 @@ ${finalOwnerName}`;
       canReclassify: false,
       driveFileId: null,
       rejectionReason: null,
-      reportPeriod: e.vatReportingDate ? String(e.vatReportingDate) : null,
+      vatReportPeriod: e.vatReportingDate ? String(e.vatReportingDate) : null,
+      annualReportingYear: e.annualReportingYear ?? null,
     }));
 
     return [...docItems, ...txItems].sort((a, b) => {
@@ -4206,5 +4213,7 @@ export interface ArchivedItem {
   driveFileId: string | null;
   rejectionReason: string | null;
   /** Expense.vatReportingDate for approved expenses and their source document. */
-  reportPeriod: string | null;
+  vatReportPeriod: string | null;
+  /** Expense.annualReportingYear for approved expenses and their source document. */
+  annualReportingYear: number | null;
 }

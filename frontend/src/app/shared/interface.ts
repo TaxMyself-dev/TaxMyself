@@ -225,6 +225,8 @@ export interface IVatReportData {
     vatRefundOnExpenses: string | number;
     vatPayment: string | number;
     vatRate: string | number;
+    /** Exact journal-backed rows used to calculate the input-VAT totals. */
+    expenses?: IRowDataTable[];
 }
 
 export interface IAdvanceIncomeTaxReportData {

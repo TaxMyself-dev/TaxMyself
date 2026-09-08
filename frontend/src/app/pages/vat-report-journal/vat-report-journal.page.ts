@@ -2,9 +2,8 @@ import { Component, computed, DestroyRef, inject, Input, OnInit, signal } from '
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { VatReportJournalService } from './vat-report-journal.service';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
-import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { EMPTY, Observable, catchError, filter, finalize, forkJoin, from, fromEvent, map, of, switchMap, take, tap, timer } from 'rxjs';
-import { BusinessStatus, FormTypes, ICellRenderer, inputsSize, ReportingPeriodType, ReportingPeriodTypeLabels } from 'src/app/shared/enums';
+import { BusinessStatus, FormTypes, ICellRenderer, inputsSize, ReportingPeriodType, ReportingPeriodTypeLabels, VATReportingType } from 'src/app/shared/enums';
 //import { ButtonSize } from 'src/app/shared/button/button.enum';
 import { ButtonSize } from 'src/app/components/button/button.enum';
 import { ExpenseFormColumns, ExpenseFormHebrewColumns } from 'src/app/shared/enums';
@@ -148,7 +147,7 @@ export class VatReportJournalPage implements OnInit {
   inputSize = inputsSize;
   buttonColor = ButtonColor;
 
-  constructor(private genericService: GenericService, private dateService: DateService, private filesService: FilesService, private router: Router, public vatReportService: VatReportJournalService, private formBuilder: FormBuilder, private expenseDataService: ExpenseDataService, private modalController: ModalController, public authService: AuthService, private transactionService: TransactionsService, private messageService: MessageService, private driveDocsService: DriveDocsService
+  constructor(private genericService: GenericService, private dateService: DateService, private filesService: FilesService, private router: Router, public vatReportService: VatReportJournalService, private formBuilder: FormBuilder, private modalController: ModalController, public authService: AuthService, private transactionService: TransactionsService, private messageService: MessageService, private driveDocsService: DriveDocsService
   ) { }
 
 
@@ -196,12 +195,14 @@ export class VatReportJournalPage implements OnInit {
       this.isRequestSent.set(true);
       this.isLoadingStatePeryodSelectButton.set(true);
       this.getVatReportData(start, end, bn);
-      this.getDataTable(start, end, bn);
     }
 
     const currentYear = new Date().getFullYear();
     const currentMonth = new Date().getMonth() + 1;
-    const defaultMonthValue = this.gs.getDefaultMonthValue(currentMonth, ReportingPeriodType.BIMONTHLY);
+    const initialPeriodMode = eligibleBusinesses[0].vatReportingType === VATReportingType.MONTHLY_REPORT
+      ? ReportingPeriodType.MONTHLY
+      : ReportingPeriodType.BIMONTHLY;
+    const defaultMonthValue = this.gs.getDefaultMonthValue(currentMonth, initialPeriodMode);
 
     const businessFilter: FilterField[] = eligibleBusinesses.length > 1 ? [{
         type: 'select',
@@ -218,9 +219,9 @@ export class VatReportJournalPage implements OnInit {
         type: 'period',
         controlName: 'period',
         required: true,
-        allowedPeriodModes: [ReportingPeriodType.MONTHLY, ReportingPeriodType.BIMONTHLY],
+        allowedPeriodModes: [initialPeriodMode],
         periodDefaults: this.gs.getDefaultPeriodConfig({
-          periodMode: ReportingPeriodType.BIMONTHLY,
+          periodMode: initialPeriodMode,
           year: currentYear,
           month: defaultMonthValue
         })
@@ -233,7 +234,8 @@ export class VatReportJournalPage implements OnInit {
     // message is gated on a fresh count, not a stale one from a previous run.
     this.form.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => {
+      .subscribe(values => {
+        this.syncPeriodModeToBusiness(values?.businessNumber);
         this.vatReportData.set(null);
         this.dataTable = of([]);
         this.rows = [];
@@ -245,6 +247,23 @@ export class VatReportJournalPage implements OnInit {
         // report fetch resolves it.
         this.reportSubmitted.set(false);
       });
+  }
+
+  private syncPeriodModeToBusiness(selectedBusinessNumber?: string): void {
+    const businessNumber = selectedBusinessNumber || this.businessNumber();
+    const business = this.gs.businesses().find(item => item.businessNumber === businessNumber);
+    if (!business) return;
+    const expectedMode = business.vatReportingType === VATReportingType.MONTHLY_REPORT
+      ? ReportingPeriodType.MONTHLY
+      : ReportingPeriodType.BIMONTHLY;
+    const periodField = this.filterConfig.find(field => field.controlName === 'period');
+    if (periodField) periodField.allowedPeriodModes = [expectedMode];
+    const modeControl = this.form.get('periodMode');
+    if (modeControl && modeControl.value !== expectedMode) {
+      // Emit so PeriodSelectComponent rebuilds/reconciles its month control.
+      // The equality guard above prevents a valueChanges loop.
+      modeControl.setValue(expectedMode);
+    }
   }
 
   beforeSelectFile(event): void {
@@ -386,7 +405,6 @@ export class VatReportJournalPage implements OnInit {
   private proceedDirectlyToReport(): void {
     this.isLoadingStatePeryodSelectButton.set(true);
     this.getVatReportData(this.startDate(), this.endDate(), this.businessNumber());
-    this.getDataTable(this.startDate(), this.endDate(), this.businessNumber());
   }
 
   /** Pre-flight found pending work. Ask the user whether to review now
@@ -503,7 +521,6 @@ export class VatReportJournalPage implements OnInit {
     this.inboxProcessingState.set('ready');
     if (this.businessNumber() === businessNumber && this.vatReportData()) {
       this.getVatReportData(this.startDate(), this.endDate(), businessNumber);
-      this.getDataTable(this.startDate(), this.endDate(), businessNumber);
     }
   }
 
@@ -581,11 +598,14 @@ export class VatReportJournalPage implements OnInit {
           return EMPTY;
         }),
         map((data) => {
-          Object.keys(data).forEach((field) => { //convert all to type string for display with comma
-            data[field] = this.genericService.addComma(data[field]);
+          this.setVatReportRows(Array.isArray(data.expenses) ? data.expenses : []);
+          const reportData = { ...data };
+          delete reportData.expenses;
+          Object.keys(reportData).forEach((field) => { //convert all to type string for display with comma
+            reportData[field] = this.genericService.addComma(reportData[field]);
           });
-          console.log(data);
-          return data;
+          console.log(reportData);
+          return reportData;
         })
       )
       .subscribe((res) => {
@@ -634,10 +654,11 @@ export class VatReportJournalPage implements OnInit {
     //   ])
     // ) as IVatReportData;
 
-    const numericData = {} as IVatReportData;
+    const numericData = {} as Record<string, string | number>;
     Object.entries(this.vatReportData()).forEach(([key, value]) => {
-      // numericData[key as keyof IVatReportData] = 15;
-      numericData[key as keyof IVatReportData] = this.genericService.convertStringToNumber(value);
+      if (key !== 'expenses') {
+        numericData[key] = this.genericService.convertStringToNumber(value);
+      }
     });
     console.log("🚀 ~ VatReportJournalPage ~ updateIncome ~ numericData:", numericData)
 
@@ -650,7 +671,7 @@ export class VatReportJournalPage implements OnInit {
 
     // Step 4: Update vatPayment
     this.vatReportData.update((prev) => ({
-      ...numericData,
+      ...(numericData as unknown as IVatReportData),
       vatPayment,
     }));
 
@@ -661,13 +682,15 @@ export class VatReportJournalPage implements OnInit {
     //     this.genericService.addComma(value),
     //   ])
     // ) as IVatReportData;
-    const stringFormatted = {} as IVatReportData;
+    const stringFormatted = {} as Record<string, string | number>;
     Object.entries(this.vatReportData()).forEach(([key, value]) => {
-      stringFormatted[key as keyof IVatReportData] = this.genericService.addComma(value);
+      if (key !== 'expenses') {
+        stringFormatted[key] = this.genericService.addComma(value);
+      }
     });
 
 
-    this.vatReportData.set(stringFormatted);
+    this.vatReportData.set(stringFormatted as unknown as IVatReportData);
     // }
   }
 
@@ -704,7 +727,6 @@ export class VatReportJournalPage implements OnInit {
     }
 
     this.getVatReportData(this.startDate(), this.endDate(), this.businessNumber());
-    this.getDataTable(this.startDate(), this.endDate(), this.businessNumber());
   }
 
   /** Show the redirect prompt (driven by an inline <p-dialog>, not
@@ -809,7 +831,6 @@ export class VatReportJournalPage implements OnInit {
       .subscribe((res) => {
         // Refresh data after transactions are confirmed
         this.getVatReportData(this.startDate(), this.endDate(), this.businessNumber());
-        this.getDataTable(this.startDate(), this.endDate(), this.businessNumber());
       })
   }
 
@@ -842,43 +863,22 @@ export class VatReportJournalPage implements OnInit {
   // }
 
 
-  getDataTable(startDate: string, endDate: string, businessNumber: string): void {
+  private setVatReportRows(data: IRowDataTable[]): void {
+    const rows: IRowDataTable[] = [];
+    const visible = data.filter(row => Number(row.totalVatPayable ?? 0) !== 0);
 
-    this.dataTable = this.expenseDataService.getExpenseForVatReport(startDate, endDate, businessNumber)
-      .pipe(
-        map((data) => {
-          const rows = [];
-          console.log("data of table in vat report: ", data);
-
-          // Hide rows with zero VAT — they don't belong in the VAT report
-          // table (totals stay accurate since 0 contributes nothing anyway).
-          const visible = data.filter(row => Number(row.totalVatPayable ?? 0) !== 0);
-
-          visible.forEach(row => {
-            const { reductionDone, reductionPercent, expenseNumber, isEquipment, loadingDate, note, supplierID, userId, isReported, monthReport, ...tableData } = row;
-            if (row.file != undefined && row.file != null && row.file != "") {
-              tableData[this.UPLOAD_FILE_FIELD_NAME] = row.file; // to show that this expense already has a file
-            }
-            // sum / totalVatPayable / totalTaxPayable all stay as raw numbers —
-            // the AMOUNT_ILS / AMOUNT_WITH_PERCENT cell renderers format them
-            // via the number pipe. Pre-formatting sum with addComma() here used
-            // to hand the pipe a comma-containing string (e.g. "53,100"), which
-            // it can't parse — any sum ≥ 1000 silently rendered as "0 ש״ח".
-            rows.push(tableData);
-          })
-          this.rows = rows;
-          return rows
-        })
-      )
-    // .subscribe((res) => {
-    // this.dataTable.set(res);
-    // console.log("data table in vat report: ", this.dataTable());
-    // 
-    // })
-
-    //= this.expenseDataService.getExpenseForVatReport(startDate, endDate, businessNumber)
-
-
+    visible.forEach(row => {
+      const {
+        reductionDone, reductionPercent, expenseNumber, loadingDate, note,
+        supplierID, userId, isReported, monthReport, ...tableData
+      } = row;
+      if (row.file != undefined && row.file != null && row.file != '') {
+        tableData[this.UPLOAD_FILE_FIELD_NAME] = row.file;
+      }
+      rows.push(tableData);
+    });
+    this.rows = rows;
+    this.dataTable = of(rows);
   }
 
   showExpenses() {
@@ -929,7 +929,7 @@ export class VatReportJournalPage implements OnInit {
     this.filesService.addFileToExpense(e.row, this.businessNumber(), e.file)
       .pipe(
         tap(() => {
-          this.getDataTable(this.startDate(), this.endDate(), this.businessNumber());
+          this.getVatReportData(this.startDate(), this.endDate(), this.businessNumber());
         }),
         finalize(() => {
           this.genericService.dismissLoader();
@@ -1005,7 +1005,6 @@ export class VatReportJournalPage implements OnInit {
             // Re-fetch the report so dataTable rows reflect the new lock state
             // when the user navigates to the תזרים page.
             this.getVatReportData(this.startDate(), this.endDate(), this.businessNumber());
-            this.getDataTable(this.startDate(), this.endDate(), this.businessNumber());
           });
       },
       reject: () => {},
@@ -1071,7 +1070,7 @@ export class VatReportJournalPage implements OnInit {
             life: 5000,
             key: 'br'
           });
-          this.getDataTable(this.startDate(), this.endDate(), this.businessNumber());
+          this.getVatReportData(this.startDate(), this.endDate(), this.businessNumber());
         }),
         catchError((error) => {
           this.messageService.add({

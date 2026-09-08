@@ -32,7 +32,7 @@ export class ReportsPage {
     
       { name: 'מבנה קבצים אחיד', link: '/uniform-file', image: '../../../assets/uniform_structure.svg', id: '4', index: 'four', content: 'הפקת קובץ לפי דרישות רשות המיסים', appRoute: AppRoute.UNIFORM_FILE },
     
-      { name: 'דו"ח פחת (טופס 1342)', link: '/depreciation-report', image: '../../../assets/depreciation_report.svg', id: '5', index: 'five', content: 'הפקת דוח פחת על נכסי הציוד של העסק' },
+      { name: 'דו"ח פחת', link: '/depreciation-report', image: '../../../assets/depreciation_report.svg', id: '5', index: 'five', content: 'הפקת דוח פחת על נכסי הציוד של העסק' },
     
       { name: 'כרטסת', link: '/ledger-report', image: '../../../assets/p&l_report.svg', id: '6', index: 'six', content: 'צפייה בתנועות יומן (כרטסת) לפי תקופה' },
   ];

@@ -2,7 +2,7 @@
   <div class="depreciation-report-header">
     <div class="icon-title">
       <img src="../../../assets/annual_report.svg" alt="Depreciation Report" class="icon" />
-      <span class="title">דוח פחת — טופס 1342</span>
+      <span class="title">דוח פחת</span>
     </div>
     <p class="text-header">
       הפקת דוח פחת על נכסי הציוד של העסק לפי שנת המס
@@ -40,7 +40,7 @@
                 <td>{{ formatDate(row.activationDate) }}</td>
                 <td dir="ltr">{{ formatAmount(row.originalCost) }}</td>
                 <td dir="ltr">{{ formatAmount(row.changesDuringYear) }}</td>
-                <td dir="ltr">{{ formatPercent(row.depreciationRate) }}</td>
+                <td dir="ltr">{{ formatAmount(row.depreciableCost) }}</td>
                 <td dir="ltr">{{ formatPercent(row.depreciationRatePerLaw) }}</td>
                 <td dir="ltr">{{ formatAmount(row.currentYearDepreciation) }}</td>
                 <td dir="ltr">{{ formatAmount(row.priorYearsDepreciation) }}</td>
@@ -53,8 +53,8 @@
               <td></td>
               <td></td>
               <td dir="ltr"><strong>{{ formatAmount(data.totalOriginalCost) }}</strong></td>
-              <td dir="ltr">0.00</td>
-              <td></td>
+              <td dir="ltr"><strong>{{ formatAmount(data.totalChangesDuringYear) }}</strong></td>
+              <td dir="ltr"><strong>{{ formatAmount(data.totalDepreciableCost) }}</strong></td>
               <td></td>
               <td dir="ltr"><strong>{{ formatAmount(data.totalCurrentYearDepreciation) }}</strong></td>
               <td dir="ltr"><strong>{{ formatAmount(data.totalPriorYearsDepreciation) }}</strong></td>

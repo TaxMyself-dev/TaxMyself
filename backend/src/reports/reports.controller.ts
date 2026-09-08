@@ -494,6 +494,28 @@ export class ReportsController {
         );
     }
 
+    /** Clean server-rendered Form 1342 attachment; never includes browser print chrome. */
+    @Get('depreciation-report-pdf')
+    @UseGuards(FirebaseAuthGuard)
+    @UsePipes(new ValidationPipe({ transform: true }))
+    async getDepreciationReportPdf(
+        @Req() request: AuthenticatedRequest,
+        @Query() query: DepreciationReportRequestDto,
+        @Res() res: Response,
+    ) {
+        const firebaseId = request.user?.firebaseId;
+        if (!firebaseId) {
+            throw new BadRequestException('Firebase ID is missing');
+        }
+        const pdfBuffer = await this.reportsService.generateDepreciationReportPdfForExport(
+            firebaseId,
+            query.businessNumber,
+            Number(query.year),
+        );
+        res.setHeader('Content-Type', 'application/pdf');
+        return res.send(pdfBuffer);
+    }
+
     /**
      * P&L screen entry point: automatically materializes missing depreciation
      * postings, then returns the journal-based report. POST is intentional —

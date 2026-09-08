@@ -1683,3 +1683,83 @@ ALTER TABLE `extracted_document`
 
 -- Verification (must return exactly one nullable varchar(500) column):
 -- SHOW COLUMNS FROM extracted_document LIKE 'rejection_reason';
+
+
+-- ============================================================================
+-- SECTION 15 (2026-09-07, Elazar) -- separate VAT and annual-report periods.
+--
+-- vatReportingDate is now VAT-only. Annual income-tax membership is stored
+-- independently so submitting an annual report never overwrites the VAT
+-- period. Expense rows are backfilled from their current accounting date;
+-- legacy transaction rows carrying a bare four-digit year are migrated out
+-- of vatReportingDate without changing monthly/bimonthly VAT labels.
+-- ============================================================================
+
+ALTER TABLE `expense`
+  ADD COLUMN `annualReportingYear` int NULL DEFAULT NULL AFTER `vatReportingDate`;
+
+ALTER TABLE `slim_transactions`
+  ADD COLUMN `annualReportingYear` int NULL DEFAULT NULL AFTER `vatReportingDate`;
+
+ALTER TABLE `full_transactions_cache`
+  ADD COLUMN `annualReportingYear` int NULL DEFAULT NULL AFTER `vatReportingDate`;
+
+UPDATE `expense`
+SET `annualReportingYear` = YEAR(`date`)
+WHERE `annualReportingYear` IS NULL
+  AND `date` IS NOT NULL;
+
+UPDATE `slim_transactions`
+SET `annualReportingYear` = CAST(`vatReportingDate` AS UNSIGNED),
+    `vatReportingDate` = NULL
+WHERE `vatReportingDate` REGEXP '^[0-9]{4}$';
+
+UPDATE `full_transactions_cache`
+SET `annualReportingYear` = CAST(`vatReportingDate` AS UNSIGNED),
+    `vatReportingDate` = NULL
+WHERE `vatReportingDate` REGEXP '^[0-9]{4}$';
+
+-- Verification: all three columns must exist; no VAT-period field may retain
+-- a bare annual year; every dated expense must have an annual reporting year.
+-- SHOW COLUMNS FROM expense LIKE 'annualReportingYear';
+-- SHOW COLUMNS FROM slim_transactions LIKE 'annualReportingYear';
+-- SHOW COLUMNS FROM full_transactions_cache LIKE 'annualReportingYear';
+-- SELECT COUNT(*) AS invalid_annual_labels
+-- FROM slim_transactions WHERE vatReportingDate REGEXP '^[0-9]{4}$';
+-- SELECT COUNT(*) AS invalid_cache_annual_labels
+-- FROM full_transactions_cache WHERE vatReportingDate REGEXP '^[0-9]{4}$';
+-- SELECT COUNT(*) AS expenses_without_annual_year
+-- FROM expense WHERE date IS NOT NULL AND annualReportingYear IS NULL;
+
+
+-- ============================================================================
+-- SECTION 16 (2026-09-07, Elazar) -- harden VAT input equipment classification.
+--
+-- VAT input totals split account 2410 between ordinary inputs and fixed
+-- assets. Legacy NULL values could make a line disappear from both buckets.
+-- Recover the source expense snapshot where possible, then make the journal
+-- field non-null so every 2410 line belongs to exactly one bucket.
+-- ============================================================================
+
+UPDATE `journal_line` jl
+JOIN `journal_entry` je ON je.`id` = jl.`journalEntryId`
+LEFT JOIN `expense` e
+  ON e.`journalEntryNumber` = je.`entryNumber`
+ AND CAST(e.`businessNumber` AS BINARY) = CAST(je.`issuerBusinessNumber` AS BINARY)
+ AND CAST(e.`userId` AS BINARY) = CAST(je.`firebaseId` AS BINARY)
+SET jl.`isEquipment` = COALESCE(e.`isEquipmentSnapshot`, 0)
+WHERE jl.`isEquipment` IS NULL
+  AND jl.`accountCode` = '2410';
+
+UPDATE `journal_line`
+SET `isEquipment` = 0
+WHERE `isEquipment` IS NULL;
+
+ALTER TABLE `journal_line`
+  MODIFY COLUMN `isEquipment` tinyint NOT NULL DEFAULT 0;
+
+-- Verification: both queries must return zero.
+-- SELECT COUNT(*) AS null_equipment_flags
+-- FROM journal_line WHERE isEquipment IS NULL;
+-- SELECT COUNT(*) AS unbucketed_vat_lines
+-- FROM journal_line WHERE accountCode = '2410' AND isEquipment IS NULL;
