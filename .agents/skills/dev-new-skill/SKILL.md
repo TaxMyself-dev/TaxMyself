@@ -1,6 +1,6 @@
 ---
 name: dev-new-skill
-description: Interview the user to gather everything needed to author a new Codex skill in this project's .Codex/skills/ convention, then draft and create it. Use only when explicitly requested.
+description: Interview the user to gather everything needed to author a new Codex skill in this project's .agents/skills convention, then draft and create it. Use only when explicitly requested.
 disable-model-invocation: true
 ---
 
@@ -14,11 +14,9 @@ Do not activate proactively. Do not suggest creating a skill just because you no
 
 ## Project convention
 
-This project keeps skills flat under `.Codex/skills/<name>/SKILL.md` (one level deep — do not nest under category subfolders, since Codex's skill discovery for this is only confirmed to work one level deep). Categories are expressed as a prefix on the skill name, e.g. `dev-grill-me`, `dev-conversation-handoff`.
+This project keeps skills flat under `.agents/skills/<name>/SKILL.md` (one level deep). Categories are expressed as a prefix on the skill name, e.g. `dev-grill-me`, `dev-conversation-handoff`.
 
-Before asking about category, scan `.Codex/skills/*/SKILL.md` and extract the prefix (the part of the directory name before the first `-`) from each existing skill to build the current list of categories. Offer that list plus the option to type a new category.
-
-There is a browsable index at `.Codex/skills/README.md`, grouped by category. It does not affect Codex's own discovery (that scans SKILL.md files regardless of the index) — it exists purely for humans browsing the library. Keep it updated whenever a skill is added.
+Before asking about category, scan `.agents/skills/*/SKILL.md` and extract the prefix (the part of the directory name before the first `-`) from each existing skill to build the current list of categories. Offer that list plus the option to type a new category.
 
 ## Interview
 
@@ -45,7 +43,6 @@ Wait for explicit approval. If the user asks for changes, revise and show the dr
 
 Once approved:
 
-1. Create `.Codex/skills/<name>/SKILL.md` with the confirmed content.
+1. Create `.agents/skills/<name>/SKILL.md` with the confirmed content.
 2. Create any confirmed `references/`, `scripts/`, or `assets/` files.
-3. Append one line to `.Codex/skills/README.md` under the appropriate `## <category>` heading (creating the heading if it's a new category): `- <name> — <one-line summary of the description>`.
-4. Report the files created and stop — do not take further action unless asked.
+3. Report the files created and stop — do not take further action unless asked.

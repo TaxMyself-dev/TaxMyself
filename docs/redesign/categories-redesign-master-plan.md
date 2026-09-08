@@ -2,7 +2,7 @@
 
 Audience: Claude Code, working in the `taxmyself-dev` repo (NestJS + TypeORM +
 MySQL backend, Angular frontend). This plan is the single source of truth for
-the redesign. It was written against the audit in `docs/categories-audit.md`
+the redesign. It was written against the audit in `docs/redesign/categories-audit.md`
 (commit `6ffa67f3`) — read that document first; this plan assumes its findings.
 
 Production has few customers. Data migrations on existing production data are
@@ -343,7 +343,7 @@ lines). Elazar signs off on the exact delta during Phase 1.7 review.
 - [ ] 0.1 Full production DB backup (mysqldump). Verify restore works on a
       local copy. All later phases are rehearsed on this copy first.
 - [ ] 0.2 Run the production audit queries (provided separately in chat;
-      also in `docs/categories-audit.md` §8). Record results in
+      also in `docs/redesign/categories-audit.md` §8). Record results in
       `docs/redesign/production-baseline.md`: row counts, orphan pairs,
       duplicate catalog rows, live journal account codes, supplier/rule
       shadow counts.
@@ -848,7 +848,7 @@ fresh Claude Code session. Copy the prompt as-is. Sessions marked A/B may
 run IN PARALLEL in separate terminals — they touch disjoint files.
 Everything else is sequential.
 
-Standing rules (already in CLAUDE.md, repeated for clarity): commit after
+Standing rules (already in `AGENTS.md`, repeated for clarity): commit after
 every task, tick the checkbox in this plan, append to worklog.md. All DB
 work runs against the local `keepintax_prodcopy` database.
 
@@ -872,7 +872,7 @@ Stop and ask if anything conflicts with the plan (rule 5).
 ```
 
 Elazar between steps: provide DB credentials; review schema-drift.md
-decisions. After: set `Current phase: 1` in CLAUDE.md.
+decisions. After: set `Current phase: 1` in root `AGENTS.md`.
 (Task 0.3 security fixes are deferred to Session 8 per the decision to
 avoid production deploys until the cutover.)
 
@@ -1005,7 +1005,7 @@ names and databases, per the plan's cutover section.
 
 Elazar executes the cutover checklist manually. Phase 7 cleanup = one
 more short session 2–4 weeks later, plus re-running /docs-app-map to
-regenerate the per-topic CLAUDE.md docs (they describe the old
+regenerate the per-topic `AGENTS.md` docs (they describe the old
 architecture).
 
 ### Parallelism rules

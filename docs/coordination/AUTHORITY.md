@@ -1,8 +1,8 @@
 # Manager authority and approval gates
 
-Elazar authorizes the main manager chat to carry an approved task through local
-implementation, review, integration, and normal Git push without asking again
-at every mechanical step.
+Elazar authorizes a task manager to carry an approved task through delegated
+implementation and task review without repeated approval. The primary
+integration manager may then integrate, verify, and perform a normal Git push.
 
 ## No repeated approval for the standard workflow
 
@@ -23,15 +23,17 @@ standard operation does not repeatedly interrupt Elazar.
 
 - Investigate code and run read-only diagnostics.
 - Turn an approved requirement into technical acceptance criteria.
-- Open, monitor, redirect, or close worker chats and isolated worktrees.
+- Open, monitor, redirect, or close worker tasks and isolated worktrees.
 - Choose implementation details that preserve the approved business behavior.
 - Add focused tests, builds, validation, and documentation.
 - Reject or return incomplete worker output for correction.
 - Resolve purely additive documentation conflicts while preserving all entries.
 - Create local commits and integrate verified worker commits.
-- Fast-forward and push `codex/integration` and `main` after all workflow gates
-  pass, then update the clean local `main` checkout for Elazar's visual test.
-- Remove a clean worker worktree after its commits are verified on `origin/main`.
+- The primary integration manager may fast-forward and push
+  `codex/integration` and `main` after all workflow gates pass, then update the
+  clean local `main` checkout for Elazar's visual test.
+- The primary integration manager may remove a clean worker worktree after its
+  commits are verified on `origin/main`.
 
 ## Explicit approval is required before
 
@@ -51,19 +53,10 @@ standard operation does not repeatedly interrupt Elazar.
 - Deploying to production, running production cutover, or restarting production
   services. Pushing `main` does not authorize deployment.
 
-## Production access is disabled
+## Production access
 
-Elazar has explicitly decided that Codex must not have or attempt to obtain
-production access at this time. Managers and workers must not test production
-credentials or permissions, connect to or query the live production database,
-open a production shell, inspect live production services, deploy, restart, or
-request production credentials. This restriction applies even to read-only
-connectivity checks.
-
-Development environments and explicitly isolated production copies such as
-`keepintax_prodcopy` are not the live production environment, but their existing
-safety rules still apply. Production access may be considered only after Elazar
-explicitly reverses this standing restriction in a future instruction.
+The binding production-access rules are in `PRODUCTION_POLICY.md`. Production
+access is currently disabled, including read-only connectivity checks.
 
 ## Approval inheritance
 

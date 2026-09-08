@@ -23,5 +23,5 @@ One topic per top-level module directory, e.g. `backend/src/bookkeeping/`, `back
    - **Main flows** — the primary operations/endpoints/user flows this topic implements.
    - **Related topics** — other topic dirs this one depends on or is depended on by.
 3. Write that as `<topic-dir>/AGENTS.md` using the four sections above. Keep it tight — this is oriented at "what exists" not a full spec.
-4. Update the root `AGENTS.md` with a short index: one line per topic, linking to its directory, e.g. `- [Bookkeeping](backend/src/bookkeeping/AGENTS.md) — journal entries, account seeding, ledger posting`. Create the root file if it doesn't exist yet.
+4. Update the root `AGENTS.md` with a short index: one line per topic, linking to its directory, e.g. ``- Bookkeeping (`backend/src/bookkeeping/AGENTS.md`) — journal entries, account seeding, ledger posting``. Create the root file if it doesn't exist yet.
 5. Report which topic docs were created vs. updated, and flag any directory you weren't sure counted as its own topic.

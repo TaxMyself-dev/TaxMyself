@@ -1,8 +1,9 @@
 # Keepintax parallel delivery workflow
 
-This is the binding runbook for the main manager chat and every delegated worker
-chat. `main` is the version Elazar runs. `codex/integration` is the manager's
-staging branch. Workers operate in isolated Codex worktrees, normally at
+This is the binding runbook for every task manager, the primary integration
+manager, and every delegated worker chat. `main` is the version Elazar runs.
+`codex/integration` is the primary integration manager's staging branch.
+Workers operate in isolated Codex worktrees, normally at
 `C:\Users\harel\.codex\worktrees\<id>\taxmyself-dev`.
 
 ## Roles
@@ -12,12 +13,18 @@ prompts. The manager pauses only for a stop condition or an explicit approval
 boundary in `AUTHORITY.md`; routine Git, worktree, dependency, test, build, and
 documentation operations are part of the standing workflow authorization.
 
-### Manager
+### Task manager
 
-The manager owns requirements, task tracking, delegation, review, integration,
-combined testing, documentation, pushing, cleanup, and user status reports. It
-is the only role allowed to merge, push, update the user's `main` checkout, or
-resolve cross-task conflicts.
+The task manager owns requirements, its task file, delegation, task-level
+review, correction loops, and a complete handoff to the primary integration
+manager. It does not push or update shared governance files.
+
+### Primary integration manager
+
+The primary integration manager owns cross-task conflict resolution, combined
+testing, shared documentation, integration, pushing, cleanup, and the final
+user status report. It is the only role allowed to update the user's `main`
+checkout or push `main`.
 
 ### Worker
 
@@ -28,15 +35,15 @@ business behavior.
 
 ## Phase A — intake and dispatch
 
-1. Write acceptance criteria before opening a worker. Record the task in
-   `TASKS.md` with status `APPROVED`.
+1. Write acceptance criteria before opening a worker. Create one task file from
+   `docs/tasks/TEMPLATE.md` under `docs/tasks/active/` with status `APPROVED`.
 2. Identify affected modules, shared files, database/external-service risk, and
    whether the redesign master plan must be read.
 3. Confirm both the manager worktree and the user's `main` checkout are clean.
    A dirty checkout is a blocker; never overwrite or hide user changes.
-4. Refresh remote state when network access is available. Make
-   `codex/integration` contain current `main` before dispatch. Record the exact
-   base commit in `TASKS.md`.
+4. Refresh remote state when network access is available. Base the worker on
+   current `origin/main` or on a reviewed integration commit explicitly named
+   in the task file. Record the exact base commit there.
 5. Create a fresh Codex worktree from that exact integration base. Never assign
    a new task to a worktree containing changes or an unfinished prior task.
 6. The worker prompt must include scope, acceptance criteria, required tests,
@@ -76,15 +83,16 @@ Documentation updated:
    - changed-code failure: fix it; this blocks completion;
    - pre-existing failure: reproduce on the recorded base and document it;
    - environment/tool failure: repair the isolated environment and rerun.
-9. Update nearest topic documentation. Do not append to shared
-   `docs/redesign/worklog.md`, `TASKS.md`, or another worker's files unless the
-   manager explicitly assigned them.
+9. Update nearest topic documentation when behavior or a development invariant
+   changed. Do not append to shared `docs/redesign/worklog.md`, governance files,
+   task indexes, or another worker's files unless explicitly assigned.
 10. Commit locally and send the handoff. The commit must contain no dependency
     directories, build output, caches, secrets, `.env` files, or temporary data.
 
 ## Phase C — manager review and integration
 
-1. Mark the task `WORKER_COMPLETE`; capture worktree path and commit hashes.
+1. The task manager marks its task file `WORKER_COMPLETE`; capture worktree path
+   and commit hashes.
 2. Inspect the full diff, `git show --check`, security boundaries, business
    behavior, tests, documentation, and unintended files. A worker's green report
    is evidence, not a substitute for manager review.
@@ -94,9 +102,10 @@ Documentation updated:
 4. Integrate one task commit at a time. After each commit, verify status and
    inspect the resulting diff. Resolve additive documentation conflicts by
    preserving both entries. A code conflict requires renewed semantic review.
-5. Add the shared `docs/redesign/worklog.md` entry when required and update
-   `TASKS.md`. The manager owns these shared append-only edits.
-6. Run combined verification on the integrated tree:
+5. The primary integration manager adds the shared redesign worklog entry when
+   required and updates `MANAGER_STATE.md`. Workers never edit either file.
+6. Run the checks required by `QUALITY_GATES.md` on the integrated tree. At
+   minimum this normally includes:
    - focused backend tests for changed modules;
    - Nest build for backend changes;
    - focused frontend tests where the repository runner can isolate them;
@@ -109,7 +118,8 @@ Documentation updated:
 
 ## Phase D — automatic main delivery
 
-When every gate passes and the action is within `AUTHORITY.md`:
+When every gate in `QUALITY_GATES.md` passes and the action is within
+`AUTHORITY.md` and `PRODUCTION_POLICY.md`:
 
 1. Confirm `codex/integration` and the user's `main` checkout are clean.
 2. Require current `main` to be an ancestor of `codex/integration`.
@@ -118,15 +128,12 @@ When every gate passes and the action is within `AUTHORITY.md`:
 4. Push `codex/integration` and `main`.
 5. Verify local `main`, `origin/main`, and `codex/integration` resolve to the
    intended commit.
-6. Mark the task `PUSHED`, report what Elazar can run, and state clearly that a
-   Git push is not a production deployment.
+6. Mark the task `PUSHED`, update `MANAGER_STATE.md`, report what Elazar can run,
+   and state clearly that a Git push is not a production deployment.
 7. Only after the commit is reachable from `origin/main`, archive the worker and
    remove its clean worktree. Never recursively delete an unresolved path.
 
 ## Stop conditions
 
-Stop automatic integration and notify Elazar when tests fail because of changed
-code, a code conflict changes meaning, scope expands, `main` is dirty, a schema
-or production-data action is needed, a tax/accounting/security decision was not
-approved, a force push would be required, or the correct target commit cannot be
-proved.
+Stop automatic integration and notify Elazar when a stop condition from
+`AUTHORITY.md`, `QUALITY_GATES.md`, or `PRODUCTION_POLICY.md` applies.

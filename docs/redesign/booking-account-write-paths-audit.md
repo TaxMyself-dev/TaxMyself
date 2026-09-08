@@ -242,7 +242,7 @@ against anything but `DB_DATABASE=keepintax-dev`. None of it has touched
 Can't confirm from this repo. `docs/redesign/worklog.md`'s last entry is
 Session 14 (2026-07-15): *"Elazar is proceeding directly to the real cutover
 (Steps 2-6) tonight."* Nothing logged since — that's a full month before
-today with no follow-up entry, and `CLAUDE.md`'s "Current phase" line still
+today with no follow-up entry, and root `AGENTS.md`'s "Current phase" line still
 reads `cutover-in-progress`, not `cutover-complete`. I have no production DB
 credentials configured in this environment (`.env` points only at
 `keepintax-dev`), so I can't check live either. Flagging this as unverified

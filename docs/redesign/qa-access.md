@@ -50,7 +50,7 @@ needed.
 
 Booted the backend directly against `keepintax_prodcopy`
 (`NODE_ENV=production DB_DATABASE=keepintax_prodcopy SKIP_BOOT_SEED=true`
-— **both required**, see `CLAUDE.md` — on `PORT=3001` so it doesn't
+— **both required**, see root `AGENTS.md` — on `PORT=3001` so it doesn't
 collide with a normal dev server on 3000) and exercised the real HTTP API
 with a real Firebase ID token minted for the new UID:
 

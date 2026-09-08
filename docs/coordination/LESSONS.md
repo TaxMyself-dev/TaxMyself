@@ -19,8 +19,9 @@ Parallel commits all appended at the end of `docs/redesign/worklog.md`, causing
 predictable cherry-pick conflicts even though code files were independent.
 
 Prevention: workers do not edit shared append-only logs. They return a handoff;
-the manager writes one integration entry and updates `TASKS.md`. If a worker is
-explicitly assigned a redesign plan item, the manager must reserve the shared
+the primary integration manager writes one integration entry. Each task manager
+updates only its own file under `docs/tasks/active/`. If a worker is explicitly
+assigned a redesign plan item, the integration manager must reserve the shared
 file to that worker or serialize integration.
 
 ## 3. A package manager was run through another worktree's node_modules
@@ -68,3 +69,12 @@ cherry-picked them.
 Prevention: `WORKER_COMPLETE` and `PUSHED` are different states. Completion is
 reported to Elazar only after remote ref verification, unless the status report
 explicitly says the task is waiting for integration.
+
+## 7. One shared task dashboard becomes a merge hotspot
+
+`docs/coordination/TASKS.md` mixed live state, acceptance criteria, and history.
+With multiple managers it would require unrelated tasks to edit the same file.
+
+Prevention: keep one file per active task under `docs/tasks/active/`. Only the
+task manager edits that file. The primary integration manager moves completed
+entries into the annual archive after remote verification.

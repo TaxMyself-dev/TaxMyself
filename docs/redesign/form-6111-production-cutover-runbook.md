@@ -17,7 +17,7 @@ categories-redesign master plan (`2026-07-10_chart_renumber.sql`). That
 plan's own cutover to production was, per `docs/redesign/worklog.md`'s last
 entry (Session 14, 2026-07-15): *"Elazar is proceeding directly to the real
 cutover (Steps 2-6) tonight."* There is no later worklog entry and
-`CLAUDE.md`'s "Current phase" line still reads `cutover-in-progress` —
+Root `AGENTS.md`'s "Current phase" line still reads `cutover-in-progress` —
 nothing in the repo confirms Steps 2-6 actually completed against real
 `keepintax-prod`.
 
