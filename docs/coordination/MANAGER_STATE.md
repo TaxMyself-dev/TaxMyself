@@ -4,7 +4,7 @@ Last reviewed: 2026-09-08
 
 ## Integration baseline
 
-- `origin/main`: `0e983ec60171017619a877d678acac0ebe49f3ff`
+- Main baseline incorporated before documentation delivery: `dfca8ea2`
 - Manager branch: `codex/integration`
 - Production access: disabled by standing decision.
 
@@ -13,7 +13,7 @@ Last reviewed: 2026-09-08
 - `KT-009`: Gmail forwarding-verification delivery is on `origin/main`; waiting
   for final user validation before archival.
 - `KT-012`: repository Markdown and development-instruction architecture cleanup
-  is ready for Elazar's review in the manager worktree. No commit or push yet.
+  is approved, verified, and delivered through integration commit `8a54f63c`.
 
 ## Pending integration
 
@@ -28,6 +28,4 @@ Last reviewed: 2026-09-08
 
 ## Next step
 
-Review the proposed structure and deletions with Elazar. After approval, commit
-and push under the normal gates, then add the second developer's profile when
-their name and owned areas are known.
+Add the second developer's profile when their name and owned areas are known.
