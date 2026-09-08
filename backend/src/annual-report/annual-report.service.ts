@@ -22,7 +22,7 @@ import {
 import { UploadFileDto } from './dtos/upload-file.dto';
 import { SlimTransaction } from 'src/transactions/slim-transaction.entity';
 import { FullTransactionCache } from 'src/transactions/full-transaction-cache.entity';
-import { BusinessType, isExemptBusinessType, ReportPeriodLabel } from 'src/enum';
+import { BusinessType, isExemptBusinessType } from 'src/enum';
 
 /** API response shape: report + its files (files are loaded separately, no ORM relation). */
 export interface AnnualReportWithFiles extends AnnualReport {
@@ -269,10 +269,10 @@ export class AnnualReportService {
   }
 
   /**
-   * On annual report approval, stamp slim_transactions.vatReportingDate with
-   * the tax year (e.g. "2024") for every income-tax-only transaction in this
+   * On annual report approval, stamp slim_transactions.annualReportingYear
+   * for every income-tax-only transaction in this
    * business and tax year — i.e. anything that was NOT already locked by a
-   * VAT report. The same field doubles as the classification lock.
+   * VAT report. VAT period membership remains untouched.
    *
    * Eligibility per row:
    *   business is EXEMPT  → all transactions get locked here.
@@ -287,7 +287,6 @@ export class AnnualReportService {
     });
     if (!business) return;
 
-    const periodLabel: ReportPeriodLabel = String(report.taxYear);
     const yearStart = new Date(Date.UTC(report.taxYear, 0, 1));
     const yearEnd = new Date(Date.UTC(report.taxYear, 11, 31, 23, 59, 59));
 
@@ -299,7 +298,7 @@ export class AnnualReportService {
     );
     if (ids.length === 0) {
       this.logger.log(
-        `lockAnnualTransactions: no eligible transactions for report ${report.id} (year ${periodLabel}).`,
+        `lockAnnualTransactions: no eligible transactions for report ${report.id} (year ${report.taxYear}).`,
       );
       return;
     }
@@ -308,25 +307,24 @@ export class AnnualReportService {
       externalTransactionId: In(ids),
       isLocked: false,
     } as const;
-    const patch = { vatReportingDate: periodLabel, isLocked: true } as const;
+    const patch = { annualReportingYear: report.taxYear, isLocked: true } as const;
     await this.slimRepo.update(filter, patch);
     await this.cacheRepo.update(filter, patch);
     this.logger.log(
-      `lockAnnualTransactions: locked ${ids.length} transactions to year ${periodLabel} (report ${report.id}).`,
+      `lockAnnualTransactions: locked ${ids.length} transactions to year ${report.taxYear} (report ${report.id}).`,
     );
   }
 
   private async unlockAnnualTransactions(report: AnnualReport): Promise<void> {
-    const periodLabel: ReportPeriodLabel = String(report.taxYear);
     const filter = {
       userId: report.clientFirebaseId,
       businessNumber: report.businessNumber,
-      vatReportingDate: periodLabel,
+      annualReportingYear: report.taxYear,
     } as const;
     await this.slimRepo.update(filter, { isLocked: false });
     await this.cacheRepo.update(filter, { isLocked: false });
     this.logger.log(
-      `unlockAnnualTransactions: cleared lock for year ${periodLabel} (report ${report.id}).`,
+      `unlockAnnualTransactions: cleared lock for year ${report.taxYear} (report ${report.id}).`,
     );
   }
 

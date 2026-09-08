@@ -4,7 +4,7 @@ import { catchError, finalize } from 'rxjs/operators';
 import { ArchiveDocumentClassification, DriveDocsService, ArchivedItem, RecordSource, ArchiveItemStatus } from 'src/app/services/drive-docs.service';
 import { GenericService } from 'src/app/services/generic.service';
 import { IColumnDataTable, IMobileCardConfig, IRowDataTable, ITableRowAction, IUserData, ISelectItem } from 'src/app/shared/interface';
-import { BusinessStatus, FormTypes, ICellRenderer } from 'src/app/shared/enums';
+import { BusinessStatus, BusinessType, FormTypes, ICellRenderer, VATReportingType } from 'src/app/shared/enums';
 import { AuthService } from 'src/app/services/auth.service';
 import { FilterField } from 'src/app/components/filter-tab/filter-fields-model.component';
 import { FormBuilder, FormGroup } from '@angular/forms';
@@ -101,7 +101,7 @@ export class ArchivedDocumentsPage implements OnInit {
     primaryFields: ['name'],
     highlightedField: 'sourceLabel',
     dateField: 'uploadDate',
-    hiddenFields: ['id', 'driveFileId', 'itemType', 'status', 'statusLabel', 'documentType', 'reportPeriod'],
+    hiddenFields: ['id', 'driveFileId', 'itemType', 'status', 'statusLabel', 'documentType', 'vatReportPeriod', 'annualReportingYear'],
     highlightedValueFormat: 'plain'
   };
 
@@ -109,6 +109,7 @@ export class ArchivedDocumentsPage implements OnInit {
     { name: 'name', value: 'שם המסמך / תנועה', type: FormTypes.TEXT },
     { name: 'documentTypeLabel', value: 'סוג מסמך', type: FormTypes.TEXT },
     { name: 'statusLabel', value: 'סטטוס', type: FormTypes.TEXT, cellRenderer: ICellRenderer.STATUS_BADGE },
+    { name: 'documentDate', value: 'תאריך מסמך', type: FormTypes.DATE },
     { name: 'uploadDate', value: 'תאריך העלאה', type: FormTypes.DATE },
     { name: 'sourceLabel', value: 'מקור העלאה', type: FormTypes.TEXT },
   ]);
@@ -118,6 +119,16 @@ export class ArchivedDocumentsPage implements OnInit {
   readonly filteredItems = computed(() => {
     const status = this.selectedStatus();
     const docType = this.selectedDocumentType();
+    const selectedBusiness = this.gs.businesses().find(
+      business => business.businessNumber === this.selectedBusinessNumber(),
+    );
+    const vatPeriodIsRelevant = !!selectedBusiness
+      && [
+        BusinessType.LICENSED,
+        BusinessType.LIMITED_COMPANY,
+        BusinessType.AUTHORIZED_PARTNERSHIP,
+      ].includes(selectedBusiness.businessType)
+      && selectedBusiness.vatReportingType !== VATReportingType.NOT_REQUIRED;
     return this.rawItems()
       // "All" means all ACTIVE archive items, never soft-deleted items.
       // Deleted documents are visible only through the dedicated option.
@@ -136,9 +147,15 @@ export class ArchivedDocumentsPage implements OnInit {
         statusLabel: this.archiveStatusLabels[item.status] ?? item.status,
         statusDetail: item.status === 'REJECTED'
           ? (item.rejectionReason?.trim() || 'לא הוזנה סיבת דחייה')
-          : item.status === 'APPROVED' && item.reportPeriod
-            ? `דווח לתקופה: ${item.reportPeriod}`
+          : item.status === 'APPROVED'
+            ? [
+                vatPeriodIsRelevant && item.vatReportPeriod
+                  ? `תקופת מע״מ: ${item.vatReportPeriod}`
+                  : null,
+                item.annualReportingYear ? `דוח שנתי: ${item.annualReportingYear}` : null,
+              ].filter(Boolean).join('\n') || null
             : null,
+        documentDate: item.documentDate ? item.documentDate.slice(0, 10) : '-',
         uploadDate: item.uploadDate ? item.uploadDate.slice(0, 10) : '-',
       }));
   });

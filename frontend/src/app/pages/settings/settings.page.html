@@ -12,6 +12,11 @@
     <app-input-select [parentForm]="addBusinessFormGroup" [controlName]="'businessType'"
       [items]="businessTypeOptions()" [labelText]="'סוג עסק'" [placeholder]="'בחר/י'"
       [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"></app-input-select>
+    @if (addBusinessFormGroup.get('businessType')?.value && !isExemptBusinessType(addBusinessFormGroup.get('businessType')?.value)) {
+      <app-input-select [parentForm]="addBusinessFormGroup" [controlName]="'vatReportingType'"
+        [items]="vatReportingOptions" [labelText]="'דיווח מע&quot;מ'" [placeholder]="'בחר/י'"
+        [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"></app-input-select>
+    }
     <app-input-text [parentForm]="addBusinessFormGroup" [controlName]="'businessEmail'"
       [labelText]="'אימייל'" [placeholder]="'example@gmail.com'" [type]="'email'"
       [errorText]="'כתובת אימייל לא חוקית'"

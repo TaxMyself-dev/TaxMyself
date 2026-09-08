@@ -10,6 +10,7 @@ const FONT_BOLD = path.join(FONT_DIR, 'Simpler-Bold.otf');
 
 /** Compliance footer required on every generated PDF page. */
 export const PDF_COMPLIANCE_FOOTER = 'Created by KeepInTax LTD | תוכנה מאושרת על ידי רשות המיסים';
+export const PDF_CREATOR_FOOTER = 'Created by KeepInTax LTD';
 
 const HEBREW_RE = /[֐-׿]/;
 
@@ -141,7 +142,11 @@ export function registerHebrewFonts(doc: any): { fontR: string; fontB: string } 
  * and silently calls `addPage()` before drawing, which produced a spurious
  * near-blank extra page when this used to sit a few points past the margin.
  */
-export function stampFooterOnAllPages(doc: any, fontR: string): void {
+export function stampFooterOnAllPages(
+  doc: any,
+  fontR: string,
+  footerText: string = PDF_COMPLIANCE_FOOTER,
+): void {
   const range = doc.bufferedPageRange();
   for (let i = range.start; i < range.start + range.count; i++) {
     doc.switchToPage(i);
@@ -150,6 +155,6 @@ export function stampFooterOnAllPages(doc: any, fontR: string): void {
     const contentWidth = pageRight - pageLeft;
     const y = doc.page.height - doc.page.margins.bottom - 20;
     doc.font(fontR).fontSize(9).fillColor('#888888');
-    drawRtl(doc, PDF_COMPLIANCE_FOOTER, pageLeft, y, contentWidth, { align: 'center' });
+    drawRtl(doc, footerText, pageLeft, y, contentWidth, { align: 'center' });
   }
 }

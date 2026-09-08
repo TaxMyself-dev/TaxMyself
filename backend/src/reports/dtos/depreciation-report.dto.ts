@@ -18,10 +18,10 @@ export class Form1342ReportRowDto {
     /** 5 — Changes during the year (always 0) */
     changesDuringYear: number;
 
-    /** 6 — Depreciation rate (%) */
-    depreciationRate: number;
+    /** 6 — Total depreciable cost (4 + 5) */
+    depreciableCost: number;
 
-    /** 7 — Depreciation rate per law (= column 6) */
+    /** 7 — Statutory depreciation rate (%) */
     depreciationRatePerLaw: number;
 
     /** 8 — Depreciation claimed for the selected tax year */
@@ -46,6 +46,12 @@ export class Form1342ReportDto {
 
     /** SUM of column 4 across all rows */
     totalOriginalCost: number;
+
+    /** SUM of column 5 across all rows */
+    totalChangesDuringYear: number;
+
+    /** SUM of column 6 across all rows */
+    totalDepreciableCost: number;
 
     /** SUM of column 8 across all rows */
     totalCurrentYearDepreciation: number;

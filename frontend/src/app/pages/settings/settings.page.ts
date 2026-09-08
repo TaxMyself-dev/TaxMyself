@@ -111,7 +111,6 @@ export class SettingsPage implements OnInit {
     { name: 'לא חייב', value: false },
   ];
   vatReportingOptions = [
-    { name: 'לא רלוונטי', value: VATReportingType.NOT_REQUIRED },
     { name: 'חד חודשי',   value: VATReportingType.MONTHLY_REPORT },
     { name: 'דו חודשי',   value: VATReportingType.DUAL_MONTH_REPORT },
   ];
@@ -654,15 +653,28 @@ export class SettingsPage implements OnInit {
   submitAddBusiness(): void {
     this.addBusinessFormGroup.markAllAsTouched();
     if (this.addBusinessFormGroup.invalid) return;
-    this.addingBusiness.set(true);
     const v = this.addBusinessFormGroup.getRawValue();
+    const businessType = v.businessType || undefined;
+    const vatReportingType = isExemptBusinessType(businessType)
+      ? VATReportingType.NOT_REQUIRED
+      : v.vatReportingType;
+    if (
+      !isExemptBusinessType(businessType) &&
+      vatReportingType !== VATReportingType.MONTHLY_REPORT &&
+      vatReportingType !== VATReportingType.DUAL_MONTH_REPORT
+    ) {
+      this.addBusinessFormGroup.get('vatReportingType')?.setErrors({ required: true });
+      return;
+    }
+    this.addingBusiness.set(true);
     const payload = {
       businessName:      v.businessName?.trim() || undefined,
       businessNumber:    v.businessNumber?.trim() || undefined,
       businessAddress:   v.businessAddress?.trim() || undefined,
       businessPhone:     v.businessPhone?.trim() || undefined,
       businessEmail:     v.businessEmail?.trim() || undefined,
-      businessType:      v.businessType || undefined,
+      businessType,
+      vatReportingType:  vatReportingType || undefined,
       advanceTaxPercent: v.advanceTaxPercent ?? undefined,
     };
     this.genericService.createBusiness(payload)
@@ -798,6 +810,19 @@ export class SettingsPage implements OnInit {
     const ctrl = this.businessesFormArray.at(index) as FormGroup;
     const v = ctrl.getRawValue();
     const biz = this.businesses()[index];
+    const businessType = (v.businessType as string) || biz?.businessType || undefined;
+    const vatReportingType = isExemptBusinessType(businessType)
+      ? VATReportingType.NOT_REQUIRED
+      : v.vatReportingType;
+    if (
+      !isExemptBusinessType(businessType) &&
+      vatReportingType !== VATReportingType.MONTHLY_REPORT &&
+      vatReportingType !== VATReportingType.DUAL_MONTH_REPORT
+    ) {
+      ctrl.get('vatReportingType')?.setErrors({ required: true });
+      this.messageService.add({ severity: 'error', summary: 'חסר דיווח מע״מ', detail: 'לעסק החייב במע״מ יש לבחור דיווח חודשי או דו־חודשי', life: 3000, key: 'br' });
+      return;
+    }
 
     const advanceTaxPercent = v.advanceTaxPercent == null ? 0 : Number(v.advanceTaxPercent);
     if (isNaN(advanceTaxPercent) || advanceTaxPercent < 0 || advanceTaxPercent > 100) return;
@@ -816,9 +841,9 @@ export class SettingsPage implements OnInit {
         businessAddress:     (v.businessAddress as string)?.trim() || undefined,
         businessPhone:       (v.businessPhone as string)?.trim()   || undefined,
         businessEmail:       (v.businessEmail as string)?.trim()   || undefined,
-        businessType:        (v.businessType as string)            || undefined,
+        businessType,
         businessField:       (v.businessField as string)           || undefined,
-        vatReportingType:    (v.vatReportingType as string)        || undefined,
+        vatReportingType,
         taxReportingType:    (v.taxReportingType as string)        || undefined,
         nationalInsRequired: (v.nationalInsRequired as boolean | null) ?? undefined,
       });
@@ -971,6 +996,7 @@ export class SettingsPage implements OnInit {
       ]),
       businessEmail:     this.fb.nonNullable.control('', [Validators.required, Validators.email]),
       businessType:      this.fb.nonNullable.control('', Validators.required),
+      vatReportingType:  this.fb.nonNullable.control(''),
       advanceTaxPercent: this.fb.control<number | null>(null, [Validators.min(0), Validators.max(100)]),
     });
   }
@@ -1068,6 +1094,7 @@ export class SettingsPage implements OnInit {
       businessPhone:     '',
       businessEmail:     '',
       businessType:      '',
+      vatReportingType:  '',
       advanceTaxPercent: null,
     });
   }

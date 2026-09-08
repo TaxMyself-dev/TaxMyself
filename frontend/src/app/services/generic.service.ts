@@ -174,6 +174,7 @@ export class GenericService {
     businessPhone?: string;
     businessEmail?: string;
     businessType?: string;
+    vatReportingType?: string;
     advanceTaxPercent?: number;
   }): Promise<Business> {
     const business = await firstValueFrom(

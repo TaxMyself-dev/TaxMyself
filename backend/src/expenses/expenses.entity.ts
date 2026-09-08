@@ -140,6 +140,15 @@ export class Expense {
   })
   vatReportingDate: SingleMonthReport | DualMonthReport | null;
 
+  /**
+   * Calendar tax year in which this expense belongs to the annual income-tax
+   * report. Kept separate from vatReportingDate so a late VAT claim may move
+   * between VAT periods without moving the expense between annual reports.
+   * Current write paths initialise it from Expense.date.
+   */
+  @Column({ type: 'int', nullable: true, default: null })
+  annualReportingYear: number | null;
+
   @Column({
     type: 'boolean',
     nullable: true,

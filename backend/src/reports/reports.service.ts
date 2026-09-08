@@ -2,9 +2,10 @@ import { BadRequestException, Injectable, Logger, NotFoundException } from '@nes
 import { InjectRepository } from '@nestjs/typeorm';
 import { Between, In, Like, Not, Repository } from 'typeorm';
 import { Expense } from '../expenses/expenses.entity';
-import { VatReportDto } from './dtos/vat-report.dto';
+import { VatInputBreakdownRow, VatReportDto } from './dtos/vat-report.dto';
 import { buildVatReportPdf } from './vat-report-pdf';
 import { buildPnlReportPdf } from './pnl-report-pdf';
+import { buildDepreciationReportPdf } from './depreciation-report-pdf';
 import { AdvanceIncomeTaxReportDto } from './dtos/advance-income-tax-report.dto';
 import { ExpensePnlDto, PnLReportDto } from './dtos/pnl-report.dto';
 import { LedgerAccountDto, LedgerLineDto, LedgerReportDto } from './dtos/ledger-report.dto';
@@ -212,29 +213,24 @@ export class ReportsService {
     endDate: Date,
     vatableTurnoverOverride?: number,
   ): Promise<Buffer> {
-    const [data, business, expenseRows] = await Promise.all([
+    const [data, business] = await Promise.all([
       this.createVatReportFromJournal(firebaseId, businessNumber, startDate, endDate, vatableTurnoverOverride),
       this.businessRepo.findOne({ where: { businessNumber, firebaseId } }),
-      this.expensesService.getExpensesForVatReport(firebaseId, businessNumber, startDate, endDate),
     ]);
-
-    const expenses = expenseRows
-      .filter((e) => Number(e.totalVatPayable ?? 0) !== 0)
-      .map((e) => ({
-        supplier: e.supplier ?? '',
-        date: e.date ? this.formatLedgerDate(e.date) : '',
-        sum: Number(e.sum) || 0,
-        subCategory: e.subCategory ?? '',
-        totalVatPayable: Number(e.totalVatPayable) || 0,
-        vatPercent: Number(e.vatPercentSnapshot) || 0,
-      }));
 
     return buildVatReportPdf(data, {
       businessName: business?.businessName ?? businessNumber,
       businessNumber,
       periodStart: startDate,
       periodEnd: endDate,
-      expenses,
+      expenses: data.expenses.map((expense) => ({
+        supplier: expense.supplier,
+        date: this.formatLedgerDate(expense.date),
+        sum: expense.sum,
+        subCategory: expense.subCategory,
+        totalVatPayable: expense.totalVatPayable,
+        vatPercent: expense.vatPercent,
+      })),
     });
   }
 
@@ -458,6 +454,90 @@ export class ReportsService {
     }
   }
 
+  /** Build a clean, server-rendered Form 1342 attachment without browser print headers. */
+  async generateDepreciationReportPdfForExport(
+    firebaseId: string,
+    businessNumber: string,
+    year: number,
+  ): Promise<Buffer> {
+    const [data, business] = await Promise.all([
+      this.createForm1342Report(firebaseId, businessNumber, year),
+      this.businessRepo.findOne({ where: { businessNumber, firebaseId } }),
+    ]);
+
+    return buildDepreciationReportPdf(data, {
+      businessName: business?.businessName ?? businessNumber,
+      taxFileNumber: businessNumber,
+      year,
+    });
+  }
+
+  /**
+   * Exact account-2410 rows used by both the VAT summary and its breakdown.
+   * Expense columns are display/audit metadata; VAT and equipment values come
+   * from the journal, which is the report's historical source of truth.
+   */
+  private async loadVatInputBreakdown(
+    firebaseId: string,
+    businessNumber: string,
+    startDate: Date,
+    endDate: Date,
+    periodLabels: string[],
+  ): Promise<VatInputBreakdownRow[]> {
+    const qb = this.JournalLineRepo.createQueryBuilder('jl')
+      .innerJoin(JournalEntry, 'je', 'je.id = jl.journalEntryId')
+      .leftJoin(
+        Expense,
+        'expense',
+        `expense.journalEntryNumber = je.entryNumber
+         AND CAST(expense.businessNumber AS BINARY) = CAST(je.issuerBusinessNumber AS BINARY)
+         AND CAST(expense.userId AS BINARY) = CAST(je.firebaseId AS BINARY)`,
+      )
+      .where('je.issuerBusinessNumber = :businessNumber', { businessNumber })
+      .andWhere('je.firebaseId = :firebaseId', { firebaseId })
+      .andWhere("jl.accountCode = '2410'");
+    this.applyJournalPeriodFilter(qb, periodLabels, startDate, endDate);
+
+    const rows = await qb
+      .select('expense.id', 'expenseId')
+      .addSelect("COALESCE(expense.supplier, je.counterPartyName, je.description, '')", 'supplier')
+      .addSelect('COALESCE(expense.date, je.date)', 'date')
+      .addSelect('COALESCE(expense.sum, je.documentTotal, 0)', 'sum')
+      .addSelect("COALESCE(expense.category, '')", 'category')
+      .addSelect("COALESCE(expense.subCategory, je.description, 'פקודת יומן ידנית')", 'subCategory')
+      .addSelect('jl.debit', 'vatAmount')
+      .addSelect('COALESCE(expense.totalTaxPayable, 0)', 'totalTaxPayable')
+      .addSelect('COALESCE(expense.vatPercentSnapshot, jl.vatPercent, 0)', 'vatPercent')
+      .addSelect('COALESCE(expense.taxPercentSnapshot, 0)', 'taxPercent')
+      .addSelect('COALESCE(jl.isEquipment, expense.isEquipmentSnapshot, 0)', 'isEquipment')
+      .addSelect('expense.file', 'file')
+      .addSelect('je.id', 'journalEntryId')
+      .addSelect('jl.id', 'journalLineId')
+      .orderBy('COALESCE(expense.date, je.date)', 'ASC')
+      .addOrderBy('jl.id', 'ASC')
+      .getRawMany<any>();
+
+    return rows
+      .map((row) => ({
+        id: row.expenseId == null ? null : Number(row.expenseId),
+        supplier: String(row.supplier ?? ''),
+        date: row.date,
+        sum: Number(row.sum) || 0,
+        category: String(row.category ?? ''),
+        subCategory: String(row.subCategory ?? ''),
+        totalVatPayable: Number(row.vatAmount) || 0,
+        totalTaxPayable: Number(row.totalTaxPayable) || 0,
+        vatPercent: Number(row.vatPercent) || 0,
+        taxPercent: Number(row.taxPercent) || 0,
+        isEquipment: !!Number(row.isEquipment),
+        file: row.file ?? null,
+        journalEntryId: Number(row.journalEntryId),
+        journalLineId: Number(row.journalLineId),
+        manualJournalEntry: row.expenseId == null,
+      }))
+      .filter((row) => row.totalVatPayable !== 0);
+  }
+
   /**
    * VAT report computed from journal entries.
    * Income from 40000 (vatable) / 40010 (non-vatable) credit; output VAT from
@@ -486,24 +566,36 @@ export class ReportsService {
       .andWhere('je.firebaseId = :firebaseId', { firebaseId });
     this.applyJournalPeriodFilter(qb, periodLabels, startDate, endDate);
 
-    const row = await qb
+    const [row, vatInputRows] = await Promise.all([
+      qb
       // credit − debit so credit invoices (which post a DEBIT on 40000/40010/2400)
       // correctly REVERSE the income / output VAT instead of adding to it.
       .select("SUM(CASE WHEN jl.accountCode = '40000' THEN jl.credit - jl.debit ELSE 0 END)", 'vatableTurnover')
       .addSelect("SUM(CASE WHEN jl.accountCode = '40010' THEN jl.credit - jl.debit ELSE 0 END)", 'nonVatableTurnover')
       .addSelect("SUM(CASE WHEN jl.accountCode = '2400' THEN jl.credit - jl.debit ELSE 0 END)", 'outputVat')
-      .addSelect("SUM(CASE WHEN jl.accountCode = '2410' AND jl.isEquipment = false THEN jl.debit ELSE 0 END)", 'vatRefundOnExpenses')
-      .addSelect("SUM(CASE WHEN jl.accountCode = '2410' AND jl.isEquipment = true THEN jl.debit ELSE 0 END)", 'vatRefundOnAssets')
       .getRawOne<{
         vatableTurnover: string; nonVatableTurnover: string; outputVat: string;
-        vatRefundOnExpenses: string; vatRefundOnAssets: string;
-      }>();
+      }>(),
+      this.loadVatInputBreakdown(firebaseId, businessNumber, startDate, endDate, periodLabels),
+    ]);
 
     const vatableTurnover = Number(row?.vatableTurnover ?? 0);
     const nonVatableTurnover = Number(row?.nonVatableTurnover ?? 0);
     const outputVat = Number(row?.outputVat ?? 0);
-    const vatRefundOnExpenses = Number(row?.vatRefundOnExpenses ?? 0);
-    const vatRefundOnAssets = Number(row?.vatRefundOnAssets ?? 0);
+    // The detail rows are the source of the two totals, so the visible
+    // breakdown and summary cannot diverge. Sum in cents to avoid floating
+    // point drift without performing a second expense-side audit query.
+    const inputVat = vatInputRows.reduce(
+      (totals, input) => {
+        const amountCents = Math.round(input.totalVatPayable * 100);
+        if (input.isEquipment) totals.assets += amountCents;
+        else totals.expenses += amountCents;
+        return totals;
+      },
+      { expenses: 0, assets: 0 },
+    );
+    const vatRefundOnExpenses = inputVat.expenses / 100;
+    const vatRefundOnAssets = inputVat.assets / 100;
     const vatRate = this.sharedService.getVatRateByYear(startDate);
 
     // vatableTurnover isn't always journaled (many businesses don't post
@@ -527,6 +619,7 @@ export class ReportsService {
       vatRefundOnExpenses,
       vatPayment,
       vatRate,
+      expenses: vatInputRows,
     };
   }
 
@@ -1309,6 +1402,8 @@ export class ReportsService {
       if (purchaseDate > yearEnd) continue;
 
       const originalCost = Number(expense.sum) || 0;
+      const changesDuringYear = 0;
+      const depreciableCost = Number((originalCost + changesDuringYear).toFixed(2));
       const depreciationRate = Number(expense.reductionPercentSnapshot) || 0;
       const schedule = this.depreciationService.calculateThroughYear(expense, year);
       const currentYearDepreciation = schedule.find((r) => r.taxYear === year)?.amount ?? 0;
@@ -1331,8 +1426,8 @@ export class ReportsService {
         purchaseDate: purchaseIso,
         activationDate: activationIso,
         originalCost,
-        changesDuringYear: 0,
-        depreciationRate,
+        changesDuringYear,
+        depreciableCost,
         depreciationRatePerLaw: depreciationRate,
         currentYearDepreciation,
         priorYearsDepreciation,
@@ -1342,6 +1437,8 @@ export class ReportsService {
     }
 
     const totalOriginalCost = +rows.reduce((s, r) => s + r.originalCost, 0).toFixed(2);
+    const totalChangesDuringYear = +rows.reduce((s, r) => s + r.changesDuringYear, 0).toFixed(2);
+    const totalDepreciableCost = +rows.reduce((s, r) => s + r.depreciableCost, 0).toFixed(2);
     const totalCurrentYearDepreciation = +rows.reduce((s, r) => s + r.currentYearDepreciation, 0).toFixed(2);
     const totalPriorYearsDepreciation = +rows.reduce((s, r) => s + r.priorYearsDepreciation, 0).toFixed(2);
     const totalDepreciation = +rows.reduce((s, r) => s + r.totalDepreciation, 0).toFixed(2);
@@ -1351,6 +1448,8 @@ export class ReportsService {
       year,
       rows,
       totalOriginalCost,
+      totalChangesDuringYear,
+      totalDepreciableCost,
       totalCurrentYearDepreciation,
       totalPriorYearsDepreciation,
       totalDepreciation,

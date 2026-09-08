@@ -6,11 +6,10 @@ import { ModalController } from '@ionic/angular';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { AuthService } from 'src/app/services/auth.service';
 import { DateService } from 'src/app/services/date.service';
-import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { FilesService } from 'src/app/services/files.service';
 import { GenericService } from 'src/app/services/generic.service';
 import { ReportReviewService } from 'src/app/services/report-review.service';
-import { BusinessStatus, BusinessType, VATReportingType } from 'src/app/shared/enums';
+import { BusinessStatus, BusinessType, ReportingPeriodType, VATReportingType } from 'src/app/shared/enums';
 import { Business } from 'src/app/shared/interface';
 import {
   getVatReportBusinessSelectItems,
@@ -77,7 +76,6 @@ describe('VatReportJournalPage business selection', () => {
         { provide: DateService, useValue: {} },
         { provide: FilesService, useValue: {} },
         { provide: VatReportJournalService, useValue: {} },
-        { provide: ExpenseDataService, useValue: {} },
         { provide: ModalController, useValue: {} },
         { provide: TransactionsService, useValue: {} },
       ],
@@ -117,6 +115,21 @@ describe('VatReportJournalPage business selection', () => {
     expect(component.businessNumber()).toBe('licensed');
     expect(component.reportBusinessName()).toBe('licensed');
     expect(component.filterConfig.some((field) => field.controlName === 'businessNumber')).toBeFalse();
+    const period = component.filterConfig.find((field) => field.controlName === 'period');
+    expect(period?.allowedPeriodModes).toEqual([ReportingPeriodType.MONTHLY]);
+    expect(period?.periodDefaults?.periodMode).toBe(ReportingPeriodType.MONTHLY);
+  });
+
+  it('uses only the bimonthly selector for a bimonthly business', async () => {
+    businesses.set([
+      business('licensed', BusinessType.LICENSED, VATReportingType.DUAL_MONTH_REPORT),
+    ]);
+
+    await component.ngOnInit();
+
+    const period = component.filterConfig.find((field) => field.controlName === 'period');
+    expect(period?.allowedPeriodModes).toEqual([ReportingPeriodType.BIMONTHLY]);
+    expect(period?.periodDefaults?.periodMode).toBe(ReportingPeriodType.BIMONTHLY);
   });
 
   it('shows only eligible choices for multiple eligible businesses in a mixed account', async () => {

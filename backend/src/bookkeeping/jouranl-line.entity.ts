@@ -41,7 +41,7 @@ export class JournalLine {
    * lines). Lets the journal-based VAT report split deductible VAT input (2410)
    * into expenses vs assets, and lets the P&L report exclude equipment lines.
    */
-  @Column({ type: 'boolean', nullable: true, default: false })
+  @Column({ type: 'boolean', default: false })
   isEquipment: boolean;
 
   /** אחוז מוכר למס הכנסה (0–100). Default 100 so existing rows are unaffected. */
