@@ -96,6 +96,27 @@
     font-weight: 700;
     border-top: 2px solid #cbd5e1;
   }
+
+  .actions-column {
+    position: sticky;
+    right: 0;
+    z-index: 2;
+    background: inherit;
+  }
+}
+
+.edit-asset-button {
+  border: 1px solid #111;
+  border-radius: 18px;
+  background: #fff;
+  color: #111;
+  padding: 6px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.edit-asset-button:hover {
+  background: #f3f4f6;
 }
 
 .report-action-row {

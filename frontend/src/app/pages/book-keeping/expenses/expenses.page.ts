@@ -257,7 +257,7 @@ export class ExpensesPage implements OnInit {
     this.isLoadingDataTable.set(true);
 
     const base$ = this.expenseDataService
-      .getExpenseForVatReport(finalStartDate, finalEndDate, businessNumber)
+      .getExpenseByUser(finalStartDate, finalEndDate, businessNumber)
       .pipe(
         map((rows: any[]) => {
           console.log('[הוצאות] תשובה מהבקאנד: מספר הוצאות=', rows?.length ?? 0, 'פרטים:', rows?.map((r) => ({ id: r.id, date: r.date, businessNumber: r.businessNumber, sum: r.sum })) ?? []);
@@ -301,8 +301,8 @@ export class ExpensesPage implements OnInit {
               // as numbers (default to 0 for null).
               totalTaxPayable: row.totalTaxPayable ?? 0,
               totalVatPayable: row.totalVatPayable ?? 0,
-              taxPercent: row.taxPercent ?? 0,
-              vatPercent: row.vatPercent ?? 0,
+              taxPercent: row.taxPercent ?? row.taxPercentSnapshot ?? 0,
+              vatPercent: row.vatPercent ?? row.vatPercentSnapshot ?? 0,
               // Compatibility aliases are supplied by the current endpoint;
               // snapshot fallbacks also keep this screen correct if it ever
               // consumes the raw Expense entity directly.

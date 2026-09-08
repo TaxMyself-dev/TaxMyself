@@ -27,6 +27,8 @@
         <table class="depreciation-table">
           <thead>
             <tr>
+              <th class="actions-column">פעולות</th>
+              <th>אחוז מוכר למס</th>
               @for (col of columnHeaders; track col.num) {
                 <th>{{ col.num }}. {{ col.title }}</th>
               }
@@ -35,6 +37,10 @@
           <tbody>
             @for (row of data.rows; track $index) {
               <tr>
+                <td class="actions-column">
+                  <button type="button" class="edit-asset-button" (click)="editAsset(row)">עריכת נכס</button>
+                </td>
+                <td dir="ltr">{{ formatPercent(row.taxRecognitionPercent) }}</td>
                 <td>{{ row.assetName }}</td>
                 <td>{{ formatDate(row.purchaseDate) }}</td>
                 <td>{{ formatDate(row.activationDate) }}</td>
@@ -49,6 +55,8 @@
               </tr>
             }
             <tr class="totals-row">
+              <td></td>
+              <td></td>
               <td><strong>סה"כ</strong></td>
               <td></td>
               <td></td>

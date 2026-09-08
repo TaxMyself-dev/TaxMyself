@@ -1421,6 +1421,7 @@ export class ReportsService {
         : purchaseIso;
 
       rows.push({
+        expenseId: expense.id,
         assetName: expense.supplier ?? '',
         purchaseDate: purchaseIso,
         activationDate: activationIso,
@@ -1428,6 +1429,7 @@ export class ReportsService {
         changesDuringYear,
         depreciableCost,
         depreciationRatePerLaw: depreciationRate,
+        taxRecognitionPercent: Number(expense.taxPercentSnapshot) || 0,
         currentYearDepreciation,
         priorYearsDepreciation,
         totalDepreciation,

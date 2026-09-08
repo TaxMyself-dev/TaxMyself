@@ -10,6 +10,7 @@ import { DepreciationReportPage } from './depreciation-report.page';
 import { SharedModule } from '../../shared/shared.module';
 import { ButtonComponent } from 'src/app/components/button/button.component';
 import { FilterTabComponent } from 'src/app/components/filter-tab/filter-tab.component';
+import { DialogService, DynamicDialogModule } from 'primeng/dynamicdialog';
 
 @NgModule({
   imports: [
@@ -20,8 +21,10 @@ import { FilterTabComponent } from 'src/app/components/filter-tab/filter-tab.com
     SharedModule,
     ButtonComponent,
     FilterTabComponent,
+    DynamicDialogModule,
     DepreciationReportPageRoutingModule,
   ],
-  declarations: [DepreciationReportPage]
+  declarations: [DepreciationReportPage],
+  providers: [DialogService]
 })
 export class DepreciationReportPageModule {}

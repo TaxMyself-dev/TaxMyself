@@ -3,6 +3,9 @@
  * Israeli Tax Authority form layout (1..11). All amounts are ILS.
  */
 export class Form1342ReportRowDto {
+    /** Internal source expense id; used only for opening the asset editor. */
+    expenseId: number;
+
     /** 1 — Asset name / description (supplier field on the Expense row) */
     assetName: string;
 
@@ -23,6 +26,9 @@ export class Form1342ReportRowDto {
 
     /** 7 — Statutory depreciation rate (%) */
     depreciationRatePerLaw: number;
+
+    /** UI metadata — deductible income-tax percentage of the annual depreciation. */
+    taxRecognitionPercent: number;
 
     /** 8 — Depreciation claimed for the selected tax year */
     currentYearDepreciation: number;

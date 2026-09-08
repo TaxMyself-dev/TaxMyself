@@ -17,7 +17,7 @@ Manages business expenses (and legacy incomes), the category/sub-category taxono
 - `POST /expenses/add-expense` — create an expense; resolves account code, posts a journal entry (debit expense, credit A/P or cash) via `BookkeepingModule`.
 - `PATCH /expenses/update-expense/:id`, `DELETE /expenses/delete-expense/:id` — edit/delete an expense, syncing its journal entry. Both explicitly require `EXPENSES_APPROVE`, so a delegated accountant can manage the client's expenses without document-issuance permission.
 - `POST /expenses/bulk-confirm-from-drive`, `POST /expenses/check-duplicates-from-drive` — turn reviewed `ExtractedDocument` OCR rows into confirmed expenses, with a pre-flight supplier+sum+date duplicate check.
-- `GET /expenses/get_by_userID`, `get-expenses-for-vat-report` — filtered expense listings for the dashboard and VAT reporting.
+- `GET /expenses/get_by_userID` — document-date expense listing for the dashboard (unpaginated when `pagination` is omitted, so annual asset searches cannot silently stop at 50 rows); `GET /expenses/get-expenses-for-vat-report` remains the VAT-period listing; `GET /expenses/by-id/:id` returns an owned source expense for edit flows such as Form 1342.
 - Category/sub-category CRUD: `add-user-category`, `add-user-sub-categories`, `get-categories`, `get-sub-categories`, `user-category/:id`, `user-sub-category/:id`, plus admin-only default-sub-category CRUD and `sub-category-report-config` (P&L scope/category override).
 - Supplier CRUD: `add-supplier`, `update-supplier/:id`, `delete-supplier/:id`, `get-suppliers-list`, `get-supplier/:id`.
 - `PATCH /expenses/add-file-to-expense`, `delete-file-from-expense/:id` — attach/detach receipt files.

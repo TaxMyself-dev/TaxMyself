@@ -23,6 +23,7 @@ external condition.
 | KT-007 | Audit the existing SHAAM invoice-allocation integration and plan the shortest safe path to production | `.codex/worktrees/0607/taxmyself-dev` | `CLOSED` | `d3c30f9b` on `origin/main`; worker `bf155e84` | Documentation-only audit reviewed; Nest build passed in worker; no external SHAAM call; critical credential/logging/auth gaps require remediation before sandbox or production |
 | KT-008 | Preserve foreign-currency expense values and ILS journal totals during edit | `.codex/worktrees/e5cd/taxmyself-dev` | `CLOSED` | `04bcf4a1` on `origin/main`; worker `aa5febee` | Manager reran 28/28 focused backend tests, Nest build, frontend currency typecheck, and 4 runtime assertions; VAT-only and changed-FX journal totals explicitly verified |
 | KT-009 | Deliver Gmail forwarding verification for business inbound addresses | manager integration worktree | `PUSHED` | Feature `ba655334`; integrated with current main via `d56e65af` | Combined 23/23 focused tests passed; Nest and Angular builds passed |
+| KT-010 | Make depreciation tax recognition editable and keep generated postings synchronized | manager worktree | `VERIFIED` | Ready to commit | 5/5 focused backend tests, Nest build and Angular build passed; focused Karma blocked by documented legacy compilation failures |
 
 ## KT-005 acceptance criteria
 
@@ -121,6 +122,22 @@ external condition.
   rejection, owner lookup, and unchanged attachment import. Nest and Angular
   builds must pass. No schema, production configuration, route, credential, or
   live webhook change is included.
+
+## KT-010 acceptance criteria
+
+- A fixed asset carries an editable income-tax recognition percentage in the
+  expense dialog, independently of its statutory depreciation rate.
+- Generated annual depreciation keeps the full accounting depreciation amount
+  while `amountForTax` uses the source expense's recognition snapshot; editing
+  the source asset refreshes already-materialized depreciation journals.
+- The depreciation report exposes the source expense id and provides an
+  "edit asset" action that opens the existing expense editor and refreshes the
+  report after a successful save.
+- The ordinary expenses screen continues to show the acquisition only in its
+  document-date range; generated annual depreciation is not duplicated as an
+  expense row.
+- Focused backend/frontend tests and both application builds pass. No schema or
+  production-data mutation is included.
 
 ## Delivery baseline
 

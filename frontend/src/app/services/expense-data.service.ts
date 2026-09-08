@@ -72,14 +72,16 @@ export class ExpenseDataService {
 
 
   getExpenseByUser(startDate: string, endDate: string, businessNumber: string): Observable<IRowDataTable[]> {
-    const pagination = 1;
     const url = `${environment.apiUrl}expenses/get_by_userID`;
     const params = new HttpParams()
       .set('startDate', startDate)
       .set('endDate', endDate)
       .set('businessNumber', businessNumber)
-      .set('pagination', pagination)
     return this.http.get<IRowDataTable[]>(url, { params: params });
+  }
+
+  getExpenseById(id: number): Observable<any> {
+    return this.http.get<any>(`${environment.apiUrl}expenses/by-id/${id}`);
   }
 
   getSourceDocumentFile(expenseId: number): Observable<Blob> {

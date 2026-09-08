@@ -2546,3 +2546,28 @@ section — if the index is already there the `ALTER` will fail rather than
 no-op, unlike the `DELETE`.
 
 No plan-checkbox changes (documentation reconciliation only).
+
+## 2026-09-08 — Fixed-asset depreciation recognition and edit flow
+
+- Generated depreciation journal entries now retain the full statutory
+  depreciation debit while calculating `amountForTax` from the source
+  expense's `taxPercentSnapshot`. A 45% vehicle therefore contributes 45% of
+  its annual depreciation to P&L taxable expenses instead of the previous
+  hard-coded 100%.
+- The existing fixed-asset edit synchronization refreshes every materialized
+  depreciation year, so saving the source asset repairs existing open journal
+  entries and future report preparation uses the same percentage.
+- Form 1342 now returns its source expense id and tax-recognition percentage.
+  The on-screen table shows that percentage and opens the existing expense
+  editor through an authenticated, user-and-business-scoped read endpoint.
+  PDF and Excel remain the official eleven-column export and do not include
+  the UI-only controls.
+- The fixed-asset expense form now exposes the recognition percentage beside
+  the separate statutory depreciation rate. The ordinary expenses screen uses
+  document-date membership and an untruncated read, so acquisition appears in
+  its acquisition year regardless of VAT claim-period labels; generated annual
+  depreciation remains journal-only.
+- No schema or production-data change. Five focused backend tests, the Nest
+  build, and the Angular production build pass. The focused Karma command is
+  still blocked during repository-wide compilation by the documented legacy
+  spec and third-party Node-type errors; none originated in this change.

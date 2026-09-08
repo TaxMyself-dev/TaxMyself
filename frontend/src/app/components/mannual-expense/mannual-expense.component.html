@@ -84,12 +84,10 @@
   [size]="isMobile() ? inputSize.MOBILE : inputSize.BETWEEN" (onChangeInputSelect)="onSelectSubCategory($event)">
 </app-input-select>
 
-@if (!isEquipmentChecked()) {
 <app-input-text [customStyle]="isDirty() ? 'rounded-border dirty' : 'rounded-border'" [controlName]="'taxPercent'"
-  [labelText]="'אחוז מוכר למס'" [placeholder]="'הכנס מס'" [parentForm]="mannualExpenseForm"
+  [labelText]="isEquipmentChecked() ? 'אחוז מוכר למס מתוך הפחת' : 'אחוז מוכר למס'" [placeholder]="'הכנס מס'" [parentForm]="mannualExpenseForm"
   [size]="isMobile() ? inputSize.MOBILE : inputSize.BETWEEN" [type]="'number'" (onInputText)="onInputText($event)">
 </app-input-text>
-}
 
 @if (!isExemptBusiness()) {
 <app-input-text [customStyle]="isDirty() ? 'rounded-border dirty' : 'rounded-border'" [controlName]="'vatPercent'"
