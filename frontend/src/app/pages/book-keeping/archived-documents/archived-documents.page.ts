@@ -114,6 +114,16 @@ export class ArchivedDocumentsPage implements OnInit {
     { name: 'sourceLabel', value: 'מקור העלאה', type: FormTypes.TEXT },
   ]);
 
+  readonly archiveSearchColumns = [
+    'name',
+    'documentTypeLabel',
+    'statusLabel',
+    'statusDetail',
+    'documentDate',
+    'uploadDate',
+    'sourceLabel',
+  ];
+
   // Client-side filter over the fully-fetched per-business row set — mirrors
   // the small dataset size this page has always worked with (no pagination).
   readonly filteredItems = computed(() => {

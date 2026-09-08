@@ -76,6 +76,9 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   showCheckbox = input<boolean>(false);
   defaultSelectedValue = input<boolean>(false);
   columnSearch = input<string>('name');
+  /** Optional row fields for free-text search. Without this input, the
+   * existing single-column search behavior is preserved. */
+  searchColumns = input<string[]>([]);
   tableHeight = input<string>('500px');
   selectionModeCheckBox = input<null | 'single' | 'multiple'>(null);
   placeholderSearch = input<string>();
@@ -206,9 +209,30 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   filteredDataTable = computed(() => {
     const data = this.dataTable();
     const term = this.searchTerm().toLowerCase().trim();
-    const filtered = data?.filter(row => (String(row[this.columnSearch()]).toLowerCase().includes(term)));
-    return filtered;
+    if (!term) return data;
+
+    const configuredColumns = this.searchColumns();
+    const columns = configuredColumns.length > 0
+      ? configuredColumns
+      : [this.columnSearch()];
+
+    return data?.filter(row => columns.some(column =>
+      this.toSearchableText(row[column]).includes(term)
+    ));
   });
+
+  private toSearchableText(value: unknown): string {
+    if (value == null) return '';
+
+    const raw = String(value);
+    const withoutHtml = raw.replace(/<[^>]*>/g, ' ');
+    const isoDate = raw.match(/^(\d{4})-(\d{2})-(\d{2})(?:T.*)?$/);
+    const displayedDate = isoDate
+      ? `${isoDate[3]}/${isoDate[2]}/${isoDate[1]}`
+      : '';
+
+    return `${withoutHtml} ${displayedDate}`.toLowerCase();
+  }
 
   readonly iterableArrayFilter = computed(() => {
     const filter = this.arrayFilters();

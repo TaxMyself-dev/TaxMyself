@@ -106,6 +106,19 @@ export class ExpensesPage implements OnInit {
   annualExpensesTableFields: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[] =
     this.baseExpensesTableFields.filter(c => c.name !== ExpenseFormColumns.PNL_CATEGORY);
 
+  readonly expenseSearchColumns: string[] = [
+    ExpenseFormColumns.SUPPLIER,
+    ExpenseFormColumns.CATEGORY,
+    ExpenseFormColumns.SUB_CATEGORY,
+    ExpenseFormColumns.SUM,
+    ExpenseFormColumns.DATE,
+    ExpenseFormColumns.TOTAL_VAT,
+    ExpenseFormColumns.TOTAL_TAX,
+    ExpenseFormColumns.PNL_CATEGORY,
+    ExpenseFormColumns.VAT_REPORT_PERIOD,
+    ExpenseFormColumns.NOTE,
+  ];
+
   mobileCardConfig: IMobileCardConfig = {
     primaryFields: [ExpenseFormColumns.SUPPLIER],
     highlightedField: ExpenseFormColumns.SUM,
