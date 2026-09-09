@@ -14,12 +14,12 @@ Last reviewed: 2026-09-09
   for final user validation before archival.
 - `KT-012`: repository Markdown and development-instruction architecture cleanup
   is approved, verified, and delivered through integration commit `8a54f63c`.
-- `KT-015`: reports endpoint authorization hardening is verified and integrated;
-  delivery to `main` is pending the integration push.
+- `KT-015`: reports endpoint authorization hardening is verified and delivered
+  through integration commit `7b183989`.
 
 ## Pending integration
 
-- `KT-015` is integrated on `codex/integration` and awaiting remote delivery.
+- None from worker worktrees.
 
 ## Open decisions
 
@@ -30,5 +30,4 @@ Last reviewed: 2026-09-09
 
 ## Next step
 
-Deliver `KT-015` to `main`, verify the remote refs, then add the second
-developer's profile when their name and owned areas are known.
+Add the second developer's profile when their name and owned areas are known.
