@@ -36,6 +36,7 @@ import { FullTransactionCache } from 'src/transactions/full-transaction-cache.en
 import { ReportWorkflow } from 'src/report-workflow/report-workflow.entity';
 import { BillingModule } from '../billing/billing.module';
 import { DepreciationModule } from '../depreciation/depreciation.module';
+import { AdminGuard } from '../guards/admin.guard';
 
 @Module({
   imports: [
@@ -62,6 +63,7 @@ import { DepreciationModule } from '../depreciation/depreciation.module';
     ReportReviewService,
     MatchingService,
     FinsiteService,
+    AdminGuard,
   ],
   exports: [ReportsService, ReportReviewService],
 })

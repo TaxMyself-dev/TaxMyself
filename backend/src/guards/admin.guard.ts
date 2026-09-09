@@ -1,26 +1,22 @@
-import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
-import { Reflector } from '@nestjs/core';
-import { AuthService } from 'src/users/auth.service';
+import { CanActivate, ExecutionContext, ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.interface';
 import { UsersService } from 'src/users/users.service';
 
 @Injectable()
 export class AdminGuard implements CanActivate {
-    constructor(
-        private reflector: Reflector,
-        private usersService: UsersService
-    ) {}
+  constructor(private readonly usersService: UsersService) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const request = context.switchToHttp().getRequest();
-    console.log("AdminGuard - start");
-    const token = request.body.token;
-    
-    if (!token) return false;
+    const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
+    const actorFirebaseId = request.user?.actorFirebaseId ?? request.user?.firebaseId;
+    if (!actorFirebaseId) {
+      throw new UnauthorizedException('Not authenticated');
+    }
 
-    const userId = await this.usersService.getFirbsaeIdByToken(token);
-    if (!userId) return false;
+    if (!(await this.usersService.isAdmin(actorFirebaseId))) {
+      throw new ForbiddenException('Admin access required');
+    }
 
-    return this.usersService.isAdmin(userId);
+    return true;
   }
-  
 }

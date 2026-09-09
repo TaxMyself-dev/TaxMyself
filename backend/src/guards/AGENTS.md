@@ -6,7 +6,10 @@ Backend authentication and role/access guards shared by protected controllers.
 
 - `firebase-auth.guard.ts` verifies Firebase identity and attaches authenticated
   request context.
-- Other guards restrict admin and role-specific endpoints.
+- `admin.guard.ts` runs after `FirebaseAuthGuard`, authorizes the verified real
+  actor (`actorFirebaseId`, falling back to `firebaseId`), and rejects
+  non-admin requests before interceptors or controller handlers execute.
+- Other guards restrict subscription and role-specific endpoints.
 
 ## Main flows
 

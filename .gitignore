@@ -15,5 +15,7 @@ keys/
 .firebase/hosting.*.cache
 backend/src/feezback/transactions-data/transactions-*.json
 
+.claude/settings.local.json
+
 _prod_dump/
 *prod.sql

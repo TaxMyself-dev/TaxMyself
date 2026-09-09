@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Between, In, Like, Not, Repository } from 'typeorm';
 import { Expense } from '../expenses/expenses.entity';
@@ -2228,9 +2228,17 @@ export class ReportsService {
     startDate: string,
     endDate: string,
     businessNumber: string,
+    firebaseId: string,
   ): Promise<
     { docType: string; totalDocs: number; totalSum: number }[]
   > {
+    const business = await this.businessRepo.findOne({
+      where: { businessNumber, firebaseId },
+    });
+    if (!business) {
+      throw new ForbiddenException('Business not found or not owned by user');
+    }
+
     return this.documentsRepo
       .createQueryBuilder('doc')
       .select('doc.docType', 'docType')
