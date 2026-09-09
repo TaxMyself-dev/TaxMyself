@@ -21,6 +21,7 @@ export interface IForm1342ReportRow {
 }
 
 export interface IForm1342Report {
+  canManageExpenses?: boolean;
   year: number;
   rows: IForm1342ReportRow[];
   totalOriginalCost: number;

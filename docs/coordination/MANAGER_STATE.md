@@ -1,10 +1,10 @@
 # Primary manager state
 
-Last reviewed: 2026-09-08
+Last reviewed: 2026-09-09
 
 ## Integration baseline
 
-- Main baseline incorporated before documentation delivery: `dfca8ea2`
+- Main baseline incorporated before auth-fix integration: `bba71799`
 - Manager branch: `codex/integration`
 - Production access: disabled by standing decision.
 
@@ -14,10 +14,12 @@ Last reviewed: 2026-09-08
   for final user validation before archival.
 - `KT-012`: repository Markdown and development-instruction architecture cleanup
   is approved, verified, and delivered through integration commit `8a54f63c`.
+- `KT-014`: reports endpoint authorization hardening is verified and integrated;
+  delivery to `main` is pending the integration push.
 
 ## Pending integration
 
-- None from worker worktrees.
+- `KT-014` is integrated on `codex/integration` and awaiting remote delivery.
 
 ## Open decisions
 
@@ -28,4 +30,5 @@ Last reviewed: 2026-09-08
 
 ## Next step
 
-Add the second developer's profile when their name and owned areas are known.
+Deliver `KT-014` to `main`, verify the remote refs, then add the second
+developer's profile when their name and owned areas are known.

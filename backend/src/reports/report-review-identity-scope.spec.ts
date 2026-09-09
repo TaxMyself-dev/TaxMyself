@@ -44,6 +44,7 @@ describe('report review identity boundaries', () => {
       hasUnconfirmedExpenses: false,
       documentsProcessing: false,
       inboxDocumentsPending: 1,
+      canManageExpenses: false,
     });
 
     expect(getInboxProcessingStatus).toHaveBeenCalledWith('represented-user', '515151515');
@@ -75,6 +76,7 @@ describe('report review identity boundaries', () => {
       hasUnconfirmedExpenses: false,
       documentsProcessing: true,
       inboxDocumentsPending: 2,
+      canManageExpenses: false,
     });
   });
 
@@ -131,6 +133,7 @@ describe('report review identity boundaries', () => {
       hasUnconfirmedExpenses: false,
       documentsProcessing: false,
       inboxDocumentsPending: 1,
+      canManageExpenses: true,
     });
   });
 

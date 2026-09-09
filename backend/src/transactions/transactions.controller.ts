@@ -632,9 +632,11 @@ export class TransactionsController {
       return [];
     }
 
-    return this.processingService.getIncomesFromCache(
+    const rows = await this.processingService.getIncomesFromCache(
       userId, startDate, endDate, billIds, categories, sources,
     );
+    const canManageExpenses = await this.canManageExpenses(request);
+    return rows.map((row) => ({ ...row, canManageExpenses }));
   }
 
 
@@ -657,9 +659,11 @@ export class TransactionsController {
       return [];
     }
 
-    return this.processingService.getExpensesFromCache(
+    const rows = await this.processingService.getExpensesFromCache(
       userId, startDate, endDate, billIds, categories, sources,
     );
+    const canManageExpenses = await this.canManageExpenses(request);
+    return rows.map((row) => ({ ...row, canManageExpenses }));
   }
 
 
@@ -864,7 +868,14 @@ export class TransactionsController {
     const userId = request.user?.firebaseId;
     const startDate = this.sharedService.convertStringToDateObject(query.startDate);
     const endDate = this.sharedService.convertStringToDateObject(query.endDate);
-    return this.transactionsService.getTransactionToConfirmAndAddToExpenses(userId, query.businessNumber, startDate, endDate);
+    const rows = await this.transactionsService.getTransactionToConfirmAndAddToExpenses(
+      userId,
+      query.businessNumber,
+      startDate,
+      endDate,
+    );
+    const canManageExpenses = await this.canManageExpenses(request);
+    return rows.map((row) => ({ ...row, canManageExpenses }));
   }
 
 
@@ -891,7 +902,8 @@ export class TransactionsController {
     @Body() transactionData: {id: number, file?: string | null}[],
   ): Promise<{ message: string }> {
     const userId = request.user?.firebaseId;
-    return this.transactionsService.saveTransactionsToExpenses(transactionData, userId);
+    const actorUserId = request.user?.actorFirebaseId ?? userId;
+    return this.transactionsService.saveTransactionsToExpenses(transactionData, userId, actorUserId);
   }
 
   /**
@@ -912,6 +924,7 @@ export class TransactionsController {
   }
 
   @Delete('rules/:id')
+  @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
   @UseGuards(FirebaseAuthGuard)
   async deleteUserRule(
     @Req() request: AuthenticatedRequest,
@@ -922,6 +935,7 @@ export class TransactionsController {
   }
 
   @Patch('rules/:id')
+  @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
   @UseGuards(FirebaseAuthGuard)
   @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
   async updateUserRule(
@@ -931,6 +945,15 @@ export class TransactionsController {
   ) {
     const userId = request.user?.firebaseId;
     return this.processingService.updateRuleForUser(userId, Number(id), dto);
+  }
+
+  private async canManageExpenses(request: AuthenticatedRequest): Promise<boolean> {
+    const userId = request.user?.firebaseId;
+    return !!request.isAdminImpersonation
+      || (request.user?.role === 'agent'
+        && (request.user?.delegationScopes ?? []).includes(DelegationScope.EXPENSES_APPROVE))
+      || (request.user?.role !== 'agent'
+        && !(await this.sharedService.isRepresentedByAccountant(userId)));
   }
 
 }

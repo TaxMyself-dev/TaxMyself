@@ -168,6 +168,8 @@ export type ReviewRow = ReviewRowMatched | ReviewRowDocOnly | ReviewRowTxOnly;
 
 /** Full response from POST /reports/me/preview. */
 export interface ReportPreviewResponse {
+  /** Request-specific UI capability; write endpoints remain authoritative. */
+  canManageExpenses?: boolean;
   /** "documents_only" when Open Banking isn't connected — only doc_only
    *  rows possible. "with_banking" enables all 3 row types. */
   mode: 'documents_only' | 'with_banking';

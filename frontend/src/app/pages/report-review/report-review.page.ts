@@ -242,6 +242,7 @@ export class ReportReviewPage implements OnInit {
   isLoading = signal<boolean>(false);
   isActioning = signal<boolean>(false);
   mode = signal<'documents_only' | 'with_banking' | null>(null);
+  canManageExpenses = signal<boolean>(false);
   rows = signal<EditableReviewRow[]>([]);
   /** Counts from the preview, kept in sync as rows leave. */
   counts = signal<{ matched: number; docOnly: number; txOnly: number }>({
@@ -597,6 +598,7 @@ export class ReportReviewPage implements OnInit {
       )
       .subscribe(preview => {
         this.mode.set(preview.mode);
+        this.canManageExpenses.set(preview.canManageExpenses === true);
         this.counts.set(preview.counts);
 
         // Non-blocking notice: the inbox scan auto-rejected byte-identical
@@ -1598,7 +1600,7 @@ export class ReportReviewPage implements OnInit {
       isLoading: () => this.isActioning(),
       showWhen: (row) => {
         const r = row as unknown as EditableReviewRow;
-        return !r.isDetailRow && !this.isAnnualRow(r) && !this.isUnidentifiedRow(r);
+        return this.canManageExpenses() && !r.isDetailRow && !this.isAnnualRow(r) && !this.isUnidentifiedRow(r);
       },
       action: (_event, row) => this.openEditDialog(row as unknown as EditableReviewRow),
     },
@@ -1619,7 +1621,7 @@ export class ReportReviewPage implements OnInit {
       isLoading: () => this.isActioning(),
       showWhen: (row) => {
         const r = row as unknown as EditableReviewRow;
-        return !r.isDetailRow && this.isUnidentifiedRow(r) && !this.isTriaging(r);
+        return this.canManageExpenses() && !r.isDetailRow && this.isUnidentifiedRow(r) && !this.isTriaging(r);
       },
       action: (_event, row) => this.startTriage(row as unknown as EditableReviewRow),
     },
@@ -1630,7 +1632,7 @@ export class ReportReviewPage implements OnInit {
       isLoading: () => this.isActioning(),
       showWhen: (row) => {
         const r = row as unknown as EditableReviewRow;
-        return !r.isDetailRow && r.type !== 'tx_only' && r.documentType === 'invoice_receipt_pair';
+        return this.canManageExpenses() && !r.isDetailRow && r.type !== 'tx_only' && r.documentType === 'invoice_receipt_pair';
       },
       action: (_event, row) => this.unpairRow(row as unknown as EditableReviewRow),
     },
@@ -1643,7 +1645,7 @@ export class ReportReviewPage implements OnInit {
       title: 'קשר מסמך',
       showWhen: (row) => {
         const r = row as unknown as EditableReviewRow;
-        return !r.isDetailRow && r.type === 'tx_only';
+        return this.canManageExpenses() && !r.isDetailRow && r.type === 'tx_only';
       },
       action: (_event, row) => this.startLink(row as unknown as EditableReviewRow),
     },
@@ -1654,7 +1656,7 @@ export class ReportReviewPage implements OnInit {
       isLoading: () => this.isActioning(),
       showWhen: (row) => {
         const r = row as unknown as EditableReviewRow;
-        return !r.isDetailRow && r.type !== 'tx_only';
+        return this.canManageExpenses() && !r.isDetailRow && r.type !== 'tx_only';
       },
       action: (_event, row) => this.startClassification(row as unknown as EditableReviewRow),
     },
@@ -1665,7 +1667,7 @@ export class ReportReviewPage implements OnInit {
       isLoading: () => this.isActioning(),
       showWhen: (row) => {
         const r = row as unknown as EditableReviewRow;
-        return !r.isDetailRow && r.type !== 'tx_only';
+        return this.canManageExpenses() && !r.isDetailRow && r.type !== 'tx_only';
       },
       action: (_event, row) => this.startReject(row as unknown as EditableReviewRow),
     },
@@ -1679,7 +1681,7 @@ export class ReportReviewPage implements OnInit {
       isLoading: () => this.isActioning(),
       showWhen: (row) => {
         const r = row as unknown as EditableReviewRow;
-        return !r.isDetailRow && r.type === 'tx_only';
+        return this.canManageExpenses() && !r.isDetailRow && r.type === 'tx_only';
       },
       action: (_event, row) => this.rejectTx(row as unknown as EditableReviewRow),
     },
@@ -1881,6 +1883,7 @@ export class ReportReviewPage implements OnInit {
   /** D9: rows with missing mapping cannot be approved; D8 annual/
    *  unidentified rows are not expenses. Only READY and PRIVATE rows pass. */
   canApprove(row: EditableReviewRow): boolean {
+    if (!this.canManageExpenses()) return false;
     if (this.isAnnualRow(row) || this.isUnidentifiedRow(row)) return false;
     return row.mappingStatus === 'READY' || row.mappingStatus === 'PRIVATE';
   }

@@ -22,6 +22,13 @@ Manages business expenses (and legacy incomes), the category/sub-category taxono
 - Supplier CRUD: `add-supplier`, `update-supplier/:id`, `delete-supplier/:id`, `get-suppliers-list`, `get-supplier/:id`.
 - `PATCH /expenses/add-file-to-expense`, `delete-file-from-expense/:id` — attach/detach receipt files.
 
+- A represented owner's manual submission is saved `PENDING`, without a
+  journal or depreciation posting. `POST /expenses/:id/approve` is the explicit
+  accountant finalization step: it freezes reviewed snapshots and atomically
+  creates the journal plus applicable activation-year depreciation. Expense
+  list responses expose transient `canManageExpenses`; VAT/reduction queries
+  include approved expenses only.
+
 ## Related topics
 - bookkeeping (`BookkeepingModule` — journal entry posting/sync for every expense; `CatalogService` now also backs this module's category/sub-category CRUD, not just account-code resolution)
 - documents (`ExtractedDocument` entity — OCR'd supplier documents confirmed into expenses)

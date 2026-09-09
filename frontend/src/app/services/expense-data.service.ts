@@ -247,6 +247,10 @@ export class ExpenseDataService {
     return this.http.patch(url, data);
   }
 
+  approvePendingExpense(id: number): Observable<any> {
+    return this.http.post(`${environment.apiUrl}expenses/${id}/approve`, {});
+  }
+
   /**
    * Subcategory-wide P&L config (applies to ALL expenses of that subcategory).
    * Upserts a UserSubCategory override on the backend.

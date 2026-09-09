@@ -69,6 +69,7 @@ export class VatReportJournalPage implements OnInit {
    *  marked as submitted (any transaction in the period has `isLocked = true`).
    *  Drives the swap between the "סמן כדווח" button and the "הדוח הוגש" badge. */
   reportSubmitted = signal<boolean>(false);
+  canManageExpenses = signal<boolean>(true);
 
   readonly ButtonSize = ButtonSize;
   readonly reportingPeriodType = ReportingPeriodType;
@@ -383,8 +384,10 @@ export class VatReportJournalPage implements OnInit {
         hasUnconfirmedExpenses: true,
         documentsProcessing: false,
         inboxDocumentsPending: 0,
+        canManageExpenses: true,
       })))
       .subscribe(check => {
+        this.canManageExpenses.set(check.canManageExpenses !== false);
         this.handleInboxProcessing(check, effectiveBusiness);
         if (!check.hasPendingDocs && !check.hasUnconfirmedExpenses) {
           this.proceedDirectlyToReport();
@@ -567,6 +570,7 @@ export class VatReportJournalPage implements OnInit {
       map(data => {
         return data?.map(row => ({
           ...row,
+          disabled: row.canManageExpenses === false || row.disabled,
           sum: this.genericService.addComma(Math.abs(row.sum as number)),
           isRecognized: row.isRecognized ? 'כן' : 'לא',
           businessNumber: row?.businessNumber === this.userData.businessNumber
@@ -925,6 +929,7 @@ export class VatReportJournalPage implements OnInit {
 
 
   addFileToExpense(e: { row: IRowDataTable, file?: File }): void {
+    if (!this.canManageExpenses()) return;
     this.genericService.getLoader().subscribe();
     this.filesService.addFileToExpense(e.row, this.businessNumber(), e.file)
       .pipe(
@@ -1117,6 +1122,7 @@ export class VatReportJournalPage implements OnInit {
         name: 'edit',
         icon: 'pi pi-pencil',
         title: 'ערוך קובץ (החלף)',
+        showWhen: () => this.canManageExpenses(),
         action: (fileInput: HTMLInputElement, row: IRowDataTable) => {
           this.confirmationService.confirm({
             message: 'האם אתה בטוח שאתה רוצה להחליף את הקובץ הקיים?',
@@ -1145,6 +1151,7 @@ export class VatReportJournalPage implements OnInit {
         name: 'delete',
         icon: 'pi pi-trash',
         title: 'מחק קובץ',
+        showWhen: () => this.canManageExpenses(),
         action: (event: any, row: IRowDataTable) => {
           this.confirmationService.confirm({
             message: 'האם אתה בטוח שאתה רוצה למחוק את הקובץ?',

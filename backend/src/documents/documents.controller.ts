@@ -10,6 +10,7 @@ import { RequireModule } from 'src/decorators/require-module.decorator';
 import { RequiredDelegationScope } from 'src/decorators/required-delegation-scope.decorator';
 import { DelegationScope } from 'src/delegation/delegation.entity';
 import { CreateDocDto } from './dtos/create-doc.dto';
+import { AllowRepresentedClientOperation } from 'src/decorators/allow-represented-client-submission.decorator';
 
 
 
@@ -297,6 +298,7 @@ export class DocumentsController {
 
   @Post('me/process-inbox')
   @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
+  @AllowRepresentedClientOperation()
   async processMyInbox(
     @Req() request: AuthenticatedRequest,
     @Body() body: { businessNumber: string },
@@ -321,6 +323,7 @@ export class DocumentsController {
 
   @Post('me/ocr-file')
   @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
+  @AllowRepresentedClientOperation()
   @UseInterceptors(FileInterceptor('file'))
   async ocrSingleFile(
     @Req() request: AuthenticatedRequest,
@@ -345,6 +348,7 @@ export class DocumentsController {
    *  (1..30) + `businessNumber` form field. */
   @Post('me/upload-to-inbox')
   @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
+  @AllowRepresentedClientOperation()
   @UseInterceptors(
     FilesInterceptor('files', 30, { limits: { fileSize: 10 * 1024 * 1024 } }),
   )
@@ -405,7 +409,13 @@ export class DocumentsController {
     if (!businessNumber?.trim()) {
       throw new BadRequestException('businessNumber query param required');
     }
-    return this.documentsService.getArchivedForUser(firebaseId, businessNumber.trim());
+    return this.documentsService.getArchivedForUser(
+      firebaseId,
+      businessNumber.trim(),
+      !!request.isAdminImpersonation
+        || (request.user?.role === 'agent'
+          && (request.user?.delegationScopes ?? []).includes(DelegationScope.EXPENSES_APPROVE)),
+    );
   }
 
   /** Change the business classification of a non-approved archive document.

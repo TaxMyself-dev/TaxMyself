@@ -42,7 +42,7 @@ export class FlowReportPage implements OnInit {
   checkedCount: number = 0;
   disabledRows: number = 0;
 
-  public COLUMNS_TO_IGNORE = ['necessity', 'disabled', 'note2', 'finsiteId', 'businessNumber', 'firebaseFile', 'id', 'payDate', 'isRecognized', 'isEquipment', 'paymentIdentifier', 'userId', 'billName', 'vatReportingDate', this.UPLOAD_FILE_FIELD_NAME];
+  public COLUMNS_TO_IGNORE = ['necessity', 'disabled', 'canManageExpenses', 'note2', 'finsiteId', 'businessNumber', 'firebaseFile', 'id', 'payDate', 'isRecognized', 'isEquipment', 'paymentIdentifier', 'userId', 'billName', 'vatReportingDate', this.UPLOAD_FILE_FIELD_NAME];
 
   readonly COLUMNS_WIDTH = new Map<TransactionsOutcomesColumns, number>([
     [TransactionsOutcomesColumns.CHECKBOX, 0.5],
@@ -111,6 +111,7 @@ export class FlowReportPage implements OnInit {
         icon: 'attach-outline',
         title: 'בחר קובץ',
         fieldName: this.UPLOAD_FILE_FIELD_NAME,
+        showWhen: (row: IRowDataTable) => row['canManageExpenses'] !== false,
         action: (event: any, row: IRowDataTable) => {
           this.addFile(event, row);
         }
@@ -144,6 +145,9 @@ export class FlowReportPage implements OnInit {
           console.log(data);
 
           data.map((row) => {
+            if (row.canManageExpenses === false) {
+              row.disabled = true;
+            }
             const currencySymbol = this.getCurrencySymbol(row.currency);
             row.sum = `${currencySymbol}${this.genericService.addComma(Math.abs(row.sum))}`;
             row?.businessNumber === this.userData.businessNumber ? row.businessNumber = this.userData.businessName : row.businessNumber = this.userData.spouseBusinessName;

@@ -182,7 +182,7 @@
                 tooltipPosition="top"
                 (click)="toggleRowExpanded(row); $event.stopPropagation()"></span>
         </span>
-        <span *ngIf="row.supplierStatusLabel !== null"
+        <span *ngIf="canManageExpenses() && row.supplierStatusLabel !== null"
            class="supplier-bookmark pi"
            [ngClass]="row.supplierStatusLabel === 'ספק מוכר' ? 'pi-bookmark-fill' : 'pi-bookmark'"
            [class.supplier-bookmark--saved]="row.supplierStatusLabel === 'ספק מוכר'"

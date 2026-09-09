@@ -27,6 +27,7 @@ import { CreateUserSubCategoryDto } from './dtos/create-user-sub-category.dto';
 import { ExpenseReportScope, ModuleName } from 'src/enum';
 import { RequiredDelegationScope } from 'src/decorators/required-delegation-scope.decorator';
 import { DelegationScope } from 'src/delegation/delegation.entity';
+import { AllowRepresentedClientOperation, AllowRepresentedClientSubmission } from 'src/decorators/allow-represented-client-submission.decorator';
 
 
 @Controller('expenses')
@@ -41,14 +42,40 @@ export class ExpensesController {
 
   @Post('add-expense')
   @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
+  @AllowRepresentedClientSubmission()
   @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
   async addExpense(
     @Req() request: AuthenticatedRequest,
     @Body() body: CreateExpenseDto) {
     const firebaseId = request.user?.firebaseId;
     const businessNumber = request.user?.businessNumber;
-    const res = await this.expensesService.addExpense(body, firebaseId, businessNumber);
+    const actorFirebaseId = request.user?.actorFirebaseId ?? firebaseId;
+    const representedClientSubmission = request.user?.role !== 'agent'
+      && await this.sharedService.isRepresentedByAccountant(firebaseId);
+    const res = await this.expensesService.addExpense(
+      body,
+      firebaseId,
+      businessNumber,
+      true,
+      undefined,
+      undefined,
+      undefined,
+      representedClientSubmission,
+      actorFirebaseId,
+    );
     return res;
+  }
+
+  @Post(':id/approve')
+  @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
+  @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
+  async approvePendingExpense(
+    @Req() request: AuthenticatedRequest,
+    @Param('id') id: number,
+  ) {
+    const firebaseId = request.user?.firebaseId;
+    const actorFirebaseId = request.user?.actorFirebaseId ?? firebaseId;
+    return this.expensesService.approvePendingExpense(id, firebaseId, actorFirebaseId);
   }
 
 
@@ -82,6 +109,7 @@ export class ExpensesController {
    */
   @Post('check-duplicates-from-drive')
   @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
+  @AllowRepresentedClientOperation()
   @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
   async checkDuplicatesFromDrive(
     @Req() request: AuthenticatedRequest,
@@ -195,11 +223,16 @@ export class ExpensesController {
 
     const page = query.pagination == null ? undefined : Number(query.pagination);
     const result = await this.expensesService.getExpensesByUserID(firebaseId, startDate, endDate, query.businessNumber, page);
+    const canManageExpenses = !!request.isAdminImpersonation
+      || (request.user?.role === 'agent'
+        && (request.user?.delegationScopes ?? []).includes(DelegationScope.EXPENSES_APPROVE))
+      || (request.user?.role !== 'agent'
+        && !(await this.sharedService.isRepresentedByAccountant(firebaseId)));
 
     // לוג: הוצאות שהתקבלו
     console.log('[get_by_userID] הוצאות שהתקבלו:', result.length, 'פריטים. ids:', result.map((e) => e.id).join(', ') || '(אין)');
 
-    return result;
+    return result.map((expense) => Object.assign(expense, { canManageExpenses }));
   }
 
   @Get('by-id/:id')
@@ -458,6 +491,7 @@ export class ExpensesController {
   // is scoped to EXPENSES_APPROVE instead of the per-verb DOCUMENTS_WRITE
   // default. Does not grant any document-issuance capability.
   @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
+  @AllowRepresentedClientOperation()
   @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
   async addSupplier(
     @Req() request: AuthenticatedRequest,
@@ -477,6 +511,7 @@ export class ExpensesController {
   // Same reasoning as add-supplier above — the report-review edit-supplier
   // dialog must work under a view-only (EXPENSES_APPROVE-only) delegation.
   @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
+  @AllowRepresentedClientOperation()
   @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
   async updateSupplier(
     @Req() request: AuthenticatedRequest,

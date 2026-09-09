@@ -68,6 +68,8 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   immediateActions = input<boolean>(true);
   filesAttached = input<Map<number, File>>(new Map());
   immediateFileOperation = input<boolean>(false);
+  /** Allows callers to keep preview/download actions while suppressing file mutations. */
+  fileEditingEnabled = input<boolean>(true);
   arrayFilters = input<any>();
   isLoadingState = input<boolean>(false);
   useSyncState = input<boolean>(false);

@@ -8,6 +8,7 @@ import { GenericTableComponent } from "src/app/components/generic-table/generic-
 import { FilterTabComponent } from "src/app/components/filter-tab/filter-tab.component";
 import { ArchiveExpenseApprovalDialogComponent } from 'src/app/components/archive-expense-approval-dialog/archive-expense-approval-dialog.component';
 import { DialogModule } from 'primeng/dialog';
+import { DialogService, DynamicDialogModule } from 'primeng/dynamicdialog';
 
 @NgModule({
   imports: [
@@ -20,7 +21,9 @@ import { DialogModule } from 'primeng/dialog';
     FilterTabComponent,
     ArchiveExpenseApprovalDialogComponent,
     DialogModule,
+    DynamicDialogModule,
   ],
   declarations: [ArchivedDocumentsPage],
+  providers: [DialogService],
 })
 export class ArchivedDocumentsPageModule {}

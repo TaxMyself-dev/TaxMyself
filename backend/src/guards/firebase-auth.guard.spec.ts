@@ -21,18 +21,22 @@ import * as admin from 'firebase-admin';
 import { FirebaseAuthGuard } from './firebase-auth.guard';
 import { DelegationStatus, DelegationScope } from '../delegation/delegation.entity';
 import { REQUIRED_DELEGATION_SCOPE_KEY } from '../decorators/required-delegation-scope.decorator';
+import { ALLOW_REPRESENTED_CLIENT_SUBMISSION_KEY } from '../decorators/allow-represented-client-submission.decorator';
 import { UserRole } from '../enum';
 
 const AGENT = 'agent-firebase-uid';
 const CLIENT = 'client-firebase-uid';
 
 describe('FirebaseAuthGuard', () => {
-  let delegationRepo: { findOne: jest.Mock };
+  let delegationRepo: { findOne: jest.Mock; find: jest.Mock };
   let userRepo: { findOne: jest.Mock };
   let guard: FirebaseAuthGuard;
 
   beforeEach(() => {
-    delegationRepo = { findOne: jest.fn().mockResolvedValue(null) };
+    delegationRepo = {
+      findOne: jest.fn().mockResolvedValue(null),
+      find: jest.fn().mockResolvedValue([]),
+    };
     userRepo = { findOne: jest.fn().mockResolvedValue({ firebaseId: AGENT, role: [UserRole.REGULAR] }) };
     guard = new FirebaseAuthGuard(delegationRepo as any, userRepo as any, new Reflector());
     jest.spyOn(admin, 'auth').mockReturnValue({
@@ -46,7 +50,12 @@ describe('FirebaseAuthGuard', () => {
    *  by stamping the same metadata key the real decorator (SetMetadata)
    *  would attach to the handler function. Omit it to exercise the
    *  per-verb default (no decorator present). */
-  function makeContext(method: string, impersonate = true, requiredScope?: DelegationScope) {
+  function makeContext(
+    method: string,
+    impersonate = true,
+    requiredScope?: DelegationScope,
+    allowRepresentedSubmission = false,
+  ) {
     const request: any = {
       method,
       headers: {
@@ -58,6 +67,9 @@ describe('FirebaseAuthGuard', () => {
     const handler = () => undefined;
     if (requiredScope) {
       Reflect.defineMetadata(REQUIRED_DELEGATION_SCOPE_KEY, requiredScope, handler);
+    }
+    if (allowRepresentedSubmission) {
+      Reflect.defineMetadata(ALLOW_REPRESENTED_CLIENT_SUBMISSION_KEY, true, handler);
     }
     const context: any = {
       switchToHttp: () => ({ getRequest: () => request }),
@@ -138,6 +150,44 @@ describe('FirebaseAuthGuard', () => {
   // DelegationScope's doc comment. Applied per-route via
   // @RequiredDelegationScope, which overrides the generic per-verb default.
   describe('EXPENSES_APPROVE scope', () => {
+    it('blocks a represented client self-request from an approval endpoint', async () => {
+      delegationRepo.find.mockResolvedValue([
+        { userId: AGENT, agentId: 'accountant-uid', status: DelegationStatus.ACTIVE },
+      ]);
+      userRepo.findOne.mockImplementation(async ({ where }: any) => ({
+        firebaseId: where.firebaseId,
+        role: where.firebaseId === 'accountant-uid' ? [UserRole.ACCOUNTANT] : [UserRole.REGULAR],
+      }));
+      const { context } = makeContext('PATCH', false, DelegationScope.EXPENSES_APPROVE);
+
+      await expect(guard.canActivate(context)).rejects.toThrow(ForbiddenException);
+    });
+
+    it('allows the represented client through the submission-only add-expense exception', async () => {
+      delegationRepo.find.mockResolvedValue([
+        { userId: AGENT, agentId: 'accountant-uid', status: DelegationStatus.ACTIVE },
+      ]);
+      userRepo.findOne.mockResolvedValue({ firebaseId: 'accountant-uid', role: [UserRole.ACCOUNTANT] });
+      const { context } = makeContext(
+        'POST',
+        false,
+        DelegationScope.EXPENSES_APPROVE,
+        true,
+      );
+
+      await expect(guard.canActivate(context)).resolves.toBe(true);
+    });
+
+    it('does not lock a self-request merely because a non-accountant has an active delegation', async () => {
+      delegationRepo.find.mockResolvedValue([
+        { userId: AGENT, agentId: 'viewer-uid', status: DelegationStatus.ACTIVE },
+      ]);
+      userRepo.findOne.mockResolvedValue({ firebaseId: 'viewer-uid', role: [UserRole.REGULAR] });
+      const { context } = makeContext('PATCH', false, DelegationScope.EXPENSES_APPROVE);
+
+      await expect(guard.canActivate(context)).resolves.toBe(true);
+    });
+
     it('view-only delegation (no DOCUMENTS_WRITE) + EXPENSES_APPROVE present → approve endpoint passes', async () => {
       delegationRepo.findOne.mockResolvedValue({
         status: DelegationStatus.ACTIVE,

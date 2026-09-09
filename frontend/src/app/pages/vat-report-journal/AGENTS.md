@@ -17,6 +17,10 @@ Renders and manages the periodic VAT ("מע\"מ") report: fetches VAT figures fo
 - `exportToPdf` requests the pdfkit-rendered VAT report PDF (with expense breakdown) and downloads it via `FilesService`.
 
 ## Related topics
+
+Represented owners retain report viewing, PDF export, and file preview/download.
+File mutations, expense confirmation, and report locking are hidden and are
+independently rejected by the backend.
 - Backend: reports (vat-report-journal, vat-report-pdf, mark-submitted, submission-status), expenses (add-file-to-expense, delete-file-from-expense), transactions.
 - Frontend pages: transactions (via `TransactionsService`), pnl-report-journal (near-identical review/submit/PDF pattern — likely worth keeping in sync), report-review (routed pre-flight review page, replaces the old in-page dialog).
 - Frontend shared: filter-tab / period-select / generic-table / button components.

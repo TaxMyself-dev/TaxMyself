@@ -37,12 +37,14 @@ export class SharedService {
      * actually holds the ACCOUNTANT role — not just "has any delegation".
      */
     async isRepresentedByAccountant(clientFirebaseId: string): Promise<boolean> {
-        const delegation = await this.delegationRepository.findOne({
+        const delegations = await this.delegationRepository.find({
             where: { userId: clientFirebaseId, status: DelegationStatus.ACTIVE },
         });
-        if (!delegation) return false;
-        const agent = await this.userRepository.findOne({ where: { firebaseId: delegation.agentId } });
-        return agent?.role?.includes(UserRole.ACCOUNTANT) ?? false;
+        for (const delegation of delegations) {
+            const agent = await this.userRepository.findOne({ where: { firebaseId: delegation.agentId } });
+            if (agent?.role?.includes(UserRole.ACCOUNTANT)) return true;
+        }
+        return false;
     }
 
 

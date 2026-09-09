@@ -44,6 +44,9 @@ export class Form1342ReportRowDto {
 }
 
 export class Form1342ReportDto {
+    /** UI capability only; backend write endpoints remain authoritative. */
+    canManageExpenses?: boolean;
+
     /** Tax year the report was generated for */
     year: number;
 

@@ -386,7 +386,9 @@ export class ExpensesService {
         if (rc.journalable) {
             await this.syncExpenseJournalEntry(saved);
         }
-        await this.depreciationService.syncExistingYears(saved);
+        if (saved.approvalStatus === ExpenseApprovalStatus.APPROVED) {
+            await this.depreciationService.syncExistingYears(saved);
+        }
         return saved;
     }
 
@@ -410,6 +412,12 @@ export class ExpensesService {
         if (expense.userId !== userId) {
             throw new UnauthorizedException(`You do not have permission to update this expense`);
         }
+
+        // Editing a submitted row is not approval. An accountant may correct
+        // its data first, but only the explicit approve endpoint may journal it.
+        const keepPendingUntilExplicitApproval =
+            expense.approvalStatus === ExpenseApprovalStatus.PENDING
+            && expense.journalEntryNumber == null;
         await this.assertExpensePeriodUnlocked(expense);
 
         const rc = await this.resolveExpenseClassification({ subCategoryId }, expense.businessNumber, expense.userId);
@@ -421,6 +429,11 @@ export class ExpensesService {
 
         return this.dataSource.transaction(async (m) => {
             this.applyClassificationToExpense(expense, rc, {}, actorUserId);
+            if (keepPendingUntilExplicitApproval && expense.approvalStatus === ExpenseApprovalStatus.APPROVED) {
+                expense.approvalStatus = ExpenseApprovalStatus.PENDING;
+                expense.approvedByUserId = null;
+                expense.approvedAt = null;
+            }
             const business = await m.getRepository(Business).findOne({
                 where: { businessNumber: expense.businessNumber },
             });
@@ -429,10 +442,12 @@ export class ExpensesService {
             expense.classificationOverrideAt = new Date();
 
             const saved = await m.getRepository(Expense).save(expense);
-            if (rc.journalable) {
+            if (rc.journalable && !keepPendingUntilExplicitApproval) {
                 await this.rewriteExpenseJournal(saved, m);
             }
-            await this.depreciationService.syncExistingYears(saved, m);
+            if (!keepPendingUntilExplicitApproval) {
+                await this.depreciationService.syncExistingYears(saved, m);
+            }
             return saved;
         });
     }
@@ -607,6 +622,10 @@ export class ExpensesService {
          *  `doc` present -> DRIVE, `externalTransactionId` on the DTO ->
          *  OPEN_BANKING, else -> MANUAL. */
         source?: RecordSource,
+        /** A represented owner's self-submission is data entry only. */
+        forcePendingApproval: boolean = false,
+        /** Real authenticated actor; differs from userId during delegation. */
+        actorUserId: string = userId,
     ): Promise<Expense> {
         const newExpense = this.expense_repo.create(expense);
         newExpense.source = source
@@ -647,9 +666,15 @@ export class ExpensesService {
                 reductionPercent: expense.reductionPercent,
                 isEquipment: typeof (expense as any).isEquipment === 'boolean' ? (expense as any).isEquipment : undefined,
             },
-            userId,
+            actorUserId,
             doc,
         );
+
+        if (forcePendingApproval && newExpense.approvalStatus === ExpenseApprovalStatus.APPROVED) {
+            newExpense.approvalStatus = ExpenseApprovalStatus.PENDING;
+            newExpense.approvedByUserId = null;
+            newExpense.approvedAt = null;
+        }
 
         newExpense.userId = userId;
         newExpense.date = expense.date;
@@ -754,7 +779,7 @@ export class ExpensesService {
 
             // Journal entry in the same transaction — any failure rolls back
             // the Expense save too.
-            if (rc.journalable) {
+            if (rc.journalable && !forcePendingApproval) {
                 const input = await this.buildJournalEntryInput(saved);
                 const { entryNumber } = await this.bookkeepingService.createJournalEntry(input, m);
                 await expRepo.update(saved.id, { journalEntryNumber: entryNumber });
@@ -821,6 +846,73 @@ export class ExpensesService {
         return manager ? persistExpense(manager) : this.dataSource.transaction(persistExpense);
     }
 
+    /**
+     * Finalize an already-saved client submission. Snapshot resolution,
+     * approval, journal creation and activation-year depreciation are atomic.
+     */
+    async approvePendingExpense(
+        id: number,
+        userId: string,
+        actorUserId: string,
+    ): Promise<Expense> {
+        const expense = await this.expense_repo.findOne({ where: { id, userId } });
+        if (!expense) throw new NotFoundException(`Expense with ID ${id} not found`);
+        if (expense.approvalStatus === ExpenseApprovalStatus.APPROVED) {
+            throw new ConflictException('ההוצאה כבר אושרה');
+        }
+        if (![ExpenseApprovalStatus.PENDING, ExpenseApprovalStatus.MISSING_ACCOUNTING_MAPPING].includes(expense.approvalStatus)) {
+            throw new BadRequestException('ההוצאה אינה ממתינה לאישור');
+        }
+        await this.assertExpensePeriodUnlocked(expense);
+
+        const rc = await this.resolveExpenseClassification(
+            {
+                subCategoryId: expense.subCategoryId ?? undefined,
+                category: expense.category,
+                subCategory: expense.subCategory,
+            },
+            expense.businessNumber,
+            expense.userId,
+        );
+        if (rc.approvalStatus === ExpenseApprovalStatus.MISSING_ACCOUNTING_MAPPING) {
+            throw new BadRequestException('לא ניתן לאשר את ההוצאה לפני השלמת המיפוי החשבונאי');
+        }
+
+        return this.dataSource.transaction(async (m) => {
+            const locked = await m.getRepository(Expense)
+                .createQueryBuilder('expense')
+                .setLock('pessimistic_write')
+                .where('expense.id = :id AND expense.userId = :userId', { id, userId })
+                .getOne();
+            if (!locked) throw new NotFoundException(`Expense with ID ${id} not found`);
+            if (locked.approvalStatus === ExpenseApprovalStatus.APPROVED) {
+                throw new ConflictException('ההוצאה כבר אושרה');
+            }
+
+            // Preserve the percentages/equipment flags the accountant reviewed
+            // or edited while the row was pending. Approval freezes those
+            // current values; it must not silently restore catalog defaults.
+            this.applyClassificationToExpense(locked, rc, {
+                vatPercent: Number(locked.vatPercentSnapshot ?? rc.resolved.vatPercent),
+                taxPercent: Number(locked.taxPercentSnapshot ?? rc.resolved.taxPercent),
+                reductionPercent: Number(locked.reductionPercentSnapshot ?? rc.resolved.reductionPercent),
+                isEquipment: locked.isEquipmentSnapshot ?? rc.resolved.isEquipment,
+            }, actorUserId);
+            locked.annualReportingYear = locked.annualReportingYear ?? this.getCalendarYear(locked.date);
+            const business = await m.getRepository(Business).findOne({
+                where: { businessNumber: locked.businessNumber, firebaseId: locked.userId },
+            });
+            this.recomputeExpenseTotals(locked, business?.businessType);
+            const saved = await m.getRepository(Expense).save(locked);
+
+            if (rc.journalable) {
+                await this.rewriteExpenseJournal(saved, m);
+                await this.depreciationService.ensureActivationYear(saved, m);
+            }
+            return saved;
+        });
+    }
+
     async updateExpense(id: number, userId: string, updateExpenseDto: UpdateExpenseDto): Promise<Expense> {
 
         const expense = await this.expense_repo.findOne({ where: { id } });
@@ -833,6 +925,12 @@ export class ExpensesService {
         if (expense.userId !== userId) {
             throw new UnauthorizedException(`You do not have permission to update this expense`);
         }
+
+        // Editing a represented client's submitted row must not implicitly
+        // approve it. Approval is a separate, auditable accountant action.
+        const keepPendingUntilExplicitApproval =
+            expense.approvalStatus === ExpenseApprovalStatus.PENDING
+            && expense.journalEntryNumber == null;
 
         const dto = updateExpenseDto as any;
         const classificationTouched =
@@ -887,6 +985,12 @@ export class ExpensesService {
                 userId,
             );
             journalable = rc.journalable;
+            if (keepPendingUntilExplicitApproval && expense.approvalStatus === ExpenseApprovalStatus.APPROVED) {
+                expense.approvalStatus = ExpenseApprovalStatus.PENDING;
+                expense.approvedByUserId = null;
+                expense.approvedAt = null;
+                journalable = false;
+            }
         } else {
             if (dto.vatPercent !== undefined) expense.vatPercentSnapshot = dto.vatPercent;
             if (dto.taxPercent !== undefined) expense.taxPercentSnapshot = dto.taxPercent;
@@ -961,7 +1065,9 @@ export class ExpensesService {
         if (journalable) {
             await this.syncExpenseJournalEntry(saved);
         }
-        await this.depreciationService.syncExistingYears(saved);
+        if (saved.approvalStatus === ExpenseApprovalStatus.APPROVED) {
+            await this.depreciationService.syncExistingYears(saved);
+        }
 
         return saved;
     }
@@ -2133,7 +2239,10 @@ export class ExpensesService {
         const qb = this.expense_repo
             .createQueryBuilder('expense')
             .where('expense.userId = :userId', { userId })
-            .andWhere('expense.businessNumber = :businessNumber', { businessNumber });
+            .andWhere('expense.businessNumber = :businessNumber', { businessNumber })
+            .andWhere('expense.approvalStatus = :approvalStatus', {
+                approvalStatus: ExpenseApprovalStatus.APPROVED,
+            });
 
         if (periodLabels.length > 0) {
             // Period-stamped expenses → match by label. Legacy (no stamp) →
@@ -2156,6 +2265,7 @@ export class ExpensesService {
             where: {
                 userId: userId,
                 businessNumber: businessNumber,
+                approvalStatus: ExpenseApprovalStatus.APPROVED,
                 isEquipmentSnapshot: true,
                 reductionDone: MoreThanOrEqual(year),
                 //date: MoreThanOrEqual(new Date(`${year}-01-01`))

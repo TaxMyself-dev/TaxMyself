@@ -87,7 +87,9 @@ export interface ArchivedItem {
   status: ArchiveItemStatus;
   canResolve: boolean;
   canReclassify: boolean;
+  canManageExpenses: boolean;
   driveFileId: string | null;
+  expenseFile: string | null;
   rejectionReason: string | null;
   /** VAT reporting-period label copied from the approved linked expense. */
   vatReportPeriod: string | null;

@@ -23,5 +23,9 @@ Generates every report view/export (VAT, P&L, ledger, advance income tax, deprec
 - `POST /reports/mark-submitted`, `GET /reports/submission-status` — self-employed "mark as reported" locking (transaction-period lock, distinct from report-workflow's accountant-facing state machine).
 - `POST /reports/create-uniform-file` — SHAAM/Tax-Authority "מבנה אחיד" zip export.
 
+- Form 1342 filters source assets to `APPROVED`; pending submissions cannot
+  appear in depreciation output. Its response includes the transient
+  `canManageExpenses` UI capability, while write endpoints remain authoritative.
+
 ## Related topics
 Depends on: shared (`SharedService`), users (`UsersService`, `User`), expenses (`ExpensesService`), documents (`DocumentsService`, `DocumentPairingService`, `Documents`/`DocLines`/`DocPayments`/`ExtractedDocument`), google-drive (inbox listing), bookkeeping (`JournalEntry`/`JournalLine`/`BookingAccount`/`AccountingSection` — since Phase 4.4 the P&L groups by `AccountingSection` via the posted account's `sectionId` (D3; `pnlCategory` is dead), and the ledger's expense-line "פירוט" reads the stored `journal_entry.description` (D7); since Phase 5.1 the P&L booking-account join and the `ledger-entry-accounts` manual-entry dropdown also include the `ACCOUNTANT_<agentId>` charts of the owner's ACTIVE delegations, via `CatalogContextService.accountantIdsForUser`), business (`Business`), transactions (`SlimTransaction`, `FullTransactionCache`, `ClassifiedTransactions`, `Bill`, `Source`), billing, delegation. Depended on by: report-workflow (VAT PDF snapshot generation on submit). Note: `ExpensePnlDto.category` was renamed to `sectionName` in Phase 4.4.

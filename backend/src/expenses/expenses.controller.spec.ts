@@ -16,6 +16,7 @@ import { FirebaseAuthGuard } from '../guards/firebase-auth.guard';
 import { SubscriptionGuard } from '../guards/subscription.guard';
 import { REQUIRED_DELEGATION_SCOPE_KEY } from '../decorators/required-delegation-scope.decorator';
 import { DelegationScope } from '../delegation/delegation.entity';
+import { ALLOW_REPRESENTED_CLIENT_SUBMISSION_KEY } from '../decorators/allow-represented-client-submission.decorator';
 
 describe('ExpensesController — supplier create/edit scope', () => {
   let controller: ExpensesController;
@@ -23,6 +24,8 @@ describe('ExpensesController — supplier create/edit scope', () => {
     addSupplier: jest.Mock;
     updateSupplier: jest.Mock;
     getExpensesForVatReport: jest.Mock;
+    addExpense: jest.Mock;
+    approvePendingExpense: jest.Mock;
   };
 
   beforeEach(() => {
@@ -30,11 +33,16 @@ describe('ExpensesController — supplier create/edit scope', () => {
       addSupplier: jest.fn().mockResolvedValue({ id: 1 }),
       updateSupplier: jest.fn().mockResolvedValue({ id: 1 }),
       getExpensesForVatReport: jest.fn().mockResolvedValue([]),
+      addExpense: jest.fn().mockResolvedValue({ id: 2, approvalStatus: 'PENDING' }),
+      approvePendingExpense: jest.fn().mockResolvedValue({ id: 2, approvalStatus: 'APPROVED' }),
     };
     controller = new ExpensesController(
       expensesService as any,
       {} as any,
-      { convertStringToDateObject: jest.fn((value) => new Date(value)) } as any,
+      {
+        convertStringToDateObject: jest.fn((value) => new Date(value)),
+        isRepresentedByAccountant: jest.fn().mockResolvedValue(false),
+      } as any,
       {} as any,
     );
   });
@@ -42,6 +50,37 @@ describe('ExpensesController — supplier create/edit scope', () => {
   function req(firebaseId: string, businessNumber?: string) {
     return { user: { firebaseId, businessNumber } } as any;
   }
+
+  describe('represented-client manual expense workflow', () => {
+    it('marks add-expense as a self-service submission exception and forces represented submissions pending', async () => {
+      const isRepresentedByAccountant = (controller as any).sharedService.isRepresentedByAccountant as jest.Mock;
+      isRepresentedByAccountant.mockResolvedValue(true);
+      const request = { user: { firebaseId: 'client-1', businessNumber: '123456789', role: 'user', actorFirebaseId: 'client-1' } } as any;
+
+      await controller.addExpense(request, { supplier: 'Vendor' } as any);
+
+      expect(Reflect.getMetadata(ALLOW_REPRESENTED_CLIENT_SUBMISSION_KEY, controller.addExpense)).toBe(true);
+      expect(expensesService.addExpense).toHaveBeenCalledWith(
+        { supplier: 'Vendor' },
+        'client-1',
+        '123456789',
+        true,
+        undefined,
+        undefined,
+        undefined,
+        true,
+        'client-1',
+      );
+    });
+
+    it('passes the real accountant actor to explicit approval', async () => {
+      const request = { user: { firebaseId: 'client-1', role: 'agent', actorFirebaseId: 'accountant-1' } } as any;
+
+      await controller.approvePendingExpense(request, 2);
+
+      expect(expensesService.approvePendingExpense).toHaveBeenCalledWith(2, 'client-1', 'accountant-1');
+    });
+  });
 
   describe('addSupplier (POST /expenses/add-supplier)', () => {
     it('is protected by FirebaseAuthGuard + SubscriptionGuard', () => {

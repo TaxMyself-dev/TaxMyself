@@ -21,5 +21,15 @@ Owns bank/card transaction ingestion, classification (rule-based and manual), an
 - Flow analysis: `getFlowAnalysis`/`getFlowAnalysisMerchants` — aggregated cash-flow view over cache rows.
 - Reporting-period lock: `isLocked` (set by report-workflow / reports "mark submitted") blocks further reclassification via the guard in `TransactionProcessingService`.
 
+- Confirm-to-expense is an `EXPENSES_APPROVE` operation. It stamps approved
+  expense rows with VAT/annual periods and the real approving actor; a
+  represented owner's direct confirmation request is rejected.
+
 ## Related topics
+
+Authorization invariant: classification, quick classification, transaction
+edits, classification-rule mutation, and confirm-to-expense writes require
+`EXPENSES_APPROVE`. A represented owner's direct session is read-only. Read
+responses carry `canManageExpenses` so the UI can suppress mutation actions;
+the backend remains authoritative.
 Depends on: shared (`FxRateService` for `ilsAmount`, `SharedService`), expenses (`ExpensesService`), users, business, delegation, documents (`ExtractedDocument` for `matchedDocumentId`), feezback (Open Banking sync source), billing, bookkeeping. Depended on by: reports, report-workflow, shared (legacy `getRepository` case for `Transactions`), documents.

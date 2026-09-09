@@ -16,6 +16,11 @@ Manages accountant-client relationships ("delegations"): granting/viewing permis
 - `POST /delegations/create-client` (auth, accountant-only) — creates a Firebase Auth user, a `User` row, a `Business` row, a trial `Subscription`, a `Delegation` (`DOCUMENTS_READ`+`DOCUMENTS_WRITE`), and provisions Google Drive folders for the client (shared with the accountant).
 - `DELETE /delegations/client/:clientId` (auth, accountant-only) — removes the delegation link (not the user) and revokes the accountant's Google Drive access.
 
+- `FirebaseAuthGuard` enforces owner-side separation of duties: while an
+  ACTIVE accountant delegation exists, direct owner requests to routes marked
+  `EXPENSES_APPROVE` are rejected. Explicitly marked submission/read/report
+  operations remain available and do not acquire approval authority.
+
 ## Related topics
 - users (`UsersModule`, `UsersService` for Firebase ID lookup, trial subscription creation, Drive provisioning/revocation; `User`, `Child` entities)
 - business (`Business` entity, created/read for client businesses)
