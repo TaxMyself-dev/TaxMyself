@@ -1,0 +1,81 @@
+<div class="presentation-toolbar">
+  <button type="button" class="toolbar-button" (click)="closeGuide.emit()">
+    <ion-icon name="close-outline"></ion-icon>
+    חזרה לתוכן
+  </button>
+  <div class="presentation-toolbar__title">הדרכה לעצמאים</div>
+  <div class="presentation-toolbar__counter">{{ currentSlideIndex + 1 }} / {{ slides.length }}</div>
+</div>
+<div class="slide-frame" aria-live="polite">
+  <article class="slide" [ngClass]="'slide--' + currentSlide.layout">
+    <img class="slide__logo" src="/assets/login_logo.svg" alt="KeepInTax" />
+
+    @switch (currentSlide.layout) {
+      @case ('cover') {
+        <div class="cover-copy">
+          <span class="slide__eyebrow">{{ currentSlide.eyebrow }}</span>
+          <h2>{{ currentSlide.title }}</h2>
+          <p>{{ currentSlide.subtitle }}</p>
+        </div>
+        <div class="cover-art" aria-hidden="true"></div>
+      }
+
+      @case ('numbers') {
+        <header class="slide__header">
+          <span class="slide__eyebrow">{{ currentSlide.eyebrow }}</span>
+          <h2>{{ currentSlide.title }}</h2>
+        </header>
+        <div class="number-line">
+          @for (item of currentSlide.items; track item.label; let i = $index) {
+            <div class="number-item">
+              <span class="number-item__index">0{{ i + 1 }}</span>
+              <strong>{{ item.label }}</strong>
+              <span>{{ item.description }}</span>
+            </div>
+          }
+        </div>
+        <p class="slide__takeaway">{{ currentSlide.takeaway }}</p>
+      }
+
+      @case ('definitions') {
+        <header class="slide__header">
+          <span class="slide__eyebrow">{{ currentSlide.eyebrow }}</span>
+          <h2>{{ currentSlide.title }}</h2>
+        </header>
+        <div class="definition-list">
+          @for (item of currentSlide.items; track item.label; let i = $index) {
+            <div class="definition-item">
+              <span class="definition-item__number">{{ i + 1 }}</span>
+              <div>
+                <strong>{{ item.label }}</strong>
+                <p>{{ item.description }}</p>
+              </div>
+            </div>
+          }
+        </div>
+        <div class="definition-footer">
+          <p>{{ currentSlide.takeaway }}</p>
+          @if (currentSlide.sourceUrl) {
+            <a [href]="currentSlide.sourceUrl" target="_blank" rel="noopener noreferrer">
+              {{ currentSlide.sourceLabel }}
+            </a>
+          }
+        </div>
+      }
+    }
+  </article>
+</div>
+
+<div class="presentation-controls">
+  <button type="button" class="nav-button nav-button--secondary" (click)="previousSlide()" [disabled]="currentSlideIndex === 0">
+    <ion-icon name="arrow-forward-outline"></ion-icon>
+    הקודם
+  </button>
+  <div class="progress-track" aria-hidden="true">
+    <span [style.width.%]="progressPercent"></span>
+  </div>
+  <button type="button" class="nav-button nav-button--primary" (click)="nextSlide()" [disabled]="currentSlideIndex === slides.length - 1">
+    הבא
+    <ion-icon name="arrow-back-outline"></ion-icon>
+  </button>
+</div>

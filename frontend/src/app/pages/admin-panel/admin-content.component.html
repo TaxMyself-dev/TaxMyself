@@ -1,0 +1,31 @@
+<section class="content-shell" dir="rtl">
+  @if (!guideOpen) {
+    <header class="content-header">
+      <div>
+        <span class="content-header__eyebrow">מרכז תוכן</span>
+        <h1>הדרכות ותוכן מקצועי</h1>
+        <p>תוכן שאפשר להציג, לעדכן ולהרחיב מתוך המערכת.</p>
+      </div>
+      <img src="/assets/login_logo.svg" alt="KeepInTax" />
+    </header>
+
+    <div class="guide-list">
+      <button class="guide-card" type="button" (click)="openGuide()">
+        <span class="guide-card__visual" aria-hidden="true">
+          <ion-icon name="school-outline"></ion-icon>
+        </span>
+        <span class="guide-card__copy">
+          <span class="guide-card__meta">3 שקופיות · גרסת ניסיון</span>
+          <strong>הדרכה לעצמאים</strong>
+          <small>הדברים הבסיסיים שכל בעל עסק צריך לדעת</small>
+        </span>
+        <span class="guide-card__action">
+          לפתיחת ההדרכה
+          <ion-icon name="arrow-back-outline"></ion-icon>
+        </span>
+      </button>
+    </div>
+  } @else {
+    <app-self-employed-guide (closeGuide)="closeGuide()"></app-self-employed-guide>
+  }
+</section>

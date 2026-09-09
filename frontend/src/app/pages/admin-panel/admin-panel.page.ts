@@ -19,6 +19,7 @@ import { AdminDocumentationComponent } from './admin-documentation.component';
 import { SharedModule } from '../../shared/shared.module';
 import { ShaamInvoiceApprovalDialogComponent } from '../../components/shaam-invoice-approval-dialog/shaam-invoice-approval-dialog.component';
 import { ButtonComponent } from '../../components/button/button.component';
+import { AdminContentComponent } from './admin-content.component';
 
 
 @Component({
@@ -39,6 +40,7 @@ import { ButtonComponent } from '../../components/button/button.component';
       ToastModule,
       ConfirmDialogModule,
       AdminDocumentationComponent,
+      AdminContentComponent,
     ],
     providers: [ConfirmationService],
 })
@@ -51,6 +53,7 @@ export class AdminPanelPage implements OnInit {
     { label: 'ניהול תנועות', value: 'trans-management', component: TransManagementComponent },
     { label: 'נתוני דמו', value: 'demo-data', component: DemoDataComponent },
     { label: 'קארדקום / מנויים', value: 'billing', component: AdminBillingComponent },
+    { label: 'תוכן', value: 'content', component: AdminContentComponent },
     { label: 'דוקומנטציה', value: 'documentation', component: AdminDocumentationComponent },
   ];
 

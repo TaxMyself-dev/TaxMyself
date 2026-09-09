@@ -19,6 +19,10 @@ describe('AdminPanelPage', () => {
     expect(component.catalogTabs.map((tab) => tab.value)).toEqual(['categories', 'cards']);
   });
 
+  it('includes the educational content tab', () => {
+    expect(component.tabs.map((tab) => tab.value)).toContain('content');
+  });
+
   it('switches between the nested catalog tabs', () => {
     component.onCatalogTabChange('cards');
     expect(component.selectedCatalogTab).toBe('cards');
