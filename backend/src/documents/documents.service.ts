@@ -3829,6 +3829,7 @@ ${finalOwnerName}`;
         subIndex: 0,
         uploadDate,
         status: ExtractedDocStatus.REJECTED,
+        rejectionReason: 'קובץ כפול',
         source,
         rawResponse: `Duplicate of drive file ${originalDriveFileId} (identical content hash) — skipped OCR.`,
       }),
@@ -3961,7 +3962,7 @@ ${finalOwnerName}`;
           ExtractedDocStatus.REJECTED,
         ].includes(d.status),
       driveFileId: d.driveFileId,
-      rejectionReason: d.rejectionReason,
+      rejectionReason: this.archiveRejectionReasonForDocument(d),
       vatReportPeriod: d.confirmedExpenseId != null
         ? (vatReportPeriodByExpenseId.get(d.confirmedExpenseId) ?? null)
         : null,
@@ -3969,7 +3970,7 @@ ${finalOwnerName}`;
         ? (annualReportingYearByExpenseId.get(d.confirmedExpenseId) ?? null)
         : null,
       canManageExpenses,
-    }));
+  }));
 
     // Every Expense not backed by a source document: bank/card transactions
     // classified as an expense (approveTxNoDoc, source=OPEN_BANKING) AND
@@ -4164,6 +4165,17 @@ ${finalOwnerName}`;
       { deletedAt: null },
     );
     return documentIds.length;
+  }
+
+  /** Older automatically rejected duplicate rows predate rejectionReason.
+   * Their raw diagnostic is durable, so project the same user-facing reason
+   * without mutating production history. */
+  private archiveRejectionReasonForDocument(doc: ExtractedDocument): string | null {
+    if (doc.rejectionReason) return doc.rejectionReason;
+    return doc.status === ExtractedDocStatus.REJECTED
+      && doc.rawResponse?.startsWith('Duplicate of drive file ')
+      ? 'קובץ כפול'
+      : null;
   }
 
   /** Keep terminal document outcomes distinct so the archive never offers

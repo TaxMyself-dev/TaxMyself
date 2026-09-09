@@ -10,7 +10,6 @@ import { UsersModule } from './users/users.module';
 import { ReportsModule } from './reports/reports.module';
 import { ExpensesModule } from './expenses/expense.module';
 import { TransactionsModule } from './transactions/transactions.module';
-import { CloudModule } from './cloud/cloud.module';
 import { SharedModule } from './shared/shared.module';
 import { FinsiteModule } from './finsite/finsite.module';
 import { DelegationModule } from './delegation/delegation.module';
@@ -217,7 +216,7 @@ new Logger('Bootstrap').log(
       ReportWorkflow,
     ]),
     ScheduleModule.forRoot(),
-    HttpModule, UsersModule, ReportsModule, ExpensesModule, TransactionsModule, BusinessModule, CloudModule, SharedModule, FinsiteModule, MailModule, DelegationModule, DocumentsModule, ClientsModule, BookkeepingModule, FeezbackModule, ShaamModule, FeezbackWebhookModule, AccountantTasksModule, AnnualReportModule, ReportWorkflowModule, NotificationsModule, DemoDataModule, GoogleDriveModule, BillingModule, IntegrationsModule, DocumentImportModule, InboundEmailModule, DepreciationModule],
+    HttpModule, UsersModule, ReportsModule, ExpensesModule, TransactionsModule, BusinessModule, SharedModule, FinsiteModule, MailModule, DelegationModule, DocumentsModule, ClientsModule, BookkeepingModule, FeezbackModule, ShaamModule, FeezbackWebhookModule, AccountantTasksModule, AnnualReportModule, ReportWorkflowModule, NotificationsModule, DemoDataModule, GoogleDriveModule, BillingModule, IntegrationsModule, DocumentImportModule, InboundEmailModule, DepreciationModule],
   controllers: [AppController],
   providers: [AppService, FinsiteService, MailService, DocumentsService, ClientsService, BookkeepingService, BusinessService],
 })

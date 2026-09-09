@@ -5,6 +5,9 @@ import { ExtractedDocStatus } from './extracted-document.entity';
 
 describe('DocumentsService document rejection reason', () => {
   const archiveDocument = DocumentsService.prototype.archiveDocument;
+  const saveDuplicateRow = (DocumentsService.prototype as any).saveDuplicateRow;
+  const archiveRejectionReasonForDocument =
+    (DocumentsService.prototype as any).archiveRejectionReasonForDocument;
 
   function makeService(documentOverrides: Record<string, unknown> = {}) {
     const extractedDocRepo = {
@@ -80,5 +83,43 @@ describe('DocumentsService document rejection reason', () => {
     )).rejects.toBeInstanceOf(BadRequestException);
 
     expect(extractedDocRepo.update).not.toHaveBeenCalled();
+  });
+
+  it('stores an explicit duplicate reason for automatically rejected uploads', async () => {
+    const extractedDocRepo = {
+      create: jest.fn((row: Record<string, unknown>) => row),
+      save: jest.fn().mockResolvedValue(undefined),
+    };
+
+    await saveDuplicateRow.call(
+      { extractedDocRepo },
+      7,
+      '123456789',
+      { id: 'duplicate-file', name: 'invoice.pdf', md5Checksum: 'same-content' },
+      new Date('2026-09-09T10:00:00.000Z'),
+      'original-file',
+    );
+
+    expect(extractedDocRepo.save).toHaveBeenCalledWith(expect.objectContaining({
+      status: ExtractedDocStatus.REJECTED,
+      rejectionReason: 'קובץ כפול',
+      rawResponse: expect.stringContaining('Duplicate of drive file original-file'),
+    }));
+  });
+
+  it('projects the duplicate reason for legacy auto-rejected rows', () => {
+    expect(archiveRejectionReasonForDocument.call({}, {
+      status: ExtractedDocStatus.REJECTED,
+      rejectionReason: null,
+      rawResponse: 'Duplicate of drive file original-file (identical content hash) — skipped OCR.',
+    })).toBe('קובץ כפול');
+  });
+
+  it('does not invent a reason for an ordinary rejected row', () => {
+    expect(archiveRejectionReasonForDocument.call({}, {
+      status: ExtractedDocStatus.REJECTED,
+      rejectionReason: null,
+      rawResponse: null,
+    })).toBeNull();
   });
 });
