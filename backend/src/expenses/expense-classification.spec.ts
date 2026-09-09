@@ -224,6 +224,63 @@ describe('ExpensesService — Phase 4.1 classification', () => {
     expect(result.taxPercentSnapshot).toBe(45);
   });
 
+  it('represented-client submission stays PENDING without a journal or depreciation posting', async () => {
+    const result = await service.addExpense(
+      makeDto({ isEquipment: true, reductionPercent: 15 }),
+      'uid-1',
+      '999999999',
+      true,
+      undefined,
+      undefined,
+      undefined,
+      true,
+      'uid-1',
+    );
+
+    expect(result.approvalStatus).toBe(ExpenseApprovalStatus.PENDING);
+    expect(result.approvedByUserId).toBeNull();
+    expect(result.approvedAt).toBeNull();
+    expect(result.journalEntryNumber ?? null).toBeNull();
+    expect(bookkeepingService.createJournalEntry).not.toHaveBeenCalled();
+    const depreciation = (service as any).depreciationService;
+    expect(depreciation.ensureActivationYear).not.toHaveBeenCalled();
+  });
+
+  it('explicit accountant approval posts a pending expense and stamps the accountant actor', async () => {
+    const pending = Object.assign(new Expense(), makeDto(), {
+      id: 51,
+      userId: 'uid-1',
+      businessNumber: '999999999',
+      approvalStatus: ExpenseApprovalStatus.PENDING,
+      journalEntryNumber: null,
+      annualReportingYear: 2024,
+      isReported: null,
+      vatReportingDate: '3/2024',
+      vatPercentSnapshot: 40,
+      taxPercentSnapshot: 45,
+      reductionPercentSnapshot: 15,
+      isEquipmentSnapshot: true,
+    });
+    expenseRepo.findOne.mockResolvedValue(pending);
+    expenseRepo.createQueryBuilder.mockReturnValue({
+      setLock: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      getOne: jest.fn().mockResolvedValue({ ...pending }),
+    } as any);
+
+    const result = await service.approvePendingExpense(51, 'uid-1', 'accountant-uid');
+
+    expect(result.approvalStatus).toBe(ExpenseApprovalStatus.APPROVED);
+    expect(result.approvedByUserId).toBe('accountant-uid');
+    expect(result.approvedAt).toBeInstanceOf(Date);
+    expect(result.vatPercentSnapshot).toBe(40);
+    expect(result.taxPercentSnapshot).toBe(45);
+    expect(result.reductionPercentSnapshot).toBe(15);
+    expect(result.isEquipmentSnapshot).toBe(true);
+    expect(bookkeepingService.createJournalEntry).toHaveBeenCalledTimes(1);
+    expect((service as any).depreciationService.ensureActivationYear).toHaveBeenCalledTimes(1);
+  });
+
   it('addExpense prefers subCategoryId over the name pair (tenant-scope-checked)', async () => {
     await service.addExpense(makeDto({ subCategoryId: 42 }), 'uid-1', '999999999');
     // 5.1: the ctx is delegation-aware (built by CatalogContextService).
@@ -475,6 +532,25 @@ describe('ExpensesService — Phase 4.1 classification', () => {
     expect(result.approvalStatus).toBe(ExpenseApprovalStatus.APPROVED);
     expect(result.accountCodeSnapshot).toBe('61000');
     expect(bookkeepingService.createJournalEntry).toHaveBeenCalledTimes(1);
+  });
+
+  it('updateExpense: editing an ordinary PENDING client submission does not approve or journal it', async () => {
+    const pending = {
+      id: 6, userId: 'uid-1', businessNumber: '999999999', isReported: null,
+      journalEntryNumber: null, category: '×”×•×¦××•×ª ×¨×›×‘', subCategory: '×“×œ×§',
+      subCategoryId: 42, approvalStatus: ExpenseApprovalStatus.PENDING,
+      accountCodeSnapshot: '61000', date: new Date('2024-03-10'), sum: 118,
+      annualReportingYear: 2024,
+    } as any;
+    expenseRepo.findOne.mockResolvedValue(pending);
+    expenseRepo.save.mockImplementation(async (e: any) => e);
+
+    const result = await service.updateExpense(6, 'uid-1', { subCategoryId: 42, sum: 120 } as any);
+
+    expect(result.approvalStatus).toBe(ExpenseApprovalStatus.PENDING);
+    expect(result.approvedByUserId).toBeNull();
+    expect(bookkeepingService.createJournalEntry).not.toHaveBeenCalled();
+    expect((service as any).depreciationService.syncExistingYears).not.toHaveBeenCalled();
   });
 
   // ── deleteExpense (Phase 4.3b) ─────────────────────────────────────────────

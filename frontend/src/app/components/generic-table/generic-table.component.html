@@ -428,7 +428,7 @@
       (mouseleave)="onFloatingLeave()">
 
       <!-- Hidden file input for file actions -->
-      @if (fileActions().length > 0) {
+      @if (fileActions().length > 0 && fileEditingEnabled()) {
       <input #fileInput type="file" style="display: none;" (change)="onFileChange($event)"
         accept=".pdf,.jpg,.jpeg,.png" />
       }
@@ -460,7 +460,7 @@
       }
       }
       }
-      @else if (!hasAlwaysShowAction()) {
+      @else if (!hasAlwaysShowAction() && fileEditingEnabled()) {
       <app-p-button [iconOnly]="true" [icon]="'pi pi-paperclip'" (onButtonClicked)="triggerFileInput()"
         [buttonText]="hasFileAttached(hoveredRowInfo()?.row) ? 'שנה קובץ: ' + getFileName(hoveredRowInfo()?.row) : 'צרף קובץ'"
         [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO">

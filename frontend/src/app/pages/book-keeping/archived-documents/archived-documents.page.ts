@@ -10,6 +10,9 @@ import { FilterField } from 'src/app/components/filter-tab/filter-fields-model.c
 import { FormBuilder, FormGroup } from '@angular/forms';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { ActivatedRoute } from '@angular/router';
+import { DialogService } from 'primeng/dynamicdialog';
+import { ExpenseDataService } from 'src/app/services/expense-data.service';
+import { MannualExpenseComponent } from 'src/app/components/mannual-expense/mannual-expense.component';
 
 /** Hebrew labels for `ArchiveItemStatus` (see backend `src/enum.ts`). */
 export const ARCHIVE_STATUS_LABELS: Record<ArchiveItemStatus, string> = {
@@ -68,6 +71,8 @@ export class ArchivedDocumentsPage implements OnInit {
   private confirmationService = inject(ConfirmationService);
   private messageService = inject(MessageService);
   private route = inject(ActivatedRoute);
+  private dialogService = inject(DialogService);
+  private expenseDataService = inject(ExpenseDataService);
 
   // ===========================
   // Global state
@@ -311,10 +316,21 @@ export class ArchivedDocumentsPage implements OnInit {
         title: 'אשר כהוצאה',
         alwaysShow: true,
         showWhen: (row: IRowDataTable) =>
-          (row as any).itemType === 'DOCUMENT'
+          ((row as any).itemType === 'DOCUMENT' || (row as any).itemType === 'EXPENSE')
           && !!(row as any).canResolve
           && (row as any).documentKind !== 'ANNUAL_DOCUMENT',
         action: (_event: any, row: IRowDataTable) => this.onApproveClicked(row),
+      },
+      {
+        name: 'edit-pending-expense',
+        icon: 'pi pi-pencil',
+        title: 'ערוך הוצאה לפני אישור',
+        alwaysShow: true,
+        showWhen: (row: IRowDataTable) =>
+          (row as any).itemType === 'EXPENSE'
+          && (row as any).status === 'PENDING'
+          && !!(row as any).canManageExpenses,
+        action: (_event: any, row: IRowDataTable) => this.onEditPendingExpense(row),
       },
       {
         name: 'reclassify-document',
@@ -345,6 +361,7 @@ export class ArchivedDocumentsPage implements OnInit {
           (row as any).itemType === 'DOCUMENT'
           && (row as any).status !== 'DELETED'
           && (row as any).status !== 'APPROVED'
+          && !!(row as any).canManageExpenses
           && !!(row as any).driveFileId,
         action: (event: any, row: IRowDataTable) => {
           this.onDeleteClicked(row);
@@ -357,7 +374,8 @@ export class ArchivedDocumentsPage implements OnInit {
         alwaysShow: true,
         showWhen: (row: IRowDataTable) =>
           (row as any).itemType === 'DOCUMENT'
-          && (row as any).status === 'DELETED',
+          && (row as any).status === 'DELETED'
+          && !!(row as any).canManageExpenses,
         action: (event: any, row: IRowDataTable) => {
           this.onRestoreClicked(row);
         }
@@ -366,9 +384,64 @@ export class ArchivedDocumentsPage implements OnInit {
   }
 
   onApproveClicked(doc: IRowDataTable): void {
-    const documentId = Number(doc.id ?? 0);
-    if (!documentId || !(doc as any).canResolve) return;
+    const id = Number(doc.id ?? 0);
+    if (!id || !(doc as any).canResolve) return;
+    if ((doc as any).itemType === 'EXPENSE') {
+      this.confirmationService.confirm({
+        header: 'אישור הוצאה',
+        message: 'לאשר את ההוצאה ולרשום אותה בספרים?',
+        icon: 'pi pi-check-circle',
+        acceptLabel: 'אשר',
+        rejectLabel: 'ביטול',
+        accept: () => this.expenseDataService.approvePendingExpense(id).subscribe({
+          next: () => {
+            this.messageService.add({ severity: 'success', summary: 'ההוצאה אושרה', key: 'br' });
+            this.fetchArchivedItems(this.selectedBusinessNumber());
+          },
+          error: (err) => this.messageService.add({
+            severity: 'error',
+            summary: 'האישור נכשל',
+            detail: err?.error?.message ?? 'לא ניתן לאשר את ההוצאה',
+            key: 'br',
+          }),
+        }),
+      });
+      return;
+    }
     this.approvalDialogItem.set(doc as unknown as ArchivedItem);
+  }
+
+  onEditPendingExpense(row: IRowDataTable): void {
+    const id = Number(row.id ?? 0);
+    if (!id) return;
+    this.authService.setActiveBusinessNumber(this.selectedBusinessNumber());
+    this.expenseDataService.getExpenseById(id).subscribe({
+      next: (expense) => {
+        const ref = this.dialogService.open(MannualExpenseComponent, {
+          header: 'עריכת הוצאה לפני אישור',
+          width: '480px',
+          style: { maxWidth: '95vw' },
+          rtl: true,
+          modal: true,
+          focusOnShow: false,
+          data: {
+            editMode: true,
+            expense: {
+              ...expense,
+              taxPercent: Number(expense.taxPercentSnapshot) || 0,
+              vatPercent: Number(expense.vatPercentSnapshot) || 0,
+              isEquipment: !!expense.isEquipmentSnapshot,
+              reductionPercent: Number(expense.reductionPercentSnapshot) || 0,
+              reportScopeRaw: expense.reportScope,
+            },
+          },
+        });
+        ref.onClose.subscribe((result) => {
+          if (result != null) this.fetchArchivedItems(this.selectedBusinessNumber());
+        });
+      },
+      error: () => this.messageService.add({ severity: 'error', summary: 'טעינת ההוצאה נכשלה', key: 'br' }),
+    });
   }
 
   closeApprovalDialog(): void {

@@ -101,7 +101,7 @@
           <i class="pi pi-check-circle"></i>
           <span>הדוח הוגש</span>
         </div>
-      } @else {
+      } @else if (canManageExpenses()) {
         <app-p-button
           [buttonText]="'סמן כדווח'"
           [buttonColor]="buttonColor.WHITE_BORDER"
@@ -126,6 +126,7 @@
     <app-generic-table 
       (fileChange)="onFileChange($event)"
       [fileActions]="fileActions"
+      [fileEditingEnabled]="canManageExpenses()"
       [filesAttached]="filesAttachedMap()"
       [immediateFileOperation]="false"
       class="expenses-table"

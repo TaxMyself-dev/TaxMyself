@@ -115,6 +115,8 @@ export type ReviewRow =
   | { type: 'tx_only'; transaction: ReviewTxSummary; classification: ReviewClassification };
 
 export interface ReportPreviewResponse {
+  /** Request-specific UI capability; write endpoints remain authoritative. */
+  canManageExpenses?: boolean;
   mode: 'documents_only' | 'with_banking';
   rows: ReviewRow[];
   counts: { matched: number; docOnly: number; txOnly: number };
@@ -243,6 +245,7 @@ export interface ReportPreviewCheck {
   hasUnconfirmedExpenses: boolean;
   documentsProcessing: boolean;
   inboxDocumentsPending: number;
+  canManageExpenses: boolean;
 }
 
 @Injectable({ providedIn: 'root' })

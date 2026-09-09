@@ -33,6 +33,10 @@ and `tx_only` rows and replaces the former overlay review dialog.
   user confirmation before retry.
 - When no rows remain, navigation returns to the caller and marks the review as
   completed so the report/archive can refresh.
+- The preview response carries `canManageExpenses`. Represented owners and
+  read-only delegates retain preview/file viewing but do not receive edit,
+  classify, reject, link, supplier-management, selection, or approval actions;
+  backend `EXPENSES_APPROVE` checks remain authoritative.
 
 ## Related topics
 

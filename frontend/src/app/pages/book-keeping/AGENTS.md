@@ -19,6 +19,11 @@ Container page + tab shell for day-to-day bookkeeping: issued documents (incomes
 - Archive: filter/preview Drive documents and transaction-only expenses; soft-delete or restore Drive documents without deleting their retained file.
 - Client tasks (when enabled): confirm data upload to accountant, self-mark VAT/advance-tax/annual reports as filed, view stored report PDFs.
 
+- Expense edit/delete/file actions follow server-provided
+  `canManageExpenses`. In the archive an authorized accountant can edit and
+  explicitly approve pending manual expenses; represented owners see the
+  pending item without edit/approval actions.
+
 ## Related topics
 - Backend `documents` (incomes/`DocumentsService`), `expenses` (expenses & suppliers/`ExpenseDataService`), `clients` (clients tab), `report-workflow` (client-tasks tab).
 - Frontend `doc-create` — `clients.page.ts` uses `DocCreateService` to fetch/delete clients (the client list feeds document creation).

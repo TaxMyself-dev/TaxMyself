@@ -15,6 +15,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.interface';
 import { REQUIRED_DELEGATION_SCOPE_KEY } from '../decorators/required-delegation-scope.decorator';
+import { ALLOW_REPRESENTED_CLIENT_SUBMISSION_KEY } from '../decorators/allow-represented-client-submission.decorator';
 
 
 @Injectable()
@@ -70,8 +71,27 @@ export class FirebaseAuthGuard implements CanActivate {
       ? request.headers['x-client-user-id'][0]
       : request.headers['x-client-user-id'];
 
+    const requiredScope = this.reflector.get<DelegationScope | undefined>(
+      REQUIRED_DELEGATION_SCOPE_KEY,
+      context.getHandler(),
+    );
+
     if (!clientUserId) {
-      return true; // ✅ If no client ID is provided, it's a regular user request
+      // EXPENSES_APPROVE is an accounting-decision capability. Once an
+      // ACTIVE accountant represents the owner, a self-request must not be
+      // able to approve/edit/delete expenses merely because it carries the
+      // owner's valid Firebase token. The sole exception is add-expense,
+      // which is a submission only and is forced to PENDING by the service.
+      if (requiredScope === DelegationScope.EXPENSES_APPROVE) {
+        const allowedSelfServiceOperation = this.reflector.get<boolean | undefined>(
+          ALLOW_REPRESENTED_CLIENT_SUBMISSION_KEY,
+          context.getHandler(),
+        ) ?? false;
+        if (!allowedSelfServiceOperation && await this.hasActiveAccountantDelegation(authenticatedFirebaseId)) {
+          throw new ForbiddenException('הפעולה דורשת אישור של רואה החשבון המייצג');
+        }
+      }
+      return true;
     }
 
     const maskedClient = clientUserId?.length >= 8 ? clientUserId.substring(0, 8) + '...' : '?';
@@ -110,10 +130,6 @@ export class FirebaseAuthGuard implements CanActivate {
     // endpoints, or DOCUMENTS_READ on a POST that's semantically a read —
     // see RequiredDelegationScope) wins over the generic per-verb default.
     // Default: GET → DOCUMENTS_READ, POST/PUT/PATCH/DELETE → DOCUMENTS_WRITE.
-    const requiredScope = this.reflector.get<DelegationScope | undefined>(
-      REQUIRED_DELEGATION_SCOPE_KEY,
-      context.getHandler(),
-    );
     const isWriteMethod = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method);
     const effectiveScope = requiredScope
       ?? (isWriteMethod ? DelegationScope.DOCUMENTS_WRITE : DelegationScope.DOCUMENTS_READ);
@@ -137,6 +153,19 @@ export class FirebaseAuthGuard implements CanActivate {
     this.logger.log(`Acting as client, firebaseId=${maskedClient}`);
 
     return true;
+  }
+
+  private async hasActiveAccountantDelegation(clientFirebaseId: string): Promise<boolean> {
+    const delegations = await this.delegationRepository.find({
+      where: { userId: clientFirebaseId, status: DelegationStatus.ACTIVE },
+    });
+    for (const delegation of delegations) {
+      const agent = await this.userRepository.findOne({
+        where: { firebaseId: delegation.agentId },
+      });
+      if (agent?.role?.includes(UserRole.ACCOUNTANT)) return true;
+    }
+    return false;
   }
 
   private async validateToken(token: string): Promise<admin.auth.DecodedIdToken> {

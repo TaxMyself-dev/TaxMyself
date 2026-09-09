@@ -11,6 +11,9 @@ Cross-cutting utilities used throughout reporting and transaction code: generic 
 - `getRate`/`convertToIls` — called at transaction sync and expense-entry time to stamp `ilsAmount`/`fxRateToIls` on non-ILS rows.
 - `buildReportPeriodLabel`/`getVATReportingDate`/`expandPeriodLabelsInRange`/`nextOpenPeriodLabels` — central logic for stamping and querying `vatReportingDate` across transactions, reports, and report-workflow.
 - `getJournalEntryCurrentIndex`/`incrementJournalEntryIndex` — sequential numbering consumed by bookkeeping when posting journal entries.
+- `isRepresentedByAccountant` checks every ACTIVE delegation and verifies the
+  delegate's persisted `ACCOUNTANT` role; expense authorization must not treat
+  an unrelated/non-accountant delegation as representation.
 
 ## Related topics
 Depends on: expenses (`Expense` entity), transactions (legacy `Transactions` entity — marked for removal), documents (`SettingDocuments` entity). Depended on by: nearly all reporting/transaction modules — reports, report-workflow, transactions, expenses, bookkeeping, documents.

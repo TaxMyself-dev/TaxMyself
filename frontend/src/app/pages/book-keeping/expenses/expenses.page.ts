@@ -368,6 +368,7 @@ export class ExpensesPage implements OnInit {
         icon: 'pi pi-pencil',
         title: 'ערוך',
         alwaysShow: true,
+        showWhen: (row: IRowDataTable) => !!(row as any).canManageExpenses,
         action: (event: any, row: IRowDataTable) => {
           this.onEditExpense(row);
         }
@@ -377,6 +378,7 @@ export class ExpensesPage implements OnInit {
         icon: 'pi pi-trash',
         title: 'מחק',
         alwaysShow: true,
+        showWhen: (row: IRowDataTable) => !!(row as any).canManageExpenses,
         action: (event: any, row: IRowDataTable) => {
           this.onDeleteExpense(row);
         }
@@ -399,7 +401,7 @@ export class ExpensesPage implements OnInit {
         icon: 'pi pi-upload',
         title: 'הוסף קובץ',
         alwaysShow: true,
-        showWhen: (row: IRowDataTable) => !this.hasFile(row),
+        showWhen: (row: IRowDataTable) => !this.hasFile(row) && !!(row as any).canManageExpenses,
         action: (event: any, row: IRowDataTable) => {
           this.onAddFile(row);
         }

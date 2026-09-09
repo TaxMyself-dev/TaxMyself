@@ -639,10 +639,15 @@ export class MannualExpenseComponent implements OnDestroy {
 
     private onSaveSuccess(res: any): void {
         this.dialogRef.close(res);
+        const pendingAccountantApproval = !this.editMode && res?.approvalStatus === 'PENDING';
         this.showToast({
             severity: "success",
             summary: "הצלחה",
-            detail: this.editMode ? "ההוצאה עודכנה בהצלחה" : "ההוצאה נשמרה בהצלחה",
+            detail: this.editMode
+                ? "ההוצאה עודכנה בהצלחה"
+                : pendingAccountantApproval
+                    ? "ההוצאה נשמרה והועברה לאישור רואה החשבון"
+                    : "ההוצאה נשמרה בהצלחה",
             sticky: false
         });
     }

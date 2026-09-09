@@ -33,7 +33,7 @@ import { DocPayments } from 'src/documents/doc-payments.entity';
 import { Business } from 'src/business/business.entity';
 import { SlimTransaction } from 'src/transactions/slim-transaction.entity';
 import { FullTransactionCache } from 'src/transactions/full-transaction-cache.entity';
-import { VATReportingType, ExpenseReportScope } from 'src/enum';
+import { VATReportingType, ExpenseReportScope, ExpenseApprovalStatus } from 'src/enum';
 import { DepreciationService } from '../depreciation/depreciation.service';
 
 /** Maps referenceType strings → Hebrew label for the כרטסת סוג תנועה column. */
@@ -1385,6 +1385,7 @@ export class ReportsService {
         userId: firebaseId,
         businessNumber,
         isEquipmentSnapshot: true,
+        approvalStatus: ExpenseApprovalStatus.APPROVED,
       },
       order: { date: 'ASC' },
     });

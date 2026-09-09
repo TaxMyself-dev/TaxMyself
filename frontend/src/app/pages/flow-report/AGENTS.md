@@ -13,6 +13,10 @@ Page for reviewing bank/card transactions flagged as recognized expenses for a d
 - Filter the visible table by supplier/name text.
 
 ## Related topics
+
+Represented-client invariant: rows are read-only when `canManageExpenses` is
+false. Checkboxes and file-upload actions are disabled, and confirmation is
+also rejected by the backend.
 Backend: transactions, expenses
 Frontend pages: reports (navigated to after successful submission)
 Frontend shared: none

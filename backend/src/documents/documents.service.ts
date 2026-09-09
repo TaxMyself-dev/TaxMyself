@@ -3905,10 +3905,13 @@ ${finalOwnerName}`;
   async getArchivedForUser(
     firebaseId: string,
     businessNumber: string,
+    hasExpenseApprovalCapability = false,
   ): Promise<ArchivedItem[]> {
     const user = await this.userRepo.findOne({ where: { firebaseId } });
     if (!user) throw new NotFoundException(`User not found for firebaseId`);
     await this.assertBusinessOwnership(firebaseId, businessNumber);
+    const canManageExpenses = hasExpenseApprovalCapability
+      || !(await this.sharedService.isRepresentedByAccountant(firebaseId));
 
     const docs = await this.extractedDocRepo
       .createQueryBuilder('d')
@@ -3948,8 +3951,8 @@ ${finalOwnerName}`;
       status: d.deletedAt
         ? ArchiveItemStatus.DELETED
         : this.archiveItemStatusForDocument(d, approvalStatusByExpenseId),
-      canResolve: !d.deletedAt && d.status === ExtractedDocStatus.PENDING_REVIEW,
-      canReclassify: !d.deletedAt
+      canResolve: canManageExpenses && !d.deletedAt && d.status === ExtractedDocStatus.PENDING_REVIEW,
+      canReclassify: canManageExpenses && !d.deletedAt
         && d.confirmedExpenseId == null
         && [
           ExtractedDocStatus.PENDING_REVIEW,
@@ -3965,6 +3968,7 @@ ${finalOwnerName}`;
       annualReportingYear: d.confirmedExpenseId != null
         ? (annualReportingYearByExpenseId.get(d.confirmedExpenseId) ?? null)
         : null,
+      canManageExpenses,
     }));
 
     // Every Expense not backed by a source document: bank/card transactions
@@ -3990,12 +3994,13 @@ ${finalOwnerName}`;
       uploadDate: e.loadingDate,
       source: e.source ?? (e.externalTransactionId ? RecordSource.OPEN_BANKING : RecordSource.MANUAL),
       status: this.simplifyExpenseStatus(e.approvalStatus),
-      canResolve: false,
+      canResolve: canManageExpenses && e.approvalStatus === ExpenseApprovalStatus.PENDING,
       canReclassify: false,
       driveFileId: null,
       rejectionReason: null,
       vatReportPeriod: e.vatReportingDate ? String(e.vatReportingDate) : null,
       annualReportingYear: e.annualReportingYear ?? null,
+      canManageExpenses,
     }));
 
     return [...docItems, ...txItems].sort((a, b) => {
@@ -4210,6 +4215,7 @@ export interface ArchivedItem {
   canResolve: boolean;
   /** True for non-approved business classifications that may be changed. */
   canReclassify: boolean;
+  canManageExpenses: boolean;
   driveFileId: string | null;
   rejectionReason: string | null;
   /** Expense.vatReportingDate for approved expenses and their source document. */

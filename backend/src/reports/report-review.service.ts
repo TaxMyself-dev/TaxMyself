@@ -230,6 +230,7 @@ export class ReportReviewService {
     hasUnconfirmedExpenses: boolean;
     documentsProcessing: boolean;
     inboxDocumentsPending: number;
+    canManageExpenses: boolean;
   }> {
     const user = await this.userRepo.findOne({ where: { firebaseId } });
     if (!user) throw new NotFoundException(`User not found for firebaseId`);
@@ -249,6 +250,7 @@ export class ReportReviewService {
         hasUnconfirmedExpenses: false,
         documentsProcessing: inboxStatus.processing,
         inboxDocumentsPending: inboxStatus.pendingDocuments,
+        canManageExpenses: false,
       };
     }
 
@@ -319,6 +321,7 @@ export class ReportReviewService {
       hasUnconfirmedExpenses,
       documentsProcessing,
       inboxDocumentsPending,
+      canManageExpenses: true,
     };
   }
 
@@ -685,6 +688,7 @@ export class ReportReviewService {
     documentId: number,
     slimTransactionId: number,
     overrides: ReviewOverrides = {},
+    actorUserId: string = firebaseId,
   ): Promise<{ expenseId: number }> {
     const { doc, slim, cache } = await this.loadMatchedPair(
       firebaseId,
@@ -790,6 +794,9 @@ export class ReportReviewService {
         false,
         manager,
         { documentType: doc.documentType, supplier: doc.supplier, invoiceNumber: doc.invoiceNumber },
+        undefined,
+        false,
+        actorUserId,
       );
 
       // Resolve the VAT report period once and stamp it on BOTH the Expense
@@ -871,6 +878,7 @@ export class ReportReviewService {
     businessNumber: string,
     documentId: number,
     overrides: ReviewOverrides = {},
+    actorUserId: string = firebaseId,
   ): Promise<{ expenseId: number }> {
     const doc = await this.docRepo.findOne({ where: { id: documentId } });
     if (!doc) throw new NotFoundException(`Document ${documentId} not found`);
@@ -943,6 +951,9 @@ export class ReportReviewService {
         false,
         manager,
         { documentType: doc.documentType, supplier: doc.supplier, invoiceNumber: doc.invoiceNumber },
+        undefined,
+        false,
+        actorUserId,
       );
 
       // Resolve + stamp the VAT report period on the Expense — ALWAYS, not
@@ -1010,6 +1021,7 @@ export class ReportReviewService {
     businessNumber: string,
     slimTransactionId: number,
     overrides: ReviewOverrides = {},
+    actorUserId: string = firebaseId,
   ): Promise<{ expenseId: number }> {
     const { slim, cache } = await this.loadTxPair(firebaseId, businessNumber, slimTransactionId);
 
@@ -1058,6 +1070,10 @@ export class ReportReviewService {
         // via the explicit bookmark dialog, never a side effect of approval.
         false,
         manager,
+        undefined,
+        undefined,
+        false,
+        actorUserId,
       );
 
       // Resolve the VAT report period once and stamp it on BOTH the Expense

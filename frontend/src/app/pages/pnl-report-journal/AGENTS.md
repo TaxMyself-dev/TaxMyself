@@ -16,6 +16,10 @@ Renders the profit-and-loss (P&L) report for a business/period: fetches income +
 - `createPnlReportPDFfile` requests a pdfkit-rendered PDF from the backend (optionally with a manual income override) and downloads it via `FilesService`.
 
 ## Related topics
+
+Represented owners may view and export the report without an approval error.
+The pre-flight capability hides expense-confirmation and report-locking actions;
+the accountant retains them through delegation.
 - Backend: reports (pnl-report-journal, pnl-report-pdf, mark-submitted, submission-status endpoints), expenses (add-file-to-expense), transactions (confirm-to-expense flow via TransactionsService).
 - Frontend pages: transactions (via `TransactionsService` for `getTransToConfirm`/`addTransToExpense`).
 - Frontend pages: report-review (routed pre-flight review page, replaces the old in-page dialog).

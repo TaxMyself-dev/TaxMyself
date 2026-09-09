@@ -38,7 +38,9 @@
             @for (row of data.rows; track $index) {
               <tr>
                 <td class="actions-column">
-                  <button type="button" class="edit-asset-button" (click)="editAsset(row)">עריכת נכס</button>
+                  @if (report()?.canManageExpenses) {
+                    <button type="button" class="edit-asset-button" (click)="editAsset(row)">עריכת נכס</button>
+                  }
                 </td>
                 <td dir="ltr">{{ formatPercent(row.taxRecognitionPercent) }}</td>
                 <td>{{ row.assetName }}</td>

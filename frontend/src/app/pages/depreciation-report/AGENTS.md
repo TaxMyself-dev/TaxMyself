@@ -11,6 +11,10 @@ Report page that produces the Israeli Form 1342 depreciation report for a busine
 - Export the current report to `.xlsx` (RTL sheet, one row per asset + totals).
 - Export to PDF through `GET reports/depreciation-report-pdf`; the server-rendered depreciation attachment uses the `Created by KeepInTax LTD` credit footer and never exposes browser print metadata.
 
+- The asset-edit action is shown only when the report response grants the
+  transient `canManageExpenses` capability; backend expense authorization is
+  still the security boundary.
+
 ## Related topics
 - Backend `reports` module (`GET reports/depreciation-report`).
 - Uses `GenericService` (business list, formatting) and `AuthService`.

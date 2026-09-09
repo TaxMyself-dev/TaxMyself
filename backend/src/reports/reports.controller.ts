@@ -27,6 +27,7 @@ import { DelegationScope } from 'src/delegation/delegation.entity';
 import { DocumentKind, ModuleName } from 'src/enum';
 import { parseBooleanQueryFlag } from './pnl-report-query.util';
 import { RejectReviewDocumentDto } from './dtos/reject-review-document.dto';
+import { AllowRepresentedClientOperation } from 'src/decorators/allow-represented-client-submission.decorator';
 
 
 @Controller('reports')
@@ -60,6 +61,7 @@ export class ReportsController {
       hasUnconfirmedExpenses: boolean;
       documentsProcessing: boolean;
       inboxDocumentsPending: number;
+      canManageExpenses: boolean;
     }> {
       const firebaseId = request.user?.firebaseId;
       if (!firebaseId) throw new BadRequestException('Not authenticated');
@@ -99,12 +101,18 @@ export class ReportsController {
       if (focusDocumentId !== undefined && (!Number.isInteger(focusDocumentId) || focusDocumentId <= 0)) {
         throw new BadRequestException('focusDocumentId must be a positive integer');
       }
-      return this.reviewService.getReportPreview(
+      const preview = await this.reviewService.getReportPreview(
         firebaseId,
         bn,
         { from, to },
         { focusDocumentId },
       );
+      preview.canManageExpenses = !!request.isAdminImpersonation
+        || (request.user?.role === 'agent'
+          && (request.user?.delegationScopes ?? []).includes(DelegationScope.EXPENSES_APPROVE))
+        || (request.user?.role !== 'agent'
+          && !(await this.sharedService.isRepresentedByAccountant(firebaseId)));
+      return preview;
     }
 
     /** Approve a "matched" row — creates one Expense linked to both the
@@ -127,7 +135,12 @@ export class ReportsController {
         throw new BadRequestException('documentId and transactionId are required');
       }
       return this.reviewService.approveMatched(
-        firebaseId, bn, Number(body.documentId), Number(body.transactionId), body.overrides ?? {},
+        firebaseId,
+        bn,
+        Number(body.documentId),
+        Number(body.transactionId),
+        body.overrides ?? {},
+        request.user?.actorFirebaseId ?? firebaseId,
       );
     }
 
@@ -145,7 +158,13 @@ export class ReportsController {
       const bn = body?.businessNumber?.trim();
       if (!bn) throw new BadRequestException('businessNumber is required');
       if (!body?.documentId) throw new BadRequestException('documentId is required');
-      return this.reviewService.approveDocCash(firebaseId, bn, Number(body.documentId), body.overrides ?? {});
+      return this.reviewService.approveDocCash(
+        firebaseId,
+        bn,
+        Number(body.documentId),
+        body.overrides ?? {},
+        request.user?.actorFirebaseId ?? firebaseId,
+      );
     }
 
     /** Approve a "tx_only" row — creates an Expense from the transaction
@@ -163,7 +182,13 @@ export class ReportsController {
       const bn = body?.businessNumber?.trim();
       if (!bn) throw new BadRequestException('businessNumber is required');
       if (!body?.transactionId) throw new BadRequestException('transactionId is required');
-      return this.reviewService.approveTxNoDoc(firebaseId, bn, Number(body.transactionId), body.overrides ?? {});
+      return this.reviewService.approveTxNoDoc(
+        firebaseId,
+        bn,
+        Number(body.transactionId),
+        body.overrides ?? {},
+        request.user?.actorFirebaseId ?? firebaseId,
+      );
     }
 
     /** Persist an in-progress edit onto a pending document (matched/
@@ -193,6 +218,7 @@ export class ReportsController {
     /** Currency-aware preview for the pending-expense edit dialogs. */
     @Post('me/review/fx-preview')
     @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
+    @AllowRepresentedClientOperation()
     @UseGuards(FirebaseAuthGuard)
     async previewFx(
       @Req() request: AuthenticatedRequest,
@@ -419,11 +445,17 @@ export class ReportsController {
             throw new BadRequestException('Firebase ID is missing');
         }
         const year = Number(query.year);
-        return this.reportsService.createForm1342Report(
+        const report = await this.reportsService.createForm1342Report(
             firebaseId,
             query.businessNumber,
             year,
         );
+        report.canManageExpenses = !!request.isAdminImpersonation
+          || (request.user?.role === 'agent'
+            && (request.user?.delegationScopes ?? []).includes(DelegationScope.EXPENSES_APPROVE))
+          || (request.user?.role !== 'agent'
+            && !(await this.sharedService.isRepresentedByAccountant(firebaseId)));
+        return report;
     }
 
     @Get('advance-income-tax-report')
@@ -523,6 +555,7 @@ export class ReportsController {
      */
     @Post('pnl-report-journal/prepare')
     @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
+    @AllowRepresentedClientOperation()
     @UseGuards(FirebaseAuthGuard)
     @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
     async preparePnLReportFromJournal(
@@ -572,6 +605,7 @@ export class ReportsController {
      */
     @Get('pnl-report-pdf')
     @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
+    @AllowRepresentedClientOperation()
     @UseGuards(FirebaseAuthGuard)
     async getPnlReportPdf(
         @Req() request: AuthenticatedRequest,

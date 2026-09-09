@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In, Between, Not, Brackets, LessThan, MoreThan, FindOptionsWhere, MoreThanOrEqual, LessThanOrEqual } from 'typeorm';
 import * as XLSX from 'xlsx';
 import { Express } from 'express';
-import { SourceType, VATReportingType, BusinessType, ExpenseReportScope } from 'src/enum';
+import { SourceType, VATReportingType, BusinessType, ExpenseReportScope, RecordSource, ExpenseApprovalStatus } from 'src/enum';
 
 //Entities
 // TODO_FINTAX_REMOVE_LEGACY_TRANSACTIONS: import kept while legacy flows (file upload, Finsite ingest, classifyTransaction, quickClassify, report reads) still write/read the transactions table.
@@ -1133,7 +1133,11 @@ export class TransactionsService {
   }
 
 
-  async saveTransactionsToExpenses(transactionData: { id: number, file?: string | null }[], userId: string): Promise<{ message: string }> {
+  async saveTransactionsToExpenses(
+    transactionData: { id: number, file?: string | null }[],
+    userId: string,
+    actorUserId: string = userId,
+  ): Promise<{ message: string }> {
 
     // Frontend sends cache row `id`. Resolve to full cache rows first,
     // then derive externalTransactionId for all slim state operations.
@@ -1223,6 +1227,11 @@ export class TransactionsService {
       expense.reductionPercentSnapshot = row.reductionPercent;
       expense.businessNumber = row.businessNumber;
       expense.vatReportingDate = (slim?.vatReportingDate ?? row.vatReportingDate ?? null) as any;
+      expense.annualReportingYear = new Date(expense.date).getFullYear();
+      expense.approvalStatus = ExpenseApprovalStatus.APPROVED;
+      expense.approvedByUserId = actorUserId;
+      expense.approvedAt = new Date();
+      expense.source = RecordSource.OPEN_BANKING;
       // Snapshot the report scope (slim wins, then cache, default PNL).
       // pnlCategory is intentionally NOT set here — it stays NULL and is
       // resolved live from the subcategory (with an optional per-expense

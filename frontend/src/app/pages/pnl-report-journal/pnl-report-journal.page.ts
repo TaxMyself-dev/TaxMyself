@@ -82,6 +82,7 @@ export class PnLReportJournalPage implements OnInit {
   /** True when the report for the currently-selected period has already been
    *  marked as submitted. Swaps the "סמן כדווח" button for "הדוח הוגש". */
   reportSubmitted = signal<boolean>(false);
+  canManageExpenses = signal<boolean>(true);
   transToConfirm: Observable<IRowDataTable[]>;
   arrayLength = signal<number>(0);
   isLoadingButtonConfirmDialog = signal<boolean>(false);
@@ -246,8 +247,10 @@ export class PnLReportJournalPage implements OnInit {
         hasUnconfirmedExpenses: true,
         documentsProcessing: false,
         inboxDocumentsPending: 0,
+        canManageExpenses: true,
       })))
       .subscribe(check => {
+        this.canManageExpenses.set(check.canManageExpenses !== false);
         this.handleInboxProcessing(check, effectiveBusiness);
         if (!check.hasPendingDocs && !check.hasUnconfirmedExpenses) {
           this.proceedDirectlyToReport();
@@ -422,6 +425,7 @@ export class PnLReportJournalPage implements OnInit {
       map((data) => {
         return data?.map((row) => ({
           ...row,
+          disabled: row.canManageExpenses === false || row.disabled,
           sum: this.genericService.addComma(Math.abs(row.sum as number)),
           isRecognized: row.isRecognized ? 'כן' : 'לא',
           businessNumber: row?.businessNumber === this.userData.businessNumber
