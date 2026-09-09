@@ -16,8 +16,8 @@ Last reviewed: 2026-09-09
   is approved, verified, and delivered through integration commit `8a54f63c`.
 - `KT-015`: reports endpoint authorization hardening is verified and delivered
   through integration commit `7b183989`.
-- `KT-016`: unified admin catalog tabs and SYSTEM-card creation are integrated
-  on `codex/integration`; focused backend tests and both production builds pass.
+- `KT-016`: unified admin catalog tabs and SYSTEM-card creation are verified and
+  delivered to `origin/main` through `bb784bae`.
 
 ## Pending integration
 
@@ -32,4 +32,4 @@ Last reviewed: 2026-09-09
 
 ## Next step
 
-Fast-forward and push verified KT-016 to `main`.
+Visually verify KT-016 in dev; no production deployment was performed.
