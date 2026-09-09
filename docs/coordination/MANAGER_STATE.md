@@ -18,6 +18,8 @@ Last reviewed: 2026-09-09
   through integration commit `7b183989`.
 - `KT-016`: unified admin catalog tabs and SYSTEM-card creation are verified and
   delivered to `origin/main` through `bb784bae`.
+- `KT-017`: admin educational-content pilot with the first three self-employed
+  guide slides is verified and delivered to `origin/main` through `5cd8012b`.
 
 ## Pending integration
 
@@ -32,4 +34,4 @@ Last reviewed: 2026-09-09
 
 ## Next step
 
-Visually verify KT-016 in dev; no production deployment was performed.
+Visually verify KT-016 and KT-017 in dev; no production deployment was performed.
