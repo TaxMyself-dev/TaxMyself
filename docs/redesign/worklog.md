@@ -2571,3 +2571,20 @@ No plan-checkbox changes (documentation reconciliation only).
   build, and the Angular production build pass. The focused Karma command is
   still blocked during repository-wide compilation by the documented legacy
   spec and third-party Node-type errors; none originated in this change.
+
+## 2026-09-09 — Unified admin catalog and SYSTEM-card creation
+
+- Replaced the separate admin-panel category and Form 6111 card tabs with one
+  `קטגוריות וכרטיסים` area containing nested `קטגוריות` and `כרטיסים` tabs.
+- Admin card mode now exposes `כרטיס חדש`. The new authenticated admin-only
+  endpoint fixes ownership to `SYSTEM`, limits the section picker to SYSTEM
+  sections, and delegates creation to the existing atomic
+  `CatalogService.createAccountWithSubCategory` boundary. Non-technical cards
+  therefore create their paired SYSTEM sub-category in the same transaction;
+  technical-only cards create only the booking account.
+- Accountant/client-scoped D11 creation is unchanged and continues to use
+  `POST bookkeeping/accounts`.
+- No schema, cutover SQL, production data, tax-law, journal, or report-total
+  change. Focused backend tests pass 3/3; Nest and Angular production builds
+  pass. The focused Karma command remains blocked by the documented
+  repository-wide legacy-spec compilation failures.

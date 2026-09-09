@@ -4,7 +4,7 @@ Last reviewed: 2026-09-09
 
 ## Integration baseline
 
-- Main baseline incorporated before auth-fix delivery: `4f9dfd49`
+- Main baseline incorporated before KT-016 integration: `0bdbfc15`
 - Manager branch: `codex/integration`
 - Production access: disabled by standing decision.
 
@@ -16,6 +16,8 @@ Last reviewed: 2026-09-09
   is approved, verified, and delivered through integration commit `8a54f63c`.
 - `KT-015`: reports endpoint authorization hardening is verified and delivered
   through integration commit `7b183989`.
+- `KT-016`: unified admin catalog tabs and SYSTEM-card creation are integrated
+  on `codex/integration`; focused backend tests and both production builds pass.
 
 ## Pending integration
 
@@ -30,4 +32,4 @@ Last reviewed: 2026-09-09
 
 ## Next step
 
-Add the second developer's profile when their name and owned areas are known.
+Fast-forward and push verified KT-016 to `main`.
