@@ -37,7 +37,9 @@ describe('DocumentsService.processInboxForUser deleted-document restoration', ()
 
     return {
       fakeThis,
-      run: () => DocumentsService.prototype.processInboxForUser.call(
+      // Exercise the inbox body directly. The public wrapper owns the
+      // advisory/concurrency locks and is covered by documents-inbox-lock.
+      run: () => (DocumentsService.prototype as any).processInboxForUserUnlocked.call(
         fakeThis as any,
         'client-firebase-id',
         '123456789',

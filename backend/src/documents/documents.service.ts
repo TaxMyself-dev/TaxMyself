@@ -3829,6 +3829,7 @@ ${finalOwnerName}`;
         subIndex: 0,
         uploadDate,
         status: ExtractedDocStatus.REJECTED,
+        rejectionReason: 'קובץ כפול',
         source,
         rawResponse: `Duplicate of drive file ${originalDriveFileId} (identical content hash) — skipped OCR.`,
       }),
