@@ -27,6 +27,7 @@ import { DelegationScope } from 'src/delegation/delegation.entity';
 import { DocumentKind, ModuleName } from 'src/enum';
 import { parseBooleanQueryFlag } from './pnl-report-query.util';
 import { RejectReviewDocumentDto } from './dtos/reject-review-document.dto';
+import { AdminGuard } from 'src/guards/admin.guard';
 import { AllowRepresentedClientOperation } from 'src/decorators/allow-represented-client-submission.decorator';
 
 
@@ -788,7 +789,9 @@ export class ReportsController {
 
 
     @Get('summary')
+    @UseGuards(FirebaseAuthGuard)
     async getDocumentsSummary(
+      @Req() request: AuthenticatedRequest,
       @Query('startDate') startDate: string,
       @Query('endDate') endDate: string,
       @Query('businessNumber') businessNumber: string,
@@ -800,10 +803,16 @@ export class ReportsController {
         };
       }
 
+      const firebaseId = request.user?.firebaseId;
+      if (!firebaseId) {
+        throw new BadRequestException('Not authenticated');
+      }
+
       const summary = await this.reportsService.getDocsSummary(
         startDate,
         endDate,
         businessNumber,
+        firebaseId,
       );
 
     // Convert string numbers to real numbers for clean JSON
@@ -817,6 +826,7 @@ export class ReportsController {
 
 
     @Post('upload-and-debug')
+    @UseGuards(FirebaseAuthGuard, AdminGuard)
     @UseInterceptors(
       FileInterceptor('file', {
         storage: diskStorage({
@@ -829,7 +839,10 @@ export class ReportsController {
         })
       })
     )
-    async uploadAndDebug(@UploadedFile() file: Express.Multer.File, @Res() res: Response) {
+    async uploadAndDebug(
+      @UploadedFile() file: Express.Multer.File,
+      @Res() res: Response,
+    ) {
       if (!file) {
         throw new HttpException('No file uploaded', HttpStatus.BAD_REQUEST);
       }

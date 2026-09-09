@@ -9,6 +9,10 @@ Generates every report view/export (VAT, P&L, ledger, advance income tax, deprec
 - `pdf-shared.ts` — shared PDF helpers; owns the full VAT compliance footer, the creator-only footer used by P&L/depreciation, and the RTL/Hebrew word-order layout fix for pdfkit.
 - `dtos/*` — one request/response DTO pair per report type, plus `report-review.dto.ts` (`ReviewRow` discriminated union: `matched` / `doc_only` / `tx_only`, `ReportPreviewResponse`; since Phase 6.1 every row carries a `classification: ReviewClassification` — the D9 server-side resolution preview: effective `subCategoryId`, canonical names, `status` `READY`/`MISSING_MAPPING`/`PRIVATE`/`UNCLASSIFIED`, D7 `description` preview, `mappedByAccountant` badge signal, and the card's section/account/law fields — and the response carries `clientHasActiveDelegation` for the "חסר מיפוי — אצל הרו״ח" vs simple-picker branch).
 - `reports.controller.ts` — REST endpoints under `/reports` (**has pending local changes — read on disk, not git history**).
+- `GET /reports/summary` is Firebase-authenticated and verifies business
+  ownership through `ReportsService.getDocsSummary` before reading document
+  totals. `POST /reports/upload-and-debug` is an ADMIN-actor-only maintenance
+  endpoint; its role check uses `actorFirebaseId`, not an impersonated client id.
 - `reports.module.ts` — wires Documents/GoogleDrive/Bookkeeping/Billing/Shared/Users modules.
 
 ## Main flows

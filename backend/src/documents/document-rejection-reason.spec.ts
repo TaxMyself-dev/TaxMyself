@@ -6,6 +6,8 @@ import { ExtractedDocStatus } from './extracted-document.entity';
 describe('DocumentsService document rejection reason', () => {
   const archiveDocument = DocumentsService.prototype.archiveDocument;
   const saveDuplicateRow = (DocumentsService.prototype as any).saveDuplicateRow;
+  const archiveRejectionReasonForDocument =
+    (DocumentsService.prototype as any).archiveRejectionReasonForDocument;
 
   function makeService(documentOverrides: Record<string, unknown> = {}) {
     const extractedDocRepo = {
@@ -103,5 +105,21 @@ describe('DocumentsService document rejection reason', () => {
       rejectionReason: 'קובץ כפול',
       rawResponse: expect.stringContaining('Duplicate of drive file original-file'),
     }));
+  });
+
+  it('projects the duplicate reason for legacy auto-rejected rows', () => {
+    expect(archiveRejectionReasonForDocument.call({}, {
+      status: ExtractedDocStatus.REJECTED,
+      rejectionReason: null,
+      rawResponse: 'Duplicate of drive file original-file (identical content hash) — skipped OCR.',
+    })).toBe('קובץ כפול');
+  });
+
+  it('does not invent a reason for an ordinary rejected row', () => {
+    expect(archiveRejectionReasonForDocument.call({}, {
+      status: ExtractedDocStatus.REJECTED,
+      rejectionReason: null,
+      rawResponse: null,
+    })).toBeNull();
   });
 });

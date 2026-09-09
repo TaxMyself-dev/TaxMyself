@@ -1,10 +1,10 @@
 # Primary manager state
 
-Last reviewed: 2026-09-08
+Last reviewed: 2026-09-09
 
 ## Integration baseline
 
-- Main baseline incorporated before documentation delivery: `dfca8ea2`
+- Main baseline incorporated before auth-fix delivery: `4f9dfd49`
 - Manager branch: `codex/integration`
 - Production access: disabled by standing decision.
 
@@ -14,6 +14,8 @@ Last reviewed: 2026-09-08
   for final user validation before archival.
 - `KT-012`: repository Markdown and development-instruction architecture cleanup
   is approved, verified, and delivered through integration commit `8a54f63c`.
+- `KT-015`: reports endpoint authorization hardening is verified and delivered
+  through integration commit `7b183989`.
 
 ## Pending integration
 

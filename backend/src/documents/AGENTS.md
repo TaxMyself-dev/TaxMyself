@@ -21,7 +21,9 @@ Handles the full lifecycle of official documents the user issues (invoices, rece
 - `POST /documents/me/process-inbox` — scans a business's Drive inbox folder, OCRs new files via `DocumentProcessorService`, dedupes by content hash, auto-restores a retained soft-deleted document when identical bytes are re-uploaded, runs pairing, moves processed files.
 - Byte-identical live duplicates are recorded as `REJECTED` without another OCR
   pass and persist the user-facing rejection reason `קובץ כפול`; the diagnostic
-  `rawResponse` retains the original Drive file id.
+  `rawResponse` retains the original Drive file id. Archive projection also
+  recognizes that diagnostic on older duplicate rows whose persisted reason is
+  null, so existing records display the same reason without a data rewrite.
 - `POST /documents/me/ocr-file` — OCR a single uploaded file on demand.
 - `GET /documents/me/catalog`, `GET /documents/me/review` — build the review UI's list of extracted/matched documents.
 - `POST /documents/me/archive/:documentId` — archive a reviewed `ExtractedDocument`.
