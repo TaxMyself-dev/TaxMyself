@@ -23,6 +23,12 @@
   padding: 8px 0;
 }
 
+.table-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .table-title {
   font-size: x-large;
   margin: 18px;

@@ -16,10 +16,11 @@ import {
 import { CatalogService } from './catalog.service';
 import { CatalogContextService } from './catalog-context.service';
 import { ActivateBookingAccountDto } from './dto/activate-booking-account.dto';
+import { CreateAdminBookingAccountDto } from './dto/create-admin-booking-account.dto';
 import { UpdateAccountDto } from './dto/update-account.dto';
 import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.interface';
 import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
-import { FormPart, OwnerType } from 'src/enum';
+import { FormPart, OwnerType, RecognitionType } from 'src/enum';
 
 /**
  * Form 6111 reference-card project, Phase 2 (2026-08-13) — admin-only
@@ -62,6 +63,87 @@ export class AdminBookingAccountsController {
     // inactive row was soft-deleted and must stay out of the management
     // table even after a refresh.
     return rows.filter((row) => row.isActive || row.code.startsWith('6111-'));
+  }
+
+  /** SYSTEM sections only, for the admin add-card form. The shared D11
+   * section endpoint may also return an accountant-owned section for actors
+   * with both roles, which is not a valid parent for a SYSTEM card. */
+  @Get('sections')
+  @UseGuards(FirebaseAuthGuard)
+  async sections(@Req() request: AuthenticatedRequest) {
+    const actorFirebaseId = request.user?.actorFirebaseId ?? request.user?.firebaseId;
+    if (!actorFirebaseId) throw new UnauthorizedException('Not authenticated');
+    if (!(await this.catalogContextService.isAdmin(actorFirebaseId))) {
+      throw new ForbiddenException('רק מנהל מערכת יכול לצפות בחתכי המערכת');
+    }
+    const rows = await this.catalogService.getSections(['SYSTEM']);
+    return rows.map((section) => ({ id: section.id, code: section.code, name: section.name }));
+  }
+
+  /** Create a brand-new operational SYSTEM card (and, unless technical-only,
+   * its paired SYSTEM sub-category) from the admin catalog screen. */
+  @Post()
+  @UseGuards(FirebaseAuthGuard)
+  async create(
+    @Req() request: AuthenticatedRequest,
+    @Body() dto: CreateAdminBookingAccountDto,
+  ) {
+    const actorFirebaseId = request.user?.actorFirebaseId ?? request.user?.firebaseId;
+    if (!actorFirebaseId) throw new UnauthorizedException('Not authenticated');
+    if (!(await this.catalogContextService.isAdmin(actorFirebaseId))) {
+      throw new ForbiddenException('רק מנהל מערכת יכול להוסיף כרטיס מערכת');
+    }
+
+    const scope = this.catalogService.buildScope(OwnerType.SYSTEM, {});
+    const { account, subCategory } = await this.catalogService.createAccountWithSubCategory({
+      scope,
+      name: dto.name,
+      code: dto.code ?? null,
+      type: dto.type ?? 'expense',
+      sectionId: dto.sectionId,
+      code6111: dto.code6111 ?? null,
+      law: {
+        vatPercent: dto.vatPercent,
+        taxPercent: dto.taxPercent,
+        reductionPercent: dto.reductionPercent ?? 0,
+        isEquipment: dto.isEquipment ?? false,
+        recognitionType: dto.recognitionType ?? RecognitionType.RECOGNIZED,
+      },
+      technicalOnly: dto.technicalOnly ?? false,
+      categoryName: dto.categoryName ?? null,
+      createdByUserId: actorFirebaseId,
+      visibleBusinessTypes: dto.visibleBusinessTypes,
+    });
+
+    return {
+      account: {
+        id: account.id,
+        code: account.code,
+        name: account.name,
+        type: account.type,
+        sectionId: account.sectionId,
+        code6111: account.code6111,
+        vatPercent: account.vatPercent,
+        taxPercent: account.taxPercent,
+        reductionPercent: account.reductionPercent,
+        isEquipment: account.isEquipment,
+        recognitionType: account.recognitionType,
+        reportScope: account.reportScope,
+        ownerType: account.ownerType,
+        chartOwnerKey: account.chartOwnerKey,
+        visibleBusinessTypes: account.visibleBusinessTypes,
+      },
+      subCategory: subCategory
+        ? {
+            id: subCategory.id,
+            name: subCategory.name,
+            categoryId: subCategory.categoryId,
+            ownerType: subCategory.ownerType,
+            chartOwnerKey: subCategory.chartOwnerKey,
+            approvalStatus: subCategory.approvalStatus,
+          }
+        : null,
+    };
   }
 
   /** Edit an already-active operational SYSTEM card's law fields — reuses

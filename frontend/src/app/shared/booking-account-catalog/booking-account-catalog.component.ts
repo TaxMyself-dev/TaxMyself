@@ -13,6 +13,7 @@ import {
   IAccountUsage,
   IActivateBookingAccountPayload,
   IBlockingSubCategory,
+  ICreateAdminBookingAccountPayload,
   ICreateAccountPayload,
   FormPart,
 } from 'src/app/services/bookkeeping-catalog.service';
@@ -261,8 +262,10 @@ export class BookingAccountCatalogComponent implements OnInit, OnChanges {
   }
 
   private loadSections(): void {
-    this.catalogService
-      .getSections()
+    const request$ = this.mode === 'admin'
+      ? this.catalogService.getAdminBookingAccountSections()
+      : this.catalogService.getSections();
+    request$
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (sections) => this.sections.set(sections),
@@ -732,16 +735,10 @@ export class BookingAccountCatalogComponent implements OnInit, OnChanges {
     });
   }
 
-  // ── Add-from-scratch dialog (accountant mode only, 2026-08-17) — reuses
-  // the exact same POST bookkeeping/accounts / createAccount() path the
-  // clients-panel "כרטיס חדש" dialog uses (D11: full law + section +
-  // category, one atomic createAccountWithSubCategory call). Only the
-  // dialog UI is new — that existing flow isn't a standalone Angular
-  // component (it's inline markup/state on ClientPanelPage itself), so
-  // there was nothing to import; the backend/service path is untouched.
-  // Fixed to availableFor=CURRENT_CLIENT for this tab's own businessNumber
-  // — the ALL_MY_CLIENTS option stays exclusive to the clients-panel
-  // dialog, since this tab is already scoped to one business. ────────────
+  // ── Add-from-scratch dialog. Admin mode creates a SYSTEM card through
+  // POST admin/booking-accounts. Accountant mode preserves the D11
+  // CURRENT_CLIENT flow through POST bookkeeping/accounts. Both routes use
+  // the same atomic CatalogService.createAccountWithSubCategory boundary. ─
   showAddDialog = signal<boolean>(false);
   addingCard = signal<boolean>(false);
   addError = signal<string | null>(null);
@@ -791,7 +788,7 @@ export class BookingAccountCatalogComponent implements OnInit, OnChanges {
   submitAdd(): void {
     if (!this.isAddFormValid()) return;
     const f = this.addForm;
-    const payload: ICreateAccountPayload = {
+    const payload: ICreateAdminBookingAccountPayload = {
       name: f.name.trim(),
       code: f.code.trim() || undefined,
       sectionId: f.sectionId!,
@@ -801,16 +798,20 @@ export class BookingAccountCatalogComponent implements OnInit, OnChanges {
       taxPercent: f.taxPercent!,
       reductionPercent: f.reductionPercent ?? 0,
       isEquipment: f.isEquipment,
-      availableFor: 'CURRENT_CLIENT',
       technicalOnly: f.technicalOnly,
       categoryName: f.technicalOnly ? undefined : f.categoryName.trim(),
-      businessNumber: this.businessNumber,
       visibleBusinessTypes: f.visibleBusinessTypes,
     };
 
     this.addingCard.set(true);
-    this.catalogService
-      .createAccount(payload)
+    const request$ = this.mode === 'admin'
+      ? this.catalogService.createAdminBookingAccount(payload)
+      : this.catalogService.createAccount({
+          ...payload,
+          availableFor: 'CURRENT_CLIENT',
+          businessNumber: this.businessNumber,
+        } as ICreateAccountPayload);
+    request$
       .pipe(finalize(() => this.addingCard.set(false)), takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => {

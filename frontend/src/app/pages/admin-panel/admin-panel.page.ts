@@ -47,8 +47,7 @@ export class AdminPanelPage implements OnInit {
   tabs = [
     //{ label: 'סטטוס תשלומים', value: 'status-payments', component: StatusPaymentsComponent },
     { label: 'לוח בקרה - לקוחות', value: 'clients-dashboard', component: ClientsDashboardComponent },
-    { label: 'ניהול קטגוריות', value: 'category-management', component: CategoryManagementComponent },
-    { label: 'כרטיסי טופס 6111', value: 'booking-account-catalog', component: BookingAccountCatalogComponent },
+    { label: 'קטגוריות וכרטיסים', value: 'catalog-management', component: CategoryManagementComponent },
     { label: 'ניהול תנועות', value: 'trans-management', component: TransManagementComponent },
     { label: 'נתוני דמו', value: 'demo-data', component: DemoDataComponent },
     { label: 'קארדקום / מנויים', value: 'billing', component: AdminBillingComponent },
@@ -56,6 +55,13 @@ export class AdminPanelPage implements OnInit {
   ];
 
   selectedTab: string = 'clients-dashboard'; // Set default tab value
+
+  catalogTabs = [
+    { label: 'קטגוריות', value: 'categories', component: CategoryManagementComponent },
+    { label: 'כרטיסים', value: 'cards', component: BookingAccountCatalogComponent },
+  ];
+
+  selectedCatalogTab: 'categories' | 'cards' = 'categories';
 
   readonly buttonSize = ButtonSize;
   readonly componentButtonSize = ComponentButtonSize;
@@ -76,6 +82,10 @@ export class AdminPanelPage implements OnInit {
 
   onTabChange(newTabValue: string) {
     this.selectedTab = newTabValue;
+  }
+
+  onCatalogTabChange(newTabValue: string): void {
+    this.selectedCatalogTab = newTabValue === 'cards' ? 'cards' : 'categories';
   }
 
   onFileSelected(event: any): void {

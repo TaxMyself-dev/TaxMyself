@@ -2,14 +2,14 @@
   <div class="table-wrap">
     <div class="table-header-row">
       <p class="table-title">כרטיסי טופס 6111</p>
-      @if (mode === 'admin') {
-        <app-p-button [icon]="'pi pi-file-excel'" [buttonText]="'ייצוא לאקסל'" [buttonSize]="buttonSize.SMALL"
-          [buttonColor]="ButtonColor.BLACK" [disabled]="exportingExcel()" (onButtonClicked)="exportToExcel()"></app-p-button>
-      }
-      @if (mode === 'accountant') {
+      <div class="table-header-actions">
         <app-p-button [buttonText]="'כרטיס חדש'" [buttonSize]="buttonSize.SMALL"
           [buttonColor]="ButtonColor.BLACK" (onButtonClicked)="openAdd()"></app-p-button>
-      }
+        @if (mode === 'admin') {
+          <app-p-button [icon]="'pi pi-file-excel'" [buttonText]="'ייצוא לאקסל'" [buttonSize]="buttonSize.SMALL"
+            [buttonColor]="ButtonColor.BLACK" [disabled]="exportingExcel()" (onButtonClicked)="exportToExcel()"></app-p-button>
+        }
+      </div>
     </div>
 
     <app-filter-tab [config]="filterConfig" [parentForm]="filterForm" (apply)="onApplyFilter($event)"></app-filter-tab>
@@ -268,7 +268,7 @@
   </ng-template>
 </p-dialog>
 
-<!-- דיאלוג כרטיס חדש (מצב רו"ח בלבד) -->
+<!-- דיאלוג כרטיס חדש (SYSTEM במצב admin; CLIENT במצב רו"ח) -->
 <p-dialog header="כרטיס חדש" [visible]="showAddDialog()" [modal]="true" [style]="{ width: '520px' }" [rtl]="true"
   (onHide)="closeAddDialog()" [draggable]="false" [resizable]="false">
   <div class="dialog-form">

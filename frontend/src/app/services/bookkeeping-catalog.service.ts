@@ -143,6 +143,8 @@ export interface ICreateAccountPayload {
   visibleBusinessTypes: BusinessFieldType[];
 }
 
+export type ICreateAdminBookingAccountPayload = Omit<ICreateAccountPayload, 'availableFor' | 'businessNumber'>;
+
 export type FormPart = 'A' | 'B' | 'C';
 
 /** GET admin/booking-accounts query filters (Form 6111 reference-card
@@ -310,6 +312,18 @@ export class BookkeepingCatalogService {
     if (filters.isActive !== undefined) params = params.set('isActive', String(filters.isActive));
     if (filters.search?.trim()) params = params.set('search', filters.search.trim());
     return this.http.get<IBookingAccountRow[]>(url, { params });
+  }
+
+  /** Create a new operational SYSTEM card from scratch (admin-only). */
+  createAdminBookingAccount(payload: ICreateAdminBookingAccountPayload): Observable<any> {
+    const url = `${environment.apiUrl}admin/booking-accounts`;
+    return this.http.post<any>(url, payload);
+  }
+
+  /** SYSTEM sections valid for an admin-created SYSTEM card. */
+  getAdminBookingAccountSections(): Observable<IAccountingSectionOption[]> {
+    const url = `${environment.apiUrl}admin/booking-accounts/sections`;
+    return this.http.get<IAccountingSectionOption[]>(url);
   }
 
   /** Edit an already-active operational SYSTEM card (admin-only; refuses

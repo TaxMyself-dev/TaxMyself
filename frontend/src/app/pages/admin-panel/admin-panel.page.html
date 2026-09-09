@@ -20,10 +20,17 @@
   <div>
   <app-clients-dashboard *ngIf="selectedTab === 'clients-dashboard'">
   </app-clients-dashboard>
-  <app-category-management *ngIf="selectedTab === 'category-management'">
-  </app-category-management>
-  <app-booking-account-catalog *ngIf="selectedTab === 'booking-account-catalog'" mode="admin">
-  </app-booking-account-catalog>
+  <section *ngIf="selectedTab === 'catalog-management'" class="catalog-management">
+    <app-tab-bar
+      [tabs]="catalogTabs"
+      [selectedTab]="selectedCatalogTab"
+      (selectedTabChange)="onCatalogTabChange($event)">
+    </app-tab-bar>
+    <app-category-management *ngIf="selectedCatalogTab === 'categories'">
+    </app-category-management>
+    <app-booking-account-catalog *ngIf="selectedCatalogTab === 'cards'" mode="admin">
+    </app-booking-account-catalog>
+  </section>
   <app-trans-management *ngIf="selectedTab === 'trans-management'"></app-trans-management>
   <app-demo-data *ngIf="selectedTab === 'demo-data'"></app-demo-data>
   <app-admin-billing *ngIf="selectedTab === 'billing'"></app-admin-billing>
