@@ -1,81 +1,109 @@
-<div class="presentation-toolbar">
-  <button type="button" class="toolbar-button" (click)="closeGuide.emit()">
-    <ion-icon name="close-outline"></ion-icon>
-    חזרה לתוכן
-  </button>
-  <div class="presentation-toolbar__title">הדרכה לעצמאים</div>
-  <div class="presentation-toolbar__counter">{{ currentSlideIndex + 1 }} / {{ slides.length }}</div>
-</div>
-<div class="slide-frame" aria-live="polite">
-  <article class="slide" [ngClass]="'slide--' + currentSlide.layout">
-    <img class="slide__logo" src="/assets/login_logo.svg" alt="KeepInTax" />
+<section class="presentation" #presentationRoot>
+  <div class="presentation-toolbar">
+    <button type="button" class="toolbar-button" (click)="closeGuide.emit()">
+      <ion-icon name="close-outline"></ion-icon>
+      חזרה לתוכן
+    </button>
+    <div class="presentation-toolbar__title">הדרכה לעצמאים</div>
+    <div class="presentation-toolbar__actions">
+      <button type="button" class="toolbar-button toolbar-button--fullscreen" (click)="toggleFullscreen()">
+        <ion-icon [name]="isFullscreen ? 'contract-outline' : 'expand-outline'"></ion-icon>
+        {{ isFullscreen ? 'יציאה ממסך מלא' : 'מסך מלא' }}
+      </button>
+      <span class="presentation-toolbar__counter">{{ currentSlideIndex + 1 }} / {{ slides.length }}</span>
+    </div>
+  </div>
 
-    @switch (currentSlide.layout) {
-      @case ('cover') {
-        <div class="cover-copy">
-          <span class="slide__eyebrow">{{ currentSlide.eyebrow }}</span>
-          <h2>{{ currentSlide.title }}</h2>
-          <p>{{ currentSlide.subtitle }}</p>
-        </div>
-        <div class="cover-art" aria-hidden="true"></div>
-      }
+  <div class="slide-frame" aria-live="polite">
+    <article class="slide" [ngClass]="'slide--' + currentSlide.layout">
+      <img class="slide__logo" src="/assets/login_logo.svg" alt="KeepInTax" />
 
-      @case ('numbers') {
-        <header class="slide__header">
-          <span class="slide__eyebrow">{{ currentSlide.eyebrow }}</span>
-          <h2>{{ currentSlide.title }}</h2>
-        </header>
-        <div class="number-line">
-          @for (item of currentSlide.items; track item.label; let i = $index) {
-            <div class="number-item">
-              <span class="number-item__index">0{{ i + 1 }}</span>
-              <strong>{{ item.label }}</strong>
-              <span>{{ item.description }}</span>
-            </div>
-          }
-        </div>
-        <p class="slide__takeaway">{{ currentSlide.takeaway }}</p>
-      }
+      @switch (currentSlide.layout) {
+        @case ('cover') {
+          <div class="cover-copy">
+            <span class="slide__eyebrow">{{ currentSlide.eyebrow }}</span>
+            <h2>{{ currentSlide.title }}</h2>
+            <p>{{ currentSlide.subtitle }}</p>
+          </div>
+          <div class="cover-art" aria-hidden="true"></div>
+        }
 
-      @case ('definitions') {
-        <header class="slide__header">
-          <span class="slide__eyebrow">{{ currentSlide.eyebrow }}</span>
-          <h2>{{ currentSlide.title }}</h2>
-        </header>
-        <div class="definition-list">
-          @for (item of currentSlide.items; track item.label; let i = $index) {
-            <div class="definition-item">
-              <span class="definition-item__number">{{ i + 1 }}</span>
-              <div>
+        @case ('business-types') {
+          <header class="slide__header">
+            <span class="slide__eyebrow">{{ currentSlide.eyebrow }}</span>
+            <h2>{{ currentSlide.title }}</h2>
+          </header>
+          <div class="business-types">
+            @for (item of currentSlide.items; track item.label) {
+              <div class="business-type-card">
+                <span>{{ item.category }}</span>
                 <strong>{{ item.label }}</strong>
                 <p>{{ item.description }}</p>
               </div>
+            }
+          </div>
+          <footer class="slide-footer">
+            <p>{{ currentSlide.takeaway }}</p>
+            <div class="slide-sources">
+              @for (source of currentSlide.sources; track source.url) {
+                <a [href]="source.url" target="_blank" rel="noopener noreferrer">{{ source.label }}</a>
+              }
             </div>
-          }
-        </div>
-        <div class="definition-footer">
-          <p>{{ currentSlide.takeaway }}</p>
-          @if (currentSlide.sourceUrl) {
-            <a [href]="currentSlide.sourceUrl" target="_blank" rel="noopener noreferrer">
-              {{ currentSlide.sourceLabel }}
-            </a>
-          }
-        </div>
-      }
-    }
-  </article>
-</div>
+          </footer>
+        }
 
-<div class="presentation-controls">
-  <button type="button" class="nav-button nav-button--secondary" (click)="previousSlide()" [disabled]="currentSlideIndex === 0">
-    <ion-icon name="arrow-forward-outline"></ion-icon>
-    הקודם
-  </button>
-  <div class="progress-track" aria-hidden="true">
-    <span [style.width.%]="progressPercent"></span>
+        @case ('authorities') {
+          <header class="slide__header">
+            <span class="slide__eyebrow">{{ currentSlide.eyebrow }}</span>
+            <h2>{{ currentSlide.title }}</h2>
+          </header>
+          <div class="authority-list">
+            @for (item of currentSlide.items; track item.label; let i = $index) {
+              <div class="authority-card">
+                <span class="authority-card__number">0{{ i + 1 }}</span>
+                <span class="authority-card__category">{{ item.category }}</span>
+                <strong>{{ item.label }}</strong>
+                <p>{{ item.description }}</p>
+              </div>
+            }
+          </div>
+          <p class="authority-takeaway">{{ currentSlide.takeaway }}</p>
+        }
+
+        @case ('obligations') {
+          <header class="slide__header slide__header--compact">
+            <span class="slide__eyebrow">{{ currentSlide.eyebrow }}</span>
+            <h2>{{ currentSlide.title }}</h2>
+            <p>{{ currentSlide.subtitle }}</p>
+          </header>
+          <div class="obligation-grid">
+            <div class="obligation-grid__corner">סוג העסק</div>
+            <div class="obligation-grid__heading">מס הכנסה</div>
+            <div class="obligation-grid__heading">מע״מ</div>
+            <div class="obligation-grid__heading">ביטוח לאומי</div>
+            @for (item of currentSlide.obligations; track item.businessType) {
+              <div class="obligation-grid__business">{{ item.businessType }}</div>
+              <div>{{ item.incomeTax }}</div>
+              <div>{{ item.vat }}</div>
+              <div>{{ item.nationalInsurance }}</div>
+            }
+          </div>
+          <footer class="slide-footer slide-footer--obligations">
+            <p>{{ currentSlide.takeaway }}</p>
+            <div class="slide-sources">
+              @for (source of currentSlide.sources; track source.url) {
+                <a [href]="source.url" target="_blank" rel="noopener noreferrer">{{ source.label }}</a>
+              }
+            </div>
+          </footer>
+        }
+      }
+    </article>
   </div>
-  <button type="button" class="nav-button nav-button--primary" (click)="nextSlide()" [disabled]="currentSlideIndex === slides.length - 1">
-    הבא
-    <ion-icon name="arrow-back-outline"></ion-icon>
-  </button>
-</div>
+
+  <div class="presentation-controls">
+    <button type="button" class="nav-button nav-button--secondary" (click)="previousSlide()" [disabled]="currentSlideIndex === 0">הקודם</button>
+    <div class="progress-track" aria-hidden="true"><span [style.width.%]="progressPercent"></span></div>
+    <button type="button" class="nav-button nav-button--primary" (click)="nextSlide()" [disabled]="currentSlideIndex === slides.length - 1">הבא</button>
+  </div>
+</section>

@@ -14,7 +14,8 @@ describe('SelfEmployedGuideComponent', () => {
     component.nextSlide();
     component.nextSlide();
     component.nextSlide();
-    expect(component.currentSlideIndex).toBe(2);
+    component.nextSlide();
+    expect(component.currentSlideIndex).toBe(3);
   });
 
   it('uses RTL keyboard navigation', () => {
@@ -23,5 +24,20 @@ describe('SelfEmployedGuideComponent', () => {
 
     component.onKeydown(new KeyboardEvent('keydown', { key: 'ArrowRight' }));
     expect(component.currentSlideIndex).toBe(0);
+  });
+
+  it('presents the requested introductory sequence', () => {
+    expect(component.slides.map(slide => slide.id)).toEqual([
+      'cover',
+      'business-types',
+      'tax-authorities',
+      'obligations-map',
+    ]);
+    expect(component.slides[1].items?.map(item => item.label)).toEqual([
+      'בעל עסק זעיר',
+      'עוסק פטור',
+      'עוסק מורשה',
+      'חברה',
+    ]);
   });
 });

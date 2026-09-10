@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, EventEmitter, HostListener, Output } from '@angular/core';
+import { Component, ElementRef, EventEmitter, HostListener, Output, ViewChild } from '@angular/core';
 import { IonicModule } from '@ionic/angular';
 import { GuideSlide, SELF_EMPLOYED_GUIDE_SLIDES } from './self-employed-guide.content';
 
@@ -12,9 +12,11 @@ import { GuideSlide, SELF_EMPLOYED_GUIDE_SLIDES } from './self-employed-guide.co
 })
 export class SelfEmployedGuideComponent {
   @Output() closeGuide = new EventEmitter<void>();
+  @ViewChild('presentationRoot') presentationRoot?: ElementRef<HTMLElement>;
 
   readonly slides = SELF_EMPLOYED_GUIDE_SLIDES;
   currentSlideIndex = 0;
+  isFullscreen = false;
 
   get currentSlide(): GuideSlide {
     return this.slides[this.currentSlideIndex];
@@ -36,6 +38,23 @@ export class SelfEmployedGuideComponent {
     }
   }
 
+  async toggleFullscreen(): Promise<void> {
+    if (document.fullscreenElement) {
+      await document.exitFullscreen();
+      return;
+    }
+
+    const presentation = this.presentationRoot?.nativeElement;
+    if (presentation?.requestFullscreen) {
+      await presentation.requestFullscreen();
+    }
+  }
+
+  @HostListener('document:fullscreenchange')
+  onFullscreenChange(): void {
+    this.isFullscreen = Boolean(document.fullscreenElement);
+  }
+
   @HostListener('window:keydown', ['$event'])
   onKeydown(event: KeyboardEvent): void {
     if (event.key === 'ArrowLeft') {
@@ -44,7 +63,7 @@ export class SelfEmployedGuideComponent {
     } else if (event.key === 'ArrowRight') {
       this.previousSlide();
       event.preventDefault();
-    } else if (event.key === 'Escape') {
+    } else if (event.key === 'Escape' && !document.fullscreenElement) {
       this.closeGuide.emit();
     }
   }

@@ -8,15 +8,15 @@ Internal admin console (tabbed) for staff to manage clients dashboard, the unifi
 - `admin-documentation.component.*` — documentation-center shell: module cards, full-text search, active module/topic state, and the structured content model for accounting, open banking, and billing.
 - `documentation-topic.component.*` — responsive topic reader: topic navigation, behavior cards, flow diagram, callouts, and edge-case notes. Split from the shell to keep each lazy component stylesheet below the Angular component-style budget.
 - `admin-content.component.*` — admin content hub and guide launcher.
-- `self-employed-guide.component.*` — RTL 16:9 presentation viewer. The initial `הדרכה לעצמאים` guide supports button and keyboard navigation; it is separate from the hub to keep component styles within the Angular budget.
-- `self-employed-guide.content.ts` / `self-employed-guide.figures.ts` — slide copy and centrally maintained year-specific figures/source metadata. Update changing tax figures here rather than hard-coding them in the presentation template.
+- `self-employed-guide.component.*` — RTL 16:9 presentation viewer. The initial `הדרכה לעצמאים` guide supports button and keyboard navigation plus a fullscreen mode that keeps the controls visible; it is separate from the hub to keep component styles within the Angular budget.
+- `self-employed-guide.content.ts` / `self-employed-guide.figures.ts` — slide copy, official source links, and centrally maintained year-specific figures. The opening sequence deliberately distinguishes VAT status (`פטור`/`מורשה`), the Income Tax `בעל עסק זעיר` route, and company legal form; update changing tax figures in the figures file rather than hard-coding them in the presentation template.
 
 ## Main flows
 - Switch between top-level tabs; categories and booking cards share one catalog-management tab with a second nested tab bar.
 - In the nested Cards tab, administer SYSTEM cards and create a new SYSTEM card (plus its paired SYSTEM sub-category unless marked technical-only).
 - Open a SHAAM invoice-approval dialog and show a success toast with the returned confirmation number.
 - Browse/search operational documentation across the three main modules and switch between their sub-topics without leaving the admin panel.
-- Open the Content tab, launch the self-employed guide, and move between HTML slides with on-screen controls or the RTL keyboard mapping (left arrow advances, right arrow returns, Escape closes).
+- Open the Content tab, launch the self-employed guide, move between HTML slides with on-screen controls or the RTL keyboard mapping (left arrow advances, right arrow returns, Escape closes), and optionally present the guide fullscreen.
 
 ## Related topics
 - Frontend shared: `clients-dashboard`, `category-management`, `booking-account-catalog`, `trans-management`, `demo-data`, `admin-billing`.
