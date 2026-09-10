@@ -1,6 +1,6 @@
 # Primary manager state
 
-Last reviewed: 2026-09-09
+Last reviewed: 2026-09-10
 
 ## Integration baseline
 
@@ -20,10 +20,13 @@ Last reviewed: 2026-09-09
   delivered to `origin/main` through `bb784bae`.
 - `KT-017`: admin educational-content pilot with the first three self-employed
   guide slides is verified and delivered to `origin/main` through `5cd8012b`.
+- `KT-018`: refined self-employed guide opening sequence is verified and
+  delivered to `origin/main` through `5a099fb2`.
 
 ## Pending integration
 
-- None from worker worktrees.
+- `KT-019`: VAT report attachment parity is integrated and verified on
+  `codex/integration`; normal push to `origin/main` is pending.
 
 ## Open decisions
 
@@ -34,4 +37,5 @@ Last reviewed: 2026-09-09
 
 ## Next step
 
-Visually verify KT-016 and KT-017 in dev; no production deployment was performed.
+Push KT-019, then visually verify Drive and manual expense attachments in the
+VAT report. No production deployment was performed.
