@@ -564,8 +564,18 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   }
 
   showAttachButton(row: IRowDataTable): boolean {
-    // Show attach button if there's no server file (only for new attachments)
-    return !(row['file'] && row['file'] !== '' && row['file'] !== null);
+    // Show attach only when neither the legacy Firebase path nor a Drive
+    // source-document link exists.
+    return !this.hasStoredFile(row);
+  }
+
+  hasStoredFile(row?: IRowDataTable): boolean {
+    if (!row) return false;
+
+    const file = row['file'];
+    const hasLegacyFile = typeof file === 'string' && file.trim() !== '';
+    const hasSourceDocument = Number(row['sourceDocumentId'] ?? 0) > 0;
+    return hasLegacyFile || hasSourceDocument;
   }
 
   hasFileAttached(row?: IRowDataTable): boolean {

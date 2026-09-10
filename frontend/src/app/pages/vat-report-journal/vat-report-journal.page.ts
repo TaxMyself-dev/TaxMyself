@@ -22,6 +22,7 @@ import { ReportPreviewCheck, ReportReviewService } from 'src/app/services/report
 import { DriveDocsService } from 'src/app/services/drive-docs.service';
 import { FilterField } from 'src/app/components/filter-tab/filter-fields-model.component';
 import { resolveVatReportBusinessNumber } from 'src/app/shared/vat-report-eligibility';
+import { ExpenseDataService } from 'src/app/services/expense-data.service';
 
 
 @Component({
@@ -35,6 +36,7 @@ export class VatReportJournalPage implements OnInit {
   private gs = inject(GenericService);
   private fb = inject(FormBuilder);
   private destroyRef = inject(DestroyRef);
+  private expenseDataService = inject(ExpenseDataService);
 
   confirmationService = inject(ConfirmationService);
   private reportReviewService = inject(ReportReviewService);
@@ -75,7 +77,7 @@ export class VatReportJournalPage implements OnInit {
   readonly reportingPeriodType = ReportingPeriodType;
   readonly UPLOAD_FILE_FIELD_NAME = 'fileName';
   readonly UPLOAD_FILE_FIELD_FIREBASE = 'firebaseFile';
-  readonly COLUMNS_TO_IGNORE = ['businessNumber', 'id', 'file', 'transId', 'vatReportingDate', 'firebaseFile', 'fileName'];
+  readonly COLUMNS_TO_IGNORE = ['businessNumber', 'id', 'file', 'sourceDocumentId', 'sourceDocumentFileName', 'transId', 'vatReportingDate', 'firebaseFile', 'fileName'];
   readonly ACTIONS_TO_IGNORE = ['preview']
 
   years: number[] = Array.from({ length: 15 }, (_, i) => new Date().getFullYear() - i);
@@ -344,13 +346,40 @@ export class VatReportJournalPage implements OnInit {
   }
 
   onPreviewFileClicked(expense: IRowDataTable): void {
-    if (!(expense.file === undefined || expense.file === "" || expense.file === null)) {
+    if (this.hasManualFile(expense)) {
       this.filesService.previewFile(expense.file as string).subscribe();
+      return;
+    }
 
+    if (this.hasSourceDocument(expense)) {
+      const expenseId = Number(expense.id);
+      this.genericService.getLoader().subscribe();
+      this.expenseDataService.getSourceDocumentFile(expenseId)
+        .pipe(
+          catchError((error) => {
+            console.error('Error previewing source Drive document:', error);
+            this.messageService.add({
+              severity: 'error',
+              summary: 'שגיאה',
+              detail: 'לא ניתן לפתוח את מסמך המקור',
+              life: 3000,
+              key: 'br'
+            });
+            return EMPTY;
+          }),
+          finalize(() => this.genericService.dismissLoader())
+        )
+        .subscribe((blob) => this.filesService.previewFile1(blob));
+      return;
     }
-    else {
-      alert("לא נשמר קובץ עבור הוצאה זו")
-    }
+
+    this.messageService.add({
+      severity: 'info',
+      summary: 'אין קובץ',
+      detail: 'לא נשמר קובץ עבור הוצאה זו',
+      life: 3000,
+      key: 'br'
+    });
   }
 
   onSubmit(formValues: any): void {
@@ -878,6 +907,8 @@ export class VatReportJournalPage implements OnInit {
       } = row;
       if (row.file != undefined && row.file != null && row.file != '') {
         tableData[this.UPLOAD_FILE_FIELD_NAME] = row.file;
+      } else if (this.hasSourceDocument(row)) {
+        tableData[this.UPLOAD_FILE_FIELD_NAME] = row.sourceDocumentFileName || 'מסמך מקור';
       }
       rows.push(tableData);
     });
@@ -1096,8 +1127,46 @@ export class VatReportJournalPage implements OnInit {
   }
 
   onDownloadFile(row: IRowDataTable): void {
-    console.log("Download file for row:", row);
-    this.filesService.downloadFirebaseFile(row.file as string)
+    if (this.hasManualFile(row)) {
+      void this.filesService.downloadFirebaseFile(row.file as string);
+      return;
+    }
+
+    if (!this.hasSourceDocument(row)) {
+      return;
+    }
+
+    const expenseId = Number(row.id);
+    const fileName = String(row.sourceDocumentFileName || `expense-${expenseId}`);
+    this.genericService.getLoader().subscribe();
+    this.expenseDataService.getSourceDocumentFile(expenseId)
+      .pipe(
+        catchError((error) => {
+          console.error('Error downloading source Drive document:', error);
+          this.messageService.add({
+            severity: 'error',
+            summary: 'שגיאה',
+            detail: 'לא ניתן להוריד את מסמך המקור',
+            life: 3000,
+            key: 'br'
+          });
+          return EMPTY;
+        }),
+        finalize(() => this.genericService.dismissLoader())
+      )
+      .subscribe((blob) => this.filesService.downloadFile(fileName, blob));
+  }
+
+  private hasManualFile(row: IRowDataTable): boolean {
+    return typeof row?.file === 'string' && row.file.trim() !== '';
+  }
+
+  private hasSourceDocument(row: IRowDataTable): boolean {
+    return Number(row?.sourceDocumentId ?? 0) > 0 && Number(row?.id ?? 0) > 0;
+  }
+
+  private hasStoredFile(row: IRowDataTable): boolean {
+    return this.hasManualFile(row) || this.hasSourceDocument(row);
   }
 
   private setFileActions(): void {
@@ -1106,6 +1175,7 @@ export class VatReportJournalPage implements OnInit {
         name: 'preview',
         icon: 'pi pi-eye',
         title: 'צפה בקובץ',
+        showWhen: (row: IRowDataTable) => this.hasStoredFile(row),
         action: (event: any, row: IRowDataTable) => {
           this.onPreviewFileClicked(row);
         }
@@ -1114,6 +1184,7 @@ export class VatReportJournalPage implements OnInit {
         name: 'download',
         icon: 'pi pi-download',
         title: 'הורד קובץ',
+        showWhen: (row: IRowDataTable) => this.hasStoredFile(row),
         action: (event: any, row: IRowDataTable) => {
           this.onDownloadFile(row);
         }
@@ -1122,7 +1193,7 @@ export class VatReportJournalPage implements OnInit {
         name: 'edit',
         icon: 'pi pi-pencil',
         title: 'ערוך קובץ (החלף)',
-        showWhen: () => this.canManageExpenses(),
+        showWhen: (row: IRowDataTable) => this.canManageExpenses() && this.hasManualFile(row),
         action: (fileInput: HTMLInputElement, row: IRowDataTable) => {
           this.confirmationService.confirm({
             message: 'האם אתה בטוח שאתה רוצה להחליף את הקובץ הקיים?',
@@ -1151,7 +1222,7 @@ export class VatReportJournalPage implements OnInit {
         name: 'delete',
         icon: 'pi pi-trash',
         title: 'מחק קובץ',
-        showWhen: () => this.canManageExpenses(),
+        showWhen: (row: IRowDataTable) => this.canManageExpenses() && this.hasManualFile(row),
         action: (event: any, row: IRowDataTable) => {
           this.confirmationService.confirm({
             message: 'האם אתה בטוח שאתה רוצה למחוק את הקובץ?',

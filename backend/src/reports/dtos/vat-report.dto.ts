@@ -18,6 +18,8 @@ export interface VatInputBreakdownRow {
     taxPercent: number;
     isEquipment: boolean;
     file: string | null;
+    sourceDocumentId: number | null;
+    sourceDocumentFileName: string | null;
     journalEntryId: number;
     journalLineId: number;
     manualJournalEntry: boolean;

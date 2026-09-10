@@ -447,8 +447,7 @@
       }
       }
       }
-      @if (hoveredRowInfo()?.row?.['file'] && hoveredRowInfo()?.row?.['file'] !== '' && hoveredRowInfo()?.row?.['file']
-      !== null) {
+      @if (hasStoredFile(hoveredRowInfo()?.row)) {
       @for (action of fileActions(); track action.name) {
       @if (shouldShowFileAction(action)) {
       <app-p-button [icon]="action.icon" [iconOnly]="true"

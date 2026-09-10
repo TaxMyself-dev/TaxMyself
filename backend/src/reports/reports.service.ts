@@ -35,6 +35,7 @@ import { SlimTransaction } from 'src/transactions/slim-transaction.entity';
 import { FullTransactionCache } from 'src/transactions/full-transaction-cache.entity';
 import { VATReportingType, ExpenseReportScope, ExpenseApprovalStatus } from 'src/enum';
 import { DepreciationService } from '../depreciation/depreciation.service';
+import { ExtractedDocument } from '../documents/extracted-document.entity';
 
 /** Maps referenceType strings → Hebrew label for the כרטסת סוג תנועה column. */
 const LEDGER_MOVEMENT_LABELS: Record<string, string> = {
@@ -493,6 +494,11 @@ export class ReportsService {
          AND CAST(expense.businessNumber AS BINARY) = CAST(je.issuerBusinessNumber AS BINARY)
          AND CAST(expense.userId AS BINARY) = CAST(je.firebaseId AS BINARY)`,
       )
+      .leftJoin(
+        ExtractedDocument,
+        'sourceDocument',
+        'sourceDocument.id = expense.sourceDocumentId',
+      )
       .where('je.issuerBusinessNumber = :businessNumber', { businessNumber })
       .andWhere('je.firebaseId = :firebaseId', { firebaseId })
       .andWhere("jl.accountCode = '2410'");
@@ -511,6 +517,8 @@ export class ReportsService {
       .addSelect('COALESCE(expense.taxPercentSnapshot, 0)', 'taxPercent')
       .addSelect('COALESCE(jl.isEquipment, expense.isEquipmentSnapshot, 0)', 'isEquipment')
       .addSelect('expense.file', 'file')
+      .addSelect('expense.sourceDocumentId', 'sourceDocumentId')
+      .addSelect('sourceDocument.driveFileName', 'sourceDocumentFileName')
       .addSelect('je.id', 'journalEntryId')
       .addSelect('jl.id', 'journalLineId')
       .orderBy('COALESCE(expense.date, je.date)', 'ASC')
@@ -531,6 +539,8 @@ export class ReportsService {
         taxPercent: Number(row.taxPercent) || 0,
         isEquipment: !!Number(row.isEquipment),
         file: row.file ?? null,
+        sourceDocumentId: row.sourceDocumentId == null ? null : Number(row.sourceDocumentId),
+        sourceDocumentFileName: row.sourceDocumentFileName ?? null,
         journalEntryId: Number(row.journalEntryId),
         journalLineId: Number(row.journalLineId),
         manualJournalEntry: row.expenseId == null,

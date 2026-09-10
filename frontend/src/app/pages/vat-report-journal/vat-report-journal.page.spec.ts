@@ -18,6 +18,8 @@ import {
 import { TransactionsService } from '../transactions/transactions.page.service';
 import { VatReportJournalService } from './vat-report-journal.service';
 import { VatReportJournalPage } from './vat-report-journal.page';
+import { ExpenseDataService } from 'src/app/services/expense-data.service';
+import { of } from 'rxjs';
 
 const business = (
   businessNumber: string,
@@ -35,6 +37,9 @@ describe('VatReportJournalPage business selection', () => {
   let component: VatReportJournalPage;
   let router: jasmine.SpyObj<Router>;
   let messages: jasmine.SpyObj<MessageService>;
+  let files: jasmine.SpyObj<FilesService>;
+  let expenseData: jasmine.SpyObj<ExpenseDataService>;
+  let genericService: any;
   const businesses = signal<Business[]>([]);
   const eligibleBusinesses = computed(() => getVatReportEligibleBusinesses(businesses()));
   const eligibleOptions = computed(() => getVatReportBusinessSelectItems(businesses()));
@@ -43,6 +48,26 @@ describe('VatReportJournalPage business selection', () => {
     router = jasmine.createSpyObj<Router>('Router', ['navigate']);
     router.navigate.and.resolveTo(true);
     messages = jasmine.createSpyObj<MessageService>('MessageService', ['add']);
+    files = jasmine.createSpyObj<FilesService>('FilesService', [
+      'previewFile',
+      'previewFile1',
+      'downloadFirebaseFile',
+      'downloadFile',
+    ]);
+    files.previewFile.and.returnValue(of(undefined));
+    expenseData = jasmine.createSpyObj<ExpenseDataService>('ExpenseDataService', [
+      'getSourceDocumentFile',
+    ]);
+    genericService = {
+      businesses: businesses.asReadonly(),
+      vatReportEligibleBusinesses: eligibleBusinesses,
+      vatReportBusinessSelectItems: eligibleOptions,
+      loadBusinessesFromServer: jasmine.createSpy('loadBusinessesFromServer').and.resolveTo(),
+      getDefaultMonthValue: () => '1',
+      getDefaultPeriodConfig: (defaults: unknown) => defaults,
+      getLoader: jasmine.createSpy('getLoader').and.returnValue(of(undefined)),
+      dismissLoader: jasmine.createSpy('dismissLoader'),
+    };
 
     await TestBed.configureTestingModule({
       declarations: [VatReportJournalPage],
@@ -50,14 +75,7 @@ describe('VatReportJournalPage business selection', () => {
         FormBuilder,
         {
           provide: GenericService,
-          useValue: {
-            businesses: businesses.asReadonly(),
-            vatReportEligibleBusinesses: eligibleBusinesses,
-            vatReportBusinessSelectItems: eligibleOptions,
-            loadBusinessesFromServer: jasmine.createSpy('loadBusinessesFromServer').and.resolveTo(),
-            getDefaultMonthValue: () => '1',
-            getDefaultPeriodConfig: (defaults: unknown) => defaults,
-          },
+          useValue: genericService,
         },
         {
           provide: AuthService,
@@ -74,7 +92,8 @@ describe('VatReportJournalPage business selection', () => {
         { provide: ConfirmationService, useValue: {} },
         { provide: ReportReviewService, useValue: {} },
         { provide: DateService, useValue: {} },
-        { provide: FilesService, useValue: {} },
+        { provide: FilesService, useValue: files },
+        { provide: ExpenseDataService, useValue: expenseData },
         { provide: VatReportJournalService, useValue: {} },
         { provide: ModalController, useValue: {} },
         { provide: TransactionsService, useValue: {} },
@@ -147,5 +166,49 @@ describe('VatReportJournalPage business selection', () => {
       'licensed',
       'company',
     ]);
+  });
+
+  it('marks Drive-linked VAT rows as attached while preserving manual-file priority', () => {
+    (component as any).setVatReportRows([
+      {
+        id: 1,
+        totalVatPayable: 10,
+        file: 'expenses/manual.pdf',
+        sourceDocumentId: 11,
+        sourceDocumentFileName: 'drive-a.pdf',
+      },
+      {
+        id: 2,
+        totalVatPayable: 20,
+        file: '',
+        sourceDocumentId: 12,
+        sourceDocumentFileName: 'drive-b.pdf',
+      },
+    ]);
+
+    expect(component.rows[0].fileName).toBe('expenses/manual.pdf');
+    expect(component.rows[1].fileName).toBe('drive-b.pdf');
+  });
+
+  it('previews the Drive source document when no manual file exists', () => {
+    const blob = new Blob(['pdf'], { type: 'application/pdf' });
+    expenseData.getSourceDocumentFile.and.returnValue(of(blob));
+
+    component.onPreviewFileClicked({ id: 17, file: '', sourceDocumentId: 42 });
+
+    expect(expenseData.getSourceDocumentFile).toHaveBeenCalledWith(17);
+    expect(files.previewFile1).toHaveBeenCalledWith(blob);
+    expect(files.previewFile).not.toHaveBeenCalled();
+  });
+
+  it('keeps the manual file as the preview source when both links exist', () => {
+    component.onPreviewFileClicked({
+      id: 17,
+      file: 'expenses/manual.pdf',
+      sourceDocumentId: 42,
+    });
+
+    expect(files.previewFile).toHaveBeenCalledWith('expenses/manual.pdf');
+    expect(expenseData.getSourceDocumentFile).not.toHaveBeenCalled();
   });
 });
