@@ -3,6 +3,132 @@
 תאריך: 30.08.2026  
 סטטוס: תכנית מוצר וארכיטקטורה — טרם מומשה
 
+## 0. מסגרת ביצוע מאומתת ל-KT-020
+
+עודכן ואומת מול הקוד הקיים ב-10.09.2026. מספור השלבים בסעיף זה הוא
+מספור הביצוע המחייב של KT-020 וגובר, לצורך הביצוע בלבד, על הערכת השלבים
+המקורית בסעיף 12. בסוף כל שלב מבוצעים review, בדיקות, תיעוד ו-commit מקומי,
+ואז עוצרים להדגמה ולאישור מפורש לפני השלב הבא.
+
+### ממצאי התאמה לקוד הקיים
+
+- `backend/src/main.ts` מבטל את body parser של Nest ושומר כיום raw body רק
+  לנתיבי Feezback. בשלב 1 יש להרחיב את ה-JSON `verify` באופן ממוקד גם לנתיב
+  `/webhooks/meta/whatsapp`, לשמור `Buffer` מדויק, ולא לבנות מחדש JSON לצורך
+  אימות חתימה.
+- `NotificationService` הוא כרגע seam מסוג best-effort/log-only. הוא מתאים
+  להיות גבול הכניסה לערוצים יוצאים, אבל עדיין אין outbox או delivery model.
+- שליחת המייל של מסמך מופק נעשית כיום ישירות מתוך
+  `DocumentsService.createDoc`, לפני commit העסקה. בשלב 4 אין להעתיק דפוס זה
+  ל-WhatsApp: בחירת הערוצים תיצור intent/outbox לאחר שהמסמך וקובץ ה-PDF
+  קיימים, וה-worker יהיה אחראי למסירה ול-retry.
+- `DocumentImportService` כבר מבצע SHA-256 dedup חוצה-ערוצים, העלאה ל-Drive
+  ופיצוי במקרה של כשל DB. אולם כאשר לא מועבר `businessNumber`,
+  `BusinessResolverService` בוחר כיום את העסק הראשי גם למשתמש רב-עסקי.
+  מתאם WhatsApp חייב לכן להעביר עסק מפורש רק לאחר זיהוי/בחירה מאומתים; אסור
+  לו להפעיל fallback זה עבור משתמש עם כמה עסקים.
+- `RecordSource.WHATSAPP` כבר שמור לשימוש עתידי בתצוגת הארכיון, אך
+  `DocumentImportSource` עדיין אינו כולל WhatsApp. הרחבת enum זה שייכת לשלב
+  5 ועלולה לשנות enum בבסיס הנתונים, ולכן היא תיכלל רק לאחר אישור הסכמה.
+- `Clients.phone`, `User.phone` ו-`Business.businessPhone` אינם הוכחת בעלות.
+  אף אחד מהם לא ישמש לבדו לקישור `wa_id` או לשיוך מסמך.
+
+### שלב 0 — תוכנית וקריטריוני קבלה
+
+- לתעד את ממצאי ההתאמה, גבולות האישור, מטריצת הבדיקות והחלטות המוצר שעדיין
+  פתוחות.
+- אין בשלב זה שינוי קוד/סכמה, קריאת Meta, webhook חי או שימוש ב-credentials.
+
+### שלב 1 — תשתית offline, ללא סכמה
+
+- להוסיף `WhatsAppModule` עצמאי ל-backend עם חוזה `WhatsAppProvider`,
+  `FakeWhatsAppProvider` ו-`MetaWhatsAppClient` מאחורי config טיפוסי.
+- `WHATSAPP_ENABLED` יהיה כבוי אלא אם ערכו בדיוק `true`, וה-fake provider
+  יהיה ברירת המחדל. בחירת Meta תחייב במפורש `WHATSAPP_PROVIDER=meta` ואת
+  ערכי הקונפיגורציה הדרושים; בניית המודול והבדיקות לא יבצעו I/O חיצוני.
+- ערכי הסוד המקומיים הם `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_APP_SECRET`
+  ו-`WHATSAPP_VERIFY_TOKEN`. ערכי config לא-סודיים הם
+  `WHATSAPP_GRAPH_API_VERSION`, `WHATSAPP_WABA_ID` ו-
+  `WHATSAPP_PHONE_NUMBER_ID`. אין להדפיס ערכים אלה, payload מלא או גוף מסמך.
+- `GET /webhooks/meta/whatsapp` יאמת `hub.mode=subscribe` ואת verify token
+  ויחזיר את `hub.challenge` בלבד. כאשר הערוץ כבוי או config חסר הוא ייכשל
+  באופן סגור ללא חשיפת פרטים.
+- `POST /webhooks/meta/whatsapp` יקבל raw `Buffer`, יאמת header בפורמט
+  `sha256=<64 hex>` באמצעות HMAC-SHA256 ו-constant-time comparison, ורק לאחר
+  הצלחה יפרש JSON. payload לא חתום/חתום שגוי לא יגיע ל-parser.
+- parser טהור ימפה envelope מסוג `whatsapp_business_account` להודעות text,
+  image, document מסוג PDF ולסטטוסים `sent`, `delivered`, `read`, `failed`
+  (וכן `deleted` כסטטוס ספק מוכר), תוך שימור `message_id`, `wa_id`,
+  `phone_number_id`, timestamp, media id, MIME/caption ושגיאות מצומצמות.
+  אירועים או message types לא מוכרים יוחזרו כ-unsupported ללא throw וללא log
+  של payload.
+- בשלב זה אין persistence, dedup durable, הורדת media, OCR/import, הודעה
+  יוצאת אמיתית, UI, outbox, support bot או שינוי `DocumentImportSource`.
+  ה-parser רק משמר את מזהי Meta הדרושים ל-idempotency עתידי.
+
+בדיקות Stage 1:
+
+- unit: config fail-closed, fake provider וללא network בעת bootstrap.
+- unit: GET challenge תקין, token/mode שגויים ו-feature flag כבוי.
+- unit: חתימה תקינה, חסרה, malformed ושגויה; אימות שה-parser לא נקרא בכשל.
+- contract: fixtures מסוננים בסגנון הדוגמאות הרשמיות של Meta עבור text,
+  image, PDF/document, mixed changes, status success/failure ו-unknown.
+- regression: raw-body capture ל-WhatsApp אינו משנה את נתיבי `/agent`,
+  Feezback, Mailgun או JSON רגיל.
+- quality gates: Jest ממוקד לכל קובצי ה-WhatsApp החדשים, בדיקת bootstrap/
+  controller ממוקדת, `npm run build` ב-backend, `git diff --check` ו-review
+  שאין secrets, URLs זמניים או payloads רגישים.
+
+### שלב 2 — Spike מול מספר הבדיקה של Meta
+
+- יתחיל רק לאחר אישור מפורש וערכי סוד שהמשתמש מגדיר מקומית, מחוץ לצ'אט
+  ומחוץ ל-Git.
+- יכסה template בדיקה, webhook נכנס, metadata+download של media וסטטוסי
+  מסירה. הוא לא ישנה production ולא ישמור media URL זמני.
+
+### שלב 3 — הצעת סכמה ואישור
+
+- להציע contact, message, webhook-event, outbox, delivery ו-conversation עם
+  tenant scope, unique keys, retention, audit, opt-in/out, retry/dead-letter
+  ו-idempotency.
+- אין לממש entity, migration, synchronize-driven change או cutover SQL לפני
+  אישור מפורש של הסכימה.
+
+### שלבים 4–7 — גבולות קבלה
+
+- שלב 4: email/WhatsApp/both דרך Notification/Outbox, עם סטטוסי מסירה ו-retry
+  idempotent. יצירת המסמך אינה נכשלת בגלל כשל ערוץ לאחר commit.
+- שלב 5: PDF/JPEG/PNG בלבד, זיהוי שולח מאומת, בחירה חובה בריבוי עסקים,
+  `DocumentImportService` כגבול הקליטה, dedup לפי Meta message id וגם SHA-256.
+- שלב 6: תשובות על שימוש ב-KeepInTax בלבד מתוך knowledge base מאושר; כל
+  אי-ודאות, ייעוץ מס/חשבונאות, בקשת אדם או אירוע רגיש מועברים לנציג ונרשמים
+  ב-inbox בסיסי ומבוקר.
+- שלב 7: staging ו-pilot בלבד. מספר אמיתי, callbacks חיים, credentials,
+  שירות בתשלום וכל שינוי חוזה חיצוני דורשים אישור; production אסור.
+
+### החלטות שאינן חוסמות את שלב 1
+
+הנושאים הבאים חייבים החלטה לפני השלב המצוין, אך אינם סיבה להרחיב את התשתית
+ה-offline:
+
+- לפני שלב 3: בעלות כאשר אותו מספר שייך ליותר ממשתמש אחד, retention מדויק,
+  quiet hours, גרסת נוסח opt-in והפרדת operational/marketing consent.
+- לפני שלב 4: האם שומרים גם את ההתנהגות הקיימת "צור ללא שליחה" ומהי ברירת
+  המחדל. המלצת התאימות היא להשאיר אותה, כש-email ו-WhatsApp אינם מסומנים.
+- לפני שלב 6: בעל הידע המאושר, תהליך פרסום/גרסאות, ספק המודל, כללי redaction,
+  זהות הנציגים ו-SLA להעברה אנושית.
+
+### מקורות שנבדקו מחדש
+
+- אוסף ה-Cloud API הרשמי של Meta ב-Postman, שעודכן ב-14.05.2026, עדיין מציג
+  `messages`, `templates`, `media` ו-webhook subscriptions כחלקי ה-API
+  המרכזיים ומונה את ההרשאות `whatsapp_business_messaging` ו-
+  `whatsapp_business_management`.
+- Webhook Payload Reference הרשמי עדיין משתמש ב-envelope
+  `whatsapp_business_account`, ב-field בשם `messages`, ובסטטוסי
+  `sent`/`delivered`/`read`/`failed` (וכן `deleted`).
+- גרסת Graph לא תקובע בקוד; היא תוגדר בקונפיגורציה ותאומת בפועל ב-Stage 2.
+
 ## 1. החלטה מומלצת
 
 ל-MVP מומלץ להתחבר ישירות ל-**WhatsApp Business Platform Cloud API של Meta**, עם מספר עסקי אחד ממותג של TaxMyself.
