@@ -1,0 +1,25 @@
+{
+  "object": "whatsapp_business_account",
+  "entry": [{
+    "id": "waba-test",
+    "changes": [{
+      "field": "messages",
+      "value": {
+        "metadata": { "phone_number_id": "phone-number-test" },
+        "statuses": [{
+          "id": "wamid.outbound-test",
+          "status": "delivered",
+          "timestamp": "1789000003",
+          "recipient_id": "15551112222",
+          "conversation": { "id": "conversation-test" }
+        }, {
+          "id": "wamid.failed-test",
+          "status": "failed",
+          "timestamp": "1789000004",
+          "recipient_id": "15551112222",
+          "errors": [{ "code": 131000, "title": "Fixture failure" }]
+        }]
+      }
+    }]
+  }]
+}

@@ -1,0 +1,27 @@
+{
+  "object": "whatsapp_business_account",
+  "entry": [{
+    "id": "waba-test",
+    "changes": [{
+      "field": "messages",
+      "value": {
+        "messaging_product": "whatsapp",
+        "metadata": {
+          "display_phone_number": "15550000000",
+          "phone_number_id": "phone-number-test"
+        },
+        "contacts": [{
+          "profile": { "name": "Test Customer" },
+          "wa_id": "15551112222"
+        }],
+        "messages": [{
+          "from": "15551112222",
+          "id": "wamid.text-test",
+          "timestamp": "1789000000",
+          "text": { "body": "How do I upload a document?" },
+          "type": "text"
+        }]
+      }
+    }]
+  }]
+}

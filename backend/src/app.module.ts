@@ -28,6 +28,7 @@ import { IntegrationsModule } from './integrations/integrations.module';
 import { DocumentImportModule } from './document-import/document-import.module';
 import { InboundEmailModule } from './inbound-email/inbound-email.module';
 import { InboundEmailAddress } from './inbound-email/inbound-email-address.entity';
+import { WhatsAppModule } from './whatsapp/whatsapp.module';
 //Integrations entities
 import { UserIntegration } from './integrations/entities/user-integration.entity';
 import { OauthState } from './integrations/entities/oauth-state.entity';
@@ -216,7 +217,7 @@ new Logger('Bootstrap').log(
       ReportWorkflow,
     ]),
     ScheduleModule.forRoot(),
-    HttpModule, UsersModule, ReportsModule, ExpensesModule, TransactionsModule, BusinessModule, SharedModule, FinsiteModule, MailModule, DelegationModule, DocumentsModule, ClientsModule, BookkeepingModule, FeezbackModule, ShaamModule, FeezbackWebhookModule, AccountantTasksModule, AnnualReportModule, ReportWorkflowModule, NotificationsModule, DemoDataModule, GoogleDriveModule, BillingModule, IntegrationsModule, DocumentImportModule, InboundEmailModule, DepreciationModule],
+    HttpModule, UsersModule, ReportsModule, ExpensesModule, TransactionsModule, BusinessModule, SharedModule, FinsiteModule, MailModule, DelegationModule, DocumentsModule, ClientsModule, BookkeepingModule, FeezbackModule, ShaamModule, FeezbackWebhookModule, AccountantTasksModule, AnnualReportModule, ReportWorkflowModule, NotificationsModule, DemoDataModule, GoogleDriveModule, BillingModule, IntegrationsModule, DocumentImportModule, InboundEmailModule, DepreciationModule, WhatsAppModule],
   controllers: [AppController],
   providers: [AppService, FinsiteService, MailService, DocumentsService, ClientsService, BookkeepingService, BusinessService],
 })

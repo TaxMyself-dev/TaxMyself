@@ -1,0 +1,25 @@
+{
+  "object": "whatsapp_business_account",
+  "entry": [{
+    "id": "waba-test",
+    "changes": [{
+      "field": "messages",
+      "value": {
+        "metadata": { "phone_number_id": "phone-number-test" },
+        "contacts": [{ "profile": { "name": "Test Customer" }, "wa_id": "15551112222" }],
+        "messages": [{
+          "from": "15551112222",
+          "id": "wamid.image-test",
+          "timestamp": "1789000001",
+          "type": "image",
+          "image": {
+            "caption": "Test receipt",
+            "mime_type": "image/jpeg",
+            "sha256": "fixture-sha256",
+            "id": "media-image-test"
+          }
+        }]
+      }
+    }]
+  }]
+}

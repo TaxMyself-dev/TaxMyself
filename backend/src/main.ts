@@ -5,6 +5,7 @@ import { AppModule } from './app.module';
 import * as bodyParser from 'body-parser';
 import { HttpExceptionFilter } from './filters/http-exception.filter';
 import { startupTiming } from './startup-timing';
+import { whatsappRawBodyMiddleware } from './whatsapp/whatsapp-raw-body.middleware';
 
 async function bootstrap() {
   startupTiming.mark('bootstrap.entry', 'milestone');
@@ -33,6 +34,10 @@ async function bootstrap() {
     '/webhooks/mailgun',
     bodyParser.urlencoded({ extended: false, limit: '1mb' }),
   );
+
+  // Meta signs the exact request bytes. Keep this route raw and let its
+  // controller parse JSON only after X-Hub-Signature-256 verification.
+  app.use('/webhooks/meta/whatsapp', whatsappRawBodyMiddleware());
 
   // Capture raw body for agent authentication (only for /agent routes)
   // This middleware runs only for agent routes to support HMAC signature verification
