@@ -22,11 +22,12 @@ Last reviewed: 2026-09-10
   guide slides is verified and delivered to `origin/main` through `5cd8012b`.
 - `KT-018`: refined self-employed guide opening sequence is verified and
   delivered to `origin/main` through `5a099fb2`.
+- `KT-019`: VAT report attachment parity for manual and Drive source files is
+  verified and delivered to `origin/main` through `8f1078ce`.
 
 ## Pending integration
 
-- `KT-019`: VAT report attachment parity is integrated and verified on
-  `codex/integration`; normal push to `origin/main` is pending.
+- None from worker worktrees.
 
 ## Open decisions
 
@@ -37,5 +38,5 @@ Last reviewed: 2026-09-10
 
 ## Next step
 
-Push KT-019, then visually verify Drive and manual expense attachments in the
-VAT report. No production deployment was performed.
+Visually verify Drive and manual expense attachments in the VAT report after
+deploying both backend and frontend. No production deployment was performed.
