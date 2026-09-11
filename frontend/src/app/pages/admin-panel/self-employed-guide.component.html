@@ -23,55 +23,17 @@
             <div class="cover-title" aria-label="אפשר גם אחרת">
               <span>אפשר</span><span>גם</span><span>אחרת</span>
             </div>
-            <p>{{ currentSlide.subtitle }}</p>
             <img src="/assets/login_logo.svg" alt="KeepInTax" />
           </div>
         }
 
         @case ('business-types') {
-          <header class="slide-header">
-            <h2>{{ currentSlide.title }}</h2>
-            <p>{{ currentSlide.subtitle }}</p>
-          </header>
-          <div class="business-map">
-            <div class="business-map__destination">מס הכנסה</div>
-            @for (item of currentSlide.items; track item.label) {
-              <article class="business-sign">
-                <ion-icon [name]="item.icon"></ion-icon>
-                <small>{{ item.category }}</small>
-                <strong>{{ item.label }}</strong>
-                <p>{{ item.description }}</p>
-              </article>
-            }
-          </div>
-          <p class="slide-takeaway">{{ currentSlide.takeaway }}</p>
+          <app-self-employed-opening-slide [slide]="currentSlide"></app-self-employed-opening-slide>
           <img class="slide-logo" src="/assets/login_logo.svg" alt="KeepInTax" />
         }
 
         @case ('authorities') {
-          <header class="slide-header slide-header--centered">
-            <h2>{{ currentSlide.title }}</h2>
-            <p>{{ currentSlide.subtitle }}</p>
-          </header>
-          <div class="authority-scene">
-            <div class="scientist" aria-hidden="true"><ion-icon name="search-outline"></ion-icon></div>
-            <div class="authority-lenses">
-              @for (item of currentSlide.items; track item.label) {
-                <button
-                  type="button"
-                  class="authority-lens"
-                  [class.authority-lens--available]="item.available"
-                  [disabled]="!item.available"
-                  (click)="goToSlide(item.targetSlideId)"
-                >
-                  <ion-icon [name]="item.icon"></ion-icon>
-                  <strong>{{ item.label }}</strong>
-                  <span>{{ item.category }}</span>
-                  <small>{{ item.description }}</small>
-                </button>
-              }
-            </div>
-          </div>
+          <app-self-employed-opening-slide [slide]="currentSlide" (navigate)="goToSlide($event)"></app-self-employed-opening-slide>
           <img class="slide-logo" src="/assets/login_logo.svg" alt="KeepInTax" />
         }
 

@@ -1,0 +1,15 @@
+:host { display:block; }
+.folder-scene { position:absolute; inset:11cqi 3.8cqi 5.8cqi; display:grid; grid-template-columns:.72fr repeat(3,1fr); align-items:end; gap:1.1cqi; direction:ltr; }
+.guide-character { width:100%; height:25cqi; object-fit:contain; object-position:bottom; }
+.tax-folder { position:relative; height:28cqi; padding:3.4cqi 1.3cqi 1.2cqi; border:.18cqi solid rgba(26,37,81,.12); border-radius:1.5cqi; background:#9fbafa; box-shadow:0 .9cqi 1.5cqi rgba(32,79,86,.11); text-align:center; direction:rtl; }
+.tax-folder:nth-child(3) { background:#6bd0b2; }.tax-folder:nth-child(4) { background:var(--lime); }
+.tax-folder__tab { position:absolute; top:-1.7cqi; right:1.2cqi; width:9cqi; height:2.4cqi; border-radius:.9cqi .9cqi 0 0; background:inherit; }
+.tax-folder::after { content:''; position:absolute; inset:8.5cqi 1.3cqi 1.3cqi; border-radius:1cqi; background:rgba(255,255,255,.88); z-index:0; }
+.tax-folder>* { position:relative; z-index:1; }.tax-folder ion-icon { color:var(--deep); font-size:3.8cqi; }.tax-folder strong,.tax-folder small { display:block; }.tax-folder strong { margin-top:.35cqi; font-size:2cqi; }.tax-folder small { margin-top:.2cqi; color:#526173; font-size:.9cqi; font-weight:800; }.tax-folder p { margin:2.4cqi 0 0; font-size:1.18cqi; font-weight:900; line-height:1.35; }
+.comparison-scene { position:absolute; inset:9.2cqi 3cqi 4.8cqi; display:grid; grid-template-columns:.62fr 1.1fr 1.1fr; align-items:end; gap:.8cqi; direction:ltr; }
+.comparison-scientist { width:100%; height:29cqi; object-fit:contain; object-position:bottom; }
+.identity-book { min-height:30cqi; padding:2.4cqi 2.1cqi 1.5cqi; border:.5cqi solid #7ea8ef; border-radius:1.9cqi; background:#dce9ff; box-shadow:inset -.8cqi -.5cqi 0 rgba(106,149,231,.18),0 .8cqi 1.4cqi rgba(32,79,86,.1); display:flex; flex-direction:column; align-items:center; text-align:center; direction:rtl; }
+.identity-book--micro { border-color:#8ecf55; background:#ddf898; box-shadow:inset -.8cqi -.5cqi 0 rgba(78,177,113,.16),0 .8cqi 1.4cqi rgba(32,79,86,.1); }
+.identity-book small { padding:.3cqi 1.2cqi; border-radius:999px; background:rgba(255,255,255,.68); font-size:1cqi; font-weight:800; }.identity-book ion-icon { margin-top:1cqi; color:var(--deep); font-size:4.4cqi; }.identity-book strong { margin-top:.5cqi; font-size:2.65cqi; }.identity-book p { margin:1.4cqi 0 0; padding:1.1cqi; border-radius:1cqi; background:#fffef8; font-size:1.12cqi; font-weight:800; line-height:1.35; }
+.overlap-stamp { position:absolute; top:12cqi; left:calc(62% - 3.9cqi); width:7.8cqi; height:7.8cqi; border:.35cqi solid #fff; border-radius:50%; background:#b9efda; box-shadow:0 0 0 .18cqi #67d4b1; display:grid; place-items:center; font-size:1.35cqi; font-weight:900; line-height:1.05; text-align:center; z-index:4; }
+.profession-note { position:absolute; right:-1cqi; top:13cqi; width:15cqi; padding:1.2cqi; background:#fff66b; box-shadow:0 .6cqi 1cqi rgba(32,79,86,.14); font-size:1.1cqi; font-weight:900; text-align:center; transform:rotate(4deg); direction:rtl; z-index:5; }

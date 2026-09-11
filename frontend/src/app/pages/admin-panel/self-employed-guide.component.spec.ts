@@ -56,4 +56,13 @@ describe('SelfEmployedGuideComponent', () => {
     component.goToSlide(undefined);
     expect(component.currentSlide.id).toBe('income-tax-overview');
   });
+
+  it('keeps the approved slide wording without added cover copy', () => {
+    expect(component.slides[0].title).toBe('אפשר גם אחרת');
+    expect(component.slides[0].subtitle).toBeUndefined();
+    expect(component.slides[1].title).toBe('כל השבילים מובילים למס הכנסה');
+    expect(component.slides[2].title).toBe('על שלושה גופים העולם עומד');
+    expect(component.slides[5].title).toBe('לא כל עסק קטן נכנס למסלול הזעיר');
+    expect(component.slides[6].title).toBe('שכיר וגם עצמאי? בסוף הכל נפגש');
+  });
 });

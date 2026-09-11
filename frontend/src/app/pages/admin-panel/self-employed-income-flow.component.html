@@ -1,0 +1,13 @@
+@if (slide.layout === 'micro-blockers') {
+  <div class="barrier-scene">
+    <img class="freelancer" src="/assets/self-employed-guide/young-owner-v2.png" alt="" />
+    <div class="barrier-list">@for (item of slide.items; track item.label) { <article class="barrier" [class.barrier--manual]="item.label === 'חבר קיבוץ'"><ion-icon [name]="item.icon"></ion-icon><strong>{{ item.label }}</strong></article> }</div>
+  </div>
+} @else {
+  <div class="merge-scene">
+    <article class="income-stream income-stream--salary"><h3>{{ slide.items?.[0]?.label }}</h3><div class="conveyor"><ion-icon name="document-text-outline"></ion-icon><ion-icon name="document-text-outline"></ion-icon><ion-icon name="document-text-outline"></ion-icon></div></article>
+    <article class="income-stream income-stream--business"><h3>העסק</h3><div class="profit-formula"><span>הכנסות</span><b>−</b><span>הוצאות</span><b>=</b><strong>{{ slide.items?.[1]?.label }}</strong></div><div class="conveyor"><ion-icon name="receipt-outline"></ion-icon><ion-icon name="receipt-outline"></ion-icon></div></article>
+    <article class="income-total"><strong>הכנסה חייבת כוללת</strong><div class="calculator-keys" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div></article>
+    <div class="tax-stairs-mini"><strong>מדרגות מס<br />ונקודות זיכוי</strong><i></i><i></i><i></i><i></i></div>
+  </div>
+}

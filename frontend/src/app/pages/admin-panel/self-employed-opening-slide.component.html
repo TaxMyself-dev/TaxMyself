@@ -1,0 +1,23 @@
+<section class="opening-slide" [ngClass]="'opening-slide--' + slide.layout" dir="rtl">
+  <header><h2>{{ slide.title }}</h2></header>
+
+  @if (slide.layout === 'business-types') {
+    <div class="business-landscape" aria-label="ארבעת סוגי העסקים">
+      <div class="business-road business-road--tax"></div><div class="business-road business-road--vat"></div><div class="business-road business-road--legal"></div>
+      <img class="business-owner" src="/assets/self-employed-guide/backpack-owner-v2.png" alt="" />
+      <section class="sign-group sign-group--tax"><h3>מס הכנסה</h3><article class="business-sign business-sign--micro"><ion-icon [name]="slide.items?.[0]?.icon"></ion-icon><strong>{{ slide.items?.[0]?.label }}</strong><small>{{ slide.items?.[0]?.category }}</small></article></section>
+      <section class="sign-group sign-group--vat"><h3>מע״מ</h3><div>@for (item of slide.items?.slice(1, 3); track item.label) { <article class="business-sign"><ion-icon [name]="item.icon"></ion-icon><strong>{{ item.label }}</strong><small>{{ item.category }}</small></article> }</div></section>
+      <section class="sign-group sign-group--legal"><h3>מבנה משפטי</h3><article class="business-sign business-sign--company"><ion-icon [name]="slide.items?.[3]?.icon"></ion-icon><strong>{{ slide.items?.[3]?.label }}</strong><small>{{ slide.items?.[3]?.category }}</small></article></section>
+    </div>
+    <p class="takeaway">{{ slide.takeaway }}</p>
+  } @else {
+    <div class="authority-scene">
+      <img class="scientist" src="/assets/self-employed-guide/scientist-v2.png" alt="" />
+      <div class="authority-lenses">
+        @for (item of slide.items; track item.label) {
+          <button type="button" class="authority-lens" [disabled]="!item.available" (click)="navigate.emit(item.targetSlideId)"><ion-icon [name]="item.icon"></ion-icon><strong>{{ item.label }}</strong><span>{{ item.category }}</span></button>
+        }
+      </div>
+    </div>
+  }
+</section>

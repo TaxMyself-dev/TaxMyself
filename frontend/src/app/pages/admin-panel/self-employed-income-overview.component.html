@@ -1,0 +1,17 @@
+@if (slide.layout === 'income-overview') {
+  <div class="folder-scene">
+    <img class="guide-character" src="/assets/self-employed-guide/scientist-v2.png" alt="" />
+    @for (item of slide.items; track item.label) {
+      <article class="tax-folder"><div class="tax-folder__tab"></div><ion-icon [name]="item.icon"></ion-icon><strong>{{ item.label }}</strong><small>{{ item.category }}</small><p>{{ item.description }}</p></article>
+    }
+  </div>
+} @else {
+  <div class="comparison-scene">
+    <img class="comparison-scientist" src="/assets/self-employed-guide/scientist-v2.png" alt="" />
+    @for (item of slide.items; track item.label; let i = $index) {
+      <article class="identity-book" [class.identity-book--micro]="i === 1"><small>{{ item.category }}</small><ion-icon [name]="item.icon"></ion-icon><strong>{{ item.label }}</strong><p>{{ item.description }}</p></article>
+    }
+    <div class="overlap-stamp">אפשר להיות<br />גם וגם</div>
+    <div class="profession-note">גם בעל מקצוע חופשי<br />יכול להיות בעל עסק זעיר</div>
+  </div>
+}

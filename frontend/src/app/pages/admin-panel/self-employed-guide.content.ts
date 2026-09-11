@@ -42,7 +42,6 @@ export const SELF_EMPLOYED_GUIDE_SLIDES: GuideSlide[] = [
     id: 'cover',
     layout: 'cover',
     title: 'אפשר גם אחרת',
-    subtitle: 'הדברים שכל עצמאי צריך לדעת, בלי ללכת לאיבוד בניירת.',
   },
   {
     id: 'business-types',
@@ -90,7 +89,7 @@ export const SELF_EMPLOYED_GUIDE_SLIDES: GuideSlide[] = [
       { label: 'עוסק פטור', category: 'מע״מ', description: 'המחזור עד התקרה והעיסוק אינו מקצוע שחייב עוסק מורשה.', icon: 'storefront-outline' },
       { label: 'בעל עסק זעיר', category: 'מס הכנסה', description: 'עוסק פטור או מורשה שעומד בתנאי המסלול.', icon: 'analytics-outline' },
     ],
-    takeaway: 'אפשר להיות גם וגם. גם בעל מקצוע חופשי יכול להיות בעל עסק זעיר.',
+    takeaway: `הסכום נכון לשנת ${figures.taxYear}`,
     sources: [
       { label: 'עוסק פטור', url: figures.sources.vatExemptCeiling },
       { label: 'בעל עסק זעיר', url: figures.sources.microBusiness },
@@ -99,8 +98,8 @@ export const SELF_EMPLOYED_GUIDE_SLIDES: GuideSlide[] = [
   {
     id: 'micro-blockers',
     layout: 'micro-blockers',
-    title: 'לא כל עסק קטן עובר ישר במסלול הזעיר',
-    subtitle: 'יש תנאי זכאות ויש מקרים שמצריכים טיפול ידני',
+    title: 'לא כל עסק קטן נכנס למסלול הזעיר',
+    subtitle: 'המצבים העיקריים שחוסמים את הכניסה',
     items: [
       { label: 'העסק מעסיק עובדים', description: 'המסלול הזעיר לא מתאים', icon: 'people-outline' },
       { label: 'חבר קיבוץ', description: 'תיאום המס נעשה מול פקיד השומה', icon: 'home-outline' },
@@ -117,13 +116,12 @@ export const SELF_EMPLOYED_GUIDE_SLIDES: GuideSlide[] = [
   {
     id: 'income-combination',
     layout: 'income-combination',
-    title: 'שכיר וגם עצמאי? בסוף הכול נפגש',
-    subtitle: 'מס הכנסה מסתכל על התמונה השנתית המלאה',
+    title: 'שכיר וגם עצמאי? בסוף הכל נפגש',
     items: [
       { label: 'משכורת שנתית', description: 'ההכנסה כשכיר', icon: 'person-outline' },
       { label: 'רווח מהעסק', category: 'הכנסות פחות הוצאות', description: 'ההכנסה החייבת מהעסק', icon: 'storefront-outline' },
     ],
-    takeaway: 'המס מחושב על המשכורת והרווח מהעסק יחד, לפי מדרגות המס ונקודות הזיכוי.',
+    takeaway: 'המס מחושב על המשכורת והרווח מהעסק יחד.',
     sources: [{ label: 'תיאום מס מקוון', url: figures.sources.taxCoordination }],
   },
   {
