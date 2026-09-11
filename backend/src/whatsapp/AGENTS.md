@@ -21,6 +21,10 @@ support automation.
   development and tests.
 - `meta-whatsapp.client.ts` — configuration-gated Stage-1 boundary that
   deliberately refuses network calls until the separately approved live spike.
+- `whatsapp-sandbox.controller.ts` / `whatsapp-sandbox.service.ts` —
+  development-only visual test boundary. It creates signed in-memory fixtures,
+  exercises the real parser and fake media/template provider, then discards
+  uploaded bytes before returning bounded metadata.
 
 ## Main flows
 
@@ -34,6 +38,9 @@ support automation.
 - Stage 1 has no database entities, idempotency ledger, media download,
   `DocumentImportService` call, Notification/Outbox integration, UI, or live
   external effect.
+- The local sandbox is available only when `NODE_ENV` is not `production` and
+  `WHATSAPP_SANDBOX_ENABLED=true`. It is independent of the disabled real
+  webhook feature flag, performs no external I/O, and is not a live-Meta test.
 
 ## Related topics
 

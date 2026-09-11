@@ -5,14 +5,17 @@ import { WhatsAppConfigService } from './whatsapp-config.service';
 import { WhatsAppSignatureService } from './whatsapp-signature.service';
 import { WhatsAppWebhookController } from './whatsapp-webhook.controller';
 import { WhatsAppWebhookParser } from './whatsapp-webhook.parser';
+import { WhatsAppSandboxController } from './whatsapp-sandbox.controller';
+import { WhatsAppSandboxService } from './whatsapp-sandbox.service';
 import { WHATSAPP_PROVIDER, WhatsAppProvider } from './whatsapp.types';
 
 @Module({
-  controllers: [WhatsAppWebhookController],
+  controllers: [WhatsAppWebhookController, WhatsAppSandboxController],
   providers: [
     WhatsAppConfigService,
     WhatsAppSignatureService,
     WhatsAppWebhookParser,
+    WhatsAppSandboxService,
     FakeWhatsAppProvider,
     MetaWhatsAppClient,
     {

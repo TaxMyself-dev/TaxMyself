@@ -18,6 +18,7 @@ import { AppFeature } from './shared/access-control';
 import { NetworkStatusService } from './services/pwa/network-status.service';
 import { AppRefreshService } from './services/pwa/app-refresh.service';
 import { StartupService } from './services/startup.service';
+import { environment } from '../environments/environment';
 
 
 
@@ -131,6 +132,7 @@ export class AppComponent implements OnInit {
       { label: 'דוחות', routerLink: '/reports' },
       ...(hasBusiness ? [{ label: 'הנהלת חשבונות', routerLink: '/book-keeping' }] : []),
       { label: 'ניתוח הוצאות', routerLink: '/flow-analysis' },
+      ...(environment.enableDevTools ? [{ label: 'WhatsApp Sandbox', routerLink: '/whatsapp-sandbox' }] : []),
       ...(this._isUserAdmin() ? [{ label: 'פאנל ניהול', routerLink: '/admin-panel' }] : []),
       ...(this._isAccountant() ? [{ label: 'משרד', routerLink: '/client-panel' }] : []),
     ];

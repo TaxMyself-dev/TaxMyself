@@ -1,0 +1,200 @@
+<main class="sandbox" dir="rtl">
+  <header class="hero">
+    <div>
+      <span class="eyebrow">כלי פיתוח מקומי</span>
+      <h1>WhatsApp Sandbox</h1>
+      <p>מדמים שיחה בין לקוח לבין KeepInTax ובודקים מה הבקאנד באמת קיבל.</p>
+    </div>
+    <div class="environment-card">
+      <span
+        class="status-dot"
+        [class.online]="connection() === 'online'"
+      ></span>
+      <div>
+        <strong>
+          @if (connection() === 'checking') { בודק חיבור... } @else if
+          (connection() === 'online') { מחובר לבקאנד המקומי } @else { הבקאנד
+          אינו זמין }
+        </strong>
+        <small>Fake provider · ללא Meta · ללא שמירה</small>
+      </div>
+    </div>
+  </header>
+
+  <section class="notice">
+    <span>🧪</span>
+    <p>
+      <strong>מה נבדק כאן?</strong> parser אמיתי, אימות HMAC והורדת מדיה
+      בזיכרון. Drive, OCR ושליחה אמיתית אינם פעילים עדיין.
+    </p>
+  </section>
+
+  <div class="workspace">
+    <section class="phone-panel">
+      <div class="phone">
+        <div class="phone-header">
+          <div class="avatar">K</div>
+          <div>
+            <strong>KeepInTax</strong><small>חשבון עסקי · סביבת בדיקה</small>
+          </div>
+          <span class="phone-menu">•••</span>
+        </div>
+
+        <div class="conversation">
+          <div class="encryption">🔒 ההודעות בסימולציה אינן יוצאות מהמחשב</div>
+          @if (messages().length === 0) {
+          <div class="empty-chat">
+            השיחה נוקתה. אפשר לשלוח הודעה או תבנית חדשה.
+          </div>
+          } @for (message of messages(); track message.id) {
+          <article
+            class="bubble"
+            [class.customer]="message.side === 'customer'"
+            [class.keepintax]="message.side === 'keepintax'"
+          >
+            <p>{{ message.text }}</p>
+            @if (message.detail) { <small>{{ message.detail }}</small> } @if
+            (message.statuses?.length) {
+            <div class="delivery-row">
+              @for (status of message.statuses; track status) {
+              <span [class.failed]="status.startsWith('failed')"
+                >{{ status }}</span
+              >
+              }
+            </div>
+            }
+          </article>
+          }
+        </div>
+
+        <div class="composer">
+          <textarea
+            [(ngModel)]="messageText"
+            maxlength="2000"
+            rows="2"
+            aria-label="הודעת לקוח לבדיקה"
+            placeholder="כתבו הודעה כלקוח..."
+          ></textarea>
+          <div class="composer-actions">
+            <input
+              #mediaInput
+              type="file"
+              accept="application/pdf,image/jpeg,image/png"
+              hidden
+              (change)="sendFile($event)"
+            />
+            <button
+              class="icon-button"
+              type="button"
+              title="צרף PDF או תמונה"
+              [disabled]="busy()"
+              (click)="chooseFile(mediaInput)"
+            >
+              📎
+            </button>
+            <button
+              class="send-button"
+              type="button"
+              [disabled]="busy() || !messageText.trim()"
+              (click)="sendText()"
+            >
+              שליחה כלקוח
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <aside class="control-panel">
+      <section class="card">
+        <div class="card-title">
+          <span>↗</span>
+          <div>
+            <h2>שליחה מצד KeepInTax</h2>
+            <p>הפעלת template דרך ה־Fake provider</p>
+          </div>
+        </div>
+        <label>תוצאת מסירה מדומה</label>
+        <div class="segmented">
+          <button
+            type="button"
+            [class.active]="deliveryOutcome === 'success'"
+            (click)="deliveryOutcome = 'success'"
+          >
+            נמסרה ונקראה
+          </button>
+          <button
+            type="button"
+            [class.active]="deliveryOutcome === 'failed'"
+            (click)="deliveryOutcome = 'failed'"
+          >
+            נכשלה
+          </button>
+        </div>
+        <button
+          class="primary-button"
+          type="button"
+          [disabled]="busy()"
+          (click)="sendTemplate()"
+        >
+          שליחת תבנית בקשת מסמכים
+        </button>
+      </section>
+
+      <section class="card inspector">
+        <div class="card-title">
+          <span>⌁</span>
+          <div>
+            <h2>מה הבקאנד ראה?</h2>
+            <p>מידע מצומצם בלבד — ללא תוכן הקובץ</p>
+          </div>
+        </div>
+        @if (!inspector()) {
+        <div class="inspector-empty">
+          שלחו הודעה, קובץ או תבנית כדי לראות את מסלול העיבוד.
+        </div>
+        } @else if (inspectorKind() === 'inbound') {
+        <ol class="steps">
+          <li [class.done]="true">Webhook נבנה</li>
+          <li [class.done]="$any(inspector()).signatureVerified">
+            חתימת HMAC אומתה
+          </li>
+          <li [class.done]="true">Payload פוענח</li>
+          @if ($any(inspector()).media) {
+          <li class="done">המדיה הורדה לזיכרון ונמחקה</li>
+          }
+        </ol>
+        <dl class="metadata">
+          @for (entry of eventEntries(); track entry.key) {
+          <div>
+            <dt>{{ entry.key }}</dt>
+            <dd>{{ entry.value }}</dd>
+          </div>
+          }
+        </dl>
+        @if ($any(inspector()).media; as media) {
+        <div class="media-proof">
+          <strong>{{ media.fileName }}</strong
+          ><span
+            >{{ media.size }} bytes · SHA-256 {{ media.sha256.slice(0, 12)
+            }}…</span
+          >
+        </div>
+        } } @else {
+        <div class="outbound-result">
+          <span class="result-icon">✓</span>
+          <strong>התבנית התקבלה אצל הספק המדומה</strong>
+          <small>{{ $any(inspector()).providerMessageId }}</small>
+        </div>
+        }
+      </section>
+
+      @if (error()) {
+      <div class="error-box">{{ error() }}</div>
+      }
+      <button class="clear-button" type="button" (click)="clearConversation()">
+        ניקוי הסימולציה
+      </button>
+    </aside>
+  </div>
+</main>

@@ -39,6 +39,10 @@ const appRoutes: Routes = [
     canActivate: [AuthGuard, BillingGuard]
   },
   {
+    path: 'whatsapp-sandbox',
+    loadComponent: () => import('./pages/whatsapp-sandbox/whatsapp-sandbox.page').then(m => m.WhatsAppSandboxPage),
+  },
+  {
     path: 'settings',
     loadComponent: () => import('./pages/settings/settings.page').then(m => m.SettingsPage),
     canActivate: [AuthGuard, BillingGuard]

@@ -7,6 +7,7 @@ export const environment = {
   production: false,
   enableDevTools: true,
   apiUrl: 'http://localhost:3000/',
+  whatsappSandboxApiUrl: 'http://localhost:3001/',
   firebase: {
     apiKey: "AIzaSyClSnN3fRAb9aQVt2kMEkLygsNExwQD7fo",
     authDomain: "taxmyself-5d8a0.firebaseapp.com",

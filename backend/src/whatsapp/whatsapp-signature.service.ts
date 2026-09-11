@@ -7,6 +7,18 @@ export class WhatsAppSignatureService {
   constructor(private readonly config: WhatsAppConfigService) {}
 
   assertValid(rawBody: Buffer, signatureHeader?: string): void {
+    this.assertValidWithSecret(
+      rawBody,
+      signatureHeader,
+      this.config.appSecret(),
+    );
+  }
+
+  assertValidWithSecret(
+    rawBody: Buffer,
+    signatureHeader: string | undefined,
+    secret: string,
+  ): void {
     const supplied = String(signatureHeader ?? '')
       .trim()
       .toLowerCase();
@@ -14,9 +26,7 @@ export class WhatsAppSignatureService {
       throw new UnauthorizedException('Invalid WhatsApp webhook signature');
     }
 
-    const expected = createHmac('sha256', this.config.appSecret())
-      .update(rawBody)
-      .digest();
+    const expected = createHmac('sha256', secret).update(rawBody).digest();
     const actual = Buffer.from(supplied.slice('sha256='.length), 'hex');
     if (
       actual.length !== expected.length ||

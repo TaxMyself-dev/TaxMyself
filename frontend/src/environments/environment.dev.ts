@@ -6,6 +6,7 @@ export const environment = {
   production: true,
   enableDevTools: true,
   apiUrl: 'https://taxmys16elf-dev-146140406969.me-west1.run.app/',
+  whatsappSandboxApiUrl: '',
   firebase: {
     apiKey: "AIzaSyClSnN3fRAb9aQVt2kMEkLygsNExwQD7fo",
     authDomain: "taxmyself-5d8a0.firebaseapp.com",
