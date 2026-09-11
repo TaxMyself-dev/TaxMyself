@@ -1,6 +1,6 @@
 # Primary manager state
 
-Last reviewed: 2026-09-10
+Last reviewed: 2026-09-11
 
 ## Integration baseline
 
@@ -24,6 +24,11 @@ Last reviewed: 2026-09-10
   delivered to `origin/main` through `5a099fb2`.
 - `KT-019`: VAT report attachment parity for manual and Drive source files is
   verified and delivered to `origin/main` through `8f1078ce`.
+- `KT-023`: the Tax Authority compliance knowledge base is manager-reviewed and
+  ready for delivery through documentation commit `3e0997f3`; it contains 11
+  checksum-verified official PDFs, a requirements matrix, prioritized gaps, a
+  verification plan, and SHAAM reconciliation. No application code, schema,
+  production access, or live external request was involved.
 
 ## Pending integration
 
@@ -38,5 +43,6 @@ Last reviewed: 2026-09-10
 
 ## Next step
 
-Visually verify Drive and manual expense attachments in the VAT report after
-deploying both backend and frontend. No production deployment was performed.
+Review the P0 compliance findings with an Israeli accountant/tax adviser and
+the relevant legal/security reviewers before approving implementation tasks.
+No production deployment was performed.
