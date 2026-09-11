@@ -33,6 +33,43 @@ document task-local behavior, and create local commits. It must not push, merge,
 rebase shared branches, deploy, modify another worktree, or broaden the approved
 business behavior.
 
+## Technical permission discipline
+
+Operating-system and Codex sandbox prompts are technical boundaries, not new
+product approvals. Managers and workers must minimize them as follows:
+
+1. Do not request elevated execution pre-emptively for work inside the current
+   writable worktree. Run the ordinary command first and escalate only after a
+   real sandbox or network denial.
+2. Run one direct command from its intended `workdir`. Do not wrap routine Git,
+   npm, Node, test, or build commands in a full `pwsh -Command` string merely to
+   request permission, and do not combine unrelated commands in one approval.
+3. When escalation is technically required, propose the narrowest reusable
+   command-prefix rule. The rule must end at a stable operation boundary (for
+   example npm `ci`, npm `run build`, or a manager-owned Git fetch/push target),
+   never include a commit hash, commit message, changing file list, or complete
+   generated shell script.
+4. Workers never request push, merge, cross-worktree, or cleanup permission;
+   those operations belong to the manager. Workers install, test, build, and
+   commit only inside their own worktree.
+5. When Git reports dubious ownership for a newly created Codex worktree, the
+   manager registers that exact existing path as `safe.directory` during
+   worktree setup. Never disable the Git ownership check globally. Workers then
+   use direct `git add` and `git commit` commands without per-task shell wrappers.
+6. The manager batches remote refresh and delivery operations and uses the same
+   canonical command shape every time. Manager verification should run on the
+   manager's writable integration tree after integration rather than by writing
+   build output into a worker's worktree.
+7. If a supposedly remembered approval appears again, continue with `Allow
+   once` only when needed to avoid blocking, then report to the primary manager:
+   the source task, a screenshot after expanding the dialog, and the complete
+   displayed command. The manager compares it with the saved rule and corrects
+   the invocation shape before repeating the operation.
+
+Broad rules for an entire shell, arbitrary scripts, destructive commands,
+production access, credentials, live external callbacks, or force-pushes are
+forbidden. They are not a workaround for approval friction.
+
 ## Phase A — intake and dispatch
 
 1. Write acceptance criteria before opening a worker. Create one task file from

@@ -25,6 +25,11 @@ manager reviews the result. The primary integration manager integrates reviewed
 commits one at a time, runs combined checks, fast-forwards clean `main`, pushes,
 verifies remote refs, updates the task file and `MANAGER_STATE.md`, and removes
 the completed worktree only after the commit is reachable from `origin/main`.
+Routine commands run in the current worktree without pre-emptive escalation.
+When the platform genuinely requires permission, use a stable, narrow command
+prefix rather than a full PowerShell command containing changing paths, hashes,
+messages, or file lists; the exact rules and incident-report format are in
+`WORKFLOW.md` under Technical permission discipline.
 
 ## Editing ownership
 

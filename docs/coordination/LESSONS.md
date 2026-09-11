@@ -78,3 +78,19 @@ With multiple managers it would require unrelated tasks to edit the same file.
 Prevention: keep one file per active task under `docs/tasks/active/`. Only the
 task manager edits that file. The primary integration manager moves completed
 entries into the annual archive after remote verification.
+
+## 8. Remembered approvals were too specific to be reusable
+
+Repeated use of `Always allow commands like this` created dozens of rules, but
+the approved pattern often contained an entire PowerShell command, a specific
+worktree path, commit hash, commit message, or file list. The approval was saved
+correctly yet did not match the next semantically identical operation.
+
+Prevention: do not escalate routine work in the current writable worktree.
+When escalation is required, invoke one direct command and request a narrow,
+stable command-prefix rule. Workers never request push or cross-worktree
+permission; the manager batches those operations using canonical command
+shapes. The manager registers each new Codex worktree's exact path with Git when
+ownership differs; the global ownership check is never disabled. Repeated
+dialogs are reported with the source task, expanded screenshot, and full
+displayed command so the invocation can be corrected.
