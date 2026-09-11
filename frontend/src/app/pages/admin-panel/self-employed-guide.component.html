@@ -1,4 +1,4 @@
-<section class="presentation" #presentationRoot>
+<section class="presentation" #presentationRoot dir="rtl">
   <div class="presentation-toolbar">
     <button type="button" class="toolbar-button" (click)="closeGuide.emit()">
       <ion-icon name="close-outline"></ion-icon>
@@ -16,86 +16,72 @@
 
   <div class="slide-frame" aria-live="polite">
     <article class="slide" [ngClass]="'slide--' + currentSlide.layout">
-      <img class="slide__logo" src="/assets/login_logo.svg" alt="KeepInTax" />
-
       @switch (currentSlide.layout) {
         @case ('cover') {
-          <div class="cover-copy">
-            <span class="slide__eyebrow">{{ currentSlide.eyebrow }}</span>
-            <h2>{{ currentSlide.title }}</h2>
+          <div class="cover-visual" role="img" aria-label="עצמאי צעיר מוקף בניירת ובשלוש רשויות המס"></div>
+          <div class="cover-message">
+            <div class="cover-title" aria-label="אפשר גם אחרת">
+              <span>אפשר</span><span>גם</span><span>אחרת</span>
+            </div>
             <p>{{ currentSlide.subtitle }}</p>
+            <img src="/assets/login_logo.svg" alt="KeepInTax" />
           </div>
-          <div class="cover-art" aria-hidden="true"></div>
         }
 
         @case ('business-types') {
-          <header class="slide__header">
-            <span class="slide__eyebrow">{{ currentSlide.eyebrow }}</span>
-            <h2>{{ currentSlide.title }}</h2>
-          </header>
-          <div class="business-types">
-            @for (item of currentSlide.items; track item.label) {
-              <div class="business-type-card">
-                <span>{{ item.category }}</span>
-                <strong>{{ item.label }}</strong>
-                <p>{{ item.description }}</p>
-              </div>
-            }
-          </div>
-          <footer class="slide-footer">
-            <p>{{ currentSlide.takeaway }}</p>
-            <div class="slide-sources">
-              @for (source of currentSlide.sources; track source.url) {
-                <a [href]="source.url" target="_blank" rel="noopener noreferrer">{{ source.label }}</a>
-              }
-            </div>
-          </footer>
-        }
-
-        @case ('authorities') {
-          <header class="slide__header">
-            <span class="slide__eyebrow">{{ currentSlide.eyebrow }}</span>
-            <h2>{{ currentSlide.title }}</h2>
-          </header>
-          <div class="authority-list">
-            @for (item of currentSlide.items; track item.label; let i = $index) {
-              <div class="authority-card">
-                <span class="authority-card__number">0{{ i + 1 }}</span>
-                <span class="authority-card__category">{{ item.category }}</span>
-                <strong>{{ item.label }}</strong>
-                <p>{{ item.description }}</p>
-              </div>
-            }
-          </div>
-          <p class="authority-takeaway">{{ currentSlide.takeaway }}</p>
-        }
-
-        @case ('obligations') {
-          <header class="slide__header slide__header--compact">
-            <span class="slide__eyebrow">{{ currentSlide.eyebrow }}</span>
+          <header class="slide-header">
             <h2>{{ currentSlide.title }}</h2>
             <p>{{ currentSlide.subtitle }}</p>
           </header>
-          <div class="obligation-grid">
-            <div class="obligation-grid__corner">סוג העסק</div>
-            <div class="obligation-grid__heading">מס הכנסה</div>
-            <div class="obligation-grid__heading">מע״מ</div>
-            <div class="obligation-grid__heading">ביטוח לאומי</div>
-            @for (item of currentSlide.obligations; track item.businessType) {
-              <div class="obligation-grid__business">{{ item.businessType }}</div>
-              <div>{{ item.incomeTax }}</div>
-              <div>{{ item.vat }}</div>
-              <div>{{ item.nationalInsurance }}</div>
+          <div class="business-map">
+            <div class="business-map__destination">מס הכנסה</div>
+            @for (item of currentSlide.items; track item.label) {
+              <article class="business-sign">
+                <ion-icon [name]="item.icon"></ion-icon>
+                <small>{{ item.category }}</small>
+                <strong>{{ item.label }}</strong>
+                <p>{{ item.description }}</p>
+              </article>
             }
           </div>
-          <footer class="slide-footer slide-footer--obligations">
-            <p>{{ currentSlide.takeaway }}</p>
-            <div class="slide-sources">
-              @for (source of currentSlide.sources; track source.url) {
-                <a [href]="source.url" target="_blank" rel="noopener noreferrer">{{ source.label }}</a>
+          <p class="slide-takeaway">{{ currentSlide.takeaway }}</p>
+          <img class="slide-logo" src="/assets/login_logo.svg" alt="KeepInTax" />
+        }
+
+        @case ('authorities') {
+          <header class="slide-header slide-header--centered">
+            <h2>{{ currentSlide.title }}</h2>
+            <p>{{ currentSlide.subtitle }}</p>
+          </header>
+          <div class="authority-scene">
+            <div class="scientist" aria-hidden="true"><ion-icon name="search-outline"></ion-icon></div>
+            <div class="authority-lenses">
+              @for (item of currentSlide.items; track item.label) {
+                <button
+                  type="button"
+                  class="authority-lens"
+                  [class.authority-lens--available]="item.available"
+                  [disabled]="!item.available"
+                  (click)="goToSlide(item.targetSlideId)"
+                >
+                  <ion-icon [name]="item.icon"></ion-icon>
+                  <strong>{{ item.label }}</strong>
+                  <span>{{ item.category }}</span>
+                  <small>{{ item.description }}</small>
+                </button>
               }
             </div>
-          </footer>
+          </div>
+          <img class="slide-logo" src="/assets/login_logo.svg" alt="KeepInTax" />
+        }
+
+        @case ('tax-simulator') {
+          <app-self-employed-tax-simulator></app-self-employed-tax-simulator>
+        }
+
+        @default {
+          <app-self-employed-income-tax-slide [slide]="currentSlide"></app-self-employed-income-tax-slide>
+          <img class="slide-logo" src="/assets/login_logo.svg" alt="KeepInTax" />
         }
       }
     </article>

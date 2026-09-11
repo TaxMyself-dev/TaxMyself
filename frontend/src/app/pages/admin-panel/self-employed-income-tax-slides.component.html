@@ -1,0 +1,83 @@
+<section class="income-slide" [ngClass]="'income-slide--' + slide.layout" dir="rtl">
+  <header>
+    <h2>{{ slide.title }}</h2>
+    @if (slide.subtitle) { <p>{{ slide.subtitle }}</p> }
+  </header>
+
+  @switch (slide.layout) {
+    @case ('income-overview') {
+      <div class="folder-scene">
+        <div class="guide-character" aria-hidden="true"><ion-icon name="search-outline"></ion-icon><span>?</span></div>
+        @for (item of slide.items; track item.label; let i = $index) {
+          <article class="tax-folder" [class.tax-folder--micro]="i === 0">
+            <div class="tax-folder__tab"></div>
+            <ion-icon [name]="item.icon"></ion-icon>
+            <strong>{{ item.label }}</strong>
+            <small>{{ item.category }}</small>
+            <p>{{ item.description }}</p>
+          </article>
+        }
+      </div>
+    }
+
+    @case ('status-comparison') {
+      <div class="comparison-scene">
+        @for (item of slide.items; track item.label; let i = $index) {
+          <article class="identity-book" [class.identity-book--micro]="i === 1">
+            <small>{{ item.category }}</small>
+            <ion-icon [name]="item.icon"></ion-icon>
+            <strong>{{ item.label }}</strong>
+            <p>{{ item.description }}</p>
+          </article>
+        }
+        <div class="overlap-stamp">אפשר להיות<br />גם וגם</div>
+      </div>
+    }
+
+    @case ('micro-blockers') {
+      <div class="barrier-scene">
+        <div class="freelancer" aria-hidden="true"><ion-icon name="person-circle-outline"></ion-icon></div>
+        <div class="barrier-list">
+          @for (item of slide.items; track item.label) {
+            <article class="barrier" [class.barrier--manual]="item.label === 'חבר קיבוץ'">
+              <ion-icon [name]="item.icon"></ion-icon>
+              <strong>{{ item.label }}</strong>
+              <small>{{ item.description }}</small>
+            </article>
+          }
+        </div>
+      </div>
+    }
+
+    @case ('income-combination') {
+      <div class="merge-scene">
+        @for (item of slide.items; track item.label) {
+          <article class="income-stream">
+            <ion-icon [name]="item.icon"></ion-icon>
+            <strong>{{ item.label }}</strong>
+            @if (item.category) { <small>{{ item.category }}</small> }
+            <p>{{ item.description }}</p>
+          </article>
+        }
+        <div class="merge-symbol" aria-hidden="true">+</div>
+        <article class="income-total">
+          <ion-icon name="calculator-outline"></ion-icon>
+          <small>החיבור קובע את</small>
+          <strong>ההכנסה החייבת הכוללת</strong>
+          <span>מדרגות מס ונקודות זיכוי</span>
+        </article>
+      </div>
+    }
+  }
+
+  <footer>
+    @if (slide.takeaway) { <p>{{ slide.takeaway }}</p> }
+    @if (slide.sources?.length) {
+      <div class="sources">
+        @for (source of slide.sources; track source.url) {
+          <a [href]="source.url" target="_blank" rel="noopener noreferrer">{{ source.label }}</a>
+        }
+      </div>
+    }
+  </footer>
+</section>

@@ -15,7 +15,11 @@ describe('SelfEmployedGuideComponent', () => {
     component.nextSlide();
     component.nextSlide();
     component.nextSlide();
-    expect(component.currentSlideIndex).toBe(3);
+    component.nextSlide();
+    component.nextSlide();
+    component.nextSlide();
+    component.nextSlide();
+    expect(component.currentSlideIndex).toBe(7);
   });
 
   it('uses RTL keyboard navigation', () => {
@@ -31,7 +35,11 @@ describe('SelfEmployedGuideComponent', () => {
       'cover',
       'business-types',
       'tax-authorities',
-      'obligations-map',
+      'income-tax-overview',
+      'status-comparison',
+      'micro-blockers',
+      'income-combination',
+      'tax-simulator',
     ]);
     expect(component.slides[1].items?.map(item => item.label)).toEqual([
       'בעל עסק זעיר',
@@ -39,5 +47,13 @@ describe('SelfEmployedGuideComponent', () => {
       'עוסק מורשה',
       'חברה',
     ]);
+  });
+
+  it('opens the Income Tax chapter from the authorities slide', () => {
+    component.goToSlide('income-tax-overview');
+    expect(component.currentSlide.id).toBe('income-tax-overview');
+
+    component.goToSlide(undefined);
+    expect(component.currentSlide.id).toBe('income-tax-overview');
   });
 });

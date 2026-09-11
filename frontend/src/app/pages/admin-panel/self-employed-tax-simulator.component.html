@@ -1,0 +1,72 @@
+<section class="simulator" dir="rtl" aria-label="סימולציית מס הכנסה שנתית">
+  <h2>חשבון לכיתה ד - אין מה לחשוש</h2>
+
+  <div class="simulator__grid">
+    <section class="simulator-panel simulator-panel--brackets" aria-label="מדרגות המס">
+      <h3>מדרגות המס</h3>
+      <div class="tax-stairs" [attr.aria-label]="'מדרגת המס השולית הנוכחית היא ' + currentBracketRate + ' אחוז'">
+        @for (bracket of brackets; track bracket.rate) {
+          <div class="tax-step" [class.tax-step--current]="isCurrentBracket(bracket.rate)">
+            {{ bracket.rate * 100 | number:'1.0-0' }}%
+            @if (isCurrentBracket(bracket.rate)) {
+              <span>{{ formatCurrency(taxableIncome) }}</span>
+            }
+          </div>
+        }
+      </div>
+    </section>
+
+    <section class="simulator-panel simulator-panel--calculation" aria-label="החישוב">
+      <h3>החישוב</h3>
+      <div class="summary-pair">
+        <div><span>רווח מהעסק</span><strong>{{ formatCurrency(businessProfit) }}</strong></div>
+        <b aria-hidden="true">+</b>
+        <div><span>הכנסה חייבת כוללת</span><strong>{{ formatCurrency(taxableIncome) }}</strong></div>
+      </div>
+      <dl class="calculation-list">
+        <div><dt>מס לפני נקודות זיכוי</dt><dd>{{ formatCurrency(taxBeforeCredits) }}</dd></div>
+        <div><dt>נקודות זיכוי</dt><dd>−{{ formatCurrency(creditReduction) }}</dd></div>
+        <div><dt>מס שנוכה מהשכר</dt><dd>−{{ formatCurrency(salaryTaxWithheld) }}</dd></div>
+      </dl>
+      <div class="calculation-total" [class.calculation-total--refund]="estimatedBalance < 0">
+        <span>{{ balanceLabel }}</span>
+        <strong>{{ formatCurrency(estimatedBalance) }}</strong>
+      </div>
+    </section>
+
+    <section class="simulator-panel simulator-panel--inputs" aria-label="הנתונים שלך">
+      <h3>הנתונים שלך</h3>
+      <label class="range-field">
+        <span><ion-icon name="briefcase-outline"></ion-icon>הכנסות מהעסק</span>
+        <strong>{{ formatCurrency(businessRevenue) }}</strong>
+        <input type="range" min="0" max="500000" step="5000" [value]="businessRevenue" (input)="setBusinessRevenue($event)" />
+      </label>
+      <label class="range-field">
+        <span><ion-icon name="receipt-outline"></ion-icon>הוצאות העסק</span>
+        <strong>{{ formatCurrency(businessExpenses) }}</strong>
+        <input type="range" min="0" [max]="businessRevenue" step="5000" [value]="businessExpenses" (input)="setBusinessExpenses($event)" />
+      </label>
+      <label class="range-field">
+        <span><ion-icon name="person-outline"></ion-icon>שכר כשכיר</span>
+        <strong>{{ formatCurrency(salaryIncome) }}</strong>
+        <input type="range" min="0" max="500000" step="5000" [value]="salaryIncome" (input)="setSalaryIncome($event)" />
+      </label>
+      <label class="range-field">
+        <span><ion-icon name="star-outline"></ion-icon>נקודות זיכוי</span>
+        <strong>{{ creditPoints | number:'1.2-2' }}</strong>
+        <input type="range" min="0" max="14" step="0.25" [value]="creditPoints" (input)="setCreditPoints($event)" />
+      </label>
+      <label class="range-field">
+        <span><ion-icon name="cash-outline"></ion-icon>מס שכבר נוכה מהשכר</span>
+        <strong>{{ formatCurrency(salaryTaxWithheld) }}</strong>
+        <input type="range" min="0" max="100000" step="500" [value]="salaryTaxWithheld" (input)="setSalaryTaxWithheld($event)" />
+      </label>
+    </section>
+  </div>
+
+  <div class="simulator__footer">
+    <p class="simulator__note">המחשה בלבד. החישוב אינו כולל ביטוח לאומי, פנסיה והטבות מס נוספות.</p>
+    <a [href]="figures.sources.incomeTax2026" target="_blank" rel="noopener noreferrer">מדרגות מס 2026</a>
+  </div>
+  <img class="simulator__logo" src="/assets/login_logo.svg" alt="KeepInTax" />
+</section>
