@@ -10,13 +10,18 @@
 .presentation:fullscreen .slide-frame { width:min(1420px,100%); max-height:calc(100vh - 140px); }
 .slide { position:relative; width:100%; aspect-ratio:16/9; overflow:hidden; background:#fffefb; }
 .slide-logo { position:absolute; bottom:2.2cqi; left:3.3cqi; width:11cqi; height:auto; z-index:9; }
+.approved-slide-art { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; display:block; }
+.approved-slide-hotspot { position:absolute; border:0; padding:0; background:transparent; cursor:pointer; }
+.approved-slide-hotspot--income-tax { top:24%; right:5%; width:28%; height:61%; }
+.approved-slide-hotspot:focus-visible { outline:.3cqi solid var(--brand-ink); outline-offset:.3cqi; border-radius:50%; }
 
 .slide--cover { direction:ltr; }
 .cover-visual { position:absolute; inset:0; background:url('/assets/self-employed-guide/cover-approved.png') center/cover no-repeat; }
 .cover-message { position:absolute; inset:0 0 0 58%; padding:7cqi 5cqi 4cqi 7cqi; clip-path:polygon(20% 0,100% 0,100% 100%,0 100%); background:var(--brand-lime); color:var(--brand-ink); direction:rtl; display:flex; flex-direction:column; }
-.cover-title { display:flex; flex-direction:column; align-items:flex-start; gap:1cqi; font-size:6cqi; font-weight:800; line-height:.9; }
-.cover-title span:nth-child(2) { margin-right:4cqi; }.cover-title span:nth-child(3) { margin-right:8cqi; }
-.cover-message img { width:16cqi; margin-top:auto; margin-left:auto; }
+.cover-title { display:flex; flex-direction:column; align-items:flex-start; gap:2.7cqi; font-size:7.6cqi; font-weight:800; line-height:.88; transform:translate(1.4cqi,2cqi); }
+.cover-title span:nth-child(2) { margin-right:10.5cqi; }
+.cover-title span:nth-child(3) { margin-right:12.4cqi; }
+.cover-message img { width:29cqi; max-width:100%; margin-top:auto; align-self:center; }
 
 .presentation-controls { width:min(1280px,100%); margin:16px auto 0; display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:20px; }
 .presentation:fullscreen .presentation-controls { width:min(1420px,100%); }

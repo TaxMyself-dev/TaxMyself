@@ -49,7 +49,7 @@
       <label class="range-field">
         <span><ion-icon name="person-outline"></ion-icon>שכר כשכיר</span>
         <strong>{{ formatCurrency(salaryIncome) }}</strong>
-        <input type="range" min="0" max="500000" step="5000" [value]="salaryIncome" (input)="setSalaryIncome($event)" />
+        <input type="range" min="0" max="500000" step="1000" [value]="salaryIncome" (input)="setSalaryIncome($event)" />
       </label>
       <label class="range-field">
         <span><ion-icon name="star-outline"></ion-icon>נקודות זיכוי</span>
@@ -59,7 +59,7 @@
       <label class="range-field">
         <span><ion-icon name="cash-outline"></ion-icon>מס שכבר נוכה מהשכר</span>
         <strong>{{ formatCurrency(salaryTaxWithheld) }}</strong>
-        <input type="range" min="0" max="100000" step="500" [value]="salaryTaxWithheld" (input)="setSalaryTaxWithheld($event)" />
+        <input type="range" min="0" max="100000" step="100" [value]="salaryTaxWithheld" (input)="setSalaryTaxWithheld($event)" />
       </label>
     </section>
   </div>

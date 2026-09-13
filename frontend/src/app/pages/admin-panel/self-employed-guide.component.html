@@ -28,23 +28,47 @@
         }
 
         @case ('business-types') {
-          <app-self-employed-opening-slide [slide]="currentSlide"></app-self-employed-opening-slide>
-          <img class="slide-logo" src="/assets/login_logo.svg" alt="KeepInTax" />
+          <img
+            class="approved-slide-art"
+            src="/assets/self-employed-guide/business-types-approved.png"
+            alt="ארבעת סוגי העסקים בישראל: בעל עסק זעיר, עוסק פטור, עוסק מורשה וחברה"
+          />
         }
 
         @case ('authorities') {
-          <app-self-employed-opening-slide [slide]="currentSlide" (navigate)="goToSlide($event)"></app-self-employed-opening-slide>
-          <img class="slide-logo" src="/assets/login_logo.svg" alt="KeepInTax" />
+          <img
+            class="approved-slide-art"
+            src="/assets/self-employed-guide/authorities-approved.png"
+            alt="מס הכנסה, מע״מ וביטוח לאומי מוצגים דרך שלוש זכוכיות מגדלת"
+          />
+          <button
+            type="button"
+            class="approved-slide-hotspot approved-slide-hotspot--income-tax"
+            aria-label="מעבר לפרק מס הכנסה"
+            (click)="goToSlide('income-tax-overview')"
+          ></button>
+        }
+
+        @case ('income-overview') {
+          <img class="approved-slide-art" src="/assets/self-employed-guide/income-overview-approved.png" alt="הדרכים לדיווח למס הכנסה לפי סוג העסק" />
+        }
+
+        @case ('status-comparison') {
+          <img class="approved-slide-art" src="/assets/self-employed-guide/status-comparison-approved.png" alt="השוואה בין עוסק פטור לבעל עסק זעיר" />
+        }
+
+        @case ('micro-blockers') {
+          <img class="approved-slide-art" src="/assets/self-employed-guide/micro-blockers-approved.png" alt="המצבים העיקריים שחוסמים כניסה למסלול העסק הזעיר" />
+        }
+
+        @case ('income-combination') {
+          <img class="approved-slide-art" src="/assets/self-employed-guide/income-combination-approved.png" alt="חיבור ההכנסה כשכיר והרווח מהעסק לצורך חישוב המס" />
         }
 
         @case ('tax-simulator') {
           <app-self-employed-tax-simulator></app-self-employed-tax-simulator>
         }
 
-        @default {
-          <app-self-employed-income-tax-slide [slide]="currentSlide"></app-self-employed-income-tax-slide>
-          <img class="slide-logo" src="/assets/login_logo.svg" alt="KeepInTax" />
-        }
       }
     </article>
   </div>

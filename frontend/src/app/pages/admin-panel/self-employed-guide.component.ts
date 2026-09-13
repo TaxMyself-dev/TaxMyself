@@ -2,8 +2,6 @@ import { CommonModule } from '@angular/common';
 import { Component, ElementRef, EventEmitter, HostListener, Output, ViewChild } from '@angular/core';
 import { IonicModule } from '@ionic/angular';
 import { GuideSlide, SELF_EMPLOYED_GUIDE_SLIDES } from './self-employed-guide.content';
-import { SelfEmployedIncomeTaxSlidesComponent } from './self-employed-income-tax-slides.component';
-import { SelfEmployedOpeningSlideComponent } from './self-employed-opening-slide.component';
 import { SelfEmployedTaxSimulatorComponent } from './self-employed-tax-simulator.component';
 
 @Component({
@@ -11,7 +9,7 @@ import { SelfEmployedTaxSimulatorComponent } from './self-employed-tax-simulator
   templateUrl: './self-employed-guide.component.html',
   styleUrls: ['./self-employed-guide.component.scss'],
   standalone: true,
-  imports: [CommonModule, IonicModule, SelfEmployedOpeningSlideComponent, SelfEmployedIncomeTaxSlidesComponent, SelfEmployedTaxSimulatorComponent],
+  imports: [CommonModule, IonicModule, SelfEmployedTaxSimulatorComponent],
 })
 export class SelfEmployedGuideComponent {
   @Output() closeGuide = new EventEmitter<void>();
