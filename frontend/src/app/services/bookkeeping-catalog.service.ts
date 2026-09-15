@@ -326,6 +326,13 @@ export class BookkeepingCatalogService {
     return this.http.get<IAccountingSectionOption[]>(url);
   }
 
+  /** Preview the next +10 code inside a SYSTEM section. The POST endpoint
+   * recalculates it under a lock and remains authoritative. */
+  getNextAdminBookingAccountCode(sectionId: number): Observable<{ code: string }> {
+    const url = `${environment.apiUrl}admin/booking-accounts/sections/${sectionId}/next-code`;
+    return this.http.get<{ code: string }>(url);
+  }
+
   /** Edit an already-active operational SYSTEM card (admin-only; refuses
    *  '6111-%' reference rows — those are activated, not patched). */
   updateAdminBookingAccount(id: number, dto: IUpdateAccountPayload): Observable<IBookingAccountRow> {

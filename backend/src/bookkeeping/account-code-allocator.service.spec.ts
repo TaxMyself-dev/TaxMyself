@@ -182,4 +182,37 @@ describe('AccountCodeAllocatorService — getNextAccountCode', () => {
       expect(code).toBe('60020');
     });
   });
+
+  describe('SYSTEM section allocation', () => {
+    it('starts ten above the section code when the section has no cards', async () => {
+      await build([]);
+      await expect(service.getNextSystemAccountCodeForSection({
+        sectionId: 12,
+        sectionCode: '60000',
+        type: 'expense',
+      })).resolves.toBe('60010');
+    });
+
+    it('adds ten to the highest code in the selected section, including inactive rows', async () => {
+      await build(['60010', '60020']);
+      await expect(service.getNextSystemAccountCodeForSection({
+        sectionId: 12,
+        sectionCode: '60000',
+        type: 'expense',
+      })).resolves.toBe('60030');
+      expect(bookingAccountRepo.find).toHaveBeenCalledWith({
+        where: { chartOwnerKey: 'SYSTEM', sectionId: 12 },
+        select: ['code'],
+      });
+    });
+
+    it('rejects a section anchor outside the matching SYSTEM range', async () => {
+      await build([]);
+      await expect(service.getNextSystemAccountCodeForSection({
+        sectionId: 12,
+        sectionCode: '40000',
+        type: 'expense',
+      })).rejects.toThrow('outside the SYSTEM expense range');
+    });
+  });
 });

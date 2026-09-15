@@ -713,6 +713,23 @@ export class CatalogService {
     });
   }
 
+  /** Read-only preview for the admin add-card dialog. Creation recalculates
+   * the value under a section-row lock, so this preview is never trusted as
+   * the authoritative code. */
+  async previewNextSystemAccountCode(sectionId: number, type: 'expense' | 'income' = 'expense'): Promise<string> {
+    const section = await this.sectionRepo.findOne({
+      where: { id: sectionId, isActive: true, chartOwnerKey: SYSTEM_CHART_OWNER_KEY },
+    });
+    if (!section) {
+      throw new NotFoundException(`Accounting section ${sectionId} not found`);
+    }
+    return this.accountCodeAllocator.getNextSystemAccountCodeForSection({
+      sectionId: section.id,
+      sectionCode: section.code,
+      type,
+    });
+  }
+
   /** Persist non-law field changes (necessity/reportScope/...) without
    *  touching accountId — callers that only need updateSubCategoryLaw's
    *  card-repointing skip this and call that instead. */
@@ -779,8 +796,11 @@ export class CatalogService {
       // cards — a D11 technical card still carries a section so it appears in
       // the manual-entry dropdown (sectionId NULL is excluded there) and
       // rolls up in the P&L if posted.
+      const shouldAllocateBySystemSection =
+        scope.ownerType === OwnerType.SYSTEM && !input.code?.trim();
       const section = await sectionRepo.findOne({
         where: { id: input.sectionId, isActive: true, chartOwnerKey: In([SYSTEM_CHART_OWNER_KEY, scope.chartOwnerKey]) },
+        ...(shouldAllocateBySystemSection ? { lock: { mode: 'pessimistic_write' as const } } : {}),
       });
       if (!section) {
         throw new NotFoundException(`Accounting section ${input.sectionId} not found`);
@@ -793,10 +813,15 @@ export class CatalogService {
           throw new ConflictException(`חשבון עם קוד ${code} כבר קיים בתרשים החשבונות שלך`);
         }
       } else {
-        code = await this.accountCodeAllocator.getNextAccountCode(
-          { ownerType: scope.ownerType, type: input.type, chartOwnerKey: scope.chartOwnerKey },
-          m,
-        );
+        code = shouldAllocateBySystemSection
+          ? await this.accountCodeAllocator.getNextSystemAccountCodeForSection(
+              { sectionId: section.id, sectionCode: section.code, type: input.type },
+              m,
+            )
+          : await this.accountCodeAllocator.getNextAccountCode(
+              { ownerType: scope.ownerType, type: input.type, chartOwnerKey: scope.chartOwnerKey },
+              m,
+            );
       }
 
       const account = await accountRepo.save(

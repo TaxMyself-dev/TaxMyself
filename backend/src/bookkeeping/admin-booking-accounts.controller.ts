@@ -80,6 +80,22 @@ export class AdminBookingAccountsController {
     return rows.map((section) => ({ id: section.id, code: section.code, name: section.name }));
   }
 
+  /** Preview only. POST recalculates the code transactionally, so a stale
+   * browser preview can never force a duplicate allocation. */
+  @Get('sections/:sectionId/next-code')
+  @UseGuards(FirebaseAuthGuard)
+  async nextSectionCode(
+    @Req() request: AuthenticatedRequest,
+    @Param('sectionId', ParseIntPipe) sectionId: number,
+  ) {
+    const actorFirebaseId = request.user?.actorFirebaseId ?? request.user?.firebaseId;
+    if (!actorFirebaseId) throw new UnauthorizedException('Not authenticated');
+    if (!(await this.catalogContextService.isAdmin(actorFirebaseId))) {
+      throw new ForbiddenException('רק מנהל מערכת יכול לצפות בקוד הכרטיס הבא');
+    }
+    return { code: await this.catalogService.previewNextSystemAccountCode(sectionId) };
+  }
+
   /** Create a brand-new operational SYSTEM card (and, unless technical-only,
    * its paired SYSTEM sub-category) from the admin catalog screen. */
   @Post()

@@ -741,6 +741,8 @@ export class BookingAccountCatalogComponent implements OnInit, OnChanges {
   // the same atomic CatalogService.createAccountWithSubCategory boundary. ─
   showAddDialog = signal<boolean>(false);
   addingCard = signal<boolean>(false);
+  loadingNextCode = signal<boolean>(false);
+  private nextCodeRequestId = 0;
   addError = signal<string | null>(null);
   addForm: AddCardFormState = this.emptyAddForm();
 
@@ -771,12 +773,40 @@ export class BookingAccountCatalogComponent implements OnInit, OnChanges {
     this.showAddDialog.set(false);
   }
 
+  onAddSectionChange(sectionId: number | null): void {
+    const requestId = ++this.nextCodeRequestId;
+    this.addForm.code = '';
+    this.addError.set(null);
+    this.loadingNextCode.set(false);
+    if (this.mode !== 'admin' || sectionId == null) return;
+
+    this.loadingNextCode.set(true);
+    this.catalogService.getNextAdminBookingAccountCode(sectionId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: ({ code }) => {
+          // Ignore a response that belongs to a section the user has since changed.
+          if (requestId === this.nextCodeRequestId) this.addForm.code = code;
+        },
+        error: (err) => {
+          if (requestId === this.nextCodeRequestId) {
+            this.loadingNextCode.set(false);
+            this.addError.set(err?.error?.message ?? 'לא ניתן לחשב את קוד הכרטיס הבא.');
+          }
+        },
+        complete: () => {
+          if (requestId === this.nextCodeRequestId) this.loadingNextCode.set(false);
+        },
+      });
+  }
+
   isAddFormValid(): boolean {
     const f = this.addForm;
     const pctOk = (v: number | null) => v != null && v >= 0 && v <= 100;
     return (
       !!f.name.trim() &&
       f.sectionId != null &&
+      (this.mode !== 'admin' || (!!f.code && !this.loadingNextCode())) &&
       pctOk(f.vatPercent) &&
       pctOk(f.taxPercent) &&
       (f.reductionPercent == null || pctOk(f.reductionPercent)) &&
@@ -790,7 +820,7 @@ export class BookingAccountCatalogComponent implements OnInit, OnChanges {
     const f = this.addForm;
     const payload: ICreateAdminBookingAccountPayload = {
       name: f.name.trim(),
-      code: f.code.trim() || undefined,
+      ...(this.mode === 'accountant' ? { code: f.code.trim() || undefined } : {}),
       sectionId: f.sectionId!,
       code6111: f.code6111.trim() || undefined,
       recognitionType: f.recognitionType,

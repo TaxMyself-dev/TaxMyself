@@ -284,11 +284,17 @@
     </div>
     <div class="form-row">
       <label>חתך *</label>
-      <p-select [(ngModel)]="addForm.sectionId" [options]="sections()" optionLabel="name" optionValue="id" placeholder="בחר חתך"></p-select>
+      <p-select [(ngModel)]="addForm.sectionId" (ngModelChange)="onAddSectionChange($event)" [options]="sections()" optionLabel="name" optionValue="id" placeholder="בחר חתך"></p-select>
     </div>
     <div class="form-row">
-      <label>קוד כרטיס (ריק = הקצאה אוטומטית)</label>
-      <input type="text" pInputText [(ngModel)]="addForm.code" placeholder="אוטומטי" />
+      @if (mode === 'admin') {
+        <label>קוד מערכת שיוקצה</label>
+        <input type="text" pInputText [ngModel]="addForm.code" readonly
+          [placeholder]="loadingNextCode() ? 'מחשב...' : 'בחר חתך'" />
+      } @else {
+        <label>קוד כרטיס (ריק = הקצאה אוטומטית)</label>
+        <input type="text" pInputText [(ngModel)]="addForm.code" placeholder="אוטומטי" />
+      }
     </div>
     <div class="form-row">
       <label>קוד 6111</label>

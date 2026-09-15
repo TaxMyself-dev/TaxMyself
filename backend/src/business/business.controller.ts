@@ -4,6 +4,8 @@ import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.inter
 import { BusinessService } from './business.service';
 import { UpdateBusinessDto } from './dtos/update-business.dto';
 import { CreateBusinessDto } from './dtos/create-business.dto';
+import { RequiredDelegationScope } from 'src/decorators/required-delegation-scope.decorator';
+import { DelegationScope } from 'src/delegation/delegation.entity';
 
 @Controller('business')
 export class BusinessController {
@@ -51,11 +53,9 @@ export class BusinessController {
 
   @Patch('update')
   @UseGuards(FirebaseAuthGuard)
+  @RequiredDelegationScope(DelegationScope.DOCUMENTS_WRITE)
   @UsePipes(new ValidationPipe({ transform: true }))
   async updateBusiness(@Req() req: AuthenticatedRequest, @Body() dto: UpdateBusinessDto) {
-    if (req.user?.role === 'agent') {
-      throw new ForbiddenException('לרואה חשבון הרשאה לצפייה בלבד');
-    }
     const firebaseId = req.user?.firebaseId;
     if (!firebaseId) {
       throw new BadRequestException('Firebase ID is missing');

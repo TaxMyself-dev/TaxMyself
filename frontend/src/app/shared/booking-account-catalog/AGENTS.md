@@ -16,6 +16,9 @@ activation, editing, deactivation, deletion checks, filtering and Excel export.
 - Admin mode creates new SYSTEM cards through `POST admin/booking-accounts`;
   accountant mode keeps the client-scoped D11 `POST bookkeeping/accounts`
   flow. Both delegate to the atomic account + optional sub-category service.
+- In admin mode, selecting a section fetches and displays its next SYSTEM
+  code (`max(section cards, section anchor) + 10`) as read-only. The create
+  request omits that preview so the backend can recalculate it under a lock.
 - Business-type, report-scope and form-part metadata affect accounting/report
   behavior; the redesign master plan is binding for changes here.
 

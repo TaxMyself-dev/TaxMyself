@@ -28,6 +28,7 @@ describe('AdminBookingAccountsController', () => {
       getSections: jest.fn().mockResolvedValue([
         { id: 12, code: '60000', name: 'הוצאות הנהלה' },
       ]),
+      previewNextSystemAccountCode: jest.fn().mockResolvedValue('60030'),
       createAccountWithSubCategory: jest.fn().mockResolvedValue({
         account: {
           id: 91,
@@ -94,6 +95,16 @@ describe('AdminBookingAccountsController', () => {
 
     expect(catalogService.getSections).toHaveBeenCalledWith(['SYSTEM']);
     expect(result).toEqual([{ id: 12, code: '60000', name: 'הוצאות הנהלה' }]);
+  });
+
+  it('previews the next code for the selected SYSTEM section', async () => {
+    const { controller, catalogService } = setup();
+
+    await expect(controller.nextSectionCode(
+      { user: { firebaseId: 'admin-1' } } as any,
+      12,
+    )).resolves.toEqual({ code: '60030' });
+    expect(catalogService.previewNextSystemAccountCode).toHaveBeenCalledWith(12);
   });
 
   it('rejects non-admin actors', async () => {

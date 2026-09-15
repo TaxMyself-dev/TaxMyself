@@ -76,4 +76,42 @@ export class AccountCodeAllocatorService {
 
     return String(next);
   }
+
+  /**
+   * Next SYSTEM code inside one accounting section. The section's own code
+   * is the anchor, so a section 60000 with cards 60010/60020 yields 60030.
+   * Inactive cards are intentionally included because their codes remain
+   * reserved by the chart-level unique constraint.
+   */
+  async getNextSystemAccountCodeForSection(
+    params: { sectionId: number; sectionCode: string; type: AllocatableType },
+    manager?: EntityManager,
+  ): Promise<string> {
+    const { sectionId, sectionCode, type } = params;
+    const range = ACCOUNT_CODE_RANGES[OwnerType.SYSTEM][type];
+    const [floor, ceiling] = range;
+    const anchor = Number(sectionCode);
+    if (!Number.isInteger(anchor) || anchor < floor || anchor > ceiling) {
+      throw new BadRequestException(
+        `Section ${sectionId} code ${sectionCode} is outside the SYSTEM ${type} range`,
+      );
+    }
+
+    const repo = manager ? manager.getRepository(BookingAccount) : this.bookingAccountRepo;
+    const existing = await repo.find({
+      where: { chartOwnerKey: 'SYSTEM', sectionId },
+      select: ['code'],
+    });
+    const sectionCodes = existing
+      .map((account) => Number(account.code))
+      .filter((code) => Number.isInteger(code) && code >= floor && code <= ceiling);
+    const next = Math.max(anchor, ...sectionCodes) + ACCOUNT_CODE_JUMP;
+
+    if (next > ceiling) {
+      throw new BadRequestException(
+        `SYSTEM ${type} account code range is exhausted for section ${sectionId}`,
+      );
+    }
+    return String(next);
+  }
 }

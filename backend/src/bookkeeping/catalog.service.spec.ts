@@ -100,7 +100,10 @@ describe('CatalogService', () => {
       },
     ]);
     sectionRepo = makeRepo<any>([{ id: 99, code: '60200', name: 'רכב ותחבורה', chartOwnerKey: SYS, isActive: true }]);
-    allocator = { getNextAccountCode: jest.fn().mockResolvedValue('80000') } as any;
+    allocator = {
+      getNextAccountCode: jest.fn().mockResolvedValue('80000'),
+      getNextSystemAccountCodeForSection: jest.fn().mockResolvedValue('60230'),
+    } as any;
 
     // dataSource.transaction hands back a manager whose getRepository returns
     // the same in-memory repos (5.2's createAccountWithSubCategory).
@@ -450,6 +453,24 @@ describe('CatalogService', () => {
       accountantId: 'agent-1',
       visibilityScope: VisibilityScope.ALL_ACCOUNTANT_CLIENTS,
     };
+
+    it('allocates a SYSTEM code inside the selected section', async () => {
+      const { account } = await service.createAccountWithSubCategory({
+        scope: { ownerType: OwnerType.SYSTEM, chartOwnerKey: SYS },
+        name: 'חניה',
+        type: 'expense',
+        sectionId: 99,
+        law,
+        visibleBusinessTypes,
+        technicalOnly: true,
+      });
+
+      expect(allocator.getNextSystemAccountCodeForSection).toHaveBeenCalledWith(
+        { sectionId: 99, sectionCode: '60200', type: 'expense' },
+        expect.anything(),
+      );
+      expect(account.code).toBe('60230');
+    });
 
     it('creates account + paired sub_category atomically (ACCOUNTANT scope, auto code)', async () => {
       allocator.getNextAccountCode.mockResolvedValue('70000');
