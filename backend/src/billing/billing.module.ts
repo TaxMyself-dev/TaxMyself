@@ -36,6 +36,7 @@ import { PricingService } from './services/pricing.service';
 import { SubscriptionAccessService } from './services/subscription-access.service';
 import { AdminBillingService } from './services/admin-billing.service';
 import { SubscriptionRenewalService } from './services/subscription-renewal.service';
+import { BillingAttemptOrchestrationService } from './services/billing-attempt-orchestration.service';
 
 // Modules
 import { UsersModule } from 'src/users/users.module';
@@ -66,7 +67,11 @@ import { BusinessModule } from 'src/business/business.module';
       Delegation,
     ]),
   ],
-  controllers: [BillingController, CardcomWebhookController, AdminBillingController],
+  controllers: [
+    BillingController,
+    CardcomWebhookController,
+    AdminBillingController,
+  ],
   providers: [
     FirebaseAuthGuard,
     BillingService,
@@ -79,8 +84,14 @@ import { BusinessModule } from 'src/business/business.module';
     SubscriptionAccessService,
     AdminBillingService,
     SubscriptionRenewalService,
+    BillingAttemptOrchestrationService,
     SubscriptionGuard,
   ],
-  exports: [BillingService, SubscriptionAccessService, SubscriptionGuard],
+  exports: [
+    BillingService,
+    BillingAttemptOrchestrationService,
+    SubscriptionAccessService,
+    SubscriptionGuard,
+  ],
 })
 export class BillingModule {}

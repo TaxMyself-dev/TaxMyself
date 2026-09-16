@@ -59,6 +59,31 @@ Until that migration lands, the current runtime behavior below is unchanged.
 - Production DDL is additive and lives in `docs/redesign/cutover.sql` Section
   17. It must not be run automatically or against production by application
   startup.
+
+### Obligation/attempt coordination core (KT-035)
+
+- `BillingAttemptOrchestrationService` is the provider-free transaction
+  boundary. It locks the subscription and canonical obligation before opening
+  an attempt. Network calls must happen only after its short lease transaction
+  commits; normalized outcomes are applied in a separate transaction.
+- The canonical obligation identity is `subscription + period_start`.
+  Concurrent creators recover the unique-key winner and validate its immutable
+  plan, period and amount snapshot before proceeding.
+- A repeated open request returns the existing blocking attempt. It never
+  allocates a second provider key while an attempt is `CREATED`,
+  `AWAITING_CUSTOMER`, `PROCESSING`, `UNKNOWN`, `CAPTURED`, `COMPLETED`, or
+  `MANUAL_REVIEW`.
+- Submission/reconciliation leases use `state_version` as a compare-and-swap
+  token. An expired `PROCESSING` lease becomes `UNKNOWN`; it is never replayed.
+  Reconciliation is scheduled at 1 minute, 5 minutes, 30 minutes, 2 hours and
+  24 hours, then escalates to `MANUAL_REVIEW`.
+- Only a definite `DECLINED` outcome clears `active_attempt_id`. `CAPTURED`
+  remains blocking until a later task atomically completes the receipt/journal
+  and marks both attempt and obligation complete.
+- The reusable owner-mutation contract rejects missing/mismatched actors,
+  delegated access, admin impersonation and represented-subject mode. Future
+  controllers must construct this context only from server-verified request
+  identity; client flags are never authoritative.
 - `GET /billing/plans`, `GET /billing/me`, `POST /billing/trial` — plan listing and current billing state; idempotent trial creation.
 - `POST /billing/checkout/preview` / `POST /billing/checkout` — price preview and CardCom LowProfile checkout session creation; activation happens only via the webhook, never the checkout response.
 - `POST /billing/cardcom/webhook` — CardCom posts payment results here; `CardcomWebhookService` verifies/activates subscriptions; errors are swallowed so CardCom doesn't retry-storm.
