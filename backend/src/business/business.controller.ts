@@ -53,7 +53,11 @@ export class BusinessController {
 
   @Patch('update')
   @UseGuards(FirebaseAuthGuard)
-  @RequiredDelegationScope(DelegationScope.DOCUMENTS_WRITE)
+  // Maintaining the represented client's business profile belongs to the
+  // active accountant relationship itself. Some valid production delegations
+  // are intentionally view-only for documents, so DOCUMENTS_WRITE would block
+  // the accountant from maintaining reporting/advance settings.
+  @RequiredDelegationScope(DelegationScope.DOCUMENTS_READ)
   @UsePipes(new ValidationPipe({ transform: true }))
   async updateBusiness(@Req() req: AuthenticatedRequest, @Body() dto: UpdateBusinessDto) {
     const firebaseId = req.user?.firebaseId;

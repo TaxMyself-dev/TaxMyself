@@ -1,5 +1,7 @@
 import { ForbiddenException } from '@nestjs/common';
 import { BusinessController } from './business.controller';
+import { REQUIRED_DELEGATION_SCOPE_KEY } from 'src/decorators/required-delegation-scope.decorator';
+import { DelegationScope } from 'src/delegation/delegation.entity';
 
 describe('BusinessController delegated accountant writes', () => {
   const dto = { id: 17, advanceTaxPercent: 12 } as any;
@@ -26,6 +28,13 @@ describe('BusinessController delegated accountant writes', () => {
     );
 
     expect(businessService.updateBusiness).toHaveBeenCalledWith('client-firebase-id', dto);
+  });
+
+  it('requires only an active delegation, including production view-only relationships', () => {
+    expect(Reflect.getMetadata(
+      REQUIRED_DELEGATION_SCOPE_KEY,
+      BusinessController.prototype.updateBusiness,
+    )).toBe(DelegationScope.DOCUMENTS_READ);
   });
 
   it('keeps business creation and deletion forbidden for accountants', async () => {
