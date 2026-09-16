@@ -51,9 +51,7 @@ const ATTEMPT_TRANSITIONS: Readonly<
   ],
   [BillingAttemptStatus.MANUAL_REVIEW]: [
     BillingAttemptStatus.UNKNOWN,
-    BillingAttemptStatus.DECLINED,
     BillingAttemptStatus.CAPTURED,
-    BillingAttemptStatus.CANCELED,
   ],
   [BillingAttemptStatus.DECLINED]: [],
   [BillingAttemptStatus.COMPLETED]: [],
@@ -126,6 +124,19 @@ export const PAYMENT_METHOD_UPDATE_ACTIVE_STATUSES =
     PaymentMethodUpdateAttemptStatus.MANUAL_REVIEW,
   ]);
 
+export function assertCanOpenBillingAttempt(
+  activeAttemptStatus: BillingAttemptStatus | null,
+): void {
+  if (
+    activeAttemptStatus !== null &&
+    BILLING_ATTEMPT_BLOCKING_STATUSES.has(activeAttemptStatus)
+  ) {
+    throw new Error(
+      `Cannot open a new billing attempt while ${activeAttemptStatus} remains unresolved`,
+    );
+  }
+}
+
 function assertTransition<T extends string>(
   label: string,
   transitions: Readonly<Record<T, readonly T[]>>,
@@ -165,9 +176,10 @@ export function assertPaymentMethodUpdateAttemptTransition(
 }
 
 /**
- * A provider callback may replace the saved card only for the flow currently
- * selected by the subscription. Older callbacks are audit-only after their
- * attempt is superseded.
+ * A provider callback may replace the saved card only while applying a
+ * verified result for the flow currently selected by the subscription.
+ * SUCCEEDED is already terminal and may only produce an idempotent no-op;
+ * older/superseded and otherwise unresolved callbacks are audit-only.
  */
 export function assertPaymentMethodUpdateCanReplaceCard(
   attemptId: number,
@@ -176,7 +188,7 @@ export function assertPaymentMethodUpdateCanReplaceCard(
 ): void {
   if (
     attemptId !== activeAttemptId ||
-    status === PaymentMethodUpdateAttemptStatus.SUPERSEDED
+    status !== PaymentMethodUpdateAttemptStatus.VERIFYING
   ) {
     throw new Error(
       'Only the subscription active payment-method update attempt may replace the saved card',

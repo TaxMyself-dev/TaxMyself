@@ -26,9 +26,12 @@ describe('billing persistence metadata', () => {
   }
 
   it('keeps CardCom ExternalUniqTranId immutable-sized and uniquely indexed', () => {
-    expect(
-      column(BillingAttempt, 'cardcomExternalUniqTranId')?.options.length,
-    ).toBe(25);
+    const externalUniqTranId = column(
+      BillingAttempt,
+      'cardcomExternalUniqTranId',
+    );
+    expect(externalUniqTranId?.options.length).toBe(25);
+    expect(externalUniqTranId?.options.update).toBe(false);
     expect(indexNames(BillingAttempt)).toContain(
       'ux_billing_attempt_external_uniq',
     );

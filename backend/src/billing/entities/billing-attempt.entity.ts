@@ -95,6 +95,7 @@ export class BillingAttempt {
     name: 'cardcom_external_uniq_tran_id',
     type: 'varchar',
     length: 25,
+    update: false,
   })
   cardcomExternalUniqTranId: string;
 

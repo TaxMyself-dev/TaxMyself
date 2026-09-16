@@ -6,6 +6,7 @@ import {
 import {
   assertBillingAttemptTransition,
   assertBillingAnchorDay,
+  assertCanOpenBillingAttempt,
   assertBillingObligationTransition,
   assertBillingCompletionPair,
   assertBillingPeriod,
@@ -98,6 +99,42 @@ describe('billing persistence state invariants', () => {
     ).toThrow('must be persisted together');
   });
 
+  it('keeps CAPTURED and its MANUAL_REVIEW ancestry blocking without a no-charge escape', () => {
+    expect(() =>
+      assertBillingAttemptTransition(
+        BillingAttemptStatus.CAPTURED,
+        BillingAttemptStatus.MANUAL_REVIEW,
+      ),
+    ).not.toThrow();
+    expect(() =>
+      assertBillingAttemptTransition(
+        BillingAttemptStatus.MANUAL_REVIEW,
+        BillingAttemptStatus.CANCELED,
+      ),
+    ).toThrow('Invalid billing attempt transition');
+    expect(() =>
+      assertBillingAttemptTransition(
+        BillingAttemptStatus.MANUAL_REVIEW,
+        BillingAttemptStatus.DECLINED,
+      ),
+    ).toThrow('Invalid billing attempt transition');
+    expect(
+      BILLING_ATTEMPT_BLOCKING_STATUSES.has(BillingAttemptStatus.CAPTURED),
+    ).toBe(true);
+    expect(
+      BILLING_ATTEMPT_BLOCKING_STATUSES.has(BillingAttemptStatus.MANUAL_REVIEW),
+    ).toBe(true);
+    expect(() =>
+      assertCanOpenBillingAttempt(BillingAttemptStatus.CAPTURED),
+    ).toThrow('Cannot open a new billing attempt');
+    expect(() =>
+      assertCanOpenBillingAttempt(BillingAttemptStatus.MANUAL_REVIEW),
+    ).toThrow('Cannot open a new billing attempt');
+    expect(() =>
+      assertCanOpenBillingAttempt(BillingAttemptStatus.DECLINED),
+    ).not.toThrow();
+  });
+
   it('does not reopen satisfied or canceled obligations', () => {
     expect(() =>
       assertBillingObligationTransition(
@@ -144,6 +181,10 @@ describe('billing persistence state invariants', () => {
       ),
     ).toThrow();
 
+    const rejectedStatuses = Object.values(
+      PaymentMethodUpdateAttemptStatus,
+    ).filter((status) => status !== PaymentMethodUpdateAttemptStatus.VERIFYING);
+
     expect(() =>
       assertPaymentMethodUpdateCanReplaceCard(
         12,
@@ -158,13 +199,11 @@ describe('billing persistence state invariants', () => {
         PaymentMethodUpdateAttemptStatus.VERIFYING,
       ),
     ).toThrow('Only the subscription active');
-    expect(() =>
-      assertPaymentMethodUpdateCanReplaceCard(
-        12,
-        12,
-        PaymentMethodUpdateAttemptStatus.SUPERSEDED,
-      ),
-    ).toThrow('Only the subscription active');
+    for (const status of rejectedStatuses) {
+      expect(() =>
+        assertPaymentMethodUpdateCanReplaceCard(12, 12, status),
+      ).toThrow('Only the subscription active');
+    }
   });
 
   it('enforces CardCom ExternalUniqTranId provider limits', () => {
