@@ -2,7 +2,7 @@
 Handles the full lifecycle of official documents the user issues (invoices, receipts, credit notes — Israeli tax-authority formats), plus the inbound OCR pipeline that extracts structured data from documents received from suppliers via Google Drive.
 
 ## Key entities/files
-- `documents.entity.ts` — `Documents`: issued document header (issuer/recipient details, doc type/number, sums, VAT, dates, parent-doc linkage for credit notes, `journalEntryNumber`/`journalEntryId` FK to bookkeeping). Unique per `(issuerBusinessNumber, docType, docNumber)`.
+- `documents.entity.ts` — `Documents`: issued document header (issuer/recipient details, doc type/number, sums, VAT, dates, parent-doc linkage for credit notes, `journalEntryNumber`/`journalEntryId` FK to bookkeeping). Unique per `(issuerBusinessNumber, docType, docNumber)`. The nullable UNIQUE `billingAttemptId` is reserved for the future atomic billing finalization path; KT-032 registers the provenance FK but does not wire document creation to it yet.
 - `doc-lines.entity.ts` — `DocLines`: line items of an issued document (quantity, unit price, discount, VAT per line).
 - `doc-payments.entity.ts` — `DocPayments`: payment details attached to an issued document (bank/check/credit-card info).
 - `settingDocuments.entity.ts` — `SettingDocuments`: per-user/business/docType running-number counters (`currentIndex`/`initialIndex`); also reused by other modules as a generic per-business counter (e.g. journal entry numbers).

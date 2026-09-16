@@ -1,9 +1,11 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, BeforeInsert, Index } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, BeforeInsert, Index, JoinColumn, ManyToOne } from 'typeorm';
 import { Currency, DocumentStatusType, DocumentType } from 'src/enum';
+import { BillingAttempt } from '../billing/entities/billing-attempt.entity';
 
 
 @Entity()
 @Index('uq_documents_business_doctype_docnumber', ['issuerBusinessNumber', 'docType', 'docNumber'], { unique: true })
+@Index('ux_documents_billing_attempt', ['billingAttemptId'], { unique: true })
 export class Documents {
 
   @PrimaryGeneratedColumn()
@@ -161,4 +163,11 @@ export class Documents {
    */
   @Column({ type: 'int', nullable: true, default: null })
   journalEntryId: number | null;
+
+  @Column({ name: 'billing_attempt_id', type: 'int', nullable: true, default: null })
+  billingAttemptId: number | null;
+
+  @ManyToOne(() => BillingAttempt, { nullable: true, onDelete: 'RESTRICT', onUpdate: 'CASCADE' })
+  @JoinColumn({ name: 'billing_attempt_id', foreignKeyConstraintName: 'fk_documents_billing_attempt' })
+  billingAttempt: BillingAttempt | null;
 }

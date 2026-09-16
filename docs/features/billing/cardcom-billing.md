@@ -71,6 +71,37 @@ RECEIPT GENERATION (shared by both paths above — same 3-step pipeline)
 | `business` | Issuer identity — KeepInTax's own business row, looked up via `COMPANY_BILLING_FIREBASE_ID`/`COMPANY_BILLING_BUSINESS_NUMBER` env vars (`BillingIssuerConfigService`) |
 | `user` | Recipient name/email for the receipt (the paying customer) |
 
+### Durable aggregate schema staged by KT-032
+
+The codebase now contains an unwired persistence foundation for the next
+billing lifecycle. It does **not** change the live flow described above until a
+later runtime task explicitly migrates each service:
+
+| Table | Future source-of-truth role |
+|---|---|
+| `billing_obligation` | One canonical debt per subscription and exclusive service period; renewal and recovery share it. |
+| `billing_attempt` | One provider charge attempt, with a fixed <=25-character `ExternalUniqTranId`, status and reconciliation schedule. |
+| `payment_method_update_attempt` | One CreateTokenOnly lifecycle, separate from money movement. |
+
+Database uniqueness protects the canonical obligation key, attempt number,
+opaque provider request key, LowProfileId, attempt receipt and update result.
+The obligation's active/satisfied attempt pointers and the nullable provenance
+links on `payment_method` and `documents` are UNIQUE. MySQL intentionally allows
+multiple NULL values in those indexes. `UNKNOWN` never opens or replays a new
+charge; only read-only reconciliation may resolve it.
+
+`billing_event` receives nullable correlation columns but remains audit/history
+only. Existing rows remain valid with NULL correlations. No backfill, CardCom
+call, runtime switchover, PDF/email automation, or production SQL execution is
+part of KT-032.
+
+All future billing mutations over these aggregates are owner-only. The server
+must reject delegated accountants, admin impersonation, represented-subject
+mode, and every actor/subject mismatch for card updates, charge/recovery,
+renewal/reactivation, and subscription changes. Authorized support/read
+visibility is a separate policy and does not grant money-moving authority;
+frontend visibility is not an authorization boundary.
+
 ### `billing_event.eventType` values actually used in this flow
 `CHECKOUT_CREATED`, `WEBHOOK_RECEIVED`, `PAYMENT_VERIFIED`, `PAYMENT_SUCCESS`,
 `PAYMENT_FAILED`, `SUBSCRIPTION_ACTIVATED`, `RENEWAL_SUCCESS`, `RENEWAL_FAILED`,

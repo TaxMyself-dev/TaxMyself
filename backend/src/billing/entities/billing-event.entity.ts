@@ -3,9 +3,14 @@ import {
   CreateDateColumn,
   Entity,
   Index,
+  JoinColumn,
+  ManyToOne,
   PrimaryGeneratedColumn,
 } from 'typeorm';
 import { BillingEventType } from '../enums/billing.enums';
+import { BillingAttempt } from './billing-attempt.entity';
+import { BillingObligation } from './billing-obligation.entity';
+import { PaymentMethodUpdateAttempt } from './payment-method-update-attempt.entity';
 
 /**
  * Internal audit trail of billing system actions. Rows are append-only except
@@ -17,6 +22,9 @@ import { BillingEventType } from '../enums/billing.enums';
 @Index('ix_billing_event_user', ['firebaseId', 'createdAt'])
 @Index('ix_billing_event_type', ['eventType'])
 @Index('ix_billing_event_receipt_lookup', ['eventType', 'cardcomDealNumber'])
+@Index('ix_billing_event_obligation', ['billingObligationId', 'createdAt'])
+@Index('ix_billing_event_attempt', ['billingAttemptId', 'createdAt'])
+@Index('ix_billing_event_payment_method_update', ['paymentMethodUpdateAttemptId', 'createdAt'])
 export class BillingEvent {
   @PrimaryGeneratedColumn()
   id: number;
@@ -31,6 +39,31 @@ export class BillingEvent {
   /** FK → payment_method.id. */
   @Column({ name: 'payment_method_id', type: 'int', nullable: true, default: null })
   paymentMethodId: number | null;
+
+  /** Optional audit correlation only; operational coordination lives in the aggregate tables. */
+  @Column({ name: 'billing_obligation_id', type: 'int', nullable: true, default: null })
+  billingObligationId: number | null;
+
+  @ManyToOne(() => BillingObligation, { nullable: true, onDelete: 'RESTRICT', onUpdate: 'CASCADE' })
+  @JoinColumn({ name: 'billing_obligation_id', foreignKeyConstraintName: 'fk_billing_event_obligation' })
+  billingObligation: BillingObligation | null;
+
+  @Column({ name: 'billing_attempt_id', type: 'int', nullable: true, default: null })
+  billingAttemptId: number | null;
+
+  @ManyToOne(() => BillingAttempt, { nullable: true, onDelete: 'RESTRICT', onUpdate: 'CASCADE' })
+  @JoinColumn({ name: 'billing_attempt_id', foreignKeyConstraintName: 'fk_billing_event_attempt' })
+  billingAttempt: BillingAttempt | null;
+
+  @Column({ name: 'payment_method_update_attempt_id', type: 'int', nullable: true, default: null })
+  paymentMethodUpdateAttemptId: number | null;
+
+  @ManyToOne(() => PaymentMethodUpdateAttempt, { nullable: true, onDelete: 'RESTRICT', onUpdate: 'CASCADE' })
+  @JoinColumn({
+    name: 'payment_method_update_attempt_id',
+    foreignKeyConstraintName: 'fk_billing_event_payment_method_update',
+  })
+  paymentMethodUpdateAttempt: PaymentMethodUpdateAttempt | null;
 
   @Column({
     name: 'event_type',

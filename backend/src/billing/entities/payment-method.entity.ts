@@ -4,12 +4,16 @@ import {
   DeleteDateColumn,
   Entity,
   Index,
+  JoinColumn,
+  ManyToOne,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { PaymentMethodUpdateAttempt } from './payment-method-update-attempt.entity';
 
 @Entity('payment_method')
 @Index('ix_payment_method_firebase', ['firebaseId'])
+@Index('ux_payment_method_source_update_attempt', ['sourceUpdateAttemptId'], { unique: true })
 export class PaymentMethod {
   @PrimaryGeneratedColumn()
   id: number;
@@ -31,6 +35,20 @@ export class PaymentMethod {
 
   @Column({ name: 'card_expiry_year', type: 'int', nullable: true, default: null })
   cardExpiryYear: number | null;
+
+  @Column({ name: 'source_update_attempt_id', type: 'int', nullable: true, default: null })
+  sourceUpdateAttemptId: number | null;
+
+  @ManyToOne(() => PaymentMethodUpdateAttempt, { nullable: true, onDelete: 'RESTRICT', onUpdate: 'CASCADE' })
+  @JoinColumn({
+    name: 'source_update_attempt_id',
+    foreignKeyConstraintName: 'fk_payment_method_source_update_attempt',
+  })
+  sourceUpdateAttempt: PaymentMethodUpdateAttempt | null;
+
+  /** CardCom TokenExDate: token deletion date, distinct from card expiry. */
+  @Column({ name: 'cardcom_token_delete_at', type: 'datetime', nullable: true, default: null })
+  cardcomTokenDeleteAt: Date | null;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

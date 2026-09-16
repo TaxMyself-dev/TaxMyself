@@ -1763,3 +1763,374 @@ ALTER TABLE `journal_line`
 -- FROM journal_line WHERE isEquipment IS NULL;
 -- SELECT COUNT(*) AS unbucketed_vat_lines
 -- FROM journal_line WHERE accountCode = '2410' AND isEquipment IS NULL;
+
+
+-- ============================================================================
+-- SECTION 17 (2026-09-17, Elazar) -- durable billing obligations and attempts.
+--
+-- Persistence foundation only. Existing checkout/renewal/recovery/webhook
+-- runtime paths are not switched by this section. billing_event remains an
+-- audit trail; the three new aggregate tables become the future coordination
+-- source of truth when the runtime migration is delivered separately.
+--
+-- MySQL UNIQUE indexes permit multiple NULL values. Nullable active/satisfied
+-- and provenance pointers therefore enforce one linked effect when populated
+-- while allowing unrelated rows to remain NULL.
+-- ============================================================================
+
+SET @kt032_sql = IF(
+  EXISTS(
+    SELECT 1 FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'subscription'
+      AND COLUMN_NAME = 'billing_anchor_day'
+  ),
+  'SELECT 1',
+  'ALTER TABLE `subscription` ADD COLUMN `billing_anchor_day` tinyint NULL DEFAULT NULL AFTER `next_billing_date`'
+);
+PREPARE kt032_stmt FROM @kt032_sql;
+EXECUTE kt032_stmt;
+DEALLOCATE PREPARE kt032_stmt;
+
+SET @kt032_sql = IF(
+  EXISTS(SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'subscription' AND COLUMN_NAME = 'active_payment_method_update_attempt_id'),
+  'SELECT 1',
+  'ALTER TABLE `subscription` ADD COLUMN `active_payment_method_update_attempt_id` int NULL DEFAULT NULL AFTER `payment_method_id`'
+);
+PREPARE kt032_stmt FROM @kt032_sql;
+EXECUTE kt032_stmt;
+DEALLOCATE PREPARE kt032_stmt;
+
+SET @kt032_sql = IF(
+  EXISTS(SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'payment_method' AND COLUMN_NAME = 'source_update_attempt_id'),
+  'SELECT 1',
+  'ALTER TABLE `payment_method` ADD COLUMN `source_update_attempt_id` int NULL DEFAULT NULL AFTER `card_expiry_year`'
+);
+PREPARE kt032_stmt FROM @kt032_sql;
+EXECUTE kt032_stmt;
+DEALLOCATE PREPARE kt032_stmt;
+
+SET @kt032_sql = IF(
+  EXISTS(SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'payment_method' AND COLUMN_NAME = 'cardcom_token_delete_at'),
+  'SELECT 1',
+  'ALTER TABLE `payment_method` ADD COLUMN `cardcom_token_delete_at` datetime NULL DEFAULT NULL AFTER `source_update_attempt_id`'
+);
+PREPARE kt032_stmt FROM @kt032_sql;
+EXECUTE kt032_stmt;
+DEALLOCATE PREPARE kt032_stmt;
+
+SET @kt032_sql = IF(
+  EXISTS(SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'documents' AND COLUMN_NAME = 'billing_attempt_id'),
+  'SELECT 1',
+  'ALTER TABLE `documents` ADD COLUMN `billing_attempt_id` int NULL DEFAULT NULL AFTER `journalEntryId`'
+);
+PREPARE kt032_stmt FROM @kt032_sql;
+EXECUTE kt032_stmt;
+DEALLOCATE PREPARE kt032_stmt;
+
+CREATE TABLE IF NOT EXISTS `billing_obligation` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `subscription_id` int NOT NULL,
+  `firebase_id_snapshot` varchar(255) NOT NULL,
+  `plan_id` int NOT NULL,
+  `obligation_key` varchar(191) NOT NULL,
+  `kind` enum('CHECKOUT','RECURRING_PERIOD') NOT NULL,
+  `status` enum('OPEN','SATISFIED','CANCELED','MANUAL_REVIEW') NOT NULL DEFAULT 'OPEN',
+  `period_start` date NOT NULL,
+  `period_end` date NOT NULL,
+  `amount_agorot` int NOT NULL,
+  `amount_before_vat_agorot` int NOT NULL,
+  `vat_amount_agorot` int NOT NULL,
+  `currency` char(3) NOT NULL DEFAULT 'ILS',
+  `active_attempt_id` int NULL DEFAULT NULL,
+  `satisfied_attempt_id` int NULL DEFAULT NULL,
+  `version` int NOT NULL DEFAULT 0,
+  `satisfied_at` datetime NULL DEFAULT NULL,
+  `created_at` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  `updated_at` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `ux_billing_obligation_key` (`obligation_key`),
+  UNIQUE KEY `ux_billing_obligation_active_attempt` (`active_attempt_id`),
+  UNIQUE KEY `ux_billing_obligation_satisfied_attempt` (`satisfied_attempt_id`),
+  KEY `ix_billing_obligation_subscription_status` (`subscription_id`, `status`),
+  KEY `ix_billing_obligation_status_updated` (`status`, `updated_at`),
+  CONSTRAINT `ck_billing_obligation_period` CHECK (`period_end` > `period_start`),
+  CONSTRAINT `ck_billing_obligation_amounts` CHECK (
+    `amount_agorot` >= 0 AND `amount_before_vat_agorot` >= 0
+    AND `vat_amount_agorot` >= 0
+    AND `amount_before_vat_agorot` + `vat_amount_agorot` = `amount_agorot`
+  ),
+  CONSTRAINT `fk_billing_obligation_subscription`
+    FOREIGN KEY (`subscription_id`) REFERENCES `subscription` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT `fk_billing_obligation_plan`
+    FOREIGN KEY (`plan_id`) REFERENCES `subscription_plan` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `billing_attempt` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `obligation_id` int NOT NULL,
+  `attempt_number` int NOT NULL,
+  `trigger` enum('CHECKOUT','RENEWAL','RECOVERY','MANUAL_RETRY') NOT NULL,
+  `charge_mode` enum('TOKEN_TRANSACTION','LOW_PROFILE_HOSTED') NOT NULL,
+  `status` enum('CREATED','AWAITING_CUSTOMER','PROCESSING','UNKNOWN','CAPTURED','COMPLETED','DECLINED','CANCELED','EXPIRED','MANUAL_REVIEW') NOT NULL DEFAULT 'CREATED',
+  `payment_method_id` int NULL DEFAULT NULL,
+  `cardcom_external_uniq_tran_id` varchar(25) NOT NULL,
+  `cardcom_low_profile_id` varchar(255) NULL DEFAULT NULL,
+  `provider_terminal_ref` varchar(100) NULL DEFAULT NULL,
+  `cardcom_transaction_id` varchar(128) NULL DEFAULT NULL,
+  `provider_response_code` int NULL DEFAULT NULL,
+  `failure_category` varchar(64) NULL DEFAULT NULL,
+  `plan_id` int NOT NULL,
+  `amount_agorot` int NOT NULL,
+  `amount_before_vat_agorot` int NOT NULL,
+  `vat_amount_agorot` int NOT NULL,
+  `currency` char(3) NOT NULL DEFAULT 'ILS',
+  `receipt_doc_id` int NULL DEFAULT NULL,
+  `lease_owner` varchar(191) NULL DEFAULT NULL,
+  `lease_expires_at` datetime NULL DEFAULT NULL,
+  `state_version` int NOT NULL DEFAULT 0,
+  `next_action_at` datetime NULL DEFAULT NULL,
+  `unknown_since` datetime NULL DEFAULT NULL,
+  `submitted_at` datetime NULL DEFAULT NULL,
+  `captured_at` datetime NULL DEFAULT NULL,
+  `completed_at` datetime NULL DEFAULT NULL,
+  `reconciliation_attempts` int NOT NULL DEFAULT 0,
+  `last_reconciled_at` datetime NULL DEFAULT NULL,
+  `created_at` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  `updated_at` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `ux_billing_attempt_number` (`obligation_id`, `attempt_number`),
+  UNIQUE KEY `ux_billing_attempt_external_uniq` (`cardcom_external_uniq_tran_id`),
+  UNIQUE KEY `ux_billing_attempt_low_profile` (`cardcom_low_profile_id`),
+  UNIQUE KEY `ux_billing_attempt_receipt` (`receipt_doc_id`),
+  KEY `ix_billing_attempt_status_action` (`status`, `next_action_at`),
+  KEY `ix_billing_attempt_lease_status` (`lease_expires_at`, `status`),
+  KEY `ix_billing_attempt_obligation_status` (`obligation_id`, `status`),
+  CONSTRAINT `ck_billing_attempt_number` CHECK (`attempt_number` > 0),
+  CONSTRAINT `ck_billing_attempt_amounts` CHECK (
+    `amount_agorot` >= 0 AND `amount_before_vat_agorot` >= 0
+    AND `vat_amount_agorot` >= 0
+    AND `amount_before_vat_agorot` + `vat_amount_agorot` = `amount_agorot`
+  ),
+  CONSTRAINT `fk_billing_attempt_obligation`
+    FOREIGN KEY (`obligation_id`) REFERENCES `billing_obligation` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT `fk_billing_attempt_plan`
+    FOREIGN KEY (`plan_id`) REFERENCES `subscription_plan` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT `fk_billing_attempt_payment_method`
+    FOREIGN KEY (`payment_method_id`) REFERENCES `payment_method` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT `fk_billing_attempt_receipt`
+    FOREIGN KEY (`receipt_doc_id`) REFERENCES `documents` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Circular pointers are added only after both aggregate tables exist.
+SET @kt032_sql = IF(
+  EXISTS(
+    SELECT 1 FROM information_schema.REFERENTIAL_CONSTRAINTS
+    WHERE CONSTRAINT_SCHEMA = DATABASE()
+      AND CONSTRAINT_NAME = 'fk_billing_obligation_active_attempt'
+  ),
+  'SELECT 1',
+  'ALTER TABLE `billing_obligation` ADD CONSTRAINT `fk_billing_obligation_active_attempt` FOREIGN KEY (`active_attempt_id`) REFERENCES `billing_attempt` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE'
+);
+PREPARE kt032_stmt FROM @kt032_sql;
+EXECUTE kt032_stmt;
+DEALLOCATE PREPARE kt032_stmt;
+
+SET @kt032_sql = IF(
+  EXISTS(
+    SELECT 1 FROM information_schema.REFERENTIAL_CONSTRAINTS
+    WHERE CONSTRAINT_SCHEMA = DATABASE()
+      AND CONSTRAINT_NAME = 'fk_billing_obligation_satisfied_attempt'
+  ),
+  'SELECT 1',
+  'ALTER TABLE `billing_obligation` ADD CONSTRAINT `fk_billing_obligation_satisfied_attempt` FOREIGN KEY (`satisfied_attempt_id`) REFERENCES `billing_attempt` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE'
+);
+PREPARE kt032_stmt FROM @kt032_sql;
+EXECUTE kt032_stmt;
+DEALLOCATE PREPARE kt032_stmt;
+
+CREATE TABLE IF NOT EXISTS `payment_method_update_attempt` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `public_token` varchar(191) NOT NULL,
+  `subscription_id` int NOT NULL,
+  `firebase_id_snapshot` varchar(255) NOT NULL,
+  `status` enum('CREATED','AWAITING_CUSTOMER','VERIFYING','UNKNOWN','SUCCEEDED','FAILED','SUPERSEDED','EXPIRED','MANUAL_REVIEW') NOT NULL DEFAULT 'CREATED',
+  `cardcom_low_profile_id` varchar(255) NULL DEFAULT NULL,
+  `return_value_version` smallint NOT NULL DEFAULT 1,
+  `previous_payment_method_id` int NULL DEFAULT NULL,
+  `result_payment_method_id` int NULL DEFAULT NULL,
+  `provider_response_code` int NULL DEFAULT NULL,
+  `failure_category` varchar(64) NULL DEFAULT NULL,
+  `lease_owner` varchar(191) NULL DEFAULT NULL,
+  `lease_expires_at` datetime NULL DEFAULT NULL,
+  `state_version` int NOT NULL DEFAULT 0,
+  `next_action_at` datetime NULL DEFAULT NULL,
+  `verification_attempts` int NOT NULL DEFAULT 0,
+  `token_delete_at` datetime NULL DEFAULT NULL,
+  `completed_at` datetime NULL DEFAULT NULL,
+  `created_at` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  `updated_at` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `ux_payment_method_update_public_token` (`public_token`),
+  UNIQUE KEY `ux_payment_method_update_low_profile` (`cardcom_low_profile_id`),
+  UNIQUE KEY `ux_payment_method_update_result` (`result_payment_method_id`),
+  KEY `ix_payment_method_update_subscription_status` (`subscription_id`, `status`),
+  KEY `ix_payment_method_update_status_action` (`status`, `next_action_at`),
+  CONSTRAINT `fk_payment_method_update_subscription`
+    FOREIGN KEY (`subscription_id`) REFERENCES `subscription` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT `fk_payment_method_update_previous_method`
+    FOREIGN KEY (`previous_payment_method_id`) REFERENCES `payment_method` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT `fk_payment_method_update_result_method`
+    FOREIGN KEY (`result_payment_method_id`) REFERENCES `payment_method` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+SET @kt032_sql = IF(
+  EXISTS(SELECT 1 FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'payment_method' AND INDEX_NAME = 'ux_payment_method_source_update_attempt'),
+  'SELECT 1',
+  'ALTER TABLE `payment_method` ADD UNIQUE KEY `ux_payment_method_source_update_attempt` (`source_update_attempt_id`)'
+);
+PREPARE kt032_stmt FROM @kt032_sql;
+EXECUTE kt032_stmt;
+DEALLOCATE PREPARE kt032_stmt;
+
+SET @kt032_sql = IF(
+  EXISTS(SELECT 1 FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'documents' AND INDEX_NAME = 'ux_documents_billing_attempt'),
+  'SELECT 1',
+  'ALTER TABLE `documents` ADD UNIQUE KEY `ux_documents_billing_attempt` (`billing_attempt_id`)'
+);
+PREPARE kt032_stmt FROM @kt032_sql;
+EXECUTE kt032_stmt;
+DEALLOCATE PREPARE kt032_stmt;
+
+SET @kt032_sql = IF(
+  EXISTS(SELECT 1 FROM information_schema.REFERENTIAL_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() AND CONSTRAINT_NAME = 'fk_subscription_active_payment_method_update'),
+  'SELECT 1',
+  'ALTER TABLE `subscription` ADD CONSTRAINT `fk_subscription_active_payment_method_update` FOREIGN KEY (`active_payment_method_update_attempt_id`) REFERENCES `payment_method_update_attempt` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE'
+);
+PREPARE kt032_stmt FROM @kt032_sql;
+EXECUTE kt032_stmt;
+DEALLOCATE PREPARE kt032_stmt;
+
+SET @kt032_sql = IF(
+  EXISTS(SELECT 1 FROM information_schema.REFERENTIAL_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() AND CONSTRAINT_NAME = 'fk_payment_method_source_update_attempt'),
+  'SELECT 1',
+  'ALTER TABLE `payment_method` ADD CONSTRAINT `fk_payment_method_source_update_attempt` FOREIGN KEY (`source_update_attempt_id`) REFERENCES `payment_method_update_attempt` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE'
+);
+PREPARE kt032_stmt FROM @kt032_sql;
+EXECUTE kt032_stmt;
+DEALLOCATE PREPARE kt032_stmt;
+
+SET @kt032_sql = IF(
+  EXISTS(SELECT 1 FROM information_schema.REFERENTIAL_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() AND CONSTRAINT_NAME = 'fk_documents_billing_attempt'),
+  'SELECT 1',
+  'ALTER TABLE `documents` ADD CONSTRAINT `fk_documents_billing_attempt` FOREIGN KEY (`billing_attempt_id`) REFERENCES `billing_attempt` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE'
+);
+PREPARE kt032_stmt FROM @kt032_sql;
+EXECUTE kt032_stmt;
+DEALLOCATE PREPARE kt032_stmt;
+
+-- billing_event is audit-only. These nullable links correlate old/new events
+-- without making event rows the coordination mechanism.
+SET @kt032_sql = IF(
+  EXISTS(SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'billing_event' AND COLUMN_NAME = 'billing_obligation_id'),
+  'SELECT 1',
+  'ALTER TABLE `billing_event` ADD COLUMN `billing_obligation_id` int NULL DEFAULT NULL AFTER `payment_method_id`'
+);
+PREPARE kt032_stmt FROM @kt032_sql;
+EXECUTE kt032_stmt;
+DEALLOCATE PREPARE kt032_stmt;
+
+SET @kt032_sql = IF(
+  EXISTS(SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'billing_event' AND COLUMN_NAME = 'billing_attempt_id'),
+  'SELECT 1',
+  'ALTER TABLE `billing_event` ADD COLUMN `billing_attempt_id` int NULL DEFAULT NULL AFTER `billing_obligation_id`'
+);
+PREPARE kt032_stmt FROM @kt032_sql;
+EXECUTE kt032_stmt;
+DEALLOCATE PREPARE kt032_stmt;
+
+SET @kt032_sql = IF(
+  EXISTS(SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'billing_event' AND COLUMN_NAME = 'payment_method_update_attempt_id'),
+  'SELECT 1',
+  'ALTER TABLE `billing_event` ADD COLUMN `payment_method_update_attempt_id` int NULL DEFAULT NULL AFTER `billing_attempt_id`'
+);
+PREPARE kt032_stmt FROM @kt032_sql;
+EXECUTE kt032_stmt;
+DEALLOCATE PREPARE kt032_stmt;
+
+-- Add each audit index and FK only when absent, so this additive section can
+-- be safely resumed after a partial manual cutover.
+SET @kt032_sql = IF(
+  EXISTS(SELECT 1 FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'billing_event' AND INDEX_NAME = 'ix_billing_event_obligation'),
+  'SELECT 1',
+  'ALTER TABLE `billing_event` ADD KEY `ix_billing_event_obligation` (`billing_obligation_id`, `created_at`)'
+);
+PREPARE kt032_stmt FROM @kt032_sql;
+EXECUTE kt032_stmt;
+DEALLOCATE PREPARE kt032_stmt;
+
+SET @kt032_sql = IF(
+  EXISTS(SELECT 1 FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'billing_event' AND INDEX_NAME = 'ix_billing_event_attempt'),
+  'SELECT 1',
+  'ALTER TABLE `billing_event` ADD KEY `ix_billing_event_attempt` (`billing_attempt_id`, `created_at`)'
+);
+PREPARE kt032_stmt FROM @kt032_sql;
+EXECUTE kt032_stmt;
+DEALLOCATE PREPARE kt032_stmt;
+
+SET @kt032_sql = IF(
+  EXISTS(SELECT 1 FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'billing_event' AND INDEX_NAME = 'ix_billing_event_payment_method_update'),
+  'SELECT 1',
+  'ALTER TABLE `billing_event` ADD KEY `ix_billing_event_payment_method_update` (`payment_method_update_attempt_id`, `created_at`)'
+);
+PREPARE kt032_stmt FROM @kt032_sql;
+EXECUTE kt032_stmt;
+DEALLOCATE PREPARE kt032_stmt;
+
+SET @kt032_sql = IF(
+  EXISTS(SELECT 1 FROM information_schema.REFERENTIAL_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() AND CONSTRAINT_NAME = 'fk_billing_event_obligation'),
+  'SELECT 1',
+  'ALTER TABLE `billing_event` ADD CONSTRAINT `fk_billing_event_obligation` FOREIGN KEY (`billing_obligation_id`) REFERENCES `billing_obligation` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE'
+);
+PREPARE kt032_stmt FROM @kt032_sql;
+EXECUTE kt032_stmt;
+DEALLOCATE PREPARE kt032_stmt;
+
+SET @kt032_sql = IF(
+  EXISTS(SELECT 1 FROM information_schema.REFERENTIAL_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() AND CONSTRAINT_NAME = 'fk_billing_event_attempt'),
+  'SELECT 1',
+  'ALTER TABLE `billing_event` ADD CONSTRAINT `fk_billing_event_attempt` FOREIGN KEY (`billing_attempt_id`) REFERENCES `billing_attempt` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE'
+);
+PREPARE kt032_stmt FROM @kt032_sql;
+EXECUTE kt032_stmt;
+DEALLOCATE PREPARE kt032_stmt;
+
+SET @kt032_sql = IF(
+  EXISTS(SELECT 1 FROM information_schema.REFERENTIAL_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() AND CONSTRAINT_NAME = 'fk_billing_event_payment_method_update'),
+  'SELECT 1',
+  'ALTER TABLE `billing_event` ADD CONSTRAINT `fk_billing_event_payment_method_update` FOREIGN KEY (`payment_method_update_attempt_id`) REFERENCES `payment_method_update_attempt` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE'
+);
+PREPARE kt032_stmt FROM @kt032_sql;
+EXECUTE kt032_stmt;
+DEALLOCATE PREPARE kt032_stmt;
+
+SET @kt032_sql = IF(
+  EXISTS(SELECT 1 FROM information_schema.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() AND TABLE_NAME = 'subscription' AND CONSTRAINT_NAME = 'ck_subscription_billing_anchor'),
+  'SELECT 1',
+  'ALTER TABLE `subscription` ADD CONSTRAINT `ck_subscription_billing_anchor` CHECK (`billing_anchor_day` IS NULL OR `billing_anchor_day` BETWEEN 1 AND 31)'
+);
+PREPARE kt032_stmt FROM @kt032_sql;
+EXECUTE kt032_stmt;
+DEALLOCATE PREPARE kt032_stmt;
+
+-- Verification: all counts must be 1, all three tables must be empty before
+-- runtime migration/backfill, and no SQL in this section initiates a charge.
+-- SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'billing_obligation';
+-- SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'billing_attempt';
+-- SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'payment_method_update_attempt';
+-- SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'subscription' AND COLUMN_NAME = 'billing_anchor_day';
+-- SELECT COUNT(*) FROM billing_obligation;
+-- SELECT COUNT(*) FROM billing_attempt;
+-- SELECT COUNT(*) FROM payment_method_update_attempt;
+-- SHOW CREATE TABLE billing_obligation;
+-- SHOW CREATE TABLE billing_attempt;
+-- SHOW CREATE TABLE payment_method_update_attempt;

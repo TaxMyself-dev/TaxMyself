@@ -12,6 +12,9 @@ import { Subscription } from './entities/subscription.entity';
 import { PaymentMethod } from './entities/payment-method.entity';
 import { CardcomWebhookLog } from './entities/cardcom-webhook-log.entity';
 import { BillingEvent } from './entities/billing-event.entity';
+import { BillingObligation } from './entities/billing-obligation.entity';
+import { BillingAttempt } from './entities/billing-attempt.entity';
+import { PaymentMethodUpdateAttempt } from './entities/payment-method-update-attempt.entity';
 
 // Guards
 import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
@@ -55,6 +58,9 @@ import { BusinessModule } from 'src/business/business.module';
       PaymentMethod,
       CardcomWebhookLog,
       BillingEvent,
+      BillingObligation,
+      BillingAttempt,
+      PaymentMethodUpdateAttempt,
       // External entities required by FirebaseAuthGuard
       User,
       Delegation,

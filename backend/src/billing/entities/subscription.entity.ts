@@ -1,12 +1,16 @@
 import {
+  Check,
   Column,
   CreateDateColumn,
   Entity,
   Index,
+  JoinColumn,
+  ManyToOne,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
 import { SubscriptionStatus } from '../enums/billing.enums';
+import { PaymentMethodUpdateAttempt } from './payment-method-update-attempt.entity';
 
 /**
  * One record per user. Created automatically on registration/trial start.
@@ -17,6 +21,7 @@ import { SubscriptionStatus } from '../enums/billing.enums';
 @Index('ux_subscription_firebase', ['firebaseId'], { unique: true })
 @Index('ix_subscription_status_billing', ['status', 'nextBillingDate'])
 @Index('ix_subscription_status_trial', ['status', 'trialEnd'])
+@Check('ck_subscription_billing_anchor', '`billing_anchor_day` IS NULL OR `billing_anchor_day` BETWEEN 1 AND 31')
 export class Subscription {
   @PrimaryGeneratedColumn()
   id: number;
@@ -31,6 +36,16 @@ export class Subscription {
   /** FK → payment_method.id. Nullable until first payment. */
   @Column({ name: 'payment_method_id', type: 'int', nullable: true, default: null })
   paymentMethodId: number | null;
+
+  @Column({ name: 'active_payment_method_update_attempt_id', type: 'int', nullable: true, default: null })
+  activePaymentMethodUpdateAttemptId: number | null;
+
+  @ManyToOne(() => PaymentMethodUpdateAttempt, { nullable: true, onDelete: 'RESTRICT', onUpdate: 'CASCADE' })
+  @JoinColumn({
+    name: 'active_payment_method_update_attempt_id',
+    foreignKeyConstraintName: 'fk_subscription_active_payment_method_update',
+  })
+  activePaymentMethodUpdateAttempt: PaymentMethodUpdateAttempt | null;
 
   @Column({
     type: 'enum',
@@ -53,6 +68,10 @@ export class Subscription {
 
   @Column({ name: 'next_billing_date', type: 'datetime', nullable: true, default: null })
   nextBillingDate: Date | null;
+
+  /** Original monthly day (1-31); short-month clamping must not overwrite it. */
+  @Column({ name: 'billing_anchor_day', type: 'tinyint', nullable: true, default: null })
+  billingAnchorDay: number | null;
 
   @Column({ name: 'grace_period_ends_at', type: 'datetime', nullable: true, default: null })
   gracePeriodEndsAt: Date | null;

@@ -6,11 +6,59 @@ Subscription billing: plan catalog, trial/subscription lifecycle, CardCom paymen
 - `entities/subscription.entity.ts` — `Subscription`: one per user (unique on firebaseId), status, trial/period/billing dates, renewal attempts, per-subscription discount.
 - `entities/payment-method.entity.ts` — `PaymentMethod`: stored CardCom token + card display info.
 - `entities/billing-event.entity.ts` — `BillingEvent`: append-only audit trail (checkout/payment/renewal events), amounts incl. VAT breakdown, links to a generated receipt document.
+- `entities/billing-obligation.entity.ts` — durable canonical debt for one subscription service period; owns unique active-attempt and satisfied-attempt pointers.
+- `entities/billing-attempt.entity.ts` — one concrete provider charge attempt for an obligation, including immutable CardCom `ExternalUniqTranId` and reconciliation state.
+- `entities/payment-method-update-attempt.entity.ts` — independent CreateTokenOnly lifecycle keyed by LowProfileId/opaque public token; never stores CVV or the token itself.
 - `entities/cardcom-webhook-log.entity.ts` — `CardcomWebhookLog`: idempotency-keyed log of every inbound CardCom webhook call.
 - `services/billing.service.ts`, `pricing.service.ts`, `cardcom.service.ts`, `cardcom-webhook.service.ts`, `billing-event.service.ts`, `billing-receipt.service.ts`, `subscription-access.service.ts`, `subscription-renewal.service.ts`, `admin-billing.service.ts` — plan pricing/checkout, CardCom API calls, webhook processing, receipt generation, module-access checks (`SubscriptionGuard`), daily renewal batch, admin CRUD.
 - `billing.controller.ts` (`/billing`), `admin-billing.controller.ts` (`/admin/billing`, admin-only), `cardcom-webhook.controller.ts` (`/billing/cardcom/webhook`, unauthenticated, always returns 200).
 
 ## Main flows
+
+### Persistence foundation (KT-032)
+
+The three new aggregate tables are registered with TypeORM but are not wired
+into the live checkout, renewal, recovery, webhook, or card-update services yet.
+Until that migration lands, the current runtime behavior below is unchanged.
+
+- One `billing_obligation` is canonical for an internal
+  subscription/period-start identity. Recovery of that period reuses it; it
+  does not create a second debt. `period_start` is inclusive and `period_end`
+  is exclusive. `subscription.billing_anchor_day` preserves the original 1-31
+  anchor across short months.
+- One unresolved `billing_attempt` per obligation is represented by the
+  obligation's nullable UNIQUE `active_attempt_id`; `satisfied_attempt_id` is
+  separately nullable and UNIQUE. MySQL's multiple-NULL UNIQUE behavior is
+  intentional: unrelated open/terminal obligations need not occupy a slot.
+- Only final `DECLINED`, `CANCELED`, or `EXPIRED` attempts may clear the active
+  pointer and permit a new attempt. `AWAITING_CUSTOMER`, `PROCESSING`,
+  `UNKNOWN`, `CAPTURED`, and `MANUAL_REVIEW` remain blocking; `COMPLETED` must
+  atomically pair with a `SATISFIED` obligation and can never reopen it.
+- `cardcom_external_uniq_tran_id` is opaque, immutable after creation, at most
+  25 characters, and globally unique locally. Technical retry/reconciliation
+  reuses it; only a new attempt after definite `DECLINED` gets a new value.
+- `UNKNOWN` is resolved only through read-only reconciliation; it is never a
+  signal to replay a charge. `CAPTURED` means provider success before atomic
+  local finalization; only `COMPLETED` is locally complete.
+- Payment-method changes use their own aggregate. The subscription's nullable
+  active-attempt pointer identifies the latest flow; an older callback marked
+  `SUPERSEDED` cannot replace the saved card. The resulting `payment_method`
+  and `documents` receipt both carry unique provenance links back to attempts.
+- `billing_event` has nullable correlation FKs to these aggregates but remains
+  audit/history only, never the coordination source of truth.
+- Every future billing mutation is owner-only: the authenticated actor must be
+  the subscription subject. Delegated accountants, admin impersonation,
+  represented-subject mode, and any `actor != subject` context may retain
+  separately authorized read/support visibility but must be rejected
+  server-side for payment-method changes, recovery/charge, renewal/reactivation,
+  plan/subscription changes, and every other money-moving mutation. Frontend
+  hiding is never authorization. KT-032 records this runtime invariant but does
+  not change controllers or guards.
+- Receipt PDF generation and email delivery remain in the existing manual
+  recovery flow and are deliberately outside these persistence state machines.
+- Production DDL is additive and lives in `docs/redesign/cutover.sql` Section
+  17. It must not be run automatically or against production by application
+  startup.
 - `GET /billing/plans`, `GET /billing/me`, `POST /billing/trial` — plan listing and current billing state; idempotent trial creation.
 - `POST /billing/checkout/preview` / `POST /billing/checkout` — price preview and CardCom LowProfile checkout session creation; activation happens only via the webhook, never the checkout response.
 - `POST /billing/cardcom/webhook` — CardCom posts payment results here; `CardcomWebhookService` verifies/activates subscriptions; errors are swallowed so CardCom doesn't retry-storm.

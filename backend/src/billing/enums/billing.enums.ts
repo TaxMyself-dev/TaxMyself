@@ -49,3 +49,54 @@ export enum BillingEventType {
    */
   DUPLICATE_PAYMENT_IGNORED = 'DUPLICATE_PAYMENT_IGNORED',
 }
+
+/** A canonical debt. Recovery never creates a second obligation. */
+export enum BillingObligationKind {
+  CHECKOUT = 'CHECKOUT',
+  RECURRING_PERIOD = 'RECURRING_PERIOD',
+}
+
+export enum BillingObligationStatus {
+  OPEN = 'OPEN',
+  SATISFIED = 'SATISFIED',
+  CANCELED = 'CANCELED',
+  MANUAL_REVIEW = 'MANUAL_REVIEW',
+}
+
+/** Why a concrete attempt was opened; not the identity of the debt. */
+export enum BillingAttemptTrigger {
+  CHECKOUT = 'CHECKOUT',
+  RENEWAL = 'RENEWAL',
+  RECOVERY = 'RECOVERY',
+  MANUAL_RETRY = 'MANUAL_RETRY',
+}
+
+export enum BillingChargeMode {
+  TOKEN_TRANSACTION = 'TOKEN_TRANSACTION',
+  LOW_PROFILE_HOSTED = 'LOW_PROFILE_HOSTED',
+}
+
+export enum BillingAttemptStatus {
+  CREATED = 'CREATED',
+  AWAITING_CUSTOMER = 'AWAITING_CUSTOMER',
+  PROCESSING = 'PROCESSING',
+  UNKNOWN = 'UNKNOWN',
+  CAPTURED = 'CAPTURED',
+  COMPLETED = 'COMPLETED',
+  DECLINED = 'DECLINED',
+  CANCELED = 'CANCELED',
+  EXPIRED = 'EXPIRED',
+  MANUAL_REVIEW = 'MANUAL_REVIEW',
+}
+
+export enum PaymentMethodUpdateAttemptStatus {
+  CREATED = 'CREATED',
+  AWAITING_CUSTOMER = 'AWAITING_CUSTOMER',
+  VERIFYING = 'VERIFYING',
+  UNKNOWN = 'UNKNOWN',
+  SUCCEEDED = 'SUCCEEDED',
+  FAILED = 'FAILED',
+  SUPERSEDED = 'SUPERSEDED',
+  EXPIRED = 'EXPIRED',
+  MANUAL_REVIEW = 'MANUAL_REVIEW',
+}
