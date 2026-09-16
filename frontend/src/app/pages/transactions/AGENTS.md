@@ -17,9 +17,10 @@ Main transactions ledger: lists income and expense bank/card transactions, lets 
 
 ## Related topics
 
-Represented-client invariant: classification actions are hidden when backend
-rows carry `canManageExpenses: false`; server authorization independently
-rejects attempts to classify or update transactions.
+Represented clients can classify unconfirmed transactions even when rows carry
+`canManageExpenses: false`. Classification actions remain hidden for confirmed
+rows without approval authority. The backend checks both permissions and
+confirmed state independently.
 - Backend: transactions (all core endpoints), expenses (confirm-to-expense flow), bookkeeping (category/subcategory data feeding classify dialogs).
 - Frontend pages: pnl-report-journal, vat-report-journal, settings — all inject `TransactionsService` from this directory for confirm/classify/account-source operations.
 - Frontend shared: add-bill, add-transaction, trans-management, category-management-adjacent dialogs (add-category, classify-tran), account-association-dialog.

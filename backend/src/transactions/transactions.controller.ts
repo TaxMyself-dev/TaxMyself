@@ -17,6 +17,7 @@ import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
 import { SubscriptionGuard } from 'src/guards/subscription.guard';
 import { RequireModule } from 'src/decorators/require-module.decorator';
 import { RequiredDelegationScope } from 'src/decorators/required-delegation-scope.decorator';
+import { AllowRepresentedClientOperation } from 'src/decorators/allow-represented-client-submission.decorator';
 import { DelegationScope } from 'src/delegation/delegation.entity';
 import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.interface';
 import { UserSyncStateService } from './user-sync-state.service';
@@ -687,6 +688,7 @@ export class TransactionsController {
    */
   @Post('classify-trans')
   @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
+  @AllowRepresentedClientOperation()
   @UseGuards(FirebaseAuthGuard)
   async classifyTransaction(
     @Req() request: AuthenticatedRequest,
@@ -705,6 +707,7 @@ export class TransactionsController {
     }
 
     const externalTransactionId = cacheRow.externalTransactionId;
+    const classificationOnly = !(await this.canManageExpenses(request));
 
     if (dto.isSingleUpdate) {
       // ONE_TIME manual classification
@@ -721,7 +724,7 @@ export class TransactionsController {
         // Late-arrival reassignment — set by the frontend after the user
         // picks an alternative from the "natural period locked" dialog.
         targetPeriodLabel: dto.targetPeriodLabel,
-      });
+      }, classificationOnly);
       return;
     }
 
@@ -745,7 +748,7 @@ export class TransactionsController {
       confirmOverride: dto.confirmOverride,
       businessNumber: dto.businessNumber ?? null,
       targetPeriodLabel: dto.targetPeriodLabel,
-    });
+    }, classificationOnly);
 
     if (result.status === 'blocked_vat_reported') {
       // 423 Locked + typed payload — keeps parity with the classifyManually
@@ -784,6 +787,7 @@ export class TransactionsController {
    */
   @Post('quick-classify')
   @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
+  @AllowRepresentedClientOperation()
   @UseGuards(FirebaseAuthGuard)
   async quickClassifyTransaction(
     @Req() request: AuthenticatedRequest,
@@ -807,7 +811,7 @@ export class TransactionsController {
       reductionPercent: 0,
       isEquipment: false,
       isRecognized: false,
-    });
+    }, !(await this.canManageExpenses(request)));
   }
 
 

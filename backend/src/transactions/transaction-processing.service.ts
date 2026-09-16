@@ -578,6 +578,7 @@ export class TransactionProcessingService {
   async classifyManually(
     userId: string,
     dto: ClassifyManuallyDto,
+    classificationOnly = false,
   ): Promise<void> {
     // 1. Locate in cache.
     const cacheRow = await this.cacheRepo.findOne({
@@ -600,6 +601,9 @@ export class TransactionProcessingService {
     const slim = await this.slimRepo.findOne({
       where: { userId, externalTransactionId: dto.externalTransactionId },
     });
+    if (classificationOnly && slim?.confirmed) {
+      throw new ConflictException('רק רואה החשבון יכול לשנות תנועה שכבר אושרה כהוצאה');
+    }
     if (slim?.isLocked) {
       // Typed 423 (Locked) — frontend distinguishes this from generic 400s and
       // surfaces a dedicated "report submitted" info dialog instead of a toast.
@@ -713,6 +717,7 @@ export class TransactionProcessingService {
   async classifyWithRule(
     userId: string,
     dto: ClassifyWithRuleDto,
+    classificationOnly = false,
   ): Promise<ClassifyWithRuleResult> {
     // 1. Locate in cache.
     const cacheRow = await this.cacheRepo.findOne({
@@ -735,6 +740,9 @@ export class TransactionProcessingService {
     const slim = await this.slimRepo.findOne({
       where: { userId, externalTransactionId: dto.externalTransactionId },
     });
+    if (classificationOnly && slim?.confirmed) {
+      throw new ConflictException('רק רואה החשבון יכול לשנות תנועה שכבר אושרה כהוצאה');
+    }
 
     // Guard: report has been submitted → absolute stop. No writes at all.
     if (slim?.isLocked) {
@@ -885,6 +893,7 @@ export class TransactionProcessingService {
       cacheRow,
       savedRule,
       dto,
+      classificationOnly,
     );
 
     return {
@@ -1311,6 +1320,7 @@ export class TransactionProcessingService {
     cacheRow: FullTransactionCache,
     savedRule: ClassifiedTransactions,
     dto: ClassifyWithRuleDto,
+    classificationOnly = false,
   ): Promise<number> {
     // טווח תאריכים ל־SQL: transactionDate >= effectiveStart (וגם <= endDate אם הוגדר).
     const effectiveStart = this.getEffectiveBackfillStartDate(dto, cacheRow);
@@ -1374,6 +1384,7 @@ export class TransactionProcessingService {
       if (!slim) return true;
       if (slim.classificationType === ClassificationType.ONE_TIME) return false;
       if (slim.isLocked) return false;
+      if (classificationOnly && slim.confirmed) return false;
       return true;
     });
 

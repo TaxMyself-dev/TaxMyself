@@ -27,9 +27,13 @@ Owns bank/card transaction ingestion, classification (rule-based and manual), an
 
 ## Related topics
 
-Authorization invariant: classification, quick classification, transaction
-edits, classification-rule mutation, and confirm-to-expense writes require
-`EXPENSES_APPROVE`. A represented owner's direct session is read-only. Read
-responses carry `canManageExpenses` so the UI can suppress mutation actions;
-the backend remains authoritative.
+Authorization invariant: classification and quick classification retain
+`EXPENSES_APPROVE` for delegated accountants, but a represented owner may
+classify unconfirmed transactions in their own session. Owner-created rules
+skip confirmed transactions during backfill. Reclassification of confirmed
+transactions, transaction edits, rule mutation endpoints, and
+confirm-to-expense require `EXPENSES_APPROVE`; the latter remains the explicit
+accountant approval step. Read responses carry `canManageExpenses` so the UI
+can distinguish approval authority from classification access; the backend
+remains authoritative.
 Depends on: shared (`FxRateService` for `ilsAmount`, `SharedService`), expenses (`ExpensesService`), users, business, delegation, documents (`ExtractedDocument` for `matchedDocumentId`), feezback (Open Banking sync source), billing, bookkeeping. Depended on by: reports, report-workflow, shared (legacy `getRepository` case for `Transactions`), documents.
