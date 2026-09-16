@@ -41,6 +41,36 @@ describe("report filter navigation state", () => {
       periodMode: ReportingPeriodType.ANNUAL,
       year: 2025,
       month: "8",
+      bimonthlyDefaultMonth: undefined,
+      startDate: undefined,
+      endDate: undefined,
+    });
+  });
+
+  it("restores a prior bimonthly selection for the period selector", () => {
+    const selected = reportFilterQueryFromFormValue({
+      periodMode: ReportingPeriodType.BIMONTHLY,
+      year: 2025,
+      month: "7",
+    });
+    const params = paramMap({
+      filterPeriodMode: selected.filterPeriodMode!,
+      filterYear: String(selected.filterYear),
+      filterMonth: selected.filterMonth!,
+    });
+
+    expect(
+      reportPeriodDefaultsFromQuery(params, {
+        periodMode: ReportingPeriodType.BIMONTHLY,
+        year: 2026,
+        month: "1",
+        bimonthlyDefaultMonth: "1",
+      })
+    ).toEqual({
+      periodMode: ReportingPeriodType.BIMONTHLY,
+      year: 2025,
+      month: "7",
+      bimonthlyDefaultMonth: "7",
       startDate: undefined,
       endDate: undefined,
     });

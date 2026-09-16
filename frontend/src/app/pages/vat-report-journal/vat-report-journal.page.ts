@@ -23,6 +23,7 @@ import { DriveDocsService } from 'src/app/services/drive-docs.service';
 import { FilterField } from 'src/app/components/filter-tab/filter-fields-model.component';
 import { resolveVatReportBusinessNumber } from 'src/app/shared/vat-report-eligibility';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
+import { reportFilterQueryFromFormValue, reportPeriodDefaultsFromQuery } from 'src/app/shared/report-filter-navigation';
 
 
 @Component({
@@ -185,7 +186,8 @@ export class VatReportJournalPage implements OnInit {
     // with) — reload the report for the same business/period the user was
     // reviewing instead of waiting for them to re-submit the filter form.
     const returnParams = this.route.snapshot.queryParamMap;
-    if (returnParams.get('reviewed')) {
+    const isReviewReturn = !!returnParams.get('reviewed');
+    if (isReviewReturn) {
       const bn = resolveVatReportBusinessNumber(
         businesses,
         returnParams.get('businessNumber'),
@@ -202,10 +204,18 @@ export class VatReportJournalPage implements OnInit {
 
     const currentYear = new Date().getFullYear();
     const currentMonth = new Date().getMonth() + 1;
-    const initialPeriodMode = eligibleBusinesses[0].vatReportingType === VATReportingType.MONTHLY_REPORT
+    const selectedBusiness = eligibleBusinesses.find(
+      business => business.businessNumber === this.businessNumber(),
+    ) ?? eligibleBusinesses[0];
+    const initialPeriodMode = selectedBusiness.vatReportingType === VATReportingType.MONTHLY_REPORT
       ? ReportingPeriodType.MONTHLY
       : ReportingPeriodType.BIMONTHLY;
     const defaultMonthValue = this.gs.getDefaultMonthValue(currentMonth, initialPeriodMode);
+    const defaultPeriodConfig = this.gs.getDefaultPeriodConfig({
+      periodMode: initialPeriodMode,
+      year: currentYear,
+      month: defaultMonthValue,
+    });
 
     const businessFilter: FilterField[] = eligibleBusinesses.length > 1 ? [{
         type: 'select',
@@ -223,11 +233,9 @@ export class VatReportJournalPage implements OnInit {
         controlName: 'period',
         required: true,
         allowedPeriodModes: [initialPeriodMode],
-        periodDefaults: this.gs.getDefaultPeriodConfig({
-          periodMode: initialPeriodMode,
-          year: currentYear,
-          month: defaultMonthValue
-        })
+        periodDefaults: isReviewReturn
+          ? reportPeriodDefaultsFromQuery(returnParams, defaultPeriodConfig)
+          : defaultPeriodConfig,
       },
     ];
 
@@ -471,6 +479,7 @@ export class VatReportJournalPage implements OnInit {
             startDate: this.startDate(),
             endDate: this.endDate(),
             returnTo: 'vat-report',
+            ...reportFilterQueryFromFormValue(this.form.getRawValue()),
           },
         });
       },
@@ -571,6 +580,7 @@ export class VatReportJournalPage implements OnInit {
         startDate: this.startDate(),
         endDate: this.endDate(),
         returnTo: 'vat-report',
+        ...reportFilterQueryFromFormValue(this.form.getRawValue()),
       },
     });
   }

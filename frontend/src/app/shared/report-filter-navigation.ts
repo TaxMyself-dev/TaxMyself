@@ -58,6 +58,9 @@ export function reportPeriodDefaultsFromQuery(
     periodMode: state.filterPeriodMode,
     year: state.filterYear ?? fallback.year,
     month: state.filterMonth ?? fallback.month,
+    bimonthlyDefaultMonth: state.filterPeriodMode === ReportingPeriodType.BIMONTHLY
+      ? state.filterMonth ?? fallback.bimonthlyDefaultMonth
+      : fallback.bimonthlyDefaultMonth,
     startDate: state.filterStartDate ?? fallback.startDate,
     endDate: state.filterEndDate ?? fallback.endDate,
   };
