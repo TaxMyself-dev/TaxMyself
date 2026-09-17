@@ -35,13 +35,25 @@ export class BillingLifecycleService {
     private readonly orchestration: BillingAttemptOrchestrationService,
   ) {}
 
-  openRenewal(input: CanonicalBillingPeriodInput): Promise<OpenBillingAttemptResult> {
-    return this.openAttempt(input, BillingObligationKind.RECURRING_PERIOD, BillingAttemptTrigger.RENEWAL);
+  openRenewal(
+    input: CanonicalBillingPeriodInput,
+  ): Promise<OpenBillingAttemptResult> {
+    return this.openAttempt(
+      input,
+      BillingObligationKind.RECURRING_PERIOD,
+      BillingAttemptTrigger.RENEWAL,
+    );
   }
 
   /** Recovery reuses the same subscription + period identity as renewal. */
-  openPastDueRecovery(input: CanonicalBillingPeriodInput): Promise<OpenBillingAttemptResult> {
-    return this.openAttempt(input, BillingObligationKind.RECURRING_PERIOD, BillingAttemptTrigger.RECOVERY);
+  openPastDueRecovery(
+    input: CanonicalBillingPeriodInput,
+  ): Promise<OpenBillingAttemptResult> {
+    return this.openAttempt(
+      input,
+      BillingObligationKind.RECURRING_PERIOD,
+      BillingAttemptTrigger.RECOVERY,
+    );
   }
 
   applyProviderOutcome(

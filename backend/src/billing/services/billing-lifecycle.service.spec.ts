@@ -1,4 +1,8 @@
-import { BillingAttemptStatus, BillingObligationKind, BillingAttemptTrigger } from '../enums/billing.enums';
+import {
+  BillingAttemptStatus,
+  BillingObligationKind,
+  BillingAttemptTrigger,
+} from '../enums/billing.enums';
 import { BillingLifecycleService } from './billing-lifecycle.service';
 
 describe('BillingLifecycleService', () => {
@@ -24,14 +28,16 @@ describe('BillingLifecycleService', () => {
     await service.openRenewal(input);
     await service.openPastDueRecovery(input);
 
-    expect(orchestration.createOrGetAttempt).toHaveBeenNthCalledWith(1,
+    expect(orchestration.createOrGetAttempt).toHaveBeenNthCalledWith(
+      1,
       expect.objectContaining({
         subscriptionId: 7,
         kind: BillingObligationKind.RECURRING_PERIOD,
         trigger: BillingAttemptTrigger.RENEWAL,
       }),
     );
-    expect(orchestration.createOrGetAttempt).toHaveBeenNthCalledWith(2,
+    expect(orchestration.createOrGetAttempt).toHaveBeenNthCalledWith(
+      2,
       expect.objectContaining({
         kind: BillingObligationKind.RECURRING_PERIOD,
         trigger: BillingAttemptTrigger.RECOVERY,
@@ -44,8 +50,12 @@ describe('BillingLifecycleService', () => {
     const orchestration = {
       assertOwnerMutation: jest.fn(),
       createOrGetAttempt: jest.fn(),
-      applyNormalizedOutcome: jest.fn().mockResolvedValue({ status: BillingAttemptStatus.CAPTURED }),
-      finalizeCapturedAttempt: jest.fn().mockResolvedValue({ status: BillingAttemptStatus.COMPLETED }),
+      applyNormalizedOutcome: jest
+        .fn()
+        .mockResolvedValue({ status: BillingAttemptStatus.CAPTURED }),
+      finalizeCapturedAttempt: jest
+        .fn()
+        .mockResolvedValue({ status: BillingAttemptStatus.COMPLETED }),
     };
     const service = new BillingLifecycleService(orchestration as any);
     const outcome = { kind: 'CAPTURED' as const, cardcomTransactionId: 'tx-1' };
@@ -53,7 +63,12 @@ describe('BillingLifecycleService', () => {
     await service.applyProviderOutcome(3, 'worker-1', 4, outcome);
     await service.finalizeAfterReceipt(3, 99);
 
-    expect(orchestration.applyNormalizedOutcome).toHaveBeenCalledWith(3, 'worker-1', 4, outcome);
+    expect(orchestration.applyNormalizedOutcome).toHaveBeenCalledWith(
+      3,
+      'worker-1',
+      4,
+      outcome,
+    );
     expect(orchestration.finalizeCapturedAttempt).toHaveBeenCalledWith(3, 99);
   });
 });
