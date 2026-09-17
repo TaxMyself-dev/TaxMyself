@@ -37,6 +37,7 @@ import { SubscriptionAccessService } from './services/subscription-access.servic
 import { AdminBillingService } from './services/admin-billing.service';
 import { SubscriptionRenewalService } from './services/subscription-renewal.service';
 import { BillingAttemptOrchestrationService } from './services/billing-attempt-orchestration.service';
+import { BillingLifecycleService } from './services/billing-lifecycle.service';
 
 // Modules
 import { UsersModule } from 'src/users/users.module';
@@ -85,11 +86,13 @@ import { BusinessModule } from 'src/business/business.module';
     AdminBillingService,
     SubscriptionRenewalService,
     BillingAttemptOrchestrationService,
+    BillingLifecycleService,
     SubscriptionGuard,
   ],
   exports: [
     BillingService,
     BillingAttemptOrchestrationService,
+    BillingLifecycleService,
     SubscriptionAccessService,
     SubscriptionGuard,
   ],

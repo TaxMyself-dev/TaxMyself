@@ -89,6 +89,17 @@ Until that migration lands, the current runtime behavior below is unchanged.
   delegated access, admin impersonation and represented-subject mode. Future
   controllers must construct this context only from server-verified request
   identity; client flags are never authoritative.
+
+### Canonical lifecycle coordination (KT-038)
+
+`BillingLifecycleService` is the renewal/recovery boundary. Both renewal and
+`PAST_DUE` recovery open a `RECURRING_PERIOD` obligation keyed by
+subscription + period start; recovery therefore reuses the same debt rather
+than creating a parallel charge. Provider I/O is delegated to the provider
+runtime after its committed lease. A captured attempt remains blocking until
+`finalizeCapturedAttempt` receives a successfully created receipt document;
+that method atomically pairs `COMPLETED` with `SATISFIED`. Owner-only actor
+context is checked before each mutation. Unknown outcomes are not replayed.
 - `GET /billing/plans`, `GET /billing/me`, `POST /billing/trial` — plan listing and current billing state; idempotent trial creation.
 - `POST /billing/checkout/preview` / `POST /billing/checkout` — price preview and CardCom LowProfile checkout session creation; activation happens only via the webhook, never the checkout response.
 - `POST /billing/cardcom/webhook` — CardCom posts payment results here; `CardcomWebhookService` verifies/activates subscriptions; errors are swallowed so CardCom doesn't retry-storm.

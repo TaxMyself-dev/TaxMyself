@@ -21,6 +21,7 @@ import { PaymentMethod } from '../entities/payment-method.entity';
 import { Subscription } from '../entities/subscription.entity';
 import {
   assertBillingAttemptTransition,
+  assertBillingObligationTransition,
   assertBillingPeriod,
   assertCardcomExternalUniqTranId,
   BILLING_ATTEMPT_BLOCKING_STATUSES,
@@ -380,6 +381,64 @@ export class BillingAttemptOrchestrationService {
       }
       await this.moveProcessingToUnknown(manager, attempt, now);
       return attempt;
+    });
+  }
+
+  /**
+   * Atomically records the local side of a successful charge. Receipt/journal
+   * creation must complete before this method is called; a captured attempt
+   * therefore remains blocking when finalization fails and can be retried
+   * without charging the provider again.
+   */
+  async finalizeCapturedAttempt(
+    attemptId: number,
+    receiptDocId: number,
+    now = new Date(),
+  ): Promise<BillingAttempt> {
+    if (!Number.isInteger(receiptDocId) || receiptDocId <= 0) {
+      throw new BadRequestException('A valid receipt document is required');
+    }
+    return this.inTransaction(async (manager) => {
+      const attempt = await this.lockAttempt(manager, attemptId);
+      const obligation = await this.lockObligation(manager, attempt.obligationId);
+      if (obligation.activeAttemptId !== attempt.id) {
+        if (
+          attempt.status === BillingAttemptStatus.COMPLETED &&
+          attempt.receiptDocId === receiptDocId &&
+          obligation.status === BillingObligationStatus.SATISFIED
+        ) return attempt;
+        throw new ConflictException('Billing attempt is not the active obligation attempt');
+      }
+      if (attempt.status !== BillingAttemptStatus.CAPTURED) {
+        if (
+          attempt.status === BillingAttemptStatus.COMPLETED &&
+          attempt.receiptDocId === receiptDocId
+        ) return attempt;
+        throw new ConflictException(
+          `Only CAPTURED attempts can be finalized (current: ${attempt.status})`,
+        );
+      }
+      if (obligation.status !== BillingObligationStatus.OPEN) {
+        throw new ConflictException(
+          `Only OPEN obligations can be finalized (current: ${obligation.status})`,
+        );
+      }
+      assertBillingAttemptTransition(attempt.status, BillingAttemptStatus.COMPLETED);
+      assertBillingObligationTransition(
+        obligation.status,
+        BillingObligationStatus.SATISFIED,
+      );
+      attempt.receiptDocId = receiptDocId;
+      attempt.completedAt = now;
+      attempt.stateVersion += 1;
+      attempt.status = BillingAttemptStatus.COMPLETED;
+      obligation.satisfiedAttemptId = attempt.id;
+      obligation.satisfiedAt = now;
+      obligation.activeAttemptId = null;
+      obligation.status = BillingObligationStatus.SATISFIED;
+      obligation.version += 1;
+      await manager.save(BillingObligation, obligation);
+      return manager.save(BillingAttempt, attempt);
     });
   }
 
