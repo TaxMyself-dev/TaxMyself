@@ -38,6 +38,7 @@ import { AdminBillingService } from './services/admin-billing.service';
 import { SubscriptionRenewalService } from './services/subscription-renewal.service';
 import { BillingAttemptOrchestrationService } from './services/billing-attempt-orchestration.service';
 import { BillingLifecycleService } from './services/billing-lifecycle.service';
+import { BILLING_CARD_COM_EXECUTOR, BillingProviderRuntimeService } from './services/billing-provider-runtime.service';
 
 // Modules
 import { UsersModule } from 'src/users/users.module';
@@ -87,6 +88,11 @@ import { BusinessModule } from 'src/business/business.module';
     SubscriptionRenewalService,
     BillingAttemptOrchestrationService,
     BillingLifecycleService,
+    BillingProviderRuntimeService,
+    { provide: BILLING_CARD_COM_EXECUTOR, useFactory: () => ({
+      executeCharge: async () => { throw new Error('CardCom provider adapter is not configured'); },
+      reconcileCharge: async () => { throw new Error('CardCom provider adapter is not configured'); },
+    }) },
     SubscriptionGuard,
   ],
   exports: [

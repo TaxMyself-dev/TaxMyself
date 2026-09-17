@@ -23,7 +23,10 @@ describe('BillingLifecycleService', () => {
       assertOwnerMutation: jest.fn(),
       createOrGetAttempt: jest.fn().mockResolvedValue({ created: true }),
     };
-    const service = new BillingLifecycleService(orchestration as any);
+    const service = new BillingLifecycleService(
+      orchestration as any,
+      {} as any,
+    );
 
     await service.openRenewal(input);
     await service.openPastDueRecovery(input);
@@ -57,7 +60,10 @@ describe('BillingLifecycleService', () => {
         .fn()
         .mockResolvedValue({ status: BillingAttemptStatus.COMPLETED }),
     };
-    const service = new BillingLifecycleService(orchestration as any);
+    const service = new BillingLifecycleService(
+      orchestration as any,
+      {} as any,
+    );
     const outcome = { kind: 'CAPTURED' as const, cardcomTransactionId: 'tx-1' };
 
     await service.applyProviderOutcome(3, 'worker-1', 4, outcome);
@@ -92,7 +98,10 @@ describe('BillingLifecycleService', () => {
     const receipt = {
       createReceipt: jest.fn().mockResolvedValue({ receiptDocId: 99 }),
     };
-    const service = new BillingLifecycleService(orchestration as any);
+    const service = new BillingLifecycleService(
+      orchestration as any,
+      provider as any,
+    );
 
     const result = await service.executeRenewal(
       input,
@@ -128,7 +137,10 @@ describe('BillingLifecycleService', () => {
       }),
     };
     const receipt = { createReceipt: jest.fn() };
-    const service = new BillingLifecycleService(orchestration as any);
+    const service = new BillingLifecycleService(
+      orchestration as any,
+      provider as any,
+    );
 
     const result = await service.executeRenewal(
       input,

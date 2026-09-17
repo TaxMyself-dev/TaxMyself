@@ -10,6 +10,7 @@ import {
   BillingChargeMode,
   BillingObligationKind,
 } from '../enums/billing.enums';
+import { BillingProviderRuntimeService } from './billing-provider-runtime.service';
 
 export interface CanonicalBillingPeriodInput {
   actor: BillingMutationActorContext;
@@ -33,7 +34,10 @@ export interface BillingProviderPort {
 }
 
 export interface BillingReceiptFinalizer {
-  createReceipt(): Promise<{ receiptDocId: number }>;
+  createReceipt(
+    attempt: unknown,
+    outcome: NormalizedChargeOutcome,
+  ): Promise<{ receiptDocId: number }>;
 }
 
 /**
@@ -46,6 +50,7 @@ export interface BillingReceiptFinalizer {
 export class BillingLifecycleService {
   constructor(
     private readonly orchestration: BillingAttemptOrchestrationService,
+    private readonly provider: BillingProviderRuntimeService,
   ) {}
 
   openRenewal(
@@ -90,7 +95,7 @@ export class BillingLifecycleService {
   /** Full local lifecycle: open, provider-runtime lease/I-O, receipt, finalize. */
   async executeRenewal(
     input: CanonicalBillingPeriodInput,
-    provider: BillingProviderPort,
+    provider: BillingProviderPort = this.provider,
     receipt: BillingReceiptFinalizer,
     leaseOwner: string,
   ) {
@@ -108,7 +113,10 @@ export class BillingLifecycleService {
     ) {
       return { opened, submitted, finalized: false };
     }
-    const createdReceipt = await receipt.createReceipt();
+    const createdReceipt = await receipt.createReceipt(
+      opened.attempt,
+      submitted.outcome,
+    );
     const finalized = await this.finalizeAfterReceipt(
       opened.attempt.id,
       createdReceipt.receiptDocId,
