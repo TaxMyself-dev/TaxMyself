@@ -99,6 +99,9 @@ export enum VATReportingType {
 }
 
 export const VAT_RATES: Record<number, number> = {
+  2020: 0.17,
+  2021: 0.17,
+  2022: 0.17,
   2023: 0.17,
   2024: 0.17,
   2025: 0.18,
