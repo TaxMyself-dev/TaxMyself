@@ -17,6 +17,7 @@ import {
 } from '../enums/billing.enums';
 import { BillingAttempt } from '../entities/billing-attempt.entity';
 import { BillingObligation } from '../entities/billing-obligation.entity';
+import { PaymentMethod } from '../entities/payment-method.entity';
 import { Subscription } from '../entities/subscription.entity';
 import {
   assertBillingAttemptTransition,
@@ -146,6 +147,11 @@ export class BillingAttemptOrchestrationService {
           'Billing mutation subject does not own the subscription',
         );
       }
+      const paymentMethodId = await this.resolvePaymentMethodId(
+        manager,
+        subscription,
+        input,
+      );
 
       const obligationKey = this.buildObligationKey(
         input.subscriptionId,
@@ -193,6 +199,7 @@ export class BillingAttemptOrchestrationService {
         obligation,
         attemptNumber,
         input,
+        paymentMethodId,
       );
 
       obligation.activeAttemptId = attempt.id;
@@ -433,6 +440,7 @@ export class BillingAttemptOrchestrationService {
     obligation: BillingObligation,
     attemptNumber: number,
     input: OpenBillingAttemptInput,
+    paymentMethodId: number | null,
   ): Promise<BillingAttempt> {
     let lastCollision: unknown;
     for (
@@ -448,7 +456,7 @@ export class BillingAttemptOrchestrationService {
         trigger: input.trigger,
         chargeMode: input.chargeMode,
         status: BillingAttemptStatus.CREATED,
-        paymentMethodId: input.paymentMethodId ?? null,
+        paymentMethodId,
         cardcomExternalUniqTranId: providerKey,
         cardcomLowProfileId: null,
         providerTerminalRef: null,
@@ -483,6 +491,52 @@ export class BillingAttemptOrchestrationService {
       'Unable to allocate a unique provider request key',
       { cause: lastCollision as Error },
     );
+  }
+
+  private async resolvePaymentMethodId(
+    manager: EntityManager,
+    subscription: Subscription,
+    input: OpenBillingAttemptInput,
+  ): Promise<number | null> {
+    if (input.chargeMode === BillingChargeMode.LOW_PROFILE_HOSTED) {
+      if (input.paymentMethodId != null) {
+        throw new ForbiddenException(
+          'Hosted billing attempts cannot select a stored payment method',
+        );
+      }
+      return null;
+    }
+
+    const paymentMethodId = subscription.paymentMethodId;
+    if (paymentMethodId == null) {
+      throw new BadRequestException(
+        'Subscription does not have a stored payment method',
+      );
+    }
+    if (
+      input.paymentMethodId != null &&
+      input.paymentMethodId !== paymentMethodId
+    ) {
+      throw new ForbiddenException(
+        'Billing attempt payment method does not belong to the subscription',
+      );
+    }
+
+    const paymentMethod = await manager.findOne(PaymentMethod, {
+      where: { id: paymentMethodId },
+      lock: { mode: 'pessimistic_write' },
+    });
+    if (!paymentMethod) {
+      throw new ConflictException(
+        'Subscription payment method pointer is inconsistent',
+      );
+    }
+    if (paymentMethod.firebaseId !== subscription.firebaseId) {
+      throw new ForbiddenException(
+        'Subscription payment method belongs to another owner',
+      );
+    }
+    return paymentMethod.id;
   }
 
   private validateOpenInput(input: OpenBillingAttemptInput): void {

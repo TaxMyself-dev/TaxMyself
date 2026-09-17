@@ -69,6 +69,11 @@ Until that migration lands, the current runtime behavior below is unchanged.
 - The canonical obligation identity is `subscription + period_start`.
   Concurrent creators recover the unique-key winner and validate its immutable
   plan, period and amount snapshot before proceeding.
+- A token charge attempt never trusts a caller-supplied payment-method id. While
+  holding the subscription row lock, orchestration derives the id from the
+  subscription, locks that payment-method row, and verifies the same owner;
+  mismatched or cross-tenant ids are rejected before any attempt is persisted.
+  Hosted attempts persist no stored payment-method id.
 - A repeated open request returns the existing blocking attempt. It never
   allocates a second provider key while an attempt is `CREATED`,
   `AWAITING_CUSTOMER`, `PROCESSING`, `UNKNOWN`, `CAPTURED`, `COMPLETED`, or

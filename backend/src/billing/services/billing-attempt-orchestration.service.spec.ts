@@ -9,6 +9,7 @@ import {
 } from '../enums/billing.enums';
 import { BillingAttempt } from '../entities/billing-attempt.entity';
 import { BillingObligation } from '../entities/billing-obligation.entity';
+import { PaymentMethod } from '../entities/payment-method.entity';
 import { Subscription } from '../entities/subscription.entity';
 import {
   BillingAttemptOrchestrationService,
@@ -51,6 +52,20 @@ describe('BillingAttemptOrchestrationService', () => {
     amountBeforeVatAgorot: 10000,
     vatAmountAgorot: 1700,
   });
+
+  const subscription = () =>
+    Object.assign(new Subscription(), {
+      id: 7,
+      firebaseId: 'owner-1',
+      paymentMethodId: 5,
+    });
+
+  const paymentMethod = (overrides: Partial<PaymentMethod> = {}) =>
+    Object.assign(new PaymentMethod(), {
+      id: 5,
+      firebaseId: 'owner-1',
+      ...overrides,
+    });
 
   const obligation = (overrides: Partial<BillingObligation> = {}) =>
     Object.assign(new BillingObligation(), {
@@ -135,12 +150,10 @@ describe('BillingAttemptOrchestrationService', () => {
   });
 
   it('creates one canonical obligation and one numbered active attempt under row locks', async () => {
-    const sub = Object.assign(new Subscription(), {
-      id: 7,
-      firebaseId: 'owner-1',
-    });
+    const sub = subscription();
     manager.findOne
       .mockResolvedValueOnce(sub)
+      .mockResolvedValueOnce(paymentMethod())
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce(null);
     manager.save.mockImplementation(async (entity, value) => {
@@ -159,21 +172,58 @@ describe('BillingAttemptOrchestrationService', () => {
       where: { id: 7 },
       lock: { mode: 'pessimistic_write' },
     });
-    expect(manager.findOne).toHaveBeenNthCalledWith(2, BillingObligation, {
+    expect(manager.findOne).toHaveBeenNthCalledWith(2, PaymentMethod, {
+      where: { id: 5 },
+      lock: { mode: 'pessimistic_write' },
+    });
+    expect(manager.findOne).toHaveBeenNthCalledWith(3, BillingObligation, {
       where: { obligationKey: 'subscription:7:period:2026-09-01' },
       lock: { mode: 'pessimistic_write' },
     });
     expect(queryRunner.commitTransaction).toHaveBeenCalledTimes(1);
   });
 
-  it('returns the existing unresolved attempt on a double submit', async () => {
-    const sub = Object.assign(new Subscription(), {
-      id: 7,
-      firebaseId: 'owner-1',
+  it('rejects a cross-tenant payment method before persisting an attempt', async () => {
+    manager.findOne.mockResolvedValueOnce(subscription());
+
+    await expect(
+      service.createOrGetAttempt({ ...openInput(), paymentMethodId: 99 }),
+    ).rejects.toThrow(ForbiddenException);
+
+    expect(manager.findOne).toHaveBeenCalledTimes(1);
+    expect(manager.create).not.toHaveBeenCalledWith(
+      BillingAttempt,
+      expect.anything(),
+    );
+    expect(queryRunner.rollbackTransaction).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects a subscription pointer to another owner payment method', async () => {
+    manager.findOne
+      .mockResolvedValueOnce(subscription())
+      .mockResolvedValueOnce(paymentMethod({ firebaseId: 'other-owner' }));
+
+    await expect(service.createOrGetAttempt(openInput())).rejects.toThrow(
+      ForbiddenException,
+    );
+
+    expect(manager.findOne).toHaveBeenNthCalledWith(2, PaymentMethod, {
+      where: { id: 5 },
+      lock: { mode: 'pessimistic_write' },
     });
+    expect(manager.create).not.toHaveBeenCalledWith(
+      BillingAttempt,
+      expect.anything(),
+    );
+    expect(queryRunner.rollbackTransaction).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns the existing unresolved attempt on a double submit', async () => {
+    const sub = subscription();
     const active = attempt({ status: BillingAttemptStatus.UNKNOWN });
     manager.findOne
       .mockResolvedValueOnce(sub)
+      .mockResolvedValueOnce(paymentMethod())
       .mockResolvedValueOnce(obligation({ activeAttemptId: 21 }))
       .mockResolvedValueOnce(active);
 
@@ -189,13 +239,11 @@ describe('BillingAttemptOrchestrationService', () => {
   });
 
   it('recovers a concurrent canonical-obligation insert by locking the winning row', async () => {
-    const sub = Object.assign(new Subscription(), {
-      id: 7,
-      firebaseId: 'owner-1',
-    });
+    const sub = subscription();
     const winningObligation = obligation();
     manager.findOne
       .mockResolvedValueOnce(sub)
+      .mockResolvedValueOnce(paymentMethod())
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce(winningObligation)
       .mockResolvedValueOnce(null);
@@ -213,20 +261,126 @@ describe('BillingAttemptOrchestrationService', () => {
     const result = await service.createOrGetAttempt(openInput());
 
     expect(result.obligation).toBe(winningObligation);
-    expect(manager.findOne).toHaveBeenNthCalledWith(3, BillingObligation, {
+    expect(manager.findOne).toHaveBeenNthCalledWith(4, BillingObligation, {
       where: { obligationKey: 'subscription:7:period:2026-09-01' },
       lock: { mode: 'pessimistic_write' },
     });
   });
 
+  it('deterministically serializes two transactions to one active-attempt winner', async () => {
+    const deferred = () => {
+      let resolve!: () => void;
+      const promise = new Promise<void>((done) => {
+        resolve = done;
+      });
+      return { promise, resolve };
+    };
+    const firstAtInsert = deferred();
+    const allowFirstInsert = deferred();
+    const secondWaiting = deferred();
+    const lockWaiters: Array<() => void> = [];
+    const events: string[] = [];
+    let lockHeld = false;
+    let storedObligation: BillingObligation | null = null;
+    let storedAttempt: BillingAttempt | null = null;
+    let attemptSaves = 0;
+    let transactionNumber = 0;
+
+    const concurrentDataSource = {
+      createQueryRunner: jest.fn(() => {
+        const transactionName = `tx${++transactionNumber}`;
+        const acquireSubscriptionLock = async () => {
+          if (lockHeld) {
+            events.push(`${transactionName}:wait`);
+            secondWaiting.resolve();
+            await new Promise<void>((resolve) => lockWaiters.push(resolve));
+          }
+          lockHeld = true;
+          events.push(`${transactionName}:lock`);
+        };
+        const releaseSubscriptionLock = () => {
+          lockHeld = false;
+          lockWaiters.shift()?.();
+        };
+        const concurrentManager = {
+          findOne: jest.fn(async (entity, options) => {
+            if (entity === Subscription) {
+              await acquireSubscriptionLock();
+              return subscription();
+            }
+            if (entity === PaymentMethod) return paymentMethod();
+            if (entity === BillingObligation) return storedObligation;
+            if (entity === BillingAttempt) return storedAttempt;
+            throw new Error(
+              `Unexpected entity ${String(entity)} ${String(options)}`,
+            );
+          }),
+          create: jest.fn((_entity, value) => value),
+          save: jest.fn(async (entity, value) => {
+            if (entity === BillingObligation) {
+              if (!value.id) {
+                events.push(`${transactionName}:insert-ready`);
+                firstAtInsert.resolve();
+                await allowFirstInsert.promise;
+                value.id = 11;
+              }
+              storedObligation = value;
+            }
+            if (entity === BillingAttempt) {
+              attemptSaves += 1;
+              value.id = 21;
+              storedAttempt = value;
+            }
+            return value;
+          }),
+        };
+        return {
+          manager: concurrentManager,
+          connect: jest.fn().mockResolvedValue(undefined),
+          startTransaction: jest.fn().mockResolvedValue(undefined),
+          commitTransaction: jest.fn(async () => {
+            events.push(`${transactionName}:commit`);
+            releaseSubscriptionLock();
+          }),
+          rollbackTransaction: jest.fn(async () => {
+            releaseSubscriptionLock();
+          }),
+          release: jest.fn().mockResolvedValue(undefined),
+        };
+      }),
+    } as unknown as DataSource;
+    const concurrentService = new BillingAttemptOrchestrationService(
+      concurrentDataSource,
+      () => 'bCONCURRENTWINNER000001',
+    );
+
+    const first = concurrentService.createOrGetAttempt(openInput());
+    await firstAtInsert.promise;
+    const second = concurrentService.createOrGetAttempt(openInput());
+    await secondWaiting.promise;
+    allowFirstInsert.resolve();
+    const results = await Promise.all([first, second]);
+
+    expect(results.map((result) => result.created)).toEqual([true, false]);
+    expect(results[0].attempt).toBe(results[1].attempt);
+    expect(attemptSaves).toBe(1);
+    expect(storedObligation?.activeAttemptId).toBe(21);
+    expect(events).toEqual([
+      'tx1:lock',
+      'tx1:insert-ready',
+      'tx2:wait',
+      'tx1:commit',
+      'tx2:lock',
+      'tx2:commit',
+    ]);
+  });
+
   it('retries only an ExternalUniqTranId unique-key collision', async () => {
     keys = ['bAAAAAAAAAAAAAAAAAAAAAA', 'bBBBBBBBBBBBBBBBBBBBBBB'];
-    const sub = Object.assign(new Subscription(), {
-      id: 7,
-      firebaseId: 'owner-1',
-    });
+    const sub = subscription();
     manager.findOne
       .mockResolvedValueOnce(sub)
+      .mockResolvedValueOnce(paymentMethod())
       .mockResolvedValueOnce(obligation())
       .mockResolvedValueOnce(null);
     let attemptSaveCount = 0;
