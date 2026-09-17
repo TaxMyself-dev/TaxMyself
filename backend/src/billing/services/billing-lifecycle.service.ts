@@ -95,9 +95,9 @@ export class BillingLifecycleService {
   /** Full local lifecycle: open, provider-runtime lease/I-O, receipt, finalize. */
   async executeRenewal(
     input: CanonicalBillingPeriodInput,
-    provider: BillingProviderPort = this.provider,
     receipt: BillingReceiptFinalizer,
     leaseOwner: string,
+    provider: BillingProviderPort = this.provider,
   ) {
     this.orchestration.assertOwnerMutation(input.actor);
     const opened = await this.openRenewal(input);
