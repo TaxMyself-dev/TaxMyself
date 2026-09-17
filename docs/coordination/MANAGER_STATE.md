@@ -32,7 +32,7 @@ Last reviewed: 2026-09-17
 
 ## Pending integration
 
-- KT-027 and KT-028 passed combined verification on a clean branch from `origin/main` (`5973091c`) and are ready for source push. The standing local `codex/integration` branch contains unrelated, undelivered CI work (`bf682e70`), so these fixes were integrated on `codex/integration-kt027-kt028` without that change.
+- KT-027 and KT-028 passed combined verification and were pushed to `origin/main` through `be15a03c`. The standing local `codex/integration` branch contains unrelated, undelivered CI work (`bf682e70`), so these fixes were integrated on `codex/integration-kt027-kt028` without that change. No production deployment was performed.
 
 ## Open decisions
 
