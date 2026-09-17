@@ -1,6 +1,6 @@
 # Primary manager state
 
-Last reviewed: 2026-09-11
+Last reviewed: 2026-09-17
 
 ## Integration baseline
 
@@ -32,7 +32,7 @@ Last reviewed: 2026-09-11
 
 ## Pending integration
 
-- None from worker worktrees.
+- KT-027 and KT-028 passed combined verification on a clean branch from `origin/main` (`5973091c`) and are ready for source push. The standing local `codex/integration` branch contains unrelated, undelivered CI work (`bf682e70`), so these fixes were integrated on `codex/integration-kt027-kt028` without that change.
 
 ## Open decisions
 
