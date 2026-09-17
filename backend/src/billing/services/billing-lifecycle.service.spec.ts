@@ -71,4 +71,74 @@ describe('BillingLifecycleService', () => {
     );
     expect(orchestration.finalizeCapturedAttempt).toHaveBeenCalledWith(3, 99);
   });
+
+  it('runs provider then receipt finalization, never finalizing a non-capture', async () => {
+    const orchestration = {
+      assertOwnerMutation: jest.fn(),
+      createOrGetAttempt: jest.fn().mockResolvedValue({
+        created: true,
+        attempt: { id: 3, stateVersion: 4 },
+      }),
+      finalizeCapturedAttempt: jest
+        .fn()
+        .mockResolvedValue({ status: 'COMPLETED' }),
+    };
+    const provider = {
+      submitCharge: jest.fn().mockResolvedValue({
+        kind: 'APPLIED',
+        outcome: { kind: 'CAPTURED', cardcomTransactionId: 'tx-1' },
+      }),
+    };
+    const receipt = {
+      createReceipt: jest.fn().mockResolvedValue({ receiptDocId: 99 }),
+    };
+    const service = new BillingLifecycleService(orchestration as any);
+
+    const result = await service.executeRenewal(
+      input,
+      provider,
+      receipt,
+      'worker-1',
+    );
+
+    expect(provider.submitCharge).toHaveBeenCalledWith({
+      actor,
+      attemptId: 3,
+      expectedStateVersion: 4,
+      leaseOwner: 'worker-1',
+    });
+    expect(receipt.createReceipt).toHaveBeenCalledTimes(1);
+    expect(orchestration.finalizeCapturedAttempt).toHaveBeenCalledWith(3, 99);
+    expect(result.finalized).toBe(true);
+  });
+
+  it('does not create a receipt after decline or UNKNOWN', async () => {
+    const orchestration = {
+      assertOwnerMutation: jest.fn(),
+      createOrGetAttempt: jest.fn().mockResolvedValue({
+        created: false,
+        attempt: { id: 3, stateVersion: 4 },
+      }),
+      finalizeCapturedAttempt: jest.fn(),
+    };
+    const provider = {
+      submitCharge: jest.fn().mockResolvedValue({
+        kind: 'APPLIED',
+        outcome: { kind: 'UNKNOWN', failureCategory: 'TRANSPORT_ERROR' },
+      }),
+    };
+    const receipt = { createReceipt: jest.fn() };
+    const service = new BillingLifecycleService(orchestration as any);
+
+    const result = await service.executeRenewal(
+      input,
+      provider,
+      receipt,
+      'worker-1',
+    );
+
+    expect(result.finalized).toBe(false);
+    expect(receipt.createReceipt).not.toHaveBeenCalled();
+    expect(orchestration.finalizeCapturedAttempt).not.toHaveBeenCalled();
+  });
 });

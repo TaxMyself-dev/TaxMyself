@@ -23,6 +23,19 @@ export interface CanonicalBillingPeriodInput {
   currency?: string;
 }
 
+export interface BillingProviderPort {
+  submitCharge(input: {
+    actor: BillingMutationActorContext;
+    attemptId: number;
+    expectedStateVersion: number;
+    leaseOwner: string;
+  }): Promise<{ kind: string; outcome?: NormalizedChargeOutcome }>;
+}
+
+export interface BillingReceiptFinalizer {
+  createReceipt(): Promise<{ receiptDocId: number }>;
+}
+
 /**
  * Coordinates renewal and PAST_DUE recovery on the canonical obligation
  * aggregate. Provider I/O belongs to BillingProviderRuntimeService: this
@@ -72,6 +85,35 @@ export class BillingLifecycleService {
 
   finalizeAfterReceipt(attemptId: number, receiptDocId: number) {
     return this.orchestration.finalizeCapturedAttempt(attemptId, receiptDocId);
+  }
+
+  /** Full local lifecycle: open, provider-runtime lease/I-O, receipt, finalize. */
+  async executeRenewal(
+    input: CanonicalBillingPeriodInput,
+    provider: BillingProviderPort,
+    receipt: BillingReceiptFinalizer,
+    leaseOwner: string,
+  ) {
+    this.orchestration.assertOwnerMutation(input.actor);
+    const opened = await this.openRenewal(input);
+    const submitted = await provider.submitCharge({
+      actor: input.actor,
+      attemptId: opened.attempt.id,
+      expectedStateVersion: opened.attempt.stateVersion,
+      leaseOwner,
+    });
+    if (
+      submitted.kind !== 'APPLIED' ||
+      submitted.outcome?.kind !== 'CAPTURED'
+    ) {
+      return { opened, submitted, finalized: false };
+    }
+    const createdReceipt = await receipt.createReceipt();
+    const finalized = await this.finalizeAfterReceipt(
+      opened.attempt.id,
+      createdReceipt.receiptDocId,
+    );
+    return { opened, submitted, finalized: finalized.status === 'COMPLETED' };
   }
 
   private openAttempt(
