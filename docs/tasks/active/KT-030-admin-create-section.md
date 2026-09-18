@@ -1,6 +1,6 @@
 # KT-030 - Admin creates an expense accounting section
 
-- Status: `INTEGRATED`
+- Status: `PUSHED`
 - Task manager: Codex
 - Worker: Codex (isolated worktree)
 - Worktree: `tmp/pdfs/kt030`
@@ -41,5 +41,5 @@ An admin can create a SYSTEM expense section with a suggested code that can be e
 - Reviewed by: Codex, `git show --check` and full changed-file review.
 - Integrated commit: `f4034f80` on `codex/integration-kt030` plus manager documentation commit.
 - Combined verification: 48 focused Jest tests, 5 final section tests, Nest build twice, Angular production build, `git diff --check`.
-- `origin/main` verification:
+- `origin/main` verification: `4ee8ba48` pushed and verified as the integration tip before this status update; the code commit `f4034f80` is reachable.
 - User-visible run instructions: Open admin catalog → "חתך חדש"; enter name, accept or edit suggested code, save.
