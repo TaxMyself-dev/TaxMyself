@@ -5,6 +5,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, In, LessThan, Repository } from 'typeorm';
@@ -22,9 +23,15 @@ import { PricingService } from './pricing.service';
 import { SubscriptionAccessService } from './subscription-access.service';
 import { CardcomService, CardcomApiError } from './cardcom.service';
 import { CardcomWebhookService } from './cardcom-webhook.service';
-import { BillingEventType, SubscriptionStatus, WebhookLogStatus } from '../enums/billing.enums';
+import {
+  BillingEventType,
+  SubscriptionStatus,
+  WebhookLogStatus,
+} from '../enums/billing.enums';
 import { CheckoutPreviewDto } from '../dtos/checkout-preview.dto';
 import { CreateCheckoutDto } from '../dtos/create-checkout.dto';
+import { BillingLifecycleService } from './billing-lifecycle.service';
+import { BillingChargeMode } from '../enums/billing.enums';
 
 /** One row of the user-facing payment history (GET /billing/payments). */
 export interface PaymentHistoryRow {
@@ -90,6 +97,8 @@ export class BillingService {
     private readonly cardcomService: CardcomService,
     private readonly documentsService: DocumentsService,
     private readonly cardcomWebhookService: CardcomWebhookService,
+    @Optional()
+    private readonly billingLifecycleService?: BillingLifecycleService,
   ) {}
 
   // ─── Plans ──────────────────────────────────────────────────────────────────
@@ -106,10 +115,16 @@ export class BillingService {
    * purchased). Returns null only if neither referral plan can be found
    * (deactivated/missing) — callers fall back to whatever they already have.
    */
-  private async resolveReferralEffectivePlan(firebaseId: string): Promise<SubscriptionPlan | null> {
+  private async resolveReferralEffectivePlan(
+    firebaseId: string,
+  ): Promise<SubscriptionPlan | null> {
     const user = await this.userRepo.findOne({ where: { firebaseId } });
-    const targetSlug = user?.hasOpenBanking ? 'referral-open-banking' : 'referral-basic';
-    return this.planRepo.findOne({ where: { slug: targetSlug, isActive: true } });
+    const targetSlug = user?.hasOpenBanking
+      ? 'referral-open-banking'
+      : 'referral-basic';
+    return this.planRepo.findOne({
+      where: { slug: targetSlug, isActive: true },
+    });
   }
 
   /**
@@ -139,12 +154,16 @@ export class BillingService {
     ]);
 
     const storedPlan = subscription?.planId
-      ? await this.planRepo.findOne({ where: { id: subscription.planId, isActive: true } })
+      ? await this.planRepo.findOne({
+          where: { id: subscription.planId, isActive: true },
+        })
       : null;
 
     let plans: SubscriptionPlan[];
     if (storedPlan && !storedPlan.isPublic) {
-      plans = [(await this.resolveReferralEffectivePlan(firebaseId)) ?? storedPlan];
+      plans = [
+        (await this.resolveReferralEffectivePlan(firebaseId)) ?? storedPlan,
+      ];
     } else {
       plans = await this.planRepo.find({
         where: { isActive: true, isPublic: true },
@@ -152,13 +171,14 @@ export class BillingService {
       });
     }
 
-    return plans.map(p => ({
+    return plans.map((p) => ({
       id: p.id,
       name: p.name,
       slug: p.slug,
       priceMonthlyAgorot: p.priceMonthlyAgorot,
       licensedDealerPriceMonthlyAgorot: p.licensedDealerPriceMonthlyAgorot,
-      effectivePriceMonthlyAgorot: this.pricingService.resolveEffectivePlanPrice(p, billingBusinessType),
+      effectivePriceMonthlyAgorot:
+        this.pricingService.resolveEffectivePlanPrice(p, billingBusinessType),
       effectiveBillingBusinessType: billingBusinessType,
       notes: p.notes,
       badge: p.badge,
@@ -201,7 +221,10 @@ export class BillingService {
       // missing and should eventually be remediated), just not as loudly.
       // A client's own direct access hitting this branch is unaffected and
       // stays at `error`, since that's still a real anomaly for that user.
-      const logMsg = `getMyBillingState: no subscription row for firebaseId=${firebaseId.substring(0, 8)}... — returning subscription_missing`;
+      const logMsg = `getMyBillingState: no subscription row for firebaseId=${firebaseId.substring(
+        0,
+        8,
+      )}... — returning subscription_missing`;
       if (hasBillingOverride) {
         this.logger.warn(logMsg);
       } else {
@@ -233,7 +256,10 @@ export class BillingService {
       };
     }
 
-    const current = await this.enforceSubscriptionLifecycle(firebaseId, subscription);
+    const current = await this.enforceSubscriptionLifecycle(
+      firebaseId,
+      subscription,
+    );
 
     let plan: SubscriptionPlan | null = null;
     if (current.planId) {
@@ -252,8 +278,12 @@ export class BillingService {
   // ─── Trial ───────────────────────────────────────────────────────────────────
 
   async ensureTrialSubscription(firebaseId: string, manager?: EntityManager) {
-    const subscriptionRepo = manager ? manager.getRepository(Subscription) : this.subscriptionRepo;
-    const planRepo = manager ? manager.getRepository(SubscriptionPlan) : this.planRepo;
+    const subscriptionRepo = manager
+      ? manager.getRepository(Subscription)
+      : this.subscriptionRepo;
+    const planRepo = manager
+      ? manager.getRepository(SubscriptionPlan)
+      : this.planRepo;
 
     const existing = await subscriptionRepo.findOne({
       where: { firebaseId },
@@ -283,14 +313,19 @@ export class BillingService {
     try {
       const saved = await subscriptionRepo.save(subscription);
       this.logger.log(
-        `Trial subscription created for firebaseId=${firebaseId.substring(0, 8)}... trialEnd=${trialEnd.toISOString()}`,
+        `Trial subscription created for firebaseId=${firebaseId.substring(
+          0,
+          8,
+        )}... trialEnd=${trialEnd.toISOString()}`,
       );
       return this.buildBillingStateResponse(saved, null, firebaseId);
     } catch (err: any) {
       // Lost the race against a concurrent call — ux_subscription_firebase
       // (unique on firebase_id) rejected the duplicate insert. Return the
       // row the other call created instead of erroring.
-      const isDup = err?.code === 'ER_DUP_ENTRY' || err?.driverError?.code === 'ER_DUP_ENTRY';
+      const isDup =
+        err?.code === 'ER_DUP_ENTRY' ||
+        err?.driverError?.code === 'ER_DUP_ENTRY';
       if (!isDup) throw err;
 
       const winner = await subscriptionRepo.findOne({ where: { firebaseId } });
@@ -316,7 +351,9 @@ export class BillingService {
    * returns the existing state unchanged rather than erroring or duplicating.
    */
   async provisionExpiredSubscription(firebaseId: string) {
-    const existing = await this.subscriptionRepo.findOne({ where: { firebaseId } });
+    const existing = await this.subscriptionRepo.findOne({
+      where: { firebaseId },
+    });
     if (existing) {
       let plan: SubscriptionPlan | null = null;
       if (existing.planId) {
@@ -326,7 +363,10 @@ export class BillingService {
     }
 
     this.logger.error(
-      `provisionExpiredSubscription: creating remediation TRIAL_EXPIRED row for firebaseId=${firebaseId.substring(0, 8)}... (no row existed — anomaly, see getMyBillingState SUBSCRIPTION_MISSING)`,
+      `provisionExpiredSubscription: creating remediation TRIAL_EXPIRED row for firebaseId=${firebaseId.substring(
+        0,
+        8,
+      )}... (no row existed — anomaly, see getMyBillingState SUBSCRIPTION_MISSING)`,
     );
 
     const subscription = this.subscriptionRepo.create({
@@ -345,10 +385,14 @@ export class BillingService {
       // Lost the race against a concurrent call — ux_subscription_firebase
       // (unique on firebase_id) rejected the duplicate insert. Return the
       // row the other call created instead of erroring.
-      const isDup = err?.code === 'ER_DUP_ENTRY' || err?.driverError?.code === 'ER_DUP_ENTRY';
+      const isDup =
+        err?.code === 'ER_DUP_ENTRY' ||
+        err?.driverError?.code === 'ER_DUP_ENTRY';
       if (!isDup) throw err;
 
-      const winner = await this.subscriptionRepo.findOne({ where: { firebaseId } });
+      const winner = await this.subscriptionRepo.findOne({
+        where: { firebaseId },
+      });
       if (!winner) throw err;
       let plan: SubscriptionPlan | null = null;
       if (winner.planId) {
@@ -371,7 +415,9 @@ export class BillingService {
     isAdminImpersonation = false,
   ): Promise<boolean> {
     const hasBillingOverride = isDelegatedAccess || isAdminImpersonation;
-    const subscription = await this.subscriptionRepo.findOne({ where: { firebaseId } });
+    const subscription = await this.subscriptionRepo.findOne({
+      where: { firebaseId },
+    });
     if (!subscription) {
       // Mirrors getMyBillingState's no-subscription branch: a missing row is a
       // data issue on the client's own account, but professional impersonation
@@ -382,7 +428,9 @@ export class BillingService {
 
     let plan: SubscriptionPlan | null = null;
     if (subscription.planId) {
-      plan = await this.planRepo.findOne({ where: { id: subscription.planId } });
+      plan = await this.planRepo.findOne({
+        where: { id: subscription.planId },
+      });
     }
 
     const modulesAccess = this.subscriptionAccessService.resolveModulesAccess(
@@ -435,7 +483,10 @@ export class BillingService {
       );
     }
 
-    const unresolvedFailure = await this.billingEventService.getUnresolvedReceiptFailure(subscription.id);
+    const unresolvedFailure =
+      await this.billingEventService.getUnresolvedReceiptFailure(
+        subscription.id,
+      );
     if (unresolvedFailure) {
       throw new ConflictException(
         'קיים תשלום קודם שעבורו לא הופקה קבלה. לא ניתן לבצע תשלום נוסף עד שהקבלה תופק — אנא פנה לתמיכה.',
@@ -447,7 +498,9 @@ export class BillingService {
     });
 
     if (!requestedPlan) {
-      throw new BadRequestException('Subscription plan not found or not available');
+      throw new BadRequestException(
+        'Subscription plan not found or not available',
+      );
     }
 
     // Checking out on a referral plan: always resolve the LIVE-correct one
@@ -464,7 +517,10 @@ export class BillingService {
         if (subscription.planId !== plan.id) {
           this.logger.log(
             `createCheckout: referral plan resolved live to ${plan.slug} (requested ${requestedPlan.slug}) ` +
-              `for firebaseId=${firebaseId.substring(0, 8)}... — updating subscription.planId`,
+              `for firebaseId=${firebaseId.substring(
+                0,
+                8,
+              )}... — updating subscription.planId`,
           );
           subscription.planId = plan.id;
           await this.subscriptionRepo.save(subscription);
@@ -477,10 +533,51 @@ export class BillingService {
       plan.id,
     );
 
-    // Fetch user profile for customer info (best-effort — optional fields).
-    const user = await this.userRepo.findOne({ where: { firebaseId } }).catch(() => null);
+    // PAST_DUE recovery remains hosted checkout (never token charging), but
+    // gets a canonical recurring-period obligation before CardCom I/O. The
+    // webhook carries the attempt id so later migration can apply its result
+    // idempotently without allocating a second debt.
+    let recoveryAttemptId: number | null = null;
+    if (subscription.status === SubscriptionStatus.PAST_DUE) {
+      if (!this.billingLifecycleService) {
+        throw new ConflictException(
+          'Canonical billing recovery is not configured',
+        );
+      }
+      const periodStart =
+        subscription.currentPeriodStart ??
+        subscription.nextBillingDate ??
+        new Date();
+      const periodEnd = subscription.currentPeriodEnd ?? new Date(periodStart);
+      if (!subscription.currentPeriodEnd)
+        periodEnd.setMonth(periodEnd.getMonth() + 1);
+      const recovery = await this.billingLifecycleService.openPastDueRecovery(
+        {
+          actor: { actorFirebaseId: firebaseId, subjectFirebaseId: firebaseId },
+          subscriptionId: subscription.id,
+          planId: plan.id,
+          periodStart: periodStart.toISOString().slice(0, 10),
+          periodEnd: periodEnd.toISOString().slice(0, 10),
+          amountAgorot: pricing.finalAmountAgorot,
+          amountBeforeVatAgorot: pricing.amountBeforeVatAgorot,
+          vatAmountAgorot: pricing.vatAmountAgorot,
+          currency: pricing.currency,
+        },
+        BillingChargeMode.LOW_PROFILE_HOSTED,
+      );
+      recoveryAttemptId = recovery.attempt.id;
+    }
 
-    let cardcomResult: { lowProfileId: string; paymentUrl: string; rawResponse: Record<string, any> };
+    // Fetch user profile for customer info (best-effort — optional fields).
+    const user = await this.userRepo
+      .findOne({ where: { firebaseId } })
+      .catch(() => null);
+
+    let cardcomResult: {
+      lowProfileId: string;
+      paymentUrl: string;
+      rawResponse: Record<string, any>;
+    };
 
     try {
       cardcomResult = await this.cardcomService.createLowProfileCheckout({
@@ -494,9 +591,12 @@ export class BillingService {
           firebaseId,
           planId: plan.id,
           subscriptionId: subscription.id,
+          billingAttemptId: recoveryAttemptId,
         }),
         customerEmail: user?.email ?? null,
-        customerName: user?.fName ? `${user.fName} ${user.lName ?? ''}`.trim() : null,
+        customerName: user?.fName
+          ? `${user.fName} ${user.lName ?? ''}`.trim()
+          : null,
         customerPhone: user?.phone ?? null,
       });
     } catch (err) {
@@ -521,7 +621,9 @@ export class BillingService {
       });
 
       this.logger.error(
-        `CardCom LowProfile/Create failed for plan=${plan.slug} subscription=${subscription.id}: ${(err as Error)?.message}`,
+        `CardCom LowProfile/Create failed for plan=${plan.slug} subscription=${
+          subscription.id
+        }: ${(err as Error)?.message}`,
       );
       throw new BadGatewayException(
         'Payment gateway unavailable. Please try again in a few minutes.',
@@ -590,7 +692,9 @@ export class BillingService {
     planSlug: string;
     planName: string;
   }> {
-    const subscription = await this.subscriptionRepo.findOne({ where: { firebaseId } });
+    const subscription = await this.subscriptionRepo.findOne({
+      where: { firebaseId },
+    });
     if (!subscription) {
       throw new BadRequestException('לא נמצא מנוי עבור המשתמש.');
     }
@@ -614,11 +718,18 @@ export class BillingService {
     await this.applyReferralOpenBankingUpgrade(subscription, targetPlan);
 
     this.logger.log(
-      `upgradeToReferralOpenBankingPlan: firebaseId=${firebaseId.substring(0, 8)}... ` +
+      `upgradeToReferralOpenBankingPlan: firebaseId=${firebaseId.substring(
+        0,
+        8,
+      )}... ` +
         `referral-basic -> referral-open-banking (planId=${targetPlan.id})`,
     );
 
-    return { planId: targetPlan.id, planSlug: targetPlan.slug, planName: targetPlan.name };
+    return {
+      planId: targetPlan.id,
+      planSlug: targetPlan.slug,
+      planName: targetPlan.name,
+    };
   }
 
   /**
@@ -635,11 +746,17 @@ export class BillingService {
    * calling it again after a successful upgrade (or for a non-referral user)
    * is always a clean no-op, never a duplicate write or duplicate log line.
    */
-  async autoUpgradeReferralOpenBankingIfEligible(firebaseId: string): Promise<boolean> {
-    const subscription = await this.subscriptionRepo.findOne({ where: { firebaseId } });
+  async autoUpgradeReferralOpenBankingIfEligible(
+    firebaseId: string,
+  ): Promise<boolean> {
+    const subscription = await this.subscriptionRepo.findOne({
+      where: { firebaseId },
+    });
     if (!subscription?.planId) return false;
 
-    const currentPlan = await this.planRepo.findOne({ where: { id: subscription.planId } });
+    const currentPlan = await this.planRepo.findOne({
+      where: { id: subscription.planId },
+    });
     if (currentPlan?.slug !== 'referral-basic') return false;
 
     const targetPlan = await this.planRepo.findOne({
@@ -648,7 +765,10 @@ export class BillingService {
     if (!targetPlan) {
       this.logger.warn(
         `autoUpgradeReferralOpenBankingIfEligible: referral-open-banking plan not found/inactive — ` +
-          `skipping auto-upgrade for firebaseId=${firebaseId.substring(0, 8)}...`,
+          `skipping auto-upgrade for firebaseId=${firebaseId.substring(
+            0,
+            8,
+          )}...`,
       );
       return false;
     }
@@ -656,7 +776,10 @@ export class BillingService {
     await this.applyReferralOpenBankingUpgrade(subscription, targetPlan);
 
     this.logger.log(
-      `autoUpgradeReferralOpenBankingIfEligible: firebaseId=${firebaseId.substring(0, 8)}... ` +
+      `autoUpgradeReferralOpenBankingIfEligible: firebaseId=${firebaseId.substring(
+        0,
+        8,
+      )}... ` +
         `referral-basic -> referral-open-banking (planId=${targetPlan.id}) [auto, open-banking consent completed]`,
     );
 
@@ -711,9 +834,15 @@ export class BillingService {
     }
 
     // Fetch user profile for customer info (best-effort — optional fields).
-    const user = await this.userRepo.findOne({ where: { firebaseId } }).catch(() => null);
+    const user = await this.userRepo
+      .findOne({ where: { firebaseId } })
+      .catch(() => null);
 
-    let cardcomResult: { lowProfileId: string; paymentUrl: string; rawResponse: Record<string, any> };
+    let cardcomResult: {
+      lowProfileId: string;
+      paymentUrl: string;
+      rawResponse: Record<string, any>;
+    };
 
     try {
       cardcomResult = await this.cardcomService.createLowProfileCheckout({
@@ -731,7 +860,9 @@ export class BillingService {
           subscriptionId: subscription.id,
         }),
         customerEmail: user?.email ?? null,
-        customerName: user?.fName ? `${user.fName} ${user.lName ?? ''}`.trim() : null,
+        customerName: user?.fName
+          ? `${user.fName} ${user.lName ?? ''}`.trim()
+          : null,
         customerPhone: user?.phone ?? null,
       });
     } catch (err) {
@@ -753,7 +884,9 @@ export class BillingService {
       });
 
       this.logger.error(
-        `CardCom CreateTokenOnly failed for subscription=${subscription.id}: ${(err as Error)?.message}`,
+        `CardCom CreateTokenOnly failed for subscription=${subscription.id}: ${
+          (err as Error)?.message
+        }`,
       );
       throw new BadGatewayException(
         'Payment gateway unavailable. Please try again in a few minutes.',
@@ -826,10 +959,11 @@ export class BillingService {
     failureReason: string | null;
     reconciled: boolean;
   }> {
-    const request = await this.billingEventService.findPaymentMethodUpdateRequest(
-      firebaseId,
-      lowProfileId,
-    );
+    const request =
+      await this.billingEventService.findPaymentMethodUpdateRequest(
+        firebaseId,
+        lowProfileId,
+      );
 
     // Unknown to us, or not this user's attempt — never leak which it was.
     if (!request) {
@@ -852,15 +986,18 @@ export class BillingService {
     }
 
     this.logger.warn(
-      `No webhook for lowProfileId=${lowProfileId} after ${Math.round(waitedMs / 1000)}s — ` +
+      `No webhook for lowProfileId=${lowProfileId} after ${Math.round(
+        waitedMs / 1000,
+      )}s — ` +
         `reconciling from GetLpResult. If this recurs in development, check that ` +
         `CARDCOM_WEBHOOK_BASE_URL points at the live ngrok URL.`,
     );
 
-    const outcome = await this.cardcomWebhookService.reconcileChangePaymentMethod(
-      lowProfileId,
-      firebaseId,
-    );
+    const outcome =
+      await this.cardcomWebhookService.reconcileChangePaymentMethod(
+        lowProfileId,
+        firebaseId,
+      );
 
     // UNVERIFIABLE = CardCom unreachable or result not yet conclusive. Stay
     // PENDING so the next poll retries rather than failing a live attempt.
@@ -929,7 +1066,8 @@ export class BillingService {
         const toleranceMs = 1000;
         if (
           paymentMethod &&
-          paymentMethod.updatedAt.getTime() + toleranceMs >= new Date(requestedAt).getTime()
+          paymentMethod.updatedAt.getTime() + toleranceMs >=
+            new Date(requestedAt).getTime()
         ) {
           this.logger.warn(
             `Change-payment-method for lowProfileId=${lowProfileId} resolved from ` +
@@ -968,7 +1106,9 @@ export class BillingService {
     }
 
     if (event.eventType !== BillingEventType.PAYMENT_SUCCESS) {
-      throw new BadRequestException('Only PAYMENT_SUCCESS events have receipt emails');
+      throw new BadRequestException(
+        'Only PAYMENT_SUCCESS events have receipt emails',
+      );
     }
 
     if (!event.receiptDocId) {
@@ -979,7 +1119,10 @@ export class BillingService {
     }
 
     const issuer = await this.billingIssuerConfigService.getKeepintaxIssuer();
-    return this.billingReceiptService.sendReceiptEmailForPaymentEvent(eventId, issuer.issuerName);
+    return this.billingReceiptService.sendReceiptEmailForPaymentEvent(
+      eventId,
+      issuer.issuerName,
+    );
   }
 
   /**
@@ -998,7 +1141,9 @@ export class BillingService {
     }
 
     if (event.eventType !== BillingEventType.PAYMENT_SUCCESS) {
-      throw new BadRequestException('Only PAYMENT_SUCCESS events can have receipts generated');
+      throw new BadRequestException(
+        'Only PAYMENT_SUCCESS events can have receipts generated',
+      );
     }
 
     const issuer = await this.billingIssuerConfigService.getKeepintaxIssuer();
@@ -1008,32 +1153,50 @@ export class BillingService {
       this.logger.log(
         `generateMissingReceipt: receipt already exists (receiptDocId=${event.receiptDocId}), skipping creation`,
       );
-      const emailResult = await this.billingReceiptService.sendReceiptEmailForPaymentEvent(eventId, issuer.issuerName);
-      return { created: false, sent: emailResult.sent, error: emailResult.error };
+      const emailResult =
+        await this.billingReceiptService.sendReceiptEmailForPaymentEvent(
+          eventId,
+          issuer.issuerName,
+        );
+      return {
+        created: false,
+        sent: emailResult.sent,
+        error: emailResult.error,
+      };
     }
 
     if (!event.subscriptionId) {
-      throw new BadRequestException('Payment event has no associated subscription');
+      throw new BadRequestException(
+        'Payment event has no associated subscription',
+      );
     }
 
     // Canonical VAT breakdown from CHECKOUT_CREATED — never recalculate.
-    const breakdown = await this.billingEventService.findCheckoutBreakdown(event.subscriptionId);
+    const breakdown = await this.billingEventService.findCheckoutBreakdown(
+      event.subscriptionId,
+    );
     if (!breakdown) {
       throw new BadRequestException(
         'Cannot regenerate receipt: VAT breakdown not found. Please contact support.',
       );
     }
 
-    const subscription = await this.subscriptionRepo.findOne({ where: { id: event.subscriptionId } });
+    const subscription = await this.subscriptionRepo.findOne({
+      where: { id: event.subscriptionId },
+    });
     if (!subscription) {
       throw new NotFoundException('Subscription not found');
     }
 
     if (!subscription.planId) {
-      throw new BadRequestException('Subscription has no plan — cannot generate receipt');
+      throw new BadRequestException(
+        'Subscription has no plan — cannot generate receipt',
+      );
     }
 
-    const plan = await this.planRepo.findOne({ where: { id: subscription.planId } });
+    const plan = await this.planRepo.findOne({
+      where: { id: subscription.planId },
+    });
     if (!plan) {
       throw new NotFoundException('Subscription plan not found');
     }
@@ -1041,26 +1204,40 @@ export class BillingService {
     const periodStart = subscription.currentPeriodStart ?? new Date();
     const periodEnd = subscription.currentPeriodEnd ?? new Date();
 
-    const receipt = await this.billingReceiptService.createReceiptForPayment(issuer, {
-      firebaseId,
-      subscriptionId: event.subscriptionId,
-      amountBeforeVatAgorot: breakdown.amountBeforeVatAgorot,
-      vatAmountAgorot: breakdown.vatAmountAgorot,
-      amountIncludingVatAgorot: breakdown.amountIncludingVatAgorot,
-      planName: plan.name,
-      periodStart,
-      periodEnd,
-      cardcomDealNumber: event.cardcomDealNumber,
-    });
+    const receipt = await this.billingReceiptService.createReceiptForPayment(
+      issuer,
+      {
+        firebaseId,
+        subscriptionId: event.subscriptionId,
+        amountBeforeVatAgorot: breakdown.amountBeforeVatAgorot,
+        vatAmountAgorot: breakdown.vatAmountAgorot,
+        amountIncludingVatAgorot: breakdown.amountIncludingVatAgorot,
+        planName: plan.name,
+        periodStart,
+        periodEnd,
+        cardcomDealNumber: event.cardcomDealNumber,
+      },
+    );
 
     // Link receipt to the PAYMENT_SUCCESS event — idempotency anchor for subsequent retries.
-    await this.billingEventService.updatePaymentEventWithReceipt(eventId, receipt.receiptDocId);
+    await this.billingEventService.updatePaymentEventWithReceipt(
+      eventId,
+      receipt.receiptDocId,
+    );
 
     // Generate PDFs and upload to Firebase.
-    await this.billingReceiptService.finalizeBillingReceiptPdfs(receipt.receiptDocId, issuer, firebaseId);
+    await this.billingReceiptService.finalizeBillingReceiptPdfs(
+      receipt.receiptDocId,
+      issuer,
+      firebaseId,
+    );
 
     // Send receipt email.
-    const emailResult = await this.billingReceiptService.sendReceiptEmailForPaymentEvent(eventId, issuer.issuerName);
+    const emailResult =
+      await this.billingReceiptService.sendReceiptEmailForPaymentEvent(
+        eventId,
+        issuer.issuerName,
+      );
 
     this.logger.log(
       `generateMissingReceipt: receipt created and sent: receiptDocId=${receipt.receiptDocId} eventId=${eventId}`,
@@ -1076,8 +1253,12 @@ export class BillingService {
    * "My Subscription" tab. Reuses BillingEventService for the ledger rows and
    * resolves plan names from the planId stored on each event's metadata.
    */
-  async getUserPaymentHistory(firebaseId: string): Promise<PaymentHistoryRow[]> {
-    const events = await this.billingEventService.findUserPaymentHistory(firebaseId);
+  async getUserPaymentHistory(
+    firebaseId: string,
+  ): Promise<PaymentHistoryRow[]> {
+    const events = await this.billingEventService.findUserPaymentHistory(
+      firebaseId,
+    );
     if (events.length === 0) return [];
 
     // Plan resolution strategy, most reliable first:
@@ -1093,7 +1274,8 @@ export class BillingService {
     for (const event of events) {
       const planId = event.metadata?.planId;
       if (typeof planId === 'number') planIds.add(planId);
-      if (event.subscriptionId != null) subscriptionIds.add(event.subscriptionId);
+      if (event.subscriptionId != null)
+        subscriptionIds.add(event.subscriptionId);
     }
 
     // subscriptionId → planId, for events lacking metadata.planId.
@@ -1113,7 +1295,9 @@ export class BillingService {
 
     const planNameById = new Map<number, string>();
     if (planIds.size > 0) {
-      const plans = await this.planRepo.find({ where: { id: In([...planIds]) } });
+      const plans = await this.planRepo.find({
+        where: { id: In([...planIds]) },
+      });
       for (const plan of plans) planNameById.set(plan.id, plan.name);
     }
 
@@ -1122,10 +1306,12 @@ export class BillingService {
     // rows can reference deleted or never-finalized documents. Resolved via
     // DocumentsService so no new Firebase/document logic is introduced here.
     const receiptDocIds = events
-      .map(e => e.receiptDocId)
+      .map((e) => e.receiptDocId)
       .filter((id): id is number => id != null);
     const downloadableReceiptIds =
-      await this.documentsService.findDownloadableBillingReceiptDocIds(receiptDocIds);
+      await this.documentsService.findDownloadableBillingReceiptDocIds(
+        receiptDocIds,
+      );
 
     const successTypes: BillingEventType[] = [
       BillingEventType.PAYMENT_SUCCESS,
@@ -1137,18 +1323,19 @@ export class BillingService {
         typeof event.metadata?.planId === 'number'
           ? event.metadata.planId
           : event.subscriptionId != null
-            ? (subscriptionPlanId.get(event.subscriptionId) ?? null)
-            : null;
+          ? subscriptionPlanId.get(event.subscriptionId) ?? null
+          : null;
       return {
         eventId: event.id,
         date: event.createdAt,
-        planName: planId != null ? (planNameById.get(planId) ?? null) : null,
+        planName: planId != null ? planNameById.get(planId) ?? null : null,
         amountAgorot: event.amountAgorot,
         currency: event.currency,
         status: successTypes.includes(event.eventType) ? 'SUCCESS' : 'FAILED',
         receiptDocId: event.receiptDocId,
         receiptAvailable:
-          event.receiptDocId != null && downloadableReceiptIds.has(event.receiptDocId),
+          event.receiptDocId != null &&
+          downloadableReceiptIds.has(event.receiptDocId),
         canRetry: RETRYABLE_EVENT_TYPES.includes(event.eventType),
       };
     });
@@ -1162,7 +1349,12 @@ export class BillingService {
   async getPaymentReceiptPdf(
     firebaseId: string,
     eventId: number,
-  ): Promise<{ buffer: Buffer; docType: string; docNumber: string; generalDocIndex: string }> {
+  ): Promise<{
+    buffer: Buffer;
+    docType: string;
+    docNumber: string;
+    generalDocIndex: string;
+  }> {
     const event = await this.billingEventService.findPaymentEventById(eventId);
 
     if (!event || event.firebaseId !== firebaseId) {
@@ -1176,14 +1368,17 @@ export class BillingService {
     // Verify the document exists AND has a downloadable file BEFORE downloading,
     // so a missing/incomplete receipt returns a clean 404 rather than letting an
     // EntityNotFoundError bubble up as a 500. No exceptions used for control flow.
-    const downloadable = await this.documentsService.isBillingReceiptDownloadable(
-      event.receiptDocId,
-    );
+    const downloadable =
+      await this.documentsService.isBillingReceiptDownloadable(
+        event.receiptDocId,
+      );
     if (!downloadable) {
       throw new NotFoundException('לא קיים מסמך עבור תשלום זה');
     }
 
-    const receipt = await this.documentsService.getBillingReceiptPdf(event.receiptDocId);
+    const receipt = await this.documentsService.getBillingReceiptPdf(
+      event.receiptDocId,
+    );
 
     return {
       buffer: receipt.buffer,
@@ -1212,12 +1407,19 @@ export class BillingService {
       isAdminImpersonation,
     );
 
-    const [billingPaymentResult, paymentMethodUpdateResult, billingBusinessType, paymentMethod] = await Promise.all([
+    const [
+      billingPaymentResult,
+      paymentMethodUpdateResult,
+      billingBusinessType,
+      paymentMethod,
+    ] = await Promise.all([
       this.buildPaymentResultPayload(firebaseId),
       this.buildPaymentMethodUpdateResultPayload(firebaseId),
       this.pricingService.resolveUserBillingBusinessType(firebaseId),
       subscription.paymentMethodId
-        ? this.paymentMethodRepo.findOne({ where: { id: subscription.paymentMethodId } })
+        ? this.paymentMethodRepo.findOne({
+            where: { id: subscription.paymentMethodId },
+          })
         : Promise.resolve(null),
     ]);
 
@@ -1231,7 +1433,8 @@ export class BillingService {
       ? this.pricingService.resolveEffectivePlanPrice(plan, billingBusinessType)
       : null;
 
-    const discount = this.pricingService.resolveSubscriptionDiscount(subscription);
+    const discount =
+      this.pricingService.resolveSubscriptionDiscount(subscription);
 
     return {
       hasSubscription: true,
@@ -1269,7 +1472,8 @@ export class BillingService {
             slug: plan.slug,
             name: plan.name,
             priceMonthlyAgorot: plan.priceMonthlyAgorot,
-            licensedDealerPriceMonthlyAgorot: plan.licensedDealerPriceMonthlyAgorot,
+            licensedDealerPriceMonthlyAgorot:
+              plan.licensedDealerPriceMonthlyAgorot,
             currency: plan.currency,
             modules: plan.modules ?? [],
             features: plan.features,
@@ -1280,10 +1484,13 @@ export class BillingService {
         : null,
       access: {
         modulesAccess,
-        isTrialActive: this.subscriptionAccessService.isTrialActive(subscription),
-        isPaymentRequired: this.subscriptionAccessService.isPaymentRequired(subscription),
+        isTrialActive:
+          this.subscriptionAccessService.isTrialActive(subscription),
+        isPaymentRequired:
+          this.subscriptionAccessService.isPaymentRequired(subscription),
         isPastDue: subscription.status === SubscriptionStatus.PAST_DUE,
-        gracePeriodActive: this.subscriptionAccessService.gracePeriodActive(subscription),
+        gracePeriodActive:
+          this.subscriptionAccessService.gracePeriodActive(subscription),
       },
       billingPaymentResult,
       // Latest outcome of a "replace saved card" flow (CreateTokenOnly). Lets the
@@ -1320,7 +1527,9 @@ export class BillingService {
     failureReason: string | null;
     createdAt: Date;
   } | null> {
-    const event = await this.billingEventService.findLatestPaymentResultEvent(firebaseId);
+    const event = await this.billingEventService.findLatestPaymentResultEvent(
+      firebaseId,
+    );
     const failedLog = await this.webhookLogRepo.findOne({
       where: { firebaseId, status: WebhookLogStatus.FAILED },
       order: { createdAt: 'DESC' },
@@ -1366,7 +1575,9 @@ export class BillingService {
       receiptEmailSent: isSuccess ? event.receiptEmailSent : null,
       receiptEmail,
       receiptFailed,
-      failureReason: !isSuccess ? ((event.metadata?.reason as string) ?? null) : null,
+      failureReason: !isSuccess
+        ? (event.metadata?.reason as string) ?? null
+        : null,
       createdAt: event.createdAt,
     };
   }
@@ -1378,23 +1589,31 @@ export class BillingService {
    * separate from the checkout payment banner. Returns null when the user has
    * never attempted to replace their card.
    */
-  private async buildPaymentMethodUpdateResultPayload(firebaseId: string): Promise<{
+  private async buildPaymentMethodUpdateResultPayload(
+    firebaseId: string,
+  ): Promise<{
     status: 'SUCCESS' | 'FAILED';
     last4: string | null;
     brand: string | null;
     failureReason: string | null;
     createdAt: Date;
   } | null> {
-    const event = await this.billingEventService.findLatestPaymentMethodUpdateResultEvent(firebaseId);
+    const event =
+      await this.billingEventService.findLatestPaymentMethodUpdateResultEvent(
+        firebaseId,
+      );
     if (!event) return null;
 
-    const isSuccess = event.eventType === BillingEventType.PAYMENT_METHOD_UPDATED;
+    const isSuccess =
+      event.eventType === BillingEventType.PAYMENT_METHOD_UPDATED;
 
     return {
       status: isSuccess ? 'SUCCESS' : 'FAILED',
-      last4: isSuccess ? ((event.metadata?.last4 as string) ?? null) : null,
-      brand: isSuccess ? ((event.metadata?.brand as string) ?? null) : null,
-      failureReason: !isSuccess ? ((event.metadata?.reason as string) ?? null) : null,
+      last4: isSuccess ? (event.metadata?.last4 as string) ?? null : null,
+      brand: isSuccess ? (event.metadata?.brand as string) ?? null : null,
+      failureReason: !isSuccess
+        ? (event.metadata?.reason as string) ?? null
+        : null,
       createdAt: event.createdAt,
     };
   }
@@ -1443,7 +1662,9 @@ export class BillingService {
     }
 
     if (overdueTrials.length > 0) {
-      this.logger.log(`expireOverdueTrials: expired ${overdueTrials.length} trial subscription(s)`);
+      this.logger.log(
+        `expireOverdueTrials: expired ${overdueTrials.length} trial subscription(s)`,
+      );
     }
 
     return overdueTrials.length;
@@ -1453,7 +1674,9 @@ export class BillingService {
    * Temporary bridge: keeps legacy User fields in sync until they're
    * dropped. Best-effort — failures are logged but never break the main flow.
    */
-  private async expireTrialSubscription(subscription: Subscription): Promise<void> {
+  private async expireTrialSubscription(
+    subscription: Subscription,
+  ): Promise<void> {
     subscription.status = SubscriptionStatus.TRIAL_EXPIRED;
     await this.subscriptionRepo.save(subscription);
   }

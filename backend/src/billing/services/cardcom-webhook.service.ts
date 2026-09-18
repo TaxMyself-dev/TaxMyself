@@ -72,7 +72,13 @@ interface CardcomWebhookPayload {
  * there is no legacy fallback to CHECKOUT.
  */
 type ParsedReturnValue =
-  | { intent: 'CHECKOUT'; firebaseId: string; planId: number; subscriptionId: number }
+  | {
+      intent: 'CHECKOUT';
+      firebaseId: string;
+      planId: number;
+      subscriptionId: number;
+      billingAttemptId?: number | null;
+    }
   | { intent: 'CHANGE_PM'; firebaseId: string; subscriptionId: number };
 
 /** Card fields persisted onto payment_method after a verified CardCom result. */
@@ -119,7 +125,9 @@ export class CardcomWebhookService implements OnModuleInit {
       encryptCardcomToken('startup-validation-probe');
     } catch (err) {
       throw new Error(
-        `CardcomWebhookService: BILLING_TOKEN_ENCRYPTION_KEY is invalid — ${(err as Error).message}`,
+        `CardcomWebhookService: BILLING_TOKEN_ENCRYPTION_KEY is invalid — ${
+          (err as Error).message
+        }`,
       );
     }
   }
@@ -160,7 +168,9 @@ export class CardcomWebhookService implements OnModuleInit {
     );
 
     if (!webhookLog) {
-      console.log(`Duplicate webhook ignored: idempotencyKey=${idempotencyKey}`);
+      console.log(
+        `Duplicate webhook ignored: idempotencyKey=${idempotencyKey}`,
+      );
       return;
     }
 
@@ -169,7 +179,9 @@ export class CardcomWebhookService implements OnModuleInit {
     if (!parsedReturn) {
       this.logger.error(
         `Webhook rejected — ${returnValueError}. ` +
-          `lowProfileId=${lowProfileId ?? 'none'} ReturnValue=${returnValue?.slice(0, 100) ?? 'null'}`,
+          `lowProfileId=${lowProfileId ?? 'none'} ReturnValue=${
+            returnValue?.slice(0, 100) ?? 'null'
+          }`,
       );
       await this.markWebhookStatus(
         webhookLog.id,
@@ -197,10 +209,14 @@ export class CardcomWebhookService implements OnModuleInit {
     // ── Verify payment independently via GetLpResult ──────────────────────────
     let verifiedResult: Record<string, any>;
     try {
-      verifiedResult = await this.cardcomService.getLowProfileResult(lowProfileId);
+      verifiedResult = await this.cardcomService.getLowProfileResult(
+        lowProfileId,
+      );
     } catch (err) {
       this.logger.error(
-        `GetLpResult failed for subscriptionId=${subscriptionId}: ${(err as Error).message}`,
+        `GetLpResult failed for subscriptionId=${subscriptionId}: ${
+          (err as Error).message
+        }`,
       );
       await this.markWebhookStatus(
         webhookLog.id,
@@ -247,11 +263,18 @@ export class CardcomWebhookService implements OnModuleInit {
       );
     } else {
       const reason = !topLevelOk
-        ? `ResponseCode=${verified.ResponseCode ?? 'missing'} desc=${verified.Description ?? ''}`
+        ? `ResponseCode=${verified.ResponseCode ?? 'missing'} desc=${
+            verified.Description ?? ''
+          }`
         : !txOk
-          ? `TranzactionInfo.ResponseCode=${verified.TranzactionInfo?.ResponseCode}`
-          : 'ReturnValue mismatch';
-      await this.processVerifiedFailure(firebaseId, subscriptionId, webhookLog, reason);
+        ? `TranzactionInfo.ResponseCode=${verified.TranzactionInfo?.ResponseCode}`
+        : 'ReturnValue mismatch';
+      await this.processVerifiedFailure(
+        firebaseId,
+        subscriptionId,
+        webhookLog,
+        reason,
+      );
     }
   }
 
@@ -332,7 +355,9 @@ export class CardcomWebhookService implements OnModuleInit {
         // take no other action, so a real charge is never invisible in the
         // audit trail just because it happened to be a no-op internally.
         const duplicateTranzactionId =
-          verified.TranzactionId ?? verified.TranzactionInfo?.TranzactionId ?? null;
+          verified.TranzactionId ??
+          verified.TranzactionInfo?.TranzactionId ??
+          null;
         const duplicateAmountAgorot =
           verified.TranzactionInfo?.Amount != null
             ? Math.round(verified.TranzactionInfo.Amount * 100)
@@ -343,7 +368,10 @@ export class CardcomWebhookService implements OnModuleInit {
           subscriptionId,
           amountAgorot: duplicateAmountAgorot,
           currency: 'ILS',
-          cardcomDealNumber: duplicateTranzactionId != null ? String(duplicateTranzactionId) : null,
+          cardcomDealNumber:
+            duplicateTranzactionId != null
+              ? String(duplicateTranzactionId)
+              : null,
           metadata: {
             planId,
             lowProfileId: verified.LowProfileId ?? null,
@@ -399,8 +427,11 @@ export class CardcomWebhookService implements OnModuleInit {
 
       // ── 3. Extract transaction refs ───────────────────────────────────────
       const tranzactionId =
-        verified.TranzactionId ?? verified.TranzactionInfo?.TranzactionId ?? null;
-      const cardcomDealNumber = tranzactionId != null ? String(tranzactionId) : null;
+        verified.TranzactionId ??
+        verified.TranzactionInfo?.TranzactionId ??
+        null;
+      const cardcomDealNumber =
+        tranzactionId != null ? String(tranzactionId) : null;
 
       // TranzactionInfo.Amount is in NIS (shekels); convert to agorot for storage.
       const chargedAmountAgorot =
@@ -430,7 +461,8 @@ export class CardcomWebhookService implements OnModuleInit {
       postCommitData = {
         planName: plan.name,
         planSlug: plan.slug,
-        planModules: (plan.modules ?? Object.values(ModuleName)) as ModuleName[],
+        planModules: (plan.modules ??
+          Object.values(ModuleName)) as ModuleName[],
         periodStart: now,
         periodEnd,
         chargedAmountAgorot,
@@ -439,7 +471,9 @@ export class CardcomWebhookService implements OnModuleInit {
     } catch (err) {
       await qr.rollbackTransaction();
       this.logger.error(
-        `Transaction failed for subscription #${subscriptionId}: ${(err as Error).message}`,
+        `Transaction failed for subscription #${subscriptionId}: ${
+          (err as Error).message
+        }`,
         (err as Error).stack,
       );
       await this.markWebhookStatus(
@@ -455,8 +489,15 @@ export class CardcomWebhookService implements OnModuleInit {
     // Only proceed if the DB transaction committed successfully.
     if (!postCommitData) return;
 
-    const { planName, planSlug, planModules, periodStart, periodEnd, chargedAmountAgorot, cardcomDealNumber } =
-      postCommitData;
+    const {
+      planName,
+      planSlug,
+      planModules,
+      periodStart,
+      periodEnd,
+      chargedAmountAgorot,
+      cardcomDealNumber,
+    } = postCommitData;
 
     // ── 5. Mark webhook processed ─────────────────────────────────────────
     await this.markWebhookStatus(webhookLog.id, WebhookLogStatus.PROCESSED);
@@ -523,10 +564,20 @@ export class CardcomWebhookService implements OnModuleInit {
     cardcomDealNumber: string | null;
     paymentSuccessEvent: BillingEvent | null;
   }): Promise<void> {
-    const { firebaseId, subscriptionId, planName, periodStart, periodEnd, cardcomDealNumber, paymentSuccessEvent } = params;
+    const {
+      firebaseId,
+      subscriptionId,
+      planName,
+      periodStart,
+      periodEnd,
+      cardcomDealNumber,
+      paymentSuccessEvent,
+    } = params;
 
     console.log(
-      `Receipt generation started: subscriptionId=${subscriptionId} dealNumber=${cardcomDealNumber ?? 'null'}`,
+      `Receipt generation started: subscriptionId=${subscriptionId} dealNumber=${
+        cardcomDealNumber ?? 'null'
+      }`,
     );
 
     try {
@@ -534,7 +585,9 @@ export class CardcomWebhookService implements OnModuleInit {
       if (!paymentSuccessEvent) {
         this.logger.error(
           `Receipt generation failed: PAYMENT_SUCCESS event failed to persist for ` +
-            `subscriptionId=${subscriptionId} dealNumber=${cardcomDealNumber ?? 'null'}`,
+            `subscriptionId=${subscriptionId} dealNumber=${
+              cardcomDealNumber ?? 'null'
+            }`,
         );
         await this.billingEventService.logEvent({
           firebaseId,
@@ -558,7 +611,9 @@ export class CardcomWebhookService implements OnModuleInit {
       }
 
       // 3. Retrieve canonical VAT breakdown from CHECKOUT_CREATED — never recalculate.
-      const breakdown = await this.billingEventService.findCheckoutBreakdown(subscriptionId);
+      const breakdown = await this.billingEventService.findCheckoutBreakdown(
+        subscriptionId,
+      );
 
       if (!breakdown) {
         this.logger.error(
@@ -582,17 +637,20 @@ export class CardcomWebhookService implements OnModuleInit {
       const issuer = await this.billingIssuerConfigService.getKeepintaxIssuer();
 
       // 4. Create the TAX_INVOICE_RECEIPT document (DB rows only — no PDF yet).
-      const receipt = await this.billingReceiptService.createReceiptForPayment(issuer, {
-        firebaseId,
-        subscriptionId,
-        amountBeforeVatAgorot: breakdown.amountBeforeVatAgorot,
-        vatAmountAgorot: breakdown.vatAmountAgorot,
-        amountIncludingVatAgorot: breakdown.amountIncludingVatAgorot,
-        planName,
-        periodStart,
-        periodEnd,
-        cardcomDealNumber,
-      });
+      const receipt = await this.billingReceiptService.createReceiptForPayment(
+        issuer,
+        {
+          firebaseId,
+          subscriptionId,
+          amountBeforeVatAgorot: breakdown.amountBeforeVatAgorot,
+          vatAmountAgorot: breakdown.vatAmountAgorot,
+          amountIncludingVatAgorot: breakdown.amountIncludingVatAgorot,
+          planName,
+          periodStart,
+          periodEnd,
+          cardcomDealNumber,
+        },
+      );
 
       // 5. Link receipt to PAYMENT_SUCCESS — idempotency anchor for subsequent steps.
       await this.billingEventService.updatePaymentEventWithReceipt(
@@ -601,10 +659,17 @@ export class CardcomWebhookService implements OnModuleInit {
       );
 
       // 6. Generate PDFs and upload to Firebase (original + copy).
-      await this.billingReceiptService.finalizeBillingReceiptPdfs(receipt.receiptDocId, issuer, firebaseId);
+      await this.billingReceiptService.finalizeBillingReceiptPdfs(
+        receipt.receiptDocId,
+        issuer,
+        firebaseId,
+      );
 
       // 7. Send receipt email (self-contained — updates metadata on failure, never throws).
-      await this.billingReceiptService.sendReceiptEmailForPaymentEvent(paymentSuccessEvent.id, issuer.issuerName);
+      await this.billingReceiptService.sendReceiptEmailForPaymentEvent(
+        paymentSuccessEvent.id,
+        issuer.issuerName,
+      );
 
       console.log(
         `Receipt lifecycle complete: receiptDocId=${receipt.receiptDocId} ` +
@@ -614,7 +679,9 @@ export class CardcomWebhookService implements OnModuleInit {
     } catch (err) {
       // Receipt failure must never affect the subscription or payment result.
       this.logger.error(
-        `Receipt generation failed for subscriptionId=${subscriptionId}: ${(err as Error).message}`,
+        `Receipt generation failed for subscriptionId=${subscriptionId}: ${
+          (err as Error).message
+        }`,
         (err as Error).stack,
       );
       await this.billingEventService.logEvent({
@@ -638,9 +705,15 @@ export class CardcomWebhookService implements OnModuleInit {
     webhookLog: CardcomWebhookLog,
     reason: string,
   ): Promise<void> {
-    this.logger.warn(`Payment failed for subscription #${subscriptionId}: ${reason}`);
+    this.logger.warn(
+      `Payment failed for subscription #${subscriptionId}: ${reason}`,
+    );
 
-    await this.markWebhookStatus(webhookLog.id, WebhookLogStatus.PROCESSED, reason);
+    await this.markWebhookStatus(
+      webhookLog.id,
+      WebhookLogStatus.PROCESSED,
+      reason,
+    );
 
     await this.billingEventService.logEvent({
       firebaseId,
@@ -681,9 +754,12 @@ export class CardcomWebhookService implements OnModuleInit {
    */
   private extractCardDetails(verified: CardcomWebhookPayload): CardDetails {
     const brand =
-      verified.TranzactionInfo?.Brand ?? verified.TranzactionInfo?.CardName ?? null;
+      verified.TranzactionInfo?.Brand ??
+      verified.TranzactionInfo?.CardName ??
+      null;
     return {
-      token: verified.TokenInfo?.Token ?? verified.TranzactionInfo?.Token ?? null,
+      token:
+        verified.TokenInfo?.Token ?? verified.TranzactionInfo?.Token ?? null,
       last4:
         verified.TranzactionInfo?.Last4CardDigitsString ??
         (verified.TranzactionInfo?.Last4CardDigits != null
@@ -691,9 +767,13 @@ export class CardcomWebhookService implements OnModuleInit {
           : null),
       brand: typeof brand === 'string' ? brand : null,
       expiryMonth:
-        verified.TokenInfo?.CardMonth ?? verified.TranzactionInfo?.CardMonth ?? null,
+        verified.TokenInfo?.CardMonth ??
+        verified.TranzactionInfo?.CardMonth ??
+        null,
       expiryYear:
-        verified.TokenInfo?.CardYear ?? verified.TranzactionInfo?.CardYear ?? null,
+        verified.TokenInfo?.CardYear ??
+        verified.TranzactionInfo?.CardYear ??
+        null,
     };
   }
 
@@ -725,15 +805,21 @@ export class CardcomWebhookService implements OnModuleInit {
     if (tranzactionId == null) {
       this.logger.warn(
         `Card details incomplete for subscription #${subscriptionId} and no TranzactionId ` +
-          `to query — storing partial card info (last4=${details.last4 ?? 'null'})`,
+          `to query — storing partial card info (last4=${
+            details.last4 ?? 'null'
+          })`,
       );
       return details;
     }
 
     try {
-      const rows = await this.cardcomService.getTransactionInfoById(tranzactionId);
+      const rows = await this.cardcomService.getTransactionInfoById(
+        tranzactionId,
+      );
       const row =
-        rows.find(r => r?.InternalDealNumber === tranzactionId) ?? rows[0] ?? null;
+        rows.find((r) => r?.InternalDealNumber === tranzactionId) ??
+        rows[0] ??
+        null;
       if (!row) {
         this.logger.warn(
           `GetTransactionInfoById returned no rows for tranzactionId=${tranzactionId} ` +
@@ -746,7 +832,8 @@ export class CardcomWebhookService implements OnModuleInit {
 
       if (!completed.last4 && row.CardNumber5 != null) {
         const digits = String(row.CardNumber5).replace(/\D/g, '');
-        if (digits.length > 0) completed.last4 = digits.slice(-4).padStart(4, '0');
+        if (digits.length > 0)
+          completed.last4 = digits.slice(-4).padStart(4, '0');
       }
 
       if (!completed.brand) {
@@ -770,13 +857,17 @@ export class CardcomWebhookService implements OnModuleInit {
 
       this.logger.log(
         `Card details completed via GetTransactionInfoById: subscription #${subscriptionId} ` +
-          `last4=${completed.last4 ?? 'null'} brand=${completed.brand ?? 'null'}`,
+          `last4=${completed.last4 ?? 'null'} brand=${
+            completed.brand ?? 'null'
+          }`,
       );
       return completed;
     } catch (err) {
       this.logger.warn(
         `GetTransactionInfoById failed for tranzactionId=${tranzactionId} ` +
-          `(subscription #${subscriptionId}): ${(err as Error).message} — storing partial card info`,
+          `(subscription #${subscriptionId}): ${
+            (err as Error).message
+          } — storing partial card info`,
       );
       return details;
     }
@@ -802,8 +893,11 @@ export class CardcomWebhookService implements OnModuleInit {
   ): Promise<void> {
     const topLevelOk = (verified.ResponseCode ?? -1) === 0;
     const verifiedReturnMatch =
-      !verified.ReturnValue || !returnValue || verified.ReturnValue === returnValue;
-    const token = verified.TokenInfo?.Token ?? verified.TranzactionInfo?.Token ?? null;
+      !verified.ReturnValue ||
+      !returnValue ||
+      verified.ReturnValue === returnValue;
+    const token =
+      verified.TokenInfo?.Token ?? verified.TranzactionInfo?.Token ?? null;
 
     if (topLevelOk && verifiedReturnMatch && token) {
       await this.processVerifiedPaymentMethodUpdate(
@@ -816,10 +910,12 @@ export class CardcomWebhookService implements OnModuleInit {
     }
 
     const reason = !topLevelOk
-      ? `ResponseCode=${verified.ResponseCode ?? 'missing'} desc=${verified.Description ?? ''}`
+      ? `ResponseCode=${verified.ResponseCode ?? 'missing'} desc=${
+          verified.Description ?? ''
+        }`
       : !verifiedReturnMatch
-        ? 'ReturnValue mismatch'
-        : 'No token in verified result';
+      ? 'ReturnValue mismatch'
+      : 'No token in verified result';
 
     await this.processVerifiedPaymentMethodUpdateFailure(
       firebaseId,
@@ -861,7 +957,9 @@ export class CardcomWebhookService implements OnModuleInit {
     } catch (err) {
       // Transient gateway problem — stay PENDING so the next poll retries.
       this.logger.warn(
-        `Reconciliation GetLpResult failed for lowProfileId=${lowProfileId}: ${(err as Error).message}`,
+        `Reconciliation GetLpResult failed for lowProfileId=${lowProfileId}: ${
+          (err as Error).message
+        }`,
       );
       return 'UNVERIFIABLE';
     }
@@ -958,7 +1056,11 @@ export class CardcomWebhookService implements OnModuleInit {
     const extracted = this.extractCardDetails(verified);
     if (!extracted.token) {
       // Should not happen (handleWebhook already checked), but guard anyway.
-      await this.markWebhookStatus(webhookLog.id, WebhookLogStatus.FAILED, 'No token to store');
+      await this.markWebhookStatus(
+        webhookLog.id,
+        WebhookLogStatus.FAILED,
+        'No token to store',
+      );
       await this.logPaymentMethodUpdateFailed(
         firebaseId,
         subscriptionId,
@@ -967,10 +1069,17 @@ export class CardcomWebhookService implements OnModuleInit {
       );
       return;
     }
-    const card = await this.completeCardDetails(extracted, verified, subscriptionId);
+    const card = await this.completeCardDetails(
+      extracted,
+      verified,
+      subscriptionId,
+    );
 
-    let committedData: { paymentMethodId: number; last4: string | null; brand: string | null } | null =
-      null;
+    let committedData: {
+      paymentMethodId: number;
+      last4: string | null;
+      brand: string | null;
+    } | null = null;
 
     const qr = this.dataSource.createQueryRunner();
     await qr.connect();
@@ -984,7 +1093,9 @@ export class CardcomWebhookService implements OnModuleInit {
 
       if (!subscription) {
         await qr.rollbackTransaction();
-        this.logger.error(`Subscription #${subscriptionId} not found — cannot update payment method`);
+        this.logger.error(
+          `Subscription #${subscriptionId} not found — cannot update payment method`,
+        );
         await this.markWebhookStatus(
           webhookLog.id,
           WebhookLogStatus.FAILED,
@@ -1063,7 +1174,9 @@ export class CardcomWebhookService implements OnModuleInit {
     } catch (err) {
       await qr.rollbackTransaction();
       this.logger.error(
-        `Payment-method update failed for subscription #${subscriptionId}: ${(err as Error).message}`,
+        `Payment-method update failed for subscription #${subscriptionId}: ${
+          (err as Error).message
+        }`,
         (err as Error).stack,
       );
       await this.markWebhookStatus(
@@ -1089,7 +1202,10 @@ export class CardcomWebhookService implements OnModuleInit {
       firebaseId,
       eventType: BillingEventType.WEBHOOK_RECEIVED,
       subscriptionId,
-      metadata: { idempotencyKey: webhookLog.idempotencyKey, intent: 'CHANGE_PM' },
+      metadata: {
+        idempotencyKey: webhookLog.idempotencyKey,
+        intent: 'CHANGE_PM',
+      },
     });
     await this.billingEventService.logEvent({
       firebaseId,
@@ -1105,7 +1221,9 @@ export class CardcomWebhookService implements OnModuleInit {
 
     this.logger.log(
       `Payment method replaced: subscription #${subscriptionId} ` +
-        `paymentMethodId=${committedData.paymentMethodId} last4=${committedData.last4 ?? 'null'}`,
+        `paymentMethodId=${committedData.paymentMethodId} last4=${
+          committedData.last4 ?? 'null'
+        }`,
     );
   }
 
@@ -1116,9 +1234,20 @@ export class CardcomWebhookService implements OnModuleInit {
     reason: string,
     lowProfileId: string | null,
   ): Promise<void> {
-    this.logger.warn(`Payment-method update failed for subscription #${subscriptionId}: ${reason}`);
-    await this.markWebhookStatus(webhookLog.id, WebhookLogStatus.PROCESSED, reason);
-    await this.logPaymentMethodUpdateFailed(firebaseId, subscriptionId, reason, lowProfileId);
+    this.logger.warn(
+      `Payment-method update failed for subscription #${subscriptionId}: ${reason}`,
+    );
+    await this.markWebhookStatus(
+      webhookLog.id,
+      WebhookLogStatus.PROCESSED,
+      reason,
+    );
+    await this.logPaymentMethodUpdateFailed(
+      firebaseId,
+      subscriptionId,
+      reason,
+      lowProfileId,
+    );
   }
 
   /**
@@ -1156,7 +1285,10 @@ export class CardcomWebhookService implements OnModuleInit {
     if (lp && tx != null) return `${lp}:tx:${tx}`;
     if (lp && payload.ReturnValue) return `${lp}:rv:${payload.ReturnValue}`;
 
-    const stable = JSON.stringify(payload, Object.keys(payload as object).sort());
+    const stable = JSON.stringify(
+      payload,
+      Object.keys(payload as object).sort(),
+    );
     return `sha256:${crypto.createHash('sha256').update(stable).digest('hex')}`;
   }
 
@@ -1177,9 +1309,10 @@ export class CardcomWebhookService implements OnModuleInit {
    * `intent` is mandatory: a payload with a missing or unknown intent is
    * rejected (value=null) with a specific error — never assumed to be CHECKOUT.
    */
-  private parseReturnValue(
-    returnValue: string | null,
-  ): { value: ParsedReturnValue | null; error: string | null } {
+  private parseReturnValue(returnValue: string | null): {
+    value: ParsedReturnValue | null;
+    error: string | null;
+  } {
     if (!returnValue) {
       return { value: null, error: 'ReturnValue is missing' };
     }
@@ -1191,12 +1324,15 @@ export class CardcomWebhookService implements OnModuleInit {
       return { value: null, error: 'ReturnValue is not valid JSON' };
     }
 
-    const { intent, firebaseId, planId, subscriptionId } = raw ?? {};
+    const { intent, firebaseId, planId, subscriptionId, billingAttemptId } =
+      raw ?? {};
 
     if (intent !== 'CHECKOUT' && intent !== 'CHANGE_PM') {
       return {
         value: null,
-        error: `ReturnValue intent is missing or invalid (got ${JSON.stringify(intent ?? null)}) — expected CHECKOUT or CHANGE_PM`,
+        error: `ReturnValue intent is missing or invalid (got ${JSON.stringify(
+          intent ?? null,
+        )}) — expected CHECKOUT or CHANGE_PM`,
       };
     }
 
@@ -1214,16 +1350,36 @@ export class CardcomWebhookService implements OnModuleInit {
     }
 
     if (intent === 'CHANGE_PM') {
-      return { value: { intent: 'CHANGE_PM', firebaseId, subscriptionId }, error: null };
+      return {
+        value: { intent: 'CHANGE_PM', firebaseId, subscriptionId },
+        error: null,
+      };
     }
 
-    const planOk = typeof planId === 'number' && Number.isInteger(planId) && planId > 0;
+    const planOk =
+      typeof planId === 'number' && Number.isInteger(planId) && planId > 0;
     if (!planOk) {
-      return { value: null, error: 'ReturnValue CHECKOUT payload lacks a valid planId' };
+      return {
+        value: null,
+        error: 'ReturnValue CHECKOUT payload lacks a valid planId',
+      };
     }
 
     return {
-      value: { intent: 'CHECKOUT', firebaseId, planId, subscriptionId },
+      value: {
+        intent: 'CHECKOUT',
+        firebaseId,
+        planId,
+        subscriptionId,
+        billingAttemptId:
+          billingAttemptId == null
+            ? null
+            : typeof billingAttemptId === 'number' &&
+              Number.isInteger(billingAttemptId) &&
+              billingAttemptId > 0
+            ? billingAttemptId
+            : null,
+      },
       error: null,
     };
   }
@@ -1252,7 +1408,9 @@ export class CardcomWebhookService implements OnModuleInit {
       const log = this.webhookLogRepo.create({
         idempotencyKey,
         eventType:
-          eventTypeOverride ?? (rawPayload as CardcomWebhookPayload).Operation ?? null,
+          eventTypeOverride ??
+          (rawPayload as CardcomWebhookPayload).Operation ??
+          null,
         payload: rawPayload,
         status: WebhookLogStatus.RECEIVED,
         receivedAt: new Date(),
@@ -1266,7 +1424,10 @@ export class CardcomWebhookService implements OnModuleInit {
       return await this.webhookLogRepo.save(log);
     } catch (err: any) {
       // MySQL error 1062 = duplicate entry (unique constraint on idempotencyKey).
-      if (err?.code === 'ER_DUP_ENTRY' || err?.driverError?.code === 'ER_DUP_ENTRY') {
+      if (
+        err?.code === 'ER_DUP_ENTRY' ||
+        err?.driverError?.code === 'ER_DUP_ENTRY'
+      ) {
         return null;
       }
       throw err;
@@ -1281,12 +1442,15 @@ export class CardcomWebhookService implements OnModuleInit {
     try {
       await this.webhookLogRepo.update(logId, {
         status,
-        processedAt: status !== WebhookLogStatus.RECEIVED ? new Date() : undefined,
+        processedAt:
+          status !== WebhookLogStatus.RECEIVED ? new Date() : undefined,
         errorMessage: errorMessage ?? null,
       });
     } catch (err) {
       this.logger.error(
-        `Failed to update webhook log #${logId} status: ${(err as Error).message}`,
+        `Failed to update webhook log #${logId} status: ${
+          (err as Error).message
+        }`,
       );
     }
   }
@@ -1295,5 +1459,4 @@ export class CardcomWebhookService implements OnModuleInit {
    * Temporary bridge to keep legacy User fields in sync.
    * Best-effort — never throws.
    */
-
 }

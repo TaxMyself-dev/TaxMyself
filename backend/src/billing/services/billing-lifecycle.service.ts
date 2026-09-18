@@ -66,11 +66,13 @@ export class BillingLifecycleService {
   /** Recovery reuses the same subscription + period identity as renewal. */
   openPastDueRecovery(
     input: CanonicalBillingPeriodInput,
+    chargeMode: BillingChargeMode = BillingChargeMode.LOW_PROFILE_HOSTED,
   ): Promise<OpenBillingAttemptResult> {
     return this.openAttempt(
       input,
       BillingObligationKind.RECURRING_PERIOD,
       BillingAttemptTrigger.RECOVERY,
+      chargeMode,
     );
   }
 
@@ -128,13 +130,14 @@ export class BillingLifecycleService {
     input: CanonicalBillingPeriodInput,
     kind: BillingObligationKind,
     trigger: BillingAttemptTrigger,
+    chargeMode: BillingChargeMode = BillingChargeMode.TOKEN_TRANSACTION,
   ): Promise<OpenBillingAttemptResult> {
     this.orchestration.assertOwnerMutation(input.actor);
     return this.orchestration.createOrGetAttempt({
       ...input,
       kind,
       trigger,
-      chargeMode: BillingChargeMode.TOKEN_TRANSACTION,
+      chargeMode,
     });
   }
 }
