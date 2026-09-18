@@ -221,6 +221,14 @@ export class CardcomWebhookService implements OnModuleInit {
           (err as Error).message
         }`,
       );
+      if (parsedReturn.intent === 'CHECKOUT' && parsedReturn.billingAttemptId && this.billingLifecycleService) {
+        await this.billingLifecycleService.applyHostedWebhookOutcome(
+          { actorFirebaseId: firebaseId, subjectFirebaseId: firebaseId },
+          parsedReturn.billingAttemptId,
+          { kind: 'UNKNOWN', failureCategory: 'GET_LP_RESULT_ERROR' },
+          `webhook-${webhookLog.id}`,
+        );
+      }
       await this.markWebhookStatus(
         webhookLog.id,
         WebhookLogStatus.FAILED,
@@ -275,6 +283,7 @@ export class CardcomWebhookService implements OnModuleInit {
         subscriptionId,
         verified,
         webhookLog,
+        parsedReturn.billingAttemptId ?? null,
       );
     } else {
       if (parsedReturn.billingAttemptId && this.billingLifecycleService) {
@@ -312,6 +321,7 @@ export class CardcomWebhookService implements OnModuleInit {
     subscriptionId: number,
     verified: CardcomWebhookPayload,
     webhookLog: CardcomWebhookLog,
+    billingAttemptId: number | null = null,
   ): Promise<void> {
     // Values extracted during the transaction and needed after commit.
     let postCommitData: {
@@ -576,6 +586,7 @@ export class CardcomWebhookService implements OnModuleInit {
       periodEnd,
       cardcomDealNumber,
       paymentSuccessEvent,
+      billingAttemptId,
     });
   }
 
@@ -589,6 +600,7 @@ export class CardcomWebhookService implements OnModuleInit {
     periodEnd: Date;
     cardcomDealNumber: string | null;
     paymentSuccessEvent: BillingEvent | null;
+    billingAttemptId?: number | null;
   }): Promise<void> {
     const {
       firebaseId,
@@ -598,6 +610,7 @@ export class CardcomWebhookService implements OnModuleInit {
       periodEnd,
       cardcomDealNumber,
       paymentSuccessEvent,
+      billingAttemptId,
     } = params;
 
     console.log(
@@ -696,6 +709,13 @@ export class CardcomWebhookService implements OnModuleInit {
         paymentSuccessEvent.id,
         issuer.issuerName,
       );
+
+      if (billingAttemptId != null) {
+        await this.billingLifecycleService?.finalizeAfterReceipt(
+          billingAttemptId,
+          receipt.receiptDocId,
+        );
+      }
 
       console.log(
         `Receipt lifecycle complete: receiptDocId=${receipt.receiptDocId} ` +
