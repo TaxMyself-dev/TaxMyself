@@ -1842,7 +1842,9 @@ export class ExpensesService {
      *  (CatalogService.updateAccountFields), so this endpoint only needs to
      *  repoint, same as CatalogService.repointSubCategoryAccount's
      *  direct-save branch for a row the caller already owns. `accountId:
-     *  null` lands the row as MISSING_ACCOUNTING_MAPPING (unmapped). */
+     *  null` lands the row as MISSING_ACCOUNTING_MAPPING (unmapped).
+     *  Keep the loaded account relation in sync with accountId before save;
+     *  TypeORM otherwise keeps the old relation and ignores the new FK. */
     async updateDefaultSubCategory(id: number, dto: any): Promise<any> {
         const existing = await this.catalogService.findSubCategoryInScope(id, 'SYSTEM');
         if (!existing) {
@@ -1854,11 +1856,13 @@ export class ExpensesService {
         if (dto.accountId !== undefined) {
             if (dto.accountId === null) {
                 existing.accountId = null;
+                existing.account = null;
                 existing.approvalStatus = ApprovalStatus.MISSING_ACCOUNTING_MAPPING;
             } else {
                 const account = await this.catalogService.getAccountById(dto.accountId);
                 if (!account) throw new NotFoundException(`Account ${dto.accountId} not found`);
                 existing.accountId = account.id;
+                existing.account = account;
                 existing.approvalStatus = ApprovalStatus.APPROVED;
             }
         }

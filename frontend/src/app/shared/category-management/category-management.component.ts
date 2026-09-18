@@ -4,7 +4,7 @@ import { FormBuilder, FormGroup } from '@angular/forms';
 import { Workbook, Worksheet } from 'exceljs';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { BookkeepingCatalogService, IBookingAccountRow } from 'src/app/services/bookkeeping-catalog.service';
-import { ConfirmationService } from 'primeng/api';
+import { ConfirmationService, MessageService } from 'primeng/api';
 import { ButtonSize, ButtonColor } from 'src/app/components/button/button.enum';
 import { FilterField } from 'src/app/components/filter-tab/filter-fields-model.component';
 import { finalize } from 'rxjs/operators';
@@ -38,6 +38,7 @@ export class CategoryManagementComponent implements OnInit {
   private expenseDataService = inject(ExpenseDataService);
   private bookkeepingCatalogService = inject(BookkeepingCatalogService);
   private confirmationService = inject(ConfirmationService);
+  private messageService = inject(MessageService);
   private fb = inject(FormBuilder);
 
   readonly buttonSize = ButtonSize;
@@ -240,7 +241,6 @@ export class CategoryManagementComponent implements OnInit {
       accept: () => {
         const updated = { ...this.editForm, accountId: this.accountPickerForm.value.accountId ?? null };
         this.updateSubCategory(row, updated);
-        this.closeEditDialog();
       },
     });
   }
@@ -252,10 +252,14 @@ export class CategoryManagementComponent implements OnInit {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => {
+          this.closeEditDialog();
+          this.messageService.add({ key: 'br', severity: 'success', summary: 'העדכון נשמר בהצלחה' });
           this.loadSubCategories();
         },
-        error: () => this.loading.set(false),
-        complete: () => this.loading.set(false),
+        error: () => {
+          this.loading.set(false);
+          this.messageService.add({ key: 'br', severity: 'error', summary: 'עדכון תת-הקטגוריה נכשל', detail: 'נסה שוב.' });
+        },
       });
   }
 

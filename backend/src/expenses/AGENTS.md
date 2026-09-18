@@ -19,6 +19,7 @@ Manages business expenses (and legacy incomes), the category/sub-category taxono
 - `POST /expenses/bulk-confirm-from-drive`, `POST /expenses/check-duplicates-from-drive` — turn reviewed `ExtractedDocument` OCR rows into confirmed expenses, with a pre-flight supplier+sum+date duplicate check.
 - `GET /expenses/get_by_userID` — document-date expense listing for the dashboard (unpaginated when `pagination` is omitted, so annual asset searches cannot silently stop at 50 rows); `GET /expenses/get-expenses-for-vat-report` remains the VAT-period listing; `GET /expenses/by-id/:id` returns an owned source expense for edit flows such as Form 1342.
 - Category/sub-category CRUD: `add-user-category`, `add-user-sub-categories`, `get-categories`, `get-sub-categories`, `user-category/:id`, `user-sub-category/:id`, plus admin-only default-sub-category CRUD and `sub-category-report-config` (P&L scope/category override).
+- Admin `update-default-sub-category/:id` reassigns a SYSTEM sub-category to an existing card by updating both `accountId` and its loaded `account` relation before TypeORM save; changing only the FK is silently ignored when the old relation was loaded. Clearing a card clears both fields.
 - Supplier CRUD: `add-supplier`, `update-supplier/:id`, `delete-supplier/:id`, `get-suppliers-list`, `get-supplier/:id`.
 - `PATCH /expenses/add-file-to-expense`, `delete-file-from-expense/:id` — attach/detach receipt files.
 

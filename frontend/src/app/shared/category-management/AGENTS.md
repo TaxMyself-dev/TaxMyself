@@ -9,7 +9,7 @@ Admin-only screen for maintaining the global list of default sub-categories (the
 ## Main flows
 - Load and filter default sub-categories (by category, isExpense, isRecognized, reportScope, isEquipment). Since Phase 6.2c the table shows the row's CARD (accountCode - accountName) and חתך (sectionName) — fields the backend's legacy shape now carries — instead of the retired `pnlCategory` string (D3); private rows (D5) show 'פרטית' in the מוכר column.
 - Add a sub-category (pick existing parent category or create a new one); percent/recognition fields resolve to a SYSTEM card via the variant-card path (D1/D10) — `pnlCategory` input removed.
-- Edit a sub-category: names are read-only (the backend never applied them); law-field edits repoint the row at a matching/new card, never editing a card's percents in place (D10). Delete via confirm dialog (soft delete server-side).
+- Edit a sub-category: names are read-only; the selected existing SYSTEM card repoints the row, without editing card fields. The dialog closes and confirms success only after PATCH succeeds; failure keeps it open and shows an error. Delete via confirm dialog (soft delete server-side).
 - Export all sub-categories to a 3-sheet Excel workbook (recognized / not-recognized / accountant view) — card name/section/code6111 come straight from the rows; the retired subAccountCode column is gone (D2).
 
 ## Related topics
