@@ -3,6 +3,10 @@
     <div class="table-header-row">
       <p class="table-title">כרטיסי טופס 6111</p>
       <div class="table-header-actions">
+        @if (mode === 'admin') {
+          <app-p-button [buttonText]="'חתך חדש'" [buttonSize]="buttonSize.SMALL"
+            [buttonColor]="ButtonColor.BLACK" (onButtonClicked)="openCreateSection()"></app-p-button>
+        }
         <app-p-button [buttonText]="'כרטיס חדש'" [buttonSize]="buttonSize.SMALL"
           [buttonColor]="ButtonColor.BLACK" (onButtonClicked)="openAdd()"></app-p-button>
         @if (mode === 'admin') {
@@ -347,6 +351,30 @@
     <app-p-button [buttonText]="'ביטול'" [buttonSize]="buttonSize.SMALL" (onButtonClicked)="closeAddDialog()"></app-p-button>
     <app-p-button [buttonText]="'צור כרטיס'" [buttonSize]="buttonSize.SMALL" [disabled]="!isAddFormValid() || addingCard()"
       (onButtonClicked)="submitAdd()"></app-p-button>
+  </ng-template>
+</p-dialog>
+
+<p-dialog header="חתך הוצאות חדש" [visible]="showCreateSectionDialog()" [modal]="true" [style]="{ width: '440px' }" [rtl]="true"
+  (onHide)="closeCreateSection()" [draggable]="false" [resizable]="false">
+  <div class="dialog-form">
+    @if (createSectionError()) {
+      <div class="activate-error">{{ createSectionError() }}</div>
+    }
+    <div class="form-row">
+      <label for="newSectionName">שם החתך *</label>
+      <input id="newSectionName" type="text" pInputText [(ngModel)]="createSectionForm.name" maxlength="120" />
+    </div>
+    <div class="form-row">
+      <label for="newSectionCode">קוד החתך *</label>
+      <input id="newSectionCode" type="text" pInputText [(ngModel)]="createSectionForm.code"
+        [placeholder]="loadingSectionCode() ? 'מחשב קוד מוצע...' : 'למשל 61400'" />
+      <small>אפשר לשנות לקוד פנוי בטווח 60000–69900 המסתיים ב־00. גם כרטיס קיים באותו בלוק שומר אותו תפוס.</small>
+    </div>
+  </div>
+  <ng-template pTemplate="footer">
+    <app-p-button [buttonText]="'ביטול'" [buttonSize]="buttonSize.SMALL" (onButtonClicked)="closeCreateSection()"></app-p-button>
+    <app-p-button [buttonText]="'צור חתך'" [buttonSize]="buttonSize.SMALL"
+      [disabled]="!isCreateSectionValid() || creatingSection()" (onButtonClicked)="submitCreateSection()"></app-p-button>
   </ng-template>
 </p-dialog>
 

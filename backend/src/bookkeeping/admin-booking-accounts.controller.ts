@@ -17,6 +17,7 @@ import { CatalogService } from './catalog.service';
 import { CatalogContextService } from './catalog-context.service';
 import { ActivateBookingAccountDto } from './dto/activate-booking-account.dto';
 import { CreateAdminBookingAccountDto } from './dto/create-admin-booking-account.dto';
+import { CreateAdminAccountingSectionDto } from './dto/create-admin-accounting-section.dto';
 import { UpdateAccountDto } from './dto/update-account.dto';
 import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.interface';
 import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
@@ -78,6 +79,32 @@ export class AdminBookingAccountsController {
     }
     const rows = await this.catalogService.getSections(['SYSTEM']);
     return rows.map((section) => ({ id: section.id, code: section.code, name: section.name }));
+  }
+
+  @Get('sections/next-code')
+  @UseGuards(FirebaseAuthGuard)
+  async nextNewSectionCode(@Req() request: AuthenticatedRequest) {
+    const actorFirebaseId = request.user?.actorFirebaseId ?? request.user?.firebaseId;
+    if (!actorFirebaseId) throw new UnauthorizedException('Not authenticated');
+    if (!(await this.catalogContextService.isAdmin(actorFirebaseId))) {
+      throw new ForbiddenException('רק מנהל מערכת יכול לצפות בקוד החתך הבא');
+    }
+    return { code: await this.catalogService.previewNextSystemExpenseSectionCode() };
+  }
+
+  @Post('sections')
+  @UseGuards(FirebaseAuthGuard)
+  async createSection(
+    @Req() request: AuthenticatedRequest,
+    @Body() dto: CreateAdminAccountingSectionDto,
+  ) {
+    const actorFirebaseId = request.user?.actorFirebaseId ?? request.user?.firebaseId;
+    if (!actorFirebaseId) throw new UnauthorizedException('Not authenticated');
+    if (!(await this.catalogContextService.isAdmin(actorFirebaseId))) {
+      throw new ForbiddenException('רק מנהל מערכת יכול להוסיף חתך');
+    }
+    const section = await this.catalogService.createSystemExpenseSection(dto.name, dto.code);
+    return { id: section.id, code: section.code, name: section.name };
   }
 
   /** Preview only. POST recalculates the code transactionally, so a stale

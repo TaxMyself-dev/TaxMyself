@@ -19,6 +19,9 @@ activation, editing, deactivation, deletion checks, filtering and Excel export.
 - In admin mode, selecting a section fetches and displays its next SYSTEM
   code (`max(section cards, section anchor) + 10`) as read-only. The create
   request omits that preview so the backend can recalculate it under a lock.
+- Admin mode also offers "חתך חדש": it previews the next free SYSTEM expense
+  100-code block, lets the admin edit the suggested anchor, and reloads the
+  section picker after creation. The server rejects occupied blocks.
 - Business-type, report-scope and form-part metadata affect accounting/report
   behavior; the redesign master plan is binding for changes here.
 

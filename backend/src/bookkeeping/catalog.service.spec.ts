@@ -10,6 +10,7 @@
  *    entirely; a law with no resolvable section lands MISSING_ACCOUNTING_MAPPING
  *  - getCategoryNamesForUser (Phase 4.6 — replaced the legacy-table merge)
  */
+import { ConflictException } from '@nestjs/common';
 import { Category } from './category.entity';
 import { SubCategory } from './sub-category.entity';
 import { BookingAccount } from './account.entity';
@@ -443,6 +444,35 @@ describe('CatalogService', () => {
   });
 
   // ── createAccountWithSubCategory (Phase 5.2 / D11) ───────────────────────
+
+  describe('SYSTEM expense sections', () => {
+    it('suggests the next unoccupied 100-code block', async () => {
+      await expect(service.previewNextSystemExpenseSectionCode()).resolves.toBe('60300');
+    });
+
+    it('wraps to an available block if a later card occupies the end of the range', async () => {
+      accountRepo.rows.push({ code: '69990', chartOwnerKey: SYS, isActive: false });
+      await expect(service.previewNextSystemExpenseSectionCode()).resolves.toBe('60000');
+    });
+
+    it('creates a section with an editable free code and returns it in section reads', async () => {
+      const created = await service.createSystemExpenseSection('ספקים', '60300');
+      expect(created).toEqual(expect.objectContaining({
+        name: 'ספקים', code: '60300', chartOwnerKey: SYS, ownerType: OwnerType.SYSTEM,
+      }));
+      await expect(service.getSections([SYS])).resolves.toContainEqual(created);
+    });
+
+    it('rejects an existing section or card block, including inactive cards', async () => {
+      accountRepo.rows.push({ code: '60420', chartOwnerKey: SYS, isActive: false });
+      await expect(service.createSystemExpenseSection('כפול', '60200')).rejects.toBeInstanceOf(ConflictException);
+      await expect(service.createSystemExpenseSection('כפול', '60400')).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('rejects codes outside the SYSTEM expense block-anchor convention', async () => {
+      await expect(service.createSystemExpenseSection('שגוי', '60310')).rejects.toThrow();
+    });
+  });
 
   describe('createAccountWithSubCategory', () => {
     const law = { vatPercent: 100, taxPercent: 100, reductionPercent: 0, isEquipment: false, recognitionType: RecognitionType.RECOGNIZED };

@@ -28,6 +28,7 @@ Double-entry bookkeeping core: chart of accounts, journal entries/lines, and (as
 - Boot-time chart-of-accounts and catalog seeding runs automatically via `CatalogSeedService.onModuleInit` (no-op when `SKIP_BOOT_SEED=true`, e.g. for one-off scripts against `keepintax_prodcopy`).
 
 ## Related topics
+- Admin SYSTEM expense-section creation: `GET /admin/booking-accounts/sections/next-code` suggests the next unoccupied 100-code block; `POST /admin/booking-accounts/sections` accepts an editable block-anchor code (60000–69900, ending `00`). `CatalogService.createSystemExpenseSection` checks all SYSTEM sections and cards, including inactive cards, under a transaction and returns conflict for an occupied block. This changes catalog data only; it does not renumber existing cards.
 - expenses (primary caller of both `BookkeepingService` and `CatalogService`; the old `default_category`/`default_sub_category`/`user_category`/`user_sub_category` tables it still holds entity files for are frozen read-only as of Phase 2.5)
 - shared (`SharedService` — journal entry numbering, VAT reporting-period helpers)
 - transactions (legacy `Transactions` entity still wired into the module purely to satisfy `SharedService`'s constructor injection — marked for removal)

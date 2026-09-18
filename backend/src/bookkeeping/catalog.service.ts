@@ -713,6 +713,75 @@ export class CatalogService {
     });
   }
 
+  private systemExpenseBlockCodes(
+    sections: Pick<AccountingSection, 'code'>[],
+    accounts: Pick<BookingAccount, 'code'>[],
+  ): number[] {
+    return [...sections, ...accounts]
+      .map((row) => Number(row.code))
+      .filter((code) => Number.isInteger(code) && code >= 60000 && code <= 69999)
+      .map((code) => Math.floor(code / 100) * 100);
+  }
+
+  /** Suggested SYSTEM expense block anchor; the editable preview is not a reservation. */
+  async previewNextSystemExpenseSectionCode(): Promise<string> {
+    const [sections, accounts] = await Promise.all([
+      this.sectionRepo.find({ where: { chartOwnerKey: SYSTEM_CHART_OWNER_KEY }, select: ['code'] }),
+      this.accountRepo.find({ where: { chartOwnerKey: SYSTEM_CHART_OWNER_KEY }, select: ['code'] }),
+    ]);
+    const occupied = new Set(this.systemExpenseBlockCodes(sections, accounts));
+    const highest = Math.max(59900, ...occupied);
+    for (let code = highest + 100; code <= 69900; code += 100) {
+      if (!occupied.has(code)) return String(code);
+    }
+    for (let code = 60000; code <= Math.min(highest, 69900); code += 100) {
+      if (!occupied.has(code)) return String(code);
+    }
+    throw new BadRequestException('No SYSTEM expense section codes remain');
+  }
+
+  /** Sections own 100-code blocks: an existing card reserves its block even if inactive. */
+  async createSystemExpenseSection(nameInput: string, code: string): Promise<AccountingSection> {
+    const name = nameInput?.trim();
+    if (!name) throw new BadRequestException('Section name is required');
+    if (!/^6\d{2}00$/.test(code)) {
+      throw new BadRequestException('Section code must be a SYSTEM expense block anchor (60000-69900)');
+    }
+
+    try {
+      return await this.dataSource.transaction(async (manager) => {
+        const sectionRepo = manager.getRepository(AccountingSection);
+        const accountRepo = manager.getRepository(BookingAccount);
+        // Serialize section creation on the stable seed row. The UNIQUE
+        // constraint remains the final guard if a database has no seed yet.
+        await sectionRepo.findOne({
+          where: { chartOwnerKey: SYSTEM_CHART_OWNER_KEY, code: '40000' },
+          lock: { mode: 'pessimistic_write' },
+        });
+        const [sections, accounts] = await Promise.all([
+          sectionRepo.find({ where: { chartOwnerKey: SYSTEM_CHART_OWNER_KEY } }),
+          accountRepo.find({ where: { chartOwnerKey: SYSTEM_CHART_OWNER_KEY }, select: ['code'] }),
+        ]);
+        if (this.systemExpenseBlockCodes(sections, accounts).includes(Number(code))) {
+          throw new ConflictException(`Section code block ${code} is already in use`);
+        }
+        return sectionRepo.save(sectionRepo.create({
+          name,
+          code,
+          ownerType: OwnerType.SYSTEM,
+          chartOwnerKey: SYSTEM_CHART_OWNER_KEY,
+          displayOrder: Math.max(0, ...sections.map((section) => section.displayOrder ?? 0)) + 1,
+          isActive: true,
+        }));
+      });
+    } catch (error) {
+      if ((error as any)?.driverError?.code === 'ER_DUP_ENTRY' || (error as any)?.code === 'ER_DUP_ENTRY') {
+        throw new ConflictException(`Section code ${code} is already in use`);
+      }
+      throw error;
+    }
+  }
+
   /** Read-only preview for the admin add-card dialog. Creation recalculates
    * the value under a section-row lock, so this preview is never trusted as
    * the authoritative code. */

@@ -29,6 +29,8 @@ describe('AdminBookingAccountsController', () => {
         { id: 12, code: '60000', name: 'הוצאות הנהלה' },
       ]),
       previewNextSystemAccountCode: jest.fn().mockResolvedValue('60030'),
+      previewNextSystemExpenseSectionCode: jest.fn().mockResolvedValue('61400'),
+      createSystemExpenseSection: jest.fn().mockResolvedValue({ id: 33, code: '61400', name: 'ספקים' }),
       createAccountWithSubCategory: jest.fn().mockResolvedValue({
         account: {
           id: 91,
@@ -105,6 +107,24 @@ describe('AdminBookingAccountsController', () => {
       12,
     )).resolves.toEqual({ code: '60030' });
     expect(catalogService.previewNextSystemAccountCode).toHaveBeenCalledWith(12);
+  });
+
+  it('previews and creates an admin-only SYSTEM expense section', async () => {
+    const { controller, catalogService } = setup();
+    const request = { user: { firebaseId: 'admin-1' } } as any;
+    await expect(controller.nextNewSectionCode(request)).resolves.toEqual({ code: '61400' });
+    await expect(controller.createSection(request, { name: 'ספקים', code: '61400' })).resolves
+      .toEqual({ id: 33, code: '61400', name: 'ספקים' });
+    expect(catalogService.createSystemExpenseSection).toHaveBeenCalledWith('ספקים', '61400');
+  });
+
+  it('rejects non-admin section creation', async () => {
+    const { controller, catalogService } = setup(false);
+    await expect(controller.createSection(
+      { user: { firebaseId: 'accountant-1' } } as any,
+      { name: 'ספקים', code: '61400' },
+    )).rejects.toBeInstanceOf(ForbiddenException);
+    expect(catalogService.createSystemExpenseSection).not.toHaveBeenCalled();
   });
 
   it('rejects non-admin actors', async () => {

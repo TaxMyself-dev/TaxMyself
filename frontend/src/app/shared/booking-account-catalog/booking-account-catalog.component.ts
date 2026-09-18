@@ -2,7 +2,7 @@ import { Component, DestroyRef, ElementRef, Input, OnChanges, OnInit, SimpleChan
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, FormGroup } from '@angular/forms';
 import { Workbook } from 'exceljs';
-import { ConfirmationService } from 'primeng/api';
+import { ConfirmationService, MessageService } from 'primeng/api';
 import { finalize } from 'rxjs/operators';
 import { ButtonSize, ButtonColor } from 'src/app/components/button/button.enum';
 import { FilterField } from 'src/app/components/filter-tab/filter-fields-model.component';
@@ -139,6 +139,7 @@ interface AddCardFormState {
   standalone: false,
 })
 export class BookingAccountCatalogComponent implements OnInit, OnChanges {
+  private readonly messageService = inject(MessageService);
   @Input() mode: 'admin' | 'accountant' = 'admin';
   /** Required when mode='accountant'. */
   @Input() businessNumber?: string;
@@ -179,6 +180,56 @@ export class BookingAccountCatalogComponent implements OnInit, OnChanges {
   rows = signal<IBookingAccountRow[]>([]);
   sections = signal<IAccountingSectionOption[]>([]);
   loading = signal<boolean>(false);
+  showCreateSectionDialog = signal(false);
+  loadingSectionCode = signal(false);
+  creatingSection = signal(false);
+  createSectionError = signal<string | null>(null);
+  createSectionForm = { name: '', code: '' };
+
+  openCreateSection(): void {
+    this.createSectionForm = { name: '', code: '' };
+    this.createSectionError.set(null);
+    this.showCreateSectionDialog.set(true);
+    this.loadingSectionCode.set(true);
+    this.catalogService.getNextAdminExpenseSectionCode()
+      .pipe(finalize(() => this.loadingSectionCode.set(false)), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: ({ code }) => this.createSectionForm.code = code,
+        error: () => this.createSectionError.set('לא ניתן לחשב קוד מוצע. אפשר להזין קוד חתך פנוי ידנית.'),
+      });
+  }
+
+  closeCreateSection(): void {
+    this.showCreateSectionDialog.set(false);
+  }
+
+  isCreateSectionValid(): boolean {
+    return !!this.createSectionForm.name.trim() && /^6\d{2}00$/.test(this.createSectionForm.code.trim());
+  }
+
+  submitCreateSection(): void {
+    if (!this.isCreateSectionValid() || this.creatingSection()) return;
+    this.creatingSection.set(true);
+    this.createSectionError.set(null);
+    this.catalogService.createAdminExpenseSection({
+      name: this.createSectionForm.name.trim(),
+      code: this.createSectionForm.code.trim(),
+    }).pipe(finalize(() => this.creatingSection.set(false)), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (section) => {
+          this.sections.update((sections) => [...sections, section]);
+          this.closeCreateSection();
+          this.messageService.add({ key: 'br', severity: 'success', summary: 'החתך נוסף בהצלחה' });
+        },
+        error: (err) => {
+          const message = err?.error?.message;
+          this.createSectionError.set(
+            err?.status === 409 ? 'קוד החתך או הבלוק שלו כבר בשימוש. בחר קוד אחר.'
+              : typeof message === 'string' ? message : 'יצירת החתך נכשלה. נסה שוב.',
+          );
+        },
+      });
+  }
 
   // ── Filters (client-side, same pattern as card-management) ─────────────
   filterForm: FormGroup = this.fb.group({});

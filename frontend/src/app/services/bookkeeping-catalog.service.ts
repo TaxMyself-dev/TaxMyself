@@ -326,6 +326,14 @@ export class BookkeepingCatalogService {
     return this.http.get<IAccountingSectionOption[]>(url);
   }
 
+  getNextAdminExpenseSectionCode(): Observable<{ code: string }> {
+    return this.http.get<{ code: string }>(`${environment.apiUrl}admin/booking-accounts/sections/next-code`);
+  }
+
+  createAdminExpenseSection(payload: { name: string; code: string }): Observable<IAccountingSectionOption> {
+    return this.http.post<IAccountingSectionOption>(`${environment.apiUrl}admin/booking-accounts/sections`, payload);
+  }
+
   /** Preview the next +10 code inside a SYSTEM section. The POST endpoint
    * recalculates it under a lock and remains authoritative. */
   getNextAdminBookingAccountCode(sectionId: number): Observable<{ code: string }> {
