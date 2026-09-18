@@ -90,6 +90,28 @@ export class BillingLifecycleService {
     );
   }
 
+  /** Applies a verified hosted-webhook result without replaying provider I/O. */
+  async applyHostedWebhookOutcome(
+    input: CanonicalBillingPeriodInput['actor'],
+    attemptId: number,
+    outcome: NormalizedChargeOutcome,
+    leaseOwner: string,
+  ) {
+    this.orchestration.assertOwnerMutation(input);
+    const opened = await this.orchestration.claimForSubmission(
+      attemptId,
+      leaseOwner,
+      0,
+    );
+    if (!opened.claimed) return opened.attempt;
+    return this.orchestration.applyNormalizedOutcome(
+      attemptId,
+      leaseOwner,
+      opened.attempt.stateVersion,
+      outcome,
+    );
+  }
+
   finalizeAfterReceipt(attemptId: number, receiptDocId: number) {
     return this.orchestration.finalizeCapturedAttempt(attemptId, receiptDocId);
   }

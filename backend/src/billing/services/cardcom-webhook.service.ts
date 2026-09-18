@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import * as crypto from 'crypto';
@@ -21,6 +21,7 @@ import { BillingEventService } from './billing-event.service';
 import { BillingReceiptService } from './billing-receipt.service';
 import { BillingIssuerConfigService } from './billing-issuer-config.service';
 import { ModuleName } from 'src/enum';
+import { BillingLifecycleService } from './billing-lifecycle.service';
 
 // ── Swagger-verified field names from LowProfileResult / TransactionInfo / TokenInfo ─
 
@@ -110,6 +111,8 @@ export class CardcomWebhookService implements OnModuleInit {
     private readonly billingReceiptService: BillingReceiptService,
     private readonly billingIssuerConfigService: BillingIssuerConfigService,
     private readonly dataSource: DataSource,
+    @Optional()
+    private readonly billingLifecycleService?: BillingLifecycleService,
   ) {}
 
   // ─── Startup validation ───────────────────────────────────────────────────
@@ -254,6 +257,18 @@ export class CardcomWebhookService implements OnModuleInit {
       (verified.TranzactionInfo.ResponseCode ?? -1) === 0;
 
     if (topLevelOk && txOk && verifiedReturnMatch) {
+      if (parsedReturn.billingAttemptId && this.billingLifecycleService) {
+        const transactionId =
+          verified.TranzactionId ?? verified.TranzactionInfo?.TranzactionId;
+        if (transactionId != null) {
+          await this.billingLifecycleService.applyHostedWebhookOutcome(
+            { actorFirebaseId: firebaseId, subjectFirebaseId: firebaseId },
+            parsedReturn.billingAttemptId,
+            { kind: 'CAPTURED', cardcomTransactionId: String(transactionId) },
+            `webhook-${webhookLog.id}`,
+          );
+        }
+      }
       await this.processVerifiedSuccess(
         firebaseId,
         parsedReturn.planId,
@@ -262,6 +277,17 @@ export class CardcomWebhookService implements OnModuleInit {
         webhookLog,
       );
     } else {
+      if (parsedReturn.billingAttemptId && this.billingLifecycleService) {
+        await this.billingLifecycleService.applyHostedWebhookOutcome(
+          { actorFirebaseId: firebaseId, subjectFirebaseId: firebaseId },
+          parsedReturn.billingAttemptId,
+          {
+            kind: 'DECLINED',
+            providerResponseCode: verified.ResponseCode ?? null,
+          },
+          `webhook-${webhookLog.id}`,
+        );
+      }
       const reason = !topLevelOk
         ? `ResponseCode=${verified.ResponseCode ?? 'missing'} desc=${
             verified.Description ?? ''
