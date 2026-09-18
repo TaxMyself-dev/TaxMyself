@@ -37,4 +37,14 @@ describe('SelfEmployedTaxSimulatorComponent', () => {
     expect(component.estimatedBalance).toBeLessThan(0);
     expect(component.balanceLabel).toBe('החזר משוער');
   });
+
+  it('deducts advances and business withholding once without changing annual tax', () => {
+    component.advancesPaid = 9_000;
+    component.businessTaxWithheld = 1_000;
+    expect(component.taxAfterCredits).toBe(20_058);
+    expect(component.estimatedBalance).toBe(6_458);
+    component.advancesPaid = 20_000;
+    expect(component.estimatedBalance).toBe(-4_542);
+    expect(component.balanceLabel).toBe('החזר משוער');
+  });
 });

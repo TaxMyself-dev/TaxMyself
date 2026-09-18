@@ -3,13 +3,14 @@ import { Component, ElementRef, EventEmitter, HostListener, Output, ViewChild } 
 import { IonicModule } from '@ionic/angular';
 import { GuideSlide, SELF_EMPLOYED_GUIDE_SLIDES } from './self-employed-guide.content';
 import { SelfEmployedTaxSimulatorComponent } from './self-employed-tax-simulator.component';
+import { GuideNationalInsuranceComponent } from './guide-national-insurance.component';
 
 @Component({
   selector: 'app-self-employed-guide',
   templateUrl: './self-employed-guide.component.html',
   styleUrls: ['./self-employed-guide.component.scss'],
   standalone: true,
-  imports: [CommonModule, IonicModule, SelfEmployedTaxSimulatorComponent],
+  imports: [CommonModule, IonicModule, SelfEmployedTaxSimulatorComponent, GuideNationalInsuranceComponent],
 })
 export class SelfEmployedGuideComponent {
   @Output() closeGuide = new EventEmitter<void>();
@@ -69,6 +70,10 @@ export class SelfEmployedGuideComponent {
 
   @HostListener('window:keydown', ['$event'])
   onKeydown(event: KeyboardEvent): void {
+    const target = event.target;
+    if (target instanceof HTMLElement && target.closest('input, textarea, select, [contenteditable="true"]')) {
+      return;
+    }
     if (event.key === 'ArrowLeft') {
       this.nextSlide();
       event.preventDefault();

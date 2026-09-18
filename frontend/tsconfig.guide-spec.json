@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.spec.json",
+  "compilerOptions": { "skipLibCheck": true },
+  "include": [
+    "src/app/pages/admin-panel/guide-national-insurance.spec.ts",
+    "src/app/pages/admin-panel/guide-national-insurance.component.spec.ts",
+    "src/app/pages/admin-panel/self-employed-guide.component.spec.ts",
+    "src/app/pages/admin-panel/self-employed-tax-simulator.component.spec.ts",
+    "src/**/*.d.ts"
+  ]
+}

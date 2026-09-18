@@ -1,0 +1,63 @@
+<section class="ni-slide" dir="rtl" aria-label="מחשבון ביטוח לאומי להמחשה">
+  <header><span class="eyebrow">ביטוח לאומי</span><h1>אז כמה משלמים?</h1><p>משנים את הנתונים ורואים את ההשפעה</p></header>
+  <div class="cards">
+    <section class="card inputs">
+      <h2>הנתונים שלכם</h2>
+      <div class="control">
+        <div class="input-row"><label for="ni-profit">רווח חודשי מהעסק<small>הכנסות פחות הוצאות</small></label><div class="number"><input id="ni-profit" type="number" min="0" max="100000" step="1" [value]="profit" (input)="setValue('profit', $event)"><span>₪</span></div></div>
+        <input aria-label="רווח חודשי מהעסק — מחוון" type="range" min="0" max="100000" step="100" [value]="profit" (input)="setValue('profit', $event)">
+      </div>
+      <div class="control">
+        <div class="input-row"><label for="ni-salary">שכר חודשי ברוטו</label><div class="number"><input id="ni-salary" type="number" min="0" max="100000" step="1" [value]="salary" (input)="setValue('salary', $event)"><span>₪</span></div></div>
+        <input aria-label="שכר חודשי ברוטו — מחוון" type="range" min="0" max="100000" step="100" [value]="salary" (input)="setValue('salary', $event)">
+      </div>
+      <div class="control">
+        <div class="input-row"><label for="ni-hours">שעות בעסק בשבוע</label><div class="number"><input id="ni-hours" type="number" min="0" max="80" step="1" [value]="hours" (input)="setValue('hours', $event)"></div></div>
+        <input aria-label="שעות בעסק בשבוע — מחוון" type="range" min="0" max="80" step="1" [value]="hours" (input)="setValue('hours', $event)">
+      </div>
+    </section>
+    <section class="card calculation">
+      <h2>המעמד והחישוב</h2>
+      <strong class="status">{{ result.qualifies ? 'עצמאי שעונה להגדרה' : 'עצמאי שאינו עונה להגדרה' }}</strong>
+      <p class="status-note">לפי השעות והרווח שהזנתם</p>
+      <div class="breakdown">
+        @if (!result.qualifies) {
+          <div><span>רווח מהעסק</span><b>{{ money(profit) }} ₪</b></div>
+          <div><span>סכום הפטור החודשי</span><b>{{ money(figures.exemptIncome) }} ₪</b></div>
+          <div><span>הכנסה מהעסק לחיוב</span><b>{{ money(result.base) }} ₪</b></div>
+        } @else {
+          <div><span>בסיס לחיוב לאחר התאמה</span><b>{{ money(result.base) }} ₪</b></div>
+          <div><span>מדרגה נמוכה · {{ percent(result.lowerRate) }}</span><b>{{ money(result.lowerBase) }} ₪</b></div>
+          <div><span>מדרגה גבוהה · {{ percent(result.upperRate) }}</span><b>{{ money(result.upperBase) }} ₪</b></div>
+        }
+      </div>
+      <p class="explanation">
+        @if (result.capRemaining === 0) { המשכורת כבר מגיעה לתקרת החיוב }
+        @else if (result.minimumSelfApplied) { החישוב לפי ההכנסה המזערית לעצמאי }
+        @else if (result.minimumTopUp > 0) { ללא משכורת, חל כאן תשלום מינימום }
+        @else if (!result.qualifies && result.base === 0) { הרווח מהעסק נמוך מסכום הפטור }
+        @else if (salary >= figures.reducedCeiling) { המדרגה הנמוכה כבר נוצלה במשכורת }
+        @else if (salary > 0) { המשכורת מנצלת קודם את המדרגה הנמוכה }
+        @else { כל שיעור חל רק על חלק ההכנסה שבמדרגה }
+      </p>
+      @if (!result.qualifies && result.base > 0) {
+        <small class="rates">{{ percent(result.lowerRate) }} על {{ money(result.lowerBase) }} ₪ · {{ percent(result.upperRate) }} על {{ money(result.upperBase) }} ₪</small>
+      }
+    </section>
+    <section class="card total" aria-live="polite" aria-atomic="true">
+      <h2>{{ result.minimumTopUp > 0 ? 'תשלום אישי משוער' : 'תוספת לתשלום על העסק' }}</h2>
+      <div class="amount"><b>{{ money(result.total) }}</b><span>₪</span></div><strong class="monthly">לחודש · כולל ביטוח בריאות</strong>
+      <p class="result-note">
+        @if (salary > 0) { דמי הביטוח על המשכורת<br>כבר משולמים דרך התלוש }
+        @else if (result.minimumTopUp > 0) { כולל מינימום למי שאינו עובד כשכיר,<br>ולא רק חיוב על ההכנסה מהעסק }
+        @else { אומדן לפי הנתונים שהזנתם<br>החיוב הסופי נקבע בביטוח לאומי }
+      </p>
+    </section>
+  </div>
+  <footer>
+    <p>המעמד מתעדכן אוטומטית · המשכורת מנצלת ראשונה את המדרגה הנמוכה</p>
+    <small>המחשה ל־2026 · גיל 18 עד פרישה · ללא פטורים מיוחדים, הכנסות נוספות או ניכוי פנסיה</small>
+    <small>במסלול הרגיל לעצמאי: כולל הפחתת 52% מדמי הביטוח הלאומי מבסיס החיוב · לא חישוב ייעודי לעסק זעיר</small>
+    <img src="/assets/login_logo.svg" alt="KeepInTax">
+  </footer>
+</section>

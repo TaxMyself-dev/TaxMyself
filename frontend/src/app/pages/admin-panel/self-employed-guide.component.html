@@ -47,6 +47,8 @@
             aria-label="מעבר לפרק מס הכנסה"
             (click)="goToSlide('income-tax-overview')"
           ></button>
+          <button type="button" class="approved-slide-hotspot approved-slide-hotspot--vat" aria-label="מעבר לפרק מע״מ" (click)="goToSlide('vat-introduction')"></button>
+          <button type="button" class="approved-slide-hotspot approved-slide-hotspot--ni" aria-label="מעבר לפרק ביטוח לאומי" (click)="goToSlide('ni-status')"></button>
         }
 
         @case ('income-overview') {
@@ -65,11 +67,13 @@
           <img class="approved-slide-art" src="/assets/self-employed-guide/income-combination-approved.png" alt="חיבור ההכנסה כשכיר והרווח מהעסק לצורך חישוב המס" />
         }
 
-        @case ('tax-simulator') {
-          <app-self-employed-tax-simulator></app-self-employed-tax-simulator>
+        @case ('approved-artwork') {
+          <img class="approved-slide-art" [src]="currentSlide.artwork" [alt]="currentSlide.artworkAlt || currentSlide.title" />
         }
 
       }
+      <app-self-employed-tax-simulator [hidden]="currentSlide.layout !== 'tax-simulator'"></app-self-employed-tax-simulator>
+      <app-guide-national-insurance [hidden]="currentSlide.layout !== 'ni-simulator'"></app-guide-national-insurance>
     </article>
   </div>
 

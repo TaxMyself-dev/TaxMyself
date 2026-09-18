@@ -21,6 +21,8 @@
     #fffefb;
 }
 
+:host([hidden]) { display: none; }
+
 h2 {
   margin: 0 0 1.45cqi;
   font-size: 3.5cqi;
@@ -147,7 +149,7 @@ h2 {
 }
 
 .calculation-list div {
-  min-height: 4.3cqi;
+  min-height: 3.2cqi;
   border-bottom: 1px solid #dbe3e7;
 }
 
@@ -188,8 +190,8 @@ h2 {
 }
 
 .range-field {
-  min-height: 6.5cqi;
-  padding: .65cqi .8cqi;
+  min-height: 4.7cqi;
+  padding: .3cqi .8cqi;
   border-bottom: 1px solid #dce6e3;
   display: grid;
   grid-template-columns: 1fr auto;

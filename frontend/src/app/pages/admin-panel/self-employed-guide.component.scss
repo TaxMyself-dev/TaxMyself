@@ -7,12 +7,14 @@
 .presentation-toolbar__actions { justify-self:end; gap:18px; }
 .presentation-toolbar__counter { direction:ltr; color:#647182; font-size:14px; }
 .slide-frame { width:min(1280px,100%); margin:auto; border-radius:26px; background:#fff; box-shadow:0 22px 62px rgba(25,42,56,.16); overflow:hidden; container-type:inline-size; }
-.presentation:fullscreen .slide-frame { width:min(1420px,100%); max-height:calc(100vh - 140px); }
+.presentation:fullscreen .slide-frame { width:min(1420px,100%,calc((100vh - 140px) * 16 / 9)); flex-shrink:0; }
 .slide { position:relative; width:100%; aspect-ratio:16/9; overflow:hidden; background:#fffefb; }
 .slide-logo { position:absolute; bottom:2.2cqi; left:3.3cqi; width:11cqi; height:auto; z-index:9; }
-.approved-slide-art { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; display:block; }
+.approved-slide-art { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; display:block; }
 .approved-slide-hotspot { position:absolute; border:0; padding:0; background:transparent; cursor:pointer; }
 .approved-slide-hotspot--income-tax { top:24%; right:5%; width:28%; height:61%; }
+.approved-slide-hotspot--vat { top:21%; right:36%; width:28%; height:61%; }
+.approved-slide-hotspot--ni { top:24%; right:68%; width:28%; height:61%; }
 .approved-slide-hotspot:focus-visible { outline:.3cqi solid var(--brand-ink); outline-offset:.3cqi; border-radius:50%; }
 
 .slide--cover { direction:ltr; }

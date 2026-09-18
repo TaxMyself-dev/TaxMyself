@@ -8,6 +8,8 @@ export type GuideSlideLayout =
   | 'status-comparison'
   | 'micro-blockers'
   | 'income-combination'
+  | 'approved-artwork'
+  | 'ni-simulator'
   | 'tax-simulator';
 
 export interface GuideItem {
@@ -32,6 +34,8 @@ export interface GuideSlide {
   items?: GuideItem[];
   takeaway?: string;
   sources?: GuideSource[];
+  artwork?: string;
+  artworkAlt?: string;
 }
 
 const figures = SELF_EMPLOYED_GUIDE_FIGURES;
@@ -63,8 +67,8 @@ export const SELF_EMPLOYED_GUIDE_SLIDES: GuideSlide[] = [
     subtitle: 'בוחרים גוף ונכנסים לפרטים',
     items: [
       { label: 'מס הכנסה', category: 'הרווח', description: 'הפרק מוכן', icon: 'calculator-outline', targetSlideId: 'income-tax-overview', available: true },
-      { label: 'מע״מ', category: 'העסקאות', description: 'נוסיף בהמשך', icon: 'receipt-outline', available: false },
-      { label: 'ביטוח לאומי', category: 'ההכנסה והמעמד', description: 'נוסיף בהמשך', icon: 'people-outline', available: false },
+      { label: 'מע״מ', category: 'העסקאות', description: 'הפרק מוכן', icon: 'receipt-outline', targetSlideId: 'vat-introduction', available: true },
+      { label: 'ביטוח לאומי', category: 'ההכנסה והמעמד', description: 'מעמד ומחשבון', icon: 'people-outline', targetSlideId: 'ni-status', available: true },
     ],
   },
   {
@@ -130,4 +134,69 @@ export const SELF_EMPLOYED_GUIDE_SLIDES: GuideSlide[] = [
     title: 'חשבון לכיתה ד - אין מה לחשוש',
     sources: [{ label: 'מדרגות מס 2026', url: figures.sources.incomeTax2026 }],
   },
+  {
+    id: 'advances-introduction', layout: 'approved-artwork',
+    title: 'מה זה בעצם מקדמות?',
+    artwork: '/assets/self-employed-guide/advances-introduction-approved.png',
+    artworkAlt: 'שכירים: המס יורד מהשכר בכל תלוש. עצמאים: הרווח משתנה והמס הסופי עוד לא ידוע. מקדמות הן תשלומים על חשבון המס השנתי. בסוף השנה משלימים או מקבלים החזר.',
+  },
+  {
+    id: 'advances-calculation', layout: 'approved-artwork',
+    title: 'איך נקבעות המקדמות?',
+    artwork: '/assets/self-employed-guide/advances-calculation-approved.png',
+    artworkAlt: 'מס הכנסה קובע מקדמות כאחוז מהמחזור או כסכום. דוגמה לפי אחוזים: מחזור ללא מע״מ של 20,000 ₪ כפול 5% נותן מקדמה של 1,000 ₪. המספרים להמחשה בלבד. המס הסופי לפי ההכנסה החייבת.',
+    sources: [{ label: 'שיטות חישוב המקדמות', url: 'https://www.gov.il/files/taxes/KnowYourRights2018/files/basic-html/page179.html' }],
+  },
+  {
+    id: 'advances-adjustment', layout: 'approved-artwork',
+    title: 'העסק השתנה? בודקים גם את המקדמות',
+    artwork: '/assets/self-employed-guide/advances-adjustment-approved.png',
+    artworkAlt: 'הרווח עלה? ייתכן שהמקדמות לא יספיקו. הרווח ירד? ייתכן שאתם משלמים יותר מדי. אפשר לבקש שינוי לפי תחזית מעודכנת. לא משנים את התשלום על דעת עצמנו.',
+    sources: [{ label: 'בקשה להקטנת מקדמות', url: 'https://www.gov.il/he/service/itc-2216a' }],
+  },
+  {
+    id: 'advances-payment', layout: 'approved-artwork',
+    title: 'איך מדווחים ומשלמים את המקדמות?',
+    artwork: '/assets/self-employed-guide/advances-payment-approved.png',
+    artworkAlt: 'אחת לחודש או לחודשיים לפי הדרישה בתיק: מרכזים מחזור ללא מע״מ, מחשבים לפי הדרישה ומקזזים ניכוי במקור שמותר לקזז, מדווחים ומשלמים באתר רשות המסים לבד או דרך המייצג. ניכוי במקור הוא תשלום שהלקוח העביר למס הכנסה על חשבונכם. שומרים את האישור.',
+    sources: [{ label: 'דיווח ותשלום מקדמות', url: 'https://www.gov.il/he/service/itc-payment-online-incometax' }],
+  },
+  {
+    id: 'micro-reporting', layout: 'approved-artwork',
+    title: 'עסק זעיר? יש מסלול מקוצר',
+    artwork: '/assets/self-employed-guide/micro-reporting-approved.png',
+    artworkAlt: 'למי שעומד בתנאי המסלול המקוצר: במהלך השנה עושים תיאום מס, גם אם יש רק הכנסה מהעסק, וכוללים שכר אם יש. אחרי השנה מגישים דיווח מקוצר ומשלמים מס. 30% מהמחזור כהוצאות במקום ההוצאות בפועל. אין חובת מקדמות במסלול המקוצר; אפשר לשלם במהלך השנה.',
+    sources: [
+      { label: 'דיווח מקוצר', url: 'https://www.gov.il/he/service/report-and-payment-for-micro-business-owner' },
+      { label: 'מקדמות לעסק זעיר', url: 'https://www.gov.il/he/service/request-down-payment-for-micro-business-owner' },
+    ],
+  },
+  {
+    id: 'income-tax-summary', layout: 'tax-simulator',
+    title: 'חשבון לכיתה ד - אין מה לחשוש',
+    takeaway: 'חזרה לאותה סימולציה לסיכום הפרק, עם הנתונים שכבר הוזנו.',
+  },
+  {
+    id: 'vat-introduction', layout: 'approved-artwork', title: 'מע״מ — לא כל הכסף שנכנס הוא שלכם',
+    artwork: '/assets/self-employed-guide/vat-introduction-approved.png',
+    artworkAlt: 'עוסק מורשה גובה מע״מ על עסקאות חייבות, מקזז מס תשומות מותר ומדווח על ההפרש. עוסק פטור לא גובה מע״מ בעסקאותיו הרגילות ולא מקזז תשומות. מע״מ אינו מס על הרווח אלא על ביצוע עסקאות.',
+    sources: [{ label: 'דיווח מע״מ', url: 'https://www.gov.il/he/service/reporting-or-payment-of-vat-reports' }],
+  },
+  {
+    id: 'vat-calculation', layout: 'approved-artwork', title: 'אז כמה מע״מ משלמים?',
+    artwork: '/assets/self-employed-guide/vat-calculation-approved.png',
+    artworkAlt: 'דוגמה ב־18%: עסקאות לפני מע״מ 10,000 ₪, מס עסקאות 1,800 ₪, הוצאות לפני מע״מ 2,000 ₪, מס תשומות מותר 360 ₪, לתשלום 1,440 ₪. בדוגמה כל מס התשומות מותר בקיזוז כנגד חשבוניות מס תקינות.',
+  },
+  {
+    id: 'ni-status', layout: 'approved-artwork', title: 'עצמאי — אבל איזה?',
+    artwork: '/assets/self-employed-guide/ni-status-approved.png',
+    artworkAlt: 'עצמאי שעונה להגדרה: לפחות 20 שעות בשבוע, או הכנסה חודשית ממוצעת של 6,885 ₪, או לפחות 12 שעות בשבוע והכנסה ממוצעת של 2,065 ₪. מי שאינו עומד באף תנאי אינו עונה להגדרה. נתוני 2026.',
+    sources: [{ label: 'הגדרת עצמאי', url: 'https://www.btl.gov.il/Insurance/National%20Insurance/type_list/Self_Employed/Pages/default.aspx' }],
+  },
+  {
+    id: 'ni-payment', layout: 'approved-artwork', title: 'אז מי חייב לשלם?',
+    artwork: '/assets/self-employed-guide/ni-payment-approved.png',
+    artworkAlt: 'עצמאי שעונה להגדרה משלם לפי ההכנסה החייבת מהעסק. מי שאינו עונה להגדרה: עד סכום הפטור לא משלמים על הכנסה מהעסק; מעליו משלמים על ההפרש. ייתכן תשלום מינימום גם כשההכנסה פטורה.',
+  },
+  { id: 'ni-calculator', layout: 'ni-simulator', title: 'אז כמה משלמים?' },
 ];

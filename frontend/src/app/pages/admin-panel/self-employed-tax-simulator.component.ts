@@ -19,6 +19,8 @@ export class SelfEmployedTaxSimulatorComponent {
   salaryIncome = 96_000;
   creditPoints = 2.25;
   salaryTaxWithheld = 3_600;
+  advancesPaid = 0;
+  businessTaxWithheld = 0;
 
   get businessProfit(): number {
     return Math.max(0, this.businessRevenue - this.businessExpenses);
@@ -56,7 +58,7 @@ export class SelfEmployedTaxSimulatorComponent {
   }
 
   get estimatedBalance(): number {
-    return this.taxAfterCredits - this.salaryTaxWithheld;
+    return this.taxAfterCredits - this.salaryTaxWithheld - this.advancesPaid - this.businessTaxWithheld;
   }
 
   get balanceLabel(): string {
@@ -87,6 +89,14 @@ export class SelfEmployedTaxSimulatorComponent {
 
   setSalaryTaxWithheld(event: Event): void {
     this.salaryTaxWithheld = this.readRangeValue(event);
+  }
+
+  setAdvancesPaid(event: Event): void {
+    this.advancesPaid = this.readRangeValue(event);
+  }
+
+  setBusinessTaxWithheld(event: Event): void {
+    this.businessTaxWithheld = this.readRangeValue(event);
   }
 
   formatCurrency(value: number): string {

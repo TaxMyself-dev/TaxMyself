@@ -27,6 +27,8 @@
         <div><dt>מס לפני נקודות זיכוי</dt><dd>{{ formatCurrency(taxBeforeCredits) }}</dd></div>
         <div><dt>נקודות זיכוי</dt><dd>−{{ formatCurrency(creditReduction) }}</dd></div>
         <div><dt>מס שנוכה מהשכר</dt><dd>−{{ formatCurrency(salaryTaxWithheld) }}</dd></div>
+        <div><dt>מקדמות ששולמו</dt><dd>−{{ formatCurrency(advancesPaid) }}</dd></div>
+        <div><dt>מס שנוכה מהלקוחות</dt><dd>−{{ formatCurrency(businessTaxWithheld) }}</dd></div>
       </dl>
       <div class="calculation-total" [class.calculation-total--refund]="estimatedBalance < 0">
         <span>{{ balanceLabel }}</span>
@@ -60,6 +62,16 @@
         <span><ion-icon name="cash-outline"></ion-icon>מס שכבר נוכה מהשכר</span>
         <strong>{{ formatCurrency(salaryTaxWithheld) }}</strong>
         <input type="range" min="0" max="100000" step="100" [value]="salaryTaxWithheld" (input)="setSalaryTaxWithheld($event)" />
+      </label>
+      <label class="range-field">
+        <span>מקדמות ששולמו</span>
+        <strong>{{ formatCurrency(advancesPaid) }}</strong>
+        <input type="range" min="0" max="100000" step="100" [value]="advancesPaid" (input)="setAdvancesPaid($event)" />
+      </label>
+      <label class="range-field">
+        <span>מס שנוכה מהלקוחות</span>
+        <strong>{{ formatCurrency(businessTaxWithheld) }}</strong>
+        <input type="range" min="0" max="100000" step="100" [value]="businessTaxWithheld" (input)="setBusinessTaxWithheld($event)" />
       </label>
     </section>
   </div>
