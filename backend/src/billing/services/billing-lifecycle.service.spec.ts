@@ -105,9 +105,9 @@ describe('BillingLifecycleService', () => {
 
     const result = await service.executeRenewal(
       input,
-      provider,
       receipt,
       'worker-1',
+      provider,
     );
 
     expect(provider.submitCharge).toHaveBeenCalledWith({
@@ -144,9 +144,9 @@ describe('BillingLifecycleService', () => {
 
     const result = await service.executeRenewal(
       input,
-      provider,
       receipt,
       'worker-1',
+      provider,
     );
 
     expect(result.finalized).toBe(false);

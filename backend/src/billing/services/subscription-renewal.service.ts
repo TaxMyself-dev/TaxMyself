@@ -10,11 +10,18 @@ import { PaymentMethod } from '../entities/payment-method.entity';
 
 import { BillingEventType, SubscriptionStatus } from '../enums/billing.enums';
 import { ModuleName } from 'src/enum';
-import { CardcomService, CardcomApiError, CardcomTransactionInfo } from './cardcom.service';
+import {
+  CardcomService,
+  CardcomApiError,
+  CardcomTransactionInfo,
+} from './cardcom.service';
 import { BillingEventService } from './billing-event.service';
 import { BillingReceiptService } from './billing-receipt.service';
 import { BillingIssuerConfigService } from './billing-issuer-config.service';
 import { PricingService } from './pricing.service';
+import { BillingLifecycleService } from './billing-lifecycle.service';
+import { BillingAttempt } from '../entities/billing-attempt.entity';
+import { NormalizedChargeOutcome } from './billing-attempt-orchestration.service';
 
 /** Total charge attempts allowed per billing cycle before moving to PAST_DUE. */
 const MAX_RENEWAL_ATTEMPTS = 3;
@@ -67,6 +74,7 @@ export class SubscriptionRenewalService {
     private readonly billingReceiptService: BillingReceiptService,
     private readonly billingIssuerConfigService: BillingIssuerConfigService,
     private readonly pricingService: PricingService,
+    private readonly billingLifecycleService: BillingLifecycleService,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -82,7 +90,10 @@ export class SubscriptionRenewalService {
    * Thin wrapper — all batch logic lives in processDueRenewals() so the admin
    * manual "run cron now" endpoint exercises the exact same code path.
    */
-  @Cron('0 3 * * *', { name: 'subscriptionRenewalCron', timeZone: 'Asia/Jerusalem' })
+  @Cron('0 3 * * *', {
+    name: 'subscriptionRenewalCron',
+    timeZone: 'Asia/Jerusalem',
+  })
   async runDailyRenewalCron(): Promise<void> {
     this.logger.log('Subscription renewal cron starting');
     const summary = await this.processDueRenewals();
@@ -173,21 +184,208 @@ export class SubscriptionRenewalService {
    * second concurrent call for the same subscription a no-op.
    * Never throws.
    */
-  async processSubscriptionById(subscriptionId: number): Promise<RenewalResult> {
+  async processSubscriptionById(
+    subscriptionId: number,
+  ): Promise<RenewalResult> {
     try {
       return await this.chargeSubscription(subscriptionId);
     } catch (err) {
       this.logger.error(
-        `Unhandled error processing renewal for subscription #${subscriptionId}: ${(err as Error).message}`,
+        `Unhandled error processing renewal for subscription #${subscriptionId}: ${
+          (err as Error).message
+        }`,
         (err as Error).stack,
       );
-      return { subscriptionId, outcome: 'error', message: (err as Error).message };
+      return {
+        subscriptionId,
+        outcome: 'error',
+        message: (err as Error).message,
+      };
     }
   }
 
   // ─── Core transactional charge flow ──────────────────────────────────────────
 
-  private async chargeSubscription(subscriptionId: number): Promise<RenewalResult> {
+  private async chargeSubscription(
+    subscriptionId: number,
+  ): Promise<RenewalResult> {
+    return this.chargeSubscriptionCanonical(subscriptionId);
+  }
+
+  /** Canonical renewal path. The legacy implementation remains below only as
+   * a comparison aid during rollout; all callers enter this method. */
+  private async chargeSubscriptionCanonical(
+    subscriptionId: number,
+  ): Promise<RenewalResult> {
+    const subscription = await this.subscriptionRepo.findOne({
+      where: { id: subscriptionId },
+    });
+    if (
+      !subscription ||
+      subscription.status !== SubscriptionStatus.ACTIVE ||
+      !subscription.nextBillingDate
+    ) {
+      return {
+        subscriptionId,
+        outcome: 'skipped',
+        message: 'Subscription is not due for canonical renewal',
+      };
+    }
+    const periodStart = subscription.nextBillingDate;
+    const periodEnd = this.addOneMonth(periodStart);
+    const plan = subscription.planId
+      ? await this.subscriptionRepo.manager.findOne(SubscriptionPlan, {
+          where: { id: subscription.planId },
+        })
+      : null;
+    if (!plan)
+      return {
+        subscriptionId,
+        outcome: 'error',
+        message: 'Subscription has no plan assigned',
+      };
+    const pricing = await this.pricingService.calculateCheckoutPrice(
+      subscription.firebaseId,
+      plan.id,
+    );
+    const actor = {
+      actorFirebaseId: subscription.firebaseId,
+      subjectFirebaseId: subscription.firebaseId,
+    };
+    const billingPeriod = this.formatBillingPeriod(periodStart);
+    const result = await this.billingLifecycleService.executeRenewal(
+      {
+        actor,
+        subscriptionId,
+        planId: plan.id,
+        periodStart: periodStart.toISOString().slice(0, 10),
+        periodEnd: periodEnd.toISOString().slice(0, 10),
+        amountAgorot: pricing.finalAmountAgorot,
+        amountBeforeVatAgorot: pricing.amountBeforeVatAgorot,
+        vatAmountAgorot: pricing.vatAmountAgorot,
+        currency: 'ILS',
+      },
+      {
+        createReceipt: (attempt, outcome) =>
+          this.createCanonicalRenewalReceipt(
+            subscription,
+            plan,
+            pricing,
+            periodStart,
+            periodEnd,
+            billingPeriod,
+            attempt as BillingAttempt,
+            outcome,
+          ),
+      },
+      `renewal-${subscriptionId}-${billingPeriod}`,
+    );
+    if (
+      result.submitted.kind !== 'APPLIED' ||
+      result.submitted.outcome?.kind !== 'CAPTURED'
+    ) {
+      const nonCapture = result.submitted.outcome;
+      return {
+        subscriptionId,
+        outcome: nonCapture?.kind === 'UNKNOWN' ? 'error' : 'retry_scheduled',
+        billingPeriod,
+        message:
+          nonCapture && 'failureCategory' in nonCapture
+            ? nonCapture.failureCategory ?? undefined
+            : undefined,
+      };
+    }
+    if (!result.finalized)
+      return {
+        subscriptionId,
+        outcome: 'error',
+        billingPeriod,
+        message: 'Receipt finalization did not complete',
+      };
+    await this.subscriptionRepo.update(subscriptionId, {
+      status: SubscriptionStatus.ACTIVE,
+      renewalAttempts: 0,
+      currentPeriodStart: periodStart,
+      currentPeriodEnd: periodEnd,
+      nextBillingDate: periodEnd,
+      gracePeriodEndsAt: null,
+    });
+    return {
+      subscriptionId,
+      outcome: 'success',
+      billingPeriod,
+      cardcomResponseCode: 0,
+      nextBillingDate: periodEnd,
+    };
+  }
+
+  private async createCanonicalRenewalReceipt(
+    subscription: Subscription,
+    plan: SubscriptionPlan,
+    pricing: {
+      finalAmountAgorot: number;
+      amountBeforeVatAgorot: number;
+      vatAmountAgorot: number;
+    },
+    periodStart: Date,
+    periodEnd: Date,
+    billingPeriod: string,
+    attempt: BillingAttempt,
+    outcome: NormalizedChargeOutcome,
+  ): Promise<{ receiptDocId: number }> {
+    const issuer = await this.billingIssuerConfigService.getKeepintaxIssuer();
+    const cardcomDealNumber =
+      outcome.kind === 'CAPTURED' ? outcome.cardcomTransactionId : null;
+    const event = await this.billingEventService.logEvent({
+      firebaseId: subscription.firebaseId,
+      eventType: BillingEventType.RENEWAL_SUCCESS,
+      subscriptionId: subscription.id,
+      amountAgorot: pricing.finalAmountAgorot,
+      amountBeforeVatAgorot: pricing.amountBeforeVatAgorot,
+      vatAmountAgorot: pricing.vatAmountAgorot,
+      currency: 'ILS',
+      cardcomDealNumber,
+      metadata: {
+        billingPeriod,
+        attemptId: attempt.id,
+        cardcomTransactionId: cardcomDealNumber,
+      },
+    });
+    const receipt = await this.billingReceiptService.createReceiptForPayment(
+      issuer,
+      {
+        firebaseId: subscription.firebaseId,
+        subscriptionId: subscription.id,
+        amountBeforeVatAgorot: pricing.amountBeforeVatAgorot,
+        vatAmountAgorot: pricing.vatAmountAgorot,
+        amountIncludingVatAgorot: pricing.finalAmountAgorot,
+        planName: plan.name,
+        periodStart,
+        periodEnd,
+        cardcomDealNumber,
+      },
+    );
+    if (event)
+      await this.billingEventService.updatePaymentEventWithReceipt(
+        event.id,
+        receipt.receiptDocId,
+      );
+    await this.billingReceiptService.finalizeBillingReceiptPdfs(
+      receipt.receiptDocId,
+      issuer,
+      subscription.firebaseId,
+    );
+    if (event)
+      await this.billingReceiptService.sendReceiptEmailForPaymentEvent(
+        event.id,
+        issuer.issuerName,
+      );
+    return { receiptDocId: receipt.receiptDocId };
+  }
+
+  private async chargeSubscriptionLegacy(
+    subscriptionId: number,
+  ): Promise<RenewalResult> {
     const qr = this.dataSource.createQueryRunner();
     await qr.connect();
     await qr.startTransaction();
@@ -239,7 +437,11 @@ export class SubscriptionRenewalService {
 
       if (!subscription) {
         await qr.rollbackTransaction();
-        return { subscriptionId, outcome: 'skipped', message: 'Subscription not found' };
+        return {
+          subscriptionId,
+          outcome: 'skipped',
+          message: 'Subscription not found',
+        };
       }
 
       const now = new Date();
@@ -254,7 +456,9 @@ export class SubscriptionRenewalService {
         return {
           subscriptionId,
           outcome: 'skipped',
-          message: `Not due — status=${subscription.status} nextBillingDate=${subscription.nextBillingDate?.toISOString() ?? 'null'}`,
+          message: `Not due — status=${subscription.status} nextBillingDate=${
+            subscription.nextBillingDate?.toISOString() ?? 'null'
+          }`,
         };
       }
 
@@ -266,7 +470,10 @@ export class SubscriptionRenewalService {
       // ── 2b. Refuse to charge again while a prior successful charge still has
       // no receipt — surfacing that failure for manual resolution takes
       // priority over collecting more money the customer can't be invoiced for.
-      const unresolvedFailure = await this.billingEventService.getUnresolvedReceiptFailure(subscription.id);
+      const unresolvedFailure =
+        await this.billingEventService.getUnresolvedReceiptFailure(
+          subscription.id,
+        );
       if (unresolvedFailure) {
         await qr.rollbackTransaction();
         this.logger.warn(
@@ -281,11 +488,12 @@ export class SubscriptionRenewalService {
       }
 
       // ── 3. Local idempotency: already charged for this period? ─────────────
-      const alreadySucceeded = await this.billingEventService.hasSuccessfulRenewal(
-        qr.manager,
-        subscription.id,
-        idempotencyKey,
-      );
+      const alreadySucceeded =
+        await this.billingEventService.hasSuccessfulRenewal(
+          qr.manager,
+          subscription.id,
+          idempotencyKey,
+        );
       if (alreadySucceeded) {
         await qr.rollbackTransaction();
         this.logger.warn(
@@ -296,21 +504,28 @@ export class SubscriptionRenewalService {
           subscriptionId,
           outcome: 'skipped',
           billingPeriod,
-          message: 'Already renewed for this billing period (idempotency key match)',
+          message:
+            'Already renewed for this billing period (idempotency key match)',
         };
       }
 
       // ── 4. Load payment method + plan, decrypt token, compute amount ───────
       const paymentMethod = subscription.paymentMethodId
-        ? await qr.manager.findOne(PaymentMethod, { where: { id: subscription.paymentMethodId } })
+        ? await qr.manager.findOne(PaymentMethod, {
+            where: { id: subscription.paymentMethodId },
+          })
         : null;
 
       const plan = subscription.planId
-        ? await qr.manager.findOne(SubscriptionPlan, { where: { id: subscription.planId } })
+        ? await qr.manager.findOne(SubscriptionPlan, {
+            where: { id: subscription.planId },
+          })
         : null;
 
       if (!paymentMethod || !plan) {
-        const reason = !paymentMethod ? 'No payment method on file' : 'Subscription has no plan assigned';
+        const reason = !paymentMethod
+          ? 'No payment method on file'
+          : 'Subscription has no plan assigned';
         return await this.handleFailure(qr, subscription, {
           attemptNumber,
           billingPeriod,
@@ -397,7 +612,9 @@ export class SubscriptionRenewalService {
       await qr.commitTransaction();
 
       const cardcomDealNumber =
-        chargeResponse.TranzactionId != null ? String(chargeResponse.TranzactionId) : null;
+        chargeResponse.TranzactionId != null
+          ? String(chargeResponse.TranzactionId)
+          : null;
       const last4 =
         chargeResponse.Last4CardDigitsString ??
         (chargeResponse.Last4CardDigits != null
@@ -409,7 +626,8 @@ export class SubscriptionRenewalService {
         subscriptionId: subscription.id,
         firebaseId: subscription.firebaseId,
         planName: plan.name,
-        planModules: (plan.modules ?? Object.values(ModuleName)) as ModuleName[],
+        planModules: (plan.modules ??
+          Object.values(ModuleName)) as ModuleName[],
         billingPeriod,
         idempotencyKey,
         attemptNumber,
@@ -422,8 +640,10 @@ export class SubscriptionRenewalService {
         rawResponse: chargeResponse,
         approvalNumber: chargeResponse.ApprovalNumber ?? null,
         last4,
-        cardMonth: chargeResponse.CardMonth ?? paymentMethod.cardExpiryMonth ?? null,
-        cardYear: chargeResponse.CardYear ?? paymentMethod.cardExpiryYear ?? null,
+        cardMonth:
+          chargeResponse.CardMonth ?? paymentMethod.cardExpiryMonth ?? null,
+        cardYear:
+          chargeResponse.CardYear ?? paymentMethod.cardExpiryYear ?? null,
       };
 
       result = {
@@ -437,10 +657,16 @@ export class SubscriptionRenewalService {
     } catch (err) {
       await qr.rollbackTransaction();
       this.logger.error(
-        `Renewal transaction failed for subscription #${subscriptionId}: ${(err as Error).message}`,
+        `Renewal transaction failed for subscription #${subscriptionId}: ${
+          (err as Error).message
+        }`,
         (err as Error).stack,
       );
-      return { subscriptionId, outcome: 'error', message: (err as Error).message };
+      return {
+        subscriptionId,
+        outcome: 'error',
+        message: (err as Error).message,
+      };
     } finally {
       await qr.release();
     }
@@ -471,8 +697,14 @@ export class SubscriptionRenewalService {
       rawResponse: Record<string, any> | null;
     },
   ): Promise<RenewalResult> {
-    const { attemptNumber, billingPeriod, idempotencyKey, cardcomResponseCode, cardcomDescription, rawResponse } =
-      failure;
+    const {
+      attemptNumber,
+      billingPeriod,
+      idempotencyKey,
+      cardcomResponseCode,
+      cardcomDescription,
+      rawResponse,
+    } = failure;
     const now = new Date();
     const isFinalAttempt = attemptNumber >= MAX_RENEWAL_ATTEMPTS;
 
@@ -491,7 +723,9 @@ export class SubscriptionRenewalService {
       });
     } else {
       const gracePeriodEndsAt = new Date(now);
-      gracePeriodEndsAt.setDate(gracePeriodEndsAt.getDate() + GRACE_PERIOD_DAYS);
+      gracePeriodEndsAt.setDate(
+        gracePeriodEndsAt.getDate() + GRACE_PERIOD_DAYS,
+      );
       outcome = 'past_due';
 
       await qr.manager.update(Subscription, subscription.id, {
@@ -506,7 +740,10 @@ export class SubscriptionRenewalService {
     // Log after commit (consistent with the webhook flow's pattern).
     await this.billingEventService.logEvent({
       firebaseId: subscription.firebaseId,
-      eventType: outcome === 'retry_scheduled' ? BillingEventType.RETRY_SCHEDULED : BillingEventType.RENEWAL_FAILED,
+      eventType:
+        outcome === 'retry_scheduled'
+          ? BillingEventType.RETRY_SCHEDULED
+          : BillingEventType.RENEWAL_FAILED,
       subscriptionId: subscription.id,
       metadata: this.buildFailureMetadata({
         idempotencyKey,
@@ -520,10 +757,16 @@ export class SubscriptionRenewalService {
     });
 
     this.logger.warn(
-      `Renewal ${outcome === 'past_due' ? 'FAILED (final)' : 'failed, retry scheduled'}: ` +
+      `Renewal ${
+        outcome === 'past_due' ? 'FAILED (final)' : 'failed, retry scheduled'
+      }: ` +
         `subscriptionId=${subscription.id} billingPeriod=${billingPeriod} attempt=${attemptNumber}/${MAX_RENEWAL_ATTEMPTS} ` +
         `cardcomResponseCode=${cardcomResponseCode ?? 'n/a'} ` +
-        `nextAction=${outcome === 'past_due' ? 'PAST_DUE' : `retry@${retryScheduledFor?.toISOString()}`}`,
+        `nextAction=${
+          outcome === 'past_due'
+            ? 'PAST_DUE'
+            : `retry@${retryScheduledFor?.toISOString()}`
+        }`,
     );
 
     return {
@@ -559,9 +802,24 @@ export class SubscriptionRenewalService {
     cardYear: number | null;
   }): Promise<void> {
     const {
-      subscriptionId, firebaseId, planName, planModules, billingPeriod, idempotencyKey, attemptNumber,
-      cardcomDealNumber, chargedAmountAgorot, amountBeforeVatAgorot, vatAmountAgorot, currentPeriodStart, currentPeriodEnd,
-      rawResponse, approvalNumber, last4, cardMonth, cardYear,
+      subscriptionId,
+      firebaseId,
+      planName,
+      planModules,
+      billingPeriod,
+      idempotencyKey,
+      attemptNumber,
+      cardcomDealNumber,
+      chargedAmountAgorot,
+      amountBeforeVatAgorot,
+      vatAmountAgorot,
+      currentPeriodStart,
+      currentPeriodEnd,
+      rawResponse,
+      approvalNumber,
+      last4,
+      cardMonth,
+      cardYear,
     } = data;
 
     const renewalSuccessEvent = await this.billingEventService.logEvent({
@@ -591,9 +849,14 @@ export class SubscriptionRenewalService {
     });
 
     this.logger.log(
-      `Renewal SUCCESS: subscriptionId=${subscriptionId} firebaseId=${firebaseId.substring(0, 8)}... ` +
+      `Renewal SUCCESS: subscriptionId=${subscriptionId} firebaseId=${firebaseId.substring(
+        0,
+        8,
+      )}... ` +
         `billingPeriod=${billingPeriod} attempt=${attemptNumber}/${MAX_RENEWAL_ATTEMPTS} ` +
-        `dealNumber=${cardcomDealNumber ?? 'n/a'} nextBillingDate=${currentPeriodEnd.toISOString()}`,
+        `dealNumber=${
+          cardcomDealNumber ?? 'n/a'
+        } nextBillingDate=${currentPeriodEnd.toISOString()}`,
     );
 
     // Reuse the existing receipt generation flow (same three BillingReceiptService
@@ -627,40 +890,62 @@ export class SubscriptionRenewalService {
     renewalSuccessEvent: { id: number };
   }): Promise<void> {
     const {
-      firebaseId, subscriptionId, planName, amountBeforeVatAgorot, vatAmountAgorot,
-      amountIncludingVatAgorot, periodStart, periodEnd, cardcomDealNumber, renewalSuccessEvent,
+      firebaseId,
+      subscriptionId,
+      planName,
+      amountBeforeVatAgorot,
+      vatAmountAgorot,
+      amountIncludingVatAgorot,
+      periodStart,
+      periodEnd,
+      cardcomDealNumber,
+      renewalSuccessEvent,
     } = params;
 
     try {
       const issuer = await this.billingIssuerConfigService.getKeepintaxIssuer();
 
-      const receipt = await this.billingReceiptService.createReceiptForPayment(issuer, {
-        firebaseId,
-        subscriptionId,
-        amountBeforeVatAgorot,
-        vatAmountAgorot,
-        amountIncludingVatAgorot,
-        planName,
-        periodStart,
-        periodEnd,
-        cardcomDealNumber,
-      });
+      const receipt = await this.billingReceiptService.createReceiptForPayment(
+        issuer,
+        {
+          firebaseId,
+          subscriptionId,
+          amountBeforeVatAgorot,
+          vatAmountAgorot,
+          amountIncludingVatAgorot,
+          planName,
+          periodStart,
+          periodEnd,
+          cardcomDealNumber,
+        },
+      );
 
       await this.billingEventService.updatePaymentEventWithReceipt(
         renewalSuccessEvent.id,
         receipt.receiptDocId,
       );
 
-      await this.billingReceiptService.finalizeBillingReceiptPdfs(receipt.receiptDocId, issuer, firebaseId);
-      await this.billingReceiptService.sendReceiptEmailForPaymentEvent(renewalSuccessEvent.id, issuer.issuerName);
+      await this.billingReceiptService.finalizeBillingReceiptPdfs(
+        receipt.receiptDocId,
+        issuer,
+        firebaseId,
+      );
+      await this.billingReceiptService.sendReceiptEmailForPaymentEvent(
+        renewalSuccessEvent.id,
+        issuer.issuerName,
+      );
 
       this.logger.log(
         `Renewal receipt complete: receiptDocId=${receipt.receiptDocId} docNumber=${receipt.docNumber} ` +
-          `subscriptionId=${subscriptionId} dealNumber=${cardcomDealNumber ?? 'null'}`,
+          `subscriptionId=${subscriptionId} dealNumber=${
+            cardcomDealNumber ?? 'null'
+          }`,
       );
     } catch (err) {
       this.logger.error(
-        `Renewal receipt generation failed for subscriptionId=${subscriptionId}: ${(err as Error).message}`,
+        `Renewal receipt generation failed for subscriptionId=${subscriptionId}: ${
+          (err as Error).message
+        }`,
         (err as Error).stack,
       );
       await this.billingEventService.logEvent({
@@ -690,9 +975,14 @@ export class SubscriptionRenewalService {
       maxAttempts: MAX_RENEWAL_ATTEMPTS,
       cardcomResponseCode: params.cardcomResponseCode,
       cardcomDescription: params.cardcomDescription,
-      cardcomTransactionId: params.rawResponse?.TranzactionId != null ? String(params.rawResponse.TranzactionId) : null,
+      cardcomTransactionId:
+        params.rawResponse?.TranzactionId != null
+          ? String(params.rawResponse.TranzactionId)
+          : null,
       retryScheduledFor: params.retryScheduledFor?.toISOString() ?? null,
-      rawCardcomResponse: params.rawResponse ? this.sanitizeRawResponse(params.rawResponse) : null,
+      rawCardcomResponse: params.rawResponse
+        ? this.sanitizeRawResponse(params.rawResponse)
+        : null,
     };
   }
 
@@ -715,7 +1005,10 @@ export class SubscriptionRenewalService {
   }
 
   /** month=12,year=2026 → "1226". Works whether the stored year is 2 or 4 digits. */
-  private buildCardExpirationMMYY(month: number | null, year: number | null): string {
+  private buildCardExpirationMMYY(
+    month: number | null,
+    year: number | null,
+  ): string {
     if (!month || !year) {
       throw new Error('Payment method missing card expiry month/year');
     }
@@ -723,5 +1016,4 @@ export class SubscriptionRenewalService {
     const yy = String(year % 100).padStart(2, '0');
     return `${mm}${yy}`;
   }
-
 }
