@@ -44,8 +44,17 @@ const ceiling = new Intl.NumberFormat('he-IL').format(figures.vatExemptTurnoverC
 export const SELF_EMPLOYED_GUIDE_SLIDES: GuideSlide[] = [
   {
     id: 'cover',
-    layout: 'cover',
+    layout: 'approved-artwork',
     title: 'אפשר גם אחרת',
+    artwork: '/assets/self-employed-guide/cover-kipi-approved.png',
+    artworkAlt: 'אפשר גם אחרת. עצמאי צעיר מוקף בניירת ובמס הכנסה, מע״מ וביטוח לאומי. קיפי ללא תרמיל עומד על אייקון KeepInTax ומצביע לכותרת.',
+  },
+  {
+    id: 'basic-concepts',
+    layout: 'approved-artwork',
+    title: 'כמה מושגים בסיסיים לפני שיוצאים לדרך',
+    artwork: '/assets/self-employed-guide/basic-concepts-kipi-approved.png',
+    artworkAlt: 'קיפי עם תרמיל מנטה מציג מושגים בסיסיים: הכנסות / מחזור — כל ההכנסות מהעסק לפני שמקזזים הוצאות. מע״מ שגובים מלקוחות אינו חלק מההכנסה. הוצאות מוכרות — הוצאות לצורכי העסק שמותר לקזז לצורך חישוב המס. לפעמים רק חלק מההוצאה מוכר. רווח — ההכנסות מהעסק פחות ההוצאות של העסק. הכנסה חייבת — ההכנסה שעליה מחשבים מס, אחרי ההתאמות, הניכויים והפטורים שמגיעים לכם. משכורת (שכר ברוטו) — השכר כשכירים לפני שמקזזים מיסים, ביטוח לאומי והפרשות.',
   },
   {
     id: 'business-types',
