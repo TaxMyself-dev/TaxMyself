@@ -221,7 +221,11 @@ export class CardcomWebhookService implements OnModuleInit {
           (err as Error).message
         }`,
       );
-      if (parsedReturn.intent === 'CHECKOUT' && parsedReturn.billingAttemptId && this.billingLifecycleService) {
+      if (
+        parsedReturn.intent === 'CHECKOUT' &&
+        parsedReturn.billingAttemptId &&
+        this.billingLifecycleService
+      ) {
         await this.billingLifecycleService.applyHostedWebhookOutcome(
           { actorFirebaseId: firebaseId, subjectFirebaseId: firebaseId },
           parsedReturn.billingAttemptId,
