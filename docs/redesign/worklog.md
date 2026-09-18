@@ -2588,3 +2588,16 @@ No plan-checkbox changes (documentation reconciliation only).
   change. Focused backend tests pass 3/3; Nest and Angular production builds
   pass. The focused Karma command remains blocked by the documented
   repository-wide legacy-spec compilation failures.
+
+## 2026-09-18 — Admin-created SYSTEM expense sections
+
+- Admin catalog now offers a new expense section with a suggested next free
+  100-code block. The code is editable within 60000–69900 (ending in 00).
+- Creation is admin-only and checks existing SYSTEM sections and cards,
+  including inactive cards, so an occupied block cannot be reused. The
+  section is stored in `accounting_section` and immediately becomes available
+  in the card picker; existing mappings are untouched.
+- No schema, cutover SQL, production-data, journal, or report-total change.
+  Focused Jest passed (48 tests, plus 5 final section-specific tests), and
+  Nest and Angular production builds passed. Angular reported existing
+  bundle-budget/CommonJS warnings.

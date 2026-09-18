@@ -1,6 +1,6 @@
 # KT-030 - Admin creates an expense accounting section
 
-- Status: `WORKER_COMPLETE`
+- Status: `INTEGRATED`
 - Task manager: Codex
 - Worker: Codex (isolated worktree)
 - Worktree: `tmp/pdfs/kt030`
@@ -28,7 +28,7 @@ An admin can create a SYSTEM expense section with a suggested code that can be e
 ## Handoff
 
 - Result: Complete in isolated worktree.
-- Commit hash(es):
+- Commit hash(es): `f4034f80`
 - Changed files: backend catalog/controller/DTO/tests; frontend catalog UI/API client; topic docs; this task file.
 - Tests and exact results: focused Jest 2 suites/48 tests passed; final section-specific Jest 5 passed; Nest build passed twice; Angular production build passed (budget/CommonJS warnings).
 - Known pre-existing failures: none in focused checks; Angular budget/CommonJS warnings are pre-existing.
@@ -38,8 +38,8 @@ An admin can create a SYSTEM expense section with a suggested code that can be e
 
 ## Integration
 
-- Reviewed by:
-- Integrated commit:
-- Combined verification:
+- Reviewed by: Codex, `git show --check` and full changed-file review.
+- Integrated commit: `f4034f80` on `codex/integration-kt030` plus manager documentation commit.
+- Combined verification: 48 focused Jest tests, 5 final section tests, Nest build twice, Angular production build, `git diff --check`.
 - `origin/main` verification:
-- User-visible run instructions:
+- User-visible run instructions: Open admin catalog → "חתך חדש"; enter name, accept or edit suggested code, save.
