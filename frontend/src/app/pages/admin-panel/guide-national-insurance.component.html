@@ -4,12 +4,12 @@
     <section class="card inputs">
       <h2>הנתונים שלכם</h2>
       <div class="control">
-        <div class="input-row"><label for="ni-profit">רווח חודשי מהעסק<small>הכנסות פחות הוצאות</small></label><div class="number"><input id="ni-profit" type="number" min="0" max="100000" step="1" [value]="profit" (input)="setValue('profit', $event)"><span>₪</span></div></div>
-        <input aria-label="רווח חודשי מהעסק — מחוון" type="range" min="0" max="100000" step="100" [value]="profit" (input)="setValue('profit', $event)">
+        <div class="input-row"><label for="ni-profit">רווח חודשי מהעסק<small>הכנסות פחות הוצאות</small></label><output class="number amount-display" for="ni-profit">{{ money(profit) }} ₪</output></div>
+        <input id="ni-profit" aria-label="רווח חודשי מהעסק — מחוון" type="range" min="1000" max="50000" step="100" [value]="profit" (input)="setValue('profit', $event)">
       </div>
       <div class="control">
-        <div class="input-row"><label for="ni-salary">שכר חודשי ברוטו</label><div class="number"><input id="ni-salary" type="number" min="0" max="100000" step="1" [value]="salary" (input)="setValue('salary', $event)"><span>₪</span></div></div>
-        <input aria-label="שכר חודשי ברוטו — מחוון" type="range" min="0" max="100000" step="100" [value]="salary" (input)="setValue('salary', $event)">
+        <div class="input-row"><label for="ni-salary">שכר חודשי ברוטו</label><output class="number amount-display" for="ni-salary">{{ money(salary) }} ₪</output></div>
+        <input id="ni-salary" aria-label="שכר חודשי ברוטו — מחוון" type="range" min="1000" max="50000" step="100" [value]="salary" (input)="setValue('salary', $event)">
       </div>
       <div class="control">
         <div class="input-row"><label for="ni-hours">שעות בעסק בשבוע</label><div class="number"><input id="ni-hours" type="number" min="0" max="80" step="1" [value]="hours" (input)="setValue('hours', $event)"></div></div>

@@ -16,7 +16,8 @@ export class GuideNationalInsuranceComponent {
   hours = 8;
   get result() { return calculateGuideInsurance(this.profit, this.salary, this.hours); }
   setValue(field: 'profit' | 'salary' | 'hours', event: Event): void {
-    this[field] = boundedNumber((event.target as HTMLInputElement).value, field === 'hours' ? 80 : 100000);
+    const value = boundedNumber((event.target as HTMLInputElement).value, field === 'hours' ? 80 : 50000);
+    this[field] = field === 'hours' ? value : Math.max(1000, value);
   }
   money(value: number): string { return new Intl.NumberFormat('he-IL', { maximumFractionDigits: 0 }).format(value); }
   percent(value: number): string { return new Intl.NumberFormat('he-IL', { style: 'percent', maximumFractionDigits: 2 }).format(value); }

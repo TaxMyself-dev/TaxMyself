@@ -24,5 +24,9 @@ Internal admin console (tabbed) for staff to manage clients dashboard, the unifi
 - Open Content and launch the guide; navigate 19 screens with buttons/RTL keyboard, enter any of the three authority chapters via transparent hotspots, adjust either simulator, and present fullscreen. NI rights/advance-payment follow-up slides remain undesigned and are not included. Temporary local `main.ts` visual-review bootstrap must never be committed; normal application access remains admin-only.
 
 ## Related topics
+
+- NI money controls are slider-only, 1000–50000 NIS (step 100), with noneditable
+  output labels; hours remain 0–80 with number input. Zero-salary illustration is
+  supported by calculation tests but not selectable in this user-requested UI.
 - Frontend shared: `clients-dashboard`, `category-management`, `booking-account-catalog`, `trans-management`, `demo-data`, `admin-billing`.
 - Backend: `shaam` (invoice approval dialog), `billing` (Cardcom/subscriptions tab), `clients`, `expenses`/`transactions` (via the embedded management components).

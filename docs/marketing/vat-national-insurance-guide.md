@@ -40,7 +40,10 @@ No real customer data, API calls, backend writes or persistence outside componen
   at least 266, displayed as personal minimum rather than falsely a tax on profit.
 - Display rounds to whole shekels, internal monetary result to agorot.
 - Salary contributions are not included in additional-payment result.
-- Input limits 0–100000 NIS and 0–80h; nonfinite/negative input is normalized.
+- UI money controls: slider-only 1000–50000 NIS, step 100, noneditable formatted
+  outputs (user revision 2026-09-18). Hours retain number input and 0–80 slider.
+  The underlying calculation still supports zero/no-salary and up to 100000 for
+  boundary tests; these scenarios are no longer selectable through the current UI.
 - Static numerical artwork is fixed for 2026: future year changes require updating
   artwork as well as constants; do not silently use a new year with old images.
 
@@ -65,3 +68,5 @@ No real customer data, API calls, backend writes or persistence outside componen
 - Local preview bootstrap remains excluded from commit. No integration into main.
 - Final production rebuild after slider polish: cd09b4df26ef1de4, 33.366s,
   passed with the same pre-existing warnings; browser checks rerun successfully.
+- Slider-only range revision: 22/22 focused tests passed; production build
+  0029589ed889b160 passed in 48.743s with existing unrelated warnings.
