@@ -1,6 +1,6 @@
 # KT-029 - Save admin sub-category card reassignment
 
-- Status: `WORKER_COMPLETE`
+- Status: `INTEGRATED`
 - Task manager: primary integration manager
 - Worker: primary agent in isolated worktree
 - Worktree: `C:/Users/harel/.codex/worktrees/kt029/taxmyself-dev`
@@ -27,8 +27,8 @@ An admin can change the card for a SYSTEM sub-category such as עסק/ספקים
 
 ## Handoff
 
-- Result: implementation complete; integration pending.
-- Commit hash(es): see branch HEAD after commit.
+- Result: implementation complete and integrated; source push pending.
+- Commit hash(es): worker `883177e5`; integrated `bb28cfc1`.
 - Changed files: backend admin update path/test, frontend admin category editor, topic docs, this task file.
 - Tests and exact results: focused Jest 2/2 passed; Nest build exit 0; Angular production build exit 0 (existing budget/CommonJS warnings).
 - Known pre-existing failures: none encountered in executed checks.
@@ -38,8 +38,8 @@ An admin can change the card for a SYSTEM sub-category such as עסק/ספקים
 
 ## Integration
 
-- Reviewed by:
-- Integrated commit:
-- Combined verification:
-- `origin/main` verification:
-- User-visible run instructions:
+- Reviewed by: primary integration manager; full diff and `git show --check` clean.
+- Integrated commit: `bb28cfc1` on `origin/main` base `89160d84`.
+- Combined verification: the tested worker and integration Git trees are identical (`6d717f76`); focused Jest 2/2, Nest build, and Angular production build all passed on that exact tree.
+- `origin/main` verification: pending push.
+- User-visible run instructions: after a separate backend/frontend deployment, repoint עסק/ספקים from 60000 to 60010 and reload the page to verify persistence; existing posted expenses remain unchanged.
