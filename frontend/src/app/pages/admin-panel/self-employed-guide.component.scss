@@ -11,6 +11,20 @@
 .slide { position:relative; width:100%; aspect-ratio:16/9; overflow:hidden; background:#fffefb; }
 .slide-logo { position:absolute; bottom:2.2cqi; left:3.3cqi; width:11cqi; height:auto; z-index:9; }
 .approved-slide-art { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; display:block; }
+// Restore the original illustration only; keep the approved Kipi/headline panel intact.
+.cover-original-illustration { clip-path:polygon(0 0,69% 0,58.1% 100%,0 100%); pointer-events:none; }
+.glossary-base { clip-path:polygon(0 0,100% 0,100% 100%,0 100%,0 89.8%,100% 89.8%,100% 27.2%,0 27.2%); }
+.glossary-rows { position:absolute; inset:27.3% 2.87% 10.25% 2.99%; margin:0; display:grid; grid-template-rows:repeat(5,1fr); gap:.6cqi; direction:rtl; color:#061348; }
+.glossary-row { display:grid; grid-template-columns:22.5cqi minmax(0,1fr) 6.4cqi; align-items:center; column-gap:1.8cqi; padding:0 1.8cqi 0 2.4cqi; border-radius:1.15cqi; background:var(--row-fill); }
+.glossary-row dt { display:flex; align-items:center; min-height:4.8cqi; border-inline-end:1px solid var(--row-line); padding-inline-end:1cqi; font-size:2.55cqi; font-weight:700; line-height:1.08; text-align:right; }
+.glossary-row dd { margin:0; font-size:2.05cqi; font-weight:400; line-height:1.28; text-align:right; }
+.glossary-row--income { --row-fill:#d5f6eb; --row-line:#56ae98; --icon-y:15.73cqi; }
+.glossary-row--expenses { --row-fill:#dbf0ff; --row-line:#6098cf; --icon-y:22.79cqi; }
+.glossary-row--profit { --row-fill:#fff4cf; --row-line:#c5a456; --icon-y:29.72cqi; }
+.glossary-row--taxable { --row-fill:#fad6ec; --row-line:#b15b98; --icon-y:36.66cqi; }
+.glossary-row--salary { --row-fill:#e5dfff; --row-line:#977bce; --icon-y:43.96cqi; }
+.glossary-icon { width:6.4cqi; height:6.4cqi; border-radius:50%; background-image:url('/assets/self-employed-guide/basic-concepts-kipi-approved.png'); background-size:100cqi auto; background-position:left -5.38cqi top calc(-1 * var(--icon-y)); background-repeat:no-repeat; }
+.glossary-kipi-overlap { clip-path:polygon(84% 0,100% 0,100% 29.4%,84% 29.4%); pointer-events:none; }
 .approved-slide-hotspot { position:absolute; border:0; padding:0; background:transparent; cursor:pointer; }
 .approved-slide-hotspot--income-tax { top:24%; right:5%; width:28%; height:61%; }
 .approved-slide-hotspot--vat { top:21%; right:36%; width:28%; height:61%; }

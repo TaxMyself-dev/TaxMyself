@@ -68,7 +68,40 @@
         }
 
         @case ('approved-artwork') {
-          <img class="approved-slide-art" [src]="currentSlide.artwork" [alt]="currentSlide.artworkAlt || currentSlide.title" />
+          <img class="approved-slide-art" [class.glossary-base]="currentSlide.id === 'basic-concepts'" [src]="currentSlide.artwork" [alt]="currentSlide.id === 'basic-concepts' ? currentSlide.title : (currentSlide.artworkAlt || currentSlide.title)" />
+          @if (currentSlide.id === 'cover') {
+            <img class="approved-slide-art cover-original-illustration" src="/assets/self-employed-guide/cover-approved.png" alt="" aria-hidden="true" />
+          }
+          @if (currentSlide.id === 'basic-concepts') {
+            <dl class="glossary-rows">
+              <div class="glossary-row glossary-row--income">
+                <dt>הכנסות / מחזור</dt>
+                <dd>כל ההכנסות מהעסק לפני שמקזזים הוצאות.<br />מע״מ שגובים מלקוחות אינו חלק מההכנסה.</dd>
+                <span class="glossary-icon" aria-hidden="true"></span>
+              </div>
+              <div class="glossary-row glossary-row--expenses">
+                <dt>הוצאות מוכרות</dt>
+                <dd>הוצאות לצורכי העסק שמותר לקזז לצורך חישוב המס.<br />לפעמים רק חלק מההוצאה מוכר.</dd>
+                <span class="glossary-icon" aria-hidden="true"></span>
+              </div>
+              <div class="glossary-row glossary-row--profit">
+                <dt>רווח</dt>
+                <dd>ההכנסות מהעסק פחות ההוצאות של העסק.</dd>
+                <span class="glossary-icon" aria-hidden="true"></span>
+              </div>
+              <div class="glossary-row glossary-row--taxable">
+                <dt>הכנסה חייבת</dt>
+                <dd>ההכנסה שעליה מחשבים מס, אחרי ההתאמות, הניכויים והפטורים שמגיעים לכם.</dd>
+                <span class="glossary-icon" aria-hidden="true"></span>
+              </div>
+              <div class="glossary-row glossary-row--salary">
+                <dt>משכורת<br />(שכר ברוטו)</dt>
+                <dd>השכר כשכירים לפני שמקזזים מיסים, ביטוח לאומי והפרשות.</dd>
+                <span class="glossary-icon" aria-hidden="true"></span>
+              </div>
+            </dl>
+            <img class="approved-slide-art glossary-kipi-overlap" [src]="currentSlide.artwork" alt="" aria-hidden="true" />
+          }
         }
 
       }
