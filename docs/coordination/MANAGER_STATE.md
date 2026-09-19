@@ -1,6 +1,6 @@
 # Primary manager state
 
-Last reviewed: 2026-09-18
+Last reviewed: 2026-09-19
 
 ## Integration baseline
 
@@ -31,6 +31,12 @@ Last reviewed: 2026-09-18
   production access, or live external request was involved.
 
 ## Pending integration
+
+- KT-021 approved guide through source `4d99d388` is verified on
+  `codex/integration-kt021` over fresh main `daedd44d` (code head `26b6387f`).
+  23 focused Angular tests and the full frontend production build passed.
+  Delivery pending; unrelated CI work and the newer payroll slide are excluded.
+  Preserve the live worker worktree/server on port 4201 after delivery.
 
 - KT-027 and KT-028 passed combined verification and were pushed to `origin/main` through `be15a03c`. The standing local `codex/integration` branch contains unrelated, undelivered CI work (`bf682e70`), so these fixes were integrated on `codex/integration-kt027-kt028` without that change. No production deployment was performed.
 - KT-029 fixes admin SYSTEM sub-category card reassignment and save feedback. Worker and clean integration trees are identical (`6d717f76`); focused Jest and both production builds passed. Integrated as `bb28cfc1` on `codex/integration-kt029` because the standing `codex/integration` branch still contains unrelated, undelivered CI work. Pushed to `origin/main` through `c00c8abb`; no production access or deployment was performed.
