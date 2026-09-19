@@ -35,7 +35,8 @@ Last reviewed: 2026-09-19
 - KT-021 approved guide through source `4d99d388` is verified on
   `codex/integration-kt021` over fresh main `daedd44d` (code head `26b6387f`).
   23 focused Angular tests and the full frontend production build passed.
-  Delivery pending; unrelated CI work and the newer payroll slide are excluded.
+  Pushed and remotely verified through `91a88e38`; unrelated CI work and the
+  newer payroll slide are excluded. Local main is aligned.
   Preserve the live worker worktree/server on port 4201 after delivery.
 
 - KT-027 and KT-028 passed combined verification and were pushed to `origin/main` through `be15a03c`. The standing local `codex/integration` branch contains unrelated, undelivered CI work (`bf682e70`), so these fixes were integrated on `codex/integration-kt027-kt028` without that change. No production deployment was performed.
