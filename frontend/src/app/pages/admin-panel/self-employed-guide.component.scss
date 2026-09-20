@@ -11,6 +11,7 @@
 .slide { position:relative; width:100%; aspect-ratio:16/9; overflow:hidden; background:#fffefb; }
 .slide-logo { position:absolute; bottom:2.2cqi; left:3.3cqi; width:11cqi; height:auto; z-index:9; }
 .approved-slide-art { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; display:block; }
+.business-types-title { position:absolute; inset:0 0 auto; height:8.8cqi; margin:0; padding:1.8cqi 2.4cqi 0; box-sizing:border-box; background:#fffefb; color:#061348; font:800 5.3cqi/1.1 'Simpler',sans-serif; text-align:right; }
 // Restore the original illustration only; keep the approved Kipi/headline panel intact.
 .cover-original-illustration { clip-path:polygon(0 0,69% 0,58.1% 100%,0 100%); pointer-events:none; }
 .glossary-base { clip-path:polygon(0 0,100% 0,100% 100%,0 100%,0 89.8%,100% 89.8%,100% 27.2%,0 27.2%); }

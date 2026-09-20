@@ -66,7 +66,7 @@ export const SELF_EMPLOYED_GUIDE_SLIDES: GuideSlide[] = [
   {
     id: 'business-types',
     layout: 'business-types',
-    title: 'כל השבילים מובילים למס הכנסה',
+    title: 'סוגי רישום העסקים בישראל',
     subtitle: 'ארבע הגדרות שכדאי להכיר לפני שמתחילים',
     items: [
       { label: 'בעל עסק זעיר', category: 'מסלול במס הכנסה', description: 'יכול להיות גם עוסק פטור וגם עוסק מורשה.', icon: 'leaf-outline' },

@@ -17,6 +17,8 @@ Internal admin console (tabbed) for staff to manage clients dashboard, the unifi
 - `self-employed-guide.content.ts` / `self-employed-guide.figures.ts` — semantic slide copy, official source links, and centrally maintained year-specific figures. The opening sequence deliberately distinguishes VAT status (`פטור`/`מורשה`), the Income Tax `בעל עסק זעיר` route, and company legal form. The interactive simulator reads changing figures from code; static approved artwork containing a changing figure must be regenerated or receive a precisely masked HTML overlay when that figure changes.
 
 ## Main flows
+
+- Business-registration slide uses the user-approved title `סוגי רישום העסקים בישראל` as a native heading over the original artwork heading; all other artwork remains unchanged.
 - Switch between top-level tabs; categories and booking cards share one catalog-management tab with a second nested tab bar.
 - In the nested Cards tab, administer SYSTEM cards and create a new SYSTEM card (plus its paired SYSTEM sub-category unless marked technical-only).
 - Open a SHAAM invoice-approval dialog and show a success toast with the returned confirmation number.
