@@ -97,7 +97,7 @@ describe('SelfEmployedGuideComponent', () => {
     expect(component.slides[3].title).toBe('סוגי רישום העסקים בישראל');
     expect(component.slides[4].title).toBe('על שלושה גופים העולם עומד');
     expect(component.slides[7].title).toBe('לא כל עסק קטן נכנס למסלול הזעיר');
-    expect(component.slides[8].title).toBe('שכיר וגם עצמאי? בסוף הכל נפגש');
+    expect(component.slides[8].title).toBe('שכיר וגם עצמאי? בסוף שנה הכל נפגש');
   });
 
   it('renders the approved Kipi opening and glossary consecutively', () => {

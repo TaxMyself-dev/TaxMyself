@@ -136,7 +136,7 @@ export const SELF_EMPLOYED_GUIDE_SLIDES: GuideSlide[] = [
   {
     id: 'income-combination',
     layout: 'income-combination',
-    title: 'שכיר וגם עצמאי? בסוף הכל נפגש',
+    title: 'שכיר וגם עצמאי? בסוף שנה הכל נפגש',
     items: [
       { label: 'משכורת שנתית', description: 'ההכנסה כשכיר', icon: 'person-outline' },
       { label: 'רווח מהעסק', category: 'הכנסות פחות הוצאות', description: 'ההכנסה החייבת מהעסק', icon: 'storefront-outline' },

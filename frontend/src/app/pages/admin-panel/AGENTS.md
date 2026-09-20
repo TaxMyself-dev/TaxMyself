@@ -18,6 +18,8 @@ Internal admin console (tabbed) for staff to manage clients dashboard, the unifi
 
 ## Main flows
 
+- Combined-income heading is `שכיר וגם עצמאי? בסוף שנה הכל נפגש`; approved text-only image edit `exec-075936c2-4826-4c7d-84b0-c711225b1850.png` preserves the profit-only conveyor.
+
 - The combined-income artwork shows revenue minus expenses upstream; only cards labelled `רווח מהעסק` continue into the calculator alongside salary slips. Source edit: `exec-2a71480a-ca58-4207-bed5-c15324b7f2d2.png`, built-in image generation, scoped prompt: replace downstream revenue/expense receipts with business-profit cards and preserve all other artwork.
 
 - The Income Tax hotspot on the authorities slide opens `income-combination` (salary plus business profit). The linear slide order is unchanged.
