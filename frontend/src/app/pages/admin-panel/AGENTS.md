@@ -18,6 +18,8 @@ Internal admin console (tabbed) for staff to manage clients dashboard, the unifi
 
 ## Main flows
 
+- The Income Tax hotspot on the authorities slide opens `income-combination` (salary plus business profit). The linear slide order is unchanged.
+
 - Business-registration slide uses the user-approved title `סוגי רישום העסקים בישראל` as a native heading over the original artwork heading; all other artwork remains unchanged.
 - Switch between top-level tabs; categories and booking cards share one catalog-management tab with a second nested tab bar.
 - In the nested Cards tab, administer SYSTEM cards and create a new SYSTEM card (plus its paired SYSTEM sub-category unless marked technical-only).

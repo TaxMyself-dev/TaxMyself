@@ -64,11 +64,11 @@ describe('SelfEmployedGuideComponent', () => {
   });
 
   it('opens the Income Tax chapter from the authorities slide', () => {
-    component.goToSlide('income-tax-overview');
-    expect(component.currentSlide.id).toBe('income-tax-overview');
+    component.goToSlide('income-combination');
+    expect(component.currentSlide.id).toBe('income-combination');
 
     component.goToSlide(undefined);
-    expect(component.currentSlide.id).toBe('income-tax-overview');
+    expect(component.currentSlide.id).toBe('income-combination');
   });
 
   it('does not navigate when a simulator input uses arrow keys', () => {
