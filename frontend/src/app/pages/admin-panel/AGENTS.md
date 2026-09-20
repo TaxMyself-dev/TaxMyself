@@ -18,6 +18,8 @@ Internal admin console (tabbed) for staff to manage clients dashboard, the unifi
 
 ## Main flows
 
+- The combined-income artwork shows revenue minus expenses upstream; only cards labelled `רווח מהעסק` continue into the calculator alongside salary slips. Source edit: `exec-2a71480a-ca58-4207-bed5-c15324b7f2d2.png`, built-in image generation, scoped prompt: replace downstream revenue/expense receipts with business-profit cards and preserve all other artwork.
+
 - The Income Tax hotspot on the authorities slide opens `income-combination` (salary plus business profit). The linear slide order is unchanged.
 
 - Business-registration slide uses the user-approved title `סוגי רישום העסקים בישראל` as a native heading over the original artwork heading; all other artwork remains unchanged.
