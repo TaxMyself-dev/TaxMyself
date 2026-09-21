@@ -18,6 +18,8 @@ Internal admin console (tabbed) for staff to manage clients dashboard, the unifi
 
 ## Main flows
 
+- Slide 7 Kipi follow-up: reduced size about 20%, blue bib overalls, khaki hat and handheld digging shovel, still standing on the kibbutz sign. Latest source `exec-5665afbb-f6ed-40f9-af46-aadd5ddcea9b.png` replaces the same `micro-blockers-approved.png` asset. Built-in precise-object-edit prompt changed only Kipi's size, outfit and shovel; slide text/layout remain unchanged.
+
 - Main slide 7 (`micro-blockers`) artwork uses three readable lines `חלק מההכנסה / מגיע / מהמעסיק`. Kipi stands on the kibbutz-member sign in a khaki hat and blue work clothes, with all other content preserved. Built-in image-edit source: `exec-1a6168da-fdc8-4710-a0bb-d0c688bfb4e7.png`; saved as `frontend/src/assets/self-employed-guide/micro-blockers-approved.png`. Prompt scope: fix that caption and add reference-matched Kipi only, leaving headings, five signs, person, logo and footer intact.
 
 - Status-comparison artwork revision: `exec-ff3d4736-2109-4e27-8dba-44ee02c36574.png`, built-in image edit. Prompt scope: new eligibility heading and five right-side check icons/right-aligned rows, then remove the scientist and her magnifying glass and restore the office background; retain eligibility copy and 2026 figures. Saved as `frontend/src/assets/self-employed-guide/status-comparison-approved.png`.
