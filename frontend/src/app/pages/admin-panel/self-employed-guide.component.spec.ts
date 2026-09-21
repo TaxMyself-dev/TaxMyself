@@ -5,7 +5,7 @@ describe('SelfEmployedGuideComponent', () => {
   let component: SelfEmployedGuideComponent;
   beforeEach(() => component = new SelfEmployedGuideComponent());
   it('orders the main sequence and stops at the authorities hub', () => {
-    expect(component.slides[2].title).toBe('המעסיק מטפל בהכל');
+    expect(component.slides[2].title).toBe('כשאתם שכירים, המעסיק מטפל בהכל');
     expect(component.slides.map(s => s.id)).toEqual(['cover', 'basic-concepts', 'employee-payroll', 'business-types', 'income-tax-overview', 'status-comparison', 'micro-blockers', 'tax-authorities']);
     component.previousSlide();
     expect(component.currentSlideIndex).toBe(0);

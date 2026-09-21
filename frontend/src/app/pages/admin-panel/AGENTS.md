@@ -36,7 +36,7 @@ Internal admin console (tabbed) for staff to manage clients dashboard, the unifi
 ## Related topics
 
 - Screen 3 (`employee-payroll`) is the exact approved employee/employer artwork,
-  with the updated headline `המעסיק מטפל בהכל` (2026-09-22).
+  with the updated headline `כשאתם שכירים, המעסיק מטפל בהכל` (2026-09-22).
   immediately after the glossary. Provenance, locked design and presenter caveats:
   `docs/marketing/employee-payroll-slide.md`. Its net salary is illustrative only.
 
