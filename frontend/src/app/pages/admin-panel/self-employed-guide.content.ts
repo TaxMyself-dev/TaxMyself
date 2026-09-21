@@ -59,9 +59,9 @@ export const SELF_EMPLOYED_GUIDE_SLIDES: GuideSlide[] = [
   {
     id: 'employee-payroll',
     layout: 'approved-artwork',
-    title: 'כשאתם שכירים, המעסיק מטפל בזה',
+    title: 'המעסיק מטפל בהכל',
     artwork: '/assets/self-employed-guide/employee-payroll-approved.png',
-    artworkAlt: 'כשאתם שכירים, המעסיק מטפל בזה. מעסיק רציני מטפל במס הכנסה, ביטוח לאומי, פנסיה וקרן השתלמות. עובד מחויך מביט במחשב שעליו כתוב נטו 12,573 ₪, ומאחוריו לוח ספירה עד גיל 67.',
+    artworkAlt: 'המעסיק מטפל בהכל. מעסיק רציני מטפל במס הכנסה, ביטוח לאומי, פנסיה וקרן השתלמות. עובד מחויך מביט במחשב שעליו כתוב נטו 12,573 ₪, ומאחוריו לוח ספירה עד גיל 67.',
   },
   {
     id: 'business-types',

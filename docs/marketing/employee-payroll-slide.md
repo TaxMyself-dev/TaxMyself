@@ -1,7 +1,12 @@
 # Employee payroll slide
 
 Approved for implementation on 2026-09-19 after the glossary, as screen 3.
-Title: כשאתם שכירים, המעסיק מטפל בזה.
+Title: המעסיק מטפל בהכל.
+
+2026-09-22: User-requested headline-only edit using built-in image generation,
+source `exec-158c1c37-2f55-4760-ae0c-63dad0903313.png`. All other artwork and
+presenter caveats below remain unchanged. This supersedes the original image
+source/hash and no-regeneration instruction below.
 
 - Final source: `exec-4a09a7ee-c53e-42cc-bc83-794915e47671.png` in
   `C:/Users/harel/.codex/generated_images/01a08785-cca4-74b2-9059-1b7aae1008bc`.
