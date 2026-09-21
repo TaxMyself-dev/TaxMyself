@@ -90,12 +90,12 @@ export const SELF_EMPLOYED_GUIDE_SLIDES: GuideSlide[] = [
   {
     id: 'income-tax-overview',
     layout: 'income-overview',
-    title: 'מס הכנסה מתעניין ברווח',
-    subtitle: 'אותו מס, שתי דרכי דיווח',
+    title: 'החובות של כל עסק',
+    subtitle: 'מס הכנסה, מע״מ וביטוח לאומי',
     items: [
-      { label: 'בעל עסק זעיר', category: 'המסלול המקוצר', description: 'תיאום מס ודיווח שנתי מקוצר', icon: 'flash-outline' },
-      { label: 'עוסק פטור', category: 'במסלול הרגיל', description: 'מקדמות ודוח שנתי', icon: 'document-text-outline' },
-      { label: 'עוסק מורשה', category: 'במסלול הרגיל', description: 'מקדמות ודוח שנתי', icon: 'document-text-outline' },
+      { label: 'בעל עסק זעיר', category: 'המסלול המקוצר', description: 'מס הכנסה: תיאום מס ודיווח שנתי מקוצר. מע״מ: לפי הסיווג, פטור או מורשה. ביטוח לאומי: דיווח ותשלום לפי המעמד וההכנסה.', icon: 'flash-outline' },
+      { label: 'עוסק פטור', category: 'במסלול הרגיל', description: 'מס הכנסה: מקדמות ודוח שנתי. מע״מ: הצהרת עוסק פטור אחת לשנה. ביטוח לאומי: דיווח ותשלום לפי המעמד וההכנסה.', icon: 'document-text-outline' },
+      { label: 'עוסק מורשה', category: 'במסלול הרגיל', description: 'מס הכנסה: מקדמות ודוח שנתי. מע״מ: דיווח תקופתי למע״מ. ביטוח לאומי: דיווח ותשלום לפי המעמד וההכנסה.', icon: 'document-text-outline' },
     ],
     takeaway: 'המעמד במע״מ לא קובע לבדו איך מדווחים למס הכנסה.',
     sources: [{ label: 'הנחיות רשות המסים', url: figures.sources.microBusinessGuidance }],

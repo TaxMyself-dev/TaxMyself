@@ -18,6 +18,8 @@ Internal admin console (tabbed) for staff to manage clients dashboard, the unifi
 
 ## Main flows
 
+- Main slide 5 (`income-tax-overview`) is `החובות של כל עסק`, with Kipi and obligations grouped by authority. Exempt VAT declaration is annual, authorized VAT reporting periodic, micro VAT obligations follow its VAT classification; NI reporting/payment depends on status and income. Evidence and artwork provenance: `docs/marketing/business-obligations-slide.md`.
+
 - Guide navigation is eight main slides (cover, glossary, employee, business types, income overview, status comparison, micro blockers, authorities) plus isolated Income Tax (8), VAT (2), and NI (3) chapters. Counters/progress are chapter-local. Previous is disabled on the first slide; Next on the final chapter slide and the explicit return control return to main slide 8. Escape outside fullscreen returns from a chapter. Simulators stay mounted. Earlier linear-navigation descriptions below are superseded by this flow.
 
 - Combined-income heading is `שכיר וגם עצמאי? בסוף שנה הכל נפגש`; approved text-only image edit `exec-075936c2-4826-4c7d-84b0-c711225b1850.png` preserves the profit-only conveyor.
