@@ -1,6 +1,6 @@
 # Business obligations overview — 2026-09-22
 
-Image source: `exec-8435e1eb-8e89-42a2-ab75-350ca353d3fb.png`, copied to
+Image source: `exec-ff70758e-8cdc-4023-9804-c674ac0d8105.png`, copied to
 `frontend/src/assets/self-employed-guide/income-overview-approved.png`.
 The existing KeepInTax SVG is rendered at the bottom left to preserve branding.
 RTL follow-up: all nine authority icons are to the right of their text blocks;
@@ -11,7 +11,7 @@ User requested replacing the scientist with Kipi and adding VAT and NI duties.
 Keep three folders: micro business, exempt dealer (regular income-tax route),
 authorized dealer (regular income-tax route). No company column.
 
-- Micro: tax coordination and abbreviated annual report; VAT by exempt/authorized status.
+- Micro: tax coordination and abbreviated annual report `(ניכוי 30% הוצאות)`; VAT by exempt/authorized status.
 - Exempt: income-tax advances/annual report; annual exempt VAT declaration.
 - Authorized: income-tax advances/annual report; periodic VAT reporting.
 - All: `ביטוח לאומי — דיווח ותשלום לפי המעמד וההכנסה`.
@@ -30,3 +30,7 @@ Official sources checked:
 Built-in image edit prompt: preserve the office and colored folder design,
 replace scientist with approved Kipi, expand folder checklists into three
 authority sections with the wording above. No calculator or tax parameter changes.
+
+Latest built-in text-localization prompt: add only `(ניכוי 30% הוצאות)` under
+the micro-business abbreviated annual report, preserving right-aligned copy,
+right-side icons, all other text, Kipi and layout.

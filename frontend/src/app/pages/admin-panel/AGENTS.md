@@ -18,6 +18,12 @@ Internal admin console (tabbed) for staff to manage clients dashboard, the unifi
 
 ## Main flows
 
+- Status-comparison artwork revision: `exec-ff3d4736-2109-4e27-8dba-44ee02c36574.png`, built-in image edit. Prompt scope: new eligibility heading and five right-side check icons/right-aligned rows, then remove the scientist and her magnifying glass and restore the office background; retain eligibility copy and 2026 figures. Saved as `frontend/src/assets/self-employed-guide/status-comparison-approved.png`.
+
+- Main slide 5 micro-business annual-report text includes `(ניכוי 30% הוצאות)` in the artwork and content description. No calculation or eligibility changes.
+
+- Main slide 6 (`status-comparison`) title is `מי יכול להיות פטור, ומי זעיר?`. Its five checklist rows use right-side check icons and right-aligned text; eligibility copy and figures are unchanged.
+
 - Obligations-folder items use RTL layout: icons on the right of right-aligned text, in all three folders.
 
 - Main slide 5 (`income-tax-overview`) is `החובות של כל עסק`, with Kipi and obligations grouped by authority. Exempt VAT declaration is annual, authorized VAT reporting periodic, micro VAT obligations follow its VAT classification; NI reporting/payment depends on status and income. Evidence and artwork provenance: `docs/marketing/business-obligations-slide.md`.

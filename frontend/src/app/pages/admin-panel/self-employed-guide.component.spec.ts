@@ -5,6 +5,7 @@ describe('SelfEmployedGuideComponent', () => {
   let component: SelfEmployedGuideComponent;
   beforeEach(() => component = new SelfEmployedGuideComponent());
   it('orders the main sequence and stops at the authorities hub', () => {
+    expect(component.slides[5].title).toBe('מי יכול להיות פטור, ומי זעיר?');
     expect(component.slides[4].title).toBe('החובות של כל עסק');
     expect(component.slides[4].items?.every(item => item.description.includes('ביטוח לאומי'))).toBeTrue();
     expect(component.slides[2].title).toBe('כשאתם שכירים, המעסיק מטפל בהכל');

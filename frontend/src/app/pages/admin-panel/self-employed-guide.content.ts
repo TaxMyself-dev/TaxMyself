@@ -93,7 +93,7 @@ export const SELF_EMPLOYED_GUIDE_SLIDES: GuideSlide[] = [
     title: 'החובות של כל עסק',
     subtitle: 'מס הכנסה, מע״מ וביטוח לאומי',
     items: [
-      { label: 'בעל עסק זעיר', category: 'המסלול המקוצר', description: 'מס הכנסה: תיאום מס ודיווח שנתי מקוצר. מע״מ: לפי הסיווג, פטור או מורשה. ביטוח לאומי: דיווח ותשלום לפי המעמד וההכנסה.', icon: 'flash-outline' },
+      { label: 'בעל עסק זעיר', category: 'המסלול המקוצר', description: 'מס הכנסה: תיאום מס ודיווח שנתי מקוצר (ניכוי 30% הוצאות). מע״מ: לפי הסיווג, פטור או מורשה. ביטוח לאומי: דיווח ותשלום לפי המעמד וההכנסה.', icon: 'flash-outline' },
       { label: 'עוסק פטור', category: 'במסלול הרגיל', description: 'מס הכנסה: מקדמות ודוח שנתי. מע״מ: הצהרת עוסק פטור אחת לשנה. ביטוח לאומי: דיווח ותשלום לפי המעמד וההכנסה.', icon: 'document-text-outline' },
       { label: 'עוסק מורשה', category: 'במסלול הרגיל', description: 'מס הכנסה: מקדמות ודוח שנתי. מע״מ: דיווח תקופתי למע״מ. ביטוח לאומי: דיווח ותשלום לפי המעמד וההכנסה.', icon: 'document-text-outline' },
     ],
@@ -103,7 +103,7 @@ export const SELF_EMPLOYED_GUIDE_SLIDES: GuideSlide[] = [
   {
     id: 'status-comparison',
     layout: 'status-comparison',
-    title: 'פטור וזעיר: דומים, אבל לא תאומים',
+    title: 'מי יכול להיות פטור, ומי זעיר?',
     subtitle: `התקרה לשנת ${figures.taxYear}: ${ceiling} ₪ מחזור בשנה`,
     items: [
       { label: 'עוסק פטור', category: 'מע״מ', description: 'המחזור עד התקרה והעיסוק אינו מקצוע שחייב עוסק מורשה.', icon: 'storefront-outline' },
