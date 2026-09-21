@@ -206,9 +206,9 @@ export class FeezbackConsentApiService {
   ): Promise<any> {
     const userIdentifier = this.buildUserIdentifier(sub);
 
-    // TEMP: this specific client's account needs the v2 cards-transactions endpoint
-    // (v1 doesn't work for them). Remove this override once resolved upstream.
-    const cardTransactionsApiVersion = sub === 'JpIEJt3lSDMsI9uG67Etqx4ZbuC3' ? 'v2' : 'v1';
+    // Previous per-user override:
+    // const cardTransactionsApiVersion = sub === 'JpIEJt3lSDMsI9uG67Etqx4ZbuC3' ? 'v2' : 'v1';
+    const cardTransactionsApiVersion = 'v2';
 
     const transactionsBaseUrl =
       `${this.getTppApiUrl()}/tpp/${cardTransactionsApiVersion}/users/${userIdentifier}` +
@@ -260,9 +260,9 @@ export class FeezbackConsentApiService {
   ): Promise<any> {
     const userIdentifier = this.buildUserIdentifier(sub);
 
-    // TEMP: this specific client's account needs the v2 accounts-transactions endpoint
-    // (v1 doesn't work for them). Remove this override once resolved upstream.
-    const accountTransactionsApiVersion = sub === 'JpIEJt3lSDMsI9uG67Etqx4ZbuC3' ? 'v2' : 'v1';
+    // Previous per-user override:
+    // const accountTransactionsApiVersion = sub === 'JpIEJt3lSDMsI9uG67Etqx4ZbuC3' ? 'v2' : 'v1';
+    const accountTransactionsApiVersion = 'v2';
 
     const transactionsBaseUrl =
       `${this.getTppApiUrl()}/tpp/${accountTransactionsApiVersion}/users/${userIdentifier}` +
