@@ -1,8 +1,10 @@
 # Business obligations overview — 2026-09-22
 
-Image source: `exec-ec6e3b74-94bb-4f88-94a9-02dc4c5ca8b3.png`, copied to
+Image source: `exec-8435e1eb-8e89-42a2-ab75-350ca353d3fb.png`, copied to
 `frontend/src/assets/self-employed-guide/income-overview-approved.png`.
 The existing KeepInTax SVG is rendered at the bottom left to preserve branding.
+RTL follow-up: all nine authority icons are to the right of their text blocks;
+headings and body lines are right-aligned. Built-in edit changed only this layout.
 
 Main slide 5, stable ID `income-tax-overview`; title: `החובות של כל עסק`.
 User requested replacing the scientist with Kipi and adding VAT and NI duties.
