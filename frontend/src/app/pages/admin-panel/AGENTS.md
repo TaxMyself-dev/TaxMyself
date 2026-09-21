@@ -18,6 +18,8 @@ Internal admin console (tabbed) for staff to manage clients dashboard, the unifi
 
 ## Main flows
 
+- Guide navigation is eight main slides (cover, glossary, employee, business types, income overview, status comparison, micro blockers, authorities) plus isolated Income Tax (8), VAT (2), and NI (3) chapters. Counters/progress are chapter-local. Previous is disabled on the first slide; Next on the final chapter slide and the explicit return control return to main slide 8. Escape outside fullscreen returns from a chapter. Simulators stay mounted. Earlier linear-navigation descriptions below are superseded by this flow.
+
 - Combined-income heading is `שכיר וגם עצמאי? בסוף שנה הכל נפגש`; approved text-only image edit `exec-075936c2-4826-4c7d-84b0-c711225b1850.png` preserves the profit-only conveyor.
 
 - The combined-income artwork shows revenue minus expenses upstream; only cards labelled `רווח מהעסק` continue into the calculator alongside salary slips. Source edit: `exec-2a71480a-ca58-4207-bed5-c15324b7f2d2.png`, built-in image generation, scoped prompt: replace downstream revenue/expense receipts with business-profit cards and preserve all other artwork.

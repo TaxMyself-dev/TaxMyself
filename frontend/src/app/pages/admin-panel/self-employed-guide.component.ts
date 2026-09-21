@@ -16,7 +16,32 @@ export class SelfEmployedGuideComponent {
   @Output() closeGuide = new EventEmitter<void>();
   @ViewChild('presentationRoot') presentationRoot?: ElementRef<HTMLElement>;
 
-  readonly slides = SELF_EMPLOYED_GUIDE_SLIDES;
+  readonly chapterIds = {
+    income: ['income-combination', 'tax-simulator', 'advances-introduction', 'advances-calculation', 'advances-adjustment', 'advances-payment', 'micro-reporting', 'income-tax-summary'],
+    vat: ['vat-introduction', 'vat-calculation'],
+    ni: ['ni-status', 'ni-payment', 'ni-calculator'],
+  };
+  readonly mainIds = ['cover', 'basic-concepts', 'employee-payroll', 'business-types', 'income-tax-overview', 'status-comparison', 'micro-blockers', 'tax-authorities'];
+  activeChapter: 'income' | 'vat' | 'ni' | null = null;
+
+  get slides(): GuideSlide[] {
+    const ids = this.activeChapter ? this.chapterIds[this.activeChapter] : this.mainIds;
+    return ids.map(id => SELF_EMPLOYED_GUIDE_SLIDES.find(slide => slide.id === id)!);
+  }
+
+  get isLastMainSlide(): boolean {
+    return !this.activeChapter && this.currentSlideIndex === this.slides.length - 1;
+  }
+
+  openChapter(chapter: 'income' | 'vat' | 'ni'): void {
+    this.activeChapter = chapter;
+    this.currentSlideIndex = 0;
+  }
+
+  returnToAuthorities(): void {
+    this.activeChapter = null;
+    this.currentSlideIndex = this.mainIds.indexOf('tax-authorities');
+  }
   currentSlideIndex = 0;
   isFullscreen = false;
 
@@ -31,6 +56,8 @@ export class SelfEmployedGuideComponent {
   nextSlide(): void {
     if (this.currentSlideIndex < this.slides.length - 1) {
       this.currentSlideIndex += 1;
+    } else if (this.activeChapter) {
+      this.returnToAuthorities();
     }
   }
 
@@ -45,6 +72,9 @@ export class SelfEmployedGuideComponent {
       return;
     }
 
+    if (!SELF_EMPLOYED_GUIDE_SLIDES.some(slide => slide.id === slideId)) return;
+    this.activeChapter = (Object.keys(this.chapterIds) as Array<'income' | 'vat' | 'ni'>)
+      .find(chapter => this.chapterIds[chapter].includes(slideId)) ?? null;
     const slideIndex = this.slides.findIndex(slide => slide.id === slideId);
     if (slideIndex >= 0) {
       this.currentSlideIndex = slideIndex;
@@ -81,7 +111,8 @@ export class SelfEmployedGuideComponent {
       this.previousSlide();
       event.preventDefault();
     } else if (event.key === 'Escape' && !document.fullscreenElement) {
-      this.closeGuide.emit();
+      if (this.activeChapter) this.returnToAuthorities();
+      else this.closeGuide.emit();
     }
   }
 }

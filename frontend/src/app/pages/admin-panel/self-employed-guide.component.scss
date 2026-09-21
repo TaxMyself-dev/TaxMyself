@@ -47,6 +47,8 @@
 .nav-button--secondary { border:1px solid #cfd8df; background:#fff; color:var(--brand-ink); }
 .nav-button:disabled { opacity:.35; cursor:default; }
 .progress-track { height:5px; border-radius:999px; background:#dce3e8; overflow:hidden; }
+.chapter-controls { display:flex; flex-direction:column; gap:10px; min-width:0; }
+.chapter-controls > button { align-self:center; min-width:0; font-size:clamp(11px,1.3vw,16px); }
 .progress-track span { display:block; height:100%; border-radius:inherit; background:var(--brand-green); transition:width .2s ease; }
 
 @media (max-width:760px) {

@@ -46,10 +46,10 @@
             type="button"
             class="approved-slide-hotspot approved-slide-hotspot--income-tax"
             aria-label="מעבר לפרק מס הכנסה"
-            (click)="goToSlide('income-combination')"
+            (click)="openChapter('income')"
           ></button>
-          <button type="button" class="approved-slide-hotspot approved-slide-hotspot--vat" aria-label="מעבר לפרק מע״מ" (click)="goToSlide('vat-introduction')"></button>
-          <button type="button" class="approved-slide-hotspot approved-slide-hotspot--ni" aria-label="מעבר לפרק ביטוח לאומי" (click)="goToSlide('ni-status')"></button>
+          <button type="button" class="approved-slide-hotspot approved-slide-hotspot--vat" aria-label="מעבר לפרק מע״מ" (click)="openChapter('vat')"></button>
+          <button type="button" class="approved-slide-hotspot approved-slide-hotspot--ni" aria-label="מעבר לפרק ביטוח לאומי" (click)="openChapter('ni')"></button>
         }
 
         @case ('income-overview') {
@@ -113,7 +113,12 @@
 
   <div class="presentation-controls">
     <button type="button" class="nav-button nav-button--secondary" (click)="previousSlide()" [disabled]="currentSlideIndex === 0">הקודם</button>
-    <div class="progress-track" aria-hidden="true"><span [style.width.%]="progressPercent"></span></div>
-    <button type="button" class="nav-button nav-button--primary" (click)="nextSlide()" [disabled]="currentSlideIndex === slides.length - 1">הבא</button>
+    <div class="chapter-controls">
+      @if (activeChapter) {
+        <button type="button" class="nav-button nav-button--secondary" (click)="returnToAuthorities()">חזרה לשלושת הגופים</button>
+      }
+      <div class="progress-track" aria-hidden="true"><span [style.width.%]="progressPercent"></span></div>
+    </div>
+    <button type="button" class="nav-button nav-button--primary" (click)="nextSlide()" [disabled]="isLastMainSlide">הבא</button>
   </div>
 </section>
