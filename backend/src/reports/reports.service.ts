@@ -48,6 +48,12 @@ const LEDGER_MOVEMENT_LABELS: Record<string, string> = {
   PRICE_QUOTE:         'הצעת מחיר',
 };
 
+interface JournalIncomeSummary {
+  vatableTurnover: number;
+  nonVatableTurnover: number;
+  vatOnTurnover: number;
+}
+
 @Injectable()
 export class ReportsService {
 
@@ -275,6 +281,7 @@ export class ReportsService {
 
       if (isExemptBusinessType(businessType)) {
         return this.getAdvanceIncomeTaxReportDataForExempt(
+          firebaseId,
           businessNumber,
           startDate,
           endDate,
@@ -282,6 +289,7 @@ export class ReportsService {
         );
       }
       return this.getAdvanceIncomeTaxReportDataForLicensed(
+        firebaseId,
         businessNumber,
         startDate,
         endDate,
@@ -294,23 +302,26 @@ export class ReportsService {
 
   /** דוח מקדמות מס – עוסק מורשה/חברה: עסקאות חייבות, עסקאות פטורות, מע"מ עסקאות */
   private async getAdvanceIncomeTaxReportDataForLicensed(
+    firebaseId: string,
     businessNumber: string,
     startDate: Date,
     endDate: Date,
-    business: { advanceTaxPercent?: number | null; businessType?: BusinessType | null } | null,
+    business: {
+      advanceTaxPercent?: number | null;
+      businessType?: BusinessType | null;
+      vatReportingType?: VATReportingType | null;
+    } | null,
   ): Promise<AdvanceIncomeTaxReportDto> {
     const advanceTaxPercent = business?.advanceTaxPercent != null ? Number(business.advanceTaxPercent) : 0;
 
-    const { vatableIncome: vatableTurnover, nonVatableIncome: nonVatableTurnover } =
-      await this.getVatIncomeFromDocuments(businessNumber, startDate, endDate);
-    const totalIncome = await this.getIncomeBeforeVat(businessNumber, startDate, endDate);
-
-    const { vatOnTurnover } = await this.getTotalTurnoverIncludingVatAndVatOnTurnover(
+    const { vatableTurnover, nonVatableTurnover, vatOnTurnover } = await this.loadJournalIncomeSummary(
+      firebaseId,
       businessNumber,
       startDate,
       endDate,
-      business?.businessType ?? null,
+      business,
     );
+    const totalIncome = vatableTurnover + nonVatableTurnover;
     const taxWithholdingAtSource = await this.getWithholdingAtSourceSum(businessNumber, startDate, endDate);
     const totalAdvanceTax = Math.round(totalIncome * (advanceTaxPercent / 100));
     const totalToPay = totalAdvanceTax - taxWithholdingAtSource;
@@ -330,22 +341,28 @@ export class ReportsService {
 
   /** דוח מקדמות מס – עוסק פטור: רק סך עסקאות (ללא פירוט מע"מ) */
   private async getAdvanceIncomeTaxReportDataForExempt(
+    firebaseId: string,
     businessNumber: string,
     startDate: Date,
     endDate: Date,
-    business: { advanceTaxPercent?: number | null; businessType?: BusinessType | null } | null,
+    business: {
+      advanceTaxPercent?: number | null;
+      businessType?: BusinessType | null;
+      vatReportingType?: VATReportingType | null;
+    } | null,
   ): Promise<AdvanceIncomeTaxReportDto> {
     const advanceTaxPercent = business?.advanceTaxPercent != null ? Number(business.advanceTaxPercent) : 0;
 
-    const { totalTurnoverIncludingVat } = await this.getTotalTurnoverIncludingVatAndVatOnTurnover(
+    const income = await this.loadJournalIncomeSummary(
+      firebaseId,
       businessNumber,
       startDate,
       endDate,
-      BusinessType.EXEMPT,
+      business,
     );
-    const totalIncome = totalTurnoverIncludingVat;
+    const totalIncome = income.vatableTurnover + income.nonVatableTurnover;
     const taxWithholdingAtSource = await this.getWithholdingAtSourceSum(businessNumber, startDate, endDate);
-    const totalAdvanceTax = Math.round(totalTurnoverIncludingVat * (advanceTaxPercent / 100));
+    const totalAdvanceTax = Math.round(totalIncome * (advanceTaxPercent / 100));
     const totalToPay = totalAdvanceTax - taxWithholdingAtSource;
 
     return {
@@ -408,6 +425,50 @@ export class ReportsService {
     const totalInclVat = Number(regular?.totalInclVat ?? 0) - Number(credit?.totalInclVat ?? 0);
     const vatSum = Number(regular?.vat ?? 0) - Number(credit?.vat ?? 0);
     return { totalTurnoverIncludingVat: totalInclVat, vatOnTurnover: vatSum };
+  }
+
+  /**
+   * Income-side journal totals shared by the VAT and advance-income-tax
+   * reports. Keeping the account sums and period-membership rule here prevents
+   * the two reports from disagreeing for the same business and period.
+   */
+  private async loadJournalIncomeSummary(
+    firebaseId: string,
+    businessNumber: string,
+    startDate: Date,
+    endDate: Date,
+    business: {
+      businessType?: BusinessType | null;
+      vatReportingType?: VATReportingType | null;
+    } | null,
+  ): Promise<JournalIncomeSummary> {
+    const periodLabels = this.sharedService.expandPeriodLabelsInRange(
+      business?.businessType ?? BusinessType.LICENSED,
+      business?.vatReportingType ?? VATReportingType.NOT_REQUIRED,
+      startDate,
+      endDate,
+    );
+    const qb = this.JournalLineRepo.createQueryBuilder('jl')
+      .innerJoin(JournalEntry, 'je', 'je.id = jl.journalEntryId')
+      .where('je.issuerBusinessNumber = :businessNumber', { businessNumber })
+      .andWhere('je.firebaseId = :firebaseId', { firebaseId });
+    this.applyVatJournalPeriodFilter(qb, periodLabels, startDate, endDate);
+
+    const row = await qb
+      .select("SUM(CASE WHEN jl.accountCode = '40000' THEN jl.credit - jl.debit ELSE 0 END)", 'vatableTurnover')
+      .addSelect("SUM(CASE WHEN jl.accountCode = '40010' THEN jl.credit - jl.debit ELSE 0 END)", 'nonVatableTurnover')
+      .addSelect("SUM(CASE WHEN jl.accountCode = '2400' THEN jl.credit - jl.debit ELSE 0 END)", 'vatOnTurnover')
+      .getRawOne<{
+        vatableTurnover: string;
+        nonVatableTurnover: string;
+        vatOnTurnover: string;
+      }>();
+
+    return {
+      vatableTurnover: Number(row?.vatableTurnover ?? 0),
+      nonVatableTurnover: Number(row?.nonVatableTurnover ?? 0),
+      vatOnTurnover: Number(row?.vatOnTurnover ?? 0),
+    };
   }
 
   /** סך ניכוי מס במקור ממסמכים בתקופה */
@@ -570,28 +631,12 @@ export class ReportsService {
       business.businessType, business.vatReportingType, startDate, endDate,
     );
 
-    const qb = this.JournalLineRepo.createQueryBuilder('jl')
-      .innerJoin(JournalEntry, 'je', 'je.id = jl.journalEntryId')
-      .where('je.issuerBusinessNumber = :businessNumber', { businessNumber })
-      .andWhere('je.firebaseId = :firebaseId', { firebaseId });
-    this.applyVatJournalPeriodFilter(qb, periodLabels, startDate, endDate);
-
-    const [row, vatInputRows] = await Promise.all([
-      qb
-      // credit − debit so credit invoices (which post a DEBIT on 40000/40010/2400)
-      // correctly REVERSE the income / output VAT instead of adding to it.
-      .select("SUM(CASE WHEN jl.accountCode = '40000' THEN jl.credit - jl.debit ELSE 0 END)", 'vatableTurnover')
-      .addSelect("SUM(CASE WHEN jl.accountCode = '40010' THEN jl.credit - jl.debit ELSE 0 END)", 'nonVatableTurnover')
-      .addSelect("SUM(CASE WHEN jl.accountCode = '2400' THEN jl.credit - jl.debit ELSE 0 END)", 'outputVat')
-      .getRawOne<{
-        vatableTurnover: string; nonVatableTurnover: string; outputVat: string;
-      }>(),
+    const [incomeSummary, vatInputRows] = await Promise.all([
+      this.loadJournalIncomeSummary(firebaseId, businessNumber, startDate, endDate, business),
       this.loadVatInputBreakdown(firebaseId, businessNumber, startDate, endDate, periodLabels),
     ]);
 
-    const vatableTurnover = Number(row?.vatableTurnover ?? 0);
-    const nonVatableTurnover = Number(row?.nonVatableTurnover ?? 0);
-    const outputVat = Number(row?.outputVat ?? 0);
+    const { vatableTurnover, nonVatableTurnover, vatOnTurnover: outputVat } = incomeSummary;
     // The detail rows are the source of the two totals, so the visible
     // breakdown and summary cannot diverge. Sum in cents to avoid floating
     // point drift without performing a second expense-side audit query.

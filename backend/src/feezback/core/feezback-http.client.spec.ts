@@ -232,8 +232,11 @@ describe('FeezbackHttpClient – retry behaviour', () => {
     expect(trace.httpCalls[0]).toMatchObject({
       method: 'GET',
       attempt: 1,
+      status: 200,
       url: 'https://api.feezback.test/transactions?bookingStatus=booked&dateFrom=2026-08-01&dateTo=2026-08-31',
     });
+    expect(trace.httpCalls[0].receivedAt).toEqual(expect.any(String));
+    expect(trace.httpCalls[0].durationMs).toEqual(expect.any(Number));
     expect(trace.httpCalls[0].curl).toContain("--header 'Authorization: <REDACTED>'");
     expect(trace.httpCalls[0].curl).not.toContain('Bearer test-token');
   });

@@ -45,6 +45,8 @@ export interface AdminSubscription {
   userId: number | null;
   userName: string | null;
   userEmail: string | null;
+  hasOpenBanking: boolean;
+  lastLoginAt: string | null;
   businessId: number | null;
   businessName: string | null;
   planId: number | null;

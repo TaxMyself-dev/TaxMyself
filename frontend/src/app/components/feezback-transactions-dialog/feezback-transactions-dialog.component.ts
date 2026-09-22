@@ -4,9 +4,21 @@ import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule, Validators } 
 import { ButtonComponent } from '../button/button.component';
 import { InputDateComponent } from '../input-date/input-date.component';
 import { ButtonSize, ButtonColor } from '../button/button.enum';
-import { AdminFeezbackDateRangePullResult, AdminPanelService } from 'src/app/services/admin-panel.service';
+import {
+  AdminFeezbackDateRangePullResult,
+  AdminFeezbackSourcePullResult,
+  AdminFeezbackSourceSelection,
+  AdminPanelService,
+} from 'src/app/services/admin-panel.service';
 import { catchError, EMPTY, finalize } from 'rxjs';
 import { MessageService } from 'primeng/api';
+
+interface FeezbackSourceOption extends AdminFeezbackSourceSelection {
+  key: string;
+  label: string;
+  detail: string;
+  disabled: boolean;
+}
 
 @Component({
   selector: 'app-feezback-transactions-dialog',
@@ -29,6 +41,10 @@ export class FeezbackTransactionsDialogComponent implements OnInit {
   debugResult = signal<AdminFeezbackDateRangePullResult | null>(null);
   debugError = signal<any | null>(null);
   debugStartedAt = signal<string | null>(null);
+  sourcesLoading = signal(false);
+  sourcesError = signal<string | null>(null);
+  sourceOptions = signal<FeezbackSourceOption[]>([]);
+  selectedSourceKeys = signal<string[]>([]);
 
   buttonSize = ButtonSize;
   buttonColor = ButtonColor;
@@ -50,7 +66,76 @@ export class FeezbackTransactionsDialogComponent implements OnInit {
     });
   }
 
-  ngOnInit() {}
+  ngOnInit(): void {
+    this.loadSources();
+  }
+
+  private loadSources(): void {
+    if (!this.firebaseId()) return;
+    this.sourcesLoading.set(true);
+    this.sourcesError.set(null);
+    this.adminPanelService.getFeezbackSources(this.firebaseId())
+      .pipe(finalize(() => this.sourcesLoading.set(false)))
+      .subscribe({
+        next: data => {
+          const options: FeezbackSourceOption[] = [];
+          for (const account of data?.accounts?.accounts ?? []) {
+            if (!account?.resourceId) continue;
+            const suffix = account?.iban?.trim()?.slice(-7) ?? account.resourceId;
+            options.push({
+              key: `bank:${account.resourceId}`,
+              type: 'bank',
+              resourceId: account.resourceId,
+              label: `חשבון בנק ${suffix}`,
+              detail: [account?.name, account?.ownerName, account?.currency].filter(Boolean).join(' · '),
+              disabled: false,
+            });
+          }
+          for (const card of data?.cards?.cards ?? []) {
+            if (!card?.resourceId) continue;
+            const lastFour = card?.maskedPan?.match(/(\d{4})$/)?.[1] ?? card.resourceId;
+            const isDirect = !(Array.isArray(card?.balances) && card.balances.length > 0);
+            options.push({
+              key: `card:${card.resourceId}`,
+              type: 'card',
+              resourceId: card.resourceId,
+              label: `כרטיס אשראי ${lastFour}`,
+              detail: isDirect
+                ? 'כרטיס Direct — התנועות נטענות דרך חשבון הבנק'
+                : [card?.name, card?.ownerName, card?.currency].filter(Boolean).join(' · '),
+              disabled: isDirect,
+            });
+          }
+          this.sourceOptions.set(options);
+          this.selectedSourceKeys.set(options.filter(option => !option.disabled).map(option => option.key));
+        },
+        error: err => {
+          this.sourcesError.set(err?.error?.message ?? err?.message ?? 'טעינת החשבונות והכרטיסים נכשלה');
+        },
+      });
+  }
+
+  isSourceSelected(option: FeezbackSourceOption): boolean {
+    return this.selectedSourceKeys().includes(option.key);
+  }
+
+  toggleSource(option: FeezbackSourceOption, checked: boolean): void {
+    if (option.disabled) return;
+    const selected = new Set(this.selectedSourceKeys());
+    checked ? selected.add(option.key) : selected.delete(option.key);
+    this.selectedSourceKeys.set([...selected]);
+  }
+
+  selectAllSources(checked: boolean): void {
+    this.selectedSourceKeys.set(
+      checked ? this.sourceOptions().filter(option => !option.disabled).map(option => option.key) : [],
+    );
+  }
+
+  allSelectableSourcesSelected(): boolean {
+    const selectable = this.sourceOptions().filter(option => !option.disabled);
+    return selectable.length > 0 && selectable.every(option => this.isSourceSelected(option));
+  }
 
   onVisibleChange(visible: boolean): void {
     this.visibleChange.emit({ visible });
@@ -65,11 +150,56 @@ export class FeezbackTransactionsDialogComponent implements OnInit {
   }
 
   copyJson(value: unknown): void {
-    void navigator.clipboard.writeText(JSON.stringify(value, null, 2));
+    this.copyText(JSON.stringify(value, null, 2) ?? String(value));
   }
 
   copyText(value: string): void {
-    void navigator.clipboard.writeText(value);
+    void this.copyToClipboard(value);
+  }
+
+  private async copyToClipboard(value: string): Promise<void> {
+    let copied = false;
+
+    if (navigator.clipboard && window.isSecureContext) {
+      try {
+        await navigator.clipboard.writeText(value);
+        copied = true;
+      } catch {
+        // Some browsers expose Clipboard API but still deny it in dialogs/iframes.
+      }
+    }
+
+    if (!copied) {
+      copied = this.copyWithTextarea(value);
+    }
+
+    this.messageService.add({
+      severity: copied ? 'success' : 'error',
+      summary: copied ? 'הועתק' : 'ההעתקה נכשלה',
+      detail: copied ? 'הנתונים הועתקו ללוח' : 'הדפדפן חסם את הגישה ללוח ההעתקה',
+      life: 2500,
+      key: 'br',
+    });
+  }
+
+  private copyWithTextarea(value: string): boolean {
+    const textarea = document.createElement('textarea');
+    textarea.value = value;
+    textarea.setAttribute('readonly', '');
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    textarea.style.pointerEvents = 'none';
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+
+    try {
+      return document.execCommand('copy');
+    } catch {
+      return false;
+    } finally {
+      document.body.removeChild(textarea);
+    }
   }
 
   resultStatusLabel(result: AdminFeezbackDateRangePullResult): string {
@@ -79,6 +209,16 @@ export class FeezbackTransactionsDialogComponent implements OnInit {
     }
     if (result.status === 'partial') return 'המשיכה הסתיימה חלקית';
     return 'המשיכה נכשלה';
+  }
+
+  sourceStatusLabel(source: AdminFeezbackSourcePullResult): string {
+    if (source.status === 'success') return 'נטען בהצלחה';
+    if (source.status === 'skipped_direct') return 'לא נמשך — כרטיס Direct';
+    return 'המשיכה נכשלה';
+  }
+
+  discoveryHttpCalls(result: AdminFeezbackDateRangePullResult) {
+    return result.request.httpCalls.filter(call => !call.url.includes('/transactions'));
   }
 
   formatTimestamp(value: string | null | undefined): string {
@@ -91,7 +231,7 @@ export class FeezbackTransactionsDialogComponent implements OnInit {
   }
 
   onFetchTransactions(): void {
-    if (this.dateForm.invalid || !this.firebaseId()) {
+    if (this.dateForm.invalid || !this.firebaseId() || this.selectedSourceKeys().length === 0) {
       this.messageService.add({
         severity: 'error',
         summary: 'שגיאה',
@@ -140,11 +280,16 @@ export class FeezbackTransactionsDialogComponent implements OnInit {
     
     const startDate = normalizeDate(formValue.startDate);
     const endDate = normalizeDate(formValue.endDate);
+    const selectedKeys = new Set(this.selectedSourceKeys());
+    const selectedSources = this.sourceOptions()
+      .filter(option => selectedKeys.has(option.key))
+      .map(({ type, resourceId }) => ({ type, resourceId }));
     
     this.adminPanelService.fetchFeezbackTransactions(
       this.firebaseId(),
       startDate,
-      endDate
+      endDate,
+      selectedSources,
     )
       .pipe(
         finalize(() => this.isLoading.set(false)),

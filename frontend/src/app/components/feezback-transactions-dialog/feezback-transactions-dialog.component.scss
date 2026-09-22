@@ -57,6 +57,59 @@
       margin-bottom: 25px;
     }
 
+    .source-selection {
+      margin-bottom: 20px;
+      padding: 14px;
+      border: 1px solid #dbe3ef;
+      border-radius: 8px;
+      background: #f8fafc;
+
+      .source-selection-header,
+      .source-option {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .source-selection-header {
+        justify-content: space-between;
+        margin-bottom: 10px;
+      }
+
+      .select-all,
+      .source-option {
+        cursor: pointer;
+      }
+
+      .source-option {
+        padding: 8px 4px;
+        border-top: 1px solid #e2e8f0;
+
+        &.disabled {
+          cursor: not-allowed;
+          opacity: 0.6;
+        }
+      }
+
+      .source-label {
+        font-weight: 600;
+      }
+
+      .source-detail,
+      .source-message {
+        color: #64748b;
+        font-size: 13px;
+      }
+
+      .source-detail {
+        margin-inline-start: auto;
+      }
+
+      .source-error {
+        color: #b91c1c;
+      }
+    }
+
     .dialog-actions {
       display: flex;
       gap: 15px;
@@ -68,7 +121,8 @@
       padding: 14px;
       border: 1px solid #dbe3ef;
       border-radius: 8px;
-      background: #f8fafc;
+      background: #fff;
+      color: #111827;
 
       .debug-summary,
       .timestamps {
@@ -97,6 +151,62 @@
 
       details {
         margin-top: 10px;
+      }
+
+      .source-results h4 {
+        margin: 16px 0 6px;
+      }
+
+      .source-result {
+        padding: 10px;
+        border: 1px solid #cbd5e1;
+        border-radius: 7px;
+        background: #fff;
+        color: #111827;
+
+        summary {
+          flex-wrap: wrap;
+        }
+      }
+
+      .source-result-title {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+      }
+
+      .source-status {
+        margin-inline-start: auto;
+
+        &.success { color: #166534; }
+        &.failed { color: #b91c1c; }
+        &.skipped_direct { color: #64748b; }
+      }
+
+      .source-identifiers {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px 18px;
+        margin-top: 10px;
+        direction: ltr;
+        color: #475569;
+        font-size: 12px;
+      }
+
+      .source-payload {
+        margin-top: 10px;
+        background: #fff;
+        color: #111827;
+      }
+
+      .payload-title {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+
+        .copy-button {
+          margin-inline-start: auto;
+        }
       }
 
       summary {
@@ -141,8 +251,9 @@
         margin: 8px 0 0;
         padding: 12px;
         border-radius: 6px;
-        background: #0f172a;
-        color: #e2e8f0;
+        border: 1px solid #cbd5e1;
+        background: #fff;
+        color: #111827;
         text-align: left;
         white-space: pre-wrap;
         word-break: break-word;

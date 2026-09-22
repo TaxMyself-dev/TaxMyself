@@ -6,7 +6,7 @@ Admin-panel tab listing all end users/clients with subscription and open-banking
 - `clients-dashboard.component.html` — search bar, stats, `app-generic-table`, several `p-dialog`s for the above actions.
 
 ## Main flows
-- List & search users; view subscription status and open-banking connection state.
+- List & search users; view subscription status and open-banking connection state. The open-banking table column uses the shared boolean status icons instead of text.
 - Enter-as-user: `ClientPanelService.setSelectedClient()` + `AuthService.loadViewAsUserData()` then navigate to `/my-account` (same mechanism used for accountant delegation).
 - Pull a client's transactions from Feezback for a specific bank account/card source.
 - View a client's live accounts/cards from Feezback (diagnostic dialog).

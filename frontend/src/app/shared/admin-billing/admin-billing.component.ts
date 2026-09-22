@@ -19,12 +19,12 @@ interface SubTab {
 })
 export class AdminBillingComponent {
   readonly subTabs: SubTab[] = [
-    { label: 'תוכניות',      value: 'plans' },
     { label: 'מנויים',       value: 'subscriptions' },
+    { label: 'תוכניות',      value: 'plans' },
     { label: 'קבלות חסרות',  value: 'pendingReceipts' },
   ];
 
-  selectedSubTab = signal<string>('plans');
+  selectedSubTab = signal<string>('subscriptions');
 
   onSubTabChange(value: string): void {
     this.selectedSubTab.set(value);

@@ -138,6 +138,8 @@ export class BillingSubscriptionsComponent implements OnInit {
   readonly columnsTitle = computed<IColumnDataTable<string, string>[]>(() => [
     { name: 'userName',           value: 'שם משתמש',        type: FormTypes.TEXT },
     { name: 'businessName',       value: 'שם עסק',          type: FormTypes.TEXT },
+    { name: 'hasOpenBanking',     value: 'בנקאות פתוחה',    cellRenderer: ICellRenderer.CHECKBOX },
+    { name: 'lastLoginAtDisplay', value: 'כניסה אחרונה',     type: FormTypes.TEXT },
     { name: 'status',             value: 'סטטוס',           cellTemplate: this.statusTpl() },
     { name: 'planName',           value: 'תוכנית',          type: FormTypes.TEXT },
     { name: 'createdAt',          value: 'תאריך רישום',     type: FormTypes.DATE },
@@ -172,6 +174,10 @@ export class BillingSubscriptionsComponent implements OnInit {
       subscriptionId:          s.subscriptionId,
       userName:                s.userName ?? '—',
       businessName:            s.businessName ?? '—',
+      hasOpenBanking:          s.hasOpenBanking,
+      lastLoginAtDisplay:      s.lastLoginAt
+        ? this.datePipe.transform(s.lastLoginAt, 'dd/MM/yyyy HH:mm') ?? '—'
+        : '—',
       status:                  s.status,
       planName:                adminPlanDisplayName({ name: s.planName, slug: s.planSlug }) ?? 'ללא תוכנית',
       trialEnd:                s.trialEnd,

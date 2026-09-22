@@ -10,14 +10,24 @@ describe('FeezbackService admin date-range diagnostics', () => {
       {
         withDebugTrace: async (operation: () => Promise<any>) => ({
           result: await operation(),
-          httpCalls: [{
-            sentAt: '2026-01-01T00:00:00.000Z',
-            method: 'GET',
-            url: 'https://api.feezback.example/transactions',
-            attempt: 1,
-            maxAttempts: 3,
-            curl: "curl --request GET --header 'Authorization: <REDACTED>'",
-          }],
+          httpCalls: [
+            {
+              sentAt: '2026-01-01T00:00:00.000Z',
+              method: 'GET',
+              url: 'https://api.feezback.example/accounts/bank-resource/transactions',
+              attempt: 1,
+              maxAttempts: 3,
+              curl: "curl --request GET --url 'bank-resource' --header 'Authorization: <REDACTED>'",
+            },
+            {
+              sentAt: '2026-01-01T00:00:01.000Z',
+              method: 'GET',
+              url: 'https://api.feezback.example/cards/card-resource/transactions',
+              attempt: 1,
+              maxAttempts: 3,
+              curl: "curl --request GET --url 'card-resource' --header 'Authorization: <REDACTED>'",
+            },
+          ],
         }),
       } as any,
       {} as any,
@@ -34,11 +44,19 @@ describe('FeezbackService admin date-range diagnostics', () => {
       normalizedTransactions: [{ externalTransactionId: 'bank-1' }],
       transactions: [{ transactionId: 'bank-1' }],
       bankErrors: [],
+      sourceResults: [{
+        type: 'bank', sourceId: 'bank-1', displayName: 'Bank', resourceId: 'bank-resource',
+        consentId: 'bank-consent', status: 'success', transactionCount: 1, response: {}, error: null,
+      }],
     };
     const cardResponse = {
       normalizedTransactions: [{ externalTransactionId: 'card-1' }],
       cards: [{ rawResponse: { booked: [{ cardTransactionId: 'card-1' }] } }],
       cardErrors: [],
+      sourceResults: [{
+        type: 'card', sourceId: '1234', displayName: 'Card', resourceId: 'card-resource',
+        consentId: 'card-consent', status: 'success', transactionCount: 1, response: {}, error: null,
+      }],
     };
     jest.spyOn(service, 'getAndSaveBankTransactions').mockResolvedValue(bankResponse);
     jest.spyOn(service, 'getAndSaveUserCardTransactions').mockResolvedValue(cardResponse);
@@ -51,6 +69,11 @@ describe('FeezbackService admin date-range diagnostics', () => {
       'firebase-user',
       '2026-01-01',
       '2026-01-31',
+      'booked',
+      [
+        { type: 'bank', resourceId: 'bank-resource' },
+        { type: 'card', resourceId: 'card-resource' },
+      ],
     );
 
     expect(service.getAndSaveBankTransactions).toHaveBeenCalledWith(
@@ -59,6 +82,7 @@ describe('FeezbackService admin date-range diagnostics', () => {
       'booked',
       '2026-01-01',
       '2026-01-31',
+      ['bank-resource'],
     );
     expect(service.persistNormalizedTransactions).toHaveBeenCalledWith(
       'firebase-user',
@@ -66,6 +90,14 @@ describe('FeezbackService admin date-range diagnostics', () => {
         expect.objectContaining({ externalTransactionId: 'bank-1' }),
         expect.objectContaining({ externalTransactionId: 'card-1' }),
       ]),
+    );
+    expect(service.getAndSaveUserCardTransactions).toHaveBeenCalledWith(
+      'firebase-user',
+      'firebase-user_sub',
+      'booked',
+      '2026-01-01',
+      '2026-01-31',
+      ['card-resource'],
     );
     expect(result).toMatchObject({
       status: 'success',
@@ -76,6 +108,10 @@ describe('FeezbackService admin date-range diagnostics', () => {
         card: expect.objectContaining({ cards: cardResponse.cards }),
         errors: [],
       },
+      sourceResults: expect.arrayContaining([
+        expect.objectContaining({ type: 'bank', resourceId: 'bank-resource', sub: 'firebase-user_sub' }),
+        expect.objectContaining({ type: 'card', resourceId: 'card-resource', sub: 'firebase-user_sub' }),
+      ]),
     });
     expect((result.response.bank as any).normalizedTransactions).toBeUndefined();
     expect((result.response.card as any).normalizedTransactions).toBeUndefined();
@@ -83,6 +119,8 @@ describe('FeezbackService admin date-range diagnostics', () => {
     expect(result.response.receivedAt).toEqual(expect.any(String));
     expect(result.response.durationMs).toEqual(expect.any(Number));
     expect(result.request.httpCalls[0].curl).toContain('Authorization: <REDACTED>');
+    expect(result.sourceResults.find(source => source.type === 'bank')?.httpCalls).toHaveLength(1);
+    expect(result.sourceResults.find(source => source.type === 'card')?.httpCalls).toHaveLength(1);
     expect(JSON.stringify(result.request)).not.toContain('secret-token');
   });
 
@@ -91,6 +129,10 @@ describe('FeezbackService admin date-range diagnostics', () => {
       normalizedTransactions: [],
       transactions: [],
       bankErrors: [],
+      sourceResults: [{
+        type: 'bank', sourceId: 'bank-1', displayName: 'Bank', resourceId: 'bank-resource',
+        consentId: 'bank-consent', status: 'success', transactionCount: 0, response: {}, error: null,
+      }],
     });
     jest.spyOn(service, 'getAndSaveUserCardTransactions').mockRejectedValue({
       name: 'FeezbackHttpError',
@@ -107,6 +149,11 @@ describe('FeezbackService admin date-range diagnostics', () => {
       'firebase-user',
       '2026-02-01',
       '2026-02-28',
+      'booked',
+      [
+        { type: 'bank', resourceId: 'bank-resource' },
+        { type: 'card', resourceId: 'card-resource' },
+      ],
     );
 
     expect(result.status).toBe('partial');

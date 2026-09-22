@@ -39,7 +39,7 @@ Free ngrok URLs change on every restart. After restarting the tunnel:
 
 Symptom of a stale/dead tunnel: the change-payment-method dialog sits in "still processing", nothing appears in `cardcom_webhook_log`, and the only trace is a `PAYMENT_METHOD_UPDATE_REQUESTED` billing event. The reconciliation fallback now recovers these automatically after ~20s (the backend logs a warning naming this env var), but the underlying tunnel must still be fixed — reconciliation is a safety net, not a substitute for webhook delivery, and the CHECKOUT flow has no equivalent fallback.
 - `POST /billing/events/:eventId/receipt/resend-email` / `/generate` — resend or backfill a payment receipt.
-- `/admin/billing/*` — admin plan CRUD (create/update/activate/deactivate), subscription discount edits, manual/forced renewal triggers (mirrors the daily 03:00 cron in `SubscriptionRenewalService`).
+- `/admin/billing/*` — admin plan CRUD (create/update/activate/deactivate), subscription discount edits, manual/forced renewal triggers (mirrors the daily 03:00 cron in `SubscriptionRenewalService`). The subscription list enriches billing rows with the user's current `hasOpenBanking` flag and `lastLoginAt` timestamp.
 
 ## Admin trial-end override
 

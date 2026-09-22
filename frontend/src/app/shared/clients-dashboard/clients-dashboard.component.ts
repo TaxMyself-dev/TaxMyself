@@ -7,7 +7,7 @@ import { AuthService } from 'src/app/services/auth.service';
 import { ClientPanelService } from 'src/app/services/clients-panel.service';
 import { catchError, EMPTY, finalize, forkJoin } from 'rxjs';
 import { IColumnDataTable, IRowDataTable, ITableRowAction } from 'src/app/shared/interface';
-import { FormTypes } from 'src/app/shared/enums';
+import { FormTypes, ICellRenderer } from 'src/app/shared/enums';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 
@@ -135,7 +135,7 @@ export class ClientsDashboardComponent implements OnInit {
     { name: 'fullName', value: 'שם מלא', type: FormTypes.TEXT },
     { name: 'email', value: 'אימייל', type: FormTypes.TEXT },
     { name: 'phone', value: 'טלפון', type: FormTypes.TEXT },
-    { name: 'openBankingStatus', value: 'בנקאות פתוחה', type: FormTypes.TEXT },
+    { name: 'hasOpenBanking', value: 'בנקאות פתוחה', cellRenderer: ICellRenderer.CHECKBOX },
     { name: 'payStatus', value: 'סטטוס תשלום', type: FormTypes.TEXT },
     { name: 'generalDocumentsCount', value: 'מסמכים (כללי)', type: FormTypes.NUMBER },
     { name: 'createdAt', value: 'תאריך רישום', type: FormTypes.DATE },
@@ -244,7 +244,6 @@ export class ClientsDashboardComponent implements OnInit {
             ...user,
             fullName: `${user.fName || ''} ${user.lName || ''}`.trim(),
             payStatus: this.getSubscriptionStatusLabel(subscription?.status),
-            openBankingStatus: user.hasOpenBanking ? 'מחובר' : 'לא מחובר',
             generalDocumentsCount:
               user.generalDocumentsCount != null ? Number(user.generalDocumentsCount) : 0,
           };

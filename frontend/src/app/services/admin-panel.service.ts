@@ -40,14 +40,22 @@ export class AdminPanelService {
     firebaseId: string,
     startDate: string,
     endDate: string,
+    selectedSources: AdminFeezbackSourceSelection[],
   ): Observable<AdminFeezbackDateRangePullResult> {
     const url = `${environment.apiUrl}feezback/admin-user-transactions`;
-    const params = new HttpParams()
-      .set('firebaseId', firebaseId)
-      .set('dateFrom', startDate)
-      .set('dateTo', endDate)
-      .set('bookingStatus', 'booked');
-    return this.http.get<AdminFeezbackDateRangePullResult>(url, { params });
+    return this.http.post<AdminFeezbackDateRangePullResult>(url, {
+      firebaseId,
+      dateFrom: startDate,
+      dateTo: endDate,
+      bookingStatus: 'booked',
+      selectedSources,
+    });
+  }
+
+  getFeezbackSources(firebaseId: string): Observable<AdminFeezbackSourcesResponse> {
+    return this.http.get<AdminFeezbackSourcesResponse>(
+      `${environment.apiUrl}feezback/admin/accounts/${firebaseId}`,
+    );
   }
 
   clearUserCache(firebaseId: string): Observable<any> {
@@ -140,6 +148,9 @@ export interface AdminFeezbackDateRangePullResult {
     userIdentifier: string;
     httpCalls: Array<{
       sentAt: string;
+      receivedAt?: string;
+      durationMs?: number;
+      status?: number;
       method: 'GET' | 'POST';
       url: string;
       attempt: number;
@@ -160,9 +171,32 @@ export interface AdminFeezbackDateRangePullResult {
     card: any | null;
     errors: Array<Record<string, unknown>>;
   };
+  sourceResults: AdminFeezbackSourcePullResult[];
   totalTransactions: number;
   databaseSaveResult: { saved: number; skipped: number } | null;
   databaseSaveError?: string;
+}
+
+export interface AdminFeezbackSourceSelection {
+  type: 'bank' | 'card';
+  resourceId: string;
+}
+
+export interface AdminFeezbackSourcePullResult extends AdminFeezbackSourceSelection {
+  sub: string;
+  sourceId: string;
+  displayName: string;
+  consentId: string | null;
+  status: 'success' | 'failed' | 'skipped_direct';
+  transactionCount: number;
+  httpCalls: AdminFeezbackDateRangePullResult['request']['httpCalls'];
+  response: unknown;
+  error: unknown;
+}
+
+export interface AdminFeezbackSourcesResponse {
+  accounts: { accounts?: any[] } | null;
+  cards: { cards?: any[] } | null;
 }
 
 export interface DemoSubUser {

@@ -38,6 +38,19 @@ export interface AdminFeezbackDateRangePullResult {
     card: any | null;
     errors: Array<Record<string, unknown>>;
   };
+  sourceResults: Array<{
+    type: 'bank' | 'card';
+    sub: string;
+    sourceId: string;
+    displayName: string;
+    resourceId: string;
+    consentId: string | null;
+    status: 'success' | 'failed' | 'skipped_direct';
+    transactionCount: number;
+    httpCalls: FeezbackDebugHttpCall[];
+    response: unknown;
+    error: unknown;
+  }>;
   totalTransactions: number;
   databaseSaveResult: { saved: number; skipped: number } | null;
   databaseSaveError?: string;
@@ -111,6 +124,7 @@ export class FeezbackService {
     dateFrom: string,
     dateTo: string,
     bookingStatus: string = 'booked',
+    selectedSources: Array<{ type: 'bank' | 'card'; resourceId: string }> = [],
   ): Promise<AdminFeezbackDateRangePullResult> {
     const sub = `${firebaseId}_sub`;
     const sentAt = new Date();
@@ -122,15 +136,28 @@ export class FeezbackService {
       httpCalls: [],
       // The user-level pull fans out to one Feezback transaction request per
       // valid source. These entries describe the filters shared by that fan-out.
-      requests: [
-        { method: 'GET', operation: 'bank-transactions', scope: 'all valid bank accounts', query },
-        { method: 'GET', operation: 'card-transactions', scope: 'all valid non-direct cards', query },
-      ],
+      requests: selectedSources.map(source => ({
+        method: 'GET' as const,
+        operation: source.type === 'bank' ? 'bank-transactions' as const : 'card-transactions' as const,
+        scope: source.resourceId,
+        query,
+      })),
     };
 
+    const bankResourceIds = selectedSources
+      .filter(source => source.type === 'bank')
+      .map(source => source.resourceId);
+    const cardResourceIds = selectedSources
+      .filter(source => source.type === 'card')
+      .map(source => source.resourceId);
+
     const traced = await this.feezbackApiService.withDebugTrace(() => Promise.allSettled([
-      this.getAndSaveBankTransactions(firebaseId, sub, bookingStatus, dateFrom, dateTo),
-      this.getAndSaveUserCardTransactions(firebaseId, sub, bookingStatus, dateFrom, dateTo),
+      bankResourceIds.length > 0
+        ? this.getAndSaveBankTransactions(firebaseId, sub, bookingStatus, dateFrom, dateTo, bankResourceIds)
+        : Promise.resolve({ normalizedTransactions: [], sourceResults: [], bankErrors: [] }),
+      cardResourceIds.length > 0
+        ? this.getAndSaveUserCardTransactions(firebaseId, sub, bookingStatus, dateFrom, dateTo, cardResourceIds)
+        : Promise.resolve({ normalizedTransactions: [], sourceResults: [], cardErrors: [] }),
     ]));
     request.httpCalls = traced.httpCalls;
     const [bankResult, cardResult] = traced.result;
@@ -182,8 +209,45 @@ export class FeezbackService {
       errors.push({ operation: 'database-save', message: databaseSaveError });
     }
 
+    const sourceResults = [
+      ...(bank?.sourceResults ?? []),
+      ...(card?.sourceResults ?? []),
+    ].map((source: any) => ({
+      ...source,
+      sub,
+      httpCalls: traced.httpCalls.filter(call =>
+        call.url.includes(`/${source.type === 'bank' ? 'accounts' : 'cards'}/${source.resourceId}/transactions`),
+      ),
+    }));
+    const returnedSourceKeys = new Set(
+      sourceResults.map(source => `${source.type}:${source.resourceId}`),
+    );
+    for (const selected of selectedSources) {
+      if (returnedSourceKeys.has(`${selected.type}:${selected.resourceId}`)) continue;
+      const error = {
+        code: 'SOURCE_NOT_RETURNED',
+        message: `The selected ${selected.type} source was not returned by Feezback`,
+      };
+      errors.push({ operation: `${selected.type}-transactions`, resourceId: selected.resourceId, ...error });
+      sourceResults.push({
+        type: selected.type,
+        sub,
+        sourceId: selected.resourceId,
+        displayName: selected.resourceId,
+        resourceId: selected.resourceId,
+        consentId: null,
+        status: 'failed',
+        transactionCount: 0,
+        httpCalls: traced.httpCalls.filter(call =>
+          call.url.includes(selected.type === 'bank' ? '/accounts' : '/cards'),
+        ),
+        response: null,
+        error,
+      });
+    }
+
     const receivedAt = new Date();
-    const providerFailedCompletely = bank === null && card === null;
+    const providerFailedCompletely = sourceResults.every(source => source.status === 'failed');
     const status: AdminFeezbackDateRangePullResult['status'] = providerFailedCompletely
       ? 'failed'
       : errors.length > 0
@@ -200,6 +264,7 @@ export class FeezbackService {
         card: this.sanitizeAdminProviderResult(card),
         errors,
       },
+      sourceResults,
       totalTransactions: normalizedTransactions.length,
       databaseSaveResult,
       ...(databaseSaveError ? { databaseSaveError } : {}),
@@ -689,7 +754,7 @@ export class FeezbackService {
     bookingStatus: string = 'booked',
     dateFrom?: string,
     dateTo?: string,
-    cardResourceId?: string,
+    cardResourceIds?: string | string[],
   ): Promise<any> {
     const tCard = Date.now();
 
@@ -699,6 +764,9 @@ export class FeezbackService {
       preventUpdate: true,
     });
     const cards = this.dedupeCardsPreferActive(cardsResponse?.cards);
+    const selectedCardIds = cardResourceIds
+      ? new Set(Array.isArray(cardResourceIds) ? cardResourceIds : [cardResourceIds])
+      : null;
     // const cards = cardsResponse?.cards || [];
     // The cards fetch above succeeded WITH balances (withBalances: true), so
     // the Direct determination is authoritative here — persist it on the
@@ -720,7 +788,9 @@ export class FeezbackService {
     // Direct/Debit cards: intentionally skipped — their transactions arrive
     // through the bank-account feed. Excluded BEFORE the transaction fetch so
     // not even a first sync can import a duplicate from the card feed.
-    const directCards = (cards ?? []).filter((card: any) => this.determineIsDirect(card));
+    const directCards = (cards ?? []).filter((card: any) =>
+      this.determineIsDirect(card) && (!selectedCardIds || selectedCardIds.has(card?.resourceId)),
+    );
     const directCardsResult = directCards
       .map((card: any) => {
         const rawId = card?.maskedPan?.match(/(\d{4})$/)?.[1];
@@ -743,8 +813,8 @@ export class FeezbackService {
     }
 
     const syncableCards = (cards ?? []).filter((card: any) => !this.determineIsDirect(card));
-    const filteredCards = cardResourceId
-      ? syncableCards.filter(card => card?.resourceId === cardResourceId)
+    const filteredCards = selectedCardIds
+      ? syncableCards.filter(card => selectedCardIds.has(card?.resourceId))
       : syncableCards;
 
     const cardInfoMap: Record<string, any> = {};
@@ -912,6 +982,38 @@ export class FeezbackService {
       },
     };
 
+    const cardSourceResults = cardFetchResults
+      .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
+      .map((entry: any) => {
+        const maskedPan: string = entry.card?.maskedPan ?? '';
+        const rawId = maskedPan.match(/(\d{4})$/)?.[1] ?? entry.cardId;
+        return {
+          type: 'card' as const,
+          sourceId: this.deriveSourceName(rawId, entry.card?.currency),
+          displayName: entry.cardName,
+          resourceId: entry.cardId,
+          consentId: entry.consentId ?? null,
+          status: entry.failed ? 'failed' as const : 'success' as const,
+          transactionCount: entry.transactions?.length ?? 0,
+          response: entry.failed ? entry.err?.responseData ?? null : entry.rawResponse ?? null,
+          error: entry.failed ? entry.err : null,
+        };
+      });
+
+    const selectedDirectCardResults = directCardsResult
+      .filter(card => !selectedCardIds || selectedCardIds.has(card.cardResourceId))
+      .map(card => ({
+        type: 'card' as const,
+        sourceId: card.sourceId,
+        displayName: card.displayName,
+        resourceId: card.cardResourceId,
+        consentId: card.consentId ?? null,
+        status: 'skipped_direct' as const,
+        transactionCount: 0,
+        response: null,
+        error: null,
+      }));
+
     const result = {
       asOf: new Date().toISOString(),
       bookingStatus,
@@ -938,6 +1040,7 @@ export class FeezbackService {
       processingError,
       cards: cardsResult,
       cardErrors,
+      sourceResults: [...cardSourceResults, ...selectedDirectCardResults],
 
       syncSummary,
     };
@@ -980,7 +1083,7 @@ export class FeezbackService {
     bookingStatus: string = 'booked',
     dateFrom?: string,
     dateTo?: string,
-    cardResourceId?: string,
+    cardResourceIds?: string | string[],
   ): Promise<any> {
     const key = `${userId}:${sub}:cards`;
 
@@ -999,7 +1102,7 @@ export class FeezbackService {
           bookingStatus,
           dateFrom,
           dateTo,
-          cardResourceId,
+          cardResourceIds,
         );
       } finally {
         this.runningCardSyncByUser.delete(key);
@@ -1044,6 +1147,7 @@ export class FeezbackService {
     bookingStatus: string = 'booked',
     dateFrom?: string,
     dateTo?: string,
+    accountResourceIds?: string[],
   ): Promise<any> {
     const tBank = Date.now();
 
@@ -1062,6 +1166,7 @@ export class FeezbackService {
           totalTransactions: 0,
           transactionsByAccount: {},
           normalizedTransactions: [],
+          sourceResults: [],
           error: 'CONSENT_REQUIRED',
           message: 'User accounts not found. Please complete the Feezback consent flow first.',
         };
@@ -1074,7 +1179,7 @@ export class FeezbackService {
     // Guard: skip accounts whose consent is not valid (expired, revoked, etc.).
     // withInvalid=false already asks the API to omit them, but we add a defensive
     // client-side check so we never process stale/invalid data regardless of API behaviour.
-    const accounts = rawAccounts.filter((acc: any) => {
+    const validAccounts = rawAccounts.filter((acc: any) => {
       if (acc.consentStatus && acc.consentStatus !== 'valid') {
         this.logger.warn(`[BankFetch] Skipping account "${acc.iban?.slice(-7) ?? acc.name}" — consentStatus=${acc.consentStatus}`);
         return false;
@@ -1085,6 +1190,10 @@ export class FeezbackService {
       }
       return true;
     });
+    const selectedAccountIds = accountResourceIds ? new Set(accountResourceIds) : null;
+    const accounts = selectedAccountIds
+      ? validAccounts.filter((account: any) => selectedAccountIds.has(account?.resourceId))
+      : validAccounts;
 
     const bankUpsertItems = accounts
       .map((acc: any) => {
@@ -1107,6 +1216,7 @@ export class FeezbackService {
         totalTransactions: 0,
         transactionsByAccount: {},
         normalizedTransactions: [],
+        sourceResults: [],
       };
     }
 
@@ -1120,7 +1230,7 @@ export class FeezbackService {
         try {
           if (!account._links?.transactions?.href) {
             this.logger.warn(`[BankFetch] Account "${account.iban?.slice(-7) ?? account.name}" has no transactions link — skipping (not yet provisioned)`);
-            return { account, transactions: [] as any[], failed: false, error: null };
+            return { account, transactions: [] as any[], rawResponse: null, failed: false, error: null };
           }
           const transactionsResponse = await this.feezbackApiService.getAccountTransactions(
             sub,
@@ -1139,13 +1249,13 @@ export class FeezbackService {
             __accountIban: account.iban ?? null,
             __accountCurrency: account.currency ?? null,
           }));
-          return { account, transactions, failed: false, error: null };
+          return { account, transactions, rawResponse: transactionsResponse, failed: false, error: null };
         } catch (error: any) {
           this.logger.error(
             `[BankFetch] Account failed | account=${account.iban?.slice(-7) ?? account.name} | status=${error?.status ?? 'unknown'} | error=${error.message}`,
             error.stack,
           );
-          return { account, transactions: [] as any[], failed: true, error };
+          return { account, transactions: [] as any[], rawResponse: null, failed: true, error };
         }
       },
     );
@@ -1214,6 +1324,26 @@ export class FeezbackService {
       });
     });
 
+    const bankSourceResults = (accountFetchResults as any[]).map(entry => {
+      const account = entry.account;
+      const resourceId = account?.resourceId ?? account?.iban ?? account?.name ?? 'unknown';
+      const rawId = account?.iban?.trim().slice(-7) ?? resourceId;
+      const errorDetails = entry.failed ? this.serializeAdminPullError(entry.error) : null;
+      return {
+        type: 'bank' as const,
+        sourceId: this.deriveSourceName(rawId, account?.currency),
+        displayName: account?.name ?? account?.ownerName ?? account?.iban ?? resourceId,
+        resourceId,
+        consentId: account?.consentId ?? account?.relatedConsents?.[0]?.resourceId ?? null,
+        status: entry.failed ? 'failed' as const : 'success' as const,
+        transactionCount: entry.transactions?.length ?? 0,
+        response: entry.failed
+          ? (entry.error?.responseBody ?? entry.error?.response?.data ?? null)
+          : entry.rawResponse,
+        error: errorDetails,
+      };
+    });
+
     const response: any = {
       transactions: allTransactions,
       accountsProcessed: Object.keys(accountTransactionsMap).length,
@@ -1222,6 +1352,7 @@ export class FeezbackService {
       totalTransactions: allTransactions.length,
       transactionsByAccount: accountTransactionsMap,
       accountInfoMap,
+      sourceResults: bankSourceResults,
       savedFiles: [],
     };
 

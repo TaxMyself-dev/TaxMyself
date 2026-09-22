@@ -23,6 +23,9 @@ interface RequestOptions {
 
 export interface FeezbackDebugHttpCall {
   sentAt: string;
+  receivedAt?: string;
+  durationMs?: number;
+  status?: number;
   method: 'GET' | 'POST';
   url: string;
   attempt: number;
@@ -80,14 +83,15 @@ export class FeezbackHttpClient {
       };
 
       const sentAt = Date.now();
-      this.debugTrace.getStore()?.push({
+      const traceEntry: FeezbackDebugHttpCall = {
         sentAt: new Date(sentAt).toISOString(),
         method,
         url,
         attempt: attempt + 1,
         maxAttempts: maxRetries + 1,
         curl: this.buildRedactedCurl(method, url, headers, body),
-      });
+      };
+      this.debugTrace.getStore()?.push(traceEntry);
       console.log(`→ [Feezback] ${method} ${endpoint} sent at ${new Date(sentAt).toISOString()} (attempt ${attempt + 1}/${maxRetries + 1}) url=${url}`);
 
       try {
@@ -98,11 +102,18 @@ export class FeezbackHttpClient {
         );
 
         const durationMs = Date.now() - sentAt;
+        traceEntry.receivedAt = new Date(sentAt + durationMs).toISOString();
+        traceEntry.durationMs = durationMs;
+        traceEntry.status = response.status;
         console.log(`← [Feezback] ${endpoint} — status=${response.status} | ${durationMs}ms | body=${this.snippet(response.data)}`);
 
         return response.data;
       } catch (rawError) {
         const mapped = toFeezbackHttpError(method, url, rawError);
+        const failedAt = Date.now();
+        traceEntry.receivedAt = new Date(failedAt).toISOString();
+        traceEntry.durationMs = failedAt - sentAt;
+        traceEntry.status = mapped.status;
 
         const rateLimit = isRateLimitError(mapped);
         const shouldRetry = isRetryableFeezbackError(mapped);

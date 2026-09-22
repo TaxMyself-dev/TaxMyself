@@ -39,6 +39,8 @@ export interface AdminSubscriptionResponse {
   userId: number | null;
   userName: string | null;
   userEmail: string | null;
+  hasOpenBanking: boolean;
+  lastLoginAt: Date | null;
   businessId: number | null;
   businessName: string | null;
   planId: number | null;
@@ -191,7 +193,14 @@ export class AdminBillingService {
     const firebaseIds = [...new Set(raw.map(r => r.firebaseId as string))].filter(Boolean);
 
     // Q2: users keyed by firebaseId
-    const userMap = new Map<string, { userId: number; fName: string; lName: string; email: string }>();
+    const userMap = new Map<string, {
+      userId: number;
+      fName: string;
+      lName: string;
+      email: string;
+      hasOpenBanking: boolean;
+      lastLoginAt: Date | null;
+    }>();
     if (firebaseIds.length > 0) {
       const users: any[] = await this.dataSource
         .createQueryBuilder()
@@ -200,6 +209,8 @@ export class AdminBillingService {
         .addSelect('u.fName',   'fName')
         .addSelect('u.lName',   'lName')
         .addSelect('u.email',   'email')
+        .addSelect('u.hasOpenBanking', 'hasOpenBanking')
+        .addSelect('u.lastLoginAt', 'lastLoginAt')
         .from(User, 'u')
         .where('u.firebaseId IN (:...ids)', { ids: firebaseIds })
         .getRawMany();
@@ -250,6 +261,8 @@ export class AdminBillingService {
         userId:             user ? Number(user.userId) : null,
         userName:           user ? `${user.fName ?? ''} ${user.lName ?? ''}`.trim() || null : null,
         userEmail:          user?.email ?? null,
+        hasOpenBanking:     Number(user?.hasOpenBanking ?? 0) === 1,
+        lastLoginAt:        user?.lastLoginAt ?? null,
         businessId:         biz ? Number(biz.id) : null,
         businessName:       biz?.businessName ?? null,
         planId:             r.planId != null ? Number(r.planId) : null,

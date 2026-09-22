@@ -7,7 +7,7 @@ Report page that shows a business's advance income tax ("מקדמות מס") com
 - `advance-income-tax-report.module.ts` / `-routing.module.ts` — standard Ionic page module/route wiring, uses shared `FilterTabComponent`.
 
 ## Main flows
-- User selects a business and a monthly/bimonthly period, then clicks "הצג" to fetch and display the report (values are cleared automatically whenever a filter changes, before re-fetching).
+- User selects a business and a monthly/bimonthly period, then clicks "הצג" to fetch and display the report (values are cleared automatically whenever a filter changes, before re-fetching). Automatic turnover/income figures come from the same journal summary and reporting-period membership as the VAT report.
 - Report field set and labels adapt based on `businessType` (`EXEMPT` vs. licensed) returned from the backend.
 
 ## Related topics

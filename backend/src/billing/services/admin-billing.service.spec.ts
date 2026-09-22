@@ -97,3 +97,67 @@ describe('AdminBillingService.updateSubscriptionTrialEnd', () => {
     });
   });
 });
+
+describe('AdminBillingService.findAllSubscriptions', () => {
+  const queryBuilder = (rows: any[]) => {
+    const builder: any = {
+      select: jest.fn(),
+      addSelect: jest.fn(),
+      from: jest.fn(),
+      leftJoin: jest.fn(),
+      where: jest.fn(),
+      orderBy: jest.fn(),
+      getRawMany: jest.fn().mockResolvedValue(rows),
+    };
+    Object.keys(builder)
+      .filter(key => key !== 'getRawMany')
+      .forEach(key => builder[key].mockReturnValue(builder));
+    return builder;
+  };
+
+  it('includes open-banking and latest-login user details in subscription rows', async () => {
+    const lastLoginAt = new Date('2026-09-21T17:45:00.000Z');
+    const subscriptionQuery = queryBuilder([{
+      subscriptionId: 42,
+      firebaseId: 'client-42',
+      status: SubscriptionStatus.TRIAL,
+      planId: null,
+      nextBillingDate: null,
+      createdAt: new Date('2026-09-01T00:00:00.000Z'),
+      cardLast4: null,
+    }]);
+    const userQuery = queryBuilder([{
+      firebaseId: 'client-42',
+      userId: 7,
+      fName: 'Test',
+      lName: 'User',
+      email: 'test@example.com',
+      hasOpenBanking: 1,
+      lastLoginAt,
+    }]);
+    const businessQuery = queryBuilder([]);
+    const dataSource = {
+      createQueryBuilder: jest.fn()
+        .mockReturnValueOnce(subscriptionQuery)
+        .mockReturnValueOnce(userQuery)
+        .mockReturnValueOnce(businessQuery),
+    } as unknown as DataSource;
+    const service = new AdminBillingService(
+      {} as any,
+      {} as any,
+      dataSource,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
+
+    const [result] = await service.findAllSubscriptions();
+
+    expect(result.hasOpenBanking).toBe(true);
+    expect(result.lastLoginAt).toEqual(lastLoginAt);
+    expect(userQuery.addSelect).toHaveBeenCalledWith('u.hasOpenBanking', 'hasOpenBanking');
+    expect(userQuery.addSelect).toHaveBeenCalledWith('u.lastLoginAt', 'lastLoginAt');
+  });
+});

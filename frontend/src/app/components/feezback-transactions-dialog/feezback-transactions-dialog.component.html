@@ -22,6 +22,37 @@
       </app-input-date>
     </form>
 
+    <section class="source-selection">
+      <div class="source-selection-header">
+        <strong>חשבונות וכרטיסים למשיכה</strong>
+        <label *ngIf="sourceOptions().length > 0" class="select-all">
+          <input type="checkbox"
+                 [checked]="allSelectableSourcesSelected()"
+                 [disabled]="isLoading()"
+                 (change)="selectAllSources($any($event.target).checked)" />
+          בחר הכול
+        </label>
+      </div>
+
+      <div *ngIf="sourcesLoading()" class="source-message">טוען חשבונות וכרטיסים מ־Feezback...</div>
+      <div *ngIf="sourcesError() as error" class="source-message source-error">{{ error }}</div>
+      <div *ngIf="!sourcesLoading() && !sourcesError() && sourceOptions().length === 0" class="source-message">
+        לא נמצאו חשבונות או כרטיסים זמינים למשיכה.
+      </div>
+
+      <label *ngFor="let source of sourceOptions()"
+             class="source-option"
+             [class.disabled]="source.disabled">
+        <input type="checkbox"
+               [checked]="isSourceSelected(source)"
+               [disabled]="source.disabled || isLoading()"
+               (change)="toggleSource(source, $any($event.target).checked)" />
+        <i [class]="source.type === 'bank' ? 'pi pi-building' : 'pi pi-credit-card'"></i>
+        <span class="source-label">{{ source.label }}</span>
+        <span class="source-detail">{{ source.detail }}</span>
+      </label>
+    </section>
+
     <section *ngIf="debugResult() as result" class="debug-result">
       <div class="debug-summary"
            [class.has-errors]="result.status === 'failed'"
@@ -40,15 +71,67 @@
         <span><strong>משך:</strong> {{ result.response.durationMs }} ms</span>
       </div>
 
-      <details *ngIf="result.request.httpCalls.length > 0" open>
-        <summary>
-          <span>פקודות cURL שנשלחו ל־Feezback ({{ result.request.httpCalls.length }})</span>
-        </summary>
-        <div *ngFor="let call of result.request.httpCalls; let i = index" class="curl-call">
+      <div class="source-results" *ngIf="result.sourceResults.length > 0">
+        <h4>תוצאה לפי חשבון או כרטיס</h4>
+        <details *ngFor="let source of result.sourceResults"
+                 class="source-result"
+                 [open]="source.status !== 'success'">
+          <summary>
+            <span class="source-result-title">
+              <i [class]="source.type === 'bank' ? 'pi pi-building' : 'pi pi-credit-card'"></i>
+              {{ source.type === 'bank' ? 'חשבון בנק' : 'כרטיס אשראי' }} {{ source.sourceId }}
+            </span>
+            <span [class]="'source-status ' + source.status">{{ sourceStatusLabel(source) }}</span>
+            <span>{{ source.transactionCount }} תנועות</span>
+          </summary>
+
+          <div class="source-identifiers">
+            <span><strong>שם:</strong> {{ source.displayName || '—' }}</span>
+            <span><strong>resourceId:</strong> {{ source.resourceId }}</span>
+            <span><strong>sub:</strong> {{ source.sub }}</span>
+            <span><strong>consentId:</strong> {{ source.consentId || '—' }}</span>
+          </div>
+
+          <div *ngFor="let call of source.httpCalls; let i = index" class="curl-call">
+            <div class="curl-call-header">
+              <span>cURL {{ i + 1 }} — ניסיון {{ call.attempt }}/{{ call.maxAttempts }}</span>
+              <span><strong>נשלח:</strong> {{ formatTimestamp(call.sentAt) }}</span>
+              <span><strong>התקבל:</strong> {{ formatTimestamp(call.receivedAt) }}</span>
+              <span><strong>משך:</strong> {{ call.durationMs ?? '—' }} ms</span>
+              <span><strong>HTTP:</strong> {{ call.status ?? '—' }}</span>
+              <button type="button" class="copy-button" (click)="$event.stopPropagation(); copyText(call.curl)">העתק cURL</button>
+            </div>
+            <pre>{{ call.curl }}</pre>
+          </div>
+
+          <div *ngIf="source.error !== null" class="source-payload">
+            <div class="payload-title">
+              <strong>שגיאה</strong>
+              <button type="button" class="copy-button" (click)="$event.stopPropagation(); copyJson(source.error)">העתק JSON</button>
+            </div>
+            <pre>{{ source.error | json }}</pre>
+          </div>
+
+          <div class="source-payload">
+            <div class="payload-title">
+              <strong>תגובת Feezback לחשבון/כרטיס</strong>
+              <button type="button" class="copy-button" (click)="$event.stopPropagation(); copyJson(source.response)">העתק JSON</button>
+            </div>
+            <pre>{{ source.response | json }}</pre>
+          </div>
+        </details>
+      </div>
+
+      <details *ngIf="discoveryHttpCalls(result).length > 0">
+        <summary>קריאות מקדימות לקבלת רשימת החשבונות והכרטיסים</summary>
+        <div *ngFor="let call of discoveryHttpCalls(result); let i = index" class="curl-call">
           <div class="curl-call-header">
             <span>{{ i + 1 }}. {{ call.method }} — ניסיון {{ call.attempt }}/{{ call.maxAttempts }}</span>
-            <span>{{ formatTimestamp(call.sentAt) }}</span>
-            <button type="button" class="copy-button" (click)="copyText(call.curl)">העתק cURL</button>
+            <span><strong>נשלח:</strong> {{ formatTimestamp(call.sentAt) }}</span>
+            <span><strong>התקבל:</strong> {{ formatTimestamp(call.receivedAt) }}</span>
+            <span><strong>משך:</strong> {{ call.durationMs ?? '—' }} ms</span>
+            <span><strong>HTTP:</strong> {{ call.status ?? '—' }}</span>
+            <button type="button" class="copy-button" (click)="$event.stopPropagation(); copyText(call.curl)">העתק cURL</button>
           </div>
           <pre>{{ call.curl }}</pre>
         </div>
@@ -117,7 +200,7 @@
         [buttonSize]="buttonSize.AUTO"
         [buttonColor]="buttonColor.BLACK"
         [isLoading]="isLoading()"
-        [disabled]="dateForm.invalid"
+        [disabled]="dateForm.invalid || sourcesLoading() || selectedSourceKeys().length === 0"
         (onButtonClicked)="onFetchTransactions()">
       </app-p-button>
     </div>

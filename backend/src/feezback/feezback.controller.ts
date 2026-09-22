@@ -227,15 +227,25 @@ export class FeezbackController {
    * Pull and persist a specific date range for an admin-selected user.
    * Returns a redacted diagnostic request/response envelope after Feezback responds.
    */
-  @Get('admin-user-transactions')
+  @Post('admin-user-transactions')
   @UseGuards(FirebaseAuthGuard)
   async getAdminUserTransactions(
     @Req() req: AuthenticatedRequest,
-    @Query('firebaseId') targetFirebaseId: string,
-    @Query('dateFrom') dateFrom: string,
-    @Query('dateTo') dateTo: string,
-    @Query('bookingStatus') bookingStatus: string = 'booked',
+    @Body() body: {
+      firebaseId: string;
+      dateFrom: string;
+      dateTo: string;
+      bookingStatus?: string;
+      selectedSources: Array<{ type: 'bank' | 'card'; resourceId: string }>;
+    },
   ) {
+    const {
+      firebaseId: targetFirebaseId,
+      dateFrom,
+      dateTo,
+      bookingStatus = 'booked',
+      selectedSources,
+    } = body ?? {} as any;
     const adminFirebaseId = req.user?.firebaseId;
     if (!adminFirebaseId) throw new ForbiddenException('Admin authentication required');
 
@@ -254,12 +264,22 @@ export class FeezbackController {
     if (dateFrom > dateTo) {
       throw new BadRequestException('dateFrom must be before or equal to dateTo');
     }
+    if (!Array.isArray(selectedSources) || selectedSources.length === 0) {
+      throw new BadRequestException('At least one bank account or card must be selected');
+    }
+    const invalidSource = selectedSources.some(source =>
+      !source?.resourceId || (source.type !== 'bank' && source.type !== 'card'),
+    );
+    if (invalidSource) {
+      throw new BadRequestException('Each selected source must include a valid type and resourceId');
+    }
 
     return this.feezbackService.adminPullTransactionsForDateRange(
       targetFirebaseId,
       dateFrom,
       dateTo,
       bookingStatus || 'booked',
+      selectedSources,
     );
   }
 
