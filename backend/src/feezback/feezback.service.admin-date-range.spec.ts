@@ -7,7 +7,19 @@ describe('FeezbackService admin date-range diagnostics', () => {
     service = new FeezbackService(
       {} as any,
       { getTppId: () => 'test-tpp' } as any,
-      {} as any,
+      {
+        withDebugTrace: async (operation: () => Promise<any>) => ({
+          result: await operation(),
+          httpCalls: [{
+            sentAt: '2026-01-01T00:00:00.000Z',
+            method: 'GET',
+            url: 'https://api.feezback.example/transactions',
+            attempt: 1,
+            maxAttempts: 3,
+            curl: "curl --request GET --header 'Authorization: <REDACTED>'",
+          }],
+        }),
+      } as any,
       {} as any,
       {} as any,
       {} as any,
@@ -70,8 +82,8 @@ describe('FeezbackService admin date-range diagnostics', () => {
     expect(result.request.sentAt).toEqual(expect.any(String));
     expect(result.response.receivedAt).toEqual(expect.any(String));
     expect(result.response.durationMs).toEqual(expect.any(Number));
-    expect(JSON.stringify(result.request)).not.toContain('Authorization');
-    expect(JSON.stringify(result.request)).not.toContain('token');
+    expect(result.request.httpCalls[0].curl).toContain('Authorization: <REDACTED>');
+    expect(JSON.stringify(result.request)).not.toContain('secret-token');
   });
 
   it('keeps the successful response and exposes Feezback error details on a partial failure', async () => {

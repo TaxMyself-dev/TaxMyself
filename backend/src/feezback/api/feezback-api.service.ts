@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { FeezbackHttpClient } from '../core/feezback-http.client';
+import type { FeezbackDebugHttpCall } from '../core/feezback-http.client';
 import { FeezbackAuthService } from '../core/feezback-auth.service';
 import { FeezbackJwtService } from '../feezback-jwt.service';
 
@@ -17,6 +18,12 @@ export class FeezbackApiService {
     const token = await this.feezbackJwtService.generateConsentJwt(firebaseId);
     // this.logger.debug(`Requesting consent link for firebaseId=${firebaseId}`);
     return this.httpClient.post(this.authService.getLgsUrl(), { token });
+  }
+
+  withDebugTrace<T>(
+    operation: () => Promise<T>,
+  ): Promise<{ result: T; httpCalls: FeezbackDebugHttpCall[] }> {
+    return this.httpClient.withDebugTrace(operation);
   }
 
   async getUserConsents(sub: string): Promise<{ consents: any[] }> {

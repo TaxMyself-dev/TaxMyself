@@ -23,9 +23,11 @@
     </form>
 
     <section *ngIf="debugResult() as result" class="debug-result">
-      <div class="debug-summary" [class.has-errors]="result.status !== 'success'">
+      <div class="debug-summary"
+           [class.has-errors]="result.status === 'failed'"
+           [class.has-warnings]="result.status === 'partial'">
         <strong>
-          {{ result.status === 'success' ? 'המשיכה הסתיימה בהצלחה' : result.status === 'partial' ? 'המשיכה הסתיימה עם שגיאות' : 'המשיכה נכשלה' }}
+          {{ resultStatusLabel(result) }}
         </strong>
         <span>{{ result.totalTransactions }} תנועות</span>
         <span>נשמרו: {{ result.databaseSaveResult?.saved ?? 0 }}</span>
@@ -37,6 +39,30 @@
         <span><strong>התקבל:</strong> {{ formatTimestamp(result.response.receivedAt) }}</span>
         <span><strong>משך:</strong> {{ result.response.durationMs }} ms</span>
       </div>
+
+      <details *ngIf="result.request.httpCalls.length > 0" open>
+        <summary>
+          <span>פקודות cURL שנשלחו ל־Feezback ({{ result.request.httpCalls.length }})</span>
+        </summary>
+        <div *ngFor="let call of result.request.httpCalls; let i = index" class="curl-call">
+          <div class="curl-call-header">
+            <span>{{ i + 1 }}. {{ call.method }} — ניסיון {{ call.attempt }}/{{ call.maxAttempts }}</span>
+            <span>{{ formatTimestamp(call.sentAt) }}</span>
+            <button type="button" class="copy-button" (click)="copyText(call.curl)">העתק cURL</button>
+          </div>
+          <pre>{{ call.curl }}</pre>
+        </div>
+      </details>
+
+      <details *ngIf="result.response.errors.length > 0" open>
+        <summary>
+          <span>שגיאות ואזהרות ({{ result.response.errors.length }})</span>
+          <button type="button" class="copy-button" (click)="$event.preventDefault(); $event.stopPropagation(); copyJson(result.response.errors)">
+            העתק JSON
+          </button>
+        </summary>
+        <pre>{{ result.response.errors | json }}</pre>
+      </details>
 
       <details open>
         <summary>

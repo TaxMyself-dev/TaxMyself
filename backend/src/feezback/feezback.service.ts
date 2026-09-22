@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { FeezbackJwtService } from './feezback-jwt.service';
 import { FeezbackAuthService } from './core/feezback-auth.service';
 import { FeezbackApiService } from './api/feezback-api.service';
+import type { FeezbackDebugHttpCall } from './core/feezback-http.client';
 import { FeezbackConsentApiService } from './consent/feezback-consent-api.service';
 import { TransactionProcessingService } from '../transactions/transaction-processing.service';
 import { UserSyncStateService } from '../transactions/user-sync-state.service';
@@ -22,6 +23,7 @@ export interface AdminFeezbackDateRangePullResult {
     sentAt: string;
     provider: 'Feezback';
     userIdentifier: string;
+    httpCalls: FeezbackDebugHttpCall[];
     requests: Array<{
       method: 'GET';
       operation: 'bank-transactions' | 'card-transactions';
@@ -117,6 +119,7 @@ export class FeezbackService {
       sentAt: sentAt.toISOString(),
       provider: 'Feezback',
       userIdentifier: sub,
+      httpCalls: [],
       // The user-level pull fans out to one Feezback transaction request per
       // valid source. These entries describe the filters shared by that fan-out.
       requests: [
@@ -125,10 +128,12 @@ export class FeezbackService {
       ],
     };
 
-    const [bankResult, cardResult] = await Promise.allSettled([
+    const traced = await this.feezbackApiService.withDebugTrace(() => Promise.allSettled([
       this.getAndSaveBankTransactions(firebaseId, sub, bookingStatus, dateFrom, dateTo),
       this.getAndSaveUserCardTransactions(firebaseId, sub, bookingStatus, dateFrom, dateTo),
-    ]);
+    ]));
+    request.httpCalls = traced.httpCalls;
+    const [bankResult, cardResult] = traced.result;
 
     const bank = bankResult.status === 'fulfilled' ? bankResult.value : null;
     const card = cardResult.status === 'fulfilled' ? cardResult.value : null;

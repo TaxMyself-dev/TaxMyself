@@ -68,6 +68,19 @@ export class FeezbackTransactionsDialogComponent implements OnInit {
     void navigator.clipboard.writeText(JSON.stringify(value, null, 2));
   }
 
+  copyText(value: string): void {
+    void navigator.clipboard.writeText(value);
+  }
+
+  resultStatusLabel(result: AdminFeezbackDateRangePullResult): string {
+    if (result.status === 'success') return 'המשיכה הסתיימה בהצלחה';
+    if (result.status === 'partial' && result.totalTransactions > 0) {
+      return 'התנועות נטענו, אך חלק ממקורות Feezback החזירו שגיאה';
+    }
+    if (result.status === 'partial') return 'המשיכה הסתיימה חלקית';
+    return 'המשיכה נכשלה';
+  }
+
   formatTimestamp(value: string | null | undefined): string {
     if (!value) return '—';
     return new Intl.DateTimeFormat('he-IL', {
@@ -177,8 +190,11 @@ export class FeezbackTransactionsDialogComponent implements OnInit {
           const skippedCount = response?.databaseSaveResult?.skipped || 0;
           const totalFetched = response?.totalTransactions || 0;
           
+          const errorCount = response.response?.errors?.length ?? 0;
           let detailMessage = '';
-          if (savedCount > 0) {
+          if (response.status === 'failed') {
+            detailMessage = `המשיכה מ-Feezback נכשלה עבור ${this.clientName()}. פרטי השגיאה מוצגים בחלון.`;
+          } else if (savedCount > 0) {
             detailMessage = `נשמרו ${savedCount} תנועות חדשות בהצלחה עבור ${this.clientName()}`;
             if (skippedCount > 0) {
               detailMessage += ` (${skippedCount} תנועות כבר קיימות, ${totalFetched} סה"כ נטענו)`;
@@ -192,10 +208,29 @@ export class FeezbackTransactionsDialogComponent implements OnInit {
           } else {
             detailMessage = `לא נמצאו תנועות עבור ${this.clientName()}`;
           }
+
+          if (response.status === 'partial') {
+            detailMessage += ` חלק מהמשיכה הצליח, אך ${errorCount} מקור/שלב נכשלו. פרטי השגיאות מוצגים בחלון.`;
+          }
+
+          const severity = response.status === 'failed'
+            ? 'error'
+            : response.status === 'partial'
+              ? 'warn'
+              : savedCount > 0
+                ? 'success'
+                : 'info';
+          const summary = response.status === 'failed'
+            ? 'המשיכה נכשלה'
+            : response.status === 'partial'
+              ? 'המשיכה הסתיימה חלקית'
+              : savedCount > 0
+                ? 'הצלחה'
+                : 'מידע';
           
           this.messageService.add({
-            severity: savedCount > 0 ? 'success' : 'info',
-            summary: savedCount > 0 ? 'הצלחה' : 'מידע',
+            severity,
+            summary,
             detail: detailMessage,
             life: 6000,
             key: 'br'

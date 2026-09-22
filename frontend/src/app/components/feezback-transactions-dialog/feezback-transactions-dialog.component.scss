@@ -84,6 +84,10 @@
         &.has-errors {
           color: #b91c1c;
         }
+
+        &.has-warnings {
+          color: #b45309;
+        }
       }
 
       .timestamps {
@@ -111,6 +115,23 @@
         background: #fff;
         color: #334155;
         cursor: pointer;
+      }
+
+      .curl-call {
+        margin-top: 10px;
+      }
+
+      .curl-call-header {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 8px 14px;
+        color: #475569;
+        font-size: 12px;
+
+        .copy-button {
+          margin-inline-start: auto;
+        }
       }
 
       pre {

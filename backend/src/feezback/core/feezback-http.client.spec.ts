@@ -218,4 +218,23 @@ describe('FeezbackHttpClient – retry behaviour', () => {
     expect(mockHttpGet).toHaveBeenCalledTimes(maxRetries + 1);
     expect(sleepMock).toHaveBeenCalledTimes(maxRetries); // sleep between attempts, not after last
   });
+
+  it('captures an executable curl command while redacting the bearer token', async () => {
+    mockHttpGet.mockReturnValue(makeOkResponse({ transactions: [] }));
+
+    const trace = await client.withDebugTrace(() => client.get(
+      '/transactions?bookingStatus=booked&dateFrom=2026-08-01&dateTo=2026-08-31',
+      { sub: 'firebase-user_sub' },
+    ));
+
+    expect(trace.result).toEqual({ transactions: [] });
+    expect(trace.httpCalls).toHaveLength(1);
+    expect(trace.httpCalls[0]).toMatchObject({
+      method: 'GET',
+      attempt: 1,
+      url: 'https://api.feezback.test/transactions?bookingStatus=booked&dateFrom=2026-08-01&dateTo=2026-08-31',
+    });
+    expect(trace.httpCalls[0].curl).toContain("--header 'Authorization: <REDACTED>'");
+    expect(trace.httpCalls[0].curl).not.toContain('Bearer test-token');
+  });
 });

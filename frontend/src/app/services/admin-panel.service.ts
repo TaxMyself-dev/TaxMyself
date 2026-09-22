@@ -138,6 +138,14 @@ export interface AdminFeezbackDateRangePullResult {
     sentAt: string;
     provider: 'Feezback';
     userIdentifier: string;
+    httpCalls: Array<{
+      sentAt: string;
+      method: 'GET' | 'POST';
+      url: string;
+      attempt: number;
+      maxAttempts: number;
+      curl: string;
+    }>;
     requests: Array<{
       method: 'GET';
       operation: 'bank-transactions' | 'card-transactions';

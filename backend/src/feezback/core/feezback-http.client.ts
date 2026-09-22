@@ -2,6 +2,7 @@ import { HttpService } from '@nestjs/axios';
 import { Injectable } from '@nestjs/common';
 import { AxiosRequestConfig, AxiosResponse } from 'axios';
 import { firstValueFrom } from 'rxjs';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { FeezbackAuthService } from './feezback-auth.service';
 import { FeezbackHttpError, toFeezbackHttpError } from './feezback-errors';
 import {
@@ -20,8 +21,19 @@ interface RequestOptions {
   timeout?: number;
 }
 
+export interface FeezbackDebugHttpCall {
+  sentAt: string;
+  method: 'GET' | 'POST';
+  url: string;
+  attempt: number;
+  maxAttempts: number;
+  curl: string;
+}
+
 @Injectable()
 export class FeezbackHttpClient {
+  private readonly debugTrace = new AsyncLocalStorage<FeezbackDebugHttpCall[]>();
+
   constructor(
     private readonly http: HttpService,
     private readonly authService: FeezbackAuthService,
@@ -37,6 +49,15 @@ export class FeezbackHttpClient {
 
   async post<T = any>(path: string, body: unknown, options: RequestOptions = {}): Promise<T> {
     return this.request<T>('POST', path, body, options);
+  }
+
+  /** Capture the exact provider HTTP calls made by one async operation. */
+  async withDebugTrace<T>(
+    operation: () => Promise<T>,
+  ): Promise<{ result: T; httpCalls: FeezbackDebugHttpCall[] }> {
+    const httpCalls: FeezbackDebugHttpCall[] = [];
+    const result = await this.debugTrace.run(httpCalls, operation);
+    return { result, httpCalls };
   }
 
   private async request<T>(
@@ -59,6 +80,14 @@ export class FeezbackHttpClient {
       };
 
       const sentAt = Date.now();
+      this.debugTrace.getStore()?.push({
+        sentAt: new Date(sentAt).toISOString(),
+        method,
+        url,
+        attempt: attempt + 1,
+        maxAttempts: maxRetries + 1,
+        curl: this.buildRedactedCurl(method, url, headers, body),
+      });
       console.log(`→ [Feezback] ${method} ${endpoint} sent at ${new Date(sentAt).toISOString()} (attempt ${attempt + 1}/${maxRetries + 1}) url=${url}`);
 
       try {
@@ -122,6 +151,28 @@ export class FeezbackHttpClient {
     const trimmedBase = this.baseUrl.replace(/\/+$/, '');
     const trimmedPath = path.replace(/^\/+/, '');
     return `${trimmedBase}/${trimmedPath}`;
+  }
+
+  private buildRedactedCurl(
+    method: 'GET' | 'POST',
+    url: string,
+    headers: Record<string, string>,
+    body: unknown,
+  ): string {
+    const quote = (value: string): string => `'${value.replace(/'/g, `'"'"'`)}'`;
+    const sensitiveHeader = /authorization|token|api[-_]?key|cookie/i;
+    const parts = [`curl --request ${method}`, `--url ${quote(url)}`];
+
+    for (const [name, value] of Object.entries(headers)) {
+      const safeValue = sensitiveHeader.test(name) ? '<REDACTED>' : value;
+      parts.push(`--header ${quote(`${name}: ${safeValue}`)}`);
+    }
+
+    if (method === 'POST' && body !== undefined) {
+      parts.push(`--data ${quote(JSON.stringify(body))}`);
+    }
+
+    return parts.join(' \\\n  ');
   }
 
   /**
