@@ -43,6 +43,16 @@ const ceiling = new Intl.NumberFormat('he-IL').format(figures.vatExemptTurnoverC
 
 export const SELF_EMPLOYED_GUIDE_SLIDES: GuideSlide[] = [
   {
+    id: 'product-pain', layout: 'approved-artwork', title: 'הסיוט של כל עצמאי',
+    artwork: '/assets/self-employed-guide/product-pain-approved.png',
+    artworkAlt: 'הסיוט של כל עצמאי. 1: איסוף המסמכים — לא יודעים מה נשכח בדרך. 2: שולחים לרואה החשבון — לא יודעים מה נקלט ומה נשאר בחוץ. 3: בסוף השנה מגיעה ההפתעה — הרווח עלה, המקדמות לא הותאמו, חוב למס הכנסה או לביטוח לאומי.',
+  },
+  {
+    id: 'product-solution', layout: 'approved-artwork', title: 'הפתרון של KeepInTax',
+    artwork: '/assets/self-employed-guide/product-solution-approved.png',
+    artworkAlt: 'הפתרון של KeepInTax. 1: חיבור ישיר לבנק ולכרטיסים — כל התנועות במקום אחד. 2: ממשק משותף — בכל רגע יודעים מה הוגש ומה עדיין בטיפול. 3: מעקב אוטומטי אחרי הרווח השנתי.',
+  },
+  {
     id: 'cover',
     layout: 'approved-artwork',
     title: 'אפשר גם אחרת',

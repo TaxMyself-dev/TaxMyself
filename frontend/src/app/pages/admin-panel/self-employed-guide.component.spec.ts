@@ -4,16 +4,16 @@ import { SELF_EMPLOYED_GUIDE_SLIDES } from './self-employed-guide.content';
 describe('SelfEmployedGuideComponent', () => {
   let component: SelfEmployedGuideComponent;
   beforeEach(() => component = new SelfEmployedGuideComponent());
-  it('orders the main sequence and stops at the authorities hub', () => {
+  it('orders the main sequence and ends with the product slides', () => {
     expect(component.slides[5].title).toBe('מי יכול להיות פטור, ומי זעיר?');
     expect(component.slides[4].title).toBe('החובות של כל עסק');
     expect(component.slides[4].items?.every(item => item.description.includes('ביטוח לאומי'))).toBeTrue();
     expect(component.slides[2].title).toBe('כשאתם שכירים, המעסיק מטפל בהכל');
-    expect(component.slides.map(s => s.id)).toEqual(['cover', 'basic-concepts', 'employee-payroll', 'business-types', 'income-tax-overview', 'status-comparison', 'micro-blockers', 'tax-authorities']);
+    expect(component.slides.map(s => s.id)).toEqual(['cover', 'basic-concepts', 'employee-payroll', 'business-types', 'income-tax-overview', 'status-comparison', 'micro-blockers', 'tax-authorities', 'product-pain', 'product-solution']);
     component.previousSlide();
     expect(component.currentSlideIndex).toBe(0);
     for (let i = 0; i < 12; i++) component.nextSlide();
-    expect(component.currentSlideIndex).toBe(7);
+    expect(component.currentSlideIndex).toBe(9);
     expect(component.isLastMainSlide).toBeTrue();
   });
   for (const chapter of ['income', 'vat', 'ni'] as const) {
@@ -42,9 +42,9 @@ describe('SelfEmployedGuideComponent', () => {
       }
     });
   }
-  it('assigns all 20 slides exactly once and opens income at combined income', () => {
+  it('assigns all 22 slides exactly once and opens income at combined income', () => {
     const ids = [...component.mainIds, ...Object.values(component.chapterIds).flat()];
-    expect(new Set(ids).size).toBe(20);
+    expect(new Set(ids).size).toBe(22);
     expect([...ids].sort()).toEqual(SELF_EMPLOYED_GUIDE_SLIDES.map(s => s.id).sort());
     component.openChapter('income');
     expect(component.currentSlide.id).toBe('income-combination');
@@ -62,6 +62,20 @@ describe('SelfEmployedGuideComponent', () => {
     expect(component.currentSlide.id).toBe('micro-reporting');
     component.nextSlide();
     component.nextSlide();
+    expect(component.currentSlide.id).toBe('tax-authorities');
+  });
+  it('continues from the authorities to both product artworks and back', () => {
+    component.returnToAuthorities();
+    expect(component.isLastMainSlide).toBeFalse();
+    component.nextSlide();
+    expect(component.currentSlide.id).toBe('product-pain');
+    expect(component.currentSlide.artwork).toContain('product-pain-approved.png');
+    component.nextSlide();
+    expect(component.currentSlide.id).toBe('product-solution');
+    expect(component.currentSlide.artwork).toContain('product-solution-approved.png');
+    expect(component.isLastMainSlide).toBeTrue();
+    component.previousSlide();
+    component.previousSlide();
     expect(component.currentSlide.id).toBe('tax-authorities');
   });
   it('ignores invalid targets and respects RTL keys and inputs', () => {

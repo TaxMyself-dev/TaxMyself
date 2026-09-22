@@ -21,7 +21,7 @@ export class SelfEmployedGuideComponent {
     vat: ['vat-introduction', 'vat-calculation'],
     ni: ['ni-status', 'ni-payment', 'ni-calculator'],
   };
-  readonly mainIds = ['cover', 'basic-concepts', 'employee-payroll', 'business-types', 'income-tax-overview', 'status-comparison', 'micro-blockers', 'tax-authorities'];
+  readonly mainIds = ['cover', 'basic-concepts', 'employee-payroll', 'business-types', 'income-tax-overview', 'status-comparison', 'micro-blockers', 'tax-authorities', 'product-pain', 'product-solution'];
   activeChapter: 'income' | 'vat' | 'ni' | null = null;
 
   get slides(): GuideSlide[] {
