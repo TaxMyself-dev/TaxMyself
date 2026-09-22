@@ -21,6 +21,61 @@
         [placeholder]="'בחר תאריך סיום'">
       </app-input-date>
     </form>
+
+    <section *ngIf="debugResult() as result" class="debug-result">
+      <div class="debug-summary" [class.has-errors]="result.status !== 'success'">
+        <strong>
+          {{ result.status === 'success' ? 'המשיכה הסתיימה בהצלחה' : result.status === 'partial' ? 'המשיכה הסתיימה עם שגיאות' : 'המשיכה נכשלה' }}
+        </strong>
+        <span>{{ result.totalTransactions }} תנועות</span>
+        <span>נשמרו: {{ result.databaseSaveResult?.saved ?? 0 }}</span>
+        <span>דולגו: {{ result.databaseSaveResult?.skipped ?? 0 }}</span>
+      </div>
+
+      <div class="timestamps">
+        <span><strong>נשלח:</strong> {{ formatTimestamp(result.request.sentAt) }}</span>
+        <span><strong>התקבל:</strong> {{ formatTimestamp(result.response.receivedAt) }}</span>
+        <span><strong>משך:</strong> {{ result.response.durationMs }} ms</span>
+      </div>
+
+      <details open>
+        <summary>
+          <span>הבקשה שנשלחה ל־Feezback</span>
+          <button type="button" class="copy-button" (click)="$event.preventDefault(); $event.stopPropagation(); copyJson(result.request)">
+            העתק JSON
+          </button>
+        </summary>
+        <pre>{{ result.request | json }}</pre>
+      </details>
+
+      <details [open]="result.status !== 'success'">
+        <summary>
+          <span>התשובה מ־Feezback</span>
+          <button type="button" class="copy-button" (click)="$event.preventDefault(); $event.stopPropagation(); copyJson(result.response)">
+            העתק JSON
+          </button>
+        </summary>
+        <pre>{{ result.response | json }}</pre>
+      </details>
+    </section>
+
+    <section *ngIf="debugError() as error" class="debug-result">
+      <div class="debug-summary has-errors"><strong>הבקשה נכשלה לפני שהתקבלה תשובה תקינה</strong></div>
+      <div class="timestamps">
+        <span><strong>נשלח:</strong> {{ formatTimestamp(error.requestedAt) }}</span>
+        <span><strong>התקבל:</strong> {{ formatTimestamp(error.receivedAt) }}</span>
+        <span><strong>HTTP:</strong> {{ error.status ?? '—' }}</span>
+      </div>
+      <details open>
+        <summary>
+          <span>פרטי השגיאה</span>
+          <button type="button" class="copy-button" (click)="$event.preventDefault(); $event.stopPropagation(); copyJson(error)">
+            העתק JSON
+          </button>
+        </summary>
+        <pre>{{ error | json }}</pre>
+      </details>
+    </section>
     
     <div class="dialog-actions">
       <app-p-button

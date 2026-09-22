@@ -224,28 +224,43 @@ export class FeezbackController {
   }
 
   /**
-   * Trigger a full sync for a specific user (admin only).
-   * Uses the same Quick+Full flow as login/webhook auto sync — the only
-   * difference is triggeredBy='manual'.
+   * Pull and persist a specific date range for an admin-selected user.
+   * Returns a redacted diagnostic request/response envelope after Feezback responds.
    */
   @Get('admin-user-transactions')
   @UseGuards(FirebaseAuthGuard)
   async getAdminUserTransactions(
     @Req() req: AuthenticatedRequest,
     @Query('firebaseId') targetFirebaseId: string,
+    @Query('dateFrom') dateFrom: string,
+    @Query('dateTo') dateTo: string,
+    @Query('bookingStatus') bookingStatus: string = 'booked',
   ) {
     const adminFirebaseId = req.user?.firebaseId;
-    if (!adminFirebaseId) throw new Error('Admin authentication required');
+    if (!adminFirebaseId) throw new ForbiddenException('Admin authentication required');
 
     const isAdmin = await this.usersService.isAdmin(adminFirebaseId);
-    if (!isAdmin) throw new Error('Admin access required');
+    if (!isAdmin) throw new ForbiddenException('Admin access required');
 
-    if (!targetFirebaseId) throw new Error('firebaseId parameter is required');
+    if (!targetFirebaseId) throw new BadRequestException('firebaseId parameter is required');
 
-    // Fire-and-forget — same as login/webhook. The in-flight guard prevents double-runs.
-    void this.feezbackService.triggerFullSync(targetFirebaseId, 'manual');
+    if (!dateFrom || !dateTo) {
+      throw new BadRequestException('dateFrom and dateTo parameters are required');
+    }
+    const isoDatePattern = /^\d{4}-\d{2}-\d{2}$/;
+    if (!isoDatePattern.test(dateFrom) || !isoDatePattern.test(dateTo)) {
+      throw new BadRequestException('dateFrom and dateTo must use YYYY-MM-DD format');
+    }
+    if (dateFrom > dateTo) {
+      throw new BadRequestException('dateFrom must be before or equal to dateTo');
+    }
 
-    return { message: 'Sync triggered', firebaseId: targetFirebaseId };
+    return this.feezbackService.adminPullTransactionsForDateRange(
+      targetFirebaseId,
+      dateFrom,
+      dateTo,
+      bookingStatus || 'booked',
+    );
   }
 
   /**

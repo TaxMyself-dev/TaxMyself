@@ -16,6 +16,31 @@ import { BillingService } from '../billing/services/billing.service';
 import * as fs from 'fs';
 import * as path from 'path';
 
+export interface AdminFeezbackDateRangePullResult {
+  status: 'success' | 'partial' | 'failed';
+  request: {
+    sentAt: string;
+    provider: 'Feezback';
+    userIdentifier: string;
+    requests: Array<{
+      method: 'GET';
+      operation: 'bank-transactions' | 'card-transactions';
+      scope: string;
+      query: { bookingStatus: string; dateFrom: string; dateTo: string };
+    }>;
+  };
+  response: {
+    receivedAt: string;
+    durationMs: number;
+    bank: any | null;
+    card: any | null;
+    errors: Array<Record<string, unknown>>;
+  };
+  totalTransactions: number;
+  databaseSaveResult: { saved: number; skipped: number } | null;
+  databaseSaveError?: string;
+}
+
 @Injectable()
 export class FeezbackService {
   private readonly logger = new Logger(FeezbackService.name);
@@ -71,6 +96,134 @@ export class FeezbackService {
       this.feezbackApiService.getUserCards(sub, { withBalances: true, withInvalid: false, preventUpdate: true }),
     ]);
     return { accounts: accountsResponse, cards: cardsResponse };
+  }
+
+  /**
+   * Admin diagnostic pull for an explicit date range. Unlike the regular
+   * background sync, this waits for Feezback so the admin UI can display the
+   * request metadata, raw provider responses, timestamps and errors.
+   * Authentication headers and tokens are deliberately never included.
+   */
+  async adminPullTransactionsForDateRange(
+    firebaseId: string,
+    dateFrom: string,
+    dateTo: string,
+    bookingStatus: string = 'booked',
+  ): Promise<AdminFeezbackDateRangePullResult> {
+    const sub = `${firebaseId}_sub`;
+    const sentAt = new Date();
+    const query = { bookingStatus, dateFrom, dateTo };
+    const request: AdminFeezbackDateRangePullResult['request'] = {
+      sentAt: sentAt.toISOString(),
+      provider: 'Feezback',
+      userIdentifier: sub,
+      // The user-level pull fans out to one Feezback transaction request per
+      // valid source. These entries describe the filters shared by that fan-out.
+      requests: [
+        { method: 'GET', operation: 'bank-transactions', scope: 'all valid bank accounts', query },
+        { method: 'GET', operation: 'card-transactions', scope: 'all valid non-direct cards', query },
+      ],
+    };
+
+    const [bankResult, cardResult] = await Promise.allSettled([
+      this.getAndSaveBankTransactions(firebaseId, sub, bookingStatus, dateFrom, dateTo),
+      this.getAndSaveUserCardTransactions(firebaseId, sub, bookingStatus, dateFrom, dateTo),
+    ]);
+
+    const bank = bankResult.status === 'fulfilled' ? bankResult.value : null;
+    const card = cardResult.status === 'fulfilled' ? cardResult.value : null;
+    const errors: Array<Record<string, unknown>> = [];
+
+    if (bankResult.status === 'rejected') {
+      errors.push({ operation: 'bank-transactions', ...this.serializeAdminPullError(bankResult.reason) });
+    } else {
+      for (const error of bank?.bankErrors ?? []) {
+        errors.push({ operation: 'bank-transactions', ...error });
+      }
+      if (bank?.processingError) {
+        errors.push({ operation: 'bank-normalization', message: bank.processingError });
+      }
+      if (bank?.error) {
+        errors.push({ operation: 'bank-transactions', code: bank.error, message: bank.message ?? bank.error });
+      }
+    }
+
+    if (cardResult.status === 'rejected') {
+      errors.push({ operation: 'card-transactions', ...this.serializeAdminPullError(cardResult.reason) });
+    } else {
+      for (const error of card?.cardErrors ?? []) {
+        errors.push({ operation: 'card-transactions', ...error });
+      }
+      if (card?.processingError) {
+        errors.push({ operation: 'card-normalization', message: card.processingError });
+      }
+    }
+
+    const normalizedTransactions: NormalizedTransaction[] = [
+      ...(bank?.normalizedTransactions ?? []),
+      ...(card?.normalizedTransactions ?? []),
+    ];
+
+    let databaseSaveResult: AdminFeezbackDateRangePullResult['databaseSaveResult'] = null;
+    let databaseSaveError: string | undefined;
+    try {
+      const persisted = await this.persistNormalizedTransactions(firebaseId, normalizedTransactions);
+      databaseSaveResult = {
+        saved: persisted?.newlySavedToCache ?? 0,
+        skipped: persisted?.alreadyExistingInCache ?? 0,
+      };
+    } catch (error: any) {
+      databaseSaveError = error?.message ?? String(error);
+      errors.push({ operation: 'database-save', message: databaseSaveError });
+    }
+
+    const receivedAt = new Date();
+    const providerFailedCompletely = bank === null && card === null;
+    const status: AdminFeezbackDateRangePullResult['status'] = providerFailedCompletely
+      ? 'failed'
+      : errors.length > 0
+        ? 'partial'
+        : 'success';
+
+    return {
+      status,
+      request,
+      response: {
+        receivedAt: receivedAt.toISOString(),
+        durationMs: receivedAt.getTime() - sentAt.getTime(),
+        bank: this.sanitizeAdminProviderResult(bank),
+        card: this.sanitizeAdminProviderResult(card),
+        errors,
+      },
+      totalTransactions: normalizedTransactions.length,
+      databaseSaveResult,
+      ...(databaseSaveError ? { databaseSaveError } : {}),
+    };
+  }
+
+  private serializeAdminPullError(error: any): Record<string, unknown> {
+    return {
+      name: error?.name ?? 'Error',
+      message: error?.message ?? String(error),
+      status: error?.status ?? error?.response?.status,
+      code: error?.code,
+      method: error?.method,
+      url: error?.url,
+      responseBody: error?.responseBody ?? error?.response?.data,
+    };
+  }
+
+  /** Remove processing internals and server file paths from the admin trace. */
+  private sanitizeAdminProviderResult(result: any | null): any | null {
+    if (result === null) return null;
+    const {
+      normalizedTransactions: _normalizedTransactions,
+      savedFiles: _savedFiles,
+      databaseSaveResult: _databaseSaveResult,
+      __durationMs: _durationMs,
+      ...providerResult
+    } = result;
+    return providerResult;
   }
 
   /**
@@ -609,6 +762,8 @@ export class FeezbackService {
       code?: string;
       message: string;
       responseData?: any;
+      method?: string;
+      url?: string;
     }> = [];
 
     // Fetch all card transactions in parallel
@@ -667,9 +822,14 @@ export class FeezbackService {
           return {
             card, cardId, cardName, consentId: consentId ?? null,
             transactions: [] as any[], transactionsWithMeta: [] as any[],
-            failed: true, err: { status, code, message, responseData: err?.response?.data
-              ? (typeof err.response.data === 'string' ? err.response.data.slice(0, 500) : err.response.data)
-              : undefined },
+            failed: true, err: {
+              status,
+              code,
+              message,
+              responseData: err?.responseBody ?? err?.response?.data,
+              method: err?.method,
+              url: err?.url,
+            },
           };
         }
       }),
@@ -682,8 +842,8 @@ export class FeezbackService {
       cardInfoMap[cardId] = card;
 
       if (failed) {
-        const { status, code, message, responseData } = (result as any).err;
-        cardErrors.push({ cardResourceId: cardId, consentId, displayName: cardName, maskedPan: card?.maskedPan ?? null, currency: card?.currency ?? null, status, code, message, responseData });
+        const { status, code, message, responseData, method, url } = (result as any).err;
+        cardErrors.push({ cardResourceId: cardId, consentId, displayName: cardName, maskedPan: card?.maskedPan ?? null, currency: card?.currency ?? null, status, code, message, responseData, method, url });
         if (!(cardId in transactionsByCard)) {
           transactionsByCard[cardId] = [{ __cardMeta: { cardResourceId: cardId, displayName: cardName, maskedPan: card?.maskedPan ?? null, currency: card?.currency ?? null, consentId }, __error: { status, code, message } }];
         }
@@ -992,7 +1152,18 @@ export class FeezbackService {
     const allTransactions: any[] = [];
     const accountTransactionsMap: { [accountResourceId: string]: any[] } = {};
     let accountsFailed = 0;
-    const bankErrors: Array<{ sourceId: string; displayName: string; iban?: string; currency?: string; status?: number; message: string }> = [];
+    const bankErrors: Array<{
+      sourceId: string;
+      displayName: string;
+      iban?: string;
+      currency?: string;
+      status?: number;
+      code?: string;
+      message: string;
+      responseData?: any;
+      method?: string;
+      url?: string;
+    }> = [];
 
     for (const { account, transactions, failed, error } of accountFetchResults as any[]) {
       const accId: string | undefined = account?.resourceId ?? account?.iban ?? account?.name;
@@ -1004,7 +1175,11 @@ export class FeezbackService {
           iban: account.iban,
           currency: account.currency,
           status: error?.status,
+          code: error?.code,
           message: error?.message || 'Unknown error',
+          responseData: error?.responseBody ?? error?.response?.data,
+          method: error?.method,
+          url: error?.url,
         });
       } else if (accId) {
         if (accountTransactionsMap[accId]) {

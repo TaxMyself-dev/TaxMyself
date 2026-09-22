@@ -36,14 +36,18 @@ export class AdminPanelService {
     return this.http.get<any>(url);
   }
 
-  fetchFeezbackTransactions(firebaseId: string, startDate: string, endDate: string): Observable<any> {
+  fetchFeezbackTransactions(
+    firebaseId: string,
+    startDate: string,
+    endDate: string,
+  ): Observable<AdminFeezbackDateRangePullResult> {
     const url = `${environment.apiUrl}feezback/admin-user-transactions`;
     const params = new HttpParams()
       .set('firebaseId', firebaseId)
       .set('dateFrom', startDate)
       .set('dateTo', endDate)
       .set('bookingStatus', 'booked');
-    return this.http.get<any>(url, { params });
+    return this.http.get<AdminFeezbackDateRangePullResult>(url, { params });
   }
 
   clearUserCache(firebaseId: string): Observable<any> {
@@ -126,6 +130,31 @@ export class AdminPanelService {
       {},
     );
   }
+}
+
+export interface AdminFeezbackDateRangePullResult {
+  status: 'success' | 'partial' | 'failed';
+  request: {
+    sentAt: string;
+    provider: 'Feezback';
+    userIdentifier: string;
+    requests: Array<{
+      method: 'GET';
+      operation: 'bank-transactions' | 'card-transactions';
+      scope: string;
+      query: { bookingStatus: string; dateFrom: string; dateTo: string };
+    }>;
+  };
+  response: {
+    receivedAt: string;
+    durationMs: number;
+    bank: any | null;
+    card: any | null;
+    errors: Array<Record<string, unknown>>;
+  };
+  totalTransactions: number;
+  databaseSaveResult: { saved: number; skipped: number } | null;
+  databaseSaveError?: string;
 }
 
 export interface DemoSubUser {

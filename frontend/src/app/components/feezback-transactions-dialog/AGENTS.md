@@ -5,13 +5,15 @@ management experience.
 
 ## Key entities/files
 
-- `feezback-transactions-dialog.component.ts` loads and presents source/account
-  transaction data for the selected context.
+- `feezback-transactions-dialog.component.ts` submits an admin-selected date
+  range, keeps the dialog open after completion, and presents copyable request,
+  response, timestamp, persistence-count, and error diagnostics.
 
 ## Main flows
 
-- Preserve authenticated user/business scope and do not expose provider tokens
-  or raw sensitive payloads in UI errors/logs.
+- The admin-only diagnostic shows raw Feezback transaction payloads and upstream
+  errors intentionally, but never authentication headers/tokens or server file
+  paths. Sent/received timestamps are rendered in the Israel time zone.
 - Provider contract, consent and production callback changes require explicit
   approval.
 

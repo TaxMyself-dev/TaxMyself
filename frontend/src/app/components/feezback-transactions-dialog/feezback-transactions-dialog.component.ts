@@ -4,7 +4,7 @@ import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule, Validators } 
 import { ButtonComponent } from '../button/button.component';
 import { InputDateComponent } from '../input-date/input-date.component';
 import { ButtonSize, ButtonColor } from '../button/button.enum';
-import { AdminPanelService } from 'src/app/services/admin-panel.service';
+import { AdminFeezbackDateRangePullResult, AdminPanelService } from 'src/app/services/admin-panel.service';
 import { catchError, EMPTY, finalize } from 'rxjs';
 import { MessageService } from 'primeng/api';
 
@@ -26,6 +26,9 @@ export class FeezbackTransactionsDialogComponent implements OnInit {
   
   visibleChange = output<{ visible: boolean }>();
   isLoading: WritableSignal<boolean> = signal(false);
+  debugResult = signal<AdminFeezbackDateRangePullResult | null>(null);
+  debugError = signal<any | null>(null);
+  debugStartedAt = signal<string | null>(null);
 
   buttonSize = ButtonSize;
   buttonColor = ButtonColor;
@@ -61,6 +64,19 @@ export class FeezbackTransactionsDialogComponent implements OnInit {
     event.stopPropagation();
   }
 
+  copyJson(value: unknown): void {
+    void navigator.clipboard.writeText(JSON.stringify(value, null, 2));
+  }
+
+  formatTimestamp(value: string | null | undefined): string {
+    if (!value) return '—';
+    return new Intl.DateTimeFormat('he-IL', {
+      dateStyle: 'short',
+      timeStyle: 'medium',
+      timeZone: 'Asia/Jerusalem',
+    }).format(new Date(value));
+  }
+
   onFetchTransactions(): void {
     if (this.dateForm.invalid || !this.firebaseId()) {
       this.messageService.add({
@@ -74,6 +90,9 @@ export class FeezbackTransactionsDialogComponent implements OnInit {
     }
 
     this.isLoading.set(true);
+    this.debugResult.set(null);
+    this.debugError.set(null);
+    this.debugStartedAt.set(new Date().toISOString());
     const formValue = this.dateForm.value;
     
     // Ensure dates are in YYYY-MM-DD format
@@ -118,6 +137,14 @@ export class FeezbackTransactionsDialogComponent implements OnInit {
         finalize(() => this.isLoading.set(false)),
         catchError((err) => {
           console.error('Error fetching Feezback transactions:', err);
+          this.debugError.set({
+            requestedAt: this.debugStartedAt(),
+            receivedAt: new Date().toISOString(),
+            status: err?.status ?? null,
+            statusText: err?.statusText ?? null,
+            response: err?.error ?? null,
+            message: err?.message ?? 'Unknown error',
+          });
           this.messageService.add({
             severity: 'error',
             summary: 'שגיאה',
@@ -131,6 +158,7 @@ export class FeezbackTransactionsDialogComponent implements OnInit {
       .subscribe({
         next: (response) => {
           console.log('Feezback transactions response:', response);
+          this.debugResult.set(response);
           
           // Check if there was a database save error
           if (response?.databaseSaveError) {
@@ -141,7 +169,6 @@ export class FeezbackTransactionsDialogComponent implements OnInit {
               life: 8000,
               key: 'br'
             });
-            this.onVisibleChange(false);
             return;
           }
           
@@ -173,7 +200,6 @@ export class FeezbackTransactionsDialogComponent implements OnInit {
             life: 6000,
             key: 'br'
           });
-          this.onVisibleChange(false);
         },
         error: (err) => {
           console.error('Error in subscribe:', err);

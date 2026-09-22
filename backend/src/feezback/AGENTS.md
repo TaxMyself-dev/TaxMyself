@@ -19,7 +19,7 @@ Integrates with Feezback, the Open Banking (AISP) data provider: handles the con
 - `POST /feezback/webhook-router` — public webhook receiver; responds 200 immediately and forwards the payload async.
 - Webhook processing (`FeezbackWebhookService.handleWebhook`) — `UserDataIsAvailable`/`DataRefreshComplete` trigger `refreshUserSources` + full sync; `ConsentStatusChanged` clears stale consent IDs on terminal states.
 - `GET /feezback/user-accounts`, `GET /feezback/transactions` — direct pass-through account/transaction reads.
-- `GET /feezback/admin-user-transactions`, `admin/refresh-sources/:firebaseId`, `admin/pull-source/:firebaseId`, `admin/accounts/:firebaseId` — admin-only diagnostics and manual sync/retry triggers.
+- `GET /feezback/admin-user-transactions` — admin-only, synchronous date-range pull. It persists normalized bank/card transactions and returns a token-free diagnostic envelope containing request filters, raw Feezback responses/errors, and sent/received timestamps for inline debugging. `admin/refresh-sources/:firebaseId`, `admin/pull-source/:firebaseId`, and `admin/accounts/:firebaseId` provide the other manual sync/retry diagnostics.
 - Transaction normalization pipeline: raw Feezback bank/card transactions → `NormalizedTransaction[]` (dedup, currency-aware `paymentIdentifier` derivation) → handed to `TransactionProcessingService.process()` for persistence.
 
 ## Related topics
