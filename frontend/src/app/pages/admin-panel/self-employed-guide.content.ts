@@ -188,11 +188,6 @@ export const SELF_EMPLOYED_GUIDE_SLIDES: GuideSlide[] = [
     ],
   },
   {
-    id: 'income-tax-summary', layout: 'tax-simulator',
-    title: 'חשבון לכיתה ד - אין מה לחשוש',
-    takeaway: 'חזרה לאותה סימולציה לסיכום הפרק, עם הנתונים שכבר הוזנו.',
-  },
-  {
     id: 'vat-introduction', layout: 'approved-artwork', title: 'מע״מ — לא כל הכסף שנכנס הוא שלכם',
     artwork: '/assets/self-employed-guide/vat-introduction-approved.png',
     artworkAlt: 'עוסק מורשה גובה מע״מ על עסקאות חייבות, מקזז מס תשומות מותר ומדווח על ההפרש. עוסק פטור לא גובה מע״מ בעסקאותיו הרגילות ולא מקזז תשומות. מע״מ אינו מס על הרווח אלא על ביצוע עסקאות.',

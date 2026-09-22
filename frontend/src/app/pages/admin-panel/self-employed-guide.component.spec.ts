@@ -42,15 +42,27 @@ describe('SelfEmployedGuideComponent', () => {
       }
     });
   }
-  it('assigns all 21 slides exactly once and opens income at combined income', () => {
+  it('assigns all 20 slides exactly once and opens income at combined income', () => {
     const ids = [...component.mainIds, ...Object.values(component.chapterIds).flat()];
-    expect(new Set(ids).size).toBe(21);
+    expect(new Set(ids).size).toBe(20);
     expect([...ids].sort()).toEqual(SELF_EMPLOYED_GUIDE_SLIDES.map(s => s.id).sort());
     component.openChapter('income');
     expect(component.currentSlide.id).toBe('income-combination');
     component.nextSlide();
     component.previousSlide();
     expect(component.currentSlide.title).toBe('שכיר וגם עצמאי? בסוף שנה הכל נפגש');
+  });
+  it('shows the income calculator only at the end and returns to the hub', () => {
+    component.openChapter('income');
+    expect(component.slides.filter(slide => slide.layout === 'tax-simulator').length).toBe(1);
+    expect(component.slides[1].id).toBe('advances-introduction');
+    for (let i = 1; i < component.slides.length; i++) component.nextSlide();
+    expect(component.currentSlide.id).toBe('tax-simulator');
+    component.previousSlide();
+    expect(component.currentSlide.id).toBe('micro-reporting');
+    component.nextSlide();
+    component.nextSlide();
+    expect(component.currentSlide.id).toBe('tax-authorities');
   });
   it('ignores invalid targets and respects RTL keys and inputs', () => {
     component.goToSlide(undefined);
