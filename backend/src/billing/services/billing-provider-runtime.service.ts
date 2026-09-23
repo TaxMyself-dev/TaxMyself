@@ -8,6 +8,7 @@ import {
 export const BILLING_CARD_COM_EXECUTOR = Symbol('BILLING_CARD_COM_EXECUTOR');
 export interface CardComChargeRequest {
   attemptId: number;
+  paymentMethodId: number | null;
   externalUniqTranId: string;
   amountAgorot: number;
   currency: string;
@@ -59,6 +60,7 @@ export class BillingProviderRuntimeService {
       };
     const request = {
       attemptId: lease.attempt.id,
+      paymentMethodId: lease.attempt.paymentMethodId,
       externalUniqTranId: lease.attempt.cardcomExternalUniqTranId,
       amountAgorot: lease.attempt.amountAgorot,
       currency: lease.attempt.currency,
@@ -96,6 +98,7 @@ export class BillingProviderRuntimeService {
       };
     const request = {
       attemptId: lease.attempt.id,
+      paymentMethodId: lease.attempt.paymentMethodId,
       externalUniqTranId: lease.attempt.cardcomExternalUniqTranId,
       amountAgorot: lease.attempt.amountAgorot,
       currency: lease.attempt.currency,

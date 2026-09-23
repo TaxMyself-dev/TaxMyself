@@ -153,4 +153,25 @@ describe('BillingLifecycleService', () => {
     expect(receipt.createReceipt).not.toHaveBeenCalled();
     expect(orchestration.finalizeCapturedAttempt).not.toHaveBeenCalled();
   });
+
+  it('denies renewal before provider I/O when the owner context is rejected', async () => {
+    const orchestration = {
+      assertOwnerMutation: jest.fn().mockImplementation(() => {
+        throw new Error('owner-only mutation denied');
+      }),
+      createOrGetAttempt: jest.fn(),
+    };
+    const provider = { submitCharge: jest.fn() };
+    const receipt = { createReceipt: jest.fn() };
+    const service = new BillingLifecycleService(
+      orchestration as any,
+      provider as any,
+    );
+
+    await expect(
+      service.executeRenewal(input, receipt, 'worker-1', provider as any),
+    ).rejects.toThrow('owner-only mutation denied');
+    expect(provider.submitCharge).not.toHaveBeenCalled();
+    expect(orchestration.createOrGetAttempt).not.toHaveBeenCalled();
+  });
 });

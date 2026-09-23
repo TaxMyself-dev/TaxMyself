@@ -74,6 +74,24 @@ describe('CardcomWebhookService hosted recovery routing', () => {
     );
   });
 
+  it('proceeds to activation when a verified success carries a transaction id', async () => {
+    const { service } = makeService();
+    await service.handleWebhook({
+      LowProfileId: 'lp-1',
+      ReturnValue: 'ignored',
+    });
+    expect((service as any).processVerifiedSuccess).toHaveBeenCalledWith(
+      'owner',
+      2,
+      9,
+      expect.objectContaining({
+        TranzactionInfo: { ResponseCode: 0, TranzactionId: 123 },
+      }),
+      log,
+      44,
+    );
+  });
+
   it('applies DECLINED and never finalizes on a failed verified result', async () => {
     const { service, lifecycle } = makeService({
       ResponseCode: 12,
@@ -94,6 +112,32 @@ describe('CardcomWebhookService hosted recovery routing', () => {
       'webhook-7',
     );
     expect(lifecycle.finalizeAfterReceipt).not.toHaveBeenCalled();
+  });
+
+  it('maps a verified success without a transaction id to UNKNOWN without activation', async () => {
+    const { service, lifecycle } = makeService({
+      ResponseCode: 0,
+      LowProfileId: 'lp-1',
+      ReturnValue: JSON.stringify({
+        intent: 'CHECKOUT',
+        firebaseId: 'owner',
+        planId: 2,
+        subscriptionId: 9,
+        billingAttemptId: 44,
+      }),
+      TranzactionInfo: { ResponseCode: 0 },
+    });
+    await service.handleWebhook({ LowProfileId: 'lp-1' });
+    expect(lifecycle.applyHostedWebhookOutcome).toHaveBeenCalledWith(
+      expect.anything(),
+      44,
+      expect.objectContaining({
+        kind: 'UNKNOWN',
+        failureCategory: 'MISSING_TRANSACTION_ID',
+      }),
+      'webhook-7',
+    );
+    expect((service as any).processVerifiedSuccess).not.toHaveBeenCalled();
   });
 
   it('maps GetLpResult transport failure to UNKNOWN without replay', async () => {
@@ -118,6 +162,9 @@ describe('CardcomWebhookService hosted recovery routing', () => {
 
   it('keeps canonical attempt blocking when receipt creation fails', async () => {
     const { service, lifecycle } = makeService();
+    (service as any).billingIssuerConfigService.getKeepintaxIssuer = jest
+      .fn()
+      .mockResolvedValue({ issuerName: 'Keepintax' });
     (service as any).billingReceiptService.createReceiptForPayment = jest
       .fn()
       .mockRejectedValue(new Error('receipt failed'));

@@ -149,7 +149,7 @@ export class CardcomWebhookService implements OnModuleInit {
       this.parseReturnValue(returnValue);
 
     const responseCode = payload.ResponseCode ?? null;
-    const transactionId =
+    const payloadTransactionId =
       payload.TranzactionId ?? payload.TranzactionInfo?.TranzactionId ?? null;
 
     console.log(
@@ -166,7 +166,7 @@ export class CardcomWebhookService implements OnModuleInit {
       parsedReturn?.firebaseId ?? null,
       parsedReturn?.intent === 'CHECKOUT' ? parsedReturn.planId : null,
       parsedReturn?.subscriptionId ?? null,
-      transactionId != null ? String(transactionId) : null,
+      payloadTransactionId != null ? String(payloadTransactionId) : null,
       responseCode,
     );
 
@@ -267,19 +267,19 @@ export class CardcomWebhookService implements OnModuleInit {
     const txOk =
       !verified.TranzactionInfo ||
       (verified.TranzactionInfo.ResponseCode ?? -1) === 0;
+    const transactionId =
+      verified.TranzactionId ?? verified.TranzactionInfo?.TranzactionId;
+    const verifiedSuccessWithoutTransaction =
+      topLevelOk && txOk && verifiedReturnMatch && transactionId == null;
 
-    if (topLevelOk && txOk && verifiedReturnMatch) {
+    if (topLevelOk && txOk && verifiedReturnMatch && transactionId != null) {
       if (parsedReturn.billingAttemptId && this.billingLifecycleService) {
-        const transactionId =
-          verified.TranzactionId ?? verified.TranzactionInfo?.TranzactionId;
-        if (transactionId != null) {
-          await this.billingLifecycleService.applyHostedWebhookOutcome(
-            { actorFirebaseId: firebaseId, subjectFirebaseId: firebaseId },
-            parsedReturn.billingAttemptId,
-            { kind: 'CAPTURED', cardcomTransactionId: String(transactionId) },
-            `webhook-${webhookLog.id}`,
-          );
-        }
+        await this.billingLifecycleService.applyHostedWebhookOutcome(
+          { actorFirebaseId: firebaseId, subjectFirebaseId: firebaseId },
+          parsedReturn.billingAttemptId,
+          { kind: 'CAPTURED', cardcomTransactionId: String(transactionId) },
+          `webhook-${webhookLog.id}`,
+        );
       }
       await this.processVerifiedSuccess(
         firebaseId,
@@ -294,10 +294,12 @@ export class CardcomWebhookService implements OnModuleInit {
         await this.billingLifecycleService.applyHostedWebhookOutcome(
           { actorFirebaseId: firebaseId, subjectFirebaseId: firebaseId },
           parsedReturn.billingAttemptId,
-          {
-            kind: 'DECLINED',
-            providerResponseCode: verified.ResponseCode ?? null,
-          },
+          verifiedSuccessWithoutTransaction
+            ? { kind: 'UNKNOWN', failureCategory: 'MISSING_TRANSACTION_ID' }
+            : {
+                kind: 'DECLINED',
+                providerResponseCode: verified.ResponseCode ?? null,
+              },
           `webhook-${webhookLog.id}`,
         );
       }
@@ -307,6 +309,8 @@ export class CardcomWebhookService implements OnModuleInit {
           }`
         : !txOk
         ? `TranzactionInfo.ResponseCode=${verified.TranzactionInfo?.ResponseCode}`
+        : verifiedSuccessWithoutTransaction
+        ? 'Missing verified transaction id'
         : 'ReturnValue mismatch';
       await this.processVerifiedFailure(
         firebaseId,
