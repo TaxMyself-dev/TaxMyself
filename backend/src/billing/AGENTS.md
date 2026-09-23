@@ -100,6 +100,28 @@ runtime after its committed lease. A captured attempt remains blocking until
 `finalizeCapturedAttempt` receives a successfully created receipt document;
 that method atomically pairs `COMPLETED` with `SATISFIED`. Owner-only actor
 context is checked before each mutation. Unknown outcomes are not replayed.
+
+Post-capture recovery: an attempt already `CAPTURED` is never claimed for
+submission or sent to CardCom again — `executeRenewal` detects it (from the
+period snapshot or the opened attempt) before any provider call and only
+resumes the receipt/journal/completion phase through
+`BillingLifecycleService.resumeCapturedAttempt`, the single path used by the
+first run and every retry. It takes an exclusive finalization lease
+(`claimForFinalization`, owner-checked, independent of the owner label), keeps
+the attempt `CAPTURED` with its original provider transaction id when any step
+fails (lease released, sanitized `RECEIPT_FAILED` event with a failure
+category only), and writes `COMPLETED`/`SATISFIED` only after the receipt step
+succeeds. Idempotency lives in `BillingReceiptService.ensureReceiptForCapturedAttempt`:
+one success event per attempt (`billing_event.billing_attempt_id`), one receipt
+document + journal entry per attempt (the existing UNIQUE
+`documents.billing_attempt_id`, populated by `createBillingSystemReceipt`;
+`createDoc` writes document and journal in one transaction), PDFs and email at
+most once. Renewal advances `nextBillingDate` with a compare-and-set, treats a
+finalized period as a no-op, and reuses the captured debt snapshot instead of a
+re-derived price. A duplicate hosted webhook for a `CAPTURED` attempt resumes
+the same phase once the subscription is activated; a `PAST_DUE` checkout never
+opens another hosted payment for a `CAPTURED` attempt. `UNKNOWN` and expired
+`PROCESSING` reconciliation is separate and not covered here.
 - `GET /billing/plans`, `GET /billing/me`, `POST /billing/trial` — plan listing and current billing state; idempotent trial creation.
 - `POST /billing/checkout/preview` / `POST /billing/checkout` — price preview and CardCom LowProfile checkout session creation; activation happens only via the webhook, never the checkout response.
 - `POST /billing/cardcom/webhook` — CardCom posts payment results here; `CardcomWebhookService` verifies/activates subscriptions; errors are swallowed so CardCom doesn't retry-storm.

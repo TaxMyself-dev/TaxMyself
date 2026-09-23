@@ -17,6 +17,8 @@ export interface LogBillingEventInput {
   vatAmountAgorot?: number | null;
   currency?: string;
   cardcomDealNumber?: string | null;
+  /** Correlates the event with its canonical attempt (existing nullable FK). */
+  billingAttemptId?: number | null;
   metadata?: Record<string, any> | null;
 }
 
@@ -46,6 +48,7 @@ export class BillingEventService {
         vatAmountAgorot: input.vatAmountAgorot ?? null,
         currency: input.currency ?? 'ILS',
         cardcomDealNumber: input.cardcomDealNumber ?? null,
+        billingAttemptId: input.billingAttemptId ?? null,
         metadata: input.metadata ?? null,
       });
       return await this.billingEventRepo.save(event);
@@ -123,6 +126,30 @@ export class BillingEventService {
     } catch (error) {
       this.logger.error(
         `findPaymentSuccessEvent failed for subscriptionId=${subscriptionId}: ${(error as Error)?.message ?? error}`,
+      );
+      return null;
+    }
+  }
+
+  /**
+   * The success event (PAYMENT_SUCCESS / RENEWAL_SUCCESS) already recorded for
+   * a canonical attempt. This is what makes post-capture recovery idempotent at
+   * the audit level: a retry re-uses this row (and its receiptDocId /
+   * receiptEmailSent flags) instead of logging a second success event.
+   * Returns null when none exists or the lookup fails.
+   */
+  async findSuccessEventForAttempt(
+    billingAttemptId: number,
+    eventType: BillingEventType.PAYMENT_SUCCESS | BillingEventType.RENEWAL_SUCCESS,
+  ): Promise<BillingEvent | null> {
+    try {
+      return await this.billingEventRepo.findOne({
+        where: { billingAttemptId, eventType },
+        order: { createdAt: 'ASC' },
+      });
+    } catch (error) {
+      this.logger.error(
+        `findSuccessEventForAttempt failed for billingAttemptId=${billingAttemptId}: ${(error as Error)?.message ?? error}`,
       );
       return null;
     }

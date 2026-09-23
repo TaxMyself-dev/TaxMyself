@@ -8,7 +8,12 @@ import { Subscription } from '../entities/subscription.entity';
 import { SubscriptionPlan } from '../entities/subscription-plan.entity';
 import { PaymentMethod } from '../entities/payment-method.entity';
 
-import { BillingEventType, SubscriptionStatus } from '../enums/billing.enums';
+import {
+  BillingAttemptStatus,
+  BillingEventType,
+  BillingObligationStatus,
+  SubscriptionStatus,
+} from '../enums/billing.enums';
 import { ModuleName } from 'src/enum';
 import {
   CardcomService,
@@ -231,11 +236,44 @@ export class SubscriptionRenewalService {
         message: 'Subscription is not due for canonical renewal',
       };
     }
+    // Once a period is completed nextBillingDate moves forward, so a repeated
+    // invocation (admin manual trigger, racing run) must be a no-op rather than
+    // opening — and charging — the next period early.
+    if (subscription.nextBillingDate > new Date()) {
+      return {
+        subscriptionId,
+        outcome: 'skipped',
+        message: 'Subscription is not due for renewal yet',
+      };
+    }
     const periodStart = subscription.nextBillingDate;
     const periodEnd = this.addOneMonth(periodStart);
-    const plan = subscription.planId
+    const periodStartDate = periodStart.toISOString().slice(0, 10);
+    const actor = {
+      actorFirebaseId: subscription.firebaseId,
+      subjectFirebaseId: subscription.firebaseId,
+    };
+    const billingPeriod = this.formatBillingPeriod(periodStart);
+
+    // A period that is already CAPTURED (post-capture work pending) or settled
+    // must never be re-priced or re-charged: a fresh price may have drifted
+    // from what was captured. Its canonical debt snapshot is authoritative.
+    const existing = await this.billingLifecycleService.inspectPeriod(
+      actor,
+      subscriptionId,
+      periodStartDate,
+    );
+    const settledOrCaptured =
+      !!existing &&
+      (existing.obligation.status === BillingObligationStatus.SATISFIED ||
+        existing.attempt?.status === BillingAttemptStatus.CAPTURED);
+
+    const planId = settledOrCaptured
+      ? existing.obligation.planId
+      : subscription.planId;
+    const plan = planId
       ? await this.subscriptionRepo.manager.findOne(SubscriptionPlan, {
-          where: { id: subscription.planId },
+          where: { id: planId },
         })
       : null;
     if (!plan)
@@ -244,21 +282,22 @@ export class SubscriptionRenewalService {
         outcome: 'error',
         message: 'Subscription has no plan assigned',
       };
-    const pricing = await this.pricingService.calculateCheckoutPrice(
-      subscription.firebaseId,
-      plan.id,
-    );
-    const actor = {
-      actorFirebaseId: subscription.firebaseId,
-      subjectFirebaseId: subscription.firebaseId,
-    };
-    const billingPeriod = this.formatBillingPeriod(periodStart);
+    const pricing = settledOrCaptured
+      ? {
+          finalAmountAgorot: existing.obligation.amountAgorot,
+          amountBeforeVatAgorot: existing.obligation.amountBeforeVatAgorot,
+          vatAmountAgorot: existing.obligation.vatAmountAgorot,
+        }
+      : await this.pricingService.calculateCheckoutPrice(
+          subscription.firebaseId,
+          plan.id,
+        );
     const result = await this.billingLifecycleService.executeRenewal(
       {
         actor,
         subscriptionId,
         planId: plan.id,
-        periodStart: periodStart.toISOString().slice(0, 10),
+        periodStart: periodStartDate,
         periodEnd: periodEnd.toISOString().slice(0, 10),
         amountAgorot: pricing.finalAmountAgorot,
         amountBeforeVatAgorot: pricing.amountBeforeVatAgorot,
@@ -270,7 +309,6 @@ export class SubscriptionRenewalService {
           this.createCanonicalRenewalReceipt(
             subscription,
             plan,
-            pricing,
             periodStart,
             periodEnd,
             billingPeriod,
@@ -280,9 +318,11 @@ export class SubscriptionRenewalService {
       },
       `renewal-${subscriptionId}-${billingPeriod}`,
     );
+
     if (
-      result.submitted.kind !== 'APPLIED' ||
-      result.submitted.outcome?.kind !== 'CAPTURED'
+      result.submitted &&
+      (result.submitted.kind !== 'APPLIED' ||
+        result.submitted.outcome?.kind !== 'CAPTURED')
     ) {
       const nonCapture = result.submitted.outcome;
       return {
@@ -295,6 +335,44 @@ export class SubscriptionRenewalService {
             : undefined,
       };
     }
+    if (result.resume?.status === 'LEASE_HELD')
+      return {
+        subscriptionId,
+        outcome: 'skipped',
+        billingPeriod,
+        message: 'Post-capture completion is already in progress',
+      };
+    if (result.resume?.status === 'NOT_CAPTURED')
+      return {
+        subscriptionId,
+        outcome: 'skipped',
+        billingPeriod,
+        message: 'Attempt is no longer awaiting post-capture completion',
+      };
+    if (result.resume?.status === 'RECEIPT_PENDING') {
+      // The charge was captured and stays CAPTURED (never re-submitted); the
+      // next run resumes only this phase. Sanitized category only — no
+      // provider, token or payment detail is persisted or returned.
+      await this.billingEventService.logEvent({
+        firebaseId: subscription.firebaseId,
+        eventType: BillingEventType.RECEIPT_FAILED,
+        subscriptionId,
+        billingAttemptId: result.resume.attempt.id,
+        metadata: {
+          billingPeriod,
+          attemptId: result.resume.attempt.id,
+          cardcomDealNumber: result.resume.attempt.cardcomTransactionId,
+          phase: 'POST_CAPTURE_RECOVERY',
+          failureCategory: result.resume.failureCategory,
+        },
+      });
+      return {
+        subscriptionId,
+        outcome: 'blocked_pending_receipt',
+        billingPeriod,
+        message: 'Payment captured; receipt/finalization is pending retry',
+      };
+    }
     if (!result.finalized)
       return {
         subscriptionId,
@@ -302,14 +380,31 @@ export class SubscriptionRenewalService {
         billingPeriod,
         message: 'Receipt finalization did not complete',
       };
-    await this.subscriptionRepo.update(subscriptionId, {
-      status: SubscriptionStatus.ACTIVE,
-      renewalAttempts: 0,
-      currentPeriodStart: periodStart,
-      currentPeriodEnd: periodEnd,
-      nextBillingDate: periodEnd,
-      gracePeriodEndsAt: null,
-    });
+
+    // Compare-and-set on the still-due nextBillingDate so the period advances
+    // exactly once even if two runs both reach this point.
+    const advanced = await this.subscriptionRepo.update(
+      {
+        id: subscriptionId,
+        status: SubscriptionStatus.ACTIVE,
+        nextBillingDate: periodStart,
+      },
+      {
+        status: SubscriptionStatus.ACTIVE,
+        renewalAttempts: 0,
+        currentPeriodStart: periodStart,
+        currentPeriodEnd: periodEnd,
+        nextBillingDate: periodEnd,
+        gracePeriodEndsAt: null,
+      },
+    );
+    if (!advanced.affected)
+      return {
+        subscriptionId,
+        outcome: 'skipped',
+        billingPeriod,
+        message: 'Subscription period was already advanced',
+      };
     return {
       subscriptionId,
       outcome: 'success',
@@ -319,14 +414,16 @@ export class SubscriptionRenewalService {
     };
   }
 
+  /**
+   * Idempotent per attempt: the success event, the receipt document (and its
+   * journal entry), the PDFs and the email are each created at most once, so
+   * this can be called again for the same CAPTURED attempt after any partial
+   * failure. Amounts come from the attempt's own immutable snapshot — what was
+   * actually charged — never from a fresh price.
+   */
   private async createCanonicalRenewalReceipt(
     subscription: Subscription,
     plan: SubscriptionPlan,
-    pricing: {
-      finalAmountAgorot: number;
-      amountBeforeVatAgorot: number;
-      vatAmountAgorot: number;
-    },
     periodStart: Date,
     periodEnd: Date,
     billingPeriod: string,
@@ -334,53 +431,27 @@ export class SubscriptionRenewalService {
     outcome: NormalizedChargeOutcome,
   ): Promise<{ receiptDocId: number }> {
     const issuer = await this.billingIssuerConfigService.getKeepintaxIssuer();
-    const cardcomDealNumber =
-      outcome.kind === 'CAPTURED' ? outcome.cardcomTransactionId : null;
-    const event = await this.billingEventService.logEvent({
-      firebaseId: subscription.firebaseId,
+    return this.billingReceiptService.ensureReceiptForCapturedAttempt({
+      issuer,
       eventType: BillingEventType.RENEWAL_SUCCESS,
+      attempt: {
+        id: attempt.id,
+        amountAgorot: attempt.amountAgorot,
+        amountBeforeVatAgorot: attempt.amountBeforeVatAgorot,
+        vatAmountAgorot: attempt.vatAmountAgorot,
+        currency: attempt.currency,
+        cardcomTransactionId:
+          outcome.kind === 'CAPTURED'
+            ? outcome.cardcomTransactionId
+            : attempt.cardcomTransactionId,
+      },
+      firebaseId: subscription.firebaseId,
       subscriptionId: subscription.id,
-      amountAgorot: pricing.finalAmountAgorot,
-      amountBeforeVatAgorot: pricing.amountBeforeVatAgorot,
-      vatAmountAgorot: pricing.vatAmountAgorot,
-      currency: 'ILS',
-      cardcomDealNumber,
-      metadata: {
-        billingPeriod,
-        attemptId: attempt.id,
-        cardcomTransactionId: cardcomDealNumber,
-      },
+      planName: plan.name,
+      periodStart,
+      periodEnd,
+      eventMetadata: { billingPeriod },
     });
-    const receipt = await this.billingReceiptService.createReceiptForPayment(
-      issuer,
-      {
-        firebaseId: subscription.firebaseId,
-        subscriptionId: subscription.id,
-        amountBeforeVatAgorot: pricing.amountBeforeVatAgorot,
-        vatAmountAgorot: pricing.vatAmountAgorot,
-        amountIncludingVatAgorot: pricing.finalAmountAgorot,
-        planName: plan.name,
-        periodStart,
-        periodEnd,
-        cardcomDealNumber,
-      },
-    );
-    if (event)
-      await this.billingEventService.updatePaymentEventWithReceipt(
-        event.id,
-        receipt.receiptDocId,
-      );
-    await this.billingReceiptService.finalizeBillingReceiptPdfs(
-      receipt.receiptDocId,
-      issuer,
-      subscription.firebaseId,
-    );
-    if (event)
-      await this.billingReceiptService.sendReceiptEmailForPaymentEvent(
-        event.id,
-        issuer.issuerName,
-      );
-    return { receiptDocId: receipt.receiptDocId };
   }
 
   private async chargeSubscriptionLegacy(

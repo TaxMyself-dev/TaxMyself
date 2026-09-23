@@ -160,34 +160,8 @@ describe('CardcomWebhookService hosted recovery routing', () => {
     expect(lifecycle.applyHostedWebhookOutcome).not.toHaveBeenCalled();
   });
 
-  it('keeps canonical attempt blocking when receipt creation fails', async () => {
-    const { service, lifecycle } = makeService();
-    (service as any).billingIssuerConfigService.getKeepintaxIssuer = jest
-      .fn()
-      .mockResolvedValue({ issuerName: 'Keepintax' });
-    (service as any).billingReceiptService.createReceiptForPayment = jest
-      .fn()
-      .mockRejectedValue(new Error('receipt failed'));
-    (service as any).billingEventService.logEvent = jest
-      .fn()
-      .mockResolvedValue({ id: 10 });
-    (service as any).billingEventService.findCheckoutBreakdown = jest
-      .fn()
-      .mockResolvedValue({
-        amountBeforeVatAgorot: 1000,
-        vatAmountAgorot: 170,
-        amountIncludingVatAgorot: 1170,
-      });
-    await (service as any).generateReceiptAfterPayment({
-      firebaseId: 'owner',
-      subscriptionId: 9,
-      planName: 'plan',
-      periodStart: new Date('2026-09-01'),
-      periodEnd: new Date('2026-10-01'),
-      cardcomDealNumber: '123',
-      paymentSuccessEvent: { id: 10 },
-      billingAttemptId: 44,
-    });
-    expect(lifecycle.finalizeAfterReceipt).not.toHaveBeenCalled();
-  });
+  // The former "keeps canonical attempt blocking when receipt creation fails"
+  // case is superseded by cardcom-webhook.post-capture.spec.ts: canonical
+  // attempts no longer use generateReceiptAfterPayment, they go through the
+  // shared lifecycle.resumeCapturedAttempt path, which is what that spec covers.
 });

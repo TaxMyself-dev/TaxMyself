@@ -31,7 +31,10 @@ import {
 import { CheckoutPreviewDto } from '../dtos/checkout-preview.dto';
 import { CreateCheckoutDto } from '../dtos/create-checkout.dto';
 import { BillingLifecycleService } from './billing-lifecycle.service';
-import { BillingChargeMode } from '../enums/billing.enums';
+import {
+  BillingAttemptStatus,
+  BillingChargeMode,
+} from '../enums/billing.enums';
 import {
   assertBillingOwnerMutation,
   BillingMutationActorContext,
@@ -574,6 +577,15 @@ export class BillingService {
         },
         BillingChargeMode.LOW_PROFILE_HOSTED,
       );
+      // The existing blocking attempt may already be CAPTURED (money taken,
+      // post-capture work pending). Never open another hosted payment for it:
+      // the customer would be charged twice for one period. Its completion is
+      // resumed from persisted state (duplicate webhook / renewal), not here.
+      if (recovery.attempt.status === BillingAttemptStatus.CAPTURED) {
+        throw new ConflictException(
+          'A payment for this billing period was already received and is being finalized. Please try again shortly.',
+        );
+      }
       recoveryAttemptId = recovery.attempt.id;
     }
 

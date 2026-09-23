@@ -6,6 +6,7 @@ import { BusinessType, DocumentType } from 'src/enum';
 import { DocumentsService } from 'src/documents/documents.service';
 import { MailService } from 'src/mail/mail.service';
 import { BillingEventService } from './billing-event.service';
+import { BillingEventType } from '../enums/billing.enums';
 
 /**
  * Identity of the business issuing a billing receipt. Passed in by the caller
@@ -22,6 +23,21 @@ export interface ReceiptIssuer {
   issuerPhone: string | null;
   issuerEmail: string | null;
   issuerAddress: string | null;
+}
+
+function isDuplicateKeyError(error: unknown): boolean {
+  const e = error as {
+    code?: string;
+    driverError?: { code?: string };
+    response?: unknown;
+    message?: string;
+  };
+  return (
+    e?.code === 'ER_DUP_ENTRY' ||
+    e?.driverError?.code === 'ER_DUP_ENTRY' ||
+    // saveDocInfo re-wraps driver errors in an HttpException carrying the message.
+    /ER_DUP_ENTRY|Duplicate entry/i.test(String(e?.message ?? ''))
+  );
 }
 
 @Injectable()
@@ -48,12 +64,29 @@ export class BillingReceiptService {
     periodStart: Date;
     periodEnd: Date;
     cardcomDealNumber: string | null;
+    /**
+     * Canonical attempt this receipt settles. When set, creation is idempotent:
+     * an existing receipt for the attempt is returned instead of issuing a
+     * second tax document and journal entry (backed by the UNIQUE
+     * documents.billing_attempt_id key).
+     */
+    billingAttemptId?: number | null;
   }): Promise<{ receiptDocId: number; docNumber: string; generalDocIndex: string }> {
     const {
       firebaseId, subscriptionId,
       amountBeforeVatAgorot, vatAmountAgorot, amountIncludingVatAgorot,
-      planName, periodStart, periodEnd, cardcomDealNumber,
+      planName, periodStart, periodEnd, cardcomDealNumber, billingAttemptId,
     } = params;
+
+    if (billingAttemptId != null) {
+      const existing = await this.documentsService.findBillingReceiptByAttemptId(billingAttemptId);
+      if (existing) {
+        this.logger.log(
+          `Billing receipt already exists for attemptId=${billingAttemptId}: docId=${existing.receiptDocId} — reusing`,
+        );
+        return existing;
+      }
+    }
 
     const user = await this.userRepo.findOne({ where: { firebaseId } });
     if (!user) {
@@ -63,20 +96,33 @@ export class BillingReceiptService {
     const recipientName = `${user.fName ?? ''} ${user.lName ?? ''}`.trim() || 'לקוח';
     const recipientEmail = user.email ?? null;
 
-    const result = await this.documentsService.createBillingSystemReceipt({
-      systemUserId: issuer.systemUserId,
-      issuerBusinessNumber: issuer.issuerBusinessNumber,
-      issuerBusinessType: issuer.issuerBusinessType,
-      recipientName,
-      recipientEmail,
-      amountBeforeVatAgorot,
-      vatAmountAgorot,
-      amountIncludingVatAgorot,
-      planName,
-      periodStart,
-      periodEnd,
-      docDate: new Date(),
-    });
+    let result: { receiptDocId: number; docNumber: string; generalDocIndex: string };
+    try {
+      result = await this.documentsService.createBillingSystemReceipt({
+        systemUserId: issuer.systemUserId,
+        issuerBusinessNumber: issuer.issuerBusinessNumber,
+        issuerBusinessType: issuer.issuerBusinessType,
+        recipientName,
+        recipientEmail,
+        amountBeforeVatAgorot,
+        vatAmountAgorot,
+        amountIncludingVatAgorot,
+        planName,
+        periodStart,
+        periodEnd,
+        docDate: new Date(),
+        billingAttemptId,
+      });
+    } catch (error) {
+      // A concurrent creator won the UNIQUE billing_attempt_id key. Its whole
+      // createDoc transaction (document + journal) is committed, ours rolled
+      // back — adopt the winner instead of failing or duplicating.
+      if (billingAttemptId != null && isDuplicateKeyError(error)) {
+        const winner = await this.documentsService.findBillingReceiptByAttemptId(billingAttemptId);
+        if (winner) return winner;
+      }
+      throw error;
+    }
 
     console.log(
       `Billing receipt document created: docId=${result.receiptDocId} docNumber=${result.docNumber} ` +
@@ -85,6 +131,90 @@ export class BillingReceiptService {
     );
 
     return result;
+  }
+
+  // ─── Idempotent post-capture receipt for a canonical attempt ─────────────────
+
+  /**
+   * The single post-capture receipt implementation for canonical attempts
+   * (renewal and hosted recovery). Safe to call repeatedly for the same
+   * CAPTURED attempt after any partial failure:
+   *
+   *   - success event: re-uses the attempt's existing PAYMENT/RENEWAL_SUCCESS
+   *     row (found by billing_attempt_id) instead of logging another;
+   *   - receipt document + journal entry: created at most once per attempt
+   *     (UNIQUE documents.billing_attempt_id; createDoc persists both in one
+   *     transaction), re-found on retry;
+   *   - PDFs: finalizeBillingReceipt is itself idempotent;
+   *   - email: skipped once receiptEmailSent is set.
+   *
+   * Amounts come from the attempt's immutable snapshot — what was actually
+   * charged — never from a re-derived price. Throws on any failed step so the
+   * caller keeps the attempt CAPTURED and retries later.
+   */
+  async ensureReceiptForCapturedAttempt(params: {
+    issuer: ReceiptIssuer;
+    eventType: BillingEventType.PAYMENT_SUCCESS | BillingEventType.RENEWAL_SUCCESS;
+    attempt: {
+      id: number;
+      amountAgorot: number;
+      amountBeforeVatAgorot: number;
+      vatAmountAgorot: number;
+      currency: string;
+      cardcomTransactionId: string | null;
+    };
+    firebaseId: string;
+    subscriptionId: number;
+    planName: string;
+    periodStart: Date;
+    periodEnd: Date;
+    eventMetadata?: Record<string, any>;
+  }): Promise<{ receiptDocId: number }> {
+    const {
+      issuer, eventType, attempt, firebaseId, subscriptionId,
+      planName, periodStart, periodEnd, eventMetadata,
+    } = params;
+    const cardcomDealNumber = attempt.cardcomTransactionId;
+
+    let event = await this.billingEventService.findSuccessEventForAttempt(attempt.id, eventType);
+    if (!event) {
+      event = await this.billingEventService.logEvent({
+        firebaseId,
+        eventType,
+        subscriptionId,
+        amountAgorot: attempt.amountAgorot,
+        amountBeforeVatAgorot: attempt.amountBeforeVatAgorot,
+        vatAmountAgorot: attempt.vatAmountAgorot,
+        currency: attempt.currency,
+        cardcomDealNumber,
+        billingAttemptId: attempt.id,
+        metadata: { ...(eventMetadata ?? {}), attemptId: attempt.id, cardcomTransactionId: cardcomDealNumber },
+      });
+    }
+
+    let receiptDocId = event?.receiptDocId ?? null;
+    if (receiptDocId == null) {
+      const receipt = await this.createReceiptForPayment(issuer, {
+        firebaseId,
+        subscriptionId,
+        amountBeforeVatAgorot: attempt.amountBeforeVatAgorot,
+        vatAmountAgorot: attempt.vatAmountAgorot,
+        amountIncludingVatAgorot: attempt.amountAgorot,
+        planName,
+        periodStart,
+        periodEnd,
+        cardcomDealNumber,
+        billingAttemptId: attempt.id,
+      });
+      receiptDocId = receipt.receiptDocId;
+      if (event) await this.billingEventService.updatePaymentEventWithReceipt(event.id, receiptDocId);
+    }
+
+    await this.finalizeBillingReceiptPdfs(receiptDocId, issuer, firebaseId);
+    if (event && !event.receiptEmailSent) {
+      await this.sendReceiptEmailForPaymentEvent(event.id, issuer.issuerName);
+    }
+    return { receiptDocId };
   }
 
   // ─── Step 2: Generate PDFs + upload to Firebase ──────────────────────────────

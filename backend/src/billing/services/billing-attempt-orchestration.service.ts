@@ -28,6 +28,8 @@ import {
 } from '../domain/billing-state-machine';
 
 const DEFAULT_LEASE_MS = 30_000;
+/** Post-capture receipt/PDF/email work is slower than a provider call. */
+const FINALIZATION_LEASE_MS = 5 * 60_000;
 const MAX_EXTERNAL_KEY_ATTEMPTS = 5;
 const RECONCILIATION_DELAYS_MS = [
   60_000,
@@ -100,6 +102,18 @@ export interface AttemptLeaseResult {
   claimed: boolean;
   attempt: BillingAttempt;
   reason?: 'NOT_DUE' | 'ALREADY_CLAIMED' | 'NOT_CLAIMABLE';
+}
+
+export interface FinalizationLeaseResult {
+  claimed: boolean;
+  attempt: BillingAttempt;
+  reason?: 'ALREADY_COMPLETED' | 'NOT_CAPTURED' | 'ALREADY_CLAIMED';
+}
+
+export interface BillingPeriodSnapshot {
+  obligation: BillingObligation;
+  /** The satisfied attempt if the period is settled, else the active one. */
+  attempt: BillingAttempt | null;
 }
 
 export type NormalizedChargeOutcome =
@@ -400,6 +414,101 @@ export class BillingAttemptOrchestrationService {
   }
 
   /**
+   * Read-only view of one billing period's canonical debt and its settled or
+   * active attempt. Lets callers detect an already-CAPTURED or already-settled
+   * period before re-deriving a price or opening/submitting anything.
+   */
+  async findPeriodSnapshot(
+    subscriptionId: number,
+    periodStart: string,
+    subjectFirebaseId: string,
+  ): Promise<BillingPeriodSnapshot | null> {
+    return this.inTransaction(async (manager) => {
+      const obligation = await manager.findOne(BillingObligation, {
+        where: {
+          obligationKey: this.buildObligationKey(subscriptionId, periodStart),
+        },
+      });
+      if (!obligation) return null;
+      if (obligation.firebaseIdSnapshot !== subjectFirebaseId) {
+        throw new ForbiddenException(
+          'Billing mutation subject does not own the billing period',
+        );
+      }
+      const attemptId =
+        obligation.satisfiedAttemptId ?? obligation.activeAttemptId;
+      const attempt =
+        attemptId == null
+          ? null
+          : await manager.findOne(BillingAttempt, { where: { id: attemptId } });
+      return { obligation, attempt };
+    });
+  }
+
+  /**
+   * Exclusive lease for the post-capture phase (receipt, journal, completion)
+   * of an already-CAPTURED attempt. It never touches the provider and never
+   * changes the attempt status; it only serializes concurrent recovery runs.
+   * The lease is exclusive regardless of owner label: renewal lease owners are
+   * deterministic per period, so two concurrent runs share the same label.
+   */
+  async claimForFinalization(
+    attemptId: number,
+    leaseOwner: string,
+    subjectFirebaseId: string,
+    now = new Date(),
+    leaseMs = FINALIZATION_LEASE_MS,
+  ): Promise<FinalizationLeaseResult> {
+    return this.inTransaction(async (manager) => {
+      const attempt = await this.lockAttempt(manager, attemptId);
+      const obligation = await this.lockObligation(
+        manager,
+        attempt.obligationId,
+      );
+      if (obligation.firebaseIdSnapshot !== subjectFirebaseId) {
+        throw new ForbiddenException(
+          'Billing mutation subject does not own the billing attempt',
+        );
+      }
+      if (attempt.status === BillingAttemptStatus.COMPLETED) {
+        return { claimed: false, attempt, reason: 'ALREADY_COMPLETED' };
+      }
+      if (attempt.status !== BillingAttemptStatus.CAPTURED) {
+        return { claimed: false, attempt, reason: 'NOT_CAPTURED' };
+      }
+      if (this.hasLiveLease(attempt, now)) {
+        return { claimed: false, attempt, reason: 'ALREADY_CLAIMED' };
+      }
+      this.assignLease(attempt, leaseOwner, now, leaseMs);
+      await manager.save(BillingAttempt, attempt);
+      return { claimed: true, attempt };
+    });
+  }
+
+  /**
+   * Releases a finalization lease after a failed post-capture step so the next
+   * run can retry immediately. `expectedStateVersion` (the version returned by
+   * the claim) stops a stale run from releasing a newer holder's lease. The
+   * attempt stays CAPTURED.
+   */
+  async releaseFinalizationLease(
+    attemptId: number,
+    expectedStateVersion: number,
+  ): Promise<void> {
+    await this.inTransaction(async (manager) => {
+      const attempt = await this.lockAttempt(manager, attemptId);
+      if (
+        attempt.status !== BillingAttemptStatus.CAPTURED ||
+        attempt.stateVersion !== expectedStateVersion
+      ) {
+        return;
+      }
+      this.clearLease(attempt);
+      await manager.save(BillingAttempt, attempt);
+    });
+  }
+
+  /**
    * Atomically records the local side of a successful charge. Receipt/journal
    * creation must complete before this method is called; a captured attempt
    * therefore remains blocking when finalization fails and can be retried
@@ -447,6 +556,7 @@ export class BillingAttemptOrchestrationService {
       attempt.completedAt = now;
       attempt.stateVersion += 1;
       attempt.status = BillingAttemptStatus.COMPLETED;
+      this.clearLease(attempt);
       obligation.satisfiedAttemptId = attempt.id;
       obligation.satisfiedAt = now;
       obligation.activeAttemptId = null;

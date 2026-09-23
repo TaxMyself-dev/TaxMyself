@@ -594,4 +594,181 @@ describe('BillingAttemptOrchestrationService', () => {
       lock: { mode: 'pessimistic_write' },
     });
   });
+
+  describe('post-capture finalization (KT-038 Task 3)', () => {
+    const now = new Date('2026-09-17T00:00:00Z');
+    const capturedRow = (overrides: Partial<BillingAttempt> = {}) =>
+      attempt({
+        status: BillingAttemptStatus.CAPTURED,
+        stateVersion: 3,
+        cardcomTransactionId: 'deal-77',
+        capturedAt: now,
+        ...overrides,
+      });
+
+    const serveByEntity = (row: BillingAttempt, debt: BillingObligation) =>
+      manager.findOne.mockImplementation(async (entity: unknown) =>
+        entity === BillingAttempt ? row : debt,
+      );
+
+    it('claims a CAPTURED attempt exclusively and never changes its status or provider fields', async () => {
+      const row = capturedRow();
+      serveByEntity(row, obligation({ activeAttemptId: row.id }));
+
+      const claim = await service.claimForFinalization(
+        row.id,
+        'renewal-7-2026-09',
+        'owner-1',
+        now,
+      );
+
+      expect(claim.claimed).toBe(true);
+      expect(row.status).toBe(BillingAttemptStatus.CAPTURED);
+      expect(row.cardcomTransactionId).toBe('deal-77');
+      expect(row.leaseOwner).toBe('renewal-7-2026-09');
+      expect(row.stateVersion).toBe(4);
+    });
+
+    it('a live lease blocks a concurrent run even when it carries the SAME owner label', async () => {
+      const row = capturedRow();
+      serveByEntity(row, obligation({ activeAttemptId: row.id }));
+
+      const first = await service.claimForFinalization(
+        row.id,
+        'renewal-7-2026-09',
+        'owner-1',
+        now,
+      );
+      const second = await service.claimForFinalization(
+        row.id,
+        'renewal-7-2026-09',
+        'owner-1',
+        new Date(now.getTime() + 1_000),
+      );
+
+      expect(first.claimed).toBe(true);
+      expect(second).toEqual(
+        expect.objectContaining({ claimed: false, reason: 'ALREADY_CLAIMED' }),
+      );
+      expect(row.stateVersion).toBe(4);
+    });
+
+    it('lets a later run take over once the lease has expired', async () => {
+      const row = capturedRow({
+        leaseOwner: 'dead-worker',
+        leaseExpiresAt: new Date(now.getTime() - 1),
+      });
+      serveByEntity(row, obligation({ activeAttemptId: row.id }));
+
+      const claim = await service.claimForFinalization(
+        row.id,
+        'worker-b',
+        'owner-1',
+        now,
+      );
+
+      expect(claim.claimed).toBe(true);
+      expect(row.leaseOwner).toBe('worker-b');
+    });
+
+    it('rejects a subject that does not own the attempt before touching it', async () => {
+      const row = capturedRow();
+      serveByEntity(row, obligation({ activeAttemptId: row.id }));
+
+      await expect(
+        service.claimForFinalization(row.id, 'worker-a', 'intruder', now),
+      ).rejects.toThrow(ForbiddenException);
+      expect(row.leaseOwner).toBeNull();
+      expect(manager.save).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      [BillingAttemptStatus.COMPLETED, 'ALREADY_COMPLETED'],
+      [BillingAttemptStatus.UNKNOWN, 'NOT_CAPTURED'],
+      [BillingAttemptStatus.CREATED, 'NOT_CAPTURED'],
+    ])('does not claim a %s attempt (%s)', async (status, reason) => {
+      const row = capturedRow({ status });
+      serveByEntity(row, obligation({ activeAttemptId: row.id }));
+
+      const claim = await service.claimForFinalization(
+        row.id,
+        'worker-a',
+        'owner-1',
+        now,
+      );
+
+      expect(claim).toEqual(expect.objectContaining({ claimed: false, reason }));
+      expect(row.leaseOwner).toBeNull();
+    });
+
+    it('releases only its own lease version and leaves the attempt CAPTURED', async () => {
+      const row = capturedRow({
+        leaseOwner: 'worker-a',
+        leaseExpiresAt: new Date(now.getTime() + 60_000),
+        stateVersion: 4,
+      });
+      serveByEntity(row, obligation({ activeAttemptId: row.id }));
+
+      await service.releaseFinalizationLease(row.id, 3); // stale holder
+      expect(row.leaseOwner).toBe('worker-a');
+
+      await service.releaseFinalizationLease(row.id, 4);
+      expect(row.leaseOwner).toBeNull();
+      expect(row.leaseExpiresAt).toBeNull();
+      expect(row.status).toBe(BillingAttemptStatus.CAPTURED);
+    });
+
+    it('completes attempt and obligation together exactly once and clears the lease; repeats are no-ops', async () => {
+      const row = capturedRow({
+        leaseOwner: 'worker-a',
+        leaseExpiresAt: new Date(now.getTime() + 60_000),
+      });
+      const debt = obligation({ activeAttemptId: row.id });
+      serveByEntity(row, debt);
+
+      await service.finalizeCapturedAttempt(row.id, 99, now);
+      const versionAfterFirst = row.stateVersion;
+      const debtVersionAfterFirst = debt.version;
+
+      expect(row.status).toBe(BillingAttemptStatus.COMPLETED);
+      expect(row.receiptDocId).toBe(99);
+      expect(row.cardcomTransactionId).toBe('deal-77');
+      expect(row.leaseOwner).toBeNull();
+      expect(debt.status).toBe(BillingObligationStatus.SATISFIED);
+      expect(debt.satisfiedAttemptId).toBe(row.id);
+      expect(debt.activeAttemptId).toBeNull();
+
+      const repeat = await service.finalizeCapturedAttempt(row.id, 99, now);
+      expect(repeat.status).toBe(BillingAttemptStatus.COMPLETED);
+      expect(row.stateVersion).toBe(versionAfterFirst);
+      expect(debt.version).toBe(debtVersionAfterFirst);
+    });
+
+    it('exposes the settled or active attempt of a period read-only', async () => {
+      const settled = capturedRow({ status: BillingAttemptStatus.COMPLETED });
+      const debt = obligation({
+        status: BillingObligationStatus.SATISFIED,
+        satisfiedAttemptId: settled.id,
+      });
+      serveByEntity(settled, debt);
+
+      const snapshot = await service.findPeriodSnapshot(7, '2026-09-01', 'owner-1');
+
+      expect(snapshot?.obligation.status).toBe(BillingObligationStatus.SATISFIED);
+      expect(snapshot?.attempt?.id).toBe(settled.id);
+      expect(manager.save).not.toHaveBeenCalled();
+    });
+
+    it('returns null for an unknown period and rejects another owner', async () => {
+      manager.findOne.mockResolvedValueOnce(null);
+      await expect(
+        service.findPeriodSnapshot(7, '2026-09-01', 'owner-1'),
+      ).resolves.toBeNull();
+
+      manager.findOne.mockResolvedValueOnce(obligation());
+      await expect(
+        service.findPeriodSnapshot(7, '2026-09-01', 'intruder'),
+      ).rejects.toThrow(ForbiddenException);
+    });
+  });
 });

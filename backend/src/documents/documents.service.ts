@@ -2155,6 +2155,24 @@ ${finalOwnerName}`;
   }
 
   /**
+   * The receipt already issued for a canonical billing attempt, if any. Used to
+   * make receipt (and its atomically-created journal entry) creation
+   * idempotent: createDoc persists header, lines, payments and the journal
+   * entry in ONE transaction, so a row here implies the journal work exists.
+   */
+  async findBillingReceiptByAttemptId(
+    billingAttemptId: number,
+  ): Promise<{ receiptDocId: number; docNumber: string; generalDocIndex: string } | null> {
+    const doc = await this.documentsRepo.findOne({
+      where: { billingAttemptId },
+      select: ['id', 'docNumber', 'generalDocIndex'],
+    });
+    return doc
+      ? { receiptDocId: doc.id, docNumber: doc.docNumber, generalDocIndex: doc.generalDocIndex }
+      : null;
+  }
+
+  /**
    * Creates a billing receipt for a KeepInTax subscription payment through the
    * same createDoc() flow used by manual document creation — so it gets a
    * journal entry too. PDF generation/Firebase upload are still deferred to
@@ -2176,12 +2194,18 @@ ${finalOwnerName}`;
     periodStart: Date;
     periodEnd: Date;
     docDate: Date;
+    /**
+     * Canonical billing attempt this receipt belongs to. Stored on the
+     * existing UNIQUE documents.billing_attempt_id provenance column, so a
+     * retry can never issue a second document/journal entry for one attempt.
+     */
+    billingAttemptId?: number | null;
   }): Promise<{ receiptDocId: number; docNumber: string; generalDocIndex: string }> {
     const {
       systemUserId, issuerBusinessNumber, issuerBusinessType,
       recipientName, recipientEmail,
       amountBeforeVatAgorot, vatAmountAgorot, amountIncludingVatAgorot,
-      planName, periodStart, periodEnd, docDate,
+      planName, periodStart, periodEnd, docDate, billingAttemptId,
     } = params;
     const initialReceiptIndex = DEFAULT_INITIAL_DOC_INDEX[DocumentType.TAX_INVOICE_RECEIPT];
 
@@ -2233,6 +2257,7 @@ ${finalOwnerName}`;
       recipientName,
       recipientEmail,
       docDate,
+      ...(billingAttemptId != null ? { billingAttemptId } : {}),
     };
 
     const linesData = [{

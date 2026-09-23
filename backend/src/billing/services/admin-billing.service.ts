@@ -544,6 +544,9 @@ export class AdminBillingService {
       periodStart: subscription.currentPeriodStart ?? new Date(),
       periodEnd: subscription.currentPeriodEnd ?? new Date(),
       cardcomDealNumber: event.cardcomDealNumber,
+      // Attempt-keyed when the event belongs to a canonical attempt, so a manual
+      // receipt and the automatic post-capture retry can never both issue one.
+      billingAttemptId: event.billingAttemptId ?? null,
     });
 
     await this.billingEventService.updatePaymentEventWithReceipt(event.id, receipt.receiptDocId);

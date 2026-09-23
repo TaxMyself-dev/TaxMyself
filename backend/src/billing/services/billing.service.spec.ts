@@ -608,6 +608,54 @@ describe('BillingService — owner-mutation authorization', () => {
         expect.anything(),
       );
     });
+
+    // KT-038 Task 3: money was already taken for this period; a second hosted
+    // payment would charge the customer twice.
+    it('never opens another hosted payment when the PAST_DUE recovery attempt is already CAPTURED', async () => {
+      const {
+        service,
+        subscriptionRepo,
+        planRepo,
+        pricingService,
+        cardcomService,
+        billingEventService,
+        billingLifecycleService,
+      } = makeService();
+      subscriptionRepo.findOne.mockResolvedValue({
+        id: 1,
+        firebaseId: 'client-1',
+        planId: 1,
+        status: 'PAST_DUE',
+        currentPeriodStart: new Date('2026-08-01'),
+        currentPeriodEnd: new Date('2026-09-01'),
+      });
+      planRepo.findOne.mockResolvedValue({
+        id: 1,
+        slug: 'consumer-basic',
+        name: 'plan',
+        isPublic: true,
+        isActive: true,
+      });
+      pricingService.calculateCheckoutPrice.mockResolvedValue({
+        finalAmountAgorot: 100,
+        currency: 'ILS',
+        amountBeforeVatAgorot: 85,
+        vatAmountAgorot: 15,
+        billingBusinessType: 'EXEMPT',
+        explanation: 'x',
+      });
+      billingLifecycleService.openPastDueRecovery.mockResolvedValue({
+        created: false,
+        attempt: { id: 7, status: 'CAPTURED' },
+      });
+
+      await expect(
+        service.createCheckout(OWNER, { planId: 1 } as any),
+      ).rejects.toThrow('already received');
+
+      expect(cardcomService.createLowProfileCheckout).not.toHaveBeenCalled();
+      expect(billingEventService.logEvent).not.toHaveBeenCalled();
+    });
   });
 
   describe('changePaymentMethod', () => {
