@@ -314,6 +314,7 @@ describe('BillingService.createCheckout — referral plan live resolution', () =
   let cardcomService: { createLowProfileCheckout: jest.Mock };
 
   const SUBSCRIPTION = { id: 500, firebaseId: 'client-1', planId: 99 };
+  const OWNER_ACTOR = { actorFirebaseId: 'client-1', subjectFirebaseId: 'client-1' };
   const PUBLIC_PLAN = { id: 1, slug: 'consumer-basic', name: 'בקטנה', isPublic: true, isActive: true };
   const REFERRAL_BASIC = { id: 99, slug: 'referral-basic', name: 'הפניית רואה חשבון — בסיסי', isPublic: false, isActive: true };
   const REFERRAL_OPEN_BANKING = { id: 100, slug: 'referral-open-banking', name: 'הפניית רואה חשבון — כולל חיבור בנקאי פתוח', isPublic: false, isActive: true };
@@ -365,7 +366,7 @@ describe('BillingService.createCheckout — referral plan live resolution', () =
   it('referral checkout requested with a stale plan (basic) while the user already has open banking: overrides to open-banking and persists planId', async () => {
     userRepo.findOne.mockResolvedValue({ hasOpenBanking: true, email: 'a@b.com', fName: 'A', lName: 'B', phone: '050' });
 
-    await service.createCheckout('client-1', { planId: 99 } as any);
+    await service.createCheckout(OWNER_ACTOR, { planId: 99 } as any);
 
     expect(pricingService.calculateCheckoutPrice).toHaveBeenCalledWith('client-1', 100);
     expect(subscriptionRepo.save).toHaveBeenCalledWith(expect.objectContaining({ planId: 100 }));
@@ -379,14 +380,14 @@ describe('BillingService.createCheckout — referral plan live resolution', () =
   it('referral checkout where the live resolution matches what was already stored: no redundant save', async () => {
     userRepo.findOne.mockResolvedValue({ hasOpenBanking: false, email: 'a@b.com', fName: 'A', lName: 'B', phone: '050' });
 
-    await service.createCheckout('client-1', { planId: 99 } as any); // stored planId is already 99 (referral-basic)
+    await service.createCheckout(OWNER_ACTOR, { planId: 99 } as any); // stored planId is already 99 (referral-basic)
 
     expect(subscriptionRepo.save).not.toHaveBeenCalled();
     expect(pricingService.calculateCheckoutPrice).toHaveBeenCalledWith('client-1', 99);
   });
 
   it('public plan checkout: no live resolution, no planId mutation — unaffected by the referral logic', async () => {
-    await service.createCheckout('client-1', { planId: 1 } as any); // consumer-basic, public
+    await service.createCheckout(OWNER_ACTOR, { planId: 1 } as any); // consumer-basic, public
 
     expect(subscriptionRepo.save).not.toHaveBeenCalled();
     expect(pricingService.calculateCheckoutPrice).toHaveBeenCalledWith('client-1', 1);
@@ -401,10 +402,287 @@ describe('BillingService.createCheckout — referral plan live resolution', () =
       return Promise.resolve(null); // referral-open-banking deactivated/missing
     });
 
-    await expect(service.createCheckout('client-1', { planId: 99 } as any)).resolves.toBeDefined();
+    await expect(service.createCheckout(OWNER_ACTOR, { planId: 99 } as any)).resolves.toBeDefined();
 
     expect(pricingService.calculateCheckoutPrice).toHaveBeenCalledWith('client-1', 99);
     expect(subscriptionRepo.save).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Unit tests: owner-only enforcement for money/state-changing billing
+ * mutations (KT-038 Task 2). Closes the bypass where FirebaseAuthGuard
+ * rewrites request.user.firebaseId to the selected client's id during
+ * accountant delegation or admin impersonation, and a mutation handler
+ * compared that rewritten id to itself instead of checking the real actor
+ * (request.user.actorFirebaseId, never rewritten).
+ */
+describe('BillingService — owner-mutation authorization', () => {
+  const OWNER = { actorFirebaseId: 'client-1', subjectFirebaseId: 'client-1' };
+  const DELEGATED_ACCOUNTANT = {
+    actorFirebaseId: 'accountant-1',
+    subjectFirebaseId: 'client-1',
+    isDelegatedAccess: true,
+  };
+  const ADMIN_IMPERSONATION = {
+    actorFirebaseId: 'admin-1',
+    subjectFirebaseId: 'client-1',
+    isAdminImpersonation: true,
+  };
+  // The exact original bug: both slots carry the SAME (rewritten) id, so a
+  // naive actor === subject equality check always passed even though the
+  // real caller is a delegated agent, not the owner.
+  const REWRITTEN_ID_IN_BOTH_SLOTS = {
+    actorFirebaseId: 'client-1',
+    subjectFirebaseId: 'client-1',
+    isDelegatedAccess: true,
+  };
+  const OWNER_ONLY_MESSAGE =
+    'Billing mutations may only be performed by the subscription owner';
+
+  function makeService(overrides: Record<string, any> = {}) {
+    const subscriptionRepo = overrides.subscriptionRepo ?? {
+      findOne: jest.fn(),
+      save: jest.fn(),
+    };
+    const planRepo = overrides.planRepo ?? { findOne: jest.fn() };
+    const userRepo = overrides.userRepo ?? {
+      findOne: jest.fn().mockResolvedValue(null),
+    };
+    const pricingService = overrides.pricingService ?? {
+      calculateCheckoutPrice: jest.fn(),
+    };
+    const billingEventService = overrides.billingEventService ?? {
+      getUnresolvedReceiptFailure: jest.fn(),
+      logEvent: jest.fn(),
+    };
+    const cardcomService = overrides.cardcomService ?? {
+      createLowProfileCheckout: jest.fn(),
+    };
+    const billingLifecycleService = overrides.billingLifecycleService ?? {
+      openPastDueRecovery: jest.fn(),
+    };
+    const service = new BillingService(
+      planRepo as any,
+      subscriptionRepo as any,
+      {} as any, // paymentMethodRepo — unused
+      {} as any, // webhookLogRepo — unused
+      userRepo as any,
+      pricingService as any,
+      billingEventService as any,
+      {} as any, // billingReceiptService — unused
+      {} as any, // billingIssuerConfigService — unused
+      {} as any, // subscriptionAccessService — unused
+      cardcomService as any,
+      {} as any, // documentsService — unused
+      {} as any, // cardcomWebhookService — unused
+      billingLifecycleService as any,
+    );
+    return {
+      service,
+      subscriptionRepo,
+      planRepo,
+      userRepo,
+      pricingService,
+      billingEventService,
+      cardcomService,
+      billingLifecycleService,
+    };
+  }
+
+  describe('createCheckout', () => {
+    it('rejects a delegated accountant before any subscription lookup or CardCom call', async () => {
+      const { service, subscriptionRepo, cardcomService } = makeService();
+      await expect(
+        service.createCheckout(DELEGATED_ACCOUNTANT, { planId: 1 } as any),
+      ).rejects.toThrow(OWNER_ONLY_MESSAGE);
+      expect(subscriptionRepo.findOne).not.toHaveBeenCalled();
+      expect(cardcomService.createLowProfileCheckout).not.toHaveBeenCalled();
+    });
+
+    it('rejects an admin impersonating a client before any subscription lookup or CardCom call', async () => {
+      const { service, subscriptionRepo, cardcomService } = makeService();
+      await expect(
+        service.createCheckout(ADMIN_IMPERSONATION, { planId: 1 } as any),
+      ).rejects.toThrow(OWNER_ONLY_MESSAGE);
+      expect(subscriptionRepo.findOne).not.toHaveBeenCalled();
+      expect(cardcomService.createLowProfileCheckout).not.toHaveBeenCalled();
+    });
+
+    it('rejects even when the rewritten firebaseId is identical in both actor and subject slots', async () => {
+      const { service, subscriptionRepo } = makeService();
+      await expect(
+        service.createCheckout(REWRITTEN_ID_IN_BOTH_SLOTS, { planId: 1 } as any),
+      ).rejects.toThrow(OWNER_ONLY_MESSAGE);
+      expect(subscriptionRepo.findOne).not.toHaveBeenCalled();
+    });
+
+    it('the rejection message carries no provider/payment details', async () => {
+      const { service } = makeService();
+      await expect(
+        service.createCheckout(DELEGATED_ACCOUNTANT, { planId: 1 } as any),
+      ).rejects.toThrow(OWNER_ONLY_MESSAGE);
+    });
+
+    it('allows the genuine owner through to the subscription lookup and CardCom call', async () => {
+      const { service, subscriptionRepo, planRepo, pricingService, cardcomService } =
+        makeService();
+      subscriptionRepo.findOne.mockResolvedValue({
+        id: 1,
+        firebaseId: 'client-1',
+        planId: 1,
+        status: 'ACTIVE',
+      });
+      planRepo.findOne.mockResolvedValue({
+        id: 1,
+        slug: 'consumer-basic',
+        name: 'plan',
+        isPublic: true,
+        isActive: true,
+      });
+      pricingService.calculateCheckoutPrice.mockResolvedValue({
+        finalAmountAgorot: 100,
+        currency: 'ILS',
+        amountBeforeVatAgorot: 85,
+        vatAmountAgorot: 15,
+        billingBusinessType: 'EXEMPT',
+        explanation: 'x',
+      });
+      cardcomService.createLowProfileCheckout.mockResolvedValue({
+        lowProfileId: 'lp-1',
+        paymentUrl: 'https://cardcom.example/pay',
+        rawResponse: {},
+      });
+
+      const result = await service.createCheckout(OWNER, { planId: 1 } as any);
+
+      expect(subscriptionRepo.findOne).toHaveBeenCalled();
+      expect(result.paymentUrl).toBe('https://cardcom.example/pay');
+    });
+
+    it('threads the real actor — not a fabricated self-match — into PAST_DUE hosted recovery', async () => {
+      const {
+        service,
+        subscriptionRepo,
+        planRepo,
+        pricingService,
+        cardcomService,
+        billingLifecycleService,
+      } = makeService();
+      subscriptionRepo.findOne.mockResolvedValue({
+        id: 1,
+        firebaseId: 'client-1',
+        planId: 1,
+        status: 'PAST_DUE',
+        currentPeriodStart: new Date('2026-08-01'),
+        currentPeriodEnd: new Date('2026-09-01'),
+      });
+      planRepo.findOne.mockResolvedValue({
+        id: 1,
+        slug: 'consumer-basic',
+        name: 'plan',
+        isPublic: true,
+        isActive: true,
+      });
+      pricingService.calculateCheckoutPrice.mockResolvedValue({
+        finalAmountAgorot: 100,
+        currency: 'ILS',
+        amountBeforeVatAgorot: 85,
+        vatAmountAgorot: 15,
+        billingBusinessType: 'EXEMPT',
+        explanation: 'x',
+      });
+      billingLifecycleService.openPastDueRecovery.mockResolvedValue({
+        attempt: { id: 7 },
+      });
+      cardcomService.createLowProfileCheckout.mockResolvedValue({
+        lowProfileId: 'lp-1',
+        paymentUrl: 'https://cardcom.example/pay',
+        rawResponse: {},
+      });
+
+      await service.createCheckout(OWNER, { planId: 1 } as any);
+
+      expect(billingLifecycleService.openPastDueRecovery).toHaveBeenCalledWith(
+        expect.objectContaining({ actor: OWNER }),
+        expect.anything(),
+      );
+    });
+  });
+
+  describe('changePaymentMethod', () => {
+    it('rejects a delegated accountant before any subscription lookup or CardCom call', async () => {
+      const { service, subscriptionRepo, cardcomService } = makeService();
+      await expect(
+        service.changePaymentMethod(DELEGATED_ACCOUNTANT),
+      ).rejects.toThrow(OWNER_ONLY_MESSAGE);
+      expect(subscriptionRepo.findOne).not.toHaveBeenCalled();
+      expect(cardcomService.createLowProfileCheckout).not.toHaveBeenCalled();
+    });
+
+    it('rejects an admin impersonating a client before any subscription lookup or CardCom call', async () => {
+      const { service, subscriptionRepo, cardcomService } = makeService();
+      await expect(
+        service.changePaymentMethod(ADMIN_IMPERSONATION),
+      ).rejects.toThrow(OWNER_ONLY_MESSAGE);
+      expect(subscriptionRepo.findOne).not.toHaveBeenCalled();
+      expect(cardcomService.createLowProfileCheckout).not.toHaveBeenCalled();
+    });
+
+    it('rejects even when the rewritten firebaseId is identical in both actor and subject slots', async () => {
+      const { service, subscriptionRepo } = makeService();
+      await expect(
+        service.changePaymentMethod(REWRITTEN_ID_IN_BOTH_SLOTS),
+      ).rejects.toThrow(OWNER_ONLY_MESSAGE);
+      expect(subscriptionRepo.findOne).not.toHaveBeenCalled();
+    });
+
+    it('allows the genuine owner through to the subscription lookup and CardCom call', async () => {
+      const { service, subscriptionRepo, cardcomService } = makeService();
+      subscriptionRepo.findOne.mockResolvedValue({
+        id: 1,
+        firebaseId: 'client-1',
+        status: 'ACTIVE',
+      });
+      cardcomService.createLowProfileCheckout.mockResolvedValue({
+        lowProfileId: 'lp-1',
+        paymentUrl: 'https://cardcom.example/pay',
+        rawResponse: {},
+      });
+
+      const result = await service.changePaymentMethod(OWNER);
+
+      expect(subscriptionRepo.findOne).toHaveBeenCalled();
+      expect(result.paymentUrl).toBe('https://cardcom.example/pay');
+    });
+  });
+
+  describe('upgradeToReferralOpenBankingPlan', () => {
+    it('rejects a delegated accountant before any subscription lookup', async () => {
+      const { service, subscriptionRepo } = makeService();
+      await expect(
+        service.upgradeToReferralOpenBankingPlan(DELEGATED_ACCOUNTANT),
+      ).rejects.toThrow(OWNER_ONLY_MESSAGE);
+      expect(subscriptionRepo.findOne).not.toHaveBeenCalled();
+    });
+
+    it('rejects an admin impersonating a client before any subscription lookup', async () => {
+      const { service, subscriptionRepo } = makeService();
+      await expect(
+        service.upgradeToReferralOpenBankingPlan(ADMIN_IMPERSONATION),
+      ).rejects.toThrow(OWNER_ONLY_MESSAGE);
+      expect(subscriptionRepo.findOne).not.toHaveBeenCalled();
+    });
+
+    it('allows the genuine owner through to the subscription lookup', async () => {
+      const { service, subscriptionRepo } = makeService();
+      subscriptionRepo.findOne.mockResolvedValue(null); // exercises the lookup, not full success path
+
+      await expect(
+        service.upgradeToReferralOpenBankingPlan(OWNER),
+      ).rejects.toThrow('לא נמצא מנוי עבור המשתמש.');
+      expect(subscriptionRepo.findOne).toHaveBeenCalled();
+    });
   });
 });
 

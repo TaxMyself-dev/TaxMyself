@@ -190,8 +190,18 @@ export class AdminBillingController {
 
   // ─── Admin guard ────────────────────────────────────────────────────────────
 
+  /**
+   * Checks the REAL authenticated caller's admin role, never the effective
+   * `request.user.firebaseId` — FirebaseAuthGuard rewrites that field to the
+   * selected client's id during accountant delegation or admin
+   * impersonation. Using it here would let a non-admin accountant who is
+   * merely delegated to an admin's own client account reach every admin
+   * billing endpoint (plan CRUD, discounts, forced renewals for ANY
+   * subscription id). `actorFirebaseId` is never rewritten and is the only
+   * trustworthy source for "who is actually calling this".
+   */
   private async assertAdmin(request: AuthenticatedRequest): Promise<void> {
-    const firebaseId = request.user?.firebaseId;
+    const firebaseId = request.user?.actorFirebaseId ?? request.user?.firebaseId;
     if (!firebaseId) throw new ForbiddenException('לא אותחל משתמש');
     const isAdmin = await this.usersService.isAdmin(firebaseId);
     if (!isAdmin) throw new ForbiddenException('גישה מותרת רק למנהל');

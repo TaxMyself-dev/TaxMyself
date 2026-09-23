@@ -52,4 +52,51 @@ describe('AdminBillingController.updateSubscriptionTrialEnd', () => {
     });
     expect(result).toEqual(expect.objectContaining({ status: 'TRIAL' }));
   });
+
+  /**
+   * KT-038 Task 2: FirebaseAuthGuard rewrites request.user.firebaseId to the
+   * selected client's id during accountant delegation. If a non-admin
+   * accountant holds an ACTIVE delegation to a client who happens to hold
+   * the ADMIN role, request.user.firebaseId becomes that admin's id. Using
+   * it (instead of the never-rewritten actorFirebaseId) to decide admin
+   * access would let the accountant escalate to full admin-billing control —
+   * this is the exact privilege-escalation bug this fix closes.
+   */
+  it('rejects a delegated accountant whose rewritten firebaseId belongs to an admin, checking the real actor instead', async () => {
+    usersService.isAdmin.mockImplementation((firebaseId: string) =>
+      Promise.resolve(firebaseId === 'admin-client'),
+    );
+
+    await expect(
+      controller.updateSubscriptionTrialEnd(
+        {
+          user: { firebaseId: 'admin-client', actorFirebaseId: 'accountant-1' },
+          isDelegatedAccess: true,
+        } as any,
+        42,
+        { trialEnd: '2026-09-10' },
+      ),
+    ).rejects.toThrow(ForbiddenException);
+
+    expect(usersService.isAdmin).toHaveBeenCalledWith('accountant-1');
+    expect(usersService.isAdmin).not.toHaveBeenCalledWith('admin-client');
+    expect(adminBillingService.updateSubscriptionTrialEnd).not.toHaveBeenCalled();
+  });
+
+  it('allows a genuine admin whose actorFirebaseId is not rewritten (no delegation in play)', async () => {
+    usersService.isAdmin.mockImplementation((firebaseId: string) =>
+      Promise.resolve(firebaseId === 'admin-user'),
+    );
+
+    await controller.updateSubscriptionTrialEnd(
+      { user: { firebaseId: 'admin-user', actorFirebaseId: 'admin-user' } } as any,
+      42,
+      { trialEnd: '2026-09-10' },
+    );
+
+    expect(usersService.isAdmin).toHaveBeenCalledWith('admin-user');
+    expect(adminBillingService.updateSubscriptionTrialEnd).toHaveBeenCalledWith(42, {
+      trialEnd: '2026-09-10',
+    });
+  });
 });

@@ -32,6 +32,10 @@ import { CheckoutPreviewDto } from '../dtos/checkout-preview.dto';
 import { CreateCheckoutDto } from '../dtos/create-checkout.dto';
 import { BillingLifecycleService } from './billing-lifecycle.service';
 import { BillingChargeMode } from '../enums/billing.enums';
+import {
+  assertBillingOwnerMutation,
+  BillingMutationActorContext,
+} from './billing-attempt-orchestration.service';
 
 /** One row of the user-facing payment history (GET /billing/payments). */
 export interface PaymentHistoryRow {
@@ -472,7 +476,12 @@ export class BillingService {
    * Subscription activation happens later, exclusively via the CardCom webhook
    * handler (POST /billing/cardcom/webhook).
    */
-  async createCheckout(firebaseId: string, dto: CreateCheckoutDto) {
+  async createCheckout(
+    actor: BillingMutationActorContext,
+    dto: CreateCheckoutDto,
+  ) {
+    assertBillingOwnerMutation(actor);
+    const firebaseId = actor.subjectFirebaseId;
     const subscription = await this.subscriptionRepo.findOne({
       where: { firebaseId },
     });
@@ -553,7 +562,7 @@ export class BillingService {
         periodEnd.setMonth(periodEnd.getMonth() + 1);
       const recovery = await this.billingLifecycleService.openPastDueRecovery(
         {
-          actor: { actorFirebaseId: firebaseId, subjectFirebaseId: firebaseId },
+          actor,
           subscriptionId: subscription.id,
           planId: plan.id,
           periodStart: periodStart.toISOString().slice(0, 10),
@@ -687,11 +696,15 @@ export class BillingService {
    * AdminBillingService.updateSubscriptionPlan, plus the referral-specific
    * "must currently be on referral-basic" guard.
    */
-  async upgradeToReferralOpenBankingPlan(firebaseId: string): Promise<{
+  async upgradeToReferralOpenBankingPlan(
+    actor: BillingMutationActorContext,
+  ): Promise<{
     planId: number;
     planSlug: string;
     planName: string;
   }> {
+    assertBillingOwnerMutation(actor);
+    const firebaseId = actor.subjectFirebaseId;
     const subscription = await this.subscriptionRepo.findOne({
       where: { firebaseId },
     });
@@ -811,8 +824,10 @@ export class BillingService {
    *   lowProfileId — used by the frontend to init CardCom Open Fields iframes.
    */
   async changePaymentMethod(
-    firebaseId: string,
+    actor: BillingMutationActorContext,
   ): Promise<{ paymentUrl: string; lowProfileId: string }> {
+    assertBillingOwnerMutation(actor);
+    const firebaseId = actor.subjectFirebaseId;
     const subscription = await this.subscriptionRepo.findOne({
       where: { firebaseId },
     });

@@ -49,6 +49,31 @@ export interface BillingMutationActorContext {
   isRepresentedSubject?: boolean;
 }
 
+/**
+ * Single shared owner-mutation gate for every billing money/state-changing
+ * operation (checkout, payment-method replacement, renewal, recovery, plan
+ * changes, ...). `actorFirebaseId` must be the request's real verified
+ * caller (FirebaseAuthGuard's `request.user.actorFirebaseId`, which is never
+ * rewritten by delegation/admin impersonation) — never the possibly-rewritten
+ * `request.user.firebaseId`. Comparing a rewritten id to itself would always
+ * pass, which is exactly the bypass this check exists to close.
+ */
+export function assertBillingOwnerMutation(
+  context: BillingMutationActorContext,
+): void {
+  if (
+    !context.actorFirebaseId ||
+    context.actorFirebaseId !== context.subjectFirebaseId ||
+    context.isDelegatedAccess ||
+    context.isAdminImpersonation ||
+    context.isRepresentedSubject
+  ) {
+    throw new ForbiddenException(
+      'Billing mutations may only be performed by the subscription owner',
+    );
+  }
+}
+
 export interface OpenBillingAttemptInput {
   actor: BillingMutationActorContext;
   subscriptionId: number;
@@ -116,17 +141,7 @@ export class BillingAttemptOrchestrationService {
   }
 
   assertOwnerMutation(context: BillingMutationActorContext): void {
-    if (
-      !context.actorFirebaseId ||
-      context.actorFirebaseId !== context.subjectFirebaseId ||
-      context.isDelegatedAccess ||
-      context.isAdminImpersonation ||
-      context.isRepresentedSubject
-    ) {
-      throw new ForbiddenException(
-        'Billing mutations may only be performed by the subscription owner',
-      );
-    }
+    assertBillingOwnerMutation(context);
   }
 
   async createOrGetAttempt(

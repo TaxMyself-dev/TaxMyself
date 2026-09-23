@@ -21,12 +21,37 @@ import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.inter
 import { BillingService } from './services/billing.service';
 import { CheckoutPreviewDto } from './dtos/checkout-preview.dto';
 import { CreateCheckoutDto } from './dtos/create-checkout.dto';
+import { BillingMutationActorContext } from './services/billing-attempt-orchestration.service';
 
 @Controller('billing')
 export class BillingController {
   private readonly logger = new Logger(BillingController.name);
 
   constructor(private readonly billingService: BillingService) {}
+
+  /**
+   * Single source of the owner-mutation actor context for every billing
+   * money/state-changing endpoint. `actorFirebaseId` is always the request's
+   * real verified caller (FirebaseAuthGuard's `request.user.actorFirebaseId`,
+   * never rewritten by delegation/admin impersonation) — never
+   * `request.user.firebaseId`, which IS rewritten to the client's id during
+   * impersonation. Comparing the rewritten id to itself would always pass,
+   * which is exactly the bypass BillingService.assertBillingOwnerMutation
+   * exists to close.
+   */
+  private buildOwnerMutationActor(
+    request: AuthenticatedRequest,
+  ): BillingMutationActorContext {
+    const subjectFirebaseId = request.user?.firebaseId;
+    if (!subjectFirebaseId)
+      throw new NotFoundException('User not found in request');
+    return {
+      actorFirebaseId: request.user?.actorFirebaseId ?? null,
+      subjectFirebaseId,
+      isDelegatedAccess: request.isDelegatedAccess === true,
+      isAdminImpersonation: request.isAdminImpersonation === true,
+    };
+  }
 
   /**
    * GET /billing/plans
@@ -126,9 +151,10 @@ export class BillingController {
     @Req() request: AuthenticatedRequest,
     @Body() dto: CreateCheckoutDto,
   ) {
-    const firebaseId = request.user?.firebaseId;
-    if (!firebaseId) throw new NotFoundException('User not found in request');
-    return this.billingService.createCheckout(firebaseId, dto);
+    return this.billingService.createCheckout(
+      this.buildOwnerMutationActor(request),
+      dto,
+    );
   }
 
   /**
@@ -142,9 +168,9 @@ export class BillingController {
   @Post('upgrade-to-open-banking')
   @UseGuards(FirebaseAuthGuard)
   upgradeToOpenBanking(@Req() request: AuthenticatedRequest) {
-    const firebaseId = request.user?.firebaseId;
-    if (!firebaseId) throw new NotFoundException('User not found in request');
-    return this.billingService.upgradeToReferralOpenBankingPlan(firebaseId);
+    return this.billingService.upgradeToReferralOpenBankingPlan(
+      this.buildOwnerMutationActor(request),
+    );
   }
 
   /**
@@ -163,9 +189,9 @@ export class BillingController {
   @Post('change-payment-method')
   @UseGuards(FirebaseAuthGuard)
   changePaymentMethod(@Req() request: AuthenticatedRequest) {
-    const firebaseId = request.user?.firebaseId;
-    if (!firebaseId) throw new NotFoundException('User not found in request');
-    return this.billingService.changePaymentMethod(firebaseId);
+    return this.billingService.changePaymentMethod(
+      this.buildOwnerMutationActor(request),
+    );
   }
 
   /**
