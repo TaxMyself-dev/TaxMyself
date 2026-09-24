@@ -3,8 +3,10 @@ import {
   BillingAttemptOrchestrationService,
   BillingMutationActorContext,
   BillingPeriodSnapshot,
+  BillingRenewalDeferredError,
   NormalizedChargeOutcome,
   OpenBillingAttemptResult,
+  RenewalDeferralReason,
 } from './billing-attempt-orchestration.service';
 import {
   BillingAttemptStatus,
@@ -103,6 +105,12 @@ export interface RenewalExecutionResult {
   resumedCaptured: boolean;
   /** Set when the period was already SATISFIED before this call. */
   alreadyCompleted: boolean;
+  /**
+   * Set when the attempt was not opened because the subscription is not ACTIVE,
+   * its (retry-scheduled) due date has not arrived, or the period changed. The
+   * provider was not called and nothing was persisted.
+   */
+  deferred?: RenewalDeferralReason;
   resume: ResumeCapturedAttemptResult | null;
   snapshotAttempt: BillingAttempt | null;
 }
@@ -124,11 +132,14 @@ export class BillingLifecycleService {
 
   openRenewal(
     input: CanonicalBillingPeriodInput,
+    options: { enforceSchedule?: boolean } = {},
   ): Promise<OpenBillingAttemptResult> {
     return this.openAttempt(
       input,
       BillingObligationKind.RECURRING_PERIOD,
       BillingAttemptTrigger.RENEWAL,
+      BillingChargeMode.TOKEN_TRANSACTION,
+      options.enforceSchedule,
     );
   }
 
@@ -354,7 +365,24 @@ export class BillingLifecycleService {
     if (snapshot?.attempt?.status === BillingAttemptStatus.CAPTURED) {
       attemptId = snapshot.attempt.id;
     } else {
-      opened = await this.openRenewal(input);
+      try {
+        // The due/retry schedule is re-checked under the subscription lock.
+        opened = await this.openRenewal(input, { enforceSchedule: true });
+      } catch (error) {
+        if (error instanceof BillingRenewalDeferredError) {
+          return {
+            opened: null,
+            submitted: null,
+            finalized: false,
+            resumedCaptured: false,
+            alreadyCompleted: false,
+            resume: null,
+            snapshotAttempt: null,
+            deferred: error.reason,
+          };
+        }
+        throw error;
+      }
       if (opened.attempt.status === BillingAttemptStatus.CAPTURED) {
         attemptId = opened.attempt.id;
       } else {
@@ -405,6 +433,7 @@ export class BillingLifecycleService {
     kind: BillingObligationKind,
     trigger: BillingAttemptTrigger,
     chargeMode: BillingChargeMode = BillingChargeMode.TOKEN_TRANSACTION,
+    enforceRenewalSchedule?: boolean,
   ): Promise<OpenBillingAttemptResult> {
     this.orchestration.assertOwnerMutation(input.actor);
     return this.orchestration.createOrGetAttempt({
@@ -412,6 +441,7 @@ export class BillingLifecycleService {
       kind,
       trigger,
       chargeMode,
+      ...(enforceRenewalSchedule ? { enforceRenewalSchedule: true } : {}),
     });
   }
 }

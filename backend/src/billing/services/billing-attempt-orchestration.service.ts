@@ -20,7 +20,12 @@ import {
   BillingChargeMode,
   BillingObligationKind,
   BillingObligationStatus,
+  SubscriptionStatus,
 } from '../enums/billing.enums';
+import {
+  decideRenewalDecline,
+  renewalPeriodStart,
+} from '../domain/billing-renewal-policy';
 import { BillingAttempt } from '../entities/billing-attempt.entity';
 import { BillingObligation } from '../entities/billing-obligation.entity';
 import { PaymentMethod } from '../entities/payment-method.entity';
@@ -82,6 +87,22 @@ export function assertBillingOwnerMutation(
   }
 }
 
+/**
+ * Why a renewal attempt was not opened. Nothing is persisted and no provider
+ * call is possible: the caller treats it as a skip.
+ */
+export type RenewalDeferralReason =
+  | 'NOT_ACTIVE'
+  | 'NOT_DUE'
+  | 'PERIOD_MISMATCH';
+
+export class BillingRenewalDeferredError extends Error {
+  constructor(public readonly reason: RenewalDeferralReason) {
+    super(`Billing renewal deferred: ${reason}`);
+    this.name = 'BillingRenewalDeferredError';
+  }
+}
+
 export interface OpenBillingAttemptInput {
   actor: BillingMutationActorContext;
   subscriptionId: number;
@@ -96,6 +117,22 @@ export interface OpenBillingAttemptInput {
   amountBeforeVatAgorot: number;
   vatAmountAgorot: number;
   currency?: string;
+  /**
+   * Renewal only. Re-checks, under the subscription row lock, that the
+   * subscription is ACTIVE, that its (possibly retry-scheduled) due date has
+   * arrived and that `periodStart` is the period being collected. A stale
+   * cron read therefore can never open an attempt whose retry is not due.
+   */
+  enforceRenewalSchedule?: boolean;
+}
+
+export interface ApplyNormalizedOutcomeOptions {
+  /**
+   * Token-renewal attempts only. A definitive DECLINED outcome also applies the
+   * bounded renewal-decline policy (retry schedule or PAST_DUE) to the
+   * subscription, atomically with the attempt write. Never used for UNKNOWN.
+   */
+  renewalDeclinePolicy?: boolean;
 }
 
 export interface OpenBillingAttemptResult {
@@ -182,6 +219,9 @@ export class BillingAttemptOrchestrationService {
         throw new ForbiddenException(
           'Billing mutation subject does not own the subscription',
         );
+      }
+      if (input.enforceRenewalSchedule) {
+        this.assertRenewalDue(subscription, input.periodStart, new Date());
       }
       const paymentMethodId = await this.resolvePaymentMethodId(
         manager,
@@ -323,8 +363,15 @@ export class BillingAttemptOrchestrationService {
     expectedStateVersion: number,
     outcome: NormalizedChargeOutcome,
     now = new Date(),
+    options: ApplyNormalizedOutcomeOptions = {},
   ): Promise<BillingAttempt> {
     return this.inTransaction(async (manager) => {
+      // Lock order matches createOrGetAttempt (subscription first), so a
+      // concurrent opener and a decline can never deadlock each other.
+      const renewalSubscription =
+        options.renewalDeclinePolicy && outcome.kind === 'DECLINED'
+          ? await this.lockSubscriptionOfAttempt(manager, attemptId)
+          : null;
       const attempt = await this.lockAttempt(manager, attemptId);
       if (
         attempt.stateVersion !== expectedStateVersion ||
@@ -378,6 +425,15 @@ export class BillingAttemptOrchestrationService {
         obligation.activeAttemptId = null;
         obligation.version += 1;
         await manager.save(BillingObligation, obligation);
+        if (renewalSubscription) {
+          await this.applyRenewalDeclinePolicy(
+            manager,
+            renewalSubscription,
+            attempt,
+            obligation,
+            now,
+          );
+        }
       } else {
         attempt.unknownSince ??= now;
         const nextAction = this.nextReconciliationAction(
@@ -622,6 +678,95 @@ export class BillingAttemptOrchestrationService {
   ): Date | null {
     const delay = RECONCILIATION_DELAYS_MS[completedReconciliations];
     return delay === undefined ? null : new Date(from.getTime() + delay);
+  }
+
+  /**
+   * Resolves and row-locks the subscription that owns an attempt, BEFORE the
+   * attempt and obligation locks are taken. The unlocked reads only find the
+   * id; every decision is made after the locks below.
+   */
+  private async lockSubscriptionOfAttempt(
+    manager: EntityManager,
+    attemptId: number,
+  ): Promise<Subscription | null> {
+    const peek = await manager.findOne(BillingAttempt, {
+      where: { id: attemptId },
+    });
+    if (!peek) throw new BadRequestException('Billing attempt not found');
+    const obligation = await manager.findOne(BillingObligation, {
+      where: { id: peek.obligationId },
+    });
+    if (!obligation) {
+      throw new ConflictException('Billing obligation not found');
+    }
+    return manager.findOne(Subscription, {
+      where: { id: obligation.subscriptionId },
+      lock: { mode: 'pessimistic_write' },
+    });
+  }
+
+  /**
+   * Applies the bounded renewal-decline policy inside the caller's transaction
+   * (the DECLINED write): first/second confirmed decline schedule the retry in
+   * `nextBillingDate`; the final one moves an ACTIVE subscription to PAST_DUE.
+   * Only an ACTIVE subscription still collecting THIS period is touched, so
+   * CANCELED/PAST_DUE/advanced subscriptions are never rewritten by a decline.
+   */
+  private async applyRenewalDeclinePolicy(
+    manager: EntityManager,
+    subscription: Subscription,
+    attempt: BillingAttempt,
+    obligation: BillingObligation,
+    now: Date,
+  ): Promise<void> {
+    if (
+      attempt.trigger !== BillingAttemptTrigger.RENEWAL ||
+      attempt.chargeMode !== BillingChargeMode.TOKEN_TRANSACTION ||
+      subscription.id !== obligation.subscriptionId ||
+      subscription.firebaseId !== obligation.firebaseIdSnapshot ||
+      subscription.status !== SubscriptionStatus.ACTIVE
+    ) {
+      return;
+    }
+    const periodStart = renewalPeriodStart(subscription);
+    if (
+      !periodStart ||
+      periodStart.toISOString().slice(0, 10) !== obligation.periodStart
+    ) {
+      return;
+    }
+    const decision = decideRenewalDecline(subscription.renewalAttempts, now);
+    await manager.update(
+      Subscription,
+      subscription.id,
+      decision.kind === 'RETRY'
+        ? {
+            renewalAttempts: decision.attemptNumber,
+            nextBillingDate: decision.retryAt,
+          }
+        : {
+            renewalAttempts: decision.attemptNumber,
+            status: SubscriptionStatus.PAST_DUE,
+            gracePeriodEndsAt: decision.gracePeriodEndsAt,
+          },
+    );
+  }
+
+  private assertRenewalDue(
+    subscription: Subscription,
+    periodStart: string,
+    now: Date,
+  ): void {
+    if (subscription.status !== SubscriptionStatus.ACTIVE) {
+      throw new BillingRenewalDeferredError('NOT_ACTIVE');
+    }
+    if (!subscription.nextBillingDate || subscription.nextBillingDate > now) {
+      throw new BillingRenewalDeferredError('NOT_DUE');
+    }
+    const collecting = renewalPeriodStart(subscription);
+    if (!collecting || collecting.toISOString().slice(0, 10) !== periodStart) {
+      throw new BillingRenewalDeferredError('PERIOD_MISMATCH');
+    }
   }
 
   private async createOrLockObligation(

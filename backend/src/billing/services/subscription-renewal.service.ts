@@ -8,12 +8,7 @@ import { Subscription } from '../entities/subscription.entity';
 import { SubscriptionPlan } from '../entities/subscription-plan.entity';
 import { PaymentMethod } from '../entities/payment-method.entity';
 
-import {
-  BillingAttemptStatus,
-  BillingEventType,
-  BillingObligationStatus,
-  SubscriptionStatus,
-} from '../enums/billing.enums';
+import { BillingEventType, SubscriptionStatus } from '../enums/billing.enums';
 import { ModuleName } from 'src/enum';
 import {
   CardcomService,
@@ -28,13 +23,12 @@ import { BillingLifecycleService } from './billing-lifecycle.service';
 import { BillingHostedCompletionService } from './billing-hosted-completion.service';
 import { BillingAttempt } from '../entities/billing-attempt.entity';
 import { NormalizedChargeOutcome } from './billing-attempt-orchestration.service';
-
-/** Total charge attempts allowed per billing cycle before moving to PAST_DUE. */
-const MAX_RENEWAL_ATTEMPTS = 3;
-/** Days to wait before the next attempt, indexed by (attemptNumber - 1) for attempts 1 and 2. */
-const RETRY_DELAYS_DAYS = [3, 7];
-/** Grace period length once a subscription becomes PAST_DUE. */
-const GRACE_PERIOD_DAYS = 14;
+import {
+  MAX_RENEWAL_ATTEMPTS,
+  RENEWAL_GRACE_PERIOD_DAYS as GRACE_PERIOD_DAYS,
+  RENEWAL_RETRY_DELAYS_DAYS as RETRY_DELAYS_DAYS,
+  renewalPeriodStart,
+} from '../domain/billing-renewal-policy';
 /** Bounded concurrency for the daily batch — avoids hammering CardCom/DB. */
 const BATCH_SIZE = 10;
 
@@ -268,7 +262,10 @@ export class SubscriptionRenewalService {
         message: 'Subscription is not due for renewal yet',
       };
     }
-    const periodStart = subscription.nextBillingDate;
+    // While a decline retry is pending nextBillingDate holds the retry date;
+    // the period being collected (and its canonical obligation) is unchanged.
+    const periodStart =
+      renewalPeriodStart(subscription) ?? subscription.nextBillingDate;
     const periodEnd = this.addOneMonth(periodStart);
     const periodStartDate = periodStart.toISOString().slice(0, 10);
     const actor = {
@@ -277,20 +274,18 @@ export class SubscriptionRenewalService {
     };
     const billingPeriod = this.formatBillingPeriod(periodStart);
 
-    // A period that is already CAPTURED (post-capture work pending) or settled
-    // must never be re-priced or re-charged: a fresh price may have drifted
-    // from what was captured. Its canonical debt snapshot is authoritative.
+    // A period that already has a canonical obligation (CAPTURED, settled, or
+    // retrying after a confirmed decline) must never be re-priced: a fresh
+    // price may have drifted, and a changed snapshot would be rejected. The
+    // canonical debt snapshot is authoritative for every retry of the period.
     const existing = await this.billingLifecycleService.inspectPeriod(
       actor,
       subscriptionId,
       periodStartDate,
     );
-    const settledOrCaptured =
-      !!existing &&
-      (existing.obligation.status === BillingObligationStatus.SATISFIED ||
-        existing.attempt?.status === BillingAttemptStatus.CAPTURED);
+    const reuseDebtSnapshot = !!existing;
 
-    const planId = settledOrCaptured
+    const planId = reuseDebtSnapshot
       ? existing.obligation.planId
       : subscription.planId;
     const plan = planId
@@ -304,7 +299,7 @@ export class SubscriptionRenewalService {
         outcome: 'error',
         message: 'Subscription has no plan assigned',
       };
-    const pricing = settledOrCaptured
+    const pricing = reuseDebtSnapshot
       ? {
           finalAmountAgorot: existing.obligation.amountAgorot,
           amountBeforeVatAgorot: existing.obligation.amountBeforeVatAgorot,
@@ -341,6 +336,38 @@ export class SubscriptionRenewalService {
       `renewal-${subscriptionId}-${billingPeriod}`,
     );
 
+    if (result.deferred) {
+      // Not opened: not ACTIVE, retry not due yet, or the period changed under
+      // a concurrent run. No provider call, nothing persisted.
+      return {
+        subscriptionId,
+        outcome: 'skipped',
+        billingPeriod,
+        message: `Renewal deferred: ${result.deferred}`,
+      };
+    }
+    if (
+      result.submitted?.kind === 'APPLIED' &&
+      result.submitted.outcome?.kind === 'DECLINED'
+    ) {
+      return this.afterConfirmedDecline(
+        subscription,
+        billingPeriod,
+        result.submitted.outcome,
+        result.opened?.attempt.cardcomExternalUniqTranId ?? '',
+      );
+    }
+    if (result.submitted?.kind === 'NOT_CLAIMED') {
+      // Another run holds the attempt, or it is UNKNOWN / MANUAL_REVIEW and
+      // awaits read-only reconciliation. Never submitted, never a retry.
+      return {
+        subscriptionId,
+        outcome: 'skipped',
+        billingPeriod,
+        message:
+          'Attempt is not claimable (in progress elsewhere or awaiting reconciliation)',
+      };
+    }
     if (
       result.submitted &&
       (result.submitted.kind !== 'APPLIED' ||
@@ -403,12 +430,16 @@ export class SubscriptionRenewalService {
       };
 
     // Compare-and-set on the still-due nextBillingDate so the period advances
-    // exactly once even if two runs both reach this point.
+    // exactly once even if two runs both reach this point. The new period is
+    // always derived from the ORIGINAL period start, so a successful retry does
+    // not drift the billing cycle.
     const advanced = await this.subscriptionRepo.update(
       {
         id: subscriptionId,
         status: SubscriptionStatus.ACTIVE,
-        nextBillingDate: periodStart,
+        // The value read above: the retry date while a decline retry was
+        // pending, otherwise the period start.
+        nextBillingDate: subscription.nextBillingDate,
       },
       {
         status: SubscriptionStatus.ACTIVE,
@@ -432,6 +463,65 @@ export class SubscriptionRenewalService {
       billingPeriod,
       cardcomResponseCode: 0,
       nextBillingDate: periodEnd,
+    };
+  }
+
+  /**
+   * Reports the result of a DEFINITIVE provider decline whose retry schedule or
+   * PAST_DUE transition was already persisted atomically with the DECLINED
+   * write (BillingAttemptOrchestrationService). This performs no provider call
+   * and changes no state: it reads the outcome back, and logs the audit event
+   * only for the run that actually applied the decline.
+   */
+  private async afterConfirmedDecline(
+    before: Subscription,
+    billingPeriod: string,
+    outcome: NormalizedChargeOutcome,
+    idempotencyKey: string,
+  ): Promise<RenewalResult> {
+    const after = await this.subscriptionRepo.findOne({
+      where: { id: before.id },
+    });
+    const applied = !!after && after.renewalAttempts !== before.renewalAttempts;
+    const pastDue = after?.status === SubscriptionStatus.PAST_DUE;
+    const retryScheduledFor =
+      applied && !pastDue ? after?.nextBillingDate ?? null : null;
+    const attemptNumber = after?.renewalAttempts ?? before.renewalAttempts + 1;
+    const declined = outcome.kind === 'DECLINED' ? outcome : null;
+
+    if (applied) {
+      await this.billingEventService.logEvent({
+        firebaseId: before.firebaseId,
+        eventType: pastDue
+          ? BillingEventType.RENEWAL_FAILED
+          : BillingEventType.RETRY_SCHEDULED,
+        subscriptionId: before.id,
+        metadata: this.buildFailureMetadata({
+          idempotencyKey,
+          billingPeriod,
+          attemptNumber,
+          cardcomResponseCode: declined?.providerResponseCode ?? null,
+          cardcomDescription: declined?.failureCategory ?? null,
+          retryScheduledFor,
+          rawResponse: null,
+        }),
+      });
+      this.logger.warn(
+        `Renewal ${pastDue ? 'FAILED (final)' : 'failed, retry scheduled'}: ` +
+          `subscriptionId=${before.id} billingPeriod=${billingPeriod} attempt=${attemptNumber}/${MAX_RENEWAL_ATTEMPTS} ` +
+          `nextAction=${
+            pastDue ? 'PAST_DUE' : `retry@${retryScheduledFor?.toISOString()}`
+          }`,
+      );
+    }
+
+    return {
+      subscriptionId: before.id,
+      outcome: pastDue ? 'past_due' : 'retry_scheduled',
+      attemptNumber,
+      billingPeriod,
+      cardcomResponseCode: declined?.providerResponseCode ?? undefined,
+      nextBillingDate: retryScheduledFor,
     };
   }
 

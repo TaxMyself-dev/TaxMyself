@@ -1,4 +1,9 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { BillingAttempt } from '../entities/billing-attempt.entity';
+import {
+  BillingAttemptTrigger,
+  BillingChargeMode,
+} from '../enums/billing.enums';
 import {
   BillingAttemptOrchestrationService,
   BillingMutationActorContext,
@@ -73,13 +78,40 @@ export class BillingProviderRuntimeService {
     } catch {
       outcome = { kind: 'UNKNOWN', failureCategory: 'TRANSPORT_ERROR' };
     }
-    const attempt = await this.orchestration.applyNormalizedOutcome(
-      lease.attempt.id,
+    const attempt = await this.applyOutcome(lease.attempt, input, outcome);
+    return { kind: 'APPLIED', outcome, attempt };
+  }
+  /**
+   * A definitive DECLINED outcome of a token-renewal attempt also applies the
+   * bounded renewal-decline policy, atomically with the attempt write. UNKNOWN
+   * and CAPTURED (and every hosted attempt) go through the plain path: an
+   * uncertain charge is never treated as a decline.
+   */
+  private applyOutcome(
+    attempt: BillingAttempt,
+    input: ProviderRuntimeInput,
+    outcome: NormalizedChargeOutcome,
+  ) {
+    if (
+      outcome.kind === 'DECLINED' &&
+      attempt.trigger === BillingAttemptTrigger.RENEWAL &&
+      attempt.chargeMode === BillingChargeMode.TOKEN_TRANSACTION
+    ) {
+      return this.orchestration.applyNormalizedOutcome(
+        attempt.id,
+        input.leaseOwner,
+        attempt.stateVersion,
+        outcome,
+        new Date(),
+        { renewalDeclinePolicy: true },
+      );
+    }
+    return this.orchestration.applyNormalizedOutcome(
+      attempt.id,
       input.leaseOwner,
-      lease.attempt.stateVersion,
+      attempt.stateVersion,
       outcome,
     );
-    return { kind: 'APPLIED', outcome, attempt };
   }
   async reconcileCharge(
     input: ProviderRuntimeInput,
@@ -111,12 +143,7 @@ export class BillingProviderRuntimeService {
     } catch {
       outcome = { kind: 'UNKNOWN', failureCategory: 'RECONCILIATION_ERROR' };
     }
-    const attempt = await this.orchestration.applyNormalizedOutcome(
-      lease.attempt.id,
-      input.leaseOwner,
-      lease.attempt.stateVersion,
-      outcome,
-    );
+    const attempt = await this.applyOutcome(lease.attempt, input, outcome);
     return { kind: 'APPLIED', outcome, attempt };
   }
 }

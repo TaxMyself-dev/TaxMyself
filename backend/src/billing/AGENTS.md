@@ -149,6 +149,45 @@ Production use depends on the approved KT-032 cutover schema (notably the
 UNIQUE `documents.billing_attempt_id`, and the `billing_attempt` /
 `billing_obligation` tables and `billing_event.billing_attempt_id`) being
 present; nothing here runs cutover SQL.
+Renewal decline policy (KT-038 Task 4B): the canonical renewal path applies the
+original bounded policy (`domain/billing-renewal-policy.ts`, the same values the
+legacy implementation and `docs/features/billing/cardcom-billing.md` describe).
+It applies ONLY after a definitive provider decline (`DECLINED`) of a
+`RENEWAL` / `TOKEN_TRANSACTION` attempt: 3 charge attempts per cycle; the 1st
+decline schedules a retry in 3 days, the 2nd in 7 days, and the 3rd moves the
+subscription to `PAST_DUE` with a 14-day grace period. `UNKNOWN`, timeouts,
+transport errors, malformed/incomplete responses, expired `PROCESSING` leases
+and `MANUAL_REVIEW` never enter it and are never replayed.
+- State: `subscription.renewalAttempts` is the counter and the retry date is
+  stored in `subscription.nextBillingDate` — the field the 03:00 cron selects on
+  and the ACTIVE access-grace check reads, so a pending retry is not selected
+  before its date and access does not lapse mid-retry. A successful renewal
+  resets `renewalAttempts` and `gracePeriodEndsAt`. Once `PAST_DUE` the cron
+  never charges again; only the hosted recovery checkout can collect.
+- Atomicity: `applyNormalizedOutcome(..., { renewalDeclinePolicy: true })` (passed
+  by the provider runtime only for a token-renewal `DECLINED`) locks the
+  subscription FIRST (same order as `createOrGetAttempt`), then writes the
+  `DECLINED` attempt, clears the obligation's active pointer and applies the
+  retry/`PAST_DUE` update in one transaction. It never rewrites a subscription
+  that is not `ACTIVE` (for example `CANCELED`) or that is collecting another
+  period.
+- Same obligation: while a retry is pending `nextBillingDate` holds the retry
+  date but `currentPeriodEnd` still holds the original due date;
+  `renewalPeriodStart` derives the period being collected from it, so every
+  retry reuses the same `subscription + period_start` obligation, its immutable
+  debt snapshot (a retry is never re-priced) and gets a new attempt number and
+  provider key. A successful retry advances the period once, from the original
+  due date, with a compare-and-set on the `nextBillingDate` it read.
+- Gate: `executeRenewal` opens attempts with `enforceRenewalSchedule`, which
+  re-checks under the subscription row lock that the subscription is `ACTIVE`,
+  its due date has arrived and the period matches; otherwise
+  `BillingRenewalDeferredError` is raised and the run is a skip — no provider
+  call, nothing persisted. A stale cron read therefore cannot consume a retry.
+- Known limits (unchanged by this task): hosted `PAST_DUE` recovery does not
+  reset `renewalAttempts`, so the first decline after a recovery goes straight
+  to `PAST_DUE` (still bounded); the retry date is measured from the decline
+  time, so a 03:00 cron picks it up on the first run after that instant; and
+  pre-charge executor errors surface as `UNKNOWN` for reconciliation.
 - `GET /billing/plans`, `GET /billing/me`, `POST /billing/trial` — plan listing and current billing state; idempotent trial creation.
 - `POST /billing/checkout/preview` / `POST /billing/checkout` — price preview and CardCom LowProfile checkout session creation; activation happens only via the webhook, never the checkout response.
 - `POST /billing/cardcom/webhook` — CardCom posts payment results here; `CardcomWebhookService` verifies/activates subscriptions; errors are swallowed so CardCom doesn't retry-storm.
