@@ -161,6 +161,9 @@ recorded once per attempt (`logReceiptFailureOncePerAttempt`), not per retry.
 The reliable local caller is `SubscriptionRenewalService.processDueRenewals`
 (the 03:00 cron and the admin manual trigger), which sweeps hosted attempts
 still `CAPTURED` after 5 minutes; a replayed webhook uses the same service.
+Recovery/reconciliation sweep errors and receipt-event link failures redact
+credential-like values and card-number-like digit runs from both the log
+message and stack trace before logging.
 Production use depends on the approved KT-032 cutover schema (notably the
 UNIQUE `documents.billing_attempt_id`, and the `billing_attempt` /
 `billing_obligation` tables and `billing_event.billing_attempt_id`) being

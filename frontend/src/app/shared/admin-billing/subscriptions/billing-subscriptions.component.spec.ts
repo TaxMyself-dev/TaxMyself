@@ -43,6 +43,8 @@ const subscription = (id: number, overrides: Partial<AdminSubscription> = {}): A
   userId: id,
   userName: `לקוח ${id}`,
   userEmail: null,
+  hasOpenBanking: false,
+  lastLoginAt: null,
   businessId: null,
   businessName: null,
   planId: null,

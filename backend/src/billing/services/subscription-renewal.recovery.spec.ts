@@ -586,6 +586,9 @@ describe('SubscriptionRenewalService — CAPTURED attempt recovery', () => {
         return { success: true, responseCode: 0, transactionId: 'tx-original' };
       });
 
+      const errorSpy = jest
+        .spyOn((service as any).logger, 'error')
+        .mockImplementation();
       await expect(service.processDueRenewals()).resolves.toEqual(
         expect.objectContaining({ totalDue: 1, succeeded: 1, errors: 0 }),
       );
@@ -596,6 +599,7 @@ describe('SubscriptionRenewalService — CAPTURED attempt recovery', () => {
       expect(
         hostedCompletion.recoverCapturedHostedAttempts,
       ).toHaveBeenCalledTimes(1);
+      expect(JSON.stringify(errorSpy.mock.calls)).not.toContain('abc123SECRET');
     });
   });
 
@@ -652,9 +656,13 @@ describe('SubscriptionRenewalService — CAPTURED attempt recovery', () => {
         new Error('db down token=abc123SECRET'),
       );
 
+      const errorSpy = jest
+        .spyOn((service as any).logger, 'error')
+        .mockImplementation();
       await expect(service.processDueRenewals()).resolves.toEqual(
         expect.objectContaining({ totalDue: 1, succeeded: 1, errors: 0 }),
       );
+      expect(JSON.stringify(errorSpy.mock.calls)).not.toContain('abc123SECRET');
     });
   });
 });

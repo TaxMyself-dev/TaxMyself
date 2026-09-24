@@ -19,7 +19,10 @@ import { BillingEventService } from './billing-event.service';
 import { BillingReceiptService } from './billing-receipt.service';
 import { BillingIssuerConfigService } from './billing-issuer-config.service';
 import { PricingService } from './pricing.service';
-import { BillingLifecycleService } from './billing-lifecycle.service';
+import {
+  BillingLifecycleService,
+  redactForLog,
+} from './billing-lifecycle.service';
 import { BillingHostedCompletionService } from './billing-hosted-completion.service';
 import { BillingReconciliationService } from './billing-reconciliation.service';
 import { BillingAttempt } from '../entities/billing-attempt.entity';
@@ -141,9 +144,9 @@ export class SubscriptionRenewalService {
       }
     } catch (error) {
       this.logger.error(
-        `Billing reconciliation sweep failed: ${
-          (error as Error)?.message ?? 'unknown error'
-        }`,
+        `Billing reconciliation sweep failed: ${redactForLog(
+          (error as Error)?.message ?? 'unknown error',
+        )}`,
       );
     }
 
@@ -207,9 +210,9 @@ export class SubscriptionRenewalService {
       }
     } catch (error) {
       this.logger.error(
-        `Captured hosted payment recovery failed: ${
-          (error as Error)?.message ?? 'unknown error'
-        }`,
+        `Captured hosted payment recovery failed: ${redactForLog(
+          (error as Error)?.message ?? 'unknown error',
+        )}`,
       );
     }
 

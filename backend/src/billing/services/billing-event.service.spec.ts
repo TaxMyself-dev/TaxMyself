@@ -40,10 +40,16 @@ describe('BillingEventService — post-capture recovery support', () => {
       repo.update.mockRejectedValue(
         new Error('deadlock token=4111111111111111'),
       );
+      const errorSpy = jest
+        .spyOn((service as any).logger, 'error')
+        .mockImplementation();
 
       await expect(
         service.updatePaymentEventWithReceipt(10, 500),
       ).resolves.toBe(false);
+      expect(JSON.stringify(errorSpy.mock.calls)).not.toContain(
+        '4111111111111111',
+      );
     });
   });
 

@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, In, Repository } from 'typeorm';
 import { BillingEvent } from '../entities/billing-event.entity';
 import { BillingEventType } from '../enums/billing.enums';
+import { redactForLog } from './billing-lifecycle.service';
 
 export interface LogBillingEventInput {
   firebaseId: string;
@@ -209,8 +210,12 @@ export class BillingEventService {
       return true;
     } catch (error) {
       this.logger.error(
-        `Failed to update billing event ${eventId} with receiptDocId=${receiptDocId}: ${(error as Error)?.message ?? error}`,
-        (error as Error)?.stack,
+        `Failed to update billing event ${eventId} with receiptDocId=${receiptDocId}: ${redactForLog(
+          String((error as Error)?.message ?? error),
+        )}`,
+        (error as Error)?.stack
+          ? redactForLog((error as Error).stack as string)
+          : undefined,
       );
       return false;
     }
