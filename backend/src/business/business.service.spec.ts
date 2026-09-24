@@ -159,12 +159,14 @@ describe('BusinessService VAT reporting invariant', () => {
       .mockResolvedValueOnce(null);
     businessRepo.manager.query
       .mockResolvedValueOnce([{ tableName: 'expense', columnName: 'businessNumber' }])
-      .mockResolvedValueOnce([{ found: 1 }]);
+      .mockResolvedValueOnce([{ count: 1 }]);
 
     await expect(service.updateBusiness('uid', {
       id: 1,
       businessNumber: '222222222',
-    })).rejects.toThrow('לא ניתן לשנות את מספר העסק משום שכבר קיימות רשומות המשויכות למספר הנוכחי');
+    })).rejects.toThrow(
+      'לא ניתן לשנות את מספר העסק משום שכבר קיימות רשומות המשויכות למספר הנוכחי. נמצאו: expense (1)',
+    );
 
     expect(businessRepo.save).not.toHaveBeenCalled();
   });

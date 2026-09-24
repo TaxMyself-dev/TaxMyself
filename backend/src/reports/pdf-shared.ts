@@ -109,8 +109,11 @@ export function drawRtl(
   }
 }
 
-export const fmtMoney = (n: number): string =>
-  `₪ ${Math.round(Number(n) || 0).toLocaleString('en-US')}`;
+export const fmtMoney = (n: number, fractionDigits = 0): string =>
+  `₪ ${(Number(n) || 0).toLocaleString('en-US', {
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
+  })}`;
 
 export const fmtDate = (d: Date): string => {
   const dt = new Date(d);

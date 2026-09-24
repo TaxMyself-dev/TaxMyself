@@ -93,7 +93,7 @@ export function buildPnlReportPdf(
         doc
           .font(font)
           .fontSize(size)
-          .text(fmtMoney(signedValue), pageLeft, rowY + 4, { width: contentWidth, align: 'left' });
+          .text(fmtMoney(signedValue, 2), pageLeft, rowY + 4, { width: contentWidth, align: 'left' });
 
         doc.y = rowY + rowHeight;
       };

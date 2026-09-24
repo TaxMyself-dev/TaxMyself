@@ -852,6 +852,9 @@ export class SettingsPage implements OnInit {
       this.patchBusinessesFormArray(updated);
       this.messageService.add({ severity: 'success', summary: 'הצלחה', detail: 'פרטי העסק עודכנו בהצלחה', life: 3000, key: 'br' });
     } catch (err: any) {
+      // The API rejected the whole update, so restore the form from the last
+      // server-backed value instead of leaving unsaved edits on screen.
+      ctrl.reset(this.buildBusinessForm(biz).getRawValue(), { emitEvent: false });
       const apiMessage = Array.isArray(err?.error?.message)
         ? err.error.message.join(', ')
         : err?.error?.message;

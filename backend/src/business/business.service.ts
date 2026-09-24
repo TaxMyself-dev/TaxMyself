@@ -74,12 +74,15 @@ export class BusinessService {
             throw new ConflictException(`עסק עם מספר ${requestedBusinessNumber} כבר קיים במערכת`);
           }
         }
-        if (
-          business.businessNumber &&
-          (await this.hasDependentBusinessNumberRecords(business.businessNumber))
-        ) {
+        const dependentRecords = business.businessNumber
+          ? await this.findDependentBusinessNumberRecords(business.businessNumber)
+          : [];
+        if (dependentRecords.length > 0) {
+          const details = dependentRecords
+            .map(({ tableName, count }) => `${tableName} (${count})`)
+            .join(', ');
           throw new ConflictException(
-            'לא ניתן לשנות את מספר העסק משום שכבר קיימות רשומות המשויכות למספר הנוכחי',
+            `לא ניתן לשנות את מספר העסק משום שכבר קיימות רשומות המשויכות למספר הנוכחי. נמצאו: ${details}`,
           );
         }
       }
@@ -136,7 +139,9 @@ export class BusinessService {
    * rows. Discover the columns from the live schema so newly-added business
    * scoped tables are protected without maintaining a fragile hard-coded list.
    */
-  private async hasDependentBusinessNumberRecords(businessNumber: string): Promise<boolean> {
+  private async findDependentBusinessNumberRecords(
+    businessNumber: string,
+  ): Promise<Array<{ tableName: string; columnName: string; count: number }>> {
     const columns: Array<{ tableName: string; columnName: string }> = await this.businessRepo.manager.query(`
       SELECT TABLE_NAME AS tableName, COLUMN_NAME AS columnName
       FROM INFORMATION_SCHEMA.COLUMNS
@@ -145,21 +150,23 @@ export class BusinessService {
         AND LOWER(COLUMN_NAME) IN ('businessnumber', 'business_number', 'issuerbusinessnumber')
     `);
 
+    const references: Array<{ tableName: string; columnName: string; count: number }> = [];
     for (const { tableName, columnName } of columns) {
       // Identifiers originate in INFORMATION_SCHEMA, but keep the dynamic SQL
       // fail-closed if an unexpected identifier ever appears.
       if (!/^[A-Za-z0-9_]+$/.test(tableName) || !/^[A-Za-z0-9_]+$/.test(columnName)) {
         this.logger.warn(`Unsafe business-number reference ${tableName}.${columnName}`);
-        return true;
+        throw new ConflictException('לא ניתן לוודא בבטחה אם קיימות רשומות עבור מספר העסק הנוכחי');
       }
       const rows = await this.businessRepo.manager.query(
-        `SELECT 1 FROM \`${tableName}\` WHERE \`${columnName}\` = ? LIMIT 1`,
+        `SELECT COUNT(*) AS count FROM \`${tableName}\` WHERE \`${columnName}\` = ?`,
         [businessNumber],
       );
-      if (rows.length > 0) return true;
+      const count = Number(rows[0]?.count ?? 0);
+      if (count > 0) references.push({ tableName, columnName, count });
     }
 
-    return false;
+    return references;
   }
 
   /**
