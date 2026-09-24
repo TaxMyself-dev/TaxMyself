@@ -183,11 +183,16 @@ and `MANUAL_REVIEW` never enter it and are never replayed.
   its due date has arrived and the period matches; otherwise
   `BillingRenewalDeferredError` is raised and the run is a skip — no provider
   call, nothing persisted. A stale cron read therefore cannot consume a retry.
-- Known limits (unchanged by this task): hosted `PAST_DUE` recovery does not
-  reset `renewalAttempts`, so the first decline after a recovery goes straight
-  to `PAST_DUE` (still bounded); the retry date is measured from the decline
-  time, so a 03:00 cron picks it up on the first run after that instant; and
-  pre-charge executor errors surface as `UNKNOWN` for reconciliation.
+- Known limits (unchanged by this task): the retry date is measured from the
+  decline time, so a 03:00 cron picks it up on the first run after that
+  instant; and pre-charge executor errors surface as `UNKNOWN` for
+  reconciliation.
+- Recovery reset (KT-038 Task 4C): the locally recovered hosted activation
+  (`BillingHostedCompletionService.activateSubscription`) sets
+  `renewalAttempts` to 0 in the same locked `PAST_DUE` -> `ACTIVE` update, so
+  the next cycle starts a fresh 3-day / 7-day / `PAST_DUE` sequence. The
+  webhook's own activation write (`cardcom-webhook.service.ts`) does not yet
+  reset it.
 - `GET /billing/plans`, `GET /billing/me`, `POST /billing/trial` — plan listing and current billing state; idempotent trial creation.
 - `POST /billing/checkout/preview` / `POST /billing/checkout` — price preview and CardCom LowProfile checkout session creation; activation happens only via the webhook, never the checkout response.
 - `POST /billing/cardcom/webhook` — CardCom posts payment results here; `CardcomWebhookService` verifies/activates subscriptions; errors are swallowed so CardCom doesn't retry-storm.

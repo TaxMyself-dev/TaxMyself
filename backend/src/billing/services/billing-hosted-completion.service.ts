@@ -225,6 +225,9 @@ export class BillingHostedCompletionService {
         currentPeriodStart: capturedAt,
         currentPeriodEnd: periodEnd,
         nextBillingDate: periodEnd,
+        // Same retry-state reset as a successful canonical renewal: the next
+        // cycle starts a fresh 3-day / 7-day / PAST_DUE sequence.
+        renewalAttempts: 0,
         gracePeriodEndsAt: null,
         canceledAt: null,
         endedAt: null,

@@ -124,6 +124,7 @@ describe('BillingHostedCompletionService — local recovery of a CAPTURED hosted
       currentPeriodStart: new Date('2026-08-01'),
       currentPeriodEnd: new Date('2026-09-01'),
       nextBillingDate: new Date('2026-09-01'),
+      renewalAttempts: 3,
       gracePeriodEndsAt: new Date('2026-09-15'),
       canceledAt: null,
       endedAt: null,
@@ -254,6 +255,8 @@ describe('BillingHostedCompletionService — local recovery of a CAPTURED hosted
     expect(orchestration.calls).not.toContain('finalize');
     expect(receipts.ensureReceiptForCapturedAttempt).not.toHaveBeenCalled();
     expect(sub.status).toBe(SubscriptionStatus.PAST_DUE);
+    expect(sub.renewalAttempts).toBe(3); // retry state untouched
+    expect(sub.gracePeriodEndsAt).toEqual(new Date('2026-09-15'));
     expect(orchestration.attempt.leaseOwner).toBeNull(); // retryable at once
 
     expect(failuresOf(rows)).toHaveLength(1);
@@ -298,6 +301,7 @@ describe('BillingHostedCompletionService — local recovery of a CAPTURED hosted
       currentPeriodStart: CAPTURED_AT,
       currentPeriodEnd: periodEnd,
       nextBillingDate: periodEnd,
+      renewalAttempts: 0,
       gracePeriodEndsAt: null,
       canceledAt: null,
       endedAt: null,
@@ -401,6 +405,23 @@ describe('BillingHostedCompletionService — local recovery of a CAPTURED hosted
     );
   });
 
+  it('a confirmed recovery resets the retry state but keeps the recovered period, next billing date and payment method', async () => {
+    const { service, sub, updates, params } = build();
+
+    await service.completeCapturedHostedAttempt(params);
+
+    const periodEnd = new Date(CAPTURED_AT);
+    periodEnd.setMonth(periodEnd.getMonth() + 1);
+    expect(sub.status).toBe(SubscriptionStatus.ACTIVE);
+    expect(sub.renewalAttempts).toBe(0);
+    expect(sub.gracePeriodEndsAt).toBeNull();
+    expect(sub.currentPeriodStart).toEqual(CAPTURED_AT);
+    expect(sub.currentPeriodEnd).toEqual(periodEnd);
+    expect(sub.nextBillingDate).toEqual(periodEnd);
+    expect(sub.paymentMethodId).toBe(5);
+    expect(updates.count).toBe(1);
+  });
+
   it('an already-active subscription is an idempotent no-op for activation; receipt and completion still run', async () => {
     const {
       service,
@@ -413,6 +434,7 @@ describe('BillingHostedCompletionService — local recovery of a CAPTURED hosted
     } = build();
     sub.status = SubscriptionStatus.ACTIVE; // first delivery's transaction had succeeded
     sub.currentPeriodStart = new Date('2026-09-10T11:50:03.000Z');
+    sub.renewalAttempts = 1; // a later cycle's decline: a replay must not reset it
 
     const status = await service.completeCapturedHostedAttempt(params);
 
@@ -422,6 +444,7 @@ describe('BillingHostedCompletionService — local recovery of a CAPTURED hosted
     expect(sub.currentPeriodStart).toEqual(
       new Date('2026-09-10T11:50:03.000Z'),
     ); // not overwritten
+    expect(sub.renewalAttempts).toBe(1);
     expect(receipts.ensureReceiptForCapturedAttempt).toHaveBeenCalledTimes(1);
     expect(orchestration.attempt.status).toBe(BillingAttemptStatus.COMPLETED);
   });
@@ -482,6 +505,7 @@ describe('BillingHostedCompletionService — local recovery of a CAPTURED hosted
     expect(status).toBe('RECEIPT_PENDING');
     expect(updates.count).toBe(0);
     expect(sub.status).toBe(SubscriptionStatus.CANCELED);
+    expect(sub.renewalAttempts).toBe(3);
     expect(receipts.ensureReceiptForCapturedAttempt).not.toHaveBeenCalled();
     expect(orchestration.attempt.status).toBe(BillingAttemptStatus.CAPTURED);
     expect(failuresOf(rows)[0].metadata.failureCategory).toBe(
