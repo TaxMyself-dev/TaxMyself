@@ -2,7 +2,8 @@ jest.mock('../utils/billing-token-encryption.util', () => ({
   decryptCardcomToken: jest.fn(() => 'decrypted-token'),
 }));
 
-import { PRE_SUBMISSION_LOCAL_FAILURE } from './billing-attempt-orchestration.service';
+import { decryptCardcomToken } from '../utils/billing-token-encryption.util';
+import { BillingPreSubmissionFailureReason as R } from './billing-attempt-orchestration.service';
 import { BillingCardcomExecutorService } from './billing-cardcom-executor.service';
 import { BillingProviderRuntimeService } from './billing-provider-runtime.service';
 
@@ -51,12 +52,30 @@ describe('BillingCardcomExecutorService', () => {
     });
   });
 
+  const CARD = {
+    id: 8,
+    cardcomToken: 'encrypted-token',
+    cardExpiryMonth: 9,
+    cardExpiryYear: 2099,
+  };
   it.each([
-    ['is missing', null],
-    ['has no expiry', { id: 8, cardcomToken: 'encrypted-token' }],
+    ['no payment method', null, R.NO_PAYMENT_METHOD],
+    ['no stored token', { ...CARD, cardcomToken: '' }, R.NO_STORED_TOKEN],
+    [
+      'missing card expiry',
+      { ...CARD, cardExpiryMonth: null },
+      R.CARD_EXPIRY_MISSING,
+    ],
+    ['an expired card', { ...CARD, cardExpiryYear: 2020 }, R.CARD_EXPIRED],
+    ['an undecryptable token', CARD, R.TOKEN_DECRYPTION_FAILED],
   ])(
-    'a payment method that %s fails before any CardCom request and is not an uncertain charge',
-    async (_name, paymentMethod) => {
+    '%s fails locally with a typed reason: no CardCom request and never UNKNOWN',
+    async (_name, paymentMethod, reason) => {
+      if (reason === R.TOKEN_DECRYPTION_FAILED) {
+        (decryptCardcomToken as jest.Mock).mockImplementationOnce(() => {
+          throw new Error('bad decrypt');
+        });
+      }
       const cardcom = {
         chargeByToken: jest.fn(),
         getTransactionByExternalUniqTran: jest.fn(),
@@ -78,7 +97,8 @@ describe('BillingCardcomExecutorService', () => {
         claimForSubmission: jest
           .fn()
           .mockResolvedValue({ claimed: true, attempt }),
-        applyNormalizedOutcome: jest.fn().mockResolvedValue(attempt),
+        applyNormalizedOutcome: jest.fn(),
+        applyPreSubmissionFailure: jest.fn().mockResolvedValue(attempt),
       };
       const runtime = new BillingProviderRuntimeService(
         orchestration as any,
@@ -92,16 +112,23 @@ describe('BillingCardcomExecutorService', () => {
         leaseOwner: 'renewal-4',
       });
 
-      expect(result).toEqual(
-        expect.objectContaining({
-          outcome: {
-            kind: 'UNKNOWN',
-            failureCategory: PRE_SUBMISSION_LOCAL_FAILURE,
-          },
-        }),
+      expect(result).toEqual({
+        kind: 'LOCAL_FAILURE',
+        reason,
+        disposition:
+          reason === R.TOKEN_DECRYPTION_FAILED
+            ? 'SYSTEM_ACTION'
+            : 'CUSTOMER_ACTION',
+        attempt,
+      });
+      expect(orchestration.applyPreSubmissionFailure).toHaveBeenCalledWith(
+        4,
+        'renewal-4',
+        2,
+        reason,
       );
+      expect(orchestration.applyNormalizedOutcome).not.toHaveBeenCalled();
       expect(cardcom.chargeByToken).not.toHaveBeenCalled();
-      // Read-only reconciliation never selects it, so it can never be looked up.
       expect(cardcom.getTransactionByExternalUniqTran).not.toHaveBeenCalled();
     },
   );

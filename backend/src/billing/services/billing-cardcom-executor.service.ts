@@ -8,6 +8,7 @@ import {
   validateHostedTransactionResult,
 } from '../utils/billing-hosted-card-result.util';
 import { decryptCardcomToken } from '../utils/billing-token-encryption.util';
+import { BillingPreSubmissionFailureReason } from './billing-attempt-orchestration.service';
 import { CardcomService } from './cardcom.service';
 import {
   BillingCardComExecutor,
@@ -18,6 +19,28 @@ import {
 
 /** ILS in CardCom's CoinId list. */
 const ILS_COIN_ID = 1;
+
+/**
+ * Valid month (1-12) and year (2 or 4 digits, as stored) or null when the
+ * expiry is missing or malformed.
+ */
+function normalizeCardExpiry(
+  month: number | null,
+  year: number | null,
+): { month: number; year: number } | null {
+  if (
+    month == null ||
+    year == null ||
+    !Number.isInteger(month) ||
+    !Number.isInteger(year) ||
+    month < 1 ||
+    month > 12 ||
+    year <= 0
+  ) {
+    return null;
+  }
+  return { month, year: year < 100 ? 2000 + year : year };
+}
 
 /** Provider-boundary adapter for canonical token renewals. */
 @Injectable()
@@ -32,10 +55,10 @@ export class BillingCardcomExecutorService implements BillingCardComExecutor {
     request: CardComChargeRequest,
   ): Promise<CardComChargeResponse> {
     // Everything up to chargeByToken is local: a failure here means no request
-    // reached CardCom, so it is reported as a pre-submission failure.
+    // reached CardCom, so it is reported as a typed pre-submission failure.
     if (request.paymentMethodId == null) {
       throw new BillingPreSubmissionError(
-        'Billing attempt payment method is missing',
+        BillingPreSubmissionFailureReason.NO_PAYMENT_METHOD,
       );
     }
     const paymentMethod = await this.paymentMethodRepository.findOne({
@@ -43,28 +66,48 @@ export class BillingCardcomExecutorService implements BillingCardComExecutor {
     });
     if (!paymentMethod) {
       throw new BillingPreSubmissionError(
-        'Billing attempt payment method is missing',
+        BillingPreSubmissionFailureReason.NO_PAYMENT_METHOD,
       );
     }
-    if (!paymentMethod.cardExpiryMonth || !paymentMethod.cardExpiryYear) {
+    if (!paymentMethod.cardcomToken) {
       throw new BillingPreSubmissionError(
-        'Billing attempt payment method expiry is missing',
+        BillingPreSubmissionFailureReason.NO_STORED_TOKEN,
+      );
+    }
+    const now = new Date();
+    const expiry = normalizeCardExpiry(
+      paymentMethod.cardExpiryMonth,
+      paymentMethod.cardExpiryYear,
+    );
+    if (!expiry) {
+      throw new BillingPreSubmissionError(
+        BillingPreSubmissionFailureReason.CARD_EXPIRY_MISSING,
+      );
+    }
+    // A card is valid through the end of its expiry month.
+    if (
+      expiry.year < now.getUTCFullYear() ||
+      (expiry.year === now.getUTCFullYear() &&
+        expiry.month < now.getUTCMonth() + 1)
+    ) {
+      throw new BillingPreSubmissionError(
+        BillingPreSubmissionFailureReason.CARD_EXPIRED,
       );
     }
     let token: string;
     try {
       token = decryptCardcomToken(paymentMethod.cardcomToken);
     } catch {
+      // The raw exception may carry key/ciphertext details: drop it.
       throw new BillingPreSubmissionError(
-        'Billing attempt payment method token is unusable',
+        BillingPreSubmissionFailureReason.TOKEN_DECRYPTION_FAILED,
       );
     }
     const response = await this.cardcomService.chargeByToken({
       token,
-      cardExpirationMMYY: `${String(paymentMethod.cardExpiryMonth).padStart(
-        2,
-        '0',
-      )}${String(paymentMethod.cardExpiryYear).slice(-2)}`,
+      cardExpirationMMYY: `${String(expiry.month).padStart(2, '0')}${String(
+        expiry.year,
+      ).slice(-2)}`,
       amountAgorot: request.amountAgorot,
       externalUniqTranId: request.externalUniqTranId,
     });

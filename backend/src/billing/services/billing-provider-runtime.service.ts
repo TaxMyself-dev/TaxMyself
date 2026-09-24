@@ -7,8 +7,10 @@ import {
 import {
   BillingAttemptOrchestrationService,
   BillingMutationActorContext,
+  BillingPreSubmissionDisposition,
+  BillingPreSubmissionFailureReason,
   NormalizedChargeOutcome,
-  PRE_SUBMISSION_LOCAL_FAILURE,
+  preSubmissionDisposition,
 } from './billing-attempt-orchestration.service';
 
 export const BILLING_CARD_COM_EXECUTOR = Symbol('BILLING_CARD_COM_EXECUTOR');
@@ -40,12 +42,14 @@ export interface CardComChargeResponse {
 
 /**
  * Thrown by an executor when the local pre-flight failed BEFORE any request
- * reached CardCom (missing payment method, missing expiry, undecryptable
- * token). No charge can have been made, so it is not an uncertain outcome.
+ * reached CardCom (missing payment method/token/expiry, expired card,
+ * undecryptable token). No charge can have been made, so it is not an
+ * uncertain outcome. Carries only the typed reason: never the underlying
+ * exception, token or payment details.
  */
 export class BillingPreSubmissionError extends Error {
-  constructor(message: string) {
-    super(message);
+  constructor(public readonly reason: BillingPreSubmissionFailureReason) {
+    super(`Billing pre-submission failure: ${reason}`);
     this.name = 'BillingPreSubmissionError';
   }
 }
@@ -66,6 +70,15 @@ export interface ProviderRuntimeInput {
 export type ProviderRuntimeResult =
   | { kind: 'NOT_CLAIMED'; reason?: string; attempt: unknown }
   | { kind: 'APPLIED'; outcome: NormalizedChargeOutcome; attempt: unknown };
+/** A submission can also end in a local failure before any provider request. */
+export type ProviderSubmitResult =
+  | ProviderRuntimeResult
+  | {
+      kind: 'LOCAL_FAILURE';
+      reason: BillingPreSubmissionFailureReason;
+      disposition: BillingPreSubmissionDisposition;
+      attempt: unknown;
+    };
 
 @Injectable()
 export class BillingProviderRuntimeService {
@@ -76,7 +89,7 @@ export class BillingProviderRuntimeService {
   ) {}
   async submitCharge(
     input: ProviderRuntimeInput,
-  ): Promise<ProviderRuntimeResult> {
+  ): Promise<ProviderSubmitResult> {
     this.orchestration.assertOwnerMutation(input.actor);
     const lease = await this.orchestration.claimForSubmission(
       input.attemptId,
@@ -102,13 +115,22 @@ export class BillingProviderRuntimeService {
         await this.executor.executeCharge(request),
       );
     } catch (error) {
-      outcome = {
-        kind: 'UNKNOWN',
-        failureCategory:
-          error instanceof BillingPreSubmissionError
-            ? PRE_SUBMISSION_LOCAL_FAILURE
-            : 'TRANSPORT_ERROR',
-      };
+      if (error instanceof BillingPreSubmissionError) {
+        // No request reached CardCom: terminate locally, never as UNKNOWN.
+        const attempt = await this.orchestration.applyPreSubmissionFailure(
+          lease.attempt.id,
+          input.leaseOwner,
+          lease.attempt.stateVersion,
+          error.reason,
+        );
+        return {
+          kind: 'LOCAL_FAILURE',
+          reason: error.reason,
+          disposition: preSubmissionDisposition(error.reason),
+          attempt,
+        };
+      }
+      outcome = { kind: 'UNKNOWN', failureCategory: 'TRANSPORT_ERROR' };
     }
     const attempt = await this.applyOutcome(lease.attempt, input, outcome);
     return { kind: 'APPLIED', outcome, attempt };

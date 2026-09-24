@@ -201,8 +201,7 @@ and `MANUAL_REVIEW` never enter it and are never replayed.
   call, nothing persisted. A stale cron read therefore cannot consume a retry.
 - Known limits (unchanged by this task): the retry date is measured from the
   decline time, so a 03:00 cron picks it up on the first run after that
-  instant; and a local pre-flight failure of a token charge is still persisted
-  as `UNKNOWN` (see "Read-only reconciliation").
+  instant.
 - Recovery reset (KT-038 Tasks 4C/4D): both hosted activation writes — the
   locally recovered one (`BillingHostedCompletionService.activateSubscription`)
   and the live webhook's (`CardcomWebhookService.processVerifiedSuccess`) — set
@@ -236,14 +235,18 @@ a hosted attempt via `getLowProfileResult` with its persisted LowProfile id.
 - Expired `PROCESSING` becomes `UNKNOWN` (never `CREATED`); a live lease is
   untouched. Its first lookup waits for the 1-minute backoff, i.e. the next
   sweep.
-- Pre-submission local failures (payment method missing, no expiry, unusable
-  token) throw `BillingPreSubmissionError` before any request; the attempt is
-  tagged `PRE_SUBMISSION_LOCAL_FAILURE` and is never selected for provider
-  lookup. It is still persisted as `UNKNOWN`: the state machine has no
-  no-charge state reachable from `PROCESSING` (only `UNKNOWN`, `DECLINED`,
-  `CAPTURED`), and `DECLINED` would wrongly consume the renewal decline policy.
-  Open decision: add an explicit no-charge outcome/transition and define what a
-  renewal with no usable payment method does to the subscription.
+- Local pre-submission failures (KT-038 Task 5A3) are never `UNKNOWN`, never
+  reconciled and never call CardCom. The executor throws a
+  `BillingPreSubmissionError` carrying a typed
+  `BillingPreSubmissionFailureReason` (never parsed from a message), and
+  `applyPreSubmissionFailure` applies one atomic transition (sanitized
+  `LOCAL_<REASON>` category, no token/key/raw error stored or logged):
+  customer action (no payment method, no token, missing/expired expiry) ends the
+  attempt `DECLINED` without the 3/7-day policy (`renewalAttempts` untouched)
+  and moves an ACTIVE subscription to `PAST_DUE` with the standard grace period,
+  so hosted recovery/change-payment-method can collect; system action (token
+  decryption failure) ends `MANUAL_REVIEW` with the subscription unchanged and
+  the obligation still blocked. Both are excluded from the sweep by status.
 - Limitations: the direct lookup response does not echo the key, so a match rests
   on CardCom honouring the lookup; a reconciled token capture whose subscription
   is no longer ACTIVE (e.g. `CANCELED`) is not finalized by the renewal flow

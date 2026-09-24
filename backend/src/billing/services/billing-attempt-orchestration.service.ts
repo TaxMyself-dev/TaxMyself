@@ -27,6 +27,7 @@ import {
 } from '../enums/billing.enums';
 import {
   decideRenewalDecline,
+  renewalGracePeriodEnd,
   renewalPeriodStart,
 } from '../domain/billing-renewal-policy';
 import { BillingAttempt } from '../entities/billing-attempt.entity';
@@ -54,11 +55,49 @@ const RECONCILIATION_DELAYS_MS = [
 ] as const;
 
 /**
- * Failure category of an attempt whose local pre-flight (payment method, expiry
- * or token) failed BEFORE any provider request was made. Such an attempt is not
- * an uncertain charge: read-only provider reconciliation never selects it.
+ * Legacy failure category (Task 5A2) of an UNKNOWN attempt whose local
+ * pre-flight failed before any provider request. New local failures never
+ * become UNKNOWN (see `applyPreSubmissionFailure`); the reconciliation finder
+ * keeps skipping this tag only for rows persisted before that change.
  */
 export const PRE_SUBMISSION_LOCAL_FAILURE = 'PRE_SUBMISSION_LOCAL_FAILURE';
+
+/**
+ * Typed reasons a token charge failed locally BEFORE any provider request, so
+ * no charge can have been made. Never derived from an error message.
+ */
+export enum BillingPreSubmissionFailureReason {
+  NO_PAYMENT_METHOD = 'NO_PAYMENT_METHOD',
+  NO_STORED_TOKEN = 'NO_STORED_TOKEN',
+  CARD_EXPIRY_MISSING = 'CARD_EXPIRY_MISSING',
+  CARD_EXPIRED = 'CARD_EXPIRED',
+  TOKEN_DECRYPTION_FAILED = 'TOKEN_DECRYPTION_FAILED',
+}
+
+/**
+ * CUSTOMER_ACTION: the customer must update the payment method (attempt ends
+ * DECLINED without a provider decline, subscription goes PAST_DUE).
+ * SYSTEM_ACTION: an operator must investigate (attempt goes to MANUAL_REVIEW,
+ * subscription untouched).
+ */
+export type BillingPreSubmissionDisposition =
+  | 'CUSTOMER_ACTION'
+  | 'SYSTEM_ACTION';
+
+export function preSubmissionDisposition(
+  reason: BillingPreSubmissionFailureReason,
+): BillingPreSubmissionDisposition {
+  return reason === BillingPreSubmissionFailureReason.TOKEN_DECRYPTION_FAILED
+    ? 'SYSTEM_ACTION'
+    : 'CUSTOMER_ACTION';
+}
+
+/** Sanitized `failure_category` persisted for a local pre-submission failure. */
+export function preSubmissionFailureCategory(
+  reason: BillingPreSubmissionFailureReason,
+): string {
+  return `LOCAL_${reason}`;
+}
 
 export const BILLING_EXTERNAL_KEY_FACTORY = Symbol(
   'BILLING_EXTERNAL_KEY_FACTORY',
@@ -476,6 +515,104 @@ export class BillingAttemptOrchestrationService {
     });
   }
 
+  /**
+   * Terminates a claimed token attempt whose local pre-flight failed BEFORE any
+   * provider request, in one transaction. No charge can have been made, so it
+   * is never UNKNOWN, never reconciled and never consumes the 3/7-day
+   * provider-decline policy (`renewalAttempts` is not touched).
+   * - CUSTOMER_ACTION: PROCESSING -> DECLINED (sanitized local category), the
+   *   obligation's active pointer is cleared so the hosted recovery flow may
+   *   open a new attempt, and an ACTIVE subscription still collecting this
+   *   period becomes PAST_DUE with the standard grace period.
+   * - SYSTEM_ACTION: PROCESSING -> UNKNOWN -> MANUAL_REVIEW in one write. The
+   *   attempt keeps blocking its obligation (no replay); the subscription is
+   *   left unchanged for an operator.
+   */
+  async applyPreSubmissionFailure(
+    attemptId: number,
+    leaseOwner: string,
+    expectedStateVersion: number,
+    reason: BillingPreSubmissionFailureReason,
+    now = new Date(),
+  ): Promise<BillingAttempt> {
+    const disposition = preSubmissionDisposition(reason);
+    return this.inTransaction(async (manager) => {
+      // Subscription first, as in applyNormalizedOutcome / createOrGetAttempt.
+      const subscription =
+        disposition === 'CUSTOMER_ACTION'
+          ? await this.lockSubscriptionOfAttempt(manager, attemptId)
+          : null;
+      const attempt = await this.lockAttempt(manager, attemptId);
+      if (
+        attempt.stateVersion !== expectedStateVersion ||
+        attempt.leaseOwner !== leaseOwner
+      ) {
+        throw new ConflictException(
+          'Billing attempt lease or version is stale',
+        );
+      }
+      if (attempt.leaseExpiresAt && attempt.leaseExpiresAt <= now) {
+        throw new ConflictException('Billing attempt lease has expired');
+      }
+      if (attempt.status !== BillingAttemptStatus.PROCESSING) {
+        throw new ConflictException(
+          `Cannot apply a local failure while attempt is ${attempt.status}`,
+        );
+      }
+
+      attempt.providerResponseCode = null;
+      attempt.failureCategory = preSubmissionFailureCategory(reason);
+      attempt.nextActionAt = null;
+      this.clearLease(attempt);
+
+      if (disposition === 'CUSTOMER_ACTION') {
+        assertBillingAttemptTransition(
+          attempt.status,
+          BillingAttemptStatus.DECLINED,
+        );
+        attempt.status = BillingAttemptStatus.DECLINED;
+        const obligation = await this.lockObligation(
+          manager,
+          attempt.obligationId,
+        );
+        if (obligation.activeAttemptId !== attempt.id) {
+          throw new ConflictException(
+            'Billing attempt is no longer active for its obligation',
+          );
+        }
+        obligation.activeAttemptId = null;
+        obligation.version += 1;
+        await manager.save(BillingObligation, obligation);
+        if (
+          subscription &&
+          this.isActiveCollectingRenewalPeriod(
+            subscription,
+            attempt,
+            obligation,
+          )
+        ) {
+          await manager.update(Subscription, subscription.id, {
+            status: SubscriptionStatus.PAST_DUE,
+            gracePeriodEndsAt: renewalGracePeriodEnd(now),
+          });
+        }
+      } else {
+        assertBillingAttemptTransition(
+          attempt.status,
+          BillingAttemptStatus.UNKNOWN,
+        );
+        assertBillingAttemptTransition(
+          BillingAttemptStatus.UNKNOWN,
+          BillingAttemptStatus.MANUAL_REVIEW,
+        );
+        attempt.status = BillingAttemptStatus.MANUAL_REVIEW;
+      }
+
+      attempt.stateVersion += 1;
+      return manager.save(BillingAttempt, attempt);
+    });
+  }
+
   async expireProcessingLeaseToUnknown(
     attemptId: number,
     now = new Date(),
@@ -866,18 +1003,7 @@ export class BillingAttemptOrchestrationService {
     now: Date,
   ): Promise<void> {
     if (
-      attempt.trigger !== BillingAttemptTrigger.RENEWAL ||
-      attempt.chargeMode !== BillingChargeMode.TOKEN_TRANSACTION ||
-      subscription.id !== obligation.subscriptionId ||
-      subscription.firebaseId !== obligation.firebaseIdSnapshot ||
-      subscription.status !== SubscriptionStatus.ACTIVE
-    ) {
-      return;
-    }
-    const periodStart = renewalPeriodStart(subscription);
-    if (
-      !periodStart ||
-      periodStart.toISOString().slice(0, 10) !== obligation.periodStart
+      !this.isActiveCollectingRenewalPeriod(subscription, attempt, obligation)
     ) {
       return;
     }
@@ -895,6 +1021,32 @@ export class BillingAttemptOrchestrationService {
             status: SubscriptionStatus.PAST_DUE,
             gracePeriodEndsAt: decision.gracePeriodEndsAt,
           },
+    );
+  }
+
+  /**
+   * True only for a token-renewal attempt whose ACTIVE subscription is still
+   * collecting this obligation's period. Guards every renewal-driven
+   * subscription write, so CANCELED/PAST_DUE/advanced rows are never touched.
+   */
+  private isActiveCollectingRenewalPeriod(
+    subscription: Subscription,
+    attempt: BillingAttempt,
+    obligation: BillingObligation,
+  ): boolean {
+    if (
+      attempt.trigger !== BillingAttemptTrigger.RENEWAL ||
+      attempt.chargeMode !== BillingChargeMode.TOKEN_TRANSACTION ||
+      subscription.id !== obligation.subscriptionId ||
+      subscription.firebaseId !== obligation.firebaseIdSnapshot ||
+      subscription.status !== SubscriptionStatus.ACTIVE
+    ) {
+      return false;
+    }
+    const periodStart = renewalPeriodStart(subscription);
+    return (
+      !!periodStart &&
+      periodStart.toISOString().slice(0, 10) === obligation.periodStart
     );
   }
 
@@ -1031,12 +1183,12 @@ export class BillingAttemptOrchestrationService {
       return null;
     }
 
+    // A renewal with no usable payment method is still opened, with no stored
+    // id: the executor reports NO_PAYMENT_METHOD before any provider request
+    // and `applyPreSubmissionFailure` moves the subscription to PAST_DUE.
+    const renewalWithoutMethod =
+      input.trigger === BillingAttemptTrigger.RENEWAL;
     const paymentMethodId = subscription.paymentMethodId;
-    if (paymentMethodId == null) {
-      throw new BadRequestException(
-        'Subscription does not have a stored payment method',
-      );
-    }
     if (
       input.paymentMethodId != null &&
       input.paymentMethodId !== paymentMethodId
@@ -1045,12 +1197,19 @@ export class BillingAttemptOrchestrationService {
         'Billing attempt payment method does not belong to the subscription',
       );
     }
+    if (paymentMethodId == null) {
+      if (renewalWithoutMethod) return null;
+      throw new BadRequestException(
+        'Subscription does not have a stored payment method',
+      );
+    }
 
     const paymentMethod = await manager.findOne(PaymentMethod, {
       where: { id: paymentMethodId },
       lock: { mode: 'pessimistic_write' },
     });
     if (!paymentMethod) {
+      if (renewalWithoutMethod) return null;
       throw new ConflictException(
         'Subscription payment method pointer is inconsistent',
       );

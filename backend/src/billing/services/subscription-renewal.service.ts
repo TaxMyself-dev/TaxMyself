@@ -23,7 +23,11 @@ import { BillingLifecycleService } from './billing-lifecycle.service';
 import { BillingHostedCompletionService } from './billing-hosted-completion.service';
 import { BillingReconciliationService } from './billing-reconciliation.service';
 import { BillingAttempt } from '../entities/billing-attempt.entity';
-import { NormalizedChargeOutcome } from './billing-attempt-orchestration.service';
+import {
+  BillingPreSubmissionFailureReason,
+  NormalizedChargeOutcome,
+  preSubmissionFailureCategory,
+} from './billing-attempt-orchestration.service';
 import {
   MAX_RENEWAL_ATTEMPTS,
   RENEWAL_GRACE_PERIOD_DAYS as GRACE_PERIOD_DAYS,
@@ -382,6 +386,14 @@ export class SubscriptionRenewalService {
         result.opened?.attempt.cardcomExternalUniqTranId ?? '',
       );
     }
+    if (result.submitted?.kind === 'LOCAL_FAILURE') {
+      return this.afterLocalPreSubmissionFailure(
+        subscription,
+        billingPeriod,
+        result.submitted,
+        result.opened?.attempt ?? null,
+      );
+    }
     if (result.submitted?.kind === 'NOT_CLAIMED') {
       // Another run holds the attempt, or it is UNKNOWN / MANUAL_REVIEW and
       // awaits read-only reconciliation. Never submitted, never a retry.
@@ -547,6 +559,74 @@ export class SubscriptionRenewalService {
       billingPeriod,
       cardcomResponseCode: declined?.providerResponseCode ?? undefined,
       nextBillingDate: retryScheduledFor,
+    };
+  }
+
+  /**
+   * The charge failed locally BEFORE any provider request (no usable payment
+   * method), so it is neither a decline nor an uncertain charge and never uses
+   * the 3/7-day retry policy. The orchestration service already applied the
+   * transition atomically: CUSTOMER_ACTION left the subscription PAST_DUE (the
+   * hosted recovery flow collects it), SYSTEM_ACTION left the attempt in
+   * MANUAL_REVIEW with the subscription unchanged. Only sanitized category
+   * strings are logged or stored — never the token, key or a raw exception.
+   */
+  private async afterLocalPreSubmissionFailure(
+    before: Subscription,
+    billingPeriod: string,
+    submitted: { reason?: string; disposition?: string },
+    attempt: BillingAttempt | null,
+  ): Promise<RenewalResult> {
+    const failureCategory = preSubmissionFailureCategory(
+      submitted.reason as BillingPreSubmissionFailureReason,
+    );
+    if (submitted.disposition !== 'CUSTOMER_ACTION') {
+      this.logger.error(
+        `Renewal held for manual review: subscriptionId=${before.id} ` +
+          `billingPeriod=${billingPeriod} attemptId=${attempt?.id ?? 'n/a'} ` +
+          `failureCategory=${failureCategory}`,
+      );
+      return {
+        subscriptionId: before.id,
+        outcome: 'error',
+        billingPeriod,
+        message: failureCategory,
+      };
+    }
+    const after = await this.subscriptionRepo.findOne({
+      where: { id: before.id },
+    });
+    if (after?.status !== SubscriptionStatus.PAST_DUE) {
+      return {
+        subscriptionId: before.id,
+        outcome: 'skipped',
+        billingPeriod,
+        message: failureCategory,
+      };
+    }
+    await this.billingEventService.logEvent({
+      firebaseId: before.firebaseId,
+      eventType: BillingEventType.RENEWAL_FAILED,
+      subscriptionId: before.id,
+      billingAttemptId: attempt?.id ?? null,
+      metadata: {
+        idempotencyKey: attempt?.cardcomExternalUniqTranId ?? null,
+        billingPeriod,
+        failureCategory,
+        providerRequestMade: false,
+        requiresCustomerAction: true,
+        gracePeriodEndsAt: after.gracePeriodEndsAt?.toISOString() ?? null,
+      },
+    });
+    this.logger.warn(
+      `Renewal needs a new payment method: subscriptionId=${before.id} ` +
+        `billingPeriod=${billingPeriod} failureCategory=${failureCategory} nextAction=PAST_DUE`,
+    );
+    return {
+      subscriptionId: before.id,
+      outcome: 'past_due',
+      billingPeriod,
+      message: failureCategory,
     };
   }
 

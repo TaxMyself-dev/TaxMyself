@@ -1,4 +1,10 @@
+jest.mock('../utils/billing-token-encryption.util', () => ({
+  decryptCardcomToken: jest.fn(() => 'decrypted-token'),
+}));
+
+import { Logger } from '@nestjs/common';
 import { LessThanOrEqual } from 'typeorm';
+import { decryptCardcomToken } from '../utils/billing-token-encryption.util';
 import {
   BillingAttemptStatus,
   BillingAttemptTrigger,
@@ -15,8 +21,10 @@ import { Subscription } from '../entities/subscription.entity';
 import { SubscriptionPlan } from '../entities/subscription-plan.entity';
 import {
   BillingAttemptOrchestrationService,
+  BillingPreSubmissionFailureReason as Reason,
   BillingRenewalDeferredError,
 } from './billing-attempt-orchestration.service';
+import { BillingCardcomExecutorService } from './billing-cardcom-executor.service';
 import { BillingEventService } from './billing-event.service';
 import { BillingLifecycleService } from './billing-lifecycle.service';
 import { BillingProviderRuntimeService } from './billing-provider-runtime.service';
@@ -737,6 +745,167 @@ describe('SubscriptionRenewalService — bounded renewal-decline policy', () => 
         expect(db.rows(BillingAttempt)).toHaveLength(1);
         expect(subscription.renewalAttempts).toBe(0);
         expect(subscription.status).toBe(SubscriptionStatus.ACTIVE);
+      }
+    });
+  });
+
+  describe('local pre-submission failures (KT-038 Task 5A3)', () => {
+    /** Routes the mocked executor slot through the REAL CardCom executor. */
+    const useRealExecutor = (
+      ctx: ReturnType<typeof build>,
+      paymentMethod: Record<string, any> | null,
+    ) => {
+      const cardcom = {
+        chargeByToken: jest.fn(),
+        getTransactionByExternalUniqTran: jest.fn(),
+        getLowProfileResult: jest.fn(),
+      };
+      const real = new BillingCardcomExecutorService(
+        cardcom as any,
+        { findOne: jest.fn().mockResolvedValue(paymentMethod) } as any,
+      );
+      ctx.executor.executeCharge.mockImplementation((request: any) =>
+        real.executeCharge(request),
+      );
+      return cardcom;
+    };
+    const CARD = {
+      id: 5,
+      cardcomToken: 'encrypted-token',
+      cardExpiryMonth: 9,
+      cardExpiryYear: 2099,
+    };
+
+    it.each([
+      [Reason.NO_PAYMENT_METHOD, null, true],
+      [Reason.NO_STORED_TOKEN, { ...CARD, cardcomToken: '' }, false],
+      [Reason.CARD_EXPIRY_MISSING, { ...CARD, cardExpiryYear: null }, false],
+      [Reason.CARD_EXPIRED, { ...CARD, cardExpiryYear: 2020 }, false],
+    ])(
+      'customer action (%s): no provider request, terminal DECLINED without the retry policy, subscription PAST_DUE, never replayed',
+      async (reason, paymentMethod, dropPointer) => {
+        const ctx = build();
+        const { service, subscription, db, eventRows } = ctx;
+        if (dropPointer) subscription.paymentMethodId = null;
+        const cardcom = useRealExecutor(ctx, paymentMethod);
+
+        const result = await service.processSubscriptionById(7);
+
+        expect(result.outcome).toBe('past_due');
+        expect(cardcom.chargeByToken).not.toHaveBeenCalled();
+        const [attempt] = db.rows(BillingAttempt);
+        expect(attempt.status).toBe(BillingAttemptStatus.DECLINED);
+        expect(attempt.failureCategory).toBe(`LOCAL_${reason}`);
+        expect(attempt.providerResponseCode).toBeNull();
+        expect(attempt.leaseOwner).toBeNull();
+        expect(attempt.leaseExpiresAt).toBeNull();
+        expect(db.rows(BillingObligation)[0].activeAttemptId).toBeNull();
+        expect(subscription.status).toBe(SubscriptionStatus.PAST_DUE);
+        expect(subscription.gracePeriodEndsAt).toEqual(plusDays(DAY0, 14));
+        expect(subscription.renewalAttempts).toBe(0);
+        expect(subscription.nextBillingDate).toEqual(DUE);
+        expect(
+          eventsOf(eventRows, BillingEventType.RENEWAL_FAILED),
+        ).toHaveLength(1);
+        expect(
+          eventsOf(eventRows, BillingEventType.RETRY_SCHEDULED),
+        ).toHaveLength(0);
+
+        for (let day = 1; day <= 10; day += 1) {
+          at(plusDays(DAY0, day));
+          expect((await service.processSubscriptionById(7)).outcome).toBe(
+            'skipped',
+          );
+        }
+        expect(ctx.executor.executeCharge).toHaveBeenCalledTimes(1);
+        expect(cardcom.chargeByToken).not.toHaveBeenCalled();
+        expect(db.rows(BillingAttempt)).toHaveLength(1);
+      },
+    );
+
+    it('system action (token decryption failure): no provider request, attempt MANUAL_REVIEW, subscription unchanged, never replayed', async () => {
+      const ctx = build();
+      const { service, subscription, db, eventRows } = ctx;
+      const cardcom = useRealExecutor(ctx, CARD);
+      (decryptCardcomToken as jest.Mock).mockImplementationOnce(() => {
+        throw new Error('bad decrypt');
+      });
+
+      const result = await service.processSubscriptionById(7);
+
+      expect(result.outcome).toBe('error');
+      expect(cardcom.chargeByToken).not.toHaveBeenCalled();
+      const [attempt] = db.rows(BillingAttempt);
+      expect(attempt.status).toBe(BillingAttemptStatus.MANUAL_REVIEW);
+      expect(attempt.failureCategory).toBe('LOCAL_TOKEN_DECRYPTION_FAILED');
+      expect(attempt.leaseOwner).toBeNull();
+      expect(attempt.leaseExpiresAt).toBeNull();
+      expect(attempt.nextActionAt).toBeNull();
+      // Still blocks its obligation: no automatic replay, no new attempt.
+      expect(db.rows(BillingObligation)[0].activeAttemptId).toBe(attempt.id);
+      expect(subscription.status).toBe(SubscriptionStatus.ACTIVE);
+      expect(subscription.renewalAttempts).toBe(0);
+      expect(subscription.nextBillingDate).toEqual(DUE);
+      expect(subscription.gracePeriodEndsAt).toBeNull();
+      expect(eventRows).toHaveLength(0);
+
+      for (let day = 1; day <= 10; day += 1) {
+        at(plusDays(DAY0, day));
+        expect((await service.processSubscriptionById(7)).outcome).toBe(
+          'skipped',
+        );
+      }
+      expect(ctx.executor.executeCharge).toHaveBeenCalledTimes(1);
+      expect(cardcom.chargeByToken).not.toHaveBeenCalled();
+      expect(db.rows(BillingAttempt)).toHaveLength(1);
+      expect(subscription.status).toBe(SubscriptionStatus.ACTIVE);
+    });
+
+    it('events, logs and persisted rows carry only sanitized categories: no token, key or raw exception', async () => {
+      const SECRETS = [
+        'ENC-TOKEN-ABC',
+        'KEY-MATERIAL-XYZ',
+        'raw-provider-detail',
+      ];
+      const logged: unknown[] = [];
+      const capture = (...args: unknown[]) => {
+        logged.push(args);
+      };
+      const spies = (['log', 'warn', 'error', 'debug', 'verbose'] as const).map(
+        (method) =>
+          jest.spyOn(Logger.prototype, method).mockImplementation(capture),
+      );
+      try {
+        for (const paymentMethod of [
+          { ...CARD, cardcomToken: 'ENC-TOKEN-ABC' }, // undecryptable
+          { ...CARD, cardcomToken: 'ENC-TOKEN-ABC', cardExpiryYear: 2020 }, // expired
+        ]) {
+          const ctx = build();
+          useRealExecutor(ctx, paymentMethod);
+          (decryptCardcomToken as jest.Mock).mockImplementationOnce(() => {
+            throw new Error(
+              'bad decrypt ENC-TOKEN-ABC KEY-MATERIAL-XYZ raw-provider-detail',
+            );
+          });
+
+          const result = await ctx.service.processSubscriptionById(7);
+
+          const persisted = JSON.stringify([
+            result,
+            ctx.eventRows,
+            ctx.db.rows(BillingAttempt),
+            ctx.db.rows(BillingObligation),
+          ]);
+          for (const secret of SECRETS) {
+            expect(persisted).not.toContain(secret);
+          }
+        }
+        expect(logged.length).toBeGreaterThan(0);
+        for (const secret of SECRETS) {
+          expect(JSON.stringify(logged)).not.toContain(secret);
+        }
+      } finally {
+        spies.forEach((spy) => spy.mockRestore());
       }
     });
   });

@@ -36,7 +36,18 @@ export interface BillingProviderPort {
     attemptId: number;
     expectedStateVersion: number;
     leaseOwner: string;
-  }): Promise<{ kind: string; outcome?: NormalizedChargeOutcome }>;
+  }): Promise<SubmittedChargeResult>;
+}
+
+/**
+ * Result of one submission. `LOCAL_FAILURE` means the charge failed locally
+ * before any provider request (typed `reason`, sanitized `disposition`).
+ */
+export interface SubmittedChargeResult {
+  kind: string;
+  outcome?: NormalizedChargeOutcome;
+  reason?: string;
+  disposition?: 'CUSTOMER_ACTION' | 'SYSTEM_ACTION';
 }
 
 /**
@@ -98,7 +109,7 @@ export interface RenewalExecutionResult {
   /** Null when the period was already settled or an existing capture was resumed. */
   opened: OpenBillingAttemptResult | null;
   /** Null whenever the provider was not (and must not be) called. */
-  submitted: { kind: string; outcome?: NormalizedChargeOutcome } | null;
+  submitted: SubmittedChargeResult | null;
   /** True once the attempt is COMPLETED (by this call or an earlier one). */
   finalized: boolean;
   /** True when an existing CAPTURED attempt was resumed without provider I/O. */

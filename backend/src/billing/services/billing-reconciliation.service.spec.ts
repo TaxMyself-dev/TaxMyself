@@ -7,7 +7,10 @@ import {
 } from '../enums/billing.enums';
 import { BillingAttempt } from '../entities/billing-attempt.entity';
 import { BillingObligation } from '../entities/billing-obligation.entity';
-import { BillingAttemptOrchestrationService } from './billing-attempt-orchestration.service';
+import {
+  BillingAttemptOrchestrationService,
+  BillingPreSubmissionFailureReason,
+} from './billing-attempt-orchestration.service';
 import { BillingCardcomExecutorService } from './billing-cardcom-executor.service';
 import { BillingProviderRuntimeService } from './billing-provider-runtime.service';
 import { BillingReconciliationService } from './billing-reconciliation.service';
@@ -153,7 +156,15 @@ describe('BillingReconciliationService — read-only reconciliation of UNKNOWN a
       runtime,
       hostedCompletion as any,
     );
-    return { service, cardcom, hostedCompletion, obligation, attempts };
+    return {
+      service,
+      cardcom,
+      hostedCompletion,
+      obligation,
+      attempts,
+      orchestration,
+      runtime,
+    };
   }
   const neverCharged = (cardcom: any) => {
     expect(cardcom.chargeByToken).not.toHaveBeenCalled();
@@ -421,6 +432,61 @@ describe('BillingReconciliationService — read-only reconciliation of UNKNOWN a
     );
     neverCharged(cardcom);
   });
+
+  it.each([
+    [
+      BillingPreSubmissionFailureReason.CARD_EXPIRED,
+      BillingAttemptStatus.DECLINED,
+    ],
+    [
+      BillingPreSubmissionFailureReason.TOKEN_DECRYPTION_FAILED,
+      BillingAttemptStatus.MANUAL_REVIEW,
+    ],
+  ])(
+    'a local pre-submission failure (%s) ends %s: excluded from reconciliation by status and never resubmitted',
+    async (reason, status) => {
+      const processing = attempt({
+        status: BillingAttemptStatus.PROCESSING,
+        leaseOwner: 'renewal-1',
+        leaseExpiresAt: new Date(NOW.getTime() + 30_000),
+        nextActionAt: null,
+        failureCategory: null,
+      });
+      const { service, cardcom, orchestration, runtime } = build([processing]);
+
+      await orchestration.applyPreSubmissionFailure(1, 'renewal-1', 3, reason);
+      // Even when "due", only the status (not a string tag) keeps it out.
+      processing.nextActionAt = new Date(NOW.getTime() - MIN);
+
+      expect(processing.status).toBe(status);
+      expect(processing.leaseOwner).toBeNull();
+      expect(await orchestration.findDueUnknownAttempts(NOW, 20)).toEqual([]);
+      const sweep = await service.reconcileDueAttempts();
+      expect(sweep).toEqual(expect.objectContaining({ due: 0, expired: 0 }));
+      const actor = { actorFirebaseId: 'owner', subjectFirebaseId: 'owner' };
+      for (const call of [
+        runtime.submitCharge({
+          actor,
+          attemptId: 1,
+          expectedStateVersion: processing.stateVersion,
+          leaseOwner: 'renewal-2',
+        }),
+        runtime.reconcileCharge({
+          actor,
+          attemptId: 1,
+          expectedStateVersion: processing.stateVersion,
+          leaseOwner: 'reconcile-2',
+        }),
+      ]) {
+        await expect(call).resolves.toEqual(
+          expect.objectContaining({ kind: 'NOT_CLAIMED' }),
+        );
+      }
+      expect(processing.status).toBe(status);
+      expect(cardcom.getTransactionByExternalUniqTran).not.toHaveBeenCalled();
+      neverCharged(cardcom);
+    },
+  );
 
   it('two workers reconciling the same due attempt make exactly one claim and one lookup', async () => {
     const { service, cardcom, attempts } = build([attempt()]);

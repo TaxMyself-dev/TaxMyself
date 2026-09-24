@@ -22,6 +22,15 @@ export const RENEWAL_RETRY_DELAYS_DAYS: readonly number[] = [3, 7];
 /** Grace period length once a subscription becomes PAST_DUE. */
 export const RENEWAL_GRACE_PERIOD_DAYS = 14;
 
+/** End of the grace period for a subscription that becomes PAST_DUE at `now`. */
+export function renewalGracePeriodEnd(now: Date): Date {
+  const gracePeriodEndsAt = new Date(now);
+  gracePeriodEndsAt.setDate(
+    gracePeriodEndsAt.getDate() + RENEWAL_GRACE_PERIOD_DAYS,
+  );
+  return gracePeriodEndsAt;
+}
+
 export type RenewalDeclineDecision =
   | { kind: 'RETRY'; attemptNumber: number; retryAt: Date }
   | { kind: 'PAST_DUE'; attemptNumber: number; gracePeriodEndsAt: Date };
@@ -43,11 +52,11 @@ export function decideRenewalDecline(
   const attemptNumber = previous + 1;
 
   if (attemptNumber >= MAX_RENEWAL_ATTEMPTS) {
-    const gracePeriodEndsAt = new Date(now);
-    gracePeriodEndsAt.setDate(
-      gracePeriodEndsAt.getDate() + RENEWAL_GRACE_PERIOD_DAYS,
-    );
-    return { kind: 'PAST_DUE', attemptNumber, gracePeriodEndsAt };
+    return {
+      kind: 'PAST_DUE',
+      attemptNumber,
+      gracePeriodEndsAt: renewalGracePeriodEnd(now),
+    };
   }
 
   const retryAt = new Date(now);
