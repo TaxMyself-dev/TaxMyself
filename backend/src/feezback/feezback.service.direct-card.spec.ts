@@ -280,6 +280,29 @@ describe('FeezbackService — Direct/Debit card handling', () => {
         expect.objectContaining({ status: 'skipped_direct', resourceId: 'card-direct' }),
       ]);
     });
+
+    it('preserves consentId and resourceId when a credit-card retry fails', async () => {
+      const { service, feezbackApiService, consentApi, userSyncStateService, sourceRepository } = makeService();
+      sourceRepository.findOne.mockResolvedValue({ sourceName: '9999', isDirect: false });
+      userSyncStateService.getSourceResults.mockResolvedValue([
+        { sourceId: '9999', type: 'card', resourceId: 'card-credit', consentId: 'consent-1' },
+      ]);
+      feezbackApiService.getUserCards.mockResolvedValue({ cards: [creditCard] });
+      consentApi.getCardTransactions.mockRejectedValue(Object.assign(new Error('Forbidden'), { status: 403 }));
+
+      const result = await service.retrySource(USER, 'card', '9999');
+
+      expect(result).toEqual(expect.objectContaining({
+        type: 'card',
+        sourceId: '9999',
+        resourceId: 'card-credit',
+        consentId: 'consent-1',
+        status: 'failed',
+      }));
+      expect(userSyncStateService.updateSourceResults).toHaveBeenCalledWith(USER, [
+        expect.objectContaining({ consentId: 'consent-1', resourceId: 'card-credit', status: 'failed' }),
+      ]);
+    });
   });
 
   // ─── Retry selection ───────────────────────────────────────────────────────

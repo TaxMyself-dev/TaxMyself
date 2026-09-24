@@ -206,8 +206,6 @@ export class FeezbackConsentApiService {
   ): Promise<any> {
     const userIdentifier = this.buildUserIdentifier(sub);
 
-    // Previous per-user override:
-    // const cardTransactionsApiVersion = sub === 'JpIEJt3lSDMsI9uG67Etqx4ZbuC3' ? 'v2' : 'v1';
     const cardTransactionsApiVersion = 'v2';
 
     const transactionsBaseUrl =

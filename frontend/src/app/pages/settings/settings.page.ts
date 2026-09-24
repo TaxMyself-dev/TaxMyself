@@ -851,8 +851,17 @@ export class SettingsPage implements OnInit {
       this.businesses.set(updated);
       this.patchBusinessesFormArray(updated);
       this.messageService.add({ severity: 'success', summary: 'הצלחה', detail: 'פרטי העסק עודכנו בהצלחה', life: 3000, key: 'br' });
-    } catch {
-      this.messageService.add({ severity: 'error', summary: 'שגיאה', detail: 'לא ניתן לעדכן את העסק. נסה שוב.', life: 3000, key: 'br' });
+    } catch (err: any) {
+      const apiMessage = Array.isArray(err?.error?.message)
+        ? err.error.message.join(', ')
+        : err?.error?.message;
+      this.messageService.add({
+        severity: 'error',
+        summary: 'שגיאה',
+        detail: apiMessage || 'לא ניתן לעדכן את העסק. נסה שוב.',
+        life: 5000,
+        key: 'br',
+      });
     } finally {
       this.savingBusinessId.set(null);
     }

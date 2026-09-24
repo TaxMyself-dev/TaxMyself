@@ -246,6 +246,35 @@ export class FeezbackService {
       });
     }
 
+    // Keep the user-facing per-source status in sync with this admin pull.
+    // Without this write, a discovered source stays `not_synced` even after a
+    // real provider request failed, which makes the UI incorrectly offer a
+    // new consent flow instead of a per-source retry.
+    const persistedSourceResults: SourceResult[] = sourceResults.map(source => {
+      const errorText = source.error == null
+        ? undefined
+        : typeof source.error === 'string'
+          ? source.error
+          : JSON.stringify(source.error);
+      return {
+        type: source.type,
+        sourceId: source.sourceId,
+        resourceId: source.resourceId,
+        consentId: source.consentId ?? undefined,
+        status: source.status,
+        transactionCount: source.transactionCount,
+        error: errorText?.slice(0, 255),
+      };
+    });
+    try {
+      await this.userSyncStateService.updateSourceResults(firebaseId, persistedSourceResults);
+    } catch (error: any) {
+      errors.push({
+        operation: 'source-status-save',
+        message: error?.message ?? String(error),
+      });
+    }
+
     const receivedAt = new Date();
     const providerFailedCompletely = sourceResults.every(source => source.status === 'failed');
     const status: AdminFeezbackDateRangePullResult['status'] = providerFailedCompletely
@@ -2554,7 +2583,15 @@ export class FeezbackService {
     const row = rows.find(r => r.sourceId === sourceId && r.type === 'bank');
 
     const fail = async (error: string): Promise<SourceResult> => {
-      const result: SourceResult = { type: 'bank', sourceId, status: 'failed', transactionCount: 0, error };
+      const result: SourceResult = {
+        type: 'bank',
+        sourceId,
+        resourceId: row?.resourceId ?? undefined,
+        consentId: row?.consentId ?? undefined,
+        status: 'failed',
+        transactionCount: 0,
+        error,
+      };
       await this.userSyncStateService.updateSourceResults(firebaseId, [result]).catch(() => {});
       return result;
     };
@@ -2654,7 +2691,14 @@ export class FeezbackService {
           ? `no card row for sourceId='${sourceId}' (known card sourceIds: [${knownCardIds.join(', ')}]) — sourceId mismatch or not discovered`
           : `card row exists for sourceId='${sourceId}' but resourceId is null — discovery has not populated it yet`;
         console.log(`  ✗ Card *${sourceId} (${userName}) — failed | ${error}`);
-        const result: SourceResult = { type: 'card', sourceId, status: 'failed', transactionCount: 0, error };
+        const result: SourceResult = {
+          type: 'card',
+          sourceId,
+          consentId: dbSource?.consentId ?? undefined,
+          status: 'failed',
+          transactionCount: 0,
+          error,
+        };
         await this.userSyncStateService.updateSourceResults(firebaseId, [result]).catch(() => {});
         return result;
       }
@@ -2684,8 +2728,17 @@ export class FeezbackService {
         const failed = cardRes.cardErrors?.find((e: any) => e.cardResourceId === cardResourceId);
 
         const result: SourceResult = succeeded
-          ? { type: 'card', sourceId, resourceId: cardResourceId, status: 'success', transactionCount: succeeded.transactions?.length ?? 0, rawTransactionsResponse: succeeded.rawResponse }
-          : { type: 'card', sourceId, resourceId: cardResourceId, status: 'failed', transactionCount: 0, error: failed?.message };
+          ? {
+            type: 'card', sourceId, resourceId: cardResourceId,
+            consentId: succeeded.consentId ?? dbSource?.consentId ?? undefined,
+            status: 'success', transactionCount: succeeded.transactions?.length ?? 0,
+            rawTransactionsResponse: succeeded.rawResponse,
+          }
+          : {
+            type: 'card', sourceId, resourceId: cardResourceId,
+            consentId: failed?.consentId ?? dbSource?.consentId ?? undefined,
+            status: 'failed', transactionCount: 0, error: failed?.message,
+          };
 
         console.log(`  ${result.status === 'success' ? '✓' : '✗'} Card *${sourceId} (${userName}) — ${result.status} | count=${result.transactionCount}`);
 
@@ -2699,7 +2752,15 @@ export class FeezbackService {
         }
         return result;
       } catch (err: any) {
-        const result: SourceResult = { type: 'card', sourceId, status: 'failed', transactionCount: 0, error: err?.message };
+        const result: SourceResult = {
+          type: 'card',
+          sourceId,
+          resourceId: cardResourceId,
+          consentId: dbSource?.consentId ?? undefined,
+          status: 'failed',
+          transactionCount: 0,
+          error: err?.message,
+        };
         await this.userSyncStateService.updateSourceResults(firebaseId, [result]).catch(() => {});
         return result;
       }

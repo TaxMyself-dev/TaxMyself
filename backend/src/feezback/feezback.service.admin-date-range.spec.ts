@@ -2,8 +2,12 @@ import { FeezbackService } from './feezback.service';
 
 describe('FeezbackService admin date-range diagnostics', () => {
   let service: FeezbackService;
+  let userSyncStateService: { updateSourceResults: jest.Mock };
 
   beforeEach(() => {
+    userSyncStateService = {
+      updateSourceResults: jest.fn().mockResolvedValue(undefined),
+    };
     service = new FeezbackService(
       {} as any,
       { getTppId: () => 'test-tpp' } as any,
@@ -32,7 +36,7 @@ describe('FeezbackService admin date-range diagnostics', () => {
       } as any,
       {} as any,
       {} as any,
-      {} as any,
+      userSyncStateService as any,
       {} as any,
       {} as any,
       {} as any,
@@ -121,6 +125,13 @@ describe('FeezbackService admin date-range diagnostics', () => {
     expect(result.request.httpCalls[0].curl).toContain('Authorization: <REDACTED>');
     expect(result.sourceResults.find(source => source.type === 'bank')?.httpCalls).toHaveLength(1);
     expect(result.sourceResults.find(source => source.type === 'card')?.httpCalls).toHaveLength(1);
+    expect(userSyncStateService.updateSourceResults).toHaveBeenCalledWith(
+      'firebase-user',
+      expect.arrayContaining([
+        expect.objectContaining({ type: 'bank', sourceId: 'bank-1', status: 'success', consentId: 'bank-consent' }),
+        expect.objectContaining({ type: 'card', sourceId: '1234', status: 'success', consentId: 'card-consent' }),
+      ]),
+    );
     expect(JSON.stringify(result.request)).not.toContain('secret-token');
   });
 
@@ -164,5 +175,11 @@ describe('FeezbackService admin date-range diagnostics', () => {
       status: 503,
       responseBody: { error: 'upstream unavailable' },
     }));
+    expect(userSyncStateService.updateSourceResults).toHaveBeenCalledWith(
+      'firebase-user',
+      expect.arrayContaining([
+        expect.objectContaining({ type: 'card', resourceId: 'card-resource', status: 'failed' }),
+      ]),
+    );
   });
 });

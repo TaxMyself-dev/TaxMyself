@@ -30,6 +30,7 @@ export type SourceSyncStatus = 'not_synced' | 'success' | 'failed' | 'skipped_di
 export interface SourceResult {
   type: 'bank' | 'card';
   sourceId: string;
+  resourceId?: string | null;
   status: SourceSyncStatus;
   transactionCount: number;
   consentId: string | null;

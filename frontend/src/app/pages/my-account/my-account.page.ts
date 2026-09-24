@@ -154,32 +154,42 @@ export class MyAccountPage implements OnInit {
   feezbackDialogIcon = signal<'success' | 'warning' | 'error' | null>(null);
 
   /**
-   * Classifies the failure: 'consent' when ANY source is missing a consent
-   * (drives the "לא התקבל אישור" warning title + "בצע חיבור מחדש" buttons);
-   * 'sync' when every failure has a valid consentId (sync-side error → "נסה שוב");
+   * Classifies the failure by retry capability. A pending/failed source with
+   * consentId + resourceId is a sync error ("נסה שוב"); missing provider
+   * identifiers means the source requires reconnection.
    * null when no source is in a failed/not-synced state.
    */
   dialogErrorType = computed<'consent' | 'sync' | null>(() => {
     const rows = this.syncSourceResults();
     if (rows.length === 0) return null;
-    const hasConsentIssue = rows.some(r =>
-      r.status === 'not_synced' || (r.status === 'failed' && !r.consentId),
-    );
+    const hasConsentIssue = rows.some(r => this.needsSourceReconnect(r));
     if (hasConsentIssue) return 'consent';
-    const hasSyncFail = rows.some(r => r.status === 'failed' && !!r.consentId);
+    const hasSyncFail = rows.some(r => this.canRetrySource(r));
     return hasSyncFail ? 'sync' : null;
   });
 
   /**
-   * True when EVERY source is failed-with-consent (no successes, no consent gaps).
+   * True when EVERY source is directly retryable (no successes, no consent gaps).
    * Drives the single big "נסה שוב" button for the all-failed-sync case.
    * For partial sync failures (some success, some failed), we show per-source retry instead.
    */
   dialogAllSyncFailed = computed<boolean>(() => {
     const rows = this.syncSourceResults();
     if (rows.length === 0) return false;
-    return rows.every(r => r.status === 'failed' && !!r.consentId);
+    return rows.every(r => this.canRetrySource(r));
   });
+
+  /** A discovered source with both provider identifiers can be pulled again. */
+  canRetrySource(source: SourceResult): boolean {
+    const retryableStatus = source.status === 'failed' || source.status === 'not_synced';
+    return retryableStatus && !!source.consentId && !!source.resourceId;
+  }
+
+  /** Reconnect only when a pending/failed source lacks provider authorization data. */
+  needsSourceReconnect(source: SourceResult): boolean {
+    const pendingStatus = source.status === 'failed' || source.status === 'not_synced';
+    return pendingStatus && (!source.consentId || !source.resourceId);
+  }
 
   // Consent dialog — shown before redirecting to Feezback portal
   consentDialogVisible = signal<boolean>(false);

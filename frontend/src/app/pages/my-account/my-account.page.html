@@ -87,7 +87,7 @@
                       @if (source.status === 'skipped_direct') {
                         <span class="source-result-item__direct-note">כרטיס דיירקט — התנועות נמשכות דרך חשבון הבנק</span>
                       }
-                      @if (source.status === 'failed' && source.consentId) {
+                      @if (canRetrySource(source)) {
                         <app-p-button
                           [buttonText]="'נסה שוב'"
                           [buttonColor]="buttonColor.YELLOW"
@@ -96,7 +96,7 @@
                           (onButtonClicked)="onRetrySource(source.type, source.sourceId)">
                         </app-p-button>
                       }
-                      @if ((source.status === 'failed' && !source.consentId) || source.status === 'not_synced') {
+                      @if (needsSourceReconnect(source)) {
                         <app-p-button
                           [buttonText]="'בצע חיבור מחדש'"
                           [buttonColor]="buttonColor.YELLOW"
@@ -146,7 +146,7 @@
                       @if (source.status === 'skipped_direct') {
                         <span class="source-result-item__direct-note">כרטיס דיירקט — התנועות נמשכות דרך חשבון הבנק</span>
                       }
-                      @if (source.status === 'failed' && source.consentId && !dialogAllSyncFailed()) {
+                      @if (canRetrySource(source) && !dialogAllSyncFailed()) {
                         <app-p-button
                           [buttonText]="'נסה שוב'"
                           [buttonColor]="buttonColor.YELLOW"
@@ -155,7 +155,7 @@
                           (onButtonClicked)="onRetrySource(source.type, source.sourceId)">
                         </app-p-button>
                       }
-                      @if ((source.status === 'failed' && !source.consentId) || source.status === 'not_synced') {
+                      @if (needsSourceReconnect(source)) {
                         <app-p-button
                           [buttonText]="'בצע חיבור מחדש'"
                           [buttonColor]="buttonColor.YELLOW"
@@ -506,7 +506,7 @@
           @if (source.status === 'skipped_direct') {
             <span class="source-result-item__direct-note">כרטיס דיירקט — התנועות נמשכות דרך חשבון הבנק</span>
           }
-          @if (source.status === 'failed' && source.consentId) {
+          @if (canRetrySource(source)) {
             <app-p-button
               [buttonText]="'נסה שוב'"
               [buttonColor]="buttonColor.YELLOW"
@@ -515,7 +515,7 @@
               (onButtonClicked)="onRetrySource(source.type, source.sourceId)">
             </app-p-button>
           }
-          @if ((source.status === 'failed' && !source.consentId) || source.status === 'not_synced') {
+          @if (needsSourceReconnect(source)) {
             <app-p-button
               [buttonText]="'בצע חיבור מחדש'"
               [buttonColor]="buttonColor.YELLOW"

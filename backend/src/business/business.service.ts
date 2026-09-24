@@ -65,6 +65,26 @@ export class BusinessService {
     if (!business) {
       throw new NotFoundException('Business not found or not owned by user');
     }
+    if (dto.businessNumber !== undefined) {
+      const requestedBusinessNumber = dto.businessNumber.trim();
+      if (requestedBusinessNumber !== (business.businessNumber ?? '')) {
+        if (requestedBusinessNumber) {
+          const existingBusiness = await this.getBusinessByNumber(requestedBusinessNumber);
+          if (existingBusiness && existingBusiness.id !== business.id) {
+            throw new ConflictException(`עסק עם מספר ${requestedBusinessNumber} כבר קיים במערכת`);
+          }
+        }
+        if (
+          business.businessNumber &&
+          (await this.hasDependentBusinessNumberRecords(business.businessNumber))
+        ) {
+          throw new ConflictException(
+            'לא ניתן לשנות את מספר העסק משום שכבר קיימות רשומות המשויכות למספר הנוכחי',
+          );
+        }
+      }
+      business.businessNumber = requestedBusinessNumber || null;
+    }
     if (dto.businessType !== undefined) {
       await this.assertBusinessTypeAllowed(firebaseId, dto.businessType as BusinessType | null);
     }
@@ -108,6 +128,38 @@ export class BusinessService {
       }
       return saved;
     });
+  }
+
+  /**
+   * Business numbers are copied into the domain tables rather than linked by
+   * a foreign key. Changing a populated number would therefore orphan those
+   * rows. Discover the columns from the live schema so newly-added business
+   * scoped tables are protected without maintaining a fragile hard-coded list.
+   */
+  private async hasDependentBusinessNumberRecords(businessNumber: string): Promise<boolean> {
+    const columns: Array<{ tableName: string; columnName: string }> = await this.businessRepo.manager.query(`
+      SELECT TABLE_NAME AS tableName, COLUMN_NAME AS columnName
+      FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME <> 'business'
+        AND LOWER(COLUMN_NAME) IN ('businessnumber', 'business_number', 'issuerbusinessnumber')
+    `);
+
+    for (const { tableName, columnName } of columns) {
+      // Identifiers originate in INFORMATION_SCHEMA, but keep the dynamic SQL
+      // fail-closed if an unexpected identifier ever appears.
+      if (!/^[A-Za-z0-9_]+$/.test(tableName) || !/^[A-Za-z0-9_]+$/.test(columnName)) {
+        this.logger.warn(`Unsafe business-number reference ${tableName}.${columnName}`);
+        return true;
+      }
+      const rows = await this.businessRepo.manager.query(
+        `SELECT 1 FROM \`${tableName}\` WHERE \`${columnName}\` = ? LIMIT 1`,
+        [businessNumber],
+      );
+      if (rows.length > 0) return true;
+    }
+
+    return false;
   }
 
   /**
