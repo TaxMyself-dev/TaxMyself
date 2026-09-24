@@ -187,12 +187,12 @@ and `MANUAL_REVIEW` never enter it and are never replayed.
   decline time, so a 03:00 cron picks it up on the first run after that
   instant; and pre-charge executor errors surface as `UNKNOWN` for
   reconciliation.
-- Recovery reset (KT-038 Task 4C): the locally recovered hosted activation
-  (`BillingHostedCompletionService.activateSubscription`) sets
+- Recovery reset (KT-038 Tasks 4C/4D): both hosted activation writes — the
+  locally recovered one (`BillingHostedCompletionService.activateSubscription`)
+  and the live webhook's (`CardcomWebhookService.processVerifiedSuccess`) — set
   `renewalAttempts` to 0 in the same locked `PAST_DUE` -> `ACTIVE` update, so
   the next cycle starts a fresh 3-day / 7-day / `PAST_DUE` sequence. The
-  webhook's own activation write (`cardcom-webhook.service.ts`) does not yet
-  reset it.
+  webhook resets only when the row it locked was `PAST_DUE`.
 - `GET /billing/plans`, `GET /billing/me`, `POST /billing/trial` — plan listing and current billing state; idempotent trial creation.
 - `POST /billing/checkout/preview` / `POST /billing/checkout` — price preview and CardCom LowProfile checkout session creation; activation happens only via the webhook, never the checkout response.
 - `POST /billing/cardcom/webhook` — CardCom posts payment results here; `CardcomWebhookService` verifies/activates subscriptions; errors are swallowed so CardCom doesn't retry-storm.

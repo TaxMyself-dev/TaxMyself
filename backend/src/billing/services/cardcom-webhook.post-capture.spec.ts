@@ -182,6 +182,52 @@ describe('CardcomWebhookService — delegating post-capture completion of a CAPT
       );
     });
 
+    it('a confirmed payment on a PAST_DUE subscription resets renewalAttempts in the same activation update', async () => {
+      const { service, queryRunner } = makeFirst(44);
+      queryRunner.manager.findOne.mockResolvedValue({
+        id: 9,
+        firebaseId: 'owner',
+        status: SubscriptionStatus.PAST_DUE,
+        planId: 1,
+        paymentMethodId: null,
+        renewalAttempts: 3,
+      });
+
+      await service.processVerifiedSuccess('owner', 2, 9, verified, log, 44);
+
+      expect(queryRunner.manager.update).toHaveBeenCalledTimes(1);
+      const values = queryRunner.manager.update.mock.calls[0][2];
+      expect(values).toEqual(
+        expect.objectContaining({
+          status: SubscriptionStatus.ACTIVE,
+          planId: 2,
+          renewalAttempts: 0,
+          gracePeriodEndsAt: null,
+          canceledAt: null,
+          endedAt: null,
+        }),
+      );
+      expect(values.nextBillingDate).toEqual(values.currentPeriodEnd);
+      expect(queryRunner.commitTransaction).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not touch renewalAttempts for a subscription that is not PAST_DUE', async () => {
+      const { service, queryRunner } = makeFirst(44);
+      queryRunner.manager.findOne.mockResolvedValue({
+        id: 9,
+        firebaseId: 'owner',
+        status: SubscriptionStatus.CANCELED,
+        planId: 1,
+        paymentMethodId: null,
+        renewalAttempts: 3,
+      });
+
+      await service.processVerifiedSuccess('owner', 2, 9, verified, log, 44);
+
+      const values = queryRunner.manager.update.mock.calls[0][2];
+      expect(values).not.toHaveProperty('renewalAttempts');
+    });
+
     it('keeps a legacy checkout (no attempt) on the original receipt flow', async () => {
       const { service, hostedCompletion } = makeFirst(null);
 

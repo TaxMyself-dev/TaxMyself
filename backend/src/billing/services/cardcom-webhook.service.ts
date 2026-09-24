@@ -520,6 +520,11 @@ export class CardcomWebhookService implements OnModuleInit {
         currentPeriodStart: now,
         currentPeriodEnd: periodEnd,
         nextBillingDate: periodEnd,
+        // A paid PAST_DUE balance starts a fresh retry sequence, consistent
+        // with BillingHostedCompletionService.activateSubscription.
+        ...(subscription.status === SubscriptionStatus.PAST_DUE && {
+          renewalAttempts: 0,
+        }),
         gracePeriodEndsAt: null,
         canceledAt: null,
         endedAt: null,
