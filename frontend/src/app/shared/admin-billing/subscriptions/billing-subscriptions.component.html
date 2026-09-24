@@ -16,6 +16,13 @@
     <span class="sub-status-badge sub-status-badge--{{ row['status'] }}">
       {{ statusLabels[row['status']] ?? row['status'] }}
     </span>
+    @if (row['unresolvedBillingAttemptCount'] > 0) {
+      <i class="pi pi-exclamation-triangle billing-exception-flag"
+         role="img"
+         [attr.aria-label]="row['unresolvedTooltip']"
+         [pTooltip]="row['unresolvedTooltip']"
+         tooltipPosition="top"></i>
+    }
   </ng-template>
 
   <app-generic-table
@@ -36,7 +43,7 @@
   [visible]="showDrawer()"
   (visibleChange)="showDrawer.set($event)"
   position="right"
-  [style]="{ width: '480px' }"
+  [style]="{ width: '480px', maxWidth: '100vw' }"
   [modal]="true"
   (onHide)="onDrawerHide()">
 
@@ -146,6 +153,62 @@
           <span class="detail-value detail-value--muted">אין כרטיס מוגדר</span>
         }
       </div>
+    </section>
+
+    <!-- Billing exceptions: read-only unresolved UNKNOWN / MANUAL_REVIEW attempts -->
+    <section class="detail-section billing-exceptions" data-testid="billing-exceptions">
+      <h3 class="section-title">חריגות חיוב</h3>
+      @if (exceptionsLoading()) {
+        <p class="exception-note">טוען חריגות חיוב…</p>
+      } @else if (exceptionsFailed()) {
+        <p class="exception-note exception-note--error">לא ניתן לטעון את חריגות החיוב. נסו לפתוח את הפרטים שוב.</p>
+      } @else if (exceptionAttempts().length === 0) {
+        <p class="exception-note">אין ניסיונות חיוב לא סגורים למנוי זה.</p>
+      } @else {
+        @for (attempt of exceptionAttempts(); track attempt.attemptId) {
+          <article class="exception-card" data-testid="billing-exception">
+            <header class="exception-card-header">
+              <span class="sub-status-badge sub-status-badge--{{ attempt.status }}">
+                {{ exceptionStatusLabels[attempt.status] }}
+              </span>
+              <span class="exception-card-id">ניסיון #{{ attempt.attemptId }}</span>
+            </header>
+            <div class="detail-grid">
+              <span class="detail-label">אופן חיוב</span>
+              <span class="detail-value">{{ chargeModeLabels[attempt.chargeMode] }}</span>
+              <span class="detail-label">סכום</span>
+              <span class="detail-value">{{ formatBillingAmount(attempt.amountAgorot, attempt.currency) }}</span>
+              <span class="detail-label">נוצר</span>
+              <span class="detail-value">{{ formatDateTime(attempt.createdAt) }}</span>
+              <span class="detail-label">נגבה (Capture)</span>
+              <span class="detail-value">{{ formatDateTime(attempt.capturedAt) }}</span>
+              <span class="detail-label">תוצאה לא ידועה מאז</span>
+              <span class="detail-value">{{ formatDateTime(attempt.unknownSince) }}</span>
+              <span class="detail-label">בדיקות התאמה</span>
+              <span class="detail-value">{{ attempt.reconciliationAttempts }}</span>
+              <span class="detail-label">בדיקה אחרונה</span>
+              <span class="detail-value">{{ formatDateTime(attempt.lastReconciledAt) }}</span>
+              <span class="detail-label">בדיקה הבאה</span>
+              <span class="detail-value">{{ attempt.nextActionAt ? formatDateTime(attempt.nextActionAt) : 'לא מתוכננת' }}</span>
+              <span class="detail-label">סיבה</span>
+              <span class="detail-value">{{ failureCategoryLabels[attempt.failureCategory] }}</span>
+              @if (attempt.cardcomTransactionId) {
+                <span class="detail-label">מזהה עסקה</span>
+                <span class="detail-value detail-value--mono">{{ attempt.cardcomTransactionId }}</span>
+              }
+              @if (attempt.cardcomLowProfileId) {
+                <span class="detail-label">LowProfile ID</span>
+                <span class="detail-value detail-value--mono">{{ attempt.cardcomLowProfileId }}</span>
+              }
+              <span class="detail-label">כרטיס שוחזר</span>
+              <span class="detail-value">{{ attempt.cardTokenRecovered ? 'כן' : 'לא' }}</span>
+            </div>
+            <p class="exception-action exception-action--{{ attempt.requiredAction }}">
+              {{ actionMessages[attempt.requiredAction] }}
+            </p>
+          </article>
+        }
+      }
     </section>
 
     <!-- Edit: plan / trial end / discount -->

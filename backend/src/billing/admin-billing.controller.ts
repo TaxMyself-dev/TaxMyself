@@ -89,6 +89,21 @@ export class AdminBillingController {
     return this.adminBillingService.findAllSubscriptions();
   }
 
+  /**
+   * GET /admin/billing/subscriptions/:id/unresolved-attempts
+   *
+   * Read-only, sanitized UNKNOWN / MANUAL_REVIEW attempts of one subscription,
+   * newest first. Loaded lazily when the admin drawer opens.
+   */
+  @Get('subscriptions/:id/unresolved-attempts')
+  async getUnresolvedBillingAttempts(
+    @Req() request: AuthenticatedRequest,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    await this.assertAdmin(request);
+    return this.adminBillingService.findUnresolvedBillingAttempts(id);
+  }
+
   @Patch('subscriptions/:id/discount')
   @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
   async updateSubscriptionDiscount(

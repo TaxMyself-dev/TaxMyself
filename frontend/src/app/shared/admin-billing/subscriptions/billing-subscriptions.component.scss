@@ -130,3 +130,71 @@
   justify-content: flex-start;
   margin-top: 4px;
 }
+
+// ── Billing exceptions (read-only) ───────────────────────────────────────────
+
+.sub-status-badge {
+  &--UNKNOWN       { background: #fef3c7; color: #b45309; }
+  &--MANUAL_REVIEW { background: #fee2e2; color: #b91c1c; }
+}
+
+.billing-exception-flag {
+  margin-inline-start: 6px;
+  font-size: 13px;
+  color: #b45309;
+  cursor: help;
+  vertical-align: middle;
+}
+
+.exception-note {
+  margin: 0;
+  font-size: 13px;
+  color: #6b7280;
+
+  &--error { color: #b91c1c; }
+}
+
+.exception-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+
+  &:last-child { margin-bottom: 0; }
+}
+
+.exception-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.exception-card-id {
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+.exception-action {
+  margin: 10px 0 0;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  background: #f3f4f6;
+  color: #374151;
+
+  &--CUSTOMER_PAYMENT_METHOD { background: #ffedd5; color: #c2410c; }
+  &--INTERNAL_REVIEW         { background: #fee2e2; color: #b91c1c; }
+}
+
+@media (max-width: 480px) {
+  .billing-exceptions .detail-grid {
+    grid-template-columns: 1fr;
+    gap: 2px 0;
+  }
+
+  .billing-exceptions .detail-label { margin-top: 6px; }
+}

@@ -11,9 +11,10 @@ import {
 import { CommonModule, DatePipe } from '@angular/common';
 import { AbstractControl, FormBuilder, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Observable, forkJoin } from 'rxjs';
+import { Observable, Subscription, forkJoin } from 'rxjs';
 import { finalize } from 'rxjs/operators';
 import { DrawerModule } from 'primeng/drawer';
+import { TooltipModule } from 'primeng/tooltip';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { GenericTableComponent } from 'src/app/components/generic-table/generic-table.component';
@@ -25,6 +26,7 @@ import { InputSelectComponent } from 'src/app/components/input-select/input-sele
 import {
   AdminBillingService,
   AdminSubscription,
+  AdminUnresolvedBillingAttempt,
   RenewalBatchResult,
   RenewalOutcome,
   RenewalResult,
@@ -33,7 +35,13 @@ import { IColumnDataTable, IRowDataTable, ISelectItem, ITableRowAction } from 's
 import { FormTypes, ICellRenderer } from 'src/app/shared/enums';
 import {
   ADMIN_SUBSCRIPTION_SAVE_BUTTON_COLOR,
+  BILLING_ACTION_MESSAGES,
+  BILLING_CHARGE_MODE_LABELS,
+  BILLING_EXCEPTION_STATUS_LABELS,
+  BILLING_FAILURE_CATEGORY_LABELS,
   adminPlanDisplayName,
+  formatBillingAmount,
+  unresolvedAttemptsTooltip,
 } from './billing-subscriptions.presentation';
 
 export type DiscountKind = 'NONE' | 'PERCENT' | 'AMOUNT';
@@ -72,6 +80,7 @@ export const STATUS_LABELS: Record<string, string> = {
     CommonModule,
     ReactiveFormsModule,
     DrawerModule,
+    TooltipModule,
     ConfirmDialogModule,
     GenericTableComponent,
     ButtonComponent,
@@ -93,6 +102,11 @@ export class BillingSubscriptionsComponent implements OnInit {
   readonly saveButtonColor = ADMIN_SUBSCRIPTION_SAVE_BUTTON_COLOR;
   readonly statusLabels = STATUS_LABELS;
   readonly discountKindOptions = DISCOUNT_KIND_OPTIONS;
+  readonly exceptionStatusLabels = BILLING_EXCEPTION_STATUS_LABELS;
+  readonly chargeModeLabels = BILLING_CHARGE_MODE_LABELS;
+  readonly failureCategoryLabels = BILLING_FAILURE_CATEGORY_LABELS;
+  readonly actionMessages = BILLING_ACTION_MESSAGES;
+  readonly formatBillingAmount = formatBillingAmount;
 
   // Angular 19: signal-based view query — no @ViewChild, no ngAfterViewInit
   private readonly statusTpl = viewChild<TemplateRef<any>>('statusTpl');
@@ -101,6 +115,11 @@ export class BillingSubscriptionsComponent implements OnInit {
   isLoading = signal(false);
   selectedSub = signal<AdminSubscription | null>(null);
   showDrawer = signal(false);
+  /** Read-only billing exceptions of the open drawer's subscription, loaded lazily on open. */
+  exceptionAttempts = signal<AdminUnresolvedBillingAttempt[]>([]);
+  exceptionsLoading = signal(false);
+  exceptionsFailed = signal(false);
+  private exceptionsRequest: Subscription | null = null;
   savingEdit = signal(false);
   /** Plan dropdown options for the edit-dialog "תוכנית" field. */
   planOptions = signal<ISelectItem[]>([]);
@@ -188,6 +207,11 @@ export class BillingSubscriptionsComponent implements OnInit {
       currentPeriodEnd:        s.currentPeriodEnd,
       cardTokenExists:         s.cardTokenExists,
       createdAt:               s.createdAt,
+      unresolvedBillingAttemptCount: s.unresolvedBillingAttemptCount ?? 0,
+      unresolvedTooltip:       unresolvedAttemptsTooltip(
+        s.unresolvedBillingAttemptCount ?? 0,
+        s.mostSevereUnresolvedAttemptStatus ?? null,
+      ),
     }))
   );
 
@@ -227,16 +251,41 @@ export class BillingSubscriptionsComponent implements OnInit {
     this.selectedSub.set(sub);
     this.resetEditForm(sub);
     this.showDrawer.set(true);
+    this.loadBillingExceptions(sub.subscriptionId);
   }
 
   onDrawerHide(): void {
+    this.exceptionsRequest?.unsubscribe();
+    this.exceptionsRequest = null;
     this.selectedSub.set(null);
     this.showDrawer.set(false);
+  }
+
+  /** Read-only GET; a newer drawer open supersedes any request still in flight. */
+  private loadBillingExceptions(subscriptionId: number): void {
+    this.exceptionsRequest?.unsubscribe();
+    this.exceptionAttempts.set([]);
+    this.exceptionsFailed.set(false);
+    this.exceptionsLoading.set(true);
+    this.exceptionsRequest = this.adminBillingService.getUnresolvedBillingAttempts(subscriptionId)
+      .pipe(
+        finalize(() => this.exceptionsLoading.set(false)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: attempts => this.exceptionAttempts.set(attempts),
+        error: () => this.exceptionsFailed.set(true),
+      });
   }
 
   formatDate(value: string | null | undefined): string {
     if (!value) return '—';
     return this.datePipe.transform(value, 'dd/MM/yyyy') ?? '—';
+  }
+
+  formatDateTime(value: string | null | undefined): string {
+    if (!value) return '—';
+    return this.datePipe.transform(value, 'dd/MM/yyyy HH:mm') ?? '—';
   }
 
   formatAmount(agorot: number | null | undefined): string {

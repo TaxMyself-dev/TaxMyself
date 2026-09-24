@@ -1,7 +1,10 @@
+import { NotFoundException } from '@nestjs/common';
 import { DataSource, EntityManager } from 'typeorm';
 import { AdminBillingService } from './admin-billing.service';
 import { Subscription } from '../entities/subscription.entity';
-import { SubscriptionStatus } from '../enums/billing.enums';
+import { BillingAttempt } from '../entities/billing-attempt.entity';
+import { BillingEvent } from '../entities/billing-event.entity';
+import { BillingAttemptStatus, SubscriptionStatus } from '../enums/billing.enums';
 
 describe('AdminBillingService.updateSubscriptionTrialEnd', () => {
   let service: AdminBillingService;
@@ -162,5 +165,102 @@ describe('AdminBillingService.findAllSubscriptions', () => {
     expect(result.lastLoginAt).toEqual(lastLoginAt);
     expect(userQuery.addSelect).toHaveBeenCalledWith('u.hasOpenBanking', 'hasOpenBanking');
     expect(userQuery.addSelect).toHaveBeenCalledWith('u.lastLoginAt', 'lastLoginAt');
+  });
+});
+
+describe('AdminBillingService unresolved billing attempts (read-only)', () => {
+  /** Chainable query-builder stub that answers by the entity passed to `.from()`. */
+  const makeDataSource = (rowsByEntity: Map<unknown, any[]>) => {
+    const builders: { entity: unknown; selects: string[]; wheres: unknown[][] }[] = [];
+    const createQueryBuilder = jest.fn(() => {
+      const record = { entity: undefined as unknown, selects: [] as string[], wheres: [] as unknown[][] };
+      builders.push(record);
+      const qb: any = {};
+      for (const method of ['leftJoin', 'innerJoin', 'orderBy', 'addOrderBy', 'groupBy', 'setParameter']) {
+        qb[method] = jest.fn(() => qb);
+      }
+      qb.select = jest.fn((column: string) => (record.selects.push(column), qb));
+      qb.addSelect = jest.fn((column: string) => (record.selects.push(column), qb));
+      qb.where = jest.fn((...args: unknown[]) => (record.wheres.push(args), qb));
+      qb.andWhere = jest.fn((...args: unknown[]) => (record.wheres.push(args), qb));
+      qb.from = jest.fn((entity: unknown) => ((record.entity = entity), qb));
+      qb.getRawMany = jest.fn(async () => rowsByEntity.get(record.entity) ?? []);
+      return qb;
+    });
+    return { dataSource: { createQueryBuilder } as unknown as DataSource, createQueryBuilder, builders };
+  };
+
+  const makeService = (dataSource: DataSource, subscriptionRepo: unknown = {}) =>
+    new AdminBillingService({} as any, subscriptionRepo as any, dataSource, {} as any, {} as any, {} as any, {} as any, {} as any);
+
+  const subscriptionRow = (subscriptionId: number) => ({
+    subscriptionId,
+    firebaseId: `client-${subscriptionId}`,
+    status: 'ACTIVE',
+    createdAt: new Date('2026-01-01T00:00:00.000Z'),
+    nextBillingDate: null,
+  });
+
+  it('adds a compact unresolved indicator to the list with one grouped query', async () => {
+    const { dataSource, createQueryBuilder } = makeDataSource(
+      new Map<unknown, any[]>([
+        [Subscription, [subscriptionRow(1), subscriptionRow(2), subscriptionRow(3)]],
+        [BillingAttempt, [
+          { subscriptionId: '1', unresolvedCount: '2', manualReviewCount: '1' },
+          { subscriptionId: '2', unresolvedCount: '1', manualReviewCount: '0' },
+        ]],
+      ]),
+    );
+
+    const list = await makeService(dataSource).findAllSubscriptions();
+
+    expect(list.map(s => [s.subscriptionId, s.unresolvedBillingAttemptCount, s.mostSevereUnresolvedAttemptStatus])).toEqual([
+      [1, 2, BillingAttemptStatus.MANUAL_REVIEW],
+      [2, 1, BillingAttemptStatus.UNKNOWN],
+      [3, 0, null],
+    ]);
+    // subscriptions, users, businesses, ONE grouped indicator query — no per-row lookups.
+    expect(createQueryBuilder).toHaveBeenCalledTimes(4);
+  });
+
+  it('returns only sanitized unresolved attempts for the selected subscription', async () => {
+    const attemptRow = (attemptId: number, status: string, failureCategory: string | null) => ({
+      attemptId, status, chargeMode: 'TOKEN_TRANSACTION', amountAgorot: 11700, currency: 'ILS',
+      createdAt: new Date('2026-09-01T00:00:00.000Z'), capturedAt: null, unknownSince: null,
+      reconciliationAttempts: 5, lastReconciledAt: null, nextActionAt: null, failureCategory,
+      cardcomTransactionId: attemptId === 11 ? 'TX-11' : null, cardcomLowProfileId: null,
+      // A driver row must never leak these even if a query change ever selected them.
+      cardcomToken: 'tok-SECRET', encryptedToken: 'enc-SECRET', cardNumber: '4580000011112222', rawResponse: '{"raw":1}',
+      cardcomExternalUniqTranId: 'EXT-KEY', leaseOwner: 'worker-1', providerResponseCode: 500,
+    });
+    const { dataSource, builders } = makeDataSource(
+      new Map<unknown, any[]>([
+        [BillingAttempt, [attemptRow(11, 'MANUAL_REVIEW', 'UNVERIFIED_LOOKUP_RESULT'), attemptRow(9, 'UNKNOWN', 'TRANSPORT_ERROR')]],
+        [BillingEvent, [{ billingAttemptId: 11, metadata: { cardTokenStored: true, note: 'x' } }]],
+      ]),
+    );
+    const subscriptionRepo = { findOne: jest.fn().mockResolvedValue({ id: 42 }) };
+
+    const result = await makeService(dataSource, subscriptionRepo).findUnresolvedBillingAttempts(42);
+
+    const attemptsQuery = builders.find(b => b.entity === BillingAttempt) as (typeof builders)[number];
+    expect(attemptsQuery.wheres[0]).toEqual(['o.subscriptionId = :subscriptionId', { subscriptionId: 42 }]);
+    expect(attemptsQuery.wheres[1][1]).toEqual({ unresolved: [BillingAttemptStatus.UNKNOWN, BillingAttemptStatus.MANUAL_REVIEW] });
+    expect(attemptsQuery.selects.join(' ')).not.toMatch(/token|response|leaseOwner|ExternalUniq|cardNumber/i);
+    expect(result.map(a => a.attemptId)).toEqual([11, 9]);
+    expect(result[0]).toEqual({
+      attemptId: 11, status: 'MANUAL_REVIEW', chargeMode: 'TOKEN_TRANSACTION', amountAgorot: 11700, currency: 'ILS',
+      createdAt: new Date('2026-09-01T00:00:00.000Z'), capturedAt: null, unknownSince: null,
+      reconciliationAttempts: 5, lastReconciledAt: null, nextActionAt: null,
+      failureCategory: 'RECONCILIATION_EXHAUSTED', requiredAction: 'INTERNAL_REVIEW',
+      cardcomTransactionId: 'TX-11', cardcomLowProfileId: null, cardTokenRecovered: true,
+    });
+    expect(result[1]).toEqual(expect.objectContaining({
+      failureCategory: 'PROVIDER_OUTCOME_UNKNOWN', requiredAction: 'AUTOMATIC_CHECK', cardTokenRecovered: false,
+    }));
+    expect(JSON.stringify(result)).not.toMatch(/SECRET|4580000011112222|EXT-KEY|worker-1|TRANSPORT_ERROR|UNVERIFIED/);
+
+    subscriptionRepo.findOne.mockResolvedValue(null);
+    await expect(makeService(dataSource, subscriptionRepo).findUnresolvedBillingAttempts(7)).rejects.toThrow(NotFoundException);
   });
 });

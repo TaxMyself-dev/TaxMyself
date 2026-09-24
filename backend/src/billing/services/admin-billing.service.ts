@@ -1,9 +1,12 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { SubscriptionPlan } from '../entities/subscription-plan.entity';
 import { Subscription } from '../entities/subscription.entity';
 import { PaymentMethod } from '../entities/payment-method.entity';
+import { BillingAttempt } from '../entities/billing-attempt.entity';
+import { BillingObligation } from '../entities/billing-obligation.entity';
+import { BillingEvent } from '../entities/billing-event.entity';
 import { User } from 'src/users/user.entity';
 import { Business } from 'src/business/business.entity';
 import { CreatePlanDto } from '../dtos/admin/create-plan.dto';
@@ -16,7 +19,65 @@ import { BillingEventService } from './billing-event.service';
 import { BillingReceiptService } from './billing-receipt.service';
 import { BillingIssuerConfigService } from './billing-issuer-config.service';
 import { PricingService } from './pricing.service';
-import { BillingEventType, SubscriptionStatus } from '../enums/billing.enums';
+import { BillingAttemptStatus, BillingEventType, SubscriptionStatus } from '../enums/billing.enums';
+import {
+  AdminBillingExceptionAction,
+  AdminBillingExceptionFailureCategory,
+  AdminUnresolvedAttemptIndicator,
+  AdminUnresolvedAttemptStatus,
+  AdminUnresolvedBillingAttemptResponse,
+} from '../dtos/admin/admin-billing-exception.dto';
+import {
+  BillingPreSubmissionFailureReason,
+  preSubmissionFailureCategory,
+} from './billing-attempt-orchestration.service';
+
+/** Attempts that block a subscription's obligation and need admin visibility. */
+const UNRESOLVED_ATTEMPT_STATUSES: AdminUnresolvedAttemptStatus[] = [
+  BillingAttemptStatus.UNKNOWN,
+  BillingAttemptStatus.MANUAL_REVIEW,
+];
+
+/** Local pre-submission failures where the customer must fix the payment method. */
+const CUSTOMER_PAYMENT_METHOD_FAILURES: ReadonlySet<string> = new Set(
+  [
+    BillingPreSubmissionFailureReason.NO_PAYMENT_METHOD,
+    BillingPreSubmissionFailureReason.NO_STORED_TOKEN,
+    BillingPreSubmissionFailureReason.CARD_EXPIRY_MISSING,
+    BillingPreSubmissionFailureReason.CARD_EXPIRED,
+  ].map(preSubmissionFailureCategory),
+);
+
+const TOKEN_DECRYPTION_FAILURE = preSubmissionFailureCategory(
+  BillingPreSubmissionFailureReason.TOKEN_DECRYPTION_FAILED,
+);
+
+/**
+ * Maps the persisted `failure_category` (never returned) and status to the
+ * whitelisted classification and the party that has to act. Any provider-side
+ * category, however it was recorded, collapses to "still being checked"
+ * (UNKNOWN) or "checks exhausted" (MANUAL_REVIEW).
+ */
+export function classifyUnresolvedAttempt(
+  status: AdminUnresolvedAttemptStatus,
+  persistedCategory: string | null,
+): {
+  failureCategory: AdminBillingExceptionFailureCategory;
+  requiredAction: AdminBillingExceptionAction;
+} {
+  if (persistedCategory && CUSTOMER_PAYMENT_METHOD_FAILURES.has(persistedCategory)) {
+    return {
+      failureCategory: 'MISSING_OR_EXPIRED_PAYMENT_METHOD',
+      requiredAction: 'CUSTOMER_PAYMENT_METHOD',
+    };
+  }
+  if (persistedCategory === TOKEN_DECRYPTION_FAILURE) {
+    return { failureCategory: 'TOKEN_DECRYPTION_FAILED', requiredAction: 'INTERNAL_REVIEW' };
+  }
+  return status === BillingAttemptStatus.MANUAL_REVIEW
+    ? { failureCategory: 'RECONCILIATION_EXHAUSTED', requiredAction: 'INTERNAL_REVIEW' }
+    : { failureCategory: 'PROVIDER_OUTCOME_UNKNOWN', requiredAction: 'AUTOMATIC_CHECK' };
+}
 
 export interface PendingReceiptFailure {
   billingEventId: number;
@@ -32,7 +93,7 @@ export interface PendingReceiptFailure {
   createdAt: Date;
 }
 
-export interface AdminSubscriptionResponse {
+export interface AdminSubscriptionResponse extends AdminUnresolvedAttemptIndicator {
   subscriptionId: number;
   firebaseId: string;
   status: string;
@@ -98,6 +159,8 @@ export interface AdminSubscriptionPlanResponse {
 
 @Injectable()
 export class AdminBillingService {
+  private readonly logger = new Logger(AdminBillingService.name);
+
   constructor(
     @InjectRepository(SubscriptionPlan)
     private readonly planRepo: Repository<SubscriptionPlan>,
@@ -232,6 +295,9 @@ export class AdminBillingService {
       for (const b of businesses) businessMap.set(b.firebaseId, { id: Number(b.id), businessName: b.businessName });
     }
 
+    // Q4: one grouped query for every subscription's unresolved-attempt indicator
+    const indicatorMap = await this.loadUnresolvedAttemptIndicators();
+
     return raw.map((r): AdminSubscriptionResponse => {
       const user = userMap.get(r.firebaseId);
       const biz  = businessMap.get(r.firebaseId);
@@ -287,6 +353,133 @@ export class AdminBillingService {
         discountAmountAgorot: r.discountAmountAgorot != null ? Number(r.discountAmountAgorot) : null,
         discountStartDate:    r.discountStartDate ?? null,
         discountEndDate:      r.discountEndDate ?? null,
+        unresolvedBillingAttemptCount: indicatorMap.get(sid)?.count ?? 0,
+        mostSevereUnresolvedAttemptStatus: indicatorMap.get(sid)?.mostSevere ?? null,
+      };
+    });
+  }
+
+  /**
+   * Compact, read-only table indicator: unresolved (UNKNOWN / MANUAL_REVIEW)
+   * attempt count per subscription in a single grouped query, so the list never
+   * costs one query per row. It is an advisory badge, so a failure here (for
+   * example billing tables not yet migrated) must not take down the whole admin
+   * list; it is logged and the badge is simply omitted.
+   */
+  private async loadUnresolvedAttemptIndicators(): Promise<
+    Map<number, { count: number; mostSevere: AdminUnresolvedAttemptStatus }>
+  > {
+    const indicators = new Map<number, { count: number; mostSevere: AdminUnresolvedAttemptStatus }>();
+    try {
+      const rows: any[] = await this.dataSource
+        .createQueryBuilder()
+        .select('o.subscriptionId', 'subscriptionId')
+        .addSelect('COUNT(a.id)', 'unresolvedCount')
+        .addSelect('SUM(CASE WHEN a.status = :manualReview THEN 1 ELSE 0 END)', 'manualReviewCount')
+        .from(BillingAttempt, 'a')
+        .innerJoin(BillingObligation, 'o', 'o.id = a.obligationId')
+        .where('a.status IN (:...unresolved)', { unresolved: UNRESOLVED_ATTEMPT_STATUSES })
+        .setParameter('manualReview', BillingAttemptStatus.MANUAL_REVIEW)
+        .groupBy('o.subscriptionId')
+        .getRawMany();
+      for (const row of rows) {
+        indicators.set(Number(row.subscriptionId), {
+          count: Number(row.unresolvedCount),
+          mostSevere:
+            Number(row.manualReviewCount) > 0
+              ? BillingAttemptStatus.MANUAL_REVIEW
+              : BillingAttemptStatus.UNKNOWN,
+        });
+      }
+    } catch (error) {
+      this.logger.warn(
+        `Unresolved billing attempt indicators unavailable: ${
+          error instanceof Error ? error.message : 'unknown error'
+        }`,
+      );
+    }
+    return indicators;
+  }
+
+  /**
+   * Read-only detail for the subscription drawer: this subscription's
+   * unresolved (UNKNOWN / MANUAL_REVIEW) attempts, newest first, as sanitized
+   * DTOs. Columns are selected explicitly, so no token, credential, provider
+   * response or exception text can reach the response, and nothing is mutated.
+   */
+  async findUnresolvedBillingAttempts(
+    subscriptionId: number,
+  ): Promise<AdminUnresolvedBillingAttemptResponse[]> {
+    const subscription = await this.subscriptionRepo.findOne({
+      where: { id: subscriptionId },
+      select: { id: true },
+    });
+    if (!subscription) throw new NotFoundException(`מנוי ${subscriptionId} לא נמצא`);
+
+    const rows: any[] = await this.dataSource
+      .createQueryBuilder()
+      .select('a.id', 'attemptId')
+      .addSelect('a.status', 'status')
+      .addSelect('a.chargeMode', 'chargeMode')
+      .addSelect('a.amountAgorot', 'amountAgorot')
+      .addSelect('a.currency', 'currency')
+      .addSelect('a.createdAt', 'createdAt')
+      .addSelect('a.capturedAt', 'capturedAt')
+      .addSelect('a.unknownSince', 'unknownSince')
+      .addSelect('a.reconciliationAttempts', 'reconciliationAttempts')
+      .addSelect('a.lastReconciledAt', 'lastReconciledAt')
+      .addSelect('a.nextActionAt', 'nextActionAt')
+      .addSelect('a.failureCategory', 'failureCategory')
+      .addSelect('a.cardcomTransactionId', 'cardcomTransactionId')
+      .addSelect('a.cardcomLowProfileId', 'cardcomLowProfileId')
+      .from(BillingAttempt, 'a')
+      .innerJoin(BillingObligation, 'o', 'o.id = a.obligationId')
+      .where('o.subscriptionId = :subscriptionId', { subscriptionId })
+      .andWhere('a.status IN (:...unresolved)', { unresolved: UNRESOLVED_ATTEMPT_STATUSES })
+      .orderBy('a.createdAt', 'DESC')
+      .addOrderBy('a.id', 'DESC')
+      .getRawMany();
+
+    if (rows.length === 0) return [];
+
+    // One lookup for all attempts; only a boolean is derived from event metadata.
+    const attemptIds = rows.map(r => Number(r.attemptId));
+    const events: any[] = await this.dataSource
+      .createQueryBuilder()
+      .select('e.billingAttemptId', 'billingAttemptId')
+      .addSelect('e.metadata', 'metadata')
+      .from(BillingEvent, 'e')
+      .where('e.billingAttemptId IN (:...attemptIds)', { attemptIds })
+      .getRawMany();
+    const tokenRecovered = new Set<number>();
+    for (const event of events) {
+      const metadata = typeof event.metadata === 'string' ? safeParseObject(event.metadata) : event.metadata;
+      if (metadata?.cardTokenStored === true) tokenRecovered.add(Number(event.billingAttemptId));
+    }
+
+    return rows.map((r): AdminUnresolvedBillingAttemptResponse => {
+      const status = r.status as AdminUnresolvedAttemptStatus;
+      const { failureCategory, requiredAction } = classifyUnresolvedAttempt(
+        status,
+        r.failureCategory ?? null,
+      );
+      return {
+        attemptId: Number(r.attemptId),
+        status,
+        chargeMode: r.chargeMode,
+        amountAgorot: Number(r.amountAgorot),
+        currency: r.currency,
+        createdAt: r.createdAt,
+        capturedAt: r.capturedAt ?? null,
+        unknownSince: r.unknownSince ?? null,
+        reconciliationAttempts: Number(r.reconciliationAttempts),
+        lastReconciledAt: r.lastReconciledAt ?? null,
+        nextActionAt: r.nextActionAt ?? null,
+        failureCategory,
+        requiredAction,
+        cardcomTransactionId: r.cardcomTransactionId ?? null,
+        cardcomLowProfileId: r.cardcomLowProfileId ?? null,
+        cardTokenRecovered: tokenRecovered.has(Number(r.attemptId)),
       };
     });
   }
@@ -554,5 +747,14 @@ export class AdminBillingService {
     await this.billingReceiptService.sendReceiptEmailForPaymentEvent(event.id, issuer.issuerName);
 
     return { receiptDocId: receipt.receiptDocId, docNumber: receipt.docNumber };
+  }
+}
+
+function safeParseObject(value: string): Record<string, unknown> | null {
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch {
+    return null;
   }
 }

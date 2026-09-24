@@ -100,3 +100,23 @@ describe('AdminBillingController.updateSubscriptionTrialEnd', () => {
     });
   });
 });
+
+describe('AdminBillingController.getUnresolvedBillingAttempts', () => {
+  it('keeps the unresolved-attempt read endpoint admin-only', async () => {
+    const adminBillingService = { findUnresolvedBillingAttempts: jest.fn().mockResolvedValue([]) };
+    const usersService = { isAdmin: jest.fn().mockResolvedValue(false) };
+    const controller = new AdminBillingController(
+      adminBillingService as unknown as AdminBillingService,
+      usersService as unknown as UsersService,
+    );
+
+    await expect(
+      controller.getUnresolvedBillingAttempts({ user: { firebaseId: 'regular-user' } } as any, 42),
+    ).rejects.toThrow(ForbiddenException);
+    expect(adminBillingService.findUnresolvedBillingAttempts).not.toHaveBeenCalled();
+
+    usersService.isAdmin.mockResolvedValue(true);
+    await controller.getUnresolvedBillingAttempts({ user: { firebaseId: 'admin-user' } } as any, 42);
+    expect(adminBillingService.findUnresolvedBillingAttempts).toHaveBeenCalledWith(42);
+  });
+});

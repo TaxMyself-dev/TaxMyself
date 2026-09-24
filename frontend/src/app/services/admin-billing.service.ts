@@ -72,6 +72,44 @@ export interface AdminSubscription {
   discountAmountAgorot: number | null;
   discountStartDate: string | null;
   discountEndDate: string | null;
+  /** Unresolved (UNKNOWN / MANUAL_REVIEW) billing attempts — compact table indicator. */
+  unresolvedBillingAttemptCount: number;
+  mostSevereUnresolvedAttemptStatus: AdminUnresolvedAttemptStatus | null;
+}
+
+// ─── Billing exceptions (read-only) ─────────────────────────────────────────
+
+export type AdminUnresolvedAttemptStatus = 'UNKNOWN' | 'MANUAL_REVIEW';
+
+export type AdminBillingExceptionFailureCategory =
+  | 'MISSING_OR_EXPIRED_PAYMENT_METHOD'
+  | 'TOKEN_DECRYPTION_FAILED'
+  | 'RECONCILIATION_EXHAUSTED'
+  | 'PROVIDER_OUTCOME_UNKNOWN';
+
+export type AdminBillingExceptionAction =
+  | 'CUSTOMER_PAYMENT_METHOD'
+  | 'INTERNAL_REVIEW'
+  | 'AUTOMATIC_CHECK';
+
+/** Sanitized attempt DTO: the API never carries tokens, card data or raw provider output. */
+export interface AdminUnresolvedBillingAttempt {
+  attemptId: number;
+  status: AdminUnresolvedAttemptStatus;
+  chargeMode: 'LOW_PROFILE_HOSTED' | 'TOKEN_TRANSACTION';
+  amountAgorot: number;
+  currency: string;
+  createdAt: string;
+  capturedAt: string | null;
+  unknownSince: string | null;
+  reconciliationAttempts: number;
+  lastReconciledAt: string | null;
+  nextActionAt: string | null;
+  failureCategory: AdminBillingExceptionFailureCategory;
+  requiredAction: AdminBillingExceptionAction;
+  cardcomTransactionId: string | null;
+  cardcomLowProfileId: string | null;
+  cardTokenRecovered: boolean;
 }
 
 export interface UpdateSubscriptionDiscountPayload {
@@ -196,6 +234,11 @@ export class AdminBillingService {
 
   getSubscriptions(): Observable<AdminSubscription[]> {
     return this.http.get<AdminSubscription[]>(`${this.base}/subscriptions`);
+  }
+
+  /** Read-only: this subscription's unresolved billing attempts, newest first. Loaded when the drawer opens. */
+  getUnresolvedBillingAttempts(id: number): Observable<AdminUnresolvedBillingAttempt[]> {
+    return this.http.get<AdminUnresolvedBillingAttempt[]>(`${this.base}/subscriptions/${id}/unresolved-attempts`);
   }
 
   updateSubscriptionDiscount(

@@ -254,6 +254,31 @@ a hosted attempt via `getLowProfileResult` with its persisted LowProfile id.
   resolution path yet (`MANUAL_REVIEW` -> `UNKNOWN`/`CAPTURED` exists in the
   state machine but no caller).
 
+### Admin billing exceptions (KT-038 Task 5B, read-only)
+
+Visibility only — no resolve/retry/charge/refund action exists, and nothing here
+touches reconciliation, subscription or payment state.
+- `GET /admin/billing/subscriptions` carries a compact indicator per row
+  (`unresolvedBillingAttemptCount`, `mostSevereUnresolvedAttemptStatus`,
+  `MANUAL_REVIEW` over `UNKNOWN`) from ONE grouped `billing_attempt` ⨝
+  `billing_obligation` query — no per-row lookups. It is advisory: if that query
+  fails (for example billing tables not yet migrated) it is logged and the
+  badges are omitted rather than failing the list.
+- `GET /admin/billing/subscriptions/:id/unresolved-attempts` (same
+  `assertAdmin` gate as every admin route; 404 for an unknown subscription)
+  returns that subscription's `UNKNOWN`/`MANUAL_REVIEW` attempts, newest first,
+  as `AdminUnresolvedBillingAttemptResponse`
+  (`dtos/admin/admin-billing-exception.dto.ts`). Entities are never serialized:
+  columns are selected explicitly, and the persisted `failure_category` is only
+  mapped (`classifyUnresolvedAttempt`) to a whitelisted code plus who must act
+  (`CUSTOMER_PAYMENT_METHOD` for `LOCAL_*` payment-method failures,
+  `INTERNAL_REVIEW` for token decryption failure or exhausted reconciliation,
+  `AUTOMATIC_CHECK` for `UNKNOWN`). Never returned: card/encrypted token, card
+  number, credentials, raw provider response/exception text, the
+  `ExternalUniqTranId`, terminal ref, lease owner or provider response code.
+  `cardTokenRecovered` is a boolean derived from the attempt's events'
+  `cardTokenStored` flag.
+
 - `GET /billing/plans`, `GET /billing/me`, `POST /billing/trial` — plan listing and current billing state; idempotent trial creation.
 - `POST /billing/checkout/preview` / `POST /billing/checkout` — price preview and CardCom LowProfile checkout session creation; activation happens only via the webhook, never the checkout response.
 - `POST /billing/cardcom/webhook` — CardCom posts payment results here; `CardcomWebhookService` verifies/activates subscriptions; errors are swallowed so CardCom doesn't retry-storm.
