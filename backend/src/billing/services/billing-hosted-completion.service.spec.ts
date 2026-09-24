@@ -200,6 +200,9 @@ describe('BillingHostedCompletionService — local recovery of a CAPTURED hosted
             Object.entries(where).every(([k, v]) => r[k] === v),
           ) ?? null,
       ),
+      find: jest.fn(async ({ where }: any) =>
+        rows.filter((r) => Object.entries(where).every(([k, v]) => r[k] === v)),
+      ),
     };
     const events = new BillingEventService(eventRepo as any);
 
@@ -794,6 +797,106 @@ describe('BillingHostedCompletionService — local recovery of a CAPTURED hosted
       expect(cardcom.chargeByToken).not.toHaveBeenCalled();
       expect(cardcom.createLowProfileCheckout).not.toHaveBeenCalled();
     });
+  });
+
+  describe('token crash window: attempt still CAPTURED but the subscription is already ACTIVE (Task 5A2)', () => {
+    const RAW_TOKEN = 'tok-11111111-2222-3333-4444-555555555555';
+    const lookupResult = {
+      ResponseCode: 0,
+      LowProfileId: 'lp-44',
+      TranzactionId: 'tx-original',
+      ReturnValue: JSON.stringify({
+        intent: 'CHECKOUT',
+        firebaseId: 'owner',
+        planId: PLAN.id,
+        subscriptionId: 9,
+        billingAttemptId: 44,
+      }),
+      TokenInfo: { Token: RAW_TOKEN, CardMonth: 11, CardYear: 2030 },
+      TranzactionInfo: {
+        ResponseCode: 0,
+        TranzactionId: 'tx-original',
+        Amount: 117,
+        Last4CardDigitsString: '4242',
+        Brand: 'VISA',
+      },
+    };
+    beforeAll(() => {
+      process.env.BILLING_TOKEN_ENCRYPTION_KEY = Buffer.alloc(32, 7).toString(
+        'base64',
+      );
+    });
+
+    it.each([
+      [
+        'finishes the missing token storage exactly once',
+        () => undefined,
+        true,
+      ],
+      [
+        'never overwrites a payment method changed after the attempt opened',
+        (pm: any) => {
+          pm.cardcomToken = 'customer-newer-card';
+          pm.updatedAt = new Date('2026-09-10T11:30:00.000Z');
+        },
+        false,
+      ],
+    ])(
+      'a crash after activation: %s, and receipt/completion still finish',
+      async (_name, arrange, stored) => {
+        const cardcom = {
+          getLowProfileResult: jest.fn().mockResolvedValue(lookupResult),
+          chargeByToken: jest.fn(),
+          createLowProfileCheckout: jest.fn(),
+        };
+        const {
+          service,
+          sub,
+          pm,
+          rows,
+          updates,
+          orchestration,
+          receipts,
+          params,
+        } = build(cardcom);
+        sub.status = SubscriptionStatus.ACTIVE; // activated by the run that crashed
+        arrange(pm);
+
+        expect(await service.completeCapturedHostedAttempt(params)).toBe(
+          'COMPLETED',
+        );
+
+        expect(cardcom.getLowProfileResult).toHaveBeenCalledTimes(1);
+        expect(updates.count).toBe(0); // no second activation
+        expect(receipts.ensureReceiptForCapturedAttempt).toHaveBeenCalledTimes(
+          1,
+        );
+        const activated = rows.filter(
+          (r) => r.eventType === BillingEventType.SUBSCRIPTION_ACTIVATED,
+        );
+        expect(activated).toHaveLength(1);
+        expect(activated[0].metadata.cardTokenStored).toBe(stored);
+        if (stored) {
+          expect(decryptCardcomToken(pm.cardcomToken)).toBe(RAW_TOKEN);
+          expect(pm.last4).toBe('4242');
+        } else {
+          expect(pm.cardcomToken).toBe('customer-newer-card');
+          expect(activated[0].metadata.tokenRecoveryReason).toBe(
+            'PAYMENT_METHOD_NEWER',
+          );
+        }
+        expect(JSON.stringify(rows)).not.toContain(RAW_TOKEN);
+
+        if (stored) {
+          // Success is remembered: a re-run neither looks up nor stores again.
+          orchestration.attempt.status = BillingAttemptStatus.CAPTURED;
+          await service.completeCapturedHostedAttempt(params);
+          expect(cardcom.getLowProfileResult).toHaveBeenCalledTimes(1);
+        }
+        expect(cardcom.chargeByToken).not.toHaveBeenCalled();
+        expect(cardcom.createLowProfileCheckout).not.toHaveBeenCalled();
+      },
+    );
   });
 
   describe('recovery sweep (no provider, no webhook)', () => {

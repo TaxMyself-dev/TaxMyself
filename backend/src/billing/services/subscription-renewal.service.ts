@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, LessThanOrEqual, QueryRunner, Repository } from 'typeorm';
@@ -21,6 +21,7 @@ import { BillingIssuerConfigService } from './billing-issuer-config.service';
 import { PricingService } from './pricing.service';
 import { BillingLifecycleService } from './billing-lifecycle.service';
 import { BillingHostedCompletionService } from './billing-hosted-completion.service';
+import { BillingReconciliationService } from './billing-reconciliation.service';
 import { BillingAttempt } from '../entities/billing-attempt.entity';
 import { NormalizedChargeOutcome } from './billing-attempt-orchestration.service';
 import {
@@ -77,6 +78,8 @@ export class SubscriptionRenewalService {
     private readonly billingLifecycleService: BillingLifecycleService,
     private readonly dataSource: DataSource,
     private readonly hostedCompletion: BillingHostedCompletionService,
+    @Optional()
+    private readonly reconciliation?: BillingReconciliationService,
   ) {}
 
   // ─── Cron entry point ───────────────────────────────────────────────────────
@@ -118,6 +121,28 @@ export class SubscriptionRenewalService {
    * logic, no idempotency/retry/charge behavior is duplicated or bypassed.
    */
   async processDueRenewals(): Promise<RenewalBatchResult> {
+    // Read-only reconciliation of UNKNOWN / expired-PROCESSING attempts. It runs
+    // FIRST so a token renewal it confirms as captured is finalized by this same
+    // run (the due list below is read afterwards). It never charges and cannot
+    // fail the batch.
+    try {
+      const reconciled = await this.reconciliation?.reconcileDueAttempts();
+      if (
+        reconciled &&
+        (reconciled.expired > 0 || reconciled.due > 0 || reconciled.errors > 0)
+      ) {
+        this.logger.log(
+          `Billing reconciliation: expired=${reconciled.expired} due=${reconciled.due} captured=${reconciled.captured} declined=${reconciled.declined} unresolved=${reconciled.unresolved} manualReview=${reconciled.manualReview} notClaimed=${reconciled.notClaimed} errors=${reconciled.errors}`,
+        );
+      }
+    } catch (error) {
+      this.logger.error(
+        `Billing reconciliation sweep failed: ${
+          (error as Error)?.message ?? 'unknown error'
+        }`,
+      );
+    }
+
     const due = await this.subscriptionRepo.find({
       where: {
         status: SubscriptionStatus.ACTIVE,

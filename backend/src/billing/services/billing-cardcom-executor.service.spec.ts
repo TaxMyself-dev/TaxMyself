@@ -2,7 +2,9 @@ jest.mock('../utils/billing-token-encryption.util', () => ({
   decryptCardcomToken: jest.fn(() => 'decrypted-token'),
 }));
 
+import { PRE_SUBMISSION_LOCAL_FAILURE } from './billing-attempt-orchestration.service';
 import { BillingCardcomExecutorService } from './billing-cardcom-executor.service';
+import { BillingProviderRuntimeService } from './billing-provider-runtime.service';
 
 describe('BillingCardcomExecutorService', () => {
   it('delegates captured token charges without exposing the token in the request contract', async () => {
@@ -49,19 +51,58 @@ describe('BillingCardcomExecutorService', () => {
     });
   });
 
-  it('never replays a token charge for reconciliation', async () => {
-    const service = new BillingCardcomExecutorService(
-      { chargeByToken: jest.fn() } as any,
-      {} as any,
-    );
-    await expect(
-      service.reconcileCharge({
-        attemptId: 4,
+  it.each([
+    ['is missing', null],
+    ['has no expiry', { id: 8, cardcomToken: 'encrypted-token' }],
+  ])(
+    'a payment method that %s fails before any CardCom request and is not an uncertain charge',
+    async (_name, paymentMethod) => {
+      const cardcom = {
+        chargeByToken: jest.fn(),
+        getTransactionByExternalUniqTran: jest.fn(),
+      };
+      const executor = new BillingCardcomExecutorService(
+        cardcom as any,
+        { findOne: jest.fn().mockResolvedValue(paymentMethod) } as any,
+      );
+      const attempt = {
+        id: 4,
         paymentMethodId: 8,
-        externalUniqTranId: 'renewal:4:2026-09',
+        cardcomExternalUniqTranId: 'renewal:4:2026-09',
         amountAgorot: 1170,
         currency: 'ILS',
-      }),
-    ).rejects.toThrow('reconciliation is not available');
-  });
+        stateVersion: 2,
+      };
+      const orchestration = {
+        assertOwnerMutation: jest.fn(),
+        claimForSubmission: jest
+          .fn()
+          .mockResolvedValue({ claimed: true, attempt }),
+        applyNormalizedOutcome: jest.fn().mockResolvedValue(attempt),
+      };
+      const runtime = new BillingProviderRuntimeService(
+        orchestration as any,
+        executor,
+      );
+
+      const result = await runtime.submitCharge({
+        actor: { actorFirebaseId: 'owner', subjectFirebaseId: 'owner' },
+        attemptId: 4,
+        expectedStateVersion: 2,
+        leaseOwner: 'renewal-4',
+      });
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          outcome: {
+            kind: 'UNKNOWN',
+            failureCategory: PRE_SUBMISSION_LOCAL_FAILURE,
+          },
+        }),
+      );
+      expect(cardcom.chargeByToken).not.toHaveBeenCalled();
+      // Read-only reconciliation never selects it, so it can never be looked up.
+      expect(cardcom.getTransactionByExternalUniqTran).not.toHaveBeenCalled();
+    },
+  );
 });

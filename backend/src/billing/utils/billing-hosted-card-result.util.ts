@@ -85,6 +85,7 @@ export type HostedTokenRecoveryReason =
   | 'MALFORMED_RESULT'
   | 'RESULT_NOT_SUCCESSFUL'
   | 'LOW_PROFILE_MISMATCH'
+  | 'TERMINAL_MISMATCH'
   | 'TRANSACTION_MISMATCH'
   | 'RETURN_VALUE_MISMATCH'
   | 'AMOUNT_MISMATCH'
@@ -96,29 +97,65 @@ export type HostedTokenRecoveryReason =
 
 export interface HostedCaptureExpectation {
   lowProfileId: string;
-  transactionId: string;
+  /** Known once the attempt is CAPTURED; absent while reconciling an UNKNOWN one. */
+  transactionId?: string | null;
   amountAgorot: number;
   firebaseId: string;
   subscriptionId: number;
   planId: number;
   billingAttemptId: number;
+  /** Configured CardCom terminal; compared only when the result reports one. */
+  terminalNumber?: number | null;
 }
 
 // Encrypted tokens (IV + tag + ciphertext, base64) must fit varchar(512).
 const MAX_TOKEN_LENGTH = 200;
 
+function returnValueMatches(
+  verified: CardcomWebhookPayload,
+  expected: HostedCaptureExpectation,
+): boolean {
+  let returnValue: Record<string, unknown> | null = null;
+  try {
+    const parsed = JSON.parse(String(verified.ReturnValue));
+    returnValue = parsed && typeof parsed === 'object' ? parsed : null;
+  } catch {
+    returnValue = null;
+  }
+  return (
+    !!returnValue &&
+    returnValue.intent === 'CHECKOUT' &&
+    returnValue.firebaseId === expected.firebaseId &&
+    returnValue.subscriptionId === expected.subscriptionId &&
+    returnValue.planId === expected.planId &&
+    returnValue.billingAttemptId === expected.billingAttemptId
+  );
+}
+
+function terminalMatches(
+  verified: CardcomWebhookPayload,
+  expected: HostedCaptureExpectation,
+): boolean {
+  return (
+    verified.TerminalNumber == null ||
+    expected.terminalNumber == null ||
+    Number(verified.TerminalNumber) === expected.terminalNumber
+  );
+}
+
 /**
- * Accepts card details from a LowProfile lookup ONLY for the exact captured
- * hosted attempt: same LowProfileId, same provider transaction, same captured
- * amount and a ReturnValue that names this owner, subscription, plan and
- * attempt. Anything else — including a missing field — is rejected with a
- * sanitized reason; the result is never echoed.
+ * The single validation of a hosted LowProfile result as a SUCCESSFUL capture of
+ * exactly this attempt: same LowProfileId (and terminal, when reported), same
+ * provider transaction (when already known), the captured amount and a
+ * ReturnValue that names this owner, subscription, plan and attempt. Anything
+ * else — including a missing field — is rejected with a sanitized reason; the
+ * result is never echoed. Card details are validated separately.
  */
-export function validateHostedCaptureResult(
+export function validateHostedTransactionResult(
   result: unknown,
   expected: HostedCaptureExpectation,
 ):
-  | { card: CardDetails & { token: string } }
+  | { verified: CardcomWebhookPayload; transactionId: string }
   | { reason: HostedTokenRecoveryReason } {
   if (!result || typeof result !== 'object') {
     return { reason: 'MALFORMED_RESULT' };
@@ -134,33 +171,21 @@ export function validateHostedCaptureResult(
   if (verified.LowProfileId !== expected.lowProfileId) {
     return { reason: 'LOW_PROFILE_MISMATCH' };
   }
+  if (!terminalMatches(verified, expected)) {
+    return { reason: 'TERMINAL_MISMATCH' };
+  }
   const transactionId =
     verified.TranzactionId ?? verified.TranzactionInfo?.TranzactionId;
   if (
     transactionId == null ||
-    String(transactionId) !== expected.transactionId
+    (expected.transactionId != null &&
+      String(transactionId) !== expected.transactionId)
   ) {
     return { reason: 'TRANSACTION_MISMATCH' };
   }
-
-  let returnValue: Record<string, unknown> | null = null;
-  try {
-    const parsed = JSON.parse(String(verified.ReturnValue));
-    returnValue = parsed && typeof parsed === 'object' ? parsed : null;
-  } catch {
-    returnValue = null;
-  }
-  if (
-    !returnValue ||
-    returnValue.intent !== 'CHECKOUT' ||
-    returnValue.firebaseId !== expected.firebaseId ||
-    returnValue.subscriptionId !== expected.subscriptionId ||
-    returnValue.planId !== expected.planId ||
-    returnValue.billingAttemptId !== expected.billingAttemptId
-  ) {
+  if (!returnValueMatches(verified, expected)) {
     return { reason: 'RETURN_VALUE_MISMATCH' };
   }
-
   const amountNis = verified.TranzactionInfo?.Amount;
   if (
     typeof amountNis !== 'number' ||
@@ -169,8 +194,56 @@ export function validateHostedCaptureResult(
   ) {
     return { reason: 'AMOUNT_MISMATCH' };
   }
+  return { verified, transactionId: String(transactionId) };
+}
 
-  const card = extractCardDetails(verified);
+/**
+ * True only for a result that definitively belongs to this attempt (same
+ * LowProfileId, terminal and ReturnValue) AND reports a transaction that was
+ * attempted and rejected (TranzactionInfo.ResponseCode is a non-zero number
+ * other than the 700/701 J2/J5 successes). A result with no transaction (page
+ * not yet completed), a foreign result or a malformed one is never a decline.
+ */
+export function isDefinitiveHostedDecline(
+  result: unknown,
+  expected: HostedCaptureExpectation,
+): { responseCode: number } | null {
+  if (!result || typeof result !== 'object') return null;
+  const verified = result as CardcomWebhookPayload;
+  if (
+    verified.LowProfileId !== expected.lowProfileId ||
+    !terminalMatches(verified, expected) ||
+    !returnValueMatches(verified, expected)
+  ) {
+    return null;
+  }
+  const code = verified.TranzactionInfo?.ResponseCode;
+  if (
+    typeof code !== 'number' ||
+    !Number.isFinite(code) ||
+    code === 0 ||
+    code === 700 ||
+    code === 701
+  ) {
+    return null;
+  }
+  return { responseCode: code };
+}
+
+/**
+ * Accepts card details from a LowProfile lookup ONLY for the exact captured
+ * hosted attempt (see validateHostedTransactionResult).
+ */
+export function validateHostedCaptureResult(
+  result: unknown,
+  expected: HostedCaptureExpectation,
+):
+  | { card: CardDetails & { token: string } }
+  | { reason: HostedTokenRecoveryReason } {
+  const transaction = validateHostedTransactionResult(result, expected);
+  if ('reason' in transaction) return transaction;
+
+  const card = extractCardDetails(transaction.verified);
   if (card.token == null || card.token === '') return { reason: 'NO_TOKEN' };
   const validLast4 = card.last4 == null || /^\d{4}$/.test(card.last4);
   const validExpiry =

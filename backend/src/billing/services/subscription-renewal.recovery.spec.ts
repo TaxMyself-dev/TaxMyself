@@ -272,6 +272,7 @@ describe('SubscriptionRenewalService — CAPTURED attempt recovery', () => {
         .fn()
         .mockResolvedValue({ found: 0, completed: 0, pending: 0 }),
     };
+    const reconciliation = { reconcileDueAttempts: jest.fn() };
     const service = new SubscriptionRenewalService(
       subscriptionRepo as any,
       {} as any,
@@ -282,8 +283,10 @@ describe('SubscriptionRenewalService — CAPTURED attempt recovery', () => {
       lifecycle,
       {} as any,
       hostedCompletion as any,
+      reconciliation as any,
     );
     return {
+      reconciliation,
       hostedCompletion,
       eventRows,
       dueRows,
@@ -568,6 +571,34 @@ describe('SubscriptionRenewalService — CAPTURED attempt recovery', () => {
   // trigger share processDueRenewals) is the reliable local caller that finishes
   // hosted captures whose activation or receipt/link failed, with no webhook and
   // no provider involved.
+  describe('read-only reconciliation sweep (Task 5A2)', () => {
+    it('runs once before the renewal batch, and a failing sweep can never fail it or charge', async () => {
+      const { service, reconciliation, hostedCompletion, executor, dueRows } =
+        build();
+      dueRows.list = [{ id: 7 }];
+      const order: string[] = [];
+      reconciliation.reconcileDueAttempts.mockImplementation(async () => {
+        order.push('reconcile');
+        throw new Error('lookup down token=abc123SECRET');
+      });
+      executor.executeCharge.mockImplementation(async () => {
+        order.push('charge');
+        return { success: true, responseCode: 0, transactionId: 'tx-original' };
+      });
+
+      await expect(service.processDueRenewals()).resolves.toEqual(
+        expect.objectContaining({ totalDue: 1, succeeded: 1, errors: 0 }),
+      );
+
+      expect(reconciliation.reconcileDueAttempts).toHaveBeenCalledTimes(1);
+      expect(order[0]).toBe('reconcile');
+      expect(executor.executeCharge).toHaveBeenCalledTimes(1); // the due renewal only
+      expect(
+        hostedCompletion.recoverCapturedHostedAttempts,
+      ).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe('captured hosted payment recovery sweep', () => {
     it('runs after the renewal batch even when nothing is due', async () => {
       const { service, hostedCompletion, executor, dueRows } = build();

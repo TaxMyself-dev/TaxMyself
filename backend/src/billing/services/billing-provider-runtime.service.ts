@@ -8,6 +8,7 @@ import {
   BillingAttemptOrchestrationService,
   BillingMutationActorContext,
   NormalizedChargeOutcome,
+  PRE_SUBMISSION_LOCAL_FAILURE,
 } from './billing-attempt-orchestration.service';
 
 export const BILLING_CARD_COM_EXECUTOR = Symbol('BILLING_CARD_COM_EXECUTOR');
@@ -17,6 +18,12 @@ export interface CardComChargeRequest {
   externalUniqTranId: string;
   amountAgorot: number;
   currency: string;
+  /** Reconciliation context (read-only lookups); unused by executeCharge. */
+  chargeMode?: BillingChargeMode;
+  lowProfileId?: string | null;
+  planId?: number;
+  firebaseId?: string;
+  subscriptionId?: number | null;
 }
 export interface CardComChargeResponse {
   success?: boolean;
@@ -24,6 +31,23 @@ export interface CardComChargeResponse {
   transactionId?: string | null;
   terminalRef?: string | null;
   failureCategory?: string | null;
+  /**
+   * Reconciliation only: the executor proved that this exact attempt was
+   * rejected. Without it a non-success lookup result is never a decline.
+   */
+  definitiveDecline?: boolean;
+}
+
+/**
+ * Thrown by an executor when the local pre-flight failed BEFORE any request
+ * reached CardCom (missing payment method, missing expiry, undecryptable
+ * token). No charge can have been made, so it is not an uncertain outcome.
+ */
+export class BillingPreSubmissionError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'BillingPreSubmissionError';
+  }
 }
 export interface BillingCardComExecutor {
   executeCharge(request: CardComChargeRequest): Promise<CardComChargeResponse>;
@@ -36,6 +60,8 @@ export interface ProviderRuntimeInput {
   attemptId: number;
   expectedStateVersion: number;
   leaseOwner: string;
+  /** Reconciliation only: lets a hosted result be tied to its subscription. */
+  subscriptionId?: number;
 }
 export type ProviderRuntimeResult =
   | { kind: 'NOT_CLAIMED'; reason?: string; attempt: unknown }
@@ -75,8 +101,14 @@ export class BillingProviderRuntimeService {
       outcome = normalizeCardComCharge(
         await this.executor.executeCharge(request),
       );
-    } catch {
-      outcome = { kind: 'UNKNOWN', failureCategory: 'TRANSPORT_ERROR' };
+    } catch (error) {
+      outcome = {
+        kind: 'UNKNOWN',
+        failureCategory:
+          error instanceof BillingPreSubmissionError
+            ? PRE_SUBMISSION_LOCAL_FAILURE
+            : 'TRANSPORT_ERROR',
+      };
     }
     const attempt = await this.applyOutcome(lease.attempt, input, outcome);
     return { kind: 'APPLIED', outcome, attempt };
@@ -128,16 +160,21 @@ export class BillingProviderRuntimeService {
         reason: lease.reason,
         attempt: lease.attempt,
       };
-    const request = {
+    const request: CardComChargeRequest = {
       attemptId: lease.attempt.id,
       paymentMethodId: lease.attempt.paymentMethodId,
       externalUniqTranId: lease.attempt.cardcomExternalUniqTranId,
       amountAgorot: lease.attempt.amountAgorot,
       currency: lease.attempt.currency,
+      chargeMode: lease.attempt.chargeMode,
+      lowProfileId: lease.attempt.cardcomLowProfileId,
+      planId: lease.attempt.planId,
+      firebaseId: input.actor.subjectFirebaseId,
+      subscriptionId: input.subscriptionId ?? null,
     };
     let outcome: NormalizedChargeOutcome;
     try {
-      outcome = normalizeCardComCharge(
+      outcome = normalizeCardComReconciliation(
         await this.executor.reconcileCharge(request),
       );
     } catch {
@@ -146,6 +183,30 @@ export class BillingProviderRuntimeService {
     const attempt = await this.applyOutcome(lease.attempt, input, outcome);
     return { kind: 'APPLIED', outcome, attempt };
   }
+}
+
+/**
+ * Reconciliation is read-only evidence gathering, so it is stricter than a
+ * charge response: only a captured result (with its transaction id) or an
+ * executor-proven decline changes the attempt. Any other non-zero code —
+ * including "not found" — stays UNKNOWN, because it is not proof that no
+ * charge happened.
+ */
+export function normalizeCardComReconciliation(
+  response: CardComChargeResponse,
+): NormalizedChargeOutcome {
+  const outcome = normalizeCardComCharge(response);
+  if (outcome.kind === 'UNKNOWN' && response.failureCategory) {
+    return { ...outcome, failureCategory: response.failureCategory };
+  }
+  if (outcome.kind === 'DECLINED' && !response.definitiveDecline) {
+    return {
+      kind: 'UNKNOWN',
+      providerResponseCode: outcome.providerResponseCode,
+      failureCategory: response.failureCategory ?? 'UNVERIFIED_LOOKUP_RESULT',
+    };
+  }
+  return outcome;
 }
 
 export function normalizeCardComCharge(

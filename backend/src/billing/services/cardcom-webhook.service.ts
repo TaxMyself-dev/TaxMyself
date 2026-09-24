@@ -320,6 +320,7 @@ export class CardcomWebhookService implements OnModuleInit {
       periodEnd: Date;
       chargedAmountAgorot: number | null;
       cardcomDealNumber: string | null;
+      cardTokenStored: boolean;
     } | null = null;
 
     const qr = this.dataSource.createQueryRunner();
@@ -496,6 +497,7 @@ export class CardcomWebhookService implements OnModuleInit {
         periodEnd,
         chargedAmountAgorot,
         cardcomDealNumber,
+        cardTokenStored: paymentMethod != null,
       };
     } catch (err) {
       await qr.rollbackTransaction();
@@ -560,10 +562,16 @@ export class CardcomWebhookService implements OnModuleInit {
       firebaseId,
       eventType: BillingEventType.SUBSCRIPTION_ACTIVATED,
       subscriptionId,
+      // The webhook stores the token atomically with activation; linking the
+      // attempt records that, so a later local recovery does not look it up.
+      ...(billingAttemptId != null && { billingAttemptId }),
       metadata: {
         planId,
         planSlug,
         currentPeriodEnd: periodEnd.toISOString(),
+        ...(billingAttemptId != null && {
+          cardTokenStored: postCommitData.cardTokenStored,
+        }),
       },
     });
 

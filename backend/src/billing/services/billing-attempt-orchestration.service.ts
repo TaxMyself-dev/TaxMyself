@@ -11,7 +11,10 @@ import {
   DataSource,
   EntityManager,
   In,
+  IsNull,
   LessThanOrEqual,
+  Not,
+  Or,
   QueryRunner,
 } from 'typeorm';
 import {
@@ -49,6 +52,13 @@ const RECONCILIATION_DELAYS_MS = [
   2 * 60 * 60_000,
   24 * 60 * 60_000,
 ] as const;
+
+/**
+ * Failure category of an attempt whose local pre-flight (payment method, expiry
+ * or token) failed BEFORE any provider request was made. Such an attempt is not
+ * an uncertain charge: read-only provider reconciliation never selects it.
+ */
+export const PRE_SUBMISSION_LOCAL_FAILURE = 'PRE_SUBMISSION_LOCAL_FAILURE';
 
 export const BILLING_EXTERNAL_KEY_FACTORY = Symbol(
   'BILLING_EXTERNAL_KEY_FACTORY',
@@ -151,6 +161,15 @@ export interface FinalizationLeaseResult {
   claimed: boolean;
   attempt: BillingAttempt;
   reason?: 'ALREADY_COMPLETED' | 'NOT_CAPTURED' | 'ALREADY_CLAIMED';
+}
+
+/** An attempt selected by a reconciliation sweep, with its owner context. */
+export interface ReconciliationCandidate {
+  attemptId: number;
+  subscriptionId: number;
+  firebaseId: string;
+  stateVersion: number;
+  chargeMode: BillingChargeMode;
 }
 
 export interface BillingPeriodSnapshot {
@@ -530,23 +549,82 @@ export class BillingAttemptOrchestrationService {
         order: { capturedAt: 'ASC' },
         take: limit,
       });
-      if (attempts.length === 0) return [];
-      const obligations = await manager.find(BillingObligation, {
-        where: { id: In([...new Set(attempts.map((a) => a.obligationId))]) },
-      });
-      const byId = new Map(obligations.map((o) => [o.id, o]));
-      return attempts.flatMap((attempt) => {
-        const obligation = byId.get(attempt.obligationId);
-        return obligation
-          ? [
-              {
-                attemptId: attempt.id,
-                subscriptionId: obligation.subscriptionId,
-                firebaseId: obligation.firebaseIdSnapshot,
-              },
-            ]
-          : [];
-      });
+      const owned = await this.withOwners(manager, attempts);
+      return owned.map(({ attemptId, subscriptionId, firebaseId }) => ({
+        attemptId,
+        subscriptionId,
+        firebaseId,
+      }));
+    });
+  }
+
+  /** PROCESSING attempts whose submission lease has expired (read-only). */
+  async findExpiredProcessingAttempts(
+    now: Date,
+    limit: number,
+  ): Promise<ReconciliationCandidate[]> {
+    return this.inTransaction(async (manager) =>
+      this.withOwners(
+        manager,
+        await manager.find(BillingAttempt, {
+          where: {
+            status: BillingAttemptStatus.PROCESSING,
+            leaseExpiresAt: LessThanOrEqual(now),
+          },
+          order: { leaseExpiresAt: 'ASC' },
+          take: limit,
+        }),
+      ),
+    );
+  }
+
+  /**
+   * UNKNOWN attempts whose read-only reconciliation is due, oldest first. An
+   * attempt that failed locally before any provider request is not an uncertain
+   * charge and is never selected. Read-only.
+   */
+  async findDueUnknownAttempts(
+    now: Date,
+    limit: number,
+  ): Promise<ReconciliationCandidate[]> {
+    return this.inTransaction(async (manager) =>
+      this.withOwners(
+        manager,
+        await manager.find(BillingAttempt, {
+          where: {
+            status: BillingAttemptStatus.UNKNOWN,
+            nextActionAt: Or(IsNull(), LessThanOrEqual(now)),
+            failureCategory: Or(IsNull(), Not(PRE_SUBMISSION_LOCAL_FAILURE)),
+          },
+          order: { nextActionAt: 'ASC' },
+          take: limit,
+        }),
+      ),
+    );
+  }
+
+  private async withOwners(
+    manager: EntityManager,
+    attempts: BillingAttempt[],
+  ): Promise<ReconciliationCandidate[]> {
+    if (attempts.length === 0) return [];
+    const obligations = await manager.find(BillingObligation, {
+      where: { id: In([...new Set(attempts.map((a) => a.obligationId))]) },
+    });
+    const byId = new Map(obligations.map((o) => [o.id, o]));
+    return attempts.flatMap((attempt) => {
+      const obligation = byId.get(attempt.obligationId);
+      return obligation
+        ? [
+            {
+              attemptId: attempt.id,
+              subscriptionId: obligation.subscriptionId,
+              firebaseId: obligation.firebaseIdSnapshot,
+              stateVersion: attempt.stateVersion,
+              chargeMode: attempt.chargeMode,
+            },
+          ]
+        : [];
     });
   }
 

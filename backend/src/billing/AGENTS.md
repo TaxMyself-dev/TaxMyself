@@ -121,7 +121,7 @@ finalized period as a no-op, and reuses the captured debt snapshot instead of a
 re-derived price. A duplicate hosted webhook for a `CAPTURED` attempt resumes
 the same phase once the subscription is activated; a `PAST_DUE` checkout never
 opens another hosted payment for a `CAPTURED` attempt. `UNKNOWN` and expired
-`PROCESSING` reconciliation is separate and not covered here.
+`PROCESSING` reconciliation is described under "Read-only reconciliation".
 
 Hosted activation and event-link recovery (KT-038 Task 3B):
 `BillingHostedCompletionService` owns local completion of a hosted attempt whose
@@ -143,10 +143,15 @@ activation, under the subscription lock, and is discarded if the payment method
 was updated at/after the attempt opened. A missing id/token, lookup failure,
 mismatch or malformed result never blocks activation, receipt or completion: it
 records `cardTokenStored: false` with a sanitized `tokenRecoveryReason`. The
-lookup runs once, at activation; an already-ACTIVE subscription is never looked
-up. Limitation: only canonical hosted attempts that already exist are covered
-(first-time/upgrade checkout does not create attempts yet), and a token lost
-after an ACTIVE activation is not recovered. A recovery activation waits 2 minutes after capture
+lookup runs once, at activation. Crash window (Task 5A2): a hosted attempt still
+`CAPTURED` whose subscription is already ACTIVE (the run crashed after
+activating) gets one lookup-only token recovery, after the same 2-minute
+grace, when no `SUBSCRIPTION_ACTIVATED` event for the attempt records
+`cardTokenStored: true` (the webhook's event now carries the attempt id and that
+flag); same validation, encryption and newer-payment-method protection, never
+blocks the receipt, and a stored token is never looked up or stored again.
+Limitation: only canonical hosted attempts that already exist are covered
+(first-time/upgrade checkout does not create attempts yet). A recovery activation waits 2 minutes after capture
 so a concurrent duplicate delivery cannot activate before the original request
 stores the token. `updatePaymentEventWithReceipt` now returns a result;
 `ensureReceiptForCapturedAttempt` requires both the success event and the link
@@ -196,14 +201,56 @@ and `MANUAL_REVIEW` never enter it and are never replayed.
   call, nothing persisted. A stale cron read therefore cannot consume a retry.
 - Known limits (unchanged by this task): the retry date is measured from the
   decline time, so a 03:00 cron picks it up on the first run after that
-  instant; and pre-charge executor errors surface as `UNKNOWN` for
-  reconciliation.
+  instant; and a local pre-flight failure of a token charge is still persisted
+  as `UNKNOWN` (see "Read-only reconciliation").
 - Recovery reset (KT-038 Tasks 4C/4D): both hosted activation writes — the
   locally recovered one (`BillingHostedCompletionService.activateSubscription`)
   and the live webhook's (`CardcomWebhookService.processVerifiedSuccess`) — set
   `renewalAttempts` to 0 in the same locked `PAST_DUE` -> `ACTIVE` update, so
   the next cycle starts a fresh 3-day / 7-day / `PAST_DUE` sequence. The
   webhook resets only when the row it locked was `PAST_DUE`.
+### Read-only reconciliation (KT-038 Task 5A2)
+
+Invariant: `UNKNOWN` and `MANUAL_REVIEW` are never a signal to charge. The
+sweep (`BillingReconciliationService`, run FIRST inside
+`SubscriptionRenewalService.processDueRenewals` — the existing 03:00 cron and
+admin trigger — bounded to 20 attempts, serial, never able to fail the batch)
+only looks up: a token attempt via CardCom `GetTransactionByExternalUniqTran`
+(request: TerminalNumber, ApiName, ExternalUniqTranId) with its persisted key,
+a hosted attempt via `getLowProfileResult` with its persisted LowProfile id.
+`chargeByToken`, checkout, refund and void are never reachable from it.
+- Claim: `claimForReconciliation` (state-version CAS + lease) — of two workers
+  one wins. Outcomes go through `applyNormalizedOutcome` only.
+- `CAPTURED` only for a verified result: transaction id present, amount equal to
+  the attempt, terminal (when reported) equal, not a refund/other currency; a
+  hosted result is checked by the shared `validateHostedTransactionResult`
+  (LowProfileId, ReturnValue owner/subscription/plan/attempt). A token renewal
+  is then finalized by the normal renewal flow (which runs after the sweep), a
+  hosted capture by `completeCapturedHostedAttempt`/the 3B sweep.
+- `DECLINED` only for a hosted result that belongs to the attempt AND reports a
+  rejected transaction (`TranzactionInfo.ResponseCode` non-zero, not 700/701).
+  A direct lookup never declines: CardCom documents no "not found"/decline
+  meaning for it, so not-found, non-zero, malformed, timeout, 400/401 and any
+  mismatch stay `UNKNOWN` (counter +1, 1m/5m/30m/2h/24h backoff) and the
+  obligation stays blocked; after the ladder the attempt is `MANUAL_REVIEW`.
+- Expired `PROCESSING` becomes `UNKNOWN` (never `CREATED`); a live lease is
+  untouched. Its first lookup waits for the 1-minute backoff, i.e. the next
+  sweep.
+- Pre-submission local failures (payment method missing, no expiry, unusable
+  token) throw `BillingPreSubmissionError` before any request; the attempt is
+  tagged `PRE_SUBMISSION_LOCAL_FAILURE` and is never selected for provider
+  lookup. It is still persisted as `UNKNOWN`: the state machine has no
+  no-charge state reachable from `PROCESSING` (only `UNKNOWN`, `DECLINED`,
+  `CAPTURED`), and `DECLINED` would wrongly consume the renewal decline policy.
+  Open decision: add an explicit no-charge outcome/transition and define what a
+  renewal with no usable payment method does to the subscription.
+- Limitations: the direct lookup response does not echo the key, so a match rests
+  on CardCom honouring the lookup; a reconciled token capture whose subscription
+  is no longer ACTIVE (e.g. `CANCELED`) is not finalized by the renewal flow
+  (existing behavior, unchanged); a `MANUAL_REVIEW` attempt has no
+  resolution path yet (`MANUAL_REVIEW` -> `UNKNOWN`/`CAPTURED` exists in the
+  state machine but no caller).
+
 - `GET /billing/plans`, `GET /billing/me`, `POST /billing/trial` — plan listing and current billing state; idempotent trial creation.
 - `POST /billing/checkout/preview` / `POST /billing/checkout` — price preview and CardCom LowProfile checkout session creation; activation happens only via the webhook, never the checkout response.
 - `POST /billing/cardcom/webhook` — CardCom posts payment results here; `CardcomWebhookService` verifies/activates subscriptions; errors are swallowed so CardCom doesn't retry-storm.

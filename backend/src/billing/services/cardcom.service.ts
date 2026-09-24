@@ -121,6 +121,9 @@ export class CardcomService implements OnModuleInit {
   private static readonly DEFAULT_TRANSACTION_INFO_URL =
     'https://secure.cardcom.solutions/api/v11/Transactions/GetTransactionInfoById';
 
+  private static readonly DEFAULT_TRANSACTION_BY_EXTERNAL_ID_URL =
+    'https://secure.cardcom.solutions/api/v11/Transactions/GetTransactionByExternalUniqTran';
+
   private terminalNumber!: string;
   private apiName!: string;
   /** Used by GetTransactionInfoById (UserPassword) — never sent to LowProfile/Create. */
@@ -402,6 +405,56 @@ export class CardcomService implements OnModuleInit {
     );
 
     return rawResponse as CardcomTransactionInfo;
+  }
+
+  /**
+   * Read-only reconciliation lookup: POST Transactions/GetTransactionByExternalUniqTran
+   * ("validate if there is a successful transaction using the External UniqTranId",
+   * CardCom OpenAPI v11). Request schema (GetExternalUniqTranIdStatusReq):
+   * TerminalNumber, ApiName, ExternalUniqTranId. Response schema: TransactionInfo
+   * (ResponseCode 0 = a successful transaction exists).
+   *
+   * Never charges, refunds, voids or creates anything. The response is returned
+   * raw: what any non-zero ResponseCode means (not found, declined, ...) is NOT
+   * documented, so callers must never read it as proof that nothing was charged.
+   * Throws CardcomApiError on any transport/HTTP failure (including 400/401).
+   */
+  async getTransactionByExternalUniqTran(
+    externalUniqTranId: string,
+  ): Promise<CardcomTransactionInfo> {
+    const payload = {
+      TerminalNumber: parseInt(this.terminalNumber, 10),
+      ApiName: this.apiName,
+      ExternalUniqTranId: externalUniqTranId,
+    };
+
+    this.logger.log(
+      `CardCom GetTransactionByExternalUniqTran → externalUniqTranId=${externalUniqTranId}`,
+    );
+
+    try {
+      const response = await firstValueFrom(
+        this.http.post<Record<string, any>>(
+          CardcomService.DEFAULT_TRANSACTION_BY_EXTERNAL_ID_URL,
+          payload,
+          {
+            headers: { 'Content-Type': 'application/json' },
+            timeout: 30_000,
+          },
+        ),
+      );
+      return (response.data ?? {}) as CardcomTransactionInfo;
+    } catch (err: any) {
+      const detail: string = err?.response?.data
+        ? JSON.stringify(err.response.data).slice(0, 500)
+        : (err?.message ?? 'HTTP request failed');
+      this.logger.error(
+        `CardCom GetTransactionByExternalUniqTran HTTP error for externalUniqTranId=${externalUniqTranId}: ${detail}`,
+      );
+      throw new CardcomApiError(
+        `CardCom GetTransactionByExternalUniqTran failed: ${detail}`,
+      );
+    }
   }
 
   /**

@@ -292,6 +292,88 @@ export class BillingHostedCompletionService {
       this.logger.log(
         `Recovered subscription #${subscriptionId} activation for captured attempt #${attempt.id}`,
       );
+    } else {
+      // Already ACTIVE: an earlier run may have crashed after activating but
+      // before storing the card token. The lookup above never ran for it.
+      await this.recoverMissingCardToken({
+        firebaseId,
+        subscriptionId,
+        attempt,
+      });
+    }
+  }
+
+  /**
+   * Task 5A1 crash window: the subscription is already ACTIVE but no activation
+   * event for this attempt records a stored token (`cardTokenStored` absent or
+   * false). One lookup-only recovery is attempted with the same validation,
+   * encryption and newer-payment-method protection as the activation path. It
+   * waits out the original webhook (same grace as activation), needs the lookup
+   * dependency, is skipped once any event records the token as stored, and
+   * never blocks the receipt or completion. Never throws.
+   */
+  private async recoverMissingCardToken(params: {
+    firebaseId: string;
+    subscriptionId: number;
+    attempt: BillingAttempt;
+  }): Promise<void> {
+    const { firebaseId, subscriptionId, attempt } = params;
+    try {
+      if (
+        !this.cardcomService ||
+        !attempt.capturedAt ||
+        Date.now() - attempt.capturedAt.getTime() <
+          HOSTED_ACTIVATION_RECOVERY_GRACE_MS
+      ) {
+        return;
+      }
+      const prior = await this.billingEventService.findEventsForAttempt(
+        attempt.id,
+        BillingEventType.SUBSCRIPTION_ACTIVATED,
+      );
+      if (prior.some((event) => event.metadata?.cardTokenStored === true)) {
+        return;
+      }
+      const lookup = await this.lookupCardForRecovery({
+        firebaseId,
+        subscriptionId,
+        attempt,
+      });
+      let tokenRecoveryReason: HostedTokenRecoveryReason | null;
+      if ('card' in lookup) {
+        const stored = await this.storeRecoveredCard({
+          firebaseId,
+          subscriptionId,
+          attempt,
+          card: lookup.card,
+        });
+        tokenRecoveryReason = 'reason' in stored ? stored.reason : null;
+      } else {
+        tokenRecoveryReason = lookup.reason;
+      }
+      // One record per outcome that adds information: the first, or a success
+      // that supersedes an earlier "not stored". A repeated failure adds none.
+      if (tokenRecoveryReason === null || prior.length === 0) {
+        await this.billingEventService.logEvent({
+          firebaseId,
+          eventType: BillingEventType.SUBSCRIPTION_ACTIVATED,
+          subscriptionId,
+          billingAttemptId: attempt.id,
+          metadata: {
+            planId: attempt.planId,
+            recoveredLocally: true,
+            tokenRecovery: true,
+            cardTokenStored: tokenRecoveryReason === null,
+            ...(tokenRecoveryReason !== null && { tokenRecoveryReason }),
+          },
+        });
+      }
+    } catch (error) {
+      this.logger.warn(
+        `Card token recovery skipped for attempt #${attempt.id}: ${
+          (error as Error)?.message ?? 'unknown error'
+        }`,
+      );
     }
   }
 

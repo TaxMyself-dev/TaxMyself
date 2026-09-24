@@ -163,6 +163,24 @@ export class BillingEventService {
     }
   }
 
+  /** Every event of one type recorded for a canonical attempt, oldest first. */
+  async findEventsForAttempt(
+    billingAttemptId: number,
+    eventType: BillingEventType,
+  ): Promise<BillingEvent[]> {
+    try {
+      return await this.billingEventRepo.find({
+        where: { billingAttemptId, eventType },
+        order: { createdAt: 'ASC' },
+      });
+    } catch (error) {
+      this.logger.error(
+        `findEventsForAttempt failed for billingAttemptId=${billingAttemptId} type=${eventType}: ${(error as Error)?.message ?? error}`,
+      );
+      return [];
+    }
+  }
+
   /**
    * Records a post-capture failure for an attempt at most once. Repeated retries
    * of the same stuck attempt must not append a new RECEIPT_FAILED row every
