@@ -192,6 +192,20 @@ export class BillingLifecycleService {
     );
   }
 
+  /** Owner-checked, never-overwriting LowProfile id record for a hosted attempt. */
+  recordHostedLowProfileId(
+    actor: CanonicalBillingPeriodInput['actor'],
+    attemptId: number,
+    lowProfileId: string,
+  ) {
+    this.orchestration.assertOwnerMutation(actor);
+    return this.orchestration.recordHostedLowProfileId(
+      attemptId,
+      lowProfileId,
+      actor.subjectFirebaseId,
+    );
+  }
+
   finalizeAfterReceipt(attemptId: number, receiptDocId: number) {
     return this.orchestration.finalizeCapturedAttempt(attemptId, receiptDocId);
   }

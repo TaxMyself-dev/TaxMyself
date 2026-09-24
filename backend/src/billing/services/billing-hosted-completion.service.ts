@@ -1,10 +1,18 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { BillingAttempt } from '../entities/billing-attempt.entity';
+import { PaymentMethod } from '../entities/payment-method.entity';
 import { Subscription } from '../entities/subscription.entity';
 import { SubscriptionPlan } from '../entities/subscription-plan.entity';
 import { BillingEventType, SubscriptionStatus } from '../enums/billing.enums';
+import {
+  CardDetails,
+  HostedTokenRecoveryReason,
+  validateHostedCaptureResult,
+} from '../utils/billing-hosted-card-result.util';
+import { encryptCardcomToken } from '../utils/billing-token-encryption.util';
+import { CardcomService } from './cardcom.service';
 import { BillingEventService } from './billing-event.service';
 import { BillingIssuerConfigService } from './billing-issuer-config.service';
 import {
@@ -39,7 +47,9 @@ export interface HostedRecoverySweepSummary {
 /**
  * Local completion of a canonical HOSTED (PAST_DUE recovery) attempt whose
  * CardCom capture is already confirmed in our database. Every step is
- * retryable without another provider call or hosted checkout:
+ * retryable without another charge or hosted checkout (the only provider
+ * contact is the lookup-only, best-effort card-token recovery during
+ * activation, `CardcomService.getLowProfileResult`):
  *
  *   activation -> receipt/journal -> success-event link -> attempt/obligation
  *   completion
@@ -63,6 +73,7 @@ export class BillingHostedCompletionService {
     private readonly billingReceiptService: BillingReceiptService,
     private readonly billingIssuerConfigService: BillingIssuerConfigService,
     private readonly billingEventService: BillingEventService,
+    @Optional() private readonly cardcomService?: CardcomService,
   ) {}
 
   async completeCapturedHostedAttempt(params: {
@@ -169,9 +180,9 @@ export class BillingHostedCompletionService {
 
   /**
    * Applies the subscription state the captured payment paid for, exactly once.
-   * Same fields the webhook activation writes, but WITHOUT the card token — the
-   * verified token exists only in the provider's result, which recovery must not
-   * fetch. Under a row lock, so concurrent runs serialize and the second sees an
+   * Same fields the webhook activation writes. The card token is NOT part of this
+   * transaction: it is recovered best-effort afterwards from a lookup-only
+   * LowProfile result, so a lookup problem can never block activation. Under a row lock, so concurrent runs serialize and the second sees an
    * already-active subscription and does nothing. It never overwrites a state it
    * was not created for: only PAST_DUE is activated; ACTIVE is a no-op; anything
    * else fails (manual review) rather than being changed.
@@ -186,6 +197,22 @@ export class BillingHostedCompletionService {
     if (!capturedAt) {
       throw new Error('Captured attempt has no capture time');
     }
+
+    // Lookup-only and outside any row lock. Only worth doing when this run is
+    // about to activate a PAST_DUE subscription past the recovery grace period;
+    // an ACTIVE subscription (a repeat run) triggers no provider contact at all.
+    const pending = await this.subscriptionRepo
+      .findOne({ where: { id: subscriptionId } })
+      .catch(() => null);
+    const lookup =
+      pending?.status === SubscriptionStatus.PAST_DUE &&
+      Date.now() - capturedAt.getTime() >= HOSTED_ACTIVATION_RECOVERY_GRACE_MS
+        ? await this.lookupCardForRecovery({
+            firebaseId,
+            subscriptionId,
+            attempt,
+          })
+        : null;
 
     const activated = await this.dataSource.transaction(async (manager) => {
       const subscription = await manager.findOne(Subscription, {
@@ -236,6 +263,19 @@ export class BillingHostedCompletionService {
     });
 
     if (activated) {
+      let tokenRecoveryReason: HostedTokenRecoveryReason | null =
+        'LOOKUP_UNAVAILABLE';
+      if (lookup && 'card' in lookup) {
+        const stored = await this.storeRecoveredCard({
+          firebaseId,
+          subscriptionId,
+          attempt,
+          card: lookup.card,
+        });
+        tokenRecoveryReason = 'reason' in stored ? stored.reason : null;
+      } else if (lookup && 'reason' in lookup) {
+        tokenRecoveryReason = lookup.reason;
+      }
       await this.billingEventService.logEvent({
         firebaseId,
         eventType: BillingEventType.SUBSCRIPTION_ACTIVATED,
@@ -244,13 +284,139 @@ export class BillingHostedCompletionService {
         metadata: {
           planId: attempt.planId,
           recoveredLocally: true,
-          // The hosted result's card token is not available locally.
-          cardTokenStored: false,
+          cardTokenStored: tokenRecoveryReason === null,
+          // Sanitized category only; never the token, card data or provider text.
+          ...(tokenRecoveryReason !== null && { tokenRecoveryReason }),
         },
       });
       this.logger.log(
         `Recovered subscription #${subscriptionId} activation for captured attempt #${attempt.id}`,
       );
+    }
+  }
+
+  /**
+   * Lookup-only: reads the LowProfile result of the attempt's own hosted
+   * checkout and accepts card details only if it provably belongs to this
+   * captured attempt. Never creates a checkout or submits a charge, never
+   * throws, and never logs or returns the raw provider result.
+   */
+  private async lookupCardForRecovery(params: {
+    firebaseId: string;
+    subscriptionId: number;
+    attempt: BillingAttempt;
+  }): Promise<
+    | { card: CardDetails & { token: string } }
+    | { reason: HostedTokenRecoveryReason }
+  > {
+    const { firebaseId, subscriptionId, attempt } = params;
+    if (!attempt.cardcomLowProfileId) return { reason: 'NO_LOW_PROFILE_ID' };
+    if (!attempt.cardcomTransactionId) return { reason: 'NO_TRANSACTION_ID' };
+    if (!this.cardcomService) return { reason: 'LOOKUP_UNAVAILABLE' };
+
+    let result: unknown;
+    try {
+      result = await this.cardcomService.getLowProfileResult(
+        attempt.cardcomLowProfileId,
+      );
+    } catch {
+      return { reason: 'LOOKUP_FAILED' };
+    }
+    const validated = validateHostedCaptureResult(result, {
+      lowProfileId: attempt.cardcomLowProfileId,
+      transactionId: attempt.cardcomTransactionId,
+      amountAgorot: attempt.amountAgorot,
+      firebaseId,
+      subscriptionId,
+      planId: attempt.planId,
+      billingAttemptId: attempt.id,
+    });
+    if ('reason' in validated) {
+      this.logger.warn(
+        `Card token recovery rejected for attempt #${attempt.id}: ${validated.reason}`,
+      );
+    }
+    return validated;
+  }
+
+  /**
+   * Stores a verified recovered token under the subscription row lock, after
+   * activation, reusing the existing token encryption. It never overwrites a
+   * payment method that changed after the attempt opened (updated or created at
+   * or after the attempt's creation): that token is discarded. Best-effort,
+   * never throws.
+   */
+  private async storeRecoveredCard(params: {
+    firebaseId: string;
+    subscriptionId: number;
+    attempt: BillingAttempt;
+    card: CardDetails & { token: string };
+  }): Promise<
+    { stored: true } | { stored: false; reason: HostedTokenRecoveryReason }
+  > {
+    const { firebaseId, subscriptionId, attempt, card } = params;
+    let encryptedToken: string;
+    try {
+      encryptedToken = encryptCardcomToken(card.token);
+    } catch {
+      return { stored: false, reason: 'ENCRYPTION_FAILED' };
+    }
+    const unavailable = {
+      stored: false as const,
+      reason: 'PAYMENT_METHOD_UNAVAILABLE' as const,
+    };
+    try {
+      return await this.dataSource.transaction(async (manager) => {
+        const subscription = await manager.findOne(Subscription, {
+          where: { id: subscriptionId },
+          lock: { mode: 'pessimistic_write' },
+        });
+        if (!subscription || subscription.firebaseId !== firebaseId) {
+          return unavailable;
+        }
+        if (subscription.paymentMethodId != null) {
+          const paymentMethod = await manager.findOne(PaymentMethod, {
+            where: { id: subscription.paymentMethodId },
+          });
+          if (!paymentMethod || paymentMethod.firebaseId !== firebaseId) {
+            return unavailable;
+          }
+          if (
+            !attempt.createdAt ||
+            !paymentMethod.updatedAt ||
+            paymentMethod.updatedAt.getTime() >= attempt.createdAt.getTime()
+          ) {
+            return {
+              stored: false as const,
+              reason: 'PAYMENT_METHOD_NEWER' as const,
+            };
+          }
+          paymentMethod.cardcomToken = encryptedToken;
+          paymentMethod.last4 = card.last4;
+          paymentMethod.cardBrand = card.brand;
+          paymentMethod.cardExpiryMonth = card.expiryMonth;
+          paymentMethod.cardExpiryYear = card.expiryYear;
+          await manager.save(PaymentMethod, paymentMethod);
+        } else {
+          const created = await manager.save(
+            PaymentMethod,
+            manager.create(PaymentMethod, {
+              firebaseId,
+              cardcomToken: encryptedToken,
+              last4: card.last4,
+              cardBrand: card.brand,
+              cardExpiryMonth: card.expiryMonth,
+              cardExpiryYear: card.expiryYear,
+            }),
+          );
+          await manager.update(Subscription, subscription.id, {
+            paymentMethodId: created.id,
+          });
+        }
+        return { stored: true as const };
+      });
+    } catch {
+      return { stored: false, reason: 'STORE_FAILED' };
     }
   }
 

@@ -131,11 +131,22 @@ success-event link, attempt/obligation completion — through
 as the webhook (status, plan, period from `capturedAt`, next billing date,
 cleared grace/cancel/end) under a subscription row lock: `ACTIVE` is a no-op,
 only `PAST_DUE` is activated, any other state fails for manual review and is
-never overwritten. The card token from the hosted result is NOT recoverable
-locally (it exists only in the provider's result, which recovery must not
-fetch), so a locally recovered activation keeps the existing payment method and
-records `cardTokenStored: false`; the customer may need the existing
-change-payment-method flow. A recovery activation waits 2 minutes after capture
+never overwritten. Card-token recovery (Task 5A1, best-effort): `createCheckout`
+records the LowProfile id on the canonical PAST_DUE attempt
+(`recordHostedLowProfileId`, never overwrites an existing id). When a recovery
+activates a PAST_DUE subscription it makes one lookup-only
+`CardcomService.getLowProfileResult` call (never a checkout or charge) and
+accepts the card only if LowProfileId, transaction id, captured amount and the
+ReturnValue owner/subscription/plan/attempt all match the captured attempt. The
+token is stored encrypted (existing util) with last four/brand/expiry after
+activation, under the subscription lock, and is discarded if the payment method
+was updated at/after the attempt opened. A missing id/token, lookup failure,
+mismatch or malformed result never blocks activation, receipt or completion: it
+records `cardTokenStored: false` with a sanitized `tokenRecoveryReason`. The
+lookup runs once, at activation; an already-ACTIVE subscription is never looked
+up. Limitation: only canonical hosted attempts that already exist are covered
+(first-time/upgrade checkout does not create attempts yet), and a token lost
+after an ACTIVE activation is not recovered. A recovery activation waits 2 minutes after capture
 so a concurrent duplicate delivery cannot activate before the original request
 stores the token. `updatePaymentEventWithReceipt` now returns a result;
 `ensureReceiptForCapturedAttempt` requires both the success event and the link

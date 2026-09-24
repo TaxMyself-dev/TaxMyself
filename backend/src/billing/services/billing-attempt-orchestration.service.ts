@@ -551,6 +551,64 @@ export class BillingAttemptOrchestrationService {
   }
 
   /**
+   * Persists the CardCom LowProfile id of a HOSTED checkout on its canonical
+   * attempt so a captured payment can later be looked up (read-only) locally.
+   * Never overwrites: an attempt keeps the first LowProfile id it was given,
+   * and an id already used by another attempt is not recorded. Only an owned,
+   * hosted, not-yet-captured attempt accepts it. The lease/state version is
+   * untouched, so a concurrent claim or outcome is not invalidated.
+   */
+  async recordHostedLowProfileId(
+    attemptId: number,
+    lowProfileId: string,
+    subjectFirebaseId: string,
+  ): Promise<{
+    recorded: boolean;
+    reason?: 'ALREADY_SET' | 'NOT_ELIGIBLE' | 'LOW_PROFILE_IN_USE';
+  }> {
+    if (!lowProfileId || lowProfileId.length > 255) {
+      return { recorded: false, reason: 'NOT_ELIGIBLE' };
+    }
+    try {
+      return await this.inTransaction(async (manager) => {
+        const attempt = await this.lockAttempt(manager, attemptId);
+        const obligation = await this.lockObligation(
+          manager,
+          attempt.obligationId,
+        );
+        if (obligation.firebaseIdSnapshot !== subjectFirebaseId) {
+          throw new ForbiddenException(
+            'Billing mutation subject does not own the billing attempt',
+          );
+        }
+        if (attempt.cardcomLowProfileId != null) {
+          return { recorded: false, reason: 'ALREADY_SET' as const };
+        }
+        const openStatuses = [
+          BillingAttemptStatus.CREATED,
+          BillingAttemptStatus.AWAITING_CUSTOMER,
+          BillingAttemptStatus.PROCESSING,
+          BillingAttemptStatus.UNKNOWN,
+        ];
+        if (
+          attempt.chargeMode !== BillingChargeMode.LOW_PROFILE_HOSTED ||
+          !openStatuses.includes(attempt.status)
+        ) {
+          return { recorded: false, reason: 'NOT_ELIGIBLE' as const };
+        }
+        attempt.cardcomLowProfileId = lowProfileId;
+        await manager.save(BillingAttempt, attempt);
+        return { recorded: true };
+      });
+    } catch (error) {
+      if (this.isDuplicateEntry(error)) {
+        return { recorded: false, reason: 'LOW_PROFILE_IN_USE' };
+      }
+      throw error;
+    }
+  }
+
+  /**
    * Exclusive lease for the post-capture phase (receipt, journal, completion)
    * of an already-CAPTURED attempt. It never touches the provider and never
    * changes the attempt status; it only serializes concurrent recovery runs.
@@ -629,20 +687,27 @@ export class BillingAttemptOrchestrationService {
     }
     return this.inTransaction(async (manager) => {
       const attempt = await this.lockAttempt(manager, attemptId);
-      const obligation = await this.lockObligation(manager, attempt.obligationId);
+      const obligation = await this.lockObligation(
+        manager,
+        attempt.obligationId,
+      );
       if (obligation.activeAttemptId !== attempt.id) {
         if (
           attempt.status === BillingAttemptStatus.COMPLETED &&
           attempt.receiptDocId === receiptDocId &&
           obligation.status === BillingObligationStatus.SATISFIED
-        ) return attempt;
-        throw new ConflictException('Billing attempt is not the active obligation attempt');
+        )
+          return attempt;
+        throw new ConflictException(
+          'Billing attempt is not the active obligation attempt',
+        );
       }
       if (attempt.status !== BillingAttemptStatus.CAPTURED) {
         if (
           attempt.status === BillingAttemptStatus.COMPLETED &&
           attempt.receiptDocId === receiptDocId
-        ) return attempt;
+        )
+          return attempt;
         throw new ConflictException(
           `Only CAPTURED attempts can be finalized (current: ${attempt.status})`,
         );
@@ -652,7 +717,10 @@ export class BillingAttemptOrchestrationService {
           `Only OPEN obligations can be finalized (current: ${obligation.status})`,
         );
       }
-      assertBillingAttemptTransition(attempt.status, BillingAttemptStatus.COMPLETED);
+      assertBillingAttemptTransition(
+        attempt.status,
+        BillingAttemptStatus.COMPLETED,
+      );
       assertBillingObligationTransition(
         obligation.status,
         BillingObligationStatus.SATISFIED,

@@ -651,6 +651,25 @@ export class BillingService {
       );
     }
 
+    // Best-effort: lets a later CAPTURED payment be looked up (read-only) to
+    // recover its card token. Never overwrites the attempt's first LowProfile
+    // id and never fails the checkout the customer is about to pay on.
+    if (recoveryAttemptId != null && this.billingLifecycleService) {
+      await this.billingLifecycleService
+        .recordHostedLowProfileId(
+          actor,
+          recoveryAttemptId,
+          cardcomResult.lowProfileId,
+        )
+        .catch((error: unknown) =>
+          this.logger.warn(
+            `Could not record LowProfile id on attempt #${recoveryAttemptId}: ${
+              (error as Error)?.message ?? 'unknown error'
+            }`,
+          ),
+        );
+    }
+
     await this.billingEventService.logEvent({
       firebaseId,
       eventType: BillingEventType.CHECKOUT_CREATED,

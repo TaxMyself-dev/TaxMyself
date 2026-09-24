@@ -3,6 +3,11 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import * as crypto from 'crypto';
 import { encryptCardcomToken } from '../utils/billing-token-encryption.util';
+import {
+  CardcomWebhookPayload,
+  CardDetails,
+  extractCardDetails as extractHostedCardDetails,
+} from '../utils/billing-hosted-card-result.util';
 
 import { BillingEvent } from '../entities/billing-event.entity';
 import { BillingHostedCompletionService } from './billing-hosted-completion.service';
@@ -24,48 +29,6 @@ import { BillingIssuerConfigService } from './billing-issuer-config.service';
 import { ModuleName } from 'src/enum';
 import { BillingLifecycleService } from './billing-lifecycle.service';
 
-// ── Swagger-verified field names from LowProfileResult / TransactionInfo / TokenInfo ─
-
-interface CardcomWebhookPayload {
-  ResponseCode?: number;
-  Description?: string;
-  TerminalNumber?: number;
-  LowProfileId?: string;
-  TranzactionId?: number;
-  ReturnValue?: string;
-  Operation?: string;
-  DocumentInfo?: {
-    ResponseCode?: number;
-    DocumentType?: string;
-    DocumentNumber?: number;
-    DocumentUrl?: string;
-  };
-  TokenInfo?: {
-    Token?: string;
-    TokenExDate?: string;
-    CardYear?: number;
-    CardMonth?: number;
-    TokenApprovalNumber?: string;
-    CardOwnerIdentityNumber?: string;
-  };
-  TranzactionInfo?: {
-    ResponseCode?: number;
-    Description?: string;
-    TranzactionId?: number;
-    Amount?: number;
-    Last4CardDigits?: number;
-    Last4CardDigitsString?: string;
-    Token?: string;
-    CardName?: string;
-    Brand?: string;
-    CardMonth?: number;
-    CardYear?: number;
-    DocumentNumber?: number;
-    DocumentType?: string;
-    DocumentUrl?: string;
-  };
-}
-
 /**
  * Routing context echoed back from CardCom in ReturnValue.
  *   CHECKOUT   → paid checkout; activates the subscription (requires planId).
@@ -82,15 +45,6 @@ type ParsedReturnValue =
       billingAttemptId?: number | null;
     }
   | { intent: 'CHANGE_PM'; firebaseId: string; subscriptionId: number };
-
-/** Card fields persisted onto payment_method after a verified CardCom result. */
-interface CardDetails {
-  token: string | null;
-  last4: string | null;
-  brand: string | null;
-  expiryMonth: number | null;
-  expiryYear: number | null;
-}
 
 @Injectable()
 export class CardcomWebhookService implements OnModuleInit {
@@ -848,28 +802,7 @@ export class CardcomWebhookService implements OnModuleInit {
    * NOT for CreateTokenOnly — missing fields stay null (see completeCardDetails).
    */
   private extractCardDetails(verified: CardcomWebhookPayload): CardDetails {
-    const brand =
-      verified.TranzactionInfo?.Brand ??
-      verified.TranzactionInfo?.CardName ??
-      null;
-    return {
-      token:
-        verified.TokenInfo?.Token ?? verified.TranzactionInfo?.Token ?? null,
-      last4:
-        verified.TranzactionInfo?.Last4CardDigitsString ??
-        (verified.TranzactionInfo?.Last4CardDigits != null
-          ? String(verified.TranzactionInfo.Last4CardDigits).padStart(4, '0')
-          : null),
-      brand: typeof brand === 'string' ? brand : null,
-      expiryMonth:
-        verified.TokenInfo?.CardMonth ??
-        verified.TranzactionInfo?.CardMonth ??
-        null,
-      expiryYear:
-        verified.TokenInfo?.CardYear ??
-        verified.TranzactionInfo?.CardYear ??
-        null,
-    };
+    return extractHostedCardDetails(verified);
   }
 
   /**

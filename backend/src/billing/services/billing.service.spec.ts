@@ -461,6 +461,9 @@ describe('BillingService — owner-mutation authorization', () => {
     };
     const billingLifecycleService = overrides.billingLifecycleService ?? {
       openPastDueRecovery: jest.fn(),
+      recordHostedLowProfileId: jest.fn().mockResolvedValue({
+        recorded: true,
+      }),
     };
     const service = new BillingService(
       planRepo as any,
@@ -560,7 +563,7 @@ describe('BillingService — owner-mutation authorization', () => {
       expect(result.paymentUrl).toBe('https://cardcom.example/pay');
     });
 
-    it('threads the real actor — not a fabricated self-match — into PAST_DUE hosted recovery', async () => {
+    it('threads the real actor — not a fabricated self-match — into PAST_DUE hosted recovery and records the LowProfile id on that attempt', async () => {
       const {
         service,
         subscriptionRepo,
@@ -607,6 +610,9 @@ describe('BillingService — owner-mutation authorization', () => {
         expect.objectContaining({ actor: OWNER }),
         expect.anything(),
       );
+      expect(
+        billingLifecycleService.recordHostedLowProfileId,
+      ).toHaveBeenCalledWith(OWNER, 7, 'lp-1');
     });
 
     // KT-038 Task 3: money was already taken for this period; a second hosted

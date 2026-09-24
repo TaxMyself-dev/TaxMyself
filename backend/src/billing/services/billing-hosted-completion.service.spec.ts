@@ -5,12 +5,14 @@ import {
   BillingObligationStatus,
   SubscriptionStatus,
 } from '../enums/billing.enums';
+import { PaymentMethod } from '../entities/payment-method.entity';
 import { Subscription } from '../entities/subscription.entity';
 import { SubscriptionPlan } from '../entities/subscription-plan.entity';
 import { assertBillingOwnerMutation } from './billing-attempt-orchestration.service';
 import { BillingEventService } from './billing-event.service';
 import { BillingHostedCompletionService } from './billing-hosted-completion.service';
 import { BillingLifecycleService } from './billing-lifecycle.service';
+import { decryptCardcomToken } from '../utils/billing-token-encryption.util';
 
 /**
  * KT-038 Task 3B — a hosted payment whose CardCom capture is already confirmed
@@ -23,6 +25,7 @@ describe('BillingHostedCompletionService — local recovery of a CAPTURED hosted
   const NOW = new Date('2026-09-10T12:00:00.000Z');
   const CAPTURED_AT = new Date('2026-09-10T11:50:00.000Z'); // 10 min ago
   const PLAN = { id: 2, name: 'Plan' };
+  const ATTEMPT_OPENED_AT = new Date('2026-09-10T11:00:00.000Z');
 
   class FakeOrchestration {
     calls: string[] = [];
@@ -51,6 +54,8 @@ describe('BillingHostedCompletionService — local recovery of a CAPTURED hosted
       vatAmountAgorot: 1700,
       currency: 'ILS',
       capturedAt: CAPTURED_AT,
+      cardcomLowProfileId: 'lp-44',
+      createdAt: ATTEMPT_OPENED_AT,
     };
     assertOwnerMutation = assertBillingOwnerMutation;
 
@@ -108,7 +113,7 @@ describe('BillingHostedCompletionService — local recovery of a CAPTURED hosted
     }
   }
 
-  function build() {
+  function build(cardcom?: { getLowProfileResult: jest.Mock }) {
     const orchestration = new FakeOrchestration();
     const lifecycle = new BillingLifecycleService(
       orchestration as any,
@@ -130,11 +135,32 @@ describe('BillingHostedCompletionService — local recovery of a CAPTURED hosted
       endedAt: null,
     };
     const updates = { count: 0, values: [] as any[] };
+    // The saved card the subscription used before the attempt opened.
+    const pm: any = {
+      id: 5,
+      firebaseId: 'owner',
+      cardcomToken: 'old-encrypted',
+      last4: '0000',
+      cardBrand: 'OLD',
+      cardExpiryMonth: 1,
+      cardExpiryYear: 2026,
+      updatedAt: new Date('2026-08-01T00:00:00.000Z'),
+    };
+    const created: any[] = [];
     const manager = {
       findOne: jest.fn(async (entity: unknown) => {
         if (entity === Subscription) return { ...sub };
         if (entity === SubscriptionPlan) return PLAN;
+        if (entity === PaymentMethod) return pm;
         return null;
+      }),
+      create: jest.fn((_entity: unknown, values: any) => ({
+        id: 6,
+        ...values,
+      })),
+      save: jest.fn(async (_entity: unknown, row: any) => {
+        if (row !== pm) created.push(row);
+        return row;
       }),
       update: jest.fn(async (_entity: unknown, _id: number, values: any) => {
         Object.assign(sub, values);
@@ -198,6 +224,7 @@ describe('BillingHostedCompletionService — local recovery of a CAPTURED hosted
       receipts as any,
       issuer as any,
       events,
+      cardcom as any,
     );
     const params = {
       firebaseId: 'owner',
@@ -214,6 +241,8 @@ describe('BillingHostedCompletionService — local recovery of a CAPTURED hosted
       rows,
       receipts,
       params,
+      pm,
+      created,
     };
   }
 
@@ -550,6 +579,221 @@ describe('BillingHostedCompletionService — local recovery of a CAPTURED hosted
 
     expect(status).toBe('COMPLETED');
     expect(updates.count).toBe(0);
+  });
+
+  describe('card-token recovery from a lookup-only LowProfile result (Task 5A1)', () => {
+    const RAW_TOKEN = 'tok-11111111-2222-3333-4444-555555555555';
+    const returnValue = (overrides: Record<string, unknown> = {}) =>
+      JSON.stringify({
+        intent: 'CHECKOUT',
+        firebaseId: 'owner',
+        planId: PLAN.id,
+        subscriptionId: 9,
+        billingAttemptId: 44,
+        ...overrides,
+      });
+    const lpResult = (overrides: Record<string, unknown> = {}): any => ({
+      ResponseCode: 0,
+      LowProfileId: 'lp-44',
+      TranzactionId: 'tx-original',
+      ReturnValue: returnValue(),
+      TokenInfo: { Token: RAW_TOKEN, CardMonth: 11, CardYear: 2030 },
+      TranzactionInfo: {
+        ResponseCode: 0,
+        TranzactionId: 'tx-original',
+        Amount: 117,
+        Last4CardDigitsString: '4242',
+        Brand: 'VISA',
+      },
+      ...overrides,
+    });
+    // Any charge/checkout entry point would be a lookup-only violation.
+    const cardcomWith = (impl: jest.Mock) => ({
+      getLowProfileResult: impl,
+      chargeByToken: jest.fn(),
+      createLowProfileCheckout: jest.fn(),
+    });
+    const activatedMetadata = (rows: any[]) =>
+      rows.find((r) => r.eventType === BillingEventType.SUBSCRIPTION_ACTIVATED)
+        .metadata;
+
+    beforeAll(() => {
+      process.env.BILLING_TOKEN_ENCRYPTION_KEY = Buffer.alloc(32, 7).toString(
+        'base64',
+      );
+    });
+
+    it('stores a verified matching token encrypted, with last-four/expiry metadata, and never records it in events', async () => {
+      const cardcom = cardcomWith(jest.fn().mockResolvedValue(lpResult()));
+      const { service, pm, rows, params } = build(cardcom);
+
+      const status = await service.completeCapturedHostedAttempt(params);
+
+      expect(status).toBe('COMPLETED');
+      expect(cardcom.getLowProfileResult).toHaveBeenCalledTimes(1);
+      expect(cardcom.getLowProfileResult).toHaveBeenCalledWith('lp-44');
+      expect(pm.cardcomToken).not.toBe(RAW_TOKEN);
+      expect(decryptCardcomToken(pm.cardcomToken)).toBe(RAW_TOKEN);
+      expect(pm).toEqual(
+        expect.objectContaining({
+          last4: '4242',
+          cardBrand: 'VISA',
+          cardExpiryMonth: 11,
+          cardExpiryYear: 2030,
+        }),
+      );
+      expect(activatedMetadata(rows).cardTokenStored).toBe(true);
+      expect(JSON.stringify(rows)).not.toContain(RAW_TOKEN);
+    });
+
+    it('a transaction, amount or ReturnValue mismatch never stores the token; activation, receipt and completion still finish', async () => {
+      const mismatches: Array<[Record<string, unknown>, string]> = [
+        [{ TranzactionId: 'tx-other' }, 'TRANSACTION_MISMATCH'],
+        [
+          {
+            TranzactionInfo: {
+              ResponseCode: 0,
+              TranzactionId: 'tx-original',
+              Amount: 1,
+              Last4CardDigitsString: '4242',
+            },
+          },
+          'AMOUNT_MISMATCH',
+        ],
+        [
+          { ReturnValue: returnValue({ firebaseId: 'someone-else' }) },
+          'RETURN_VALUE_MISMATCH',
+        ],
+        [
+          { ReturnValue: returnValue({ billingAttemptId: 45 }) },
+          'RETURN_VALUE_MISMATCH',
+        ],
+      ];
+      for (const [override, reason] of mismatches) {
+        const cardcom = cardcomWith(
+          jest.fn().mockResolvedValue(lpResult(override)),
+        );
+        const { service, pm, created, rows, orchestration, params } =
+          build(cardcom);
+
+        expect(await service.completeCapturedHostedAttempt(params)).toBe(
+          'COMPLETED',
+        );
+
+        expect(orchestration.attempt.status).toBe(
+          BillingAttemptStatus.COMPLETED,
+        );
+        expect(pm.cardcomToken).toBe('old-encrypted');
+        expect(created).toHaveLength(0);
+        expect(activatedMetadata(rows)).toEqual(
+          expect.objectContaining({
+            cardTokenStored: false,
+            tokenRecoveryReason: reason,
+          }),
+        );
+        expect(JSON.stringify(rows)).not.toContain(RAW_TOKEN);
+      }
+    });
+
+    it('never overwrites a payment method that changed after the attempt opened', async () => {
+      const cardcom = cardcomWith(jest.fn().mockResolvedValue(lpResult()));
+      const { service, pm, rows, params } = build(cardcom);
+      pm.cardcomToken = 'customer-newer-card';
+      pm.updatedAt = new Date('2026-09-10T11:30:00.000Z'); // after the attempt opened
+
+      expect(await service.completeCapturedHostedAttempt(params)).toBe(
+        'COMPLETED',
+      );
+
+      expect(pm.cardcomToken).toBe('customer-newer-card');
+      expect(pm.last4).toBe('0000');
+      expect(activatedMetadata(rows)).toEqual(
+        expect.objectContaining({
+          cardTokenStored: false,
+          tokenRecoveryReason: 'PAYMENT_METHOD_NEWER',
+        }),
+      );
+    });
+
+    it('a missing LowProfile id, failed lookup, missing token or malformed response still finishes local post-capture work and never charges', async () => {
+      const scenarios: Array<[string, (a: any, attempt: any) => void]> = [
+        [
+          'NO_LOW_PROFILE_ID',
+          (_a, attempt) => (attempt.cardcomLowProfileId = null),
+        ],
+        [
+          'LOOKUP_FAILED',
+          (a) =>
+            a.getLowProfileResult.mockRejectedValue(
+              new Error('timeout token=SECRET'),
+            ),
+        ],
+        [
+          'NO_TOKEN',
+          (a) =>
+            a.getLowProfileResult.mockResolvedValue(
+              lpResult({ TokenInfo: undefined }),
+            ),
+        ],
+        [
+          'MALFORMED_RESULT',
+          (a) => a.getLowProfileResult.mockResolvedValue('<html>'),
+        ],
+      ];
+      for (const [reason, arrange] of scenarios) {
+        const cardcom = cardcomWith(jest.fn());
+        const { service, pm, rows, orchestration, receipts, params } =
+          build(cardcom);
+        arrange(cardcom, orchestration.attempt);
+
+        expect(await service.completeCapturedHostedAttempt(params)).toBe(
+          'COMPLETED',
+        );
+
+        expect(orchestration.attempt.status).toBe(
+          BillingAttemptStatus.COMPLETED,
+        );
+        expect(receipts.ensureReceiptForCapturedAttempt).toHaveBeenCalledTimes(
+          1,
+        );
+        expect(pm.cardcomToken).toBe('old-encrypted');
+        expect(activatedMetadata(rows)).toEqual(
+          expect.objectContaining({
+            cardTokenStored: false,
+            tokenRecoveryReason: reason,
+          }),
+        );
+        expect(cardcom.chargeByToken).not.toHaveBeenCalled();
+        expect(cardcom.createLowProfileCheckout).not.toHaveBeenCalled();
+        expect(JSON.stringify(rows)).not.toContain('SECRET');
+      }
+    });
+
+    it('a repeated recovery is idempotent: one lookup, one token write and no provider charge', async () => {
+      const cardcom = cardcomWith(jest.fn().mockResolvedValue(lpResult()));
+      const { service, manager, orchestration, pm, rows, params } =
+        build(cardcom);
+      expect(await service.completeCapturedHostedAttempt(params)).toBe(
+        'COMPLETED',
+      );
+      const savedToken = pm.cardcomToken;
+      orchestration.attempt.status = BillingAttemptStatus.CAPTURED; // re-run as if finalization was lost
+
+      expect(await service.completeCapturedHostedAttempt(params)).toBe(
+        'COMPLETED',
+      );
+
+      expect(cardcom.getLowProfileResult).toHaveBeenCalledTimes(1);
+      expect(manager.save).toHaveBeenCalledTimes(1);
+      expect(pm.cardcomToken).toBe(savedToken);
+      expect(
+        rows.filter(
+          (r) => r.eventType === BillingEventType.SUBSCRIPTION_ACTIVATED,
+        ),
+      ).toHaveLength(1);
+      expect(cardcom.chargeByToken).not.toHaveBeenCalled();
+      expect(cardcom.createLowProfileCheckout).not.toHaveBeenCalled();
+    });
   });
 
   describe('recovery sweep (no provider, no webhook)', () => {

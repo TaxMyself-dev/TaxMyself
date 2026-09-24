@@ -631,6 +631,30 @@ describe('BillingAttemptOrchestrationService', () => {
       expect(row.stateVersion).toBe(4);
     });
 
+    it('records a hosted LowProfile id once and never overwrites it with an unrelated session', async () => {
+      const row = attempt({
+        status: BillingAttemptStatus.CREATED,
+        chargeMode: BillingChargeMode.LOW_PROFILE_HOSTED,
+        cardcomLowProfileId: null,
+      });
+      serveByEntity(row, obligation({ activeAttemptId: row.id }));
+
+      await expect(
+        service.recordHostedLowProfileId(row.id, 'lp-1', 'owner-1'),
+      ).resolves.toEqual({ recorded: true });
+      expect(row.cardcomLowProfileId).toBe('lp-1');
+      expect(row.stateVersion).toBe(0); // lease CAS token untouched
+
+      await expect(
+        service.recordHostedLowProfileId(row.id, 'lp-other', 'owner-1'),
+      ).resolves.toEqual({ recorded: false, reason: 'ALREADY_SET' });
+      expect(row.cardcomLowProfileId).toBe('lp-1');
+
+      await expect(
+        service.recordHostedLowProfileId(row.id, 'lp-2', 'other-owner'),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
     it('a live lease blocks a concurrent run even when it carries the SAME owner label', async () => {
       const row = capturedRow();
       serveByEntity(row, obligation({ activeAttemptId: row.id }));
@@ -699,7 +723,9 @@ describe('BillingAttemptOrchestrationService', () => {
         now,
       );
 
-      expect(claim).toEqual(expect.objectContaining({ claimed: false, reason }));
+      expect(claim).toEqual(
+        expect.objectContaining({ claimed: false, reason }),
+      );
       expect(row.leaseOwner).toBeNull();
     });
 
@@ -754,9 +780,15 @@ describe('BillingAttemptOrchestrationService', () => {
       });
       serveByEntity(settled, debt);
 
-      const snapshot = await service.findPeriodSnapshot(7, '2026-09-01', 'owner-1');
+      const snapshot = await service.findPeriodSnapshot(
+        7,
+        '2026-09-01',
+        'owner-1',
+      );
 
-      expect(snapshot?.obligation.status).toBe(BillingObligationStatus.SATISFIED);
+      expect(snapshot?.obligation.status).toBe(
+        BillingObligationStatus.SATISFIED,
+      );
       expect(snapshot?.attempt?.id).toBe(settled.id);
       expect(manager.save).not.toHaveBeenCalled();
     });
@@ -776,7 +808,9 @@ describe('BillingAttemptOrchestrationService', () => {
       const query = manager.find.mock.calls[0];
       expect(query[0]).toBe(BillingAttempt);
       expect(query[1].where.status).toBe(BillingAttemptStatus.CAPTURED);
-      expect(query[1].where.chargeMode).toBe(BillingChargeMode.LOW_PROFILE_HOSTED);
+      expect(query[1].where.chargeMode).toBe(
+        BillingChargeMode.LOW_PROFILE_HOSTED,
+      );
       expect(query[1].where.capturedAt).toBeDefined(); // <= cut-off
       expect(query[1].order).toEqual({ capturedAt: 'ASC' });
       expect(query[1].take).toBe(50);
