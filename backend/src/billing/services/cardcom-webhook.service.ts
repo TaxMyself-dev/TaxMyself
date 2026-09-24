@@ -5,7 +5,7 @@ import * as crypto from 'crypto';
 import { encryptCardcomToken } from '../utils/billing-token-encryption.util';
 
 import { BillingEvent } from '../entities/billing-event.entity';
-import { BillingAttempt } from '../entities/billing-attempt.entity';
+import { BillingHostedCompletionService } from './billing-hosted-completion.service';
 import { CardcomWebhookLog } from '../entities/cardcom-webhook-log.entity';
 import { Subscription } from '../entities/subscription.entity';
 import { SubscriptionPlan } from '../entities/subscription-plan.entity';
@@ -114,6 +114,8 @@ export class CardcomWebhookService implements OnModuleInit {
     private readonly dataSource: DataSource,
     @Optional()
     private readonly billingLifecycleService?: BillingLifecycleService,
+    @Optional()
+    private readonly hostedCompletion?: BillingHostedCompletionService,
   ) {}
 
   // ─── Startup validation ───────────────────────────────────────────────────
@@ -182,19 +184,21 @@ export class CardcomWebhookService implements OnModuleInit {
       if (
         parsedReturn?.intent === 'CHECKOUT' &&
         parsedReturn.billingAttemptId &&
-        this.billingLifecycleService
+        this.hostedCompletion
       ) {
-        await this.completeCapturedHostedAttempt({
-          firebaseId: parsedReturn.firebaseId,
-          subscriptionId: parsedReturn.subscriptionId,
-          billingAttemptId: parsedReturn.billingAttemptId,
-        }).catch((error: unknown) =>
-          this.logger.warn(
-            `Post-capture replay skipped for attempt #${
-              parsedReturn.billingAttemptId
-            }: ${(error as Error)?.message ?? 'unknown error'}`,
-          ),
-        );
+        await this.hostedCompletion
+          .completeCapturedHostedAttempt({
+            firebaseId: parsedReturn.firebaseId,
+            subscriptionId: parsedReturn.subscriptionId,
+            billingAttemptId: parsedReturn.billingAttemptId,
+          })
+          .catch((error: unknown) =>
+            this.logger.warn(
+              `Post-capture replay skipped for attempt #${
+                parsedReturn.billingAttemptId
+              }: ${(error as Error)?.message ?? 'unknown error'}`,
+            ),
+          );
       }
       return;
     }
@@ -612,18 +616,20 @@ export class CardcomWebhookService implements OnModuleInit {
     // Canonical attempts use the single shared, idempotent post-capture path
     // (the same one a later replay resumes); legacy checkouts with no attempt
     // keep the original receipt flow unchanged.
-    if (billingAttemptId != null && this.billingLifecycleService) {
-      await this.completeCapturedHostedAttempt({
-        firebaseId,
-        subscriptionId,
-        billingAttemptId,
-      }).catch((error: unknown) =>
-        this.logger.error(
-          `Post-capture completion errored for attempt #${billingAttemptId}: ${
-            (error as Error)?.message ?? 'unknown error'
-          }`,
-        ),
-      );
+    if (billingAttemptId != null && this.hostedCompletion) {
+      await this.hostedCompletion
+        .completeCapturedHostedAttempt({
+          firebaseId,
+          subscriptionId,
+          billingAttemptId,
+        })
+        .catch((error: unknown) =>
+          this.logger.error(
+            `Post-capture completion errored for attempt #${billingAttemptId}: ${
+              (error as Error)?.message ?? 'unknown error'
+            }`,
+          ),
+        );
       return;
     }
     await this.generateReceiptAfterPayment({
@@ -635,90 +641,6 @@ export class CardcomWebhookService implements OnModuleInit {
       cardcomDealNumber,
       paymentSuccessEvent,
     });
-  }
-
-  /**
-   * Post-capture completion (receipt, journal, finalization) for a canonical
-   * hosted attempt. Used both right after activation and when a duplicate
-   * webhook is replayed. It only proceeds once the separate activation phase
-   * (subscription ACTIVE with its period set) is done, and never charges.
-   */
-  private async completeCapturedHostedAttempt(params: {
-    firebaseId: string;
-    subscriptionId: number;
-    billingAttemptId: number;
-  }): Promise<string> {
-    const { firebaseId, subscriptionId, billingAttemptId } = params;
-    if (!this.billingLifecycleService) return 'UNAVAILABLE';
-
-    const subscription = await this.subscriptionRepo.findOne({
-      where: { id: subscriptionId },
-    });
-    if (
-      !subscription ||
-      subscription.firebaseId !== firebaseId ||
-      subscription.status !== SubscriptionStatus.ACTIVE ||
-      !subscription.currentPeriodStart ||
-      !subscription.currentPeriodEnd
-    ) {
-      this.logger.warn(
-        `Post-capture completion deferred for attempt #${billingAttemptId}: subscription #${subscriptionId} is not activated`,
-      );
-      return 'ACTIVATION_PENDING';
-    }
-
-    const result = await this.billingLifecycleService.resumeCapturedAttempt({
-      actor: { actorFirebaseId: firebaseId, subjectFirebaseId: firebaseId },
-      attemptId: billingAttemptId,
-      leaseOwner: `hosted-recovery-${billingAttemptId}`,
-      receipt: {
-        createReceipt: async (attempt) => {
-          const captured = attempt as BillingAttempt;
-          const plan = await this.planRepo.findOne({
-            where: { id: captured.planId },
-          });
-          if (!plan) throw new Error('Plan for captured attempt not found');
-          const issuer =
-            await this.billingIssuerConfigService.getKeepintaxIssuer();
-          return this.billingReceiptService.ensureReceiptForCapturedAttempt({
-            issuer,
-            eventType: BillingEventType.PAYMENT_SUCCESS,
-            attempt: {
-              id: captured.id,
-              amountAgorot: captured.amountAgorot,
-              amountBeforeVatAgorot: captured.amountBeforeVatAgorot,
-              vatAmountAgorot: captured.vatAmountAgorot,
-              currency: captured.currency,
-              cardcomTransactionId: captured.cardcomTransactionId,
-            },
-            firebaseId,
-            subscriptionId,
-            planName: plan.name,
-            periodStart: subscription.currentPeriodStart as Date,
-            periodEnd: subscription.currentPeriodEnd as Date,
-            eventMetadata: { planId: captured.planId },
-          });
-        },
-      },
-    });
-
-    if (result.status === 'RECEIPT_PENDING') {
-      // Attempt stays CAPTURED; a later replay retries only this phase.
-      // Sanitized: category only, never provider/token/payment detail.
-      await this.billingEventService.logEvent({
-        firebaseId,
-        eventType: BillingEventType.RECEIPT_FAILED,
-        subscriptionId,
-        billingAttemptId,
-        metadata: {
-          attemptId: billingAttemptId,
-          cardcomDealNumber: result.attempt.cardcomTransactionId,
-          phase: 'POST_CAPTURE_RECOVERY',
-          failureCategory: result.failureCategory,
-        },
-      });
-    }
-    return result.status;
   }
 
   // ─── Receipt generation ───────────────────────────────────────────────────

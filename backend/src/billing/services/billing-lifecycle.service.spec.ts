@@ -5,7 +5,10 @@ import {
   BillingObligationStatus,
   BillingAttemptTrigger,
 } from '../enums/billing.enums';
-import { BillingLifecycleService } from './billing-lifecycle.service';
+import {
+  BillingLifecycleService,
+  PostCaptureDeferredError,
+} from './billing-lifecycle.service';
 
 describe('BillingLifecycleService', () => {
   const actor = { actorFirebaseId: 'owner-1', subjectFirebaseId: 'owner-1' };
@@ -537,5 +540,188 @@ describe('BillingLifecycleService post-capture recovery', () => {
     ).rejects.toThrow('owner-only mutation denied');
     expect(orchestration.claimForFinalization).not.toHaveBeenCalled();
     expect(receipt.createReceipt).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * KT-038 Task 3B: an activation step runs after the lease and BEFORE the
+ * receipt and completion; any failure keeps the attempt CAPTURED.
+ */
+describe('BillingLifecycleService post-capture activation step', () => {
+  const actor = { actorFirebaseId: 'owner-1', subjectFirebaseId: 'owner-1' };
+  const capturedRow = () => ({
+    id: 3,
+    stateVersion: 5,
+    status: BillingAttemptStatus.CAPTURED,
+    cardcomTransactionId: 'tx-original',
+    providerTerminalRef: null,
+    providerResponseCode: 0,
+  });
+
+  function build() {
+    const order: string[] = [];
+    const orchestration = {
+      assertOwnerMutation: jest.fn(),
+      claimForFinalization: jest.fn(async () => {
+        order.push('claim');
+        return { claimed: true, attempt: capturedRow() };
+      }),
+      releaseFinalizationLease: jest.fn().mockResolvedValue(undefined),
+      finalizeCapturedAttempt: jest.fn(async () => {
+        order.push('finalize');
+        return { status: BillingAttemptStatus.COMPLETED };
+      }),
+      findCapturedHostedAttempts: jest.fn().mockResolvedValue([]),
+    };
+    const receipt = {
+      createReceipt: jest.fn(async () => {
+        order.push('receipt');
+        return { receiptDocId: 99 };
+      }),
+    };
+    const activate = jest.fn(async () => {
+      order.push('activate');
+    });
+    const service = new BillingLifecycleService(
+      orchestration as any,
+      {} as any,
+    );
+    const run = (overrides: Record<string, unknown> = {}) =>
+      service.resumeCapturedAttempt({
+        actor,
+        attemptId: 3,
+        receipt,
+        leaseOwner: 'hosted-recovery-3',
+        activate,
+        ...overrides,
+      });
+    return { service, orchestration, receipt, activate, order, run };
+  }
+
+  it('activates first, then creates the receipt, then completes', async () => {
+    const { run, order } = build();
+
+    const result = await run();
+
+    expect(result.status).toBe('COMPLETED');
+    expect(order).toEqual(['claim', 'activate', 'receipt', 'finalize']);
+  });
+
+  it('hands the persisted CAPTURED attempt (original transaction id) to the activation step', async () => {
+    const { run, activate } = build();
+
+    await run();
+
+    expect(activate).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 3, cardcomTransactionId: 'tx-original' }),
+    );
+  });
+
+  it('keeps the attempt CAPTURED and skips receipt and completion when activation fails, with a sanitized category', async () => {
+    const { run, orchestration, receipt, activate } = build();
+    activate.mockRejectedValue(
+      new Error('deadlock token=abc123SECRET 4111111111111111'),
+    );
+
+    const result = await run();
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        status: 'RECEIPT_PENDING',
+        failureCategory: 'ACTIVATION_FAILED',
+      }),
+    );
+    expect(receipt.createReceipt).not.toHaveBeenCalled();
+    expect(orchestration.finalizeCapturedAttempt).not.toHaveBeenCalled();
+    expect(orchestration.releaseFinalizationLease).toHaveBeenCalledWith(3, 5);
+    const serialized = JSON.stringify(result);
+    expect(serialized).not.toContain('abc123SECRET');
+    expect(serialized).not.toContain('4111111111111111');
+  });
+
+  it('a deferred activation is reported as deferred (a warning, not an error) and nothing else runs', async () => {
+    const { run, orchestration, receipt, activate } = build();
+    activate.mockRejectedValue(
+      new PostCaptureDeferredError('webhook may still be running'),
+    );
+    const warn = jest
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => undefined);
+    const error = jest
+      .spyOn(Logger.prototype, 'error')
+      .mockImplementation(() => undefined);
+
+    try {
+      const result = await run();
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          status: 'RECEIPT_PENDING',
+          failureCategory: 'ACTIVATION_DEFERRED',
+        }),
+      );
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(error).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+      error.mockRestore();
+    }
+    expect(receipt.createReceipt).not.toHaveBeenCalled();
+    expect(orchestration.finalizeCapturedAttempt).not.toHaveBeenCalled();
+    expect(orchestration.releaseFinalizationLease).toHaveBeenCalledWith(3, 5);
+  });
+
+  it('a later run after a failed activation retries the whole post-capture phase and completes once', async () => {
+    const { run, orchestration, receipt, activate } = build();
+    activate
+      .mockRejectedValueOnce(new Error('first failure'))
+      .mockResolvedValue(undefined);
+
+    const first = await run();
+    const second = await run();
+
+    expect(first.status).toBe('RECEIPT_PENDING');
+    expect(second.status).toBe('COMPLETED');
+    expect(activate).toHaveBeenCalledTimes(2);
+    expect(receipt.createReceipt).toHaveBeenCalledTimes(1);
+    expect(orchestration.finalizeCapturedAttempt).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not run activation when another run holds the lease', async () => {
+    const { run, orchestration, activate } = build();
+    orchestration.claimForFinalization.mockResolvedValue({
+      claimed: false,
+      reason: 'ALREADY_CLAIMED',
+      attempt: capturedRow(),
+    } as any);
+
+    const result = await run();
+
+    expect(result.status).toBe('LEASE_HELD');
+    expect(activate).not.toHaveBeenCalled();
+  });
+
+  it('is unchanged when no activation step is supplied (renewal path)', async () => {
+    const { run, order } = build();
+
+    await run({ activate: undefined });
+
+    expect(order).toEqual(['claim', 'receipt', 'finalize']);
+  });
+
+  it('exposes the system read of stuck hosted captures for the recovery sweep', async () => {
+    const { service, orchestration } = build();
+    const cutoff = new Date('2026-09-01T00:00:00Z');
+    orchestration.findCapturedHostedAttempts.mockResolvedValue([
+      { attemptId: 3, subscriptionId: 7, firebaseId: 'owner-1' },
+    ]);
+
+    await expect(
+      service.findCapturedHostedAttempts(cutoff, 50),
+    ).resolves.toHaveLength(1);
+    expect(orchestration.findCapturedHostedAttempts).toHaveBeenCalledWith(
+      cutoff,
+      50,
+    );
   });
 });

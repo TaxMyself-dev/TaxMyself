@@ -52,8 +52,22 @@ export interface BillingReceiptFinalizer {
 
 export type PostCaptureFailureCategory =
   | 'MISSING_TRANSACTION_ID'
+  | 'ACTIVATION_FAILED'
+  | 'ACTIVATION_DEFERRED'
   | 'RECEIPT_STEP_FAILED'
   | 'FINALIZATION_FAILED';
+
+/**
+ * Thrown by an activation step that must not run yet (for example while the
+ * original webhook delivery may still be persisting the card token). It is
+ * reported as ACTIVATION_DEFERRED — a retry later, not a failure to record.
+ */
+export class PostCaptureDeferredError extends Error {
+  constructor(message = 'Post-capture activation deferred') {
+    super(message);
+    this.name = 'PostCaptureDeferredError';
+  }
+}
 
 /** Outcome of resuming only the post-capture phase of a CAPTURED attempt. */
 export type ResumeCapturedAttemptResult =
@@ -171,6 +185,11 @@ export class BillingLifecycleService {
     return this.orchestration.finalizeCapturedAttempt(attemptId, receiptDocId);
   }
 
+  /** Hosted attempts stuck CAPTURED past `capturedBefore` (system read-only). */
+  findCapturedHostedAttempts(capturedBefore: Date, limit: number) {
+    return this.orchestration.findCapturedHostedAttempts(capturedBefore, limit);
+  }
+
   /**
    * Read-only owner-checked view of a period's canonical debt/attempt, used to
    * detect an existing capture before a price is re-derived.
@@ -207,8 +226,15 @@ export class BillingLifecycleService {
     attemptId: number;
     receipt: BillingReceiptFinalizer;
     leaseOwner: string;
+    /**
+     * Optional local step that must be complete BEFORE the receipt and the
+     * completion: applies the subscription state this capture paid for. It
+     * must be idempotent (a no-op when already applied) and must never touch
+     * the provider. A throw keeps the attempt CAPTURED and retryable.
+     */
+    activate?: (attempt: BillingAttempt) => Promise<void>;
   }): Promise<ResumeCapturedAttemptResult> {
-    const { actor, attemptId, receipt, leaseOwner } = input;
+    const { actor, attemptId, receipt, leaseOwner, activate } = input;
     this.orchestration.assertOwnerMutation(actor);
     const claim = await this.orchestration.claimForFinalization(
       attemptId,
@@ -230,13 +256,13 @@ export class BillingLifecycleService {
     ): Promise<ResumeCapturedAttemptResult> => {
       // Diagnostics stay in server logs only (callers get the category), and
       // even there card-number-like digits and credential key/values are masked.
-      this.logger.error(
-        `Post-capture completion failed for attempt #${
-          captured.id
-        } (${failureCategory}): ${redactForLog(
-          (error as Error | undefined)?.message ?? 'n/a',
-        )}`,
-      );
+      const line = `Post-capture completion ${
+        failureCategory === 'ACTIVATION_DEFERRED' ? 'deferred' : 'failed'
+      } for attempt #${captured.id} (${failureCategory}): ${redactForLog(
+        (error as Error | undefined)?.message ?? 'n/a',
+      )}`;
+      if (failureCategory === 'ACTIVATION_DEFERRED') this.logger.warn(line);
+      else this.logger.error(line);
       await this.orchestration
         .releaseFinalizationLease(captured.id, captured.stateVersion)
         .catch((releaseError: unknown) =>
@@ -258,6 +284,19 @@ export class BillingLifecycleService {
       providerTerminalRef: captured.providerTerminalRef,
       providerResponseCode: captured.providerResponseCode,
     };
+
+    if (activate) {
+      try {
+        await activate(captured);
+      } catch (error) {
+        return fail(
+          error instanceof PostCaptureDeferredError
+            ? 'ACTIVATION_DEFERRED'
+            : 'ACTIVATION_FAILED',
+          error,
+        );
+      }
+    }
 
     let receiptDocId: number;
     try {

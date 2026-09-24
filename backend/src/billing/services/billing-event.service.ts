@@ -142,6 +142,14 @@ export class BillingEventService {
     billingAttemptId: number,
     eventType: BillingEventType.PAYMENT_SUCCESS | BillingEventType.RENEWAL_SUCCESS,
   ): Promise<BillingEvent | null> {
+    return this.findEventForAttempt(billingAttemptId, eventType);
+  }
+
+  /** Oldest event of one type already recorded for a canonical attempt. */
+  async findEventForAttempt(
+    billingAttemptId: number,
+    eventType: BillingEventType,
+  ): Promise<BillingEvent | null> {
     try {
       return await this.billingEventRepo.findOne({
         where: { billingAttemptId, eventType },
@@ -149,20 +157,44 @@ export class BillingEventService {
       });
     } catch (error) {
       this.logger.error(
-        `findSuccessEventForAttempt failed for billingAttemptId=${billingAttemptId}: ${(error as Error)?.message ?? error}`,
+        `findEventForAttempt failed for billingAttemptId=${billingAttemptId} type=${eventType}: ${(error as Error)?.message ?? error}`,
       );
       return null;
     }
   }
 
-  async updatePaymentEventWithReceipt(eventId: number, receiptDocId: number): Promise<void> {
+  /**
+   * Records a post-capture failure for an attempt at most once. Repeated retries
+   * of the same stuck attempt must not append a new RECEIPT_FAILED row every
+   * run: the first row is the audit record, later retries re-use it.
+   */
+  async logReceiptFailureOncePerAttempt(
+    input: Omit<LogBillingEventInput, 'eventType'> & { billingAttemptId: number },
+  ): Promise<BillingEvent | null> {
+    const existing = await this.findEventForAttempt(
+      input.billingAttemptId,
+      BillingEventType.RECEIPT_FAILED,
+    );
+    if (existing) return existing;
+    return this.logEvent({ ...input, eventType: BillingEventType.RECEIPT_FAILED });
+  }
+
+  /**
+   * Links the receipt to its billing event. Returns false when the write
+   * fails (never throws, so legacy best-effort callers are unchanged) —
+   * callers that must not lose the link, i.e. canonical post-capture recovery,
+   * check the result and keep the attempt recoverable instead of finalizing.
+   */
+  async updatePaymentEventWithReceipt(eventId: number, receiptDocId: number): Promise<boolean> {
     try {
       await this.billingEventRepo.update({ id: eventId }, { receiptDocId });
+      return true;
     } catch (error) {
       this.logger.error(
         `Failed to update billing event ${eventId} with receiptDocId=${receiptDocId}: ${(error as Error)?.message ?? error}`,
         (error as Error)?.stack,
       );
+      return false;
     }
   }
 

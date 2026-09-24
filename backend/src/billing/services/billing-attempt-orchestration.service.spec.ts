@@ -19,6 +19,7 @@ import {
 describe('BillingAttemptOrchestrationService', () => {
   let manager: {
     findOne: jest.Mock;
+    find: jest.Mock;
     create: jest.Mock;
     save: jest.Mock;
   };
@@ -115,6 +116,7 @@ describe('BillingAttemptOrchestrationService', () => {
     keys = ['bABCDEFGHIJKLMNOPQRSTUV'];
     manager = {
       findOne: jest.fn(),
+      find: jest.fn(),
       create: jest.fn((_entity, value) => value),
       save: jest.fn(async (_entity, value) => value),
     };
@@ -757,6 +759,37 @@ describe('BillingAttemptOrchestrationService', () => {
       expect(snapshot?.obligation.status).toBe(BillingObligationStatus.SATISFIED);
       expect(snapshot?.attempt?.id).toBe(settled.id);
       expect(manager.save).not.toHaveBeenCalled();
+    });
+
+    it('lists only hosted CAPTURED attempts past the grace cut-off, oldest first, with their owner', async () => {
+      const cutoff = new Date('2026-09-17T00:00:00Z');
+      const stuck = capturedRow({ id: 31, obligationId: 11 });
+      manager.find
+        .mockResolvedValueOnce([stuck])
+        .mockResolvedValueOnce([obligation({ id: 11, subscriptionId: 7 })]);
+
+      const rows = await service.findCapturedHostedAttempts(cutoff, 50);
+
+      expect(rows).toEqual([
+        { attemptId: 31, subscriptionId: 7, firebaseId: 'owner-1' },
+      ]);
+      const query = manager.find.mock.calls[0];
+      expect(query[0]).toBe(BillingAttempt);
+      expect(query[1].where.status).toBe(BillingAttemptStatus.CAPTURED);
+      expect(query[1].where.chargeMode).toBe(BillingChargeMode.LOW_PROFILE_HOSTED);
+      expect(query[1].where.capturedAt).toBeDefined(); // <= cut-off
+      expect(query[1].order).toEqual({ capturedAt: 'ASC' });
+      expect(query[1].take).toBe(50);
+      expect(manager.save).not.toHaveBeenCalled(); // read-only
+    });
+
+    it('returns an empty list without a second query when nothing is stuck', async () => {
+      manager.find.mockResolvedValueOnce([]);
+
+      await expect(
+        service.findCapturedHostedAttempts(new Date(), 50),
+      ).resolves.toEqual([]);
+      expect(manager.find).toHaveBeenCalledTimes(1);
     });
 
     it('returns null for an unknown period and rejects another owner', async () => {

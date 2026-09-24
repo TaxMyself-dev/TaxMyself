@@ -7,7 +7,13 @@ import {
   Optional,
 } from '@nestjs/common';
 import { randomBytes } from 'crypto';
-import { DataSource, EntityManager, QueryRunner } from 'typeorm';
+import {
+  DataSource,
+  EntityManager,
+  In,
+  LessThanOrEqual,
+  QueryRunner,
+} from 'typeorm';
 import {
   BillingAttemptStatus,
   BillingAttemptTrigger,
@@ -442,6 +448,49 @@ export class BillingAttemptOrchestrationService {
           ? null
           : await manager.findOne(BillingAttempt, { where: { id: attemptId } });
       return { obligation, attempt };
+    });
+  }
+
+  /**
+   * Hosted attempts whose charge was captured but whose local completion never
+   * finished, oldest first. `capturedBefore` is a grace cut-off so the sweep
+   * does not race the original webhook request that is still completing them.
+   * Read-only; the caller resumes each through the normal owner-checked,
+   * leased post-capture path.
+   */
+  async findCapturedHostedAttempts(
+    capturedBefore: Date,
+    limit: number,
+  ): Promise<
+    Array<{ attemptId: number; subscriptionId: number; firebaseId: string }>
+  > {
+    return this.inTransaction(async (manager) => {
+      const attempts = await manager.find(BillingAttempt, {
+        where: {
+          status: BillingAttemptStatus.CAPTURED,
+          chargeMode: BillingChargeMode.LOW_PROFILE_HOSTED,
+          capturedAt: LessThanOrEqual(capturedBefore),
+        },
+        order: { capturedAt: 'ASC' },
+        take: limit,
+      });
+      if (attempts.length === 0) return [];
+      const obligations = await manager.find(BillingObligation, {
+        where: { id: In([...new Set(attempts.map((a) => a.obligationId))]) },
+      });
+      const byId = new Map(obligations.map((o) => [o.id, o]));
+      return attempts.flatMap((attempt) => {
+        const obligation = byId.get(attempt.obligationId);
+        return obligation
+          ? [
+              {
+                attemptId: attempt.id,
+                subscriptionId: obligation.subscriptionId,
+                firebaseId: obligation.firebaseIdSnapshot,
+              },
+            ]
+          : [];
+      });
     });
   }
 

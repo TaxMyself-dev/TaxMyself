@@ -122,6 +122,33 @@ re-derived price. A duplicate hosted webhook for a `CAPTURED` attempt resumes
 the same phase once the subscription is activated; a `PAST_DUE` checkout never
 opens another hosted payment for a `CAPTURED` attempt. `UNKNOWN` and expired
 `PROCESSING` reconciliation is separate and not covered here.
+
+Hosted activation and event-link recovery (KT-038 Task 3B):
+`BillingHostedCompletionService` owns local completion of a hosted attempt whose
+capture is confirmed, in this order — subscription activation, receipt/journal,
+success-event link, attempt/obligation completion — through
+`resumeCapturedAttempt`'s `activate` step. Activation applies the same fields
+as the webhook (status, plan, period from `capturedAt`, next billing date,
+cleared grace/cancel/end) under a subscription row lock: `ACTIVE` is a no-op,
+only `PAST_DUE` is activated, any other state fails for manual review and is
+never overwritten. The card token from the hosted result is NOT recoverable
+locally (it exists only in the provider's result, which recovery must not
+fetch), so a locally recovered activation keeps the existing payment method and
+records `cardTokenStored: false`; the customer may need the existing
+change-payment-method flow. A recovery activation waits 2 minutes after capture
+so a concurrent duplicate delivery cannot activate before the original request
+stores the token. `updatePaymentEventWithReceipt` now returns a result;
+`ensureReceiptForCapturedAttempt` requires both the success event and the link
+and keeps the attempt `CAPTURED` when either fails, so a retry re-finds the
+receipt by attempt and only repeats the link. A post-capture failure is
+recorded once per attempt (`logReceiptFailureOncePerAttempt`), not per retry.
+The reliable local caller is `SubscriptionRenewalService.processDueRenewals`
+(the 03:00 cron and the admin manual trigger), which sweeps hosted attempts
+still `CAPTURED` after 5 minutes; a replayed webhook uses the same service.
+Production use depends on the approved KT-032 cutover schema (notably the
+UNIQUE `documents.billing_attempt_id`, and the `billing_attempt` /
+`billing_obligation` tables and `billing_event.billing_attempt_id`) being
+present; nothing here runs cutover SQL.
 - `GET /billing/plans`, `GET /billing/me`, `POST /billing/trial` — plan listing and current billing state; idempotent trial creation.
 - `POST /billing/checkout/preview` / `POST /billing/checkout` — price preview and CardCom LowProfile checkout session creation; activation happens only via the webhook, never the checkout response.
 - `POST /billing/cardcom/webhook` — CardCom posts payment results here; `CardcomWebhookService` verifies/activates subscriptions; errors are swallowed so CardCom doesn't retry-storm.

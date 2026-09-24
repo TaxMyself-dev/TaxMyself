@@ -192,7 +192,14 @@ export class BillingReceiptService {
       });
     }
 
-    let receiptDocId = event?.receiptDocId ?? null;
+    // The success event and its receipt link are REQUIRED steps here: the
+    // canonical attempt may only complete once they exist, so a persistence
+    // failure keeps it CAPTURED and retryable instead of silently unlinked.
+    if (!event) {
+      throw new Error('Success event could not be recorded for the captured attempt');
+    }
+
+    let receiptDocId = event.receiptDocId ?? null;
     if (receiptDocId == null) {
       const receipt = await this.createReceiptForPayment(issuer, {
         firebaseId,
@@ -207,11 +214,16 @@ export class BillingReceiptService {
         billingAttemptId: attempt.id,
       });
       receiptDocId = receipt.receiptDocId;
-      if (event) await this.billingEventService.updatePaymentEventWithReceipt(event.id, receiptDocId);
+      const linked = await this.billingEventService.updatePaymentEventWithReceipt(event.id, receiptDocId);
+      if (linked === false) {
+        // The receipt (and journal) exist under the attempt key; a retry re-finds
+        // them and only repeats this link. Sanitized: no ids beyond our own.
+        throw new Error('Failed to link the receipt to its billing event');
+      }
     }
 
     await this.finalizeBillingReceiptPdfs(receiptDocId, issuer, firebaseId);
-    if (event && !event.receiptEmailSent) {
+    if (!event.receiptEmailSent) {
       await this.sendReceiptEmailForPaymentEvent(event.id, issuer.issuerName);
     }
     return { receiptDocId };

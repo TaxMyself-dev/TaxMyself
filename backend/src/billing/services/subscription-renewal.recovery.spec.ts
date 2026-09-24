@@ -9,6 +9,7 @@ import { SubscriptionPlan } from '../entities/subscription-plan.entity';
 import { assertBillingOwnerMutation } from './billing-attempt-orchestration.service';
 import { BillingLifecycleService } from './billing-lifecycle.service';
 import { BillingProviderRuntimeService } from './billing-provider-runtime.service';
+import { BillingEventService } from './billing-event.service';
 import { SubscriptionRenewalService } from './subscription-renewal.service';
 
 /**
@@ -207,7 +208,9 @@ describe('SubscriptionRenewalService — CAPTURED attempt recovery', () => {
       renewalAttempts: 2,
     };
     const advances = { count: 0 };
+    const dueRows = { list: [] as Array<{ id: number }> };
     const subscriptionRepo = {
+      find: jest.fn(async () => dueRows.list),
       findOne: jest.fn(async () => ({ ...subscription })),
       // Compare-and-set, as the database would do it.
       update: jest.fn(async (criteria: any, values: any) => {
@@ -241,13 +244,33 @@ describe('SubscriptionRenewalService — CAPTURED attempt recovery', () => {
         .fn()
         .mockResolvedValue({ receiptDocId: 99 }),
     };
-    const billingEventService = {
-      logEvent: jest.fn().mockResolvedValue({ id: 1 }),
+    // Real event service over an in-memory table, so once-per-attempt failure
+    // recording is exercised for real.
+    const eventRows: any[] = [];
+    const eventRepo = {
+      create: jest.fn((v) => v),
+      save: jest.fn(async (v) => {
+        const row = { id: eventRows.length + 1, createdAt: new Date(), ...v };
+        eventRows.push(row);
+        return row;
+      }),
+      findOne: jest.fn(
+        async ({ where }: any) =>
+          eventRows.find((r) =>
+            Object.entries(where).every(([k, v]) => r[k] === v),
+          ) ?? null,
+      ),
     };
+    const billingEventService = new BillingEventService(eventRepo as any);
     const billingIssuerConfigService = {
       getKeepintaxIssuer: jest
         .fn()
         .mockResolvedValue({ issuerName: 'Keepintax' }),
+    };
+    const hostedCompletion = {
+      recoverCapturedHostedAttempts: jest
+        .fn()
+        .mockResolvedValue({ found: 0, completed: 0, pending: 0 }),
     };
     const service = new SubscriptionRenewalService(
       subscriptionRepo as any,
@@ -258,8 +281,12 @@ describe('SubscriptionRenewalService — CAPTURED attempt recovery', () => {
       pricingService as any,
       lifecycle,
       {} as any,
+      hostedCompletion as any,
     );
     return {
+      hostedCompletion,
+      eventRows,
+      dueRows,
       service,
       orchestration,
       executor,
@@ -300,7 +327,7 @@ describe('SubscriptionRenewalService — CAPTURED attempt recovery', () => {
       executor,
       subscription,
       billingReceiptService,
-      billingEventService,
+      eventRows,
     } = build();
     billingReceiptService.ensureReceiptForCapturedAttempt.mockRejectedValueOnce(
       new Error('journal failed token=4111111111111111 ApiName=secret-api-key'),
@@ -316,7 +343,7 @@ describe('SubscriptionRenewalService — CAPTURED attempt recovery', () => {
     expect(orchestration.obligation.status).toBe(BillingObligationStatus.OPEN);
 
     // Failure is reported (not swallowed), sanitized, and correlated to the attempt.
-    expect(billingEventService.logEvent).toHaveBeenCalledWith(
+    expect(eventRows).toEqual([
       expect.objectContaining({
         eventType: BillingEventType.RECEIPT_FAILED,
         billingAttemptId: 21,
@@ -325,11 +352,8 @@ describe('SubscriptionRenewalService — CAPTURED attempt recovery', () => {
           failureCategory: 'RECEIPT_STEP_FAILED',
         }),
       }),
-    );
-    const everything = JSON.stringify([
-      result,
-      billingEventService.logEvent.mock.calls,
     ]);
+    const everything = JSON.stringify([result, eventRows]);
     expect(everything).not.toContain('4111111111111111');
     expect(everything).not.toContain('secret-api-key');
   });
@@ -418,7 +442,7 @@ describe('SubscriptionRenewalService — CAPTURED attempt recovery', () => {
       executor,
       subscription,
       billingReceiptService,
-      billingEventService,
+      eventRows,
     } = build();
     billingReceiptService.ensureReceiptForCapturedAttempt
       .mockRejectedValueOnce(new Error('first'))
@@ -436,10 +460,11 @@ describe('SubscriptionRenewalService — CAPTURED attempt recovery', () => {
     expect(third.outcome).toBe('success');
     expect(executor.executeCharge).toHaveBeenCalledTimes(1);
     expect(subscription.nextBillingDate).toEqual(NEXT);
-    const failures = billingEventService.logEvent.mock.calls.filter(
-      ([e]) => e.eventType === BillingEventType.RECEIPT_FAILED,
+    // Two failed retries of the same attempt leave ONE failure record.
+    const failures = eventRows.filter(
+      (e) => e.eventType === BillingEventType.RECEIPT_FAILED,
     );
-    expect(failures).toHaveLength(2);
+    expect(failures).toHaveLength(1);
   });
 
   it('concurrent recovery runs cannot duplicate receipt work, lifecycle completion or subscription advancement', async () => {
@@ -537,5 +562,68 @@ describe('SubscriptionRenewalService — CAPTURED attempt recovery', () => {
     expect(result.outcome).toBe('skipped');
     expect(orchestration.calls).toHaveLength(0);
     expect(executor.executeCharge).not.toHaveBeenCalled();
+  });
+
+  // KT-038 Task 3B: the existing renewal sweep (03:00 cron and the admin manual
+  // trigger share processDueRenewals) is the reliable local caller that finishes
+  // hosted captures whose activation or receipt/link failed, with no webhook and
+  // no provider involved.
+  describe('captured hosted payment recovery sweep', () => {
+    it('runs after the renewal batch even when nothing is due', async () => {
+      const { service, hostedCompletion, executor, dueRows } = build();
+      dueRows.list = [];
+
+      const batch = await service.processDueRenewals();
+
+      expect(batch.totalDue).toBe(0);
+      expect(
+        hostedCompletion.recoverCapturedHostedAttempts,
+      ).toHaveBeenCalledTimes(1);
+      expect(executor.executeCharge).not.toHaveBeenCalled();
+    });
+
+    it('runs alongside due renewals without changing their result', async () => {
+      const { service, hostedCompletion, dueRows } = build();
+      dueRows.list = [{ id: 7 }];
+      hostedCompletion.recoverCapturedHostedAttempts.mockResolvedValue({
+        found: 2,
+        completed: 1,
+        pending: 1,
+      });
+
+      const batch = await service.processDueRenewals();
+
+      expect(batch.totalDue).toBe(1);
+      expect(batch.succeeded).toBe(1);
+      expect(
+        hostedCompletion.recoverCapturedHostedAttempts,
+      ).toHaveBeenCalledTimes(1);
+      // The admin response shape is unchanged (no new fields).
+      expect(Object.keys(batch).sort()).toEqual(
+        [
+          'blockedPendingReceipt',
+          'errors',
+          'pastDue',
+          'processed',
+          'results',
+          'retryScheduled',
+          'skipped',
+          'succeeded',
+          'totalDue',
+        ].sort(),
+      );
+    });
+
+    it('a failing sweep can never fail the renewal batch', async () => {
+      const { service, hostedCompletion, dueRows } = build();
+      dueRows.list = [{ id: 7 }];
+      hostedCompletion.recoverCapturedHostedAttempts.mockRejectedValue(
+        new Error('db down token=abc123SECRET'),
+      );
+
+      await expect(service.processDueRenewals()).resolves.toEqual(
+        expect.objectContaining({ totalDue: 1, succeeded: 1, errors: 0 }),
+      );
+    });
   });
 });

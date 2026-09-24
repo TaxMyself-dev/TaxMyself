@@ -2,12 +2,13 @@ import { CardcomWebhookService } from './cardcom-webhook.service';
 import { BillingEventType, SubscriptionStatus } from '../enums/billing.enums';
 
 /**
- * KT-038 Task 3: hosted-checkout (PAST_DUE recovery) webhook coverage for an
- * attempt that is already CAPTURED. A replayed webhook resumes only the
- * post-capture phase from persisted state — it never verifies against or
- * charges the provider again.
+ * Hosted-checkout (PAST_DUE recovery) webhook for an attempt that is already
+ * CAPTURED. The webhook only delegates post-capture completion to
+ * BillingHostedCompletionService (activation, receipt, event link and
+ * completion are covered by billing-hosted-completion.service.spec.ts): a
+ * replayed webhook never verifies against or charges the provider again.
  */
-describe('CardcomWebhookService — post-capture completion of a CAPTURED hosted attempt', () => {
+describe('CardcomWebhookService — delegating post-capture completion of a CAPTURED hosted attempt', () => {
   const log = { id: 7, idempotencyKey: 'idem-7' } as any;
   const returnValue = (billingAttemptId: number | null = 44) =>
     JSON.stringify({
@@ -18,75 +19,39 @@ describe('CardcomWebhookService — post-capture completion of a CAPTURED hosted
       billingAttemptId,
     });
 
-  const capturedAttempt = {
-    id: 44,
-    planId: 2,
-    amountAgorot: 11700,
-    amountBeforeVatAgorot: 10000,
-    vatAmountAgorot: 1700,
-    currency: 'ILS',
-    cardcomTransactionId: 'tx-original',
-  };
-  const ACTIVE_SUB = {
-    id: 9,
-    firebaseId: 'owner',
-    status: SubscriptionStatus.ACTIVE,
-    currentPeriodStart: new Date('2026-09-01'),
-    currentPeriodEnd: new Date('2026-10-01'),
-  };
-
   function make(
     options: {
       duplicate?: boolean;
       attemptId?: number | null;
-      subscription?: unknown;
+      withHostedCompletion?: boolean;
     } = {},
   ) {
-    const { duplicate = true, attemptId = 44 } = options;
+    const {
+      duplicate = true,
+      attemptId = 44,
+      withHostedCompletion = true,
+    } = options;
     const cardcom = { getLowProfileResult: jest.fn() };
-    const lifecycle = {
-      applyHostedWebhookOutcome: jest.fn(),
-      resumeCapturedAttempt: jest
-        .fn()
-        .mockResolvedValue({ status: 'COMPLETED', attempt: capturedAttempt }),
-    };
-    const subscriptionRepo = {
-      findOne: jest
-        .fn()
-        .mockResolvedValue(
-          options.subscription === undefined
-            ? { ...ACTIVE_SUB }
-            : options.subscription,
-        ),
-    };
-    const planRepo = {
-      findOne: jest.fn().mockResolvedValue({ id: 2, name: 'Plan' }),
+    const lifecycle = { applyHostedWebhookOutcome: jest.fn() };
+    const hostedCompletion = {
+      completeCapturedHostedAttempt: jest.fn().mockResolvedValue('COMPLETED'),
     };
     const billingEventService = {
       logEvent: jest.fn().mockResolvedValue({ id: 1 }),
     };
-    const billingReceiptService = {
-      ensureReceiptForCapturedAttempt: jest
-        .fn()
-        .mockResolvedValue({ receiptDocId: 99 }),
-    };
-    const issuerService = {
-      getKeepintaxIssuer: jest
-        .fn()
-        .mockResolvedValue({ issuerName: 'Keepintax' }),
-    };
     const service = new CardcomWebhookService(
       {} as any,
-      subscriptionRepo as any,
-      planRepo as any,
+      {} as any,
+      {} as any,
       {} as any,
       {} as any,
       cardcom as any,
       billingEventService as any,
-      billingReceiptService as any,
-      issuerService as any,
+      {} as any,
+      {} as any,
       {} as any,
       lifecycle as any,
+      (withHostedCompletion ? hostedCompletion : undefined) as any,
     );
     (service as any).saveWebhookLog = jest
       .fn()
@@ -101,125 +66,61 @@ describe('CardcomWebhookService — post-capture completion of a CAPTURED hosted
       service,
       cardcom,
       lifecycle,
-      subscriptionRepo,
+      hostedCompletion,
       billingEventService,
-      billingReceiptService,
     };
   }
 
-  it('a replayed webhook resumes ONLY post-capture completion — no verification, no activation, no charge', async () => {
-    const { service, cardcom, lifecycle } = make();
+  it('a replayed webhook resumes ONLY local post-capture completion — no verification, no activation by the webhook, no charge', async () => {
+    const { service, cardcom, lifecycle, hostedCompletion } = make();
 
     await service.handleWebhook({ LowProfileId: 'lp-1' });
 
-    expect(lifecycle.resumeCapturedAttempt).toHaveBeenCalledTimes(1);
-    expect(lifecycle.resumeCapturedAttempt).toHaveBeenCalledWith(
-      expect.objectContaining({
-        actor: { actorFirebaseId: 'owner', subjectFirebaseId: 'owner' },
-        attemptId: 44,
-      }),
+    expect(
+      hostedCompletion.completeCapturedHostedAttempt,
+    ).toHaveBeenCalledTimes(1);
+    expect(hostedCompletion.completeCapturedHostedAttempt).toHaveBeenCalledWith(
+      {
+        firebaseId: 'owner',
+        subscriptionId: 9,
+        billingAttemptId: 44,
+      },
     );
     expect(cardcom.getLowProfileResult).not.toHaveBeenCalled();
     expect(lifecycle.applyHostedWebhookOutcome).not.toHaveBeenCalled();
     expect((service as any).processVerifiedSuccess).not.toHaveBeenCalled();
   });
 
-  it('feeds the receipt step the attempt snapshot, the ORIGINAL transaction id and the activated period', async () => {
-    const { service, lifecycle, billingReceiptService } = make();
-    lifecycle.resumeCapturedAttempt.mockImplementation(async ({ receipt }) => {
-      await receipt.createReceipt(capturedAttempt, {
-        kind: 'CAPTURED',
-        cardcomTransactionId: 'tx-original',
-      });
-      return { status: 'COMPLETED', attempt: capturedAttempt };
-    });
-
-    await service.handleWebhook({ LowProfileId: 'lp-1' });
-
-    expect(
-      billingReceiptService.ensureReceiptForCapturedAttempt,
-    ).toHaveBeenCalledTimes(1);
-    expect(
-      billingReceiptService.ensureReceiptForCapturedAttempt,
-    ).toHaveBeenCalledWith(
-      expect.objectContaining({
-        eventType: BillingEventType.PAYMENT_SUCCESS,
-        attempt: expect.objectContaining({
-          id: 44,
-          amountAgorot: 11700,
-          cardcomTransactionId: 'tx-original',
-        }),
-        firebaseId: 'owner',
-        subscriptionId: 9,
-        planName: 'Plan',
-        periodStart: ACTIVE_SUB.currentPeriodStart,
-        periodEnd: ACTIVE_SUB.currentPeriodEnd,
-      }),
-    );
-  });
-
   it('is a no-op for a duplicate webhook that carries no canonical attempt (legacy first-time checkout)', async () => {
-    const { service, lifecycle } = make({ attemptId: null });
+    const { service, hostedCompletion } = make({ attemptId: null });
 
     await service.handleWebhook({ LowProfileId: 'lp-1' });
 
-    expect(lifecycle.resumeCapturedAttempt).not.toHaveBeenCalled();
-  });
-
-  it.each([
-    [
-      'still PAST_DUE (activation not done)',
-      { ...ACTIVE_SUB, status: SubscriptionStatus.PAST_DUE },
-    ],
-    ['owned by someone else', { ...ACTIVE_SUB, firebaseId: 'someone-else' }],
-    ['missing', null],
-  ])(
-    'does not finalize while the subscription is %s',
-    async (_label, subscription) => {
-      const { service, lifecycle } = make({ subscription });
-
-      await service.handleWebhook({ LowProfileId: 'lp-1' });
-
-      expect(lifecycle.resumeCapturedAttempt).not.toHaveBeenCalled();
-    },
-  );
-
-  it('reports a failed post-capture step with a sanitized event and leaves recovery to the next replay', async () => {
-    const { service, lifecycle, billingEventService } = make();
-    lifecycle.resumeCapturedAttempt.mockResolvedValue({
-      status: 'RECEIPT_PENDING',
-      attempt: capturedAttempt,
-      failureCategory: 'RECEIPT_STEP_FAILED',
-    });
-
-    await service.handleWebhook({ LowProfileId: 'lp-1' });
-
-    expect(billingEventService.logEvent).toHaveBeenCalledWith(
-      expect.objectContaining({
-        eventType: BillingEventType.RECEIPT_FAILED,
-        billingAttemptId: 44,
-        metadata: {
-          attemptId: 44,
-          cardcomDealNumber: 'tx-original',
-          phase: 'POST_CAPTURE_RECOVERY',
-          failureCategory: 'RECEIPT_STEP_FAILED',
-        },
-      }),
-    );
-    const metadata = JSON.stringify(billingEventService.logEvent.mock.calls);
-    expect(metadata).not.toMatch(/token|ApiName|stack/i);
+    expect(
+      hostedCompletion.completeCapturedHostedAttempt,
+    ).not.toHaveBeenCalled();
   });
 
   it('swallows an owner/state error from a replay so the webhook still answers normally', async () => {
-    const { service, lifecycle } = make();
-    lifecycle.resumeCapturedAttempt.mockRejectedValue(new Error('forbidden'));
+    const { service, hostedCompletion } = make();
+    hostedCompletion.completeCapturedHostedAttempt.mockRejectedValue(
+      new Error('forbidden'),
+    );
 
     await expect(
       service.handleWebhook({ LowProfileId: 'lp-1' }),
     ).resolves.toBeUndefined();
   });
 
-  describe('first delivery (activation phase already committed)', () => {
+  it('is safe when the completion service is not wired', async () => {
+    const { service } = make({ withHostedCompletion: false });
+
+    await expect(
+      service.handleWebhook({ LowProfileId: 'lp-1' }),
+    ).resolves.toBeUndefined();
+  });
+
+  describe('first delivery (its own activation transaction already committed)', () => {
     function makeFirst(attemptId: number | null) {
       const made = make({ duplicate: false, attemptId });
       const service = made.service as any;
@@ -248,13 +149,10 @@ describe('CardcomWebhookService — post-capture completion of a CAPTURED hosted
         manager,
       };
       service.dataSource = { createQueryRunner: () => queryRunner };
-      service.completeCapturedHostedAttempt = jest
-        .fn()
-        .mockResolvedValue('COMPLETED');
       service.generateReceiptAfterPayment = jest
         .fn()
         .mockResolvedValue(undefined);
-      return { ...made, service };
+      return { ...made, service, queryRunner };
     }
     const verified = {
       ResponseCode: 0,
@@ -263,12 +161,14 @@ describe('CardcomWebhookService — post-capture completion of a CAPTURED hosted
       TranzactionInfo: { ResponseCode: 0, TranzactionId: 123, Amount: 117 },
     };
 
-    it('routes a canonical attempt through the shared post-capture path and logs the attempt-keyed success event', async () => {
-      const { service, billingEventService } = makeFirst(44);
+    it('routes a canonical attempt through the shared completion service and logs the attempt-keyed success event', async () => {
+      const { service, billingEventService, hostedCompletion } = makeFirst(44);
 
       await service.processVerifiedSuccess('owner', 2, 9, verified, log, 44);
 
-      expect(service.completeCapturedHostedAttempt).toHaveBeenCalledWith({
+      expect(
+        hostedCompletion.completeCapturedHostedAttempt,
+      ).toHaveBeenCalledWith({
         firebaseId: 'owner',
         subscriptionId: 9,
         billingAttemptId: 44,
@@ -283,23 +183,27 @@ describe('CardcomWebhookService — post-capture completion of a CAPTURED hosted
     });
 
     it('keeps a legacy checkout (no attempt) on the original receipt flow', async () => {
-      const { service } = makeFirst(null);
+      const { service, hostedCompletion } = makeFirst(null);
 
       await service.processVerifiedSuccess('owner', 2, 9, verified, log, null);
 
-      expect(service.completeCapturedHostedAttempt).not.toHaveBeenCalled();
+      expect(
+        hostedCompletion.completeCapturedHostedAttempt,
+      ).not.toHaveBeenCalled();
       expect(service.generateReceiptAfterPayment).toHaveBeenCalledTimes(1);
     });
 
     it('a failed completion never rolls back activation or throws out of the webhook', async () => {
-      const { service } = makeFirst(44);
-      service.completeCapturedHostedAttempt.mockRejectedValue(
+      const { service, hostedCompletion, queryRunner } = makeFirst(44);
+      hostedCompletion.completeCapturedHostedAttempt.mockRejectedValue(
         new Error('db down'),
       );
 
       await expect(
         service.processVerifiedSuccess('owner', 2, 9, verified, log, 44),
       ).resolves.toBeUndefined();
+      expect(queryRunner.commitTransaction).toHaveBeenCalledTimes(1);
+      expect(queryRunner.rollbackTransaction).not.toHaveBeenCalled();
     });
   });
 });

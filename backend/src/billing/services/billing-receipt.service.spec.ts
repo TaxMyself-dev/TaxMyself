@@ -51,7 +51,7 @@ describe('BillingReceiptService — idempotent post-capture receipt', () => {
     const billingEventService = {
       findSuccessEventForAttempt: jest.fn().mockResolvedValue(null),
       logEvent: jest.fn().mockResolvedValue({ id: 10, receiptDocId: null }),
-      updatePaymentEventWithReceipt: jest.fn().mockResolvedValue(undefined),
+      updatePaymentEventWithReceipt: jest.fn().mockResolvedValue(true),
     };
     const userRepo = {
       findOne: jest
@@ -300,6 +300,106 @@ describe('BillingReceiptService — idempotent post-capture receipt', () => {
         billingEventService.updatePaymentEventWithReceipt,
       ).not.toHaveBeenCalled();
       expect(documentsService.finalizeBillingReceipt).not.toHaveBeenCalled();
+    });
+
+    // KT-038 Task 3B: the event link is a REQUIRED step, never swallowed.
+    it('fails (instead of silently finalizing) when the receipt cannot be linked to its event', async () => {
+      const { service, billingEventService, documentsService, email } = build();
+      billingEventService.updatePaymentEventWithReceipt.mockResolvedValue(
+        false,
+      );
+
+      await expect(
+        service.ensureReceiptForCapturedAttempt(base),
+      ).rejects.toThrow('Failed to link the receipt to its billing event');
+
+      // The receipt/journal already exist under the attempt key...
+      expect(documentsService.createBillingSystemReceipt).toHaveBeenCalledTimes(
+        1,
+      );
+      // ...but nothing that follows a successful link ran.
+      expect(documentsService.finalizeBillingReceipt).not.toHaveBeenCalled();
+      expect(email).not.toHaveBeenCalled();
+    });
+
+    it('a retry after a link failure re-finds the existing receipt, links it, and issues no second receipt/journal, PDF or email', async () => {
+      const { service, billingEventService, documentsService, email } = build();
+      // Run 1: the receipt is created, the link write fails.
+      const rows = new Map<
+        number,
+        { receiptDocId: number; docNumber: string; generalDocIndex: string }
+      >();
+      documentsService.findBillingReceiptByAttemptId.mockImplementation(
+        async (id: number) => rows.get(id) ?? null,
+      );
+      documentsService.createBillingSystemReceipt.mockImplementation(
+        async (p: { billingAttemptId: number }) => {
+          const row = {
+            receiptDocId: 500,
+            docNumber: '1001',
+            generalDocIndex: '77',
+          };
+          rows.set(p.billingAttemptId, row);
+          return row;
+        },
+      );
+      const event = {
+        id: 10,
+        receiptDocId: null as number | null,
+        receiptEmailSent: false,
+      };
+      billingEventService.findSuccessEventForAttempt.mockResolvedValue(event);
+      billingEventService.updatePaymentEventWithReceipt.mockResolvedValueOnce(
+        false,
+      );
+      await expect(
+        service.ensureReceiptForCapturedAttempt(base),
+      ).rejects.toThrow();
+
+      // Run 2: same event (still unlinked), link now succeeds.
+      billingEventService.updatePaymentEventWithReceipt.mockResolvedValueOnce(
+        true,
+      );
+      const result = await service.ensureReceiptForCapturedAttempt(base);
+
+      expect(result).toEqual({ receiptDocId: 500 });
+      expect(documentsService.createBillingSystemReceipt).toHaveBeenCalledTimes(
+        1,
+      ); // one receipt+journal ever
+      expect(billingEventService.logEvent).not.toHaveBeenCalled(); // one success event, re-used
+      expect(
+        billingEventService.updatePaymentEventWithReceipt,
+      ).toHaveBeenLastCalledWith(10, 500);
+      expect(documentsService.finalizeBillingReceipt).toHaveBeenCalledTimes(1); // PDFs only after the link
+      expect(email).toHaveBeenCalledTimes(1);
+    });
+
+    it('fails before creating anything when the success event cannot be recorded', async () => {
+      const { service, billingEventService, documentsService } = build();
+      billingEventService.logEvent.mockResolvedValue(null);
+
+      await expect(
+        service.ensureReceiptForCapturedAttempt(base),
+      ).rejects.toThrow('Success event could not be recorded');
+
+      expect(
+        documentsService.createBillingSystemReceipt,
+      ).not.toHaveBeenCalled();
+    });
+
+    it('the link failure message carries no payment, provider or credential detail', async () => {
+      const { service, billingEventService } = build();
+      billingEventService.updatePaymentEventWithReceipt.mockResolvedValue(
+        false,
+      );
+
+      const error = await service
+        .ensureReceiptForCapturedAttempt(base)
+        .catch((e) => e);
+
+      expect(String(error.message)).toBe(
+        'Failed to link the receipt to its billing event',
+      );
     });
 
     it('repeated invocations produce one document even when both race past the lookup (UNIQUE key backstop)', async () => {

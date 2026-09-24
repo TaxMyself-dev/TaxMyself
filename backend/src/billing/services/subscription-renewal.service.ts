@@ -25,6 +25,7 @@ import { BillingReceiptService } from './billing-receipt.service';
 import { BillingIssuerConfigService } from './billing-issuer-config.service';
 import { PricingService } from './pricing.service';
 import { BillingLifecycleService } from './billing-lifecycle.service';
+import { BillingHostedCompletionService } from './billing-hosted-completion.service';
 import { BillingAttempt } from '../entities/billing-attempt.entity';
 import { NormalizedChargeOutcome } from './billing-attempt-orchestration.service';
 
@@ -81,6 +82,7 @@ export class SubscriptionRenewalService {
     private readonly pricingService: PricingService,
     private readonly billingLifecycleService: BillingLifecycleService,
     private readonly dataSource: DataSource,
+    private readonly hostedCompletion: BillingHostedCompletionService,
   ) {}
 
   // ─── Cron entry point ───────────────────────────────────────────────────────
@@ -166,6 +168,26 @@ export class SubscriptionRenewalService {
             break;
         }
       }
+    }
+
+    // Local-only recovery of hosted payments already captured but never
+    // completed (activation or receipt/link failed, no webhook re-delivered).
+    // Runs on the same schedule and manual trigger as renewals, never calls
+    // CardCom, and cannot fail the batch.
+    try {
+      const recovery =
+        await this.hostedCompletion.recoverCapturedHostedAttempts();
+      if (recovery.found > 0) {
+        this.logger.log(
+          `Captured hosted payment recovery: found=${recovery.found} completed=${recovery.completed} pending=${recovery.pending}`,
+        );
+      }
+    } catch (error) {
+      this.logger.error(
+        `Captured hosted payment recovery failed: ${
+          (error as Error)?.message ?? 'unknown error'
+        }`,
+      );
     }
 
     return {
@@ -353,9 +375,8 @@ export class SubscriptionRenewalService {
       // The charge was captured and stays CAPTURED (never re-submitted); the
       // next run resumes only this phase. Sanitized category only — no
       // provider, token or payment detail is persisted or returned.
-      await this.billingEventService.logEvent({
+      await this.billingEventService.logReceiptFailureOncePerAttempt({
         firebaseId: subscription.firebaseId,
-        eventType: BillingEventType.RECEIPT_FAILED,
         subscriptionId,
         billingAttemptId: result.resume.attempt.id,
         metadata: {

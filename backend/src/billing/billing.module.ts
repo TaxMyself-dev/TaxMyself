@@ -38,6 +38,7 @@ import { AdminBillingService } from './services/admin-billing.service';
 import { SubscriptionRenewalService } from './services/subscription-renewal.service';
 import { BillingAttemptOrchestrationService } from './services/billing-attempt-orchestration.service';
 import { BillingLifecycleService } from './services/billing-lifecycle.service';
+import { BillingHostedCompletionService } from './services/billing-hosted-completion.service';
 import {
   BILLING_CARD_COM_EXECUTOR,
   BillingProviderRuntimeService,
@@ -92,6 +93,7 @@ import { BusinessModule } from 'src/business/business.module';
     SubscriptionRenewalService,
     BillingAttemptOrchestrationService,
     BillingLifecycleService,
+    BillingHostedCompletionService,
     BillingProviderRuntimeService,
     BillingCardcomExecutorService,
     {
