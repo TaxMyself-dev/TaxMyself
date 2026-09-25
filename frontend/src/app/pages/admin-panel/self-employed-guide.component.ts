@@ -4,13 +4,14 @@ import { IonicModule } from '@ionic/angular';
 import { GuideSlide, SELF_EMPLOYED_GUIDE_SLIDES } from './self-employed-guide.content';
 import { SelfEmployedTaxSimulatorComponent } from './self-employed-tax-simulator.component';
 import { GuideNationalInsuranceComponent } from './guide-national-insurance.component';
+import { GuideExpenseSavingsComponent } from './guide-expense-savings.component';
 
 @Component({
   selector: 'app-self-employed-guide',
   templateUrl: './self-employed-guide.component.html',
   styleUrls: ['./self-employed-guide.component.scss'],
   standalone: true,
-  imports: [CommonModule, IonicModule, SelfEmployedTaxSimulatorComponent, GuideNationalInsuranceComponent],
+  imports: [CommonModule, IonicModule, SelfEmployedTaxSimulatorComponent, GuideNationalInsuranceComponent, GuideExpenseSavingsComponent],
 })
 export class SelfEmployedGuideComponent {
   @Output() closeGuide = new EventEmitter<void>();
@@ -21,7 +22,7 @@ export class SelfEmployedGuideComponent {
     vat: ['vat-introduction', 'vat-calculation'],
     ni: ['ni-status', 'ni-payment', 'ni-calculator'],
   };
-  readonly mainIds = ['cover', 'basic-concepts', 'employee-payroll', 'business-types', 'income-tax-overview', 'status-comparison', 'micro-blockers', 'tax-authorities', 'product-pain', 'product-solution'];
+  readonly mainIds = ['cover', 'basic-concepts', 'employee-payroll', 'business-types', 'income-tax-overview', 'status-comparison', 'micro-blockers', 'tax-authorities', 'expense-principle', 'expense-savings', 'product-pain', 'product-solution'];
   activeChapter: 'income' | 'vat' | 'ni' | null = null;
 
   get slides(): GuideSlide[] {

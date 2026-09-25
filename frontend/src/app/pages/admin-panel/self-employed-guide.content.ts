@@ -10,7 +10,9 @@ export type GuideSlideLayout =
   | 'income-combination'
   | 'approved-artwork'
   | 'ni-simulator'
-  | 'tax-simulator';
+  | 'tax-simulator'
+  | 'expense-principle'
+  | 'expense-savings';
 
 export interface GuideItem {
   label: string;
@@ -42,6 +44,12 @@ const figures = SELF_EMPLOYED_GUIDE_FIGURES;
 const ceiling = new Intl.NumberFormat('he-IL').format(figures.vatExemptTurnoverCeiling);
 
 export const SELF_EMPLOYED_GUIDE_SLIDES: GuideSlide[] = [
+  {
+    id: 'expense-principle', layout: 'expense-principle',
+    title: 'כבר שילמתם? אל תפספסו את החיסכון.',
+    sources: [{ label: 'קיזוז מס תשומות', url: 'https://www.gov.il/he/service/reporting-or-payment-of-vat-reports' }, { label: 'ניכוי במסלול עסק זעיר', url: figures.sources.microBusinessGuidance }],
+  },
+  { id: 'expense-savings', layout: 'expense-savings', title: 'כמה ההוצאה הזאת באמת עולה לכם?' },
   {
     id: 'product-pain', layout: 'approved-artwork', title: 'הסיוט של כל עצמאי',
     artwork: '/assets/self-employed-guide/product-pain-approved.png',

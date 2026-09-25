@@ -1,0 +1,77 @@
+<section class="expense-slide" [class.is-calculator]="mode === 'calculator'" dir="rtl">
+  <header>
+    <span class="eyebrow">הוצאות מוכרות · כסף שכדאי לספור</span>
+    <h2>{{ mode === 'principle' ? 'כבר שילמתם? אל תפספסו את החיסכון.' : 'כמה ההוצאה הזאת באמת עולה לכם?' }}</h2>
+  </header>
+  @if (mode === 'principle') {
+    <div class="principle-flow">
+      <div class="paper">
+        <img class="receipt-icon" [src]="icons['receipt']" alt="" />
+        <span class="stamp">שומרים. מתעדים. מכירים.</span>
+        <h3>הוצאה לצורכי העסק</h3>
+        <div class="receipt-lines" aria-hidden="true"><i></i><i></i><i></i></div>
+        <strong>החלק המוכר מקטין את הרווח</strong>
+      </div>
+      <div class="flow-arrow" aria-hidden="true">←</div>
+      <div class="profit-scene">
+        <div class="bars" aria-label="המחשה: הרווח החייב קטן לאחר הכרה בהוצאה">
+          <div><span class="bar before"></span><span>לפני ההוצאה</span></div>
+          <div><span class="bar after"></span><span>אחרי ההוצאה</span></div>
+        </div>
+        <h3>פחות רווח חייב</h3>
+      </div>
+      <div class="flow-arrow" aria-hidden="true">←</div>
+      <div class="benefits">
+        <div><img class="benefit-icon" [src]="icons['tax']" alt="" /><span>מס הכנסה<strong>עשוי לרדת</strong></span></div>
+        <div><img class="benefit-icon" [src]="icons['insurance']" alt="" /><span>ביטוח לאומי ובריאות<strong>עשויים לרדת, אם חייבים</strong></span></div>
+      </div>
+    </div>
+    <div class="vat-lane"><img class="branch-icon" [src]="icons['branch']" alt="" /><strong>עוסק מורשה? יש גם מסלול מע״מ</strong><span>מס תשומות שמותר לקזז מפחית את המע״מ לתשלום.</span></div>
+    <p class="takeaway">לא מקבלים את כל ההוצאה בחזרה. <strong>משלמים פחות מיסים על הוצאה שהייתה נחוצה.</strong></p>
+    <p class="fine-print">לפי שיעורי המס, החבות וכללי ההכרה. מע״מ שקוזז לא נכלל בהוצאה. במסלול עסק זעיר: ניכוי קבוע של 30% מהמחזור במקום הוצאות בפועל.</p>
+  } @else {
+    <div class="calculator-grid">
+      <section class="settings" aria-label="נתוני הסימולציה">
+        <div class="business-picker" role="group" aria-label="סוג עסק במסלול הרגיל">
+          <button type="button" [attr.aria-pressed]="businessType === 'exempt'" (click)="selectBusiness('exempt')">עוסק פטור</button>
+          <button type="button" [attr.aria-pressed]="businessType === 'authorized'" (click)="selectBusiness('authorized')">עוסק מורשה</button>
+        </div>
+        <span class="route-label">מסלול רגיל · נתונים שנתיים</span>
+        <label class="field"><span>הכנסות {{ businessType === 'authorized' ? '(ללא מע״מ)' : '' }}</span><strong>{{ money(revenue) }}</strong>
+          <input aria-label="הכנסות שנתיות" type="range" min="0" max="500000" step="1000" [value]="revenue" (input)="change('revenue', $event)" />
+        </label>
+        <label class="field expense-field"><span>הוצאות ששילמתם · כולל מע״מ אם חל</span><strong>{{ money(expenses) }}</strong>
+          <input aria-label="הוצאות ששולמו" type="range" min="0" max="100000" step="10" [value]="expenses" (input)="change('expenses', $event)" />
+        </label>
+        <div class="rate-fields">
+          <label>מס שולי (%)<input aria-label="אחוז מס שולי" type="number" min="0" max="50" step="1" [value]="taxPercent" (input)="change('taxPercent', $event)" /></label>
+          <label>ב״ל ובריאות (%)<input aria-label="אחוז ביטוח לאומי ובריאות" type="number" min="0" max="18" step="0.1" [value]="insurancePercent" (input)="change('insurancePercent', $event)" /></label>
+        </div>
+        <label class="vat-check"><input type="checkbox" [checked]="vatEligible" [disabled]="businessType === 'exempt'" (change)="toggleVat($event)" />ההוצאות כוללות {{ vatPercent }}% מע״מ המותר בקיזוז מלא</label>
+        <p class="zero-hint">{{ exceedsExemptCeiling ? 'המחזור מעל תקרת עוסק פטור — בדקו שינוי סיווג.' : 'אין חבות? בחרו 0% בשדה המתאים.' }}</p>
+      </section>
+      <section class="receipt-column" aria-label="השפעת ההוצאות על הרווח">
+        <div class="paper live-paper">
+          <img class="receipt-icon" [src]="icons['receipt']" alt="" />
+          <span>ההוצאות שהכרנו</span><strong>{{ money(result.deductible) }}</strong>
+          <hr /><div class="profit-row"><span>רווח לפני</span><b>{{ money(revenue) }}</b></div>
+          <div class="profit-row"><span>רווח אחרי</span><b>{{ money(result.profit) }}</b></div>
+          <span class="receipt-badge">אותן הכנסות. פחות רווח חייב.</span>
+        </div>
+        <button class="add-expense" type="button" (click)="addExpense()" [disabled]="expenses >= 100000"><img class="add-icon" [src]="icons['add']" alt="" />נוסיף הוצאה של 1,180 ₪</button>
+        <p class="last-saving" aria-live="polite">{{ lastSaving === null ? 'הזיזו את הסרגל ותראו את ההבדל' : 'התוספת חסכה עוד ' + money(lastSaving) + ' באומדן' }}</p>
+      </section>
+      <section class="saving-panel" aria-label="אומדן החיסכון" aria-live="polite">
+        <span class="saving-label">החיסכון המשוער שלכם</span>
+        <strong class="big-number">{{ money(result.total) }}</strong>
+        <span class="saving-percent">{{ result.savingsPercent | number:'1.0-1' }}% מסכום ההוצאות</span>
+        <div class="saving-stack" aria-hidden="true"><i [style.width.%]="expenses ? result.tax / expenses * 100 : 0"></i><i [style.width.%]="expenses ? result.insurance / expenses * 100 : 0"></i><i [style.width.%]="expenses ? result.vat / expenses * 100 : 0"></i></div>
+        <dl><div><dt><i class="dot tax"></i>מס הכנסה</dt><dd>{{ money(result.tax) }}</dd></div><div><dt><i class="dot insurance"></i>ביטוח לאומי ובריאות</dt><dd>{{ money(result.insurance) }}</dd></div><div><dt><i class="dot vat"></i>קיזוז מע״מ</dt><dd>{{ money(result.vat) }}</dd></div></dl>
+        <div class="net-cost"><span>עלות לאחר החיסכון המשוער</span><strong>{{ money(result.cost) }}</strong></div>
+      </section>
+    </div>
+    <p class="model-note">אומדן פשוט: הוצאה מוכרת × האחוזים שבחרתם, ומע״מ בנפרד. לא חישוב מס אישי.</p>
+    <p class="fine-print">מניח הכרה מלאה ושיעורים קבועים; ללא מדרגות, זיכויים, תקרות, מינימום והתאמת 52% בדמי ביטוח. לא למסלול עסק זעיר. {{ result.loss > 0 ? 'הוצאות מעבר לרווח אינן יוצרות כאן חיסכון מיידי.' : 'קיזוז מע״מ כפוף לחשבונית תקינה ולכללי מס תשומות.' }}</p>
+  }
+  <img class="brand" src="/assets/login_logo.svg" alt="KeepInTax" />
+</section>

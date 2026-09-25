@@ -17,6 +17,9 @@
   <div class="slide-frame" aria-live="polite">
     <article class="slide" [ngClass]="'slide--' + currentSlide.layout">
       @switch (currentSlide.layout) {
+        @case ('expense-principle') {
+          <app-guide-expense-savings mode="principle"></app-guide-expense-savings>
+        }
         @case ('cover') {
           <div class="cover-visual" role="img" aria-label="עצמאי צעיר מוקף בניירת ובשלוש רשויות המס"></div>
           <div class="cover-message">
@@ -109,6 +112,7 @@
       }
       <app-self-employed-tax-simulator [hidden]="currentSlide.layout !== 'tax-simulator'"></app-self-employed-tax-simulator>
       <app-guide-national-insurance [hidden]="currentSlide.layout !== 'ni-simulator'"></app-guide-national-insurance>
+      <app-guide-expense-savings mode="calculator" [hidden]="currentSlide.layout !== 'expense-savings'"></app-guide-expense-savings>
     </article>
   </div>
 

@@ -18,6 +18,8 @@ Internal admin console (tabbed) for staff to manage clients dashboard, the unifi
 
 ## Main flows
 
+- Expense teaching slides (2026-09-25): `expense-principle` then `expense-savings` precede product pain in the main sequence, now 12 main/24 total screens. `guide-expense-savings.component.*` provides a native visual explanation and a persistent live calculator; `guide-expense-savings.ts` is an isolated linear estimate, not the tax/NI assessment engine. VAT is removed from deductible costs before applying user-selected rates; zero liabilities and expenses above revenue are guarded. Regular exempt/authorized routes only; micro-route exclusion and model limitations are visible. Details/sources: `docs/marketing/expense-savings-slides.md`. Earlier screen counts below are historical.
+
 - Product-slide integration: main slides 9 and 10 are `product-pain` and `product-solution`, the exact latest artwork from task `שקופיות להצגת אפליקציית KeepInTax`. There are now 22 distinct slides (10 main, 7 income, 2 VAT, 3 NI). The authorities hub remains main slide 8 and chapter returns still land there; its Next button continues to the product slides. Sources and approved copy: `docs/marketing/product-introduction-slides.md`. These counts supersede historical entries below.
 
 - Guide now has 20 distinct screens: the duplicate `income-tax-summary` calculator entry was removed. `tax-simulator` appears once, last in the 7-screen Income Tax chapter after `micro-reporting`; Next returns to the authorities hub. The earlier 21/16-screen counts below are historical.
