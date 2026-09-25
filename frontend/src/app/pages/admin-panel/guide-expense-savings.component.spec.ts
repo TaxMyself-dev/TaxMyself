@@ -1,25 +1,49 @@
 import { TestBed } from '@angular/core/testing';
 import { GuideExpenseSavingsComponent } from './guide-expense-savings.component';
 describe('Expense savings slide controls', () => {
-  it('updates results from actual controls and shows the added-expense saving', async () => {
+  it('adds an expense with separate recognition rates and updates the slider', async () => {
     await TestBed.configureTestingModule({imports:[GuideExpenseSavingsComponent]}).compileComponents();
     const f=TestBed.createComponent(GuideExpenseSavingsComponent); f.detectChanges();
     const root: HTMLElement=f.nativeElement;
-    expect(root.querySelector('input[aria-label="הכנסות שנתיות"]')).toBeNull();
-    expect(root.querySelector('h2')!.textContent).toContain('באמת שווה לכם');
-    expect(root.textContent).not.toContain('רווח לפני');
-    const expenses=root.querySelector<HTMLInputElement>('input[aria-label="הוצאות ששולמו"]')!;
-    expenses.value='1180'; expenses.dispatchEvent(new Event('input')); f.detectChanges();
-    expect(f.componentInstance.result.total).toBeCloseTo(560,6);
+    const set=(label:string, value:string) => {
+      const input=root.querySelector<HTMLInputElement>(`input[aria-label="${label}"]`)!;
+      input.value=value; input.dispatchEvent(new Event('input')); f.detectChanges();
+    };
+    expect(root.querySelector('.eyebrow')).toBeNull();
+    expect(root.querySelector('.model-note')).toBeNull();
+    expect(root.querySelector('.fine-print')).toBeNull();
+    set('הוצאות ששולמו','0');
     root.querySelector<HTMLButtonElement>('.add-expense')!.click(); f.detectChanges();
-    expect(f.componentInstance.lastSaving).toBeCloseTo(560,6);
+    set('סכום ההוצאה','1180'); set('אחוז מוכר למס','50'); set('אחוז מוכר למעמ','50');
+    root.querySelector('form')!.dispatchEvent(new Event('submit', {cancelable:true})); f.detectChanges();
+    const c=f.componentInstance;
+    expect(c.result.vat).toBeCloseTo(90,6); expect(c.result.deductible).toBeCloseTo(545,6);
+    expect(c.result.tax).toBeCloseTo(109,6); expect(c.result.insurance).toBeCloseTo(98.1,6);
+    expect(c.lastSaving).toBeCloseTo(297.1,6);
+    expect(root.querySelector<HTMLInputElement>('input[type=range]')!.value).toBe('1180');
+    expect(root.querySelector('.live-paper')!.textContent).toContain('חיסכון במע״מ');
+    expect(root.querySelector('form')).toBeNull();
+    set('הוצאות ששולמו','2360');
+    expect(c.result.total).toBeCloseTo(594.2,6); expect(c.lastSaving).toBeNull();
     root.querySelector<HTMLButtonElement>('.business-picker button')!.click(); f.detectChanges();
-    expect(f.componentInstance.result.vat).toBe(0);
-    expect(root.querySelector<HTMLInputElement>('input[type=checkbox]')!.disabled).toBeTrue();
+    expect(c.result.vat).toBe(0);
+    root.querySelector<HTMLButtonElement>('.add-expense')!.click(); f.detectChanges();
+    expect(root.querySelector<HTMLInputElement>('input[aria-label="אחוז מוכר למעמ"]')!.disabled).toBeTrue();
     f.destroy();
   });
-  it('clears stale deltas after parameter changes and caps added expenses', () => {
-    const c=new GuideExpenseSavingsComponent(); c.addExpense(); c.selectBusiness('exempt');
-    expect(c.lastSaving).toBeNull(); c.expenses=99999; c.addExpense(); expect(c.expenses).toBe(100000);
+  it('preserves each percentage and rejects invalid drafts without changing totals', () => {
+    const c=new GuideExpenseSavingsComponent(); c.expenses=0;
+    c.openExpense(); c.draft={amount:1180,taxRecognition:50,vatRecognition:50}; c.addExpense();
+    c.openExpense(); c.draft={amount:1180,taxRecognition:100,vatRecognition:100}; c.addExpense();
+    expect(c.expenses).toBe(2360); expect(c.result.total).toBeCloseTo(857.1,6);
+    expect(c.lastSaving).toBeCloseTo(560,6);
+    c.openExpense(); c.draft.amount=500; c.cancelExpense(); expect(c.expenses).toBe(2360);
+    for(const draft of [
+      {amount:0,taxRecognition:100,vatRecognition:100},
+      {amount:NaN,taxRecognition:100,vatRecognition:100},
+      {amount:100000,taxRecognition:100,vatRecognition:100},
+      {amount:10,taxRecognition:101,vatRecognition:100},
+      {amount:10,taxRecognition:100,vatRecognition:-1},
+    ]) { c.openExpense(); c.draft=draft; c.addExpense(); expect(c.expenses).toBe(2360); expect(c.draftError).not.toBe(''); }
   });
 });

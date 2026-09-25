@@ -18,6 +18,8 @@ Internal admin console (tabbed) for staff to manage clients dashboard, the unifi
 
 ## Main flows
 
+- Expense custom-entry update: inline “הוסף הוצאה” form retains amount and separate tax/VAT recognition percentages per item, accumulating the slider total. Slider changes scale item amounts proportionally without losing recognition rates. VAT is disabled for exempt dealers and now also appears in the middle receipt. Calculator eyebrow/footer caveats were removed at user request; assumptions remain in `docs/marketing/expense-savings-slides.md`. Focused validation covers entry, cancel, invalid input, mixed recognition and scaling.
+
 - Expense calculator follow-up: no revenue input or before/after profit display; applies chosen marginal rates to the full recognized expense under an explicit sufficient-taxable-profit assumption. VAT remains separate; removed net-cost display and turnover warning. Title: `כמה ההוצאה הזאת באמת שווה לכם?`. This supersedes the income cap described in the initial entry below.
 
 - Expense teaching slides (2026-09-25): `expense-principle` then `expense-savings` precede product pain in the main sequence, now 12 main/24 total screens. `guide-expense-savings.component.*` provides a native visual explanation and a persistent live calculator; `guide-expense-savings.ts` is an isolated linear estimate, not the tax/NI assessment engine. VAT is removed from deductible costs before applying user-selected rates; zero liabilities and expenses above revenue are guarded. Regular exempt/authorized routes only; micro-route exclusion and model limitations are visible. Details/sources: `docs/marketing/expense-savings-slides.md`. Earlier screen counts below are historical.

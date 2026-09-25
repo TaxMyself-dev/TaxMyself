@@ -28,6 +28,16 @@ describe('Expense savings teaching model', () => {
     const r=calculateExpenseSavings({...base,expenses:-10,taxPercent:Infinity});
     expect(r.total).toBe(0); expect(r.savingsPercent).toBe(0);
   });
+  it('keeps tax and VAT recognition independent, including zero recognition', () => {
+    const r=calculateExpenseSavings({...base,items:[
+      {amount:1180,taxRecognition:50,vatRecognition:50},
+      {amount:1180,taxRecognition:0,vatRecognition:100},
+      {amount:1180,taxRecognition:100,vatRecognition:0},
+    ]});
+    expect(r.expenses).toBe(3540); expect(r.vat).toBeCloseTo(270,6);
+    expect(r.deductible).toBeCloseTo(1725,6); expect(r.tax).toBeCloseTo(345,6);
+    expect(r.insurance).toBeCloseTo(310.5,6);
+  });
   it('keeps total benefit no greater than expenditure across the supported range', () => {
     for(const expenses of [0,1180,200000]) {
       const r=calculateExpenseSavings({...base,expenses,taxPercent:99,insurancePercent:99});

@@ -13,7 +13,29 @@ Native HTML/CSS, mint/lime/navy, receipt illustration, lower-profit bars, separa
 VAT lane, large savings result. No new image generation or customer data.
 Calculator remains mounted while hidden, preserving inputs across navigation.
 
-## Model and boundaries (visible on slide)
+## Model and boundaries
+
+### Custom-expense update (supersedes the fixed-add behavior below)
+
+The calculator eyebrow and both explanatory footer lines were removed at the
+user's request; assumptions remain documented here. The result still says estimated
+savings, and the route remains regular/marginal-rate teaching only.
+“הוסף הוצאה” opens an inline form for gross amount, tax recognition (0–100%) and
+VAT recognition (0–100% of VAT, not of gross). VAT recognition is disabled for
+exempt dealers. Zero VAT recognition supports expenses without eligible VAT.
+Each item retains its own rates. Recoverable VAT = amount * 18/118 * VAT recognition;
+recognized expense = (amount - recoverable VAT) * tax recognition. Tax and NI rates
+apply to recognized expense. The receipt now includes the VAT savings row.
+New items accumulate into the slider total (maximum 100,000); moving the slider
+scales all current item amounts proportionally, preserving recognition rates.
+Cancel leaves totals untouched; invalid amounts/percentages are rejected. The
+initial 11,800 example has 100% recognition. Model limitations listed below still
+apply: this is not a category-specific tax assessment.
+Verification for this update is limited to the expense calculator suites and a
+browser form submission/slider check, per the user's request for targeted checks.
+Result: 10 expense-only tests passed; browser submission of 1,180 at 50%/50%
+recognition increased the slider from 11,800 to 12,980 and showed 297 rounded
+additional savings. No full guide suite or production build was rerun for this edit.
 
 This is a linear teaching estimate, NOT the existing tax or NI assessment model.
 Supports exempt and authorized dealers under the regular actual-expense route.
