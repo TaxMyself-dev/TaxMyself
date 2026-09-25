@@ -1,6 +1,6 @@
 import { calculateExpenseSavings, ExpenseSavingsInput } from './guide-expense-savings';
 describe('Expense savings teaching model', () => {
-  const base: ExpenseSavingsInput = {businessType:'authorized',revenue:120000,expenses:1180,taxPercent:20,insurancePercent:18,vatEligible:true};
+  const base: ExpenseSavingsInput = {businessType:'authorized',expenses:1180,taxPercent:20,insurancePercent:18,vatEligible:true};
   it('separates recoverable VAT before computing profit-based savings', () => {
     const r = calculateExpenseSavings(base);
     expect(r.vat).toBeCloseTo(180,6); expect(r.deductible).toBeCloseTo(1000,6);
@@ -18,19 +18,19 @@ describe('Expense savings teaching model', () => {
     const r = calculateExpenseSavings({...base,taxPercent:0,insurancePercent:0});
     expect(r.total).toBeCloseTo(180,6);
   });
-  it('caps immediate profit savings at positive income, not VAT', () => {
-    const r = calculateExpenseSavings({...base,revenue:100});
-    expect(r.profit).toBe(0); expect(r.tax).toBeCloseTo(20,6); expect(r.insurance).toBeCloseTo(18,6);
-    expect(r.loss).toBeCloseTo(900,6); expect(r.vat).toBeCloseTo(180,6);
+  it('applies selected marginal rates to the whole recognized expense', () => {
+    const r = calculateExpenseSavings({...base,expenses:118000});
+    expect(r.tax).toBeCloseTo(20000,6); expect(r.insurance).toBeCloseTo(18000,6);
+    expect(r.vat).toBeCloseTo(18000,6);
   });
   it('handles zero and invalid values without negative or nonfinite results', () => {
     expect(calculateExpenseSavings({...base,expenses:0}).total).toBe(0);
-    const r=calculateExpenseSavings({...base,revenue:NaN,expenses:-10,taxPercent:Infinity});
+    const r=calculateExpenseSavings({...base,expenses:-10,taxPercent:Infinity});
     expect(r.total).toBe(0); expect(r.savingsPercent).toBe(0);
   });
   it('keeps total benefit no greater than expenditure across the supported range', () => {
-    for(const expenses of [0,1180,200000]) for(const revenue of [0,500,500000]) {
-      const r=calculateExpenseSavings({...base,revenue,expenses,taxPercent:99,insurancePercent:99});
+    for(const expenses of [0,1180,200000]) {
+      const r=calculateExpenseSavings({...base,expenses,taxPercent:99,insurancePercent:99});
       expect(r.total).toBeLessThanOrEqual(expenses); expect(r.cost).toBeGreaterThanOrEqual(0);
     }
   });

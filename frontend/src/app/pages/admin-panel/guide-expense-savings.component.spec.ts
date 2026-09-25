@@ -5,6 +5,9 @@ describe('Expense savings slide controls', () => {
     await TestBed.configureTestingModule({imports:[GuideExpenseSavingsComponent]}).compileComponents();
     const f=TestBed.createComponent(GuideExpenseSavingsComponent); f.detectChanges();
     const root: HTMLElement=f.nativeElement;
+    expect(root.querySelector('input[aria-label="הכנסות שנתיות"]')).toBeNull();
+    expect(root.querySelector('h2')!.textContent).toContain('באמת שווה לכם');
+    expect(root.textContent).not.toContain('רווח לפני');
     const expenses=root.querySelector<HTMLInputElement>('input[aria-label="הוצאות ששולמו"]')!;
     expenses.value='1180'; expenses.dispatchEvent(new Event('input')); f.detectChanges();
     expect(f.componentInstance.result.total).toBeCloseTo(560,6);

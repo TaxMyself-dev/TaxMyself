@@ -49,7 +49,7 @@ export const SELF_EMPLOYED_GUIDE_SLIDES: GuideSlide[] = [
     title: 'כבר שילמתם? אל תפספסו את החיסכון.',
     sources: [{ label: 'קיזוז מס תשומות', url: 'https://www.gov.il/he/service/reporting-or-payment-of-vat-reports' }, { label: 'ניכוי במסלול עסק זעיר', url: figures.sources.microBusinessGuidance }],
   },
-  { id: 'expense-savings', layout: 'expense-savings', title: 'כמה ההוצאה הזאת באמת עולה לכם?' },
+  { id: 'expense-savings', layout: 'expense-savings', title: 'כמה ההוצאה הזאת באמת שווה לכם?' },
   {
     id: 'product-pain', layout: 'approved-artwork', title: 'הסיוט של כל עצמאי',
     artwork: '/assets/self-employed-guide/product-pain-approved.png',

@@ -2,7 +2,6 @@ import { CommonModule } from '@angular/common';
 import { Component, Input } from '@angular/core';
 import { receiptOutline, calculatorOutline, shieldCheckmarkOutline, gitBranchOutline, addCircleOutline } from 'ionicons/icons';
 import { calculateExpenseSavings, ExpenseBusinessType, EXPENSE_VAT_RATE } from './guide-expense-savings';
-import { SELF_EMPLOYED_GUIDE_FIGURES } from './self-employed-guide.figures';
 
 @Component({
   selector: 'app-guide-expense-savings', standalone: true,
@@ -23,19 +22,17 @@ export class GuideExpenseSavingsComponent {
   ]));
   @Input() mode: 'principle' | 'calculator' = 'calculator';
   businessType: ExpenseBusinessType = 'authorized';
-  revenue = 120000;
   expenses = 11800;
   taxPercent = 20;
   insurancePercent = 18;
   vatEligible = true;
   lastSaving: number | null = null;
   readonly vatPercent = EXPENSE_VAT_RATE * 100;
-  get exceedsExemptCeiling(): boolean { return this.businessType === 'exempt' && this.revenue > SELF_EMPLOYED_GUIDE_FIGURES.vatExemptTurnoverCeiling; }
   get result() { return calculateExpenseSavings(this); }
   money(n: number): string { return new Intl.NumberFormat('he-IL', { maximumFractionDigits: 0 }).format(n) + ' ₪'; }
-  change(field: 'revenue' | 'expenses' | 'taxPercent' | 'insurancePercent', event: Event): void {
+  change(field: 'expenses' | 'taxPercent' | 'insurancePercent', event: Event): void {
     const raw = Number((event.target as HTMLInputElement).value);
-    const max = field === 'revenue' ? 500000 : field === 'expenses' ? 100000 : field === 'taxPercent' ? 50 : 18;
+    const max = field === 'expenses' ? 100000 : field === 'taxPercent' ? 50 : 18;
     this[field] = Number.isFinite(raw) ? Math.min(max, Math.max(0, raw)) : 0;
     this.lastSaving = null;
   }

@@ -2,7 +2,8 @@
 
 2026-09-25. User requested two slides immediately before the product pain slide:
 one visual principle, followed by a lively calculator with business type, marginal
-income-tax rate, insurance rate, revenue and expenses.
+income-tax rate, insurance rate and expenses. Follow-up: removed revenue input,
+before/after profit and net-cost display; title is now “כמה ההוצאה הזאת באמת שווה לכם?”.
 
 ## Presentation
 
@@ -19,25 +20,23 @@ Supports exempt and authorized dealers under the regular actual-expense route.
 Micro-business 30% normative deduction is explained on the principle slide and
 explicitly excluded from the calculator. Company taxation is outside its scope.
 
-- All amounts annual. Authorized revenue excludes output VAT; exempt revenue is
-  its turnover. Expense amount is cash paid, including VAT if applicable.
+- Expense amount is cash paid, including VAT if applicable. No revenue input.
 - Assumes all expenses are immediately and fully deductible. No mixed-use,
   partial recognition, depreciation or category-specific percentages.
 - Authorized + eligible checkbox: recoverable input VAT = gross * 18 / 118.
   Otherwise recoverable VAT = 0. Checkbox assumes valid invoice, full input VAT
   eligibility and taxable business use. It does not validate invoices.
 - Deductible expense = gross expense minus recoverable VAT (never count twice).
-- Positive-profit reduction = min(revenue, deductible expense).
+- Reduction = deductible expense. Explicit assumption: sufficient taxable profit
+  and the selected marginal rates apply to the entire recognized expense.
 - Tax saving = reduction * manually selected marginal rate / 100 (0–50).
 - NI/health saving = reduction * manually selected combined rate / 100 (0–18).
 - Total = tax saving + NI/health saving + VAT credit; net cost = gross - total.
 - No progressive brackets, personal credits, NI minimum/cap, 52% NI adjustment,
-  salary interactions, pension or loss carry-forward. VAT credits may remain even
-  with no positive profit; the tool does not promise immediate cash refunds.
-- Income below expenses produces no negative profit-based tax or extra immediate
-  loss benefit. Exempt turnover above the central annual ceiling shows a warning.
+  salary interactions, pension or loss carry-forward. The tool does not promise
+  immediate cash refunds and no longer checks turnover or profit limits.
 - Additional-expense button adds 1,180 gross (bounded to 100,000) and reports the
-  difference in modelled savings, not an assumed constant once profit is exhausted.
+  difference in modelled savings under the stated sufficient-profit assumption.
   Changing parameters clears that stale delta.
 
 Example: authorized, eligible gross expense 1,180, positive profit at least 1,000,
