@@ -96,8 +96,6 @@ export enum AppFeature {
   ADD_OPEN_BANKING_BUTTON               = 'ADD_OPEN_BANKING_BUTTON',
   OPEN_BANKING_TABLE                    = 'OPEN_BANKING_TABLE',
   OPEN_BANKING_CONNECT                  = 'OPEN_BANKING_CONNECT',
-  CATEGORY_LIST_TAB                     = 'CATEGORY_LIST_TAB',
-  OPEN_BANKING_PERMISSIONS_TAB          = 'OPEN_BANKING_PERMISSIONS_TAB',
 }
 
 /**
@@ -134,8 +132,6 @@ export const FEATURE_ACCESS_CONFIG: Record<AppFeature, FeatureAccessConfig> = {
   [AppFeature.DOCUMENTS_LIST_TAB]:           { requiredModule: ModuleName.INVOICES,     blockedBehavior: BlockedBehavior.HIDE,          displayName: 'רשימת מסמכים' },
   [AppFeature.ADD_OPEN_BANKING_BUTTON]:      { requiredModule: ModuleName.OPEN_BANKING, blockedBehavior: BlockedBehavior.HIDE,          displayName: 'הוספת חשבון בנק' },
   [AppFeature.OPEN_BANKING_TABLE]:           { requiredModule: ModuleName.OPEN_BANKING, blockedBehavior: BlockedBehavior.HIDE,          displayName: 'טבלת בנקאות פתוחה' },
-  [AppFeature.CATEGORY_LIST_TAB]:            { requiredModule: ModuleName.OPEN_BANKING, blockedBehavior: BlockedBehavior.HIDE,          displayName: 'רשימת קטגוריות' },
-  [AppFeature.OPEN_BANKING_PERMISSIONS_TAB]: { requiredModule: ModuleName.OPEN_BANKING, blockedBehavior: BlockedBehavior.HIDE,          displayName: 'הרשאות בנקאות פתוחה' },
 };
 
 /** Returned by AccessHandlerService — describes whether access was granted and why it was blocked. */
