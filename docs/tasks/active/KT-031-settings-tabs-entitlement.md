@@ -1,6 +1,6 @@
 # KT-031 - Decouple settings tabs from open banking
 
-- Status: `WORKER_COMPLETE`
+- Status: `READY_TO_PUSH`
 - Task manager: Codex primary integration manager
 - Worker: Codex primary agent
 - Worktree: `C:\Users\harel\Elazar Harel\taxmyself\taxmyself-dev`
@@ -32,7 +32,7 @@ includes open banking.
 ## Handoff
 
 - Result: complete
-- Commit hash(es): pending commit
+- Commit hash(es): `9e0a08819f893aa1d5fb544d60ffb2d754c11e16`
 - Changed files: settings page TS/HTML, settings access policy + focused spec, shared access-control registry, settings topic documentation, this task record.
 - Tests and exact results: direct policy execution passed 4/4 critical assertions; Angular production build passed (exit 0).
 - Known pre-existing failures: Angular Karma's `--include` run still compiles legacy specs and stopped before execution on existing errors, including removed Angular `async` imports and mismatched component class names.
@@ -42,8 +42,8 @@ includes open banking.
 
 ## Integration
 
-- Reviewed by:
-- Integrated commit:
-- Combined verification:
-- `origin/main` verification:
-- User-visible run instructions:
+- Reviewed by: Codex primary integration manager
+- Integrated commit: `9e0a08819f893aa1d5fb544d60ffb2d754c11e16` on local `main`
+- Combined verification: focused policy execution passed 4/4 assertions; Angular production build passed; `git diff --check` and `git show --check` passed.
+- `origin/main` verification: `origin/main` (`9a91c421`) is an ancestor of local `main`; push awaits explicit remote-destination approval.
+- User-visible run instructions: after push/deployment, sign in as a customer without `OPEN_BANKING` and verify both tabs appear while the open-banking account subsection stays hidden.
