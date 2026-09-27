@@ -33,8 +33,8 @@ an automatic charge.
 
 ## Handoff
 
-- Result: Complete; awaiting local commit/integration delivery.
-- Commit hash(es): Pending local commit.
+- Result: Complete and committed locally.
+- Commit hash(es): `b28dd90d`
 - Changed files: billing entity/enums/access/checkout/renewal/admin API and tests; admin/customer billing UI; cutover SQL; topic docs.
 - Tests and exact results: focused Jest suites: 3 passed, 48 tests passed; Nest build passed; Angular production build passed.
 - Known pre-existing failures: Angular build retains existing style-budget and CommonJS warnings only.
@@ -45,7 +45,7 @@ an automatic charge.
 ## Integration
 
 - Reviewed by:
-- Integrated commit:
-- Combined verification:
+- Integrated commit: `b28dd90d` (implemented directly on local `main`).
+- Combined verification: 3 focused Jest suites / 48 tests passed; Nest build passed; Angular production build passed.
 - `origin/main` verification:
 - User-visible run instructions:
