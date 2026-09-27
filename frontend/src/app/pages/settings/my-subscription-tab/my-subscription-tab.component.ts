@@ -71,13 +71,19 @@ export class MySubscriptionTabComponent implements OnInit {
   // ─── Status card view model ─────────────────────────────────────────────────
 
   readonly status = computed(() => this.billingState()?.subscription?.status ?? null);
+  readonly isComplimentary = computed(
+    () => this.billingState()?.subscription?.billingAccessMode === 'COMPLIMENTARY_FULL',
+  );
   readonly statusLabel = computed(() => {
+    if (this.isComplimentary()) return 'גישה מלאה ללא חיוב';
     const s = this.status();
     return s ? (STATUS_LABELS[s] ?? s) : '—';
   });
 
   /** Current plan name, shown inside the status card. Falls back while no plan (trial). */
-  readonly planNameLabel = computed(() => this.billingState()?.plan?.name ?? '—');
+  readonly planNameLabel = computed(() =>
+    this.isComplimentary() ? 'ללא תוכנית — פטור מחיוב' : (this.billingState()?.plan?.name ?? '—'),
+  );
 
   readonly billingBusinessTypeLabel = computed(() => {
     switch (this.billingState()?.billingBusinessType) {
@@ -91,12 +97,15 @@ export class MySubscriptionTabComponent implements OnInit {
   });
 
   readonly monthlyPriceLabel = computed(() => {
+    if (this.isComplimentary()) return 'ללא חיוב';
     const agorot = this.billingState()?.effectiveMonthlyPriceBeforeVatAgorot;
     return agorot != null ? `${formatShekels(agorot)} ₪ לחודש (לפני מע״מ)` : '—';
   });
 
   readonly nextBillingDateLabel = computed(() =>
-    formatDate(this.billingState()?.subscription?.nextBillingDate),
+    this.isComplimentary()
+      ? 'לא נדרש'
+      : formatDate(this.billingState()?.subscription?.nextBillingDate),
   );
 
   readonly isCanceled = computed(() => this.status() === 'CANCELED');

@@ -8,7 +8,7 @@ import { Subscription } from '../entities/subscription.entity';
 import { SubscriptionPlan } from '../entities/subscription-plan.entity';
 import { PaymentMethod } from '../entities/payment-method.entity';
 
-import { BillingEventType, SubscriptionStatus } from '../enums/billing.enums';
+import { BillingAccessMode, BillingEventType, SubscriptionStatus } from '../enums/billing.enums';
 import { ModuleName } from 'src/enum';
 import { CardcomService, CardcomApiError, CardcomTransactionInfo } from './cardcom.service';
 import { BillingEventService } from './billing-event.service';
@@ -109,6 +109,7 @@ export class SubscriptionRenewalService {
     const due = await this.subscriptionRepo.find({
       where: {
         status: SubscriptionStatus.ACTIVE,
+        billingAccessMode: BillingAccessMode.STANDARD,
         nextBillingDate: LessThanOrEqual(new Date()),
       },
       select: ['id'],
@@ -246,6 +247,7 @@ export class SubscriptionRenewalService {
 
       // ── 2. Re-verify it's still due (guards against a race since the cron's SELECT) ──
       if (
+        subscription.billingAccessMode !== BillingAccessMode.STANDARD ||
         subscription.status !== SubscriptionStatus.ACTIVE ||
         !subscription.nextBillingDate ||
         subscription.nextBillingDate > now

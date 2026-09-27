@@ -4,13 +4,13 @@ Admin-panel tab that hosts billing administration, split into two sub-tabs: plan
 ## Key entities/files
 - `admin-billing.component.ts`/`.html` — thin standalone shell: `app-tab-bar` switches a `selectedSubTab` signal between `'subscriptions'`, `'plans'`, and pending receipts. Subscriptions is the first RTL tab and the default view.
 - `plans/billing-plans.component.ts` — CRUD for `AdminPlan` (pricing, included modules: INVOICES/OPEN_BANKING/ACCOUNTANT) via `AdminBillingService`; generic table + dialog-based create/edit forms.
-- `subscriptions/billing-subscriptions.component.ts` — subscription list, plan/trial/discount drawer, discount management (`UpdateSubscriptionDiscountPayload`), renewal batch runs (`RenewalBatchResult`) via `AdminBillingService`.
+- `subscriptions/billing-subscriptions.component.ts` — subscription list, plan/trial/discount drawer, complimentary-access grant/revoke control, discount management (`UpdateSubscriptionDiscountPayload`), renewal batch runs (`RenewalBatchResult`) via `AdminBillingService`.
 - `subscriptions/billing-subscriptions.presentation.ts` — drawer/table presentation rules: canonical referral-plan labels and the design-system save-button color.
 
 ## Main flows
 - Switch between "plans" and "subscriptions" sub-tabs.
 - Plans: list/create/edit pricing plans and their included modules.
-- Subscriptions: list subscriptions, including each user's current open-banking connection flag and latest application login timestamp; edit plan/trial end/discounts; and run renewal batches. The two accountant-referral plans are labeled from their canonical slugs (`referral-basic` and `referral-open-banking`), so they stay visibly distinct even if stored names match; other plan names are preserved. The drawer save action uses the shared `ButtonColor.BLACK` configuration. After save the list reloads, including a backend-restored `TRIAL` status when an admin extends an expired trial into the future.
+- Subscriptions: list subscriptions, including each user's current open-banking connection flag and latest application login timestamp; edit plan/trial end/discounts; grant or revoke `COMPLIMENTARY_FULL`; and run renewal batches. The complimentary transition requires confirmation, is saved separately from ordinary plan edits, and hides manual-charge actions. The two accountant-referral plans are labeled from their canonical slugs (`referral-basic` and `referral-open-banking`), so they stay visibly distinct even if stored names match; other plan names are preserved. The drawer save action uses the shared `ButtonColor.BLACK` configuration. After save the list reloads, including a backend-restored `TRIAL` status when an admin extends an expired trial into the future.
 
 ## Related topics
 - Backend: billing (`AdminBillingService` → admin billing endpoints)

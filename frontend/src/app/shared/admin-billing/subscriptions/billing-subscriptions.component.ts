@@ -25,6 +25,7 @@ import { InputSelectComponent } from 'src/app/components/input-select/input-sele
 import {
   AdminBillingService,
   AdminSubscription,
+  BillingAccessMode,
   RenewalBatchResult,
   RenewalOutcome,
   RenewalResult,
@@ -45,6 +46,11 @@ const DISCOUNT_KIND_OPTIONS: ISelectItem[] = [
   { name: 'סכום קבוע (₪)', value: 'AMOUNT' },
 ];
 
+const BILLING_ACCESS_MODE_OPTIONS: ISelectItem[] = [
+  { name: 'חיוב רגיל', value: 'STANDARD' },
+  { name: 'גישה מלאה ללא חיוב', value: 'COMPLIMENTARY_FULL' },
+];
+
 /** When both dates are set, start must be <= end. Attached to discountEndDate. */
 function discountDateRangeValidator(control: AbstractControl): ValidationErrors | null {
   const end = control.value;
@@ -61,6 +67,7 @@ export const STATUS_LABELS: Record<string, string> = {
   PAST_DUE:      'בפיגור',
   TRIAL_EXPIRED: 'ניסיון פג',
   CANCELED:      'בוטל',
+  COMPLIMENTARY_FULL: 'גישה מלאה ללא חיוב',
 };
 
 @Component({
@@ -93,6 +100,7 @@ export class BillingSubscriptionsComponent implements OnInit {
   readonly saveButtonColor = ADMIN_SUBSCRIPTION_SAVE_BUTTON_COLOR;
   readonly statusLabels = STATUS_LABELS;
   readonly discountKindOptions = DISCOUNT_KIND_OPTIONS;
+  readonly billingAccessModeOptions = BILLING_ACCESS_MODE_OPTIONS;
 
   // Angular 19: signal-based view query — no @ViewChild, no ngAfterViewInit
   private readonly statusTpl = viewChild<TemplateRef<any>>('statusTpl');
@@ -112,6 +120,7 @@ export class BillingSubscriptionsComponent implements OnInit {
   runningDueRenewals = signal(false);
 
   readonly editForm = this.fb.group({
+    billingAccessMode:      ['STANDARD' as BillingAccessMode],
     planId:                 [null as number | null],
     trialEnd:                [null as Date | null],
     discountKind:          ['NONE' as DiscountKind],
@@ -164,6 +173,7 @@ export class BillingSubscriptionsComponent implements OnInit {
       icon: 'pi pi-credit-card',
       title: 'חיוב ידני',
       alwaysShow: true,
+      showWhen: row => row['billingAccessMode'] !== 'COMPLIMENTARY_FULL',
       isLoading: () => this.chargingSubscriptionId() !== null,
       action: (_: any, row: IRowDataTable) => this.confirmChargeNow(row),
     },
@@ -178,8 +188,11 @@ export class BillingSubscriptionsComponent implements OnInit {
       lastLoginAtDisplay:      s.lastLoginAt
         ? this.datePipe.transform(s.lastLoginAt, 'dd/MM/yyyy HH:mm') ?? '—'
         : '—',
-      status:                  s.status,
-      planName:                adminPlanDisplayName({ name: s.planName, slug: s.planSlug }) ?? 'ללא תוכנית',
+      status:                  s.billingAccessMode === 'COMPLIMENTARY_FULL' ? 'COMPLIMENTARY_FULL' : s.status,
+      billingAccessMode:       s.billingAccessMode,
+      planName:                s.billingAccessMode === 'COMPLIMENTARY_FULL'
+        ? 'ללא תוכנית — פטור מחיוב'
+        : adminPlanDisplayName({ name: s.planName, slug: s.planSlug }) ?? 'ללא תוכנית',
       trialEnd:                s.trialEnd,
       nextBillingDate:         s.nextBillingDate,
       nextBillingAmount:       this.formatAmount(s.nextBillingAmountAgorot),
@@ -252,6 +265,7 @@ export class BillingSubscriptionsComponent implements OnInit {
       sub.discountAmountAgorot != null ? 'AMOUNT' : 'NONE';
 
     this.editForm.reset({
+      billingAccessMode:      sub.billingAccessMode,
       planId:                 sub.planId,
       trialEnd:                sub.trialEnd ? new Date(sub.trialEnd) : null,
       discountKind,
@@ -271,6 +285,11 @@ export class BillingSubscriptionsComponent implements OnInit {
     if (!sub) return;
 
     const raw = this.editForm.getRawValue();
+    const nextAccessMode = raw.billingAccessMode ?? 'STANDARD';
+    if (nextAccessMode !== sub.billingAccessMode) {
+      this.confirmAccessModeChange(sub, nextAccessMode);
+      return;
+    }
     // Business dates are date-only, not timestamps — format using local date
     // parts to avoid the UTC-shift toISOString() would introduce.
     const toLocalDateString = (d: Date | null): string | null => {
@@ -330,6 +349,55 @@ export class BillingSubscriptionsComponent implements OnInit {
             life: 4000,
           });
         },
+      });
+  }
+
+  private confirmAccessModeChange(
+    sub: AdminSubscription,
+    nextAccessMode: BillingAccessMode,
+  ): void {
+    const granting = nextAccessMode === 'COMPLIMENTARY_FULL';
+    this.confirmationService.confirm({
+      header: granting ? 'מתן גישה מלאה ללא חיוב' : 'ביטול גישה ללא חיוב',
+      message: granting
+        ? 'המשתמש יקבל גישה לכל המודולים, התוכנית תוסר ולא יתבצעו חיובים אוטומטיים.'
+        : 'הגישה ללא חיוב תבוטל והמנוי יעבור לסטטוס "תקופת הניסיון הסתיימה". לא יתבצע חיוב אוטומטי.',
+      icon: 'pi pi-exclamation-triangle',
+      acceptLabel: 'אישור',
+      rejectLabel: 'ביטול',
+      accept: () => this.saveAccessMode(sub.subscriptionId, nextAccessMode),
+    });
+  }
+
+  private saveAccessMode(subscriptionId: number, billingAccessMode: BillingAccessMode): void {
+    this.savingEdit.set(true);
+    this.adminBillingService.updateSubscriptionBillingAccessMode(subscriptionId, { billingAccessMode })
+      .pipe(
+        finalize(() => this.savingEdit.set(false)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: () => {
+          this.messageService.add({
+            key: 'br',
+            severity: 'success',
+            summary: 'הצלחה',
+            detail: billingAccessMode === 'COMPLIMENTARY_FULL'
+              ? 'הוגדרה גישה מלאה ללא חיוב'
+              : 'הגישה ללא חיוב בוטלה',
+            life: 3000,
+          });
+          this.showDrawer.set(false);
+          this.selectedSub.set(null);
+          this.loadSubscriptions();
+        },
+        error: err => this.messageService.add({
+          key: 'br',
+          severity: 'error',
+          summary: 'שגיאה',
+          detail: err?.error?.message ?? 'שגיאה בעדכון מצב החיוב',
+          life: 4000,
+        }),
       });
   }
 

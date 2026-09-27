@@ -1763,3 +1763,49 @@ ALTER TABLE `journal_line`
 -- FROM journal_line WHERE isEquipment IS NULL;
 -- SELECT COUNT(*) AS unbucketed_vat_lines
 -- FROM journal_line WHERE accountCode = '2410' AND isEquipment IS NULL;
+
+
+-- ============================================================================
+-- SECTION 17 (2026-09-27, Elazar) -- complimentary full billing access.
+--
+-- This entitlement is intentionally independent of subscription status. An
+-- administrator can grant all modules without a plan or payment, while the
+-- default preserves every existing subscription's standard billing behavior.
+-- The two audit event values record grants and revocations.
+-- ============================================================================
+
+ALTER TABLE `subscription`
+  ADD COLUMN `billing_access_mode`
+    enum('STANDARD','COMPLIMENTARY_FULL') NOT NULL DEFAULT 'STANDARD'
+    AFTER `status`;
+
+ALTER TABLE `billing_event`
+  MODIFY COLUMN `event_type` enum(
+    'CHECKOUT_CREATED',
+    'WEBHOOK_RECEIVED',
+    'PAYMENT_VERIFIED',
+    'PAYMENT_SUCCESS',
+    'PAYMENT_FAILED',
+    'SUBSCRIPTION_ACTIVATED',
+    'SUBSCRIPTION_CANCELED',
+    'RENEWAL_SUCCESS',
+    'RENEWAL_FAILED',
+    'RETRY_SCHEDULED',
+    'PLAN_CHANGE_REQUESTED',
+    'PLAN_CHANGED',
+    'PAYMENT_METHOD_UPDATE_REQUESTED',
+    'PAYMENT_METHOD_UPDATED',
+    'PAYMENT_METHOD_UPDATE_FAILED',
+    'COUPON_REDEEMED',
+    'PROMOTION_APPLIED',
+    'DISCOUNT_APPLIED',
+    'RECEIPT_FAILED',
+    'DUPLICATE_PAYMENT_IGNORED',
+    'BILLING_EXEMPTION_GRANTED',
+    'BILLING_EXEMPTION_REVOKED'
+  ) NOT NULL;
+
+-- Verification: the first query must show STANDARD as the non-null default;
+-- the second must include both BILLING_EXEMPTION_* enum values.
+-- SHOW COLUMNS FROM subscription LIKE 'billing_access_mode';
+-- SHOW COLUMNS FROM billing_event LIKE 'event_type';

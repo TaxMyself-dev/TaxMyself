@@ -6,6 +6,12 @@ export enum SubscriptionStatus {
   CANCELED = 'CANCELED',
 }
 
+/** Billing entitlement is separate from the subscription payment lifecycle. */
+export enum BillingAccessMode {
+  STANDARD = 'STANDARD',
+  COMPLIMENTARY_FULL = 'COMPLIMENTARY_FULL',
+}
+
 export enum WebhookLogStatus {
   RECEIVED = 'RECEIVED',
   PROCESSED = 'PROCESSED',
@@ -48,4 +54,6 @@ export enum BillingEventType {
    * trail, even though internally it was treated as a no-op.
    */
   DUPLICATE_PAYMENT_IGNORED = 'DUPLICATE_PAYMENT_IGNORED',
+  BILLING_EXEMPTION_GRANTED = 'BILLING_EXEMPTION_GRANTED',
+  BILLING_EXEMPTION_REVOKED = 'BILLING_EXEMPTION_REVOKED',
 }

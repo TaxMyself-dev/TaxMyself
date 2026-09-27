@@ -3,7 +3,7 @@ Subscription billing: plan catalog, trial/subscription lifecycle, CardCom paymen
 
 ## Key entities/files
 - `entities/subscription-plan.entity.ts` — `SubscriptionPlan`: slug, pricing (agorot), included `modules` (ModuleName[]), trial days, active/public/display flags.
-- `entities/subscription.entity.ts` — `Subscription`: one per user (unique on firebaseId), status, trial/period/billing dates, renewal attempts, per-subscription discount.
+- `entities/subscription.entity.ts` — `Subscription`: one per user (unique on firebaseId), payment-lifecycle status, independent billing-access mode, trial/period/billing dates, renewal attempts, per-subscription discount.
 - `entities/payment-method.entity.ts` — `PaymentMethod`: stored CardCom token + card display info.
 - `entities/billing-event.entity.ts` — `BillingEvent`: append-only audit trail (checkout/payment/renewal events), amounts incl. VAT breakdown, links to a generated receipt document.
 - `entities/cardcom-webhook-log.entity.ts` — `CardcomWebhookLog`: idempotency-keyed log of every inbound CardCom webhook call.
@@ -40,6 +40,18 @@ Free ngrok URLs change on every restart. After restarting the tunnel:
 Symptom of a stale/dead tunnel: the change-payment-method dialog sits in "still processing", nothing appears in `cardcom_webhook_log`, and the only trace is a `PAYMENT_METHOD_UPDATE_REQUESTED` billing event. The reconciliation fallback now recovers these automatically after ~20s (the backend logs a warning naming this env var), but the underlying tunnel must still be fixed — reconciliation is a safety net, not a substitute for webhook delivery, and the CHECKOUT flow has no equivalent fallback.
 - `POST /billing/events/:eventId/receipt/resend-email` / `/generate` — resend or backfill a payment receipt.
 - `/admin/billing/*` — admin plan CRUD (create/update/activate/deactivate), subscription discount edits, manual/forced renewal triggers (mirrors the daily 03:00 cron in `SubscriptionRenewalService`). The subscription list enriches billing rows with the user's current `hasOpenBanking` flag and `lastLoginAt` timestamp.
+
+## Complimentary full access
+
+`Subscription.billingAccessMode=COMPLIMENTARY_FULL` is an admin-granted billing
+exemption, not a user role and not a subscription status. It grants every
+module without a plan or payment, makes payment non-required, and is excluded
+from checkout, payment-method replacement, and both scheduled and manual
+renewal charging. Granting clears the plan and future charge scheduling while
+preserving any stored payment method; revoking changes the mode back to
+`STANDARD` and leaves the subscription `TRIAL_EXPIRED`, without charging.
+Grant/revoke operations are admin-only and emit dedicated billing audit events
+with the acting Firebase ID.
 
 ## Admin trial-end override
 

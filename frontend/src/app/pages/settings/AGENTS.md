@@ -13,6 +13,7 @@ Account/profile settings hub: tabbed page for editing personal details, spouse d
 - Businesses: `loadBusinesses`/`saveBusiness`/`openAddBusinessModal`+`submitAddBusiness`/`deleteBusiness` all delegate to `GenericService` (`loadBusinessesFromServer`, `createBusiness`, `updateBusiness`, `deleteBusiness`, backed by a dynamic `businessesFormArray` synced to the `Business[]` signal.
 - Categories tab: visible to every authenticated user and delegated entirely to `MyCategoriesTabComponent`.
 - Permissions tab ("ניהול הרשאות וחשבונות", visible to every authenticated user): `fetchMyPermissions`/`grantViewPermission` via `MyPermissionsService` (view-permission grants to other users). Its account-source subsection remains conditional on `ModuleName.OPEN_BANKING`; eligible users get `fetchAccountSources`/`onPullSource` via `TransactionsService.getSourcesWithTypes` and `SyncStatusService.retrySource` (per-source manual transaction pull retry), rendered through `GenericTableComponent`.
+- Subscription tab: a `COMPLIMENTARY_FULL` subscription is shown as "גישה מלאה ללא חיוב", with no plan, monthly charge, next billing date, or payment-method replacement controls.
 - Date handling helpers (`stringToDate`/`toDisplayDate`/`toApiDate`/`dateToApiString`) convert between dd-mm-yyyy display strings, `Date` objects (form controls), and yyyy-mm-dd API strings.
 
 ## Related topics

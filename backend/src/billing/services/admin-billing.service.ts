@@ -11,12 +11,13 @@ import { UpdatePlanDto } from '../dtos/admin/update-plan.dto';
 import { UpdateSubscriptionDiscountDto } from '../dtos/admin/update-subscription-discount.dto';
 import { UpdateSubscriptionTrialEndDto } from '../dtos/admin/update-subscription-trial-end.dto';
 import { UpdateSubscriptionPlanDto } from '../dtos/admin/update-subscription-plan.dto';
+import { UpdateSubscriptionBillingAccessModeDto } from '../dtos/admin/update-subscription-billing-access-mode.dto';
 import { RenewalBatchResult, RenewalResult, SubscriptionRenewalService } from './subscription-renewal.service';
 import { BillingEventService } from './billing-event.service';
 import { BillingReceiptService } from './billing-receipt.service';
 import { BillingIssuerConfigService } from './billing-issuer-config.service';
 import { PricingService } from './pricing.service';
-import { BillingEventType, SubscriptionStatus } from '../enums/billing.enums';
+import { BillingAccessMode, BillingEventType, SubscriptionStatus } from '../enums/billing.enums';
 
 export interface PendingReceiptFailure {
   billingEventId: number;
@@ -36,6 +37,7 @@ export interface AdminSubscriptionResponse {
   subscriptionId: number;
   firebaseId: string;
   status: string;
+  billingAccessMode: BillingAccessMode;
   userId: number | null;
   userName: string | null;
   userEmail: string | null;
@@ -94,6 +96,13 @@ export interface AdminSubscriptionPlanResponse {
   planName: string | null;
   planSlug: string | null;
   planPriceAgorot: number | null;
+}
+
+export interface AdminSubscriptionBillingAccessModeResponse {
+  subscriptionId: number;
+  billingAccessMode: BillingAccessMode;
+  status: SubscriptionStatus;
+  planId: number | null;
 }
 
 @Injectable()
@@ -163,6 +172,7 @@ export class AdminBillingService {
       .addSelect('s.firebaseId',          'firebaseId')
       .addSelect('s.planId',              'planId')
       .addSelect('s.status',              'status')
+      .addSelect('s.billingAccessMode',   'billingAccessMode')
       .addSelect('s.trialEnd',            'trialEnd')
       .addSelect('s.currentPeriodStart',  'currentPeriodStart')
       .addSelect('s.currentPeriodEnd',    'currentPeriodEnd')
@@ -258,6 +268,7 @@ export class AdminBillingService {
         subscriptionId:     sid,
         firebaseId:         r.firebaseId,
         status:             r.status,
+        billingAccessMode:  r.billingAccessMode,
         userId:             user ? Number(user.userId) : null,
         userName:           user ? `${user.fName ?? ''} ${user.lName ?? ''}`.trim() || null : null,
         userEmail:          user?.email ?? null,
@@ -385,6 +396,9 @@ export class AdminBillingService {
   ): Promise<AdminSubscriptionPlanResponse> {
     const subscription = await this.subscriptionRepo.findOneBy({ id: subscriptionId });
     if (!subscription) throw new NotFoundException(`מנוי ${subscriptionId} לא נמצא`);
+    if (subscription.billingAccessMode === BillingAccessMode.COMPLIMENTARY_FULL) {
+      throw new BadRequestException('לא ניתן לשייך תוכנית למשתמש עם גישה מלאה ללא חיוב');
+    }
 
     let plan: SubscriptionPlan | null = null;
     if (dto.planId != null) {
@@ -401,6 +415,67 @@ export class AdminBillingService {
       planName: plan?.name ?? null,
       planSlug: plan?.slug ?? null,
       planPriceAgorot: plan?.priceMonthlyAgorot ?? null,
+    };
+  }
+
+  /**
+   * Grants or revokes the explicit no-charge entitlement. Granting removes the
+   * plan and all future charge scheduling. Revocation never charges: it leaves
+   * the user in TRIAL_EXPIRED until an ordinary plan/payment flow is chosen.
+   */
+  async updateSubscriptionBillingAccessMode(
+    subscriptionId: number,
+    dto: UpdateSubscriptionBillingAccessModeDto,
+    actorFirebaseId: string,
+  ): Promise<AdminSubscriptionBillingAccessModeResponse> {
+    const result = await this.dataSource.transaction(async manager => {
+      const subscription = await manager.findOne(Subscription, {
+        where: { id: subscriptionId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!subscription) throw new NotFoundException(`מנוי ${subscriptionId} לא נמצא`);
+
+      const previousMode = subscription.billingAccessMode;
+      if (previousMode === dto.billingAccessMode) {
+        return { subscription, previousMode, changed: false };
+      }
+
+      subscription.billingAccessMode = dto.billingAccessMode;
+      subscription.planId = null;
+      subscription.nextBillingDate = null;
+      subscription.gracePeriodEndsAt = null;
+      subscription.renewalAttempts = 0;
+
+      if (dto.billingAccessMode === BillingAccessMode.STANDARD) {
+        subscription.status = SubscriptionStatus.TRIAL_EXPIRED;
+      }
+
+      await manager.save(subscription);
+      return { subscription, previousMode, changed: true };
+    });
+
+    if (result.changed) {
+      await this.billingEventService.logEvent({
+        firebaseId: result.subscription.firebaseId,
+        subscriptionId: result.subscription.id,
+        eventType:
+          dto.billingAccessMode === BillingAccessMode.COMPLIMENTARY_FULL
+            ? BillingEventType.BILLING_EXEMPTION_GRANTED
+            : BillingEventType.BILLING_EXEMPTION_REVOKED,
+        metadata: {
+          actorFirebaseId,
+          previousMode: result.previousMode,
+          newMode: dto.billingAccessMode,
+          reason: dto.reason?.trim() || null,
+        },
+      });
+    }
+
+    return {
+      subscriptionId: result.subscription.id,
+      billingAccessMode: result.subscription.billingAccessMode,
+      status: result.subscription.status,
+      planId: result.subscription.planId,
     };
   }
 

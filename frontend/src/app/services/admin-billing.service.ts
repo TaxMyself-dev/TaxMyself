@@ -42,6 +42,7 @@ export interface AdminSubscription {
   subscriptionId: number;
   firebaseId: string;
   status: string;
+  billingAccessMode: BillingAccessMode;
   userId: number | null;
   userName: string | null;
   userEmail: string | null;
@@ -72,6 +73,20 @@ export interface AdminSubscription {
   discountAmountAgorot: number | null;
   discountStartDate: string | null;
   discountEndDate: string | null;
+}
+
+export type BillingAccessMode = 'STANDARD' | 'COMPLIMENTARY_FULL';
+
+export interface UpdateSubscriptionBillingAccessModePayload {
+  billingAccessMode: BillingAccessMode;
+  reason?: string;
+}
+
+export interface AdminSubscriptionBillingAccessModeResponse {
+  subscriptionId: number;
+  billingAccessMode: BillingAccessMode;
+  status: string;
+  planId: number | null;
 }
 
 export interface UpdateSubscriptionDiscountPayload {
@@ -217,6 +232,16 @@ export class AdminBillingService {
     payload: UpdateSubscriptionPlanPayload,
   ): Observable<AdminSubscriptionPlanResponse> {
     return this.http.patch<AdminSubscriptionPlanResponse>(`${this.base}/subscriptions/${id}/plan`, payload);
+  }
+
+  updateSubscriptionBillingAccessMode(
+    id: number,
+    payload: UpdateSubscriptionBillingAccessModePayload,
+  ): Observable<AdminSubscriptionBillingAccessModeResponse> {
+    return this.http.patch<AdminSubscriptionBillingAccessModeResponse>(
+      `${this.base}/subscriptions/${id}/access-mode`,
+      payload,
+    );
   }
 
   /** Manual test trigger for the renewal cron's charge-by-token flow, for one subscription. */

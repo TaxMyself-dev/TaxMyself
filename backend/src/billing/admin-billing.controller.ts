@@ -23,6 +23,7 @@ import { UpdatePlanDto } from './dtos/admin/update-plan.dto';
 import { UpdateSubscriptionDiscountDto } from './dtos/admin/update-subscription-discount.dto';
 import { UpdateSubscriptionTrialEndDto } from './dtos/admin/update-subscription-trial-end.dto';
 import { UpdateSubscriptionPlanDto } from './dtos/admin/update-subscription-plan.dto';
+import { UpdateSubscriptionBillingAccessModeDto } from './dtos/admin/update-subscription-billing-access-mode.dto';
 
 @Controller('admin/billing')
 @UseGuards(FirebaseAuthGuard)
@@ -120,6 +121,22 @@ export class AdminBillingController {
   ) {
     await this.assertAdmin(request);
     return this.adminBillingService.updateSubscriptionPlan(id, dto);
+  }
+
+  @Patch('subscriptions/:id/access-mode')
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  async updateSubscriptionBillingAccessMode(
+    @Req() request: AuthenticatedRequest,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateSubscriptionBillingAccessModeDto,
+  ) {
+    await this.assertAdmin(request);
+    const actorFirebaseId = request.user?.actorFirebaseId ?? request.user!.firebaseId;
+    return this.adminBillingService.updateSubscriptionBillingAccessMode(
+      id,
+      dto,
+      actorFirebaseId,
+    );
   }
 
   /**
