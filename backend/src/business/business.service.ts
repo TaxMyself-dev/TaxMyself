@@ -68,6 +68,7 @@ export class BusinessService {
     if (!business) {
       throw new NotFoundException('Business not found or not owned by user');
     }
+    const previousBusinessNumber = business.businessNumber;
     if (dto.businessNumber !== undefined) {
       const requestedBusinessNumber = dto.businessNumber.trim();
       if (requestedBusinessNumber !== (business.businessNumber ?? '')) {
@@ -117,12 +118,23 @@ export class BusinessService {
       !isExemptBusinessType(nextBusinessType) &&
       nextBusinessType != null &&
       (previousBusinessType !== nextBusinessType || previousVatReportingType !== nextVatReportingType);
+    const mustRekeyBusinessNumber =
+      previousBusinessNumber != null &&
+      business.businessNumber != null &&
+      previousBusinessNumber !== business.businessNumber;
 
-    if (!mustRebucketOpenPeriods) return this.businessRepo.save(business);
+    if (!mustRebucketOpenPeriods && !mustRekeyBusinessNumber) return this.businessRepo.save(business);
 
     return this.businessRepo.manager.transaction(async (manager) => {
       const saved = await manager.getRepository(Business).save(business);
-      if (saved.businessNumber) {
+      if (mustRekeyBusinessNumber) {
+        await this.rekeyBusinessNumberReferences(
+          manager,
+          previousBusinessNumber,
+          saved.businessNumber!,
+        );
+      }
+      if (mustRebucketOpenPeriods && saved.businessNumber) {
         await this.rebucketOpenVatPeriods(
           manager,
           firebaseId,
@@ -133,6 +145,57 @@ export class BusinessService {
       }
       return saved;
     });
+  }
+
+  /**
+   * Business numbers are copied into domain rows rather than linked by a
+   * foreign key. Once the document guard has established that the old number
+   * was never used to issue an official document, move every remaining
+   * reference atomically so workflows, tasks, expenses, counters and catalog
+   * ownership do not remain orphaned under the old number.
+   */
+  private async rekeyBusinessNumberReferences(
+    manager: EntityManager,
+    previousBusinessNumber: string,
+    nextBusinessNumber: string,
+  ): Promise<void> {
+    const columns: Array<{ tableName: string; columnName: string }> = await manager.query(`
+      SELECT TABLE_NAME AS tableName, COLUMN_NAME AS columnName
+      FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME NOT IN ('business', 'documents')
+        AND LOWER(COLUMN_NAME) IN ('businessnumber', 'business_number', 'issuerbusinessnumber')
+    `);
+
+    for (const { tableName, columnName } of columns) {
+      if (!/^[A-Za-z0-9_]+$/.test(tableName) || !/^[A-Za-z0-9_]+$/.test(columnName)) {
+        this.logger.warn(`Unsafe business-number reference ${tableName}.${columnName}`);
+        throw new ConflictException('לא ניתן לעדכן בבטחה את כל הרשומות של מספר העסק');
+      }
+      await manager.query(
+        `UPDATE \`${tableName}\` SET \`${columnName}\` = ? WHERE \`${columnName}\` = ?`,
+        [nextBusinessNumber, previousBusinessNumber],
+      );
+    }
+
+    const chartOwnerColumns: Array<{ tableName: string; columnName: string }> = await manager.query(`
+      SELECT TABLE_NAME AS tableName, COLUMN_NAME AS columnName
+      FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND LOWER(COLUMN_NAME) = 'chartownerkey'
+    `);
+    const previousChartOwnerKey = `CLIENT_${previousBusinessNumber}`;
+    const nextChartOwnerKey = `CLIENT_${nextBusinessNumber}`;
+    for (const { tableName, columnName } of chartOwnerColumns) {
+      if (!/^[A-Za-z0-9_]+$/.test(tableName) || !/^[A-Za-z0-9_]+$/.test(columnName)) {
+        this.logger.warn(`Unsafe chart-owner reference ${tableName}.${columnName}`);
+        throw new ConflictException('לא ניתן לעדכן בבטחה את כל הרשומות של מספר העסק');
+      }
+      await manager.query(
+        `UPDATE \`${tableName}\` SET \`${columnName}\` = ? WHERE \`${columnName}\` = ?`,
+        [nextChartOwnerKey, previousChartOwnerKey],
+      );
+    }
   }
 
   /**

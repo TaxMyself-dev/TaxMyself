@@ -21,6 +21,8 @@ accountant tasks, and other business-scoped records do not block the correction.
 - [x] Allow the change when there are no issued documents, irrespective of
   other business-scoped records.
 - [x] Keep duplicate-number protection unchanged.
+- [x] Rekey non-document business references and client catalog ownership in
+  the same transaction as the business update.
 - [x] Cover both allowed and rejected paths with focused tests and pass the
   backend build.
 
