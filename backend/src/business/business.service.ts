@@ -9,6 +9,7 @@ import { Expense } from 'src/expenses/expenses.entity';
 import { JournalEntry } from 'src/bookkeeping/jouranl-entry.entity';
 import { SlimTransaction } from 'src/transactions/slim-transaction.entity';
 import { FullTransactionCache } from 'src/transactions/full-transaction-cache.entity';
+import { Documents } from 'src/documents/documents.entity';
 
 
 @Injectable()
@@ -18,6 +19,8 @@ export class BusinessService {
   constructor(
     @InjectRepository(Business)
     private businessRepo: Repository<Business>,
+    @InjectRepository(Documents)
+    private documentsRepo: Repository<Documents>,
     @Inject(forwardRef(() => UsersService))
     private readonly usersService: UsersService,
     private readonly sharedService: SharedService,
@@ -74,15 +77,14 @@ export class BusinessService {
             throw new ConflictException(`עסק עם מספר ${requestedBusinessNumber} כבר קיים במערכת`);
           }
         }
-        const dependentRecords = business.businessNumber
-          ? await this.findDependentBusinessNumberRecords(business.businessNumber)
-          : [];
-        if (dependentRecords.length > 0) {
-          const details = dependentRecords
-            .map(({ tableName, count }) => `${tableName} (${count})`)
-            .join(', ');
+        const hasIssuedDocuments = business.businessNumber
+          ? await this.documentsRepo.exist({
+              where: { issuerBusinessNumber: business.businessNumber },
+            })
+          : false;
+        if (hasIssuedDocuments) {
           throw new ConflictException(
-            `לא ניתן לשנות את מספר העסק משום שכבר קיימות רשומות המשויכות למספר הנוכחי. נמצאו: ${details}`,
+            'לא ניתן לשנות את מספר העסק משום שכבר הופקו מסמכים תחת המספר הנוכחי',
           );
         }
       }
@@ -131,42 +133,6 @@ export class BusinessService {
       }
       return saved;
     });
-  }
-
-  /**
-   * Business numbers are copied into the domain tables rather than linked by
-   * a foreign key. Changing a populated number would therefore orphan those
-   * rows. Discover the columns from the live schema so newly-added business
-   * scoped tables are protected without maintaining a fragile hard-coded list.
-   */
-  private async findDependentBusinessNumberRecords(
-    businessNumber: string,
-  ): Promise<Array<{ tableName: string; columnName: string; count: number }>> {
-    const columns: Array<{ tableName: string; columnName: string }> = await this.businessRepo.manager.query(`
-      SELECT TABLE_NAME AS tableName, COLUMN_NAME AS columnName
-      FROM INFORMATION_SCHEMA.COLUMNS
-      WHERE TABLE_SCHEMA = DATABASE()
-        AND TABLE_NAME <> 'business'
-        AND LOWER(COLUMN_NAME) IN ('businessnumber', 'business_number', 'issuerbusinessnumber')
-    `);
-
-    const references: Array<{ tableName: string; columnName: string; count: number }> = [];
-    for (const { tableName, columnName } of columns) {
-      // Identifiers originate in INFORMATION_SCHEMA, but keep the dynamic SQL
-      // fail-closed if an unexpected identifier ever appears.
-      if (!/^[A-Za-z0-9_]+$/.test(tableName) || !/^[A-Za-z0-9_]+$/.test(columnName)) {
-        this.logger.warn(`Unsafe business-number reference ${tableName}.${columnName}`);
-        throw new ConflictException('לא ניתן לוודא בבטחה אם קיימות רשומות עבור מספר העסק הנוכחי');
-      }
-      const rows = await this.businessRepo.manager.query(
-        `SELECT COUNT(*) AS count FROM \`${tableName}\` WHERE \`${columnName}\` = ?`,
-        [businessNumber],
-      );
-      const count = Number(rows[0]?.count ?? 0);
-      if (count > 0) references.push({ tableName, columnName, count });
-    }
-
-    return references;
   }
 
   /**

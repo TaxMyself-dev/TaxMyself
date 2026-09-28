@@ -9,13 +9,14 @@ import { Expense } from 'src/expenses/expenses.entity';
 // TODO_FINTAX_REMOVE_LEGACY_TRANSACTIONS: wiring leftover — Transactions registered to satisfy SharedService injection. Not used by BusinessService directly. Remove when SharedService is cleaned up.
 import { Transactions } from 'src/transactions/transactions.entity';
 import { SettingDocuments } from 'src/documents/settingDocuments.entity';
+import { Documents } from 'src/documents/documents.entity';
 import { Delegation } from 'src/delegation/delegation.entity';
 import { User } from 'src/users/user.entity';
 import { UsersModule } from 'src/users/users.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Business, Transactions, Expense, SettingDocuments, Delegation, User]),
+    TypeOrmModule.forFeature([Business, Transactions, Expense, SettingDocuments, Documents, Delegation, User]),
     forwardRef(() => UsersModule),
   ],
   controllers: [BusinessController],
