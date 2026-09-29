@@ -1,6 +1,6 @@
 # KT-033 - Lock business-number changes only after document issuance
 
-- Status: `WORKER_COMPLETE`
+- Status: `PUSHED`
 - Task manager: Codex primary
 - Worker: Codex primary (single-agent execution)
 - Worktree: `C:\Users\harel\Elazar Harel\taxmyself\taxmyself-dev`
@@ -39,7 +39,7 @@ accountant tasks, and other business-scoped records do not block the correction.
 ## Handoff
 
 - Result: complete
-- Commit hash(es):
+- Commit hash(es): `81507ec8`, `2f1a8810`
 - Changed files: business service/module/spec, business topic documentation,
   this task file.
 - Tests and exact results: `business.service.spec.ts` — 8/8 passed; backend
@@ -53,8 +53,8 @@ accountant tasks, and other business-scoped records do not block the correction.
 
 ## Integration
 
-- Reviewed by:
-- Integrated commit:
-- Combined verification:
-- `origin/main` verification:
-- User-visible run instructions:
+- Reviewed by: Codex primary manager
+- Integrated commit: `2f1a8810` on local `main`
+- Combined verification: focused backend verification included 4 suites / 56 tests; Nest build, Angular production build, and the 31-statement transactional rekey smoke test all passed.
+- `origin/main` verification: pushed and verified at `2f1a88101842ddc5c494efc858f57b044f36e653`.
+- User-visible run instructions: verify a business with workflows/tasks but no issued documents can change its number, while a business with an issued document remains blocked.

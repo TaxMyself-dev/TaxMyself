@@ -1,6 +1,6 @@
 # KT-032 - Complimentary full billing access
 
-- Status: `WORKER_COMPLETE`
+- Status: `PUSHED`
 - Task manager: Codex primary manager
 - Worker: Codex primary manager
 - Worktree: `C:\Users\harel\Elazar Harel\taxmyself\taxmyself-dev`
@@ -44,8 +44,8 @@ an automatic charge.
 
 ## Integration
 
-- Reviewed by:
+- Reviewed by: Codex primary manager
 - Integrated commit: `b28dd90d` (implemented directly on local `main`).
 - Combined verification: 3 focused Jest suites / 48 tests passed; Nest build passed; Angular production build passed.
-- `origin/main` verification:
-- User-visible run instructions:
+- `origin/main` verification: pushed and verified at `2f1a88101842ddc5c494efc858f57b044f36e653`.
+- User-visible run instructions: apply Section 17 of `docs/redesign/cutover.sql` before deploying the backend, then verify grant/revoke and customer presentation.
