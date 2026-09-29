@@ -5,6 +5,14 @@ Integrated on 2026-09-22 at the user's request from task
 
 ## Artwork and placement
 
+2026-09-29 approved pain-slide revision: `exec-d1248bbb-745e-4d6f-a285-f8095224bf39.png`
+replaces `product-pain-approved.png` byte-for-byte, without resampling or extra
+compression. Yellow invoice remains on the floor at collection; another misses
+the accountant folder. Collection stack is shifted right, arrows shortened and
+raised to avoid contact with the accountant. User approved the final preview.
+Current placement is main slide 11 (solution 12), after the two expense slides.
+Historical initial placement and artwork below are retained for provenance.
+
 - Main slide 9, `product-pain`: `הסיוט של כל עצמאי`.
   Source `exec-181fa313-b032-4fae-8a50-a98be4f18f6f.png` copied unchanged to
   `frontend/src/assets/self-employed-guide/product-pain-approved.png`.

@@ -18,6 +18,8 @@ Internal admin console (tabbed) for staff to manage clients dashboard, the unifi
 
 ## Main flows
 
+- Product-pain artwork updated 2026-09-29 to approved `exec-d1248bbb-745e-4d6f-a285-f8095224bf39.png`, copied losslessly to the existing asset path. Forgotten yellow sheet on floor, missed sheet outside accountant folder, separated stages and detached arrows. Native contain renderer unchanged; provenance in `docs/marketing/product-introduction-slides.md`.
+
 - Expense custom-entry update: inline “הוסף הוצאה” form retains amount and separate tax/VAT recognition percentages per item, accumulating the slider total. Slider changes scale item amounts proportionally without losing recognition rates. VAT is disabled for exempt dealers and now also appears in the middle receipt. Calculator eyebrow/footer caveats were removed at user request; assumptions remain in `docs/marketing/expense-savings-slides.md`. Focused validation covers entry, cancel, invalid input, mixed recognition and scaling.
 
 - Expense calculator follow-up: no revenue input or before/after profit display; applies chosen marginal rates to the full recognized expense under an explicit sufficient-taxable-profit assumption. VAT remains separate; removed net-cost display and turnover warning. Title: `כמה ההוצאה הזאת באמת שווה לכם?`. This supersedes the income cap described in the initial entry below.
