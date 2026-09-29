@@ -5,6 +5,14 @@ Integrated on 2026-09-22 at the user's request from task
 
 ## Artwork and placement
 
+Latest approved quality replacement (2026-09-29):
+`exec-a401c3db-607a-443d-ace3-fffe81d1edbb.png` is now the live pain asset,
+copied byte-for-byte without resizing or recompression. It derives from a fresh
+edit of the original sharp artwork (`exec-69c80c63-b088-4766-a4c4-7c35376fcfdf.png`)
+followed only by shrinking the connecting arrows to avoid touching other objects.
+This supersedes the degraded multi-edit version below. User explicitly approved
+this exact final preview for implementation.
+
 2026-09-29 approved pain-slide revision: `exec-d1248bbb-745e-4d6f-a285-f8095224bf39.png`
 replaces `product-pain-approved.png` byte-for-byte, without resampling or extra
 compression. Yellow invoice remains on the floor at collection; another misses
