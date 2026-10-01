@@ -58,7 +58,7 @@ export const SELF_EMPLOYED_GUIDE_SLIDES: GuideSlide[] = [
   {
     id: 'product-solution', layout: 'approved-artwork', title: 'הפתרון של KeepInTax',
     artwork: '/assets/self-employed-guide/product-solution-approved.png',
-    artworkAlt: 'הפתרון של KeepInTax. 1: חיבור ישיר לבנק ולכרטיסים — כל התנועות במקום אחד. 2: ממשק משותף — בכל רגע יודעים מה הוגש ומה עדיין בטיפול. 3: מעקב אוטומטי אחרי הרווח השנתי.',
+    artworkAlt: 'הפתרון של KeepInTax. 1: חיבור אוטומטי לתנועות ולמסמכים — בנק וכרטיסי אשראי ואיסוף מסמכים מהמייל, מ-Drive ומ-WhatsApp (בקרוב), מתנקזים למוח המערכת להתאמה בין תנועות למסמכים. 2: ממשק משותף לכם ולרואה החשבון — רואים מה הוגש ומה עדיין בטיפול. 3: מעקב אוטומטי אחרי הרווח השנתי — אין הפתעות בסוף שנה.',
   },
   {
     id: 'cover',

@@ -5,6 +5,15 @@ Integrated on 2026-09-22 at the user's request from task
 
 ## Artwork and placement
 
+2026-10-02 approved solution replacement: `exec-6356ab9b-6f38-4172-90dc-b5a5d66bc582.png`
+copied byte-for-byte to `product-solution-approved.png` (main slide 12).
+Three aligned columns with equal-size headings and more title spacing. Bank/card
+transactions and email/Drive/WhatsApp documents independently converge on the
+system brain, illustrating matching. WhatsApp remains labelled `בקרוב`.
+Step 3 caption is `אין הפתעות בסוף שנה`; this is the approved marketing wording,
+not a guarantee of zero year-end tax or a new alert capability. Accessible copy
+matches the artwork. Existing contain rendering and navigation are unchanged.
+
 Latest approved quality replacement (2026-09-29):
 `exec-a401c3db-607a-443d-ace3-fffe81d1edbb.png` is now the live pain asset,
 copied byte-for-byte without resizing or recompression. It derives from a fresh

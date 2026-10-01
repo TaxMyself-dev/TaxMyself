@@ -18,6 +18,8 @@ Internal admin console (tabbed) for staff to manage clients dashboard, the unifi
 
 ## Main flows
 
+- Solution artwork updated 2026-10-02 from approved `exec-6356ab9b-6f38-4172-90dc-b5a5d66bc582.png`: aligned headings, separate bank/card and document inputs converging on a matching brain, WhatsApp marked forthcoming, and the approved year-end caption. Same lossless asset replacement/contain renderer; accessible copy updated. Provenance and claim boundaries in `docs/marketing/product-introduction-slides.md`.
+
 - Pain-slide quality replacement: latest approved source is `exec-a401c3db-607a-443d-ace3-fffe81d1edbb.png`, rebuilt from the sharp original and then edited only for smaller detached arrows. Supersedes the earlier multi-edit image below; same asset path and contain renderer, no code changes.
 
 - Product-pain artwork updated 2026-09-29 to approved `exec-d1248bbb-745e-4d6f-a285-f8095224bf39.png`, copied losslessly to the existing asset path. Forgotten yellow sheet on floor, missed sheet outside accountant folder, separated stages and detached arrows. Native contain renderer unchanged; provenance in `docs/marketing/product-introduction-slides.md`.
