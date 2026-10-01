@@ -1,0 +1,34 @@
+<section class="comparison" dir="rtl" aria-label="השוואת קרן השתלמות לתיק מסחר עצמאי">
+  <img class="art" src="/assets/self-employed-guide/study-fund-comparison-approved.png" alt="אותו חיסכון. כמה נשאר אצלכם? קרן השתלמות מול תיק מסחר עצמאי" />
+  <aside class="settings">
+    <h3>בואו נשווה</h3>
+    @for (field of fields; track field.key) {
+      <label class="control"><span>{{ field.label }} <strong>{{ display(field.key) }}</strong></span>
+        <input type="range" [attr.aria-label]="field.label" [min]="field.min" [max]="field.max" [step]="field.step" [value]="values[field.key]" (input)="change(field.key, $event)" />
+        <small><b>{{ field.min }}</b><b>{{ field.max }}</b></small>
+      </label>
+    }
+    <p>הפקדה מוכרת לניכוי: {{ money(result.deductible) }}</p>
+    <button type="button" (click)="details = !details" [attr.aria-expanded]="details" aria-controls="study-assumptions">הנחות החישוב ⓘ</button>
+  </aside>
+  @for (fund of [true, false]; track fund) {
+    <div class="results" [class.fund]="fund" [class.trading]="!fund" [attr.aria-label]="fund ? 'קרן השתלמות' : 'תיק מסחר עצמאי'">
+      <div><span>חיסכון במס השנה</span><strong>{{ money(fund ? result.savingNow : 0) }}</strong></div>
+      <div><span>מס על הרווח במשיכה</span><strong>{{ money(fund ? result.fundTax : result.tradingTax) }}</strong></div>
+      <div class="balance"><span>נשאר בחיסכון אחרי {{ values.years }} שנים</span><strong>{{ money(fund ? result.fundBalance : result.tradingBalance) }}</strong></div>
+    </div>
+  }
+  <div class="savings" aria-live="polite"><div><strong>{{ money(result.savingNow) }}</strong><span>חיסכון במס השנה</span></div><b>+</b><div><strong>{{ money(result.savingLater) }}</strong><span>חיסכון במס במשיכה</span></div></div>
+  <p class="footnote">המחשה: הפקדה חד־פעמית, אפס אינפלציה, ללא עמלות, מס יסף או מימושים בדרך.</p>
+  @if (details) {
+    <section class="assumptions" id="study-assumptions" aria-label="הנחות החישוב">
+      <button type="button" (click)="details = false">סגירה ×</button>
+      <h3>הנחות החישוב — 2026</h3>
+      <label>רווח שנתי מהעסק לפני הניכוי <input type="number" min="0" max="1000000" step="1000" [value]="values.income" (input)="change('income', $event)" /></label>
+      <p>ניכוי עד 4.5% מהרווח, בכפוף לתקרת הכנסה של 293,397 ₪ ותקרת ניכוי של 13,203 ₪. פטור על רווחים מהפקדה שנתית עד 20,566 ₪; הרווח על ההפקדה העודפת חייב במס.</p>
+      <p>הדוגמה מיועדת לעצמאי ללא הפקדות נוספות השנה וללא קרן השתלמות כשכיר. כל הניכוי מחושב בשיעור המס השולי שבחרתם, בהנחה שאינו מוריד מדרגת מס ושקיימת חבות מס מספקת.</p>
+      <p>אותה תשואה משוערת בשני המסלולים, ללא הפקדות נוספות. משיכה לאחר לפחות שש שנים; תיק המסחר ממוסה ב־25% על הרווח במימוש בסוף התקופה. ללא קיזוז הפסדים, דיבידנדים, עמלות, אינפלציה, מס יסף או חיסכון בביטוח לאומי.</p>
+      <p>החיסכון במס השנה מוצג בנפרד — אינו מושקע מחדש ואינו נכלל ביתרת החיסכון. התשואה אינה מובטחת; זו המחשה ולא חישוב מס אישי.</p>
+    </section>
+  }
+</section>

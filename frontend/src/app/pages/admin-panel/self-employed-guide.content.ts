@@ -1,6 +1,7 @@
 import { SELF_EMPLOYED_GUIDE_FIGURES } from './self-employed-guide.figures';
 
 export type GuideSlideLayout =
+  | 'study-comparison'
   | 'cover'
   | 'business-types'
   | 'authorities'
@@ -44,6 +45,7 @@ const figures = SELF_EMPLOYED_GUIDE_FIGURES;
 const ceiling = new Intl.NumberFormat('he-IL').format(figures.vatExemptTurnoverCeiling);
 
 export const SELF_EMPLOYED_GUIDE_SLIDES: GuideSlide[] = [
+  { id: 'study-comparison', layout: 'study-comparison', title: 'אותו חיסכון. כמה נשאר אצלכם?' },
   {
     id: 'study-fund', layout: 'approved-artwork', title: 'קרן השתלמות לעצמאים',
     artwork: '/assets/self-employed-guide/study-fund-approved.png',
