@@ -27,6 +27,11 @@ The pension slide remains pending design and approval; it is not implemented.
 
 ### Annual-deposit update (supersedes single-deposit description below)
 
+Follow-up: user caps the example at 20,000 per year and fixes business taxable
+income before deduction at 250,000. Slider and pure model enforce the deposit
+cap; UI income editing removed. Annual deductible = min(deposit, 11,250).
+The teaching cap does not replace the statutory 2026 exemption ceiling 20,566.
+
 User changed the input to an annual deposit repeated at the beginning of every
 year. Principal is deposit × years. Balance recurrence is (balance + deposit)
 × (1 + return), once per year. Annual limits apply separately each year, with

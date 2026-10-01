@@ -10,11 +10,13 @@ describe('study fund illustration', () => {
     expect(Math.round(r.fundBalance)).toBe(71420);
     expect(Math.round(r.tradingBalance)).toBe(68565);
   });
-  it('caps deductions by income and taxes gains on excess deposits', () => {
+  it('caps the example deposit at 20000 and annual deduction at 11250', () => {
     expect(compareStudyFund({ ...base, income: 100000 }).deductible).toBe(4500);
-    const r = compareStudyFund({ ...base, deposit: 100000, income: 1000000 });
-    expect(r.deductible).toBeLessThanOrEqual(13203);
-    expect(r.fundTax).toBeGreaterThan(0);
+    const r = compareStudyFund({ ...base, deposit: 100000 });
+    expect(r.totalDeposits).toBe(120000);
+    expect(r.deductible).toBe(11250);
+    expect(r.savingNow).toBe(3487.5);
+    expect(r.fundTax).toBe(0);
   });
   it('handles zero inputs and prevents early exempt withdrawal', () => {
     expect(compareStudyFund({ ...base, income: 0 }).savingNow).toBe(0);

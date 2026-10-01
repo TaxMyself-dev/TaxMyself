@@ -18,6 +18,8 @@ Internal admin console (tabbed) for staff to manage clients dashboard, the unifi
 
 ## Main flows
 
+- Study comparison example is capped at 20,000 annual deposit in both slider and model, with fixed annual business taxable income 250,000 (maximum deduction 11,250). These teaching choices are separate from the statutory 2026 gains exemption ceiling 20,566; income is no longer editable in the assumptions panel.
+
 - Study comparison now repeats the selected deposit at the start of every year. Total principal = annual deposit × years; each deposit compounds for its own holding period. Card shows annual deduction saving, yellow summary shows cumulative saving (not reinvested). Income/rates/2026 ceilings held constant explicitly. This supersedes the single-deposit model below.
 
 - Study-fund comparison is main slide 10, immediately after study-fund teaching (14 main/26 total). `guide-study-comparison.component.*` overlays live controls/results on approved artwork; the persistent component preserves inputs across navigation. `guide-study-comparison.ts` isolates capped 2026 deductions and gains exemption. Same single deposit/return, terminal liquidation, no reinvestment of current tax savings. Income assumption is editable; limitations and provenance are in `docs/marketing/study-fund-slide.md`.
