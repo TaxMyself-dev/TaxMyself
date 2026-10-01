@@ -25,6 +25,20 @@ The pension slide remains pending design and approval; it is not implemented.
 
 ## Interactive comparison (2026-10-02)
 
+### Annual-deposit update (supersedes single-deposit description below)
+
+User changed the input to an annual deposit repeated at the beginning of every
+year. Principal is deposit × years. Balance recurrence is (balance + deposit)
+× (1 + return), once per year. Annual limits apply separately each year, with
+constant income, marginal rate and 2026 ceilings as illustration assumptions,
+not a prediction of future law. Same account, no intermediate withdrawals.
+Cards show annual tax saving; yellow summary shows saving × years, undiscounted
+and not reinvested. Total deposits are shown below sliders. At 10,000/year,
+6 years, 5%, 31%: principal 60,000; annual tax saving 3,100; cumulative 18,600;
+fund balance 71,420; trading balance 68,565; gains-tax saving 2,855 (rounded).
+Verification: 3 spec cases / 14 assertions passed via a direct TS-transpilation
+harness; browser verified annual label, default amounts and 10-year slider update.
+
 Main slide 10 follows the study-fund overview. Now 14 main/26 total slides.
 Approved corrected-Kipi artwork `exec-956b7e46-a3bc-4f20-9548-6c0a1080193a.png`
 is copied without recompression to `study-fund-comparison-approved.png`.

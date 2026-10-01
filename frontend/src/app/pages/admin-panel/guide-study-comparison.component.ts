@@ -7,7 +7,7 @@ export class GuideStudyComparisonComponent {
   values: StudyInput = { deposit: 10000, rate: 31, years: 6, growth: 5, income: 250000 };
   details = false;
   readonly fields = [
-    { key: 'deposit' as const, label: 'הפקדה חד־פעמית', min: 0, max: 100000, step: 100 },
+    { key: 'deposit' as const, label: 'הפקדה שנתית', min: 0, max: 100000, step: 100 },
     { key: 'rate' as const, label: 'מס שולי', min: 0, max: 47, step: 1 },
     { key: 'years' as const, label: 'שנות חיסכון', min: 6, max: 30, step: 1 },
     { key: 'growth' as const, label: 'תשואה שנתית משוערת', min: 0, max: 10, step: .5 },

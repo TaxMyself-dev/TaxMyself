@@ -18,6 +18,8 @@ Internal admin console (tabbed) for staff to manage clients dashboard, the unifi
 
 ## Main flows
 
+- Study comparison now repeats the selected deposit at the start of every year. Total principal = annual deposit × years; each deposit compounds for its own holding period. Card shows annual deduction saving, yellow summary shows cumulative saving (not reinvested). Income/rates/2026 ceilings held constant explicitly. This supersedes the single-deposit model below.
+
 - Study-fund comparison is main slide 10, immediately after study-fund teaching (14 main/26 total). `guide-study-comparison.component.*` overlays live controls/results on approved artwork; the persistent component preserves inputs across navigation. `guide-study-comparison.ts` isolates capped 2026 deductions and gains exemption. Same single deposit/return, terminal liquidation, no reinvestment of current tax savings. Income assumption is editable; limitations and provenance are in `docs/marketing/study-fund-slide.md`.
 
 - Study-fund slide added 2026-10-02 as main slide 9, after the authorities hub and before expenses: approved image with subtitle and top/bottom notes removed. Now 13 main/25 total screens; chapter sequences and return hub unchanged. See `docs/marketing/study-fund-slide.md` for provenance and presenter caveats.

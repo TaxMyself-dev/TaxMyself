@@ -8,27 +8,28 @@
         <small><b>{{ field.min }}</b><b>{{ field.max }}</b></small>
       </label>
     }
-    <p>הפקדה מוכרת לניכוי: {{ money(result.deductible) }}</p>
+    <p>סך ההפקדות: {{ money(result.totalDeposits) }}</p>
     <button type="button" (click)="details = !details" [attr.aria-expanded]="details" aria-controls="study-assumptions">הנחות החישוב ⓘ</button>
   </aside>
   @for (fund of [true, false]; track fund) {
     <div class="results" [class.fund]="fund" [class.trading]="!fund" [attr.aria-label]="fund ? 'קרן השתלמות' : 'תיק מסחר עצמאי'">
-      <div><span>חיסכון במס השנה</span><strong>{{ money(fund ? result.savingNow : 0) }}</strong></div>
+      <div><span>חיסכון במס בכל שנה</span><strong>{{ money(fund ? result.savingNow : 0) }}</strong></div>
       <div><span>מס על הרווח במשיכה</span><strong>{{ money(fund ? result.fundTax : result.tradingTax) }}</strong></div>
       <div class="balance"><span>נשאר בחיסכון אחרי {{ values.years }} שנים</span><strong>{{ money(fund ? result.fundBalance : result.tradingBalance) }}</strong></div>
     </div>
   }
-  <div class="savings" aria-live="polite"><div><strong>{{ money(result.savingNow) }}</strong><span>חיסכון במס השנה</span></div><b>+</b><div><strong>{{ money(result.savingLater) }}</strong><span>חיסכון במס במשיכה</span></div></div>
-  <p class="footnote">המחשה: הפקדה חד־פעמית, אפס אינפלציה, ללא עמלות, מס יסף או מימושים בדרך.</p>
+  <div class="savings" aria-live="polite"><div><strong>{{ money(result.totalTaxSaving) }}</strong><span>חיסכון במס לאורך {{ values.years }} שנים</span></div><b>+</b><div><strong>{{ money(result.savingLater) }}</strong><span>חיסכון במס במשיכה</span></div></div>
+  <p class="footnote">הפקדה בתחילת כל שנה; נתוני מס קבועים, ללא אינפלציה, עמלות או מס יסף.</p>
   @if (details) {
     <section class="assumptions" id="study-assumptions" aria-label="הנחות החישוב">
       <button type="button" (click)="details = false">סגירה ×</button>
       <h3>הנחות החישוב — 2026</h3>
       <label>רווח שנתי מהעסק לפני הניכוי <input type="number" min="0" max="1000000" step="1000" [value]="values.income" (input)="change('income', $event)" /></label>
       <p>ניכוי עד 4.5% מהרווח, בכפוף לתקרת הכנסה של 293,397 ₪ ותקרת ניכוי של 13,203 ₪. פטור על רווחים מהפקדה שנתית עד 20,566 ₪; הרווח על ההפקדה העודפת חייב במס.</p>
-      <p>הדוגמה מיועדת לעצמאי ללא הפקדות נוספות השנה וללא קרן השתלמות כשכיר. כל הניכוי מחושב בשיעור המס השולי שבחרתם, בהנחה שאינו מוריד מדרגת מס ושקיימת חבות מס מספקת.</p>
-      <p>אותה תשואה משוערת בשני המסלולים, ללא הפקדות נוספות. משיכה לאחר לפחות שש שנים; תיק המסחר ממוסה ב־25% על הרווח במימוש בסוף התקופה. ללא קיזוז הפסדים, דיבידנדים, עמלות, אינפלציה, מס יסף או חיסכון בביטוח לאומי.</p>
-      <p>החיסכון במס השנה מוצג בנפרד — אינו מושקע מחדש ואינו נכלל ביתרת החיסכון. התשואה אינה מובטחת; זו המחשה ולא חישוב מס אישי.</p>
+      <p>הפקדה מוכרת בכל שנה: {{ money(result.deductible) }}. ההכנסה, שיעור המס ותקרות 2026 קבועים לאורך ההמחשה ואינם תחזית לחקיקה עתידית. ללא הפקדות אחרות או קרן השתלמות כשכיר. הניכוי באותה מדרגת מס ועם חבות מס מספקת בכל שנה.</p>
+      <p>אותו סכום מופקד בתחילת כל שנה, באותה תשואה בשני המסלולים. ההפקדה הראשונה צוברת תשואה במשך כל התקופה והאחרונה במשך שנה אחת. משיכה בתום התקופה מאותה קרן לאחר לפחות שש שנות ותק; לא מבוצעות משיכות ביניים.</p>
+      <p>תיק המסחר ממוסה ב־25% על הרווח במימוש בסוף התקופה. ללא קיזוז הפסדים, דיבידנדים, עמלות, אינפלציה, מס יסף או חיסכון בביטוח לאומי. התקרה לפטור מיושמת בנפרד לכל הפקדה שנתית.</p>
+      <p>החיסכון במס בכל שנה מוצג בנפרד ובסיכום מצטבר — אינו מושקע מחדש ואינו נכלל ביתרת החיסכון. הסיכום אינו מהוון. התשואה אינה מובטחת; זו המחשה ולא חישוב מס אישי.</p>
     </section>
   }
 </section>
