@@ -433,13 +433,6 @@
                     (onButtonClicked)="goToArchive()">
                 </app-p-button>
             }
-            @if (userData?.isDemo) {
-                <app-p-button class="demo-reset-button" [buttonText]="'אפס נתוני בדיקה'"
-                    [buttonColor]="buttonColor.WHITE_BORDER_LIGHT" [buttonSize]="buttonSize.AUTO"
-                    [isLoading]="isResettingDemo()" (onButtonClicked)="onResetTestData()">
-                    <i class="pi pi-refresh"></i>
-                </app-p-button>
-            }
         </div>
      </div>
      <!-- ─── Open Banking CTA Banner (Figma nodes 2520:53911 → 2520:53930) ─── -->
