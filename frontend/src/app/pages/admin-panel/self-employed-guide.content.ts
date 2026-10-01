@@ -45,6 +45,11 @@ const ceiling = new Intl.NumberFormat('he-IL').format(figures.vatExemptTurnoverC
 
 export const SELF_EMPLOYED_GUIDE_SLIDES: GuideSlide[] = [
   {
+    id: 'study-fund', layout: 'approved-artwork', title: 'קרן השתלמות לעצמאים',
+    artwork: '/assets/self-employed-guide/study-fund-approved.png',
+    artworkAlt: 'קרן השתלמות לעצמאים. הטבה בהפקדה: הפקדה מוכרת מקטינה את ההכנסה החייבת במס. הטבה על הרווחים: פטור ממס על הרווחים עד תקרת ההפקדה המזכה. אחרי 6 שנים: אפשר למשוך לכל מטרה או להמשיך לחסוך.',
+  },
+  {
     id: 'expense-principle', layout: 'expense-principle',
     title: 'כבר שילמתם? אל תפספסו את החיסכון.',
     sources: [{ label: 'קיזוז מס תשומות', url: 'https://www.gov.il/he/service/reporting-or-payment-of-vat-reports' }, { label: 'ניכוי במסלול עסק זעיר', url: figures.sources.microBusinessGuidance }],

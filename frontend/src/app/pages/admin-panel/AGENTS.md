@@ -18,6 +18,8 @@ Internal admin console (tabbed) for staff to manage clients dashboard, the unifi
 
 ## Main flows
 
+- Study-fund slide added 2026-10-02 as main slide 9, after the authorities hub and before expenses: approved image with subtitle and top/bottom notes removed. Now 13 main/25 total screens; chapter sequences and return hub unchanged. See `docs/marketing/study-fund-slide.md` for provenance and presenter caveats.
+
 - Solution artwork updated 2026-10-02 from approved `exec-6356ab9b-6f38-4172-90dc-b5a5d66bc582.png`: aligned headings, separate bank/card and document inputs converging on a matching brain, WhatsApp marked forthcoming, and the approved year-end caption. Same lossless asset replacement/contain renderer; accessible copy updated. Provenance and claim boundaries in `docs/marketing/product-introduction-slides.md`.
 
 - Pain-slide quality replacement: latest approved source is `exec-a401c3db-607a-443d-ace3-fffe81d1edbb.png`, rebuilt from the sharp original and then edited only for smaller detached arrows. Supersedes the earlier multi-edit image below; same asset path and contain renderer, no code changes.

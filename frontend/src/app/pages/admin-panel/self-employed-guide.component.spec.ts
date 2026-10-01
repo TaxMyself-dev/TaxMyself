@@ -9,11 +9,11 @@ describe('SelfEmployedGuideComponent', () => {
     expect(component.slides[4].title).toBe('החובות של כל עסק');
     expect(component.slides[4].items?.every(item => item.description.includes('ביטוח לאומי'))).toBeTrue();
     expect(component.slides[2].title).toBe('כשאתם שכירים, המעסיק מטפל בהכל');
-    expect(component.slides.map(s => s.id)).toEqual(['cover', 'basic-concepts', 'employee-payroll', 'business-types', 'income-tax-overview', 'status-comparison', 'micro-blockers', 'tax-authorities', 'expense-principle', 'expense-savings', 'product-pain', 'product-solution']);
+    expect(component.slides.map(s => s.id)).toEqual(['cover', 'basic-concepts', 'employee-payroll', 'business-types', 'income-tax-overview', 'status-comparison', 'micro-blockers', 'tax-authorities', 'study-fund', 'expense-principle', 'expense-savings', 'product-pain', 'product-solution']);
     component.previousSlide();
     expect(component.currentSlideIndex).toBe(0);
-    for (let i = 0; i < 12; i++) component.nextSlide();
-    expect(component.currentSlideIndex).toBe(11);
+    for (let i = 0; i < 13; i++) component.nextSlide();
+    expect(component.currentSlideIndex).toBe(12);
     expect(component.isLastMainSlide).toBeTrue();
   });
   for (const chapter of ['income', 'vat', 'ni'] as const) {
@@ -42,9 +42,9 @@ describe('SelfEmployedGuideComponent', () => {
       }
     });
   }
-  it('assigns all 24 slides exactly once and opens income at combined income', () => {
+  it('assigns all 25 slides exactly once and opens income at combined income', () => {
     const ids = [...component.mainIds, ...Object.values(component.chapterIds).flat()];
-    expect(new Set(ids).size).toBe(24);
+    expect(new Set(ids).size).toBe(25);
     expect([...ids].sort()).toEqual(SELF_EMPLOYED_GUIDE_SLIDES.map(s => s.id).sort());
     component.openChapter('income');
     expect(component.currentSlide.id).toBe('income-combination');
@@ -68,6 +68,9 @@ describe('SelfEmployedGuideComponent', () => {
     component.returnToAuthorities();
     expect(component.isLastMainSlide).toBeFalse();
     component.nextSlide();
+    expect(component.currentSlide.id).toBe('study-fund');
+    expect(component.currentSlide.artwork).toContain('study-fund-approved.png');
+    component.nextSlide();
     expect(component.currentSlide.id).toBe('expense-principle');
     component.nextSlide();
     expect(component.currentSlide.id).toBe('expense-savings');
@@ -82,6 +85,8 @@ describe('SelfEmployedGuideComponent', () => {
     component.previousSlide();
     expect(component.currentSlide.id).toBe('expense-savings');
     component.previousSlide();
+    component.previousSlide();
+    expect(component.currentSlide.id).toBe('study-fund');
     component.previousSlide();
     expect(component.currentSlide.id).toBe('tax-authorities');
   });
