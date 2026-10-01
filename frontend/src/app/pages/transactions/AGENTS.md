@@ -12,6 +12,7 @@ Main transactions ledger: lists income and expense bank/card transactions, lets 
 - `getTransactions`/`getExpensesData`/`handleTableData`: fetch and shape income/expense rows into `IRowDataTable[]` for the generic table, with column sets built via `buildTransactionColumns` (varies by `businessStatus` single/multi and `isOnlyEmployer`).
 - Row actions per table (`expenseRowActions`/`incomeRowActions`): "שייך לחשבון" (`onAssociateAccount`, only for rows with no billName), "סיווג תנועה" (`onClassifyTransaction`, opens classify dialog), "סיווג מהיר" (`onQuickClassify`, one-click classify).
 - Dialog open/close pairs: account-association, add-bill, classify-tran, add-category — each toggles a `visible*` signal and refetches affected data on close.
+- Bill/account lookup failures never create placeholder rows in `accountsList`; an empty collection lets account selectors show their dedicated empty-state copy and remain retryable.
 - Filtering: `applyFilters`/`resetFilters`/`classifyDataFilter` plus a document-click listener (`onDocumentClick`) that closes the filter panel when clicking outside it or outside PrimeNG overlay panels.
 - Sync-status polling drives `syncProcessStatus` signal consumed by `GenericTableComponent` to show running/failed banners over the table.
 
