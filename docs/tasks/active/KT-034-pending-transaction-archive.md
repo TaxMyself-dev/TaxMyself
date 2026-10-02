@@ -1,6 +1,6 @@
 # KT-034 - Show pending classified transactions in the archive
 
-- Status: `VERIFIED`
+- Status: `PUSHED`
 - Task manager: Codex primary
 - Worker: Codex primary (single-agent execution)
 - Worktree: `C:\Users\harel\Elazar Harel\taxmyself\taxmyself-dev`
@@ -74,7 +74,8 @@ after approval.
 - Integrated commit: `224013a2` on local `main`
 - Combined verification: focused Jest 4 suites / 21 tests passed; Nest build
   exit 0; Angular production build exit 0 with existing budget/CommonJS warnings.
-- `origin/main` verification: pending fetch/push.
+- `origin/main` verification: pushed through `6e080e71`; remote accepted the
+  fast-forward from `a51b8353`.
 - User-visible run instructions: apply Section 18 of `docs/redesign/cutover.sql`
   during the governed cutover before deploying this code. No production command
   was run as part of this task.
