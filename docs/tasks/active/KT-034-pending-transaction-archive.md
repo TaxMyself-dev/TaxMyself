@@ -1,6 +1,6 @@
 # KT-034 - Show pending classified transactions in the archive
 
-- Status: `WORKER_COMPLETE`
+- Status: `VERIFIED`
 - Task manager: Codex primary
 - Worker: Codex primary (single-agent execution)
 - Worktree: `C:\Users\harel\Elazar Harel\taxmyself\taxmyself-dev`
@@ -48,7 +48,7 @@ after approval.
 ## Handoff
 
 - Result: complete
-- Commit hash(es): pending local commit
+- Commit hash(es): `224013a2`
 - Changed files: slim transaction entity/classification pipeline; unified
   archive backend/API/frontend; transaction approval fallback; focused tests;
   cutover SQL; transaction/document/bookkeeping topic docs; redesign worklog.
@@ -70,8 +70,11 @@ after approval.
 
 ## Integration
 
-- Reviewed by:
-- Integrated commit:
-- Combined verification:
-- `origin/main` verification:
-- User-visible run instructions:
+- Reviewed by: Codex primary manager
+- Integrated commit: `224013a2` on local `main`
+- Combined verification: focused Jest 4 suites / 21 tests passed; Nest build
+  exit 0; Angular production build exit 0 with existing budget/CommonJS warnings.
+- `origin/main` verification: pending fetch/push.
+- User-visible run instructions: apply Section 18 of `docs/redesign/cutover.sql`
+  during the governed cutover before deploying this code. No production command
+  was run as part of this task.
