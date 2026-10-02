@@ -45,6 +45,16 @@ const figures = SELF_EMPLOYED_GUIDE_FIGURES;
 const ceiling = new Intl.NumberFormat('he-IL').format(figures.vatExemptTurnoverCeiling);
 
 export const SELF_EMPLOYED_GUIDE_SLIDES: GuideSlide[] = [
+  {
+    id: 'pension', layout: 'approved-artwork', title: 'קרן פנסיה לעצמאים',
+    artwork: '/assets/self-employed-guide/pension-approved.png',
+    artworkAlt: 'קרן פנסיה לעצמאים. חובת הפקדה לפי ההכנסה למי שחלה עליו החובה. הטבות מס: ניכוי מקטין הכנסה חייבת וזיכוי מקטין את המס, בכפוף לתנאים ולתקרות. כיסוי לנכות ואובדן כושר עבודה וקצבה לשאירים במקרה פטירה בהתאם למסלול ולתנאי הקרן. חיסכון לקצבה חודשית בפרישה.',
+  },
+  {
+    id: 'pension-tax-benefits', layout: 'approved-artwork', title: 'ניכוי וזיכוי — מה ההבדל?',
+    artwork: '/assets/self-employed-guide/pension-tax-benefits-approved.png',
+    artworkAlt: 'ניכוי מקטין את ההכנסה החייבת: 1,000 שקלים שהוכרו לניכוי מורידים הכנסה מ-250,000 ל-249,000. בדוגמת מס שולי של 31% החיסכון הוא 310 שקלים. זיכוי מקטין ישירות את המס: 1,000 שקלים שהוכרו לזיכוי מעניקים זיכוי של 35%, כלומר 350 שקלים. מס לתשלום של 10,000 יורד ל-9,650. אין מס לתשלום? אין מה לקזז.',
+  },
   { id: 'study-comparison', layout: 'study-comparison', title: 'אותו חיסכון. כמה נשאר אצלכם?' },
   {
     id: 'study-fund', layout: 'approved-artwork', title: 'קרן השתלמות לעצמאים',

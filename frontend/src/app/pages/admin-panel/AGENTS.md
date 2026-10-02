@@ -18,6 +18,8 @@ Internal admin console (tabbed) for staff to manage clients dashboard, the unifi
 
 ## Main flows
 
+- Pension overview and deduction/credit artwork are main slides 11–12, after the study comparison (16 main/28 total). Both use the existing contain renderer and exact approved PNGs; no calculation changes. `docs/marketing/pension-slides.md` records provenance and presenter qualifications removed from the visible artwork at user request.
+
 - Study comparison example is capped at 20,000 annual deposit in both slider and model, with fixed annual business taxable income 250,000 (maximum deduction 11,250). These teaching choices are separate from the statutory 2026 gains exemption ceiling 20,566; income is no longer editable in the assumptions panel.
 
 - Study comparison now repeats the selected deposit at the start of every year. Total principal = annual deposit × years; each deposit compounds for its own holding period. Card shows annual deduction saving, yellow summary shows cumulative saving (not reinvested). Income/rates/2026 ceilings held constant explicitly. This supersedes the single-deposit model below.

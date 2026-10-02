@@ -21,7 +21,7 @@ No year-specific figures or calculator logic are introduced.
 Evidence used for content planning: Ministry of Finance study-fund review,
 https://www.gov.il/BlobFolder/dynamiccollectorresultitem/review-15102025/he/reviews-and-publishes_review-15102025.pdf
 
-The pension slide remains pending design and approval; it is not implemented.
+The pension overview and deduction/credit follow-up are now implemented after the comparison; see `pension-slides.md`.
 
 ## Interactive comparison (2026-10-02)
 
