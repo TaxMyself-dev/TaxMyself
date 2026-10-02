@@ -12,6 +12,7 @@ import { ClassificationType } from './enums/classification-type.enum';
 @Entity('slim_transactions')
 @Index('UQ_slim_user_external', ['userId', 'externalTransactionId'], { unique: true })
 @Index('IDX_slim_userId', ['userId'])
+@Index('IDX_slim_archive_pending', ['userId', 'businessNumber', 'isRecognized', 'confirmed', 'matchedDocumentId'])
 export class SlimTransaction {
 
   @PrimaryGeneratedColumn()
@@ -103,6 +104,28 @@ export class SlimTransaction {
 
   @Column({ type: 'varchar', nullable: true, default: null })
   businessNumber: string | null;
+
+  /**
+   * Durable display snapshot copied from FullTransactionCache when the
+   * transaction is classified. The cache is intentionally cleared nightly;
+   * pending archive rows must remain understandable and approvable without it.
+   */
+  @Column({ type: 'varchar', nullable: true, default: null })
+  merchantNameSnapshot: string | null;
+
+  @Column({ type: 'date', nullable: true, default: null })
+  transactionDateSnapshot: Date | null;
+
+  /** Signed source amount exactly as received from the bank/card feed. */
+  @Column('decimal', { precision: 10, scale: 2, nullable: true, default: null })
+  amountSnapshot: number | null;
+
+  @Column({ type: 'varchar', length: 3, nullable: true, default: null })
+  currencySnapshot: string | null;
+
+  /** Pre-converted absolute ILS value for foreign-currency transactions. */
+  @Column('decimal', { precision: 12, scale: 2, nullable: true, default: null })
+  ilsAmountSnapshot: number | null;
 
   /**
    * Set when the unified review-modal matcher pairs this transaction with

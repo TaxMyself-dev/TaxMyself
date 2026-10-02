@@ -4004,7 +4004,51 @@ ${finalOwnerName}`;
       canManageExpenses,
     }));
 
-    return [...docItems, ...txItems].sort((a, b) => {
+    // Classified recognized transactions are durable pending-approval rows in
+    // slim_transactions. Exclude matched rows because their document already
+    // represents the same future expense above.
+    const pendingSlimTransactions = await this.slimTransactionRepo.find({
+      where: {
+        userId: firebaseId,
+        businessNumber,
+        isRecognized: true,
+        confirmed: false,
+        matchedDocumentId: IsNull(),
+      },
+      order: { transactionDateSnapshot: 'DESC', id: 'DESC' },
+    });
+
+    const pendingTransactionItems: ArchivedItem[] = pendingSlimTransactions.map(s => {
+      const currency = (s.currencySnapshot ?? 'ILS').toUpperCase();
+      const originalAmount = currency === 'ILS' || s.amountSnapshot == null
+        ? null
+        : Math.abs(Number(s.amountSnapshot));
+      return {
+        id: s.id,
+        itemType: 'TRANSACTION',
+        documentType: null,
+        documentKind: null,
+        name: s.merchantNameSnapshot ?? `תנועה ${s.externalTransactionId}`,
+        documentDate: s.transactionDateSnapshot,
+        uploadDate: s.createdAt,
+        source: RecordSource.OPEN_BANKING,
+        status: ArchiveItemStatus.PENDING,
+        canResolve: canManageExpenses,
+        canReclassify: false,
+        driveFileId: null,
+        rejectionReason: null,
+        vatReportPeriod: s.vatReportingDate ? String(s.vatReportingDate) : null,
+        annualReportingYear: s.annualReportingYear ?? null,
+        canManageExpenses,
+        amount: s.ilsAmountSnapshot != null
+          ? Math.abs(Number(s.ilsAmountSnapshot))
+          : s.amountSnapshot == null ? null : Math.abs(Number(s.amountSnapshot)),
+        originalAmount,
+        currency,
+      };
+    });
+
+    return [...docItems, ...txItems, ...pendingTransactionItems].sort((a, b) => {
       const at = a.uploadDate ? new Date(a.uploadDate).getTime() : 0;
       const bt = b.uploadDate ? new Date(b.uploadDate).getTime() : 0;
       return bt - at;
@@ -4209,10 +4253,10 @@ ${finalOwnerName}`;
 
 /** A row on the ארכיון שלי (unified archive) page — `GET /documents/me/archived`. */
 export interface ArchivedItem {
-  /** ExtractedDocument.id (DOCUMENT rows) or Expense.id (EXPENSE rows) — not
-   *  globally unique across the two, disambiguate with `itemType`. */
+  /** ExtractedDocument.id, Expense.id or SlimTransaction.id — not globally
+   *  unique across item types, so callers must disambiguate with `itemType`. */
   id: number;
-  itemType: 'DOCUMENT' | 'EXPENSE';
+  itemType: 'DOCUMENT' | 'EXPENSE' | 'TRANSACTION';
   /** ExtractedDocumentType value, or null for a transaction with no document. */
   documentType: string | null;
   /** D8 routing kind. Null for expense-only rows. */
@@ -4234,4 +4278,8 @@ export interface ArchivedItem {
   vatReportPeriod: string | null;
   /** Expense.annualReportingYear for approved expenses and their source document. */
   annualReportingYear: number | null;
+  /** ILS display amount; transaction rows retain originalAmount/currency too. */
+  amount?: number | null;
+  originalAmount?: number | null;
+  currency?: string | null;
 }

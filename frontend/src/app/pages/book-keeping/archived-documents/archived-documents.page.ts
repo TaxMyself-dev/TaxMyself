@@ -13,6 +13,7 @@ import { ActivatedRoute } from '@angular/router';
 import { DialogService } from 'primeng/dynamicdialog';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { MannualExpenseComponent } from 'src/app/components/mannual-expense/mannual-expense.component';
+import { ReportReviewService } from 'src/app/services/report-review.service';
 
 /** Hebrew labels for `ArchiveItemStatus` (see backend `src/enum.ts`). */
 export const ARCHIVE_STATUS_LABELS: Record<ArchiveItemStatus, string> = {
@@ -73,6 +74,7 @@ export class ArchivedDocumentsPage implements OnInit {
   private route = inject(ActivatedRoute);
   private dialogService = inject(DialogService);
   private expenseDataService = inject(ExpenseDataService);
+  private reportReviewService = inject(ReportReviewService);
 
   // ===========================
   // Global state
@@ -316,7 +318,7 @@ export class ArchivedDocumentsPage implements OnInit {
         title: 'אשר כהוצאה',
         alwaysShow: true,
         showWhen: (row: IRowDataTable) =>
-          ((row as any).itemType === 'DOCUMENT' || (row as any).itemType === 'EXPENSE')
+          ['DOCUMENT', 'EXPENSE', 'TRANSACTION'].includes((row as any).itemType)
           && !!(row as any).canResolve
           && (row as any).documentKind !== 'ANNUAL_DOCUMENT',
         action: (_event: any, row: IRowDataTable) => this.onApproveClicked(row),
@@ -386,6 +388,34 @@ export class ArchivedDocumentsPage implements OnInit {
   onApproveClicked(doc: IRowDataTable): void {
     const id = Number(doc.id ?? 0);
     if (!id || !(doc as any).canResolve) return;
+    if ((doc as any).itemType === 'TRANSACTION') {
+      this.confirmationService.confirm({
+        header: 'אישור הוצאה',
+        message: 'לאשר את התנועה כהוצאה ולרשום אותה בספרים?',
+        icon: 'pi pi-check-circle',
+        acceptLabel: 'אשר',
+        rejectLabel: 'ביטול',
+        accept: () => this.reportReviewService.approveTxNoDoc(
+          this.selectedBusinessNumber(),
+          id,
+          (doc as any).vatReportPeriod
+            ? { reportPeriod: (doc as any).vatReportPeriod }
+            : undefined,
+        ).subscribe({
+          next: () => {
+            this.messageService.add({ severity: 'success', summary: 'ההוצאה אושרה', key: 'br' });
+            this.fetchArchivedItems(this.selectedBusinessNumber());
+          },
+          error: (err) => this.messageService.add({
+            severity: 'error',
+            summary: 'האישור נכשל',
+            detail: err?.error?.message ?? 'לא ניתן לאשר את התנועה כהוצאה',
+            key: 'br',
+          }),
+        }),
+      });
+      return;
+    }
     if ((doc as any).itemType === 'EXPENSE') {
       this.confirmationService.confirm({
         header: 'אישור הוצאה',

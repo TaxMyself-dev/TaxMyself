@@ -145,6 +145,24 @@ export class TransactionProcessingService {
       .execute();
   }
 
+  /** Cache-independent display/provenance fields for the pending archive. */
+  private slimArchiveSnapshot(cache: FullTransactionCache): Pick<
+    SlimTransaction,
+    | 'merchantNameSnapshot'
+    | 'transactionDateSnapshot'
+    | 'amountSnapshot'
+    | 'currencySnapshot'
+    | 'ilsAmountSnapshot'
+  > {
+    return {
+      merchantNameSnapshot: cache.merchantName,
+      transactionDateSnapshot: cache.transactionDate,
+      amountSnapshot: Number(cache.amount),
+      currencySnapshot: (cache.currency ?? 'ILS').toUpperCase(),
+      ilsAmountSnapshot: cache.ilsAmount == null ? null : Number(cache.ilsAmount),
+    };
+  }
+
   /**
    * Resolves which period label to stamp on `slim.vatReportingDate` for a
    * classification operation. Decision tree:
@@ -416,6 +434,10 @@ export class TransactionProcessingService {
 
     const cacheUpserts: Partial<FullTransactionCache>[] = [];
     const slimInserts: Partial<SlimTransaction>[] = [];
+    const slimSnapshotRefreshes: Array<{
+      id: number;
+      snapshot: ReturnType<TransactionProcessingService['slimArchiveSnapshot']>;
+    }> = [];
 
     for (const tx of enriched) {
       const fxStamp = fxStampByExternalId.get(tx.externalTransactionId) ?? null;
@@ -433,6 +455,18 @@ export class TransactionProcessingService {
       // STEP 1 – slim exists → overlay and skip rule matching.
       if (slim) {
         cacheUpserts.push(this.buildCacheRowWithSlim(userId, tx, slim, fxStamp));
+        if (
+          slim.merchantNameSnapshot == null
+          || slim.transactionDateSnapshot == null
+          || slim.amountSnapshot == null
+        ) {
+          slimSnapshotRefreshes.push({
+            id: slim.id,
+            snapshot: this.slimArchiveSnapshot(
+              this.buildCacheRow(userId, tx, fxStamp) as FullTransactionCache,
+            ),
+          });
+        }
         continue;
       }
 
@@ -470,7 +504,8 @@ export class TransactionProcessingService {
           reportScope: matchedRule.reportScope,
           confirmed: false,
           vatReportingDate: null,
-          businessNumber: matchedRule.businessNumber ?? null,
+          businessNumber: matchedRule.businessNumber ?? tx.businessNumber ?? null,
+          ...this.slimArchiveSnapshot(this.buildCacheRow(userId, tx, fxStamp) as FullTransactionCache),
         });
         result.savedToSlim++;
         result.ruleMatched++;
@@ -510,6 +545,13 @@ export class TransactionProcessingService {
         .orIgnore()
         .execute();
     }
+
+    // Legacy rows may predate the durable archive snapshot or may have missed
+    // the cutover backfill because their cache was empty at that moment. Heal
+    // them on the next successful provider sync without changing classification.
+    await this.mapWithConcurrency(slimSnapshotRefreshes, 8, async ({ id, snapshot }) => {
+      await this.slimRepo.update({ id }, snapshot);
+    });
 
     // Count existing cache rows before upsert to distinguish inserts from updates.
     if (cacheUpserts.length > 0) {
@@ -647,6 +689,7 @@ export class TransactionProcessingService {
         confirmed: slim?.confirmed ?? false,
         vatReportingDate: periodLabel,
         businessNumber: businessNumberFinal,
+        ...this.slimArchiveSnapshot(cacheRow),
       },
     ]);
 
@@ -847,6 +890,7 @@ export class TransactionProcessingService {
         confirmed: slim?.confirmed ?? false,
         vatReportingDate: focusPeriodLabel,
         businessNumber: focusBusinessNumber,
+        ...this.slimArchiveSnapshot(cacheRow),
       },
     ]);
 
@@ -1467,7 +1511,8 @@ export class TransactionProcessingService {
         vatReportingDate: periodLabelByRow.get(row.externalTransactionId) ?? null,
         // Rule-level businessNumber wins; otherwise preserve whatever the slim
         // row already had (which itself may be the bill default or a prior override).
-        businessNumber: savedRule.businessNumber ?? existingSlim?.businessNumber ?? null,
+        businessNumber: savedRule.businessNumber ?? existingSlim?.businessNumber ?? row.businessNumber ?? null,
+        ...this.slimArchiveSnapshot(row),
       };
     });
 

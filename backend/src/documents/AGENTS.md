@@ -29,7 +29,11 @@ Handles the full lifecycle of official documents the user issues (invoices, rece
 - `POST /documents/me/archive/:documentId` — archive a reviewed `ExtractedDocument`.
 - `GET /documents/me/archived`, `DELETE /documents/me/archived/:documentId`, `PATCH /documents/me/archived/:documentId/restore` — unified archive list plus file-scoped soft delete/restore. The list preserves distinct user-facing states for approved expenses, annual filings, archived/rejected/error rows and exposes `canResolve` only for visible `PENDING_REVIEW` documents. Delete sets `deletedAt` without changing lifecycle status or removing the Drive file/accounting links; operational review, pairing and matching queries exclude deleted rows.
 
-- The unified archive also includes manual/open-banking `Expense` rows.
+- The unified archive also includes manual/open-banking `Expense` rows and
+  unmatched recognized `SlimTransaction` rows awaiting approval. Pending
+  transaction rows use the durable slim display snapshot rather than the
+  nightly-cleared full transaction cache; matched transactions remain
+  represented by their document to avoid duplicate archive entries.
   Transient `canResolve`/`canManageExpenses` capabilities are true only for an
   unrepresented owner, an admin, or an agent holding `EXPENSES_APPROVE`;
   represented owners and read-only delegates receive no accounting actions.

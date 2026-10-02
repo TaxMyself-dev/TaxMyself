@@ -1809,3 +1809,46 @@ ALTER TABLE `billing_event`
 -- the second must include both BILLING_EXEMPTION_* enum values.
 -- SHOW COLUMNS FROM subscription LIKE 'billing_access_mode';
 -- SHOW COLUMNS FROM billing_event LIKE 'event_type';
+
+
+-- ============================================================================
+-- SECTION 18 (2026-10-02, Elazar) -- durable pending transaction archive.
+--
+-- Classified transactions awaiting approval must remain visible after the
+-- nightly full_transactions_cache cleanup. Persist only the source display
+-- fields needed by the archive/approval fallback; accounting remains deferred
+-- until the existing explicit approval flow creates an Expense and journal.
+-- ============================================================================
+
+ALTER TABLE `slim_transactions`
+  ADD COLUMN `merchantNameSnapshot` varchar(255) NULL DEFAULT NULL AFTER `businessNumber`,
+  ADD COLUMN `transactionDateSnapshot` date NULL DEFAULT NULL AFTER `merchantNameSnapshot`,
+  ADD COLUMN `amountSnapshot` decimal(10,2) NULL DEFAULT NULL AFTER `transactionDateSnapshot`,
+  ADD COLUMN `currencySnapshot` varchar(3) NULL DEFAULT NULL AFTER `amountSnapshot`,
+  ADD COLUMN `ilsAmountSnapshot` decimal(12,2) NULL DEFAULT NULL AFTER `currencySnapshot`,
+  ADD INDEX `IDX_slim_archive_pending`
+    (`userId`, `businessNumber`, `isRecognized`, `confirmed`, `matched_document_id`);
+
+UPDATE `slim_transactions` s
+JOIN `full_transactions_cache` c
+  ON c.`userId` = s.`userId`
+ AND c.`externalTransactionId` = s.`externalTransactionId`
+SET s.`merchantNameSnapshot` = c.`merchantName`,
+    s.`transactionDateSnapshot` = c.`transactionDate`,
+    s.`amountSnapshot` = c.`amount`,
+    s.`currencySnapshot` = UPPER(COALESCE(c.`currency`, 'ILS')),
+    s.`ilsAmountSnapshot` = c.`ilsAmount`
+WHERE s.`merchantNameSnapshot` IS NULL
+   OR s.`transactionDateSnapshot` IS NULL
+   OR s.`amountSnapshot` IS NULL;
+
+-- Verification: the columns/index must exist. The last query lists legacy
+-- classified pending rows whose cache data was already unavailable at cutover;
+-- those rows become complete on their next bank sync before approval.
+-- SHOW COLUMNS FROM slim_transactions LIKE '%Snapshot';
+-- SHOW INDEX FROM slim_transactions WHERE Key_name = 'IDX_slim_archive_pending';
+-- SELECT id, userId, externalTransactionId
+-- FROM slim_transactions
+-- WHERE isRecognized = 1 AND confirmed = 0
+--   AND (merchantNameSnapshot IS NULL
+--     OR transactionDateSnapshot IS NULL OR amountSnapshot IS NULL);

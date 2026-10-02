@@ -1023,7 +1023,7 @@ export class ReportReviewService {
     overrides: ReviewOverrides = {},
     actorUserId: string = firebaseId,
   ): Promise<{ expenseId: number }> {
-    const { slim, cache } = await this.loadTxPair(firebaseId, businessNumber, slimTransactionId);
+    const { slim, cache } = await this.loadTxPair(firebaseId, businessNumber, slimTransactionId, true);
 
     const finalCategory    = overrides.category    ?? slim.category;
     const finalSubCategory = overrides.subCategory ?? slim.subCategory;
@@ -1083,6 +1083,7 @@ export class ReportReviewService {
         where: { firebaseId, businessNumber },
       });
       const reportPeriod = overrides.reportPeriod
+        ?? slim.vatReportingDate
         ?? this.sharedService.buildReportPeriodLabel(
           business?.businessType ?? BusinessType.LICENSED,
           business?.vatReportingType ?? VATReportingType.MONTHLY_REPORT,
@@ -1434,6 +1435,7 @@ export class ReportReviewService {
     firebaseId: string,
     businessNumber: string,
     slimTransactionId: number,
+    allowSnapshotFallback = false,
   ): Promise<{ slim: SlimTransaction; cache: FullTransactionCache }> {
     const slim = await this.slimRepo.findOne({ where: { id: slimTransactionId } });
     if (!slim) throw new NotFoundException(`Transaction ${slimTransactionId} not found`);
@@ -1449,6 +1451,31 @@ export class ReportReviewService {
         externalTransactionId: slim.externalTransactionId,
       },
     });
+    if (!cache && allowSnapshotFallback) {
+      if (
+        !slim.merchantNameSnapshot
+        || !slim.transactionDateSnapshot
+        || slim.amountSnapshot == null
+      ) {
+        throw new NotFoundException(
+          `Transaction snapshot for slim ${slimTransactionId} is incomplete; sync transactions before approval`,
+        );
+      }
+      return {
+        slim,
+        cache: {
+          externalTransactionId: slim.externalTransactionId,
+          userId: slim.userId,
+          billId: slim.billId,
+          businessNumber: slim.businessNumber,
+          merchantName: slim.merchantNameSnapshot,
+          transactionDate: slim.transactionDateSnapshot,
+          amount: Number(slim.amountSnapshot),
+          currency: slim.currencySnapshot ?? 'ILS',
+          ilsAmount: slim.ilsAmountSnapshot == null ? null : Number(slim.ilsAmountSnapshot),
+        } as FullTransactionCache,
+      };
+    }
     if (!cache) {
       // Should be unreachable — slim rows are only created when their cache
       // row exists. Throw rather than fabricate amount/date.
