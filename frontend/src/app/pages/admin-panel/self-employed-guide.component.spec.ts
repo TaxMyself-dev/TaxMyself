@@ -9,11 +9,11 @@ describe('SelfEmployedGuideComponent', () => {
     expect(component.slides[4].title).toBe('החובות של כל עסק');
     expect(component.slides[4].items?.every(item => item.description.includes('ביטוח לאומי'))).toBeTrue();
     expect(component.slides[2].title).toBe('כשאתם שכירים, המעסיק מטפל בהכל');
-    expect(component.slides.map(s => s.id)).toEqual(['cover', 'basic-concepts', 'employee-payroll', 'business-types', 'income-tax-overview', 'status-comparison', 'micro-blockers', 'tax-authorities', 'study-fund', 'study-comparison', 'pension', 'pension-tax-benefits', 'expense-principle', 'expense-savings', 'product-pain', 'product-solution']);
+    expect(component.slides.map(s => s.id)).toEqual(['cover', 'basic-concepts', 'employee-payroll', 'business-types', 'income-tax-overview', 'status-comparison', 'micro-blockers', 'tax-authorities', 'study-fund', 'study-comparison', 'pension', 'pension-tax-benefits', 'expense-principle', 'expense-depreciation', 'expense-savings', 'product-pain', 'product-solution']);
     component.previousSlide();
     expect(component.currentSlideIndex).toBe(0);
-    for (let i = 0; i < 16; i++) component.nextSlide();
-    expect(component.currentSlideIndex).toBe(15);
+    for (let i = 0; i < 17; i++) component.nextSlide();
+    expect(component.currentSlideIndex).toBe(16);
     expect(component.isLastMainSlide).toBeTrue();
   });
   for (const chapter of ['income', 'vat', 'ni'] as const) {
@@ -42,9 +42,9 @@ describe('SelfEmployedGuideComponent', () => {
       }
     });
   }
-  it('assigns all 28 slides exactly once and opens income at combined income', () => {
+  it('assigns all 29 slides exactly once and opens income at combined income', () => {
     const ids = [...component.mainIds, ...Object.values(component.chapterIds).flat()];
-    expect(new Set(ids).size).toBe(28);
+    expect(new Set(ids).size).toBe(29);
     expect([...ids].sort()).toEqual(SELF_EMPLOYED_GUIDE_SLIDES.map(s => s.id).sort());
     component.openChapter('income');
     expect(component.currentSlide.id).toBe('income-combination');
@@ -81,6 +81,9 @@ describe('SelfEmployedGuideComponent', () => {
     component.nextSlide();
     expect(component.currentSlide.id).toBe('expense-principle');
     component.nextSlide();
+    expect(component.currentSlide.id).toBe('expense-depreciation');
+    expect(component.currentSlide.artwork).toContain('expense-depreciation-approved.png');
+    component.nextSlide();
     expect(component.currentSlide.id).toBe('expense-savings');
     component.nextSlide();
     expect(component.currentSlide.id).toBe('product-pain');
@@ -92,6 +95,8 @@ describe('SelfEmployedGuideComponent', () => {
     component.previousSlide();
     component.previousSlide();
     expect(component.currentSlide.id).toBe('expense-savings');
+    component.previousSlide();
+    expect(component.currentSlide.id).toBe('expense-depreciation');
     component.previousSlide();
     component.previousSlide();
     expect(component.currentSlide.id).toBe('pension-tax-benefits');

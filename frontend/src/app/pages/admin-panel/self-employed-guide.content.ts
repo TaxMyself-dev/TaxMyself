@@ -46,6 +46,11 @@ const ceiling = new Intl.NumberFormat('he-IL').format(figures.vatExemptTurnoverC
 
 export const SELF_EMPLOYED_GUIDE_SLIDES: GuideSlide[] = [
   {
+    id: 'expense-depreciation', layout: 'approved-artwork', title: 'שילמתם עכשיו. מתי ההוצאה מוכרת?',
+    artwork: '/assets/self-employed-guide/expense-depreciation-approved.png',
+    artworkAlt: 'הוצאה שוטפת מול רכישה שמוכרת דרך פחת. פרסום לעסק ב-1,000 ₪ מוכר כהוצאה השנה. מחשב לעסק ב-6,000 ₪: פחת שנתי 33%, הוצאה מוכרת של 1,980 ₪ בכל אחת משלוש השנים הראשונות ויתרה של 60 ₪ בשנה הרביעית. ההוצאה נפרסת, המע״מ לא.',
+  },
+  {
     id: 'pension', layout: 'approved-artwork', title: 'קרן פנסיה לעצמאים',
     artwork: '/assets/self-employed-guide/pension-approved.png',
     artworkAlt: 'קרן פנסיה לעצמאים. חובת הפקדה לפי ההכנסה למי שחלה עליו החובה. הטבות מס: ניכוי מקטין הכנסה חייבת וזיכוי מקטין את המס, בכפוף לתנאים ולתקרות. כיסוי לנכות ואובדן כושר עבודה וקצבה לשאירים במקרה פטירה בהתאם למסלול ולתנאי הקרן. חיסכון לקצבה חודשית בפרישה.',
