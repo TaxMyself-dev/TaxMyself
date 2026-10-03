@@ -460,6 +460,7 @@ describe('BillingService — owner-mutation authorization', () => {
       createLowProfileCheckout: jest.fn(),
     };
     const billingLifecycleService = overrides.billingLifecycleService ?? {
+      inspectPeriod: jest.fn().mockResolvedValue(null),
       openPastDueRecovery: jest.fn(),
       recordHostedLowProfileId: jest.fn().mockResolvedValue({
         recorded: true,
@@ -494,6 +495,23 @@ describe('BillingService — owner-mutation authorization', () => {
   }
 
   describe('createCheckout', () => {
+    it('rejects a stale debt screen instead of creating an ACTIVE checkout', async () => {
+      const { service, subscriptionRepo, cardcomService } = makeService();
+      subscriptionRepo.findOne.mockResolvedValue({ id: 1, firebaseId: 'client-1', planId: 1, status: 'ACTIVE' });
+      await expect(service.createCheckout(OWNER, { planId: 1, recoveryOnly: true })).rejects.toThrow('אינו זמין');
+      expect(cardcomService.createLowProfileCheckout).not.toHaveBeenCalled();
+    });
+
+    it('previews the frozen debt without re-pricing or contacting the provider', async () => {
+      const { service, subscriptionRepo, billingLifecycleService, pricingService, cardcomService } = makeService();
+      subscriptionRepo.findOne.mockResolvedValue({ id: 1, status: 'PAST_DUE', nextBillingDate: new Date('2026-09-01') });
+      billingLifecycleService.inspectPeriod.mockResolvedValue({ obligation: { planId: 1,
+        amountAgorot: 11800, amountBeforeVatAgorot: 10000, vatAmountAgorot: 1800, currency: 'ILS' } });
+      const preview = await service.previewCheckout('client-1', { planId: 1 });
+      expect(preview.finalAmountAgorot).toBe(11800);
+      expect(pricingService.calculateCheckoutPrice).not.toHaveBeenCalled();
+      expect(cardcomService.createLowProfileCheckout).not.toHaveBeenCalled();
+    });
     it('rejects a delegated accountant before any subscription lookup or CardCom call', async () => {
       const { service, subscriptionRepo, cardcomService } = makeService();
       await expect(
@@ -579,6 +597,7 @@ describe('BillingService — owner-mutation authorization', () => {
         status: 'PAST_DUE',
         currentPeriodStart: new Date('2026-08-01'),
         currentPeriodEnd: new Date('2026-09-01'),
+        nextBillingDate: new Date('2026-09-01'),
       });
       planRepo.findOne.mockResolvedValue({
         id: 1,
@@ -596,6 +615,7 @@ describe('BillingService — owner-mutation authorization', () => {
         explanation: 'x',
       });
       billingLifecycleService.openPastDueRecovery.mockResolvedValue({
+        created: true,
         attempt: { id: 7 },
       });
       cardcomService.createLowProfileCheckout.mockResolvedValue({
@@ -607,7 +627,7 @@ describe('BillingService — owner-mutation authorization', () => {
       await service.createCheckout(OWNER, { planId: 1 } as any);
 
       expect(billingLifecycleService.openPastDueRecovery).toHaveBeenCalledWith(
-        expect.objectContaining({ actor: OWNER }),
+        expect.objectContaining({ actor: OWNER, periodStart: '2026-09-01', periodEnd: '2026-10-01' }),
         expect.anything(),
       );
       expect(
@@ -634,6 +654,7 @@ describe('BillingService — owner-mutation authorization', () => {
         status: 'PAST_DUE',
         currentPeriodStart: new Date('2026-08-01'),
         currentPeriodEnd: new Date('2026-09-01'),
+        nextBillingDate: new Date('2026-09-01'),
       });
       planRepo.findOne.mockResolvedValue({
         id: 1,
@@ -661,6 +682,36 @@ describe('BillingService — owner-mutation authorization', () => {
 
       expect(cardcomService.createLowProfileCheckout).not.toHaveBeenCalled();
       expect(billingEventService.logEvent).not.toHaveBeenCalled();
+    });
+
+    it.each(['UNKNOWN', 'PROCESSING', 'MANUAL_REVIEW', 'CREATED', 'AWAITING_CUSTOMER', 'COMPLETED'])(
+      'does not create a second hosted session for an existing %s attempt', async status => {
+        const { service, subscriptionRepo, planRepo, pricingService, billingLifecycleService, cardcomService } = makeService();
+        subscriptionRepo.findOne.mockResolvedValue({ id: 1, firebaseId: 'client-1', planId: 1,
+          status: 'PAST_DUE', currentPeriodEnd: new Date('2026-09-01'), nextBillingDate: new Date('2026-09-11'), renewalAttempts: 3 });
+        planRepo.findOne.mockResolvedValue({ id: 1, isPublic: true, isActive: true });
+        pricingService.calculateCheckoutPrice.mockResolvedValue({ finalAmountAgorot: 100, amountBeforeVatAgorot: 85, vatAmountAgorot: 15, currency: 'ILS' });
+        billingLifecycleService.openPastDueRecovery.mockResolvedValue({ created: false, attempt: { id: 7, status } });
+        await expect(service.createCheckout(OWNER, { planId: 1 })).rejects.toThrow('תהליך תשלום קודם');
+        expect(cardcomService.createLowProfileCheckout).not.toHaveBeenCalled();
+      },
+    );
+
+    it('settles the original renewal period and frozen debt instead of recalculating the price', async () => {
+      const { service, subscriptionRepo, planRepo, pricingService, billingLifecycleService, cardcomService } = makeService();
+      subscriptionRepo.findOne.mockResolvedValue({ id: 1, firebaseId: 'client-1', planId: 1,
+        status: 'PAST_DUE', currentPeriodStart: new Date('2026-08-01'), currentPeriodEnd: new Date('2026-09-01'),
+        nextBillingDate: new Date('2026-09-11'), renewalAttempts: 3 });
+      planRepo.findOne.mockResolvedValue({ id: 1, name: 'plan', isPublic: true, isActive: true });
+      billingLifecycleService.inspectPeriod.mockResolvedValue({ obligation: { planId: 1, periodEnd: '2026-10-01',
+        amountAgorot: 11800, amountBeforeVatAgorot: 10000, vatAmountAgorot: 1800, currency: 'ILS' } });
+      billingLifecycleService.openPastDueRecovery.mockResolvedValue({ created: true, attempt: { id: 7, status: 'CREATED' } });
+      cardcomService.createLowProfileCheckout.mockResolvedValue({ lowProfileId: 'lp-1', paymentUrl: 'https://cardcom.example/pay' });
+      await service.createCheckout(OWNER, { planId: 1 });
+      expect(pricingService.calculateCheckoutPrice).not.toHaveBeenCalled();
+      expect(billingLifecycleService.openPastDueRecovery).toHaveBeenCalledWith(expect.objectContaining({
+        periodStart: '2026-09-01', periodEnd: '2026-10-01', amountAgorot: 11800 }), expect.anything());
+      expect(cardcomService.createLowProfileCheckout).toHaveBeenCalledWith(expect.objectContaining({ amountAgorot: 11800, operation: 'ChargeAndCreateToken' }));
     });
   });
 

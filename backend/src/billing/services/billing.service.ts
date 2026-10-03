@@ -39,6 +39,7 @@ import {
   assertBillingOwnerMutation,
   BillingMutationActorContext,
 } from './billing-attempt-orchestration.service';
+import { renewalPeriodStart } from '../domain/billing-renewal-policy';
 
 /** One row of the user-facing payment history (GET /billing/payments). */
 export interface PaymentHistoryRow {
@@ -452,6 +453,29 @@ export class BillingService {
   // ─── Checkout preview ────────────────────────────────────────────────────────
 
   async previewCheckout(firebaseId: string, dto: CheckoutPreviewDto) {
+    const subscription = await this.subscriptionRepo.findOne({ where: { firebaseId } });
+    if (subscription?.status === SubscriptionStatus.PAST_DUE) {
+      const start = renewalPeriodStart(subscription);
+      if (!start || !this.billingLifecycleService) {
+        throw new ConflictException('לא ניתן לזהות את החוב. יש לפנות לתמיכה.');
+      }
+      const snapshot = await this.billingLifecycleService.inspectPeriod(
+        { actorFirebaseId: firebaseId, subjectFirebaseId: firebaseId },
+        subscription.id, start.toISOString().slice(0, 10),
+      );
+      if (snapshot) {
+        if (dto.planId !== snapshot.obligation.planId) {
+          throw new ConflictException('יש להסדיר את החוב בתוכנית הקיימת.');
+        }
+        return {
+          finalAmountAgorot: snapshot.obligation.amountAgorot,
+          amountBeforeVatAgorot: snapshot.obligation.amountBeforeVatAgorot,
+          vatAmountAgorot: snapshot.obligation.vatAmountAgorot,
+          currency: snapshot.obligation.currency,
+          explanation: ['החוב המקורי לתקופת המנוי'],
+        };
+      }
+    }
     const pricing = await this.pricingService.calculateCheckoutPrice(
       firebaseId,
       dto.planId,
@@ -495,6 +519,26 @@ export class BillingService {
       );
     }
 
+    // Debt settlement is not a plan change. Never re-price an existing debt.
+    if (dto.recoveryOnly && subscription.status !== SubscriptionStatus.PAST_DUE) {
+      throw new ConflictException('החוב כבר אינו זמין לתשלום. יש לרענן את מצב המנוי.');
+    }
+    const recoveryPeriodStart = subscription.status === SubscriptionStatus.PAST_DUE
+      ? renewalPeriodStart(subscription)
+      : null;
+    if (subscription.status === SubscriptionStatus.PAST_DUE && !recoveryPeriodStart) {
+      throw new ConflictException('לא ניתן לזהות את תקופת החוב. יש לפנות לתמיכה.');
+    }
+    const recoverySnapshot = recoveryPeriodStart && this.billingLifecycleService
+      ? await this.billingLifecycleService.inspectPeriod(
+          actor, subscription.id, recoveryPeriodStart.toISOString().slice(0, 10),
+        )
+      : null;
+    if (subscription.status === SubscriptionStatus.PAST_DUE &&
+        dto.planId !== (recoverySnapshot?.obligation.planId ?? subscription.planId)) {
+      throw new ConflictException('יש להסדיר את החוב בתוכנית הקיימת לפני שינוי תוכנית.');
+    }
+
     const unresolvedFailure =
       await this.billingEventService.getUnresolvedReceiptFailure(
         subscription.id,
@@ -522,7 +566,7 @@ export class BillingService {
     // right even before the CardCom webhook activates payment (see
     // resolveReferralEffectivePlan). Public-plan checkouts are unaffected.
     let plan = requestedPlan;
-    if (!requestedPlan.isPublic) {
+    if (!requestedPlan.isPublic && subscription.status !== SubscriptionStatus.PAST_DUE) {
       const effectivePlan = await this.resolveReferralEffectivePlan(firebaseId);
       if (effectivePlan) {
         plan = effectivePlan;
@@ -540,7 +584,13 @@ export class BillingService {
       }
     }
 
-    const pricing = await this.pricingService.calculateCheckoutPrice(
+    const pricing = recoverySnapshot ? {
+      finalAmountAgorot: recoverySnapshot.obligation.amountAgorot,
+      amountBeforeVatAgorot: recoverySnapshot.obligation.amountBeforeVatAgorot,
+      vatAmountAgorot: recoverySnapshot.obligation.vatAmountAgorot,
+      currency: recoverySnapshot.obligation.currency,
+      explanation: ['החוב המקורי לתקופת המנוי'],
+    } : await this.pricingService.calculateCheckoutPrice(
       firebaseId,
       plan.id,
     );
@@ -556,20 +606,16 @@ export class BillingService {
           'Canonical billing recovery is not configured',
         );
       }
-      const periodStart =
-        subscription.currentPeriodStart ??
-        subscription.nextBillingDate ??
-        new Date();
-      const periodEnd = subscription.currentPeriodEnd ?? new Date(periodStart);
-      if (!subscription.currentPeriodEnd)
-        periodEnd.setMonth(periodEnd.getMonth() + 1);
+      const periodStart = recoveryPeriodStart!;
+      const periodEnd = new Date(periodStart);
+      periodEnd.setMonth(periodEnd.getMonth() + 1);
       const recovery = await this.billingLifecycleService.openPastDueRecovery(
         {
           actor,
           subscriptionId: subscription.id,
           planId: plan.id,
           periodStart: periodStart.toISOString().slice(0, 10),
-          periodEnd: periodEnd.toISOString().slice(0, 10),
+          periodEnd: recoverySnapshot?.obligation.periodEnd ?? periodEnd.toISOString().slice(0, 10),
           amountAgorot: pricing.finalAmountAgorot,
           amountBeforeVatAgorot: pricing.amountBeforeVatAgorot,
           vatAmountAgorot: pricing.vatAmountAgorot,
@@ -584,6 +630,11 @@ export class BillingService {
       if (recovery.attempt.status === BillingAttemptStatus.CAPTURED) {
         throw new ConflictException(
           'A payment for this billing period was already received and is being finalized. Please try again shortly.',
+        );
+      }
+      if (!recovery.created) {
+        throw new ConflictException(
+          'קיים תהליך תשלום קודם שטרם הסתיים. אין לבצע תשלום נוסף; יש לפנות לתמיכה אם ההמתנה נמשכת.',
         );
       }
       recoveryAttemptId = recovery.attempt.id;
@@ -688,7 +739,7 @@ export class BillingService {
 
     this.logger.log(
       `Checkout ready: plan=${plan.slug} subscription=${subscription.id} ` +
-        `billingBusinessType=${pricing.billingBusinessType} ` +
+        `billingBusinessType=${'billingBusinessType' in pricing ? pricing.billingBusinessType : 'FROZEN_DEBT'} ` +
         `amount=${pricing.finalAmountAgorot} agorot lowProfileId=${cardcomResult.lowProfileId}`,
     );
 

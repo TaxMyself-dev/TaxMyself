@@ -6,6 +6,17 @@ Standalone pricing/plans page where a user views available subscription plans an
 - `billing-plans.page.html` / `.scss` — pricing card grid UI.
 
 ## Main flows
+- `/billing/recovery` renders `BillingRecoveryPage` for owner PAST_DUE state,
+  previews the server debt total and discloses card replacement for future
+  renewals before submitting the existing checkout endpoint. It does not offer
+  plan selection. Overrides, missing/non-PAST_DUE state and preview failures
+  cannot submit; double-clicks are suppressed and checkout errors require
+  review rather than offering an immediate second submission.
+- The app's PAST_DUE dialog opens debt settlement with the label הסדרת התשלום.
+- Focused verification from frontend: `npm run ng -- test --watch=false
+  --browsers=ChromeHeadless --include=src/app/pages/billing/billing-recovery.page.spec.ts
+  --ts-config=tsconfig.billing.spec.json`. This config isolates recovery specs
+  from legacy unrelated specs; dependency declarations use skipLibCheck.
 - On init, `GET {apiUrl}billing/plans` and render plan cards with computed shekel pricing (`effectivePriceMonthlyAgorot`, resolved server-side per the user's billing business type).
 - `checkout(planId)` calls `POST {apiUrl}billing/checkout`, then redirects the browser to the returned Cardcom `paymentUrl`.
 

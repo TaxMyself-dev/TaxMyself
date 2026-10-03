@@ -49,6 +49,7 @@ describe('BillingLifecycleService', () => {
       expect.objectContaining({
         kind: BillingObligationKind.RECURRING_PERIOD,
         trigger: BillingAttemptTrigger.RECOVERY,
+        enforceRecoverySchedule: true,
       }),
     );
     expect(orchestration.assertOwnerMutation).toHaveBeenCalledTimes(2);

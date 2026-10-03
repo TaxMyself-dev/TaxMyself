@@ -185,6 +185,38 @@ describe('BillingAttemptOrchestrationService', () => {
     expect(queryRunner.commitTransaction).toHaveBeenCalledTimes(1);
   });
 
+  it.each([
+    { status: 'ACTIVE', nextBillingDate: new Date('2026-09-01') },
+    { status: 'PAST_DUE', nextBillingDate: new Date('2026-10-01') },
+  ])('rejects stale recovery state under the subscription lock: %s', async fields => {
+    manager.findOne.mockResolvedValueOnce({ ...subscription(), ...fields });
+    await expect(service.createOrGetAttempt({ ...openInput(), enforceRecoverySchedule: true }))
+      .rejects.toThrow('recovery state or period changed');
+    expect(manager.findOne).toHaveBeenCalledTimes(1);
+    expect(manager.save).not.toHaveBeenCalled();
+    expect(queryRunner.rollbackTransaction).toHaveBeenCalledTimes(1);
+  });
+
+  it('opens a valid hosted recovery on the original period after declined renewal retries', async () => {
+    manager.findOne
+      .mockResolvedValueOnce({ ...subscription(), status: 'PAST_DUE', renewalAttempts: 3,
+        currentPeriodEnd: new Date('2026-09-01'), nextBillingDate: new Date('2026-09-11') })
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null);
+    manager.save.mockImplementation(async (entity, value) => {
+      if (entity === BillingObligation && !value.id) value.id = 11;
+      if (entity === BillingAttempt && !value.id) value.id = 21;
+      return value;
+    });
+    const result = await service.createOrGetAttempt({ ...openInput(),
+      trigger: BillingAttemptTrigger.RECOVERY, chargeMode: BillingChargeMode.LOW_PROFILE_HOSTED,
+      paymentMethodId: null, enforceRecoverySchedule: true });
+    expect(result.created).toBe(true);
+    expect(result.obligation.periodStart).toBe('2026-09-01');
+    expect(result.attempt.paymentMethodId).toBeNull();
+    expect(queryRunner.commitTransaction).toHaveBeenCalledTimes(1);
+  });
+
   it('rejects a cross-tenant payment method before persisting an attempt', async () => {
     manager.findOne.mockResolvedValueOnce(subscription());
 

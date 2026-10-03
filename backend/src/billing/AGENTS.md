@@ -15,6 +15,21 @@ Subscription billing: plan catalog, trial/subscription lifecycle, CardCom paymen
 
 ## Main flows
 
+### Customer debt settlement (KT-039)
+
+PAST_DUE checkout settles the existing plan, not a plan change. It derives the
+period identity with `renewalPeriodStart`, matching renewal retries, and reuses
+the obligation's frozen amount and exclusive period end when present. Preview
+also returns the frozen debt amount. Only a newly created recovery attempt may
+create a hosted session; an existing unresolved/captured attempt blocks another
+session. Hosted checkout remains ChargeAndCreateToken; verified webhook token
+storage replaces the saved card. No new schema or live provider configuration.
+The optional internal checkout flag `recoveryOnly` rejects a stale screen once
+PAST_DUE is cleared; orchestration rechecks recovery status/period under the
+subscription lock before persisting. Existing purchase callers omit the flag.
+If hosted session creation fails, the created attempt stays blocking pending
+support; this task does not introduce cancellation or manual resolution.
+
 ### Persistence foundation (KT-032)
 
 The three new aggregate tables are registered with TypeORM but are not wired

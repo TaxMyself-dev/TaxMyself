@@ -173,6 +173,8 @@ export interface OpenBillingAttemptInput {
    * cron read therefore can never open an attempt whose retry is not due.
    */
   enforceRenewalSchedule?: boolean;
+  /** Recheck recovery state/period under the subscription lock. */
+  enforceRecoverySchedule?: boolean;
 }
 
 export interface ApplyNormalizedOutcomeOptions {
@@ -280,6 +282,12 @@ export class BillingAttemptOrchestrationService {
       }
       if (input.enforceRenewalSchedule) {
         this.assertRenewalDue(subscription, input.periodStart, new Date());
+      }
+      if (input.enforceRecoverySchedule && (
+        subscription.status !== SubscriptionStatus.PAST_DUE ||
+        renewalPeriodStart(subscription)?.toISOString().slice(0, 10) !== input.periodStart
+      )) {
+        throw new ConflictException('Billing recovery state or period changed; refresh before paying');
       }
       const paymentMethodId = await this.resolvePaymentMethodId(
         manager,

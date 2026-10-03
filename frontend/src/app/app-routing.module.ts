@@ -127,6 +127,10 @@ const appRoutes: Routes = [
     children: [
       { path: '', redirectTo: 'plans', pathMatch: 'full' },
       {
+        path: 'recovery',
+        loadComponent: () => import('./pages/billing/billing-recovery.page').then(m => m.BillingRecoveryPage),
+      },
+      {
         path: 'plans',
         loadComponent: () => import('./pages/billing/billing-plans.page').then(m => m.BillingPlansPage),
       },

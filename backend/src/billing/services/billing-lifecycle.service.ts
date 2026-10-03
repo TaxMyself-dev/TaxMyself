@@ -164,6 +164,8 @@ export class BillingLifecycleService {
       BillingObligationKind.RECURRING_PERIOD,
       BillingAttemptTrigger.RECOVERY,
       chargeMode,
+      undefined,
+      true,
     );
   }
 
@@ -459,6 +461,7 @@ export class BillingLifecycleService {
     trigger: BillingAttemptTrigger,
     chargeMode: BillingChargeMode = BillingChargeMode.TOKEN_TRANSACTION,
     enforceRenewalSchedule?: boolean,
+    enforceRecoverySchedule?: boolean,
   ): Promise<OpenBillingAttemptResult> {
     this.orchestration.assertOwnerMutation(input.actor);
     return this.orchestration.createOrGetAttempt({
@@ -467,6 +470,7 @@ export class BillingLifecycleService {
       trigger,
       chargeMode,
       ...(enforceRenewalSchedule ? { enforceRenewalSchedule: true } : {}),
+      ...(enforceRecoverySchedule ? { enforceRecoverySchedule: true } : {}),
     });
   }
 }

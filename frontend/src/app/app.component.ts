@@ -68,7 +68,7 @@ export class AppComponent implements OnInit {
   // synthetic SUBSCRIPTION_MISSING top-level status) returned from the backend.
   protected readonly billingDialogContent = computed(() => {
     const status = this.billingStateService.effectiveStatus();
-    const map: Record<string, { title: string; message: string; buttonLabel: string; action: 'NAVIGATE_TO_PLANS' | 'RESOLVE_MISSING_SUBSCRIPTION' }> = {
+    const map: Record<string, { title: string; message: string; buttonLabel: string; action: 'NAVIGATE_TO_PLANS' | 'RESOLVE_MISSING_SUBSCRIPTION' | 'RECOVER_PAYMENT' }> = {
       SUBSCRIPTION_MISSING: {
         title: 'תקלה בחשבון',
         message: 'נראה שהתרחשה תקלה בחשבון שלך.\nיש להסדיר את המנוי כדי להמשיך.',
@@ -83,9 +83,9 @@ export class AppComponent implements OnInit {
       },
       PAST_DUE: {
         title: 'קיימת בעיה בתשלום',
-        message: 'לא הצלחנו לחייב את אמצעי התשלום שלך.\nיש לעדכן תשלום כדי להמשיך להשתמש במערכת.',
-        buttonLabel: 'עדכון תשלום',
-        action: 'NAVIGATE_TO_PLANS',
+        message: 'לא הצלחנו לחייב את אמצעי התשלום שלך.\nניתן לשלם את החוב ולשמור את הכרטיס לחיובים הבאים.',
+        buttonLabel: 'הסדרת התשלום',
+        action: 'RECOVER_PAYMENT',
       },
       CANCELED: {
         title: 'המנוי אינו פעיל',
@@ -447,6 +447,8 @@ export class AppComponent implements OnInit {
   onBillingDialogAction(): void {
     if (this.billingDialogContent().action === 'RESOLVE_MISSING_SUBSCRIPTION') {
       void this.resolveMissingSubscription();
+    } else if (this.billingDialogContent().action === 'RECOVER_PAYMENT') {
+      void this.router.navigate(['/billing/recovery']);
     } else {
       this.navigateToBillingPlans();
     }

@@ -1,0 +1,6 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "outDir": "./out-tsc/billing-spec", "types": ["jasmine"], "skipLibCheck": true },
+  "files": ["src/test.ts", "src/polyfills.ts"],
+  "include": ["src/app/pages/billing/billing-recovery.page.spec.ts", "src/**/*.d.ts"]
+}
