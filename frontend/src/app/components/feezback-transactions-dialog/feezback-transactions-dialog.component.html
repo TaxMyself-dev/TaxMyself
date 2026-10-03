@@ -2,42 +2,42 @@
   <div class="dialog-overlay" (click)="onCancel()"></div>
   <div class="dialog-content" (click)="onDialogContentClick($event)">
     <div class="dialog-header">
-      <h3>טען תנועות מ-Feezback</h3>
-      <p class="client-name">לקוח: {{ clientName() }}</p>
+      <h3>Load transactions from Feezback</h3>
+      <p class="client-name">Client: {{ clientName() }}</p>
     </div>
     
     <form [formGroup]="dateForm" class="dialog-form">
       <app-input-date
         [parentForm]="dateForm"
         [controlName]="'startDate'"
-        [labelText]="'מתאריך'"
-        [placeholder]="'בחר תאריך התחלה'">
+        [labelText]="'From date'"
+        [placeholder]="'Select a start date'">
       </app-input-date>
       
       <app-input-date
         [parentForm]="dateForm"
         [controlName]="'endDate'"
-        [labelText]="'עד תאריך'"
-        [placeholder]="'בחר תאריך סיום'">
+        [labelText]="'To date'"
+        [placeholder]="'Select an end date'">
       </app-input-date>
     </form>
 
     <section class="source-selection">
       <div class="source-selection-header">
-        <strong>חשבונות וכרטיסים למשיכה</strong>
+        <strong>Accounts and cards to pull</strong>
         <label *ngIf="sourceOptions().length > 0" class="select-all">
           <input type="checkbox"
                  [checked]="allSelectableSourcesSelected()"
                  [disabled]="isLoading()"
                  (change)="selectAllSources($any($event.target).checked)" />
-          בחר הכול
+          Select all
         </label>
       </div>
 
-      <div *ngIf="sourcesLoading()" class="source-message">טוען חשבונות וכרטיסים מ־Feezback...</div>
+      <div *ngIf="sourcesLoading()" class="source-message">Loading accounts and cards from Feezback...</div>
       <div *ngIf="sourcesError() as error" class="source-message source-error">{{ error }}</div>
       <div *ngIf="!sourcesLoading() && !sourcesError() && sourceOptions().length === 0" class="source-message">
-        לא נמצאו חשבונות או כרטיסים זמינים למשיכה.
+        No accounts or cards are available to pull.
       </div>
 
       <label *ngFor="let source of sourceOptions()"
@@ -57,65 +57,156 @@
       <div class="debug-summary"
            [class.has-errors]="result.status === 'failed'"
            [class.has-warnings]="result.status === 'partial'">
-        <strong>
-          {{ resultStatusLabel(result) }}
-        </strong>
-        <span>{{ result.totalTransactions }} תנועות</span>
-        <span>נשמרו: {{ result.databaseSaveResult?.saved ?? 0 }}</span>
-        <span>דולגו: {{ result.databaseSaveResult?.skipped ?? 0 }}</span>
+        <strong>{{ resultStatusLabel(result) }}</strong>
       </div>
 
-      <div class="timestamps">
-        <span><strong>נשלח:</strong> {{ formatTimestamp(result.request.sentAt) }}</span>
-        <span><strong>התקבל:</strong> {{ formatTimestamp(result.response.receivedAt) }}</span>
-        <span><strong>משך:</strong> {{ result.response.durationMs }} ms</span>
+      <section class="important-fields" aria-label="Key diagnostic details">
+        <h4>Diagnostic details</h4>
+        <table class="transactions-table field-table">
+          <tbody>
+            <tr><th>Status</th><td>{{ resultStatusLabel(result) }}</td></tr>
+            <tr><th>Diagnostic ID</th><td><code>{{ result.diagnosticId }}</code></td></tr>
+            <tr><th>Operation mode</th><td>{{ result.persistenceMode === 'diagnostic' ? 'Diagnostic only — transactions are not saved' : 'Pull and save transactions' }}</td></tr>
+            <tr><th>Provider</th><td>{{ result.request.provider }}</td></tr>
+            <tr><th>Feezback sub</th><td><code>{{ result.request.sub }}</code></td></tr>
+            <tr><th>Full userIdentifier</th><td><code>{{ result.request.userIdentifier }}</code></td></tr>
+            <tr><th>Date range</th><td><code>{{ result.request.dateFrom }} — {{ result.request.dateTo }}</code></td></tr>
+            <tr><th>Booking status</th><td><code>{{ result.request.bookingStatus }}</code></td></tr>
+            <tr><th>Sent at (UTC)</th><td><code>{{ formatTimestamp(result.request.sentAt) }}</code></td></tr>
+            <tr><th>Received at (UTC)</th><td><code>{{ formatTimestamp(result.response.receivedAt) }}</code></td></tr>
+            <tr><th>Duration</th><td>{{ result.response.durationMs }} ms</td></tr>
+            <tr><th>Transactions received</th><td>{{ result.totalTransactions }}</td></tr>
+            <tr><th>Transactions saved</th><td>{{ result.databaseSaveResult?.saved ?? 0 }}</td></tr>
+            <tr><th>Transactions skipped</th><td>{{ result.databaseSaveResult?.skipped ?? 0 }}</td></tr>
+            <tr><th>Errors and warnings</th><td>{{ result.response.errors.length }}</td></tr>
+            <tr><th>Suspected duplicate groups</th><td>{{ result.suspectedDuplicates.length }}</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <div class="diagnostic-actions">
+        <button type="button" class="copy-button support-button" (click)="prepareFeezbackSupportPackage(result)">
+          Prepare Feezback support request
+        </button>
+        <button type="button" class="copy-button" (click)="copyDiagnosticBundle(result)">Copy full JSON</button>
+        <button type="button" class="copy-button" (click)="downloadDiagnosticBundle(result)">Download full JSON</button>
       </div>
+
+      <details class="full-diagnostic-json">
+        <summary>
+          <span>View complete diagnostic JSON</span>
+          <button type="button" class="copy-button" (click)="$event.preventDefault(); $event.stopPropagation(); copyDiagnosticBundle(result)">
+            Copy full JSON
+          </button>
+        </summary>
+        <pre>{{ formattedDiagnosticJson(result) }}</pre>
+      </details>
+
+      <section *ngIf="supportMessage() as message" class="support-package">
+        <div class="payload-title">
+          <strong>Feezback support request</strong>
+          <button type="button" class="copy-button" (click)="copyText(message)">Copy message</button>
+        </div>
+        <pre>{{ message }}</pre>
+      </section>
+
+      <section *ngIf="result.suspectedDuplicates.length > 0" class="duplicate-alert">
+        <h4>Suspected provider duplicates ({{ result.suspectedDuplicates.length }})</h4>
+        <article *ngFor="let duplicate of result.suspectedDuplicates" class="duplicate-card">
+          <strong>{{ duplicate.merchantName }} · {{ duplicate.amount }} {{ duplicate.currency }} · {{ duplicate.transactionDate }}</strong>
+          <span>Source: {{ duplicate.sourceType }} {{ duplicate.sourceId }}</span>
+          <span>resourceId: {{ duplicate.resourceId }}</span>
+          <span>Feezback transaction IDs:</span>
+          <code *ngFor="let id of duplicate.externalTransactionIds">{{ id }}</code>
+          <span>noteHash: <code>{{ duplicate.noteHash }}</code></span>
+        </article>
+      </section>
 
       <div class="source-results" *ngIf="result.sourceResults.length > 0">
-        <h4>תוצאה לפי חשבון או כרטיס</h4>
+        <h4>Results by account or card</h4>
         <details *ngFor="let source of result.sourceResults"
                  class="source-result"
                  [open]="source.status !== 'success'">
           <summary>
             <span class="source-result-title">
               <i [class]="source.type === 'bank' ? 'pi pi-building' : 'pi pi-credit-card'"></i>
-              {{ source.type === 'bank' ? 'חשבון בנק' : 'כרטיס אשראי' }} {{ source.sourceId }}
+              {{ source.type === 'bank' ? 'Bank account' : 'Credit card' }} {{ source.sourceId }}
             </span>
             <span [class]="'source-status ' + source.status">{{ sourceStatusLabel(source) }}</span>
-            <span>{{ source.transactionCount }} תנועות</span>
+            <span>{{ source.transactionCount }} transactions</span>
           </summary>
 
-          <div class="source-identifiers">
-            <span><strong>שם:</strong> {{ source.displayName || '—' }}</span>
-            <span><strong>resourceId:</strong> {{ source.resourceId }}</span>
-            <span><strong>sub:</strong> {{ source.sub }}</span>
-            <span><strong>consentId:</strong> {{ source.consentId || '—' }}</span>
-          </div>
+          <table class="transactions-table field-table source-identifiers">
+            <tbody>
+              <tr><th>Source name</th><td>{{ source.displayName || '—' }}</td></tr>
+              <tr><th>Source type</th><td>{{ source.type === 'bank' ? 'Bank account' : 'Credit card' }}</td></tr>
+              <tr><th>Source ID</th><td><code>{{ source.sourceId }}</code></td></tr>
+              <tr><th>Status</th><td>{{ sourceStatusLabel(source) }}</td></tr>
+              <tr><th>API version</th><td><code>{{ source.apiVersion }}</code></td></tr>
+              <tr><th>resourceId</th><td><code>{{ source.resourceId }}</code></td></tr>
+              <tr><th>sub</th><td><code>{{ source.sub }}</code></td></tr>
+              <tr><th>consentId</th><td><code>{{ source.consentId || '—' }}</code></td></tr>
+              <tr><th>Transaction count</th><td>{{ source.transactionCount }}</td></tr>
+            </tbody>
+          </table>
+
+          <details *ngIf="source.normalizedTransactions.length > 0" class="transactions-table-wrap">
+            <summary>Normalized transactions ({{ source.normalizedTransactions.length }})</summary>
+            <table class="transactions-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Merchant</th>
+                  <th>Amount</th>
+                  <th>Currency</th>
+                  <th>externalTransactionId</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let transaction of source.normalizedTransactions">
+                  <td>{{ transaction.transactionDate | date:'yyyy-MM-dd' }}</td>
+                  <td>{{ transaction.merchantName }}</td>
+                  <td>{{ transaction.amount }}</td>
+                  <td>{{ transaction.currency || 'ILS' }}</td>
+                  <td><code>{{ transaction.externalTransactionId }}</code></td>
+                </tr>
+              </tbody>
+            </table>
+          </details>
+
+          <details *ngIf="source.extractedTransactions.length > 0">
+            <summary>Transactions extracted from the Feezback response ({{ source.extractedTransactions.length }})</summary>
+            <div class="payload-title">
+              <span></span>
+              <button type="button" class="copy-button" (click)="$event.stopPropagation(); copyJson(source.extractedTransactions)">Copy JSON</button>
+            </div>
+            <pre>{{ source.extractedTransactions | json }}</pre>
+          </details>
 
           <div *ngFor="let call of source.httpCalls; let i = index" class="curl-call">
             <div class="curl-call-header">
-              <span>cURL {{ i + 1 }} — ניסיון {{ call.attempt }}/{{ call.maxAttempts }}</span>
-              <span><strong>נשלח:</strong> {{ formatTimestamp(call.sentAt) }}</span>
-              <span><strong>התקבל:</strong> {{ formatTimestamp(call.receivedAt) }}</span>
-              <span><strong>משך:</strong> {{ call.durationMs ?? '—' }} ms</span>
+              <span>cURL {{ i + 1 }} — attempt {{ call.attempt }}/{{ call.maxAttempts }}</span>
+              <span><strong>Sent at:</strong> {{ formatTimestamp(call.sentAt) }}</span>
+              <span><strong>Received at:</strong> {{ formatTimestamp(call.receivedAt) }}</span>
+              <span><strong>Duration:</strong> {{ call.durationMs ?? '—' }} ms</span>
               <span><strong>HTTP:</strong> {{ call.status ?? '—' }}</span>
-              <button type="button" class="copy-button" (click)="$event.stopPropagation(); copyText(call.curl)">העתק cURL</button>
+              <button type="button" class="copy-button" (click)="$event.stopPropagation(); copyText(call.curl)">Copy cURL</button>
             </div>
             <pre>{{ call.curl }}</pre>
           </div>
 
           <div *ngIf="source.error !== null" class="source-payload">
             <div class="payload-title">
-              <strong>שגיאה</strong>
-              <button type="button" class="copy-button" (click)="$event.stopPropagation(); copyJson(source.error)">העתק JSON</button>
+              <strong>Error</strong>
+              <button type="button" class="copy-button" (click)="$event.stopPropagation(); copyJson(source.error)">Copy JSON</button>
             </div>
             <pre>{{ source.error | json }}</pre>
           </div>
 
           <div class="source-payload">
             <div class="payload-title">
-              <strong>תגובת Feezback לחשבון/כרטיס</strong>
-              <button type="button" class="copy-button" (click)="$event.stopPropagation(); copyJson(source.response)">העתק JSON</button>
+              <strong>Feezback response for this account/card</strong>
+              <button type="button" class="copy-button" (click)="$event.stopPropagation(); copyJson(source.response)">Copy JSON</button>
             </div>
             <pre>{{ source.response | json }}</pre>
           </div>
@@ -123,15 +214,15 @@
       </div>
 
       <details *ngIf="discoveryHttpCalls(result).length > 0">
-        <summary>קריאות מקדימות לקבלת רשימת החשבונות והכרטיסים</summary>
+        <summary>Discovery calls used to list accounts and cards</summary>
         <div *ngFor="let call of discoveryHttpCalls(result); let i = index" class="curl-call">
           <div class="curl-call-header">
-            <span>{{ i + 1 }}. {{ call.method }} — ניסיון {{ call.attempt }}/{{ call.maxAttempts }}</span>
-            <span><strong>נשלח:</strong> {{ formatTimestamp(call.sentAt) }}</span>
-            <span><strong>התקבל:</strong> {{ formatTimestamp(call.receivedAt) }}</span>
-            <span><strong>משך:</strong> {{ call.durationMs ?? '—' }} ms</span>
+            <span>{{ i + 1 }}. {{ call.method }} — attempt {{ call.attempt }}/{{ call.maxAttempts }}</span>
+            <span><strong>Sent at:</strong> {{ formatTimestamp(call.sentAt) }}</span>
+            <span><strong>Received at:</strong> {{ formatTimestamp(call.receivedAt) }}</span>
+            <span><strong>Duration:</strong> {{ call.durationMs ?? '—' }} ms</span>
             <span><strong>HTTP:</strong> {{ call.status ?? '—' }}</span>
-            <button type="button" class="copy-button" (click)="$event.stopPropagation(); copyText(call.curl)">העתק cURL</button>
+            <button type="button" class="copy-button" (click)="$event.stopPropagation(); copyText(call.curl)">Copy cURL</button>
           </div>
           <pre>{{ call.curl }}</pre>
         </div>
@@ -139,19 +230,30 @@
 
       <details *ngIf="result.response.errors.length > 0" open>
         <summary>
-          <span>שגיאות ואזהרות ({{ result.response.errors.length }})</span>
+          <span>Errors and warnings ({{ result.response.errors.length }})</span>
           <button type="button" class="copy-button" (click)="$event.preventDefault(); $event.stopPropagation(); copyJson(result.response.errors)">
-            העתק JSON
+            Copy JSON
           </button>
         </summary>
-        <pre>{{ result.response.errors | json }}</pre>
+        <div class="error-list">
+          <table *ngFor="let error of result.response.errors" class="transactions-table field-table error-fields">
+            <tbody>
+              <tr><th>Operation</th><td><code>{{ error['operation'] || '—' }}</code></td></tr>
+              <tr><th>Error message</th><td><code>{{ error['message'] || (error | json) }}</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <details class="nested-json">
+          <summary>View complete error JSON</summary>
+          <pre>{{ result.response.errors | json }}</pre>
+        </details>
       </details>
 
       <details open>
         <summary>
-          <span>הבקשה שנשלחה ל־Feezback</span>
+          <span>Request sent to Feezback</span>
           <button type="button" class="copy-button" (click)="$event.preventDefault(); $event.stopPropagation(); copyJson(result.request)">
-            העתק JSON
+            Copy JSON
           </button>
         </summary>
         <pre>{{ result.request | json }}</pre>
@@ -159,9 +261,9 @@
 
       <details [open]="result.status !== 'success'">
         <summary>
-          <span>התשובה מ־Feezback</span>
+          <span>Response received from Feezback</span>
           <button type="button" class="copy-button" (click)="$event.preventDefault(); $event.stopPropagation(); copyJson(result.response)">
-            העתק JSON
+            Copy JSON
           </button>
         </summary>
         <pre>{{ result.response | json }}</pre>
@@ -169,34 +271,47 @@
     </section>
 
     <section *ngIf="debugError() as error" class="debug-result">
-      <div class="debug-summary has-errors"><strong>הבקשה נכשלה לפני שהתקבלה תשובה תקינה</strong></div>
+      <div class="debug-summary has-errors"><strong>The request failed before a valid response was received</strong></div>
       <div class="timestamps">
-        <span><strong>נשלח:</strong> {{ formatTimestamp(error.requestedAt) }}</span>
-        <span><strong>התקבל:</strong> {{ formatTimestamp(error.receivedAt) }}</span>
+        <span><strong>Sent at:</strong> {{ formatTimestamp(error.requestedAt) }}</span>
+        <span><strong>Received at:</strong> {{ formatTimestamp(error.receivedAt) }}</span>
         <span><strong>HTTP:</strong> {{ error.status ?? '—' }}</span>
       </div>
       <details open>
         <summary>
-          <span>פרטי השגיאה</span>
+          <span>Error details</span>
           <button type="button" class="copy-button" (click)="$event.preventDefault(); $event.stopPropagation(); copyJson(error)">
-            העתק JSON
+            Copy JSON
           </button>
         </summary>
         <pre>{{ error | json }}</pre>
       </details>
     </section>
     
+    <small>
+      “Diagnostic only” fetches the Feezback data and diagnostic bundle without saving transactions;
+      “Pull and save” also updates transactions and synchronization state in our database.
+    </small>
     <div class="dialog-actions">
       <app-p-button
-        [buttonText]="'ביטול'"
+        [buttonText]="'Cancel'"
         [buttonSize]="buttonSize.AUTO"
-        [buttonColor]="buttonColor.WHITE"
+        [buttonColor]="buttonColor.WHITE_BORDER"
         [isLoading]="false"
         (onButtonClicked)="onCancel()">
       </app-p-button>
+
+      <app-p-button
+        [buttonText]="'Diagnostic only — do not save transactions'"
+        [buttonSize]="buttonSize.AUTO"
+        [buttonColor]="buttonColor.WHITE_BORDER"
+        [isLoading]="isLoading()"
+        [disabled]="dateForm.invalid || sourcesLoading() || selectedSourceKeys().length === 0"
+        (onButtonClicked)="onFetchTransactions(false)">
+      </app-p-button>
       
       <app-p-button
-        [buttonText]="'טען תנועות'"
+        [buttonText]="'Pull and save transactions'"
         [buttonSize]="buttonSize.AUTO"
         [buttonColor]="buttonColor.BLACK"
         [isLoading]="isLoading()"

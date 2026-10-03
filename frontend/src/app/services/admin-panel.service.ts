@@ -41,6 +41,7 @@ export class AdminPanelService {
     startDate: string,
     endDate: string,
     selectedSources: AdminFeezbackSourceSelection[],
+    persistTransactions = true,
   ): Observable<AdminFeezbackDateRangePullResult> {
     const url = `${environment.apiUrl}feezback/admin-user-transactions`;
     return this.http.post<AdminFeezbackDateRangePullResult>(url, {
@@ -49,6 +50,7 @@ export class AdminPanelService {
       dateTo: endDate,
       bookingStatus: 'booked',
       selectedSources,
+      persistTransactions,
     });
   }
 
@@ -141,11 +143,17 @@ export class AdminPanelService {
 }
 
 export interface AdminFeezbackDateRangePullResult {
+  diagnosticId: string;
+  persistenceMode: 'persist' | 'diagnostic';
   status: 'success' | 'partial' | 'failed';
   request: {
     sentAt: string;
     provider: 'Feezback';
+    sub: string;
     userIdentifier: string;
+    bookingStatus: string;
+    dateFrom: string;
+    dateTo: string;
     httpCalls: Array<{
       sentAt: string;
       receivedAt?: string;
@@ -159,6 +167,7 @@ export interface AdminFeezbackDateRangePullResult {
     }>;
     requests: Array<{
       method: 'GET';
+      apiVersion: 'v2';
       operation: 'bank-transactions' | 'card-transactions';
       scope: string;
       query: { bookingStatus: string; dateFrom: string; dateTo: string };
@@ -173,6 +182,8 @@ export interface AdminFeezbackDateRangePullResult {
   };
   sourceResults: AdminFeezbackSourcePullResult[];
   totalTransactions: number;
+  normalizedTransactions: AdminFeezbackNormalizedTransaction[];
+  suspectedDuplicates: AdminFeezbackSuspectedDuplicate[];
   databaseSaveResult: { saved: number; skipped: number } | null;
   databaseSaveError?: string;
 }
@@ -188,10 +199,40 @@ export interface AdminFeezbackSourcePullResult extends AdminFeezbackSourceSelect
   displayName: string;
   consentId: string | null;
   status: 'success' | 'failed' | 'skipped_direct';
+  apiVersion: 'v2';
   transactionCount: number;
   httpCalls: AdminFeezbackDateRangePullResult['request']['httpCalls'];
+  extractedTransactions: unknown[];
+  normalizedTransactions: AdminFeezbackNormalizedTransaction[];
   response: unknown;
   error: unknown;
+}
+
+export interface AdminFeezbackNormalizedTransaction {
+  externalTransactionId: string;
+  merchantName: string;
+  amount: number;
+  currency: string | null;
+  transactionDate: string;
+  paymentDate: string | null;
+  paymentIdentifier: string | null;
+  billId: number | null;
+  billName: string | null;
+  businessNumber: string | null;
+  note: string | null;
+}
+
+export interface AdminFeezbackSuspectedDuplicate {
+  fingerprint: string;
+  sourceType: 'bank' | 'card';
+  sourceId: string;
+  resourceId: string;
+  transactionDate: string;
+  merchantName: string;
+  amount: number;
+  currency: string;
+  noteHash: string;
+  externalTransactionIds: string[];
 }
 
 export interface AdminFeezbackSourcesResponse {

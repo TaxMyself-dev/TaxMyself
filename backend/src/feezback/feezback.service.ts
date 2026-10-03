@@ -16,16 +16,37 @@ import { ModuleName, SourceType } from '../enum';
 import { BillingService } from '../billing/services/billing.service';
 import * as fs from 'fs';
 import * as path from 'path';
+import { createHash, randomUUID } from 'crypto';
+
+export interface AdminFeezbackSuspectedDuplicate {
+  fingerprint: string;
+  sourceType: 'bank' | 'card';
+  sourceId: string;
+  resourceId: string;
+  transactionDate: string;
+  merchantName: string;
+  amount: number;
+  currency: string;
+  noteHash: string;
+  externalTransactionIds: string[];
+}
 
 export interface AdminFeezbackDateRangePullResult {
+  diagnosticId: string;
+  persistenceMode: 'persist' | 'diagnostic';
   status: 'success' | 'partial' | 'failed';
   request: {
     sentAt: string;
     provider: 'Feezback';
+    sub: string;
     userIdentifier: string;
+    bookingStatus: string;
+    dateFrom: string;
+    dateTo: string;
     httpCalls: FeezbackDebugHttpCall[];
     requests: Array<{
       method: 'GET';
+      apiVersion: 'v2';
       operation: 'bank-transactions' | 'card-transactions';
       scope: string;
       query: { bookingStatus: string; dateFrom: string; dateTo: string };
@@ -46,12 +67,17 @@ export interface AdminFeezbackDateRangePullResult {
     resourceId: string;
     consentId: string | null;
     status: 'success' | 'failed' | 'skipped_direct';
+    apiVersion: 'v2';
     transactionCount: number;
     httpCalls: FeezbackDebugHttpCall[];
+    extractedTransactions: unknown[];
+    normalizedTransactions: NormalizedTransaction[];
     response: unknown;
     error: unknown;
   }>;
   totalTransactions: number;
+  normalizedTransactions: NormalizedTransaction[];
+  suspectedDuplicates: AdminFeezbackSuspectedDuplicate[];
   databaseSaveResult: { saved: number; skipped: number } | null;
   databaseSaveError?: string;
 }
@@ -125,19 +151,26 @@ export class FeezbackService {
     dateTo: string,
     bookingStatus: string = 'booked',
     selectedSources: Array<{ type: 'bank' | 'card'; resourceId: string }> = [],
+    persistTransactions = true,
   ): Promise<AdminFeezbackDateRangePullResult> {
     const sub = `${firebaseId}_sub`;
+    const diagnosticId = randomUUID();
     const sentAt = new Date();
     const query = { bookingStatus, dateFrom, dateTo };
     const request: AdminFeezbackDateRangePullResult['request'] = {
       sentAt: sentAt.toISOString(),
       provider: 'Feezback',
-      userIdentifier: sub,
+      sub,
+      userIdentifier: `${sub}@${this.tppId}`,
+      bookingStatus,
+      dateFrom,
+      dateTo,
       httpCalls: [],
       // The user-level pull fans out to one Feezback transaction request per
       // valid source. These entries describe the filters shared by that fan-out.
       requests: selectedSources.map(source => ({
         method: 'GET' as const,
+        apiVersion: 'v2' as const,
         operation: source.type === 'bank' ? 'bank-transactions' as const : 'card-transactions' as const,
         scope: source.resourceId,
         query,
@@ -198,15 +231,17 @@ export class FeezbackService {
 
     let databaseSaveResult: AdminFeezbackDateRangePullResult['databaseSaveResult'] = null;
     let databaseSaveError: string | undefined;
-    try {
-      const persisted = await this.persistNormalizedTransactions(firebaseId, normalizedTransactions);
-      databaseSaveResult = {
-        saved: persisted?.newlySavedToCache ?? 0,
-        skipped: persisted?.alreadyExistingInCache ?? 0,
-      };
-    } catch (error: any) {
-      databaseSaveError = error?.message ?? String(error);
-      errors.push({ operation: 'database-save', message: databaseSaveError });
+    if (persistTransactions) {
+      try {
+        const persisted = await this.persistNormalizedTransactions(firebaseId, normalizedTransactions);
+        databaseSaveResult = {
+          saved: persisted?.newlySavedToCache ?? 0,
+          skipped: persisted?.alreadyExistingInCache ?? 0,
+        };
+      } catch (error: any) {
+        databaseSaveError = error?.message ?? String(error);
+        errors.push({ operation: 'database-save', message: databaseSaveError });
+      }
     }
 
     const sourceResults = [
@@ -215,6 +250,9 @@ export class FeezbackService {
     ].map((source: any) => ({
       ...source,
       sub,
+      apiVersion: 'v2' as const,
+      extractedTransactions: source.extractedTransactions ?? [],
+      normalizedTransactions: source.normalizedTransactions ?? [],
       httpCalls: traced.httpCalls.filter(call =>
         call.url.includes(`/${source.type === 'bank' ? 'accounts' : 'cards'}/${source.resourceId}/transactions`),
       ),
@@ -237,10 +275,13 @@ export class FeezbackService {
         resourceId: selected.resourceId,
         consentId: null,
         status: 'failed',
+        apiVersion: 'v2',
         transactionCount: 0,
         httpCalls: traced.httpCalls.filter(call =>
           call.url.includes(selected.type === 'bank' ? '/accounts' : '/cards'),
         ),
+        extractedTransactions: [],
+        normalizedTransactions: [],
         response: null,
         error,
       });
@@ -266,16 +307,19 @@ export class FeezbackService {
         error: errorText?.slice(0, 255),
       };
     });
-    try {
-      await this.userSyncStateService.updateSourceResults(firebaseId, persistedSourceResults);
-    } catch (error: any) {
-      errors.push({
-        operation: 'source-status-save',
-        message: error?.message ?? String(error),
-      });
+    if (persistTransactions) {
+      try {
+        await this.userSyncStateService.updateSourceResults(firebaseId, persistedSourceResults);
+      } catch (error: any) {
+        errors.push({
+          operation: 'source-status-save',
+          message: error?.message ?? String(error),
+        });
+      }
     }
 
     const receivedAt = new Date();
+    const suspectedDuplicates = this.findAdminSuspectedDuplicates(sourceResults);
     const providerFailedCompletely = sourceResults.every(source => source.status === 'failed');
     const status: AdminFeezbackDateRangePullResult['status'] = providerFailedCompletely
       ? 'failed'
@@ -283,7 +327,9 @@ export class FeezbackService {
         ? 'partial'
         : 'success';
 
-    return {
+    const result: AdminFeezbackDateRangePullResult = {
+      diagnosticId,
+      persistenceMode: persistTransactions ? 'persist' : 'diagnostic',
       status,
       request,
       response: {
@@ -295,9 +341,82 @@ export class FeezbackService {
       },
       sourceResults,
       totalTransactions: normalizedTransactions.length,
+      normalizedTransactions,
+      suspectedDuplicates,
       databaseSaveResult,
       ...(databaseSaveError ? { databaseSaveError } : {}),
     };
+    this.logAdminPullSummary(result);
+    return result;
+  }
+
+  private logAdminPullSummary(result: AdminFeezbackDateRangePullResult): void {
+    const sourceLines = result.sourceResults.map(source => {
+      const type = source.type === 'bank' ? 'Bank account' : 'Credit card';
+      const identifier = source.sourceId || source.displayName || 'unknown';
+      return `  - ${type} ${identifier} | ${source.status} | transactions=${source.transactionCount}`;
+    });
+    this.logger.log([
+      `[Feezback pull summary] status=${result.status} | mode=${result.persistenceMode} | diagnosticId=${result.diagnosticId}`,
+      ...(sourceLines.length > 0 ? sourceLines : ['  - No payment sources were returned']),
+    ].join('\n'));
+  }
+
+  private findAdminSuspectedDuplicates(
+    sourceResults: AdminFeezbackDateRangePullResult['sourceResults'],
+  ): AdminFeezbackSuspectedDuplicate[] {
+    const groups = new Map<string, {
+      source: AdminFeezbackDateRangePullResult['sourceResults'][number];
+      transaction: NormalizedTransaction;
+      noteHash: string;
+      ids: Set<string>;
+    }>();
+
+    for (const source of sourceResults) {
+      for (const transaction of source.normalizedTransactions) {
+        const date = transaction.transactionDate instanceof Date
+          ? transaction.transactionDate.toISOString().slice(0, 10)
+          : new Date(transaction.transactionDate).toISOString().slice(0, 10);
+        const merchant = transaction.merchantName.trim().replace(/\s+/g, ' ').toLocaleLowerCase();
+        const noteHash = createHash('sha256').update(transaction.note ?? '').digest('hex');
+        const fingerprintInput = [
+          source.type,
+          source.resourceId,
+          transaction.paymentIdentifier ?? '',
+          date,
+          merchant,
+          Number(transaction.amount).toFixed(2),
+          (transaction.currency ?? 'ILS').toUpperCase(),
+          noteHash,
+        ].join('|');
+        const fingerprint = createHash('sha256').update(fingerprintInput).digest('hex');
+        const group = groups.get(fingerprint) ?? {
+          source,
+          transaction,
+          noteHash,
+          ids: new Set<string>(),
+        };
+        group.ids.add(transaction.externalTransactionId);
+        groups.set(fingerprint, group);
+      }
+    }
+
+    return [...groups.entries()]
+      .filter(([, group]) => group.ids.size > 1)
+      .map(([fingerprint, group]) => ({
+        fingerprint,
+        sourceType: group.source.type,
+        sourceId: group.source.sourceId,
+        resourceId: group.source.resourceId,
+        transactionDate: group.transaction.transactionDate instanceof Date
+          ? group.transaction.transactionDate.toISOString().slice(0, 10)
+          : new Date(group.transaction.transactionDate).toISOString().slice(0, 10),
+        merchantName: group.transaction.merchantName,
+        amount: Number(group.transaction.amount),
+        currency: group.transaction.currency ?? 'ILS',
+        noteHash: group.noteHash,
+        externalTransactionIds: [...group.ids].sort(),
+      }));
   }
 
   private serializeAdminPullError(error: any): Record<string, unknown> {
@@ -713,7 +832,22 @@ export class FeezbackService {
     dateFrom?: string,
     dateTo?: string,
   ): Promise<any> {
-    return this.feezbackApiService.getAccountTransactions(sub, transactionsLink, bookingStatus, dateFrom, dateTo);
+    const match = transactionsLink.match(/\/consents\/([^/?]+)\/accounts\/([^/?]+)\/transactions(?:[/?]|$)/);
+    if (!match) {
+      throw Object.assign(
+        new Error('The Feezback transactions link does not contain consentId and account resourceId'),
+        { status: 400, code: 'INVALID_ACCOUNT_TRANSACTIONS_LINK' },
+      );
+    }
+    const [, consentId, accountResourceId] = match;
+    return this.feezbackConsentApiService.getAccountTransactionsByConsent(
+      sub,
+      decodeURIComponent(consentId),
+      decodeURIComponent(accountResourceId),
+      bookingStatus,
+      dateFrom,
+      dateTo,
+    );
   }
 
   /**
@@ -834,13 +968,6 @@ export class FeezbackService {
         };
       })
       .filter((x): x is NonNullable<typeof x> => x !== null);
-    if (directCards.length > 0) {
-      console.log(
-        `  ⏭  Direct card(s) skipped — transactions come via the bank feed: ` +
-        directCardsResult.map(c => `*${c.sourceId}`).join(', '),
-      );
-    }
-
     const syncableCards = (cards ?? []).filter((card: any) => !this.determineIsDirect(card));
     const filteredCards = selectedCardIds
       ? syncableCards.filter(card => selectedCardIds.has(card?.resourceId))
@@ -1016,6 +1143,11 @@ export class FeezbackService {
       .map((entry: any) => {
         const maskedPan: string = entry.card?.maskedPan ?? '';
         const rawId = maskedPan.match(/(\d{4})$/)?.[1] ?? entry.cardId;
+        const providerIds = new Set<string>(
+          (entry.transactions ?? [])
+            .map((transaction: any) => transaction?.cardTransactionId)
+            .filter((id: unknown): id is string => typeof id === 'string' && id.length > 0),
+        );
         return {
           type: 'card' as const,
           sourceId: this.deriveSourceName(rawId, entry.card?.currency),
@@ -1024,6 +1156,10 @@ export class FeezbackService {
           consentId: entry.consentId ?? null,
           status: entry.failed ? 'failed' as const : 'success' as const,
           transactionCount: entry.transactions?.length ?? 0,
+          extractedTransactions: entry.transactions ?? [],
+          normalizedTransactions: normalizedTransactions.filter(
+            transaction => providerIds.has(transaction.externalTransactionId),
+          ),
           response: entry.failed ? entry.err?.responseData ?? null : entry.rawResponse ?? null,
           error: entry.failed ? entry.err : null,
         };
@@ -1039,6 +1175,8 @@ export class FeezbackService {
         consentId: card.consentId ?? null,
         status: 'skipped_direct' as const,
         transactionCount: 0,
+        extractedTransactions: [],
+        normalizedTransactions: [],
         response: null,
         error: null,
       }));
@@ -1156,13 +1294,7 @@ export class FeezbackService {
     if (!normalizedTransactions || normalizedTransactions.length === 0) {
       return null;
     }
-    console.log(`════════════════════════════════════`);
-    console.log(`  DB PERSIST`);
-    console.log(`  Count: ${normalizedTransactions.length}`);
-    console.log(`════════════════════════════════════`);
-    const tDb = Date.now();
     const pr = await this.processingService.process(userId, normalizedTransactions);
-    console.log(`  ✓ Persist done — ${((Date.now() - tDb) / 1000).toFixed(2)}s | saved=${pr.newlySavedToCache} | skipped=${pr.alreadyExistingInCache}\n`);
     return pr;
   }
 
@@ -1257,13 +1389,24 @@ export class FeezbackService {
       ACCOUNT_FETCH_CONCURRENCY,
       async (account: any) => {
         try {
-          if (!account._links?.transactions?.href) {
-            this.logger.warn(`[BankFetch] Account "${account.iban?.slice(-7) ?? account.name}" has no transactions link — skipping (not yet provisioned)`);
-            return { account, transactions: [] as any[], rawResponse: null, failed: false, error: null };
+          const resourceId = account?.resourceId;
+          const consentId = account?.consentId ?? account?.relatedConsents?.[0]?.resourceId ?? null;
+          if (!resourceId) {
+            throw Object.assign(new Error('Missing resourceId for bank account'), {
+              status: 400,
+              code: 'MISSING_RESOURCE_ID',
+            });
           }
-          const transactionsResponse = await this.feezbackApiService.getAccountTransactions(
+          if (!consentId) {
+            throw Object.assign(new Error('Missing consentId for bank account'), {
+              status: 400,
+              code: 'MISSING_CONSENT_ID',
+            });
+          }
+          const transactionsResponse = await this.feezbackConsentApiService.getAccountTransactionsByConsent(
             sub,
-            account._links.transactions.href,
+            consentId,
+            resourceId,
             bookingStatus,
             dateFrom,
             dateTo,
@@ -1366,6 +1509,8 @@ export class FeezbackService {
         consentId: account?.consentId ?? account?.relatedConsents?.[0]?.resourceId ?? null,
         status: entry.failed ? 'failed' as const : 'success' as const,
         transactionCount: entry.transactions?.length ?? 0,
+        extractedTransactions: entry.transactions ?? [],
+        normalizedTransactions: [] as NormalizedTransaction[],
         response: entry.failed
           ? (entry.error?.responseBody ?? entry.error?.response?.data ?? null)
           : entry.rawResponse,
@@ -1413,6 +1558,16 @@ export class FeezbackService {
         validIbans,
       );
       response.normalizedTransactions = normalized;
+      for (const source of bankSourceResults) {
+        const providerIds = new Set<string>(
+          source.extractedTransactions
+            .map((transaction: any) => transaction?.transactionId)
+            .filter((id: unknown): id is string => typeof id === 'string' && id.length > 0),
+        );
+        source.normalizedTransactions = normalized.filter(
+          transaction => providerIds.has(transaction.externalTransactionId),
+        );
+      }
     } catch (error: any) {
       this.logger.error(`[BankFetch] Normalize failed | firebaseId=${firebaseId?.substring(0, 8)}... | error=${error.message}`, error.stack);
       response.processingError = error.message;

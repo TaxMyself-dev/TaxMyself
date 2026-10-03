@@ -118,6 +118,16 @@ describe('FeezbackHttpClient – retry behaviour', () => {
     expect(sleepMock).toHaveBeenCalledTimes(1);
   });
 
+  it('does not print request URLs or response bodies to the terminal', async () => {
+    const consoleSpy = jest.spyOn(console, 'log').mockImplementation(() => undefined);
+    mockHttpGet.mockReturnValueOnce(makeOkResponse({ accounts: ['sensitive-bank-data'] }));
+
+    await client.get('/accounts');
+
+    expect(consoleSpy).not.toHaveBeenCalled();
+    consoleSpy.mockRestore();
+  });
+
   // ── Test 2 ──────────────────────────────────────────────────────────────────
 
   it('sleeps for exactly Retry-After seconds when the header is an integer string', async () => {
