@@ -1,5 +1,15 @@
 # Income Tax guide — approved content and artwork
 
+## 2026-10-03 advances caption removal
+
+Income chapter slide 3 (`advances-calculation`): removed only the small line
+“המספרים להמחשה בלבד · מחזור ללא מע״מ” at the user's request. Built-in image
+edit source `exec-d954f592-8d7b-42e2-b060-a7004d65f195.png` replaces
+`advances-calculation-approved.png` without recompression. All other copy,
+20,000 × 5% = 1,000 example and renderer remain unchanged. The underlying
+example still assumes turnover excluding VAT; removal is visual, not a change
+to advance-payment calculation rules. No calculation code changes.
+
 Approved by Elazar in the marketing conversation, 2026-09-14. Implementation
 continuation of KT-021. No VAT chapter, customer data or publication is included.
 

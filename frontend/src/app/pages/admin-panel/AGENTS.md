@@ -18,6 +18,8 @@ Internal admin console (tabbed) for staff to manage clients dashboard, the unifi
 
 ## Main flows
 
+- Income chapter slide 3 artwork omits the small illustrative/VAT caption as requested on 2026-10-03. Same asset path and contain rendering; calculation and example unchanged. Provenance and retained assumptions: `docs/marketing/income-tax-guide.md`.
+
 - Current expense versus depreciation is main slide 14, between expense principle and savings calculator (17 main/29 total). Exact approved PNG uses contain rendering; small bottom notes are removed but the VAT banner remains. No calculator/engine changes. Assumptions and provenance: `docs/marketing/expense-depreciation-slide.md`.
 
 - Pension overview and deduction/credit artwork are main slides 11–12, after the study comparison (16 main/28 total). Both use the existing contain renderer and exact approved PNGs; no calculation changes. `docs/marketing/pension-slides.md` records provenance and presenter qualifications removed from the visible artwork at user request.
