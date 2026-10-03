@@ -40,7 +40,7 @@ on the expense-review page. Every other user always receives the regular view.
 ## Handoff
 
 - Result: complete
-- Commit hash(es): pending local commit
+- Commit hash(es): `8f3fcc8e`
 - Changed files: report-review page logic/template, isolated view-mode helper
   and spec, report-review topic documentation, and this task file.
 - Tests and exact results: focused TypeScript compile exit 0; 8 direct Node
