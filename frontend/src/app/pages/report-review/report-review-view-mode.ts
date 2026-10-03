@@ -2,7 +2,10 @@ export type ReviewViewMode = 'regular' | 'professional';
 
 export function canUseProfessionalReviewView(
   role: string | readonly string[] | null | undefined,
+  isViewingDemoUser = false,
 ): boolean {
+  if (isViewingDemoUser) return false;
+
   if (typeof role === 'string') {
     return role === 'ACCOUNTANT' || role === 'ADMIN';
   }

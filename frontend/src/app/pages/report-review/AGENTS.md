@@ -40,7 +40,9 @@ and `tx_only` rows and replaces the former overlay review dialog.
 - The regular/professional selector is actor-role UX, independent of represented
   owner context: only the real logged-in `ACCOUNTANT` or `ADMIN` may see it or
   enter professional mode. Every other actor is forced to regular view even if
-  local storage contains an older professional preference.
+  local storage contains an older professional preference. Admin view-as of a
+  demo profile is an explicit exception: it behaves like a regular client and
+  never exposes professional mode or its selector.
 
 ## Related topics
 

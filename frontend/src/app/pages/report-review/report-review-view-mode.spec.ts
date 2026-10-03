@@ -16,6 +16,13 @@ describe('report-review view access', () => {
     expect(resolveReviewViewMode('professional', false)).toBe('regular');
   });
 
+  it('treats an admin viewing a demo account as a regular user', () => {
+    const canUseProfessional = canUseProfessionalReviewView(['ADMIN'], true);
+
+    expect(canUseProfessional).toBeFalse();
+    expect(resolveReviewViewMode('professional', canUseProfessional)).toBe('regular');
+  });
+
   it('does not grant access for a role name that merely contains ADMIN', () => {
     expect(canUseProfessionalReviewView('NOT_ADMIN')).toBeFalse();
   });

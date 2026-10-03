@@ -324,14 +324,15 @@ export class ReportReviewPage implements OnInit {
   /**
    * D9 view mode. Persisted per user in localStorage; first-ever default is
    * professional for accountants/admins (the ACTOR's role — while
-   * impersonating a client, the accountant still lands on professional),
-   * regular for everyone else. Only those professional actors may switch
-   * modes; all other actors are always forced to regular.
+   * impersonating a normal client, the accountant still lands on
+   * professional), regular for everyone else. Demo view-as is the explicit
+   * exception and is always regular. Only eligible professional actors may
+   * switch modes.
    */
   viewMode = signal<ReviewViewMode>('regular');
 
-  /** True when the ACTOR (real logged-in user, not the represented client)
-   *  is an accountant/admin. Controls professional-mode access and selector
+  /** True when the ACTOR is an accountant/admin and the represented identity
+   *  is not a demo user. Controls professional-mode access and selector
    *  visibility. */
   canUseProfessionalView = false;
 
@@ -487,12 +488,15 @@ export class ReportReviewPage implements OnInit {
   );
 
   constructor() {
-    // D9 view mode: the ACTOR's role decides the first-ever default
-    // (accountant → professional); after that the user's persisted choice
-    // wins. Keyed per real user so an accountant's preference doesn't leak
-    // into the client's own session on a shared browser.
+    // D9 view mode: the ACTOR's role decides access/default, except demo
+    // view-as which behaves like a regular client. The preference remains
+    // keyed per real user so it cannot leak into that user's own session on a
+    // shared browser; resolveReviewViewMode still forces demo to regular.
     const realUser = this.authService.getRealUserDataFromLocalStorage();
-    this.canUseProfessionalView = canUseProfessionalReviewView(realUser?.role);
+    this.canUseProfessionalView = canUseProfessionalReviewView(
+      realUser?.role,
+      this.authService.isViewingDemoUser(),
+    );
     const stored = realUser?.firebaseId
       ? (localStorage.getItem(ReportReviewPage.VIEW_MODE_KEY_PREFIX + realUser.firebaseId) as ReviewViewMode | null)
       : null;

@@ -27,9 +27,9 @@
 
     <div class="dialog-main">
 
-  <!-- Subtitle + the D9 regular/professional toggle. Only the real logged-in
-       accountant/admin actor may see and use the selector; every other actor
-       is forced to regular view. -->
+  <!-- Subtitle + the D9 regular/professional toggle. Only an eligible real
+       accountant/admin actor may see it; demo view-as is explicitly treated
+       like a regular client and therefore never exposes the selector. -->
   <div *ngIf="mode() !== null" class="toolbar-row">
     <div class="subtitle">{{ subtitleText() }}</div>
     <div *ngIf="canUseProfessionalView"
