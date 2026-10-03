@@ -200,15 +200,8 @@ export const SELF_EMPLOYED_GUIDE_SLIDES: GuideSlide[] = [
     id: 'advances-calculation', layout: 'approved-artwork',
     title: 'איך נקבעות המקדמות?',
     artwork: '/assets/self-employed-guide/advances-calculation-approved.png',
-    artworkAlt: 'מס הכנסה קובע מקדמות כאחוז מהמחזור או כסכום. דוגמה לפי אחוזים: מחזור ללא מע״מ של 20,000 ₪ כפול 5% נותן מקדמה של 1,000 ₪. המספרים להמחשה בלבד. המס הסופי לפי ההכנסה החייבת.',
+    artworkAlt: 'מס הכנסה קובע מקדמות כאחוז מהמחזור או כסכום. דוגמה לפי אחוזים: מחזור של 20,000 ₪ כפול 5% נותן מקדמה של 1,000 ₪. שינוי מהותי בעסק? אפשר לבקש עדכון מקדמות במהלך השנה. המקדמות הן על חשבון המס. המס הסופי לפי ההכנסה החייבת.',
     sources: [{ label: 'שיטות חישוב המקדמות', url: 'https://www.gov.il/files/taxes/KnowYourRights2018/files/basic-html/page179.html' }],
-  },
-  {
-    id: 'advances-adjustment', layout: 'approved-artwork',
-    title: 'העסק השתנה? בודקים גם את המקדמות',
-    artwork: '/assets/self-employed-guide/advances-adjustment-approved.png',
-    artworkAlt: 'הרווח עלה? ייתכן שהמקדמות לא יספיקו. הרווח ירד? ייתכן שאתם משלמים יותר מדי. אפשר לבקש שינוי לפי תחזית מעודכנת. לא משנים את התשלום על דעת עצמנו.',
-    sources: [{ label: 'בקשה להקטנת מקדמות', url: 'https://www.gov.il/he/service/itc-2216a' }],
   },
   {
     id: 'advances-payment', layout: 'approved-artwork',

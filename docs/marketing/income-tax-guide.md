@@ -1,5 +1,17 @@
 # Income Tax guide — approved content and artwork
 
+## 2026-10-03 consolidated advances guidance
+
+Removed `advances-adjustment` from the slide model and chapter navigation.
+Income chapter is now six screens; main sequence remains 17, total 28.
+Slide 3 now includes “שינוי מהותי בעסק? אפשר לבקש עדכון מקדמות במהלך השנה.”
+Latest built-in image edit source: `exec-f31ac210-1acc-4591-8149-79b96d16529f.png`,
+copied without recompression to `advances-calculation-approved.png`. Prompt scope:
+add only the single sentence in the gap above the bottom banner, preserve all
+other artwork. Previous adjustment PNG retained as an unused historical asset.
+This is a request to update advances, not permission to change payment unilaterally.
+Example remains based on turnover excluding VAT. No calculation engine changes.
+
 ## 2026-10-03 advances caption removal
 
 Income chapter slide 3 (`advances-calculation`): removed only the small line

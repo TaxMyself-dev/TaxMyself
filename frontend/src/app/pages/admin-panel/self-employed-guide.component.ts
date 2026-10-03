@@ -19,7 +19,7 @@ export class SelfEmployedGuideComponent {
   @ViewChild('presentationRoot') presentationRoot?: ElementRef<HTMLElement>;
 
   readonly chapterIds = {
-    income: ['income-combination', 'advances-introduction', 'advances-calculation', 'advances-adjustment', 'advances-payment', 'micro-reporting', 'tax-simulator'],
+    income: ['income-combination', 'advances-introduction', 'advances-calculation', 'advances-payment', 'micro-reporting', 'tax-simulator'],
     vat: ['vat-introduction', 'vat-calculation'],
     ni: ['ni-status', 'ni-payment', 'ni-calculator'],
   };
