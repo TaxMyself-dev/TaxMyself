@@ -37,6 +37,10 @@ and `tx_only` rows and replaces the former overlay review dialog.
   read-only delegates retain preview/file viewing but do not receive edit,
   classify, reject, link, supplier-management, selection, or approval actions;
   backend `EXPENSES_APPROVE` checks remain authoritative.
+- The regular/professional selector is actor-role UX, independent of represented
+  owner context: only the real logged-in `ACCOUNTANT` or `ADMIN` may see it or
+  enter professional mode. Every other actor is forced to regular view even if
+  local storage contains an older professional preference.
 
 ## Related topics
 
