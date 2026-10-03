@@ -1,6 +1,6 @@
 # KT-036 - Restrict professional expense-review view
 
-- Status: `VERIFIED`
+- Status: `PUSHED`
 - Task manager: Codex primary
 - Worker: Codex primary (single-agent execution)
 - Worktree: `C:\Users\harel\.codex\worktrees\kt036\taxmyself-dev`
@@ -66,6 +66,7 @@ on the expense-review page. Every other user always receives the regular view.
 - Combined verification: 8 focused view-mode assertions passed on integrated
   `main`; Angular production build exit 0 with existing budget/style/CommonJS
   warnings. The legacy Karma compile blocker is recorded above.
-- `origin/main` verification: pending fetch/push.
+- `origin/main` verification: remote accepted the fast-forward through
+  `5ac06ec0`.
 - User-visible run instructions: open `/report-review` once as a CLIENT and
   once as an ACCOUNTANT/ADMIN; no schema or deployment step is required.
