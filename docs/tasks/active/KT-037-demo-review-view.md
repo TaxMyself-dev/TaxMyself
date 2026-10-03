@@ -1,6 +1,6 @@
 # KT-037 - Treat admin-entered demo as regular review user
 
-- Status: `VERIFIED`
+- Status: `PUSHED`
 - Task manager: Codex primary
 - Worker: Codex primary (single-agent execution)
 - Worktree: `C:\Users\harel\.codex\worktrees\kt037\taxmyself-dev`
@@ -58,7 +58,8 @@ review exactly as a regular client: regular view only and no view selector.
 - Combined verification: 8 focused demo view-mode assertions passed on
   integrated `main`; Angular production build exit 0 with existing
   budget/style/CommonJS warnings.
-- `origin/main` verification: pending fetch/push.
+- `origin/main` verification: remote accepted the fast-forward through
+  `88a96458`.
 - User-visible run instructions: enter the demo from Admin Panel, open the
   expense review, and confirm only regular view is shown. No schema or deploy
   step is required.
