@@ -11,6 +11,7 @@ export type GuideSlideLayout =
   | 'income-combination'
   | 'approved-artwork'
   | 'ni-simulator'
+  | 'ni-rates'
   | 'tax-simulator'
   | 'expense-principle'
   | 'expense-savings';
@@ -235,6 +236,13 @@ export const SELF_EMPLOYED_GUIDE_SLIDES: GuideSlide[] = [
     id: 'ni-payment', layout: 'approved-artwork', title: 'אז מי חייב לשלם?',
     artwork: '/assets/self-employed-guide/ni-payment-approved.png',
     artworkAlt: 'עצמאי שעונה להגדרה משלם לפי ההכנסה החייבת מהעסק. מי שאינו עונה להגדרה: עד סכום הפטור לא משלמים על הכנסה מהעסק; מעליו משלמים על ההפרש. ייתכן תשלום מינימום גם כשההכנסה פטורה.',
+  },
+  {
+    id: 'ni-rates', layout: 'ni-rates', title: 'כמה משלמים באחוזים?',
+    sources: [
+      { label: 'שיעורי דמי ביטוח לעצמאי', url: 'https://www.btl.gov.il/insurance/national%20insurance/type_list/self_employed/pages/rates.aspx' },
+      { label: 'שיעורי הכנסה שלא מעבודה', url: 'https://www.btl.gov.il/English%20Homepage/Insurance/Ratesandamount/Pages/Notworking.aspx' },
+    ],
   },
   { id: 'ni-calculator', layout: 'ni-simulator', title: 'אז כמה משלמים?' },
 ];

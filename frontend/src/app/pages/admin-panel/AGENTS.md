@@ -18,7 +18,9 @@ Internal admin console (tabbed) for staff to manage clients dashboard, the unifi
 
 ## Main flows
 
-- Income chapter now has five slides: separate `advances-adjustment` and `micro-reporting` screens removed. Slide 3 includes requesting updated advances after material business changes; slide 4 payment artwork ends with withholding and micro-business notes. 17 main/27 total screens; final calculator returns to the authorities hub. Its seven sliders increase left-to-right while Hebrew labels retain RTL. Historical counts below are superseded.
+- NI chapter now has four slides: status, payment, native `ni-rates`, calculator. Rates come from the same `NI_2026` constants as the calculator, show NI plus health breakdown, exemption, salary-first reduced band and cap. 17 main/28 total. `ni-payment` has a narrowly masked native minimum-payment caption to avoid blurry raster text; original wording unchanged.
+
+- Income chapter now has five slides: separate `advances-adjustment` and `micro-reporting` screens removed. Slide 3 includes requesting updated advances after material business changes; slide 4 payment artwork ends with withholding and micro-business notes. Final calculator returns to the authorities hub. Its seven sliders increase left-to-right while Hebrew labels retain RTL. Historical counts below are superseded.
 
 - Income chapter slide 3 artwork omits the small illustrative/VAT caption as requested on 2026-10-03. Same asset path and contain rendering; calculation and example unchanged. Provenance and retained assumptions: `docs/marketing/income-tax-guide.md`.
 

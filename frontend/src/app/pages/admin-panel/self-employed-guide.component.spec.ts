@@ -42,9 +42,9 @@ describe('SelfEmployedGuideComponent', () => {
       }
     });
   }
-  it('assigns all 27 slides exactly once and opens income at combined income', () => {
+  it('assigns all 28 slides exactly once and opens income at combined income', () => {
     const ids = [...component.mainIds, ...Object.values(component.chapterIds).flat()];
-    expect(new Set(ids).size).toBe(27);
+    expect(new Set(ids).size).toBe(28);
     expect([...ids].sort()).toEqual(SELF_EMPLOYED_GUIDE_SLIDES.map(s => s.id).sort());
     component.openChapter('income');
     expect(component.currentSlide.id).toBe('income-combination');
@@ -69,6 +69,15 @@ describe('SelfEmployedGuideComponent', () => {
     component.nextSlide();
     component.nextSlide();
     expect(component.currentSlide.id).toBe('tax-authorities');
+  });
+  it('explains insurance rates immediately before its calculator', () => {
+    component.openChapter('ni');
+    expect(component.slides.map(s => s.id)).toEqual(['ni-status', 'ni-payment', 'ni-rates', 'ni-calculator']);
+    component.goToSlide('ni-rates');
+    component.nextSlide();
+    expect(component.currentSlide.id).toBe('ni-calculator');
+    component.previousSlide();
+    expect(component.currentSlide.id).toBe('ni-rates');
   });
   it('continues from the authorities to both product artworks and back', () => {
     component.returnToAuthorities();

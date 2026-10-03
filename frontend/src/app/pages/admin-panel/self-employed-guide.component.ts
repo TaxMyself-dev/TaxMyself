@@ -6,6 +6,7 @@ import { SelfEmployedTaxSimulatorComponent } from './self-employed-tax-simulator
 import { GuideNationalInsuranceComponent } from './guide-national-insurance.component';
 import { GuideExpenseSavingsComponent } from './guide-expense-savings.component';
 import { GuideStudyComparisonComponent } from './guide-study-comparison.component';
+import { NI_2026 } from './guide-national-insurance';
 
 @Component({
   selector: 'app-self-employed-guide',
@@ -15,13 +16,14 @@ import { GuideStudyComparisonComponent } from './guide-study-comparison.componen
   imports: [CommonModule, IonicModule, SelfEmployedTaxSimulatorComponent, GuideNationalInsuranceComponent, GuideExpenseSavingsComponent, GuideStudyComparisonComponent],
 })
 export class SelfEmployedGuideComponent {
+  readonly insuranceRates = NI_2026;
   @Output() closeGuide = new EventEmitter<void>();
   @ViewChild('presentationRoot') presentationRoot?: ElementRef<HTMLElement>;
 
   readonly chapterIds = {
     income: ['income-combination', 'advances-introduction', 'advances-calculation', 'advances-payment', 'tax-simulator'],
     vat: ['vat-introduction', 'vat-calculation'],
-    ni: ['ni-status', 'ni-payment', 'ni-calculator'],
+    ni: ['ni-status', 'ni-payment', 'ni-rates', 'ni-calculator'],
   };
   readonly mainIds = ['cover', 'basic-concepts', 'employee-payroll', 'business-types', 'income-tax-overview', 'status-comparison', 'micro-blockers', 'tax-authorities', 'study-fund', 'study-comparison', 'pension', 'pension-tax-benefits', 'expense-principle', 'expense-depreciation', 'expense-savings', 'product-pain', 'product-solution'];
   activeChapter: 'income' | 'vat' | 'ni' | null = null;
