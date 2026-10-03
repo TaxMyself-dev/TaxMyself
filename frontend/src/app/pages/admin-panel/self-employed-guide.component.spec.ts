@@ -42,9 +42,9 @@ describe('SelfEmployedGuideComponent', () => {
       }
     });
   }
-  it('assigns all 28 slides exactly once and opens income at combined income', () => {
+  it('assigns all 27 slides exactly once and opens income at combined income', () => {
     const ids = [...component.mainIds, ...Object.values(component.chapterIds).flat()];
-    expect(new Set(ids).size).toBe(28);
+    expect(new Set(ids).size).toBe(27);
     expect([...ids].sort()).toEqual(SELF_EMPLOYED_GUIDE_SLIDES.map(s => s.id).sort());
     component.openChapter('income');
     expect(component.currentSlide.id).toBe('income-combination');
@@ -56,14 +56,16 @@ describe('SelfEmployedGuideComponent', () => {
     component.openChapter('income');
     expect(component.slides.filter(slide => slide.layout === 'tax-simulator').length).toBe(1);
     expect(component.slides[1].id).toBe('advances-introduction');
-    expect(component.slides.length).toBe(6);
+    expect(component.slides.length).toBe(5);
     expect(component.slides[2].id).toBe('advances-calculation');
     expect(component.slides[2].artworkAlt).toContain('אפשר לבקש עדכון מקדמות');
     expect(component.slides[3].id).toBe('advances-payment');
+    expect(component.slides[3].artworkAlt).toContain('שתי הערות בתחתית');
+    expect(component.slides[3].artworkAlt).toContain('בעל עסק זעיר במסלול המקוצר');
     for (let i = 1; i < component.slides.length; i++) component.nextSlide();
     expect(component.currentSlide.id).toBe('tax-simulator');
     component.previousSlide();
-    expect(component.currentSlide.id).toBe('micro-reporting');
+    expect(component.currentSlide.id).toBe('advances-payment');
     component.nextSlide();
     component.nextSlide();
     expect(component.currentSlide.id).toBe('tax-authorities');

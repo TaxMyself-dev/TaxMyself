@@ -1,5 +1,20 @@
 # Income Tax guide — approved content and artwork
 
+## 2026-10-03 payment notes and slider direction
+
+Removed `micro-reporting` from content and chapter navigation. Income now has
+five slides (17 main, 27 total); payment precedes the final calculator directly.
+Payment artwork retains the three steps, with two bottom notes: withholding
+and the qualifying micro-business route (coordination including salary, shortened
+report/payment, 30% turnover deduction instead of actual expenses, optional advances).
+Sources and accessible copy are consolidated on `advances-payment`.
+Built-in image edit `exec-a547e970-c5b8-422c-91fd-83bea6308440.png` was copied
+losslessly to `frontend/src/assets/self-employed-guide/advances-payment-approved.png`.
+Prompt: preserve title, subtitle, three steps, palette and logo; replace the single
+footer with two readable notes, yellow withholding and mint micro-business.
+Unused micro-business artwork is retained for history. All seven income calculator
+sliders now increase left-to-right; Hebrew label direction and calculations unchanged.
+
 ## 2026-10-03 consolidated advances guidance
 
 Removed `advances-adjustment` from the slide model and chapter navigation.

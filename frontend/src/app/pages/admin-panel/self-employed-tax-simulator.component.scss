@@ -225,6 +225,7 @@ h2 {
 }
 
 .range-field input {
+  direction: ltr;
   grid-column: 1 / -1;
   width: 100%;
   accent-color: var(--green);

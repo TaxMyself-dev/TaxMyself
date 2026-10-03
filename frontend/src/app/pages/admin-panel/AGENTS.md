@@ -18,7 +18,7 @@ Internal admin console (tabbed) for staff to manage clients dashboard, the unifi
 
 ## Main flows
 
-- Income chapter now has six slides: separate `advances-adjustment` screen removed; slide 3 calculation artwork includes a short note about requesting updated advances after material business changes. 17 main/28 total screens; final calculator still returns to the authorities hub. Historical counts below are superseded.
+- Income chapter now has five slides: separate `advances-adjustment` and `micro-reporting` screens removed. Slide 3 includes requesting updated advances after material business changes; slide 4 payment artwork ends with withholding and micro-business notes. 17 main/27 total screens; final calculator returns to the authorities hub. Its seven sliders increase left-to-right while Hebrew labels retain RTL. Historical counts below are superseded.
 
 - Income chapter slide 3 artwork omits the small illustrative/VAT caption as requested on 2026-10-03. Same asset path and contain rendering; calculation and example unchanged. Provenance and retained assumptions: `docs/marketing/income-tax-guide.md`.
 

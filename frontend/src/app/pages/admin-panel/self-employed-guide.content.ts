@@ -207,15 +207,9 @@ export const SELF_EMPLOYED_GUIDE_SLIDES: GuideSlide[] = [
     id: 'advances-payment', layout: 'approved-artwork',
     title: 'איך מדווחים ומשלמים את המקדמות?',
     artwork: '/assets/self-employed-guide/advances-payment-approved.png',
-    artworkAlt: 'אחת לחודש או לחודשיים לפי הדרישה בתיק: מרכזים מחזור ללא מע״מ, מחשבים לפי הדרישה ומקזזים ניכוי במקור שמותר לקזז, מדווחים ומשלמים באתר רשות המסים לבד או דרך המייצג. ניכוי במקור הוא תשלום שהלקוח העביר למס הכנסה על חשבונכם. שומרים את האישור.',
-    sources: [{ label: 'דיווח ותשלום מקדמות', url: 'https://www.gov.il/he/service/itc-payment-online-incometax' }],
-  },
-  {
-    id: 'micro-reporting', layout: 'approved-artwork',
-    title: 'עסק זעיר? יש מסלול מקוצר',
-    artwork: '/assets/self-employed-guide/micro-reporting-approved.png',
-    artworkAlt: 'למי שעומד בתנאי המסלול המקוצר: במהלך השנה עושים תיאום מס, גם אם יש רק הכנסה מהעסק, וכוללים שכר אם יש. אחרי השנה מגישים דיווח מקוצר ומשלמים מס. 30% מהמחזור כהוצאות במקום ההוצאות בפועל. אין חובת מקדמות במסלול המקוצר; אפשר לשלם במהלך השנה.',
+    artworkAlt: 'אחת לחודש או לחודשיים לפי הדרישה בתיק: מרכזים מחזור ללא מע״מ, מחשבים לפי הדרישה ומקזזים ניכוי במקור שמותר לקזז, מדווחים ומשלמים באתר רשות המסים לבד או דרך המייצג. שתי הערות בתחתית: ניכוי מס במקור — הלקוח העביר חלק מהתשלום למס הכנסה על חשבונכם; שומרים אישור ומקזזים מהמקדמה את הניכוי המותר. בעל עסק זעיר במסלול המקוצר — עושים תיאום מס במהלך השנה גם ללא שכר, וכוללים שכר נוסף אם יש; אחרי השנה דיווח מקוצר ותשלום, עם 30% מהמחזור כהוצאות במקום הוצאות בפועל. אין חובת מקדמות במסלול המקוצר; אפשר לשלם במהלך השנה.',
     sources: [
+      { label: 'דיווח ותשלום מקדמות', url: 'https://www.gov.il/he/service/itc-payment-online-incometax' },
       { label: 'דיווח מקוצר', url: 'https://www.gov.il/he/service/report-and-payment-for-micro-business-owner' },
       { label: 'מקדמות לעסק זעיר', url: 'https://www.gov.il/he/service/request-down-payment-for-micro-business-owner' },
     ],
