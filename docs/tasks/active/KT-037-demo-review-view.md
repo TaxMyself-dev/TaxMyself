@@ -34,7 +34,7 @@ review exactly as a regular client: regular view only and no view selector.
 ## Handoff
 
 - Result: complete
-- Commit hash(es): pending local commit
+- Commit hash(es): `c2466f6f`
 - Changed files: report-review view-mode helper/spec/page, report-review topic
   documentation, and this task file.
 - Tests and exact results: focused TypeScript compile exit 0; 8 direct Node
