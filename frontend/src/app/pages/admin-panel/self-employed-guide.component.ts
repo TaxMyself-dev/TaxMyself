@@ -25,7 +25,7 @@ export class SelfEmployedGuideComponent {
     vat: ['vat-introduction', 'vat-calculation'],
     ni: ['ni-status', 'ni-payment', 'ni-rates', 'ni-calculator'],
   };
-  readonly mainIds = ['cover', 'basic-concepts', 'employee-payroll', 'business-types', 'income-tax-overview', 'status-comparison', 'micro-blockers', 'tax-authorities', 'exempt-documents', 'authorized-documents', 'study-fund', 'study-comparison', 'pension', 'pension-tax-benefits', 'expense-principle', 'expense-depreciation', 'expense-savings', 'product-pain', 'product-solution'];
+  readonly mainIds = ['cover', 'basic-concepts', 'employee-payroll', 'business-types', 'income-tax-overview', 'status-comparison', 'micro-blockers', 'tax-authorities', 'learning-summary', 'exempt-documents', 'authorized-documents', 'study-fund', 'study-comparison', 'pension', 'pension-tax-benefits', 'expense-principle', 'expense-depreciation', 'expense-savings', 'product-pain', 'product-solution'];
   activeChapter: 'income' | 'vat' | 'ni' | null = null;
 
   get slides(): GuideSlide[] {

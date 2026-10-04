@@ -47,6 +47,11 @@ const ceiling = new Intl.NumberFormat('he-IL').format(figures.vatExemptTurnoverC
 
 export const SELF_EMPLOYED_GUIDE_SLIDES: GuideSlide[] = [
   {
+    id: 'learning-summary', layout: 'approved-artwork', title: 'אז מה למדנו עד עכשיו?',
+    artwork: '/assets/self-employed-guide/learning-summary-approved.png',
+    artworkAlt: 'אז מה למדנו עד עכשיו? סוג העסק — פטור ומורשה הם מעמד במע״מ. עסק זעיר הוא מסלול במס הכנסה. מס הכנסה — מחושב על ההכנסה החייבת, כולל השכר והרווח מהעסק. מע״מ — מס על עסקאות, לא על הרווח. ביטוח לאומי — התשלום תלוי במעמד ובהכנסות. מקדמות — תשלומים במהלך השנה על חשבון החיוב הסופי, למי שחייב.',
+  },
+  {
     id: 'exempt-documents', layout: 'approved-artwork', title: 'עוסק פטור',
     artwork: '/assets/self-employed-guide/exempt-documents-approved.png',
     artworkAlt: 'עוסק פטור. חשבון עסקה — דרישת תשלום מהלקוח, אינו אישור שקיבלתם כסף. קבלה — אישור על קבלת התשלום, מפיקים מיד עם קבלת הכסף. עוסק פטור לא מוציא חשבונית מס ולא גובה מע״מ.',
