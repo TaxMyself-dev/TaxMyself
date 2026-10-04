@@ -26,6 +26,17 @@ Integrates with Feezback, the Open Banking (AISP) data provider: handles the con
   fetch path remains unchanged.
 - Transaction normalization pipeline: raw Feezback bank/card transactions → `NormalizedTransaction[]` (dedup, currency-aware `paymentIdentifier` derivation) → handed to `TransactionProcessingService.process()` for persistence.
 
+## Pagination and cache-readiness invariants
+
+- Consent-scoped bank and card V2 transaction reads use zero-based pages at
+  Feezback's maximum supported `pageSize` (1000), continuing until a short
+  page is returned. Any page failure fails that source instead of silently
+  persisting an incomplete first page; stable provider transaction IDs provide
+  final deduplication during normalization.
+- A persisted admin date-range pull that produces usable normalized rows also
+  promotes the client's cache state to `completed` (success or
+  partial-success), allowing transaction read endpoints to expose saved rows.
+
 ## Related topics
 - transactions (`TransactionsModule`, `TransactionProcessingService`, `UserSyncStateService`, `Source` entity — this module is the primary external data source feeding the transaction pipeline)
 - users (`UsersModule`, `User`/`Child` entities — `hasOpenBanking` flag, admin checks)

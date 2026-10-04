@@ -346,6 +346,21 @@ export class FeezbackService {
       databaseSaveResult,
       ...(databaseSaveError ? { databaseSaveError } : {}),
     };
+
+    if (persistTransactions && !databaseSaveError && normalizedTransactions.length > 0 && status !== 'failed') {
+      const failureReason = errors.length > 0
+        ? errors
+          .map(error => `${error.operation}: ${error.message ?? error.code ?? 'unknown'}`)
+          .join(', ')
+        : undefined;
+      await this.userSyncStateService.markCacheReadyAfterSourcePull(
+        firebaseId,
+        status === 'partial' ? 'partial_success' : 'success',
+        databaseSaveResult?.saved ?? 0,
+        failureReason,
+      );
+    }
+
     this.logAdminPullSummary(result);
     return result;
   }

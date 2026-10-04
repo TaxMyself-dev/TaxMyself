@@ -1974,7 +1974,15 @@ export class TransactionProcessingService {
         await manager
           .createQueryBuilder()
           .update(UserSyncState)
-          .set({ fullProcessStatus: 'empty' })
+          .set({
+            fullProcessStatus: 'empty',
+            fullResultStatus: 'none',
+            fullRowsWritten: 0,
+            fullStartedAt: null,
+            fullFinishedAt: null,
+            fullFailureReason: null,
+            fullSkipReason: null,
+          })
           .where('userId IN (:...userIds)', { userIds: eligibleUserIds })
           .andWhere('fullProcessStatus != :r', { r: 'running' })
           .execute();

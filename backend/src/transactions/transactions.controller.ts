@@ -472,6 +472,50 @@ export class TransactionsController {
     return { status: 'cleared' };
   }
 
+  /**
+   * Admin view-as does not pass through the real-login endpoint, so an account
+   * whose nightly cache cleanup marked it empty would otherwise stay blank.
+   * Start a login-style sync only for empty/missing state; never refresh a
+   * completed client merely because an admin opened the account.
+   */
+  @Post('admin/sync-if-empty/:firebaseId')
+  @UseGuards(FirebaseAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async adminSyncUserIfEmpty(
+    @Req() request: AuthenticatedRequest,
+    @Param('firebaseId') targetFirebaseId: string,
+  ): Promise<{ status: 'started' | 'already_running' | 'not_needed' }> {
+    const adminId = request.user?.actorFirebaseId ?? request.user?.firebaseId;
+    if (!await this.usersService.isAdmin(adminId)) {
+      throw new ForbiddenException('Admin access required');
+    }
+
+    const targetUser = await this.usersService.findFireUser(targetFirebaseId);
+    if (!targetUser?.hasOpenBanking) {
+      return { status: 'not_needed' };
+    }
+
+    const state = await this.userSyncStateService.getSyncState(targetFirebaseId);
+    if (state?.fullProcessStatus === 'running') {
+      return { status: 'already_running' };
+    }
+    if (state && state.fullProcessStatus !== 'empty') {
+      return { status: 'not_needed' };
+    }
+
+    const masked = targetFirebaseId?.length >= 8
+      ? `${targetFirebaseId.substring(0, 8)}...`
+      : targetFirebaseId;
+    this.logger.log(`[AdminSyncIfEmpty] Starting login-style sync | targetUser=${masked} | by=${adminId}`);
+    void this.feezbackService.triggerFullSync(targetFirebaseId, 'login').catch(err =>
+      this.logger.error(
+        `[AdminSyncIfEmpty] Async sync failed | targetUser=${masked} | error=${err?.message}`,
+        err?.stack ?? err,
+      ),
+    );
+    return { status: 'started' };
+  }
+
   @Get('flow-analysis')
   @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
   @RequireModule(ModuleName.OPEN_BANKING)

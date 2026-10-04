@@ -114,11 +114,9 @@ describe('UserSyncStateService — skipped_direct handling', () => {
 
       expect(cleared).toBe(3);
       expect(sourceRepo.update).toHaveBeenCalledTimes(2);
-      // First call: retryable reset for everything except skipped_direct.
       expect(sourceRepo.update.mock.calls[0][1]).toEqual({
         consentId: null, status: 'not_synced', error: null,
       });
-      // Second call: skipped_direct rows keep their terminal status.
       expect(sourceRepo.update.mock.calls[1][0]).toEqual(
         expect.objectContaining({ status: 'skipped_direct' }),
       );
@@ -134,8 +132,56 @@ describe('UserSyncStateService — skipped_direct handling', () => {
 
       const [criteria, patch] = sourceRepo.update.mock.calls[0];
       expect(patch).toEqual({ status: 'not_synced', transactionCount: 0, error: null });
-      // Criteria must exclude skipped_direct (TypeORM Not() operator).
       expect(JSON.stringify(criteria)).toContain('skipped_direct');
     });
+  });
+});
+
+describe('UserSyncStateService terminal state cleanup', () => {
+  function makeService() {
+    const repo = {
+      update: jest.fn().mockResolvedValue({ affected: 1 }),
+      findOne: jest.fn().mockResolvedValue({ fullProcessStatus: 'empty' }),
+      upsert: jest.fn().mockResolvedValue(undefined),
+    };
+    return {
+      repo,
+      service: new UserSyncStateService(repo as any, {} as any),
+    };
+  }
+
+  it('clears stale failure and skip fields after a successful sync', async () => {
+    const { service, repo } = makeService();
+    await service.markSyncFinished('user-1', 'completed', 'success', 42);
+
+    expect(repo.update).toHaveBeenCalledWith(
+      { userId: 'user-1' },
+      expect.objectContaining({
+        fullProcessStatus: 'completed',
+        fullResultStatus: 'success',
+        fullRowsWritten: 42,
+        fullSkipReason: null,
+        fullFailureReason: null,
+      }),
+    );
+  });
+
+  it('promotes a persisted partial admin pull while retaining its current warning', async () => {
+    const { service, repo } = makeService();
+    await service.markCacheReadyAfterSourcePull(
+      'user-1', 'partial_success', 17, 'card:0447 unavailable',
+    );
+
+    expect(repo.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'user-1',
+        fullProcessStatus: 'completed',
+        fullResultStatus: 'partial_success',
+        fullRowsWritten: 17,
+        fullSkipReason: null,
+        fullFailureReason: 'card:0447 unavailable',
+      }),
+      ['userId'],
+    );
   });
 });

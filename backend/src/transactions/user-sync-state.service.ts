@@ -159,8 +159,10 @@ export class UserSyncStateService {
     await this.repo.update({ userId }, {
       fullProcessStatus: processStatus,
       fullResultStatus: 'none',
+      fullRowsWritten: 0,
       fullFinishedAt: now,
       fullSkipReason: skipReason,
+      fullFailureReason: null,
     });
   }
 
@@ -177,7 +179,8 @@ export class UserSyncStateService {
       fullResultStatus: resultStatus,
       fullRowsWritten: rowsWritten,
       fullFinishedAt: new Date(),
-      ...(failureReason ? { fullFailureReason: failureReason.slice(0, 255) } : {}),
+      fullSkipReason: null,
+      fullFailureReason: failureReason ? failureReason.slice(0, 255) : null,
     });
   }
 
@@ -213,17 +216,23 @@ export class UserSyncStateService {
    * and will set the terminal status itself; clobbering it would corrupt the
    * lock/lifecycle. Upsert so a user with no prior sync-state row still gets one.
    */
-  async markCacheReadyAfterSourcePull(userId: string): Promise<void> {
+  async markCacheReadyAfterSourcePull(
+    userId: string,
+    resultStatus: ResultStatus = 'success',
+    rowsWritten = 0,
+    failureReason?: string,
+  ): Promise<void> {
     const state = await this.repo.findOne({ where: { userId } });
     if (state?.fullProcessStatus === 'running') return;
     await this.repo.upsert(
       {
         userId,
         fullProcessStatus: 'completed',
-        fullResultStatus: 'success',
+        fullResultStatus: resultStatus,
+        fullRowsWritten: rowsWritten,
         fullFinishedAt: new Date(),
         fullSkipReason: null,
-        fullFailureReason: null,
+        fullFailureReason: failureReason ? failureReason.slice(0, 255) : null,
       } as UserSyncState,
       ['userId'],
     );

@@ -2,7 +2,10 @@ import { FeezbackService } from './feezback.service';
 
 describe('FeezbackService admin date-range diagnostics', () => {
   let service: FeezbackService;
-  let userSyncStateService: { updateSourceResults: jest.Mock };
+  let userSyncStateService: {
+    updateSourceResults: jest.Mock;
+    markCacheReadyAfterSourcePull: jest.Mock;
+  };
   let apiService: { withDebugTrace: jest.Mock; getUserAccounts: jest.Mock };
   let consentApiService: {
     getAccountTransactionsByConsent: jest.Mock;
@@ -13,6 +16,7 @@ describe('FeezbackService admin date-range diagnostics', () => {
   beforeEach(() => {
     userSyncStateService = {
       updateSourceResults: jest.fn().mockResolvedValue(undefined),
+      markCacheReadyAfterSourcePull: jest.fn().mockResolvedValue(undefined),
     };
     apiService = {
       withDebugTrace: jest.fn(async (operation: () => Promise<any>) => ({
@@ -149,6 +153,9 @@ describe('FeezbackService admin date-range diagnostics', () => {
         expect.objectContaining({ type: 'card', sourceId: '1234', status: 'success', consentId: 'card-consent' }),
       ]),
     );
+    expect(userSyncStateService.markCacheReadyAfterSourcePull).toHaveBeenCalledWith(
+      'firebase-user', 'success', 1, undefined,
+    );
     expect(JSON.stringify(result.request)).not.toContain('secret-token');
     expect(summaryLog).toHaveBeenCalledWith(expect.stringContaining('[Feezback pull summary] status=success'));
     expect(summaryLog).toHaveBeenCalledWith(expect.stringContaining('Bank account bank-1 | success | transactions=1'));
@@ -277,6 +284,7 @@ describe('FeezbackService admin date-range diagnostics', () => {
     expect(result.databaseSaveResult).toBeNull();
     expect(persistSpy).not.toHaveBeenCalled();
     expect(userSyncStateService.updateSourceResults).not.toHaveBeenCalled();
+    expect(userSyncStateService.markCacheReadyAfterSourcePull).not.toHaveBeenCalled();
   });
 
   it('keeps the successful response and exposes Feezback error details on a partial failure', async () => {

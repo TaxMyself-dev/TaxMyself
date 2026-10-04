@@ -13,6 +13,14 @@ Admin-panel tab listing all end users/clients with subscription and open-banking
 - Clear a client's transaction cache; refresh their open-banking sources.
 - Sync a client's Google Drive folder for a given month/business number and list extracted documents.
 
+## View-as cache recovery
+
+Before enabling the impersonation header, enter-as-user calls the admin-only
+conditional sync hook for the target. A missing/`empty` cache starts a
+login-style sync and My Account waits for its state transition; a completed
+cache is left untouched. Navigation still waits for
+`AuthService.loadViewAsUserData()` before opening `/my-account`.
+
 ## Related topics
 - Backend: billing (subscription status via `AdminBillingService`), feezback (accounts/cards/pull/refresh), google-drive (Drive OCR sync), users
 - Frontend pages: admin-panel (embeds `<app-clients-dashboard>`), my-account (navigation target of enter-as-user)

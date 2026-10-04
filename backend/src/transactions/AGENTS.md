@@ -25,6 +25,16 @@ Owns bank/card transaction ingestion, classification (rule-based and manual), an
   expense rows with VAT/annual periods and the real approving actor; a
   represented owner's direct confirmation request is rejected.
 
+## Empty-cache recovery invariants
+
+- Nightly cleanup resets the full sync outcome together with
+  `fullProcessStatus='empty'`: result, row count, timestamps, failure reason
+  and skip reason must not describe data that was just removed.
+- `POST /transactions/admin/sync-if-empty/:firebaseId` is an admin-only
+  view-as preparation hook. It starts a login-style sync only for missing or
+  `empty` state, reuses an in-flight sync, and never refreshes a completed
+  cache merely because an admin opened the client.
+
 ## Related topics
 
 Authorization invariant: classification and quick classification retain

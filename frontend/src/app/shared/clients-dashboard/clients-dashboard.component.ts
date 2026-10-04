@@ -5,7 +5,7 @@ import { AdminBillingService, AdminSubscription } from 'src/app/services/admin-b
 import { FeezbackService, AdminAccountsAndCardsResponse, AdminPullSourceResult } from 'src/app/services/feezback.service';
 import { AuthService } from 'src/app/services/auth.service';
 import { ClientPanelService } from 'src/app/services/clients-panel.service';
-import { catchError, EMPTY, finalize, forkJoin } from 'rxjs';
+import { catchError, EMPTY, finalize, forkJoin, of } from 'rxjs';
 import { IColumnDataTable, IRowDataTable, ITableRowAction } from 'src/app/shared/interface';
 import { FormTypes, ICellRenderer } from 'src/app/shared/enums';
 import { ConfirmationService, MessageService } from 'primeng/api';
@@ -345,13 +345,38 @@ export class ClientsDashboardComponent implements OnInit {
   }
 
   private enterAsUser(firebaseId: string, name: string): void {
-    this.clientPanelService.setSelectedClient(firebaseId, name);
-    // Await the view-as user data fetch BEFORE navigating, otherwise /my-account
-    // reads userData in its ngOnInit before AuthService's viewAsUserData is
-    // populated and briefly renders with the admin's own data.
-    this.authService.loadViewAsUserData().subscribe(() => {
-      this.router.navigate(['/my-account']);
-    });
+    // Call before enabling x-client-user-id so the backend still sees the real
+    // admin as the actor. The endpoint is conditional: completed caches are not
+    // refreshed merely because an admin opened the account.
+    this.adminPanelService.syncUserIfEmpty(firebaseId)
+      .pipe(
+        catchError(err => {
+          console.error('Unable to start empty-cache sync before view-as:', err);
+          this.messageService.add({
+            severity: 'warn',
+            summary: 'סנכרון לא הותחל',
+            detail: 'נכנסים לחשבון, אך ייתכן שנתוני הבנק טרם נטענו.',
+            life: 6000,
+            key: 'br',
+          });
+          return of({ status: 'not_needed' as const });
+        }),
+      )
+      .subscribe(({ status }) => {
+        if (status === 'started' || status === 'already_running') {
+          // Tell MyAccount to wait for the running/recently-finished transition
+          // instead of accepting a stale terminal response during navigation.
+          sessionStorage.setItem('tm.freshLoginSync', 'true');
+        }
+
+        this.clientPanelService.setSelectedClient(firebaseId, name);
+        // Await the view-as user data fetch BEFORE navigating, otherwise /my-account
+        // reads userData in its ngOnInit before AuthService's viewAsUserData is
+        // populated and briefly renders with the admin's own data.
+        this.authService.loadViewAsUserData().subscribe(() => {
+          this.router.navigate(['/my-account']);
+        });
+      });
   }
 
   openFeezbackDialog(row: IRowDataTable): void {

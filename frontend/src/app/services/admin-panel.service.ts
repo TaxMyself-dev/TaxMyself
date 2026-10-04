@@ -65,6 +65,13 @@ export class AdminPanelService {
     return this.http.delete<any>(url);
   }
 
+  syncUserIfEmpty(firebaseId: string): Observable<{
+    status: 'started' | 'already_running' | 'not_needed';
+  }> {
+    const url = `${environment.apiUrl}transactions/admin/sync-if-empty/${firebaseId}`;
+    return this.http.post<{ status: 'started' | 'already_running' | 'not_needed' }>(url, {});
+  }
+
   // ----- Drive OCR sync (admin) -----
 
   syncUserDriveMonth(userIndex: number, businessNumber: string, yearMonth: string): Observable<DriveSyncResult> {

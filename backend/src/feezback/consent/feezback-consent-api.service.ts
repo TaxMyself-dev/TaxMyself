@@ -2,6 +2,9 @@ import { Injectable, Logger } from '@nestjs/common';
 import { FeezbackHttpClient } from '../core/feezback-http.client';
 import { FeezbackAuthService } from '../core/feezback-auth.service';
 
+const V2_TRANSACTION_PAGE_SIZE = 1000;
+const V2_TRANSACTION_MAX_PAGES = 50;
+
 @Injectable()
 export class FeezbackConsentApiService {
   private readonly logger = new Logger(FeezbackConsentApiService.name);
@@ -212,18 +215,15 @@ export class FeezbackConsentApiService {
       `${this.getTppApiUrl()}/tpp/${cardTransactionsApiVersion}/users/${userIdentifier}` +
       `/consents/${consentId}/cards/${cardResourceId}/transactions`;
 
-    const url = new URL(transactionsBaseUrl);
-    url.searchParams.set('bookingStatus', bookingStatus || 'booked');
-    if (dateFrom?.trim()) url.searchParams.set('dateFrom', dateFrom);
-    if (dateTo?.trim()) url.searchParams.set('dateTo', dateTo);
     // Always use cached data — prevents 429 "Refresh Account task is already in progress"
     // TEMP: except for this specific client, who needs a live (non-cached) pull.
     // This bypasses the 429 protection above for them — remove once resolved upstream.
-    url.searchParams.set('preventUpdate', sub === 'JpIEJt3lSDMsI9uG67Etqx4ZbuC3' ? 'false' : 'true');
 
     // 429 / transient-error retry is handled centrally by FeezbackHttpClient.
     try {
-      return await this.httpClient.get(url.toString(), { sub, timeout: 60_000 });
+      return await this.getAllV2TransactionPages(
+        transactionsBaseUrl, sub, bookingStatus, dateFrom, dateTo,
+      );
     } catch (error: any) {
       const status = error?.status ?? error?.response?.status;
 
@@ -266,18 +266,15 @@ export class FeezbackConsentApiService {
       `${this.getTppApiUrl()}/tpp/${accountTransactionsApiVersion}/users/${userIdentifier}` +
       `/consents/${consentId}/accounts/${accountResourceId}/transactions`;
 
-    const url = new URL(transactionsBaseUrl);
-    url.searchParams.set('bookingStatus', bookingStatus || 'booked');
-    if (dateFrom?.trim()) url.searchParams.set('dateFrom', dateFrom);
-    if (dateTo?.trim()) url.searchParams.set('dateTo', dateTo);
     // Always use cached data — prevents 429 "Refresh Account task is already in progress"
     // TEMP: except for this specific client, who needs a live (non-cached) pull.
     // This bypasses the 429 protection above for them — remove once resolved upstream.
-    url.searchParams.set('preventUpdate', sub === 'JpIEJt3lSDMsI9uG67Etqx4ZbuC3' ? 'false' : 'true');
 
     // 429 / transient-error retry is handled centrally by FeezbackHttpClient.
     try {
-      return await this.httpClient.get(url.toString(), { sub, timeout: 60_000 });
+      return await this.getAllV2TransactionPages(
+        transactionsBaseUrl, sub, bookingStatus, dateFrom, dateTo,
+      );
     } catch (error: any) {
       const status = error?.status ?? error?.response?.status;
 
@@ -293,6 +290,105 @@ export class FeezbackConsentApiService {
       this.logger.error(`Error getting bank account transactions: ${error?.message}`, error?.stack);
       if (error?.response?.status) (error as any).status = error.response.status;
       throw error;
+    }
+  }
+
+  /**
+   * Feezback V2 transaction endpoints are zero-based and default to only 100
+   * rows. Fetch the documented maximum page size and continue until a short
+   * page is returned. A failure on any later page rejects the complete source
+   * pull so callers cannot report or persist a silent partial success.
+   */
+  private async getAllV2TransactionPages(
+    transactionsBaseUrl: string,
+    sub: string,
+    bookingStatus: string,
+    dateFrom?: string,
+    dateTo?: string,
+  ): Promise<any> {
+    const booked: any[] = [];
+    const pending: any[] = [];
+    const seenTransactionIds = new Set<string>();
+    let firstResponse: any = null;
+
+    for (let page = 0; page < V2_TRANSACTION_MAX_PAGES; page++) {
+      const url = new URL(transactionsBaseUrl);
+      url.searchParams.set('bookingStatus', bookingStatus || 'booked');
+      if (dateFrom?.trim()) url.searchParams.set('dateFrom', dateFrom);
+      if (dateTo?.trim()) url.searchParams.set('dateTo', dateTo);
+      url.searchParams.set('page', String(page));
+      url.searchParams.set('pageSize', String(V2_TRANSACTION_PAGE_SIZE));
+      // Cached reads prevent redundant ASPSP refreshes and 429 responses.
+      // Keep the existing temporary live-pull exception for the named client.
+      url.searchParams.set('preventUpdate', sub === 'JpIEJt3lSDMsI9uG67Etqx4ZbuC3' ? 'false' : 'true');
+
+      // 429 / transient-error retry is handled centrally by FeezbackHttpClient.
+      const response = await this.httpClient.get(url.toString(), { sub, timeout: 60_000 });
+      firstResponse ??= response;
+
+      const pageTransactions = this.extractTransactionBuckets(response);
+      this.appendUniqueTransactions(booked, pageTransactions.booked, seenTransactionIds);
+      this.appendUniqueTransactions(pending, pageTransactions.pending, seenTransactionIds);
+
+      const returnedCount = pageTransactions.booked.length + pageTransactions.pending.length;
+      if (returnedCount < V2_TRANSACTION_PAGE_SIZE) {
+        return {
+          ...(firstResponse && typeof firstResponse === 'object' && !Array.isArray(firstResponse)
+            ? firstResponse
+            : {}),
+          transactions: { booked, pending },
+          pagination: {
+            pageSize: V2_TRANSACTION_PAGE_SIZE,
+            pagesFetched: page + 1,
+            totalTransactions: booked.length + pending.length,
+          },
+        };
+      }
+    }
+
+    const error = new Error(
+      `Feezback V2 pagination exceeded ${V2_TRANSACTION_MAX_PAGES} pages of ${V2_TRANSACTION_PAGE_SIZE} transactions`,
+    );
+    (error as any).code = 'FEEZBACK_PAGINATION_LIMIT';
+    throw error;
+  }
+
+  private extractTransactionBuckets(response: any): { booked: any[]; pending: any[] } {
+    if (Array.isArray(response)) return { booked: response, pending: [] };
+
+    const container = response?.transactions
+      ?? response?.data?.transactions
+      ?? response?.data
+      ?? response;
+
+    if (Array.isArray(container)) return { booked: container, pending: [] };
+
+    const booked = Array.isArray(container?.booked)
+      ? container.booked
+      : Array.isArray(response?.booked)
+        ? response.booked
+        : [];
+    const pending = Array.isArray(container?.pending)
+      ? container.pending
+      : Array.isArray(response?.pending)
+        ? response.pending
+        : [];
+
+    return { booked, pending };
+  }
+
+  private appendUniqueTransactions(
+    target: any[],
+    incoming: any[],
+    seenTransactionIds: Set<string>,
+  ): void {
+    for (const transaction of incoming) {
+      const stableId = transaction?.transactionId ?? transaction?.cardTransactionId;
+      if (typeof stableId === 'string' && stableId.length > 0) {
+        if (seenTransactionIds.has(stableId)) continue;
+        seenTransactionIds.add(stableId);
+      }
+      target.push(transaction);
     }
   }
 }
