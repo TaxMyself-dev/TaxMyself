@@ -1,6 +1,6 @@
 # KT-038 - Feezback V2 pagination and admin view-as sync recovery
 
-- Status: `WORKER_COMPLETE`
+- Status: `INTEGRATED`
 - Task manager: Codex primary manager
 - Worker: Codex
 - Worktree: `.worktrees/kt-038`
@@ -51,7 +51,7 @@ client's transactions without requiring the client to log in first.
 
 - Result: Implemented bounded Feezback V2 pagination for bank/card reads and
   conditional empty-cache recovery before admin view-as navigation.
-- Commit hash(es):
+- Commit hash(es): `c8efdeab`
 - Changed files: Feezback consent/service tests and implementation, transaction
   sync state/controller tests and implementation, admin-panel service/dashboard
   tests and implementation, topic docs, and this task record.
@@ -76,8 +76,12 @@ client's transactions without requiring the client to log in first.
 
 ## Integration
 
-- Reviewed by:
-- Integrated commit:
-- Combined verification:
-- `origin/main` verification:
-- User-visible run instructions:
+- Reviewed by: Codex primary manager
+- Integrated commit: `c8efdeab` on local `main` (fast-forward)
+- Combined verification: 4 focused Jest suites / 24 tests passed; backend Nest
+  production build passed; frontend Angular production build passed (hash
+  `48e80aadf29bc40e`) with existing budget and CommonJS warnings.
+- `origin/main` verification: pending push.
+- User-visible run instructions: deploy backend and frontend together, then
+  enter an affected client from the admin panel. For `empty` state the page
+  will wait for a new full sync; no production SQL is required.
