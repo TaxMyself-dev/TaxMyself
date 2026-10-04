@@ -1,6 +1,6 @@
 # KT-038 - Feezback V2 pagination and admin view-as sync recovery
 
-- Status: `INTEGRATED`
+- Status: `PUSHED`
 - Task manager: Codex primary manager
 - Worker: Codex
 - Worktree: `.worktrees/kt-038`
@@ -81,7 +81,8 @@ client's transactions without requiring the client to log in first.
 - Combined verification: 4 focused Jest suites / 24 tests passed; backend Nest
   production build passed; frontend Angular production build passed (hash
   `48e80aadf29bc40e`) with existing budget and CommonJS warnings.
-- `origin/main` verification: pending push.
+- `origin/main` verification: remote accepted the fast-forward through
+  `a5f39b95`.
 - User-visible run instructions: deploy backend and frontend together, then
   enter an affected client from the admin panel. For `empty` state the page
   will wait for a new full sync; no production SQL is required.
