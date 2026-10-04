@@ -1,16 +1,14 @@
 <section class="expense-slide" [class.is-calculator]="mode === 'calculator'" dir="rtl">
   <header>
-    @if (mode === 'principle') { <span class="eyebrow">הוצאות מוכרות · כסף שכדאי לספור</span> }
-    <h2>{{ mode === 'principle' ? 'כבר שילמתם? אל תפספסו את החיסכון.' : 'כמה ההוצאה הזאת באמת שווה לכם?' }}</h2>
+    <h2>{{ mode === 'principle' ? 'פחות רווח חייב. פחות מיסים.' : 'כמה ההוצאה הזאת באמת שווה לכם?' }}</h2>
   </header>
   @if (mode === 'principle') {
     <div class="principle-flow">
       <div class="paper">
         <img class="receipt-icon" [src]="icons['receipt']" alt="" />
-        <span class="stamp">שומרים. מתעדים. מכירים.</span>
-        <h3>הוצאה לצורכי העסק</h3>
+        <h3>הוצאה מוכרת</h3>
         <div class="receipt-lines" aria-hidden="true"><i></i><i></i><i></i></div>
-        <strong>החלק המוכר מקטין את הרווח</strong>
+        <strong>מקזזים אותה מההכנסות</strong>
       </div>
       <div class="flow-arrow" aria-hidden="true">←</div>
       <div class="profit-scene">
@@ -22,13 +20,14 @@
       </div>
       <div class="flow-arrow" aria-hidden="true">←</div>
       <div class="benefits">
-        <div><img class="benefit-icon" [src]="icons['tax']" alt="" /><span>מס הכנסה<strong>עשוי לרדת</strong></span></div>
-        <div><img class="benefit-icon" [src]="icons['insurance']" alt="" /><span>ביטוח לאומי ובריאות<strong>עשויים לרדת, אם חייבים</strong></span></div>
+        <div><img class="benefit-icon" [src]="icons['tax']" alt="" /><span>פחות<strong>מס הכנסה</strong></span></div>
+        <div><img class="benefit-icon" [src]="icons['insurance']" alt="" /><span>פחות<strong>ביטוח לאומי ובריאות</strong></span></div>
+        <p class="liability-note">כשיש חבות בתשלום</p>
       </div>
     </div>
-    <div class="vat-lane"><img class="branch-icon" [src]="icons['branch']" alt="" /><strong>עוסק מורשה? יש גם מסלול מע״מ</strong><span>מס תשומות שמותר לקזז מפחית את המע״מ לתשלום.</span></div>
-    <p class="takeaway">לא מקבלים את כל ההוצאה בחזרה. <strong>משלמים פחות מיסים על הוצאה שהייתה נחוצה.</strong></p>
-    <p class="fine-print">לפי שיעורי המס, החבות וכללי ההכרה. מע״מ שקוזז לא נכלל בהוצאה. במסלול עסק זעיר: ניכוי קבוע של 30% מהמחזור במקום הוצאות בפועל.</p>
+    <p class="takeaway">הכנסות <span aria-hidden="true">−</span> הוצאות מוכרות <span aria-hidden="true">=</span> <strong>רווח קטן יותר לחישוב המס</strong></p>
+    <div class="vat-lane"><strong>עוסק מורשה?</strong><span>אפשר גם לקזז את המע״מ שמותר בניכוי.</span></div>
+    <p class="fine-print">במסלול עסק זעיר: ניכוי קבוע של 30% מהמחזור במקום הוצאות בפועל.</p>
   } @else {
     <div class="calculator-grid">
       <section class="settings" aria-label="נתוני הסימולציה">

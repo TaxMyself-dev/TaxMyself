@@ -84,7 +84,7 @@ export const SELF_EMPLOYED_GUIDE_SLIDES: GuideSlide[] = [
   },
   {
     id: 'expense-principle', layout: 'expense-principle',
-    title: 'כבר שילמתם? אל תפספסו את החיסכון.',
+    title: 'פחות רווח חייב. פחות מיסים.',
     sources: [{ label: 'קיזוז מס תשומות', url: 'https://www.gov.il/he/service/reporting-or-payment-of-vat-reports' }, { label: 'ניכוי במסלול עסק זעיר', url: figures.sources.microBusinessGuidance }],
   },
   { id: 'expense-savings', layout: 'expense-savings', title: 'כמה ההוצאה הזאת באמת שווה לכם?' },

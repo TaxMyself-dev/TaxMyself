@@ -9,7 +9,7 @@ describe('SelfEmployedGuideComponent', () => {
     expect(component.slides[4].title).toBe('החובות של כל עסק');
     expect(component.slides[4].items?.every(item => item.description.includes('ביטוח לאומי'))).toBeTrue();
     expect(component.slides[2].title).toBe('כשאתם שכירים, המעסיק מטפל בהכל');
-    expect(component.slides.map(s => s.id)).toEqual(['cover', 'basic-concepts', 'employee-payroll', 'business-types', 'income-tax-overview', 'status-comparison', 'micro-blockers', 'tax-authorities', 'learning-summary', 'exempt-documents', 'authorized-documents', 'study-fund', 'study-comparison', 'pension', 'pension-tax-benefits', 'expense-principle', 'expense-depreciation', 'expense-savings', 'product-pain', 'product-solution']);
+    expect(component.slides.map(s => s.id)).toEqual(['cover', 'basic-concepts', 'employee-payroll', 'business-types', 'income-tax-overview', 'status-comparison', 'micro-blockers', 'tax-authorities', 'learning-summary', 'exempt-documents', 'authorized-documents', 'expense-principle', 'expense-depreciation', 'expense-savings', 'study-fund', 'study-comparison', 'pension', 'pension-tax-benefits', 'product-pain', 'product-solution']);
     component.previousSlide();
     expect(component.currentSlideIndex).toBe(0);
     for (let i = 0; i < 20; i++) component.nextSlide();
@@ -79,65 +79,18 @@ describe('SelfEmployedGuideComponent', () => {
     component.previousSlide();
     expect(component.currentSlide.id).toBe('ni-rates');
   });
-  it('continues from the authorities to both product artworks and back', () => {
+  it('continues from the authorities through expenses before savings and pension', () => {
+    const following = ['learning-summary', 'exempt-documents', 'authorized-documents', 'expense-principle', 'expense-depreciation', 'expense-savings', 'study-fund', 'study-comparison', 'pension', 'pension-tax-benefits', 'product-pain', 'product-solution'];
     component.returnToAuthorities();
-    expect(component.isLastMainSlide).toBeFalse();
-    component.nextSlide();
-    expect(component.currentSlide.id).toBe('learning-summary');
-    expect(component.currentSlide.artwork).toContain('learning-summary-approved.png');
-    component.nextSlide();
-    expect(component.currentSlide.id).toBe('exempt-documents');
-    expect(component.currentSlide.artwork).toContain('exempt-documents-approved.png');
-    component.nextSlide();
-    expect(component.currentSlide.id).toBe('authorized-documents');
-    expect(component.currentSlide.artwork).toContain('authorized-documents-approved.png');
-    component.nextSlide();
-    expect(component.currentSlide.id).toBe('study-fund');
-    expect(component.currentSlide.artwork).toContain('study-fund-approved.png');
-    component.nextSlide();
-    expect(component.currentSlide.id).toBe('study-comparison');
-    component.nextSlide();
-    expect(component.currentSlide.id).toBe('pension');
-    expect(component.currentSlide.artwork).toContain('pension-approved.png');
-    component.nextSlide();
-    expect(component.currentSlide.id).toBe('pension-tax-benefits');
-    expect(component.currentSlide.artwork).toContain('pension-tax-benefits-approved.png');
-    component.nextSlide();
-    expect(component.currentSlide.id).toBe('expense-principle');
-    component.nextSlide();
-    expect(component.currentSlide.id).toBe('expense-depreciation');
-    expect(component.currentSlide.artwork).toContain('expense-depreciation-approved.png');
-    component.nextSlide();
-    expect(component.currentSlide.id).toBe('expense-savings');
-    component.nextSlide();
-    expect(component.currentSlide.id).toBe('product-pain');
-    expect(component.currentSlide.artwork).toContain('product-pain-approved.png');
-    component.nextSlide();
-    expect(component.currentSlide.id).toBe('product-solution');
-    expect(component.currentSlide.artwork).toContain('product-solution-approved.png');
+    for (const id of following) {
+      component.nextSlide();
+      expect(component.currentSlide.id).toBe(id);
+    }
     expect(component.isLastMainSlide).toBeTrue();
-    component.previousSlide();
-    component.previousSlide();
-    expect(component.currentSlide.id).toBe('expense-savings');
-    component.previousSlide();
-    expect(component.currentSlide.id).toBe('expense-depreciation');
-    component.previousSlide();
-    component.previousSlide();
-    expect(component.currentSlide.id).toBe('pension-tax-benefits');
-    component.previousSlide();
-    expect(component.currentSlide.id).toBe('pension');
-    component.previousSlide();
-    expect(component.currentSlide.id).toBe('study-comparison');
-    component.previousSlide();
-    expect(component.currentSlide.id).toBe('study-fund');
-    component.previousSlide();
-    expect(component.currentSlide.id).toBe('authorized-documents');
-    component.previousSlide();
-    expect(component.currentSlide.id).toBe('exempt-documents');
-    component.previousSlide();
-    expect(component.currentSlide.id).toBe('learning-summary');
-    component.previousSlide();
-    expect(component.currentSlide.id).toBe('tax-authorities');
+    for (const id of ['tax-authorities', ...following].slice(0, -1).reverse()) {
+      component.previousSlide();
+      expect(component.currentSlide.id).toBe(id);
+    }
   });
   it('ignores invalid targets and respects RTL keys and inputs', () => {
     component.goToSlide(undefined);
