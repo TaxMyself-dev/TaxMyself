@@ -47,6 +47,16 @@ const ceiling = new Intl.NumberFormat('he-IL').format(figures.vatExemptTurnoverC
 
 export const SELF_EMPLOYED_GUIDE_SLIDES: GuideSlide[] = [
   {
+    id: 'exempt-documents', layout: 'approved-artwork', title: 'עוסק פטור',
+    artwork: '/assets/self-employed-guide/exempt-documents-approved.png',
+    artworkAlt: 'עוסק פטור. חשבון עסקה — דרישת תשלום מהלקוח, אינו אישור שקיבלתם כסף. קבלה — אישור על קבלת התשלום, מפיקים מיד עם קבלת הכסף. עוסק פטור לא מוציא חשבונית מס ולא גובה מע״מ.',
+  },
+  {
+    id: 'authorized-documents', layout: 'approved-artwork', title: 'עוסק מורשה',
+    artwork: '/assets/self-employed-guide/authorized-documents-approved.png',
+    artworkAlt: 'עוסק מורשה. חשבון עסקה — דרישת תשלום מהלקוח, אינו אישור שקיבלתם כסף. חשבונית מס — פירוט העסקה והמע״מ, אינה אישור שקיבלתם כסף. קבלה — אישור על קבלת התשלום, מפיקים מיד עם קבלת הכסף. חשבונית מס־קבלה — חשבונית וקבלה במסמך אחד, כשהפקת החשבונית וקבלת התשלום מתבצעות יחד. מועד הפקת חשבונית המס תלוי בסוג העסקה ובבסיס הדיווח.',
+  },
+  {
     id: 'expense-depreciation', layout: 'approved-artwork', title: 'שילמתם עכשיו. מתי ההוצאה מוכרת?',
     artwork: '/assets/self-employed-guide/expense-depreciation-approved.png',
     artworkAlt: 'הוצאה שוטפת מול רכישה שמוכרת דרך פחת. פרסום לעסק ב-1,000 ₪ מוכר כהוצאה השנה. מחשב לעסק ב-6,000 ₪: פחת שנתי 33%, הוצאה מוכרת של 1,980 ₪ בכל אחת משלוש השנים הראשונות ויתרה של 60 ₪ בשנה הרביעית. ההוצאה נפרסת, המע״מ לא.',
