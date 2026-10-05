@@ -14,6 +14,7 @@ import { CardcomWebhookLog } from './entities/cardcom-webhook-log.entity';
 import { BillingEvent } from './entities/billing-event.entity';
 import { BillingObligation } from './entities/billing-obligation.entity';
 import { BillingAttempt } from './entities/billing-attempt.entity';
+import { BillingAttemptObligation } from './entities/billing-attempt-obligation.entity';
 import { PaymentMethodUpdateAttempt } from './entities/payment-method-update-attempt.entity';
 
 // Guards
@@ -27,6 +28,7 @@ import { AdminBillingController } from './admin-billing.controller';
 
 // Services
 import { BillingService } from './services/billing.service';
+import { BillingDebtService } from './services/billing-debt.service';
 import { BillingEventService } from './services/billing-event.service';
 import { BillingReceiptService } from './services/billing-receipt.service';
 import { BillingIssuerConfigService } from './services/billing-issuer-config.service';
@@ -69,6 +71,7 @@ import { BusinessModule } from 'src/business/business.module';
       BillingEvent,
       BillingObligation,
       BillingAttempt,
+      BillingAttemptObligation,
       PaymentMethodUpdateAttempt,
       // External entities required by FirebaseAuthGuard
       User,
@@ -83,6 +86,7 @@ import { BusinessModule } from 'src/business/business.module';
   providers: [
     FirebaseAuthGuard,
     BillingService,
+    BillingDebtService,
     BillingEventService,
     BillingReceiptService,
     BillingIssuerConfigService,

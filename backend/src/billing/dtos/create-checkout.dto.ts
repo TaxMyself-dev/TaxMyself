@@ -1,4 +1,4 @@
-import { IsBoolean, IsInt, IsNotEmpty, IsOptional, Min } from 'class-validator';
+import { IsBoolean, IsInt, IsNotEmpty, IsOptional, Matches, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateCheckoutDto {
@@ -12,4 +12,8 @@ export class CreateCheckoutDto {
   @IsOptional()
   @IsBoolean()
   recoveryOnly?: boolean;
+
+  @IsOptional()
+  @Matches(/^[a-f0-9]{64}$/)
+  recoveryQuote?: string;
 }

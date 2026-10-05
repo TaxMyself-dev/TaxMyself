@@ -7,6 +7,7 @@ import { DocumentsService } from 'src/documents/documents.service';
 import { MailService } from 'src/mail/mail.service';
 import { BillingEventService } from './billing-event.service';
 import { BillingEventType } from '../enums/billing.enums';
+import { BillingReceiptPeriod } from '../domain/billing-receipt-period';
 
 /**
  * Identity of the business issuing a billing receipt. Passed in by the caller
@@ -71,6 +72,7 @@ export class BillingReceiptService {
      * documents.billing_attempt_id key).
      */
     billingAttemptId?: number | null;
+    periods?: BillingReceiptPeriod[];
   }): Promise<{ receiptDocId: number; docNumber: string; generalDocIndex: string }> {
     const {
       firebaseId, subscriptionId,
@@ -112,6 +114,7 @@ export class BillingReceiptService {
         periodEnd,
         docDate: new Date(),
         billingAttemptId,
+        periods: params.periods,
       });
     } catch (error) {
       // A concurrent creator won the UNIQUE billing_attempt_id key. Its whole
@@ -169,6 +172,7 @@ export class BillingReceiptService {
     periodStart: Date;
     periodEnd: Date;
     eventMetadata?: Record<string, any>;
+    periods?: BillingReceiptPeriod[];
   }): Promise<{ receiptDocId: number }> {
     const {
       issuer, eventType, attempt, firebaseId, subscriptionId,
@@ -212,6 +216,7 @@ export class BillingReceiptService {
         periodEnd,
         cardcomDealNumber,
         billingAttemptId: attempt.id,
+        periods: params.periods,
       });
       receiptDocId = receipt.receiptDocId;
       const linked = await this.billingEventService.updatePaymentEventWithReceipt(event.id, receiptDocId);

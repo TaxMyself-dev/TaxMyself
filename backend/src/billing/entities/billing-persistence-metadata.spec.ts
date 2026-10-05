@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import { DataSource, getMetadataArgsStorage } from 'typeorm';
 import { Documents } from '../../documents/documents.entity';
 import { BillingAttempt } from './billing-attempt.entity';
+import { BillingAttemptObligation } from './billing-attempt-obligation.entity';
 import { BillingEvent } from './billing-event.entity';
 import { BillingObligation } from './billing-obligation.entity';
 import { PaymentMethod } from './payment-method.entity';
@@ -41,8 +42,8 @@ describe('billing persistence metadata', () => {
     expect(indexNames(BillingObligation)).toEqual(
       expect.arrayContaining([
         'ux_billing_obligation_key',
-        'ux_billing_obligation_active_attempt',
-        'ux_billing_obligation_satisfied_attempt',
+        'ix_billing_obligation_active_attempt',
+        'ix_billing_obligation_satisfied_attempt',
       ]),
     );
   });
@@ -68,6 +69,7 @@ describe('billing persistence metadata', () => {
         Documents,
         BillingObligation,
         BillingAttempt,
+        BillingAttemptObligation,
         PaymentMethodUpdateAttempt,
         BillingEvent,
       ],

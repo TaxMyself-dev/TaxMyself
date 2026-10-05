@@ -2,6 +2,7 @@ import {
   BadGatewayException,
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
@@ -31,6 +32,7 @@ import {
 import { CheckoutPreviewDto } from '../dtos/checkout-preview.dto';
 import { CreateCheckoutDto } from '../dtos/create-checkout.dto';
 import { BillingLifecycleService } from './billing-lifecycle.service';
+import { BillingDebtService } from './billing-debt.service';
 import {
   BillingAttemptStatus,
   BillingChargeMode,
@@ -107,6 +109,7 @@ export class BillingService {
     private readonly cardcomWebhookService: CardcomWebhookService,
     @Optional()
     private readonly billingLifecycleService?: BillingLifecycleService,
+    @Optional() private readonly debtService?: BillingDebtService,
   ) {}
 
   // ─── Plans ──────────────────────────────────────────────────────────────────
@@ -452,8 +455,16 @@ export class BillingService {
 
   // ─── Checkout preview ────────────────────────────────────────────────────────
 
-  async previewCheckout(firebaseId: string, dto: CheckoutPreviewDto) {
+  async previewCheckout(firebaseId: string, dto: CheckoutPreviewDto, actor?: BillingMutationActorContext) {
     const subscription = await this.subscriptionRepo.findOne({ where: { firebaseId } });
+    if (subscription && this.debtService && [SubscriptionStatus.PAST_DUE, SubscriptionStatus.CANCELED].includes(subscription.status)) {
+      if (dto.planId !== subscription.planId) throw new ConflictException('יש להסדיר את החוב בתוכנית הקיימת.');
+      if (!actor) throw new ForbiddenException('Verified billing actor required');
+      assertBillingOwnerMutation(actor);
+      const preview = await this.debtService.preview(actor, subscription.id);
+      const { obligationIds, ...response } = preview;
+      return response;
+    }
     if (subscription?.status === SubscriptionStatus.PAST_DUE) {
       const start = renewalPeriodStart(subscription);
       if (!start || !this.billingLifecycleService) {
@@ -520,7 +531,13 @@ export class BillingService {
     }
 
     // Debt settlement is not a plan change. Never re-price an existing debt.
-    if (dto.recoveryOnly && subscription.status !== SubscriptionStatus.PAST_DUE) {
+    const isDebtRecovery = subscription.status === SubscriptionStatus.PAST_DUE ||
+      (dto.recoveryOnly && subscription.status === SubscriptionStatus.CANCELED);
+    if (!isDebtRecovery && subscription.status === SubscriptionStatus.CANCELED && this.debtService) {
+      const debts = await this.debtService.accrue(subscription.id);
+      if (debts.length) throw new ConflictException('נותר חוב מהמנוי שבוטל. יש להסדיר אותו לפני התחלת מנוי חדש.');
+    }
+    if (dto.recoveryOnly && !isDebtRecovery) {
       throw new ConflictException('החוב כבר אינו זמין לתשלום. יש לרענן את מצב המנוי.');
     }
     const recoveryPeriodStart = subscription.status === SubscriptionStatus.PAST_DUE
@@ -529,7 +546,7 @@ export class BillingService {
     if (subscription.status === SubscriptionStatus.PAST_DUE && !recoveryPeriodStart) {
       throw new ConflictException('לא ניתן לזהות את תקופת החוב. יש לפנות לתמיכה.');
     }
-    const recoverySnapshot = recoveryPeriodStart && this.billingLifecycleService
+    const recoverySnapshot = !this.debtService && recoveryPeriodStart && this.billingLifecycleService
       ? await this.billingLifecycleService.inspectPeriod(
           actor, subscription.id, recoveryPeriodStart.toISOString().slice(0, 10),
         )
@@ -550,7 +567,7 @@ export class BillingService {
     }
 
     const requestedPlan = await this.planRepo.findOne({
-      where: { id: dto.planId, isActive: true },
+      where: { id: dto.planId, ...(!isDebtRecovery ? { isActive: true } : {}) },
     });
 
     if (!requestedPlan) {
@@ -566,7 +583,7 @@ export class BillingService {
     // right even before the CardCom webhook activates payment (see
     // resolveReferralEffectivePlan). Public-plan checkouts are unaffected.
     let plan = requestedPlan;
-    if (!requestedPlan.isPublic && subscription.status !== SubscriptionStatus.PAST_DUE) {
+    if (!requestedPlan.isPublic && !isDebtRecovery) {
       const effectivePlan = await this.resolveReferralEffectivePlan(firebaseId);
       if (effectivePlan) {
         plan = effectivePlan;
@@ -584,7 +601,13 @@ export class BillingService {
       }
     }
 
-    const pricing = recoverySnapshot ? {
+    const collection = isDebtRecovery && this.debtService
+      ? await this.debtService.preview(actor, subscription.id) : null;
+    if (collection && (!dto.recoveryQuote || dto.recoveryQuote !== collection.recoveryQuote)) {
+      throw new ConflictException('פרטי החוב השתנו. יש לרענן את פירוט התקופות לפני תשלום.');
+    }
+    if (collection && dto.planId !== subscription.planId) throw new ConflictException('Debt plan mismatch');
+    const pricing = collection ? { ...collection, explanation: ['כל תקופות המנוי שלא שולמו'] } : recoverySnapshot ? {
       finalAmountAgorot: recoverySnapshot.obligation.amountAgorot,
       amountBeforeVatAgorot: recoverySnapshot.obligation.amountBeforeVatAgorot,
       vatAmountAgorot: recoverySnapshot.obligation.vatAmountAgorot,
@@ -600,16 +623,18 @@ export class BillingService {
     // webhook carries the attempt id so later migration can apply its result
     // idempotently without allocating a second debt.
     let recoveryAttemptId: number | null = null;
-    if (subscription.status === SubscriptionStatus.PAST_DUE) {
+    if (isDebtRecovery) {
       if (!this.billingLifecycleService) {
         throw new ConflictException(
           'Canonical billing recovery is not configured',
         );
       }
-      const periodStart = recoveryPeriodStart!;
+      const periodStart = recoveryPeriodStart ?? subscription.currentPeriodEnd ?? new Date();
       const periodEnd = new Date(periodStart);
       periodEnd.setMonth(periodEnd.getMonth() + 1);
-      const recovery = await this.billingLifecycleService.openPastDueRecovery(
+      const recovery = collection
+        ? await this.billingLifecycleService.openRecoveryCollection(actor, subscription.id, collection.obligationIds, collection.recoveryQuote)
+        : await this.billingLifecycleService.openPastDueRecovery(
         {
           actor,
           subscriptionId: subscription.id,
@@ -661,7 +686,7 @@ export class BillingService {
         returnValue: JSON.stringify({
           intent: 'CHECKOUT',
           firebaseId,
-          planId: plan.id,
+          planId: collection?.planId ?? plan.id,
           subscriptionId: subscription.id,
           billingAttemptId: recoveryAttemptId,
         }),

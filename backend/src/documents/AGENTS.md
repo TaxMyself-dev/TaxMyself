@@ -35,6 +35,12 @@ Handles the full lifecycle of official documents the user issues (invoices, rece
   represented owners and read-only delegates receive no accounting actions.
 
 ## Related topics
+- `createBillingSystemReceipt` accepts optional frozen subscription periods
+  (KT-040): validates their net/VAT/gross totals against the captured payment,
+  then creates one TAX_INVOICE_RECEIPT with one numbered line per period and
+  one card payment through the existing createDoc/journal transaction. Canonical
+  billingAttemptId still enforces one document per attempt; numbering, PDF and
+  email paths are unchanged. Missing periods retain the single-line fallback.
 - bookkeeping (`JournalEntry`/`JournalLine`/`BookingAccount` — renamed from `DefaultBookingAccount`, Phase 1.2 of the categories redesign — `BookkeepingService` — journal entries posted for issued documents; `CatalogService.getMergedExpenseCatalog` — the OCR extraction catalog, since 2026-07-12)
 - expenses (`Expense`, `Supplier` — OCR'd documents become expenses)
 - transactions (`SlimTransaction` — matching extracted documents to bank transactions; legacy `Transactions` registered only for `SharedService`)

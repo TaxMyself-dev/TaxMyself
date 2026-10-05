@@ -7,6 +7,8 @@ import {
   CardcomWebhookPayload,
   CardDetails,
   extractCardDetails as extractHostedCardDetails,
+  validateHostedTransactionResult,
+  isDefinitiveHostedDecline,
 } from '../utils/billing-hosted-card-result.util';
 
 import { BillingEvent } from '../entities/billing-event.entity';
@@ -28,6 +30,9 @@ import { BillingReceiptService } from './billing-receipt.service';
 import { BillingIssuerConfigService } from './billing-issuer-config.service';
 import { ModuleName } from 'src/enum';
 import { BillingLifecycleService } from './billing-lifecycle.service';
+import { BillingAttempt } from '../entities/billing-attempt.entity';
+import { recoverySubscriptionPatch } from '../domain/billing-recovery-state';
+import { billingDate, nextBillingInstant } from '../domain/billing-debt-periods';
 
 /**
  * Routing context echoed back from CardCom in ReturnValue.
@@ -254,6 +259,26 @@ export class CardcomWebhookService implements OnModuleInit {
 
     if (topLevelOk && txOk && verifiedReturnMatch && transactionId != null) {
       if (parsedReturn.billingAttemptId && this.billingLifecycleService) {
+        const attempt = await this.dataSource.manager.findOne(BillingAttempt, {
+          where: { id: parsedReturn.billingAttemptId },
+        });
+        if (!attempt) throw new Error('Hosted billing attempt missing');
+        const debts = await this.billingLifecycleService.findAttemptObligations(attempt);
+        if (debts.some(debt => debt.subscriptionId !== subscriptionId || debt.firebaseIdSnapshot !== firebaseId)) {
+          throw new Error('Hosted billing ownership mismatch');
+        }
+        const validation = validateHostedTransactionResult(verified, {
+          lowProfileId: attempt.cardcomLowProfileId ?? '', amountAgorot: attempt.amountAgorot,
+          firebaseId, subscriptionId, planId: attempt.planId, billingAttemptId: attempt.id,
+        });
+        if ('reason' in validation) {
+          await this.billingLifecycleService.applyHostedWebhookOutcome(
+            { actorFirebaseId: firebaseId, subjectFirebaseId: firebaseId }, attempt.id,
+            { kind: 'UNKNOWN', failureCategory: validation.reason }, `webhook-${webhookLog.id}`,
+          );
+          await this.markWebhookStatus(webhookLog.id, WebhookLogStatus.FAILED, 'Hosted payment requires review');
+          return;
+        }
         await this.billingLifecycleService.applyHostedWebhookOutcome(
           { actorFirebaseId: firebaseId, subjectFirebaseId: firebaseId },
           parsedReturn.billingAttemptId,
@@ -271,15 +296,21 @@ export class CardcomWebhookService implements OnModuleInit {
       );
     } else {
       if (parsedReturn.billingAttemptId && this.billingLifecycleService) {
+        const attempt = await this.dataSource.manager.findOne(BillingAttempt, {
+          where: { id: parsedReturn.billingAttemptId },
+        });
+        if (!attempt) throw new Error('Hosted billing attempt missing');
+        const decline = isDefinitiveHostedDecline(verified, {
+          lowProfileId: attempt.cardcomLowProfileId ?? '', amountAgorot: attempt.amountAgorot,
+          firebaseId, subscriptionId, planId: attempt.planId, billingAttemptId: attempt.id,
+        });
         await this.billingLifecycleService.applyHostedWebhookOutcome(
           { actorFirebaseId: firebaseId, subjectFirebaseId: firebaseId },
           parsedReturn.billingAttemptId,
-          verifiedSuccessWithoutTransaction
-            ? { kind: 'UNKNOWN', failureCategory: 'MISSING_TRANSACTION_ID' }
-            : {
+          decline ? {
                 kind: 'DECLINED',
-                providerResponseCode: verified.ResponseCode ?? null,
-              },
+                providerResponseCode: decline.responseCode,
+              } : { kind: 'UNKNOWN', failureCategory: verifiedSuccessWithoutTransaction ? 'MISSING_TRANSACTION_ID' : 'UNVERIFIED_HOSTED_RESULT' },
           `webhook-${webhookLog.id}`,
         );
       }
@@ -465,8 +496,13 @@ export class CardcomWebhookService implements OnModuleInit {
           : null;
 
       // ── 4. Activate subscription ──────────────────────────────────────────
-      const periodEnd = new Date(now);
-      periodEnd.setMonth(periodEnd.getMonth() + 1);
+      const anchor = subscription.billingAnchorDay ?? Number(billingDate(now).slice(8));
+      const periodEnd = nextBillingInstant(now, anchor);
+      const canonicalAttempt = billingAttemptId != null
+        ? await qr.manager.findOne(BillingAttempt, { where: { id: billingAttemptId } }) : null;
+      const members = canonicalAttempt && this.billingLifecycleService
+        ? await this.billingLifecycleService.findAttemptObligations(canonicalAttempt) : null;
+      const recoveryPatch = members ? recoverySubscriptionPatch(subscription, members, now) : null;
 
       await qr.manager.update(Subscription, subscription.id, {
         status: SubscriptionStatus.ACTIVE,
@@ -483,6 +519,9 @@ export class CardcomWebhookService implements OnModuleInit {
         gracePeriodEndsAt: null,
         canceledAt: null,
         endedAt: null,
+        ...(recoveryPatch ?? {}),
+        billingAnchorDay: subscription.billingAnchorDay ?? (members
+          ? Number(billingDate(subscription.currentPeriodStart ?? now).slice(8)) : anchor),
       });
 
       await qr.commitTransaction();
@@ -493,8 +532,8 @@ export class CardcomWebhookService implements OnModuleInit {
         planSlug: plan.slug,
         planModules: (plan.modules ??
           Object.values(ModuleName)) as ModuleName[],
-        periodStart: now,
-        periodEnd,
+        periodStart: recoveryPatch?.currentPeriodStart ?? now,
+        periodEnd: recoveryPatch?.currentPeriodEnd ?? periodEnd,
         chargedAmountAgorot,
         cardcomDealNumber,
         cardTokenStored: paymentMethod != null,

@@ -21,6 +21,8 @@ import {
   ResumeCapturedAttemptResult,
 } from './billing-lifecycle.service';
 import { BillingReceiptService } from './billing-receipt.service';
+import { recoverySubscriptionPatch } from '../domain/billing-recovery-state';
+import { billingBoundary, billingDate } from '../domain/billing-debt-periods';
 
 /**
  * A hosted attempt whose capture is confirmed locally is not touched by a
@@ -194,6 +196,7 @@ export class BillingHostedCompletionService {
   }): Promise<void> {
     const { firebaseId, subscriptionId, attempt } = params;
     const capturedAt = attempt.capturedAt;
+    const members = await this.lifecycle.findAttemptObligations(attempt);
     if (!capturedAt) {
       throw new Error('Captured attempt has no capture time');
     }
@@ -205,7 +208,7 @@ export class BillingHostedCompletionService {
       .findOne({ where: { id: subscriptionId } })
       .catch(() => null);
     const lookup =
-      pending?.status === SubscriptionStatus.PAST_DUE &&
+      pending && [SubscriptionStatus.PAST_DUE, SubscriptionStatus.CANCELED].includes(pending.status) &&
       Date.now() - capturedAt.getTime() >= HOSTED_ACTIVATION_RECOVERY_GRACE_MS
         ? await this.lookupCardForRecovery({
             firebaseId,
@@ -225,7 +228,7 @@ export class BillingHostedCompletionService {
       if (subscription.status === SubscriptionStatus.ACTIVE) {
         return false; // already activated (first delivery, admin, or a prior recovery)
       }
-      if (subscription.status !== SubscriptionStatus.PAST_DUE) {
+      if (subscription.status !== SubscriptionStatus.PAST_DUE && subscription.status !== SubscriptionStatus.CANCELED) {
         throw new Error(
           'Subscription state does not permit activation recovery',
         );
@@ -244,20 +247,10 @@ export class BillingHostedCompletionService {
       if (!plan) {
         throw new Error('Plan for the captured attempt not found');
       }
-      const periodEnd = new Date(capturedAt);
-      periodEnd.setMonth(periodEnd.getMonth() + 1);
       await manager.update(Subscription, subscription.id, {
-        status: SubscriptionStatus.ACTIVE,
-        planId: attempt.planId,
-        currentPeriodStart: capturedAt,
-        currentPeriodEnd: periodEnd,
-        nextBillingDate: periodEnd,
-        // Same retry-state reset as a successful canonical renewal: the next
-        // cycle starts a fresh 3-day / 7-day / PAST_DUE sequence.
-        renewalAttempts: 0,
-        gracePeriodEndsAt: null,
-        canceledAt: null,
-        endedAt: null,
+        ...recoverySubscriptionPatch(subscription, members),
+        billingAnchorDay: subscription.billingAnchorDay ??
+          Number(billingDate(subscription.currentPeriodStart ?? capturedAt).slice(8)),
       });
       return true;
     });
@@ -523,6 +516,13 @@ export class BillingHostedCompletionService {
     const plan = await this.planRepo.findOne({ where: { id: attempt.planId } });
     if (!plan) throw new Error('Plan for the captured attempt not found');
     const issuer = await this.billingIssuerConfigService.getKeepintaxIssuer();
+    const debts = await this.lifecycle.findAttemptObligations(attempt);
+    const periods = await Promise.all([...debts].sort((a,b) => a.periodStart.localeCompare(b.periodStart)).map(async debt => ({
+      planName: (await this.planRepo.findOne({ where: { id: debt.planId } }))?.name ?? plan.name,
+      periodStart: billingBoundary(debt.periodStart), periodEnd: billingBoundary(debt.periodEnd),
+      amountBeforeVatAgorot: debt.amountBeforeVatAgorot, vatAmountAgorot: debt.vatAmountAgorot,
+      amountIncludingVatAgorot: debt.amountAgorot,
+    })));
     return this.billingReceiptService.ensureReceiptForCapturedAttempt({
       issuer,
       eventType: BillingEventType.PAYMENT_SUCCESS,
@@ -537,9 +537,10 @@ export class BillingHostedCompletionService {
       firebaseId,
       subscriptionId,
       planName: plan.name,
-      periodStart: subscription.currentPeriodStart,
-      periodEnd: subscription.currentPeriodEnd,
+      periodStart: periods[0].periodStart,
+      periodEnd: periods[periods.length - 1].periodEnd,
       eventMetadata: { planId: attempt.planId },
+      periods,
     });
   }
 }

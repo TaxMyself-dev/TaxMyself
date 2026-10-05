@@ -42,6 +42,7 @@ export class BillingAttempt {
   @PrimaryGeneratedColumn()
   id: number;
 
+  /** Primary debt for owner routing/numbering; full membership is in the link table. */
   @Column({ name: 'obligation_id', type: 'int' })
   obligationId: number;
 

@@ -32,7 +32,8 @@ describe('CardcomWebhookService — delegating post-capture completion of a CAPT
       withHostedCompletion = true,
     } = options;
     const cardcom = { getLowProfileResult: jest.fn() };
-    const lifecycle = { applyHostedWebhookOutcome: jest.fn() };
+    const lifecycle = { applyHostedWebhookOutcome: jest.fn(),
+      findAttemptObligations: jest.fn().mockResolvedValue([{ subscriptionId: 9, periodStart: '2026-09-01', periodEnd: '2026-10-01' }]) };
     const hostedCompletion = {
       completeCapturedHostedAttempt: jest.fn().mockResolvedValue('COMPLETED'),
     };
@@ -161,6 +162,9 @@ describe('CardcomWebhookService — delegating post-capture completion of a CAPT
       TranzactionInfo: { ResponseCode: 0, TranzactionId: 123, Amount: 117 },
     };
 
+    beforeEach(() => { jest.useFakeTimers(); jest.setSystemTime(new Date('2026-09-10')); });
+    afterEach(() => jest.useRealTimers());
+
     it('routes a canonical attempt through the shared completion service and logs the attempt-keyed success event', async () => {
       const { service, billingEventService, hostedCompletion } = makeFirst(44);
 
@@ -200,7 +204,7 @@ describe('CardcomWebhookService — delegating post-capture completion of a CAPT
       expect(values).toEqual(
         expect.objectContaining({
           status: SubscriptionStatus.ACTIVE,
-          planId: 2,
+          planId: 1,
           renewalAttempts: 0,
           gracePeriodEndsAt: null,
           canceledAt: null,
@@ -225,7 +229,8 @@ describe('CardcomWebhookService — delegating post-capture completion of a CAPT
       await service.processVerifiedSuccess('owner', 2, 9, verified, log, 44);
 
       const values = queryRunner.manager.update.mock.calls[0][2];
-      expect(values).not.toHaveProperty('renewalAttempts');
+      expect(values.renewalAttempts).toBe(3);
+      expect(values.status).toBe(SubscriptionStatus.CANCELED);
     });
 
     it('keeps a legacy checkout (no attempt) on the original receipt flow', async () => {

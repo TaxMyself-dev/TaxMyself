@@ -4,6 +4,8 @@ import { firstValueFrom } from 'rxjs';
 import { environment } from 'src/environments/environment';
 import { GenericService } from '../../services/generic.service';
 import { ProgressSpinner } from 'primeng/progressspinner';
+import { RouterLink } from '@angular/router';
+import { BillingStateService } from '../../services/billing-state.service';
 
 type PlanCardItem =
   | { type: 'module';  key: string; label: string }
@@ -58,11 +60,12 @@ export interface PlanVM {
 @Component({
   standalone: true,
   selector: 'app-billing-plans',
-  imports: [ProgressSpinner],
+  imports: [ProgressSpinner, RouterLink],
   templateUrl: './billing-plans.page.html',
   styleUrl: './billing-plans.page.scss',
 })
 export class BillingPlansPage implements OnInit {
+  readonly billing = inject(BillingStateService);
   private readonly http = inject(HttpClient);
   private readonly genericService = inject(GenericService);
 

@@ -20,12 +20,8 @@ import { Subscription } from './subscription.entity';
 
 @Entity('billing_obligation')
 @Index('ux_billing_obligation_key', ['obligationKey'], { unique: true })
-@Index('ux_billing_obligation_active_attempt', ['activeAttemptId'], {
-  unique: true,
-})
-@Index('ux_billing_obligation_satisfied_attempt', ['satisfiedAttemptId'], {
-  unique: true,
-})
+@Index('ix_billing_obligation_active_attempt', ['activeAttemptId'])
+@Index('ix_billing_obligation_satisfied_attempt', ['satisfiedAttemptId'])
 @Index('ix_billing_obligation_subscription_status', [
   'subscriptionId',
   'status',

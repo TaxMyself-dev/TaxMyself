@@ -31,6 +31,9 @@ import {
   renewalPeriodStart,
 } from '../domain/billing-renewal-policy';
 import { BillingAttempt } from '../entities/billing-attempt.entity';
+import { BillingAttemptObligation } from '../entities/billing-attempt-obligation.entity';
+import { billingDebtQuote } from '../domain/billing-debt-quote';
+import { billingDate } from '../domain/billing-debt-periods';
 import { BillingObligation } from '../entities/billing-obligation.entity';
 import { PaymentMethod } from '../entities/payment-method.entity';
 import { Subscription } from '../entities/subscription.entity';
@@ -261,6 +264,97 @@ export class BillingAttemptOrchestrationService {
     assertBillingOwnerMutation(context);
   }
 
+  /** Reserve the entire reviewed balance before any hosted provider I/O. */
+  async createRecoveryCollection(actor: BillingMutationActorContext, subscriptionId: number,
+    expectedIds: number[], expectedQuote?: string): Promise<OpenBillingAttemptResult> {
+    this.assertOwnerMutation(actor);
+    return this.inTransaction(async manager => {
+      const subscription = await manager.findOne(Subscription, {
+        where: { id: subscriptionId }, lock: { mode: 'pessimistic_write' },
+      });
+      if (!subscription || subscription.firebaseId !== actor.subjectFirebaseId) {
+        throw new ForbiddenException('Subscription owner mismatch');
+      }
+      if (![SubscriptionStatus.PAST_DUE, SubscriptionStatus.CANCELED].includes(subscription.status)) {
+        throw new ConflictException('Recovery state changed; refresh before paying');
+      }
+      const debts = await manager.find(BillingObligation, {
+        where: { subscriptionId, status: BillingObligationStatus.OPEN },
+        order: { id: 'ASC' }, lock: { mode: 'pessimistic_write' },
+      });
+      const ids = debts.map(debt => debt.id);
+      if (!ids.length || JSON.stringify(ids) !== JSON.stringify([...expectedIds].sort((a,b) => a-b)) ||
+        (expectedQuote && billingDebtQuote(debts) !== expectedQuote)) {
+        throw new ConflictException('Debt balance changed; refresh before paying');
+      }
+      const first = debts[0];
+      for (const debt of debts) {
+        if (debt.subscriptionId !== subscriptionId || debt.firebaseIdSnapshot !== actor.subjectFirebaseId || debt.currency !== first.currency ||
+          debt.kind !== BillingObligationKind.RECURRING_PERIOD || debt.satisfiedAttemptId != null ||
+          debt.activeAttemptId != null) {
+          throw new ConflictException('Debt is reserved or requires review');
+        }
+      }
+      const latest = await manager.findOne(BillingAttempt, {
+        where: { obligationId: first.id }, order: { attemptNumber: 'DESC' },
+      });
+      const sum = (key: 'amountAgorot' | 'amountBeforeVatAgorot' | 'vatAmountAgorot') =>
+        debts.reduce((total, debt) => total + debt[key], 0);
+      const input: OpenBillingAttemptInput = {
+        actor, subscriptionId, kind: first.kind, planId: first.planId,
+        trigger: BillingAttemptTrigger.RECOVERY, chargeMode: BillingChargeMode.LOW_PROFILE_HOSTED,
+        periodStart: first.periodStart, periodEnd: first.periodEnd, currency: first.currency,
+        amountAgorot: sum('amountAgorot'), amountBeforeVatAgorot: sum('amountBeforeVatAgorot'),
+        vatAmountAgorot: sum('vatAmountAgorot'),
+      };
+      this.validateOpenInput(input);
+      const attempt = await this.saveAttemptWithUniqueProviderKey(manager, first,
+        (latest?.attemptNumber ?? 0) + 1, input, null);
+      for (const debt of debts) {
+        await manager.save(BillingAttemptObligation, manager.create(BillingAttemptObligation, {
+          attemptId: attempt.id, obligationId: debt.id,
+        }));
+        debt.activeAttemptId = attempt.id;
+        debt.version += 1;
+        await manager.save(BillingObligation, debt);
+      }
+      return { obligation: first, attempt, created: true };
+    });
+  }
+
+  async findAttemptObligations(attempt: BillingAttempt): Promise<BillingObligation[]> {
+    return this.loadAttemptObligations(this.dataSource.manager, attempt, false);
+  }
+
+  private async loadAttemptObligations(manager: EntityManager, attempt: BillingAttempt,
+    lock: boolean): Promise<BillingObligation[]> {
+    const links = await manager.find(BillingAttemptObligation, {
+      where: { attemptId: attempt.id }, order: { obligationId: 'ASC' },
+    });
+    // Old attempts retain their direct provenance; migration also backfills links.
+    const ids = links?.length ? links.map(link => link.obligationId) : [attempt.obligationId];
+    const debts: BillingObligation[] = [];
+    for (const id of ids) {
+      const debt = await manager.findOne(BillingObligation, {
+        where: { id }, ...(lock ? { lock: { mode: 'pessimistic_write' as const } } : {}),
+      });
+      if (!debt) throw new ConflictException('Linked billing debt missing');
+      debts.push(debt);
+    }
+    if (links?.length && (!ids.includes(attempt.obligationId) || debts.some(debt =>
+      debt.subscriptionId !== debts[0].subscriptionId || debt.currency !== attempt.currency) ||
+      ['amountAgorot', 'amountBeforeVatAgorot', 'vatAmountAgorot'].some(key =>
+        debts.reduce((total, debt) => total + debt[key], 0) !== attempt[key]))) {
+      throw new ConflictException('Billing collection membership/totals mismatch');
+    }
+    return debts;
+  }
+
+  private async lockCollectionSubscription(manager: EntityManager, attemptId: number): Promise<void> {
+    const members = await manager.find(BillingAttemptObligation, { where: { attemptId } });
+    if (members?.length > 1) await this.lockSubscriptionOfAttempt(manager, attemptId);
+  }
+
   async createOrGetAttempt(
     input: OpenBillingAttemptInput,
   ): Promise<OpenBillingAttemptResult> {
@@ -285,7 +379,7 @@ export class BillingAttemptOrchestrationService {
       }
       if (input.enforceRecoverySchedule && (
         subscription.status !== SubscriptionStatus.PAST_DUE ||
-        renewalPeriodStart(subscription)?.toISOString().slice(0, 10) !== input.periodStart
+        (!renewalPeriodStart(subscription) || !this.matchesPeriodDate(renewalPeriodStart(subscription)!, input.periodStart))
       )) {
         throw new ConflictException('Billing recovery state or period changed; refresh before paying');
       }
@@ -347,6 +441,9 @@ export class BillingAttemptOrchestrationService {
       obligation.activeAttemptId = attempt.id;
       obligation.version += 1;
       await manager.save(BillingObligation, obligation);
+      await manager.save(BillingAttemptObligation, manager.create(BillingAttemptObligation, {
+        attemptId: attempt.id, obligationId: obligation.id,
+      }));
       return { obligation, attempt, created: true };
     });
   }
@@ -357,9 +454,15 @@ export class BillingAttemptOrchestrationService {
     expectedStateVersion: number,
     now = new Date(),
     leaseMs = DEFAULT_LEASE_MS,
+    subjectFirebaseId?: string,
   ): Promise<AttemptLeaseResult> {
     return this.inTransaction(async (manager) => {
+      if (subjectFirebaseId) await this.lockCollectionSubscription(manager, attemptId);
       const attempt = await this.lockAttempt(manager, attemptId);
+      if (subjectFirebaseId) {
+        const debt = await this.lockObligation(manager, attempt.obligationId);
+        if (debt.firebaseIdSnapshot !== subjectFirebaseId) throw new ForbiddenException('Billing attempt owner mismatch');
+      }
 
       if (
         attempt.status === BillingAttemptStatus.PROCESSING &&
@@ -432,6 +535,7 @@ export class BillingAttemptOrchestrationService {
     options: ApplyNormalizedOutcomeOptions = {},
   ): Promise<BillingAttempt> {
     return this.inTransaction(async (manager) => {
+      await this.lockCollectionSubscription(manager, attemptId);
       // Lock order matches createOrGetAttempt (subscription first), so a
       // concurrent opener and a decline can never deadlock each other.
       const renewalSubscription =
@@ -479,18 +583,16 @@ export class BillingAttemptOrchestrationService {
         attempt.nextActionAt = null;
       } else if (outcome.kind === 'DECLINED') {
         attempt.nextActionAt = null;
-        const obligation = await this.lockObligation(
-          manager,
-          attempt.obligationId,
-        );
-        if (obligation.activeAttemptId !== attempt.id) {
-          throw new ConflictException(
-            'Billing attempt is no longer active for its obligation',
-          );
+        const obligations = await this.loadAttemptObligations(manager, attempt, true);
+        for (const debt of obligations) {
+          if (debt.activeAttemptId !== attempt.id) {
+            throw new ConflictException('Billing attempt is no longer active for its obligation');
+          }
+          debt.activeAttemptId = null;
+          debt.version += 1;
+          await manager.save(BillingObligation, debt);
         }
-        obligation.activeAttemptId = null;
-        obligation.version += 1;
-        await manager.save(BillingObligation, obligation);
+        const obligation = obligations[0];
         if (renewalSubscription) {
           await this.applyRenewalDeclinePolicy(
             manager,
@@ -846,6 +948,7 @@ export class BillingAttemptOrchestrationService {
     leaseMs = FINALIZATION_LEASE_MS,
   ): Promise<FinalizationLeaseResult> {
     return this.inTransaction(async (manager) => {
+      await this.lockCollectionSubscription(manager, attemptId);
       const attempt = await this.lockAttempt(manager, attemptId);
       const obligation = await this.lockObligation(
         manager,
@@ -909,28 +1012,26 @@ export class BillingAttemptOrchestrationService {
       throw new BadRequestException('A valid receipt document is required');
     }
     return this.inTransaction(async (manager) => {
+      await this.lockCollectionSubscription(manager, attemptId);
       const attempt = await this.lockAttempt(manager, attemptId);
-      const obligation = await this.lockObligation(
-        manager,
-        attempt.obligationId,
-      );
+      const obligations = await this.loadAttemptObligations(manager, attempt, true);
+      if (attempt.status === BillingAttemptStatus.COMPLETED) {
+        if (attempt.receiptDocId === receiptDocId && obligations.every(debt =>
+          debt.status === BillingObligationStatus.SATISFIED && debt.satisfiedAttemptId === attempt.id)) return attempt;
+        throw new ConflictException('Completed billing membership is inconsistent');
+      }
+      for (const debt of obligations) {
+        if (debt.status !== BillingObligationStatus.OPEN || debt.activeAttemptId !== attempt.id) {
+          throw new ConflictException('Every linked debt must be open and reserved by this attempt');
+        }
+      }
+      const obligation = obligations[0];
       if (obligation.activeAttemptId !== attempt.id) {
-        if (
-          attempt.status === BillingAttemptStatus.COMPLETED &&
-          attempt.receiptDocId === receiptDocId &&
-          obligation.status === BillingObligationStatus.SATISFIED
-        )
-          return attempt;
         throw new ConflictException(
           'Billing attempt is not the active obligation attempt',
         );
       }
       if (attempt.status !== BillingAttemptStatus.CAPTURED) {
-        if (
-          attempt.status === BillingAttemptStatus.COMPLETED &&
-          attempt.receiptDocId === receiptDocId
-        )
-          return attempt;
         throw new ConflictException(
           `Only CAPTURED attempts can be finalized (current: ${attempt.status})`,
         );
@@ -953,12 +1054,14 @@ export class BillingAttemptOrchestrationService {
       attempt.stateVersion += 1;
       attempt.status = BillingAttemptStatus.COMPLETED;
       this.clearLease(attempt);
-      obligation.satisfiedAttemptId = attempt.id;
-      obligation.satisfiedAt = now;
-      obligation.activeAttemptId = null;
-      obligation.status = BillingObligationStatus.SATISFIED;
-      obligation.version += 1;
-      await manager.save(BillingObligation, obligation);
+      for (const debt of obligations) {
+        debt.satisfiedAttemptId = attempt.id;
+        debt.satisfiedAt = now;
+        debt.activeAttemptId = null;
+        debt.status = BillingObligationStatus.SATISFIED;
+        debt.version += 1;
+        await manager.save(BillingObligation, debt);
+      }
       return manager.save(BillingAttempt, attempt);
     });
   }
@@ -1054,7 +1157,7 @@ export class BillingAttemptOrchestrationService {
     const periodStart = renewalPeriodStart(subscription);
     return (
       !!periodStart &&
-      periodStart.toISOString().slice(0, 10) === obligation.periodStart
+      this.matchesPeriodDate(periodStart, obligation.periodStart)
     );
   }
 
@@ -1070,9 +1173,14 @@ export class BillingAttemptOrchestrationService {
       throw new BillingRenewalDeferredError('NOT_DUE');
     }
     const collecting = renewalPeriodStart(subscription);
-    if (!collecting || collecting.toISOString().slice(0, 10) !== periodStart) {
+    if (!collecting || !this.matchesPeriodDate(collecting, periodStart)) {
       throw new BillingRenewalDeferredError('PERIOD_MISMATCH');
     }
+  }
+
+  private matchesPeriodDate(instant: Date, period: string): boolean {
+    // Existing pre-KT-040 rows used UTC date keys; never open a duplicate debt.
+    return billingDate(instant) === period || instant.toISOString().slice(0, 10) === period;
   }
 
   private async createOrLockObligation(

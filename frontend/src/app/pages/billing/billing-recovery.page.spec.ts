@@ -25,7 +25,8 @@ describe('BillingRecoveryPage', () => {
   async function loadDebt() {
     page.ngOnInit();
     await Promise.resolve();
-    http.expectOne(`${environment.apiUrl}billing/checkout/preview`).flush({ finalAmountAgorot: 11800, currency: 'ILS' });
+    http.expectOne(`${environment.apiUrl}billing/checkout/preview`).flush({ finalAmountAgorot: 11800, currency: 'ILS',
+      recoveryQuote: 'a'.repeat(64), periods: [{ periodStart: '2026-09-15', periodEnd: '2026-10-15', amountAgorot: 11800 }] });
     await Promise.resolve();
   }
 
@@ -61,7 +62,7 @@ describe('BillingRecoveryPage', () => {
     const pending = page.pay();
     await page.pay();
     const request = http.expectOne(`${environment.apiUrl}billing/checkout`);
-    expect(request.request.body).toEqual({ planId: 3, recoveryOnly: true });
+    expect(request.request.body).toEqual({ planId: 3, recoveryOnly: true, recoveryQuote: 'a'.repeat(64) });
     request.flush({ message: 'תשלום קודם בבירור' }, { status: 409, statusText: 'Conflict' });
     await pending;
     expect(page.error()).toBe('תשלום קודם בבירור');

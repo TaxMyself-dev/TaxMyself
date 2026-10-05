@@ -6,12 +6,14 @@ Standalone pricing/plans page where a user views available subscription plans an
 - `billing-plans.page.html` / `.scss` — pricing card grid UI.
 
 ## Main flows
-- `/billing/recovery` renders `BillingRecoveryPage` for owner PAST_DUE state,
-  previews the server debt total and discloses card replacement for future
+- `/billing/recovery` renders `BillingRecoveryPage` for owner PAST_DUE/CANCELED state,
+  previews every unpaid subscription period and the server debt total, discloses one invoice and card replacement for future
   renewals before submitting the existing checkout endpoint. It does not offer
-  plan selection. Overrides, missing/non-PAST_DUE state and preview failures
+  plan selection. Canceled debt payment explicitly leaves the subscription canceled. The plans page links to recovery for both debt states. Overrides, missing/unsupported state and preview failures
   cannot submit; double-clicks are suppressed and checkout errors require
   review rather than offering an immediate second submission.
+- Submission requires ILS, nonempty period lines and the server recoveryQuote;
+  checkout sends that quote with recoveryOnly so stale totals cannot be charged.
 - The app's PAST_DUE dialog opens debt settlement with the label הסדרת התשלום.
 - Focused verification from frontend: `npm run ng -- test --watch=false
   --browsers=ChromeHeadless --include=src/app/pages/billing/billing-recovery.page.spec.ts

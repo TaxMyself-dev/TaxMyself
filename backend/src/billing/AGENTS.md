@@ -6,7 +6,8 @@ Subscription billing: plan catalog, trial/subscription lifecycle, CardCom paymen
 - `entities/subscription.entity.ts` — `Subscription`: one per user (unique on firebaseId), status, trial/period/billing dates, renewal attempts, per-subscription discount.
 - `entities/payment-method.entity.ts` — `PaymentMethod`: stored CardCom token + card display info.
 - `entities/billing-event.entity.ts` — `BillingEvent`: append-only audit trail (checkout/payment/renewal events), amounts incl. VAT breakdown, links to a generated receipt document.
-- `entities/billing-obligation.entity.ts` — durable canonical debt for one subscription service period; owns unique active-attempt and satisfied-attempt pointers.
+- `entities/billing-obligation.entity.ts` — durable canonical debt for one subscription service period; owns one active-attempt and one satisfied-attempt pointer, indexed non-uniquely so a collection can settle several debts.
+- `entities/billing-attempt-obligation.entity.ts` — frozen membership of one attempt in one or more obligations; composite primary key and restricted-delete foreign keys. The attempt's direct obligationId remains its primary debt for routing and numbering.
 - `entities/billing-attempt.entity.ts` — one concrete provider charge attempt for an obligation, including immutable CardCom `ExternalUniqTranId` and reconciliation state.
 - `entities/payment-method-update-attempt.entity.ts` — independent CreateTokenOnly lifecycle keyed by LowProfileId/opaque public token; never stores CVV or the token itself.
 - `entities/cardcom-webhook-log.entity.ts` — `CardcomWebhookLog`: idempotency-keyed log of every inbound CardCom webhook call.
@@ -15,26 +16,39 @@ Subscription billing: plan catalog, trial/subscription lifecycle, CardCom paymen
 
 ## Main flows
 
-### Customer debt settlement (KT-039)
+### Accumulated customer debt settlement (KT-040, supersedes KT-039 single-period flow)
 
-PAST_DUE checkout settles the existing plan, not a plan change. It derives the
-period identity with `renewalPeriodStart`, matching renewal retries, and reuses
-the obligation's frozen amount and exclusive period end when present. Preview
-also returns the frozen debt amount. Only a newly created recovery attempt may
-create a hosted session; an existing unresolved/captured attempt blocks another
-session. Hosted checkout remains ChargeAndCreateToken; verified webhook token
-storage replaces the saved card. No new schema or live provider configuration.
-The optional internal checkout flag `recoveryOnly` rejects a stale screen once
-PAST_DUE is cleared; orchestration rechecks recovery status/period under the
-subscription lock before persisting. Existing purchase callers omit the flag.
-If hosted session creation fails, the created attempt stays blocking pending
-support; this task does not introduce cancellation or manual resolution.
+`BillingDebtService` accrues every due recurring period for PAST_DUE/CANCELED
+subscriptions in the daily sweep and customer preview, regardless of usage.
+Dates follow the original anchor in Asia/Jerusalem, clamp short months, and
+stop before effective cancellation. Stored amounts are immutable; missing
+periods reuse the first unpaid obligation's frozen terms, as approved by Elazar.
+Missing original pricing, anchor or cancellation evidence stops for review.
+Each accrual transaction has a 120-period history limit.
+
+Owner-only preview returns period lines, totals and a recoveryQuote hash.
+Checkout rechecks IDs, amounts and quote under subscription/sorted-debt locks,
+then commits one attempt and all membership/reservation links before provider
+I/O. Unresolved reservations block another checkout. One ChargeAndCreateToken
+collects the total; verified card storage follows existing best-effort behavior
+and protects a newer card. A definite decline releases all reservations but
+keeps membership history; UNKNOWN never permits a replay.
+
+Captured completion issues one existing invoice/receipt with one line per
+frozen period and atomically satisfies all members after document completion.
+Retries use the same document provenance. Recovery preserves the plan/anchor;
+a newly due period outside the frozen collection leaves status PAST_DUE.
+Canceled debt can be paid without reactivation; new subscription checkout is
+blocked while old debt remains. `recoveryOnly` rejects stale recovery screens.
+Hosted creation failures remain blocking pending support. No cancellation
+write endpoint or manual resolution is introduced. Section 18 of cutover.sql
+contains the link-table/backfill/index DDL; it has NOT been executed.
 
 ### Persistence foundation (KT-032)
 
-The three new aggregate tables are registered with TypeORM but are not wired
-into the live checkout, renewal, recovery, webhook, or card-update services yet.
-Until that migration lands, the current runtime behavior below is unchanged.
+The original foundation below is now wired into canonical renewal/recovery.
+First-purchase checkout still follows its legacy path; KT-040 adds collection
+membership while retaining direct attempt provenance for compatibility.
 
 - One `billing_obligation` is canonical for an internal
   subscription/period-start identity. Recovery of that period reuses it; it
@@ -42,9 +56,10 @@ Until that migration lands, the current runtime behavior below is unchanged.
   is exclusive. `subscription.billing_anchor_day` preserves the original 1-31
   anchor across short months.
 - One unresolved `billing_attempt` per obligation is represented by the
-  obligation's nullable UNIQUE `active_attempt_id`; `satisfied_attempt_id` is
-  separately nullable and UNIQUE. MySQL's multiple-NULL UNIQUE behavior is
-  intentional: unrelated open/terminal obligations need not occupy a slot.
+  obligation's nullable `active_attempt_id`; `satisfied_attempt_id` identifies
+  its final payment. Both indexes are non-unique after KT-040 so multiple
+  obligations can reference one attempt. Subscription/debt locks enforce
+  reservations; each obligation still holds at most one pointer of each kind.
 - Only final `DECLINED`, `CANCELED`, or `EXPIRED` attempts may clear the active
   pointer and permit a new attempt. `AWAITING_CUSTOMER`, `PROCESSING`,
   `UNKNOWN`, `CAPTURED`, and `MANUAL_REVIEW` remain blocking; `COMPLETED` must

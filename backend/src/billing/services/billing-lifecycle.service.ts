@@ -154,6 +154,14 @@ export class BillingLifecycleService {
     );
   }
 
+  openRecoveryCollection(actor: BillingMutationActorContext, subscriptionId: number, ids: number[], quote: string) {
+    return this.orchestration.createRecoveryCollection(actor, subscriptionId, ids, quote);
+  }
+
+  findAttemptObligations(attempt: BillingAttempt) {
+    return this.orchestration.findAttemptObligations(attempt);
+  }
+
   /** Recovery reuses the same subscription + period identity as renewal. */
   openPastDueRecovery(
     input: CanonicalBillingPeriodInput,
@@ -195,6 +203,9 @@ export class BillingLifecycleService {
       attemptId,
       leaseOwner,
       0,
+      new Date(),
+      30_000,
+      input.subjectFirebaseId,
     );
     if (!opened.claimed) return opened.attempt;
     return this.orchestration.applyNormalizedOutcome(

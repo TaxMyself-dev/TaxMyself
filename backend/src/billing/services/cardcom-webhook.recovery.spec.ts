@@ -13,7 +13,7 @@ describe('CardcomWebhookService hosted recovery routing', () => {
         subscriptionId: 9,
         billingAttemptId: 44,
       }),
-      TranzactionInfo: { ResponseCode: 0, TranzactionId: 123 },
+      TranzactionInfo: { ResponseCode: 0, TranzactionId: 123, Amount: 117 },
     },
   ) => {
     const cardcom = {
@@ -26,6 +26,7 @@ describe('CardcomWebhookService hosted recovery routing', () => {
     const lifecycle = {
       applyHostedWebhookOutcome: jest.fn().mockResolvedValue({}),
       finalizeAfterReceipt: jest.fn(),
+      findAttemptObligations: jest.fn().mockResolvedValue([{ subscriptionId: 9, firebaseIdSnapshot: 'owner' }]),
     };
     const service = new CardcomWebhookService(
       {} as any,
@@ -37,7 +38,7 @@ describe('CardcomWebhookService hosted recovery routing', () => {
       {} as any,
       {} as any,
       {} as any,
-      {} as any,
+      { manager: { findOne: jest.fn().mockResolvedValue({ id: 44, planId: 2, cardcomLowProfileId: 'lp-1', amountAgorot: 11700 }) } } as any,
       lifecycle as any,
     );
     (service as any).saveWebhookLog = jest.fn().mockResolvedValue(log);
@@ -85,17 +86,18 @@ describe('CardcomWebhookService hosted recovery routing', () => {
       2,
       9,
       expect.objectContaining({
-        TranzactionInfo: { ResponseCode: 0, TranzactionId: 123 },
+        TranzactionInfo: { ResponseCode: 0, TranzactionId: 123, Amount: 117 },
       }),
       log,
       44,
     );
   });
 
-  it('applies DECLINED and never finalizes on a failed verified result', async () => {
+  it('applies DECLINED only for a definitive rejected transaction and never finalizes it', async () => {
     const { service, lifecycle } = makeService({
       ResponseCode: 12,
       LowProfileId: 'lp-1',
+      TranzactionInfo: { ResponseCode: 51 },
       ReturnValue: JSON.stringify({
         intent: 'CHECKOUT',
         firebaseId: 'owner',

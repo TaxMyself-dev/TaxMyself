@@ -481,6 +481,7 @@ describe('BillingService — owner-mutation authorization', () => {
       {} as any, // documentsService — unused
       {} as any, // cardcomWebhookService — unused
       billingLifecycleService as any,
+      overrides.debtService,
     );
     return {
       service,
@@ -495,6 +496,44 @@ describe('BillingService — owner-mutation authorization', () => {
   }
 
   describe('createCheckout', () => {
+    const aggregatePreview = { recoveryQuote: 'a'.repeat(64), obligationIds: [11,12,13], planId: 1,
+      finalAmountAgorot: 35400, amountBeforeVatAgorot: 30000, vatAmountAgorot: 5400, currency: 'ILS',
+      periods: [{ periodStart: '2026-09-15', periodEnd: '2026-10-15', amountAgorot: 11800 }] };
+    function aggregateFixture() {
+      const debtService = { preview: jest.fn().mockResolvedValue(aggregatePreview), accrue: jest.fn().mockResolvedValue([{}]) };
+      const result = makeService({ debtService });
+      result.subscriptionRepo.findOne.mockResolvedValue({ id: 1, firebaseId: 'client-1', planId: 1,
+        status: 'PAST_DUE', nextBillingDate: new Date('2026-09-15') });
+      result.planRepo.findOne.mockResolvedValue({ id: 1, name: 'Basic', isPublic: true });
+      result.billingLifecycleService.openRecoveryCollection = jest.fn().mockResolvedValue({ created: true, attempt: { id: 7, status: 'CREATED' } });
+      result.cardcomService.createLowProfileCheckout.mockResolvedValue({ lowProfileId: 'lp-1', paymentUrl: 'https://cardcom.example/pay' });
+      return { ...result, debtService };
+    }
+    it('charges the reviewed aggregate once without calculating a current price', async () => {
+      const { service, billingLifecycleService, cardcomService, pricingService } = aggregateFixture();
+      await service.createCheckout(OWNER, { planId: 1, recoveryOnly: true, recoveryQuote: aggregatePreview.recoveryQuote });
+      expect(billingLifecycleService.openRecoveryCollection).toHaveBeenCalledWith(OWNER, 1, [11,12,13], aggregatePreview.recoveryQuote);
+      expect(cardcomService.createLowProfileCheckout).toHaveBeenCalledTimes(1);
+      expect(cardcomService.createLowProfileCheckout).toHaveBeenCalledWith(expect.objectContaining({ amountAgorot: 35400, operation: 'ChargeAndCreateToken' }));
+      expect(pricingService.calculateCheckoutPrice).not.toHaveBeenCalled();
+    });
+    it('a stale aggregate quote never opens an attempt or provider session', async () => {
+      const { service, cardcomService, billingLifecycleService } = aggregateFixture();
+      await expect(service.createCheckout(OWNER, { planId: 1, recoveryQuote: 'b'.repeat(64) })).rejects.toThrow('השתנו');
+      expect(cardcomService.createLowProfileCheckout).not.toHaveBeenCalled();
+      expect(billingLifecycleService.openRecoveryCollection).not.toHaveBeenCalled();
+    });
+    it('never starts a fresh subscription over unpaid canceled debt', async () => {
+      const { service, subscriptionRepo, cardcomService } = aggregateFixture();
+      subscriptionRepo.findOne.mockResolvedValue({ id: 1, planId: 1, firebaseId: 'client-1', status: 'CANCELED' });
+      await expect(service.createCheckout(OWNER, { planId: 1 })).rejects.toThrow('נותר חוב');
+      expect(cardcomService.createLowProfileCheckout).not.toHaveBeenCalled();
+    });
+    it('rejects a represented actor before debt preview materializes records', async () => {
+      const { service, debtService } = aggregateFixture();
+      await expect(service.previewCheckout('client-1', { planId: 1 }, DELEGATED_ACCOUNTANT)).rejects.toThrow('owner');
+      expect(debtService.preview).not.toHaveBeenCalled();
+    });
     it('rejects a stale debt screen instead of creating an ACTIVE checkout', async () => {
       const { service, subscriptionRepo, cardcomService } = makeService();
       subscriptionRepo.findOne.mockResolvedValue({ id: 1, firebaseId: 'client-1', planId: 1, status: 'ACTIVE' });

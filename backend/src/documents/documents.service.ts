@@ -2200,6 +2200,10 @@ ${finalOwnerName}`;
      * retry can never issue a second document/journal entry for one attempt.
      */
     billingAttemptId?: number | null;
+    periods?: Array<{
+      planName: string; periodStart: Date; periodEnd: Date;
+      amountBeforeVatAgorot: number; vatAmountAgorot: number; amountIncludingVatAgorot: number;
+    }>;
   }): Promise<{ receiptDocId: number; docNumber: string; generalDocIndex: string }> {
     const {
       systemUserId, issuerBusinessNumber, issuerBusinessType,
@@ -2260,21 +2264,32 @@ ${finalOwnerName}`;
       ...(billingAttemptId != null ? { billingAttemptId } : {}),
     };
 
-    const linesData = [{
+    const periods = params.periods ?? [{ planName, periodStart, periodEnd,
+      amountBeforeVatAgorot, vatAmountAgorot, amountIncludingVatAgorot }];
+    if (!periods.length || periods.some(period =>
+      !Number.isInteger(period.amountBeforeVatAgorot) || !Number.isInteger(period.vatAmountAgorot) ||
+      !Number.isInteger(period.amountIncludingVatAgorot) || period.amountBeforeVatAgorot < 0 ||
+      period.vatAmountAgorot < 0 || period.amountBeforeVatAgorot + period.vatAmountAgorot !== period.amountIncludingVatAgorot) ||
+      periods.reduce((sum, period) => sum + period.amountBeforeVatAgorot, 0) !== amountBeforeVatAgorot ||
+      periods.reduce((sum, period) => sum + period.vatAmountAgorot, 0) !== vatAmountAgorot ||
+      periods.reduce((sum, period) => sum + period.amountIncludingVatAgorot, 0) !== amountIncludingVatAgorot) {
+      throw new Error('Billing receipt period totals do not match captured payment');
+    }
+    const linesData = periods.map((period, index) => ({
       issuerBusinessNumber,
       docType: DocumentType.TAX_INVOICE_RECEIPT,
-      lineNumber: '1',
+      lineNumber: String(index + 1),
       transType: '3',
-      description: lineDescription,
+      description: `מנוי KeepInTax - תוכנית ${period.planName}\nתקופת שירות: ${this.formatDateDotDDMMYYYY(period.periodStart)} עד ${this.formatDateDotDDMMYYYY(period.periodEnd)}`,
       unitType: UnitOfMeasure.UNIT,
       unitQuantity: 1,
-      sumBefVatPerUnit: amountBeforeVatShekels,
+      sumBefVatPerUnit: period.amountBeforeVatAgorot / 100,
       disBefVatPerLine: 0,
-      sumAftDisBefVatPerLine: amountBeforeVatShekels,
+      sumAftDisBefVatPerLine: period.amountBeforeVatAgorot / 100,
       vatOpts: VatOptions.EXCLUDE,
       vatRate: 18,
-      vatPerLine: vatAmountShekels,
-    }];
+      vatPerLine: period.vatAmountAgorot / 100,
+    }));
 
     // VAT-inclusive total — what was actually charged.
     const paymentData = [{

@@ -2134,3 +2134,61 @@ DEALLOCATE PREPARE kt032_stmt;
 -- SHOW CREATE TABLE billing_obligation;
 -- SHOW CREATE TABLE billing_attempt;
 -- SHOW CREATE TABLE payment_method_update_attempt;
+
+-- 18. KT-040: one payment attempt can settle several subscription periods.
+-- Code/DDL approved by Elazar on 2026-10-05. NOT approved for execution.
+-- Requires Section 17, stopped billing writers, and an explicitly approved DB.
+-- Retain billing_attempt.obligation_id as the primary debt for owner routing
+-- and attempt numbering; this link table is the complete frozen membership.
+CREATE TABLE IF NOT EXISTS `billing_attempt_obligation` (
+  `attempt_id` int NOT NULL,
+  `obligation_id` int NOT NULL,
+  PRIMARY KEY (`attempt_id`, `obligation_id`),
+  KEY `ix_billing_attempt_obligation_debt` (`obligation_id`),
+  CONSTRAINT `fk_billing_attempt_obligation_attempt` FOREIGN KEY (`attempt_id`)
+    REFERENCES `billing_attempt` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT `fk_billing_attempt_obligation_debt` FOREIGN KEY (`obligation_id`)
+    REFERENCES `billing_obligation` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB;
+
+INSERT INTO `billing_attempt_obligation` (`attempt_id`, `obligation_id`)
+SELECT a.id, a.obligation_id FROM billing_attempt a
+WHERE NOT EXISTS (SELECT 1 FROM billing_attempt_obligation l
+  WHERE l.attempt_id = a.id AND l.obligation_id = a.obligation_id);
+
+-- Add FK-supporting non-unique indexes before removing the old UNIQUE indexes.
+SET @kt040_sql = IF(EXISTS(SELECT 1 FROM information_schema.STATISTICS
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'billing_obligation'
+    AND INDEX_NAME = 'ix_billing_obligation_active_attempt'), 'SELECT 1',
+  'ALTER TABLE billing_obligation ADD INDEX ix_billing_obligation_active_attempt (active_attempt_id)');
+PREPARE kt040_stmt FROM @kt040_sql;
+EXECUTE kt040_stmt;
+DEALLOCATE PREPARE kt040_stmt;
+SET @kt040_sql = IF(EXISTS(SELECT 1 FROM information_schema.STATISTICS
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'billing_obligation'
+    AND INDEX_NAME = 'ix_billing_obligation_satisfied_attempt'), 'SELECT 1',
+  'ALTER TABLE billing_obligation ADD INDEX ix_billing_obligation_satisfied_attempt (satisfied_attempt_id)');
+PREPARE kt040_stmt FROM @kt040_sql;
+EXECUTE kt040_stmt;
+DEALLOCATE PREPARE kt040_stmt;
+SET @kt040_sql = IF(EXISTS(SELECT 1 FROM information_schema.STATISTICS
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'billing_obligation'
+    AND INDEX_NAME = 'ux_billing_obligation_active_attempt'),
+  'ALTER TABLE billing_obligation DROP INDEX ux_billing_obligation_active_attempt', 'SELECT 1');
+PREPARE kt040_stmt FROM @kt040_sql;
+EXECUTE kt040_stmt;
+DEALLOCATE PREPARE kt040_stmt;
+SET @kt040_sql = IF(EXISTS(SELECT 1 FROM information_schema.STATISTICS
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'billing_obligation'
+    AND INDEX_NAME = 'ux_billing_obligation_satisfied_attempt'),
+  'ALTER TABLE billing_obligation DROP INDEX ux_billing_obligation_satisfied_attempt', 'SELECT 1');
+PREPARE kt040_stmt FROM @kt040_sql;
+EXECUTE kt040_stmt;
+DEALLOCATE PREPARE kt040_stmt;
+
+-- Verification: first query must return zero; do not execute old Section 17's
+-- empty-table assertions on an existing runtime database.
+-- SELECT COUNT(*) FROM billing_attempt a LEFT JOIN billing_attempt_obligation l
+--   ON l.attempt_id=a.id AND l.obligation_id=a.obligation_id WHERE l.attempt_id IS NULL;
+-- SHOW CREATE TABLE billing_attempt_obligation;
+-- SHOW INDEX FROM billing_obligation;

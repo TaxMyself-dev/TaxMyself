@@ -132,7 +132,7 @@ export class BillingController {
   ) {
     const firebaseId = request.user?.firebaseId;
     if (!firebaseId) throw new NotFoundException('User not found in request');
-    return this.billingService.previewCheckout(firebaseId, dto);
+    return this.billingService.previewCheckout(firebaseId, dto, this.buildOwnerMutationActor(request));
   }
 
   /**

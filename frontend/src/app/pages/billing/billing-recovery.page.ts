@@ -14,9 +14,14 @@ import { BillingStateService } from '../../services/billing-state.service';
       @else if (error()) { <p role="alert">{{ error() }}</p> }
       @else {
         <p>תשלום החוב עבור תוכנית {{ billing.billingState()?.plan?.name }}</p>
+        <ul>
+          @for (period of periods(); track period.periodStart) {
+            <li>{{ period.periodStart }} עד {{ period.periodEnd }} (לא כולל יום הסיום): {{ (period.amountAgorot / 100).toFixed(2) }} ₪</li>
+          }
+        </ul>
         <p>סכום לתשלום: <strong>{{ amountLabel() }} ₪ כולל מע״מ</strong></p>
         <p>הכרטיס שבו תשלמו יישמר לחיובי המנוי הבאים ויחליף את הכרטיס הקודם.</p>
-        <p>התשלום יתבצע במסך המאובטח של CardCom. המנוי יופעל לאחר אימות התשלום במערכת.</p>
+        <p>התשלום יתבצע במסך המאובטח של CardCom. תופק חשבונית אחת עם פירוט התקופות. תשלום חוב של מנוי שבוטל אינו מפעיל אותו מחדש.</p>
         <button type="button" [disabled]="submitting()" (click)="pay()">
           {{ submitting() ? 'פותחים מסך תשלום…' : 'לתשלום החוב ושמירת הכרטיס' }}
         </button>
@@ -32,6 +37,8 @@ export class BillingRecoveryPage implements OnInit {
   readonly submitting = signal(false);
   readonly error = signal('');
   readonly amountLabel = signal('');
+  readonly periods = signal<Array<{ periodStart: string; periodEnd: string; amountAgorot: number }>>([]);
+  private recoveryQuote = '';
   private planId: number | null = null;
 
   ngOnInit(): void { void this.load(); }
@@ -40,15 +47,18 @@ export class BillingRecoveryPage implements OnInit {
     try {
       await this.billing.loadBillingState();
       const state = this.billing.billingState();
-      if (state?.subscription?.status !== 'PAST_DUE' || !state.plan || this.billing.hasBillingOverride()) {
+      if (!['PAST_DUE', 'CANCELED'].includes(state?.subscription?.status ?? '') || !state?.plan || this.billing.hasBillingOverride()) {
         this.error.set('אין חוב זמין להסדרה בחשבון זה.');
         return;
       }
       this.planId = state.plan.id;
-      const preview = await firstValueFrom(this.http.post<{ finalAmountAgorot: number; currency: string }>(
+      const preview = await firstValueFrom(this.http.post<{ finalAmountAgorot: number; currency: string;
+        recoveryQuote: string; periods: Array<{ periodStart: string; periodEnd: string; amountAgorot: number }> }>(
         `${environment.apiUrl}billing/checkout/preview`, { planId: this.planId },
       ));
-      if (preview.currency !== 'ILS') throw new Error('Unsupported currency');
+      if (preview.currency !== 'ILS' || !preview.recoveryQuote || !preview.periods?.length) throw new Error('Invalid debt preview');
+      this.recoveryQuote = preview.recoveryQuote;
+      this.periods.set(preview.periods);
       this.amountLabel.set((preview.finalAmountAgorot / 100).toLocaleString('he-IL', { minimumFractionDigits: 2 }));
     } catch { this.error.set('לא ניתן לטעון את פרטי החוב. יש לרענן את העמוד או לפנות לתמיכה.'); }
     finally { this.loading.set(false); }
@@ -59,7 +69,7 @@ export class BillingRecoveryPage implements OnInit {
     this.submitting.set(true);
     try {
       const result = await firstValueFrom(this.http.post<{ paymentUrl: string }>(
-        `${environment.apiUrl}billing/checkout`, { planId: this.planId, recoveryOnly: true },
+        `${environment.apiUrl}billing/checkout`, { planId: this.planId, recoveryOnly: true, recoveryQuote: this.recoveryQuote },
       ));
       window.location.href = result.paymentUrl;
     } catch (err: any) {

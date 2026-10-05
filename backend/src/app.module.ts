@@ -41,6 +41,7 @@ import { CardcomWebhookLog } from './billing/entities/cardcom-webhook-log.entity
 import { BillingEvent } from './billing/entities/billing-event.entity';
 import { BillingObligation } from './billing/entities/billing-obligation.entity';
 import { BillingAttempt } from './billing/entities/billing-attempt.entity';
+import { BillingAttemptObligation } from './billing/entities/billing-attempt-obligation.entity';
 import { PaymentMethodUpdateAttempt } from './billing/entities/payment-method-update-attempt.entity';
 //Entities
 import { Expense } from './expenses/expenses.entity';
@@ -179,7 +180,7 @@ new Logger('Bootstrap').log(
         FeezbackWebhookEvent, UserModuleSubscription, AccountantTask, AnnualReport, AnnualReportFile, ReportWorkflow,
         FxRate,
         SubscriptionPlan, Subscription, PaymentMethod, CardcomWebhookLog, BillingEvent,
-        BillingObligation, BillingAttempt, PaymentMethodUpdateAttempt,
+        BillingObligation, BillingAttempt, BillingAttemptObligation, PaymentMethodUpdateAttempt,
         UserIntegration, OauthState, ImportedDocument, InboundEmailAddress,
         AssetDepreciationPosting,
         ],

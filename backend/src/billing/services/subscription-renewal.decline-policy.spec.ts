@@ -112,6 +112,9 @@ class MemoryDb {
   createQueryRunner() {
     const tx = ++this.txCounter;
     const manager = {
+      find: async (entity: EntityClass, options: any) => this.rows(entity)
+        .filter(row => this.matches(row, options.where))
+        .map(row => this.clone(entity, row)),
       findOne: async (entity: EntityClass, options: any) => {
         const find = () => {
           const found = this.rows(entity).filter((row) =>

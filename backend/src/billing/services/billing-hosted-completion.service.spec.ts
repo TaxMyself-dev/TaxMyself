@@ -13,6 +13,7 @@ import { BillingEventService } from './billing-event.service';
 import { BillingHostedCompletionService } from './billing-hosted-completion.service';
 import { BillingLifecycleService } from './billing-lifecycle.service';
 import { decryptCardcomToken } from '../utils/billing-token-encryption.util';
+import { billingBoundary } from '../domain/billing-debt-periods';
 
 /**
  * KT-038 Task 3B — a hosted payment whose CardCom capture is already confirmed
@@ -36,6 +37,8 @@ describe('BillingHostedCompletionService — local recovery of a CAPTURED hosted
       status: BillingObligationStatus.OPEN,
       activeAttemptId: 44,
       satisfiedAttemptId: null,
+      planId: 2, periodStart: '2026-09-01', periodEnd: '2026-10-01',
+      amountAgorot: 11700, amountBeforeVatAgorot: 10000, vatAmountAgorot: 1700,
     };
     attempt: any = {
       id: 44,
@@ -58,6 +61,7 @@ describe('BillingHostedCompletionService — local recovery of a CAPTURED hosted
       createdAt: ATTEMPT_OPENED_AT,
     };
     assertOwnerMutation = assertBillingOwnerMutation;
+    async findAttemptObligations() { return [this.obligation]; }
 
     async claimForFinalization(_id: number, owner: string, subject: string) {
       this.calls.push('claim');
@@ -124,7 +128,7 @@ describe('BillingHostedCompletionService — local recovery of a CAPTURED hosted
       id: 9,
       firebaseId: 'owner',
       status: SubscriptionStatus.PAST_DUE,
-      planId: 1,
+      planId: PLAN.id,
       paymentMethodId: 5,
       currentPeriodStart: new Date('2026-08-01'),
       currentPeriodEnd: new Date('2026-09-01'),
@@ -324,19 +328,18 @@ describe('BillingHostedCompletionService — local recovery of a CAPTURED hosted
 
     expect(status).toBe('COMPLETED');
     expect(updates.count).toBe(1);
-    // The same fields the webhook activation writes, from the CAPTURE time.
-    const periodEnd = new Date(CAPTURED_AT);
-    periodEnd.setMonth(periodEnd.getMonth() + 1);
+    const periodEnd = billingBoundary('2026-10-01');
     expect(updates.values[0]).toEqual({
       status: SubscriptionStatus.ACTIVE,
       planId: PLAN.id,
-      currentPeriodStart: CAPTURED_AT,
+      currentPeriodStart: billingBoundary('2026-09-01'),
       currentPeriodEnd: periodEnd,
       nextBillingDate: periodEnd,
       renewalAttempts: 0,
       gracePeriodEndsAt: null,
       canceledAt: null,
       endedAt: null,
+      billingAnchorDay: 1,
     });
     expect(sub.paymentMethodId).toBe(5); // untouched: no token is available locally
     expect(orchestration.calls.filter((c) => c === 'finalize')).toHaveLength(1);
@@ -365,8 +368,7 @@ describe('BillingHostedCompletionService — local recovery of a CAPTURED hosted
 
     await service.completeCapturedHostedAttempt(params);
 
-    const periodEnd = new Date(CAPTURED_AT);
-    periodEnd.setMonth(periodEnd.getMonth() + 1);
+    const periodEnd = billingBoundary('2026-10-01');
     expect(receipts.ensureReceiptForCapturedAttempt).toHaveBeenCalledWith(
       expect.objectContaining({
         eventType: BillingEventType.PAYMENT_SUCCESS,
@@ -379,7 +381,7 @@ describe('BillingHostedCompletionService — local recovery of a CAPTURED hosted
           cardcomTransactionId: 'tx-original',
         },
         planName: 'Plan',
-        periodStart: CAPTURED_AT,
+        periodStart: billingBoundary('2026-09-01'),
         periodEnd,
       }),
     );
@@ -442,12 +444,11 @@ describe('BillingHostedCompletionService — local recovery of a CAPTURED hosted
 
     await service.completeCapturedHostedAttempt(params);
 
-    const periodEnd = new Date(CAPTURED_AT);
-    periodEnd.setMonth(periodEnd.getMonth() + 1);
+    const periodEnd = billingBoundary('2026-10-01');
     expect(sub.status).toBe(SubscriptionStatus.ACTIVE);
     expect(sub.renewalAttempts).toBe(0);
     expect(sub.gracePeriodEndsAt).toBeNull();
-    expect(sub.currentPeriodStart).toEqual(CAPTURED_AT);
+    expect(sub.currentPeriodStart).toEqual(billingBoundary('2026-09-01'));
     expect(sub.currentPeriodEnd).toEqual(periodEnd);
     expect(sub.nextBillingDate).toEqual(periodEnd);
     expect(sub.paymentMethodId).toBe(5);
@@ -530,13 +531,13 @@ describe('BillingHostedCompletionService — local recovery of a CAPTURED hosted
   it('never overwrites a subscription that is neither PAST_DUE nor ACTIVE, and leaves the attempt CAPTURED', async () => {
     const { service, sub, updates, receipts, orchestration, rows, params } =
       build();
-    sub.status = SubscriptionStatus.CANCELED;
+    sub.status = SubscriptionStatus.TRIAL_EXPIRED;
 
     const status = await service.completeCapturedHostedAttempt(params);
 
     expect(status).toBe('RECEIPT_PENDING');
     expect(updates.count).toBe(0);
-    expect(sub.status).toBe(SubscriptionStatus.CANCELED);
+    expect(sub.status).toBe(SubscriptionStatus.TRIAL_EXPIRED);
     expect(sub.renewalAttempts).toBe(3);
     expect(receipts.ensureReceiptForCapturedAttempt).not.toHaveBeenCalled();
     expect(orchestration.attempt.status).toBe(BillingAttemptStatus.CAPTURED);

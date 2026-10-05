@@ -23,6 +23,8 @@ import {
   BillingLifecycleService,
   redactForLog,
 } from './billing-lifecycle.service';
+import { BillingDebtService } from './billing-debt.service';
+import { billingDate, nextBillingInstant } from '../domain/billing-debt-periods';
 import { BillingHostedCompletionService } from './billing-hosted-completion.service';
 import { BillingReconciliationService } from './billing-reconciliation.service';
 import { BillingAttempt } from '../entities/billing-attempt.entity';
@@ -87,6 +89,7 @@ export class SubscriptionRenewalService {
     private readonly hostedCompletion: BillingHostedCompletionService,
     @Optional()
     private readonly reconciliation?: BillingReconciliationService,
+    @Optional() private readonly debtService?: BillingDebtService,
   ) {}
 
   // ─── Cron entry point ───────────────────────────────────────────────────────
@@ -128,6 +131,8 @@ export class SubscriptionRenewalService {
    * logic, no idempotency/retry/charge behavior is duplicated or bypassed.
    */
   async processDueRenewals(): Promise<RenewalBatchResult> {
+    try { await this.debtService?.accruePastDue(); }
+    catch { this.logger.error('Debt accrual sweep failed; affected subscriptions require review'); }
     // Read-only reconciliation of UNKNOWN / expired-PROCESSING attempts. It runs
     // FIRST so a token renewal it confirms as captured is finalized by this same
     // run (the due list below is read afterwards). It never charges and cannot
@@ -298,8 +303,9 @@ export class SubscriptionRenewalService {
     // the period being collected (and its canonical obligation) is unchanged.
     const periodStart =
       renewalPeriodStart(subscription) ?? subscription.nextBillingDate;
-    const periodEnd = this.addOneMonth(periodStart);
-    const periodStartDate = periodStart.toISOString().slice(0, 10);
+    const anchor = subscription.billingAnchorDay ?? Number(billingDate(subscription.currentPeriodStart ?? periodStart).slice(8));
+    const periodEnd = nextBillingInstant(periodStart, anchor);
+    let periodStartDate = billingDate(periodStart);
     const actor = {
       actorFirebaseId: subscription.firebaseId,
       subjectFirebaseId: subscription.firebaseId,
@@ -310,11 +316,16 @@ export class SubscriptionRenewalService {
     // retrying after a confirmed decline) must never be re-priced: a fresh
     // price may have drifted, and a changed snapshot would be rejected. The
     // canonical debt snapshot is authoritative for every retry of the period.
-    const existing = await this.billingLifecycleService.inspectPeriod(
+    let existing = await this.billingLifecycleService.inspectPeriod(
       actor,
       subscriptionId,
       periodStartDate,
     );
+    const legacyDate = periodStart.toISOString().slice(0, 10);
+    if (!existing && legacyDate !== periodStartDate) {
+      existing = await this.billingLifecycleService.inspectPeriod(actor, subscriptionId, legacyDate);
+      if (existing) periodStartDate = legacyDate;
+    }
     const reuseDebtSnapshot = !!existing;
 
     const planId = reuseDebtSnapshot
@@ -347,7 +358,7 @@ export class SubscriptionRenewalService {
         subscriptionId,
         planId: plan.id,
         periodStart: periodStartDate,
-        periodEnd: periodEnd.toISOString().slice(0, 10),
+        periodEnd: existing?.obligation.periodEnd ?? billingDate(periodEnd),
         amountAgorot: pricing.finalAmountAgorot,
         amountBeforeVatAgorot: pricing.amountBeforeVatAgorot,
         vatAmountAgorot: pricing.vatAmountAgorot,
@@ -488,6 +499,7 @@ export class SubscriptionRenewalService {
         currentPeriodEnd: periodEnd,
         nextBillingDate: periodEnd,
         gracePeriodEndsAt: null,
+        billingAnchorDay: anchor,
       },
     );
     if (!advanced.affected)

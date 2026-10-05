@@ -3,6 +3,9 @@
 
     <header class="plans-header">
       <h1 class="plans-title">בחירת תוכנית</h1>
+      @if (billing.effectiveStatus() === 'PAST_DUE' || billing.effectiveStatus() === 'CANCELED') {
+        <p><a routerLink="/billing/recovery">לפירוט ותשלום חוב שנותר מהמנוי</a></p>
+      }
     </header>
 
     @if (isLoading()) {
