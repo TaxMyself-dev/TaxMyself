@@ -18,6 +18,12 @@ Internal admin console (tabbed) for staff to manage clients dashboard, the unifi
 
 ## Main flows
 
+- Integration test coverage: `frontend/tsconfig.guide-spec.json` includes the
+  study-fund comparison specs as well as guide navigation, expense savings,
+  NI and income-tax simulator specs. Run these focused specs for guide-only
+  deliveries; do not substitute a passing navigation-only run for calculator
+  regressions when the calculators are also being delivered.
+
 - Expense principle and depreciation are approved static artworks on main slides 12–13. `expense-principle` now uses the centered, character-free “מנצלים את כל ההוצאות שמגיעות לנו” visual with restrained mint/blue/lavender stages and no decorative lime rays. `expense-depreciation` uses the matching calmer two-panel visual, with a subtle digital-ad card instead of a megaphone and no character. Both use the existing contain renderer; the expense calculator remains native and unchanged on slide 14. Counts remain 20 main/31 total. Provenance and locked copy: `docs/marketing/expense-savings-slides.md` and `docs/marketing/expense-depreciation-slide.md`.
 
 - Main slides 10–11, immediately after the recap, are now the approved `practical-transition` artwork and a single `income-documents` artwork. They replace the separate exempt/authorized document slides, so counts remain 20 main/31 total and all chapter navigation is unchanged. Both PNGs are copied losslessly and rendered with contain. The combined document slide shows the exempt path (transaction account before payment, receipt on payment), the authorized cash-basis example (transaction account before payment, tax invoice-receipt on payment), and the framed tax-invoice-to-receipt path. No calculator, reporting rule, or tax model changed. Provenance and presenter boundaries: `docs/marketing/income-documents-slides.md`.
