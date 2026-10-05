@@ -7,6 +7,18 @@ before/after profit and net-cost display; title is now “כמה ההוצאה ה
 
 ## Presentation
 
+### Approved principle artwork — 2026-10-05
+
+The native principle diagram is superseded by the approved character-free static
+artwork `exec-8d0b0deb-559f-4eca-8a5c-ab2b24af6771.png`, copied losslessly to
+`frontend/src/assets/self-employed-guide/expense-principle-approved.png` and
+rendered with contain. The title is “מנצלים את כל ההוצאות שמגיעות לנו”. The
+visible flow remains expense recognition → lower taxable profit → lower income
+tax and NI/health when a liability exists. The authorized-dealer VAT note and
+micro-business 30% route note remain visible. The final design is centered and
+restrained, without Kipi or decorative lime rays. The calculator and its model
+are unchanged.
+
 Main IDs `expense-principle`, `expense-savings` are slides 9/10; product pain and
 solution become 11/12. Authorities hub remains 8. Total distinct screens: 24.
 Native HTML/CSS, mint/lime/navy, receipt illustration, lower-profit bars, separate

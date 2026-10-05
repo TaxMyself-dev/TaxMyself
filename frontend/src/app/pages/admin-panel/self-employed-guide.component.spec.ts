@@ -10,6 +10,10 @@ describe('SelfEmployedGuideComponent', () => {
     expect(component.slides[4].items?.every(item => item.description.includes('ביטוח לאומי'))).toBeTrue();
     expect(component.slides[2].title).toBe('כשאתם שכירים, המעסיק מטפל בהכל');
     expect(component.slides.map(s => s.id)).toEqual(['cover', 'basic-concepts', 'employee-payroll', 'business-types', 'income-tax-overview', 'status-comparison', 'micro-blockers', 'tax-authorities', 'learning-summary', 'practical-transition', 'income-documents', 'expense-principle', 'expense-depreciation', 'expense-savings', 'study-fund', 'study-comparison', 'pension', 'pension-tax-benefits', 'product-pain', 'product-solution']);
+    expect(component.slides[11].layout).toBe('approved-artwork');
+    expect(component.slides[11].title).toBe('מנצלים את כל ההוצאות שמגיעות לנו');
+    expect(component.slides[11].artwork).toBe('/assets/self-employed-guide/expense-principle-approved.png');
+    expect(component.slides[12].artwork).toBe('/assets/self-employed-guide/expense-depreciation-approved.png');
     component.previousSlide();
     expect(component.currentSlideIndex).toBe(0);
     for (let i = 0; i < 20; i++) component.nextSlide();

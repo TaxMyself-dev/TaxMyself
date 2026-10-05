@@ -6,6 +6,13 @@ screens. No calculator, accounting, depreciation engine or backend changes.
 
 ## Locked artwork
 
+The current approved replacement is
+`exec-e1e6034e-ea65-499f-987d-ab1e97acbdcc.png`, copied losslessly to the same
+asset path. It supersedes the source below. The replacement keeps every amount
+and conclusion, removes Kipi, uses a calmer blue/green two-panel layout, and
+replaces the red megaphone with a subtle mint/blue digital-ad card. No native
+overlay, calculation, accounting or depreciation behavior changed.
+
 Source: `exec-793675f3-14e4-4e11-90b2-187ef70fadb4.png` in this conversation's
 generated-images folder. Copy byte-for-byte to
 `frontend/src/assets/self-employed-guide/expense-depreciation-approved.png`.

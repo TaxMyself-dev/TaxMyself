@@ -64,7 +64,7 @@ export const SELF_EMPLOYED_GUIDE_SLIDES: GuideSlide[] = [
   {
     id: 'expense-depreciation', layout: 'approved-artwork', title: 'שילמתם עכשיו. מתי ההוצאה מוכרת?',
     artwork: '/assets/self-employed-guide/expense-depreciation-approved.png',
-    artworkAlt: 'הוצאה שוטפת מול רכישה שמוכרת דרך פחת. פרסום לעסק ב-1,000 ₪ מוכר כהוצאה השנה. מחשב לעסק ב-6,000 ₪: פחת שנתי 33%, הוצאה מוכרת של 1,980 ₪ בכל אחת משלוש השנים הראשונות ויתרה של 60 ₪ בשנה הרביעית. ההוצאה נפרסת, המע״מ לא.',
+    artworkAlt: 'שילמתם עכשיו. מתי ההוצאה מוכרת? לא כל הוצאה מוכרת בבת אחת. הוצאה שוטפת: פרסום לעסק ב-1,000 ₪ מוכר כהוצאה השנה. רכישה שמוכרת דרך פחת: מחשב לעסק ב-6,000 ₪, פחת שנתי 33%, הוצאה מוכרת של 1,980 ₪ בכל אחת משלוש השנים הראשונות ויתרה של 60 ₪ בשנה הרביעית. ההוצאה נפרסת. המע״מ לא.',
   },
   {
     id: 'pension', layout: 'approved-artwork', title: 'קרן פנסיה לעצמאים',
@@ -83,8 +83,10 @@ export const SELF_EMPLOYED_GUIDE_SLIDES: GuideSlide[] = [
     artworkAlt: 'קרן השתלמות לעצמאים. הטבה בהפקדה: הפקדה מוכרת מקטינה את ההכנסה החייבת במס. הטבה על הרווחים: פטור ממס על הרווחים עד תקרת ההפקדה המזכה. אחרי 6 שנים: אפשר למשוך לכל מטרה או להמשיך לחסוך.',
   },
   {
-    id: 'expense-principle', layout: 'expense-principle',
-    title: 'פחות רווח חייב. פחות מיסים.',
+    id: 'expense-principle', layout: 'approved-artwork',
+    title: 'מנצלים את כל ההוצאות שמגיעות לנו',
+    artwork: '/assets/self-employed-guide/expense-principle-approved.png',
+    artworkAlt: 'מנצלים את כל ההוצאות שמגיעות לנו. כל הוצאה מוכרת מקטינה את הרווח שעליו מחשבים מס. הוצאות מוכרות מובילות לפחות רווח חייב, פחות מס הכנסה ופחות ביטוח לאומי ובריאות כשיש חבות בתשלום. עוסק מורשה יכול גם לקזז מע״מ שמותר בניכוי. בעסק זעיר יש ניכוי קבוע של 30% מהמחזור במקום הוצאות בפועל.',
     sources: [{ label: 'קיזוז מס תשומות', url: 'https://www.gov.il/he/service/reporting-or-payment-of-vat-reports' }, { label: 'ניכוי במסלול עסק זעיר', url: figures.sources.microBusinessGuidance }],
   },
   { id: 'expense-savings', layout: 'expense-savings', title: 'כמה ההוצאה הזאת באמת שווה לכם?' },
