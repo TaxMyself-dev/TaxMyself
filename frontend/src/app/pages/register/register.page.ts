@@ -1,4 +1,4 @@
-import { Component, computed, effect, OnDestroy, OnInit, signal } from '@angular/core';
+import { afterNextRender, Component, computed, effect, ElementRef, inject, Injector, OnDestroy, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, Validators, FormControl, FormArray, AbstractControl, ValidatorFn, ValidationErrors, FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { IonicModule } from '@ionic/angular';
@@ -132,7 +132,23 @@ matchRegisterImage = computed(() => {
   return this.registerImages.find(image => image.page === currentModule);
 })
 
+  private readonly injector = inject(Injector);
+  private readonly hostRef = inject(ElementRef<HTMLElement>);
+
+  private scrollToTop(): void {
+    const content = (this.hostRef.nativeElement as HTMLElement).querySelector<HTMLElement>('.content');
+    content?.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  }
+
   constructor(private router: Router, private route: ActivatedRoute, public authService: AuthService, private formBuilder: FormBuilder, private registerService: RegisterService, private referralService: ReferralService, private messageService: MessageService, private genericService: GenericService) {
+    // Reset scroll only when the active step changes (not on typing/re-renders).
+    // The scroll container is `.content` (the page itself does not scroll).
+    effect(() => {
+      this.selectedFormModule();
+      afterNextRender(() => this.scrollToTop(), { injector: this.injector });
+    });
+
     effect(() => {
       const currentModule = this.selectedFormModule();
       switch (currentModule) {
