@@ -18,6 +18,8 @@ Internal admin console (tabbed) for staff to manage clients dashboard, the unifi
 
 ## Main flows
 
+- Main slides 10–11, immediately after the recap, are now the approved `practical-transition` artwork and a single `income-documents` artwork. They replace the separate exempt/authorized document slides, so counts remain 20 main/31 total and all chapter navigation is unchanged. Both PNGs are copied losslessly and rendered with contain. The combined document slide shows the exempt path (transaction account before payment, receipt on payment), the authorized cash-basis example (transaction account before payment, tax invoice-receipt on payment), and the framed tax-invoice-to-receipt path. No calculator, reporting rule, or tax model changed. Provenance and presenter boundaries: `docs/marketing/income-documents-slides.md`.
+
 - Expense principle/depreciation/calculator now occupy main slides 12–14 before study-fund and pension slides (15–18). Counts remain 20 main/31 total; hub and chapters unchanged. The native expense principle slide uses a single receipt → smaller taxable profit → lower tax/NI flow with a liability qualifier, concise VAT line and retained micro-route exception. No calculator or tax model changes. Typography/layout changes are scoped to principle mode.
 
 - The approved recap `learning-summary` is now main slide 9, immediately after `tax-authorities`, followed by exempt/authorized documents at 10–11. There are 20 main/31 total screens; chapter sequences and return hub remain unchanged. Original image `exec-e5db6cb9-bfcb-47b7-aa89-82de26588194.png` is copied losslessly to `learning-summary-approved.png` and rendered with contain. This supersedes the recap-pending note and counts below. No content or calculator changes.

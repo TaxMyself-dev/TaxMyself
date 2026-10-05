@@ -52,14 +52,14 @@ export const SELF_EMPLOYED_GUIDE_SLIDES: GuideSlide[] = [
     artworkAlt: 'אז מה למדנו עד עכשיו? סוג העסק — פטור ומורשה הם מעמד במע״מ. עסק זעיר הוא מסלול במס הכנסה. מס הכנסה — מחושב על ההכנסה החייבת, כולל השכר והרווח מהעסק. מע״מ — מס על עסקאות, לא על הרווח. ביטוח לאומי — התשלום תלוי במעמד ובהכנסות. מקדמות — תשלומים במהלך השנה על חשבון החיוב הסופי, למי שחייב.',
   },
   {
-    id: 'exempt-documents', layout: 'approved-artwork', title: 'עוסק פטור',
-    artwork: '/assets/self-employed-guide/exempt-documents-approved.png',
-    artworkAlt: 'עוסק פטור. חשבון עסקה — דרישת תשלום מהלקוח, אינו אישור שקיבלתם כסף. קבלה — אישור על קבלת התשלום, מפיקים מיד עם קבלת הכסף. עוסק פטור לא מוציא חשבונית מס ולא גובה מע״מ.',
+    id: 'practical-transition', layout: 'approved-artwork', title: 'ועכשיו לתכל׳ס',
+    artwork: '/assets/self-employed-guide/practical-transition-approved.png',
+    artworkAlt: 'ועכשיו לתכל׳ס. איך מתנהלים נכון ביום־יום ומממשים את הזכויות שלנו כעצמאים? קיפי צועד עם תרמיל.',
   },
   {
-    id: 'authorized-documents', layout: 'approved-artwork', title: 'עוסק מורשה',
-    artwork: '/assets/self-employed-guide/authorized-documents-approved.png',
-    artworkAlt: 'עוסק מורשה. חשבון עסקה — דרישת תשלום מהלקוח, אינו אישור שקיבלתם כסף. חשבונית מס — פירוט העסקה והמע״מ, אינה אישור שקיבלתם כסף. קבלה — אישור על קבלת התשלום, מפיקים מיד עם קבלת הכסף. חשבונית מס־קבלה — חשבונית וקבלה במסמך אחד, כשהפקת החשבונית וקבלת התשלום מתבצעות יחד. מועד הפקת חשבונית המס תלוי בסוג העסקה ובבסיס הדיווח.',
+    id: 'income-documents', layout: 'approved-artwork', title: 'הפקת מסמכים על הכנסות',
+    artwork: '/assets/self-employed-guide/income-documents-approved.png',
+    artworkAlt: 'הפקת מסמכים על הכנסות. עוסק פטור: לפני התשלום חשבון עסקה, ובקבלת התשלום קבלה. עוסק מורשה: לפני התשלום חשבון עסקה, ובקבלת התשלום חשבונית מס־קבלה. מסלול צדדי: חשבונית מס ולאחריה קבלה.',
   },
   {
     id: 'expense-depreciation', layout: 'approved-artwork', title: 'שילמתם עכשיו. מתי ההוצאה מוכרת?',

@@ -9,7 +9,7 @@ describe('SelfEmployedGuideComponent', () => {
     expect(component.slides[4].title).toBe('החובות של כל עסק');
     expect(component.slides[4].items?.every(item => item.description.includes('ביטוח לאומי'))).toBeTrue();
     expect(component.slides[2].title).toBe('כשאתם שכירים, המעסיק מטפל בהכל');
-    expect(component.slides.map(s => s.id)).toEqual(['cover', 'basic-concepts', 'employee-payroll', 'business-types', 'income-tax-overview', 'status-comparison', 'micro-blockers', 'tax-authorities', 'learning-summary', 'exempt-documents', 'authorized-documents', 'expense-principle', 'expense-depreciation', 'expense-savings', 'study-fund', 'study-comparison', 'pension', 'pension-tax-benefits', 'product-pain', 'product-solution']);
+    expect(component.slides.map(s => s.id)).toEqual(['cover', 'basic-concepts', 'employee-payroll', 'business-types', 'income-tax-overview', 'status-comparison', 'micro-blockers', 'tax-authorities', 'learning-summary', 'practical-transition', 'income-documents', 'expense-principle', 'expense-depreciation', 'expense-savings', 'study-fund', 'study-comparison', 'pension', 'pension-tax-benefits', 'product-pain', 'product-solution']);
     component.previousSlide();
     expect(component.currentSlideIndex).toBe(0);
     for (let i = 0; i < 20; i++) component.nextSlide();
@@ -80,7 +80,7 @@ describe('SelfEmployedGuideComponent', () => {
     expect(component.currentSlide.id).toBe('ni-rates');
   });
   it('continues from the authorities through expenses before savings and pension', () => {
-    const following = ['learning-summary', 'exempt-documents', 'authorized-documents', 'expense-principle', 'expense-depreciation', 'expense-savings', 'study-fund', 'study-comparison', 'pension', 'pension-tax-benefits', 'product-pain', 'product-solution'];
+    const following = ['learning-summary', 'practical-transition', 'income-documents', 'expense-principle', 'expense-depreciation', 'expense-savings', 'study-fund', 'study-comparison', 'pension', 'pension-tax-benefits', 'product-pain', 'product-solution'];
     component.returnToAuthorities();
     for (const id of following) {
       component.nextSlide();
