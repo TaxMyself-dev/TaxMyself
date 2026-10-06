@@ -16,6 +16,18 @@ Subscription billing: plan catalog, trial/subscription lifecycle, CardCom paymen
 
 ## Main flows
 
+### Immediate PAST_DUE blocking (KT-041)
+
+Elazar approved immediate direct module blocking on 2026-10-06: PAST_DUE
+always resolves to no modules, even with a future stored gracePeriodEndsAt.
+access.gracePeriodActive is always false. The first two confirmed renewal
+declines keep the existing +3/+7-day retries; the third enters PAST_DUE and
+blocks immediately. Existing local unusable-card transitions to PAST_DUE are
+unchanged and also block by status. Verified delegation/admin impersonation
+overrides remain intact. Legacy grace dates are retained for compatibility,
+not access. Auth-only owner billing checkout/card-change routes stay reachable;
+card replacement alone does not satisfy debts or reactivate access.
+
 ### Accumulated customer debt settlement (KT-040, supersedes KT-039 single-period flow)
 
 `BillingDebtService` accrues every due recurring period for PAST_DUE/CANCELED
@@ -204,7 +216,8 @@ legacy implementation and `docs/features/billing/cardcom-billing.md` describe).
 It applies ONLY after a definitive provider decline (`DECLINED`) of a
 `RENEWAL` / `TOKEN_TRANSACTION` attempt: 3 charge attempts per cycle; the 1st
 decline schedules a retry in 3 days, the 2nd in 7 days, and the 3rd moves the
-subscription to `PAST_DUE` with a 14-day grace period. `UNKNOWN`, timeouts,
+subscription to `PAST_DUE` with a legacy 14-day grace date (KT-041 grants no
+access during it). `UNKNOWN`, timeouts,
 transport errors, malformed/incomplete responses, expired `PROCESSING` leases
 and `MANUAL_REVIEW` never enter it and are never replayed.
 - State: `subscription.renewalAttempts` is the counter and the retry date is
@@ -276,7 +289,7 @@ a hosted attempt via `getLowProfileResult` with its persisted LowProfile id.
   `LOCAL_<REASON>` category, no token/key/raw error stored or logged):
   customer action (no payment method, no token, missing/expired expiry) ends the
   attempt `DECLINED` without the 3/7-day policy (`renewalAttempts` untouched)
-  and moves an ACTIVE subscription to `PAST_DUE` with the standard grace period,
+  and moves an ACTIVE subscription to `PAST_DUE` with the legacy grace date (no access under KT-041),
   so hosted recovery/change-payment-method can collect; system action (token
   decryption failure) ends `MANUAL_REVIEW` with the subscription unchanged and
   the obligation still blocked. Both are excluded from the sweep by status.

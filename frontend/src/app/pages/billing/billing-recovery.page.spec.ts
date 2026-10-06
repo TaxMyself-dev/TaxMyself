@@ -55,6 +55,19 @@ describe('BillingRecoveryPage', () => {
     await page.pay();
     http.expectNone(`${environment.apiUrl}billing/checkout/preview`);
     expect(page.error()).toBeTruthy();
+    page.openCardChange();
+    expect(page.changeCardDialogOpen).toBeFalse();
+  });
+
+  it('allows card replacement for a blocked owner even when debt preview needs review', async () => {
+    page.ngOnInit();
+    await Promise.resolve();
+    http.expectOne(`${environment.apiUrl}billing/checkout/preview`).flush({}, { status: 409, statusText: 'Conflict' });
+    await Promise.resolve();
+    page.openCardChange();
+    expect(page.changeCardDialogOpen).toBeTrue();
+    expect(page.error()).toBeTruthy();
+    http.expectNone(`${environment.apiUrl}billing/checkout`);
   });
 
   it('submits once on double click and prevents another submission after an unresolved response', async () => {

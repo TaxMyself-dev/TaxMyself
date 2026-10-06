@@ -1,5 +1,7 @@
 import { BillingController } from './billing.controller';
 import { BillingService } from './services/billing.service';
+import { GUARDS_METADATA } from '@nestjs/common/constants';
+import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
 
 /**
  * Unit tests: BillingController's owner-mutation actor context (KT-038
@@ -32,6 +34,12 @@ describe('BillingController — owner-mutation actor context', () => {
       billingService as unknown as BillingService,
     );
   });
+
+  it.each(['previewCheckout', 'createCheckout', 'changePaymentMethod', 'getChangePaymentMethodStatus'])(
+    'keeps %s authenticated but free of subscription module gates for blocked owners', method => {
+      expect(Reflect.getMetadata(GUARDS_METADATA, BillingController)).toBeUndefined();
+      expect(Reflect.getMetadata(GUARDS_METADATA, BillingController.prototype[method])).toEqual([FirebaseAuthGuard]);
+    });
 
   describe('createCheckout', () => {
     it('passes the real actor id, subject id, and delegation flag separately — never collapses them to the rewritten id', async () => {

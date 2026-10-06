@@ -8,7 +8,7 @@ import { SubscriptionStatus } from '../enums/billing.enums';
  * Slack allowed past `nextBillingDate`/`currentPeriodEnd` before an ACTIVE
  * subscription's access is cut. Exists purely to absorb normal timing (the
  * renewal cron runs once daily) — it is NOT meant to give a real grace
- * period the way PAST_DUE's gracePeriodEndsAt does. If billing genuinely
+ * period for PAST_DUE, which blocks immediately. If billing genuinely
  * stalls (cron down, or a payment blocked pending a manual receipt fix —
  * see BillingEventService.getUnresolvedReceiptFailure), access lapses here
  * instead of continuing forever with no independent check.
@@ -24,8 +24,7 @@ export class SubscriptionAccessService {
    * Rules:
    *   TRIAL              → all available modules
    *   ACTIVE             → modules defined in subscription_plan.modules
-   *   PAST_DUE (grace)   → keep plan modules until grace period expires
-   *   PAST_DUE (expired) → no access
+   *   PAST_DUE           → no access immediately after the third confirmed decline
    *   CANCELED           → plan modules if still within currentPeriodEnd, else no access
    *   TRIAL_EXPIRED      → no access
    *
@@ -73,12 +72,6 @@ export class SubscriptionAccessService {
       }
 
       case SubscriptionStatus.PAST_DUE: {
-        const graceActive =
-          subscription.gracePeriodEndsAt != null &&
-          subscription.gracePeriodEndsAt > now;
-        if (graceActive) {
-          return plan?.modules?.length ? plan.modules : allModules;
-        }
         return [];
       }
 
@@ -110,8 +103,8 @@ export class SubscriptionAccessService {
 
   /**
    * Returns true when the user must provide a payment method to continue.
-   * Note: PAST_DUE users may still have access during their grace period but
-   * are still considered "payment required".
+   * PAST_DUE blocks direct module access immediately; authenticated billing
+   * recovery and payment-method endpoints remain available separately.
    */
   isPaymentRequired(subscription: Subscription): boolean {
     return (
@@ -120,9 +113,9 @@ export class SubscriptionAccessService {
     );
   }
 
-  gracePeriodActive(subscription: Subscription): boolean {
-    if (subscription.status !== SubscriptionStatus.PAST_DUE) return false;
-    if (!subscription.gracePeriodEndsAt) return false;
-    return subscription.gracePeriodEndsAt > new Date();
+  gracePeriodActive(_subscription: Subscription): boolean {
+    // Keep the response contract and stored legacy dates, but no PAST_DUE
+    // access grace is granted under the approved immediate-block policy.
+    return false;
   }
 }

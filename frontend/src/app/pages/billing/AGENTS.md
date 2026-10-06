@@ -6,6 +6,11 @@ Standalone pricing/plans page where a user views available subscription plans an
 - `billing-plans.page.html` / `.scss` — pricing card grid UI.
 
 ## Main flows
+- PAST_DUE owners can open the existing card-change dialog directly from
+  recovery, including when debt preview needs review. The page explains that
+  replacing a card alone neither pays the debt nor removes the block. The
+  dialog is instantiated only when opened. Overrides cannot open it; canceled
+  card changes remain unsupported by the existing backend.
 - `/billing/recovery` renders `BillingRecoveryPage` for owner PAST_DUE/CANCELED state,
   previews every unpaid subscription period and the server debt total, discloses one invoice and card replacement for future
   renewals before submitting the existing checkout endpoint. It does not offer
@@ -18,7 +23,8 @@ Standalone pricing/plans page where a user views available subscription plans an
 - Focused verification from frontend: `npm run ng -- test --watch=false
   --browsers=ChromeHeadless --include=src/app/pages/billing/billing-recovery.page.spec.ts
   --ts-config=tsconfig.billing.spec.json`. This config isolates recovery specs
-  from legacy unrelated specs; dependency declarations use skipLibCheck.
+  from legacy unrelated specs; dependency declarations use skipLibCheck and
+  Node types required by existing card-dialog transitive imports.
 - On init, `GET {apiUrl}billing/plans` and render plan cards with computed shekel pricing (`effectivePriceMonthlyAgorot`, resolved server-side per the user's billing business type).
 - `checkout(planId)` calls `POST {apiUrl}billing/checkout`, then redirects the browser to the returned Cardcom `paymentUrl`.
 

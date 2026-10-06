@@ -14,6 +14,7 @@ import { Subscription } from '../entities/subscription.entity';
 import { SubscriptionPlan } from '../entities/subscription-plan.entity';
 import { SubscriptionStatus } from '../enums/billing.enums';
 import { ModuleName } from 'src/enum';
+import { decideRenewalDecline } from '../domain/billing-renewal-policy';
 
 function makeSubscription(overrides: Partial<Subscription> = {}): Subscription {
   return {
@@ -46,6 +47,29 @@ describe('SubscriptionAccessService.resolveModulesAccess — professional-access
 
   beforeEach(() => {
     service = new SubscriptionAccessService();
+  });
+
+  it.each([null, new Date('2099-01-01'), new Date('2000-01-01')])(
+    'blocks direct PAST_DUE access regardless of the stored grace date %s', gracePeriodEndsAt => {
+      const sub = makeSubscription({ status: SubscriptionStatus.PAST_DUE, renewalAttempts: 3, gracePeriodEndsAt });
+      expect(service.resolveModulesAccess(sub, { modules: [ModuleName.EXPENSES] } as SubscriptionPlan)).toEqual([]);
+      expect(service.isPaymentRequired(sub)).toBe(true);
+      expect(service.gracePeriodActive(sub)).toBe(false);
+    });
+
+  it('keeps access during the first two decline retries and blocks on the third', () => {
+    const now = new Date();
+    const sub = makeSubscription({ status: SubscriptionStatus.ACTIVE, nextBillingDate: now });
+    const plan = { modules: [ModuleName.EXPENSES] } as SubscriptionPlan;
+    for (let previous = 0; previous < 3; previous++) {
+      const decision = decideRenewalDecline(previous, now);
+      sub.renewalAttempts = decision.attemptNumber;
+      if (decision.kind === 'PAST_DUE') {
+        sub.status = SubscriptionStatus.PAST_DUE;
+        sub.gracePeriodEndsAt = decision.gracePeriodEndsAt;
+      } else sub.nextBillingDate = decision.retryAt;
+      expect(service.resolveModulesAccess(sub, plan)).toEqual(previous < 2 ? plan.modules : []);
+    }
   });
 
   it('non-delegated access is completely unaffected (TRIAL_EXPIRED → no access)', () => {

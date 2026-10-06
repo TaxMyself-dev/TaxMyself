@@ -5,7 +5,8 @@
  * (docs/features/billing/cardcom-billing.md, "Renewal charge failure"):
  * three charge attempts per billing cycle; after the 1st confirmed decline
  * retry in 3 days, after the 2nd in 7 days, after the 3rd the subscription
- * becomes PAST_DUE with a 14-day grace period. The retry date is stored in
+ * becomes PAST_DUE. A legacy 14-day grace date is still stored for historical
+ * compatibility, but KT-041 blocks direct module access immediately. The retry date is stored in
  * `subscription.nextBillingDate`, the field the renewal cron selects on, and
  * `subscription.renewalAttempts` is the counter (reset by a successful
  * renewal).
@@ -19,7 +20,7 @@
 export const MAX_RENEWAL_ATTEMPTS = 3;
 /** Days to wait after a confirmed decline, indexed by (attemptNumber - 1). */
 export const RENEWAL_RETRY_DELAYS_DAYS: readonly number[] = [3, 7];
-/** Grace period length once a subscription becomes PAST_DUE. */
+/** Legacy persisted grace length; it does not grant PAST_DUE module access. */
 export const RENEWAL_GRACE_PERIOD_DAYS = 14;
 
 /** End of the grace period for a subscription that becomes PAST_DUE at `now`. */
