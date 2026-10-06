@@ -56,3 +56,9 @@ for the exact SQL union was granted, and that exact patch then passed review.
   no provider request was made and no schema was executed.
 - Database execution remains pending a specifically approved test database;
   the user was asked for its name and whether it is isolated/shared.
+
+## Subsequent dev execution
+
+Elazar subsequently authorized shared keepintax-dev. Missing billing schema
+changes were applied and verified in KT-043-dev-billing-schema.md on 2026-10-06.
+This supersedes the pending-target statement above; production remains untouched.
