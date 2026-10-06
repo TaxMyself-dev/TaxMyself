@@ -35,6 +35,10 @@ import {
 
 /** Attempts that block a subscription's obligation and need admin visibility. */
 const UNRESOLVED_ATTEMPT_STATUSES: AdminUnresolvedAttemptStatus[] = [
+  BillingAttemptStatus.CREATED,
+  BillingAttemptStatus.AWAITING_CUSTOMER,
+  BillingAttemptStatus.PROCESSING,
+  BillingAttemptStatus.CAPTURED,
   BillingAttemptStatus.UNKNOWN,
   BillingAttemptStatus.MANUAL_REVIEW,
 ];
@@ -66,6 +70,15 @@ export function classifyUnresolvedAttempt(
   failureCategory: AdminBillingExceptionFailureCategory;
   requiredAction: AdminBillingExceptionAction;
 } {
+  if (persistedCategory === 'HOSTED_CREATE_UNCERTAIN' || persistedCategory === 'HOSTED_CREATE_REJECTED') {
+    return { failureCategory: 'HOSTED_CREATION_FAILED', requiredAction: 'INTERNAL_REVIEW' };
+  }
+  if (status === BillingAttemptStatus.CAPTURED) {
+    return { failureCategory: 'POST_CAPTURE_PENDING', requiredAction: 'INTERNAL_REVIEW' };
+  }
+  if ([BillingAttemptStatus.CREATED, BillingAttemptStatus.AWAITING_CUSTOMER].includes(status)) {
+    return { failureCategory: 'CHECKOUT_NOT_FINISHED', requiredAction: 'INTERNAL_REVIEW' };
+  }
   if (persistedCategory && CUSTOMER_PAYMENT_METHOD_FAILURES.has(persistedCategory)) {
     return {
       failureCategory: 'MISSING_OR_EXPIRED_PAYMENT_METHOD',
@@ -75,7 +88,7 @@ export function classifyUnresolvedAttempt(
   if (persistedCategory === TOKEN_DECRYPTION_FAILURE) {
     return { failureCategory: 'TOKEN_DECRYPTION_FAILED', requiredAction: 'INTERNAL_REVIEW' };
   }
-  return status === BillingAttemptStatus.MANUAL_REVIEW
+  return [BillingAttemptStatus.MANUAL_REVIEW, BillingAttemptStatus.CAPTURED, BillingAttemptStatus.CREATED].includes(status)
     ? { failureCategory: 'RECONCILIATION_EXHAUSTED', requiredAction: 'INTERNAL_REVIEW' }
     : { failureCategory: 'PROVIDER_OUTCOME_UNKNOWN', requiredAction: 'AUTOMATIC_CHECK' };
 }
@@ -387,6 +400,7 @@ export class AdminBillingService {
         .select('o.subscriptionId', 'subscriptionId')
         .addSelect('COUNT(a.id)', 'unresolvedCount')
         .addSelect('SUM(CASE WHEN a.status = :manualReview THEN 1 ELSE 0 END)', 'manualReviewCount')
+        .addSelect("MAX(FIELD(a.status, 'AWAITING_CUSTOMER', 'CREATED', 'PROCESSING', 'CAPTURED', 'UNKNOWN', 'MANUAL_REVIEW'))", 'statusRank')
         .from(BillingAttempt, 'a')
         .innerJoin(BillingObligation, 'o', 'o.id = a.obligationId')
         .where('a.status IN (:...unresolved)', { unresolved: UNRESOLVED_ATTEMPT_STATUSES })
@@ -399,7 +413,9 @@ export class AdminBillingService {
           mostSevere:
             Number(row.manualReviewCount) > 0
               ? BillingAttemptStatus.MANUAL_REVIEW
-              : BillingAttemptStatus.UNKNOWN,
+              : ([BillingAttemptStatus.AWAITING_CUSTOMER, BillingAttemptStatus.CREATED,
+                  BillingAttemptStatus.PROCESSING, BillingAttemptStatus.CAPTURED, BillingAttemptStatus.UNKNOWN,
+                  BillingAttemptStatus.MANUAL_REVIEW][Number(row.statusRank) - 1] ?? BillingAttemptStatus.UNKNOWN),
         });
       }
     } catch (error) {
@@ -430,6 +446,7 @@ export class AdminBillingService {
     const rows: any[] = await this.dataSource
       .createQueryBuilder()
       .select('a.id', 'attemptId')
+      .addSelect('a.stateVersion', 'stateVersion')
       .addSelect('a.status', 'status')
       .addSelect('a.chargeMode', 'chargeMode')
       .addSelect('a.amountAgorot', 'amountAgorot')
@@ -446,7 +463,6 @@ export class AdminBillingService {
       .from(BillingAttempt, 'a')
       .innerJoin(BillingObligation, 'o', 'o.id = a.obligationId')
       .where('o.subscriptionId = :subscriptionId', { subscriptionId })
-      .andWhere('a.status IN (:...unresolved)', { unresolved: UNRESOLVED_ATTEMPT_STATUSES })
       .orderBy('a.createdAt', 'DESC')
       .addOrderBy('a.id', 'DESC')
       .getRawMany();
@@ -459,13 +475,22 @@ export class AdminBillingService {
       .createQueryBuilder()
       .select('e.billingAttemptId', 'billingAttemptId')
       .addSelect('e.metadata', 'metadata')
+      .addSelect('e.createdAt', 'createdAt')
       .from(BillingEvent, 'e')
       .where('e.billingAttemptId IN (:...attemptIds)', { attemptIds })
+      .orderBy('e.id', 'ASC')
       .getRawMany();
     const tokenRecovered = new Set<number>();
+    const resolutions = new Map<number, AdminUnresolvedBillingAttemptResponse['lastResolution']>();
     for (const event of events) {
       const metadata = typeof event.metadata === 'string' ? safeParseObject(event.metadata) : event.metadata;
       if (metadata?.cardTokenStored === true) tokenRecovered.add(Number(event.billingAttemptId));
+      if (metadata?.kind === 'ADMIN_BILLING_RESOLUTION' &&
+        ['CHECK_PROVIDER', 'CONFIRM_NO_CHARGE', 'COMPLETE_CAPTURED'].includes(metadata.action)) {
+        resolutions.set(Number(event.billingAttemptId), { action: metadata.action,
+          evidence: String(metadata.evidence ?? ''), actorFirebaseId: String(metadata.actorFirebaseId ?? ''),
+          createdAt: event.createdAt });
+      }
     }
 
     return rows.map((r): AdminUnresolvedBillingAttemptResponse => {
@@ -476,6 +501,8 @@ export class AdminBillingService {
       );
       return {
         attemptId: Number(r.attemptId),
+        stateVersion: Number(r.stateVersion ?? 0),
+        ...(resolutions.has(Number(r.attemptId)) ? { lastResolution: resolutions.get(Number(r.attemptId)) } : {}),
         status,
         chargeMode: r.chargeMode,
         amountAgorot: Number(r.amountAgorot),

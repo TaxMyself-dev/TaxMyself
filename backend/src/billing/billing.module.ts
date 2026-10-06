@@ -37,6 +37,7 @@ import { CardcomWebhookService } from './services/cardcom-webhook.service';
 import { PricingService } from './services/pricing.service';
 import { SubscriptionAccessService } from './services/subscription-access.service';
 import { AdminBillingService } from './services/admin-billing.service';
+import { AdminBillingResolutionService } from './services/admin-billing-resolution.service';
 import { SubscriptionRenewalService } from './services/subscription-renewal.service';
 import { BillingAttemptOrchestrationService } from './services/billing-attempt-orchestration.service';
 import { BillingLifecycleService } from './services/billing-lifecycle.service';
@@ -95,6 +96,7 @@ import { BusinessModule } from 'src/business/business.module';
     PricingService,
     SubscriptionAccessService,
     AdminBillingService,
+    AdminBillingResolutionService,
     SubscriptionRenewalService,
     BillingAttemptOrchestrationService,
     BillingLifecycleService,

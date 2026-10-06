@@ -56,9 +56,56 @@ Retries use the same document provenance. Recovery preserves the plan/anchor;
 a newly due period outside the frozen collection leaves status PAST_DUE.
 Canceled debt can be paid without reactivation; new subscription checkout is
 blocked while old debt remains. `recoveryOnly` rejects stale recovery screens.
-Hosted creation failures remain blocking pending support. No cancellation
-write endpoint or manual resolution is introduced. Section 20 of cutover.sql
-contains the link-table/backfill/index DDL; it has NOT been executed.
+Hosted creation failures are resolved as described in KT-045 below. There is
+still no subscription-cancellation write endpoint. Sections 19/20 of cutover.sql
+were executed on keepintax-dev in KT-043; production execution is not authorized.
+
+### Admin payment resolution (KT-045)
+
+`AdminBillingResolutionService` exposes an admin-only POST at
+`/admin/billing/subscriptions/:id/attempts/:attemptId/resolve`. The real
+authenticated actor is checked by the existing admin guard. The DTO requires
+an expected state version and 10–500 characters of verification evidence.
+Preparation locks subscription, attempt and sorted collection debts, checks
+ownership/membership, version and live leases, and atomically writes the
+decision plus a mandatory `PAYMENT_VERIFIED` audit event whose metadata kind
+is `ADMIN_BILLING_RESOLUTION` (no new enum/schema). Audit failure rolls back.
+
+- `CHECK_PROVIDER`: reopens read-only reconciliation, never a charge. Hosted
+  checks require the persisted LowProfile ID, or an operator-recovered ID
+  when missing; an existing identity cannot be overwritten. Provider runtime
+  still verifies owner, amount, plan and attempt before accepting a capture.
+- `COMPLETE_CAPTURED`: only an already verified capture with transaction ID
+  and capture time can resume. Hosted and token attempts reuse their canonical
+  receipt/finalization paths; canceled subscriptions remain canceled and a
+  newer period is not rolled back. No charge/renewal entry point is called.
+- `CONFIRM_NO_CHARGE`: an operator must explicitly attest that CardCom evidence
+  proves no payment AND that the old payable checkout was closed/expired.
+  Only then does a separate guarded admin decision close the attempt as
+  CANCELED and release every linked OPEN debt. Captured funds, terminal states,
+  live leases and stale versions cannot be released. The normal state machine
+  still forbids MANUAL_REVIEW -> CANCELED; the manual decision additionally
+  checks capture ancestry. CREATED attempts younger than five minutes cannot
+  be manually resolved while checkout creation may still be running.
+
+Detail GET retains its existing `unresolved-attempts` path but now returns
+sanitized full attempt history, state versions and last manual decision.
+Grouped table indicators count CREATED/AWAITING_CUSTOMER/PROCESSING/CAPTURED/
+UNKNOWN/MANUAL_REVIEW only, with severity ranking; terminal history never adds
+a warning. Existing token/credential/raw-response exclusions remain.
+
+LowProfile HTTP errors preserve a structured ResponseCode. Explicit creation
+authentication rejections 603/605 close/release automatically; all uncertain
+creation failures stay MANUAL_REVIEW and reserved. Successful LowProfile
+recording advances CREATED to AWAITING_CUSTOMER and invalidates stale admin
+versions. Verified hosted callbacks claim the current eligible state instead
+of assuming version zero, including callbacks received during review; capture
+ancestry/live leases/reservations remain protected. Customer debt preview
+returns BILLING_PAYMENT_PENDING with support guidance when reserved.
+
+Operator verification is a trust boundary: absence of a local transaction or
+a failed lookup alone is never proof that no charge happened. Evidence must
+contain a support/transaction reference, never card data or credentials.
 
 ### Persistence foundation (KT-032)
 
@@ -301,10 +348,10 @@ a hosted attempt via `getLowProfileResult` with its persisted LowProfile id.
   on CardCom honouring the lookup; a reconciled token capture whose subscription
   is no longer ACTIVE (e.g. `CANCELED`) is not finalized by the renewal flow
   (existing behavior, unchanged); a `MANUAL_REVIEW` attempt has no
-  resolution path yet (`MANUAL_REVIEW` -> `UNKNOWN`/`CAPTURED` exists in the
-  state machine but no caller).
+  automatic resolution path; the explicit admin resolution is now provided by
+  KT-045 above (`MANUAL_REVIEW` -> `UNKNOWN`/`CAPTURED` under the stated guards).
 
-### Admin billing exceptions (KT-038 Task 5B, read-only)
+### Original admin billing exceptions (KT-038 Task 5B; expanded by KT-045 above)
 
 Visibility only — no resolve/retry/charge/refund action exists, and nothing here
 touches reconciliation, subscription or payment state.

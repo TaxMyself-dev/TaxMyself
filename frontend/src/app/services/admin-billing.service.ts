@@ -80,9 +80,13 @@ export interface AdminSubscription {
 
 // ─── Billing exceptions (read-only) ─────────────────────────────────────────
 
-export type AdminUnresolvedAttemptStatus = 'UNKNOWN' | 'MANUAL_REVIEW';
+export type AdminUnresolvedAttemptStatus = 'CREATED' | 'AWAITING_CUSTOMER' | 'PROCESSING' | 'CAPTURED' | 'UNKNOWN' | 'MANUAL_REVIEW' | 'COMPLETED' | 'DECLINED' | 'CANCELED' | 'EXPIRED';
+export type BillingResolutionAction = 'CHECK_PROVIDER' | 'CONFIRM_NO_CHARGE' | 'COMPLETE_CAPTURED';
 
 export type AdminBillingExceptionFailureCategory =
+  | 'HOSTED_CREATION_FAILED'
+  | 'POST_CAPTURE_PENDING'
+  | 'CHECKOUT_NOT_FINISHED'
   | 'MISSING_OR_EXPIRED_PAYMENT_METHOD'
   | 'TOKEN_DECRYPTION_FAILED'
   | 'RECONCILIATION_EXHAUSTED'
@@ -95,6 +99,8 @@ export type AdminBillingExceptionAction =
 
 /** Sanitized attempt DTO: the API never carries tokens, card data or raw provider output. */
 export interface AdminUnresolvedBillingAttempt {
+  stateVersion: number;
+  lastResolution?: { action: string; evidence: string; actorFirebaseId: string; createdAt: string };
   attemptId: number;
   status: AdminUnresolvedAttemptStatus;
   chargeMode: 'LOW_PROFILE_HOSTED' | 'TOKEN_TRANSACTION';
@@ -252,6 +258,14 @@ export class AdminBillingService {
   }
 
   /** Read-only: this subscription's unresolved billing attempts, newest first. Loaded when the drawer opens. */
+  resolveBillingAttempt(id: number, attemptId: number, payload: {
+    action: BillingResolutionAction; expectedStateVersion: number; evidence: string;
+    confirmedNoChargeAndCheckoutClosed?: boolean; lowProfileId?: string;
+  }): Observable<{ status: string; completion: string | null }> {
+    return this.http.post<{ status: string; completion: string | null }>(
+      `${this.base}/subscriptions/${id}/attempts/${attemptId}/resolve`, payload);
+  }
+
   getUnresolvedBillingAttempts(id: number): Observable<AdminUnresolvedBillingAttempt[]> {
     return this.http.get<AdminUnresolvedBillingAttempt[]>(`${this.base}/subscriptions/${id}/unresolved-attempts`);
   }

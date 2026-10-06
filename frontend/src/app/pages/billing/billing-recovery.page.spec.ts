@@ -59,6 +59,18 @@ describe('BillingRecoveryPage', () => {
     expect(page.changeCardDialogOpen).toBeFalse();
   });
 
+  it('explains a pending payment instead of reporting a debt-loading failure', async () => {
+    page.ngOnInit();
+    await Promise.resolve();
+    http.expectOne(`${environment.apiUrl}billing/checkout/preview`).flush({
+      code: 'BILLING_PAYMENT_PENDING', message: 'התשלום ממתין לבדיקת תמיכה',
+    }, { status: 409, statusText: 'Conflict' });
+    await Promise.resolve();
+    expect(page.error()).toBe('התשלום ממתין לבדיקת תמיכה');
+    await page.pay();
+    http.expectNone(`${environment.apiUrl}billing/checkout`);
+  });
+
   it('allows card replacement for a blocked owner even when debt preview needs review', async () => {
     page.ngOnInit();
     await Promise.resolve();

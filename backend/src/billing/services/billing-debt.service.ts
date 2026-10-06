@@ -69,7 +69,8 @@ export class BillingDebtService {
     const debts = await this.accrue(subscriptionId);
     if (!debts.length) throw new ConflictException('No outstanding subscription debt');
     if (debts.some(debt => debt.activeAttemptId != null || debt.currency !== 'ILS')) {
-      throw new ConflictException('Existing payment requires completion or review');
+      throw new ConflictException({ code: 'BILLING_PAYMENT_PENDING',
+        message: 'קיים ניסיון תשלום שממתין להשלמה או לבדיקת התמיכה. אין לשלם שוב עד שהבדיקה תסתיים. אפשר לפנות לתמיכה לבירור מצב התשלום.' });
     }
     const quote = billingDebtQuote(debts);
     return {

@@ -28,6 +28,10 @@ import { billingDate, nextBillingInstant } from '../domain/billing-debt-periods'
 import { BillingHostedCompletionService } from './billing-hosted-completion.service';
 import { BillingReconciliationService } from './billing-reconciliation.service';
 import { BillingAttempt } from '../entities/billing-attempt.entity';
+import { BillingObligation } from '../entities/billing-obligation.entity';
+import { BillingAttemptStatus } from '../enums/billing.enums';
+import { billingBoundary } from '../domain/billing-debt-periods';
+import { recoverySubscriptionPatch } from '../domain/billing-recovery-state';
 import {
   BillingPreSubmissionFailureReason,
   NormalizedChargeOutcome,
@@ -654,6 +658,34 @@ export class SubscriptionRenewalService {
    * failure. Amounts come from the attempt's own immutable snapshot — what was
    * actually charged — never from a fresh price.
    */
+  /** Resume this exact captured attempt; never run the charge/renewal entry point. */
+  async completeCapturedAttempt(attemptId: number): Promise<string> {
+    const attempt = await this.dataSource.manager.findOneByOrFail(BillingAttempt, { id: attemptId });
+    if (attempt.status !== BillingAttemptStatus.CAPTURED || !attempt.cardcomTransactionId || !attempt.capturedAt) {
+      throw new Error('Verified capture required');
+    }
+    const debt = await this.dataSource.manager.findOneByOrFail(BillingObligation, { id: attempt.obligationId });
+    const subscription = await this.subscriptionRepo.findOneByOrFail({ id: debt.subscriptionId });
+    const plan = await this.dataSource.manager.findOneByOrFail(SubscriptionPlan, { id: attempt.planId });
+    const start = billingBoundary(debt.periodStart), end = billingBoundary(debt.periodEnd);
+    const result = await this.billingLifecycleService!.resumeCapturedAttempt({
+      actor: { actorFirebaseId: subscription.firebaseId, subjectFirebaseId: subscription.firebaseId },
+      attemptId, leaseOwner: `admin-complete-${attemptId}`,
+      activate: async () => {
+        await this.dataSource.transaction(async manager => {
+          const current = await manager.findOneOrFail(Subscription, {
+            where: { id: subscription.id }, lock: { mode: 'pessimistic_write' },
+          });
+          if (current.currentPeriodEnd && current.currentPeriodEnd >= end) return;
+          await manager.update(Subscription, current.id, recoverySubscriptionPatch(current, [debt]));
+        });
+      },
+      receipt: { createReceipt: (captured, outcome) => this.createCanonicalRenewalReceipt(
+        subscription, plan, start, end, this.formatBillingPeriod(start), captured as BillingAttempt, outcome) },
+    });
+    return result.status;
+  }
+
   private async createCanonicalRenewalReceipt(
     subscription: Subscription,
     plan: SubscriptionPlan,

@@ -5,6 +5,14 @@ import {
 
 /** The only attempt statuses an admin sees as unresolved billing exceptions. */
 export type AdminUnresolvedAttemptStatus =
+  | BillingAttemptStatus.CREATED
+  | BillingAttemptStatus.AWAITING_CUSTOMER
+  | BillingAttemptStatus.PROCESSING
+  | BillingAttemptStatus.CAPTURED
+  | BillingAttemptStatus.COMPLETED
+  | BillingAttemptStatus.DECLINED
+  | BillingAttemptStatus.CANCELED
+  | BillingAttemptStatus.EXPIRED
   | BillingAttemptStatus.UNKNOWN
   | BillingAttemptStatus.MANUAL_REVIEW;
 
@@ -14,6 +22,9 @@ export type AdminUnresolvedAttemptStatus =
  * these codes (`null` when there is no recorded category to classify).
  */
 export type AdminBillingExceptionFailureCategory =
+  | 'HOSTED_CREATION_FAILED'
+  | 'POST_CAPTURE_PENDING'
+  | 'CHECKOUT_NOT_FINISHED'
   | 'MISSING_OR_EXPIRED_PAYMENT_METHOD'
   | 'TOKEN_DECRYPTION_FAILED'
   | 'RECONCILIATION_EXHAUSTED'
@@ -40,6 +51,8 @@ export interface AdminUnresolvedAttemptIndicator {
  * provider keys (ExternalUniqTranId, terminal ref, lease owner, response code).
  */
 export interface AdminUnresolvedBillingAttemptResponse {
+  stateVersion: number;
+  lastResolution?: { action: string; evidence: string; actorFirebaseId: string; createdAt: Date };
   attemptId: number;
   status: AdminUnresolvedAttemptStatus;
   chargeMode: BillingChargeMode;

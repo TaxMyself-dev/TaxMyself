@@ -72,7 +72,10 @@ export class BillingRecoveryPage implements OnInit {
       this.recoveryQuote = preview.recoveryQuote;
       this.periods.set(preview.periods);
       this.amountLabel.set((preview.finalAmountAgorot / 100).toLocaleString('he-IL', { minimumFractionDigits: 2 }));
-    } catch { this.error.set('לא ניתן לטעון את פרטי החוב. יש לרענן את העמוד או לפנות לתמיכה.'); }
+    } catch (err: any) {
+      this.error.set(err?.error?.code === 'BILLING_PAYMENT_PENDING' ? err.error.message
+        : 'לא ניתן לטעון את פרטי החוב. יש לרענן את העמוד או לפנות לתמיכה.');
+    }
     finally { this.loading.set(false); }
   }
 

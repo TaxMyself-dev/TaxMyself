@@ -675,7 +675,7 @@ describe('BillingAttemptOrchestrationService', () => {
         service.recordHostedLowProfileId(row.id, 'lp-1', 'owner-1'),
       ).resolves.toEqual({ recorded: true });
       expect(row.cardcomLowProfileId).toBe('lp-1');
-      expect(row.stateVersion).toBe(0); // lease CAS token untouched
+      expect(row.stateVersion).toBe(1); // provider identity change invalidates stale admin decisions
 
       await expect(
         service.recordHostedLowProfileId(row.id, 'lp-other', 'owner-1'),

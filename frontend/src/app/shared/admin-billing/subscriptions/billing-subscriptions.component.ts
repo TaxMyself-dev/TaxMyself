@@ -27,6 +27,7 @@ import {
   AdminBillingService,
   AdminSubscription,
   AdminUnresolvedBillingAttempt,
+  BillingResolutionAction,
   BillingAccessMode,
   RenewalBatchResult,
   RenewalOutcome,
@@ -110,6 +111,10 @@ export class BillingSubscriptionsComponent implements OnInit {
   readonly statusLabels = STATUS_LABELS;
   readonly discountKindOptions = DISCOUNT_KIND_OPTIONS;
   readonly exceptionStatusLabels = BILLING_EXCEPTION_STATUS_LABELS;
+  readonly resolutionActionLabels: Record<string, string> = {
+    CHECK_PROVIDER: 'בדיקת מצב בקארדקום', CONFIRM_NO_CHARGE: 'שחרור אחרי אישור שלא נגבה',
+    COMPLETE_CAPTURED: 'השלמת תשלום שנגבה',
+  };
   readonly chargeModeLabels = BILLING_CHARGE_MODE_LABELS;
   readonly failureCategoryLabels = BILLING_FAILURE_CATEGORY_LABELS;
   readonly actionMessages = BILLING_ACTION_MESSAGES;
@@ -127,6 +132,45 @@ export class BillingSubscriptionsComponent implements OnInit {
   exceptionAttempts = signal<AdminUnresolvedBillingAttempt[]>([]);
   exceptionsLoading = signal(false);
   exceptionsFailed = signal(false);
+  resolvingAttempt = signal<number | null>(null);
+  resolutionEvidence: Record<number, string> = {};
+  recoveredLowProfileIds: Record<number, string> = {};
+
+  resolveAttempt(attempt: AdminUnresolvedBillingAttempt, action: BillingResolutionAction): void {
+    const sub = this.selectedSub();
+    const evidence = (this.resolutionEvidence[attempt.attemptId] ?? '').trim();
+    if (!sub || this.resolvingAttempt() !== null) return;
+    if (evidence.length < 10) {
+      this.messageService.add({ key: 'br', severity: 'warn', summary: 'נדרש תיעוד', detail: 'יש להזין את הבדיקה שבוצעה ואסמכתה, ללא פרטי כרטיס או סודות.' });
+      return;
+    }
+    const execute = () => {
+      this.resolvingAttempt.set(attempt.attemptId);
+      this.adminBillingService.resolveBillingAttempt(sub.subscriptionId, attempt.attemptId, {
+        action, expectedStateVersion: attempt.stateVersion, evidence,
+        confirmedNoChargeAndCheckoutClosed: action === 'CONFIRM_NO_CHARGE',
+        ...(this.recoveredLowProfileIds[attempt.attemptId]?.trim()
+          ? { lowProfileId: this.recoveredLowProfileIds[attempt.attemptId].trim() } : {}),
+      }).pipe(finalize(() => this.resolvingAttempt.set(null)), takeUntilDestroyed(this.destroyRef)).subscribe({
+        next: result => {
+          this.messageService.add({ key: 'br', severity: 'info', summary: 'מצב ניסיון התשלום עודכן',
+            detail: `מצב: ${result.status}${result.completion ? `; השלמה: ${result.completion}` : ''}` });
+          this.loadBillingExceptions(sub.subscriptionId);
+          this.loadSubscriptions();
+        },
+        error: err => {
+          this.messageService.add({ key: 'br', severity: 'error', summary: 'הטיפול לא הושלם',
+            detail: err?.error?.message ?? 'יש לרענן ולבדוק את מצב הניסיון.' });
+          this.loadBillingExceptions(sub.subscriptionId);
+        },
+      });
+    };
+    if (action === 'CONFIRM_NO_CHARGE') {
+      this.confirmationService.confirm({ header: 'אישור שחרור לתשלום חדש',
+        message: 'אני מאשר שבדקתי מול קארדקום שלא נגבה תשלום, ושעמוד התשלום הקודם בוטל או פג ואינו ניתן עוד לתשלום. החוב יישאר פתוח והלקוח יוכל לנסות שוב.',
+        acceptLabel: 'מאשר את הבדיקה ומשחרר', rejectLabel: 'ביטול', accept: execute });
+    } else execute();
+  }
   private exceptionsRequest: Subscription | null = null;
   savingEdit = signal(false);
   /** Plan dropdown options for the edit-dialog "תוכנית" field. */

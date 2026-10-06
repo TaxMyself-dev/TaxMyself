@@ -253,7 +253,6 @@ export class CardcomService implements OnModuleInit {
         }),
       );
       rawResponse = response.data ?? {};
-      console.log("🚀 ~ CardcomService ~ createLowProfileCheckout ~ rawResponse:", rawResponse)
     } catch (err: any) {
       const detail: string = err?.response?.data
         ? JSON.stringify(err.response.data).slice(0, 500)
@@ -261,7 +260,10 @@ export class CardcomService implements OnModuleInit {
       this.logger.error(
         `CardCom HTTP error for subscriptionId=${input.subscriptionId}: ${detail}`,
       );
-      throw new CardcomApiError(`CardCom HTTP request failed: ${detail}`);
+      const body = err?.response?.data;
+      throw new CardcomApiError(`CardCom HTTP request failed: ${detail}`,
+        typeof body?.ResponseCode === 'number' ? body.ResponseCode : undefined,
+        typeof body?.Description === 'string' ? body.Description : undefined);
     }
 
     // Response field names verified against CreateLowProfileResponse schema (PascalCase only).

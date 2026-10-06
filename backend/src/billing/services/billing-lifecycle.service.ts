@@ -199,12 +199,9 @@ export class BillingLifecycleService {
     leaseOwner: string,
   ) {
     this.orchestration.assertOwnerMutation(input);
-    const opened = await this.orchestration.claimForSubmission(
+    const opened = await this.orchestration.claimForHostedOutcome(
       attemptId,
       leaseOwner,
-      0,
-      new Date(),
-      30_000,
       input.subjectFirebaseId,
     );
     if (!opened.claimed) return opened.attempt;
@@ -217,6 +214,10 @@ export class BillingLifecycleService {
   }
 
   /** Owner-checked, never-overwriting LowProfile id record for a hosted attempt. */
+  recordHostedCreationFailure(attemptId: number, definiteRejection: boolean) {
+    return this.orchestration.recordHostedCreationFailure(attemptId, definiteRejection);
+  }
+
   recordHostedLowProfileId(
     actor: CanonicalBillingPeriodInput['actor'],
     attemptId: number,

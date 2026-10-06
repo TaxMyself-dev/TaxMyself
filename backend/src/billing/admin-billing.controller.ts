@@ -24,6 +24,9 @@ import { UpdateSubscriptionDiscountDto } from './dtos/admin/update-subscription-
 import { UpdateSubscriptionTrialEndDto } from './dtos/admin/update-subscription-trial-end.dto';
 import { UpdateSubscriptionPlanDto } from './dtos/admin/update-subscription-plan.dto';
 import { UpdateSubscriptionBillingAccessModeDto } from './dtos/admin/update-subscription-billing-access-mode.dto';
+import { ResolveBillingAttemptDto } from './dtos/admin/resolve-billing-attempt.dto';
+import { AdminBillingResolutionService } from './services/admin-billing-resolution.service';
+import { Optional } from '@nestjs/common';
 
 @Controller('admin/billing')
 @UseGuards(FirebaseAuthGuard)
@@ -31,6 +34,7 @@ export class AdminBillingController {
   constructor(
     private readonly adminBillingService: AdminBillingService,
     private readonly usersService: UsersService,
+    @Optional() private readonly resolution?: AdminBillingResolutionService,
   ) {}
 
   // ─── Plans ──────────────────────────────────────────────────────────────────
@@ -103,6 +107,17 @@ export class AdminBillingController {
   ) {
     await this.assertAdmin(request);
     return this.adminBillingService.findUnresolvedBillingAttempts(id);
+  }
+
+  @Post('subscriptions/:id/attempts/:attemptId/resolve')
+  @HttpCode(HttpStatus.OK)
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  async resolveAttempt(@Req() request: AuthenticatedRequest,
+    @Param('id', ParseIntPipe) id: number, @Param('attemptId', ParseIntPipe) attemptId: number,
+    @Body() dto: ResolveBillingAttemptDto) {
+    await this.assertAdmin(request);
+    return this.resolution!.resolve(id, attemptId,
+      request.user?.actorFirebaseId ?? request.user!.firebaseId, dto);
   }
 
   @Patch('subscriptions/:id/discount')

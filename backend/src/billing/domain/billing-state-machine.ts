@@ -25,6 +25,7 @@ const ATTEMPT_TRANSITIONS: Readonly<
   Record<BillingAttemptStatus, readonly BillingAttemptStatus[]>
 > = {
   [BillingAttemptStatus.CREATED]: [
+    BillingAttemptStatus.MANUAL_REVIEW,
     BillingAttemptStatus.AWAITING_CUSTOMER,
     BillingAttemptStatus.PROCESSING,
     BillingAttemptStatus.CANCELED,
@@ -161,6 +162,14 @@ export function assertBillingAttemptTransition(
   to: BillingAttemptStatus,
 ): void {
   assertTransition('billing attempt', ATTEMPT_TRANSITIONS, from, to);
+}
+
+/** Separate operator decision: never a normal provider transition or a captured-funds escape. */
+export function assertAdminNoChargeResolution(status: BillingAttemptStatus, hasCapturedFunds: boolean): void {
+  if (hasCapturedFunds || ![BillingAttemptStatus.CREATED, BillingAttemptStatus.AWAITING_CUSTOMER,
+    BillingAttemptStatus.PROCESSING, BillingAttemptStatus.UNKNOWN, BillingAttemptStatus.MANUAL_REVIEW].includes(status)) {
+    throw new Error('Manual release cannot discard captured funds or a terminal outcome');
+  }
 }
 
 export function assertPaymentMethodUpdateAttemptTransition(

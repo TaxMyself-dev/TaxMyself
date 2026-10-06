@@ -269,7 +269,7 @@ describe('AdminBillingService unresolved billing attempts (read-only)', () => {
       const record = { entity: undefined as unknown, selects: [] as string[], wheres: [] as unknown[][] };
       builders.push(record);
       const qb: any = {};
-      for (const method of ['leftJoin', 'innerJoin', 'orderBy', 'addOrderBy', 'groupBy', 'setParameter']) {
+      for (const method of ['leftJoin', 'innerJoin', 'orderBy', 'addOrderBy', 'groupBy', 'setParameter', 'limit']) {
         qb[method] = jest.fn(() => qb);
       }
       qb.select = jest.fn((column: string) => (record.selects.push(column), qb));
@@ -338,11 +338,11 @@ describe('AdminBillingService unresolved billing attempts (read-only)', () => {
 
     const attemptsQuery = builders.find(b => b.entity === BillingAttempt) as (typeof builders)[number];
     expect(attemptsQuery.wheres[0]).toEqual(['o.subscriptionId = :subscriptionId', { subscriptionId: 42 }]);
-    expect(attemptsQuery.wheres[1][1]).toEqual({ unresolved: [BillingAttemptStatus.UNKNOWN, BillingAttemptStatus.MANUAL_REVIEW] });
+    expect(attemptsQuery.wheres).toHaveLength(1); // history includes resolved attempts, scoped to this subscription
     expect(attemptsQuery.selects.join(' ')).not.toMatch(/token|response|leaseOwner|ExternalUniq|cardNumber/i);
     expect(result.map(a => a.attemptId)).toEqual([11, 9]);
     expect(result[0]).toEqual({
-      attemptId: 11, status: 'MANUAL_REVIEW', chargeMode: 'TOKEN_TRANSACTION', amountAgorot: 11700, currency: 'ILS',
+      attemptId: 11, stateVersion: 0, status: 'MANUAL_REVIEW', chargeMode: 'TOKEN_TRANSACTION', amountAgorot: 11700, currency: 'ILS',
       createdAt: new Date('2026-09-01T00:00:00.000Z'), capturedAt: null, unknownSince: null,
       reconciliationAttempts: 5, lastReconciledAt: null, nextActionAt: null,
       failureCategory: 'RECONCILIATION_EXHAUSTED', requiredAction: 'INTERNAL_REVIEW',

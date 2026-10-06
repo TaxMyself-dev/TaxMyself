@@ -38,8 +38,12 @@ import { billingDate } from '../domain/billing-debt-periods';
 import { BillingObligation } from '../entities/billing-obligation.entity';
 import { PaymentMethod } from '../entities/payment-method.entity';
 import { Subscription } from '../entities/subscription.entity';
+import { BillingEvent } from '../entities/billing-event.entity';
+import { BillingEventType } from '../enums/billing.enums';
+import { ResolveBillingAttemptDto } from '../dtos/admin/resolve-billing-attempt.dto';
 import {
   assertBillingAttemptTransition,
+  assertAdminNoChargeResolution,
   assertBillingObligationTransition,
   assertBillingPeriod,
   assertCardcomExternalUniqTranId,
@@ -328,6 +332,106 @@ export class BillingAttemptOrchestrationService {
     return this.loadAttemptObligations(this.dataSource.manager, attempt, false);
   }
 
+  /** Called only behind the controller's real-caller admin gate. No provider I/O. */
+  async prepareAdminResolution(subscriptionId: number, attemptId: number,
+    actorFirebaseId: string, dto: ResolveBillingAttemptDto, now = new Date()): Promise<BillingAttempt> {
+    return this.inTransaction(async manager => {
+      const sub = await this.lockSubscriptionOfAttempt(manager, attemptId);
+      if (!sub || sub.id !== subscriptionId) throw new ForbiddenException('Attempt does not belong to subscription');
+      const attempt = await this.lockAttempt(manager, attemptId);
+      if (!actorFirebaseId || dto.evidence.trim().length < 10) throw new BadRequestException('Document the verification evidence');
+      if (attempt.stateVersion !== dto.expectedStateVersion || this.hasLiveLease(attempt, now)) {
+        throw new ConflictException('Attempt changed or is being processed; refresh its status');
+      }
+      const debts = await this.loadAttemptObligations(manager, attempt, true);
+      if (debts.some(debt => debt.activeAttemptId !== attempt.id || debt.status !== BillingObligationStatus.OPEN)) {
+        throw new ConflictException('Attempt is no longer active for all debts');
+      }
+      const fromStatus = attempt.status;
+      if (fromStatus === BillingAttemptStatus.CREATED && now.getTime() - attempt.createdAt.getTime() < 5 * 60_000) {
+        throw new ConflictException('Checkout creation may still be running; wait before manual resolution');
+      }
+      if (dto.action === 'CONFIRM_NO_CHARGE') {
+        if (dto.confirmedNoChargeAndCheckoutClosed !== true || attempt.capturedAt || attempt.cardcomTransactionId ||
+          ![BillingAttemptStatus.CREATED, BillingAttemptStatus.AWAITING_CUSTOMER, BillingAttemptStatus.PROCESSING,
+            BillingAttemptStatus.UNKNOWN, BillingAttemptStatus.MANUAL_REVIEW].includes(attempt.status)) {
+          throw new ConflictException('Release requires proof of no charge and a closed checkout; captured funds cannot be released');
+        }
+        // An operator attests to external evidence, not merely an absent local transaction.
+        assertAdminNoChargeResolution(attempt.status, Boolean(attempt.capturedAt || attempt.cardcomTransactionId));
+        attempt.status = BillingAttemptStatus.CANCELED;
+        attempt.failureCategory = 'ADMIN_CONFIRMED_NO_CHARGE';
+        attempt.completedAt = now;
+        for (const debt of debts) {
+          debt.activeAttemptId = null;
+          debt.version += 1;
+          await manager.save(BillingObligation, debt);
+        }
+      } else if (dto.action === 'COMPLETE_CAPTURED') {
+        if (!attempt.cardcomTransactionId || !attempt.capturedAt ||
+          ![BillingAttemptStatus.CAPTURED, BillingAttemptStatus.MANUAL_REVIEW].includes(attempt.status)) {
+          throw new ConflictException('Only an already verified capture may be completed');
+        }
+        assertBillingAttemptTransition(attempt.status, BillingAttemptStatus.CAPTURED);
+        attempt.status = BillingAttemptStatus.CAPTURED;
+      } else {
+        if (attempt.capturedAt || attempt.cardcomTransactionId ||
+          ![BillingAttemptStatus.CREATED, BillingAttemptStatus.AWAITING_CUSTOMER, BillingAttemptStatus.PROCESSING,
+            BillingAttemptStatus.UNKNOWN, BillingAttemptStatus.MANUAL_REVIEW].includes(attempt.status)) {
+          throw new ConflictException('Attempt cannot be reconciled');
+        }
+        if (dto.lowProfileId) {
+          if (attempt.chargeMode !== BillingChargeMode.LOW_PROFILE_HOSTED ||
+            (attempt.cardcomLowProfileId && attempt.cardcomLowProfileId !== dto.lowProfileId)) {
+            throw new ConflictException('Cannot replace the existing provider identity');
+          }
+          attempt.cardcomLowProfileId = dto.lowProfileId;
+        }
+        if (attempt.chargeMode === BillingChargeMode.LOW_PROFILE_HOSTED && !attempt.cardcomLowProfileId) {
+          throw new BadRequestException('Recover the LowProfile ID from CardCom before checking');
+        }
+        if (attempt.status === BillingAttemptStatus.CREATED) attempt.status = BillingAttemptStatus.AWAITING_CUSTOMER;
+        assertBillingAttemptTransition(attempt.status, BillingAttemptStatus.UNKNOWN);
+        attempt.status = BillingAttemptStatus.UNKNOWN;
+        attempt.unknownSince ??= now;
+      }
+      this.clearLease(attempt);
+      attempt.nextActionAt = dto.action === 'CHECK_PROVIDER' ? now : null;
+      attempt.stateVersion += 1;
+      await manager.save(BillingAttempt, attempt);
+      await manager.save(BillingEvent, manager.create(BillingEvent, {
+        firebaseId: sub.firebaseId, subscriptionId, billingAttemptId: attempt.id,
+        eventType: BillingEventType.PAYMENT_VERIFIED,
+        metadata: { kind: 'ADMIN_BILLING_RESOLUTION', actorFirebaseId, action: dto.action, evidence: dto.evidence.trim(),
+          confirmedNoChargeAndCheckoutClosed: dto.confirmedNoChargeAndCheckoutClosed === true,
+          fromStatus, toStatus: attempt.status },
+      }));
+      return attempt;
+    });
+  }
+
+  async recordHostedCreationFailure(attemptId: number, definiteRejection: boolean): Promise<void> {
+    await this.inTransaction(async manager => {
+      await this.lockSubscriptionOfAttempt(manager, attemptId);
+      const attempt = await this.lockAttempt(manager, attemptId);
+      if (attempt.status !== BillingAttemptStatus.CREATED || attempt.cardcomLowProfileId) return;
+      const status = definiteRejection ? BillingAttemptStatus.CANCELED : BillingAttemptStatus.MANUAL_REVIEW;
+      assertBillingAttemptTransition(attempt.status, status);
+      attempt.status = status;
+      attempt.failureCategory = definiteRejection ? 'HOSTED_CREATE_REJECTED' : 'HOSTED_CREATE_UNCERTAIN';
+      attempt.stateVersion += 1;
+      if (definiteRejection) {
+        for (const debt of await this.loadAttemptObligations(manager, attempt, true)) {
+          if (debt.activeAttemptId !== attemptId) throw new ConflictException('Reservation changed');
+          debt.activeAttemptId = null;
+          debt.version += 1;
+          await manager.save(BillingObligation, debt);
+        }
+      }
+      await manager.save(BillingAttempt, attempt);
+    });
+  }
+
   private async loadAttemptObligations(manager: EntityManager, attempt: BillingAttempt,
     lock: boolean): Promise<BillingObligation[]> {
     const links = await manager.find(BillingAttemptObligation, {
@@ -495,6 +599,32 @@ export class BillingAttemptOrchestrationService {
       attempt.status = BillingAttemptStatus.PROCESSING;
       attempt.submittedAt ??= now;
       this.assignLease(attempt, leaseOwner, now, leaseMs);
+      await manager.save(BillingAttempt, attempt);
+      return { claimed: true, attempt };
+    });
+  }
+
+  /** A verified hosted callback can arrive after checkout or during review. */
+  async claimForHostedOutcome(attemptId: number, leaseOwner: string, subjectFirebaseId: string,
+    now = new Date()): Promise<AttemptLeaseResult> {
+    return this.inTransaction(async manager => {
+      await this.lockSubscriptionOfAttempt(manager, attemptId);
+      const attempt = await this.lockAttempt(manager, attemptId);
+      const debts = await this.loadAttemptObligations(manager, attempt, true);
+      if (debts.some(debt => debt.firebaseIdSnapshot !== subjectFirebaseId)) throw new ForbiddenException('Billing attempt owner mismatch');
+      if (this.hasLiveLease(attempt, now)) return { claimed: false, attempt, reason: 'ALREADY_CLAIMED' };
+      if (attempt.chargeMode !== BillingChargeMode.LOW_PROFILE_HOSTED ||
+        attempt.capturedAt || attempt.cardcomTransactionId ||
+        ![BillingAttemptStatus.CREATED, BillingAttemptStatus.AWAITING_CUSTOMER, BillingAttemptStatus.PROCESSING,
+          BillingAttemptStatus.UNKNOWN, BillingAttemptStatus.MANUAL_REVIEW].includes(attempt.status) ||
+        debts.some(debt => debt.activeAttemptId !== attemptId)) {
+        return { claimed: false, attempt, reason: 'NOT_CLAIMABLE' };
+      }
+      const target = [BillingAttemptStatus.UNKNOWN, BillingAttemptStatus.MANUAL_REVIEW].includes(attempt.status)
+        ? BillingAttemptStatus.UNKNOWN : BillingAttemptStatus.PROCESSING;
+      assertBillingAttemptTransition(attempt.status, target);
+      attempt.status = target;
+      this.assignLease(attempt, leaseOwner, now, DEFAULT_LEASE_MS);
       await manager.save(BillingAttempt, attempt);
       return { claimed: true, attempt };
     });
@@ -924,6 +1054,8 @@ export class BillingAttemptOrchestrationService {
           return { recorded: false, reason: 'NOT_ELIGIBLE' as const };
         }
         attempt.cardcomLowProfileId = lowProfileId;
+        if (attempt.status === BillingAttemptStatus.CREATED) attempt.status = BillingAttemptStatus.AWAITING_CUSTOMER;
+        attempt.stateVersion += 1;
         await manager.save(BillingAttempt, attempt);
         return { recorded: true };
       });

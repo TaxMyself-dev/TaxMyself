@@ -74,6 +74,6 @@ describe('debt accrual without app usage', () => {
   it('previews only open debts and refuses an unresolved payment', async () => {
     const { service, debts } = make();
     debts[0].activeAttemptId = 21;
-    await expect(service.preview({ actorFirebaseId: 'owner', subjectFirebaseId: 'owner' }, 7)).rejects.toThrow('payment');
+    await expect(service.preview({ actorFirebaseId: 'owner', subjectFirebaseId: 'owner' }, 7)).rejects.toThrow('קיים ניסיון תשלום');
   });
 });

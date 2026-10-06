@@ -39,6 +39,7 @@ class GenericTableStubComponent {
 const subscription = (id: number, overrides: Partial<AdminSubscription> = {}): AdminSubscription => ({
   subscriptionId: id,
   firebaseId: `client-${id}`,
+  billingAccessMode: 'STANDARD',
   status: 'ACTIVE',
   userId: id,
   userName: `לקוח ${id}`,
@@ -79,6 +80,7 @@ const attempt = (
   overrides: Partial<AdminUnresolvedBillingAttempt> = {},
 ): AdminUnresolvedBillingAttempt => ({
   attemptId,
+  stateVersion: 0,
   status: 'MANUAL_REVIEW',
   chargeMode: 'TOKEN_TRANSACTION',
   amountAgorot: 11700,
@@ -118,6 +120,7 @@ describe('BillingSubscriptionsComponent billing exceptions', () => {
       'getSubscriptions',
       'getPlans',
       'getUnresolvedBillingAttempts',
+      'resolveBillingAttempt',
       'triggerSubscriptionRenewal',
       'runDueRenewals',
       'updateSubscriptionPlan',
@@ -218,8 +221,27 @@ describe('BillingSubscriptionsComponent billing exceptions', () => {
     }
     expect(cards[0].textContent).toMatch(/כרטיס שוחזר\s*כן/);
     expect(cards[1].textContent).toMatch(/כרטיס שוחזר\s*לא/);
-    // No resolve/retry/charge controls anywhere in the section.
-    expect(section.querySelectorAll('button, a, input').length).toBe(0);
+    expect(section.textContent).toContain('בדיקת מצב מול קארדקום');
+    expect(section.textContent).toContain('השלמת תשלום שנגבה');
+    expect(api.triggerSubscriptionRenewal).not.toHaveBeenCalled();
+  });
+
+  it('requires documented evidence before attempting resolution', async () => {
+    await render([subscription(7)], [attempt(10)]);
+    component.openEdit(7);
+    component.resolveAttempt(attempt(10), 'CHECK_PROVIDER');
+    expect(api.resolveBillingAttempt).not.toHaveBeenCalled();
+  });
+
+  it('checks the existing attempt with its state version and reloads status', async () => {
+    await render([subscription(7)], [attempt(10, { stateVersion: 4 })]);
+    component.openEdit(7);
+    component.resolutionEvidence[10] = 'בדיקה לפי אסמכתה בקארדקום';
+    api.resolveBillingAttempt.and.returnValue(of({ status: 'UNKNOWN', completion: null }));
+    component.resolveAttempt(attempt(10, { stateVersion: 4 }), 'CHECK_PROVIDER');
+    expect(api.resolveBillingAttempt).toHaveBeenCalledWith(7, 10, jasmine.objectContaining({
+      action: 'CHECK_PROVIDER', expectedStateVersion: 4, evidence: 'בדיקה לפי אסמכתה בקארדקום',
+    }));
     expect(api.triggerSubscriptionRenewal).not.toHaveBeenCalled();
   });
 

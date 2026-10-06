@@ -699,8 +699,14 @@ export class BillingService {
         customerPhone: user?.phone ?? null,
       });
     } catch (err) {
+      if (recoveryAttemptId != null && this.billingLifecycleService) {
+        // Only explicit authentication rejection proves that no payable page was created.
+        const definiteRejection = err instanceof CardcomApiError && [603, 605].includes(err.responseCode ?? -1);
+        await this.billingLifecycleService.recordHostedCreationFailure(recoveryAttemptId, definiteRejection);
+      }
       await this.billingEventService.logEvent({
         firebaseId,
+        billingAttemptId: recoveryAttemptId,
         eventType: BillingEventType.PAYMENT_FAILED,
         subscriptionId: subscription.id,
         amountAgorot: pricing.finalAmountAgorot,

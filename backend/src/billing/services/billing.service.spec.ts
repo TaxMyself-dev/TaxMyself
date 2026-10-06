@@ -10,6 +10,7 @@
  */
 import { BillingAccessMode, SubscriptionStatus } from '../enums/billing.enums';
 import { BillingService } from './billing.service';
+import { CardcomApiError } from './cardcom.service';
 import { ModuleName } from 'src/enum';
 
 describe('BillingService.getMyBillingState — professional-access overrides', () => {
@@ -483,6 +484,7 @@ describe('BillingService — owner-mutation authorization', () => {
       recordHostedLowProfileId: jest.fn().mockResolvedValue({
         recorded: true,
       }),
+      recordHostedCreationFailure: jest.fn().mockResolvedValue(undefined),
     };
     const service = new BillingService(
       planRepo as any,
@@ -535,6 +537,15 @@ describe('BillingService — owner-mutation authorization', () => {
       expect(cardcomService.createLowProfileCheckout).toHaveBeenCalledWith(expect.objectContaining({ amountAgorot: 35400, operation: 'ChargeAndCreateToken' }));
       expect(pricingService.calculateCheckoutPrice).not.toHaveBeenCalled();
     });
+    it.each([603, 605, undefined])('records hosted creation failure conservatively for code %s', async code => {
+      const { service, billingLifecycleService, cardcomService } = aggregateFixture();
+      cardcomService.createLowProfileCheckout.mockRejectedValue(new CardcomApiError('Provider rejected creation', code));
+      await expect(service.createCheckout(OWNER, { planId: 1, recoveryOnly: true,
+        recoveryQuote: aggregatePreview.recoveryQuote })).rejects.toThrow('Payment gateway unavailable');
+      expect(billingLifecycleService.recordHostedCreationFailure).toHaveBeenCalledWith(7, code != null);
+      expect(cardcomService.createLowProfileCheckout).toHaveBeenCalledTimes(1);
+    });
+
     it('a stale aggregate quote never opens an attempt or provider session', async () => {
       const { service, cardcomService, billingLifecycleService } = aggregateFixture();
       await expect(service.createCheckout(OWNER, { planId: 1, recoveryQuote: 'b'.repeat(64) })).rejects.toThrow('השתנו');

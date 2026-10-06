@@ -205,7 +205,33 @@
             </div>
             <p class="exception-action exception-action--{{ attempt.requiredAction }}">
               {{ actionMessages[attempt.requiredAction] }}
-            </p>
+              </p>
+              @if (attempt.lastResolution) {
+                <p>טיפול אחרון: {{ resolutionActionLabels[attempt.lastResolution.action] }} — {{ formatDateTime(attempt.lastResolution.createdAt) }}</p>
+                <p>תיעוד: {{ attempt.lastResolution.evidence }}</p>
+              }
+              @if (!['COMPLETED', 'DECLINED', 'CANCELED', 'EXPIRED'].includes(attempt.status)) {
+              <label [for]="'evidence-' + attempt.attemptId">תיעוד בדיקה ואסמכתה (ללא פרטי כרטיס או סודות)</label>
+              <textarea [id]="'evidence-' + attempt.attemptId" maxlength="500" rows="3"
+                [value]="resolutionEvidence[attempt.attemptId] ?? ''"
+                (input)="resolutionEvidence[attempt.attemptId] = $any($event.target).value"></textarea>
+              @if (attempt.chargeMode === 'LOW_PROFILE_HOSTED' && !attempt.cardcomLowProfileId) {
+                <label [for]="'lowprofile-' + attempt.attemptId">מזהה עמוד תשלום שאותר בקארדקום (אם קיים)</label>
+                <input [id]="'lowprofile-' + attempt.attemptId" maxlength="255"
+                  (input)="recoveredLowProfileIds[attempt.attemptId] = $any($event.target).value" />
+              }
+              <div class="billing-resolution-actions">
+                @if (attempt.status === 'CAPTURED' || (attempt.status === 'MANUAL_REVIEW' && attempt.capturedAt)) {
+                  <button type="button" [disabled]="resolvingAttempt() !== null"
+                    (click)="resolveAttempt(attempt, 'COMPLETE_CAPTURED')">השלמת תשלום שנגבה</button>
+                } @else {
+                  <button type="button" [disabled]="resolvingAttempt() !== null"
+                    (click)="resolveAttempt(attempt, 'CHECK_PROVIDER')">בדיקת מצב מול קארדקום</button>
+                  <button type="button" [disabled]="resolvingAttempt() !== null"
+                    (click)="resolveAttempt(attempt, 'CONFIRM_NO_CHARGE')">אישור שלא נגבה ושחרור לניסיון חדש</button>
+                }
+              </div>
+              }
           </article>
         }
       }

@@ -27,6 +27,14 @@ export const ADMIN_SUBSCRIPTION_SAVE_BUTTON_COLOR = ButtonColor.BLACK;
 // ─── Billing exceptions (unresolved UNKNOWN / MANUAL_REVIEW attempts) ─────────
 
 export const BILLING_EXCEPTION_STATUS_LABELS: Record<AdminUnresolvedAttemptStatus, string> = {
+  CREATED: 'פתיחת עמוד התשלום טרם הושלמה',
+  AWAITING_CUSTOMER: 'ממתין לתשלום הלקוח',
+  PROCESSING: 'תשלום בעיבוד',
+  CAPTURED: 'נגבה — השלמה מקומית ממתינה',
+  COMPLETED: 'התשלום הושלם והחובות נסגרו',
+  DECLINED: 'התשלום נדחה — ניתן לנסות שוב',
+  CANCELED: 'הניסיון נסגר ללא חיוב',
+  EXPIRED: 'ניסיון התשלום פג',
   UNKNOWN: 'תוצאת החיוב עדיין בבירור',
   MANUAL_REVIEW: 'נדרשת בדיקה ידנית',
 };
@@ -37,6 +45,9 @@ export const BILLING_CHARGE_MODE_LABELS: Record<AdminUnresolvedBillingAttempt['c
 };
 
 export const BILLING_FAILURE_CATEGORY_LABELS: Record<AdminBillingExceptionFailureCategory, string> = {
+  HOSTED_CREATION_FAILED: 'פתיחת עמוד התשלום נכשלה — יש לבדוק אם נוצר עמוד בקארדקום',
+  POST_CAPTURE_PENDING: 'התשלום נגבה — יש להשלים את החשבונית וסגירת החובות',
+  CHECKOUT_NOT_FINISHED: 'עמוד התשלום טרם הסתיים — יש לברר את מצב העסקה לפני שחרור',
   MISSING_OR_EXPIRED_PAYMENT_METHOD: 'אמצעי תשלום חסר או שפג תוקפו — הלקוח צריך לעדכן אמצעי תשלום',
   TOKEN_DECRYPTION_FAILED: 'כשל בפענוח אמצעי התשלום השמור — נדרשת בדיקה פנימית',
   RECONCILIATION_EXHAUSTED: 'בדיקות ההתאמה מול הספק מוצו — נדרשת בדיקה ידנית',

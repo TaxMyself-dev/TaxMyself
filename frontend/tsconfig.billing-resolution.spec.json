@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.spec.json",
+  "compilerOptions": { "types": ["jasmine", "node"] },
+  "include": [
+    "src/app/shared/admin-billing/subscriptions/*.spec.ts",
+    "src/app/pages/billing/billing-recovery.page.spec.ts",
+    "src/**/*.d.ts"
+  ]
+}
