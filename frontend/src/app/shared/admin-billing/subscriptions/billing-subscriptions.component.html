@@ -181,8 +181,9 @@
               <span class="detail-label">נוצר</span>
               <span class="detail-value">{{ formatDateTime(attempt.createdAt) }}</span>
               <span class="detail-label">נגבה (Capture)</span>
-              <span class="detail-value">{{ formatDateTime(attempt.capturedAt) }}</span>
-              <span class="detail-label">תוצאה לא ידועה מאז</span>
+                <span class="detail-value">{{ formatDateTime(attempt.capturedAt) }}</span>
+                @if (!isClosedAttempt(attempt.status)) {
+                <span class="detail-label">תוצאה לא ידועה מאז</span>
               <span class="detail-value">{{ formatDateTime(attempt.unknownSince) }}</span>
               <span class="detail-label">בדיקות התאמה</span>
               <span class="detail-value">{{ attempt.reconciliationAttempts }}</span>
@@ -191,7 +192,8 @@
               <span class="detail-label">בדיקה הבאה</span>
               <span class="detail-value">{{ attempt.nextActionAt ? formatDateTime(attempt.nextActionAt) : 'לא מתוכננת' }}</span>
               <span class="detail-label">סיבה</span>
-              <span class="detail-value">{{ failureCategoryLabels[attempt.failureCategory] }}</span>
+                <span class="detail-value">{{ failureCategoryLabels[attempt.failureCategory] }}</span>
+                }
               @if (attempt.cardcomTransactionId) {
                 <span class="detail-label">מזהה עסקה</span>
                 <span class="detail-value detail-value--mono">{{ attempt.cardcomTransactionId }}</span>
@@ -200,17 +202,24 @@
                 <span class="detail-label">LowProfile ID</span>
                 <span class="detail-value detail-value--mono">{{ attempt.cardcomLowProfileId }}</span>
               }
-              <span class="detail-label">כרטיס שוחזר</span>
-              <span class="detail-value">{{ attempt.cardTokenRecovered ? 'כן' : 'לא' }}</span>
-            </div>
-            <p class="exception-action exception-action--{{ attempt.requiredAction }}">
+                @if (!isClosedAttempt(attempt.status)) {
+                <span class="detail-label">כרטיס שוחזר</span>
+                <span class="detail-value">{{ attempt.cardTokenRecovered ? 'כן' : 'לא' }}</span>
+                }
+              </div>
+              @if (!isClosedAttempt(attempt.status)) {
+             <p class="exception-action exception-action--{{ attempt.requiredAction }}">
               {{ actionMessages[attempt.requiredAction] }}
-              </p>
+                </p>
+              }
               @if (attempt.lastResolution) {
+                <details class="billing-resolution-history">
+                <summary>היסטוריית טיפול</summary>
                 <p>טיפול אחרון: {{ resolutionActionLabels[attempt.lastResolution.action] }} — {{ formatDateTime(attempt.lastResolution.createdAt) }}</p>
                 <p>תיעוד: {{ attempt.lastResolution.evidence }}</p>
-              }
-              @if (!['COMPLETED', 'DECLINED', 'CANCELED', 'EXPIRED'].includes(attempt.status)) {
+                </details>
+                }
+                @if (!isClosedAttempt(attempt.status)) {
               <label [for]="'evidence-' + attempt.attemptId">תיעוד בדיקה ואסמכתה (ללא פרטי כרטיס או סודות)</label>
               <textarea [id]="'evidence-' + attempt.attemptId" maxlength="500" rows="3"
                 [value]="resolutionEvidence[attempt.attemptId] ?? ''"

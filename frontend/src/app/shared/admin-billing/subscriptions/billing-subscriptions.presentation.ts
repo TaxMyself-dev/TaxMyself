@@ -26,6 +26,10 @@ export const ADMIN_SUBSCRIPTION_SAVE_BUTTON_COLOR = ButtonColor.BLACK;
 
 // ─── Billing exceptions (unresolved UNKNOWN / MANUAL_REVIEW attempts) ─────────
 
+export function isClosedBillingAttempt(status: AdminUnresolvedAttemptStatus): boolean {
+  return ['COMPLETED', 'DECLINED', 'CANCELED', 'EXPIRED'].includes(status);
+}
+
 export const BILLING_EXCEPTION_STATUS_LABELS: Record<AdminUnresolvedAttemptStatus, string> = {
   CREATED: 'פתיחת עמוד התשלום טרם הושלמה',
   AWAITING_CUSTOMER: 'ממתין לתשלום הלקוח',

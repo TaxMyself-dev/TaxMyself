@@ -26,8 +26,10 @@ already verified capture, or release after documented proof of no charge.
 Release has an explicit confirmation that the old checkout is no longer payable.
 An optional recovered LowProfile ID is available when the local identity is
 missing; an existing identity is immutable. Captured attempts show completion
-only. Terminal history shows no resolution controls. Last manual action and
-evidence stay visible after resolution; all decisions carry a server-side actor
+only. Terminal history shows final status and payment identifiers without
+unresolved failure reasons, reconciliation scheduling, token-recovery flags or
+action guidance. Last manual action and evidence remain in collapsed
+"היסטוריית טיפול" details; all decisions carry a server-side actor
 audit. Requests include the attempt version, suppress concurrent clicks and
 reload details/list after success; errors also refresh details to expose races.
 Isolated verification uses frontend/tsconfig.billing-resolution.spec.json.

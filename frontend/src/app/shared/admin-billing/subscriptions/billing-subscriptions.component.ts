@@ -44,6 +44,7 @@ import {
   adminPlanDisplayName,
   formatBillingAmount,
   unresolvedAttemptsTooltip,
+  isClosedBillingAttempt,
 } from './billing-subscriptions.presentation';
 
 export type DiscountKind = 'NONE' | 'PERCENT' | 'AMOUNT';
@@ -111,6 +112,7 @@ export class BillingSubscriptionsComponent implements OnInit {
   readonly statusLabels = STATUS_LABELS;
   readonly discountKindOptions = DISCOUNT_KIND_OPTIONS;
   readonly exceptionStatusLabels = BILLING_EXCEPTION_STATUS_LABELS;
+  readonly isClosedAttempt = isClosedBillingAttempt;
   readonly resolutionActionLabels: Record<string, string> = {
     CHECK_PROVIDER: 'בדיקת מצב בקארדקום', CONFIRM_NO_CHARGE: 'שחרור אחרי אישור שלא נגבה',
     COMPLETE_CAPTURED: 'השלמת תשלום שנגבה',

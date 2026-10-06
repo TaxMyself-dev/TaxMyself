@@ -226,6 +226,28 @@ describe('BillingSubscriptionsComponent billing exceptions', () => {
     expect(api.triggerSubscriptionRenewal).not.toHaveBeenCalled();
   });
 
+  it('shows closed attempts as history without unresolved problem text or actions', async () => {
+    await render([subscription(7)], ['COMPLETED', 'CANCELED', 'DECLINED', 'EXPIRED'].map((status, index) =>
+      attempt(index + 1, { status: status as any, lastResolution: {
+        action: 'COMPLETE_CAPTURED', evidence: 'תיעוד בדיקה קודמת', actorFirebaseId: 'admin',
+        createdAt: '2026-10-06T10:00:00Z',
+      } })));
+    component.openEdit(7);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const cards: HTMLElement[] = Array.from(document.body.querySelectorAll('[data-testid="billing-exception"]'));
+    expect(cards.length).toBe(4);
+    expect(cards[0].textContent).toContain('התשלום הושלם והחובות נסגרו');
+    for (const card of cards) {
+      expect(card.querySelector('.exception-action')).toBeNull();
+      expect(card.querySelector('button, textarea, input')).toBeNull();
+      expect(card.textContent).not.toContain('תוצאת החיוב אצל הספק עדיין נבדקת');
+      expect(card.textContent).not.toContain('בדיקה הבאה');
+      expect((card.querySelector('details') as HTMLDetailsElement).open).toBeFalse();
+    }
+  });
+
   it('requires documented evidence before attempting resolution', async () => {
     await render([subscription(7)], [attempt(10)]);
     component.openEdit(7);
