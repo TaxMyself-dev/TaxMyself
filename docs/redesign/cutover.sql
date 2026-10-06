@@ -1766,7 +1766,95 @@ ALTER TABLE `journal_line`
 
 
 -- ============================================================================
--- SECTION 17 (2026-09-17, Elazar) -- durable billing obligations and attempts.
+-- SECTION 17 (2026-09-27, Elazar) -- complimentary full billing access.
+--
+-- This entitlement is intentionally independent of subscription status. An
+-- administrator can grant all modules without a plan or payment, while the
+-- default preserves every existing subscription's standard billing behavior.
+-- The two audit event values record grants and revocations.
+-- ============================================================================
+
+ALTER TABLE `subscription`
+  ADD COLUMN `billing_access_mode`
+    enum('STANDARD','COMPLIMENTARY_FULL') NOT NULL DEFAULT 'STANDARD'
+    AFTER `status`;
+
+ALTER TABLE `billing_event`
+  MODIFY COLUMN `event_type` enum(
+    'CHECKOUT_CREATED',
+    'WEBHOOK_RECEIVED',
+    'PAYMENT_VERIFIED',
+    'PAYMENT_SUCCESS',
+    'PAYMENT_FAILED',
+    'SUBSCRIPTION_ACTIVATED',
+    'SUBSCRIPTION_CANCELED',
+    'RENEWAL_SUCCESS',
+    'RENEWAL_FAILED',
+    'RETRY_SCHEDULED',
+    'PLAN_CHANGE_REQUESTED',
+    'PLAN_CHANGED',
+    'PAYMENT_METHOD_UPDATE_REQUESTED',
+    'PAYMENT_METHOD_UPDATED',
+    'PAYMENT_METHOD_UPDATE_FAILED',
+    'COUPON_REDEEMED',
+    'PROMOTION_APPLIED',
+    'DISCOUNT_APPLIED',
+    'RECEIPT_FAILED',
+    'DUPLICATE_PAYMENT_IGNORED',
+    'BILLING_EXEMPTION_GRANTED',
+    'BILLING_EXEMPTION_REVOKED'
+  ) NOT NULL;
+
+-- Verification: the first query must show STANDARD as the non-null default;
+-- the second must include both BILLING_EXEMPTION_* enum values.
+-- SHOW COLUMNS FROM subscription LIKE 'billing_access_mode';
+-- SHOW COLUMNS FROM billing_event LIKE 'event_type';
+
+
+-- ============================================================================
+-- SECTION 18 (2026-10-02, Elazar) -- durable pending transaction archive.
+--
+-- Classified transactions awaiting approval must remain visible after the
+-- nightly full_transactions_cache cleanup. Persist only the source display
+-- fields needed by the archive/approval fallback; accounting remains deferred
+-- until the existing explicit approval flow creates an Expense and journal.
+-- ============================================================================
+
+ALTER TABLE `slim_transactions`
+  ADD COLUMN `merchantNameSnapshot` varchar(255) NULL DEFAULT NULL AFTER `businessNumber`,
+  ADD COLUMN `transactionDateSnapshot` date NULL DEFAULT NULL AFTER `merchantNameSnapshot`,
+  ADD COLUMN `amountSnapshot` decimal(10,2) NULL DEFAULT NULL AFTER `transactionDateSnapshot`,
+  ADD COLUMN `currencySnapshot` varchar(3) NULL DEFAULT NULL AFTER `amountSnapshot`,
+  ADD COLUMN `ilsAmountSnapshot` decimal(12,2) NULL DEFAULT NULL AFTER `currencySnapshot`,
+  ADD INDEX `IDX_slim_archive_pending`
+    (`userId`, `businessNumber`, `isRecognized`, `confirmed`, `matched_document_id`);
+
+UPDATE `slim_transactions` s
+JOIN `full_transactions_cache` c
+  ON c.`userId` = s.`userId`
+ AND c.`externalTransactionId` = s.`externalTransactionId`
+SET s.`merchantNameSnapshot` = c.`merchantName`,
+    s.`transactionDateSnapshot` = c.`transactionDate`,
+    s.`amountSnapshot` = c.`amount`,
+    s.`currencySnapshot` = UPPER(COALESCE(c.`currency`, 'ILS')),
+    s.`ilsAmountSnapshot` = c.`ilsAmount`
+WHERE s.`merchantNameSnapshot` IS NULL
+   OR s.`transactionDateSnapshot` IS NULL
+   OR s.`amountSnapshot` IS NULL;
+
+-- Verification: the columns/index must exist. The last query lists legacy
+-- classified pending rows whose cache data was already unavailable at cutover;
+-- those rows become complete on their next bank sync before approval.
+-- SHOW COLUMNS FROM slim_transactions LIKE '%Snapshot';
+-- SHOW INDEX FROM slim_transactions WHERE Key_name = 'IDX_slim_archive_pending';
+-- SELECT id, userId, externalTransactionId
+-- FROM slim_transactions
+-- WHERE isRecognized = 1 AND confirmed = 0
+--   AND (merchantNameSnapshot IS NULL
+--     OR transactionDateSnapshot IS NULL OR amountSnapshot IS NULL);
+
+-- Billing sections appended after origin/main Sections 17 and 18.
+-- SECTION 19 (2026-09-17, Elazar) -- durable billing obligations and attempts.
 --
 -- Persistence foundation only. Existing checkout/renewal/recovery/webhook
 -- runtime paths are not switched by this section. billing_event remains an
@@ -2135,9 +2223,9 @@ DEALLOCATE PREPARE kt032_stmt;
 -- SHOW CREATE TABLE billing_attempt;
 -- SHOW CREATE TABLE payment_method_update_attempt;
 
--- 18. KT-040: one payment attempt can settle several subscription periods.
+-- SECTION 20. KT-040: one payment attempt can settle several subscription periods.
 -- Code/DDL approved by Elazar on 2026-10-05. NOT approved for execution.
--- Requires Section 17, stopped billing writers, and an explicitly approved DB.
+-- Requires Section 19, stopped billing writers, and an explicitly approved DB.
 -- Retain billing_attempt.obligation_id as the primary debt for owner routing
 -- and attempt numbering; this link table is the complete frozen membership.
 CREATE TABLE IF NOT EXISTS `billing_attempt_obligation` (
@@ -2186,7 +2274,7 @@ PREPARE kt040_stmt FROM @kt040_sql;
 EXECUTE kt040_stmt;
 DEALLOCATE PREPARE kt040_stmt;
 
--- Verification: first query must return zero; do not execute old Section 17's
+-- Verification: first query must return zero; do not execute old Section 19's
 -- empty-table assertions on an existing runtime database.
 -- SELECT COUNT(*) FROM billing_attempt a LEFT JOIN billing_attempt_obligation l
 --   ON l.attempt_id=a.id AND l.obligation_id=a.obligation_id WHERE l.attempt_id IS NULL;

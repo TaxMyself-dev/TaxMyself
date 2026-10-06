@@ -4,12 +4,14 @@ Admin-panel tab that hosts billing administration, split into two sub-tabs: plan
 ## Key entities/files
 - `admin-billing.component.ts`/`.html` — thin standalone shell: `app-tab-bar` switches a `selectedSubTab` signal between `'subscriptions'`, `'plans'`, and pending receipts. Subscriptions is the first RTL tab and the default view.
 - `plans/billing-plans.component.ts` — CRUD for `AdminPlan` (pricing, included modules: INVOICES/OPEN_BANKING/ACCOUNTANT) via `AdminBillingService`; generic table + dialog-based create/edit forms.
-- `subscriptions/billing-subscriptions.component.ts` — subscription list, plan/trial/discount drawer, discount management (`UpdateSubscriptionDiscountPayload`), renewal batch runs (`RenewalBatchResult`) via `AdminBillingService`.
+- `subscriptions/billing-subscriptions.component.ts` — subscription list, plan/trial/discount drawer, complimentary-access grant/revoke control, discount management (`UpdateSubscriptionDiscountPayload`), renewal batch runs (`RenewalBatchResult`) via `AdminBillingService`.
 - `subscriptions/billing-subscriptions.presentation.ts` — drawer/table presentation rules: canonical referral-plan labels, the design-system save-button color, and the Hebrew labels/messages for billing exceptions (status, charge mode, failure category, required action, table tooltip).
 
 ## Main flows
 - Switch between "plans" and "subscriptions" sub-tabs.
 - Plans: list/create/edit pricing plans and their included modules.
+- Complimentary access grant/revoke requires confirmation, is saved separately
+  from ordinary plan edits, and hides manual-charge actions.
 - Subscriptions: list subscriptions, including each user's current open-banking connection flag and latest application login timestamp; edit plan/trial end/discounts; and run renewal batches. The two accountant-referral plans are labeled from their canonical slugs (`referral-basic` and `referral-open-banking`), so they stay visibly distinct even if stored names match; other plan names are preserved. The drawer save action uses the shared `ButtonColor.BLACK` configuration. After save the list reloads, including a backend-restored `TRIAL` status when an admin extends an expired trial into the future.
 - Billing exceptions (KT-038 Task 5B, read-only): a subscription with an unresolved `UNKNOWN`/`MANUAL_REVIEW` attempt gets a small warning icon (tooltip: count + most severe status) inside the existing status cell; other rows are unchanged. Opening the existing drawer lazily calls `AdminBillingService.getUnresolvedBillingAttempts(id)` and renders a "חריגות חיוב" section (loading/empty/error states, newest first) with Hebrew status, charge mode, amount, timestamps, reconciliation counts, failure category, CardCom ids, token-recovered flag and whether the customer or an internal reviewer must act. The section has no actions and the API never carries tokens or raw provider data. Karma compiles every spec in the project, so run this area in isolation with a temporary `tsconfig.spec` whose `include` lists only `subscriptions/*.spec.ts` (`ng test --ts-config=… --include=…`).
 

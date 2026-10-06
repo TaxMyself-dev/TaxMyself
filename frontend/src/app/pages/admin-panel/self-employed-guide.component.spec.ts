@@ -1,112 +1,120 @@
 import { SelfEmployedGuideComponent } from './self-employed-guide.component';
+import { SELF_EMPLOYED_GUIDE_SLIDES } from './self-employed-guide.content';
 
 describe('SelfEmployedGuideComponent', () => {
   let component: SelfEmployedGuideComponent;
-
-  beforeEach(() => {
-    component = new SelfEmployedGuideComponent();
-  });
-
-  it('keeps previous and next navigation within the slide range', () => {
+  beforeEach(() => component = new SelfEmployedGuideComponent());
+  it('orders the main sequence and ends with the product slides', () => {
+    expect(component.slides[5].title).toBe('מי יכול להיות פטור, ומי זעיר?');
+    expect(component.slides[4].title).toBe('החובות של כל עסק');
+    expect(component.slides[4].items?.every(item => item.description.includes('ביטוח לאומי'))).toBeTrue();
+    expect(component.slides[2].title).toBe('כשאתם שכירים, המעסיק מטפל בהכל');
+    expect(component.slides.map(s => s.id)).toEqual(['cover', 'basic-concepts', 'employee-payroll', 'business-types', 'income-tax-overview', 'status-comparison', 'micro-blockers', 'tax-authorities', 'learning-summary', 'practical-transition', 'income-documents', 'expense-principle', 'expense-depreciation', 'expense-savings', 'study-fund', 'study-comparison', 'pension', 'pension-tax-benefits', 'product-pain', 'product-solution']);
+    expect(component.slides[11].layout).toBe('approved-artwork');
+    expect(component.slides[11].title).toBe('מנצלים את כל ההוצאות שמגיעות לנו');
+    expect(component.slides[11].artwork).toBe('/assets/self-employed-guide/expense-principle-approved.png');
+    expect(component.slides[12].artwork).toBe('/assets/self-employed-guide/expense-depreciation-approved.png');
     component.previousSlide();
     expect(component.currentSlideIndex).toBe(0);
-
-    component.nextSlide();
-    component.nextSlide();
-    component.nextSlide();
-    component.nextSlide();
-    component.nextSlide();
-    component.nextSlide();
-    component.nextSlide();
-    component.nextSlide();
-    for (let index = 0; index < component.slides.length; index++) component.nextSlide();
-    expect(component.currentSlideIndex).toBe(component.slides.length - 1);
+    for (let i = 0; i < 20; i++) component.nextSlide();
+    expect(component.currentSlideIndex).toBe(19);
+    expect(component.isLastMainSlide).toBeTrue();
   });
-
-  it('uses RTL keyboard navigation', () => {
+  for (const chapter of ['income', 'vat', 'ni'] as const) {
+    it(`bounds ${chapter} navigation and returns after its last slide`, () => {
+      component.openChapter(chapter);
+      component.previousSlide();
+      expect(component.currentSlideIndex).toBe(0);
+      expect(component.currentSlide.id).toBe(component.chapterIds[chapter][0]);
+      const count = component.slides.length;
+      for (let i = 1; i < count; i++) component.nextSlide();
+      expect(component.progressPercent).toBe(100);
+      expect(component.isLastMainSlide).toBeFalse();
+      component.nextSlide();
+      expect(component.activeChapter).toBeNull();
+      expect(component.currentSlide.id).toBe('tax-authorities');
+      expect(component.currentSlideIndex).toBe(7);
+    });
+    it(`returns from every ${chapter} slide and restarts on reentry`, () => {
+      for (const id of component.chapterIds[chapter]) {
+        component.goToSlide(id);
+        expect(component.activeChapter).toBe(chapter);
+        component.returnToAuthorities();
+        expect(component.currentSlideIndex).toBe(7);
+        component.openChapter(chapter);
+        expect(component.currentSlideIndex).toBe(0);
+      }
+    });
+  }
+  it('assigns all 31 slides exactly once and opens income at combined income', () => {
+    const ids = [...component.mainIds, ...Object.values(component.chapterIds).flat()];
+    expect(new Set(ids).size).toBe(31);
+    expect([...ids].sort()).toEqual(SELF_EMPLOYED_GUIDE_SLIDES.map(s => s.id).sort());
+    component.openChapter('income');
+    expect(component.currentSlide.id).toBe('income-combination');
+    component.nextSlide();
+    component.previousSlide();
+    expect(component.currentSlide.title).toBe('שכיר וגם עצמאי? בסוף שנה הכל נפגש');
+  });
+  it('shows the income calculator only at the end and returns to the hub', () => {
+    component.openChapter('income');
+    expect(component.slides.filter(slide => slide.layout === 'tax-simulator').length).toBe(1);
+    expect(component.slides[1].id).toBe('advances-introduction');
+    expect(component.slides.length).toBe(5);
+    expect(component.slides[2].id).toBe('advances-calculation');
+    expect(component.slides[2].artworkAlt).toContain('אפשר לבקש עדכון מקדמות');
+    expect(component.slides[3].id).toBe('advances-payment');
+    expect(component.slides[3].artworkAlt).toContain('שתי הערות בתחתית');
+    expect(component.slides[3].artworkAlt).toContain('בעל עסק זעיר במסלול המקוצר');
+    for (let i = 1; i < component.slides.length; i++) component.nextSlide();
+    expect(component.currentSlide.id).toBe('tax-simulator');
+    component.previousSlide();
+    expect(component.currentSlide.id).toBe('advances-payment');
+    component.nextSlide();
+    component.nextSlide();
+    expect(component.currentSlide.id).toBe('tax-authorities');
+  });
+  it('explains insurance rates immediately before its calculator', () => {
+    component.openChapter('ni');
+    expect(component.slides.map(s => s.id)).toEqual(['ni-status', 'ni-payment', 'ni-rates', 'ni-calculator']);
+    component.goToSlide('ni-rates');
+    component.nextSlide();
+    expect(component.currentSlide.id).toBe('ni-calculator');
+    component.previousSlide();
+    expect(component.currentSlide.id).toBe('ni-rates');
+  });
+  it('continues from the authorities through expenses before savings and pension', () => {
+    const following = ['learning-summary', 'practical-transition', 'income-documents', 'expense-principle', 'expense-depreciation', 'expense-savings', 'study-fund', 'study-comparison', 'pension', 'pension-tax-benefits', 'product-pain', 'product-solution'];
+    component.returnToAuthorities();
+    for (const id of following) {
+      component.nextSlide();
+      expect(component.currentSlide.id).toBe(id);
+    }
+    expect(component.isLastMainSlide).toBeTrue();
+    for (const id of ['tax-authorities', ...following].slice(0, -1).reverse()) {
+      component.previousSlide();
+      expect(component.currentSlide.id).toBe(id);
+    }
+  });
+  it('ignores invalid targets and respects RTL keys and inputs', () => {
+    component.goToSlide(undefined);
+    component.goToSlide('unknown');
+    expect(component.currentSlideIndex).toBe(0);
     component.onKeydown(new KeyboardEvent('keydown', { key: 'ArrowLeft' }));
     expect(component.currentSlideIndex).toBe(1);
-
     component.onKeydown(new KeyboardEvent('keydown', { key: 'ArrowRight' }));
     expect(component.currentSlideIndex).toBe(0);
-  });
-
-  it('presents the requested introductory sequence', () => {
-    expect(component.slides.map(slide => slide.id)).toEqual([
-      'cover',
-      'basic-concepts',
-      'business-types',
-      'tax-authorities',
-      'income-tax-overview',
-      'status-comparison',
-      'micro-blockers',
-      'income-combination',
-      'tax-simulator',
-      'advances-introduction',
-      'advances-calculation',
-      'advances-adjustment',
-      'advances-payment',
-      'micro-reporting',
-      'income-tax-summary',
-      'vat-introduction',
-      'vat-calculation',
-      'ni-status',
-      'ni-payment',
-      'ni-calculator',
-    ]);
-    expect(component.slides[2].items?.map(item => item.label)).toEqual([
-      'בעל עסק זעיר',
-      'עוסק פטור',
-      'עוסק מורשה',
-      'חברה',
-    ]);
-  });
-
-  it('opens the Income Tax chapter from the authorities slide', () => {
-    component.goToSlide('income-tax-overview');
-    expect(component.currentSlide.id).toBe('income-tax-overview');
-
-    component.goToSlide(undefined);
-    expect(component.currentSlide.id).toBe('income-tax-overview');
-  });
-
-  it('does not navigate when a simulator input uses arrow keys', () => {
     const event = new KeyboardEvent('keydown', { key: 'ArrowLeft', cancelable: true });
     Object.defineProperty(event, 'target', { value: document.createElement('input') });
     component.onKeydown(event);
     expect(component.currentSlideIndex).toBe(0);
     expect(event.defaultPrevented).toBeFalse();
   });
-
-  it('ends with the existing simulator and includes the approved artworks', () => {
-    expect(component.slides.filter(slide => slide.layout === 'approved-artwork').length).toBe(11);
-    expect(component.slides.every(slide => slide.layout !== 'approved-artwork' || (slide.artwork && slide.artworkAlt))).toBeTrue();
-    component.goToSlide('income-tax-summary');
-    expect(component.currentSlide.layout).toBe('tax-simulator');
-    expect(component.progressPercent).toBeLessThan(100);
-    component.goToSlide('ni-calculator');
-    expect(component.progressPercent).toBe(100);
-  });
-
-  it('keeps the approved slide wording without added cover copy', () => {
-    expect(component.slides[0].title).toBe('אפשר גם אחרת');
-    expect(component.slides[0].subtitle).toBeUndefined();
-    expect(component.slides[1].title).toBe('כמה מושגים בסיסיים לפני שיוצאים לדרך');
-    expect(component.slides[2].title).toBe('כל השבילים מובילים למס הכנסה');
-    expect(component.slides[3].title).toBe('על שלושה גופים העולם עומד');
-    expect(component.slides[6].title).toBe('לא כל עסק קטן נכנס למסלול הזעיר');
-    expect(component.slides[7].title).toBe('שכיר וגם עצמאי? בסוף הכל נפגש');
-  });
-
-  it('renders the approved Kipi opening and glossary consecutively', () => {
-    expect(component.currentSlide.artwork).toBe('/assets/self-employed-guide/cover-kipi-approved.png');
-    component.nextSlide();
-    expect(component.currentSlide.id).toBe('basic-concepts');
-    expect(component.currentSlide.artwork).toBe('/assets/self-employed-guide/basic-concepts-kipi-approved.png');
-    expect(component.currentSlide.artworkAlt).toContain('משכורת (שכר ברוטו)');
-    component.nextSlide();
-    expect(component.currentSlide.id).toBe('business-types');
-    component.previousSlide();
-    expect(component.currentSlide.id).toBe('basic-concepts');
+  it('returns on Escape inside a chapter without closing the guide', () => {
+    spyOn(component.closeGuide, 'emit');
+    component.openChapter('vat');
+    component.onKeydown(new KeyboardEvent('keydown', { key: 'Escape' }));
+    expect(component.currentSlide.id).toBe('tax-authorities');
+    expect(component.closeGuide.emit).not.toHaveBeenCalled();
   });
 });

@@ -65,7 +65,8 @@ not December 20. A period that has not started is not prepaid by recovery.
 6. No separate settlement tables or settlement-specific subscription/event
    fields. Each permitted retry gets a new attempt and its own frozen links.
 
-Approved DDL is written in docs/redesign/cutover.sql Section 18. Do not
+Approved DDL is written in docs/redesign/cutover.sql Section 20 (formerly 18,
+renumbered during the approved KT-042 main refresh). Do not
 execute it, use synchronize, connect to shared/live databases, push or deploy.
 DDL approval here is distinct from approval to run it on a named database.
 

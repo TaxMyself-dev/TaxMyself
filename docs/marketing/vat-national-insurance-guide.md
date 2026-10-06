@@ -55,6 +55,27 @@ No real customer data, API calls, backend writes or persistence outside componen
 - [Salary and business](https://www.btl.gov.il/Insurance/National%20Insurance/type_list/עובד%20שכיר%20וגם%20עובד%20עצמאי/Pages/default.aspx)
 - [VAT reporting](https://www.gov.il/he/service/reporting-or-payment-of-vat-reports)
 
+## 2026-10-03 rates overview and caption clarity
+
+NI sequence is now status, payment, rates, calculator (four slides).
+`ni-rates` uses native HTML text for crisp editable percentages and reads existing
+`NI_2026` constants. Total rates include health: qualifying 7.7% / 18%; nonqualifying
+12.09% / 12.17% on the income above the 3,442 monthly exemption. Reduced band
+7,703 applies to the chargeable base after exemption, with salary using the band
+first; total monthly income cap 51,910. Scope ages 18 to retirement, possible
+minimum charges remain visible. Higher nonqualifying rate is relevant particularly
+with salary consuming the reduced band; increasing business income can itself
+change qualification, as shown by the following calculator. No engine change.
+
+Evidence checked 2026-10-03:
+- https://www.btl.gov.il/insurance/national%20insurance/type_list/self_employed/pages/rates.aspx
+- https://www.btl.gov.il/Insurance/Rates/Pages/מי%20שאינם%20עובדים%20ובעלי%20הכנסה%20שלא%20מעבודה.aspx
+- https://www.btl.gov.il/Insurance/National%20Insurance/type_list/Self_Employed/pages/default.aspx
+
+The payment slide's minimum caption is now native text over its original image
+caption, preserving wording. Targeted browser review passed note rendering,
+all four percentages, rates 3/4 and navigation to calculator 4/4; screenshots inspected.
+
 ## Verification
 - Focused Karma/ChromeHeadless: 21/21 passed, including actual Angular input and
   navigation persistence integration test plus 224 calculation combinations.

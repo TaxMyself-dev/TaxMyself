@@ -4,19 +4,48 @@ import { IonicModule } from '@ionic/angular';
 import { GuideSlide, SELF_EMPLOYED_GUIDE_SLIDES } from './self-employed-guide.content';
 import { SelfEmployedTaxSimulatorComponent } from './self-employed-tax-simulator.component';
 import { GuideNationalInsuranceComponent } from './guide-national-insurance.component';
+import { GuideExpenseSavingsComponent } from './guide-expense-savings.component';
+import { GuideStudyComparisonComponent } from './guide-study-comparison.component';
+import { NI_2026 } from './guide-national-insurance';
 
 @Component({
   selector: 'app-self-employed-guide',
   templateUrl: './self-employed-guide.component.html',
   styleUrls: ['./self-employed-guide.component.scss'],
   standalone: true,
-  imports: [CommonModule, IonicModule, SelfEmployedTaxSimulatorComponent, GuideNationalInsuranceComponent],
+  imports: [CommonModule, IonicModule, SelfEmployedTaxSimulatorComponent, GuideNationalInsuranceComponent, GuideExpenseSavingsComponent, GuideStudyComparisonComponent],
 })
 export class SelfEmployedGuideComponent {
+  readonly insuranceRates = NI_2026;
   @Output() closeGuide = new EventEmitter<void>();
   @ViewChild('presentationRoot') presentationRoot?: ElementRef<HTMLElement>;
 
-  readonly slides = SELF_EMPLOYED_GUIDE_SLIDES;
+  readonly chapterIds = {
+    income: ['income-combination', 'advances-introduction', 'advances-calculation', 'advances-payment', 'tax-simulator'],
+    vat: ['vat-introduction', 'vat-calculation'],
+    ni: ['ni-status', 'ni-payment', 'ni-rates', 'ni-calculator'],
+  };
+  readonly mainIds = ['cover', 'basic-concepts', 'employee-payroll', 'business-types', 'income-tax-overview', 'status-comparison', 'micro-blockers', 'tax-authorities', 'learning-summary', 'practical-transition', 'income-documents', 'expense-principle', 'expense-depreciation', 'expense-savings', 'study-fund', 'study-comparison', 'pension', 'pension-tax-benefits', 'product-pain', 'product-solution'];
+  activeChapter: 'income' | 'vat' | 'ni' | null = null;
+
+  get slides(): GuideSlide[] {
+    const ids = this.activeChapter ? this.chapterIds[this.activeChapter] : this.mainIds;
+    return ids.map(id => SELF_EMPLOYED_GUIDE_SLIDES.find(slide => slide.id === id)!);
+  }
+
+  get isLastMainSlide(): boolean {
+    return !this.activeChapter && this.currentSlideIndex === this.slides.length - 1;
+  }
+
+  openChapter(chapter: 'income' | 'vat' | 'ni'): void {
+    this.activeChapter = chapter;
+    this.currentSlideIndex = 0;
+  }
+
+  returnToAuthorities(): void {
+    this.activeChapter = null;
+    this.currentSlideIndex = this.mainIds.indexOf('tax-authorities');
+  }
   currentSlideIndex = 0;
   isFullscreen = false;
 
@@ -31,6 +60,8 @@ export class SelfEmployedGuideComponent {
   nextSlide(): void {
     if (this.currentSlideIndex < this.slides.length - 1) {
       this.currentSlideIndex += 1;
+    } else if (this.activeChapter) {
+      this.returnToAuthorities();
     }
   }
 
@@ -45,6 +76,9 @@ export class SelfEmployedGuideComponent {
       return;
     }
 
+    if (!SELF_EMPLOYED_GUIDE_SLIDES.some(slide => slide.id === slideId)) return;
+    this.activeChapter = (Object.keys(this.chapterIds) as Array<'income' | 'vat' | 'ni'>)
+      .find(chapter => this.chapterIds[chapter].includes(slideId)) ?? null;
     const slideIndex = this.slides.findIndex(slide => slide.id === slideId);
     if (slideIndex >= 0) {
       this.currentSlideIndex = slideIndex;
@@ -81,7 +115,8 @@ export class SelfEmployedGuideComponent {
       this.previousSlide();
       event.preventDefault();
     } else if (event.key === 'Escape' && !document.fullscreenElement) {
-      this.closeGuide.emit();
+      if (this.activeChapter) this.returnToAuthorities();
+      else this.closeGuide.emit();
     }
   }
 }

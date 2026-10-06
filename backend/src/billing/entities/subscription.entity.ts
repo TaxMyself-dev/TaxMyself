@@ -9,7 +9,7 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { SubscriptionStatus } from '../enums/billing.enums';
+import { BillingAccessMode, SubscriptionStatus } from '../enums/billing.enums';
 import { PaymentMethodUpdateAttempt } from './payment-method-update-attempt.entity';
 
 /**
@@ -53,6 +53,14 @@ export class Subscription {
     default: SubscriptionStatus.TRIAL,
   })
   status: SubscriptionStatus;
+
+  @Column({
+    name: 'billing_access_mode',
+    type: 'enum',
+    enum: BillingAccessMode,
+    default: BillingAccessMode.STANDARD,
+  })
+  billingAccessMode: BillingAccessMode;
 
   @Column({ name: 'trial_start', type: 'datetime', nullable: true, default: null })
   trialStart: Date | null;

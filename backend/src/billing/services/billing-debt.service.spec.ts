@@ -1,7 +1,7 @@
 import { BillingDebtService } from './billing-debt.service';
 import { BillingObligation } from '../entities/billing-obligation.entity';
 import { Subscription } from '../entities/subscription.entity';
-import { BillingObligationKind, BillingObligationStatus, SubscriptionStatus } from '../enums/billing.enums';
+import { BillingAccessMode, BillingObligationKind, BillingObligationStatus, SubscriptionStatus } from '../enums/billing.enums';
 import { billingBoundary } from '../domain/billing-debt-periods';
 
 describe('debt accrual without app usage', () => {
@@ -58,6 +58,13 @@ describe('debt accrual without app usage', () => {
   it('does not accrue canceled records without an effective cancellation date', async () => {
     const { service, sub } = make(); sub.status = SubscriptionStatus.CANCELED;
     await expect(service.accrue(7)).rejects.toThrow('cancellation');
+  });
+  it('does not accrue exempt periods or erase previous debt', async () => {
+    const { service, sub, debts, manager } = make();
+    sub.billingAccessMode = BillingAccessMode.COMPLIMENTARY_FULL;
+    expect(await service.accrue(7, new Date('2026-12-20'))).toEqual([]);
+    expect(debts).toHaveLength(1);
+    expect(manager.save).not.toHaveBeenCalled();
   });
   it('rejects another owner before any accrual writes', async () => {
     const { service, manager } = make();

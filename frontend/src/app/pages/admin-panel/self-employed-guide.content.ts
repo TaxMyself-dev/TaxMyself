@@ -1,6 +1,7 @@
 import { SELF_EMPLOYED_GUIDE_FIGURES } from './self-employed-guide.figures';
 
 export type GuideSlideLayout =
+  | 'study-comparison'
   | 'cover'
   | 'business-types'
   | 'authorities'
@@ -10,7 +11,10 @@ export type GuideSlideLayout =
   | 'income-combination'
   | 'approved-artwork'
   | 'ni-simulator'
-  | 'tax-simulator';
+  | 'ni-rates'
+  | 'tax-simulator'
+  | 'expense-principle'
+  | 'expense-savings';
 
 export interface GuideItem {
   label: string;
@@ -43,6 +47,60 @@ const ceiling = new Intl.NumberFormat('he-IL').format(figures.vatExemptTurnoverC
 
 export const SELF_EMPLOYED_GUIDE_SLIDES: GuideSlide[] = [
   {
+    id: 'learning-summary', layout: 'approved-artwork', title: 'אז מה למדנו עד עכשיו?',
+    artwork: '/assets/self-employed-guide/learning-summary-approved.png',
+    artworkAlt: 'אז מה למדנו עד עכשיו? סוג העסק — פטור ומורשה הם מעמד במע״מ. עסק זעיר הוא מסלול במס הכנסה. מס הכנסה — מחושב על ההכנסה החייבת, כולל השכר והרווח מהעסק. מע״מ — מס על עסקאות, לא על הרווח. ביטוח לאומי — התשלום תלוי במעמד ובהכנסות. מקדמות — תשלומים במהלך השנה על חשבון החיוב הסופי, למי שחייב.',
+  },
+  {
+    id: 'practical-transition', layout: 'approved-artwork', title: 'ועכשיו לתכל׳ס',
+    artwork: '/assets/self-employed-guide/practical-transition-approved.png',
+    artworkAlt: 'ועכשיו לתכל׳ס. איך מתנהלים נכון ביום־יום ומממשים את הזכויות שלנו כעצמאים? קיפי צועד עם תרמיל.',
+  },
+  {
+    id: 'income-documents', layout: 'approved-artwork', title: 'הפקת מסמכים על הכנסות',
+    artwork: '/assets/self-employed-guide/income-documents-approved.png',
+    artworkAlt: 'הפקת מסמכים על הכנסות. עוסק פטור: לפני התשלום חשבון עסקה, ובקבלת התשלום קבלה. עוסק מורשה: לפני התשלום חשבון עסקה, ובקבלת התשלום חשבונית מס־קבלה. מסלול צדדי: חשבונית מס ולאחריה קבלה.',
+  },
+  {
+    id: 'expense-depreciation', layout: 'approved-artwork', title: 'שילמתם עכשיו. מתי ההוצאה מוכרת?',
+    artwork: '/assets/self-employed-guide/expense-depreciation-approved.png',
+    artworkAlt: 'שילמתם עכשיו. מתי ההוצאה מוכרת? לא כל הוצאה מוכרת בבת אחת. הוצאה שוטפת: פרסום לעסק ב-1,000 ₪ מוכר כהוצאה השנה. רכישה שמוכרת דרך פחת: מחשב לעסק ב-6,000 ₪, פחת שנתי 33%, הוצאה מוכרת של 1,980 ₪ בכל אחת משלוש השנים הראשונות ויתרה של 60 ₪ בשנה הרביעית. ההוצאה נפרסת. המע״מ לא.',
+  },
+  {
+    id: 'pension', layout: 'approved-artwork', title: 'קרן פנסיה לעצמאים',
+    artwork: '/assets/self-employed-guide/pension-approved.png',
+    artworkAlt: 'קרן פנסיה לעצמאים. חובת הפקדה לפי ההכנסה למי שחלה עליו החובה. הטבות מס: ניכוי מקטין הכנסה חייבת וזיכוי מקטין את המס, בכפוף לתנאים ולתקרות. כיסוי לנכות ואובדן כושר עבודה וקצבה לשאירים במקרה פטירה בהתאם למסלול ולתנאי הקרן. חיסכון לקצבה חודשית בפרישה.',
+  },
+  {
+    id: 'pension-tax-benefits', layout: 'approved-artwork', title: 'ניכוי וזיכוי — מה ההבדל?',
+    artwork: '/assets/self-employed-guide/pension-tax-benefits-approved.png',
+    artworkAlt: 'ניכוי מקטין את ההכנסה החייבת: 1,000 שקלים שהוכרו לניכוי מורידים הכנסה מ-250,000 ל-249,000. בדוגמת מס שולי של 31% החיסכון הוא 310 שקלים. זיכוי מקטין ישירות את המס: 1,000 שקלים שהוכרו לזיכוי מעניקים זיכוי של 35%, כלומר 350 שקלים. מס לתשלום של 10,000 יורד ל-9,650. אין מס לתשלום? אין מה לקזז.',
+  },
+  { id: 'study-comparison', layout: 'study-comparison', title: 'אותו חיסכון. כמה נשאר אצלכם?' },
+  {
+    id: 'study-fund', layout: 'approved-artwork', title: 'קרן השתלמות לעצמאים',
+    artwork: '/assets/self-employed-guide/study-fund-approved.png',
+    artworkAlt: 'קרן השתלמות לעצמאים. הטבה בהפקדה: הפקדה מוכרת מקטינה את ההכנסה החייבת במס. הטבה על הרווחים: פטור ממס על הרווחים עד תקרת ההפקדה המזכה. אחרי 6 שנים: אפשר למשוך לכל מטרה או להמשיך לחסוך.',
+  },
+  {
+    id: 'expense-principle', layout: 'approved-artwork',
+    title: 'מנצלים את כל ההוצאות שמגיעות לנו',
+    artwork: '/assets/self-employed-guide/expense-principle-approved.png',
+    artworkAlt: 'מנצלים את כל ההוצאות שמגיעות לנו. כל הוצאה מוכרת מקטינה את הרווח שעליו מחשבים מס. הוצאות מוכרות מובילות לפחות רווח חייב, פחות מס הכנסה ופחות ביטוח לאומי ובריאות כשיש חבות בתשלום. עוסק מורשה יכול גם לקזז מע״מ שמותר בניכוי. בעסק זעיר יש ניכוי קבוע של 30% מהמחזור במקום הוצאות בפועל.',
+    sources: [{ label: 'קיזוז מס תשומות', url: 'https://www.gov.il/he/service/reporting-or-payment-of-vat-reports' }, { label: 'ניכוי במסלול עסק זעיר', url: figures.sources.microBusinessGuidance }],
+  },
+  { id: 'expense-savings', layout: 'expense-savings', title: 'כמה ההוצאה הזאת באמת שווה לכם?' },
+  {
+    id: 'product-pain', layout: 'approved-artwork', title: 'הסיוט של כל עצמאי',
+    artwork: '/assets/self-employed-guide/product-pain-approved.png',
+    artworkAlt: 'הסיוט של כל עצמאי. 1: איסוף המסמכים — לא יודעים מה נשכח בדרך. 2: שולחים לרואה החשבון — לא יודעים מה נקלט ומה נשאר בחוץ. 3: בסוף השנה מגיעה ההפתעה — הרווח עלה, המקדמות לא הותאמו, חוב למס הכנסה או לביטוח לאומי.',
+  },
+  {
+    id: 'product-solution', layout: 'approved-artwork', title: 'הפתרון של KeepInTax',
+    artwork: '/assets/self-employed-guide/product-solution-approved.png',
+    artworkAlt: 'הפתרון של KeepInTax. 1: חיבור אוטומטי לתנועות ולמסמכים — בנק וכרטיסי אשראי ואיסוף מסמכים מהמייל, מ-Drive ומ-WhatsApp (בקרוב), מתנקזים למוח המערכת להתאמה בין תנועות למסמכים. 2: ממשק משותף לכם ולרואה החשבון — רואים מה הוגש ומה עדיין בטיפול. 3: מעקב אוטומטי אחרי הרווח השנתי — אין הפתעות בסוף שנה.',
+  },
+  {
     id: 'cover',
     layout: 'approved-artwork',
     title: 'אפשר גם אחרת',
@@ -57,9 +115,16 @@ export const SELF_EMPLOYED_GUIDE_SLIDES: GuideSlide[] = [
     artworkAlt: 'קיפי עם תרמיל מנטה מציג מושגים בסיסיים: הכנסות / מחזור — כל ההכנסות מהעסק לפני שמקזזים הוצאות. מע״מ שגובים מלקוחות אינו חלק מההכנסה. הוצאות מוכרות — הוצאות לצורכי העסק שמותר לקזז לצורך חישוב המס. לפעמים רק חלק מההוצאה מוכר. רווח — ההכנסות מהעסק פחות ההוצאות של העסק. הכנסה חייבת — ההכנסה שעליה מחשבים מס, אחרי ההתאמות, הניכויים והפטורים שמגיעים לכם. משכורת (שכר ברוטו) — השכר כשכירים לפני שמקזזים מיסים, ביטוח לאומי והפרשות.',
   },
   {
+    id: 'employee-payroll',
+    layout: 'approved-artwork',
+    title: 'כשאתם שכירים, המעסיק מטפל בהכל',
+    artwork: '/assets/self-employed-guide/employee-payroll-approved.png',
+    artworkAlt: 'כשאתם שכירים, המעסיק מטפל בהכל. מעסיק רציני מטפל במס הכנסה, ביטוח לאומי, פנסיה וקרן השתלמות. עובד מחויך מביט במחשב שעליו כתוב נטו 12,573 ₪, ומאחוריו לוח ספירה עד גיל 67.',
+  },
+  {
     id: 'business-types',
     layout: 'business-types',
-    title: 'כל השבילים מובילים למס הכנסה',
+    title: 'סוגי רישום העסקים בישראל',
     subtitle: 'ארבע הגדרות שכדאי להכיר לפני שמתחילים',
     items: [
       { label: 'בעל עסק זעיר', category: 'מסלול במס הכנסה', description: 'יכול להיות גם עוסק פטור וגם עוסק מורשה.', icon: 'leaf-outline' },
@@ -83,12 +148,12 @@ export const SELF_EMPLOYED_GUIDE_SLIDES: GuideSlide[] = [
   {
     id: 'income-tax-overview',
     layout: 'income-overview',
-    title: 'מס הכנסה מתעניין ברווח',
-    subtitle: 'אותו מס, שתי דרכי דיווח',
+    title: 'החובות של כל עסק',
+    subtitle: 'מס הכנסה, מע״מ וביטוח לאומי',
     items: [
-      { label: 'בעל עסק זעיר', category: 'המסלול המקוצר', description: 'תיאום מס ודיווח שנתי מקוצר', icon: 'flash-outline' },
-      { label: 'עוסק פטור', category: 'במסלול הרגיל', description: 'מקדמות ודוח שנתי', icon: 'document-text-outline' },
-      { label: 'עוסק מורשה', category: 'במסלול הרגיל', description: 'מקדמות ודוח שנתי', icon: 'document-text-outline' },
+      { label: 'בעל עסק זעיר', category: 'המסלול המקוצר', description: 'מס הכנסה: תיאום מס ודיווח שנתי מקוצר (ניכוי 30% הוצאות). מע״מ: לפי הסיווג, פטור או מורשה. ביטוח לאומי: דיווח ותשלום לפי המעמד וההכנסה.', icon: 'flash-outline' },
+      { label: 'עוסק פטור', category: 'במסלול הרגיל', description: 'מס הכנסה: מקדמות ודוח שנתי. מע״מ: הצהרת עוסק פטור אחת לשנה. ביטוח לאומי: דיווח ותשלום לפי המעמד וההכנסה.', icon: 'document-text-outline' },
+      { label: 'עוסק מורשה', category: 'במסלול הרגיל', description: 'מס הכנסה: מקדמות ודוח שנתי. מע״מ: דיווח תקופתי למע״מ. ביטוח לאומי: דיווח ותשלום לפי המעמד וההכנסה.', icon: 'document-text-outline' },
     ],
     takeaway: 'המעמד במע״מ לא קובע לבדו איך מדווחים למס הכנסה.',
     sources: [{ label: 'הנחיות רשות המסים', url: figures.sources.microBusinessGuidance }],
@@ -96,7 +161,7 @@ export const SELF_EMPLOYED_GUIDE_SLIDES: GuideSlide[] = [
   {
     id: 'status-comparison',
     layout: 'status-comparison',
-    title: 'פטור וזעיר: דומים, אבל לא תאומים',
+    title: 'מי יכול להיות פטור, ומי זעיר?',
     subtitle: `התקרה לשנת ${figures.taxYear}: ${ceiling} ₪ מחזור בשנה`,
     items: [
       { label: 'עוסק פטור', category: 'מע״מ', description: 'המחזור עד התקרה והעיסוק אינו מקצוע שחייב עוסק מורשה.', icon: 'storefront-outline' },
@@ -129,7 +194,7 @@ export const SELF_EMPLOYED_GUIDE_SLIDES: GuideSlide[] = [
   {
     id: 'income-combination',
     layout: 'income-combination',
-    title: 'שכיר וגם עצמאי? בסוף הכל נפגש',
+    title: 'שכיר וגם עצמאי? בסוף שנה הכל נפגש',
     items: [
       { label: 'משכורת שנתית', description: 'ההכנסה כשכיר', icon: 'person-outline' },
       { label: 'רווח מהעסק', category: 'הכנסות פחות הוצאות', description: 'ההכנסה החייבת מהעסק', icon: 'storefront-outline' },
@@ -153,37 +218,19 @@ export const SELF_EMPLOYED_GUIDE_SLIDES: GuideSlide[] = [
     id: 'advances-calculation', layout: 'approved-artwork',
     title: 'איך נקבעות המקדמות?',
     artwork: '/assets/self-employed-guide/advances-calculation-approved.png',
-    artworkAlt: 'מס הכנסה קובע מקדמות כאחוז מהמחזור או כסכום. דוגמה לפי אחוזים: מחזור ללא מע״מ של 20,000 ₪ כפול 5% נותן מקדמה של 1,000 ₪. המספרים להמחשה בלבד. המס הסופי לפי ההכנסה החייבת.',
+    artworkAlt: 'מס הכנסה קובע מקדמות כאחוז מהמחזור או כסכום. דוגמה לפי אחוזים: מחזור של 20,000 ₪ כפול 5% נותן מקדמה של 1,000 ₪. שינוי מהותי בעסק? אפשר לבקש עדכון מקדמות במהלך השנה. המקדמות הן על חשבון המס. המס הסופי לפי ההכנסה החייבת.',
     sources: [{ label: 'שיטות חישוב המקדמות', url: 'https://www.gov.il/files/taxes/KnowYourRights2018/files/basic-html/page179.html' }],
-  },
-  {
-    id: 'advances-adjustment', layout: 'approved-artwork',
-    title: 'העסק השתנה? בודקים גם את המקדמות',
-    artwork: '/assets/self-employed-guide/advances-adjustment-approved.png',
-    artworkAlt: 'הרווח עלה? ייתכן שהמקדמות לא יספיקו. הרווח ירד? ייתכן שאתם משלמים יותר מדי. אפשר לבקש שינוי לפי תחזית מעודכנת. לא משנים את התשלום על דעת עצמנו.',
-    sources: [{ label: 'בקשה להקטנת מקדמות', url: 'https://www.gov.il/he/service/itc-2216a' }],
   },
   {
     id: 'advances-payment', layout: 'approved-artwork',
     title: 'איך מדווחים ומשלמים את המקדמות?',
     artwork: '/assets/self-employed-guide/advances-payment-approved.png',
-    artworkAlt: 'אחת לחודש או לחודשיים לפי הדרישה בתיק: מרכזים מחזור ללא מע״מ, מחשבים לפי הדרישה ומקזזים ניכוי במקור שמותר לקזז, מדווחים ומשלמים באתר רשות המסים לבד או דרך המייצג. ניכוי במקור הוא תשלום שהלקוח העביר למס הכנסה על חשבונכם. שומרים את האישור.',
-    sources: [{ label: 'דיווח ותשלום מקדמות', url: 'https://www.gov.il/he/service/itc-payment-online-incometax' }],
-  },
-  {
-    id: 'micro-reporting', layout: 'approved-artwork',
-    title: 'עסק זעיר? יש מסלול מקוצר',
-    artwork: '/assets/self-employed-guide/micro-reporting-approved.png',
-    artworkAlt: 'למי שעומד בתנאי המסלול המקוצר: במהלך השנה עושים תיאום מס, גם אם יש רק הכנסה מהעסק, וכוללים שכר אם יש. אחרי השנה מגישים דיווח מקוצר ומשלמים מס. 30% מהמחזור כהוצאות במקום ההוצאות בפועל. אין חובת מקדמות במסלול המקוצר; אפשר לשלם במהלך השנה.',
+    artworkAlt: 'אחת לחודש או לחודשיים לפי הדרישה בתיק: מרכזים מחזור ללא מע״מ, מחשבים לפי הדרישה ומקזזים ניכוי במקור שמותר לקזז, מדווחים ומשלמים באתר רשות המסים לבד או דרך המייצג. שתי הערות בתחתית: ניכוי מס במקור — הלקוח העביר חלק מהתשלום למס הכנסה על חשבונכם; שומרים אישור ומקזזים מהמקדמה את הניכוי המותר. בעל עסק זעיר במסלול המקוצר — עושים תיאום מס במהלך השנה גם ללא שכר, וכוללים שכר נוסף אם יש; אחרי השנה דיווח מקוצר ותשלום, עם 30% מהמחזור כהוצאות במקום הוצאות בפועל. אין חובת מקדמות במסלול המקוצר; אפשר לשלם במהלך השנה.',
     sources: [
+      { label: 'דיווח ותשלום מקדמות', url: 'https://www.gov.il/he/service/itc-payment-online-incometax' },
       { label: 'דיווח מקוצר', url: 'https://www.gov.il/he/service/report-and-payment-for-micro-business-owner' },
       { label: 'מקדמות לעסק זעיר', url: 'https://www.gov.il/he/service/request-down-payment-for-micro-business-owner' },
     ],
-  },
-  {
-    id: 'income-tax-summary', layout: 'tax-simulator',
-    title: 'חשבון לכיתה ד - אין מה לחשוש',
-    takeaway: 'חזרה לאותה סימולציה לסיכום הפרק, עם הנתונים שכבר הוזנו.',
   },
   {
     id: 'vat-introduction', layout: 'approved-artwork', title: 'מע״מ — לא כל הכסף שנכנס הוא שלכם',
@@ -206,6 +253,13 @@ export const SELF_EMPLOYED_GUIDE_SLIDES: GuideSlide[] = [
     id: 'ni-payment', layout: 'approved-artwork', title: 'אז מי חייב לשלם?',
     artwork: '/assets/self-employed-guide/ni-payment-approved.png',
     artworkAlt: 'עצמאי שעונה להגדרה משלם לפי ההכנסה החייבת מהעסק. מי שאינו עונה להגדרה: עד סכום הפטור לא משלמים על הכנסה מהעסק; מעליו משלמים על ההפרש. ייתכן תשלום מינימום גם כשההכנסה פטורה.',
+  },
+  {
+    id: 'ni-rates', layout: 'ni-rates', title: 'כמה משלמים באחוזים?',
+    sources: [
+      { label: 'שיעורי דמי ביטוח לעצמאי', url: 'https://www.btl.gov.il/insurance/national%20insurance/type_list/self_employed/pages/rates.aspx' },
+      { label: 'שיעורי הכנסה שלא מעבודה', url: 'https://www.btl.gov.il/English%20Homepage/Insurance/Ratesandamount/Pages/Notworking.aspx' },
+    ],
   },
   { id: 'ni-calculator', layout: 'ni-simulator', title: 'אז כמה משלמים?' },
 ];

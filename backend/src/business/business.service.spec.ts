@@ -18,6 +18,7 @@ describe('BusinessService VAT reporting invariant', () => {
       execute: jest.fn().mockResolvedValue({ affected: 0 }),
     };
     const manager = {
+      query: jest.fn().mockResolvedValue([]),
       getRepository: jest.fn().mockReturnValue({
         save,
         createQueryBuilder: jest.fn()
@@ -34,6 +35,9 @@ describe('BusinessService VAT reporting invariant', () => {
         transaction: jest.fn().mockImplementation(async (work: any) => work(manager)),
       },
     } as any;
+    const documentsRepo = {
+      exist: jest.fn().mockResolvedValue(false),
+    } as any;
     const usersService = {
       findByFirebaseId: jest.fn().mockResolvedValue({ isCompany: false }),
     } as any;
@@ -41,8 +45,10 @@ describe('BusinessService VAT reporting invariant', () => {
       buildReportPeriodLabel: jest.fn().mockReturnValue('1-2/2026'),
     } as any;
     return {
-      service: new BusinessService(businessRepo, usersService, sharedService),
+      service: new BusinessService(businessRepo, documentsRepo, usersService, sharedService),
       businessRepo,
+      documentsRepo,
+      manager,
     };
   };
 
@@ -145,7 +151,7 @@ describe('BusinessService VAT reporting invariant', () => {
     expect(businessRepo.save).not.toHaveBeenCalled();
   });
 
-  it('rejects changing an existing business number when dependent records exist', async () => {
+  it('rejects changing an existing business number when an issued document exists', async () => {
     const business = {
       id: 1,
       firebaseId: 'uid',
@@ -153,25 +159,26 @@ describe('BusinessService VAT reporting invariant', () => {
       businessType: BusinessType.EXEMPT,
       vatReportingType: VATReportingType.NOT_REQUIRED,
     };
-    const { service, businessRepo } = makeService(business);
+    const { service, businessRepo, documentsRepo } = makeService(business);
     businessRepo.findOne
       .mockResolvedValueOnce(business)
       .mockResolvedValueOnce(null);
-    businessRepo.manager.query
-      .mockResolvedValueOnce([{ tableName: 'expense', columnName: 'businessNumber' }])
-      .mockResolvedValueOnce([{ count: 1 }]);
+    documentsRepo.exist.mockResolvedValueOnce(true);
 
     await expect(service.updateBusiness('uid', {
       id: 1,
       businessNumber: '222222222',
     })).rejects.toThrow(
-      'לא ניתן לשנות את מספר העסק משום שכבר קיימות רשומות המשויכות למספר הנוכחי. נמצאו: expense (1)',
+      'לא ניתן לשנות את מספר העסק משום שכבר הופקו מסמכים תחת המספר הנוכחי',
     );
 
+    expect(documentsRepo.exist).toHaveBeenCalledWith({
+      where: { issuerBusinessNumber: '111111111' },
+    });
     expect(businessRepo.save).not.toHaveBeenCalled();
   });
 
-  it('allows changing an existing business number when it has no dependent records', async () => {
+  it('allows changing an existing business number when only non-document records exist', async () => {
     const business = {
       id: 1,
       firebaseId: 'uid',
@@ -179,12 +186,20 @@ describe('BusinessService VAT reporting invariant', () => {
       businessType: BusinessType.EXEMPT,
       vatReportingType: VATReportingType.NOT_REQUIRED,
     };
-    const { service, businessRepo } = makeService(business);
+    const { service, businessRepo, documentsRepo, manager } = makeService(business);
     businessRepo.findOne
       .mockResolvedValueOnce(business)
       .mockResolvedValueOnce(null);
-    businessRepo.manager.query.mockResolvedValueOnce([]);
-
+    manager.query
+      .mockResolvedValueOnce([
+        { tableName: 'accountant_task', columnName: 'businessNumber' },
+        { tableName: 'report_workflow', columnName: 'businessNumber' },
+      ])
+      .mockResolvedValueOnce({ affectedRows: 2 })
+      .mockResolvedValueOnce({ affectedRows: 2 })
+      .mockResolvedValueOnce([
+        { tableName: 'category', columnName: 'chartOwnerKey' },
+      ]);
     await service.updateBusiness('uid', {
       id: 1,
       businessNumber: '222222222',
@@ -193,6 +208,22 @@ describe('BusinessService VAT reporting invariant', () => {
     expect(businessRepo.save).toHaveBeenCalledWith(expect.objectContaining({
       businessNumber: '222222222',
     }));
+    expect(documentsRepo.exist).toHaveBeenCalledWith({
+      where: { issuerBusinessNumber: '111111111' },
+    });
+    expect(manager.query).toHaveBeenCalledWith(expect.stringContaining('INFORMATION_SCHEMA.COLUMNS'));
+    expect(manager.query).toHaveBeenCalledWith(
+      expect.stringContaining('UPDATE `accountant_task`'),
+      ['222222222', '111111111'],
+    );
+    expect(manager.query).toHaveBeenCalledWith(
+      expect.stringContaining('UPDATE `report_workflow`'),
+      ['222222222', '111111111'],
+    );
+    expect(manager.query).toHaveBeenCalledWith(
+      expect.stringContaining('UPDATE `category`'),
+      ['CLIENT_222222222', 'CLIENT_111111111'],
+    );
   });
 
   it('uses the ending month when translating a bimonthly late-claim period to monthly', () => {

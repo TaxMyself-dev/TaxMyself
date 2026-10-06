@@ -3,7 +3,7 @@ import { BillingAttempt } from '../entities/billing-attempt.entity';
 import { BillingAttemptObligation } from '../entities/billing-attempt-obligation.entity';
 import { BillingObligation } from '../entities/billing-obligation.entity';
 import { Subscription } from '../entities/subscription.entity';
-import { BillingAttemptStatus, BillingObligationKind, BillingObligationStatus, SubscriptionStatus } from '../enums/billing.enums';
+import { BillingAccessMode, BillingAttemptStatus, BillingObligationKind, BillingObligationStatus, SubscriptionStatus } from '../enums/billing.enums';
 
 describe('one attempt for several period debts', () => {
   const actor = { actorFirebaseId: 'owner', subjectFirebaseId: 'owner' };
@@ -54,6 +54,13 @@ describe('one attempt for several period debts', () => {
     expect(result.attempt.amountAgorot).toBe(35400);
     expect(links.map(link => link.obligationId)).toEqual([1,2,3]);
     expect(debts.every(debt => debt.activeAttemptId === result.attempt.id)).toBe(true);
+  });
+  it('refuses debt checkout when full complimentary access was granted', async () => {
+    const { service, sub, attempts, links } = make();
+    sub.billingAccessMode = BillingAccessMode.COMPLIMENTARY_FULL;
+    await expect(service.createRecoveryCollection(actor, 7, [1,2,3])).rejects.toThrow('Recovery state changed');
+    expect(attempts).toHaveLength(0);
+    expect(links).toHaveLength(0);
   });
   it('two concurrent submissions cannot create overlapping attempts', async () => {
     const { service, attempts } = make();

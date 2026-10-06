@@ -27,13 +27,13 @@
 
     <div class="dialog-main">
 
-  <!-- Subtitle + the D9 regular/professional toggle. The toggle is
-       available to EVERYONE (permissions gate capabilities, not
-       visibility); the chosen mode persists per user, and accountants
-       land on professional by default. -->
+  <!-- Subtitle + the D9 regular/professional toggle. Only an eligible real
+       accountant/admin actor may see it; demo view-as is explicitly treated
+       like a regular client and therefore never exposes the selector. -->
   <div *ngIf="mode() !== null" class="toolbar-row">
     <div class="subtitle">{{ subtitleText() }}</div>
-    <div class="view-toggle" role="group" aria-label="מצב תצוגה">
+    <div *ngIf="canUseProfessionalView"
+         class="view-toggle" role="group" aria-label="מצב תצוגה">
       <button type="button"
               class="view-toggle__btn"
               [class.view-toggle__btn--active]="viewMode() === 'regular'"

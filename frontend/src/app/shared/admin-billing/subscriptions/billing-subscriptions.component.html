@@ -52,7 +52,7 @@
       <span class="drawer-title">פרטי מנוי</span>
       @if (selectedSub(); as sub) {
         <span class="sub-status-badge sub-status-badge--{{ sub.status }}">
-          {{ statusLabels[sub.status] ?? sub.status }}
+          {{ sub.billingAccessMode === 'COMPLIMENTARY_FULL' ? 'גישה מלאה ללא חיוב' : (statusLabels[sub.status] ?? sub.status) }}
         </span>
       }
     </div>
@@ -94,7 +94,7 @@
         <span class="detail-label">סטטוס</span>
         <span class="detail-value">
           <span class="sub-status-badge sub-status-badge--{{ sub.status }}">
-            {{ statusLabels[sub.status] ?? sub.status }}
+            {{ sub.billingAccessMode === 'COMPLIMENTARY_FULL' ? 'גישה מלאה ללא חיוב' : (statusLabels[sub.status] ?? sub.status) }}
           </span>
         </span>
         @if (sub.planSlug) {
@@ -218,6 +218,17 @@
 
         <app-input-select
           [parentForm]="editForm"
+          controlName="billingAccessMode"
+          labelText="מצב חיוב"
+          placeholder="בחר מצב חיוב"
+          [items]="billingAccessModeOptions"
+          [showClear]="false"
+          [filter]="false">
+        </app-input-select>
+
+        @if (editForm.get('billingAccessMode')?.value === 'STANDARD') {
+        <app-input-select
+          [parentForm]="editForm"
           controlName="planId"
           labelText="תוכנית"
           placeholder="בחר תוכנית"
@@ -283,6 +294,7 @@
             errorText="תאריך הסיום חייב להיות אחרי תאריך ההתחלה">
           </app-input-date>
         </div>
+        }
 
         <div class="form-row discount-save-row">
           <app-p-button

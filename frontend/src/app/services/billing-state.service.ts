@@ -28,6 +28,7 @@ export const BILLING_BLOCKING_STATUSES: EffectiveBillingStatus[] = [
 export interface BillingSubscription {
   id: number;
   status: SubscriptionStatus;
+  billingAccessMode: 'STANDARD' | 'COMPLIMENTARY_FULL';
   trialStart: string | null;
   trialEnd: string | null;
   currentPeriodStart: string | null;

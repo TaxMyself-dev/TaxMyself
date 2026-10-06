@@ -71,6 +71,7 @@
   </section>
 
   <!-- ─── 2. Payment method ─── -->
+  @if (!isComplimentary()) {
   <section class="sub-card">
     <div class="subsection-header">
       <span class="subsection-icon"><i class="pi pi-credit-card"></i></span>
@@ -118,6 +119,7 @@
 
   <!-- Embedded Open Fields change-payment-method dialog (feature-flagged). -->
   <app-change-payment-method-dialog [(visible)]="changePmDialogOpen" />
+  }
 
   <!-- ─── 3. Payment history ─── -->
   <section class="sub-card">

@@ -74,10 +74,10 @@ export type ArchiveDocumentClassification =
  *  DOCUMENT rows come from an uploaded/OCR'd document; EXPENSE rows are a
  *  bank/card transaction classified as an expense with no underlying
  *  document. `id` is scoped per `itemType` (an ExtractedDocument.id and an
- *  Expense.id can collide) — key rows by `${itemType}-${id}`. */
+ *  Expense/SlimTransaction ids can collide) — key rows by `${itemType}-${id}`. */
 export interface ArchivedItem {
   id: number;
-  itemType: 'DOCUMENT' | 'EXPENSE';
+  itemType: 'DOCUMENT' | 'EXPENSE' | 'TRANSACTION';
   documentType: string | null;
   documentKind: 'EXPENSE_INVOICE' | 'ANNUAL_DOCUMENT' | 'UNIDENTIFIED' | null;
   name: string;
@@ -95,6 +95,9 @@ export interface ArchivedItem {
   vatReportPeriod: string | null;
   /** Annual income-tax reporting year copied from the approved linked expense. */
   annualReportingYear: number | null;
+  amount?: number | null;
+  originalAmount?: number | null;
+  currency?: string | null;
 }
 
 /** Raw shape of a single invoice returned by the OCR endpoint. Matches

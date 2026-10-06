@@ -8,7 +8,7 @@ Container page + tab shell for day-to-day bookkeeping: issued documents (incomes
 - `expenses/expenses.page.ts` — `ExpensesPage`: lists/manages P&L and annual-report-only expenses and file attachments by document date (independent of VAT claim periods), with client-side free-text search in both expense tables. An asset acquisition appears only in its acquisition-date range while generated depreciation remains journal-only. Its formatted table amount is display-only; it retains a separate raw ILS amount for edit prefill, while the manual-expense dialog prefills foreign rows from `originalSum`/`originalCurrency` and sends those source values back for server-side conversion. Fixed assets expose both the statutory depreciation rate and the separate income-tax recognition percentage. Uses `ExpenseDataService`, `FilesService`.
 - `clients/clients.page.ts` — `ClientsPage`: lists/edits/deletes the business's own clients (used for invoicing), via `DocCreateService.getClients/deleteClient` and the shared `AddClientComponent` dialog.
 - `suppliers/suppliers.page.ts` — `SuppliersPage`: lists/edits suppliers via `ExpenseDataService` and the shared `AddSupplierComponent` dialog.
-- `archived-documents/archived-documents.page.ts` — unified document/expense archive with client-side free-text search that composes with status and document-type filters. Deleted Drive documents are hidden by default, visible through the deleted-status filter, previewable, and manually restorable; delete/restore are file-scoped and preserve accounting history.
+- `archived-documents/archived-documents.page.ts` — unified document/expense archive with client-side free-text search that composes with status and document-type filters. It also shows recognized unmatched bank/card transactions from `slim_transactions` while they await approval and routes their approval through the existing transaction-without-document flow. Deleted Drive documents are hidden by default, visible through the deleted-status filter, previewable, and manually restorable; delete/restore are file-scoped and preserve accounting history.
 - `client-tasks/client-tasks.page.ts` — `ClientTasksPage` (route `tasks`, tab currently hidden in `book-keeping.page.ts`): shows the user's own report workflows (VAT/advance-tax/annual), lets self-served users mark/dismiss/file, or delegated users confirm upload-completion to their accountant. Uses `ReportWorkflowService`.
 
 ## Main flows
@@ -16,7 +16,7 @@ Container page + tab shell for day-to-day bookkeeping: issued documents (incomes
 - Incomes: list documents, request/enter Tax Authority allocation numbers for invoices pending allocation.
 - Expenses: list/filter expenses, split between regular and annual-report-only.
 - Clients/Suppliers: simple CRUD lists backing invoice/expense creation elsewhere.
-- Archive: filter/preview Drive documents and transaction-only expenses; soft-delete or restore Drive documents without deleting their retained file.
+- Archive: filter/preview Drive documents, pending classified transactions and transaction-only expenses; approve authorized pending transactions, or soft-delete/restore Drive documents without deleting their retained file.
 - Client tasks (when enabled): confirm data upload to accountant, self-mark VAT/advance-tax/annual reports as filed, view stored report PDFs.
 
 - Expense edit/delete/file actions follow server-provided

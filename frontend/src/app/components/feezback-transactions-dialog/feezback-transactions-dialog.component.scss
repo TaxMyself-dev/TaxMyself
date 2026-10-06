@@ -22,6 +22,8 @@
 
   .dialog-content {
     position: relative;
+    direction: ltr;
+    text-align: left;
     background: white;
     border-radius: 12px;
     padding: 30px;
@@ -149,6 +151,18 @@
         font-size: 13px;
       }
 
+      .diagnostic-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin: 12px 0;
+      }
+
+      .duplicate-card {
+        display: grid;
+        margin-top: 8px;
+      }
+
       details {
         margin-top: 10px;
       }
@@ -184,19 +198,38 @@
       }
 
       .source-identifiers {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 6px 18px;
         margin-top: 10px;
-        direction: ltr;
-        color: #475569;
-        font-size: 12px;
+      }
+
+      .error-fields + .error-fields {
+        margin-top: 8px;
       }
 
       .source-payload {
         margin-top: 10px;
         background: #fff;
         color: #111827;
+      }
+
+      .transactions-table {
+        width: 100%;
+        direction: ltr;
+        text-align: left;
+        font-size: 12px;
+
+        th,
+        td {
+          padding: 7px;
+          border: 1px solid #dbe3ef;
+        }
+      }
+
+      .field-table {
+        direction: ltr;
+        text-align: left;
+
+        th { width: 190px; }
+        code { display: block; direction: ltr; text-align: left; overflow-wrap: anywhere; }
       }
 
       .payload-title {
@@ -259,6 +292,7 @@
         word-break: break-word;
         font-size: 12px;
       }
+
     }
   }
 }

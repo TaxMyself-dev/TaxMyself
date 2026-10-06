@@ -7,7 +7,7 @@ import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 import { AuthService } from 'src/app/services/auth.service';
 import { GenericService } from 'src/app/services/generic.service';
 import { AccessService } from 'src/app/services/access.service';
-import { AppFeature } from 'src/app/shared/access-control';
+import { ModuleName } from 'src/app/shared/access-control';
 import { MyPermissionsService } from 'src/app/services/my-permissions.service';
 import { IUserData, Business, IChild, IColumnDataTable, IMobileCardConfig, IRowDataTable, ITableRowAction } from 'src/app/shared/interface';
 import { GenericTableComponent } from 'src/app/components/generic-table/generic-table.component';
@@ -30,6 +30,7 @@ import { InputTextComponent } from 'src/app/components/input-text/input-text.com
 import { InputDateComponent } from 'src/app/components/input-date/input-date.component';
 import { InputSelectComponent } from 'src/app/components/input-select/input-select.component';
 import { DriveDocsService, MAX_UPLOAD_TO_INBOX_FILES } from 'src/app/services/drive-docs.service';
+import { SETTINGS_TABS, shouldLoadOpenBankingAccountSources } from './settings-access.policy';
 
 @Component({
   selector: 'app-settings',
@@ -91,17 +92,10 @@ export class SettingsPage implements OnInit {
   readonly inputsSize = inputsSize;
   isMobile = computed(() => this.genericService.isMobile());
 
-  readonly tabs = computed(() => [
-    { label: 'פרטים אישיים', value: 'personal' },
-    { label: 'העסקים שלי', value: 'businesses' },
-    ...(this.accessService.getFeatureState(AppFeature.CATEGORY_LIST_TAB).visible
-      ? [{ label: 'הקטגוריות שלי', value: 'categories' }]
-      : []),
-    ...(this.accessService.getFeatureState(AppFeature.OPEN_BANKING_PERMISSIONS_TAB).visible
-      ? [{ label: 'ניהול הרשאות וחשבונות', value: 'permissions' }]
-      : []),
-    { label: 'המנוי שלי', value: 'subscription' },
-  ]);
+  readonly tabs = computed(() => SETTINGS_TABS);
+  readonly hasOpenBankingAccess = computed(() =>
+    this.accessService.canAccessModule(ModuleName.OPEN_BANKING)
+  );
   selectedTab: string = 'personal';
 
   familyStatusOptions = familyStatusOptionsList;
@@ -236,7 +230,7 @@ export class SettingsPage implements OnInit {
 
   onTabChange(newTabValue: string): void {
     this.selectedTab = newTabValue;
-    if (newTabValue === 'permissions') {
+    if (shouldLoadOpenBankingAccountSources(newTabValue, this.hasOpenBankingAccess())) {
       this.fetchAccountSources();
     }
   }

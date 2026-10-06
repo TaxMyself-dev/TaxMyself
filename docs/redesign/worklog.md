@@ -2601,3 +2601,23 @@ No plan-checkbox changes (documentation reconciliation only).
   Focused Jest passed (48 tests, plus 5 final section-specific tests), and
   Nest and Angular production builds passed. Angular reported existing
   bundle-budget/CommonJS warnings.
+
+## 2026-10-02 — Pending classified transactions in the unified archive
+
+- Recognized bank/card transactions now remain visible in the unified archive
+  while `slim_transactions.confirmed = false`. Matched transactions continue
+  to be represented by their document, preventing duplicate archive rows.
+- `slim_transactions` now retains a minimal merchant/date/amount/currency
+  snapshot at classification time. Existing rows are backfilled from
+  `full_transactions_cache` during cutover and healed on the next successful
+  sync when the cache was unavailable at cutover, so nightly cache cleanup no
+  longer removes the information required by the pending archive.
+- Authorized archive users approve a pending transaction through the existing
+  `approveTxNoDoc` transaction boundary. Approval preserves the slim reporting
+  period, creates the Expense/journal atomically, and flips `confirmed`; no
+  Expense or journal is created at classification time.
+- Schema change recorded in `cutover.sql` Section 18. No tax-law, recognition,
+  journal-calculation, report-total, authorization-scope, external-API, or
+  production-data execution occurred.
+- Focused Jest passed 4 suites / 21 tests. Nest and Angular production builds
+  passed; Angular reported the existing bundle-budget/CommonJS warnings.

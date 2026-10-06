@@ -8,7 +8,7 @@
  * override logic is covered by subscription-access.service.spec.ts; this
  * test only verifies BillingService correctly forwards the flag end-to-end.
  */
-import { SubscriptionStatus } from '../enums/billing.enums';
+import { BillingAccessMode, SubscriptionStatus } from '../enums/billing.enums';
 import { BillingService } from './billing.service';
 import { ModuleName } from 'src/enum';
 
@@ -313,7 +313,12 @@ describe('BillingService.createCheckout — referral plan live resolution', () =
   let billingEventService: { getUnresolvedReceiptFailure: jest.Mock; logEvent: jest.Mock };
   let cardcomService: { createLowProfileCheckout: jest.Mock };
 
-  const SUBSCRIPTION = { id: 500, firebaseId: 'client-1', planId: 99 };
+  const SUBSCRIPTION = {
+    id: 500,
+    firebaseId: 'client-1',
+    planId: 99,
+    billingAccessMode: BillingAccessMode.STANDARD,
+  };
   const OWNER_ACTOR = { actorFirebaseId: 'client-1', subjectFirebaseId: 'client-1' };
   const PUBLIC_PLAN = { id: 1, slug: 'consumer-basic', name: 'בקטנה', isPublic: true, isActive: true };
   const REFERRAL_BASIC = { id: 99, slug: 'referral-basic', name: 'הפניית רואה חשבון — בסיסי', isPublic: false, isActive: true };
@@ -393,6 +398,19 @@ describe('BillingService.createCheckout — referral plan live resolution', () =
     expect(pricingService.calculateCheckoutPrice).toHaveBeenCalledWith('client-1', 1);
     // userRepo.findOne is still called once, for customer info — but never for a slug-based referral lookup
     expect(planRepo.findOne).not.toHaveBeenCalledWith({ where: { slug: expect.anything(), isActive: true } });
+  });
+
+  it('complimentary full access cannot start a charge flow', async () => {
+    subscriptionRepo.findOne.mockResolvedValue({
+      ...SUBSCRIPTION,
+      billingAccessMode: BillingAccessMode.COMPLIMENTARY_FULL,
+    });
+
+    await expect(service.createCheckout(OWNER_ACTOR, { planId: 1 } as any))
+      .rejects.toThrow('full access without payment');
+
+    expect(pricingService.calculateCheckoutPrice).not.toHaveBeenCalled();
+    expect(cardcomService.createLowProfileCheckout).not.toHaveBeenCalled();
   });
 
   it('referral checkout whose live-resolved target plan is missing/inactive: falls back to the originally requested plan, does not throw', async () => {

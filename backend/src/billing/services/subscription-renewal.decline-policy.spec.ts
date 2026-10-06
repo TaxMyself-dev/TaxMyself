@@ -6,6 +6,7 @@ import { Logger } from '@nestjs/common';
 import { LessThanOrEqual } from 'typeorm';
 import { decryptCardcomToken } from '../utils/billing-token-encryption.util';
 import {
+  BillingAccessMode,
   BillingAttemptStatus,
   BillingAttemptTrigger,
   BillingChargeMode,
@@ -1013,6 +1014,16 @@ describe('SubscriptionRenewalService — bounded renewal-decline policy', () => 
       ...overrides,
     });
 
+    it('an exempt subscription cannot renew through the canonical service or its locked gate', async () => {
+      const { service, executor, orchestration, subscription, db } = build();
+      subscription.billingAccessMode = BillingAccessMode.COMPLIMENTARY_FULL;
+      expect((await service.processSubscriptionById(7)).outcome).toBe('skipped');
+      await expect(orchestration.createOrGetAttempt(input())).rejects.toEqual(
+        expect.objectContaining({ reason: 'NOT_ACTIVE' }),
+      );
+      expect(executor.executeCharge).not.toHaveBeenCalled();
+      expect(db.rows(BillingAttempt)).toHaveLength(0);
+    });
     it('the gate rejects a non-ACTIVE subscription, a period mismatch and a not-yet-due date without persisting anything', async () => {
       const { orchestration, subscription, db } = build();
 

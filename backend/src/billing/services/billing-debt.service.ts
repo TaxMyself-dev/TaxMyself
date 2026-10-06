@@ -5,7 +5,7 @@ import { renewalPeriodStart } from '../domain/billing-renewal-policy';
 import { billingDebtQuote } from '../domain/billing-debt-quote';
 import { BillingObligation } from '../entities/billing-obligation.entity';
 import { Subscription } from '../entities/subscription.entity';
-import { BillingObligationKind, BillingObligationStatus, SubscriptionStatus } from '../enums/billing.enums';
+import { BillingAccessMode, BillingObligationKind, BillingObligationStatus, SubscriptionStatus } from '../enums/billing.enums';
 import { assertBillingOwnerMutation, BillingMutationActorContext } from './billing-attempt-orchestration.service';
 
 @Injectable()
@@ -19,7 +19,8 @@ export class BillingDebtService {
       const sub = await manager.findOne(Subscription, {
         where: { id: subscriptionId }, lock: { mode: 'pessimistic_write' },
       });
-      if (!sub || ![SubscriptionStatus.PAST_DUE, SubscriptionStatus.CANCELED].includes(sub.status)) return [];
+      if (!sub || sub.billingAccessMode === BillingAccessMode.COMPLIMENTARY_FULL ||
+        ![SubscriptionStatus.PAST_DUE, SubscriptionStatus.CANCELED].includes(sub.status)) return [];
       const existing = await manager.find(BillingObligation, {
         where: { subscriptionId, kind: BillingObligationKind.RECURRING_PERIOD },
         order: { periodStart: 'ASC' }, lock: { mode: 'pessimistic_write' },

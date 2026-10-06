@@ -11,6 +11,7 @@ created Keepintax account.
 ## Main flows
 
 - Normalize the external identifier and payment-method type before save.
+- When no accounts are available, the selector presents a friendly empty state and directs the user to add an account instead of rendering an error as a selectable row.
 - A successful association refreshes account data and closes with a result;
   creating a new account delegates to the active `components/add-bill` flow.
 

@@ -384,22 +384,24 @@
         <app-gmail-integration></app-gmail-integration>
       </div>
 
-      <div class="accounts-management">
-        <h3 class="subsection-title">ניהול חשבונות בבנקאות פתוחה</h3>
+      @if (hasOpenBankingAccess()) {
+        <div class="accounts-management">
+          <h3 class="subsection-title">ניהול חשבונות בבנקאות פתוחה</h3>
 
-        @if (accountSourcesLoading()) {
-          <p class="permissions-loading">טוען...</p>
-        } @else if (accountSources().length === 0) {
-          <p class="permissions-empty">אין אמצעי תשלום</p>
-        } @else {
-          <app-generic-table
-            [dataTable]="accountSourcesTableData()"
-            [columnsTitle]="$any(accountSourcesColumns)"
-            [rowActions]="accountSourcesRowActions"
-            [mobileCardConfig]="accountSourcesMobileCardConfig">
-          </app-generic-table>
-        }
-      </div>
+          @if (accountSourcesLoading()) {
+            <p class="permissions-loading">טוען...</p>
+          } @else if (accountSources().length === 0) {
+            <p class="permissions-empty">אין אמצעי תשלום</p>
+          } @else {
+            <app-generic-table
+              [dataTable]="accountSourcesTableData()"
+              [columnsTitle]="$any(accountSourcesColumns)"
+              [rowActions]="accountSourcesRowActions"
+              [mobileCardConfig]="accountSourcesMobileCardConfig">
+            </app-generic-table>
+          }
+        </div>
+      }
 
       <div class="permissions-inner-frame">
         <h3 class="subsection-title">ניהול הרשאות</h3>

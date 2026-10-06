@@ -4,7 +4,7 @@ import { AdminBillingService } from './admin-billing.service';
 import { Subscription } from '../entities/subscription.entity';
 import { BillingAttempt } from '../entities/billing-attempt.entity';
 import { BillingEvent } from '../entities/billing-event.entity';
-import { BillingAttemptStatus, SubscriptionStatus } from '../enums/billing.enums';
+import { BillingAccessMode, BillingEventType, BillingAttemptStatus, SubscriptionStatus } from '../enums/billing.enums';
 
 describe('AdminBillingService.updateSubscriptionTrialEnd', () => {
   let service: AdminBillingService;
@@ -18,6 +18,7 @@ describe('AdminBillingService.updateSubscriptionTrialEnd', () => {
     activePaymentMethodUpdateAttemptId: null,
     activePaymentMethodUpdateAttempt: null,
     status,
+    billingAccessMode: BillingAccessMode.STANDARD,
     trialStart: new Date('2026-01-01T00:00:00.000Z'),
     trialEnd: new Date('2026-01-15T00:00:00.000Z'),
     currentPeriodStart: new Date('2026-02-01T00:00:00.000Z'),
@@ -104,6 +105,97 @@ describe('AdminBillingService.updateSubscriptionTrialEnd', () => {
   });
 });
 
+describe('AdminBillingService.updateSubscriptionBillingAccessMode', () => {
+  const makeSubscription = (): Subscription => ({
+    activePaymentMethodUpdateAttemptId: null,
+    activePaymentMethodUpdateAttempt: null,
+    billingAnchorDay: null,
+    id: 42,
+    firebaseId: 'client-42',
+    planId: 7,
+    paymentMethodId: 9,
+    status: SubscriptionStatus.ACTIVE,
+    billingAccessMode: BillingAccessMode.STANDARD,
+    trialStart: null,
+    trialEnd: null,
+    currentPeriodStart: null,
+    currentPeriodEnd: null,
+    nextBillingDate: new Date('2026-10-01T00:00:00.000Z'),
+    gracePeriodEndsAt: null,
+    renewalAttempts: 1,
+    canceledAt: null,
+    endedAt: null,
+    discountPercent: null,
+    discountAmountAgorot: null,
+    discountStartDate: null,
+    discountEndDate: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  });
+
+  function createService(subscription: Subscription) {
+    const manager = {
+      findOne: jest.fn().mockResolvedValue(subscription),
+      save: jest.fn(async value => value),
+    };
+    const dataSource = {
+      transaction: jest.fn(async callback => callback(manager as unknown as EntityManager)),
+    } as unknown as DataSource;
+    const billingEventService = { logEvent: jest.fn().mockResolvedValue(null) };
+    const service = new AdminBillingService(
+      {} as any,
+      {} as any,
+      dataSource,
+      {} as any,
+      billingEventService as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
+    return { service, manager, billingEventService };
+  }
+
+  it('grants full no-charge access, removes the plan and clears future charging', async () => {
+    const sub = makeSubscription();
+    const { service, manager, billingEventService } = createService(sub);
+
+    const result = await service.updateSubscriptionBillingAccessMode(
+      42,
+      { billingAccessMode: BillingAccessMode.COMPLIMENTARY_FULL, reason: 'internal account' },
+      'admin-1',
+    );
+
+    expect(manager.save).toHaveBeenCalled();
+    expect(sub.planId).toBeNull();
+    expect(sub.nextBillingDate).toBeNull();
+    expect(sub.paymentMethodId).toBe(9);
+    expect(result.billingAccessMode).toBe(BillingAccessMode.COMPLIMENTARY_FULL);
+    expect(billingEventService.logEvent).toHaveBeenCalledWith(expect.objectContaining({
+      eventType: BillingEventType.BILLING_EXEMPTION_GRANTED,
+      metadata: expect.objectContaining({ actorFirebaseId: 'admin-1' }),
+    }));
+  });
+
+  it('revokes the exemption into TRIAL_EXPIRED without charging or deleting the card', async () => {
+    const sub = makeSubscription();
+    sub.billingAccessMode = BillingAccessMode.COMPLIMENTARY_FULL;
+    sub.planId = null;
+    const { service, billingEventService } = createService(sub);
+
+    const result = await service.updateSubscriptionBillingAccessMode(
+      42,
+      { billingAccessMode: BillingAccessMode.STANDARD },
+      'admin-1',
+    );
+
+    expect(result.status).toBe(SubscriptionStatus.TRIAL_EXPIRED);
+    expect(sub.paymentMethodId).toBe(9);
+    expect(billingEventService.logEvent).toHaveBeenCalledWith(expect.objectContaining({
+      eventType: BillingEventType.BILLING_EXEMPTION_REVOKED,
+    }));
+  });
+});
+
 describe('AdminBillingService.findAllSubscriptions', () => {
   const queryBuilder = (rows: any[]) => {
     const builder: any = {
@@ -127,6 +219,7 @@ describe('AdminBillingService.findAllSubscriptions', () => {
       subscriptionId: 42,
       firebaseId: 'client-42',
       status: SubscriptionStatus.TRIAL,
+      billingAccessMode: BillingAccessMode.STANDARD,
       planId: null,
       nextBillingDate: null,
       createdAt: new Date('2026-09-01T00:00:00.000Z'),

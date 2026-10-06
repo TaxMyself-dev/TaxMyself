@@ -31,9 +31,11 @@ import {
 import { ExpenseEditFieldValues } from 'src/app/components/report-review-edit-dialog/report-review-edit-dialog.component';
 import { SupplierDraft } from 'src/app/components/supplier-management-dialog/supplier-management-dialog.component';
 import { reportFilterQueryFromParamMap } from 'src/app/shared/report-filter-navigation';
-
-/** D9 view modes — one screen, two column sets. Persisted per user. */
-type ReviewViewMode = 'regular' | 'professional';
+import {
+  canUseProfessionalReviewView,
+  resolveReviewViewMode,
+  ReviewViewMode,
+} from './report-review-view-mode';
 
 /** A card (booking account) entry for the professional-view classification
  *  dropdown and the mapping-completion picker — derived by grouping the
@@ -322,15 +324,17 @@ export class ReportReviewPage implements OnInit {
   /**
    * D9 view mode. Persisted per user in localStorage; first-ever default is
    * professional for accountants/admins (the ACTOR's role — while
-   * impersonating a client, the accountant still lands on professional),
-   * regular for everyone else. The toggle itself is available to everyone —
-   * permissions gate capabilities, not visibility.
+   * impersonating a normal client, the accountant still lands on
+   * professional), regular for everyone else. Demo view-as is the explicit
+   * exception and is always regular. Only eligible professional actors may
+   * switch modes.
    */
   viewMode = signal<ReviewViewMode>('regular');
 
-  /** True when the ACTOR (real logged-in user, not the impersonated client)
-   *  is an accountant/admin — decides the first-ever view-mode default. */
-  isActorAccountant = false;
+  /** True when the ACTOR is an accountant/admin and the represented identity
+   *  is not a demo user. Controls professional-mode access and selector
+   *  visibility. */
+  canUseProfessionalView = false;
 
   /** Inline link picker state: which tx is in link-mode + the doc selected. */
   linkingTxId = signal<number | null>(null);
@@ -484,21 +488,22 @@ export class ReportReviewPage implements OnInit {
   );
 
   constructor() {
-    // D9 view mode: the ACTOR's role decides the first-ever default
-    // (accountant → professional); after that the user's persisted choice
-    // wins. Keyed per real user so an accountant's preference doesn't leak
-    // into the client's own session on a shared browser.
+    // D9 view mode: the ACTOR's role decides access/default, except demo
+    // view-as which behaves like a regular client. The preference remains
+    // keyed per real user so it cannot leak into that user's own session on a
+    // shared browser; resolveReviewViewMode still forces demo to regular.
     const realUser = this.authService.getRealUserDataFromLocalStorage();
-    this.isActorAccountant =
-      !!realUser?.role?.includes('ACCOUNTANT') || !!realUser?.role?.includes('ADMIN');
+    this.canUseProfessionalView = canUseProfessionalReviewView(
+      realUser?.role,
+      this.authService.isViewingDemoUser(),
+    );
     const stored = realUser?.firebaseId
       ? (localStorage.getItem(ReportReviewPage.VIEW_MODE_KEY_PREFIX + realUser.firebaseId) as ReviewViewMode | null)
       : null;
-    this.viewMode.set(
-      stored === 'regular' || stored === 'professional'
-        ? stored
-        : this.isActorAccountant ? 'professional' : 'regular',
-    );
+    const requestedMode = stored === 'regular' || stored === 'professional'
+      ? stored
+      : this.canUseProfessionalView ? 'professional' : 'regular';
+    this.viewMode.set(resolveReviewViewMode(requestedMode, this.canUseProfessionalView));
   }
 
   ngOnInit(): void {
@@ -516,13 +521,14 @@ export class ReportReviewPage implements OnInit {
 
   private static readonly VIEW_MODE_KEY_PREFIX = 'reviewViewMode:';
 
-  /** The regular/professional toggle — available to everyone (D9);
-   *  persisted per real user. */
+  /** The regular/professional toggle for accountants/admins. Other actors are
+   *  forced to regular even if this method is invoked directly. */
   setViewMode(mode: ReviewViewMode): void {
-    this.viewMode.set(mode);
+    const effectiveMode = resolveReviewViewMode(mode, this.canUseProfessionalView);
+    this.viewMode.set(effectiveMode);
     const realUser = this.authService.getRealUserDataFromLocalStorage();
     if (realUser?.firebaseId) {
-      localStorage.setItem(ReportReviewPage.VIEW_MODE_KEY_PREFIX + realUser.firebaseId, mode);
+      localStorage.setItem(ReportReviewPage.VIEW_MODE_KEY_PREFIX + realUser.firebaseId, effectiveMode);
     }
   }
 

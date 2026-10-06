@@ -1,5 +1,42 @@
 # Income Tax guide — approved content and artwork
 
+## 2026-10-03 payment notes and slider direction
+
+Removed `micro-reporting` from content and chapter navigation. Income now has
+five slides (17 main, 27 total); payment precedes the final calculator directly.
+Payment artwork retains the three steps, with two bottom notes: withholding
+and the qualifying micro-business route (coordination including salary, shortened
+report/payment, 30% turnover deduction instead of actual expenses, optional advances).
+Sources and accessible copy are consolidated on `advances-payment`.
+Built-in image edit `exec-a547e970-c5b8-422c-91fd-83bea6308440.png` was copied
+losslessly to `frontend/src/assets/self-employed-guide/advances-payment-approved.png`.
+Prompt: preserve title, subtitle, three steps, palette and logo; replace the single
+footer with two readable notes, yellow withholding and mint micro-business.
+Unused micro-business artwork is retained for history. All seven income calculator
+sliders now increase left-to-right; Hebrew label direction and calculations unchanged.
+
+## 2026-10-03 consolidated advances guidance
+
+Removed `advances-adjustment` from the slide model and chapter navigation.
+Income chapter is now six screens; main sequence remains 17, total 28.
+Slide 3 now includes “שינוי מהותי בעסק? אפשר לבקש עדכון מקדמות במהלך השנה.”
+Latest built-in image edit source: `exec-f31ac210-1acc-4591-8149-79b96d16529f.png`,
+copied without recompression to `advances-calculation-approved.png`. Prompt scope:
+add only the single sentence in the gap above the bottom banner, preserve all
+other artwork. Previous adjustment PNG retained as an unused historical asset.
+This is a request to update advances, not permission to change payment unilaterally.
+Example remains based on turnover excluding VAT. No calculation engine changes.
+
+## 2026-10-03 advances caption removal
+
+Income chapter slide 3 (`advances-calculation`): removed only the small line
+“המספרים להמחשה בלבד · מחזור ללא מע״מ” at the user's request. Built-in image
+edit source `exec-d954f592-8d7b-42e2-b060-a7004d65f195.png` replaces
+`advances-calculation-approved.png` without recompression. All other copy,
+20,000 × 5% = 1,000 example and renderer remain unchanged. The underlying
+example still assumes turnover excluding VAT; removal is visual, not a change
+to advance-payment calculation rules. No calculation code changes.
+
 Approved by Elazar in the marketing conversation, 2026-09-14. Implementation
 continuation of KT-021. No VAT chapter, customer data or publication is included.
 

@@ -24,11 +24,7 @@ import { PricingService } from './pricing.service';
 import { SubscriptionAccessService } from './subscription-access.service';
 import { CardcomService, CardcomApiError } from './cardcom.service';
 import { CardcomWebhookService } from './cardcom-webhook.service';
-import {
-  BillingEventType,
-  SubscriptionStatus,
-  WebhookLogStatus,
-} from '../enums/billing.enums';
+import { BillingAccessMode, BillingEventType, SubscriptionStatus, WebhookLogStatus } from '../enums/billing.enums';
 import { CheckoutPreviewDto } from '../dtos/checkout-preview.dto';
 import { CreateCheckoutDto } from '../dtos/create-checkout.dto';
 import { BillingLifecycleService } from './billing-lifecycle.service';
@@ -530,6 +526,12 @@ export class BillingService {
       );
     }
 
+    if (subscription.billingAccessMode === BillingAccessMode.COMPLIMENTARY_FULL) {
+      throw new BadRequestException(
+        'This account has full access without payment and cannot start checkout.',
+      );
+    }
+
     // Debt settlement is not a plan change. Never re-price an existing debt.
     const isDebtRecovery = subscription.status === SubscriptionStatus.PAST_DUE ||
       (dto.recoveryOnly && subscription.status === SubscriptionStatus.CANCELED);
@@ -941,6 +943,12 @@ export class BillingService {
 
     if (!subscription) {
       throw new BadRequestException('לא נמצא מנוי עבור המשתמש.');
+    }
+
+    if (subscription.billingAccessMode === BillingAccessMode.COMPLIMENTARY_FULL) {
+      throw new BadRequestException(
+        'This account has full access without payment and does not require a payment method.',
+      );
     }
 
     const allowedStatuses: SubscriptionStatus[] = [
@@ -1579,6 +1587,7 @@ export class BillingService {
       subscription: {
         id: subscription.id,
         status: subscription.status,
+        billingAccessMode: subscription.billingAccessMode,
         trialStart: subscription.trialStart,
         trialEnd: subscription.trialEnd,
         currentPeriodStart: subscription.currentPeriodStart,

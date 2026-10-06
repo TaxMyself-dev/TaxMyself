@@ -18,6 +18,7 @@ import {
   QueryRunner,
 } from 'typeorm';
 import {
+  BillingAccessMode,
   BillingAttemptStatus,
   BillingAttemptTrigger,
   BillingChargeMode,
@@ -275,7 +276,8 @@ export class BillingAttemptOrchestrationService {
       if (!subscription || subscription.firebaseId !== actor.subjectFirebaseId) {
         throw new ForbiddenException('Subscription owner mismatch');
       }
-      if (![SubscriptionStatus.PAST_DUE, SubscriptionStatus.CANCELED].includes(subscription.status)) {
+      if (subscription.billingAccessMode === BillingAccessMode.COMPLIMENTARY_FULL ||
+        ![SubscriptionStatus.PAST_DUE, SubscriptionStatus.CANCELED].includes(subscription.status)) {
         throw new ConflictException('Recovery state changed; refresh before paying');
       }
       const debts = await manager.find(BillingObligation, {
@@ -1166,7 +1168,8 @@ export class BillingAttemptOrchestrationService {
     periodStart: string,
     now: Date,
   ): void {
-    if (subscription.status !== SubscriptionStatus.ACTIVE) {
+    if (subscription.billingAccessMode === BillingAccessMode.COMPLIMENTARY_FULL ||
+      subscription.status !== SubscriptionStatus.ACTIVE) {
       throw new BillingRenewalDeferredError('NOT_ACTIVE');
     }
     if (!subscription.nextBillingDate || subscription.nextBillingDate > now) {

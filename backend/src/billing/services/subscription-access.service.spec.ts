@@ -12,7 +12,7 @@
 import { SubscriptionAccessService } from './subscription-access.service';
 import { Subscription } from '../entities/subscription.entity';
 import { SubscriptionPlan } from '../entities/subscription-plan.entity';
-import { SubscriptionStatus } from '../enums/billing.enums';
+import { BillingAccessMode, SubscriptionStatus } from '../enums/billing.enums';
 import { ModuleName } from 'src/enum';
 import { decideRenewalDecline } from '../domain/billing-renewal-policy';
 
@@ -23,6 +23,7 @@ function makeSubscription(overrides: Partial<Subscription> = {}): Subscription {
     planId: null,
     paymentMethodId: null,
     status: SubscriptionStatus.TRIAL,
+    billingAccessMode: BillingAccessMode.STANDARD,
     trialStart: null,
     trialEnd: null,
     currentPeriodStart: null,
@@ -131,5 +132,23 @@ describe('SubscriptionAccessService.resolveModulesAccess — professional-access
     });
     const access = service.resolveModulesAccess(sub, null, true);
     expect([...access].sort()).toEqual(Object.values(ModuleName).sort());
+  });
+});
+
+describe('SubscriptionAccessService.resolveModulesAccess — complimentary access', () => {
+  const service = new SubscriptionAccessService();
+
+  it('grants every module without a plan even when the payment lifecycle is expired', () => {
+    const sub = makeSubscription({
+      status: SubscriptionStatus.TRIAL_EXPIRED,
+      billingAccessMode: BillingAccessMode.COMPLIMENTARY_FULL,
+    });
+
+    expect([...service.resolveModulesAccess(sub, null)].sort()).toEqual(
+      Object.values(ModuleName).sort(),
+    );
+    expect(service.isPaymentRequired(sub)).toBe(false);
+    expect(service.isTrialActive(sub)).toBe(false);
+    expect(service.gracePeriodActive(sub)).toBe(false);
   });
 });

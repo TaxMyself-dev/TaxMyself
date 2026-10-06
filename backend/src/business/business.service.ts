@@ -9,6 +9,7 @@ import { Expense } from 'src/expenses/expenses.entity';
 import { JournalEntry } from 'src/bookkeeping/jouranl-entry.entity';
 import { SlimTransaction } from 'src/transactions/slim-transaction.entity';
 import { FullTransactionCache } from 'src/transactions/full-transaction-cache.entity';
+import { Documents } from 'src/documents/documents.entity';
 
 
 @Injectable()
@@ -18,6 +19,8 @@ export class BusinessService {
   constructor(
     @InjectRepository(Business)
     private businessRepo: Repository<Business>,
+    @InjectRepository(Documents)
+    private documentsRepo: Repository<Documents>,
     @Inject(forwardRef(() => UsersService))
     private readonly usersService: UsersService,
     private readonly sharedService: SharedService,
@@ -65,6 +68,7 @@ export class BusinessService {
     if (!business) {
       throw new NotFoundException('Business not found or not owned by user');
     }
+    const previousBusinessNumber = business.businessNumber;
     if (dto.businessNumber !== undefined) {
       const requestedBusinessNumber = dto.businessNumber.trim();
       if (requestedBusinessNumber !== (business.businessNumber ?? '')) {
@@ -74,15 +78,14 @@ export class BusinessService {
             throw new ConflictException(`עסק עם מספר ${requestedBusinessNumber} כבר קיים במערכת`);
           }
         }
-        const dependentRecords = business.businessNumber
-          ? await this.findDependentBusinessNumberRecords(business.businessNumber)
-          : [];
-        if (dependentRecords.length > 0) {
-          const details = dependentRecords
-            .map(({ tableName, count }) => `${tableName} (${count})`)
-            .join(', ');
+        const hasIssuedDocuments = business.businessNumber
+          ? await this.documentsRepo.exist({
+              where: { issuerBusinessNumber: business.businessNumber },
+            })
+          : false;
+        if (hasIssuedDocuments) {
           throw new ConflictException(
-            `לא ניתן לשנות את מספר העסק משום שכבר קיימות רשומות המשויכות למספר הנוכחי. נמצאו: ${details}`,
+            'לא ניתן לשנות את מספר העסק משום שכבר הופקו מסמכים תחת המספר הנוכחי',
           );
         }
       }
@@ -115,12 +118,23 @@ export class BusinessService {
       !isExemptBusinessType(nextBusinessType) &&
       nextBusinessType != null &&
       (previousBusinessType !== nextBusinessType || previousVatReportingType !== nextVatReportingType);
+    const mustRekeyBusinessNumber =
+      previousBusinessNumber != null &&
+      business.businessNumber != null &&
+      previousBusinessNumber !== business.businessNumber;
 
-    if (!mustRebucketOpenPeriods) return this.businessRepo.save(business);
+    if (!mustRebucketOpenPeriods && !mustRekeyBusinessNumber) return this.businessRepo.save(business);
 
     return this.businessRepo.manager.transaction(async (manager) => {
       const saved = await manager.getRepository(Business).save(business);
-      if (saved.businessNumber) {
+      if (mustRekeyBusinessNumber) {
+        await this.rekeyBusinessNumberReferences(
+          manager,
+          previousBusinessNumber,
+          saved.businessNumber!,
+        );
+      }
+      if (mustRebucketOpenPeriods && saved.businessNumber) {
         await this.rebucketOpenVatPeriods(
           manager,
           firebaseId,
@@ -134,39 +148,54 @@ export class BusinessService {
   }
 
   /**
-   * Business numbers are copied into the domain tables rather than linked by
-   * a foreign key. Changing a populated number would therefore orphan those
-   * rows. Discover the columns from the live schema so newly-added business
-   * scoped tables are protected without maintaining a fragile hard-coded list.
+   * Business numbers are copied into domain rows rather than linked by a
+   * foreign key. Once the document guard has established that the old number
+   * was never used to issue an official document, move every remaining
+   * reference atomically so workflows, tasks, expenses, counters and catalog
+   * ownership do not remain orphaned under the old number.
    */
-  private async findDependentBusinessNumberRecords(
-    businessNumber: string,
-  ): Promise<Array<{ tableName: string; columnName: string; count: number }>> {
-    const columns: Array<{ tableName: string; columnName: string }> = await this.businessRepo.manager.query(`
+  private async rekeyBusinessNumberReferences(
+    manager: EntityManager,
+    previousBusinessNumber: string,
+    nextBusinessNumber: string,
+  ): Promise<void> {
+    const columns: Array<{ tableName: string; columnName: string }> = await manager.query(`
       SELECT TABLE_NAME AS tableName, COLUMN_NAME AS columnName
       FROM INFORMATION_SCHEMA.COLUMNS
       WHERE TABLE_SCHEMA = DATABASE()
-        AND TABLE_NAME <> 'business'
+        AND TABLE_NAME NOT IN ('business', 'documents')
         AND LOWER(COLUMN_NAME) IN ('businessnumber', 'business_number', 'issuerbusinessnumber')
     `);
 
-    const references: Array<{ tableName: string; columnName: string; count: number }> = [];
     for (const { tableName, columnName } of columns) {
-      // Identifiers originate in INFORMATION_SCHEMA, but keep the dynamic SQL
-      // fail-closed if an unexpected identifier ever appears.
       if (!/^[A-Za-z0-9_]+$/.test(tableName) || !/^[A-Za-z0-9_]+$/.test(columnName)) {
         this.logger.warn(`Unsafe business-number reference ${tableName}.${columnName}`);
-        throw new ConflictException('לא ניתן לוודא בבטחה אם קיימות רשומות עבור מספר העסק הנוכחי');
+        throw new ConflictException('לא ניתן לעדכן בבטחה את כל הרשומות של מספר העסק');
       }
-      const rows = await this.businessRepo.manager.query(
-        `SELECT COUNT(*) AS count FROM \`${tableName}\` WHERE \`${columnName}\` = ?`,
-        [businessNumber],
+      await manager.query(
+        `UPDATE \`${tableName}\` SET \`${columnName}\` = ? WHERE \`${columnName}\` = ?`,
+        [nextBusinessNumber, previousBusinessNumber],
       );
-      const count = Number(rows[0]?.count ?? 0);
-      if (count > 0) references.push({ tableName, columnName, count });
     }
 
-    return references;
+    const chartOwnerColumns: Array<{ tableName: string; columnName: string }> = await manager.query(`
+      SELECT TABLE_NAME AS tableName, COLUMN_NAME AS columnName
+      FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND LOWER(COLUMN_NAME) = 'chartownerkey'
+    `);
+    const previousChartOwnerKey = `CLIENT_${previousBusinessNumber}`;
+    const nextChartOwnerKey = `CLIENT_${nextBusinessNumber}`;
+    for (const { tableName, columnName } of chartOwnerColumns) {
+      if (!/^[A-Za-z0-9_]+$/.test(tableName) || !/^[A-Za-z0-9_]+$/.test(columnName)) {
+        this.logger.warn(`Unsafe chart-owner reference ${tableName}.${columnName}`);
+        throw new ConflictException('לא ניתן לעדכן בבטחה את כל הרשומות של מספר העסק');
+      }
+      await manager.query(
+        `UPDATE \`${tableName}\` SET \`${columnName}\` = ? WHERE \`${columnName}\` = ?`,
+        [nextChartOwnerKey, previousChartOwnerKey],
+      );
+    }
   }
 
   /**

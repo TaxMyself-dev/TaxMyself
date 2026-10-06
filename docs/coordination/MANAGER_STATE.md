@@ -32,6 +32,14 @@ Last reviewed: 2026-09-19
 
 ## Pending integration
 
+- KT-021 full-guide continuation approved on 2026-10-05: all 37 source commits
+  `9665cd78` through `6c2aa43b` integrated over main `d68ea0ce`, code head
+  `77c44187`. 41 focused guide/calculator tests and frontend production build
+  passed. Subsequently rebased onto `56bf924d`, reran 41 tests and build,
+  and pushed/remote-verified full delivery through `1ab097b4` on main and
+  codex/integration-kt021. No backend, preview or unrelated CI changes.
+  This expands the older September scope below. Preserve the live worker tree.
+
 - KT-021 approved guide through source `4d99d388` is verified on
   `codex/integration-kt021` over fresh main `daedd44d` (code head `26b6387f`).
   23 focused Angular tests and the full frontend production build passed.

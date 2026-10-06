@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ModuleName } from 'src/enum';
 import { Subscription } from '../entities/subscription.entity';
 import { SubscriptionPlan } from '../entities/subscription-plan.entity';
-import { SubscriptionStatus } from '../enums/billing.enums';
+import { BillingAccessMode, SubscriptionStatus } from '../enums/billing.enums';
 
 /**
  * Slack allowed past `nextBillingDate`/`currentPeriodEnd` before an ACTIVE
@@ -50,6 +50,10 @@ export class SubscriptionAccessService {
     const now = new Date();
     const allModules = Object.values(ModuleName);
 
+    if (subscription.billingAccessMode === BillingAccessMode.COMPLIMENTARY_FULL) {
+      return allModules;
+    }
+
     switch (subscription.status) {
       case SubscriptionStatus.TRIAL:
         if (subscription.trialEnd !== null && subscription.trialEnd < now) {
@@ -96,6 +100,7 @@ export class SubscriptionAccessService {
    * yet past the trialEnd date).
    */
   isTrialActive(subscription: Subscription): boolean {
+    if (subscription.billingAccessMode === BillingAccessMode.COMPLIMENTARY_FULL) return false;
     if (subscription.status !== SubscriptionStatus.TRIAL) return false;
     if (!subscription.trialEnd) return true;
     return subscription.trialEnd > new Date();
@@ -107,6 +112,7 @@ export class SubscriptionAccessService {
    * recovery and payment-method endpoints remain available separately.
    */
   isPaymentRequired(subscription: Subscription): boolean {
+    if (subscription.billingAccessMode === BillingAccessMode.COMPLIMENTARY_FULL) return false;
     return (
       subscription.status === SubscriptionStatus.TRIAL_EXPIRED ||
       subscription.status === SubscriptionStatus.PAST_DUE

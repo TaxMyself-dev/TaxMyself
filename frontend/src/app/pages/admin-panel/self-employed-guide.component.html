@@ -17,6 +17,31 @@
   <div class="slide-frame" aria-live="polite">
     <article class="slide" [ngClass]="'slide--' + currentSlide.layout">
       @switch (currentSlide.layout) {
+        @case ('ni-rates') {
+          <section class="ni-rates">
+            <header><span>ביטוח לאומי</span><h2>כמה משלמים באחוזים?</h2><p>{{ insuranceRates.year }} · מגיל 18 ועד גיל פרישה · כולל ביטוח בריאות</p></header>
+            <div class="ni-rates__columns">
+              <section>
+                <h3>עצמאי שעונה להגדרה</h3>
+                <p class="ni-rates__intro">על בסיס ההכנסה החייבת בדמי ביטוח</p>
+                <div class="ni-rates__row"><div><b>{{ insuranceRates.selfLow + insuranceRates.healthLow | percent:'1.1-2' }}</b><small>{{ insuranceRates.selfLow | percent:'1.2-2' }} לאומי + {{ insuranceRates.healthLow | percent:'1.2-2' }} בריאות</small></div><strong>מדרגה מופחתת</strong></div>
+                <div class="ni-rates__row"><div><b>{{ insuranceRates.selfHigh + insuranceRates.healthHigh | percent:'1.0-2' }}</b><small>{{ insuranceRates.selfHigh | percent:'1.2-2' }} לאומי + {{ insuranceRates.healthHigh | percent:'1.2-2' }} בריאות</small></div><strong>מדרגה רגילה</strong></div>
+              </section>
+              <section>
+                <h3>עצמאי שלא עונה להגדרה</h3>
+                <p class="ni-rates__intro">רק על החלק שמעל {{ insuranceRates.exemptIncome | number }} ₪ בחודש</p>
+                <div class="ni-rates__row"><div><b>{{ insuranceRates.passiveLow + insuranceRates.passiveHealth | percent:'1.2-2' }}</b><small>{{ insuranceRates.passiveLow | percent:'1.2-2' }} לאומי + {{ insuranceRates.passiveHealth | percent:'1.2-2' }} בריאות</small></div><strong>מדרגה מופחתת</strong></div>
+                <div class="ni-rates__row"><div><b>{{ insuranceRates.passiveHigh + insuranceRates.passiveHealth | percent:'1.2-2' }}</b><small>{{ insuranceRates.passiveHigh | percent:'1.0-2' }} לאומי + {{ insuranceRates.passiveHealth | percent:'1.2-2' }} בריאות</small></div><strong>מדרגה רגילה</strong></div>
+              </section>
+            </div>
+            <p class="ni-rates__band">המדרגה המופחתת: עד {{ insuranceRates.reducedCeiling | number }} ₪ בחודש בבסיס החיוב<br /><strong>גם שכירים? השכר מנצל את המדרגה המופחתת קודם</strong></p>
+            <p class="ni-rates__qualification">תקרת ההכנסה לתשלום: {{ insuranceRates.maximumIncome | number }} ₪ בחודש מכל המקורות. ייתכן חיוב מינימלי לפי המעמד.</p>
+            <img class="slide-logo" src="/assets/login_logo.svg" alt="KeepInTax" />
+          </section>
+        }
+        @case ('expense-principle') {
+          <app-guide-expense-savings mode="principle"></app-guide-expense-savings>
+        }
         @case ('cover') {
           <div class="cover-visual" role="img" aria-label="עצמאי צעיר מוקף בניירת ובשלוש רשויות המס"></div>
           <div class="cover-message">
@@ -33,6 +58,7 @@
             src="/assets/self-employed-guide/business-types-approved.png"
             alt="ארבעת סוגי העסקים בישראל: בעל עסק זעיר, עוסק פטור, עוסק מורשה וחברה"
           />
+          <h2 class="business-types-title">{{ currentSlide.title }}</h2>
         }
 
         @case ('authorities') {
@@ -45,14 +71,15 @@
             type="button"
             class="approved-slide-hotspot approved-slide-hotspot--income-tax"
             aria-label="מעבר לפרק מס הכנסה"
-            (click)="goToSlide('income-tax-overview')"
+            (click)="openChapter('income')"
           ></button>
-          <button type="button" class="approved-slide-hotspot approved-slide-hotspot--vat" aria-label="מעבר לפרק מע״מ" (click)="goToSlide('vat-introduction')"></button>
-          <button type="button" class="approved-slide-hotspot approved-slide-hotspot--ni" aria-label="מעבר לפרק ביטוח לאומי" (click)="goToSlide('ni-status')"></button>
+          <button type="button" class="approved-slide-hotspot approved-slide-hotspot--vat" aria-label="מעבר לפרק מע״מ" (click)="openChapter('vat')"></button>
+          <button type="button" class="approved-slide-hotspot approved-slide-hotspot--ni" aria-label="מעבר לפרק ביטוח לאומי" (click)="openChapter('ni')"></button>
         }
 
         @case ('income-overview') {
-          <img class="approved-slide-art" src="/assets/self-employed-guide/income-overview-approved.png" alt="הדרכים לדיווח למס הכנסה לפי סוג העסק" />
+          <img class="slide-logo" src="/assets/login_logo.svg" alt="KeepInTax" />
+          <img class="approved-slide-art" src="/assets/self-employed-guide/income-overview-approved.png" alt="החובות של כל עסק: מס הכנסה; הצהרה שנתית לעוסק פטור או דיווח תקופתי למע״מ לעוסק מורשה; ביטוח לאומי לפי המעמד וההכנסה. בעל עסק זעיר מדווח למע״מ לפי סיווגו." />
         }
 
         @case ('status-comparison') {
@@ -69,6 +96,9 @@
 
         @case ('approved-artwork') {
           <img class="approved-slide-art" [class.glossary-base]="currentSlide.id === 'basic-concepts'" [src]="currentSlide.artwork" [alt]="currentSlide.id === 'basic-concepts' ? currentSlide.title : (currentSlide.artworkAlt || currentSlide.title)" />
+          @if (currentSlide.id === 'ni-payment') {
+            <p class="ni-payment-minimum">ייתכן תשלום מינימום גם כשההכנסה פטורה</p>
+          }
           @if (currentSlide.id === 'cover') {
             <img class="approved-slide-art cover-original-illustration" src="/assets/self-employed-guide/cover-approved.png" alt="" aria-hidden="true" />
           }
@@ -107,12 +137,19 @@
       }
       <app-self-employed-tax-simulator [hidden]="currentSlide.layout !== 'tax-simulator'"></app-self-employed-tax-simulator>
       <app-guide-national-insurance [hidden]="currentSlide.layout !== 'ni-simulator'"></app-guide-national-insurance>
+      <app-guide-expense-savings mode="calculator" [hidden]="currentSlide.layout !== 'expense-savings'"></app-guide-expense-savings>
+      <app-guide-study-comparison [hidden]="currentSlide.layout !== 'study-comparison'"></app-guide-study-comparison>
     </article>
   </div>
 
   <div class="presentation-controls">
     <button type="button" class="nav-button nav-button--secondary" (click)="previousSlide()" [disabled]="currentSlideIndex === 0">הקודם</button>
-    <div class="progress-track" aria-hidden="true"><span [style.width.%]="progressPercent"></span></div>
-    <button type="button" class="nav-button nav-button--primary" (click)="nextSlide()" [disabled]="currentSlideIndex === slides.length - 1">הבא</button>
+    <div class="chapter-controls">
+      @if (activeChapter) {
+        <button type="button" class="nav-button nav-button--secondary" (click)="returnToAuthorities()">חזרה לשלושת הגופים</button>
+      }
+      <div class="progress-track" aria-hidden="true"><span [style.width.%]="progressPercent"></span></div>
+    </div>
+    <button type="button" class="nav-button nav-button--primary" (click)="nextSlide()" [disabled]="isLastMainSlide">הבא</button>
   </div>
 </section>

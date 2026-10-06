@@ -107,46 +107,18 @@ export class TransactionsService implements OnInit {
     return this.http.get<ITransactionData[]>(url, { params: param })
   }
 
-  // getAllBills(): void {
-  //   const url = `${environment.apiUrl}transactions/get-bills`;
-  //   this.http.get<any[]>(url)
-  //     .pipe(
-  //       catchError((err) => {
-  //         if (err.error.status === 404) {
-  //           this.accountsList.set([{ value: undefined, name: 'לא קיימים חשבונות עבור משתמש זה' }]);
-  //         }
-  //         this.accountsList.set([{ value: undefined, name: 'אירעה שגיאה לא ניתן להציג חשבונות קיימים' }]);
-  //         return EMPTY;
-  //       }),
-  //       map((data) => {
-  //         return data.map((bill) => {
-  //           const { userId, ...bills } = bill;
-  //           const newfields = this.renameFields(bills);
-  //           return newfields;
-  //         })
-  //       }),
-  //     )
-  //     .subscribe((bills) => {
-  //       this.updateAccountList(bills);
-  //     })
-  // }
-
   getAllBills(): void {
     const url = `${environment.apiUrl}transactions/get-bills`;
 
     this.http.get<any[]>(url)
       .pipe(
         catchError((err) => {
-          if (err.error?.status === 404) {
-            this.accountsList.set([
-              { value: undefined, name: 'לא קיימים חשבונות עבור משתמש זה' }
-            ]);
-          } else {
-            this.accountsList.set([
-              { value: undefined, name: 'אירעה שגיאה לא ניתן להציג חשבונות קיימים' }
-            ]);
-          }
-
+          console.error('[TransactionsService] Failed to load accounts', err);
+          // Never represent an HTTP error as a selectable account. Keeping
+          // the collection empty lets account selectors render their proper
+          // empty state and leaves ensureAccountsLoaded free to retry later.
+          this.accountsList.set([]);
+          this.billBusinessNumberMap.set(new Map());
           return EMPTY;
         }),
         tap((data: any[]) => {

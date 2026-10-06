@@ -71,7 +71,6 @@ export class FeezbackHttpClient {
   ): Promise<T> {
     const url = this.resolveUrl(path);
     const { maxRetries } = FEEZBACK_RETRY;
-    const { endpoint } = this.classifyUrl(url);
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       // Rebuild auth headers on every attempt so a fresh token is used after long back-offs.
@@ -92,7 +91,6 @@ export class FeezbackHttpClient {
         curl: this.buildRedactedCurl(method, url, headers, body),
       };
       this.debugTrace.getStore()?.push(traceEntry);
-      console.log(`→ [Feezback] ${method} ${endpoint} sent at ${new Date(sentAt).toISOString()} (attempt ${attempt + 1}/${maxRetries + 1}) url=${url}`);
 
       try {
         const response: AxiosResponse<T> = await firstValueFrom(
@@ -105,7 +103,6 @@ export class FeezbackHttpClient {
         traceEntry.receivedAt = new Date(sentAt + durationMs).toISOString();
         traceEntry.durationMs = durationMs;
         traceEntry.status = response.status;
-        console.log(`← [Feezback] ${endpoint} — status=${response.status} | ${durationMs}ms | body=${this.snippet(response.data)}`);
 
         return response.data;
       } catch (rawError) {
@@ -119,14 +116,11 @@ export class FeezbackHttpClient {
         const shouldRetry = isRetryableFeezbackError(mapped);
 
         if (!shouldRetry || attempt === maxRetries) {
-          console.log(`\n❌ [Feezback] ${endpoint} — all ${attempt + 1} attempt(s) failed | status=${mapped.status ?? 'unknown'} | error=${mapped.message}\n   responseBody=${this.snippet(mapped.responseBody)}\n`);
           throw mapped;
         }
 
         const retryAfterMs = rateLimit ? parseRetryAfterMs(mapped.headers) : null;
         const waitMs = retryAfterMs ?? calcBackoffMs(attempt);
-
-        console.log(`⚠️  [Feezback] ${endpoint} — attempt ${attempt + 1}/${maxRetries} got ${mapped.status ?? 'unknown'}, retrying in ${waitMs}ms`);
 
         await sleep(waitMs);
       }
@@ -186,61 +180,4 @@ export class FeezbackHttpClient {
     return parts.join(' \\\n  ');
   }
 
-  /**
-   * [DIAG] Extract a short endpoint label and resource identifier from a Feezback URL.
-   */
-  private classifyUrl(url: string): { endpoint: string; resource: string } {
-    try {
-      const pathname = new URL(url).pathname;
-      const segments = pathname.split('/').filter(Boolean);
-
-      // .../consents/{consentId}/cards/{cardResourceId}/transactions
-      const cardsTxIdx = segments.indexOf('cards');
-      const txIdx = segments.lastIndexOf('transactions');
-      if (cardsTxIdx !== -1 && txIdx > cardsTxIdx) {
-        return { endpoint: 'cardTransactions', resource: segments[cardsTxIdx + 1] ?? 'unknown' };
-      }
-
-      // .../accounts/{accountId}/transactions  (href-based bank transactions)
-      const acctIdx = segments.indexOf('accounts');
-      if (acctIdx !== -1 && txIdx > acctIdx) {
-        return { endpoint: 'accountTransactions', resource: segments[acctIdx + 1] ?? 'unknown' };
-      }
-
-      // Direct transactions link (may not have /accounts/ prefix)
-      if (txIdx !== -1) {
-        return { endpoint: 'accountTransactions', resource: segments[txIdx - 1] ?? 'unknown' };
-      }
-
-      // .../accounts
-      if (segments[segments.length - 1] === 'accounts') {
-        return { endpoint: 'accounts', resource: '-' };
-      }
-
-      // .../cards
-      if (segments[segments.length - 1] === 'cards') {
-        return { endpoint: 'cards', resource: '-' };
-      }
-
-      // .../consents
-      if (segments[segments.length - 1] === 'consents') {
-        return { endpoint: 'consents', resource: '-' };
-      }
-
-      return { endpoint: segments[segments.length - 1] ?? 'unknown', resource: '-' };
-    } catch {
-      return { endpoint: 'unknown', resource: '-' };
-    }
-  }
-
-  /** Truncated JSON preview used for both request/response and error-body logging. */
-  private snippet(body: unknown): string {
-    if (body == null) return '(none)';
-    try {
-      const s = typeof body === 'string' ? body : JSON.stringify(body);
-      return s.length > 800 ? s.slice(0, 800) + '…' : s;
-    } catch {
-      return String(body);
-    }
-  }
 }
