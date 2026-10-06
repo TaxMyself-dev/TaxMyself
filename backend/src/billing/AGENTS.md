@@ -395,6 +395,14 @@ If neither signal has landed after `CHANGE_PM_RECONCILE_AFTER_MS` (20s), the sta
 
 ## Development requirement: CARDCOM_WEBHOOK_BASE_URL
 
+Local billing worktree: run `npm run start:billing` from backend. The wrapper
+loads this worktree's ignored backend/.env explicitly (overriding inherited
+values), pins PORT=3001 and retains start:watch's DISABLE_SYNCHRONIZE=true.
+Its .env is an independent dev configuration copy, not a shared link.
+Run `ngrok http 3001`, set CARDCOM_WEBHOOK_BASE_URL in that local file and
+restart billing. Local CardCom return URLs use frontend localhost:4201.
+The shared dev database remains shared between parallel servers.
+
 CardCom calls the webhook from the public internet, so **`CARDCOM_WEBHOOK_BASE_URL` in `backend/.env` must point at the currently active ngrok HTTPS URL**, and the backend must be running and reachable through it. The URL is baked into each LowProfile deal at creation time (`CardcomService`, `WebHookUrl`), so a deal created against a stale tunnel can never be delivered — restarting ngrok later does not rescue it.
 
 Free ngrok URLs change on every restart. After restarting the tunnel:

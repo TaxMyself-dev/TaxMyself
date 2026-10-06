@@ -6,6 +6,10 @@ Standalone pricing/plans page where a user views available subscription plans an
 - `billing-plans.page.html` / `.scss` — pricing card grid UI.
 
 ## Main flows
+
+- Local billing worktree runs with `npm run start:billing` from frontend on
+  localhost:4201; environment.ts points to backend localhost:3001. Production
+  and cloud-dev environment replacements retain their existing endpoints.
 - PAST_DUE owners can open the existing card-change dialog directly from
   recovery, including when debt preview needs review. The page explains that
   replacing a card alone neither pays the debt nor removes the block. The
