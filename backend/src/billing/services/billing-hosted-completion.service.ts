@@ -2,12 +2,14 @@ import { Injectable, Logger, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { BillingAttempt } from '../entities/billing-attempt.entity';
+import { BillingObligation } from '../entities/billing-obligation.entity';
 import { PaymentMethod } from '../entities/payment-method.entity';
 import { Subscription } from '../entities/subscription.entity';
 import { SubscriptionPlan } from '../entities/subscription-plan.entity';
-import { BillingEventType, SubscriptionStatus } from '../enums/billing.enums';
+import { BillingEventType, BillingObligationKind, BillingAccessMode, SubscriptionStatus } from '../enums/billing.enums';
 import {
   CardDetails,
+  CardcomWebhookPayload,
   HostedTokenRecoveryReason,
   validateHostedCaptureResult,
 } from '../utils/billing-hosted-card-result.util';
@@ -22,7 +24,7 @@ import {
 } from './billing-lifecycle.service';
 import { BillingReceiptService } from './billing-receipt.service';
 import { recoverySubscriptionPatch } from '../domain/billing-recovery-state';
-import { billingBoundary, billingDate } from '../domain/billing-debt-periods';
+import { billingBoundary, billingDate, nextBillingInstant } from '../domain/billing-debt-periods';
 
 /**
  * A hosted attempt whose capture is confirmed locally is not touched by a
@@ -82,6 +84,7 @@ export class BillingHostedCompletionService {
     firebaseId: string;
     subscriptionId: number;
     billingAttemptId: number;
+    verifiedResult?: CardcomWebhookPayload;
   }): Promise<HostedCompletionStatus> {
     const { firebaseId, subscriptionId, billingAttemptId } = params;
 
@@ -90,7 +93,7 @@ export class BillingHostedCompletionService {
       attemptId: billingAttemptId,
       leaseOwner: `hosted-recovery-${billingAttemptId}`,
       activate: (attempt) =>
-        this.activateSubscription({ firebaseId, subscriptionId, attempt }),
+        this.activateSubscription({ firebaseId, subscriptionId, attempt, verifiedResult: params.verifiedResult }),
       receipt: {
         createReceipt: (attempt) =>
           this.createReceipt({
@@ -193,10 +196,12 @@ export class BillingHostedCompletionService {
     firebaseId: string;
     subscriptionId: number;
     attempt: BillingAttempt;
+    verifiedResult?: CardcomWebhookPayload;
   }): Promise<void> {
     const { firebaseId, subscriptionId, attempt } = params;
     const capturedAt = attempt.capturedAt;
     const members = await this.lifecycle.findAttemptObligations(attempt);
+    const initialPurchase = members.length === 1 && members[0].kind === BillingObligationKind.CHECKOUT;
     if (!capturedAt) {
       throw new Error('Captured attempt has no capture time');
     }
@@ -207,9 +212,14 @@ export class BillingHostedCompletionService {
     const pending = await this.subscriptionRepo
       .findOne({ where: { id: subscriptionId } })
       .catch(() => null);
-    const lookup =
-      pending && [SubscriptionStatus.PAST_DUE, SubscriptionStatus.CANCELED].includes(pending.status) &&
-      Date.now() - capturedAt.getTime() >= HOSTED_ACTIVATION_RECOVERY_GRACE_MS
+    const lookup = initialPurchase && params.verifiedResult
+      ? validateHostedCaptureResult(params.verifiedResult, {
+          lowProfileId: attempt.cardcomLowProfileId ?? '', transactionId: attempt.cardcomTransactionId,
+          amountAgorot: attempt.amountAgorot, firebaseId, subscriptionId,
+          planId: attempt.planId, billingAttemptId: attempt.id,
+        })
+      : pending && (initialPurchase || ([SubscriptionStatus.PAST_DUE, SubscriptionStatus.CANCELED].includes(pending.status) &&
+      Date.now() - capturedAt.getTime() >= HOSTED_ACTIVATION_RECOVERY_GRACE_MS))
         ? await this.lookupCardForRecovery({
             firebaseId,
             subscriptionId,
@@ -226,7 +236,34 @@ export class BillingHostedCompletionService {
         throw new Error('Subscription not found for the captured attempt');
       }
       if (subscription.status === SubscriptionStatus.ACTIVE) {
+        if (initialPurchase && (subscription.planId !== attempt.planId ||
+          subscription.currentPeriodStart?.getTime() !== capturedAt.getTime())) {
+          throw new Error('Initial purchase no longer matches the active subscription');
+        }
         return false; // already activated (first delivery, admin, or a prior recovery)
+      }
+      if (initialPurchase) {
+        if (subscription.billingAccessMode === BillingAccessMode.COMPLIMENTARY_FULL ||
+          ![SubscriptionStatus.TRIAL, SubscriptionStatus.TRIAL_EXPIRED].includes(subscription.status) ||
+          subscription.currentPeriodStart || subscription.currentPeriodEnd) {
+          throw new Error('Initial purchase state no longer permits activation');
+        }
+        const anchor = Number(billingDate(capturedAt).slice(8));
+        const end = nextBillingInstant(capturedAt, anchor);
+        const plan = await manager.findOne(SubscriptionPlan, { where: { id: attempt.planId } });
+        if (!plan) throw new Error('Purchased plan not found');
+        // Checkout dates are provisional until capture; recurring debt dates
+        // remain immutable. Save the actual purchased service period atomically.
+        await manager.update(BillingObligation, members[0].id, {
+          periodStart: billingDate(capturedAt), periodEnd: billingDate(end),
+        });
+        await manager.update(Subscription, subscription.id, {
+          status: SubscriptionStatus.ACTIVE, planId: attempt.planId,
+          currentPeriodStart: capturedAt, currentPeriodEnd: end, nextBillingDate: end,
+          billingAnchorDay: anchor, renewalAttempts: 0, gracePeriodEndsAt: null,
+          canceledAt: null, endedAt: null,
+        });
+        return true;
       }
       if (subscription.status !== SubscriptionStatus.PAST_DUE && subscription.status !== SubscriptionStatus.CANCELED) {
         throw new Error(
@@ -519,7 +556,8 @@ export class BillingHostedCompletionService {
     const debts = await this.lifecycle.findAttemptObligations(attempt);
     const periods = await Promise.all([...debts].sort((a,b) => a.periodStart.localeCompare(b.periodStart)).map(async debt => ({
       planName: (await this.planRepo.findOne({ where: { id: debt.planId } }))?.name ?? plan.name,
-      periodStart: billingBoundary(debt.periodStart), periodEnd: billingBoundary(debt.periodEnd),
+      periodStart: debt.kind === BillingObligationKind.CHECKOUT ? subscription.currentPeriodStart : billingBoundary(debt.periodStart),
+      periodEnd: debt.kind === BillingObligationKind.CHECKOUT ? subscription.currentPeriodEnd : billingBoundary(debt.periodEnd),
       amountBeforeVatAgorot: debt.amountBeforeVatAgorot, vatAmountAgorot: debt.vatAmountAgorot,
       amountIncludingVatAgorot: debt.amountAgorot,
     })));

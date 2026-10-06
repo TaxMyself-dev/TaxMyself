@@ -3,11 +3,13 @@ import {
   BillingChargeMode,
   BillingEventType,
   BillingObligationStatus,
+  BillingObligationKind,
   SubscriptionStatus,
 } from '../enums/billing.enums';
 import { PaymentMethod } from '../entities/payment-method.entity';
 import { Subscription } from '../entities/subscription.entity';
 import { SubscriptionPlan } from '../entities/subscription-plan.entity';
+import { BillingObligation } from '../entities/billing-obligation.entity';
 import { assertBillingOwnerMutation } from './billing-attempt-orchestration.service';
 import { BillingEventService } from './billing-event.service';
 import { BillingHostedCompletionService } from './billing-hosted-completion.service';
@@ -167,6 +169,10 @@ describe('BillingHostedCompletionService — local recovery of a CAPTURED hosted
         return row;
       }),
       update: jest.fn(async (_entity: unknown, _id: number, values: any) => {
+        if (_entity === BillingObligation) {
+          Object.assign(orchestration.obligation, values);
+          return;
+        }
         Object.assign(sub, values);
         updates.count += 1;
         updates.values.push(values);
@@ -255,6 +261,47 @@ describe('BillingHostedCompletionService — local recovery of a CAPTURED hosted
 
   const failuresOf = (rows: any[]) =>
     rows.filter((r) => r.eventType === BillingEventType.RECEIPT_FAILED);
+
+  it('activates an initial purchase at capture rather than checkout creation and completes it only once', async () => {
+    const f = build();
+    f.orchestration.obligation.kind = BillingObligationKind.CHECKOUT;
+    Object.assign(f.sub, { status: SubscriptionStatus.TRIAL_EXPIRED,
+      currentPeriodStart: null, currentPeriodEnd: null, nextBillingDate: null });
+    expect(await f.service.completeCapturedHostedAttempt(f.params)).toBe('COMPLETED');
+    expect(f.sub.currentPeriodStart).toEqual(CAPTURED_AT);
+    expect(f.sub.billingAnchorDay).toBe(10);
+    const receipt = f.receipts.ensureReceiptForCapturedAttempt.mock.calls[0][0];
+    expect(receipt.periods[0].periodStart).toEqual(CAPTURED_AT);
+    expect(receipt.periods[0].periodEnd).toEqual(f.sub.currentPeriodEnd);
+    const end = f.sub.currentPeriodEnd;
+    expect(await f.service.completeCapturedHostedAttempt(f.params)).toBe('ALREADY_COMPLETED');
+    expect(f.sub.currentPeriodEnd).toEqual(end);
+    expect(f.receipts.ensureReceiptForCapturedAttempt).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps a captured initial purchase pending when its subscription was canceled', async () => {
+    const f = build();
+    f.orchestration.obligation.kind = BillingObligationKind.CHECKOUT;
+    f.sub.status = SubscriptionStatus.CANCELED;
+    expect(await f.service.completeCapturedHostedAttempt(f.params)).toBe('RECEIPT_PENDING');
+    expect(f.sub.status).toBe(SubscriptionStatus.CANCELED);
+    expect(f.receipts.ensureReceiptForCapturedAttempt).not.toHaveBeenCalled();
+  });
+
+  it('resumes a failed initial receipt without extending the captured service period', async () => {
+    const f = build();
+    f.orchestration.obligation.kind = BillingObligationKind.CHECKOUT;
+    f.orchestration.attempt.capturedAt = NOW; // initial purchase has no recovery grace delay
+    Object.assign(f.sub, { status: SubscriptionStatus.TRIAL, currentPeriodStart: null, currentPeriodEnd: null });
+    f.receipts.ensureReceiptForCapturedAttempt.mockRejectedValueOnce(new Error('receipt unavailable'));
+    expect(await f.service.completeCapturedHostedAttempt(f.params)).toBe('RECEIPT_PENDING');
+    expect(f.orchestration.attempt.status).toBe(BillingAttemptStatus.CAPTURED);
+    expect(f.sub.status).toBe(SubscriptionStatus.ACTIVE);
+    const end = f.sub.currentPeriodEnd;
+    expect(await f.service.completeCapturedHostedAttempt(f.params)).toBe('COMPLETED');
+    expect(f.sub.currentPeriodStart).toEqual(NOW);
+    expect(f.sub.currentPeriodEnd).toEqual(end);
+  });
 
   beforeEach(() => {
     jest.useFakeTimers({
@@ -625,6 +672,21 @@ describe('BillingHostedCompletionService — local recovery of a CAPTURED hosted
       process.env.BILLING_TOKEN_ENCRYPTION_KEY = Buffer.alloc(32, 7).toString(
         'base64',
       );
+    });
+
+    it('stores the initial purchase card from the verified webhook without another provider lookup', async () => {
+      const cardcom = cardcomWith(jest.fn());
+      const f = build(cardcom);
+      f.orchestration.obligation.kind = BillingObligationKind.CHECKOUT;
+      f.orchestration.attempt.capturedAt = NOW;
+      Object.assign(f.sub, { status: SubscriptionStatus.TRIAL_EXPIRED,
+        currentPeriodStart: null, currentPeriodEnd: null });
+      expect(await f.service.completeCapturedHostedAttempt({ ...f.params, verifiedResult: lpResult() })).toBe('COMPLETED');
+      expect(decryptCardcomToken(f.pm.cardcomToken)).toBe(RAW_TOKEN);
+      expect(cardcom.getLowProfileResult).not.toHaveBeenCalled();
+      expect(cardcom.chargeByToken).not.toHaveBeenCalled();
+      expect(cardcom.createLowProfileCheckout).not.toHaveBeenCalled();
+      expect(JSON.stringify(f.rows)).not.toContain(RAW_TOKEN);
     });
 
     it('stores a verified matching token encrypted, with last-four/expiry metadata, and never records it in events', async () => {

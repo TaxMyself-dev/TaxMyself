@@ -87,9 +87,11 @@ export class BillingRecoveryPage implements OnInit {
     if (this.submitting() || this.loading() || this.error() || !this.planId) return;
     this.submitting.set(true);
     try {
-      const result = await firstValueFrom(this.http.post<{ paymentUrl: string }>(
+      const result = await firstValueFrom(this.http.post<{ paymentUrl: string; lowProfileId?: string }>(
         `${environment.apiUrl}billing/checkout`, { planId: this.planId, recoveryOnly: true, recoveryQuote: this.recoveryQuote },
       ));
+      sessionStorage.removeItem('tm.checkoutLowProfileId');
+      if (result.lowProfileId) sessionStorage.setItem('tm.checkoutLowProfileId', result.lowProfileId);
       window.location.href = result.paymentUrl;
     } catch (err: any) {
       this.error.set(err?.error?.message ?? 'לא ניתן לפתוח תשלום. יש לפנות לתמיכה לפני ניסיון נוסף.');

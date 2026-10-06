@@ -14,6 +14,7 @@ import { SubscriptionPlan } from '../entities/subscription-plan.entity';
 import { Subscription } from '../entities/subscription.entity';
 import { PaymentMethod } from '../entities/payment-method.entity';
 import { CardcomWebhookLog } from '../entities/cardcom-webhook-log.entity';
+import { BillingAttempt } from '../entities/billing-attempt.entity';
 import { User } from 'src/users/user.entity';
 import { ModuleName } from 'src/enum';
 import { DocumentsService } from 'src/documents/documents.service';
@@ -38,6 +39,7 @@ import {
   BillingMutationActorContext,
 } from './billing-attempt-orchestration.service';
 import { renewalPeriodStart } from '../domain/billing-renewal-policy';
+import { billingDate, nextBillingPeriod } from '../domain/billing-debt-periods';
 
 /** One row of the user-facing payment history (GET /billing/payments). */
 export interface PaymentHistoryRow {
@@ -205,6 +207,7 @@ export class BillingService {
     firebaseId: string,
     isDelegatedAccess = false,
     isAdminImpersonation = false,
+    checkoutLowProfileId?: string,
   ) {
     const hasBillingOverride = isDelegatedAccess || isAdminImpersonation;
     const subscription = await this.subscriptionRepo.findOne({
@@ -279,6 +282,7 @@ export class BillingService {
       firebaseId,
       isDelegatedAccess,
       isAdminImpersonation,
+      checkoutLowProfileId,
     );
   }
 
@@ -625,6 +629,20 @@ export class BillingService {
     // webhook carries the attempt id so later migration can apply its result
     // idempotently without allocating a second debt.
     let recoveryAttemptId: number | null = null;
+    const isInitialPurchase = [SubscriptionStatus.TRIAL, SubscriptionStatus.TRIAL_EXPIRED].includes(subscription.status);
+    if (isInitialPurchase) {
+      if (!this.billingLifecycleService) throw new ConflictException('Canonical billing purchase is not configured');
+      const start = billingDate(new Date());
+      const purchase = await this.billingLifecycleService.openInitialPurchase({
+        actor, subscriptionId: subscription.id, planId: plan.id,
+        periodStart: start, periodEnd: nextBillingPeriod(start, Number(start.slice(8))),
+        amountAgorot: pricing.finalAmountAgorot,
+        amountBeforeVatAgorot: pricing.amountBeforeVatAgorot,
+        vatAmountAgorot: pricing.vatAmountAgorot, currency: pricing.currency,
+      });
+      if (!purchase.created) throw new ConflictException('קיים תהליך תשלום קודם שטרם הסתיים. אין לבצע תשלום נוסף.');
+      recoveryAttemptId = purchase.attempt.id;
+    }
     if (isDebtRecovery) {
       if (!this.billingLifecycleService) {
         throw new ConflictException(
@@ -757,6 +775,7 @@ export class BillingService {
     await this.billingEventService.logEvent({
       firebaseId,
       eventType: BillingEventType.CHECKOUT_CREATED,
+      billingAttemptId: recoveryAttemptId,
       subscriptionId: subscription.id,
       amountAgorot: pricing.finalAmountAgorot,
       amountBeforeVatAgorot: pricing.amountBeforeVatAgorot,
@@ -778,6 +797,7 @@ export class BillingService {
 
     return {
       paymentUrl: cardcomResult.paymentUrl,
+      ...(recoveryAttemptId != null ? { lowProfileId: cardcomResult.lowProfileId } : {}),
       finalAmountAgorot: pricing.finalAmountAgorot,
       currency: pricing.currency,
     };
@@ -1532,6 +1552,7 @@ export class BillingService {
     firebaseId: string,
     isDelegatedAccess = false,
     isAdminImpersonation = false,
+    checkoutLowProfileId?: string,
   ) {
     // Ordinary callers (ensureTrialSubscription, provisionExpiredSubscription,
     // and direct client access) never pass either override. Only a verified
@@ -1549,7 +1570,7 @@ export class BillingService {
       billingBusinessType,
       paymentMethod,
     ] = await Promise.all([
-      this.buildPaymentResultPayload(firebaseId),
+      this.buildPaymentResultPayload(firebaseId, checkoutLowProfileId),
       this.buildPaymentMethodUpdateResultPayload(firebaseId),
       this.pricingService.resolveUserBillingBusinessType(firebaseId),
       subscription.paymentMethodId
@@ -1654,7 +1675,7 @@ export class BillingService {
    * since a later successful retry should always take precedence over an older
    * failure.
    */
-  private async buildPaymentResultPayload(firebaseId: string): Promise<{
+  private async buildPaymentResultPayload(firebaseId: string, checkoutLowProfileId?: string): Promise<{
     latestPaymentEventId: number | null;
     paymentStatus: 'SUCCESS' | 'FAILED' | 'ACTIVATION_FAILED';
     receiptDocId: number | null;
@@ -1664,11 +1685,18 @@ export class BillingService {
     failureReason: string | null;
     createdAt: Date;
   } | null> {
-    const event = await this.billingEventService.findLatestPaymentResultEvent(
-      firebaseId,
-    );
+    const attempt = checkoutLowProfileId ? await this.subscriptionRepo.manager.findOne(BillingAttempt, {
+      where: { cardcomLowProfileId: checkoutLowProfileId,
+        obligation: { subscription: { firebaseId } } },
+    }) : null;
+    // A return from an unknown checkout must never display an older success.
+    if (checkoutLowProfileId && !attempt) return null;
+    const event = attempt
+      ? await this.billingEventService.findLatestPaymentResultEvent(firebaseId, attempt.id)
+      : await this.billingEventService.findLatestPaymentResultEvent(firebaseId);
     const failedLog = await this.webhookLogRepo.findOne({
-      where: { firebaseId, status: WebhookLogStatus.FAILED },
+      where: { firebaseId, status: WebhookLogStatus.FAILED,
+        ...(checkoutLowProfileId ? { cardcomLowProfileId: checkoutLowProfileId } : {}) },
       order: { createdAt: 'DESC' },
     });
 

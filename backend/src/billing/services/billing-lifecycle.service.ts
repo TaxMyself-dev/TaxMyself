@@ -158,6 +158,15 @@ export class BillingLifecycleService {
     return this.orchestration.createRecoveryCollection(actor, subscriptionId, ids, quote);
   }
 
+  openInitialPurchase(input: CanonicalBillingPeriodInput): Promise<OpenBillingAttemptResult> {
+    return this.orchestration.createOrGetAttempt({
+      ...input, kind: BillingObligationKind.CHECKOUT,
+      trigger: BillingAttemptTrigger.CHECKOUT,
+      chargeMode: BillingChargeMode.LOW_PROFILE_HOSTED,
+      enforceInitialPurchase: true,
+    });
+  }
+
   findAttemptObligations(attempt: BillingAttempt) {
     return this.orchestration.findAttemptObligations(attempt);
   }

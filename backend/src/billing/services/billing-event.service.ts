@@ -261,12 +261,13 @@ export class BillingEventService {
    * to report CardCom payment/invoice outcome to the frontend after a return
    * from the hosted payment page.
    */
-  async findLatestPaymentResultEvent(firebaseId: string): Promise<BillingEvent | null> {
+  async findLatestPaymentResultEvent(firebaseId: string, billingAttemptId?: number): Promise<BillingEvent | null> {
     try {
       return await this.billingEventRepo.findOne({
         where: {
           firebaseId,
           eventType: In([BillingEventType.PAYMENT_SUCCESS, BillingEventType.PAYMENT_FAILED]),
+          ...(billingAttemptId != null ? { billingAttemptId } : {}),
         },
         order: { createdAt: 'DESC' },
       });

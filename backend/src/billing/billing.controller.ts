@@ -76,13 +76,17 @@ export class BillingController {
    */
   @Get('me')
   @UseGuards(FirebaseAuthGuard)
-  async getMyBillingState(@Req() request: AuthenticatedRequest) {
+  async getMyBillingState(@Req() request: AuthenticatedRequest, @Query('checkoutLowProfileId') checkoutLowProfileId?: string) {
+    if (checkoutLowProfileId && (checkoutLowProfileId.length > 255 || !/^[a-zA-Z0-9-]+$/.test(checkoutLowProfileId))) {
+      throw new BadRequestException('Invalid checkout identifier');
+    }
     const firebaseId = request.user?.firebaseId;
     if (!firebaseId) throw new NotFoundException('User not found in request');
     return this.billingService.getMyBillingState(
       firebaseId,
       request.isDelegatedAccess === true,
       request.isAdminImpersonation === true,
+      checkoutLowProfileId,
     );
   }
 

@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.billing-resolution.spec.json",
+  "include": [
+    "src/app/shared/admin-billing/subscriptions/*.spec.ts",
+    "src/app/pages/billing/billing-recovery.page.spec.ts",
+    "src/app/services/billing-state.service.spec.ts",
+    "src/**/*.d.ts"
+  ]
+}

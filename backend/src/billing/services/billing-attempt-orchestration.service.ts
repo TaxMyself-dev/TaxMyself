@@ -183,6 +183,7 @@ export interface OpenBillingAttemptInput {
   enforceRenewalSchedule?: boolean;
   /** Recheck recovery state/period under the subscription lock. */
   enforceRecoverySchedule?: boolean;
+  enforceInitialPurchase?: boolean;
 }
 
 export interface ApplyNormalizedOutcomeOptions {
@@ -483,6 +484,29 @@ export class BillingAttemptOrchestrationService {
       if (input.enforceRenewalSchedule) {
         this.assertRenewalDue(subscription, input.periodStart, new Date());
       }
+      if (input.enforceInitialPurchase) {
+        if (subscription.billingAccessMode === BillingAccessMode.COMPLIMENTARY_FULL ||
+          ![SubscriptionStatus.TRIAL, SubscriptionStatus.TRIAL_EXPIRED].includes(subscription.status) ||
+          subscription.currentPeriodStart || subscription.currentPeriodEnd) {
+          throw new ConflictException('Initial purchase state changed; refresh before paying');
+        }
+        // Serialize across dates, prices and plans, not only one obligation key.
+        const pending = await manager.find(BillingObligation, {
+          where: { subscriptionId: subscription.id, kind: BillingObligationKind.CHECKOUT,
+            status: BillingObligationStatus.OPEN },
+          lock: { mode: 'pessimistic_write' },
+        });
+        for (const purchase of pending) {
+          if (purchase.activeAttemptId != null) {
+            const attempt = await manager.findOne(BillingAttempt, {
+              where: { id: purchase.activeAttemptId }, lock: { mode: 'pessimistic_write' },
+            });
+            if (!attempt || BILLING_ATTEMPT_BLOCKING_STATUSES.has(attempt.status)) {
+              throw new ConflictException('קיים תהליך תשלום קודם שטרם הסתיים. אין לבצע תשלום נוסף.');
+            }
+          }
+        }
+      }
       if (input.enforceRecoverySchedule && (
         subscription.status !== SubscriptionStatus.PAST_DUE ||
         (!renewalPeriodStart(subscription) || !this.matchesPeriodDate(renewalPeriodStart(subscription)!, input.periodStart))
@@ -495,7 +519,9 @@ export class BillingAttemptOrchestrationService {
         input,
       );
 
-      const obligationKey = this.buildObligationKey(
+      const obligationKey = input.enforceInitialPurchase
+        ? `subscription:${input.subscriptionId}:checkout:${input.periodStart}:plan:${input.planId}:amount:${input.amountAgorot}`
+        : this.buildObligationKey(
         input.subscriptionId,
         input.periodStart,
       );

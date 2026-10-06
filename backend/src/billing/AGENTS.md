@@ -16,6 +16,32 @@ Subscription billing: plan catalog, trial/subscription lifecycle, CardCom paymen
 
 ## Main flows
 
+### Initial purchase (KT-048)
+
+TRIAL/TRIAL_EXPIRED checkout now creates a CHECKOUT obligation and linked
+hosted attempt before provider I/O. The subscription lock rechecks eligibility
+and excludes any pending initial checkout across dates/plans/prices. The
+obligation key has a checkout namespace; CHECKOUT rows are excluded from
+recurring debt accrual. Their dates are provisional until verified capture.
+Unpaid trial time never becomes recurring debt.
+
+Canonical purchase webhooks bypass legacy activation and call hosted
+completion: the captured timestamp determines initial service start, anchor
+and next billing date. Activation and actual CHECKOUT period dates commit
+together; receipt retry verifies the already-active plan/start instead of
+extending it again. Verified webhook card data is revalidated/encrypted
+without another provider lookup; later recovery uses the existing read-only
+lookup and newer-card protection. Receipt/link/finalization and admin recovery
+reuse existing attempt leases. No new schema. Upgrade and old attempt-less
+callbacks retain their legacy path.
+
+Canonical checkout responses include lowProfileId. GET /billing/me accepts
+optional checkoutLowProfileId and scopes result events/webhook failures to
+that checkout and the authenticated subscription owner. Unknown/foreign ids
+return no payment result; access remains based on the authenticated user.
+
+This supersedes older first-purchase legacy-only descriptions below.
+
 ### Immediate PAST_DUE blocking (KT-041)
 
 After origin/main refresh (KT-042), COMPLIMENTARY_FULL also prevents canonical
@@ -110,8 +136,8 @@ contain a support/transaction reference, never card data or credentials.
 ### Persistence foundation (KT-032)
 
 The original foundation below is now wired into canonical renewal/recovery.
-First-purchase checkout still follows its legacy path; KT-040 adds collection
-membership while retaining direct attempt provenance for compatibility.
+KT-048 also wires first-purchase checkout; upgrade retains its legacy path.
+KT-040 adds collection membership while retaining direct attempt provenance.
 
 - One `billing_obligation` is canonical for an internal
   subscription/period-start identity. Recovery of that period reuses it; it
@@ -244,7 +270,7 @@ grace, when no `SUBSCRIPTION_ACTIVATED` event for the attempt records
 flag); same validation, encryption and newer-payment-method protection, never
 blocks the receipt, and a stored token is never looked up or stored again.
 Limitation: only canonical hosted attempts that already exist are covered
-(first-time/upgrade checkout does not create attempts yet). A recovery activation waits 2 minutes after capture
+(upgrade checkout does not create attempts yet). A recovery activation waits 2 minutes after capture
 so a concurrent duplicate delivery cannot activate before the original request
 stores the token. `updatePaymentEventWithReceipt` now returns a result;
 `ensureReceiptForCapturedAttempt` requires both the success event and the link

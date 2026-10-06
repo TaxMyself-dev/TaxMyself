@@ -124,11 +124,13 @@ export class BillingPlansPage implements OnInit {
     this.checkingOutPlanId.set(planId);
     try {
       const result = await firstValueFrom(
-        this.http.post<{ paymentUrl: string }>(
+        this.http.post<{ paymentUrl: string; lowProfileId?: string }>(
           `${environment.apiUrl}billing/checkout`,
           { planId },
         )
       );
+      sessionStorage.removeItem('tm.checkoutLowProfileId');
+      if (result.lowProfileId) sessionStorage.setItem('tm.checkoutLowProfileId', result.lowProfileId);
       window.location.href = result.paymentUrl;
     } catch (err: any) {
       this.genericService.showToast(

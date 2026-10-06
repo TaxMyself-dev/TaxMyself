@@ -21,6 +21,7 @@ import { User } from 'src/users/user.entity';
 
 import {
   BillingEventType,
+  BillingObligationKind,
   SubscriptionStatus,
   WebhookLogStatus,
 } from '../enums/billing.enums';
@@ -285,6 +286,15 @@ export class CardcomWebhookService implements OnModuleInit {
           { kind: 'CAPTURED', cardcomTransactionId: String(transactionId) },
           `webhook-${webhookLog.id}`,
         );
+        if (debts.length === 1 && debts[0].kind === BillingObligationKind.CHECKOUT) {
+          if (!this.hostedCompletion) throw new Error('Canonical hosted completion is not configured');
+          const completion = await this.hostedCompletion.completeCapturedHostedAttempt({
+            firebaseId, subscriptionId, billingAttemptId: attempt.id, verifiedResult: verified,
+          });
+          await this.markWebhookStatus(webhookLog.id, WebhookLogStatus.PROCESSED,
+            `Canonical purchase: ${completion}`);
+          return;
+        }
       }
       await this.processVerifiedSuccess(
         firebaseId,

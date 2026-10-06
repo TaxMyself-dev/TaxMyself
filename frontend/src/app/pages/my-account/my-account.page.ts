@@ -207,6 +207,7 @@ export class MyAccountPage implements OnInit {
   private readonly cardcomFlow = signal<'CHECKOUT' | 'CHANGE_PM'>('CHECKOUT');
   private paymentReturnDetectedAt = 0;
   private paymentPollAttempts = 0;
+  private hasCanonicalCheckoutContext = false;
   /**
    * Bounded poll spans the same window as PAYMENT_STATUS_TIMEOUT_MS (90s) so we
    * keep checking for a late-arriving webhook right up until the timeout fires.
@@ -256,11 +257,11 @@ export class MyAccountPage implements OnInit {
     const result = this.billingStateService.billingPaymentResult();
     const isFresh =
       !!result &&
-      new Date(result.createdAt).getTime() >= this.paymentReturnDetectedAt - this.PAYMENT_FRESHNESS_WINDOW_MS;
+      (this.hasCanonicalCheckoutContext || new Date(result.createdAt).getTime() >= this.paymentReturnDetectedAt - this.PAYMENT_FRESHNESS_WINDOW_MS);
 
     const processingState = {
       kind: 'processing' as const,
-      message: 'התשלום בוצע בהצלחה.\nאנחנו משלימים את הפעלת המנוי ומפיקים את החשבונית שלך...',
+      message: 'ממתינים לאימות התשלום ולהשלמת הפעלת המנוי והחשבונית. אין לבצע תשלום נוסף.',
     };
 
     if (isFresh && result) {
@@ -623,6 +624,10 @@ export class MyAccountPage implements OnInit {
       typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('tm.cardcomFlow') : null;
     this.cardcomFlow.set(flowMarker === 'CHANGE_PM' ? 'CHANGE_PM' : 'CHECKOUT');
     if (typeof sessionStorage !== 'undefined') sessionStorage.removeItem('tm.cardcomFlow');
+    const checkoutId = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('tm.checkoutLowProfileId') : null;
+    this.hasCanonicalCheckoutContext = this.cardcomFlow() === 'CHECKOUT' && !!checkoutId;
+    this.billingStateService.setCheckoutReturnContext(this.cardcomFlow() === 'CHECKOUT' ? checkoutId : null);
+    if (typeof sessionStorage !== 'undefined') sessionStorage.removeItem('tm.checkoutLowProfileId');
 
     // CardCom convention: ResponseCode/Status === '0' means success.
     const redirectIndicatesFailure =
@@ -692,7 +697,7 @@ export class MyAccountPage implements OnInit {
     const result = this.billingStateService.billingPaymentResult();
     const isFresh =
       !!result &&
-      new Date(result.createdAt).getTime() >= this.paymentReturnDetectedAt - this.PAYMENT_FRESHNESS_WINDOW_MS;
+      (this.hasCanonicalCheckoutContext || new Date(result.createdAt).getTime() >= this.paymentReturnDetectedAt - this.PAYMENT_FRESHNESS_WINDOW_MS);
     const isDone =
       isFresh &&
       result &&

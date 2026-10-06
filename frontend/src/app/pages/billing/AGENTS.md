@@ -7,6 +7,10 @@ Standalone pricing/plans page where a user views available subscription plans an
 
 ## Main flows
 
+- New canonical purchases/recovery return lowProfileId; the page stores it in
+  tab-local sessionStorage before redirect. The dashboard consumes it to scope
+  payment-result polling. Legacy checkout responses retain their old handling.
+
 - Local billing worktree runs with `npm run start:billing` from frontend on
   localhost:4201; environment.ts points to backend localhost:3001. Production
   and cloud-dev environment replacements retain their existing endpoints.

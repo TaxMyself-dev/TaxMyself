@@ -481,6 +481,7 @@ describe('BillingService — owner-mutation authorization', () => {
     const billingLifecycleService = overrides.billingLifecycleService ?? {
       inspectPeriod: jest.fn().mockResolvedValue(null),
       openPastDueRecovery: jest.fn(),
+      openInitialPurchase: jest.fn().mockResolvedValue({ created: true, attempt: { id: 81, status: 'CREATED' } }),
       recordHostedLowProfileId: jest.fn().mockResolvedValue({
         recorded: true,
       }),
@@ -647,6 +648,46 @@ describe('BillingService — owner-mutation authorization', () => {
 
       expect(subscriptionRepo.findOne).toHaveBeenCalled();
       expect(result.paymentUrl).toBe('https://cardcom.example/pay');
+    });
+
+    it('opens the initial canonical attempt before provider I/O and returns its checkout identity', async () => {
+      const f = makeService();
+      f.subscriptionRepo.findOne.mockResolvedValue({ id: 1, firebaseId: 'client-1', status: 'TRIAL_EXPIRED' });
+      f.planRepo.findOne.mockResolvedValue({ id: 1, name: 'Basic', isPublic: true });
+      f.pricingService.calculateCheckoutPrice.mockResolvedValue({ finalAmountAgorot: 11800,
+        amountBeforeVatAgorot: 10000, vatAmountAgorot: 1800, currency: 'ILS' });
+      f.cardcomService.createLowProfileCheckout.mockResolvedValue({ lowProfileId: 'lp-initial', paymentUrl: 'https://example.test/pay' });
+      const result = await f.service.createCheckout(OWNER, { planId: 1 });
+      expect(f.billingLifecycleService.openInitialPurchase).toHaveBeenCalledWith(expect.objectContaining({
+        actor: OWNER, subscriptionId: 1, planId: 1, amountAgorot: 11800,
+      }));
+      expect(f.billingLifecycleService.openInitialPurchase.mock.invocationCallOrder[0])
+        .toBeLessThan(f.cardcomService.createLowProfileCheckout.mock.invocationCallOrder[0]);
+      expect(JSON.parse(f.cardcomService.createLowProfileCheckout.mock.calls[0][0].returnValue).billingAttemptId).toBe(81);
+      expect(result.lowProfileId).toBe('lp-initial');
+    });
+
+    it('does not create another provider checkout when the initial purchase is already pending', async () => {
+      const f = makeService();
+      f.subscriptionRepo.findOne.mockResolvedValue({ id: 1, firebaseId: 'client-1', status: 'TRIAL' });
+      f.planRepo.findOne.mockResolvedValue({ id: 1, isPublic: true });
+      f.pricingService.calculateCheckoutPrice.mockResolvedValue({ finalAmountAgorot: 11800,
+        amountBeforeVatAgorot: 10000, vatAmountAgorot: 1800, currency: 'ILS' });
+      f.billingLifecycleService.openInitialPurchase.mockResolvedValue({ created: false, attempt: { id: 81 } });
+      await expect(f.service.createCheckout(OWNER, { planId: 1 })).rejects.toThrow('תהליך תשלום קודם');
+      expect(f.cardcomService.createLowProfileCheckout).not.toHaveBeenCalled();
+    });
+
+    it('does not show an older success for an unknown or foreign checkout identifier', async () => {
+      const f = makeService();
+      const findOne = jest.fn().mockResolvedValue(null);
+      (f.subscriptionRepo as any).manager = { findOne };
+      (f.billingEventService as any).findLatestPaymentResultEvent = jest.fn();
+      expect(await (f.service as any).buildPaymentResultPayload('client-1', 'lp-other')).toBeNull();
+      expect(findOne).toHaveBeenCalledWith(expect.anything(), { where: {
+        cardcomLowProfileId: 'lp-other', obligation: { subscription: { firebaseId: 'client-1' } },
+      } });
+      expect((f.billingEventService as any).findLatestPaymentResultEvent).not.toHaveBeenCalled();
     });
 
     it('threads the real actor — not a fabricated self-match — into PAST_DUE hosted recovery and records the LowProfile id on that attempt', async () => {

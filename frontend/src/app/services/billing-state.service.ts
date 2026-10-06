@@ -254,6 +254,15 @@ export class BillingStateService {
   // Promise so only one HTTP request is made regardless of how many times
   // loadBillingState() / refreshBillingState() are called concurrently.
   private _loadPromise: Promise<void> | null = null;
+  private checkoutLowProfileId: string | null = null;
+
+  setCheckoutReturnContext(lowProfileId: string | null): void {
+    if (lowProfileId !== this.checkoutLowProfileId) {
+      const current = this.billingState();
+      if (current) this.billingState.set({ ...current, billingPaymentResult: null });
+    }
+    this.checkoutLowProfileId = lowProfileId;
+  }
 
   /**
    * How long a failed load suppresses further *cold* load attempts. Long enough
@@ -315,14 +324,18 @@ export class BillingStateService {
    * confirmed module denial.
    */
   private async _executeLoad(): Promise<void> {
-    this.isLoading.set(true);
+    // Background refresh keeps existing access/blocking UI mounted.
+    if (this.billingState() === null) this.isLoading.set(true);
     this.error.set(null);
+    const checkoutContext = this.checkoutLowProfileId;
     try {
       const state = await firstValueFrom(
-        this.http.get<BillingStateResponse>(`${environment.apiUrl}billing/me`)
+        this.http.get<BillingStateResponse>(`${environment.apiUrl}billing/me`,
+          checkoutContext ? { params: { checkoutLowProfileId: checkoutContext } } : {})
       );
       console.log('[BillingStateService] /billing/me response:', state);
-      this.billingState.set(state);
+      this.billingState.set(checkoutContext === this.checkoutLowProfileId
+        ? state : { ...state, billingPaymentResult: null });
     } catch (err: any) {
       // 401 → AuthErrorInterceptor handles redirect to login; do not set error
       // so the dialog does not appear due to a transient auth issue.

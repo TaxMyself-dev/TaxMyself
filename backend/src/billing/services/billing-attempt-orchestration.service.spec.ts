@@ -6,6 +6,7 @@ import {
   BillingChargeMode,
   BillingObligationKind,
   BillingObligationStatus,
+  SubscriptionStatus,
 } from '../enums/billing.enums';
 import { BillingAttempt } from '../entities/billing-attempt.entity';
 import { BillingObligation } from '../entities/billing-obligation.entity';
@@ -183,6 +184,25 @@ describe('BillingAttemptOrchestrationService', () => {
       lock: { mode: 'pessimistic_write' },
     });
     expect(queryRunner.commitTransaction).toHaveBeenCalledTimes(1);
+  });
+
+  it('rechecks initial purchase eligibility under the subscription lock', async () => {
+    manager.findOne.mockResolvedValueOnce({ ...subscription(), status: SubscriptionStatus.ACTIVE });
+    await expect(service.createOrGetAttempt({ ...openInput(), enforceInitialPurchase: true,
+      kind: BillingObligationKind.CHECKOUT, trigger: BillingAttemptTrigger.CHECKOUT,
+      chargeMode: BillingChargeMode.LOW_PROFILE_HOSTED })).rejects.toThrow('Initial purchase state changed');
+    expect(manager.save).not.toHaveBeenCalled();
+    expect(queryRunner.rollbackTransaction).toHaveBeenCalled();
+  });
+
+  it('blocks an initial purchase for a pending checkout on a different date or plan', async () => {
+    manager.findOne.mockResolvedValueOnce({ ...subscription(), status: SubscriptionStatus.TRIAL })
+      .mockResolvedValueOnce(attempt({ status: BillingAttemptStatus.UNKNOWN }));
+    manager.find.mockResolvedValueOnce([obligation({ kind: BillingObligationKind.CHECKOUT, activeAttemptId: 21 })]);
+    await expect(service.createOrGetAttempt({ ...openInput(), enforceInitialPurchase: true,
+      kind: BillingObligationKind.CHECKOUT, trigger: BillingAttemptTrigger.CHECKOUT,
+      chargeMode: BillingChargeMode.LOW_PROFILE_HOSTED })).rejects.toThrow('תהליך תשלום קודם');
+    expect(manager.save).not.toHaveBeenCalled();
   });
 
   it.each([

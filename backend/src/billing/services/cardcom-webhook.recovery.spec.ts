@@ -75,6 +75,16 @@ describe('CardcomWebhookService hosted recovery routing', () => {
     );
   });
 
+  it('completes a verified initial purchase through canonical completion instead of legacy activation', async () => {
+    const { service, lifecycle } = makeService();
+    lifecycle.findAttemptObligations.mockResolvedValue([{ subscriptionId: 9, firebaseIdSnapshot: 'owner', kind: 'CHECKOUT' }] as any);
+    const completion = { completeCapturedHostedAttempt: jest.fn().mockResolvedValue('COMPLETED') };
+    (service as any).hostedCompletion = completion;
+    await service.handleWebhook({ LowProfileId: 'lp-1', ReturnValue: 'ignored' });
+    expect(completion.completeCapturedHostedAttempt).toHaveBeenCalledWith(expect.objectContaining({ firebaseId: 'owner', subscriptionId: 9, billingAttemptId: 44, verifiedResult: expect.any(Object) }));
+    expect((service as any).processVerifiedSuccess).not.toHaveBeenCalled();
+  });
+
   it('proceeds to activation when a verified success carries a transaction id', async () => {
     const { service } = makeService();
     await service.handleWebhook({

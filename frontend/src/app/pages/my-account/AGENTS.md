@@ -11,6 +11,12 @@ Main dashboard/home page shown after login: account sync status, transactions-to
 - Classify or quick-classify pending transactions; Home "הוספת הוצאה" is an `app-menu-button` with Manual Expense (`MannualExpenseComponent`) and Quick Upload to Drive (`QuickUploadDriveDialogComponent` → `DriveDocsService.uploadFilesToInbox`). Also add bill/category via modals.
 - Feezback onboarding: show consent dialog, poll for webhook readiness, trigger transaction pull, handle renew-consent/try-again states.
 - Billing: poll for payment result after redirect back from checkout, resend receipt email, retry invoice.
+- Canonical checkout return consumes tm.checkoutLowProfileId and scopes
+  BillingStateService refreshes to that hosted attempt via GET /billing/me.
+  An older result cannot satisfy the return; the freshness window applies
+  only to legacy callbacks. Pending text awaits verification without claiming
+  success. Background billing refresh retains the existing payload and does
+  not toggle global loading, keeping blocking dialogs mounted between polls.
 - Demo users receive the same dashboard actions as regular users; demo profile creation/reset remains in the admin panel and no reset control is exposed on this page.
 - Feature-gated navigation cards to `/doc-create` and `/transactions`, gated through `AccessService`/`AccessHandlerService`.
 
