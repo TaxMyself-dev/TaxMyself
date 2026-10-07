@@ -5,7 +5,9 @@ Integrates with the Finsite bookkeeping-data API (M4U/Kraken external API) to pu
 - `finsite.entity.ts` — `Finsite`: one row per payment method (bank account or credit card), storing Finsite's internal IDs (`getTransFid`, `accountFid`, `paymentId`, `accountId`, `finsiteId`), `bank`, `companyName`, `balance`, `paymentMethodType` (`SourceType`).
 - `finsite.service.ts` — `FinsiteService`: `getFinsiteBills()` logs in with a username/password, fetches companies/accounts/booking-accounts, filters to `CreditCard`/`Current` methods, fetches balances, and upserts `Finsite` rows keyed by `getTransFid`. Also exposes lower-level `getFinsiteToken`, `getCompanies`, `getAccounts`, `getBookingAccounts`, `getBalances`, `getTransactionsById` wrapping the Finsite REST API.
 - `finsite.controller.ts` — `FinsiteController` at route `finsite`, single admin-only `GET finsite-connect` endpoint using credentials from `FINSITE_ID`/`FINSITE_KEY` env vars.
-- `finsite.module.ts` — registers `Finsite` entity, wires the controller/service.
+- `finsite.module.ts` — registers `Finsite` plus the `User`/`Delegation`
+  repositories required by `FirebaseAuthGuard`, and wires the controller,
+  service, `FirebaseAuthGuard`, and `AdminGuard` providers.
 
 ## Main flows
 - `GET /finsite-connect` — after `FirebaseAuthGuard` + `AdminGuard`, authenticates against Finsite with env-configured credentials, pulls all companies/accounts/payment methods, and syncs balances into the `Finsite` table.
