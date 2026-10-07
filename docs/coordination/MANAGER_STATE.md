@@ -1,6 +1,6 @@
 # Primary manager state
 
-Last reviewed: 2026-09-19
+Last reviewed: 2026-10-07
 
 ## Integration baseline
 
@@ -50,6 +50,12 @@ Last reviewed: 2026-09-19
 - KT-027 and KT-028 passed combined verification and were pushed to `origin/main` through `be15a03c`. The standing local `codex/integration` branch contains unrelated, undelivered CI work (`bf682e70`), so these fixes were integrated on `codex/integration-kt027-kt028` without that change. No production deployment was performed.
 - KT-029 fixes admin SYSTEM sub-category card reassignment and save feedback. Worker and clean integration trees are identical (`6d717f76`); focused Jest and both production builds passed. Integrated as `bb28cfc1` on `codex/integration-kt029` because the standing `codex/integration` branch still contains unrelated, undelivered CI work. Pushed to `origin/main` through `c00c8abb`; no production access or deployment was performed.
 - KT-030 adds admin creation of SYSTEM expense sections with an editable, suggested free block code. Worker commit `f4034f80` passed 48 focused Jest tests, five final section-specific tests, and both builds. Integrated and pushed through `4ee8ba48` on `codex/integration-kt030` and `origin/main`; the standing `codex/integration` branch still contains unrelated, undelivered CI work. No schema, production access, or deployment is involved.
+- KT-039 isolates authenticated profile/business caches per browser tab and
+  hardens the admin UI route plus three legacy backend triggers. Code commit
+  `b26ddef0` passed 8 focused frontend tests, 11 backend security tests, and
+  both production builds. It is staged on `codex/integration-kt039` because the
+  standing `codex/integration` branch still contains unrelated, undelivered CI
+  work. No schema, production access, or deployment is involved.
 
 ## Open decisions
 
