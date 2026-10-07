@@ -21,6 +21,7 @@ import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.inter
 import { BillingService } from './services/billing.service';
 import { CheckoutPreviewDto } from './dtos/checkout-preview.dto';
 import { CreateCheckoutDto } from './dtos/create-checkout.dto';
+import { CancelPlanChangeDto } from './dtos/cancel-plan-change.dto';
 import { BillingMutationActorContext } from './services/billing-attempt-orchestration.service';
 
 @Controller('billing')
@@ -159,6 +160,13 @@ export class BillingController {
       this.buildOwnerMutationActor(request),
       dto,
     );
+  }
+
+  @Post('plan-change/cancel')
+  @UseGuards(FirebaseAuthGuard)
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  cancelScheduledPlanChange(@Req() request: AuthenticatedRequest, @Body() dto: CancelPlanChangeDto) {
+    return this.billingService.cancelScheduledPlanChange(this.buildOwnerMutationActor(request), dto.expectedEventId);
   }
 
   /**

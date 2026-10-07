@@ -79,6 +79,21 @@ export class MySubscriptionTabComponent implements OnInit {
   readonly canChangePlan = computed(() =>
     this.status() === 'ACTIVE' && !this.isComplimentary() && !this.billingStateService.hasBillingOverride(),
   );
+  readonly pendingPlanChange = computed(() => this.billingState()?.pendingPlanChange ?? null);
+  readonly pendingPlanChangeDate = computed(() => formatDate(this.pendingPlanChange()?.effectiveAt));
+  readonly cancelingPlanChange = signal(false);
+
+  async cancelPlanChange(): Promise<void> {
+    const pending = this.pendingPlanChange();
+    if (!pending || !this.canChangePlan() || this.cancelingPlanChange()) return;
+    this.cancelingPlanChange.set(true);
+    try {
+      await this.billingStateService.cancelScheduledPlanChange(pending.eventId);
+      this.messageService.add({ severity: 'success', summary: 'הבקשה בוטלה', detail: 'התוכנית הנוכחית תמשיך גם בחידוש הבא.', key: 'br' });
+    } catch (err: any) {
+      this.messageService.add({ severity: 'error', summary: 'לא ניתן לבטל את הבקשה', detail: err?.error?.message ?? 'יש לרענן את מצב המנוי ולנסות שוב.', key: 'br' });
+    } finally { this.cancelingPlanChange.set(false); }
+  }
 
   changePlan(): void {
     if (!this.canChangePlan()) return;

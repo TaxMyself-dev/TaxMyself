@@ -18,6 +18,7 @@ import {
   QueryRunner,
 } from 'typeorm';
 import { upgradeKey } from '../domain/billing-upgrade';
+import { latestPlanChangeCommand, matchesPlanChangeSource, PlanChangeSnapshot, PLAN_CHANGE_POLICY, PLAN_CHANGE_QUOTE_TTL_MS } from '../domain/billing-plan-change';
 import {
   BillingAccessMode,
   BillingAttemptStatus,
@@ -186,6 +187,7 @@ export interface OpenBillingAttemptInput {
   enforceRecoverySchedule?: boolean;
   enforceInitialPurchase?: boolean;
   enforceUpgrade?: boolean;
+  planChangeSnapshot?: PlanChangeSnapshot;
 }
 
 export interface ApplyNormalizedOutcomeOptions {
@@ -494,6 +496,17 @@ export class BillingAttemptOrchestrationService {
           subscription.nextBillingDate <= new Date() || subscription.renewalAttempts > 0) {
           throw new ConflictException('Upgrade state changed or renewal is due; refresh before paying');
         }
+        if (input.planChangeSnapshot) {
+          const change = input.planChangeSnapshot;
+          const command = await latestPlanChangeCommand(manager, subscription.id);
+          if (!matchesPlanChangeSource(subscription, change) || change.targetPlanId !== input.planId ||
+            change.action !== 'UPGRADE' || change.finalAmountAgorot !== input.amountAgorot ||
+            change.amountBeforeVatAgorot !== input.amountBeforeVatAgorot || change.vatAmountAgorot !== input.vatAmountAgorot ||
+            (command?.id ?? null) !== change.scheduleEventId ||
+            Date.now() - new Date(change.quotedAt).getTime() > PLAN_CHANGE_QUOTE_TTL_MS) {
+            throw new ConflictException('Plan change quote no longer matches the subscription');
+          }
+        }
       }
       if (input.enforceInitialPurchase || input.enforceUpgrade || input.enforceRenewalSchedule) {
         if (input.enforceInitialPurchase) {
@@ -534,7 +547,9 @@ export class BillingAttemptOrchestrationService {
         input,
       );
 
-      const obligationKey = input.enforceUpgrade
+      const obligationKey = input.planChangeSnapshot
+        ? `subscription:${input.subscriptionId}:prorated:${input.planChangeSnapshot.sourcePlanId}:${new Date(input.planChangeSnapshot.sourcePeriodStart).getTime()}:${new Date(input.planChangeSnapshot.sourcePeriodEnd).getTime()}:to:${input.planId}:at:${new Date(input.planChangeSnapshot.quotedAt).getTime()}`
+        : input.enforceUpgrade
         ? upgradeKey(subscription, input.planId, input.amountAgorot)
         : input.enforceInitialPurchase
         ? `subscription:${input.subscriptionId}:checkout:${input.periodStart}:plan:${input.planId}:amount:${input.amountAgorot}`
@@ -593,6 +608,14 @@ export class BillingAttemptOrchestrationService {
       await manager.save(BillingAttemptObligation, manager.create(BillingAttemptObligation, {
         attemptId: attempt.id, obligationId: obligation.id,
       }));
+      if (input.planChangeSnapshot) {
+        await manager.save(BillingEvent, manager.create(BillingEvent, {
+          firebaseId: subscription.firebaseId, subscriptionId: subscription.id,
+          billingAttemptId: attempt.id, billingObligationId: obligation.id,
+          eventType: BillingEventType.PLAN_CHANGE_REQUESTED,
+          metadata: { policy: PLAN_CHANGE_POLICY, command: 'UPGRADE_RESERVED', snapshot: input.planChangeSnapshot },
+        }));
+      }
       return { obligation, attempt, created: true };
     });
   }

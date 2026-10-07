@@ -144,6 +144,8 @@ export interface ChangePaymentMethodStatus {
 }
 
 export interface BillingStateResponse {
+  pendingPlanChange?: { eventId: number; planId: number; planName: string;
+    effectiveAt: string; estimatedRenewalAmountAgorot: number } | null;
   hasSubscription: boolean;
   /**
    * Present (always 'SUBSCRIPTION_MISSING') only when hasSubscription is
@@ -184,6 +186,11 @@ export interface BillingStateResponse {
 @Injectable({ providedIn: 'root' })
 export class BillingStateService {
   private readonly http = inject(HttpClient);
+
+  async cancelScheduledPlanChange(expectedEventId: number): Promise<void> {
+    await firstValueFrom(this.http.post(`${environment.apiUrl}billing/plan-change/cancel`, { expectedEventId }));
+    await this.refreshBillingState();
+  }
 
   readonly billingState = signal<BillingStateResponse | null>(null);
   readonly isLoading = signal(false);

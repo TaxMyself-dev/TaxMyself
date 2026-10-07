@@ -1,4 +1,4 @@
-import { IsBoolean, IsInt, IsNotEmpty, IsOptional, Matches, Min } from 'class-validator';
+import { IsBoolean, IsDateString, IsInt, IsNotEmpty, IsOptional, Matches, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateCheckoutDto {
@@ -16,4 +16,12 @@ export class CreateCheckoutDto {
   @IsOptional()
   @Matches(/^[a-f0-9]{64}$/)
   recoveryQuote?: string;
+
+  @IsOptional()
+  @Matches(/^[a-f0-9]{64}$/)
+  planChangeQuote?: string;
+
+  @IsOptional()
+  @IsDateString()
+  planChangeQuotedAt?: string;
 }

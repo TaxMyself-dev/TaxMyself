@@ -8,6 +8,36 @@
       }
     </header>
 
+    @if (pendingChange(); as pending) {
+      <section class="plan-change-panel" aria-live="polite">
+        <h2>שנמוך מתוזמן ל{{ pending.planName }}</h2>
+        <p>המסלול הנוכחי נשאר עד החידוש הבא. את הבקשה אפשר לבטל בלשונית המנוי שלי או כאן.</p>
+        <button type="button" class="pricing-card__cta" [disabled]="cancelingChange() || confirmingChange()"
+          (click)="cancelPendingChange()">ביטול בקשת השנמוך</button>
+      </section>
+    }
+
+    @if (planChangePreview(); as preview) {
+      <section class="plan-change-panel" aria-live="polite">
+        <h2>מעבר ל{{ selectedPlanName() }}</h2>
+        @if (preview.action === 'UPGRADE') {
+          <p>לתשלום עכשיו: <strong>{{ amountNowLabel() }} ₪ כולל מע״מ</strong> — הפרש יחסי עבור יתרת התקופה.</p>
+          <p>התוכנית החדשה תיכנס לתוקף לאחר השלמת התשלום. מועד החיוב הבא נשאר קבוע.</p>
+        } @else {
+          <p>אין חיוב עכשיו. השנמוך ייכנס לתוקף בחידוש הבא, ב־{{ effectiveDateLabel() }}.</p>
+          <p>עד אז התוכנית הנוכחית נשארת. ניתן לבטל את הבקשה לפני מועד השינוי.</p>
+        }
+        <p>החיוב הבא ב־{{ nextDateLabel() }}: <strong>{{ nextAmountLabel() }} ₪ כולל מע״מ</strong>, לפי המחיר וההנחה שבתוקף במועד החידוש.</p>
+        <p>לא מתבצע החזר על התקופה שכבר שולמה.</p>
+        <div class="plan-change-actions">
+          <button type="button" class="pricing-card__cta" [disabled]="confirmingChange()" (click)="confirmPlanChange()">
+            {{ confirmingChange() ? 'מעבד...' : preview.action === 'UPGRADE' ? (preview.finalAmountAgorot > 0 ? 'אישור והמשך לתשלום' : 'אישור שדרוג ללא חיוב') : 'אישור שנמוך בחידוש הבא' }}
+          </button>
+          <button type="button" [disabled]="confirmingChange()" (click)="planChangePreview.set(null)">ביטול</button>
+        </div>
+      </section>
+    }
+
     @if (isLoading()) {
       <div class="plans-loading">
         <p-progressSpinner strokeWidth="3" styleClass="plans-spinner" />
@@ -85,13 +115,13 @@
             <button
               class="pricing-card__cta"
               (click)="checkout(plan.id)"
-              [disabled]="checkingOutPlanId() !== null"
+              [disabled]="checkingOutPlanId() !== null || confirmingChange() || (billing.effectiveStatus() === 'ACTIVE' && plan.id === currentPlanId()) || billing.hasBillingOverride()"
               [attr.aria-busy]="checkingOutPlanId() === plan.id ? 'true' : null">
               @if (checkingOutPlanId() === plan.id) {
                 <span class="cta-spinner" aria-hidden="true"></span>
                 מעבד...
               } @else {
-                התחל עכשיו
+                {{ billing.effectiveStatus() === 'ACTIVE' ? (plan.id === currentPlanId() ? 'התוכנית הנוכחית שלך' : 'בחירת תוכנית זו') : 'התחל עכשיו' }}
               }
             </button>
 

@@ -17,6 +17,7 @@ import { BillingLifecycleService } from './billing-lifecycle.service';
 import { decryptCardcomToken } from '../utils/billing-token-encryption.util';
 import { billingBoundary } from '../domain/billing-debt-periods';
 import { upgradeKey } from '../domain/billing-upgrade';
+import { BillingEvent } from '../entities/billing-event.entity';
 
 /**
  * KT-038 Task 3B — a hosted payment whose CardCom capture is already confirmed
@@ -302,6 +303,57 @@ describe('BillingHostedCompletionService — local recovery of a CAPTURED hosted
     f.orchestration.obligation.kind = BillingObligationKind.CHECKOUT;
     f.orchestration.obligation.obligationKey = upgradeKey(f.sub, PLAN.id, 11700);
     f.sub.currentPeriodEnd = new Date('2026-10-01');
+    expect(await f.service.completeCapturedHostedAttempt(f.params)).toBe('RECEIPT_PENDING');
+    expect(f.sub.planId).toBe(1);
+    expect(f.receipts.ensureReceiptForCapturedAttempt).not.toHaveBeenCalled();
+  });
+
+  function proratedFixture() {
+    const f = build();
+    Object.assign(f.sub, { status: SubscriptionStatus.ACTIVE, planId: 1,
+      currentPeriodStart: new Date('2026-09-01'), currentPeriodEnd: new Date('2026-10-01'), nextBillingDate: new Date('2026-10-01') });
+    Object.assign(f.orchestration.obligation, { kind: BillingObligationKind.CHECKOUT,
+      obligationKey: 'subscription:9:prorated:1:source:to:2:at:quote', amountAgorot: 1770, amountBeforeVatAgorot: 1500, vatAmountAgorot: 270 });
+    Object.assign(f.orchestration.attempt, { amountAgorot: 1770, amountBeforeVatAgorot: 1500, vatAmountAgorot: 270 });
+    const snapshot = { policy: 'PRORATED_V1', action: 'UPGRADE', sourcePlanId: 1, targetPlanId: 2,
+      sourcePeriodStart: f.sub.currentPeriodStart.toISOString(), sourcePeriodEnd: f.sub.currentPeriodEnd.toISOString(),
+      quotedAt: ATTEMPT_OPENED_AT.toISOString(), sourceMonthlyNetAgorot: 5000, targetMonthlyNetAgorot: 8000,
+      finalAmountAgorot: 1770, amountBeforeVatAgorot: 1500, vatAmountAgorot: 270, currency: 'ILS' };
+    const original = f.manager.findOne.getMockImplementation()!;
+    f.manager.findOne.mockImplementation(async (entity: unknown, opts?: any) => {
+      if (entity === BillingEvent) {
+        if (opts.where.eventType === BillingEventType.PLAN_CHANGE_REQUESTED) {
+          return { metadata: { policy: 'PRORATED_V1', command: 'UPGRADE_RESERVED', snapshot } };
+        }
+        return f.created.find(event => event.eventType === BillingEventType.PLAN_CHANGED) ?? null;
+      }
+      return original(entity);
+    });
+    (f.dataSource as any).manager = f.manager;
+    return { ...f, snapshot };
+  }
+
+  it('preserves the original dates and charges only the frozen difference, including receipt recovery', async () => {
+    const f = proratedFixture();
+    const start = f.sub.currentPeriodStart, end = f.sub.currentPeriodEnd, due = f.sub.nextBillingDate;
+    f.receipts.ensureReceiptForCapturedAttempt.mockRejectedValueOnce(new Error('receipt unavailable'));
+    expect(await f.service.completeCapturedHostedAttempt(f.params)).toBe('RECEIPT_PENDING');
+    expect(f.sub.planId).toBe(2);
+    expect(f.sub.currentPeriodStart).toEqual(start);
+    expect(f.sub.currentPeriodEnd).toEqual(end);
+    expect(f.sub.nextBillingDate).toEqual(due);
+    expect(await f.service.completeCapturedHostedAttempt(f.params)).toBe('COMPLETED');
+    expect(f.created.filter(event => event.eventType === BillingEventType.PLAN_CHANGED)).toHaveLength(1);
+    const receipt = f.receipts.ensureReceiptForCapturedAttempt.mock.calls[1][0];
+    expect(receipt.attempt.amountAgorot).toBe(1770);
+    expect(receipt.periods[0].periodStart).toEqual(ATTEMPT_OPENED_AT);
+    expect(receipt.periods[0].periodEnd).toEqual(end);
+    expect(receipt.periods[0].planName).toContain('הפרש יחסי');
+  });
+
+  it('keeps a late capture or changed subscription pending without opening a new period', async () => {
+    const f = proratedFixture();
+    f.orchestration.attempt.capturedAt = new Date(f.snapshot.sourcePeriodEnd);
     expect(await f.service.completeCapturedHostedAttempt(f.params)).toBe('RECEIPT_PENDING');
     expect(f.sub.planId).toBe(1);
     expect(f.receipts.ensureReceiptForCapturedAttempt).not.toHaveBeenCalled();

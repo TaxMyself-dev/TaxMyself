@@ -31,6 +31,23 @@
   padding-inline: 2rem;
 }
 
+.plan-change-panel {
+  background: #fff;
+  border: 1px solid var(--color-card-border);
+  border-radius: var(--radius);
+  padding: 24px;
+  margin-bottom: 24px;
+  h2 { margin-top: 0; }
+  .pricing-card__cta { width: auto; margin-top: 0; }
+}
+
+.plan-change-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+}
+
 // ─── Header ───────────────────────────────────────────────────────────────────
 .plans-header {
   text-align: center;

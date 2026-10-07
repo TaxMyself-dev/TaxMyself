@@ -30,6 +30,8 @@ import { CheckoutPreviewDto } from '../dtos/checkout-preview.dto';
 import { CreateCheckoutDto } from '../dtos/create-checkout.dto';
 import { BillingLifecycleService } from './billing-lifecycle.service';
 import { BillingDebtService } from './billing-debt.service';
+import { BillingPlanChangeService } from './billing-plan-change.service';
+import { PlanChangeSnapshot } from '../domain/billing-plan-change';
 import {
   BillingAttemptStatus,
   BillingChargeMode,
@@ -108,6 +110,7 @@ export class BillingService {
     @Optional()
     private readonly billingLifecycleService?: BillingLifecycleService,
     @Optional() private readonly debtService?: BillingDebtService,
+    @Optional() private readonly planChangeService?: BillingPlanChangeService,
   ) {}
 
   // ─── Plans ──────────────────────────────────────────────────────────────────
@@ -457,6 +460,10 @@ export class BillingService {
 
   async previewCheckout(firebaseId: string, dto: CheckoutPreviewDto, actor?: BillingMutationActorContext) {
     const subscription = await this.subscriptionRepo.findOne({ where: { firebaseId } });
+    if (subscription?.status === SubscriptionStatus.ACTIVE) {
+      if (!actor || !this.planChangeService) throw new ConflictException('Plan change is unavailable');
+      return this.planChangeService.preview(actor, dto.planId);
+    }
     if (subscription && this.debtService && [SubscriptionStatus.PAST_DUE, SubscriptionStatus.CANCELED].includes(subscription.status)) {
       if (dto.planId !== subscription.planId) throw new ConflictException('יש להסדיר את החוב בתוכנית הקיימת.');
       if (!actor) throw new ForbiddenException('Verified billing actor required');
@@ -517,7 +524,7 @@ export class BillingService {
   async createCheckout(
     actor: BillingMutationActorContext,
     dto: CreateCheckoutDto,
-  ) {
+  ): Promise<{ paymentUrl?: string; lowProfileId?: string; finalAmountAgorot?: number; currency?: string; status?: string; effectiveAt?: string }> {
     assertBillingOwnerMutation(actor);
     const firebaseId = actor.subjectFirebaseId;
     const subscription = await this.subscriptionRepo.findOne({
@@ -613,7 +620,21 @@ export class BillingService {
       throw new ConflictException('פרטי החוב השתנו. יש לרענן את פירוט התקופות לפני תשלום.');
     }
     if (collection && dto.planId !== subscription.planId) throw new ConflictException('Debt plan mismatch');
-    const pricing = collection ? { ...collection, explanation: ['כל תקופות המנוי שלא שולמו'] } : recoverySnapshot ? {
+    let changeSnapshot: PlanChangeSnapshot | undefined;
+    if (subscription.status === SubscriptionStatus.ACTIVE) {
+      if (!this.planChangeService || !dto.planChangeQuote || !dto.planChangeQuotedAt) {
+        throw new ConflictException('יש לאשר את פירוט שינוי התוכנית לפני התשלום.');
+      }
+      const change = await this.planChangeService.preview(actor, plan.id, dto.planChangeQuotedAt);
+      if (change.planChangeQuote !== dto.planChangeQuote) throw new ConflictException('המחיר או מצב המנוי השתנו. יש לרענן את הפירוט.');
+      const { planChangeQuote, effectiveAt, nextBillingDate, vatRate, expiresAt, ...snapshot } = change;
+      changeSnapshot = snapshot;
+      if (change.action === 'DOWNGRADE' || change.finalAmountAgorot === 0) {
+        return this.planChangeService.applyLocal(actor, changeSnapshot);
+      }
+    }
+    const pricing = changeSnapshot ? { ...changeSnapshot, explanation: ['הפרש יחסי עד מועד החיוב הבא'] }
+      : collection ? { ...collection, explanation: ['כל תקופות המנוי שלא שולמו'] } : recoverySnapshot ? {
       finalAmountAgorot: recoverySnapshot.obligation.amountAgorot,
       amountBeforeVatAgorot: recoverySnapshot.obligation.amountBeforeVatAgorot,
       vatAmountAgorot: recoverySnapshot.obligation.vatAmountAgorot,
@@ -642,7 +663,7 @@ export class BillingService {
         vatAmountAgorot: pricing.vatAmountAgorot, currency: pricing.currency,
       };
       const purchase = isUpgrade
-        ? await this.billingLifecycleService.openUpgrade(purchaseInput)
+        ? await this.billingLifecycleService.openUpgrade({ ...purchaseInput, planChangeSnapshot: changeSnapshot })
         : await this.billingLifecycleService.openInitialPurchase(purchaseInput);
       if (!purchase.created) throw new ConflictException('קיים תהליך תשלום קודם שטרם הסתיים. אין לבצע תשלום נוסף.');
       recoveryAttemptId = purchase.attempt.id;
@@ -808,6 +829,11 @@ export class BillingService {
   }
 
   // ─── Referral-plan upgrade (customer-facing, scoped) ─────────────────────────
+
+  async cancelScheduledPlanChange(actor: BillingMutationActorContext, expectedEventId: number) {
+    if (!this.planChangeService) throw new ConflictException('Plan change is unavailable');
+    return this.planChangeService.cancel(actor, expectedEventId);
+  }
 
   /**
    * Core mutation shared by the customer-facing upgrade endpoint and the
@@ -1628,6 +1654,7 @@ export class BillingService {
         canceledAt: subscription.canceledAt,
         createdAt: subscription.createdAt,
       },
+      pendingPlanChange: this.planChangeService ? await this.planChangeService.pending(subscription.id) : null,
       plan: plan
         ? {
             id: plan.id,

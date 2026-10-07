@@ -19,6 +19,7 @@ import { BillingAttempt } from '../entities/billing-attempt.entity';
 import { BillingProviderRuntimeService } from './billing-provider-runtime.service';
 
 export interface CanonicalBillingPeriodInput {
+  planChangeSnapshot?: import('../domain/billing-plan-change').PlanChangeSnapshot;
   actor: BillingMutationActorContext;
   subscriptionId: number;
   planId: number;

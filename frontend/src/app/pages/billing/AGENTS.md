@@ -36,6 +36,20 @@ Standalone pricing/plans page where a user views available subscription plans an
 - On init, `GET {apiUrl}billing/plans` and render plan cards with computed shekel pricing (`effectivePriceMonthlyAgorot`, resolved server-side per the user's billing business type).
 - `checkout(planId)` calls `POST {apiUrl}billing/checkout`, then redirects the browser to the returned Cardcom `paymentUrl`.
 
+## Plan changes (KT-051)
+
+ACTIVE owners select a different plan to obtain a preview, then explicitly
+confirm its server quote and timestamp. The preview shows the current prorated
+VAT-inclusive charge, preserved billing date and future full renewal estimate.
+Downgrades are scheduled for the next renewal with no charge now; zero-cost
+upgrades apply locally. Positive upgrades reuse CardCom redirect and scoped
+LowProfile return polling. Current plan and billing overrides cannot submit.
+Expired quotes and submission failures clear the preview; double submission
+is suppressed. Pending downgrades can be canceled by exact eventId here or in
+My Subscription. The backend is authoritative for ownership and stale state.
+Focused tests use tsconfig.billing-plan-change.spec.json with the plans,
+recovery, billing-state and admin-subscriptions spec includes.
+
 ## Pending payment status
 
 - Reserved debt previews use the typed BILLING_PAYMENT_PENDING error and show

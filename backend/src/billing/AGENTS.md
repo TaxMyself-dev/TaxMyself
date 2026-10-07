@@ -35,7 +35,40 @@ lookup and newer-card protection. Receipt/link/finalization and admin recovery
 reuse existing attempt leases. No new schema. Old attempt-less callbacks retain
 their legacy path; ACTIVE plan changes now use KT-049 below.
 
-### Paid plan changes (KT-049)
+### Prorated plan changes (KT-051)
+
+New ACTIVE plan changes use BillingPlanChangeService. Owner preview returns a
+ten-minute server quote with current charge including VAT, effective date and
+next full renewal estimate. Submit recomputes that quote; stale terms are
+rejected before provider I/O. Price comparisons use the business-specific base
+plan prices; upgrades credit the current period's frozen paid net monthly terms,
+not today's repricing. The difference is proportional to remaining exact
+period time. Missing paid terms fail closed for support review.
+
+Positive upgrades atomically reserve a canonical CHECKOUT attempt plus an
+UPGRADE_RESERVED snapshot before CardCom I/O. Verified capture changes planId
+only, preserving service dates, nextBillingDate and anchor. The existing receipt
+pipeline produces one invoice for the difference with its remaining service
+interval. Atomic PLAN_CHANGED markers let receipt retries resume without
+another charge or period extension. Capture after the original end or changed
+subscription requires review. Existing in-flight KT-049 attempts retain their
+original full-price/reset-period completion behavior.
+
+Downgrades change no current entitlement and charge nothing immediately.
+SCHEDULE/CANCEL/APPLY commands are serialized under the subscription lock;
+cancel requires the exact displayed event ID before the boundary. Renewal
+processing applies a due downgrade before loading/pricing the canonical new
+period. Effective application follows the existing daily/admin renewal runner,
+not a new timer. A zero-cost upgrade applies immediately without CardCom.
+Unresolved payments block changes; an applied upgrade supersedes a scheduled
+downgrade. GET billing/me includes pendingPlanChange.
+
+Scoped billing_event metadata with policy PRORATED_V1 is operational state for
+these commands and immutable upgrade terms. This is an explicit exception to
+the general audit-only rule below: these writes must commit atomically and
+must never use best-effort BillingEventService persistence. No new schema.
+
+### Legacy paid plan changes (KT-049, in-flight compatibility)
 
 ACTIVE checkout reserves a CHECKOUT obligation and hosted attempt under the
 subscription lock, through openUpgrade. It preserves the full target price
@@ -184,8 +217,10 @@ KT-040 adds collection membership while retaining direct attempt provenance.
   active-attempt pointer identifies the latest flow; an older callback marked
   `SUPERSEDED` cannot replace the saved card. The resulting `payment_method`
   and `documents` receipt both carry unique provenance links back to attempts.
-- `billing_event` has nullable correlation FKs to these aggregates but remains
-  audit/history only, never the coordination source of truth.
+- `billing_event` has nullable correlation FKs to these aggregates. It is audit
+  history except the scoped, mandatory transactional KT-051 plan commands and
+  upgrade snapshots documented above. Payment coordination still lives in
+  obligation/attempt aggregates.
 - Every future billing mutation is owner-only: the authenticated actor must be
   the subscription subject. Delegated accountants, admin impersonation,
   represented-subject mode, and any `actor != subject` context may retain

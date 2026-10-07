@@ -12,6 +12,8 @@ import { BillingAttempt } from '../entities/billing-attempt.entity';
 import { BillingObligation } from '../entities/billing-obligation.entity';
 import { PaymentMethod } from '../entities/payment-method.entity';
 import { Subscription } from '../entities/subscription.entity';
+import { BillingEvent } from '../entities/billing-event.entity';
+import { PLAN_CHANGE_POLICY, PlanChangeSnapshot } from '../domain/billing-plan-change';
 import {
   BillingAttemptOrchestrationService,
   OpenBillingAttemptInput,
@@ -227,6 +229,42 @@ describe('BillingAttemptOrchestrationService', () => {
     expect(result.created).toBe(true);
     expect(result.obligation.obligationKey).toContain(':upgrade:2:');
     expect(result.obligation.obligationKey).toContain(':to:3:amount:11700');
+  });
+
+  it('commits immutable prorated terms with the attempt and rolls back if their write fails', async () => {
+    const sub = { ...subscription(), status: SubscriptionStatus.ACTIVE, planId: 2,
+      currentPeriodStart: new Date('2026-09-01'), currentPeriodEnd: new Date('2099-10-01'),
+      nextBillingDate: new Date('2099-10-01'), renewalAttempts: 0 };
+    const snapshot: PlanChangeSnapshot = { policy: PLAN_CHANGE_POLICY, action: 'UPGRADE', sourcePlanId: 2,
+      targetPlanId: 3, sourcePeriodStart: sub.currentPeriodStart.toISOString(), sourcePeriodEnd: sub.currentPeriodEnd.toISOString(),
+      quotedAt: new Date().toISOString(), scheduleEventId: null, sourceMonthlyNetAgorot: 5000,
+      targetMonthlyNetAgorot: 15000, renewalAmountAgorot: 17550, amountBeforeVatAgorot: 10000,
+      vatAmountAgorot: 1700, finalAmountAgorot: 11700, currency: 'ILS' };
+    const input = { ...openInput(), paymentMethodId: null, enforceUpgrade: true, kind: BillingObligationKind.CHECKOUT,
+      trigger: BillingAttemptTrigger.CHECKOUT, chargeMode: BillingChargeMode.LOW_PROFILE_HOSTED, planChangeSnapshot: snapshot };
+    let failEvent = false;
+    const prepare = () => {
+      manager.findOne.mockReset().mockResolvedValueOnce(sub).mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(null).mockResolvedValueOnce(null);
+      manager.find.mockResolvedValue([]);
+      manager.save.mockImplementation(async (entity, value) => {
+        if (entity === BillingEvent && failEvent) throw new Error('snapshot write failed');
+        if (entity === BillingObligation && !value.id) value.id = 11;
+        if (entity === BillingAttempt && !value.id) value.id = 21;
+        return value;
+      });
+    };
+    prepare();
+    const result = await service.createOrGetAttempt(input);
+    expect(result.obligation.obligationKey).toContain(':prorated:2:');
+    expect(manager.save).toHaveBeenCalledWith(BillingEvent, expect.objectContaining({ billingAttemptId: 21,
+      metadata: { policy: PLAN_CHANGE_POLICY, command: 'UPGRADE_RESERVED', snapshot } }));
+    expect(queryRunner.commitTransaction).toHaveBeenCalledTimes(1);
+    failEvent = true;
+    prepare();
+    await expect(service.createOrGetAttempt(input)).rejects.toThrow('snapshot write failed');
+    expect(queryRunner.commitTransaction).toHaveBeenCalledTimes(1);
+    expect(queryRunner.rollbackTransaction).toHaveBeenCalledTimes(1);
   });
 
   it('defers due renewal while an unresolved upgrade checkout exists', async () => {

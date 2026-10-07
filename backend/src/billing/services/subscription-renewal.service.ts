@@ -24,6 +24,7 @@ import {
   redactForLog,
 } from './billing-lifecycle.service';
 import { BillingDebtService } from './billing-debt.service';
+import { BillingPlanChangeService } from './billing-plan-change.service';
 import { billingDate, nextBillingInstant } from '../domain/billing-debt-periods';
 import { BillingHostedCompletionService } from './billing-hosted-completion.service';
 import { BillingReconciliationService } from './billing-reconciliation.service';
@@ -94,6 +95,7 @@ export class SubscriptionRenewalService {
     @Optional()
     private readonly reconciliation?: BillingReconciliationService,
     @Optional() private readonly debtService?: BillingDebtService,
+    @Optional() private readonly planChangeService?: BillingPlanChangeService,
   ) {}
 
   // ─── Cron entry point ───────────────────────────────────────────────────────
@@ -280,6 +282,7 @@ export class SubscriptionRenewalService {
   private async chargeSubscriptionCanonical(
     subscriptionId: number,
   ): Promise<RenewalResult> {
+    if (this.planChangeService) await this.planChangeService.applyDue(subscriptionId);
     const subscription = await this.subscriptionRepo.findOne({
       where: { id: subscriptionId },
     });

@@ -142,6 +142,7 @@ export class PricingService {
   async calculateCheckoutPrice(
     firebaseId: string,
     planId: number,
+    at: Date = new Date(),
   ): Promise<CheckoutPricingResult> {
     const plan = await this.planRepo.findOne({
       where: { id: planId, isActive: true },
@@ -162,7 +163,7 @@ export class PricingService {
       where: { firebaseId },
     });
 
-    const today = this.getTodayDateString();
+    const today = this.getTodayDateString(at);
     let workingAmount = baseAmount;
 
     if (subscription) {
@@ -179,7 +180,7 @@ export class PricingService {
       explanation.push('Final amount clamped to 0 agorot (cannot go negative)');
     }
 
-    const vat = this.calculateBillingAmounts(amountBeforeVatAgorot);
+    const vat = this.calculateBillingAmounts(amountBeforeVatAgorot, at);
     explanation.push(
       `VAT ${vat.vatRate}%: ${amountBeforeVatAgorot} + ${vat.vatAmountAgorot} = ${vat.amountIncludingVatAgorot} agorot`,
     );
@@ -204,8 +205,8 @@ export class PricingService {
    *
    * VAT rate is resolved from the current calendar year via VAT_RATES.
    */
-  calculateBillingAmounts(priceBeforeVatAgorot: number): BillingAmounts {
-    const year = new Date().getFullYear();
+  calculateBillingAmounts(priceBeforeVatAgorot: number, at: Date = new Date()): BillingAmounts {
+    const year = at.getFullYear();
     const vatDecimal = VAT_RATES[year] ?? 0.18;
     const vatRate = Math.round(vatDecimal * 100); // e.g. 18
     const vatAmountAgorot = Math.round(priceBeforeVatAgorot * vatDecimal);
@@ -278,8 +279,7 @@ export class PricingService {
    * Returns today's date as 'YYYY-MM-DD' using local time getters, consistent
    * with Israel timezone (UTC+3) and the DATE columns in the subscription table.
    */
-  private getTodayDateString(): string {
-    const now = new Date();
+  private getTodayDateString(now: Date = new Date()): string {
     const y = now.getFullYear();
     const m = String(now.getMonth() + 1).padStart(2, '0');
     const d = String(now.getDate()).padStart(2, '0');

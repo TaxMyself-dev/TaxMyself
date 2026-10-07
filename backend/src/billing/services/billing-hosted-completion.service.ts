@@ -26,6 +26,8 @@ import { BillingReceiptService } from './billing-receipt.service';
 import { recoverySubscriptionPatch } from '../domain/billing-recovery-state';
 import { billingBoundary, billingDate, nextBillingInstant } from '../domain/billing-debt-periods';
 import { upgradeSource } from '../domain/billing-upgrade';
+import { matchesPlanChangeSource, PLAN_CHANGE_POLICY, reservedUpgradeSnapshot } from '../domain/billing-plan-change';
+import { BillingEvent } from '../entities/billing-event.entity';
 
 /**
  * A hosted attempt whose capture is confirmed locally is not touched by a
@@ -204,6 +206,11 @@ export class BillingHostedCompletionService {
     const members = await this.lifecycle.findAttemptObligations(attempt);
     const initialPurchase = members.length === 1 && members[0].kind === BillingObligationKind.CHECKOUT;
     const source = initialPurchase ? upgradeSource(members[0].obligationKey) : null;
+    const change = initialPurchase && members[0].obligationKey?.includes(':prorated:')
+      ? await reservedUpgradeSnapshot(this.dataSource.manager, attempt.id) : null;
+    if (initialPurchase && members[0].obligationKey?.includes(':prorated:') && !change) {
+      throw new Error('Prorated upgrade snapshot is missing');
+    }
     if (!capturedAt) {
       throw new Error('Captured attempt has no capture time');
     }
@@ -236,6 +243,30 @@ export class BillingHostedCompletionService {
       });
       if (!subscription || subscription.firebaseId !== firebaseId) {
         throw new Error('Subscription not found for the captured attempt');
+      }
+      if (change) {
+        const applied = await manager.findOne(BillingEvent, {
+          where: { billingAttemptId: attempt.id, eventType: BillingEventType.PLAN_CHANGED },
+        });
+        if (applied && subscription.status === SubscriptionStatus.ACTIVE && subscription.planId === attempt.planId &&
+          subscription.currentPeriodStart?.toISOString() === change.sourcePeriodStart &&
+          subscription.currentPeriodEnd?.toISOString() === change.sourcePeriodEnd) return false;
+        if (subscription.status !== SubscriptionStatus.ACTIVE ||
+          subscription.billingAccessMode === BillingAccessMode.COMPLIMENTARY_FULL ||
+          !matchesPlanChangeSource(subscription, change) || capturedAt >= new Date(change.sourcePeriodEnd)) {
+          throw new Error('Prorated upgrade no longer matches the paid period; manual review required');
+        }
+        await manager.update(Subscription, subscription.id, { planId: attempt.planId });
+        await manager.update(BillingObligation, members[0].id, {
+          periodStart: billingDate(new Date(change.sourcePeriodStart)), periodEnd: billingDate(new Date(change.sourcePeriodEnd)),
+        });
+        await manager.save(BillingEvent, manager.create(BillingEvent, { firebaseId, subscriptionId,
+          billingAttemptId: attempt.id, eventType: BillingEventType.PLAN_CHANGED,
+          metadata: { policy: PLAN_CHANGE_POLICY, snapshot: change } }));
+        await manager.save(BillingEvent, manager.create(BillingEvent, { firebaseId, subscriptionId,
+          eventType: BillingEventType.PLAN_CHANGE_REQUESTED,
+          metadata: { policy: PLAN_CHANGE_POLICY, command: 'APPLY', snapshot: change } }));
+        return true;
       }
       const alreadyApplied = subscription.status === SubscriptionStatus.ACTIVE &&
         subscription.planId === attempt.planId && subscription.currentPeriodStart?.getTime() === capturedAt.getTime();
@@ -563,10 +594,12 @@ export class BillingHostedCompletionService {
     if (!plan) throw new Error('Plan for the captured attempt not found');
     const issuer = await this.billingIssuerConfigService.getKeepintaxIssuer();
     const debts = await this.lifecycle.findAttemptObligations(attempt);
+    const change = debts.some(debt => debt.obligationKey?.includes(':prorated:'))
+      ? await reservedUpgradeSnapshot(this.dataSource.manager, attempt.id) : null;
     const periods = await Promise.all([...debts].sort((a,b) => a.periodStart.localeCompare(b.periodStart)).map(async debt => ({
-      planName: (await this.planRepo.findOne({ where: { id: debt.planId } }))?.name ?? plan.name,
-      periodStart: debt.kind === BillingObligationKind.CHECKOUT ? subscription.currentPeriodStart : billingBoundary(debt.periodStart),
-      periodEnd: debt.kind === BillingObligationKind.CHECKOUT ? subscription.currentPeriodEnd : billingBoundary(debt.periodEnd),
+      planName: change ? `שדרוג ל${plan.name} — הפרש יחסי` : (await this.planRepo.findOne({ where: { id: debt.planId } }))?.name ?? plan.name,
+      periodStart: change ? new Date(change.quotedAt) : debt.kind === BillingObligationKind.CHECKOUT ? subscription.currentPeriodStart : billingBoundary(debt.periodStart),
+      periodEnd: change ? new Date(change.sourcePeriodEnd) : debt.kind === BillingObligationKind.CHECKOUT ? subscription.currentPeriodEnd : billingBoundary(debt.periodEnd),
       amountBeforeVatAgorot: debt.amountBeforeVatAgorot, vatAmountAgorot: debt.vatAmountAgorot,
       amountIncludingVatAgorot: debt.amountAgorot,
     })));

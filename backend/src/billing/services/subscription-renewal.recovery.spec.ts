@@ -179,7 +179,7 @@ describe('SubscriptionRenewalService — CAPTURED attempt recovery', () => {
 
   const PLAN = { id: 3, name: 'Plan' };
 
-  function build(pricingAmount = 11700) {
+  function build(pricingAmount = 11700, planChange?: any) {
     const orchestration = new FakeOrchestration();
     const executor = {
       executeCharge: jest.fn().mockResolvedValue({
@@ -284,6 +284,8 @@ describe('SubscriptionRenewalService — CAPTURED attempt recovery', () => {
       {} as any,
       hostedCompletion as any,
       reconciliation as any,
+      undefined,
+      planChange,
     );
     return {
       reconciliation,
@@ -302,6 +304,23 @@ describe('SubscriptionRenewalService — CAPTURED attempt recovery', () => {
       billingEventService,
     };
   }
+
+  it('applies a due plan change before pricing and opening the canonical renewal', async () => {
+    const changes = { applyDue: jest.fn() };
+    const fixture = build(11700, changes);
+    changes.applyDue.mockImplementation(async () => {
+      fixture.subscription.planId = 8;
+      fixture.pricing.current = 5900;
+    });
+    fixture.subscriptionRepo.manager.findOne.mockResolvedValue({ id: 8, name: 'Lower plan' });
+    const result = await fixture.service.processSubscriptionById(7);
+    expect(result.outcome).toBe('success');
+    expect(changes.applyDue).toHaveBeenCalledWith(7);
+    expect(fixture.pricingService.calculateCheckoutPrice).toHaveBeenCalledWith(expect.any(String), 8);
+    expect(fixture.orchestration.obligation.planId).toBe(8);
+    expect(fixture.orchestration.attempt.amountAgorot).toBe(5900);
+    expect(fixture.executor.executeCharge).toHaveBeenCalledTimes(1);
+  });
 
   // Freeze only the wall clock; promises and setImmediate keep running normally.
   beforeEach(() => {

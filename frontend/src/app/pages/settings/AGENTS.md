@@ -18,6 +18,11 @@ Account/profile settings hub: tabbed page for editing personal details, spouse d
   billing overrides. It navigates to /billing/plans using the existing plan
   checkout; it does not submit a charge. Other lifecycle states and delegated,
   admin or complimentary overrides do not show this action.
+- My Subscription also displays a pending downgrade's target and effective
+  date. Owner cancellation sends its exact eventId through BillingStateService
+  and refreshes billing state; stale requests are rejected by the backend.
+  The plans page now previews prorated upgrades or next-renewal downgrades
+  before confirmation (KT-051).
 - Date handling helpers (`stringToDate`/`toDisplayDate`/`toApiDate`/`dateToApiString`) convert between dd-mm-yyyy display strings, `Date` objects (form controls), and yyyy-mm-dd API strings.
 
 ## Related topics

@@ -18,6 +18,7 @@ describe('BillingController — owner-mutation actor context', () => {
     createCheckout: jest.Mock;
     changePaymentMethod: jest.Mock;
     upgradeToReferralOpenBankingPlan: jest.Mock;
+    cancelScheduledPlanChange: jest.Mock;
   };
 
   beforeEach(() => {
@@ -29,13 +30,14 @@ describe('BillingController — owner-mutation actor context', () => {
       upgradeToReferralOpenBankingPlan: jest
         .fn()
         .mockResolvedValue({ planId: 1 }),
+      cancelScheduledPlanChange: jest.fn(),
     };
     controller = new BillingController(
       billingService as unknown as BillingService,
     );
   });
 
-  it.each(['previewCheckout', 'createCheckout', 'changePaymentMethod', 'getChangePaymentMethodStatus'])(
+  it.each(['previewCheckout', 'createCheckout', 'changePaymentMethod', 'getChangePaymentMethodStatus', 'cancelScheduledPlanChange'])(
     'keeps %s authenticated but free of subscription module gates for blocked owners', method => {
       expect(Reflect.getMetadata(GUARDS_METADATA, BillingController)).toBeUndefined();
       expect(Reflect.getMetadata(GUARDS_METADATA, BillingController.prototype[method])).toEqual([FirebaseAuthGuard]);
@@ -64,6 +66,12 @@ describe('BillingController — owner-mutation actor context', () => {
       );
     });
 
+  it('forwards the verified actor and expected request id when canceling a downgrade', async () => {
+    await controller.cancelScheduledPlanChange({ user: { firebaseId: 'client-1', actorFirebaseId: 'agent' },
+      isDelegatedAccess: true } as any, { expectedEventId: 19 });
+    expect(billingService.cancelScheduledPlanChange).toHaveBeenCalledWith(expect.objectContaining({
+      actorFirebaseId: 'agent', subjectFirebaseId: 'client-1', isDelegatedAccess: true }), 19);
+  });
     it('passes isAdminImpersonation through for an admin acting on a client', async () => {
       const request = {
         user: { firebaseId: 'client-1', actorFirebaseId: 'admin-1' },

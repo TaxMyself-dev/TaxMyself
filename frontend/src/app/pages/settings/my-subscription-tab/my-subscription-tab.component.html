@@ -68,6 +68,17 @@
         }
       </div>
       @if (canChangePlan()) {
+        @if (pendingPlanChange(); as pending) {
+          <p>נקבע מעבר ל{{ pending.planName }} ב־{{ pendingPlanChangeDate() }}. עד אז התוכנית הנוכחית נשארת.</p>
+          <app-p-button
+            [buttonText]="'ביטול בקשת השנמוך'"
+            [buttonColor]="buttonColor.WHITE_BORDER"
+            [buttonSize]="buttonSize.SMALL"
+            [isLoading]="cancelingPlanChange()"
+            [disabled]="cancelingPlanChange()"
+            (onButtonClicked)="cancelPlanChange()">
+          </app-p-button>
+        }
         <div class="card-actions">
           <app-p-button
             [buttonText]="'החלפת תוכנית'"

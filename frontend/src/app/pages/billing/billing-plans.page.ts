@@ -7,6 +7,13 @@ import { ProgressSpinner } from 'primeng/progressspinner';
 import { RouterLink } from '@angular/router';
 import { BillingStateService } from '../../services/billing-state.service';
 
+interface PlanChangePreview {
+  action: 'UPGRADE' | 'DOWNGRADE'; targetPlanId: number; finalAmountAgorot: number;
+  amountBeforeVatAgorot: number; vatAmountAgorot: number; renewalAmountAgorot: number;
+  effectiveAt: string; nextBillingDate: string; quotedAt: string;
+  planChangeQuote: string; expiresAt: string;
+}
+
 type PlanCardItem =
   | { type: 'module';  key: string; label: string }
   | { type: 'feature'; key: string; label: string };
@@ -72,6 +79,16 @@ export class BillingPlansPage implements OnInit {
   private readonly rawPlans = signal<Plan[]>([]);
   readonly isLoading = signal(true);
   readonly checkingOutPlanId = signal<number | null>(null);
+  readonly planChangePreview = signal<PlanChangePreview | null>(null);
+  readonly confirmingChange = signal(false);
+  readonly currentPlanId = computed(() => this.billing.billingState()?.plan?.id ?? null);
+  readonly selectedPlanName = computed(() => this.rawPlans().find(p => p.id === this.planChangePreview()?.targetPlanId)?.name ?? '');
+  readonly pendingChange = computed(() => this.billing.billingState()?.pendingPlanChange ?? null);
+  readonly cancelingChange = signal(false);
+  readonly amountNowLabel = computed(() => formatShekels(this.planChangePreview()?.finalAmountAgorot ?? 0));
+  readonly nextAmountLabel = computed(() => formatShekels(this.planChangePreview()?.renewalAmountAgorot ?? 0));
+  readonly effectiveDateLabel = computed(() => formatDate(this.planChangePreview()?.effectiveAt));
+  readonly nextDateLabel = computed(() => formatDate(this.planChangePreview()?.nextBillingDate));
 
   readonly plans = computed<PlanVM[]>(() => {
     return this.rawPlans().map(plan => ({
@@ -103,6 +120,7 @@ export class BillingPlansPage implements OnInit {
   });
 
   ngOnInit(): void {
+    void this.billing.loadBillingState();
     this.loadPlans();
   }
 
@@ -120,7 +138,19 @@ export class BillingPlansPage implements OnInit {
   }
 
   async checkout(planId: number): Promise<void> {
-    if (this.checkingOutPlanId() !== null) return;
+    if (this.checkingOutPlanId() !== null || this.confirmingChange()) return;
+    if (this.billing.effectiveStatus() === 'ACTIVE') {
+      if (planId === this.currentPlanId() || this.billing.hasBillingOverride()) return;
+      this.checkingOutPlanId.set(planId);
+      this.planChangePreview.set(null);
+      try {
+        this.planChangePreview.set(await firstValueFrom(this.http.post<PlanChangePreview>(
+          `${environment.apiUrl}billing/checkout/preview`, { planId })));
+      } catch (err: any) {
+        this.genericService.showToast(err?.error?.message ?? 'לא ניתן לטעון את פירוט שינוי התוכנית', 'error');
+      } finally { this.checkingOutPlanId.set(null); }
+      return;
+    }
     this.checkingOutPlanId.set(planId);
     try {
       const result = await firstValueFrom(
@@ -140,6 +170,51 @@ export class BillingPlansPage implements OnInit {
       this.checkingOutPlanId.set(null);
     }
   }
+
+  async confirmPlanChange(): Promise<void> {
+    const preview = this.planChangePreview();
+    if (!preview || this.confirmingChange() || this.billing.hasBillingOverride()) return;
+    if (new Date(preview.expiresAt).getTime() <= Date.now()) {
+      this.planChangePreview.set(null);
+      this.genericService.showToast('הפירוט פג. יש לבחור שוב את התוכנית לקבלת סכום מעודכן.', 'error');
+      return;
+    }
+    this.confirmingChange.set(true);
+    try {
+      const result = await firstValueFrom(this.http.post<{ paymentUrl?: string; lowProfileId?: string; status?: string }>(
+        `${environment.apiUrl}billing/checkout`, { planId: preview.targetPlanId,
+          planChangeQuote: preview.planChangeQuote, planChangeQuotedAt: preview.quotedAt }));
+      if (result.paymentUrl) {
+        sessionStorage.removeItem('tm.checkoutLowProfileId');
+        if (result.lowProfileId) sessionStorage.setItem('tm.checkoutLowProfileId', result.lowProfileId);
+        window.location.href = result.paymentUrl;
+      } else if (result.status === 'SCHEDULED' || result.status === 'APPLIED') {
+        this.planChangePreview.set(null);
+        await this.billing.refreshBillingState();
+        this.genericService.showToast(result.status === 'SCHEDULED' ? 'השנמוך נקבע לחידוש הבא. לא בוצע חיוב כעת.' : 'התוכנית הוחלפה ללא חיוב נוסף.', 'success');
+      } else { throw new Error('Unexpected plan change response'); }
+    } catch (err: any) {
+      this.planChangePreview.set(null);
+      this.genericService.showToast(err?.error?.message ?? 'לא ניתן להשלים את שינוי התוכנית. יש לרענן את מצב המנוי לפני ניסיון נוסף.', 'error');
+    } finally { this.confirmingChange.set(false); }
+  }
+
+  async cancelPendingChange(): Promise<void> {
+    const pending = this.pendingChange();
+    if (!pending || this.cancelingChange() || this.billing.hasBillingOverride()) return;
+    this.cancelingChange.set(true);
+    try {
+      await firstValueFrom(this.http.post(`${environment.apiUrl}billing/plan-change/cancel`, { expectedEventId: pending.eventId }));
+      this.planChangePreview.set(null);
+      await this.billing.refreshBillingState();
+      this.genericService.showToast('בקשת השנמוך בוטלה. התוכנית הנוכחית תמשיך בחידוש הבא.', 'success');
+    } catch (err: any) { this.genericService.showToast(err?.error?.message ?? 'לא ניתן לבטל את הבקשה. יש לרענן.', 'error'); }
+    finally { this.cancelingChange.set(false); }
+  }
+}
+
+function formatDate(value?: string): string {
+  return value ? new Date(value).toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem' }) : '';
 }
 
 function formatShekels(agorot: number): string {

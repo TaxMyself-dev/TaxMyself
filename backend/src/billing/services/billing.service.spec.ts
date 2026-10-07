@@ -488,6 +488,13 @@ describe('BillingService — owner-mutation authorization', () => {
       }),
       recordHostedCreationFailure: jest.fn().mockResolvedValue(undefined),
     };
+    const planChangeService = {
+      preview: jest.fn().mockResolvedValue({ policy: 'PRORATED_V1', action: 'UPGRADE', targetPlanId: 1,
+        sourcePlanId: 2, sourcePeriodStart: '2026-09-01T00:00:00Z', sourcePeriodEnd: '2026-10-01T00:00:00Z',
+        finalAmountAgorot: 11800, amountBeforeVatAgorot: 10000, vatAmountAgorot: 1800, currency: 'ILS',
+        quotedAt: '2026-09-15T00:00:00Z', planChangeQuote: 'a'.repeat(64) }),
+      applyLocal: jest.fn().mockResolvedValue({ status: 'SCHEDULED', effectiveAt: '2026-10-01T00:00:00Z' }),
+    };
     const service = new BillingService(
       planRepo as any,
       subscriptionRepo as any,
@@ -504,6 +511,7 @@ describe('BillingService — owner-mutation authorization', () => {
       {} as any, // cardcomWebhookService — unused
       billingLifecycleService as any,
       overrides.debtService,
+      planChangeService as any,
     );
     return {
       service,
@@ -514,6 +522,7 @@ describe('BillingService — owner-mutation authorization', () => {
       billingEventService,
       cardcomService,
       billingLifecycleService,
+      planChangeService,
     };
   }
 
@@ -622,7 +631,7 @@ describe('BillingService — owner-mutation authorization', () => {
         id: 1,
         firebaseId: 'client-1',
         planId: 1,
-        status: 'ACTIVE',
+        status: 'TRIAL',
       });
       planRepo.findOne.mockResolvedValue({
         id: 1,
@@ -675,12 +684,35 @@ describe('BillingService — owner-mutation authorization', () => {
       f.pricingService.calculateCheckoutPrice.mockResolvedValue({ finalAmountAgorot: 11800,
         amountBeforeVatAgorot: 10000, vatAmountAgorot: 1800, currency: 'ILS' });
       f.cardcomService.createLowProfileCheckout.mockResolvedValue({ lowProfileId: 'lp-upgrade', paymentUrl: 'https://example.test/pay' });
-      const result = await f.service.createCheckout(OWNER, { planId: 1 });
+      const result = await f.service.createCheckout(OWNER, { planId: 1, planChangeQuote: 'a'.repeat(64), planChangeQuotedAt: '2026-09-15T00:00:00Z' });
       expect(f.billingLifecycleService.openUpgrade).toHaveBeenCalledWith(expect.objectContaining({ planId: 1, amountAgorot: 11800 }));
       expect(f.billingLifecycleService.openUpgrade.mock.invocationCallOrder[0])
         .toBeLessThan(f.cardcomService.createLowProfileCheckout.mock.invocationCallOrder[0]);
       expect(JSON.parse(f.cardcomService.createLowProfileCheckout.mock.calls[0][0].returnValue).billingAttemptId).toBe(82);
       expect(result.lowProfileId).toBe('lp-upgrade');
+    });
+
+    it.each(['missing', 'stale'])('rejects a %s plan-change quote before reservation or provider I/O', async reason => {
+      const f = makeService();
+      f.subscriptionRepo.findOne.mockResolvedValue({ id: 1, firebaseId: 'client-1', status: 'ACTIVE', planId: 2 });
+      f.planRepo.findOne.mockResolvedValue({ id: 1, name: 'Basic', isPublic: true });
+      const dto = reason === 'missing' ? { planId: 1 } : { planId: 1, planChangeQuote: 'b'.repeat(64), planChangeQuotedAt: '2026-09-15T00:00:00Z' };
+      await expect(f.service.createCheckout(OWNER, dto)).rejects.toThrow();
+      expect(f.billingLifecycleService.openUpgrade).not.toHaveBeenCalled();
+      expect(f.cardcomService.createLowProfileCheckout).not.toHaveBeenCalled();
+    });
+
+    it('routes a reviewed downgrade to scheduling without opening a payment attempt', async () => {
+      const f = makeService();
+      f.subscriptionRepo.findOne.mockResolvedValue({ id: 1, firebaseId: 'client-1', status: 'ACTIVE', planId: 2 });
+      f.planRepo.findOne.mockResolvedValue({ id: 1, name: 'Basic', isPublic: true });
+      f.planChangeService.preview.mockResolvedValue({ action: 'DOWNGRADE', targetPlanId: 1,
+        finalAmountAgorot: 0, planChangeQuote: 'a'.repeat(64), quotedAt: '2026-09-15T00:00:00Z' } as any);
+      const result = await f.service.createCheckout(OWNER, { planId: 1, planChangeQuote: 'a'.repeat(64), planChangeQuotedAt: '2026-09-15T00:00:00Z' });
+      expect(result.status).toBe('SCHEDULED');
+      expect(f.planChangeService.applyLocal).toHaveBeenCalledWith(OWNER, expect.objectContaining({ action: 'DOWNGRADE' }));
+      expect(f.billingLifecycleService.openUpgrade).not.toHaveBeenCalled();
+      expect(f.cardcomService.createLowProfileCheckout).not.toHaveBeenCalled();
     });
 
     it('does not create another provider checkout when the initial purchase is already pending', async () => {

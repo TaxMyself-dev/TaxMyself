@@ -16,6 +16,8 @@ import { PaymentMethodUpdateAttempt } from './payment-method-update-attempt.enti
  * Internal audit trail of billing system actions. Rows are append-only except
  * for the receipt columns on PAYMENT_SUCCESS events, which are updated once
  * when BillingReceiptService creates the receipt after the payment commits.
+ * PRORATED_V1 plan-change commands and reserved snapshots are mandatory
+ * transactional operational records; their persistence failure must roll back.
  */
 @Entity('billing_event')
 @Index('ix_billing_event_subscription', ['subscriptionId', 'createdAt'])
