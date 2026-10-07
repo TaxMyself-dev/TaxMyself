@@ -6,13 +6,12 @@ import { Express } from 'express';
 import { SourceType, VATReportingType, BusinessType, ExpenseReportScope, RecordSource, ExpenseApprovalStatus } from 'src/enum';
 
 //Entities
-// TODO_FINTAX_REMOVE_LEGACY_TRANSACTIONS: import kept while legacy flows (file upload, Finsite ingest, classifyTransaction, quickClassify, report reads) still write/read the transactions table.
+// TODO_FINTAX_REMOVE_LEGACY_TRANSACTIONS: import kept while legacy flows (file upload, quickClassify, report reads) still write/read the transactions table.
 import { Transactions } from './transactions.entity';
 import { Bill } from './bill.entity';
 import { Source } from './source.entity';
 import { ClassifiedTransactions } from './classified-transactions.entity';
 import { Expense } from '../expenses/expenses.entity';
-import { Finsite } from 'src/finsite/finsite.entity';
 import { FullTransactionCache } from './full-transaction-cache.entity';
 import { SlimTransaction } from './slim-transaction.entity';
 import { UserSourceSyncState } from './user-source-sync-state.entity';
@@ -20,12 +19,10 @@ import { UserSourceSyncState } from './user-source-sync-state.entity';
 //Services
 import { SharedService } from '../shared/shared.service';
 import { ExpensesService } from '../expenses/expenses.service';
-import { FinsiteService } from 'src/finsite/finsite.service';
 import { CatalogService } from 'src/bookkeeping/catalog.service';
 
 //DTOs
 import { UpdateTransactionsDto } from './dtos/update-transactions.dto';
-import { User } from 'src/users/user.entity';
 import { CreateBillDto } from './dtos/create-bill.dto';
 import * as fs from 'fs';
 import { Business } from 'src/business/business.entity';
@@ -37,14 +34,9 @@ export class TransactionsService {
   constructor(
     private readonly sharedService: SharedService,
     private readonly expenseService: ExpensesService,
-    private readonly finsiteService: FinsiteService,
-    @InjectRepository(User)
-    private userRepo: Repository<User>,
     // TODO_FINTAX_REMOVE_LEGACY_TRANSACTIONS: repo injection required by all remaining legacy flows. Remove together with those methods.
     @InjectRepository(Transactions)
     private transactionsRepo: Repository<Transactions>,
-    @InjectRepository(Finsite)
-    private finsiteRepo: Repository<Finsite>,
     @InjectRepository(ClassifiedTransactions)
     private classifiedTransactionsRepo: Repository<ClassifiedTransactions>,
     @InjectRepository(Bill)
@@ -65,179 +57,6 @@ export class TransactionsService {
     @InjectRepository(Business)
     private businessRepo: Repository<Business>,
   ) { }
-
-
-  // TODO_FINTAX_REMOVE_LEGACY_TRANSACTIONS: active Finsite ingest that writes directly to the legacy transactions table.
-  // Replace with a pipeline that writes to full_transactions_cache instead, then remove this method.
-  async getTransactionsFromFinsite(
-    startDate: string,
-    endDate: string,
-    companyId?: string // Optional company ID
-  ): Promise<{ companyName: string; transactions: { name: string; date: string; sum: number }[] }[]> {
-
-    console.log("getTransactionsFromFinsite - start");
-
-    const sessionId = await this.finsiteService.getFinsiteToken(
-      process.env.FINSITE_ID,
-      process.env.FINSITE_KEY
-    );
-
-    // Step 1: Load Finsite data from the database
-    const query = companyId
-      ? { finsiteId: companyId }
-      : {}; // Filter by companyId if provided
-
-    const finsiteData = await this.finsiteRepo.find({
-      where: query,
-    });
-
-    console.log("Finsite data loaded:", finsiteData);
-
-    // Step 2: Group Finsite data by company
-    const companiesData: Record<string, any> = {};
-
-    finsiteData.forEach(record => {
-      if (!companiesData[record.finsiteId]) {
-        companiesData[record.finsiteId] = {
-          id: record.finsiteId,
-          name: record.companyName,
-          paymentMethods: [],
-          transactions: [], // Collect transactions for debug
-        };
-      }
-      companiesData[record.finsiteId].paymentMethods.push(record);
-    });
-
-    const filteredCompanies = Object.values(companiesData);
-
-    console.log("Filtered companies:", filteredCompanies);
-
-    for (const company of filteredCompanies) {
-      console.log("###### company is ", company.name);
-
-      // Step 3: Fetch Firebase ID for the company
-      const user = await this.userRepo.findOne({
-        where: { finsiteId: company.id },
-      });
-
-      if (!user) {
-        console.warn(`User with finsiteId ${company.id} not found. Skipping.`);
-        continue;
-      }
-
-      const firebaseId = user.firebaseId;
-      console.log("###### firebaseId is ", firebaseId);
-
-      // Step 4: Iterate over payment methods
-      for (const method of company.paymentMethods) {
-        if (method.paymentMethodType === SourceType.CREDIT_CARD || method.paymentMethodType === SourceType.BANK_ACCOUNT) {
-          console.log("###### method is ", method.paymentId);
-          try {
-            // Step 5: Fetch transactions for the payment method
-            const transactions = await this.finsiteService.getTransactionsById(
-              sessionId,
-              method.getTransFid,
-              startDate,
-              endDate
-            );
-
-            const balances = await this.finsiteService.getBalances(
-              sessionId,
-              method.getTransFid,
-              startDate,
-            );
-
-            // Step 6: Save transactions to the database
-            for (const transaction of transactions) {
-
-              const existingTransaction = await this.transactionsRepo.findOne({
-                where: { finsiteId: transaction.EntryID }, // Adjust field name if different
-              });
-
-              if ((!existingTransaction) && !((transaction.Notes1 == 'חיוב כרטיס בעו"ש') && (transaction.Credit))) {
-
-                const billName = await this.getBillNameBySourceName(firebaseId, method.paymentId);
-                const businessNumber = await this.getBusinessNumberByBillName(firebaseId, billName);
-                const billId = await this.getBillIdByBillName(firebaseId, billName);
-
-                const txSum = transaction.Debit ? -transaction.Debit : transaction.Credit;
-
-                const classifiedTransactionRaw = billId
-                  ? await this.classifiedTransactionsRepo.findOne({
-                      where: {
-                        userId: firebaseId,
-                        transactionName: transaction.Notes1,
-                        billId,
-                      },
-                    })
-                  : null;
-
-                const classifiedTransaction =
-                  classifiedTransactionRaw && this.ruleMatchesSum(classifiedTransactionRaw, txSum)
-                    ? classifiedTransactionRaw
-                    : null;
-
-                const newTransaction: Partial<Transactions> = {
-                  userId: firebaseId,
-                  finsiteId: transaction.EntryID,
-                  paymentIdentifier: method.paymentId,
-                  billName: billName,
-                  businessNumber: businessNumber,
-                  name: transaction.Notes1,
-                  note2: transaction.Notes2,
-                  billDate: transaction.Date,
-                  payDate: null,
-                  sum: txSum,
-                };
-
-                // Merge fields if classifiedTransaction exists
-                if (classifiedTransaction) {
-                  newTransaction.category = classifiedTransaction.category;
-                  newTransaction.subCategory = classifiedTransaction.subCategory;
-                  newTransaction.isRecognized = classifiedTransaction.isRecognized;
-                  newTransaction.vatPercent = classifiedTransaction.vatPercent;
-                  newTransaction.taxPercent = classifiedTransaction.taxPercent;
-                  newTransaction.isEquipment = classifiedTransaction.isEquipment;
-                  newTransaction.reductionPercent = classifiedTransaction.reductionPercent;
-                }
-
-                await this.transactionsRepo.save(newTransaction);
-
-                // Add to the company's transactions summary
-                company.transactions.push({
-                  name: newTransaction.name,
-                  date: newTransaction.billDate,
-                  sum: newTransaction.sum,
-                });
-
-              } else {
-                console.log(`Transaction with EntryID ${transaction.EntryID} already exists. Skipping.`);
-              }
-            }
-            console.log("###### transactions from method save done", method.paymentId);
-
-          } catch (error) {
-            console.error(
-              `Failed to fetch/save transactions for PaymentMethod ID: ${method.getTransFId}`,
-              error
-            );
-          }
-        }
-      }
-    }
-
-    // Format and return the transactions summary
-    const result = filteredCompanies.map(company => ({
-      companyName: company.name,
-      transactions: company.transactions,
-    }));
-
-    console.log("All transactions processed and saved.");
-
-    return result; // Return the summarized result
-
-  }
-
 
   // TODO_FINTAX_REMOVE_LEGACY_TRANSACTIONS: file-upload ingestion flow that writes parsed Excel rows to the legacy transactions table.
   // Replace with a flow that writes to full_transactions_cache, then remove this method.
@@ -452,7 +271,7 @@ export class TransactionsService {
 
 
   // TODO_FINTAX_REMOVE_LEGACY_TRANSACTIONS: legacy quickClassify that operates on the transactions table by numeric id.
-  // The new path is TransactionsController → TransactionProcessingService.classifyManually() via finsiteId.
+  // The new path is TransactionsController → TransactionProcessingService.classifyManually() via externalTransactionId.
   // This method is no longer called from the controller; remove when legacy table is dropped.
   /** Returns true when the transaction's absolute sum falls within the rule's defined range (or no range is set). */
   private ruleMatchesSum(rule: ClassifiedTransactions, sum: number): boolean {
@@ -1052,7 +871,7 @@ export class TransactionsService {
 
       return {
         id: r.id,
-        finsiteId: r.externalTransactionId,
+        externalTransactionId: r.externalTransactionId,
         userId: r.userId,
         paymentIdentifier: r.paymentIdentifier,
         billName: r.billName,

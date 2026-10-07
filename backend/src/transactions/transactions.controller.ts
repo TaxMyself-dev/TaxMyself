@@ -14,7 +14,6 @@ import { ClassifyTransactionDto } from './dtos/classify-transaction.dto';
 import { UpdateClassificationRuleDto } from './dtos/update-classification-rule.dto';
 import multer from 'multer';
 import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
-import { AdminGuard } from 'src/guards/admin.guard';
 import { SubscriptionGuard } from 'src/guards/subscription.guard';
 import { RequireModule } from 'src/decorators/require-module.decorator';
 import { RequiredDelegationScope } from 'src/decorators/required-delegation-scope.decorator';
@@ -581,14 +580,6 @@ export class TransactionsController {
     return this.expensesService.getAllUserSubCategories(userId, businessNumber);
   }
 
-  // TODO_FINTAX_REMOVE_LEGACY_TRANSACTIONS: endpoint that triggers the legacy Finsite ingest flow writing to the transactions table. Remove when Feezback pipeline fully replaces it.
-  @Get('get-trans')
-  @UseGuards(FirebaseAuthGuard, AdminGuard)
-  async getTrans(@Query() query: any) {
-    return this.transactionsService.getTransactionsFromFinsite(query.startDate, query.endDate, query.finsiteId );
-  }
-
-
   // TODO_FINTAX_REMOVE_LEGACY_TRANSACTIONS: file-upload endpoint that writes parsed Excel rows to the legacy transactions table via saveTransactions(). Remove when replaced by a cache-based ingest.
   @Post('load-file')
   @UseGuards(FirebaseAuthGuard)
@@ -741,13 +732,13 @@ export class TransactionsController {
   ): Promise<any> {
     const userId = request.user?.firebaseId;
 
-    // Resolve cache row using the stable externalTransactionId (= finsiteId).
+    // Resolve the cache row using the stable provider transaction ID.
     // The frontend row may carry either a legacy Transactions.id or a cache PK,
-    // but finsiteId is consistent across both data sources.
-    const cacheRow = await this.processingService.findCacheRowByExternalId(dto.finsiteId, userId);
+    // externalTransactionId is consistent across both data sources.
+    const cacheRow = await this.processingService.findCacheRowByExternalId(dto.externalTransactionId, userId);
     if (!cacheRow) {
       throw new BadRequestException(
-        `Transaction with finsiteId ${dto.finsiteId} not found in cache.`,
+        `Transaction with externalTransactionId ${dto.externalTransactionId} not found in cache.`,
       );
     }
 
@@ -836,14 +827,14 @@ export class TransactionsController {
   @UseGuards(FirebaseAuthGuard)
   async quickClassifyTransaction(
     @Req() request: AuthenticatedRequest,
-    @Body('finsiteId') finsiteId: string,
+    @Body('externalTransactionId') externalTransactionId: string,
   ): Promise<void> {
     const userId = request.user?.firebaseId;
 
-    const cacheRow = await this.processingService.findCacheRowByExternalId(finsiteId, userId);
+    const cacheRow = await this.processingService.findCacheRowByExternalId(externalTransactionId, userId);
     if (!cacheRow) {
       throw new BadRequestException(
-        `Transaction with finsiteId ${finsiteId} not found in cache.`,
+        `Transaction with externalTransactionId ${externalTransactionId} not found in cache.`,
       );
     }
 

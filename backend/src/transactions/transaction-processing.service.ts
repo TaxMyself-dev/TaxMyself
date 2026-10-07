@@ -23,6 +23,7 @@ import { FxRateService } from 'src/shared/fx-rate.service';
 import { BusinessType, VATReportingType, ExpenseReportScope } from 'src/enum';
 
 import { NormalizedTransaction } from './interfaces/normalized-transaction.interface';
+import { dedupeProviderTransactions } from './utils/provider-transaction-dedup.util';
 import { ProcessingResult } from './interfaces/processing-result.interface';
 import { ClassifyManuallyDto } from './dtos/classify-manually.dto';
 import { ClassifyWithRuleDto } from './dtos/classify-with-rule.dto';
@@ -322,6 +323,8 @@ export class TransactionProcessingService {
     userId: string,
     transactions: NormalizedTransaction[],
   ): Promise<ProcessingResult> {
+    const providerDedup = dedupeProviderTransactions(transactions);
+    const transactionsToProcess = providerDedup.transactions;
     const result: ProcessingResult = {
       totalReceived: transactions.length,
       savedToSlim: 0,
@@ -330,12 +333,12 @@ export class TransactionProcessingService {
       skippedNoBillId: 0,
       newlySavedToCache: 0,
       alreadyExistingInCache: 0,
-      deduplicatedCount: 0,
+      deduplicatedCount: providerDedup.duplicateCount,
       skippedDuplicateMatch: 0,
     };
 
 
-    if (transactions.length === 0) {
+    if (transactionsToProcess.length === 0) {
       return result;
     }
 
@@ -343,7 +346,7 @@ export class TransactionProcessingService {
     const billMap = await this.buildBillMap(userId);
 
     // Enrich: resolve billId/billName from paymentIdentifier where not already set.
-    const enriched: NormalizedTransaction[] = transactions.map((tx) => {
+    const enriched: NormalizedTransaction[] = transactionsToProcess.map((tx) => {
       const resolved = tx.paymentIdentifier
         ? (billMap.get(tx.paymentIdentifier) ?? null)
         : null;
@@ -572,7 +575,7 @@ export class TransactionProcessingService {
             .getCount()
         : 0;
 
-      result.deduplicatedCount = cacheUpserts.length - upsertExternalIds.length;
+      result.deduplicatedCount += cacheUpserts.length - upsertExternalIds.length;
       result.alreadyExistingInCache = existingCacheRows;
       result.newlySavedToCache = upsertExternalIds.length - existingCacheRows;
 
@@ -1011,10 +1014,10 @@ export class TransactionProcessingService {
   }
 
   /**
-   * Finds a single cache row by externalTransactionId (= finsiteId).
+   * Finds a single cache row by its stable provider transaction ID.
    * This is the stable lookup used by classification endpoints, since the
    * frontend row may carry either a legacy Transactions.id or a cache id,
-   * but finsiteId / externalTransactionId is consistent across both.
+   * but externalTransactionId is consistent across both.
    */
   async findCacheRowByExternalId(
     externalTransactionId: string,
@@ -1777,7 +1780,7 @@ export class TransactionProcessingService {
   private mapCacheToLegacyShape(row: FullTransactionCache): Record<string, any> {
     return {
       id: row.id,
-      finsiteId: row.externalTransactionId,
+      externalTransactionId: row.externalTransactionId,
       userId: row.userId,
       paymentIdentifier: row.paymentIdentifier,
       billName: row.billName,

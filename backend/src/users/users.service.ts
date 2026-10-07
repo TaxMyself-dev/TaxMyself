@@ -182,7 +182,6 @@ export class UsersService {
       dateOfBirth: personal?.dateOfBirth || null,
       ...safeSpouse,
       role: [UserRole.REGULAR],
-      finsiteId: 0,
       createdAt: new Date(),
     };
 

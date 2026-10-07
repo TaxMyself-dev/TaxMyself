@@ -115,9 +115,6 @@ export class User {
     @Column()
     firebaseId: string;
 
-    @Column({ type: 'varchar', nullable: true, default: null })
-    finsiteId: string | null;
-
     @Column({ default: false })
     hasOpenBanking: boolean;
     

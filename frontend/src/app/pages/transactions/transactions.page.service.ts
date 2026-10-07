@@ -285,8 +285,8 @@ export class TransactionsService implements OnInit {
     return this.http.patch<any>(url, dto);
   }
 
-  quickClassify(finsiteId: string): Observable<any> {
+  quickClassify(externalTransactionId: string): Observable<any> {
     const url = `${environment.apiUrl}transactions/quick-classify`;
-    return this.http.post<any>(url, { finsiteId });
+    return this.http.post<any>(url, { externalTransactionId });
   }
 }

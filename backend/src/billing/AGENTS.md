@@ -53,6 +53,13 @@ preserving any stored payment method; revoking changes the mode back to
 Grant/revoke operations are admin-only and emit dedicated billing audit events
 with the acting Firebase ID.
 
+All unrelated subscription mutations must use narrow partial updates and must
+never save a previously loaded full `Subscription` entity. Plan changes and
+automated lifecycle transitions additionally re-check/lock the current row so
+a concurrent `COMPLIMENTARY_FULL` grant wins and cannot be reverted by a stale
+writer. Only the explicit admin grant/revoke operation may update
+`billing_access_mode`.
+
 ## Admin trial-end override
 
 `PATCH /admin/billing/subscriptions/:id/trial-end` remains behind the controller's

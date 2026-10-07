@@ -11,7 +11,6 @@ import { ReportsModule } from './reports/reports.module';
 import { ExpensesModule } from './expenses/expense.module';
 import { TransactionsModule } from './transactions/transactions.module';
 import { SharedModule } from './shared/shared.module';
-import { FinsiteModule } from './finsite/finsite.module';
 import { DelegationModule } from './delegation/delegation.module';
 import { BookkeepingModule } from './bookkeeping/bookkeeping.module';
 import { FeezbackModule } from './feezback/feezback.module';
@@ -59,7 +58,6 @@ import { FullTransactionCache } from './transactions/full-transaction-cache.enti
 import { UserTransactionCacheState } from './transactions/user-transaction-cache-state.entity';
 import { UserSyncState } from './transactions/user-sync-state.entity';
 import { UserSourceSyncState } from './transactions/user-source-sync-state.entity';
-import { Finsite } from './finsite/finsite.entity';
 import { Delegation } from './delegation/delegation.entity';
 import { Clients } from './clients/clients.entity';
 import { Documents } from './documents/documents.entity';
@@ -77,8 +75,6 @@ import { FxRate } from './shared/fx-rate.entity';
 
 import 'dotenv/config'
 import * as admin from 'firebase-admin';
-import { TransactionsService } from './transactions/transactions.service';
-import { FinsiteService } from './finsite/finsite.service';
 import { MailModule } from './mail/mail.module';
 import { MailService } from './mail/mail.service';
 import { SettingDocuments } from './documents/settingDocuments.entity';
@@ -170,7 +166,7 @@ new Logger('Bootstrap').log(
       entities: [User, Child, , Business, Expense, Income, Supplier, Transactions, ClassifiedTransactions,
         SlimTransaction, FullTransactionCache, UserTransactionCacheState, UserSyncState, UserSourceSyncState,
         Bill, Source,
-        DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory, Finsite, Delegation, SettingDocuments,
+        DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory, Delegation, SettingDocuments,
         Clients, Documents, DocLines, DocPayments, ExtractedDocument, JournalEntry, JournalLine, BookingAccount,
         AccountingSection, AccountCodeMigration, Category, SubCategory,
         FeezbackWebhookEvent, UserModuleSubscription, AccountantTask, AnnualReport, AnnualReportFile, ReportWorkflow,
@@ -199,7 +195,6 @@ new Logger('Bootstrap').log(
       // no provided service injects their repos anymore. They stay in the
       // forRoot entities list above only so the frozen tables remain
       // schema-managed for rollback until the Phase 7 drop.)
-      Finsite,
       Delegation,
       SettingDocuments,
       Clients,
@@ -216,9 +211,9 @@ new Logger('Bootstrap').log(
       ReportWorkflow,
     ]),
     ScheduleModule.forRoot(),
-    HttpModule, UsersModule, ReportsModule, ExpensesModule, TransactionsModule, BusinessModule, SharedModule, FinsiteModule, MailModule, DelegationModule, DocumentsModule, ClientsModule, BookkeepingModule, FeezbackModule, ShaamModule, FeezbackWebhookModule, AccountantTasksModule, AnnualReportModule, ReportWorkflowModule, NotificationsModule, DemoDataModule, GoogleDriveModule, BillingModule, IntegrationsModule, DocumentImportModule, InboundEmailModule, DepreciationModule],
+    HttpModule, UsersModule, ReportsModule, ExpensesModule, TransactionsModule, BusinessModule, SharedModule, MailModule, DelegationModule, DocumentsModule, ClientsModule, BookkeepingModule, FeezbackModule, ShaamModule, FeezbackWebhookModule, AccountantTasksModule, AnnualReportModule, ReportWorkflowModule, NotificationsModule, DemoDataModule, GoogleDriveModule, BillingModule, IntegrationsModule, DocumentImportModule, InboundEmailModule, DepreciationModule],
   controllers: [AppController],
-  providers: [AppService, FinsiteService, MailService, DocumentsService, ClientsService, BookkeepingService, BusinessService],
+  providers: [AppService, MailService, DocumentsService, ClientsService, BookkeepingService, BusinessService],
 })
 export class AppModule {
 

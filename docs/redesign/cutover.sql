@@ -1852,3 +1852,33 @@ WHERE s.`merchantNameSnapshot` IS NULL
 -- WHERE isRecognized = 1 AND confirmed = 0
 --   AND (merchantNameSnapshot IS NULL
 --     OR transactionDateSnapshot IS NULL OR amountSnapshot IS NULL);
+
+
+-- ============================================================================
+-- SECTION 19 (2026-10-07, Elazar) -- retire the Finsite integration.
+--
+-- Open Banking transaction ingestion now runs exclusively through Feezback.
+-- The production-copy audit found no users linked to Finsite and no rows in
+-- the legacy transactions table; the remaining Finsite rows are unreferenced
+-- provider metadata. Remove the retired provider table and its two obsolete
+-- identifier columns. The active Feezback identifier is stored as
+-- externalTransactionId in slim_transactions/full_transactions_cache.
+-- ============================================================================
+
+DROP TABLE `finsite`;
+
+ALTER TABLE `user`
+  DROP COLUMN `finsiteId`;
+
+ALTER TABLE `transactions`
+  DROP COLUMN `finsiteId`;
+
+-- Verification: all three queries must return zero rows.
+-- SELECT TABLE_NAME FROM information_schema.TABLES
+-- WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'finsite';
+-- SELECT COLUMN_NAME FROM information_schema.COLUMNS
+-- WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'user'
+--   AND COLUMN_NAME = 'finsiteId';
+-- SELECT COLUMN_NAME FROM information_schema.COLUMNS
+-- WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'transactions'
+--   AND COLUMN_NAME = 'finsiteId';

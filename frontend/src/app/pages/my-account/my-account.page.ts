@@ -1137,7 +1137,7 @@ export class MyAccountPage implements OnInit {
 
   onQuickClassify(row: IRowDataTable): void {
     this.isLoadingQuickClassify.set(true);
-    this.transactionService.quickClassify(row.finsiteId as string)
+    this.transactionService.quickClassify(row.externalTransactionId as string)
       .pipe(
         catchError(() => {
           this.messageService.add({ severity: 'error', summary: 'Error', detail: 'סיווג ההוצאה נכשל אנא נסה/י שנית', life: 3000, key: 'br' });

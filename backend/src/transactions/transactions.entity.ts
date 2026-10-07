@@ -11,9 +11,6 @@ export class Transactions {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'varchar', nullable: true, default: null })
-  finsiteId: string | null;
-
   @Column()
   userId: string;
 

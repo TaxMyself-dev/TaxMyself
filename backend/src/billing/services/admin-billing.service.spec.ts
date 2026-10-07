@@ -128,6 +128,7 @@ describe('AdminBillingService.updateSubscriptionBillingAccessMode', () => {
     const manager = {
       findOne: jest.fn().mockResolvedValue(subscription),
       save: jest.fn(async value => value),
+      update: jest.fn().mockResolvedValue({ affected: 1 }),
     };
     const dataSource = {
       transaction: jest.fn(async callback => callback(manager as unknown as EntityManager)),
@@ -156,7 +157,15 @@ describe('AdminBillingService.updateSubscriptionBillingAccessMode', () => {
       'admin-1',
     );
 
-    expect(manager.save).toHaveBeenCalled();
+    expect(manager.update).toHaveBeenCalledWith(Subscription, 42, {
+      billingAccessMode: BillingAccessMode.COMPLIMENTARY_FULL,
+      planId: null,
+      nextBillingDate: null,
+      gracePeriodEndsAt: null,
+      renewalAttempts: 0,
+      status: SubscriptionStatus.ACTIVE,
+    });
+    expect(manager.save).not.toHaveBeenCalled();
     expect(sub.planId).toBeNull();
     expect(sub.nextBillingDate).toBeNull();
     expect(sub.paymentMethodId).toBe(9);

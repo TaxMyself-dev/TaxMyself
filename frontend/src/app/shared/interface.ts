@@ -470,7 +470,7 @@ export interface IButtons {
 }
 
 export interface IClassifyTrans {
-    finsiteId: string;
+    externalTransactionId: string;
     isSingleUpdate: boolean | number;
     isNewCategory?: boolean; // todo: delete beabause the flow changed
     name: string;
@@ -491,7 +491,7 @@ export interface IClassifyTrans {
 }
 
 export interface IClassifyTransMinimal {
-    finsiteId: string;
+    externalTransactionId: string;
     isSingleUpdate: boolean | number;
     name: string;
     billName: string;
