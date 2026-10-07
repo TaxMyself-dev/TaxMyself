@@ -182,6 +182,7 @@ export class UsersService {
       dateOfBirth: personal?.dateOfBirth || null,
       ...safeSpouse,
       role: [UserRole.REGULAR],
+      hasOpenBanking: false,
       finsiteId: 0,
       createdAt: new Date(),
     };
@@ -404,6 +405,8 @@ export class UsersService {
 
     // Convert date fields to timestamps
     const processedUserData = this.processDateFields(updateUserDto);
+    // Provider-confirmed state is not an editable profile field.
+    delete processedUserData.hasOpenBanking;
 
     // Assign updated fields to the user entity
     Object.assign(user, processedUserData);

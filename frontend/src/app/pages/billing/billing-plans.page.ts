@@ -138,7 +138,8 @@ export class BillingPlansPage implements OnInit {
   }
 
   async checkout(planId: number): Promise<void> {
-    if (this.checkingOutPlanId() !== null || this.confirmingChange() || this.billing.billingState()?.pendingCancellation) return;
+    if (this.checkingOutPlanId() !== null || this.confirmingChange() || this.billing.billingState()?.pendingCancellation ||
+      this.billing.billingState()?.openBankingEnrollment) return;
     if (this.billing.effectiveStatus() === 'ACTIVE') {
       if (planId === this.currentPlanId() || this.billing.hasBillingOverride()) return;
       this.checkingOutPlanId.set(planId);

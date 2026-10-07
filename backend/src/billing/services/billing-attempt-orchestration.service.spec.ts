@@ -197,6 +197,17 @@ describe('BillingAttemptOrchestrationService', () => {
     expect(queryRunner.rollbackTransaction).toHaveBeenCalled();
   });
 
+  it('blocks a parallel initial checkout while trial banking billing is approved', async () => {
+    manager.findOne.mockResolvedValueOnce({ ...subscription(), status: SubscriptionStatus.TRIAL,
+      currentPeriodStart: null, currentPeriodEnd: null })
+      .mockResolvedValueOnce({ metadata: { policy: 'OPEN_BANKING_TRIAL_V1', command: 'READY' } });
+    await expect(service.createOrGetAttempt({ ...openInput(), enforceInitialPurchase: true,
+      kind: BillingObligationKind.CHECKOUT, trigger: BillingAttemptTrigger.CHECKOUT,
+      chargeMode: BillingChargeMode.LOW_PROFILE_HOSTED })).rejects.toThrow('לבטל');
+    expect(manager.save).not.toHaveBeenCalled();
+    expect(queryRunner.rollbackTransaction).toHaveBeenCalled();
+  });
+
   it.each(['same-plan', 'due', 'retry', 'canceled'])('rejects ineligible upgrade %s before provider submission', async reason => {
     const sub = { ...subscription(), status: SubscriptionStatus.ACTIVE, planId: 2,
       currentPeriodStart: new Date('2026-09-01'), currentPeriodEnd: new Date('2099-10-01'),

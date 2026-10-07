@@ -15,6 +15,23 @@ Integrates with Feezback, the Open Banking (AISP) data provider: handles the con
 - `feezback.controller.ts` — `FeezbackController` at route `feezback`, gated by `RequireModule(OPEN_BANKING)`; includes consent-link creation, account/transaction fetch, admin diagnostic and manual-sync endpoints, plus several debug/structure-analysis endpoints.
 
 ## Main flows
+- KT-053: `hasOpenBanking` represents a current provider-verified connection,
+  not a successful HTTP call or historical onboarding. Discovery verifies
+  `getUserConsents` (`valid`, unexpired) and a source resourceId linked through
+  consentId/relatedConsents. Empty complete reads clear the flag; partial or
+  failed reads preserve prior state unless a positive connection is proved.
+  Terminal consent webhooks rediscover all consents so another bank remains
+  connected. Browser return never sets the DB flag.
+- Trial consent-link creation requires owner-authorized OPEN_BANKING plan
+  terms and a saved card via OpenBankingEnrollmentService. Verified discovery
+  arms that pending enrollment; existing paid/complimentary owners retain
+  access. PREPARE recovery runs daily at 02:45 (original trial plus seven-day
+  recovery window), using existing read-only provider endpoints; errors are
+  isolated per user. Source discovery itself persists flag/source metadata.
+- Pending provider work: when a paid downgrade to a plan without OPEN_BANKING
+  becomes effective, or subscription cancellation takes effect, delete the
+  provider user/registration through Feezback's future endpoint. No such endpoint
+  is implemented or called here; stopping local access does not stop provider cost.
 - `POST /feezback/consent-link` (auth) — stamps consent-initiation timestamp, returns a Feezback consent URL.
 - `POST /feezback/webhook-router` — public webhook receiver; responds 200 immediately and forwards the payload async.
 - Webhook processing (`FeezbackWebhookService.handleWebhook`) — `UserDataIsAvailable`/`DataRefreshComplete` trigger `refreshUserSources` + full sync; `ConsentStatusChanged` clears stale consent IDs on terminal states.

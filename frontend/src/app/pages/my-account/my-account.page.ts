@@ -563,13 +563,7 @@ export class MyAccountPage implements OnInit {
       this.feezbackDialogVisible.set(true);
       this.pendingPostConsentSimulate = simulate;
 
-      // Optimistically mark user as connected so the UI updates immediately
-      this.hasOpenBanking.set(true);
-      const stored = this.authService.getUserDataFromLocalStorage();
-      if (stored) {
-        stored.hasOpenBanking = true;
-        localStorage.setItem('userData', JSON.stringify(stored));
-      }
+      // Browser return is not proof of a valid provider connection.
 
       if (simulate) {
         // Dev: drive the SAME temporal flow as production. The real
@@ -683,6 +677,10 @@ export class MyAccountPage implements OnInit {
           clearTimeout(this.paymentTimeoutHandle);
           this.paymentTimeoutHandle = null;
         }
+        if (pmFresh && pm?.status === 'SUCCESS' && sessionStorage.getItem('tm.openBankingEnrollmentReturn') === '1') {
+          sessionStorage.removeItem('tm.openBankingEnrollmentReturn');
+          void this.router.navigate(['/billing/open-banking'], { queryParams: { resumeCard: '1' } });
+        }
         return;
       }
 
@@ -780,7 +778,17 @@ export class MyAccountPage implements OnInit {
           next: (res) => {
             if (this.feezbackDialogStatus() !== 'awaiting-webhook') return; // dialog moved on
             if (res.status === 'completed') {
-              this.feezbackDialogStatus.set('prompt');
+              this.authService.restoreUserData().pipe(take(1), takeUntilDestroyed(this.destroyRef)).subscribe({
+                next: user => {
+                  this.hasOpenBanking.set(!!user?.hasOpenBanking);
+                  this.feezbackDialogStatus.set(user?.hasOpenBanking ? 'prompt' : 'failure');
+                  if (!user?.hasOpenBanking) this.feezbackDialogTitle.set('לא נמצא חיבור פעיל לבנקאות הפתוחה.');
+                },
+                error: () => {
+                  this.feezbackDialogStatus.set('failure');
+                  this.feezbackDialogTitle.set('לא הצלחנו לאמת את החיבור. נסה לרענן בעוד מספר דקות.');
+                },
+              });
               return;
             }
             if (attempt >= MAX_ATTEMPTS) {
@@ -1251,7 +1259,7 @@ export class MyAccountPage implements OnInit {
 
   confirmConsentAndConnect(): void {
     this.consentDialogVisible.set(false);
-    this.doConnectToOpenBanking();
+    this.router.navigate(['/billing/open-banking']);
   }
 
   private doConnectToOpenBanking(): void {

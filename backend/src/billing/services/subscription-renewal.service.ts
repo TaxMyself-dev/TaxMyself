@@ -26,6 +26,7 @@ import {
 import { BillingDebtService } from './billing-debt.service';
 import { BillingPlanChangeService } from './billing-plan-change.service';
 import { BillingCancellationService } from './billing-cancellation.service';
+import { OpenBankingEnrollmentService } from './open-banking-enrollment.service';
 import { billingDate, nextBillingInstant } from '../domain/billing-debt-periods';
 import { BillingHostedCompletionService } from './billing-hosted-completion.service';
 import { BillingReconciliationService } from './billing-reconciliation.service';
@@ -98,6 +99,7 @@ export class SubscriptionRenewalService {
     @Optional() private readonly debtService?: BillingDebtService,
     @Optional() private readonly planChangeService?: BillingPlanChangeService,
     @Optional() private readonly cancellationService?: BillingCancellationService,
+    @Optional() private readonly openBankingEnrollment?: OpenBankingEnrollmentService,
   ) {}
 
   // ─── Cron entry point ───────────────────────────────────────────────────────
@@ -139,6 +141,8 @@ export class SubscriptionRenewalService {
    * logic, no idempotency/retry/charge behavior is duplicated or bypassed.
    */
   async processDueRenewals(): Promise<RenewalBatchResult> {
+    try { await this.openBankingEnrollment?.activateDueTrials(); }
+    catch { this.logger.error('Open banking trial activation sweep failed; existing renewals continue'); }
     try { await this.cancellationService?.applyDueCancellations(); }
     catch { this.logger.error('Cancellation sweep failed; locked renewal checks still prevent charging'); }
     try { await this.debtService?.accruePastDue(); }
@@ -257,6 +261,7 @@ export class SubscriptionRenewalService {
     subscriptionId: number,
   ): Promise<RenewalResult> {
     try {
+      await this.openBankingEnrollment?.activateDue(subscriptionId);
       return await this.chargeSubscription(subscriptionId);
     } catch (err) {
       this.logger.error(
@@ -362,7 +367,7 @@ export class SubscriptionRenewalService {
           amountBeforeVatAgorot: existing.obligation.amountBeforeVatAgorot,
           vatAmountAgorot: existing.obligation.vatAmountAgorot,
         }
-      : await this.pricingService.calculateCheckoutPrice(
+      : await this.openBankingEnrollment?.firstPeriodPrice(subscription, periodStart) ?? await this.pricingService.calculateCheckoutPrice(
           subscription.firebaseId,
           plan.id,
         );

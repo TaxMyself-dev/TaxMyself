@@ -32,6 +32,7 @@ describe('FeezbackService — Direct/Debit card handling', () => {
     const feezbackApiService = {
       getUserCards: jest.fn(),
       getUserAccounts: jest.fn(),
+      getUserConsents: jest.fn().mockResolvedValue({ consents: [{ resourceId: 'consent-1', consentStatus: 'valid' }] }),
     };
     const consentApi = {
       getCardTransactions: jest.fn(),

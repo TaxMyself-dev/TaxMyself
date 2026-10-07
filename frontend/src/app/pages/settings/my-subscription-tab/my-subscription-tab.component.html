@@ -1,6 +1,15 @@
 <div class="subscription-tab">
 
   <!-- ─── 1. Subscription status ─── -->
+  @if (billingState()?.openBankingEnrollment; as enrollment) {
+    <section class="sub-card">
+      <h3>הצטרפות לבנקאות פתוחה</h3>
+      <p>{{ enrollment.status === 'READY' ? 'החיבור הושלם. החיוב האוטומטי יתחיל בסיום הניסיון.' : 'ההרשמה עדיין לא הושלמה. לא הופעל חיוב אוטומטי.' }}</p>
+      <app-p-button [buttonText]="'המשך הרשמה או מעבר לתוכנית ללא בנקאות פתוחה'"
+        [buttonColor]="buttonColor.WHITE_BORDER" [buttonSize]="buttonSize.SMALL"
+        [disabled]="billingStateServiceOverride()" (onButtonClicked)="manageBankingEnrollment()" />
+    </section>
+  }
   <section class="sub-card status-card">
     <div class="subsection-header">
       <span class="subsection-icon"><i class="pi pi-shield"></i></span>

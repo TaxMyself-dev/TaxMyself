@@ -16,6 +16,7 @@ import {
   Not,
   Or,
   QueryRunner,
+  Raw,
 } from 'typeorm';
 import { upgradeKey } from '../domain/billing-upgrade';
 import { latestPlanChangeCommand, matchesPlanChangeSource, PlanChangeSnapshot, PLAN_CHANGE_POLICY, PLAN_CHANGE_QUOTE_TTL_MS } from '../domain/billing-plan-change';
@@ -510,6 +511,14 @@ export class BillingAttemptOrchestrationService {
       }
       if (input.enforceInitialPurchase || input.enforceUpgrade || input.enforceRenewalSchedule) {
         if (input.enforceInitialPurchase) {
+          const enrollment = await manager.findOne(BillingEvent, {
+            where: { subscriptionId: subscription.id, eventType: BillingEventType.PLAN_CHANGE_REQUESTED,
+              metadata: Raw(column => `JSON_UNQUOTE(JSON_EXTRACT(${column}, '$.policy')) = :obPolicy`,
+                { obPolicy: 'OPEN_BANKING_TRIAL_V1' }) }, order: { id: 'DESC' },
+          });
+          if (['PREPARE', 'READY'].includes(enrollment?.metadata?.command)) {
+            throw new ConflictException('יש לבטל את ההצטרפות לבנקאות פתוחה לפני התחלת רכישה אחרת.');
+          }
           if (subscription.billingAccessMode === BillingAccessMode.COMPLIMENTARY_FULL ||
             ![SubscriptionStatus.TRIAL, SubscriptionStatus.TRIAL_EXPIRED].includes(subscription.status) ||
             subscription.currentPeriodStart || subscription.currentPeriodEnd) {

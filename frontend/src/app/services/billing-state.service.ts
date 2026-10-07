@@ -144,6 +144,7 @@ export interface ChangePaymentMethodStatus {
 }
 
 export interface BillingStateResponse {
+  openBankingEnrollment?: { eventId: number; planId: number; status: 'PREPARE' | 'READY'; firstBillingAt: string } | null;
   pendingCancellation?: { eventId: number; effectiveAt: string } | null;
   pendingPlanChange?: { eventId: number; planId: number; planName: string;
     effectiveAt: string; estimatedRenewalAmountAgorot: number } | null;

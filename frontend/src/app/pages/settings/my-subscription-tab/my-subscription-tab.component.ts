@@ -80,6 +80,7 @@ export class MySubscriptionTabComponent implements OnInit {
     this.status() === 'ACTIVE' && !this.pendingCancellation() && !this.isComplimentary() && !this.billingStateService.hasBillingOverride(),
   );
   readonly pendingCancellation = computed(() => this.billingState()?.pendingCancellation ?? null);
+  manageBankingEnrollment() { this.router.navigate(['/billing/open-banking']); }
   readonly billingStateServiceOverride = this.billingStateService.hasBillingOverride;
   readonly cancellationDateLabel = computed(() => formatDate(this.pendingCancellation()?.effectiveAt));
   readonly cancellationConfirmation = signal(false);

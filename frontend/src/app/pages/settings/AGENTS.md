@@ -8,6 +8,10 @@ Account/profile settings hub: tabbed page for editing personal details, spouse d
 - `my-categories-tab/my-categories-tab.component.ts(+html/scss)` — child component for the "הקטגוריות שלי" tab; manages user category/subcategory rules (`UserCategoryGroup`, `UserRuleRow`) — custom recognition %, VAT %, tax %, equipment flag, comment-pattern rules per category/subcategory.
 
 ## Main flows
+- KT-053: My Subscription shows PREPARE/READY trial banking enrollment and
+  links to continuation or withdrawal into a non-banking plan. Withdrawal
+  preserves the trial and card, without scheduling an automatic lower-plan
+  charge. Paid plan changes still use KT-051.
 - My Subscription offers owner-only cancellation with explicit confirmation
   of paid access through period end and retained debts. The server provides
   pendingCancellation with effective date/eventId; the card shows no future

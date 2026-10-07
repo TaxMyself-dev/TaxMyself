@@ -30,6 +30,7 @@ import { AdminBillingController } from './admin-billing.controller';
 import { BillingService } from './services/billing.service';
 import { BillingPlanChangeService } from './services/billing-plan-change.service';
 import { BillingCancellationService } from './services/billing-cancellation.service';
+import { OpenBankingEnrollmentService } from './services/open-banking-enrollment.service';
 import { BillingDebtService } from './services/billing-debt.service';
 import { BillingEventService } from './services/billing-event.service';
 import { BillingReceiptService } from './services/billing-receipt.service';
@@ -91,6 +92,7 @@ import { BusinessModule } from 'src/business/business.module';
     BillingService,
     BillingPlanChangeService,
     BillingCancellationService,
+    OpenBankingEnrollmentService,
     BillingDebtService,
     BillingEventService,
     BillingReceiptService,
@@ -115,6 +117,7 @@ import { BusinessModule } from 'src/business/business.module';
     SubscriptionGuard,
   ],
   exports: [
+    OpenBankingEnrollmentService,
     BillingService,
     BillingAttemptOrchestrationService,
     BillingLifecycleService,

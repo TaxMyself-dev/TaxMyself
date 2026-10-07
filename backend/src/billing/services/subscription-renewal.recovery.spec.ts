@@ -179,7 +179,7 @@ describe('SubscriptionRenewalService — CAPTURED attempt recovery', () => {
 
   const PLAN = { id: 3, name: 'Plan' };
 
-  function build(pricingAmount = 11700, planChange?: any, cancellation?: any) {
+  function build(pricingAmount = 11700, planChange?: any, cancellation?: any, enrollment?: any) {
     const orchestration = new FakeOrchestration();
     const executor = {
       executeCharge: jest.fn().mockResolvedValue({
@@ -287,6 +287,7 @@ describe('SubscriptionRenewalService — CAPTURED attempt recovery', () => {
       undefined,
       planChange,
       cancellation,
+      enrollment,
     );
     return {
       reconciliation,
@@ -321,6 +322,20 @@ describe('SubscriptionRenewalService — CAPTURED attempt recovery', () => {
     expect(fixture.orchestration.obligation.planId).toBe(8);
     expect(fixture.orchestration.attempt.amountAgorot).toBe(5900);
     expect(fixture.executor.executeCharge).toHaveBeenCalledTimes(1);
+  });
+
+  it('collects the first post-trial period through canonical billing at the approved price exactly once', async () => {
+    const enrollment = { activateDue: jest.fn(), firstPeriodPrice: jest.fn().mockResolvedValue({
+      finalAmountAgorot: 6372, amountBeforeVatAgorot: 5400, vatAmountAgorot: 972 }) };
+    const fixture = build(99999, undefined, undefined, enrollment);
+    fixture.subscription.currentPeriodStart = null;
+    expect((await fixture.service.processSubscriptionById(7)).outcome).toBe('success');
+    expect(fixture.orchestration.obligation.amountAgorot).toBe(6372);
+    expect(fixture.pricingService.calculateCheckoutPrice).not.toHaveBeenCalled();
+    expect(fixture.billingReceiptService.ensureReceiptForCapturedAttempt).toHaveBeenCalledTimes(1);
+    await fixture.service.processSubscriptionById(7);
+    expect(fixture.executor.executeCharge).toHaveBeenCalledTimes(1);
+    expect(fixture.subscription.nextBillingDate).toEqual(NEXT);
   });
 
   it('applies due cancellation before pricing and never charges a canceled renewal', async () => {

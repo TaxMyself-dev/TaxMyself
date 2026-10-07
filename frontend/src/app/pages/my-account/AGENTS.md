@@ -6,6 +6,10 @@ Main dashboard/home page shown after login: account sync status, transactions-to
 - No separate service file — page composes many app-wide services directly; no dedicated `.module.ts` (standalone component, `loadComponent` route).
 
 ## Main flows
+- KT-053: accepted banking consent routes through /billing/open-banking before
+  requesting a Feezback link. Browser consent success no longer writes a local
+  connected flag; completed discovery reloads the provider-confirmed user flag.
+  CardCom hosted token-only fallback can resume enrollment after verified save.
 - On init: load user data, start sync-status polling for connected bank/card sources, fetch transactions to classify, resume Feezback dialog state or payment-result banner from return-URL query params.
 - Open Banking: connect a new source (with consent confirmation), retry a failed source, associate an unmatched account.
 - Classify or quick-classify pending transactions; Home "הוספת הוצאה" is an `app-menu-button` with Manual Expense (`MannualExpenseComponent`) and Quick Upload to Drive (`QuickUploadDriveDialogComponent` → `DriveDocsService.uploadFilesToInbox`). Also add bill/category via modals.

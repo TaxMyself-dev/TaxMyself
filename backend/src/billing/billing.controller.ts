@@ -24,12 +24,36 @@ import { CreateCheckoutDto } from './dtos/create-checkout.dto';
 import { CancelPlanChangeDto } from './dtos/cancel-plan-change.dto';
 import { CancelSubscriptionDto } from './dtos/cancel-subscription.dto';
 import { BillingMutationActorContext } from './services/billing-attempt-orchestration.service';
+import { OpenBankingEnrollmentService } from './services/open-banking-enrollment.service';
+import { OpenBankingEnrollmentDto, CancelOpenBankingEnrollmentDto } from './dtos/open-banking-enrollment.dto';
+import { Optional } from '@nestjs/common';
 
 @Controller('billing')
 export class BillingController {
   private readonly logger = new Logger(BillingController.name);
 
-  constructor(private readonly billingService: BillingService) {}
+  constructor(private readonly billingService: BillingService,
+    @Optional() private readonly enrollment?: OpenBankingEnrollmentService) {}
+
+  @Get('open-banking/enrollment')
+  @UseGuards(FirebaseAuthGuard)
+  enrollmentOptions(@Req() request: AuthenticatedRequest) {
+    return this.enrollment!.options(this.buildOwnerMutationActor(request).subjectFirebaseId);
+  }
+
+  @Post('open-banking/enrollment')
+  @UseGuards(FirebaseAuthGuard)
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  prepareEnrollment(@Req() request: AuthenticatedRequest, @Body() dto: OpenBankingEnrollmentDto) {
+    return this.enrollment!.prepare(this.buildOwnerMutationActor(request), dto.planId, dto.quote);
+  }
+
+  @Post('open-banking/enrollment/cancel')
+  @UseGuards(FirebaseAuthGuard)
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  cancelEnrollment(@Req() request: AuthenticatedRequest, @Body() dto: CancelOpenBankingEnrollmentDto) {
+    return this.enrollment!.cancel(this.buildOwnerMutationActor(request), dto.expectedEventId, dto.planId);
+  }
 
   /**
    * Single source of the owner-mutation actor context for every billing

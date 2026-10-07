@@ -32,6 +32,7 @@ import { BillingLifecycleService } from './billing-lifecycle.service';
 import { BillingDebtService } from './billing-debt.service';
 import { BillingPlanChangeService } from './billing-plan-change.service';
 import { BillingCancellationService, cancellationIsDue } from './billing-cancellation.service';
+import { OpenBankingEnrollmentService } from './open-banking-enrollment.service';
 import { CancelSubscriptionDto } from '../dtos/cancel-subscription.dto';
 import { PlanChangeSnapshot } from '../domain/billing-plan-change';
 import {
@@ -114,6 +115,7 @@ export class BillingService {
     @Optional() private readonly debtService?: BillingDebtService,
     @Optional() private readonly planChangeService?: BillingPlanChangeService,
     @Optional() private readonly cancellationService?: BillingCancellationService,
+    @Optional() private readonly openBankingEnrollment?: OpenBankingEnrollmentService,
   ) {}
 
   // ─── Plans ──────────────────────────────────────────────────────────────────
@@ -1672,6 +1674,8 @@ export class BillingService {
       },
       pendingPlanChange: this.planChangeService ? await this.planChangeService.pending(subscription.id) : null,
       pendingCancellation: this.cancellationService ? await this.cancellationService.pending(subscription) : null,
+      openBankingEnrollment: this.openBankingEnrollment && [SubscriptionStatus.TRIAL, SubscriptionStatus.TRIAL_EXPIRED].includes(subscription.status)
+        ? (await this.openBankingEnrollment.options(firebaseId)).enrollment : null,
       plan: plan
         ? {
             id: plan.id,
@@ -1890,7 +1894,13 @@ export class BillingService {
   private async expireTrialSubscription(
     subscription: Subscription,
   ): Promise<void> {
+    if (this.openBankingEnrollment && await this.openBankingEnrollment.activateDue(subscription.id)) {
+      Object.assign(subscription, await this.subscriptionRepo.findOne({ where: { id: subscription.id } }));
+      return;
+    }
+    // Conditional update avoids overwriting a concurrent paid activation.
     subscription.status = SubscriptionStatus.TRIAL_EXPIRED;
-    await this.subscriptionRepo.save(subscription);
+    await this.subscriptionRepo.update({ id: subscription.id, status: SubscriptionStatus.TRIAL },
+      { status: SubscriptionStatus.TRIAL_EXPIRED });
   }
 }

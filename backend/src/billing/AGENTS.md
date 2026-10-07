@@ -16,6 +16,48 @@ Subscription billing: plan catalog, trial/subscription lifecycle, CardCom paymen
 
 ## Main flows
 
+### Open banking trial enrollment (KT-053)
+
+GET/POST billing/open-banking/enrollment and POST its cancel endpoint are
+authenticated. Mutations reuse owner-only actor validation and serialize on
+the subscription row, rejecting unresolved payment reservations. Eligible
+plans must include OPEN_BANKING and be public or belong to the owner's private
+referral catalog. The displayed quote freezes the original trial end and first
+post-trial VAT-inclusive price; stale confirmation is rejected.
+
+OpenBankingEnrollmentService uses mandatory transactional PLAN_CHANGE_REQUESTED
+commands scoped by OPEN_BANKING_TRIAL_V1: PREPARE records owner consent, READY
+records independently verified Feezback connection with a saved card, CANCEL
+withdraws into an eligible non-banking plan, ACTIVATE starts canonical billing
+at the original trial boundary. These commands are operational state, like
+KT-051/052, and must never use best-effort audit writes. No schema or enum change.
+Existing users without these commands are not retroactively opted in.
+
+Saving a card reuses CreateTokenOnly/J2 and never activates/charges a trial.
+Consent-link creation requires approved terms and a valid saved owner card for
+trials. Paid OPEN_BANKING and complimentary owners retain their existing flow.
+READY remains TRIAL with nextBillingDate=trialEnd. At the boundary the daily
+renewal runner, manual renewal or lifecycle read promotes READY once; the first
+period uses its frozen approved price and the existing canonical token renewal
+obligation/attempt, declines, receipt and post-capture recovery. Activation is
+an agreement to start paid service, not evidence of a captured payment.
+Unresolved initial checkout excludes enrollment, and PREPARE/READY excludes a
+parallel hosted initial checkout under the same subscription lock.
+
+Before the boundary cancellation selects a non-banking plan, clears the future
+automatic charge and preserves the original free trial and saved card. Purchase
+of that lower plan remains the ordinary post-trial purchase flow.
+PREPARE (never connected/armed) can also be withdrawn after trial expiry so
+an abandoned enrollment cannot permanently prevent an ordinary purchase.
+Paid downgrade timing remains KT-051. Feezback provider deletion on effective downgrade or
+subscription cancellation is still pending the provider's deletion endpoint;
+local entitlement/billing changes do not claim remote deletion.
+
+Missed Feezback webhooks are checked daily at 02:45 Asia/Jerusalem for PREPARE
+with a saved card, through seven days after trial end; no charge is performed
+by that check. Beyond that window, provider-confirmed discovery/admin refresh
+is needed. There are no live provider/DB writes as part of implementation tests.
+
 ### Owner cancellation (KT-052)
 
 BillingCancellationService owns POST billing/subscription/cancel and POST

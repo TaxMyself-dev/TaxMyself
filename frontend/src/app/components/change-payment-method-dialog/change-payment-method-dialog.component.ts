@@ -7,7 +7,9 @@ import {
   computed,
   effect,
   inject,
+  input,
   model,
+  output,
   signal,
   viewChild,
 } from '@angular/core';
@@ -170,6 +172,8 @@ export class ChangePaymentMethodDialogComponent {
 
   /** Two-way bound dialog visibility (parent opens; dialog closes itself). */
   readonly visible = model(false);
+  readonly saved = output<void>();
+  readonly returnToEnrollment = input(false);
 
   private readonly masterFrame =
     viewChild<ElementRef<HTMLIFrameElement>>('masterFrame');
@@ -674,6 +678,7 @@ export class ChangePaymentMethodDialogComponent {
             key: 'br',
           });
           this.visible.set(false);
+          this.saved.emit();
           return;
         }
 
@@ -693,6 +698,7 @@ export class ChangePaymentMethodDialogComponent {
     // banner and polls billing/me when the user returns from CardCom.
     if (typeof sessionStorage !== 'undefined') {
       sessionStorage.setItem('tm.cardcomFlow', 'CHANGE_PM');
+      if (this.returnToEnrollment()) sessionStorage.setItem('tm.openBankingEnrollmentReturn', '1');
     }
     window.location.href = url;
   }

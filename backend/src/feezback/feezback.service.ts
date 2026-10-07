@@ -1,4 +1,7 @@
-import { BadGatewayException, forwardRef, Inject, Injectable, Logger } from '@nestjs/common';
+import { BadGatewayException, forwardRef, Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import { OpenBankingEnrollmentService } from '../billing/services/open-banking-enrollment.service';
+import { validConnectedSources } from './consent/open-banking-connection';
+import { Cron } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { FeezbackJwtService } from './feezback-jwt.service';
@@ -117,6 +120,7 @@ export class FeezbackService {
     @InjectRepository(Source) private readonly sourceRepository: Repository<Source>,
     @Inject(forwardRef(() => BillingService))
     private readonly billingService: BillingService,
+    @Optional() private readonly openBankingEnrollment?: OpenBankingEnrollmentService,
   ) {
     this.tppId = this.authService.getTppId();
   }
@@ -547,12 +551,12 @@ export class FeezbackService {
     }
     const userName = user ? [user.fName, user.lName].filter(Boolean).join(' ') : masked;
 
-    // NOTE: this method is only called from the consent-completion webhook
-    // (UserDataIsAvailable) and the admin-trigger endpoint. OPEN_BANKING
+    // Called from provider webhooks, admin discovery, enrollment resume and
+    // daily pending-enrollment recovery. OPEN_BANKING
     // *permission* is governed entirely by the subscription plan (see
     // BillingService.hasModuleAccess) — this method does not grant access.
     // It only flips User.hasOpenBanking, which records that the user
-    // completed OB onboarding (connected a bank account), independent of
+    // currently has a verified valid consent linked to a source, independent of
     // whether their plan currently includes the module. If a caller does
     // reach here without a real Feezback consent, the API calls below 404
     // and the BadGatewayException prevents the user from being updated.
@@ -619,15 +623,15 @@ export class FeezbackService {
       });
     }
 
-    try {
-      if (user && !user.hasOpenBanking) {
-        user.hasOpenBanking = true;
-        await this.userRepository.save(user);
-        moduleAccessUpdated = true;
-      }
-    } catch (error: any) {
-      this.logger.error(`${prefix} Failed to update hasOpenBanking firebaseId=${masked}: ${error?.message}`, error?.stack);
+    // A successful HTTP response (including an empty list) is not proof of onboarding.
+    const { consents } = await this.feezbackApiService.getUserConsents(sub);
+    const connected = validConnectedSources(consents, [...accounts, ...cards]).length > 0;
+    if (user && (connected || (!bankError && !cardError))) {
+      // Partial failure cannot prove that the last connection disappeared.
+      await this.userRepository.update({ firebaseId }, { hasOpenBanking: connected });
+      moduleAccessUpdated = connected && !user.hasOpenBanking;
     }
+    if (connected) await this.openBankingEnrollment?.connectionVerified(firebaseId);
 
     // Referral-track clients (Subscription.planId = referral-basic) who
     // connect a bank/card get moved straight to referral-open-banking here,
@@ -636,10 +640,9 @@ export class FeezbackService {
     // upgrade endpoint. No-op for everyone else (see
     // BillingService.autoUpgradeReferralOpenBankingIfEligible for the guard).
     // Called unconditionally (not gated on moduleAccessUpdated above) since
-    // it's independently idempotent and this method only ever runs on a real
-    // consent-completion webhook or an admin-triggered re-sync.
+    // it's independently idempotent and only runs after live connection proof.
     try {
-      await this.billingService.autoUpgradeReferralOpenBankingIfEligible(firebaseId);
+      if (connected) await this.billingService.autoUpgradeReferralOpenBankingIfEligible(firebaseId);
     } catch (error: any) {
       this.logger.error(
         `${prefix} Referral open-banking auto-upgrade check failed firebaseId=${masked}: ${error?.message}`,
@@ -775,6 +778,16 @@ export class FeezbackService {
 
   async createConsentLink(firebaseId: string) {
     return this.feezbackApiService.createConsentLink(firebaseId);
+  }
+
+  @Cron('45 2 * * *', { name: 'openBankingEnrollmentRecovery', timeZone: 'Asia/Jerusalem' })
+  async recoverPendingEnrollments(): Promise<void> {
+    if (!this.openBankingEnrollment) return;
+    const pending = await this.openBankingEnrollment.pendingConnectionChecks();
+    for (const firebaseId of pending) {
+      try { await this.refreshUserSources(firebaseId, 'EnrollmentRecovery'); }
+      catch { this.logger.warn('Pending open banking enrollment could not yet be verified'); }
+    }
   }
 
   async getUserConsents(sub: string): Promise<{ consents: any[] }> {

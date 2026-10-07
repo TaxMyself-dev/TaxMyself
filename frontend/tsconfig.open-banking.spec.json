@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.billing-plan-change.spec.json",
+  "include": [
+    "src/app/pages/billing/open-banking/*.spec.ts",
+    "src/app/pages/settings/my-subscription-tab/my-subscription-tab.cancellation.spec.ts",
+    "src/app/pages/billing/billing-plans.page.spec.ts",
+    "src/app/pages/billing/billing-recovery.page.spec.ts",
+    "src/app/services/billing-state.service.spec.ts",
+    "src/**/*.d.ts"
+  ]
+}

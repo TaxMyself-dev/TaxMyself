@@ -9,6 +9,10 @@ subscription.
   tracks pending/return state and refreshes subscription/payment details.
 
 ## Main flows
+- KT-053: the saved output fires only on backend-verified SUCCESS; trial
+  banking enrollment uses it to continue to Feezback. returnToEnrollment tags
+  hosted fallback so the dashboard resumes that flow after verified card save.
+  The existing token-only provider contract is unchanged and never charges.
 
 - Card details remain on CardCom; Keepintax receives only provider tokens and
   status through approved backend flows.

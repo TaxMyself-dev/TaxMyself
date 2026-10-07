@@ -13,6 +13,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { FeezbackWebhookRouterService } from './router/feezback-webhook-router.service';
 import { UserSyncStateService } from '../transactions/user-sync-state.service';
+import { OpenBankingEnrollmentService } from '../billing/services/open-banking-enrollment.service';
+import { Optional } from '@nestjs/common';
 
 @Controller('feezback')
 @RequireModule(ModuleName.OPEN_BANKING)
@@ -24,6 +26,7 @@ export class FeezbackController {
     private readonly usersService: UsersService,
     private readonly routerService: FeezbackWebhookRouterService,
     private readonly userSyncStateService: UserSyncStateService,
+    @Optional() private readonly enrollment?: OpenBankingEnrollmentService,
   ) { }
 
   @Post('webhook-router')
@@ -45,6 +48,18 @@ export class FeezbackController {
 
     if (!firebaseId) {
       throw new Error('User ID not found — Firebase authentication required');
+    }
+
+    await this.enrollment!.assertCanConnect({ subjectFirebaseId: firebaseId,
+      actorFirebaseId: req.user?.actorFirebaseId ?? null, isDelegatedAccess: req.isDelegatedAccess,
+      isAdminImpersonation: req.isAdminImpersonation });
+
+    // A resumed enrollment may already have a real connection from an earlier flow.
+    // Verify it server-side rather than trusting browser/local user flags.
+    const enrolling = await this.enrollment!.options(firebaseId);
+    if (enrolling.enrollment?.status === 'PREPARE') {
+      try { await this.feezbackService.refreshUserSources(firebaseId, 'EnrollmentResume'); }
+      catch { /* No existing connection, or temporary provider failure: continue onboarding. */ }
     }
 
     // Stamp the moment the user kicks off the Feezback consent flow. The

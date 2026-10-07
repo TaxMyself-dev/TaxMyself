@@ -120,6 +120,8 @@ export class FeezbackWebhookService {
 
     try {
       const cleared = await this.feezbackService.clearConsentOnSources(firebaseId, consentId);
+      // Re-read all current consents; one revoked bank must not disconnect another valid bank.
+      await this.feezbackService.refreshUserSources(firebaseId, 'ConsentStatusChanged');
       if (cleared > 0) {
         this.logger.log(`[FeezbackWebhook][ConsentStatusChanged] cleared consentId from ${cleared} source(s) — consentId=${consentId} status=${currentStatus} firebaseId=${masked}`);
       }

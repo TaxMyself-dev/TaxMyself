@@ -10,6 +10,9 @@ Owns the user account entity/lifecycle (signup, signin, profile update, children
 - `users.controller.ts` — REST endpoints at the app root (`/signup`, `/signin`, `/get-user`, `/update-user`, `/children`, `/get-cities`, `/all-users`, plus Drive dev/admin endpoints).
 
 ## Main flows
+- KT-053: signup forces hasOpenBanking=false, and profile updates strip this
+  field. Only provider-verified discovery (or explicit demo seeding) sets it;
+  it is not a user-editable billing permission.
 - `POST /signup` — creates a `User` (+ associated `Business`/`Child` rows), ensures a trial `UserModuleSubscription`.
 - `GET /signin` — loads user by `firebaseId`, rolls `lastLoginAt` → `previousLoginAt`.
 - `PATCH /update-user`, `/children` — profile edits.
