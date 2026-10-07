@@ -83,4 +83,13 @@ describe('BillingPlansPage plan changes', () => {
     await operation;
     expect(state.refreshBillingState).toHaveBeenCalledTimes(1);
   });
+  it('does not open a plan change while subscription cancellation is scheduled', async () => {
+    state.billingState.update((value: any) => ({ ...value, pendingCancellation: { eventId: 61 } }));
+    await page.checkout(2);
+    page.planChangePreview.set(quote() as any);
+    await page.confirmPlanChange();
+    http.expectNone(`${environment.apiUrl}billing/checkout/preview`);
+    http.expectNone(`${environment.apiUrl}billing/checkout`);
+    expect(state.refreshBillingState).not.toHaveBeenCalled();
+  });
 });

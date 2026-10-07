@@ -8,6 +8,16 @@ Account/profile settings hub: tabbed page for editing personal details, spouse d
 - `my-categories-tab/my-categories-tab.component.ts(+html/scss)` — child component for the "הקטגוריות שלי" tab; manages user category/subcategory rules (`UserCategoryGroup`, `UserRuleRow`) — custom recognition %, VAT %, tax %, equipment flag, comment-pattern rules per category/subcategory.
 
 ## Main flows
+- My Subscription offers owner-only cancellation with explicit confirmation
+  of paid access through period end and retained debts. The server provides
+  pendingCancellation with effective date/eventId; the card shows no future
+  charge and offers withdrawal before expiry. Pending cancellation disables
+  plan changes. Confirmation sends the displayed status and currentPeriodEnd,
+  withdrawal sends the exact eventId, and both refresh billing state. Expired
+  or non-paid subscriptions cancel immediately. Delegation/impersonation and
+  complimentary access cannot mutate. A canceled downgrade is not restored
+  when cancellation is withdrawn. KT-052 uses the standard module gate for
+  open banking; Feezback account deletion is a separate task.
 - Personal / spouse details: forms patched from `AuthService.getUserDataFromLocalStorage()` + refreshed via `AuthService.restoreUserData()`; `updatePersonalDetails`/`updateSpouseDetails` PATCH via `AuthService.updateUser`.
 - Children: `loadChildren`/`updateChildrenDetails`/`confirmDeleteChild` via `AuthService.getChildren/updateChildren/deleteChild`, backed by a dynamic `childrenFormArray`.
 - Businesses: `loadBusinesses`/`saveBusiness`/`openAddBusinessModal`+`submitAddBusiness`/`deleteBusiness` all delegate to `GenericService` (`loadBusinessesFromServer`, `createBusiness`, `updateBusiness`, `deleteBusiness`, backed by a dynamic `businessesFormArray` synced to the `Business[]` signal.

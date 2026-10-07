@@ -22,6 +22,7 @@ import { BillingService } from './services/billing.service';
 import { CheckoutPreviewDto } from './dtos/checkout-preview.dto';
 import { CreateCheckoutDto } from './dtos/create-checkout.dto';
 import { CancelPlanChangeDto } from './dtos/cancel-plan-change.dto';
+import { CancelSubscriptionDto } from './dtos/cancel-subscription.dto';
 import { BillingMutationActorContext } from './services/billing-attempt-orchestration.service';
 
 @Controller('billing')
@@ -160,6 +161,20 @@ export class BillingController {
       this.buildOwnerMutationActor(request),
       dto,
     );
+  }
+
+  @Post('subscription/cancel')
+  @UseGuards(FirebaseAuthGuard)
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  cancelSubscription(@Req() request: AuthenticatedRequest, @Body() dto: CancelSubscriptionDto) {
+    return this.billingService.cancelSubscription(this.buildOwnerMutationActor(request), dto);
+  }
+
+  @Post('subscription/cancellation/withdraw')
+  @UseGuards(FirebaseAuthGuard)
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  withdrawSubscriptionCancellation(@Req() request: AuthenticatedRequest, @Body() dto: CancelPlanChangeDto) {
+    return this.billingService.withdrawSubscriptionCancellation(this.buildOwnerMutationActor(request), dto.expectedEventId);
   }
 
   @Post('plan-change/cancel')

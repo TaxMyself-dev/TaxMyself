@@ -29,6 +29,7 @@ import { AdminBillingController } from './admin-billing.controller';
 // Services
 import { BillingService } from './services/billing.service';
 import { BillingPlanChangeService } from './services/billing-plan-change.service';
+import { BillingCancellationService } from './services/billing-cancellation.service';
 import { BillingDebtService } from './services/billing-debt.service';
 import { BillingEventService } from './services/billing-event.service';
 import { BillingReceiptService } from './services/billing-receipt.service';
@@ -89,6 +90,7 @@ import { BusinessModule } from 'src/business/business.module';
     FirebaseAuthGuard,
     BillingService,
     BillingPlanChangeService,
+    BillingCancellationService,
     BillingDebtService,
     BillingEventService,
     BillingReceiptService,

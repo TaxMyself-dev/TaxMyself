@@ -31,6 +31,8 @@ import { CreateCheckoutDto } from '../dtos/create-checkout.dto';
 import { BillingLifecycleService } from './billing-lifecycle.service';
 import { BillingDebtService } from './billing-debt.service';
 import { BillingPlanChangeService } from './billing-plan-change.service';
+import { BillingCancellationService, cancellationIsDue } from './billing-cancellation.service';
+import { CancelSubscriptionDto } from '../dtos/cancel-subscription.dto';
 import { PlanChangeSnapshot } from '../domain/billing-plan-change';
 import {
   BillingAttemptStatus,
@@ -111,6 +113,7 @@ export class BillingService {
     private readonly billingLifecycleService?: BillingLifecycleService,
     @Optional() private readonly debtService?: BillingDebtService,
     @Optional() private readonly planChangeService?: BillingPlanChangeService,
+    @Optional() private readonly cancellationService?: BillingCancellationService,
   ) {}
 
   // ─── Plans ──────────────────────────────────────────────────────────────────
@@ -543,6 +546,9 @@ export class BillingService {
       );
     }
 
+    if (subscription.status === SubscriptionStatus.ACTIVE && subscription.canceledAt) {
+      throw new ConflictException('המנוי מיועד לביטול. יש לבטל את בקשת הביטול לפני שינוי תוכנית.');
+    }
     // Debt settlement is not a plan change. Never re-price an existing debt.
     const isDebtRecovery = subscription.status === SubscriptionStatus.PAST_DUE ||
       (dto.recoveryOnly && subscription.status === SubscriptionStatus.CANCELED);
@@ -833,6 +839,16 @@ export class BillingService {
   async cancelScheduledPlanChange(actor: BillingMutationActorContext, expectedEventId: number) {
     if (!this.planChangeService) throw new ConflictException('Plan change is unavailable');
     return this.planChangeService.cancel(actor, expectedEventId);
+  }
+
+  async cancelSubscription(actor: BillingMutationActorContext, dto: CancelSubscriptionDto) {
+    if (!this.cancellationService) throw new ConflictException('Cancellation is unavailable');
+    return this.cancellationService.request(actor, dto);
+  }
+
+  async withdrawSubscriptionCancellation(actor: BillingMutationActorContext, expectedEventId: number) {
+    if (!this.cancellationService) throw new ConflictException('Cancellation is unavailable');
+    return this.cancellationService.withdraw(actor, expectedEventId);
   }
 
   /**
@@ -1643,7 +1659,7 @@ export class BillingService {
         : null,
       subscription: {
         id: subscription.id,
-        status: subscription.status,
+        status: cancellationIsDue(subscription) ? SubscriptionStatus.CANCELED : subscription.status,
         billingAccessMode: subscription.billingAccessMode,
         trialStart: subscription.trialStart,
         trialEnd: subscription.trialEnd,
@@ -1655,6 +1671,7 @@ export class BillingService {
         createdAt: subscription.createdAt,
       },
       pendingPlanChange: this.planChangeService ? await this.planChangeService.pending(subscription.id) : null,
+      pendingCancellation: this.cancellationService ? await this.cancellationService.pending(subscription) : null,
       plan: plan
         ? {
             id: plan.id,

@@ -16,6 +16,36 @@ Subscription billing: plan catalog, trial/subscription lifecycle, CardCom paymen
 
 ## Main flows
 
+### Owner cancellation (KT-052)
+
+BillingCancellationService owns POST billing/subscription/cancel and POST
+billing/subscription/cancellation/withdraw. Both are authenticated owner-only,
+reject represented/impersonated/complimentary mutations, lock subscription
+first, and reject unresolved payment reservations. Confirmation carries the
+displayed status and period end; withdrawal carries the exact request eventId.
+
+A clean paid ACTIVE period stays ACTIVE until its exact end, with canceledAt
+set to that future effective instant. Dates, plan, anchor and stored debts stay
+intact. No renewal reservation is allowed while canceledAt is set. Pending
+cancellation is returned by billing/me; due cancellation is reported as
+CANCELED even before the daily runner persists it. Access checks cut every
+module, including OPEN_BANKING, at the effective instant without ACTIVE grace.
+The daily/admin renewal runner applies due cancellations before accrual/charge,
+persists CANCELED, clears nextBillingDate and sets endedAt to the cutoff.
+
+Before the boundary the owner may withdraw, clearing canceledAt without
+altering paid dates. Cancellation atomically cancels any scheduled downgrade;
+withdrawal does not restore it. Trial/expired/past-due or overdue ACTIVE
+subscriptions end immediately; endedAt prevents granting access back merely
+because an old period end is future. Prior debt is retained and remains payable.
+DATE accrual excludes the next period on a paid-end cancellation day even when
+the actual cutoff is later than midnight. Debt-free canceled trials accrue none.
+
+Mandatory SUBSCRIPTION_CANCELED event commands REQUEST/WITHDRAW/APPLY have
+policy CANCEL_AT_PERIOD_END_V1 and commit with subscription state. They are an
+explicit operational exception to best-effort audit persistence, as with
+KT-051. No new schema, refunds, Feezback deletion, credential or provider calls.
+
 ### Initial purchase (KT-048)
 
 TRIAL/TRIAL_EXPIRED checkout now creates a CHECKOUT obligation and linked
@@ -137,7 +167,7 @@ a newly due period outside the frozen collection leaves status PAST_DUE.
 Canceled debt can be paid without reactivation; new subscription checkout is
 blocked while old debt remains. `recoveryOnly` rejects stale recovery screens.
 Hosted creation failures are resolved as described in KT-045 below. There is
-still no subscription-cancellation write endpoint. Sections 19/20 of cutover.sql
+now an owner subscription-cancellation endpoint in KT-052 above. Sections 19/20 of cutover.sql
 were executed on keepintax-dev in KT-043; production execution is not authorized.
 
 ### Admin payment resolution (KT-045)
@@ -218,8 +248,8 @@ KT-040 adds collection membership while retaining direct attempt provenance.
   `SUPERSEDED` cannot replace the saved card. The resulting `payment_method`
   and `documents` receipt both carry unique provenance links back to attempts.
 - `billing_event` has nullable correlation FKs to these aggregates. It is audit
-  history except the scoped, mandatory transactional KT-051 plan commands and
-  upgrade snapshots documented above. Payment coordination still lives in
+  history except the scoped, mandatory transactional KT-051 plan commands,
+  upgrade snapshots and KT-052 cancellation commands documented above. Payment coordination still lives in
   obligation/attempt aggregates.
 - Every future billing mutation is owner-only: the authenticated actor must be
   the subscription subject. Delegated accountants, admin impersonation,

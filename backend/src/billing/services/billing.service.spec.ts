@@ -83,6 +83,12 @@ describe('BillingService.getMyBillingState — professional-access overrides', (
       false,
     );
   });
+  it('reports an expired scheduled cancellation as CANCELED even before the renewal sweep', async () => {
+    subscriptionRepo.findOne.mockResolvedValue({ ...SUBSCRIPTION, status: SubscriptionStatus.ACTIVE,
+      canceledAt: new Date('2000-01-01'), currentPeriodEnd: new Date('2000-01-01') });
+    const result = await service.getMyBillingState('client-1');
+    expect(result.subscription.status).toBe(SubscriptionStatus.CANCELED);
+  });
 
   it('explicit isDelegatedAccess=false behaves identically to the default', async () => {
     await service.getMyBillingState('client-1', false);
@@ -690,6 +696,14 @@ describe('BillingService — owner-mutation authorization', () => {
         .toBeLessThan(f.cardcomService.createLowProfileCheckout.mock.invocationCallOrder[0]);
       expect(JSON.parse(f.cardcomService.createLowProfileCheckout.mock.calls[0][0].returnValue).billingAttemptId).toBe(82);
       expect(result.lowProfileId).toBe('lp-upgrade');
+    });
+
+    it('rejects checkout while subscription cancellation is scheduled before provider I/O', async () => {
+      const f = makeService();
+      f.subscriptionRepo.findOne.mockResolvedValue({ id: 1, status: 'ACTIVE', canceledAt: new Date('2099-01-01') });
+      await expect(f.service.createCheckout(OWNER, { planId: 1 })).rejects.toThrow('מיועד לביטול');
+      expect(f.billingLifecycleService.openUpgrade).not.toHaveBeenCalled();
+      expect(f.cardcomService.createLowProfileCheckout).not.toHaveBeenCalled();
     });
 
     it.each(['missing', 'stale'])('rejects a %s plan-change quote before reservation or provider I/O', async reason => {

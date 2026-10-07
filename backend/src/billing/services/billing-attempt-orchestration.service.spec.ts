@@ -276,6 +276,13 @@ describe('BillingAttemptOrchestrationService', () => {
       .rejects.toThrow('Billing renewal deferred');
     expect(manager.save).not.toHaveBeenCalled();
   });
+  it('blocks a stale renewal read under lock when cancellation was requested', async () => {
+    manager.findOne.mockResolvedValueOnce({ ...subscription(), status: SubscriptionStatus.ACTIVE,
+      currentPeriodEnd: new Date('2026-09-01'), nextBillingDate: new Date('2026-09-01'), canceledAt: new Date('2026-09-01') });
+    await expect(service.createOrGetAttempt({ ...openInput(), enforceRenewalSchedule: true })).rejects.toThrow();
+    expect(manager.save).not.toHaveBeenCalled();
+    expect(queryRunner.rollbackTransaction).toHaveBeenCalled();
+  });
 
   it('blocks an initial purchase for a pending checkout on a different date or plan', async () => {
     manager.findOne.mockResolvedValueOnce({ ...subscription(), status: SubscriptionStatus.TRIAL })

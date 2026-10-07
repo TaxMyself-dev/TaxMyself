@@ -1,6 +1,7 @@
 {
   "extends": "./tsconfig.billing-purchase.spec.json",
   "include": [
+    "src/app/pages/settings/my-subscription-tab/my-subscription-tab.cancellation.spec.ts",
     "src/app/pages/billing/billing-plans.page.spec.ts",
     "src/app/pages/billing/billing-recovery.page.spec.ts",
     "src/app/services/billing-state.service.spec.ts",

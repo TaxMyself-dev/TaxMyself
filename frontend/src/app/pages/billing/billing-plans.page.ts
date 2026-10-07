@@ -138,7 +138,7 @@ export class BillingPlansPage implements OnInit {
   }
 
   async checkout(planId: number): Promise<void> {
-    if (this.checkingOutPlanId() !== null || this.confirmingChange()) return;
+    if (this.checkingOutPlanId() !== null || this.confirmingChange() || this.billing.billingState()?.pendingCancellation) return;
     if (this.billing.effectiveStatus() === 'ACTIVE') {
       if (planId === this.currentPlanId() || this.billing.hasBillingOverride()) return;
       this.checkingOutPlanId.set(planId);
@@ -173,7 +173,7 @@ export class BillingPlansPage implements OnInit {
 
   async confirmPlanChange(): Promise<void> {
     const preview = this.planChangePreview();
-    if (!preview || this.confirmingChange() || this.billing.hasBillingOverride()) return;
+    if (!preview || this.confirmingChange() || this.billing.hasBillingOverride() || this.billing.billingState()?.pendingCancellation) return;
     if (new Date(preview.expiresAt).getTime() <= Date.now()) {
       this.planChangePreview.set(null);
       this.genericService.showToast('הפירוט פג. יש לבחור שוב את התוכנית לקבלת סכום מעודכן.', 'error');

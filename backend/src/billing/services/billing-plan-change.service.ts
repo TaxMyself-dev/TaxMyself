@@ -16,8 +16,9 @@ export class BillingPlanChangeService {
   constructor(private readonly dataSource: DataSource, private readonly pricing: PricingService) {}
 
   private assertEligible(sub: Subscription, now = new Date()): void {
+    if (sub.canceledAt) throw new ConflictException('יש לבטל את בקשת ביטול המנוי לפני שינוי תוכנית.');
     if (sub.billingAccessMode === BillingAccessMode.COMPLIMENTARY_FULL || sub.status !== SubscriptionStatus.ACTIVE ||
-      !sub.planId || !sub.currentPeriodStart || !sub.currentPeriodEnd || !sub.nextBillingDate ||
+      sub.canceledAt || !sub.planId || !sub.currentPeriodStart || !sub.currentPeriodEnd || !sub.nextBillingDate ||
       sub.currentPeriodEnd <= now || sub.nextBillingDate <= now ||
       sub.nextBillingDate.getTime() !== sub.currentPeriodEnd.getTime() || sub.renewalAttempts > 0) {
       throw new ConflictException('יש להשלים את החידוש או הסדרת החוב לפני שינוי תוכנית.');
@@ -156,7 +157,7 @@ export class BillingPlanChangeService {
   async applyDue(subscriptionId: number): Promise<void> {
     await this.dataSource.transaction(async manager => {
       const sub = await manager.findOne(Subscription, { where: { id: subscriptionId }, lock: { mode: 'pessimistic_write' } });
-      if (!sub || sub.status !== SubscriptionStatus.ACTIVE || sub.billingAccessMode === BillingAccessMode.COMPLIMENTARY_FULL) return;
+      if (!sub || sub.canceledAt || sub.status !== SubscriptionStatus.ACTIVE || sub.billingAccessMode === BillingAccessMode.COMPLIMENTARY_FULL) return;
       const command = await latestPlanChangeCommand(manager, sub.id);
       if (command?.metadata?.command !== 'SCHEDULE') return;
       const snapshot = command.metadata.snapshot as PlanChangeSnapshot;

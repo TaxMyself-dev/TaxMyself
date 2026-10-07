@@ -8,6 +8,11 @@
       }
     </header>
 
+    @if (billing.billingState()?.pendingCancellation) {
+      <section class="plan-change-panel">
+        <p>המנוי מיועד לביטול. כדי לשנות תוכנית, יש לבטל קודם את בקשת הביטול בלשונית המנוי שלי.</p>
+      </section>
+    }
     @if (pendingChange(); as pending) {
       <section class="plan-change-panel" aria-live="polite">
         <h2>שנמוך מתוזמן ל{{ pending.planName }}</h2>
@@ -115,7 +120,7 @@
             <button
               class="pricing-card__cta"
               (click)="checkout(plan.id)"
-              [disabled]="checkingOutPlanId() !== null || confirmingChange() || (billing.effectiveStatus() === 'ACTIVE' && plan.id === currentPlanId()) || billing.hasBillingOverride()"
+              [disabled]="checkingOutPlanId() !== null || confirmingChange() || !!billing.billingState()?.pendingCancellation || (billing.effectiveStatus() === 'ACTIVE' && plan.id === currentPlanId()) || billing.hasBillingOverride()"
               [attr.aria-busy]="checkingOutPlanId() === plan.id ? 'true' : null">
               @if (checkingOutPlanId() === plan.id) {
                 <span class="cta-spinner" aria-hidden="true"></span>

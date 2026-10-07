@@ -77,8 +77,41 @@ export class MySubscriptionTabComponent implements OnInit {
     () => this.billingState()?.subscription?.billingAccessMode === 'COMPLIMENTARY_FULL',
   );
   readonly canChangePlan = computed(() =>
-    this.status() === 'ACTIVE' && !this.isComplimentary() && !this.billingStateService.hasBillingOverride(),
+    this.status() === 'ACTIVE' && !this.pendingCancellation() && !this.isComplimentary() && !this.billingStateService.hasBillingOverride(),
   );
+  readonly pendingCancellation = computed(() => this.billingState()?.pendingCancellation ?? null);
+  readonly billingStateServiceOverride = this.billingStateService.hasBillingOverride;
+  readonly cancellationDateLabel = computed(() => formatDate(this.pendingCancellation()?.effectiveAt));
+  readonly cancellationConfirmation = signal(false);
+  readonly changingCancellation = signal(false);
+  readonly canCancelSubscription = computed(() => !!this.status() && this.status() !== 'CANCELED' &&
+    !this.pendingCancellation() && !this.isComplimentary() && !this.billingStateService.hasBillingOverride());
+
+  async confirmCancellation(): Promise<void> {
+    if (!this.cancellationConfirmation() || !this.canCancelSubscription() || this.changingCancellation()) return;
+    const sub = this.billingState()?.subscription;
+    if (!sub) return;
+    this.changingCancellation.set(true);
+    try {
+      await this.billingStateService.cancelSubscription(sub.status, sub.currentPeriodEnd);
+      this.cancellationConfirmation.set(false);
+      this.messageService.add({ severity: 'success', summary: 'בקשת הביטול נשמרה', detail: 'מצב המנוי עודכן.', key: 'br' });
+    } catch (err: any) {
+      this.messageService.add({ severity: 'error', summary: 'לא ניתן לבטל את המנוי', detail: err?.error?.message ?? 'יש לרענן ולנסות שוב.', key: 'br' });
+    } finally { this.changingCancellation.set(false); }
+  }
+
+  async withdrawCancellation(): Promise<void> {
+    const pending = this.pendingCancellation();
+    if (!pending || this.billingStateService.hasBillingOverride() || this.changingCancellation()) return;
+    this.changingCancellation.set(true);
+    try {
+      await this.billingStateService.withdrawSubscriptionCancellation(pending.eventId);
+      this.messageService.add({ severity: 'success', summary: 'בקשת הביטול בוטלה', detail: 'המנוי ימשיך להתחדש. שנמוך קודם לא משוחזר.', key: 'br' });
+    } catch (err: any) {
+      this.messageService.add({ severity: 'error', summary: 'לא ניתן לבטל את הבקשה', detail: err?.error?.message ?? 'יש לרענן ולנסות שוב.', key: 'br' });
+    } finally { this.changingCancellation.set(false); }
+  }
   readonly pendingPlanChange = computed(() => this.billingState()?.pendingPlanChange ?? null);
   readonly pendingPlanChangeDate = computed(() => formatDate(this.pendingPlanChange()?.effectiveAt));
   readonly cancelingPlanChange = signal(false);
@@ -128,7 +161,7 @@ export class MySubscriptionTabComponent implements OnInit {
   });
 
   readonly nextBillingDateLabel = computed(() =>
-    this.isComplimentary()
+    this.pendingCancellation() || this.isCanceled() ? 'לא מתוכנן חיוב נוסף' : this.isComplimentary()
       ? 'לא נדרש'
       : formatDate(this.billingState()?.subscription?.nextBillingDate),
   );

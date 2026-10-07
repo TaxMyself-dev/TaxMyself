@@ -49,6 +49,22 @@ describe('SubscriptionAccessService.resolveModulesAccess — professional-access
   beforeEach(() => {
     service = new SubscriptionAccessService();
   });
+  it('keeps paid modules before scheduled cancellation and blocks exactly at expiry without cron grace', () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-11-07T07:14:47Z'));
+    try {
+      const end = new Date('2026-11-07T07:14:48Z');
+      const sub = makeSubscription({ status: SubscriptionStatus.ACTIVE, canceledAt: end, currentPeriodEnd: end, nextBillingDate: end });
+      const plan = { modules: [ModuleName.EXPENSES, ModuleName.OPEN_BANKING] } as SubscriptionPlan;
+      expect(service.resolveModulesAccess(sub, plan)).toEqual(plan.modules);
+      jest.setSystemTime(end);
+      expect(service.resolveModulesAccess(sub, plan)).toEqual([]);
+      expect(service.resolveModulesAccess(sub, plan, true)).toEqual(Object.values(ModuleName));
+    } finally { jest.useRealTimers(); }
+  });
+  it('never restores access on immediate cancellation of a blocked subscription with a future period end', () => {
+    const sub = makeSubscription({ status: SubscriptionStatus.CANCELED, currentPeriodEnd: new Date('2099-01-01'), endedAt: new Date('2000-01-01') });
+    expect(service.resolveModulesAccess(sub, { modules: [ModuleName.OPEN_BANKING] } as SubscriptionPlan)).toEqual([]);
+  });
 
   it.each([null, new Date('2099-01-01'), new Date('2000-01-01')])(
     'blocks direct PAST_DUE access regardless of the stored grace date %s', gracePeriodEndsAt => {

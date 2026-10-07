@@ -62,6 +62,9 @@ export class SubscriptionAccessService {
         return allModules;
 
       case SubscriptionStatus.ACTIVE: {
+        // A scheduled cancellation has no extra cron grace: all plan modules
+        // (including open banking) end at the exact effective instant.
+        if (subscription.canceledAt && subscription.canceledAt <= now) return [];
         // Guard against indefinite free access if billing has silently
         // stalled (renewal cron down, or intentionally blocked pending a
         // manual receipt fix) — ACTIVE alone is not proof the subscription
@@ -80,6 +83,7 @@ export class SubscriptionAccessService {
       }
 
       case SubscriptionStatus.CANCELED: {
+        if (subscription.endedAt && subscription.endedAt <= now) return [];
         const stillInPeriod =
           subscription.currentPeriodEnd != null &&
           subscription.currentPeriodEnd > now;

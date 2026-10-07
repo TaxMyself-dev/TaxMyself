@@ -51,6 +51,24 @@ describe('debt accrual without app usage', () => {
     expect(result).toHaveLength(2);
     expect(result[1].amountAgorot).toBe(11800);
   });
+  it('does not accrue a next period on the date of a paid cancellation with a non-midnight end', async () => {
+    const { service, sub, debts } = make();
+    sub.status = SubscriptionStatus.CANCELED;
+    sub.currentPeriodEnd = new Date('2026-10-15T09:00:00Z');
+    sub.canceledAt = sub.currentPeriodEnd;
+    sub.nextBillingDate = null;
+    expect(await service.accrue(7, new Date('2026-12-20'))).toHaveLength(1);
+    expect(debts[0].periodStart).toBe('2026-09-15');
+  });
+  it('ends a debt-free paid subscription without inventing a missing price debt', async () => {
+    const { service, sub, debts, manager } = make();
+    debts.length = 0;
+    sub.status = SubscriptionStatus.CANCELED;
+    sub.currentPeriodEnd = new Date('2026-10-15T09:00:00Z');
+    sub.canceledAt = sub.currentPeriodEnd; sub.nextBillingDate = null;
+    expect(await service.accrue(7, new Date('2026-12-20'))).toEqual([]);
+    expect(manager.save).not.toHaveBeenCalled();
+  });
   it('does not silently infer a price when the original unpaid snapshot is missing', async () => {
     const { service, debts } = make(); debts.length = 0;
     await expect(service.accrue(7, new Date('2026-11-20'))).rejects.toThrow('snapshot');

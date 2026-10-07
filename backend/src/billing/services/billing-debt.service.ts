@@ -27,6 +27,7 @@ export class BillingDebtService {
       });
       const first = existing.find(debt => debt.status === BillingObligationStatus.OPEN);
       const due = renewalPeriodStart(sub) ?? sub.currentPeriodEnd;
+      if (!due && !existing.length && sub.status === SubscriptionStatus.CANCELED) return [];
       if (!due) throw new ConflictException('Missing original billing period; review required');
       let cursor = first?.periodStart ?? billingDate(due);
       const anchor = sub.billingAnchorDay ?? (sub.currentPeriodStart ? Number(billingDate(sub.currentPeriodStart).slice(8)) : null);
@@ -34,9 +35,14 @@ export class BillingDebtService {
       if (sub.status === SubscriptionStatus.CANCELED && !sub.canceledAt) {
         throw new ConflictException('Missing effective cancellation time; review required');
       }
+      // DATE obligations must not invent a new period at midnight on the day
+      // a paid period ends later in the morning. Cancellation at that boundary
+      // excludes the whole next service period, while preserving stored debts.
+      const cancellationCutoff = sub.canceledAt && sub.currentPeriodEnd?.getTime() === sub.canceledAt.getTime()
+        ? billingBoundary(billingDate(sub.canceledAt)) : sub.canceledAt;
       const byPeriod = new Map(existing.map(debt => [debt.periodStart, debt]));
       let count = 0;
-      while (billingBoundary(cursor) <= now && (!sub.canceledAt || billingBoundary(cursor) < sub.canceledAt)) {
+      while (billingBoundary(cursor) <= now && (!cancellationCutoff || billingBoundary(cursor) < cancellationCutoff)) {
         if (++count > 120) throw new ConflictException('Debt history exceeds review limit');
         const end = nextBillingPeriod(cursor, anchor);
         if (!byPeriod.has(cursor)) {

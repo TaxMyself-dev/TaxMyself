@@ -25,6 +25,7 @@ import {
 } from './billing-lifecycle.service';
 import { BillingDebtService } from './billing-debt.service';
 import { BillingPlanChangeService } from './billing-plan-change.service';
+import { BillingCancellationService } from './billing-cancellation.service';
 import { billingDate, nextBillingInstant } from '../domain/billing-debt-periods';
 import { BillingHostedCompletionService } from './billing-hosted-completion.service';
 import { BillingReconciliationService } from './billing-reconciliation.service';
@@ -96,6 +97,7 @@ export class SubscriptionRenewalService {
     private readonly reconciliation?: BillingReconciliationService,
     @Optional() private readonly debtService?: BillingDebtService,
     @Optional() private readonly planChangeService?: BillingPlanChangeService,
+    @Optional() private readonly cancellationService?: BillingCancellationService,
   ) {}
 
   // ─── Cron entry point ───────────────────────────────────────────────────────
@@ -137,6 +139,8 @@ export class SubscriptionRenewalService {
    * logic, no idempotency/retry/charge behavior is duplicated or bypassed.
    */
   async processDueRenewals(): Promise<RenewalBatchResult> {
+    try { await this.cancellationService?.applyDueCancellations(); }
+    catch { this.logger.error('Cancellation sweep failed; locked renewal checks still prevent charging'); }
     try { await this.debtService?.accruePastDue(); }
     catch { this.logger.error('Debt accrual sweep failed; affected subscriptions require review'); }
     // Read-only reconciliation of UNKNOWN / expired-PROCESSING attempts. It runs
@@ -274,6 +278,7 @@ export class SubscriptionRenewalService {
   private async chargeSubscription(
     subscriptionId: number,
   ): Promise<RenewalResult> {
+    await this.cancellationService?.applyDue(subscriptionId);
     return this.chargeSubscriptionCanonical(subscriptionId);
   }
 
@@ -787,7 +792,7 @@ export class SubscriptionRenewalService {
 
       // ── 2. Re-verify it's still due (guards against a race since the cron's SELECT) ──
       if (
-        subscription.billingAccessMode !== BillingAccessMode.STANDARD ||
+        subscription.canceledAt || subscription.billingAccessMode !== BillingAccessMode.STANDARD ||
         subscription.status !== SubscriptionStatus.ACTIVE ||
         !subscription.nextBillingDate ||
         subscription.nextBillingDate > now

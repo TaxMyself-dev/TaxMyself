@@ -38,6 +38,9 @@ Standalone pricing/plans page where a user views available subscription plans an
 
 ## Plan changes (KT-051)
 
+KT-052 disables selecting/confirming a new plan while pendingCancellation is
+present and directs the owner to withdraw cancellation in My Subscription.
+
 ACTIVE owners select a different plan to obtain a preview, then explicitly
 confirm its server quote and timestamp. The preview shows the current prorated
 VAT-inclusive charge, preserved billing date and future full renewal estimate.

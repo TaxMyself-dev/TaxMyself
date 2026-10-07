@@ -67,6 +67,34 @@
           </div>
         }
       </div>
+      @if (pendingCancellation(); as pending) {
+        <p role="status">המנוי יסתיים ב־{{ cancellationDateLabel() }} ולא יתחדש. עד אז הגישה נשארת פעילה, כולל בנקאות פתוחה. חובות קודמים נשארים לתשלום.</p>
+        <app-p-button [buttonText]="'ביטול בקשת הביטול'" [buttonColor]="buttonColor.WHITE_BORDER"
+          [buttonSize]="buttonSize.SMALL" [disabled]="changingCancellation() || billingStateServiceOverride()"
+          [isLoading]="changingCancellation()" (onButtonClicked)="withdrawCancellation()" />
+      } @else if (canCancelSubscription()) {
+        @if (cancellationConfirmation()) {
+          <div role="region" aria-label="אישור ביטול מנוי">
+            @if (status() === 'ACTIVE') {
+              <p>המנוי לא יתחדש. אם התקופה ששולמה עדיין בתוקף, הגישה תישאר עד {{ activeUntilLabel() }} ואז תיחסם גם הבנקאות הפתוחה.</p>
+            } @else {
+              <p>ביטול המנוי ייכנס לתוקף מיד. הגישה לאפליקציה ולבנקאות הפתוחה תיחסם.</p>
+            }
+            <p>חובות קודמים לא נמחקים. לא ייווצר חוב לתקופות שאחרי הביטול ולא יבוצע החזר על תקופה ששולמה. בקשת שנמוך מתוזמנת תבוטל.</p>
+            <div class="card-actions">
+              <app-p-button [buttonText]="'אישור ביטול המנוי'" [buttonColor]="buttonColor.WHITE_BORDER"
+                [buttonSize]="buttonSize.SMALL" [isLoading]="changingCancellation()" [disabled]="changingCancellation()" (onButtonClicked)="confirmCancellation()" />
+              <app-p-button [buttonText]="'חזרה'" [buttonColor]="buttonColor.WHITE_BORDER" [buttonSize]="buttonSize.SMALL"
+                [disabled]="changingCancellation()" (onButtonClicked)="cancellationConfirmation.set(false)" />
+            </div>
+          </div>
+        } @else {
+          <div class="card-actions">
+            <app-p-button [buttonText]="'ביטול מנוי'" [buttonColor]="buttonColor.WHITE_BORDER" [buttonSize]="buttonSize.SMALL"
+              (onButtonClicked)="cancellationConfirmation.set(true)" />
+          </div>
+        }
+      }
       @if (canChangePlan()) {
         @if (pendingPlanChange(); as pending) {
           <p>נקבע מעבר ל{{ pending.planName }} ב־{{ pendingPlanChangeDate() }}. עד אז התוכנית הנוכחית נשארת.</p>

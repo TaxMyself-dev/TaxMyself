@@ -19,6 +19,8 @@ describe('BillingController — owner-mutation actor context', () => {
     changePaymentMethod: jest.Mock;
     upgradeToReferralOpenBankingPlan: jest.Mock;
     cancelScheduledPlanChange: jest.Mock;
+    cancelSubscription: jest.Mock;
+    withdrawSubscriptionCancellation: jest.Mock;
   };
 
   beforeEach(() => {
@@ -31,19 +33,31 @@ describe('BillingController — owner-mutation actor context', () => {
         .fn()
         .mockResolvedValue({ planId: 1 }),
       cancelScheduledPlanChange: jest.fn(),
+      cancelSubscription: jest.fn(),
+      withdrawSubscriptionCancellation: jest.fn(),
     };
     controller = new BillingController(
       billingService as unknown as BillingService,
     );
   });
 
-  it.each(['previewCheckout', 'createCheckout', 'changePaymentMethod', 'getChangePaymentMethodStatus', 'cancelScheduledPlanChange'])(
+  it.each(['previewCheckout', 'createCheckout', 'changePaymentMethod', 'getChangePaymentMethodStatus', 'cancelScheduledPlanChange', 'cancelSubscription', 'withdrawSubscriptionCancellation'])(
     'keeps %s authenticated but free of subscription module gates for blocked owners', method => {
       expect(Reflect.getMetadata(GUARDS_METADATA, BillingController)).toBeUndefined();
       expect(Reflect.getMetadata(GUARDS_METADATA, BillingController.prototype[method])).toEqual([FirebaseAuthGuard]);
     });
 
   describe('createCheckout', () => {
+    it('passes the verified actor and stale-state fields to subscription cancellation and withdrawal', async () => {
+      const request = { user: { firebaseId: 'client-1', actorFirebaseId: 'admin-1' }, isAdminImpersonation: true } as any;
+      const dto = { expectedStatus: 'ACTIVE', expectedPeriodEnd: '2026-11-07T07:14:48.000Z' } as any;
+      await controller.cancelSubscription(request, dto);
+      expect(billingService.cancelSubscription).toHaveBeenCalledWith(expect.objectContaining({
+        actorFirebaseId: 'admin-1', subjectFirebaseId: 'client-1', isAdminImpersonation: true }), dto);
+      await controller.withdrawSubscriptionCancellation(request, { expectedEventId: 61 });
+      expect(billingService.withdrawSubscriptionCancellation).toHaveBeenCalledWith(expect.objectContaining({
+        actorFirebaseId: 'admin-1', isAdminImpersonation: true }), 61);
+    });
     it('passes the real actor id, subject id, and delegation flag separately — never collapses them to the rewritten id', async () => {
       // FirebaseAuthGuard rewrote firebaseId to the client's id for delegated
       // access; actorFirebaseId is the accountant's own, untouched id.

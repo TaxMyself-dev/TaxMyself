@@ -144,6 +144,7 @@ export interface ChangePaymentMethodStatus {
 }
 
 export interface BillingStateResponse {
+  pendingCancellation?: { eventId: number; effectiveAt: string } | null;
   pendingPlanChange?: { eventId: number; planId: number; planName: string;
     effectiveAt: string; estimatedRenewalAmountAgorot: number } | null;
   hasSubscription: boolean;
@@ -186,6 +187,16 @@ export interface BillingStateResponse {
 @Injectable({ providedIn: 'root' })
 export class BillingStateService {
   private readonly http = inject(HttpClient);
+
+  async cancelSubscription(expectedStatus: SubscriptionStatus, expectedPeriodEnd: string | null): Promise<void> {
+    await firstValueFrom(this.http.post(`${environment.apiUrl}billing/subscription/cancel`, { expectedStatus, expectedPeriodEnd }));
+    await this.refreshBillingState();
+  }
+
+  async withdrawSubscriptionCancellation(expectedEventId: number): Promise<void> {
+    await firstValueFrom(this.http.post(`${environment.apiUrl}billing/subscription/cancellation/withdraw`, { expectedEventId }));
+    await this.refreshBillingState();
+  }
 
   async cancelScheduledPlanChange(expectedEventId: number): Promise<void> {
     await firstValueFrom(this.http.post(`${environment.apiUrl}billing/plan-change/cancel`, { expectedEventId }));

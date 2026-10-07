@@ -489,7 +489,7 @@ export class BillingAttemptOrchestrationService {
         this.assertRenewalDue(subscription, input.periodStart, new Date());
       }
       if (input.enforceUpgrade) {
-        if (subscription.billingAccessMode === BillingAccessMode.COMPLIMENTARY_FULL ||
+        if (subscription.canceledAt || subscription.billingAccessMode === BillingAccessMode.COMPLIMENTARY_FULL ||
           subscription.status !== SubscriptionStatus.ACTIVE || !subscription.planId ||
           subscription.planId === input.planId || !subscription.currentPeriodStart ||
           !subscription.currentPeriodEnd || !subscription.nextBillingDate ||
@@ -1366,7 +1366,7 @@ export class BillingAttemptOrchestrationService {
     periodStart: string,
     now: Date,
   ): void {
-    if (subscription.billingAccessMode === BillingAccessMode.COMPLIMENTARY_FULL ||
+    if (subscription.canceledAt || subscription.billingAccessMode === BillingAccessMode.COMPLIMENTARY_FULL ||
       subscription.status !== SubscriptionStatus.ACTIVE) {
       throw new BillingRenewalDeferredError('NOT_ACTIVE');
     }
