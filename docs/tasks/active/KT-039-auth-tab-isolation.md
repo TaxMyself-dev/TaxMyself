@@ -1,6 +1,6 @@
 # KT-039 - Isolate browser-tab identities and harden admin routes
 
-- Status: `INTEGRATED`
+- Status: `PUSHED`
 - Task manager: Codex primary integration manager
 - Worker: Codex primary agent
 - Worktree: `C:/Users/harel/.codex/worktrees/kt039/taxmyself-dev`
@@ -77,7 +77,8 @@ boundaries.
 - Combined verification: Angular production and development builds passed;
   focused frontend tests passed 8/8; Nest production build passed; backend
   endpoint/AdminGuard suites passed 11/11; `git show --check` passed.
-- `origin/main` verification:
+- `origin/main` verification: `main` and `codex/integration-kt039` both resolved
+  remotely to `f78f1fef40dde40edf537909877461bb90f614e9` after the delivery push.
 - User-visible run instructions: after the normal application deployment,
   smoke-test an admin and a client in two same-browser tabs. Git delivery does
   not itself deploy production.

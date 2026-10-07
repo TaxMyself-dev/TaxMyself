@@ -53,7 +53,8 @@ Last reviewed: 2026-10-07
 - KT-039 isolates authenticated profile/business caches per browser tab and
   hardens the admin UI route plus three legacy backend triggers. Code commit
   `b26ddef0` passed 8 focused frontend tests, 11 backend security tests, and
-  both production builds. It is staged on `codex/integration-kt039` because the
+  both production builds. It was pushed through `f78f1fef` on
+  `codex/integration-kt039` and `origin/main` because the
   standing `codex/integration` branch still contains unrelated, undelivered CI
   work. No schema, production access, or deployment is involved.
 
