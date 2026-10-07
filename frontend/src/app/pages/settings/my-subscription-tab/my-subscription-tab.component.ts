@@ -1,5 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { Router } from '@angular/router';
 import { MessageService } from 'primeng/api';
 import { ButtonComponent } from 'src/app/components/button/button.component';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
@@ -42,6 +43,7 @@ export class MySubscriptionTabComponent implements OnInit {
   private readonly billingStateService = inject(BillingStateService);
   private readonly filesService = inject(FilesService);
   private readonly messageService = inject(MessageService);
+  private readonly router = inject(Router);
 
   readonly buttonColor = ButtonColor;
   readonly buttonSize = ButtonSize;
@@ -74,6 +76,14 @@ export class MySubscriptionTabComponent implements OnInit {
   readonly isComplimentary = computed(
     () => this.billingState()?.subscription?.billingAccessMode === 'COMPLIMENTARY_FULL',
   );
+  readonly canChangePlan = computed(() =>
+    this.status() === 'ACTIVE' && !this.isComplimentary() && !this.billingStateService.hasBillingOverride(),
+  );
+
+  changePlan(): void {
+    if (!this.canChangePlan()) return;
+    void this.router.navigate(['/billing/plans']);
+  }
   readonly statusLabel = computed(() => {
     if (this.isComplimentary()) return 'גישה מלאה ללא חיוב';
     const s = this.status();

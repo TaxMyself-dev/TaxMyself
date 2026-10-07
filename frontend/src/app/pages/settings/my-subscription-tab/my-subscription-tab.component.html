@@ -67,6 +67,16 @@
           </div>
         }
       </div>
+      @if (canChangePlan()) {
+        <div class="card-actions">
+          <app-p-button
+            [buttonText]="'החלפת תוכנית'"
+            [buttonColor]="buttonColor.WHITE_BORDER"
+            [buttonSize]="buttonSize.SMALL"
+            (onButtonClicked)="changePlan()">
+          </app-p-button>
+        </div>
+      }
     }
   </section>
 
