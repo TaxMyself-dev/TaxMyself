@@ -567,7 +567,7 @@ export class MyAccountPage implements OnInit {
       const stored = this.authService.getUserDataFromLocalStorage();
       if (stored) {
         stored.hasOpenBanking = true;
-        localStorage.setItem('userData', JSON.stringify(stored));
+        this.authService.storeUserData(stored);
       }
 
       if (simulate) {

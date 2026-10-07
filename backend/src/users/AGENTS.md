@@ -14,6 +14,9 @@ Owns the user account entity/lifecycle (signup, signin, profile update, children
 - `GET /signin` — loads user by `firebaseId`, rolls `lastLoginAt` → `previousLoginAt`.
 - `PATCH /update-user`, `/children` — profile edits.
 - Drive provisioning: `provisionDriveStructure`/`auditDriveShares`/`revokeAccountantDriveAccess`/`getDriveProvisioningStatus` — creates and audits the per-user Google Drive folder structure and accountant sharing.
+- The legacy manual Drive provisioning endpoint under `auth/dev/drive` is
+  retained for diagnostics but requires both Firebase authentication and the
+  persisted administrator role.
 - Role helpers: `getActiveAccountantEmailsForUser`/`isAccountant`/`isAdmin` used across the app for authorization checks.
 
 ## Related topics

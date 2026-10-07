@@ -9,6 +9,7 @@ import { SharedModule } from 'src/shared/shared.module';
 import { Delegation } from 'src/delegation/delegation.entity';
 import { Business } from 'src/business/business.entity';
 import { FirebaseAuthGuard } from '../guards/firebase-auth.guard';
+import { AdminGuard } from '../guards/admin.guard';
 import { FeezbackModule } from '../feezback/feezback.module';
 import { SettingDocuments } from 'src/documents/settingDocuments.entity';
 import { GoogleDriveModule } from '../google-drive/google-drive.module';
@@ -27,7 +28,8 @@ import { BillingModule } from '../billing/billing.module';
     UsersService,
     AuthService,
     FirebaseAuthGuard,
+    AdminGuard,
   ],
-  exports: [UsersService],
+  exports: [UsersService, FirebaseAuthGuard, AdminGuard],
 })
 export class UsersModule {}

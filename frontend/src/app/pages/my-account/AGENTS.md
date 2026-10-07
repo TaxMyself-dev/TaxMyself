@@ -9,7 +9,7 @@ Main dashboard/home page shown after login: account sync status, transactions-to
 - On init: load user data, start sync-status polling for connected bank/card sources, fetch transactions to classify, resume Feezback dialog state or payment-result banner from return-URL query params.
 - Open Banking: connect a new source (with consent confirmation), retry a failed source, associate an unmatched account.
 - Classify or quick-classify pending transactions; Home "הוספת הוצאה" is an `app-menu-button` with Manual Expense (`MannualExpenseComponent`) and Quick Upload to Drive (`QuickUploadDriveDialogComponent` → `DriveDocsService.uploadFilesToInbox`). Also add bill/category via modals.
-- Feezback onboarding: show consent dialog, poll for webhook readiness, trigger transaction pull, handle renew-consent/try-again states.
+- Feezback onboarding: show consent dialog, poll for webhook readiness, trigger transaction pull, handle renew-consent/try-again states; any returned profile refresh is written through `AuthService` to the UID-bound tab cache rather than shared browser storage.
 - Billing: poll for payment result after redirect back from checkout, resend receipt email, retry invoice.
 - Demo users receive the same dashboard actions as regular users; demo profile creation/reset remains in the admin panel and no reset control is exposed on this page.
 - Feature-gated navigation cards to `/doc-create` and `/transactions`, gated through `AccessService`/`AccessHandlerService`.

@@ -221,7 +221,7 @@ export class LoginPage implements OnInit {
       // Firebase's restored session is the auth authority (see
       // AuthService.isLoggedIn); userData is cached UI profile data only.
       tap((res: any) => {
-        localStorage.setItem('userData', JSON.stringify(res));
+        this.authService.storeUserData(res);
       }),
 
         // 5️⃣ Load businesses from server
@@ -278,7 +278,7 @@ export class LoginPage implements OnInit {
   //       }),
   //       tap((res: any) => {
   //         sessionStorage.setItem('isLoggedIn', 'true');
-  //         localStorage.setItem('userData', JSON.stringify(res));
+  //         this.authService.storeUserData(res);
   //         console.log('Sign-in response:', res);
 
   //          // 🚀 Load businesses immediately after login
@@ -388,7 +388,7 @@ export class LoginPage implements OnInit {
         return;
       }
       await this.authService.waitForAuthenticatedUser();
-      localStorage.setItem('userData', JSON.stringify(userData));
+      this.authService.storeUserData(userData);
       await this.genericService.loadBusinessesFromServer();
       await this.enterApp();
     } catch (err: any) {

@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.spec.json",
+  "compilerOptions": {
+    "types": [
+      "jasmine",
+      "node"
+    ]
+  },
+  "include": [
+    "src/app/shared/auth/identity-session-storage.service.spec.ts",
+    "src/app/shared/guard/admin-route.guard.spec.ts",
+    "src/**/*.d.ts"
+  ]
+}

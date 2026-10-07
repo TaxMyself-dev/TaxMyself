@@ -14,6 +14,7 @@ import { ClassifyTransactionDto } from './dtos/classify-transaction.dto';
 import { UpdateClassificationRuleDto } from './dtos/update-classification-rule.dto';
 import multer from 'multer';
 import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
+import { AdminGuard } from 'src/guards/admin.guard';
 import { SubscriptionGuard } from 'src/guards/subscription.guard';
 import { RequireModule } from 'src/decorators/require-module.decorator';
 import { RequiredDelegationScope } from 'src/decorators/required-delegation-scope.decorator';
@@ -582,7 +583,7 @@ export class TransactionsController {
 
   // TODO_FINTAX_REMOVE_LEGACY_TRANSACTIONS: endpoint that triggers the legacy Finsite ingest flow writing to the transactions table. Remove when Feezback pipeline fully replaces it.
   @Get('get-trans')
-  //TODO: Add Admin guard
+  @UseGuards(FirebaseAuthGuard, AdminGuard)
   async getTrans(@Query() query: any) {
     return this.transactionsService.getTransactionsFromFinsite(query.startDate, query.endDate, query.finsiteId );
   }

@@ -13,6 +13,9 @@ Owns bank/card transaction ingestion, classification (rule-based and manual), an
 - `transaction-processing.service.ts` — `TransactionProcessingService`: ingestion pipeline (`process`), `classifyManually`/`classifyWithRule`, cache invalidation, flow analysis, rule CRUD (`listRulesForUser`/`updateRuleForUser`/`deleteRuleForUser`), scheduled cache cleanup (`handleDailyCacheCleanup`).
 - `transactions.service.ts` — `TransactionsService`: legacy + bill/source CRUD, confirm-to-expenses (`saveTransactionsToExpenses`), ledger/report helper queries. Phase 4.6: the dead legacy `classifyTransaction`/`findSubCategoryDetails` were deleted (the live classify path is `TransactionProcessingService.classifyManually`/`classifyWithRule`), and the legacy transactions-table category filter now gets its known-name list from `CatalogService.getCategoryNamesForUser` — this module no longer touches the frozen `default_/user_category` tables.
 - `transactions.controller.ts` — REST endpoints under `/transactions`.
+- The legacy `GET /transactions/get-trans` Finsite ingestion trigger is
+  administrator-only (`FirebaseAuthGuard` + `AdminGuard`) while it remains in
+  the codebase.
 
 ## Main flows
 - Sync: `triggerSync`/`getSyncStatus`/`retrySource`/`postConsentSync` — Open Banking pull pipeline (via feezback) feeding `process()` → slim + cache tables.
