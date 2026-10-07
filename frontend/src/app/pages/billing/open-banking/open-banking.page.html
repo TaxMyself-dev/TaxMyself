@@ -1,34 +1,35 @@
 <main class="enrollment" dir="rtl">
   <a routerLink="/my-account" class="back">חזרה לאזור האישי</a>
   <h1>חיבור לבנקאות פתוחה</h1>
-  <p class="intro">החשבונות שלך, במקום אחד. בוחרים תוכנית ושומרים כרטיס לפני ההרשמה לפיזבק.</p>
   @if (error()) { <p role="alert" class="error">{{ error() }}</p> }
   @if (options(); as data) {
     @if (data.complimentary || data.status === 'ACTIVE') {
       <p>החיבור זמין למנוי פעיל בתוכנית הכוללת בנקאות פתוחה. תנאי החיוב הקיימים נשארים בתוקף.</p>
       <button class="primary" [disabled]="busy()" (click)="continue()">המשך לפיזבק</button>
     } @else if (data.status === 'TRIAL' && data.trialEnd && (data.trialEnd | date:'yyyy-MM-dd')) {
+      <p class="intro">כדי להתחבר לבנקאות הפתוחה, יש להזין פרטי אשראי ולהצטרף לתוכנית הכוללת את השירות. במהלך תקופת הניסיון לא תחויבו. החיוב יחל בתום הניסיון, לאחר השלמת החיבור.</p>
       <fieldset [disabled]="busy()">
-        <legend>התוכנית שלך אחרי תקופת הניסיון</legend>
+        <legend>{{ data.plans.length === 1 ? 'התוכנית שלך' : 'בחירת תוכנית עם בנקאות פתוחה' }}</legend>
         @for (plan of data.plans; track plan.id) {
-          <label class="plan" [class.selected]="selectedPlanId === plan.id">
+          <label class="plan" [class.selected]="selectedPlanId === plan.id" [class.single]="data.plans.length === 1">
+            @if (data.plans.length > 1) {
             <input type="radio" name="plan" [value]="plan.id" [(ngModel)]="selectedPlanId" (ngModelChange)="agreed = false" />
-            <span>{{ plan.name }}</span>
+            }
+            <span><b>{{ plan.name }}</b><small>כולל בנקאות פתוחה</small></span>
             <strong>{{ plan.amountAgorot / 100 | currency:'ILS':'symbol':'1.2-2' }} <small>לחודש, כולל מע״מ</small></strong>
+            <span class="billing-date">תחילת החיוב: <b>{{ data.trialEnd | date:'dd/MM/yyyy' }}</b></span>
           </label>
         }
       </fieldset>
       <section class="terms" aria-label="תנאי החיוב">
-        <h2>לא מחייבים במהלך הניסיון</h2>
-        <p>תקופת הניסיון שלך מסתיימת ב־<strong>{{ data.trialEnd | date:'dd/MM/yyyy' }}</strong>. לאחר השלמת החיבור לפיזבק, החיוב החודשי יתחיל בתאריך זה ויתחדש אוטומטית, גם ללא כניסה לאפליקציה.</p>
-        <p>אם ההרשמה לפיזבק לא תושלם, שמירת הכרטיס לבדה לא תפעיל חיובים. אפשר לבטל את ההצטרפות לפני סיום הניסיון; לאחר מכן אפשר לעבור לתוכנית ללא בנקאות פתוחה דרך ״המנוי שלי״.</p>
+        <p>אפשר לבטל את ההצטרפות לפני תחילת החיוב ללא עלות. לאחר מכן, אפשר לבטל את המנוי או לעבור לתוכנית ללא בנקאות פתוחה דרך ״המנוי שלי״.</p>
       </section>
-      <label class="agreement"><input type="checkbox" [(ngModel)]="agreed" [disabled]="busy()" /> אני מאשר/ת את התוכנית שנבחרה ואת החיוב החודשי האוטומטי לאחר תקופת הניסיון והשלמת החיבור.</label>
+      <label class="agreement"><input type="checkbox" [(ngModel)]="agreed" [disabled]="busy()" /> אני מאשר/ת הצטרפות לתוכנית וחיוב חודשי אוטומטי בתום תקופת הניסיון.</label>
       @if (data.hasSavedCard) {
         <p>יש כרטיס שמור בחשבון. הוא ישמש לחיובים העתידיים.</p>
         <button class="secondary" [disabled]="busy()" (click)="cardDialog.set(true)">החלפת הכרטיס השמור</button>
       }
-      <button class="primary" [disabled]="busy() || !agreed || !selectedPlanId" (click)="continue()">{{ busy() ? 'מכינים את ההרשמה…' : data.hasSavedCard ? 'אישור והמשך לפיזבק' : 'אישור ושמירת כרטיס' }}</button>
+      <button class="primary" [disabled]="busy() || !agreed || !selectedPlanId" (click)="continue()">{{ busy() ? 'מכינים את ההרשמה…' : data.hasSavedCard ? 'אישור והמשך לחיבור' : 'המשך להזנת פרטי אשראי' }}</button>
     } @else {
       <p>תקופת הניסיון הסתיימה או שהמנוי אינו זמין לחיבור. יש לבחור ולהפעיל תוכנית הכוללת בנקאות פתוחה.</p>
       <a routerLink="/billing/plans">בחירת תוכנית</a>

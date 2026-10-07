@@ -7,6 +7,8 @@ fieldset { border: 0; padding: 0; margin: 0 0 24px; }
 legend { font-weight: 700; margin-bottom: 12px; }
 .plan { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; border: 1px solid #cbd4ce; border-radius: 12px; padding: 18px; margin: 10px 0; cursor: pointer; }
 .plan.selected { border: 2px solid #568b70; padding: 17px; background: #f3f8f4; }
+.plan.single { cursor: default; }
+.billing-date { flex-basis: 100%; border-top: 1px solid #dce5df; padding-top: 12px; font-size: .9rem; }
 .plan strong { margin-inline-start: auto; } small { display: block; font-size: .85rem; font-weight: 400; }
 .terms { border-inline-start: 4px solid #c2cd66; padding: 4px 20px; margin: 24px 0; line-height: 1.7; }
 h2 { font-size: 1.25rem; margin: 8px 0; }

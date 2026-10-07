@@ -1,4 +1,6 @@
 ## Purpose
+
+Open-banking trial enrollment presents concise card/charge/cancellation terms and a plan card with VAT-inclusive monthly price and the original trial-end charge date. A sole eligible plan is displayed without a radio selector; multiple eligible plans retain selection. This presentation does not alter billing authorization or provider verification.
 Standalone pricing/plans page where a user views available subscription plans and starts checkout for one.
 
 ## Key entities/files
