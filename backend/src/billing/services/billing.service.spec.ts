@@ -482,6 +482,7 @@ describe('BillingService — owner-mutation authorization', () => {
       inspectPeriod: jest.fn().mockResolvedValue(null),
       openPastDueRecovery: jest.fn(),
       openInitialPurchase: jest.fn().mockResolvedValue({ created: true, attempt: { id: 81, status: 'CREATED' } }),
+      openUpgrade: jest.fn().mockResolvedValue({ created: true, attempt: { id: 82, status: 'CREATED' } }),
       recordHostedLowProfileId: jest.fn().mockResolvedValue({
         recorded: true,
       }),
@@ -665,6 +666,21 @@ describe('BillingService — owner-mutation authorization', () => {
         .toBeLessThan(f.cardcomService.createLowProfileCheckout.mock.invocationCallOrder[0]);
       expect(JSON.parse(f.cardcomService.createLowProfileCheckout.mock.calls[0][0].returnValue).billingAttemptId).toBe(81);
       expect(result.lowProfileId).toBe('lp-initial');
+    });
+
+    it('routes an ACTIVE plan change through a canonical attempt before provider I/O', async () => {
+      const f = makeService();
+      f.subscriptionRepo.findOne.mockResolvedValue({ id: 1, firebaseId: 'client-1', status: 'ACTIVE', planId: 2 });
+      f.planRepo.findOne.mockResolvedValue({ id: 1, name: 'Basic', isPublic: true });
+      f.pricingService.calculateCheckoutPrice.mockResolvedValue({ finalAmountAgorot: 11800,
+        amountBeforeVatAgorot: 10000, vatAmountAgorot: 1800, currency: 'ILS' });
+      f.cardcomService.createLowProfileCheckout.mockResolvedValue({ lowProfileId: 'lp-upgrade', paymentUrl: 'https://example.test/pay' });
+      const result = await f.service.createCheckout(OWNER, { planId: 1 });
+      expect(f.billingLifecycleService.openUpgrade).toHaveBeenCalledWith(expect.objectContaining({ planId: 1, amountAgorot: 11800 }));
+      expect(f.billingLifecycleService.openUpgrade.mock.invocationCallOrder[0])
+        .toBeLessThan(f.cardcomService.createLowProfileCheckout.mock.invocationCallOrder[0]);
+      expect(JSON.parse(f.cardcomService.createLowProfileCheckout.mock.calls[0][0].returnValue).billingAttemptId).toBe(82);
+      expect(result.lowProfileId).toBe('lp-upgrade');
     });
 
     it('does not create another provider checkout when the initial purchase is already pending', async () => {

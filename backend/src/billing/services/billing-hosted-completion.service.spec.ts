@@ -16,6 +16,7 @@ import { BillingHostedCompletionService } from './billing-hosted-completion.serv
 import { BillingLifecycleService } from './billing-lifecycle.service';
 import { decryptCardcomToken } from '../utils/billing-token-encryption.util';
 import { billingBoundary } from '../domain/billing-debt-periods';
+import { upgradeKey } from '../domain/billing-upgrade';
 
 /**
  * KT-038 Task 3B — a hosted payment whose CardCom capture is already confirmed
@@ -277,6 +278,33 @@ describe('BillingHostedCompletionService — local recovery of a CAPTURED hosted
     expect(await f.service.completeCapturedHostedAttempt(f.params)).toBe('ALREADY_COMPLETED');
     expect(f.sub.currentPeriodEnd).toEqual(end);
     expect(f.receipts.ensureReceiptForCapturedAttempt).toHaveBeenCalledTimes(1);
+  });
+
+  it('applies a captured upgrade once and resumes a failed receipt without extending service', async () => {
+    const f = build();
+    Object.assign(f.sub, { status: SubscriptionStatus.ACTIVE, planId: 1, billingAnchorDay: 1 });
+    f.orchestration.obligation.kind = BillingObligationKind.CHECKOUT;
+    f.orchestration.obligation.obligationKey = upgradeKey(f.sub, PLAN.id, 11700);
+    f.receipts.ensureReceiptForCapturedAttempt.mockRejectedValueOnce(new Error('receipt unavailable'));
+    expect(await f.service.completeCapturedHostedAttempt(f.params)).toBe('RECEIPT_PENDING');
+    expect(f.sub.planId).toBe(PLAN.id);
+    expect(f.sub.currentPeriodStart).toEqual(CAPTURED_AT);
+    expect(f.sub.billingAnchorDay).toBe(1);
+    const end = f.sub.currentPeriodEnd;
+    expect(await f.service.completeCapturedHostedAttempt(f.params)).toBe('COMPLETED');
+    expect(f.sub.currentPeriodEnd).toEqual(end);
+    expect(await f.service.completeCapturedHostedAttempt(f.params)).toBe('ALREADY_COMPLETED');
+  });
+
+  it('does not overwrite a source subscription changed after the upgrade opened', async () => {
+    const f = build();
+    Object.assign(f.sub, { status: SubscriptionStatus.ACTIVE, planId: 1 });
+    f.orchestration.obligation.kind = BillingObligationKind.CHECKOUT;
+    f.orchestration.obligation.obligationKey = upgradeKey(f.sub, PLAN.id, 11700);
+    f.sub.currentPeriodEnd = new Date('2026-10-01');
+    expect(await f.service.completeCapturedHostedAttempt(f.params)).toBe('RECEIPT_PENDING');
+    expect(f.sub.planId).toBe(1);
+    expect(f.receipts.ensureReceiptForCapturedAttempt).not.toHaveBeenCalled();
   });
 
   it('keeps a captured initial purchase pending when its subscription was canceled', async () => {

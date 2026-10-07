@@ -593,7 +593,7 @@ export class BillingService {
       const effectivePlan = await this.resolveReferralEffectivePlan(firebaseId);
       if (effectivePlan) {
         plan = effectivePlan;
-        if (subscription.planId !== plan.id) {
+        if (subscription.planId !== plan.id && subscription.status !== SubscriptionStatus.ACTIVE) {
           this.logger.log(
             `createCheckout: referral plan resolved live to ${plan.slug} (requested ${requestedPlan.slug}) ` +
               `for firebaseId=${firebaseId.substring(
@@ -630,16 +630,20 @@ export class BillingService {
     // idempotently without allocating a second debt.
     let recoveryAttemptId: number | null = null;
     const isInitialPurchase = [SubscriptionStatus.TRIAL, SubscriptionStatus.TRIAL_EXPIRED].includes(subscription.status);
-    if (isInitialPurchase) {
+    const isUpgrade = subscription.status === SubscriptionStatus.ACTIVE;
+    if (isInitialPurchase || isUpgrade) {
       if (!this.billingLifecycleService) throw new ConflictException('Canonical billing purchase is not configured');
       const start = billingDate(new Date());
-      const purchase = await this.billingLifecycleService.openInitialPurchase({
+      const purchaseInput = {
         actor, subscriptionId: subscription.id, planId: plan.id,
         periodStart: start, periodEnd: nextBillingPeriod(start, Number(start.slice(8))),
         amountAgorot: pricing.finalAmountAgorot,
         amountBeforeVatAgorot: pricing.amountBeforeVatAgorot,
         vatAmountAgorot: pricing.vatAmountAgorot, currency: pricing.currency,
-      });
+      };
+      const purchase = isUpgrade
+        ? await this.billingLifecycleService.openUpgrade(purchaseInput)
+        : await this.billingLifecycleService.openInitialPurchase(purchaseInput);
       if (!purchase.created) throw new ConflictException('קיים תהליך תשלום קודם שטרם הסתיים. אין לבצע תשלום נוסף.');
       recoveryAttemptId = purchase.attempt.id;
     }

@@ -25,6 +25,7 @@ import {
 import { BillingReceiptService } from './billing-receipt.service';
 import { recoverySubscriptionPatch } from '../domain/billing-recovery-state';
 import { billingBoundary, billingDate, nextBillingInstant } from '../domain/billing-debt-periods';
+import { upgradeSource } from '../domain/billing-upgrade';
 
 /**
  * A hosted attempt whose capture is confirmed locally is not touched by a
@@ -202,6 +203,7 @@ export class BillingHostedCompletionService {
     const capturedAt = attempt.capturedAt;
     const members = await this.lifecycle.findAttemptObligations(attempt);
     const initialPurchase = members.length === 1 && members[0].kind === BillingObligationKind.CHECKOUT;
+    const source = initialPurchase ? upgradeSource(members[0].obligationKey) : null;
     if (!capturedAt) {
       throw new Error('Captured attempt has no capture time');
     }
@@ -235,7 +237,9 @@ export class BillingHostedCompletionService {
       if (!subscription || subscription.firebaseId !== firebaseId) {
         throw new Error('Subscription not found for the captured attempt');
       }
-      if (subscription.status === SubscriptionStatus.ACTIVE) {
+      const alreadyApplied = subscription.status === SubscriptionStatus.ACTIVE &&
+        subscription.planId === attempt.planId && subscription.currentPeriodStart?.getTime() === capturedAt.getTime();
+      if (subscription.status === SubscriptionStatus.ACTIVE && (!source || alreadyApplied)) {
         if (initialPurchase && (subscription.planId !== attempt.planId ||
           subscription.currentPeriodStart?.getTime() !== capturedAt.getTime())) {
           throw new Error('Initial purchase no longer matches the active subscription');
@@ -244,11 +248,16 @@ export class BillingHostedCompletionService {
       }
       if (initialPurchase) {
         if (subscription.billingAccessMode === BillingAccessMode.COMPLIMENTARY_FULL ||
-          ![SubscriptionStatus.TRIAL, SubscriptionStatus.TRIAL_EXPIRED].includes(subscription.status) ||
-          subscription.currentPeriodStart || subscription.currentPeriodEnd) {
+          (source ? subscription.status !== SubscriptionStatus.ACTIVE ||
+            subscription.planId !== source.planId ||
+            subscription.currentPeriodStart?.getTime() !== source.start ||
+            subscription.currentPeriodEnd?.getTime() !== source.end
+            : ![SubscriptionStatus.TRIAL, SubscriptionStatus.TRIAL_EXPIRED].includes(subscription.status) ||
+              subscription.currentPeriodStart || subscription.currentPeriodEnd)) {
           throw new Error('Initial purchase state no longer permits activation');
         }
-        const anchor = Number(billingDate(capturedAt).slice(8));
+        const anchor = source ? subscription.billingAnchorDay ?? Number(billingDate(capturedAt).slice(8))
+          : Number(billingDate(capturedAt).slice(8));
         const end = nextBillingInstant(capturedAt, anchor);
         const plan = await manager.findOne(SubscriptionPlan, { where: { id: attempt.planId } });
         if (!plan) throw new Error('Purchased plan not found');

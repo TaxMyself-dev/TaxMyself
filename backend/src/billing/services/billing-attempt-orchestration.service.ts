@@ -17,6 +17,7 @@ import {
   Or,
   QueryRunner,
 } from 'typeorm';
+import { upgradeKey } from '../domain/billing-upgrade';
 import {
   BillingAccessMode,
   BillingAttemptStatus,
@@ -184,6 +185,7 @@ export interface OpenBillingAttemptInput {
   /** Recheck recovery state/period under the subscription lock. */
   enforceRecoverySchedule?: boolean;
   enforceInitialPurchase?: boolean;
+  enforceUpgrade?: boolean;
 }
 
 export interface ApplyNormalizedOutcomeOptions {
@@ -484,24 +486,37 @@ export class BillingAttemptOrchestrationService {
       if (input.enforceRenewalSchedule) {
         this.assertRenewalDue(subscription, input.periodStart, new Date());
       }
-      if (input.enforceInitialPurchase) {
+      if (input.enforceUpgrade) {
         if (subscription.billingAccessMode === BillingAccessMode.COMPLIMENTARY_FULL ||
-          ![SubscriptionStatus.TRIAL, SubscriptionStatus.TRIAL_EXPIRED].includes(subscription.status) ||
-          subscription.currentPeriodStart || subscription.currentPeriodEnd) {
-          throw new ConflictException('Initial purchase state changed; refresh before paying');
+          subscription.status !== SubscriptionStatus.ACTIVE || !subscription.planId ||
+          subscription.planId === input.planId || !subscription.currentPeriodStart ||
+          !subscription.currentPeriodEnd || !subscription.nextBillingDate ||
+          subscription.nextBillingDate <= new Date() || subscription.renewalAttempts > 0) {
+          throw new ConflictException('Upgrade state changed or renewal is due; refresh before paying');
+        }
+      }
+      if (input.enforceInitialPurchase || input.enforceUpgrade || input.enforceRenewalSchedule) {
+        if (input.enforceInitialPurchase) {
+          if (subscription.billingAccessMode === BillingAccessMode.COMPLIMENTARY_FULL ||
+            ![SubscriptionStatus.TRIAL, SubscriptionStatus.TRIAL_EXPIRED].includes(subscription.status) ||
+            subscription.currentPeriodStart || subscription.currentPeriodEnd) {
+            throw new ConflictException('Initial purchase state changed; refresh before paying');
+          }
         }
         // Serialize across dates, prices and plans, not only one obligation key.
         const pending = await manager.find(BillingObligation, {
-          where: { subscriptionId: subscription.id, kind: BillingObligationKind.CHECKOUT,
+          where: { subscriptionId: subscription.id,
             status: BillingObligationStatus.OPEN },
           lock: { mode: 'pessimistic_write' },
         });
-        for (const purchase of pending) {
+        for (const purchase of pending ?? []) {
+          if (input.enforceRenewalSchedule && purchase.kind !== BillingObligationKind.CHECKOUT) continue;
           if (purchase.activeAttemptId != null) {
             const attempt = await manager.findOne(BillingAttempt, {
               where: { id: purchase.activeAttemptId }, lock: { mode: 'pessimistic_write' },
             });
             if (!attempt || BILLING_ATTEMPT_BLOCKING_STATUSES.has(attempt.status)) {
+              if (input.enforceRenewalSchedule) throw new BillingRenewalDeferredError('NOT_DUE');
               throw new ConflictException('קיים תהליך תשלום קודם שטרם הסתיים. אין לבצע תשלום נוסף.');
             }
           }
@@ -519,7 +534,9 @@ export class BillingAttemptOrchestrationService {
         input,
       );
 
-      const obligationKey = input.enforceInitialPurchase
+      const obligationKey = input.enforceUpgrade
+        ? upgradeKey(subscription, input.planId, input.amountAgorot)
+        : input.enforceInitialPurchase
         ? `subscription:${input.subscriptionId}:checkout:${input.periodStart}:plan:${input.planId}:amount:${input.amountAgorot}`
         : this.buildObligationKey(
         input.subscriptionId,

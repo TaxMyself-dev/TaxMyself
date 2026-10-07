@@ -167,6 +167,15 @@ export class BillingLifecycleService {
     });
   }
 
+  openUpgrade(input: CanonicalBillingPeriodInput): Promise<OpenBillingAttemptResult> {
+    return this.orchestration.createOrGetAttempt({
+      ...input, kind: BillingObligationKind.CHECKOUT,
+      trigger: BillingAttemptTrigger.CHECKOUT,
+      chargeMode: BillingChargeMode.LOW_PROFILE_HOSTED,
+      enforceUpgrade: true,
+    });
+  }
+
   findAttemptObligations(attempt: BillingAttempt) {
     return this.orchestration.findAttemptObligations(attempt);
   }

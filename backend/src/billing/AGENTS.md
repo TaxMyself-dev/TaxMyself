@@ -32,8 +32,29 @@ together; receipt retry verifies the already-active plan/start instead of
 extending it again. Verified webhook card data is revalidated/encrypted
 without another provider lookup; later recovery uses the existing read-only
 lookup and newer-card protection. Receipt/link/finalization and admin recovery
-reuse existing attempt leases. No new schema. Upgrade and old attempt-less
-callbacks retain their legacy path.
+reuse existing attempt leases. No new schema. Old attempt-less callbacks retain
+their legacy path; ACTIVE plan changes now use KT-049 below.
+
+### Paid plan changes (KT-049)
+
+ACTIVE checkout reserves a CHECKOUT obligation and hosted attempt under the
+subscription lock, through openUpgrade. It preserves the full target price
+without proration and resets service at capture with the existing billing
+anchor. Same-plan, complimentary, due/retrying renewal and missing paid-period
+states cannot open an upgrade. Any unresolved active attempt blocks checkout;
+an unresolved CHECKOUT also defers scheduled renewal before provider I/O.
+An abandoned hosted upgrade therefore requires existing reconciliation/admin
+resolution before renewal can proceed; it is never assumed unpaid.
+
+The existing obligation_key freezes the source plan and start/end instants
+in an upgrade namespace (billing-upgrade.ts), alongside target and amount.
+Completion validates that source under the subscription lock before changing
+the plan, or recognizes its already-applied target/capture start. Changed or
+canceled subscriptions remain pending for review rather than being overwritten.
+Receipt retry, saved-card recovery, webhook replay, daily sweep and admin
+completion all use the existing canonical hosted path without another charge.
+Referral checkout does not pre-write an ACTIVE subscription's target plan.
+Canonical LowProfile response identity reuses the existing frontend return flow.
 
 Canonical checkout responses include lowProfileId. GET /billing/me accepts
 optional checkoutLowProfileId and scopes result events/webhook failures to
@@ -136,7 +157,7 @@ contain a support/transaction reference, never card data or credentials.
 ### Persistence foundation (KT-032)
 
 The original foundation below is now wired into canonical renewal/recovery.
-KT-048 also wires first-purchase checkout; upgrade retains its legacy path.
+KT-048 wires first-purchase checkout; KT-049 wires ACTIVE paid plan changes.
 KT-040 adds collection membership while retaining direct attempt provenance.
 
 - One `billing_obligation` is canonical for an internal
@@ -270,7 +291,7 @@ grace, when no `SUBSCRIPTION_ACTIVATED` event for the attempt records
 flag); same validation, encryption and newer-payment-method protection, never
 blocks the receipt, and a stored token is never looked up or stored again.
 Limitation: only canonical hosted attempts that already exist are covered
-(upgrade checkout does not create attempts yet). A recovery activation waits 2 minutes after capture
+(initial purchase and ACTIVE plan changes now create attempts). A recovery activation waits 2 minutes after capture
 so a concurrent duplicate delivery cannot activate before the original request
 stores the token. `updatePaymentEventWithReceipt` now returns a result;
 `ensureReceiptForCapturedAttempt` requires both the success event and the link

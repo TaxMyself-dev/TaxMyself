@@ -195,6 +195,50 @@ describe('BillingAttemptOrchestrationService', () => {
     expect(queryRunner.rollbackTransaction).toHaveBeenCalled();
   });
 
+  it.each(['same-plan', 'due', 'retry', 'canceled'])('rejects ineligible upgrade %s before provider submission', async reason => {
+    const sub = { ...subscription(), status: SubscriptionStatus.ACTIVE, planId: 2,
+      currentPeriodStart: new Date('2026-09-01'), currentPeriodEnd: new Date('2099-10-01'),
+      nextBillingDate: new Date('2099-10-01'), renewalAttempts: 0 };
+    if (reason === 'same-plan') sub.planId = 3;
+    if (reason === 'due') sub.nextBillingDate = new Date('2000-01-01');
+    if (reason === 'retry') sub.renewalAttempts = 1;
+    if (reason === 'canceled') sub.status = SubscriptionStatus.CANCELED;
+    manager.findOne.mockResolvedValueOnce(sub);
+    await expect(service.createOrGetAttempt({ ...openInput(), enforceUpgrade: true,
+      kind: BillingObligationKind.CHECKOUT, trigger: BillingAttemptTrigger.CHECKOUT,
+      chargeMode: BillingChargeMode.LOW_PROFILE_HOSTED })).rejects.toThrow('Upgrade state changed');
+    expect(manager.save).not.toHaveBeenCalled();
+  });
+
+  it('reserves an upgrade with the locked source plan and period in its identity', async () => {
+    manager.findOne.mockResolvedValueOnce({ ...subscription(), status: SubscriptionStatus.ACTIVE, planId: 2,
+      currentPeriodStart: new Date('2026-09-01'), currentPeriodEnd: new Date('2099-10-01'),
+      nextBillingDate: new Date('2099-10-01'), renewalAttempts: 0 })
+      .mockResolvedValueOnce(null).mockResolvedValueOnce(null);
+    manager.find.mockResolvedValueOnce([]);
+    manager.save.mockImplementation(async (entity, value) => {
+      if (entity === BillingObligation && !value.id) value.id = 11;
+      if (entity === BillingAttempt && !value.id) value.id = 21;
+      return value;
+    });
+    const result = await service.createOrGetAttempt({ ...openInput(), paymentMethodId: null,
+      enforceUpgrade: true, kind: BillingObligationKind.CHECKOUT,
+      trigger: BillingAttemptTrigger.CHECKOUT, chargeMode: BillingChargeMode.LOW_PROFILE_HOSTED });
+    expect(result.created).toBe(true);
+    expect(result.obligation.obligationKey).toContain(':upgrade:2:');
+    expect(result.obligation.obligationKey).toContain(':to:3:amount:11700');
+  });
+
+  it('defers due renewal while an unresolved upgrade checkout exists', async () => {
+    manager.findOne.mockResolvedValueOnce({ ...subscription(), status: SubscriptionStatus.ACTIVE,
+      currentPeriodEnd: new Date('2026-09-01'), nextBillingDate: new Date('2026-09-01') })
+      .mockResolvedValueOnce(attempt({ status: BillingAttemptStatus.CAPTURED }));
+    manager.find.mockResolvedValueOnce([obligation({ kind: BillingObligationKind.CHECKOUT, activeAttemptId: 21 })]);
+    await expect(service.createOrGetAttempt({ ...openInput(), enforceRenewalSchedule: true }))
+      .rejects.toThrow('Billing renewal deferred');
+    expect(manager.save).not.toHaveBeenCalled();
+  });
+
   it('blocks an initial purchase for a pending checkout on a different date or plan', async () => {
     manager.findOne.mockResolvedValueOnce({ ...subscription(), status: SubscriptionStatus.TRIAL })
       .mockResolvedValueOnce(attempt({ status: BillingAttemptStatus.UNKNOWN }));
