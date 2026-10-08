@@ -24,26 +24,35 @@ describe('OpenBankingPage', () => {
     page = TestBed.runInInjectionContext(() => new OpenBankingPage());
     await page.ngOnInit();
   });
-  it('requires an explicit agreement before saving a card or leaving for Feezback', async () => {
-    await page.continue(); expect(enrollment.prepare).not.toHaveBeenCalled();
+  it('requires an eligible plan before saving a card or leaving for Feezback', async () => {
+    page.selectedPlanId = null; await page.continue(); expect(enrollment.prepare).not.toHaveBeenCalled();
     expect(feezback.createConsentLink).not.toHaveBeenCalled(); expect(page.cardDialog()).toBeFalse();
   });
   it('saves the chosen quote before opening token-only card collection', async () => {
-    page.agreed = true; await page.continue();
+    await page.continue();
     expect(enrollment.prepare).toHaveBeenCalledOnceWith(5, 'quote');
     expect(page.cardDialog()).toBeTrue(); expect(feezback.createConsentLink).not.toHaveBeenCalled();
   });
   it('does not enter Feezback merely because a replacement card was saved', async () => {
     await page.cardSaved(); expect(feezback.createConsentLink).not.toHaveBeenCalled();
   });
+  it('opens existing card collection from the plan CTA and continues only after saved confirmation', async () => {
+    const connect = spyOn<any>(page, 'connect').and.resolveTo();
+    await page.choosePlan(5);
+    expect(page.cardDialog()).toBeTrue();
+    expect(enrollment.prepare).toHaveBeenCalledOnceWith(5, 'quote');
+    expect(connect).not.toHaveBeenCalled();
+    await page.cardSaved();
+    expect(connect).toHaveBeenCalledTimes(1);
+  });
   it('rejects represented-user enrollment', async () => {
-    billing.hasBillingOverride.and.returnValue(true); page.agreed = true;
+    billing.hasBillingOverride.and.returnValue(true);
     await page.continue(); expect(enrollment.prepare).not.toHaveBeenCalled();
   });
   it('suppresses a concurrent prepare', async () => {
     let finish!: () => void;
     enrollment.prepare.and.returnValue(new Promise<void>(resolve => finish = resolve));
-    page.agreed = true; const first = page.continue(); await page.continue();
+    const first = page.continue(); await page.continue();
     expect(enrollment.prepare).toHaveBeenCalledTimes(1); finish(); await first;
   });
   it('cancels the exact enrollment into a non-banking plan and refreshes billing', async () => {
@@ -53,7 +62,7 @@ describe('OpenBankingPage', () => {
   });
   it('keeps the user on the page when preparing fails and never opens CardCom', async () => {
     enrollment.prepare.and.rejectWith({ error: { message: 'quote changed' } });
-    page.agreed = true; await page.continue(); expect(page.error()).toBe('quote changed');
+    await page.continue(); expect(page.error()).toBe('quote changed');
     expect(page.cardDialog()).toBeFalse(); expect(feezback.createConsentLink).not.toHaveBeenCalled();
   });
 });

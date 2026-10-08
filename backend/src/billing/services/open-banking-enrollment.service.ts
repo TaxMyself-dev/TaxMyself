@@ -52,7 +52,8 @@ export class OpenBankingEnrollmentService {
     const eligible = plans.filter(plan => plan.modules?.includes(ModuleName.OPEN_BANKING) &&
       (plan.isPublic || plan.id === sub.planId ||
         (plan.slug === 'referral-open-banking' && plans.some(p => p.id === sub.planId && p.slug.startsWith('referral-')))));
-    const priced = await Promise.all(eligible.map(async plan => ({ id: plan.id, name: plan.name,
+    const priced = await Promise.all(eligible.map(async plan => ({ id: plan.id, name: plan.name, modules: plan.modules, features: plan.features,
+      badge: plan.badge, recommended: plan.recommended, isPublic: plan.isPublic, notes: plan.notes,
       ...(await this.quote(sub, plan)) })));
     const nonBankingPlans = plans.filter(plan => !plan.modules?.includes(ModuleName.OPEN_BANKING) &&
       (plan.isPublic || (plan.slug === 'referral-basic' && plans.some(p => p.id === sub.planId && p.slug.startsWith('referral-')))))

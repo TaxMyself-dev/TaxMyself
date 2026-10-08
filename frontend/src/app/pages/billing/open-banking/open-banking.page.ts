@@ -1,3 +1,5 @@
+import { PlanCardComponent, PricingCardPlan } from '../plan-card.component';
+import { PLAN_CARD_ITEMS } from '../billing-plans.page';
 import { CommonModule } from '@angular/common';
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
@@ -10,7 +12,7 @@ import { OpenBankingEnrollmentOptions, OpenBankingEnrollmentService } from 'src/
 
 @Component({
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, ChangePaymentMethodDialogComponent],
+  imports: [CommonModule, FormsModule, RouterLink, ChangePaymentMethodDialogComponent, PlanCardComponent],
   templateUrl: './open-banking.page.html',
   styleUrls: ['./open-banking.page.scss'],
 })
@@ -27,7 +29,7 @@ export class OpenBankingPage implements OnInit {
   selectedPlanId: number | null = null;
   cancelPlanId: number | null = null;
   private continueAfterCard = false;
-  agreed = false;
+
 
   async ngOnInit() {
     await this.load();
@@ -48,11 +50,22 @@ export class OpenBankingPage implements OnInit {
     } catch { this.error.set('לא הצלחנו לטעון את פרטי ההרשמה. אפשר לנסות שוב.'); }
     finally { this.busy.set(false); }
   }
+  planCard(plan: OpenBankingEnrollmentOptions['plans'][number]): PricingCardPlan {
+    return { id: plan.id, name: plan.name, badge: plan.badge ?? null, recommended: !!plan.recommended,
+      displayPrice: (plan.amountAgorot / 100).toFixed(2), notes: 'לחודש, כולל מע״מ',
+      features: PLAN_CARD_ITEMS.map(item => ({...item, included: item.type === 'module' ? (plan.modules ?? []).includes(item.key) : (plan.features ?? []).includes(item.key)}))
+        .filter(item => plan.isPublic !== false || item.type === 'module' || item.included) };
+  }
+  async choosePlan(planId: number) {
+    if (this.busy()) return;
+    this.selectedPlanId = planId;
+    await this.continue();
+  }
   async continue() {
     const options = this.options();
     if (!options || this.busy() || this.billing.hasBillingOverride()) return;
     const plan = options.plans.find(p => p.id === this.selectedPlanId);
-    if (!options.complimentary && options.status !== 'ACTIVE' && (!this.agreed || !plan)) return;
+    if (!options.complimentary && options.status !== 'ACTIVE' && !plan) return;
     this.busy.set(true); this.error.set('');
     try {
       if (!options.complimentary && options.status !== 'ACTIVE') await this.enrollment.prepare(plan!.id, plan!.quote);

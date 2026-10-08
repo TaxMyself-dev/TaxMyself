@@ -1,17 +1,20 @@
 ## Purpose
 
-Open-banking trial enrollment presents concise card/charge/cancellation terms and a plan card with VAT-inclusive monthly price and the original trial-end charge date. A sole eligible plan is displayed without a radio selector; multiple eligible plans retain selection. This presentation does not alter billing authorization or provider verification.
+Open-banking trial enrollment presents concise card/charge/cancellation terms and the shared pricing card with a VAT-inclusive quote. Each eligible plan's CTA selects that plan and approves its displayed terms, then opens existing token-only card collection before Feezback. There is no checkbox. Server verification and the original trial-end billing boundary remain authoritative.
 Standalone pricing/plans page where a user views available subscription plans and starts checkout for one.
 
 ## Key entities/files
 - `billing-plans.page.ts` — standalone `BillingPlansPage`; fetches plans, builds a display view-model (`PlanVM`) merging module-based access-control items and marketing "feature" flags, and starts checkout.
 - `billing-plans.page.html` / `.scss` — pricing card grid UI.
+- `plan-card.component.ts` / `.html` — shared plan features, price, badge and CTA; uses the existing pricing stylesheet on both pricing and enrollment pages. Pricing remains net of VAT; enrollment shows its approved VAT-inclusive quote.
 
 ## Main flows
 - KT-053: /billing/open-banking is an authenticated enrollment page displaying
   only server-eligible OPEN_BANKING plans, original trial end and the quoted
-  first monthly price including VAT. Explicit checkbox approval precedes
-  PREPARE; existing saved cards can be reused/replaced. CardCom token-only
+  first monthly price including VAT. Shared PlanCardComponent renders the same
+  features, badge and styling as the pricing page. Its visible CTA accepts the
+  displayed recurring terms and writes PREPARE without a checkbox; existing
+  saved cards can be reused/replaced. CardCom token-only
   dialog completion, not browser submission, precedes Feezback consent link.
   Hosted fallback returns to enrollment only after backend-confirmed card save.
   PREPARE/READY can be canceled into a non-banking plan before the boundary;

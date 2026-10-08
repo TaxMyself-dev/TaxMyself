@@ -24,6 +24,8 @@ the subscription row, rejecting unresolved payment reservations. Eligible
 plans must include OPEN_BANKING and be public or belong to the owner's private
 referral catalog. The displayed quote freezes the original trial end and first
 post-trial VAT-inclusive price; stale confirmation is rejected.
+Enrollment options also expose the eligible plans' modules, marketing features,
+badge, recommendation and visibility for the shared frontend pricing card.
 
 OpenBankingEnrollmentService uses mandatory transactional PLAN_CHANGE_REQUESTED
 commands scoped by OPEN_BANKING_TRIAL_V1: PREPARE records owner consent, READY

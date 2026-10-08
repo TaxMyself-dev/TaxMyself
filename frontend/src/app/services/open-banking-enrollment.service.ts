@@ -4,7 +4,7 @@ import { firstValueFrom } from 'rxjs';
 import { environment } from 'src/environments/environment';
 
 export interface OpenBankingEnrollmentOptions {
-  plans: { id: number; name: string; amountAgorot: number; quote: string; currency: string }[];
+  plans: { id: number; name: string; amountAgorot: number; quote: string; currency: string; modules?: string[]; features?: string[] | null; badge?: string | null; recommended?: boolean; isPublic?: boolean; notes?: string | null }[];
   nonBankingPlans: { id: number; name: string }[];
   trialEnd: string | null;
   status: string;

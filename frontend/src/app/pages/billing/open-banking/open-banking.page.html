@@ -8,28 +8,21 @@
       <button class="primary" [disabled]="busy()" (click)="continue()">המשך לפיזבק</button>
     } @else if (data.status === 'TRIAL' && data.trialEnd && (data.trialEnd | date:'yyyy-MM-dd')) {
       <p class="intro">כדי להתחבר לבנקאות הפתוחה, יש להזין פרטי אשראי ולהצטרף לתוכנית הכוללת את השירות. במהלך תקופת הניסיון לא תחויבו. החיוב יחל בתום הניסיון, לאחר השלמת החיבור.</p>
-      <fieldset [disabled]="busy()">
-        <legend>{{ data.plans.length === 1 ? 'התוכנית שלך' : 'בחירת תוכנית עם בנקאות פתוחה' }}</legend>
+      <div class="enrollment-cards">
         @for (plan of data.plans; track plan.id) {
-          <label class="plan" [class.selected]="selectedPlanId === plan.id" [class.single]="data.plans.length === 1">
-            @if (data.plans.length > 1) {
-            <input type="radio" name="plan" [value]="plan.id" [(ngModel)]="selectedPlanId" (ngModelChange)="agreed = false" />
-            }
-            <span><b>{{ plan.name }}</b><small>כולל בנקאות פתוחה</small></span>
-            <strong>{{ plan.amountAgorot / 100 | currency:'ILS':'symbol':'1.2-2' }} <small>לחודש, כולל מע״מ</small></strong>
-            <span class="billing-date">תחילת החיוב: <b>{{ data.trialEnd | date:'dd/MM/yyyy' }}</b></span>
-          </label>
+          <app-plan-card [plan]="planCard(plan)" [disabled]="busy()" [busy]="busy() && selectedPlanId === plan.id"
+            [buttonLabel]="data.hasSavedCard ? 'אישור והמשך לחיבור' : 'המשך להזנת פרטי אשראי'" (action)="choosePlan(plan.id)" />
         }
-      </fieldset>
+      </div>
+      <p>תחילת החיוב: <strong>{{ data.trialEnd | date:'dd/MM/yyyy' }}</strong></p>
+      <p>בלחיצה על הכפתור אני מאשר/ת הצטרפות לתוכנית וחיוב חודשי אוטומטי בתום תקופת הניסיון, לאחר השלמת החיבור.</p>
       <section class="terms" aria-label="תנאי החיוב">
         <p>אפשר לבטל את ההצטרפות לפני תחילת החיוב ללא עלות. לאחר מכן, אפשר לבטל את המנוי או לעבור לתוכנית ללא בנקאות פתוחה דרך ״המנוי שלי״.</p>
       </section>
-      <label class="agreement"><input type="checkbox" [(ngModel)]="agreed" [disabled]="busy()" /> אני מאשר/ת הצטרפות לתוכנית וחיוב חודשי אוטומטי בתום תקופת הניסיון.</label>
       @if (data.hasSavedCard) {
         <p>יש כרטיס שמור בחשבון. הוא ישמש לחיובים העתידיים.</p>
         <button class="secondary" [disabled]="busy()" (click)="cardDialog.set(true)">החלפת הכרטיס השמור</button>
       }
-      <button class="primary" [disabled]="busy() || !agreed || !selectedPlanId" (click)="continue()">{{ busy() ? 'מכינים את ההרשמה…' : data.hasSavedCard ? 'אישור והמשך לחיבור' : 'המשך להזנת פרטי אשראי' }}</button>
     } @else {
       <p>תקופת הניסיון הסתיימה או שהמנוי אינו זמין לחיבור. יש לבחור ולהפעיל תוכנית הכוללת בנקאות פתוחה.</p>
       <a routerLink="/billing/plans">בחירת תוכנית</a>

@@ -1,3 +1,4 @@
+import { PlanCardComponent } from './plan-card.component';
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
@@ -21,7 +22,7 @@ type PlanCardItem =
 // Unified display catalog for pricing cards.
 // 'module' items check plan.modules (real access-control).
 // 'feature' items check plan.features (marketing display benefits).
-const PLAN_CARD_ITEMS: PlanCardItem[] = [
+export const PLAN_CARD_ITEMS: PlanCardItem[] = [
   { type: 'module',  key: 'INVOICES',             label: 'הפקת מסמכים' },
   { type: 'module',  key: 'EXPENSES',             label: 'ניהול הוצאות' },
   { type: 'module',  key: 'OPEN_BANKING',         label: 'סנכרון לחשבונות הבנק' },
@@ -67,7 +68,7 @@ export interface PlanVM {
 @Component({
   standalone: true,
   selector: 'app-billing-plans',
-  imports: [ProgressSpinner, RouterLink],
+  imports: [ProgressSpinner, RouterLink, PlanCardComponent],
   templateUrl: './billing-plans.page.html',
   styleUrl: './billing-plans.page.scss',
 })

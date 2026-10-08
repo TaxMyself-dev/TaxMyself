@@ -18,6 +18,14 @@
 
 ## Implementation and verification
 
+### Enrollment presentation follow-up — 2026-10-08
+
+Owner requested keeping card-before-Feezback onboarding, showing the existing pricing card, removing the checkbox and adding a visible card-entry CTA. Extracted a shared PlanCardComponent used by both pages; enrollment options expose the eligible plans' display metadata. The CTA selects the plan and records acceptance of the displayed recurring terms before opening the existing token-only dialog. Saved confirmation resumes Feezback; an existing saved card can be reused. No DB fixture changes or provider calls in this follow-up.
+
+Frontend production build and all 30 scoped billing frontend tests passed, including plan CTA -> card dialog -> confirmed save -> Feezback continuation. Initially concurrent verification was interrupted due to resource contention and rerun serially; user development servers were left running.
+
+### Original implementation
+
 Implemented the acceptance criteria above in the billing worktree. CardCom token-only enrollment records owner agreement and a frozen first-period quote. Feezback valid consents plus associated sources independently arm charging; browser return and profile edits cannot forge connection state. Original trial end is preserved. First recurring charge uses canonical obligations, attempts, receipts and retry recovery. Abandoned PREPARE can be withdrawn even after expiry; READY cancellation remains before the boundary. A saved card alone never arms billing.
 
 Both production builds passed. Billing regression passed 30 suites / 449 tests before the final focused additions. Final enrollment suite passed 14 tests; focused backend integration suites passed (orchestration, source verification, Feezback discovery, user state), and canonical renewal recovery passed 15 tests including frozen first charge and replay without a second capture. Scoped frontend tests cover enrollment, cancellation, pricing, recovery and billing state. Angular test discovery must use explicit --include arguments matching tsconfig.open-banking.spec.json; using that config alone discovers unrelated specs and fails compilation. An accidentally broad backend run was interrupted; its unrelated failures were not investigated or declared passing.
