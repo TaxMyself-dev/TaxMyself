@@ -18,8 +18,10 @@ Standalone pricing/plans page where a user views available subscription plans an
   saved cards can be reused/replaced. CardCom token-only
   dialog completion, not browser submission, precedes Feezback consent link.
   Hosted fallback returns to enrollment only after backend-confirmed card save.
-  PREPARE/READY can be canceled into a non-banking plan before the boundary;
-  that preserves trial and withdraws automatic billing. Parallel plan checkout
+  The separate non-banking plan/cancellation section was removed from this
+  enrollment page at owner request. The cancellation API remains available;
+  canceling PREPARE/READY preserves trial and withdraws automatic billing.
+  Parallel plan checkout
   is blocked and links back to enrollment management. Provider deletion remains
   deferred; this UI never claims that a Feezback account was deleted.
 

@@ -27,18 +27,6 @@
       <p>תקופת הניסיון הסתיימה או שהמנוי אינו זמין לחיבור. יש לבחור ולהפעיל תוכנית הכוללת בנקאות פתוחה.</p>
       <a routerLink="/billing/plans">בחירת תוכנית</a>
     }
-      @if (data.enrollment && (data.status === 'TRIAL' || data.enrollment.status === 'PREPARE')) {
-        <section class="terms">
-          <h2>רוצה להמשיך בלי בנקאות פתוחה?</h2>
-          <label>תוכנית ללא בנקאות פתוחה
-            <select [(ngModel)]="cancelPlanId" [disabled]="busy()">
-              @for (plan of data.nonBankingPlans; track plan.id) { <option [ngValue]="plan.id">{{ plan.name }}</option> }
-            </select>
-          </label>
-          <p>החיוב האוטומטי לא יופעל. מועד סיום הניסיון המקורי נשמר, ובסיומו אפשר לרכוש את התוכנית שנבחרה.</p>
-          <button class="secondary" [disabled]="busy() || !cancelPlanId" (click)="cancel()">ביטול ההצטרפות והחיוב העתידי</button>
-        </section>
-      }
   } @else {
     <button class="secondary" [disabled]="busy()" (click)="load()">{{ busy() ? 'טוענים פרטים…' : 'נסה שוב' }}</button>
   }
