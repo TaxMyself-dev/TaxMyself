@@ -14,6 +14,8 @@ Reused the existing cutover.sql section 17 column definition and section 19 addi
 
 ## Verification and limits
 
+Follow-up: owner reported /feezback/consent-link failed loading User.referral_code and explicitly approved restoring it. Reused the existing referral-signup production-migration.md definition: nullable VARCHAR(32) with ux_user_referral_code unique index. Compared all compiled User entity columns before repair; referral_code was the sole missing User field. No generated referral codes or guessed historical backfill.
+
 Row counts before/after unchanged: subscription 18, payment_method 4, billing_event 62, documents 20, billing_attempt 4, billing_obligation 3, billing_attempt_obligation 4, payment_method_update_attempt 0. Test subscription 7 remains TRIAL, STANDARD, original test trial ending October 17, with no card update reservation. All compiled billing entity columns present after repair.
 
 MySQL DDL auto-commits. Recreating a dropped column does not recover its deleted values: nullable provenance fields were restored NULL; access mode was restored with STANDARD default. Historical anchor/provenance/exemption data needs an independently verified backup or event-based recovery if required; no guessed backfill was performed. Use start:billing/start:watch (DISABLE_SYNCHRONIZE=true); another synchronize run from an older branch can remove the schema again.

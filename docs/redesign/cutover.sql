@@ -2280,3 +2280,20 @@ DEALLOCATE PREPARE kt040_stmt;
 --   ON l.attempt_id=a.id AND l.obligation_id=a.obligation_id WHERE l.attempt_id IS NULL;
 -- SHOW CREATE TABLE billing_attempt_obligation;
 -- SHOW INDEX FROM billing_obligation;
+
+-- 2026-10-08: referral field already defined in referral-signup/production-migration.md.
+-- Additive and resumable; also restores dev schema removed by older synchronize.
+SET @kt054_sql = IF(
+  EXISTS(SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='user' AND COLUMN_NAME='referral_code'),
+  'SELECT 1',
+  'ALTER TABLE `user` ADD COLUMN `referral_code` VARCHAR(32) NULL DEFAULT NULL');
+PREPARE kt054_stmt FROM @kt054_sql;
+EXECUTE kt054_stmt;
+DEALLOCATE PREPARE kt054_stmt;
+SET @kt054_sql = IF(
+  EXISTS(SELECT 1 FROM information_schema.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='user' AND INDEX_NAME='ux_user_referral_code'),
+  'SELECT 1',
+  'ALTER TABLE `user` ADD UNIQUE INDEX `ux_user_referral_code` (`referral_code`)');
+PREPARE kt054_stmt FROM @kt054_sql;
+EXECUTE kt054_stmt;
+DEALLOCATE PREPARE kt054_stmt;
