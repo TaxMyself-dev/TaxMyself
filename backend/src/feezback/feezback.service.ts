@@ -17,6 +17,11 @@ import { User } from '../users/user.entity';
 import { Source } from '../transactions/source.entity';
 import { ModuleName, SourceType } from '../enum';
 import { BillingService } from '../billing/services/billing.service';
+import { MailService } from '../mail/mail.service';
+import {
+  dedupeProviderTransactions,
+  ProviderTransactionDuplicateGroup,
+} from '../transactions/utils/provider-transaction-dedup.util';
 import * as fs from 'fs';
 import * as path from 'path';
 import { createHash, randomUUID } from 'crypto';
@@ -120,6 +125,7 @@ export class FeezbackService {
     @InjectRepository(Source) private readonly sourceRepository: Repository<Source>,
     @Inject(forwardRef(() => BillingService))
     private readonly billingService: BillingService,
+    private readonly mailService: MailService,
     @Optional() private readonly openBankingEnrollment?: OpenBankingEnrollmentService,
   ) {
     this.tppId = this.authService.getTppId();
@@ -324,6 +330,14 @@ export class FeezbackService {
 
     const receivedAt = new Date();
     const suspectedDuplicates = this.findAdminSuspectedDuplicates(sourceResults);
+    if (!persistTransactions) {
+      const { duplicateGroups } = dedupeProviderTransactions(normalizedTransactions);
+      await this.notifyProviderDuplicates(
+        firebaseId,
+        'admin diagnostic date-range pull',
+        duplicateGroups,
+      );
+    }
     const providerFailedCompletely = sourceResults.every(source => source.status === 'failed');
     const status: AdminFeezbackDateRangePullResult['status'] = providerFailedCompletely
       ? 'failed'
@@ -1059,6 +1073,7 @@ export class FeezbackService {
               dateFrom,
               dateTo,
             );
+          const providerResponseReceivedAt = new Date().toISOString();
 
           const transactions = this.extractCardTransactions(transactionsResponse);
           const cardMeta = {
@@ -1067,6 +1082,7 @@ export class FeezbackService {
             maskedPan: card?.maskedPan ?? null,
             currency: card?.currency ?? null,
             consentId,
+            providerResponseReceivedAt,
           };
           const transactionsWithMeta = transactions.map((tx: any) => ({ ...tx, __cardMeta: cardMeta }));
 
@@ -1318,12 +1334,93 @@ export class FeezbackService {
   async persistNormalizedTransactions(
     userId: string,
     normalizedTransactions: NormalizedTransaction[],
+    alertContext = 'admin date-range pull',
   ): Promise<any> {
     if (!normalizedTransactions || normalizedTransactions.length === 0) {
       return null;
     }
-    const pr = await this.processingService.process(userId, normalizedTransactions);
+    const pr = await this.processTransactionsWithDuplicateAlert(
+      userId,
+      normalizedTransactions,
+      alertContext,
+    );
     return pr;
+  }
+
+  private async processTransactionsWithDuplicateAlert(
+    firebaseId: string,
+    transactions: NormalizedTransaction[],
+    context: string,
+  ): Promise<any> {
+    const { duplicateGroups } = dedupeProviderTransactions(transactions);
+    const alertPromise = this.notifyProviderDuplicates(
+      firebaseId,
+      context,
+      duplicateGroups,
+    );
+
+    const [processingResult] = await Promise.all([
+      this.processingService.process(firebaseId, transactions),
+      alertPromise,
+    ]);
+    return processingResult;
+  }
+
+  private async notifyProviderDuplicates(
+    firebaseId: string,
+    context: string,
+    duplicateGroups: ProviderTransactionDuplicateGroup[],
+  ): Promise<void> {
+    if (duplicateGroups.length === 0) return;
+
+    try {
+      const userName = await this.resolveUserLabel(firebaseId).catch(() => firebaseId);
+      const duplicateRows = duplicateGroups.reduce(
+        (count, group) => count + group.transactions.length - 1,
+        0,
+      );
+      const lines = [
+        'Feezback V2 returned duplicate representations of provider transactions.',
+        '',
+        `User: ${userName}`,
+        `Firebase ID: ${firebaseId}`,
+        `Flow: ${context}`,
+        `Duplicate groups: ${duplicateGroups.length}`,
+        `Rows suppressed from persistence: ${duplicateRows}`,
+      ];
+
+      duplicateGroups.forEach((group, index) => {
+        const receivedAt = Array.from(new Set(
+          group.transactions
+            .map(transaction => transaction.providerResponseReceivedAt)
+            .filter((value): value is string => !!value),
+        ));
+        const example = group.transactions[0];
+        lines.push(
+          '',
+          `Duplicate ${index + 1}:`,
+          `  Feezback response received at: ${receivedAt.join(', ') || 'not captured'}`,
+          `  Source: ${group.paymentIdentifier}`,
+          `  ASPSP original ID: ${group.providerOriginalId}`,
+          `  Transaction date: ${example.transactionDate.toISOString()}`,
+          `  Merchant: ${example.merchantName}`,
+          `  Amount: ${example.amount} ${example.currency ?? ''}`.trimEnd(),
+          `  Returned transaction IDs: ${group.transactions.map(transaction => transaction.externalTransactionId).join(', ')}`,
+          `  Kept transaction ID: ${group.keptExternalTransactionId}`,
+        );
+      });
+
+      await this.mailService.sendMail(
+        'info@keepintax.co.il',
+        `[KeepInTax] Feezback duplicates detected (${duplicateGroups.length})`,
+        lines.join('\n'),
+      );
+    } catch (error: any) {
+      this.logger.error(
+        `[FeezbackDuplicateAlert] Email failed | firebaseId=${firebaseId.substring(0, 8)}... | error=${error?.message ?? error}`,
+        error?.stack,
+      );
+    }
   }
 
   /**
@@ -1439,6 +1536,7 @@ export class FeezbackService {
             dateFrom,
             dateTo,
           );
+          const providerResponseReceivedAt = new Date().toISOString();
           const rawTransactions = this.extractBankTransactions(transactionsResponse);
           // Stamp the account's IBAN + currency directly onto each transaction so
           // normalization can attribute the tx to the right Source row without relying
@@ -1448,6 +1546,7 @@ export class FeezbackService {
             ...tx,
             __accountIban: account.iban ?? null,
             __accountCurrency: account.currency ?? null,
+            __providerResponseReceivedAt: providerResponseReceivedAt,
           }));
           return { account, transactions, rawResponse: transactionsResponse, failed: false, error: null };
         } catch (error: any) {
@@ -1718,6 +1817,11 @@ export class FeezbackService {
 
       result.push({
         externalTransactionId: externalId,
+        providerOriginalId: typeof tx?.aspspOriginalId === 'string' ? tx.aspspOriginalId : null,
+        providerEntryReference: typeof tx?.entryReference === 'string' ? tx.entryReference : null,
+        providerResponseReceivedAt: typeof tx?.__providerResponseReceivedAt === 'string'
+          ? tx.__providerResponseReceivedAt
+          : null,
         merchantName: this.resolveBankMerchantName(tx),
         amount,
         currency: tx?.transactionAmount?.currency ?? 'ILS',
@@ -1781,6 +1885,11 @@ export class FeezbackService {
 
       result.push({
         externalTransactionId: externalId,
+        providerOriginalId: typeof tx?.aspspOriginalId === 'string' ? tx.aspspOriginalId : null,
+        providerEntryReference: typeof tx?.entryReference === 'string' ? tx.entryReference : null,
+        providerResponseReceivedAt: typeof cardMeta?.providerResponseReceivedAt === 'string'
+          ? cardMeta.providerResponseReceivedAt
+          : null,
         merchantName: this.resolveCardMerchantName(tx),
         amount,
         currency,
@@ -2548,7 +2657,11 @@ export class FeezbackService {
           console.log(`  Valid (after consent filter): ${phase.normalizedTransactions.length}${phase.hasErrors ? ` (partial — errors: ${phase.diagnostics.errors.join(', ')})` : ''}`);
           console.log(`════════════════════════════════════`);
           const tDb = Date.now();
-          const pr = await this.processingService.process(firebaseId, phase.normalizedTransactions);
+          const pr = await this.processTransactionsWithDuplicateAlert(
+            firebaseId,
+            phase.normalizedTransactions,
+            `${triggeredBy} full sync`,
+          );
           rowsWritten = pr.newlySavedToCache;
           const dedupNote = pr.deduplicatedCount > 0 ? ` | deduped=${pr.deduplicatedCount}` : '';
           const dupMatchNote = pr.skippedDuplicateMatch > 0 ? ` | dupMatch=${pr.skippedDuplicateMatch}` : '';
@@ -2791,7 +2904,11 @@ export class FeezbackService {
       const resp = await this.feezbackConsentApiService.getAccountTransactionsByConsent(
         sub, row.consentId, row.resourceId, 'booked', dateFrom, dateTo,
       );
-      const rawTransactions = this.extractBankTransactions(resp);
+      const providerResponseReceivedAt = new Date().toISOString();
+      const rawTransactions = this.extractBankTransactions(resp).map((tx: any) => ({
+        ...tx,
+        __providerResponseReceivedAt: providerResponseReceivedAt,
+      }));
 
       // This endpoint is per sub-account, so every tx here belongs to this
       // exact `sourceId`. We don't stamp __accountIban (the normalizer keeps
@@ -2809,7 +2926,11 @@ export class FeezbackService {
       }
 
       if (normalized.length > 0) {
-        await this.processingService.process(firebaseId, normalized);
+        await this.processTransactionsWithDuplicateAlert(
+          firebaseId,
+          normalized,
+          'single bank source pull',
+        );
       }
 
       const result: SourceResult = {
@@ -2926,7 +3047,11 @@ export class FeezbackService {
         console.log(`  ${result.status === 'success' ? '✓' : '✗'} Card *${sourceId} (${userName}) — ${result.status} | count=${result.transactionCount}`);
 
         if (result.status === 'success' && cardRes.normalizedTransactions?.length > 0) {
-          await this.processingService.process(firebaseId, cardRes.normalizedTransactions);
+          await this.processTransactionsWithDuplicateAlert(
+            firebaseId,
+            cardRes.normalizedTransactions,
+            'single card source retry',
+          );
         }
         await this.userSyncStateService.updateSourceResults(firebaseId, [result]).catch(() => {});
         if (result.status === 'success') {

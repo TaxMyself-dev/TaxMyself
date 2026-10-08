@@ -621,7 +621,6 @@ export class DelegationService {
           fName: dto.fName?.trim() ?? '',
           lName: dto.lName?.trim() ?? '',
           id: dto.id?.trim() ?? '',
-          finsiteId: null,
           gender: Gender.MALE,
           dateOfBirth,
           city: addressOrCity,

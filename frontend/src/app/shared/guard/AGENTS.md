@@ -6,6 +6,8 @@ entitlements, referral consent, offline navigation and view-only delegation.
 ## Key entities/files
 
 - `auth.guard.ts` and `login-page.guard.ts` handle auth entry.
+- `admin-route.guard.ts` keeps non-admin profiles out of `/admin-panel`; backend
+  `AdminGuard` remains the authoritative security boundary.
 - `startup-redirect.guard.ts` resolves the post-login destination.
 - `billing.guard.ts` and `module-access.guard.ts` enforce subscription/module
   access while preserving approved admin impersonation behavior.

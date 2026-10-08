@@ -1,4 +1,5 @@
 ## Purpose
+Integration with main preserves STANDARD-only conditional trial expiry and activates verified banking enrollments before expiry. Activated trials are not counted as expired; concurrent complimentary grants cannot be overwritten. Billing cutover DDL is Section 20, multi-obligation links Section 21, following main's Finsite retirement Section 19.
 Local billing backend uses port 3000, frontend 4200. Use `npm run start:watch` from billing backend with its local `.env`; the optional start:billing wrapper pins 3000 and preserves existing terminal env values rather than overriding them.
 Subscription billing: plan catalog, trial/subscription lifecycle, CardCom payment integration (checkout + webhook-driven activation), recurring renewals, receipts, and an admin back-office for plans/subscriptions.
 
@@ -582,6 +583,13 @@ preserving any stored payment method; revoking changes the mode back to
 `STANDARD` and leaves the subscription `TRIAL_EXPIRED`, without charging.
 Grant/revoke operations are admin-only and emit dedicated billing audit events
 with the acting Firebase ID.
+
+All unrelated subscription mutations must use narrow partial updates and must
+never save a previously loaded full `Subscription` entity. Plan changes and
+automated lifecycle transitions additionally re-check/lock the current row so
+a concurrent `COMPLIMENTARY_FULL` grant wins and cannot be reverted by a stale
+writer. Only the explicit admin grant/revoke operation may update
+`billing_access_mode`.
 
 ## Admin trial-end override
 

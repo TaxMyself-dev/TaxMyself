@@ -9,6 +9,7 @@ import { StartupRedirectGuard } from './shared/guard/startup-redirect.guard';
 import { LoginPageGuard } from './shared/guard/login-page.guard';
 import { OfflineNavigationGuard } from './shared/guard/offline-navigation.guard';
 import { ReferralConsentGuard } from './shared/guard/referral-consent.guard';
+import { AdminRouteGuard } from './shared/guard/admin-route.guard';
 import { AppRoute } from './shared/access-control';
 
 /**
@@ -104,7 +105,8 @@ const appRoutes: Routes = [
   },
   {
     path: 'admin-panel',
-    loadComponent: () => import('./pages/admin-panel/admin-panel.page').then(m => m.AdminPanelPage)
+    loadComponent: () => import('./pages/admin-panel/admin-panel.page').then(m => m.AdminPanelPage),
+    canActivate: [AuthGuard, AdminRouteGuard],
   },
   {
     path: 'client-panel',

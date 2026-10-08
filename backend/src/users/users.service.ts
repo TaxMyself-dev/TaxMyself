@@ -183,7 +183,6 @@ export class UsersService {
       ...safeSpouse,
       role: [UserRole.REGULAR],
       hasOpenBanking: false,
-      finsiteId: 0,
       createdAt: new Date(),
     };
 

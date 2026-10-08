@@ -15,7 +15,8 @@ Owns bank/card transaction ingestion, classification (rule-based and manual), an
 - `transactions.controller.ts` — REST endpoints under `/transactions`.
 
 ## Main flows
-- Sync: `triggerSync`/`getSyncStatus`/`retrySource`/`postConsentSync` — Open Banking pull pipeline (via feezback) feeding `process()` → slim + cache tables.
+- Sync: `triggerSync`/`getSyncStatus`/`retrySource`/`postConsentSync` — Open Banking pull pipeline (via Feezback) feeding `process()` → slim + cache tables. The retired Finsite ingestion path and its endpoint have been removed.
+- Provider deduplication runs at the `process()` boundary before persistence. Feezback V2 rows with different transaction IDs but the same `(paymentIdentifier, aspspOriginalId)` collapse to one row, preferring the V1-compatible variant without `entryReference`; no business-field heuristic is used when provider provenance is absent.
 - Classification: `classifyTransaction`/`classifyManually`/`classifyWithRule`/`quickClassifyTransaction` — assigns category/vat%/tax%, optionally creating or applying a `ClassifiedTransactions` rule.
 - Confirm to Expense: `saveTransToExpenses`/`saveTransactionsToExpenses` — promotes confirmed slim rows into `Expense` records via `ExpensesService`, stamping `vatReportingDate`.
 - Flow analysis: `getFlowAnalysis`/`getFlowAnalysisMerchants` — aggregated cash-flow view over cache rows.

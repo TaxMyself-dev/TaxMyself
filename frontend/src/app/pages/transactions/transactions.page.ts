@@ -711,7 +711,7 @@ export class TransactionsPage implements OnInit {
 
   onQuickClassify(row: IRowDataTable): void {
     this.isLoadingQuickClassify.set(true);
-    this.transactionService.quickClassify(row.finsiteId as string)
+    this.transactionService.quickClassify(row.externalTransactionId as string)
       .pipe(
         catchError((err) => {
           console.log('error in quick classify', err);

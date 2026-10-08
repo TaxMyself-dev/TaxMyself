@@ -66,6 +66,7 @@ describe('FeezbackService — Direct/Debit card handling', () => {
       userRepository as any,
       sourceRepository as any,
       {} as any,               // BillingService
+      { sendMail: jest.fn() } as any, // MailService
     );
 
     // Debug-file writer is a best-effort dev aid — stub it so tests don't

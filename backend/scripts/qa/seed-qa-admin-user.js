@@ -46,7 +46,6 @@ async function main() {
     familyStatus: null,
     businessStatus: 'NO_BUSINESS',
     firebaseId: NEW_FIREBASE_ID,
-    finsiteId: null,
     spouseFName: null,
     spouseLName: null,
     spouseId: null,

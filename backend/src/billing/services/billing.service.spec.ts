@@ -314,7 +314,7 @@ describe('BillingService.getPlans — exclusivity for non-public assigned plans'
 describe('BillingService.createCheckout — referral plan live resolution', () => {
   let service: BillingService;
   let planRepo: { findOne: jest.Mock };
-  let subscriptionRepo: { findOne: jest.Mock; save: jest.Mock };
+  let subscriptionRepo: { findOne: jest.Mock; save: jest.Mock; update: jest.Mock };
   let userRepo: { findOne: jest.Mock };
   let pricingService: { calculateCheckoutPrice: jest.Mock };
   let billingEventService: { getUnresolvedReceiptFailure: jest.Mock; logEvent: jest.Mock };
@@ -345,6 +345,7 @@ describe('BillingService.createCheckout — referral plan live resolution', () =
     subscriptionRepo = {
       findOne: jest.fn().mockResolvedValue({ ...SUBSCRIPTION }),
       save: jest.fn().mockImplementation(s => Promise.resolve(s)),
+      update: jest.fn().mockResolvedValue({ affected: 1 }),
     };
     userRepo = { findOne: jest.fn().mockResolvedValue({ hasOpenBanking: false, email: 'a@b.com', fName: 'A', lName: 'B', phone: '050' }) };
     pricingService = { calculateCheckoutPrice: jest.fn().mockResolvedValue({ ...PRICING }) };
@@ -381,7 +382,14 @@ describe('BillingService.createCheckout — referral plan live resolution', () =
     await service.createCheckout(OWNER_ACTOR, { planId: 99 } as any);
 
     expect(pricingService.calculateCheckoutPrice).toHaveBeenCalledWith('client-1', 100);
-    expect(subscriptionRepo.save).toHaveBeenCalledWith(expect.objectContaining({ planId: 100 }));
+    expect(subscriptionRepo.update).toHaveBeenCalledWith(
+      {
+        id: 500,
+        planId: 99,
+        billingAccessMode: BillingAccessMode.STANDARD,
+      },
+      { planId: 100 },
+    );
     expect(cardcomService.createLowProfileCheckout).toHaveBeenCalledWith(
       expect.objectContaining({ planName: 'הפניית רואה חשבון — כולל חיבור בנקאי פתוח' }),
     );
@@ -970,7 +978,7 @@ describe('BillingService — owner-mutation authorization', () => {
 describe('BillingService.autoUpgradeReferralOpenBankingIfEligible', () => {
   let service: BillingService;
   let planRepo: { findOne: jest.Mock };
-  let subscriptionRepo: { findOne: jest.Mock; save: jest.Mock };
+  let subscriptionRepo: { findOne: jest.Mock; save: jest.Mock; update: jest.Mock };
 
   const TARGET_PLAN = { id: 99, slug: 'referral-open-banking', isActive: true };
 
@@ -979,6 +987,7 @@ describe('BillingService.autoUpgradeReferralOpenBankingIfEligible', () => {
     subscriptionRepo = {
       findOne: jest.fn(),
       save: jest.fn().mockImplementation(async (s) => s),
+      update: jest.fn().mockResolvedValue({ affected: 1 }),
     };
 
     service = new BillingService(
@@ -1019,16 +1028,51 @@ describe('BillingService.autoUpgradeReferralOpenBankingIfEligible', () => {
   });
 
   it('on referral-basic: upgrades to referral-open-banking, planId swap only (no status/charge fields touched)', async () => {
-    const subscription = { firebaseId: 'client-1', planId: 2, status: 'TRIAL' };
+    const subscription = {
+      id: 10,
+      firebaseId: 'client-1',
+      planId: 2,
+      status: 'TRIAL',
+      billingAccessMode: BillingAccessMode.STANDARD,
+    };
     subscriptionRepo.findOne.mockResolvedValue(subscription);
     planRepo.findOne
       .mockResolvedValueOnce({ id: 2, slug: 'referral-basic' }) // current plan lookup
       .mockResolvedValueOnce(TARGET_PLAN); // target plan lookup
     const result = await service.autoUpgradeReferralOpenBankingIfEligible('client-1');
     expect(result).toBe(true);
-    expect(subscriptionRepo.save).toHaveBeenCalledWith(
-      expect.objectContaining({ planId: 99, status: 'TRIAL' }), // status untouched — never forced to ACTIVE
+    expect(subscriptionRepo.update).toHaveBeenCalledWith(
+      {
+        id: 10,
+        planId: 2,
+        billingAccessMode: BillingAccessMode.STANDARD,
+      },
+      { planId: 99 },
     );
+    expect(subscription.status).toBe('TRIAL'); // status untouched — never forced to ACTIVE
+  });
+
+  it('a concurrent complimentary grant wins over a stale referral upgrade', async () => {
+    const subscription = {
+      id: 10,
+      firebaseId: 'client-1',
+      planId: 2,
+      status: 'TRIAL',
+      billingAccessMode: BillingAccessMode.STANDARD,
+    };
+    subscriptionRepo.findOne.mockResolvedValue(subscription);
+    subscriptionRepo.update.mockResolvedValue({ affected: 0 });
+    planRepo.findOne
+      .mockResolvedValueOnce({ id: 2, slug: 'referral-basic' })
+      .mockResolvedValueOnce(TARGET_PLAN);
+
+    await expect(service.autoUpgradeReferralOpenBankingIfEligible('client-1')).resolves.toBe(false);
+
+    expect(subscriptionRepo.update).toHaveBeenCalledWith(
+      expect.objectContaining({ billingAccessMode: BillingAccessMode.STANDARD }),
+      { planId: 99 },
+    );
+    expect(subscription.planId).toBe(2);
   });
 
   it('on referral-basic but target plan missing/inactive: no-op, does not throw', async () => {
@@ -1039,5 +1083,61 @@ describe('BillingService.autoUpgradeReferralOpenBankingIfEligible', () => {
     const result = await service.autoUpgradeReferralOpenBankingIfEligible('client-1');
     expect(result).toBe(false);
     expect(subscriptionRepo.save).not.toHaveBeenCalled();
+  });
+});
+
+describe('BillingService.expireOverdueTrials — complimentary access concurrency', () => {
+  it('activates a verified banking trial without counting it as expired', async () => {
+    const trial = { id: 7, status: SubscriptionStatus.TRIAL, billingAccessMode: BillingAccessMode.STANDARD };
+    const active = { ...trial, status: SubscriptionStatus.ACTIVE };
+    const repository = { find: jest.fn().mockResolvedValue([trial]), findOne: jest.fn().mockResolvedValue(active), update: jest.fn() };
+    const enrollment = { activateDue: jest.fn().mockResolvedValue(true) };
+    const service = new BillingService({} as any, repository as any,
+      {} as any, {} as any, {} as any, {} as any, {} as any, {} as any,
+      {} as any, {} as any, {} as any, {} as any, {} as any, undefined, undefined,
+      undefined, undefined, enrollment as any);
+    await expect(service.expireOverdueTrials()).resolves.toBe(0);
+    expect(enrollment.activateDue).toHaveBeenCalledWith(7);
+    expect(repository.update).not.toHaveBeenCalled();
+    expect(trial.status).toBe(SubscriptionStatus.ACTIVE);
+  });
+
+  it('uses a conditional partial update so a concurrent complimentary grant wins', async () => {
+    const staleSubscription = {
+      id: 77,
+      status: SubscriptionStatus.TRIAL,
+      billingAccessMode: BillingAccessMode.STANDARD,
+      trialEnd: new Date('2026-01-01T00:00:00.000Z'),
+    };
+    const subscriptionRepo = {
+      find: jest.fn().mockResolvedValue([staleSubscription]),
+      update: jest.fn().mockResolvedValue({ affected: 0 }),
+      save: jest.fn(),
+    };
+    const service = new BillingService(
+      {} as any,
+      subscriptionRepo as any,
+      {} as any, {} as any, {} as any, {} as any, {} as any, {} as any,
+      {} as any, {} as any, {} as any, {} as any, {} as any,
+    );
+
+    await expect(service.expireOverdueTrials()).resolves.toBe(0);
+
+    expect(subscriptionRepo.find).toHaveBeenCalledWith({
+      where: expect.objectContaining({
+        status: SubscriptionStatus.TRIAL,
+        billingAccessMode: BillingAccessMode.STANDARD,
+      }),
+    });
+    expect(subscriptionRepo.update).toHaveBeenCalledWith(
+      {
+        id: 77,
+        status: SubscriptionStatus.TRIAL,
+        billingAccessMode: BillingAccessMode.STANDARD,
+      },
+      { status: SubscriptionStatus.TRIAL_EXPIRED },
+    );
+    expect(subscriptionRepo.save).not.toHaveBeenCalled();
+    expect(staleSubscription.status).toBe(SubscriptionStatus.TRIAL);
   });
 });

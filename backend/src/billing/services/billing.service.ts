@@ -616,8 +616,20 @@ export class BillingService {
                 8,
               )}... — updating subscription.planId`,
           );
+          const updateResult = await this.subscriptionRepo.update(
+            {
+              id: subscription.id,
+              planId: subscription.planId,
+              billingAccessMode: BillingAccessMode.STANDARD,
+            },
+            { planId: plan.id },
+          );
+          if (updateResult.affected !== 1) {
+            throw new ConflictException(
+              'Subscription changed while checkout was being prepared. Please try again.',
+            );
+          }
           subscription.planId = plan.id;
-          await this.subscriptionRepo.save(subscription);
         }
       }
     }
@@ -866,9 +878,21 @@ export class BillingService {
   private async applyReferralOpenBankingUpgrade(
     subscription: Subscription,
     targetPlan: SubscriptionPlan,
-  ): Promise<void> {
-    subscription.planId = targetPlan.id;
-    await this.subscriptionRepo.save(subscription);
+  ): Promise<boolean> {
+    // Update only the plan column and require the row to still be the STANDARD
+    // subscription we inspected. A concurrent complimentary-access grant wins:
+    // it clears the plan and this stale writer becomes a clean no-op instead of
+    // restoring fields (especially billingAccessMode) from an old entity.
+    const result = await this.subscriptionRepo.update(
+      {
+        id: subscription.id,
+        planId: subscription.planId,
+        billingAccessMode: BillingAccessMode.STANDARD,
+      },
+      { planId: targetPlan.id },
+    );
+    if (result.affected === 1) subscription.planId = targetPlan.id;
+    return result.affected === 1;
   }
 
   /**
@@ -911,7 +935,12 @@ export class BillingService {
       throw new NotFoundException('תוכנית השדרוג אינה זמינה כרגע.');
     }
 
-    await this.applyReferralOpenBankingUpgrade(subscription, targetPlan);
+    const upgraded = await this.applyReferralOpenBankingUpgrade(subscription, targetPlan);
+    if (!upgraded) {
+      throw new ConflictException(
+        'Subscription changed while the upgrade was being applied. Please try again.',
+      );
+    }
 
     this.logger.log(
       `upgradeToReferralOpenBankingPlan: firebaseId=${firebaseId.substring(
@@ -969,7 +998,8 @@ export class BillingService {
       return false;
     }
 
-    await this.applyReferralOpenBankingUpgrade(subscription, targetPlan);
+    const upgraded = await this.applyReferralOpenBankingUpgrade(subscription, targetPlan);
+    if (!upgraded) return false;
 
     this.logger.log(
       `autoUpgradeReferralOpenBankingIfEligible: firebaseId=${firebaseId.substring(
@@ -1870,21 +1900,21 @@ export class BillingService {
     const overdueTrials = await this.subscriptionRepo.find({
       where: {
         status: SubscriptionStatus.TRIAL,
+        billingAccessMode: BillingAccessMode.STANDARD,
         trialEnd: LessThan(new Date()),
       },
     });
 
+    let expiredCount = 0;
     for (const subscription of overdueTrials) {
-      await this.expireTrialSubscription(subscription);
+      if (await this.expireTrialSubscription(subscription)) expiredCount++;
     }
 
-    if (overdueTrials.length > 0) {
-      this.logger.log(
-        `expireOverdueTrials: expired ${overdueTrials.length} trial subscription(s)`,
-      );
+    if (expiredCount > 0) {
+      this.logger.log(`expireOverdueTrials: expired ${expiredCount} trial subscription(s)`);
     }
 
-    return overdueTrials.length;
+    return expiredCount;
   }
 
   /**
@@ -1893,14 +1923,21 @@ export class BillingService {
    */
   private async expireTrialSubscription(
     subscription: Subscription,
-  ): Promise<void> {
+  ): Promise<boolean> {
+    if (subscription.billingAccessMode !== BillingAccessMode.STANDARD) return false;
     if (this.openBankingEnrollment && await this.openBankingEnrollment.activateDue(subscription.id)) {
       Object.assign(subscription, await this.subscriptionRepo.findOne({ where: { id: subscription.id } }));
-      return;
+      return false;
     }
-    // Conditional update avoids overwriting a concurrent paid activation.
-    subscription.status = SubscriptionStatus.TRIAL_EXPIRED;
-    await this.subscriptionRepo.update({ id: subscription.id, status: SubscriptionStatus.TRIAL },
-      { status: SubscriptionStatus.TRIAL_EXPIRED });
+    const result = await this.subscriptionRepo.update(
+      {
+        id: subscription.id,
+        status: SubscriptionStatus.TRIAL,
+        billingAccessMode: BillingAccessMode.STANDARD,
+      },
+      { status: SubscriptionStatus.TRIAL_EXPIRED },
+    );
+    if (result.affected === 1) subscription.status = SubscriptionStatus.TRIAL_EXPIRED;
+    return result.affected === 1;
   }
 }

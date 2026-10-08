@@ -1853,8 +1853,36 @@ WHERE s.`merchantNameSnapshot` IS NULL
 --   AND (merchantNameSnapshot IS NULL
 --     OR transactionDateSnapshot IS NULL OR amountSnapshot IS NULL);
 
--- Billing sections appended after origin/main Sections 17 and 18.
--- SECTION 19 (2026-09-17, Elazar) -- durable billing obligations and attempts.
+-- SECTION 19 (2026-10-07, Elazar) -- retire the Finsite integration.
+--
+-- Open Banking transaction ingestion now runs exclusively through Feezback.
+-- The production-copy audit found no users linked to Finsite and no rows in
+-- the legacy transactions table; the remaining Finsite rows are unreferenced
+-- provider metadata. Remove the retired provider table and its two obsolete
+-- identifier columns. The active Feezback identifier is stored as
+-- externalTransactionId in slim_transactions/full_transactions_cache.
+-- ============================================================================
+
+DROP TABLE `finsite`;
+
+ALTER TABLE `user`
+  DROP COLUMN `finsiteId`;
+
+ALTER TABLE `transactions`
+  DROP COLUMN `finsiteId`;
+
+-- Verification: all three queries must return zero rows.
+-- SELECT TABLE_NAME FROM information_schema.TABLES
+-- WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'finsite';
+-- SELECT COLUMN_NAME FROM information_schema.COLUMNS
+-- WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'user'
+--   AND COLUMN_NAME = 'finsiteId';
+-- SELECT COLUMN_NAME FROM information_schema.COLUMNS
+-- WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'transactions'
+--   AND COLUMN_NAME = 'finsiteId';
+
+-- Billing sections appended after origin/main Sections 17, 18 and 19.
+-- SECTION 20 (2026-09-17, Elazar) -- durable billing obligations and attempts.
 --
 -- Persistence foundation only. Existing checkout/renewal/recovery/webhook
 -- runtime paths are not switched by this section. billing_event remains an
@@ -2223,9 +2251,9 @@ DEALLOCATE PREPARE kt032_stmt;
 -- SHOW CREATE TABLE billing_attempt;
 -- SHOW CREATE TABLE payment_method_update_attempt;
 
--- SECTION 20. KT-040: one payment attempt can settle several subscription periods.
+-- SECTION 21. KT-040: one payment attempt can settle several subscription periods.
 -- Code/DDL approved by Elazar on 2026-10-05. NOT approved for execution.
--- Requires Section 19, stopped billing writers, and an explicitly approved DB.
+-- Requires Section 20, stopped billing writers, and an explicitly approved DB.
 -- Retain billing_attempt.obligation_id as the primary debt for owner routing
 -- and attempt numbering; this link table is the complete frozen membership.
 CREATE TABLE IF NOT EXISTS `billing_attempt_obligation` (
@@ -2274,7 +2302,7 @@ PREPARE kt040_stmt FROM @kt040_sql;
 EXECUTE kt040_stmt;
 DEALLOCATE PREPARE kt040_stmt;
 
--- Verification: first query must return zero; do not execute old Section 19's
+-- Verification: first query must return zero; do not execute old Section 20's
 -- empty-table assertions on an existing runtime database.
 -- SELECT COUNT(*) FROM billing_attempt a LEFT JOIN billing_attempt_obligation l
 --   ON l.attempt_id=a.id AND l.obligation_id=a.obligation_id WHERE l.attempt_id IS NULL;

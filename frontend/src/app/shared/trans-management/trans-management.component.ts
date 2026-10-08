@@ -1,9 +1,6 @@
 import { Component, OnInit, signal } from '@angular/core';
 import { Router } from '@angular/router';
-import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 import { catchError, EMPTY, finalize } from 'rxjs';
-import { AdminPanelService } from 'src/app/services/admin-panel.service';
-import { GenericService } from 'src/app/services/generic.service';
 import { FeezbackService } from 'src/app/services/feezback.service';
 import { SyncStatusService } from 'src/app/services/sync-status.service';
 import { MessageService } from 'primeng/api';
@@ -19,8 +16,6 @@ type SimScenario = 'success' | 'allFailed' | 'partialSync' | 'partialConsent';
 })
 export class TransManagementComponent  implements OnInit {
 
-  fisiteDataForm: FormGroup;
-
   isLoadingConsentLink = signal<boolean>(false);
   isLoadingUserAccounts = signal<boolean>(false);
 
@@ -32,62 +27,13 @@ export class TransManagementComponent  implements OnInit {
   isLoadingSim = signal<SimScenario | 'reset' | null>(null);
 
   constructor(
-    private genericService: GenericService,
-    private formBuilder: FormBuilder,
-    private adminPanelService: AdminPanelService,
     private feezbackService: FeezbackService,
     private syncStatusService: SyncStatusService,
     private messageService: MessageService,
     private router: Router,
-  ) {
-    this.fisiteDataForm = this.formBuilder.group({
-      startDate: new FormControl(
-        '', Validators.required,
-      ),
-      endDate: new FormControl(
-        '', Validators.required,
-      ),
-      finsiteId: new FormControl(
-        '', [],
-      ),
-     })
-  }
+  ) {}
 
   ngOnInit() {}
-
-
-
-  getTransFromApi(): void {
-    this.genericService.getLoader().subscribe();
-    const formData = this.fisiteDataForm.value;
-    console.log(formData);
-    this.adminPanelService.getTransFromApi(formData)
-    .pipe(
-      finalize(() => this.genericService.dismissLoader()),
-      catchError((error) => {
-        console.log("error in get trans from api: ", error);
-        return EMPTY;
-      })
-    )
-    .subscribe((res) => {
-      console.log("res of get trans from api: ", res);
-    })
-  }
-
-  getAllUsersDataFromFinsite(): void {
-    this.genericService.getLoader().subscribe();
-    this.adminPanelService.getAllUsersDataFromFinsite()
-    .pipe(
-      finalize(() => this.genericService.dismissLoader()),
-      catchError((error) => {
-        console.log("error in getAllUsersDataFromFinsite: ", error);
-        return EMPTY;
-      })
-    )
-    .subscribe((res) => {
-      console.log(res);
-    })
-  }
 
   connectToOpenBanking(): void {
     this.consentChecked.set(false);

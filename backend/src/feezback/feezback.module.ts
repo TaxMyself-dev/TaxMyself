@@ -20,6 +20,7 @@ import { SettingDocuments } from 'src/documents/settingDocuments.entity';
 import { FeezbackWebhookRouterModule } from './router/feezback-webhook-router.module';
 import { TransactionsModule } from '../transactions/transactions.module';
 import { BillingModule } from '../billing/billing.module';
+import { MailModule } from '../mail/mail.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { BillingModule } from '../billing/billing.module';
     FeezbackWebhookRouterModule,
     forwardRef(() => TransactionsModule),
     forwardRef(() => BillingModule),
+    MailModule,
   ],
   controllers: [FeezbackController],
   providers: [
@@ -46,20 +48,3 @@ import { BillingModule } from '../billing/billing.module';
   exports: [FeezbackService, FeezbackApiService],
 })
 export class FeezbackModule { }
-
-
-// import { Module } from '@nestjs/common';
-// import { TypeOrmModule } from '@nestjs/typeorm'
-// import { FinsiteService } from './feezback.service';
-// import { FinsiteController } from './feezback.controller';
-// import { Finsite } from './feezback.entity';
-
-
-// @Module({
-//   imports: [TypeOrmModule.forFeature([Finsite])],
-//   controllers: [FinsiteController],
-//   providers: [
-//     FinsiteService
-//   ],
-// })
-// export class FinsiteModule {}

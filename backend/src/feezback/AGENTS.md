@@ -1,4 +1,5 @@
 ## Purpose
+Main integration retains MailService for provider duplicate alerts alongside the optional OpenBankingEnrollmentService for server-verified future billing. Tests supply both dependencies in that order.
 The temporary legacy diagnostic bypass was removed. Consent-link enforces the enrollment/card prerequisite, then creates the onboarding link without provider data discovery or /token requests. Connection proof remains in post-consent/webhook discovery and daily pending recovery. Inherited legacy diagnostic flags have no effect. Local backend launch remains start:watch.
 Integrates with Feezback, the Open Banking (AISP) data provider: handles the consent flow, fetches bank account/card transactions, normalizes them into the app's transaction pipeline, and processes async webhooks that signal consent/data-availability changes.
 
@@ -47,7 +48,7 @@ Integrates with Feezback, the Open Banking (AISP) data provider: handles the con
   provider data is fetched and returned, but normalized transactions and source
   sync status are not persisted. Source discovery/upsert behavior inside the
   fetch path remains unchanged.
-- Transaction normalization pipeline: raw Feezback bank/card transactions → `NormalizedTransaction[]` (dedup, currency-aware `paymentIdentifier` derivation) → handed to `TransactionProcessingService.process()` for persistence.
+- Transaction normalization pipeline: raw Feezback bank/card transactions → `NormalizedTransaction[]` (currency-aware `paymentIdentifier` plus ingestion-only ASPSP provenance) → `TransactionProcessingService.process()`. Before persistence, V2 variants sharing `(paymentIdentifier, aspspOriginalId)` are collapsed; the no-`entryReference` variant is preferred to retain the external ID previously returned by V1. Rows without both keys are never heuristically merged. Each provider response is timestamped immediately after its HTTP promise resolves. When such V2 duplicates are detected, one best-effort operational email is sent to `info@keepintax.co.il` with the response timestamp, source, ASPSP ID, returned IDs, and retained ID; mail failure is logged and does not fail transaction processing. All alert metadata is transient and requires no schema change.
 
 ## Pagination and cache-readiness invariants
 

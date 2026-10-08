@@ -1,6 +1,6 @@
 # KT055 — Billing release preparation
 
-- Status: PREPARATION_CHECKS_COMPLETE — integration and deployment pending
+- Status: INTEGRATION_VERIFIED — conflicts resolved; local merge ready
 - Owner: current billing task
 - Worktree: billing-debt-recovery/TaxMyself
 - Branch: codex/billing-debt-recovery
@@ -53,11 +53,28 @@
 
 ## Release requirements
 
-All checks listed above concern the billing branch before integration. They do
-not authorize treating the unresolved merge preview as a verified release.
+Checks above concern the billing branch before integration. The owner subsequently
+authorized conflict resolution. Main 2f551511 is now integrated locally.
+Both constructors are retained, banking state is server-verified,
+Finsite initialization removed and trial activation combines with STANDARD guards.
+Cutover sections now use 19 for Finsite, 20 for billing and 21 for link membership.
+No production SQL, push or deployment has been performed.
 
-- Resolve and review current-main integration, then rerun affected checks on
-  the integrated tree before any push.
+- Integrated backend build and production frontend build passed. Backend selected
+  regression run: 40 suites / 542 tests passed; one UsersService smoke test failed
+  because its fixture provides no SharedService. Reproduced the identical failure
+  with origin/main's service and test copied to temporary files in the billing
+  worktree, using integrated dependencies; removed those files afterwards.
+  This is a baseline test-fixture limitation, not a passing overall test run.
+- Users banking-state protection test passed separately; main's admin endpoint
+  security and provider transaction deduplication tests passed (4 tests).
+- Integrated frontend banking/billing checks passed (30 tests); admin resolution
+  checks passed separately (15 tests, overlapping recovery coverage).
+- Main's frontend identity-session isolation and admin route guard checks passed
+  separately (8 tests).
+- Compared resolved cutover statements to original billing SQL plus main's
+  retirement SQL after stripping comments: statements are identical. Only
+  section ordering/numbering changed. No SQL execution occurred.
 - Prepare billing DDL application and validation before deploying code that
   queries the new columns/tables. Do not use the full cumulative cutover file
   blindly on an already migrated production database.

@@ -24,8 +24,6 @@ import { UserSyncStateService } from './user-sync-state.service';
 import { ExpensesModule } from '../expenses/expense.module';
 import { ExtractedDocument } from '../documents/extracted-document.entity';
 import { Supplier } from '../expenses/suppliers.entity';
-import { FinsiteService } from 'src/finsite/finsite.service';
-import { Finsite } from 'src/finsite/finsite.entity';
 import { Delegation } from 'src/delegation/delegation.entity';
 import { SettingDocuments } from 'src/documents/settingDocuments.entity';
 import { Business } from 'src/business/business.entity';
@@ -40,7 +38,7 @@ import { BookkeepingModule } from '../bookkeeping/bookkeeping.module';
     // CatalogService (BookkeepingModule below) instead.
     TypeOrmModule.forFeature([Expense, User, Business, Transactions,
             Supplier, ClassifiedTransactions, SlimTransaction, FullTransactionCache, UserTransactionCacheState, UserSyncState, UserSourceSyncState,
-            Bill, Source, Child, Finsite, Delegation, SettingDocuments, ExtractedDocument, ReportWorkflow]),
+            Bill, Source, Child, Delegation, SettingDocuments, ExtractedDocument, ReportWorkflow]),
     BookkeepingModule,
     // SharedModule provides SharedService AND FxRateService. Importing it (and
     // removing the local `SharedService` provider below) means both services
@@ -60,7 +58,6 @@ import { BookkeepingModule } from '../bookkeeping/bookkeeping.module';
     TransactionProcessingService,
     UserSyncStateService,
     AuthService,
-    FinsiteService,
   ],
   exports: [TypeOrmModule, TransactionsService, TransactionProcessingService, UserSyncStateService],
 })

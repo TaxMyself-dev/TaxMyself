@@ -17,6 +17,9 @@ Backend authentication and role/access guards shared by protected controllers.
   must derive from verified request identity and server-side relationships.
 - Never weaken a guard to solve a frontend navigation problem. Authentication,
   authorization or delegation-scope changes require explicit approval.
+- Legacy operational/provider triggers shown inside the admin panel must use
+  both `FirebaseAuthGuard` and `AdminGuard`; a hidden menu or frontend guard is
+  never sufficient authorization.
 
 ## Related topics
 

@@ -188,7 +188,7 @@ export class ClassifyTranComponent implements OnInit {
     const raw = this.myForm.getRawValue() as any;
     const isSingle = !!raw.isSingleUpdate;
     const formData: any = {
-      finsiteId: this.rowData().finsiteId,
+      externalTransactionId: this.rowData().externalTransactionId,
       name: this.rowData().name,
       billName: this.rowData().billName,
       category: raw.categoryName,

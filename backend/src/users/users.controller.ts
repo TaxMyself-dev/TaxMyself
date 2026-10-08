@@ -6,6 +6,7 @@ import { Repository } from 'typeorm';
 import { UsersService } from './users.service';
 import { AuthService } from './auth.service';
 import { FirebaseAuthGuard } from '../guards/firebase-auth.guard';
+import { AdminGuard } from '../guards/admin.guard';
 import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.interface';
 import { FeezbackService } from '../feezback/feezback.service';
 import { GoogleDriveService } from '../google-drive/google-drive.service';
@@ -129,6 +130,7 @@ export class UsersController {
     // the user's businesses (full structure), idempotent for already-existing
     // folders, and recovers from manually-deleted ones.
     @Post('dev/drive/create-folder/:userId')
+    @UseGuards(FirebaseAuthGuard, AdminGuard)
     async devCreateDriveFolder(@Param('userId', ParseIntPipe) userId: number) {
         const user = await this.userRepo.findOne({ where: { index: userId } });
         if (!user) throw new NotFoundException(`User #${userId} not found`);

@@ -11,6 +11,7 @@ import { environment } from 'src/environments/environment';
 import { ExpenseDataService } from './expense-data.service';
 import { GenericService } from './generic.service';
 import { IUserData } from '../shared/interface';
+import { IdentitySessionStorageService } from '../shared/auth/identity-session-storage.service';
 
 @Injectable({
   providedIn: 'root'
@@ -19,7 +20,7 @@ export class AuthService {
 
   token: string;
   private userDetails: IUserData = null;
-  /** כשהרואה חשבון צופה בלקוח – נתוני הלקוח (לא נשמר ב-localStorage) */
+  /** כשהרואה חשבון צופה בלקוח – נתוני הלקוח (לא נשמר במטמון הדפדפן) */
   private viewAsUserData: IUserData | null = null;
   private refreshInterval: any;
   private tokenListenerInitialized = false; // Ensure the listener is initialized only once
@@ -57,6 +58,7 @@ export class AuthService {
     private http: HttpClient,
     public ngZone: NgZone,
     private injector: Injector,
+    private identityStorage: IdentitySessionStorageService,
   ) {
     this.initAuthState();
   }
@@ -75,6 +77,7 @@ export class AuthService {
     this.authInitPromise = new Promise<void>((resolve) => {
       this.afAuth.authState.subscribe({
         next: (user) => {
+          this.identityStorage.setAuthenticatedUid(user?.uid ?? null);
           this.authUser.set((user as User | null) ?? null);
           if (!this.authInitialized()) {
             this.authInitialized.set(true);
@@ -86,6 +89,7 @@ export class AuthService {
           // done with "no user" so guards can make a decision. This does NOT
           // sign anybody out — no signOut() call, no storage cleared.
           console.error('[AuthService] authState stream error:', err);
+          this.identityStorage.setAuthenticatedUid(null);
           this.authUser.set(null);
           this.authInitialized.set(true);
           resolve();
@@ -239,7 +243,10 @@ export class AuthService {
    * left untouched and every cleared key is auditable.
    */
   private clearAuthStorage(): void {
+    this.identityStorage.clearIdentityCache();
     const localKeys = [
+      // Legacy shared-origin cache keys. New identity data is tab-scoped via
+      // IdentitySessionStorageService, but remove old deployments' values.
       'userData',
       'businesses',
       'token',                    // legacy, never written today — cleared defensively
@@ -311,38 +318,25 @@ export class AuthService {
   }
 
   /**
-   * Returns the *real* logged-in user from localStorage, bypassing any view-as
+   * Returns the *real* logged-in user from this tab's identity cache, bypassing any view-as
    * overlay. Use this when you need to know who actually holds the session —
    * e.g., to decide where the "exit client view" button should navigate.
    */
   getRealUserDataFromLocalStorage(): IUserData | null {
-    const tempA = localStorage.getItem('userData');
-    if (!tempA) {
-      return null;
-    }
-    try {
-      return JSON.parse(tempA);
-    } catch (error) {
-      console.error('Error parsing userData from localStorage:', error);
-      return null;
-    }
+    return this.identityStorage.getUserData();
   }
 
   getUserBusinessesFromLocalStorage(): IUserData | null {
-    const tempA = localStorage.getItem('businesses');
-    if (!tempA) {
-      return null;
-    }
-    try {
-      return JSON.parse(tempA);
-    } catch (error) {
-      console.error('Error parsing businesses from localStorage:', error);
-      return null;
-    }
+    return this.identityStorage.getBusinesses() as unknown as IUserData | null;
+  }
+
+  /** Cache the real signed-in profile in this tab only. */
+  storeUserData(userData: IUserData): boolean {
+    return this.identityStorage.setUserData(userData);
   }
 
   /**
-   * Restore userData from backend when localStorage is missing but user is still logged in
+   * Restore userData from the backend when this tab's cache is missing but the user is still logged in.
    * @returns Observable that emits the restored userData or null if restoration fails
    */
   restoreUserData(): Observable<IUserData | null> {
@@ -353,7 +347,7 @@ export class AuthService {
         // x-client-user-id header) and would otherwise clobber the
         // accountant's own cached profile with the client's data.
         if (userData && !this.isViewingAsClient()) {
-          localStorage.setItem('userData', JSON.stringify(userData));
+          this.storeUserData(userData);
           // console.log('✅ userData restored from backend');
         }
       }),

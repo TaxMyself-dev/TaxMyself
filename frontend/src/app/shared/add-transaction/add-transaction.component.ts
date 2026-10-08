@@ -314,7 +314,7 @@ export class AddTransactionComponent implements OnInit {
     this.genericvService.getLoader().subscribe();
     let formData: IClassifyTrans;
     formData = this.existCategoryEquipmentForm.value;
-    formData.finsiteId = this.data.finsiteId as string;
+    formData.externalTransactionId = this.data.externalTransactionId as string;
     formData.billName = this.data.billName as string;
     formData.name = this.data.name;
     formData.category = this.categoryDetails.categoryName as string;
@@ -389,7 +389,7 @@ export class AddTransactionComponent implements OnInit {
     }
     // same values for all forms
     formData.isNewCategory = true;
-    formData.finsiteId = this.data.finsiteId as string;
+    formData.externalTransactionId = this.data.externalTransactionId as string;
     formData.billName = this.data.billName as string;
     formData.name = this.data.name;
     console.log(formData);

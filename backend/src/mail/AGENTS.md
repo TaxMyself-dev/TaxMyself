@@ -11,4 +11,4 @@ Sends transactional email (plain or with a PDF attachment) via the Brevo (Sendin
 - `sendMailWithAttachment` — same, plus a base64 PDF/file attachment; builds an RTL-styled HTML body from a plain-text message. Errors are logged with Brevo-specific diagnostics (401/IP-whitelist hints) and rethrown.
 
 ## Related topics
-No dependencies on other backend topics (reads only `BREVO_API_KEY`/`BREVO_SENDER` env vars). Consumed by: documents, billing, delegation (each injects `MailService` to send notifications/receipts/invites).
+No dependencies on other backend topics (reads only `BREVO_API_KEY`/`BREVO_SENDER` env vars). Consumed by: documents, billing, delegation (each injects `MailService` to send notifications/receipts/invites), and Feezback (best-effort provider-duplicate operational alerts containing transient response timestamps).

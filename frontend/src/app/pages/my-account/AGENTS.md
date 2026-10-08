@@ -1,4 +1,5 @@
 ## Purpose
+Main integration keeps server verification authoritative: returning from Feezback does not optimistically set hasOpenBanking in UI or local storage.
 The temporary legacy diagnostic bypass was removed. Consent confirmation routes to /billing/open-banking for the plan/card enrollment flow in development and production.
 Main dashboard/home page shown after login: account sync status, transactions-to-classify, quick-access cards (create document, transactions, add expense), Open Banking connection, Feezback onboarding, and billing/payment-result handling.
 
@@ -14,7 +15,7 @@ Main dashboard/home page shown after login: account sync status, transactions-to
 - On init: load user data, start sync-status polling for connected bank/card sources, fetch transactions to classify, resume Feezback dialog state or payment-result banner from return-URL query params.
 - Open Banking: connect a new source (with consent confirmation), retry a failed source, associate an unmatched account.
 - Classify or quick-classify pending transactions; Home "הוספת הוצאה" is an `app-menu-button` with Manual Expense (`MannualExpenseComponent`) and Quick Upload to Drive (`QuickUploadDriveDialogComponent` → `DriveDocsService.uploadFilesToInbox`). Also add bill/category via modals.
-- Feezback onboarding: show consent dialog, poll for webhook readiness, trigger transaction pull, handle renew-consent/try-again states.
+- Feezback onboarding: show consent dialog, poll for webhook readiness, trigger transaction pull, handle renew-consent/try-again states; any returned profile refresh is written through `AuthService` to the UID-bound tab cache rather than shared browser storage.
 - Billing: poll for payment result after redirect back from checkout, resend receipt email, retry invoice.
 - Canonical checkout return consumes tm.checkoutLowProfileId and scopes
   BillingStateService refreshes to that hosted attempt via GET /billing/me.

@@ -94,6 +94,8 @@ Internal admin console (tabbed) for staff to manage clients dashboard, the unifi
 
 - Business-registration slide uses the user-approved title `סוגי רישום העסקים בישראל` as a native heading over the original artwork heading; all other artwork remains unchanged.
 - Switch between top-level tabs; categories and booking cards share one catalog-management tab with a second nested tab bar.
+- `/admin-panel` is protected by `AuthGuard` plus `AdminRouteGuard`; API
+  endpoints still require server-side `AdminGuard`/persisted-role checks.
 - In the nested Cards tab, administer SYSTEM cards and create a new SYSTEM card (plus its paired SYSTEM sub-category unless marked technical-only).
 - Open a SHAAM invoice-approval dialog and show a success toast with the returned confirmation number.
 - Browse/search operational documentation across the three main modules and switch between their sub-topics without leaving the admin panel.

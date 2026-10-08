@@ -11,7 +11,8 @@ describe('Feezback persisted connection state', () => {
     enrollment = { connectionVerified: jest.fn().mockResolvedValue(undefined) };
     service = new FeezbackService({} as any, { getTppId: () => 'tpp' } as any, api, {} as any, {} as any,
       { markSourcesRefreshed: jest.fn().mockResolvedValue(undefined) } as any, users, {} as any,
-      { autoUpgradeReferralOpenBankingIfEligible: jest.fn().mockResolvedValue(undefined) } as any, enrollment);
+      { autoUpgradeReferralOpenBankingIfEligible: jest.fn().mockResolvedValue(undefined) } as any,
+      { sendMail: jest.fn().mockResolvedValue(undefined) } as any, enrollment);
     (service as any).upsertSources = jest.fn().mockResolvedValue(undefined);
     (service as any).prePopulateSourceResults = jest.fn().mockResolvedValue(undefined);
     jest.spyOn(console, 'log').mockImplementation(() => {});

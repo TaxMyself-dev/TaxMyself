@@ -11,7 +11,6 @@ import { Source } from 'src/transactions/source.entity';
 import { Supplier } from '../expenses/suppliers.entity';
 import { User } from '../users/user.entity';
 import { Child } from '../users/child.entity';
-import { Finsite } from 'src/finsite/finsite.entity';
 import { Documents } from 'src/documents/documents.entity';
 import { DocLines } from 'src/documents/doc-lines.entity';
 import { Delegation } from 'src/delegation/delegation.entity';
@@ -25,7 +24,6 @@ import { ExpensesModule } from '../expenses/expense.module';
 import { UsersModule } from '../users/users.module';
 import { DocumentsModule } from '../documents/documents.module';
 import { BookkeepingModule } from '../bookkeeping/bookkeeping.module';
-import { FinsiteService } from 'src/finsite/finsite.service';
 import { JournalEntry } from 'src/bookkeeping/jouranl-entry.entity';
 import { JournalLine } from 'src/bookkeeping/jouranl-line.entity';
 import { BookingAccount } from 'src/bookkeeping/account.entity';
@@ -43,7 +41,7 @@ import { AdminGuard } from '../guards/admin.guard';
     // Phase 4.6: the four legacy catalog entities are gone from this list —
     // no service provided here injects their repos anymore.
     TypeOrmModule.forFeature([Business, Expense,
-                                      ClassifiedTransactions, Bill, Source, Supplier, User, Child, Finsite, Documents, DocLines, DocPayments,
+                                      ClassifiedTransactions, Bill, Source, Supplier, User, Child, Documents, DocLines, DocPayments,
                                       Delegation, JournalEntry, JournalLine, BookingAccount,
                                       SlimTransaction, FullTransactionCache, ExtractedDocument, ReportWorkflow]),
     SharedModule,
@@ -62,7 +60,6 @@ import { AdminGuard } from '../guards/admin.guard';
     ReportsService,
     ReportReviewService,
     MatchingService,
-    FinsiteService,
     AdminGuard,
   ],
   exports: [ReportsService, ReportReviewService],

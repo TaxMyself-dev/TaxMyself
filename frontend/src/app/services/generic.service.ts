@@ -15,6 +15,7 @@ import {
   getVatReportBusinessSelectItems,
   getVatReportEligibleBusinesses,
 } from '../shared/vat-report-eligibility';
+import { IdentitySessionStorageService } from '../shared/auth/identity-session-storage.service';
 
 
 @Injectable({ providedIn: 'root' })
@@ -30,11 +31,12 @@ export class GenericService {
     private popoverController: PopoverController,
     private http: HttpClient,
     private dateService: DateService,
+    private identityStorage: IdentitySessionStorageService,
   ) {
-    // Load from localStorage on app refresh
-    const saved = localStorage.getItem('businesses');
+    // Restore only this tab's current identity/client context.
+    const saved = this.identityStorage.getBusinesses();
     if (saved) {
-      this._businesses.set(JSON.parse(saved));
+      this._businesses.set(saved);
     }
   }
 
@@ -102,7 +104,7 @@ export class GenericService {
 
   async loadBusinessesFromServer(): Promise<void> {
     // Skip if no user is logged in — avoids unauthenticated request during Firebase init
-    if (!localStorage.getItem('userData')) return;
+    if (!this.identityStorage.getUserData()) return;
 
     try {
       // This URL is identical for every caller (accountant's own dashboard,
@@ -122,10 +124,10 @@ export class GenericService {
   }
 
 
-  /** Save to both signal + localStorage */
+  /** Save to both the signal and this tab's identity-scoped cache. */
   private saveBusinesses(data: Business[]) {
     this._businesses.set(data);
-    localStorage.setItem('businesses', JSON.stringify(data));
+    this.identityStorage.setBusinesses(data);
   }
 
   /**
@@ -136,7 +138,7 @@ export class GenericService {
    */
   clearBusinesses(): void {
     this._businesses.set(null);
-    localStorage.removeItem('businesses');
+    this.identityStorage.clearBusinesses();
   }
 
   /** עדכון אחוז מקדמות מס לעסק */

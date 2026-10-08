@@ -6,7 +6,10 @@ Login page handling email/password and Google sign-in via Firebase, backend sess
 - `login.module.ts` / `login-routing.module.ts` — module wiring, routed at `/login`.
 
 ## Main flows
-- Email/password login: Firebase `signInWithEmailAndPassword` → verify email → `AuthService.signIn(true)` (backend sync, `freshLogin=true`) → store user data → `GenericService.loadBusinessesFromServer()` → navigate to `/my-account`.
+- Email/password login: Firebase `signInWithEmailAndPassword` → verify email → `AuthService.signIn(true)` (backend sync, `freshLogin=true`) → store user data in the current tab's UID-bound session cache → `GenericService.loadBusinessesFromServer()` → navigate to `/my-account`.
+- Email/password and Google login never write authenticated profile/business
+  state to shared `localStorage`; this permits different identities in separate
+  browser tabs without cross-tab role/menu contamination.
 - Google sign-in: `AuthService.signInWithGoogle()`; if the account doesn't exist yet, shows a "not registered" warning and signs the ghost Firebase user out.
 - Resend verification email (60s cooldown) and forgot-password email, both via `AuthService`.
 - Shows a "registered successfully" modal when navigated here from the register page (via router state).

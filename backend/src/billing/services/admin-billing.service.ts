@@ -552,19 +552,26 @@ export class AdminBillingService {
       throw new BadRequestException('תאריך התחלת ההנחה חייב להיות לפני או שווה לתאריך הסיום');
     }
 
-    subscription.discountPercent = nextPercent ?? null;
-    subscription.discountAmountAgorot = nextAmount ?? null;
-    subscription.discountStartDate = nextStart ?? null;
-    subscription.discountEndDate = nextEnd ?? null;
+    const discountPercent = nextPercent ?? null;
+    const discountAmountAgorot = nextAmount ?? null;
+    const discountStartDate = nextStart ?? null;
+    const discountEndDate = nextEnd ?? null;
 
-    await this.subscriptionRepo.save(subscription);
+    // A narrow UPDATE prevents a stale entity loaded before an access-mode
+    // change from writing STANDARD back over COMPLIMENTARY_FULL.
+    await this.subscriptionRepo.update(subscription.id, {
+      discountPercent,
+      discountAmountAgorot,
+      discountStartDate,
+      discountEndDate,
+    });
 
     return {
       subscriptionId: subscription.id,
-      discountPercent: subscription.discountPercent,
-      discountAmountAgorot: subscription.discountAmountAgorot,
-      discountStartDate: subscription.discountStartDate,
-      discountEndDate: subscription.discountEndDate,
+      discountPercent,
+      discountAmountAgorot,
+      discountStartDate,
+      discountEndDate,
     };
   }
 
@@ -614,24 +621,28 @@ export class AdminBillingService {
     subscriptionId: number,
     dto: UpdateSubscriptionPlanDto,
   ): Promise<AdminSubscriptionPlanResponse> {
-    const subscription = await this.subscriptionRepo.findOneBy({ id: subscriptionId });
-    if (!subscription) throw new NotFoundException(`מנוי ${subscriptionId} לא נמצא`);
-    if (subscription.billingAccessMode === BillingAccessMode.COMPLIMENTARY_FULL) {
-      throw new BadRequestException('לא ניתן לשייך תוכנית למשתמש עם גישה מלאה ללא חיוב');
-    }
-
     let plan: SubscriptionPlan | null = null;
     if (dto.planId != null) {
       plan = await this.planRepo.findOneBy({ id: dto.planId });
       if (!plan) throw new NotFoundException(`תוכנית ${dto.planId} לא נמצאה`);
     }
 
-    subscription.planId = dto.planId ?? null;
-    await this.subscriptionRepo.save(subscription);
+    await this.dataSource.transaction(async manager => {
+      const subscription = await manager.findOne(Subscription, {
+        where: { id: subscriptionId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!subscription) throw new NotFoundException(`מנוי ${subscriptionId} לא נמצא`);
+      if (subscription.billingAccessMode === BillingAccessMode.COMPLIMENTARY_FULL) {
+        throw new BadRequestException('לא ניתן לשייך תוכנית למשתמש עם גישה מלאה ללא חיוב');
+      }
+
+      await manager.update(Subscription, subscription.id, { planId: dto.planId ?? null });
+    });
 
     return {
-      subscriptionId: subscription.id,
-      planId: subscription.planId,
+      subscriptionId,
+      planId: dto.planId ?? null,
       planName: plan?.name ?? null,
       planSlug: plan?.slug ?? null,
       planPriceAgorot: plan?.priceMonthlyAgorot ?? null,
@@ -670,7 +681,17 @@ export class AdminBillingService {
         subscription.status = SubscriptionStatus.TRIAL_EXPIRED;
       }
 
-      await manager.save(subscription);
+      // Deliberately write an explicit partial update. This is the sole path
+      // allowed to change billingAccessMode; every unrelated mutation updates
+      // only its own columns so a stale entity cannot revoke the exemption.
+      await manager.update(Subscription, subscription.id, {
+        billingAccessMode: subscription.billingAccessMode,
+        planId: subscription.planId,
+        nextBillingDate: subscription.nextBillingDate,
+        gracePeriodEndsAt: subscription.gracePeriodEndsAt,
+        renewalAttempts: subscription.renewalAttempts,
+        status: subscription.status,
+      });
       return { subscription, previousMode, changed: true };
     });
 

@@ -11,6 +11,8 @@ describe('FeezbackService admin date-range diagnostics', () => {
     getAccountTransactionsByConsent: jest.Mock;
     getCardTransactions: jest.Mock;
   };
+  let processingService: { process: jest.Mock };
+  let mailService: { sendMail: jest.Mock };
   let summaryLog: jest.Mock;
 
   beforeEach(() => {
@@ -46,19 +48,64 @@ describe('FeezbackService admin date-range diagnostics', () => {
       getAccountTransactionsByConsent: jest.fn(),
       getCardTransactions: jest.fn(),
     };
+    processingService = {
+      process: jest.fn().mockResolvedValue({
+        newlySavedToCache: 0,
+        alreadyExistingInCache: 0,
+        deduplicatedCount: 0,
+      }),
+    };
+    mailService = { sendMail: jest.fn().mockResolvedValue(undefined) };
     service = new FeezbackService(
       {} as any,
       { getTppId: () => 'test-tpp' } as any,
       apiService as any,
       consentApiService as any,
-      {} as any,
+      processingService as any,
       userSyncStateService as any,
+      { findOne: jest.fn().mockResolvedValue({ fName: 'Test', lName: 'User' }) } as any,
       {} as any,
       {} as any,
-      {} as any,
+      mailService as any,
     );
     summaryLog = jest.fn();
     (service as any).logger = { log: summaryLog, warn: jest.fn() };
+  });
+
+  it('emails provider duplicate details including the Feezback response timestamp', async () => {
+    const providerResponseReceivedAt = '2026-10-08T12:34:56.789Z';
+    const base = {
+      providerOriginalId: 'BIO_369_533089_105_820',
+      merchantName: 'Merchant',
+      amount: -151.02,
+      currency: 'ILS',
+      transactionDate: new Date('2026-10-02T00:00:00.000Z'),
+      paymentDate: null,
+      paymentIdentifier: '0533089',
+      billId: null,
+      billName: null,
+      businessNumber: null,
+      note: 'Merchant',
+      providerResponseReceivedAt,
+    };
+
+    await (service as any).processTransactionsWithDuplicateAlert(
+      'firebase-user',
+      [
+        { ...base, externalTransactionId: 'enriched-id', providerEntryReference: '13795' },
+        { ...base, externalTransactionId: 'v1-compatible-id', providerEntryReference: '' },
+      ],
+      'test sync',
+    );
+
+    expect(mailService.sendMail).toHaveBeenCalledWith(
+      'info@keepintax.co.il',
+      expect.stringContaining('Feezback duplicates detected'),
+      expect.stringContaining(`Feezback response received at: ${providerResponseReceivedAt}`),
+    );
+    expect(mailService.sendMail.mock.calls[0][2]).toContain('Returned transaction IDs: enriched-id, v1-compatible-id');
+    expect(mailService.sendMail.mock.calls[0][2]).toContain('Kept transaction ID: v1-compatible-id');
+    expect(processingService.process).toHaveBeenCalledWith('firebase-user', expect.any(Array));
   });
 
   it('returns timestamps, redacted request metadata, raw responses and save counts', async () => {

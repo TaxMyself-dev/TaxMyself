@@ -4,7 +4,7 @@ import { Type } from 'class-transformer';
 export class ClassifyTransactionDto {
 
   @IsString()
-  finsiteId: string;
+  externalTransactionId: string;
 
   @IsBoolean()
   isSingleUpdate: boolean;
