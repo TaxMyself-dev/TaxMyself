@@ -1,6 +1,6 @@
 # KT055 — Billing release preparation
 
-- Status: READY_FOR_PUSH — integrated checks complete; owner authorized main delivery
+- Status: PUSHED — billing fast-forwarded into local main and delivered to origin/main
 - Owner: current billing task
 - Worktree: billing-debt-recovery/TaxMyself
 - Branch: codex/billing-debt-recovery
@@ -19,6 +19,10 @@
 - The billing worktree will host main; new-ai-chat and the separately managed
   codex/integration worktree are preserved. No production deployment is part
   of this push.
+- Delivery completed: local main fast-forwarded to e116eb59; normal push updated
+  origin/main from 2f551511 to e116eb59. No deployment or provider calls occurred.
+  Only this task's delivery record is added afterwards; executable code remains
+  the previously verified integration tree.
 
 ## Initial findings
 
