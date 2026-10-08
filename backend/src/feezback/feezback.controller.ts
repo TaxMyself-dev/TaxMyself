@@ -54,13 +54,8 @@ export class FeezbackController {
       actorFirebaseId: req.user?.actorFirebaseId ?? null, isDelegatedAccess: req.isDelegatedAccess,
       isAdminImpersonation: req.isAdminImpersonation });
 
-    // A resumed enrollment may already have a real connection from an earlier flow.
-    // Verify it server-side rather than trusting browser/local user flags.
-    const enrolling = await this.enrollment!.options(firebaseId);
-    if (enrolling.enrollment?.status === 'PREPARE') {
-      try { await this.feezbackService.refreshUserSources(firebaseId, 'EnrollmentResume'); }
-      catch { /* No existing connection, or temporary provider failure: continue onboarding. */ }
-    }
+    // Create the onboarding link without prerequisite provider reads. Connection
+    // proof remains in post-consent/webhook discovery and pending recovery.
 
     // Stamp the moment the user kicks off the Feezback consent flow. The
     // post-consent endpoint compares this against `fullFinishedAt` to know

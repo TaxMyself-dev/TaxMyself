@@ -1,5 +1,5 @@
 ## Purpose
-The temporary legacy diagnostic bypass was removed. Consent-link enforces the enrollment/card prerequisite and performs EnrollmentResume discovery again; inherited legacy diagnostic flags have no effect. Local backend launch remains start:watch.
+The temporary legacy diagnostic bypass was removed. Consent-link enforces the enrollment/card prerequisite, then creates the onboarding link without provider data discovery or /token requests. Connection proof remains in post-consent/webhook discovery and daily pending recovery. Inherited legacy diagnostic flags have no effect. Local backend launch remains start:watch.
 Integrates with Feezback, the Open Banking (AISP) data provider: handles the consent flow, fetches bank account/card transactions, normalizes them into the app's transaction pipeline, and processes async webhooks that signal consent/data-availability changes.
 
 ## Key entities/files
