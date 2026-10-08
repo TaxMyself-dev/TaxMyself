@@ -1,5 +1,5 @@
 ## Purpose
-Local billing backend uses port 3001, frontend 4201. Use `npm run start:watch` from billing backend with its local `.env`; the optional start:billing wrapper pins 3001 and preserves existing terminal env values rather than overriding them.
+Local billing backend uses port 3000, frontend 4200. Use `npm run start:watch` from billing backend with its local `.env`; the optional start:billing wrapper pins 3000 and preserves existing terminal env values rather than overriding them.
 Subscription billing: plan catalog, trial/subscription lifecycle, CardCom payment integration (checkout + webhook-driven activation), recurring renewals, receipts, and an admin back-office for plans/subscriptions.
 
 ## Key entities/files
@@ -554,10 +554,10 @@ If neither signal has landed after `CHANGE_PM_RECONCILE_AFTER_MS` (20s), the sta
 
 Local billing worktree: run `npm run start:billing` from backend. The wrapper
 loads this worktree's ignored backend/.env explicitly (overriding inherited
-values), pins PORT=3001 and retains start:watch's DISABLE_SYNCHRONIZE=true.
+values), pins PORT=3000 and retains start:watch's DISABLE_SYNCHRONIZE=true.
 Its .env is an independent dev configuration copy, not a shared link.
-Run `ngrok http 3001`, set CARDCOM_WEBHOOK_BASE_URL in that local file and
-restart billing. Local CardCom return URLs use frontend localhost:4201.
+Run `ngrok http 3000`, set CARDCOM_WEBHOOK_BASE_URL in that local file and
+restart billing. Local CardCom return URLs use frontend localhost:4200.
 The shared dev database remains shared between parallel servers.
 
 CardCom calls the webhook from the public internet, so **`CARDCOM_WEBHOOK_BASE_URL` in `backend/.env` must point at the currently active ngrok HTTPS URL**, and the backend must be running and reachable through it. The URL is baked into each LowProfile deal at creation time (`CardcomService`, `WebHookUrl`), so a deal created against a stale tunnel can never be delivered — restarting ngrok later does not rescue it.

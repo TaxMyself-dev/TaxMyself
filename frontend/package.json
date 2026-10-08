@@ -7,7 +7,7 @@
     "ng": "ng",
     "mobile": "ng serve --host 0.0.0.0 --port 4200 -o",
     "start": "ng serve -o",
-    "start:billing": "ng serve --port 4201 -o",
+    "start:billing": "ng serve --port 4200 -o",
     "build": "ng build",
     "build:dev": "ng build --configuration dev",
     "watch": "ng build --watch --configuration development",
