@@ -1,5 +1,5 @@
 ## Purpose
-The temporary legacy diagnostic bypass was removed. Consent-link enforces the enrollment/card prerequisite and performs EnrollmentResume discovery again; inherited legacy diagnostic flags have no effect. Local backend launch remains start:watch.
+Temporary local diagnosis: BILLING_DEV_LEGACY_BANKING_FLOW=true is set in the billing local env (also by start:billing). Only against keepintax-dev, consent-link skips the enrollment/card prerequisite and EnrollmentResume discovery; authentication, subscription/module guards and consent timestamp remain. Use start:watch for the verified local launch.
 Integrates with Feezback, the Open Banking (AISP) data provider: handles the consent flow, fetches bank account/card transactions, normalizes them into the app's transaction pipeline, and processes async webhooks that signal consent/data-availability changes.
 
 ## Key entities/files
