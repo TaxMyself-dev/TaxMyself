@@ -1,6 +1,6 @@
 # KT055 — Billing release preparation
 
-- Status: INTEGRATION_VERIFIED — conflicts resolved; local merge ready
+- Status: READY_FOR_PUSH — integrated checks complete; owner authorized main delivery
 - Owner: current billing task
 - Worktree: billing-debt-recovery/TaxMyself
 - Branch: codex/billing-debt-recovery
@@ -10,6 +10,15 @@
 - Acceptance: review complete billing diff, schema and production configuration,
   focused regression tests and production builds; identify integration blockers.
 - Do not change the parallel chat checkout or query/change production.
+- Owner explicitly authorized merging billing into local main and pushing on
+  2026-10-09. Current origin/main remains 2f551511. Existing local main is an
+  ancestor of billing, so delivery can fast-forward without rewriting history.
+- Owner reported the full standalone schema script completed and supplied
+  verification output: four tables, eight columns and zero unlinked attempts.
+  This is owner-reported production evidence, not direct Codex verification.
+- The billing worktree will host main; new-ai-chat and the separately managed
+  codex/integration worktree are preserved. No production deployment is part
+  of this push.
 
 ## Initial findings
 

@@ -2325,3 +2325,33 @@ SET @kt054_sql = IF(
 PREPARE kt054_stmt FROM @kt054_sql;
 EXECUTE kt054_stmt;
 DEALLOCATE PREPARE kt054_stmt;
+
+-- SECTION 22 (2026-10-09): preserve enum values and append required billing values.
+-- Preserve existing enum values and order; append required values only if absent.
+SET @billing_enum_type = (SELECT COLUMN_TYPE FROM information_schema.COLUMNS
+ WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='subscription' AND COLUMN_NAME='status');
+SET @billing_enum_missing = (SELECT GROUP_CONCAT(QUOTE(enum_value) ORDER BY enum_order SEPARATOR ',')
+ FROM JSON_TABLE('["TRIAL","TRIAL_EXPIRED","ACTIVE","PAST_DUE","CANCELED"]', '$[*]' COLUMNS (
+ enum_order FOR ORDINALITY, enum_value VARCHAR(100) PATH '$')) AS required_values
+ WHERE LOCATE(QUOTE(enum_value), @billing_enum_type)=0);
+SET @billing_enum_sql = IF(@billing_enum_missing IS NULL, 'SELECT 1',
+ CONCAT('ALTER TABLE `subscription` MODIFY COLUMN `status` ',
+ LEFT(@billing_enum_type, CHAR_LENGTH(@billing_enum_type)-1), ',', @billing_enum_missing, ') NOT NULL',
+ CONCAT(' DEFAULT ',QUOTE('TRIAL'))));
+PREPARE billing_enum_stmt FROM @billing_enum_sql;
+EXECUTE billing_enum_stmt;
+DEALLOCATE PREPARE billing_enum_stmt;
+-- Preserve existing enum values and order; append required values only if absent.
+SET @billing_enum_type = (SELECT COLUMN_TYPE FROM information_schema.COLUMNS
+ WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='billing_event' AND COLUMN_NAME='event_type');
+SET @billing_enum_missing = (SELECT GROUP_CONCAT(QUOTE(enum_value) ORDER BY enum_order SEPARATOR ',')
+ FROM JSON_TABLE('["CHECKOUT_CREATED","WEBHOOK_RECEIVED","PAYMENT_VERIFIED","PAYMENT_SUCCESS","PAYMENT_FAILED","SUBSCRIPTION_ACTIVATED","SUBSCRIPTION_CANCELED","RENEWAL_SUCCESS","RENEWAL_FAILED","RETRY_SCHEDULED","PLAN_CHANGE_REQUESTED","PLAN_CHANGED","PAYMENT_METHOD_UPDATE_REQUESTED","PAYMENT_METHOD_UPDATED","PAYMENT_METHOD_UPDATE_FAILED","COUPON_REDEEMED","PROMOTION_APPLIED","DISCOUNT_APPLIED","RECEIPT_FAILED","DUPLICATE_PAYMENT_IGNORED","BILLING_EXEMPTION_GRANTED","BILLING_EXEMPTION_REVOKED"]', '$[*]' COLUMNS (
+ enum_order FOR ORDINALITY, enum_value VARCHAR(100) PATH '$')) AS required_values
+ WHERE LOCATE(QUOTE(enum_value), @billing_enum_type)=0);
+SET @billing_enum_sql = IF(@billing_enum_missing IS NULL, 'SELECT 1',
+ CONCAT('ALTER TABLE `billing_event` MODIFY COLUMN `event_type` ',
+ LEFT(@billing_enum_type, CHAR_LENGTH(@billing_enum_type)-1), ',', @billing_enum_missing, ') NOT NULL',
+ ''));
+PREPARE billing_enum_stmt FROM @billing_enum_sql;
+EXECUTE billing_enum_stmt;
+DEALLOCATE PREPARE billing_enum_stmt;
