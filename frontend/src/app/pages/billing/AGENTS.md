@@ -1,6 +1,7 @@
 ## Purpose
 
 Open-banking trial enrollment presents concise card/charge/cancellation terms and the shared pricing card with a VAT-inclusive quote. Each eligible plan's CTA selects that plan and approves its displayed terms, then opens existing token-only card collection before Feezback. There is no checkbox. Server verification and the original trial-end billing boundary remain authoritative.
+The enrollment host owns vertical scrolling inside the app's overflow-hidden flex shell; its main content must not shrink, so the plan CTA and cancellation terms remain reachable on short screens.
 Standalone pricing/plans page where a user views available subscription plans and starts checkout for one.
 
 ## Key entities/files
