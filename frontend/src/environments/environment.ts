@@ -5,6 +5,7 @@
 
 export const environment = {
   production: false,
+  legacyOpenBankingFlow: true,
   enableDevTools: true,
   apiUrl: 'http://localhost:3000/',
   firebase: {

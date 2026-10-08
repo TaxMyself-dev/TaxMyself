@@ -11,7 +11,8 @@ if (loaded.error) {
 const child = spawn(process.execPath, [path.join(__dirname, 'start-watch.js')], {
   cwd: backendDir,
   stdio: 'inherit',
-  env: { ...process.env, PORT: '3000', DOTENV_CONFIG_PATH: envPath },
+  env: { ...process.env, PORT: '3000', DOTENV_CONFIG_PATH: envPath,
+    BILLING_DEV_LEGACY_BANKING_FLOW: 'true' },
 });
 child.on('exit', (code) => process.exit(code ?? 0));
 child.on('error', () => process.exit(1));

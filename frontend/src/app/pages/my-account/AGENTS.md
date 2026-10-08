@@ -1,4 +1,5 @@
 ## Purpose
+Temporary diagnosis: development environment legacyOpenBankingFlow=true makes consent confirmation call Feezback directly, bypassing the enrollment/card page. Production always retains enrollment. Restore the new local flow by disabling this flag and the backend launcher's BILLING_DEV_LEGACY_BANKING_FLOW override.
 Main dashboard/home page shown after login: account sync status, transactions-to-classify, quick-access cards (create document, transactions, add expense), Open Banking connection, Feezback onboarding, and billing/payment-result handling.
 
 ## Key entities/files
