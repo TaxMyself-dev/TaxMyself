@@ -50,21 +50,16 @@ export class FeezbackController {
       throw new Error('User ID not found — Firebase authentication required');
     }
 
-    // Temporary local comparison with the pre-enrollment consent flow.
-    const legacyDevFlow = process.env.BILLING_DEV_LEGACY_BANKING_FLOW === 'true'
-      && process.env.DB_DATABASE === 'keepintax-dev';
-    if (!legacyDevFlow) {
-      await this.enrollment!.assertCanConnect({ subjectFirebaseId: firebaseId,
-        actorFirebaseId: req.user?.actorFirebaseId ?? null, isDelegatedAccess: req.isDelegatedAccess,
-        isAdminImpersonation: req.isAdminImpersonation });
+    await this.enrollment!.assertCanConnect({ subjectFirebaseId: firebaseId,
+      actorFirebaseId: req.user?.actorFirebaseId ?? null, isDelegatedAccess: req.isDelegatedAccess,
+      isAdminImpersonation: req.isAdminImpersonation });
 
-      // A resumed enrollment may already have a real connection from an earlier flow.
-      // Verify it server-side rather than trusting browser/local user flags.
-      const enrolling = await this.enrollment!.options(firebaseId);
-      if (enrolling.enrollment?.status === 'PREPARE') {
-        try { await this.feezbackService.refreshUserSources(firebaseId, 'EnrollmentResume'); }
-        catch { /* No existing connection, or temporary provider failure: continue onboarding. */ }
-      }
+    // A resumed enrollment may already have a real connection from an earlier flow.
+    // Verify it server-side rather than trusting browser/local user flags.
+    const enrolling = await this.enrollment!.options(firebaseId);
+    if (enrolling.enrollment?.status === 'PREPARE') {
+      try { await this.feezbackService.refreshUserSources(firebaseId, 'EnrollmentResume'); }
+      catch { /* No existing connection, or temporary provider failure: continue onboarding. */ }
     }
 
     // Stamp the moment the user kicks off the Feezback consent flow. The

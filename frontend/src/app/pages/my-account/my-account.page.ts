@@ -1,5 +1,4 @@
 import { CommonModule } from '@angular/common';
-import { environment } from 'src/environments/environment';
 import { Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -1260,11 +1259,6 @@ export class MyAccountPage implements OnInit {
 
   confirmConsentAndConnect(): void {
     this.consentDialogVisible.set(false);
-    if (!environment.production
-      && (environment as { legacyOpenBankingFlow?: boolean }).legacyOpenBankingFlow) {
-      this.doConnectToOpenBanking();
-      return;
-    }
     this.router.navigate(['/billing/open-banking']);
   }
 
