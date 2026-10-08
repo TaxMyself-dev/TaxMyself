@@ -1,10 +1,11 @@
 import { HttpService } from '@nestjs/axios';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { AxiosRequestConfig, AxiosResponse } from 'axios';
 import { firstValueFrom } from 'rxjs';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { FeezbackAuthService } from './feezback-auth.service';
 import { FeezbackHttpError, toFeezbackHttpError } from './feezback-errors';
+import { feeZbackErrorDiagnostic } from './feezback-error-diagnostic';
 import {
   FEEZBACK_RETRY,
   calcBackoffMs,
@@ -35,6 +36,7 @@ export interface FeezbackDebugHttpCall {
 
 @Injectable()
 export class FeezbackHttpClient {
+  private readonly logger = new Logger(FeezbackHttpClient.name);
   private readonly debugTrace = new AsyncLocalStorage<FeezbackDebugHttpCall[]>();
 
   constructor(
@@ -116,6 +118,10 @@ export class FeezbackHttpClient {
         const shouldRetry = isRetryableFeezbackError(mapped);
 
         if (!shouldRetry || attempt === maxRetries) {
+          if (method === 'POST' && /\/(link|token)\/?(?:\?|$)/.test(url)) {
+            const token = (body as { token?: string } | undefined)?.token;
+            this.logger.error(`[FeezbackResponse] ${feeZbackErrorDiagnostic(mapped, token ? [token] : [])}`);
+          }
           throw mapped;
         }
 

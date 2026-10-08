@@ -15,6 +15,11 @@ Integrates with Feezback, the Open Banking (AISP) data provider: handles the con
 - `feezback.controller.ts` — `FeezbackController` at route `feezback`, gated by `RequireModule(OPEN_BANKING)`; includes consent-link creation, account/transaction fetch, admin diagnostic and manual-sync endpoints, plus several debug/structure-analysis endpoints.
 
 ## Main flows
+- Failed token acquisition and consent-link creation log `[FeezbackResponse]`
+  with HTTP status, endpoint and provider response body. Diagnostics redact
+  credential/identity fields, signed JWTs and echoed request tokens; Axios
+  request config/headers are never serialized. Other transaction responses
+  retain the existing quiet-terminal policy.
 - KT-053: `hasOpenBanking` represents a current provider-verified connection,
   not a successful HTTP call or historical onboarding. Discovery verifies
   `getUserConsents` (`valid`, unexpired) and a source resourceId linked through

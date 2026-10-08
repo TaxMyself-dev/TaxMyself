@@ -4,6 +4,7 @@ import { firstValueFrom } from 'rxjs';
 import { AxiosResponse } from 'axios';
 import { FeezbackJwtService } from '../feezback-jwt.service';
 import { toFeezbackHttpError } from './feezback-errors';
+import { feeZbackErrorDiagnostic } from './feezback-error-diagnostic';
 
 interface TokenCacheEntry {
   token: string;
@@ -77,8 +78,9 @@ export class FeezbackAuthService {
   }
 
   private async requestNewAccessToken(sub: string): Promise<string> {
+    let jwtToken = '';
     try {
-      const jwtToken = this.feezbackJwtService.generateAccessToken(sub);
+      jwtToken = this.feezbackJwtService.generateAccessToken(sub);
 
       const response: AxiosResponse<{ token?: string; expiresIn?: number; expires_in?: number }> =
         await firstValueFrom(
@@ -96,8 +98,9 @@ export class FeezbackAuthService {
 
       return accessToken;
     } catch (error) {
-      this.logger.error(`Failed to fetch Feezback access token for sub=${sub}: ${this.describeError(error)}`);
-      throw toFeezbackHttpError('POST', this.tokenUrl, error);
+      const mapped = toFeezbackHttpError('POST', this.tokenUrl, error);
+      this.logger.error(`[FeezbackResponse] ${feeZbackErrorDiagnostic(mapped, [jwtToken, sub])}`);
+      throw mapped;
     }
   }
 
