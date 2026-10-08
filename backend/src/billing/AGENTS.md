@@ -1,5 +1,5 @@
 ## Purpose
-Local billing `npm run start:billing` loads this worktree's own `.env` and pins backend port 3000; frontend uses 4200. Stop any parallel servers using these ports first.
+Local billing backend uses port 3001, frontend 4201. Use `npm run start:watch` from billing backend with its local `.env`; the optional start:billing wrapper pins 3001 and preserves existing terminal env values rather than overriding them.
 Subscription billing: plan catalog, trial/subscription lifecycle, CardCom payment integration (checkout + webhook-driven activation), recurring renewals, receipts, and an admin back-office for plans/subscriptions.
 
 ## Key entities/files

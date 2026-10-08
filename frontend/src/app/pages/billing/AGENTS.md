@@ -1,5 +1,5 @@
 ## Purpose
-Local `npm run start:billing` serves port 4200 and the development API uses backend port 3000. CardCom local returns use 4200; configure ngrok for backend 3000.
+Local `npm run start:billing` serves port 4201 and the development API uses backend port 3001. CardCom local returns use 4201; configure ngrok for backend 3001. Backend uses start:watch with its local env.
 
 Open-banking trial enrollment presents concise card/charge/cancellation terms and the shared pricing card with a VAT-inclusive quote. Each eligible plan's CTA selects that plan and approves its displayed terms, then opens existing token-only card collection before Feezback. There is no checkbox. Server verification and the original trial-end billing boundary remain authoritative.
 The enrollment host owns vertical scrolling inside the app's overflow-hidden flex shell; its main content must not shrink, so the plan CTA and cancellation terms remain reachable on short screens.
