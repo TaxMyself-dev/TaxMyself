@@ -1,7 +1,7 @@
 # KT-047 — Independent billing development ports
 
 - Status: COMPLETE
-- Current diagnostic override: frontend remains 4201 but API targets 3000 at
+- Current diagnostic override: frontend serves 4200 and API targets 3000 at
   owner request. Backend local env still defaults to 3001; actual watch process
   must use PORT=3000 while this override is active.
 - Branch: codex/billing-debt-recovery
