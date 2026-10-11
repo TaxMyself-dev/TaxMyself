@@ -42,3 +42,8 @@ accounting or external API contract changes. Work is isolated on
   with no camera-upload changes or task documentation.
 - Manual check: Android/iPhone camera launch, cancellation, confirmed capture and Drive result.
 - Documentation: home and quick-upload topic AGENTS.md.
+- Follow-up: `npm run mobile` alone selects `environment.mobile.ts` and uses the
+  frontend hostname for the local backend on port 3000. Ordinary startup retains
+  `localhost:3000`. Transpiled environment assertions passed for localhost and
+  LAN hostname in both configurations; `npm run build -- --configuration mobile`
+  passed (exit 0), with existing CommonJS warnings for lodash and exceljs.
