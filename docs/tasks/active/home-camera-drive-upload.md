@@ -3,7 +3,7 @@
 - Status: `COMPLETE_LOCAL`
 - Task manager: current chat
 - Worktree: C:/Users/user/Keepintax/TaxMyself
-- Branch: new-ai-chat
+- Branch: codex/mobile-camera-drive-upload
 - Base commit: 8c30a975
 
 ## Business outcome
@@ -22,8 +22,8 @@ the confirmed photo through the existing Drive inbox flow.
 ## Scope and constraints
 
 Frontend home and quick-upload dialog only. No schema, production, security,
-accounting or external API contract changes. Work remains on the user's current
-feature branch; other active branches/worktrees are outside this task.
+accounting or external API contract changes. Work is isolated on
+`codex/mobile-camera-drive-upload`; other active branches/worktrees are outside this task.
 
 ## Handoff
 
@@ -37,6 +37,8 @@ feature branch; other active branches/worktrees are outside this task.
   config includes Node types because dashboard dependencies contain a Node console
   import; unrelated legacy specs were not run.
 - Review: full diff and `git diff --check` passed; no generated files or secrets.
-- Delivery: local commit on `new-ai-chat`; no main integration, push or deployment.
+- Delivery: local commits on `codex/mobile-camera-drive-upload`; no main integration,
+  push or deployment. `new-ai-chat` restored to the original base `8c30a975`
+  with no camera-upload changes or task documentation.
 - Manual check: Android/iPhone camera launch, cancellation, confirmed capture and Drive result.
 - Documentation: home and quick-upload topic AGENTS.md.
