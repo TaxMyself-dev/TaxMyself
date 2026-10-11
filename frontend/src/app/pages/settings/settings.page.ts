@@ -2,6 +2,7 @@ import { CommonModule } from '@angular/common';
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators, AbstractControl, ValidationErrors } from '@angular/forms';
+import { ISRAELI_PHONE_ERROR, israeliPhoneValidator } from 'src/app/shared/israeli-phone';
 import { ButtonComponent } from 'src/app/components/button/button.component';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 import { AuthService } from 'src/app/services/auth.service';
@@ -60,6 +61,7 @@ import { SETTINGS_TABS, shouldLoadOpenBankingAccountSources } from './settings-a
   providers: []
 })
 export class SettingsPage implements OnInit {
+  readonly phoneError = ISRAELI_PHONE_ERROR;
   authService = inject(AuthService);
   genericService = inject(GenericService);
   messageService = inject(MessageService);
@@ -964,7 +966,7 @@ export class SettingsPage implements OnInit {
       lName:            this.fb.nonNullable.control(''),
       id:               this.fb.nonNullable.control(''),
       email:            this.fb.nonNullable.control('', Validators.email),
-      phone:            this.fb.nonNullable.control(''),
+      phone:            this.fb.nonNullable.control('', israeliPhoneValidator()),
       // Stored as Date for future app-input-date migration.
       // TODO(migration): when template switches to app-input-date,
       //   remove toDisplayDate() and read Date directly from this control.
@@ -981,7 +983,7 @@ export class SettingsPage implements OnInit {
       spouseLName:            this.fb.nonNullable.control(''),
       spouseId:               this.fb.nonNullable.control(''),
       spouseEmail:            this.fb.nonNullable.control('', Validators.email),
-      spousePhone:            this.fb.nonNullable.control(''),
+      spousePhone:            this.fb.nonNullable.control('', israeliPhoneValidator()),
       // Stored as Date for future app-input-date migration.
       // TODO(migration): spouse date is currently stored as a freeform text string
       //   (dd-mm-yyyy typed by the user). When the template switches to
@@ -998,24 +1000,13 @@ export class SettingsPage implements OnInit {
       businessAddress:   this.fb.nonNullable.control(''),
       businessPhone:     this.fb.nonNullable.control('', [
         Validators.required,
-        (c: AbstractControl) => this.israeliPhoneValidatorFn(c),
+        israeliPhoneValidator(),
       ]),
       businessEmail:     this.fb.nonNullable.control('', [Validators.required, Validators.email]),
       businessType:      this.fb.nonNullable.control('', Validators.required),
       vatReportingType:  this.fb.nonNullable.control(''),
       advanceTaxPercent: this.fb.control<number | null>(null, [Validators.min(0), Validators.max(100)]),
     });
-  }
-
-  /** Israeli mobile phone: 05X-XXXXXXX (10 digits after normalising +972 prefix). */
-  private israeliPhoneValidatorFn(control: AbstractControl): ValidationErrors | null {
-    const phone = (control.value as string) ?? '';
-    if (!phone) return null;
-    const digits = phone.replace(/\D/g, '');
-    const normalized = digits.startsWith('972') ? '0' + digits.slice(3)
-      : digits.startsWith('0') ? digits : '0' + digits;
-    return normalized.length === 10 && /^05\d{8}$/.test(normalized)
-      ? null : { israeliPhone: true };
   }
 
   buildAddPermissionForm() {
@@ -1047,7 +1038,7 @@ export class SettingsPage implements OnInit {
       businessName:        this.fb.nonNullable.control(business?.businessName ?? ''),
       businessEmail:       this.fb.nonNullable.control(business?.businessEmail ?? '', Validators.email),
       businessAddress:     this.fb.nonNullable.control(business?.businessAddress ?? ''),
-      businessPhone:       this.fb.nonNullable.control(business?.businessPhone ?? ''),
+      businessPhone:       this.fb.nonNullable.control(business?.businessPhone ?? '', israeliPhoneValidator()),
       businessType:        this.fb.nonNullable.control<string>(business?.businessType ?? ''),
       businessField:       this.fb.nonNullable.control<string>(business?.businessField ?? ''),
       nationalInsRequired: this.fb.control<boolean | null>(business?.nationalInsRequired ?? null),

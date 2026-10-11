@@ -17,3 +17,10 @@ Cross-cutting utilities used throughout reporting and transaction code: generic 
 
 ## Related topics
 Depends on: expenses (`Expense` entity), transactions (legacy `Transactions` entity — marked for removal), documents (`SettingDocuments` entity). Depended on by: nearly all reporting/transaction modules — reports, report-workflow, transactions, expenses, bookkeeping, documents.
+
+## Israeli phone validation
+
+`israeli-phone.ts` holds the one phone rule (`/^0(?:[23489]\d{7}|[57]\d{8})$/`,
+digits only, empty allowed) and the `@IsIsraeliPhone()` decorator. Mirror of
+`frontend/src/app/shared/israeli-phone.ts`; change both together. Add
+`@IsNotEmpty()` for required phone fields.

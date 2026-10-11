@@ -14,6 +14,7 @@ import { cloneDeep } from 'lodash';
 import { businessTypeOptionsList, companyBusinessTypeOptionsList, EmploymentType, employmentTypeOptionsList, familyStatusOptionsList } from 'src/app/shared/enums';
 import { FamilyStatus, FormTypes } from 'src/app/shared/enums';
 import { inputsSize } from 'src/app/shared/enums';
+import { ISRAELI_PHONE_ERROR, israeliPhoneValidator } from 'src/app/shared/israeli-phone';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 import { MessageService } from 'primeng/api';
 import { StepperComponent } from 'src/app/components/stepper/stepper.component';
@@ -46,6 +47,7 @@ import { ToggleSwitchModule } from 'primeng/toggleswitch';
   ]
 })
 export class RegisterPage implements OnInit, OnDestroy {
+  readonly phoneError = ISRAELI_PHONE_ERROR;
   readonly inputsSize = inputsSize;
   readonly buttonSize = ButtonSize;
   readonly buttonColor = ButtonColor;
@@ -192,7 +194,7 @@ matchRegisterImage = computed(() => {
         '', this.requierdField ? [Validators.required, Validators.pattern(/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/)] : null,
       ),
       [RegisterFormControls.PHONE]: new FormControl(
-        '', this.requierdField ? [Validators.required, Validators.pattern(/^(050|051|052|053|054|055|058|059)\d{7}$/)] : null,
+        '', this.requierdField ? [Validators.required, israeliPhoneValidator()] : null,
       ),
       [RegisterFormControls.DATEOFBIRTH]: new FormControl(
         null, null,
@@ -230,7 +232,7 @@ matchRegisterImage = computed(() => {
         null,
       ),
       [RegisterFormControls.SPOUSEPHONE]: new FormControl(
-        null,
+        null, israeliPhoneValidator(),
       ),
       [RegisterFormControls.SPOUSEEMAIL]: new FormControl(
         null,
@@ -262,7 +264,7 @@ matchRegisterImage = computed(() => {
         '', this.requierdField ? [Validators.required, Validators.pattern(/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/)] : null,
       ),
       [RegisterFormControls.PHONE]: new FormControl(
-        '', this.requierdField ? [Validators.pattern(/^(050|051|052|053|054|055|058|059)\d{7}$/)] : null,
+        '', this.requierdField ? [israeliPhoneValidator()] : null,
       ),
       [RegisterFormControls.PASSWORD]: new FormControl(
         '', [Validators.required, Validators.pattern(/^(?=.*[a-zA-Z].*[a-zA-Z])(?=.*\d).{8,}$/)]

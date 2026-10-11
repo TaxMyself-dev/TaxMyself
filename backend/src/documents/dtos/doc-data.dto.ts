@@ -1,3 +1,4 @@
+import { IsIsraeliPhone } from 'src/shared/israeli-phone';
 import { IsNotEmpty, IsString, IsOptional, IsNumber, IsEnum, IsDateString, IsBoolean } from 'class-validator';
 import { Type } from 'class-transformer';
 import { BusinessType, DocumentType, DocumentStatusType } from 'src/enum';
@@ -75,6 +76,7 @@ export class DocDataDto {
 
   @IsOptional()
   @IsString()
+  @IsIsraeliPhone()
   recipientPhone?: string;
 
   @IsOptional()

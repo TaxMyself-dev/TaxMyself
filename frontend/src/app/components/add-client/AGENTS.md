@@ -35,3 +35,10 @@ Creates and edits a business customer's document-issuance contact record.
   auto-cleaned. Service numbers and international numbers are unsupported.
 - The message comes from the field's `errorText` (`IBaseFieldData`) and is
   forwarded to `app-input-text` in the template.
+- The rule is shared, not per-screen: `frontend/src/app/shared/israeli-phone.ts`
+  (pattern, message, `israeliPhoneValidator()`, `isValidIsraeliPhone()`) and
+  `backend/src/shared/israeli-phone.ts` (pattern, message, `@IsIsraeliPhone()`).
+  It is used by clients, doc-create `recipientPhone`, register, settings
+  (personal/spouse/business), accountant create-client, and the matching DTOs
+  (`UsersService.signup` checks its untyped nested payload explicitly). Keep the
+  two copies identical.

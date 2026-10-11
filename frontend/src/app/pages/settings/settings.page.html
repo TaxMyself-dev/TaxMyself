@@ -22,8 +22,8 @@
       [errorText]="'כתובת אימייל לא חוקית'"
       [size]="isMobile() ? inputsSize.MOBILE : inputsSize.MEDIUM"></app-input-text>
     <app-input-text [parentForm]="addBusinessFormGroup" [controlName]="'businessPhone'"
-      [labelText]="'פלאפון'" [placeholder]="'050-0011223'" [type]="'tel'"
-      [errorText]="'מספר פלאפון לא חוקי'"
+      [labelText]="'פלאפון'" [placeholder]="'0500011223'" [type]="'tel'"
+      [errorText]="phoneError"
       [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"></app-input-text>
     <app-input-text [parentForm]="addBusinessFormGroup" [controlName]="'businessAddress'"
       [labelText]="'כתובת'" [placeholder]="'כתובת'"
@@ -111,7 +111,7 @@
             <div class="detail-field">
               <app-input-text [parentForm]="personalFormGroup" [controlName]="'phone'"
                 [labelText]="'פלאפון'" [placeholder]="'פלאפון'"
-                [type]="'tel'" [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"></app-input-text>
+                [type]="'tel'" [errorText]="phoneError" [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"></app-input-text>
             </div>
             @if (!isCompany()) {
             <div class="detail-field">
@@ -179,7 +179,7 @@
             <div class="detail-field">
               <app-input-text [parentForm]="spouseFormGroup" [controlName]="'spousePhone'"
                 [labelText]="'פלאפון'" [placeholder]="'פלאפון'"
-                [type]="'tel'" [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"></app-input-text>
+                [type]="'tel'" [errorText]="phoneError" [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"></app-input-text>
             </div>
             <div class="detail-field">
               <app-input-date [parentForm]="spouseFormGroup" [controlName]="'spouseDateOfBirth'"
@@ -279,7 +279,7 @@
                 </div>
                 <div class="detail-field">
                   <app-input-text [parentForm]="bizGroup" [controlName]="'businessPhone'"
-                    [labelText]="'טלפון'" [placeholder]="'טלפון'" [type]="'tel'"
+                    [labelText]="'טלפון'" [placeholder]="'טלפון'" [type]="'tel'" [errorText]="phoneError"
                     [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"></app-input-text>
                 </div>
                 <div class="detail-field">

@@ -1,3 +1,4 @@
+import { IsIsraeliPhone } from 'src/shared/israeli-phone';
 import { IsString, IsOptional } from 'class-validator';
 
 export class UpdateClientDto {
@@ -11,6 +12,7 @@ export class UpdateClientDto {
 
   @IsOptional()
   @IsString()
+  @IsIsraeliPhone()
   phone?: string;
 
   @IsOptional()

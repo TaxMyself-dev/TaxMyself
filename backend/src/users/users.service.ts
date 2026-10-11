@@ -19,6 +19,7 @@ import { BillingService } from '../billing/services/billing.service';
 import { Subscription } from '../billing/entities/subscription.entity';
 import { SubscriptionPlan } from '../billing/entities/subscription-plan.entity';
 import { SignupDto } from './dtos/signup.dto';
+import { ISRAELI_PHONE_MESSAGE, isValidIsraeliPhone } from '../shared/israeli-phone';
 
 
 @Injectable()
@@ -169,6 +170,17 @@ export class UsersService {
       if (!isBusinessTypeAllowedForUser(isCompany, biz?.businessType as BusinessType | null | undefined)) {
         throw new BadRequestException(`סוג עסק לא תואם לסוג ההרשמה: ${biz?.businessType}`);
       }
+    }
+
+    // Ordinary Israeli phone format only (nested signup payload is untyped,
+    // so the DTO decorators cannot cover it). Empty values stay allowed.
+    const signupPhones = [
+      personal?.phone,
+      safeSpouse?.spousePhone,
+      ...newBusinesses.map((biz) => biz?.businessPhone),
+    ];
+    if (signupPhones.some((phone) => !isValidIsraeliPhone(phone))) {
+      throw new BadRequestException(ISRAELI_PHONE_MESSAGE);
     }
 
     // -------------------------------------------------------

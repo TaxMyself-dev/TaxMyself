@@ -1,3 +1,4 @@
+import { ISRAELI_PHONE_ERROR, isValidIsraeliPhone } from 'src/app/shared/israeli-phone';
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { DialogService } from 'primeng/dynamicdialog';
@@ -484,6 +485,7 @@ export class ClientPanelPage implements OnInit {
     if (!email) err['email'] = 'אימייל חובה';
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) err['email'] = 'כתובת אימייל לא חוקית';
     if (!phone) err['phone'] = 'פלאפון חובה';
+    else if (!isValidIsraeliPhone(form.phone)) err['phone'] = ISRAELI_PHONE_ERROR;
     this.createClientErrors.set(err);
     return Object.keys(err).length === 0;
   }

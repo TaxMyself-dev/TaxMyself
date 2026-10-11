@@ -1,3 +1,4 @@
+import { IsIsraeliPhone } from 'src/shared/israeli-phone';
 import { IsEmail, IsOptional, IsString, IsNotEmpty, IsEnum, Matches } from 'class-validator';
 import { BusinessType } from 'src/enum';
 
@@ -20,6 +21,7 @@ export class CreateClientByAccountantDto {
 
   @IsNotEmpty({ message: 'פלאפון חובה' })
   @IsString()
+  @IsIsraeliPhone()
   phone: string;
 
   @IsOptional()

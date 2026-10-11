@@ -5,6 +5,7 @@ import { Observable } from 'rxjs';
 import { IClient } from 'src/app/pages/doc-create/doc-create.interface';
 import { FormTypes } from 'src/app/shared/enums';
 import { IBaseFieldData } from 'src/app/shared/interface';
+import { ISRAELI_PHONE_ERROR, israeliPhoneValidator } from 'src/app/shared/israeli-phone';
 import { ClientKeys } from 'src/app/shared/types';
 import { environment } from 'src/environments/environment';
 
@@ -32,8 +33,8 @@ export class AddClientService {
       type: FormTypes.TEXT,
       initialValue: '',
       enumValues: [],
-      validators: [Validators.pattern(/^0(?:[23489]\d{7}|[57]\d{8})$/)],
-      errorText: 'יש להזין מספר טלפון ישראלי תקין, בספרות בלבד וללא רווחים או מקפים'
+      validators: [israeliPhoneValidator()],
+      errorText: ISRAELI_PHONE_ERROR
     },
     ['email']: {
       value: 'email',

@@ -56,8 +56,8 @@
                 [placeholder]="'example@gmail.com'" [parentForm]="companyForm" [size]="isMobile() ? inputsSize.MOBILE : inputsSize.MEDIUM"
                 [customStyle]="'rounded-border'" [errorText]="'כתובת המייל אינה חוקית'"></app-input-text>
               <app-input-text [controlName]="registerFormControls.PHONE" labelText="מספר פלאפון"
-                [placeholder]="'050-0011223'" [parentForm]="companyForm" [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"
-                [customStyle]="'rounded-border'" [errorText]="'מספר פלאפון לא חוקי'"></app-input-text>
+                [placeholder]="'0500011223'" [parentForm]="companyForm" [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"
+                [customStyle]="'rounded-border'" [errorText]="phoneError"></app-input-text>
             </div>
             <div class="section-one">
               <app-input-text [controlName]="registerFormControls.PASSWORD" labelText="סיסמה"
@@ -93,8 +93,8 @@
                 [customStyle]="'rounded-border'" [errorText]="'כתובת המייל אינה חוקית'"></app-input-text>
               <!----phone ----->
               <app-input-text [controlName]="registerFormControls.PHONE" labelText="מספר פלאפון"
-                [placeholder]="'050-0011223'" [parentForm]="personalForm" [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"
-                [customStyle]="'rounded-border'" [errorText]="'מספר פלאפון לא חוקי'"></app-input-text>
+                [placeholder]="'0500011223'" [parentForm]="personalForm" [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"
+                [customStyle]="'rounded-border'" [errorText]="phoneError"></app-input-text>
             </div>
             <!-- Third line -->
             <div class="section-one">
@@ -154,8 +154,8 @@
                 placeholder="00/00/0000" [parentForm]="spouseForm" [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN" [customStyle]="'register'"></app-input-date>
               <!----phone ----->
               <app-input-text [controlName]="registerFormControls.SPOUSEPHONE" labelText="מספר פלאפון"
-                [placeholder]="'050-0011223'" [parentForm]="spouseForm" [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"
-                [customStyle]="'rounded-border'" [errorText]="'מספר פלאפון לא חוקי'"></app-input-text>
+                [placeholder]="'0500011223'" [parentForm]="spouseForm" [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"
+                [customStyle]="'rounded-border'" [errorText]="phoneError"></app-input-text>
             </div>
             <!-- Third line -->
             <div class="section-one">

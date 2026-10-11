@@ -1,3 +1,4 @@
+import { IsIsraeliPhone } from 'src/shared/israeli-phone';
 import {
     IsString,
     IsOptional,
@@ -18,6 +19,7 @@ export class CreateClientDto {
 
     @IsString()
     @IsOptional()
+    @IsIsraeliPhone()
     phone: string;
 
     @IsString()

@@ -1,3 +1,4 @@
+import { IsIsraeliPhone } from 'src/shared/israeli-phone';
 import { IsNumber, IsOptional, IsString, Matches, Min, Max } from 'class-validator';
 
 // Header-safe (ISO-8859-1) and digits-only — AuthInterceptor forwards this
@@ -24,6 +25,7 @@ export class CreateBusinessDto {
 
   @IsOptional()
   @IsString()
+  @IsIsraeliPhone()
   businessPhone?: string;
 
   @IsOptional()

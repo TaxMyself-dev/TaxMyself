@@ -1,3 +1,4 @@
+import { IsIsraeliPhone } from 'src/shared/israeli-phone';
 import { IsString, IsBoolean, IsOptional, IsDateString } from 'class-validator';
 
 export class UpdateUserDto {
@@ -5,14 +6,14 @@ export class UpdateUserDto {
   @IsOptional() @IsString() lName?: string;
   @IsOptional() @IsString() id?: string;
   @IsOptional() @IsDateString() dateOfBirth?: Date;
-  @IsOptional() @IsString() phone?: string;
+  @IsOptional() @IsString() @IsIsraeliPhone() phone?: string;
   @IsOptional() @IsString() email?: string;
   @IsOptional() @IsString() city?: string;
   @IsOptional() @IsString() spouseFName?: string;
   @IsOptional() @IsString() spouseLName?: string;
   @IsOptional() @IsString() spouseId?: string;
   @IsOptional() @IsDateString() spouseDateOfBirth?: Date;
-  @IsOptional() @IsString() spousePhone?: string;
+  @IsOptional() @IsString() @IsIsraeliPhone() spousePhone?: string;
   @IsOptional() @IsString() spouseEmail?: string;
   @IsOptional() @IsString() spouseEmploymentStatus?: string;
   @IsOptional() @IsBoolean() spouseIndependet?: boolean;

@@ -132,6 +132,7 @@
           @default {
           <app-input-text [customStyle]="isMobile() ? 'rounded-border' : ''" [controlName]="item.value"
             [labelText]="item.labelText" [placeholder]="item.placeHolder" [parentForm]="userDetailsForm"
+            [errorText]="item.errorText ?? 'ערך לא תקין'"
             [size]="isMobile() ? inputsSize.MOBILE : (item.value === FieldsCreateDocValue.RECIPIENT_EMAIL ? inputsSize.MEDIUM : inputsSize.BETWEEN)" [type]="
           item.type === formTypes.NUMBER ? 'number' :
           'text'

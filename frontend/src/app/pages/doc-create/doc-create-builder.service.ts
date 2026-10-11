@@ -4,6 +4,7 @@ import { ICreateDocSectionData, IDocCreateFieldData, ILineItemColumn, ISummaryIt
 import { FormArray, FormControl, FormGroup, Validators } from "@angular/forms";
 import { DocTypeDisplayName, DocCreateFields, bankOptionsList, DocumentTotals, DocumentSummary } from "./doc-cerate.enum";
 import { ISelectItem } from "src/app/shared/interface";
+import { ISRAELI_PHONE_ERROR, israeliPhoneValidator } from "src/app/shared/israeli-phone";
 
 const CardCompanyHebrewLabels: Record<CardCompany, string> = {
     [CardCompany.ISRACARD]: 'ישראכרט',
@@ -289,12 +290,13 @@ export class DocCreateBuilderService {
             //name: FieldsCreateDocName.recipientPhone,
             value: FieldsCreateDocValue.RECIPIENT_PHONE,
             labelText: 'טלפון נייד',
-            placeHolder: 'הקלד 10 ספרות',
+            placeHolder: 'הקלד מספר טלפון בספרות בלבד',
             type: FormTypes.TELEPHONE,
             initialValue: '',
             enumValues: [],
             editFormBasedOnValue: {},
-            validators: [Validators.pattern(/^(050|051|052|053|054|055|058|059)\d{7}$/)]
+            validators: [israeliPhoneValidator()],
+            errorText: ISRAELI_PHONE_ERROR
         },
         [FieldsCreateDocValue.RECIPIENT_EMAIL]: {
             //name: FieldsCreateDocName.recipientEmail,
