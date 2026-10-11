@@ -48,6 +48,34 @@ export class AddClientComponent {
         address: c.address ?? ''
       });
     }
+    this.initialSnapshot = this.normalizedValues();
+  }
+
+  // Normalized form values right after the form is populated (edit-mode baseline)
+  private initialSnapshot: Record<string, unknown>;
+
+  // Same normalization as on save: trim strings, treat ''/null/undefined as null
+  private normalizedValues(): Record<string, unknown> {
+    const raw = this.addClientForm.getRawValue() as Record<string, unknown>;
+    return Object.entries(raw).reduce((acc, [key, value]) => {
+      if (typeof value === 'string') {
+        const trimmed = value.trim();
+        acc[key] = trimmed === '' ? null : trimmed;
+      } else {
+        acc[key] = value ?? null;
+      }
+      return acc;
+    }, {} as Record<string, unknown>);
+  }
+
+  get hasChanges(): boolean {
+    const current = this.normalizedValues();
+    return Object.keys(current).some(k => current[k] !== (this.initialSnapshot[k] ?? null));
+  }
+
+  // Create: valid form. Edit: valid form and an actual change from the loaded data.
+  get canSave(): boolean {
+    return this.addClientForm.valid && (!this.editMode || this.hasChanges);
   }
 
   // Preserve original order for keyvalue pipe (prevents alphabetical sorting)
@@ -63,16 +91,8 @@ export class AddClientComponent {
   clients = signal<IClient[]>(this.dialogConfig.data?.clients ?? []);
 
   saveClient() {
-    const raw = this.addClientForm.getRawValue() as Partial<IClient>;
-    const clientData = Object.entries(raw).reduce((acc, [key, value]) => {
-      if (typeof value === 'string') {
-        const trimmed = value.trim();
-        (acc as any)[key] = trimmed === '' ? null : trimmed;
-        return acc;
-      }
-      (acc as any)[key] = value ?? null;
-      return acc;
-    }, {} as Partial<IClient>);
+    if (!this.canSave) return;
+    const clientData = this.normalizedValues() as Partial<IClient>;
 
     if (this.editMode && this.clientRowId != null) {
       this.confirmationService.confirm({
