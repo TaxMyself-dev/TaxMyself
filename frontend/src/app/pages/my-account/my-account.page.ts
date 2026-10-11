@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, DestroyRef, ElementRef, inject, OnInit, signal, ViewChild } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -1375,7 +1375,9 @@ export class MyAccountPage implements OnInit {
   // }
 
 
-  /** Home CTA menu: Manual Expense + Quick Upload to Drive. */
+  @ViewChild('expenseCameraInput') private expenseCameraInput?: ElementRef<HTMLInputElement>;
+
+  /** Home CTA menu includes direct camera capture on mobile. */
   readonly addExpenseMenuItems = computed<MenuButtonItem[]>(() => [
     {
       type: 'action',
@@ -1391,6 +1393,13 @@ export class MyAccountPage implements OnInit {
       icon: 'pi pi-cloud-upload',
       action: () => this.openQuickUploadToDrive(),
     },
+    ...(this.isMobile() ? [{
+      type: 'action' as const,
+      id: 'camera-upload',
+      label: 'צילום והעלאה ל-Drive',
+      icon: 'pi pi-camera',
+      action: () => this.openExpenseCamera(),
+    }] : []),
   ]);
 
   readonly addExpenseMenuPositions: ConnectedPosition[] = [
@@ -1416,9 +1425,9 @@ export class MyAccountPage implements OnInit {
     });
   }
 
-  openQuickUploadToDrive(): void {
+  private canUploadToDrive(): boolean {
     const result = this.accessHandlerService.handleFeatureAccess(AppFeature.ADD_EXPENSE_BUTTON);
-    if (!result.allowed) return;
+    if (!result.allowed) return false;
     if (!this.genericService.businessSelectItems().length) {
       this.messageService.add({
         severity: 'warn',
@@ -1427,8 +1436,29 @@ export class MyAccountPage implements OnInit {
         life: 3500,
         key: 'br',
       });
-      return;
+      return false;
     }
+    return true;
+  }
+
+  openExpenseCamera(): void {
+    if (!this.isMobile() || !this.canUploadToDrive()) return;
+    const input = this.expenseCameraInput?.nativeElement;
+    if (!input) return;
+    input.value = '';
+    // Keep the native picker inside the menu click's user activation.
+    input.click();
+  }
+
+  onExpensePhotoCaptured(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const photo = input.files?.[0];
+    input.value = '';
+    if (photo) this.openQuickUploadToDrive(photo);
+  }
+
+  openQuickUploadToDrive(capturedFile?: File): void {
+    if (!this.canUploadToDrive()) return;
     this.dialogService.open(QuickUploadDriveDialogComponent, {
       header: 'העלאה מהירה ל-Drive',
       width: '480px',
@@ -1438,6 +1468,7 @@ export class MyAccountPage implements OnInit {
       dismissableMask: true,
       modal: true,
       focusOnShow: false,
+      data: capturedFile ? { capturedFile } : undefined,
     });
   }
 }

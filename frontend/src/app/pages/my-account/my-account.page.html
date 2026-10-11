@@ -588,3 +588,5 @@
         <app-item-navigate [navigationItems]="itemsNavigate" navigationItemStyle="button-item-navigate-my-account"></app-item-navigate>
     </div>
 </ion-content> -->
+<input #expenseCameraInput type="file" accept="image/*" capture="environment" hidden
+  (change)="onExpensePhotoCaptured($event)">

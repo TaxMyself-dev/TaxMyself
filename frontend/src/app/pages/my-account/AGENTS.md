@@ -16,6 +16,7 @@ Main dashboard/home page shown after login: account sync status, transactions-to
 - Open Banking: connect a new source (with consent confirmation), retry a failed source, associate an unmatched account.
 - Classify or quick-classify pending transactions; Home "הוספת הוצאה" is an `app-menu-button` with Manual Expense (`MannualExpenseComponent`) and Quick Upload to Drive (`QuickUploadDriveDialogComponent` → `DriveDocsService.uploadFilesToInbox`). Also add bill/category via modals.
 - Feezback onboarding: show consent dialog, poll for webhook readiness, trigger transaction pull, handle renew-consent/try-again states; any returned profile refresh is written through `AuthService` to the UID-bound tab cache rather than shared browser storage.
+- Mobile (the shared `isMobile()` breakpoint) additionally offers "צילום והעלאה ל-Drive". A hidden single-image input with `capture="environment"` opens synchronously in the menu action after the existing access/business checks. Cancel sends no request; confirmed capture passes the file to the quick-upload dialog. One business uploads automatically; multiple businesses require selection. Native camera behavior requires Android/iPhone verification.
 - Billing: poll for payment result after redirect back from checkout, resend receipt email, retry invoice.
 - Canonical checkout return consumes tm.checkoutLowProfileId and scopes
   BillingStateService refreshes to that hosted attempt via GET /billing/me.

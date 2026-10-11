@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.spec.json",
+  "compilerOptions": { "skipLibCheck": true, "types": ["jasmine", "node"] },
+  "include": [
+    "src/app/components/quick-upload-drive-dialog/quick-upload-drive-dialog.component.spec.ts",
+    "src/app/pages/my-account/my-account.camera.spec.ts",
+    "src/**/*.d.ts"
+  ]
+}

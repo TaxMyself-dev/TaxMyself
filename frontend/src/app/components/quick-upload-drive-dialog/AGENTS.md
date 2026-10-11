@@ -14,6 +14,12 @@ flow without waiting for email/Gmail import.
   shared document-import type/size rules.
 - A successful upload places a file in the durable intake flow; it does not by
   itself mean OCR review or expense approval completed.
+- Optional dialog data `capturedFile` supports home mobile camera capture. On
+  initialization it validates an image as JPG/JPEG/PNG up to 10MB, then uploads
+  automatically only when a business is already unambiguously selected. Multiple
+  businesses require explicit selection and Upload. The photo filename and upload
+  status replace the file picker; errors retain the photo for retry. Ordinary
+  quick upload and fixed accountant-client business context remain supported.
 
 ## Related topics
 

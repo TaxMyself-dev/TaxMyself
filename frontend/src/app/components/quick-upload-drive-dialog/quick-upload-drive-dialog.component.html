@@ -19,12 +19,19 @@
     </app-input-select>
   }
 
+  @if (capturedFile) {
+    <p>{{ capturedFile.name }}</p>
+    @if (isUploading()) {
+      <p role="status">מעלה את התמונה ל-Drive...</p>
+    }
+  } @else {
   <app-file-uploader-gpt
     [multiple]="true"
     [accept]="'.pdf,.jpg,.jpeg,.png'"
     [supportedText]="'PDF, JPG, PNG'"
     (selectedFiles)="onFilesSelected($event)">
   </app-file-uploader-gpt>
+  }
 
   <div class="quick-upload__actions">
     <app-p-button
