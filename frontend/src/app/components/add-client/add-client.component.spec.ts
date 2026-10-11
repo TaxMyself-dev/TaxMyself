@@ -49,6 +49,19 @@ describe('AddClientComponent', () => {
     }
   });
 
+  it('phone: accepts only contiguous Israeli digits (or empty)', () => {
+    const good = ['', '021234567', '031234567', '041234567', '081234567', '091234567',
+      '0501234567', '0521234567', '0768053548', '0721234567'];
+    const bad = ['05012345', '050123456', '05012345678', '0212345678', '01234567',
+      '061234567', '050-1234567', '050 1234567', '050123456a', '+972501234567', ' 0501234567', '1800123456'];
+    for (const phone of good) {
+      expect(edit({ clientRowId: 1, name: 'Dana', phone }).addClientForm.get('phone').valid).withContext(phone).toBeTrue();
+    }
+    for (const phone of bad) {
+      expect(edit({ clientRowId: 1, name: 'Dana', phone }).addClientForm.get('phone').invalid).withContext(phone).toBeTrue();
+    }
+  });
+
   describe('edit-mode save button (canSave)', () => {
     const loaded = { clientRowId: 5, name: 'Dana', phone: '0501234567', email: null, id: null, address: null };
 

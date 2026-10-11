@@ -26,3 +26,12 @@ Creates and edits a business customer's document-issuance contact record.
 - In edit mode the save button (`canSave`) requires a valid form and a real
   change versus the loaded values (trimmed; `''`/`null`/`undefined` equal).
   `saveClient` repeats this guard. Create mode only requires a valid form.
+
+## Phone validation
+
+- `phone` is optional; when filled it must match
+  `/^0(?:[23489]\d{7}|[57]\d{8})$/` (02/03/04/08/09 → 9 digits; 05/07 → 10
+  digits). Digits only: hyphens, spaces, letters and `+972` are rejected, never
+  auto-cleaned. Service numbers and international numbers are unsupported.
+- The message comes from the field's `errorText` (`IBaseFieldData`) and is
+  forwarded to `app-input-text` in the template.

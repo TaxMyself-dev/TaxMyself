@@ -32,8 +32,8 @@ export class AddClientService {
       type: FormTypes.TEXT,
       initialValue: '',
       enumValues: [],
-      validators: [Validators.pattern(/^(05[0-9]\d{7}|0[23489]\d{7})$/)
-      ]
+      validators: [Validators.pattern(/^0(?:[23489]\d{7}|[57]\d{8})$/)],
+      errorText: 'יש להזין מספר טלפון ישראלי תקין, בספרות בלבד וללא רווחים או מקפים'
     },
     ['email']: {
       value: 'email',

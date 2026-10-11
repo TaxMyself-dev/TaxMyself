@@ -1,7 +1,7 @@
 <div class="client-container">
   <form [formGroup]="addClientForm" class="client-form">
     @for (field of addClientService.addClientFields | keyvalue:preserveOrder; track field.key) {
-    <app-input-text [parentForm]="addClientForm" [controlName]="field.key" [labelText]="field.value.labelText"
+    <app-input-text [parentForm]="addClientForm" [controlName]="field.key" [labelText]="field.value.labelText" [errorText]="field.value.errorText ?? 'ערך לא תקין'"
       [placeholder]="field.value.placeHolder" [type]="field.value.type" [size]="inputSize.MEDIUM">
     </app-input-text>
     }

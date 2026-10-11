@@ -200,6 +200,7 @@ export interface IBaseFieldData {
     type: FormTypes;
     enumValues: ISelectItem[] | null;
     validators?: ValidatorFn[];
+    errorText?: string;
     initialValue?: any;
     required?: boolean;
 }
