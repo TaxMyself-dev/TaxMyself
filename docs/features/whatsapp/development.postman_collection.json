@@ -1,0 +1,217 @@
+{
+  "info": {
+    "name": "KeepInTax WhatsApp development checkpoints",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:8091"
+    },
+    {
+      "key": "devToken",
+      "value": "replace-with-your-local-token"
+    }
+  ],
+  "item": [
+    {
+      "name": "01 Routing (commit 1)",
+      "item": [
+        {
+          "name": "Health",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-whatsapp-dev-token",
+                "value": "{{devToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/dev/whatsapp/health"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Expected status', () => pm.expect(pm.response.json().status).to.eql('READY'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Known sender",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-whatsapp-dev-token",
+                "value": "{{devToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/dev/whatsapp/resolve",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"from\": \"972500000001\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Expected status', () => pm.expect(pm.response.json().status).to.eql('READY'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Unknown sender",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-whatsapp-dev-token",
+                "value": "{{devToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/dev/whatsapp/resolve",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"from\": \"972500000009\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Expected status', () => pm.expect(pm.response.json().status).to.eql('UNKNOWN_SENDER'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Multiple businesses",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-whatsapp-dev-token",
+                "value": "{{devToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/dev/whatsapp/resolve",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"from\": \"972500000002\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Expected status', () => pm.expect(pm.response.json().status).to.eql('BUSINESS_REQUIRED'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Choose business",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-whatsapp-dev-token",
+                "value": "{{devToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/dev/whatsapp/resolve",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"from\": \"972500000002\",\n  \"businessNumber\": \"business-b\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Expected status', () => pm.expect(pm.response.json().status).to.eql('READY'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Wrong business",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-whatsapp-dev-token",
+                "value": "{{devToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/dev/whatsapp/resolve",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"from\": \"972500000001\",\n  \"businessNumber\": \"business-b\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Expected status', () => pm.expect(pm.response.json().status).to.eql('BUSINESS_NOT_ALLOWED'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
