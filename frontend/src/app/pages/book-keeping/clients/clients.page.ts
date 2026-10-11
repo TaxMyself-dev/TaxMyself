@@ -53,6 +53,10 @@ export class ClientsPage implements OnInit {
   myClients: any;
   fileActions = signal<ITableRowAction[]>([]);
 
+  // Original server records by clientRowId. The table rows carry '-' placeholders
+  // for display only; the edit dialog must receive the untouched data.
+  private rawClientsByRowId = new Map<number, any>();
+
   buttonColor = ButtonColor;
   buttonSize = ButtonSize;
 
@@ -160,6 +164,9 @@ export class ClientsPage implements OnInit {
       .pipe(
         map((clients: any[]) => {
           console.log("👥 Clients fetched:", clients);
+          this.rawClientsByRowId = new Map(
+            clients.filter(c => c.clientRowId != null).map(c => [c.clientRowId, c])
+          );
           return clients.map(client => ({
             ...client,
             id: client.id || '-',
@@ -234,7 +241,9 @@ export class ClientsPage implements OnInit {
     this.addClientBtn?.nativeElement.querySelector('button')?.focus();
   }
 
-  onEditClient(client: IRowDataTable): void {
+  onEditClient(row: IRowDataTable): void {
+    // Pass the original record (not the '-' display row) so missing fields stay empty in the form.
+    const client = this.rawClientsByRowId.get((row as any).clientRowId) ?? row;
     const ref = this.dialogService.open(AddClientComponent, {
       header: 'עריכת לקוח',
       width: '90%',

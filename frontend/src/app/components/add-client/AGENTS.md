@@ -18,3 +18,11 @@ Creates and edits a business customer's document-issuance contact record.
 
 - `backend/src/clients/AGENTS.md`
 - `frontend/src/app/pages/doc-create/AGENTS.md`
+
+## Edit-mode save rules
+
+- The clients page passes the original server record (not the table's `-`
+  display row) to the dialog, so missing optional fields stay empty.
+- In edit mode the save button (`canSave`) requires a valid form and a real
+  change versus the loaded values (trimmed; `''`/`null`/`undefined` equal).
+  `saveClient` repeats this guard. Create mode only requires a valid form.
