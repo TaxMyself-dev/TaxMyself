@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+  BadRequestException,
+} from '@nestjs/common';
 import { timingSafeEqual } from 'crypto';
 
 export interface DevelopmentContact {
@@ -11,28 +16,54 @@ export interface DevelopmentContact {
 @Injectable()
 export class WhatsappDevelopmentConfig {
   authorize(token: unknown): void {
-    if (process.env.NODE_ENV === 'production' || process.env.WHATSAPP_DEV_ENABLED !== 'true') {
+    if (
+      process.env.NODE_ENV === 'production' ||
+      process.env.WHATSAPP_DEV_ENABLED !== 'true'
+    ) {
       throw new NotFoundException();
     }
     const expected = process.env.WHATSAPP_DEV_TOKEN;
     if (!expected || expected.length < 24) throw new NotFoundException();
-    const supplied = typeof token === 'string' ? Buffer.from(token) : Buffer.alloc(0);
+    const supplied =
+      typeof token === 'string' ? Buffer.from(token) : Buffer.alloc(0);
     const secret = Buffer.from(expected);
-    if (supplied.length !== secret.length || !timingSafeEqual(supplied, secret)) {
+    if (
+      supplied.length !== secret.length ||
+      !timingSafeEqual(supplied, secret)
+    ) {
       throw new UnauthorizedException('Invalid development token');
     }
   }
 
   contacts(): DevelopmentContact[] {
     let contacts: DevelopmentContact[];
-    try { contacts = JSON.parse(process.env.WHATSAPP_DEV_CONTACTS || '[]'); }
-    catch { throw new BadRequestException('Invalid WHATSAPP_DEV_CONTACTS configuration'); }
-    if (!Array.isArray(contacts) || contacts.some(c => !c || typeof c.firebaseId !== 'string' ||
-      !c.firebaseId.trim() || !Array.isArray(c.businesses) || !c.businesses.length ||
-      c.businesses.some(b => typeof b !== 'string' || !b.trim()) || !normalizeWhatsappPhone(c.phone))) {
+    try {
+      contacts = JSON.parse(process.env.WHATSAPP_DEV_CONTACTS || '[]');
+    } catch {
+      throw new BadRequestException(
+        'Invalid WHATSAPP_DEV_CONTACTS configuration',
+      );
+    }
+    if (
+      !Array.isArray(contacts) ||
+      contacts.some(
+        (c) =>
+          !c ||
+          typeof c.firebaseId !== 'string' ||
+          !c.firebaseId.trim() ||
+          !Array.isArray(c.businesses) ||
+          !c.businesses.length ||
+          c.businesses.some((b) => typeof b !== 'string' || !b.trim()) ||
+          !normalizeWhatsappPhone(c.phone),
+      )
+    ) {
       throw new BadRequestException('Invalid development contact binding');
     }
-    return contacts.map(c => ({ ...c, phone: normalizeWhatsappPhone(c.phone), businesses: [...new Set(c.businesses)] }));
+    return contacts.map((c) => ({
+      ...c,
+      phone: normalizeWhatsappPhone(c.phone),
+      businesses: [...new Set(c.businesses)],
+    }));
   }
 }
 
