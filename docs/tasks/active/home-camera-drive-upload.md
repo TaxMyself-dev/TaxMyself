@@ -47,3 +47,13 @@ accounting or external API contract changes. Work is isolated on
   `localhost:3000`. Transpiled environment assertions passed for localhost and
   LAN hostname in both configurations; `npm run build -- --configuration mobile`
   passed (exit 0), with existing CommonJS warnings for lodash and exceljs.
+- Follow-up upload dialog: Cancel stays active and aborts the HTTP subscription;
+  dismissal/destruction also aborts. Files already persisted in Drive are not
+  deleted. Both shared buttons stay in one row, with a black loading Upload and
+  white outlined Cancel. Added cancellation and destruction regression tests,
+  including HttpTestingController verification of the cancelled request.
+- Follow-up verification: same focused command passed 16/16 tests, exit 0;
+  includes rendered button layout at 280px, enabled Cancel, black Upload/spinner,
+  cancellation through a real HttpClient testing request, and destruction.
+  Angular production build passed, exit 0, with unchanged budget/CommonJS warnings.
+  Browser plugin connection timed out; rendered UI assertions ran in ChromeHeadless.

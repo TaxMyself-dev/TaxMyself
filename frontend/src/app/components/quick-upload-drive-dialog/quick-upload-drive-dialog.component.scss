@@ -7,21 +7,27 @@
 }
 
 .quick-upload__actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
   margin-top: 4px;
+
+  app-p-button {
+    min-width: 0;
+  }
 }
 
-@media (max-width: 520px) {
-  .quick-upload__actions {
-    flex-direction: column-reverse;
+// Shared button sizes are fixed; constrain them to their equal-width grid cells.
+:host ::ng-deep .quick-upload__actions .p-button {
+  width: 100%;
+}
 
-    app-p-button {
-      width: 100%;
-    }
-  }
+:host ::ng-deep .quick-upload__actions .p-button.p-button-loading {
+  opacity: 1;
+}
+
+.quick-upload__filename {
+  overflow-wrap: anywhere;
 }
 .quick-upload__fixed-business {
   margin-bottom: 14px;

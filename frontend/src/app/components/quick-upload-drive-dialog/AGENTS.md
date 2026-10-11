@@ -20,6 +20,11 @@ flow without waiting for email/Gmail import.
   businesses require explicit selection and Upload. The photo filename and upload
   status replace the file picker; errors retain the photo for retry. Ordinary
   quick upload and fixed accountant-client business context remain supported.
+- Cancel stays enabled during upload and unsubscribes from HttpClient before
+  closing; destroying the dialog (including X/mask dismissal) also aborts an
+  active request. This cancels the client request, not files already persisted
+  in Drive. Upload stays black with its loading spinner; Cancel uses the shared
+  white/black-outline style. Both buttons share one two-column row at all widths.
 
 ## Related topics
 

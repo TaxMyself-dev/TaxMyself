@@ -1,9 +1,9 @@
 import { CommonModule } from '@angular/common';
-import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MessageService } from 'primeng/api';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
-import { finalize } from 'rxjs';
+import { finalize, Subscription } from 'rxjs';
 import { ButtonComponent } from 'src/app/components/button/button.component';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 import { appFileUploadGptComponent, isAllowedUploadFile } from 'src/app/components/input-file/input-file.component';
@@ -30,7 +30,8 @@ import { inputsSize } from 'src/app/shared/enums';
     appFileUploadGptComponent,
   ],
 })
-export class QuickUploadDriveDialogComponent implements OnInit {
+export class QuickUploadDriveDialogComponent implements OnInit, OnDestroy {
+  private uploadSubscription?: Subscription;
   private readonly fb = inject(FormBuilder);
   private readonly dialogRef = inject(DynamicDialogRef);
   private readonly dialogConfig = inject(DynamicDialogConfig);
@@ -135,7 +136,7 @@ export class QuickUploadDriveDialogComponent implements OnInit {
     }
     this.isUploading.set(true);
 
-    this.driveDocsService.uploadFilesToInbox(
+    this.uploadSubscription = this.driveDocsService.uploadFilesToInbox(
       files,
       businessNumber,
       this.clientUserId,
@@ -166,7 +167,13 @@ export class QuickUploadDriveDialogComponent implements OnInit {
   }
 
   cancel(): void {
-    if (this.isUploading()) return;
+    // Unsubscribing aborts HttpClient's in-flight upload request.
+    this.uploadSubscription?.unsubscribe();
+    this.selectedFiles.set([]);
     this.dialogRef.close();
+  }
+
+  ngOnDestroy(): void {
+    this.uploadSubscription?.unsubscribe();
   }
 }

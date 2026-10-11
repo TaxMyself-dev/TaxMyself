@@ -20,7 +20,7 @@
   }
 
   @if (capturedFile) {
-    <p>{{ capturedFile.name }}</p>
+    <p class="quick-upload__filename">{{ capturedFile.name }}</p>
     @if (isUploading()) {
       <p role="status">מעלה את התמונה ל-Drive...</p>
     }
@@ -38,14 +38,13 @@
       [buttonText]="'ביטול'"
       [buttonColor]="buttonColor.WHITE_BORDER"
       [buttonSize]="buttonSize.BETWEEN"
-      [disabled]="isUploading()"
       (onButtonClicked)="cancel()">
     </app-p-button>
     <app-p-button
       [buttonText]="'העלה'"
       [buttonColor]="buttonColor.BLACK"
       [buttonSize]="buttonSize.BETWEEN"
-      [disabled]="!canUpload()"
+      [disabled]="!canUpload() && !isUploading()"
       [isLoading]="isUploading()"
       (onButtonClicked)="upload()">
     </app-p-button>
