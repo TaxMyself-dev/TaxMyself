@@ -216,7 +216,7 @@ export class MySubscriptionTabComponent implements OnInit {
     this.paymentHistory().map((row) => ({
       id: row.eventId,
       eventId: row.eventId,
-      date: formatDate(row.date),
+      date: row.date,
       planName: row.planName ?? 'תוכנית לא ידועה',
       amount: row.amountAgorot != null ? `${formatShekels(row.amountAgorot)} ₪` : '—',
       statusLabel: row.status === 'SUCCESS' ? 'שולם' : 'נכשל',
