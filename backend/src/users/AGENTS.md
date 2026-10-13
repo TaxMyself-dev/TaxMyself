@@ -24,3 +24,6 @@ Owns the user account entity/lifecycle (signup, signin, profile update, children
 
 ## Related topics
 Depends on: shared, google-drive (Drive folder provisioning), feezback, billing, business (`Business` entity), delegation (`Delegation` entity). Depended on by: nearly every other backend topic (reports, transactions, report-workflow, expenses, etc.) via `UsersService`/`User` entity.
+
+## Profile image uploads
+POST/GET/DELETE /auth/profile-image use Firebase authentication; mutations block role agent like update-user. Images use multipart file (5 MB), full raster decode, PNG/JPEG/WebP single-frame validation and <=16 MP, resized within 512 px. profileImagePath is nullable and stripped from generic update-user input. GET returns authenticated PNG bytes with private no-store/nosniff headers. Both identity image types use IdentityImagesModule; paths are server-generated, never public URLs. Migration is manual, not executed by the app.

@@ -18,3 +18,6 @@ Owns the `Business` entity — a user's registered business(es): identity/contac
 - delegation (accountant access to a client's businesses is delegation-gated at the controller/guard level)
 - expenses, documents (registered in the module purely for `SharedService`'s injection needs, not used directly by `BusinessService`)
 - accountant-tasks, annual-report (consume `Business.vatReportingType`/`taxReportingType`/`createdAt` to generate periods)
+
+## Identity logo uploads
+POST/GET/DELETE /business/:id/logo are Firebase-authenticated and use DOCUMENTS_READ like business updates. Lookups include the guard-resolved firebaseId. Multipart field is file (5 MB maximum), validated by full sharp raster decoding (PNG/JPEG/WebP, single frame, <=16 MP), resized within 1600 px and stored as immutable PNG. logoPath is nullable; removal clears the association and never deletes historical logo blobs. Generic business update DTO does not accept logoPath. Manual schema SQL: backend/scripts/migrations/2026-10-13_identity-images.sql.

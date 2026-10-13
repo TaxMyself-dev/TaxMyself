@@ -1,3 +1,5 @@
+import { IdentityImagesModule } from '../identity-images/identity-images.module';
+import { BusinessLogoController } from '../identity-images/business-logo.controller';
 import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm'
 import { BusinessController } from './business.controller';
@@ -16,10 +18,11 @@ import { UsersModule } from 'src/users/users.module';
 
 @Module({
   imports: [
+    IdentityImagesModule,
     TypeOrmModule.forFeature([Business, Transactions, Expense, SettingDocuments, Documents, Delegation, User]),
     forwardRef(() => UsersModule),
   ],
-  controllers: [BusinessController],
+  controllers: [BusinessController, BusinessLogoController],
   providers: [
     BusinessService,
     BusinessResolverService,

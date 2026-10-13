@@ -195,6 +195,7 @@ export class UsersService {
       ...safeSpouse,
       role: [UserRole.REGULAR],
       hasOpenBanking: false,
+      profileImagePath: null,
       createdAt: new Date(),
     };
 
@@ -248,6 +249,7 @@ export class UsersService {
 
         const newBusiness = businessRepo.create({
           ...biz,
+          logoPath: null,
           firebaseId: personal.firebaseId,
         });
 
@@ -418,6 +420,8 @@ export class UsersService {
     const processedUserData = this.processDateFields(updateUserDto);
     // Provider-confirmed state is not an editable profile field.
     delete processedUserData.hasOpenBanking;
+    delete processedUserData.profileImagePath;
+    delete processedUserData.logoPath;
 
     // Assign updated fields to the user entity
     Object.assign(user, processedUserData);

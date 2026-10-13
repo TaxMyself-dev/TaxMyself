@@ -7,6 +7,9 @@ import { BusinessType, BusinessFieldType, TaxReportingType, VATReportingType } f
 @Entity('business')
 @Index('ux_business_number', ['businessNumber'], { unique: true })
 export class Business {
+  @Column({ type: 'varchar', length: 255, nullable: true, default: null })
+  logoPath: string | null;
+
 
   @PrimaryGeneratedColumn()
   id: number;
