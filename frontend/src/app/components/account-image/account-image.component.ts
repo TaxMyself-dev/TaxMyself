@@ -61,7 +61,7 @@ export class AccountImageComponent implements OnChanges, OnDestroy {
     try {
       const bitmap = await createImageBitmap(file);
       try {
-        if (!bitmap.width || !bitmap.height || bitmap.width * bitmap.height > 40_000_000) throw new Error('dimensions');
+        if (!bitmap.width || !bitmap.height || bitmap.width * bitmap.height > 16_000_000) throw new Error('dimensions');
         let selected = file;
         if (this.businessId == null) {
           const side = Math.min(bitmap.width, bitmap.height);
@@ -75,7 +75,7 @@ export class AccountImageComponent implements OnChanges, OnDestroy {
         if (generation !== this.generation) return;
         this.pending = selected; this.replaceUrl(selected);
       } finally { bitmap.close(); }
-    } catch { if (generation === this.generation) this.error = 'לא ניתן לפתוח את התמונה. בחר תמונה אחרת (עד 40 מיליון פיקסלים).'; }
+    } catch { if (generation === this.generation) this.error = 'לא ניתן לפתוח את התמונה. בחר תמונה אחרת (עד 16 מיליון פיקסלים).'; }
     finally { if (generation === this.generation) this.busy = false; }
   }
   cancel(): void { this.reload(); }

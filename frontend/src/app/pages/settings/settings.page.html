@@ -260,7 +260,7 @@
               <h3 class="business-name">{{ biz?.businessName || 'עסק חדש' }}</h3>
             </div>
             @if (biz?.id != null) {
-              <app-account-image [editable]="true" label="לוגו העסק" [businessId]="biz.id" [imagePath]="biz.logoPath" [contextKey]="biz.firebaseId" [disabled]="authService.isViewingAsClient()" (imageChanged)="onLogoChanged($index, $event)"></app-account-image>
+              <app-account-image [editable]="true" label="לוגו העסק" [businessId]="biz.id" [imagePath]="biz.logoPath" [contextKey]="biz.firebaseId" (imageChanged)="onLogoChanged($index, $event)"></app-account-image>
             }
             <div class="business-details details-container details-container-fixed">
               <!-- שורה 1: מספר עסק, אימייל, כתובת, טלפון, סוג עסק -->

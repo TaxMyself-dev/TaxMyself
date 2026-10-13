@@ -45,7 +45,7 @@ Account/profile settings hub: tabbed page for editing personal details, spouse d
 - Frontend pages: transactions (via `TransactionsService` for account sources).
 
 ## Account images
-- Personal settings and existing business cards use the standalone `AccountImageComponent` for select, preview, save, replace, cancel and remove. Uploads are explicit and separate from detail-form saves. View-as client mode disables mutations; server permissions remain authoritative.
+- Personal settings and existing business cards use the standalone `AccountImageComponent` for select, preview, save, replace, cancel and remove. Uploads are explicit and separate from detail-form saves. View-as client mode disables personal-profile mutations. Business logo editing follows existing business-save behavior, including delegated editing; server permissions remain authoritative.
 - `AccountImagesService` uses authenticated HttpClient GET/POST/DELETE for `/auth/profile-image` and `/business/:id/logo`, with multipart `file`, Blob reads and `{ imagePath }` mutations. No public storage URL or Firebase Auth photoURL is used.
-- PNG/JPEG/WebP up to 5MB are checked before upload. Decoded images above 40 million pixels are rejected; profile uploads are center-cropped to a square (up to 1024px), logos preserve original proportions/transparency. Backend validation remains required.
+- PNG/JPEG/WebP up to 5MB are checked before upload. Decoded images above 16 million pixels are rejected; profile uploads are center-cropped to a square (up to 1024px), logos preserve original proportions/transparency. Backend validation remains required.
 - Blob URLs are revoked on replacement/destroy; context changes cancel stale loads. Profile and business logo paths update the existing tab-scoped caches after success.
