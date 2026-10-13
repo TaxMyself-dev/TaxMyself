@@ -32,3 +32,6 @@ Main dashboard/home page shown after login: account sync status, transactions-to
 Backend: transactions, expenses, feezback, billing, demo-data
 Frontend pages: doc-create, transactions
 Frontend shared: none confirmed (add-bill/add-category/manual-expense/classify-tran modals used here live under `src/app/components/`, not `src/app/shared/`)
+
+## Profile avatar
+- The dashboard greeting uses `AccountImageComponent` to load the application profile image through authenticated HttpClient. Missing images keep the user-initials fallback. The Firebase Auth photoURL is independent.

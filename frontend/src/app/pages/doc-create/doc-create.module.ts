@@ -1,3 +1,4 @@
+import { AccountImageComponent } from 'src/app/components/account-image/account-image.component';
 import { NgModule } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
@@ -39,7 +40,7 @@ import { PdfPreviewDialogComponent } from 'src/app/components/pdf-preview-dialog
 
 
 @NgModule({
-  imports: [
+  imports: [AccountImageComponent,
     CommonModule,
     FormsModule,
     IonicModule,

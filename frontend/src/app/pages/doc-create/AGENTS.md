@@ -27,3 +27,6 @@ Page for creating and managing SHAAM-compliant business documents (receipts, tax
 Backend: documents, clients, shaam
 Frontend pages: my-account (entry point via "create document" dashboard card)
 Frontend components: add-client (`AddClientComponent` — opened via PrimeNG `DialogService` for "add new client", in both create and edit mode), input-autoComplete (`app-input-autocomplete` — the recipient picker that selects an existing client)
+
+## Profile avatar
+- The document-page header uses the application profile image with a fallback through `AccountImageComponent`. This image is separate from the issuing business logo used in PDF generation; document and payment editing flows are unchanged.

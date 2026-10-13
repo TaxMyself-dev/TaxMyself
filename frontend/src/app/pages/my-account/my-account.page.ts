@@ -1,3 +1,4 @@
+import { AccountImageComponent } from 'src/app/components/account-image/account-image.component';
 import { CommonModule } from '@angular/common';
 import { Component, computed, DestroyRef, ElementRef, inject, OnInit, signal, ViewChild } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -44,7 +45,7 @@ import { AppFeature } from 'src/app/shared/access-control';
   templateUrl: './my-account.page.html',
   styleUrls: ['./my-account.page.scss'],
   standalone: true,
-  imports: [
+  imports: [AccountImageComponent,
     CommonModule,
     FormsModule,
     IonicModule,

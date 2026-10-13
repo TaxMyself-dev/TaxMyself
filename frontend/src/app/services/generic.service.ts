@@ -125,6 +125,11 @@ export class GenericService {
 
 
   /** Save to both the signal and this tab's identity-scoped cache. */
+  updateBusinessLogoCache(id: number | undefined, logoPath: string | null): void {
+    if (id == null) return;
+    this.saveBusinesses(this.businesses().map(business => business.id === id ? { ...business, logoPath } : business));
+  }
+
   private saveBusinesses(data: Business[]) {
     this._businesses.set(data);
     this.identityStorage.setBusinesses(data);

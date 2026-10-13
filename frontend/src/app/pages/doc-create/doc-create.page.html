@@ -34,8 +34,7 @@
     </div> -->
     <!-- <p-card class="header-card"> -->
     <div class="header-content">
-      <p-avatar icon="pi pi-user" shape="circle" size="large">
-      </p-avatar>
+      <app-account-image [imagePath]="userData?.profileImagePath" [contextKey]="userData?.firebaseId || ''"></app-account-image>
       <div class="text">
         <h3>הפקת מסמך</h3>
         <p>בחר איזה מסמך ברצונך להפיק</p>

@@ -129,6 +129,7 @@ export interface ISubCategory {
 }
 
 export interface IUserData {
+    profileImagePath?: string | null;
     businessDate: string;
     businessField: string;
     businessInventory: boolean;
@@ -633,6 +634,7 @@ export interface BusinessInfo {
 }
 
 export interface Business {
+    logoPath?: string | null;
     id?: number;
     firebaseId: string;
     businessName: string | null;

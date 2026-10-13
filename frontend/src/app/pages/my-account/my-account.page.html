@@ -289,7 +289,7 @@
                     <div class="mobile-menu-panel__user-text">
                         <span class="mobile-menu-panel__name">{{ userData?.fName }} {{ userData?.lName }}</span>
                     </div>
-                    <p-avatar icon="pi pi-user" size="large" shape="circle"></p-avatar>
+                    <app-account-image [imagePath]="userData?.profileImagePath" [contextKey]="userData?.firebaseId || ''" [fallback]="(userData?.fName?.charAt(0) || '') + (userData?.lName?.charAt(0) || '')"></app-account-image>
                 </div>
             </div>
             <hr class="mobile-menu-panel__divider" />
@@ -396,7 +396,7 @@
     <div class="user-info-block" [class.user-info-block--delegated]="isDelegatedClientView()">
         @if (!isDelegatedClientView()) {
         <div class="user-info-row">
-            <p-avatar class="my-account-avatar" [label]="(userData?.fName?.charAt(0) || '') + (userData?.lName?.charAt(0) || '')" size="xlarge" shape="circle"></p-avatar>
+            <app-account-image class="my-account-avatar" [imagePath]="userData?.profileImagePath" [contextKey]="userData?.firebaseId || ''" [fallback]="(userData?.fName?.charAt(0) || '') + (userData?.lName?.charAt(0) || '')"></app-account-image>
             <div class="user-info-text">
                 <span class="avatar-text">שלום {{ userData?.fName }} {{ userData?.lName }}</span>
                 @if (userData?.previousLoginAt) {

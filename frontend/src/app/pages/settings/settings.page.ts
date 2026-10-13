@@ -1,3 +1,4 @@
+import { AccountImageComponent } from 'src/app/components/account-image/account-image.component';
 import { CommonModule } from '@angular/common';
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -38,7 +39,7 @@ import { SETTINGS_TABS, shouldLoadOpenBankingAccountSources } from './settings-a
   templateUrl: './settings.page.html',
   styleUrls: ['./settings.page.scss', '../../shared/shared-styling.scss'],
   standalone: true,
-  imports: [
+  imports: [AccountImageComponent,
     CommonModule,
     FormsModule,
     ReactiveFormsModule,
@@ -433,6 +434,16 @@ export class SettingsPage implements OnInit {
     return `${y}-${m}-${day}`;
   }
 
+  onProfileImageChanged(path: string | null): void {
+    if (!this.userData) return;
+    this.userData = { ...this.userData, profileImagePath: path };
+    if (!this.authService.isViewingAsClient()) this.authService.storeUserData(this.userData);
+  }
+  onLogoChanged(index: number, path: string | null): void {
+    const id = this.businesses()[index]?.id;
+    this.businesses.update(list => list.map(b => b.id === id ? { ...b, logoPath: path } : b));
+    this.genericService.updateBusinessLogoCache(id, path);
+  }
   updatePersonalDetails(): void {
     this.savingPersonal.set(true);
     const v = this.personalFormGroup.getRawValue();

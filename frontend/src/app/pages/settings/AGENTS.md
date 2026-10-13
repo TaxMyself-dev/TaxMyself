@@ -43,3 +43,9 @@ Account/profile settings hub: tabbed page for editing personal details, spouse d
 - Backend: auth (user/spouse/children CRUD), business (business CRUD), transactions (account sources, retry-source), delegation (view-permission grants via MyPermissionsService).
 - Frontend shared: category-management is a related but separate topic — `my-categories-tab` here is settings-local category *rule* editing, not the same component as shared `category-management`.
 - Frontend pages: transactions (via `TransactionsService` for account sources).
+
+## Account images
+- Personal settings and existing business cards use the standalone `AccountImageComponent` for select, preview, save, replace, cancel and remove. Uploads are explicit and separate from detail-form saves. View-as client mode disables mutations; server permissions remain authoritative.
+- `AccountImagesService` uses authenticated HttpClient GET/POST/DELETE for `/auth/profile-image` and `/business/:id/logo`, with multipart `file`, Blob reads and `{ imagePath }` mutations. No public storage URL or Firebase Auth photoURL is used.
+- PNG/JPEG/WebP up to 5MB are checked before upload. Decoded images above 40 million pixels are rejected; profile uploads are center-cropped to a square (up to 1024px), logos preserve original proportions/transparency. Backend validation remains required.
+- Blob URLs are revoked on replacement/destroy; context changes cancel stale loads. Profile and business logo paths update the existing tab-scoped caches after success.

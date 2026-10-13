@@ -82,6 +82,7 @@
       <!-- ─── פרטי משתמש ראשי ─── -->
       <div class="personal-subsection">
         <h3 class="subsection-title">{{ isCompany() ? 'פרטי חברה' : 'פרטי משתמש ראשי' }}</h3>
+        <app-account-image [editable]="true" [imagePath]="userData?.profileImagePath" [contextKey]="userData?.firebaseId || ''" [disabled]="authService.isViewingAsClient()" (imageChanged)="onProfileImageChanged($event)"></app-account-image>
         <div class="details-container details-container-fixed">
           <div class="detail-row three-fields">
             <div class="detail-field">
@@ -258,6 +259,9 @@
             <div class="business-header">
               <h3 class="business-name">{{ biz?.businessName || 'עסק חדש' }}</h3>
             </div>
+            @if (biz?.id != null) {
+              <app-account-image [editable]="true" label="לוגו העסק" [businessId]="biz.id" [imagePath]="biz.logoPath" [contextKey]="biz.firebaseId" [disabled]="authService.isViewingAsClient()" (imageChanged)="onLogoChanged($index, $event)"></app-account-image>
+            }
             <div class="business-details details-container details-container-fixed">
               <!-- שורה 1: מספר עסק, אימייל, כתובת, טלפון, סוג עסק -->
               <div class="detail-row three-fields">
