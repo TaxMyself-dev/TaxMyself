@@ -35,6 +35,10 @@ import { Expense } from '../expenses/expenses.entity';
 import { CatalogService } from 'src/bookkeeping/catalog.service';
 import { CatalogContextService } from 'src/bookkeeping/catalog-context.service';
 import { UsersService } from '../users/users.service';
+import { DocumentPdfRenderer } from './pdf/document-pdf-renderer.service';
+import { FillFasterSigner } from './pdf/fillfaster-signer.service';
+import { DocumentPdfModel } from './pdf/document-pdf.template';
+import { ImageStorageService } from '../identity-images/image-storage.service';
 // Business is already imported above as part of Bookkeeping/Issued-Documents logic.
 
 /**
@@ -201,7 +205,10 @@ export class DocumentsService {
     @Inject(forwardRef(() => UsersService))
     private readonly usersService: UsersService,
     private readonly fxRateService: FxRateService,
-    private dataSource: DataSource
+    private dataSource: DataSource,
+    private readonly documentPdfRenderer: DocumentPdfRenderer,
+    private readonly fillFasterSigner: FillFasterSigner,
+    private readonly imageStorage: ImageStorageService,
   ) { }
 
   isIncrement: boolean = false;
@@ -600,7 +607,64 @@ export class DocumentsService {
   }
 
 
+  private async generateLocalPdf(data: any, preview: boolean, isCopy: boolean): Promise<Buffer> {
+    const doc = data.docData;
+    const names: Partial<Record<DocumentType, string>> = {
+      [DocumentType.RECEIPT]: 'קבלה', [DocumentType.TAX_INVOICE]: 'חשבונית מס',
+      [DocumentType.TAX_INVOICE_RECEIPT]: 'חשבונית מס קבלה', [DocumentType.TRANSACTION_INVOICE]: 'חשבון עסקה',
+      [DocumentType.CREDIT_INVOICE]: 'חשבונית זיכוי', [DocumentType.PRICE_QUOTE]: 'הצעת מחיר', [DocumentType.WORK_ORDER]: 'הזמנת עבודה',
+    };
+    if (!names[doc.docType]) throw new BadRequestException('Unsupported document type for local PDF');
+    const identity = doc.issuerPdfSnapshot ?? doc;
+    let logoDataUri: string;
+    if (identity.logoPath) {
+      const logo = await this.imageStorage.download(identity.logoPath);
+      logoDataUri = `data:${logo.contentType};base64,${logo.buffer.toString('base64')}`;
+    }
+    const summary = await this.transformSumsToSumTable(doc, doc.issuerBusinessNumber);
+    // Credit invoices used the separate legacy VAT fields rather than VAT rows
+    // in sumTable. Preserve those displayed values in the local summary too.
+    if (doc.docType === DocumentType.CREDIT_INVOICE && !isExemptBusinessType(doc.businessType)) {
+      summary.unshift(
+        { 'תיאור': 'סה״כ חייב במע״מ:', 'סכום': `₪${this.formatNumberWithCommas(Number(doc.sumAftDisBefVAT || 0) - Number(doc.sumWithoutVat || 0))}` },
+        { 'תיאור': 'מע״מ:', 'סכום': `₪${this.formatNumberWithCommas(Number(doc.vatSum || 0))}` },
+      );
+    }
+    const model: DocumentPdfModel = {
+      title: `${names[doc.docType]} מספר ${doc.docNumber}`,
+      issuerName: identity.issuerName ? `שם העסק: ${identity.issuerName}` : null,
+      issuerDetails: [
+        doc.issuerBusinessNumber ? `מ.ע. / ח.פ.: ${doc.issuerBusinessNumber}` : null,
+        identity.issuerPhone ? `טלפון: ${identity.issuerPhone}` : null,
+        identity.issuerEmail ? `כתובת אימייל: ${identity.issuerEmail}` : null,
+        identity.issuerAddress ? `כתובת: ${identity.issuerAddress}` : null,
+      ].filter(Boolean).join('\n'),
+      recipientName: doc.recipientName,
+      recipientTaxNumber: doc.recipientId ? `מספר עוסק: ${doc.recipientId}` : null,
+      date: this.formatDateToDDMMYYYY(doc.docDate), documentType: isCopy ? 'העתק נאמן למקור' : 'מקור',
+      subtitle: doc.docSubtitle, note: doc.docDescription,
+      allocation: doc.allocationNum ? `מספר הקצאה: ${doc.allocationNum}` : null,
+      logoDataUri, preview,
+      items: await this.transformLinesToItemsTable(data.linesData ?? []),
+      totals: summary,
+      payments: await this.transformLinesToPaymentsTable(data.paymentData ?? []),
+      paymentTotals: await this.transformPaymentsToSumTable(data.paymentData ?? [], doc),
+    };
+    return this.documentPdfRenderer.render(model);
+  }
+
   async generatePDF(data: any, templateType: string, isCopy: boolean = false): Promise<Blob> {
+
+    const preview = templateType === 'previewDoc';
+    const mode = preview ? (process.env.DOCUMENT_PDF_PREVIEW_RENDERER ?? process.env.DOCUMENT_PDF_RENDERER) : process.env.DOCUMENT_PDF_RENDERER;
+    if (mode === 'local') {
+      if (!['previewDoc', 'createDoc'].includes(templateType)) throw new BadRequestException('Unknown document operation');
+      if (!preview && process.env.DOCUMENT_PDF_LOCAL_SIGNING_VALIDATED !== 'true') {
+        throw new HttpException('Local document signing must be validated before enabling issuance.', HttpStatus.SERVICE_UNAVAILABLE);
+      }
+      const pdf = await this.generateLocalPdf(data, preview, isCopy);
+      return (preview ? pdf : await this.fillFasterSigner.sign(pdf)) as unknown as Blob;
+    }
 
     const isProduction = process.env.NODE_ENV === 'production';
 
@@ -626,7 +690,8 @@ export class DocumentsService {
     let prefill_data: any;
 
     const url = 'https://api.fillfaster.com/v1/generatePDF';
-    const token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6ImluZm9AdGF4bXlzZWxmLmNvLmlsIiwic3ViIjo5ODUsInJlYXNvbiI6IkFQSSIsImlhdCI6MTczODIzODAxMSwiaXNzIjoiaHR0cHM6Ly9maWxsZmFzdGVyLmNvbSJ9.DdKFDTxNWEXOVkEF2TJHCX0Mu2AbezUBeWOWbpYB2zM';
+    const token = process.env.FILLFASTER_API_TOKEN;
+    if (!token) throw new HttpException('FillFaster API token is missing.', HttpStatus.SERVICE_UNAVAILABLE);
     const docType = data.docData.docType;
 
     // Read draft image and convert to base64 only for previewDoc
@@ -987,7 +1052,7 @@ export class DocumentsService {
   }
 
 
-  async transformDocumentData(dto: CreateDocDto): Promise<any> {
+  async transformDocumentData(dto: CreateDocDto, firebaseId?: string): Promise<any> {
 
     // ============================================================================
     // 1. TRANSFORM DOCDATA (Documents entity fields)
@@ -1018,7 +1083,8 @@ export class DocumentsService {
     }
 
     // Get business details
-    const business = await this.businessService.getBusinessByNumber(docData.issuerBusinessNumber);
+    const business = await this.businessService.getBusinessByNumber(docData.issuerBusinessNumber, firebaseId);
+    if (!business) throw new ForbiddenException('Business not found or not owned by user');
 
     // Transform Documents entity fields
     const transformedDocData: any = {
@@ -1028,6 +1094,13 @@ export class DocumentsService {
       issuerAddress: business?.businessAddress,
       issuerPhone: business?.businessPhone,
       issuerEmail: business?.businessEmail,
+      issuerPdfSnapshot: {
+        issuerName: business.businessName ?? null,
+        issuerAddress: business.businessAddress ?? null,
+        issuerPhone: business.businessPhone ?? null,
+        issuerEmail: business.businessEmail ?? null,
+        logoPath: (business as Business & { logoPath?: string }).logoPath ?? null,
+      },
       // Recipient details
       recipientName: docData.recipientName,
       recipientId: docData.recipientId,

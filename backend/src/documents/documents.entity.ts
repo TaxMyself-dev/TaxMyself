@@ -16,6 +16,16 @@ export class Documents {
   @Column()
   issuerBusinessNumber: string;
 
+  /** Immutable issuer identity and logo version captured when preparing issuance. */
+  @Column({ type: 'json', nullable: true })
+  issuerPdfSnapshot: {
+    issuerName: string | null;
+    issuerAddress: string | null;
+    issuerPhone: string | null;
+    issuerEmail: string | null;
+    logoPath: string | null;
+  } | null;
+
   
   // /// *********** Document Recipient Details *********** ///
 

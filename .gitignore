@@ -8,6 +8,9 @@ backend/src/auth/firebaseServiceAccount.json
 cleanup-dev.*
 fix-*.js
 
+# Local isolated PDF/browser/test scratch (never application assets).
+/.test-tmp/
+
 prod-keys/
 keys/
 *.key

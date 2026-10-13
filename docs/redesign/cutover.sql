@@ -2341,6 +2341,7 @@ SET @billing_enum_sql = IF(@billing_enum_missing IS NULL, 'SELECT 1',
 PREPARE billing_enum_stmt FROM @billing_enum_sql;
 EXECUTE billing_enum_stmt;
 DEALLOCATE PREPARE billing_enum_stmt;
+
 -- Preserve existing enum values and order; append required values only if absent.
 SET @billing_enum_type = (SELECT COLUMN_TYPE FROM information_schema.COLUMNS
  WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='billing_event' AND COLUMN_NAME='event_type');
@@ -2355,3 +2356,18 @@ SET @billing_enum_sql = IF(@billing_enum_missing IS NULL, 'SELECT 1',
 PREPARE billing_enum_stmt FROM @billing_enum_sql;
 EXECUTE billing_enum_stmt;
 DEALLOCATE PREPARE billing_enum_stmt;
+
+-- 2026-10-13: approved document PDF redesign + identity images. Prepared only.
+-- Nullable metadata preserves existing rows and does not rewrite any documents.
+SET @document_image_ddl = IF(EXISTS(SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='business' AND COLUMN_NAME='logoPath'), 'SELECT 1', 'ALTER TABLE `business` ADD COLUMN `logoPath` VARCHAR(255) NULL DEFAULT NULL');
+PREPARE document_image_stmt FROM @document_image_ddl;
+EXECUTE document_image_stmt;
+DEALLOCATE PREPARE document_image_stmt;
+SET @document_image_ddl = IF(EXISTS(SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='user' AND COLUMN_NAME='profileImagePath'), 'SELECT 1', 'ALTER TABLE `user` ADD COLUMN `profileImagePath` VARCHAR(255) NULL DEFAULT NULL');
+PREPARE document_image_stmt FROM @document_image_ddl;
+EXECUTE document_image_stmt;
+DEALLOCATE PREPARE document_image_stmt;
+SET @document_image_ddl = IF(EXISTS(SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='documents' AND COLUMN_NAME='issuerPdfSnapshot'), 'SELECT 1', 'ALTER TABLE `documents` ADD COLUMN `issuerPdfSnapshot` JSON NULL');
+PREPARE document_image_stmt FROM @document_image_ddl;
+EXECUTE document_image_stmt;
+DEALLOCATE PREPARE document_image_stmt;

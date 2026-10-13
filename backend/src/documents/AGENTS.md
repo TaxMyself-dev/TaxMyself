@@ -1,6 +1,15 @@
 ## Purpose
 Handles the full lifecycle of official documents the user issues (invoices, receipts, credit notes — Israeli tax-authority formats), plus the inbound OCR pipeline that extracts structured data from documents received from suppliers via Google Drive.
 
+## Local PDF rendering and signing
+
+- `pdf/document-pdf-renderer.service.ts` renders escaped, RTL HTML with bundled Simpler fonts via Chromium. Layout follows the approved spacious mockup: logo left, issuer right, recipient/date band, centered title/underline, framed tables and centered footer. Scripts and non-data requests are blocked; concurrency, row count and HTML size are bounded.
+- `DOCUMENT_PDF_PREVIEW_RENDERER=local` enables local draft previews without calling FillFaster. `DOCUMENT_PDF_RENDERER=local` enables local issuance only with `DOCUMENT_PDF_LOCAL_SIGNING_VALIDATED=true`; defaults retain legacy issuance. Never silently return an unsigned PDF on signing failure.
+- `FILLFASTER_API_TOKEN` is required for both old and new provider paths (no embedded token). `FILLFASTER_BASE_PDF_FID` must identify a clean signing template with no old-layout overlays. Signing envelope presence is checked in code; cryptographic signature validation, certificate trust and visual acceptance are separate release checks.
+- Nullable `Documents.issuerPdfSnapshot` freezes issuer details and immutable `Business.logoPath` at preparation time. Finalization uses this snapshot, not a later replacement logo. Existing documents with NULL snapshots deliberately do not adopt a new logo. Apply prepared schema before deploying; no SQL is automatically executed by this feature.
+- Renderer reuses existing sums/item/payment transforms and does not alter accounting calculations. Payment details column appears only when populated. Both `docSubtitle` (linked-document text) and `docDescription` (free note) are rendered; empty allocation/note fields are omitted.
+- Standalone `scripts/render-document-samples.ts` produces visual fixtures without starting Nest, a database, or a provider session. See `docs/features/document-pdf-redesign.md` for configuration and rollout evidence.
+
 ## Key entities/files
 - `documents.entity.ts` — `Documents`: issued document header (issuer/recipient details, doc type/number, sums, VAT, dates, parent-doc linkage for credit notes, `journalEntryNumber`/`journalEntryId` FK to bookkeeping). Unique per `(issuerBusinessNumber, docType, docNumber)`. The nullable UNIQUE `billingAttemptId` is reserved for the future atomic billing finalization path; KT-032 registers the provenance FK but does not wire document creation to it yet.
 - `doc-lines.entity.ts` — `DocLines`: line items of an issued document (quantity, unit price, discount, VAT per line).

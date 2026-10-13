@@ -36,10 +36,14 @@ import { Supplier } from '../expenses/suppliers.entity';
 import { UsersModule } from '../users/users.module';
 import { BillingModule } from 'src/billing/billing.module';
 import { ImportedDocument } from 'src/document-import/entities/imported-document.entity';
+import { DocumentPdfRenderer } from './pdf/document-pdf-renderer.service';
+import { FillFasterSigner } from './pdf/fillfaster-signer.service';
+import { IdentityImagesModule } from '../identity-images/identity-images.module';
 
 
 @Module({
   imports: [
+    IdentityImagesModule,
     TypeOrmModule.forFeature([SettingDocuments, Documents, Expense, Transactions, DocLines, DocPayments, Business, Delegation, JournalEntry, JournalLine, BookingAccount, AccountingSection, Category, SubCategory, User, ExtractedDocument, Supplier, FxRate, SlimTransaction, ImportedDocument]),
     MailModule,
     GoogleDriveModule,
@@ -48,6 +52,8 @@ import { ImportedDocument } from 'src/document-import/entities/imported-document
   ],
   controllers: [DocumentsController],
   providers: [
+    DocumentPdfRenderer,
+    FillFasterSigner,
     DocumentsService,
     SharedService,
     FxRateService,

@@ -144,7 +144,7 @@ export class DocumentsController {
   }))
   async createDoc(@Body() createDocDto: CreateDocDto, @Req() request: AuthenticatedRequest) {
     const userId = request.user?.firebaseId;
-    const transformedData = await this.documentsService.transformDocumentData(createDocDto);
+    const transformedData = await this.documentsService.transformDocumentData(createDocDto, userId);
     const result = await this.documentsService.createDoc(transformedData, userId);
     return result;
   }
@@ -199,7 +199,7 @@ export class DocumentsController {
   }))
   async previewDoc(@Body() createDocDto: CreateDocDto, @Res() res: Response, @Req() request: AuthenticatedRequest) {
     const userId = request.user?.firebaseId;
-    const transformedData = await this.documentsService.transformDocumentData(createDocDto);
+    const transformedData = await this.documentsService.transformDocumentData(createDocDto, userId);
     const pdfBuffer = await this.documentsService.previewDoc(transformedData);
     res.setHeader('Content-Type', 'application/pdf');
     return res.send(pdfBuffer);

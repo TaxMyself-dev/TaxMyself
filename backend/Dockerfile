@@ -4,6 +4,9 @@
 
 FROM node:18-alpine As development
 
+RUN apk add --no-cache chromium
+ENV PDF_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium
+
 # Create app directory
 WORKDIR /usr/src/app
 
@@ -53,12 +56,17 @@ USER node
 
 FROM node:18-alpine As production
 
+RUN apk add --no-cache chromium
+ENV PDF_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium
+
 WORKDIR /usr/src/app
 
 # Copy the bundled code from the build stage to the production image
 COPY --chown=node:node --from=build /usr/src/app/node_modules ./node_modules
 COPY --chown=node:node --from=build /usr/src/app/dist ./dist
 COPY --chown=node:node --from=build /usr/src/app/assets ./assets
+
+USER node
 
 # Start the server using the production build
 CMD [ "node", "dist/main.js" ]
