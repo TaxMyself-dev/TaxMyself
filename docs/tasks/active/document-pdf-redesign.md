@@ -1,6 +1,6 @@
 # Document PDF redesign and identity images
 
-- Status: `IMPLEMENTED_AWAITING_PROVIDER_TEMPLATE`
+- Status: `READY_FOR_DEV_INTEGRATION`
 - Task manager: current document redesign chat
 - Branch: `codex/document-pdf-redesign`
 - Base commit: `df7fd270f793e2cf77bf262c6def4cc1c1719907`
@@ -16,7 +16,7 @@ Locally rendered Hebrew documents match the approved spacious receipt mockup (lo
 - [x] Owner-scoped validated image upload endpoints and persistent image references; existing delegation rules preserved (mocked DB/storage tests).
 - [x] Settings image upload UI and profile avatars use shared image control.
 - [x] Focused tests, backend/frontend builds and rendered sample QA.
-- [ ] Live signing success is independently verified before enabling local issuance; no production access.
+- [x] Live signing success is independently verified before enabling local issuance; no production database/service access.
 
 ## Scope and constraints
 
@@ -35,4 +35,5 @@ Integrated worker commits on `codex/document-pdf-redesign`: `505dfe1b`, `1712153
 - Visual fixtures: logo/no-logo one-page receipts and 55-row/four-page invoice rendered and inspected, including repeated table headers and final totals.
 - Real provider development probe: CMS content digest/RSA signature passed independent verification; issuer certificate validity recorded. Trust chain/revocation not assessed. Visual acceptance failed because old template overlays remain; nine existing account templates contain no clean signature-only template.
 - Prepared only: image/snapshot SQL and guarded cutover appendix. No database, production service, provider template or credential changed.
-- Pending: user creates/provides clean FillFaster template from supplied blank PDF; repeat one-/multi-page signing and visual acceptance before enabling local issuance. Dev storage/database/browser integration remains a manual release check.
+- Provider gate resolved: user supplied `3IfhJjgmAp` with optional empty `placeholder`. One-/four-page signatures passed independent CMS verification; page counts unchanged, all four invoice raster pages identical to inputs. One-page receipt visually unchanged. Example environment records the verified fid and enables local rendering/signing in development after schema application; runtime defaults/production config remain unchanged.
+- Pending: development database schema application and live authenticated storage/browser integration checks. No main merge or deployment.
