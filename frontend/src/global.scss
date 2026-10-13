@@ -974,14 +974,3 @@ ion-content,
     width: 100% !important;
   }
 }
-
-// Keep the drawer back action readable without changing other button variants.
-.p-button.transparent.left-panel-back {
-  --p-button-primary-hover-color: #2a2626;
-}
-
-@media (prefers-color-scheme: dark) {
-  .p-button.transparent.left-panel-back {
-    --p-button-primary-hover-color: #d5d5d6;
-  }
-}
