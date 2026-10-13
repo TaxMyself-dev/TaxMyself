@@ -13,6 +13,7 @@ Page for creating and managing SHAAM-compliant business documents (receipts, tax
 - Select document type and issuing business; auto-fill/select recipient client (create/update/delete clients).
 - Build line items with VAT/discount calculation, running totals.
 - Configure payment details per method (bank transfer, credit card, check, cash, app).
+  Saved desktop payments can be edited (pencil → "עדכן תשלום"/"ביטול") via `editingPaymentIndex`; mobile edits share `replacePayment`. `paymentLineNumber` is renumbered on delete.
 - Save/load/delete drafts before finalizing.
 - Preview PDF, create the document, and roll back a created document if needed.
   Preview rendering is platform-split: desktop browsers keep the popup window

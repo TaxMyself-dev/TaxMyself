@@ -443,9 +443,18 @@
             }
 
             <!-- Add Button -->
-            <app-p-button class="pnl-pdf-button" [buttonText]="'הוסף תשלום'" [variant]="'text'" [severity]="'info'"
-              [buttonSize]="buttonSize.AUTO" [disabled]="!paymentInputForm.valid" (onButtonClicked)="addPayment()">
-            </app-p-button>
+            <div class="line-entry__actions">
+              <app-p-button class="pnl-pdf-button"
+                [buttonText]="editingPaymentIndex() !== null ? 'עדכן תשלום' : 'הוסף תשלום'" [variant]="'text'"
+                [severity]="'info'" [buttonSize]="buttonSize.AUTO" [disabled]="!paymentInputForm.valid"
+                (onButtonClicked)="addPayment()">
+              </app-p-button>
+              @if (editingPaymentIndex() !== null) {
+              <app-p-button class="pnl-pdf-button" [buttonText]="'ביטול'" [variant]="'text'" [severity]="'secondary'"
+                [buttonSize]="buttonSize.AUTO" (onButtonClicked)="cancelPaymentEdit()">
+              </app-p-button>
+              }
+            </div>
           </div>
         </form>
 
@@ -464,7 +473,7 @@
 
         <hr class="fields-divider" />
 
-        <div class="line-row">
+        <div class="line-row" [style.background-color]="editingPaymentIndex() === $index ? '#e3f2fd' : 'transparent'">
           @for (item of getPaymentFields(payment.paymentMethod); track item.value) {
           <div>
             @if (item.value === 'paymentSum') {
@@ -486,6 +495,8 @@
           </div>
           }
           <div class="actions">
+            <app-p-button [buttonColor]="buttonColor.TRANSPARET" [buttonSize]="buttonSize.ICON" [iconOnly]="true"
+              [severity]="'info'" [variant]="'text'" [icon]="'pi pi-pencil'" (onButtonClicked)="editPayment($index)"></app-p-button>
             <app-p-button [buttonColor]="buttonColor.TRANSPARET" [buttonSize]="buttonSize.ICON" [iconOnly]="true"
               [severity]="'info'" [variant]="'text'" [icon]="'pi pi-trash'" (onButtonClicked)="deletePayment($index)"></app-p-button>
           </div>

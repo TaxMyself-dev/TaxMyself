@@ -167,7 +167,8 @@ export class DocCreatePage implements OnInit, OnDestroy {
   activePaymentMethod: MenuItem = this.paymentMethodOptions.find(m => m.id === 'BANK_TRANSFER') ?? this.paymentMethodOptions[0];
 
   paymentInputForm: FormGroup;  // Holds the active entry row
-  paymentsDraft = signal([]);     // Stores all added payments
+  editingPaymentIndex = signal<number | null>(null); // Desktop: saved payment being edited
+  paymentsDraft = signal([]);    // Stores all added payments
   initialIndexForm: FormGroup;
   private dialogRef: DynamicDialogRef | undefined;
 
@@ -510,6 +511,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
     this.lineDetailsForm?.reset(defaultValues);
     this.paymentInputForm?.reset();
     this.paymentInputForm?.get('paymentDate')?.setValue(this.generalDetailsForm?.get('docDate')?.value);
+    this.editingPaymentIndex.set(null);
     this.paymentsDraft.set([]);
     this.lineItemsDraft.set([]);
 
@@ -786,6 +788,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
     this.createPaymentInputForm(this.activePaymentMethod.id as string, resetDocDate);
 
     this.lineItemsDraft.set([]);
+    this.editingPaymentIndex.set(null);
     this.paymentsDraft.set([]);
     this.totalPayments.set(0);
     this.totalAmount.set(0);
@@ -1330,6 +1333,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
 
 
   onPaymentMethodChange(paymentMethod: MenuItem): void {
+    this.editingPaymentIndex.set(null);
     this.activePaymentMethod = paymentMethod;
     const docDate = this.generalDetailsForm.get(FieldsCreateDocValue.DOC_DATE)?.value ?? null;
     this.createPaymentInputForm(this.activePaymentMethod.id as string, docDate);
@@ -1344,24 +1348,39 @@ export class DocCreatePage implements OnInit, OnDestroy {
 
   onMobileUpdatePayment(event: { index: number; formValue: any; method: string }): void {
     const { index, formValue, method } = event;
-    const selectedBank = bankOptionsList.find(bank => bank.value === (formValue.bankNumber ?? formValue.bankName));
-    const hebrewBankName = selectedBank ? selectedBank.name : '';
-    const bankNumber = selectedBank?.value ?? '';
+    this.replacePayment(index, formValue, method);
+    this.setSumInPaymentForm();
+  }
 
-    const updatedPayment = {
+  /** Builds a normalized payment entry from raw form values. */
+  private buildPaymentEntry(formValue: any, method: string, lineNumber: number) {
+    const selectedBank = bankOptionsList.find(bank => bank.value === (formValue.bankNumber ?? formValue.bankName));
+    return {
       ...formValue,
       paymentSum: formValue.paymentSum
         ? Number(formValue.paymentSum.toString().replace(/^0+(?!\.)/, ''))
         : null,
-      paymentLineNumber: index + 1,
+      paymentLineNumber: lineNumber,
       paymentMethod: method,
-      hebrewBankName,
-      bankNumber,
+      hebrewBankName: selectedBank ? selectedBank.name : '',
+      bankNumber: selectedBank?.value ?? '',
     };
+  }
 
+  /** Replaces the payment at `index` (shared by desktop and mobile edit) and recalculates the total. */
+  private replacePayment(index: number, formValue: any, method: string): void {
+    const updatedPayment = this.buildPaymentEntry(formValue, method, index + 1);
     this.paymentsDraft.update(items => items.map((p, i) => i === index ? updatedPayment : p));
+    this.recalcTotalPayments();
+  }
+
+  private recalcTotalPayments(): void {
     this.totalPayments.set(this.paymentsDraft().reduce((total, payment) => total + Number(payment.paymentSum), 0));
-    this.setSumInPaymentForm();
+  }
+
+  /** Keeps paymentLineNumber sequential and unique after any removal. */
+  private renumberPayments(): void {
+    this.paymentsDraft.update(items => items.map((p, i) => ({ ...p, paymentLineNumber: i + 1 })));
   }
 
   getPaymentFields(section: string) {
@@ -1370,40 +1389,51 @@ export class DocCreatePage implements OnInit, OnDestroy {
 
 
   addPayment(): void {
-    console.log("🚀 ~ DocCreatePage ~ addPayment ~ this.paymentInputForm", this.paymentInputForm);
+    const editingIndex = this.editingPaymentIndex();
+    if (editingIndex !== null) {
+      this.replacePayment(editingIndex, this.paymentInputForm.value, this.activePaymentMethod.id as string);
+      this.resetPaymentFormToAddMode();
+      return;
+    }
 
-    const paymentFormValue = this.paymentInputForm.value;
-    // const paymentdata = 
-    const paymentLineIndex = this.paymentsDraft.length;
-
-    const selectedBank = bankOptionsList.find(bank => bank.value === (paymentFormValue.bankNumber ?? paymentFormValue.bankName));
-    const hebrewBankName = selectedBank ? selectedBank.name : '';
-    const bankNumber = selectedBank?.value ?? '';
-
-    // Build the full payment entry with extra fields
-    const paymentEntry = {
-      ...paymentFormValue,
-      paymentSum: paymentFormValue.paymentSum
-        ? Number(paymentFormValue.paymentSum.toString().replace(/^0+(?!\.)/, ''))
-        : null,
-      // issuerBusinessNumber: this.selectedBusinessNumber,
-      // generalDocIndex: String(this.docIndexes.generalIndex),
-      paymentLineNumber: paymentLineIndex + 1,
-      paymentMethod: this.activePaymentMethod.id, // Track which payment method was selected
-      hebrewBankName,  // Save the Hebrew name for later use (display / backend)
-      bankNumber
-    };
-
-    // this.paymentsDraft.push(paymentEntry);
+    const paymentEntry = this.buildPaymentEntry(
+      this.paymentInputForm.value,
+      this.activePaymentMethod.id as string,
+      this.paymentsDraft().length + 1,
+    );
     this.paymentsDraft.update(items => [...items, paymentEntry]);
+    this.recalcTotalPayments();
+    this.resetPaymentFormToAddMode();
+  }
 
-    // Reset the form for the next payment entry
+  /** Desktop: load a saved payment into the payment form for editing. */
+  editPayment(index: number): void {
+    const payment = this.paymentsDraft()[index];
+    if (!payment) return;
+    const method = this.paymentMethodOptions.find(m => m.id === payment.paymentMethod) ?? this.activePaymentMethod;
+    this.activePaymentMethod = method;
     const docDate = this.generalDetailsForm.get(FieldsCreateDocValue.DOC_DATE)?.value ?? null;
-    this.paymentInputForm.reset();
+    this.createPaymentInputForm(method.id as string, docDate);
+    this.paymentInputForm.patchValue({
+      ...payment,
+      paymentDate: payment.paymentDate ? new Date(payment.paymentDate) : this.paymentInputForm.get('paymentDate')?.value,
+    });
+    this.editingPaymentIndex.set(index);
+
+    setTimeout(() => {
+      document.querySelector('.line-item-row')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 100);
+  }
+
+  cancelPaymentEdit(): void {
+    this.resetPaymentFormToAddMode();
+  }
+
+  /** Clears edit state and rebuilds an empty payment form for the active method. */
+  private resetPaymentFormToAddMode(): void {
+    this.editingPaymentIndex.set(null);
+    const docDate = this.generalDetailsForm.get(FieldsCreateDocValue.DOC_DATE)?.value ?? null;
     this.createPaymentInputForm(this.activePaymentMethod.id as string, docDate);
-    this.totalPayments.set(this.paymentsDraft().reduce((total, payment) => total + Number(payment.paymentSum), 0));
-    console.log("🚀 ~ DocCreatePage ~ addPayment ~ this.totalPayments:", this.totalPayments());
-    console.log("🚀 ~ DocCreatePage ~ addPayment ~ this.totalAmount:", this.totalAmount());
     this.setSumInPaymentForm();
   }
 
@@ -1471,8 +1501,21 @@ export class DocCreatePage implements OnInit, OnDestroy {
   }
 
   deletePayment(index: number): void {
+    const editingIndex = this.editingPaymentIndex();
+    const deletingEdited = editingIndex === index;
+    if (deletingEdited) {
+      this.editingPaymentIndex.set(null);
+    } else if (editingIndex !== null && editingIndex > index) {
+      this.editingPaymentIndex.set(editingIndex - 1);
+    }
     this.paymentsDraft.update(items => items.filter((_, i) => i !== index));
-    this.totalPayments.set(this.paymentsDraft().reduce((total, payment) => total + Number(payment.paymentSum), 0));
+    this.renumberPayments();
+    this.recalcTotalPayments();
+    // Keep the in-progress edit form intact when another row is deleted
+    if (editingIndex !== null && !deletingEdited) {
+      this.setSumInPaymentForm();
+      return;
+    }
     const docDate = this.generalDetailsForm?.get(FieldsCreateDocValue.DOC_DATE)?.value ?? new Date();
     this.createPaymentInputForm(this.activePaymentMethod.id as string, docDate);
     this.setSumInPaymentForm();
@@ -2651,6 +2694,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
                 appName: payment.appName || null,
               }));
               console.log('Setting paymentsDraft with', restoredPayments.length, 'payments');
+              this.editingPaymentIndex.set(null);
               this.paymentsDraft.set(restoredPayments);
               console.log('✅ Payments restored');
             }
