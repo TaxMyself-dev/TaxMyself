@@ -104,5 +104,3 @@ describe('Identity images', () => {
     expect(repo.findOne).not.toHaveBeenCalled();
   });
 });
-
-

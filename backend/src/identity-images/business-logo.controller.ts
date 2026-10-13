@@ -47,4 +47,3 @@ export class BusinessLogoController {
     return { imagePath: null };
   }
 }
-
