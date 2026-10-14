@@ -98,6 +98,9 @@ import { BusinessModule } from './business/business.module';
 import { BusinessService } from './business/business.service';
 import { DepreciationModule } from './depreciation/depreciation.module';
 import { AssetDepreciationPosting } from './depreciation/asset-depreciation-posting.entity';
+import { ShaamConnection } from './shaam/entities/shaam-connection.entity';
+import { ShaamOauthState } from './shaam/entities/shaam-oauth-state.entity';
+import { UniformFileSubmission } from './shaam/entities/uniform-file-submission.entity';
 
 
 // Boot-time safety valve (added 2026-07-12 after an accidental synchronize
@@ -179,6 +182,7 @@ new Logger('Bootstrap').log(
         BillingObligation, BillingAttempt, BillingAttemptObligation, PaymentMethodUpdateAttempt,
         UserIntegration, OauthState, ImportedDocument, InboundEmailAddress,
         AssetDepreciationPosting,
+        ShaamConnection, ShaamOauthState, UniformFileSubmission,
         ],
       synchronize: isSynchronizeEnabled,
       timezone: 'Z',

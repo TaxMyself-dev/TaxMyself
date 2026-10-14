@@ -1,12 +1,28 @@
 import { Module } from '@nestjs/common';
 import { HttpModule } from '@nestjs/axios';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { ShaamController } from './shaam.controller';
+import { ShaamSecureController } from './shaam-secure.controller';
 import { ShaamOauthService } from './services/shaam-oauth.service';
 import { ShaamInvoicesService } from './services/shaam-invoices.service';
 import { Business } from '../business/business.entity';
 import { BusinessService } from '../business/business.service';
 import { BusinessModule } from '../business/business.module';
+import {
+  loadUniformFileOauthConfig,
+  UNIFORM_FILE_OAUTH_CONFIG,
+} from './uniform-file/uniform-file-oauth.config';
+import { UniformFileOauthService } from './uniform-file/uniform-file-oauth.service';
+import { ShaamConnection } from './entities/shaam-connection.entity';
+import { ShaamOauthState } from './entities/shaam-oauth-state.entity';
+import { UniformFileSubmission } from './entities/uniform-file-submission.entity';
+import { ShaamConnectionService } from './services/shaam-connection.service';
+import { ShaamOauthStateService } from './services/shaam-oauth-state.service';
+import { User } from '../users/user.entity';
+import { Delegation } from '../delegation/delegation.entity';
+import { FirebaseAuthGuard } from '../guards/firebase-auth.guard';
+import { Documents } from '../documents/documents.entity';
+import { DocumentsModule } from '../documents/documents.module';
+import { ShaamDocumentAllocationService } from './services/shaam-document-allocation.service';
 
 @Module({
   imports: [
@@ -14,12 +30,39 @@ import { BusinessModule } from '../business/business.module';
       timeout: 10000,
       maxRedirects: 5,
     }),
-    TypeOrmModule.forFeature([Business]),
+    TypeOrmModule.forFeature([
+      Business,
+      ShaamConnection,
+      ShaamOauthState,
+      UniformFileSubmission,
+      User,
+      Delegation,
+      Documents,
+    ]),
     BusinessModule,
+    DocumentsModule,
   ],
-  controllers: [ShaamController],
-  providers: [ShaamOauthService, ShaamInvoicesService],
-  exports: [ShaamOauthService, ShaamInvoicesService],
+  controllers: [ShaamSecureController],
+  providers: [
+    ShaamOauthService,
+    ShaamInvoicesService,
+    ShaamDocumentAllocationService,
+    {
+      provide: UNIFORM_FILE_OAUTH_CONFIG,
+      useFactory: loadUniformFileOauthConfig,
+    },
+    UniformFileOauthService,
+    ShaamConnectionService,
+    ShaamOauthStateService,
+    FirebaseAuthGuard,
+  ],
+  exports: [
+    ShaamOauthService,
+    ShaamInvoicesService,
+    UniformFileOauthService,
+    ShaamConnectionService,
+    ShaamOauthStateService,
+  ],
 })
 export class ShaamModule {}
 

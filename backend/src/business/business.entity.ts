@@ -88,14 +88,17 @@ export class Business {
   @Column({ type: 'decimal', precision: 5, scale: 2, nullable: true, default: null })
   advanceTaxPercent: number | null;
 
-  // SHAAM OAuth tokens (encrypted with AES-256)
-  @Column({ type: 'varchar', nullable: true, default: null })
+  // TEMPORARY SHARED-DEV COMPATIBILITY (KT-064): older active branches still
+  // select these columns through their Business metadata. The new SHAAM code
+  // never reads or writes them; select:false prevents accidental use here.
+  // Remove these properties and the DB columns together at the pre-push gate.
+  @Column({ type: 'varchar', nullable: true, default: null, select: false })
   shaamAccessToken: string | null;
 
-  @Column({ type: 'varchar', nullable: true, default: null })
-  shaamAccessTokenExp: string | null; // Unix timestamp as string (encrypted)
+  @Column({ type: 'varchar', nullable: true, default: null, select: false })
+  shaamAccessTokenExp: string | null;
 
-  @Column({ type: 'varchar', nullable: true, default: null })
+  @Column({ type: 'varchar', nullable: true, default: null, select: false })
   shaamRefreshToken: string | null;
 
   /**

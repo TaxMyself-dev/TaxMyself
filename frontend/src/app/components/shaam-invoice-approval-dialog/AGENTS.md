@@ -1,22 +1,17 @@
 ## Purpose
 
-Current manually opened dialog for requesting a SHAAM invoice allocation
-number.
+Retired free-form SHAAM allocation dialog. It is no longer imported by any
+page/module and its direct-submit service method fails closed.
 
 ## Key entities/files
 
-- `shaam-invoice-approval-dialog.component.ts` validates invoice totals, obtains
-  an access token through `ShaamService`, submits the allocation request and
-  displays the response.
+- `shaam-invoice-approval-dialog.component.ts` is legacy source and must not be
+  reconnected. Remove it during the pre-push cleanup.
 
 ## Main flows
 
-- Business context must come from the authenticated active business.
-- Do not log or expose tokens, client credentials or complete authorization
-  requests.
-- This flow has known security and lifecycle gaps. Read
-  `docs/research/shaam-integration-audit.md` before any change and do not use
-  production SHAAM without explicit authorization and completed go/no-go gates.
+- The active flow persists `PENDING_ALLOCATION` and sends only its identity to
+  the backend. Never restore browser-supplied fiscal payload submission.
 
 ## Related topics
 

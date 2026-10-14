@@ -36,6 +36,7 @@ import { FullTransactionCache } from 'src/transactions/full-transaction-cache.en
 import { VATReportingType, ExpenseReportScope, ExpenseApprovalStatus } from 'src/enum';
 import { DepreciationService } from '../depreciation/depreciation.service';
 import { ExtractedDocument } from '../documents/extracted-document.entity';
+import { assertValidUniformFileContents } from './uniform-file-validator';
 
 /** Maps referenceType strings → Hebrew label for the כרטסת סוג תנועה column. */
 const LEDGER_MOVEMENT_LABELS: Record<string, string> = {
@@ -54,16 +55,40 @@ interface JournalIncomeSummary {
   vatOnTurnover: number;
 }
 
+type UniformRecordSummary = Record<'A100' | 'B100' | 'B110' | 'C100' | 'D110' | 'D120' | 'M100' | 'Z900', number>;
+
+interface UniformGenerationState {
+  recordCounter: number;
+  recordSummary: UniformRecordSummary;
+  totalLists: number;
+}
+
+interface UniformAccountBalance {
+  openingBalance: number;
+  totalDebit: number;
+  totalCredit: number;
+}
+
+export interface UniformFileArtifacts {
+  filePath: string;
+  zipBuffer: Buffer;
+  iniBuffer: Buffer;
+  bkmvdataBuffer: Buffer;
+  document_summary: DocumentSummaryRow[];
+  list_summary: ListSummaryRow[];
+}
+
+const createUniformGenerationState = (): UniformGenerationState => ({
+  recordCounter: 1,
+  recordSummary: { A100: 1, B100: 0, B110: 0, C100: 0, D110: 0, D120: 0, M100: 0, Z900: 1 },
+  totalLists: 0,
+});
+
 @Injectable()
 export class ReportsService {
-
-  private recordCounter = 1;
   private readonly logger = new Logger(ReportsService.name);  // Log service name
   private readonly generatedFolder = "src/generated/";  // Define folder for uploads
   private readonly debugFolder = "src/debug/";  // Define folder for debug files
-
-  private recordSummary = { A100: 1, B100: 0, B110: 0, C100: 0, D110: 0, D120: 0, M100: 0, Z900: 1 };
-  private totalLists = 0;
 
   constructor(
     private expensesService: ExpensesService,
@@ -1515,16 +1540,20 @@ export class ReportsService {
   }
 
 
-    async createUniformFile(userId: string, startDate: string, endDate: string, businessNumber: string): Promise<{ filePath: string; zipBuffer: Buffer; document_summary: DocumentSummaryRow[]; list_summary: ListSummaryRow[] }> {
-
-      // Reset recordSummary and totalLists to default values each time the user clicks "הצג"
-      this.recordSummary = { A100: 1, B100: 0, B110: 0, C100: 0, D110: 0, D120: 0, M100: 0, Z900: 1 };
-      this.totalLists = 0;
+    async createUniformFile(userId: string, startDate: string, endDate: string, businessNumber: string): Promise<UniformFileArtifacts> {
+      const state = createUniformGenerationState();
 
       // Generate Unique Random Number (15 digits)
       const uniqueId = this.generateUniqueId();
       
-      const { content: dataContent, summary } = await this.generateDataFileContent(userId, businessNumber, startDate, endDate, uniqueId);
+      const { content: dataContent } = await this.generateDataFileContent(
+        userId,
+        businessNumber,
+        startDate,
+        endDate,
+        uniqueId,
+        state,
+      );
 
       // const zipFileName = `openformat.zip`;
 
@@ -1544,27 +1573,48 @@ export class ReportsService {
       const filePath = `${businessFolder}/${MMDDhhmm}` 
 
       // Generate file contents
-      const iniContent = await this.generateIniFileContent(businessNumber, uniqueId, filePath, startDate, endDate);
+      const iniContent = await this.generateIniFileContent(
+        businessNumber,
+        uniqueId,
+        filePath,
+        startDate,
+        endDate,
+        state,
+      );
 
-      const { document_summary, list_summary } = await this.buildUniformSummaries(businessNumber, startDate, endDate);
+      assertValidUniformFileContents(iniContent, dataContent);
+
+      const { document_summary, list_summary } = await this.buildUniformSummaries(
+        businessNumber,
+        startDate,
+        endDate,
+        state.recordSummary,
+      );
+
+      const iniBuffer = iconv.encode(iniContent, 'windows-1255');
+      const bkmvdataBuffer = iconv.encode(dataContent, 'windows-1255');
 
       return new Promise((resolve, reject) => {
         const archive = archiver('zip', { zlib: { level: 9 } });
         const chunks: Buffer[] = [];
 
-        const iniBuffer = iconv.encode(iniContent, 'windows-1255');
-        // archive.append(iniBuffer, { name: `OPENFRMT/${businessFolder}/${MMDDhhmm}/INI.TXT` });
         archive.append(iniBuffer, { name: `OPENFRMT/${filePath}/INI.TXT` });
 
-        const dataBuffer = iconv.encode(dataContent, 'windows-1255');
-        archive.append(dataBuffer, { name: `OPENFRMT/${filePath}/BKMVDATA.TXT` });        
+        archive.append(bkmvdataBuffer, { name: `OPENFRMT/${filePath}/BKMVDATA.TXT` });
 
         // Finalize ZIP file
         archive.finalize();
         archive.on('data', (chunk) => chunks.push(chunk));
         archive.on('end', () => {
           const zipBuffer = Buffer.concat(chunks);
-          resolve({ filePath: `OPENFRMT/${filePath}`, zipBuffer, document_summary, list_summary});
+          resolve({
+            filePath: `OPENFRMT/${filePath}`,
+            zipBuffer,
+            iniBuffer,
+            bkmvdataBuffer,
+            document_summary,
+            list_summary,
+          });
         });
 
         archive.on('error', (err) => reject(err));
@@ -1572,7 +1622,14 @@ export class ReportsService {
     }
 
 
-    private async generateIniFileContent(businessNumber: string, uniqueId: string, filePath: string, startDate: string, endDate: string): Promise<string> {
+    private async generateIniFileContent(
+      businessNumber: string,
+      uniqueId: string,
+      filePath: string,
+      startDate: string,
+      endDate: string,
+      state: UniformGenerationState,
+    ): Promise<string> {
 
       const startDateObj = this.sharedService.convertStringToDateObject(startDate);
       const endDateObj = this.sharedService.convertStringToDateObject(endDate);
@@ -1585,7 +1642,7 @@ export class ReportsService {
       let result = '';
     
       const f_1001 = this.formatField("!", 5, '!');
-      const f_1002 = this.formatField(this.totalLists, 15, '0');
+      const f_1002 = this.formatField(state.totalLists, 15, '0');
       const f_1003 = this.formatField(businessNumber, 9, '0');
       const f_1004 = this.formatField(uniqueId, 15, '0');
       const f_1005 = this.formatField("&OF1.31&", 8, '');
@@ -1606,7 +1663,7 @@ export class ReportsService {
       const f_1020 = this.formatField("!", 10, '!');
       const f_1021 = this.formatField("!", 30, '!');
       const f_1022 = this.formatField("!", 8, '!');
-      const f_1023 = this.formatField("!", 4, '!');
+      const f_1023 = this.formatField(startDateObj.getFullYear(), 4, '0');
       const f_1024 = this.formatField(this.formatDateYYYYMMDD(startDateObj), 8, '!');
       const f_1025 = this.formatField(this.formatDateYYYYMMDD(endDateObj), 8, '!');
       const f_1026 = this.formatField(formattedCurrentDate, 8, '!');
@@ -1617,14 +1674,14 @@ export class ReportsService {
       const f_1032 = this.formatField("ILS", 3, '!');
       const f_1034 = this.formatField(0, 1, '0');
       const f_1035 = this.formatField("!", 46, '!');
-      const c100 = `C100${this.formatField(this.recordSummary[`C100`], 15, '0')}`;
-      const d110 = `D110${this.formatField(this.recordSummary[`D110`], 15, '0')}`;
-      const d120 = `D120${this.formatField(this.recordSummary[`D120`], 15, '0')}`;
-      const b100 = `B100${this.formatField(this.recordSummary[`B100`], 15, '0')}`;
-      const b110 = `B110${this.formatField(this.recordSummary[`B110`], 15, '0')}`;
-      const m100 = `M100${this.formatField(this.recordSummary[`M100`], 15, '0')}`;
+      const c100 = `C100${this.formatField(state.recordSummary.C100, 15, '0')}`;
+      const d110 = `D110${this.formatField(state.recordSummary.D110, 15, '0')}`;
+      const d120 = `D120${this.formatField(state.recordSummary.D120, 15, '0')}`;
+      const b100 = `B100${this.formatField(state.recordSummary.B100, 15, '0')}`;
+      const b110 = `B110${this.formatField(state.recordSummary.B110, 15, '0')}`;
+      const m100 = `M100${this.formatField(state.recordSummary.M100, 15, '0')}`;
 
-      result +=`A000${f_1001}${f_1002}${f_1003}${f_1004}${f_1005}${f_1006}${f_1007}${f_1008}${f_1009}${f_1010}${f_1011}${f_1012}${f_1013}${f_1014}${f_1015}${f_1016}${f_1017}${f_1018}${f_1019}${f_1020}${f_1021}${f_1022}${f_1023}${f_1024}${f_1025}${f_1026}${f_1027}${f_1028}${f_1029}${f_1030}${f_1032}${f_1034}${f_1035}\n${c100}\n${d110}\n${d120}\n${b100}\n${b110}\n${m100}\n`;
+      result += `A000${f_1001}${f_1002}${f_1003}${f_1004}${f_1005}${f_1006}${f_1007}${f_1008}${f_1009}${f_1010}${f_1011}${f_1012}${f_1013}${f_1014}${f_1015}${f_1016}${f_1017}${f_1018}${f_1019}${f_1020}${f_1021}${f_1022}${f_1023}${f_1024}${f_1025}${f_1026}${f_1027}${f_1028}${f_1029}${f_1030}${f_1032}${f_1034}${f_1035}\r\n${c100}\r\n${d110}\r\n${d120}\r\n${b100}\r\n${b110}\r\n${m100}\r\n`;
      
       return result;
     }
@@ -1643,7 +1700,14 @@ export class ReportsService {
     }
 
 
-    private async generateDataFileContent(userId: string, businessNumber: string, startDate: string, endDate: string, uniqueId: string): Promise<{ content: string; summary: any[] }> {
+    private async generateDataFileContent(
+      userId: string,
+      businessNumber: string,
+      startDate: string,
+      endDate: string,
+      uniqueId: string,
+      state: UniformGenerationState,
+    ): Promise<{ content: string; summary: any[] }> {
 
       let content = "";
       const allDocuments = await this.fetchDocuments(businessNumber, startDate, endDate);
@@ -1657,66 +1721,72 @@ export class ReportsService {
       const journalEntries = await this.fetchJournalEntries(userId, businessNumber, startDate, endDate);
     
       // Add A100 section first
-      content += this.generateA100Section(businessNumber, uniqueId);
+      content += this.generateA100Section(businessNumber, uniqueId, state);
 
       // Add C100 section
-      const c100 = await this.generateC100Section(documents);
-      this.recordSummary.C100 += (c100.match(/\n/g) || []).length;
+      const c100 = await this.generateC100Section(documents, state);
+      state.recordSummary.C100 += (c100.match(/\n/g) || []).length;
       content += c100;
 
       // Add D110 section
-      const d110 = await this.generateD110Section(documents);      
-      this.recordSummary.D110 += (d110.match(/\n/g) || []).length;
+      const d110 = await this.generateD110Section(documents, state);
+      state.recordSummary.D110 += (d110.match(/\n/g) || []).length;
       content += d110;
 
       // Add D120 section
-      const d120 = await this.generateD120Section(documents);
-      this.recordSummary.D120 += (d120.match(/\n/g) || []).length;
+      const d120 = await this.generateD120Section(documents, state);
+      state.recordSummary.D120 += (d120.match(/\n/g) || []).length;
       content += d120;
 
       // Add B100 section
-      const b100 = await this.generateB100Section(journalEntries);
-      this.recordSummary.B100 += (b100.match(/\n/g) || []).length;
+      const b100 = await this.generateB100Section(journalEntries, state);
+      state.recordSummary.B100 += (b100.match(/\n/g) || []).length;
       content += b100;
 
       // Add B110 section
-      const b110 = await this.generateB110Section(businessNumber);
-      this.recordSummary.B110 += (b110.match(/\n/g) || []).length;
+      const b110 = await this.generateB110Section(
+        userId,
+        businessNumber,
+        startDate,
+        endDate,
+        state,
+      );
+      state.recordSummary.B110 += (b110.match(/\n/g) || []).length;
       content += b110;
 
        // Add M100 section
-       const m100 = await this.generateM100Section(businessNumber);
-       this.recordSummary.M100 += (m100.match(/\n/g) || []).length;
+       const m100 = await this.generateM100Section(businessNumber, state);
+       state.recordSummary.M100 += (m100.match(/\n/g) || []).length;
        content += m100;
 
       //Calculate total lists
-      this.totalLists = Object.values(this.recordSummary).reduce((sum, val) => sum + val, 0);
+      state.totalLists = Object.values(state.recordSummary).reduce((sum, val) => sum + val, 0);
 
       // Add Z900 section first
-      content += this.generateZ900Section(businessNumber, uniqueId);
+      content += this.generateZ900Section(businessNumber, uniqueId, state);
       
       return { 
         content, 
-        summary: Object.keys(this.recordSummary).map((key) => ({
+        summary: Object.keys(state.recordSummary).map((key) => ({
           code: key,
           description: this.getRecordDescription(key), // Add descriptions
-          count: this.recordSummary[key]
+          count: state.recordSummary[key as keyof UniformRecordSummary]
         }))
       };
 
     }
 
 
-    private generateA100Section(businessNumber: string, uniqueId: string): string {
-      return `A100${this.getFormattedRecordCounter()}${businessNumber}${uniqueId}&OF1.31&${'!'.repeat(50)}\r\n`;
+    private generateA100Section(businessNumber: string, uniqueId: string, state: UniformGenerationState): string {
+      return `A100${this.getFormattedRecordCounter(state)}${businessNumber}${uniqueId}&OF1.31&${'!'.repeat(50)}\r\n`;
     }
 
 
-    private async generateC100Section(documents: Documents[]): Promise<string> {
+    private async generateC100Section(documents: Documents[], state: UniformGenerationState): Promise<string> {
 
       let result = '';
       documents.forEach((doc) => {
-        const f_1201 = this.getFormattedRecordCounter();
+        const f_1201 = this.getFormattedRecordCounter(state);
         const f_1202 = this.formatField(doc.issuerBusinessNumber, 9, '0');
         const f_1203 = this.formatField(this.getDocumentTypeCode(doc.docType, false), 3, '0');
         const f_1204 = this.formatField(doc.docNumber, 20, '0');
@@ -1735,7 +1805,7 @@ export class ReportsService {
         const f_1217 = this.formatAmount(doc.amountForeign, 12, 2); // ימולא רק בחשבונית ייצוא - לבדוק עם שריה
         const f_1218 = this.formatField(doc.currency, 3, '!');
         const f_1219 = this.formatAmount(doc.sumBefDisBefVat, 12, 2);
-        const f_1220 = this.formatAmount(doc.disSum, 12, 2);
+        const f_1220 = this.formatAmount(-Math.abs(Number(doc.disSum ?? 0)), 12, 2);
         const f_1221 = this.formatAmount(doc.sumAftDisBefVAT, 12, 2);
         const f_1222 = this.formatAmount(doc.vatSum, 12, 2);
         const f_1223 = this.formatAmount(doc.sumAftDisWithVAT, 12, 2);
@@ -1797,7 +1867,7 @@ export class ReportsService {
     }
 
 
-    private async generateD110Section(documents: Documents[]): Promise<string> {
+    private async generateD110Section(documents: Documents[], state: UniformGenerationState): Promise<string> {
 
       let result = '';
     
@@ -1816,7 +1886,7 @@ export class ReportsService {
     
         docLines.forEach((line) => {
           
-          const f_1251 = this.getFormattedRecordCounter();
+          const f_1251 = this.getFormattedRecordCounter(state);
           const f_1252 = this.formatField(doc.issuerBusinessNumber, 9, '0');
           const f_1253 = this.formatField(this.getDocumentTypeCode(doc.docType, false), 3, '0');
           const f_1254 = this.formatField(doc.docNumber, 20, '0');
@@ -1831,8 +1901,13 @@ export class ReportsService {
           const f_1263 = this.formatField(line.unitType, 20, '!');
           const f_1264 = this.formatAmount(line.unitQuantity, 12, 4);
           const f_1265 = this.formatAmount(line.sumBefVatPerUnit, 12, 2);
-          const f_1266 = this.formatAmount(line.disBefVatPerLine, 12, 2);
-          const f_1267 = this.formatAmount(line.sumAftDisBefVatPerLine, 12, 2);
+          const f_1266 = this.formatAmount(-Math.abs(Number(line.disBefVatPerLine ?? 0)), 12, 2);
+          // The simulator reconciles D110/1267 with C100/1219 (the amount
+          // before document discount). 1266 carries the discount separately,
+          // so 1267 must retain the pre-discount line amount.
+          const lineAmountBeforeDiscount = Number(line.sumAftDisBefVatPerLine ?? 0)
+            + Math.abs(Number(line.disBefVatPerLine ?? 0));
+          const f_1267 = this.formatAmount(lineAmountBeforeDiscount, 12, 2);
           const f_1268 = this.formatAmount(line.vatRate, 2, 2, false);
           const f_1270 = this.formatField(doc.branchCode, 7, '0');
           const f_1272 = this.formatField(this.formatDateYYYYMMDD(doc.docDate), 8, '0');
@@ -1849,7 +1924,7 @@ export class ReportsService {
     }
 
 
-    private async generateD120Section(documents: Documents[]): Promise<string> {
+    private async generateD120Section(documents: Documents[], state: UniformGenerationState): Promise<string> {
 
       let result = '';
     
@@ -1865,7 +1940,7 @@ export class ReportsService {
     
         // Loop through the lines and create D120 records
         docPayments.forEach((line) => {
-          const f_1301 = this.getFormattedRecordCounter(); // Running counter (9 digits)
+          const f_1301 = this.getFormattedRecordCounter(state); // Running counter (9 digits)
           const f_1302 = this.formatField(doc.issuerBusinessNumber, 9, '0');
           const f_1303 = this.formatField(this.getDocumentTypeCode(doc.docType, false), 3, '0');
           const f_1304 = this.formatField(doc.docNumber, 20, '0');
@@ -1894,7 +1969,7 @@ export class ReportsService {
     }
 
 
-    private async generateB100Section(entries: JournalEntry[]): Promise<string> {
+    private async generateB100Section(entries: JournalEntry[], state: UniformGenerationState): Promise<string> {
 
       let result = '';
 
@@ -1908,7 +1983,7 @@ export class ReportsService {
         });
   
         lines.forEach((line) => {
-          const f_1351 = this.getFormattedRecordCounter();
+          const f_1351 = this.getFormattedRecordCounter(state);
           const f_1352 = this.formatField(entry.issuerBusinessNumber, 9, '0');
           const f_1353 = this.formatField(entry.id, 10, '0');
           const f_1354 = this.formatField(line.lineInEntry, 5, '0');
@@ -1944,20 +2019,38 @@ export class ReportsService {
     }
 
 
-    private async generateB110Section(businessNumber: string): Promise<string> {
+    private async generateB110Section(
+      userId: string,
+      businessNumber: string,
+      startDate: string,
+      endDate: string,
+      state: UniformGenerationState,
+    ): Promise<string> {
 
       let result = '';
 
-      const accounts = await this.defaultBookingAccountRepo.find();
+      const catalogContext = await this.catalogContextService.forUser(userId, businessNumber);
+      const accounts = await this.catalogService.getEffectiveAccounts(catalogContext);
+      const balances = await this.loadUniformAccountBalances(
+        userId,
+        businessNumber,
+        startDate,
+        endDate,
+      );
 
       for (const account of accounts) {
+        const balance = balances.get(account.code) ?? {
+          openingBalance: 0,
+          totalDebit: 0,
+          totalCredit: 0,
+        };
   
-        const f_1401 = this.getFormattedRecordCounter();
+        const f_1401 = this.getFormattedRecordCounter(state);
         const f_1402 = this.formatField(businessNumber, 9, '0');
         const f_1403 = this.formatField(account.code, 15, '!');
         const f_1404 = this.formatField(account.name, 50, '!');
-        const f_1405 = this.formatField("!", 15, '!');
-        const f_1406 = this.formatField("!", 30, '!');
+        const f_1405 = this.formatField(account.section?.code ?? account.code, 15, '!');
+        const f_1406 = this.formatField(account.section?.name ?? account.name, 30, '!');
         const f_1407 = this.formatField("!", 50, '!');
         const f_1408 = this.formatField("!", 10, '!');
         const f_1409 = this.formatField("!", 30, '!');
@@ -1965,10 +2058,10 @@ export class ReportsService {
         const f_1411 = this.formatField("!", 30, '!');
         const f_1412 = this.formatField("!", 2, '!');
         const f_1413 = this.formatField("!", 15, '!');
-        const f_1414 = this.formatAmount(0, 12, 2);
-        const f_1415 = this.formatAmount(0, 12, 2);
-        const f_1416 = this.formatAmount(0, 12, 2);
-        const f_1417 = this.formatField("0", 4, '0');
+        const f_1414 = this.formatAmount(balance.openingBalance, 12, 2);
+        const f_1415 = this.formatAmount(balance.totalDebit, 12, 2);
+        const f_1416 = this.formatAmount(balance.totalCredit, 12, 2);
+        const f_1417 = this.formatField(account.code6111 ?? 0, 4, '0');
         const f_1419 = this.formatField("!", 9, '!');
         const f_1421 = this.formatField("!", 7, '!');
         const f_1422 = this.formatAmount(0, 12, 2);
@@ -1982,35 +2075,62 @@ export class ReportsService {
       return result;
     }
 
+    private async loadUniformAccountBalances(
+      userId: string,
+      businessNumber: string,
+      startDate: string,
+      endDate: string,
+    ): Promise<Map<string, UniformAccountBalance>> {
+      const rows = await this.JournalLineRepo.createQueryBuilder('line')
+        .innerJoin(JournalEntry, 'entry', 'entry.id = line.journalEntryId')
+        .select('line.accountCode', 'accountCode')
+        .addSelect(
+          'COALESCE(SUM(CASE WHEN entry.date < :startDate THEN line.debit - line.credit ELSE 0 END), 0)',
+          'openingBalance',
+        )
+        .addSelect(
+          'COALESCE(SUM(CASE WHEN entry.date BETWEEN :startDate AND :endDate THEN line.debit ELSE 0 END), 0)',
+          'totalDebit',
+        )
+        .addSelect(
+          'COALESCE(SUM(CASE WHEN entry.date BETWEEN :startDate AND :endDate THEN line.credit ELSE 0 END), 0)',
+          'totalCredit',
+        )
+        .where('entry.firebaseId = :userId', { userId })
+        .andWhere('entry.issuerBusinessNumber = :businessNumber', { businessNumber })
+        .andWhere('entry.date <= :endDate', { endDate })
+        .setParameter('startDate', startDate)
+        .groupBy('line.accountCode')
+        .getRawMany<{
+          accountCode: string;
+          openingBalance: string;
+          totalDebit: string;
+          totalCredit: string;
+        }>();
 
-    private async generateM100Section(businessNumber: string): Promise<string> {
+      return new Map(rows.map((row) => [
+        row.accountCode,
+        {
+          openingBalance: Number(row.openingBalance),
+          totalDebit: Number(row.totalDebit),
+          totalCredit: Number(row.totalCredit),
+        },
+      ]));
+    }
 
-      let result = '';
-    
-      const f_1451 = this.getFormattedRecordCounter();
-      const f_1452 = this.formatField(businessNumber, 9, '0');
-      const f_1453 = this.formatField("0", 20, '0');
-      const f_1454 = this.formatField("0", 20, '0');
-      const f_1455 = this.formatField("175790433", 20, '0');
-      const f_1456 = this.formatField("!", 50, '!');
-      const f_1457 = this.formatField("!", 10, '!');
-      const f_1458 = this.formatField("!", 30, '!'); 
-      const f_1459 = this.formatField("!", 20, '!');
-      const f_1460 = this.formatAmount(0, 9, 2);
-      const f_1461 = this.formatAmount(0, 9, 2);
-      const f_1462 = this.formatAmount(0, 9, 2);
-      const f_1463 = this.formatField("0", 10, '0');
-      const f_1464 = this.formatField("0", 10, '0');
-      const f_1465 = this.formatField("!", 50, '!');
 
-      result += `M100${f_1451}${f_1452}${f_1453}${f_1454}${f_1455}${f_1456}${f_1457}${f_1458}${f_1459}${f_1460}${f_1461}${f_1462}${f_1463}${f_1464}${f_1465}\r\n`;
-    
-      return result;
+    private async generateM100Section(
+      _businessNumber: string,
+      _state: UniformGenerationState,
+    ): Promise<string> {
+      // The current domain has no inventory/item ledger. An invented M100 row
+      // would assert inventory facts that do not exist, so the list stays empty.
+      return '';
     }
     
 
-    private generateZ900Section(businessNumber: string, uniqueId: string): string {
-      return `Z900${this.getFormattedRecordCounter()}${businessNumber}${uniqueId}&OF1.31&${this.formatField(this.totalLists, 15, '0')}${'?'.repeat(50)}\r\n`;
+    private generateZ900Section(businessNumber: string, uniqueId: string, state: UniformGenerationState): string {
+      return `Z900${this.getFormattedRecordCounter(state)}${businessNumber}${uniqueId}&OF1.31&${this.formatField(state.totalLists, 15, '0')}${'?'.repeat(50)}\r\n`;
     }
 
 
@@ -2067,18 +2187,18 @@ export class ReportsService {
     }
 
 
-  async buildListSummary(): Promise<ListSummaryRow[]> {
+  async buildListSummary(recordSummary: UniformRecordSummary): Promise<ListSummaryRow[]> {
 
     let list_summary: ListSummaryRow[] = [];
 
     list_summary = [
       { listNumber : "A100", listDescription: "רשומת פתיחה", listTotal: 1 },
-      { listNumber : "B100", listDescription: "תנועות בהנהלת חשבונות", listTotal: this.recordSummary.B100 },
-      { listNumber : "B110", listDescription: "חשבון בהנהלת חשבונות", listTotal: this.recordSummary.B110 },
-      { listNumber : "C100", listDescription: "כותרת מסמך", listTotal: this.recordSummary.C100 },
-      { listNumber : "D110", listDescription: "פרטי מסמך", listTotal: this.recordSummary.D110 },
-      { listNumber : "D120", listDescription: "פרטי קבלות", listTotal: this.recordSummary.D120 },
-      { listNumber : "M100", listDescription: "פריטים במלאי", listTotal: this.recordSummary.M100 },
+      { listNumber : "B100", listDescription: "תנועות בהנהלת חשבונות", listTotal: recordSummary.B100 },
+      { listNumber : "B110", listDescription: "חשבון בהנהלת חשבונות", listTotal: recordSummary.B110 },
+      { listNumber : "C100", listDescription: "כותרת מסמך", listTotal: recordSummary.C100 },
+      { listNumber : "D110", listDescription: "פרטי מסמך", listTotal: recordSummary.D110 },
+      { listNumber : "D120", listDescription: "פרטי קבלות", listTotal: recordSummary.D120 },
+      { listNumber : "M100", listDescription: "פריטים במלאי", listTotal: recordSummary.M100 },
       { listNumber : "Z900", listDescription: "רשומת סיום", listTotal: 1 },
     ];
 
@@ -2090,10 +2210,11 @@ export class ReportsService {
     businessNumber: string,
     startDate: string | Date,
     endDate: string | Date,
+    recordSummary: UniformRecordSummary,
   ): Promise<UniformSummaries> {
     const [document_summary, list_summary] = await Promise.all([
       this.buildDocumentSummary(businessNumber, startDate, endDate),
-      this.buildListSummary(),
+      this.buildListSummary(recordSummary),
     ]);
 
     return { document_summary, list_summary };
@@ -2117,7 +2238,12 @@ export class ReportsService {
 
 
     // Format a field to a fixed length
-    private formatField(value: string | number | Date, length: number, padChar: string = ' ', alignLeft: boolean = false): string {
+    private formatField(
+      value: string | number | Date,
+      length: number,
+      padChar: string = ' ',
+      alignLeft: boolean = padChar !== '0',
+    ): string {
 
 
       let strValue: string;
@@ -2143,9 +2269,9 @@ export class ReportsService {
     }
   
 
-    // Function to format the global recordCounter as 9 digits
-    private getFormattedRecordCounter(): string {
-      return String(this.recordCounter++).padStart(9, '0');
+    // Format and advance the counter that belongs to this generation only.
+    private getFormattedRecordCounter(state: UniformGenerationState): string {
+      return String(state.recordCounter++).padStart(9, '0');
     }
 
 
@@ -2180,9 +2306,23 @@ export class ReportsService {
     }
     
 
-    private getPaymentCode(method: string): number {
-      if ((method as keyof typeof PaymentMethodType) in PaymentMethodType) {
-        return PaymentMethodType[method as keyof typeof PaymentMethodType];
+    private getPaymentCode(method: PaymentMethodType | string | number): number {
+      const numericMethod = typeof method === 'number'
+        ? method
+        : /^\d+$/.test(String(method).trim())
+          ? Number(method)
+          : null;
+      if (
+        numericMethod !== null
+        && Number.isInteger(numericMethod)
+        && numericMethod >= PaymentMethodType.CASH
+        && numericMethod <= PaymentMethodType.OTHER
+      ) {
+        return numericMethod;
+      }
+      if (typeof method === 'string') {
+        const mapped = PaymentMethodType[method as keyof typeof PaymentMethodType];
+        if (typeof mapped === 'number') return mapped;
       }
       return PaymentMethodType.OTHER;
     }

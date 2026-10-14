@@ -604,9 +604,6 @@ export class DocumentsService {
 
     const isProduction = process.env.NODE_ENV === 'production';
 
-    console.log("data is ", data);
-
-
     // FID mapping based on environment and document type
     const fidMap = {
       // Production FIDs
@@ -712,15 +709,6 @@ export class DocumentsService {
       prefill_data,
     };
 
-    // TEMP DEBUG — remove once the period-end rendering bug is root-caused.
-    if (Array.isArray(prefill_data?.items_table)) {
-      console.log(
-        '[TEMP DEBUG][generatePDF] items_table פירוט values sent to FillFaster:',
-        JSON.stringify(prefill_data.items_table.map((row: any) => row['פירוט'])),
-      );
-    }
-    console.log('[TEMP DEBUG][generatePDF] full payload sent to FillFaster:', JSON.stringify(payload));
-
     const headers = {
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
@@ -745,37 +733,8 @@ export class DocumentsService {
       console.error('   URL:', url);
       console.error('   FID:', fid);
 
-      // Try to parse error response body
-      if (error.response?.data) {
-        try {
-          // Try to parse as JSON first
-          const errorText = Buffer.from(error.response.data).toString('utf-8');
-          console.error('   Error Response Body:', errorText);
-
-          try {
-            const errorJson = JSON.parse(errorText);
-            console.error('   Parsed Error JSON:', JSON.stringify(errorJson, null, 2));
-          } catch (parseError) {
-            // Not JSON, just log as text
-            console.error('   Error Response (text):', errorText);
-          }
-        } catch (bufferError) {
-          console.error('   Could not parse error response body');
-        }
-      }
-
-      // Log the payload that was sent (but truncate large fields)
-      const payloadForLog = {
-        ...payload,
-        prefill_data: {
-          ...prefill_data,
-          items_table: prefill_data.items_table ? `[${Array.isArray(prefill_data.items_table) ? prefill_data.items_table.length : 'N/A'} items]` : null,
-          payments_table: prefill_data.payments_table ? `[${Array.isArray(prefill_data.payments_table) ? prefill_data.payments_table.length : 'N/A'} items]` : null,
-          sumTable: prefill_data.sumTable ? `[${Array.isArray(prefill_data.sumTable) ? prefill_data.sumTable.length : 'N/A'} items]` : null,
-          draft_image: prefill_data.draft_image ? `[base64 image ${prefill_data.draft_image.length} chars]` : null,
-        }
-      };
-      console.error('   Payload sent:', JSON.stringify(payloadForLog, null, 2));
+      console.error('   Error code:', error.code || 'UNKNOWN');
+      console.error('   Error message:', error.message || 'Unknown FillFaster error');
 
       throw new HttpException(
         `FillFaster API error: ${error.response?.status || 'Unknown'} - ${error.response?.statusText || error.message}`,
@@ -1226,7 +1185,7 @@ export class DocumentsService {
         });
       }
 
-      console.log(new Date().toLocaleTimeString(), "Step 1 complete - General index incremented to:", newGeneralDocIndex);
+      console.log(new Date().toLocaleTimeString(), 'Step 1 complete - General index reserved');
 
       // 2. Increment document-specific index
       const docDetails = await this.incrementCurrentIndex(userId, data.docData.issuerBusinessNumber, data.docData.docType, queryRunner.manager, data.docData.docNumber);
@@ -1240,7 +1199,21 @@ export class DocumentsService {
       // this call actually reserved, so that — not the caller-supplied value —
       // is the only safe source of truth for the document being saved.
       data.docData.docNumber = String(docDetails.currentIndex - 1);
-      console.log(new Date().toLocaleTimeString(), "Step 2 complete - Current index incremented, assigned docNumber:", data.docData.docNumber);
+      console.log(new Date().toLocaleTimeString(), 'Step 2 complete - Document number reserved');
+
+      // A saved OAuth draft may still hold the same peeked document number that
+      // was just reserved above. Remove that draft inside this transaction before
+      // inserting the official/PENDING_ALLOCATION row, otherwise the document
+      // uniqueness constraint rejects the legitimate draft-to-document transition.
+      // Strict mode propagates cleanup errors so the counter increment and draft
+      // deletion roll back together instead of leaving either side half-applied.
+      await this.deleteDraft(
+        userId,
+        data.docData.issuerBusinessNumber,
+        data.docData.docType,
+        queryRunner.manager,
+        false,
+      );
 
       // 3. Save main document info (now with the correct incremented generalDocIndex)
       const newDoc = await this.saveDocInfo(userId, data.docData, queryRunner.manager);
@@ -1496,7 +1469,7 @@ ${finalOwnerName}`;
       // ✅ All good – commit the transaction
       await queryRunner.commitTransaction();
 
-      console.log(`📄 Document created — user: ${userId}, docType: ${data.docData.docType}, docNumber: ${data.docData.docNumber}`);
+      console.log(`📄 Document created — docType: ${data.docData.docType}`);
 
       return {
         success: true,
@@ -1660,8 +1633,11 @@ ${finalOwnerName}`;
       const docsRepo = queryRunner.manager.getRepository(Documents);
       doc.file = originalFilePath;
       doc.copyFile = copyFilePath;
-      if (allocationNum !== undefined) {
-        doc.allocationNum = allocationNum ?? null;
+      // Never erase an allocation number that was already persisted before
+      // finalization. A null input means "finalize without allocation" only
+      // when the document does not already have one.
+      if (allocationNum != null) {
+        doc.allocationNum = allocationNum;
       }
       if (wasPending) {
         doc.docStatus = autoClosedTypes.includes(doc.docType)
@@ -2219,15 +2195,6 @@ ${finalOwnerName}`;
       `מנוי KeepInTax - תוכנית ${planName}\n` +
       `תקופת שירות: ${formattedPeriodStart} עד ${formattedPeriodEnd}`;
 
-    // TEMP DEBUG — remove once the period-end rendering bug is root-caused.
-    console.log('[TEMP DEBUG][createBillingSystemReceipt] raw periodStart:', periodStart,
-      'isDate:', periodStart instanceof Date, 'typeof:', typeof periodStart);
-    console.log('[TEMP DEBUG][createBillingSystemReceipt] raw periodEnd:', periodEnd,
-      'isDate:', periodEnd instanceof Date, 'typeof:', typeof periodEnd);
-    console.log('[TEMP DEBUG][createBillingSystemReceipt] formattedPeriodStart:', formattedPeriodStart);
-    console.log('[TEMP DEBUG][createBillingSystemReceipt] formattedPeriodEnd:', formattedPeriodEnd);
-    console.log('[TEMP DEBUG][createBillingSystemReceipt] final lineDescription:', lineDescription);
-
     const amountBeforeVatShekels = +(amountBeforeVatAgorot / 100).toFixed(2);
     const vatAmountShekels = +(vatAmountAgorot / 100).toFixed(2);
     const amountIncludingVatShekels = +(amountIncludingVatAgorot / 100).toFixed(2);
@@ -2321,7 +2288,6 @@ ${finalOwnerName}`;
     console.log('Document Type:', data.docData.docType);
     console.log('Lines Count:', data.linesData?.length || 0);
     console.log('Payments Count:', data.paymentData?.length || 0);
-    console.log('Full docData:', JSON.stringify(data.docData, null, 2));
 
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
@@ -2455,7 +2421,13 @@ ${finalOwnerName}`;
   }
 
   // Delete draft (called before saving new draft or after creating document)
-  async deleteDraft(userId: string, issuerBusinessNumber: string, docType: DocumentType, manager?: EntityManager): Promise<void> {
+  async deleteDraft(
+    userId: string,
+    issuerBusinessNumber: string,
+    docType: DocumentType,
+    manager?: EntityManager,
+    suppressErrors: boolean = true,
+  ): Promise<void> {
     try {
       const repo = manager
         ? manager.getRepository(Documents)
@@ -2508,7 +2480,8 @@ ${finalOwnerName}`;
       });
     } catch (error) {
       console.error('Error deleting draft:', error);
-      // Don't throw - allow draft save to continue even if delete fails
+      if (!suppressErrors) throw error;
+      // Best-effort callers may continue even if draft cleanup fails.
     }
   }
 

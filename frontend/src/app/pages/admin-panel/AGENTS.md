@@ -1,9 +1,9 @@
 ## Purpose
-Internal admin console (tabbed) for staff to manage clients dashboard, the unified categories/cards catalog area, transactions, demo data, billing/Cardcom, SHAAM invoice-approval, educational content, and the product documentation center — the single page most non-client-facing admin tools live under.
+Internal admin console (tabbed) for staff to manage clients dashboard, the unified categories/cards catalog area, transactions, demo data, billing/Cardcom, educational content, and the product documentation center — the single page most non-client-facing admin tools live under. SHAAM allocation is performed from document flows, not from this console.
 
 ## Key entities/files
-- `admin-panel.page.ts` — `AdminPanelPage`; holds the top-level tab list (`tabs`), the nested catalog tabs (`catalogTabs`: categories/cards), and drives which shared management component is shown, plus SHAAM approval dialog state.
-- `admin-panel.module.ts` — declares the page and imports the five embedded feature components (`ClientsDashboardComponent`, `CategoryManagementComponent`, `TransManagementComponent`, `DemoDataComponent`, `AdminBillingComponent`) plus `ShaamInvoiceApprovalDialogComponent`.
+- `admin-panel.page.ts` — `AdminPanelPage`; holds the top-level tab list (`tabs`), the nested catalog tabs (`catalogTabs`: categories/cards), and drives which shared management component is shown.
+- `admin-panel.module.ts` — declares the page and imports the five embedded feature components (`ClientsDashboardComponent`, `CategoryManagementComponent`, `TransManagementComponent`, `DemoDataComponent`, `AdminBillingComponent`).
 - `admin-panel-routing.module.ts` — single root route rendering `AdminPanelPage`.
 - `admin-documentation.component.*` — documentation-center shell: module cards, full-text search, active module/topic state, and the structured content model for accounting, open banking, and billing.
 - `documentation-topic.component.*` — responsive topic reader: topic navigation, behavior cards, flow diagram, callouts, and edge-case notes. Split from the shell to keep each lazy component stylesheet below the Angular component-style budget.
@@ -97,7 +97,6 @@ Internal admin console (tabbed) for staff to manage clients dashboard, the unifi
 - `/admin-panel` is protected by `AuthGuard` plus `AdminRouteGuard`; API
   endpoints still require server-side `AdminGuard`/persisted-role checks.
 - In the nested Cards tab, administer SYSTEM cards and create a new SYSTEM card (plus its paired SYSTEM sub-category unless marked technical-only).
-- Open a SHAAM invoice-approval dialog and show a success toast with the returned confirmation number.
 - Browse/search operational documentation across the three main modules and switch between their sub-topics without leaving the admin panel.
 - Open Content and launch the guide; navigate 21 screens with buttons/RTL keyboard, enter any of the three authority chapters via transparent hotspots, adjust either simulator, and present fullscreen. Kipi opening/glossary provenance and locked copy are in `docs/marketing/kipi-guide-approved.md`. NI rights/advance-payment follow-up slides remain undesigned and are not included. Temporary local `main.ts` visual-review bootstrap must never be committed; normal application access remains admin-only.
 

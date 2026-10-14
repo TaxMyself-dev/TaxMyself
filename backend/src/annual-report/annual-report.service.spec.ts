@@ -44,9 +44,6 @@ function makeBusiness(overrides: Partial<Business> = {}): Business {
     taxReportingType: null,
     nationalInsRequired: null,
     advanceTaxPercent: null,
-    shaamAccessToken: null,
-    shaamAccessTokenExp: null,
-    shaamRefreshToken: null,
     createdAt: new Date(),
     ...overrides,
   } as Business;
