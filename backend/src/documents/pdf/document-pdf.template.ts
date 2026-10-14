@@ -93,7 +93,7 @@ export function buildDocumentHtml(
     *{box-sizing:border-box}html,body{margin:0;padding:0}body{font:12pt Receipt,Arial,sans-serif;color:#1c2230;background:white;line-height:1.5}
     .header{display:flex;justify-content:space-between;align-items:flex-start;min-height:42mm;gap:12mm}
     .issuer{text-align:right;white-space:pre-line;overflow-wrap:anywhere;max-width:128mm}.issuer-name{font-weight:700}.issuer-details{line-height:1.6}
-    .logo{width:38mm;height:38mm;object-fit:contain;flex:none}.recipient-band{display:flex;justify-content:space-between;align-items:flex-start;gap:10mm;margin-top:8mm}
+    .logo{width:38mm;height:38mm;object-fit:cover;object-position:center;border-radius:50%;flex:none}.recipient-band{display:flex;justify-content:space-between;align-items:flex-start;gap:10mm;margin-top:8mm}
     .recipient{max-width:120mm;overflow-wrap:anywhere}.recipient-name{color:#59b498;font-weight:700}.recipient-tax{margin-top:2mm}
     .date{color:#59b498;white-space:nowrap;direction:rtl;padding-top:1mm}.title-block{text-align:center;margin:16mm auto 0;break-inside:avoid}
     h1{font-size:25pt;line-height:1.3;margin:0;font-weight:700;overflow-wrap:anywhere}.underline{display:inline-block;border-bottom:1.3pt solid #59b498;padding-bottom:3mm;max-width:100%}

@@ -92,7 +92,9 @@ import {
       .image-editor img {
         width: 96px;
         height: 96px;
-        object-fit: contain;
+        object-fit: cover;
+        object-position: center;
+        border-radius: 50%;
       }
       .image-editor img.profile {
         border-radius: 50%;

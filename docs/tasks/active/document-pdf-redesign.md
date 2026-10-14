@@ -65,3 +65,8 @@ Port correction: reset local .env PORT to 3001 (observed 3000) and removed start
 
 Header avatar spans greeting/last-login rows only, with actions below. Image editor placeholder text is centered, padded, constrained and wrapped. Desktop preview opens synchronously on user action and uses a Blob URL (released on pagehide), avoiding delayed-popup blocking and large data URLs; blocked popups use the existing in-app viewer. Preview failure closes the reserved popup. Business logos retain original aspect ratio without circular crop.
 Verification: TypeScript and Angular template compilation (--noEmit), SCSS compilation and git diff --check passed. Isolated execution of the actual FilesService checked a 4MB PDF uses a Blob URL, reserved popup reuse, URL release on pagehide and no render for a closed popup. Live uploaded-logo preview and visual acceptance in the user browser remain to confirm; supplied backend log showed no PDF exception. No backend/schema/accounting changes.
+
+## Circular business logo
+
+User explicitly requested circular logo cropping, superseding the original-aspect-ratio presentation preference. Settings preview and new PDFs now center-crop the logo with object-fit: cover and a circular mask. Uploaded originals and already-issued PDFs are unchanged. Presentation-only change; no schema or accounting changes.
+Verification: five existing PDF template tests passed; image-editor style compilation and git diff --check passed. No executable TypeScript changed; full app builds were not repeated for this CSS-only update.
