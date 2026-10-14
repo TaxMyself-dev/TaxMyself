@@ -58,3 +58,5 @@ Verification: port settings and development serve configuration checked; git dif
 
 Removed duplicate DocumentsService provider from AppModule; the imported DocumentsModule owns and exports the service with its renderer/signer dependencies. This fixes the reported AppModule resolution failure without duplicating PDF providers. No database or accounting changes.
 Verification: Nest build and 17 PDF-routing tests passed. Module registrations reviewed: DocumentsModule owns DocumentsService and exports it; AppModule imports it without recreating the provider. Full application restart remains to be verified by the running development session.
+
+Port correction: reset local .env PORT to 3001 (observed 3000) and removed start:billing hardcoded override; launcher now respects configured PORT, retaining 3000 only as fallback. Dry-run intercepted child spawn and verified PORT=3001 without app/DB startup.
