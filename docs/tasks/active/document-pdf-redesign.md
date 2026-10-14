@@ -50,3 +50,6 @@ Integrated worker commits on `codex/document-pdf-redesign`: `505dfe1b`, `1712153
 User requested fixed signing template `3IfhJjgmAp` in code and removal of rendering/validation/browser configuration switches. Only the API token remains external. Removed legacy provider layout generation; previews always render locally and issuance always renders then signs. Chromium is auto-detected. No DB or frontend changes.
 
 Verification: four PDF Jest suites passed 28/28; Nest build passed. Standalone Chrome auto-detection produced logo/no-logo receipts and a multi-page invoice without PDF configuration variables (local browser connection required sandbox escalation). No schema, accounting, frontend or provider-contract changes. API token remains secret configuration.
+
+Local worktree run configuration: backend ignored .env uses PORT=3001; frontend local and mobile environments target port 3001. Hosted development/production endpoints unchanged.
+Verification: port settings and development serve configuration checked; git diff --check passed. Angular development build did not complete in the local sandbox (no progress after bundle setup); no successful build claimed for this configuration-only change.

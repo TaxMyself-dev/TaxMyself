@@ -5,7 +5,7 @@
 export const environment = {
   production: false,
   enableDevTools: true,
-  apiUrl: `http://${window.location.hostname}:3000/`,
+  apiUrl: `http://${window.location.hostname}:3001/`,
   firebase: {
     apiKey: "AIzaSyClSnN3fRAb9aQVt2kMEkLygsNExwQD7fo",
     authDomain: "taxmyself-5d8a0.firebaseapp.com",
