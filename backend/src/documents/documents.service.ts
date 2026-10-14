@@ -1,6 +1,5 @@
 import { forwardRef, Inject, Injectable, HttpException, HttpStatus, Logger, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import axios, { AxiosInstance } from 'axios';
 import { EntityManager, Repository, In, Not, IsNull } from 'typeorm';
 import { SettingDocuments } from './settingDocuments.entity';
 import { Documents } from './documents.entity';
@@ -19,7 +18,6 @@ import * as admin from 'firebase-admin';
 import { createHash, randomUUID } from 'crypto';
 import { ImportedDocument } from 'src/document-import/entities/imported-document.entity';
 import { DocumentImportSource } from 'src/document-import/enums/document-import.enums';
-import * as fs from 'fs';
 import * as path from 'path';
 import { CreateDocDto } from './dtos/create-doc.dto';
 import { BusinessService } from 'src/business/business.service';
@@ -162,7 +160,6 @@ export class DocumentsService {
   private activeInboxOcr = 0;
   private readonly inboxOcrWaiters: Array<() => void> = [];
 
-  private readonly apiClient: AxiosInstance;
   sessionID: string;
 
   constructor(
@@ -665,201 +662,13 @@ export class DocumentsService {
   }
 
   async generatePDF(data: any, templateType: string, isCopy: boolean = false): Promise<Blob> {
-
+    if (!['previewDoc', 'createDoc'].includes(templateType)) {
+      throw new BadRequestException('Unknown document operation');
+    }
     const preview = templateType === 'previewDoc';
-    const mode = preview ? (process.env.DOCUMENT_PDF_PREVIEW_RENDERER ?? process.env.DOCUMENT_PDF_RENDERER) : process.env.DOCUMENT_PDF_RENDERER;
-    if (mode === 'local') {
-      if (!['previewDoc', 'createDoc'].includes(templateType)) throw new BadRequestException('Unknown document operation');
-      if (!preview && process.env.DOCUMENT_PDF_LOCAL_SIGNING_VALIDATED !== 'true') {
-        throw new HttpException('Local document signing must be validated before enabling issuance.', HttpStatus.SERVICE_UNAVAILABLE);
-      }
-      const pdf = await this.generateLocalPdf(data, preview, isCopy);
-      return (preview ? pdf : await this.fillFasterSigner.sign(pdf)) as unknown as Blob;
-    }
-
-    const isProduction = process.env.NODE_ENV === 'production';
-
-    console.log("data is ", data);
-
-
-    // FID mapping based on environment and document type
-    const fidMap = {
-      // Production FIDs
-      prod: {
-        receipt: 'EaHjg6fsRL',
-        // invoice: 'AKmqQkevbM',           // TAX_INVOICE, TRANSACTION_INVOICE, CREDIT_INVOICE
-        invoice: 'TrBvfW6p6P'
-      },
-      // Development FIDs
-      dev: {
-        receipt: '95gqltPdeC',          // RECEIPT, TAX_INVOICE_RECEIPT (with payments)
-        invoice: 'zjnzfjd1K3',           // TAX_INVOICE, TRANSACTION_INVOICE, CREDIT_INVOICE (no payments)
-      }
-    };
-
-    let fid: string;
-    let prefill_data: any;
-
-    const url = 'https://api.fillfaster.com/v1/generatePDF';
-    const token = process.env.FILLFASTER_API_TOKEN;
-    if (!token) throw new HttpException('FillFaster API token is missing.', HttpStatus.SERVICE_UNAVAILABLE);
-    const docType = data.docData.docType;
-
-    // Read draft image and convert to base64 only for previewDoc
-    let draftImageBase64: string | null = null;
-    if (templateType === 'previewDoc') {
-      try {
-        const draftImagePath = path.resolve(__dirname, '..', 'assets', 'draft.jpeg');
-        // const draftImagePath = path.join(__dirname, '..', '..', 'src', 'assets', 'draft.jpeg');
-        const imageBuffer = fs.readFileSync(draftImagePath);
-        draftImageBase64 = `data:image/jpeg;base64,${imageBuffer.toString('base64')}`;
-      } catch (error) {
-        console.error('❌ Error reading draft image:', error);
-      }
-    }
-
-    switch (templateType) {
-      case 'createDoc':
-      case 'previewDoc':
-        const envFids = isProduction ? fidMap.prod : fidMap.dev;
-        if (['RECEIPT', 'TAX_INVOICE_RECEIPT'].includes(docType)) {
-          fid = envFids.receipt;
-        } else if (['TAX_INVOICE', 'TRANSACTION_INVOICE', 'CREDIT_INVOICE', 'PRICE_QUOTE', 'WORK_ORDER'].includes(docType)) {
-          // PRICE_QUOTE and WORK_ORDER share the invoice template — same
-          // layout, no payment section.
-          fid = envFids.invoice;
-        } else {
-          fid = 'UNKNOWN FID';
-        }
-
-        const hebrewNameDoc = data.docData.docType === DocumentType.RECEIPT ? 'קבלה' :
-          data.docData.docType === DocumentType.TAX_INVOICE ? 'חשבונית מס' :
-            data.docData.docType === DocumentType.TAX_INVOICE_RECEIPT ? 'חשבונית מס קבלה' :
-              data.docData.docType === DocumentType.TRANSACTION_INVOICE ? 'חשבון עסקה' :
-                data.docData.docType === DocumentType.CREDIT_INVOICE ? 'חשבונית זיכוי' :
-                  data.docData.docType === DocumentType.PRICE_QUOTE ? 'הצעת מחיר' :
-                    data.docData.docType === DocumentType.WORK_ORDER ? 'הזמנת עבודה' : '';
-        prefill_data = {
-          recipientName: data.docData.recipientName,
-          recipientTaxNumber: data.docData.recipientId ? `מ.ע. / ח.פ.:  ${data.docData.recipientId}` : null,
-          docTitle: `${hebrewNameDoc} מספר ${data.docData.docNumber}`,
-          docSubtitle: data.docData.docSubtitle ?? null,
-          allocationNum: data.docData.allocationNum ? `מספר הקצאה: ${data.docData.allocationNum}` : null,
-          docDate: this.formatDateToDDMMYYYY(data.docData.docDate),
-          issuerName: data.docData.issuerName ? `שם העסק: ${data.docData.issuerName}` : null,
-          issuerDetails: [
-            data.docData.issuerBusinessNumber ? `מ.ע. / ח.פ.:  ${data.docData.issuerBusinessNumber}` : null,
-            data.docData.issuerPhone ? `טלפון:  ${data.docData.issuerPhone}` : null,
-            data.docData.issuerEmail ? `כתובת מייל:  ${data.docData.issuerEmail}` : null,
-            data.docData.issuerAddress ? `כתובת:  ${data.docData.issuerAddress}` : null,
-          ].filter(Boolean).join('\n'),
-          items_table: await this.transformLinesToItemsTable(data.linesData),
-          sumTable: await this.transformSumsToSumTable(data.docData, data.docData.issuerBusinessNumber),
-          documentType: isCopy ? 'העתק נאמן למקור' : 'מקור',
-          paymentMethod: data.docData.paymentMethod,
-          draft_image: templateType === 'previewDoc' ? draftImageBase64 : null
-        };
-
-        // Add VAT-related fields only for non-receipts
-        const isReceipt = docType === 'RECEIPT';
-        if (!isReceipt) {
-          prefill_data.vatableAmountLabel = 'חייב במע"מ';
-          prefill_data.vatableAmount = `${data.docData.sumAftDisBefVAT - data.docData.sumWithoutVat} ש"ח`;
-          prefill_data.vatLabel = 'מע"מ';
-          prefill_data.vat = `${data.docData.vatSum} ש"ח`;
-        }
-
-        if (data.paymentData && data.paymentData.length > 0) {
-          prefill_data.payments_table = await this.transformLinesToPaymentsTable(data.paymentData);
-          prefill_data.sumPaymentsTable = await this.transformPaymentsToSumTable(data.paymentData, data.docData);
-        }
-
-
-        break;
-
-
-      default:
-        throw new Error(`Unknown template type: ${templateType}`);
-    }
-
-    const payload = {
-      fid,
-      digitallySign: templateType === 'createDoc',
-      prefill_data,
-    };
-
-    // TEMP DEBUG — remove once the period-end rendering bug is root-caused.
-    if (Array.isArray(prefill_data?.items_table)) {
-      console.log(
-        '[TEMP DEBUG][generatePDF] items_table פירוט values sent to FillFaster:',
-        JSON.stringify(prefill_data.items_table.map((row: any) => row['פירוט'])),
-      );
-    }
-    console.log('[TEMP DEBUG][generatePDF] full payload sent to FillFaster:', JSON.stringify(payload));
-
-    const headers = {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    };
-
-    try {
-
-      const response = await axios.post<Blob>(url, payload, {
-        headers,
-        responseType: 'arraybuffer',
-      });
-
-      if (!response.data) {
-        throw new Error('Failed to generate PDF');
-      }
-
-      return response.data;
-    } catch (error: any) {
-      console.error('❌ FillFaster API Error:');
-      console.error('   Status:', error.response?.status);
-      console.error('   Status Text:', error.response?.statusText);
-      console.error('   URL:', url);
-      console.error('   FID:', fid);
-
-      // Try to parse error response body
-      if (error.response?.data) {
-        try {
-          // Try to parse as JSON first
-          const errorText = Buffer.from(error.response.data).toString('utf-8');
-          console.error('   Error Response Body:', errorText);
-
-          try {
-            const errorJson = JSON.parse(errorText);
-            console.error('   Parsed Error JSON:', JSON.stringify(errorJson, null, 2));
-          } catch (parseError) {
-            // Not JSON, just log as text
-            console.error('   Error Response (text):', errorText);
-          }
-        } catch (bufferError) {
-          console.error('   Could not parse error response body');
-        }
-      }
-
-      // Log the payload that was sent (but truncate large fields)
-      const payloadForLog = {
-        ...payload,
-        prefill_data: {
-          ...prefill_data,
-          items_table: prefill_data.items_table ? `[${Array.isArray(prefill_data.items_table) ? prefill_data.items_table.length : 'N/A'} items]` : null,
-          payments_table: prefill_data.payments_table ? `[${Array.isArray(prefill_data.payments_table) ? prefill_data.payments_table.length : 'N/A'} items]` : null,
-          sumTable: prefill_data.sumTable ? `[${Array.isArray(prefill_data.sumTable) ? prefill_data.sumTable.length : 'N/A'} items]` : null,
-          draft_image: prefill_data.draft_image ? `[base64 image ${prefill_data.draft_image.length} chars]` : null,
-        }
-      };
-      console.error('   Payload sent:', JSON.stringify(payloadForLog, null, 2));
-
-      throw new HttpException(
-        `FillFaster API error: ${error.response?.status || 'Unknown'} - ${error.response?.statusText || error.message}`,
-        error.response?.status || HttpStatus.INTERNAL_SERVER_ERROR
-      );
-    }
+    const pdf = await this.generateLocalPdf(data, preview, isCopy);
+    return (preview ? pdf : await this.fillFasterSigner.sign(pdf)) as unknown as Blob;
   }
-
 
   /**
    * Format a number with commas as thousand separators and 2 decimal places

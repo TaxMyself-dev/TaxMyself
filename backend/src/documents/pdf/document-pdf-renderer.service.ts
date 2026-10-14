@@ -27,7 +27,6 @@ export class DocumentPdfRenderer {
 
   private executable(): string {
     const paths = [
-      process.env.PDF_CHROMIUM_EXECUTABLE_PATH,
       '/usr/bin/chromium',
       '/usr/bin/chromium-browser',
       'C:/Program Files/Google/Chrome/Application/chrome.exe',
@@ -38,7 +37,7 @@ export class DocumentPdfRenderer {
     );
     if (!executable)
       throw new ServiceUnavailableException(
-        'PDF renderer requires Chromium. Set PDF_CHROMIUM_EXECUTABLE_PATH.',
+        'PDF renderer requires an installed Chromium, Chrome or Edge browser.',
       );
     return executable;
   }
@@ -62,7 +61,8 @@ export class DocumentPdfRenderer {
         timeout: 30000,
         args: [
           '--disable-dev-shm-usage',
-          ...(process.env.PDF_CHROMIUM_NO_SANDBOX === 'true'
+          // Use launch settings compatible with Windows and Docker containers.
+          ...(process.platform === 'win32' || existsSync('/.dockerenv')
             ? ['--no-sandbox']
             : []),
         ],

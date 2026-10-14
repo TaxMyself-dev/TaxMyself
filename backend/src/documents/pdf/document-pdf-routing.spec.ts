@@ -2,11 +2,8 @@ import { DocumentsService } from '../documents.service';
 import { DocumentType } from '../../enum';
 
 describe('local PDF document routing', () => {
-  const env = { ...process.env };
   let service: any;
   beforeEach(() => {
-    process.env.DOCUMENT_PDF_RENDERER = 'local';
-    process.env.DOCUMENT_PDF_LOCAL_SIGNING_VALIDATED = 'true';
     service = Object.create(DocumentsService.prototype);
     service.documentPdfRenderer = {
       render: jest.fn().mockResolvedValue(Buffer.from('%PDF-local')),
@@ -34,9 +31,6 @@ describe('local PDF document routing', () => {
     service.transformSumsToSumTable = jest.fn().mockResolvedValue([]);
     service.transformPaymentsToSumTable = jest.fn().mockResolvedValue([]);
     service.formatDateToDDMMYYYY = () => '12-10-2026';
-  });
-  afterEach(() => {
-    process.env = { ...env };
   });
   const data = (docType = DocumentType.RECEIPT) => ({
     docData: {
@@ -68,7 +62,6 @@ describe('local PDF document routing', () => {
     expect(service.fillFasterSigner.sign).toHaveBeenCalledTimes(1);
   });
   it('previews locally without signing and resolves current issuer identity', async () => {
-    delete process.env.DOCUMENT_PDF_LOCAL_SIGNING_VALIDATED;
     await service.generatePDF(data(), 'previewDoc');
     expect(service.fillFasterSigner.sign).not.toHaveBeenCalled();
     expect(service.documentPdfRenderer.render).toHaveBeenCalledWith(
@@ -82,7 +75,7 @@ describe('local PDF document routing', () => {
       }),
     );
   });
-  it('preserves copy label and blocks issuance before explicit signing validation', async () => {
+  it('preserves copy label', async () => {
     await service.generatePDF(data(), 'createDoc', true);
     expect(service.documentPdfRenderer.render).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -90,10 +83,13 @@ describe('local PDF document routing', () => {
         preview: false,
       }),
     );
-    process.env.DOCUMENT_PDF_LOCAL_SIGNING_VALIDATED = 'false';
-    await expect(service.generatePDF(data(), 'createDoc')).rejects.toThrow(
-      'validated',
+  });
+  it('rejects unsupported operations before rendering or signing', async () => {
+    await expect(service.generatePDF(data(), 'unknown')).rejects.toThrow(
+      'Unknown document operation',
     );
+    expect(service.documentPdfRenderer.render).not.toHaveBeenCalled();
+    expect(service.fillFasterSigner.sign).not.toHaveBeenCalled();
   });
   it('propagates signing failure without returning the unsigned document', async () => {
     service.fillFasterSigner.sign.mockRejectedValue(

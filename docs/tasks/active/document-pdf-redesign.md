@@ -11,7 +11,7 @@ Locally rendered Hebrew documents match the approved spacious receipt mockup (lo
 
 ## Acceptance criteria
 
-- [x] Local PDF preview and configurable local-render/sign issuance retain existing accounting and document lifecycle behavior (tests; live clean-template gate pending).
+- [x] Local PDF preview and mandatory local-render/sign issuance retain existing accounting and document lifecycle behavior (focused tests and verified clean-template probes).
 - [x] All supported document types, copy/original, optional subtitle/note/allocation, multi-page tables and Hebrew render correctly.
 - [x] Owner-scoped validated image upload endpoints and persistent image references; existing delegation rules preserved (mocked DB/storage tests).
 - [x] Settings image upload UI and profile avatars use shared image control.
@@ -20,7 +20,7 @@ Locally rendered Hebrew documents match the approved spacious receipt mockup (lo
 
 ## Scope and constraints
 
-User explicitly approved implementation plan including image persistence/schema and new existing-provider request shape. On 2026-10-14 the user clarified current branding at PDF generation, rejected the issuer snapshot, and explicitly authorized applying the two image-column statements to the development database. Do not change accounting, auth guards, AI-chat branches, production credentials or external templates. Do not merge/push main in this task; user requested an isolated branch. Keep legacy renderer selectable.
+User explicitly approved implementation plan including image persistence/schema and new existing-provider request shape. On 2026-10-14 the user clarified current branding at PDF generation, rejected the issuer snapshot, and explicitly authorized applying the two image-column statements to the development database. Do not change accounting, auth guards, AI-chat branches, production credentials or external templates. Do not merge/push main in this task; user requested an isolated branch. Use only the new renderer; user explicitly requested removing the old route and rollout switches.
 
 Workers: `codex/document-image-backend` (backend assets/business/user; own schema SQL) and `codex/document-image-frontend` (frontend settings/avatar; no backend changes). Manager owns documents renderer/signing integration and combined review. Each worker has its own isolated worktree at recorded base; no shared dependencies or governance edits.
 
@@ -35,7 +35,7 @@ Integrated worker commits on `codex/document-pdf-redesign`: `505dfe1b`, `1712153
 - Visual fixtures: logo/no-logo one-page receipts and 55-row/four-page invoice rendered and inspected, including repeated table headers and final totals.
 - Real provider development probe: CMS content digest/RSA signature passed independent verification; issuer certificate validity recorded. Trust chain/revocation not assessed. Visual acceptance failed because old template overlays remain; nine existing account templates contain no clean signature-only template.
 - Originally prepared only: schema SQL and guarded cutover appendix. On 2026-10-14 the snapshot proposal was removed and only `business.logoPath` / `user.profileImagePath` were added to verified `keepintax-dev` at the user's request, each VARCHAR(255), nullable, default NULL. No snapshot column existed or was added. No production service, provider template or credential changed.
-- Provider gate resolved: user supplied `3IfhJjgmAp` with optional empty `placeholder`. One-/four-page signatures passed independent CMS verification; page counts unchanged, all four invoice raster pages identical to inputs. One-page receipt visually unchanged. Example environment records the verified fid and enables local rendering/signing in development after schema application; runtime defaults/production config remain unchanged.
+- Provider gate resolved: user supplied `3IfhJjgmAp` with optional empty `placeholder`. One-/four-page signatures passed independent CMS verification; page counts unchanged, all four invoice raster pages identical to inputs. One-page receipt visually unchanged. Subsequent user approval made this verified fid a code constant and local rendering/signing the only issuance route.
 - Pending: live authenticated storage/browser integration checks and environment configuration. No main merge or deployment. Database image-column application completed on 2026-10-14; current-branding/unchanged stored-PDF regression tests added.
 
 ## 2026-10-14 current-branding correction
@@ -44,3 +44,9 @@ Integrated worker commits on `codex/document-pdf-redesign`: `505dfe1b`, `1712153
 - Current business identity and logo are loaded at PDF generation; explicit system billing identity is preserved. Existing stored PDFs are not regenerated merely because branding changed.
 - Verified `keepintax-dev` from configured local development connection, added the two missing columns, then re-read information_schema: both VARCHAR(255), nullable YES, default NULL. No issuer snapshot column existed; documents schema was unchanged. No Nest bootstrap, seeds, other cutover statements or production connection.
 - Verification: four affected backend suites passed 29 tests; after adding the stored-PDF regression, the final PDF-routing suite passed 16/16. Nest build exit 0. No frontend code changed.
+
+## 2026-10-14 new renderer only
+
+User requested fixed signing template `3IfhJjgmAp` in code and removal of rendering/validation/browser configuration switches. Only the API token remains external. Removed legacy provider layout generation; previews always render locally and issuance always renders then signs. Chromium is auto-detected. No DB or frontend changes.
+
+Verification: four PDF Jest suites passed 28/28; Nest build passed. Standalone Chrome auto-detection produced logo/no-logo receipts and a multi-page invoice without PDF configuration variables (local browser connection required sandbox escalation). No schema, accounting, frontend or provider-contract changes. API token remains secret configuration.

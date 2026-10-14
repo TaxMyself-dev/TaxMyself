@@ -21,7 +21,6 @@ describe('FillFaster signer', () => {
   });
   it('requires configuration without making a request', async () => {
     delete process.env.FILLFASTER_API_TOKEN;
-    delete process.env.FILLFASTER_BASE_PDF_FID;
     await expect(
       new FillFasterSigner().sign(Buffer.from('%PDF-')),
     ).rejects.toThrow('configuration');
@@ -29,7 +28,6 @@ describe('FillFaster signer', () => {
   });
   it('sends a prepared PDF and rejects unsigned provider output without exposing credentials', async () => {
     process.env.FILLFASTER_API_TOKEN = 'test-secret';
-    process.env.FILLFASTER_BASE_PDF_FID = 'test-template';
     (axios.post as jest.Mock).mockResolvedValue({
       data: Buffer.from('%PDF-1.7 unsigned'),
     });
@@ -39,7 +37,7 @@ describe('FillFaster signer', () => {
     expect(axios.post).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({
-        fid: 'test-template',
+        fid: '3IfhJjgmAp',
         prefill_data: {},
         digitallySign: true,
         basePdf: expect.stringMatching(/^data:application\/pdf;base64,/),

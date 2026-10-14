@@ -1,6 +1,8 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import axios from 'axios';
 
+export const FILLFASTER_SIGNING_TEMPLATE_ID = '3IfhJjgmAp';
+
 // This validates the PDF signature envelope, not certificate trust. Independent
 // cryptographic validation and account/template acceptance are release gates.
 export function hasCompletePdfSignature(pdf: Buffer): boolean {
@@ -31,8 +33,7 @@ export function hasCompletePdfSignature(pdf: Buffer): boolean {
 export class FillFasterSigner {
   async sign(pdf: Buffer): Promise<Buffer> {
     const token = process.env.FILLFASTER_API_TOKEN;
-    const fid = process.env.FILLFASTER_BASE_PDF_FID;
-    if (!token || !fid)
+    if (!token)
       throw new ServiceUnavailableException(
         'FillFaster signing configuration is missing.',
       );
@@ -40,7 +41,7 @@ export class FillFasterSigner {
       const response = await axios.post(
         'https://api.fillfaster.com/v1/generatePDF',
         {
-          fid,
+          fid: FILLFASTER_SIGNING_TEMPLATE_ID,
           prefill_data: {},
           basePdf: `data:application/pdf;base64,${pdf.toString('base64')}`,
           digitallySign: true,

@@ -6,15 +6,9 @@ Approved reference: `receipt-logo-left-spacious.png`, produced in the document r
 
 Local HTML/CSS -> Chromium PDF -> FillFaster digital signature -> existing Firebase original/copy storage lifecycle. Existing document transforms remain the source of monetary values. The new renderer covers receipt, tax invoice, tax invoice-receipt, transaction invoice, credit invoice, quote and work order, with draft watermark, repeat table headings, optional notes/allocation, payment details and footer pagination.
 
-Install backend dependencies with npm. Docker installs Chromium. Outside Docker set `PDF_CHROMIUM_EXECUTABLE_PATH`; Chrome/Edge standard Windows paths are also recognized. Fonts are bundled in `backend/src/assets/document-fonts` and copied by Nest to `dist/assets`. No font/image/network fetches are allowed from HTML.
+Install backend dependencies with npm. Docker installs Chromium; standard Chromium/Chrome/Edge paths are detected automatically. Fonts are bundled and copied by Nest. JavaScript and external/file requests are blocked. Windows and Docker containers launch without the Linux Chromium sandbox.
 
-Copy the variable names from `backend/.env.document-pdf.example` into the deployment's existing secret/configuration management, not source control. The existing provider token must now be supplied as `FILLFASTER_API_TOKEN`; no credential has been rotated or changed externally.
-
-- `DOCUMENT_PDF_PREVIEW_RENDERER=local`: local unsigned draft previews.
-- `DOCUMENT_PDF_RENDERER=legacy`: preserve existing signed issuance while provider template is prepared.
-- `DOCUMENT_PDF_RENDERER=local` + `DOCUMENT_PDF_LOCAL_SIGNING_VALIDATED=true`: use local rendering for issuance only after signing/visual gates below pass.
-- `FILLFASTER_BASE_PDF_FID`: dedicated clean provider template. Reusing an existing invoice template overlays its old headers/tables, even with empty prefill data.
-- `PDF_CHROMIUM_NO_SANDBOX=false`: default. Only set true explicitly on hosts unable to run Chromium sandbox; rendering still disables JavaScript and blocks external/file requests.
+Only `FILLFASTER_API_TOKEN` must be supplied through secret configuration (see `backend/.env.document-pdf.example`). The verified clean signing template `3IfhJjgmAp` is fixed in code. All previews render locally without signing; all issued documents render locally then go to FillFaster for signing. Legacy template generation and rollout switches have been removed at the user's request.
 
 ## Persistent image ownership
 
@@ -32,15 +26,15 @@ At the user's explicit instruction, the existing credential was used in-memory w
 
 Initial visual check FAILED template isolation: provider stamped its badge and old receipt text/tables over the supplied PDF. Nine account templates were inspected; none was a clean signing template. At that stage local signed issuance remained disabled. A successful HTTP response or signature envelope alone does not satisfy the rollout gate.
 
-The user subsequently created template `3IfhJjgmAp` with one optional empty text field named `placeholder` (the editor refuses zero-field templates). Both one-page receipt and four-page invoice probes succeeded with `prefill_data: {}`. Independent CMS content-digest/RSA signature verification passed for both. Page counts stayed 1/4; all four invoice pages were rasterized at 900px and compared pixel-for-pixel with their unsigned inputs, with no differences. One-page receipt was also visually inspected with no overlays. The placeholder and provider badge did not appear. The signing/template gate is satisfied; the example environment now records this fid and enables local signing for development after the reviewed schema is applied. Runtime defaults and existing production configuration were not changed.
+The user subsequently created template `3IfhJjgmAp` with one optional empty text field named `placeholder` (the editor refuses zero-field templates). Both one-page receipt and four-page invoice probes succeeded with `prefill_data: {}`. Independent CMS content-digest/RSA signature verification passed for both. Page counts stayed 1/4; all four invoice pages were rasterized at 900px and compared pixel-for-pixel with their unsigned inputs, with no differences. One-page receipt was also visually inspected with no overlays. The placeholder and provider badge did not appear. The signing/template gate is satisfied. After subsequent user approval, this fid is fixed in code and local rendering/signing is the only issuance route.
 
 ## Verification and rollout
 
 1. Apply reviewed schema only to an authorized development database; do not bootstrap against production or an unguarded production copy.
-2. Set existing token through environment configuration and local preview renderer, leave legacy issuance.
+2. Set the existing token through secret environment configuration; no renderer switches are required.
 3. Verify uploads/replace/remove on real authorized development Firebase storage; test ownership/delegation and profile context changes.
 4. Completed: clean template `3IfhJjgmAp` passed one-page/multi-page signing and visual probes. Keep the placeholder optional and empty; do not add visible labels/tables to this template. Certificate trust/revocation policy remains a deployment review item.
-5. Enable local issuance in development; exercise original/copy and pending allocation finalization, signing failure rollback and current logo replacement/removal before PDF generation.
+5. Run the branch in development; exercise original/copy and pending allocation finalization, signing failure rollback and current logo replacement/removal before PDF generation.
 6. Release only after acceptance; production deployment is separate.
 
 Standalone sample command: from `backend`, `node -r ts-node/register scripts/render-document-samples.ts <output-directory>`. It does not call a provider or database. Visual QA covers logo/no-logo, mixed Hebrew/English and a 55-row four-page invoice.

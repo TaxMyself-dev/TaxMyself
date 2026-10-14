@@ -5,7 +5,6 @@
 FROM node:18-alpine As development
 
 RUN apk add --no-cache chromium
-ENV PDF_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium
 
 # Create app directory
 WORKDIR /usr/src/app
@@ -57,7 +56,6 @@ USER node
 FROM node:18-alpine As production
 
 RUN apk add --no-cache chromium
-ENV PDF_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium
 
 WORKDIR /usr/src/app
 
