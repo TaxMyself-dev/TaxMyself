@@ -103,6 +103,14 @@ import {
         place-items: center;
         width: 64px;
         height: 64px;
+        flex: 0 0 64px;
+        box-sizing: border-box;
+        padding: 8px;
+        text-align: center;
+        white-space: normal;
+        overflow-wrap: anywhere;
+        font-size: 14px;
+        line-height: 1.25;
         background: #edf2f0;
         border-radius: 50%;
         color: #526660;
@@ -117,6 +125,12 @@ import {
       p {
         font-size: 12px;
         margin: 5px 0;
+      }
+      :host-context(.my-account-avatar) .image-editor {
+        margin: 0;
+      }
+      :host-context(.my-account-avatar) .placeholder {
+        font-size: 24px;
       }
       :host-context(.my-account-avatar) img {
         width: 64px;

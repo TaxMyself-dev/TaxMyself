@@ -60,3 +60,8 @@ Removed duplicate DocumentsService provider from AppModule; the imported Documen
 Verification: Nest build and 17 PDF-routing tests passed. Module registrations reviewed: DocumentsModule owns DocumentsService and exports it; AppModule imports it without recreating the provider. Full application restart remains to be verified by the running development session.
 
 Port correction: reset local .env PORT to 3001 (observed 3000) and removed start:billing hardcoded override; launcher now respects configured PORT, retaining 3000 only as fallback. Dry-run intercepted child spawn and verified PORT=3001 without app/DB startup.
+
+## Avatar and PDF preview fixes
+
+Header avatar spans greeting/last-login rows only, with actions below. Image editor placeholder text is centered, padded, constrained and wrapped. Desktop preview opens synchronously on user action and uses a Blob URL (released on pagehide), avoiding delayed-popup blocking and large data URLs; blocked popups use the existing in-app viewer. Preview failure closes the reserved popup. Business logos retain original aspect ratio without circular crop.
+Verification: TypeScript and Angular template compilation (--noEmit), SCSS compilation and git diff --check passed. Isolated execution of the actual FilesService checked a 4MB PDF uses a Blob URL, reserved popup reuse, URL release on pagehide and no render for a closed popup. Live uploaded-logo preview and visual acceptance in the user browser remain to confirm; supplied backend log showed no PDF exception. No backend/schema/accounting changes.

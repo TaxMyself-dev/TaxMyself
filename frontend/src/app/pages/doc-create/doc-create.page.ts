@@ -818,6 +818,9 @@ export class DocCreatePage implements OnInit, OnDestroy {
 
 
   previewDoc(): void {
+    const previewWindow = this.usesInAppPdfPreview()
+      ? null
+      : window.open('', '_blank', 'width=800,height=600');
     // Store original allocation number if exists
     const originalAllocationNumber = this.allocationNumber();
 
@@ -839,6 +842,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
         catchError((err) => {
           // Restore original allocation number even on error
           this.allocationNumber.set(originalAllocationNumber);
+          previewWindow?.close();
           console.error("Error in createPDF (Preview):", err);
           // Log the error message if it's a string
           if (err.message) {
@@ -853,7 +857,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
       )
       .subscribe((res) => {
         console.log("PDF creation result (Preview):", res);
-        if (this.usesInAppPdfPreview()) {
+        if (this.usesInAppPdfPreview() || !previewWindow) {
           // Mobile / installed PWA: render the PDF inside the app. Chrome on
           // Android never displays an embedded PDF inline, and window.open()
           // would leave the app shell entirely.
@@ -861,7 +865,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
           this.pdfPreviewVisible.set(true);
         } else {
           // Desktop browser: unchanged behaviour.
-          this.fileService.previewFile3(res);
+          this.fileService.previewFile3(res, previewWindow);
         }
       });
   }

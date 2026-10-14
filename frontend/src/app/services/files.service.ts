@@ -302,13 +302,11 @@ export class FilesService {
   }
 
 
-  previewFile3(blob: Blob): void {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const base64data = reader.result as string;
-
-      const popup = window.open('', '_blank', 'width=800,height=600');
-      if (!popup) return;
+  previewFile3(blob: Blob, previewWindow?: Window): void {
+      const popup = previewWindow ?? window.open('', '_blank', 'width=800,height=600');
+      if (!popup || popup.closed) return;
+      const pdfUrl = URL.createObjectURL(blob);
+      popup.addEventListener('pagehide', () => URL.revokeObjectURL(pdfUrl), { once: true });
 
       popup.document.write(`
       <html dir="rtl">
@@ -340,13 +338,11 @@ export class FilesService {
             <span>תצוגה מקדימה</span>
             <button onclick="window.close()">סגור</button>
           </div>
-          <iframe src="${base64data}"></iframe>
+          <iframe src="${pdfUrl}"></iframe>
         </body>
       </html>
     `);
-    };
-
-    reader.readAsDataURL(blob); // this triggers reader.onloadend
+    popup.document.close();
   }
 
 
