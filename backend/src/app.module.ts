@@ -83,7 +83,6 @@ import { MailModule } from './mail/mail.module';
 import { MailService } from './mail/mail.service';
 import { SettingDocuments } from './documents/settingDocuments.entity';
 import { DocumentsModule } from './documents/documents.module';
-import { DocumentsService } from './documents/documents.service';
 import { ClientsService } from './clients/clients.service';
 import { JournalEntry } from './bookkeeping/jouranl-entry.entity';
 import { JournalLine } from './bookkeeping/jouranl-line.entity';
@@ -218,7 +217,7 @@ new Logger('Bootstrap').log(
     ScheduleModule.forRoot(),
     HttpModule, UsersModule, ReportsModule, ExpensesModule, TransactionsModule, BusinessModule, SharedModule, MailModule, DelegationModule, DocumentsModule, ClientsModule, BookkeepingModule, FeezbackModule, ShaamModule, FeezbackWebhookModule, AccountantTasksModule, AnnualReportModule, ReportWorkflowModule, NotificationsModule, DemoDataModule, GoogleDriveModule, BillingModule, IntegrationsModule, DocumentImportModule, InboundEmailModule, DepreciationModule],
   controllers: [AppController],
-  providers: [AppService, MailService, DocumentsService, ClientsService, BookkeepingService, BusinessService],
+  providers: [AppService, MailService, ClientsService, BookkeepingService, BusinessService],
 })
 export class AppModule {
 

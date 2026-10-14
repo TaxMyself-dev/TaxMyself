@@ -53,3 +53,8 @@ Verification: four PDF Jest suites passed 28/28; Nest build passed. Standalone C
 
 Local worktree run configuration: backend ignored .env uses PORT=3001; frontend local and mobile environments target port 3001. Hosted development/production endpoints unchanged.
 Verification: port settings and development serve configuration checked; git diff --check passed. Angular development build did not complete in the local sandbox (no progress after bundle setup); no successful build claimed for this configuration-only change.
+
+## Startup dependency injection correction
+
+Removed duplicate DocumentsService provider from AppModule; the imported DocumentsModule owns and exports the service with its renderer/signer dependencies. This fixes the reported AppModule resolution failure without duplicating PDF providers. No database or accounting changes.
+Verification: Nest build and 17 PDF-routing tests passed. Module registrations reviewed: DocumentsModule owns DocumentsService and exports it; AppModule imports it without recreating the provider. Full application restart remains to be verified by the running development session.
