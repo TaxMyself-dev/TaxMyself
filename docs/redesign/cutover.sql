@@ -2367,7 +2367,3 @@ SET @document_image_ddl = IF(EXISTS(SELECT 1 FROM information_schema.COLUMNS WHE
 PREPARE document_image_stmt FROM @document_image_ddl;
 EXECUTE document_image_stmt;
 DEALLOCATE PREPARE document_image_stmt;
-SET @document_image_ddl = IF(EXISTS(SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='documents' AND COLUMN_NAME='issuerPdfSnapshot'), 'SELECT 1', 'ALTER TABLE `documents` ADD COLUMN `issuerPdfSnapshot` JSON NULL');
-PREPARE document_image_stmt FROM @document_image_ddl;
-EXECUTE document_image_stmt;
-DEALLOCATE PREPARE document_image_stmt;

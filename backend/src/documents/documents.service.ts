@@ -615,7 +615,18 @@ export class DocumentsService {
       [DocumentType.CREDIT_INVOICE]: 'חשבונית זיכוי', [DocumentType.PRICE_QUOTE]: 'הצעת מחיר', [DocumentType.WORK_ORDER]: 'הזמנת עבודה',
     };
     if (!names[doc.docType]) throw new BadRequestException('Unsupported document type for local PDF');
-    const identity = doc.issuerPdfSnapshot ?? doc;
+    // Resolve current branding at PDF generation, including pending-allocation
+    // documents. Already-issued PDFs are served from their existing stored files.
+    // System billing receipts explicitly provide their company identity instead.
+    const business = doc.issuerIdentitySource === 'system' ? null
+      : await this.businessService.getBusinessByNumber(doc.issuerBusinessNumber);
+    const identity = business ? {
+      issuerName: business.businessName,
+      issuerAddress: business.businessAddress,
+      issuerPhone: business.businessPhone,
+      issuerEmail: business.businessEmail,
+      logoPath: business.logoPath,
+    } : { ...doc, logoPath: null };
     let logoDataUri: string;
     if (identity.logoPath) {
       const logo = await this.imageStorage.download(identity.logoPath);
@@ -1094,13 +1105,6 @@ export class DocumentsService {
       issuerAddress: business?.businessAddress,
       issuerPhone: business?.businessPhone,
       issuerEmail: business?.businessEmail,
-      issuerPdfSnapshot: {
-        issuerName: business.businessName ?? null,
-        issuerAddress: business.businessAddress ?? null,
-        issuerPhone: business.businessPhone ?? null,
-        issuerEmail: business.businessEmail ?? null,
-        logoPath: (business as Business & { logoPath?: string }).logoPath ?? null,
-      },
       // Recipient details
       recipientName: docData.recipientName,
       recipientId: docData.recipientId,
@@ -2115,6 +2119,7 @@ ${finalOwnerName}`;
         issuerPhone,
         issuerEmail,
         issuerAddress,
+        issuerIdentitySource: 'system',
         businessType,
         sumWithoutVat,
         paymentMethod: null,

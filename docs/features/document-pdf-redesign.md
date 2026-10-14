@@ -22,9 +22,9 @@ Business logo: `POST/GET/DELETE /business/:id/logo`. Personal image: `POST/GET/D
 
 Input is capped at 5 MB/16 megapixels. Sharp fully decodes single-frame PNG/JPEG/WebP and reencodes PNG without metadata, retaining alpha. Logos fit within 1600px; profiles within 512px. SVG, PDFs, animation and corrupt raster data are rejected. Storage path is immutable and validated; no arbitrary URL/bucket path is accepted. Logo ownership and delegation mirror existing business-profile edits; profile mutations mirror existing agent restriction. Generic profile/business writes cannot set asset paths.
 
-`Business.logoPath`, `User.profileImagePath` and `Documents.issuerPdfSnapshot` require prepared SQL before deployment. The individual files under `backend/scripts/migrations/2026-10-13_*` contain reviewable one-time statements; guarded equivalents are appended to `docs/redesign/cutover.sql`. No database or production schema was modified during implementation.
+Only `Business.logoPath` and `User.profileImagePath` require schema additions. The one-time statements are in `backend/scripts/migrations/2026-10-13_identity-images.sql`; guarded equivalents are appended to `docs/redesign/cutover.sql`. On 2026-10-14 the user explicitly authorized execution; both nullable VARCHAR(255) columns were added and verified on `keepintax-dev`. No production schema was modified. Run only these feature statements, not the entire cutover file.
 
-Old logo blobs are retained because issued document snapshots can reference them. Replacing/removing a business logo affects future documents. Existing PDFs are served from existing stored paths. Old documents without snapshots never adopt a future logo during regeneration. Profile blobs and orphaned uploads also remain; periodic storage cleanup is a separate task.
+The user clarified that branding must be current when the PDF is generated. The initially proposed issuer snapshot was removed from the Entity, preparation logic, schema and tests. PDF generation now reads current business name/address/phone/email/logo; pending-allocation documents use the latest logo, including a logo replaced or removed since the record was saved. Already-generated PDFs are served from their stored files and do not change. Explicit company identity for system billing receipts is preserved. Old image blobs and orphaned uploads remain; periodic storage cleanup is separate.
 
 ## Signing experiment (2026-10-13)
 
@@ -40,7 +40,7 @@ The user subsequently created template `3IfhJjgmAp` with one optional empty text
 2. Set existing token through environment configuration and local preview renderer, leave legacy issuance.
 3. Verify uploads/replace/remove on real authorized development Firebase storage; test ownership/delegation and profile context changes.
 4. Completed: clean template `3IfhJjgmAp` passed one-page/multi-page signing and visual probes. Keep the placeholder optional and empty; do not add visible labels/tables to this template. Certificate trust/revocation policy remains a deployment review item.
-5. Enable local issuance in development; exercise original/copy and pending allocation finalization, signing failure rollback and stored snapshot logo replacement.
+5. Enable local issuance in development; exercise original/copy and pending allocation finalization, signing failure rollback and current logo replacement/removal before PDF generation.
 6. Release only after acceptance; production deployment is separate.
 
 Standalone sample command: from `backend`, `node -r ts-node/register scripts/render-document-samples.ts <output-directory>`. It does not call a provider or database. Visual QA covers logo/no-logo, mixed Hebrew/English and a 55-row four-page invoice.
