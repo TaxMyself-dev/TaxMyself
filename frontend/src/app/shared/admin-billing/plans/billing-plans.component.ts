@@ -1,3 +1,4 @@
+import { IGenericTableAction } from 'src/app/components/generic-table/table-actions';
 import { Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
@@ -17,7 +18,7 @@ import { ButtonComponent } from 'src/app/components/button/button.component';
 import { InputTextComponent } from 'src/app/components/input-text/input-text.component';
 import { ButtonSize, ButtonColor } from 'src/app/components/button/button.enum';
 import { AdminBillingService, AdminPlan, CreatePlanPayload } from 'src/app/services/admin-billing.service';
-import { IColumnDataTable, IRowDataTable, ITableRowAction } from 'src/app/shared/interface';
+import { IColumnDataTable, IRowDataTable } from 'src/app/shared/interface';
 import { FormTypes, ICellRenderer } from 'src/app/shared/enums';
 
 /** appendTo="body" is required on all overlay components inside a p-dialog
@@ -93,7 +94,7 @@ export class BillingPlansComponent implements OnInit {
     { name: 'isPublic',     value: 'ציבורי',        cellRenderer: ICellRenderer.CHECKBOX },
   ];
 
-  readonly rowActions: ITableRowAction[] = [
+  readonly rowActions: IGenericTableAction[] = [
     {
       name: 'edit',
       icon: 'pi pi-pencil',

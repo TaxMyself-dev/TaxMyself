@@ -1,3 +1,4 @@
+import { IGenericTableAction } from 'src/app/components/generic-table/table-actions';
 import { CommonModule } from '@angular/common';
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { Router } from '@angular/router';
@@ -15,7 +16,6 @@ import {
   IColumnDataTable,
   IMobileCardConfig,
   IRowDataTable,
-  ITableRowAction,
 } from 'src/app/shared/interface';
 
 /** Hebrew labels for each subscription status. */
@@ -232,7 +232,7 @@ export class MySubscriptionTabComponent implements OnInit {
     highlightedValueFormat: 'plain',
   };
 
-  readonly historyRowActions: ITableRowAction[] = [
+  readonly historyRowActions: IGenericTableAction[] = [
     {
       // Always shown (no showWhen). If the receipt is unavailable the backend
       // returns 404 and we surface a friendly toast — hiding the button would

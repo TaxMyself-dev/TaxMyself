@@ -35,7 +35,7 @@
         <app-generic-table
           [dataTable]="rulesTableData()"
           [columnsTitle]="$any(rulesColumns)"
-          [rowActions]="rulesRowActions"
+          [actions]="rulesRowActions"
           [mobileCardConfig]="rulesMobileCardConfig"
           [isLoadingState]="loading()">
         </app-generic-table>
@@ -54,7 +54,7 @@
         <app-generic-table
           [dataTable]="categoriesTableData()"
           [columnsTitle]="$any(categoriesColumns)"
-          [rowActions]="categoriesRowActions"
+          [actions]="categoriesRowActions"
           [mobileCardConfig]="categoriesMobileCardConfig"
           [rowClass]="categoriesRowClass"
           [isLoadingState]="loading()">

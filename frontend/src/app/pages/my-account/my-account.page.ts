@@ -1,4 +1,5 @@
 import { AccountImageComponent } from 'src/app/components/account-image/account-image.component';
+import { IGenericTableAction } from 'src/app/components/generic-table/table-actions';
 import { CommonModule } from '@angular/common';
 import { Component, computed, DestroyRef, ElementRef, inject, OnInit, signal, ViewChild } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -28,7 +29,7 @@ import { ClientPanelService } from 'src/app/services/clients-panel.service';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { GenericService } from 'src/app/services/generic.service';
 import { BusinessStatus, TransactionsOutcomesColumns } from 'src/app/shared/enums';
-import { IMobileCardConfig, IItemNavigate, IRowDataTable, ISelectItem, ITableRowAction, ITransactionData, IUserData } from 'src/app/shared/interface';
+import { IMobileCardConfig, IItemNavigate, IRowDataTable, ISelectItem, ITransactionData, IUserData } from 'src/app/shared/interface';
 import { SharedModule } from 'src/app/shared/shared.module';
 import { buildTransactionColumns } from 'src/app/shared/transaction-columns.config';
 import { TransactionsService } from '../transactions/transactions.page.service';
@@ -434,7 +435,7 @@ export class MyAccountPage implements OnInit {
   }
 
   // ─── Row actions ─────────────────────────────────────────────────────────
-  rowActions: ITableRowAction[] = [
+  rowActions: IGenericTableAction[] = [
     {
       name: 'associate',
       icon: 'pi pi-link',

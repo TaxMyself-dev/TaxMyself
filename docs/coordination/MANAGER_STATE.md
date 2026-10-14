@@ -1,5 +1,14 @@
 # Primary manager state
 
+## Table actions integration — 2026-10-15
+
+Elazar explicitly requested main delivery of `codex/table-actions` source
+`7ac0bcad`. The isolated integration branch `codex/integration-table-actions`
+starts from refreshed main `5a9afbd3`. Current pending-only SHAAM recovery/resume
+and account-image changes are preserved during conflict resolution. Combined
+frontend verification and delivery evidence is recorded in
+`docs/tasks/active/table-actions.md`. No backend/schema/production changes.
+
 Last reviewed: 2026-10-07
 
 ## Integration baseline

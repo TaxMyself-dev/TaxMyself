@@ -530,7 +530,7 @@
     <app-generic-table
         [title]="isMobile() ? 'התנועות הלא מסווגות שלי' : null"
         class="table"
-        [rowActions]="rowActions"
+        [actions]="rowActions"
         [isLoadingState]="isLoadingDataTable()"
         [columnsTitle]="fieldsNamesExpenses()"
         [dataTable]="$any(transToClassify | async)"

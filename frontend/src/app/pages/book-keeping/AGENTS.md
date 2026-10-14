@@ -12,6 +12,15 @@ Container page + tab shell for day-to-day bookkeeping: issued documents (incomes
 - `client-tasks/client-tasks.page.ts` — `ClientTasksPage` (route `tasks`, tab currently hidden in `book-keeping.page.ts`): shows the user's own report workflows (VAT/advance-tax/annual), lets self-served users mark/dismiss/file, or delegated users confirm upload-completion to their accountant. Uses `ReportWorkflowService`.
 
 ## Main flows
+
+- All issued-document, expense, archive, client and supplier tables pass the
+  unified generic-table `actions` input; mobile menus are automatic and use
+  the same predicates as desktop. File-independent page actions have no file
+  requirement. Issued-document preview/download/cancel/opposite actions retain
+  their stored-file requirement; allocation actions remain available without
+  a file and precede them. Opposite-document visibility reads docStatusOriginal
+  before the translated status label. Archive permission/status predicates now
+  apply on mobile too.
 - Tab navigation between incomes/expenses/clients/suppliers (tasks hidden), each tab lazy-loaded as its own module/route.
 - Incomes: list documents and safely recover/resume Tax Authority allocation for persisted pending invoices; a stored allocation finalizes without another Approval request.
 - Expenses: list/filter expenses, split between regular and annual-report-only.

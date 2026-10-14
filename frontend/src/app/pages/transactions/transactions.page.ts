@@ -1,3 +1,4 @@
+import { IGenericTableAction } from 'src/app/components/generic-table/table-actions';
 import { Component, DestroyRef, ElementRef, HostListener, OnInit, Signal, ViewChild, WritableSignal, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MessageService } from 'primeng/api';
@@ -94,7 +95,7 @@ export class TransactionsPage implements OnInit {
   isLoadingQuickClassify = signal<boolean>(false);
 
   // ─── Row actions: expenses (incomeMode = false) ──────────────────────────────
-  expenseRowActions: ITableRowAction[] = [
+  expenseRowActions: IGenericTableAction[] = [
     {
       name: 'associate',
       icon: 'pi pi-link',
@@ -120,7 +121,7 @@ export class TransactionsPage implements OnInit {
   ];
 
   // ─── Row actions: incomes (incomeMode = true) ────────────────────────────────
-  incomeRowActions: ITableRowAction[] = [
+  incomeRowActions: IGenericTableAction[] = [
     {
       name: 'associate',
       icon: 'pi pi-link',

@@ -7,7 +7,6 @@ import {
   signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ButtonComponent } from 'src/app/components/button/button.component';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 import { ICellRenderer } from 'src/app/shared/enums';
 import {
@@ -15,9 +14,10 @@ import {
   IMobileCardConfig,
   IRowDataTable,
   ISelectItem,
-  ITableRowAction,
   MobileHighlightedValueFormat,
 } from 'src/app/shared/interface';
+import { IGenericTableAction } from '../generic-table/table-actions';
+import { TableRowActionsMenuComponent } from '../table-row-actions-menu/table-row-actions-menu.component';
 import { DateFormatPipe } from 'src/app/pipes/date-format.pipe';
 
 @Component({
@@ -26,7 +26,7 @@ import { DateFormatPipe } from 'src/app/pipes/date-format.pipe';
   styleUrls: ['./mobile-row-card.component.scss'],
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, DateFormatPipe, ButtonComponent],
+  imports: [CommonModule, DateFormatPipe, TableRowActionsMenuComponent],
 })
 export class MobileRowCardComponent {
 
@@ -34,7 +34,7 @@ export class MobileRowCardComponent {
   row        = input.required<IRowDataTable>();
   columns    = input.required<IColumnDataTable<any, any>[]>();
   config     = input.required<IMobileCardConfig>();
-  actions    = input<ITableRowAction[]>([]);
+  actions    = input<IGenericTableAction[]>([]);
   searchTerm = input<string>('');
   /** Color highlighted `sum` by sign when row has `__sumNumeric` (My Account unclassified). */
   sumSignColors = input<boolean>(false);
@@ -43,12 +43,11 @@ export class MobileRowCardComponent {
   checked = input<boolean>(false);
 
   // ─── Outputs ─────────────────────────────────────────────────────────────
-  actionClicked = output<{ action: ITableRowAction; row: IRowDataTable }>();
+  actionClicked = output<{ action: IGenericTableAction; row: IRowDataTable }>();
   checkedChange = output<boolean>();
 
   // ─── Internal signals ────────────────────────────────────────────────────
   expanded = signal(false);
-  menuOpen = signal(false);
 
   // ─── Computed: hero column lookups ───────────────────────────────────────
   titleColumn = computed(() =>
@@ -139,17 +138,7 @@ export class MobileRowCardComponent {
     this.expanded.update(v => !v);
   }
 
-  toggleMenu(event: Event): void {
-    event.stopPropagation();
-    this.menuOpen.update(v => !v);
-  }
-
-  closeMenu(): void {
-    this.menuOpen.set(false);
-  }
-
-  onActionClick(action: ITableRowAction): void {
-    this.menuOpen.set(false);
+  onActionClick(action: IGenericTableAction): void {
     this.actionClicked.emit({ action, row: this.row() });
   }
 

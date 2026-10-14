@@ -1,3 +1,4 @@
+import { IGenericTableAction } from 'src/app/components/generic-table/table-actions';
 import { Component, OnInit, computed, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { AdminPanelService, DriveSyncResult, ExtractedDocRow } from 'src/app/services/admin-panel.service';
@@ -142,39 +143,39 @@ export class ClientsDashboardComponent implements OnInit {
     { name: 'subscriptionEndDate', value: 'תאריך סיום מנוי', type: FormTypes.DATE },
   ];
 
-  fileActions: ITableRowAction[] = [
+  fileActions: IGenericTableAction[] = [
     {
       name: 'enterAsUser',
+      desktopDisplay: 'icon',
       icon: 'pi pi-sign-in',
       title: 'כניסה כמשתמש',
-      alwaysShow: true,
       action: (event: any, row: IRowDataTable) => {
         this.confirmEnterAsUser(row);
       }
     },
     {
       name: 'feezback',
+      desktopDisplay: 'icon',
       icon: 'pi pi-cloud-download',
       title: 'טען תנועות מ-Feezback',
-      alwaysShow: true,
       action: (event: any, row: IRowDataTable) => {
         this.openFeezbackDialog(row);
       }
     },
     {
       name: 'getAccounts',
+      desktopDisplay: 'icon',
       icon: 'pi pi-list',
       title: 'הצגת חשבונות וכרטיסים',
-      alwaysShow: true,
       action: (event: any, row: IRowDataTable) => {
         this.openClientAccountsDialog(row);
       }
     },
     {
       name: 'refreshSources',
+      desktopDisplay: 'icon',
       icon: 'pi pi-refresh',
       title: 'רענון מקורות',
-      alwaysShow: true,
       // No isLoading getter — feedback is shown in a modal dialog (driven by
       // refreshingSourcesFor) instead of a button spinner. The dialog's mask
       // also blocks duplicate clicks.
@@ -184,9 +185,9 @@ export class ClientsDashboardComponent implements OnInit {
     },
     {
       name: 'clearCache',
+      desktopDisplay: 'icon',
       icon: 'pi pi-trash',
       title: 'מחק מטמון תנועות',
-      alwaysShow: true,
       isLoading: () => this.isClearingCache(),
       action: (event: any, row: IRowDataTable) => {
         this.confirmClearCache(row);
@@ -194,9 +195,9 @@ export class ClientsDashboardComponent implements OnInit {
     },
     {
       name: 'pullDriveDocs',
+      desktopDisplay: 'icon',
       icon: 'pi pi-google',
       title: 'משוך מסמכים מ-Drive',
-      alwaysShow: true,
       action: (event: any, row: IRowDataTable) => {
         this.openDriveDataDialog(row);
       }

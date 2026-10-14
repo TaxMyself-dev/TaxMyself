@@ -1,9 +1,10 @@
+import { IGenericTableAction } from 'src/app/components/generic-table/table-actions';
 import { Component, OnInit, signal, inject } from '@angular/core';
 import { EMPTY, of } from 'rxjs';
 import { catchError, finalize, map } from 'rxjs/operators';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { GenericService } from 'src/app/services/generic.service';
-import { IColumnDataTable, IMobileCardConfig, IRowDataTable, ITableRowAction, IUserData } from 'src/app/shared/interface';
+import { IColumnDataTable, IMobileCardConfig, IRowDataTable, IUserData } from 'src/app/shared/interface';
 import {
   BusinessStatus,
   FormTypes,
@@ -48,7 +49,7 @@ export class SuppliersPage implements OnInit {
 
   isLoadingDataTable = signal<boolean>(false);
   mySuppliers: any;
-  fileActions = signal<ITableRowAction[]>([]);
+  fileActions = signal<IGenericTableAction[]>([]);
 
   // ===========================
   // Table config
@@ -181,18 +182,18 @@ export class SuppliersPage implements OnInit {
     this.fileActions.set([
       {
         name: 'edit',
+        desktopDisplay: 'icon',
         icon: 'pi pi-pencil',
         title: 'ערוך',
-        alwaysShow: true,
         action: (event: any, row: IRowDataTable) => {
           this.onEditSupplier(row);
         }
       },
       {
         name: 'delete',
+        desktopDisplay: 'icon',
         icon: 'pi pi-trash',
         title: 'מחק',
-        alwaysShow: true,
         action: (event: any, row: IRowDataTable) => {
           this.onDeleteSupplier(row);
         }

@@ -8,6 +8,11 @@ Admin-panel tab that hosts billing administration, split into two sub-tabs: plan
 - `subscriptions/billing-subscriptions.presentation.ts` — drawer/table presentation rules: canonical referral-plan labels, the design-system save-button color, and the Hebrew labels/messages for billing exceptions (status, charge mode, failure category, required action, table tooltip).
 
 ## Main flows
+
+- Plans, subscriptions and pending-receipt tables use unified generic-table
+  `actions`. Without mobile-card configuration they retain their table cells
+  and automatically expose a mobile row menu. Existing activation,
+  complimentary-access/manual-charge predicates and loading states apply.
 - Switch between "plans" and "subscriptions" sub-tabs.
 - Plans: list/create/edit pricing plans and their included modules.
 - Complimentary access grant/revoke requires confirmation, is saved separately

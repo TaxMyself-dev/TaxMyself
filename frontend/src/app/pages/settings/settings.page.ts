@@ -1,4 +1,5 @@
 import { AccountImageComponent } from 'src/app/components/account-image/account-image.component';
+import { IGenericTableAction } from 'src/app/components/generic-table/table-actions';
 import { CommonModule } from '@angular/common';
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -11,7 +12,7 @@ import { GenericService } from 'src/app/services/generic.service';
 import { AccessService } from 'src/app/services/access.service';
 import { ModuleName } from 'src/app/shared/access-control';
 import { MyPermissionsService } from 'src/app/services/my-permissions.service';
-import { IUserData, Business, IChild, IColumnDataTable, IMobileCardConfig, IRowDataTable, ITableRowAction } from 'src/app/shared/interface';
+import { IUserData, Business, IChild, IColumnDataTable, IMobileCardConfig, IRowDataTable } from 'src/app/shared/interface';
 import { GenericTableComponent } from 'src/app/components/generic-table/generic-table.component';
 import { AvatarModule } from 'primeng/avatar';
 import { ConfirmationService, MessageService } from 'primeng/api';
@@ -181,7 +182,7 @@ export class SettingsPage implements OnInit {
     highlightedValueFormat: 'plain',
   };
 
-  accountSourcesRowActions: ITableRowAction[] = [
+  accountSourcesRowActions: IGenericTableAction[] = [
     {
       name: 'pullSource',
       icon: 'pi pi-refresh',

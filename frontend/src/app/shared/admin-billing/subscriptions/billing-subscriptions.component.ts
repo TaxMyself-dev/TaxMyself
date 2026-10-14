@@ -1,3 +1,4 @@
+import { IGenericTableAction } from 'src/app/components/generic-table/table-actions';
 import {
   Component,
   computed,
@@ -33,7 +34,7 @@ import {
   RenewalOutcome,
   RenewalResult,
 } from 'src/app/services/admin-billing.service';
-import { IColumnDataTable, IRowDataTable, ISelectItem, ITableRowAction } from 'src/app/shared/interface';
+import { IColumnDataTable, IRowDataTable, ISelectItem } from 'src/app/shared/interface';
 import { FormTypes, ICellRenderer } from 'src/app/shared/enums';
 import {
   ADMIN_SUBSCRIPTION_SAVE_BUTTON_COLOR,
@@ -226,7 +227,7 @@ export class BillingSubscriptionsComponent implements OnInit {
     { name: 'cardTokenExists',    value: 'כרטיס',           cellRenderer: ICellRenderer.CHECKBOX },
   ]);
 
-  readonly rowActions: ITableRowAction[] = [
+  readonly rowActions: IGenericTableAction[] = [
     {
       name: 'edit',
       icon: 'pi pi-pencil',
@@ -237,7 +238,6 @@ export class BillingSubscriptionsComponent implements OnInit {
       name: 'chargeNow',
       icon: 'pi pi-credit-card',
       title: 'חיוב ידני',
-      alwaysShow: true,
       showWhen: row => row['billingAccessMode'] !== 'COMPLIMENTARY_FULL',
       isLoading: () => this.chargingSubscriptionId() !== null,
       action: (_: any, row: IRowDataTable) => this.confirmChargeNow(row),

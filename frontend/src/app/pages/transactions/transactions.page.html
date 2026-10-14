@@ -32,7 +32,7 @@
       </div>
 
       <app-generic-table (resetFilters)="resetFilters($event)" [arrayFilters]="filterData()"
-        [isLoadingState]="isLoadingStateTable()" [rowActions]="expenseRowActions"
+        [isLoadingState]="isLoadingStateTable()" [actions]="expenseRowActions"
         [placeholderSearch]="'חיפוש לפי שם עסק'" [title]="'הוצאות'" [columnsTitle]="fieldsNamesExpenses()"
         [dataTable]="filteredExpensesData()" [tableHeight]="'500px'"
         [useSyncState]="true" [processStatus]="syncProcessStatus()"
@@ -43,7 +43,7 @@
     <div class="table-wrap">
       <app-generic-table [incomeMode]="true"
         [isLoadingState]="isLoadingStateTable()"
-        [rowActions]="incomeRowActions" [placeholderSearch]="'חיפוש לפי שם עסק'" [title]="'הכנסות'"
+        [actions]="incomeRowActions" [placeholderSearch]="'חיפוש לפי שם עסק'" [title]="'הכנסות'"
         [columnsTitle]="fieldsNamesIncome()" [dataTable]="filteredIncomesData()" [tableHeight]="'500px'"
         [useSyncState]="true" [processStatus]="syncProcessStatus()"
         (syncTriggered)="onSyncTriggered()"

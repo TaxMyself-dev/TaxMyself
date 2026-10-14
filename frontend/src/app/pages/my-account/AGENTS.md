@@ -8,6 +8,10 @@ Main dashboard/home page shown after login: account sync status, transactions-to
 - No separate service file — page composes many app-wide services directly; no dedicated `.module.ts` (standalone component, `loadComponent` route).
 
 ## Main flows
+
+- The unclassified-transactions table passes `rowActions` through unified
+  `actions`. Mobile inherits account-association/classification predicates
+  automatically, including quick-classification loading state.
 - KT-053: accepted banking consent routes through /billing/open-banking before
   requesting a Feezback link. Browser consent success no longer writes a local
   connected flag; completed discovery reloads the provider-confirmed user flag.

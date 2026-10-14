@@ -8,6 +8,10 @@ Main transactions ledger: lists income and expense bank/card transactions, lets 
 - `transactions.module.ts` / `-routing.module.ts` — Angular module wiring; imports `TopNavComponent`, `ImageBunnerComponent`, `GenericTableComponent`, `AccountAssociationDialogComponent`, `AddBillComponent`, `ClassifyTranComponent`, `AddCategoryComponent`, `FilterPanelComponent`.
 
 ## Main flows
+
+- Both tables pass `expenseRowActions`/`incomeRowActions` through the unified
+  `actions` input. Desktop/mobile availability uses the same account-association
+  and canManageExpenses/confirmed predicates; loading actions cannot execute.
 - `ngOnInit`: loads user data, starts `SyncStatusService` polling (`startSyncStatusPolling` — running/completed/failed/error state machine that gates when data may be fetched), loads bills and categories.
 - `getTransactions`/`getExpensesData`/`handleTableData`: fetch and shape income/expense rows into `IRowDataTable[]` for the generic table, with column sets built via `buildTransactionColumns` (varies by `businessStatus` single/multi and `isOnlyEmployer`).
 - Row actions per table (`expenseRowActions`/`incomeRowActions`): "שייך לחשבון" (`onAssociateAccount`, only for rows with no billName), "סיווג תנועה" (`onClassifyTransaction`, opens classify dialog), "סיווג מהיר" (`onQuickClassify`, one-click classify).

@@ -8,6 +8,12 @@ Account/profile settings hub: tabbed page for editing personal details, spouse d
 - `my-categories-tab/my-categories-tab.component.ts(+html/scss)` — child component for the "הקטגוריות שלי" tab; manages user category/subcategory rules (`UserCategoryGroup`, `UserRuleRow`) — custom recognition %, VAT %, tax %, equipment flag, comment-pattern rules per category/subcategory.
 
 ## Main flows
+
+- Account sources, subscription history, classification rules and category
+  tables use unified generic-table `actions`. Mobile menus inherit their
+  existing showWhen predicates and show loading state; no mobile override is
+  required. Direct-card pull restrictions and category/subcategory distinctions
+  remain in their page predicates.
 - KT-053: My Subscription shows PREPARE/READY trial banking enrollment and
   links to continuation or withdrawal into a non-banking plan. Withdrawal
   preserves the trial and card, without scheduling an automatic lower-plan
