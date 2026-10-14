@@ -290,12 +290,20 @@ export class AuthService {
     return this.viewAsUserData != null;
   }
 
-  /** True when the currently impersonated user is a demo user. Used to relax
-   *  view-as restrictions so a presenter can show all features (including
-   *  doc-create) during a live demo, even without ADMIN role. */
+  /** True only when the backend marked the represented user as a registered demo. */
   isViewingDemoUser(): boolean {
-    const email = this.viewAsUserData?.email ?? '';
-    return email.startsWith('demo+') && email.endsWith('@taxmyself.local');
+    return this.viewAsUserData?.isDemo === true;
+  }
+
+  /**
+   * The one exception to view-only document creation: a real ADMIN may operate
+   * a backend-verified demo profile. Admins viewing real clients and non-admin
+   * presenters remain view-only.
+   */
+  canAdminOperateViewingDemoUser(): boolean {
+    if (!this.isViewingAsClient() || !this.isViewingDemoUser()) return false;
+    const realUser = this.getRealUserDataFromLocalStorage();
+    return !!realUser?.role?.includes('ADMIN');
   }
 
 

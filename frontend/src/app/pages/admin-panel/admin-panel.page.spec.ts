@@ -5,7 +5,7 @@ describe('AdminPanelPage', () => {
   let component: AdminPanelPage;
 
   beforeEach(() => {
-    component = new AdminPanelPage(new FormBuilder(), {} as any, {} as any);
+    component = new AdminPanelPage(new FormBuilder(), {} as any);
   });
 
   it('should create', () => {

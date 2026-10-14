@@ -146,7 +146,7 @@ export class ShaamInvoiceApprovalDialogComponent {
     this.isLoading.set(true);
 
     // Get valid access token from backend (checks validity and refreshes if needed)
-    this.shaamService.getValidAccessToken(businessNumber)
+    this.shaamService.getConnectionStatus(businessNumber)
       .pipe(
         catchError((error) => {
           const errorMessage = error.error?.message || error.message || 'שגיאה בבדיקת חיבור לשעמ';
@@ -161,8 +161,8 @@ export class ShaamInvoiceApprovalDialogComponent {
           return EMPTY;
         })
       )
-      .subscribe((tokenData) => {
-        if (!tokenData || !tokenData.accessToken) {
+      .subscribe((connection) => {
+        if (!connection?.connected) {
           // No valid connection exists, show confirmation dialog
           this.isLoading.set(false);
           this.showShaamConnectionRequiredDialog(businessNumber);
@@ -191,7 +191,7 @@ export class ShaamInvoiceApprovalDialogComponent {
           vat_number: parseInt(formValue.vat_number),
         };
 
-        this.shaamService.submitInvoiceApproval(tokenData.accessToken, approvalData)
+        this.shaamService.submitInvoiceApproval(approvalData, businessNumber)
           .pipe(
             catchError((error) => {
               const errorMessage = error.error?.message || error.message || 'שגיאה בשליחת הבקשה';

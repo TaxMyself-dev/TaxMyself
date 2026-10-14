@@ -81,6 +81,15 @@ export class DateService {
     return format(date, 'dd/MM/yyyy');
   }
 
+  /** Normalize a UI date value to the API/database date-only contract. */
+  toIsoDate(value: unknown): string {
+    const parsed = this.parseUiDate(value);
+    if (!parsed) {
+      throw new Error('תאריך לא תקין - נא לבחור תאריך בפורמט תקני');
+    }
+    return format(parsed, 'yyyy-MM-dd');
+  }
+
   
   getStartAndEndDates(periodType: ReportingPeriodType, year: number, month: number, startDate: string, endDate: string): { startDate: string, endDate: string } {
 

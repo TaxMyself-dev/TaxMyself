@@ -15,7 +15,9 @@ import {
   BusinessType,
   DocumentType,
   TaxReportingType,
+  UnitOfMeasure,
   UserRole,
+  VatOptions,
   VATReportingType,
 } from 'src/enum';
 import { DocumentsService } from 'src/documents/documents.service';
@@ -304,8 +306,9 @@ export class DemoDataService {
     //     ExpensesService.addExpense() each open their OWN transaction / use
     //     their own repos (they don't accept the seeder's EntityManager) —
     //     calling them inside `m` would run on a separate connection and could
-    //     deadlock or orphan rows on rollback. Best-effort: failures are
-    //     logged and the already-committed user/businesses stay valid.
+    //     deadlock or orphan rows on rollback. Ordinary profiles remain
+    //     best-effort. Uniform-file fixtures and profiles containing a seeded
+    //     draft are strict and are cleaned up if a required row fails.
     try {
       await this.seedDocumentsAndExpenses(primaryFirebaseId, profile);
     } catch (docErr) {
@@ -313,6 +316,21 @@ export class DemoDataService {
         `[demo-data] document/expense seeding failed for ${profile.id} ` +
           `(user/businesses still committed): ${(docErr as Error)?.message ?? docErr}`,
       );
+      const isStrictFixture = Boolean(
+        profile.uniformFileScenario || profile.documents?.some((document) => document.isDraft),
+      );
+      if (isStrictFixture) {
+        try {
+          await this.resetProfile(profile.id);
+        } catch (cleanupErr) {
+          this.logger.error(
+            `[demo-data] strict fixture cleanup failed for ${profile.id}: ${
+              (cleanupErr as Error)?.message ?? cleanupErr
+            }`,
+          );
+        }
+        throw docErr;
+      }
     }
 
     // 4. Drive provisioning + sample-file upload (opt-in per profile).
@@ -360,12 +378,13 @@ export class DemoDataService {
    * Both paths post journal entries — income via createDoc (debit A/R 1000,
    * credit revenue 4000 + output VAT 2400; credit notes reverse), expense via
    * addExpense (debit expense 5000 + deductible VAT input 2410, credit 1000).
-   * These REQUIRE the chart-of-accounts rows (1000, 2400, 2410, 4000, 5000) to
-   * exist in default_booking_account — see backend/src/bookkeeping/account.seed.ts.
+   * These REQUIRE the relevant effective booking-account rows to exist.
    * If they're missing: createDoc rolls back each document (its journal post is
    * NOT best-effort), and addExpense keeps the expense but skips the journal
    * line (its post IS best-effort). Every call below is wrapped best-effort so a
-   * missing account / per-item failure logs and the rest of the seed continues.
+   * missing account / per-item failure logs and the rest of an ordinary seed
+   * continues. Profiles declaring `uniformFileScenario` wait for every attempt,
+   * then fail if any source row or expected journal was not created.
    */
   private async seedDocumentsAndExpenses(
     firebaseId: string,
@@ -374,6 +393,11 @@ export class DemoDataService {
     const docs = profile.documents ?? [];
     const expenses = profile.expenses ?? [];
     if (docs.length === 0 && expenses.length === 0) return;
+    const isStrictFixture = Boolean(
+      profile.uniformFileScenario || docs.some((document) => document.isDraft),
+    );
+    const strictErrors: Error[] = [];
+    const expenseConcurrency = isStrictFixture ? 1 : 5;
 
     await this.warnIfChartOfAccountsMissing();
 
@@ -389,12 +413,13 @@ export class DemoDataService {
 
     this.logger.log(
       `[demo-data] seeding ${docs.length} docs + ${expenses.length} expenses ` +
-      `across ${bizRefs.length} businesses in parallel (expenses concurrency=5 per biz)`,
+      `across ${bizRefs.length} businesses ` +
+      `(${isStrictFixture ? 'sequential strict fixture' : 'parallel'}, ` +
+      `expenses concurrency=${expenseConcurrency} per biz)`,
     );
     const t0 = Date.now();
 
-    // Different businesses share no counter rows — run them fully in parallel.
-    await Promise.all(bizRefs.map(async (bizRef) => {
+    const seedBusiness = async (bizRef: string): Promise<void> => {
       const bizDocs = docsWithNumbers.filter(d => d.businessNumberRef === bizRef);
       const bizExpenses = expenses.filter(e => e.businessNumberRef === bizRef);
       const tb = Date.now();
@@ -403,41 +428,76 @@ export class DemoDataService {
       // Documents share a per-business generalDocIndex counter; concurrent calls
       // would serialize at the DB anyway, so sequential is simpler and safe.
       for (const d of bizDocs) {
+        const resolvedDocDate = d.useCurrentDate
+          ? new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Jerusalem' }).format(new Date())
+          : d.docDate;
         const sumWithVat = Number((d.sumAftDisBefVAT + d.vatSum).toFixed(2));
         const docData = {
           issuerBusinessNumber: d.businessNumberRef,
           recipientName: d.recipientName,
           recipientId: d.recipientId ?? null,
           docType: d.docType,
-          docNumber: d.docNumber,
+          docNumber: d.isDraft ? '' : d.docNumber,
           docVatRate: d.vatSum > 0 ? 18 : 0,
-          sumBefDisBefVat: d.sumAftDisBefVAT,
-          disSum: 0,
+          sumBefDisBefVat: d.sumBefDisBefVat ?? d.sumAftDisBefVAT,
+          disSum: d.discountSum ?? 0,
           sumAftDisBefVAT: d.sumAftDisBefVAT,
           vatSum: d.vatSum,
           sumAftDisWithVAT: sumWithVat,
           withholdingTaxAmount: 0,
-          docDate: d.docDate,
-          valueDate: d.docDate,
+          docDate: resolvedDocDate,
+          valueDate: resolvedDocDate,
         };
+        const linesData = (d.lines ?? []).map((line, index) => ({
+          issuerBusinessNumber: d.businessNumberRef,
+          lineNumber: String(index + 1),
+          docType: d.docType,
+          transType: '1',
+          internalNumber: `DEMO-${d.docNumber}-${index + 1}`,
+          description: line.description,
+          manufacturerName: '',
+          productSerialNumber: '',
+          unitType: UnitOfMeasure.UNIT,
+          unitQuantity: line.unitQuantity,
+          sumBefVatPerUnit: line.sumBefVatPerUnit,
+          disBefVatPerLine: line.discount,
+          sumAftDisBefVatPerLine: line.sumAftDisBefVatPerLine,
+          vatOpts: VatOptions.EXCLUDE,
+          vatRate: line.vatRate,
+          vatPerLine: line.vatPerLine,
+        }));
+        const paymentData = (d.payments ?? []).map((payment, index) => ({
+          issuerBusinessNumber: d.businessNumberRef,
+          paymentLineNumber: String(index + 1),
+          paymentMethod: payment.paymentMethod,
+          paymentDate: payment.paymentDate,
+          paymentAmount: payment.paymentAmount,
+          bankNumber: payment.bankNumber ?? '',
+          branchNumber: payment.branchNumber ?? '',
+          accountNumber: payment.accountNumber ?? '',
+          checkNumber: '',
+        }));
         try {
-          await this.documentsService.createDoc(
-            { docData, linesData: [], paymentData: [] },
-            firebaseId,
-            false,
-          );
+          const payload = { docData, linesData, paymentData };
+          if (d.isDraft) {
+            await this.documentsService.saveDraft(firebaseId, payload);
+          } else {
+            await this.documentsService.createDoc(payload, firebaseId, false);
+          }
         } catch (err: any) {
           this.logger.warn(
-            `[demo-data] createDoc failed for ${d.docType} #${d.docNumber} ` +
+            `[demo-data] ${d.isDraft ? 'saveDraft' : 'createDoc'} failed for ${d.docType} #${d.docNumber} ` +
             `(biz ${bizRef}): ${err?.message ?? err}`,
           );
+          if (isStrictFixture) {
+            strictErrors.push(err instanceof Error ? err : new Error(String(err)));
+          }
         }
       }
 
-      // ── Expenses: worker-pool concurrency=5 within each business ──────────
-      // Reads dominate; the journal-entry counter serializes at the DB level so
-      // concurrency is safe — no duplicate entryNumbers, no lost updates.
-      await this.runConcurrently(bizExpenses, 5, async (e) => {
+      // Strict uniform-file fixtures favor deterministic, deadlock-free setup
+      // over seed speed. Ordinary demo profiles keep the existing worker pool.
+      await this.runConcurrently(bizExpenses, expenseConcurrency, async (e) => {
         const dto: any = {
           supplier: e.merchantName,
           category: e.category ?? 'הוצאות',
@@ -456,15 +516,82 @@ export class DemoDataService {
             `[demo-data] addExpense failed for "${e.merchantName}" ` +
             `(biz ${bizRef}): ${err?.message ?? err}`,
           );
+          if (isStrictFixture) {
+            strictErrors.push(err instanceof Error ? err : new Error(String(err)));
+          }
         }
       });
 
       this.logger.log(
         `[demo-data] biz ${bizRef}: ${bizDocs.length} docs + ${bizExpenses.length} expenses done in ${Date.now() - tb}ms`,
       );
-    }));
+    };
+
+    if (isStrictFixture) {
+      for (const bizRef of bizRefs) await seedBusiness(bizRef);
+    } else {
+      // Ordinary demo profiles keep the faster cross-business parallel path.
+      await Promise.all(bizRefs.map(seedBusiness));
+    }
+
+    if (strictErrors.length > 0) {
+      throw new Error(
+        `Strict demo fixture failed (${strictErrors.length} source row(s)): ${strictErrors[0].message}`,
+      );
+    }
+    if (profile.uniformFileScenario) {
+      await this.assertUniformFileFixtureComplete(firebaseId, profile);
+    }
 
     this.logger.log(`[demo-data] seed complete in ${Date.now() - t0}ms`);
+  }
+
+  private async assertUniformFileFixtureComplete(
+    firebaseId: string,
+    profile: DemoProfile,
+  ): Promise<void> {
+    const businessNumbers = profile.businesses.map((business) => business.businessNumber);
+    const expectedDocuments = profile.documents?.length ?? 0;
+    const expectedLines = (profile.documents ?? [])
+      .reduce((sum, document) => sum + (document.lines?.length ?? 0), 0);
+    const expectedPayments = (profile.documents ?? [])
+      .reduce((sum, document) => sum + (document.payments?.length ?? 0), 0);
+    const expectedExpenses = profile.expenses?.length ?? 0;
+    const expectedJournals = expectedDocuments + expectedExpenses;
+    const [documents, lines, payments, expenses, journals] = await Promise.all([
+      this.dataSource.getRepository(Documents).count({
+        where: { issuerBusinessNumber: In(businessNumbers) },
+      }),
+      this.dataSource.getRepository(DocLines).count({
+        where: { issuerBusinessNumber: In(businessNumbers) },
+      }),
+      this.dataSource.getRepository(DocPayments).count({
+        where: { issuerBusinessNumber: In(businessNumbers) },
+      }),
+      this.dataSource.getRepository(Expense).count({ where: { userId: firebaseId } }),
+      this.dataSource.getRepository(JournalEntry).count({
+        where: {
+          firebaseId,
+          issuerBusinessNumber: In(businessNumbers),
+        },
+      }),
+    ]);
+    const actual = { documents, lines, payments, expenses, journals };
+    const expected = {
+      documents: expectedDocuments,
+      lines: expectedLines,
+      payments: expectedPayments,
+      expenses: expectedExpenses,
+      journals: expectedJournals,
+    };
+    const mismatches = Object.keys(expected).filter(
+      (key) => actual[key as keyof typeof actual] !== expected[key as keyof typeof expected],
+    );
+    if (mismatches.length > 0) {
+      throw new Error(
+        `Strict uniform-file fixture verification failed: expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`,
+      );
+    }
   }
 
   /**
@@ -550,6 +677,14 @@ export class DemoDataService {
     const businessNumbers = businesses
       .map((b) => b.businessNumber)
       .filter((n): n is string => !!n);
+    if (
+      profile.uniformFileScenario
+      && !businessNumbers.includes(profile.uniformFileScenario.businessNumberRef)
+    ) {
+      throw new ConflictException(
+        'פרופיל בדיקת המבנה האחיד השתנה — יש לבצע איפוס מלא ויצירה מחדש ממסך הניהול',
+      );
+    }
     console.log(`[test-reset] loaded ${businesses.length} business(es), businessNumbers=[${businessNumbers.join(',')}]`);
 
     // 1. Wipe every file from every demo Drive folder (inbox, processed).
@@ -606,6 +741,16 @@ export class DemoDataService {
     await this.dataSource.transaction(async (m) => {
       await m.query('SET FOREIGN_KEY_CHECKS = 0');
       try {
+        // Journals and counters are derived from the documents/expenses below.
+        // Remove them before reseeding so self-reset is repeatable rather than
+        // accumulating duplicate B100 movements or ever-increasing doc numbers.
+        dbRowsReset.journalLines =
+          (await m.delete(JournalLine, { firebaseId })).affected ?? 0;
+        dbRowsReset.journalEntries =
+          (await m.delete(JournalEntry, { firebaseId })).affected ?? 0;
+        dbRowsReset.documentCounters =
+          (await m.delete(SettingDocuments, { userId: firebaseId })).affected ?? 0;
+
         // Documents (issued by the user) — scoped by issuerBusinessNumber.
         if (businessNumbers.length > 0) {
           dbRowsReset.docLines =
@@ -699,7 +844,13 @@ export class DemoDataService {
       }
     });
 
-    // 3. Re-upload sample PDFs into the first business's inbox/. If the
+    // 3. Recreate real documents/expenses (and therefore journal entries)
+    //    through the same services used by a fresh profile seed.
+    await this.seedDocumentsAndExpenses(firebaseId, profile);
+    dbRowsReset.documentsReseeded = profile.documents?.length ?? 0;
+    dbRowsReset.expensesReseeded = profile.expenses?.length ?? 0;
+
+    // 4. Re-upload sample PDFs into the first business's inbox/. If the
     //    folder isn't provisioned yet (e.g. user signed in once without
     //    triggering provisioning), run the Drive provisioning now too.
     let driveInbox: DriveSeedInfo | undefined = undefined;

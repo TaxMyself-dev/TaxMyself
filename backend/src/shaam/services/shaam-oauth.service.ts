@@ -1,7 +1,7 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom, timeout } from 'rxjs';
-import { getShaamUrls, SHAAM_SCOPE, REQUEST_TIMEOUT_MS } from '../shaam.constants';
+import { getShaamUrls, getShaamInvoiceScope, REQUEST_TIMEOUT_MS } from '../shaam.constants';
 import { ShaamTokenResponseDto } from '../dto/shaam-token-response.dto';
 import * as crypto from 'crypto';
 
@@ -12,6 +12,7 @@ export class ShaamOauthService {
   private readonly clientSecret: string;
   private readonly redirectUri: string;
   private readonly urls: ReturnType<typeof getShaamUrls>;
+  private readonly scope: string;
 
   constructor(private readonly httpService: HttpService) {
     this.clientId = process.env.SHAAM_CLIENT_ID || '';
@@ -36,6 +37,7 @@ export class ShaamOauthService {
 
     const env = process.env.SHAAM_ENV || 'tsandbox';
     this.urls = getShaamUrls(env);
+    this.scope = getShaamInvoiceScope(env);
     
     this.logger.log('SHAAM OAuth Service initialized', {
       env,
@@ -60,7 +62,7 @@ export class ShaamOauthService {
     const params = new URLSearchParams({
       response_type: 'code',
       client_id: this.clientId,
-      scope: SHAAM_SCOPE,
+      scope: this.scope,
       redirect_uri: this.redirectUri,
       state: state,
     });
@@ -97,21 +99,10 @@ export class ShaamOauthService {
       grant_type: 'authorization_code',
       code: code,
       redirect_uri: redirectUri,
-      scope: SHAAM_SCOPE,
+      scope: this.scope,
     });
 
-    // Log token request (without secrets)
-    const tokenRequestLog = {
-      url: tokenUrl,
-      grant_type: 'authorization_code',
-      code: code.substring(0, 10) + '...',
-      redirect_uri: redirectUri,
-      scope: SHAAM_SCOPE,
-      hasAuthHeader: true,
-      authHeaderPrefix: 'Basic',
-    };
-
-    this.logger.log('Token request sent', tokenRequestLog);
+    this.logger.log('SHAAM token exchange requested');
 
     try {
       const response = await firstValueFrom(
@@ -128,21 +119,10 @@ export class ShaamOauthService {
         ).pipe(timeout(REQUEST_TIMEOUT_MS)),
       );
 
-      // Log token response (with masked access_token)
-      const maskedToken = response.data.access_token
-        ? response.data.access_token.substring(0, 10) + '...'
-        : 'N/A';
-      
-      const tokenResponseLog = {
+      this.logger.log('SHAAM token exchange completed', {
         status: response.status,
-        access_token: maskedToken,
-        token_type: response.data.token_type,
-        expires_in: response.data.expires_in,
-        has_refresh_token: !!response.data.refresh_token,
-        scope: response.data.scope,
-      };
-
-      this.logger.log('Token response received', tokenResponseLog);
+        expiresIn: response.data.expires_in,
+      });
       
       return response.data;
     } catch (error: any) {
@@ -161,7 +141,6 @@ export class ShaamOauthService {
         errorLog.statusText = error.response.statusText;
         errorLog.error = error.response.data?.error;
         errorLog.error_description = error.response.data?.error_description;
-        errorLog.responseData = error.response.data;
       }
 
       // Check for DNS/network errors
@@ -192,20 +171,10 @@ export class ShaamOauthService {
     const body = new URLSearchParams({
       grant_type: 'refresh_token',
       refresh_token: refreshToken,
-      scope: SHAAM_SCOPE,
+      scope: this.scope,
     });
 
-    // Log refresh request (without secrets)
-    const refreshRequestLog = {
-      url: tokenUrl,
-      grant_type: 'refresh_token',
-      refresh_token: refreshToken.substring(0, 10) + '...',
-      scope: SHAAM_SCOPE,
-      hasAuthHeader: true,
-      authHeaderPrefix: 'Basic',
-    };
-
-    this.logger.log('Refresh token request sent', refreshRequestLog);
+    this.logger.log('SHAAM token refresh requested');
 
     try {
       const response = await firstValueFrom(
@@ -222,21 +191,10 @@ export class ShaamOauthService {
         ).pipe(timeout(REQUEST_TIMEOUT_MS)),
       );
 
-      // Log token response (with masked access_token)
-      const maskedToken = response.data.access_token
-        ? response.data.access_token.substring(0, 10) + '...'
-        : 'N/A';
-      
-      const tokenResponseLog = {
+      this.logger.log('SHAAM token refresh completed', {
         status: response.status,
-        access_token: maskedToken,
-        token_type: response.data.token_type,
-        expires_in: response.data.expires_in,
-        has_refresh_token: !!response.data.refresh_token,
-        scope: response.data.scope,
-      };
-
-      this.logger.log('Refresh token response received', tokenResponseLog);
+        expiresIn: response.data.expires_in,
+      });
       
       return response.data;
     } catch (error: any) {

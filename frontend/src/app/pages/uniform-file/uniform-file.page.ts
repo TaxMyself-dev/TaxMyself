@@ -174,8 +174,8 @@ export class UniformFilePage implements OnInit {
         formValues.startDate,
         formValues.endDate
       );
-      startDate = periodStartDate;
-      endDate = periodEndDate;
+      startDate = this.dateService.toIsoDate(periodStartDate);
+      endDate = this.dateService.toIsoDate(periodEndDate);
       console.log('[uniform-file] parsed period dates', { startDate, endDate });
       // Get businessNumber from formValues (selected by user) or fallback to signal
       businessNumber = formValues.businessNumber || this.businessNumber();
@@ -186,8 +186,8 @@ export class UniformFilePage implements OnInit {
     } else {
       // Use uniformFileForm values
       formData = this.uniformFileForm.value;
-      startDate = formData.startDate;
-      endDate = formData.endDate;
+      startDate = this.dateService.toIsoDate(formData.startDate);
+      endDate = this.dateService.toIsoDate(formData.endDate);
       businessNumber = formData.businessNumber || this.businessNumber();
       console.log('[uniform-file] submit with uniformFileForm', {
         startDateRaw: formData?.startDate,

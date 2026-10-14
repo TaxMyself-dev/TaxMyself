@@ -11,7 +11,6 @@ import {
   DocumentsTableHebrewColumns,
   FormTypes,
   ReportingPeriodType,
-  getAllocationNumberThreshold,
   isExemptBusinessType,
 } from 'src/app/shared/enums';
 import { AuthService } from 'src/app/services/auth.service';
@@ -24,6 +23,7 @@ import { Router } from '@angular/router';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 import { DialogService } from 'primeng/dynamicdialog';
 import { DocSuccessDialogComponent } from 'src/app/components/create-doc-success-dialog/create-doc-success-dialog.component';
+import { ShaamService } from 'src/app/services/shaam.service';
 
 // Israeli Tax Authority page where the user manually requests an allocation number.
 const TAX_AUTHORITY_ALLOCATION_URL = 'https://www.gov.il/he/service/request-assignment-number-for-tax-invoice';
@@ -50,6 +50,7 @@ export class IncomesPage implements OnInit {
   private fb = inject(FormBuilder);
   private router = inject(Router);
   private dialogService = inject(DialogService);
+  private shaamService = inject(ShaamService);
 
   // For the allocation-number entry dialog
   readonly buttonSize = ButtonSize;
@@ -333,20 +334,10 @@ export class IncomesPage implements OnInit {
       return rawStatus === PENDING_ALLOCATION_STATUS;
     };
 
-    // "Get allocation # from tax authority" should appear whenever a tax
-    // invoice / tax-invoice-receipt needs an allocation number — either it
-    // was explicitly saved as PENDING_ALLOCATION, OR it was issued above the
-    // threshold without one (so the recipient currently can't reclaim VAT
-    // and the user might want to attach one retroactively).
+    // Automatic allocation is resumed only for the persisted, locked pending
+    // invoice. Already-issued invoices need a separate correction flow.
     const needsAllocationNumber = (row: IRowDataTable) => {
-      if (!isTaxInvoiceType(row)) return false;
-      if (isPending(row)) return true;
-      const r = row as any;
-      const sumBeforeVat = Number(r?.sumAftDisBefVAT ?? 0);
-      const hasAllocationNum = !!(r?.allocationNum && String(r.allocationNum).trim());
-      // Threshold depends on the doc's date (steps down over time per the
-      // VAT-reform schedule in getAllocationNumberThreshold).
-      return sumBeforeVat > getAllocationNumberThreshold(r?.docDate) && !hasAllocationNum;
+      return isTaxInvoiceType(row) && isPending(row);
     };
 
     // "Issue without allocation #" only makes sense while the doc is still
@@ -396,13 +387,11 @@ export class IncomesPage implements OnInit {
       // a decision about its allocation number). ──
       {
         name: 'get-allocation-from-tax',
-        icon: 'pi pi-external-link',
-        title: 'קבל מספר הקצאה מרשות המיסים',
+        icon: 'pi pi-refresh',
+        title: 'המשך / אחזר מספר הקצאה משע״מ',
         alwaysShow: true,
         showWhen: needsAllocationNumber,
-        // Opens the Tax Authority page in a new tab AND surfaces the input
-        // dialog so the user can paste the number when they come back.
-        action: (_event: any, row: IRowDataTable) => this.getAllocationFromTaxAuthority(row),
+        action: (_event: any, row: IRowDataTable) => this.resumeAutomaticAllocation(row),
       },
       {
         name: 'finalize-no-allocation',
@@ -412,15 +401,6 @@ export class IncomesPage implements OnInit {
         showWhen: canFinalizeWithoutAllocation,
         action: (_event: any, row: IRowDataTable) => this.finalizeWithoutAllocation(row),
       },
-      // TODO: re-enable when SHAAM auto-flow is wired up.
-      // {
-      //   name: 'request-allocation-auto',
-      //   icon: 'pi pi-bolt',
-      //   title: 'בקש מספר הקצאה אוטומטית (שעמ)',
-      //   alwaysShow: true,
-      //   showWhen: isPending,
-      //   action: (_event: any, row: IRowDataTable) => this.requestAllocationAutomatically(row),
-      // },
     ]);
   }
 
@@ -454,6 +434,78 @@ export class IncomesPage implements OnInit {
     this.pendingFinalizeRow.set(row);
     this.allocationInputValue = '';
     this.showAllocationInputDialog.set(true);
+  }
+
+  /**
+   * First ask SHAAM to recover an allocation for this persisted invoice. Only
+   * a definitive "not found" result permits a new approval request, preventing
+   * duplicate allocations after a timeout or lost browser response.
+   */
+  private resumeAutomaticAllocation(row: IRowDataTable): void {
+    const businessNumber = ((row as any).issuerBusinessNumber as string) || this.selectedBusinessNumber();
+    const docNumber = ((row as any).docNumber ?? (row as any).doc_number)?.toString();
+    const docType = this.resolveDocType(row);
+    if (!businessNumber || !docNumber || !docType) {
+      this.messageService.add({ severity: 'error', summary: 'שגיאה', detail: 'לא ניתן לזהות את המסמך', life: 4000, key: 'br' });
+      return;
+    }
+
+    this.gs.getLoader().subscribe();
+    this.gs.updateLoaderMessage('בודק ומפיק מספר הקצאה, אנא המתן...');
+
+    this.shaamService.recoverInvoiceAllocation(businessNumber, docNumber, docType).pipe(
+      catchError((recoveryError) => {
+        if (
+          recoveryError?.status === 404 &&
+          recoveryError?.error?.code === 'ALLOCATION_NOT_FOUND'
+        ) {
+          return this.shaamService.requestInvoiceAllocation(businessNumber, docNumber, docType);
+        }
+        throw recoveryError;
+      }),
+      take(1),
+      finalize(() => this.gs.dismissLoader()),
+      catchError((error) => {
+        console.error('resumeAutomaticAllocation failed', error);
+        this.messageService.add({
+          severity: 'error',
+          summary: 'ההקצאה לא הושלמה',
+          detail: error?.status === 428
+            ? 'נדרשת התחברות מחדש לשע״מ.'
+            : (error?.error?.message || 'לא התקבלה תשובה ודאית. המסמך נשאר שמור וממתין להמשך טיפול.'),
+          life: 7000,
+          key: 'br',
+        });
+        return EMPTY;
+      }),
+    ).subscribe((response: any) => {
+      if (!response?.success || !response?.docNumber) {
+        this.messageService.add({
+          severity: 'warn',
+          summary: 'החשבונית לא אושרה',
+          detail: response?.message || 'המסמך נשאר שמור וממתין להמשך טיפול.',
+          life: 6000,
+          key: 'br',
+        });
+        return;
+      }
+      this.dialogService.open(DocSuccessDialogComponent, {
+        header: '',
+        width: '400px',
+        data: {
+          docNumber: response.docNumber,
+          file: response.file,
+          copyFile: response.copyFile,
+          docType: (row as any).docType,
+        },
+      });
+      this.fetchDocuments(
+        this.selectedBusinessNumber(),
+        this.startDate,
+        this.endDate,
+        this.form?.value?.docType,
+      );
+    });
   }
 
   // TODO: re-enable when SHAAM auto-flow is wired up.

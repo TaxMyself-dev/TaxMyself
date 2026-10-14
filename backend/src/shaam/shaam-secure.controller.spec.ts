@@ -1,0 +1,60 @@
+import { BadRequestException, HttpException } from '@nestjs/common';
+import { ShaamEnvironment } from './shaam.constants';
+import { ShaamProduct } from './entities/shaam.enums';
+import { ShaamSecureController } from './shaam-secure.controller';
+
+describe('ShaamSecureController', () => {
+  function setup(business: any = { id: 7, businessNumber: '222222226' }) {
+    const businessService = { getBusinessByNumber: jest.fn().mockResolvedValue(business) };
+    const states = { create: jest.fn().mockResolvedValue('opaque-state'), consume: jest.fn() };
+    const connections = { status: jest.fn().mockResolvedValue({ connected: true, expiresAt: new Date() }), getValidAccessToken: jest.fn().mockResolvedValue('server-token'), saveToken: jest.fn() };
+    const allocationOauth = { buildAuthorizeUrl: jest.fn().mockReturnValue('https://openapi.taxes.gov.il/authorize'), exchangeCodeForToken: jest.fn() };
+    const uniformOauth = { buildAuthorizeUrl: jest.fn(), exchangeCodeForDailyToken: jest.fn() };
+    const documentAllocation = {
+      requestAndFinalize: jest.fn().mockResolvedValue({ success: true }),
+      recoverAndFinalize: jest.fn().mockResolvedValue({ success: true }),
+    };
+    const controller = new ShaamSecureController(businessService as any, states as any, connections as any, allocationOauth as any, uniformOauth as any, documentAllocation as any, { enabled: false, environment: ShaamEnvironment.TSANDBOX } as any);
+    return { controller, businessService, states, connections, documentAllocation };
+  }
+
+  const request = { user: { firebaseId: 'effective-owner', actorFirebaseId: 'real-actor' } };
+
+  it('scopes OAuth initiation to the effective owner and records the real actor', async () => {
+    const { controller, businessService, states } = setup();
+    await controller.authorize(request, { businessNumber: '222222226', product: ShaamProduct.INVOICE_ALLOCATION });
+    expect(businessService.getBusinessByNumber).toHaveBeenCalledWith('222222226', 'effective-owner');
+    expect(states.create).toHaveBeenCalledWith(7, 'real-actor', ShaamProduct.INVOICE_ALLOCATION, ShaamEnvironment.TSANDBOX);
+  });
+
+  it('rejects an unauthorized business before creating OAuth state', async () => {
+    const { controller, states } = setup(null);
+    await expect(controller.authorize(request, { businessNumber: '111111118', product: ShaamProduct.INVOICE_ALLOCATION })).rejects.toThrow(BadRequestException);
+    expect(states.create).not.toHaveBeenCalled();
+  });
+
+  it('does not create state while uniform-file OAuth is disabled', async () => {
+    const { controller, states } = setup();
+    await expect(controller.authorize(request, { businessNumber: '222222226', product: ShaamProduct.UNIFORM_FILE })).rejects.toThrow('disabled');
+    expect(states.create).not.toHaveBeenCalled();
+  });
+
+  it('uses the server-held allocation token rather than a browser header', async () => {
+    const { controller, connections, documentAllocation } = setup();
+    await controller.submitApproval(request, '222222226', { docNumber: '20000', docType: 'TAX_INVOICE' } as any);
+    expect(connections.getValidAccessToken).toHaveBeenCalledWith(7, ShaamProduct.INVOICE_ALLOCATION, ShaamEnvironment.TSANDBOX);
+    expect(documentAllocation.requestAndFinalize).toHaveBeenCalledWith(
+      'server-token',
+      'effective-owner',
+      '222222226',
+      '20000',
+      'TAX_INVOICE',
+    );
+  });
+
+  it('requires reconnection without exposing a token', async () => {
+    const { controller, connections } = setup();
+    connections.getValidAccessToken.mockResolvedValue(null);
+    await expect(controller.submitApproval(request, '222222226', { docNumber: '20000', docType: 'TAX_INVOICE' } as any)).rejects.toBeInstanceOf(HttpException);
+  });
+});

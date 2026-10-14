@@ -6,6 +6,7 @@ import { COUPLE_OPEN_BANKING_NO_BILLS_PROFILE } from './couple-open-banking-no-b
 import { SINGLE_OB_OCR_TEST_PROFILE } from './single-ob-ocr-test.profile';
 import { LEDGER_TEST_PROFILE } from './ledger-test.profile';
 import { DIRECT_CARD_DEMO_PROFILE } from './direct-card-demo.profile';
+import { SHAAM_ALLOCATION_TEST_PROFILE } from './shaam-allocation-test.profile';
 
 /**
  * Registry of available demo profiles. To add a new profile:
@@ -21,6 +22,7 @@ export const DEMO_PROFILES: readonly DemoProfile[] = [
   SINGLE_OB_OCR_TEST_PROFILE,
   LEDGER_TEST_PROFILE,
   DIRECT_CARD_DEMO_PROFILE,
+  SHAAM_ALLOCATION_TEST_PROFILE,
 ];
 
 /**
