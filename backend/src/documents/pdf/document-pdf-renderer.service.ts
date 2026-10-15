@@ -61,8 +61,10 @@ export class DocumentPdfRenderer {
         timeout: 30000,
         args: [
           '--disable-dev-shm-usage',
-          // Use launch settings compatible with Windows and Docker containers.
-          ...(process.platform === 'win32' || existsSync('/.dockerenv')
+          // Cloud Run may run as root without a Docker marker file.
+          ...(process.getuid?.() === 0 ||
+          process.platform === 'win32' ||
+          existsSync('/.dockerenv')
             ? ['--no-sandbox']
             : []),
         ],

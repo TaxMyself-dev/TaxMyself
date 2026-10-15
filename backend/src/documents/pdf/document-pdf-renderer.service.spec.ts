@@ -44,6 +44,24 @@ describe('PDF rendering resource isolation', () => {
     expect(request.abort).toHaveBeenCalledTimes(1);
     expect(request.continue).not.toHaveBeenCalled();
   });
+  it('supports a root Cloud Run process without relying on a Docker marker', async () => {
+    const platform = Object.getOwnPropertyDescriptor(process, 'platform');
+    const uid = Object.getOwnPropertyDescriptor(process, 'getuid');
+    Object.defineProperty(process, 'platform', { value: 'linux', configurable: true });
+    Object.defineProperty(process, 'getuid', { value: () => 0, configurable: true });
+    try {
+      await renderer.render(model);
+      expect(puppeteer.launch).toHaveBeenCalledWith(
+        expect.objectContaining({ args: expect.arrayContaining(['--no-sandbox']) }),
+      );
+      expect(page.setJavaScriptEnabled).toHaveBeenCalledWith(false);
+      expect(page.setRequestInterception).toHaveBeenCalledWith(true);
+    } finally {
+      Object.defineProperty(process, 'platform', platform);
+      if (uid) Object.defineProperty(process, 'getuid', uid);
+      else delete process.getuid;
+    }
+  });
   it('releases capacity and browser on rendering errors', async () => {
     page.pdf.mockRejectedValueOnce(new Error('render failed'));
     await expect(renderer.render(model)).rejects.toThrow('render failed');

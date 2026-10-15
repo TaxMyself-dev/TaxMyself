@@ -84,3 +84,8 @@ User-provided Cloud Run logs identify EACCES creating /usr/src/app/src during Mu
 ## Restore original production runtime user
 
 Elazar explicitly requested a separate commit restoring root and pushing only main. Production stage now explicitly uses USER root; removed the directory ownership workaround and node-only build assertion. Chromium installation and PDF/image functionality retained. Development/build stage users unchanged. Dockerfile stage checked and diff whitespace validated; Docker unavailable locally, so container build was not executed. No deployment or production access performed.
+
+## Root Chromium launch correction
+
+User screenshot identifies Chromium refusing root without --no-sandbox. Cloud Run does not guarantee a /.dockerenv marker. Renderer now detects effective uid 0 directly and adds the existing browser launch flag automatically, preserving JavaScript/network isolation. No new environment variable, DB or API change. Added regression coverage for a root Linux process.
+Verification: four renderer tests and Nest build passed; diff whitespace check passed. Current main also contains unrelated table-action changes; renderer fix is isolated to backend and task documentation. No live Cloud Run or Docker-container validation was performed.
