@@ -50,3 +50,22 @@ Environment: independently installed backend/frontend dependencies with npm ci. 
 The app could not attach this manually created checkout as a managed worktree (reported: checkout exists but is not a managed worktree). Code and all validation ran in the dedicated feature worktree; automatic chat/worktree attachment remains unavailable.
 
 Review notes: provider requests derive SUBs from the authenticated UID; the API accepts only boolean spouse selection. Only the data-ready webhook plus valid consent/source verification can set the permanent flag. Schema SQL is prepared, not executed. No production database, live consent, outbound email, real provider mutation or deployment was used for validation. Manual provider sandbox scenarios are listed in docs/features/feezback-spouse.md.
+## Authorized DEV schema update (2026-10-15)
+
+At Elazar's explicit request, verified the environment points to keepintax-dev
+before connecting, then verified SELECT DATABASE() returned keepintax-dev.
+MySQL version: 8.0.37-google. The spouse column was absent.
+
+Executed only this DEV schema change, with a 10-second metadata lock timeout:
+
+```sql
+ALTER TABLE `user`
+  ADD COLUMN `hasSpouseFeezbackIdentity` tinyint NOT NULL DEFAULT 0,
+  ALGORITHM=INSTANT;
+```
+
+Post-change information_schema verification confirmed COLUMN_TYPE=tinyint,
+IS_NULLABLE=NO, COLUMN_DEFAULT=0. No provider identities or consents were created,
+no application boot/synchronize was used, and no production database was accessed.
+This supersedes the initial handoff's statement that the SQL had not yet run for DEV;
+production application of the supplied cutover SQL remains pending.
