@@ -6,6 +6,8 @@ import {
   HttpException,
   HttpStatus,
   Inject,
+  Param,
+  ParseIntPipe,
   Post,
   Query,
   Req,
@@ -30,6 +32,8 @@ import {
   UniformFileOauthConfig,
 } from './uniform-file/uniform-file-oauth.config';
 import { UniformFileOauthService } from './uniform-file/uniform-file-oauth.service';
+import { PrepareUniformFileSubmissionDto } from './dto/prepare-uniform-file-submission.dto';
+import { UniformFileSubmissionService } from './services/uniform-file-submission.service';
 
 @Controller('shaam')
 export class ShaamSecureController {
@@ -40,6 +44,7 @@ export class ShaamSecureController {
     private readonly allocationOauth: ShaamOauthService,
     private readonly uniformOauth: UniformFileOauthService,
     private readonly documentAllocation: ShaamDocumentAllocationService,
+    private readonly uniformSubmissions: UniformFileSubmissionService,
     @Inject(UNIFORM_FILE_OAUTH_CONFIG)
     private readonly uniformConfig: UniformFileOauthConfig,
   ) {}
@@ -160,6 +165,36 @@ export class ShaamSecureController {
       dto.docNumber,
       dto.docType,
     );
+  }
+
+  @Post('uniform-file/submissions')
+  @UseGuards(FirebaseAuthGuard)
+  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+  async prepareUniformFileSubmission(
+    @Req() request: any,
+    @Body() dto: PrepareUniformFileSubmissionDto,
+  ) {
+    const business = await this.resolveBusiness(request, dto.businessNumber);
+    return this.uniformSubmissions.prepare({
+      businessId: business.id,
+      businessNumber: business.businessNumber,
+      ownerFirebaseId: request.user.firebaseId,
+      actorFirebaseId: request.user.actorFirebaseId,
+      environment: this.environmentFor(ShaamProduct.UNIFORM_FILE),
+      periodStart: dto.startDate,
+      periodEnd: dto.endDate,
+    });
+  }
+
+  @Get('uniform-file/submissions/:submissionId')
+  @UseGuards(FirebaseAuthGuard)
+  async uniformFileSubmissionStatus(
+    @Req() request: any,
+    @Param('submissionId', ParseIntPipe) submissionId: number,
+    @Query('businessNumber') businessNumber: string,
+  ) {
+    const business = await this.resolveBusiness(request, businessNumber);
+    return this.uniformSubmissions.status(business.id, submissionId);
   }
 
   private async resolveBusiness(request: any, businessNumber?: string) {

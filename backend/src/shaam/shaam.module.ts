@@ -23,6 +23,8 @@ import { FirebaseAuthGuard } from '../guards/firebase-auth.guard';
 import { Documents } from '../documents/documents.entity';
 import { DocumentsModule } from '../documents/documents.module';
 import { ShaamDocumentAllocationService } from './services/shaam-document-allocation.service';
+import { ReportsModule } from '../reports/reports.module';
+import { UniformFileSubmissionService } from './services/uniform-file-submission.service';
 
 @Module({
   imports: [
@@ -41,6 +43,7 @@ import { ShaamDocumentAllocationService } from './services/shaam-document-alloca
     ]),
     BusinessModule,
     DocumentsModule,
+    ReportsModule,
   ],
   controllers: [ShaamSecureController],
   providers: [
@@ -54,6 +57,7 @@ import { ShaamDocumentAllocationService } from './services/shaam-document-alloca
     UniformFileOauthService,
     ShaamConnectionService,
     ShaamOauthStateService,
+    UniformFileSubmissionService,
     FirebaseAuthGuard,
   ],
   exports: [
@@ -62,6 +66,7 @@ import { ShaamDocumentAllocationService } from './services/shaam-document-alloca
     UniformFileOauthService,
     ShaamConnectionService,
     ShaamOauthStateService,
+    UniformFileSubmissionService,
   ],
 })
 export class ShaamModule {}

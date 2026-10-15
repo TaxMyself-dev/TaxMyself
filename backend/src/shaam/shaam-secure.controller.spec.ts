@@ -14,8 +14,12 @@ describe('ShaamSecureController', () => {
       requestAndFinalize: jest.fn().mockResolvedValue({ success: true }),
       recoverAndFinalize: jest.fn().mockResolvedValue({ success: true }),
     };
-    const controller = new ShaamSecureController(businessService as any, states as any, connections as any, allocationOauth as any, uniformOauth as any, documentAllocation as any, { enabled: false, environment: ShaamEnvironment.TSANDBOX } as any);
-    return { controller, businessService, states, connections, documentAllocation };
+    const uniformSubmissions = {
+      prepare: jest.fn().mockResolvedValue({ id: 91, state: 'GENERATED' }),
+      status: jest.fn().mockResolvedValue({ id: 91, state: 'GENERATED' }),
+    };
+    const controller = new ShaamSecureController(businessService as any, states as any, connections as any, allocationOauth as any, uniformOauth as any, documentAllocation as any, uniformSubmissions as any, { enabled: false, environment: ShaamEnvironment.TSANDBOX } as any);
+    return { controller, businessService, states, connections, documentAllocation, uniformSubmissions };
   }
 
   const request = { user: { firebaseId: 'effective-owner', actorFirebaseId: 'real-actor' } };
@@ -56,5 +60,33 @@ describe('ShaamSecureController', () => {
     const { controller, connections } = setup();
     connections.getValidAccessToken.mockResolvedValue(null);
     await expect(controller.submitApproval(request, '222222226', { docNumber: '20000', docType: 'TAX_INVOICE' } as any)).rejects.toBeInstanceOf(HttpException);
+  });
+
+  it('prepares a uniform-file submission for the authorized effective owner', async () => {
+    const { controller, uniformSubmissions } = setup();
+
+    await controller.prepareUniformFileSubmission(request, {
+      businessNumber: '222222226',
+      startDate: '2026-02-01',
+      endDate: '2026-03-31',
+    });
+
+    expect(uniformSubmissions.prepare).toHaveBeenCalledWith({
+      businessId: 7,
+      businessNumber: '222222226',
+      ownerFirebaseId: 'effective-owner',
+      actorFirebaseId: 'real-actor',
+      environment: ShaamEnvironment.TSANDBOX,
+      periodStart: '2026-02-01',
+      periodEnd: '2026-03-31',
+    });
+  });
+
+  it('scopes uniform-file status to the authorized business', async () => {
+    const { controller, uniformSubmissions } = setup();
+
+    await controller.uniformFileSubmissionStatus(request, 91, '222222226');
+
+    expect(uniformSubmissions.status).toHaveBeenCalledWith(7, 91);
   });
 });

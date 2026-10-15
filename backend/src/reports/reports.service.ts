@@ -78,6 +78,11 @@ export interface UniformFileArtifacts {
   list_summary: ListSummaryRow[];
 }
 
+export interface UniformFileGenerationContext {
+  uniqueId?: string;
+  generatedAt?: Date;
+}
+
 const createUniformGenerationState = (): UniformGenerationState => ({
   recordCounter: 1,
   recordSummary: { A100: 1, B100: 0, B110: 0, C100: 0, D110: 0, D120: 0, M100: 0, Z900: 1 },
@@ -1540,11 +1545,26 @@ export class ReportsService {
   }
 
 
-    async createUniformFile(userId: string, startDate: string, endDate: string, businessNumber: string): Promise<UniformFileArtifacts> {
+    async createUniformFile(
+      userId: string,
+      startDate: string,
+      endDate: string,
+      businessNumber: string,
+      generationContext: UniformFileGenerationContext = {},
+    ): Promise<UniformFileArtifacts> {
       const state = createUniformGenerationState();
 
-      // Generate Unique Random Number (15 digits)
-      const uniqueId = this.generateUniqueId();
+      const generatedAt = generationContext.generatedAt
+        ? new Date(generationContext.generatedAt)
+        : new Date();
+      if (Number.isNaN(generatedAt.getTime())) {
+        throw new Error('Invalid uniform-file generation timestamp');
+      }
+
+      const uniqueId = generationContext.uniqueId ?? this.generateUniqueId();
+      if (!/^\d{15}$/.test(uniqueId)) {
+        throw new Error('Uniform-file unique ID must contain exactly 15 digits');
+      }
       
       const { content: dataContent } = await this.generateDataFileContent(
         userId,
@@ -1564,12 +1584,12 @@ export class ReportsService {
       }
 
       // Get current year suffix (XX)
-      const currentYear = new Date().getFullYear();
+      const currentYear = generatedAt.getFullYear();
       const XX = String(currentYear).slice(-2);
 
       // Create folder names
       const businessFolder = `${trimBusinessNumber}.${XX}`;
-      const MMDDhhmm = this.getCurrentTimestamp();
+      const MMDDhhmm = this.getCurrentTimestamp(generatedAt);
       const filePath = `${businessFolder}/${MMDDhhmm}` 
 
       // Generate file contents
@@ -1580,6 +1600,7 @@ export class ReportsService {
         startDate,
         endDate,
         state,
+        generatedAt,
       );
 
       assertValidUniformFileContents(iniContent, dataContent);
@@ -1629,15 +1650,16 @@ export class ReportsService {
       startDate: string,
       endDate: string,
       state: UniformGenerationState,
+      generatedAt: Date = new Date(),
     ): Promise<string> {
 
       const startDateObj = this.sharedService.convertStringToDateObject(startDate);
       const endDateObj = this.sharedService.convertStringToDateObject(endDate);
       
 
-      const currentDate = new Date();
+      const currentDate = generatedAt;
       const formattedCurrentDate = `${currentDate.getFullYear()}${String(currentDate.getMonth() + 1).padStart(2, '0')}${String(currentDate.getDate()).padStart(2, '0')}`;
-      const currentTime = `${String(new Date().getHours()).padStart(2, '0')}${String(new Date().getMinutes()).padStart(2, '0')}`;
+      const currentTime = `${String(currentDate.getHours()).padStart(2, '0')}${String(currentDate.getMinutes()).padStart(2, '0')}`;
 
       let result = '';
     
@@ -1694,8 +1716,7 @@ export class ReportsService {
 
 
     // Function to get current timestamp for folder naming (MMDDhhmm)
-    private getCurrentTimestamp(): string {
-      const now = new Date();
+    private getCurrentTimestamp(now: Date = new Date()): string {
       return `${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
     }
 

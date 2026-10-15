@@ -8,6 +8,7 @@ Integrates with the Israel Tax Authority's SHAAM OpenAPI — OAuth2 authorizatio
 - `services/shaam-oauth.service.ts` — `ShaamOauthService`: builds the authorize URL, exchanges an auth code for tokens, refreshes tokens. Requires `SHAAM_CLIENT_ID`/`SHAAM_CLIENT_SECRET`/`SHAAM_REDIRECT_URI` env vars (throws at construction if missing).
 - `services/shaam-invoices.service.ts` — low-level SHAAM HTTP client for Approval and the official `Invoice-Information/confirmationNumber` recovery endpoint.
 - `services/shaam-document-allocation.service.ts` — persisted-invoice orchestration: loads the final invoice identity, builds fiscal fields server-side, persists the returned allocation number, and only then invokes document finalization.
+- `services/uniform-file-submission.service.ts` — prepares validated uniform-file pairs without contacting SHAAM, stores only hashes/byte lengths/safe metadata, regenerates an existing artifact from its persisted timestamp to enforce restart-safe idempotency, and scopes status reads to the authorized business.
 - `shaam.constants.ts` — sandbox allocation URLs and fail-closed, explicitly enabled production configuration.
 - `uniform-file/` — isolated, disabled-by-default OAuth foundation for the
   uniform-file Daily Token. It has exact product scopes, verified Tax Authority
@@ -22,6 +23,8 @@ Integrates with the Israel Tax Authority's SHAAM OpenAPI — OAuth2 authorizatio
   metadata. An expired access token alone must not trigger browser reauthorization.
 - `POST /shaam/invoices/allocation?businessNumber=...` — accepts only `docNumber` + `docType`, resolves the server-held token, attempts official recovery first, and only when that succeeds without an existing number submits Approval before finalizing the persisted invoice. An ambiguous recovery error blocks Approval.
 - `POST /shaam/invoices/allocation/recover?businessNumber=...` — retrieves a lost allocation response from the official recovery API using the persisted invoice fields; it never submits a replacement approval request.
+- `POST /shaam/uniform-file/submissions` — generates and validates the INI/BKM pair for an authorized business and period, then creates or reuses a `GENERATED` submission. It makes no Tax Authority request and returns no file bytes, hashes, tokens or capability URLs.
+- `GET /shaam/uniform-file/submissions/:submissionId?businessNumber=...` — returns safe internal submission metadata only after the same business authorization check.
 
 Production and tsandbox recovery use
 `invoice-information/v2/confirmationNumber` and send the persisted lookup in

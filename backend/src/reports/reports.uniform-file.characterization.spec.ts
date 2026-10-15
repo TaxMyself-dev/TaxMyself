@@ -190,6 +190,34 @@ describe('ReportsService uniform-file characterization', () => {
     expect(closing).toMatch(/^Z900000000002123456789123456789012345&OF1\.31&0{14}2\?{50}\r\n$/);
   });
 
+  it('rebuilds identical INI bytes from an explicit generation timestamp', async () => {
+    const service = createHarness();
+    const generatedAt = new Date(2026, 9, 15, 12, 34, 56);
+
+    const first = await (service as any).generateIniFileContent(
+      '123456789',
+      '123456789012345',
+      '12345678.26/10151234',
+      '2026-01-01',
+      '2026-12-31',
+      createGenerationState(),
+      generatedAt,
+    );
+    const second = await (service as any).generateIniFileContent(
+      '123456789',
+      '123456789012345',
+      '12345678.26/10151234',
+      '2026-01-01',
+      '2026-12-31',
+      createGenerationState(),
+      generatedAt,
+    );
+
+    expect(Buffer.from(first)).toEqual(Buffer.from(second));
+    expect(first).toContain('20261015');
+    expect(first).toContain('1234');
+  });
+
   it('scopes document reads to the requested business and document-date period', async () => {
     const service = createHarness();
     service.documentsRepo.find.mockResolvedValue([]);
