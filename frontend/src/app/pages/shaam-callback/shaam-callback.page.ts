@@ -1,23 +1,13 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
-import { ShaamService } from 'src/app/services/shaam.service';
 import { MessageService } from 'primeng/api';
 import { ToastModule } from 'primeng/toast';
-import { catchError, EMPTY } from 'rxjs';
 import { ButtonComponent } from 'src/app/components/button/button.component';
 import { ButtonSize, ButtonColor } from 'src/app/components/button/button.enum';
 import { environment } from 'src/environments/environment';
 import { AccessHandlerService } from 'src/app/services/access-handler.service';
 import { AppFeature } from 'src/app/shared/access-control';
-
-interface ShaamTokenResponse {
-  access_token: string;
-  token_type: string;
-  expires_in: number;
-  refresh_token?: string | null;
-  scope?: string | null;
-}
 
 @Component({
   selector: 'app-shaam-callback',
@@ -29,7 +19,6 @@ interface ShaamTokenResponse {
 export class ShaamCallbackPage implements OnInit {
   private route = inject(ActivatedRoute);
   private router = inject(Router);
-  private shaamService = inject(ShaamService);
   private accessHandlerService = inject(AccessHandlerService);
   private messageService = inject(MessageService);
 
@@ -44,9 +33,7 @@ export class ShaamCallbackPage implements OnInit {
   ngOnInit() {
     // Get query parameters from SHAAM redirect or backend redirect
     this.route.queryParams.subscribe(params => {
-      const code = params['code'];
-      const state = params['state'];
-      const response = params['response']; // Full response from backend
+      const connected = params['connected'];
       const error = params['error'];
       const errorDescription = params['error_description'];
 
@@ -65,41 +52,18 @@ export class ShaamCallbackPage implements OnInit {
         return;
       }
 
-      // If full response is provided (from backend redirect), use it directly
-      if (response) {
-        try {
-          const decodedResponse = decodeURIComponent(response);
-          const tokenResponse: ShaamTokenResponse = JSON.parse(decodedResponse);
-          this.handleTokenReceived(tokenResponse);
-          return;
-        } catch (e) {
-          console.error('Error parsing token response:', e);
-          this.isLoading = false;
-          this.isError = true;
-          this.errorMessage = 'שגיאה בפענוח התשובה משעמ';
-          return;
-        }
+      if (connected === 'true') {
+        this.handleConnected();
+        return;
       }
 
-      // Handle success - exchange code for token
-      if (code && state) {
-        this.exchangeCodeForToken(code, state);
-      } else {
-        this.isLoading = false;
-        this.isError = true;
-        this.errorMessage = 'Missing authorization code or state';
-        this.messageService.add({
-          severity: 'error',
-          summary: 'שגיאה',
-          detail: 'קוד האישור חסר',
-          life: 5000,
-          key: 'br',
-        });
-      }
+      this.isLoading = false;
+      this.isError = true;
+      this.errorMessage = 'Missing connection result';
     });
   }
 
-  private handleTokenReceived(tokenResponse: ShaamTokenResponse): void {
+  private handleConnected(): void {
     this.isLoading = false;
     this.isSuccess = true;
 
@@ -118,37 +82,6 @@ export class ShaamCallbackPage implements OnInit {
     });
   }
 
-  private exchangeCodeForToken(code: string, state: string): void {
-    this.shaamService.exchangeCodeForToken(code, state)
-      .pipe(
-        catchError(err => {
-          console.error('Error exchanging code for token:', err);
-          this.isLoading = false;
-          this.isError = true;
-          this.errorMessage = err.error?.message || 'Failed to exchange code for token';
-          this.messageService.add({
-            severity: 'error',
-            summary: 'שגיאה',
-            detail: 'לא הצלחנו לקבל את הטוקן. אנא נסה שוב.',
-            life: 5000,
-            key: 'br',
-          });
-          return EMPTY;
-        })
-      )
-      .subscribe(response => {
-        // Convert to ShaamTokenResponse format
-        const tokenResponse: ShaamTokenResponse = {
-          access_token: response.accessToken,
-          token_type: response.tokenType,
-          expires_in: response.expiresIn,
-          refresh_token: null,
-          scope: null,
-        };
-        this.handleTokenReceived(tokenResponse);
-      });
-  }
-
   navigateToHome(): void {
     this.router.navigate(['/my-account']);
   }
@@ -161,7 +94,7 @@ export class ShaamCallbackPage implements OnInit {
   }
 
   tryAgain(): void {
-    this.shaamService.initiateOAuthFlow();
+    this.navigateToHome();
   }
 }
 

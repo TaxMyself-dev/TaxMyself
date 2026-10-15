@@ -2342,6 +2342,83 @@ PREPARE billing_enum_stmt FROM @billing_enum_sql;
 EXECUTE billing_enum_stmt;
 DEALLOCATE PREPARE billing_enum_stmt;
 
+-- SECTION 23 (2026-10-13): unified SHAAM OAuth and uniform-file submissions.
+-- Code/DDL approved by Elazar for KT-063. NOT approved for execution here.
+CREATE TABLE IF NOT EXISTS `shaam_connection` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `business_id` int NOT NULL,
+  `product` enum('INVOICE_ALLOCATION','UNIFORM_FILE') NOT NULL,
+  `environment` enum('tsandbox','production') NOT NULL,
+  `access_token` text NULL,
+  `refresh_token` text NULL,
+  `expires_at` datetime NULL,
+  `scopes` text NULL,
+  `status` enum('ACTIVE','REAUTH_REQUIRED','REVOKED') NOT NULL DEFAULT 'ACTIVE',
+  `connected_by_firebase_id` varchar(255) NOT NULL,
+  `created_at` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  `updated_at` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `ux_shaam_connection_business_product_env` (`business_id`,`product`,`environment`),
+  KEY `ix_shaam_connection_status_expiry` (`status`,`expires_at`),
+  CONSTRAINT `fk_shaam_connection_business` FOREIGN KEY (`business_id`) REFERENCES `business` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS `shaam_oauth_state` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `state_hash` char(64) NOT NULL,
+  `business_id` int NOT NULL,
+  `actor_firebase_id` varchar(255) NOT NULL,
+  `product` enum('INVOICE_ALLOCATION','UNIFORM_FILE') NOT NULL,
+  `environment` enum('tsandbox','production') NOT NULL,
+  `expires_at` datetime NOT NULL,
+  `consumed_at` datetime NULL,
+  `created_at` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `ux_shaam_oauth_state_hash` (`state_hash`),
+  KEY `ix_shaam_oauth_state_expiry` (`expires_at`),
+  CONSTRAINT `fk_shaam_oauth_state_business` FOREIGN KEY (`business_id`) REFERENCES `business` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS `uniform_file_submission` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `business_id` int NOT NULL,
+  `business_number_snapshot` varchar(20) NOT NULL,
+  `actor_firebase_id` varchar(255) NOT NULL,
+  `environment` enum('tsandbox','production') NOT NULL,
+  `period_start` date NOT NULL, `period_end` date NOT NULL,
+  `representor_company_id` varchar(20) NULL,
+  `state` enum('GENERATED','AUTH_REQUIRED','LINKS_RESERVED','INI_UPLOADED','PAIR_UPLOADED','PROCESSING','APPROVED','REJECTED','RETRYABLE_FAILURE','UNKNOWN_OUTCOME') NOT NULL DEFAULT 'GENERATED',
+  `ini_status` enum('UPLOADED','APPROVED','REJECTED') NULL,
+  `bkm_status` enum('UPLOADED','APPROVED','REJECTED') NULL,
+  `ini_sha256` char(64) NOT NULL, `bkm_sha256` char(64) NOT NULL,
+  `ini_byte_length` bigint unsigned NOT NULL, `bkm_byte_length` bigint unsigned NOT NULL,
+  `shaam_unique_id` varchar(255) NULL,
+  `ini_file_name` varchar(255) NULL, `bkm_file_name` varchar(255) NULL,
+  `ini_file_unique_id` varchar(255) NULL, `bkm_file_unique_id` varchar(255) NULL,
+  `error_category` varchar(64) NULL, `error_code` varchar(128) NULL, `error_message` varchar(1000) NULL,
+  `retry_count` int unsigned NOT NULL DEFAULT 0,
+  `generated_at` datetime NOT NULL, `uploaded_at` datetime NULL, `last_polled_at` datetime NULL, `completed_at` datetime NULL,
+  `created_at` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  `updated_at` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `ux_uniform_submission_artifact` (`environment`,`business_id`,`period_start`,`period_end`,`ini_sha256`,`bkm_sha256`),
+  KEY `ix_uniform_submission_business_state` (`business_id`,`state`,`created_at`),
+  CONSTRAINT `fk_uniform_submission_business` FOREIGN KEY (`business_id`) REFERENCES `business` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB;
+
+-- Historical sandbox tokens are intentionally not migrated. The old browser-
+-- token flow was never production-approved; users reconnect through the new
+-- server-only connection. Drop columns only after all three new tables exist.
+SET @kt063_sql = IF(EXISTS(SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='business' AND COLUMN_NAME='shaamAccessToken'), 'ALTER TABLE `business` DROP COLUMN `shaamAccessToken`', 'SELECT 1');
+PREPARE kt063_stmt FROM @kt063_sql; EXECUTE kt063_stmt; DEALLOCATE PREPARE kt063_stmt;
+SET @kt063_sql = IF(EXISTS(SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='business' AND COLUMN_NAME='shaamAccessTokenExp'), 'ALTER TABLE `business` DROP COLUMN `shaamAccessTokenExp`', 'SELECT 1');
+PREPARE kt063_stmt FROM @kt063_sql; EXECUTE kt063_stmt; DEALLOCATE PREPARE kt063_stmt;
+SET @kt063_sql = IF(EXISTS(SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='business' AND COLUMN_NAME='shaamRefreshToken'), 'ALTER TABLE `business` DROP COLUMN `shaamRefreshToken`', 'SELECT 1');
+PREPARE kt063_stmt FROM @kt063_sql; EXECUTE kt063_stmt; DEALLOCATE PREPARE kt063_stmt;
+
+-- Verification: table counts must be 1 and legacy-column count must be 0.
+-- SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME IN ('shaam_connection','shaam_oauth_state','uniform_file_submission');
+-- SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='business' AND COLUMN_NAME IN ('shaamAccessToken','shaamAccessTokenExp','shaamRefreshToken');
 -- Preserve existing enum values and order; append required values only if absent.
 SET @billing_enum_type = (SELECT COLUMN_TYPE FROM information_schema.COLUMNS
  WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='billing_event' AND COLUMN_NAME='event_type');
@@ -2367,3 +2444,18 @@ SET @document_image_ddl = IF(EXISTS(SELECT 1 FROM information_schema.COLUMNS WHE
 PREPARE document_image_stmt FROM @document_image_ddl;
 EXECUTE document_image_stmt;
 DEALLOCATE PREPARE document_image_stmt;
+-- SECTION 24 (2026-10-14): Invoice Information v2 allocation-number width.
+-- The production portal schema permits confirmation_number up to 50 chars.
+-- Widen only; never truncate existing values or shrink a wider future column.
+SET @kt070_allocation_length = (SELECT CHARACTER_MAXIMUM_LENGTH
+  FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='documents' AND COLUMN_NAME='allocationNum');
+SET @kt070_sql = IF(COALESCE(@kt070_allocation_length, 0) >= 50, 'SELECT 1',
+  'ALTER TABLE `documents` MODIFY COLUMN `allocationNum` VARCHAR(50) NULL');
+PREPARE kt070_stmt FROM @kt070_sql;
+EXECUTE kt070_stmt;
+DEALLOCATE PREPARE kt070_stmt;
+
+-- Verification: must return varchar(50) or a wider varchar.
+-- SELECT COLUMN_TYPE, IS_NULLABLE FROM information_schema.COLUMNS
+-- WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='documents' AND COLUMN_NAME='allocationNum';

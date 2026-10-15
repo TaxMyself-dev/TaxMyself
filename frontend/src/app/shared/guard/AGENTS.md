@@ -19,6 +19,9 @@ entitlements, referral consent, offline navigation and view-only delegation.
 - Keep redirect decisions deterministic and reuse the shared authenticated
   default route.
 - UI guards improve navigation but never replace backend authorization.
+- View-as document creation is allowed only for a real `ADMIN` operating a
+  backend-verified demo profile (`isDemo=true`); admins on real clients and
+  non-admin users on demos remain blocked.
 - Auth, delegation or entitlement-policy changes require explicit approval.
 
 ## Related topics

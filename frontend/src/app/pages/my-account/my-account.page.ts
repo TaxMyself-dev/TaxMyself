@@ -88,7 +88,7 @@ export class MyAccountPage implements OnInit {
   };
 
   onDocCreateCardClick(): void {
-    if (this.isDelegatedClientView()) {
+    if (this.isDelegatedClientView() && !this.authService.canAdminOperateViewingDemoUser()) {
       this.messageService.add({
         severity: 'warn',
         summary: 'אין הרשאה להפקת מסמך',

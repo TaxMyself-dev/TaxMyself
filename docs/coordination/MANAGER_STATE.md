@@ -70,3 +70,7 @@ Last reviewed: 2026-10-07
 Review the P0 compliance findings with an Israeli accountant/tax adviser and
 the relevant legal/security reviewers before approving implementation tasks.
 No production deployment was performed.
+
+## Document PDF and identity images integration — 2026-10-15
+
+Elazar accepted the local feature and explicitly requested delivery to main. Repository: TaxMyself-dev/TaxMyself; refreshed remote/main baseline 020632b2. Integration retains current main changes, uses the new renderer exclusively and fixed clean signing template 3IfhJjgmAp. Only FILLFASTER_API_TOKEN remains secret configuration. Two nullable image columns were previously applied to authorized development DB only; no schema statements or production actions run during delivery. Other feature refs are preserved. Combined validation and push outcome are recorded in docs/tasks/active/document-pdf-redesign.md.

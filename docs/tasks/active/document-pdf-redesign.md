@@ -1,6 +1,6 @@
 # Document PDF redesign and identity images
 
-- Status: `READY_FOR_DEV_INTEGRATION`
+- Status: `VERIFIED_FOR_MAIN_DELIVERY`
 - Task manager: current document redesign chat
 - Branch: `codex/document-pdf-redesign`
 - Base commit: `df7fd270f793e2cf77bf262c6def4cc1c1719907`
@@ -70,3 +70,9 @@ Verification: TypeScript and Angular template compilation (--noEmit), SCSS compi
 
 User explicitly requested circular logo cropping, superseding the original-aspect-ratio presentation preference. Settings preview and new PDFs now center-crop the logo with object-fit: cover and a circular mask. Uploaded originals and already-issued PDFs are unchanged. Presentation-only change; no schema or accounting changes.
 Verification: five existing PDF template tests passed; image-editor style compilation and git diff --check passed. No executable TypeScript changed; full app builds were not repeated for this CSS-only update.
+
+## Approved main delivery (2026-10-15)
+
+User accepted the feature and authorized merging to main after remote refresh. origin is https://github.com/TaxMyself-dev/TaxMyself.git; main and origin/main matched 020632b2 after fetch. Integrated that baseline; resolved provider logging/legacy-generator conflict by retaining the approved new signer path, and preserved both identity-image and SHAAM SQL additions. No SQL executed during integration. Other feature branches untouched.
+
+Combined integration verification passed: 39 PDF/image tests + 21 document/business regression tests (60 backend total), Nest build, Angular production build and 12 ChromeHeadless image tests. Existing Angular budget/CommonJS warnings remain; Chrome reported slow shutdown after all tests succeeded. Conflict markers absent; staged diff whitespace check passed. No production access or deployment.

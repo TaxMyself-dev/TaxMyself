@@ -24,7 +24,6 @@ import { TabMenuModule } from 'primeng/tabmenu';
 import { TableModule } from 'primeng/table';
 import { DocSuccessDialogComponent } from 'src/app/components/create-doc-success-dialog/create-doc-success-dialog.component';
 import { InputAutoCompleteComponent } from "src/app/components/input-autoComplete/input-autoComplete.component";
-import { ShaamInvoiceApprovalDialogComponent } from 'src/app/components/shaam-invoice-approval-dialog/shaam-invoice-approval-dialog.component';
 import { ToastModule } from 'primeng/toast';
 import { ConfirmationService } from 'primeng/api';
 import { ConfirmDialog } from 'primeng/confirmdialog';
@@ -60,7 +59,6 @@ import { PdfPreviewDialogComponent } from 'src/app/components/pdf-preview-dialog
     TableModule,
     DocSuccessDialogComponent,
     InputAutoCompleteComponent,
-    ShaamInvoiceApprovalDialogComponent,
     ToastModule,
     ConfirmDialog,
     CheckboxModule,

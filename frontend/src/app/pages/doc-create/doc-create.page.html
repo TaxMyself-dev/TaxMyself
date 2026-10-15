@@ -572,11 +572,6 @@
 
   </div>
 
-  <!-- SHAAM Invoice Approval Dialog -->
-  <app-shaam-invoice-approval-dialog [isVisible]="showShaamDialog()" [businessNumber]="selectedBusinessNumber"
-    (visibleChange)="onShaamDialogClose($event)" (approvalSuccess)="onShaamApprovalSuccess($event)">
-  </app-shaam-invoice-approval-dialog>
-
   <!-- Loading Dialog for Allocation Number Request -->
   <p-dialog header="מפיק מספר הקצאה" [visible]="allocationNumberLoading()" [modal]="true" [rtl]="true"
     [closable]="false" [style]="{ width: '400px' }">
@@ -595,7 +590,7 @@
     </div>
   </p-dialog>
 
-  <!-- Allocation-number decision dialog: 3 options when sum requires an allocation # -->
+  <!-- Allocation-number decision dialog -->
   <p-dialog header="נדרש מספר הקצאה" [visible]="showAllocationDecisionDialog()" [modal]="true" [rtl]="true"
     [style]="{ width: '480px' }" [closable]="false" [dismissableMask]="false">
     <div class="p-fluid">
@@ -622,27 +617,6 @@
     </div>
   </p-dialog>
 
-  <!-- Manual Allocation Number Input Dialog -->
-  <p-dialog header="הזנת מספר הקצאה ידנית" [visible]="showAllocationNumberInput()" [modal]="true" [rtl]="true"
-    [style]="{ width: '400px' }" (onHide)="cancelAllocationNumberInput()">
-    <div class="p-fluid">
-      <p>אנא הזן את מספר ההקצאה שקיבלת משעמ:</p>
-      <div class="p-field">
-        <label for="allocationNumber">מספר הקצאה</label>
-        <input id="allocationNumber" type="text" class="p-inputtext p-component" [(ngModel)]="manualAllocationNumber"
-          placeholder="הזן מספר הקצאה" style="width: 100%;">
-      </div>
-      <div style="margin-top: 1rem; display: flex; gap: 0.5rem; justify-content: flex-end;">
-        <app-p-button [buttonText]="'ביטול'" [buttonSize]="buttonSize.AUTO" [buttonColor]="buttonColor.WHITE"
-          (onButtonClicked)="cancelAllocationNumberInput()">
-        </app-p-button>
-        <app-p-button [buttonText]="'אישור'" [buttonSize]="buttonSize.AUTO" [buttonColor]="buttonColor.BLACK"
-          [disabled]="!manualAllocationNumber || !manualAllocationNumber.trim()"
-          (onButtonClicked)="onAllocationNumberSubmit(manualAllocationNumber)">
-        </app-p-button>
-      </div>
-    </div>
-  </p-dialog>
 
   <!-- Error dialog when document creation fails -->
   <p-dialog header="שגיאה" [visible]="showCreateDocErrorDialog()" [modal]="true" [rtl]="true"

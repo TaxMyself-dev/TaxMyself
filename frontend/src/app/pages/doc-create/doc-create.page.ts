@@ -13,15 +13,11 @@ import { FilesService } from 'src/app/services/files.service';
 import { GenericService } from 'src/app/services/generic.service';
 import { ShaamService } from 'src/app/services/shaam.service';
 import { BusinessStatus, BusinessType, fieldLineDocName, fieldLineDocValue, FieldsCreateDocName, FieldsCreateDocValue, FormTypes, getAllocationNumberThreshold, inputsSize, isExemptBusinessType, paymentMethodOptions, vatOptions, VatType } from 'src/app/shared/enums';
-import { Business, ICreateDocField, IDocIndexes, ISettingDoc, IShaamApprovalRequest, IShaamApprovalResponse, ITotals, IUserData } from 'src/app/shared/interface';
+import { Business, ICreateDocField, IDocIndexes, ISettingDoc, ITotals, IUserData } from 'src/app/shared/interface';
 import { bankOptionsList, DocCreateFields, DocTypeDefaultStart, DocTypeDisplayName, DocumentSummary, DocumentTotals, DocumentTotalsLabels, DocumentType, PartialLineItem } from './doc-cerate.enum';
 import { DocCreateBuilderService } from './doc-create-builder.service';
 import { IClient, IDocCreateFieldData, SectionKeysEnum } from './doc-create.interface';
 import { DocCreateService } from './doc-create.service';
-
-// Israeli Tax Authority page where the user manually requests an allocation number.
-// SHAAM auto-flow is intentionally disabled for now — only manual flow is used.
-const TAX_AUTHORITY_ALLOCATION_URL = 'https://www.gov.il/he/service/request-assignment-number-for-tax-invoice';
 
 interface DocPayload {
   docData: any[];
@@ -130,10 +126,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
 
   // Allocation number related properties
   allocationNumber = signal<string | null>(null);
-  showAllocationNumberInput = signal<boolean>(false);
-  showShaamDialog = signal<boolean>(false);
-  showAllocationDecisionDialog = signal<boolean>(false); // 3-button manual flow
-  manualAllocationNumber: string = '';
+  showAllocationDecisionDialog = signal<boolean>(false);
   // selectedBankBeneficiary: string;
   // selectedBankName: string;
   // selectedBankBranch: string;
@@ -570,10 +563,8 @@ export class DocCreatePage implements OnInit, OnDestroy {
       }
 
       if (!hasAllocNumber) {
-        // Manual allocation flow. SHAAM auto-flow infrastructure exists
-        // (openShaamDialog/sendAllocationNumberRequest) but is intentionally
-        // bypassed for now — every above-threshold doc goes through the
-        // 3-button manual decision dialog.
+        // Let the user choose the automatic SHAAM flow, defer the document, or
+        // explicitly issue without an allocation number.
         this.showAllocationNumberDialog();
         return;
       }
@@ -806,7 +797,6 @@ export class DocCreatePage implements OnInit, OnDestroy {
 
     // Reset allocation number
     this.allocationNumber.set(null);
-    this.manualAllocationNumber = '';
 
     // Reset withholding tax
     this.withholdingTaxAmount.set(0);
@@ -2154,17 +2144,13 @@ export class DocCreatePage implements OnInit, OnDestroy {
    */
   onCancelAllocationDecision(): void {
     this.showAllocationDecisionDialog.set(false);
-    this.createPendingAllocationDoc({ openAllocationDialog: false });
+    this.createPendingAllocationDoc({ requestAllocation: false });
   }
 
-  /**
-   * Button 2: Get allocation number — save as pending and navigate to the
-   * incomes page where the allocation-input dialog auto-opens with the doc's
-   * details and a link to the Tax Authority site (no auto-redirect).
-   */
+  /** Button 2: request the allocation through the hardened server-side SHAAM flow. */
   onGetAllocationFromTaxAuthority(): void {
     this.showAllocationDecisionDialog.set(false);
-    this.createPendingAllocationDoc({ openAllocationDialog: true });
+    this.openShaamDialog();
   }
 
   /**
@@ -2198,29 +2184,15 @@ export class DocCreatePage implements OnInit, OnDestroy {
   /**
    * Sends the doc to the backend with docStatus=PENDING_ALLOCATION so the
    * server skips PDF generation / journal entry. After success, navigates to
-   * the incomes page. If `openAllocationDialog` is true, the dialog will
-   * auto-open there for this freshly-saved doc (no auto-redirect to the Tax
-   * Authority — the link lives inside the dialog).
+   * the incomes page, or immediately asks the backend to allocate and finalize
+   * that exact persisted document.
    */
-  private createPendingAllocationDoc(opts: { openAllocationDialog: boolean }): void {
+  private createPendingAllocationDoc(opts: { requestAllocation: boolean }): void {
     this.createPDFIsLoading.set(true);
 
     const payload = this.buildDocPayload() as any;
     payload.docData.docStatus = 'PENDING_ALLOCATION';
     payload.docData.allocationNum = null;
-
-    // Snapshot the form fields we need for the allocation-input dialog
-    // BEFORE resetting the form on success.
-    const dialogRowSnapshot = {
-      issuerBusinessNumber: payload.docData.issuerBusinessNumber,
-      docNumber: String(payload.docData.docNumber),
-      docTypeOriginal: payload.docData.docType,
-      docType: this.getHebrewNameDoc(payload.docData.docType),
-      recipientId: payload.docData.recipientId,
-      sumAftDisBefVAT: payload.docData.totalVatApplicable + payload.docData.totalWithoutVat - payload.docData.totalDiscount,
-      docDate: payload.docData.docDate,
-      docStatusOriginal: 'PENDING_ALLOCATION',
-    };
 
     this.docCreateService.createDoc(payload).pipe(
       finalize(() => this.createPDFIsLoading.set(false)),
@@ -2252,16 +2224,17 @@ export class DocCreatePage implements OnInit, OnDestroy {
         key: 'br',
       });
 
-      this.resetDocFormsAndDrafts();
+      if (opts.requestAllocation) {
+        this.requestAllocationForPersistedDocument(
+          String(payload.docData.issuerBusinessNumber),
+          String(response.docNumber),
+          payload.docData.docType,
+        );
+        return;
+      }
 
-      // For the "get number from tax authority" path, navigate with state so
-      // the incomes page auto-opens the input dialog populated with this
-      // doc's details (and a link to the Tax Authority site).
-      this.router.navigate(['/book-keeping/incomes'], {
-        state: opts.openAllocationDialog
-          ? { autoOpenAllocationFor: dialogRowSnapshot }
-          : undefined,
-      });
+      this.resetDocFormsAndDrafts();
+      this.router.navigate(['/book-keeping/incomes']);
     });
   }
 
@@ -2281,126 +2254,88 @@ export class DocCreatePage implements OnInit, OnDestroy {
 
     // Check for valid SHAAM connection
     firstValueFrom(
-      this.shaamService.getValidAccessToken(this.selectedBusinessNumber).pipe(
+      this.shaamService.getConnectionStatus(this.selectedBusinessNumber).pipe(
         catchError((error) => {
           // On error, return null to indicate no connection
           return of(null);
         })
       )
-    ).then((tokenData) => {
-      if (!tokenData || !tokenData.accessToken) {
+    ).then((connection) => {
+      if (!connection?.connected) {
         // No valid connection exists, show confirmation dialog
         this.showShaamConnectionRequiredDialog();
         return;
       }
-      // Valid connection exists, send automatic request with document data
-      this.sendAllocationNumberRequest(tokenData.accessToken);
+      // Reserve the final invoice number and persist the exact invoice before
+      // any approval request is sent to SHAAM.
+      this.createPendingAllocationDoc({ requestAllocation: true });
     });
   }
 
-  // Send allocation number request automatically with document data
-  private sendAllocationNumberRequest(accessToken: string): void {
-    // Set loading state
-    console.log('🔵 Setting allocationNumberLoading to true');
+  private requestAllocationForPersistedDocument(
+    businessNumber: string,
+    docNumber: string,
+    docType: DocumentType,
+  ): void {
     this.allocationNumberLoading.set(true);
-    console.log('🔵 allocationNumberLoading value:', this.allocationNumberLoading());
-
-    // Log token details
-    console.log('=== SENDING ALLOCATION NUMBER REQUEST ===');
-    // console.log('Access token length:', accessToken.length);
-    // console.log('Access token starts with:', accessToken.substring(0, 30));
-    // console.log('Access token ends with:', '...' + accessToken.substring(accessToken.length - 20));
-
-    // Build request data from document
-    const docDate = this.generalDetailsForm.get(FieldsCreateDocValue.DOC_DATE)?.value;
-    const docNumber = this.docIndexes.docIndex;
-    const recipientId = this.userDetailsForm.get(FieldsCreateDocValue.RECIPIENT_ID)?.value;
-    const totals = this.documentTotals();
-    const docType = this.generalDetailsForm.get(FieldsCreateDocValue.DOC_TYPE)?.value;
-
-    // Format date to YYYY-MM-DD using local timezone (avoids UTC-shift in prod)
-    const formattedDate = this.toLocalDateString(docDate) ?? this.toLocalDateString(new Date());
-
-    // Map document type to invoice_type (you may need to adjust this mapping)
-    const invoiceType = this.mapDocTypeToInvoiceType(docType);
-
-    // Build approval request
-    const approvalData: IShaamApprovalRequest = {
-      user_id: parseInt(this.selectedBusinessNumber),
-      accounting_software_number: 258001, // Fixed company number
-      amount_before_discount: totals.sumBefDisBefVat || totals.sumAftDisBefVat,
-      customer_vat_number: parseInt(recipientId) || 204245724,
-      discount: totals.disSum || 0,
-      invoice_date: formattedDate,
-      invoice_id: `INV-${docNumber}-${Date.now()}`,
-      invoice_issuance_date: formattedDate,
-      invoice_reference_number: docNumber?.toString() || `REF-${Date.now()}`,
-      invoice_type: invoiceType,
-      payment_amount: totals.sumAftDisBefVat,
-      payment_amount_including_vat: totals.sumAftDisWithVat,
-      vat_amount: totals.vatSum,
-      vat_number: parseInt(this.selectedBusinessNumber) || 777777715,
-    };
-
-    // console.log('Approval data:', JSON.stringify(approvalData, null, 2));
-    // console.log('Business number:', this.selectedBusinessNumber);
-    console.log('=== END ALLOCATION NUMBER REQUEST DATA ===');
-
-    // Send request with businessNumber so backend can verify token
-    this.shaamService.submitInvoiceApproval(accessToken, approvalData, this.selectedBusinessNumber)
+    this.shaamService.requestInvoiceAllocation(businessNumber, docNumber, docType)
       .pipe(
-        finalize(() => {
-          // Always turn off loading when request completes (success or error)
-          this.allocationNumberLoading.set(false);
-        }),
+        finalize(() => this.allocationNumberLoading.set(false)),
         catchError((error) => {
-          const errorMessage = error.error?.message || error.message || 'שגיאה בשליחת הבקשה';
+          const isAmbiguous = error?.status === 408 || error?.status === 0 || error?.status >= 500;
           this.messageService.add({
             severity: 'error',
-            summary: 'שגיאה',
-            detail: errorMessage,
-            life: 5000,
+            summary: 'המסמך נשמר אך ההקצאה לא הושלמה',
+            detail: isAmbiguous
+              ? 'לא התקבלה תשובה ודאית משע״מ. אין לבקש מספר נוסף; יש לבצע אחזור מרשימת המסמכים.'
+              : (error.error?.message || error.message || 'בקשת ההקצאה נכשלה.'),
+            life: 8000,
             key: 'br'
           });
+          this.resetDocFormsAndDrafts();
+          this.router.navigate(['/book-keeping/incomes']);
           return EMPTY;
         })
       )
-      .subscribe((response: IShaamApprovalResponse) => {
-        if (response.approved && response.confirmation_number) {
-          this.allocationNumber.set(response.confirmation_number);
-          this.messageService.add({
-            severity: 'success',
-            summary: 'הצלחה',
-            detail: `מספר הקצאה התקבל: ${response.confirmation_number}`,
-            life: 5000,
-            key: 'br'
-          });
-          // After getting allocation number, show confirmation dialog
-          this.showDocumentCreationConfirmation();
-        } else {
-          this.messageService.add({
-            severity: 'warn',
-            summary: 'החשבונית לא אושרה',
-            detail: response.message || 'החשבונית לא אושרה על ידי שעמ',
-            life: 5000,
-            key: 'br'
-          });
+      .subscribe((response: any) => {
+        if (response?.success && response?.docNumber) {
+          this.showAllocationDocumentSuccess(response);
+          return;
         }
+        this.messageService.add({
+          severity: 'warn',
+          summary: 'החשבונית לא אושרה',
+          detail: response?.message || 'החשבונית נשמרה וממתינה להמשך טיפול.',
+          life: 6000,
+          key: 'br'
+        });
+        this.resetDocFormsAndDrafts();
+        this.router.navigate(['/book-keeping/incomes']);
       });
   }
 
-  // Map document type to SHAAM invoice type
-  private mapDocTypeToInvoiceType(docType: DocumentType): number {
-    // Map your document types to SHAAM invoice types
-    // You may need to adjust this mapping based on your business logic
-    switch (docType) {
-      case DocumentType.TAX_INVOICE:
-        return 305; // Example: tax invoice
-      case DocumentType.TAX_INVOICE_RECEIPT:
-        return 305; // Example: tax invoice receipt
-      default:
-        return 305; // Default invoice type
-    }
+  private showAllocationDocumentSuccess(response: any): void {
+    this.messageService.add({
+      severity: 'success',
+      summary: 'המסמך הופק בהצלחה',
+      detail: response.allocationNum
+        ? `מספר הקצאה נשמר: ${response.allocationNum}`
+        : 'המסמך הופק בהצלחה.',
+      life: 5000,
+      key: 'br',
+    });
+    this.dialogRef = this.dialogService.open(DocSuccessDialogComponent, {
+      header: '',
+      width: '400px',
+      rtl: true,
+      data: {
+        docNumber: response.docNumber,
+        file: response.file,
+        copyFile: response.copyFile,
+        docType: this.getHebrewNameDoc(response.docType),
+      },
+    });
+    this.resetDocFormsAndDrafts();
   }
 
   // Show dialog when SHAAM connection is required
@@ -2455,45 +2390,6 @@ export class DocCreatePage implements OnInit, OnDestroy {
     }, 150);
   }
 
-  // Handle SHAAM dialog close
-  onShaamDialogClose(event: { visible: boolean }): void {
-    this.showShaamDialog.set(event.visible);
-  }
-
-  // Handle SHAAM approval success
-  onShaamApprovalSuccess(event: { response: IShaamApprovalResponse }): void {
-    if (event.response.confirmation_number) {
-      this.allocationNumber.set(event.response.confirmation_number);
-      this.messageService.add({
-        severity: 'success',
-        summary: 'הצלחה',
-        detail: `מספר הקצאה התקבל: ${event.response.confirmation_number}`,
-        life: 3000,
-        key: 'br'
-      });
-      // After getting allocation number, show confirmation dialog
-      this.showDocumentCreationConfirmation();
-    }
-  }
-
-  // Handle manual allocation number input
-  onAllocationNumberSubmit(allocationNumber: string): void {
-    if (allocationNumber && allocationNumber.trim()) {
-      this.allocationNumber.set(allocationNumber.trim());
-      this.manualAllocationNumber = '';
-      this.showAllocationNumberInput.set(false);
-      // Continue with the standard document creation flow
-      // This will show the standard confirmation dialog and then create the document
-      this.showDocumentCreationConfirmation();
-    }
-  }
-
-  // Cancel manual allocation number input
-  cancelAllocationNumberInput(): void {
-    this.manualAllocationNumber = '';
-    this.showAllocationNumberInput.set(false);
-  }
-
   // Restore draft from database after returning from SHAAM
   private restoreDraftFromDatabase(): void {
     console.log('=== FRONTEND: Restoring draft from database ===');
@@ -2501,6 +2397,22 @@ export class DocCreatePage implements OnInit, OnDestroy {
     // Try to get businessNumber from sessionStorage first (saved before SHAAM redirect)
     const savedBusinessNumber = sessionStorage.getItem('draft_businessNumber');
     const savedDocType = sessionStorage.getItem('draft_docType') as DocumentType | null;
+    const availableBusinesses = this.gs.businesses();
+    const savedBusinessIsAvailable = !!savedBusinessNumber
+      && availableBusinesses.some(business => business.businessNumber === savedBusinessNumber);
+
+    // These keys survive navigation in the same browser tab. An admin can
+    // therefore enter a different demo/client while values from a previous
+    // allocation flow are still present. Never let stale client context choose
+    // which business is queried for a draft.
+    if (savedBusinessNumber && !savedBusinessIsAvailable) {
+      console.warn('Ignoring stale draft context for unavailable business:', savedBusinessNumber);
+      sessionStorage.removeItem('draft_businessNumber');
+      sessionStorage.removeItem('draft_docType');
+    }
+
+    const validSavedBusinessNumber = savedBusinessIsAvailable ? savedBusinessNumber : null;
+    const validSavedDocType = savedBusinessIsAvailable ? savedDocType : null;
 
     console.log('Business Number from sessionStorage:', savedBusinessNumber);
     console.log('Business Number from component:', this.selectedBusinessNumber);
@@ -2509,7 +2421,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
     console.log('All businesses:', this.gs.businesses());
 
     // Use saved businessNumber if available, otherwise use current selectedBusinessNumber
-    const businessNumberToUse = savedBusinessNumber || this.selectedBusinessNumber;
+    const businessNumberToUse = validSavedBusinessNumber || this.selectedBusinessNumber;
 
     if (!businessNumberToUse) {
       console.log('❌ No business number available, skipping draft restore');
@@ -2518,21 +2430,30 @@ export class DocCreatePage implements OnInit, OnDestroy {
     }
 
     // If we have a saved businessNumber but it's different from selectedBusinessNumber, update it
-    if (savedBusinessNumber && savedBusinessNumber !== this.selectedBusinessNumber) {
-      console.log('⚠️ BusinessNumber mismatch! Updating selectedBusinessNumber from', this.selectedBusinessNumber, 'to', savedBusinessNumber);
-      const businessToSelect = this.gs.businesses().find(b => b.businessNumber === savedBusinessNumber);
+    if (validSavedBusinessNumber && validSavedBusinessNumber !== this.selectedBusinessNumber) {
+      console.log('⚠️ BusinessNumber mismatch! Updating selectedBusinessNumber from', this.selectedBusinessNumber, 'to', validSavedBusinessNumber);
+      const businessToSelect = availableBusinesses.find(b => b.businessNumber === validSavedBusinessNumber);
       if (businessToSelect) {
         this.setSelectedBusiness(businessToSelect);
         this.generalDetailsForm.patchValue({
-          businessNumber: savedBusinessNumber
+          businessNumber: validSavedBusinessNumber
         });
       }
     }
 
-    // Try to load draft for all possible document types if fileSelected is not set
-    const docTypesToTry = savedDocType || this.fileSelected()
-      ? [savedDocType || this.fileSelected()].filter(Boolean) as DocumentType[]
-      : [DocumentType.TAX_INVOICE, DocumentType.TAX_INVOICE_RECEIPT, DocumentType.RECEIPT, DocumentType.TRANSACTION_INVOICE, DocumentType.CREDIT_INVOICE, DocumentType.PRICE_QUOTE, DocumentType.WORK_ORDER];
+    const allDraftDocumentTypes = [
+      DocumentType.TAX_INVOICE,
+      DocumentType.TAX_INVOICE_RECEIPT,
+      DocumentType.RECEIPT,
+      DocumentType.TRANSACTION_INVOICE,
+      DocumentType.CREDIT_INVOICE,
+      DocumentType.PRICE_QUOTE,
+      DocumentType.WORK_ORDER,
+    ];
+    const preferredDocType = validSavedDocType || this.fileSelected();
+    const docTypesToTry = preferredDocType
+      ? [preferredDocType, ...allDraftDocumentTypes.filter(type => type !== preferredDocType)]
+      : allDraftDocumentTypes;
 
     console.log('Document types to try:', docTypesToTry);
 
@@ -2629,35 +2550,50 @@ export class DocCreatePage implements OnInit, OnDestroy {
               const restoredLines = linesData.map((line, index) => {
                 // Calculate discount from disBefVatPerLine if needed
                 // The discount field in the UI is the total discount, which equals disBefVatPerLine for most cases
-                const discount = line.disBefVatPerLine || 0;
+                const vatRate = Number(line.vatRate) || 0;
+                const vatOptionByStoredValue: Record<string, VatType> = {
+                  '1': 'INCLUDE',
+                  '2': 'EXCLUDE',
+                  '3': 'WITHOUT',
+                  INCLUDE: 'INCLUDE',
+                  EXCLUDE: 'EXCLUDE',
+                  WITHOUT: 'WITHOUT',
+                };
+                const vatOpts = vatOptionByStoredValue[String(line.vatOpts)] ?? 'WITHOUT';
+                const discountBeforeVat = Number(line.disBefVatPerLine) || 0;
+                const discount = vatOpts === 'INCLUDE'
+                  ? discountBeforeVat * (1 + vatRate / 100)
+                  : discountBeforeVat;
 
                 // Calculate sum (unit price) from sumBefVatPerUnit
                 // We need to reverse the calculation based on vatOpts
                 let sum = 0;
-                const vatRate = line.vatRate || 0;
-                const quantity = line.unitQuantity || 1;
+                const sumBeforeVatPerUnit = Number(line.sumBefVatPerUnit) || 0;
 
-                if (line.vatOpts === 'INCLUDE') {
+                if (vatOpts === 'INCLUDE') {
                   // If VAT is included, sumBefVatPerUnit = sum / (1 + vatRate/100)
                   // So sum = sumBefVatPerUnit * (1 + vatRate/100)
-                  sum = line.sumBefVatPerUnit * (1 + vatRate / 100);
+                  sum = sumBeforeVatPerUnit * (1 + vatRate / 100);
                 } else {
                   // For EXCLUDE or WITHOUT, sum = sumBefVatPerUnit
-                  sum = line.sumBefVatPerUnit;
+                  sum = sumBeforeVatPerUnit;
                 }
+
+                const netAfterDiscount = Number(line.sumAftDisBefVatPerLine) || 0;
+                const vatPerLine = Number(line.vatPerLine) || 0;
 
                 return {
                   description: line.description,
-                  unitQuantity: line.unitQuantity,
-                  sum: sum,
-                  discount: discount,
-                  sumBefVatPerUnit: line.sumBefVatPerUnit,
-                  disBefVatPerLine: line.disBefVatPerLine || 0,
-                  sumAftDisBefVatPerLine: line.sumAftDisBefVatPerLine || 0,
-                  vatPerLine: line.vatPerLine || 0,
-                  sumAftDisWithVat: (line.sumAftDisBefVatPerLine || 0) + (line.vatPerLine || 0),
-                  vatOpts: line.vatOpts,
-                  vatRate: line.vatRate,
+                  unitQuantity: Number(line.unitQuantity) || 1,
+                  sum: Number(sum.toFixed(2)),
+                  discount: Number(discount.toFixed(2)),
+                  sumBefVatPerUnit: sumBeforeVatPerUnit,
+                  disBefVatPerLine: discountBeforeVat,
+                  sumAftDisBefVatPerLine: netAfterDiscount,
+                  vatPerLine,
+                  sumAftDisWithVat: netAfterDiscount + vatPerLine,
+                  vatOpts,
+                  vatRate,
                   unitType: line.unitType,
                   internalNumber: line.internalNumber || null,
                   manufacturerName: line.manufacturerName || null,

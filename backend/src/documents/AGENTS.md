@@ -22,11 +22,32 @@ Handles the full lifecycle of official documents the user issues (invoices, rece
 - `documents.controller.ts` — `DocumentsController` at route `documents`, gated by `FirebaseAuthGuard` + `SubscriptionGuard` + `RequireModule(INVOICES)`.
 
 ## Main flows
+
+- Restored draft line payloads are normalized at the DTO boundary: MySQL
+  `DECIMAL` strings become numbers, numeric VAT options become their enum names,
+  and `unitType` is validated as `UnitOfMeasure`. A malformed legacy derived
+  gross value may be rebuilt only from that line's validated net and VAT values.
 - `POST /documents/create-doc`, `POST /documents/preview-doc` — validate + transform a `CreateDocDto`, persist header/lines/payments, generate PDF, post a journal entry (via bookkeeping) for revenue-generating types.
 - `GET /documents/get-docs`, `GET /documents/get-doc-lines` — list/filter issued documents.
 - `GET|POST /documents/get-setting-doc-by-type/:typeDoc`, `setting-initial-index` — manage per-business running-number counters.
 - `POST /documents/rollback`, `POST /documents/finalize-allocation`, `PATCH /documents/update-status` — document lifecycle/allocation-number operations.
+- Allocation-required issuance first persists the header/lines/final running
+  number with `PENDING_ALLOCATION`. SHAAM saves `allocationNum` independently
+  before `finalizeAllocation` generates PDFs, posts the existing journal flow
+  and changes the status. Finalization never clears an already persisted
+  allocation number, so a PDF/upload failure is safely retryable.
+- `allocationNum` is `varchar(50)` because the production Invoice Information
+  v2 portal schema permits `confirmation_number` values up to 50 characters;
+  never truncate an upstream allocation number.
 - `POST|GET|DELETE /documents/save-draft|load-draft|delete-draft` — draft persistence.
+  Issuance removes the matching saved draft inside the same transaction after
+  reserving the official number and before inserting the document row. This
+  prevents a restored OAuth draft holding the peeked number from colliding with
+  the unique official document identity; rollback restores both draft and counters.
+- PDF generation and draft persistence must not log document payloads, line
+  descriptions, recipient/issuer identifiers, amounts, allocation numbers or
+  upstream response bodies. Operational logs may include status/error codes and
+  template identifiers only.
 - `POST /documents/me/process-inbox` — scans a business's Drive inbox folder, OCRs new files via `DocumentProcessorService`, dedupes by content hash, auto-restores a retained soft-deleted document when identical bytes are re-uploaded, runs pairing, moves processed files.
 - Byte-identical live duplicates are recorded as `REJECTED` without another OCR
   pass and persist the user-facing rejection reason `קובץ כפול`; the diagnostic

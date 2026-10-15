@@ -8,7 +8,7 @@ Generates the "מבנה קבצים אחיד" (Israeli Uniform File Format) expor
 - No dedicated `.service.ts` in this directory — the actual file-generation HTTP call lives in the shared `FilesService` (`createUniformFile`), not a page-local service.
 
 ## Main flows
-- Select business + date range (date-range period mode only) → `onSubmit` resolves dates via `DateService.getStartAndEndDates`, then `createUniformFile(startDate, endDate, businessNumber)`.
+- Select business + date range (date-range period mode only) → `onSubmit` resolves dates via `DateService.getStartAndEndDates`, normalizes them to ISO `YYYY-MM-DD` for the API and stable summary display, then calls `createUniformFile(startDate, endDate, businessNumber)`.
 - `createUniformFile` calls `FilesService.createUniformFile`, formats the returned `document_summary`/`list_summary` rows (comma-formatted sums), and triggers `downloadBase64Zip` which decodes the base64 zip payload and auto-downloads `openformat.zip`.
 - Errors during generation surface as a toast via `MessageService`.
 

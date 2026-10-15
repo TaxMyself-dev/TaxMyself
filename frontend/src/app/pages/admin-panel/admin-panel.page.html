@@ -2,16 +2,6 @@
 
 <ion-content [fullscreen]="true">
 <div class="screen-admin-panel">
-  <!-- SHAAM Button -->
-  <div class="shaam-button-container">
-    <app-p-button
-      [buttonText]="'שלח בקשה למספר הקצאה משעמ'"
-      [buttonSize]="componentButtonSize.AUTO"
-      [buttonColor]="buttonColor.BLACK"
-      (onButtonClicked)="onOpenShaamDialog()">
-    </app-p-button>
-  </div>
-
   <!-- Use direct property and event binding for selectedTab -->
   <div>
     <app-tab-bar [tabs]="tabs" [selectedTab]="selectedTab" (selectedTabChange)="onTabChange($event)"></app-tab-bar>
@@ -37,13 +27,6 @@
   <app-admin-content *ngIf="selectedTab === 'content'"></app-admin-content>
   <app-admin-documentation *ngIf="selectedTab === 'documentation'"></app-admin-documentation>
 </div>
-
-  <!-- SHAAM Invoice Approval Dialog -->
-  <app-shaam-invoice-approval-dialog
-    [isVisible]="showShaamDialog()"
-    (visibleChange)="onShaamDialogClose($event)"
-    (approvalSuccess)="onShaamApprovalSuccess($event)">
-  </app-shaam-invoice-approval-dialog>
 
   <!-- <app-manage-categories *ngIf="selectedTab === 'manage-categories'"></app-manage-categories> -->
   <!-- <app-track-expenses *ngIf="selectedTab === 'track-expenses'"></app-track-expenses> -->
