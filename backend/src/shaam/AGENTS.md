@@ -12,7 +12,9 @@ Integrates with the Israel Tax Authority's SHAAM OpenAPI — OAuth2 authorizatio
 - `shaam.constants.ts` — sandbox allocation URLs and fail-closed, explicitly enabled production configuration.
 - `uniform-file/` — isolated, disabled-by-default OAuth foundation for the
   uniform-file Daily Token. It has exact product scopes, verified Tax Authority
-  hosts and a separate production kill switch.
+  hosts and a separate production kill switch. `uniform-file-upload.service.ts`
+  is the unexposed low-level client for reserving INI/BKM upload links,
+  resumable Google Storage uploads and remote status reads.
 - `utils/shaam-encryption.util.ts` — `encryptToken`/`decryptToken` used by `ShaamConnectionService`; plaintext never leaves the backend.
 - `dto/shaam-*.dto.ts` — OAuth token response, approval request/response shapes.
 
@@ -25,6 +27,14 @@ Integrates with the Israel Tax Authority's SHAAM OpenAPI — OAuth2 authorizatio
 - `POST /shaam/invoices/allocation/recover?businessNumber=...` — retrieves a lost allocation response from the official recovery API using the persisted invoice fields; it never submits a replacement approval request.
 - `POST /shaam/uniform-file/submissions` — generates and validates the INI/BKM pair for an authorized business and period, then creates or reuses a `GENERATED` submission. It makes no Tax Authority request and returns no file bytes, hashes, tokens or capability URLs.
 - `GET /shaam/uniform-file/submissions/:submissionId?businessNumber=...` — returns safe internal submission metadata only after the same business authorization check.
+
+The upload client is intentionally not connected to a controller or submission
+state transition yet. It validates the exact Tax Authority upload/status URLs,
+classifies the returned INI/BKM links by file name, allows only the documented
+Google resumable headers, rejects non-Google capability URLs/redirects and
+keeps bearer tokens, signed URLs, session locations and upstream bodies out of
+errors. `Uploaded` means processing is pending; a pair is approved only when
+both remote file statuses are `Approved`.
 
 Production and tsandbox recovery use
 `invoice-information/v2/confirmationNumber` and send the persisted lookup in
@@ -64,6 +74,11 @@ Daily Token and separate `UniStructFileUploadLinksApi` and `FilesStatusApi`
 scopes. It may reuse only hardened server-side HTTP/encryption/environment
 primitives. Uniform-file production remains disabled until verified portal
 configuration is provided; see KT-061 through KT-063.
+
+When the uniform-file integration is enabled, configuration also requires
+`SHAAM_UNIFORM_FILE_UPLOAD_LINKS_URL` and `SHAAM_UNIFORM_FILE_STATUS_URL`.
+Their host, environment segment and complete API path are validated at startup;
+they must not be inferred from the invoice-allocation endpoints.
 
 Invoice-allocation production configuration also requires
 `SHAAM_INVOICE_CONFIRMATION_URL` and `SHAAM_INVOICE_DETAILS_URL`. Each

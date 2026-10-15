@@ -17,6 +17,8 @@ describe('UniformFileOauthService', () => {
     redirectUri: 'http://localhost:3000/shaam/uniform-file/oauth/callback',
     authorizeUrl: 'https://openapi.taxes.gov.il/authorize',
     tokenUrl: 'https://openapi.taxes.gov.il/token',
+    uploadLinksUrl: 'https://ita-api.taxes.gov.il/shaam/tsandbox/UniStructFileUploadLinksApi/v1/UploadingFile/GetUrlsForUploadingFiles',
+    statusUrl: 'https://ita-api.taxes.gov.il/shaam/tsandbox/FilesStatusApi/v1/Files/get-file-status',
     stateSecret: 's'.repeat(32),
     scopes: ['UniStructFileUploadLinksApi', 'FilesStatusApi'],
   };

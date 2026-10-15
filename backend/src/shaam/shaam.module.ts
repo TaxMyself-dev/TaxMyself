@@ -12,6 +12,7 @@ import {
   UNIFORM_FILE_OAUTH_CONFIG,
 } from './uniform-file/uniform-file-oauth.config';
 import { UniformFileOauthService } from './uniform-file/uniform-file-oauth.service';
+import { UniformFileUploadService } from './uniform-file/uniform-file-upload.service';
 import { ShaamConnection } from './entities/shaam-connection.entity';
 import { ShaamOauthState } from './entities/shaam-oauth-state.entity';
 import { UniformFileSubmission } from './entities/uniform-file-submission.entity';
@@ -55,6 +56,7 @@ import { UniformFileSubmissionService } from './services/uniform-file-submission
       useFactory: loadUniformFileOauthConfig,
     },
     UniformFileOauthService,
+    UniformFileUploadService,
     ShaamConnectionService,
     ShaamOauthStateService,
     UniformFileSubmissionService,
@@ -64,6 +66,7 @@ import { UniformFileSubmissionService } from './services/uniform-file-submission
     ShaamOauthService,
     ShaamInvoicesService,
     UniformFileOauthService,
+    UniformFileUploadService,
     ShaamConnectionService,
     ShaamOauthStateService,
     UniformFileSubmissionService,

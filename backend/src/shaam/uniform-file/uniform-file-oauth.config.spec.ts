@@ -15,6 +15,10 @@ describe('loadUniformFileOauthConfig', () => {
       'https://openapi.taxes.gov.il/shaam/tsandbox/dailytoken/oauth2/authorize',
     SHAAM_UNIFORM_FILE_TOKEN_URL:
       'https://openapi.taxes.gov.il/shaam/tsandbox/dailytoken/oauth2/token',
+    SHAAM_UNIFORM_FILE_UPLOAD_LINKS_URL:
+      'https://ita-api.taxes.gov.il/shaam/tsandbox/UniStructFileUploadLinksApi/v1/UploadingFile/GetUrlsForUploadingFiles',
+    SHAAM_UNIFORM_FILE_STATUS_URL:
+      'https://ita-api.taxes.gov.il/shaam/tsandbox/FilesStatusApi/v1/Files/get-file-status',
     SHAAM_UNIFORM_FILE_STATE_SECRET: 'a'.repeat(32),
   };
 
@@ -58,5 +62,13 @@ describe('loadUniformFileOauthConfig', () => {
         SHAAM_UNIFORM_FILE_ENV: 'production',
       }),
     ).toThrow('production is disabled');
+  });
+
+  it('rejects a wrong uniform-file API path or environment', () => {
+    expect(() => loadUniformFileOauthConfig({
+      ...validEnv,
+      SHAAM_UNIFORM_FILE_STATUS_URL:
+        'https://ita-api.taxes.gov.il/shaam/production/FilesStatusApi/v1/Files/get-file-status',
+    })).toThrow('verified Tax Authority');
   });
 });

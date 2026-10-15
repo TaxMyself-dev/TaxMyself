@@ -15,6 +15,8 @@ export interface UniformFileOauthConfig {
   redirectUri: string;
   authorizeUrl: string;
   tokenUrl: string;
+  uploadLinksUrl: string;
+  statusUrl: string;
   stateSecret: string;
   scopes: readonly string[];
 }
@@ -24,6 +26,8 @@ const REQUIRED_WHEN_ENABLED = [
   'SHAAM_UNIFORM_FILE_REDIRECT_URI',
   'SHAAM_UNIFORM_FILE_AUTHORIZE_URL',
   'SHAAM_UNIFORM_FILE_TOKEN_URL',
+  'SHAAM_UNIFORM_FILE_UPLOAD_LINKS_URL',
+  'SHAAM_UNIFORM_FILE_STATUS_URL',
   'SHAAM_UNIFORM_FILE_STATE_SECRET',
 ] as const;
 
@@ -69,6 +73,31 @@ function assertRedirectUri(value: string): void {
   }
 }
 
+function assertUniformFileApiUrl(
+  name: string,
+  value: string,
+  environment: ShaamEnvironment,
+  suffix: string,
+): void {
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error(`${name} must be a valid absolute URL`);
+  }
+  const allowedHosts = new Set(['openapi.taxes.gov.il', 'ita-api.taxes.gov.il']);
+  const expectedPath = `/shaam/${environment}/${suffix}`;
+  if (
+    parsed.protocol !== 'https:' ||
+    !allowedHosts.has(parsed.hostname) ||
+    parsed.pathname !== expectedPath ||
+    parsed.search ||
+    parsed.hash
+  ) {
+    throw new Error(`${name} must use a verified Tax Authority ${expectedPath} endpoint`);
+  }
+}
+
 export function loadUniformFileOauthConfig(
   env: NodeJS.ProcessEnv = process.env,
 ): UniformFileOauthConfig {
@@ -83,6 +112,8 @@ export function loadUniformFileOauthConfig(
     redirectUri: env.SHAAM_UNIFORM_FILE_REDIRECT_URI?.trim() || '',
     authorizeUrl: env.SHAAM_UNIFORM_FILE_AUTHORIZE_URL?.trim() || '',
     tokenUrl: env.SHAAM_UNIFORM_FILE_TOKEN_URL?.trim() || '',
+    uploadLinksUrl: env.SHAAM_UNIFORM_FILE_UPLOAD_LINKS_URL?.trim() || '',
+    statusUrl: env.SHAAM_UNIFORM_FILE_STATUS_URL?.trim() || '',
     stateSecret: env.SHAAM_UNIFORM_FILE_STATE_SECRET || '',
     scopes: UNIFORM_FILE_OAUTH_SCOPES,
   };
@@ -111,6 +142,18 @@ export function loadUniformFileOauthConfig(
 
   assertTaxAuthorityUrl('SHAAM_UNIFORM_FILE_AUTHORIZE_URL', config.authorizeUrl);
   assertTaxAuthorityUrl('SHAAM_UNIFORM_FILE_TOKEN_URL', config.tokenUrl);
+  assertUniformFileApiUrl(
+    'SHAAM_UNIFORM_FILE_UPLOAD_LINKS_URL',
+    config.uploadLinksUrl,
+    environment,
+    'UniStructFileUploadLinksApi/v1/UploadingFile/GetUrlsForUploadingFiles',
+  );
+  assertUniformFileApiUrl(
+    'SHAAM_UNIFORM_FILE_STATUS_URL',
+    config.statusUrl,
+    environment,
+    'FilesStatusApi/v1/Files/get-file-status',
+  );
   assertRedirectUri(config.redirectUri);
 
   return config;
