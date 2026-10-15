@@ -64,15 +64,8 @@ COPY --chown=node:node --from=build /usr/src/app/node_modules ./node_modules
 COPY --chown=node:node --from=build /usr/src/app/dist ./dist
 COPY --chown=node:node --from=build /usr/src/app/assets ./assets
 
-# Existing upload/debug handlers write here and Multer initializes at startup.
-# Keep the application root owned by root; grant these output paths to node.
-RUN mkdir -p src/generated src/debug src/feezback/transactions-data debug-imports \
-    && chown node:node src/generated src/debug src/feezback/transactions-data debug-imports
-
-USER node
-
-# Fail the image build if runtime output directories cannot be written by node.
-RUN node -e "const fs = require('fs'); for (const dir of ['src/generated', 'src/debug', 'src/feezback/transactions-data', 'debug-imports']) fs.accessSync(dir, fs.constants.W_OK);"
+# Preserve the original production runtime user, as explicitly requested.
+USER root
 
 # Start the server using the production build
 CMD [ "node", "dist/main.js" ]

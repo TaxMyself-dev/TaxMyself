@@ -80,3 +80,7 @@ Combined integration verification passed: 39 PDF/image tests + 21 document/busin
 ## Container startup permissions correction (2026-10-15)
 
 User-provided Cloud Run logs identify EACCES creating /usr/src/app/src during Multer diskStorage initialization in ReportsController. The production USER node change exposed legacy runtime output directories under a root-owned WORKDIR. Pre-create and grant node ownership only to src/generated, src/debug, src/feezback/transactions-data and debug-imports; preserve non-root runtime and the root-owned application directory. Added an image-build assertion running as node to verify directory write access. No port, DB, accounting or API change. Docker is unavailable on this host; actual Linux image build is not locally verified. No production connectivity or deployment performed.
+
+## Restore original production runtime user
+
+Elazar explicitly requested a separate commit restoring root and pushing only main. Production stage now explicitly uses USER root; removed the directory ownership workaround and node-only build assertion. Chromium installation and PDF/image functionality retained. Development/build stage users unchanged. Dockerfile stage checked and diff whitespace validated; Docker unavailable locally, so container build was not executed. No deployment or production access performed.
