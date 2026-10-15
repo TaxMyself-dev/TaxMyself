@@ -197,6 +197,53 @@ export class ShaamSecureController {
     return this.uniformSubmissions.status(business.id, submissionId);
   }
 
+  @Post('uniform-file/submissions/:submissionId/transfer')
+  @UseGuards(FirebaseAuthGuard)
+  async transferUniformFileSubmission(
+    @Req() request: any,
+    @Param('submissionId', ParseIntPipe) submissionId: number,
+    @Query('businessNumber') businessNumber: string,
+  ) {
+    const business = await this.resolveBusiness(request, businessNumber);
+    const token = await this.uniformFileToken(business.id);
+    return this.uniformSubmissions.transfer(
+      business.id,
+      submissionId,
+      request.user.firebaseId,
+      token,
+    );
+  }
+
+  @Post('uniform-file/submissions/:submissionId/poll')
+  @UseGuards(FirebaseAuthGuard)
+  async pollUniformFileSubmission(
+    @Req() request: any,
+    @Param('submissionId', ParseIntPipe) submissionId: number,
+    @Query('businessNumber') businessNumber: string,
+  ) {
+    const business = await this.resolveBusiness(request, businessNumber);
+    const token = await this.uniformFileToken(business.id);
+    return this.uniformSubmissions.poll(business.id, submissionId, token);
+  }
+
+  private async uniformFileToken(businessId: number): Promise<string> {
+    if (!this.uniformConfig.enabled) {
+      throw new ServiceUnavailableException('Uniform-file SHAAM integration is disabled');
+    }
+    const token = await this.connections.getValidAccessToken(
+      businessId,
+      ShaamProduct.UNIFORM_FILE,
+      this.environmentFor(ShaamProduct.UNIFORM_FILE),
+    );
+    if (!token) {
+      throw new HttpException(
+        'SHAAM Daily Token connection is required',
+        HttpStatus.PRECONDITION_REQUIRED,
+      );
+    }
+    return token;
+  }
+
   private async resolveBusiness(request: any, businessNumber?: string) {
     if (!businessNumber?.trim()) throw new BadRequestException('businessNumber is required');
     const business = await this.businessService.getBusinessByNumber(

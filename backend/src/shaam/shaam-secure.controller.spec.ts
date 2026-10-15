@@ -4,7 +4,10 @@ import { ShaamProduct } from './entities/shaam.enums';
 import { ShaamSecureController } from './shaam-secure.controller';
 
 describe('ShaamSecureController', () => {
-  function setup(business: any = { id: 7, businessNumber: '222222226' }) {
+  function setup(
+    business: any = { id: 7, businessNumber: '222222226' },
+    uniformEnabled = true,
+  ) {
     const businessService = { getBusinessByNumber: jest.fn().mockResolvedValue(business) };
     const states = { create: jest.fn().mockResolvedValue('opaque-state'), consume: jest.fn() };
     const connections = { status: jest.fn().mockResolvedValue({ connected: true, expiresAt: new Date() }), getValidAccessToken: jest.fn().mockResolvedValue('server-token'), saveToken: jest.fn() };
@@ -17,8 +20,10 @@ describe('ShaamSecureController', () => {
     const uniformSubmissions = {
       prepare: jest.fn().mockResolvedValue({ id: 91, state: 'GENERATED' }),
       status: jest.fn().mockResolvedValue({ id: 91, state: 'GENERATED' }),
+      transfer: jest.fn().mockResolvedValue({ id: 91, state: 'PROCESSING' }),
+      poll: jest.fn().mockResolvedValue({ id: 91, state: 'APPROVED' }),
     };
-    const controller = new ShaamSecureController(businessService as any, states as any, connections as any, allocationOauth as any, uniformOauth as any, documentAllocation as any, uniformSubmissions as any, { enabled: false, environment: ShaamEnvironment.TSANDBOX } as any);
+    const controller = new ShaamSecureController(businessService as any, states as any, connections as any, allocationOauth as any, uniformOauth as any, documentAllocation as any, uniformSubmissions as any, { enabled: uniformEnabled, environment: ShaamEnvironment.TSANDBOX } as any);
     return { controller, businessService, states, connections, documentAllocation, uniformSubmissions };
   }
 
@@ -38,7 +43,7 @@ describe('ShaamSecureController', () => {
   });
 
   it('does not create state while uniform-file OAuth is disabled', async () => {
-    const { controller, states } = setup();
+    const { controller, states } = setup(undefined, false);
     await expect(controller.authorize(request, { businessNumber: '222222226', product: ShaamProduct.UNIFORM_FILE })).rejects.toThrow('disabled');
     expect(states.create).not.toHaveBeenCalled();
   });
@@ -88,5 +93,45 @@ describe('ShaamSecureController', () => {
     await controller.uniformFileSubmissionStatus(request, 91, '222222226');
 
     expect(uniformSubmissions.status).toHaveBeenCalledWith(7, 91);
+  });
+
+  it('transfers with the server-held Daily Token after business authorization', async () => {
+    const { controller, connections, uniformSubmissions } = setup();
+
+    await controller.transferUniformFileSubmission(
+      request,
+      91,
+      '222222226',
+    );
+
+    expect(connections.getValidAccessToken).toHaveBeenCalledWith(
+      7,
+      ShaamProduct.UNIFORM_FILE,
+      ShaamEnvironment.TSANDBOX,
+    );
+    expect(uniformSubmissions.transfer).toHaveBeenCalledWith(
+      7,
+      91,
+      'effective-owner',
+      'server-token',
+    );
+  });
+
+  it('does not transfer without a valid Daily Token', async () => {
+    const { controller, connections, uniformSubmissions } = setup();
+    connections.getValidAccessToken.mockResolvedValue(null);
+
+    await expect(
+      controller.transferUniformFileSubmission(request, 91, '222222226'),
+    ).rejects.toBeInstanceOf(HttpException);
+    expect(uniformSubmissions.transfer).not.toHaveBeenCalled();
+  });
+
+  it('polls only the authorized business submission', async () => {
+    const { controller, uniformSubmissions } = setup();
+
+    await controller.pollUniformFileSubmission(request, 91, '222222226');
+
+    expect(uniformSubmissions.poll).toHaveBeenCalledWith(7, 91, 'server-token');
   });
 });

@@ -213,7 +213,7 @@ export class UniformFileUploadService {
 
   private parseReservation(body: any): UniformFileUploadReservation {
     const data = body?.data;
-    if (body?.success !== true || !data || !this.isNonEmptyString(data.uniqueId)) {
+    if (body?.success !== true || !data || !this.isBoundedIdentifier(data.uniqueId)) {
       throw new BadGatewayException('SHAAM returned invalid upload-link metadata');
     }
     if (!Array.isArray(data.files) || data.files.length !== 2) {
@@ -238,7 +238,7 @@ export class UniformFileUploadService {
     if (
       !file ||
       !this.isSafeFileName(file.fileName) ||
-      !this.isNonEmptyString(file.fileUniqueId) ||
+      !this.isBoundedIdentifier(file.fileUniqueId) ||
       !this.isNonEmptyString(file.signUrl) ||
       !file.headers ||
       typeof file.headers !== 'object' ||
@@ -469,6 +469,10 @@ export class UniformFileUploadService {
 
   private isNonEmptyString(value: unknown): value is string {
     return typeof value === 'string' && value.trim().length > 0;
+  }
+
+  private isBoundedIdentifier(value: unknown): value is string {
+    return this.isNonEmptyString(value) && value.length <= 255;
   }
 
   private assertAccessToken(accessToken: string): void {

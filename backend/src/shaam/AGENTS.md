@@ -27,14 +27,28 @@ Integrates with the Israel Tax Authority's SHAAM OpenAPI — OAuth2 authorizatio
 - `POST /shaam/invoices/allocation/recover?businessNumber=...` — retrieves a lost allocation response from the official recovery API using the persisted invoice fields; it never submits a replacement approval request.
 - `POST /shaam/uniform-file/submissions` — generates and validates the INI/BKM pair for an authorized business and period, then creates or reuses a `GENERATED` submission. It makes no Tax Authority request and returns no file bytes, hashes, tokens or capability URLs.
 - `GET /shaam/uniform-file/submissions/:submissionId?businessNumber=...` — returns safe internal submission metadata only after the same business authorization check.
+- `POST /shaam/uniform-file/submissions/:submissionId/transfer?businessNumber=...`
+  — regenerates and verifies the stored artifact, atomically claims the
+  submission, uses the server-held Daily Token, persists remote identifiers
+  before uploading INI then BKM, and immediately performs the first poll.
+- `POST /shaam/uniform-file/submissions/:submissionId/poll?businessNumber=...`
+  — polls only the two persisted remote identifiers. Terminal APPROVED/REJECTED
+  submissions are returned locally without another external call.
 
 The upload client is intentionally not connected to a controller or submission
-state transition yet. It validates the exact Tax Authority upload/status URLs,
+state transition directly; only `UniformFileSubmissionService` orchestrates it.
+It validates the exact Tax Authority upload/status URLs,
 classifies the returned INI/BKM links by file name, allows only the documented
 Google resumable headers, rejects non-Google capability URLs/redirects and
 keeps bearer tokens, signed URLs, session locations and upstream bodies out of
 errors. `Uploaded` means processing is pending; a pair is approved only when
 both remote file statuses are `Approved`.
+
+Transfer retries never reserve a replacement pair when either remote file ID
+already exists. They poll the saved identifiers instead. Network/storage
+ambiguity becomes `UNKNOWN_OUTCOME`; an interrupted reservation claim without
+persisted identifiers also fails closed and requires an explicit future
+recovery policy rather than silently creating another pair.
 
 Production and tsandbox recovery use
 `invoice-information/v2/confirmationNumber` and send the persisted lookup in
