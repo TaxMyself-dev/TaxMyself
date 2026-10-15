@@ -14,8 +14,8 @@ export class FeezbackApiService {
     private readonly feezbackJwtService: FeezbackJwtService,
   ) { }
 
-  async createConsentLink(firebaseId: string): Promise<any> {
-    const token = await this.feezbackJwtService.generateConsentJwt(firebaseId);
+  async createConsentLink(firebaseId: string, spouse = false): Promise<any> {
+    const token = await this.feezbackJwtService.generateConsentJwt(firebaseId, spouse);
     // this.logger.debug(`Requesting consent link for firebaseId=${firebaseId}`);
     return this.httpClient.post(this.authService.getLgsUrl(), { token });
   }

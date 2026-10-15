@@ -120,6 +120,10 @@ export class User {
 
     @Column({ default: false })
     hasOpenBanking: boolean;
+
+    /** Ever verified by a spouse data-ready webhook; retained after consent expiry. */
+    @Column({ default: false })
+    hasSpouseFeezbackIdentity: boolean;
     
     @Column({ name: 'drive_folder_id', type: 'varchar', length: 255, nullable: true, default: null })
     driveFolderId: string | null;

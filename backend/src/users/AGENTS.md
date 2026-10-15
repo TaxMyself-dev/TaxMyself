@@ -27,3 +27,11 @@ Depends on: shared, google-drive (Drive folder provisioning), feezback, billing,
 
 ## Profile image uploads
 POST/GET/DELETE /auth/profile-image use Firebase authentication; mutations block role agent like update-user. Images use multipart file (5 MB), full raster decode, PNG/JPEG/WebP single-frame validation and <=16 MP, resized within 512 px. profileImagePath is nullable and stripped from generic update-user input. GET returns authenticated PNG bytes with private no-store/nosniff headers. Both identity image types use IdentityImagesModule; paths are server-generated, never public URLs. Migration is manual, not executed by the app.
+
+## Optional spouse Feezback identity (2026-10-15)
+
+The existing primary identity remains Firebase UID + _sub. Only explicit checkbox selection creates a consent link for UID + _sub_spouse. The final enrollment redirect reads server connection-options and offers the unchecked choice if hasOpenBanking OR hasSpouseFeezbackIdentity. It also covers direct page navigation and saved-card resumes.
+
+Only a spouse data-ready webhook plus provider verification of a valid, unexpired consent linked to a source writes user.hasSpouseFeezbackIdentity=true. Profile writes and browser redirects cannot set it. The historical flag survives consent expiry. Known identities participate in discovery and sync; connection state is aggregated, with partial failures unable to clear prior state. Secondary source/normalized transaction identifiers have a deterministic _spouse suffix; retries resolve the corresponding SUB from that suffix. Primary identifiers are unchanged. No additional mapping table is used.
+
+Apply the appended user-column SQL in docs/redesign/cutover.sql before deployment. No production or live provider operations are part of validation.

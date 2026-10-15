@@ -30,5 +30,21 @@
   } @else {
     <button class="secondary" [disabled]="busy()" (click)="load()">{{ busy() ? 'טוענים פרטים…' : 'נסה שוב' }}</button>
   }
+  @if (identityDialog()) {
+    <div class="identity-backdrop">
+      <section class="identity-dialog" cdkTrapFocus [cdkTrapFocusAutoCapture]="true" (keydown.escape)="!busy() && identityDialog.set(false)" role="dialog" aria-modal="true" aria-labelledby="identity-title">
+        @if (error()) { <p role="alert" class="error">{{ error() }}</p> }
+        <h2 id="identity-title" tabindex="-1" cdkFocusInitial>מחברים חשבון נוסף?</h2>
+        <p>אם החיבור הוא עבור בן/בת הזוג, ויש לכם חשבונות נפרדים באותו בנק, סמנו את התיבה כדי לשמור על ההרשאה הקיימת.</p>
+        <label><input type="checkbox" [checked]="spouseConnection()" (change)="spouseConnection.set($any($event.target).checked)" [disabled]="busy()" />
+          החיבור הוא עבור בן/בת הזוג בחשבון נפרד באותו בנק
+        </label>
+        <div class="identity-actions">
+          <button class="primary" [disabled]="busy()" (click)="confirmIdentity()">המשך לפיזבק</button>
+          <button class="secondary" [disabled]="busy()" (click)="identityDialog.set(false)">ביטול</button>
+        </div>
+      </section>
+    </div>
+  }
   <app-change-payment-method-dialog [(visible)]="cardDialog" [returnToEnrollment]="true" (saved)="cardSaved()" />
 </main>

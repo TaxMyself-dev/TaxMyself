@@ -2459,3 +2459,6 @@ DEALLOCATE PREPARE kt070_stmt;
 -- Verification: must return varchar(50) or a wider varchar.
 -- SELECT COLUMN_TYPE, IS_NULLABLE FROM information_schema.COLUMNS
 -- WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='documents' AND COLUMN_NAME='allocationNum';
+
+-- Feezback optional spouse identity (approved 2026-10-15). Run once before deploying this feature.
+ALTER TABLE `user` ADD COLUMN `hasSpouseFeezbackIdentity` tinyint NOT NULL DEFAULT 0;

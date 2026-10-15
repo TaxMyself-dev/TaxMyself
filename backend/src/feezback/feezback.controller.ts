@@ -41,9 +41,16 @@ export class FeezbackController {
     });
   }
 
+  @Get('connection-options')
+  @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
+  async connectionOptions(@Req() req: AuthenticatedRequest) {
+    return this.feezbackService.getConnectionOptions(req.user!.firebaseId);
+  }
+
   @Post('consent-link')
   @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
-  async createConsentLink(@Req() req: AuthenticatedRequest) {
+  async createConsentLink(@Req() req: AuthenticatedRequest, @Body() body: { spouse?: boolean } = {}) {
+    if (body.spouse !== undefined && typeof body.spouse !== 'boolean') throw new BadRequestException('spouse must be boolean');
     const firebaseId = req.user?.firebaseId;
 
     if (!firebaseId) {
@@ -82,7 +89,8 @@ export class FeezbackController {
       this.logger.log(`[ConsentLink] markConsentInitiated skipped (dedup ${CLICK_DEDUP_MS}ms) firebaseId=${masked}`);
     }
 
-    return this.feezbackService.createConsentLink(firebaseId);
+    return body.spouse === true ? this.feezbackService.createConsentLink(firebaseId, true)
+      : this.feezbackService.createConsentLink(firebaseId);
   }
 
 

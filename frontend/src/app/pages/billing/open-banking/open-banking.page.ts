@@ -1,5 +1,6 @@
 import { PlanCardComponent, PricingCardPlan } from '../plan-card.component';
 import { PLAN_CARD_ITEMS } from '../billing-plans.page';
+import { A11yModule } from '@angular/cdk/a11y';
 import { CommonModule } from '@angular/common';
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
@@ -12,7 +13,7 @@ import { OpenBankingEnrollmentOptions, OpenBankingEnrollmentService } from 'src/
 
 @Component({
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, ChangePaymentMethodDialogComponent, PlanCardComponent],
+  imports: [A11yModule, CommonModule, FormsModule, RouterLink, ChangePaymentMethodDialogComponent, PlanCardComponent],
   templateUrl: './open-banking.page.html',
   styleUrls: ['./open-banking.page.scss'],
 })
@@ -26,6 +27,8 @@ export class OpenBankingPage implements OnInit {
   readonly busy = signal(false);
   readonly error = signal('');
   readonly cardDialog = signal(false);
+  readonly identityDialog = signal(false);
+  readonly spouseConnection = signal(false);
   selectedPlanId: number | null = null;
   cancelPlanId: number | null = null;
   private continueAfterCard = false;
@@ -90,7 +93,23 @@ export class OpenBankingPage implements OnInit {
     finally { this.busy.set(false); }
   }
   private async connect() {
-    const response = await firstValueFrom(this.feezback.createConsentLink());
+    const options = await firstValueFrom(this.feezback.connectionOptions());
+    if (options.offerSpouse) {
+      this.spouseConnection.set(false);
+      this.identityDialog.set(true);
+      return;
+    }
+    await this.redirectToFeezback(false);
+  }
+  async confirmIdentity() {
+    if (this.busy() || !this.identityDialog()) return;
+    this.busy.set(true); this.error.set('');
+    try { await this.redirectToFeezback(this.spouseConnection()); this.identityDialog.set(false); }
+    catch { this.error.set('לא הצלחנו ליצור קישור לחיבור. אפשר לנסות שוב.'); }
+    finally { this.busy.set(false); }
+  }
+  private async redirectToFeezback(spouse: boolean) {
+    const response = await firstValueFrom(this.feezback.createConsentLink(spouse));
     const link = response?.link || response?.url || response;
     if (typeof link !== 'string' || !link.startsWith('https://')) throw new Error('Invalid consent URL');
     window.location.assign(link);

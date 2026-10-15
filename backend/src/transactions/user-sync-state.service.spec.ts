@@ -184,4 +184,17 @@ describe('UserSyncStateService terminal state cleanup', () => {
       ['userId'],
     );
   });
+  it('scopes terminal consent cleanup to the selected identity', async () => {
+    const USER = 'user-1';
+    const sourceRepo = { update: jest.fn().mockResolvedValue({ affected: 1 }) };
+    const service = new UserSyncStateService({} as any, sourceRepo as any);
+    await service.clearConsentOnSources(USER, 'consent', true);
+    const spouseWhere = sourceRepo.update.mock.calls[0][0];
+    expect(spouseWhere.sourceId.type).toBe('like');
+    expect(spouseWhere.sourceId.value).toBe('%\\_spouse');
+    sourceRepo.update.mockClear();
+    await service.clearConsentOnSources(USER, 'consent', false);
+    expect(sourceRepo.update.mock.calls[0][0].sourceId.type).toBe('not');
+  });
+
 });

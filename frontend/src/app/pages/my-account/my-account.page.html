@@ -79,7 +79,7 @@
                          [class.pi-info-circle]="source.status === 'skipped_direct'">
                       </i>
                       <span class="source-result-item__name">
-                        {{ source.sourceId }}
+                        {{ source.sourceId.endsWith('_spouse') ? source.sourceId.slice(0, -7) + ' (בן/בת הזוג)' : source.sourceId }}
                       </span>
                       @if (source.status === 'success') {
                         <span class="source-result-item__count">{{ source.transactionCount }} תנועות</span>
@@ -138,7 +138,7 @@
                          [class.pi-info-circle]="source.status === 'skipped_direct'">
                       </i>
                       <span class="source-result-item__name">
-                        {{ source.sourceId }}
+                        {{ source.sourceId.endsWith('_spouse') ? source.sourceId.slice(0, -7) + ' (בן/בת הזוג)' : source.sourceId }}
                       </span>
                       @if (source.status === 'success') {
                         <span class="source-result-item__count">{{ source.transactionCount }} תנועות</span>
@@ -492,7 +492,7 @@
              [class.pi-clock]="source.status === 'not_synced'"
              [class.pi-info-circle]="source.status === 'skipped_direct'">
           </i>
-          <span class="source-result-item__name">{{ source.sourceId }}</span>
+          <span class="source-result-item__name">{{ source.sourceId.endsWith('_spouse') ? source.sourceId.slice(0, -7) + ' (בן/בת הזוג)' : source.sourceId }}</span>
           @if (source.status === 'success') {
             <span class="source-result-item__count">{{ source.transactionCount }} תנועות</span>
           }

@@ -70,3 +70,11 @@ Integrates with Feezback, the Open Banking (AISP) data provider: handles the con
 - documents (`SettingDocuments` entity registered in module)
 - delegation (`Delegation` entity registered in module)
 - shared (`SharedService`)
+
+## Optional spouse Feezback identity (2026-10-15)
+
+The existing primary identity remains Firebase UID + _sub. Only explicit checkbox selection creates a consent link for UID + _sub_spouse. The final enrollment redirect reads server connection-options and offers the unchecked choice if hasOpenBanking OR hasSpouseFeezbackIdentity. It also covers direct page navigation and saved-card resumes.
+
+Only a spouse data-ready webhook plus provider verification of a valid, unexpired consent linked to a source writes user.hasSpouseFeezbackIdentity=true. Profile writes and browser redirects cannot set it. The historical flag survives consent expiry. Known identities participate in discovery and sync; connection state is aggregated, with partial failures unable to clear prior state. Secondary source/normalized transaction identifiers have a deterministic _spouse suffix; retries resolve the corresponding SUB from that suffix. Primary identifiers are unchanged. No additional mapping table is used.
+
+Apply the appended user-column SQL in docs/redesign/cutover.sql before deployment. No production or live provider operations are part of validation.

@@ -15,7 +15,7 @@ describe('OpenBankingPage', () => {
     enrollment = { options: jasmine.createSpy().and.resolveTo(options()), prepare: jasmine.createSpy().and.resolveTo(),
       cancel: jasmine.createSpy().and.resolveTo() };
     billing = { hasBillingOverride: jasmine.createSpy().and.returnValue(false), reloadBillingStateQuietly: jasmine.createSpy().and.resolveTo() };
-    feezback = { createConsentLink: jasmine.createSpy().and.returnValue(of(null)) };
+    feezback = { connectionOptions: jasmine.createSpy().and.returnValue(of({ offerSpouse: false })), createConsentLink: jasmine.createSpy().and.returnValue(of(null)) };
     router = { navigate: jasmine.createSpy().and.resolveTo(true) };
     TestBed.configureTestingModule({ providers: [
       { provide: OpenBankingEnrollmentService, useValue: enrollment }, { provide: BillingStateService, useValue: billing },
@@ -65,4 +65,37 @@ describe('OpenBankingPage', () => {
     await page.continue(); expect(page.error()).toBe('quote changed');
     expect(page.cardDialog()).toBeFalse(); expect(feezback.createConsentLink).not.toHaveBeenCalled();
   });
+  it('shows an unchecked choice before redirect for an existing or historical connection', async () => {
+    feezback.connectionOptions.and.returnValue(of({ offerSpouse: true }));
+    page.spouseConnection.set(true);
+    await (page as any).connect();
+    expect(page.identityDialog()).toBeTrue(); expect(page.spouseConnection()).toBeFalse();
+    expect(feezback.createConsentLink).not.toHaveBeenCalled();
+  });
+  it('continues the first connection without showing the spouse choice', async () => {
+    const redirect = spyOn<any>(page, 'redirectToFeezback').and.resolveTo();
+    await (page as any).connect();
+    expect(redirect).toHaveBeenCalledOnceWith(false); expect(page.identityDialog()).toBeFalse();
+  });
+  it('uses spouse only when checked and never sends anything on cancellation', async () => {
+    const redirect = spyOn<any>(page, 'redirectToFeezback').and.resolveTo();
+    page.identityDialog.set(true); page.spouseConnection.set(true);
+    await page.confirmIdentity(); expect(redirect).toHaveBeenCalledWith(true);
+    page.identityDialog.set(true); page.spouseConnection.set(false);
+    await page.confirmIdentity(); expect(redirect).toHaveBeenCalledWith(false);
+    redirect.calls.reset(); page.identityDialog.set(false);
+    await page.confirmIdentity(); expect(redirect).not.toHaveBeenCalled();
+  });
+  it('never redirects when connection options fail', async () => {
+    feezback.connectionOptions.and.throwError('offline');
+    await expectAsync((page as any).connect()).toBeRejected();
+    expect(feezback.createConsentLink).not.toHaveBeenCalled();
+  });
+  it('keeps the choice on link failure and suppresses double submission', async () => {
+    const redirect = spyOn<any>(page, 'redirectToFeezback').and.rejectWith(new Error('offline'));
+    page.identityDialog.set(true); await page.confirmIdentity();
+    expect(page.identityDialog()).toBeTrue(); expect(page.error()).toBeTruthy();
+    page.busy.set(true); await page.confirmIdentity(); expect(redirect).toHaveBeenCalledTimes(1);
+  });
+
 });

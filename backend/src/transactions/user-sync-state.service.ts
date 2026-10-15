@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { LessThan, Not, Repository } from 'typeorm';
+import { LessThan, Like, Not, Repository } from 'typeorm';
 import { UserSyncState, SyncSkipReason, ProcessStatus, ResultStatus } from './user-sync-state.entity';
 import { UserSourceSyncState, SourceResult } from './user-source-sync-state.entity';
 
@@ -329,13 +329,14 @@ export class UserSyncStateService {
    * Direct-card rows keep their terminal 'skipped_direct' status (they must
    * never look retryable/pending) — only their consentId is nulled.
    */
-  async clearConsentOnSources(userId: string, consentId: string): Promise<number> {
+  async clearConsentOnSources(userId: string, consentId: string, spouse?: boolean): Promise<number> {
+    const identity = spouse === undefined ? {} : { sourceId: spouse ? Like('%\\_spouse') : Not(Like('%\\_spouse')) };
     const resetResult = await this.sourceRepo.update(
-      { userId, consentId, status: Not('skipped_direct') },
+      { userId, consentId, ...identity, status: Not('skipped_direct') },
       { consentId: null, status: 'not_synced', error: null },
     );
     const directResult = await this.sourceRepo.update(
-      { userId, consentId, status: 'skipped_direct' },
+      { userId, consentId, ...identity, status: 'skipped_direct' },
       { consentId: null },
     );
     return (resetResult.affected ?? 0) + (directResult.affected ?? 0);

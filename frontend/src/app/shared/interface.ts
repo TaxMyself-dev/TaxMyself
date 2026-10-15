@@ -171,6 +171,7 @@ export interface IUserData {
     taxReportingType: string;
     vatReportingType: string;
     hasOpenBanking: boolean;
+    hasSpouseFeezbackIdentity?: boolean;
     /** Timestamp of the sign-in BEFORE the current session. Null for first-ever login. */
     previousLoginAt: string | null;
     /** Timestamp of the current session's sign-in. */

@@ -42,7 +42,7 @@ export class TransManagementComponent  implements OnInit {
 
   confirmConsentAndConnect(): void {
     this.consentDialogVisible.set(false);
-    this.doConnectToOpenBanking();
+    this.router.navigate(['/billing/open-banking']);
   }
 
   private doConnectToOpenBanking(): void {

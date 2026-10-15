@@ -21,3 +21,10 @@ button { font: inherit; cursor: pointer; padding: 12px 24px; border-radius: 24px
 button:disabled { opacity: .5; cursor: default; }
 .error { color: #a02020; background: #fff1f1; padding: 12px; border-radius: 8px; }
 @media (max-width: 480px) { .enrollment { padding: 24px 16px 48px; } button { width: 100%; } .plan strong { width: 100%; padding-inline-start: 26px; } }
+
+.identity-backdrop { position: fixed; inset: 0; z-index: 1100; background: #0006; display: grid; place-items: center; padding: 20px; }
+.identity-dialog { width: min(100%, 480px); max-height: 90dvh; overflow: auto; background: white; border-radius: 16px; padding: 24px; box-shadow: 0 12px 40px #0003; }
+.identity-dialog h2 { margin-top: 0; }
+.identity-dialog label { display: flex; align-items: flex-start; gap: 10px; line-height: 1.7; }
+.identity-dialog input { margin-top: 7px; }
+.identity-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 24px; }
