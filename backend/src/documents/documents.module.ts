@@ -37,6 +37,7 @@ import { UsersModule } from '../users/users.module';
 import { BillingModule } from 'src/billing/billing.module';
 import { ImportedDocument } from 'src/document-import/entities/imported-document.entity';
 import { DocumentPdfRenderer } from './pdf/document-pdf-renderer.service';
+import { DocumentPdfClient } from './pdf/document-pdf-client';
 import { FillFasterSigner } from './pdf/fillfaster-signer.service';
 import { IdentityImagesModule } from '../identity-images/identity-images.module';
 
@@ -52,6 +53,7 @@ import { IdentityImagesModule } from '../identity-images/identity-images.module'
   ],
   controllers: [DocumentsController],
   providers: [
+    DocumentPdfClient,
     DocumentPdfRenderer,
     FillFasterSigner,
     DocumentsService,

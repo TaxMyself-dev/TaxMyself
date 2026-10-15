@@ -1,11 +1,11 @@
 ## Purpose
 Handles the full lifecycle of official documents the user issues (invoices, receipts, credit notes — Israeli tax-authority formats), plus the inbound OCR pipeline that extracts structured data from documents received from suppliers via Google Drive.
 
-## Local PDF rendering and signing
+## PDF rendering and signing
 
 - `pdf/document-pdf-renderer.service.ts` renders escaped, RTL HTML with bundled Simpler fonts via Chromium. Layout follows the approved spacious mockup: logo left, issuer right, recipient/date band, centered title/underline, framed tables and centered footer. Scripts and non-data requests are blocked; concurrency, row count and HTML size are bounded.
-- All previews and issued documents render locally. Previews are unsigned; issuance always calls FillFaster. Never return an unsigned PDF on signing failure.
-- Only `FILLFASTER_API_TOKEN` is configured externally. Signing uses the verified clean template `3IfhJjgmAp`, fixed in code. Chromium is detected automatically; Docker installs it. Signing envelope presence is checked in code; certificate trust is separate.
+- `PDF_SERVICE_URL` routes previews and issuance rendering to the private standalone `pdf-service` over synchronous IAM-authenticated HTTP. Cloud Run fails closed if it is missing; never fall back to launching a browser in the backend after a remote failure. Local development without it retains the installed-browser renderer. The backend Dockerfile/Node 18 environment is unchanged. See `pdf-service/README.md` for setup, verification and future queue boundaries.
+- Previews are unsigned; issuance always calls FillFaster in the backend. Never return an unsigned PDF on signing failure. `FILLFASTER_API_TOKEN` remains backend-only. Signing uses the verified clean template `3IfhJjgmAp`, fixed in code. Signing envelope presence is checked in code; certificate trust is separate.
 - Issuer details and `Business.logoPath` are resolved from the current business when generating a PDF, including pending-allocation finalization. No issuer snapshot column is required. Already-issued PDFs are served from their stored paths; changing a logo does not rewrite them. System billing receipts retain the explicitly supplied company identity. Only the two image-path columns require schema preparation.
 - Renderer reuses existing sums/item/payment transforms and does not alter accounting calculations. Payment details column appears only when populated. Both `docSubtitle` (linked-document text) and `docDescription` (free note) are rendered; empty allocation/note fields are omitted.
 - Standalone `scripts/render-document-samples.ts` produces visual fixtures without starting Nest, a database, or a provider session. See `docs/features/document-pdf-redesign.md` for configuration and rollout evidence.

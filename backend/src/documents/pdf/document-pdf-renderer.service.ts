@@ -2,6 +2,7 @@ import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import * as puppeteer from 'puppeteer-core';
+import { DocumentPdfClient } from './document-pdf-client';
 import {
   buildDocumentFooter,
   buildDocumentHtml,
@@ -11,6 +12,7 @@ import {
 
 @Injectable()
 export class DocumentPdfRenderer {
+  constructor(private readonly remote: DocumentPdfClient = new DocumentPdfClient()) {}
   private active = 0;
   private cachedFonts: string;
 
@@ -43,6 +45,10 @@ export class DocumentPdfRenderer {
   }
 
   async render(model: DocumentPdfModel): Promise<Buffer> {
+    if (process.env.PDF_SERVICE_URL) return this.remote.render(model);
+    // Cloud Run must not silently consume backend memory if configuration is missing.
+    if (process.env.K_SERVICE)
+      throw new ServiceUnavailableException('PDF_SERVICE_URL must be configured on Cloud Run.');
     if (this.active >= 2)
       throw new ServiceUnavailableException(
         'PDF renderer is busy. Please retry.',
