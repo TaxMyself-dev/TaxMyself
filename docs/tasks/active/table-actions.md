@@ -1,6 +1,6 @@
 # Unified table row actions
 
-- Status: `WORKER_COMPLETE` (local feature branch; awaiting review/integration)
+- Status: `PUSHED` (main and codex/integration; verified 2026-10-15)
 - Task manager / implementation: current feature chat
 - Worktree: `C:/Users/user/Keepintax/TaxMyself-table-actions`
 - Branch: `codex/table-actions`
@@ -54,4 +54,8 @@ using one actions input and the same visibility and execution rules.
 - Refreshed main baseline: `5a9afbd331bb5e4a11ec7a9fb82a1ed6bd5b3e61`.
 - Integration branch: `codex/integration-table-actions`, using the existing isolated worktree/dependencies.
 - Conflict review: retained AccountImageComponent changes in My Account/settings and current main's pending-only SHAAM recovery/resume callback, icon and label. Migrated those current actions to the unified contract; did not restore the obsolete retroactive allocation action. Regression expectation updated to main's policy and explicitly checks dispatch to resumeAutomaticAllocation.
-- Integrated frontend tests/build: running; no backend/schema/production operations.
+- Integrated frontend tests: exact focused command recorded above, exit 0, 40/40 passing on the final integration commit (including current SHAAM resume callback assertion).
+- Integrated frontend production build: `npm run build -- --configuration production`, exit 0. Existing style/initial bundle budget and CommonJS warnings only.
+- Reviewed code integration commit: `66379184`. `git show --check` passed; no backend, schema, dependency or environment files changed.
+- Delivery: local main was fast-forwarded and `git push --atomic origin codex/integration main` succeeded. Both remote refs were verified at `66379184`; the subsequent documentation-only delivery record is included in the final main tip reported in chat.
+- Production deployment/access: none. The primary checkout is on main with the feature available for local use.

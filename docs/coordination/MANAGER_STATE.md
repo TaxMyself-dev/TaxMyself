@@ -8,6 +8,10 @@ starts from refreshed main `5a9afbd3`. Current pending-only SHAAM recovery/resum
 and account-image changes are preserved during conflict resolution. Combined
 frontend verification and delivery evidence is recorded in
 `docs/tasks/active/table-actions.md`. No backend/schema/production changes.
+Code integration `66379184` passed 40/40 focused frontend tests and the full
+production Angular build. Atomic push of main/codex-integration succeeded;
+remote main and codex/integration were verified at that code commit before
+this documentation-only delivery record. No production deployment occurred.
 
 Last reviewed: 2026-10-07
 
