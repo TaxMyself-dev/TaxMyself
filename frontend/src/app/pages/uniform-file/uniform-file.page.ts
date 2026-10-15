@@ -10,6 +10,10 @@ import { GenericService } from 'src/app/services/generic.service';
 import { BusinessStatus } from 'src/app/shared/enums';
 import { FilterField, FilterFieldType } from 'src/app/components/filter-tab/filter-fields-model.component';
 import { MessageService } from 'primeng/api';
+import {
+  ShaamService,
+  UniformFileSubmissionView,
+} from 'src/app/services/shaam.service';
 
 export interface ReportDetails {
   businessNumber: string;
@@ -47,6 +51,9 @@ export class UniformFilePage implements OnInit {
 
   reportingPeriodType = ReportingPeriodType;
   reportDetails: ReportDetails | null = null;
+  shaamSubmission: UniformFileSubmissionView | null = null;
+  shaamConnected = false;
+  shaamBusy = false;
 
   // Business related
   businessNumber = signal<string>("");
@@ -95,7 +102,8 @@ export class UniformFilePage implements OnInit {
     private fileService: FilesService,
     private genericService: GenericService,
     private dateService: DateService,
-    private messageService: MessageService
+    private messageService: MessageService,
+    private shaamService: ShaamService,
   ) {
     this.uniformFileForm = this.formBuilder.group({
       startDate: new FormControl(
@@ -158,15 +166,6 @@ export class UniformFilePage implements OnInit {
     try {
     if (formValues) {
       // Handle period values from filter-tab
-      console.log('[uniform-file] submit with formValues', {
-        periodMode: formValues?.periodMode,
-        year: formValues?.year,
-        month: formValues?.month,
-        startDateRaw: formValues?.startDate,
-        endDateRaw: formValues?.endDate,
-        startDateType: typeof formValues?.startDate,
-        endDateType: typeof formValues?.endDate,
-      });
       const { startDate: periodStartDate, endDate: periodEndDate } = this.dateService.getStartAndEndDates(
         formValues.periodMode,
         formValues.year,
@@ -176,7 +175,6 @@ export class UniformFilePage implements OnInit {
       );
       startDate = this.dateService.toIsoDate(periodStartDate);
       endDate = this.dateService.toIsoDate(periodEndDate);
-      console.log('[uniform-file] parsed period dates', { startDate, endDate });
       // Get businessNumber from formValues (selected by user) or fallback to signal
       businessNumber = formValues.businessNumber || this.businessNumber();
       // Update the signal with the selected business number
@@ -189,13 +187,6 @@ export class UniformFilePage implements OnInit {
       startDate = this.dateService.toIsoDate(formData.startDate);
       endDate = this.dateService.toIsoDate(formData.endDate);
       businessNumber = formData.businessNumber || this.businessNumber();
-      console.log('[uniform-file] submit with uniformFileForm', {
-        startDateRaw: formData?.startDate,
-        endDateRaw: formData?.endDate,
-        businessNumber,
-        startDateType: typeof formData?.startDate,
-        endDateType: typeof formData?.endDate,
-      });
       // Update the signal with the selected business number
       if (formData.businessNumber) {
         this.businessNumber.set(formData.businessNumber);
@@ -203,6 +194,8 @@ export class UniformFilePage implements OnInit {
     }
 
     this.reportClick = false;
+    this.shaamSubmission = null;
+    this.shaamConnected = false;
 
     // Find business name from businesses list
     const businesses = this.gs.businesses();
@@ -243,7 +236,6 @@ export class UniformFilePage implements OnInit {
       this.fileService.createUniformFile(startDate, endDate, businessNumber).pipe(
         tap((response) => this.downloadBase64Zip(response.file)),
         map((response) => {
-          console.log("response in uniform file page: ", response);
           const document_summary = (response.document_summary ?? []).map(row => ({
             ...row,
             totalDocs: this.genericService.addComma(Math.abs(row.totalDocs as number)),
@@ -258,6 +250,131 @@ export class UniformFilePage implements OnInit {
         })
       )
     );
+  }
+
+  async prepareShaamSubmission(): Promise<void> {
+    if (!this.reportDetails || this.shaamBusy) return;
+    await this.runShaamAction(async () => {
+      this.shaamSubmission = await firstValueFrom(
+        this.shaamService.prepareUniformFileSubmission(
+          this.reportDetails!.businessNumber,
+          this.reportDetails!.startDate,
+          this.reportDetails!.endDate,
+        ),
+      );
+      await this.refreshShaamConnection(false);
+      this.showSuccess('הקובץ הוכן לשליחה לשע״מ');
+    });
+  }
+
+  async refreshShaamConnection(showToast = true): Promise<void> {
+    if (!this.reportDetails) return;
+    const status = await firstValueFrom(
+      this.shaamService.getConnectionStatus(
+        this.reportDetails.businessNumber,
+        'UNIFORM_FILE',
+      ),
+    );
+    this.shaamConnected = status.connected;
+    if (showToast) {
+      this.showSuccess(status.connected ? 'החיבור לשע״מ פעיל' : 'נדרש חיבור לשע״מ');
+    }
+  }
+
+  async checkShaamConnection(): Promise<void> {
+    if (this.shaamBusy) return;
+    await this.runShaamAction(() => this.refreshShaamConnection());
+  }
+
+  async connectShaam(): Promise<void> {
+    if (!this.reportDetails || this.shaamBusy) return;
+    await this.runShaamAction(async () => {
+      const { url } = await firstValueFrom(
+        this.shaamService.getAuthorizeUrl(
+          this.reportDetails!.businessNumber,
+          'UNIFORM_FILE',
+        ),
+      );
+      window.location.assign(url);
+    });
+  }
+
+  async transferShaamSubmission(): Promise<void> {
+    if (!this.reportDetails || !this.shaamSubmission || this.shaamBusy) return;
+    await this.runShaamAction(async () => {
+      this.shaamSubmission = await firstValueFrom(
+        this.shaamService.transferUniformFileSubmission(
+          this.reportDetails!.businessNumber,
+          this.shaamSubmission!.id,
+        ),
+      );
+      this.showSuccess(this.shaamSubmission.state === 'APPROVED'
+        ? 'הקבצים אושרו בשע״מ'
+        : 'הקבצים נשלחו וממתינים לעיבוד');
+    });
+  }
+
+  async pollShaamSubmission(): Promise<void> {
+    if (!this.reportDetails || !this.shaamSubmission || this.shaamBusy) return;
+    await this.runShaamAction(async () => {
+      this.shaamSubmission = await firstValueFrom(
+        this.shaamService.pollUniformFileSubmission(
+          this.reportDetails!.businessNumber,
+          this.shaamSubmission!.id,
+        ),
+      );
+      this.showSuccess('סטטוס שע״מ עודכן');
+    });
+  }
+
+  shaamStateLabel(state: string): string {
+    const labels: Record<string, string> = {
+      GENERATED: 'מוכן לשליחה',
+      AUTH_REQUIRED: 'נדרש חיבור לשע״מ',
+      LINKS_RESERVED: 'קישורי העלאה הוזמנו',
+      INI_UPLOADED: 'קובץ INI הועלה',
+      PAIR_UPLOADED: 'שני הקבצים הועלו',
+      PROCESSING: 'ממתין לעיבוד בשע״מ',
+      APPROVED: 'אושר בשע״מ',
+      REJECTED: 'נדחה בשע״מ',
+      RETRYABLE_FAILURE: 'השליחה נכשלה',
+      UNKNOWN_OUTCOME: 'תוצאת השליחה אינה ידועה',
+    };
+    return labels[state] ?? state;
+  }
+
+  canPollShaam(): boolean {
+    return !!this.shaamSubmission && [
+      'LINKS_RESERVED', 'INI_UPLOADED', 'PAIR_UPLOADED', 'PROCESSING',
+      'UNKNOWN_OUTCOME',
+    ].includes(this.shaamSubmission.state);
+  }
+
+  private async runShaamAction(action: () => Promise<void>): Promise<void> {
+    this.shaamBusy = true;
+    try {
+      await action();
+    } catch (error: any) {
+      this.messageService.add({
+        severity: 'error',
+        summary: 'שגיאה בתהליך שע״מ',
+        detail: error?.error?.message || error?.message || 'לא ניתן להשלים את הפעולה',
+        life: 6000,
+        key: 'br',
+      });
+    } finally {
+      this.shaamBusy = false;
+    }
+  }
+
+  private showSuccess(detail: string): void {
+    this.messageService.add({
+      severity: 'success',
+      summary: 'הפעולה הושלמה',
+      detail,
+      life: 4000,
+      key: 'br',
+    });
   }
 
 private downloadBase64Zip(base64: string) {

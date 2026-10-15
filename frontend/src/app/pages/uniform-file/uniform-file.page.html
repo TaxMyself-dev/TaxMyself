@@ -34,6 +34,63 @@
         </p>
       </div>
 
+      <section class="shaam-card" dir="rtl" aria-labelledby="shaam-card-title">
+        <div class="shaam-card__header">
+          <div>
+            <h3 id="shaam-card-title">שליחה מקוונת לשע״מ</h3>
+            <p>הורדת ה־ZIP הושלמה. השליחה לשע״מ היא פעולה נפרדת ומפורשת.</p>
+          </div>
+          @if (shaamSubmission) {
+            <span class="shaam-state" [class.approved]="shaamSubmission.state === 'APPROVED'" [class.rejected]="shaamSubmission.state === 'REJECTED'">
+              {{ shaamStateLabel(shaamSubmission.state) }}
+            </span>
+          }
+        </div>
+
+        @if (!shaamSubmission) {
+          <ion-button type="button" (click)="prepareShaamSubmission()" [disabled]="shaamBusy">
+            הכנת הקבצים לשליחה
+          </ion-button>
+        } @else {
+          <div class="shaam-details">
+            <span>מזהה פנימי: {{ shaamSubmission.id }}</span>
+            <span>INI: {{ shaamSubmission.iniStatus || 'טרם התקבל סטטוס' }}</span>
+            <span>BKM: {{ shaamSubmission.bkmStatus || 'טרם התקבל סטטוס' }}</span>
+          </div>
+
+          @if (shaamSubmission.errorMessage) {
+            <p class="shaam-error">{{ shaamSubmission.errorMessage }}</p>
+          }
+
+          <div class="shaam-actions">
+            @if (!shaamConnected && shaamSubmission.state !== 'APPROVED' && shaamSubmission.state !== 'REJECTED') {
+              <ion-button type="button" (click)="connectShaam()" [disabled]="shaamBusy">
+                התחברות לשע״מ
+              </ion-button>
+              <ion-button type="button" fill="outline" (click)="checkShaamConnection()" [disabled]="shaamBusy">
+                בדיקת חיבור
+              </ion-button>
+            }
+
+            @if (shaamConnected && (shaamSubmission.state === 'GENERATED' || shaamSubmission.state === 'AUTH_REQUIRED' || shaamSubmission.state === 'RETRYABLE_FAILURE')) {
+              <ion-button type="button" color="success" (click)="transferShaamSubmission()" [disabled]="shaamBusy">
+                שליחה לשע״מ
+              </ion-button>
+            }
+
+            @if (shaamConnected && canPollShaam()) {
+              <ion-button type="button" fill="outline" (click)="pollShaamSubmission()" [disabled]="shaamBusy">
+                עדכון סטטוס משע״מ
+              </ion-button>
+            }
+          </div>
+
+          @if (shaamSubmission.state === 'PROCESSING') {
+            <p class="shaam-note">הקבצים התקבלו וממתינים לעיבוד. מצב זה עדיין אינו אישור.</p>
+          }
+        }
+      </section>
+
       <div class="table-block">
         <app-generic-table class="table" [title]="'פירוט סוגי המסמכים'" [columnsTitle]="uniformFileDocumentSummaryTitles" [dataTable]="uniformFileDocumentSummary" [selectionModeCheckBox]="null" [tableHeight]="'500px'" [mobileCardConfig]="documentSummaryMobileConfig"></app-generic-table>
       </div>

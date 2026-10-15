@@ -29,6 +29,11 @@ export class ShaamCallbackPage implements OnInit {
   isSuccess = false;
   isError = false;
   errorMessage = '';
+  product = '';
+
+  get isUniformFile(): boolean {
+    return this.product === 'UNIFORM_FILE';
+  }
 
   ngOnInit() {
     // Get query parameters from SHAAM redirect or backend redirect
@@ -36,6 +41,7 @@ export class ShaamCallbackPage implements OnInit {
       const connected = params['connected'];
       const error = params['error'];
       const errorDescription = params['error_description'];
+      this.product = params['product'] || '';
 
       // Handle error from SHAAM or backend
       if (error) {
@@ -91,6 +97,10 @@ export class ShaamCallbackPage implements OnInit {
     if (result.allowed) {
       this.router.navigate(['/doc-create']);
     }
+  }
+
+  navigateToUniformFile(): void {
+    this.router.navigate(['/uniform-file']);
   }
 
   tryAgain(): void {
