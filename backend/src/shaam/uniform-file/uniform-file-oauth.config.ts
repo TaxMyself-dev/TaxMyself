@@ -3,8 +3,8 @@ import { ShaamEnvironment } from '../shaam.constants';
 export const UNIFORM_FILE_OAUTH_CONFIG = Symbol('UNIFORM_FILE_OAUTH_CONFIG');
 
 export const UNIFORM_FILE_OAUTH_SCOPES = [
-  'UniStructFileUploadLinksApi',
-  'FilesStatusApi',
+  'UniStructFileUploadLinks_scope',
+  'FilesStatus_scope',
 ] as const;
 
 export interface UniformFileOauthConfig {
@@ -17,19 +17,19 @@ export interface UniformFileOauthConfig {
   tokenUrl: string;
   uploadLinksUrl: string;
   statusUrl: string;
-  stateSecret: string;
   scopes: readonly string[];
 }
-const REQUIRED_WHEN_ENABLED = [
-  'SHAAM_UNIFORM_FILE_CLIENT_ID',
-  'SHAAM_UNIFORM_FILE_CLIENT_SECRET',
-  'SHAAM_UNIFORM_FILE_REDIRECT_URI',
-  'SHAAM_UNIFORM_FILE_AUTHORIZE_URL',
-  'SHAAM_UNIFORM_FILE_TOKEN_URL',
-  'SHAAM_UNIFORM_FILE_UPLOAD_LINKS_URL',
-  'SHAAM_UNIFORM_FILE_STATUS_URL',
-  'SHAAM_UNIFORM_FILE_STATE_SECRET',
-] as const;
+
+const TSANDBOX_DEFAULTS = {
+  authorizeUrl:
+    'https://openapi.taxes.gov.il/shaam/tsandbox/dailytoken/oauth2/authorize',
+  tokenUrl:
+    'https://openapi.taxes.gov.il/shaam/tsandbox/dailytoken/oauth2/token',
+  uploadLinksUrl:
+    'https://ita-api.taxes.gov.il/shaam/tsandbox/UniStructFileUploadLinksApi/v1/UploadingFile/GetUrlsForUploadingFiles',
+  statusUrl:
+    'https://ita-api.taxes.gov.il/shaam/tsandbox/FilesStatusApi/v1/Files/get-file-status',
+} as const;
 
 function parseEnvironment(value: string | undefined): ShaamEnvironment {
   const normalized = (value || ShaamEnvironment.TSANDBOX).trim().toLowerCase();
@@ -103,24 +103,46 @@ export function loadUniformFileOauthConfig(
 ): UniformFileOauthConfig {
   const enabled = env.SHAAM_UNIFORM_FILE_ENABLED === 'true';
   const environment = parseEnvironment(env.SHAAM_UNIFORM_FILE_ENV);
+  const sandboxDefaults =
+    environment === ShaamEnvironment.TSANDBOX ? TSANDBOX_DEFAULTS : undefined;
 
   const config: UniformFileOauthConfig = {
     enabled,
     environment,
-    clientId: env.SHAAM_UNIFORM_FILE_CLIENT_ID?.trim() || '',
-    clientSecret: env.SHAAM_UNIFORM_FILE_CLIENT_SECRET || '',
-    redirectUri: env.SHAAM_UNIFORM_FILE_REDIRECT_URI?.trim() || '',
-    authorizeUrl: env.SHAAM_UNIFORM_FILE_AUTHORIZE_URL?.trim() || '',
-    tokenUrl: env.SHAAM_UNIFORM_FILE_TOKEN_URL?.trim() || '',
-    uploadLinksUrl: env.SHAAM_UNIFORM_FILE_UPLOAD_LINKS_URL?.trim() || '',
-    statusUrl: env.SHAAM_UNIFORM_FILE_STATUS_URL?.trim() || '',
-    stateSecret: env.SHAAM_UNIFORM_FILE_STATE_SECRET || '',
+    clientId:
+      env.SHAAM_UNIFORM_FILE_CLIENT_ID?.trim() || env.SHAAM_CLIENT_ID?.trim() || '',
+    clientSecret:
+      env.SHAAM_UNIFORM_FILE_CLIENT_SECRET || env.SHAAM_CLIENT_SECRET || '',
+    redirectUri:
+      env.SHAAM_UNIFORM_FILE_REDIRECT_URI?.trim() ||
+      env.SHAAM_REDIRECT_URI?.trim() ||
+      '',
+    authorizeUrl:
+      env.SHAAM_UNIFORM_FILE_AUTHORIZE_URL?.trim() ||
+      sandboxDefaults?.authorizeUrl ||
+      '',
+    tokenUrl:
+      env.SHAAM_UNIFORM_FILE_TOKEN_URL?.trim() || sandboxDefaults?.tokenUrl || '',
+    uploadLinksUrl:
+      env.SHAAM_UNIFORM_FILE_UPLOAD_LINKS_URL?.trim() ||
+      sandboxDefaults?.uploadLinksUrl ||
+      '',
+    statusUrl:
+      env.SHAAM_UNIFORM_FILE_STATUS_URL?.trim() || sandboxDefaults?.statusUrl || '',
     scopes: UNIFORM_FILE_OAUTH_SCOPES,
   };
 
   if (!enabled) return config;
 
-  const missing = REQUIRED_WHEN_ENABLED.filter((name) => !env[name]?.trim());
+  const missing = [
+    ['SHAAM_UNIFORM_FILE_CLIENT_ID or SHAAM_CLIENT_ID', config.clientId],
+    ['SHAAM_UNIFORM_FILE_CLIENT_SECRET or SHAAM_CLIENT_SECRET', config.clientSecret],
+    ['SHAAM_UNIFORM_FILE_REDIRECT_URI or SHAAM_REDIRECT_URI', config.redirectUri],
+    ['SHAAM_UNIFORM_FILE_AUTHORIZE_URL', config.authorizeUrl],
+    ['SHAAM_UNIFORM_FILE_TOKEN_URL', config.tokenUrl],
+    ['SHAAM_UNIFORM_FILE_UPLOAD_LINKS_URL', config.uploadLinksUrl],
+    ['SHAAM_UNIFORM_FILE_STATUS_URL', config.statusUrl],
+  ].filter(([, value]) => !value).map(([name]) => name);
   if (missing.length > 0) {
     throw new Error(
       `Uniform-file SHAAM OAuth is enabled but missing: ${missing.join(', ')}`,
@@ -134,10 +156,6 @@ export function loadUniformFileOauthConfig(
     throw new Error(
       'Uniform-file SHAAM production is disabled; set SHAAM_UNIFORM_FILE_PRODUCTION_ENABLED=true only for an approved production activation',
     );
-  }
-
-  if (Buffer.byteLength(config.stateSecret, 'utf8') < 32) {
-    throw new Error('SHAAM_UNIFORM_FILE_STATE_SECRET must contain at least 32 bytes');
   }
 
   assertTaxAuthorityUrl('SHAAM_UNIFORM_FILE_AUTHORIZE_URL', config.authorizeUrl);

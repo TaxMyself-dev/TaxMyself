@@ -23,8 +23,7 @@ describe('UniformFileUploadService', () => {
       'https://ita-api.taxes.gov.il/shaam/tsandbox/UniStructFileUploadLinksApi/v1/UploadingFile/GetUrlsForUploadingFiles',
     statusUrl:
       'https://ita-api.taxes.gov.il/shaam/tsandbox/FilesStatusApi/v1/Files/get-file-status',
-    stateSecret: 's'.repeat(32),
-    scopes: ['UniStructFileUploadLinksApi', 'FilesStatusApi'],
+    scopes: ['UniStructFileUploadLinks_scope', 'FilesStatus_scope'],
   };
 
   const storageHeaders = {

@@ -19,8 +19,7 @@ describe('UniformFileOauthService', () => {
     tokenUrl: 'https://openapi.taxes.gov.il/token',
     uploadLinksUrl: 'https://ita-api.taxes.gov.il/shaam/tsandbox/UniStructFileUploadLinksApi/v1/UploadingFile/GetUrlsForUploadingFiles',
     statusUrl: 'https://ita-api.taxes.gov.il/shaam/tsandbox/FilesStatusApi/v1/Files/get-file-status',
-    stateSecret: 's'.repeat(32),
-    scopes: ['UniStructFileUploadLinksApi', 'FilesStatusApi'],
+    scopes: ['UniStructFileUploadLinks_scope', 'FilesStatus_scope'],
   };
 
   function setup(response?: unknown) {
@@ -34,7 +33,7 @@ describe('UniformFileOauthService', () => {
               access_token: 'daily-token',
               token_type: 'Bearer',
               expires_in: 43_200,
-              scope: 'UniStructFileUploadLinksApi FilesStatusApi',
+              scope: 'UniStructFileUploadLinks_scope FilesStatus_scope',
             } as const),
         }),
       ),
@@ -51,7 +50,7 @@ describe('UniformFileOauthService', () => {
 
     expect(url.searchParams.get('client_id')).toBe('uniform-client');
     expect(url.searchParams.get('scope')).toBe(
-      'UniStructFileUploadLinksApi FilesStatusApi',
+      'UniStructFileUploadLinks_scope FilesStatus_scope',
     );
     expect(url.searchParams.get('state')).toBe('signed-state');
   });
@@ -66,7 +65,7 @@ describe('UniformFileOauthService', () => {
     const [url, body, options] = httpService.post.mock.calls[0];
     expect(url).toBe(config.tokenUrl);
     expect(body).toContain('code=one-time-code');
-    expect(body).toContain('UniStructFileUploadLinksApi+FilesStatusApi');
+    expect(body).toContain('UniStructFileUploadLinks_scope+FilesStatus_scope');
     expect(options.headers.Authorization).toMatch(/^Basic /);
   });
 
@@ -75,7 +74,7 @@ describe('UniformFileOauthService', () => {
       access_token: 'token',
       token_type: 'Bearer',
       expires_in: 43_201,
-      scope: 'UniStructFileUploadLinksApi FilesStatusApi',
+      scope: 'UniStructFileUploadLinks_scope FilesStatus_scope',
     });
 
     await expect(service.exchangeCodeForDailyToken('code')).rejects.toThrow(

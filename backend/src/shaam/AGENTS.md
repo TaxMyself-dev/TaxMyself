@@ -83,11 +83,21 @@ state map and `business.shaam*` columns were removed in KT-063. Do not recreate
 them. Every new SHAAM product must use `ShaamConnection` and durable state.
 
 The uniform-file API must not reuse the current `/longtimetoken/` flow or
-literal `scope`: the September 2026 Tax Authority guidance specifies a 12-hour
-Daily Token and separate `UniStructFileUploadLinksApi` and `FilesStatusApi`
-scopes. It may reuse only hardened server-side HTTP/encryption/environment
-primitives. Uniform-file production remains disabled until verified portal
-configuration is provided; see KT-061 through KT-063.
+literal `scope`: the authenticated sandbox portal specifications require a
+12-hour Daily Token and the exact `UniStructFileUploadLinks_scope` and
+`FilesStatus_scope` scopes. It may reuse the existing SHAAM application's
+client credentials and callback, because both products are subscribed to that
+application, while tokens remain separated by product. Uniform-file production
+remains disabled until verified portal configuration is provided; see KT-061
+through KT-063 and KT-078.
+
+The uniform-file OAuth configuration falls back to `SHAAM_CLIENT_ID`,
+`SHAAM_CLIENT_SECRET` and `SHAAM_REDIRECT_URI` when product-specific overrides
+are absent. Verified tsandbox endpoints have safe defaults, but the integration
+remains disabled unless `SHAAM_UNIFORM_FILE_ENABLED=true`. Production never
+inherits guessed endpoints and still requires its separate activation switch.
+OAuth state is random, hashed, durable and single-use in `shaam_oauth_state`;
+there is no separate uniform-file state secret.
 
 When the uniform-file integration is enabled, configuration also requires
 `SHAAM_UNIFORM_FILE_UPLOAD_LINKS_URL` and `SHAAM_UNIFORM_FILE_STATUS_URL`.
