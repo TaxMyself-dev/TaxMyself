@@ -18,6 +18,9 @@ submission flow.
 - After ZIP generation, the user explicitly prepares a persisted submission,
   connects the uniform-file Daily Token when necessary, explicitly transfers,
   and manually polls. `PROCESSING` is labelled as waiting and never as approval.
+- Connection checks show active connections as success and missing connections
+  as informational prompts; absence of authorization is never presented as a
+  completed/successful operation.
 - Re-selecting a period clears the page's previous submission state; the backend
   remains the source of truth and idempotently reuses the same artifact.
 

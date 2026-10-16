@@ -277,7 +277,17 @@ export class UniformFilePage implements OnInit {
     );
     this.shaamConnected = status.connected;
     if (showToast) {
-      this.showSuccess(status.connected ? 'החיבור לשע״מ פעיל' : 'נדרש חיבור לשע״מ');
+      if (status.connected) {
+        this.showSuccess('החיבור לשע״מ פעיל');
+      } else {
+        this.messageService.add({
+          severity: 'info',
+          summary: 'נדרש חיבור לשע״מ',
+          detail: 'יש להתחבר לשע״מ לפני שליחת הקבצים',
+          life: 5000,
+          key: 'br',
+        });
+      }
     }
   }
 
