@@ -47,3 +47,22 @@ Existing PDF worktree contains an unrelated uncommitted diagnostic draft; leave 
 - Queue preparation is a versioned pure render job only; no durable queue,
   retry store, result status API or async frontend is implemented.
 - Existing uncommitted PDF diagnostics draft, other worktrees and main untouched.
+
+## 2026-10-16 follow-up: desktop preview and numeric layout
+
+- User supplied successful operator deployment/promotion output; PDF service IAM
+  probe and backend root health passed. Codex did not access production.
+- Desktop preview opens a normal browser tab instead of an 800x600 popup, in
+  both the document page and FilesService fallback. Mobile/PWA preview unchanged.
+- Auto table sizing reserves intrinsic width for unbroken numbers/dates and
+  headings; prose can wrap. Summary expands from 60mm to at least 100mm, without
+  wrapping its labels or amounts. Numeric strings/accounting are unchanged.
+- Added a large-amount HTTP fixture and actual Chromium layout assertions for
+  grouped cents, trillion-scale values and negative values. Checks assert one
+  line, no cell overflow, no summary overlap and printable-width bounds.
+- Verification: Nest and Angular production builds passed (Angular reported
+  bundle/style size and CommonJS warnings); 35 focused backend tests and nine
+  service tests passed. Four real local HTTP PDFs rendered, three numeric layout
+  cases passed, and both large-amount PDF pages were visually inspected.
+  Cloud rendering/rollout of this follow-up is pending. Backend runtime,
+  dependencies and database unchanged.

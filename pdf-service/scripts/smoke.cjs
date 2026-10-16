@@ -83,7 +83,9 @@ const stop = setTimeout(() => {
     ["receipt-logo", 3, true],
     ["receipt-no-logo", 3, false],
     ["invoice-multipage", 55, true],
+    ["large-amounts", 2, false],
   ]) {
+    const amount = name === "large-amounts" ? "₪1,234,567,890,123.45" : "₪67";
     const document = {
       title: rows === 55 ? "חשבונית מס מספר 20000" : "קבלה מספר 10000000",
       issuerName: "עסק לדוגמה",
@@ -97,14 +99,30 @@ const stop = setTimeout(() => {
       items: Array.from({ length: rows }, (_, i) => ({
         פירוט: "פריט " + (i + 1) + " — תיאור ארוך לבדיקת גלישת שורות בעברית",
         כמות: "1.00",
-        מחיר: "₪67",
-        'סה"כ': "₪67",
+        מחיר: amount,
+        'סה"כ': amount,
       })),
       payments: [],
       paymentTotals: [],
       totals: [{ תיאור: "סה״כ", סכום: "₪" + rows * 67 }],
       ...(hasLogo ? { logoDataUri: logo } : {}),
     };
+    if (name === "large-amounts") {
+      document.totals = [
+        { תיאור: "סה״כ לפני הנחה:", סכום: amount },
+        { תיאור: "הנחה:", סכום: "₪5,676.00" },
+        { תיאור: "סה״כ:", סכום: amount },
+      ];
+      document.payments = [
+        {
+          "אמצעי תשלום": "העברה בנקאית",
+          פירוט: "פירוט תשלום ארוך לבדיקת גלישת טקסט בלי לפגוע ברוחב הסכום",
+          תאריך: "16-10-2026",
+          סכום: amount,
+        },
+      ];
+      document.paymentTotals = [{ תיאור: "סה״כ", סכום: amount }];
+    }
     const start = Date.now();
     const response = await fetch(url + "/v1/render", {
       method: "POST",
@@ -131,6 +149,13 @@ const stop = setTimeout(() => {
     path.join(output, "report.json"),
     JSON.stringify(report, null, 2)
   );
+  await require("./check-layout.cjs").verifyLayout({
+    executablePath: process.argv[2] || "/usr/bin/chromium",
+    fontDirectory: process.argv[2]
+      ? path.resolve("../backend/src/assets/document-fonts")
+      : path.resolve("fonts"),
+    template: require("../dist/document-pdf.template.js"),
+  });
 })()
   .catch((e) => {
     console.error(e.stack);

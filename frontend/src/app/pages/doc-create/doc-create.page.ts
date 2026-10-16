@@ -810,7 +810,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
   previewDoc(): void {
     const previewWindow = this.usesInAppPdfPreview()
       ? null
-      : window.open('', '_blank', 'width=800,height=600');
+      : window.open('', '_blank');
     // Store original allocation number if exists
     const originalAllocationNumber = this.allocationNumber();
 

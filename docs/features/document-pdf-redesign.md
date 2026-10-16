@@ -6,6 +6,15 @@ Approved reference: `receipt-logo-left-spacious.png`, produced in the document r
 
 Cloud Run: backend document model -> private `pdf-service` HTTP renderer -> backend FillFaster digital signature -> existing Firebase original/copy storage lifecycle. Existing document transforms remain the source of monetary values. The renderer covers receipt, tax invoice, tax invoice-receipt, transaction invoice, credit invoice, quote and work order, with draft watermark, repeat table headings, optional notes/allocation, payment details and footer pagination. The service uses Node 22 and the independently tested Puppeteer image; the backend Dockerfile and Node 18 are unchanged. See [service setup and future queue boundaries](../../pdf-service/README.md).
 
+Tables allocate unbroken numeric/date columns their content width, including
+group separators, sign and cents. Headings and summary labels stay on one line;
+description/payment-detail prose may wrap. Summaries expand rightward rather
+than squeezing labels against large amounts. The same template serves local
+development and the standalone service; accounting strings are unchanged.
+Desktop preview opens a normal browser tab instead of a fixed 800x600 popup.
+Deploy the frontend and PDF service to release these display changes; changing
+the backend template source alone does not update a running service image.
+
 Install backend dependencies with npm. Docker installs Chromium; standard Chromium/Chrome/Edge paths are detected automatically. Fonts are bundled and copied by Nest. JavaScript and external/file requests are blocked. Windows and Docker containers launch without the Linux Chromium sandbox.
 
 Supply `PDF_SERVICE_URL` with the IAM-protected service root URL and grant its invoker role to the backend runtime service account. Cloud Run never falls back to its local browser if rendering fails or this URL is absent. Local development without the URL retains local Chromium rendering. `FILLFASTER_API_TOKEN` remains a backend secret (see `backend/.env.document-pdf.example`); it is never sent to the renderer. The verified clean signing template `3IfhJjgmAp` is fixed in code. Previews remain unsigned and issued documents are signed in the backend. Legacy provider-layout switches remain removed.

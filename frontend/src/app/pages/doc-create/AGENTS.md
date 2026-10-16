@@ -25,10 +25,12 @@ Page for creating and managing SHAAM-compliant business documents (receipts, tax
   Saved desktop payments can be edited (pencil → "עדכן תשלום"/"ביטול") via `editingPaymentIndex`; mobile edits share `replacePayment`. `paymentLineNumber` is renumbered on delete.
 - Save/load/delete drafts before finalizing.
 - Preview PDF, create the document, and roll back a created document if needed.
-  Preview rendering is platform-split: desktop browsers keep the popup window
+  Preview rendering is platform-split: desktop browsers open a normal browser tab
   (`FilesService.previewFile3`), while mobile viewports and installed PWAs render
   the same Blob in-app via `components/pdf-preview-dialog` (pdf.js → canvas),
   because Chrome on Android never displays an embedded PDF inline.
+  Desktop preview does not request a fixed-size popup. It uses the available
+  browser window area; browser full-screen/F11 remains user-controlled.
 - Manage allocation numbers: the above-threshold decision dialog starts SHAAM
   OAuth when needed. With a valid connection it persists the final pending
   invoice, requests allocation, and finalizes it as one user-visible action.

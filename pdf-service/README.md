@@ -43,7 +43,10 @@ docker run --rm --memory=1g --cpus=1 --network=none --entrypoint=node keepintax-
 ```
 
 The real-browser smoke starts the HTTP service and renders receipts with/without
-a logo and a multi-page invoice; no application startup or external calls.
+a logo, a multi-page invoice and a large-amount fixture; no application startup
+or external calls. It also checks actual Chromium layout for grouped cents,
+trillion-scale values, negative amounts, unbroken headings/summary labels and
+numeric cells without overlap or overflow at the A4 printable width.
 Without local Docker, from the repo root run the following **verification only**:
 
 ```powershell
