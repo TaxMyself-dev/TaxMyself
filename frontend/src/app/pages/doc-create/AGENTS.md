@@ -31,6 +31,21 @@ Page for creating and managing SHAAM-compliant business documents (receipts, tax
   because Chrome on Android never displays an embedded PDF inline.
   Desktop preview does not request a fixed-size popup. It uses the available
   browser window area; browser full-screen/F11 remains user-controlled.
+- `documentRequestBusy` combines create, preview and persisted-allocation loading.
+  Both action buttons are disabled while busy, and create/preview/pending-create
+  entry points also reject overlapping calls. Each owning observable releases its
+  loading flag via finalize, including synchronous payload errors through defer.
+  Merely rejecting a confirmation does not release another request's lock.
+- Desktop preview opens synchronously in the click handler and immediately writes
+  an accessible RTL loading page through `services/pdf-preview-tab.ts`. Success
+  replaces that document with the PDF viewer; failure leaves a static error with
+  a close action and a toast, without upstream details. Blocked tabs fall back to
+  the existing in-app viewer. Closed/navigated tabs do not strand the lock.
+  FilesService opens a replacement document before writing the final viewer,
+  attaches URL cleanup after replacement, and revokes the URL if writing fails.
+- Focused request tests: `ng test --watch=false --browsers=ChromeHeadless
+  --ts-config=tsconfig.doc-preview.spec.json
+  --include=src/app/pages/doc-create/doc-create-request.spec.ts --progress=false`.
 - Manage allocation numbers: the above-threshold decision dialog starts SHAAM
   OAuth when needed. With a valid connection it persists the final pending
   invoice, requests allocation, and finalizes it as one user-visible action.
