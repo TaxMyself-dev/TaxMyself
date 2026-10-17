@@ -293,3 +293,13 @@ Existing PDF worktree contains an unrelated uncommitted diagnostic draft; leave 
 - Any fix to the VAT-inclusive aggregate changes amounts and needs separately
   authorized scope; do not hide it by adjusting PDF-only amounts. Pure display
   fixes should preserve supplied net/VAT/final values and existing signed files.
+
+## 2026-10-18 main delivery approval
+
+User explicitly approved merging/pushing backend, PDF service and frontend and
+preparing operator deployment instructions. Discount defects remain deferred;
+audit tests/docs carry no calculation fixes. User additionally approved committing
+the existing frontend environment API port correction from localhost:3001 to 3000.
+Release verification is local only; no production access/deployment authorized.
+Main/origin/main refreshed at 09012397; main working tree clean. Preserve the
+live feature worktree/dev environment and do not modify codex/integration.
