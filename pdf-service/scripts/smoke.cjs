@@ -7,7 +7,7 @@ const output =
   path.join(require("node:os").tmpdir(), "pdf-service-artifacts");
 fs.mkdirSync(output, { recursive: true });
 let child, localServer, localRender;
-const port = process.argv[2] ? 8082 : 8080;
+const port = Number(process.env.PDF_SMOKE_PORT || (process.argv[2] ? 8082 : 8080));
 const url = "http://127.0.0.1:" + port;
 if (process.argv[2]) {
   const { createRenderer } = require("../src/renderer.cjs");

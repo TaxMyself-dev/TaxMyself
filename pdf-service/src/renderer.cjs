@@ -123,7 +123,7 @@ function createRenderer({
           mark(phase);
           try {
             await page.setContent(html, {
-              waitUntil: "networkidle0",
+              waitUntil: "load",
               timeout: 20000,
             });
           } catch (error) {
@@ -135,6 +135,17 @@ function createRenderer({
             }
             throw error;
           }
+          phase = "ASSET_READY";
+          mark(phase);
+          await page.evaluate(async () => {
+            await document.fonts.ready;
+            await Promise.all(Array.from(document.images, async (image) => {
+              await image.decode();
+              if (!image.naturalWidth) throw Error("PDF_IMAGE_NOT_READY");
+            }));
+            if (Array.from(document.fonts).some(font => font.status === "error"))
+              throw Error("PDF_FONT_NOT_READY");
+          });
           phase = "PDF_PRINT";
           mark(phase);
           const bytes = Buffer.from(

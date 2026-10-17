@@ -1,4 +1,4 @@
-import { createPdfTimings, measurePdfStage, pdfDiagnosticRequestId } from './pdf/pdf-diagnostics';
+import { createPdfTimings, measurePdfStage } from './pdf/pdf-diagnostics';
 import { forwardRef, Inject, Injectable, HttpException, HttpStatus, Logger, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, Repository, In, Not, IsNull } from 'typeorm';
@@ -605,15 +605,7 @@ export class DocumentsService {
   }
 
 
-  private async generateLocalPdf(data: any, preview: boolean, isCopy: boolean): Promise<Buffer> {
-    const timingStart = performance.now();
-    let timingStageStart = timingStart;
-    const timings: Record<string, number> = {};
-    const recordTiming = (stage: string) => {
-      const now = performance.now();
-      timings[stage] = Math.round(now - timingStageStart);
-      timingStageStart = now;
-    };
+  private async preparePdfModel(data: any, preview: boolean, isCopy: boolean): Promise<DocumentPdfModel> {
     const doc = data.docData;
     const names: Partial<Record<DocumentType, string>> = {
       [DocumentType.RECEIPT]: 'קבלה', [DocumentType.TAX_INVOICE]: 'חשבונית מס',
@@ -633,13 +625,11 @@ export class DocumentsService {
       issuerEmail: business.businessEmail,
       logoPath: business.logoPath,
     } : { ...doc, logoPath: null };
-    recordTiming('BUSINESS_LOOKUP');
     let logoDataUri: string;
     if (identity.logoPath) {
       const logo = await measurePdfStage('LOGO_DOWNLOAD', () => this.imageStorage.download(identity.logoPath));
       logoDataUri = `data:${logo.contentType};base64,${logo.buffer.toString('base64')}`;
     }
-    recordTiming('LOGO_DOWNLOAD');
     const summary = await this.transformSumsToSumTable(doc, doc.issuerBusinessNumber);
     // Credit invoices used the separate legacy VAT fields rather than VAT rows
     // in sumTable. Preserve those displayed values in the local summary too.
@@ -669,19 +659,46 @@ export class DocumentsService {
       payments: await this.transformLinesToPaymentsTable(data.paymentData ?? []),
       paymentTotals: await this.transformPaymentsToSumTable(data.paymentData ?? [], doc),
     };
-    recordTiming('MODEL_PREPARE');
-    try {
-      return await this.documentPdfRenderer.render(model);
-    } finally {
-      recordTiming('RENDER_CALL');
-      if (process.env.NODE_ENV === 'development') {
-        try {
-          console.log(JSON.stringify({ event: 'pdf_backend_stages', requestId: pdfDiagnosticRequestId(), preview, isCopy,
-            hasLogo: Boolean(logoDataUri), stagesMs: timings,
-            totalMs: Math.round(performance.now() - timingStart) }));
-        } catch {}
-      }
+    return model;
+  }
+
+  private async generateLocalPdf(data: any, preview: boolean, isCopy: boolean): Promise<Buffer> {
+    const model = await this.preparePdfModel(data, preview, isCopy);
+    return measurePdfStage(isCopy ? 'COPY_RENDER' : 'ORIGINAL_RENDER', () => this.documentPdfRenderer.render(model));
+  }
+
+  private async generatePdfPair(data: any): Promise<{ original: Buffer; copy: Buffer }> {
+    const model = await measurePdfStage('SHARED_PREPARE', () => this.preparePdfModel(data, false, false));
+    const originalPdf = await measurePdfStage('ORIGINAL_RENDER', () => this.documentPdfRenderer.render(model));
+    // Only one render at a time. Settle both operations before rollback on either failure.
+    const [original, copyPdf] = await Promise.allSettled([
+      measurePdfStage('ORIGINAL_SIGN', () => this.fillFasterSigner.sign(originalPdf)),
+      measurePdfStage('COPY_RENDER', () => this.documentPdfRenderer.render({ ...model, documentType: 'העתק נאמן למקור' })),
+    ]);
+    if (original.status === 'rejected') throw original.reason;
+    if (copyPdf.status === 'rejected') throw copyPdf.reason;
+    const copy = await measurePdfStage('COPY_SIGN', () => this.fillFasterSigner.sign(copyPdf.value));
+    return { original: original.value, copy };
+  }
+
+  private async uploadPdfPair(data: any, original: Buffer, copy: Buffer): Promise<[string, string]> {
+    const outcomes = await Promise.allSettled([
+      measurePdfStage('UPLOAD_ORIGINAL', () => this.uploadToFirebase(original,
+        data.docData.issuerBusinessNumber, data.docData.generalDocIndex,
+        data.docData.docType, data.docData.docDescription, 'original')),
+      measurePdfStage('UPLOAD_COPY', () => this.uploadToFirebase(copy,
+        data.docData.issuerBusinessNumber, data.docData.generalDocIndex,
+        data.docData.docType, data.docData.docDescription, 'copy')),
+    ]);
+    const failure = outcomes.find(outcome => outcome.status === 'rejected');
+    if (failure?.status === 'rejected') {
+      // Wait for both uploads, then remove every successful sibling before rollback.
+      // Preserve the triggering error even if cleanup itself fails.
+      await Promise.allSettled(outcomes.filter((outcome): outcome is PromiseFulfilledResult<string> =>
+        outcome.status === 'fulfilled').map(outcome => this.deleteFromFirebase(outcome.value)));
+      throw failure.reason;
     }
+    return outcomes.map(outcome => (outcome as PromiseFulfilledResult<string>).value) as [string, string];
   }
 
   async generatePDF(data: any, templateType: string, isCopy: boolean = false): Promise<Blob> {
@@ -1254,52 +1271,10 @@ export class DocumentsService {
 
       if (generatePdf) {
         try {
-          // Generate original PDF (מקור)
-          const originalPdfBlob = await this.generatePDF(data, "createDoc");
-          if (!originalPdfBlob) {
-            throw new Error("Original PDF generation failed");
-          }
-          pdfTimings.mark('ORIGINAL_PREPARE_RENDER_SIGN');
-          const originalBuffer = Buffer.from(originalPdfBlob as any);
-
-          // Generate copy PDF (העתק נאמן למקור)
-          const copyData = {
-            ...data,
-            docData: {
-              ...data.docData,
-              // Mark as certified copy
-            }
-          };
-          const copyPdfBlob = await this.generatePDF(copyData, "createDoc", true); // Pass true for copy
-          if (!copyPdfBlob) {
-            throw new Error("Copy PDF generation failed");
-          }
-          pdfTimings.mark('COPY_PREPARE_RENDER_SIGN');
-          const copyBuffer = Buffer.from(copyPdfBlob as any);
-          console.log(new Date().toLocaleTimeString(), "Step 7 complete - PDFs generated");
-
-          // 8. Upload both PDFs to Firebase
-          originalFilePath = await this.uploadToFirebase(
-            originalBuffer,
-            data.docData.issuerBusinessNumber,
-            data.docData.generalDocIndex,
-            data.docData.docType,
-            data.docData.docDescription,
-            'original'
-          );
-          console.log(new Date().toLocaleTimeString(), "Step 8.1 complete - Original PDF uploaded");
-          pdfTimings.mark('UPLOAD_ORIGINAL');
-
-          copyFilePath = await this.uploadToFirebase(
-            copyBuffer,
-            data.docData.issuerBusinessNumber,
-            data.docData.generalDocIndex,
-            data.docData.docType,
-            data.docData.docDescription,
-            'copy'
-          );
-          console.log(new Date().toLocaleTimeString(), "Step 8.2 complete - Copy PDF uploaded");
-          pdfTimings.mark('UPLOAD_COPY');
+          const { original: originalBuffer, copy: copyBuffer } = await this.generatePdfPair(data);
+          pdfTimings.mark('SHARED_PREPARE_RENDER_SIGN_PAIR');
+          [originalFilePath, copyFilePath] = await this.uploadPdfPair(data, originalBuffer, copyBuffer);
+          pdfTimings.mark('UPLOAD_PAIR');
 
           // 9. Update document with Firebase paths
           const documentsRepo = queryRunner.manager.getRepository(Documents);

@@ -232,3 +232,41 @@ merely to probe readiness. No cloud IAM/cold-start/CPU behavior is simulated her
 - After loading these diagnostics the local helper stdout is
   `keepintax-pdf-dev/service.diagnostics.stdout.log` in OS temp. Previous logs
   are preserved. A user preview retry is needed to capture the failing load.
+
+## 2026-10-18 approved pipeline optimization (development)
+
+- Manual `createDoc` prepares issuer identity, logo, tables and totals once for
+  the original/copy pair. The same immutable request model is reused with only
+  the document-type label changed; there is no cross-request branding cache.
+- Original rendering completes before copy rendering, preserving service capacity
+  1. Original signing overlaps copy rendering. Copy signing starts after both
+  finish; no additional simultaneous signing requests, retries or unsigned paths.
+- Upload both signed PDFs concurrently. Settle both outcomes before failure,
+  attempt to delete successful sibling uploads, then propagate the original
+  failure to the existing transaction rollback. Storage deletion remains the
+  existing best-effort operation; an unavailable storage service can still leave
+  an orphan, and no durable cleanup/retry mechanism was added.
+- Other issuance paths (pending-allocation finalization/system billing) keep
+  their existing orchestration. No accounting/numbering/signature policy changed.
+- Both standalone and backend-local renderers now wait for `load`, then
+  `document.fonts.ready`, successful image `decode()` and non-error font status.
+  Asset failures stop printing. Existing PDF options/deadlines/network blocking
+  remain. New diagnostic stage ASSET_READY separates asset readiness from HTML.
+  This supersedes earlier statements that networkidle0 remains unchanged.
+- Pipeline spans overlap: do not sum ORIGINAL_SIGN + COPY_RENDER to calculate
+  wall time. Creation intervals SHARED_PREPARE_RENDER_SIGN_PAIR and UPLOAD_PAIR
+  describe the nonoverlapping wall-time blocks. Per-operation spans still expose
+  individual download/render/sign/upload durations.
+- `PDF_SMOKE_PORT=8083` lets the isolated smoke coexist with the local helper on
+  8082. The current updated local helper stdout is under OS temp at
+  `keepintax-pdf-dev/service.pipeline.stdout.log`; prior logs are preserved.
+- Focused checks: 56 backend tests across six suites (including the final two
+  suites rerun after strengthening failure coverage); 20 standalone tests.
+  Four real Chromium HTTP PDFs passed (logo/no-logo/multipage/large amounts),
+  three numeric layout cases passed, and invalid embedded PNG was rejected
+  before printing by real Chromium. Existing compiled template reused; PDF byte
+  lengths matched the prior fixture run. No production build/deploy.
+- Synthetic regression HTTP elapsed times: cold logo 1475ms, warm no-logo 575ms,
+  multipage 700ms, large amounts 777ms. These are isolated checks, not full
+  document latency or a guarantee of production improvement. Full manual dev
+  comparison against 26,060ms remains pending the user's next test.

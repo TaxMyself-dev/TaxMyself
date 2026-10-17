@@ -156,6 +156,72 @@ describe('local PDF document routing', () => {
     expect(service.businessService.getBusinessByNumber).not.toHaveBeenCalled();
     expect(service.documentPdfRenderer.render).not.toHaveBeenCalled();
   });
+  it('prepares branding once and overlaps original signing with copy rendering', async () => {
+    let releaseOriginal: (value: Buffer) => void;
+    const originalSigned = new Promise<Buffer>(resolve => { releaseOriginal = resolve; });
+    service.fillFasterSigner.sign.mockImplementationOnce(() => originalSigned)
+      .mockResolvedValueOnce(Buffer.from('%PDF-signed-copy'));
+    service.documentPdfRenderer.render.mockImplementation(async (model) => {
+      if (model.documentType === 'העתק נאמן למקור') {
+        expect(service.fillFasterSigner.sign).toHaveBeenCalledTimes(1);
+        releaseOriginal(Buffer.from('%PDF-signed-original'));
+      }
+      return Buffer.from('%PDF-rendered');
+    });
+    const result = await service.generatePdfPair(data());
+    expect(result.original.toString()).toBe('%PDF-signed-original');
+    expect(result.copy.toString()).toBe('%PDF-signed-copy');
+    expect(service.imageStorage.download).toHaveBeenCalledTimes(1);
+    expect(service.businessService.getBusinessByNumber).toHaveBeenCalledTimes(1);
+    const models = service.documentPdfRenderer.render.mock.calls.map(([model]) => model);
+    expect(models[0].documentType).toBe('מקור');
+    expect(models[1].documentType).toBe('העתק נאמן למקור');
+    expect(models[1].logoDataUri).toBe(models[0].logoDataUri);
+    expect(models[1].items).toBe(models[0].items);
+  });
+  it('settles in-flight copy rendering before surfacing original signing failure', async () => {
+    let releaseCopy: (value: Buffer) => void;
+    const copy = new Promise<Buffer>(resolve => { releaseCopy = resolve; });
+    let markStarted: () => void;
+    const started = new Promise<void>(resolve => { markStarted = resolve; });
+    const error = new Error('sign failed');
+    service.fillFasterSigner.sign.mockRejectedValueOnce(error);
+    service.documentPdfRenderer.render.mockResolvedValueOnce(Buffer.from('%PDF-original'))
+      .mockImplementationOnce(() => { markStarted(); return copy; });
+    const operation = service.generatePdfPair(data());
+    let settled = false;
+    operation.then(() => { settled = true; }, () => { settled = true; });
+    await started;
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    releaseCopy(Buffer.from('%PDF-copy'));
+    await expect(operation).rejects.toBe(error);
+    expect(service.fillFasterSigner.sign).toHaveBeenCalledTimes(1);
+  });
+  it('does not sign a copy if copy rendering fails', async () => {
+    service.documentPdfRenderer.render.mockResolvedValueOnce(Buffer.from('%PDF-original'))
+      .mockRejectedValueOnce(new Error('copy failed'));
+    await expect(service.generatePdfPair(data())).rejects.toThrow('copy failed');
+    expect(service.fillFasterSigner.sign).toHaveBeenCalledTimes(1);
+  });
+  it('starts both uploads before either finishes and preserves original/copy paths', async () => {
+    let releaseOriginal: (path: string) => void;
+    const original = new Promise<string>(resolve => { releaseOriginal = resolve; });
+    service.uploadToFirebase = jest.fn().mockImplementationOnce(() => original)
+      .mockImplementationOnce(async () => { releaseOriginal('original-path'); return 'copy-path'; });
+    await expect(service.uploadPdfPair(data(), Buffer.from('original'), Buffer.from('copy')))
+      .resolves.toEqual(['original-path', 'copy-path']);
+  });
+  it.each([0, 1])('cleans a successful sibling upload when upload %s fails', async (failed) => {
+    service.uploadToFirebase = jest.fn().mockImplementation(async (...args) => {
+      if (args[5] === (failed === 0 ? 'original' : 'copy')) throw Error('upload failed');
+      return 'successful-path';
+    });
+    service.deleteFromFirebase = jest.fn().mockResolvedValue(undefined);
+    await expect(service.uploadPdfPair(data(), Buffer.from('original'), Buffer.from('copy')))
+      .rejects.toThrow('upload failed');
+    expect(service.deleteFromFirebase).toHaveBeenCalledWith('successful-path');
+  });
   it('preserves separately displayed VAT values for licensed credit invoices', async () => {
     const credit: any = data(DocumentType.CREDIT_INVOICE);
     Object.assign(credit.docData, {

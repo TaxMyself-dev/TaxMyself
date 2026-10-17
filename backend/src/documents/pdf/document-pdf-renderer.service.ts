@@ -134,9 +134,24 @@ export class DocumentPdfRenderer implements OnModuleDestroy {
       );
       mark('HTML_LOAD');
       await page.setContent(html, {
-        waitUntil: 'networkidle0',
+        waitUntil: 'load',
         timeout: 30000,
       });
+      mark('ASSET_READY');
+      let readyTimer: ReturnType<typeof setTimeout>;
+      try {
+        await Promise.race([page.evaluate(async () => {
+          await document.fonts.ready;
+          await Promise.all(Array.from(document.images, async (image) => {
+            await image.decode();
+            if (!image.naturalWidth) throw Error('PDF_IMAGE_NOT_READY');
+          }));
+          if (Array.from(document.fonts).some(font => font.status === 'error'))
+            throw Error('PDF_FONT_NOT_READY');
+        }), new Promise<never>((_, reject) => {
+          readyTimer = setTimeout(() => reject(new Error('PDF asset readiness timed out')), 30000);
+        })]);
+      } finally { clearTimeout(readyTimer); }
       mark('PDF_PRINT');
       const bytes = await page.pdf({
         format: 'A4',

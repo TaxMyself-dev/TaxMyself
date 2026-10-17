@@ -24,6 +24,7 @@ describe('PDF rendering resource isolation', () => {
       setRequestInterception: jest.fn(),
       on: jest.fn(),
       setContent: jest.fn(),
+      evaluate: jest.fn().mockResolvedValue(undefined),
       pdf: jest.fn().mockResolvedValue(Buffer.from('%PDF-test')),
     };
     context = { newPage: jest.fn().mockResolvedValue(page), close: jest.fn() };
@@ -75,7 +76,7 @@ describe('PDF rendering resource isolation', () => {
     expect(browser.createBrowserContext).toHaveBeenCalledTimes(2);
     expect(context.close).toHaveBeenCalledTimes(2);
     expect(browser.close).not.toHaveBeenCalled();
-    expect(page.setContent).toHaveBeenCalledWith(expect.any(String), { waitUntil: 'networkidle0', timeout: 30000 });
+    expect(page.setContent).toHaveBeenCalledWith(expect.any(String), { waitUntil: 'load', timeout: 30000 });
   });
   it('shares one launch for concurrent requests', async () => {
     await Promise.all([renderer.render(model), renderer.render(model)]);

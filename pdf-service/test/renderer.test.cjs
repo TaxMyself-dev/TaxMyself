@@ -18,7 +18,7 @@ const job = {
     paymentTotals: [],
   },
 };
-function fixture(t, { hang = false, fail = false, diagnostics = false, logger, launchDelay = 0, failLoad = false } = {}) {
+function fixture(t, { hang = false, fail = false, diagnostics = false, logger, launchDelay = 0, failLoad = false, failAssets = false } = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pdf-render-test-"));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   for (const name of ["Simpler-Regular.otf", "Simpler-Bold.otf"])
@@ -40,6 +40,7 @@ function fixture(t, { hang = false, fail = false, diagnostics = false, logger, l
       if (event === "request") handler = fn;
     },
     setContent: async () => { if (failLoad) throw Object.assign(Error("private html payload"), { name: "TimeoutError" }); },
+    evaluate: async () => { if (failAssets) throw Error("asset failed"); },
     pdf: async () => {
       if (fail) throw Error("failure");
       return Buffer.from("%PDF-test");
@@ -116,7 +117,7 @@ test("development diagnostics report stages without document content", async (t)
   await f.render(job);
   assert.equal(logs.length, 1);
   assert.equal(logs[0].event, "pdf_render_stages");
-  assert.deepEqual(Object.keys(logs[0].stagesMs), ["PREPARE", "BROWSER_LAUNCH", "PAGE_SETUP", "HTML_LOAD", "PDF_PRINT", "CONTEXT_CLOSE"]);
+  assert.deepEqual(Object.keys(logs[0].stagesMs), ["PREPARE", "BROWSER_LAUNCH", "PAGE_SETUP", "HTML_LOAD", "ASSET_READY", "PDF_PRINT", "CONTEXT_CLOSE"]);
   assert.equal(logs[0].document, undefined);
 });
 test("diagnostic logger errors cannot fail rendering", async (t) => {
@@ -184,4 +185,11 @@ test("HTML load timeout reports resource counts without content", async (t) => {
   assert.deepEqual(logs[0].pendingResourceTypes, []);
   assert.deepEqual(logs[0].requests, { started: 0, finished: 0, failed: 0, blocked: 0 });
   assert.ok(!JSON.stringify(logs).includes("private"));
+});
+
+test("asset failure fails closed and releases the context", async (t) => {
+  const f = fixture(t, { failAssets: true });
+  await assert.rejects(f.render(job), e => e.code === "RENDER_ASSET_READY_FAILED");
+  assert.equal(f.state().closed, 1);
+  assert.equal(f.state().killed, 1);
 });

@@ -178,3 +178,31 @@ Existing PDF worktree contains an unrelated uncommitted diagnostic draft; leave 
   (requires approval to lift restriction), and reuse branding bytes within one
   issuance to avoid downloading the same logo for original and copy.
 - No production build, access or deployment; figures describe this local dev run.
+
+## 2026-10-18 approved shared preparation / overlap / explicit readiness
+
+- User approved shared original/copy preparation, render/sign overlap, parallel
+  uploads, replacing networkidle0 with explicit font/image readiness, focused
+  tests and a fresh full dev measurement. No production build/deploy.
+- Manual createDoc now prepares one model/logo, renders original, overlaps its
+  signing with copy rendering, then signs copy. Rendering remains sequential to
+  preserve service capacity; signing concurrency remains one. No retries.
+- Signed originals/copies upload concurrently. Both settle before propagation;
+  successful siblings are cleaned on partial failure before transaction rollback.
+  Cleanup retains existing best-effort semantics and is not a durable retry job.
+- Shared/local renderers wait for load, font readiness and successful image
+  decoding before print; failed images/fonts fail closed. PDF layout/options,
+  totals, journal/numbering/commit and authentication behavior remain unchanged.
+  Pending-allocation/system billing orchestration is outside this optimization.
+- Tests: six backend suites 55 passed initially; strengthened settlement test
+  and added full create rollback/partial-upload regression, then both affected
+  suites passed 25 tests (final distinct backend total 56). Service 20 passed.
+  Real Chromium: four PDF fixtures + three numeric layout cases passed; corrupt
+  embedded image rejected before PDF output. No production build or deployment.
+- Standalone test initially hit occupied 8082; added PDF_SMOKE_PORT override and
+  reran successfully on 8083, preserving active dev integration on 8082.
+- Local helper restarted (verified own process tree only) with new source.
+  New log: OS temp keepintax-pdf-dev/service.pipeline.stdout.log. Backend runtime
+  confirmed loopback service, signing configured, dev DB and synchronize disabled.
+- Await user's intentional new document + three previews for full measurement.
+  Preserve pre-existing frontend environment change; no env/secrets committed.
