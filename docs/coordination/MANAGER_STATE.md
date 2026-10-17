@@ -87,3 +87,18 @@ No production deployment was performed.
 ## Document PDF and identity images integration — 2026-10-15
 
 Elazar accepted the local feature and explicitly requested delivery to main. Repository: TaxMyself-dev/TaxMyself; refreshed remote/main baseline 020632b2. Integration retains current main changes, uses the new renderer exclusively and fixed clean signing template 3IfhJjgmAp. Only FILLFASTER_API_TOKEN remains secret configuration. Two nullable image columns were previously applied to authorized development DB only; no schema statements or production actions run during delivery. Other feature refs are preserved. Combined validation and push outcome are recorded in docs/tasks/active/document-pdf-redesign.md.
+
+## PDF pipeline and preview delivery — 2026-10-18
+
+Elazar explicitly approved delivery of backend, standalone PDF renderer and
+frontend, plus the local frontend API port correction to3000. Refreshed clean
+main09012397 fast-forwarded to e9df110e; atomic push and git ls-remote verified
+main and codex/pdf-service at that source commit. No codex/integration ref was
+modified. Nest/Angular release builds passed on identical candidate source;
+153 backend and13 frontend tests passed again in primary main. Service20 tests,
+four HTTP PDFs and three browser layout cases passed. Deployment remains manual;
+see docs/features/pdf-service-release.md for current operator commands/rollback.
+No production access/deployment or schema/discount calculation fix occurred.
+The second developer owns the deferred discount defects; audit tests characterize
+them. Preserve the existing feature worktree/dev setup. This record adds no
+runtime code; final documentation commit is pushed after the source delivery.

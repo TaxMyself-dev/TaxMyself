@@ -1,6 +1,6 @@
 # PDF service isolation
 
-- Status: `IMPLEMENTED_PENDING_CLOUD_VERIFICATION`
+- Status: `PUSHED_PENDING_OPERATOR_DEPLOYMENT`
 - Task manager: Codex, current chat (no delegated workers)
 - Worktree: `C:/Users/user/Keepintax/TaxMyself-pdf-service`
 - Branch: `codex/pdf-service`
@@ -303,3 +303,36 @@ the existing frontend environment API port correction from localhost:3001 to 300
 Release verification is local only; no production access/deployment authorized.
 Main/origin/main refreshed at 09012397; main working tree clean. Preserve the
 live feature worktree/dev environment and do not modify codex/integration.
+
+## 2026-10-18 verified main delivery
+
+- User authorized merge/push of all three parts and the local frontend API port
+  correction. Refreshed main/origin/main were clean at 09012397. Feature commits
+  were fast-forwarded into main through e9df110e; no codex/integration changes.
+- Atomic push succeeded for main and codex/pdf-service. git ls-remote verified
+  both remote refs and local main/origin/main at full source commit
+  e9df110e9a11699d3179d8886f2f50076bc7066f before this delivery-record-only commit.
+- Candidate verification on the identical source tree: Nest build exit0; Angular
+  production build exit0 with bundle/style-budget and CommonJS warnings. Runtime
+  Dockerfiles and backend dependency manifests remained unchanged from main.
+- Service release verification: 20 Node22 tests passed; four real HTTP PDF
+  fixtures and three Chromium numeric layout cases passed on Windows Chrome.
+  Linux/container build/smoke is retained in operator Cloud Build instructions;
+  no cloud verification was run by Codex during this delivery.
+- Post-integration verification in the primary checkout: backend eight suites,
+  153 tests passed; frontend isolated ChromeHeadless, 13 tests passed. Main's
+  stale backend dependencies were repaired with npm ci from its own lockfile.
+  Initial sandbox transform-cache/type-root failures were environment issues;
+  reruns used writable Jest cache and correct local frontend type roots. No
+  application workaround or shared/junctioned node_modules was introduced.
+- Deployment guide: docs/features/pdf-service-release.md. Six PowerShell blocks
+  parsed offline; three local documentation links checked. Order: PDF service,
+  backend, app frontend; includes previous-revision capture and rollback. Do not
+  reuse the old external deploy script pinned to 1ff0bd53. Existing cloud service
+  configuration is for the operator to verify, not claimed inspected by Codex.
+- All application environment/secrets remain untracked; only the authorized
+  frontend environment.ts localhost API port3000 correction was committed.
+  No schema, tax/accounting calculation or discount display fix is included.
+  Discount audit evidence remains available for the second developer.
+- No production access, resource/credential change or deployment performed.
+  Preserve the existing PDF feature worktree and active dev setup for follow-up.
