@@ -1,5 +1,9 @@
 # Private PDF rendering service
 
+Current operator release guide for the existing PDF service, backend and frontend:
+[הוראות פריסה](../docs/features/pdf-service-release.md). The initial setup checklist
+below is retained for context; use the current release guide for this update.
+
 This service renders the existing approved document template. It has no database,
 Firebase, FILLFASTER token, email integration or document-number allocation. The
 backend retains validation of user/business access, document persistence, signing
@@ -135,8 +139,8 @@ Authentication reference: [Cloud Run service-to-service authentication](https://
 ## Development timing diagnostics
 
 With NODE_ENV=development, the renderer emits pdf_render_stages (PREPARE,
-BROWSER_LAUNCH, PAGE_SETUP, HTML_LOAD, PDF_PRINT, CONTEXT_CLOSE). The backend
-emits pdf_backend_stages for model/logo preparation and the render call, plus
+BROWSER_LAUNCH, PAGE_SETUP, HTML_LOAD, ASSET_READY, PDF_PRINT, CONTEXT_CLOSE). The backend
+emits correlated pdf_operation_stage, pdf_create_stages and pdf_http_total events, plus
 pdf_local_render_stages when using its local browser. No document content is
 logged. Production does not emit these development events.
 
