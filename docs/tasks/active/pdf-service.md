@@ -155,3 +155,26 @@ Existing PDF worktree contains an unrelated uncommitted diagnostic draft; leave 
 - Local standalone helper restarted by Codex to load counters; new stdout path
   documented in README. Await user preview retry to capture the timeout cause,
   and corrected signing configuration before another full creation attempt.
+
+## 2026-10-17 successful full creation and intermittent preview measurement
+
+- User corrected local signing configuration and manually created a test document.
+  Request 16e12854-3c85-4700-8ef5-03ded8405d14 completed HTTP 201 / 26,060ms.
+  Both signing stages succeeded; previous authentication blocker is resolved.
+- Nonoverlapping breakdown from the same request: logo downloads 4,504ms;
+  render HTTP calls 5,194ms; signing calls 8,154ms; original/copy uploads 3,671ms;
+  remainder 4,537ms (DB/journal, preparation, middleware/response and small overhead).
+  Sequential create-method total 24,944ms. Nested parent spans are not added again.
+- Three user previews completed in 5,620ms (201), 26,026ms (504), 6,523ms (201).
+  Timeout render ID 7206e4b8-7853-4a05-93a8-8ec05a448d24: HTML_LOAD 20,777ms,
+  requests started=3, finished=3, failed=0, blocked=0, pending types=[], browser
+  connected=true. Thus no tracked request was unfinished at diagnostic time;
+  the exact lifecycle/network-idle timeout cause remains unproven. No PDF_PRINT.
+- The third preview relaunched Chromium after timeout (1,240ms), confirming
+  recovery on next request. Successful warm creation renders had launch=0ms.
+- User restriction on changing networkidle0 remains in force. No render/wait,
+  signing, storage or accounting behavior changed during this measurement.
+  Potential next scopes: explicit font/image readiness instead of networkidle0
+  (requires approval to lift restriction), and reuse branding bytes within one
+  issuance to avoid downloading the same logo for original and copy.
+- No production build, access or deployment; figures describe this local dev run.
