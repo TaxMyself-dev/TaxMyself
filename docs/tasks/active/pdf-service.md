@@ -206,3 +206,28 @@ Existing PDF worktree contains an unrelated uncommitted diagnostic draft; leave 
   confirmed loopback service, signing configured, dev DB and synchronize disabled.
 - Await user's intentional new document + three previews for full measurement.
   Preserve pre-existing frontend environment change; no env/secrets committed.
+
+## 2026-10-18 manual post-optimization measurements
+
+- User performed two full manual creations and three previews. All five requests
+  returned HTTP 201. No new fiscal documents were created by Codex itself.
+- Baseline full backend HTTP total: 26,060ms (one prior successful request).
+  New create totals: 7,557ms (a6d1948a-51c9-4783-b5de-3142fcb985c4) and
+  5,655ms (068d1652-37dd-4fcb-8b38-1550ac5ca396), mean 6,606ms, 74.65% lower.
+  First request includes Chromium launch 846ms; second uses cached browser.
+- Shared preparation/logo occurs once per request: logo 976ms / 935ms.
+  Original render 1,630ms / 791ms; copy render 681ms / 666ms overlaps original
+  signing 1,900ms / 1,041ms. Copy signing 748ms / 603ms. Pair wall blocks
+  5,301ms / 3,400ms (vs old sequential pair 18,151ms).
+- Upload wall blocks 1,262ms / 1,324ms, with original/copy individual durations
+  1,246/1,255ms and 1,296/1,320ms confirming overlap (old uploads 3,671ms serial).
+- Preview backend totals: 1,777ms, 1,834ms, 1,756ms, mean 1,789ms; all succeeded.
+  Previous successful preview totals 5,620ms / 6,523ms plus an intervening 504.
+  No HTML load timeout occurred in these three new previews. Warm renderer HTML
+  load 148-183ms and asset readiness 4-9ms across this batch.
+- Results are small local samples, not a cloud benchmark or proof that timeouts
+  cannot recur. Signer, logo/network and DB latency were also lower this time;
+  the entire observed 74.65% reduction cannot be attributed solely to code.
+  HTTP timings cover Express receipt through response finish, not later UI work.
+- Implementation/manual measurement complete for this approved local task.
+  No new code change, production build, access, push or deployment in this turn.
