@@ -87,3 +87,26 @@ Existing PDF worktree contains an unrelated uncommitted diagnostic draft; leave 
 - Verification policy requested by user: focused checks and manual development
   validation by default; full production build only for a material change.
 - Verification: 21 focused backend Jest tests and 12 service tests passed; six real HTTP/browser renders passed. No production build or deploy.
+
+## 2026-10-17 Chromium reuse follow-up
+
+- User approved development browser reuse only; retain `networkidle0`, run focused
+  tests and compare before/after. No production build, deployment, push or merge.
+- Both render paths cache Chromium and create/close a BrowserContext for each
+  document. Preserve capacity (service 1, local backend 2), outbound blocking,
+  PDF options, request contract and accounting/signing behavior. Recover on the
+  next request after disconnect; bound cleanup, recycle after 100 renders, and
+  close on service/module shutdown. No automatic document retry.
+- Timing samples and limitations recorded in `pdf-service/README.md`: warm HTTP
+  mean 1761 -> 1410ms (~20%); local renderer 1910 -> 1368ms (~28%). Six synthetic
+  renders before/after per path; first excluded from warm means. Local rendering
+  only, no DB/storage/IAM/signing or full UI latency claim.
+- Standalone service: 18 focused tests passed. Four real HTTP regression PDFs
+  passed (logo/no-logo, multipage, large amounts), plus three numeric layout
+  assertions. Backend: 2 focused Jest suites, 27 tests passed.
+- Existing `frontend/src/environments/environment.ts` change is untouched and
+  excluded from this task. No schema, tax/accounting, credentials, external API
+  or infrastructure changes. Full builds omitted per explicit user instruction.
+- Manual next check: restart development backend and compare repeated previews
+  through the UI; first render still incurs launch. Preview loading indicator,
+  mutual button lock and discount breakdown remain separate pending work.

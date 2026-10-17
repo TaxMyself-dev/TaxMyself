@@ -135,7 +135,7 @@ Authentication reference: [Cloud Run service-to-service authentication](https://
 ## Development timing diagnostics
 
 With NODE_ENV=development, the renderer emits pdf_render_stages (PREPARE,
-BROWSER_LAUNCH, PAGE_SETUP, HTML_LOAD, PDF_PRINT, BROWSER_CLOSE). The backend
+BROWSER_LAUNCH, PAGE_SETUP, HTML_LOAD, PDF_PRINT, CONTEXT_CLOSE). The backend
 emits pdf_backend_stages for model/logo preparation and the render call, plus
 pdf_local_render_stages when using its local browser. No document content is
 logged. Production does not emit these development events.
@@ -143,5 +143,33 @@ logged. Production does not emit these development events.
 For three alternating synthetic logo/no-logo pairs, set NODE_ENV=development
 and PDF_DIAGNOSTIC_PAIRS=1 in the test shell and run scripts/smoke.cjs with the
 local Chrome path and an output directory. This uses the existing compiled
-shared template, actual HTTP server and unchanged browser lifecycle. It does
+shared template, actual HTTP server and a reused browser with an isolated context per document. It does
 not exercise backend DB/storage/IAM or Cloud Run cold starts.
+
+## Chromium reuse (development verification, 2026-10-17)
+
+Both the service and the backend local development path keep one browser per
+renderer instance. Each document gets a new isolated BrowserContext, closed on
+success or failure. Scripts and outbound requests remain blocked. `networkidle0`,
+PDF options, deadlines and HTTP concurrency are unchanged. A disconnected browser
+is replaced on the next request; failed jobs are not retried. The service retires
+the browser on render errors/timeouts. Local context cleanup failure also retires
+the browser. Context cleanup has a 2s bound; browser close has a 2s kill fallback.
+Recycle after 100 uses (local recycling waits until no other render is active).
+SIGTERM drains the service and closes its browser; Nest module destruction closes
+the local browser. No Cloud Run billing or instance settings changed.
+
+Paired local Windows Chrome / Node 22 measurements, old commit `c00ed0e2` vs reuse:
+
+| Path and fixture | Before (ms) | After (ms) |
+| --- | --- | --- |
+| HTTP alternating logo/no-logo, six calls | 2315, 1636, 1833, 1517, 1666, 2152 | 2173, 1454, 1436, 1440, 1364, 1354 |
+| Local backend renderer, six identical synthetic receipts | 3219, 1818, 2115, 1744, 2109, 1764 | 1918, 1056, 1478, 1459, 1432, 1416 |
+
+Excluding the first call from each run: HTTP mean 1761 -> 1410ms (~20% lower);
+local renderer mean 1910 -> 1368ms (~28% lower). First calls still launch Chrome.
+Small sequential samples with normal machine noise, not a controlled cloud
+benchmark. No DB, actual logo download, IAM, signing or full UI request measured;
+these numbers do not predict production end-to-end latency. Warm launch stage
+rounded to 0ms, context cleanup 9-16ms in these runs. Existing compiled template
+was reused; no production build, infrastructure access or deployment occurred.

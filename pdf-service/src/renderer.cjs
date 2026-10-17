@@ -12,8 +12,49 @@ function createRenderer({
   diagnostics = process.env.NODE_ENV === "development",
   logger = console.log,
 }) {
-  let fonts;
-  return async function render(job) {
+  let fonts, cachedBrowser, launchPromise;
+  let active = false, disposed = false, uses = 0;
+  const killBrowser = (browser) => {
+    if (cachedBrowser === browser) cachedBrowser = undefined;
+    try { browser?.process()?.kill("SIGKILL"); } catch {}
+  };
+  const closeBrowser = async (browser) => {
+    if (!browser) return;
+    if (cachedBrowser === browser) cachedBrowser = undefined;
+    let timer;
+    try {
+      await Promise.race([browser.close(), new Promise((resolve) => {
+        timer = setTimeout(() => { killBrowser(browser); resolve(); }, 2000);
+      })]);
+    } catch { killBrowser(browser); }
+    finally { clearTimeout(timer); }
+  };
+  const acquire = async () => {
+    if (disposed) throw new RenderError("RENDERER_CLOSED", 503);
+    if (cachedBrowser?.connected && uses < 100) return cachedBrowser;
+    await closeBrowser(cachedBrowser);
+    if (!launchPromise) {
+      const pending = puppeteer.launch({
+        executablePath, headless: true, timeout: 15000, protocolTimeout: 20000,
+        args: ["--no-sandbox", "--disable-dev-shm-usage"],
+      }).then(async (browser) => {
+        if (disposed || launchPromise !== pending) {
+          await closeBrowser(browser);
+          throw new RenderError("RENDER_TIMEOUT", 504);
+        }
+        cachedBrowser = browser;
+        uses = 0;
+        return browser;
+      });
+      launchPromise = pending;
+    }
+    const pending = launchPromise;
+    try { return await pending; }
+    finally { if (launchPromise === pending) launchPromise = undefined; }
+  };
+  const render = async function render(job) {
+    if (active) throw new RenderError("RENDER_CAPACITY_BUSY", 503);
+    if (disposed) throw new RenderError("RENDERER_CLOSED", 503);
     const started = performance.now();
     let stageStarted = started;
     let measuredStage = "PREPARE";
@@ -36,33 +77,31 @@ function createRenderer({
     const html = template.buildDocumentHtml(job.document, fonts);
     if (Buffer.byteLength(html) > 8 * 1024 * 1024)
       throw new RenderError("RENDER_JOB_TOO_LARGE", 413);
-    let browser,
-      timer,
+    active = true;
+    let browser, context,
+      timer, killed = false,
       finished = false,
       phase = "BROWSER_LAUNCH";
     const kill = () => {
-      try {
-        browser?.process()?.kill("SIGKILL");
-      } catch {}
+      if (killed) return;
+      killed = true;
+      launchPromise = undefined;
+      killBrowser(browser);
     };
     try {
       mark("BROWSER_LAUNCH");
       return await Promise.race([
         (async () => {
-          browser = await puppeteer.launch({
-            executablePath,
-            headless: true,
-            timeout: 15000,
-            protocolTimeout: 20000,
-            args: ["--no-sandbox", "--disable-dev-shm-usage"],
-          });
+          browser = await acquire();
           if (finished) {
             kill();
             throw new RenderError("RENDER_TIMEOUT", 504);
           }
           phase = "PAGE_SETUP";
           mark(phase);
-          const page = await browser.newPage();
+          context = await browser.createBrowserContext();
+          if (finished) { await context.close(); throw new RenderError("RENDER_TIMEOUT", 504); }
+          const page = await context.newPage();
           await page.setJavaScriptEnabled(false);
           await page.setRequestInterception(true);
           page.on("request", (request) => {
@@ -116,32 +155,26 @@ function createRenderer({
         }),
       ]);
     } catch (error) {
+      kill();
       if (error instanceof RenderError) throw error;
       if (error?.name === "TimeoutError")
         throw new RenderError("RENDER_TIMEOUT", 504);
       throw new RenderError("RENDER_" + phase + "_FAILED", 502);
     } finally {
-      mark("BROWSER_CLOSE");
+      mark("CONTEXT_CLOSE");
       finished = true;
       clearTimeout(timer);
-      if (browser) {
+      if (context) {
         let closeTimer;
         try {
-          await Promise.race([
-            browser.close(),
-            new Promise((resolve) => {
-              closeTimer = setTimeout(() => {
-                kill();
-                resolve();
-              }, 2000);
-            }),
-          ]);
-        } catch {
-          kill();
-        } finally {
-          clearTimeout(closeTimer);
-        }
+          await Promise.race([context.close(), new Promise((resolve) => {
+            closeTimer = setTimeout(() => { kill(); resolve(); }, 2000);
+          })]);
+        } catch { kill(); }
+        finally { clearTimeout(closeTimer); }
       }
+      uses++;
+      active = false;
       mark("DONE");
       if (diagnostics) {
         // Timings only: never include document content, images or credentials.
@@ -152,5 +185,13 @@ function createRenderer({
       }
     }
   };
+  render.close = async () => {
+    disposed = true;
+    const pending = launchPromise;
+    launchPromise = undefined;
+    await closeBrowser(cachedBrowser);
+    if (pending) { try { await pending; } catch {} }
+  };
+  return render;
 }
 module.exports = { createRenderer };

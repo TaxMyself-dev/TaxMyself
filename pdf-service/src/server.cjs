@@ -120,7 +120,7 @@ if (require.main === module) {
   process.once("SIGTERM", () => {
     const stop = setTimeout(() => process.exit(1), 8000);
     stop.unref();
-    server.drain().then(() => {
+    server.drain().then(() => render.close()).then(() => {
       clearTimeout(stop);
       process.exit(0);
     });

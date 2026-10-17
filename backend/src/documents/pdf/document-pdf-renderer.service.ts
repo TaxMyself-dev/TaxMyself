@@ -1,4 +1,4 @@
-import { Injectable, ServiceUnavailableException } from '@nestjs/common';
+import { Injectable, OnModuleDestroy, ServiceUnavailableException } from '@nestjs/common';
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import * as puppeteer from 'puppeteer-core';
@@ -11,10 +11,59 @@ import {
 } from './document-pdf.template';
 
 @Injectable()
-export class DocumentPdfRenderer {
+export class DocumentPdfRenderer implements OnModuleDestroy {
   constructor(private readonly remote: DocumentPdfClient = new DocumentPdfClient()) {}
   private active = 0;
   private cachedFonts: string;
+
+  private browser: puppeteer.Browser;
+  private launching: Promise<puppeteer.Browser>;
+  private uses = 0;
+  private destroyed = false;
+
+  private async closeBrowser(browser: puppeteer.Browser): Promise<void> {
+    if (!browser) return;
+    if (this.browser === browser) this.browser = undefined;
+    let timer: ReturnType<typeof setTimeout>;
+    const kill = () => { try { browser.process()?.kill('SIGKILL'); } catch {} };
+    try {
+      await Promise.race([browser.close(), new Promise<void>((resolve) => {
+        timer = setTimeout(() => { kill(); resolve(); }, 2000);
+      })]);
+    } catch { kill(); }
+    finally { clearTimeout(timer); }
+  }
+
+  async onModuleDestroy(): Promise<void> {
+    this.destroyed = true;
+    if (this.launching) { try { await this.launching; } catch {} }
+    await this.closeBrowser(this.browser);
+  }
+
+  private async acquireBrowser(): Promise<puppeteer.Browser> {
+    if (this.destroyed) throw new ServiceUnavailableException('PDF renderer is closed.');
+    if (this.browser?.connected && (this.uses < 100 || this.active > 1)) return this.browser;
+    if (!this.launching) {
+      this.launching = (async () => {
+        await this.closeBrowser(this.browser);
+        const browser = await puppeteer.launch({
+          executablePath: this.executable(), headless: true, timeout: 30000,
+          args: ['--disable-dev-shm-usage',
+            ...(process.getuid?.() === 0 || process.platform === 'win32' || existsSync('/.dockerenv')
+              ? ['--no-sandbox'] : [])],
+        });
+        if (this.destroyed) {
+          await this.closeBrowser(browser);
+          throw new ServiceUnavailableException('PDF renderer is closed.');
+        }
+        this.browser = browser;
+        this.uses = 0;
+        return browser;
+      })();
+    }
+    try { return await this.launching; }
+    finally { this.launching = undefined; }
+  }
 
   private fonts(): string {
     if (!this.cachedFonts) {
@@ -70,29 +119,18 @@ export class DocumentPdfRenderer {
       stageStarted = now;
     };
     let browser: puppeteer.Browser;
+    let context: puppeteer.BrowserContext;
     try {
-      browser = await puppeteer.launch({
-        executablePath: this.executable(),
-        headless: true,
-        timeout: 30000,
-        args: [
-          '--disable-dev-shm-usage',
-          // Cloud Run may run as root without a Docker marker file.
-          ...(process.getuid?.() === 0 ||
-          process.platform === 'win32' ||
-          existsSync('/.dockerenv')
-            ? ['--no-sandbox']
-            : []),
-        ],
-      });
+      browser = await this.acquireBrowser();
       mark('PAGE_SETUP');
-      const page = await browser.newPage();
+      context = await browser.createBrowserContext();
+      const page = await context.newPage();
       await page.setJavaScriptEnabled(false);
       await page.setRequestInterception(true);
       page.on('request', (request) =>
         request.url().startsWith('data:') || request.url() === 'about:blank'
-          ? void request.continue()
-          : void request.abort(),
+          ? void Promise.resolve(request.continue()).catch(() => {})
+          : void Promise.resolve(request.abort()).catch(() => {}),
       );
       mark('HTML_LOAD');
       await page.setContent(html, {
@@ -112,10 +150,21 @@ export class DocumentPdfRenderer {
       });
       return Buffer.from(bytes);
     } finally {
-      mark('BROWSER_CLOSE');
+      mark('CONTEXT_CLOSE');
       try {
-        await browser?.close();
+        if (context) {
+          let timer: ReturnType<typeof setTimeout>;
+          try {
+            await Promise.race([context.close(), new Promise<void>((resolve) => {
+              timer = setTimeout(() => {
+                void this.closeBrowser(browser).then(resolve);
+              }, 2000);
+            })]);
+          } catch { await this.closeBrowser(browser); }
+          finally { clearTimeout(timer); }
+        } else if (browser) await this.closeBrowser(browser);
       } finally {
+        this.uses++;
         this.active--;
         mark('DONE');
         if (process.env.NODE_ENV === 'development') {

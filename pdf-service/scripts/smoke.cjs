@@ -6,14 +6,14 @@ const output =
   process.argv[3] ||
   path.join(require("node:os").tmpdir(), "pdf-service-artifacts");
 fs.mkdirSync(output, { recursive: true });
-let child, localServer;
+let child, localServer, localRender;
 const port = process.argv[2] ? 8082 : 8080;
 const url = "http://127.0.0.1:" + port;
 if (process.argv[2]) {
   const { createRenderer } = require("../src/renderer.cjs");
   const { createServer } = require("../src/server.cjs");
   localServer = createServer({
-    render: createRenderer({
+    render: localRender = createRenderer({
       puppeteer: require("puppeteer-core"),
       template: require("../dist/document-pdf.template.js"),
       executablePath: process.argv[2],
@@ -164,8 +164,9 @@ const stop = setTimeout(() => {
     console.error(e.stack);
     process.exitCode = 1;
   })
-  .finally(() => {
+  .finally(async () => {
     clearTimeout(stop);
     child?.kill("SIGTERM");
     localServer?.close();
+    await localRender?.close();
   });
