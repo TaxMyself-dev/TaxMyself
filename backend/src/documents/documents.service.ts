@@ -1450,9 +1450,11 @@ ${finalOwnerName}`;
 
     } catch (error) {
 
+      pdfTimings.mark('FAILED_STAGE');
       console.error('❌ Error in createDoc transaction:', error);
       // 🔁 Rollback anything saved so far
       await queryRunner.rollbackTransaction();
+      pdfTimings.mark('ROLLBACK');
       throw error;
 
     } finally {

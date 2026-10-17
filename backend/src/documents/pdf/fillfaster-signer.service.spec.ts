@@ -45,6 +45,27 @@ describe('FillFaster signer', () => {
       expect.objectContaining({ timeout: 60000 }),
     );
   });
+  it('reports only safe provider status in development', async () => {
+    process.env.NODE_ENV = 'development'; delete process.env.PDF_DIAGNOSTICS_FILE;
+    process.env.FILLFASTER_API_TOKEN = 'test-secret';
+    const log = jest.spyOn(console, 'log').mockImplementation(() => {});
+    try {
+      (axios.post as jest.Mock).mockRejectedValue({response: {status: 401, data: 'private-body'}, config: {token: 'test-secret'}, message: 'private-error'});
+      await expect(new FillFasterSigner().sign(Buffer.from('%PDF-input'))).rejects.toThrow('Document signing failed');
+      expect(JSON.parse(log.mock.calls[0][0])).toEqual({event: 'pdf_signing_failure', reason: 'PROVIDER_REQUEST_FAILED', status: 401});
+      expect(JSON.stringify(log.mock.calls)).not.toMatch(/private|test-secret/);
+    } finally { log.mockRestore(); }
+  });
+  it('distinguishes invalid signature output from HTTP rejection', async () => {
+    process.env.NODE_ENV = 'development'; delete process.env.PDF_DIAGNOSTICS_FILE;
+    process.env.FILLFASTER_API_TOKEN = 'test-secret';
+    const log = jest.spyOn(console, 'log').mockImplementation(() => {});
+    try {
+      (axios.post as jest.Mock).mockResolvedValue({status: 200, data: Buffer.from('%PDF-unsigned')});
+      await expect(new FillFasterSigner().sign(Buffer.from('%PDF-input'))).rejects.toThrow('Document signing failed');
+      expect(JSON.parse(log.mock.calls[0][0])).toEqual({event: 'pdf_signing_failure', reason: 'INVALID_SIGNATURE_ENVELOPE', status: 200});
+    } finally { log.mockRestore(); }
+  });
   it('accepts a complete envelope and rejects appended or empty signatures', () => {
     expect(hasCompletePdfSignature(envelope())).toBe(true);
     expect(

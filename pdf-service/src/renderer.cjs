@@ -78,6 +78,8 @@ function createRenderer({
     if (Buffer.byteLength(html) > 8 * 1024 * 1024)
       throw new RenderError("RENDER_JOB_TOO_LARGE", 413);
     active = true;
+    const requests = new Map();
+    const requestCounts = { started: 0, finished: 0, failed: 0, blocked: 0 };
     let browser, context,
       timer, killed = false,
       finished = false,
@@ -104,20 +106,35 @@ function createRenderer({
           const page = await context.newPage();
           await page.setJavaScriptEnabled(false);
           await page.setRequestInterception(true);
+          page.on("requestfinished", (request) => { requestCounts.finished++; requests.delete(request); });
+          page.on("requestfailed", (request) => { requestCounts.failed++; requests.delete(request); });
           page.on("request", (request) => {
+            requestCounts.started++;
+            requests.set(request, request.resourceType());
             const allowed =
               request.url().startsWith("data:") ||
               request.url() === "about:blank";
+            if (!allowed) requestCounts.blocked++;
             Promise.resolve(
               allowed ? request.continue() : request.abort()
             ).catch(() => {});
           });
           phase = "HTML_LOAD";
           mark(phase);
-          await page.setContent(html, {
-            waitUntil: "networkidle0",
-            timeout: 20000,
-          });
+          try {
+            await page.setContent(html, {
+              waitUntil: "networkidle0",
+              timeout: 20000,
+            });
+          } catch (error) {
+            if (diagnostics) {
+              // Counts/types only: never URLs, HTML, document text or images.
+              try { logger(JSON.stringify({ event: "pdf_html_load_failure", requestId: job.requestId,
+                timeout: error?.name === "TimeoutError", requests: requestCounts,
+                pendingResourceTypes: [...requests.values()], browserConnected: browser.connected })); } catch {}
+            }
+            throw error;
+          }
           phase = "PDF_PRINT";
           mark(phase);
           const bytes = Buffer.from(

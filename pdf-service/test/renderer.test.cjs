@@ -18,7 +18,7 @@ const job = {
     paymentTotals: [],
   },
 };
-function fixture(t, { hang = false, fail = false, diagnostics = false, logger, launchDelay = 0 } = {}) {
+function fixture(t, { hang = false, fail = false, diagnostics = false, logger, launchDelay = 0, failLoad = false } = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pdf-render-test-"));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   for (const name of ["Simpler-Regular.otf", "Simpler-Bold.otf"])
@@ -36,10 +36,10 @@ function fixture(t, { hang = false, fail = false, diagnostics = false, logger, l
     setRequestInterception: async (value) => {
       interception = value;
     },
-    on: (_, fn) => {
-      handler = fn;
+    on: (event, fn) => {
+      if (event === "request") handler = fn;
     },
-    setContent: async () => {},
+    setContent: async () => { if (failLoad) throw Object.assign(Error("private html payload"), { name: "TimeoutError" }); },
     pdf: async () => {
       if (fail) throw Error("failure");
       return Buffer.from("%PDF-test");
@@ -89,6 +89,7 @@ test("renderer blocks scripts and outbound requests, closes context", async (t) 
     continued = 0;
   f.state().handler({
     url: () => "http://169.254.169.254",
+    resourceType: () => "image",
     abort: () => aborted++,
     continue: () => continued++,
   });
@@ -172,4 +173,15 @@ test("a browser launched after the deadline is closed instead of cached", async 
   await new Promise(r => setTimeout(r, 80));
   assert.equal(f.state().closed, 1);
   assert.equal(f.state().contexts, 0);
+});
+
+test("HTML load timeout reports resource counts without content", async (t) => {
+  const logs = [];
+  const f = fixture(t, { failLoad: true, diagnostics: true, logger: line => logs.push(JSON.parse(line)) });
+  await assert.rejects(f.render(job), error => error.code === "RENDER_TIMEOUT");
+  assert.equal(logs[0].event, "pdf_html_load_failure");
+  assert.equal(logs[0].timeout, true);
+  assert.deepEqual(logs[0].pendingResourceTypes, []);
+  assert.deepEqual(logs[0].requests, { started: 0, finished: 0, failed: 0, blocked: 0 });
+  assert.ok(!JSON.stringify(logs).includes("private"));
 });

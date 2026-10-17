@@ -210,3 +210,25 @@ For the current local session, the service stdout is under the OS temp folder
 document in dev, then correlate that request's successful HTTP total with its
 stage spans and both renderer request IDs. Do not create an extra fiscal document
 merely to probe readiness. No cloud IAM/cold-start/CPU behavior is simulated here.
+
+### Failure investigation from the first full dev attempt
+
+- Full create request: 12,736ms / HTTP 503. DTO 56ms, DB/journal setup about
+  2,324ms, logo download 2,197ms, renderer HTTP 2,713ms, failed signing 4,622ms.
+  Preparation/render parent span was 5,217ms and includes logo/render; do not add
+  it again. Failure happened before copy generation or uploads. No successful
+  issuance was measured.
+- Separate preview: 23,821ms / HTTP 504. Logo download 1,584ms, renderer HTTP
+  21,870ms. Renderer HTML_LOAD alone was 20,972ms; PDF_PRINT was never entered.
+  The underlying reason for the HTML load timeout is still unknown.
+- One synthetic unsigned PDF was rendered and submitted to the existing signer
+  without DB writes, document numbering or email. Provider returned HTTP 401;
+  it rejected the configured development authentication. Token format had no
+  Bearer prefix or outer whitespace; its actual validity requires the operator.
+- New development failure events contain only signing status/category and
+  renderer request counts/pending resource types. They never log URLs, HTML,
+  upstream bodies, token values or document content. `networkidle0` and timeout
+  limits are unchanged. The cached browser is discarded on a render failure.
+- After loading these diagnostics the local helper stdout is
+  `keepintax-pdf-dev/service.diagnostics.stdout.log` in OS temp. Previous logs
+  are preserved. A user preview retry is needed to capture the failing load.

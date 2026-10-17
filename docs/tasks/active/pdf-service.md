@@ -134,3 +134,24 @@ Existing PDF worktree contains an unrelated uncommitted diagnostic draft; leave 
   test document. Token must never be sent in chat.
 - Real backend client -> live loopback service smoke returned a valid unsigned PDF; matching render ID verified in service logs.
 - No production build, cloud access, deployment, push or integration.
+
+## 2026-10-17 failed full-request measurement follow-up
+
+- User supplied signing token locally and manually attempted create + preview.
+  Running backend confirmed the token was configured; token never printed.
+- Create: HTTP 503 / 12,736ms. Logo 2,197ms; renderer HTTP succeeded in 2,713ms;
+  signing failed in 4,622ms. No copy rendering/uploads reached. Catch path rolls
+  back the transaction; no extra document was created by Codex for diagnostics.
+- Preview: HTTP 504 / 23,821ms, with HTML_LOAD 20,972ms and no PDF_PRINT stage.
+  Timeout root cause remains unproven; `networkidle0` remains unchanged.
+- Isolated synthetic signer check (no DB/number/email): provider HTTP 401.
+  Operator must correct/verify the development signing credential. Checked only
+  token-format booleans: no Bearer prefix or outer whitespace. No secrets logged.
+- Added development-only sanitized signing failure category/status/network-code
+  diagnostics and renderer load failure request counts/types, plus separate
+  failed-stage/rollback/release measurements. No signing/render policy changed.
+- Focused verification: service 19 tests passed; backend signer/diagnostics two
+  suites, 8 tests passed. Production build/deploy/cloud access not performed.
+- Local standalone helper restarted by Codex to load counters; new stdout path
+  documented in README. Await user preview retry to capture the timeout cause,
+  and corrected signing configuration before another full creation attempt.

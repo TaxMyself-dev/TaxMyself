@@ -55,3 +55,11 @@ export function createPdfTimings(event: string) {
       totalMs: Math.round(performance.now() - started) }); },
   };
 }
+
+export function logPdfSigningFailure(details: {
+  reason: 'PROVIDER_REQUEST_FAILED' | 'INVALID_SIGNATURE_ENVELOPE';
+  status?: number;
+  networkCode?: string;
+}) {
+  emit({ event: 'pdf_signing_failure', requestId: pdfDiagnosticRequestId(), ...details });
+}
