@@ -1,3 +1,4 @@
+import { measurePdfStage } from './pdf-diagnostics';
 import {
   GatewayTimeoutException,
   Injectable,
@@ -74,7 +75,7 @@ export class DocumentPdfClient {
     try {
       // Only loopback development calls omit IAM. No shared secret or user token.
       if (base.protocol === 'https:') {
-        const tokenHeaders = await this.identityHeaders(base.origin);
+        const tokenHeaders = await measurePdfStage('SERVICE_IDENTITY', () => this.identityHeaders(base.origin), job.requestId);
         const authorization =
           typeof (tokenHeaders as any).get === 'function'
             ? (tokenHeaders as any).get('authorization')
@@ -83,7 +84,7 @@ export class DocumentPdfClient {
         if (!authorization) throw new Error('Missing service identity');
         headers.Authorization = authorization;
       }
-      const response = await axios.post(new URL('/v1/render', base).href, job, {
+      const response = await measurePdfStage('SERVICE_HTTP', () => axios.post(new URL('/v1/render', base).href, job, {
         headers,
         responseType: 'arraybuffer',
         timeout: 60000,
@@ -92,7 +93,7 @@ export class DocumentPdfClient {
         maxRedirects: 0,
         // An issuance request must never be automatically repeated by this client.
         validateStatus: (status) => status === 200,
-      });
+      }), job.requestId);
       const pdf = Buffer.from(response.data);
       if (
         !String(response.headers['content-type'])

@@ -110,3 +110,27 @@ Existing PDF worktree contains an unrelated uncommitted diagnostic draft; leave 
 - Manual next check: restart development backend and compare repeated previews
   through the UI; first render still incurs launch. Preview loading indicator,
   mutual button lock and discount breakdown remain separate pending work.
+
+## 2026-10-17 local standalone integration and full-request diagnostics
+
+- User requested dev backend -> separate local PDF service, with full document
+  creation timings and no production deployment. Existing feature worktree only.
+- Local-only `pdf-service/scripts/dev.cjs` starts Node 22 / Windows Chrome on
+  loopback 8082 using the existing compiled template. Ignored backend environment
+  points PDF_SERVICE_URL there and disables synchronize; no secret copied or
+  overwritten. Existing frontend environment change remains untouched.
+- Development-only AsyncLocalStorage correlates Express total, controller DTO
+  transform, sequential create intervals, original/copy render and signing spans,
+  transport and standalone service IDs. Optional timing-only JSONL sink avoids
+  collecting sensitive existing application logs. Accounting, signing semantics,
+  document numbering, storage, email and schema behavior are unchanged.
+- Confirmed existing flow renders AND signs original and copy sequentially;
+  no optimization of that behavior was made in this task.
+- Focused Jest: three suites, 33 tests passed (diagnostics, client, PDF routing).
+- Runtime probe: standalone service healthy; backend uses loopback, authorized
+  keepintax-dev and synchronize disabled. Unauthenticated probe rejected 401.
+  Running backend reports signingConfigured=false. Full issuance measurement
+  awaits user adding the signing token locally and making the intentional dev
+  test document. Token must never be sent in chat.
+- Real backend client -> live loopback service smoke returned a valid unsigned PDF; matching render ID verified in service logs.
+- No production build, cloud access, deployment, push or integration.

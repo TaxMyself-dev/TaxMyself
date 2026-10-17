@@ -173,3 +173,40 @@ benchmark. No DB, actual logo download, IAM, signing or full UI request measured
 these numbers do not predict production end-to-end latency. Warm launch stage
 rounded to 0ms, context cleanup 9-16ms in these runs. Existing compiled template
 was reused; no production build, infrastructure access or deployment occurred.
+
+## Full development document timing
+
+Use Node 22 to run `scripts/dev.cjs` from `pdf-service`. It binds only
+`127.0.0.1:8082`, uses the existing compiled template and local Chrome, and logs
+renderer timings. It has no DB or signing integration. Override the browser path
+with `PDF_CHROME_EXECUTABLE`, or the local port with `PDF_DEV_PORT` if required.
+
+In the feature worktree's ignored `backend/.env`, set
+`PDF_SERVICE_URL=http://127.0.0.1:8082`, `NODE_ENV=development`, and
+`DISABLE_SYNCHRONIZE=true`. Keep DB_DATABASE at the authorized development DB.
+A full issuance also needs the existing backend-only `FILLFASTER_API_TOKEN`;
+never copy it into the PDF service, Git, logs or chat. Restart the backend after
+environment changes. The standalone service must stay running.
+
+Development middleware assigns `X-Pdf-Diagnostic-Id` on preview/create requests.
+`pdf_http_total` covers receipt by Express through response finish, including
+validation/authentication. `DTO_TRANSFORM` records preparation in the controller.
+`pdf_create_stages` contains sequential intervals for DB/number reservation,
+save, journal, original/copy generation, uploads, parent/email, commit and cleanup.
+`pdf_operation_stage` breaks PDF preparation/render and signing apart. SERVICE_HTTP
+also carries a `renderRequestId`, matching the standalone renderer's request ID.
+Nested spans must not be added to their parent durations. These measurements do
+not include browser queueing, network before Express, or UI processing afterward.
+
+Optional `PDF_DIAGNOSTICS_FILE` writes only these sanitized development events as
+JSONL to a local file. It contains durations, generated correlation IDs, status
+and configuration-presence booleans; no document, credential or user data. No
+additional events or file writes occur unless NODE_ENV is development. Existing
+application logs are separate and must not be copied wholesale for diagnostics.
+
+For the current local session, the service stdout is under the OS temp folder
+`keepintax-pdf-dev/service.stdout.log`, and the backend timing-only file is
+`keepintax-pdf-dev/backend-timings.jsonl`. Have the user create one intentional test
+document in dev, then correlate that request's successful HTTP total with its
+stage spans and both renderer request IDs. Do not create an extra fiscal document
+merely to probe readiness. No cloud IAM/cold-start/CPU behavior is simulated here.
