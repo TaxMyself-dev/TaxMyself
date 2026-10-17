@@ -9,7 +9,9 @@ Safe OAuth result page. The backend has already exchanged and stored the token; 
 ## Main flows
 - Success: `connected=true` clears any historical localStorage values and shows
   success. The safe `product` metadata selects either the invoice-document
-  action or a return to `/uniform-file`; it never carries credentials.
+  action or a return to `/uniform-file`; it never carries credentials. The
+  uniform-file page restores its server-verified submission from safe
+  session-scoped context saved before the redirect.
 - Error/missing result: safe error state; no provider response body is exposed.
 - Retry returns home, where a business-scoped authenticated flow can be started.
 

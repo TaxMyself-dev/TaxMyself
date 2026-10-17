@@ -82,6 +82,15 @@ export class ShaamService {
     });
   }
 
+  getUniformFileSubmission(
+    businessNumber: string,
+    submissionId: number,
+  ): Observable<UniformFileSubmissionView> {
+    const query = encodeURIComponent(businessNumber);
+    const url = `${environment.apiUrl}shaam/uniform-file/submissions/${submissionId}?businessNumber=${query}`;
+    return this.http.get<UniformFileSubmissionView>(url);
+  }
+
   transferUniformFileSubmission(
     businessNumber: string,
     submissionId: number,

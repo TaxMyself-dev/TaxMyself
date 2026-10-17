@@ -24,6 +24,18 @@ export interface ReportDetails {
   // structureLink: string;
 }
 
+interface UniformFileShaamResumeContext {
+  version: 1;
+  submissionId: number;
+  businessNumber: string;
+  businessName: string;
+  startDate: string;
+  endDate: string;
+  downloadLink: string;
+}
+
+const SHAAM_RESUME_STORAGE_KEY = 'uniform-file-shaam-resume-v1';
+
 @Component({
     selector: 'app-uniform-file',
     templateUrl: './uniform-file.page.html',
@@ -150,6 +162,8 @@ export class UniformFilePage implements OnInit {
       },
     ];
 
+    void this.restoreShaamResumeContext();
+
   }
 
 
@@ -194,6 +208,7 @@ export class UniformFilePage implements OnInit {
     }
 
     this.reportClick = false;
+    this.clearShaamResumeContext();
     this.shaamSubmission = null;
     this.shaamConnected = false;
 
@@ -305,6 +320,7 @@ export class UniformFilePage implements OnInit {
           'UNIFORM_FILE',
         ),
       );
+      this.storeShaamResumeContext();
       window.location.assign(url);
     });
   }
@@ -385,6 +401,114 @@ export class UniformFilePage implements OnInit {
       life: 4000,
       key: 'br',
     });
+  }
+
+  private storeShaamResumeContext(): void {
+    if (!this.reportDetails || !this.shaamSubmission) {
+      throw new Error('לא ניתן לשמור את מצב השליחה לפני החיבור לשע״מ');
+    }
+    const context: UniformFileShaamResumeContext = {
+      version: 1,
+      submissionId: this.shaamSubmission.id,
+      businessNumber: this.reportDetails.businessNumber,
+      businessName: this.reportDetails.businessName,
+      startDate: this.reportDetails.startDate,
+      endDate: this.reportDetails.endDate,
+      downloadLink: this.reportDetails.downloadLink,
+    };
+    try {
+      sessionStorage.setItem(SHAAM_RESUME_STORAGE_KEY, JSON.stringify(context));
+    } catch {
+      throw new Error('לא ניתן לשמור את מצב השליחה בדפדפן');
+    }
+  }
+
+  private async restoreShaamResumeContext(): Promise<void> {
+    const context = this.readShaamResumeContext();
+    if (!context) return;
+
+    this.shaamBusy = true;
+    try {
+      const submission = await firstValueFrom(
+        this.shaamService.getUniformFileSubmission(
+          context.businessNumber,
+          context.submissionId,
+        ),
+      );
+      if (
+        submission.businessNumber !== context.businessNumber ||
+        submission.periodStart !== context.startDate ||
+        submission.periodEnd !== context.endDate
+      ) {
+        throw new Error('Stored uniform-file context does not match the submission');
+      }
+
+      this.businessNumber.set(context.businessNumber);
+      this.generatedAt = new Date(submission.generatedAt);
+      this.reportDetails = {
+        businessNumber: context.businessNumber,
+        businessName: context.businessName,
+        startDate: context.startDate,
+        endDate: context.endDate,
+        downloadLink: context.downloadLink,
+      };
+      this.uniformFileDocumentSummary = [];
+      this.uniformFileListSummary = [];
+      this.shaamSubmission = submission;
+      await this.refreshShaamConnection(false);
+    } catch {
+      this.clearShaamResumeContext();
+      this.messageService.add({
+        severity: 'error',
+        summary: 'לא ניתן לשחזר את תהליך השליחה',
+        detail: 'יש להפיק מחדש את הקבצים עבור התקופה שנבחרה',
+        life: 6000,
+        key: 'br',
+      });
+    } finally {
+      this.shaamBusy = false;
+    }
+  }
+
+  private readShaamResumeContext(): UniformFileShaamResumeContext | null {
+    let raw: string | null;
+    try {
+      raw = sessionStorage.getItem(SHAAM_RESUME_STORAGE_KEY);
+    } catch {
+      return null;
+    }
+    if (!raw) return null;
+
+    try {
+      const value = JSON.parse(raw) as Partial<UniformFileShaamResumeContext>;
+      if (
+        value.version !== 1 ||
+        !Number.isSafeInteger(value.submissionId) ||
+        (value.submissionId as number) <= 0 ||
+        !/^\d{9}$/.test(value.businessNumber || '') ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(value.startDate || '') ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(value.endDate || '') ||
+        typeof value.businessName !== 'string' ||
+        value.businessName.length > 255 ||
+        typeof value.downloadLink !== 'string' ||
+        value.downloadLink.length > 1000
+      ) {
+        this.clearShaamResumeContext();
+        return null;
+      }
+      return value as UniformFileShaamResumeContext;
+    } catch {
+      this.clearShaamResumeContext();
+      return null;
+    }
+  }
+
+  private clearShaamResumeContext(): void {
+    try {
+      sessionStorage.removeItem(SHAAM_RESUME_STORAGE_KEY);
+    } catch {
+      // Storage can be unavailable in restricted browser modes.
+    }
   }
 
 private downloadBase64Zip(base64: string) {

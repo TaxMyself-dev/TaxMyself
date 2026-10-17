@@ -55,6 +55,16 @@ describe('ShaamService uniform-file flow', () => {
     poll.flush({});
   });
 
+  it('reloads a prepared submission by internal id and business', () => {
+    service.getUniformFileSubmission('222222226', 91).subscribe();
+
+    const request = http.expectOne(
+      `${environment.apiUrl}shaam/uniform-file/submissions/91?businessNumber=222222226`,
+    );
+    expect(request.request.method).toBe('GET');
+    request.flush({});
+  });
+
   it('requests the isolated uniform-file OAuth product', () => {
     service.getAuthorizeUrl('222222226', 'UNIFORM_FILE').subscribe();
 
