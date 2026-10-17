@@ -79,12 +79,15 @@ const stop = setTimeout(() => {
     chunk("IEND", Buffer.alloc(0)),
   ]);
   const logo = "data:image/png;base64," + png.toString("base64");
-  for (const [name, rows, hasLogo] of [
+  const cases = process.env.PDF_DIAGNOSTIC_PAIRS === "1"
+    ? Array.from({ length: 3 }, (_, i) => [[`receipt-logo-${i + 1}`, 3, true], [`receipt-no-logo-${i + 1}`, 3, false]]).flat()
+    : [
     ["receipt-logo", 3, true],
     ["receipt-no-logo", 3, false],
     ["invoice-multipage", 55, true],
     ["large-amounts", 2, false],
-  ]) {
+  ];
+  for (const [name, rows, hasLogo] of cases) {
     const amount = name === "large-amounts" ? "₪1,234,567,890,123.45" : "₪67";
     const document = {
       title: rows === 55 ? "חשבונית מס מספר 20000" : "קבלה מספר 10000000",
@@ -149,7 +152,7 @@ const stop = setTimeout(() => {
     path.join(output, "report.json"),
     JSON.stringify(report, null, 2)
   );
-  await require("./check-layout.cjs").verifyLayout({
+  if (process.env.PDF_DIAGNOSTIC_PAIRS !== "1") await require("./check-layout.cjs").verifyLayout({
     executablePath: process.argv[2] || "/usr/bin/chromium",
     fontDirectory: process.argv[2]
       ? path.resolve("../backend/src/assets/document-fonts")

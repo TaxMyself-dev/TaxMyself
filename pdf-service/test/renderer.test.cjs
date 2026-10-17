@@ -18,7 +18,7 @@ const job = {
     paymentTotals: [],
   },
 };
-function fixture(t, { hang = false, fail = false } = {}) {
+function fixture(t, { hang = false, fail = false, diagnostics = false, logger } = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pdf-render-test-"));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   for (const name of ["Simpler-Regular.otf", "Simpler-Bold.otf"])
@@ -65,6 +65,8 @@ function fixture(t, { hang = false, fail = false } = {}) {
     executablePath: "test",
     fontDirectory: dir,
     deadlineMs: 30,
+    diagnostics,
+    logger,
   });
   return {
     render,
@@ -97,4 +99,23 @@ test("render errors still close browser", async (t) => {
   const f = fixture(t, { fail: true });
   await assert.rejects(f.render(job));
   assert.equal(f.state().closed, 1);
+});
+test("development diagnostics report stages without document content", async (t) => {
+  const logs = [];
+  const f = fixture(t, { diagnostics: true, logger: (value) => logs.push(JSON.parse(value)) });
+  await f.render(job);
+  assert.equal(logs.length, 1);
+  assert.equal(logs[0].event, "pdf_render_stages");
+  assert.deepEqual(Object.keys(logs[0].stagesMs), ["PREPARE", "BROWSER_LAUNCH", "PAGE_SETUP", "HTML_LOAD", "PDF_PRINT", "BROWSER_CLOSE"]);
+  assert.equal(logs[0].document, undefined);
+});
+test("diagnostic logger errors cannot fail rendering", async (t) => {
+  const f = fixture(t, { diagnostics: true, logger: () => { throw Error("logger failed"); } });
+  assert.equal((await f.render(job)).toString(), "%PDF-test");
+});
+test("diagnostics stay silent when disabled", async (t) => {
+  const logs = [];
+  const f = fixture(t, { logger: (value) => logs.push(value) });
+  await f.render(job);
+  assert.deepEqual(logs, []);
 });

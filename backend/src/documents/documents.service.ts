@@ -605,6 +605,14 @@ export class DocumentsService {
 
 
   private async generateLocalPdf(data: any, preview: boolean, isCopy: boolean): Promise<Buffer> {
+    const timingStart = performance.now();
+    let timingStageStart = timingStart;
+    const timings: Record<string, number> = {};
+    const recordTiming = (stage: string) => {
+      const now = performance.now();
+      timings[stage] = Math.round(now - timingStageStart);
+      timingStageStart = now;
+    };
     const doc = data.docData;
     const names: Partial<Record<DocumentType, string>> = {
       [DocumentType.RECEIPT]: 'קבלה', [DocumentType.TAX_INVOICE]: 'חשבונית מס',
@@ -624,11 +632,13 @@ export class DocumentsService {
       issuerEmail: business.businessEmail,
       logoPath: business.logoPath,
     } : { ...doc, logoPath: null };
+    recordTiming('BUSINESS_LOOKUP');
     let logoDataUri: string;
     if (identity.logoPath) {
       const logo = await this.imageStorage.download(identity.logoPath);
       logoDataUri = `data:${logo.contentType};base64,${logo.buffer.toString('base64')}`;
     }
+    recordTiming('LOGO_DOWNLOAD');
     const summary = await this.transformSumsToSumTable(doc, doc.issuerBusinessNumber);
     // Credit invoices used the separate legacy VAT fields rather than VAT rows
     // in sumTable. Preserve those displayed values in the local summary too.
@@ -658,7 +668,19 @@ export class DocumentsService {
       payments: await this.transformLinesToPaymentsTable(data.paymentData ?? []),
       paymentTotals: await this.transformPaymentsToSumTable(data.paymentData ?? [], doc),
     };
-    return this.documentPdfRenderer.render(model);
+    recordTiming('MODEL_PREPARE');
+    try {
+      return await this.documentPdfRenderer.render(model);
+    } finally {
+      recordTiming('RENDER_CALL');
+      if (process.env.NODE_ENV === 'development') {
+        try {
+          console.log(JSON.stringify({ event: 'pdf_backend_stages', preview,
+            hasLogo: Boolean(logoDataUri), stagesMs: timings,
+            totalMs: Math.round(performance.now() - timingStart) }));
+        } catch {}
+      }
+    }
   }
 
   async generatePDF(data: any, templateType: string, isCopy: boolean = false): Promise<Blob> {

@@ -66,3 +66,24 @@ Existing PDF worktree contains an unrelated uncommitted diagnostic draft; leave 
   cases passed, and both large-amount PDF pages were visually inspected.
   Cloud rendering/rollout of this follow-up is pending. Backend runtime,
   dependencies and database unchanged.
+
+## 2026-10-17 development timing investigation
+
+- User requested measurement only, no renderer behavior change and no production
+  build/deploy. Development-only timings identify browser launch, page setup,
+  HTML load, PDF print and browser close, including failed render cleanup.
+  Backend model preparation also measures business lookup, logo download and
+  render call. Logs contain durations/booleans and service request ID only.
+- Six actual local HTTP renders on Node 22 / Windows Chrome: alternating three
+  logo/no-logo pairs. Logo: 2162, 2073, 2243ms; no logo: 1737, 2057, 2253ms.
+  Synthetic 100x100 logo embedded in the model; no storage download, DB, IAM,
+  Cloud Run cold start or production CPU constraints were measured.
+- Browser launch 499–812ms, page setup 97–213ms, HTML load 700–1136ms,
+  PDF print 162–209ms, browser close 173–234ms. Production latency root cause
+  remains unproven. Existing lifecycle, waits, timeouts and accounting unchanged.
+- Follow-up AFTER latency fix: show loading status in preview tab; disable BOTH
+  preview and create-document buttons while either request is in flight, restore
+  after completion/error and prevent duplicate submissions. Not implemented yet.
+- Verification policy requested by user: focused checks and manual development
+  validation by default; full production build only for a material change.
+- Verification: 21 focused backend Jest tests and 12 service tests passed; six real HTTP/browser renders passed. No production build or deploy.

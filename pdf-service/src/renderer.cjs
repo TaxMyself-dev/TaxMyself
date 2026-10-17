@@ -9,9 +9,21 @@ function createRenderer({
   executablePath,
   fontDirectory,
   deadlineMs = 45000,
+  diagnostics = process.env.NODE_ENV === "development",
+  logger = console.log,
 }) {
   let fonts;
   return async function render(job) {
+    const started = performance.now();
+    let stageStarted = started;
+    let measuredStage = "PREPARE";
+    const stages = {};
+    const mark = (next) => {
+      const now = performance.now();
+      stages[measuredStage] = Math.round(now - stageStarted);
+      measuredStage = next;
+      stageStarted = now;
+    };
     validateJob(job);
     fonts ||= template.fontCss(
       fs
@@ -34,6 +46,7 @@ function createRenderer({
       } catch {}
     };
     try {
+      mark("BROWSER_LAUNCH");
       return await Promise.race([
         (async () => {
           browser = await puppeteer.launch({
@@ -48,6 +61,7 @@ function createRenderer({
             throw new RenderError("RENDER_TIMEOUT", 504);
           }
           phase = "PAGE_SETUP";
+          mark(phase);
           const page = await browser.newPage();
           await page.setJavaScriptEnabled(false);
           await page.setRequestInterception(true);
@@ -60,11 +74,13 @@ function createRenderer({
             ).catch(() => {});
           });
           phase = "HTML_LOAD";
+          mark(phase);
           await page.setContent(html, {
             waitUntil: "networkidle0",
             timeout: 20000,
           });
           phase = "PDF_PRINT";
+          mark(phase);
           const bytes = Buffer.from(
             await page.pdf({
               format: "A4",
@@ -105,6 +121,7 @@ function createRenderer({
         throw new RenderError("RENDER_TIMEOUT", 504);
       throw new RenderError("RENDER_" + phase + "_FAILED", 502);
     } finally {
+      mark("BROWSER_CLOSE");
       finished = true;
       clearTimeout(timer);
       if (browser) {
@@ -124,6 +141,14 @@ function createRenderer({
         } finally {
           clearTimeout(closeTimer);
         }
+      }
+      mark("DONE");
+      if (diagnostics) {
+        // Timings only: never include document content, images or credentials.
+        try {
+          logger(JSON.stringify({ event: "pdf_render_stages", requestId: job.requestId,
+            stagesMs: stages, totalMs: Math.round(performance.now() - started) }));
+        } catch {}
       }
     }
   };

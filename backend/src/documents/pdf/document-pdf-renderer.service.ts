@@ -59,6 +59,16 @@ export class DocumentPdfRenderer {
     if (html.length > 8 * 1024 * 1024)
       throw new ServiceUnavailableException('Document is too large.');
     this.active++;
+    const started = performance.now();
+    let stageStarted = started;
+    let stage = 'BROWSER_LAUNCH';
+    const stages: Record<string, number> = {};
+    const mark = (next: string) => {
+      const now = performance.now();
+      stages[stage] = Math.round(now - stageStarted);
+      stage = next;
+      stageStarted = now;
+    };
     let browser: puppeteer.Browser;
     try {
       browser = await puppeteer.launch({
@@ -75,6 +85,7 @@ export class DocumentPdfRenderer {
             : []),
         ],
       });
+      mark('PAGE_SETUP');
       const page = await browser.newPage();
       await page.setJavaScriptEnabled(false);
       await page.setRequestInterception(true);
@@ -83,10 +94,12 @@ export class DocumentPdfRenderer {
           ? void request.continue()
           : void request.abort(),
       );
+      mark('HTML_LOAD');
       await page.setContent(html, {
         waitUntil: 'networkidle0',
         timeout: 30000,
       });
+      mark('PDF_PRINT');
       const bytes = await page.pdf({
         format: 'A4',
         printBackground: true,
@@ -99,10 +112,18 @@ export class DocumentPdfRenderer {
       });
       return Buffer.from(bytes);
     } finally {
+      mark('BROWSER_CLOSE');
       try {
         await browser?.close();
       } finally {
         this.active--;
+        mark('DONE');
+        if (process.env.NODE_ENV === 'development') {
+          try {
+            console.log(JSON.stringify({ event: 'pdf_local_render_stages',
+              stagesMs: stages, totalMs: Math.round(performance.now() - started) }));
+          } catch {}
+        }
       }
     }
   }

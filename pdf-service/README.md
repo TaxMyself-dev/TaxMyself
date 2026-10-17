@@ -131,3 +131,17 @@ retry loop. UI/API changes will be needed if issuance becomes asynchronous.
 The current HTTP client does **not** auto-retry or persist jobs; no queue exists.
 
 Authentication reference: [Cloud Run service-to-service authentication](https://docs.cloud.google.com/run/docs/authenticating/service-to-service).
+
+## Development timing diagnostics
+
+With NODE_ENV=development, the renderer emits pdf_render_stages (PREPARE,
+BROWSER_LAUNCH, PAGE_SETUP, HTML_LOAD, PDF_PRINT, BROWSER_CLOSE). The backend
+emits pdf_backend_stages for model/logo preparation and the render call, plus
+pdf_local_render_stages when using its local browser. No document content is
+logged. Production does not emit these development events.
+
+For three alternating synthetic logo/no-logo pairs, set NODE_ENV=development
+and PDF_DIAGNOSTIC_PAIRS=1 in the test shell and run scripts/smoke.cjs with the
+local Chrome path and an output directory. This uses the existing compiled
+shared template, actual HTTP server and unchanged browser lifecycle. It does
+not exercise backend DB/storage/IAM or Cloud Run cold starts.
