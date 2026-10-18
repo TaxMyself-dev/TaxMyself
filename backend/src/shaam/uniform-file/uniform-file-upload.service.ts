@@ -223,7 +223,11 @@ export class UniformFileUploadService {
       throw new BadRequestException('SHAAM rejected the upload-link reservation');
     }
     const data = body?.data;
-    if (body?.success !== true || !data || !this.isBoundedIdentifier(data.uniqueId)) {
+    if (
+      body?.success !== true ||
+      !data ||
+      !this.isValidReservationUniqueId(data.uniqueId)
+    ) {
       this.logInvalidReservationEnvelope(body);
       throw new BadGatewayException('SHAAM returned invalid upload-link metadata');
     }
@@ -518,6 +522,13 @@ export class UniformFileUploadService {
 
   private isBoundedIdentifier(value: unknown): value is string {
     return this.isNonEmptyString(value) && value.length <= 255;
+  }
+
+  private isValidReservationUniqueId(value: unknown): value is string {
+    return (
+      this.isBoundedIdentifier(value) ||
+      (this.config.environment === ShaamEnvironment.TSANDBOX && value === '')
+    );
   }
 
   private assertAccessToken(accessToken: string): void {

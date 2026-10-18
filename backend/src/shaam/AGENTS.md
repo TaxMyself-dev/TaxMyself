@@ -47,6 +47,10 @@ both remote file statuses are `Approved`.
 An invalid upload-link envelope emits only a bounded structural diagnostic
 (safe field names, value types and array counts). It must never log upstream
 values, tokens, signed URLs, remote identifiers or the response body.
+The downloaded upload-link schema's `uniqueId` pattern permits an empty value,
+and the live tsandbox success fixture returns it. The client accepts exactly an
+empty reservation-level ID only in tsandbox; production continues to require a
+non-empty bounded identifier. Per-file identifiers remain mandatory everywhere.
 
 Transfer retries never reserve a replacement pair when either remote file ID
 already exists. They poll the saved identifiers instead. Network/storage

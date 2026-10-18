@@ -113,6 +113,51 @@ describe('UniformFileUploadService', () => {
     });
   });
 
+  it('accepts the documented empty reservation id only in tsandbox', async () => {
+    const { service, httpService } = setup();
+    httpService.post.mockReturnValue(of({
+      status: 200,
+      data: {
+        ...reservationBody,
+        data: { ...reservationBody.data, uniqueId: '' },
+      },
+    }));
+
+    await expect(service.reserveUploadLinks('daily-token', {
+      caseNumber: '222222226',
+      startPeriod: '2026-02-01',
+      endPeriod: '2026-03-31',
+    })).resolves.toMatchObject({
+      uniqueId: '',
+      ini: { fileUniqueId: 'ini-id' },
+      bkm: { fileUniqueId: 'bkm-id' },
+    });
+  });
+
+  it('rejects an empty reservation id in production', async () => {
+    const httpService = {
+      post: jest.fn().mockReturnValue(of({
+        status: 200,
+        data: {
+          ...reservationBody,
+          data: { ...reservationBody.data, uniqueId: '' },
+        },
+      })),
+      put: jest.fn(),
+    };
+    const service = new UniformFileUploadService(httpService as any, {
+      ...config,
+      environment: ShaamEnvironment.PRODUCTION,
+    });
+    jest.spyOn((service as any).logger, 'warn').mockImplementation();
+
+    await expect(service.reserveUploadLinks('daily-token', {
+      caseNumber: '222222226',
+      startPeriod: '2026-02-01',
+      endPeriod: '2026-03-31',
+    })).rejects.toThrow(BadGatewayException);
+  });
+
   it('never applies a sandbox case-number override in production', async () => {
     const httpService = {
       post: jest.fn().mockReturnValue(of({ status: 200, data: reservationBody })),
