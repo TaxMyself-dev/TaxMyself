@@ -48,6 +48,11 @@ both remote file statuses are `Approved`.
 An invalid upload-link envelope emits only a bounded structural diagnostic
 (safe field names, value types and array counts). It must never log upstream
 values, tokens, signed URLs, remote identifiers or the response body.
+An unknown file-status value fails closed and emits a separate bounded
+`shaam_uniform_file_unknown_status` diagnostic. It may include only a short
+alphanumeric operational status token plus its type, length and `isFound` flag;
+it must never include file names/identifiers, descriptions, errors, tokens,
+URLs or the upstream response body.
 The downloaded upload-link schema's `uniqueId` pattern permits an empty value,
 and the live tsandbox success fixture returns it. The client accepts exactly an
 empty reservation-level ID only in tsandbox; production continues to require a

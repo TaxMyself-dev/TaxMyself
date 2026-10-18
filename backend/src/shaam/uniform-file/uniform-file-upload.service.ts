@@ -371,6 +371,7 @@ export class UniformFileUploadService {
       }
       const status = item.status ?? '';
       if (!['', 'Uploaded', 'Approved', 'Rejected'].includes(status)) {
+        this.logUnknownFileStatus(status, item.isFound);
         throw new BadGatewayException('SHAAM returned an unknown file status');
       }
       if ((item.isFound && !status) || (!item.isFound && status)) {
@@ -392,6 +393,22 @@ export class UniformFileUploadService {
       throw new BadGatewayException('SHAAM returned mismatched file-status metadata');
     }
     return requestedIds.map((id) => byFileName.get(id));
+  }
+
+  private logUnknownFileStatus(status: unknown, isFound: boolean): void {
+    const safeStatusToken =
+      typeof status === 'string' && /^[A-Za-z][A-Za-z0-9 _-]{0,31}$/.test(status)
+        ? status
+        : null;
+    this.logger.warn(
+      JSON.stringify({
+        event: 'shaam_uniform_file_unknown_status',
+        statusToken: safeStatusToken,
+        statusType: typeof status,
+        statusLength: typeof status === 'string' ? status.length : null,
+        isFound,
+      }),
+    );
   }
 
   private validateReservationInput(input: ReserveUniformFileUploadInput): void {

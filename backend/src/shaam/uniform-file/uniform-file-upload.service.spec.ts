@@ -500,6 +500,75 @@ describe('UniformFileUploadService', () => {
     ).rejects.toThrow(BadGatewayException);
   });
 
+  it('logs a bounded status token without file identifiers or upstream text', async () => {
+    const { service, httpService } = setup();
+    const warn = jest.spyOn((service as any).logger, 'warn').mockImplementation();
+    httpService.post.mockReturnValue(
+      of({
+        status: 200,
+        data: [
+          {
+            fileName: 'sensitive-file-id.txt',
+            status: 'Processing',
+            description: 'sensitive description',
+            isFound: true,
+            errorMessage: 'sensitive upstream error',
+          },
+        ],
+      }),
+    );
+
+    await expect(
+      service.getFileStatuses('daily-token', ['sensitive-file-id.txt']),
+    ).rejects.toEqual(
+      new BadGatewayException('SHAAM returned an unknown file status'),
+    );
+
+    expect(warn).toHaveBeenCalledTimes(1);
+    const diagnostic = warn.mock.calls[0][0] as string;
+    expect(JSON.parse(diagnostic)).toEqual({
+      event: 'shaam_uniform_file_unknown_status',
+      statusToken: 'Processing',
+      statusType: 'string',
+      statusLength: 10,
+      isFound: true,
+    });
+    expect(diagnostic).not.toContain('sensitive-file-id');
+    expect(diagnostic).not.toContain('sensitive description');
+    expect(diagnostic).not.toContain('sensitive upstream error');
+    expect(diagnostic).not.toContain('daily-token');
+  });
+
+  it('omits an unsafe unknown status value from diagnostics', async () => {
+    const { service, httpService } = setup();
+    const warn = jest.spyOn((service as any).logger, 'warn').mockImplementation();
+    httpService.post.mockReturnValue(
+      of({
+        status: 200,
+        data: [
+          {
+            fileName: 'ini-id.txt',
+            status: 'Processing:https://sensitive.example/token',
+            isFound: true,
+          },
+        ],
+      }),
+    );
+
+    await expect(
+      service.getFileStatuses('daily-token', ['ini-id.txt']),
+    ).rejects.toThrow(BadGatewayException);
+
+    const diagnostic = warn.mock.calls[0][0] as string;
+    expect(JSON.parse(diagnostic)).toEqual(expect.objectContaining({
+      event: 'shaam_uniform_file_unknown_status',
+      statusToken: null,
+      statusType: 'string',
+      isFound: true,
+    }));
+    expect(diagnostic).not.toContain('sensitive.example');
+  });
+
   it('does not leak an upstream error body', async () => {
     const { service, httpService } = setup();
     httpService.post.mockReturnValue(
