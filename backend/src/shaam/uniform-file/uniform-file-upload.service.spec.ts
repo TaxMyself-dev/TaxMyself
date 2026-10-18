@@ -23,6 +23,7 @@ describe('UniformFileUploadService', () => {
       'https://ita-api.taxes.gov.il/shaam/tsandbox/UniStructFileUploadLinksApi/v1/UploadingFile/GetUrlsForUploadingFiles',
     statusUrl:
       'https://ita-api.taxes.gov.il/shaam/tsandbox/FilesStatusApi/v1/Files/get-file-status',
+    sandboxCaseNumberOverride: null,
     scopes: ['UniStructFileUploadLinks_scope', 'FilesStatus_scope'],
   };
 
@@ -87,6 +88,69 @@ describe('UniformFileUploadService', () => {
       endPeriod: '2026-12-31',
     });
     expect(options.headers.Authorization).toBe('Bearer daily-token');
+  });
+
+  it('uses the configured sandbox case number only for the external reservation', async () => {
+    const httpService = {
+      post: jest.fn().mockReturnValue(of({ status: 200, data: reservationBody })),
+      put: jest.fn(),
+    };
+    const service = new UniformFileUploadService(httpService as any, {
+      ...config,
+      sandboxCaseNumberOverride: '777777723',
+    });
+
+    await service.reserveUploadLinks('daily-token', {
+      caseNumber: '222222226',
+      startPeriod: '2026-02-01',
+      endPeriod: '2026-03-31',
+    });
+
+    expect(httpService.post.mock.calls[0][1]).toEqual({
+      caseNumber: 777777723,
+      startPeriod: '2026-02-01',
+      endPeriod: '2026-03-31',
+    });
+  });
+
+  it('never applies a sandbox case-number override in production', async () => {
+    const httpService = {
+      post: jest.fn().mockReturnValue(of({ status: 200, data: reservationBody })),
+      put: jest.fn(),
+    };
+    const service = new UniformFileUploadService(httpService as any, {
+      ...config,
+      environment: ShaamEnvironment.PRODUCTION,
+      sandboxCaseNumberOverride: '777777723',
+    });
+
+    await service.reserveUploadLinks('daily-token', {
+      caseNumber: '222222226',
+      startPeriod: '2026-02-01',
+      endPeriod: '2026-03-31',
+    });
+
+    expect(httpService.post.mock.calls[0][1].caseNumber).toBe(222222226);
+  });
+
+  it('reports a successful HTTP response with success false as a rejected reservation', async () => {
+    const { service, httpService } = setup();
+    httpService.post.mockReturnValue(of({
+      status: 200,
+      data: {
+        success: false,
+        data: null,
+        error: { errorCode: 400, message: 'upstream detail' },
+      },
+    }));
+
+    await expect(service.reserveUploadLinks('daily-token', {
+      caseNumber: '222222226',
+      startPeriod: '2026-02-01',
+      endPeriod: '2026-03-31',
+    })).rejects.toEqual(
+      new BadRequestException('SHAAM rejected the upload-link reservation'),
+    );
   });
 
   it.each([

@@ -93,4 +93,35 @@ describe('loadUniformFileOauthConfig', () => {
         'https://ita-api.taxes.gov.il/shaam/production/FilesStatusApi/v1/Files/get-file-status',
     })).toThrow('verified Tax Authority');
   });
+
+  it('loads a valid sandbox case-number override', () => {
+    expect(loadUniformFileOauthConfig({
+      ...validEnv,
+      SHAAM_UNIFORM_FILE_SANDBOX_CASE_NUMBER: '777777723',
+    }).sandboxCaseNumberOverride).toBe('777777723');
+  });
+
+  it('rejects a malformed sandbox case-number override', () => {
+    expect(() => loadUniformFileOauthConfig({
+      ...validEnv,
+      SHAAM_UNIFORM_FILE_SANDBOX_CASE_NUMBER: '777',
+    })).toThrow('exactly nine digits');
+  });
+
+  it('forbids the sandbox case-number override in production', () => {
+    expect(() => loadUniformFileOauthConfig({
+      ...validEnv,
+      SHAAM_UNIFORM_FILE_ENV: 'production',
+      SHAAM_UNIFORM_FILE_PRODUCTION_ENABLED: 'true',
+      SHAAM_UNIFORM_FILE_SANDBOX_CASE_NUMBER: '777777723',
+      SHAAM_UNIFORM_FILE_AUTHORIZE_URL:
+        'https://openapi.taxes.gov.il/shaam/production/dailytoken/oauth2/authorize',
+      SHAAM_UNIFORM_FILE_TOKEN_URL:
+        'https://openapi.taxes.gov.il/shaam/production/dailytoken/oauth2/token',
+      SHAAM_UNIFORM_FILE_UPLOAD_LINKS_URL:
+        'https://openapi.taxes.gov.il/shaam/production/UniStructFileUploadLinksApi/v1/UploadingFile/GetUrlsForUploadingFiles',
+      SHAAM_UNIFORM_FILE_STATUS_URL:
+        'https://openapi.taxes.gov.il/shaam/production/FilesStatusApi/v1/Files/get-file-status',
+    })).toThrow('forbidden in production');
+  });
 });

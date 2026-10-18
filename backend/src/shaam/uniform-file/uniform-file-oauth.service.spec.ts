@@ -19,6 +19,7 @@ describe('UniformFileOauthService', () => {
     tokenUrl: 'https://openapi.taxes.gov.il/token',
     uploadLinksUrl: 'https://ita-api.taxes.gov.il/shaam/tsandbox/UniStructFileUploadLinksApi/v1/UploadingFile/GetUrlsForUploadingFiles',
     statusUrl: 'https://ita-api.taxes.gov.il/shaam/tsandbox/FilesStatusApi/v1/Files/get-file-status',
+    sandboxCaseNumberOverride: null,
     scopes: ['UniStructFileUploadLinks_scope', 'FilesStatus_scope'],
   };
 

@@ -104,6 +104,13 @@ When the uniform-file integration is enabled, configuration also requires
 Their host, environment segment and complete API path are validated at startup;
 they must not be inferred from the invoice-allocation endpoints.
 
+Local tsandbox testing may explicitly set
+`SHAAM_UNIFORM_FILE_SANDBOX_CASE_NUMBER` to a nine-digit Tax Authority fixture
+case (for example `777777723`). The override affects only the external
+upload-link reservation request; business authorization, generated file
+identity and persisted submission ownership continue to use the real business
+number. Configuration rejects this override in production.
+
 Invoice-allocation production configuration also requires
 `SHAAM_INVOICE_CONFIRMATION_URL` and `SHAAM_INVOICE_DETAILS_URL`. Each
 production endpoint is checked against its exact `/shaam/production/...` path

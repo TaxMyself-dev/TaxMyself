@@ -17,6 +17,7 @@ export interface UniformFileOauthConfig {
   tokenUrl: string;
   uploadLinksUrl: string;
   statusUrl: string;
+  sandboxCaseNumberOverride: string | null;
   scopes: readonly string[];
 }
 
@@ -129,6 +130,8 @@ export function loadUniformFileOauthConfig(
       '',
     statusUrl:
       env.SHAAM_UNIFORM_FILE_STATUS_URL?.trim() || sandboxDefaults?.statusUrl || '',
+    sandboxCaseNumberOverride:
+      env.SHAAM_UNIFORM_FILE_SANDBOX_CASE_NUMBER?.trim() || null,
     scopes: UNIFORM_FILE_OAUTH_SCOPES,
   };
 
@@ -155,6 +158,23 @@ export function loadUniformFileOauthConfig(
   ) {
     throw new Error(
       'Uniform-file SHAAM production is disabled; set SHAAM_UNIFORM_FILE_PRODUCTION_ENABLED=true only for an approved production activation',
+    );
+  }
+
+  if (
+    config.sandboxCaseNumberOverride &&
+    !/^\d{9}$/.test(config.sandboxCaseNumberOverride)
+  ) {
+    throw new Error(
+      'SHAAM_UNIFORM_FILE_SANDBOX_CASE_NUMBER must contain exactly nine digits',
+    );
+  }
+  if (
+    environment === ShaamEnvironment.PRODUCTION &&
+    config.sandboxCaseNumberOverride
+  ) {
+    throw new Error(
+      'SHAAM_UNIFORM_FILE_SANDBOX_CASE_NUMBER is forbidden in production',
     );
   }
 

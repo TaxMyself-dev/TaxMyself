@@ -9,7 +9,7 @@ import {
 } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom, timeout } from 'rxjs';
-import { REQUEST_TIMEOUT_MS } from '../shaam.constants';
+import { REQUEST_TIMEOUT_MS, ShaamEnvironment } from '../shaam.constants';
 import {
   UNIFORM_FILE_OAUTH_CONFIG,
   UniformFileOauthConfig,
@@ -78,7 +78,11 @@ export class UniformFileUploadService {
       this.httpService.post(
         this.config.uploadLinksUrl,
         {
-          caseNumber: Number(input.caseNumber),
+          caseNumber: Number(
+            this.config.environment === ShaamEnvironment.TSANDBOX
+              ? this.config.sandboxCaseNumberOverride ?? input.caseNumber
+              : input.caseNumber,
+          ),
           startPeriod: input.startPeriod,
           endPeriod: input.endPeriod,
           ...(input.representorCompanyId
@@ -212,6 +216,9 @@ export class UniformFileUploadService {
   }
 
   private parseReservation(body: any): UniformFileUploadReservation {
+    if (body?.success === false) {
+      throw new BadRequestException('SHAAM rejected the upload-link reservation');
+    }
     const data = body?.data;
     if (body?.success !== true || !data || !this.isBoundedIdentifier(data.uniqueId)) {
       throw new BadGatewayException('SHAAM returned invalid upload-link metadata');
