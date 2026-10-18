@@ -31,8 +31,11 @@ describe('FirebaseAuthGuard', () => {
   let delegationRepo: { findOne: jest.Mock; find: jest.Mock };
   let userRepo: { findOne: jest.Mock };
   let guard: FirebaseAuthGuard;
+  let previousMfaRequirement: string | undefined;
 
   beforeEach(() => {
+    previousMfaRequirement = process.env.AUTH_MFA_REQUIRED;
+    delete process.env.AUTH_MFA_REQUIRED;
     delegationRepo = {
       findOne: jest.fn().mockResolvedValue(null),
       find: jest.fn().mockResolvedValue([]),
@@ -44,7 +47,14 @@ describe('FirebaseAuthGuard', () => {
     } as any);
   });
 
-  afterEach(() => jest.restoreAllMocks());
+  afterEach(() => {
+    if (previousMfaRequirement === undefined) {
+      delete process.env.AUTH_MFA_REQUIRED;
+    } else {
+      process.env.AUTH_MFA_REQUIRED = previousMfaRequirement;
+    }
+    jest.restoreAllMocks();
+  });
 
   /** `requiredScope` simulates a route decorated with @RequiredDelegationScope
    *  by stamping the same metadata key the real decorator (SetMetadata)
@@ -85,6 +95,31 @@ describe('FirebaseAuthGuard', () => {
     expect(request.user.actorFirebaseId).toBe(AGENT);
     expect(request.user.role).toBe('user');
     expect(delegationRepo.findOne).not.toHaveBeenCalled();
+  });
+
+  it('rejects a valid first-factor-only token when MFA enforcement is enabled', async () => {
+    process.env.AUTH_MFA_REQUIRED = 'true';
+    const { context } = makeContext('GET', false);
+
+    await expect(guard.canActivate(context)).rejects.toMatchObject({
+      response: expect.objectContaining({ code: 'MFA_REQUIRED' }),
+    });
+  });
+
+  it('accepts a token carrying Firebase second-factor proof when MFA enforcement is enabled', async () => {
+    process.env.AUTH_MFA_REQUIRED = 'true';
+    jest.spyOn(admin, 'auth').mockReturnValue({
+      verifyIdToken: jest.fn().mockResolvedValue({
+        uid: AGENT,
+        firebase: {
+          sign_in_provider: 'password',
+          sign_in_second_factor: 'totp',
+        },
+      }),
+    } as any);
+    const { context } = makeContext('GET', false);
+
+    await expect(guard.canActivate(context)).resolves.toBe(true);
   });
 
   it('delegation lookup filters status = ACTIVE (revoked → 403)', async () => {

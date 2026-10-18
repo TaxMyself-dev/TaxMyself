@@ -12,10 +12,13 @@ import { markShaamAuthorizationRejection } from './utils/shaam-authorization-err
 
 describe('ShaamSecureController', () => {
   function setup(
-    business: any = { id: 7, businessNumber: '222222226' },
+    business: any = { id: 7, businessNumber: '222222226', firebaseId: 'owner' },
     uniformEnabled = true,
   ) {
-    const businessService = { getBusinessByNumber: jest.fn().mockResolvedValue(business) };
+    const businessService = {
+      getBusinessByNumber: jest.fn().mockResolvedValue(business),
+      getBusinessById: jest.fn().mockResolvedValue(business),
+    };
     const states = { create: jest.fn().mockResolvedValue('opaque-state'), consume: jest.fn() };
     const connections = { status: jest.fn().mockResolvedValue({ connected: true, expiresAt: new Date() }), getValidAccessToken: jest.fn().mockResolvedValue('server-token'), saveToken: jest.fn(), markReauthorizationRequired: jest.fn().mockResolvedValue(undefined) };
     const allocationOauth = { buildAuthorizeUrl: jest.fn().mockReturnValue('https://openapi.taxes.gov.il/authorize'), exchangeCodeForToken: jest.fn() };
@@ -34,19 +37,72 @@ describe('ShaamSecureController', () => {
     return { controller, businessService, states, connections, documentAllocation, uniformSubmissions };
   }
 
-  const request = { user: { firebaseId: 'effective-owner', actorFirebaseId: 'real-actor' } };
+  const request = { user: { firebaseId: 'owner', actorFirebaseId: 'owner' } };
+  const delegatedRequest = {
+    user: { firebaseId: 'owner', actorFirebaseId: 'accountant' },
+    isDelegatedAccess: true,
+  };
 
-  it('scopes OAuth initiation to the effective owner and records the real actor', async () => {
+  it('scopes OAuth initiation to the owner and records the owner actor', async () => {
     const { controller, businessService, states } = setup();
     await controller.authorize(request, { businessNumber: '222222226', product: ShaamProduct.INVOICE_ALLOCATION });
-    expect(businessService.getBusinessByNumber).toHaveBeenCalledWith('222222226', 'effective-owner');
-    expect(states.create).toHaveBeenCalledWith(7, 'real-actor', ShaamProduct.INVOICE_ALLOCATION, ShaamEnvironment.TSANDBOX);
+    expect(businessService.getBusinessByNumber).toHaveBeenCalledWith('222222226', 'owner');
+    expect(states.create).toHaveBeenCalledWith(7, 'owner', ShaamProduct.INVOICE_ALLOCATION, ShaamEnvironment.TSANDBOX);
+  });
+
+  it('blocks a delegated accountant before creating SHAAM OAuth state', async () => {
+    const { controller, businessService, states } = setup();
+
+    await expect(
+      controller.authorize(delegatedRequest, {
+        businessNumber: '222222226',
+        product: ShaamProduct.INVOICE_ALLOCATION,
+      }),
+    ).rejects.toThrow(ForbiddenException);
+
+    expect(businessService.getBusinessByNumber).not.toHaveBeenCalled();
+    expect(states.create).not.toHaveBeenCalled();
+  });
+
+  it('blocks an admin impersonating a client before creating SHAAM OAuth state', async () => {
+    const { controller, states } = setup();
+    const adminRequest = {
+      user: { firebaseId: 'owner', actorFirebaseId: 'admin' },
+      isAdminImpersonation: true,
+    };
+
+    await expect(
+      controller.authorize(adminRequest, {
+        businessNumber: '222222226',
+        product: ShaamProduct.UNIFORM_FILE,
+      }),
+    ).rejects.toThrow(ForbiddenException);
+
+    expect(states.create).not.toHaveBeenCalled();
   });
 
   it('rejects an unauthorized business before creating OAuth state', async () => {
     const { controller, states } = setup(null);
     await expect(controller.authorize(request, { businessNumber: '111111118', product: ShaamProduct.INVOICE_ALLOCATION })).rejects.toThrow(BadRequestException);
     expect(states.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects an OAuth callback whose recorded actor is not the business owner', async () => {
+    const { controller, states, connections } = setup();
+    states.consume.mockResolvedValue({
+      businessId: 7,
+      actorFirebaseId: 'accountant',
+      product: ShaamProduct.INVOICE_ALLOCATION,
+      environment: ShaamEnvironment.TSANDBOX,
+    });
+    const response = { redirect: jest.fn() };
+
+    await expect(
+      controller.callback(response as any, 'authorization-code', 'opaque-state'),
+    ).rejects.toThrow(ForbiddenException);
+
+    expect(connections.saveToken).not.toHaveBeenCalled();
+    expect(response.redirect).not.toHaveBeenCalled();
   });
 
   it('does not create state while uniform-file OAuth is disabled', async () => {
@@ -61,7 +117,7 @@ describe('ShaamSecureController', () => {
     expect(connections.getValidAccessToken).toHaveBeenCalledWith(7, ShaamProduct.INVOICE_ALLOCATION, ShaamEnvironment.TSANDBOX);
     expect(documentAllocation.requestAndFinalize).toHaveBeenCalledWith(
       'server-token',
-      'effective-owner',
+      'owner',
       '222222226',
       '20000',
       'TAX_INVOICE',
@@ -86,8 +142,8 @@ describe('ShaamSecureController', () => {
     expect(uniformSubmissions.prepare).toHaveBeenCalledWith({
       businessId: 7,
       businessNumber: '222222226',
-      ownerFirebaseId: 'effective-owner',
-      actorFirebaseId: 'real-actor',
+      ownerFirebaseId: 'owner',
+      actorFirebaseId: 'owner',
       environment: ShaamEnvironment.TSANDBOX,
       periodStart: '2026-02-01',
       periodEnd: '2026-03-31',
@@ -119,9 +175,56 @@ describe('ShaamSecureController', () => {
     expect(uniformSubmissions.transfer).toHaveBeenCalledWith(
       7,
       91,
-      'effective-owner',
+      'owner',
       'server-token',
     );
+  });
+
+  it('allows delegated local preparation and status viewing but blocks every remote SHAAM operation', async () => {
+    const { controller, connections, documentAllocation, uniformSubmissions } = setup();
+
+    await expect(
+      controller.prepareUniformFileSubmission(delegatedRequest, {
+        businessNumber: '222222226',
+        startDate: '2026-02-01',
+        endDate: '2026-03-31',
+      }),
+    ).resolves.toEqual({ id: 91, state: 'GENERATED' });
+    await expect(
+      controller.uniformFileSubmissionStatus(delegatedRequest, 91, '222222226'),
+    ).resolves.toEqual({ id: 91, state: 'GENERATED' });
+
+    await expect(
+      controller.connectionStatus(
+        delegatedRequest,
+        '222222226',
+        ShaamProduct.INVOICE_ALLOCATION,
+      ),
+    ).rejects.toThrow(ForbiddenException);
+    await expect(
+      controller.submitApproval(delegatedRequest, '222222226', {
+        docNumber: '20000',
+        docType: 'TAX_INVOICE',
+      } as any),
+    ).rejects.toThrow(ForbiddenException);
+    await expect(
+      controller.recoverApproval(delegatedRequest, '222222226', {
+        docNumber: '20000',
+        docType: 'TAX_INVOICE',
+      } as any),
+    ).rejects.toThrow(ForbiddenException);
+    await expect(
+      controller.transferUniformFileSubmission(delegatedRequest, 91, '222222226'),
+    ).rejects.toThrow(ForbiddenException);
+    await expect(
+      controller.pollUniformFileSubmission(delegatedRequest, 91, '222222226'),
+    ).rejects.toThrow(ForbiddenException);
+
+    expect(connections.getValidAccessToken).not.toHaveBeenCalled();
+    expect(documentAllocation.requestAndFinalize).not.toHaveBeenCalled();
+    expect(documentAllocation.recoverAndFinalize).not.toHaveBeenCalled();
+    expect(uniformSubmissions.transfer).not.toHaveBeenCalled();
+    expect(uniformSubmissions.poll).not.toHaveBeenCalled();
   });
 
   it('does not transfer without a valid Daily Token', async () => {

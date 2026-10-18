@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  ForbiddenException,
   Get,
   HttpException,
   HttpStatus,
@@ -59,6 +60,7 @@ export class ShaamSecureController {
     @Req() request: any,
     @Body() body: { businessNumber: string; product: ShaamProduct },
   ): Promise<{ url: string }> {
+    this.assertOwnerOnlyShaamOperation(request);
     const business = await this.resolveBusiness(request, body.businessNumber);
     if (body.product === ShaamProduct.UNIFORM_FILE && !this.uniformConfig.enabled) {
       throw new ServiceUnavailableException('Uniform-file SHAAM OAuth is disabled');
@@ -84,6 +86,10 @@ export class ShaamSecureController {
     @Query('state') state: string,
   ) {
     const intent = await this.states.consume(state);
+    const business = await this.businessService.getBusinessById(intent.businessId);
+    if (!business || business.firebaseId !== intent.actorFirebaseId) {
+      throw new ForbiddenException('Only the business owner may connect to SHAAM');
+    }
     const token =
       intent.product === ShaamProduct.UNIFORM_FILE
         ? await this.uniformOauth.exchangeCodeForDailyToken(code)
@@ -111,6 +117,7 @@ export class ShaamSecureController {
     @Query('businessNumber') businessNumber: string,
     @Query('product') product: ShaamProduct,
   ) {
+    this.assertOwnerOnlyShaamOperation(request);
     const business = await this.resolveBusiness(request, businessNumber);
     return this.connections.status(
       business.id,
@@ -127,6 +134,7 @@ export class ShaamSecureController {
     @Query('businessNumber') businessNumber: string,
     @Body() dto: ShaamDocumentAllocationDto,
   ) {
+    this.assertOwnerOnlyShaamOperation(request);
     const business = await this.resolveBusiness(request, businessNumber);
     const token = await this.connections.getValidAccessToken(
       business.id,
@@ -158,6 +166,7 @@ export class ShaamSecureController {
     @Query('businessNumber') businessNumber: string,
     @Body() dto: ShaamDocumentAllocationDto,
   ) {
+    this.assertOwnerOnlyShaamOperation(request);
     const business = await this.resolveBusiness(request, businessNumber);
     const token = await this.connections.getValidAccessToken(
       business.id,
@@ -218,6 +227,7 @@ export class ShaamSecureController {
     @Param('submissionId', ParseIntPipe) submissionId: number,
     @Query('businessNumber') businessNumber: string,
   ) {
+    this.assertOwnerOnlyShaamOperation(request);
     const business = await this.resolveBusiness(request, businessNumber);
     const token = await this.uniformFileToken(business.id);
     return this.executeWithConnectionState(
@@ -240,6 +250,7 @@ export class ShaamSecureController {
     @Param('submissionId', ParseIntPipe) submissionId: number,
     @Query('businessNumber') businessNumber: string,
   ) {
+    this.assertOwnerOnlyShaamOperation(request);
     const business = await this.resolveBusiness(request, businessNumber);
     const token = await this.uniformFileToken(business.id);
     return this.executeWithConnectionState(
@@ -310,6 +321,22 @@ export class ShaamSecureController {
     );
     if (!business) throw new BadRequestException('Business not found or not authorized');
     return business;
+  }
+
+  private assertOwnerOnlyShaamOperation(request: any): void {
+    const actorFirebaseId = request.user?.actorFirebaseId;
+    const effectiveFirebaseId = request.user?.firebaseId;
+    if (
+      !actorFirebaseId ||
+      !effectiveFirebaseId ||
+      actorFirebaseId !== effectiveFirebaseId ||
+      request.isDelegatedAccess === true ||
+      request.isAdminImpersonation === true
+    ) {
+      throw new ForbiddenException(
+        'רק בעל העסק רשאי לבצע פעולות מול שע״מ',
+      );
+    }
   }
 
   private environmentFor(product: ShaamProduct): ShaamEnvironment {

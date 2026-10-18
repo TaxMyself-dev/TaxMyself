@@ -1,6 +1,9 @@
 export const environment = {
   production: true,
   enableDevTools: false,
+  // Turn on only after TOTP MFA is enabled in the production Identity Platform
+  // project and existing-user rollout has been announced.
+  requireMfa: false,
   apiUrl: 'https://taxmys16elf-prod-tau7bgxb3q-zf.a.run.app/',
   /**
    * CardCom Open Fields embedded change-payment-method dialog.

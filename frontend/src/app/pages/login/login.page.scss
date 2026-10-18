@@ -333,3 +333,39 @@ input:-webkit-autofill {
     filter: brightness(0.7);
   }
 }
+.mfa-challenge {
+  width: min(440px, calc(100vw - 32px));
+}
+
+.mfa-challenge input {
+  width: 100%;
+  margin: 12px 0;
+  text-align: center;
+  font-size: 1.4rem;
+  letter-spacing: 0.25em;
+}
+
+.mfa-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.mfa-actions button {
+  flex: 1;
+  padding: 10px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.mfa-primary {
+  border: 0;
+  background: #1a2641;
+  color: #fff;
+}
+
+.mfa-secondary {
+  border: 1px solid #1a2641;
+  background: #fff;
+  color: #1a2641;
+}

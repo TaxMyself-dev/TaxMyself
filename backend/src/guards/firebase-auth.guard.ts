@@ -50,6 +50,13 @@ export class FirebaseAuthGuard implements CanActivate {
 
     // ✅ Validate the accountant's token and get Firebase UID
     const decodedToken = await this.validateToken(token);
+    if (this.isMfaEnforcementEnabled() && !decodedToken.firebase?.sign_in_second_factor) {
+      throw new ForbiddenException({
+        statusCode: 403,
+        code: 'MFA_REQUIRED',
+        message: 'נדרש אימות דו־שלבי כדי להמשיך',
+      });
+    }
     const authenticatedFirebaseId = decodedToken.uid;
     const businessNumberHeader = (request.headers['businessnumber'] as string | undefined);
 
@@ -174,6 +181,10 @@ export class FirebaseAuthGuard implements CanActivate {
     } catch (error) {
       throw new UnauthorizedException('Invalid authorization token');
     }
+  }
+
+  private isMfaEnforcementEnabled(): boolean {
+    return String(process.env.AUTH_MFA_REQUIRED).trim().toLowerCase() === 'true';
   }
 
   private scopeErrorMessage(scope: DelegationScope): string {

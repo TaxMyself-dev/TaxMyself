@@ -6,7 +6,12 @@ import { Router } from '@angular/router';
 import { Observable, catchError, filter, firstValueFrom, from, switchMap, take, EMPTY, tap, BehaviorSubject, finalize, throwError } from 'rxjs';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { User, UserCredential } from '@firebase/auth-types';
-import { GoogleAuthProvider, sendEmailVerification } from '@angular/fire/auth';
+import { sendEmailVerification } from '@angular/fire/auth';
+import {
+  getAuth,
+  GoogleAuthProvider,
+  signInWithPopup,
+} from 'firebase/auth';
 import { environment } from 'src/environments/environment';
 import { ExpenseDataService } from './expense-data.service';
 import { GenericService } from './generic.service';
@@ -557,10 +562,17 @@ export class AuthService {
   async signInWithGoogle(): Promise<{ isNewUser: boolean; userData?: any; googleUser: { email: string; displayName: string } }> {
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ hl: 'iw' });
-    const result = await this.afAuth.signInWithPopup(provider);
+    const result = await signInWithPopup(getAuth(), provider);
+    return this.completeGoogleSignInForCurrentUser(result.user);
+  }
+
+  async completeGoogleSignInForCurrentUser(user = getAuth().currentUser): Promise<{ isNewUser: boolean; userData?: any; googleUser: { email: string; displayName: string } }> {
+    if (!user) {
+      throw new Error('Google sign-in did not produce an authenticated user');
+    }
     const googleUser = {
-      email: result.user.email,
-      displayName: result.user.displayName,
+      email: user.email,
+      displayName: user.displayName,
     };
     try {
       // Real login (Google SSO) → freshLogin=true so the post-login sync runs.
@@ -576,7 +588,7 @@ export class AuthService {
         // confirms they were never registered. Remove it now so the email
         // doesn't stay stuck as a ghost account (which later causes
         // "email already in use" when they try to register for real).
-        await this.deleteUnregisteredGoogleUser(result.user);
+        await this.deleteUnregisteredGoogleUser(user as any);
         return { isNewUser: true, googleUser };
       }
       throw err;

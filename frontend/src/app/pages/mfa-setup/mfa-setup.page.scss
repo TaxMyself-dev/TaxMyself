@@ -1,0 +1,57 @@
+.mfa-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: linear-gradient(135deg, #6578e7, #7655b8);
+}
+
+.mfa-card {
+  width: min(560px, 100%);
+  padding: 32px;
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: 0 20px 60px rgb(23 31 56 / 24%);
+  color: #1a2641;
+}
+
+h1 { margin-top: 0; }
+ol { padding-inline-start: 24px; }
+
+.secret {
+  margin: 16px 0;
+  padding: 14px;
+  border-radius: 8px;
+  background: #f1f4f8;
+  font-family: monospace;
+  font-size: 1.1rem;
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+
+label { display: block; margin-bottom: 8px; font-weight: 600; }
+
+input {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #aab4c5;
+  border-radius: 8px;
+  font-size: 1.25rem;
+  letter-spacing: 0.25em;
+  text-align: center;
+}
+
+button {
+  width: 100%;
+  margin-top: 16px;
+  padding: 12px 18px;
+  border: 0;
+  border-radius: 8px;
+  background: #1a2641;
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+button:disabled { opacity: 0.55; cursor: not-allowed; }
+.error { color: #a51d24; margin-bottom: 0; }

@@ -10,6 +10,8 @@ import { AuthService } from '../../services/auth.service';
 import { NetworkStatusService } from '../../services/pwa/network-status.service';
 import { StartupService } from '../../services/startup.service';
 import { DEFAULT_AUTHENTICATED_PATH } from '../auth/default-authenticated-route';
+import { MfaService } from '../../services/mfa.service';
+import { environment } from '../../../environments/environment';
 
 /**
  * Root `''` route decision: wait for Firebase auth init, then return a UrlTree
@@ -25,6 +27,7 @@ export class StartupRedirectGuard implements CanActivate {
   private readonly auth = inject(AuthService);
   private readonly network = inject(NetworkStatusService);
   private readonly router = inject(Router);
+  private readonly mfa = inject(MfaService);
 
   async canActivate(
     _route: ActivatedRouteSnapshot,
@@ -40,6 +43,16 @@ export class StartupRedirectGuard implements CanActivate {
 
     if (!this.auth.isLoggedIn) {
       return this.router.createUrlTree(['/login']);
+    }
+
+    if (environment.requireMfa) {
+      const mfaState = await this.mfa.sessionState();
+      if (mfaState === 'NOT_ENROLLED') {
+        return this.router.createUrlTree(['/mfa/setup']);
+      }
+      if (mfaState !== 'VERIFIED') {
+        return this.router.createUrlTree(['/login']);
+      }
     }
 
     // AuthGuard-equivalent profile gate: signed-in-but-no-userData must not

@@ -4,6 +4,8 @@ import { AuthService } from '../../services/auth.service';
 import { NetworkStatusService } from '../../services/pwa/network-status.service';
 import { StartupService } from '../../services/startup.service';
 import { DEFAULT_AUTHENTICATED_PATH } from '../auth/default-authenticated-route';
+import { MfaService } from '../../services/mfa.service';
+import { environment } from '../../../environments/environment';
 
 /**
  * Gate on `/login`. Waits for the startup gate, then either lets the login page
@@ -24,6 +26,7 @@ export class LoginPageGuard implements CanActivate {
   private readonly auth = inject(AuthService);
   private readonly network = inject(NetworkStatusService);
   private readonly router = inject(Router);
+  private readonly mfa = inject(MfaService);
 
   async canActivate(): Promise<boolean | UrlTree> {
     // Read the navigation state before awaiting — it is only available while
@@ -46,6 +49,19 @@ export class LoginPageGuard implements CanActivate {
     }
     if (!this.auth.isLoggedIn) {
       return true;
+    }
+
+    if (environment.requireMfa) {
+      const mfaState = await this.mfa.sessionState();
+      if (mfaState === 'NOT_ENROLLED') {
+        return this.router.createUrlTree(['/mfa/setup']);
+      }
+      // An enrolled account restored without a second-factor claim must be
+      // allowed to remain on /login and complete a fresh MFA sign-in. Without
+      // this branch LoginPageGuard and AuthGuard can redirect in a loop.
+      if (mfaState !== 'VERIFIED') {
+        return true;
+      }
     }
     // Signed in but no cached profile — the login page is the recovery surface.
     if (!this.auth.getUserDataFromLocalStorage()) {

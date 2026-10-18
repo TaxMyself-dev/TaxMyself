@@ -20,6 +20,14 @@ Integrates with the Israel Tax Authority's SHAAM OpenAPI — OAuth2 authorizatio
 
 ## Main flows
 - `POST /shaam/oauth/authorize` → `GET /shaam/oauth/callback` — authenticated initiation creates a hashed database state bound to actor/business/product; callback consumes it once and saves encrypted tokens.
+- Any operation that can contact SHAAM is owner-only: the verified real actor
+  must equal the effective business user, and neither delegated-accountant nor
+  administrator impersonation context is accepted. This includes OAuth
+  initiation, connection status (which can refresh remotely), allocation and
+  recovery, uniform-file transfer and remote polling. The callback reloads the
+  state-bound business and confirms that the initiating actor is still its
+  owner before exchanging the code. These checks are backend policy and must
+  not be replaced by hidden buttons.
 - `GET /shaam/connection-status` — resolves/refreshes the server-held invoice
   allocation access token when necessary, then returns only safe connection
   metadata. An expired access token alone must not trigger browser reauthorization.
@@ -42,6 +50,11 @@ Integrates with the Israel Tax Authority's SHAAM OpenAPI — OAuth2 authorizatio
 - `POST /shaam/uniform-file/submissions/:submissionId/poll?businessNumber=...`
   — polls only the two persisted remote identifiers. Terminal APPROVED/REJECTED
   submissions are returned locally without another external call.
+
+Delegated accountants may continue to prepare a uniform-file artifact and read
+its local submission metadata because those operations do not contact SHAAM.
+They may not connect, refresh a connection, transfer files, poll SHAAM, request
+an allocation number or recover one for the represented client.
 
 The upload client is intentionally not connected to a controller or submission
 state transition directly; only `UniformFileSubmissionService` orchestrates it.

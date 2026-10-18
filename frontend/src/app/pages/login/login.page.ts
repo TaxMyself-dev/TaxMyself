@@ -4,7 +4,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService } from 'src/app/services/auth.service';
 import { AngularFireAuth } from '@angular/fire/compat/auth';
 import { LoadingController } from '@ionic/angular';
-import { EMPTY, catchError, filter, finalize, from, interval, switchMap, take, tap } from 'rxjs';
+import { EMPTY, catchError, finalize, firstValueFrom, interval, take, tap } from 'rxjs';
 import { ButtonSize } from '../../components/button/button.enum';
 import { ButtonColor } from '../../components/button/button.enum';
 import { bunnerImagePosition, FormTypes } from 'src/app/shared/enums';
@@ -15,6 +15,15 @@ import { Location } from '@angular/common';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NetworkStatusService } from 'src/app/services/pwa/network-status.service';
 import { DEFAULT_AUTHENTICATED_PATH } from 'src/app/shared/auth/default-authenticated-route';
+import {
+  getAuth,
+  GoogleAuthProvider,
+  MultiFactorResolver,
+  signInWithEmailAndPassword,
+  signInWithPopup,
+} from 'firebase/auth';
+import { MfaService } from 'src/app/services/mfa.service';
+import { environment } from 'src/environments/environment';
 
 
 @Component({
@@ -44,6 +53,11 @@ export class LoginPage implements OnInit {
   isVisibleDialogRegisterMessage: boolean = false;
   showModal = signal<boolean>(false);
   resendCountdown = signal(0);
+  mfaChallenge = signal(false);
+  mfaError = signal<string | null>(null);
+  mfaCode = '';
+  private mfaResolver: MultiFactorResolver | null = null;
+  private mfaFirstFactor: 'password' | 'google' | null = null;
   isVerificationButtonDisabled = computed(() => this.resendCountdown() > 0);
   private destroyRef = inject(DestroyRef);
   private readonly network = inject(NetworkStatusService);
@@ -57,7 +71,8 @@ export class LoginPage implements OnInit {
     public afAuth: AngularFireAuth,
     private formBuilder: FormBuilder,
     public authService: AuthService,
-    private loadingController: LoadingController
+    private loadingController: LoadingController,
+    private mfa: MfaService,
   ) {
 
     this.loginForm = this.formBuilder.group({
@@ -129,6 +144,7 @@ export class LoginPage implements OnInit {
       from?: string;
       email?: string;
       password?: string;
+      mfaEnrolled?: boolean;
     };
 
     if (state?.email && state?.password) {
@@ -139,6 +155,15 @@ export class LoginPage implements OnInit {
     if (state?.from === 'register') {
       console.log('Navigated to Login Page from Register Page');
       this.showModal.set(true);
+    }
+    if (state?.mfaEnrolled) {
+      this.messageService.add({
+        severity: 'success',
+        summary: 'האימות הדו־שלבי הופעל',
+        detail: 'התחברו מחדש והזינו את הקוד מאפליקציית ה־Authenticator.',
+        life: 6000,
+        key: 'br',
+      });
     }
   }
 
@@ -162,7 +187,7 @@ export class LoginPage implements OnInit {
    * that finishes or fails — never while the user is still sitting on /login
    * waiting for the app to appear.
    */
-  login(): void {
+  async login(): Promise<void> {
     // A second click while the first login is still running would start a
     // parallel sign-in and a second navigation.
     if (this.isLoading()) {
@@ -175,77 +200,24 @@ export class LoginPage implements OnInit {
     this.isLoading.set(true);
     this.authService.error.set(null);
     const formData = this.loginForm.value;
-
-    from(this.afAuth.signInWithEmailAndPassword(formData.userName, formData.password))
-      .pipe(
-        catchError((err) => {
-          this.authService.handleErrorLogin(err.code);
-          console.log("❌ Firebase login error:", err);
-          return EMPTY;
-        }),
-
-        // 1️⃣ Validate email
-        filter((res) => {
-          if (!res?.user?.emailVerified) {
-            this.authService.error.set("email");
-          }
-          return res?.user?.emailVerified;
-        }),
-
-        // 2️⃣ Let the credential propagate into the app's auth state before
-        // anything routes on it — AuthGuard reads AuthService.isLoggedIn, which
-        // AngularFire delivers asynchronously.
-        switchMap(() => from(this.authService.waitForAuthenticatedUser())),
-
-        // 3️⃣ Call your backend signIn() — freshLogin=true so the backend
-        // runs the post-login sync (this is the only real-login call site).
-        switchMap(() => this.authService.signIn(true)),
-
-        catchError((err) => {
-          if (err.status === 0) {
-            this.authService.error.set("net");
-
-          }
-          else if (err.status === 404) {
-            this.authService.error.set("user");
-          }
-          else {
-            this.authService.error.set("error");
-          }
-
-          console.log("❌ Backend sign-in error:", err);
-          return EMPTY;
-        }),
-
-      // 4️⃣ Save user data
-      // Firebase's restored session is the auth authority (see
-      // AuthService.isLoggedIn); userData is cached UI profile data only.
-      tap((res: any) => {
-        this.authService.storeUserData(res);
-      }),
-
-        // 5️⃣ Load businesses from server
-        switchMap(() =>
-          from(this.genericService.loadBusinessesFromServer())
-        ),
-
-        // 6️⃣ Enter the app and WAIT for the router to finish. Navigation used
-        // to be fired and forgotten here, so finalize() re-enabled the button
-        // while the guards were still running and the login looked like it had
-        // failed.
-        switchMap(() => from(this.enterApp())),
-
-        catchError((err) => {
-          console.error('❌ Post-login navigation failed:', err);
-          this.authService.error.set('error');
-          return EMPTY;
-        }),
-
-        // Reached only once the app is entered, or after an error path above —
-        // never while the user is still waiting on /login.
-        finalize(() => this.isLoading.set(false))
-      )
-      .subscribe();
+    try {
+      const credential = await signInWithEmailAndPassword(
+        getAuth(),
+        formData.userName,
+        formData.password,
+      );
+      if (!credential.user.emailVerified) {
+        this.authService.error.set('email');
+        return;
+      }
+      await this.finishPasswordLogin();
+    } catch (err: any) {
+      if (this.beginMfaChallenge(err, 'password')) return;
+      this.authService.handleErrorLogin(err?.code);
+      console.error('❌ Firebase login error:', err);
+    } finally {
+      this.isLoading.set(false);
+    }
   }
 
 
@@ -372,26 +344,12 @@ export class LoginPage implements OnInit {
     this.isLoading.set(true);
     this.authService.error.set(null);
     try {
-      const { isNewUser, userData } = await this.authService.signInWithGoogle();
-      if (isNewUser) {
-        // The ghost Firebase user created by signInWithPopup() was already
-        // deleted inside signInWithGoogle() (best-effort, only on a
-        // confirmed 404). signOut() here just clears the local session.
-        await this.afAuth.signOut();
-        this.messageService.add({
-          severity: 'warn',
-          summary: 'משתמש לא רשום',
-          detail: 'אין חשבון רשום עם כתובת האימייל הזו. יש להירשם תחילה.',
-          sticky: true,
-          key: 'br',
-        });
-        return;
-      }
-      await this.authService.waitForAuthenticatedUser();
-      this.authService.storeUserData(userData);
-      await this.genericService.loadBusinessesFromServer();
-      await this.enterApp();
+      const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({ hl: 'iw' });
+      await signInWithPopup(getAuth(), provider);
+      await this.finishGoogleLogin();
     } catch (err: any) {
+      if (this.beginMfaChallenge(err, 'google')) return;
       console.error('❌ Google sign-in error code:', err?.code, err);
       switch (err?.code) {
         case 'auth/popup-closed-by-user':
@@ -409,6 +367,100 @@ export class LoginPage implements OnInit {
     } finally {
       this.isLoading.set(false);
     }
+  }
+
+  async verifyMfaCode(): Promise<void> {
+    if (!this.mfaResolver || !this.mfaFirstFactor || !/^\d{6}$/.test(this.mfaCode.trim())) {
+      return;
+    }
+    this.isLoading.set(true);
+    this.mfaError.set(null);
+    try {
+      await this.mfa.resolveTotpSignIn(this.mfaResolver, this.mfaCode);
+      const firstFactor = this.mfaFirstFactor;
+      this.clearMfaChallenge();
+      if (firstFactor === 'google') {
+        await this.finishGoogleLogin();
+      } else {
+        await this.finishPasswordLogin();
+      }
+    } catch (error) {
+      console.error('MFA verification failed', error);
+      this.mfaError.set('הקוד שהוזן אינו תקין. המתינו לקוד הבא ונסו שוב.');
+    } finally {
+      this.isLoading.set(false);
+    }
+  }
+
+  cancelMfaChallenge(): void {
+    this.clearMfaChallenge();
+    void this.afAuth.signOut();
+  }
+
+  private beginMfaChallenge(error: unknown, firstFactor: 'password' | 'google'): boolean {
+    if (!this.mfa.isChallengeError(error)) return false;
+    try {
+      this.mfaResolver = this.mfa.resolverFrom(error);
+      this.mfaFirstFactor = firstFactor;
+      this.mfaCode = '';
+      this.mfaError.set(null);
+      this.mfaChallenge.set(true);
+      return true;
+    } catch (resolverError) {
+      console.error('Unable to initialize MFA challenge', resolverError);
+      return false;
+    }
+  }
+
+  private clearMfaChallenge(): void {
+    this.mfaChallenge.set(false);
+    this.mfaResolver = null;
+    this.mfaFirstFactor = null;
+    this.mfaCode = '';
+    this.mfaError.set(null);
+  }
+
+  private async finishPasswordLogin(): Promise<void> {
+    if (await this.routeToEnrollmentWhenRequired()) return;
+    await this.authService.waitForAuthenticatedUser();
+    const userData: any = await firstValueFrom(this.authService.signIn(true));
+    this.authService.storeUserData(userData);
+    await this.genericService.loadBusinessesFromServer();
+    await this.enterApp();
+  }
+
+  private async finishGoogleLogin(): Promise<void> {
+    if (await this.routeToEnrollmentWhenRequired()) return;
+    const { isNewUser, userData } =
+      await this.authService.completeGoogleSignInForCurrentUser();
+    if (isNewUser) {
+      await this.afAuth.signOut();
+      this.messageService.add({
+        severity: 'warn',
+        summary: 'משתמש לא רשום',
+        detail: 'אין חשבון רשום עם כתובת האימייל הזו. יש להירשם תחילה.',
+        sticky: true,
+        key: 'br',
+      });
+      return;
+    }
+    await this.authService.waitForAuthenticatedUser();
+    this.authService.storeUserData(userData);
+    await this.genericService.loadBusinessesFromServer();
+    await this.enterApp();
+  }
+
+  private async routeToEnrollmentWhenRequired(): Promise<boolean> {
+    if (!environment.requireMfa) return false;
+    const state = await this.mfa.sessionState();
+    if (state === 'NOT_ENROLLED') {
+      await this.router.navigateByUrl('/mfa/setup');
+      return true;
+    }
+    if (state !== 'VERIFIED') {
+      throw new Error('Second-factor proof is missing from the Firebase session');
+    }
+    return false;
   }
 
   navigateToRegister(): void {

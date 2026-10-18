@@ -53,6 +53,10 @@ export class BusinessService {
     return await this.businessRepo.findOne({ where });
   }
 
+  async getBusinessById(id: number): Promise<Business | null> {
+    return this.businessRepo.findOne({ where: { id } });
+  }
+
   async updateBusiness(
     firebaseId: string,
     dto: { id?: number; businessNumber?: string; advanceTaxPercent?: number; businessName?: string; businessAddress?: string; businessPhone?: string; businessEmail?: string; businessType?: string; businessField?: string; vatReportingType?: string; taxReportingType?: string; nationalInsRequired?: boolean },

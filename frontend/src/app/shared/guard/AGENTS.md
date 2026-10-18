@@ -6,6 +6,10 @@ entitlements, referral consent, offline navigation and view-only delegation.
 ## Key entities/files
 
 - `auth.guard.ts` and `login-page.guard.ts` handle auth entry.
+- `auth.guard.ts`, `login-page.guard.ts` and `startup-redirect.guard.ts` share
+  the MFA state rules. When `environment.requireMfa=true`, unenrolled users go
+  to `/mfa/setup`, sessions awaiting a second factor stay on `/login`, and only
+  sessions whose ID token contains second-factor proof enter protected routes.
 - `admin-route.guard.ts` keeps non-admin profiles out of `/admin-panel`; backend
   `AdminGuard` remains the authoritative security boundary.
 - `startup-redirect.guard.ts` resolves the post-login destination.
@@ -18,6 +22,10 @@ entitlements, referral consent, offline navigation and view-only delegation.
 
 - Keep redirect decisions deterministic and reuse the shared authenticated
   default route.
+- The app-shell `canActivateChild` includes `AuthGuard`, so legacy child routes
+  that omitted a route-local auth guard are still covered by the global MFA
+  gate. Public registration, login, MFA setup and SHAAM callback routes remain
+  outside that shell.
 - UI guards improve navigation but never replace backend authorization.
 - View-as document creation is allowed only for a real `ADMIN` operating a
   backend-verified demo profile (`isDemo=true`); admins on real clients and
