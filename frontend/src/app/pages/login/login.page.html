@@ -31,23 +31,37 @@
 <div class="custom-modal-backdrop" (click)="cancelMfaChallenge()">
   <div class="custom-modal mfa-challenge" dir="rtl" (click)="$event.stopPropagation()">
     <h2>אימות דו־שלבי</h2>
-    <p>הזינו את הקוד בן 6 הספרות מאפליקציית ה־Authenticator.</p>
-    <input
-      class="input-field"
-      type="text"
-      inputmode="numeric"
-      autocomplete="one-time-code"
-      maxlength="6"
-      [(ngModel)]="mfaCode"
-      (keyup.enter)="verifyMfaCode()"
-    />
+    @if (!mfaSmsSent()) {
+      <p>נשלח קוד חד־פעמי למספר {{ mfaMaskedPhone() }}.</p>
+      <button
+        id="login-mfa-send-button"
+        type="button"
+        class="mfa-primary mfa-send"
+        [disabled]="isLoading()"
+        (click)="sendMfaSmsCode()"
+      >{{ isLoading() ? 'שולח...' : 'שליחת קוד ב־SMS' }}</button>
+    } @else {
+      <p>הקוד נשלח למספר {{ mfaMaskedPhone() }}.</p>
+      <input
+        class="input-field"
+        type="text"
+        inputmode="numeric"
+        autocomplete="one-time-code"
+        maxlength="6"
+        [(ngModel)]="mfaCode"
+        (keyup.enter)="verifyMfaCode()"
+      />
+    }
+    <div id="login-mfa-recaptcha" aria-hidden="true"></div>
     @if (mfaError()) {
       <p class="text-error" role="alert">{{ mfaError() }}</p>
     }
     <div class="mfa-actions">
+      @if (mfaSmsSent()) {
       <button type="button" class="mfa-primary" [disabled]="isLoading() || !mfaCode.match('^\\d{6}$')" (click)="verifyMfaCode()">
         {{ isLoading() ? 'מאמת...' : 'אימות וכניסה' }}
       </button>
+      }
       <button type="button" class="mfa-secondary" (click)="cancelMfaChallenge()">ביטול</button>
     </div>
   </div>

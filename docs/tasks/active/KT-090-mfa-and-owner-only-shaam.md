@@ -1,5 +1,8 @@
 # KT-090 - Mandatory MFA and owner-only SHAAM operations
 
+> Superseded before deployment: KT-091 replaces the TOTP user flow with SMS
+> MFA. The backend second-factor claim enforcement and SHAAM policy remain.
+
 - Status: `WORKER_COMPLETE`
 - Task manager: Codex
 - Worker: Codex (single-agent execution)

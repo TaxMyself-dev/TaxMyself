@@ -6,9 +6,11 @@ import {
   multiFactor,
   MultiFactorError,
   MultiFactorResolver,
+  PhoneAuthProvider,
+  PhoneMultiFactorInfo,
+  PhoneMultiFactorGenerator,
+  RecaptchaVerifier,
   signOut,
-  TotpMultiFactorGenerator,
-  TotpSecret,
   UserCredential,
 } from 'firebase/auth';
 
@@ -17,11 +19,6 @@ export type MfaSessionState =
   | 'NOT_ENROLLED'
   | 'VERIFICATION_REQUIRED'
   | 'VERIFIED';
-
-export interface TotpEnrollmentDetails {
-  secret: TotpSecret;
-  secretKey: string;
-}
 
 @Injectable({ providedIn: 'root' })
 export class MfaService {
@@ -39,28 +36,59 @@ export class MfaService {
       : 'VERIFICATION_REQUIRED';
   }
 
-  async beginTotpEnrollment(): Promise<TotpEnrollmentDetails> {
+  createInvisibleRecaptcha(containerId: string): RecaptchaVerifier {
+    const auth = getAuth();
+    auth.languageCode = 'he';
+    return new RecaptchaVerifier(auth, containerId, { size: 'invisible' });
+  }
+
+  normalizePhoneNumber(value: string): string {
+    const compact = value.trim().replace(/[\s()-]/g, '');
+    if (/^05\d{8}$/.test(compact)) {
+      return `+972${compact.slice(1)}`;
+    }
+    if (/^9725\d{8}$/.test(compact)) {
+      return `+${compact}`;
+    }
+    if (/^\+[1-9]\d{7,14}$/.test(compact)) {
+      return compact;
+    }
+    throw new Error('Invalid E.164 phone number');
+  }
+
+  async sendEnrollmentSms(
+    phoneNumber: string,
+    verifier: RecaptchaVerifier,
+  ): Promise<string> {
     const user = getAuth().currentUser;
     if (!user) throw new Error('MFA enrollment requires an authenticated user');
     if (!user.emailVerified) throw new Error('MFA enrollment requires a verified email');
 
     const session = await multiFactor(user).getSession();
-    const secret = await TotpMultiFactorGenerator.generateSecret(session);
-    return {
-      secret,
-      secretKey: secret.secretKey,
-    };
+    return new PhoneAuthProvider(getAuth()).verifyPhoneNumber(
+      {
+        phoneNumber: this.normalizePhoneNumber(phoneNumber),
+        session,
+      },
+      verifier,
+    );
   }
 
-  async completeTotpEnrollment(secret: TotpSecret, code: string): Promise<void> {
+  async completeSmsEnrollment(
+    verificationId: string,
+    code: string,
+  ): Promise<void> {
     const user = getAuth().currentUser;
     if (!user) throw new Error('MFA enrollment requires an authenticated user');
 
-    const assertion = TotpMultiFactorGenerator.assertionForEnrollment(
-      secret,
+    const credential = PhoneAuthProvider.credential(
+      verificationId,
       code.trim(),
     );
-    await multiFactor(user).enroll(assertion, 'Keepintax Authenticator');
+    await multiFactor(user).enroll(
+      PhoneMultiFactorGenerator.assertion(credential),
+      'Keepintax SMS',
+    );
 
     // The first-factor-only session that performed enrollment is not accepted
     // by the backend. A fresh sign-in proves both factors and receives the
@@ -72,17 +100,39 @@ export class MfaService {
     return getMultiFactorResolver(getAuth(), error as MultiFactorError);
   }
 
-  async resolveTotpSignIn(
+  maskedPhoneNumber(resolver: MultiFactorResolver): string | null {
+    const hint = resolver.hints.find(
+      item => item.factorId === PhoneMultiFactorGenerator.FACTOR_ID,
+    ) as PhoneMultiFactorInfo | undefined;
+    return hint?.phoneNumber ?? null;
+  }
+
+  async sendSignInSms(
     resolver: MultiFactorResolver,
+    verifier: RecaptchaVerifier,
+  ): Promise<string> {
+    const hint = resolver.hints.find(
+      item => item.factorId === PhoneMultiFactorGenerator.FACTOR_ID,
+    );
+    if (!hint) throw new Error('No enrolled SMS factor is available');
+
+    return new PhoneAuthProvider(getAuth()).verifyPhoneNumber(
+      {
+        multiFactorHint: hint,
+        session: resolver.session,
+      },
+      verifier,
+    );
+  }
+
+  async resolveSmsSignIn(
+    resolver: MultiFactorResolver,
+    verificationId: string,
     code: string,
   ): Promise<UserCredential> {
-    const hint = resolver.hints.find(
-      item => item.factorId === TotpMultiFactorGenerator.FACTOR_ID,
-    );
-    if (!hint) throw new Error('No enrolled TOTP factor is available');
-
+    const credential = PhoneAuthProvider.credential(verificationId, code.trim());
     return resolver.resolveSignIn(
-      TotpMultiFactorGenerator.assertionForSignIn(hint.uid, code.trim()),
+      PhoneMultiFactorGenerator.assertion(credential),
     );
   }
 

@@ -19,6 +19,7 @@ import {
   getAuth,
   GoogleAuthProvider,
   MultiFactorResolver,
+  RecaptchaVerifier,
   signInWithEmailAndPassword,
   signInWithPopup,
 } from 'firebase/auth';
@@ -54,9 +55,13 @@ export class LoginPage implements OnInit {
   showModal = signal<boolean>(false);
   resendCountdown = signal(0);
   mfaChallenge = signal(false);
+  mfaSmsSent = signal(false);
+  mfaMaskedPhone = signal('');
   mfaError = signal<string | null>(null);
   mfaCode = '';
   private mfaResolver: MultiFactorResolver | null = null;
+  private mfaVerificationId: string | null = null;
+  private mfaRecaptcha: RecaptchaVerifier | null = null;
   private mfaFirstFactor: 'password' | 'google' | null = null;
   isVerificationButtonDisabled = computed(() => this.resendCountdown() > 0);
   private destroyRef = inject(DestroyRef);
@@ -89,6 +94,8 @@ export class LoginPage implements OnInit {
         '', [Validators.required, Validators.pattern(/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/)]
       )
     });
+
+    this.destroyRef.onDestroy(() => this.clearMfaRecaptcha());
   }
 
 
@@ -160,7 +167,7 @@ export class LoginPage implements OnInit {
       this.messageService.add({
         severity: 'success',
         summary: 'האימות הדו־שלבי הופעל',
-        detail: 'התחברו מחדש והזינו את הקוד מאפליקציית ה־Authenticator.',
+        detail: 'התחברו מחדש והזינו את הקוד שיישלח אליכם ב־SMS.',
         life: 6000,
         key: 'br',
       });
@@ -370,13 +377,22 @@ export class LoginPage implements OnInit {
   }
 
   async verifyMfaCode(): Promise<void> {
-    if (!this.mfaResolver || !this.mfaFirstFactor || !/^\d{6}$/.test(this.mfaCode.trim())) {
+    if (
+      !this.mfaResolver ||
+      !this.mfaVerificationId ||
+      !this.mfaFirstFactor ||
+      !/^\d{6}$/.test(this.mfaCode.trim())
+    ) {
       return;
     }
     this.isLoading.set(true);
     this.mfaError.set(null);
     try {
-      await this.mfa.resolveTotpSignIn(this.mfaResolver, this.mfaCode);
+      await this.mfa.resolveSmsSignIn(
+        this.mfaResolver,
+        this.mfaVerificationId,
+        this.mfaCode,
+      );
       const firstFactor = this.mfaFirstFactor;
       this.clearMfaChallenge();
       if (firstFactor === 'google') {
@@ -397,12 +413,44 @@ export class LoginPage implements OnInit {
     void this.afAuth.signOut();
   }
 
+  async sendMfaSmsCode(): Promise<void> {
+    if (!this.mfaResolver || this.isLoading()) return;
+    this.isLoading.set(true);
+    this.mfaError.set(null);
+    try {
+      this.clearMfaRecaptcha();
+      this.mfaRecaptcha = this.mfa.createInvisibleRecaptcha('login-mfa-recaptcha');
+      this.mfaVerificationId = await this.mfa.sendSignInSms(
+        this.mfaResolver,
+        this.mfaRecaptcha,
+      );
+      this.mfaSmsSent.set(true);
+    } catch (error: any) {
+      console.error('Unable to send MFA SMS challenge', error);
+      this.mfaError.set(
+        error?.code === 'auth/too-many-requests' || error?.code === 'auth/quota-exceeded'
+          ? 'לא ניתן לשלוח כרגע קוד נוסף. המתינו ונסו שוב.'
+          : 'שליחת קוד האימות נכשלה. נסו שוב.',
+      );
+      this.clearMfaRecaptcha();
+    } finally {
+      this.isLoading.set(false);
+    }
+  }
+
   private beginMfaChallenge(error: unknown, firstFactor: 'password' | 'google'): boolean {
     if (!this.mfa.isChallengeError(error)) return false;
     try {
       this.mfaResolver = this.mfa.resolverFrom(error);
+      const maskedPhone = this.mfa.maskedPhoneNumber(this.mfaResolver);
+      if (!maskedPhone) {
+        throw new Error('No enrolled SMS factor is available');
+      }
       this.mfaFirstFactor = firstFactor;
       this.mfaCode = '';
+      this.mfaVerificationId = null;
+      this.mfaMaskedPhone.set(maskedPhone);
+      this.mfaSmsSent.set(false);
       this.mfaError.set(null);
       this.mfaChallenge.set(true);
       return true;
@@ -413,11 +461,20 @@ export class LoginPage implements OnInit {
   }
 
   private clearMfaChallenge(): void {
+    this.clearMfaRecaptcha();
     this.mfaChallenge.set(false);
+    this.mfaSmsSent.set(false);
+    this.mfaMaskedPhone.set('');
     this.mfaResolver = null;
+    this.mfaVerificationId = null;
     this.mfaFirstFactor = null;
     this.mfaCode = '';
     this.mfaError.set(null);
+  }
+
+  private clearMfaRecaptcha(): void {
+    this.mfaRecaptcha?.clear();
+    this.mfaRecaptcha = null;
   }
 
   private async finishPasswordLogin(): Promise<void> {

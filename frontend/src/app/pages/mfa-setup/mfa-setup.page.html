@@ -1,30 +1,61 @@
 <main class="mfa-page" dir="rtl">
   <section class="mfa-card">
     <h1>אימות דו־שלבי</h1>
-    <p>כדי להגן על המידע הפיננסי, יש לחבר אפליקציית Authenticator לחשבון.</p>
+    <p>כדי להגן על המידע הפיננסי, נשלח קוד חד־פעמי לטלפון בכל התחברות.</p>
 
     @if (loading()) {
       <ion-spinner name="crescent" aria-label="טוען"></ion-spinner>
-    } @else if (secretKey()) {
-      <ol>
-        <li>פתחו Google Authenticator, Microsoft Authenticator או אפליקציה תואמת.</li>
-        <li>הוסיפו חשבון באמצעות המפתח הבא:</li>
-      </ol>
+    } @else {
+      @if (!smsSent()) {
+        <label for="mfa-phone">מספר טלפון נייד</label>
+        <input
+          id="mfa-phone"
+          name="mfa-phone"
+          type="tel"
+          inputmode="tel"
+          autocomplete="tel"
+          placeholder="050-1234567"
+          dir="ltr"
+          [(ngModel)]="phoneNumber"
+        />
 
-      <div class="secret" dir="ltr">{{ secretKey() }}</div>
+        <label class="consent">
+          <input type="checkbox" [(ngModel)]="consent" />
+          <span>אני מאשר/ת לשלוח את מספר הטלפון ל־Firebase/Google לצורך אימות ואבטחה ולקבל הודעות SMS.</span>
+        </label>
 
-      <label for="mfa-code">הזינו את הקוד בן 6 הספרות</label>
-      <input
-        id="mfa-code"
-        name="mfa-code"
-        inputmode="numeric"
-        autocomplete="one-time-code"
-        maxlength="6"
-        [(ngModel)]="code"
-      />
-      <button type="button" [disabled]="submitting() || !code.match('^\\d{6}$')" (click)="completeEnrollment()">
-        {{ submitting() ? 'מאמת...' : 'הפעלת אימות דו־שלבי' }}
-      </button>
+        <button
+          id="mfa-enrollment-send-button"
+          type="button"
+          [disabled]="sending() || !consent || !phoneNumber.trim()"
+          (click)="sendCode()"
+        >
+          {{ sending() ? 'שולח קוד...' : 'שליחת קוד ב־SMS' }}
+        </button>
+      } @else {
+        <p>הקוד נשלח למספר המסתיים ב־{{ maskedPhone() }}.</p>
+        <label for="mfa-code">הזינו את הקוד בן 6 הספרות</label>
+        <input
+          id="mfa-code"
+          name="mfa-code"
+          class="code-input"
+          inputmode="numeric"
+          autocomplete="one-time-code"
+          maxlength="6"
+          [(ngModel)]="code"
+        />
+        <button type="button" [disabled]="submitting() || !code.match('^\\d{6}$')" (click)="completeEnrollment()">
+          {{ submitting() ? 'מאמת...' : 'הפעלת אימות דו־שלבי' }}
+        </button>
+        <button
+          id="mfa-enrollment-resend-button"
+          class="secondary"
+          type="button"
+          [disabled]="sending()"
+          (click)="sendCode()"
+        >שליחת קוד חדש</button>
+      }
+      <div id="mfa-enrollment-recaptcha" aria-hidden="true"></div>
     }
 
     @if (error()) {

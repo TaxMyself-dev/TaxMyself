@@ -364,6 +364,13 @@ input:-webkit-autofill {
   color: #fff;
 }
 
+.mfa-send {
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
 .mfa-secondary {
   border: 1px solid #1a2641;
   background: #fff;
