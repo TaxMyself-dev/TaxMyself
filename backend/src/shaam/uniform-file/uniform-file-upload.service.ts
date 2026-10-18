@@ -235,21 +235,23 @@ export class UniformFileUploadService {
       throw new BadGatewayException('SHAAM did not reserve exactly two uniform files');
     }
 
-    const parsed = data.files.map((file: any) => this.parseUploadLink(file));
-    const iniFiles = parsed.filter((file) => file.kind === 'INI');
-    const bkmFiles = parsed.filter((file) => file.kind === 'BKM');
-    if (iniFiles.length !== 1 || bkmFiles.length !== 1) {
+    const ini = this.parseUploadLink(data.files[0], 'INI');
+    const bkm = this.parseUploadLink(data.files[1], 'BKM');
+    if (ini.fileUniqueId === bkm.fileUniqueId) {
       throw new BadGatewayException('SHAAM returned an invalid uniform-file pair');
     }
 
     return {
       uniqueId: data.uniqueId,
-      ini: iniFiles[0],
-      bkm: bkmFiles[0],
+      ini,
+      bkm,
     };
   }
 
-  private parseUploadLink(file: any): UniformFileUploadLink {
+  private parseUploadLink(
+    file: any,
+    kind: UniformFileKind,
+  ): UniformFileUploadLink {
     if (
       !file ||
       !this.isSafeFileName(file.fileName) ||
@@ -260,16 +262,6 @@ export class UniformFileUploadService {
       Array.isArray(file.headers)
     ) {
       throw new BadGatewayException('SHAAM returned invalid upload-link metadata');
-    }
-
-    const upperName = file.fileName.toUpperCase();
-    const kind: UniformFileKind | null = upperName.startsWith('INI')
-      ? 'INI'
-      : upperName.startsWith('BKM')
-        ? 'BKM'
-        : null;
-    if (!kind) {
-      throw new BadGatewayException('SHAAM returned an unknown uniform-file name');
     }
 
     this.assertGoogleStorageUrl(file.signUrl);

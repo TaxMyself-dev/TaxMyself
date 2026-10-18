@@ -38,7 +38,8 @@ Integrates with the Israel Tax Authority's SHAAM OpenAPI — OAuth2 authorizatio
 The upload client is intentionally not connected to a controller or submission
 state transition directly; only `UniformFileSubmissionService` orchestrates it.
 It validates the exact Tax Authority upload/status URLs,
-classifies the returned INI/BKM links by file name, allows only the documented
+maps the first returned link to INI and the second to BKM as required by the
+official output table, requires distinct per-file identifiers, allows only the documented
 Google resumable headers, rejects non-Google capability URLs/redirects and
 keeps bearer tokens, signed URLs, session locations and upstream bodies out of
 errors. `Uploaded` means processing is pending; a pair is approved only when

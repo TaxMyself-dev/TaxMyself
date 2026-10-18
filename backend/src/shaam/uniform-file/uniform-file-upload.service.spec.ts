@@ -38,15 +38,15 @@ describe('UniformFileUploadService', () => {
       uniqueId: 'pair-123',
       files: [
         {
-          fileName: 'BKMVDATA.TXT',
-          signUrl: 'https://storage.googleapis.com/bucket/bkm?signed=1',
-          fileUniqueId: 'bkm-id',
+          fileName: 'sandbox-file-one.txt',
+          signUrl: 'https://storage.googleapis.com/bucket/ini?signed=1',
+          fileUniqueId: 'ini-id',
           headers: storageHeaders,
         },
         {
-          fileName: 'INI.TXT',
-          signUrl: 'https://storage.googleapis.com/bucket/ini?signed=1',
-          fileUniqueId: 'ini-id',
+          fileName: 'sandbox-file-two.txt',
+          signUrl: 'https://storage.googleapis.com/bucket/bkm?signed=1',
+          fileUniqueId: 'bkm-id',
           headers: storageHeaders,
         },
       ],
@@ -64,7 +64,7 @@ describe('UniformFileUploadService', () => {
     };
   }
 
-  it('reserves and classifies the INI/BKM links by name instead of array order', async () => {
+  it('maps the first link to INI and the second to BKM regardless of filename', async () => {
     const { service, httpService } = setup();
     httpService.post.mockReturnValue(of({ status: 200, data: reservationBody }));
 
@@ -76,8 +76,8 @@ describe('UniformFileUploadService', () => {
       }),
     ).resolves.toMatchObject({
       uniqueId: 'pair-123',
-      ini: { kind: 'INI', fileName: 'INI.TXT', fileUniqueId: 'ini-id' },
-      bkm: { kind: 'BKM', fileName: 'BKMVDATA.TXT', fileUniqueId: 'bkm-id' },
+      ini: { kind: 'INI', fileName: 'sandbox-file-one.txt', fileUniqueId: 'ini-id' },
+      bkm: { kind: 'BKM', fileName: 'sandbox-file-two.txt', fileUniqueId: 'bkm-id' },
     });
 
     const [url, body, options] = httpService.post.mock.calls[0];
