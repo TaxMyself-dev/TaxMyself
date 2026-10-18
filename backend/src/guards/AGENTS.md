@@ -26,6 +26,10 @@ Backend authentication and role/access guards shared by protected controllers.
 - Legacy operational/provider triggers shown inside the admin panel must use
   both `FirebaseAuthGuard` and `AdminGuard`; a hidden menu or frontend guard is
   never sufficient authorization.
+- Authentication, MFA and delegation denials emit bounded `security_event`
+  logs for Cloud Monitoring. These records may contain only the event name,
+  HTTP method, query-free path and required scope; never log bearer tokens,
+  Firebase IDs, business identifiers, headers or request bodies.
 
 ## Related topics
 

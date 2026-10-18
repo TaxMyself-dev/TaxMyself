@@ -60,7 +60,7 @@ export class ShaamSecureController {
     @Req() request: any,
     @Body() body: { businessNumber: string; product: ShaamProduct },
   ): Promise<{ url: string }> {
-    this.assertOwnerOnlyShaamOperation(request);
+    this.assertOwnerOnlyShaamOperation(request, 'oauth_authorize');
     const business = await this.resolveBusiness(request, body.businessNumber);
     if (body.product === ShaamProduct.UNIFORM_FILE && !this.uniformConfig.enabled) {
       throw new ServiceUnavailableException('Uniform-file SHAAM OAuth is disabled');
@@ -88,6 +88,14 @@ export class ShaamSecureController {
     const intent = await this.states.consume(state);
     const business = await this.businessService.getBusinessById(intent.businessId);
     if (!business || business.firebaseId !== intent.actorFirebaseId) {
+      this.logSecurityEvent(
+        'shaam_oauth_callback_owner_mismatch',
+        'ERROR',
+        {
+          product: intent.product,
+          environment: intent.environment,
+        },
+      );
       throw new ForbiddenException('Only the business owner may connect to SHAAM');
     }
     const token =
@@ -117,7 +125,7 @@ export class ShaamSecureController {
     @Query('businessNumber') businessNumber: string,
     @Query('product') product: ShaamProduct,
   ) {
-    this.assertOwnerOnlyShaamOperation(request);
+    this.assertOwnerOnlyShaamOperation(request, 'connection_status');
     const business = await this.resolveBusiness(request, businessNumber);
     return this.connections.status(
       business.id,
@@ -134,7 +142,7 @@ export class ShaamSecureController {
     @Query('businessNumber') businessNumber: string,
     @Body() dto: ShaamDocumentAllocationDto,
   ) {
-    this.assertOwnerOnlyShaamOperation(request);
+    this.assertOwnerOnlyShaamOperation(request, 'invoice_allocation');
     const business = await this.resolveBusiness(request, businessNumber);
     const token = await this.connections.getValidAccessToken(
       business.id,
@@ -166,7 +174,7 @@ export class ShaamSecureController {
     @Query('businessNumber') businessNumber: string,
     @Body() dto: ShaamDocumentAllocationDto,
   ) {
-    this.assertOwnerOnlyShaamOperation(request);
+    this.assertOwnerOnlyShaamOperation(request, 'invoice_allocation_recovery');
     const business = await this.resolveBusiness(request, businessNumber);
     const token = await this.connections.getValidAccessToken(
       business.id,
@@ -227,7 +235,7 @@ export class ShaamSecureController {
     @Param('submissionId', ParseIntPipe) submissionId: number,
     @Query('businessNumber') businessNumber: string,
   ) {
-    this.assertOwnerOnlyShaamOperation(request);
+    this.assertOwnerOnlyShaamOperation(request, 'uniform_file_transfer');
     const business = await this.resolveBusiness(request, businessNumber);
     const token = await this.uniformFileToken(business.id);
     return this.executeWithConnectionState(
@@ -250,7 +258,7 @@ export class ShaamSecureController {
     @Param('submissionId', ParseIntPipe) submissionId: number,
     @Query('businessNumber') businessNumber: string,
   ) {
-    this.assertOwnerOnlyShaamOperation(request);
+    this.assertOwnerOnlyShaamOperation(request, 'uniform_file_poll');
     const business = await this.resolveBusiness(request, businessNumber);
     const token = await this.uniformFileToken(business.id);
     return this.executeWithConnectionState(
@@ -270,6 +278,10 @@ export class ShaamSecureController {
     } catch (error: unknown) {
       if (isShaamAuthorizationRejection(error)) {
         const environment = this.environmentFor(product);
+        this.logSecurityEvent('shaam_connection_reauthorization_required', 'WARNING', {
+          product,
+          environment,
+        });
         try {
           await this.connections.markReauthorizationRequired(
             businessId,
@@ -279,8 +291,9 @@ export class ShaamSecureController {
         } catch (stateError: unknown) {
           this.logger.error(
             JSON.stringify({
-              event: 'shaam_reauthorization_state_update_failed',
-              businessId,
+              event: 'security_event',
+              securityEvent: 'shaam_reauthorization_state_update_failed',
+              severity: 'ERROR',
               product,
               environment,
               errorType:
@@ -323,7 +336,7 @@ export class ShaamSecureController {
     return business;
   }
 
-  private assertOwnerOnlyShaamOperation(request: any): void {
+  private assertOwnerOnlyShaamOperation(request: any, operation: string): void {
     const actorFirebaseId = request.user?.actorFirebaseId;
     const effectiveFirebaseId = request.user?.firebaseId;
     if (
@@ -333,9 +346,32 @@ export class ShaamSecureController {
       request.isDelegatedAccess === true ||
       request.isAdminImpersonation === true
     ) {
+      this.logSecurityEvent('shaam_owner_only_denied', 'ERROR', { operation });
       throw new ForbiddenException(
         'רק בעל העסק רשאי לבצע פעולות מול שע״מ',
       );
+    }
+  }
+
+  /**
+   * Keep these fields intentionally bounded. SHAAM tokens, OAuth codes/state,
+   * Firebase IDs, business IDs/numbers, URLs and upstream bodies are forbidden.
+   */
+  private logSecurityEvent(
+    securityEvent: string,
+    severity: 'WARNING' | 'ERROR',
+    details: Record<string, string>,
+  ): void {
+    const payload = JSON.stringify({
+      event: 'security_event',
+      securityEvent,
+      severity,
+      ...details,
+    });
+    if (severity === 'ERROR') {
+      this.logger.error(payload);
+    } else {
+      this.logger.warn(payload);
     }
   }
 

@@ -52,6 +52,9 @@ describe('ShaamSecureController', () => {
 
   it('blocks a delegated accountant before creating SHAAM OAuth state', async () => {
     const { controller, businessService, states } = setup();
+    const error = jest
+      .spyOn((controller as any).logger, 'error')
+      .mockImplementation(() => undefined);
 
     await expect(
       controller.authorize(delegatedRequest, {
@@ -62,6 +65,15 @@ describe('ShaamSecureController', () => {
 
     expect(businessService.getBusinessByNumber).not.toHaveBeenCalled();
     expect(states.create).not.toHaveBeenCalled();
+    const logged = error.mock.calls[0][0] as string;
+    expect(JSON.parse(logged)).toEqual({
+      event: 'security_event',
+      securityEvent: 'shaam_owner_only_denied',
+      severity: 'ERROR',
+      operation: 'oauth_authorize',
+    });
+    expect(logged).not.toContain('accountant');
+    expect(logged).not.toContain('222222226');
   });
 
   it('blocks an admin impersonating a client before creating SHAAM OAuth state', async () => {
@@ -89,6 +101,9 @@ describe('ShaamSecureController', () => {
 
   it('rejects an OAuth callback whose recorded actor is not the business owner', async () => {
     const { controller, states, connections } = setup();
+    const error = jest
+      .spyOn((controller as any).logger, 'error')
+      .mockImplementation(() => undefined);
     states.consume.mockResolvedValue({
       businessId: 7,
       actorFirebaseId: 'accountant',
@@ -103,6 +118,15 @@ describe('ShaamSecureController', () => {
 
     expect(connections.saveToken).not.toHaveBeenCalled();
     expect(response.redirect).not.toHaveBeenCalled();
+    const logged = error.mock.calls[0][0] as string;
+    expect(JSON.parse(logged)).toEqual({
+      event: 'security_event',
+      securityEvent: 'shaam_oauth_callback_owner_mismatch',
+      severity: 'ERROR',
+      product: ShaamProduct.INVOICE_ALLOCATION,
+      environment: ShaamEnvironment.TSANDBOX,
+    });
+    expect(logged).not.toContain('accountant');
   });
 
   it('does not create state while uniform-file OAuth is disabled', async () => {

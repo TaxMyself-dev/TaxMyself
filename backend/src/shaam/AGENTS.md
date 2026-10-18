@@ -74,6 +74,11 @@ An unknown file-status value fails closed and emits a separate bounded
 alphanumeric operational status token plus its type, length and `isFound` flag;
 it must never include file names/identifiers, descriptions, errors, tokens,
 URLs or the upstream response body.
+Owner-only denials, OAuth callback owner mismatches, rejected upstream tokens
+and failures to persist reauthorization state emit bounded `security_event`
+records for Cloud Monitoring. These events contain only a fixed operation,
+product/environment and error type where applicable; they must never contain
+business/user identifiers, OAuth state/codes, tokens, URLs or upstream bodies.
 The live tsandbox status fixture returns the undocumented value
 `Mocked Status` with `isFound: true`. Only in tsandbox, normalize that value to
 `Uploaded`: it proves the mock endpoint found the uploaded identifier but does

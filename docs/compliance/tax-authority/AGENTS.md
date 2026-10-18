@@ -17,6 +17,8 @@ registration. It is engineering evidence, not legal or accounting advice.
 - `shaam-reconciliation.md` — reconciliation with the earlier SHAAM audit.
 - `shaam-security-incident-runbook.md` — 72-hour SHAAM incident response,
   containment, evidence preservation, reporting template and temporary-risk record.
+- `shaam-security-monitoring.md` — application security-event catalog and the
+  Cloud Logging/Monitoring alerts that must route to the incident contacts.
 
 ## Main flow
 

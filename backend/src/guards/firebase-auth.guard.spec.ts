@@ -125,10 +125,48 @@ describe('FirebaseAuthGuard', () => {
   it('delegation lookup filters status = ACTIVE (revoked → 403)', async () => {
     // repo returns null because the where-clause includes ACTIVE
     const { context } = makeContext('GET');
+    const warn = jest
+      .spyOn((guard as any).logger, 'warn')
+      .mockImplementation(() => undefined);
     await expect(guard.canActivate(context)).rejects.toThrow(ForbiddenException);
     expect(delegationRepo.findOne).toHaveBeenCalledWith({
       where: { userId: CLIENT, agentId: AGENT, status: DelegationStatus.ACTIVE },
     });
+    const logged = warn.mock.calls[0][0] as string;
+    expect(JSON.parse(logged)).toEqual(
+      expect.objectContaining({
+        event: 'security_event',
+        securityEvent: 'authorization_delegation_denied',
+        method: 'GET',
+      }),
+    );
+    expect(logged).not.toContain(AGENT);
+    expect(logged).not.toContain(CLIENT);
+  });
+
+  it('logs an invalid Firebase token without logging the token or identity headers', async () => {
+    jest.spyOn(admin, 'auth').mockReturnValue({
+      verifyIdToken: jest.fn().mockRejectedValue(new Error('verification failed')),
+    } as any);
+    const warn = jest
+      .spyOn((guard as any).logger, 'warn')
+      .mockImplementation(() => undefined);
+    const { context } = makeContext('GET', false);
+
+    await expect(guard.canActivate(context)).rejects.toThrow(
+      'Invalid authorization token',
+    );
+
+    const logged = warn.mock.calls[0][0] as string;
+    expect(JSON.parse(logged)).toEqual(
+      expect.objectContaining({
+        event: 'security_event',
+        securityEvent: 'auth_invalid_firebase_token',
+        method: 'GET',
+      }),
+    );
+    expect(logged).not.toContain('fake-token');
+    expect(logged).not.toContain('123456789');
   });
 
   it('ACTIVE read-only + GET → passes, identity swapped, actor preserved', async () => {

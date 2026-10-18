@@ -41,6 +41,7 @@ export class FirebaseAuthGuard implements CanActivate {
     // ✅ Extract the token from Authorization header
     const authHeader = request.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      this.logSecurityEvent('auth_missing_bearer_token', request);
       throw new UnauthorizedException('No valid authorization token provided');
     }
 
@@ -49,8 +50,9 @@ export class FirebaseAuthGuard implements CanActivate {
     const token = authHeader.split(' ')[1]; // ✅ Extract only the token part
 
     // ✅ Validate the accountant's token and get Firebase UID
-    const decodedToken = await this.validateToken(token);
+    const decodedToken = await this.validateToken(token, request);
     if (this.isMfaEnforcementEnabled() && !decodedToken.firebase?.sign_in_second_factor) {
+      this.logSecurityEvent('auth_mfa_required_denied', request);
       throw new ForbiddenException({
         statusCode: 403,
         code: 'MFA_REQUIRED',
@@ -95,13 +97,16 @@ export class FirebaseAuthGuard implements CanActivate {
           context.getHandler(),
         ) ?? false;
         if (!allowedSelfServiceOperation && await this.hasActiveAccountantDelegation(authenticatedFirebaseId)) {
+          this.logSecurityEvent(
+            'authorization_represented_client_approval_denied',
+            request,
+            { requiredScope },
+          );
           throw new ForbiddenException('הפעולה דורשת אישור של רואה החשבון המייצג');
         }
       }
       return true;
     }
-
-    const maskedClient = clientUserId?.length >= 8 ? clientUserId.substring(0, 8) + '...' : '?';
 
     // ✅ Admin bypass — admins can act on behalf of any user (e.g., entering a
     // demo user from the admin panel) without needing an explicit delegation row.
@@ -126,6 +131,9 @@ export class FirebaseAuthGuard implements CanActivate {
     });
 
     if (!hasPermission) {
+      this.logSecurityEvent('authorization_delegation_denied', request, {
+        requiredScope: requiredScope ?? null,
+      });
       throw new ForbiddenException(
         'You do not have permission to access this user’s data',
       );
@@ -146,6 +154,9 @@ export class FirebaseAuthGuard implements CanActivate {
     // matching the historical GET behavior. Only DOCUMENTS_WRITE and
     // EXPENSES_APPROVE actually gate on scope presence.
     if (effectiveScope !== DelegationScope.DOCUMENTS_READ && !scopes.includes(effectiveScope)) {
+      this.logSecurityEvent('authorization_delegation_scope_denied', request, {
+        requiredScope: effectiveScope,
+      });
       throw new ForbiddenException(this.scopeErrorMessage(effectiveScope));
     }
 
@@ -157,7 +168,6 @@ export class FirebaseAuthGuard implements CanActivate {
     // impersonation flag above. Both authorize a billing override, while the
     // distinction remains visible to downstream policy and the frontend.
     request.isDelegatedAccess = true;
-    this.logger.log(`Acting as client, firebaseId=${maskedClient}`);
 
     return true;
   }
@@ -175,12 +185,39 @@ export class FirebaseAuthGuard implements CanActivate {
     return false;
   }
 
-  private async validateToken(token: string): Promise<admin.auth.DecodedIdToken> {
+  private async validateToken(
+    token: string,
+    request: AuthenticatedRequest,
+  ): Promise<admin.auth.DecodedIdToken> {
     try {
       return await admin.auth().verifyIdToken(token);
     } catch (error) {
+      this.logSecurityEvent('auth_invalid_firebase_token', request);
       throw new UnauthorizedException('Invalid authorization token');
     }
+  }
+
+  /**
+   * Emits only bounded operational metadata. Never add token values, Firebase
+   * IDs, business numbers, headers, query strings or request bodies here.
+   */
+  private logSecurityEvent(
+    securityEvent: string,
+    request: AuthenticatedRequest,
+    details: Record<string, string | null> = {},
+  ): void {
+    const rawPath = (request as any).path ?? (request as any).url ?? '';
+    const path = String(rawPath).split(/[?#]/, 1)[0];
+    this.logger.warn(
+      JSON.stringify({
+        event: 'security_event',
+        securityEvent,
+        severity: 'WARNING',
+        method: request.method,
+        path,
+        ...details,
+      }),
+    );
   }
 
   private isMfaEnforcementEnabled(): boolean {
