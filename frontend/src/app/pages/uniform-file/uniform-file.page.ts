@@ -354,6 +354,11 @@ export class UniformFilePage implements OnInit {
   }
 
   shaamStateLabel(state: string): string {
+    if (state === 'RETRYABLE_FAILURE') {
+      return this.shaamConnected
+        ? 'מוכן לניסיון נוסף'
+        : 'נדרשת התחברות לשע״מ';
+    }
     const labels: Record<string, string> = {
       GENERATED: 'מוכן לשליחה',
       AUTH_REQUIRED: 'נדרש חיבור לשע״מ',
@@ -363,10 +368,25 @@ export class UniformFilePage implements OnInit {
       PROCESSING: 'ממתין לעיבוד בשע״מ',
       APPROVED: 'אושר בשע״מ',
       REJECTED: 'נדחה בשע״מ',
-      RETRYABLE_FAILURE: 'השליחה נכשלה',
       UNKNOWN_OUTCOME: 'תוצאת השליחה אינה ידועה',
     };
     return labels[state] ?? state;
+  }
+
+  shaamErrorLabel(): string | null {
+    if (!this.shaamSubmission?.errorMessage) return null;
+    if (this.shaamSubmission.state === 'RETRYABLE_FAILURE') {
+      return this.shaamConnected
+        ? null
+        : 'ניסיון השליחה הקודם נכשל. יש להתחבר לשע״מ ולנסות שוב.';
+    }
+    const labels: Record<string, string> = {
+      'SHAAM outcome is unknown; poll before retrying':
+        'תוצאת השליחה עדיין אינה ידועה. יש לעדכן סטטוס לפני ניסיון נוסף.',
+      'SHAAM transfer failed': 'ניסיון השליחה לשע״מ נכשל.',
+    };
+    return labels[this.shaamSubmission.errorMessage]
+      ?? 'אירעה שגיאה בתהליך השליחה לשע״מ.';
   }
 
   canPollShaam(): boolean {

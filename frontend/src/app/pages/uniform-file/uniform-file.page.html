@@ -58,8 +58,8 @@
             <span>BKM: {{ shaamSubmission.bkmStatus || 'טרם התקבל סטטוס' }}</span>
           </div>
 
-          @if (shaamSubmission.errorMessage) {
-            <p class="shaam-error">{{ shaamSubmission.errorMessage }}</p>
+          @if (shaamErrorLabel(); as errorLabel) {
+            <p class="shaam-error">{{ errorLabel }}</p>
           }
 
           <div class="shaam-actions">
