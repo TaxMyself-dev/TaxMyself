@@ -15,6 +15,8 @@ registration. It is engineering evidence, not legal or accounting advice.
 - `gaps-and-roadmap.md` — prioritized gaps and approval gates.
 - `testing-and-certification.md` — verification and official-registration path.
 - `shaam-reconciliation.md` — reconciliation with the earlier SHAAM audit.
+- `shaam-security-incident-runbook.md` — 72-hour SHAAM incident response,
+  containment, evidence preservation, reporting template and temporary-risk record.
 
 ## Main flow
 

@@ -25,8 +25,10 @@
    נדרשת מטריצת authorization ו-negative tests לכל business/actor.
 6. **Applicability ורישום.** לקבל חוות דעת אם המוצר חייב ברישום לפי הוראות
    ניהול פנקסים. אם כן, אין להצהיר ציות לפני רישום, סימולטור ותיק הראיות.
-7. **תגובה לאירועי SHAAM.** לקבוע owner, 72-hour reporting workflow,
-   annual review, PT applicability/remediation ושרשרת ראיה.
+7. **תגובה לאירועי SHAAM.** [נוהל תגובה](shaam-security-incident-runbook.md)
+   מגדיר owner, שעון דיווח של 72 שעות, בידוד, שרשרת ראיות ותבנית דיווח.
+   עדיין יש להשלים איש קשר רשמי מתוך ההסכם, reviewer פרטיות/משפטי, תרגיל
+   שנתי ו-PT applicability/remediation.
 
 ## P1 — התאמה פונקציונלית וקבלה
 
