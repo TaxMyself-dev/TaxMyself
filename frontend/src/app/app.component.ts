@@ -1,4 +1,4 @@
-import { Component, computed, effect, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, effect, inject, OnInit, signal, untracked } from '@angular/core';
 import { ActivatedRoute, Router, NavigationEnd, NavigationError } from '@angular/router';
 import { IColumnDataTable, IRowDataTable, IUserData } from './shared/interface';
 import { Location } from '@angular/common';
@@ -190,7 +190,11 @@ export class AppComponent implements OnInit {
       if (reconnectedAt === 0) {
         return; // Initial value — no outage has ended yet.
       }
-      void this.appRefresh.refreshSharedState();
+      // refreshSharedState() synchronously reads billing/loading signals before
+      // its first await. Without this boundary those signals become dependencies
+      // of this effect, and each response can start another billing/business
+      // refresh loop. Reconnect time is the only intended dependency.
+      untracked(() => void this.appRefresh.refreshSharedState());
     });
   }
 
