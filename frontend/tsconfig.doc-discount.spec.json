@@ -1,0 +1,5 @@
+{
+  "extends": "./tsconfig.spec.json",
+  "compilerOptions": { "skipLibCheck": true, "types": ["jasmine", "node"] },
+  "include": ["src/app/pages/doc-create/doc-create-discount-audit.spec.ts", "src/**/*.d.ts"]
+}

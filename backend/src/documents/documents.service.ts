@@ -1,3 +1,4 @@
+import { createPdfTimings, measurePdfStage } from './pdf/pdf-diagnostics';
 import { forwardRef, Inject, Injectable, HttpException, HttpStatus, Logger, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, Repository, In, Not, IsNull } from 'typeorm';
@@ -604,7 +605,7 @@ export class DocumentsService {
   }
 
 
-  private async generateLocalPdf(data: any, preview: boolean, isCopy: boolean): Promise<Buffer> {
+  private async preparePdfModel(data: any, preview: boolean, isCopy: boolean): Promise<DocumentPdfModel> {
     const doc = data.docData;
     const names: Partial<Record<DocumentType, string>> = {
       [DocumentType.RECEIPT]: 'קבלה', [DocumentType.TAX_INVOICE]: 'חשבונית מס',
@@ -616,7 +617,7 @@ export class DocumentsService {
     // documents. Already-issued PDFs are served from their existing stored files.
     // System billing receipts explicitly provide their company identity instead.
     const business = doc.issuerIdentitySource === 'system' ? null
-      : await this.businessService.getBusinessByNumber(doc.issuerBusinessNumber);
+      : await measurePdfStage('BUSINESS_LOOKUP', () => this.businessService.getBusinessByNumber(doc.issuerBusinessNumber));
     const identity = business ? {
       issuerName: business.businessName,
       issuerAddress: business.businessAddress,
@@ -626,7 +627,7 @@ export class DocumentsService {
     } : { ...doc, logoPath: null };
     let logoDataUri: string;
     if (identity.logoPath) {
-      const logo = await this.imageStorage.download(identity.logoPath);
+      const logo = await measurePdfStage('LOGO_DOWNLOAD', () => this.imageStorage.download(identity.logoPath));
       logoDataUri = `data:${logo.contentType};base64,${logo.buffer.toString('base64')}`;
     }
     const summary = await this.transformSumsToSumTable(doc, doc.issuerBusinessNumber);
@@ -658,7 +659,46 @@ export class DocumentsService {
       payments: await this.transformLinesToPaymentsTable(data.paymentData ?? []),
       paymentTotals: await this.transformPaymentsToSumTable(data.paymentData ?? [], doc),
     };
-    return this.documentPdfRenderer.render(model);
+    return model;
+  }
+
+  private async generateLocalPdf(data: any, preview: boolean, isCopy: boolean): Promise<Buffer> {
+    const model = await this.preparePdfModel(data, preview, isCopy);
+    return measurePdfStage(isCopy ? 'COPY_RENDER' : 'ORIGINAL_RENDER', () => this.documentPdfRenderer.render(model));
+  }
+
+  private async generatePdfPair(data: any): Promise<{ original: Buffer; copy: Buffer }> {
+    const model = await measurePdfStage('SHARED_PREPARE', () => this.preparePdfModel(data, false, false));
+    const originalPdf = await measurePdfStage('ORIGINAL_RENDER', () => this.documentPdfRenderer.render(model));
+    // Only one render at a time. Settle both operations before rollback on either failure.
+    const [original, copyPdf] = await Promise.allSettled([
+      measurePdfStage('ORIGINAL_SIGN', () => this.fillFasterSigner.sign(originalPdf)),
+      measurePdfStage('COPY_RENDER', () => this.documentPdfRenderer.render({ ...model, documentType: 'העתק נאמן למקור' })),
+    ]);
+    if (original.status === 'rejected') throw original.reason;
+    if (copyPdf.status === 'rejected') throw copyPdf.reason;
+    const copy = await measurePdfStage('COPY_SIGN', () => this.fillFasterSigner.sign(copyPdf.value));
+    return { original: original.value, copy };
+  }
+
+  private async uploadPdfPair(data: any, original: Buffer, copy: Buffer): Promise<[string, string]> {
+    const outcomes = await Promise.allSettled([
+      measurePdfStage('UPLOAD_ORIGINAL', () => this.uploadToFirebase(original,
+        data.docData.issuerBusinessNumber, data.docData.generalDocIndex,
+        data.docData.docType, data.docData.docDescription, 'original')),
+      measurePdfStage('UPLOAD_COPY', () => this.uploadToFirebase(copy,
+        data.docData.issuerBusinessNumber, data.docData.generalDocIndex,
+        data.docData.docType, data.docData.docDescription, 'copy')),
+    ]);
+    const failure = outcomes.find(outcome => outcome.status === 'rejected');
+    if (failure?.status === 'rejected') {
+      // Wait for both uploads, then remove every successful sibling before rollback.
+      // Preserve the triggering error even if cleanup itself fails.
+      await Promise.allSettled(outcomes.filter((outcome): outcome is PromiseFulfilledResult<string> =>
+        outcome.status === 'fulfilled').map(outcome => this.deleteFromFirebase(outcome.value)));
+      throw failure.reason;
+    }
+    return outcomes.map(outcome => (outcome as PromiseFulfilledResult<string>).value) as [string, string];
   }
 
   async generatePDF(data: any, templateType: string, isCopy: boolean = false): Promise<Blob> {
@@ -666,8 +706,8 @@ export class DocumentsService {
       throw new BadRequestException('Unknown document operation');
     }
     const preview = templateType === 'previewDoc';
-    const pdf = await this.generateLocalPdf(data, preview, isCopy);
-    return (preview ? pdf : await this.fillFasterSigner.sign(pdf)) as unknown as Blob;
+    const pdf = await measurePdfStage(isCopy ? 'COPY_PREPARE_RENDER' : 'ORIGINAL_PREPARE_RENDER', () => this.generateLocalPdf(data, preview, isCopy));
+    return (preview ? pdf : await measurePdfStage(isCopy ? 'COPY_SIGN' : 'ORIGINAL_SIGN', () => this.fillFasterSigner.sign(pdf))) as unknown as Blob;
   }
 
   /**
@@ -1072,6 +1112,7 @@ export class DocumentsService {
 
   async createDoc(data: any, userId: string, generatePdf: boolean = true): Promise<any> {
 
+    const pdfTimings = createPdfTimings('pdf_create_stages');
     // Ensure docStatus is not DRAFT when creating actual document
     // Remove any DRAFT status that might have been set from draft restoration
     if (data.docData && data.docData.docStatus === DocumentStatusType.DRAFT) {
@@ -1090,6 +1131,7 @@ export class DocumentsService {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
+    pdfTimings.mark('DB_CONNECT_BEGIN');
 
     try {
 
@@ -1113,6 +1155,7 @@ export class DocumentsService {
       }
 
       console.log(new Date().toLocaleTimeString(), 'Step 1 complete - General index reserved');
+      pdfTimings.mark('RESERVE_GENERAL_INDEX');
 
       // 2. Increment document-specific index
       const docDetails = await this.incrementCurrentIndex(userId, data.docData.issuerBusinessNumber, data.docData.docType, queryRunner.manager, data.docData.docNumber);
@@ -1127,6 +1170,7 @@ export class DocumentsService {
       // is the only safe source of truth for the document being saved.
       data.docData.docNumber = String(docDetails.currentIndex - 1);
       console.log(new Date().toLocaleTimeString(), 'Step 2 complete - Document number reserved');
+      pdfTimings.mark('RESERVE_DOCUMENT_NUMBER');
 
       // A saved OAuth draft may still hold the same peeked document number that
       // was just reserved above. Remove that draft inside this transaction before
@@ -1148,14 +1192,17 @@ export class DocumentsService {
         throw new HttpException('Error in saveDocInfo', HttpStatus.INTERNAL_SERVER_ERROR);
       }
       console.log(new Date().toLocaleTimeString(), "Step 3 complete - Document info saved");
+      pdfTimings.mark('DRAFT_CLEANUP_DOCUMENT_SAVE');
 
       // 4. Save line items (now with the correct incremented generalDocIndex)
       await this.saveLinesInfo(userId, data.linesData, queryRunner.manager);
       console.log(new Date().toLocaleTimeString(), "Step 4 complete - Lines info saved");
+      pdfTimings.mark('LINES_SAVE');
 
       // 5. Save payments (now with the correct incremented generalDocIndex)
       await this.savePaymentsInfo(userId, data.paymentData, queryRunner.manager);
       console.log(new Date().toLocaleTimeString(), "Step 5 complete - Payments info saved");
+      pdfTimings.mark('PAYMENTS_SAVE');
 
       // 6. Bookkeeping entry - only for specific document types
       const docTypesWithJournalEntry = [
@@ -1217,54 +1264,17 @@ export class DocumentsService {
         console.log(new Date().toLocaleTimeString(), "Step 6 skipped - Document type does not require journal entry");
       }
 
+      pdfTimings.mark('JOURNAL');
       // 7. Generate both PDFs (original and copy)
       let originalFilePath: string | null = null;
       let copyFilePath: string | null = null;
 
       if (generatePdf) {
         try {
-          // Generate original PDF (מקור)
-          const originalPdfBlob = await this.generatePDF(data, "createDoc");
-          if (!originalPdfBlob) {
-            throw new Error("Original PDF generation failed");
-          }
-          const originalBuffer = Buffer.from(originalPdfBlob as any);
-
-          // Generate copy PDF (העתק נאמן למקור)
-          const copyData = {
-            ...data,
-            docData: {
-              ...data.docData,
-              // Mark as certified copy
-            }
-          };
-          const copyPdfBlob = await this.generatePDF(copyData, "createDoc", true); // Pass true for copy
-          if (!copyPdfBlob) {
-            throw new Error("Copy PDF generation failed");
-          }
-          const copyBuffer = Buffer.from(copyPdfBlob as any);
-          console.log(new Date().toLocaleTimeString(), "Step 7 complete - PDFs generated");
-
-          // 8. Upload both PDFs to Firebase
-          originalFilePath = await this.uploadToFirebase(
-            originalBuffer,
-            data.docData.issuerBusinessNumber,
-            data.docData.generalDocIndex,
-            data.docData.docType,
-            data.docData.docDescription,
-            'original'
-          );
-          console.log(new Date().toLocaleTimeString(), "Step 8.1 complete - Original PDF uploaded");
-
-          copyFilePath = await this.uploadToFirebase(
-            copyBuffer,
-            data.docData.issuerBusinessNumber,
-            data.docData.generalDocIndex,
-            data.docData.docType,
-            data.docData.docDescription,
-            'copy'
-          );
-          console.log(new Date().toLocaleTimeString(), "Step 8.2 complete - Copy PDF uploaded");
+          const { original: originalBuffer, copy: copyBuffer } = await this.generatePdfPair(data);
+          pdfTimings.mark('SHARED_PREPARE_RENDER_SIGN_PAIR');
+          [originalFilePath, copyFilePath] = await this.uploadPdfPair(data, originalBuffer, copyBuffer);
+          pdfTimings.mark('UPLOAD_PAIR');
 
           // 9. Update document with Firebase paths
           const documentsRepo = queryRunner.manager.getRepository(Documents);
@@ -1272,6 +1282,7 @@ export class DocumentsService {
           newDoc.copyFile = copyFilePath;
           await documentsRepo.save(newDoc);
           console.log(new Date().toLocaleTimeString(), "Step 9 complete - files paths saved to document");
+          pdfTimings.mark('FILE_PATHS_SAVE');
 
           // 10. Update parent document status to CLOSE if this is a closing document (RECEIPT or TAX_INVOICE_RECEIPT) for TRANSACTION_INVOICE
           if (data.docData.parentDocType && data.docData.parentDocNumber) {
@@ -1294,6 +1305,7 @@ export class DocumentsService {
             }
           }
 
+          pdfTimings.mark('PARENT_STATUS_UPDATE');
           // 11. Send email to recipient if requested
           console.log(new Date().toLocaleTimeString(), "Step 11 - Checking email sending conditions:");
           console.log("  - sendEmailToRecipient:", data.docData.sendEmailToRecipient);
@@ -1393,8 +1405,10 @@ ${finalOwnerName}`;
 
       }
 
+      pdfTimings.mark('OPTIONAL_EMAIL');
       // ✅ All good – commit the transaction
       await queryRunner.commitTransaction();
+      pdfTimings.mark('COMMIT');
 
       console.log(`📄 Document created — docType: ${data.docData.docType}`);
 
@@ -1411,13 +1425,17 @@ ${finalOwnerName}`;
 
     } catch (error) {
 
+      pdfTimings.mark('FAILED_STAGE');
       console.error('❌ Error in createDoc transaction:', error);
       // 🔁 Rollback anything saved so far
       await queryRunner.rollbackTransaction();
+      pdfTimings.mark('ROLLBACK');
       throw error;
 
     } finally {
       await queryRunner.release();
+      pdfTimings.mark('RELEASE_OR_ERROR_CLEANUP');
+      pdfTimings.finish();
     }
   }
 

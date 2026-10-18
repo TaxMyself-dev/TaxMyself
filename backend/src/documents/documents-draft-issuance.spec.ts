@@ -50,4 +50,29 @@ describe('DocumentsService draft issuance', () => {
     expect(queryRunner.commitTransaction).toHaveBeenCalledTimes(1);
     expect(queryRunner.rollbackTransaction).not.toHaveBeenCalled();
   });
+  it('rolls back issuance after a partial upload failure and removes the successful file', async () => {
+    const runner = {
+      manager: {}, connect: jest.fn(), startTransaction: jest.fn(),
+      commitTransaction: jest.fn(), rollbackTransaction: jest.fn(), release: jest.fn(),
+    };
+    const service = Object.create(DocumentsService.prototype) as any;
+    service.dataSource = {createQueryRunner: () => runner};
+    service.incrementGeneralIndex = jest.fn().mockResolvedValue({currentIndex: 700002});
+    service.incrementCurrentIndex = jest.fn().mockResolvedValue({currentIndex: 20});
+    service.deleteDraft = jest.fn();
+    service.saveDocInfo = jest.fn().mockResolvedValue({id: 1});
+    service.saveLinesInfo = jest.fn(); service.savePaymentsInfo = jest.fn();
+    service.generatePdfPair = jest.fn().mockResolvedValue({original: Buffer.from('signed-original'), copy: Buffer.from('signed-copy')});
+    service.uploadToFirebase = jest.fn().mockResolvedValueOnce('uploaded-original')
+      .mockRejectedValueOnce(new Error('copy upload failed'));
+    service.deleteFromFirebase = jest.fn().mockResolvedValue(undefined);
+    await expect(service.createDoc({docData: {issuerBusinessNumber: 'test', docType: DocumentType.PRICE_QUOTE},
+      linesData: [], paymentData: []}, 'owner')).rejects.toThrow('copy upload failed');
+    expect(service.deleteFromFirebase).toHaveBeenCalledTimes(1);
+    expect(service.deleteFromFirebase).toHaveBeenCalledWith('uploaded-original');
+    expect(runner.rollbackTransaction).toHaveBeenCalledTimes(1);
+    expect(runner.commitTransaction).not.toHaveBeenCalled();
+    expect(runner.release).toHaveBeenCalledTimes(1);
+  });
+
 });

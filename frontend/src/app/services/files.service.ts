@@ -303,11 +303,12 @@ export class FilesService {
 
 
   previewFile3(blob: Blob, previewWindow?: Window): void {
-      const popup = previewWindow ?? window.open('', '_blank', 'width=800,height=600');
+      const popup = previewWindow ?? window.open('', '_blank');
       if (!popup || popup.closed) return;
       const pdfUrl = URL.createObjectURL(blob);
-      popup.addEventListener('pagehide', () => URL.revokeObjectURL(pdfUrl), { once: true });
+      try {
 
+      popup.document.open();
       popup.document.write(`
       <html dir="rtl">
         <head>
@@ -343,6 +344,11 @@ export class FilesService {
       </html>
     `);
     popup.document.close();
+    popup.addEventListener('pagehide', () => URL.revokeObjectURL(pdfUrl), { once: true });
+      } catch (error) {
+        URL.revokeObjectURL(pdfUrl);
+        throw error;
+      }
   }
 
 

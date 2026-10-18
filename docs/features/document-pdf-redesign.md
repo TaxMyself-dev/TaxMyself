@@ -4,11 +4,20 @@ Approved reference: `receipt-logo-left-spacious.png`, produced in the document r
 
 ## Components and configuration
 
-Local HTML/CSS -> Chromium PDF -> FillFaster digital signature -> existing Firebase original/copy storage lifecycle. Existing document transforms remain the source of monetary values. The new renderer covers receipt, tax invoice, tax invoice-receipt, transaction invoice, credit invoice, quote and work order, with draft watermark, repeat table headings, optional notes/allocation, payment details and footer pagination.
+Cloud Run: backend document model -> private `pdf-service` HTTP renderer -> backend FillFaster digital signature -> existing Firebase original/copy storage lifecycle. Existing document transforms remain the source of monetary values. The renderer covers receipt, tax invoice, tax invoice-receipt, transaction invoice, credit invoice, quote and work order, with draft watermark, repeat table headings, optional notes/allocation, payment details and footer pagination. The service uses Node 22 and the independently tested Puppeteer image; the backend Dockerfile and Node 18 are unchanged. See [service setup and future queue boundaries](../../pdf-service/README.md).
+
+Tables allocate unbroken numeric/date columns their content width, including
+group separators, sign and cents. Headings and summary labels stay on one line;
+description/payment-detail prose may wrap. Summaries expand rightward rather
+than squeezing labels against large amounts. The same template serves local
+development and the standalone service; accounting strings are unchanged.
+Desktop preview opens a normal browser tab instead of a fixed 800x600 popup.
+Deploy the frontend and PDF service to release these display changes; changing
+the backend template source alone does not update a running service image.
 
 Install backend dependencies with npm. Docker installs Chromium; standard Chromium/Chrome/Edge paths are detected automatically. Fonts are bundled and copied by Nest. JavaScript and external/file requests are blocked. Windows and Docker containers launch without the Linux Chromium sandbox.
 
-Only `FILLFASTER_API_TOKEN` must be supplied through secret configuration (see `backend/.env.document-pdf.example`). The verified clean signing template `3IfhJjgmAp` is fixed in code. All previews render locally without signing; all issued documents render locally then go to FillFaster for signing. Legacy template generation and rollout switches have been removed at the user's request.
+Supply `PDF_SERVICE_URL` with the IAM-protected service root URL and grant its invoker role to the backend runtime service account. Cloud Run never falls back to its local browser if rendering fails or this URL is absent. Local development without the URL retains local Chromium rendering. `FILLFASTER_API_TOKEN` remains a backend secret (see `backend/.env.document-pdf.example`); it is never sent to the renderer. The verified clean signing template `3IfhJjgmAp` is fixed in code. Previews remain unsigned and issued documents are signed in the backend. Legacy provider-layout switches remain removed.
 
 ## Persistent image ownership
 
@@ -42,3 +51,5 @@ Standalone sample command: from `backend`, `node -r ts-node/register scripts/ren
 Implementation verification: 35 focused backend PDF/image tests, 30 existing document/business regression tests, 12 focused frontend Chrome tests (including real raster crop/transparent logo preservation), Nest build and Angular production build passed. One legacy UsersService DI smoke test fails unchanged on the recorded base `df7fd270` because its test module omits SharedService; it is not a new regression. Angular build retains existing bundle/style-budget and CommonJS warnings. No broad-suite green claim is made.
 
 Targeted frontend command: `ng test --watch=false --browsers=ChromeHeadless --ts-config=tsconfig.account-images.spec.json --include=src/app/services/account-images.service.spec.ts --include=src/app/components/account-image/account-image.component.spec.ts`. This intentionally isolates feature tests from unrelated legacy specs while production build checks the full application. Windows Codex sandbox verification used an uncommitted native-realpath fallback and workspace temp directories; ordinary host execution should not require that tooling.
+
+Current three-part operator release instructions: [PDF service, backend and frontend](pdf-service-release.md). No discount calculation/display fixes are included.

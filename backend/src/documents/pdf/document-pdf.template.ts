@@ -47,7 +47,10 @@ function table(
   widths: number[],
 ): string {
   return `<table><colgroup>${widths
-    .map((width) => `<col style="width:${width}%">`)
+    // Numeric columns use their unbroken content width; description gets the remainder.
+    .map((width, index) =>
+      index === 0 ? `<col style="width:${width}%">` : '<col>',
+    )
     .join('')}</colgroup>
     <thead><tr>${columns
       .map((column) => `<th>${escapeHtml(column)}</th>`)
@@ -57,10 +60,16 @@ function table(
         (row) =>
           `<tr>${columns
             .map(
-              (column, i) =>
+              (column) =>
                 `<td class="${
-                  i === 0 ? 'description' : 'numeric'
-                }"><bdi>${escapeHtml(row[column])}</bdi></td>`,
+                  column === 'פירוט' || column === 'אמצעי תשלום'
+                    ? 'description'
+                    : 'numeric'
+                }"><bdi dir="${
+                  column === 'פירוט' || column === 'אמצעי תשלום'
+                    ? 'auto'
+                    : 'ltr'
+                }">${escapeHtml(row[column])}</bdi></td>`,
             )
             .join('')}</tr>`,
       )
@@ -87,7 +96,9 @@ export function buildDocumentHtml(
     ...row,
     'סה"כ': row['סכום'],
   }));
-  return `<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><title>${escapeHtml(model.title)}</title>
+  return `<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><title>${escapeHtml(
+    model.title,
+  )}</title>
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; font-src data:; style-src 'unsafe-inline'">
     <style>${fonts}
     *{box-sizing:border-box}html,body{margin:0;padding:0}body{font:12pt Receipt,Arial,sans-serif;color:#1c2230;background:white;line-height:1.5}
@@ -98,12 +109,12 @@ export function buildDocumentHtml(
     .date{color:#59b498;white-space:nowrap;direction:rtl;padding-top:1mm}.title-block{text-align:center;margin:16mm auto 0;break-inside:avoid}
     h1{font-size:25pt;line-height:1.3;margin:0;font-weight:700;overflow-wrap:anywhere}.underline{display:inline-block;border-bottom:1.3pt solid #59b498;padding-bottom:3mm;max-width:100%}
     .subtitle,.note{font-size:12pt;margin-top:3mm;white-space:pre-line;overflow-wrap:anywhere}.allocation{margin-top:5mm;overflow-wrap:anywhere}
-    .items{margin-top:15mm}.payments{margin-top:22mm}.section-title{font-size:12pt;margin-bottom:3mm;text-align:right}
-    table{width:100%;border:1pt solid #777;border-radius:2mm;border-spacing:0;table-layout:fixed;direction:rtl}
+    .items{margin-top:15mm}.payments{margin-top:22mm}.section-title{font-size:12pt;margin-bottom:3mm;text-align:right;break-after:avoid}
+    table{width:100%;border:1pt solid #777;border-radius:2mm;border-spacing:0;table-layout:auto;direction:rtl}
     thead{display:table-header-group}tr{break-inside:avoid}th,td{padding:2.7mm 3.2mm;vertical-align:top;overflow-wrap:anywhere}
-    th{font-weight:700;border-bottom:1pt solid #888;text-align:right}td{border-bottom:.7pt solid #999}tbody tr:last-child td{border-bottom:0}
-    .description{white-space:pre-line}.numeric{white-space:normal}td:last-child{font-weight:700}.totals{margin-top:4mm;width:60mm;margin-right:auto;break-inside:avoid}
-    .total-row{display:flex;justify-content:space-between;gap:4mm;font-weight:700;font-size:13pt;margin-top:1mm}.total-row bdi{white-space:nowrap}
+    th{font-weight:700;border-bottom:1pt solid #888;text-align:right;white-space:nowrap;overflow-wrap:normal}td{border-bottom:.7pt solid #999}tbody tr:last-child td{border-bottom:0}
+    .description{white-space:pre-line}.numeric{white-space:nowrap;overflow-wrap:normal;word-break:normal}td:last-child{font-weight:700}.totals{margin-top:4mm;width:max-content;min-width:100mm;max-width:100%;margin-right:auto;break-inside:avoid}
+    .total-row{display:flex;justify-content:space-between;gap:8mm;font-weight:700;font-size:13pt;margin-top:1mm;white-space:nowrap}.total-row>span,.total-row>bdi{flex-shrink:0;white-space:nowrap}
     .draft{position:fixed;top:100mm;left:15mm;right:15mm;font-size:80pt;color:rgba(28,34,48,.065);transform:rotate(-25deg);text-align:center;z-index:-1;pointer-events:none}
     </style></head><body>${
       model.preview ? '<div class="draft">טיוטה</div>' : ''

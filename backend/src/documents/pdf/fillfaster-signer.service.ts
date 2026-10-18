@@ -1,3 +1,4 @@
+import { logPdfSigningFailure } from './pdf-diagnostics';
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import axios from 'axios';
 
@@ -37,6 +38,8 @@ export class FillFasterSigner {
       throw new ServiceUnavailableException(
         'FillFaster signing configuration is missing.',
       );
+    let invalidEnvelope = false;
+    let providerStatus: number;
     try {
       const response = await axios.post(
         'https://api.fillfaster.com/v1/generatePDF',
@@ -57,11 +60,21 @@ export class FillFasterSigner {
           maxBodyLength: 25 * 1024 * 1024,
         },
       );
+      providerStatus = response.status;
       const signed = Buffer.from(response.data);
-      if (!hasCompletePdfSignature(signed))
+      if (!hasCompletePdfSignature(signed)) {
+        invalidEnvelope = true;
         throw new Error('Missing complete PDF signature envelope');
+      }
       return signed;
-    } catch {
+    } catch (error) {
+      const status = error?.response?.status ?? providerStatus;
+      const code = error?.code;
+      logPdfSigningFailure({
+        reason: invalidEnvelope ? 'INVALID_SIGNATURE_ENVELOPE' : 'PROVIDER_REQUEST_FAILED',
+        status: Number.isInteger(status) && status >= 100 && status <= 599 ? status : undefined,
+        networkCode: ['ECONNABORTED', 'ETIMEDOUT', 'ENOTFOUND', 'ECONNRESET', 'ECONNREFUSED'].includes(code) ? code : undefined,
+      });
       // Never expose axios request config (Bearer token / document contents).
       throw new ServiceUnavailableException(
         'Document signing failed. No unsigned document was issued.',

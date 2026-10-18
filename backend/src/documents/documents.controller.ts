@@ -1,3 +1,4 @@
+import { measurePdfStage } from './pdf/pdf-diagnostics';
 import { BadRequestException, Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Query, Req, Res, UploadedFile, UploadedFiles, UseGuards, UseInterceptors, UsePipes, ValidationPipe, } from '@nestjs/common';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
@@ -144,7 +145,7 @@ export class DocumentsController {
   }))
   async createDoc(@Body() createDocDto: CreateDocDto, @Req() request: AuthenticatedRequest) {
     const userId = request.user?.firebaseId;
-    const transformedData = await this.documentsService.transformDocumentData(createDocDto, userId);
+    const transformedData = await measurePdfStage('DTO_TRANSFORM', () => this.documentsService.transformDocumentData(createDocDto, userId));
     const result = await this.documentsService.createDoc(transformedData, userId);
     return result;
   }
@@ -199,7 +200,7 @@ export class DocumentsController {
   }))
   async previewDoc(@Body() createDocDto: CreateDocDto, @Res() res: Response, @Req() request: AuthenticatedRequest) {
     const userId = request.user?.firebaseId;
-    const transformedData = await this.documentsService.transformDocumentData(createDocDto, userId);
+    const transformedData = await measurePdfStage('DTO_TRANSFORM', () => this.documentsService.transformDocumentData(createDocDto, userId));
     const pdfBuffer = await this.documentsService.previewDoc(transformedData);
     res.setHeader('Content-Type', 'application/pdf');
     return res.send(pdfBuffer);

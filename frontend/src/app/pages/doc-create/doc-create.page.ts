@@ -1,9 +1,10 @@
+import { writePdfPreviewStatus } from '../../services/pdf-preview-tab';
 import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import { ConfirmationService, MenuItem, MessageService } from 'primeng/api';
 import { DialogService, DynamicDialogRef } from 'primeng/dynamicdialog';
-import { catchError, EMPTY, finalize, firstValueFrom, of, tap } from 'rxjs';
+import { catchError, defer, EMPTY, finalize, firstValueFrom, of, tap } from 'rxjs';
 import { AddClientComponent } from 'src/app/components/add-client/add-client.component';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 import { DocSuccessDialogComponent } from 'src/app/components/create-doc-success-dialog/create-doc-success-dialog.component';
@@ -85,6 +86,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
   pdfPreviewVisible = signal(false); // In-app PDF preview (mobile / PWA)
   pdfPreviewBlob = signal<Blob | null>(null);
   showCreateDocErrorDialog = signal(false); // Error dialog when document creation fails
+  documentRequestBusy = computed(() => this.createPDFIsLoading() || this.createPreviewPDFIsLoading() || this.allocationNumberLoading());
   allocationNumberLoading = signal(false); // Loading state for allocation number request
   clients = signal<IClient[]>([]);
   filteredClients = signal<IClient[]>([]);
@@ -539,6 +541,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
 
 
   confirmCreateDoc(): void {
+    if (this.documentRequestBusy()) return;
 
     const requiresAlloc = this.requiresAllocationNumber();
     const hasAllocNumber = this.allocationNumber();
@@ -591,40 +594,41 @@ export class DocCreatePage implements OnInit, OnDestroy {
       accept: () => {
         this.proceedWithDocumentCreation();
       },
-      reject: () => {
-        this.createPDFIsLoading.set(false);
-      }
     });
   }
 
   createDoc(): void {
+    if (this.documentRequestBusy()) return;
     // Always call confirmCreateDoc() for validation
     this.confirmCreateDoc();
   }
 
   // Actual document creation logic (called after all validations pass)
   private proceedWithDocumentCreation(): void {
+    if (this.documentRequestBusy()) return;
     this.createPDFIsLoading.set(true);
 
-    const payload = this.buildDocPayload();
+    defer(() => {
+      const payload = this.buildDocPayload();
 
-    // Ensure docStatus is not DRAFT when creating actual document
-    // Remove any DRAFT status that might have been set from draft restoration
-    const docData = (payload as any).docData;
-    if (docData && docData.docStatus === 'DRAFT') {
-      console.log('⚠️ Removing DRAFT status from payload before document creation');
-      delete docData.docStatus;
-    }
+      // Ensure docStatus is not DRAFT when creating actual document
+      // Remove any DRAFT status that might have been set from draft restoration
+      const docData = (payload as any).docData;
+      if (docData && docData.docStatus === 'DRAFT') {
+        console.log('⚠️ Removing DRAFT status from payload before document creation');
+        delete docData.docStatus;
+      }
 
-    console.log('Document creation payload:', {
-      docType: docData?.docType,
-      docNumber: docData?.docNumber,
-      docStatus: docData?.docStatus,
-      linesCount: (payload as any).linesData?.length,
-      paymentsCount: (payload as any).paymentData?.length
-    });
+      console.log('Document creation payload:', {
+        docType: docData?.docType,
+        docNumber: docData?.docNumber,
+        docStatus: docData?.docStatus,
+        linesCount: (payload as any).linesData?.length,
+        paymentsCount: (payload as any).paymentData?.length
+      });
 
-    this.docCreateService.createDoc(payload).pipe(
+      return this.docCreateService.createDoc(payload);
+    }).pipe(
       // Backend now handles: DB transaction + PDF generation + Firebase upload + save paths
       tap((response) => {
         console.log('✅ Document created successfully:', response);
@@ -808,56 +812,37 @@ export class DocCreatePage implements OnInit, OnDestroy {
 
 
   previewDoc(): void {
-    const previewWindow = this.usesInAppPdfPreview()
-      ? null
-      : window.open('', '_blank', 'width=800,height=600');
-    // Store original allocation number if exists
-    const originalAllocationNumber = this.allocationNumber();
-
-    // If allocation number is required but not set, use example value for preview
-    if (this.requiresAllocationNumber() && !this.allocationNumber()) {
-      this.allocationNumber.set('23425576908765532'); // Example value for preview
-    }
-
+    if (this.documentRequestBusy()) return;
     this.createPreviewPDFIsLoading.set(true);
-    const data = this.buildDocPayload();
-
-    this.docCreateService.previewDoc(data)
-      .pipe(
-        finalize(() => {
-          this.createPreviewPDFIsLoading.set(false);
-          // After preview, restore original value (clear example if it was set)
-          this.allocationNumber.set(originalAllocationNumber);
-        }),
-        catchError((err) => {
-          // Restore original allocation number even on error
-          this.allocationNumber.set(originalAllocationNumber);
-          previewWindow?.close();
-          console.error("Error in createPDF (Preview):", err);
-          // Log the error message if it's a string
-          if (err.message) {
-            console.error("Error details:", err.message);
-            alert("שגיאה ביצירת תצוגה מקדימה:\n" + err.message);
-          } else {
-            console.error("Full error object:", err);
-            alert("שגיאה ביצירת תצוגה מקדימה. בדוק את הקונסול לפרטים.");
-          }
-          return EMPTY;
-        })
-      )
-      .subscribe((res) => {
-        console.log("PDF creation result (Preview):", res);
+    const originalAllocationNumber = this.allocationNumber();
+    let previewWindow: Window | null = null;
+    defer(() => {
+      previewWindow = this.usesInAppPdfPreview() ? null : window.open('', '_blank');
+      writePdfPreviewStatus(previewWindow);
+      if (this.requiresAllocationNumber() && !this.allocationNumber()) {
+        this.allocationNumber.set('23425576908765532');
+      }
+      return this.docCreateService.previewDoc(this.buildDocPayload());
+    }).pipe(
+      tap((res) => {
         if (this.usesInAppPdfPreview() || !previewWindow) {
-          // Mobile / installed PWA: render the PDF inside the app. Chrome on
-          // Android never displays an embedded PDF inline, and window.open()
-          // would leave the app shell entirely.
           this.pdfPreviewBlob.set(res);
           this.pdfPreviewVisible.set(true);
-        } else {
-          // Desktop browser: unchanged behaviour.
+        } else if (!previewWindow.closed) {
           this.fileService.previewFile3(res, previewWindow);
         }
-      });
+      }),
+      catchError(() => {
+        writePdfPreviewStatus(previewWindow, true);
+        this.messageService.add({severity: 'error', summary: 'שגיאה',
+          detail: 'לא ניתן להציג את התצוגה המקדימה. אפשר לנסות שוב.', life: 5000, key: 'br'});
+        return EMPTY;
+      }),
+      finalize(() => {
+        this.allocationNumber.set(originalAllocationNumber);
+        this.createPreviewPDFIsLoading.set(false);
+      }),
+    ).subscribe();
   }
 
 
@@ -2188,13 +2173,16 @@ export class DocCreatePage implements OnInit, OnDestroy {
    * that exact persisted document.
    */
   private createPendingAllocationDoc(opts: { requestAllocation: boolean }): void {
+    if (this.documentRequestBusy()) return;
     this.createPDFIsLoading.set(true);
 
-    const payload = this.buildDocPayload() as any;
-    payload.docData.docStatus = 'PENDING_ALLOCATION';
-    payload.docData.allocationNum = null;
-
-    this.docCreateService.createDoc(payload).pipe(
+    let payload: any;
+    defer(() => {
+      payload = this.buildDocPayload();
+      payload.docData.docStatus = 'PENDING_ALLOCATION';
+      payload.docData.allocationNum = null;
+      return this.docCreateService.createDoc(payload);
+    }).pipe(
       finalize(() => this.createPDFIsLoading.set(false)),
       catchError((err) => {
         console.error('Error saving pending-allocation doc:', err);
