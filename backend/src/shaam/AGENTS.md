@@ -53,6 +53,10 @@ An unknown file-status value fails closed and emits a separate bounded
 alphanumeric operational status token plus its type, length and `isFound` flag;
 it must never include file names/identifiers, descriptions, errors, tokens,
 URLs or the upstream response body.
+The live tsandbox status fixture returns the undocumented value
+`Mocked Status` with `isFound: true`. Only in tsandbox, normalize that value to
+`Uploaded`: it proves the mock endpoint found the uploaded identifier but does
+not prove Tax Authority approval. Production must continue to reject it.
 The downloaded upload-link schema's `uniqueId` pattern permits an empty value,
 and the live tsandbox success fixture returns it. The client accepts exactly an
 empty reservation-level ID only in tsandbox; production continues to require a

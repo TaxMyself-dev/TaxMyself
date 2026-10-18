@@ -483,6 +483,68 @@ describe('UniformFileUploadService', () => {
     ]);
   });
 
+  it('normalizes the observed tsandbox Mocked Status to Uploaded', async () => {
+    const { service, httpService } = setup();
+    httpService.post.mockReturnValue(
+      of({
+        status: 200,
+        data: [
+          {
+            fileName: 'ini-id',
+            status: 'Mocked Status',
+            description: 'sandbox fixture',
+            isFound: true,
+          },
+        ],
+      }),
+    );
+
+    await expect(
+      service.getFileStatuses('daily-token', ['ini-id']),
+    ).resolves.toEqual([
+      {
+        fileName: 'ini-id',
+        status: 'Uploaded',
+        description: 'sandbox fixture',
+        isFound: true,
+        errorCode: '',
+        errorMessage: '',
+      },
+    ]);
+  });
+
+  it('rejects Mocked Status outside tsandbox', async () => {
+    const httpService = {
+      post: jest.fn().mockReturnValue(
+        of({
+          status: 200,
+          data: [
+            {
+              fileName: 'ini-id',
+              status: 'Mocked Status',
+              isFound: true,
+            },
+          ],
+        }),
+      ),
+      put: jest.fn(),
+    };
+    const service = new UniformFileUploadService(httpService as any, {
+      ...config,
+      environment: ShaamEnvironment.PRODUCTION,
+    });
+    const warn = jest.spyOn((service as any).logger, 'warn').mockImplementation();
+
+    await expect(
+      service.getFileStatuses('daily-token', ['ini-id']),
+    ).rejects.toEqual(
+      new BadGatewayException('SHAAM returned an unknown file status'),
+    );
+    expect(JSON.parse(warn.mock.calls[0][0] as string)).toEqual(
+      expect.objectContaining({ statusToken: 'Mocked Status' }),
+    );
+  });
+
   it('rejects missing or duplicate status results', async () => {
     const { service, httpService } = setup();
     httpService.post.mockReturnValue(

@@ -369,8 +369,8 @@ export class UniformFileUploadService {
       ) {
         throw new BadGatewayException('SHAAM returned invalid file-status metadata');
       }
-      const status = item.status ?? '';
-      if (!['', 'Uploaded', 'Approved', 'Rejected'].includes(status)) {
+      const status = this.normalizeFileStatus(item.status ?? '');
+      if (!this.isUniformFileShaamStatus(status)) {
         this.logUnknownFileStatus(status, item.isFound);
         throw new BadGatewayException('SHAAM returned an unknown file status');
       }
@@ -393,6 +393,27 @@ export class UniformFileUploadService {
       throw new BadGatewayException('SHAAM returned mismatched file-status metadata');
     }
     return requestedIds.map((id) => byFileName.get(id));
+  }
+
+  private normalizeFileStatus(status: unknown): unknown {
+    if (
+      this.config.environment === ShaamEnvironment.TSANDBOX &&
+      status === 'Mocked Status'
+    ) {
+      return 'Uploaded';
+    }
+    return status;
+  }
+
+  private isUniformFileShaamStatus(
+    status: unknown,
+  ): status is UniformFileShaamStatus {
+    return (
+      status === '' ||
+      status === 'Uploaded' ||
+      status === 'Approved' ||
+      status === 'Rejected'
+    );
   }
 
   private logUnknownFileStatus(status: unknown, isFound: boolean): void {
