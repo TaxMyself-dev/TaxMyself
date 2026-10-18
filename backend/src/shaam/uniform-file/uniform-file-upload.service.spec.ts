@@ -183,6 +183,7 @@ describe('UniformFileUploadService', () => {
     },
   ])('rejects malformed or unsafe upload-link metadata', async (data) => {
     const { service, httpService } = setup();
+    jest.spyOn((service as any).logger, 'warn').mockImplementation();
     httpService.post.mockReturnValue(of({ status: 200, data }));
 
     await expect(
@@ -192,6 +193,45 @@ describe('UniformFileUploadService', () => {
         endPeriod: '2026-12-31',
       }),
     ).rejects.toThrow(BadGatewayException);
+  });
+
+  it('logs only structural metadata for an invalid reservation envelope', async () => {
+    const { service, httpService } = setup();
+    const warn = jest.spyOn((service as any).logger, 'warn').mockImplementation();
+    httpService.post.mockReturnValue(of({
+      status: 200,
+      data: {
+        Success: true,
+        Data: {
+          UniqueId: 'sensitive-remote-id',
+          Files: [{ SignUrl: 'https://storage.googleapis.com/sensitive-url' }],
+        },
+        token: 'sensitive-token',
+      },
+    }));
+
+    await expect(service.reserveUploadLinks('daily-token', {
+      caseNumber: '222222226',
+      startPeriod: '2026-02-01',
+      endPeriod: '2026-03-31',
+    })).rejects.toThrow(BadGatewayException);
+
+    expect(warn).toHaveBeenCalledTimes(1);
+    const diagnostic = warn.mock.calls[0][0] as string;
+    expect(JSON.parse(diagnostic)).toEqual(expect.objectContaining({
+      event: 'shaam_uniform_file_invalid_reservation_envelope',
+      bodyType: 'object',
+      topLevelKeys: ['Success', 'Data', 'token'],
+      successType: 'undefined',
+      upperSuccessType: 'boolean',
+      dataType: 'undefined',
+      upperDataType: 'object',
+      upperUniqueIdType: 'string',
+    }));
+    expect(diagnostic).not.toContain('sensitive-remote-id');
+    expect(diagnostic).not.toContain('sensitive-url');
+    expect(diagnostic).not.toContain('sensitive-token');
+    expect(diagnostic).not.toContain('daily-token');
   });
 
   it('rejects a file outside the size reserved by SHAAM before storage calls', async () => {

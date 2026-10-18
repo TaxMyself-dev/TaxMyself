@@ -44,6 +44,10 @@ keeps bearer tokens, signed URLs, session locations and upstream bodies out of
 errors. `Uploaded` means processing is pending; a pair is approved only when
 both remote file statuses are `Approved`.
 
+An invalid upload-link envelope emits only a bounded structural diagnostic
+(safe field names, value types and array counts). It must never log upstream
+values, tokens, signed URLs, remote identifiers or the response body.
+
 Transfer retries never reserve a replacement pair when either remote file ID
 already exists. They poll the saved identifiers instead. Network/storage
 ambiguity becomes `UNKNOWN_OUTCOME`; an interrupted reservation claim without

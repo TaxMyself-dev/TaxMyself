@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   Inject,
   Injectable,
+  Logger,
   ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -60,6 +61,8 @@ export interface UniformFileStatusResult {
 
 @Injectable()
 export class UniformFileUploadService {
+  private readonly logger = new Logger(UniformFileUploadService.name);
+
   constructor(
     private readonly httpService: HttpService,
     @Inject(UNIFORM_FILE_OAUTH_CONFIG)
@@ -221,6 +224,7 @@ export class UniformFileUploadService {
     }
     const data = body?.data;
     if (body?.success !== true || !data || !this.isBoundedIdentifier(data.uniqueId)) {
+      this.logInvalidReservationEnvelope(body);
       throw new BadGatewayException('SHAAM returned invalid upload-link metadata');
     }
     if (!Array.isArray(data.files) || data.files.length !== 2) {
@@ -278,6 +282,40 @@ export class UniformFileUploadService {
       minimumBytes,
       maximumBytes,
     };
+  }
+
+  private logInvalidReservationEnvelope(body: any): void {
+    const lowerData = body?.data;
+    const upperData = body?.Data;
+    const safeKeys =
+      body && typeof body === 'object' && !Array.isArray(body)
+        ? Object.keys(body)
+            .filter((key) => /^[A-Za-z0-9_-]{1,64}$/.test(key))
+            .slice(0, 20)
+        : [];
+    const summary = {
+      event: 'shaam_uniform_file_invalid_reservation_envelope',
+      bodyType: this.structuralType(body),
+      topLevelKeys: safeKeys,
+      successType: this.structuralType(body?.success),
+      upperSuccessType: this.structuralType(body?.Success),
+      dataType: this.structuralType(lowerData),
+      upperDataType: this.structuralType(upperData),
+      uniqueIdType: this.structuralType(lowerData?.uniqueId),
+      upperUniqueIdType: this.structuralType(upperData?.UniqueId),
+      filesType: this.structuralType(lowerData?.files),
+      fileCount: Array.isArray(lowerData?.files) ? lowerData.files.length : null,
+      directUniqueIdType: this.structuralType(body?.uniqueId),
+      directFilesType: this.structuralType(body?.files),
+      directFileCount: Array.isArray(body?.files) ? body.files.length : null,
+    };
+    this.logger.warn(JSON.stringify(summary));
+  }
+
+  private structuralType(value: unknown): string {
+    if (value === null) return 'null';
+    if (Array.isArray(value)) return 'array';
+    return typeof value;
   }
 
   private parseStorageHeaders(rawHeaders: Record<string, unknown>): Record<string, string> {
