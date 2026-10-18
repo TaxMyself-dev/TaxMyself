@@ -1,5 +1,6 @@
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { getShaamUrls } from '../shaam.constants';
+import { isShaamAuthorizationRejection } from '../utils/shaam-authorization-error.util';
 import { ShaamInvoicesService } from './shaam-invoices.service';
 
 describe('ShaamInvoicesService', () => {
@@ -177,5 +178,42 @@ describe('ShaamInvoicesService', () => {
     expect(() => new ShaamInvoicesService({} as any)).toThrow(
       'Invalid production SHAAM URL: invoiceDetails',
     );
+  });
+
+  it.each([401, 403])(
+    'marks SHAAM invoice authorization response %s',
+    async (status) => {
+      process.env.SHAAM_ENV = 'tsandbox';
+      const httpService = {
+        post: jest.fn().mockReturnValue(
+          throwError(() => ({ response: { status, data: {} } })),
+        ),
+      };
+      const service = new ShaamInvoicesService(httpService as any);
+
+      try {
+        await service.recoverConfirmation('server-token', {} as any);
+        throw new Error('Expected SHAAM authorization rejection');
+      } catch (error: unknown) {
+        expect(isShaamAuthorizationRejection(error)).toBe(true);
+      }
+    },
+  );
+
+  it('does not mark an invoice business-level 406 as an authorization rejection', async () => {
+    process.env.SHAAM_ENV = 'tsandbox';
+    const httpService = {
+      post: jest.fn().mockReturnValue(
+        throwError(() => ({ response: { status: 406, data: {} } })),
+      ),
+    };
+    const service = new ShaamInvoicesService(httpService as any);
+
+    try {
+      await service.recoverConfirmation('server-token', {} as any);
+      throw new Error('Expected SHAAM request rejection');
+    } catch (error: unknown) {
+      expect(isShaamAuthorizationRejection(error)).toBe(false);
+    }
   });
 });

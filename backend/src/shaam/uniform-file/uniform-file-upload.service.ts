@@ -15,6 +15,7 @@ import {
   UNIFORM_FILE_OAUTH_CONFIG,
   UniformFileOauthConfig,
 } from './uniform-file-oauth.config';
+import { markShaamAuthorizationRejection } from '../utils/shaam-authorization-error.util';
 
 const SINGLE_REQUEST_LIMIT = 32 * 1024 * 1024;
 const MEDIUM_FILE_LIMIT = 250 * 1024 * 1024;
@@ -464,10 +465,14 @@ export class UniformFileUploadService {
   private assertSuccessfulShaamResponse(status: number, operation: string): void {
     if (status >= 200 && status < 300) return;
     if (status === 401) {
-      throw new UnauthorizedException(`SHAAM rejected the ${operation} token`);
+      throw markShaamAuthorizationRejection(
+        new UnauthorizedException(`SHAAM rejected the ${operation} token`),
+      );
     }
     if (status === 406) {
-      throw new ForbiddenException(`SHAAM denied the ${operation} request`);
+      throw markShaamAuthorizationRejection(
+        new ForbiddenException(`SHAAM denied the ${operation} request`),
+      );
     }
     if (status === 400 || status === 422) {
       throw new BadRequestException(`SHAAM rejected the ${operation} request`);

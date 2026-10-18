@@ -23,6 +23,14 @@ Integrates with the Israel Tax Authority's SHAAM OpenAPI — OAuth2 authorizatio
 - `GET /shaam/connection-status` — resolves/refreshes the server-held invoice
   allocation access token when necessary, then returns only safe connection
   metadata. An expired access token alone must not trigger browser reauthorization.
+  If a protected SHAAM HTTP client later classifies a response as a token
+  rejection (invoice API 401/403; uniform-file API 401/406), the exact
+  business/product/environment connection is marked `REAUTH_REQUIRED`
+  and its encrypted token material is cleared. The triggering upstream error
+  is still returned, and subsequent status checks report disconnected until a
+  new OAuth callback stores a token. Unmarked local authorization errors never
+  alter SHAAM state. Invoice-allocation HTTP 406 also leaves it unchanged
+  because that response may be a business-level request rejection.
 - `POST /shaam/invoices/allocation?businessNumber=...` — accepts only `docNumber` + `docType`, resolves the server-held token, attempts official recovery first, and only when that succeeds without an existing number submits Approval before finalizing the persisted invoice. An ambiguous recovery error blocks Approval.
 - `POST /shaam/invoices/allocation/recover?businessNumber=...` — retrieves a lost allocation response from the official recovery API using the persisted invoice fields; it never submits a replacement approval request.
 - `POST /shaam/uniform-file/submissions` — generates and validates the INI/BKM pair for an authorized business and period, then creates or reuses a `GENERATED` submission. It makes no Tax Authority request and returns no file bytes, hashes, tokens or capability URLs.

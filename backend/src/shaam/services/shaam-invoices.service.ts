@@ -14,6 +14,7 @@ import {
   ShaamConfirmationLookupDto,
   ShaamInvoiceDetailsResponseDto,
 } from '../dto/shaam-document-allocation.dto';
+import { markShaamAuthorizationRejection } from '../utils/shaam-authorization-error.util';
 
 @Injectable()
 export class ShaamInvoicesService {
@@ -217,7 +218,7 @@ export class ShaamInvoicesService {
     }
 
     // Generic error handling
-    return new HttpException(
+    const exception = new HttpException(
       {
         statusCode: status,
         message: data?.message || error.message || 'Unknown error',
@@ -225,5 +226,8 @@ export class ShaamInvoicesService {
       },
       status,
     );
+    return status === HttpStatus.UNAUTHORIZED || status === HttpStatus.FORBIDDEN
+      ? markShaamAuthorizationRejection(exception)
+      : exception;
   }
 }

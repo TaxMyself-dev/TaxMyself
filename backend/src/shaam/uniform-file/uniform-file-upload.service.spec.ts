@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { of, throwError } from 'rxjs';
 import { ShaamEnvironment } from '../shaam.constants';
+import { isShaamAuthorizationRejection } from '../utils/shaam-authorization-error.util';
 import { UniformFileOauthConfig } from './uniform-file-oauth.config';
 import { UniformFileUploadService } from './uniform-file-upload.service';
 
@@ -653,13 +654,17 @@ describe('UniformFileUploadService', () => {
       of({ status, data: { signedUrl: 'must-not-escape' } }),
     );
 
-    await expect(
-      service.reserveUploadLinks('daily-token', {
+    try {
+      await service.reserveUploadLinks('daily-token', {
         caseNumber: '123456789',
         startPeriod: '2026-01-01',
         endPeriod: '2026-12-31',
-      }),
-    ).rejects.toThrow(errorType);
+      });
+      throw new Error('Expected SHAAM authorization rejection');
+    } catch (error: unknown) {
+      expect(error).toBeInstanceOf(errorType);
+      expect(isShaamAuthorizationRejection(error)).toBe(true);
+    }
   });
 
   it('normalizes a timeout without exposing request capability data', async () => {

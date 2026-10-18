@@ -1,7 +1,14 @@
-import { BadRequestException, HttpException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  HttpException,
+  HttpStatus,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ShaamEnvironment } from './shaam.constants';
 import { ShaamProduct } from './entities/shaam.enums';
 import { ShaamSecureController } from './shaam-secure.controller';
+import { markShaamAuthorizationRejection } from './utils/shaam-authorization-error.util';
 
 describe('ShaamSecureController', () => {
   function setup(
@@ -10,7 +17,7 @@ describe('ShaamSecureController', () => {
   ) {
     const businessService = { getBusinessByNumber: jest.fn().mockResolvedValue(business) };
     const states = { create: jest.fn().mockResolvedValue('opaque-state'), consume: jest.fn() };
-    const connections = { status: jest.fn().mockResolvedValue({ connected: true, expiresAt: new Date() }), getValidAccessToken: jest.fn().mockResolvedValue('server-token'), saveToken: jest.fn() };
+    const connections = { status: jest.fn().mockResolvedValue({ connected: true, expiresAt: new Date() }), getValidAccessToken: jest.fn().mockResolvedValue('server-token'), saveToken: jest.fn(), markReauthorizationRequired: jest.fn().mockResolvedValue(undefined) };
     const allocationOauth = { buildAuthorizeUrl: jest.fn().mockReturnValue('https://openapi.taxes.gov.il/authorize'), exchangeCodeForToken: jest.fn() };
     const uniformOauth = { buildAuthorizeUrl: jest.fn(), exchangeCodeForDailyToken: jest.fn() };
     const documentAllocation = {
@@ -133,5 +140,84 @@ describe('ShaamSecureController', () => {
     await controller.pollUniformFileSubmission(request, 91, '222222226');
 
     expect(uniformSubmissions.poll).toHaveBeenCalledWith(7, 91, 'server-token');
+  });
+
+  it('marks the allocation connection for reauthorization after a 401', async () => {
+    const { controller, connections, documentAllocation } = setup();
+    const rejection = markShaamAuthorizationRejection(
+      new UnauthorizedException('token rejected'),
+    );
+    documentAllocation.requestAndFinalize.mockRejectedValue(rejection);
+
+    await expect(
+      controller.submitApproval(request, '222222226', {
+        docNumber: '20000',
+        docType: 'TAX_INVOICE',
+      } as any),
+    ).rejects.toBe(rejection);
+
+    expect(connections.markReauthorizationRequired).toHaveBeenCalledWith(
+      7,
+      ShaamProduct.INVOICE_ALLOCATION,
+      ShaamEnvironment.TSANDBOX,
+    );
+  });
+
+  it('keeps the allocation connection active after a business-level 406', async () => {
+    const { controller, connections, documentAllocation } = setup();
+    const rejection = new HttpException('not acceptable', HttpStatus.NOT_ACCEPTABLE);
+    documentAllocation.requestAndFinalize.mockRejectedValue(rejection);
+
+    await expect(
+      controller.submitApproval(request, '222222226', {
+        docNumber: '20000',
+        docType: 'TAX_INVOICE',
+      } as any),
+    ).rejects.toBe(rejection);
+
+    expect(connections.markReauthorizationRequired).not.toHaveBeenCalled();
+  });
+
+  it('marks the uniform-file connection for reauthorization after a 403', async () => {
+    const { controller, connections, uniformSubmissions } = setup();
+    const rejection = markShaamAuthorizationRejection(
+      new ForbiddenException('request denied'),
+    );
+    uniformSubmissions.transfer.mockRejectedValue(rejection);
+
+    await expect(
+      controller.transferUniformFileSubmission(request, 91, '222222226'),
+    ).rejects.toBe(rejection);
+
+    expect(connections.markReauthorizationRequired).toHaveBeenCalledWith(
+      7,
+      ShaamProduct.UNIFORM_FILE,
+      ShaamEnvironment.TSANDBOX,
+    );
+  });
+
+  it('does not invalidate a connection after a non-authorization upstream failure', async () => {
+    const { controller, connections, uniformSubmissions } = setup();
+    const rejection = new HttpException('upstream failure', HttpStatus.BAD_GATEWAY);
+    uniformSubmissions.poll.mockRejectedValue(rejection);
+
+    await expect(
+      controller.pollUniformFileSubmission(request, 91, '222222226'),
+    ).rejects.toBe(rejection);
+
+    expect(connections.markReauthorizationRequired).not.toHaveBeenCalled();
+  });
+
+  it('does not invalidate a connection after an unmarked local 403', async () => {
+    const { controller, connections, uniformSubmissions } = setup();
+    uniformSubmissions.transfer.mockRejectedValue(
+      new ForbiddenException('local authorization failed'),
+    );
+
+    await expect(
+      controller.transferUniformFileSubmission(request, 91, '222222226'),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+
+    expect(connections.markReauthorizationRequired).not.toHaveBeenCalled();
   });
 });

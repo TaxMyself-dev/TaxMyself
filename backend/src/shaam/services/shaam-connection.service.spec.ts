@@ -84,4 +84,49 @@ describe('ShaamConnectionService', () => {
       expect.objectContaining({ status: ShaamConnectionStatus.REAUTH_REQUIRED }),
     );
   });
+
+  it('clears rejected token material and requires reauthorization for the exact connection', async () => {
+    const row = {
+      accessToken: 'enc:old',
+      refreshToken: 'enc:r',
+      expiresAt: new Date(Date.now() + 3600_000),
+      scopes: 'scope-a',
+      status: ShaamConnectionStatus.ACTIVE,
+    };
+    const { service, repo } = setup(row);
+
+    await service.markReauthorizationRequired(
+      7,
+      ShaamProduct.UNIFORM_FILE,
+      ShaamEnvironment.TSANDBOX,
+    );
+
+    expect(repo.findOne).toHaveBeenCalledWith({
+      where: {
+        businessId: 7,
+        product: ShaamProduct.UNIFORM_FILE,
+        environment: ShaamEnvironment.TSANDBOX,
+      },
+    });
+    expect(repo.save).toHaveBeenCalledWith({
+      ...row,
+      accessToken: null,
+      refreshToken: null,
+      expiresAt: null,
+      scopes: null,
+      status: ShaamConnectionStatus.REAUTH_REQUIRED,
+    });
+  });
+
+  it('does not create a reauthorization row when no connection exists', async () => {
+    const { service, repo } = setup(null);
+
+    await service.markReauthorizationRequired(
+      7,
+      ShaamProduct.INVOICE_ALLOCATION,
+      ShaamEnvironment.TSANDBOX,
+    );
+
+    expect(repo.save).not.toHaveBeenCalled();
+  });
 });

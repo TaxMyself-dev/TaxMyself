@@ -6,6 +6,7 @@ import {
   HttpException,
   HttpStatus,
   Inject,
+  Logger,
   Param,
   ParseIntPipe,
   Post,
@@ -34,9 +35,12 @@ import {
 import { UniformFileOauthService } from './uniform-file/uniform-file-oauth.service';
 import { PrepareUniformFileSubmissionDto } from './dto/prepare-uniform-file-submission.dto';
 import { UniformFileSubmissionService } from './services/uniform-file-submission.service';
+import { isShaamAuthorizationRejection } from './utils/shaam-authorization-error.util';
 
 @Controller('shaam')
 export class ShaamSecureController {
+  private readonly logger = new Logger(ShaamSecureController.name);
+
   constructor(
     private readonly businessService: BusinessService,
     private readonly states: ShaamOauthStateService,
@@ -132,12 +136,17 @@ export class ShaamSecureController {
     if (!token) {
       throw new HttpException('SHAAM connection is required', HttpStatus.PRECONDITION_REQUIRED);
     }
-    return this.documentAllocation.requestAndFinalize(
-      token,
-      request.user.firebaseId,
-      business.businessNumber,
-      dto.docNumber,
-      dto.docType,
+    return this.executeWithConnectionState(
+      business.id,
+      ShaamProduct.INVOICE_ALLOCATION,
+      () =>
+        this.documentAllocation.requestAndFinalize(
+          token,
+          request.user.firebaseId,
+          business.businessNumber,
+          dto.docNumber,
+          dto.docType,
+        ),
     );
   }
 
@@ -158,12 +167,17 @@ export class ShaamSecureController {
     if (!token) {
       throw new HttpException('SHAAM connection is required', HttpStatus.PRECONDITION_REQUIRED);
     }
-    return this.documentAllocation.recoverAndFinalize(
-      token,
-      request.user.firebaseId,
-      business.businessNumber,
-      dto.docNumber,
-      dto.docType,
+    return this.executeWithConnectionState(
+      business.id,
+      ShaamProduct.INVOICE_ALLOCATION,
+      () =>
+        this.documentAllocation.recoverAndFinalize(
+          token,
+          request.user.firebaseId,
+          business.businessNumber,
+          dto.docNumber,
+          dto.docType,
+        ),
     );
   }
 
@@ -206,11 +220,16 @@ export class ShaamSecureController {
   ) {
     const business = await this.resolveBusiness(request, businessNumber);
     const token = await this.uniformFileToken(business.id);
-    return this.uniformSubmissions.transfer(
+    return this.executeWithConnectionState(
       business.id,
-      submissionId,
-      request.user.firebaseId,
-      token,
+      ShaamProduct.UNIFORM_FILE,
+      () =>
+        this.uniformSubmissions.transfer(
+          business.id,
+          submissionId,
+          request.user.firebaseId,
+          token,
+        ),
     );
   }
 
@@ -223,7 +242,46 @@ export class ShaamSecureController {
   ) {
     const business = await this.resolveBusiness(request, businessNumber);
     const token = await this.uniformFileToken(business.id);
-    return this.uniformSubmissions.poll(business.id, submissionId, token);
+    return this.executeWithConnectionState(
+      business.id,
+      ShaamProduct.UNIFORM_FILE,
+      () => this.uniformSubmissions.poll(business.id, submissionId, token),
+    );
+  }
+
+  private async executeWithConnectionState<T>(
+    businessId: number,
+    product: ShaamProduct,
+    operation: () => Promise<T>,
+  ): Promise<T> {
+    try {
+      return await operation();
+    } catch (error: unknown) {
+      if (isShaamAuthorizationRejection(error)) {
+        const environment = this.environmentFor(product);
+        try {
+          await this.connections.markReauthorizationRequired(
+            businessId,
+            product,
+            environment,
+          );
+        } catch (stateError: unknown) {
+          this.logger.error(
+            JSON.stringify({
+              event: 'shaam_reauthorization_state_update_failed',
+              businessId,
+              product,
+              environment,
+              errorType:
+                stateError instanceof Error
+                  ? stateError.constructor.name
+                  : typeof stateError,
+            }),
+          );
+        }
+      }
+      throw error;
+    }
   }
 
   private async uniformFileToken(businessId: number): Promise<string> {
