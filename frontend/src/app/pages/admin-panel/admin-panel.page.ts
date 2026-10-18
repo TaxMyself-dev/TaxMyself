@@ -15,6 +15,7 @@ import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { ToastModule } from 'primeng/toast';
 import { AdminDocumentationComponent } from './admin-documentation.component';
 import { SharedModule } from '../../shared/shared.module';
+import { AdminTaxFileComponent } from './admin-tax-file.component';
 import { AdminContentComponent } from './admin-content.component';
 
 
@@ -35,6 +36,7 @@ import { AdminContentComponent } from './admin-content.component';
       ConfirmDialogModule,
       AdminDocumentationComponent,
       AdminContentComponent,
+      AdminTaxFileComponent,
     ],
     providers: [ConfirmationService],
 })
@@ -43,6 +45,7 @@ export class AdminPanelPage implements OnInit {
   tabs = [
     //{ label: 'סטטוס תשלומים', value: 'status-payments', component: StatusPaymentsComponent },
     { label: 'לוח בקרה - לקוחות', value: 'clients-dashboard', component: ClientsDashboardComponent },
+    { label: 'תיק המס שלי', value: 'tax-file', component: AdminTaxFileComponent },
     { label: 'קטגוריות וכרטיסים', value: 'catalog-management', component: CategoryManagementComponent },
     { label: 'ניהול תנועות', value: 'trans-management', component: TransManagementComponent },
     { label: 'נתוני דמו', value: 'demo-data', component: DemoDataComponent },

@@ -10,6 +10,7 @@
   <div>
   <app-clients-dashboard *ngIf="selectedTab === 'clients-dashboard'">
   </app-clients-dashboard>
+  <app-admin-tax-file *ngIf="selectedTab === 'tax-file'"></app-admin-tax-file>
   <section *ngIf="selectedTab === 'catalog-management'" class="catalog-management">
     <app-tab-bar
       [tabs]="catalogTabs"

@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { environment } from 'src/environments/environment';
 import { LoadingController } from '@ionic/angular';
 import { Observable } from 'rxjs';
@@ -19,6 +19,60 @@ export class AdminPanelService {
   getAllUsers(): Observable<any> {
     const url = `${environment.apiUrl}auth/all-users`;
     return this.http.get<any>(url);
+  }
+
+  /**
+   * Admin-only planning reads for a represented client.  The explicit header
+   * keeps the admin panel in its own identity context instead of switching the
+   * whole application into "view as client" mode.
+   */
+  getUserBusinesses(firebaseId: string): Observable<AdminTaxBusiness[]> {
+    return this.http.get<AdminTaxBusiness[]>(
+      `${environment.apiUrl}business/get-businesses`,
+      { headers: this.clientHeaders(firebaseId) },
+    );
+  }
+
+  getUserPnl(
+    firebaseId: string,
+    businessNumber: string,
+    startDate: string,
+    endDate: string,
+  ): Observable<AdminTaxPnl> {
+    const params = new HttpParams()
+      .set('startDate', startDate)
+      .set('endDate', endDate)
+      .set('businessNumber', businessNumber);
+
+    return this.http.get<AdminTaxPnl>(
+      `${environment.apiUrl}reports/pnl-report-journal`,
+      { headers: this.clientHeaders(firebaseId), params },
+    );
+  }
+
+  getUserAdvanceTaxReport(
+    firebaseId: string,
+    businessNumber: string,
+    startDate: string,
+    endDate: string,
+  ): Observable<AdminTaxAdvanceReport> {
+    const params = new HttpParams()
+      .set('startDate', startDate)
+      .set('endDate', endDate)
+      .set('businessNumber', businessNumber);
+
+    return this.http.get<AdminTaxAdvanceReport>(
+      `${environment.apiUrl}reports/advance-income-tax-report`,
+      { headers: this.clientHeaders(firebaseId), params },
+    );
+  }
+
+  private clientHeaders(firebaseId: string): HttpHeaders {
+    return new HttpHeaders({
+      'x-client-user-id': firebaseId,
+      'Cache-Control': 'no-cache',
+      'Pragma': 'no-cache',
+    });
   }
 
   fetchFeezbackTransactions(
@@ -132,6 +186,33 @@ export class AdminPanelService {
       {},
     );
   }
+}
+
+export interface AdminTaxBusiness {
+  id?: number;
+  businessName: string | null;
+  businessNumber: string | null;
+  businessType: string | null;
+  nationalInsRequired: boolean | null;
+  advanceTaxPercent: number | null;
+}
+
+export interface AdminTaxPnl {
+  businessOwnerName?: string;
+  businessName?: string;
+  businessNumber?: string;
+  income: number;
+  expenses: Array<{ sectionName: string; total: number }>;
+  netProfitBeforeTax: number;
+}
+
+export interface AdminTaxAdvanceReport {
+  businessType: string;
+  totalIncome: number;
+  advanceTaxPercent: number;
+  totalAdvanceTax: number;
+  taxWithholdingAtSource: number;
+  totalToPay: number;
 }
 
 export interface AdminFeezbackDateRangePullResult {

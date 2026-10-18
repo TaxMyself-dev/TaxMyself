@@ -23,6 +23,10 @@ describe('AdminPanelPage', () => {
     expect(component.tabs.map((tab) => tab.value)).toContain('content');
   });
 
+  it('includes the admin-only tax file tab', () => {
+    expect(component.tabs.map((tab) => tab.value)).toContain('tax-file');
+  });
+
   it('switches between the nested catalog tabs', () => {
     component.onCatalogTabChange('cards');
     expect(component.selectedCatalogTab).toBe('cards');
