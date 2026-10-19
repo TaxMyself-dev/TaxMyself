@@ -362,7 +362,8 @@
   display: flex;
 }
 
-.email-checkbox-container {
+.email-checkbox-container,
+.allocation-checkbox-container {
   display: flex;
   align-items: center;
   gap: 8px;

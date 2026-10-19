@@ -42,6 +42,31 @@ interface OppositeDocPayload {
   shouldCloseParentDoc?: boolean; // Flag to indicate if parent document should be closed after creation
 }
 
+export function requiresAllocationNumberFor(
+  docType: DocumentType,
+  sumBeforeVat: number,
+  docDate?: Date | string | null,
+): boolean {
+  const isTaxInvoice = docType === DocumentType.TAX_INVOICE
+    || docType === DocumentType.TAX_INVOICE_RECEIPT;
+
+  return isTaxInvoice && sumBeforeVat > getAllocationNumberThreshold(docDate);
+}
+
+export function canRequestAllocationVoluntarilyFor(
+  docType: DocumentType,
+  sumBeforeVat: number,
+  docDate: Date | string | null | undefined,
+  hasAllocationNumber: boolean,
+): boolean {
+  const isTaxInvoice = docType === DocumentType.TAX_INVOICE
+    || docType === DocumentType.TAX_INVOICE_RECEIPT;
+
+  return isTaxInvoice
+    && !hasAllocationNumber
+    && !requiresAllocationNumberFor(docType, sumBeforeVat, docDate);
+}
+
 
 @Component({
   selector: 'app-doc-create',
@@ -128,6 +153,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
 
   // Allocation number related properties
   allocationNumber = signal<string | null>(null);
+  requestAllocationVoluntarily = signal(false);
   showAllocationDecisionDialog = signal<boolean>(false);
   // selectedBankBeneficiary: string;
   // selectedBankName: string;
@@ -224,16 +250,26 @@ export class DocCreatePage implements OnInit, OnDestroy {
   // date — the VAT reform steps it down over time (see getAllocationNumberThreshold).
   requiresAllocationNumber = computed(() => {
     const docType = this.fileSelected();
-    const isTaxInvoice = docType === DocumentType.TAX_INVOICE || docType === DocumentType.TAX_INVOICE_RECEIPT;
-
-    if (!isTaxInvoice) {
-      return false;
-    }
-
     const sumBeforeVat = this.documentTotals().sumAftDisBefVat;
     const docDate = this.generalDetailsForm?.get(FieldsCreateDocValue.DOC_DATE)?.value;
-    return sumBeforeVat > getAllocationNumberThreshold(docDate);
+    return requiresAllocationNumberFor(docType, sumBeforeVat, docDate);
   });
+
+  canRequestAllocationVoluntarily = computed(() => {
+    const docType = this.fileSelected();
+    const sumBeforeVat = this.documentTotals().sumAftDisBefVat;
+    const docDate = this.generalDetailsForm?.get(FieldsCreateDocValue.DOC_DATE)?.value;
+    return canRequestAllocationVoluntarilyFor(
+      docType,
+      sumBeforeVat,
+      docDate,
+      Boolean(this.allocationNumber()),
+    );
+  });
+
+  shouldRequestAllocation = computed(() =>
+    this.requiresAllocationNumber() || this.requestAllocationVoluntarily()
+  );
 
   createDocIsValid = computed(() => {
     return (
@@ -476,6 +512,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
 
   onSelectedDoc(event: any): void {
 
+    this.requestAllocationVoluntarily.set(false);
     this.isDocWithPayments.set(event === DocumentType.RECEIPT || event === DocumentType.TAX_INVOICE_RECEIPT);
     this.fileSelected.set(event);
     this.HebrewNameFileSelected = this.getHebrewNameDoc(this.fileSelected());
@@ -527,6 +564,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
         this.onSelectedDoc(event);
         break;
       case 'businessNumber':
+        this.requestAllocationVoluntarily.set(false);
         this.generalDetailsForm.get('docType')?.setValue(""); //To enable switching between businesses and selecting the same document
         this.isFileSelected.set(false);
         this.userDetailsForm.reset();
@@ -544,14 +582,28 @@ export class DocCreatePage implements OnInit, OnDestroy {
     if (this.documentRequestBusy()) return;
 
     const requiresAlloc = this.requiresAllocationNumber();
+    const shouldRequestAlloc = this.shouldRequestAllocation();
     const hasAllocNumber = this.allocationNumber();
 
-    if (requiresAlloc) {
+    if (shouldRequestAlloc) {
       // Above-threshold docs legally require the recipient's tax ID — both for
       // requesting an allocation # from the Tax Authority and for the invoice
       // itself. Block the create flow here and tell the user what to add.
       const recipientId = this.userDetailsForm.get(FieldsCreateDocValue.RECIPIENT_ID)?.value;
       if (!recipientId || !String(recipientId).trim()) {
+        if (!requiresAlloc) {
+          this.confirmationService.confirm({
+            message: 'כדי לבקש מספר הקצאה מרשות המסים יש למלא את מספר העוסק של הלקוח.',
+            header: 'נדרש מספר עוסק של הלקוח',
+            icon: 'pi pi-exclamation-triangle',
+            acceptLabel: 'אישור',
+            acceptVisible: true,
+            rejectVisible: false,
+            acceptButtonStyleClass: 'p-button-contrast',
+          });
+          return;
+        }
+
         this.confirmationService.confirm({
           message: 'מסמך זה מחייב מספר הקצאה ולכן חובה למלא את מספר ת.ז / ח.פ של הלקוח.',
           header: 'נדרש מספר עוסק של הלקוח',
@@ -568,13 +620,32 @@ export class DocCreatePage implements OnInit, OnDestroy {
       if (!hasAllocNumber) {
         // Let the user choose the automatic SHAAM flow, defer the document, or
         // explicitly issue without an allocation number.
-        this.showAllocationNumberDialog();
+        if (requiresAlloc) {
+          this.showAllocationNumberDialog();
+        } else {
+          this.showVoluntaryAllocationConfirmation();
+        }
         return;
       }
     }
 
     // No allocation required, or one was already supplied — proceed normally.
     this.showDocumentCreationConfirmation();
+  }
+
+  private showVoluntaryAllocationConfirmation(): void {
+    this.confirmationService.confirm({
+      message: 'הבקשה היא וולונטרית, משום שסכום המסמך אינו מחייב מספר הקצאה.<br>האם לבקש מספר הקצאה מרשות המסים לפני הפקת המסמך?',
+      header: 'בקשת מספר הקצאה וולונטרית',
+      icon: 'pi pi-info-circle',
+      acceptLabel: 'בקש מספר הקצאה',
+      rejectLabel: 'ביטול',
+      acceptVisible: true,
+      rejectVisible: true,
+      acceptButtonStyleClass: 'p-button-contrast',
+      rejectButtonStyleClass: 'p-button-contrast',
+      accept: () => this.openShaamDialog(),
+    });
   }
 
   // Show confirmation dialog before creating document
@@ -801,6 +872,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
 
     // Reset allocation number
     this.allocationNumber.set(null);
+    this.requestAllocationVoluntarily.set(false);
 
     // Reset withholding tax
     this.withholdingTaxAmount.set(0);
@@ -2387,6 +2459,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
 
   // Restore draft from database after returning from SHAAM
   private restoreDraftFromDatabase(): void {
+    this.requestAllocationVoluntarily.set(false);
     console.log('=== FRONTEND: Restoring draft from database ===');
 
     // Try to get businessNumber from sessionStorage first (saved before SHAAM redirect)

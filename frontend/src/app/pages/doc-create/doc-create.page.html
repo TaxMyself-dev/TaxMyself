@@ -546,6 +546,20 @@
     </div>
     }
 
+    @if (canRequestAllocationVoluntarily()) {
+    <div class="allocation-checkbox-container">
+      <p-checkbox
+        [binary]="true"
+        inputId="requestAllocationVoluntarilyCheckbox"
+        [ngModel]="requestAllocationVoluntarily()"
+        (ngModelChange)="requestAllocationVoluntarily.set($event)">
+      </p-checkbox>
+      <label for="requestAllocationVoluntarilyCheckbox" class="checkbox-label">
+        בקש מספר הקצאה מרשות המסים
+      </label>
+    </div>
+    }
+
     <div class="email-checkbox-container">
       <p-checkbox [binary]="true" inputId="sendEmailCheckbox" [ngModel]="sendEmailToRecipient()" (ngModelChange)="sendEmailToRecipient.set($event)">
       </p-checkbox>

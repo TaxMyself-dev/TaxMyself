@@ -1,8 +1,13 @@
 import { computed, signal } from '@angular/core';
-import { Subject } from 'rxjs';
-import { DocCreatePage } from './doc-create.page';
+import { of, Subject, throwError } from 'rxjs';
+import {
+  canRequestAllocationVoluntarilyFor,
+  DocCreatePage,
+  requiresAllocationNumberFor,
+} from './doc-create.page';
 import { FilesService } from '../../services/files.service';
 import { writePdfPreviewStatus } from '../../services/pdf-preview-tab';
+import { DocumentType } from './doc-cerate.enum';
 
 describe('document preview and create request coordination', () => {
   let page: any, request: Subject<Blob>, tab: any;
@@ -115,4 +120,141 @@ describe('document preview and create request coordination', () => {
     expect(page.docCreateService.createDoc).not.toHaveBeenCalled();
   });
 
+});
+
+describe('voluntary SHAAM allocation', () => {
+  const docDate = '2026-10-19';
+
+  it('keeps 4,999 and exactly 5,000 optional, and 5,000.01 mandatory', () => {
+    expect(requiresAllocationNumberFor(DocumentType.TAX_INVOICE, 4999, docDate)).toBeFalse();
+    expect(requiresAllocationNumberFor(DocumentType.TAX_INVOICE, 5000, docDate)).toBeFalse();
+    expect(requiresAllocationNumberFor(DocumentType.TAX_INVOICE, 5000.01, docDate)).toBeTrue();
+
+    expect(canRequestAllocationVoluntarilyFor(DocumentType.TAX_INVOICE, 4999, docDate, false)).toBeTrue();
+    expect(canRequestAllocationVoluntarilyFor(DocumentType.TAX_INVOICE_RECEIPT, 5000, docDate, false)).toBeTrue();
+    expect(canRequestAllocationVoluntarilyFor(DocumentType.TAX_INVOICE, 5000.01, docDate, false)).toBeFalse();
+  });
+
+  it('hides the voluntary option for other documents and invoices that already have an allocation', () => {
+    expect(canRequestAllocationVoluntarilyFor(DocumentType.RECEIPT, 4999, docDate, false)).toBeFalse();
+    expect(canRequestAllocationVoluntarilyFor(DocumentType.TRANSACTION_INVOICE, 4999, docDate, false)).toBeFalse();
+    expect(canRequestAllocationVoluntarilyFor(DocumentType.TAX_INVOICE, 4999, docDate, true)).toBeFalse();
+  });
+
+  function createConfirmationPage(options: {
+    required?: boolean;
+    voluntary?: boolean;
+    recipientId?: string;
+  } = {}): any {
+    const page = Object.create(DocCreatePage.prototype);
+    page.documentRequestBusy = () => false;
+    page.requiresAllocationNumber = () => options.required ?? false;
+    page.requestAllocationVoluntarily = signal(options.voluntary ?? false);
+    page.shouldRequestAllocation = () => page.requiresAllocationNumber() || page.requestAllocationVoluntarily();
+    page.allocationNumber = signal(null);
+    const userDetailsForm = {
+      get: () => ({value: options.recipientId ?? '515151515'}),
+    };
+    page.myForm = {get: () => userDetailsForm};
+    page.confirmationService = {confirm: jasmine.createSpy()};
+    page.showDocumentCreationConfirmation = jasmine.createSpy();
+    page.showAllocationNumberDialog = jasmine.createSpy();
+    page.showVoluntaryAllocationConfirmation = jasmine.createSpy();
+    return page;
+  }
+
+  it('issues normally when the voluntary option is unchecked', () => {
+    const page = createConfirmationPage();
+    page.confirmCreateDoc();
+    expect(page.showDocumentCreationConfirmation).toHaveBeenCalled();
+    expect(page.showVoluntaryAllocationConfirmation).not.toHaveBeenCalled();
+  });
+
+  it('enters the voluntary allocation confirmation when selected', () => {
+    const page = createConfirmationPage({voluntary: true});
+    page.confirmCreateDoc();
+    expect(page.showVoluntaryAllocationConfirmation).toHaveBeenCalled();
+    expect(page.showAllocationNumberDialog).not.toHaveBeenCalled();
+  });
+
+  it('blocks a voluntary request without the recipient business number', () => {
+    const page = createConfirmationPage({voluntary: true, recipientId: ' '});
+    page.confirmCreateDoc();
+    const confirmation = page.confirmationService.confirm.calls.mostRecent().args[0];
+    expect(confirmation.message).toContain('כדי לבקש מספר הקצאה');
+    expect(confirmation.message).not.toContain('לא יוכל לקזז');
+    expect(page.showVoluntaryAllocationConfirmation).not.toHaveBeenCalled();
+  });
+
+  it('preserves the mandatory decision dialog above the threshold', () => {
+    const page = createConfirmationPage({required: true});
+    page.confirmCreateDoc();
+    expect(page.showAllocationNumberDialog).toHaveBeenCalled();
+    expect(page.showVoluntaryAllocationConfirmation).not.toHaveBeenCalled();
+  });
+
+  it('explains that the request is voluntary and proceeds through the SHAAM path on acceptance', () => {
+    const page = Object.create(DocCreatePage.prototype) as any;
+    page.confirmationService = {confirm: jasmine.createSpy()};
+    page.openShaamDialog = jasmine.createSpy();
+    page.showVoluntaryAllocationConfirmation();
+
+    const confirmation = page.confirmationService.confirm.calls.mostRecent().args[0];
+    expect(confirmation.message).toContain('וולונטרית');
+    expect(confirmation.message).toContain('אינו מחייב מספר הקצאה');
+    expect(confirmation.message).not.toContain('לא יוכל לקזז');
+    confirmation.accept();
+    expect(page.openShaamDialog).toHaveBeenCalled();
+  });
+
+  it('persists a pending invoice before requesting its allocation', () => {
+    const page = Object.create(DocCreatePage.prototype) as any;
+    const payload: any = {
+      docData: {
+        issuerBusinessNumber: '123456789',
+        docType: DocumentType.TAX_INVOICE,
+      },
+    };
+    page.documentRequestBusy = () => false;
+    page.createPDFIsLoading = signal(false);
+    page.buildDocPayload = jasmine.createSpy().and.returnValue(payload);
+    page.docCreateService = {
+      createDoc: jasmine.createSpy().and.returnValue(of({docNumber: '20001'})),
+    };
+    page.messageService = {add: jasmine.createSpy()};
+    page.selectedBusinessNumber = '';
+    page.fileSelected = () => DocumentType.TAX_INVOICE;
+    page.requestAllocationForPersistedDocument = jasmine.createSpy();
+
+    page.createPendingAllocationDoc({requestAllocation: true});
+
+    expect(page.docCreateService.createDoc).toHaveBeenCalledWith(payload);
+    expect(payload.docData.docStatus).toBe('PENDING_ALLOCATION');
+    expect(payload.docData.allocationNum).toBeNull();
+    expect(page.requestAllocationForPersistedDocument).toHaveBeenCalledWith(
+      '123456789',
+      '20001',
+      DocumentType.TAX_INVOICE,
+    );
+  });
+
+  it('does not repeat an Approval request after an ambiguous timeout', () => {
+    const page = Object.create(DocCreatePage.prototype) as any;
+    page.allocationNumberLoading = signal(false);
+    page.shaamService = {
+      requestInvoiceAllocation: jasmine.createSpy().and.returnValue(
+        throwError(() => ({status: 408})),
+      ),
+    };
+    page.messageService = {add: jasmine.createSpy()};
+    page.resetDocFormsAndDrafts = jasmine.createSpy();
+    page.router = {navigate: jasmine.createSpy()};
+
+    page.requestAllocationForPersistedDocument('123456789', '20001', DocumentType.TAX_INVOICE);
+
+    expect(page.shaamService.requestInvoiceAllocation).toHaveBeenCalledTimes(1);
+    expect(page.messageService.add.calls.mostRecent().args[0].detail).toContain('אין לבקש מספר נוסף');
+    expect(page.router.navigate).toHaveBeenCalledWith(['/book-keeping/incomes']);
+    expect(page.allocationNumberLoading()).toBeFalse();
+  });
 });

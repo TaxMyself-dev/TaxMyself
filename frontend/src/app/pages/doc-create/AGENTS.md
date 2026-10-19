@@ -50,6 +50,10 @@ Page for creating and managing SHAAM-compliant business documents (receipts, tax
   OAuth when needed. With a valid connection it persists the final pending
   invoice, requests allocation, and finalizes it as one user-visible action.
   Deferring leaves the same pending record resumable from the incomes page.
+  Tax invoices and tax invoice-receipts at or below the applicable threshold
+  may request the same flow voluntarily. This choice is off by default, requires
+  a recipient business/tax number, and resets when document or business context
+  changes; the mandatory above-threshold dialog and wording remain separate.
 - "Opposite document" flow: generate a related document (e.g. credit invoice) prefilled from a parent/source document, optionally closing the parent.
 
 ## Related topics
