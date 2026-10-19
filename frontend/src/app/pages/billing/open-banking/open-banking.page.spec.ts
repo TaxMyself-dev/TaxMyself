@@ -16,7 +16,8 @@ describe('OpenBankingPage', () => {
       cancel: jasmine.createSpy().and.resolveTo() };
     billing = { hasBillingOverride: jasmine.createSpy().and.returnValue(false), reloadBillingStateQuietly: jasmine.createSpy().and.resolveTo() };
     feezback = { connectionOptions: jasmine.createSpy().and.returnValue(of({ offerSpouse: false })), createConsentLink: jasmine.createSpy().and.returnValue(of(null)) };
-    router = { navigate: jasmine.createSpy().and.resolveTo(true) };
+    router = { navigate: jasmine.createSpy().and.resolveTo(true), navigateByUrl: jasmine.createSpy().and.resolveTo(true),
+      getCurrentNavigation: () => ({ previousNavigation: { finalUrl: '/transactions?tab=bank' } }), serializeUrl: (url: string) => url };
     TestBed.configureTestingModule({ providers: [
       { provide: OpenBankingEnrollmentService, useValue: enrollment }, { provide: BillingStateService, useValue: billing },
       { provide: FeezbackService, useValue: feezback }, { provide: Router, useValue: router },
@@ -41,16 +42,35 @@ describe('OpenBankingPage', () => {
     expect(page.identityDialog()).toBeTrue();
     expect(feezback.createConsentLink).not.toHaveBeenCalled();
   });
-  it('allows retry when automatic connection fails', async () => {
+  it('returns to the originating route when automatic connection fails', async () => {
     enrollment.options.and.resolveTo({ ...options(), status: 'ACTIVE' });
-    const redirect = spyOn<any>(page, 'redirectToFeezback').and.rejectWith(new Error('offline'));
+    spyOn<any>(page, 'redirectToFeezback').and.rejectWith(new Error('offline'));
     await page.ngOnInit();
-    expect(page.error()).toBeTruthy();
+    expect(router.navigateByUrl).toHaveBeenCalledOnceWith('/transactions?tab=bank', { replaceUrl: true });
     expect(page.busy()).toBeFalse();
-    redirect.and.resolveTo();
-    await page.continue();
-    expect(page.error()).toBe('');
-    expect(redirect).toHaveBeenCalledTimes(2);
+  });
+  it('returns to the originating route on spouse dialog cancellation without creating a link', async () => {
+    page.identityDialog.set(true);
+    await page.cancelConnection();
+    expect(page.identityDialog()).toBeFalse();
+    expect(router.navigateByUrl).toHaveBeenCalledOnceWith('/transactions?tab=bank', { replaceUrl: true });
+    expect(feezback.createConsentLink).not.toHaveBeenCalled();
+    expect(enrollment.cancel).not.toHaveBeenCalled();
+  });
+  it('returns to the originating route when loading enrollment fails', async () => {
+    enrollment.options.and.rejectWith(new Error('offline'));
+    await page.load();
+    expect(router.navigateByUrl).toHaveBeenCalledOnceWith('/transactions?tab=bank', { replaceUrl: true });
+  });
+  it('returns to the origin when card collection is dismissed', async () => {
+    page.onCardDialogChange(false);
+    await Promise.resolve();
+    expect(router.navigateByUrl).toHaveBeenCalledOnceWith('/transactions?tab=bank', { replaceUrl: true });
+  });
+  it('does not treat a successful card save as cancellation', async () => {
+    page.onCardDialogChange(false);
+    await page.cardSaved();
+    expect(router.navigateByUrl).not.toHaveBeenCalled();
   });
   it('requires an eligible plan before saving a card or leaving for Feezback', async () => {
     page.selectedPlanId = null; await page.continue(); expect(enrollment.prepare).not.toHaveBeenCalled();
@@ -88,9 +108,9 @@ describe('OpenBankingPage', () => {
     await page.cancel(); expect(enrollment.cancel).toHaveBeenCalledOnceWith(42, 4);
     expect(billing.reloadBillingStateQuietly).toHaveBeenCalled(); expect(router.navigate).toHaveBeenCalled();
   });
-  it('keeps the user on the page when preparing fails and never opens CardCom', async () => {
+  it('returns to the origin when preparing fails and never opens CardCom', async () => {
     enrollment.prepare.and.rejectWith({ error: { message: 'quote changed' } });
-    await page.continue(); expect(page.error()).toBe('quote changed');
+    await page.continue(); expect(router.navigateByUrl).toHaveBeenCalledWith('/transactions?tab=bank', { replaceUrl: true });
     expect(page.cardDialog()).toBeFalse(); expect(feezback.createConsentLink).not.toHaveBeenCalled();
   });
   it('shows an unchecked choice before redirect for an existing or historical connection', async () => {
@@ -119,10 +139,10 @@ describe('OpenBankingPage', () => {
     await expectAsync((page as any).connect()).toBeRejected();
     expect(feezback.createConsentLink).not.toHaveBeenCalled();
   });
-  it('keeps the choice on link failure and suppresses double submission', async () => {
+  it('returns on link failure and suppresses double submission', async () => {
     const redirect = spyOn<any>(page, 'redirectToFeezback').and.rejectWith(new Error('offline'));
     page.identityDialog.set(true); await page.confirmIdentity();
-    expect(page.identityDialog()).toBeTrue(); expect(page.error()).toBeTruthy();
+    expect(page.identityDialog()).toBeFalse(); expect(router.navigateByUrl).toHaveBeenCalledWith('/transactions?tab=bank', { replaceUrl: true });
     page.busy.set(true); await page.confirmIdentity(); expect(redirect).toHaveBeenCalledTimes(1);
   });
 

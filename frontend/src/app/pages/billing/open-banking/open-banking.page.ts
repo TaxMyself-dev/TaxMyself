@@ -8,6 +8,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { ChangePaymentMethodDialogComponent } from 'src/app/components/change-payment-method-dialog/change-payment-method-dialog.component';
 import { BillingStateService } from 'src/app/services/billing-state.service';
+import { OpenBankingNavigationService } from 'src/app/services/open-banking-navigation.service';
 import { FeezbackService } from 'src/app/services/feezback.service';
 import { OpenBankingEnrollmentOptions, OpenBankingEnrollmentService } from 'src/app/services/open-banking-enrollment.service';
 
@@ -18,6 +19,7 @@ import { OpenBankingEnrollmentOptions, OpenBankingEnrollmentService } from 'src/
   styleUrls: ['./open-banking.page.scss'],
 })
 export class OpenBankingPage implements OnInit {
+  private readonly navigation = inject(OpenBankingNavigationService);
   private readonly enrollment = inject(OpenBankingEnrollmentService);
   private readonly billing = inject(BillingStateService);
   private readonly feezback = inject(FeezbackService);
@@ -32,9 +34,11 @@ export class OpenBankingPage implements OnInit {
   selectedPlanId: number | null = null;
   cancelPlanId: number | null = null;
   private continueAfterCard = false;
+  private cardSaveHandled = false;
 
 
   async ngOnInit() {
+    this.navigation.begin(this.route?.snapshot.queryParamMap.get('resumeCard') === '1');
     await this.load();
     if (this.options()?.complimentary || this.options()?.status === 'ACTIVE') {
       await this.continue();
@@ -54,7 +58,7 @@ export class OpenBankingPage implements OnInit {
       this.options.set(options);
       this.selectedPlanId = options.enrollment?.planId ?? options.plans[0]?.id ?? null;
       this.cancelPlanId = options.nonBankingPlans[0]?.id ?? null;
-    } catch { this.error.set('לא הצלחנו לטעון את פרטי ההרשמה. אפשר לנסות שוב.'); }
+    } catch { await this.navigation.returnToOrigin(); }
     finally { this.busy.set(false); }
   }
   planCard(plan: OpenBankingEnrollmentOptions['plans'][number]): PricingCardPlan {
@@ -70,7 +74,8 @@ export class OpenBankingPage implements OnInit {
   }
   async continue() {
     const options = this.options();
-    if (!options || this.busy() || this.billing.hasBillingOverride()) return;
+    if (!options || this.busy()) return;
+    if (this.billing.hasBillingOverride()) { await this.navigation.returnToOrigin(); return; }
     const plan = options.plans.find(p => p.id === this.selectedPlanId);
     if (!options.complimentary && options.status !== 'ACTIVE' && !plan) return;
     this.busy.set(true); this.error.set('');
@@ -84,16 +89,26 @@ export class OpenBankingPage implements OnInit {
         return;
       }
       await this.connect();
-    } catch (error: any) {
-      this.error.set(typeof error?.error?.message === 'string' ? error.error.message : 'לא ניתן להמשיך כרגע. נסו שוב.');
+    } catch {
+      await this.navigation.returnToOrigin();
     } finally { this.busy.set(false); }
   }
+  onCardDialogChange(visible: boolean) {
+    this.cardDialog.set(visible);
+    if (visible) return;
+    this.cardSaveHandled = false;
+    // The dialog closes immediately before emitting saved in the same turn.
+    queueMicrotask(() => {
+      if (!this.cardSaveHandled) void this.cancelConnection();
+    });
+  }
   async cardSaved() {
+    this.cardSaveHandled = true;
     if (!this.continueAfterCard) { await this.load(); return; }
     this.continueAfterCard = false;
     this.busy.set(true); this.error.set('');
     try { await this.connect(); }
-    catch { this.error.set('הכרטיס נשמר, אך המעבר לפיזבק לא הושלם. אפשר לנסות להמשיך שוב.'); }
+    catch { await this.navigation.returnToOrigin(); }
     finally { this.busy.set(false); }
   }
   private async connect() {
@@ -109,14 +124,19 @@ export class OpenBankingPage implements OnInit {
     if (this.busy() || !this.identityDialog()) return;
     this.busy.set(true); this.error.set('');
     try { await this.redirectToFeezback(this.spouseConnection()); this.identityDialog.set(false); }
-    catch { this.error.set('לא הצלחנו ליצור קישור לחיבור. אפשר לנסות שוב.'); }
+    catch { this.identityDialog.set(false); await this.navigation.returnToOrigin(); }
     finally { this.busy.set(false); }
+  }
+  async cancelConnection() {
+    if (this.busy()) return;
+    this.identityDialog.set(false);
+    await this.navigation.returnToOrigin();
   }
   private async redirectToFeezback(spouse: boolean) {
     const response = await firstValueFrom(this.feezback.createConsentLink(spouse));
     const link = response?.link || response?.url || response;
     if (typeof link !== 'string' || !link.startsWith('https://')) throw new Error('Invalid consent URL');
-    window.location.assign(link);
+    window.location.replace(link);
   }
   async cancel() {
     const request = this.options()?.enrollment;

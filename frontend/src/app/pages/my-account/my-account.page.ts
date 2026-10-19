@@ -32,6 +32,7 @@ import { IMobileCardConfig, IItemNavigate, IRowDataTable, ISelectItem, ITableRow
 import { SharedModule } from 'src/app/shared/shared.module';
 import { buildTransactionColumns } from 'src/app/shared/transaction-columns.config';
 import { TransactionsService } from '../transactions/transactions.page.service';
+import { OpenBankingNavigationService } from 'src/app/services/open-banking-navigation.service';
 import { FeezbackService } from 'src/app/services/feezback.service';
 import { SourceResult, SyncStatusService } from 'src/app/services/sync-status.service';
 import { MessageService } from 'primeng/api';
@@ -69,6 +70,7 @@ export class MyAccountPage implements OnInit {
   transactionService = inject(TransactionsService);
   genericService = inject(GenericService);
   expenseService = inject(ExpenseDataService);
+  private readonly openBankingNavigation = inject(OpenBankingNavigationService);
   feezbackService = inject(FeezbackService);
   messageService = inject(MessageService);
   private readonly syncStatusService = inject(SyncStatusService);
@@ -544,6 +546,11 @@ export class MyAccountPage implements OnInit {
     const simulate = this.route.snapshot.queryParamMap.get('simulate') === 'true';
     const scenario = this.route.snapshot.queryParamMap.get('scenario') ?? 'success';
     if (status !== 'success' && status !== 'failure') return;
+    if (status === 'failure') {
+      void this.openBankingNavigation.returnToOrigin();
+      return;
+    }
+    this.openBankingNavigation.clear();
     this.pendingPostConsentScenario = scenario;
 
     void this.router.navigate(['/my-account'], {
@@ -586,11 +593,6 @@ export class MyAccountPage implements OnInit {
       } else {
         this.pollForWebhookReady();
       }
-    } else if (status === 'failure') {
-      this.feezbackDialogStatus.set('failure');
-      this.feezbackDialogTitle.set('משהו בדרך השתבש והחיבור לבנקאות פתוחה לא הצליח...');
-      this.feezbackDialogIcon.set('error');
-      this.feezbackDialogVisible.set(true);
     }
   }
 
