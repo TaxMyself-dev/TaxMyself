@@ -70,8 +70,14 @@ no application boot/synchronize was used, and no production database was accesse
 This supersedes the initial handoff's statement that the SQL had not yet run for DEV;
 production application of the supplied cutover SQL remains pending.
 
-## Local frontend API port (2026-10-19)
+## Local frontend API port — mandatory pre-merge gate (2026-10-19)
 
-At Elazar's request, restored desktop and mobile development API URLs from port 3001 to port 3000 before integration. Production/cloud environment URLs are unchanged.
+Elazar clarified that local work must continue on backend port 3001 NOW.
+The earlier change to 3000 was premature and has been reversed; desktop and
+mobile environment files are restored exactly to their prior 3001 versions.
 
-Validation: no 3001 references remain in frontend environment files; git diff --check passed; frontend npm run build passed (exit 0), with bundle/CSS budget and CommonJS warnings.
+- [ ] BEFORE MERGING: change desktop and mobile local API URLs from 3001 to 3000, verify the diff, and complete applicable checks before integration.
+
+Do not make this port change during ongoing feature development. Production/cloud
+API URLs remain unchanged. The previous port-only commit's build passed; this
+correction restores the prior files exactly and was verified by diff comparison.
