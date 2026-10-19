@@ -1,6 +1,6 @@
 # Optional SHAAM allocation during invoice issuance
 
-- Status: `WORKER_COMPLETE`
+- Status: `PUSHED`
 - Task manager: Codex
 - Worker: Codex
 - Worktree: primary checkout
@@ -45,8 +45,8 @@ the existing mandatory above-threshold flow remains unchanged.
 
 ## Integration
 
-- Reviewed by:
-- Integrated commit:
-- Combined verification:
-- `origin/main` verification:
-- User-visible run instructions:
+- Reviewed by: Codex
+- Integrated commit: `ab92a338`
+- Combined verification: focused ChromeHeadless 19/19 and Angular production build passed before KT-074; KT-074 later extended the same suite to 23/23 and both builds passed.
+- `origin/main` verification: commit is reachable from `origin/main` at `5015f7be`.
+- User-visible run instructions: after SHAAM support clearance, verify 4,999/5,000 voluntary allocation through the dedicated tsandbox demo business only.

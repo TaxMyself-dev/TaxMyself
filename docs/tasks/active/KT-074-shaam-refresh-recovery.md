@@ -1,6 +1,6 @@
 # KT-074 - SHAAM refresh recovery and sandbox guard
 
-- Status: `WORKER_COMPLETE`
+- Status: `PUSHED`
 - Task manager: Codex
 - Worker: Codex
 - Worktree: primary checkout (continuation of the user-approved SHAAM work on `main`)
@@ -44,8 +44,8 @@ issuer so a real development business cannot accidentally start OAuth.
 
 ## Integration
 
-- Reviewed by:
-- Integrated commit:
-- Combined verification:
-- `origin/main` verification:
-- User-visible run instructions:
+- Reviewed by: Codex
+- Integrated commit: `5015f7be`
+- Combined verification: backend Jest 17/17; frontend ChromeHeadless 23/23; Nest and Angular production builds passed.
+- `origin/main` verification: `5015f7be` pushed successfully on 2026-10-19.
+- User-visible run instructions: after SHAAM support clears the security alert, use only the dedicated allocation demo business for the next tsandbox check; a transient refresh failure must now show an error without opening OAuth.
