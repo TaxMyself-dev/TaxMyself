@@ -6,7 +6,7 @@
 export const environment = {
   production: false,
   enableDevTools: true,
-  apiUrl: 'http://localhost:3001/',
+  apiUrl: 'http://localhost:3000/',
   firebase: {
     apiKey: "AIzaSyClSnN3fRAb9aQVt2kMEkLygsNExwQD7fo",
     authDomain: "taxmyself-5d8a0.firebaseapp.com",
@@ -17,4 +17,4 @@ export const environment = {
     measurementId: "G-K8B1TC0DKB"
   },
 };
-// apiUrl: 'http://192.168.1.106:3001/',
+// apiUrl: 'http://192.168.1.106:3000/',

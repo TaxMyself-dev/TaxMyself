@@ -69,3 +69,9 @@ IS_NULLABLE=NO, COLUMN_DEFAULT=0. No provider identities or consents were create
 no application boot/synchronize was used, and no production database was accessed.
 This supersedes the initial handoff's statement that the SQL had not yet run for DEV;
 production application of the supplied cutover SQL remains pending.
+
+## Local frontend API port (2026-10-19)
+
+At Elazar's request, restored desktop and mobile development API URLs from port 3001 to port 3000 before integration. Production/cloud environment URLs are unchanged.
+
+Validation: no 3001 references remain in frontend environment files; git diff --check passed; frontend npm run build passed (exit 0), with bundle/CSS budget and CommonJS warnings.
