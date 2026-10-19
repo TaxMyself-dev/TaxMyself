@@ -1,4 +1,11 @@
 <main class="enrollment" dir="rtl">
+  @if (!error() && (!options() || options()?.complimentary || options()?.status === 'ACTIVE')) {
+    @if (!identityDialog()) {
+      <div class="connection-loading" role="status" aria-label="טוען">
+        <span class="connection-spinner" aria-hidden="true"></span>
+      </div>
+    }
+  } @else {
   <a routerLink="/my-account" class="back">חזרה לאזור האישי</a>
   <h1>חיבור לבנקאות פתוחה</h1>
   @if (error()) { <p role="alert" class="error">{{ error() }}</p> }
@@ -6,8 +13,6 @@
     @if (data.complimentary || data.status === 'ACTIVE') {
       @if (error()) {
         <button class="primary" [disabled]="busy()" (click)="continue()">נסה שוב</button>
-      } @else if (!identityDialog()) {
-        <p role="status">מעבירים אותך לפיזבק…</p>
       }
     } @else if (data.status === 'TRIAL' && data.trialEnd && (data.trialEnd | date:'yyyy-MM-dd')) {
       <p class="intro">כדי להתחבר לבנקאות הפתוחה, יש להזין פרטי אשראי ולהצטרף לתוכנית הכוללת את השירות. במהלך תקופת הניסיון לא תחויבו. החיוב יחל בתום הניסיון, לאחר השלמת החיבור.</p>
@@ -32,6 +37,7 @@
     }
   } @else {
     <button class="secondary" [disabled]="busy()" (click)="load()">{{ busy() ? 'טוענים פרטים…' : 'נסה שוב' }}</button>
+  }
   }
   @if (identityDialog()) {
     <div class="identity-backdrop">
