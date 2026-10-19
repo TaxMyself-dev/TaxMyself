@@ -3,6 +3,9 @@ import { HttpClient } from '@angular/common/http';
 import { Observable, throwError } from 'rxjs';
 import { environment } from 'src/environments/environment';
 
+export const SHAAM_TSANDBOX_BUSINESS_NOT_ALLOWED =
+  'SHAAM_TSANDBOX_BUSINESS_NOT_ALLOWED';
+
 @Injectable({
   providedIn: 'root'
 })
@@ -24,9 +27,21 @@ export class ShaamService {
    * This method redirects the browser to the SHAAM login page
    * @param businessNumber - Optional business number to associate tokens with
    */
-  initiateOAuthFlow(businessNumber?: string): void {
+  initiateOAuthFlow(
+    businessNumber?: string,
+    onError?: (error: unknown) => void,
+  ): void {
     if (!businessNumber) throw new Error('businessNumber is required');
-    this.getAuthorizeUrl(businessNumber).subscribe(({ url }) => window.location.assign(url));
+    this.getAuthorizeUrl(businessNumber).subscribe({
+      next: ({ url }) => window.location.assign(url),
+      error: (error) => {
+        if (onError) {
+          onError(error);
+          return;
+        }
+        console.error('SHAAM OAuth initiation failed');
+      },
+    });
   }
 
   /**

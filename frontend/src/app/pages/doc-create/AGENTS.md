@@ -54,6 +54,10 @@ Page for creating and managing SHAAM-compliant business documents (receipts, tax
   may request the same flow voluntarily. This choice is off by default, requires
   a recipient business/tax number, and resets when document or business context
   changes; the mandatory above-threshold dialog and wording remain separate.
+  The connection pre-flight redirects to OAuth only when the backend explicitly
+  reports that no usable grant exists. Refresh/network/server errors show a
+  retry/support message and never start another authorization. A tsandbox
+  business outside the backend allowlist gets a dedicated demo-business message.
 - "Opposite document" flow: generate a related document (e.g. credit invoice) prefilled from a parent/source document, optionally closing the parent.
 
 ## Related topics

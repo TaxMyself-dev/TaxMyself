@@ -2,6 +2,7 @@ import { ShaamEnvironment } from '../shaam.constants';
 import { ShaamConnectionStatus, ShaamProduct } from '../entities/shaam.enums';
 import * as encryption from '../utils/shaam-encryption.util';
 import { ShaamConnectionService } from './shaam-connection.service';
+import { ShaamReauthorizationRequiredError } from './shaam-oauth.service';
 
 jest.mock('../utils/shaam-encryption.util', () => ({
   encryptToken: jest.fn((value: string) => `enc:${value}`),
@@ -80,6 +81,77 @@ describe('ShaamConnectionService', () => {
     ).resolves.toEqual({ connected: false, expiresAt: row.expiresAt });
 
     expect(oauth.refreshAccessToken).not.toHaveBeenCalled();
+    expect(repo.save).toHaveBeenCalledWith(
+      expect.objectContaining({ status: ShaamConnectionStatus.REAUTH_REQUIRED }),
+    );
+  });
+
+  it('preserves an existing refresh token when a refresh response omits it', async () => {
+    const row = {
+      accessToken: 'enc:old',
+      refreshToken: 'enc:keep-me',
+      connectedByFirebaseId: 'actor',
+      status: ShaamConnectionStatus.ACTIVE,
+      expiresAt: new Date(Date.now() - 1),
+    };
+    const { service } = setup(row);
+
+    await service.saveToken(
+      1,
+      'actor',
+      ShaamProduct.INVOICE_ALLOCATION,
+      ShaamEnvironment.TSANDBOX,
+      { access_token: 'new', expires_in: 3600 } as any,
+    );
+
+    expect(row.accessToken).toBe('enc:new');
+    expect(row.refreshToken).toBe('enc:keep-me');
+  });
+
+  it('keeps an active grant and surfaces a transient refresh failure', async () => {
+    const row = {
+      accessToken: 'enc:old',
+      refreshToken: 'enc:r',
+      connectedByFirebaseId: 'actor',
+      status: ShaamConnectionStatus.ACTIVE,
+      expiresAt: new Date(Date.now() - 1),
+    };
+    const { service, oauth, repo } = setup(row);
+    oauth.refreshAccessToken.mockRejectedValueOnce(new Error('temporary outage'));
+
+    await expect(
+      service.status(
+        1,
+        ShaamProduct.INVOICE_ALLOCATION,
+        ShaamEnvironment.TSANDBOX,
+      ),
+    ).rejects.toThrow('temporary outage');
+
+    expect(row.status).toBe(ShaamConnectionStatus.ACTIVE);
+    expect(repo.save).not.toHaveBeenCalled();
+  });
+
+  it('requires authorization again only for an explicitly invalid grant', async () => {
+    const row = {
+      accessToken: 'enc:old',
+      refreshToken: 'enc:r',
+      connectedByFirebaseId: 'actor',
+      status: ShaamConnectionStatus.ACTIVE,
+      expiresAt: new Date(Date.now() - 1),
+    };
+    const { service, oauth, repo } = setup(row);
+    oauth.refreshAccessToken.mockRejectedValueOnce(
+      new ShaamReauthorizationRequiredError(),
+    );
+
+    await expect(
+      service.status(
+        1,
+        ShaamProduct.INVOICE_ALLOCATION,
+        ShaamEnvironment.TSANDBOX,
+      ),
+    ).resolves.toEqual({ connected: false, expiresAt: row.expiresAt });
+
     expect(repo.save).toHaveBeenCalledWith(
       expect.objectContaining({ status: ShaamConnectionStatus.REAUTH_REQUIRED }),
     );

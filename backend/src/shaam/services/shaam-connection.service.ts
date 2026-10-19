@@ -6,7 +6,10 @@ import { ShaamTokenResponseDto } from '../dto/shaam-token-response.dto';
 import { ShaamConnection } from '../entities/shaam-connection.entity';
 import { ShaamConnectionStatus, ShaamProduct } from '../entities/shaam.enums';
 import { decryptToken, encryptToken } from '../utils/shaam-encryption.util';
-import { ShaamOauthService } from './shaam-oauth.service';
+import {
+  ShaamOauthService,
+  ShaamReauthorizationRequiredError,
+} from './shaam-oauth.service';
 
 @Injectable()
 export class ShaamConnectionService {
@@ -28,9 +31,13 @@ export class ShaamConnectionService {
     });
     connection ??= this.repo.create({ businessId, product, environment });
     connection.accessToken = encryptToken(token.access_token);
-    connection.refreshToken = token.refresh_token
-      ? encryptToken(token.refresh_token)
-      : null;
+    // SHAAM may rotate only the access token during refresh. Keep the existing
+    // long-lived refresh token unless the response explicitly replaces it.
+    if (token.refresh_token) {
+      connection.refreshToken = encryptToken(token.refresh_token);
+    } else if (!connection.refreshToken) {
+      connection.refreshToken = null;
+    }
     connection.expiresAt = new Date(Date.now() + token.expires_in * 1000);
     connection.scopes = token.scope || null;
     connection.status = ShaamConnectionStatus.ACTIVE;
@@ -83,9 +90,22 @@ export class ShaamConnectionService {
       await this.repo.save(row);
       return null;
     }
-    const refreshed = await this.allocationOauth.refreshAccessToken(
-      decryptToken(row.refreshToken),
-    );
+    let refreshed: ShaamTokenResponseDto;
+    try {
+      refreshed = await this.allocationOauth.refreshAccessToken(
+        decryptToken(row.refreshToken),
+      );
+    } catch (error) {
+      if (error instanceof ShaamReauthorizationRequiredError) {
+        row.status = ShaamConnectionStatus.REAUTH_REQUIRED;
+        await this.repo.save(row);
+        return null;
+      }
+      // Network, timeout and SHAAM server/configuration failures are not proof
+      // that the user's long-term grant was revoked. Preserve it and surface
+      // the failure instead of starting another browser authorization.
+      throw error;
+    }
     await this.saveToken(
       businessId,
       row.connectedByFirebaseId,

@@ -19,7 +19,11 @@ import { Response } from 'express';
 import { BusinessService } from '../business/business.service';
 import { FirebaseAuthGuard } from '../guards/firebase-auth.guard';
 import { ShaamDocumentAllocationDto } from './dto/shaam-document-allocation.dto';
-import { ShaamEnvironment } from './shaam.constants';
+import {
+  isShaamTsandboxInvoiceBusinessAllowed,
+  ShaamEnvironment,
+  SHAAM_TSANDBOX_BUSINESS_NOT_ALLOWED,
+} from './shaam.constants';
 import { ShaamProduct } from './entities/shaam.enums';
 import { ShaamConnectionService } from './services/shaam-connection.service';
 import { ShaamOauthStateService } from './services/shaam-oauth-state.service';
@@ -55,6 +59,11 @@ export class ShaamSecureController {
       throw new ServiceUnavailableException('Uniform-file SHAAM OAuth is disabled');
     }
     const environment = this.environmentFor(body.product);
+    this.assertSandboxInvoiceBusinessAllowed(
+      business.businessNumber,
+      body.product,
+      environment,
+    );
     const state = await this.states.create(
       business.id,
       request.user.actorFirebaseId,
@@ -103,10 +112,16 @@ export class ShaamSecureController {
     @Query('product') product: ShaamProduct,
   ) {
     const business = await this.resolveBusiness(request, businessNumber);
+    const environment = this.environmentFor(product);
+    this.assertSandboxInvoiceBusinessAllowed(
+      business.businessNumber,
+      product,
+      environment,
+    );
     return this.connections.status(
       business.id,
       product,
-      this.environmentFor(product),
+      environment,
     );
   }
 
@@ -119,10 +134,16 @@ export class ShaamSecureController {
     @Body() dto: ShaamDocumentAllocationDto,
   ) {
     const business = await this.resolveBusiness(request, businessNumber);
+    const environment = this.environmentFor(ShaamProduct.INVOICE_ALLOCATION);
+    this.assertSandboxInvoiceBusinessAllowed(
+      business.businessNumber,
+      ShaamProduct.INVOICE_ALLOCATION,
+      environment,
+    );
     const token = await this.connections.getValidAccessToken(
       business.id,
       ShaamProduct.INVOICE_ALLOCATION,
-      this.environmentFor(ShaamProduct.INVOICE_ALLOCATION),
+      environment,
     );
     if (!token) {
       throw new HttpException('SHAAM connection is required', HttpStatus.PRECONDITION_REQUIRED);
@@ -145,10 +166,16 @@ export class ShaamSecureController {
     @Body() dto: ShaamDocumentAllocationDto,
   ) {
     const business = await this.resolveBusiness(request, businessNumber);
+    const environment = this.environmentFor(ShaamProduct.INVOICE_ALLOCATION);
+    this.assertSandboxInvoiceBusinessAllowed(
+      business.businessNumber,
+      ShaamProduct.INVOICE_ALLOCATION,
+      environment,
+    );
     const token = await this.connections.getValidAccessToken(
       business.id,
       ShaamProduct.INVOICE_ALLOCATION,
-      this.environmentFor(ShaamProduct.INVOICE_ALLOCATION),
+      environment,
     );
     if (!token) {
       throw new HttpException('SHAAM connection is required', HttpStatus.PRECONDITION_REQUIRED);
@@ -181,5 +208,24 @@ export class ShaamSecureController {
       ShaamEnvironment.PRODUCTION
       ? ShaamEnvironment.PRODUCTION
       : ShaamEnvironment.TSANDBOX;
+  }
+
+  private assertSandboxInvoiceBusinessAllowed(
+    businessNumber: string | null | undefined,
+    product: ShaamProduct,
+    environment: ShaamEnvironment,
+  ): void {
+    if (
+      product !== ShaamProduct.INVOICE_ALLOCATION ||
+      environment !== ShaamEnvironment.TSANDBOX ||
+      isShaamTsandboxInvoiceBusinessAllowed(businessNumber)
+    ) {
+      return;
+    }
+    throw new BadRequestException({
+      code: SHAAM_TSANDBOX_BUSINESS_NOT_ALLOWED,
+      message:
+        'Invoice allocation in TSANDBOX is limited to the configured Tax Authority test business',
+    });
   }
 }

@@ -5,6 +5,13 @@ import { getShaamUrls, getShaamInvoiceScope, REQUEST_TIMEOUT_MS } from '../shaam
 import { ShaamTokenResponseDto } from '../dto/shaam-token-response.dto';
 import * as crypto from 'crypto';
 
+export class ShaamReauthorizationRequiredError extends Error {
+  constructor(message = 'SHAAM authorization is no longer valid') {
+    super(message);
+    this.name = 'ShaamReauthorizationRequiredError';
+  }
+}
+
 @Injectable()
 export class ShaamOauthService {
   private readonly logger = new Logger(ShaamOauthService.name);
@@ -198,11 +205,18 @@ export class ShaamOauthService {
       
       return response.data;
     } catch (error: any) {
+      const oauthError = error.response?.data?.error;
       this.logger.error('Failed to refresh access token', {
         status: error.response?.status,
-        error: error.response?.data?.error,
+        error: oauthError,
         error_description: error.response?.data?.error_description,
       });
+      if (
+        error.response?.status === 400 &&
+        (oauthError === 'invalid_grant' || oauthError === 'invalid_token')
+      ) {
+        throw new ShaamReauthorizationRequiredError();
+      }
       throw this.handleError(error, 'Failed to refresh access token');
     }
   }

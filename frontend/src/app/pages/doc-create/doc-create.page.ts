@@ -12,7 +12,10 @@ import { AuthService } from 'src/app/services/auth.service';
 import { DocumentsService } from 'src/app/services/documents.service';
 import { FilesService } from 'src/app/services/files.service';
 import { GenericService } from 'src/app/services/generic.service';
-import { ShaamService } from 'src/app/services/shaam.service';
+import {
+  ShaamService,
+  SHAAM_TSANDBOX_BUSINESS_NOT_ALLOWED,
+} from 'src/app/services/shaam.service';
 import { BusinessStatus, BusinessType, fieldLineDocName, fieldLineDocValue, FieldsCreateDocName, FieldsCreateDocValue, FormTypes, getAllocationNumberThreshold, inputsSize, isExemptBusinessType, paymentMethodOptions, vatOptions, VatType } from 'src/app/shared/enums';
 import { Business, ICreateDocField, IDocIndexes, ISettingDoc, ITotals, IUserData } from 'src/app/shared/interface';
 import { bankOptionsList, DocCreateFields, DocTypeDefaultStart, DocTypeDisplayName, DocumentSummary, DocumentTotals, DocumentTotalsLabels, DocumentType, PartialLineItem } from './doc-cerate.enum';
@@ -2321,12 +2324,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
 
     // Check for valid SHAAM connection
     firstValueFrom(
-      this.shaamService.getConnectionStatus(this.selectedBusinessNumber).pipe(
-        catchError((error) => {
-          // On error, return null to indicate no connection
-          return of(null);
-        })
-      )
+      this.shaamService.getConnectionStatus(this.selectedBusinessNumber)
     ).then((connection) => {
       if (!connection?.connected) {
         // No valid connection exists, show confirmation dialog
@@ -2336,6 +2334,24 @@ export class DocCreatePage implements OnInit, OnDestroy {
       // Reserve the final invoice number and persist the exact invoice before
       // any approval request is sent to SHAAM.
       this.createPendingAllocationDoc({ requestAllocation: true });
+    }).catch((error) => {
+      this.showShaamConnectionError(error);
+    });
+  }
+
+  private showShaamConnectionError(error: any): void {
+    const isSandboxBusinessBlocked =
+      error?.error?.code === SHAAM_TSANDBOX_BUSINESS_NOT_ALLOWED;
+    this.messageService.add({
+      severity: 'error',
+      summary: isSandboxBusinessBlocked
+        ? 'עסק זה אינו מורשה לבדיקת שע״מ'
+        : 'לא ניתן לבדוק את החיבור לשע״מ',
+      detail: isSandboxBusinessBlocked
+        ? 'בסביבת הבדיקות ניתן לבקש מספר הקצאה רק דרך עסק הדמו הייעודי של שע״מ.'
+        : 'החיבור הקיים לא הצליח להתרענן. לא נפתחה בקשת הרשאה חדשה; נסה שוב מאוחר יותר או פנה לתמיכת שע״מ.',
+      life: 8000,
+      key: 'br',
     });
   }
 
@@ -2441,12 +2457,18 @@ export class DocCreatePage implements OnInit, OnDestroy {
             next: (response) => {
               console.log('✅ FRONTEND: Draft saved successfully!', response);
               // Redirect to SHAAM OAuth flow
-              this.shaamService.initiateOAuthFlow(this.selectedBusinessNumber);
+              this.shaamService.initiateOAuthFlow(
+                this.selectedBusinessNumber,
+                (error) => this.showShaamConnectionError(error),
+              );
             },
             error: (error) => {
               console.error('❌ FRONTEND: Error saving draft:', error);
               // Still redirect even if draft save fails
-              this.shaamService.initiateOAuthFlow(this.selectedBusinessNumber);
+              this.shaamService.initiateOAuthFlow(
+                this.selectedBusinessNumber,
+                (error) => this.showShaamConnectionError(error),
+              );
             }
           });
         },

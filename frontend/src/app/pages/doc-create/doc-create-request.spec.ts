@@ -1,4 +1,5 @@
 import { computed, signal } from '@angular/core';
+import { fakeAsync, flushMicrotasks } from '@angular/core/testing';
 import { of, Subject, throwError } from 'rxjs';
 import {
   canRequestAllocationVoluntarilyFor,
@@ -8,6 +9,7 @@ import {
 import { FilesService } from '../../services/files.service';
 import { writePdfPreviewStatus } from '../../services/pdf-preview-tab';
 import { DocumentType } from './doc-cerate.enum';
+import { SHAAM_TSANDBOX_BUSINESS_NOT_ALLOWED } from '../../services/shaam.service';
 
 describe('document preview and create request coordination', () => {
   let page: any, request: Subject<Blob>, tab: any;
@@ -257,4 +259,72 @@ describe('voluntary SHAAM allocation', () => {
     expect(page.router.navigate).toHaveBeenCalledWith(['/book-keeping/incomes']);
     expect(page.allocationNumberLoading()).toBeFalse();
   });
+});
+
+describe('SHAAM connection pre-flight', () => {
+  function createPage(connectionResult: any): any {
+    const page = Object.create(DocCreatePage.prototype);
+    page.selectedBusinessNumber = '777777715';
+    page.shaamService = {
+      getConnectionStatus: jasmine.createSpy().and.returnValue(connectionResult),
+    };
+    page.messageService = { add: jasmine.createSpy() };
+    page.showShaamConnectionRequiredDialog = jasmine.createSpy();
+    page.createPendingAllocationDoc = jasmine.createSpy();
+    return page;
+  }
+
+  it('continues without OAuth when the existing connection is usable', fakeAsync(() => {
+    const page = createPage(of({ connected: true, expiresAt: null }));
+
+    page.openShaamDialog();
+    flushMicrotasks();
+
+    expect(page.createPendingAllocationDoc).toHaveBeenCalledWith({
+      requestAllocation: true,
+    });
+    expect(page.showShaamConnectionRequiredDialog).not.toHaveBeenCalled();
+  }));
+
+  it('offers authorization when the backend explicitly reports no connection', fakeAsync(() => {
+    const page = createPage(of({ connected: false, expiresAt: null }));
+
+    page.openShaamDialog();
+    flushMicrotasks();
+
+    expect(page.showShaamConnectionRequiredDialog).toHaveBeenCalled();
+    expect(page.createPendingAllocationDoc).not.toHaveBeenCalled();
+  }));
+
+  it('does not open OAuth after a transient refresh failure', fakeAsync(() => {
+    const page = createPage(
+      throwError(() => ({ status: 503, error: { message: 'upstream detail' } })),
+    );
+
+    page.openShaamDialog();
+    flushMicrotasks();
+
+    expect(page.showShaamConnectionRequiredDialog).not.toHaveBeenCalled();
+    expect(page.createPendingAllocationDoc).not.toHaveBeenCalled();
+    const message = page.messageService.add.calls.mostRecent().args[0];
+    expect(message.detail).toContain('לא נפתחה בקשת הרשאה חדשה');
+    expect(message.detail).not.toContain('upstream');
+  }));
+
+  it('shows a dedicated message for a blocked tsandbox business', fakeAsync(() => {
+    const page = createPage(
+      throwError(() => ({
+        status: 400,
+        error: { code: SHAAM_TSANDBOX_BUSINESS_NOT_ALLOWED },
+      })),
+    );
+
+    page.openShaamDialog();
+    flushMicrotasks();
+
+    expect(page.showShaamConnectionRequiredDialog).not.toHaveBeenCalled();
+    expect(page.messageService.add.calls.mostRecent().args[0].detail).toContain(
+      'עסק הדמו',
+    );
+  }));
 });

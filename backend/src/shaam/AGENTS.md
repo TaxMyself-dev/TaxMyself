@@ -20,6 +20,11 @@ Integrates with the Israel Tax Authority's SHAAM OpenAPI — OAuth2 authorizatio
 - `GET /shaam/connection-status` — resolves/refreshes the server-held invoice
   allocation access token when necessary, then returns only safe connection
   metadata. An expired access token alone must not trigger browser reauthorization.
+  Only an explicit OAuth `invalid_grant`/`invalid_token` response marks the
+  connection `REAUTH_REQUIRED`; timeouts, network failures, server failures and
+  configuration errors are surfaced without discarding the existing grant.
+  When a successful refresh omits a replacement refresh token, the previously
+  encrypted refresh token is preserved.
 - `POST /shaam/invoices/allocation?businessNumber=...` — accepts only `docNumber` + `docType`, resolves the server-held token, attempts official recovery first, and only when that succeeds without an existing number submits Approval before finalizing the persisted invoice. An ambiguous recovery error blocks Approval.
 - `POST /shaam/invoices/allocation/recover?businessNumber=...` — retrieves a lost allocation response from the official recovery API using the persisted invoice fields; it never submits a replacement approval request.
 
@@ -41,6 +46,12 @@ The verified public tsandbox token exchange uses
 downloaded OpenAPI metadata also advertises `t-ita-api.taxes.gov.il`, that host
 did not resolve in the public sandbox flow. Do not switch the sandbox token URL
 without a successful end-to-end verification.
+
+Invoice-allocation operations in tsandbox are fail-closed to the dedicated
+Tax Authority test issuer `777777715`. `SHAAM_TSANDBOX_INVOICE_BUSINESS_NUMBERS`
+may provide a comma-separated allowlist when additional officially approved
+sandbox issuers are needed. The guard covers connection status, OAuth
+initiation, Approval and recovery; it never applies in production.
 
 Invoice allocation must never accept totals, dates, VAT numbers,
 `invoice_reference_number` or `INVOICE_ID` from the browser. `INVOICE_ID` is

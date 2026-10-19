@@ -3,6 +3,23 @@ export enum ShaamEnvironment {
   PRODUCTION = 'production',
 }
 
+export const SHAAM_TSANDBOX_BUSINESS_NOT_ALLOWED =
+  'SHAAM_TSANDBOX_BUSINESS_NOT_ALLOWED';
+export const DEFAULT_SHAAM_TSANDBOX_INVOICE_BUSINESS_NUMBER = '777777715';
+
+export function isShaamTsandboxInvoiceBusinessAllowed(
+  businessNumber: string | null | undefined,
+): boolean {
+  const configured = process.env.SHAAM_TSANDBOX_INVOICE_BUSINESS_NUMBERS
+    ?.split(',')
+    .map((value) => value.trim())
+    .filter(Boolean);
+  const allowed = configured?.length
+    ? configured
+    : [DEFAULT_SHAAM_TSANDBOX_INVOICE_BUSINESS_NUMBER];
+  return allowed.includes(String(businessNumber || '').trim());
+}
+
 export interface ShaamUrls {
   authorize: string;
   token: string;
