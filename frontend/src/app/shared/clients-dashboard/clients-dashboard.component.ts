@@ -12,6 +12,8 @@ import { ConfirmationService, MessageService } from 'primeng/api';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 
 interface AdminSourceRow {
+  sourceRecordId?: number;
+  connectionRole?: 'primary' | 'spouse';
   type: 'bank' | 'card';
   paymentIdentifier: string;
   consentStatus: string;
@@ -69,7 +71,7 @@ export class ClientsDashboardComponent implements OnInit {
   readonly ButtonSize = ButtonSize;
 
   sourceKey(src: AdminSourceRow): string {
-    return `${src.type}_${src.paymentIdentifier}`;
+    return src.sourceRecordId ? String(src.sourceRecordId) : `${src.type}_${src.connectionRole}_${src.resourceId}_${src.paymentIdentifier}`;
   }
 
   /**
@@ -100,7 +102,7 @@ export class ClientsDashboardComponent implements OnInit {
       const rawId = iban?.trim().slice(-7);
       if (!rawId) continue;
       rows.push({
-        type: 'bank',
+        type: 'bank', sourceRecordId: acc.sourceRecordId, connectionRole: acc.connectionRole,
         paymentIdentifier: this.deriveSourceName(rawId, acc?.currency),
         consentStatus: acc?.consentStatus ?? '—',
         ownerName: acc?.ownerName ?? acc?.name ?? null,
@@ -115,7 +117,7 @@ export class ClientsDashboardComponent implements OnInit {
       const rawId = typeof maskedPan === 'string' ? maskedPan.match(/(\d{4})$/)?.[1] : undefined;
       if (!rawId) continue;
       rows.push({
-        type: 'card',
+        type: 'card', sourceRecordId: card.sourceRecordId, connectionRole: card.connectionRole,
         paymentIdentifier: this.deriveSourceName(rawId, card?.currency),
         consentStatus: card?.consentStatus ?? '—',
         ownerName: card?.ownerName ?? card?.name ?? null,
@@ -494,8 +496,8 @@ export class ClientsDashboardComponent implements OnInit {
 
   /**
    * Pull transactions for one specific account/card of the client whose
-   * accounts dialog is open. Reuses the admin pull-source endpoint (which
-   * self-heals by running discovery if the source isn't registered yet).
+   * accounts dialog is open. The permanent source ID selects the provider identity;
+   * undiscovered sources can be registered using the explicit refresh action.
    */
   onPullSource(src: AdminSourceRow): void {
     const firebaseId = this.accountsDialogClientFirebaseId();
@@ -503,7 +505,7 @@ export class ClientsDashboardComponent implements OnInit {
     const key = this.sourceKey(src);
     this.pullingSourceKey.set(key);
 
-    this.feezbackService.adminPullSource(firebaseId, src.type, src.paymentIdentifier)
+    this.feezbackService.adminPullSource(firebaseId, src.type, src.paymentIdentifier, src.sourceRecordId)
       .pipe(
         catchError(err => {
           const error = err?.error?.message ?? err?.message ?? 'משיכת התנועות נכשלה';

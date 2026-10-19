@@ -15,7 +15,7 @@
 ## Impact
 - Schema: one boolean column on user, default false. Deployment requires the supplied cutover SQL first.
 - Provider: same APIs and signed JWT contract, one additional deterministic identity only when explicitly selected.
-- Source identifiers: secondary source and transaction keys end in _spouse; primary keys stay unchanged.
+- Source identifiers: clean account labels; connectionRole lives only on source, sync/cache reference its primary key. Opaque external transaction IDs stay unchanged for idempotency.
 - Security: profile writes cannot set the permanent verified flag; enrollment authorization is preserved.
 - Production: no operations performed.
 
@@ -81,3 +81,48 @@ mobile environment files are restored exactly to their prior 3001 versions.
 Do not make this port change during ongoing feature development. Production/cloud
 API URLs remain unchanged. The previous port-only commit's build passed; this
 correction restores the prior files exactly and was verified by diff comparison.
+
+## Approved source identity refactor (2026-10-20)
+
+Elazar requested connectionRole on source and a foreign key from sync state,
+clean account identifiers, and preserving all existing DEV connections/data.
+Added cache.sourceRecordId as well to preserve bill associations when spouses
+have identical account/card number labels. APIs/UI use the permanent source ID
+for individual retries and association; role is derived through source.
+
+DEV migration applied with backend paused, a Git-ignored local snapshot, strict
+database-name guards, and before/after SHA-256 comparisons of unchanged fields.
+31 sources / 21 sync / 658 cache / 355 slim / 0 legacy rows preserved. Two spouse
+sources and two valid FKs; zero orphan links or suffixed account labels. Provider
+SUBs, consent/resource IDs and opaque external transaction IDs were preserved.
+No production access or provider requests were performed for this refactor.
+
+Backend and frontend builds passed. Focused tests include same-number identity
+isolation, own-SUB retry routing, rejection of ambiguous/foreign source IDs,
+bill backfill isolation, direct-card safeguards and provider duplicate matching.
+Full command/count evidence is added after final verification below.
+
+Local API remains 3001. The mandatory pre-merge gate above remains open.
+
+### Final verification for source-record refactor
+
+- Backend: 13 focused Jest suites / 98 tests passed. After completing admin
+  source metadata/routing, reran the three affected suites: 37 tests passed,
+  including one added same-resource-ID/two-identity regression.
+- Frontend: 21 isolated ChromeHeadless tests passed using the documented
+  open-banking spec/config. Angular production build passed after final admin
+  UI changes; CSS/bundle-budget and CommonJS warnings remain.
+- Nest build passed; latest watch compilation also reported zero errors.
+- DEV migration verification passed again after backend startup: counts and
+  hashes preserved, zero invalid links or suffixed account identifiers.
+- Backend watcher restored on 3001 with synchronize=false and boot seeding
+  disabled; protected GET /transactions/sync-status returned HTTP 401.
+- Snapshot, backend/.env and both key files verified ignored by Git.
+- Primary checkout remained clean on main. Feature remains on
+  codex/feezback-spouse; no merge/push/deploy performed.
+- Schema/accounting impact: two source-record FKs and a source role/index;
+  existing bill links, slim classifications and financial values preserved.
+  Data backfill is transactional; MySQL DDL is not globally transactional,
+  so the ignored before-snapshot is retained for recovery. No billing/provider
+  contract changes. Existing external transaction keys retain their suffix
+  to preserve import idempotency. Cross-identity deduplication remains outside scope.

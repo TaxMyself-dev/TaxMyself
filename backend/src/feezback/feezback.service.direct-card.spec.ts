@@ -39,13 +39,14 @@ describe('FeezbackService — Direct/Debit card handling', () => {
       getAccountTransactionsByConsent: jest.fn(),
     };
     const userSyncStateService = {
-      getSourceResults: jest.fn().mockResolvedValue([]),
+      getSourceResults: jest.fn().mockResolvedValue([{ sourceRecordId: 11, connectionRole: 'primary', sourceId: '3221', type: 'card' }, { sourceRecordId: 12, connectionRole: 'primary', sourceId: '9999', type: 'card' }]),
       updateSourceResults: jest.fn().mockResolvedValue(undefined),
       markCacheReadyAfterSourcePull: jest.fn().mockResolvedValue(undefined),
       upsertSourceConsents: jest.fn().mockResolvedValue(undefined),
       markSourcesRefreshed: jest.fn().mockResolvedValue(undefined),
     };
     const sourceRepository = {
+      find: jest.fn().mockResolvedValue([{ id: 11, sourceName: '3221' }, { id: 12, sourceName: '9999' }]),
       query: jest.fn().mockResolvedValue(undefined),
       findOne: jest.fn().mockResolvedValue(null),
     };
@@ -112,7 +113,7 @@ describe('FeezbackService — Direct/Debit card handling', () => {
       // 2. Source upserted with isDirect=true BEFORE any transaction fetch.
       expect(sourceRepository.query).toHaveBeenCalledWith(
         expect.stringContaining('COALESCE(VALUES(`isDirect`), `isDirect`)'),
-        [USER, '3221', SourceType.CREDIT_CARD, true],
+        [USER, '3221', SourceType.CREDIT_CARD, true, 'primary'],
       );
 
       // 3. Card excluded from processing, exposed as a skipped direct card.
@@ -150,7 +151,7 @@ describe('FeezbackService — Direct/Debit card handling', () => {
 
       expect(sourceRepository.query).toHaveBeenCalledWith(
         expect.any(String),
-        [USER, '9999', SourceType.CREDIT_CARD, false],
+        [USER, '9999', SourceType.CREDIT_CARD, false, 'primary'],
       );
       expect(consentApi.getCardTransactions).toHaveBeenCalledWith(
         SUB, 'consent-1', 'card-credit', 'booked', undefined, undefined,
@@ -204,7 +205,7 @@ describe('FeezbackService — Direct/Debit card handling', () => {
       ]);
 
       const [sql, params] = sourceRepository.query.mock.calls[0];
-      expect(params).toEqual([USER, '1234567', SourceType.BANK_ACCOUNT, null]);
+      expect(params).toEqual([USER, '1234567', SourceType.BANK_ACCOUNT, null, 'primary']);
       // The SQL-side guarantee: a NULL incoming value never overwrites a stored one.
       expect(sql).toContain('COALESCE(VALUES(`isDirect`), `isDirect`)');
     });
@@ -268,7 +269,7 @@ describe('FeezbackService — Direct/Debit card handling', () => {
       const { service, feezbackApiService, consentApi, userSyncStateService, sourceRepository, processingService } = makeService();
       sourceRepository.findOne.mockResolvedValue({ sourceName: '3221', isDirect: null });
       userSyncStateService.getSourceResults.mockResolvedValue([
-        { sourceId: '3221', type: 'card', resourceId: 'card-direct', consentId: 'consent-1' },
+        { sourceRecordId: 11, connectionRole: 'primary', sourceId: '3221', type: 'card', resourceId: 'card-direct', consentId: 'consent-1' },
       ]);
       feezbackApiService.getUserCards.mockResolvedValue({ cards: [directCard] });
 
@@ -287,7 +288,7 @@ describe('FeezbackService — Direct/Debit card handling', () => {
       const { service, feezbackApiService, consentApi, userSyncStateService, sourceRepository } = makeService();
       sourceRepository.findOne.mockResolvedValue({ sourceName: '9999', isDirect: false });
       userSyncStateService.getSourceResults.mockResolvedValue([
-        { sourceId: '9999', type: 'card', resourceId: 'card-credit', consentId: 'consent-1' },
+        { sourceRecordId: 12, connectionRole: 'primary', sourceId: '9999', type: 'card', resourceId: 'card-credit', consentId: 'consent-1' },
       ]);
       feezbackApiService.getUserCards.mockResolvedValue({ cards: [creditCard] });
       consentApi.getCardTransactions.mockRejectedValue(Object.assign(new Error('Forbidden'), { status: 403 }));

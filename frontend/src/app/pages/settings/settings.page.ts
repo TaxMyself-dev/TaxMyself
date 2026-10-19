@@ -147,14 +147,16 @@ export class SettingsPage implements OnInit {
   /** Account sources (credit cards + bank accounts) from backend `transactions/source` table. */
   accountSourcesLoading = signal(false);
   accountSources = signal<
-    { sourceName: string; sourceType: paymentIdentifierType; billName: string | null; hasConsent: boolean; isDirect: boolean | null }[]
+    { sourceRecordId?: number; connectionRole?: 'primary' | 'spouse'; sourceName: string; sourceType: paymentIdentifierType; billName: string | null; hasConsent: boolean; isDirect: boolean | null }[]
   >([]);
 
   /** Flat IRowDataTable rows derived from accountSources for GenericTable. */
   accountSourcesTableData = computed<IRowDataTable[]>(() =>
     this.accountSources().map(s => ({
-      id: s.sourceName,
+      id: s.sourceRecordId?.toString() ?? s.sourceName,
+      sourceRecordId: s.sourceRecordId,
       sourceName: s.sourceName,
+      connectionRoleLabel: s.connectionRole === 'spouse' ? 'בן/בת הזוג' : 'ראשי',
       sourceTypeLabel: this.getSourceTypeLabel(s.sourceType, s.isDirect),
       billName: s.billName || 'לא משויך',
       // Direct card: its transactions are received via the bank-account feed —
@@ -169,6 +171,7 @@ export class SettingsPage implements OnInit {
   accountSourcesColumns: IColumnDataTable<string, string>[] = [
     { name: 'consentStatus',   value: 'סטטוס' },
     { name: 'sourceName',      value: 'מספר מזהה' },
+    { name: 'connectionRoleLabel', value: 'חיבור' },
     { name: 'sourceTypeLabel', value: 'סוג' },
     { name: 'billName',        value: 'משויך לחשבון' },
   ];
@@ -190,10 +193,10 @@ export class SettingsPage implements OnInit {
       // intentionally received via the bank-account feed, and the backend
       // refuses the pull anyway (skipped_direct).
       showWhen: (row) => row!['isDirect'] !== true &&
-        (!this.retryingSourceId() || this.retryingSourceId() === row!['sourceName']),
+        (!this.retryingSourceId() || this.retryingSourceId() === String(row!['sourceRecordId'] ?? row!['sourceName'])),
       isLoading: () => !!this.retryingSourceId(),
       action: (_, row) => {
-        const source = this.accountSources().find(s => s.sourceName === row!['sourceName']);
+        const source = this.accountSources().find(s => s.sourceRecordId === row!['sourceRecordId']);
         if (source) this.onPullSource(source);
       },
     },
@@ -325,7 +328,7 @@ export class SettingsPage implements OnInit {
    * `sourceType` maps to bank/card. Routes to POST /transactions/retry-source
    * → feezbackService.retrySource → pullOneSource (no getUserAccounts re-pull).
    */
-  onPullSource(s: { sourceName: string; sourceType: paymentIdentifierType; isDirect?: boolean | null }): void {
+  onPullSource(s: { sourceRecordId?: number; sourceName: string; sourceType: paymentIdentifierType; isDirect?: boolean | null }): void {
     if (this.retryingSourceId()) return; // one at a time
     if (s.isDirect === true) {
       // Direct card — nothing to pull from the card feed (bank feed covers it).
@@ -337,9 +340,9 @@ export class SettingsPage implements OnInit {
     }
     const type: 'bank' | 'card' =
       s.sourceType === paymentIdentifierType.CREDIT_CARD ? 'card' : 'bank';
-    this.retryingSourceId.set(s.sourceName);
+    this.retryingSourceId.set(String(s.sourceRecordId ?? s.sourceName));
     this.syncStatusService
-      .retrySource(type, s.sourceName)
+      .retrySource(type, s.sourceName, s.sourceRecordId)
       .pipe(
         catchError((err) => {
           const detail =

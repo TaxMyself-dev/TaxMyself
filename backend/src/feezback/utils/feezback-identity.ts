@@ -1,9 +1,9 @@
-/** Stable provider identities; creating a link never registers another random identity. */
+import type { ConnectionRole } from '../../transactions/source.entity';
 export function feezbackSub(firebaseId: string, spouse = false): string {
   return firebaseId + (spouse ? '_sub_spouse' : '_sub');
 }
-/** Secondary source IDs are deterministic and cannot collide with primary masked numbers. */
-export const SPOUSE_SOURCE_SUFFIX = '_spouse';
-export function subForSource(firebaseId: string, sourceId: string): string {
-  return feezbackSub(firebaseId, sourceId.endsWith(SPOUSE_SOURCE_SUFFIX));
+// Retained only for opaque provider transaction IDs to preserve existing rows/idempotency.
+export const SPOUSE_TRANSACTION_SUFFIX = '_spouse';
+export function subForSource(firebaseId: string, role: ConnectionRole): string {
+  return feezbackSub(firebaseId, role === 'spouse');
 }

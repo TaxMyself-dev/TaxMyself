@@ -53,6 +53,14 @@ describe('dedupeProviderTransactions', () => {
     expect(result.transactions).toHaveLength(2);
   });
 
+  it('keeps separate sources with identical displayed numbers and ASPSP ids', () => {
+    const result = dedupeProviderTransactions([
+      tx({ externalTransactionId: 'p', providerOriginalId: 'same', paymentIdentifier: '1234', sourceRecordId: 11 }),
+      tx({ externalTransactionId: 's', providerOriginalId: 'same', paymentIdentifier: '1234', sourceRecordId: 22 }),
+    ]);
+    expect(result.transactions).toHaveLength(2);
+    expect(result.duplicateCount).toBe(0);
+  });
   it('keeps rows without a provider original id instead of guessing from business fields', () => {
     const result = dedupeProviderTransactions([
       tx({ externalTransactionId: 'a', providerOriginalId: null }),

@@ -415,6 +415,7 @@ export interface ICityData {
 
 export interface ITransactionData {
     paymentIdentifier: string,
+    sourceRecordId?: number,
     subCategory: string,
     isRecognized: boolean | string,
     vatPercent: number,

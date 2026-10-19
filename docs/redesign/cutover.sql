@@ -2462,3 +2462,36 @@ DEALLOCATE PREPARE kt070_stmt;
 
 -- Feezback optional spouse identity (approved 2026-10-15). Run once before deploying this feature.
 ALTER TABLE `user` ADD COLUMN `hasSpouseFeezbackIdentity` tinyint NOT NULL DEFAULT 0;
+
+
+-- 2026-10-20: optional spouse identity on permanent source records.
+-- Apply once with application/sync writers paused and a verified backup.
+-- DEV already applied; do not rerun there. Existing rows/consents remain intact.
+-- Precondition: every sync row joins source by its original userId+sourceId;
+-- abort if this query returns any rows, resolve ownership before proceeding:
+-- SELECT ss.id FROM user_source_sync_state ss LEFT JOIN source s
+--   ON s.userId=ss.userId AND s.sourceName=ss.sourceId WHERE s.id IS NULL;
+ALTER TABLE source ADD COLUMN connectionRole enum('primary','spouse') NOT NULL DEFAULT 'primary';
+ALTER TABLE user_source_sync_state ADD COLUMN sourceRecordId int NULL;
+ALTER TABLE full_transactions_cache ADD COLUMN sourceRecordId int NULL;
+UPDATE user_source_sync_state ss JOIN source s
+  ON s.userId=ss.userId AND s.sourceName=ss.sourceId SET ss.sourceRecordId=s.id;
+UPDATE full_transactions_cache c JOIN source s
+  ON s.userId=c.userId AND s.sourceName=c.paymentIdentifier SET c.sourceRecordId=s.id;
+ALTER TABLE source ADD UNIQUE INDEX UQ_source_user_type_name_role
+  (userId,sourceType,sourceName,connectionRole), DROP INDEX IDX_source_userId_sourceName;
+ALTER TABLE user_source_sync_state ADD UNIQUE INDEX UQ_source_sync_user_record
+  (userId,sourceRecordId), DROP INDEX UQ_source_sync_user_source;
+START TRANSACTION;
+UPDATE source SET connectionRole=CASE WHEN RIGHT(sourceName,7)='_spouse' THEN 'spouse' ELSE 'primary' END,
+  sourceName=CASE WHEN RIGHT(sourceName,7)='_spouse' THEN LEFT(sourceName,CHAR_LENGTH(sourceName)-7) ELSE sourceName END;
+UPDATE user_source_sync_state ss JOIN source s ON s.id=ss.sourceRecordId AND s.userId=ss.userId
+  SET ss.sourceId=s.sourceName;
+UPDATE full_transactions_cache c JOIN source s ON s.id=c.sourceRecordId AND s.userId=c.userId
+  SET c.paymentIdentifier=s.sourceName;
+COMMIT;
+ALTER TABLE user_source_sync_state MODIFY sourceRecordId int NOT NULL,
+  ADD CONSTRAINT FK_sync_source_record FOREIGN KEY (sourceRecordId) REFERENCES source(id) ON DELETE RESTRICT;
+ALTER TABLE full_transactions_cache ADD CONSTRAINT FK_cache_source_record
+  FOREIGN KEY (sourceRecordId) REFERENCES source(id) ON DELETE RESTRICT;
+-- Verify zero broken links; opaque externalTransactionId and slim state are unchanged.

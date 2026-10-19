@@ -1089,9 +1089,9 @@ export class MyAccountPage implements OnInit {
         },
       });
   }
-  onRetrySource(type: 'bank' | 'card', sourceId: string): void {
-    this.isRetryingSource.set(sourceId);
-    this.syncStatusService.retrySource(type, sourceId)
+  onRetrySource(type: 'bank' | 'card', sourceId: string, sourceRecordId?: number): void {
+    this.isRetryingSource.set(String(sourceRecordId ?? sourceId));
+    this.syncStatusService.retrySource(type, sourceId, sourceRecordId)
       .pipe(
         catchError(err => {
           console.error('[MyAccount] retrySource failed:', err);
@@ -1114,7 +1114,7 @@ export class MyAccountPage implements OnInit {
       )
       .subscribe(result => {
         this.syncSourceResults.update(results =>
-          results.map(r => r.sourceId === sourceId ? result : r)
+          results.map(r => (sourceRecordId ? r.sourceRecordId === sourceRecordId : r.sourceId === sourceId) ? result : r)
         );
         if (this.feezbackDialogVisible() && this.feezbackDialogStatus() === 'failure') {
           // Re-classify after the retry — may flip to success, or stay failure with

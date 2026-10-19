@@ -26,7 +26,7 @@ describe('optional Feezback spouse identity', () => {
     expect(feezbackSub(uid, true)).toBe(uid + '_sub_spouse');
     expect(parseFeezbackUserIdentifier(feezbackSub(uid, true) + '@tpp').firebaseId).toBe(uid);
     expect(parseFeezbackUserIdentifier(feezbackSub(uid) + '@tpp').firebaseId).toBe(uid);
-    expect(subForSource(uid, '1234_spouse')).toBe(feezbackSub(uid, true));
+    expect(subForSource(uid, 'spouse')).toBe(feezbackSub(uid, true));
   });
   it('does not persist anything when creating or retrying a spouse link', async () => {
     await service.createConsentLink(uid, true); await service.createConsentLink(uid, true);
@@ -65,14 +65,14 @@ describe('optional Feezback spouse identity', () => {
     api.getUserCards.mockRejectedValue(new Error('offline'));
     expect(await service.verifySpouseWebhookConnection(uid, feezbackSub(uid, true))).toBe(true);
   });
-  it('isolates source keys across overlapping primary and spouse pulls', async () => {
+  it('keeps account numbers clean across overlapping identity scopes', async () => {
     const impl: any = service;
     const [primary, spouse] = await Promise.all([false, true].map(flag =>
       impl.identityScope.run(feezbackSub(uid, flag), async () => {
         await Promise.resolve();
         return impl.deriveSourceName('1234567', 'USD');
       })));
-    expect(primary).toBe('1234567$'); expect(spouse).toBe('1234567$_spouse');
+    expect(primary).toBe('1234567$'); expect(spouse).toBe('1234567$');
     expect(impl.deriveSourceName('1234567', 'USD')).toBe(primary);
   });
   it('aggregates connection state across identities and keeps the permanent flag after expiry', async () => {
@@ -99,8 +99,28 @@ describe('optional Feezback spouse identity', () => {
   it('routes a source retry to its own provider SUB', async () => {
     const impl: any = service;
     const retry = jest.spyOn(impl, 'retrySourceForIdentity').mockResolvedValue({ status: 'success' });
-    await service.retrySource(uid, 'card', '1234_spouse');
-    expect(retry).toHaveBeenCalledWith(uid, 'card', '1234_spouse', feezbackSub(uid, true));
+    state.getSourceResults.mockResolvedValue([{ type: 'card', sourceId: '1234', sourceRecordId: 22, connectionRole: 'spouse' }]);
+    await service.retrySource(uid, 'card', '1234', 22);
+    expect(retry).toHaveBeenCalledWith(uid, 'card', '1234', feezbackSub(uid, true));
+  });
+  it('rejects an ambiguous account number and never calls the provider', async () => {
+    state.getSourceResults.mockResolvedValue([
+      { type: 'card', sourceId: '1234', sourceRecordId: 11, connectionRole: 'primary' },
+      { type: 'card', sourceId: '1234', sourceRecordId: 22, connectionRole: 'spouse' },
+    ]);
+    const retry = jest.spyOn(service as any, 'retrySourceForIdentity');
+    await expect(service.retrySource(uid, 'card', '1234')).rejects.toThrow('unique sourceRecordId');
+    await expect(service.retrySource(uid, 'card', '1234', 999)).rejects.toThrow('unique sourceRecordId');
+    expect(retry).not.toHaveBeenCalled();
+  });
+  it('attaches distinct permanent sources to identical numbers in each provider response', async () => {
+    source.find = jest.fn(async ({ where }) => [{ sourceName: '1234', id: where.connectionRole === 'spouse' ? 22 : 11 }]);
+    const responses = await Promise.all([false, true].map(async spouse => {
+      const response = { normalizedTransactions: [{ paymentIdentifier: '1234' }] };
+      return (service as any).attachSourceRecords(uid, feezbackSub(uid, spouse), 'card', response);
+    }));
+    expect(responses.map(r => r.normalizedTransactions[0].sourceRecordId)).toEqual([11, 22]);
+    expect(responses.map(r => r.normalizedTransactions[0].paymentIdentifier)).toEqual(['1234','1234']);
   });
   it('full sync combines both identities and reports partial failure without dropping healthy rows', () => {
     const impl: any = service;
@@ -110,7 +130,7 @@ describe('optional Feezback spouse identity', () => {
       transactionsByAccount: { s: [] }, accountInfoMap: { s: { iban: 'IL1234567', resourceId: 's' } } };
     const combined = impl.combineIdentityPulls([primary, spouse], 'bank');
     expect(combined.normalizedTransactions).toHaveLength(2);
-    expect(combined.__identityResults.map((r: any) => r.sourceId)).toEqual(['1234567', '1234567_spouse']);
+    expect(combined.__identityResults.map((r: any) => r.sourceId)).toEqual(['1234567', '1234567']);
     const partial = impl.combineIdentityPulls([primary, null], 'bank');
     expect(impl.computePhaseStatus(partial, { normalizedTransactions: [] }).resultStatus).toBe('partial_success');
   });
@@ -127,19 +147,19 @@ describe('optional Feezback spouse identity', () => {
   it('marks only failed-identity sources retryable, preserving direct cards', async () => {
     const impl: any = service;
     state.getSourceResults.mockResolvedValue([
-      { sourceId: '1234', type: 'card', status: 'success' },
-      { sourceId: '1234_spouse', type: 'card', status: 'success' },
-      { sourceId: '5678_spouse', type: 'card', status: 'skipped_direct' },
+      { connectionRole: 'primary', sourceId: '1234', type: 'card', status: 'success' },
+      { connectionRole: 'spouse', sourceId: '1234', type: 'card', status: 'success' },
+      { connectionRole: 'spouse', sourceId: '5678', type: 'card', status: 'skipped_direct' },
     ]);
     const failed = await impl.failedIdentityPull(uid, feezbackSub(uid, true), 'card', new Error('offline'));
     expect(failed.__identityResults.map((r: any) => [r.sourceId, r.status])).toEqual([
-      ['1234_spouse', 'failed'], ['5678_spouse', 'skipped_direct'],
+      ['1234', 'failed'], ['5678', 'skipped_direct'],
     ]);
   });
 
   it('routes direct account reads using owned source metadata, not a user-provided SUB', async () => {
     const impl: any = service;
-    state.getSourceResults.mockResolvedValue([{ type: 'bank', sourceId: '1234567_spouse', resourceId: 'account', consentId: 'consent' }]);
+    state.getSourceResults.mockResolvedValue([{ type: 'bank', connectionRole: 'spouse', sourceId: '1234567', resourceId: 'account', consentId: 'consent' }]);
     const fetch = jest.fn().mockResolvedValue({ transactions: [] });
     impl.feezbackConsentApiService.getAccountTransactionsByConsent = fetch;
     await service.getAccountTransactions(feezbackSub(uid), 'https://example.test/consents/consent/accounts/account/transactions');
@@ -155,12 +175,21 @@ describe('optional Feezback spouse identity', () => {
     expect(api.getUserAccounts).toHaveBeenCalledTimes(2);
   });
 
+  it('admin live source metadata preserves ownership even with identical resource IDs', async () => {
+    users.findOne.mockResolvedValue({ hasSpouseFeezbackIdentity: true });
+    state.getSourceResults.mockResolvedValue([
+      { type: 'bank', resourceId: 'account', sourceRecordId: 11, connectionRole: 'primary' },
+      { type: 'bank', resourceId: 'account', sourceRecordId: 22, connectionRole: 'spouse' },
+    ]);
+    const result = await service.adminGetAccountsAndCards(uid);
+    expect(result.accounts.accounts.map(account => [account.sourceRecordId, account.connectionRole])).toEqual([[11,'primary'],[22,'spouse']]);
+  });
   it('admin date-range pulls send a spouse resource only to its own identity', async () => {
     users.findOne.mockResolvedValue({ hasSpouseFeezbackIdentity: true });
-    state.getSourceResults.mockResolvedValue([{ type: 'bank', sourceId: '1234567_spouse', resourceId: 'spouse-resource', consentId: 'c' }]);
+    state.getSourceResults.mockResolvedValue([{ type: 'bank', connectionRole: 'spouse', sourceId: '1234567', resourceId: 'spouse-resource', consentId: 'c' }]);
     api.withDebugTrace = jest.fn(async (operation: () => Promise<any>) => ({ result: await operation(), httpCalls: [] }));
     const pull = jest.spyOn(service, 'getAndSaveBankTransactions').mockResolvedValue({
-      normalizedTransactions: [], bankErrors: [], sourceResults: [{ type: 'bank', sourceId: '1234567_spouse',
+      normalizedTransactions: [], bankErrors: [], sourceResults: [{ type: 'bank', connectionRole: 'spouse', sourceId: '1234567',
         resourceId: 'spouse-resource', consentId: 'c', status: 'success', transactionCount: 0, error: null }],
     });
     const result = await service.adminPullTransactionsForDateRange(uid, '2026-01-01', '2026-01-31',

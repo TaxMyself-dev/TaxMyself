@@ -67,10 +67,11 @@ export class FeezbackService {
     firebaseId: string,
     type: 'bank' | 'card',
     sourceId: string,
+    sourceRecordId?: number,
   ): Observable<AdminPullSourceResult> {
     return this.http.post<AdminPullSourceResult>(
       `${environment.apiUrl}feezback/admin/pull-source/${firebaseId}`,
-      { type, sourceId },
+      { type, sourceId, sourceRecordId },
     );
   }
 }
@@ -78,6 +79,8 @@ export class FeezbackService {
 export interface AdminPullSourceResult {
   type: 'bank' | 'card';
   sourceId: string;
+  sourceRecordId?: number;
+  connectionRole?: 'primary' | 'spouse';
   resourceId?: string;
   consentId?: string;
   /** 'skipped_direct' = Direct/Debit card — card feed intentionally not pulled (bank feed covers it). */

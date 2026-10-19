@@ -428,7 +428,7 @@ export class TransactionsService {
   }
 
 
-  async addSourceToBill(billId: number, sourceName: string, sourceType: SourceType, userId: string): Promise<Source> {
+  async addSourceToBill(billId: number, sourceName: string, sourceType: SourceType, userId: string, sourceRecordId?: number): Promise<Source> {
 
     if (!sourceType || !Object.values(SourceType).includes(sourceType)) {
       throw new BadRequestException(
@@ -441,9 +441,9 @@ export class TransactionsService {
       throw new NotFoundException('Bill not found');
     }
 
-    const existing = await this.sourceRepo.findOne({
-      where: { userId, sourceName },
-    });
+    const candidates = await this.sourceRepo.find({ where: sourceRecordId ? { userId, id: sourceRecordId, sourceName } : { userId, sourceName, sourceType } });
+    if (candidates.length > 1) throw new BadRequestException('Select a unique sourceRecordId');
+    const existing = candidates[0];
     if (!existing) {
       throw new NotFoundException(
         `אמצעי התשלום "${sourceName}" לא נמצא בטבלת המקורות (source). ` +
@@ -461,10 +461,10 @@ export class TransactionsService {
     await this.sourceRepo.save(existing);
 
     // Backfill: update all full_transactions_cache rows that already carry this
-    // paymentIdentifier so they become linked to the bill immediately.
+    // sourceRecordId so they become linked to the bill immediately.
     // Does NOT touch the legacy transactions table or slim_transactions.
     await this.cacheRepo.update(
-      { userId, paymentIdentifier: sourceName },
+      { userId, sourceRecordId: existing.id },
       {
         billId: bill.id,
         billName: bill.billName,
@@ -530,33 +530,20 @@ export class TransactionsService {
    * transactions are intentionally received via the bank feed (the frontend
    * hides the per-source pull button and shows a "כרטיס דיירקט" note).
    */
-  async getSourcesWithTypes(
-    userId: string,
-  ): Promise<{ sourceName: string; sourceType: SourceType; billName: string | null; hasConsent: boolean; isDirect: boolean | null }[]> {
-    // The list is driven by user_source_sync_state — it's refreshed on every
-    // discovery (getUserAccounts) so it reflects the currently-connected
-    // accounts + their consent validity. `source` is consulted only for the
-    // Bill mapping (billName) and the isDirect flag, joined by
-    // sourceName == sourceId.
+  async getSourcesWithTypes(userId: string): Promise<{ sourceRecordId: number; sourceName: string; sourceType: SourceType; connectionRole: 'primary' | 'spouse'; billName: string | null; hasConsent: boolean; isDirect: boolean | null }[]> {
     const [syncStates, sourceRows] = await Promise.all([
       this.userSourceSyncStateRepo.find({ where: { userId } }),
       this.sourceRepo.find({ where: { userId }, relations: ['bill'] }),
     ]);
-    const billBySourceName = new Map(
-      sourceRows.map((r) => [r.sourceName, r.bill?.billName ?? null]),
-    );
-    const isDirectBySourceName = new Map(
-      sourceRows.map((r) => [r.sourceName, r.isDirect ?? null]),
-    );
-    return syncStates.map((s) => ({
-      sourceName: s.sourceId,
-      sourceType: s.type === 'card' ? SourceType.CREDIT_CARD : SourceType.BANK_ACCOUNT,
-      billName: billBySourceName.get(s.sourceId) ?? null,
-      hasConsent: !!s.consentId,
-      isDirect: isDirectBySourceName.get(s.sourceId) ?? null,
-    }));
+    const byId = new Map(sourceRows.map(source => [source.id, source]));
+    return syncStates.map(state => {
+      const source = byId.get(state.sourceRecordId);
+      if (!source) throw new BadRequestException('Sync source has no owned source record');
+      return { sourceRecordId: state.sourceRecordId, sourceName: source?.sourceName ?? state.sourceId,
+        sourceType: source?.sourceType, connectionRole: source?.connectionRole ?? 'primary',
+        billName: source?.bill?.billName ?? null, hasConsent: !!state.consentId, isDirect: source?.isDirect ?? null };
+    });
   }
-
 
   // TODO_FINTAX_REMOVE_LEGACY_TRANSACTIONS: core read query against the legacy transactions table. Feeds getIncomesTransactions, getExpensesTransactions, and tax-income calculations.
   // Replace with equivalent queries against full_transactions_cache, then remove this method and all callers below.
@@ -874,6 +861,7 @@ export class TransactionsService {
         externalTransactionId: r.externalTransactionId,
         userId: r.userId,
         paymentIdentifier: r.paymentIdentifier,
+        sourceRecordId: r.sourceRecordId,
         billName: r.billName,
         businessNumber: r.businessNumber,
         name: r.merchantName,

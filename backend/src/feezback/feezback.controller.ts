@@ -356,7 +356,7 @@ export class FeezbackController {
   async adminPullSource(
     @Req() req: AuthenticatedRequest,
     @Param('firebaseId') targetFirebaseId: string,
-    @Body() body: { type: 'bank' | 'card'; sourceId: string },
+    @Body() body: { type: 'bank' | 'card'; sourceId: string; sourceRecordId?: number },
   ): Promise<SourceResult> {
     const adminFirebaseId = req.user?.firebaseId;
     const isAdmin = await this.usersService.isAdmin(adminFirebaseId);
@@ -365,7 +365,7 @@ export class FeezbackController {
     if (!body?.type || !body?.sourceId) throw new BadRequestException('type and sourceId are required');
 
     const targetMask = `${targetFirebaseId.substring(0, 8)}...`;
-    const result = await this.feezbackService.retrySource(targetFirebaseId, body.type, body.sourceId);
+    const result = await this.feezbackService.retrySource(targetFirebaseId, body.type, body.sourceId, body.sourceRecordId);
     this.logger.log(
       `[Admin][PullSource] Done | target=${targetMask} | type=${body.type} | sourceId=${body.sourceId} | status=${result.status} | count=${result.transactionCount}`,
     );

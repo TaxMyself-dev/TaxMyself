@@ -20,17 +20,24 @@ state is aggregated over both known identities; incomplete reads preserve the
 previous state unless a positive connection is proved.
 
 Discovery, full sync, source retries, direct account reads and admin date-range
-pulls resolve the appropriate identity. Existing primary source and transaction
-IDs are preserved. Secondary source/payment and normalized transaction IDs use
-a deterministic _spouse suffix, preventing collisions on masked numbers or
-provider IDs. AsyncLocalStorage scopes normalization per provider pull and
-isolates simultaneous users and identities. Dashboard labels display the spouse
-designation in Hebrew. Admin diagnostics retain the exact provider identifiers.
+pulls resolve the appropriate identity. Source.connectionRole (primary/spouse)
+is the single persisted identity marker. user_source_sync_state.sourceRecordId
+references source.id; full_transactions_cache.sourceRecordId also references it
+so bill association and duplicate matching cannot confuse equal displayed numbers.
+Readable sourceName/sourceId/paymentIdentifier values have no spouse suffix.
+The source unique key is (userId, sourceType, sourceName, connectionRole).
+Retry and association requests carry sourceRecordId and verify user ownership;
+ambiguous legacy requests without the ID are rejected. Settings display the
+connection role separately from the account number. AsyncLocalStorage isolates
+concurrent provider pulls. Existing opaque externalTransactionId values retain
+their deterministic spouse suffix to preserve import idempotency and classification
+links; these are transaction keys, not displayed account identifiers.
 
 ## Deployment
 
-Apply the appended user.hasSpouseFeezbackIdentity column in
-docs/redesign/cutover.sql before deploying. Existing users default to false;
+Apply the appended user.hasSpouseFeezbackIdentity and source-record schema/data
+changes in docs/redesign/cutover.sql before deploying. Pause sync writers during
+source backfill and take a backup first. Existing users default to false;
 there is no backfill that creates secondary provider users. No production SQL,
 live consent creation, provider mutation, or external webhook was executed.
 
@@ -48,3 +55,19 @@ primary; expire both and confirm the selection remains available. Also verify
 provider handling of shared accounts exposed through both identities: this
 feature isolates their feeds and does not introduce cross-identity account
 merging. Provider pricing and deletion behavior remain outside this change.
+
+## DEV source backfill (2026-10-20)
+
+Applied only to keepintax-dev using backend/scripts/migrate-source-records.js.
+The helper refuses other database names and partial schemas, saves a Git-ignored
+rollback snapshot before mutation, and verifies counts plus SHA-256 digests of
+all unchanged fields in source, sync state, full cache, slim state and legacy
+transactions. Links are resolved using original names BEFORE suffix removal.
+No rows, consents, resource IDs, bill IDs, external transaction IDs, user flags,
+amounts or classifications were removed or replaced. Existing cross-identity
+duplicate feeds are preserved; cross-identity account merging is outside scope.
+
+Result: 31 sources, 21 sync rows, 658 cache rows, 355 slim rows, 0 legacy rows;
+2 spouse sources, 2 foreign keys, 0 broken links, 0 suffixed account identifiers.
+Use node scripts/migrate-source-records.js verify from backend/ to compare with
+the ignored snapshot before further application writes.

@@ -30,6 +30,8 @@ export type SourceSyncStatus = 'not_synced' | 'success' | 'failed' | 'skipped_di
 export interface SourceResult {
   type: 'bank' | 'card';
   sourceId: string;
+  sourceRecordId?: number;
+  connectionRole?: 'primary' | 'spouse';
   resourceId?: string | null;
   status: SourceSyncStatus;
   transactionCount: number;
@@ -150,8 +152,8 @@ export class SyncStatusService {
     );
   }
 
-  retrySource(type: 'bank' | 'card', sourceId: string): Observable<SourceResult> {
-    return this.http.post<SourceResult>(this.retryUrl, { type, sourceId }).pipe(
+  retrySource(type: 'bank' | 'card', sourceId: string, sourceRecordId?: number): Observable<SourceResult> {
+    return this.http.post<SourceResult>(this.retryUrl, { type, sourceId, sourceRecordId }).pipe(
       tap(res => console.log('[SyncStatus] retrySource response:', res)),
       catchError(err => {
         console.error('[SyncStatus] retrySource failed:', err?.message ?? err);

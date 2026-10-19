@@ -66,7 +66,7 @@ describe('FeezbackService admin date-range diagnostics', () => {
       processingService as any,
       userSyncStateService as any,
       { findOne: jest.fn().mockResolvedValue({ fName: 'Test', lName: 'User' }) } as any,
-      {} as any,
+      { find: jest.fn().mockResolvedValue([]) } as any,
       {} as any,
       mailService as any,
     );

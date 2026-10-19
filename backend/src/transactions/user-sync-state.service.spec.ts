@@ -1,3 +1,4 @@
+import { SourceType } from '../enum';
 import { UserSyncStateService } from './user-sync-state.service';
 
 /**
@@ -25,7 +26,8 @@ describe('UserSyncStateService — skipped_direct handling', () => {
       upsert: jest.fn().mockResolvedValue(undefined),
       delete: jest.fn().mockResolvedValue(undefined),
     };
-    const service = new UserSyncStateService(repo as any, sourceRepo as any);
+    const accountSourceRepo = { findOne: jest.fn().mockImplementation(async ({ where }) => ({ id: 11, ...where })) };
+    const service = new UserSyncStateService(repo as any, sourceRepo as any, accountSourceRepo as any);
     return { service, repo, sourceRepo };
   }
 
@@ -67,7 +69,7 @@ describe('UserSyncStateService — skipped_direct handling', () => {
       ]);
 
       expect(sourceRepo.update).toHaveBeenCalledWith(
-        { userId: USER, sourceId: '3221' },
+        { userId: USER, sourceRecordId: 11 },
         expect.objectContaining({ status: 'skipped_direct', transactionCount: 0, error: null }),
       );
     });
@@ -83,7 +85,7 @@ describe('UserSyncStateService — skipped_direct handling', () => {
       ]);
 
       expect(sourceRepo.update).toHaveBeenCalledWith(
-        { userId: USER, sourceId: '3221' },
+        { userId: USER, sourceRecordId: 11 },
         expect.objectContaining({ status: 'not_synced' }),
       );
     });
@@ -146,7 +148,7 @@ describe('UserSyncStateService terminal state cleanup', () => {
     };
     return {
       repo,
-      service: new UserSyncStateService(repo as any, {} as any),
+      service: new UserSyncStateService(repo as any, {} as any, {} as any),
     };
   }
 
@@ -187,14 +189,49 @@ describe('UserSyncStateService terminal state cleanup', () => {
   it('scopes terminal consent cleanup to the selected identity', async () => {
     const USER = 'user-1';
     const sourceRepo = { update: jest.fn().mockResolvedValue({ affected: 1 }) };
-    const service = new UserSyncStateService({} as any, sourceRepo as any);
+    const accountSourceRepo = { find: jest.fn().mockImplementation(async ({ where }) => [{ id: where.connectionRole === 'spouse' ? 22 : 11 }]) };
+    const service = new UserSyncStateService({} as any, sourceRepo as any, accountSourceRepo as any);
     await service.clearConsentOnSources(USER, 'consent', true);
     const spouseWhere = sourceRepo.update.mock.calls[0][0];
-    expect(spouseWhere.sourceId.type).toBe('like');
-    expect(spouseWhere.sourceId.value).toBe('%\\_spouse');
+    expect(spouseWhere.sourceRecordId.type).toBe('in');
+    expect(spouseWhere.sourceRecordId.value).toEqual([22]);
     sourceRepo.update.mockClear();
     await service.clearConsentOnSources(USER, 'consent', false);
-    expect(sourceRepo.update.mock.calls[0][0].sourceId.type).toBe('not');
+    expect(sourceRepo.update.mock.calls[0][0].sourceRecordId.value).toEqual([11]);
   });
 
+});
+
+describe('permanent source identity', () => {
+  it('keeps identical account numbers separate by role and source PK', async () => {
+    const sourceRepo = { findOne: jest.fn().mockResolvedValue(null), create: jest.fn(x => x), save: jest.fn() };
+    const accounts = { findOne: jest.fn(async ({ where }) => ({ ...where, id: where.connectionRole === 'spouse' ? 22 : 11 })) };
+    const service = new UserSyncStateService({} as any, sourceRepo as any, accounts as any);
+    await service.upsertSourceConsents('u', [
+      { type: 'card', sourceId: '1234', connectionRole: 'primary', consentId: 'p', resourceId: 'p' },
+      { type: 'card', sourceId: '1234', connectionRole: 'spouse', consentId: 's', resourceId: 's' },
+    ]);
+    expect(sourceRepo.save.mock.calls.map(([row]) => [row.sourceId, row.sourceRecordId, row.consentId])).toEqual([['1234',11,'p'],['1234',22,'s']]);
+  });
+  it('rejects a source owned by another user before writing sync state', async () => {
+    const sync = { findOne: jest.fn(), upsert: jest.fn() };
+    const accounts = { findOne: jest.fn().mockResolvedValue({ id: 22, userId: 'other', sourceName: '1234', sourceType: SourceType.CREDIT_CARD, connectionRole: 'spouse' }) };
+    const service = new UserSyncStateService({} as any, sync as any, accounts as any);
+    await expect(service.upsertSourceConsents('u', [{ type: 'card', sourceId: '1234', sourceRecordId: 22 }])).rejects.toThrow();
+    expect(accounts.findOne).toHaveBeenCalledWith({ where: { id: 22, userId: 'u' } });
+    expect(sync.findOne).not.toHaveBeenCalled();
+  });
+});
+
+describe('simulated source foreign keys', () => {
+  it('creates the permanent source before recording simulated discovery', async () => {
+    const accounts = { upsert: jest.fn() };
+    const service = new UserSyncStateService({} as any, {} as any, accounts as any);
+    const update = jest.spyOn(service, 'updateSourceResults').mockResolvedValue(undefined);
+    const incoming: any[] = [{ type: 'card', sourceId: '1234', status: 'success', transactionCount: 0 }];
+    await service.updateSimulatedSourceResults('u', incoming);
+    expect(accounts.upsert).toHaveBeenCalledWith([{ userId: 'u', sourceName: '1234', sourceType: SourceType.CREDIT_CARD, connectionRole: 'primary' }], ['userId','sourceType','sourceName','connectionRole']);
+    expect(accounts.upsert.mock.invocationCallOrder[0]).toBeLessThan(update.mock.invocationCallOrder[0]);
+    expect(update).toHaveBeenCalledWith('u', incoming);
+  });
 });
