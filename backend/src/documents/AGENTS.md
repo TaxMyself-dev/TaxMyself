@@ -54,7 +54,9 @@ Handles the full lifecycle of official documents the user issues (invoices, rece
   allocation number, so a PDF/upload failure is safely retryable.
 - `allocationNum` is `varchar(50)` because the production Invoice Information
   v2 portal schema permits `confirmation_number` values up to 50 characters;
-  never truncate an upstream allocation number.
+  never truncate an upstream allocation number in storage. The issued PDF
+  displays only its nine rightmost characters under `מספר הקצאה`, as required
+  by the Tax Authority's software guidance.
 - `POST|GET|DELETE /documents/save-draft|load-draft|delete-draft` — draft persistence.
   Issuance removes the matching saved draft inside the same transaction after
   reserving the official number and before inserting the document row. This

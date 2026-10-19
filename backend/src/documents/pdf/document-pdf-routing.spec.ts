@@ -75,6 +75,18 @@ describe('local PDF document routing', () => {
       }),
     );
   });
+  it('prints only the rightmost nine allocation-number characters', async () => {
+    const allocated = data(DocumentType.TAX_INVOICE);
+    allocated.docData.allocationNum = '20261014123456789012345678';
+
+    await service.generatePDF(allocated, 'previewDoc');
+
+    expect(service.documentPdfRenderer.render).toHaveBeenCalledWith(
+      expect.objectContaining({
+        allocation: 'מספר הקצאה: 012345678',
+      }),
+    );
+  });
   it('preserves copy label', async () => {
     await service.generatePDF(data(), 'createDoc', true);
     expect(service.documentPdfRenderer.render).toHaveBeenCalledWith(

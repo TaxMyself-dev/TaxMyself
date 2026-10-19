@@ -604,6 +604,10 @@ export class DocumentsService {
     return err?.code === 'ER_DUP_ENTRY' || err?.driverError?.code === 'ER_DUP_ENTRY';
   }
 
+  private allocationNumberForDisplay(value: unknown): string | null {
+    const normalized = String(value ?? '').trim();
+    return normalized ? normalized.slice(-9) : null;
+  }
 
   private async preparePdfModel(data: any, preview: boolean, isCopy: boolean): Promise<DocumentPdfModel> {
     const doc = data.docData;
@@ -639,6 +643,7 @@ export class DocumentsService {
         { 'תיאור': 'מע״מ:', 'סכום': `₪${this.formatNumberWithCommas(Number(doc.vatSum || 0))}` },
       );
     }
+    const allocationNumber = this.allocationNumberForDisplay(doc.allocationNum);
     const model: DocumentPdfModel = {
       title: `${names[doc.docType]} מספר ${doc.docNumber}`,
       issuerName: identity.issuerName ? `שם העסק: ${identity.issuerName}` : null,
@@ -652,7 +657,7 @@ export class DocumentsService {
       recipientTaxNumber: doc.recipientId ? `מספר עוסק: ${doc.recipientId}` : null,
       date: this.formatDateToDDMMYYYY(doc.docDate), documentType: isCopy ? 'העתק נאמן למקור' : 'מקור',
       subtitle: doc.docSubtitle, note: doc.docDescription,
-      allocation: doc.allocationNum ? `מספר הקצאה: ${doc.allocationNum}` : null,
+      allocation: allocationNumber ? `מספר הקצאה: ${allocationNumber}` : null,
       logoDataUri, preview,
       items: await this.transformLinesToItemsTable(data.linesData ?? []),
       totals: summary,
