@@ -37,11 +37,7 @@ export class BookKeepingPage implements OnInit, OnDestroy {
     });
   });
 
-  private readonly activeRouterLink = signal<string>('incomes');
-
-  readonly activeItem = computed<MenuItem | undefined>(() =>
-    this.items().find(item => item.routerLink === this.activeRouterLink())
-  );
+  readonly activeRouterLink = signal<string>('incomes');
 
   private routeSub?: Subscription;
   private pendingSub?: Subscription;

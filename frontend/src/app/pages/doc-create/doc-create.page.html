@@ -402,10 +402,14 @@
         </div>
       </div>
 
-      <!-- Tab Menu for Payment Method -->
-      <p-tabMenu [model]="paymentMethodOptions" [activeItem]="activePaymentMethod"
-        (activeItemChange)="onPaymentMethodChange($event)">
-      </p-tabMenu>
+      <!-- Tabs for Payment Method -->
+      <p-tabs [value]="activePaymentMethod.id" (valueChange)="onPaymentMethodIdChange($event)">
+        <p-tablist>
+          @for (method of paymentMethodOptions; track method.id) {
+            <p-tab [value]="method.id">{{ method.label }}</p-tab>
+          }
+        </p-tablist>
+      </p-tabs>
 
       <!-- Payment Entry Row -->
       <div class="line-item-row">

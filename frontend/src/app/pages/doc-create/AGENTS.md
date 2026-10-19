@@ -21,7 +21,7 @@ Page for creating and managing SHAAM-compliant business documents (receipts, tax
   backend saves the allocation before completing PDF/journal issuance.
 - Select document type and issuing business; auto-fill/select recipient client (create/update/delete clients).
 - Build line items with VAT/discount calculation, running totals.
-- Configure payment details per method (bank transfer, credit card, check, cash, app).
+- Configure payment details per method (bank transfer, credit card, check, cash, app). The desktop selector uses the current PrimeNG `Tabs` API; do not reintroduce deprecated `TabMenu`, whose PrimeNG 19 dynamic styles conflict with `Tabs`/legacy `TabView` based on load order.
   Saved desktop payments can be edited (pencil → "עדכן תשלום"/"ביטול") via `editingPaymentIndex`; mobile edits share `replacePayment`. `paymentLineNumber` is renumbered on delete.
 - Save/load/delete drafts before finalizing.
 - Preview PDF, create the document, and roll back a created document if needed.

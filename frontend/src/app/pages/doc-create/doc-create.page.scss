@@ -473,28 +473,24 @@
     color: #f4f4f5;
   }
 
-  ::ng-deep .p-tabmenu {
+  ::ng-deep .p-tabs {
     background: #0d0d0d;
     border-color: #1f1f1f;
 
-    .p-tabmenu-nav {
+    .p-tablist-tab-list {
       background: #0d0d0d;
       border-color: #1f1f1f;
     }
 
-    .p-tabmenuitem {
+    .p-tab {
       background: transparent;
+      color: #e5e7eb;
 
-      .p-menuitem-link {
-        background: transparent;
-        color: #e5e7eb;
-
-        &:hover {
-          background: #1f1f1f;
-        }
+      &:hover {
+        background: #1f1f1f;
       }
 
-      &.p-highlight .p-menuitem-link {
+      &[data-p-active="true"] {
         background: #1f1f1f;
         color: #57bc97;
       }

@@ -1319,6 +1319,13 @@ export class DocCreatePage implements OnInit, OnDestroy {
     this.setSumInPaymentForm();
   }
 
+  onPaymentMethodIdChange(value: string | number): void {
+    const paymentMethod = this.paymentMethodOptions.find(method => method.id === String(value));
+    if (paymentMethod) {
+      this.onPaymentMethodChange(paymentMethod);
+    }
+  }
+
   /** Mobile-only: receives a method id string and delegates to onPaymentMethodChange */
   onMobilePaymentMethodChange(methodId: string): void {
     const method = this.paymentMethodOptions.find(m => m.id === methodId);

@@ -20,7 +20,7 @@ import { RadioButtonModule } from 'primeng/radiobutton';
 import { DialogModule } from 'primeng/dialog';
 import { DynamicDialogModule } from 'primeng/dynamicdialog';
 import { DialogService } from 'primeng/dynamicdialog';
-import { TabMenuModule } from 'primeng/tabmenu';
+import { TabsModule } from 'primeng/tabs';
 import { TableModule } from 'primeng/table';
 import { DocSuccessDialogComponent } from 'src/app/components/create-doc-success-dialog/create-doc-success-dialog.component';
 import { InputAutoCompleteComponent } from "src/app/components/input-autoComplete/input-autoComplete.component";
@@ -55,7 +55,7 @@ import { PdfPreviewDialogComponent } from 'src/app/components/pdf-preview-dialog
     RadioButtonModule,
     DialogModule,
     DynamicDialogModule,
-    TabMenuModule,
+    TabsModule,
     TableModule,
     DocSuccessDialogComponent,
     InputAutoCompleteComponent,
