@@ -14,7 +14,10 @@ Page for creating and managing SHAAM-compliant business documents (receipts, tax
 - Draft restoration scopes browser-session allocation context to the effective
   user's available businesses. Stale `draft_businessNumber` / `draft_docType`
   values from a previously viewed client are discarded, and a preferred
-  document type falls back to the remaining draft-capable types.
+  document type falls back to the remaining draft-capable types. Persisted
+  payment rows are normalized from the database's `paymentAmount` field to the
+  frontend's `paymentSum` field, retain sequential line numbers, and immediately
+  recalculate the payment total before the restored document can be issued.
 - An allocation request is never sent for a mutable draft. The page first
   creates a `PENDING_ALLOCATION` document and receives its reserved final
   number; it then sends only that persisted identity to the backend. The

@@ -4,6 +4,7 @@ import { of, Subject, throwError } from 'rxjs';
 import {
   canRequestAllocationVoluntarilyFor,
   DocCreatePage,
+  normalizeRestoredPayments,
   requiresAllocationNumberFor,
 } from './doc-create.page';
 import { FilesService } from '../../services/files.service';
@@ -258,6 +259,51 @@ describe('voluntary SHAAM allocation', () => {
     expect(page.messageService.add.calls.mostRecent().args[0].detail).toContain('אין לבקש מספר נוסף');
     expect(page.router.navigate).toHaveBeenCalledWith(['/book-keeping/incomes']);
     expect(page.allocationNumberLoading()).toBeFalse();
+  });
+});
+
+describe('draft payment restoration after SHAAM OAuth', () => {
+  it('maps the stored payment amount into the frontend payment shape', () => {
+    const [payment] = normalizeRestoredPayments([{
+      paymentMethod: 'BANK_TRANSFER',
+      paymentAmount: '1000.0000',
+      paymentLineNumber: '7',
+      paymentDate: '2026-10-19',
+      hebrewBankName: 'לאומי',
+      bankNumber: '10',
+    }]);
+
+    expect(payment.paymentSum).toBe(1000);
+    expect(payment.paymentLineNumber).toBe(1);
+    expect(payment.paymentDate).toEqual(new Date('2026-10-19'));
+    expect(payment.paymentAmount).toBeUndefined();
+  });
+
+  it('supports frontend-shaped data and restores missing line numbers sequentially', () => {
+    const payments = normalizeRestoredPayments([
+      { paymentMethod: 'CASH', paymentSum: 400, paymentDate: '2026-10-19' },
+      { paymentMethod: 'CASH', paymentSum: 600, paymentDate: '2026-10-19' },
+    ]);
+
+    expect(payments.map(payment => payment.paymentSum)).toEqual([400, 600]);
+    expect(payments.map(payment => payment.paymentLineNumber)).toEqual([1, 2]);
+    expect(payments.reduce((total, payment) => total + Number(payment.paymentSum), 0)).toBe(1000);
+  });
+
+  it('recalculates the payment total when restoring the draft', () => {
+    const page = Object.create(DocCreatePage.prototype) as any;
+    page.editingPaymentIndex = signal(3);
+    page.paymentsDraft = signal([]);
+    page.totalPayments = signal(0);
+
+    page.restorePayments([
+      { paymentMethod: 'CASH', paymentAmount: '400.0000', paymentLineNumber: '1' },
+      { paymentMethod: 'CASH', paymentAmount: '600.0000', paymentLineNumber: '2' },
+    ]);
+
+    expect(page.editingPaymentIndex()).toBeNull();
+    expect(page.totalPayments()).toBe(1000);
+    expect(page.paymentsDraft().map(payment => payment.paymentSum)).toEqual([400, 600]);
   });
 });
 

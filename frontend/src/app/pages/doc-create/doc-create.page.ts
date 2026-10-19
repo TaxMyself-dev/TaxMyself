@@ -70,6 +70,30 @@ export function canRequestAllocationVoluntarilyFor(
     && !requiresAllocationNumberFor(docType, sumBeforeVat, docDate);
 }
 
+export function normalizeRestoredPayments(paymentData: any[]): any[] {
+  return paymentData.map((payment, index) => {
+    const paymentSum = Number(payment.paymentAmount ?? payment.paymentSum ?? 0);
+
+    return {
+      paymentMethod: payment.paymentMethod,
+      paymentSum,
+      paymentLineNumber: index + 1,
+      paymentDate: payment.paymentDate ? new Date(payment.paymentDate) : new Date(),
+      hebrewBankName: payment.hebrewBankName || null,
+      bankNumber: payment.bankNumber || null,
+      branchNumber: payment.branchNumber || null,
+      accountNumber: payment.accountNumber || null,
+      checkNumber: payment.checkNumber || null,
+      cardCompany: payment.cardCompany || null,
+      creditCardName: payment.creditCardName || null,
+      creditTransType: payment.creditTransType || null,
+      card4Number: payment.card4Number || null,
+      creditPayNumber: payment.creditPayNumber || null,
+      appName: payment.appName || null,
+    };
+  });
+}
+
 
 @Component({
   selector: 'app-doc-create',
@@ -1439,6 +1463,12 @@ export class DocCreatePage implements OnInit, OnDestroy {
     this.totalPayments.set(this.paymentsDraft().reduce((total, payment) => total + Number(payment.paymentSum), 0));
   }
 
+  private restorePayments(paymentData: any[]): void {
+    this.editingPaymentIndex.set(null);
+    this.paymentsDraft.set(normalizeRestoredPayments(paymentData));
+    this.recalcTotalPayments();
+  }
+
   /** Keeps paymentLineNumber sequential and unique after any removal. */
   private renumberPayments(): void {
     this.paymentsDraft.update(items => items.map((p, i) => ({ ...p, paymentLineNumber: i + 1 })));
@@ -2707,25 +2737,8 @@ export class DocCreatePage implements OnInit, OnDestroy {
             // Restore payments
             if (paymentData && paymentData.length > 0) {
               console.log('Restoring payments:', paymentData);
-              const restoredPayments = paymentData.map(payment => ({
-                paymentMethod: payment.paymentMethod,
-                paymentAmount: payment.paymentAmount,
-                paymentDate: payment.paymentDate ? new Date(payment.paymentDate) : new Date(),
-                hebrewBankName: payment.hebrewBankName || null,
-                bankNumber: payment.bankNumber || null,
-                branchNumber: payment.branchNumber || null,
-                accountNumber: payment.accountNumber || null,
-                checkNumber: payment.checkNumber || null,
-                cardCompany: payment.cardCompany || null,
-                creditCardName: payment.creditCardName || null,
-                creditTransType: payment.creditTransType || null,
-                card4Number: payment.card4Number || null,
-                creditPayNumber: payment.creditPayNumber || null,
-                appName: payment.appName || null,
-              }));
-              console.log('Setting paymentsDraft with', restoredPayments.length, 'payments');
-              this.editingPaymentIndex.set(null);
-              this.paymentsDraft.set(restoredPayments);
+              console.log('Setting paymentsDraft with', paymentData.length, 'payments');
+              this.restorePayments(paymentData);
               console.log('✅ Payments restored');
             }
 
