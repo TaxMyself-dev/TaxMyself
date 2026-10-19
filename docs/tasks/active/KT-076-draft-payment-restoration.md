@@ -1,6 +1,6 @@
 # KT-076 - Restore draft payment amounts after SHAAM OAuth
 
-- Status: `WORKER_COMPLETE`
+- Status: `PUSHED`
 - Task manager: Codex
 - Worker: Codex
 - Worktree: primary checkout
@@ -35,7 +35,7 @@ without deleting and recreating the payment.
 ## Handoff
 
 - Result: complete
-- Commit hash(es): this task commit
+- Commit hash(es): `402466f2`
 - Changed files: `doc-create.page.ts`, its focused request spec, the nearest
   topic `AGENTS.md`, and this task record.
 - Tests and exact results: focused ChromeHeadless suite passed 26/26; Angular
@@ -55,10 +55,10 @@ without deleting and recreating the payment.
 ## Integration
 
 - Reviewed by: Codex
-- Integrated commit: this task commit on local `main`
+- Integrated commit: `402466f2` on `main`
 - Combined verification: focused frontend 26/26; Angular production build
   passed.
-- `origin/main` verification: pending commit/push
+- `origin/main` verification: `402466f2` pushed successfully on 2026-10-19.
 - User-visible run instructions: deploy the updated frontend, then repeat the
   return-from-SHAAM flow; backend deployment/configuration remains separately
   required for the reported upstream 401.
