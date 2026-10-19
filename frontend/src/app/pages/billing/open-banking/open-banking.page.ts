@@ -36,6 +36,10 @@ export class OpenBankingPage implements OnInit {
 
   async ngOnInit() {
     await this.load();
+    if (this.options()?.complimentary || this.options()?.status === 'ACTIVE') {
+      await this.continue();
+      return;
+    }
     if (this.route?.snapshot.queryParamMap.get('resumeCard') === '1' &&
       this.options()?.hasSavedCard && this.options()?.enrollment && this.options()?.status === 'TRIAL') {
       this.continueAfterCard = true;

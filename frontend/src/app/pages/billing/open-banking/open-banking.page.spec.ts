@@ -24,6 +24,34 @@ describe('OpenBankingPage', () => {
     page = TestBed.runInInjectionContext(() => new OpenBankingPage());
     await page.ngOnInit();
   });
+  for (const eligible of [{ status: 'ACTIVE', complimentary: false }, { status: 'TRIAL', complimentary: true }]) {
+    it(`automatically connects on init for ${JSON.stringify(eligible)}`, async () => {
+      enrollment.options.and.resolveTo({ ...options(), ...eligible });
+      const redirect = spyOn<any>(page, 'redirectToFeezback').and.resolveTo();
+      await page.ngOnInit();
+      expect(redirect).toHaveBeenCalledOnceWith(false);
+      expect(enrollment.prepare).not.toHaveBeenCalled();
+      expect(page.cardDialog()).toBeFalse();
+    });
+  }
+  it('preserves the spouse choice during automatic connection', async () => {
+    enrollment.options.and.resolveTo({ ...options(), status: 'ACTIVE' });
+    feezback.connectionOptions.and.returnValue(of({ offerSpouse: true }));
+    await page.ngOnInit();
+    expect(page.identityDialog()).toBeTrue();
+    expect(feezback.createConsentLink).not.toHaveBeenCalled();
+  });
+  it('allows retry when automatic connection fails', async () => {
+    enrollment.options.and.resolveTo({ ...options(), status: 'ACTIVE' });
+    const redirect = spyOn<any>(page, 'redirectToFeezback').and.rejectWith(new Error('offline'));
+    await page.ngOnInit();
+    expect(page.error()).toBeTruthy();
+    expect(page.busy()).toBeFalse();
+    redirect.and.resolveTo();
+    await page.continue();
+    expect(page.error()).toBe('');
+    expect(redirect).toHaveBeenCalledTimes(2);
+  });
   it('requires an eligible plan before saving a card or leaving for Feezback', async () => {
     page.selectedPlanId = null; await page.continue(); expect(enrollment.prepare).not.toHaveBeenCalled();
     expect(feezback.createConsentLink).not.toHaveBeenCalled(); expect(page.cardDialog()).toBeFalse();

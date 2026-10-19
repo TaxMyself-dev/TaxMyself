@@ -4,8 +4,11 @@
   @if (error()) { <p role="alert" class="error">{{ error() }}</p> }
   @if (options(); as data) {
     @if (data.complimentary || data.status === 'ACTIVE') {
-      <p>החיבור זמין למנוי פעיל בתוכנית הכוללת בנקאות פתוחה. תנאי החיוב הקיימים נשארים בתוקף.</p>
-      <button class="primary" [disabled]="busy()" (click)="continue()">המשך לפיזבק</button>
+      @if (error()) {
+        <button class="primary" [disabled]="busy()" (click)="continue()">נסה שוב</button>
+      } @else if (!identityDialog()) {
+        <p role="status">מעבירים אותך לפיזבק…</p>
+      }
     } @else if (data.status === 'TRIAL' && data.trialEnd && (data.trialEnd | date:'yyyy-MM-dd')) {
       <p class="intro">כדי להתחבר לבנקאות הפתוחה, יש להזין פרטי אשראי ולהצטרף לתוכנית הכוללת את השירות. במהלך תקופת הניסיון לא תחויבו. החיוב יחל בתום הניסיון, לאחר השלמת החיבור.</p>
       <div class="enrollment-cards">

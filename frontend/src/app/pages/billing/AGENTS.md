@@ -90,3 +90,5 @@ The existing primary identity remains Firebase UID + _sub. Only explicit checkbo
 Only a spouse data-ready webhook plus provider verification of a valid, unexpired consent linked to a source writes user.hasSpouseFeezbackIdentity=true. Profile writes and browser redirects cannot set it. The historical flag survives consent expiry. Known identities participate in discovery and sync; connection state is aggregated, with partial failures unable to clear prior state. Secondary source/normalized transaction identifiers have a deterministic _spouse suffix; retries resolve the corresponding SUB from that suffix. Primary identifiers are unchanged. No additional mapping table is used.
 
 Apply the appended user-column SQL in docs/redesign/cutover.sql before deployment. No production or live provider operations are part of validation.
+
+Active and complimentary owners automatically enter the existing Feezback connection flow on enrollment-page initialization, without an intermediate continue CTA. The spouse choice still applies when offered by the server; redirect errors retain a retry action.
