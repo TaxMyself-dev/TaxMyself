@@ -521,8 +521,8 @@ export class TransactionsService {
   }
 
   /**
-   * Sources list for the settings page. Driven by user_source_sync_state
-   * (refreshed on every discovery → reflects currently-connected accounts).
+   * Sources list for the settings page, including disconnected Source records.
+   * Consent metadata comes from user_source_sync_state (updated on discovery).
    * billName is joined from `source` (sourceName == sourceId); no Bill link →
    * null (frontend shows «לא משויך»). hasConsent = user_source_sync_state
    * .consentId non-null (revoke/expire nulls it via clearConsentOnSources).
@@ -535,13 +535,33 @@ export class TransactionsService {
       this.userSourceSyncStateRepo.find({ where: { userId } }),
       this.sourceRepo.find({ where: { userId }, relations: ['bill'] }),
     ]);
-    const byId = new Map(sourceRows.map(source => [source.id, source]));
-    return syncStates.map(state => {
-      const source = byId.get(state.sourceRecordId);
-      if (!source) throw new BadRequestException('Sync source has no owned source record');
-      return { sourceRecordId: state.sourceRecordId, sourceName: source?.sourceName ?? state.sourceId,
-        sourceType: source?.sourceType, connectionRole: source?.connectionRole ?? 'primary',
-        billName: source?.bill?.billName ?? null, hasConsent: !!state.consentId, isDirect: source?.isDirect ?? null };
+    const byId = new Map(syncStates.map(state => [state.sourceRecordId, state]));
+    return sourceRows.map(source => ({
+      sourceRecordId: source.id, sourceName: source.sourceName,
+      sourceType: source.sourceType, connectionRole: source.connectionRole,
+      billName: source.bill?.billName ?? null, hasConsent: !!byId.get(source.id)?.consentId,
+      isDirect: source.isDirect ?? null,
+    }));
+  }
+
+  /** Remove only disconnected source metadata; retain all historical transactions. */
+  async deleteDisconnectedSource(userId: string, sourceRecordId: number): Promise<{ deleted: true }> {
+    if (!userId) throw new UnauthorizedException();
+    return this.sourceRepo.manager.transaction(async manager => {
+      const source = await manager.findOne(Source, {
+        where: { id: sourceRecordId, userId }, lock: { mode: 'pessimistic_write' },
+      });
+      if (!source) throw new NotFoundException('Payment source not found');
+      const state = await manager.findOne(UserSourceSyncState, {
+        where: { userId, sourceRecordId }, lock: { mode: 'pessimistic_write' },
+      });
+      if (state?.consentId) {
+        throw new ConflictException({ code: 'SOURCE_HAS_ACTIVE_CONSENT', message: 'Create a new consent and select the payment sources to authorize.' });
+      }
+      await manager.update(FullTransactionCache, { userId, sourceRecordId }, { sourceRecordId: null });
+      await manager.delete(UserSourceSyncState, { userId, sourceRecordId });
+      await manager.delete(Source, { userId, id: sourceRecordId });
+      return { deleted: true as const };
     });
   }
 

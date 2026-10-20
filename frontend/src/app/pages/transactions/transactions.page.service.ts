@@ -167,6 +167,10 @@ export class TransactionsService implements OnInit {
     );
   }
 
+  deleteSource(sourceRecordId: number): Observable<{ deleted: true }> {
+    return this.http.delete<{ deleted: true }>(`${environment.apiUrl}transactions/sources/${sourceRecordId}`);
+  }
+
   getSourcesByBillId(billId: number): Observable<string[]> {
     const url = `${environment.apiUrl}transactions/get-sources-by-bill/${billId}`;
     return this.http.get<any[]>(url)

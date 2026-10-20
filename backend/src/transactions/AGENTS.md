@@ -48,3 +48,6 @@ accountant approval step. Read responses carry `canManageExpenses` so the UI
 can distinguish approval authority from classification access; the backend
 remains authoritative.
 Depends on: shared (`FxRateService` for `ilsAmount`, `SharedService`), expenses (`ExpensesService`), users, business, delegation, documents (`ExtractedDocument` for `matchedDocumentId`), feezback (Open Banking sync source), billing, bookkeeping. Depended on by: reports, report-workflow, shared (legacy `getRepository` case for `Transactions`), documents.
+
+## Disconnected payment sources
+DELETE /transactions/sources/:sourceRecordId uses FirebaseAuthGuard and effective user ownership. A transaction locks the owned source and its sync state, refuses any nonempty consentId with SOURCE_HAS_ACTIVE_CONSENT (409), detaches historical cache references, deletes sync metadata, then deletes only that source. Bills, slim transactions, cache history, expenses and provider consents are retained. No schema changes or provider API calls. Settings sources include records without a sync state.

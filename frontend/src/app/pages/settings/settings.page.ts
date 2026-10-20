@@ -78,6 +78,7 @@ export class SettingsPage implements OnInit {
 
   /** sourceName of the account whose single-account pull is in flight (disables that row's button). */
   retryingSourceId = signal<string | null>(null);
+  deletingSourceId = signal<number | null>(null);
 
   userData: IUserData | null = null;
   businesses = signal<Business[]>([]);
@@ -186,13 +187,21 @@ export class SettingsPage implements OnInit {
 
   accountSourcesRowActions: ITableRowAction[] = [
     {
+      name: 'deleteSource', icon: 'pi pi-trash', title: 'מחק אמצעי תשלום',
+      showWhen: () => this.deletingSourceId() === null && !this.retryingSourceId(),
+      action: (_, row) => {
+        const source = this.accountSources().find(s => s.sourceRecordId === row!['sourceRecordId']);
+        if (source) this.onDeleteSource(source);
+      },
+    },
+    {
       name: 'pullSource',
       icon: 'pi pi-refresh',
       title: 'משוך תנועות',
       // Direct cards never expose a pull button — their transactions are
       // intentionally received via the bank-account feed, and the backend
       // refuses the pull anyway (skipped_direct).
-      showWhen: (row) => row!['isDirect'] !== true &&
+      showWhen: (row) => this.deletingSourceId() === null && row!['isDirect'] !== true &&
         (!this.retryingSourceId() || this.retryingSourceId() === String(row!['sourceRecordId'] ?? row!['sourceName'])),
       isLoading: () => !!this.retryingSourceId(),
       action: (_, row) => {
@@ -201,6 +210,44 @@ export class SettingsPage implements OnInit {
       },
     },
   ];
+
+  private showSourceConsentExplanation(): void {
+    this.confirmationService.confirm({
+      header: 'ביטול הרשאה לאמצעי תשלום',
+      message: 'לאמצעי התשלום יש הרשאה פעילה. פיזבק אינה מאפשרת להסיר אמצעי תשלום בודד מתוך הרשאה קיימת. כדי לבטל את ההרשאה לאמצעי מסוים, יש ליצור הרשאה חדשה ולבחור אילו חשבונות וכרטיסים לאשר ואילו להשאיר ללא הרשאה.',
+      icon: 'pi pi-info-circle', acceptLabel: 'הבנתי', rejectVisible: false,
+    });
+  }
+
+  onDeleteSource(source: { sourceRecordId?: number; sourceName: string; hasConsent: boolean }): void {
+    if (this.deletingSourceId() !== null || source.sourceRecordId == null) return;
+    if (source.hasConsent) { this.showSourceConsentExplanation(); return; }
+    this.confirmationService.confirm({
+      header: 'מחיקת אמצעי תשלום',
+      message: `למחוק את אמצעי התשלום ${source.sourceName}? האמצעי יוסר מהמערכת. התנועות ההיסטוריות יישמרו.`,
+      icon: 'pi pi-exclamation-triangle', acceptLabel: 'מחק', rejectLabel: 'ביטול', rejectVisible: true,
+      accept: () => {
+        if (this.deletingSourceId() !== null) return;
+        this.deletingSourceId.set(source.sourceRecordId!);
+        this.transactionsService.deleteSource(source.sourceRecordId!)
+          .pipe(finalize(() => this.deletingSourceId.set(null)))
+          .subscribe({
+            next: () => {
+              this.accountSources.update(rows => rows.filter(row => row.sourceRecordId !== source.sourceRecordId));
+              this.messageService.add({ severity: 'success', summary: 'הצלחה', detail: 'אמצעי התשלום נמחק', key: 'br' });
+            },
+            error: err => {
+              if (err?.error?.code === 'SOURCE_HAS_ACTIVE_CONSENT') {
+                this.fetchAccountSources();
+                this.showSourceConsentExplanation();
+              } else {
+                this.messageService.add({ severity: 'error', summary: 'שגיאה', detail: 'לא ניתן למחוק את אמצעי התשלום. נסה שוב.', key: 'br' });
+              }
+            },
+          });
+      },
+    });
+  }
 
   addPermissionDialogVisible = false;
   addPermissionEmail = '';
@@ -329,7 +376,7 @@ export class SettingsPage implements OnInit {
    * → feezbackService.retrySource → pullOneSource (no getUserAccounts re-pull).
    */
   onPullSource(s: { sourceRecordId?: number; sourceName: string; sourceType: paymentIdentifierType; isDirect?: boolean | null }): void {
-    if (this.retryingSourceId()) return; // one at a time
+    if (this.retryingSourceId() || this.deletingSourceId() !== null) return; // one at a time
     if (s.isDirect === true) {
       // Direct card — nothing to pull from the card feed (bank feed covers it).
       this.messageService.add({
