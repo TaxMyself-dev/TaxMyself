@@ -1,6 +1,6 @@
 # KT-083 - Partner-candidate couple demo
 
-- Status: `WORKER_COMPLETE`
+- Status: `PUSHED`
 - Task manager: Codex primary manager
 - Worker: Codex primary manager
 - Worktree: `C:\Users\harel\.codex\worktrees\kt083\taxmyself-dev`
@@ -59,8 +59,13 @@ businesses, two bank accounts, and three credit cards from January 2026 onward.
 
 ## Integration
 
-- Reviewed by:
-- Integrated commit:
-- Combined verification:
-- `origin/main` verification:
-- User-visible run instructions:
+- Reviewed by: Codex primary integration manager; full diff, permissions,
+  fixed-date behavior, source ownership, and `git show --check` reviewed.
+- Integrated commit: `7236477f`
+- Combined verification: focused Jest — 6 suites / 30 tests passed; Nest build
+  passed on integrated `main`.
+- `origin/main` verification: `main` and `codex/integration-kt083` both resolved
+  to `7236477f4999bcfac0d196cf8f43aa8641deaa36` after push.
+- User-visible run instructions: from the admin demo-data screen, create
+  `partner-candidate-couple`; then sign in as
+  `shani-partner-demo@keepintax.co.il` / `PartnerDemo!2026`.

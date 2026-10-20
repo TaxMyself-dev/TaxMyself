@@ -184,3 +184,15 @@ build and four focused settings tests passed. Code delivery 416047e0 verified
 on local main/origin/main and both integration refs. Ports remain 3000; no
 backend/schema/provider change or deployment. Durable evidence is archived in
 docs/tasks/archive/2026.md under Approved login copy and layout delivery.
+
+## KT-083 partner-candidate couple demo — 2026-10-20
+
+Added an isolated REGULAR-only synthetic Open Banking demo for Shani and Omer:
+licensed + exempt businesses, two bank accounts, three credit cards, primary
+and spouse source identities, and 70 varied fixed-date transactions from
+January through October 2026. Login/manual/retry sync paths are verified not to
+call Feezback; there is no delegation, admin/accountant role, or self-reset.
+Integrated code `7236477f` passed 6 focused Jest suites (30 tests) and the Nest
+build; local main, `origin/main`, and `codex/integration-kt083` were verified at
+that commit. No live profile seed, schema, production-data, provider,
+accounting, authorization, or deployment action occurred.
