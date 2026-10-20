@@ -1,6 +1,6 @@
 # KT-081 - SHAAM connection settings and allocation confirmation
 
-- Status: `WORKER_COMPLETE`
+- Status: `PUSHED`
 - Task manager: Codex primary
 - Worker: Codex primary (single-agent execution)
 - Worktree: `C:\Users\harel\Elazar Harel\taxmyself\taxmyself-dev`
@@ -30,7 +30,7 @@ Users can see the Tax Authority connection status for each business and delibera
 ## Handoff
 
 - Result: complete
-- Commit hash(es):
+- Commit hash(es): `9b86283e`
 - Changed files: Settings SHAAM status/connect UI and tests; incomes allocation
   confirmation and tests; Settings/bookkeeping topic docs; this task record.
 - Tests and exact results:
@@ -52,8 +52,12 @@ Users can see the Tax Authority connection status for each business and delibera
 
 ## Integration
 
-- Reviewed by:
-- Integrated commit:
-- Combined verification:
-- `origin/main` verification:
-- User-visible run instructions:
+- Reviewed by: Codex primary integration manager
+- Integrated commit: `9b86283e`
+- Combined verification: 4 focused Angular tests passed; Angular production
+  build passed; staged diff and `git show --check` passed review.
+- `origin/main` verification: code delivery `9b86283e` pushed successfully on
+  2026-10-20; final documentation delivery is recorded by the following commit.
+- User-visible run instructions: deploy the frontend from current `main`, open
+  Settings > Permissions and Accounts to inspect/reconnect SHAAM, then verify
+  that cancelling the allocation confirmation emits no request.

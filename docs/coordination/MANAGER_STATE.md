@@ -1,5 +1,16 @@
 # Primary manager state
 
+## SHAAM settings and allocation confirmation delivery - 2026-10-20
+
+KT-081 adds per-business Tax Authority invoice-allocation connection status and
+an explicit connect/reconnect action under Settings > Permissions and Accounts.
+Reconnect deliberately starts a fresh OAuth flow even for an active connection,
+allowing newly configured scopes to replace the stored grant. Pending documents
+now require confirmation displaying the document number before recovery or
+Approval begins. Four focused Angular tests and the production build passed.
+Code delivery `9b86283e` was pushed to `origin/main`; no backend, schema,
+accounting, external-contract, production-access or deployment change occurred.
+
 ## SHAAM safe invoice observability delivery - 2026-10-20
 
 KT-079 replaces identifying invoice-allocation logs with one structured,
