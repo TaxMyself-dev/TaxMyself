@@ -2630,6 +2630,8 @@ clean main from 72098ca9 to d59ee789 before staging on codex/integration.
 Both merges applied without conflicts. Combined review/checks passed:
 14 backend suites / 105 tests, 33 isolated frontend tests, Nest build and
 Angular production build. Desktop/mobile local API URLs are 3000. Details
-and exact commands: docs/tasks/active/feezback-main-integration.md.
+and exact commands: docs/tasks/archive/2026.md (Feezback main delivery, 2026-10-20).
 Prior approved user/source/FK SQL is included but was not executed during
 integration. No production access, provider calls or deployment occurred.
+
+Delivery verified: 461885a2 on local main, origin/main and both integration refs; both requested feature tips are included. Task records archived after delivery. No production deployment.
