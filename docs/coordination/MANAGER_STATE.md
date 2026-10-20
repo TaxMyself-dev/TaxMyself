@@ -1,5 +1,19 @@
 # Primary manager state
 
+## SHAAM safe invoice observability delivery - 2026-10-20
+
+KT-079 replaces identifying invoice-allocation logs with one structured,
+searchable outcome event for each SHAAM Approval, confirmation-recovery and
+allocation-details call. Events include operation, environment, gateway host,
+HTTP status, duration, configuration/result booleans, bounded error category,
+strictly validated provider error code and an allowlisted derived reason; they
+exclude tokens, payloads, raw provider messages, VAT/customer/business numbers,
+invoice/allocation references, dates and amounts. Combined verification passed
+all 8 SHAAM suites / 47 tests plus the Nest build. Code delivery `7b386194` was
+pushed to `origin/main` and `codex/integration-kt079`; no schema, API contract,
+accounting behavior, production access or deployment occurred. Elazar must
+deploy the backend revision before retrying the production recovery request.
+
 ## Designer demo sandbox delivery — 2026-10-20
 
 KT-078 adds an isolated regular-user designer sandbox created from Admin Panel

@@ -1,6 +1,6 @@
 # KT-079 - Safe SHAAM invoice observability
 
-- Status: `WORKER_COMPLETE`
+- Status: `PUSHED`
 - Task manager: Codex primary integration manager
 - Worker: Codex (isolated worktree)
 - Worktree: `.claude/worktrees/kt079`
@@ -57,8 +57,13 @@ document, allocation, monetary or credential data.
 
 ## Integration
 
-- Reviewed by:
-- Integrated commit:
-- Combined verification:
-- `origin/main` verification:
-- User-visible run instructions:
+- Reviewed by: Codex primary integration manager
+- Integrated commit: `7b386194` (code delivery before final delivery record)
+- Combined verification: all 8 SHAAM suites / 47 tests passed; Nest backend
+  build passed; `git diff --check` and both integrated commits passed review.
+- `origin/main` verification: code delivery `7b386194` pushed successfully on
+  2026-10-20; final documentation delivery is recorded by the following commit.
+- User-visible run instructions: deploy the backend revision from current
+  `main`, reproduce the pending allocation recovery once, then search Cloud
+  Logging for `SHAAM invoice API request failed` and share the safe structured
+  fields only.
