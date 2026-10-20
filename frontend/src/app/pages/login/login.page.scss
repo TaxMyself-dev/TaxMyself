@@ -216,7 +216,7 @@ input:-webkit-autofill {
   align-items: center;
   justify-content: center;
   gap: clamp(32px, 5vh, 64px);
-  padding: clamp(32px, 5vh, 64px) clamp(24px, 3vw, 56px);
+  padding: clamp(32px, 5vh, 64px) 0;
   box-sizing: border-box;
 }
 
@@ -224,7 +224,9 @@ input:-webkit-autofill {
   position: relative;
   flex: 0 0 auto;
   width: 100%;
-  max-width: 724px;
+  max-width: 1100px;
+  padding-inline: 24px;
+  box-sizing: border-box;
   z-index: 3;
 }
 
@@ -252,13 +254,23 @@ input:-webkit-autofill {
   object-fit: cover;
 }
 
-.login-media__el {
+// Preserve the original full-panel SVG scale. The artwork starts at y=275;
+// crop only its transparent outer space so it can sit below the heading.
+.login-media__illustration {
   position: relative;
+  flex: 0 0 auto;
+  width: min(100%, calc(100svh * 906 / 796));
+  aspect-ratio: 906 / 440;
+  overflow: hidden;
+  z-index: 2;
+}
+
+.login-media__el {
   inset: auto;
-  flex: 0 1 auto;
+  top: calc(-100% * 240 / 440);
+  left: 0;
   width: 100%;
   height: auto;
-  max-height: 65svh;
   z-index: 2;
   pointer-events: none;
 }

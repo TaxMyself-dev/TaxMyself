@@ -6,17 +6,19 @@
 - User explicitly forbids merge/push until approval of this result.
 
 Preserved both user edits: login heading and payment-source consent explanation.
-Login media now uses normal column flow with a responsive gap, centered balanced
-heading, bounded illustration height and no absolute text/image overlap. Existing
-mobile behavior (media hidden below 1000px) is preserved.
+Login media uses normal column flow and a centered heading. Following user
+feedback, restored the illustration to the original contain-fit scale rather
+than capping it at 65svh. A wrapper excludes only transparent SVG outer space
+(viewBox remains unchanged), preserving artwork size and a real visible gap.
+Existing mobile behavior (media hidden below 1000px) is preserved.
 
-Verification: Angular production build exited 0; inspected emitted login bundle
-4876.c82af92c8b8f3d8b.js to confirm it contains the final responsive gap. Browser
-checks: 1440x900 gap 45px, horizontal center difference less than 0.001px;
-1024x600 gap 32px and zero horizontal overflow; 390x844 media hidden and zero
-horizontal overflow. git diff --check passed. Existing CSS/bundle and CommonJS
-warnings remain. No new behavioral unit tests for this reversible layout change.
-
+Verification: Angular production build exited 0 after this revision. Emitted
+bundle contains aspect-ratio:906/440 and max-width:1100px. At 1877x872 the
+original calculated scale was 1.095477 and the new measured scale 1.095475
+(rounding difference only), visible artwork-to-heading gap 81.96px. At
+1024x600 the visible gap was 55.74px with no horizontal overflow. git diff
+--check passed. Existing CSS/bundle and CommonJS warnings remain. No new
+behavioral unit tests for this reversible layout change.
 No backend/schema/authentication/provider change. No main update or remote push.
 Pending explicit user approval before integration and push. Screenshot provided
 in chat; temporary helper scripts were removed.
