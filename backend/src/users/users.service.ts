@@ -14,7 +14,7 @@ import { Business } from 'src/business/business.entity';
 import { SettingDocuments } from 'src/documents/settingDocuments.entity';
 import { GoogleDriveService } from '../google-drive/google-drive.service';
 import { Delegation, DelegationStatus, DelegationScope } from '../delegation/delegation.entity';
-import { isDemoEmail } from '../demo-data/profiles';
+import { canSelfResetDemoEmail, isDemoEmail } from '../demo-data/profiles';
 import { BillingService } from '../billing/services/billing.service';
 import { Subscription } from '../billing/entities/subscription.entity';
 import { SubscriptionPlan } from '../billing/entities/subscription-plan.entity';
@@ -478,12 +478,10 @@ export class UsersService {
         ...user,
         businessNumber: primary?.businessNumber ?? null,
         spouseBusinessNumber: spouse?.businessNumber ?? null,
-        // Gates the dashboard's "אפס נתוני בדיקה" button. True when the
-        // signed-in user's email matches a DEMO_PROFILES entry — see
-        // demo-data/profiles/index.ts. Persisted into IUserData on the
-        // frontend (localStorage) on every sign-in so the button shows up
-        // immediately after a demo seed without a full reload.
+        // General demo identity and narrowly scoped demo capabilities are
+        // intentionally separate. The frontend persists both on every sign-in.
         isDemo: isDemoEmail(user.email),
+        canSelfResetDemoData: canSelfResetDemoEmail(user.email),
       };
     } catch (error) {
       if (error instanceof NotFoundException) {

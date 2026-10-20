@@ -21,6 +21,7 @@ Owns the user account entity/lifecycle (signup, signin, profile update, children
   retained for diagnostics but requires both Firebase authentication and the
   persisted administrator role.
 - Role helpers: `getActiveAccountantEmailsForUser`/`isAccountant`/`isAdmin` used across the app for authorization checks.
+- Signed-in payloads expose `canSelfResetDemoData` from the static demo-profile capability, rather than granting reset to every demo identity. Fresh login skips Feezback sync for profiles marked `syntheticOpenBanking`; their seeded completed state is authoritative.
 
 ## Related topics
 Depends on: shared, google-drive (Drive folder provisioning), feezback, billing, business (`Business` entity), delegation (`Delegation` entity). Depended on by: nearly every other backend topic (reports, transactions, report-workflow, expenses, etc.) via `UsersService`/`User` entity.

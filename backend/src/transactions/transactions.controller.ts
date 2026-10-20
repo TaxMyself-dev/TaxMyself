@@ -28,6 +28,7 @@ import { FlowAnalysisDto } from './dtos/flow-analysis.dto';
 import { FlowAnalysisResponse } from './interfaces/flow-analysis-response.interface';
 import { ExpensesService } from '../expenses/expenses.service';
 import { BillingService } from '../billing/services/billing.service';
+import { usesSyntheticOpenBanking } from '../demo-data/profiles';
 
 // ── Dev simulator scenario specs (shared by the 3 staged dev endpoints) ──────
 type SimSpec = {
@@ -158,6 +159,7 @@ export class TransactionsController {
     if (!body?.type || !body?.sourceId) {
       throw new BadRequestException('type and sourceId are required');
     }
+    await this.assertLiveSyncAllowed(userId);
 
     // Block per-source retry while a full sync is running — both paths write to
     // user_source_sync_state and call processingService.process(); racing them
@@ -205,6 +207,7 @@ export class TransactionsController {
   @HttpCode(HttpStatus.OK)
   async triggerSync(@Req() request: AuthenticatedRequest): Promise<{ status: 'started' | 'already_running' }> {
     const userId = request.user?.firebaseId;
+    await this.assertLiveSyncAllowed(userId);
     const masked = userId?.length >= 8 ? userId.substring(0, 8) + '...' : (userId ?? '?');
 
     this.logger.log(`[TriggerSync] Manual sync requested | firebaseId=${masked}`);
@@ -227,6 +230,13 @@ export class TransactionsController {
     );
 
     return { status: 'started' };
+  }
+
+  private async assertLiveSyncAllowed(firebaseId: string): Promise<void> {
+    const user = await this.usersService.findByFirebaseId(firebaseId);
+    if (usesSyntheticOpenBanking(user?.email)) {
+      throw new ConflictException('נתוני הבנקאות בחשבון הדמו הם סינתטיים ומתעדכנים באמצעות איפוס הנתונים');
+    }
   }
 
   // ───────────────────────────────────────────────────────────────────────────

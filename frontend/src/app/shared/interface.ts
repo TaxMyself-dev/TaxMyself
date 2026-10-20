@@ -151,7 +151,7 @@ export interface IUserData {
     businessStatus: BusinessStatus;
     lName: string;
     phone: string;
-    role: string;
+    role: string | string[];
     spouseBusinessDate: string;
     spouseBusinessField: string;
     spouseBusinessInventory: boolean;
@@ -176,10 +176,10 @@ export interface IUserData {
     previousLoginAt: string | null;
     /** Timestamp of the current session's sign-in. */
     lastLoginAt: string | null;
-    /** True when the signed-in user's email matches a DEMO_PROFILES entry —
-     *  enables the "אפס נתוני בדיקה" button on the dashboard. Stamped by
-     *  the backend on every sign-in (users.service.findFireUser). */
+    /** True when the signed-in user's email matches a registered demo profile. */
     isDemo: boolean;
+    /** Backend-issued capability; true only for the dedicated designer sandbox. */
+    canSelfResetDemoData: boolean;
 }
 
 export interface IChild {

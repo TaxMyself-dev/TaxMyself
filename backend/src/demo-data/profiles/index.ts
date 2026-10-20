@@ -7,6 +7,7 @@ import { SINGLE_OB_OCR_TEST_PROFILE } from './single-ob-ocr-test.profile';
 import { LEDGER_TEST_PROFILE } from './ledger-test.profile';
 import { DIRECT_CARD_DEMO_PROFILE } from './direct-card-demo.profile';
 import { SHAAM_ALLOCATION_TEST_PROFILE } from './shaam-allocation-test.profile';
+import { DESIGNER_SANDBOX_PROFILE } from './designer-sandbox.profile';
 
 /**
  * Registry of available demo profiles. To add a new profile:
@@ -23,19 +24,19 @@ export const DEMO_PROFILES: readonly DemoProfile[] = [
   LEDGER_TEST_PROFILE,
   DIRECT_CARD_DEMO_PROFILE,
   SHAAM_ALLOCATION_TEST_PROFILE,
+  DESIGNER_SANDBOX_PROFILE,
 ];
 
 /**
  * True when `email` belongs to ANY DEMO_PROFILES entry — primary email or
  * a delegated-client email. Drives `userData.isDemo` on the signed-in user
- * payload (which the frontend uses to show the "אפס נתוני בדיקה" button),
- * the guard on the test-reset endpoint (which only demo users can hit), and
- * the nightly-cache-cleanup exclusion in
+ * payload and excludes demo users from the nightly cache cleanup in
  * `TransactionProcessingService.runDailyCacheCleanup` (demo users must stay
  * permanently usable — the cleanup would otherwise wipe their transactions
  * and flip their sync state to 'empty').
  *
- * This is the single demo-user detection mechanism — don't add a second one.
+ * Privileged demo behavior uses the explicit capability helpers below; being
+ * a demo by itself does not grant self-reset or external-sync exceptions.
  */
 export function isDemoEmail(email: string | null | undefined): boolean {
   if (!email) return false;
@@ -51,4 +52,16 @@ export function isDemoEmail(email: string | null | undefined): boolean {
 export function findDemoProfileByEmail(email: string): DemoProfile | undefined {
   const lc = email.toLowerCase();
   return DEMO_PROFILES.find((p) => p.email.toLowerCase() === lc);
+}
+
+/** Capability check for the authenticated primary demo user. */
+export function canSelfResetDemoEmail(email: string | null | undefined): boolean {
+  if (!email) return false;
+  return findDemoProfileByEmail(email)?.allowSelfReset === true;
+}
+
+/** True when Open-Banking data must stay local to the versioned fixture. */
+export function usesSyntheticOpenBanking(email: string | null | undefined): boolean {
+  if (!email) return false;
+  return findDemoProfileByEmail(email)?.syntheticOpenBanking === true;
 }

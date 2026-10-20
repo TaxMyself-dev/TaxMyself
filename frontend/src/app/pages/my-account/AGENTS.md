@@ -29,7 +29,7 @@ Main dashboard/home page shown after login: account sync status, transactions-to
   only to legacy callbacks. Pending text awaits verification without claiming
   success. Background billing refresh retains the existing payload and does
   not toggle global loading, keeping blocking dialogs mounted between polls.
-- Demo users receive the same dashboard actions as regular users. During view-as, document creation remains blocked except when the real actor is an `ADMIN` and the backend marked the represented profile `isDemo=true`; admin access to real clients and non-admin access to demos remain view-only. Demo profile creation/reset remains in the admin panel and no reset control is exposed on this page.
+- Demo users normally receive the same dashboard actions as regular users. The dedicated designer sandbox receives backend capability `canSelfResetDemoData` and alone sees the confirmed, loading-aware "איפוס נתוני הדמו" action; success reloads its seeded bills and pending transactions in place. During view-as, the action stays hidden and document creation remains blocked except when the real actor is an `ADMIN` and the backend marked the represented profile `isDemo=true`; admin access to real clients and non-admin access to demos remain view-only.
 - Feature-gated navigation cards to `/doc-create` and `/transactions`, gated through `AccessService`/`AccessHandlerService`.
 
 ## Related topics

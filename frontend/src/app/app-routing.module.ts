@@ -10,6 +10,7 @@ import { LoginPageGuard } from './shared/guard/login-page.guard';
 import { OfflineNavigationGuard } from './shared/guard/offline-navigation.guard';
 import { ReferralConsentGuard } from './shared/guard/referral-consent.guard';
 import { AdminRouteGuard } from './shared/guard/admin-route.guard';
+import { AccountantRouteGuard } from './shared/guard/accountant-route.guard';
 import { AppRoute } from './shared/access-control';
 
 /**
@@ -110,7 +111,8 @@ const appRoutes: Routes = [
   },
   {
     path: 'client-panel',
-    loadChildren: () => import('./pages/clients-panel/clients-panel.module').then(m => m.ClientPanelPageModule)
+    loadChildren: () => import('./pages/clients-panel/clients-panel.module').then(m => m.ClientPanelPageModule),
+    canActivate: [AuthGuard, AccountantRouteGuard],
   },
   {
     path: 'doc-create',

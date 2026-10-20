@@ -41,6 +41,7 @@ import { BillingStateService } from 'src/app/services/billing-state.service';
 import { AccessService, FeatureState } from 'src/app/services/access.service';
 import { AccessHandlerService } from 'src/app/services/access-handler.service';
 import { AppFeature } from 'src/app/shared/access-control';
+import { AdminPanelService } from 'src/app/services/admin-panel.service';
 
 @Component({
   selector: 'app-my-account',
@@ -80,6 +81,7 @@ export class MyAccountPage implements OnInit {
   private readonly accessService = inject(AccessService);
   private readonly accessHandlerService = inject(AccessHandlerService);
   private readonly clientPanelService = inject(ClientPanelService);
+  private readonly adminPanelService = inject(AdminPanelService);
 
   readonly access = {
     createDocumentRecommended: computed(() => this.accessService.getFeatureState(AppFeature.DOC_CREATE_BUTTON_RECOMMENDED_PIVOT)),
@@ -129,6 +131,7 @@ export class MyAccountPage implements OnInit {
   isLoadingFeezback = signal<boolean>(false);
   isLoadingUserAccounts = signal<boolean>(false);
   userData: IUserData;
+  readonly isResettingDemoData = signal(false);
   transToClassify: Observable<ITransactionData[]>;
 
   buttonSize = ButtonSize;
@@ -397,6 +400,38 @@ export class MyAccountPage implements OnInit {
    * unlike viewAsUserData it cannot briefly become false during loading. */
   isDelegatedClientView(): boolean {
     return this.clientPanelService.getSelectedClientId() != null;
+  }
+
+  resetDemoData(): void {
+    if (!this.userData?.canSelfResetDemoData || this.isDelegatedClientView() || this.isResettingDemoData()) return;
+    if (!window.confirm('לאפס את סביבת הדמו? כל השינויים שביצעת בנתוני הדמו יימחקו.')) return;
+
+    this.isResettingDemoData.set(true);
+    this.adminPanelService.resetDemoTestData()
+      .pipe(finalize(() => this.isResettingDemoData.set(false)))
+      .subscribe({
+        next: () => {
+          this.messageService.add({
+            severity: 'success',
+            summary: 'סביבת הדמו אופסה',
+            detail: 'נתוני הבנקאות הוחזרו לנקודת ההתחלה.',
+            life: 4000,
+            key: 'br',
+          });
+          this.transactionService.getAllBills();
+          this.getTransToClassify();
+          this.startSyncStatusPolling();
+        },
+        error: (error) => {
+          this.messageService.add({
+            severity: 'error',
+            summary: 'האיפוס נכשל',
+            detail: error?.error?.message ?? 'לא הצלחנו לאפס את סביבת הדמו. נסי שוב.',
+            life: 5000,
+            key: 'br',
+          });
+        },
+      });
   }
 
   // ─── Column definitions: derived from shared config ───────────────────────

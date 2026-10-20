@@ -644,8 +644,9 @@ export class DemoDataService {
    * In-app reset endpoint backing the "אפס נתוני בדיקה" dashboard button.
    * Called by a demo user logged in as themselves (NOT an admin). Wipes
    * every file out of Drive (inbox/processed) for every business,
-   * purges OCR/expense/document rows, then re-creates the OB cache rows
-   * from the profile and re-uploads the sample PDFs.
+   * restores data from the static profile and re-uploads sample PDFs. A
+   * profile with `allowSelfReset` gets a complete DB-graph rebuild; legacy
+   * internal fixtures retain the narrower derived-data reset.
    *
    * Distinct from `resetProfile`, which destroys the user entirely
    * (Firebase + every DB row) — testReset preserves the user identity so
@@ -741,6 +742,17 @@ export class DemoDataService {
     await this.dataSource.transaction(async (m) => {
       await m.query('SET FOREIGN_KEY_CHECKS = 0');
       try {
+        if (profile.allowSelfReset) {
+          // The designer needs a true "start over", not only a transaction
+          // refresh. Rebuild the complete DB graph while preserving the
+          // Firebase identity/session that authenticated this request.
+          await this.purgeUserData(m, firebaseId, dbRowsReset);
+          await this.seedUserAndData(m, firebaseId, profile, profile);
+          dbRowsReset.fullCacheReseeded = profile.transactions.length;
+          dbRowsReset.sourceSyncStates = profile.sourceSyncStates?.length ?? 0;
+          return;
+        }
+
         // Journals and counters are derived from the documents/expenses below.
         // Remove them before reseeding so self-reset is repeatable rather than
         // accumulating duplicate B100 movements or ever-increasing doc numbers.
@@ -843,6 +855,13 @@ export class DemoDataService {
         await m.query('SET FOREIGN_KEY_CHECKS = 1');
       }
     });
+
+    // seedUserAndData's subscription helper runs on its own repository. During
+    // the reset transaction it may still see the pre-purge subscription, so
+    // assert it once more after commit for the full sandbox rebuild.
+    if (profile.allowSelfReset) {
+      await this.usersService.ensureTrialSubscription(firebaseId);
+    }
 
     // 3. Recreate real documents/expenses (and therefore journal entries)
     //    through the same services used by a fresh profile seed.

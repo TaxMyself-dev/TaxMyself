@@ -12,6 +12,7 @@ import { FeezbackService } from '../feezback/feezback.service';
 import { GoogleDriveService } from '../google-drive/google-drive.service';
 import { User } from './user.entity';
 import { SignupDto } from './dtos/signup.dto';
+import { usesSyntheticOpenBanking } from '../demo-data/profiles';
 
 @Controller('auth')
 export class UsersController {
@@ -221,6 +222,10 @@ export class UsersController {
     private async triggerPostLoginSync(firebaseId: string, user?: any): Promise<void> {
         const userName = [user?.fName, user?.lName].filter(Boolean).join(' ') || firebaseId?.substring(0, 8) + '...';
         const hasOpenBanking = !!user?.hasOpenBanking;
+
+        // Synthetic demo sources have no provider consent behind them. Their
+        // completed state is restored from the profile fixture, never Feezback.
+        if (usesSyntheticOpenBanking(user?.email)) return;
 
         // Snapshot of Drive provisioning state at login time. The lazy
         // backfill in UsersService.signin runs in the background — the next

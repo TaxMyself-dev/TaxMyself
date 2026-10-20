@@ -176,9 +176,8 @@ export class AdminPanelService {
    * In-app reset for the signed-in demo user. Backs the "אפס נתוני בדיקה"
    * button on the dashboard — wipes Drive files + OCR/expense/transaction
    * derived rows and re-uploads the canned sample PDFs in one shot. The
-   * backend gates this on the caller's email matching a DEMO_PROFILES
-   * entry, so it's safe to expose without admin auth (but is naturally
-   * hidden from non-demo users via `userData.isDemo`).
+   * backend gates this on the profile's explicit self-reset capability;
+   * the frontend mirrors that with `userData.canSelfResetDemoData`.
    */
   resetDemoTestData(): Observable<DemoTestResetResult> {
     return this.http.post<DemoTestResetResult>(
