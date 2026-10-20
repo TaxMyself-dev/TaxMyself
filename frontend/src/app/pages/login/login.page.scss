@@ -209,30 +209,32 @@ input:-webkit-autofill {
 .login-media {
   position: relative;
   width: 100%;
+  min-width: 0;
   overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.login-media__text {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding-top: 40px;
+  gap: clamp(32px, 5vh, 64px);
+  padding: clamp(32px, 5vh, 64px) clamp(24px, 3vw, 56px);
+  box-sizing: border-box;
+}
+
+.login-media__text {
+  position: relative;
+  flex: 0 0 auto;
+  width: 100%;
+  max-width: 724px;
   z-index: 3;
 }
 
 .image-title {
-  max-width: 724px;
-  padding: 0 10px;
-  font-size: 4rem;
+  margin: 0;
+  font-size: clamp(2rem, 3.5vw, 4rem);
+  line-height: 1.2;
   text-align: center;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
   color: white;
   font-weight: 700;
 }
@@ -251,6 +253,12 @@ input:-webkit-autofill {
 }
 
 .login-media__el {
+  position: relative;
+  inset: auto;
+  flex: 0 1 auto;
+  width: 100%;
+  height: auto;
+  max-height: 65svh;
   z-index: 2;
   pointer-events: none;
 }
