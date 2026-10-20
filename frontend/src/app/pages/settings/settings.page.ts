@@ -216,7 +216,7 @@ export class SettingsPage implements OnInit {
     this.confirmationService.confirm({
       key: 'payment-source',
       header: 'ביטול הרשאה לאמצעי תשלום',
-      message: `לאמצעי התשלום ⁦${sourceName}⁩ יש הרשאה פעילה. לא ניתן להסיר אמצעי תשלום בודד מתוך הרשאה קיימת. כדי לבטל את ההרשאה לאמצעי זה, יש ליצור הרשאה חדשה ולבחור אילו חשבונות וכרטיסים לאשר ואילו להשאיר ללא הרשאה.`,
+      message: `לאמצעי התשלום ⁦${sourceName}⁩ יש הרשאה פעילה. לא ניתן להסיר אמצעי תשלום בודד מתוך הרשאה קיימת. כדי לבטל את ההרשאה לאמצעי זה, יש ליצור הרשאה חדשה ולבחור איזה חשבונות וכרטיסים לאשר ואיזה להשאיר ללא הרשאה.`,
       icon: 'pi pi-info-circle', acceptLabel: 'הבנתי', rejectVisible: false,
     });
   }
