@@ -33,6 +33,10 @@ Account/profile settings hub: tabbed page for editing personal details, spouse d
 - Businesses: `loadBusinesses`/`saveBusiness`/`openAddBusinessModal`+`submitAddBusiness`/`deleteBusiness` all delegate to `GenericService` (`loadBusinessesFromServer`, `createBusiness`, `updateBusiness`, `deleteBusiness`, backed by a dynamic `businessesFormArray` synced to the `Business[]` signal.
 - Categories tab: visible to every authenticated user and delegated entirely to `MyCategoriesTabComponent`.
 - Permissions tab ("ניהול הרשאות וחשבונות", visible to every authenticated user): `fetchMyPermissions`/`grantViewPermission` via `MyPermissionsService` (view-permission grants to other users). Its account-source subsection remains conditional on `ModuleName.OPEN_BANKING`; eligible users get `fetchAccountSources`/`onPullSource` via `TransactionsService.getSourcesWithTypes` and `SyncStatusService.retrySource` (per-source manual transaction pull retry), rendered through `GenericTableComponent`.
+- The permissions tab also shows the SHAAM invoice-allocation connection status
+  for every numbered business. Initial connect and explicit reconnect both use
+  the hardened server-side OAuth flow; reconnect deliberately bypasses the
+  status pre-flight so the callback replaces the stored grant and scopes.
 - Subscription tab: a `COMPLIMENTARY_FULL` subscription is shown as "גישה מלאה ללא חיוב", with no plan, monthly charge, next billing date, or payment-method replacement controls.
 - Subscription status card offers "החלפת תוכנית" for ACTIVE owners without
   billing overrides. It navigates to /billing/plans using the existing plan

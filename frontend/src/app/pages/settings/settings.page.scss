@@ -464,6 +464,65 @@
   margin-top: 8px;
 }
 
+.shaam-connection-description {
+  margin: 6px 0 0;
+  color: #666;
+}
+
+.shaam-business-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.shaam-business-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid #ebebeb;
+
+  &:last-child {
+    border-bottom: 0;
+  }
+}
+
+.shaam-business-details {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+
+  span {
+    color: #666;
+    font-size: 14px;
+  }
+}
+
+.shaam-status {
+  color: #666;
+  white-space: nowrap;
+}
+
+.shaam-status-connected {
+  color: #0b7a4b;
+  font-weight: 600;
+}
+
+.shaam-status-error {
+  color: #b42318;
+}
+
+@media (max-width: 640px) {
+  .shaam-business-row {
+    grid-template-columns: 1fr auto;
+  }
+
+  .shaam-business-row app-p-button {
+    grid-column: 1 / -1;
+  }
+}
+
 /* ניהול חשבונות (כרטיסי אשראי / חשבונות בנק) */
 .accounts-management {
   display: flex;

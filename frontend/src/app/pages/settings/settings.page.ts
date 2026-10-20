@@ -23,7 +23,7 @@ import { SelectModule } from 'primeng/select';
 import { familyStatusOptionsList, employmentTypeOptionsList, businessTypeOptionsList, companyBusinessTypeOptionsList, businessFieldTypeOptionsList, isExemptBusinessType, paymentIdentifierType, VATReportingType, TaxReportingType, inputsSize } from 'src/app/shared/enums';
 import { TransactionsService } from 'src/app/pages/transactions/transactions.page.service';
 import { SyncStatusService } from 'src/app/services/sync-status.service';
-import { catchError, EMPTY, finalize } from 'rxjs';
+import { catchError, EMPTY, finalize, take } from 'rxjs';
 import { SharedModule } from 'src/app/shared/shared.module';
 import { MyCategoriesTabComponent } from './my-categories-tab/my-categories-tab.component';
 import { GmailIntegrationComponent } from './gmail-integration/gmail-integration.component';
@@ -34,6 +34,9 @@ import { InputDateComponent } from 'src/app/components/input-date/input-date.com
 import { InputSelectComponent } from 'src/app/components/input-select/input-select.component';
 import { DriveDocsService, MAX_UPLOAD_TO_INBOX_FILES } from 'src/app/services/drive-docs.service';
 import { SETTINGS_TABS, shouldLoadOpenBankingAccountSources } from './settings-access.policy';
+import { ShaamService } from 'src/app/services/shaam.service';
+
+type ShaamConnectionViewStatus = 'loading' | 'connected' | 'disconnected' | 'error';
 
 @Component({
   selector: 'app-settings',
@@ -76,6 +79,7 @@ export class SettingsPage implements OnInit {
   driveDocsService = inject(DriveDocsService);
   private readonly fb = inject(FormBuilder);
   private readonly accessService = inject(AccessService);
+  private readonly shaamService = inject(ShaamService);
 
   /** sourceName of the account whose single-account pull is in flight (disables that row's button). */
   retryingSourceId = signal<string | null>(null);
@@ -151,6 +155,10 @@ export class SettingsPage implements OnInit {
   accountSources = signal<
     { sourceRecordId?: number; connectionRole?: 'primary' | 'spouse'; sourceName: string; sourceType: paymentIdentifierType; billName: string | null; hasConsent: boolean; isDirect: boolean | null }[]
   >([]);
+
+  /** Invoice-allocation OAuth status, keyed by issuer business number. */
+  shaamConnectionStatuses = signal<Record<string, ShaamConnectionViewStatus>>({});
+  connectingShaamBusinessNumber = signal<string | null>(null);
 
   /** Flat IRowDataTable rows derived from accountSources for GenericTable. */
   accountSourcesTableData = computed<IRowDataTable[]>(() =>
@@ -289,6 +297,73 @@ export class SettingsPage implements OnInit {
     if (shouldLoadOpenBankingAccountSources(newTabValue, this.hasOpenBankingAccess())) {
       this.fetchAccountSources();
     }
+    if (newTabValue === 'permissions') {
+      this.loadShaamConnectionStatuses();
+    }
+  }
+
+  shaamConnectionStatus(businessNumber: string | null | undefined): ShaamConnectionViewStatus {
+    if (!businessNumber) return 'disconnected';
+    return this.shaamConnectionStatuses()[businessNumber] ?? 'loading';
+  }
+
+  connectShaam(businessNumber: string | null | undefined): void {
+    if (!businessNumber || this.connectingShaamBusinessNumber()) return;
+    const startConnection = () => this.startShaamConnection(businessNumber);
+    if (this.shaamConnectionStatus(businessNumber) !== 'connected') {
+      startConnection();
+      return;
+    }
+
+    this.confirmationService.confirm({
+      header: 'חיבור מחדש לרשות המסים',
+      message: 'החיבור החדש יחליף את ההרשאה השמורה עבור העסק. להמשיך לאתר רשות המסים?',
+      icon: 'pi pi-refresh',
+      acceptLabel: 'המשך לחיבור מחדש',
+      rejectLabel: 'ביטול',
+      rejectVisible: true,
+      accept: startConnection,
+    });
+  }
+
+  private startShaamConnection(businessNumber: string): void {
+    this.connectingShaamBusinessNumber.set(businessNumber);
+    this.shaamService.initiateOAuthFlow(businessNumber, () => {
+      this.connectingShaamBusinessNumber.set(null);
+      this.messageService.add({
+        severity: 'error',
+        summary: 'החיבור לא הושלם',
+        detail: 'לא ניתן להתחיל את החיבור לרשות המסים. נסה שוב מאוחר יותר.',
+        life: 6000,
+        key: 'br',
+      });
+    });
+  }
+
+  private loadShaamConnectionStatuses(): void {
+    const businessNumbers = this.businesses()
+      .map((business) => business.businessNumber?.trim())
+      .filter((businessNumber): businessNumber is string => !!businessNumber);
+    if (!businessNumbers.length) {
+      this.shaamConnectionStatuses.set({});
+      return;
+    }
+
+    this.shaamConnectionStatuses.set(Object.fromEntries(
+      businessNumbers.map((businessNumber) => [businessNumber, 'loading' as const]),
+    ));
+    businessNumbers.forEach((businessNumber) => {
+      this.shaamService.getConnectionStatus(businessNumber).pipe(take(1)).subscribe({
+        next: ({ connected }) => this.shaamConnectionStatuses.update((statuses) => ({
+          ...statuses,
+          [businessNumber]: connected ? 'connected' : 'disconnected',
+        })),
+        error: () => this.shaamConnectionStatuses.update((statuses) => ({
+          ...statuses,
+          [businessNumber]: 'error',
+        })),
+      });
+    });
   }
 
   /**
@@ -599,6 +674,9 @@ export class SettingsPage implements OnInit {
       const list = this.genericService.businesses();
       this.businesses.set(list);
       this.patchBusinessesFormArray(list);
+      if (this.selectedTab === 'permissions') {
+        this.loadShaamConnectionStatuses();
+      }
     });
   }
 

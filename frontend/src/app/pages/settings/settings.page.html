@@ -388,6 +388,53 @@
         <app-gmail-integration></app-gmail-integration>
       </div>
 
+      <div class="permissions-inner-frame shaam-connection-section">
+        <div>
+          <h3 class="subsection-title">חיבור לרשות המסים</h3>
+          <p class="shaam-connection-description">החיבור משמש לבקשת מספרי הקצאה עבור מסמכי העסק.</p>
+        </div>
+
+        @if (businesses().length === 0) {
+          <p class="permissions-empty">לא נמצא עסק לחיבור.</p>
+        } @else {
+          <div class="shaam-business-list">
+            @for (business of businesses(); track business.id ?? business.businessNumber) {
+              <div class="shaam-business-row">
+                <div class="shaam-business-details">
+                  <strong>{{ business.businessName || 'עסק ללא שם' }}</strong>
+                  @if (business.businessNumber) {
+                    <span>{{ business.businessNumber }}</span>
+                  }
+                </div>
+
+                @if (!business.businessNumber) {
+                  <span class="shaam-status shaam-status-error">חסר מספר עסק</span>
+                } @else {
+                  <span class="shaam-status"
+                    [class.shaam-status-connected]="shaamConnectionStatus(business.businessNumber) === 'connected'"
+                    [class.shaam-status-error]="shaamConnectionStatus(business.businessNumber) === 'error'">
+                    @switch (shaamConnectionStatus(business.businessNumber)) {
+                      @case ('loading') { בודק חיבור... }
+                      @case ('connected') { מחובר }
+                      @case ('disconnected') { לא מחובר }
+                      @case ('error') { לא ניתן לבדוק את החיבור }
+                    }
+                  </span>
+                  <app-p-button
+                    [buttonText]="shaamConnectionStatus(business.businessNumber) === 'connected' ? 'חיבור מחדש' : 'חיבור לרשות המסים'"
+                    [buttonColor]="buttonColor.WHITE_BORDER"
+                    [buttonSize]="buttonSize.SMALL"
+                    [isLoading]="connectingShaamBusinessNumber() === business.businessNumber"
+                    [disabled]="shaamConnectionStatus(business.businessNumber) === 'loading' || connectingShaamBusinessNumber() !== null"
+                    (onButtonClicked)="connectShaam(business.businessNumber)">
+                  </app-p-button>
+                }
+              </div>
+            }
+          </div>
+        }
+      </div>
+
       @if (hasOpenBankingAccess()) {
         <div class="accounts-management">
           <h3 class="subsection-title">ניהול חשבונות בבנקאות פתוחה</h3>

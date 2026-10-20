@@ -356,7 +356,7 @@ export class IncomesPage implements OnInit {
         icon: 'pi pi-refresh',
         title: 'המשך / אחזר מספר הקצאה משע״מ',
         showWhen: needsAllocationNumber,
-        action: (_event: any, row: IRowDataTable) => this.resumeAutomaticAllocation(row),
+        action: (_event: any, row: IRowDataTable) => this.confirmResumeAutomaticAllocation(row),
       },
       {
         name: 'finalize-no-allocation',
@@ -448,6 +448,24 @@ export class IncomesPage implements OnInit {
    * a definitive "not found" result permits a new approval request, preventing
    * duplicate allocations after a timeout or lost browser response.
    */
+  private confirmResumeAutomaticAllocation(row: IRowDataTable): void {
+    const docNumber = ((row as any).docNumber ?? (row as any).doc_number)?.toString();
+    if (!docNumber) {
+      this.messageService.add({ severity: 'error', summary: 'שגיאה', detail: 'לא ניתן לזהות את מספר המסמך', life: 4000, key: 'br' });
+      return;
+    }
+
+    this.confirmationService.confirm({
+      header: 'הפקת מספר הקצאה',
+      message: `האם ברצונך להפיק מספר הקצאה עבור מסמך מספר ${docNumber}?`,
+      icon: 'pi pi-question-circle',
+      acceptLabel: 'כן, הפק מספר הקצאה',
+      rejectLabel: 'ביטול',
+      rejectVisible: true,
+      accept: () => this.resumeAutomaticAllocation(row),
+    });
+  }
+
   private resumeAutomaticAllocation(row: IRowDataTable): void {
     const businessNumber = ((row as any).issuerBusinessNumber as string) || this.selectedBusinessNumber();
     const docNumber = ((row as any).docNumber ?? (row as any).doc_number)?.toString();
