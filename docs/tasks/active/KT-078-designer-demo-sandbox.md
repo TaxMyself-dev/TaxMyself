@@ -1,6 +1,6 @@
 # KT-078 - Designer demo sandbox
 
-- Status: `WORKER_COMPLETE`
+- Status: `PUSHED`
 - Task manager: Codex primary chat
 - Worker: Codex primary chat
 - Worktree: `C:/Users/harel/.codex/worktrees/kt078/taxmyself-dev`
@@ -44,8 +44,8 @@ An administrator can create a dedicated designer demo account from Admin Panel >
 
 ## Integration
 
-- Reviewed by:
-- Integrated commit:
-- Combined verification:
-- `origin/main` verification:
-- User-visible run instructions:
+- Reviewed by: Codex primary integration manager; full source diff, authorization boundaries, `git show --check`, and generated-file exclusions reviewed.
+- Integrated commit: code/docs through `f6f39927` on `codex/integration-kt078`; final delivery record is the following documentation commit.
+- Combined verification: backend focused Jest 6 suites / 21 tests passed; Nest build passed; Angular production build passed with pre-existing budget/CommonJS warnings. The known Angular test-target compilation debt is recorded in Handoff.
+- `origin/main` verification: delivery command and remote SHA verification completed as part of this PUSHED record; no production deployment.
+- User-visible run instructions: Admin Panel > Demo Data > "סביבת עבודה למעצבת" > Create. Sign in using the credentials displayed on that card. The self-reset action appears on My Account only for this profile.

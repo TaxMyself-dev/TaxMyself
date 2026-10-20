@@ -1,5 +1,18 @@
 # Primary manager state
 
+## Designer demo sandbox delivery — 2026-10-20
+
+KT-078 adds an isolated regular-user designer sandbox created from Admin Panel
+> Demo Data. It carries synthetic bank/card data, the only self-reset
+capability, full DB-graph restoration while preserving Firebase identity, and
+server/client protection from admin/accountant customer areas. Login, manual
+sync and source retry cannot call Feezback for this fixture. Combined
+verification on refreshed `origin/main` passed 6 backend suites / 21 tests,
+Nest build, and Angular production build. The Angular unit-test target remains
+blocked by documented unrelated legacy spec/type errors. Delivery includes the
+previously approved KT-077 deferred-task document, changes no schema, touches no
+production data or provider, and performs no deployment.
+
 ## Table actions integration — 2026-10-15
 
 Elazar explicitly requested main delivery of `codex/table-actions` source
