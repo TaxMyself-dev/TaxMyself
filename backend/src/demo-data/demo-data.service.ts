@@ -1153,14 +1153,20 @@ export class DemoDataService {
     const declared = new Map(
       (profile.sourceSyncStates ?? []).map((s) => [s.sourceId, s]),
     );
+    const sourceRecordIds = await this.resolveSourceRecordIds(
+      m,
+      firebaseId,
+      rows.map((row) => row.sourceId),
+    );
     await m.delete(UserSourceSyncState, {
       userId: firebaseId,
-      sourceId: In(rows.map((r) => r.sourceId)),
+      sourceRecordId: In([...sourceRecordIds.values()]),
     });
     await m.insert(
       UserSourceSyncState,
       rows.map((r) => ({
         userId: firebaseId,
+        sourceRecordId: sourceRecordIds.get(r.sourceId),
         sourceId: r.sourceId,
         type: r.type,
         resourceId: declared.get(r.sourceId)?.resourceId ?? null,
@@ -1617,14 +1623,20 @@ export class DemoDataService {
       countBySource.set(pid, (countBySource.get(pid) ?? 0) + 1);
     }
 
+    const sourceRecordIds = await this.resolveSourceRecordIds(
+      m,
+      firebaseId,
+      states.map((state) => state.sourceId),
+    );
     await m.delete(UserSourceSyncState, {
       userId: firebaseId,
-      sourceId: In(states.map((s) => s.sourceId)),
+      sourceRecordId: In([...sourceRecordIds.values()]),
     });
     await m.insert(
       UserSourceSyncState,
       states.map((s) => ({
         userId: firebaseId,
+        sourceRecordId: sourceRecordIds.get(s.sourceId),
         sourceId: s.sourceId,
         type: s.type,
         resourceId: s.resourceId ?? null,
@@ -1635,6 +1647,39 @@ export class DemoDataService {
       })),
     );
     return states.length;
+  }
+
+  /** Resolve fixture source names to the permanent Source ids required by sync state. */
+  private async resolveSourceRecordIds(
+    m: EntityManager,
+    firebaseId: string,
+    sourceIds: string[],
+  ): Promise<Map<string, number>> {
+    const uniqueSourceIds = [...new Set(sourceIds)];
+    const sources = await m.find(Source, {
+      where: {
+        userId: firebaseId,
+        sourceName: In(uniqueSourceIds),
+      },
+    });
+    const sourcesByName = new Map<string, Source[]>();
+    for (const source of sources) {
+      const matches = sourcesByName.get(source.sourceName) ?? [];
+      matches.push(source);
+      sourcesByName.set(source.sourceName, matches);
+    }
+
+    const resolved = new Map<string, number>();
+    for (const sourceId of uniqueSourceIds) {
+      const matches = sourcesByName.get(sourceId) ?? [];
+      if (matches.length !== 1) {
+        throw new Error(
+          `Demo source "${sourceId}" (user ${firebaseId}) resolved to ${matches.length} Source rows; expected exactly one`,
+        );
+      }
+      resolved.set(sourceId, matches[0].id);
+    }
+    return resolved;
   }
 
   /**
