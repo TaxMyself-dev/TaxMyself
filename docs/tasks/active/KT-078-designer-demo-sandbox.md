@@ -1,6 +1,6 @@
 # KT-078 - Designer demo sandbox
 
-- Status: `APPROVED`
+- Status: `WORKER_COMPLETE`
 - Task manager: Codex primary chat
 - Worker: Codex primary chat
 - Worktree: `C:/Users/harel/.codex/worktrees/kt078/taxmyself-dev`
@@ -33,14 +33,14 @@ An administrator can create a dedicated designer demo account from Admin Panel >
 
 ## Handoff
 
-- Result:
-- Commit hash(es):
-- Changed files:
-- Tests and exact results:
-- Known pre-existing failures:
-- Schema / production / security / accounting / external impact:
-- Risks and manual checks:
-- Documentation updated:
+- Result: Complete. Admin Demo Data can create the isolated designer sandbox; only that identity receives full self-reset, and its Open-Banking graph is synthetic/provider-blocked.
+- Commit hash(es): `101d811b`
+- Changed files: demo profile/registry/controller/service and tests; users/delegation/transactions authorization and tests; Angular dashboard reset UI, accountant route guard, shared user capability, routing; seven topic `AGENTS.md` updates.
+- Tests and exact results: focused backend Jest — 6 suites, 21 tests passed; backend `npm run build` passed; frontend `npm run build` passed with existing style/bundle/CommonJS warnings.
+- Known pre-existing failures: focused Angular `ng test --watch=false --browsers=ChromeHeadless --include=src/app/shared/guard/accountant-route.guard.spec.ts` did not execute because the test target compiles unrelated legacy specs and fails on their removed `async` helper/component-name mismatches plus existing missing Node typings. This failure mode is recorded in `docs/coordination/LESSONS.md`; Angular production compilation passed.
+- Schema / production / security / accounting / external impact: no schema, production, deployment, tax, or accounting changes. Security is narrowed within the approved scope: regular users can no longer load the accountant client-list endpoint/panel, and self-reset is capability-gated. Designer login/manual sync/retry cannot call Feezback.
+- Risks and manual checks: after delivery, create `designer-sandbox` in Admin Panel > Demo Data, sign in with the displayed credentials, confirm seeded bank/card rows, alter data, reset from My Account, and verify the original fixture returns. No live provider or production data is used.
+- Documentation updated: backend demo-data/users/transactions/delegation and frontend my-account/demo-data/guards topic maps.
 
 ## Integration
 
