@@ -1,6 +1,6 @@
 # KT-082 - Clear SHAAM sandbox status
 
-- Status: `WORKER_COMPLETE`
+- Status: `PUSHED`
 - Task manager: Codex primary
 - Worker: Codex primary (single-agent execution)
 - Worktree: `C:\Users\harel\Elazar Harel\taxmyself\taxmyself-dev`
@@ -28,7 +28,7 @@ Settings explains that real businesses cannot be checked or connected while the 
 ## Handoff
 
 - Result: complete
-- Commit hash(es):
+- Commit hash(es): `54b975a7`
 - Changed files: Settings SHAAM status mapping/template/style/test, Settings topic documentation, and this task record.
 - Tests and exact results:
   - Focused Angular/Karma: 1 spec file, 4 tests passed.
@@ -40,8 +40,8 @@ Settings explains that real businesses cannot be checked or connected while the 
 
 ## Integration
 
-- Reviewed by:
-- Integrated commit:
-- Combined verification:
-- `origin/main` verification:
-- User-visible run instructions:
+- Reviewed by: Codex primary integration manager
+- Integrated commit: `54b975a7`
+- Combined verification: 4 focused Angular tests passed; Angular production build passed; staged diff and `git show --check` passed review.
+- `origin/main` verification: code delivery `54b975a7` pushed successfully on 2026-10-20; final documentation delivery is recorded by the following commit.
+- User-visible run instructions: deploy the frontend from current `main`; in local tsandbox, real businesses should show the explicit sandbox limitation with a disabled connect action.

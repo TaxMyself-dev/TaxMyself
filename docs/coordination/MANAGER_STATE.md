@@ -1,5 +1,15 @@
 # Primary manager state
 
+## SHAAM sandbox status copy delivery - 2026-10-20
+
+KT-082 distinguishes the expected Tax Authority sandbox business restriction
+from genuine connection-status failures in Settings. Real businesses shown
+against a tsandbox backend now receive explicit sandbox copy and a disabled
+connect action, while unexpected errors retain the generic failure state. Four
+focused Angular tests and the production build passed. Code delivery
+`54b975a7` was pushed to `origin/main`; no backend guard, schema, accounting,
+external contract, production access or deployment changed.
+
 ## SHAAM settings and allocation confirmation delivery - 2026-10-20
 
 KT-081 adds per-business Tax Authority invoice-allocation connection status and
