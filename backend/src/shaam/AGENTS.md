@@ -41,6 +41,16 @@ normal tsandbox flow is therefore treated as no recovery and proceeds to the
 Approval test, while manual recovery still fails without writing. Network,
 authentication and ambiguous details errors always block Approval.
 
+The low-level invoice client emits one structured outcome log per external
+Approval, confirmation-recovery or allocation-details call. These events are
+safe for production operations: they include only the operation, environment,
+Tax Authority gateway host, HTTP status, duration, configuration-presence and
+result booleans, a bounded error category, an optional strictly validated
+provider error code, and an allowlisted reason derived from provider text.
+Never add access tokens, request/response bodies, raw provider messages,
+VAT/business or customer numbers, invoice references, allocation numbers,
+dates or monetary values to these logs.
+
 The verified public tsandbox token exchange uses
 `openapi.taxes.gov.il/shaam/tsandbox/longtimetoken/oauth2/token`. Although the
 downloaded OpenAPI metadata also advertises `t-ita-api.taxes.gov.il`, that host
