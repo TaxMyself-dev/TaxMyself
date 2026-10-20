@@ -64,6 +64,7 @@ import {
   DemoLegacyDuplicateScenario,
   DemoProfile,
   DemoSeedable,
+  DemoTransactionTemplate,
 } from './demo-profile.types';
 import { GoogleDriveService, ServiceAccountQuotaError } from 'src/google-drive/google-drive.service';
 import { FxRateService } from 'src/shared/fx-rate.service';
@@ -1442,6 +1443,7 @@ export class DemoDataService {
             userId: firebaseId,
             sourceName: s.sourceName,
             sourceType: s.sourceType,
+            connectionRole: s.connectionRole ?? 'primary',
             // Persisted exactly the way refreshUserSources persists a real
             // Feezback detection: `true` for a Direct/Debit card, NULL when
             // the profile doesn't say (every pre-existing profile).
@@ -1463,6 +1465,7 @@ export class DemoDataService {
           userId: firebaseId,
           sourceName: s.sourceName,
           sourceType: s.sourceType,
+          connectionRole: s.connectionRole ?? 'primary',
           isDirect: s.isDirect ?? null,
         }),
       );
@@ -1484,8 +1487,7 @@ export class DemoDataService {
     const cacheRows: Array<Partial<FullTransactionCache>> = [];
     for (let i = 0; i < data.transactions.length; i++) {
       const t = data.transactions[i];
-      const txDate = new Date(todayUtc);
-      txDate.setUTCDate(txDate.getUTCDate() - t.daysAgo);
+      const txDate = this.resolveDemoTransactionDate(t, todayUtc);
 
       // billKey omitted → unassigned transaction (billId/billName null).
       // billKey set → pre-associate to that bill. The transaction's own
@@ -2055,8 +2057,7 @@ export class DemoDataService {
     const out: Array<Partial<FullTransactionCache>> = [];
     for (let i = 0; i < profile.transactions.length; i++) {
       const t = profile.transactions[i];
-      const txDate = new Date(todayUtc);
-      txDate.setUTCDate(txDate.getUTCDate() - t.daysAgo);
+      const txDate = this.resolveDemoTransactionDate(t, todayUtc);
       const currency = t.currency ?? 'ILS';
       const fxRate =
         currency === 'ILS' ? null : await this.fxRateService.getRate(txDate, currency);
@@ -2098,6 +2099,40 @@ export class DemoDataService {
       } as Partial<FullTransactionCache>);
     }
     return out;
+  }
+
+  /** Resolve exactly one supported fixture date shape to a UTC calendar day. */
+  private resolveDemoTransactionDate(
+    transaction: Pick<DemoTransactionTemplate, 'daysAgo' | 'transactionDate'>,
+    todayUtc: Date,
+  ): Date {
+    const hasRelativeDate = transaction.daysAgo !== undefined;
+    const hasFixedDate = transaction.transactionDate !== undefined;
+    if (hasRelativeDate === hasFixedDate) {
+      throw new Error('Demo transaction must declare exactly one of daysAgo or transactionDate');
+    }
+
+    if (hasFixedDate) {
+      const value = transaction.transactionDate!;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+        throw new Error(`Invalid demo transactionDate "${value}"; expected YYYY-MM-DD`);
+      }
+      const fixedDate = new Date(`${value}T00:00:00.000Z`);
+      if (Number.isNaN(fixedDate.getTime()) || fixedDate.toISOString().slice(0, 10) !== value) {
+        throw new Error(`Invalid demo transactionDate "${value}"; expected a real calendar date`);
+      }
+      if (fixedDate > todayUtc) {
+        throw new Error(`Demo transactionDate "${value}" cannot be in the future`);
+      }
+      return fixedDate;
+    }
+
+    if (!Number.isInteger(transaction.daysAgo) || transaction.daysAgo! < 0) {
+      throw new Error('Demo transaction daysAgo must be a non-negative integer');
+    }
+    const relativeDate = new Date(todayUtc);
+    relativeDate.setUTCDate(relativeDate.getUTCDate() - transaction.daysAgo!);
+    return relativeDate;
   }
 
   private async deleteFirebaseUserByEmail(email: string): Promise<void> {

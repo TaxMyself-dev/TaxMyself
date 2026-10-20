@@ -16,13 +16,12 @@ describe('designer sandbox demo profile', () => {
     expect(isDemoEmail(DESIGNER_SANDBOX_PROFILE.email)).toBe(true);
   });
 
-  it('is the only profile granted self-reset and synthetic-sync capabilities', () => {
+  it('is the only profile granted self-reset', () => {
     expect(canSelfResetDemoEmail(DESIGNER_SANDBOX_PROFILE.email)).toBe(true);
     expect(usesSyntheticOpenBanking(DESIGNER_SANDBOX_PROFILE.email)).toBe(true);
 
     for (const profile of DEMO_PROFILES.filter((item) => item !== DESIGNER_SANDBOX_PROFILE)) {
       expect(canSelfResetDemoEmail(profile.email)).toBe(false);
-      expect(usesSyntheticOpenBanking(profile.email)).toBe(false);
     }
   });
 

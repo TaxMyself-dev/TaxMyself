@@ -212,6 +212,8 @@ export interface DemoSource {
    *  the corresponding DemoTransactionTemplate carries on `paymentIdentifier`. */
   sourceName: string;
   sourceType: SourceType;
+  /** Which member of a couple owns the provider source. Defaults to primary. */
+  connectionRole?: 'primary' | 'spouse';
   /**
    * Card sources only — mirrors `Source.isDirect`.
    *   true  — Direct/Debit card: its transactions arrive through the BANK feed,
@@ -334,7 +336,9 @@ export interface DemoTransactionTemplate {
   /** Negative for expenses, positive for income (matches existing convention). */
   amount: number;
   /** Subtracted from `today` at seed time to get transactionDate. */
-  daysAgo: number;
+  daysAgo?: number;
+  /** Fixed UTC calendar date (`YYYY-MM-DD`) that remains stable across resets. */
+  transactionDate?: string;
   /**
    * ISO-4217 currency code. Defaults to 'ILS'. For non-ILS values the seed
    * also stamps `ilsAmount` + `fxRateToIls` using hardcoded demo rates so the
