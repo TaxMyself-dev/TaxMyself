@@ -1,6 +1,6 @@
 # KT-079 - Safe SHAAM invoice observability
 
-- Status: `APPROVED`
+- Status: `WORKER_COMPLETE`
 - Task manager: Codex primary integration manager
 - Worker: Codex (isolated worktree)
 - Worktree: `.claude/worktrees/kt079`
@@ -38,14 +38,22 @@ document, allocation, monetary or credential data.
 
 ## Handoff
 
-- Result:
-- Commit hash(es):
-- Changed files:
+- Result: complete
+- Commit hash(es): `b2f62cce`
+- Changed files: `shaam-invoices.service.ts`, its focused spec,
+  `backend/src/shaam/AGENTS.md`, and this task file.
 - Tests and exact results:
-- Known pre-existing failures:
-- Schema / production / security / accounting / external impact:
-- Risks and manual checks:
-- Documentation updated:
+  - Focused invoice service Jest: 1 suite, 8 tests passed.
+  - Combined SHAAM Jest: 8 suites, 47 tests passed.
+  - Nest backend build: passed with exit code 0.
+- Known pre-existing failures: none encountered. `npm ci` reported the
+  repository's existing dependency audit/deprecation warnings.
+- Schema / production / security / accounting / external impact: no schema,
+  data, accounting behavior or external API contract change; security impact is
+  reduced log disclosure. Source delivery only; no production access/deploy.
+- Risks and manual checks: after owner deployment, reproduce one pending
+  allocation attempt and inspect the structured failure event in Cloud Logging.
+- Documentation updated: SHAAM topic logging invariant and this task record.
 
 ## Integration
 
