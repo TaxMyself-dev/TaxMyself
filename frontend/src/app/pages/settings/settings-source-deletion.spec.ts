@@ -17,6 +17,10 @@ describe('settings payment source deletion', () => {
     const page = setup();
     page.onDeleteSource({ sourceRecordId: 22, sourceName: '1234', hasConsent: true });
     const dialog = (page.confirmationService.confirm as jasmine.Spy).calls.mostRecent().args[0];
+    expect(dialog.message).toContain('1234');
+    expect(dialog.message).toContain('לא ניתן להסיר');
+    expect(dialog.message).not.toContain('פיזבק');
+    expect(dialog.key).toBe('payment-source');
     expect(dialog.message).toContain('הרשאה חדשה'); expect(dialog.rejectVisible).toBeFalse();
     expect(page.transactionsService.deleteSource).not.toHaveBeenCalled();
   });

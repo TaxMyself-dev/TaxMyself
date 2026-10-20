@@ -35,3 +35,6 @@ Delete disconnected payment sources from Settings, and explain how to replace co
 
 ## Integration
 - Pending review; remain on requested feature branch.
+
+## Popup refinement
+User requested source number, provider-neutral wording and a normal centered size. Added a dedicated payment-source confirmation host with 28rem width and viewport max-width. Both normal and stale-consent explanations receive the selected source number. Focused assertions cover number, wording and dialog key.

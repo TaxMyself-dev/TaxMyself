@@ -211,18 +211,20 @@ export class SettingsPage implements OnInit {
     },
   ];
 
-  private showSourceConsentExplanation(): void {
+  private showSourceConsentExplanation(sourceName: string): void {
     this.confirmationService.confirm({
+      key: 'payment-source',
       header: 'ביטול הרשאה לאמצעי תשלום',
-      message: 'לאמצעי התשלום יש הרשאה פעילה. פיזבק אינה מאפשרת להסיר אמצעי תשלום בודד מתוך הרשאה קיימת. כדי לבטל את ההרשאה לאמצעי מסוים, יש ליצור הרשאה חדשה ולבחור אילו חשבונות וכרטיסים לאשר ואילו להשאיר ללא הרשאה.',
+      message: `לאמצעי התשלום ⁦${sourceName}⁩ יש הרשאה פעילה. לא ניתן להסיר אמצעי תשלום בודד מתוך הרשאה קיימת. כדי לבטל את ההרשאה לאמצעי זה, יש ליצור הרשאה חדשה ולבחור אילו חשבונות וכרטיסים לאשר ואילו להשאיר ללא הרשאה.`,
       icon: 'pi pi-info-circle', acceptLabel: 'הבנתי', rejectVisible: false,
     });
   }
 
   onDeleteSource(source: { sourceRecordId?: number; sourceName: string; hasConsent: boolean }): void {
     if (this.deletingSourceId() !== null || source.sourceRecordId == null) return;
-    if (source.hasConsent) { this.showSourceConsentExplanation(); return; }
+    if (source.hasConsent) { this.showSourceConsentExplanation(source.sourceName); return; }
     this.confirmationService.confirm({
+      key: 'payment-source',
       header: 'מחיקת אמצעי תשלום',
       message: `למחוק את אמצעי התשלום ${source.sourceName}? האמצעי יוסר מהמערכת. התנועות ההיסטוריות יישמרו.`,
       icon: 'pi pi-exclamation-triangle', acceptLabel: 'מחק', rejectLabel: 'ביטול', rejectVisible: true,
@@ -239,7 +241,7 @@ export class SettingsPage implements OnInit {
             error: err => {
               if (err?.error?.code === 'SOURCE_HAS_ACTIVE_CONSENT') {
                 this.fetchAccountSources();
-                this.showSourceConsentExplanation();
+                this.showSourceConsentExplanation(source.sourceName);
               } else {
                 this.messageService.add({ severity: 'error', summary: 'שגיאה', detail: 'לא ניתן למחוק את אמצעי התשלום. נסה שוב.', key: 'br' });
               }

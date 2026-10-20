@@ -52,3 +52,5 @@ Account/profile settings hub: tabbed page for editing personal details, spouse d
 
 ## Open-banking payment source deletion
 Each source has a delete action identified by sourceRecordId (including spouse sources with matching numbers). Active consent shows a popup explaining that Feezback requires a new consent with the desired accounts/cards. Disconnected sources require confirmation and DELETE /transactions/sources/:sourceRecordId; success removes the row, while a server consent conflict refreshes the list and shows the explanation. Historical transactions are retained.
+
+Payment-source dialogs use the payment-source confirmation key and a dedicated centered host capped at 28rem (viewport minus 2rem on narrow screens). The consent explanation includes the source number and uses neutral wording without naming the provider.
