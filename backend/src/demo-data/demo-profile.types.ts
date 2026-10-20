@@ -31,6 +31,15 @@ export interface DemoProfile {
   email: string;
   password: string;
 
+  /** Grants the signed-in primary user access to the self-service reset endpoint. */
+  allowSelfReset?: boolean;
+
+  /**
+   * The Open-Banking graph is a stable fixture rather than a live provider
+   * connection. Login/manual sync paths must not call Feezback for it.
+   */
+  syntheticOpenBanking?: boolean;
+
   /** Primary user (the one who signs in with `email`/`password`). */
   user: DemoUser;
 

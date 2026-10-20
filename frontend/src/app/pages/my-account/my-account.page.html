@@ -411,6 +411,12 @@
                     <app-p-button [buttonText]="'הארכיון שלי'" [icon]="'pi pi-folder-open'" [iconPosition]="'right'" [buttonColor]="buttonColor.WHITE_BORDER_LIGHT" [buttonSize]="buttonSize.BETWEEN"
                         (onButtonClicked)="goToArchive()">
                     </app-p-button>
+                    @if (userData?.canSelfResetDemoData) {
+                    <app-p-button [buttonText]="'איפוס נתוני הדמו'" [icon]="'pi pi-refresh'" [iconPosition]="'right'"
+                        [buttonColor]="buttonColor.WHITE_BORDER_LIGHT" [buttonSize]="buttonSize.BETWEEN"
+                        [isLoading]="isResettingDemoData()" (onButtonClicked)="resetDemoData()">
+                    </app-p-button>
+                    }
                 </div>
                 <!-- Users without Open Banking already get the big "רוצה לראות את התנועות" CTA banner below, so no extra header button is needed here. -->
             </div>

@@ -67,7 +67,11 @@ export class DelegationController {
     // panel must keep loading the accountant's list during impersonation).
     const actorFirebaseId = request.user?.actorFirebaseId;
     if (!actorFirebaseId) throw new ForbiddenException('לא אותחל משתמש');
-    if (actorFirebaseId !== agentId && !(await this.usersService.isAdmin(actorFirebaseId))) {
+    const [isAdmin, isAccountant] = await Promise.all([
+      this.usersService.isAdmin(actorFirebaseId),
+      this.usersService.isAccountant(actorFirebaseId),
+    ]);
+    if (!isAdmin && (!isAccountant || actorFirebaseId !== agentId)) {
       throw new ForbiddenException('אין הרשאה לצפות ברשימת לקוחות של מייצג אחר');
     }
     const users = await this.delegationService.getUsersForAgent(agentId);
