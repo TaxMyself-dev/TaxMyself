@@ -1,11 +1,11 @@
 # KT-080 - Repair demo source-record seeding
 
-- Status: `APPROVED`
+- Status: `WORKER_COMPLETE`
 - Task manager: Codex primary manager
 - Worker: Codex primary manager
-- Worktree: pending
+- Worktree: `C:\Users\harel\.codex\worktrees\kt080\taxmyself-dev`
 - Branch: `codex/kt080-demo-source-record-seed`
-- Base commit: `7a4ac026`
+- Base commit: `cd178c15`
 
 ## Business outcome
 
@@ -14,13 +14,13 @@ reset after the permanent payment-source identity migration.
 
 ## Acceptance criteria
 
-- [ ] Demo source sync-state rows persist the required `Source.id` through
+- [x] Demo source sync-state rows persist the required `Source.id` through
       `sourceRecordId`.
-- [ ] Both normal profile seed/reset and the Direct-card scenario writer use
+- [x] Both normal profile seed/reset and the Direct-card scenario writer use
       the permanent source identity.
-- [ ] A focused regression test fails if either writer omits or mis-resolves
+- [x] A focused regression test fails if either writer omits or mis-resolves
       `sourceRecordId`.
-- [ ] Focused Jest checks and the Nest backend build pass.
+- [x] Focused Jest checks and the Nest backend build pass.
 
 ## Scope and constraints
 
@@ -35,14 +35,19 @@ reset after the permanent payment-source identity migration.
 
 ## Handoff
 
-- Result:
-- Commit hash(es):
-- Changed files:
-- Tests and exact results:
-- Known pre-existing failures:
-- Schema / production / security / accounting / external impact:
-- Risks and manual checks:
-- Documentation updated:
+- Result: complete
+- Commit hash(es): `973400cf`
+- Changed files: `backend/src/demo-data/demo-data.service.ts`,
+  `backend/src/demo-data/demo-data.service.source-record.spec.ts`,
+  `backend/src/demo-data/AGENTS.md`
+- Tests and exact results: focused Jest run — 3 suites / 15 tests passed;
+  final new-spec rerun — 1 suite / 4 tests passed; Nest build passed.
+- Known pre-existing failures: none. Initial build execution was sandbox-blocked
+  from creating `backend/dist`; the identical escalated rerun passed.
+- Schema / production / security / accounting / external impact: none. No
+  schema, production-data, authorization, accounting, or provider API changes.
+- Risks and manual checks: re-run the `designer-sandbox` seed after integration.
+- Documentation updated: `backend/src/demo-data/AGENTS.md`.
 
 ## Integration
 
