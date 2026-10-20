@@ -144,6 +144,16 @@ integration. No production access, provider calls or deployment occurred.
 
 Delivery verified: 461885a2 on local main, origin/main and both integration refs; both requested feature tips are included. Task records archived after delivery. No production deployment.
 
+## KT-080 demo source-record seed repair — 2026-10-20
+
+The demo-data seed now resolves every declared source sync row to its permanent
+`Source.id` and persists the required `sourceRecordId`, including the normal
+seed/reset and Direct-card scenario writers. Missing or ambiguous fixture
+sources fail atomically. Integrated code `76f4f0da` passed 3 focused Jest suites
+(16 tests) and the Nest build; local main, `origin/main`, and
+`codex/integration-kt080` were verified at that commit. No schema, production
+data, provider call, accounting, authorization, or deployment action occurred.
+
 ## Approved login copy/layout delivered — 2026-10-20
 
 User approved final illustration size and both personal copy changes before

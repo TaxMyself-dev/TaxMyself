@@ -1,6 +1,6 @@
 # KT-080 - Repair demo source-record seeding
 
-- Status: `WORKER_COMPLETE`
+- Status: `PUSHED`
 - Task manager: Codex primary manager
 - Worker: Codex primary manager
 - Worktree: `C:\Users\harel\.codex\worktrees\kt080\taxmyself-dev`
@@ -51,8 +51,12 @@ reset after the permanent payment-source identity migration.
 
 ## Integration
 
-- Reviewed by:
-- Integrated commit:
-- Combined verification:
-- `origin/main` verification:
-- User-visible run instructions:
+- Reviewed by: Codex primary integration manager; full worker diff and
+  `git show --check` reviewed.
+- Integrated commit: `76f4f0da`
+- Combined verification: focused Jest — 3 suites / 16 tests passed; Nest build
+  passed on integrated `main`.
+- `origin/main` verification: `main` and `codex/integration-kt080` both resolved
+  to `76f4f0daa36ca39e65ba555fa0bf36ebdabe7566` after push.
+- User-visible run instructions: restart the backend if it is still running the
+  prior build, then retry `POST /demo-data/profiles/designer-sandbox/seed`.
