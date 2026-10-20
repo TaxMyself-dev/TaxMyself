@@ -195,6 +195,7 @@ export class UsersService {
       ...safeSpouse,
       role: [UserRole.REGULAR],
       hasOpenBanking: false,
+      hasSpouseFeezbackIdentity: false,
       profileImagePath: null,
       createdAt: new Date(),
     };
@@ -420,6 +421,7 @@ export class UsersService {
     const processedUserData = this.processDateFields(updateUserDto);
     // Provider-confirmed state is not an editable profile field.
     delete processedUserData.hasOpenBanking;
+    delete processedUserData.hasSpouseFeezbackIdentity;
     delete processedUserData.profileImagePath;
     delete processedUserData.logoPath;
 

@@ -1,6 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { LessThan, Not, Repository } from 'typeorm';
+import { LessThan, In, Not, Repository } from 'typeorm';
+import { Source, ConnectionRole } from './source.entity';
+import { SourceType } from '../enum';
 import { UserSyncState, SyncSkipReason, ProcessStatus, ResultStatus } from './user-sync-state.entity';
 import { UserSourceSyncState, SourceResult } from './user-source-sync-state.entity';
 
@@ -20,6 +22,7 @@ export class UserSyncStateService {
     private readonly repo: Repository<UserSyncState>,
     @InjectRepository(UserSourceSyncState)
     private readonly sourceRepo: Repository<UserSourceSyncState>,
+    @InjectRepository(Source) private readonly accountSourceRepo: Repository<Source>,
   ) {}
 
   /**
@@ -111,12 +114,26 @@ export class UserSyncStateService {
    * marked skipped_direct is re-discovered with balances (isDirect === false),
    * it flips back to 'not_synced' so the next sync pulls it normally.
    */
+  private async resolveSource(userId: string, src: Pick<SourceResult, 'type' | 'sourceId' | 'sourceRecordId' | 'connectionRole'>): Promise<Source> {
+    const where = src.sourceRecordId
+      ? { id: src.sourceRecordId, userId }
+      : { userId, sourceName: src.sourceId, sourceType: src.type === 'bank' ? SourceType.BANK_ACCOUNT : SourceType.CREDIT_CARD,
+          connectionRole: src.connectionRole ?? 'primary' as ConnectionRole };
+    const source = await this.accountSourceRepo.findOne({ where });
+    if (!source || source.userId !== userId || (src.connectionRole && src.connectionRole !== source.connectionRole) || source.sourceName !== src.sourceId || source.sourceType !== (src.type === 'bank' ? SourceType.BANK_ACCOUNT : SourceType.CREDIT_CARD)) {
+      throw new BadRequestException('Source record not found for this user and payment source');
+    }
+    return source;
+  }
+
   async upsertSourceConsents(
     userId: string,
-    sources: Array<Pick<SourceResult, 'type' | 'sourceId' | 'resourceId' | 'consentId'> & { isDirect?: boolean | null }>,
+    sources: Array<Pick<SourceResult, 'type' | 'sourceId' | 'sourceRecordId' | 'connectionRole' | 'resourceId' | 'consentId'> & { isDirect?: boolean | null }>,
   ): Promise<void> {
     for (const src of sources) {
-      const existing = await this.sourceRepo.findOne({ where: { userId, sourceId: src.sourceId } });
+      const source = await this.resolveSource(userId, src);
+      const sourceRecordId = source.id;
+      const existing = await this.sourceRepo.findOne({ where: { userId, sourceRecordId } });
       if (existing) {
         // Discovery (getUserAccounts) is the source of truth — when it provides
         // a fresh consentId / resourceId, overwrite the stored ones (consent
@@ -127,7 +144,7 @@ export class UserSyncStateService {
             : src.isDirect === false && existing.status === 'skipped_direct'
               ? { status: 'not_synced', error: null }
               : {};
-        await this.sourceRepo.update({ userId, sourceId: src.sourceId }, {
+        await this.sourceRepo.update({ userId, sourceRecordId }, {
           consentId: src.consentId ?? existing.consentId,
           resourceId: src.resourceId ?? existing.resourceId,
           ...statusPatch,
@@ -136,6 +153,7 @@ export class UserSyncStateService {
         await this.sourceRepo.save(this.sourceRepo.create({
           userId,
           sourceId: src.sourceId,
+          sourceRecordId,
           type: src.type,
           resourceId: src.resourceId ?? null,
           consentId: src.consentId ?? null,
@@ -242,8 +260,9 @@ export class UserSyncStateService {
     return this.repo.findOne({ where: { userId } });
   }
 
-  async getSourceResults(userId: string): Promise<UserSourceSyncState[]> {
-    return this.sourceRepo.find({ where: { userId } });
+  async getSourceResults(userId: string): Promise<(UserSourceSyncState & { connectionRole: ConnectionRole })[]> {
+    const rows = await this.sourceRepo.find({ where: { userId }, relations: ['source'] });
+    return rows.map(row => Object.assign(row, { connectionRole: row.source?.connectionRole ?? 'primary' as ConnectionRole }));
   }
 
   /**
@@ -258,11 +277,14 @@ export class UserSyncStateService {
    */
   async updateSourceResults(userId: string, incoming: SourceResult[]): Promise<void> {
     for (const src of incoming) {
-      const existing = await this.sourceRepo.findOne({ where: { userId, sourceId: src.sourceId } });
+      const source = await this.resolveSource(userId, src);
+      const sourceRecordId = source.id;
+      const existing = await this.sourceRepo.findOne({ where: { userId, sourceRecordId } });
       await this.sourceRepo.upsert(
         {
           userId,
           sourceId: src.sourceId,
+          sourceRecordId,
           type: src.type,
           resourceId: src.resourceId ?? existing?.resourceId ?? null,
           consentId: src.consentId ?? existing?.consentId ?? null,
@@ -270,9 +292,20 @@ export class UserSyncStateService {
           transactionCount: src.transactionCount,
           error: src.error ?? null,
         },
-        ['userId', 'sourceId'],
+        ['userId', 'sourceRecordId'],
       );
     }
+  }
+
+  /** DEV fixtures must create permanent sources too, so the same FK invariant holds. */
+  async updateSimulatedSourceResults(userId: string, incoming: SourceResult[]): Promise<void> {
+    if (process.env.NODE_ENV === 'production') throw new BadRequestException('Dev simulator is disabled in production');
+    await this.accountSourceRepo.upsert(incoming.map(src => ({
+      userId, sourceName: src.sourceId,
+      sourceType: src.type === 'bank' ? SourceType.BANK_ACCOUNT : SourceType.CREDIT_CARD,
+      connectionRole: src.connectionRole ?? 'primary' as ConnectionRole,
+    })), ['userId', 'sourceType', 'sourceName', 'connectionRole']);
+    await this.updateSourceResults(userId, incoming);
   }
 
   async clearSourceResults(userId: string): Promise<void> {
@@ -329,13 +362,16 @@ export class UserSyncStateService {
    * Direct-card rows keep their terminal 'skipped_direct' status (they must
    * never look retryable/pending) — only their consentId is nulled.
    */
-  async clearConsentOnSources(userId: string, consentId: string): Promise<number> {
+  async clearConsentOnSources(userId: string, consentId: string, spouse?: boolean): Promise<number> {
+    const identity = spouse === undefined ? {} : { sourceRecordId: In((await this.accountSourceRepo.find({
+      where: { userId, connectionRole: spouse ? 'spouse' : 'primary' }, select: ['id'],
+    })).map(source => source.id)) };
     const resetResult = await this.sourceRepo.update(
-      { userId, consentId, status: Not('skipped_direct') },
+      { userId, consentId, ...identity, status: Not('skipped_direct') },
       { consentId: null, status: 'not_synced', error: null },
     );
     const directResult = await this.sourceRepo.update(
-      { userId, consentId, status: 'skipped_direct' },
+      { userId, consentId, ...identity, status: 'skipped_direct' },
       { consentId: null },
     );
     return (resetResult.affected ?? 0) + (directResult.affected ?? 0);

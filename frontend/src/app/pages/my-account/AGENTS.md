@@ -39,3 +39,5 @@ Frontend shared: none confirmed (add-bill/add-category/manual-expense/classify-t
 
 ## Profile avatar
 - The dashboard greeting uses `AccountImageComponent` to load the application profile image through authenticated HttpClient. Missing images keep the user-initials fallback. The Firebase Auth photoURL is independent.
+
+Optional spouse source keys end in _spouse; sync result labels render this as בן/בת הזוג, while retries retain the exact internal source key. Identity selection is handled immediately before the provider redirect on /billing/open-banking.

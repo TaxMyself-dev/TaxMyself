@@ -152,7 +152,7 @@ export class TransactionsController {
   @UseGuards(FirebaseAuthGuard)
   async retrySource(
     @Req() request: AuthenticatedRequest,
-    @Body() body: { type: 'card' | 'bank'; sourceId: string },
+    @Body() body: { type: 'card' | 'bank'; sourceId: string; sourceRecordId?: number },
   ) {
     const userId = request.user?.firebaseId;
     if (!body?.type || !body?.sourceId) {
@@ -167,7 +167,7 @@ export class TransactionsController {
       throw new ConflictException('Sync is already running — please wait for it to finish');
     }
 
-    const result = await this.feezbackService.retrySource(userId, body.type, body.sourceId);
+    const result = await this.feezbackService.retrySource(userId, body.type, body.sourceId, body.sourceRecordId);
     return result;
   }
 
@@ -327,7 +327,7 @@ export class TransactionsController {
     // Register discovered sources as 'not_synced' (discovered, not yet pulled)
     // and stamp the freshness marker so hasUnprocessedConsentFlow() → false
     // (post-consent-sync flips to 'completed' → FE enables the pull button).
-    await this.userSyncStateService.updateSourceResults(
+    await this.userSyncStateService.updateSimulatedSourceResults(
       userId,
       sim.sources.map(s => ({ ...s, status: 'not_synced' as const, transactionCount: 0, error: undefined })),
     );
@@ -380,7 +380,7 @@ export class TransactionsController {
 
     // Seed the finished sync state with the scenario's per-source results.
     await this.userSyncStateService.markSyncFinished(userId, sim.processStatus, sim.resultStatus, sim.rowsWritten);
-    await this.userSyncStateService.updateSourceResults(userId, sim.sources);
+    await this.userSyncStateService.updateSimulatedSourceResults(userId, sim.sources);
     return { status: 'pull-simulated', scenario };
   }
 
@@ -611,7 +611,7 @@ export class TransactionsController {
     @Body() body: any,
   ): Promise<Source> {
     const userId = request.user?.firebaseId;
-    return this.transactionsService.addSourceToBill(billId, body.sourceName, body.sourceType, userId);
+    return this.transactionsService.addSourceToBill(billId, body.sourceName, body.sourceType, userId, body.sourceRecordId);
   }
 
 

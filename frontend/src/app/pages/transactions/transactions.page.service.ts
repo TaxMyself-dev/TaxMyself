@@ -152,7 +152,7 @@ export class TransactionsService implements OnInit {
   }
 
   /** isDirect: true = Direct/Debit card — transactions arrive via the bank feed, no card-feed pull. */
-  getSourcesWithTypes(): Observable<{ sourceName: string; sourceType: paymentIdentifierType; billName: string | null; hasConsent: boolean; isDirect: boolean | null }[]> {
+  getSourcesWithTypes(): Observable<{ sourceRecordId: number; connectionRole: 'primary' | 'spouse'; sourceName: string; sourceType: paymentIdentifierType; billName: string | null; hasConsent: boolean; isDirect: boolean | null }[]> {
     const url = `${environment.apiUrl}transactions/get-sources-with-types`;
     console.log('[TransactionsService] get-sources-with-types — בקשה:', { method: 'GET', url });
     return this.http.get<any[]>(url).pipe(
@@ -183,9 +183,9 @@ export class TransactionsService implements OnInit {
     };
   }
 
-  addSource(billId: number, source: string, type: string): Observable<any> {
+  addSource(billId: number, source: string, type: string, sourceRecordId?: number): Observable<any> {
     const url = `${environment.apiUrl}transactions/${billId}/sources`;
-    return this.http.post<any[]>(url, { sourceName: source, sourceType: type });
+    return this.http.post<any[]>(url, { sourceName: source, sourceType: type, sourceRecordId });
   }
 
   addBill(billName: string, businessNumber: string): Observable<any> {

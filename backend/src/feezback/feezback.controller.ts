@@ -41,9 +41,16 @@ export class FeezbackController {
     });
   }
 
+  @Get('connection-options')
+  @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
+  async connectionOptions(@Req() req: AuthenticatedRequest) {
+    return this.feezbackService.getConnectionOptions(req.user!.firebaseId);
+  }
+
   @Post('consent-link')
   @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
-  async createConsentLink(@Req() req: AuthenticatedRequest) {
+  async createConsentLink(@Req() req: AuthenticatedRequest, @Body() body: { spouse?: boolean } = {}) {
+    if (body.spouse !== undefined && typeof body.spouse !== 'boolean') throw new BadRequestException('spouse must be boolean');
     const firebaseId = req.user?.firebaseId;
 
     if (!firebaseId) {
@@ -82,7 +89,8 @@ export class FeezbackController {
       this.logger.log(`[ConsentLink] markConsentInitiated skipped (dedup ${CLICK_DEDUP_MS}ms) firebaseId=${masked}`);
     }
 
-    return this.feezbackService.createConsentLink(firebaseId);
+    return body.spouse === true ? this.feezbackService.createConsentLink(firebaseId, true)
+      : this.feezbackService.createConsentLink(firebaseId);
   }
 
 
@@ -348,7 +356,7 @@ export class FeezbackController {
   async adminPullSource(
     @Req() req: AuthenticatedRequest,
     @Param('firebaseId') targetFirebaseId: string,
-    @Body() body: { type: 'bank' | 'card'; sourceId: string },
+    @Body() body: { type: 'bank' | 'card'; sourceId: string; sourceRecordId?: number },
   ): Promise<SourceResult> {
     const adminFirebaseId = req.user?.firebaseId;
     const isAdmin = await this.usersService.isAdmin(adminFirebaseId);
@@ -357,7 +365,7 @@ export class FeezbackController {
     if (!body?.type || !body?.sourceId) throw new BadRequestException('type and sourceId are required');
 
     const targetMask = `${targetFirebaseId.substring(0, 8)}...`;
-    const result = await this.feezbackService.retrySource(targetFirebaseId, body.type, body.sourceId);
+    const result = await this.feezbackService.retrySource(targetFirebaseId, body.type, body.sourceId, body.sourceRecordId);
     this.logger.log(
       `[Admin][PullSource] Done | target=${targetMask} | type=${body.type} | sourceId=${body.sourceId} | status=${result.status} | count=${result.transactionCount}`,
     );

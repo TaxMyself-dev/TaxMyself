@@ -1,11 +1,19 @@
 <main class="enrollment" dir="rtl">
+  @if (!error() && (!options() || options()?.complimentary || options()?.status === 'ACTIVE')) {
+    @if (!identityDialog()) {
+      <div class="connection-loading" role="status" aria-label="טוען">
+        <span class="connection-spinner" aria-hidden="true"></span>
+      </div>
+    }
+  } @else {
   <a routerLink="/my-account" class="back">חזרה לאזור האישי</a>
   <h1>חיבור לבנקאות פתוחה</h1>
   @if (error()) { <p role="alert" class="error">{{ error() }}</p> }
   @if (options(); as data) {
     @if (data.complimentary || data.status === 'ACTIVE') {
-      <p>החיבור זמין למנוי פעיל בתוכנית הכוללת בנקאות פתוחה. תנאי החיוב הקיימים נשארים בתוקף.</p>
-      <button class="primary" [disabled]="busy()" (click)="continue()">המשך לפיזבק</button>
+      @if (error()) {
+        <button class="primary" [disabled]="busy()" (click)="continue()">נסה שוב</button>
+      }
     } @else if (data.status === 'TRIAL' && data.trialEnd && (data.trialEnd | date:'yyyy-MM-dd')) {
       <p class="intro">כדי להתחבר לבנקאות הפתוחה, יש להזין פרטי אשראי ולהצטרף לתוכנית הכוללת את השירות. במהלך תקופת הניסיון לא תחויבו. החיוב יחל בתום הניסיון, לאחר השלמת החיבור.</p>
       <div class="enrollment-cards">
@@ -30,5 +38,22 @@
   } @else {
     <button class="secondary" [disabled]="busy()" (click)="load()">{{ busy() ? 'טוענים פרטים…' : 'נסה שוב' }}</button>
   }
-  <app-change-payment-method-dialog [(visible)]="cardDialog" [returnToEnrollment]="true" (saved)="cardSaved()" />
+  }
+  @if (identityDialog()) {
+    <div class="identity-backdrop">
+      <section class="identity-dialog" cdkTrapFocus [cdkTrapFocusAutoCapture]="true" (keydown.escape)="!busy() && cancelConnection()" role="dialog" aria-modal="true" aria-labelledby="identity-title">
+        @if (error()) { <p role="alert" class="error">{{ error() }}</p> }
+        <h2 id="identity-title" tabindex="-1" cdkFocusInitial>מחברים חשבון נוסף?</h2>
+        <p>אם החיבור הוא עבור בן/בת הזוג, ויש לכם חשבונות נפרדים באותו בנק, סמנו את התיבה כדי לשמור על ההרשאה הקיימת.</p>
+        <label><input type="checkbox" [checked]="spouseConnection()" (change)="spouseConnection.set($any($event.target).checked)" [disabled]="busy()" />
+          החיבור הוא עבור בן/בת הזוג בחשבון נפרד באותו בנק
+        </label>
+        <div class="identity-actions">
+          <button class="primary" [disabled]="busy()" (click)="confirmIdentity()">המשך לפיזבק</button>
+          <button class="secondary" [disabled]="busy()" (click)="cancelConnection()">ביטול</button>
+        </div>
+      </section>
+    </div>
+  }
+  <app-change-payment-method-dialog [visible]="cardDialog()" (visibleChange)="onCardDialogChange($event)" [returnToEnrollment]="true" (saved)="cardSaved()" />
 </main>

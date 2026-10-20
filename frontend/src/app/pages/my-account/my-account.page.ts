@@ -33,6 +33,7 @@ import { IMobileCardConfig, IItemNavigate, IRowDataTable, ISelectItem, ITransact
 import { SharedModule } from 'src/app/shared/shared.module';
 import { buildTransactionColumns } from 'src/app/shared/transaction-columns.config';
 import { TransactionsService } from '../transactions/transactions.page.service';
+import { OpenBankingNavigationService } from 'src/app/services/open-banking-navigation.service';
 import { FeezbackService } from 'src/app/services/feezback.service';
 import { SourceResult, SyncStatusService } from 'src/app/services/sync-status.service';
 import { MessageService } from 'primeng/api';
@@ -70,6 +71,7 @@ export class MyAccountPage implements OnInit {
   transactionService = inject(TransactionsService);
   genericService = inject(GenericService);
   expenseService = inject(ExpenseDataService);
+  private readonly openBankingNavigation = inject(OpenBankingNavigationService);
   feezbackService = inject(FeezbackService);
   messageService = inject(MessageService);
   private readonly syncStatusService = inject(SyncStatusService);
@@ -545,6 +547,11 @@ export class MyAccountPage implements OnInit {
     const simulate = this.route.snapshot.queryParamMap.get('simulate') === 'true';
     const scenario = this.route.snapshot.queryParamMap.get('scenario') ?? 'success';
     if (status !== 'success' && status !== 'failure') return;
+    if (status === 'failure') {
+      void this.openBankingNavigation.returnToOrigin();
+      return;
+    }
+    this.openBankingNavigation.clear();
     this.pendingPostConsentScenario = scenario;
 
     void this.router.navigate(['/my-account'], {
@@ -587,11 +594,6 @@ export class MyAccountPage implements OnInit {
       } else {
         this.pollForWebhookReady();
       }
-    } else if (status === 'failure') {
-      this.feezbackDialogStatus.set('failure');
-      this.feezbackDialogTitle.set('משהו בדרך השתבש והחיבור לבנקאות פתוחה לא הצליח...');
-      this.feezbackDialogIcon.set('error');
-      this.feezbackDialogVisible.set(true);
     }
   }
 
@@ -1088,9 +1090,9 @@ export class MyAccountPage implements OnInit {
         },
       });
   }
-  onRetrySource(type: 'bank' | 'card', sourceId: string): void {
-    this.isRetryingSource.set(sourceId);
-    this.syncStatusService.retrySource(type, sourceId)
+  onRetrySource(type: 'bank' | 'card', sourceId: string, sourceRecordId?: number): void {
+    this.isRetryingSource.set(String(sourceRecordId ?? sourceId));
+    this.syncStatusService.retrySource(type, sourceId, sourceRecordId)
       .pipe(
         catchError(err => {
           console.error('[MyAccount] retrySource failed:', err);
@@ -1113,7 +1115,7 @@ export class MyAccountPage implements OnInit {
       )
       .subscribe(result => {
         this.syncSourceResults.update(results =>
-          results.map(r => r.sourceId === sourceId ? result : r)
+          results.map(r => (sourceRecordId ? r.sourceRecordId === sourceRecordId : r.sourceId === sourceId) ? result : r)
         );
         if (this.feezbackDialogVisible() && this.feezbackDialogStatus() === 'failure') {
           // Re-classify after the retry — may flip to success, or stay failure with

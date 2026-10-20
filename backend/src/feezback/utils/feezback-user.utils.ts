@@ -14,13 +14,14 @@ export function parseFeezbackUserIdentifier(userIdentifier?: string | null, fall
   }
 
   const atIndex = userIdentifier.indexOf('@');
-  const subIndex = userIdentifier.indexOf('_sub');
+  const rawSub = atIndex >= 0 ? userIdentifier.substring(0, atIndex) : userIdentifier;
+  const suffix = rawSub.endsWith('_sub_spouse') ? '_sub_spouse' : rawSub.endsWith('_sub') ? '_sub' : null;
 
   let firebaseId: string | null = null;
   let tppId: string | null = fallbackTppId || null;
 
-  if (subIndex > 0) {
-    firebaseId = userIdentifier.substring(0, subIndex);
+  if (suffix) {
+    firebaseId = rawSub.slice(0, -suffix.length);
   } else if (atIndex > 0) {
     firebaseId = userIdentifier.substring(0, atIndex);
   }

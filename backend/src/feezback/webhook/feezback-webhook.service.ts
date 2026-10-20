@@ -119,7 +119,7 @@ export class FeezbackWebhookService {
     const masked = firebaseId.length >= 8 ? firebaseId.substring(0, 8) + '...' : firebaseId;
 
     try {
-      const cleared = await this.feezbackService.clearConsentOnSources(firebaseId, consentId);
+      const cleared = await this.feezbackService.clearConsentOnSources(firebaseId, consentId, userIdentifier?.split('@')[0].endsWith('_sub_spouse'));
       // Re-read all current consents; one revoked bank must not disconnect another valid bank.
       await this.feezbackService.refreshUserSources(firebaseId, 'ConsentStatusChanged');
       if (cleared > 0) {
@@ -169,6 +169,10 @@ export class FeezbackWebhookService {
     //   - All errors are swallowed so the controller still responds 200 and
     //     Feezback doesn't retry (we already persisted the event for audit).
     try {
+      if (sub.endsWith('_sub_spouse')) {
+        const verified = await this.feezbackService.verifySpouseWebhookConnection(firebaseId, sub);
+        if (!verified) return;
+      }
       await this.feezbackService.refreshUserSources(firebaseId, 'UserDataIsAvailable');
     } catch (error: any) {
       this.logger.error(

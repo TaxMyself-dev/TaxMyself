@@ -67,7 +67,7 @@
             @if (syncSourceResults().length > 0) {
               <div class="source-results-panel source-results-panel--dialog">
                 <div class="source-results-panel__list">
-                  @for (source of syncSourceResults(); track source.type + '_' + source.sourceId + '_' + source.status) {
+                  @for (source of syncSourceResults(); track source.sourceRecordId ?? source.type + '_' + source.sourceId + '_' + source.status) {
                     <div class="source-result-item"
                          [class.source-result-item--success]="source.status === 'success'"
                          [class.source-result-item--failed]="source.status === 'failed'"
@@ -79,7 +79,7 @@
                          [class.pi-info-circle]="source.status === 'skipped_direct'">
                       </i>
                       <span class="source-result-item__name">
-                        {{ source.sourceId }}
+                        {{ source.sourceId }}{{ source.connectionRole === 'spouse' ? ' (בן/בת הזוג)' : '' }}
                       </span>
                       @if (source.status === 'success') {
                         <span class="source-result-item__count">{{ source.transactionCount }} תנועות</span>
@@ -92,8 +92,8 @@
                           [buttonText]="'נסה שוב'"
                           [buttonColor]="buttonColor.YELLOW"
                           [buttonSize]="buttonSize.SMALL"
-                          [isLoading]="isRetryingSource() === source.sourceId"
-                          (onButtonClicked)="onRetrySource(source.type, source.sourceId)">
+                          [isLoading]="isRetryingSource() === (source.sourceRecordId ? source.sourceRecordId.toString() : source.sourceId)"
+                          (onButtonClicked)="onRetrySource(source.type, source.sourceId, source.sourceRecordId)">
                         </app-p-button>
                       }
                       @if (needsSourceReconnect(source)) {
@@ -126,7 +126,7 @@
             @if (syncSourceResults().length > 0) {
               <div class="source-results-panel source-results-panel--dialog">
                 <div class="source-results-panel__list">
-                  @for (source of syncSourceResults(); track source.type + '_' + source.sourceId + '_' + source.status) {
+                  @for (source of syncSourceResults(); track source.sourceRecordId ?? source.type + '_' + source.sourceId + '_' + source.status) {
                     <div class="source-result-item"
                          [class.source-result-item--success]="source.status === 'success'"
                          [class.source-result-item--failed]="source.status === 'failed'"
@@ -138,7 +138,7 @@
                          [class.pi-info-circle]="source.status === 'skipped_direct'">
                       </i>
                       <span class="source-result-item__name">
-                        {{ source.sourceId }}
+                        {{ source.sourceId }}{{ source.connectionRole === 'spouse' ? ' (בן/בת הזוג)' : '' }}
                       </span>
                       @if (source.status === 'success') {
                         <span class="source-result-item__count">{{ source.transactionCount }} תנועות</span>
@@ -151,8 +151,8 @@
                           [buttonText]="'נסה שוב'"
                           [buttonColor]="buttonColor.YELLOW"
                           [buttonSize]="buttonSize.SMALL"
-                          [isLoading]="isRetryingSource() === source.sourceId"
-                          (onButtonClicked)="onRetrySource(source.type, source.sourceId)">
+                          [isLoading]="isRetryingSource() === (source.sourceRecordId ? source.sourceRecordId.toString() : source.sourceId)"
+                          (onButtonClicked)="onRetrySource(source.type, source.sourceId, source.sourceRecordId)">
                         </app-p-button>
                       }
                       @if (needsSourceReconnect(source)) {
@@ -481,7 +481,7 @@
   <div class="source-results-panel">
     <h3 class="source-results-panel__title">סטטוס סנכרון לפי מקור</h3>
     <div class="source-results-panel__list">
-      @for (source of syncSourceResults(); track source.sourceId) {
+      @for (source of syncSourceResults(); track source.sourceRecordId ?? source.sourceId) {
         <div class="source-result-item"
              [class.source-result-item--success]="source.status === 'success'"
              [class.source-result-item--failed]="source.status === 'failed'"
@@ -492,7 +492,7 @@
              [class.pi-clock]="source.status === 'not_synced'"
              [class.pi-info-circle]="source.status === 'skipped_direct'">
           </i>
-          <span class="source-result-item__name">{{ source.sourceId }}</span>
+          <span class="source-result-item__name">{{ source.sourceId }}{{ source.connectionRole === 'spouse' ? ' (בן/בת הזוג)' : '' }}</span>
           @if (source.status === 'success') {
             <span class="source-result-item__count">{{ source.transactionCount }} תנועות</span>
           }
@@ -504,8 +504,8 @@
               [buttonText]="'נסה שוב'"
               [buttonColor]="buttonColor.YELLOW"
               [buttonSize]="buttonSize.SMALL"
-              [isLoading]="isRetryingSource() === source.sourceId"
-              (onButtonClicked)="onRetrySource(source.type, source.sourceId)">
+              [isLoading]="isRetryingSource() === (source.sourceRecordId ? source.sourceRecordId.toString() : source.sourceId)"
+              (onButtonClicked)="onRetrySource(source.type, source.sourceId, source.sourceRecordId)">
             </app-p-button>
           }
           @if (needsSourceReconnect(source)) {

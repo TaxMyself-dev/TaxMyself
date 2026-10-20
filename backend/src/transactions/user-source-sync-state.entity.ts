@@ -1,4 +1,5 @@
-import { Column, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, Entity, Index, PrimaryGeneratedColumn, ManyToOne, JoinColumn } from 'typeorm';
+import { Source, ConnectionRole } from './source.entity';
 
 /**
  * Per-source sync outcome statuses:
@@ -16,6 +17,9 @@ export interface SourceResult {
   type: 'bank' | 'card';
   /** IBAN last-7 for bank; maskedPan last-4 for card. */
   sourceId: string;
+  sourceRecordId?: number;
+  /** Derived from Source; never persisted on the sync-state table. */
+  connectionRole?: ConnectionRole;
   /** Card resourceId (UUID) — stored for retry API call; not used for sourceId matching. */
   resourceId?: string;
   /** Feezback consentId covering this source. Updated on each webhook without changing sync status. */
@@ -34,13 +38,20 @@ export interface SourceResult {
 }
 
 @Entity('user_source_sync_state')
-@Index('UQ_source_sync_user_source', ['userId', 'sourceId'], { unique: true })
+@Index('UQ_source_sync_user_record', ['userId', 'sourceRecordId'], { unique: true })
 export class UserSourceSyncState {
   @PrimaryGeneratedColumn()
   id: number;
 
   @Column({ type: 'varchar' })
   userId: string;
+
+  @Column({ type: 'int' })
+  sourceRecordId: number;
+
+  @ManyToOne(() => Source, { onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'sourceRecordId', foreignKeyConstraintName: 'FK_sync_source_record' })
+  source: Source;
 
   /** IBAN last-7 for bank; maskedPan last-4 for card. */
   @Column({ type: 'varchar' })

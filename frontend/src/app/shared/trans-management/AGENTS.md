@@ -13,3 +13,5 @@ Admin-panel tab with operational tooling for Feezback open-banking consent/diagn
 ## Related topics
 - Backend: feezback (open-banking consent/accounts), transactions (sync simulator and legacy file upload)
 - Frontend pages: admin-panel (embeds `<app-trans-management>`), my-account (navigation target of the dev simulator)
+
+Consent confirmation routes to /billing/open-banking so enrollment checks and optional spouse identity selection cannot be bypassed by this entry point.

@@ -3,6 +3,7 @@ import { FeezbackService } from './feezback.service';
 describe('FeezbackService admin date-range diagnostics', () => {
   let service: FeezbackService;
   let userSyncStateService: {
+    getSourceResults: jest.Mock;
     updateSourceResults: jest.Mock;
     markCacheReadyAfterSourcePull: jest.Mock;
   };
@@ -17,6 +18,7 @@ describe('FeezbackService admin date-range diagnostics', () => {
 
   beforeEach(() => {
     userSyncStateService = {
+      getSourceResults: jest.fn().mockResolvedValue([]),
       updateSourceResults: jest.fn().mockResolvedValue(undefined),
       markCacheReadyAfterSourcePull: jest.fn().mockResolvedValue(undefined),
     };
@@ -64,7 +66,7 @@ describe('FeezbackService admin date-range diagnostics', () => {
       processingService as any,
       userSyncStateService as any,
       { findOne: jest.fn().mockResolvedValue({ fName: 'Test', lName: 'User' }) } as any,
-      {} as any,
+      { find: jest.fn().mockResolvedValue([]) } as any,
       {} as any,
       mailService as any,
     );

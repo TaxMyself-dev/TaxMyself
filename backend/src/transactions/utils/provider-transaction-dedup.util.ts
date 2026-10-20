@@ -42,7 +42,7 @@ export function dedupeProviderTransactions(
       continue;
     }
 
-    const key = `${paymentIdentifier}|${providerOriginalId}`;
+    const key = `${transaction.sourceRecordId ? `#${transaction.sourceRecordId}` : paymentIdentifier}|${providerOriginalId}`;
     const members = transactionsByProviderKey.get(key);
     if (members) {
       members.push(transaction);
