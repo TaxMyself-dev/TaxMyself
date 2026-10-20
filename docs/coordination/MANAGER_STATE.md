@@ -116,3 +116,13 @@ Prior approved user/source/FK SQL is included but was not executed during
 integration. No production access, provider calls or deployment occurred.
 
 Delivery verified: 461885a2 on local main, origin/main and both integration refs; both requested feature tips are included. Task records archived after delivery. No production deployment.
+
+## Approved login copy/layout delivered — 2026-10-20
+
+User approved final illustration size and both personal copy changes before
+integration/push. Refreshed main matched origin/main at b1f7b27f. Approved source
+commits a0cb8691 and 95429901 merged without conflicts; production frontend
+build and four focused settings tests passed. Code delivery 416047e0 verified
+on local main/origin/main and both integration refs. Ports remain 3000; no
+backend/schema/provider change or deployment. Durable evidence is archived in
+docs/tasks/archive/2026.md under Approved login copy and layout delivery.
