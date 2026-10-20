@@ -1,6 +1,6 @@
 # Feezback payment source deletion
 
-- Status: `MANAGER_REVIEW`
+- Status: `VERIFIED`
 - Task manager: Codex (direct user request)
 - Worker: same chat
 - Worktree: existing Feezback worktree, as explicitly requested
@@ -38,3 +38,6 @@ Delete disconnected payment sources from Settings, and explain how to replace co
 
 ## Popup refinement
 User requested source number, provider-neutral wording and a normal centered size. Added a dedicated payment-source confirmation host with 28rem width and viewport max-width. Both normal and stale-consent explanations receive the selected source number. Focused assertions cover number, wording and dialog key.
+
+
+Main integration verified on 2026-10-20; see feezback-main-integration.md for combined results (105 backend tests, 33 frontend tests, both builds passed), source/base commits and the completed port-3000 gate.

@@ -1,6 +1,6 @@
 # Feezback spouse identity
 
-- Status: WORKER_COMPLETE
+- Status: VERIFIED
 - Worktree: TaxMyself-feezback-spouse
 - Branch: codex/feezback-spouse
 - Base commit: 10f626c20c94daf2ae97964da1b06ba70ace78a6
@@ -13,7 +13,7 @@
 - Keep main untouched; do not contact production, change billing terms, or create live consents during validation.
 
 ## Impact
-- Schema: one boolean column on user, default false. Deployment requires the supplied cutover SQL first.
+- Schema: user verification flag plus source role/unique key and sync/cache source-record foreign keys. Deployment requires the approved cutover SQL first.
 - Provider: same APIs and signed JWT contract, one additional deterministic identity only when explicitly selected.
 - Source identifiers: clean account labels; connectionRole lives only on source, sync/cache reference its primary key. Opaque external transaction IDs stay unchanged for idempotency.
 - Security: profile writes cannot set the permanent verified flag; enrollment authorization is preserved.
@@ -76,7 +76,7 @@ Elazar clarified that local work must continue on backend port 3001 NOW.
 The earlier change to 3000 was premature and has been reversed; desktop and
 mobile environment files are restored exactly to their prior 3001 versions.
 
-- [ ] BEFORE MERGING: change desktop and mobile local API URLs from 3001 to 3000, verify the diff, and complete applicable checks before integration.
+- [x] BEFORE MERGING: change desktop and mobile local API URLs from 3001 to 3000, verify the diff, and complete applicable checks before integration.
 
 Do not make this port change during ongoing feature development. Production/cloud
 API URLs remain unchanged. The previous port-only commit's build passed; this
@@ -126,3 +126,6 @@ Local API remains 3001. The mandatory pre-merge gate above remains open.
   so the ignored before-snapshot is retained for recovery. No billing/provider
   contract changes. Existing external transaction keys retain their suffix
   to preserve import idempotency. Cross-identity deduplication remains outside scope.
+
+
+Main integration verified on 2026-10-20; see feezback-main-integration.md for combined results (105 backend tests, 33 frontend tests, both builds passed), source/base commits and the completed port-3000 gate.
