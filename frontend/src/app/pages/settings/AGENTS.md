@@ -37,6 +37,8 @@ Account/profile settings hub: tabbed page for editing personal details, spouse d
   for every numbered business. Initial connect and explicit reconnect both use
   the hardened server-side OAuth flow; reconnect deliberately bypasses the
   status pre-flight so the callback replaces the stored grant and scopes.
+  The expected `SHAAM_TSANDBOX_BUSINESS_NOT_ALLOWED` response is presented as
+  a disabled sandbox limitation, not as an unknown connection failure.
 - Subscription tab: a `COMPLIMENTARY_FULL` subscription is shown as "גישה מלאה ללא חיוב", with no plan, monthly charge, next billing date, or payment-method replacement controls.
 - Subscription status card offers "החלפת תוכנית" for ACTIVE owners without
   billing overrides. It navigates to /billing/plans using the existing plan

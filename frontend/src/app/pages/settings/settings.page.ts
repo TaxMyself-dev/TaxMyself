@@ -34,9 +34,17 @@ import { InputDateComponent } from 'src/app/components/input-date/input-date.com
 import { InputSelectComponent } from 'src/app/components/input-select/input-select.component';
 import { DriveDocsService, MAX_UPLOAD_TO_INBOX_FILES } from 'src/app/services/drive-docs.service';
 import { SETTINGS_TABS, shouldLoadOpenBankingAccountSources } from './settings-access.policy';
-import { ShaamService } from 'src/app/services/shaam.service';
+import {
+  SHAAM_TSANDBOX_BUSINESS_NOT_ALLOWED,
+  ShaamService,
+} from 'src/app/services/shaam.service';
 
-type ShaamConnectionViewStatus = 'loading' | 'connected' | 'disconnected' | 'error';
+type ShaamConnectionViewStatus =
+  | 'loading'
+  | 'connected'
+  | 'disconnected'
+  | 'sandbox-blocked'
+  | 'error';
 
 @Component({
   selector: 'app-settings',
@@ -309,6 +317,7 @@ export class SettingsPage implements OnInit {
 
   connectShaam(businessNumber: string | null | undefined): void {
     if (!businessNumber || this.connectingShaamBusinessNumber()) return;
+    if (this.shaamConnectionStatus(businessNumber) === 'sandbox-blocked') return;
     const startConnection = () => this.startShaamConnection(businessNumber);
     if (this.shaamConnectionStatus(businessNumber) !== 'connected') {
       startConnection();
@@ -358,9 +367,11 @@ export class SettingsPage implements OnInit {
           ...statuses,
           [businessNumber]: connected ? 'connected' : 'disconnected',
         })),
-        error: () => this.shaamConnectionStatuses.update((statuses) => ({
+        error: (error) => this.shaamConnectionStatuses.update((statuses) => ({
           ...statuses,
-          [businessNumber]: 'error',
+          [businessNumber]: error?.error?.code === SHAAM_TSANDBOX_BUSINESS_NOT_ALLOWED
+            ? 'sandbox-blocked'
+            : 'error',
         })),
       });
     });
