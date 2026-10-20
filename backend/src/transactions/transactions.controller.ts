@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, Query, UploadedFile, UseInterceptors, Headers, BadRequestException, ConflictException, ForbiddenException, UsePipes, ValidationPipe, Put, UseGuards, Req, HttpCode, HttpStatus, HttpException, Logger, Inject, forwardRef } from '@nestjs/common';
+import { Controller, Get, Post, ParseIntPipe, Patch, Delete, Param, Body, Query, UploadedFile, UseInterceptors, Headers, BadRequestException, ConflictException, ForbiddenException, UsePipes, ValidationPipe, Put, UseGuards, Req, HttpCode, HttpStatus, HttpException, Logger, Inject, forwardRef } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { TransactionsService } from './transactions.service';
 import { TransactionProcessingService } from './transaction-processing.service';
@@ -628,6 +628,13 @@ export class TransactionsController {
   async getSources(@Req() request: AuthenticatedRequest) {
     const userId = request.user?.firebaseId;
     return this.transactionsService.getSources(userId);
+  }
+
+  @Delete('sources/:sourceRecordId')
+  @UseGuards(FirebaseAuthGuard)
+  async deleteSource(@Req() request: AuthenticatedRequest, @Param('sourceRecordId', ParseIntPipe) sourceRecordId: number) {
+    if (sourceRecordId <= 0) throw new BadRequestException('Invalid sourceRecordId');
+    return this.transactionsService.deleteDisconnectedSource(request.user?.firebaseId, sourceRecordId);
   }
 
   @Get('get-sources-with-types')

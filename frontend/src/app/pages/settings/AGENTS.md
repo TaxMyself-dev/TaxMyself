@@ -55,3 +55,8 @@ Account/profile settings hub: tabbed page for editing personal details, spouse d
 - `AccountImagesService` uses authenticated HttpClient GET/POST/DELETE for `/auth/profile-image` and `/business/:id/logo`, with multipart `file`, Blob reads and `{ imagePath }` mutations. No public storage URL or Firebase Auth photoURL is used.
 - PNG/JPEG/WebP up to 5MB are checked before upload. Decoded images above 16 million pixels are rejected; profile uploads are center-cropped to a square (up to 1024px), logos preserve original proportions/transparency. Backend validation remains required.
 - Blob URLs are revoked on replacement/destroy; context changes cancel stale loads. Profile and business logo paths update the existing tab-scoped caches after success.
+
+## Open-banking payment source deletion
+Each source has a delete action identified by sourceRecordId (including spouse sources with matching numbers). Active consent shows a popup explaining that Feezback requires a new consent with the desired accounts/cards. Disconnected sources require confirmation and DELETE /transactions/sources/:sourceRecordId; success removes the row, while a server consent conflict refreshes the list and shows the explanation. Historical transactions are retained.
+
+Payment-source dialogs use the payment-source confirmation key and a dedicated centered host capped at 28rem (viewport minus 2rem on narrow screens). The consent explanation includes the source number and uses neutral wording without naming the provider.
