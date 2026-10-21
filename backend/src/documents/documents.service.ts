@@ -2144,6 +2144,54 @@ ${finalOwnerName}`;
       : null;
   }
 
+  /** Same numbering/journal transaction as billing receipts; provenance is UNIQUE.
+   * Amounts are the refund's frozen allocation of the original VAT, never today's price/rate. */
+  async createBillingSystemCredit(params: {
+    issuer: { systemUserId: string; issuerBusinessNumber: string; issuerBusinessType: BusinessType };
+    sourceDocId: number; billingAttemptId: number; amountAgorot: number;
+    amountBeforeVatAgorot: number; vatAmountAgorot: number; reason: string;
+  }): Promise<{ receiptDocId: number; docNumber: string; generalDocIndex: string }> {
+    const existing = await this.findBillingReceiptByAttemptId(params.billingAttemptId);
+    if (existing) return existing;
+    const source = await this.documentsRepo.findOneByOrFail({ id: params.sourceDocId });
+    if (source.issuerBusinessNumber !== params.issuer.issuerBusinessNumber ||
+      source.docType !== DocumentType.TAX_INVOICE_RECEIPT || source.currency !== Currency.ILS ||
+      ![params.amountAgorot, params.amountBeforeVatAgorot, params.vatAmountAgorot].every(Number.isSafeInteger) ||
+      params.amountAgorot <= 0 || params.amountBeforeVatAgorot < 0 || params.vatAmountAgorot < 0 ||
+      params.amountBeforeVatAgorot + params.vatAmountAgorot !== params.amountAgorot) {
+      throw new BadRequestException('Invalid billing credit source or amounts');
+    }
+    const { issuer } = params;
+    const docType = DocumentType.CREDIT_INVOICE;
+    const { docIndex, isInitial } = await this.getCurrentIndexes(issuer.systemUserId, docType, issuer.issuerBusinessNumber);
+    const amount = params.amountAgorot / 100, net = params.amountBeforeVatAgorot / 100, vat = params.vatAmountAgorot / 100;
+    try {
+      const result = await this.createDoc({ docData: {
+        issuerBusinessNumber: issuer.issuerBusinessNumber, businessType: issuer.issuerBusinessType,
+        docType, docNumber: String(isInitial ? DEFAULT_INITIAL_DOC_INDEX[docType] : docIndex),
+        docVatRate: Number(source.docVatRate), currency: source.currency,
+        sumBefDisBefVat: net, disSum: 0, sumAftDisBefVAT: net, vatSum: vat, sumAftDisWithVAT: amount,
+        withholdingTaxAmount: 0, recipientName: source.recipientName, recipientEmail: source.recipientEmail,
+        recipientId: source.recipientId, docDate: new Date(),
+        parentDocType: source.docType, parentDocNumber: source.docNumber,
+        docSubtitle: `זיכוי עבור מסמך ${source.docNumber}`, docDescription: params.reason,
+        billingAttemptId: params.billingAttemptId,
+      }, linesData: [{ issuerBusinessNumber: issuer.issuerBusinessNumber, docType,
+        lineNumber: '1', transType: '3', description: `זיכוי מנוי KeepInTax — מסמך ${source.docNumber}`,
+        unitType: UnitOfMeasure.UNIT, unitQuantity: 1, sumBefVatPerUnit: net, disBefVatPerLine: 0,
+        sumAftDisBefVatPerLine: net, vatOpts: VatOptions.EXCLUDE, vatRate: Number(source.docVatRate), vatPerLine: vat,
+      }], paymentData: [{ issuerBusinessNumber: issuer.issuerBusinessNumber, paymentLineNumber: '1',
+        paymentMethod: 'CREDIT_CARD', paymentDate: new Date(), paymentAmount: amount }] }, issuer.systemUserId, false);
+      return { receiptDocId: result.id, docNumber: result.docNumber, generalDocIndex: result.generalDocIndex };
+    } catch (error) {
+      // A concurrent creator may have won the document key. Its entire document/
+      // numbering/journal transaction committed, so reuse it after our rollback.
+      const winner = await this.findBillingReceiptByAttemptId(params.billingAttemptId);
+      if (winner) return winner;
+      throw error;
+    }
+  }
+
   /**
    * Creates a billing receipt for a KeepInTax subscription payment through the
    * same createDoc() flow used by manual document creation — so it gets a

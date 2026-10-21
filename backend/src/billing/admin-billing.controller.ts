@@ -27,6 +27,8 @@ import { UpdateSubscriptionBillingAccessModeDto } from './dtos/admin/update-subs
 import { ResolveBillingAttemptDto } from './dtos/admin/resolve-billing-attempt.dto';
 import { AdminBillingResolutionService } from './services/admin-billing-resolution.service';
 import { Optional } from '@nestjs/common';
+import { BillingRefundService } from './services/billing-refund.service';
+import { CreateRefundDto, ResolveRefundDto } from './dtos/admin/refund.dto';
 
 @Controller('admin/billing')
 @UseGuards(FirebaseAuthGuard)
@@ -35,7 +37,32 @@ export class AdminBillingController {
     private readonly adminBillingService: AdminBillingService,
     private readonly usersService: UsersService,
     @Optional() private readonly resolution?: AdminBillingResolutionService,
+    @Optional() private readonly refunds?: BillingRefundService,
   ) {}
+
+  @Get('subscriptions/:id/refunds')
+  async refundContext(@Req() request: AuthenticatedRequest, @Param('id', ParseIntPipe) id: number) {
+    await this.assertAdmin(request);
+    return this.refunds!.context(id);
+  }
+
+  @Post('subscriptions/:id/refunds')
+  @HttpCode(HttpStatus.OK)
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  async createRefund(@Req() request: AuthenticatedRequest, @Param('id', ParseIntPipe) id: number,
+    @Body() dto: CreateRefundDto) {
+    await this.assertAdmin(request);
+    return this.refunds!.create(id, request.user?.actorFirebaseId ?? request.user!.firebaseId, dto);
+  }
+
+  @Post('subscriptions/:id/refunds/:attemptId/resolve')
+  @HttpCode(HttpStatus.OK)
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  async resolveRefund(@Req() request: AuthenticatedRequest, @Param('id', ParseIntPipe) id: number,
+    @Param('attemptId', ParseIntPipe) attemptId: number, @Body() dto: ResolveRefundDto) {
+    await this.assertAdmin(request);
+    return this.refunds!.resolve(id, attemptId, request.user?.actorFirebaseId ?? request.user!.firebaseId, dto);
+  }
 
   // ─── Plans ──────────────────────────────────────────────────────────────────
 

@@ -1,4 +1,11 @@
 ## Purpose
+System subscription refunds use createBillingSystemCredit: one credit invoice
+per refund attempt via existing UNIQUE documents.billing_attempt_id. It links
+the original company TAX_INVOICE_RECEIPT and freezes its recipient/VAT rate;
+amounts come from the validated refund allocation. Numbering, document and journal
+are created in the existing createDoc transaction; signed PDFs/email follow via
+the billing finalizer. Retries reuse the document, never create another journal.
+
 Handles the full lifecycle of official documents the user issues (invoices, receipts, credit notes — Israeli tax-authority formats), plus the inbound OCR pipeline that extracts structured data from documents received from suppliers via Google Drive.
 
 ## SHAAM allocation finalization

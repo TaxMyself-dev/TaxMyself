@@ -517,4 +517,28 @@ export class CardcomService implements OnModuleInit {
       terminalNumber: parseInt(this.terminalNumber, 10),
     };
   }
+
+  /** Official v11 RefundByTransactionIdReq. No transport retries: its external
+   * refund id has no documented exactly-once guarantee. Only call after a durable reservation. */
+  async refundTransaction(input: { transactionId: string; amountAgorot: number; requestId: string }): Promise<{
+    ResponseCode: number; NewTranzactionId?: number;
+  }> {
+    const id = Number(input.transactionId);
+    if (!Number.isSafeInteger(id) || id <= 0 || !Number.isSafeInteger(input.amountAgorot) || input.amountAgorot <= 0) {
+      throw new Error('Invalid refund parameters');
+    }
+    try {
+      const { data } = await firstValueFrom(this.http.post(
+        'https://secure.cardcom.solutions/api/v11/Transactions/RefundByTransactionId', {
+          ApiName: this.apiName, ApiPassword: this.apiPassword,
+          TransactionId: id, PartialSum: input.amountAgorot / 100,
+          CancelOnly: false, AllowMultipleRefunds: true,
+          ExternalRefundDealId: input.requestId,
+        }, { timeout: 30_000, maxRedirects: 0 }));
+      return { ResponseCode: data?.ResponseCode, NewTranzactionId: data?.NewTranzactionId };
+    } catch {
+      // Never propagate axios config/credentials or assume a transport failure means no refund.
+      throw new CardcomApiError('Refund result is unknown');
+    }
+  }
 }

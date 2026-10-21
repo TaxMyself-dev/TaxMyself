@@ -1548,6 +1548,7 @@ export class BillingService {
       );
 
     const successTypes: BillingEventType[] = [
+      BillingEventType.REFUND_SUCCESS,
       BillingEventType.PAYMENT_SUCCESS,
       BillingEventType.RENEWAL_SUCCESS,
     ];

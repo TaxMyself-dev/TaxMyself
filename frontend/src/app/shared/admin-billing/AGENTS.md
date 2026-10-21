@@ -1,4 +1,12 @@
 ## Purpose
+Subscriptions expose a refund row action opening BillingRefundDialogComponent.
+The dialog lists original successful payments (including legacy events), available
+balance, reason and explicit refund confirmation. Uncertain refunds are blocked
+from re-submission and show evidence-based manual resolution; confirmed refunds
+offer document-only completion. UI never changes the subscription. Request UUID
+is retained across in-dialog transport retries; server reservations remain the
+authority across reloads and admins. Isolated tests: tsconfig.billing-refund.spec.json.
+
 Admin-panel tab that hosts billing administration, split into two sub-tabs: plan management and subscription management.
 
 ## Key entities/files

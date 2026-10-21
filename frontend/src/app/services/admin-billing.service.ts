@@ -223,11 +223,36 @@ export interface GenerateReceiptResponse {
 
 // ─── Service ─────────────────────────────────────────────────────────────────
 
+export interface AdminRefund {
+  attemptId: number; paymentEventId: number; amountAgorot: number; status: string;
+  stateVersion: number; createdAt: string; transactionId: string | null; receiptDocId: number | null; reason: string;
+}
+export interface RefundPayment {
+  paymentEventId: number; date: string; transactionId: string | null; amountAgorot: number;
+  remainingAgorot: number; blockedReason: string | null;
+}
+export interface RefundContext { payments: RefundPayment[]; refunds: AdminRefund[]; }
+
 @Injectable({ providedIn: 'root' })
 export class AdminBillingService {
   private readonly base = `${environment.apiUrl}admin/billing`;
 
   constructor(private readonly http: HttpClient) {}
+
+  getRefundContext(id: number): Observable<RefundContext> {
+    return this.http.get<RefundContext>(`${this.base}/subscriptions/${id}/refunds`);
+  }
+
+  createRefund(id: number, payload: { requestId: string; paymentEventId: number; amountAgorot: number; reason: string }): Observable<AdminRefund> {
+    return this.http.post<AdminRefund>(`${this.base}/subscriptions/${id}/refunds`, payload);
+  }
+
+  resolveRefund(id: number, attemptId: number, payload: {
+    action: 'COMPLETE' | 'CONFIRM_REFUNDED' | 'CONFIRM_NOT_REFUNDED'; expectedStateVersion: number;
+    evidence?: string; transactionId?: string;
+  }): Observable<AdminRefund> {
+    return this.http.post<AdminRefund>(`${this.base}/subscriptions/${id}/refunds/${attemptId}/resolve`, payload);
+  }
 
   // ─── Plans ──────────────────────────────────────────────────────────────────
 
