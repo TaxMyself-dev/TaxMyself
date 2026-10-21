@@ -10,8 +10,9 @@ export const DEFAULT_SHAAM_TSANDBOX_INVOICE_BUSINESS_NUMBER = '777777715';
 export function isShaamTsandboxInvoiceBusinessAllowed(
   businessNumber: string | null | undefined,
 ): boolean {
-  const configured = process.env.SHAAM_TSANDBOX_INVOICE_BUSINESS_NUMBERS
-    ?.split(',')
+  const configured = process.env.SHAAM_TSANDBOX_INVOICE_BUSINESS_NUMBERS?.split(
+    ',',
+  )
     .map((value) => value.trim())
     .filter(Boolean);
   const allowed = configured?.length
@@ -127,14 +128,50 @@ export function getShaamUrls(
   return TSANDBOX_URLS;
 }
 
-export function getShaamInvoiceScope(
+const SHAAM_SCOPE_NAME_PATTERN = /^[A-Za-z0-9._:-]+$/;
+
+export function parseShaamScopes(value: string | null | undefined): string[] {
+  const scopes = String(value || '')
+    .split(/[\s,]+/)
+    .map((scope) => scope.trim())
+    .filter(Boolean);
+  const unique = [...new Set(scopes)];
+  const invalid = unique.find((scope) => !SHAAM_SCOPE_NAME_PATTERN.test(scope));
+  if (invalid) throw new Error('Invalid SHAAM scope configuration');
+  return unique;
+}
+
+/**
+ * Scopes for Tax Authority APIs that share the long-time-token grant.
+ * The Tax Authority requires a comma-delimited value at authorization,
+ * code-exchange and refresh. Daily-token products (for example Uniform File)
+ * are intentionally configured and authorized separately.
+ */
+export function getShaamLongTokenScopes(
+  env: string = ShaamEnvironment.TSANDBOX,
+): string[] {
+  const configured = process.env.SHAAM_SCOPES?.trim();
+  if (configured) {
+    const scopes = parseShaamScopes(configured);
+    if (scopes.length) return scopes;
+  }
+  if (env.toLowerCase() === ShaamEnvironment.PRODUCTION) {
+    throw new Error('SHAAM_SCOPES is required in production');
+  }
+  return ['scope']; // Historical sandbox registration value only.
+}
+
+export function getShaamLongTokenScopeParameter(
   env: string = ShaamEnvironment.TSANDBOX,
 ): string {
-  const configured = process.env.SHAAM_INVOICE_SCOPE?.trim();
-  if (configured) return configured;
-  if (env.toLowerCase() === ShaamEnvironment.PRODUCTION) {
-    throw new Error('SHAAM_INVOICE_SCOPE is required in production');
-  }
-  return 'scope'; // Historical sandbox registration value only.
+  return getShaamLongTokenScopes(env).join(',');
+}
+
+export function getMissingShaamScopes(
+  granted: string | null | undefined,
+  required: readonly string[],
+): string[] {
+  const grantedSet = new Set(parseShaamScopes(granted));
+  return required.filter((scope) => !grantedSet.has(scope));
 }
 export const REQUEST_TIMEOUT_MS = 10000;

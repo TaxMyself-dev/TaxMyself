@@ -10,9 +10,11 @@ describe('ShaamOauthService token refresh classification', () => {
   beforeEach(() => {
     process.env.SHAAM_CLIENT_ID = 'test-client';
     process.env.SHAAM_CLIENT_SECRET = 'test-secret';
-    process.env.SHAAM_REDIRECT_URI = 'http://localhost:3000/shaam/oauth/callback';
+    process.env.SHAAM_REDIRECT_URI =
+      'http://localhost:3000/shaam/oauth/callback';
     process.env.SHAAM_ENV = 'tsandbox';
-    process.env.SHAAM_INVOICE_SCOPE = 'invoices_scope';
+    process.env.SHAAM_SCOPES =
+      'invoices_scope, donations_scope, invoices_scope';
   });
 
   afterAll(() => {
@@ -35,18 +37,22 @@ describe('ShaamOauthService token refresh classification', () => {
     const service = new ShaamOauthService(http as any);
 
     const authorizeUrl = new URL(service.buildAuthorizeUrl('state'));
-    expect(authorizeUrl.searchParams.get('scope')).toBe('invoices_scope');
+    expect(authorizeUrl.searchParams.get('scope')).toBe(
+      'invoices_scope,donations_scope',
+    );
 
     await service.exchangeCodeForToken(
       'authorization-code',
       'http://localhost:3000/shaam/oauth/callback',
     );
-    expect(new URLSearchParams(http.post.mock.calls[0][1]).get('scope'))
-      .toBe('invoices_scope');
+    expect(new URLSearchParams(http.post.mock.calls[0][1]).get('scope')).toBe(
+      'invoices_scope,donations_scope',
+    );
 
     await service.refreshAccessToken('refresh-token');
-    expect(new URLSearchParams(http.post.mock.calls[1][1]).get('scope'))
-      .toBe('invoices_scope');
+    expect(new URLSearchParams(http.post.mock.calls[1][1]).get('scope')).toBe(
+      'invoices_scope,donations_scope',
+    );
   });
 
   it('classifies an explicit invalid_grant response as requiring authorization', async () => {
@@ -62,9 +68,9 @@ describe('ShaamOauthService token refresh classification', () => {
     };
     const service = new ShaamOauthService(http as any);
 
-    await expect(service.refreshAccessToken('refresh-token')).rejects.toBeInstanceOf(
-      ShaamReauthorizationRequiredError,
-    );
+    await expect(
+      service.refreshAccessToken('refresh-token'),
+    ).rejects.toBeInstanceOf(ShaamReauthorizationRequiredError);
   });
 
   it('classifies invalid_scope during refresh as requiring a new authorization', async () => {
@@ -83,8 +89,9 @@ describe('ShaamOauthService token refresh classification', () => {
     };
     const service = new ShaamOauthService(http as any);
 
-    await expect(service.refreshAccessToken('old-scope-refresh-token'))
-      .rejects.toBeInstanceOf(ShaamReauthorizationRequiredError);
+    await expect(
+      service.refreshAccessToken('old-scope-refresh-token'),
+    ).rejects.toBeInstanceOf(ShaamReauthorizationRequiredError);
   });
 
   it('does not classify a server failure as a revoked authorization', async () => {
@@ -100,8 +107,8 @@ describe('ShaamOauthService token refresh classification', () => {
     };
     const service = new ShaamOauthService(http as any);
 
-    await expect(service.refreshAccessToken('refresh-token')).rejects.not.toBeInstanceOf(
-      ShaamReauthorizationRequiredError,
-    );
+    await expect(
+      service.refreshAccessToken('refresh-token'),
+    ).rejects.not.toBeInstanceOf(ShaamReauthorizationRequiredError);
   });
 });

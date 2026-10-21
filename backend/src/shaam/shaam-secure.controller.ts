@@ -20,13 +20,16 @@ import {
 import { Response } from 'express';
 import { BusinessService } from '../business/business.service';
 import { FirebaseAuthGuard } from '../guards/firebase-auth.guard';
-import { ShaamAllocationResolutionDto, ShaamDocumentAllocationDto } from './dto/shaam-document-allocation.dto';
+import {
+  ShaamAllocationResolutionDto,
+  ShaamDocumentAllocationDto,
+} from './dto/shaam-document-allocation.dto';
 import {
   isShaamTsandboxInvoiceBusinessAllowed,
   ShaamEnvironment,
   SHAAM_TSANDBOX_BUSINESS_NOT_ALLOWED,
 } from './shaam.constants';
-import { ShaamProduct } from './entities/shaam.enums';
+import { ShaamConnectionStatus, ShaamProduct } from './entities/shaam.enums';
 import { ShaamConnectionService } from './services/shaam-connection.service';
 import { ShaamOauthStateService } from './services/shaam-oauth-state.service';
 import { ShaamOauthService } from './services/shaam-oauth.service';
@@ -58,8 +61,13 @@ export class ShaamSecureController {
     @Body() body: { businessNumber: string; product: ShaamProduct },
   ): Promise<{ url: string }> {
     const business = await this.resolveBusiness(request, body.businessNumber);
-    if (body.product === ShaamProduct.UNIFORM_FILE && !this.uniformConfig.enabled) {
-      throw new ServiceUnavailableException('Uniform-file SHAAM OAuth is disabled');
+    if (
+      body.product === ShaamProduct.UNIFORM_FILE &&
+      !this.uniformConfig.enabled
+    ) {
+      throw new ServiceUnavailableException(
+        'Uniform-file SHAAM OAuth is disabled',
+      );
     }
     const environment = this.environmentFor(body.product);
     this.assertSandboxInvoiceBusinessAllowed(
@@ -94,7 +102,7 @@ export class ShaamSecureController {
             code,
             process.env.SHAAM_REDIRECT_URI || '',
           );
-    await this.connections.saveToken(
+    const connectionStatus = await this.connections.saveToken(
       intent.businessId,
       intent.actorFirebaseId,
       intent.product,
@@ -102,6 +110,18 @@ export class ShaamSecureController {
       token,
     );
     const frontend = process.env.FRONTEND_URL || 'http://localhost:4200';
+    if (connectionStatus !== ShaamConnectionStatus.ACTIVE) {
+      const params = new URLSearchParams({
+        connected: 'false',
+        product: intent.product,
+        error: 'missing_required_scope',
+        error_description:
+          'The Tax Authority authorization did not grant every required scope',
+      });
+      return response.redirect(
+        `${frontend}/shaam/callback?${params.toString()}`,
+      );
+    }
     return response.redirect(
       `${frontend}/shaam/callback?connected=true&product=${intent.product}`,
     );
@@ -121,11 +141,7 @@ export class ShaamSecureController {
       product,
       environment,
     );
-    return this.connections.status(
-      business.id,
-      product,
-      environment,
-    );
+    return this.connections.status(business.id, product, environment);
   }
 
   @Post('invoices/allocation')
@@ -149,7 +165,10 @@ export class ShaamSecureController {
       environment,
     );
     if (!token) {
-      throw new HttpException('SHAAM connection is required', HttpStatus.PRECONDITION_REQUIRED);
+      throw new HttpException(
+        'SHAAM connection is required',
+        HttpStatus.PRECONDITION_REQUIRED,
+      );
     }
     return this.documentAllocation.requestAndFinalize(
       token,
@@ -199,12 +218,14 @@ export class ShaamSecureController {
   }
 
   private async resolveBusiness(request: any, businessNumber?: string) {
-    if (!businessNumber?.trim()) throw new BadRequestException('businessNumber is required');
+    if (!businessNumber?.trim())
+      throw new BadRequestException('businessNumber is required');
     const business = await this.businessService.getBusinessByNumber(
       businessNumber.trim(),
       request.user.firebaseId,
     );
-    if (!business) throw new BadRequestException('Business not found or not authorized');
+    if (!business)
+      throw new BadRequestException('Business not found or not authorized');
     return business;
   }
 
@@ -212,9 +233,11 @@ export class ShaamSecureController {
     if (!Object.values(ShaamProduct).includes(product)) {
       throw new BadRequestException('Unsupported SHAAM product');
     }
-    if (product === ShaamProduct.UNIFORM_FILE) return this.uniformConfig.environment;
-    return (process.env.SHAAM_ENV || ShaamEnvironment.TSANDBOX).toLowerCase() ===
-      ShaamEnvironment.PRODUCTION
+    if (product === ShaamProduct.UNIFORM_FILE)
+      return this.uniformConfig.environment;
+    return (
+      process.env.SHAAM_ENV || ShaamEnvironment.TSANDBOX
+    ).toLowerCase() === ShaamEnvironment.PRODUCTION
       ? ShaamEnvironment.PRODUCTION
       : ShaamEnvironment.TSANDBOX;
   }

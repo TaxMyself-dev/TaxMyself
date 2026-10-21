@@ -44,6 +44,19 @@ Integrates with the Israel Tax Authority's SHAAM OpenAPI — OAuth2 authorizatio
   contain only operation/outcome, environment, product, duration, bounded
   reason/category, expiry duration, token-rotation boolean and connection
   status. Never add tokens, actor/business identifiers or raw provider text.
+- Long-time-token APIs use one cumulative scope set. Configure the complete set
+  only in `SHAAM_SCOPES` as a comma-delimited list. This variable is mandatory
+  in production and must be configured before deploying this code; there is no
+  fallback to a historical single-service variable. Authorization, code
+  exchange and refresh send the same normalized comma-delimited value.
+  Before returning or refreshing an invoice access token, the connection checks
+  its saved grant against the entire configured set. Any missing scope marks the
+  connection `REAUTH_REQUIRED`; a newly returned partial grant is saved but is
+  never activated. Adding a compatible API therefore requires adding its scope
+  to the configured cumulative set, after which existing customers are prompted
+  for a fresh authorization containing all scopes. Uniform File is excluded:
+  its two scopes belong to the separate Daily Token flow and must never be
+  chained into the long-time-token authorization.
 - `POST /shaam/invoices/allocation?businessNumber=...` — accepts only `docNumber` + `docType`, resolves the server-held token, attempts official recovery first, and only when that succeeds without an existing number submits Approval before finalizing the persisted invoice. An ambiguous recovery error blocks Approval.
 - `POST /shaam/invoices/allocation/recover?businessNumber=...` — retrieves a lost allocation response from the official recovery API using the persisted invoice fields; it never submits a replacement approval request.
 

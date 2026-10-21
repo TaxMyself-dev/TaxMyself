@@ -1,7 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { ShaamEnvironment } from '../shaam.constants';
+import {
+  getMissingShaamScopes,
+  getShaamLongTokenScopes,
+  parseShaamScopes,
+  ShaamEnvironment,
+} from '../shaam.constants';
 import { ShaamTokenResponseDto } from '../dto/shaam-token-response.dto';
 import { ShaamConnection } from '../entities/shaam-connection.entity';
 import { ShaamConnectionStatus, ShaamProduct } from '../entities/shaam.enums';
@@ -27,7 +32,7 @@ export class ShaamConnectionService {
     product: ShaamProduct,
     environment: ShaamEnvironment,
     token: ShaamTokenResponseDto,
-  ): Promise<void> {
+  ): Promise<ShaamConnectionStatus> {
     let connection = await this.repo.findOne({
       where: { businessId, product, environment },
     });
@@ -41,10 +46,36 @@ export class ShaamConnectionService {
       connection.refreshToken = null;
     }
     connection.expiresAt = new Date(Date.now() + token.expires_in * 1000);
-    connection.scopes = token.scope || null;
-    connection.status = ShaamConnectionStatus.ACTIVE;
+    const requiredScopes = this.requiredScopes(product, environment);
+    const returnedScopes = parseShaamScopes(token.scope);
+    const existingScopes = parseShaamScopes(connection.scopes);
+    const grantedScopes = returnedScopes.length
+      ? returnedScopes
+      : existingScopes.length
+      ? existingScopes
+      : requiredScopes;
+    const missingScopes = getMissingShaamScopes(
+      grantedScopes.join(','),
+      requiredScopes,
+    );
+    connection.scopes = grantedScopes.length ? grantedScopes.join(',') : null;
+    connection.status = missingScopes.length
+      ? ShaamConnectionStatus.REAUTH_REQUIRED
+      : ShaamConnectionStatus.ACTIVE;
     connection.connectedByFirebaseId = actorFirebaseId;
     await this.repo.save(connection);
+    if (missingScopes.length) {
+      this.logger.warn('SHAAM grant is missing required scopes', {
+        operation: 'oauth_scope_validation',
+        outcome: 'reauthorization_required',
+        environment,
+        product,
+        missingScopeCount: missingScopes.length,
+        requiredScopeCount: requiredScopes.length,
+        connectionStatus: connection.status,
+      });
+    }
+    return connection.status;
   }
 
   async status(
@@ -88,6 +119,22 @@ export class ShaamConnectionService {
       row.status !== ShaamConnectionStatus.ACTIVE ||
       !row.expiresAt
     ) {
+      return null;
+    }
+    const requiredScopes = this.requiredScopes(product, environment);
+    const missingScopes = getMissingShaamScopes(row.scopes, requiredScopes);
+    if (missingScopes.length) {
+      row.status = ShaamConnectionStatus.REAUTH_REQUIRED;
+      await this.repo.save(row);
+      this.logger.warn('SHAAM connection is missing required scopes', {
+        operation: 'oauth_scope_validation',
+        outcome: 'reauthorization_required',
+        environment,
+        product,
+        missingScopeCount: missingScopes.length,
+        requiredScopeCount: requiredScopes.length,
+        connectionStatus: row.status,
+      });
       return null;
     }
     if (row.expiresAt.getTime() > Date.now() + 5 * 60 * 1000) {
@@ -154,13 +201,14 @@ export class ShaamConnectionService {
       });
       throw error;
     }
-    await this.saveToken(
+    const refreshedStatus = await this.saveToken(
       businessId,
       row.connectedByFirebaseId,
       product,
       environment,
       refreshed,
     );
+    if (refreshedStatus !== ShaamConnectionStatus.ACTIVE) return null;
     this.logger.debug('SHAAM access-token refresh succeeded', {
       operation: 'access_token_refresh',
       outcome: 'success',
@@ -172,5 +220,14 @@ export class ShaamConnectionService {
       connectionStatus: ShaamConnectionStatus.ACTIVE,
     });
     return refreshed.access_token;
+  }
+
+  private requiredScopes(
+    product: ShaamProduct,
+    environment: ShaamEnvironment,
+  ): string[] {
+    return product === ShaamProduct.INVOICE_ALLOCATION
+      ? getShaamLongTokenScopes(environment)
+      : [];
   }
 }
