@@ -79,7 +79,10 @@ export class ShaamInvoicesService {
         confirmationReturned: Boolean(response.data?.confirmation_number),
       });
 
-      return response.data as ShaamApprovalResponseDto;
+      return {
+        ...response.data,
+        status: response.status,
+      } as ShaamApprovalResponseDto;
     } catch (error: any) {
       this.logFailure('approval', approvalUrl, startedAt, error);
 

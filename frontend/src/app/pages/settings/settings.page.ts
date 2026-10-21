@@ -347,7 +347,7 @@ export class SettingsPage implements OnInit {
         life: 6000,
         key: 'br',
       });
-    });
+    }, 'settings');
   }
 
   private loadShaamConnectionStatuses(): void {

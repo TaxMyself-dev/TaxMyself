@@ -7,7 +7,8 @@ Integrates with the Israel Tax Authority's SHAAM OpenAPI — OAuth2 authorizatio
   Information endpoints are not recovery endpoints for this flow.
 - Persist `PROCESSING` before the call. An expired lease becomes
   `UNKNOWN_OUTCOME` and is never replayed automatically.
-- Save the allocation and `APPROVED` atomically before local finalization.
+- Save the allocation, `APPROVED` state and actual provider HTTP success status
+  atomically before local finalization.
 - Only guarded admin endpoints resolve unknown outcomes with evidence. See
   `docs/features/shaam-allocation-state-machine.md`.
 

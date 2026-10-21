@@ -68,13 +68,18 @@ describe('ShaamAllocationOrchestratorService', () => {
 
   it('persists the attempt before Approval and stores success before local finalization', async () => {
     const ctx = setup();
-    ctx.invoices.submitApproval.mockResolvedValue({ approved: true, confirmation_number: '123456789' });
+    ctx.invoices.submitApproval.mockResolvedValue({
+      status: 200,
+      approved: true,
+      confirmation_number: '123456789',
+    });
 
     await ctx.service.requestAndFinalize('token', 'owner', 'actor', '123456789', '20000', DocumentType.TAX_INVOICE);
 
     expect(ctx.invoices.submitApproval).toHaveBeenCalledTimes(1);
     expect(ctx.txDocumentsRepo.save).toHaveBeenCalledWith(expect.objectContaining({ allocationNum: '123456789' }));
     expect(ctx.getAttempt().state).toBe(State.APPROVED);
+    expect(ctx.getAttempt().providerHttpStatus).toBe(200);
     expect(ctx.documentsService.finalizeAllocation).toHaveBeenCalledTimes(1);
   });
 
@@ -91,7 +96,7 @@ describe('ShaamAllocationOrchestratorService', () => {
 
   it('treats a malformed 2xx response as unknown rather than rejected', async () => {
     const ctx = setup();
-    ctx.invoices.submitApproval.mockResolvedValue({ message: 'unexpected shape' });
+    ctx.invoices.submitApproval.mockResolvedValue({ status: 200, message: 'unexpected shape' });
 
     await expect(ctx.service.requestAndFinalize('token', 'owner', 'actor', '123456789', '20000', DocumentType.TAX_INVOICE))
       .rejects.toMatchObject({ status: 409 });

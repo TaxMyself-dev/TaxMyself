@@ -26,6 +26,29 @@ describe('ShaamInvoicesService', () => {
     }
   });
 
+  it('returns the transport status with a successful approval response', async () => {
+    process.env.SHAAM_ENV = 'tsandbox';
+    jest.spyOn(Logger.prototype, 'log').mockImplementation();
+    const httpService = {
+      post: jest.fn().mockReturnValue(of({
+        status: 200,
+        data: { approved: true, confirmation_number: 'allocation-number' },
+      })),
+    };
+    const service = new ShaamInvoicesService(httpService as any);
+
+    const response = await service.submitApproval('server-token', {
+      payment_amount: 100,
+      vat_amount: 18,
+      payment_amount_including_vat: 118,
+    } as any);
+
+    expect(response).toEqual(expect.objectContaining({
+      status: 200,
+      approved: true,
+    }));
+  });
+
   it('logs a useful recovery success without invoice, business, allocation or token data', async () => {
     process.env.SHAAM_ENV = 'tsandbox';
     const log = jest.spyOn(Logger.prototype, 'log').mockImplementation();

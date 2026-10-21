@@ -7,7 +7,11 @@ Safe OAuth result page. The backend has already exchanged and stored the token; 
 - `shaam-callback.module.ts` — trivial routing module (no declarations array needed; page is standalone).
 
 ## Main flows
-- Success: `connected=true` clears any historical localStorage values and shows success.
+- Success: `connected=true` clears any historical localStorage values and shows
+  success. A bounded, one-time `sessionStorage` origin distinguishes settings
+  from document initiation; settings shows only a return to
+  `/settings?tab=permissions`, while absent/unknown origins retain the legacy
+  document/home actions. Never accept a free-form callback redirect URL.
 - Error/missing result: safe error state; no provider response body is exposed.
 - Retry returns home, where a business-scoped authenticated flow can be started.
 

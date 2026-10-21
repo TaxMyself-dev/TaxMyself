@@ -28,6 +28,7 @@ describe('settings SHAAM connection management', () => {
     expect((page as any).shaamService.initiateOAuthFlow).toHaveBeenCalledWith(
       '515000000',
       jasmine.any(Function),
+      'settings',
     );
   });
 
@@ -40,6 +41,7 @@ describe('settings SHAAM connection management', () => {
     expect((page as any).shaamService.initiateOAuthFlow).toHaveBeenCalledWith(
       '515000000',
       jasmine.any(Function),
+      'settings',
     );
   });
 
@@ -52,6 +54,7 @@ describe('settings SHAAM connection management', () => {
     expect((page as any).shaamService.initiateOAuthFlow).toHaveBeenCalledWith(
       '515000000',
       jasmine.any(Function),
+      'settings',
     );
   });
 

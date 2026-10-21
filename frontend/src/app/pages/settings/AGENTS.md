@@ -40,6 +40,9 @@ Account/profile settings hub: tabbed page for editing personal details, spouse d
   A refresh `invalid_scope` marks the saved connection as requiring a new
   authorization; settings shows that state explicitly and its reconnect button
   starts `/oauth/authorize` directly without deleting the old grant first.
+  Settings initiation records only the bounded callback origin `settings`, so
+  successful authorization returns to the permissions tab and never offers a
+  document-issuance action.
   The expected `SHAAM_TSANDBOX_BUSINESS_NOT_ALLOWED` response is presented as
   a disabled sandbox limitation, not as an unknown connection failure.
 - Subscription tab: a `COMPLIMENTARY_FULL` subscription is shown as "גישה מלאה ללא חיוב", with no plan, monthly charge, next billing date, or payment-method replacement controls.

@@ -6,6 +6,9 @@ import { environment } from 'src/environments/environment';
 export const SHAAM_TSANDBOX_BUSINESS_NOT_ALLOWED =
   'SHAAM_TSANDBOX_BUSINESS_NOT_ALLOWED';
 
+export type ShaamOAuthOrigin = 'document' | 'settings';
+export const SHAAM_OAUTH_ORIGIN_STORAGE_KEY = 'shaam_oauth_origin';
+
 export interface ShaamAllocationStatus {
   state: string;
   canRequest: boolean;
@@ -54,10 +57,14 @@ export class ShaamService {
   initiateOAuthFlow(
     businessNumber?: string,
     onError?: (error: unknown) => void,
+    origin: ShaamOAuthOrigin = 'document',
   ): void {
     if (!businessNumber) throw new Error('businessNumber is required');
     this.getAuthorizeUrl(businessNumber).subscribe({
-      next: ({ url }) => window.location.assign(url),
+      next: ({ url }) => {
+        sessionStorage.setItem(SHAAM_OAUTH_ORIGIN_STORAGE_KEY, origin);
+        window.location.assign(url);
+      },
       error: (error) => {
         if (onError) {
           onError(error);

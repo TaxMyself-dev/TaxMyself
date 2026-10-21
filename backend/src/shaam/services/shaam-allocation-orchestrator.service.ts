@@ -50,20 +50,29 @@ export class ShaamAllocationOrchestratorService {
 
     try {
       const response = await this.invoices.submitApproval(accessToken, payload);
+      const providerHttpStatus = response.status;
       const allocationNumber = this.extractAllocationNumber(response);
       if (response?.approved === true && !allocationNumber) {
-        await this.finishFailure(attempt, AttemptState.UNKNOWN_OUTCOME, null, 'malformed_success');
+        await this.finishFailure(attempt, AttemptState.UNKNOWN_OUTCOME, providerHttpStatus, 'malformed_success');
         this.throwBlocked('ALLOCATION_OUTCOME_UNKNOWN');
       }
       if (response?.approved === false) {
-        await this.finishFailure(attempt, AttemptState.REJECTED, 200, 'provider_rejection');
+        await this.finishFailure(attempt, AttemptState.REJECTED, providerHttpStatus, 'provider_rejection');
         return { ...response, allocationState: AttemptState.REJECTED };
       }
       if (response?.approved !== true) {
-        await this.finishFailure(attempt, AttemptState.UNKNOWN_OUTCOME, 200, 'malformed_success');
+        await this.finishFailure(attempt, AttemptState.UNKNOWN_OUTCOME, providerHttpStatus, 'malformed_success');
         this.throwBlocked('ALLOCATION_OUTCOME_UNKNOWN');
       }
-      await this.persistApproval(attempt.id, document.id, allocationNumber!);
+      await this.persistApproval(
+        attempt.id,
+        document.id,
+        allocationNumber!,
+        providerHttpStatus,
+      );
+      // The transaction reloads its own entity instance. Mirror the persisted
+      // status on the caller instance so the transition log is accurate too.
+      attempt.providerHttpStatus = providerHttpStatus;
       this.logTransition(attempt, AttemptState.PROCESSING, AttemptState.APPROVED, 'approval_persisted');
     } catch (error) {
       if (error instanceof ConflictException) throw error;
@@ -197,7 +206,12 @@ export class ShaamAllocationOrchestratorService {
     });
   }
 
-  private async persistApproval(attemptId: number, documentId: number, allocationNum: string): Promise<void> {
+  private async persistApproval(
+    attemptId: number,
+    documentId: number,
+    allocationNum: string,
+    providerHttpStatus: number,
+  ): Promise<void> {
     await this.dataSource.transaction(async (manager) => {
       const attemptRepo = manager.getRepository(ShaamInvoiceAllocationAttempt);
       const documentRepo = manager.getRepository(Documents);
@@ -207,6 +221,7 @@ export class ShaamAllocationOrchestratorService {
       if (attempt.state !== AttemptState.PROCESSING) throw new ConflictException('Allocation attempt is no longer active');
       document.allocationNum = allocationNum;
       attempt.state = AttemptState.APPROVED;
+      attempt.providerHttpStatus = providerHttpStatus;
       attempt.leaseExpiresAt = null;
       attempt.completedAt = new Date();
       await documentRepo.save(document);

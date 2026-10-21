@@ -21,18 +21,27 @@
       </p>
 
       <div class="result-actions">
-        <app-p-button 
-          [buttonText]="'המשך להפקת המסמך'" 
-          [buttonSize]="buttonSize.BIG"
-          [buttonColor]="buttonColor.BLACK"
-          (onButtonClicked)="navigateToDocCreate()">
-        </app-p-button>
-        <app-p-button 
-          [buttonText]="'חזור לדף הבית'" 
-          [buttonSize]="buttonSize.BIG"
-          [buttonColor]="buttonColor.WHITE"
-          (onButtonClicked)="navigateToHome()">
-        </app-p-button>
+        @if (isSettingsOrigin) {
+          <app-p-button
+            [buttonText]="'חזרה לניהול הרשאות'"
+            [buttonSize]="buttonSize.BIG"
+            [buttonColor]="buttonColor.BLACK"
+            (onButtonClicked)="navigateToSettings()">
+          </app-p-button>
+        } @else {
+          <app-p-button
+            [buttonText]="'המשך להפקת המסמך'"
+            [buttonSize]="buttonSize.BIG"
+            [buttonColor]="buttonColor.BLACK"
+            (onButtonClicked)="navigateToDocCreate()">
+          </app-p-button>
+          <app-p-button
+            [buttonText]="'חזור לדף הבית'"
+            [buttonSize]="buttonSize.BIG"
+            [buttonColor]="buttonColor.WHITE"
+            (onButtonClicked)="navigateToHome()">
+          </app-p-button>
+        }
       </div>
     }
 

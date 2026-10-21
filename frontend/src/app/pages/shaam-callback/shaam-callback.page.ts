@@ -8,6 +8,10 @@ import { ButtonSize, ButtonColor } from 'src/app/components/button/button.enum';
 import { environment } from 'src/environments/environment';
 import { AccessHandlerService } from 'src/app/services/access-handler.service';
 import { AppFeature } from 'src/app/shared/access-control';
+import {
+  SHAAM_OAUTH_ORIGIN_STORAGE_KEY,
+  ShaamOAuthOrigin,
+} from 'src/app/services/shaam.service';
 
 @Component({
   selector: 'app-shaam-callback',
@@ -29,8 +33,14 @@ export class ShaamCallbackPage implements OnInit {
   isSuccess = false;
   isError = false;
   errorMessage = '';
+  connectionOrigin: ShaamOAuthOrigin = 'document';
+
+  get isSettingsOrigin(): boolean {
+    return this.connectionOrigin === 'settings';
+  }
 
   ngOnInit() {
+    this.connectionOrigin = this.consumeConnectionOrigin();
     // Get query parameters from SHAAM redirect or backend redirect
     this.route.queryParams.subscribe(params => {
       const connected = params['connected'];
@@ -93,8 +103,18 @@ export class ShaamCallbackPage implements OnInit {
     }
   }
 
+  navigateToSettings(): void {
+    this.router.navigate(['/settings'], { queryParams: { tab: 'permissions' } });
+  }
+
   tryAgain(): void {
     this.navigateToHome();
+  }
+
+  private consumeConnectionOrigin(): ShaamOAuthOrigin {
+    const storedOrigin = sessionStorage.getItem(SHAAM_OAUTH_ORIGIN_STORAGE_KEY);
+    sessionStorage.removeItem(SHAAM_OAUTH_ORIGIN_STORAGE_KEY);
+    return storedOrigin === 'settings' ? 'settings' : 'document';
   }
 }
 
