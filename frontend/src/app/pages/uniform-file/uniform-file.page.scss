@@ -79,6 +79,105 @@
     }
   }
 
+  .shaam-card {
+    border: 1px solid #d9e2ec;
+    border-radius: 10px;
+    padding: 18px 20px;
+    margin-bottom: 24px;
+    background: #fff;
+    text-align: right;
+  }
+
+  .shaam-card__header {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: flex-start;
+
+    h3,
+    p {
+      margin: 0 0 6px;
+    }
+  }
+
+  .connection-status {
+    border-radius: 999px;
+    padding: 6px 12px;
+    background: #eef2f6;
+    white-space: nowrap;
+
+    &[data-status='connected'] {
+      color: #176b38;
+      background: #e5f6eb;
+    }
+
+    &[data-status='reauth-required'],
+    &[data-status='error'] {
+      color: #8a3b12;
+      background: #fff1e7;
+    }
+  }
+
+  .shaam-actions,
+  .file-statuses {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .shaam-actions {
+    margin-top: 14px;
+  }
+
+  .shaam-button {
+    border-radius: 8px;
+    padding: 10px 16px;
+    border: 1px solid #1f2937;
+    cursor: pointer;
+
+    &.primary {
+      color: #fff;
+      background: #1f2937;
+    }
+
+    &.secondary {
+      color: #1f2937;
+      background: #fff;
+    }
+
+    &:disabled {
+      cursor: not-allowed;
+      opacity: 0.55;
+    }
+  }
+
+  .submission-status {
+    margin-top: 16px;
+    border-right: 4px solid #64748b;
+    padding: 10px 12px;
+    background: #f8fafc;
+
+    &[data-state='APPROVED'] {
+      border-color: #18864b;
+      background: #effaf3;
+    }
+
+    &[data-state='REJECTED'],
+    &[data-state='UNKNOWN_OUTCOME'] {
+      border-color: #b9472f;
+      background: #fff5f2;
+    }
+  }
+
+  .file-statuses {
+    margin-top: 8px;
+  }
+
+  .submission-error {
+    margin: 8px 0 0;
+    color: #9b2c2c;
+  }
+
   .uniform-file-header {
     display: flex;
     flex-direction: column;
@@ -239,6 +338,10 @@
       p {
         font-size: 0.9rem;
       }
+    }
+
+    .shaam-card__header {
+      flex-direction: column;
     }
 
     .block-title {

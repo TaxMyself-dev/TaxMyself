@@ -15,6 +15,7 @@ import {
   ShaamOauthService,
   ShaamReauthorizationRequiredError,
 } from './shaam-oauth.service';
+import { UNIFORM_FILE_OAUTH_SCOPES } from '../uniform-file/uniform-file-oauth.config';
 
 @Injectable()
 export class ShaamConnectionService {
@@ -228,6 +229,6 @@ export class ShaamConnectionService {
   ): string[] {
     return product === ShaamProduct.INVOICE_ALLOCATION
       ? getShaamLongTokenScopes(environment)
-      : [];
+      : [...UNIFORM_FILE_OAUTH_SCOPES];
   }
 }

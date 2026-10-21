@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.spec.json",
+  "compilerOptions": {
+    "types": ["jasmine", "node"]
+  },
+  "include": [
+    "src/app/pages/uniform-file/uniform-file.page.spec.ts",
+    "src/app/pages/shaam-callback/shaam-callback.page.spec.ts",
+    "src/**/*.d.ts"
+  ]
+}

@@ -8,14 +8,15 @@ Safe OAuth result page. The backend has already exchanged and stored the token; 
 
 ## Main flows
 - Success: `connected=true` clears any historical localStorage values and shows
-  success. A bounded, one-time `sessionStorage` origin distinguishes settings
-  from document initiation; settings shows only a return to
-  `/settings?tab=permissions`, while absent/unknown origins retain the legacy
+  success. A bounded, one-time `sessionStorage` origin distinguishes settings,
+  Uniform File and document initiation. Uniform File shows a return to
+  `/uniform-file`; settings shows only a return to
+  `/settings?tab=permissions`; absent/unknown origins retain the legacy
   document/home actions. Never accept a free-form callback redirect URL.
 - Error/missing result: safe error state; no provider response body is exposed.
 - Retry returns home, where a business-scoped authenticated flow can be started.
 
 ## Related topics
 - Backend: shaam (OAuth token exchange endpoint).
-- Frontend pages: doc-create (post-connect redirect target, access-gated).
+- Frontend pages: doc-create and uniform-file (post-connect return targets).
 - Frontend shared: none directly; uses shared `ButtonComponent` and `AccessHandlerService`/`AppFeature` from access-control.

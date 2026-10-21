@@ -10,7 +10,8 @@ describe('loadUniformFileOauthConfig', () => {
     SHAAM_UNIFORM_FILE_ENV: 'tsandbox',
     SHAAM_UNIFORM_FILE_CLIENT_ID: 'client-id',
     SHAAM_UNIFORM_FILE_CLIENT_SECRET: 'client-secret',
-    SHAAM_UNIFORM_FILE_REDIRECT_URI: 'http://localhost:3000/shaam/uniform-file/oauth/callback',
+    SHAAM_UNIFORM_FILE_REDIRECT_URI:
+      'http://localhost:3000/shaam/oauth/callback',
     SHAAM_UNIFORM_FILE_AUTHORIZE_URL:
       'https://openapi.taxes.gov.il/shaam/tsandbox/dailytoken/oauth2/authorize',
     SHAAM_UNIFORM_FILE_TOKEN_URL:
@@ -31,8 +32,8 @@ describe('loadUniformFileOauthConfig', () => {
 
     expect(config.enabled).toBe(true);
     expect(config.scopes).toEqual([
-      'UniStructFileUploadLinksApi',
-      'FilesStatusApi',
+      'UniStructFileUploadLinks_scope',
+      'FilesStatus_scope',
     ]);
   });
 

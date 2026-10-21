@@ -167,8 +167,8 @@ The Uniform File integration must not use `SHAAM_SCOPES` or the invoice Long
 Time Token:
 
 - It uses a product-specific Daily Token with a maximum 12-hour lifetime.
-- It has two product scopes: `UniStructFileUploadLinksApi` and
-  `FilesStatusApi`.
+- The active sandbox portal identifies its two product scopes as
+  `UniStructFileUploadLinks_scope` and `FilesStatus_scope`.
 - It has no refresh-token flow. Expiry requires another interactive Daily Token
   authorization.
 - It has separate `SHAAM_UNIFORM_FILE_*` configuration and remains disabled by
@@ -176,15 +176,17 @@ Time Token:
 - Tokens, signed upload links and resumable-upload session URLs remain
   server-side and are treated as secrets.
 
-### Open scope-delimiter confirmation
+### Daily Token scope serialization
 
-The existing Daily Token client serializes its two scopes with a space, based
-on the earlier uniform-file material. The later support guidance says multiple
-scopes are comma-delimited. Before enabling the Uniform File OAuth flow, obtain
-current product-specific confirmation for the Daily Token authorize and token
-requests, then use the same confirmed serialization in both operations. Do not
-assume that the Long Time Token rule automatically overrides a product-specific
-Daily Token contract.
+On 2026-10-21 Elazar supplied screenshots from the active sandbox portal that
+confirmed the two scope names, Daily Token authorize/token endpoints, the two
+active product subscriptions and the shared registered callback. Based on his
+Tax Authority support call and explicit implementation direction, Keepintax
+serializes the complete Daily Token scope value with a comma in both the
+authorize request and the authorization-code exchange. The token-response
+validator accepts comma- or whitespace-delimited provider output but requires
+both exact scopes. Controlled tsandbox acceptance must still confirm the
+assumption before production readiness.
 
 ## Uniform File implementation status on 2026-10-21
 
@@ -192,7 +194,7 @@ Completed:
 
 - generation and strict validation of Windows-1255 `INI.TXT` and
   `BKMVDATA.TXT` buffers, with ZIP download fallback;
-- separate Daily Token configuration/client and exact product scopes;
+- separate Daily Token configuration/client and portal-verified product scopes;
 - authenticated, business-scoped OAuth initiation/callback infrastructure;
 - product-aware connection/state persistence;
 - `uniform_file_submission` entity and controlled DDL with hashes, sizes,
@@ -208,9 +210,9 @@ Not completed:
 - frontend connect/submit/status experience;
 - controlled sandbox acceptance and production activation.
 
-Production must remain disabled until these items, the current portal contract,
-the Daily Token delimiter, product subscriptions/callbacks and one authorized
-canary demand are verified.
+Production must remain disabled until these items, controlled confirmation of
+the Daily Token delimiter, production product subscriptions/callbacks and one
+authorized canary demand are verified.
 
 ## Deployment discipline
 

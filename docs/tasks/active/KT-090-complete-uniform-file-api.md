@@ -1,6 +1,6 @@
 # KT-090 - Complete the SHAAM Uniform File API
 
-- Status: `APPROVED`
+- Status: `IMPLEMENTED_LOCAL_AWAITING_TSANDBOX`
 - Task manager: next Codex chat
 - Worker: unassigned
 - Worktree: `C:/Users/harel/Elazar Harel/taxmyself/taxmyself-dev`
@@ -19,21 +19,21 @@ tokens or upload capabilities to the browser.
 - [ ] Reconfirm the active portal/support contract for Daily Token authorize
       and token URLs, delimiter for the two scopes, callback, subscriptions and
       sandbox identities before enabling external calls.
-- [ ] Reserve upload links with the documented case/period/representative
+- [x] Reserve upload links with the documented case/period/representative
       request and strictly validate the returned pair, file names, IDs, headers
       and size limits.
-- [ ] Initiate and complete server-side resumable uploads for the exact
+- [x] Initiate and complete server-side resumable uploads for the exact
       Windows-1255 INI/BKM buffers, including documented chunk tiers and HTTP
       201/308/200 handling.
-- [ ] Poll both file IDs and distinguish `Uploaded`, `Approved`, `Rejected` and
+- [x] Poll both file IDs and distinguish `Uploaded`, `Approved`, `Rejected` and
       not-found/permission outcomes; the pair is approved only when both files
       are approved.
-- [ ] Persist state before every external boundary and implement idempotent,
+- [x] Persist state before every external boundary and implement idempotent,
       restart-safe recovery. Never request a second link pair after an
       ambiguous outcome without reconciling saved file IDs.
-- [ ] Expose only authenticated, owner/delegate-scoped submission/status APIs;
+- [x] Expose only authenticated, owner/delegate-scoped submission/status APIs;
       never return Daily Tokens, signed URLs or upload-session URLs.
-- [ ] Add frontend connection, submission and status UX while retaining the ZIP
+- [x] Add frontend connection, submission and status UX while retaining the ZIP
       download fallback and never displaying `Uploaded` as `Approved`.
 - [ ] Add focused client/orchestrator/controller/frontend tests for success,
       partial pair, rejection, authorization errors, timeouts, restart,
@@ -71,25 +71,37 @@ tokens or upload capabilities to the browser.
   `backend/src/reports/uniform-file-validator.ts` already produce the exact
   separate buffers needed by an uploader.
 - OAuth: `backend/src/shaam/uniform-file/` implements the disabled-by-default
-  Daily Token foundation. It currently joins scopes with spaces; this is an
-  open contract confirmation after the newer comma-delimiter guidance.
+  Daily Token foundation. Active sandbox portal screenshots confirmed the exact
+  `UniStructFileUploadLinks_scope` and `FilesStatus_scope` names, both product
+  subscriptions and the shared callback. Per Elazar's support-call evidence and
+  explicit direction, authorize and token exchange use one comma-delimited
+  scope value; controlled tsandbox acceptance must confirm this assumption.
 - Security/state: `ShaamSecureController`, `ShaamOauthStateService` and
   `ShaamConnectionService` provide authenticated product-aware infrastructure.
-- Persistence: `UniformFileSubmission` exists, but no upload orchestrator uses
-  it yet. Repository docs say its DDL was applied to dev; verify actual dev and
-  production schemas before planning any migration. Do not infer production
-  state from the entity.
-- Frontend: `/uniform-file` only generates summaries and downloads
-  `openformat.zip`; it has no SHAAM submission/status flow.
+- API/orchestration: the disabled-by-default client reserves and validates one
+  INI/BKM pair, uploads both buffers through trusted Google resumable sessions,
+  polls both file IDs, and persists a restart-safe state machine before every
+  external boundary. Authenticated business-scoped routes expose only safe
+  pair-level metadata.
+- Persistence: a read-only `information_schema` inspection confirmed all 30
+  `uniform_file_submission` columns, indexes and the business FK in the dev
+  database. Production was not inspected and must not be inferred from dev.
+- Frontend: `/uniform-file` retains the existing ZIP download and adds Daily
+  Token connection, explicit submit/poll controls and pair/file status. It
+  never presents `Uploaded` as approved.
 
-## Handoff
+## Current verification / handoff
 
-- Result: implementation task prepared for a fresh chat; no Uniform File code,
-  schema, environment or external service was changed here.
-- Commit hash(es): local documentation commit (see Git history; not yet pushed).
-- Changed files: this task and the SHAAM lessons document/topic index.
-- Tests and exact results: documentation-only; no new runtime tests required.
-- Schema / production / security / accounting / external impact: none.
-- Risks and manual checks: confirm Daily Token scope delimiter and portal
-  contract before writing/enabling external-call code.
-- Documentation updated: SHAAM engineering lessons and compliance topic map.
+- Result: upload client, restart-safe orchestration, secure API and UI are
+  implemented locally. The feature remains disabled by default; no external
+  SHAAM request or production action was made.
+- Backend focused Jest suites pass, and backend/frontend production builds
+  pass. The two focused Angular specs compile, but the local ChromeHeadless
+  process crashes in the Windows GPU/cache sandbox before Jasmine executes;
+  manual UI verification remains required.
+- Dev schema was verified read-only. No DDL was run and production DB was not
+  queried.
+- Remaining gate: configure non-production variables locally, perform the
+  interactive Daily Token authorization, confirm the comma-delimited scope
+  assumption, and run controlled tsandbox acceptance with official/synthetic
+  test data. Production remains fail-closed.

@@ -3,8 +3,8 @@ import { ShaamEnvironment } from '../shaam.constants';
 export const UNIFORM_FILE_OAUTH_CONFIG = Symbol('UNIFORM_FILE_OAUTH_CONFIG');
 
 export const UNIFORM_FILE_OAUTH_SCOPES = [
-  'UniStructFileUploadLinksApi',
-  'FilesStatusApi',
+  'UniStructFileUploadLinks_scope',
+  'FilesStatus_scope',
 ] as const;
 
 export interface UniformFileOauthConfig {

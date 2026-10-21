@@ -12,6 +12,11 @@ import {
   UNIFORM_FILE_OAUTH_CONFIG,
 } from './uniform-file/uniform-file-oauth.config';
 import { UniformFileOauthService } from './uniform-file/uniform-file-oauth.service';
+import {
+  loadUniformFileApiConfig,
+  UNIFORM_FILE_API_CONFIG,
+} from './uniform-file/uniform-file-api.config';
+import { UniformFileApiService } from './uniform-file/uniform-file-api.service';
 import { ShaamConnection } from './entities/shaam-connection.entity';
 import { ShaamOauthState } from './entities/shaam-oauth-state.entity';
 import { UniformFileSubmission } from './entities/uniform-file-submission.entity';
@@ -25,6 +30,8 @@ import { DocumentsModule } from '../documents/documents.module';
 import { ShaamAllocationOrchestratorService } from './services/shaam-allocation-orchestrator.service';
 import { ShaamInvoiceAllocationAttempt } from './entities/shaam-invoice-allocation-attempt.entity';
 import { UsersModule } from '../users/users.module';
+import { ReportsModule } from '../reports/reports.module';
+import { UniformFileSubmissionService } from './services/uniform-file-submission.service';
 
 @Module({
   imports: [
@@ -45,6 +52,7 @@ import { UsersModule } from '../users/users.module';
     BusinessModule,
     DocumentsModule,
     UsersModule,
+    ReportsModule,
   ],
   controllers: [ShaamSecureController],
   providers: [
@@ -55,7 +63,13 @@ import { UsersModule } from '../users/users.module';
       provide: UNIFORM_FILE_OAUTH_CONFIG,
       useFactory: loadUniformFileOauthConfig,
     },
+    {
+      provide: UNIFORM_FILE_API_CONFIG,
+      useFactory: loadUniformFileApiConfig,
+    },
     UniformFileOauthService,
+    UniformFileApiService,
+    UniformFileSubmissionService,
     ShaamConnectionService,
     ShaamOauthStateService,
     FirebaseAuthGuard,
@@ -64,6 +78,8 @@ import { UsersModule } from '../users/users.module';
     ShaamOauthService,
     ShaamInvoicesService,
     UniformFileOauthService,
+    UniformFileApiService,
+    UniformFileSubmissionService,
     ShaamConnectionService,
     ShaamOauthStateService,
   ],

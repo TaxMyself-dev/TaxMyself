@@ -34,6 +34,55 @@
         </p>
       </div>
 
+      <section class="shaam-card" dir="rtl">
+        <div class="shaam-card__header">
+          <div>
+            <h3>שליחה מאובטחת לרשות המסים</h3>
+            <p>הורדת ה-ZIP נשארת זמינה גם ללא שליחה מקוונת.</p>
+          </div>
+          <span class="connection-status" [attr.data-status]="uniformConnectionStatus">
+            {{ connectionStatusLabel() }}
+          </span>
+        </div>
+
+        <div class="shaam-actions">
+          @if (uniformConnectionStatus !== 'connected') {
+            <button type="button" class="shaam-button secondary" (click)="connectUniformFile()">
+              {{ uniformConnectionStatus === 'reauth-required' ? 'חיבור מחדש' : 'חיבור Daily Token' }}
+            </button>
+          }
+          <button
+            type="button"
+            class="shaam-button primary"
+            [disabled]="uniformConnectionStatus !== 'connected' || isSubmittingToShaam"
+            (click)="submitUniformFileToShaam()">
+            {{ isSubmittingToShaam ? 'שולח...' : 'שליחת INI ו-BKM' }}
+          </button>
+          @if (canPollUniformFile()) {
+            <button
+              type="button"
+              class="shaam-button secondary"
+              [disabled]="isPollingShaam"
+              (click)="pollUniformFileStatus()">
+              {{ isPollingShaam ? 'בודק...' : 'בדיקת סטטוס' }}
+            </button>
+          }
+        </div>
+
+        @if (uniformSubmission) {
+          <div class="submission-status" [attr.data-state]="uniformSubmission.state">
+            <strong>{{ submissionStateLabel(uniformSubmission.state) }}</strong>
+            <div class="file-statuses">
+              <span>INI: {{ fileStatusLabel(uniformSubmission.iniStatus) }}</span>
+              <span>BKM: {{ fileStatusLabel(uniformSubmission.bkmStatus) }}</span>
+            </div>
+            @if (uniformSubmission.errorMessage) {
+              <p class="submission-error">{{ uniformSubmission.errorMessage }}</p>
+            }
+          </div>
+        }
+      </section>
+
       <div class="table-block">
         <app-generic-table class="table" [title]="'פירוט סוגי המסמכים'" [columnsTitle]="uniformFileDocumentSummaryTitles" [dataTable]="uniformFileDocumentSummary" [selectionModeCheckBox]="null" [tableHeight]="'500px'" [mobileCardConfig]="documentSummaryMobileConfig"></app-generic-table>
       </div>

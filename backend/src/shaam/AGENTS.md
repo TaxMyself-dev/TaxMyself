@@ -20,9 +20,15 @@ Integrates with the Israel Tax Authority's SHAAM OpenAPI — OAuth2 authorizatio
 - `services/shaam-invoices.service.ts` — low-level SHAAM HTTP client for Approval and the official `Invoice-Information/confirmationNumber` recovery endpoint.
 - `services/shaam-document-allocation.service.ts` — persisted-invoice orchestration: loads the final invoice identity, builds fiscal fields server-side, persists the returned allocation number, and only then invokes document finalization.
 - `shaam.constants.ts` — sandbox allocation URLs and fail-closed, explicitly enabled production configuration.
-- `uniform-file/` — isolated, disabled-by-default OAuth foundation for the
-  uniform-file Daily Token. It has exact product scopes, verified Tax Authority
-  hosts and a separate production kill switch.
+- `uniform-file/` — isolated, disabled-by-default Daily Token OAuth plus the
+  upload-links, Google resumable-upload and file-status client. It has exact
+  product scopes, allowlists capability URLs to `storage.googleapis.com`,
+  validates the remote pair strictly, and keeps a separate production kill
+  switch.
+- `services/uniform-file-submission.service.ts` — restart-safe pair
+  orchestration. It generates validated INI/BKM buffers, atomically claims a
+  submission, persists before every external boundary, uploads both files and
+  reconciles their saved remote IDs. Ambiguous writes are never replayed.
 - `utils/shaam-encryption.util.ts` — `encryptToken`/`decryptToken` used by `ShaamConnectionService`; plaintext never leaves the backend.
 - `dto/shaam-*.dto.ts` — OAuth token response, approval request/response shapes.
 
@@ -59,6 +65,16 @@ Integrates with the Israel Tax Authority's SHAAM OpenAPI — OAuth2 authorizatio
   chained into the long-time-token authorization.
 - `POST /shaam/invoices/allocation?businessNumber=...` — accepts only `docNumber` + `docType`, resolves the server-held token, attempts official recovery first, and only when that succeeds without an existing number submits Approval before finalizing the persisted invoice. An ambiguous recovery error blocks Approval.
 - `POST /shaam/invoices/allocation/recover?businessNumber=...` — retrieves a lost allocation response from the official recovery API using the persisted invoice fields; it never submits a replacement approval request.
+- `POST /shaam/uniform-file/submissions?businessNumber=...` generates and
+  submits one business/period pair; `GET /shaam/uniform-file/submissions/:id`
+  returns its safe local state and `POST .../:id/poll` explicitly reconciles
+  both remote file IDs. These routes are authenticated and business-scoped and
+  never expose Daily Tokens, signed URLs, upload sessions or remote IDs.
+
+Uniform-file submission treats `Uploaded` only as processing. The pair becomes
+`APPROVED` only when both INI and BKM are `Approved`; either rejection rejects
+the pair. Two conclusive not-found results permit an explicit new submission,
+while partial/not-authorized/ambiguous results remain reconciliation states.
 
 Production and tsandbox recovery use
 `invoice-information/v2/confirmationNumber` and send the persisted lookup in
@@ -109,11 +125,22 @@ state map and `business.shaam*` columns were removed in KT-063. Do not recreate
 them. Every new SHAAM product must use `ShaamConnection` and durable state.
 
 The uniform-file API must not reuse the current `/longtimetoken/` flow or
-literal `scope`: the September 2026 Tax Authority guidance specifies a 12-hour
-Daily Token and separate `UniStructFileUploadLinksApi` and `FilesStatusApi`
-scopes. It may reuse only hardened server-side HTTP/encryption/environment
-primitives. Uniform-file production remains disabled until verified portal
-configuration is provided; see KT-061 through KT-063.
+literal `scope`: the active sandbox portal specifies a 12-hour Daily Token and
+separate `UniStructFileUploadLinks_scope` and `FilesStatus_scope` scopes. Send
+the complete Daily Token scope value comma-delimited in both authorization and
+code exchange. It may reuse only hardened server-side HTTP, encryption and
+environment primitives. Uniform-file production remains disabled until
+verified portal configuration is provided; see KT-061 through KT-063.
+
+The Uniform File boundary is enabled only with
+`SHAAM_UNIFORM_FILE_ENABLED=true` and has its own
+`SHAAM_UNIFORM_FILE_ENV`, `SHAAM_UNIFORM_FILE_CLIENT_ID`,
+`SHAAM_UNIFORM_FILE_CLIENT_SECRET`, `SHAAM_UNIFORM_FILE_REDIRECT_URI` and
+`SHAAM_UNIFORM_FILE_STATE_SECRET` variables. Do not fall back to the invoice
+OAuth variables even when the portal currently shows one application
+subscribed to both product APIs. The state secret must contain at least 32
+bytes. Production configuration always fails closed until its endpoints are
+separately verified and implemented.
 
 Invoice-allocation production configuration also requires
 `SHAAM_INVOICE_CONFIRMATION_URL` and `SHAAM_INVOICE_DETAILS_URL`. Each

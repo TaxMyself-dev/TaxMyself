@@ -10,6 +10,12 @@ import { GenericService } from 'src/app/services/generic.service';
 import { BusinessStatus } from 'src/app/shared/enums';
 import { FilterField, FilterFieldType } from 'src/app/components/filter-tab/filter-fields-model.component';
 import { MessageService } from 'primeng/api';
+import {
+  ShaamService,
+  UniformFileRemoteStatus,
+  UniformFileSubmission,
+  UniformFileSubmissionState,
+} from 'src/app/services/shaam.service';
 
 export interface ReportDetails {
   businessNumber: string;
@@ -44,6 +50,10 @@ export class UniformFilePage implements OnInit {
   endDate: string;
   totalExpense: number = 0;
   businessNames: ISelectItem[] = [];
+  uniformConnectionStatus: 'checking' | 'connected' | 'disconnected' | 'reauth-required' | 'error' = 'checking';
+  uniformSubmission: UniformFileSubmission | null = null;
+  isSubmittingToShaam = false;
+  isPollingShaam = false;
 
   reportingPeriodType = ReportingPeriodType;
   reportDetails: ReportDetails | null = null;
@@ -95,7 +105,8 @@ export class UniformFilePage implements OnInit {
     private fileService: FilesService,
     private genericService: GenericService,
     private dateService: DateService,
-    private messageService: MessageService
+    private messageService: MessageService,
+    private shaamService: ShaamService,
   ) {
     this.uniformFileForm = this.formBuilder.group({
       startDate: new FormControl(
@@ -141,6 +152,8 @@ export class UniformFilePage implements OnInit {
         }
       },
     ];
+
+    this.loadUniformConnectionStatus();
 
   }
 
@@ -203,6 +216,10 @@ export class UniformFilePage implements OnInit {
     }
 
     this.reportClick = false;
+    this.startDate = startDate;
+    this.endDate = endDate;
+    this.uniformSubmission = null;
+    this.loadUniformConnectionStatus();
 
     // Find business name from businesses list
     const businesses = this.gs.businesses();
@@ -237,6 +254,133 @@ export class UniformFilePage implements OnInit {
     }
   }
 
+
+  loadUniformConnectionStatus(): void {
+    const businessNumber = this.businessNumber();
+    if (!businessNumber) return;
+    this.uniformConnectionStatus = 'checking';
+    this.shaamService
+      .getConnectionStatus(businessNumber, 'UNIFORM_FILE')
+      .subscribe({
+        next: (status) => {
+          this.uniformConnectionStatus = status.connected
+            ? 'connected'
+            : status.requiresReauthorization
+            ? 'reauth-required'
+            : 'disconnected';
+        },
+        error: () => {
+          this.uniformConnectionStatus = 'error';
+        },
+      });
+  }
+
+  connectUniformFile(): void {
+    this.shaamService.initiateOAuthFlow(
+      this.businessNumber(),
+      () => this.showShaamError('לא ניתן להתחיל את החיבור לרשות המסים'),
+      'uniform-file',
+      'UNIFORM_FILE',
+    );
+  }
+
+  submitUniformFileToShaam(): void {
+    if (!this.reportDetails || !this.startDate || !this.endDate) {
+      this.showShaamError('יש להפיק תחילה את קובצי המבנה האחיד');
+      return;
+    }
+    if (this.uniformConnectionStatus !== 'connected') {
+      this.showShaamError('יש להתחבר תחילה לרשות המסים באמצעות Daily Token');
+      return;
+    }
+    this.isSubmittingToShaam = true;
+    this.shaamService
+      .createUniformFileSubmission(
+        this.businessNumber(),
+        this.startDate,
+        this.endDate,
+      )
+      .pipe(finalize(() => (this.isSubmittingToShaam = false)))
+      .subscribe({
+        next: (submission) => {
+          this.uniformSubmission = submission;
+          if (submission.state === 'AUTH_REQUIRED') {
+            this.uniformConnectionStatus = 'reauth-required';
+          }
+        },
+        error: () => this.showShaamError('שליחת הקבצים לרשות המסים נכשלה'),
+      });
+  }
+
+  pollUniformFileStatus(): void {
+    if (!this.uniformSubmission) return;
+    this.isPollingShaam = true;
+    this.shaamService
+      .pollUniformFileSubmission(
+        this.businessNumber(),
+        this.uniformSubmission.id,
+      )
+      .pipe(finalize(() => (this.isPollingShaam = false)))
+      .subscribe({
+        next: (submission) => {
+          this.uniformSubmission = submission;
+          if (submission.state === 'AUTH_REQUIRED') {
+            this.uniformConnectionStatus = 'reauth-required';
+          }
+        },
+        error: () => this.showShaamError('בדיקת סטטוס הקבצים נכשלה'),
+      });
+  }
+
+  connectionStatusLabel(): string {
+    const labels = {
+      checking: 'בודק חיבור...',
+      connected: 'מחובר לרשות המסים',
+      disconnected: 'נדרש חיבור Daily Token',
+      'reauth-required': 'נדרש חיבור מחדש',
+      error: 'לא ניתן לבדוק את מצב החיבור',
+    };
+    return labels[this.uniformConnectionStatus];
+  }
+
+  submissionStateLabel(state: UniformFileSubmissionState): string {
+    const labels: Record<UniformFileSubmissionState, string> = {
+      GENERATED: 'הקבצים הופקו',
+      AUTH_REQUIRED: 'נדרש חיבור לרשות המסים',
+      LINKS_RESERVED: 'קישורי העלאה התקבלו',
+      INI_UPLOADED: 'קובץ INI הועלה',
+      PAIR_UPLOADED: 'שני הקבצים הועלו',
+      PROCESSING: 'ממתין לעיבוד ברשות המסים',
+      APPROVED: 'שני הקבצים אושרו',
+      REJECTED: 'אחד הקבצים נדחה',
+      RETRYABLE_FAILURE: 'ניתן לנסות שוב',
+      UNKNOWN_OUTCOME: 'התוצאה אינה ודאית — נדרשת בדיקת סטטוס',
+    };
+    return labels[state];
+  }
+
+  fileStatusLabel(status: UniformFileRemoteStatus | null): string {
+    if (status === 'UPLOADED') return 'הועלה וממתין לעיבוד';
+    if (status === 'APPROVED') return 'אושר';
+    if (status === 'REJECTED') return 'נדחה';
+    return 'טרם התקבל סטטוס';
+  }
+
+  canPollUniformFile(): boolean {
+    return !!this.uniformSubmission &&
+      this.uniformSubmission.state !== 'APPROVED' &&
+      this.uniformSubmission.state !== 'REJECTED';
+  }
+
+  private showShaamError(detail: string): void {
+    this.messageService.add({
+      severity: 'error',
+      summary: 'שגיאה',
+      detail,
+      life: 5000,
+      key: 'br',
+    });
+  }
 
   createUniformFile(startDate: string, endDate: string, businessNumber: string): Promise<{ document_summary: any[]; list_summary: any[]; filePath: string; file: string }> {
     return firstValueFrom(

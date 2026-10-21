@@ -40,6 +40,8 @@ import {
   UniformFileOauthConfig,
 } from './uniform-file/uniform-file-oauth.config';
 import { UniformFileOauthService } from './uniform-file/uniform-file-oauth.service';
+import { CreateUniformFileSubmissionDto } from './dto/uniform-file-submission.dto';
+import { UniformFileSubmissionService } from './services/uniform-file-submission.service';
 
 @Controller('shaam')
 export class ShaamSecureController {
@@ -50,6 +52,7 @@ export class ShaamSecureController {
     private readonly allocationOauth: ShaamOauthService,
     private readonly uniformOauth: UniformFileOauthService,
     private readonly documentAllocation: ShaamAllocationOrchestratorService,
+    private readonly uniformSubmissions: UniformFileSubmissionService,
     @Inject(UNIFORM_FILE_OAUTH_CONFIG)
     private readonly uniformConfig: UniformFileOauthConfig,
   ) {}
@@ -194,6 +197,47 @@ export class ShaamSecureController {
       dto.docNumber,
       dto.docType,
     );
+  }
+
+  @Post('uniform-file/submissions')
+  @UseGuards(FirebaseAuthGuard)
+  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+  async submitUniformFile(
+    @Req() request: any,
+    @Query('businessNumber') businessNumber: string,
+    @Body() dto: CreateUniformFileSubmissionDto,
+  ) {
+    const business = await this.resolveBusiness(request, businessNumber);
+    return this.uniformSubmissions.submit(
+      request.user.firebaseId,
+      request.user.actorFirebaseId ?? request.user.firebaseId,
+      business,
+      dto.startDate,
+      dto.endDate,
+      dto.representorCompanyId,
+    );
+  }
+
+  @Get('uniform-file/submissions/:submissionId')
+  @UseGuards(FirebaseAuthGuard)
+  async uniformFileSubmissionStatus(
+    @Req() request: any,
+    @Query('businessNumber') businessNumber: string,
+    @Param('submissionId', ParseIntPipe) submissionId: number,
+  ) {
+    const business = await this.resolveBusiness(request, businessNumber);
+    return this.uniformSubmissions.get(submissionId, business.id);
+  }
+
+  @Post('uniform-file/submissions/:submissionId/poll')
+  @UseGuards(FirebaseAuthGuard)
+  async pollUniformFileSubmission(
+    @Req() request: any,
+    @Query('businessNumber') businessNumber: string,
+    @Param('submissionId', ParseIntPipe) submissionId: number,
+  ) {
+    const business = await this.resolveBusiness(request, businessNumber);
+    return this.uniformSubmissions.poll(submissionId, business.id);
   }
 
   @Get('admin/invoices/allocation/unknown')

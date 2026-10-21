@@ -50,8 +50,12 @@ labels its Angular implementation as sample-only and not production-ready.
 - The September 2026 presentation specifies a 12-hour **Daily Token** and says
   long-term authorization storage is unnecessary for this service.
 - Required scopes are distinct:
-  - `UniStructFileUploadLinksApi`
-  - `FilesStatusApi`
+  - `UniStructFileUploadLinks_scope`
+  - `FilesStatus_scope`
+- The active sandbox portal screenshots supersede the older presentation names
+  above. Per the support-call evidence accepted for KT-090, request both scopes
+  as one comma-delimited value in authorization and token exchange; controlled
+  tsandbox authorization still has to confirm that delimiter assumption.
 - This is not the existing invoice-allocation `longtimetoken` flow and must not
   share its literal `scope` setting or assume refresh-token semantics.
 

@@ -28,6 +28,13 @@
             [buttonColor]="buttonColor.BLACK"
             (onButtonClicked)="navigateToSettings()">
           </app-p-button>
+        } @else if (isUniformFileOrigin) {
+          <app-p-button
+            [buttonText]="'חזרה למבנה קבצים אחיד'"
+            [buttonSize]="buttonSize.BIG"
+            [buttonColor]="buttonColor.BLACK"
+            (onButtonClicked)="navigateToUniformFile()">
+          </app-p-button>
         } @else {
           <app-p-button
             [buttonText]="'המשך להפקת המסמך'"

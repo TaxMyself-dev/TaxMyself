@@ -42,6 +42,11 @@ describe('ShaamSecureController', () => {
       requestAndFinalize: jest.fn().mockResolvedValue({ success: true }),
       recoverAndFinalize: jest.fn().mockResolvedValue({ success: true }),
     };
+    const uniformSubmissions = {
+      submit: jest.fn().mockResolvedValue({ id: 1, state: 'PROCESSING' }),
+      get: jest.fn().mockResolvedValue({ id: 1, state: 'PROCESSING' }),
+      poll: jest.fn().mockResolvedValue({ id: 1, state: 'APPROVED' }),
+    };
     const controller = new ShaamSecureController(
       businessService as any,
       states as any,
@@ -49,6 +54,7 @@ describe('ShaamSecureController', () => {
       allocationOauth as any,
       uniformOauth as any,
       documentAllocation as any,
+      uniformSubmissions as any,
       { enabled: false, environment: ShaamEnvironment.TSANDBOX } as any,
     );
     return {
@@ -58,6 +64,7 @@ describe('ShaamSecureController', () => {
       connections,
       allocationOauth,
       documentAllocation,
+      uniformSubmissions,
     };
   }
 
@@ -180,6 +187,31 @@ describe('ShaamSecureController', () => {
         { docNumber: '20000', docType: 'TAX_INVOICE' } as any,
       ),
     ).rejects.toBeInstanceOf(HttpException);
+  });
+
+  it('scopes uniform-file submission and status routes to the resolved business', async () => {
+    const { controller, uniformSubmissions } = setup({
+      id: 9,
+      businessNumber: '222222226',
+    });
+
+    await controller.submitUniformFile(request, '222222226', {
+      startDate: '2025-01-01',
+      endDate: '2025-12-31',
+    });
+    await controller.uniformFileSubmissionStatus(request, '222222226', 4);
+    await controller.pollUniformFileSubmission(request, '222222226', 4);
+
+    expect(uniformSubmissions.submit).toHaveBeenCalledWith(
+      'effective-owner',
+      'real-actor',
+      expect.objectContaining({ id: 9 }),
+      '2025-01-01',
+      '2025-12-31',
+      undefined,
+    );
+    expect(uniformSubmissions.get).toHaveBeenCalledWith(4, 9);
+    expect(uniformSubmissions.poll).toHaveBeenCalledWith(4, 9);
   });
 
   it('does not report a successful callback when required scopes were not granted', async () => {

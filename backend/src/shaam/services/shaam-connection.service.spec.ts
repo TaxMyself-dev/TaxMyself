@@ -49,6 +49,7 @@ describe('ShaamConnectionService', () => {
     const row = {
       accessToken: 'enc:token',
       refreshToken: null,
+      scopes: 'UniStructFileUploadLinks_scope,FilesStatus_scope',
       status: ShaamConnectionStatus.ACTIVE,
       expiresAt: new Date(Date.now() + 3600_000),
     };
@@ -69,10 +70,35 @@ describe('ShaamConnectionService', () => {
     });
   });
 
+  it('requires both uniform-file scopes before using a Daily Token', async () => {
+    const row = {
+      accessToken: 'enc:token',
+      refreshToken: null,
+      scopes: 'UniStructFileUploadLinks_scope',
+      status: ShaamConnectionStatus.ACTIVE,
+      expiresAt: new Date(Date.now() + 3600_000),
+    };
+    const { service, repo } = setup(row);
+
+    await expect(
+      service.getValidAccessToken(
+        1,
+        ShaamProduct.UNIFORM_FILE,
+        ShaamEnvironment.TSANDBOX,
+      ),
+    ).resolves.toBeNull();
+    expect(repo.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: ShaamConnectionStatus.REAUTH_REQUIRED,
+      }),
+    );
+  });
+
   it('never refreshes an expired uniform-file Daily Token', async () => {
     const row = {
       accessToken: 'enc:old',
       refreshToken: 'enc:r',
+      scopes: 'UniStructFileUploadLinks_scope,FilesStatus_scope',
       status: ShaamConnectionStatus.ACTIVE,
       expiresAt: new Date(Date.now() - 1),
     };
