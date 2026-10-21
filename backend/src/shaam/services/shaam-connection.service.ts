@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ShaamEnvironment } from '../shaam.constants';
@@ -13,6 +13,8 @@ import {
 
 @Injectable()
 export class ShaamConnectionService {
+  private readonly logger = new Logger(ShaamConnectionService.name);
+
   constructor(
     @InjectRepository(ShaamConnection)
     private readonly repo: Repository<ShaamConnection>,
@@ -92,10 +94,29 @@ export class ShaamConnectionService {
       return decryptToken(row.accessToken);
     }
     if (product !== ShaamProduct.INVOICE_ALLOCATION || !row.refreshToken) {
+      this.logger.warn('SHAAM access-token refresh cannot proceed', {
+        operation: 'access_token_refresh',
+        outcome: 'reauthorization_required',
+        environment,
+        product,
+        reason:
+          product !== ShaamProduct.INVOICE_ALLOCATION
+            ? 'refresh_not_supported_for_product'
+            : 'refresh_token_missing',
+        connectionStatus: ShaamConnectionStatus.REAUTH_REQUIRED,
+      });
       row.status = ShaamConnectionStatus.REAUTH_REQUIRED;
       await this.repo.save(row);
       return null;
     }
+    const startedAt = Date.now();
+    this.logger.debug('SHAAM access-token refresh started', {
+      operation: 'access_token_refresh',
+      outcome: 'started',
+      environment,
+      product,
+      connectionStatus: row.status,
+    });
     let refreshed: ShaamTokenResponseDto;
     try {
       refreshed = await this.allocationOauth.refreshAccessToken(
@@ -105,11 +126,32 @@ export class ShaamConnectionService {
       if (error instanceof ShaamReauthorizationRequiredError) {
         row.status = ShaamConnectionStatus.REAUTH_REQUIRED;
         await this.repo.save(row);
+        this.logger.warn(
+          'SHAAM access-token refresh requires reauthorization',
+          {
+            operation: 'access_token_refresh',
+            outcome: 'reauthorization_required',
+            environment,
+            product,
+            durationMs: Date.now() - startedAt,
+            reason: 'provider_rejected_saved_grant',
+            connectionStatus: row.status,
+          },
+        );
         return null;
       }
       // Network, timeout and SHAAM server/configuration failures are not proof
       // that the user's long-term grant was revoked. Preserve it and surface
       // the failure instead of starting another browser authorization.
+      this.logger.error('SHAAM access-token refresh failed transiently', {
+        operation: 'access_token_refresh',
+        outcome: 'failure',
+        environment,
+        product,
+        durationMs: Date.now() - startedAt,
+        errorCategory: 'transient_or_configuration_failure',
+        connectionStatus: row.status,
+      });
       throw error;
     }
     await this.saveToken(
@@ -119,6 +161,16 @@ export class ShaamConnectionService {
       environment,
       refreshed,
     );
+    this.logger.debug('SHAAM access-token refresh succeeded', {
+      operation: 'access_token_refresh',
+      outcome: 'success',
+      environment,
+      product,
+      durationMs: Date.now() - startedAt,
+      expiresInSeconds: refreshed.expires_in,
+      refreshTokenRotated: Boolean(refreshed.refresh_token),
+      connectionStatus: ShaamConnectionStatus.ACTIVE,
+    });
     return refreshed.access_token;
   }
 }

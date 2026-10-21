@@ -11,32 +11,114 @@ jest.mock('../utils/shaam-encryption.util', () => ({
 
 describe('ShaamConnectionService', () => {
   function setup(row: any) {
-    const repo = { findOne: jest.fn().mockResolvedValue(row), create: jest.fn((v) => v), save: jest.fn(async (v) => v) };
-    const oauth = { refreshAccessToken: jest.fn().mockResolvedValue({ access_token: 'new', refresh_token: 'new-r', expires_in: 3600 }) };
-    return { service: new ShaamConnectionService(repo as any, oauth as any), repo, oauth };
+    const repo = {
+      findOne: jest.fn().mockResolvedValue(row),
+      create: jest.fn((v) => v),
+      save: jest.fn(async (v) => v),
+    };
+    const oauth = {
+      refreshAccessToken: jest
+        .fn()
+        .mockResolvedValue({
+          access_token: 'new',
+          refresh_token: 'new-r',
+          expires_in: 3600,
+        }),
+    };
+    return {
+      service: new ShaamConnectionService(repo as any, oauth as any),
+      repo,
+      oauth,
+    };
   }
 
   it('returns a valid token only from the requested product row', async () => {
-    const row = { accessToken: 'enc:token', refreshToken: null, status: ShaamConnectionStatus.ACTIVE, expiresAt: new Date(Date.now() + 3600_000) };
+    const row = {
+      accessToken: 'enc:token',
+      refreshToken: null,
+      status: ShaamConnectionStatus.ACTIVE,
+      expiresAt: new Date(Date.now() + 3600_000),
+    };
     const { service, repo } = setup(row);
-    await expect(service.getValidAccessToken(1, ShaamProduct.UNIFORM_FILE, ShaamEnvironment.TSANDBOX)).resolves.toBe('token');
-    expect(repo.findOne).toHaveBeenCalledWith({ where: { businessId: 1, product: ShaamProduct.UNIFORM_FILE, environment: ShaamEnvironment.TSANDBOX } });
+    await expect(
+      service.getValidAccessToken(
+        1,
+        ShaamProduct.UNIFORM_FILE,
+        ShaamEnvironment.TSANDBOX,
+      ),
+    ).resolves.toBe('token');
+    expect(repo.findOne).toHaveBeenCalledWith({
+      where: {
+        businessId: 1,
+        product: ShaamProduct.UNIFORM_FILE,
+        environment: ShaamEnvironment.TSANDBOX,
+      },
+    });
   });
 
   it('never refreshes an expired uniform-file Daily Token', async () => {
-    const row = { accessToken: 'enc:old', refreshToken: 'enc:r', status: ShaamConnectionStatus.ACTIVE, expiresAt: new Date(Date.now() - 1) };
+    const row = {
+      accessToken: 'enc:old',
+      refreshToken: 'enc:r',
+      status: ShaamConnectionStatus.ACTIVE,
+      expiresAt: new Date(Date.now() - 1),
+    };
     const { service, oauth, repo } = setup(row);
-    await expect(service.getValidAccessToken(1, ShaamProduct.UNIFORM_FILE, ShaamEnvironment.TSANDBOX)).resolves.toBeNull();
+    await expect(
+      service.getValidAccessToken(
+        1,
+        ShaamProduct.UNIFORM_FILE,
+        ShaamEnvironment.TSANDBOX,
+      ),
+    ).resolves.toBeNull();
     expect(oauth.refreshAccessToken).not.toHaveBeenCalled();
-    expect(repo.save).toHaveBeenCalledWith(expect.objectContaining({ status: ShaamConnectionStatus.REAUTH_REQUIRED }));
+    expect(repo.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: ShaamConnectionStatus.REAUTH_REQUIRED,
+      }),
+    );
   });
 
   it('refreshes invoice allocation server-side', async () => {
-    const row = { accessToken: 'enc:old', refreshToken: 'enc:r', connectedByFirebaseId: 'actor', status: ShaamConnectionStatus.ACTIVE, expiresAt: new Date(Date.now() - 1) };
+    const row = {
+      accessToken: 'enc:old',
+      refreshToken: 'enc:r',
+      connectedByFirebaseId: 'actor',
+      status: ShaamConnectionStatus.ACTIVE,
+      expiresAt: new Date(Date.now() - 1),
+    };
     const { service, oauth } = setup(row);
-    await expect(service.getValidAccessToken(1, ShaamProduct.INVOICE_ALLOCATION, ShaamEnvironment.TSANDBOX)).resolves.toBe('new');
+    const debug = jest
+      .spyOn((service as any).logger, 'debug')
+      .mockImplementation();
+    await expect(
+      service.getValidAccessToken(
+        1,
+        ShaamProduct.INVOICE_ALLOCATION,
+        ShaamEnvironment.TSANDBOX,
+      ),
+    ).resolves.toBe('new');
     expect(oauth.refreshAccessToken).toHaveBeenCalledWith('r');
     expect(encryption.encryptToken).toHaveBeenCalledWith('new');
+    expect(debug).toHaveBeenCalledWith(
+      'SHAAM access-token refresh started',
+      expect.objectContaining({
+        operation: 'access_token_refresh',
+        outcome: 'started',
+        environment: ShaamEnvironment.TSANDBOX,
+      }),
+    );
+    expect(debug).toHaveBeenCalledWith(
+      'SHAAM access-token refresh succeeded',
+      expect.objectContaining({
+        operation: 'access_token_refresh',
+        outcome: 'success',
+        expiresInSeconds: 3600,
+        refreshTokenRotated: true,
+      }),
+    );
+    expect(JSON.stringify(debug.mock.calls)).not.toContain('enc:r');
+    expect(JSON.stringify(debug.mock.calls)).not.toContain('enc:new');
   });
 
   it('refreshes an expired invoice token during the connection-status pre-flight', async () => {
@@ -87,7 +169,9 @@ describe('ShaamConnectionService', () => {
 
     expect(oauth.refreshAccessToken).not.toHaveBeenCalled();
     expect(repo.save).toHaveBeenCalledWith(
-      expect.objectContaining({ status: ShaamConnectionStatus.REAUTH_REQUIRED }),
+      expect.objectContaining({
+        status: ShaamConnectionStatus.REAUTH_REQUIRED,
+      }),
     );
   });
 
@@ -122,7 +206,12 @@ describe('ShaamConnectionService', () => {
       expiresAt: new Date(Date.now() - 1),
     };
     const { service, oauth, repo } = setup(row);
-    oauth.refreshAccessToken.mockRejectedValueOnce(new Error('temporary outage'));
+    const error = jest
+      .spyOn((service as any).logger, 'error')
+      .mockImplementation();
+    oauth.refreshAccessToken.mockRejectedValueOnce(
+      new Error('temporary outage'),
+    );
 
     await expect(
       service.status(
@@ -134,6 +223,16 @@ describe('ShaamConnectionService', () => {
 
     expect(row.status).toBe(ShaamConnectionStatus.ACTIVE);
     expect(repo.save).not.toHaveBeenCalled();
+    expect(error).toHaveBeenCalledWith(
+      'SHAAM access-token refresh failed transiently',
+      expect.objectContaining({
+        operation: 'access_token_refresh',
+        outcome: 'failure',
+        connectionStatus: ShaamConnectionStatus.ACTIVE,
+      }),
+    );
+    expect(JSON.stringify(error.mock.calls)).not.toContain('temporary outage');
+    expect(JSON.stringify(error.mock.calls)).not.toContain('enc:r');
   });
 
   it('requires authorization again only for an explicitly invalid grant', async () => {
@@ -145,6 +244,9 @@ describe('ShaamConnectionService', () => {
       expiresAt: new Date(Date.now() - 1),
     };
     const { service, oauth, repo } = setup(row);
+    const warn = jest
+      .spyOn((service as any).logger, 'warn')
+      .mockImplementation();
     oauth.refreshAccessToken.mockRejectedValueOnce(
       new ShaamReauthorizationRequiredError(),
     );
@@ -162,7 +264,18 @@ describe('ShaamConnectionService', () => {
     });
 
     expect(repo.save).toHaveBeenCalledWith(
-      expect.objectContaining({ status: ShaamConnectionStatus.REAUTH_REQUIRED }),
+      expect.objectContaining({
+        status: ShaamConnectionStatus.REAUTH_REQUIRED,
+      }),
     );
+    expect(warn).toHaveBeenCalledWith(
+      'SHAAM access-token refresh requires reauthorization',
+      expect.objectContaining({
+        operation: 'access_token_refresh',
+        outcome: 'reauthorization_required',
+        reason: 'provider_rejected_saved_grant',
+      }),
+    );
+    expect(JSON.stringify(warn.mock.calls)).not.toContain('enc:r');
   });
 });

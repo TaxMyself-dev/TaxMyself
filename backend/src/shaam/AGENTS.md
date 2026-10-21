@@ -38,6 +38,12 @@ Integrates with the Israel Tax Authority's SHAAM OpenAPI — OAuth2 authorizatio
   errors are surfaced without discarding the existing grant.
   When a successful refresh omits a replacement refresh token, the previously
   encrypted refresh token is preserved.
+  Refresh lifecycle events are emitted at enabled Nest log levels: `debug` for
+  start/success, `warn` when reauthorization is required, and `error` for a
+  transient/configuration failure that preserves the active grant. These logs
+  contain only operation/outcome, environment, product, duration, bounded
+  reason/category, expiry duration, token-rotation boolean and connection
+  status. Never add tokens, actor/business identifiers or raw provider text.
 - `POST /shaam/invoices/allocation?businessNumber=...` — accepts only `docNumber` + `docType`, resolves the server-held token, attempts official recovery first, and only when that succeeds without an existing number submits Approval before finalizing the persisted invoice. An ambiguous recovery error blocks Approval.
 - `POST /shaam/invoices/allocation/recover?businessNumber=...` — retrieves a lost allocation response from the official recovery API using the persisted invoice fields; it never submits a replacement approval request.
 
