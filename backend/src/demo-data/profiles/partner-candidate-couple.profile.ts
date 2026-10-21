@@ -50,8 +50,8 @@ export const PARTNER_CANDIDATE_COUPLE_PROFILE: DemoProfile = {
   label: 'שני ועומר - סביבת היכרות לשותפה',
   description:
     'משתמשת רגילה בלבד: שני עם עוסק מורשה ועומר עם עוסק פטור. שני חשבונות בנק, שלושה כרטיסי אשראי ונתונים סינתטיים מגוונים מינואר 2026.',
-  email: 'shani-partner-demo@keepintax.co.il',
-  password: 'PartnerDemo!2026',
+  email: 'shani-demo@keepintax.co.il',
+  password: 'Shani-demo2026',
   syntheticOpenBanking: true,
   role: [UserRole.REGULAR],
   hasOpenBanking: true,

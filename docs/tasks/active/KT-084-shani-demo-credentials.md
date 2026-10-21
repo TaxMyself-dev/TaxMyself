@@ -1,11 +1,11 @@
 # KT-084 - Shani demo credentials
 
-- Status: `APPROVED`
+- Status: `WORKER_COMPLETE`
 - Task manager: Codex primary manager
 - Worker: Codex primary manager
 - Worktree: `C:\Users\harel\.codex\worktrees\kt084\taxmyself-dev`
 - Branch: `codex/kt084-shani-demo-credentials`
-- Base commit: `d1bd6149`
+- Base commit: `56ef0730`
 
 ## Business outcome
 
@@ -14,13 +14,13 @@ Elazar.
 
 ## Acceptance criteria
 
-- [ ] Change the `partner-candidate-couple` email to
+- [x] Change the `partner-candidate-couple` email to
       `shani-demo@keepintax.co.il`.
-- [ ] Change its password to `Shani-demo2026`.
-- [ ] Add focused regression assertions for both exact values.
-- [ ] Do not change roles, permissions, synthetic banking data, schema, or
+- [x] Change its password to `Shani-demo2026`.
+- [x] Add focused regression assertions for both exact values.
+- [x] Do not change roles, permissions, synthetic banking data, schema, or
       external-service behavior.
-- [ ] Focused Jest checks and the Nest backend build pass.
+- [x] Focused Jest checks and the Nest backend build pass.
 
 ## Scope and constraints
 
@@ -36,7 +36,18 @@ Elazar.
 
 ## Handoff
 
-- Result: pending
+- Result: complete
+- Commit hash(es): pending local commit
+- Changed files: partner-candidate profile, its focused spec, and this task
+  record.
+- Tests and exact results: focused Jest profile suite passed (1 suite / 5
+  tests); Nest backend build passed.
+- Known pre-existing failures: none. `npm ci` reported the repository's existing
+  dependency audit findings (96 total) without changing the lockfile.
+- Schema / production / security / accounting / external impact: none. No live
+  Firebase/DB user or provider was accessed.
+- Documentation updated: task record only; demo-data behavior and invariants
+  did not change, so the topic `AGENTS.md` remains accurate.
 
 ## Integration
 

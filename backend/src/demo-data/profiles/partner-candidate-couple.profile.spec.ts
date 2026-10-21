@@ -18,6 +18,8 @@ const isValidIsraeliId = (id: string): boolean =>
 describe('partner-candidate couple demo profile', () => {
   it('is registered as an isolated regular user with no privileged capabilities', () => {
     expect(DEMO_PROFILES).toContain(profile);
+    expect(profile.email).toBe('shani-demo@keepintax.co.il');
+    expect(profile.password).toBe('Shani-demo2026');
     expect(profile.role).toEqual([UserRole.REGULAR]);
     expect(profile.delegatedClients).toBeUndefined();
     expect(profile.allowSelfReset).not.toBe(true);
